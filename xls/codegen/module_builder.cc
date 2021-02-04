@@ -410,8 +410,9 @@ absl::StatusOr<Expression*> ModuleBuilder::EmitAsInlineExpression(
 // expression to select element(s) from the update value or the rhs.
 absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
     IndexableExpression* lhs, IndexableExpression* rhs,
-    Expression* update_value, absl::Span<Expression* const> indices,
-    IndexMatch index_match, Type* xls_type) {
+    Expression* update_value,
+    absl::Span<const ModuleBuilder::IndexType> indices, IndexMatch index_match,
+    Type* xls_type) {
   auto is_statically_true = [](const IndexMatch& im) {
     return absl::holds_alternative<bool>(im) && absl::get<bool>(im);
   };
@@ -483,17 +484,19 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
 
   // Iterate through array elements and recurse.
   ArrayType* array_type = xls_type->AsArrayOrDie();
-  Expression* index = indices.front();
+  IndexType index_type = indices.front();
   for (int64 i = 0; i < array_type->size(); ++i) {
     // Compute the current index match expression for this index element.
     IndexMatch current_index_match;
-    if (index->IsLiteral()) {
+    if (index_type.expression->IsLiteral()) {
       // Index element is a literal. The condition is statically known (true or
       // false).
-      current_index_match = index->IsLiteralWithValue(i);
+      current_index_match = index_type.expression->IsLiteralWithValue(i);
     } else {
       // Index element is a not literal. The condition is not statically known.
-      current_index_match = file_->Equals(index, file_->PlainLiteral(i));
+      current_index_match = file_->Equals(
+          index_type.expression,
+          file_->Literal(UBits(i, index_type.xls_type->bit_count())));
     }
     XLS_RETURN_IF_ERROR(EmitArrayCopyAndUpdate(
         file_->Index(lhs, i), file_->Index(rhs, i), update_value,
@@ -542,15 +545,23 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
             }));
         break;
       }
-      case Op::kArrayUpdate:
+      case Op::kArrayUpdate: {
+        // Gather the index expression values and types together. The index
+        // operands of array update start at 2.
+        std::vector<IndexType> index_types;
+        for (int64 i = 2; i < node->operand_count(); ++i) {
+          index_types.push_back(
+              IndexType{inputs[i], node->operand(i)->GetType()->AsBitsOrDie()});
+        }
         XLS_RETURN_IF_ERROR(EmitArrayCopyAndUpdate(
             /*lhs=*/ref,
             /*rhs=*/inputs[0]->AsIndexableExpressionOrDie(),
             /*update_value=*/inputs[1],
-            /*indices=*/inputs.subspan(2),
+            /*indices=*/index_types,
             /*index_match=*/true,
             /*xls_type=*/array_type));
         break;
+      }
       case Op::kArrayConcat: {
         if (inputs.size() != node->operands().size()) {
           return absl::InternalError(absl::StrFormat(

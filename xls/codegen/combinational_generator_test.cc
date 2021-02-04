@@ -1726,6 +1726,26 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateBitsNilIndex) {
               IsOkAndHolds(UBits(22, 8)));
 }
 
+TEST_P(CombinationalGeneratorTest, ArrayUpdateWithDifferentTypesIndices) {
+  VerilogFile file;
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u32 = package.GetBitsType(32);
+  BValue i0 = fb.Param("i0", package.GetBitsType(4));
+  BValue i1 = fb.Param("i1", package.GetBitsType(5));
+  BValue a =
+      fb.Param("a", package.GetArrayType(2, package.GetArrayType(3, u32)));
+  BValue value = fb.Param("value", u32);
+  fb.ArrayUpdate(a, value, {i0, i1});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
 INSTANTIATE_TEST_SUITE_P(CombinationalGeneratorTestInstantiation,
                          CombinationalGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),

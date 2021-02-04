@@ -240,10 +240,15 @@ class ModuleBuilder {
   // Emits a copy and update of an array as a sequence of assignments. See
   // method definition for details and examples.
   using IndexMatch = absl::variant<bool, Expression*>;
+  // Bundles an array index with its XLS type.
+  struct IndexType {
+    Expression* expression;
+    BitsType* xls_type;
+  };
   absl::Status EmitArrayCopyAndUpdate(IndexableExpression* lhs,
                                       IndexableExpression* rhs,
                                       Expression* update_value,
-                                      absl::Span<Expression* const> indices,
+                                      absl::Span<const IndexType> indices,
                                       IndexMatch index_match, Type* xls_type);
 
   // Assigns the arbitrarily-typed Value 'value' to 'lhs'. Depending upon the

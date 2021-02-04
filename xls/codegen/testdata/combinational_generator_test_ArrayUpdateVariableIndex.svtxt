@@ -9,8 +9,8 @@ module ArrayUpdateVariableIndex(
   assign a_unflattened[1] = a[15:8];
   assign a_unflattened[2] = a[7:0];
   wire [7:0] array_update_4[3];
-  assign array_update_4[0] = idx == 0 ? value : a_unflattened[0];
-  assign array_update_4[1] = idx == 1 ? value : a_unflattened[1];
-  assign array_update_4[2] = idx == 2 ? value : a_unflattened[2];
+  assign array_update_4[0] = idx == 32'h0000_0000 ? value : a_unflattened[0];
+  assign array_update_4[1] = idx == 32'h0000_0001 ? value : a_unflattened[1];
+  assign array_update_4[2] = idx == 32'h0000_0002 ? value : a_unflattened[2];
   assign out = {array_update_4[0], array_update_4[1], array_update_4[2]};
 endmodule

@@ -16,7 +16,7 @@ module ArrayUpdate2DUpdateArrayVariableIndex(
   assign value_unflattened[1] = value[15:8];
   assign value_unflattened[2] = value[7:0];
   wire [7:0] array_update_4[2][3];
-  assign array_update_4[0] = idx == 0 ? value_unflattened : a_unflattened[0];
-  assign array_update_4[1] = idx == 1 ? value_unflattened : a_unflattened[1];
+  assign array_update_4[0] = idx == 37'h00_0000_0000 ? value_unflattened : a_unflattened[0];
+  assign array_update_4[1] = idx == 37'h00_0000_0001 ? value_unflattened : a_unflattened[1];
   assign out = {{array_update_4[0][0], array_update_4[0][1], array_update_4[0][2]}, {array_update_4[1][0], array_update_4[1][1], array_update_4[1][2]}};
 endmodule

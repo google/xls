@@ -13,11 +13,11 @@ module ArrayUpdate2DVariableIndex(
   assign a_unflattened[1][1] = a[15:8];
   assign a_unflattened[1][2] = a[7:0];
   wire [7:0] array_update_5[0:1][0:2];
-  assign array_update_5[0][0] = idx1 == 0 && idx0 == 0 ? value : a_unflattened[0][0];
-  assign array_update_5[0][1] = idx1 == 1 && idx0 == 0 ? value : a_unflattened[0][1];
-  assign array_update_5[0][2] = idx1 == 2 && idx0 == 0 ? value : a_unflattened[0][2];
-  assign array_update_5[1][0] = idx1 == 0 && idx0 == 1 ? value : a_unflattened[1][0];
-  assign array_update_5[1][1] = idx1 == 1 && idx0 == 1 ? value : a_unflattened[1][1];
-  assign array_update_5[1][2] = idx1 == 2 && idx0 == 1 ? value : a_unflattened[1][2];
+  assign array_update_5[0][0] = idx1 == 32'h0000_0000 && idx0 == 32'h0000_0000 ? value : a_unflattened[0][0];
+  assign array_update_5[0][1] = idx1 == 32'h0000_0001 && idx0 == 32'h0000_0000 ? value : a_unflattened[0][1];
+  assign array_update_5[0][2] = idx1 == 32'h0000_0002 && idx0 == 32'h0000_0000 ? value : a_unflattened[0][2];
+  assign array_update_5[1][0] = idx1 == 32'h0000_0000 && idx0 == 32'h0000_0001 ? value : a_unflattened[1][0];
+  assign array_update_5[1][1] = idx1 == 32'h0000_0001 && idx0 == 32'h0000_0001 ? value : a_unflattened[1][1];
+  assign array_update_5[1][2] = idx1 == 32'h0000_0002 && idx0 == 32'h0000_0001 ? value : a_unflattened[1][2];
   assign out = {{array_update_5[0][0], array_update_5[0][1], array_update_5[0][2]}, {array_update_5[1][0], array_update_5[1][1], array_update_5[1][2]}};
 endmodule

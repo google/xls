@@ -367,6 +367,7 @@ TEST_P(ModuleBuilderTest, DynamicBitSliceAsFunction) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  file.Emit());
 }
+
 INSTANTIATE_TEST_SUITE_P(ModuleBuilderTestInstantiation, ModuleBuilderTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
                          ParameterizedTestName<ModuleBuilderTest>);
