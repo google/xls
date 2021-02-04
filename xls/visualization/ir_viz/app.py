@@ -17,9 +17,12 @@
 Exposes a text box to edit or cut-and-paste XLS IR to render as a graph.
 """
 
+import functools
 import json
 import os
+import subprocess
 import sys
+import tempfile
 
 from typing import List, Tuple
 
@@ -62,6 +65,8 @@ webapp.debug = True
 # these are loaded from IR_EXAMPLES_FILE_LIST unless --example_ir_dir is given.
 examples = []
 
+OPT_MAIN_PATH = runfiles.get_path('xls/tools/opt_main')
+
 
 def load_precanned_examples() -> List[Tuple[str, str]]:
   """Returns a list of examples as tuples of (name, IR text).
@@ -73,7 +78,7 @@ def load_precanned_examples() -> List[Tuple[str, str]]:
   """
   irs = []
   for ir_path in runfiles.get_contents_as_text(IR_EXAMPLES_FILE_LIST).split():
-    if '.opt.ir' not in ir_path:
+    if not ir_path.endswith('.ir') or ir_path.endswith('.opt.ir'):
       continue
 
     def strip_up_to(s, part):
@@ -89,7 +94,7 @@ def load_precanned_examples() -> List[Tuple[str, str]]:
       name = strip_up_to(ir_path, 'modules/')
     else:
       name = ir_path
-    name = name[:-len('.opt.ir')]
+    name = name[:-len('.ir')]
     irs.append((name, runfiles.get_contents_as_text(ir_path)))
   irs.sort()
   return irs
@@ -127,14 +132,43 @@ def get_third_party_js():
   return [u.strip() for u in urls if u.strip()]
 
 
+@functools.lru_cache(None)
+def optimize_ir(ir: str, opt_level: int) -> str:
+  """Runs the given IR through opt_main at the given optimization level."""
+  tmp_ir = tempfile.NamedTemporaryFile(
+      mode='w', encoding='utf-8', prefix='ir_viz.', suffix='.ir')
+  tmp_ir.write(ir)
+  tmp_ir.seek(0)
+  print('optimizing at level {} = {} '.format(opt_level, ir))
+  r = subprocess.check_output(
+      [OPT_MAIN_PATH, '--opt_level={}'.format(opt_level), tmp_ir.name],
+      stdin=None,
+      stderr=subprocess.PIPE,
+      encoding='utf-8')
+  print('output = ' + r)
+  return r
+
+
 @webapp.route('/')
 def splash():
+  """Returns the main HTML."""
+  # If --preload_ir_path is given, load in the file contents and pass to the
+  # template render. It will be filled into the IR text element.
+  if FLAGS.preload_ir_path:
+    if FLAGS.preload_ir_path == '-':
+      preloaded_ir = sys.stdin.read()
+    else:
+      with open(FLAGS.preload_ir_path) as f:
+        preloaded_ir = f.read()
+  else:
+    preloaded_ir = ''
   return flask.render_template_string(
       runfiles.get_contents_as_text(
           'xls/visualization/ir_viz/templates/splash.tmpl'),
       examples=[name for name, _ in examples],
       third_party_scripts=get_third_party_js(),
-      load_default=FLAGS.preload_ir_path is not None)
+      preloaded_ir=preloaded_ir,
+      use_benchmark_examples=FLAGS.example_ir_dir is None)
 
 
 @webapp.route('/static/<filename>')
@@ -166,17 +200,14 @@ def static_handler(filename):
 @webapp.route('/examples/<path:filename>')
 def example_handler(filename):
   """Reads and returns example IR files."""
-  if filename == 'default' and FLAGS.preload_ir_path:
-    if FLAGS.preload_ir_path == '-':
-      contents = sys.stdin.read()
-    else:
-      with open(FLAGS.preload_ir_path) as f:
-        contents = f.read()
-    return flask.Response(response=contents, content_type='text/plain')
   try:
     for name, content in examples:
       if filename == name:
-        return flask.Response(response=content, content_type='text/plain')
+        opt_level = int(flask.request.args.get('opt_level', 0))
+        ir = content
+        if opt_level != 0:
+          ir = optimize_ir(ir, opt_level)
+        return flask.Response(response=ir, content_type='text/plain')
   except IOError:
     flask.abort(404)
 

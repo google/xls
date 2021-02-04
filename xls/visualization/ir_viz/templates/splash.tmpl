@@ -81,37 +81,56 @@
           </ul>
           <div class="tab-content" id="lhs-tab-content">
             <div id="ir-source" class="tab-pane show active" role="tabpanel" aria-labelledby="ir-source-tab">
-
               <div class="row">
                 <div class="col">
-
-              <div class="input-group mb-3">
-                <div class="input-group-prepend">
-                  <span class="input-group-text">Upload</span>
-                </div>
-                <div class="custom-file">
-                  <input type="file" class="custom-file-input" id="ir-upload">
-                  <label class="custom-file-label" for="ir-upload">Choose file</label>
+                  <div class="input-group mb-3">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text">Upload</span>
+                    </div>
+                    <div class="custom-file">
+                      <input type="file" class="custom-file-input" id="ir-upload">
+                      <label class="custom-file-label" for="ir-upload">Choose file</label>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-            </div>
-            <div class="col col-md-auto">
-              <div class="dropdown show">
-                <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenu2" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                  Examples
-                </button>
-                <div class="dropdown-menu" aria-labelledby="dropdownMenu2">
+              {%- if use_benchmark_examples -%}
+              <div class="form-group row mx-1">
+                <select class="col-7 form-control" id="example-select"
+                        onClick="selectBenchmark(this.value)">
+                  <option>Benchmarks...</option>
                   {% for example in examples %}
-                  <button class="dropdown-item" id="example-{{loop.index}}-load-btn" type="button" data-name="{{example}}">{{example}}</button>
+                  <option>{{example}}</option>
                   {% endfor %}
+                </select>
+                <select class="col-2 form-control" id="opt-level-select"
+                        onClick="selectBenchmarkOptLevel(this.value)">
+                  <option>Opt level...</option>
+                  <option>0</option>
+                  <option>1</option>
+                  <option>2</option>
+                  <option>3</option>
+                </select>
+                <div class="col-3">
+                  <button id="load-example-btn" type="button"
+                          class="btn btn-primary disabled"
+                          onClick="loadExampleButtonHandler()">
+                    Load
+                  </button>
                 </div>
               </div>
-
-            </div>
-            </div>
-
-              <div contenteditable="true" spellcheck="false" id="ir-source-text" class="source-text"></div>
+              {%- else -%}
+              <select class="row form-control" id="ir-file-select"
+                      onClick="selectIrFile(this.value)">
+                <option>IR files...</option>
+                {% for example in examples %}
+                <option>{{example}}</option>
+                {% endfor %}
+              </select>
+              {%- endif -%}
+              <div class="row mx-1">
+                <div contenteditable="true" spellcheck="false" id="ir-source-text" class="source-text">{{preloaded_ir}}</div>
+              </div>
             </div>
             <div id="json-response" class="tab-pane" role="tabpanel" aria-labelledby="json-response-tab">
               <div contenteditable="false" spellcheck="false" id="json-response-text" class="source-text"></div>
@@ -151,19 +170,80 @@
   {% endfor %}
   <script src="/static/js_compiled.js"></script>
   <script>
-    $(document).ready(function() {
-      function loadExample(name, cb) {
-        $.get(`/examples/${name}`, function(data) {
-          $('#ir-source-text').text(data);
-          inputChangeHandler(cb);
-        });
+    let selectedOptLevel;
+    let selectedExample;
+    let visualizer;
+
+    // Enables the given element (e.g., a button).
+    function enable(elem) {
+      elem.classList.remove('disabled');
+      elem.removeAttribute('disabled');
+    }
+
+    // Disables the given element (e.g., a button).
+    function disable(elem) {
+      elem.classList.add('disabled');
+      elem.setAttribute('disabled', true);
+    }
+
+    function selectBenchmarkOptLevel(level) {
+      if (level == "Opt level...") {
+        selectedOptLevel = undefined;
+        disable(document.getElementById('load-example-btn'));
+        return;
       }
-      {% for example in examples %}
-      $('#example-{{loop.index}}-load-btn').click(loadExample.bind(
-        null,
-        '{{example}}',
-        () => { visualizer.draw(showOnlySelectedState()); }));
-      {% endfor %}
+      if (selectedExample != undefined) {
+        enable(document.getElementById('load-example-btn'));
+      }
+      selectedOptLevel = parseInt(level);
+    }
+
+    function selectBenchmark(example) {
+      if (example == "Examples...") {
+        selectedExample = undefined;
+        disable(document.getElementById('load-example-btn'));
+        return;
+      }
+      if (selectedOptLevel != undefined) {
+        enable(document.getElementById('load-example-btn'));
+      }
+      selectedExample = example;
+    }
+
+    function selectIrFile(example) {
+      if (example != "IR files...") {
+        loadExample(example, undefined);
+      }
+    }
+
+    function loadExample(name, opt_level) {
+      let url = `/examples/${name}`;
+      if (opt_level != undefined) {
+        url += `?opt_level=${opt_level}`;
+      }
+      $.get(url,
+            function(data) {
+              $('#ir-source-text').text(data);
+              inputChangeHandler(
+                () => visualizer.draw(showOnlySelectedState()));
+            });
+    }
+
+    function loadExampleButtonHandler() {
+      loadExample(selectedExample, selectedOptLevel);
+    }
+
+    function inputChangeHandler(cb) {
+      $('#view-graph-btn').prop('disabled', true);
+      $('#view-critical-path-btn').prop('disabled', true);
+      visualizer.parseAndHighlightIr(cb);
+    }
+
+    function showOnlySelectedState() {
+      return $('#only-selected-checkbox').prop('checked');
+    }
+
+    $(document).ready(function() {
       $('#ir-upload').change(function() {
         if (this.files.length > 0) {
           this.files[0].text().then(function (text) {
@@ -172,7 +252,7 @@
         }
       });
 
-      var visualizer = new xls.IrVisualizer($('#graph'),
+      visualizer = new xls.IrVisualizer($('#graph'),
                               $('#ir-source-text'),
                               $('#node-metadata'),
                               $('#json-response-text'),
@@ -194,17 +274,8 @@
         $('#view-critical-path-btn').prop('disabled', true);
       });
 
-      function inputChangeHandler(cb) {
-        $('#view-graph-btn').prop('disabled', true);
-        $('#view-critical-path-btn').prop('disabled', true);
-        visualizer.parseAndHighlightIr(cb);
-      }
-
       $('#ir-source-text').on('input', (e) => inputChangeHandler());
 
-      function showOnlySelectedState() {
-        return $('#only-selected-checkbox').prop('checked');
-      }
       $('#view-graph-btn').click(function() {
         visualizer.draw(showOnlySelectedState());
       });
@@ -212,16 +283,45 @@
         visualizer.selectCriticalPath();
       });
 
-      {% if load_default %}
-      loadExample('default', function() {
-        visualizer.selectCriticalPath();
-        visualizer.draw(showOnlySelectedState());
-      });
-      {% endif %}
-
       $('#only-selected-checkbox').change(function() {
         visualizer.setShowOnlySelected(showOnlySelectedState());
       })
+
+      // If --preload_ir_path was passed in to the server, the ir-source-text
+      // element will be filled in with IR text. Trigger the inputChangedHandler
+      // to parse it, select the critical path and show the graph.
+      if (document.getElementById('ir-source-text').textContent.trim() != '') {
+        inputChangeHandler( () => {
+          visualizer.selectCriticalPath();
+          visualizer.draw(showOnlySelectedState());
+        })
+      }
+
+      // Pressing 'j' or 'k' will move up and down through the list of IR files
+      // in the example directory (only enabled if --example_ir_dir given to
+      // app.py). The common use case for --example_ir_dir is exposing the IR
+      // after each pass in the optimization pipeline (created with opt_main
+      // --ir_dump_path) so the j/k short cuts enable quick movement forward and
+      // backwards through the optimization pipeline.
+      document.addEventListener("keydown", event => {
+        let file_selector = document.getElementById('ir-file-select');
+        if (file_selector == undefined ||
+            event.target == document.getElementById('ir-source-text') ||
+            event.key != 'j' && event.key != 'k') {
+          return;
+        }
+        let idx = file_selector.selectedIndex;
+        if (event.key == 'j') {
+          idx++;
+        } else {
+          idx--;
+        }
+        idx = idx < 1 ? 1 : idx;
+        idx = idx >= file_selector.length ? file_selector.length - 1 : idx;
+        file_selector.selectedIndex = idx;
+        // TODO(meheff): Selected nodes should be preserved across transitions.
+        selectIrFile(file_selector.value);
+      });
     });
   </script>
 </html>

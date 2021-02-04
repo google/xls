@@ -51,6 +51,7 @@ py_binary(
         ":js_compiled",
         "ir_graph.css",
         "third_party_js.txt",
+        "//xls/tools:opt_main",
     ],
     python_version = "PY3",
     srcs_version = "PY3",
