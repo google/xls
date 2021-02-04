@@ -24,7 +24,7 @@ import float32
 
 type F32 = float32::F32;
 
-fn fpadd_2x32(x: F32, y: F32) -> F32 {
+pub fn fpadd_2x32(x: F32, y: F32) -> F32 {
   // Step 1: align the significands.
   //  - Bit widths: Base significand: u23.
   //  - Add the implied/leading 1 bit: u23 -> u24

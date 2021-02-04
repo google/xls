@@ -85,6 +85,14 @@ cc_test(
 )
 
 dslx_test(
+    name = "fpsub_2x32",
+    srcs = ["fpsub_2x32.x"],
+    deps = ["fpadd_2x32.x"],
+    #TODO(b/152546795): Takes too long.
+    prove_unopt_eq_opt = False,
+)
+
+dslx_test(
     name = "fpmul_2x32",
     srcs = ["fpmul_2x32.x"],
     # TODO(rspringer): Currently takes too long.
