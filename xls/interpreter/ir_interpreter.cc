@@ -439,6 +439,10 @@ absl::Status IrInterpreter::HandleArrayConcat(ArrayConcat* concat) {
   return SetValueResult(concat, result);
 }
 
+absl::Status IrInterpreter::HandleAssert(Assert* assert_op) {
+  return absl::UnimplementedError("Assert not yet supported");
+}
+
 absl::Status IrInterpreter::HandleInvoke(Invoke* invoke) {
   Function* to_apply = invoke->to_apply();
   std::vector<Value> args;

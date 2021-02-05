@@ -554,6 +554,48 @@ with the given value. If any index is out of bounds, the result is identical to
 the input `array`. The indexing semantics is identical to `array_index` with the
 exception of out-of-bounds behavior.
 
+#### **`assert`**
+
+Raises an error at software run-time (DSLX/IR interpretation, JIT execution, RTL
+simulation) if the given condition evaluates to false. The operation takes a
+literal string attribute which is included in the error message.
+
+```
+result = assert(tkn, condition, message=<string>)
+```
+
+**Types**
+
+Value       | Type
+----------- | ---------
+`tkn`       | `token`
+`condition` | `bits[1]`
+`result`    | `token`
+
+**Keyword arguments**
+
+Keyword   | Type     | Required | Default | Description
+--------- | -------- | -------- | ------- | ---------------------------------
+`message` | `string` | yes      |         | Message to include in raise error
+
+#### **`array`**
+
+Constructs a array of its operands.
+
+```
+result = array(operand_{0}, ..., operand_{N-1})
+```
+
+**Types**
+
+Value         | Type
+------------- | ------
+`operand_{i}` | `T`
+`result`      | `T[N]`
+
+Array can take an arbitrary number of operands including zero (which produces an
+empty array).
+
 #### **`bit_slice`**
 
 Slices a contiguous range of bits from a bits-typed operand.

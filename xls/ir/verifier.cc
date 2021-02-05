@@ -60,6 +60,14 @@ class NodeChecker : public DfsVisitor {
     return ExpectHasBitsType(xor_reduce, 1);
   }
 
+  absl::Status HandleAssert(Assert* assert_op) override {
+    XLS_RETURN_IF_ERROR(ExpectOperandCount(assert_op, 2));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(assert_op, 0));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(assert_op, /*operand_no=*/1,
+                                                 /*expected_bit_count=*/1));
+    return ExpectHasTokenType(assert_op);
+  }
+
   absl::Status HandleNaryAnd(NaryOp* and_op) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(and_op, 0));
     return ExpectAllSameBitsType(and_op);

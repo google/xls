@@ -94,6 +94,9 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
       XLS_RETURN_IF_ERROR(
           visitor->HandleAndReduce(down_cast<BitwiseReductionOp*>(this)));
       break;
+    case Op::kAssert:
+      XLS_RETURN_IF_ERROR(visitor->HandleAssert(down_cast<Assert*>(this)));
+      break;
     case Op::kReceive:
       XLS_RETURN_IF_ERROR(visitor->HandleReceive(down_cast<Receive*>(this)));
       break;

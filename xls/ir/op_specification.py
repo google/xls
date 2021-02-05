@@ -454,6 +454,14 @@ OpClass.kinds['ARITH_OP'] = OpClass(
     attributes=[Int64Attribute('width')]
 )
 
+OpClass.kinds['ASSERT'] = OpClass(
+    name='Assert',
+    op='Op::kAssert',
+    operands=[Operand('token'), Operand('condition')],
+    xls_type_expression='function->package()->GetTokenType()',
+    attributes=[StringAttribute('message')]
+)
+
 OpClass.kinds['BITWISE_REDUCTION_OP'] = OpClass(
     name='BitwiseReductionOp',
     op='op',
@@ -798,6 +806,12 @@ OPS = [
         enum_name='kAndReduce',
         name='and_reduce',
         op_class=OpClass.kinds['BITWISE_REDUCTION_OP'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kAssert',
+        name='assert',
+        op_class=OpClass.kinds['ASSERT'],
         properties=[],
     ),
     Op(

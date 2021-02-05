@@ -76,6 +76,10 @@ absl::Status DfsVisitorWithDefault::HandleArrayConcat(
   return DefaultHandler(array_concat);
 }
 
+absl::Status DfsVisitorWithDefault::HandleAssert(Assert* assert_op) {
+  return DefaultHandler(assert_op);
+}
+
 absl::Status DfsVisitorWithDefault::HandleBitSlice(BitSlice* bit_slice) {
   return DefaultHandler(bit_slice);
 }
