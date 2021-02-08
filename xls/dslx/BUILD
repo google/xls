@@ -150,23 +150,6 @@ cc_test(
 )
 
 py_test(
-    name = "typecheck_test",
-    srcs = ["typecheck_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        ":fakefs_test_util",
-        ":parser_helpers",
-        ":span",
-        "//xls/common:test_base",
-        "//xls/dslx/python:cpp_deduce",
-        "//xls/dslx/python:cpp_parser",
-        "//xls/dslx/python:cpp_typecheck",
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_test(
     name = "concrete_type_test",
     srcs = ["concrete_type_test.py"],
     python_version = "PY3",

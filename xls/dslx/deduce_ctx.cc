@@ -64,16 +64,16 @@ absl::Status TypeInferenceErrorStatus(const Span& span,
   if (type != nullptr) {
     type_str = type->ToString();
   }
-  return absl::InternalError(absl::StrFormat(
+  return absl::InvalidArgumentError(absl::StrFormat(
       "TypeInferenceError: %s %s %s", span.ToString(), type_str, message));
 }
 
 absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
                                 const ConcreteType& rhs,
                                 absl::string_view message) {
-  return absl::InternalError(absl::StrFormat("XlsTypeError: %s %s vs %s: %s",
-                                             span.ToString(), lhs.ToString(),
-                                             rhs.ToString(), message));
+  return absl::InvalidArgumentError(
+      absl::StrFormat("XlsTypeError: %s %s vs %s: %s", span.ToString(),
+                      lhs.ToString(), rhs.ToString(), message));
 }
 
 NodeAndUser ParseTypeMissingErrorMessage(absl::string_view s) {
