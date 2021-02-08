@@ -24,7 +24,9 @@
 
 namespace xls::dslx {
 
-bool TryPrintError(const absl::Status& status) {
+bool TryPrintError(const absl::Status& status,
+                   std::function<absl::StatusOr<std::string>(absl::string_view)>
+                       get_file_contents) {
   if (status.ok()) {
     return false;
   }
@@ -38,7 +40,7 @@ bool TryPrintError(const absl::Status& status) {
   auto& data = data_or.value();
   absl::Status print_status = PrintPositionalError(
       data.span, absl::StrFormat("%s: %s", data.error_type, data.message),
-      std::cerr);
+      std::cerr, get_file_contents);
   if (!print_status.ok()) {
     XLS_LOG(ERROR) << "Could not print positional error: " << print_status;
   }

@@ -30,7 +30,9 @@ namespace xls::dslx {
 // is not (i.e. because it does not have position information) false is
 // returned, and the status should likely be propagated to the caller instead of
 // squashed in some way.
-bool TryPrintError(const absl::Status& status);
+bool TryPrintError(const absl::Status& status,
+                   std::function<absl::StatusOr<std::string>(absl::string_view)>
+                       get_file_contents = nullptr);
 
 // Converts a path to a DSLX module into its corresponding module name; e.g.
 //

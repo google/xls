@@ -18,6 +18,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/node_hash_set.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -260,8 +261,16 @@ enum class BuiltinType {
 #undef FIRST_COMMA
 };
 
+// All builtin types up to this limit have a concrete width and sign -- above
+// this point are things like "bits", "uN", "sN" which need a corresponding
+// array dimension to have a known bit count.
+constexpr int64 kConcreteBuiltinTypeLimit =
+    static_cast<int64>(BuiltinType::kS64) + 1;
+
 std::string BuiltinTypeToString(BuiltinType t);
 absl::StatusOr<BuiltinType> BuiltinTypeFromString(absl::string_view s);
+
+absl::StatusOr<BuiltinType> GetBuiltinType(bool is_signed, int64 width);
 
 // Represents a built-in type annotation; e.g. `u32`, `bits`, etc.
 class BuiltinTypeAnnotation : public TypeAnnotation {
@@ -284,7 +293,10 @@ class BuiltinTypeAnnotation : public TypeAnnotation {
   }
 
   int64 GetBitCount() const;
+
+  // Returns true if signed, false if unsigned.
   bool GetSignedness() const;
+
   BuiltinType builtin_type() const { return builtin_type_; }
 
  private:
@@ -311,12 +323,21 @@ class TupleTypeAnnotation : public TypeAnnotation {
   }
 
   const std::vector<TypeAnnotation*>& members() const { return members_; }
+  int64 size() const { return members_.size(); }
 
  private:
   std::vector<TypeAnnotation*> members_;
 };
 
-// Represents a type reference annotation.
+// Represents a type reference annotation; e.g.
+//
+//  type Foo = u32;
+//  fn f(x: Foo) -> Foo { ... }
+//
+// `Foo` is a type reference (TypeRef) in the function signature, and since
+// parameters and return types are both type annotations (as are let bindings,
+// cast type targets, etc.) we wrap that up in the TypeAnnotation AST construct
+// using this type.
 class TypeRefTypeAnnotation : public TypeAnnotation {
  public:
   TypeRefTypeAnnotation(Module* owner, Span span, TypeRef* type_ref,
@@ -525,6 +546,15 @@ class NameRef : public Expr {
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {ToAstNode(name_def_)};
+  }
+
+  template <typename T>
+  bool DefinerIs() {
+    if (absl::holds_alternative<BuiltinNameDef*>(name_def_)) {
+      return false;
+    }
+    auto* name_def = absl::get<NameDef*>(name_def_);
+    return dynamic_cast<T*>(name_def->definer()) != nullptr;
   }
 
   absl::optional<Pos> GetNameDefStart() const {
@@ -913,6 +943,16 @@ inline std::ostream& operator<<(std::ostream& os, BinopKind kind) {
   os << BinopKindToString(kind);
   return os;
 }
+
+// The binary operators that have signature `(T, T) -> T` (i.e. they take and
+// produce the "same type").
+const absl::btree_set<BinopKind>& GetBinopSameTypeKinds();
+
+// Binary operators that have signature `(T, T) -> bool`.
+const absl::btree_set<BinopKind>& GetBinopComparisonKinds();
+
+// Binary operators that are shift operations.
+const absl::btree_set<BinopKind>& GetBinopShifts();
 
 // Represents a binary operation expression; e.g. `x + y`.
 class Binop : public Expr {
@@ -1486,9 +1526,7 @@ class WidthSlice : public AstNode {
     return v->HandleWidthSlice(this);
   }
   absl::string_view GetNodeTypeName() const override { return "WidthSlice"; }
-  std::string ToString() const override {
-    return absl::StrFormat("%s+:%s", start_->ToString(), width_->ToString());
-  }
+  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {start_, width_};
@@ -1528,10 +1566,7 @@ class Index : public Expr {
   void AcceptExpr(ExprVisitor* v) override { v->HandleIndex(this); }
 
   absl::string_view GetNodeTypeName() const override { return "Index"; }
-  std::string ToString() const override {
-    return absl::StrFormat("(%s)[%s]", lhs_->ToString(),
-                           ToAstNode(rhs_)->ToString());
-  }
+  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {lhs_, ToAstNode(rhs_)};

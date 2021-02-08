@@ -121,6 +121,18 @@ std::string BuiltinTypeToString(BuiltinType t) {
   return absl::StrFormat("<invalid BuiltinType(%d)>", static_cast<int>(t));
 }
 
+absl::StatusOr<BuiltinType> GetBuiltinType(bool is_signed, int64 width) {
+#define TEST(__enum, __name, __str, __signedness, __width) \
+  if (__signedness == is_signed && __width == width) {     \
+    return BuiltinType::__enum;                            \
+  }
+  XLS_DSLX_BUILTIN_TYPE_EACH(TEST)
+#undef TEST
+  return absl::NotFoundError(
+      absl::StrFormat("Cannot find built in type with signedness: %d width: %d",
+                      is_signed, width));
+}
+
 absl::StatusOr<BuiltinType> BuiltinTypeFromString(absl::string_view s) {
 #define CASE(__enum, __unused, __str, ...) \
   if (s == __str) {                        \
@@ -168,18 +180,46 @@ FreeVariables AstNode::GetFreeVariables(Pos start_pos) {
   return freevars;
 }
 
+const absl::btree_set<BinopKind>& GetBinopSameTypeKinds() {
+  static auto* singleton = new absl::btree_set<BinopKind>{
+      BinopKind::kAdd, BinopKind::kSub, BinopKind::kMul, BinopKind::kAnd,
+      BinopKind::kOr,  BinopKind::kXor, BinopKind::kDiv,
+  };
+  return *singleton;
+}
+
+const absl::btree_set<BinopKind>& GetBinopComparisonKinds() {
+  static auto* singleton = new absl::btree_set<BinopKind>{
+      BinopKind::kGe, BinopKind::kGt, BinopKind::kLe,
+      BinopKind::kLt, BinopKind::kEq, BinopKind::kNe,
+  };
+  return *singleton;
+}
+
+const absl::btree_set<BinopKind>& GetBinopShifts() {
+  static auto* singleton = new absl::btree_set<BinopKind>{
+      BinopKind::kShll,
+      BinopKind::kShrl,
+      BinopKind::kShra,
+  };
+  return *singleton;
+}
+
 std::string BinopKindFormat(BinopKind kind) {
   switch (kind) {
     // clang-format off
+    // Shifts.
     case BinopKind::kShll:       return "<<";
     case BinopKind::kShrl:       return ">>";
     case BinopKind::kShra:       return ">>>";
+    // Comparisons.
     case BinopKind::kGe:         return ">=";
     case BinopKind::kGt:         return ">";
     case BinopKind::kLe:         return "<=";
     case BinopKind::kLt:         return "<";
     case BinopKind::kEq:         return "==";
     case BinopKind::kNe:         return "!=";
+
     case BinopKind::kAdd:        return "+";
     case BinopKind::kSub:        return "-";
     case BinopKind::kMul:        return "*";
@@ -656,6 +696,19 @@ std::string Match::ToString() const {
   }
   absl::StrAppend(&result, "}");
   return result;
+}
+
+// -- class Index
+
+std::string Index::ToString() const {
+  return absl::StrFormat("(%s)[%s]", lhs_->ToString(),
+                         ToAstNode(rhs_)->ToString());
+}
+
+// -- class WidthSlice
+
+std::string WidthSlice::ToString() const {
+  return absl::StrFormat("%s+:%s", start_->ToString(), width_->ToString());
 }
 
 // -- class Slice
@@ -1243,8 +1296,9 @@ absl::StatusOr<Bits> Number::GetBits(int64 bit_count) const {
       auto [sign, bits] = sm;
       if (bit_count < bits.bit_count()) {
         return absl::InvalidArgumentError(absl::StrFormat(
-            "Cannot fit number value %s in %d bits; %d required", text_,
-            bit_count, bits.bit_count()));
+            "Internal error: %s Cannot fit number value %s in %d bits; %d "
+            "required: `%s`",
+            span().ToString(), text_, bit_count, bits.bit_count(), ToString()));
       }
       bits = bits_ops::ZeroExtend(bits, bit_count);
       if (sign) {

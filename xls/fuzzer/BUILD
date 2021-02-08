@@ -437,3 +437,34 @@ py_test(
         "//xls/common:test_base",
     ],
 )
+
+cc_library(
+    name = "cpp_ast_generator",
+    srcs = ["cpp_ast_generator.cc"],
+    hdrs = ["cpp_ast_generator.h"],
+    deps = [
+        "//xls/common/status:ret_check",
+        "//xls/dslx:cpp_ast",
+        "//xls/dslx:scanner",
+        "//xls/ir:bits_ops",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:node_hash_map",
+        "@com_google_absl//absl/container:node_hash_set",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "cpp_ast_generator_test",
+    srcs = ["cpp_ast_generator_test.cc"],
+    deps = [
+        ":cpp_ast_generator",
+        "//xls/common:init_xls",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:matchers",
+        "//xls/dslx:command_line_utils",
+        "//xls/dslx:cpp_parse_and_typecheck",
+        "@com_google_googletest//:gtest",
+    ],
+)

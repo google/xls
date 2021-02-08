@@ -40,6 +40,7 @@ line 7)",
   const Span error_span(start_pos, limit_pos);
   std::stringstream ss;
   XLS_ASSERT_OK(PrintPositionalError(error_span, "my error message", ss,
+                                     /*get_file_contents=*/nullptr,
                                      /*color=*/false,
                                      /*error_context_line_count=*/3));
   std::string output = ss.str();
