@@ -17,7 +17,6 @@
 """Tests for xls.fuzzer.run_fuzz."""
 
 import os
-import random
 import subprocess
 
 from absl import flags
@@ -25,19 +24,13 @@ from absl import flags
 from absl.testing import parameterized
 from xls.common import runfiles
 from xls.common import test_base
-from xls.fuzzer import ast_generator
 from xls.fuzzer import run_fuzz
 from xls.fuzzer import sample
 from xls.fuzzer import sample_runner
+from xls.fuzzer.python import cpp_ast_generator as ast_generator
 
 flags.DEFINE_boolean('codegen', True,
                      'Whether to generate Verilog for generated samples.')
-flags.DEFINE_boolean('update_golden', False,
-                     'Whether to update golden reference files.')
-flags.DEFINE_string(
-    'xls_source_dir', '',
-    'Absolute path to the root of XLS source directory to '
-    'modify when --update_golden is given.')
 FLAGS = flags.FLAGS
 
 X_SUB_Y_IR = """package x_sub_y
@@ -61,9 +54,6 @@ class RunFuzzTest(parameterized.TestCase):
       'return_samples': True,
       'codegen': True
   }
-  GOLDEN_REFERENCE_FMT = 'xls/fuzzer/testdata/run_fuzz_test{codegen}.seed_{seed}_sample_{sample}.x'
-  SEED_TO_CHECK_LIMIT = 2
-  SAMPLE_TO_CHECK_LIMIT = 1
 
   def setUp(self):
     super(RunFuzzTest, self).setUp()
@@ -74,9 +64,9 @@ class RunFuzzTest(parameterized.TestCase):
 
   def test_repeatable_within_process(self):
     samples0 = run_fuzz.run_fuzz(
-        random.Random(7), self._get_ast_options(), **self.KWARGS)
+        ast_generator.RngState(7), self._get_ast_options(), **self.KWARGS)
     samples1 = run_fuzz.run_fuzz(
-        random.Random(7), self._get_ast_options(), **self.KWARGS)
+        ast_generator.RngState(7), self._get_ast_options(), **self.KWARGS)
     self.assertEqual(samples0, samples1)
 
   # TODO(leary): Bump up the number of seeds when the interpreter is ported to
@@ -84,28 +74,8 @@ class RunFuzzTest(parameterized.TestCase):
   @parameterized.named_parameters(*tuple(
       dict(testcase_name='seed_{}'.format(x), seed=x) for x in range(11)))
   def test_first_n_seeds(self, seed):
-    if FLAGS.update_golden and seed >= self.SEED_TO_CHECK_LIMIT:
-      # Skip running unnecessary tests if updating golden because the test is
-      # slow and runs unsharded.
-      return
-    samples = run_fuzz.run_fuzz(
-        random.Random(seed), self._get_ast_options(), **self.KWARGS)
-    for i in range(self.KWARGS['sample_count']):
-      if seed < self.SEED_TO_CHECK_LIMIT and i < self.SAMPLE_TO_CHECK_LIMIT:
-        path = self.GOLDEN_REFERENCE_FMT.format(
-            seed=seed, sample=i, codegen='' if FLAGS.codegen else '_no_codegen')
-        if FLAGS.update_golden:
-          abs_path = os.path.join(FLAGS.xls_source_dir, path.lstrip('xls/'))
-          with open(abs_path, 'w') as f:
-            f.write(samples[i].input_text)
-        else:
-          # rstrip to avoid miscompares from trailing newline at EOF.
-          expected = runfiles.get_contents_as_text(path).rstrip()
-          self.assertMultiLineEqual(
-              expected,
-              samples[i].input_text,
-              msg=f'want: {expected!r}\n'
-              f'got:  {samples[i].input_text!r}')
+    run_fuzz.run_fuzz(
+        ast_generator.RngState(seed), self._get_ast_options(), **self.KWARGS)
 
   def test_minimize_ir_minimization_possible(self):
     # Add an invalid codegen flag to inject an error into the running of the

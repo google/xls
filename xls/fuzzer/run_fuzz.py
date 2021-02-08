@@ -16,7 +16,6 @@
 """Fuzzer generate-and-compare loop."""
 
 import os
-import random
 import shutil
 import stat
 import subprocess
@@ -28,10 +27,10 @@ from absl import logging
 import termcolor
 
 from xls.common import runfiles
-from xls.fuzzer import ast_generator
 from xls.fuzzer import sample
 from xls.fuzzer import sample_generator
 from xls.fuzzer import sample_runner
+from xls.fuzzer.python import cpp_ast_generator as ast_generator
 
 SAMPLE_RUNNER_MAIN_PATH = runfiles.get_path('xls/fuzzer/sample_runner_main')
 IR_MINIMIZER_MAIN_PATH = runfiles.get_path('xls/tools/ir_minimizer_main')
@@ -200,7 +199,7 @@ def minimize_ir(smp: sample.Sample,
 
 
 def run_fuzz(
-    rng: random.Random,
+    rng: ast_generator.RngState,
     ast_generator_options: ast_generator.AstGeneratorOptions,
     calls_per_sample: int,
     save_temps: bool,

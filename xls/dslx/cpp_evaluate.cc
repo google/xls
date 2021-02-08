@@ -78,7 +78,11 @@ absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
     type_context_value = BitsType::MakeU8();
     type_context = type_context_value.get();
   }
-  if (type_context == nullptr && expr->kind() == NumberKind::kBool) {
+  // Note that if there an explicit type annotation on a boolean value; e.g.
+  // `s1:true` we skip providing the type context as u1 and pick up the
+  // evaluation of the s1 below.
+  if (type_context == nullptr && expr->kind() == NumberKind::kBool &&
+      expr->type() == nullptr) {
     type_context_value = BitsType::MakeU1();
     type_context = type_context_value.get();
   }
@@ -829,6 +833,7 @@ absl::StatusOr<InterpValue> EvaluateUnop(Unop* expr, InterpBindings* bindings,
 absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           InterpCallbackData* callbacks) {
+  XLS_VLOG(6) << "EvaluateBinop: " << expr->ToString() << " @ " << expr->span();
   XLS_ASSIGN_OR_RETURN(InterpValue lhs, callbacks->Eval(expr->lhs(), bindings));
   XLS_ASSIGN_OR_RETURN(InterpValue rhs, callbacks->Eval(expr->rhs(), bindings));
 

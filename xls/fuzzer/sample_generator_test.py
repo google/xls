@@ -15,34 +15,33 @@
 # limitations under the License.
 
 import collections
-import random
 
 from xls.common import test_base
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import TupleType
-from xls.fuzzer import ast_generator
 from xls.fuzzer import sample_generator
+from xls.fuzzer.python import cpp_ast_generator as ast_generator
 from xls.fuzzer.sample import SampleOptions
 
 
 class SampleGeneratorTest(test_base.TestCase):
 
   def test_randrange_biased_towards_zero(self):
-    rng = random.Random(0)
+    rng = ast_generator.RngState(0)
     counter = collections.Counter()
-    for _ in range(1024):
-      counter[sample_generator.randrange_biased_towards_zero(16, rng)] += 1
+    for _ in range(16384):
+      counter[rng.randrange_biased_towards_zero(16)] += 1
     print(sorted(counter.items()))
     self.assertTrue(all(k < 16 for k in counter.keys()))
     self.assertTrue(all(counter[0] > counter[i] for i in range(1, 16)))
 
   def test_generate_empty_arguments(self):
-    rng = random.Random(0)
+    rng = ast_generator.RngState(0)
     self.assertEqual(sample_generator.generate_arguments((), rng), ())
 
   def test_generate_single_bits_arguments(self):
-    rng = random.Random(0)
+    rng = ast_generator.RngState(0)
     args = sample_generator.generate_arguments(
         (BitsType(signed=False, size=42),), rng)
     self.assertLen(args, 1)
@@ -50,7 +49,7 @@ class SampleGeneratorTest(test_base.TestCase):
     self.assertEqual(args[0].get_bit_count(), 42)
 
   def test_generate_mixed_bits_arguments(self):
-    rng = random.Random(0)
+    rng = ast_generator.RngState(0)
     args = sample_generator.generate_arguments(
         (BitsType(signed=False, size=123), BitsType(signed=True, size=22)), rng)
     self.assertLen(args, 2)
@@ -60,7 +59,7 @@ class SampleGeneratorTest(test_base.TestCase):
     self.assertEqual(args[1].get_bit_count(), 22)
 
   def test_generate_tuple_argument(self):
-    rng = random.Random(0)
+    rng = ast_generator.RngState(0)
     args = sample_generator.generate_arguments((TupleType(
         (BitsType(signed=False, size=123),
          BitsType(signed=True, size=22))),), rng)
@@ -70,7 +69,7 @@ class SampleGeneratorTest(test_base.TestCase):
     self.assertEqual(args[0].get_elements()[1].get_bit_count(), 22)
 
   def test_generate_array_argument(self):
-    rng = random.Random(0)
+    rng = ast_generator.RngState(0)
     args = sample_generator.generate_arguments(
         (ArrayType(BitsType(signed=True, size=4), 24),), rng)
     self.assertLen(args, 1)
@@ -80,7 +79,7 @@ class SampleGeneratorTest(test_base.TestCase):
     self.assertTrue(args[0].index(0).get_bit_count(), 4)
 
   def test_generate_basic_sample(self):
-    rng = random.Random(0)
+    rng = ast_generator.RngState(0)
     sample = sample_generator.generate_sample(
         rng,
         ast_generator.AstGeneratorOptions(),
@@ -97,7 +96,7 @@ class SampleGeneratorTest(test_base.TestCase):
     self.assertIn('fn main', sample.input_text)
 
   def test_generate_codegen_sample(self):
-    rng = random.Random(0)
+    rng = ast_generator.RngState(0)
     sample = sample_generator.generate_sample(
         rng,
         ast_generator.AstGeneratorOptions(),

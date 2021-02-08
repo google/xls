@@ -592,7 +592,8 @@ absl::StatusOr<TypeAnnotation*> AstGenerator::GenerateBitsType() {
   if (max_width > 128 && RandRange(1, 10) > 1) {
     max_width = 128;
   }
-  return MakeTypeAnnotation(RandomBool(), 64 + RandRange(1, max_width - 64));
+  bool sign = RandomBool();
+  return MakeTypeAnnotation(sign, 64 + RandRange(1, max_width - 64));
 }
 
 absl::optional<TypedExpr> AstGenerator::ChooseEnvValueOptional(
@@ -672,10 +673,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Env* env) {
   int64 width = -1;
   while (true) {
     int64 start_low = (which == SliceType::kWidthSlice) ? 0 : -bit_count - 1;
-    start = RandomBool()
+    bool should_have_start = RandomBool();
+    start = should_have_start
                 ? absl::make_optional(RandRange(start_low, bit_count + 1))
                 : absl::nullopt;
-    limit = RandomBool()
+    bool should_have_limit = RandomBool();
+    limit = should_have_limit
                 ? absl::make_optional(RandRange(-bit_count - 1, bit_count + 1))
                 : absl::nullopt;
     width = ResolveBitSliceIndices(bit_count, start, limit).second;

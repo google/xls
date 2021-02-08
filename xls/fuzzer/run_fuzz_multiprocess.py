@@ -23,7 +23,6 @@ import itertools
 import multiprocessing as mp
 import os
 import queue as queue_mod
-import random
 import shutil
 import sys
 import tempfile
@@ -34,10 +33,10 @@ import termcolor
 
 from xls.common import gfile
 from xls.common import multiprocess
-from xls.fuzzer import ast_generator
 from xls.fuzzer import run_fuzz
 from xls.fuzzer import sample_generator
 from xls.fuzzer import sample_runner
+from xls.fuzzer.python import cpp_ast_generator as ast_generator
 from xls.fuzzer.sample import Sample
 from xls.fuzzer.sample import SampleOptions
 
@@ -172,7 +171,7 @@ def do_generator_task(queues: Tuple[mp.Queue, ...],
   """Makes DSLX text / args as fuzz samples and pushes them to workers."""
   start = datetime.datetime.now()
   i = 0
-  rng = random.Random(seed)
+  rng = ast_generator.RngState(seed)
   while True:
     if duration:  # Note: duration overrides sample count.
       if datetime.datetime.now() - start >= duration:

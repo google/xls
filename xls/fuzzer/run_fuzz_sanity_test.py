@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,15 +13,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Lint as: python3
 
 """Sanity run of a few samples in a single shard for the fuzzer."""
 
-import random
-
-from xls.fuzzer import ast_generator
 from xls.fuzzer import run_fuzz
+from xls.fuzzer.python import cpp_ast_generator as ast_generator
 from absl.testing import absltest
 
 
@@ -36,7 +34,8 @@ class RunFuzzSanityTest(absltest.TestCase):
     return ast_generator.AstGeneratorOptions(disallow_divide=True)
 
   def test_a_few_samples(self):
-    run_fuzz.run_fuzz(random.Random(0), self._get_options(), **self.KWARGS)
+    run_fuzz.run_fuzz(
+        ast_generator.RngState(0), self._get_options(), **self.KWARGS)
 
 
 if __name__ == '__main__':

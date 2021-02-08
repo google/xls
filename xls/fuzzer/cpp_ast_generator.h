@@ -71,6 +71,9 @@ class AstGenerator {
   absl::StatusOr<std::pair<Function*, std::unique_ptr<Module>>>
   GenerateFunctionInModule(std::string fn_name, std::string module_name);
 
+  // Chooses a random "interesting" bit pattern with the given bit count.
+  Bits ChooseBitPattern(int64 bit_count);
+
  private:
   static bool IsBits(TypeAnnotation* t);
   static bool IsUBits(TypeAnnotation* t);
@@ -121,9 +124,6 @@ class AstGenerator {
     auto take = [&](const TypedExpr& e) -> bool { return !IsArray(e.type); };
     return ChooseEnvValue(env, take);
   }
-
-  // Chooses a random "interesting" bit pattern with the given bit count.
-  Bits ChooseBitPattern(int64 bit_count);
 
   // Generates the body of a function AST node.
   absl::StatusOr<TypedExpr> GenerateBody(int64 level,

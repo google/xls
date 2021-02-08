@@ -16,25 +16,11 @@
 
 """Tests for shll-specific fuzzing."""
 
-import os
-import random
-
-from absl import flags
-
 from absl.testing import absltest
 from absl.testing import parameterized
-from xls.common import runfiles
 from xls.dslx.python import cpp_ast as ast
-from xls.fuzzer import ast_generator
 from xls.fuzzer import run_fuzz
-
-flags.DEFINE_boolean('update_golden', False,
-                     'Whether to update golden reference files.')
-flags.DEFINE_string(
-    'xls_source_dir', '',
-    'Absolute path to the root of XLS source directory to '
-    'modify when --update_golden is given.')
-FLAGS = flags.FLAGS
+from xls.fuzzer.python import cpp_ast_generator as ast_generator
 
 
 class RunFuzzShllTest(parameterized.TestCase):
@@ -46,34 +32,17 @@ class RunFuzzShllTest(parameterized.TestCase):
       'return_samples': True,
       'codegen': False,
   }
-  GOLDEN_REFERENCE_FMT = 'xls/fuzzer/testdata/run_fuzz_shll_test.seed_{seed}_sample_{sample}.x'
   SEED_TO_CHECK_LIMIT = 2
-  SAMPLE_TO_CHECK_LIMIT = 1
 
   @parameterized.named_parameters(*tuple(
       dict(testcase_name='seed_{}'.format(x), seed=x) for x in range(50)))
   def test_first_n_seeds(self, seed):
-    if FLAGS.update_golden and seed >= self.SEED_TO_CHECK_LIMIT:
-      # Skip running unnecessary tests if updating golden because the test is
-      # slow and runs unsharded.
-      return
-    rng = random.Random(seed)
-    samples = run_fuzz.run_fuzz(
+    rng = ast_generator.RngState(seed)
+    run_fuzz.run_fuzz(
         rng,
         ast_generator.AstGeneratorOptions(
             disallow_divide=True, binop_allowlist=[ast.BinopKind.SHLL]),
         **self.KWARGS)
-    for i in range(self.KWARGS['sample_count']):
-      if seed < self.SEED_TO_CHECK_LIMIT and i < self.SAMPLE_TO_CHECK_LIMIT:
-        path = self.GOLDEN_REFERENCE_FMT.format(seed=seed, sample=i)
-        if FLAGS.update_golden:
-          abs_path = os.path.join(FLAGS.xls_source_dir, path.lstrip('xls/'))
-          with open(abs_path, 'w') as f:
-            f.write(samples[i].input_text)
-        else:
-          # rstrip to avoid miscompares from trailing newline at EOF.
-          expected = runfiles.get_contents_as_text(path).rstrip()
-          self.assertMultiLineEqual(expected, samples[i].input_text)
 
 
 if __name__ == '__main__':

@@ -30,37 +30,6 @@ py_library(
 )
 
 py_library(
-    name = "ast_generator",
-    srcs = ["ast_generator.py"],
-    srcs_version = "PY3ONLY",
-    deps = [
-        "//xls/common:memoize",
-        "//xls/dslx:ast_helpers",
-        "//xls/dslx:bit_helpers",
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:scanner",
-    ],
-)
-
-py_test(
-    name = "ast_generator_test",
-    srcs = ["ast_generator_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        ":ast_generator",
-        "//xls/common:test_base",
-        "//xls/dslx:ast_helpers",
-        "//xls/dslx:fakefs_test_util",
-        "//xls/dslx:parser_helpers",
-        "//xls/dslx:span",
-        "//xls/dslx/python:interpreter",
-        "//xls/dslx/python:scanner",
-    ],
-)
-
-py_library(
     name = "run_fuzz",
     srcs = ["run_fuzz.py"],
     data = [
@@ -72,12 +41,12 @@ py_library(
     srcs_version = "PY3ONLY",
     tags = ["optonly"],
     deps = [
-        ":ast_generator",
         ":sample",
         ":sample_generator",
         ":sample_runner",
         requirement("termcolor"),
         "//xls/common:runfiles",
+        "//xls/fuzzer/python:cpp_ast_generator",
         "@com_google_absl_py//absl/logging",
     ],
 )
@@ -89,8 +58,8 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":ast_generator",
         ":run_fuzz",
+        "//xls/fuzzer/python:cpp_ast_generator",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -106,12 +75,12 @@ py_test(
     srcs_version = "PY3",
     tags = ["optonly"],
     deps = [
-        ":ast_generator",
         ":run_fuzz",
         ":sample",
         ":sample_runner",
         "//xls/common:runfiles",
         "//xls/common:test_base",
+        "//xls/fuzzer/python:cpp_ast_generator",
         "@com_google_absl_py//absl/flags",
         "@com_google_absl_py//absl/testing:parameterized",
     ],
@@ -130,14 +99,13 @@ py_test(
     srcs_version = "PY3",
     tags = ["optonly"],  # Times out in fastbuild TAP 2020-10-20.
     deps = [
-        ":ast_generator",
         ":run_fuzz",
         ":sample",
         ":sample_runner",
         "//xls/common:runfiles",
         "//xls/common:test_base",
+        "//xls/fuzzer/python:cpp_ast_generator",
         "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/testing:absltest",
         "@com_google_absl_py//absl/testing:parameterized",
     ],
 )
@@ -151,10 +119,10 @@ py_test(
     srcs_version = "PY3",
     tags = ["optonly"],
     deps = [
-        ":ast_generator",
         ":run_fuzz",
         "//xls/common:runfiles",
         "//xls/dslx/python:cpp_ast",
+        "//xls/fuzzer/python:cpp_ast_generator",
         "@com_google_absl_py//absl/flags",
         "@com_google_absl_py//absl/testing:absltest",
         "@com_google_absl_py//absl/testing:parameterized",
@@ -241,7 +209,6 @@ py_library(
     srcs = ["run_fuzz_multiprocess.py"],
     srcs_version = "PY3ONLY",
     deps = [
-        ":ast_generator",
         ":run_fuzz",
         ":sample",
         ":sample_generator",
@@ -249,6 +216,7 @@ py_library(
         requirement("termcolor"),
         "//xls/common:gfile",
         "//xls/common:multiprocess",
+        "//xls/fuzzer/python:cpp_ast_generator",
     ],
 )
 
@@ -267,12 +235,11 @@ py_library(
     srcs = ["sample_generator.py"],
     srcs_version = "PY3ONLY",
     deps = [
-        ":ast_generator",
         ":sample",
         "//xls/dslx/python:cpp_concrete_type",
-        "//xls/dslx/python:import_routines",
         "//xls/dslx/python:interp_value",
         "//xls/dslx/python:interpreter",
+        "//xls/fuzzer/python:cpp_ast_generator",
         "//xls/ir/python:bits",
     ],
 )
@@ -284,13 +251,13 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":ast_generator",
         ":cli_helpers",
         ":run_fuzz_multiprocess_lib",
         ":sample",
         requirement("psutil"),
         "//xls/common:gfile",
         "//xls/common:multiprocess",
+        "//xls/fuzzer/python:cpp_ast_generator",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],
@@ -314,11 +281,11 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":ast_generator",
         ":run_fuzz",
         ":run_fuzz_multiprocess_lib",
         ":sample",
         ":sample_generator",
+        "//xls/fuzzer/python:cpp_ast_generator",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
     ],
@@ -342,11 +309,11 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":ast_generator",
         ":sample",
         ":sample_generator",
         "//xls/common:test_base",
         "//xls/dslx/python:cpp_concrete_type",
+        "//xls/fuzzer/python:cpp_ast_generator",
     ],
 )
 

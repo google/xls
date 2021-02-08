@@ -16,7 +16,6 @@
 
 """Sample generator for fuzzing."""
 
-import random
 from typing import Tuple, Text, Sequence
 
 from xls.dslx.python import interpreter
@@ -26,28 +25,22 @@ from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
-from xls.fuzzer import ast_generator
 from xls.fuzzer import sample
+from xls.fuzzer.python import cpp_ast_generator as ast_generator
 from xls.ir.python import bits as ir_bits
 
-Random = random.Random
-del random  # Avoids accidentally calling module functions, use object methods.
 
-
-def _generate_bit_value(bit_count: int, rng: Random, signed: bool) -> Value:
+def _generate_bit_value(bit_count: int, rng: ast_generator.RngState,
+                        signed: bool) -> Value:
   assert isinstance(bit_count, int), bit_count
-  p = rng.random()
-  if p < 0.9:  # Most of the time, use some interesting bit pattern.
-    value = rng.choice(ast_generator.make_bit_patterns(bit_count))
-  else:  # 10% of the time use a completely random value.
-    value = rng.randrange(0, 2**bit_count)
+  assert isinstance(rng, ast_generator.RngState), rng
+  bits = ast_generator.choose_bit_pattern(bit_count, rng)
   tag = Tag.SBITS if signed else Tag.UBITS
-  return Value.make_bits(tag,
-                         ir_bits.from_long(value=value, bit_count=bit_count))
+  return Value.make_bits(tag, bits)
 
 
 def _generate_unbiased_argument(concrete_type: ConcreteType,
-                                rng: Random) -> Value:
+                                rng: ast_generator.RngState) -> Value:
   if isinstance(concrete_type, BitsType):
     bit_count = concrete_type.get_total_bit_count().value
     return _generate_bit_value(bit_count, rng, concrete_type.get_signedness())
@@ -56,11 +49,7 @@ def _generate_unbiased_argument(concrete_type: ConcreteType,
         'Generate argument for type: {}'.format(concrete_type))
 
 
-def randrange_biased_towards_zero(limit: int, rng: Random) -> int:
-  return int(rng.triangular(0, limit - 1, 0))
-
-
-def generate_argument(arg_type: ConcreteType, rng: Random,
+def generate_argument(arg_type: ConcreteType, rng: ast_generator.RngState,
                       prior: Sequence[Value]) -> Value:
   """Generates an argument value of the same type as the concrete type."""
   if isinstance(arg_type, TupleType):
@@ -77,7 +66,8 @@ def generate_argument(arg_type: ConcreteType, rng: Random,
     if not prior or rng.random() < 0.5:
       return _generate_unbiased_argument(arg_type, rng)
 
-  to_mutate = rng.choice(prior).get_bits()
+  index = rng.randrange(len(prior))
+  to_mutate = prior[index].get_bits()
   bit_count = arg_type.get_total_bit_count().value
   if bit_count > to_mutate.bit_count():
     addendum = _generate_bit_value(
@@ -89,7 +79,7 @@ def generate_argument(arg_type: ConcreteType, rng: Random,
 
   assert to_mutate.bit_count() == bit_count, (to_mutate.bit_count(), bit_count)
   value = to_mutate.to_uint()
-  mutation_count = randrange_biased_towards_zero(bit_count, rng)
+  mutation_count = rng.randrange_biased_towards_zero(bit_count)
   for _ in range(mutation_count):
     # Pick a random bit and flip it.
     bitno = rng.randrange(bit_count)
@@ -102,7 +92,7 @@ def generate_argument(arg_type: ConcreteType, rng: Random,
 
 
 def generate_arguments(arg_types: Sequence[ConcreteType],
-                       rng: Random) -> Tuple[Value, ...]:
+                       rng: ast_generator.RngState) -> Tuple[Value, ...]:
   """Returns a tuple of randomly generated values of the given types."""
   args = []
   for arg_type in arg_types:
@@ -111,7 +101,7 @@ def generate_arguments(arg_types: Sequence[ConcreteType],
 
 
 def generate_codegen_args(use_system_verilog: bool,
-                          rng: Random) -> Tuple[Text, ...]:
+                          rng: ast_generator.RngState) -> Tuple[Text, ...]:
   """Returns randomly generated arguments for running codegen.
 
   These arguments are flags which are passed to codegen_main for generating
@@ -120,7 +110,7 @@ def generate_codegen_args(use_system_verilog: bool,
 
   Args:
     use_system_verilog: Whether to use SystemVerilog.
-    rng: Random number generator.
+    rng: Random number generator state.
 
   Returns:
     Tuple of arguments to pass to codegen_main.
@@ -134,23 +124,22 @@ def generate_codegen_args(use_system_verilog: bool,
     args.append('--generator=combinational')
   else:
     args.extend([
-        '--generator=pipeline', '--pipeline_stages=' + str(rng.randint(1, 10))
+        '--generator=pipeline',
+        '--pipeline_stages=' + str(rng.randrange(10) + 1)
     ])
   return tuple(args)
 
 
-def generate_sample(rng: Random, ast_options: ast_generator.AstGeneratorOptions,
+def generate_sample(rng: ast_generator.RngState,
+                    ast_options: ast_generator.AstGeneratorOptions,
                     calls_per_sample: int,
                     default_options: sample.SampleOptions) -> sample.Sample:
   """Generates and returns a random Sample with the given options."""
-  ast_gen = ast_generator.AstGenerator(
-      rng, ast_options, codegen_ops_only=default_options.codegen)
-  function_name = 'main'
-  _, m = ast_gen.generate_function_in_module(fname=function_name, mname='test')
-  dslx_text = str(m)
+  assert isinstance(rng, ast_generator.RngState), rng
+  dslx_text = ast_generator.generate(ast_options, rng)
 
   # Note: we also re-parse here so we can get real positions in error messages.
-  fn_type = interpreter.get_function_type(dslx_text, function_name)
+  fn_type = interpreter.get_function_type(dslx_text, 'main')
 
   args_batch = tuple(
       generate_arguments(fn_type.params, rng) for _ in range(calls_per_sample))

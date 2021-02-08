@@ -1,3 +1,5 @@
+# Lint as: python3
+#
 # Copyright 2020 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,10 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 """Benchmarks the execution of a generated sample from the fuzzer."""
 
-import random
 import tempfile
 import timeit
 from typing import Text
@@ -23,10 +23,10 @@ from typing import Text
 from absl import app
 from absl import flags
 
-from xls.fuzzer import ast_generator
 from xls.fuzzer import run_fuzz
 from xls.fuzzer import sample
 from xls.fuzzer import sample_generator
+from xls.fuzzer.python import cpp_ast_generator as ast_generator
 from xls.fuzzer.run_fuzz_multiprocess import do_generator_task
 
 flags.DEFINE_enum(
@@ -47,7 +47,7 @@ DISALLOW_DIVIDE = True
 
 def setup_worker():
   """Creates arguments to repeatedly pass to benchmark_worker."""
-  rng = random.Random(0)
+  rng = ast_generator.RngState(0)
   smp = sample_generator.generate_sample(
       rng, ast_generator.AstGeneratorOptions(disallow_divide=DISALLOW_DIVIDE),
       CALLS_PER_SAMPLE,

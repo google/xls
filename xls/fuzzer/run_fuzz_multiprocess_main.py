@@ -31,10 +31,10 @@ import psutil
 
 from xls.common import gfile
 from xls.common import multiprocess
-from xls.fuzzer import ast_generator
 from xls.fuzzer import cli_helpers
 from xls.fuzzer import run_fuzz_multiprocess
 from xls.fuzzer import sample
+from xls.fuzzer.python import cpp_ast_generator as ast_generator
 
 flags.DEFINE_integer('seed', 0, 'Seed value for generation')
 flags.DEFINE_integer('sample_count', 1024, 'Number of samples to generate')
