@@ -440,7 +440,10 @@ absl::Status IrInterpreter::HandleArrayConcat(ArrayConcat* concat) {
 }
 
 absl::Status IrInterpreter::HandleAssert(Assert* assert_op) {
-  return absl::UnimplementedError("Assert not yet supported");
+  if (!ResolveAsBool(assert_op->condition())) {
+    return absl::AbortedError(assert_op->message());
+  }
+  return SetValueResult(assert_op, Value::Token());
 }
 
 absl::Status IrInterpreter::HandleInvoke(Invoke* invoke) {
@@ -662,6 +665,12 @@ absl::Status IrInterpreter::VerifyAllBitsTypes(Node* node) {
 
 const Bits& IrInterpreter::ResolveAsBits(Node* node) {
   return node_values_.at(node).bits();
+}
+
+bool IrInterpreter::ResolveAsBool(Node* node) {
+  const Bits& bits = node_values_.at(node).bits();
+  XLS_CHECK_EQ(bits.bit_count(), 1);
+  return bits.IsAllOnes();
 }
 
 std::vector<Bits> IrInterpreter::ResolveAsBitsVector(

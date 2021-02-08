@@ -25,6 +25,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/ir_evaluator_test.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/random_value.h"
 #include "re2/re2.h"
 
@@ -32,6 +33,7 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
+using status_testing::StatusIs;
 
 INSTANTIATE_TEST_SUITE_P(
     IrJitTest, IrEvaluatorTest,
@@ -533,6 +535,16 @@ TEST(IrJitTest, ArrayConcatArrayOfArrays) {
 
   std::vector<Value> args;
   EXPECT_THAT(jit->Run(args), IsOkAndHolds(ret));
+}
+
+TEST(IrJitTest, Assert) {
+  Package p("assert_test");
+  FunctionBuilder b("fun", &p);
+  b.Assert(b.Param("tkn", p.GetTokenType()), b.Param("cond", p.GetBitsType(1)),
+           "the assertion error message");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  EXPECT_THAT(IrJit::Create(f).status(),
+              StatusIs(absl::StatusCode::kUnimplemented));
 }
 
 }  // namespace

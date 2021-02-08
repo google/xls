@@ -558,7 +558,10 @@ exception of out-of-bounds behavior.
 
 Raises an error at software run-time (DSLX/IR interpretation, JIT execution, RTL
 simulation) if the given condition evaluates to false. The operation takes a
-literal string attribute which is included in the error message.
+literal string attribute which is included in the error message. This is a
+software-only operation and has no representation in the generated hardware.
+Tokens are used to connect the operation to the graph and order with respect to
+other side-effecting operations.
 
 ```
 result = assert(tkn, condition, message=<string>)

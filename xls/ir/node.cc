@@ -499,6 +499,10 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
                                         })));
       break;
     }
+    case Op::kAssert:
+      args.push_back(
+          absl::StrFormat("message=\"%s\"", As<Assert>()->message()));
+      break;
     default:
       break;
   }

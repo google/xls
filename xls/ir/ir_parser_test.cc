@@ -1102,6 +1102,16 @@ fn foo(x: bits[32]) -> bits[32] {
   ParsePackageAndCheckDump(input);
 }
 
+TEST(IrParserTest, ParseAssert) {
+  const std::string input = R"(package foobar
+
+fn bar(tkn: token, cond: bits[1]) -> token {
+  ret assert.1: token = assert(tkn, cond, message="The foo is bar", id=1)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
 TEST(IrParserTest, ParseSimpleProc) {
   const std::string input = R"(package test
 

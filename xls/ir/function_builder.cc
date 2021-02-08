@@ -1029,6 +1029,30 @@ BValue BuilderBase::AddBitwiseReductionOp(Op op, BValue arg,
   return AddNode<BitwiseReductionOp>(loc, arg.node(), op, name);
 }
 
+BValue BuilderBase::Assert(BValue token, BValue condition,
+                           absl::string_view message,
+                           absl::optional<SourceLocation> loc,
+                           absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        StrFormat("First operand of assert must be of token type; is: %s",
+                  token.GetType()->ToString()),
+        loc);
+  }
+  if (!condition.GetType()->IsBits() ||
+      condition.GetType()->AsBitsOrDie()->bit_count() != 1) {
+    return SetError(StrFormat("Condition operand of assert must be of bits "
+                              "type of width 1; is: %s",
+                              condition.GetType()->ToString()),
+                    loc);
+  }
+  return AddNode<xls::Assert>(loc, token.node(), condition.node(), message,
+                              name);
+}
+
 BValue ProcBuilder::Receive(Channel* channel, BValue token,
                             absl::optional<SourceLocation> loc,
                             absl::string_view name) {

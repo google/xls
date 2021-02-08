@@ -712,4 +712,40 @@ TEST(FunctionBuilderTest, TokenlessProcBuilderNoChannelOps) {
   EXPECT_THAT(proc->NextState(), m::Param("st"));
 }
 
+TEST(FunctionBuilderTest, Assert) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+  b.Assert(b.Param("tkn", p.GetTokenType()), b.Param("cond", p.GetBitsType(1)),
+           /*message=*/"It's about sending a message");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  EXPECT_THAT(f->return_value(), m::Assert(m::Param("tkn"), m::Param("cond")));
+  EXPECT_EQ(f->return_value()->As<Assert>()->message(),
+            "It's about sending a message");
+}
+
+TEST(FunctionBuilderTest, AssertWrongTypeOperand0) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+  b.Assert(b.Param("blah", p.GetBitsType(42)),
+           b.Param("cond", p.GetBitsType(1)),
+           /*message=*/"It's about sending a message");
+  EXPECT_THAT(
+      b.Build().status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("First operand of assert must be of token type")));
+}
+
+TEST(FunctionBuilderTest, AssertWrongTypeOperand1) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+  b.Assert(b.Param("blah", p.GetTokenType()), b.Param("cond", p.GetBitsType(2)),
+           /*message=*/"It's about sending a message");
+  EXPECT_THAT(
+      b.Build().status(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Condition operand of assert must be of bits type of width 1")));
+}
+
 }  // namespace xls

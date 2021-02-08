@@ -66,6 +66,7 @@ cc_test(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest_main",

@@ -128,11 +128,14 @@ class Parser {
   absl::StatusOr<int64> ParseInt64();
 
   // A thin convenience function which parses a single identifier string.
-  absl::StatusOr<std::string> ParseIdentifierString(TokenPos* pos = nullptr);
+  absl::StatusOr<std::string> ParseIdentifier(TokenPos* pos = nullptr);
+
+  // A thin convenience function which parses a quoted string.
+  absl::StatusOr<std::string> ParseQuotedString(TokenPos* pos = nullptr);
 
   // Convenience function that parses an identifier and resolve it to a value,
   // or returns a status error if it cannot.
-  absl::StatusOr<BValue> ParseIdentifierValue(
+  absl::StatusOr<BValue> ParseAndResolveIdentifier(
       const absl::flat_hash_map<std::string, BValue>& name_to_value);
 
   // Parses a Value. Supports bits, array, and tuple types as well as their

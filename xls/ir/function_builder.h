@@ -525,6 +525,12 @@ class BuilderBase {
       Op op, BValue arg, absl::optional<SourceLocation> loc = absl::nullopt,
       absl::string_view name = "");
 
+  // Adds an assert op to the function. Assert raises an error containing the
+  // given message if the given condition evaluates to false.
+  BValue Assert(BValue token, BValue condition, absl::string_view message,
+                absl::optional<SourceLocation> loc = absl::nullopt,
+                absl::string_view name = "");
+
   // Add a receive operation. The type of the data value received is
   // determined by the channel.
   virtual BValue Receive(Channel* channel, BValue token,

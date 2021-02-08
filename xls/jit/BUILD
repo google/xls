@@ -139,6 +139,7 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/interpreter:channel_queue",
         "//xls/interpreter:ir_evaluator_test",
+        "//xls/ir:function_builder",
         "//xls/ir:random_value",
         "@com_github_google_re2//:re2",
         "@com_google_googletest//:gtest_main",

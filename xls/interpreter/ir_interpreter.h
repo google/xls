@@ -126,6 +126,10 @@ class IrInterpreter : public DfsVisitor {
   // fails if it is not bits.
   const Bits& ResolveAsBits(Node* node);
 
+  // Returns the previously evaluated value of 'node' as a boolean value. CHECK
+  // fails if it is not bits value of width 1.
+  bool ResolveAsBool(Node* node);
+
   // Returns the evaluated values of the given nodes as a vector of bits
   // values. Each node should be bits-typed.
   std::vector<Bits> ResolveAsBitsVector(absl::Span<Node* const> nodes);

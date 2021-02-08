@@ -459,6 +459,13 @@ OpClass.kinds['ASSERT'] = OpClass(
     op='Op::kAssert',
     operands=[Operand('token'), Operand('condition')],
     xls_type_expression='function->package()->GetTokenType()',
+    extra_methods=[Method(name='token',
+                          return_cpp_type='Node*',
+                          expression='operand(0)'),
+                   Method(name='condition',
+                          return_cpp_type='Node*',
+                          expression='operand(1)'),
+                   ],
     attributes=[StringAttribute('message')]
 )
 

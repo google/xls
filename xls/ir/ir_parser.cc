@@ -92,13 +92,28 @@ struct KeywordValue {
   }
 };
 
+// Structs used in argument parsing for capturing string attributes. Example
+// uses:
+//
+//   arg_parser.AddKeywordArg<IdentifierString>("to_apply");
+//   arg_parser.AddKeywordArg<QuotedString>("message");
+//
+// These structs are necessary to differentiate between various attribute types
+// which all are represented as std::string.
+struct IdentifierString {
+  std::string value;
+};
+struct QuotedString {
+  std::string value;
+};
+
 // Variant which gathers all the possible keyword argument types. New
 // keywords arguments which require a new type should be added here.
 using KeywordVariant =
-    absl::variant<KeywordValue<int64>, KeywordValue<std::string>,
-                  KeywordValue<BValue>, KeywordValue<std::vector<BValue>>,
-                  KeywordValue<Value>, KeywordValue<SourceLocation>,
-                  KeywordValue<bool>>;
+    absl::variant<KeywordValue<int64>, KeywordValue<IdentifierString>,
+                  KeywordValue<QuotedString>, KeywordValue<BValue>,
+                  KeywordValue<std::vector<BValue>>, KeywordValue<Value>,
+                  KeywordValue<SourceLocation>, KeywordValue<bool>>;
 
 // Abstraction for parsing the arguments of a node. The arguments include
 // positional and keyword arguments. The positional arguments are exclusively
@@ -243,15 +258,22 @@ class ArgParser {
                 [&](KeywordValue<int64>& v) {
                   return v.SetOrReturn(parser_->ParseInt64());
                 },
-                [&](KeywordValue<std::string>& v) {
-                  return v.SetOrReturn(parser_->ParseIdentifierString());
+                [&](KeywordValue<IdentifierString>& v) -> absl::Status {
+                  XLS_ASSIGN_OR_RETURN(std::string identifier,
+                                       parser_->ParseIdentifier());
+                  return v.SetOrReturn(IdentifierString{identifier});
+                },
+                [&](KeywordValue<QuotedString>& v) -> absl::Status {
+                  XLS_ASSIGN_OR_RETURN(std::string quoted_string,
+                                       parser_->ParseQuotedString());
+                  return v.SetOrReturn(QuotedString{quoted_string});
                 },
                 [&](KeywordValue<Value>& v) {
                   return v.SetOrReturn(parser_->ParseValueInternal(node_type_));
                 },
                 [&](KeywordValue<BValue>& v) {
                   return v.SetOrReturn(
-                      parser_->ParseIdentifierValue(name_to_bvalue_));
+                      parser_->ParseAndResolveIdentifier(name_to_bvalue_));
                 },
                 [&](KeywordValue<std::vector<BValue>>& v) {
                   return v.SetOrReturn(parser_->ParseNameList(name_to_bvalue_));
@@ -283,7 +305,7 @@ absl::StatusOr<bool> Parser::ParseBool() {
   return literal.GetValueBool();
 }
 
-absl::StatusOr<std::string> Parser::ParseIdentifierString(TokenPos* pos) {
+absl::StatusOr<std::string> Parser::ParseIdentifier(TokenPos* pos) {
   XLS_ASSIGN_OR_RETURN(Token token,
                        scanner_.PopTokenOrError(LexicalTokenType::kIdent));
   if (pos != nullptr) {
@@ -292,11 +314,19 @@ absl::StatusOr<std::string> Parser::ParseIdentifierString(TokenPos* pos) {
   return token.value();
 }
 
-absl::StatusOr<BValue> Parser::ParseIdentifierValue(
+absl::StatusOr<std::string> Parser::ParseQuotedString(TokenPos* pos) {
+  XLS_ASSIGN_OR_RETURN(
+      Token token, scanner_.PopTokenOrError(LexicalTokenType::kQuotedString));
+  if (pos != nullptr) {
+    *pos = token.pos();
+  }
+  return token.value();
+}
+
+absl::StatusOr<BValue> Parser::ParseAndResolveIdentifier(
     const absl::flat_hash_map<std::string, BValue>& name_to_value) {
   TokenPos start_pos;
-  XLS_ASSIGN_OR_RETURN(std::string identifier,
-                       ParseIdentifierString(&start_pos));
+  XLS_ASSIGN_OR_RETURN(std::string identifier, ParseIdentifier(&start_pos));
   auto it = name_to_value.find(identifier);
   if (it == name_to_value.end()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -430,7 +460,8 @@ absl::StatusOr<std::vector<BValue>> Parser::ParseNameList(
     if (scanner_.TryDropToken(LexicalTokenType::kBracketClose)) {
       break;
     }
-    XLS_ASSIGN_OR_RETURN(BValue value, ParseIdentifierValue(name_to_value));
+    XLS_ASSIGN_OR_RETURN(BValue value,
+                         ParseAndResolveIdentifier(name_to_value));
     result.push_back(value);
     must_end = !scanner_.TryDropToken(LexicalTokenType::kComma);
   }
@@ -571,11 +602,11 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kMap: {
-      std::string* to_apply_name =
-          arg_parser.AddKeywordArg<std::string>("to_apply");
+      IdentifierString* to_apply_name =
+          arg_parser.AddKeywordArg<IdentifierString>("to_apply");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
       XLS_ASSIGN_OR_RETURN(Function * to_apply,
-                           package->GetFunction(*to_apply_name));
+                           package->GetFunction(to_apply_name->value));
       bvalue = fb->Map(operands[0], to_apply, *loc, node_name);
       break;
     }
@@ -583,14 +614,15 @@ absl::StatusOr<BValue> Parser::ParseNode(
       // TODO(meheff): Params should not appear in the body of the
       // function. This is currently required because we have no way of
       // returning a param value otherwise.
-      std::string* param_name = arg_parser.AddKeywordArg<std::string>("name");
+      IdentifierString* param_name =
+          arg_parser.AddKeywordArg<IdentifierString>("name");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
-      auto it = name_to_value->find(*param_name);
+      auto it = name_to_value->find(param_name->value);
       if (it == name_to_value->end()) {
         return absl::InvalidArgumentError(
             absl::StrFormat("Referred to parameter name that hadn't yet been "
                             "defined: %s @ %s",
-                            *param_name, op_token.pos().ToHumanString()));
+                            param_name->value, op_token.pos().ToHumanString()));
       }
       bvalue = it->second;
       break;
@@ -598,23 +630,27 @@ absl::StatusOr<BValue> Parser::ParseNode(
     case Op::kCountedFor: {
       int64* trip_count = arg_parser.AddKeywordArg<int64>("trip_count");
       int64* stride = arg_parser.AddOptionalKeywordArg<int64>("stride", 1);
-      std::string* body_name = arg_parser.AddKeywordArg<std::string>("body");
+      IdentifierString* body_name =
+          arg_parser.AddKeywordArg<IdentifierString>("body");
       std::vector<BValue>* invariant_args =
           arg_parser.AddOptionalKeywordArg<std::vector<BValue>>(
               "invariant_args", /*default_value=*/{});
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
-      XLS_ASSIGN_OR_RETURN(Function * body, package->GetFunction(*body_name));
+      XLS_ASSIGN_OR_RETURN(Function * body,
+                           package->GetFunction(body_name->value));
       bvalue = fb->CountedFor(operands[0], *trip_count, *stride, body,
                               *invariant_args, *loc, node_name);
       break;
     }
     case Op::kDynamicCountedFor: {
-      std::string* body_name = arg_parser.AddKeywordArg<std::string>("body");
+      IdentifierString* body_name =
+          arg_parser.AddKeywordArg<IdentifierString>("body");
       std::vector<BValue>* invariant_args =
           arg_parser.AddOptionalKeywordArg<std::vector<BValue>>(
               "invariant_args", /*default_value=*/{});
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/3));
-      XLS_ASSIGN_OR_RETURN(Function * body, package->GetFunction(*body_name));
+      XLS_ASSIGN_OR_RETURN(Function * body,
+                           package->GetFunction(body_name->value));
       bvalue = fb->DynamicCountedFor(operands[0], operands[1], operands[2],
                                      body, *invariant_args, *loc, node_name);
       break;
@@ -718,11 +754,11 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kInvoke: {
-      std::string* to_apply_name =
-          arg_parser.AddKeywordArg<std::string>("to_apply");
+      IdentifierString* to_apply_name =
+          arg_parser.AddKeywordArg<IdentifierString>("to_apply");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(ArgParser::kVariadic));
       XLS_ASSIGN_OR_RETURN(Function * to_apply,
-                           package->GetFunction(*to_apply_name));
+                           package->GetFunction(to_apply_name->value));
       bvalue = fb->Invoke(operands, to_apply, *loc, node_name);
       break;
     }
@@ -830,6 +866,13 @@ absl::StatusOr<BValue> Parser::ParseNode(
       XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(*channel_id));
       bvalue = fb->SendIf(channel, operands[0], operands[1], operands[2], *loc,
                           node_name);
+      break;
+    }
+    case Op::kAssert: {
+      QuotedString* message = arg_parser.AddKeywordArg<QuotedString>("message");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
+      bvalue =
+          fb->Assert(operands[0], operands[1], message->value, *loc, node_name);
       break;
     }
     default:
