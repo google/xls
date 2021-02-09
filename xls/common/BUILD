@@ -292,6 +292,7 @@ py_library(
 py_library(
     name = "memoize",
     srcs = ["memoize.py"],
+    srcs_version = "PY2AND3",
 )
 
 cc_library(
