@@ -93,19 +93,6 @@ py_test(
     ],
 )
 
-py_library(
-    name = "parser_helpers",
-    srcs = ["parser_helpers.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":span",
-        requirement("termcolor"),
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_parser",
-        "//xls/dslx/python:scanner",
-    ],
-)
-
 cc_library(
     name = "symbolic_bindings",
     srcs = ["symbolic_bindings.cc"],

@@ -189,7 +189,6 @@ py_test(
         "//xls/common:check_simulator",
         "//xls/common:test_base",
         "//xls/dslx:fakefs_test_util",
-        "//xls/dslx:parser_helpers",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:interp_value",
         "//xls/ir/python:bits",
