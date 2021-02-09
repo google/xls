@@ -54,6 +54,10 @@ flags.DEFINE_string(
     'example_ir_dir', None, 'Path to directory containing IR files to use as '
     'precanned examples available in the UI via the "Examples" drop down menu. '
     'All files ending in ".ir" in the directory are used.')
+# TODO(meheff): the function should be selectable via the UI.
+flags.DEFINE_string(
+    'entry', None, 'Name of function to visualize. If not given then the '
+    'function is chosen heuristically (e.g., "main" if it exists).')
 flags.mark_flag_as_required('delay_model')
 
 IR_EXAMPLES_FILE_LIST = 'xls/visualization/ir_viz/ir_examples_file_list.txt'
@@ -218,7 +222,7 @@ def graph_handler():
   text = flask.request.form['text']
   try:
     json_text = ir_to_json.ir_to_json(text, FLAGS.delay_model,
-                                      FLAGS.pipeline_stages)
+                                      FLAGS.pipeline_stages, FLAGS.entry)
   except Exception as e:  # pylint: disable=broad-except
     # TODO(meheff): Switch to new pybind11 more-specific exception.
     return flask.jsonify({'error_code': 'error', 'message': str(e)})

@@ -50,11 +50,17 @@ absl::StatusOr<FunctionBase*> GetFunctionBaseToView(Package* package) {
 // IR to JSON conversion function which takes strings rather than objects.
 absl::StatusOr<std::string> IrToJsonWrapper(
     absl::string_view ir_text, absl::string_view delay_model_name,
-    absl::optional<int64> pipeline_stages) {
+    absl::optional<int64> pipeline_stages,
+    absl::optional<absl::string_view> entry_name) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(ir_text));
-  XLS_ASSIGN_OR_RETURN(FunctionBase * func_base,
-                       GetFunctionBaseToView(package.get()));
+  FunctionBase* func_base;
+  if (entry_name.has_value()) {
+    XLS_ASSIGN_OR_RETURN(func_base, package->GetFunction(entry_name.value()));
+  } else {
+    XLS_ASSIGN_OR_RETURN(func_base, GetFunctionBaseToView(package.get()));
+  }
+
   XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_estimator,
                        GetDelayEstimator(delay_model_name));
   if (pipeline_stages.has_value()) {
@@ -75,8 +81,8 @@ PYBIND11_MODULE(ir_to_json, m) {
   ImportStatusModule();
 
   m.def("ir_to_json", &IrToJsonWrapper, py::arg("ir_text"),
-        py::arg("delay_model_name"),
-        py::arg("pipeline_stages") = absl::nullopt);
+        py::arg("delay_model_name"), py::arg("pipeline_stages") = absl::nullopt,
+        py::arg("entry") = absl::nullopt);
 }
 
 }  // namespace xls
