@@ -28,14 +28,12 @@ from xls.common import check_simulator
 from xls.common import revision
 from xls.common import runfiles
 from xls.common.xls_error import XlsError
-from xls.dslx.interpreter.value_parser import value_from_string
 from xls.dslx.python import interpreter
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
 from xls.fuzzer import sample
 from xls.ir.python import ir_parser
 from xls.ir.python import value as ir_value_mod
-from xls.ir.python.format_preference import FormatPreference
 
 IR_CONVERTER_MAIN_PATH = runfiles.get_path('xls/dslx/cpp_ir_converter_main')
 EVAL_IR_MAIN_PATH = runfiles.get_path('xls/tools/eval_ir_main')
@@ -56,12 +54,7 @@ class SampleError(XlsError):
 def ir_value_to_interpreter_value(value: ir_value_mod.Value) -> Value:
   """Converts an IR Value to an interpreter Value."""
   if value.is_bits():
-    if value.get_bits().bit_count() <= 64:
-      return Value.make_bits(Tag.UBITS, value.get_bits())
-    else:
-      # For wide values which do not fit in 64 bits, parse value as as string.
-      return value_from_string(value.to_str(FormatPreference.HEX))
-
+    return Value.make_bits(Tag.UBITS, value.get_bits())
   elif value.is_array():
     return Value.make_array(
         tuple(ir_value_to_interpreter_value(e) for e in value.get_elements()))

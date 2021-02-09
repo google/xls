@@ -21,7 +21,7 @@ import re
 
 from typing import Text, Optional, NamedTuple, Sequence
 
-from xls.dslx.interpreter import value_parser
+from xls.dslx.python.interp_value import interp_value_from_string
 from xls.dslx.python.interp_value import Value
 
 Args = Sequence[Value]
@@ -44,9 +44,7 @@ def parse_args(args_text: Text) -> Args:
     List of parsed Values,
   """
   return tuple(
-      value_parser.value_from_string(a)
-      for a in args_text.split(';')
-      if a.strip())
+      interp_value_from_string(a) for a in args_text.split(';') if a.strip())
 
 
 def parse_args_batch(args_text: Text) -> ArgsBatch:

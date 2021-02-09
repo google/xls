@@ -1904,7 +1904,10 @@ absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v,
                              ValueToInterpValue(e, get_type(i)));
         members.push_back(iv);
       }
-      return InterpValue::MakeTuple(std::move(members));
+      if (v.kind() == ValueKind::kTuple) {
+        return InterpValue::MakeTuple(std::move(members));
+      }
+      return InterpValue::MakeArray(std::move(members));
     }
     default:
       return absl::InvalidArgumentError(

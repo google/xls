@@ -192,7 +192,9 @@ xls_pybind_extension(
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
+        "//xls/dslx:cpp_ir_converter",
         "//xls/dslx:interp_value",
+        "//xls/ir:ir_parser",
     ],
 )
 

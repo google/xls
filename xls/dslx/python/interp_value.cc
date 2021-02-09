@@ -20,7 +20,9 @@
 #include "pybind11/stl.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
+#include "xls/dslx/ir_converter.h"
 #include "xls/dslx/python/cpp_ast.h"
+#include "xls/ir/ir_parser.h"
 
 namespace py = pybind11;
 
@@ -176,6 +178,12 @@ PYBIND11_MODULE(interp_value, m) {
                     return InterpValue::MakeEnum(value, &enum_ast.deref());
                   })
       .def_static("make_nil", []() { return InterpValue::MakeTuple({}); });
+
+  m.def("interp_value_from_string",
+        [](absl::string_view s) -> absl::StatusOr<InterpValue> {
+          XLS_ASSIGN_OR_RETURN(Value v, Parser::ParseTypedValue(s));
+          return ValueToInterpValue(v);
+        });
 }
 
 }  // namespace xls::dslx

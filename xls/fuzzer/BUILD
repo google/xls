@@ -166,7 +166,6 @@ py_library(
         "//xls/common:revision",
         "//xls/common:runfiles",
         "//xls/common:xls_error",
-        "//xls/dslx/interpreter:value_parser",
         "//xls/dslx/python:cpp_ast",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:cpp_typecheck",
@@ -225,7 +224,6 @@ py_library(
     srcs = ["sample.py"],
     srcs_version = "PY3ONLY",
     deps = [
-        "//xls/dslx/interpreter:value_parser",
         "//xls/dslx/python:interp_value",
     ],
 )

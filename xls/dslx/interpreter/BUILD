@@ -33,19 +33,6 @@ py_library(
     ],
 )
 
-py_library(
-    name = "value_parser",
-    srcs = ["value_parser.py"],
-    srcs_version = "PY3",
-    deps = [
-        "//xls/common:xls_error",
-        "//xls/dslx:ast_helpers",
-        "//xls/dslx/python:interp_value",
-        "//xls/dslx/python:scanner",
-        "//xls/ir/python:bits",
-    ],
-)
-
 py_test(
     name = "value_test",
     srcs = ["value_test.py"],
@@ -54,18 +41,6 @@ py_test(
     deps = [
         "//xls/dslx/python:interp_value",
         "//xls/ir/python:bits",
-        "@com_google_absl_py//absl/testing:absltest",
-    ],
-)
-
-py_test(
-    name = "value_parser_test",
-    srcs = ["value_parser_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        ":value_parser",
-        "//xls/dslx/python:interp_value",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
