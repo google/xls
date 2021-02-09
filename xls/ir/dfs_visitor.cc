@@ -84,6 +84,11 @@ absl::Status DfsVisitorWithDefault::HandleBitSlice(BitSlice* bit_slice) {
   return DefaultHandler(bit_slice);
 }
 
+absl::Status DfsVisitorWithDefault::HandleBitSliceUpdate(
+    BitSliceUpdate* update) {
+  return DefaultHandler(update);
+}
+
 absl::Status DfsVisitorWithDefault::HandleReceive(Receive* receive) {
   return DefaultHandler(receive);
 }

@@ -634,6 +634,37 @@ Value     | Type
 The bit-width of `operand` must be greater than or equal to `<start>` plus
 `<width>`.
 
+#### **`bit_slice_update`**
+
+Replaces a contiguous range of bits in a bits-typed operand at a variable start
+index with a given value.
+
+**Syntax**
+
+```
+result = bit_slice_update(operand, start, update_value)
+```
+
+**Types**
+
+Value          | Type
+-------------- | ---------
+`operand`      | `bits[N]`
+`start`        | `bits[I]`
+`update_value` | `bits[M]`
+`result`       | `bits[N]`
+
+Evaluates to `operand` with the contiguous `M` bits starting at index `start`
+replaced with `update_value`. Out-of-bound bits (which occur if `start + M > N`)
+are ignored. Examples:
+
+`operand`         | `start` | `update_value` | `result`
+----------------- | ------- | -------------- | -----------------
+`bits[16]:0xabcd` | `0`     | `bits[8]:0xff` | `bits[16]:0xabff`
+`bits[16]:0xabcd` | `4`     | `bits[8]:0xff` | `bits[16]:0xaffd`
+`bits[16]:0xabcd` | `12`    | `bits[8]:0xff` | `bits[16]:0xfbcd`
+`bits[16]:0xabcd` | `16`    | `bits[8]:0xff` | `bits[16]:0xabcd`
+
 #### **`dynamic_bit_slice`**
 
 Slices a contiguous range of bits from a bits-typed operand, with variable

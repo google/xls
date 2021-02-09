@@ -228,13 +228,14 @@ bool ShouldEvaluate(Node* node) {
     case Op::kSLt:
       return false;
 
-    // Shift operations.
+    // Shift operations and related ops.
     // Shifts are very intensive to compute because they decompose into many,
     // many gates and they don't seem to provide much benefit. Turn-off for now.
     // TODO(meheff): Consider enabling shifts.
     case Op::kShll:
     case Op::kShra:
     case Op::kShrl:
+    case Op::kBitSliceUpdate:
       return false;
   }
   XLS_LOG(FATAL) << "Invalid op: " << static_cast<int64>(node->op());

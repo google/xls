@@ -251,6 +251,15 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleBitSliceUpdate(BitSliceUpdate* update) override {
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(update, 0));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(update, 1));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(update, 2));
+    XLS_RETURN_IF_ERROR(
+        ExpectHasBitsType(update, update->to_update()->BitCountOrDie()));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleConcat(Concat* concat) override {
     // All operands should be bits types.
     int64 total_bits = 0;

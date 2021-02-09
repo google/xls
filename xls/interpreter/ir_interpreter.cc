@@ -192,6 +192,10 @@ absl::Status IrInterpreter::HandleBitSlice(BitSlice* bit_slice) {
                            .Slice(bit_slice->start(), bit_slice->width()));
 }
 
+absl::Status IrInterpreter::HandleBitSliceUpdate(BitSliceUpdate* update) {
+  return absl::UnimplementedError("Bit-slice update not yet supported");
+}
+
 absl::Status IrInterpreter::HandleDynamicBitSlice(
     DynamicBitSlice* dynamic_bit_slice) {
   int64 operand_width = dynamic_bit_slice->operand(0)->BitCountOrDie();

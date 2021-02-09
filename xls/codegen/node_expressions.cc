@@ -445,6 +445,8 @@ absl::StatusOr<Expression*> NodeToExpression(
                            slice->start() + slice->width() - 1, slice->start());
       }
     }
+    case Op::kBitSliceUpdate:
+      return unimplemented();
     case Op::kDynamicBitSlice:
       return unimplemented();
     case Op::kConcat:

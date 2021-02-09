@@ -35,6 +35,7 @@ class DfsVisitor {
   virtual absl::Status HandleArrayConcat(ArrayConcat* array_concat) = 0;
   virtual absl::Status HandleAssert(Assert* assert_op) = 0;
   virtual absl::Status HandleBitSlice(BitSlice* bit_slice) = 0;
+  virtual absl::Status HandleBitSliceUpdate(BitSliceUpdate* update) = 0;
   virtual absl::Status HandleConcat(Concat* concat) = 0;
   virtual absl::Status HandleCountedFor(CountedFor* counted_for) = 0;
   virtual absl::Status HandleDecode(Decode* decode) = 0;
@@ -139,6 +140,7 @@ class DfsVisitorWithDefault : public DfsVisitor {
   absl::Status HandleArrayConcat(ArrayConcat* array_concat) override;
   absl::Status HandleAssert(Assert* assert_op) override;
   absl::Status HandleBitSlice(BitSlice* bit_slice) override;
+  absl::Status HandleBitSliceUpdate(BitSliceUpdate* update) override;
   absl::Status HandleConcat(Concat* concat) override;
   absl::Status HandleCountedFor(CountedFor* counted_for) override;
   absl::Status HandleDecode(Decode* decode) override;

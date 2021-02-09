@@ -562,6 +562,22 @@ OpClass.kinds['DYNAMIC_BIT_SLICE'] = OpClass(
     attributes=[Int64Attribute('width')],
 )
 
+OpClass.kinds['BIT_SLICE_UPDATE'] = OpClass(
+    name='BitSliceUpdate',
+    op='Op::kBitSliceUpdate',
+    operands=[Operand('arg'), Operand('start'), Operand('value')],
+    xls_type_expression='arg->GetType()',
+    extra_methods=[Method(name='to_update',
+                          return_cpp_type='Node*',
+                          expression='operand(0)'),
+                   Method(name='start',
+                          return_cpp_type='Node*',
+                          expression='operand(1)'),
+                   Method(name='update_value',
+                          return_cpp_type='Node*',
+                          expression='operand(2)'),]
+)
+
 OpClass.kinds['COMPARE_OP'] = OpClass(
     name='CompareOp',
     op='op',
@@ -902,6 +918,12 @@ OPS = [
         enum_name='kDynamicBitSlice',
         name='dynamic_bit_slice',
         op_class=OpClass.kinds['DYNAMIC_BIT_SLICE'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kBitSliceUpdate',
+        name='bit_slice_update',
+        op_class=OpClass.kinds['BIT_SLICE_UPDATE'],
         properties=[],
     ),
     Op(
