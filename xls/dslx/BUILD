@@ -78,21 +78,6 @@ py_test(
     ],
 )
 
-py_test(
-    name = "ast_test",
-    srcs = ["ast_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        ":ast_helpers",
-        "//xls/common:test_base",
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_ast_visitor",
-        "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:scanner",
-    ],
-)
-
 cc_library(
     name = "symbolic_bindings",
     srcs = ["symbolic_bindings.cc"],
@@ -133,20 +118,6 @@ cc_test(
     deps = [
         ":cpp_type_info",
         "@com_google_googletest//:gtest_main",
-    ],
-)
-
-py_test(
-    name = "concrete_type_test",
-    srcs = ["concrete_type_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_concrete_type",
-        "//xls/dslx/python:cpp_parametric_expression",
-        "//xls/dslx/python:cpp_pos",
-        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -206,18 +177,6 @@ py_library(
     deps = [
         ":fakefs_util",
         requirement("pyfakefs"),  # unittest
-    ],
-)
-
-py_library(
-    name = "ast_helpers",
-    srcs = ["ast_helpers.py"],
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx/python:cpp_ast",
-        "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:scanner",
-        "//xls/ir/python:bits",
     ],
 )
 

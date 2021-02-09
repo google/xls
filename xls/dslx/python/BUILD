@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype test and library
 load("//dependency_support/pybind11:pybind11.bzl", "xls_pybind_extension")
 
 package(
@@ -64,38 +63,6 @@ xls_pybind_extension(
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/dslx:cpp_ast",
-    ],
-)
-
-py_test(
-    name = "cpp_ast_test",
-    srcs = ["cpp_ast_test.py"],
-    python_version = "PY3",
-    deps = [
-        ":cpp_ast",
-        ":cpp_pos",
-        "@com_google_absl_py//absl/testing:absltest",
-    ],
-)
-
-py_library(
-    name = "cpp_ast_visitor",
-    srcs = ["cpp_ast_visitor.py"],
-    deps = [
-        ":cpp_ast",
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
-py_test(
-    name = "cpp_ast_visitor_test",
-    srcs = ["cpp_ast_visitor_test.py"],
-    python_version = "PY3",
-    deps = [
-        ":cpp_ast",
-        ":cpp_ast_visitor",
-        ":cpp_pos",
-        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
