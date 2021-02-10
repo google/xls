@@ -122,3 +122,32 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "indexer",
+    srcs = ["indexer.cc"],
+    hdrs = ["indexer.h"],
+    deps = [
+        ":common",
+        ":parameters",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:integral_types",
+    ],
+)
+
+cc_test(
+    name = "indexer_test",
+    srcs = ["indexer_test.cc"],
+    deps = [
+        ":indexer",
+        ":network_graph_builder",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/noc/config:network_config_cc_proto",
+        "//xls/noc/config:network_config_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
