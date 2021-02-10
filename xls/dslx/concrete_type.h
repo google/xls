@@ -29,7 +29,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/variant.h"
 #include "xls/common/integral_types.h"
-#include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/ast.h"
 #include "xls/dslx/parametric_expression.h"
 
 namespace xls::dslx {

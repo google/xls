@@ -19,7 +19,7 @@
 #define XLS_DSLX_BUILTINS_H_
 
 #include "absl/status/statusor.h"
-#include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/ast.h"
 #include "xls/dslx/interp_callback_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_info.h"

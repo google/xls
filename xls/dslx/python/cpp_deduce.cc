@@ -24,7 +24,6 @@
 #include "xls/dslx/deduce.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
-#include "xls/dslx/python/cpp_ast.h"
 #include "xls/dslx/python/errors.h"
 
 namespace py = pybind11;

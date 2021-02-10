@@ -18,8 +18,8 @@
 #include <memory>
 
 #include "absl/container/btree_set.h"
+#include "xls/dslx/ast.h"
 #include "xls/dslx/builtins.h"
-#include "xls/dslx/cpp_ast.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_info.h"

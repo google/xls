@@ -106,7 +106,7 @@ cc_library(
     srcs = ["type_info.cc"],
     hdrs = ["type_info.h"],
     deps = [
-        ":cpp_ast",
+        ":ast",
         ":cpp_concrete_type",
         ":symbolic_bindings",
     ],
@@ -204,16 +204,16 @@ cc_test(
 )
 
 cc_library(
-    name = "cpp_ast_builtin_types",
-    hdrs = ["cpp_ast_builtin_types.inc"],
+    name = "ast_builtin_types",
+    hdrs = ["ast_builtin_types.inc"],
 )
 
 cc_library(
-    name = "cpp_ast",
-    srcs = ["cpp_ast.cc"],
-    hdrs = ["cpp_ast.h"],
+    name = "ast",
+    srcs = ["ast.cc"],
+    hdrs = ["ast.h"],
     deps = [
-        ":cpp_ast_builtin_types",
+        ":ast_builtin_types",
         ":cpp_pos",
         "//xls/common:indent",
         "//xls/common/logging",
@@ -235,10 +235,10 @@ cc_library(
 )
 
 cc_test(
-    name = "cpp_ast_test",
-    srcs = ["cpp_ast_test.cc"],
+    name = "ast_test",
+    srcs = ["ast_test.cc"],
     deps = [
-        ":cpp_ast",
+        ":ast",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
@@ -279,7 +279,7 @@ cc_library(
     srcs = ["cpp_bindings.cc"],
     hdrs = ["cpp_bindings.h"],
     deps = [
-        ":cpp_ast",
+        ":ast",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "@com_github_google_re2//:re2",
@@ -316,7 +316,7 @@ cc_library(
     srcs = ["parser.cc"],
     hdrs = ["parser.h"],
     deps = [
-        ":cpp_ast",
+        ":ast",
         ":cpp_bindings",
         ":cpp_token_parser",
         "//xls/common:cleanup",
@@ -352,7 +352,7 @@ cc_library(
     srcs = ["concrete_type.cc"],
     hdrs = ["concrete_type.h"],
     deps = [
-        ":cpp_ast",
+        ":ast",
         ":cpp_parametric_expression",
         "//xls/common:integral_types",
         "//xls/common/status:ret_check",
@@ -381,7 +381,7 @@ cc_library(
     srcs = ["interp_value.cc"],
     hdrs = ["interp_value.h"],
     deps = [
-        ":cpp_ast",
+        ":ast",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
@@ -394,7 +394,7 @@ cc_library(
     srcs = ["interp_bindings.cc"],
     hdrs = ["interp_bindings.h"],
     deps = [
-        ":cpp_ast",
+        ":ast",
         ":cpp_type_info",
         ":interp_value",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -418,7 +418,7 @@ cc_library(
     srcs = ["builtins.cc"],
     hdrs = ["builtins.h"],
     deps = [
-        ":cpp_ast",
+        ":ast",
         ":cpp_type_info",
         ":interp_callback_data",
         ":interp_value",
@@ -433,7 +433,7 @@ cc_library(
     name = "interp_callback_data",
     hdrs = ["interp_callback_data.h"],
     deps = [
-        ":cpp_ast",
+        ":ast",
         ":cpp_concrete_type",
         ":cpp_type_info",
         ":import_routines",
@@ -448,7 +448,7 @@ cc_library(
     srcs = ["cpp_evaluate.cc"],
     hdrs = ["cpp_evaluate.h"],
     deps = [
-        ":cpp_ast",
+        ":ast",
         ":cpp_type_info",
         ":import_routines",
         ":interp_bindings",
@@ -477,7 +477,7 @@ cc_library(
     hdrs = ["import_routines.h"],
     data = ["//xls/dslx/stdlib:x_files"],
     deps = [
-        ":cpp_ast",
+        ":ast",
         ":cpp_parser",
         ":cpp_type_info",
         ":scanner",
@@ -493,8 +493,8 @@ cc_library(
     srcs = ["interpreter.cc"],
     hdrs = ["interpreter.h"],
     deps = [
+        ":ast",
         ":builtins",
-        ":cpp_ast",
         ":cpp_evaluate",
         ":cpp_type_info",
         ":import_routines",
@@ -579,19 +579,11 @@ cc_library(
     name = "cpp_typecheck",
     srcs = ["typecheck.cc"],
     hdrs = ["typecheck.h"],
-    # We throw exceptions that come from PyBind through this code (the
-    # deduction rules) so we have to enable exceptions for this translation
-    # unit for now to get proper cleanup.
-    # TODO(leary): 2020-12-15 We can remove this when the port to C++ is
-    # completed.
-    copts = ["-fexceptions"],
-    features = ["-use_header_modules"],
     deps = [
         ":cpp_deduce",
         ":cpp_dslx_builtins",
         ":deduce_ctx",
         ":import_routines",
-        "//xls/dslx/python:cpp_ast_header",
         "@com_google_absl//absl/status:statusor",
     ],
 )
@@ -611,7 +603,7 @@ cc_library(
     srcs = ["dslx_builtins.cc"],
     hdrs = ["dslx_builtins.h"],
     deps = [
-        ":cpp_ast",
+        ":ast",
         ":cpp_concrete_type",
         ":cpp_parametric_instantiator",
         ":deduce_ctx",
@@ -626,8 +618,8 @@ cc_library(
     srcs = ["ir_converter.cc"],
     hdrs = ["ir_converter.h"],
     deps = [
+        ":ast",
         ":builtins",
-        ":cpp_ast",
         ":cpp_dslx_builtins",
         ":cpp_extract_conversion_order",
         ":cpp_type_info",
@@ -648,7 +640,7 @@ cc_library(
     srcs = ["cpp_extract_conversion_order.cc"],
     hdrs = ["cpp_extract_conversion_order.h"],
     deps = [
-        ":cpp_ast",
+        ":ast",
         ":cpp_dslx_builtins",
         ":cpp_type_info",
         ":symbolic_bindings",
@@ -759,7 +751,7 @@ cc_library(
     srcs = ["parse_and_typecheck.cc"],
     hdrs = ["parse_and_typecheck.h"],
     deps = [
-        ":cpp_ast",
+        ":ast",
         ":cpp_parser",
         ":cpp_type_info",
         ":cpp_typecheck",

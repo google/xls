@@ -277,7 +277,7 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/dslx:cpp_ast",
+        "//xls/dslx:ast",
         "@com_google_protobuf//:protobuf",
     ],
 )

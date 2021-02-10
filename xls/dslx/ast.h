@@ -252,7 +252,7 @@ class TypeAnnotation : public AstNode {
   Span span_;
 };
 
-#include "xls/dslx/cpp_ast_builtin_types.inc"
+#include "xls/dslx/ast_builtin_types.inc"
 
 // Enumeration of types that are built-in keywords; e.g. `u32`, `bool`, etc.
 enum class BuiltinType {

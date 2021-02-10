@@ -18,7 +18,7 @@
 
 from absl.testing import absltest
 from absl.testing import parameterized
-from xls.dslx.python import cpp_ast as ast
+from xls.dslx.python import ast
 from xls.fuzzer import run_fuzz
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
 

@@ -16,7 +16,7 @@
 #define XLS_DSLX_CPP_EXTRACT_CONVERSION_ORDER_H_
 
 #include "absl/container/flat_hash_map.h"
-#include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/ast.h"
 #include "xls/dslx/symbolic_bindings.h"
 #include "xls/dslx/type_info.h"
 

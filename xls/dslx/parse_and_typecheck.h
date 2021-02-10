@@ -15,7 +15,7 @@
 #ifndef XLS_DSLX_PARSE_AND_TYPECHECK_H_
 #define XLS_DSLX_PARSE_AND_TYPECHECK_H_
 
-#include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/ast.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/type_info.h"
 

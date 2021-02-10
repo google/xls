@@ -17,8 +17,8 @@
 #ifndef XLS_DSLX_TYPE_INFO_H_
 #define XLS_DSLX_TYPE_INFO_H_
 
+#include "xls/dslx/ast.h"
 #include "xls/dslx/concrete_type.h"
-#include "xls/dslx/cpp_ast.h"
 #include "xls/dslx/symbolic_bindings.h"
 
 namespace xls::dslx {

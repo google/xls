@@ -22,7 +22,7 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 #include "xls/common/status/statusor_pybind_caster.h"
-#include "xls/dslx/cpp_ast_builtin_types.inc"
+#include "xls/dslx/ast_builtin_types.inc"
 #include "xls/dslx/cpp_pos.h"
 #include "xls/dslx/python/errors.h"
 

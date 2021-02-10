@@ -22,8 +22,8 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "xls/dslx/ast.h"
 #include "xls/dslx/concrete_type.h"
-#include "xls/dslx/cpp_ast.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/type_and_bindings.h"
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/ast.h"
 
 #include "absl/base/casts.h"
 #include "absl/status/statusor.h"
@@ -21,13 +21,12 @@
 #include "pybind11/stl.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
-#include "xls/dslx/python/cpp_ast.h"
 
 namespace py = pybind11;
 
 namespace xls::dslx {
 
-PYBIND11_MODULE(cpp_ast, m) {
+PYBIND11_MODULE(ast, m) {
   ImportStatusModule();
 
   py::enum_<BinopKind>(m, "BinopKind")

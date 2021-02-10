@@ -20,7 +20,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/dslx/concrete_type.h"
-#include "xls/dslx/python/cpp_ast.h"
 
 namespace py = pybind11;
 
@@ -93,38 +92,12 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
              return result;
            }),
            py::arg("members"))
-      // NamedMembers
-      .def(
-          py::init(
-              [](const std::vector<std::pair<std::string, const ConcreteType*>>&
-                     named,
-                 absl::optional<StructDefHolder> struct_def) {
-                std::vector<TupleType::NamedMember> members;
-                members.reserve(named.size());
-                for (const auto& [name, type] : named) {
-                  members.push_back(
-                      TupleType::NamedMember{name, type->CloneToUnique()});
-                }
-                auto result = absl::make_unique<TupleType>(
-                    TupleType::Members(std::move(members)),
-                    struct_def.has_value() ? &struct_def->deref() : nullptr);
-                XLS_CHECK(result->is_named());
-                return result;
-              }),
-          py::arg("members"), py::arg("struct") = absl::nullopt)
       .def(
           "get_tuple_member",
           [](const TupleType& self, int64 i) {
             return self.GetUnnamedMembers()[i];
           },
           py::return_value_policy::reference_internal)
-      .def("get_nominal_type",
-           [](const TupleType& t) -> absl::optional<StructDefHolder> {
-             if (StructDef* s = t.nominal_type()) {
-               return StructDefHolder(s, s->owner()->shared_from_this());
-             }
-             return absl::nullopt;
-           })
       .def("get_tuple_length", &TupleType::size)
       .def("get_unnamed_members",
            [](const TupleType& t) {
@@ -225,25 +198,6 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
       .def_property_readonly(
           "size", [](const BitsType& self) { return self.size().Clone(); })
       .def_property_readonly("signed", &BitsType::is_signed);
-
-  // class EnumType
-  py::class_<EnumType, ConcreteType>(m, "EnumType")
-      .def(py::init([](EnumDefHolder enum_, const ConcreteTypeDim& bit_count) {
-        return EnumType(&enum_.deref(), bit_count.Clone());
-      }))
-      .def(py::init([](EnumDefHolder enum_, int64 bit_count) {
-        return EnumType(&enum_.deref(), ConcreteTypeDim(bit_count));
-      }))
-      .def("get_nominal_type",
-           [](const EnumType& t) -> absl::optional<EnumDefHolder> {
-             if (EnumDef* e = t.nominal_type()) {
-               return EnumDefHolder(e, e->owner()->shared_from_this());
-             }
-             return absl::nullopt;
-           })
-      .def_property_readonly("signed", &EnumType::signedness)
-      .def_property_readonly(
-          "size", [](const EnumType& self) { return self.size().Clone(); });
 
   py::class_<FunctionType, ConcreteType>(m, "FunctionType")
       .def(py::init([](const std::vector<const ConcreteType*>& params,

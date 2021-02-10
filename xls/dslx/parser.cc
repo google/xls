@@ -17,7 +17,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/cleanup.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/ast.h"
 
 namespace xls::dslx {
 

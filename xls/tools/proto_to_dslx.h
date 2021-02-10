@@ -23,7 +23,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/variant.h"
-#include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/ast.h"
 
 namespace xls {
 

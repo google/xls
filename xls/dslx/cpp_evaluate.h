@@ -16,7 +16,7 @@
 #define XLS_DSLX_CPP_EVALUATE_H_
 
 #include "absl/status/statusor.h"
-#include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/ast.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/interp_callback_data.h"

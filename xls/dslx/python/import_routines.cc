@@ -21,7 +21,6 @@
 #include "pybind11/stl.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
-#include "xls/dslx/python/cpp_ast.h"
 #include "xls/dslx/python/errors.h"
 #include "xls/dslx/type_info.h"
 

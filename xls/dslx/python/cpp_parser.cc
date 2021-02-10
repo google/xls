@@ -20,7 +20,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/dslx/parser.h"
-#include "xls/dslx/python/cpp_ast.h"
 #include "xls/dslx/python/errors.h"
 
 namespace py = pybind11;
@@ -29,7 +28,6 @@ namespace xls::dslx {
 
 PYBIND11_MODULE(cpp_parser, m) {
   ImportStatusModule();
-  py::module::import("xls.dslx.python.cpp_ast");
   py::module::import("xls.dslx.python.scanner");
 
   static py::exception<CppParseError> parse_exc(m, "CppParseError");
@@ -49,18 +47,6 @@ PYBIND11_MODULE(cpp_parser, m) {
     std::string message = absl::StrFormat("%s @ %s", s, span.ToString());
     throw CppParseError(std::move(span), std::move(message));
   });
-
-  py::class_<Parser>(m, "Parser")
-      .def(py::init([](Scanner* scanner, std::string module_name) {
-             return Parser(module_name, scanner);
-           }),
-           py::keep_alive<1, 2>())
-      .def("parse_module", [](Parser* self) -> absl::StatusOr<ModuleHolder> {
-        absl::StatusOr<std::shared_ptr<Module>> module = self->ParseModule();
-        TryThrowCppParseError(module.status());
-        XLS_RETURN_IF_ERROR(module.status());
-        return ModuleHolder(module.value().get(), module.value());
-      });
 }
 
 }  // namespace xls::dslx

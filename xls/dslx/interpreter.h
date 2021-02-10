@@ -15,7 +15,7 @@
 #ifndef XLS_DSLX_INTERPRETER_H_
 #define XLS_DSLX_INTERPRETER_H_
 
-#include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/ast.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/interp_callback_data.h"

@@ -21,21 +21,6 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
-# Usually the pybind extension modules don't need shared definitions, but the
-# "Holder" wrapper objects for AST nodes are used across a few different pybind
-# extensions, so it's broken out here.
-cc_library(
-    name = "cpp_ast_header",
-    hdrs = ["cpp_ast.h"],
-    copts = ["-fexceptions"],
-    features = ["-use_header_modules"],
-    deps = [
-        "@com_google_absl//absl/base",
-        "//xls/dslx:cpp_ast",
-        "@pybind11",
-    ],
-)
-
 cc_library(
     name = "errors",
     hdrs = ["errors.h"],
@@ -52,17 +37,16 @@ cc_library(
 )
 
 xls_pybind_extension(
-    name = "cpp_ast",
+    name = "ast",
     srcs = [
-        "cpp_ast.cc",
+        "ast.cc",
     ],
     deps = [
-        ":cpp_ast_header",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:cpp_ast",
+        "//xls/dslx:ast",
     ],
 )
 
@@ -76,7 +60,7 @@ xls_pybind_extension(
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:cpp_ast_builtin_types",
+        "//xls/dslx:ast_builtin_types",
         "//xls/dslx:cpp_pos",
         "//xls/dslx:scanner",
     ],
@@ -90,27 +74,6 @@ xls_pybind_extension(
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/dslx:cpp_pos",
-    ],
-)
-
-xls_pybind_extension(
-    name = "cpp_parser",
-    srcs = [
-        "cpp_parser.cc",
-    ],
-    py_deps = [
-        ":cpp_ast",  # build_cleaner: keep
-        ":scanner",  # build_cleaner: keep
-    ],
-    deps = [
-        ":cpp_ast_header",
-        ":errors",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "//xls/common/status:status_macros",
-        "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:cpp_parser",
     ],
 )
 
@@ -132,10 +95,8 @@ xls_pybind_extension(
         "cpp_concrete_type.cc",
     ],
     py_deps = [
-        ":cpp_ast",  # build_cleaner: keep
     ],
     deps = [
-        ":cpp_ast_header",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -151,10 +112,8 @@ xls_pybind_extension(
         "interp_value.cc",
     ],
     py_deps = [
-        ":cpp_ast",  # build_cleaner: keep
     ],
     deps = [
-        ":cpp_ast_header",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
@@ -171,18 +130,16 @@ xls_pybind_extension(
         "import_routines.cc",
     ],
     py_deps = [
-        ":cpp_ast",  # build_cleaner: keep
         ":interp_value",  # build_cleaner: keep
     ],
     deps = [
-        ":cpp_ast_header",
         ":errors",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:cpp_ast",
+        "//xls/dslx:ast",
         "//xls/dslx:cpp_bindings",
         "//xls/dslx:cpp_evaluate",
         "//xls/dslx:cpp_type_info",
@@ -194,19 +151,17 @@ xls_pybind_extension(
     name = "interpreter",
     srcs = ["interpreter.cc"],
     py_deps = [
-        ":cpp_ast",  # build_cleaner: keep
         ":interp_value",  # build_cleaner: keep
         ":cpp_concrete_type",  # build_cleaner: keep
     ],
     deps = [
-        ":cpp_ast_header",
         ":errors",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:cpp_ast",
+        "//xls/dslx:ast",
         "//xls/dslx:cpp_concrete_type",
         "//xls/dslx:cpp_evaluate",
         "//xls/dslx:cpp_parse_and_typecheck",
@@ -225,51 +180,20 @@ xls_pybind_extension(
     name = "cpp_deduce",
     srcs = ["cpp_deduce.cc"],
     py_deps = [
-        ":cpp_ast",  # build_cleaner: keep
         ":cpp_concrete_type",  # build_cleaner: keep
         ":import_routines",  # build_cleaner: keep
     ],
     deps = [
-        ":cpp_ast_header",
         ":errors",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:cpp_ast",
+        "//xls/dslx:ast",
         "//xls/dslx:cpp_concrete_type",
         "//xls/dslx:cpp_deduce",
         "//xls/dslx:cpp_evaluate",
-        "//xls/dslx:import_routines",
-        "//xls/dslx:interp_bindings",
-        "//xls/dslx:interpreter",
-        "//xls/ir/python:wrapper_types",
-    ],
-)
-
-xls_pybind_extension(
-    name = "cpp_typecheck",
-    srcs = ["cpp_typecheck.cc"],
-    py_deps = [
-        ":cpp_ast",  # build_cleaner: keep
-        ":cpp_deduce",  # build_cleaner: keep
-        ":cpp_concrete_type",  # build_cleaner: keep
-        ":import_routines",  # build_cleaner: keep
-    ],
-    deps = [
-        ":cpp_ast_header",
-        ":errors",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "//xls/common/status:status_macros",
-        "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:cpp_ast",
-        "//xls/dslx:cpp_concrete_type",
-        "//xls/dslx:cpp_deduce",
-        "//xls/dslx:cpp_evaluate",
-        "//xls/dslx:cpp_typecheck",
         "//xls/dslx:import_routines",
         "//xls/dslx:interp_bindings",
         "//xls/dslx:interpreter",

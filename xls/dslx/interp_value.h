@@ -15,7 +15,7 @@
 #ifndef XLS_DSLX_INTERP_VALUE_H_
 #define XLS_DSLX_INTERP_VALUE_H_
 
-#include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/ast.h"
 #include "xls/ir/bits.h"
 
 namespace xls::dslx {

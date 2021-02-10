@@ -21,7 +21,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/dslx/ir_converter.h"
-#include "xls/dslx/python/cpp_ast.h"
 #include "xls/ir/ir_parser.h"
 
 namespace py = pybind11;
@@ -141,14 +140,6 @@ PYBIND11_MODULE(interp_value, m) {
       .def("get_bit_value_check_sign", &InterpValue::GetBitValueCheckSign)
       .def("sign_ext", &InterpValue::SignExt)
       .def("zero_ext", &InterpValue::ZeroExt)
-      .def("get_type",
-           [](const InterpValue& self) -> absl::optional<EnumDefHolder> {
-             if (self.type() != nullptr) {
-               return EnumDefHolder(self.type(),
-                                    self.type()->owner()->shared_from_this());
-             }
-             return absl::nullopt;
-           })
       .def("get_elements", &InterpValue::GetValues)
       .def("is_builtin_function", &InterpValue::IsBuiltinFunction)
       .def_property_readonly("tag", &InterpValue::tag)
@@ -173,10 +164,6 @@ PYBIND11_MODULE(interp_value, m) {
       .def_static("make_u32", &InterpValue::MakeU32, py::arg("value"))
       .def_static("make_array", &InterpValue::MakeArray, py::arg("elements"))
       .def_static("make_tuple", &InterpValue::MakeTuple, py::arg("elements"))
-      .def_static("make_enum",
-                  [](Bits value, EnumDefHolder enum_ast) {
-                    return InterpValue::MakeEnum(value, &enum_ast.deref());
-                  })
       .def_static("make_nil", []() { return InterpValue::MakeTuple({}); });
 
   m.def("interp_value_from_string",

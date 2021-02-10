@@ -15,7 +15,7 @@
 #ifndef XLS_DSLX_IMPORT_ROUTINES_H_
 #define XLS_DSLX_IMPORT_ROUTINES_H_
 
-#include "xls/dslx/cpp_ast.h"
+#include "xls/dslx/ast.h"
 #include "xls/dslx/type_info.h"
 
 namespace xls::dslx {
