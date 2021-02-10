@@ -165,7 +165,6 @@ py_library(
         "//xls/common:runfiles",
         "//xls/common:xls_error",
         "//xls/dslx/python:cpp_concrete_type",
-        "//xls/dslx/python:import_routines",
         "//xls/dslx/python:interp_value",
         "//xls/dslx/python:interpreter",
         "//xls/ir/python:format_preference",

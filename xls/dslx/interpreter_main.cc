@@ -146,7 +146,7 @@ absl::StatusOr<bool> ParseAndTest(
 
   Scanner scanner{std::string(filename), std::string(program)};
   Parser parser(std::string(module_name), &scanner);
-  absl::StatusOr<std::shared_ptr<Module>> module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module_or = parser.ParseModule();
   if (!module_or.ok()) {
     if (TryPrintError(module_or.status())) {
       return true;

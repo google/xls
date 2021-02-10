@@ -181,7 +181,7 @@ fn f(p: Point) -> Point {
 })";
   Scanner s{"test.x", std::string{text}};
   Parser parser{"test", &s};
-  XLS_ASSERT_OK_AND_ASSIGN(std::shared_ptr<Module> m, parser.ParseModule());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
   XLS_ASSERT_OK_AND_ASSIGN(TypeDefinition c, m->GetTypeDefinition("Point"));
   ASSERT_TRUE(absl::holds_alternative<StructDef*>(c));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, m->GetFunctionOrError("f"));

@@ -43,20 +43,6 @@ PYBIND11_MODULE(interpreter, m) {
   ImportStatusModule();
   py::module::import("xls.dslx.python.cpp_concrete_type");
 
-  static py::exception<FailureError> failure_exc(m, "FailureError");
-
-  py::register_exception_translator([](std::exception_ptr p) {
-    try {
-      if (p) std::rethrow_exception(p);
-    } catch (const FailureError& e) {
-      py::object& e_type = failure_exc;
-      py::object instance = e_type();
-      instance.attr("message") = e.what();
-      instance.attr("span") = e.span();
-      PyErr_SetObject(failure_exc.ptr(), instance.ptr());
-    }
-  });
-
   m.def("get_function_type",
         [](absl::string_view text, absl::string_view function_name)
             -> absl::StatusOr<std::unique_ptr<ConcreteType>> {

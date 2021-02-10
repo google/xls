@@ -27,9 +27,6 @@ py_library(
     name = "bit_helpers",
     srcs = ["bit_helpers.py"],
     srcs_version = "PY3",
-    deps = [
-        "//xls/dslx/python:cpp_parametric_expression",
-    ],
 )
 
 py_test(

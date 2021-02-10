@@ -85,7 +85,6 @@ py_test(
         requirement("pyfakefs"),  # unittest
         "//xls/common:runfiles",
         "//xls/common:test_base",
-        "//xls/dslx/python:cpp_deduce",
         "//xls/dslx/python:interpreter",
     ],
 )
