@@ -687,13 +687,13 @@ class ProcBuilder : public BuilderBase {
   BValue state_param_;
 };
 
-// A derived ProcBuilder which automatically manages tokens internally.
-// This makes it much less verbose to construct procs with send and receive
-// operations. In the TokenlessProcBuilder, *all* send and receive operations
-// use GetTokenParam() as their token operand, and the recurrent token is an
-// AfterAll operation whose operands are the tokens from all of the send and
-// receive operations. The limitation of the TokenlessProcBuilder is that it
-// cannot be used if non-trivial ordering of send/receive nodes is required
+// A derived ProcBuilder which automatically manages tokens internally.  This
+// makes it much less verbose to construct procs with sends, receives, or other
+// token-using operations. In the TokenlessProcBuilder, *all* token-using
+// operations use GetTokenParam() as their token operand, and the recurrent
+// token is an AfterAll operation whose operands are the tokens from all of the
+// token-using operations. The limitation of the TokenlessProcBuilder is that it
+// cannot be used if non-trivial ordering of these operations is required
 // (enforced via token data dependencies).
 //
 // Note: a proc built with the TokenlessProcBuilder still has token types
@@ -742,6 +742,12 @@ class TokenlessProcBuilder : public ProcBuilder {
   // the predicate "pred".
   using ProcBuilder::SendIf;
   void SendIf(Channel* channel, BValue pred, BValue data,
+              absl::optional<SourceLocation> loc = absl::nullopt,
+              absl::string_view name = "");
+
+  // Add an assert operation
+  using BuilderBase::Assert;
+  void Assert(BValue condition, absl::string_view message,
               absl::optional<SourceLocation> loc = absl::nullopt,
               absl::string_view name = "");
 

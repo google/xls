@@ -19,6 +19,7 @@
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/pipeline_generator.h"
+#include "xls/codegen/proc_generator.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
@@ -470,6 +471,55 @@ TEST_P(ModuleSimulatorCodegenTest, ReturnParameter) {
   EXPECT_EQ(outputs.size(), 1);
   ASSERT_TRUE(outputs.contains("out"));
   EXPECT_EQ(outputs.at("out"), UBits(42, 8));
+}
+
+TEST_P(ModuleSimulatorCodegenTest, Assert) {
+  Package p(TestName());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * input_ch,
+      p.CreatePortChannel("in", ChannelOps::kReceiveOnly, p.GetBitsType(8)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * output_ch,
+      p.CreatePortChannel("out", ChannelOps::kSendOnly, p.GetBitsType(8)));
+  TokenlessProcBuilder b("assert_test", /*initial_value*/ Value::Tuple({}),
+                         "tkn", "st", &p);
+  BValue in = b.Receive(input_ch);
+  BValue in_lt_42 = b.ULt(in, b.Literal(UBits(42, 8)));
+  b.Assert(in_lt_42, "input is not less than 42!");
+  b.Send(output_ch, in);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(b.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      GenerateModule(
+          proc, GeneratorOptions().use_system_verilog(UseSystemVerilog())));
+
+  // Manually construct the signature because the proc generator produces a
+  // signature with the "unknown" interface type which the module builder
+  // doesn't known what to do with.
+  // TODO(meheff): Fix this when we have a unified code generator which properly
+  // lowers combinational and pipeline procs.
+  ModuleSignatureBuilder sig_b("assert_test");
+  sig_b.WithCombinationalInterface();
+  sig_b.AddDataInput("in", 8);
+  sig_b.AddDataOutput("out", 8);
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig, sig_b.Build());
+  ModuleSimulator simulator(sig, result.verilog_text, GetSimulator());
+
+  absl::flat_hash_map<std::string, Bits> outputs;
+  XLS_ASSERT_OK(
+      simulator.Run(ModuleSimulator::BitsMap({{"in", UBits(10, 8)}})));
+
+  auto run_status =
+      simulator.Run(ModuleSimulator::BitsMap({{"in", UBits(100, 8)}})).status();
+  if (GetParam().use_system_verilog) {
+    // Asserts are only emitted in SystemVerilog.
+    EXPECT_THAT(run_status, StatusIs(absl::StatusCode::kAborted,
+                                     HasSubstr("SystemVerilog assert failed")));
+    EXPECT_THAT(run_status, StatusIs(absl::StatusCode::kAborted,
+                                     HasSubstr("input is not less than 42")));
+  } else {
+    XLS_ASSERT_OK(run_status);
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(ModuleSimulatorCodegenTestInstantiation,

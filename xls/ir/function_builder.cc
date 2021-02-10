@@ -1162,6 +1162,14 @@ void TokenlessProcBuilder::SendIf(Channel* channel, BValue pred, BValue data,
   tokens_.push_back(send_if);
 }
 
+void TokenlessProcBuilder::Assert(BValue condition, absl::string_view message,
+                                  absl::optional<SourceLocation> loc,
+                                  absl::string_view name) {
+  BValue asrt =
+      BuilderBase::Assert(GetTokenParam(), condition, message, loc, name);
+  tokens_.push_back(asrt);
+}
+
 absl::StatusOr<Proc*> TokenlessProcBuilder::Build(BValue next_state) {
   if (tokens_.empty()) {
     return ProcBuilder::Build(GetTokenParam(), next_state);

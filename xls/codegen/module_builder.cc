@@ -192,6 +192,7 @@ ModuleBuilder::ModuleBuilder(absl::string_view name, VerilogFile* file,
   constants_section_ = module_->Add<ModuleSection>(file_);
   input_section_ = module_->Add<ModuleSection>(file_);
   declaration_and_assignment_section_ = module_->Add<ModuleSection>(file_);
+  assert_section_ = module_->Add<ModuleSection>(file_);
   output_section_ = module_->Add<ModuleSection>(file_);
 
   NewDeclarationAndAssignmentSections();
@@ -332,6 +333,7 @@ bool ModuleBuilder::CanEmitAsInlineExpression(
     // TODO(meheff): With system verilog we can do array assignment.
     return false;
   }
+
   absl::Span<Node* const> users =
       users_of_expression.has_value() ? *users_of_expression : node->users();
   for (Node* user : users) {
@@ -697,6 +699,35 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
     XLS_RETURN_IF_ERROR(Assign(ref, expr, node->GetType()));
   }
   return ref;
+}
+
+absl::Status ModuleBuilder::EmitAssert(xls::Assert* asrt,
+                                       Expression* condition) {
+  if (!use_system_verilog_) {
+    // Asserts are a SystemVerilog only feature.
+    return absl::OkStatus();
+  }
+
+  if (assert_always_comb_ == nullptr) {
+    // Lazily create the always_comb block.
+    assert_always_comb_ = assert_section_->Add<AlwaysComb>(file_);
+  }
+
+  // Guard the assert with $isunknown to avoid triggering the assert condition
+  // prior to inputs being driven in the testbench. For example:
+  //
+  //   assert($isunknown(cond) || cond) else $fatal("Error message");
+  //
+  // TODO(meheff): Figure out a better way of handling this, perhaps by
+  // adjusting our testbench architecture to drive inputs immediately for
+  // combinational blocks and asserting only on rising clock edge for
+  // non-combinational blocks.
+  assert_always_comb_->statements()->Add<Assert>(
+      file_->LogicalOr(file_->Make<SystemFunctionCall>(
+                           "isunknown", std::vector<Expression*>({condition})),
+                       condition),
+      asrt->message());
+  return absl::OkStatus();
 }
 
 absl::Status ModuleBuilder::Assign(LogicRef* lhs, Expression* rhs, Type* type) {

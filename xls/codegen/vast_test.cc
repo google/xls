@@ -798,6 +798,32 @@ TEST(VastTest, VerilogFunctionWithSingleBitReturn) {
 endmodule)");
 }
 
+TEST(VastTest, AssertTest) {
+  VerilogFile f;
+  Module* m = f.AddModule("top");
+  LogicRef* a_ref = m->AddPort(Direction::kInput, "a", 8);
+  LogicRef* b_ref = m->AddPort(Direction::kInput, "b", 8);
+  LogicRef* c_ref = m->AddPort(Direction::kOutput, "c", 8);
+
+  AlwaysComb* ac = m->Add<AlwaysComb>(&f);
+  ac->statements()->Add<Assert>(f.Equals(a_ref, f.Literal(42, 8)));
+  ac->statements()->Add<BlockingAssignment>(c_ref, f.Add(a_ref, b_ref));
+  ac->statements()->Add<Assert>(f.LessThan(c_ref, f.Literal(100, 8)),
+                                "Oh noes! c is too big");
+  EXPECT_EQ(m->Emit(),
+            R"(module top(
+  input wire [7:0] a,
+  input wire [7:0] b,
+  output wire [7:0] c
+);
+  always_comb begin
+    assert (a == 8'h2a) else $fatal(0);
+    c = a + b;
+    assert (c < 8'h64) else $fatal(0, "Oh noes! c is too big");
+  end
+endmodule)");
+}
+
 }  // namespace
 }  // namespace verilog
 }  // namespace xls

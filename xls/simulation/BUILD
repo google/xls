@@ -198,6 +198,7 @@ cc_test(
         "//xls/codegen:combinational_generator",
         "//xls/codegen:module_signature",
         "//xls/codegen:pipeline_generator",
+        "//xls/codegen:proc_generator",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",

@@ -24,6 +24,9 @@ namespace xls {
 namespace verilog {
 namespace {
 
+using status_testing::StatusIs;
+using ::testing::HasSubstr;
+
 class VerilogSimulatorTest : public VerilogTestBase {};
 
 // A trivial sanity test for the verilog simulators.
@@ -69,9 +72,68 @@ endmodule
   EXPECT_EQ(UBits(1, /*bit_count=*/1), observations[1].value);
 }
 
+TEST_P(VerilogSimulatorTest, SystemVerilogAssertAsserted) {
+  std::string text = R"(module device_under_test(
+  input  [7:0] in,
+  output [7:0] out
+);
+  always_comb begin
+    assert (in < 100) else $fatal(0, "Input is too big.");
+  end
+  assign out = in;
+endmodule
+
+module tb;
+  reg [7:0] a;
+  reg [7:0] b;
+  device_under_test dut(.in(a), .out(b));
+  initial begin
+      a = 200;
+  end
+endmodule
+)";
+
+  if (!GetParam().use_system_verilog) {
+    return;
+  }
+  EXPECT_THAT(
+      GetSimulator()->Run(text),
+      StatusIs(
+          absl::StatusCode::kAborted,
+          HasSubstr(
+              "SystemVerilog assert failed at top.v:6: Input is too big")));
+}
+
+TEST_P(VerilogSimulatorTest, SystemVerilogAssertNotAsserted) {
+  std::string text = R"(module device_under_test(
+  input  [7:0] in,
+  output [7:0] out
+);
+  always_comb begin
+    assert (in < 100) else $fatal(0, "Input is too big.");
+  end
+  assign out = in;
+endmodule
+
+module tb;
+  reg [7:0] a;
+  reg [7:0] b;
+  device_under_test dut(.in(a), .out(b));
+  initial begin
+      a = 42;
+  end
+endmodule
+)";
+
+  if (!GetParam().use_system_verilog) {
+    return;
+  }
+  XLS_EXPECT_OK(GetSimulator()->Run(text));
+}
+
 INSTANTIATE_TEST_SUITE_P(VerilogSimulatorTestInstantiation,
                          VerilogSimulatorTest,
-                         testing::ValuesIn(kVerilogOnlySimulationTargets),
+                         testing::ValuesIn(kDefaultSimulationTargets),
                          ParameterizedTestName<VerilogSimulatorTest>);
 
 }  // namespace

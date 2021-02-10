@@ -307,6 +307,9 @@ absl::StatusOr<Type*> Package::GetTypeFromProto(const TypeProto& proto) {
                          GetTypeFromProto(proto.array_element()));
     return GetArrayType(proto.array_size(), element_type);
   }
+  if (proto.type_enum() == TypeProto::TOKEN) {
+    return GetTokenType();
+  }
   return absl::InvalidArgumentError(absl::StrFormat(
       "Invalid type_enum value in TypeProto: %d", proto.type_enum()));
 }

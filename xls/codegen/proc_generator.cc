@@ -203,6 +203,10 @@ absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
       XLS_RET_CHECK_EQ(tuple_index->index(), 1);
       return receive_data.second;
     }
+  } else if (node->Is<xls::Assert>()) {
+    // Asserts are statements, not expressions, and are emitted after all other
+    // operations.
+    return UnrepresentedSentinel();
   }
   // TODO(meheff): Tuples not from receive nodes which contains tokens will
   // return an error here. Implement a more general solution.
@@ -413,6 +417,16 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModule(
         absl::get<Expression*>(node_exprs.at(reg.send->As<Send>()->data()));
     XLS_RETURN_IF_ERROR(mb.AssignRegisters(clk.value(), {reg.mb_register},
                                            /*load_enable=*/nullptr, rst));
+  }
+
+  // Add assert statements in a separate always_comb block.
+  for (Node* node : proc->nodes()) {
+    if (node->Is<xls::Assert>()) {
+      xls::Assert* asrt = node->As<xls::Assert>();
+      Expression* condition =
+          absl::get<Expression*>(node_exprs.at(asrt->condition()));
+      XLS_RETURN_IF_ERROR(mb.EmitAssert(asrt, condition));
+    }
   }
 
   // Add the output ports.

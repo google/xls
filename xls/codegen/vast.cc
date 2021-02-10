@@ -438,6 +438,8 @@ std::string EmitModuleMember(const ModuleMember& member) {
                              [](Comment* c) { return c->Emit(); },
                              [](BlankLine* b) { return b->Emit(); },
                              [](StructuredProcedure* sp) { return sp->Emit(); },
+                             [](AlwaysComb* ac) { return ac->Emit(); },
+                             [](AlwaysFf* af) { return af->Emit(); },
                              [](AlwaysFlop* af) { return af->Emit(); },
                              [](VerilogFunction* f) { return f->Emit(); },
                              [](ModuleSection* s) { return s->Emit(); }},
@@ -475,6 +477,18 @@ std::string ContinuousAssignment::Emit() {
 
 std::string Comment::Emit() {
   return absl::StrCat("// ", absl::StrReplaceAll(text_, {{"\n", "\n// "}}));
+}
+
+std::string Assert::Emit() {
+  // The $fatal statement takes finish_number as the first argument which is a
+  // value in the set {0, 1, 2}. This value "may be used in an
+  // implementation-specific manner" (from the SystemVerilog LRM). We choose
+  // zero arbitrarily.
+  constexpr int64 kFinishNumber = 0;
+  return absl::StrFormat(
+      "assert (%s) else $fatal(%d%s);", condition_->Emit(), kFinishNumber,
+      error_message_.empty() ? ""
+                             : absl::StrFormat(", \"%s\"", error_message_));
 }
 
 std::string SystemTaskCall::Emit() {

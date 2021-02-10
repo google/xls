@@ -86,6 +86,10 @@ class ModuleBuilder {
   absl::StatusOr<LogicRef*> EmitAsAssignment(
       absl::string_view name, Node* node, absl::Span<Expression* const> inputs);
 
+  // Emit an XLS assert operation as a SystemVerilog assert statement. If
+  // SystemVerilog is not enabled then this is a nop.
+  absl::Status EmitAssert(xls::Assert* asrt, Expression* condition);
+
   // Declares a variable with the given name and XLS type. Returns a reference
   // to the variable.
   LogicRef* DeclareVariable(absl::string_view name, Type* type);
@@ -194,6 +198,7 @@ class ModuleBuilder {
   ModuleSection* functions_section() const { return functions_section_; }
   ModuleSection* constants_section() const { return constants_section_; }
   ModuleSection* input_section() const { return input_section_; }
+  ModuleSection* assert_section() const { return assert_section_; }
   ModuleSection* output_section() const { return output_section_; }
 
  private:
@@ -294,6 +299,8 @@ class ModuleBuilder {
   ModuleSection* declaration_and_assignment_section_;
   std::vector<ModuleSection*> declaration_subsections_;
   std::vector<ModuleSection*> assignment_subsections_;
+  ModuleSection* assert_section_;
+  AlwaysComb* assert_always_comb_ = nullptr;
   ModuleSection* output_section_;
 
   // Verilog functions defined inside the module. Map is indexed by the function

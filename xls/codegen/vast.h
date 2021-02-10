@@ -956,6 +956,22 @@ class BlankLine : public Statement {
   std::string Emit() override { return ""; }
 };
 
+// Represents a SystemVerilog simple immediate assert statement of the following
+// form:
+//
+//   assert (condition) else $fatal(message);
+class Assert : public Statement {
+ public:
+  explicit Assert(Expression* condition, absl::string_view error_message = "")
+      : condition_(condition), error_message_(error_message) {}
+
+  std::string Emit() override;
+
+ private:
+  Expression* condition_;
+  std::string error_message_;
+};
+
 // Places a comment in statement position (we can think of comments as
 // meaningless expression statements that do nothing).
 class Comment : public Statement {
@@ -1122,6 +1138,8 @@ using ModuleMember =
                   Instantiation*,         // module instantiaion.
                   ContinuousAssignment*,  // Continuous assignment.
                   StructuredProcedure*,   // Initial or always comb block.
+                  AlwaysComb*,            // An always_comb block.
+                  AlwaysFf*,              // An always_ff block.
                   AlwaysFlop*,            // "Flip-Flop" block.
                   Comment*,               // Comment text.
                   BlankLine*,             // Blank line.
