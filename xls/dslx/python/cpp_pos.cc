@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/cpp_pos.h"
-
 #include "pybind11/functional.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 #include "xls/common/status/statusor_pybind_caster.h"
+#include "xls/dslx/pos.h"
 
 namespace py = pybind11;
 

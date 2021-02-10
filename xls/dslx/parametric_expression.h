@@ -23,7 +23,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "xls/common/integral_types.h"
-#include "xls/dslx/cpp_pos.h"
+#include "xls/dslx/pos.h"
 
 namespace xls::dslx {
 

@@ -151,7 +151,7 @@ py_library(
     name = "sample_runner",
     srcs = ["sample_runner.py"],
     data = [
-        "//xls/dslx:cpp_ir_converter_main",
+        "//xls/dslx:ir_converter_main",
         "//xls/tools:codegen_main",
         "//xls/tools:eval_ir_main",
         "//xls/tools:opt_main",
@@ -398,9 +398,9 @@ py_test(
 )
 
 cc_library(
-    name = "cpp_ast_generator",
-    srcs = ["cpp_ast_generator.cc"],
-    hdrs = ["cpp_ast_generator.h"],
+    name = "ast_generator",
+    srcs = ["ast_generator.cc"],
+    hdrs = ["ast_generator.h"],
     deps = [
         "//xls/common/status:ret_check",
         "//xls/dslx:ast",
@@ -415,15 +415,15 @@ cc_library(
 )
 
 cc_test(
-    name = "cpp_ast_generator_test",
-    srcs = ["cpp_ast_generator_test.cc"],
+    name = "ast_generator_test",
+    srcs = ["ast_generator_test.cc"],
     deps = [
-        ":cpp_ast_generator",
+        ":ast_generator",
         "//xls/common:init_xls",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
         "//xls/dslx:command_line_utils",
-        "//xls/dslx:cpp_parse_and_typecheck",
+        "//xls/dslx:parse_and_typecheck",
         "@com_google_googletest//:gtest",
     ],
 )

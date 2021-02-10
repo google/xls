@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/cpp_evaluate.h"
+#include "xls/dslx/evaluate.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

@@ -40,16 +40,6 @@ py_test(
     ],
 )
 
-py_library(
-    name = "span",
-    srcs = ["span.py"],
-    srcs_version = "PY3",
-    deps = [
-        "//xls/common:xls_error",
-        "//xls/dslx/python:cpp_pos",
-    ],
-)
-
 py_test(
     name = "py_scanner_test",
     srcs = ["scanner_test.py"],
@@ -64,8 +54,9 @@ py_test(
 )
 
 py_test(
-    name = "parametric_expression_test",
+    name = "py_parametric_expression_test",
     srcs = ["parametric_expression_test.py"],
+    main = "parametric_expression_test.py",
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
@@ -93,38 +84,38 @@ cc_library(
     name = "type_and_bindings",
     hdrs = ["type_and_bindings.h"],
     deps = [
-        ":cpp_concrete_type",
+        ":concrete_type",
         ":symbolic_bindings",
     ],
 )
 
 cc_library(
-    name = "cpp_type_info",
+    name = "type_info",
     srcs = ["type_info.cc"],
     hdrs = ["type_info.h"],
     deps = [
         ":ast",
-        ":cpp_concrete_type",
+        ":concrete_type",
         ":symbolic_bindings",
     ],
 )
 
 cc_test(
-    name = "cpp_type_info_test",
+    name = "type_info_test",
     srcs = ["type_info_test.cc"],
     deps = [
-        ":cpp_type_info",
+        ":type_info",
         "@com_google_googletest//:gtest_main",
     ],
 )
 
 cc_test(
-    name = "cpp_ir_converter_test",
+    name = "ir_converter_test",
     srcs = ["ir_converter_test.cc"],
     data = glob(["testdata/*.ir"]),
     deps = [
-        ":cpp_ir_converter",
-        ":cpp_parse_and_typecheck",
+        ":ir_converter",
+        ":parse_and_typecheck",
         "//xls/common:init_xls",
         "//xls/common:update_golden_files",
         "//xls/common/file:filesystem",
@@ -178,9 +169,9 @@ py_library(
 )
 
 cc_library(
-    name = "cpp_pos",
-    srcs = ["cpp_pos.cc"],
-    hdrs = ["cpp_pos.h"],
+    name = "pos",
+    srcs = ["pos.cc"],
+    hdrs = ["pos.h"],
     deps = [
         "//xls/common:integral_types",
         "//xls/common/logging",
@@ -191,10 +182,10 @@ cc_library(
 )
 
 cc_test(
-    name = "cpp_pos_test",
-    srcs = ["cpp_pos_test.cc"],
+    name = "pos_test",
+    srcs = ["pos_test.cc"],
     deps = [
-        ":cpp_pos",
+        ":pos",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
@@ -211,7 +202,7 @@ cc_library(
     hdrs = ["ast.h"],
     deps = [
         ":ast_builtin_types",
-        ":cpp_pos",
+        ":pos",
         "//xls/common:indent",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
@@ -249,7 +240,7 @@ cc_library(
         "scanner_keywords.inc",
     ],
     deps = [
-        ":cpp_pos",
+        ":pos",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -272,9 +263,9 @@ cc_test(
 )
 
 cc_library(
-    name = "cpp_bindings",
-    srcs = ["cpp_bindings.cc"],
-    hdrs = ["cpp_bindings.h"],
+    name = "bindings",
+    srcs = ["bindings.cc"],
+    hdrs = ["bindings.h"],
     deps = [
         ":ast",
         "//xls/common/logging",
@@ -286,21 +277,21 @@ cc_library(
 )
 
 cc_test(
-    name = "cpp_bindings_test",
-    srcs = ["cpp_bindings_test.cc"],
+    name = "bindings_test",
+    srcs = ["bindings_test.cc"],
     deps = [
-        ":cpp_bindings",
+        ":bindings",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
 )
 
 cc_library(
-    name = "cpp_token_parser",
+    name = "token_parser",
     srcs = ["token_parser.cc"],
     hdrs = ["token_parser.h"],
     deps = [
-        ":cpp_bindings",
+        ":bindings",
         ":scanner",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
@@ -309,13 +300,13 @@ cc_library(
 )
 
 cc_library(
-    name = "cpp_parser",
+    name = "parser",
     srcs = ["parser.cc"],
     hdrs = ["parser.h"],
     deps = [
         ":ast",
-        ":cpp_bindings",
-        ":cpp_token_parser",
+        ":bindings",
+        ":token_parser",
         "//xls/common:cleanup",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/status:statusor",
@@ -326,18 +317,18 @@ cc_test(
     name = "parser_test",
     srcs = ["parser_test.cc"],
     deps = [
-        ":cpp_parser",
+        ":parser",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
 )
 
 cc_library(
-    name = "cpp_parametric_expression",
+    name = "parametric_expression",
     srcs = ["parametric_expression.cc"],
     hdrs = ["parametric_expression.h"],
     deps = [
-        ":cpp_pos",
+        ":pos",
         "//xls/common:integral_types",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -345,12 +336,12 @@ cc_library(
 )
 
 cc_library(
-    name = "cpp_concrete_type",
+    name = "concrete_type",
     srcs = ["concrete_type.cc"],
     hdrs = ["concrete_type.h"],
     deps = [
         ":ast",
-        ":cpp_parametric_expression",
+        ":parametric_expression",
         "//xls/common:integral_types",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -364,10 +355,10 @@ cc_library(
 )
 
 cc_test(
-    name = "cpp_concrete_type_test",
+    name = "concrete_type_test",
     srcs = ["concrete_type_test.cc"],
     deps = [
-        ":cpp_concrete_type",
+        ":concrete_type",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
@@ -392,8 +383,8 @@ cc_library(
     hdrs = ["interp_bindings.h"],
     deps = [
         ":ast",
-        ":cpp_type_info",
         ":interp_value",
+        ":type_info",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/types:variant",
@@ -416,9 +407,9 @@ cc_library(
     hdrs = ["builtins.h"],
     deps = [
         ":ast",
-        ":cpp_type_info",
         ":interp_callback_data",
         ":interp_value",
+        ":type_info",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:bits_ops",
@@ -431,26 +422,26 @@ cc_library(
     hdrs = ["interp_callback_data.h"],
     deps = [
         ":ast",
-        ":cpp_concrete_type",
-        ":cpp_type_info",
+        ":concrete_type",
         ":import_routines",
         ":interp_bindings",
         ":interp_value",
+        ":type_info",
         "@com_google_absl//absl/status:statusor",
     ],
 )
 
 cc_library(
-    name = "cpp_evaluate",
-    srcs = ["cpp_evaluate.cc"],
-    hdrs = ["cpp_evaluate.h"],
+    name = "evaluate",
+    srcs = ["evaluate.cc"],
+    hdrs = ["evaluate.h"],
     deps = [
         ":ast",
-        ":cpp_type_info",
         ":import_routines",
         ":interp_bindings",
         ":interp_callback_data",
         ":interp_value",
+        ":type_info",
         "//xls/common/status:ret_check",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
@@ -459,10 +450,10 @@ cc_library(
 )
 
 cc_test(
-    name = "cpp_evaluate_test",
-    srcs = ["cpp_evaluate_test.cc"],
+    name = "evaluate_test",
+    srcs = ["evaluate_test.cc"],
     deps = [
-        ":cpp_evaluate",
+        ":evaluate",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
@@ -475,9 +466,9 @@ cc_library(
     data = ["//xls/dslx/stdlib:x_files"],
     deps = [
         ":ast",
-        ":cpp_parser",
-        ":cpp_type_info",
+        ":parser",
         ":scanner",
+        ":type_info",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:ret_check",
@@ -492,12 +483,12 @@ cc_library(
     deps = [
         ":ast",
         ":builtins",
-        ":cpp_evaluate",
-        ":cpp_type_info",
+        ":evaluate",
         ":import_routines",
         ":interp_bindings",
         ":interp_callback_data",
         ":interp_value",
+        ":type_info",
         "//xls/common/status:ret_check",
         "//xls/ir",
     ],
@@ -517,15 +508,8 @@ cc_library(
     name = "deduce_ctx",
     srcs = ["deduce_ctx.cc"],
     hdrs = ["deduce_ctx.h"],
-    # We throw exceptions that come from PyBind through this code (the
-    # deduction rules) so we have to enable exceptions for this translation
-    # unit for now to get proper cleanup.
-    # TODO(leary): 2020-12-15 We can remove this when the port to C++ is
-    # completed.
-    copts = ["-fexceptions"],
-    features = ["-use_header_modules"],
     deps = [
-        ":cpp_concrete_type",
+        ":concrete_type",
         ":import_routines",
         ":interp_bindings",
         "//xls/common:string_to_int",
@@ -535,22 +519,15 @@ cc_library(
 )
 
 cc_library(
-    name = "cpp_deduce",
+    name = "deduce",
     srcs = ["deduce.cc"],
     hdrs = ["deduce.h"],
-    # We throw exceptions that come from PyBind through this code (the
-    # deduction rules) so we have to enable exceptions for this translation
-    # unit for now to get proper cleanup.
-    # TODO(leary): 2020-12-15 We can remove this when the port to C++ is
-    # completed.
-    copts = ["-fexceptions"],
-    features = ["-use_header_modules"],
     deps = [
-        ":cpp_concrete_type",
-        ":cpp_parametric_instantiator",
+        ":concrete_type",
         ":deduce_ctx",
         ":import_routines",
         ":interp_bindings",
+        ":parametric_instantiator",
         ":scanner",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/container:btree",
@@ -559,51 +536,51 @@ cc_library(
 )
 
 cc_library(
-    name = "cpp_parametric_instantiator",
-    srcs = ["cpp_parametric_instantiator.cc"],
-    hdrs = ["cpp_parametric_instantiator.h"],
+    name = "parametric_instantiator",
+    srcs = ["parametric_instantiator.cc"],
+    hdrs = ["parametric_instantiator.h"],
     deps = [
-        ":cpp_concrete_type",
-        ":cpp_type_info",
+        ":concrete_type",
         ":deduce_ctx",
         ":interpreter",
         ":type_and_bindings",
+        ":type_info",
         "@com_google_absl//absl/strings",
     ],
 )
 
 cc_library(
-    name = "cpp_typecheck",
+    name = "typecheck",
     srcs = ["typecheck.cc"],
     hdrs = ["typecheck.h"],
     deps = [
-        ":cpp_deduce",
-        ":cpp_dslx_builtins",
+        ":deduce",
         ":deduce_ctx",
+        ":dslx_builtins",
         ":import_routines",
         "@com_google_absl//absl/status:statusor",
     ],
 )
 
 cc_test(
-    name = "cpp_typecheck_test",
+    name = "typecheck_test",
     srcs = ["typecheck_test.cc"],
     deps = [
-        ":cpp_parse_and_typecheck",
+        ":parse_and_typecheck",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
 )
 
 cc_library(
-    name = "cpp_dslx_builtins",
+    name = "dslx_builtins",
     srcs = ["dslx_builtins.cc"],
     hdrs = ["dslx_builtins.h"],
     deps = [
         ":ast",
-        ":cpp_concrete_type",
-        ":cpp_parametric_instantiator",
+        ":concrete_type",
         ":deduce_ctx",
+        ":parametric_instantiator",
         ":type_and_bindings",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
@@ -611,19 +588,19 @@ cc_library(
 )
 
 cc_library(
-    name = "cpp_ir_converter",
+    name = "ir_converter",
     srcs = ["ir_converter.cc"],
     hdrs = ["ir_converter.h"],
     deps = [
         ":ast",
         ":builtins",
-        ":cpp_dslx_builtins",
-        ":cpp_extract_conversion_order",
-        ":cpp_type_info",
         ":deduce_ctx",
+        ":dslx_builtins",
+        ":extract_conversion_order",
         ":import_routines",
         ":interp_value",
         ":interpreter",
+        ":type_info",
         "//xls/ir",
         "//xls/ir:function_builder",
         "@com_google_absl//absl/container:btree",
@@ -633,25 +610,25 @@ cc_library(
 )
 
 cc_library(
-    name = "cpp_extract_conversion_order",
-    srcs = ["cpp_extract_conversion_order.cc"],
-    hdrs = ["cpp_extract_conversion_order.h"],
+    name = "extract_conversion_order",
+    srcs = ["extract_conversion_order.cc"],
+    hdrs = ["extract_conversion_order.h"],
     deps = [
         ":ast",
-        ":cpp_dslx_builtins",
-        ":cpp_type_info",
+        ":dslx_builtins",
         ":symbolic_bindings",
+        ":type_info",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/container:flat_hash_map",
     ],
 )
 
 cc_test(
-    name = "cpp_extract_conversion_order_test",
-    srcs = ["cpp_extract_conversion_order_test.cc"],
+    name = "extract_conversion_order_test",
+    srcs = ["extract_conversion_order_test.cc"],
     deps = [
-        ":cpp_extract_conversion_order",
-        ":cpp_parse_and_typecheck",
+        ":extract_conversion_order",
+        ":parse_and_typecheck",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
@@ -662,7 +639,7 @@ cc_library(
     srcs = ["error_printer.cc"],
     hdrs = ["error_printer.h"],
     deps = [
-        ":cpp_pos",
+        ":pos",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/status:statusor",
@@ -690,9 +667,9 @@ cc_library(
     srcs = ["command_line_utils.cc"],
     hdrs = ["command_line_utils.h"],
     deps = [
-        ":cpp_bindings",
-        ":cpp_pos",
+        ":bindings",
         ":error_printer",
+        ":pos",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/status",
@@ -703,16 +680,16 @@ cc_library(
 )
 
 cc_binary(
-    name = "cpp_ir_converter_main",
+    name = "ir_converter_main",
     srcs = ["ir_converter_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
         ":command_line_utils",
-        ":cpp_ir_converter",
-        ":cpp_parser",
-        ":cpp_typecheck",
         ":error_printer",
+        ":ir_converter",
+        ":parser",
         ":scanner",
+        ":typecheck",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "@com_google_absl//absl/flags:flag",
@@ -722,18 +699,18 @@ cc_binary(
 )
 
 cc_binary(
-    name = "cpp_interpreter_main",
+    name = "interpreter_main",
     srcs = ["interpreter_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
         ":builtins",
         ":command_line_utils",
-        ":cpp_ir_converter",
-        ":cpp_parser",
-        ":cpp_typecheck",
         ":error_printer",
         ":interpreter",
+        ":ir_converter",
+        ":parser",
         ":scanner",
+        ":typecheck",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/jit:ir_jit",
@@ -744,15 +721,15 @@ cc_binary(
 )
 
 cc_library(
-    name = "cpp_parse_and_typecheck",
+    name = "parse_and_typecheck",
     srcs = ["parse_and_typecheck.cc"],
     hdrs = ["parse_and_typecheck.h"],
     deps = [
         ":ast",
-        ":cpp_parser",
-        ":cpp_type_info",
-        ":cpp_typecheck",
         ":import_routines",
+        ":parser",
         ":scanner",
+        ":type_info",
+        ":typecheck",
     ],
 )

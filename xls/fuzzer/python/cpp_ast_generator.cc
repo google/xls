@@ -15,8 +15,6 @@
 // Exposes AST generation capability (as is needed for fuzzing) to Python code
 // (which currently drives the sampling / running process).
 
-#include "xls/fuzzer/cpp_ast_generator.h"
-
 #include "absl/base/casts.h"
 #include "absl/status/statusor.h"
 #include "pybind11/functional.h"
@@ -25,6 +23,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
+#include "xls/fuzzer/ast_generator.h"
 
 namespace py = pybind11;
 

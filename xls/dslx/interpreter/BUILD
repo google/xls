@@ -23,16 +23,6 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
-py_library(
-    name = "errors",
-    srcs = ["errors.py"],
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx:span",
-        "//xls/dslx/python:cpp_pos",
-    ],
-)
-
 py_test(
     name = "value_test",
     srcs = ["value_test.py"],
@@ -77,7 +67,7 @@ py_test(
     name = "interpreter_test",
     srcs = ["interpreter_test.py"],
     data = [
-        "//xls/dslx:cpp_interpreter_main",
+        "//xls/dslx:interpreter_main",
     ],
     python_version = "PY3",
     srcs_version = "PY3",

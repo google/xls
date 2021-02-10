@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/fuzzer/cpp_ast_generator.h"
+#include "xls/fuzzer/ast_generator.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

@@ -17,9 +17,9 @@
 #include "absl/strings/str_replace.h"
 #include "absl/types/variant.h"
 #include "xls/dslx/ast.h"
-#include "xls/dslx/cpp_extract_conversion_order.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/dslx_builtins.h"
+#include "xls/dslx/extract_conversion_order.h"
 #include "xls/dslx/interpreter.h"
 #include "xls/ir/lsb_or_msb.h"
 

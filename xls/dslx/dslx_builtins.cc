@@ -14,7 +14,7 @@
 
 #include "xls/dslx/dslx_builtins.h"
 
-#include "xls/dslx/cpp_parametric_instantiator.h"
+#include "xls/dslx/parametric_instantiator.h"
 
 namespace xls::dslx {
 namespace {

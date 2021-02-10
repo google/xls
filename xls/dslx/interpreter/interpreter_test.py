@@ -23,7 +23,7 @@ from typing import Text
 from xls.common import runfiles
 from xls.common import test_base
 
-_INTERP_PATH = runfiles.get_path('xls/dslx/cpp_interpreter_main')
+_INTERP_PATH = runfiles.get_path('xls/dslx/interpreter_main')
 
 
 class InterpreterTest(test_base.TestCase):

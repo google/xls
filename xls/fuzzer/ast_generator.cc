@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/fuzzer/cpp_ast_generator.h"
+#include "xls/fuzzer/ast_generator.h"
 
 #include "absl/strings/match.h"
 #include "xls/common/status/ret_check.h"

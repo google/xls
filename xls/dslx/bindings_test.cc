@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/cpp_bindings.h"
+#include "xls/dslx/bindings.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

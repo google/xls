@@ -16,7 +16,7 @@
 
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/builtins.h"
-#include "xls/dslx/cpp_evaluate.h"
+#include "xls/dslx/evaluate.h"
 
 namespace xls::dslx {
 

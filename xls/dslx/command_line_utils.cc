@@ -18,9 +18,9 @@
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/dslx/cpp_bindings.h"
-#include "xls/dslx/cpp_pos.h"
+#include "xls/dslx/bindings.h"
 #include "xls/dslx/error_printer.h"
+#include "xls/dslx/pos.h"
 
 namespace xls::dslx {
 

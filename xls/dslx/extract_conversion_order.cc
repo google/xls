@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/cpp_extract_conversion_order.h"
+#include "xls/dslx/extract_conversion_order.h"
 
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/dslx_builtins.h"

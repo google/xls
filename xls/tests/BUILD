@@ -47,7 +47,7 @@ cc_test(
 cc_test(
     name = "dslx_optimization_test",
     srcs = ["dslx_optimization_test.cc"],
-    data = ["//xls/dslx:cpp_ir_converter_main"],
+    data = ["//xls/dslx:ir_converter_main"],
     deps = [
         "@com_google_absl//absl/status:statusor",
         "//xls/common:subprocess",

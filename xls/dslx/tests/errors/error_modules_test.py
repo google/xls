@@ -20,7 +20,7 @@ import subprocess as subp
 from xls.common import runfiles
 from xls.common import test_base
 
-_INTERP_PATH = runfiles.get_path('xls/dslx/cpp_interpreter_main')
+_INTERP_PATH = runfiles.get_path('xls/dslx/interpreter_main')
 
 
 class ImportModuleWithTypeErrorTest(test_base.TestCase):

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/cpp_parametric_instantiator.h"
+#include "xls/dslx/parametric_instantiator.h"
 
 #include "absl/strings/match.h"
 #include "xls/dslx/interpreter.h"

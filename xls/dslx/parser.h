@@ -17,7 +17,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/ast.h"
-#include "xls/dslx/cpp_bindings.h"
+#include "xls/dslx/bindings.h"
 #include "xls/dslx/token_parser.h"
 
 namespace xls::dslx {

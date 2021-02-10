@@ -206,7 +206,7 @@ cc_binary(
     name = "lec_main",
     srcs = ["lec_main.cc"],
     data = [
-        "//xls/dslx:cpp_ir_converter_main",
+        "//xls/dslx:ir_converter_main",
     ],
     deps = [
         "@com_google_absl//absl/base",

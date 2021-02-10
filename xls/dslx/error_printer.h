@@ -20,7 +20,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "xls/dslx/cpp_pos.h"
+#include "xls/dslx/pos.h"
 
 namespace xls::dslx {
 

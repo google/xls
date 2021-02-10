@@ -29,8 +29,8 @@ cc_library(
     deps = [
         "@com_google_absl//absl/strings",
         "//xls/common:string_to_int",
-        "//xls/dslx:cpp_bindings",
-        "//xls/dslx:cpp_concrete_type",
+        "//xls/dslx:bindings",
+        "//xls/dslx:concrete_type",
         "//xls/dslx:deduce_ctx",
         "@pybind11",
     ],
@@ -61,7 +61,7 @@ xls_pybind_extension(
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/dslx:ast_builtin_types",
-        "//xls/dslx:cpp_pos",
+        "//xls/dslx:pos",
         "//xls/dslx:scanner",
     ],
 )
@@ -73,7 +73,7 @@ xls_pybind_extension(
         "@com_google_absl//absl/base",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:cpp_pos",
+        "//xls/dslx:pos",
     ],
 )
 
@@ -85,7 +85,7 @@ xls_pybind_extension(
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:cpp_parametric_expression",
+        "//xls/dslx:parametric_expression",
     ],
 )
 
@@ -102,7 +102,7 @@ xls_pybind_extension(
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:cpp_concrete_type",
+        "//xls/dslx:concrete_type",
     ],
 )
 
@@ -118,8 +118,8 @@ xls_pybind_extension(
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:cpp_ir_converter",
         "//xls/dslx:interp_value",
+        "//xls/dslx:ir_converter",
         "//xls/ir:ir_parser",
     ],
 )
@@ -139,16 +139,16 @@ xls_pybind_extension(
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/dslx:ast",
-        "//xls/dslx:cpp_concrete_type",
-        "//xls/dslx:cpp_evaluate",
-        "//xls/dslx:cpp_parse_and_typecheck",
-        "//xls/dslx:cpp_parser",
-        "//xls/dslx:cpp_typecheck",
+        "//xls/dslx:concrete_type",
+        "//xls/dslx:evaluate",
         "//xls/dslx:import_routines",
         "//xls/dslx:interp_bindings",
         "//xls/dslx:interpreter",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:parser",
         "//xls/dslx:scanner",
         "//xls/dslx:symbolic_bindings",
+        "//xls/dslx:typecheck",
         "//xls/ir/python:wrapper_types",
     ],
 )
