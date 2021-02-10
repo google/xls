@@ -3071,4 +3071,38 @@ TEST_P(IrEvaluatorTest, ArrayUpdateBitsValueNilIndex) {
               IsOkAndHolds(Value(UBits(888, 1234))));
 }
 
+TEST_P(IrEvaluatorTest, BitSliceUpdate) {
+  auto package = CreatePackage();
+  std::string input = R"(
+  fn main(a: bits[32], start: bits[32], value: bits[8]) -> bits[32] {
+    ret result: bits[32] = bit_slice_update(a, start, value)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseFunction(input, package.get()));
+
+  EXPECT_THAT(Run(function, {0x1234abcd, 0, 0xef}), IsOkAndHolds(0x1234abef));
+  EXPECT_THAT(Run(function, {0x1234abcd, 4, 0xef}), IsOkAndHolds(0x1234aefd));
+  EXPECT_THAT(Run(function, {0x1234abcd, 16, 0xef}), IsOkAndHolds(0x12efabcd));
+  EXPECT_THAT(Run(function, {0x1234abcd, 31, 0xef}), IsOkAndHolds(0x9234abcd));
+  EXPECT_THAT(Run(function, {0x1234abcd, 32, 0xef}), IsOkAndHolds(0x1234abcd));
+  EXPECT_THAT(Run(function, {0x1234abcd, 1234567, 0xef}),
+              IsOkAndHolds(0x1234abcd));
+}
+
+TEST_P(IrEvaluatorTest, BitSliceUpdateWideUpdateValue) {
+  auto package = CreatePackage();
+  std::string input = R"(
+  fn main(a: bits[16], start: bits[32], value: bits[157]) -> bits[16] {
+    ret result: bits[16] = bit_slice_update(a, start, value)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseFunction(input, package.get()));
+
+  EXPECT_THAT(Run(function, {0x1234, 0, 0xabcdef}), IsOkAndHolds(0xcdef));
+  EXPECT_THAT(Run(function, {0x1234, 5, 0xabcdef}), IsOkAndHolds(0xbdf4));
+  EXPECT_THAT(Run(function, {0x1234, 44, 0xabcdef}), IsOkAndHolds(0x1234));
+}
+
 }  // namespace xls

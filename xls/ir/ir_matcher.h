@@ -133,6 +133,7 @@ NODE_MATCHER(AndReduce);
 NODE_MATCHER(Array);
 NODE_MATCHER(ArrayConcat);
 NODE_MATCHER(Assert);
+NODE_MATCHER(BitSliceUpdate);
 NODE_MATCHER(Concat);
 NODE_MATCHER(Decode);
 NODE_MATCHER(Encode);

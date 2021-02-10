@@ -482,6 +482,12 @@ class BuilderBase {
                   absl::optional<SourceLocation> loc = absl::nullopt,
                   absl::string_view name = "");
 
+  // Updates a slice of the given bits-typed 'arg' starting at index 'start'
+  // with 'update_value'.
+  BValue BitSliceUpdate(BValue arg, BValue start, BValue update_value,
+                        absl::optional<SourceLocation> loc = absl::nullopt,
+                        absl::string_view name = "");
+
   // Same as BitSlice, but allows for dynamic 'start' offsets
   BValue DynamicBitSlice(BValue arg, BValue start, int64 width,
                          absl::optional<SourceLocation> loc = absl::nullopt,

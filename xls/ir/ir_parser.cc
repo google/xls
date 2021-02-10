@@ -875,6 +875,12 @@ absl::StatusOr<BValue> Parser::ParseNode(
           fb->Assert(operands[0], operands[1], message->value, *loc, node_name);
       break;
     }
+    case Op::kBitSliceUpdate: {
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/3));
+      bvalue = fb->BitSliceUpdate(operands[0], operands[1], operands[2], *loc,
+                                  node_name);
+      break;
+    }
     default:
       XLS_ASSIGN_OR_RETURN(
           bvalue, BuildBinaryOrUnaryOp(op, fb, loc, node_name, &arg_parser));

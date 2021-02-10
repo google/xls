@@ -1112,6 +1112,16 @@ fn bar(tkn: token, cond: bits[1]) -> token {
   ParsePackageAndCheckDump(input);
 }
 
+TEST(IrParserTest, ParseBitSliceUpdate) {
+  const std::string input = R"(package foobar
+
+fn bar(to_update: bits[123], start: bits[8], value: bits[23]) -> bits[123] {
+  ret bit_slice_update.1: bits[123] = bit_slice_update(to_update, start, value, id=1)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
 TEST(IrParserTest, ParseSimpleProc) {
   const std::string input = R"(package test
 

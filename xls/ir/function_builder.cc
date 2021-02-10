@@ -509,6 +509,17 @@ BValue BuilderBase::BitSlice(BValue arg, int64 start, int64 width,
   return AddNode<xls::BitSlice>(loc, arg.node(), start, width, name);
 }
 
+BValue BuilderBase::BitSliceUpdate(BValue arg, BValue start,
+                                   BValue update_value,
+                                   absl::optional<SourceLocation> loc,
+                                   absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return AddNode<xls::BitSliceUpdate>(loc, arg.node(), start.node(),
+                                      update_value.node(), name);
+}
+
 BValue BuilderBase::DynamicBitSlice(BValue arg, BValue start, int64 width,
                                     absl::optional<SourceLocation> loc,
                                     absl::string_view name) {

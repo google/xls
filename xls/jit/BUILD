@@ -31,6 +31,7 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "//xls/codegen:vast",
         "//xls/ir",
+        "//xls/ir:bits_ops",
         "@llvm//:Core",
     ],
 )

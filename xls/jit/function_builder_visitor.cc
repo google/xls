@@ -14,6 +14,7 @@
 #include "xls/jit/function_builder_visitor.h"
 
 #include "llvm/IR/DerivedTypes.h"
+#include "xls/ir/bits_ops.h"
 
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
 #include <sanitizer/msan_interface.h>
@@ -312,6 +313,68 @@ absl::Status FunctionBuilderVisitor::HandleBitSlice(BitSlice* bit_slice) {
   llvm::Value* truncated_value = builder_->CreateTrunc(
       shifted_value, llvm::IntegerType::get(ctx_, bit_slice->width()));
   return StoreResult(bit_slice, truncated_value);
+}
+
+absl::Status FunctionBuilderVisitor::HandleBitSliceUpdate(
+    BitSliceUpdate* update) {
+  llvm::Value* to_update = node_map_.at(update->to_update());
+  llvm::Value* start = node_map_.at(update->start());
+  llvm::Value* update_value = node_map_.at(update->update_value());
+
+  llvm::IntegerType* result_type = builder_->getIntNTy(update->BitCountOrDie());
+
+  // Zero extend each value to the max of any of the values' widths.
+  int max_width = std::max(std::max(to_update->getType()->getIntegerBitWidth(),
+                                    start->getType()->getIntegerBitWidth()),
+                           update_value->getType()->getIntegerBitWidth());
+  llvm::IntegerType* max_width_type = builder_->getIntNTy(max_width);
+  llvm::Value* to_update_wide =
+      builder_->CreateZExt(to_update, max_width_type, "to_update");
+  llvm::Value* start_wide =
+      builder_->CreateZExt(start, max_width_type, "start");
+  llvm::Value* update_value_wide =
+      builder_->CreateZExt(update_value, max_width_type, "update_value");
+
+  // If start is greater than or equal to the width of to_update, then the
+  // updated slice is entirely out of bounds the result of the operation is
+  // simply to_update.
+  llvm::Value* in_bounds = builder_->CreateICmpULT(
+      start_wide, llvm::ConstantInt::get(max_width_type, max_width),
+      "start_is_inbounds");
+
+  // Create a mask 00..0011..11 where the number of ones is equal to the
+  // width of the update value. Then the updated value is:
+  //
+  //   (~(mask << start) & to_update) | (update_value << start)
+  //
+  // The shift is guaranteed to be non-poison because of the start value is
+  // guarded by a compare against the width lhs of the shift (max_width).
+  XLS_ASSIGN_OR_RETURN(
+      llvm::Value * mask,
+      type_converter_->ToLlvmConstant(
+          update->package()->GetBitsType(max_width),
+          Value(bits_ops::ZeroExtend(
+              Bits::AllOnes(update->update_value()->BitCountOrDie()),
+              max_width))));
+  // Set the shift amount to the 0 in the case of overshift (start >= max_width)
+  // to avoid creating a poisonous shift value which can run afoul of LLVM
+  // optimization bugs. The shifted value is not even used in this case.
+  llvm::Value* shift_amount = builder_->CreateSelect(
+      in_bounds, start_wide, llvm::ConstantInt::get(max_width_type, 0));
+  llvm::Value* shifted_mask = builder_->CreateNot(
+      builder_->CreateShl(mask, shift_amount), "mask");
+  llvm::Value* masked_to_update =
+      builder_->CreateAnd(shifted_mask, to_update_wide);
+  llvm::Value* shifted_update_value =
+      builder_->CreateShl(update_value_wide, start_wide);
+  llvm::Value* updated_slice = builder_->CreateTrunc(
+      builder_->CreateOr(masked_to_update, shifted_update_value),
+      result_type, "updated_slice");
+
+  llvm::Value* result =
+      builder_->CreateSelect(in_bounds, updated_slice, to_update, "result");
+
+  return StoreResult(update, result);
 }
 
 absl::Status FunctionBuilderVisitor::HandleDynamicBitSlice(

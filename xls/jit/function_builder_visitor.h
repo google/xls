@@ -57,6 +57,7 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleArrayUpdate(ArrayUpdate* update) override;
   absl::Status HandleArrayConcat(ArrayConcat* concat) override;
   absl::Status HandleBitSlice(BitSlice* bit_slice) override;
+  absl::Status HandleBitSliceUpdate(BitSliceUpdate* update) override;
   absl::Status HandleDynamicBitSlice(
       DynamicBitSlice* dynamic_bit_slice) override;
   absl::Status HandleConcat(Concat* concat) override;
