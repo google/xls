@@ -15,6 +15,8 @@
 #ifndef XLS_DSLX_CPP_AST_BUILTIN_TYPES_INC_
 #define XLS_DSLX_CPP_AST_BUILTIN_TYPES_INC_
 
+// Form is:
+//   X(enum_value, cap_ident, lang_str, signed, width)
 #define XLS_DSLX_BUILTIN_TYPE_EACH(X)              \
   X(kBool, BOOL, "bool", false, 1)                 \
   /* unsigned */                                   \
@@ -149,6 +151,7 @@
   X(kS64, S64, "s64", true, 64)                    \
   /* keywords used to construct arbitrary sizes */ \
   X(kBits, BITS, "bits", false, 0)                 \
+  X(kToken, TOKEN, "token", false, 0)              \
   X(kUN, UN, "uN", false, 0)                       \
   X(kSN, SN, "sN", true, 0)                        \
   /* done */

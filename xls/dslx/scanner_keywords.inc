@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_CPP_SCANNER_KEYWORDS_INC_
 #define XLS_DSLX_CPP_SCANNER_KEYWORDS_INC_
 
+// See also `XLS_DSLX_TYPE_KEYWORDS` below and `xls/dslx/ast_builtin_types.inc`
 #define XLS_DSLX_KEYWORDS(X)   \
   X(kAs, AS, "as")             \
   X(kCarry, CARRY, "carry")    \
@@ -38,6 +39,7 @@
   X(kWhile, WHILE, "while")    \
   /* builtin types */          \
   X(kBits, BITS, "bits")       \
+  X(kToken, TOKEN, "token")    \
   X(kUN, UN, "uN")             \
   X(kSN, SN, "sN")             \
   X(kBool, BOOL, "bool")       \
@@ -176,6 +178,7 @@
 #define XLS_DSLX_TYPE_KEYWORDS(X) \
   /* builtin types */             \
   X(kBits, BITS, "bits")          \
+  X(kToken, TOKEN, "token")       \
   X(kUN, UN, "uN")                \
   X(kSN, SN, "sN")                \
   X(kBool, BOOL, "bool")          \

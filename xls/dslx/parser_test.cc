@@ -118,6 +118,12 @@ TEST_F(ParserTest, TestIdentityFunctionWithLet) {
 })");
 }
 
+TEST_F(ParserTest, TestTokenIdentity) {
+  RoundTrip(R"(fn f(t: token) -> token {
+  t
+})");
+}
+
 TEST_F(ParserTest, ParseErrorSpan) {
   const char* kFakeFilename = "fake.x";
   Scanner scanner(kFakeFilename, "+");

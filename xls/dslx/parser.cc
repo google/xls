@@ -449,6 +449,8 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
     return module_->Make<TupleTypeAnnotation>(span, std::move(types));
   }
 
+  // If the leader is not builtin and not a tuple, it's some form of type
+  // reference.
   XLS_ASSIGN_OR_RETURN(TypeRef * type_ref, ParseTypeRef(bindings, tok));
 
   std::vector<Expr*> parametrics;
@@ -468,7 +470,7 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
 
   std::vector<Expr*> dims;
   XLS_ASSIGN_OR_RETURN(bool peek_is_obrack, PeekTokenIs(TokenKind::kOBrack));
-  if (peek_is_obrack) {
+  if (peek_is_obrack) {  // Array type annotation.
     XLS_ASSIGN_OR_RETURN(dims, ParseDims(bindings));
   }
 

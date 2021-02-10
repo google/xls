@@ -323,7 +323,7 @@ cc_library(
 )
 
 cc_test(
-    name = "cpp_parser_test",
+    name = "parser_test",
     srcs = ["parser_test.cc"],
     deps = [
         ":cpp_parser",
