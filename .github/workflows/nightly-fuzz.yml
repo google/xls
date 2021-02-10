@@ -30,12 +30,12 @@ jobs:
         run: sudo apt install python3-dev python3-distutils python3-dev python-is-python3 libtinfo5
       - name: Bazel Build Fuzz Driver (opt)
         run: |
-          "${GITHUB_WORKSPACE}/bin/bazel" build -c opt xls/dslx/fuzzer:run_fuzz_multiprocess
+          "${GITHUB_WORKSPACE}/bin/bazel" build -c opt xls/fuzzer:run_fuzz_multiprocess
       - name: Bazel Run Fuzz (nosim, opt)
         # TODO(leary): 2020-08-28 Can remove some of these "lighter weight"
         # options as we understand why GitHub action jobs are getting killed.
         run: |
-          "${GITHUB_WORKSPACE}/bin/bazel" run -c opt xls/dslx/fuzzer:run_fuzz_multiprocess -- --crash_path "${GITHUB_WORKSPACE}/crashers" --sample_count=1024 --codegen=false --simulate=false --short_samples=false --emit_loops=False --summary_path "${GITHUB_WORKSPACE}/crashers"
+          "${GITHUB_WORKSPACE}/bin/bazel" run -c opt xls/fuzzer:run_fuzz_multiprocess -- --crash_path "${GITHUB_WORKSPACE}/crashers" --sample_count=1024 --codegen=false --simulate=false --short_samples=false --emit_loops=False --summary_path "${GITHUB_WORKSPACE}/crashers"
       - name: Upload Fuzz Crashers
         uses: actions/upload-artifact@v2
         with:
