@@ -835,6 +835,7 @@ bool ModuleBuilder::MustEmitAsFunction(Node* node) {
     case Op::kSMul:
     case Op::kUMul:
     case Op::kDynamicBitSlice:
+    case Op::kBitSliceUpdate:
       return true;
     default:
       return false;
@@ -854,6 +855,10 @@ std::string ModuleBuilder::VerilogFunctionName(Node* node) {
       return absl::StrFormat(
           "%s_w%d_%db_%db", OpToString(node->op()), node->BitCountOrDie(),
           node->operand(0)->BitCountOrDie(), node->operand(1)->BitCountOrDie());
+    case Op::kBitSliceUpdate:
+      return absl::StrFormat(
+          "%s_w%d_%db_%db", OpToString(node->op()), node->BitCountOrDie(),
+          node->operand(1)->BitCountOrDie(), node->operand(2)->BitCountOrDie());
     default:
       XLS_LOG(FATAL) << "Cannot emit node as function: " << node->ToString();
   }
@@ -863,40 +868,63 @@ namespace {
 
 // Defines and returns a function which implements the given DynamicBitSlice
 // node.
-VerilogFunction* DefineDynamicBitSliceFunction(Node* node,
+VerilogFunction* DefineDynamicBitSliceFunction(DynamicBitSlice* slice,
                                                absl::string_view function_name,
                                                ModuleSection* section) {
-  XLS_CHECK_EQ(node->op(), Op::kDynamicBitSlice);
   VerilogFile* file = section->file();
-  VerilogFunction* func =
-      section->Add<VerilogFunction>(function_name, node->BitCountOrDie(), file);
-  XLS_CHECK_EQ(node->operand_count(), 2);
-  DynamicBitSlice* slice = node->As<DynamicBitSlice>();
+  VerilogFunction* func = section->Add<VerilogFunction>(
+      function_name, slice->BitCountOrDie(), file);
   Expression* operand =
-      func->AddArgument("operand", node->operand(0)->BitCountOrDie());
+      func->AddArgument("operand", slice->to_slice()->BitCountOrDie());
   Expression* start =
-      func->AddArgument("start", node->operand(1)->BitCountOrDie());
+      func->AddArgument("start", slice->start()->BitCountOrDie());
   int64 width = slice->width();
 
   LogicRef* zexted_operand = func->AddRegDef(
       "zexted_operand",
-      file->PlainLiteral(node->operand(0)->BitCountOrDie() + width),
+      file->PlainLiteral(slice->operand(0)->BitCountOrDie() + width),
       /*init=*/UninitializedSentinel(), /*is_signed=*/false);
 
   Expression* zeros = file->Literal(0, width);
   Expression* op_width = file->Literal(
       slice->operand(0)->BitCountOrDie(),
-      Bits::MinBitCountUnsigned(slice->operand(0)->BitCountOrDie()));
+      Bits::MinBitCountUnsigned(slice->to_slice()->BitCountOrDie()));
   // If start of slice is greater than or equal to operand width, result is
   // completely out of bounds and set to all zeros.
   Expression* out_of_bounds = file->GreaterThanEquals(start, op_width);
   // Pad with width zeros
   func->AddStatement<BlockingAssignment>(zexted_operand,
                                          file->Concat({zeros, operand}));
-  Expression* sliced_operand = file->DynamicSlice(zexted_operand, start, width);
+  Expression* sliced_operand = file->PartSelect(zexted_operand, start, width);
   func->AddStatement<BlockingAssignment>(
       func->return_value_ref(),
       file->Ternary(out_of_bounds, zeros, sliced_operand));
+  return func;
+}
+
+// Defines and returns a function which implements the given BitSliceUpdate
+// node.
+VerilogFunction* DefineBitSliceUpdateFunction(BitSliceUpdate* update,
+                                              absl::string_view function_name,
+                                              ModuleSection* section) {
+  VerilogFile* file = section->file();
+  VerilogFunction* func = section->Add<VerilogFunction>(
+      function_name, update->BitCountOrDie(), file);
+  Expression* to_update =
+      func->AddArgument("to_update", update->to_update()->BitCountOrDie());
+  Expression* start =
+      func->AddArgument("start", update->start()->BitCountOrDie());
+  Expression* update_value = func->AddArgument(
+      "update_value", update->update_value()->BitCountOrDie());
+
+  func->AddStatement<BlockingAssignment>(func->return_value_ref(), to_update);
+  // By the (System)Verilog LRM, if some bits of a RHS part-select are
+  // out-of-bounds, then they are safely ignored.
+  func->AddStatement<BlockingAssignment>(
+      file->PartSelect(
+          func->return_value_ref(), start,
+          file->PlainLiteral(update->update_value()->BitCountOrDie())),
+      update_value);
   return func;
 }
 
@@ -974,8 +1002,12 @@ absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
       func = DefineUmulFunction(node, function_name, functions_section_);
       break;
     case Op::kDynamicBitSlice:
-      func = DefineDynamicBitSliceFunction(node, function_name,
-                                           functions_section_);
+      func = DefineDynamicBitSliceFunction(node->As<DynamicBitSlice>(),
+                                           function_name, functions_section_);
+      break;
+    case Op::kBitSliceUpdate:
+      func = DefineBitSliceUpdateFunction(node->As<BitSliceUpdate>(),
+                                          function_name, functions_section_);
       break;
     default:
       XLS_LOG(FATAL) << "Cannot define node as function: " << node->ToString();

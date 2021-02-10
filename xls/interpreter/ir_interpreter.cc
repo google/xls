@@ -206,21 +206,8 @@ absl::Status IrInterpreter::HandleBitSliceUpdate(BitSliceUpdate* update) {
   // in-bounds.
   int64 start_index = start.ToUint64().value();
 
-  // Construct the result as the sliced concatentation of three slices:
-  //   (1) slice of some least-significant bits of to_update.
-  //   (2) update_value.
-  //   (3) slice of some most-significant bits of to_update.
-  // One or more of these slices may be zero-width.
-  Bits lsb_slice = to_update.Slice(
-      /*start=*/0, /*width=*/start_index);
-  int64 msb_start_index =
-      std::min(to_update.bit_count(), start_index + update_value.bit_count());
-  Bits msb_slice = to_update.Slice(
-      /*start=*/msb_start_index,
-      /*width=*/std::max(int64{0}, to_update.bit_count() - msb_start_index));
   return SetBitsResult(
-      update, bits_ops::Concat({msb_slice, update_value, lsb_slice})
-                  .Slice(/*start=*/0, /*width=*/to_update.bit_count()));
+      update, bits_ops::BitSliceUpdate(to_update, start_index, update_value));
 }
 
 absl::Status IrInterpreter::HandleDynamicBitSlice(

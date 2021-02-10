@@ -560,6 +560,13 @@ OpClass.kinds['DYNAMIC_BIT_SLICE'] = OpClass(
     operands=[Operand('arg'), Operand('start')],
     xls_type_expression='function->package()->GetBitsType(width)',
     attributes=[Int64Attribute('width')],
+    extra_methods=[Method(name='to_slice',
+                          return_cpp_type='Node*',
+                          expression='operand(0)'),
+                   Method(name='start',
+                          return_cpp_type='Node*',
+                          expression='operand(1)'),
+                   ],
 )
 
 OpClass.kinds['BIT_SLICE_UPDATE'] = OpClass(

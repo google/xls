@@ -582,7 +582,7 @@ std::string Slice::Emit() {
                          lo_->Emit());
 }
 
-std::string DynamicSlice::Emit() {
+std::string PartSelect::Emit() {
   return absl::StrFormat("%s[%s +: %s]", subject_->Emit(), start_->Emit(),
                          width_->Emit());
 }

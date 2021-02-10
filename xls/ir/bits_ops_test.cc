@@ -741,5 +741,44 @@ TEST(BitsOpsTest, DropLeadingZeroes) {
   EXPECT_EQ(bits_ops::DropLeadingZeroes(UBits(0xFFF0, 16)), UBits(0xFFF0, 16));
 }
 
+TEST(BitsOpsTest, BitSliceUpdate) {
+  // Sanity check a few values.
+  EXPECT_EQ(bits_ops::BitSliceUpdate(Bits(), 0, Bits()), Bits());
+  EXPECT_EQ(bits_ops::BitSliceUpdate(Bits(), 42, Bits()), Bits());
+  EXPECT_EQ(bits_ops::BitSliceUpdate(UBits(0x1234abcd, 32), 0, UBits(7, 4)),
+            UBits(0x1234abc7, 32));
+  EXPECT_EQ(bits_ops::BitSliceUpdate(UBits(0x1234abcd, 32), 12, UBits(7, 4)),
+            UBits(0x12347bcd, 32));
+  EXPECT_EQ(
+      bits_ops::BitSliceUpdate(UBits(0x1234abcd, 32), 10000000, UBits(7, 4)),
+      UBits(0x1234abcd, 32));
+
+  // Exhaustively test all values of subect and update value from 0 to 5 bits
+  // with start index ranging from 0 to 6.
+  for (int64 subject_width = 0; subject_width <= 5; ++subject_width) {
+    for (int64 subject_value = 0; subject_value < (1 << subject_width);
+         ++subject_value) {
+      Bits subject = UBits(subject_value, subject_width);
+      for (int64 update_width = 0; update_width <= 5; ++update_width) {
+        for (int64 update_value = 0; update_value < (1 << update_width);
+             ++update_value) {
+          Bits update = UBits(update_value, update_width);
+          for (int64 start = 0; start <= 6; ++start) {
+            // Create a mask like: 11..1100..0011..11 where the least-significan
+            // string of 1's is 'start' long, and the number of zeros is equals
+            // to update_width.
+            int64 mask = ~(((1 << update_width) - 1) << start);
+            int64 expected = (mask & subject.ToUint64().value()) |
+                             (update.ToUint64().value() << start);
+            int64 expected_trunc = expected & ((1 << subject_width) - 1);
+            EXPECT_EQ(UBits(expected_trunc, subject_width),
+                      bits_ops::BitSliceUpdate(subject, start, update));
+          }
+        }
+      }
+    }
+  }
+}
+
 }  // namespace
 }  // namespace xls

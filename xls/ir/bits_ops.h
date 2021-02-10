@@ -140,6 +140,11 @@ Bits Reverse(const Bits& bits);
 // Returns a zero-bit/empty Bits for a zero-valued input.
 Bits DropLeadingZeroes(const Bits& bits);
 
+// Returns a Bits object with the sequence of bits starting at index 'start'
+// replaced with update_value. Any out-of-bounds updated bits are ignored.
+Bits BitSliceUpdate(const Bits& to_update, int64 start,
+                    const Bits& update_value);
+
 }  // namespace bits_ops
 
 // Returns the identity value of the given width for the given logical Op (e.g.,

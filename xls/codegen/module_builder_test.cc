@@ -315,7 +315,9 @@ TEST_P(ModuleBuilderTest, SmulAsFunction) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
-  BValue x_smul_y = fb.SMul(fb.Param("x", u32), fb.Param("y", u32));
+  BValue x_param = fb.Param("x", u32);
+  BValue y_param = fb.Param("y", u32);
+  BValue x_smul_y = fb.SMul(x_param, y_param);
   BValue z_param = fb.Param("z", u32);
   BValue z_smul_z = fb.SMul(z_param, z_param);
   XLS_ASSERT_OK(fb.Build());
@@ -362,6 +364,33 @@ TEST_P(ModuleBuilderTest, DynamicBitSliceAsFunction) {
           .status());
   XLS_ASSERT_OK(
       mb.EmitAsAssignment("dyn_slice_w_z_10", dyn_slice_w_z_10.node(), {w, z})
+          .status());
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 file.Emit());
+}
+
+TEST_P(ModuleBuilderTest, BitSliceUpdateAsFunction) {
+  VerilogFile file;
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u32 = package.GetBitsType(32);
+  Type* u16 = package.GetBitsType(16);
+  Type* u8 = package.GetBitsType(8);
+
+  BValue x_param = fb.Param("x", u32);
+  BValue start_param = fb.Param("start", u16);
+  BValue value_param = fb.Param("value", u8);
+  BValue update = fb.BitSliceUpdate(x_param, start_param, value_param);
+  XLS_ASSERT_OK(fb.Build());
+
+  ModuleBuilder mb(TestBaseName(), &file,
+                   /*use_system_verilog=*/UseSystemVerilog());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * start, mb.AddInputPort("start", u16));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * value, mb.AddInputPort("value", u8));
+  XLS_ASSERT_OK(
+      mb.EmitAsAssignment("slice_update", update.node(), {x, start, value})
           .status());
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),

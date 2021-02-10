@@ -495,6 +495,32 @@ Bits DropLeadingZeroes(const Bits& bits) {
   return bits.Slice(0, first_one + 1);
 }
 
+Bits BitSliceUpdate(const Bits& to_update, int64 start,
+                    const Bits& update_value) {
+  if (start >= to_update.bit_count()) {
+    // Start index is entirely out-of-bounds. The return value is simply the
+    // input data operand.
+    return to_update;
+  }
+
+  // Construct the result as the sliced concatentation of three slices:
+  //   (1) slice of some least-significant bits of to_update.
+  //   (2) slice of update_value
+  //   (3) slice of some most-significant bits of to_update.
+  // One or more of these slices may be zero-width.
+  Bits lsb_slice = to_update.Slice(/*start=*/0, /*width=*/start);
+  Bits update_slice = update_value.Slice(
+      /*start=*/0,
+      /*width=*/std::min(update_value.bit_count(),
+                         to_update.bit_count() - start));
+  int64 msb_start =
+      std::min(to_update.bit_count(), start + update_value.bit_count());
+  Bits msb_slice = to_update.Slice(
+      /*start=*/msb_start,
+      /*width=*/std::max(int64{0}, to_update.bit_count() - msb_start));
+  return Concat({msb_slice, update_slice, lsb_slice});
+}
+
 }  // namespace bits_ops
 
 Bits LogicalOpIdentity(Op op, int64 width) {

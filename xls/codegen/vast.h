@@ -887,10 +887,9 @@ class Slice : public Expression {
 // Represents a Verilog indexed part-select expression; e.g.
 //
 //    subject[start +: width]
-class DynamicSlice : public Expression {
+class PartSelect : public Expression {
  public:
-  DynamicSlice(IndexableExpression* subject, Expression* start,
-               Expression* width)
+  PartSelect(IndexableExpression* subject, Expression* start, Expression* width)
       : subject_(subject), start_(start), width_(width) {}
 
   std::string Emit() override;
@@ -1339,15 +1338,14 @@ class VerilogFile {
                                 MaybePlainLiteral(lo));
   }
 
-  verilog::DynamicSlice* DynamicSlice(IndexableExpression* subject,
-                                      Expression* start, Expression* width) {
-    return Make<verilog::DynamicSlice>(subject, start, width);
+  verilog::PartSelect* PartSelect(IndexableExpression* subject,
+                                  Expression* start, Expression* width) {
+    return Make<verilog::PartSelect>(subject, start, width);
   }
-  verilog::DynamicSlice* DynamicSlice(IndexableExpression* subject,
-                                      Expression* start, int64 width) {
+  verilog::PartSelect* PartSelect(IndexableExpression* subject,
+                                  Expression* start, int64 width) {
     XLS_CHECK_GT(width, 0);
-    return Make<verilog::DynamicSlice>(subject, start,
-                                       MaybePlainLiteral(width));
+    return Make<verilog::PartSelect>(subject, start, MaybePlainLiteral(width));
   }
 
   verilog::Index* Index(IndexableExpression* subject, Expression* index) {
