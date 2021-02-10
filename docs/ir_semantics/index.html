@@ -448,8 +448,29 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#assert" class="md-nav__link">
+    assert
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#array_2" class="md-nav__link">
+    array
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#bit_slice" class="md-nav__link">
     bit_slice
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bit_slice_update" class="md-nav__link">
+    bit_slice_update
   </a>
   
 </li>
@@ -1240,8 +1261,29 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#assert" class="md-nav__link">
+    assert
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#array_2" class="md-nav__link">
+    array
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#bit_slice" class="md-nav__link">
     bit_slice
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bit_slice_update" class="md-nav__link">
+    bit_slice_update
   </a>
   
 </li>
@@ -1416,7 +1458,10 @@
 <li><a href="#array_1">array</a></li>
 <li><a href="#array_index">array_index</a></li>
 <li><a href="#array_update">array_update</a></li>
+<li><a href="#assert">assert</a></li>
+<li><a href="#array_2">array</a></li>
 <li><a href="#bit_slice">bit_slice</a></li>
+<li><a href="#bit_slice_update">bit_slice_update</a></li>
 <li><a href="#dynamic_bit_slice">dynamic_bit_slice</a></li>
 <li><a href="#concat">concat</a></li>
 <li><a href="#counted_for">counted_for</a></li>
@@ -2401,6 +2446,86 @@ assuming input array operand <code>A</code>.</p>
 with the given value. If any index is out of bounds, the result is identical to
 the input <code>array</code>. The indexing semantics is identical to <code>array_index</code> with the
 exception of out-of-bounds behavior.</p>
+<h4 id="assert"><strong><code>assert</code></strong></h4>
+<p>Raises an error at software run-time (DSLX/IR interpretation, JIT execution, RTL
+simulation) if the given condition evaluates to false. The operation takes a
+literal string attribute which is included in the error message. This is a
+software-only operation and has no representation in the generated hardware.
+Tokens are used to connect the operation to the graph and order with respect to
+other side-effecting operations.</p>
+<pre><code>result = assert(tkn, condition, message=&lt;string&gt;)
+</code></pre>
+
+<p><strong>Types</strong></p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tkn</code></td>
+<td><code>token</code></td>
+</tr>
+<tr>
+<td><code>condition</code></td>
+<td><code>bits[1]</code></td>
+</tr>
+<tr>
+<td><code>result</code></td>
+<td><code>token</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Keyword arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Keyword</th>
+<th>Type</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>message</code></td>
+<td><code>string</code></td>
+<td>yes</td>
+<td></td>
+<td>Message to include in raise error</td>
+</tr>
+</tbody>
+</table>
+<h4 id="array_2"><strong><code>array</code></strong></h4>
+<p>Constructs a array of its operands.</p>
+<pre><code>result = array(operand_{0}, ..., operand_{N-1})
+</code></pre>
+
+<p><strong>Types</strong></p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>operand_{i}</code></td>
+<td><code>T</code></td>
+</tr>
+<tr>
+<td><code>result</code></td>
+<td><code>T[N]</code></td>
+</tr>
+</tbody>
+</table>
+<p>Array can take an arbitrary number of operands including zero (which produces an
+empty array).</p>
 <h4 id="bit_slice"><strong><code>bit_slice</code></strong></h4>
 <p>Slices a contiguous range of bits from a bits-typed operand.</p>
 <p><strong>Syntax</strong></p>
@@ -2512,6 +2637,79 @@ exception of out-of-bounds behavior.</p>
 </table>
 <p>The bit-width of <code>operand</code> must be greater than or equal to <code>&lt;start&gt;</code> plus
 <code>&lt;width&gt;</code>.</p>
+<h4 id="bit_slice_update"><strong><code>bit_slice_update</code></strong></h4>
+<p>Replaces a contiguous range of bits in a bits-typed operand at a variable start
+index with a given value.</p>
+<p><strong>Syntax</strong></p>
+<pre><code>result = bit_slice_update(operand, start, update_value)
+</code></pre>
+
+<p><strong>Types</strong></p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>operand</code></td>
+<td><code>bits[N]</code></td>
+</tr>
+<tr>
+<td><code>start</code></td>
+<td><code>bits[I]</code></td>
+</tr>
+<tr>
+<td><code>update_value</code></td>
+<td><code>bits[M]</code></td>
+</tr>
+<tr>
+<td><code>result</code></td>
+<td><code>bits[N]</code></td>
+</tr>
+</tbody>
+</table>
+<p>Evaluates to <code>operand</code> with the contiguous <code>M</code> bits starting at index <code>start</code>
+replaced with <code>update_value</code>. Out-of-bound bits (which occur if <code>start + M &gt; N</code>)
+are ignored. Examples:</p>
+<table>
+<thead>
+<tr>
+<th><code>operand</code></th>
+<th><code>start</code></th>
+<th><code>update_value</code></th>
+<th><code>result</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bits[16]:0xabcd</code></td>
+<td><code>0</code></td>
+<td><code>bits[8]:0xff</code></td>
+<td><code>bits[16]:0xabff</code></td>
+</tr>
+<tr>
+<td><code>bits[16]:0xabcd</code></td>
+<td><code>4</code></td>
+<td><code>bits[8]:0xff</code></td>
+<td><code>bits[16]:0xaffd</code></td>
+</tr>
+<tr>
+<td><code>bits[16]:0xabcd</code></td>
+<td><code>12</code></td>
+<td><code>bits[8]:0xff</code></td>
+<td><code>bits[16]:0xfbcd</code></td>
+</tr>
+<tr>
+<td><code>bits[16]:0xabcd</code></td>
+<td><code>16</code></td>
+<td><code>bits[8]:0xff</code></td>
+<td><code>bits[16]:0xabcd</code></td>
+</tr>
+</tbody>
+</table>
 <h4 id="dynamic_bit_slice"><strong><code>dynamic_bit_slice</code></strong></h4>
 <p>Slices a contiguous range of bits from a bits-typed operand, with variable
 starting index but fixed width. Out-of-bounds slicing is supported by
