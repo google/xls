@@ -746,6 +746,17 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCastBitsToArray(Env* env) {
   return TypedExpr{expr, outer_array_type};
 }
 
+absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSliceUpdate(Env* env) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueUBits(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr start, ChooseEnvValueUBits(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr update_value, ChooseEnvValueUBits(env));
+
+  auto* invocation = module_->Make<Invocation>(
+      fake_span_, MakeBuiltinNameRef("bit_slice_update"),
+      std::vector<Expr*>{arg.expr, start.expr, update_value.expr});
+  return TypedExpr{invocation, arg.type};
+}
+
 absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64 level, Env* env) {
   if (!ShouldNest(level)) {
     // Should not nest any more, select return values.
@@ -753,17 +764,21 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64 level, Env* env) {
   }
 
   enum Choice {
-    kCountedFor,
-    kTupleOrIndex,
-    kConcat,
     kBinop,
-    kUnop,
-    kUnopBuiltin,
-    kOneHotSelectBuiltin,
-    kNumber,
     kBitSlice,
+    kBitSliceUpdate,
     kBitwiseReduction,
     kCastToBitsArray,
+    kConcat,
+    kCountedFor,
+    kNumber,
+    kOneHotSelectBuiltin,
+    kTupleOrIndex,
+    kUnop,
+    kUnopBuiltin,
+
+    // Sentinel denoting last element of enum.
+    kEndSentinel
   };
 
   TypedExpr rhs;
@@ -776,7 +791,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64 level, Env* env) {
     if (RandomFloat() < pow(10.0, -level)) {
       generated = GenerateMap(level, env);
     } else {
-      int choice = RandRange(static_cast<int>(kCastToBitsArray) + 1);
+      int choice = RandRange(static_cast<int>(kEndSentinel));
       switch (static_cast<Choice>(choice)) {
         case kCountedFor:
           generated = GenerateCountedFor(env);
@@ -814,6 +829,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64 level, Env* env) {
         case kCastToBitsArray:
           generated = GenerateCastBitsToArray(env);
           break;
+        case kBitSliceUpdate:
+          generated = GenerateBitSliceUpdate(env);
+          break;
+        case kEndSentinel:
+          XLS_LOG(FATAL) << "Should not have selected end sentinel";
       }
     }
 

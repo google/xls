@@ -142,6 +142,9 @@ class AstGenerator {
   // Generates a cast from bits to array type.
   absl::StatusOr<TypedExpr> GenerateCastBitsToArray(Env* env);
 
+  // Generates a bit_slice_update builtin call.
+  absl::StatusOr<TypedExpr> GenerateBitSliceUpdate(Env* env);
+
   int64 GenerateNaryOperandCount(Env* env) {
     XLS_CHECK(!env->empty());
     std::weibull_distribution<float> d(1.0, 0.5);
