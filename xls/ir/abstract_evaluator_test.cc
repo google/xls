@@ -188,5 +188,26 @@ TEST(AbstractEvaluatorTest, SLessThan) {
   EXPECT_EQ(eval.SLessThan(ToBoxedVector(a), ToBoxedVector(b)).value, 0);
 }
 
+TEST(AbstractEvaluatorTest, BitSliceUpdate) {
+  TestAbstractEvaluator eval;
+  auto test_eq = [&](int64 expected, const Bits& a, const Bits& start,
+                     const Bits& value) {
+    EXPECT_EQ(
+        UBits(expected, a.bit_count()),
+        FromBoxedVector(eval.BitSliceUpdate(
+            ToBoxedVector(a), ToBoxedVector(start), ToBoxedVector(value))));
+  };
+
+  test_eq(0x123f, UBits(0x1234, 16), UBits(0, 32), UBits(0xf, 4));
+  test_eq(0x12f4, UBits(0x1234, 16), UBits(4, 32), UBits(0xf, 4));
+  test_eq(0xf234, UBits(0x1234, 16), UBits(12, 32), UBits(0xf, 4));
+  test_eq(0x1234, UBits(0x1234, 16), UBits(16, 32), UBits(0xf, 4));
+  test_eq(0x1234, UBits(0x1234, 16), UBits(100000, 32), UBits(0xf, 4));
+
+  test_eq(0xcd, UBits(0x12, 8), UBits(0, 32), UBits(0xabcd, 16));
+  test_eq(0xd2, UBits(0x12, 8), UBits(4, 32), UBits(0xabcd, 16));
+  test_eq(0x12, UBits(0x12, 8), UBits(8, 32), UBits(0xabcd, 16));
+}
+
 }  // namespace
 }  // namespace xls

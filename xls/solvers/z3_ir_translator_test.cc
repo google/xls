@@ -192,6 +192,58 @@ fn f(p: bits[4]) -> bits[1] {
   EXPECT_TRUE(proven);
 }
 
+TEST_F(Z3IrTranslatorTest, BitSliceUpdate) {
+  const std::string program = R"(
+fn f(x: bits[8], v: bits[4]) -> bits[1] {
+  start: bits[4] = literal(value=2)
+  update: bits[8] = bit_slice_update(x, start, v)
+  x_lsb: bits[2] = bit_slice(x, start=0, width=2)
+  x_msb: bits[2] = bit_slice(x, start=6, width=2)
+  expected: bits[8] = concat(x_msb, v, x_lsb)
+  ret result: bits[1] = eq(update, expected)
+}
+)";
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                            absl::InfiniteDuration()));
+  EXPECT_TRUE(proven);
+}
+
+TEST_F(Z3IrTranslatorTest, BitSliceUpdateOutOfBounds) {
+  const std::string program = R"(
+fn f(x: bits[8], v: bits[4]) -> bits[1] {
+  start: bits[32] = literal(value=200)
+  update: bits[8] = bit_slice_update(x, start, v)
+  ret result: bits[1] = eq(update, x)
+}
+)";
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                            absl::InfiniteDuration()));
+  EXPECT_TRUE(proven);
+}
+
+TEST_F(Z3IrTranslatorTest, BitSliceUpdateZeroStart) {
+  const std::string program = R"(
+fn f(x: bits[8], v: bits[16]) -> bits[1] {
+  start: bits[32] = literal(value=0)
+  update: bits[8] = bit_slice_update(x, start, v)
+  expected: bits[8] = bit_slice(v, start=0, width=8)
+  ret result: bits[1] = eq(update, expected)
+}
+)";
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                            absl::InfiniteDuration()));
+  EXPECT_TRUE(proven);
+}
+
 TEST_F(Z3IrTranslatorTest, ValueUgtSelf) {
   const std::string program = R"(
 fn f(p: bits[4]) -> bits[1] {

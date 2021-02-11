@@ -857,6 +857,26 @@ absl::Status IrTranslator::HandleBitSlice(BitSlice* bit_slice) {
   return seh.status();
 }
 
+absl::Status IrTranslator::HandleBitSliceUpdate(BitSliceUpdate* update) {
+  ScopedErrorHandler seh(ctx_);
+  Z3AbstractEvaluator evaluator(ctx_);
+  std::vector<Z3_ast> to_update =
+      Z3OpTranslator(ctx_).ExplodeBits(GetBitVec(update->to_update()));
+  std::vector<Z3_ast> start =
+      Z3OpTranslator(ctx_).ExplodeBits(GetBitVec(update->start()));
+  std::vector<Z3_ast> update_value =
+      Z3OpTranslator(ctx_).ExplodeBits(GetBitVec(update->update_value()));
+
+  std::vector<Z3_ast> flat_results =
+      evaluator.BitSliceUpdate(to_update, start, update_value);
+
+  std::reverse(flat_results.begin(), flat_results.end());
+  Z3_ast result = UnflattenZ3Ast(update->GetType(), flat_results);
+
+  NoteTranslation(update, result);
+  return seh.status();
+}
+
 absl::Status IrTranslator::HandleDynamicBitSlice(
     DynamicBitSlice* dynamic_bit_slice) {
   ScopedErrorHandler seh(ctx_);

@@ -818,6 +818,7 @@ cc_library(
     hdrs = ["abstract_evaluator.h"],
     deps = [
         ":bits",
+        ":bits_ops",
         "//xls/common:integral_types",
         "//xls/common/logging",
         "@com_google_absl//absl/functional:function_ref",

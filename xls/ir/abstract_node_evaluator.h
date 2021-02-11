@@ -81,7 +81,8 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     case Op::kDynamicBitSlice:
       return default_handler(node);
     case Op::kBitSliceUpdate:
-      return default_handler(node);
+      XLS_RETURN_IF_ERROR(check_operand_count(3));
+      return evaluator->BitSliceUpdate(operands[0], operands[1], operands[2]);
     case Op::kReceive:
       return default_handler(node);
     case Op::kReceiveIf:

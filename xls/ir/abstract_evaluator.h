@@ -22,6 +22,7 @@
 #include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 
 namespace xls {
 
@@ -228,6 +229,38 @@ class AbstractEvaluator {
   }
   Vector ShiftLeftLogical(const Vector& input, const Vector& amount) {
     return Shift(input, amount, /*right=*/false, /*arithmetic=*/false);
+  }
+
+  Vector BitSliceUpdate(const Vector& input, const Vector& start,
+                        const Vector& value) {
+    // Create a mask which masks on the 'input' bits which are *not* updated. It
+    // should look like:
+    //
+    //   11111100000000000000000011111111111
+    //   <--------- width(input) ---------->
+    //         <- width(value) -><- start ->
+    //
+    // This can by creating by starting with a constant mask (start_ones below)
+    // that looks like:
+    //
+    //   00000000000000000111111111111111111
+    //   <--------- width(input) ---------->
+    //                    <- width(value) ->
+    //
+    // Then left shifting it the dynamic amount 'start' and bit-wise inverting
+    // it.
+    int64 num_ones = std::min(input.size(), value.size());
+    Bits start_ones =
+        bits_ops::ZeroExtend(Bits::AllOnes(num_ones), input.size());
+    Vector mask = BitwiseNot(ShiftLeftLogical(BitsToVector(start_ones), start));
+
+    // Adjust 'value' to the same width as 'input' either by truncation or
+    // zero-extension.
+    Vector adjusted_value = value.size() >= input.size()
+                                ? BitSlice(value, 0, input.size())
+                                : ZeroExtend(value, input.size());
+    return BitwiseOr(BitwiseAnd(mask, input),
+                     ShiftLeftLogical(adjusted_value, start));
   }
 
   // Binary encode and decode operations.
