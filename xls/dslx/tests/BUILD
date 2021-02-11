@@ -175,6 +175,11 @@ dslx_test(
 )
 
 dslx_test(
+    name = "bit_slice_update",
+    srcs = ["bit_slice_update.x"],
+)
+
+dslx_test(
     name = "bit_slice_syntax",
     srcs = ["bit_slice_syntax.x"],
     # Note: no meaningful function to convert.

@@ -607,6 +607,14 @@ fn f(x: u32) -> (u1, u32) {
 )"));
 }
 
+TEST(TypecheckTest, BitSliceUpdateBuiltIn) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn f(x: u32, y: u17, z: u15) -> u32 {
+  bit_slice_update(x, y, z)
+}
+)"));
+}
+
 TEST(TypecheckTest, UpdateIncompatibleValue) {
   EXPECT_THAT(Typecheck(R"(
 fn f(x: u32[5]) -> u32[5] {

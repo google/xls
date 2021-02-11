@@ -1588,6 +1588,19 @@ fn f() -> u32 {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, BitSliceUpdate) {
+  const char* program =
+      R"(
+fn main(x: u32, y: u16, z: u8) -> u32 {
+  bit_slice_update(x, y, z)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, /*emit_positions=*/false));
+  ExpectIr(converted, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx
 

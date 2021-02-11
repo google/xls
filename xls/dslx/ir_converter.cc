@@ -968,6 +968,7 @@ absl::Status IrConverter::HandleInvocation(Invocation* node,
           {"one_hot", &IrConverter::HandleBuiltinOneHot},
           {"one_hot_sel", &IrConverter::HandleBuiltinOneHotSel},
           {"bit_slice", &IrConverter::HandleBuiltinBitSlice},
+          {"bit_slice_update", &IrConverter::HandleBuiltinBitSliceUpdate},
           {"rev", &IrConverter::HandleBuiltinRev},
           {"and_reduce", &IrConverter::HandleBuiltinAndReduce},
           {"or_reduce", &IrConverter::HandleBuiltinOrReduce},
@@ -1353,6 +1354,17 @@ absl::Status IrConverter::HandleBuiltinBitSlice(Invocation* node) {
   XLS_ASSIGN_OR_RETURN(uint64 width, width_bits.ToUint64());
   Def(node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->BitSlice(arg, start, width, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status IrConverter::HandleBuiltinBitSliceUpdate(Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 3);
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(BValue start, Use(node->args()[1]));
+  XLS_ASSIGN_OR_RETURN(BValue update_value, Use(node->args()[2]));
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->BitSliceUpdate(arg, start, update_value, loc);
   });
   return absl::OkStatus();
 }

@@ -20,31 +20,32 @@
 
 namespace xls::dslx {
 
-#define XLS_DSLX_BUILTIN_EACH(X)     \
-  X("add_with_carry", kAddWithCarry) \
-  X("and_reduce", kAndReduce)        \
-  X("assert_eq", kAssertEq)          \
-  X("assert_lt", kAssertLt)          \
-  X("bit_slice", kBitSlice)          \
-  X("clz", kClz)                     \
-  X("ctz", kCtz)                     \
-  X("enumerate", kEnumerate)         \
-  X("fail!", kFail)                  \
-  X("map", kMap)                     \
-  X("one_hot", kOneHot)              \
-  X("one_hot_sel", kOneHotSel)       \
-  X("or_reduce", kOrReduce)          \
-  X("range", kRange)                 \
-  X("rev", kRev)                     \
-  X("select", kSelect)               \
-  X("sge", kSGe)                     \
-  X("sgt", kSGt)                     \
-  X("signex", kSignex)               \
-  X("sle", kSLe)                     \
-  X("slice", kSlice)                 \
-  X("slt", kSLt)                     \
-  X("trace", kTrace)                 \
-  X("update", kUpdate)               \
+#define XLS_DSLX_BUILTIN_EACH(X)         \
+  X("add_with_carry", kAddWithCarry)     \
+  X("and_reduce", kAndReduce)            \
+  X("assert_eq", kAssertEq)              \
+  X("assert_lt", kAssertLt)              \
+  X("bit_slice", kBitSlice)              \
+  X("bit_slice_update", kBitSliceUpdate) \
+  X("clz", kClz)                         \
+  X("ctz", kCtz)                         \
+  X("enumerate", kEnumerate)             \
+  X("fail!", kFail)                      \
+  X("map", kMap)                         \
+  X("one_hot", kOneHot)                  \
+  X("one_hot_sel", kOneHotSel)           \
+  X("or_reduce", kOrReduce)              \
+  X("range", kRange)                     \
+  X("rev", kRev)                         \
+  X("select", kSelect)                   \
+  X("sge", kSGe)                         \
+  X("sgt", kSGt)                         \
+  X("signex", kSignex)                   \
+  X("sle", kSLe)                         \
+  X("slice", kSlice)                     \
+  X("slt", kSLt)                         \
+  X("trace", kTrace)                     \
+  X("update", kUpdate)                   \
   X("xor_reduce", kXorReduce)
 
 // Enum that represents all the DSLX builtin functions.

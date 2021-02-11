@@ -205,6 +205,7 @@ const absl::flat_hash_map<std::string, std::string>& GetParametricBuiltins() {
       {"assert_eq", "(T, T) -> ()"},
       {"assert_lt", "(T, T) -> ()"},
       {"bit_slice", "(uN[N], uN[U], uN[V]) -> uN[V]"},
+      {"bit_slice_update", "(uN[N], uN[U], uN[V]) -> uN[N]"},
       {"clz", "(uN[N]) -> uN[N]"},
       {"ctz", "(uN[N]) -> uN[N]"},
       {"concat", "(uN[M], uN[N]) -> uN[M+N]"},
@@ -403,6 +404,15 @@ static void PopulateSignatureToLambdaMap(
         Checker(arg_types, name, span).Len(3).IsUN(0).IsUN(1).IsUN(2).status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
         CloneToUnique(arg_types), arg_types[2]->CloneToUnique())};
+  };
+  map["(uN[N], uN[U], uN[V]) -> uN[N]"] =
+      [](ArgTypes arg_types, absl::string_view name, const Span& span,
+         DeduceCtx* ctx,
+         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(
+        Checker(arg_types, name, span).Len(3).IsUN(0).IsUN(1).IsUN(2).status());
+    return TypeAndBindings{absl::make_unique<FunctionType>(
+        CloneToUnique(arg_types), arg_types[0]->CloneToUnique())};
   };
   map["(uN[N]) -> uN[N]"] =
       [](ArgTypes arg_types, absl::string_view name, const Span& span,

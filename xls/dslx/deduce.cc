@@ -1546,6 +1546,7 @@ static const absl::flat_hash_set<std::string>& GetParametricBuiltinNames() {
       "assert_eq",
       "assert_lt",
       "bit_slice",
+      "bit_slice_update",
       "clz",
       "ctz",
       "concat",

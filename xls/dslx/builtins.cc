@@ -358,6 +358,31 @@ absl::StatusOr<InterpValue> BuiltinBitSlice(
                                subject_bits.Slice(start_index, bit_count));
 }
 
+absl::StatusOr<InterpValue> BuiltinBitSliceUpdate(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings) {
+  XLS_RETURN_IF_ERROR(ArgChecker("bit_slice_update", args)
+                          .size(3)
+                          .bits(0)
+                          .bits(1)
+                          .bits(2)
+                          .status());
+  const InterpValue& subject = args[0];
+  const InterpValue& start = args[1];
+  const InterpValue& update_value = args[2];
+  XLS_ASSIGN_OR_RETURN(Bits subject_bits, subject.GetBits());
+  XLS_ASSIGN_OR_RETURN(Bits start_bits, start.GetBits());
+  XLS_ASSIGN_OR_RETURN(Bits update_value_bits, update_value.GetBits());
+  if (bits_ops::UGreaterThanOrEqual(start_bits, subject_bits.bit_count())) {
+    // Update is entirely out of bounds so no bits of the subject are updated.
+    return InterpValue::MakeBits(InterpValueTag::kUBits, subject_bits);
+  }
+  XLS_ASSIGN_OR_RETURN(int64 start_index, start_bits.ToUint64());
+  return InterpValue::MakeBits(
+      InterpValueTag::kUBits,
+      bits_ops::BitSliceUpdate(subject_bits, start_index, update_value_bits));
+}
+
 absl::StatusOr<InterpValue> BuiltinSlice(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
     const SymbolicBindings* symbolic_bindings) {

@@ -121,6 +121,11 @@ absl::StatusOr<InterpValue> BuiltinBitSlice(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
     const SymbolicBindings* symbolic_bindings);
 
+// Implements 'bit_slice_update' builtin function.
+absl::StatusOr<InterpValue> BuiltinBitSliceUpdate(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings);
+
 // Implements 'slice' builtin function.
 absl::StatusOr<InterpValue> BuiltinSlice(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,

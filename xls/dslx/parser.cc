@@ -27,6 +27,7 @@ const std::vector<absl::string_view>& GetParametricBuiltinNames() {
                                               "assert_eq",
                                               "assert_lt",
                                               "bit_slice",
+                                              "bit_slice_update",
                                               "clz",
                                               "ctz",
                                               "concat",

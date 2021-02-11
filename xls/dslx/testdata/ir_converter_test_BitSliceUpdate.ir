@@ -1,0 +1,5 @@
+package test_module
+
+fn __test_module__main(x: bits[32], y: bits[16], z: bits[8]) -> bits[32] {
+  ret bit_slice_update.4: bits[32] = bit_slice_update(x, y, z, id=4)
+}

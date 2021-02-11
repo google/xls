@@ -263,6 +263,7 @@ class IrConverter {
   // Builtin invocation handlers.
   absl::Status HandleBuiltinAndReduce(Invocation* node);
   absl::Status HandleBuiltinBitSlice(Invocation* node);
+  absl::Status HandleBuiltinBitSliceUpdate(Invocation* node);
   absl::Status HandleBuiltinClz(Invocation* node);
   absl::Status HandleBuiltinCtz(Invocation* node);
   absl::Status HandleBuiltinOneHot(Invocation* node);

@@ -1508,6 +1508,16 @@ fn reverse {
 }
 ```
 
+### bit_slice_update
+
+`bit_slice_update(subject, start, value)` returns a copy of the bits-typed value
+`subject` where the contiguous bits starting at index `start` (where 0 is the
+least-significant bit) are replaced with `value`. The bit-width of the returned
+value is the same as the bit-width of `subject`. Any updated bit indices which
+are out of bounds (if `start + bit-width(value) >= bit-width(subject)`) are
+ignored. Example usage:
+[`dslx/tests/bit_slice_update.x`](https://github.com/google/xls/tree/main/xls/dslx/tests/bit_slice_update.x).
+
 ### Bitwise reductions
 
 These are unary reduction operations applied to a bits-typed value:
