@@ -22,6 +22,7 @@ op_models { op: "kAndReduce" estimator { fixed: 1 } }
 op_models { op: "kArray" estimator { fixed: 1 } }
 op_models { op: "kArrayConcat" estimator { fixed: 1 } }
 op_models { op: "kBitSlice" estimator { fixed: 1 } }
+op_models { op: "kBitSliceUpdate" estimator { fixed: 1 } }
 op_models { op: "kConcat" estimator { fixed: 1 } }
 op_models { op: "kDecode" estimator { fixed: 1 } }
 op_models { op: "kDynamicBitSlice" estimator { fixed: 1 } }
