@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: Bazel Test All (opt)
-    runs-on: [ubuntu-20.04, ARM64]
+    runs-on: [self-hosted, ubuntu-20.04, ARM64]
     steps:
       - uses: actions/checkout@v2
       - name: Mount Bazel Cache

@@ -16,7 +16,7 @@ on:
 jobs:
   build:
     name: Bazel Test All (opt)
-    runs-on: [ubuntu-20.04, x64]
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
       - name: Mount Bazel Cache
