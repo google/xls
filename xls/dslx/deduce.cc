@@ -1207,6 +1207,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBuiltinTypeAnnotation(
     BuiltinTypeAnnotation* node, DeduceCtx* ctx) {
+  if (node->builtin_type() == BuiltinType::kToken) {
+    return absl::make_unique<TokenType>();
+  }
   return absl::make_unique<BitsType>(node->GetSignedness(),
                                      node->GetBitCount());
 }

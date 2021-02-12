@@ -1671,6 +1671,9 @@ absl::StatusOr<xls::Type*> IrConverter::TypeToIr(
     int64 bit_count = absl::get<int64>(enum_type->size().value());
     return package_->GetBitsType(bit_count);
   }
+  if (dynamic_cast<const TokenType*>(&concrete_type)) {
+    return package_->GetTokenType();
+  }
   auto* tuple_type = dynamic_cast<const TupleType*>(&concrete_type);
   XLS_RET_CHECK(tuple_type != nullptr) << concrete_type;
   std::vector<xls::Type*> members;

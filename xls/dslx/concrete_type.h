@@ -140,12 +140,48 @@ class ConcreteType {
   bool CompatibleWith(const ConcreteType& other) const;
 
   bool IsNil() const;
+  bool IsToken() const;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const ConcreteType& t) {
   os << t.ToString();
   return os;
 }
+
+// Represents the type of a token value.
+//
+// Tokens are *existential values* used for establishing dataflow dependencies
+// for sequence-sensitive operations.
+//
+// Currently the token type is effectively a singleton-behaving value like nil,
+// it cannot be distinguished or parameterized in any way from other token type
+// instances (unless you compare by pointer, of course, which is an
+// implementation detail and not part of the ConcreteType API).
+class TokenType : public ConcreteType {
+ public:
+  ~TokenType() override;
+
+  bool operator==(const ConcreteType& other) const override {
+    return other.IsToken();
+  }
+  std::string ToString() const override { return "token"; }
+  std::vector<ConcreteTypeDim> GetAllDims() const override { return {}; }
+  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override {
+    return ConcreteTypeDim(0);
+  }
+  std::string GetDebugTypeName() const override { return "token"; }
+
+  bool HasEnum() const override { return false; }
+
+  std::unique_ptr<ConcreteType> CloneToUnique() const override {
+    return absl::make_unique<TokenType>();
+  }
+  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
+      const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
+      const override {
+    return absl::make_unique<TokenType>();
+  }
+};
 
 // Represents a tuple type.
 //

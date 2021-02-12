@@ -144,6 +144,14 @@ bool ConcreteType::IsNil() const {
   return false;
 }
 
+bool ConcreteType::IsToken() const {
+  return dynamic_cast<const TokenType*>(this) != nullptr;
+}
+
+// -- TokenType
+
+TokenType::~TokenType() = default;
+
 // -- BitsType
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> BitsType::MapSize(

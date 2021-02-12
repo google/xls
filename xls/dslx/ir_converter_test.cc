@@ -1601,6 +1601,14 @@ fn main(x: u32, y: u16, z: u8) -> u32 {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, TokenIdentityFunction) {
+  absl::string_view program = "fn main(x: token) -> token { x }";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, /*emit_positions=*/false));
+  ExpectIr(converted, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx
 
