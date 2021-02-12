@@ -103,9 +103,9 @@ void AggregateSummary(const fuzzer::SampleSummaryProto& summary,
 
 void DumpSummaryInfo(const SummaryInfo& info) {
   std::cout << absl::StreamFormat("Sample count: %d\n", info.samples);
-  auto fmt = [&](const std::string& s, bool left_justified = false) {
-    if (left_justified) {
-      return absl::StrFormat("%-13s", s);
+  auto fmt = [&](const std::string& s, bool first_col = false) {
+    if (first_col) {
+      return absl::StrFormat("%-20s", s);
     } else {
       return absl::StrFormat("%13s", s);
     }
@@ -116,14 +116,14 @@ void DumpSummaryInfo(const SummaryInfo& info) {
                                   "array", ">64-bits", "mixed width", "nullary",
                                   "unary", "binary",   ">=3ary"};
   for (int64 i = 0; i < fields.size(); ++i) {
-    std::cout << fmt(fields[i], i == 0);
+    std::cout << fmt(fields[i], /*first_col=*/i == 0);
   }
-  std::cout << "\n" << std::string(13 * fields.size(), '-') << "\n";
+  std::cout << "\n" << std::string(20 + 13 * (fields.size() - 1), '-') << "\n";
   for (Op op : AllOps()) {
     std::string op_str = OpToString(op);
     OpInfo op_info =
         info.op_info.contains(op_str) ? info.op_info.at(op_str) : OpInfo{0};
-    std::cout << fmt(op_str, true);
+    std::cout << fmt(op_str, /*first_col=*/true);
     std::cout << fmt_num(op_info.samples);
     std::cout << fmt_num(op_info.by_type["bits"]);
     std::cout << fmt_num(op_info.by_type["tuple"]);

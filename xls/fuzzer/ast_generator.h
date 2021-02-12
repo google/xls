@@ -38,16 +38,29 @@ struct BitsAndSignedness {
 
 // Options that are used to configure the AST generator.
 struct AstGeneratorOptions {
+  // Emit signed types (currently not connected, signed types are always
+  // generated).
   bool emit_signed_types = true;
+
+  // Don't emit divide operations (currently not connected, divides are never
+  // generated).
   bool disallow_divide = false;
+
   // The maximum (inclusive) width for bits types.
   int64 max_width_bits_types = 64;
+
   // The maximum (inclusive) width for aggregate types; e.g. tuples.
   int64 max_width_aggregate_types = 1024;
+
+  // Emit loops (currently not connected, loops are always generated).
   bool emit_loops = true;
+
+  // The set of binary ops (arithmetic and bitwise ops excepting shifts) to
+  // generate. For example: add, and, mul, etc.
   absl::optional<absl::btree_set<BinopKind>> binop_allowlist = absl::nullopt;
+
+  // If true, then generated samples that have fewer operations.
   bool short_samples = false;
-  bool codegen_ops_only = false;
 };
 
 // Type that generates a random module for use in fuzz testing; i.e.
@@ -85,8 +98,11 @@ class AstGenerator {
   static bool EnvContainsArray(const Env& e);
   static bool EnvContainsTuple(const Env& e);
 
+  // Generate an DSLX function with the given name and param count. call_depth
+  // is the current depth of the call stack (if any) calling this function to be
+  // generated.
   absl::StatusOr<Function*> GenerateFunction(
-      std::string name, int64 level = 0,
+      std::string name, int64 call_depth = 0,
       absl::optional<int64> param_count = absl::nullopt);
 
   // Chooses a value from the environment that satisfies the predicate "take",
@@ -104,10 +120,22 @@ class AstGenerator {
     });
   }
 
-  absl::StatusOr<TypedExpr> ChooseEnvValueBits(Env* env) {
-    auto is_bits = [&](const TypedExpr& e) -> bool { return IsBits(e.type); };
+  // Returns a random bits-types value from the environment.
+  absl::StatusOr<TypedExpr> ChooseEnvValueBits(
+      Env* env, absl::optional<int64> bit_count = absl::nullopt) {
+    auto is_bits = [&](const TypedExpr& e) -> bool {
+      return IsBits(e.type) &&
+             !(bit_count.has_value() || GetTypeBitCount(e.type) == bit_count);
+    };
     return ChooseEnvValue(env, is_bits);
   }
+
+  // Returns a random pair of bits-types value from the environment. The
+  // returned values will have the same type potentially by coercing a value to
+  // match the type of the other by truncation or zero-extension.
+  absl::StatusOr<std::pair<TypedExpr, TypedExpr>> ChooseEnvValueBitsPair(
+      Env* env, absl::optional<int64> bit_count = absl::nullopt);
+
   absl::StatusOr<TypedExpr> ChooseEnvValueUBits(Env* env) {
     auto is_ubits = [&](const TypedExpr& e) -> bool { return IsUBits(e.type); };
     return ChooseEnvValue(env, is_ubits);
@@ -125,8 +153,10 @@ class AstGenerator {
     return ChooseEnvValue(env, take);
   }
 
-  // Generates the body of a function AST node.
-  absl::StatusOr<TypedExpr> GenerateBody(int64 level,
+  // Generates the body of a function AST node with the given
+  // parameters. call_depth is the depth of the call stack (via map or other
+  // function-calling operation) for the function being generated.
+  absl::StatusOr<TypedExpr> GenerateBody(int64 call_depth,
                                          absl::Span<Param* const> params);
 
   absl::StatusOr<TypedExpr> GenerateUnop(Env* env);
@@ -153,8 +183,13 @@ class AstGenerator {
     return std::min(count, static_cast<int64>(env->size()));
   }
 
-  // Generates an expression AST node and returns it.
-  absl::StatusOr<TypedExpr> GenerateExpr(int64 level, Env* env);
+  // Generates an expression AST node and returns it. expr_size is a measure of
+  // the size of the expression generated so far (used to probabilistically
+  // limit the size of the generated expression). call_depth is the depth of the
+  // call stack (via map or other function-calling operation) for the function
+  // being generated.
+  absl::StatusOr<TypedExpr> GenerateExpr(int64 expr_size, int64 call_depth,
+                                         Env* env);
 
   // Generates an invocation of the one_hot_sel builtin.
   absl::StatusOr<TypedExpr> GenerateOneHotSelectBuiltin(Env* env);
@@ -191,7 +226,7 @@ class AstGenerator {
       Env* env, absl::optional<BitsAndSignedness> bas = absl::nullopt);
 
   // Generates an invocation of the map builtin.
-  absl::StatusOr<TypedExpr> GenerateMap(int64 level, Env* env);
+  absl::StatusOr<TypedExpr> GenerateMap(int64 call_depth, Env* env);
 
   // Generates a call to a unary builtin function.
   absl::StatusOr<TypedExpr> GenerateUnopBuiltin(Env* env);
@@ -201,8 +236,15 @@ class AstGenerator {
 
   TypeAnnotation* MakeTypeAnnotation(bool is_signed, int64 width);
 
-  // Generates a binary operation AST node.
+  // Generates a binary operation AST node in which operands and results type
+  // are all the same (excluding shifts), such as: add, and, mul, etc.
   absl::StatusOr<TypedExpr> GenerateBinop(Env* env);
+
+  // Generates a comparison operation AST node.
+  absl::StatusOr<TypedExpr> GenerateCompare(Env* env);
+
+  // Generates a shift operation AST node.
+  absl::StatusOr<TypedExpr> GenerateShift(Env* env);
 
   // Creates and returns a type ref for the given type.
   //
@@ -220,12 +262,8 @@ class AstGenerator {
         fake_span_, type_ref, /*parametrics=*/std::vector<Expr*>{});
   }
 
-  // Generates a binary operator on lhs/rhs which have the same input type.
-  absl::StatusOr<TypedExpr> GenerateBinopSameInputType(
-      Env* env, Expr* lhs, Expr* rhs, TypeAnnotation* input_type);
-
   // Generates a logical binary operation (e.g. and, xor, or).
-  absl::StatusOr<TypedExpr> GenerateLogicalBinop(Env* env);
+  absl::StatusOr<TypedExpr> GenerateLogicalOp(Env* env);
 
   Expr* MakeSel(Expr* test, Expr* lhs, Expr* rhs) {
     return module_->Make<Ternary>(fake_span_, test, lhs, rhs);
@@ -277,9 +315,15 @@ class AstGenerator {
   // Generates a unique symbol identifier.
   std::string GenSym() { return absl::StrCat("x", next_name_index_++); }
 
-  bool ShouldNest(int64 level) {
-    std::gamma_distribution<float> g(options_.short_samples ? 1.0 : 7.0, 5.0);
-    return g(rng_) >= level;
+  // Returns true if the expression should continue to be extended. expr_depth
+  // is a measure of the current size of the expression (number of times
+  // GenerateExpr has been invoked). call_depth is the current depth of the call
+  // stack (if any) calling this function to be generated.
+  bool ShouldNest(int64 expr_size, int64 call_depth) {
+    // Make non-top level functions smaller.
+    double alpha = (options_.short_samples || call_depth > 0) ? 1.0 : 7.0;
+    std::gamma_distribution<float> g(alpha, 5.0);
+    return g(rng_) >= expr_size;
   }
 
   // Returns the (flattened) bit count of the given type.
@@ -299,8 +343,9 @@ class AstGenerator {
     std::bernoulli_distribution d(0.5);
     return d(rng_);
   }
+  // Returns a random float uniformly distributed over [0, 1).
   float RandomFloat() {
-    std::uniform_real_distribution<float> g;
+    std::uniform_real_distribution<float> g(0.0f, 1.0f);
     return g(rng_);
   }
   int64 RandRange(int64 limit) { return RandRange(0, limit); }

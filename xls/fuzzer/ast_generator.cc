@@ -133,62 +133,49 @@ absl::StatusOr<Expr*> AstGenerator::GenerateUmin(TypedExpr arg, int64 other) {
   return MakeSel(test, rhs, arg.expr);
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateBinopSameInputType(
-    Env* env, Expr* lhs, Expr* rhs, TypeAnnotation* input_type) {
-  BinopKind op;
-  TypeAnnotation* output_type;
-  if (RandomFloat() < 0.1) {
-    op = RandomSetChoice<BinopKind>(GetBinopComparisonKinds());
-    output_type = MakeTypeAnnotation(false, 1);
-  } else {
-    op = RandomSetChoice(binops_);
-    if (GetBinopShifts().contains(op) && RandomFloat() < 0.8) {
-      // Clamp the RHS to be in range most of the time.
-      int64 bit_count = GetTypeBitCount(input_type);
-      int64 new_upper = RandRange(bit_count);
-      XLS_ASSIGN_OR_RETURN(rhs,
-                           GenerateUmin(TypedExpr{rhs, input_type}, new_upper));
-    }
-    output_type = input_type;
+absl::StatusOr<TypedExpr> AstGenerator::GenerateCompare(Env* env) {
+  BinopKind op = RandomSetChoice<BinopKind>(GetBinopComparisonKinds());
+  XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(env));
+  TypedExpr lhs = pair.first;
+  TypedExpr rhs = pair.second;
+  Binop* binop = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr);
+  return TypedExpr{binop, MakeTypeAnnotation(false, 1)};
+}
+
+absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Env* env) {
+  BinopKind op = RandomSetChoice<BinopKind>(GetBinopShifts());
+  XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(env));
+  TypedExpr lhs = pair.first;
+  TypedExpr rhs = pair.second;
+  if (RandomFloat() < 0.8) {
+    // Clamp the shift rhs to be in range most of the time.
+    int64 bit_count = GetTypeBitCount(rhs.type);
+    int64 new_upper = RandRange(bit_count);
+    XLS_ASSIGN_OR_RETURN(rhs.expr, GenerateUmin(rhs, new_upper));
   }
-  Binop* binop = module_->Make<Binop>(fake_span_, op, lhs, rhs);
-  return TypedExpr{binop, output_type};
+  return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
+                   lhs.type};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBinop(Env* env) {
-  if (RandomFloat() < 0.1) {
-    return GenerateLogicalBinop(env);
-  }
-  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(env));
-  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(env));
-  if (lhs.type->ToString() == rhs.type->ToString()) {
-    return GenerateBinopSameInputType(env, lhs.expr, rhs.expr, lhs.type);
-  }
-
-  TypeAnnotation* result_type;
-  if (RandomBool()) {
-    rhs.expr = module_->Make<Cast>(fake_span_, rhs.expr, lhs.type);
-    result_type = lhs.type;
-  } else {
-    lhs.expr = module_->Make<Cast>(fake_span_, lhs.expr, rhs.type);
-    result_type = rhs.type;
-  }
-  return GenerateBinopSameInputType(env, lhs.expr, rhs.expr, result_type);
+  XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(env));
+  TypedExpr lhs = pair.first;
+  TypedExpr rhs = pair.second;
+  BinopKind op = RandomSetChoice(binops_);
+  return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
+                   lhs.type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateLogicalBinop(Env* env) {
-  XLS_ASSIGN_OR_RETURN(TypedExpr lhs_env, ChooseEnvValueBits(env));
-  XLS_ASSIGN_OR_RETURN(TypedExpr rhs_env, ChooseEnvValueBits(env));
-  // Convert into one-bit numbers by checking whether lhs and rhs values are 0.
-  Expr* lhs = module_->Make<Binop>(fake_span_, BinopKind::kNe, lhs_env.expr,
-                                   MakeNumber(0, lhs_env.type));
-  Expr* rhs = module_->Make<Binop>(fake_span_, BinopKind::kNe, rhs_env.expr,
-                                   MakeNumber(0, rhs_env.type));
+absl::StatusOr<TypedExpr> AstGenerator::GenerateLogicalOp(Env* env) {
+  XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(env, /*bit_count=*/1));
+  TypedExpr lhs = pair.first;
+  TypedExpr rhs = pair.second;
+
   // Pick some operation to do.
-  BinopKind op =
-      RandomChoice<BinopKind>({BinopKind::kLogicalAnd, BinopKind::kLogicalOr});
-  return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs, rhs),
-                   MakeTypeAnnotation(/*is_signed=*/false, 1)};
+  BinopKind op = RandomChoice<BinopKind>(
+      {BinopKind::kAnd, BinopKind::kOr, BinopKind::kXor});
+  return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
+                   lhs.type};
 }
 
 Number* AstGenerator::MakeNumber(int64 value, TypeAnnotation* type) {
@@ -458,9 +445,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Env* env) {
   for (auto& item : *env) {
     if (auto* name_ref = dynamic_cast<NameRef*>(item.second.expr);
         name_ref != nullptr && name_ref->DefinerIs<Param>()) {
-      env_non_params.push_back(item.second);
-    } else {
       env_params.push_back(item.second);
+    } else {
+      env_non_params.push_back(item.second);
     }
   }
 
@@ -486,7 +473,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Env* env) {
     total_bit_count += GetTypeBitCount(expr.type);
   }
 
-  if (typed_exprs.size() == 1) {
+  // If only a single return value is selected, most of the time just return it
+  // as a non-tuple value.
+  if (RandomFloat() < 0.8 && typed_exprs.size() == 1) {
     return typed_exprs[0];
   }
 
@@ -497,6 +486,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Env* env) {
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Env* env) {
   // Right now just generates the 'identity' for loop.
+  // TODO(meheff): Generate more interesting loop bodies.
   TypeAnnotation* ivar_type = MakeTypeAnnotation(false, 4);
   Number* zero = MakeNumber(0, ivar_type);
   Number* trips = MakeNumber(RandRange(8), ivar_type);
@@ -543,14 +533,21 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Env* env) {
                    MakeTupleType(types)};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64 level, Env* env) {
+absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64 call_depth,
+                                                    Env* env) {
   std::string map_fn_name = GenSym();
+
   // GenerateFunction(), in turn, can call GenerateMap(), so we need some way of
-  // bounding the recursion. To limit explosion, we increase the level by three
-  // (chosen empirically) instead of just one.
+  // bounding the recursion. To limit explosion, return an EmptyEnvError (which
+  // bails on creation of the map but continues with fuzzing) with exponentially
+  // increasing probability depending on the call depth.
+  if (RandomFloat() > pow(10.0, -call_depth)) {
+    return absl::FailedPreconditionError("EmptyEnvError: Call depth too deep.");
+  }
+
   XLS_ASSIGN_OR_RETURN(
       Function * map_fn,
-      GenerateFunction(map_fn_name, level + 3, /*param_count=*/1));
+      GenerateFunction(map_fn_name, call_depth + 1, /*param_count=*/1));
   functions_.push_back(map_fn);
 
   TypeAnnotation* map_arg_type = map_fn->params()[0]->type();
@@ -628,6 +625,24 @@ absl::StatusOr<TypedExpr> AstGenerator::ChooseEnvValue(
         "EmptyEnvError: No elements in the environment satisfy the predicate.");
   }
   return result.value();
+}
+
+absl::StatusOr<std::pair<TypedExpr, TypedExpr>>
+AstGenerator::ChooseEnvValueBitsPair(Env* env,
+                                     absl::optional<int64> bit_count) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(env, bit_count));
+  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(env, bit_count));
+  if (lhs.type == rhs.type) {
+    return std::pair{lhs, rhs};
+  }
+  if (RandomBool()) {
+    rhs.expr = module_->Make<Cast>(fake_span_, rhs.expr, lhs.type);
+    rhs.type = lhs.type;
+  } else {
+    lhs.expr = module_->Make<Cast>(fake_span_, lhs.expr, rhs.type);
+    lhs.type = rhs.type;
+  }
+  return std::pair{lhs, rhs};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateUnop(Env* env) {
@@ -757,29 +772,91 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSliceUpdate(Env* env) {
   return TypedExpr{invocation, arg.type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64 level, Env* env) {
-  if (!ShouldNest(level)) {
+namespace {
+
+enum OpChoice {
+  kBinop,
+  kBitSlice,
+  kBitSliceUpdate,
+  kBitwiseReduction,
+  kCastToBitsArray,
+  kCompareOp,
+  kConcat,
+  kCountedFor,
+  kLogical,
+  kMap,
+  kNumber,
+  kOneHotSelectBuiltin,
+  kShiftOp,
+  kTupleOrIndex,
+  kUnop,
+  kUnopBuiltin,
+
+  // Sentinel denoting last element of enum.
+  kEndSentinel
+};
+
+// Returns the relative probability of the given op being generated.
+int OpProbability(OpChoice op) {
+  switch (op) {
+    case kBinop:
+      return 10;
+    case kBitSlice:
+      return 10;
+    case kBitSliceUpdate:
+      return 2;
+    case kBitwiseReduction:
+      return 3;
+    case kCastToBitsArray:
+      return 1;
+    case kCompareOp:
+      return 3;
+    case kConcat:
+      return 5;
+    case kCountedFor:
+      return 1;
+    case kLogical:
+      return 3;
+    case kMap:
+      return 1;
+    case kNumber:
+      return 3;
+    case kOneHotSelectBuiltin:
+      return 1;
+    case kShiftOp:
+      return 3;
+    case kTupleOrIndex:
+      return 3;
+    case kUnop:
+      return 10;
+    case kUnopBuiltin:
+      return 5;
+    case kEndSentinel:
+      return 0;
+  }
+}
+
+std::discrete_distribution<int>& GetOpDistribution() {
+  static std::discrete_distribution<int> dist = []() {
+    std::vector<int> tmp;
+    tmp.reserve(int{kEndSentinel});
+    for (int i = 0; i < int{kEndSentinel}; ++i) {
+      tmp.push_back(OpProbability(static_cast<OpChoice>(i)));
+    }
+    return std::discrete_distribution<int>(tmp.begin(), tmp.end());
+  }();
+  return dist;
+}
+
+}  // namespace
+
+absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64 expr_size,
+                                                     int64 call_depth,
+                                                     Env* env) {
+  if (!ShouldNest(expr_size, call_depth)) {
     // Should not nest any more, select return values.
     return GenerateRetval(env);
   }
-
-  enum Choice {
-    kBinop,
-    kBitSlice,
-    kBitSliceUpdate,
-    kBitwiseReduction,
-    kCastToBitsArray,
-    kConcat,
-    kCountedFor,
-    kNumber,
-    kOneHotSelectBuiltin,
-    kTupleOrIndex,
-    kUnop,
-    kUnopBuiltin,
-
-    // Sentinel denoting last element of enum.
-    kEndSentinel
-  };
 
   TypedExpr rhs;
   while (true) {
@@ -788,53 +865,58 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64 level, Env* env) {
     // With particularly low probability we generate a map -- if maps recurse
     // with equal probability then the output will grow exponentially with
     // level, so we need to scale inversely.
-    if (RandomFloat() < pow(10.0, -level)) {
-      generated = GenerateMap(level, env);
-    } else {
-      int choice = RandRange(static_cast<int>(kEndSentinel));
-      switch (static_cast<Choice>(choice)) {
-        case kCountedFor:
-          generated = GenerateCountedFor(env);
-          break;
-        case kTupleOrIndex:
-          generated = GenerateTupleOrIndex(env);
-          break;
-        case kConcat:
-          generated = GenerateConcat(env);
-          break;
-        case kBinop:
-          generated = GenerateBinop(env);
-          break;
-        case kUnop:
-          generated = GenerateUnop(env);
-          break;
-        case kUnopBuiltin:
-          generated = GenerateUnopBuiltin(env);
-          break;
-        case kOneHotSelectBuiltin:
-          generated = GenerateOneHotSelectBuiltin(env);
-          break;
-        case kNumber:
-          generated = GenerateNumber(env);
-          break;
-        case kBitwiseReduction:
-          if (options_.codegen_ops_only) {
-            continue;  // Make another selection.
-          }
-          generated = GenerateBitwiseReduction(env);
-          break;
-        case kBitSlice:
-          generated = GenerateBitSlice(env);
-          break;
-        case kCastToBitsArray:
-          generated = GenerateCastBitsToArray(env);
-          break;
-        case kBitSliceUpdate:
-          generated = GenerateBitSliceUpdate(env);
-          break;
-        case kEndSentinel:
-          XLS_LOG(FATAL) << "Should not have selected end sentinel";
-      }
+    int choice = GetOpDistribution()(rng_);
+    switch (static_cast<OpChoice>(choice)) {
+      case kCountedFor:
+        generated = GenerateCountedFor(env);
+        break;
+      case kTupleOrIndex:
+        generated = GenerateTupleOrIndex(env);
+        break;
+      case kConcat:
+        generated = GenerateConcat(env);
+        break;
+      case kBinop:
+        generated = GenerateBinop(env);
+        break;
+      case kCompareOp:
+        generated = GenerateCompare(env);
+        break;
+      case kShiftOp:
+        generated = GenerateShift(env);
+        break;
+      case kLogical:
+        generated = GenerateLogicalOp(env);
+        break;
+      case kMap:
+        generated = GenerateMap(call_depth, env);
+        break;
+      case kUnop:
+        generated = GenerateUnop(env);
+        break;
+      case kUnopBuiltin:
+        generated = GenerateUnopBuiltin(env);
+        break;
+      case kOneHotSelectBuiltin:
+        generated = GenerateOneHotSelectBuiltin(env);
+        break;
+      case kNumber:
+        generated = GenerateNumber(env);
+        break;
+      case kBitwiseReduction:
+        generated = GenerateBitwiseReduction(env);
+        break;
+      case kBitSlice:
+        generated = GenerateBitSlice(env);
+        break;
+      case kCastToBitsArray:
+        generated = GenerateCastBitsToArray(env);
+        break;
+      case kBitSliceUpdate:
+        generated = GenerateBitSliceUpdate(env);
+        break;
+      case kEndSentinel:
+        XLS_LOG(FATAL) << "Should not have selected end sentinel";
     }
 
     if (generated.ok()) {
@@ -851,7 +933,6 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64 level, Env* env) {
     // Any other error is unexpected, though.
     return generated.status();
   }
-  Env new_env(*env);
   std::string identifier = GenSym();
 
   // What we place into the environment is a NameRef that refers to this RHS
@@ -860,9 +941,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64 level, Env* env) {
   auto* name_def =
       module_->Make<NameDef>(fake_span_, identifier, /*definer=*/nullptr);
   auto* name_ref = MakeNameRef(name_def);
-  new_env[identifier] = TypedExpr{name_ref, rhs.type};
+  (*env)[identifier] = TypedExpr{name_ref, rhs.type};
 
-  XLS_ASSIGN_OR_RETURN(TypedExpr body, GenerateExpr(level + 1, &new_env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr body,
+                       GenerateExpr(expr_size + 1, call_depth, env));
   auto* ndt = module_->Make<NameDefTree>(fake_span_, name_def);
   auto* let = module_->Make<Let>(fake_span_, /*name_def_tree=*/ndt,
                                  /*type=*/rhs.type, /*rhs=*/rhs.expr,
@@ -926,23 +1008,23 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Env* env) {
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(
-    int64 level, absl::Span<Param* const> params) {
+    int64 call_depth, absl::Span<Param* const> params) {
   Env env;
   for (Param* param : params) {
     env[param->identifier()] =
         TypedExpr{MakeNameRef(param->name_def()), param->type()};
   }
-  return GenerateExpr(level, &env);
+  return GenerateExpr(/*expr_size=*/0, call_depth, &env);
 }
 
 absl::StatusOr<Function*> AstGenerator::GenerateFunction(
-    std::string name, int64 level, absl::optional<int64> param_count) {
+    std::string name, int64 call_depth, absl::optional<int64> param_count) {
   if (!param_count.has_value()) {
     param_count = static_cast<int64>(std::ceil(RandomWeibull(1.0, 1.15) * 4));
   }
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> params,
                        GenerateParams(*param_count));
-  XLS_ASSIGN_OR_RETURN(TypedExpr retval, GenerateBody(level, params));
+  XLS_ASSIGN_OR_RETURN(TypedExpr retval, GenerateBody(call_depth, params));
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
   Function* f = module_->Make<Function>(
