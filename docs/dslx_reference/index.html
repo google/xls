@@ -845,6 +845,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#bit_slice_update" class="md-nav__link">
+    bit_slice_update
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#bitwise-reductions" class="md-nav__link">
     Bitwise reductions
   </a>
@@ -1166,6 +1173,18 @@
   <li class="md-nav__item">
     <a href="../xls_style/" title="Style Guide" class="md-nav__link">
       Style Guide
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../adding_ir_operation/" title="Adding a new IR operation" class="md-nav__link">
+      Adding a new IR operation
     </a>
   </li>
 
@@ -1607,6 +1626,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#bit_slice_update" class="md-nav__link">
+    bit_slice_update
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#bitwise-reductions" class="md-nav__link">
     Bitwise reductions
   </a>
@@ -1764,6 +1790,7 @@
 <li><a href="#clz-ctz">clz, ctz</a></li>
 <li><a href="#signex">signex</a></li>
 <li><a href="#rev">rev</a></li>
+<li><a href="#bit_slice_update">bit_slice_update</a></li>
 <li><a href="#bitwise-reductions">Bitwise reductions</a></li>
 <li><a href="#update">update</a></li>
 </ul>
@@ -3039,6 +3066,14 @@ fn reverse {
 }
 </code></pre>
 
+<h3 id="bit_slice_update">bit_slice_update</h3>
+<p><code>bit_slice_update(subject, start, value)</code> returns a copy of the bits-typed value
+<code>subject</code> where the contiguous bits starting at index <code>start</code> (where 0 is the
+least-significant bit) are replaced with <code>value</code>. The bit-width of the returned
+value is the same as the bit-width of <code>subject</code>. Any updated bit indices which
+are out of bounds (if <code>start + bit-width(value) &gt;= bit-width(subject)</code>) are
+ignored. Example usage:
+<a href="https://github.com/google/xls/tree/main/xls/dslx/tests/bit_slice_update.x"><code>dslx/tests/bit_slice_update.x</code></a>.</p>
 <h3 id="bitwise-reductions">Bitwise reductions</h3>
 <p>These are unary reduction operations applied to a bits-typed value:</p>
 <ul>

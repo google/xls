@@ -9,7 +9,7 @@
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
       
-        <link rel="canonical" href="https://google.github.io/xls/ir_jit/">
+        <link rel="canonical" href="https://google.github.io/xls/adding_ir_operation/">
       
       
       <link rel="shortcut icon" href="../assets/images/favicon.png">
@@ -17,7 +17,7 @@
     
     
       
-        <title>Overview - XLS: Accelerated HW Synthesis</title>
+        <title>Adding a new IR operation - XLS: Accelerated HW Synthesis</title>
       
     
     
@@ -51,7 +51,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#ir-jit-compiler" class="md-skip">
+        <a href="#adding-a-new-ir-operation" class="md-skip">
           Skip to content
         </a>
       
@@ -79,7 +79,7 @@
           </span>
           <span class="md-header-nav__topic md-ellipsis">
             
-              Overview
+              Adding a new IR operation
             
           </span>
         </div>
@@ -189,12 +189,10 @@
       
       
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2" checked>
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
     
     <label class="md-nav__link" for="nav-2">
       IR
@@ -306,12 +304,10 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-2-5" type="checkbox" id="nav-2-5" checked>
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-2-5" type="checkbox" id="nav-2-5">
     
     <label class="md-nav__link" for="nav-2-5">
       Native JIT
@@ -333,140 +329,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-    
-      
-    
-    
-      <label class="md-nav__link md-nav__link--active" for="__toc">
-        Overview
-        <span class="md-nav__icon md-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 9h14V7H3v2m0 4h14v-2H3v2m0 4h14v-2H3v2m16 0h2v-2h-2v2m0-10v2h2V7h-2m0 6h2v-2h-2v2z"/></svg>
-        </span>
-      </label>
-    
-    <a href="./" title="Overview" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../ir_jit/" title="Overview" class="md-nav__link">
       Overview
     </a>
-    
-      
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
-      </span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#usage" class="md-nav__link">
-    Usage
-  </a>
-  
-    <nav class="md-nav" aria-label="Usage">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#specialized-matching" class="md-nav__link">
-    Specialized matching
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#direct-usage" class="md-nav__link">
-    Direct usage
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#design" class="md-nav__link">
-    Design
-  </a>
-  
-    <nav class="md-nav" aria-label="Design">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#arg-passing" class="md-nav__link">
-    Arg passing
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#arrayindex" class="md-nav__link">
-    ArrayIndex
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#main-generator" class="md-nav__link">
-    main() generator
-  </a>
-  
-    <nav class="md-nav" aria-label="main() generator">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#usage_1" class="md-nav__link">
-    Usage
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#design_1" class="md-nav__link">
-    Design
-  </a>
-  
-    <nav class="md-nav" aria-label="Design">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#output-type-determination" class="md-nav__link">
-    Output type determination
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-    
   </li>
 
         
@@ -748,10 +615,12 @@
       
       
 
+  
 
-  <li class="md-nav__item md-nav__item--nested">
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6" checked>
     
     <label class="md-nav__link" for="nav-6">
       Development
@@ -797,11 +666,20 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="../adding_ir_operation/" title="Adding a new IR operation" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+    <a href="./" title="Adding a new IR operation" class="md-nav__link md-nav__link--active">
       Adding a new IR operation
     </a>
+    
   </li>
 
         
@@ -827,110 +705,6 @@
     
   
   
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
-      </span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#usage" class="md-nav__link">
-    Usage
-  </a>
-  
-    <nav class="md-nav" aria-label="Usage">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#specialized-matching" class="md-nav__link">
-    Specialized matching
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#direct-usage" class="md-nav__link">
-    Direct usage
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#design" class="md-nav__link">
-    Design
-  </a>
-  
-    <nav class="md-nav" aria-label="Design">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#arg-passing" class="md-nav__link">
-    Arg passing
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#arrayindex" class="md-nav__link">
-    ArrayIndex
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#main-generator" class="md-nav__link">
-    main() generator
-  </a>
-  
-    <nav class="md-nav" aria-label="main() generator">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#usage_1" class="md-nav__link">
-    Usage
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#design_1" class="md-nav__link">
-    Design
-  </a>
-  
-    <nav class="md-nav" aria-label="Design">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#output-type-determination" class="md-nav__link">
-    Output type determination
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
 </nav>
                   </div>
                 </div>
@@ -941,7 +715,7 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/google/xls/tree/main/docs_src/ir_jit.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/google/xls/tree/main/docs_src/adding_ir_operation.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
@@ -949,221 +723,154 @@
                   
                 
                 
-                <h1 id="ir-jit-compiler">IR JIT Compiler</h1>
-<div class="toc">
-<ul>
-<li><a href="#ir-jit-compiler">IR JIT Compiler</a><ul>
-<li><a href="#usage">Usage</a><ul>
-<li><a href="#specialized-matching">Specialized matching</a></li>
-<li><a href="#direct-usage">Direct usage</a></li>
-</ul>
-</li>
-<li><a href="#design">Design</a><ul>
-<li><a href="#arg-passing">Arg passing</a></li>
-<li><a href="#arrayindex">ArrayIndex</a></li>
-</ul>
-</li>
-<li><a href="#main-generator">main() generator</a><ul>
-<li><a href="#usage_1">Usage</a></li>
-<li><a href="#design_1">Design</a><ul>
-<li><a href="#output-type-determination">Output type determination</a></li>
-</ul>
-</li>
-</ul>
-</li>
-</ul>
-</li>
-</ul>
-</div>
-<p>XLS provides a JIT compiler for evaluating functions written in the [XLS]
-compiler intermediate representation (IR) at native machine speed.</p>
-<h2 id="usage">Usage</h2>
-<p>Given a DSLX file and build target, one can build and run it through the JIT by:</p>
+                <h1 id="adding-a-new-ir-operation">Adding a new IR operation</h1>
+<p>XLS has about 60 different
+<a href="https://github.com/google/xls/tree/main/xls/ir/op_specification.py">opcodes</a> and
+periodically new ones are added to extend functionality or improve the
+expressiveness of the IR. XLS has many different components and adding a new
+opcode involves changes to numerous places in the code. These changes, some of
+which are optional, are described below:</p>
 <ol>
-<li>Declaring a
-    <a href="https://github.com/google/xls/tree/main/xls/build/build_defs.bzl"><code>dslx_jit_wrapper</code></a>
-    target matching the DSLX build target.</li>
-<li>Creating a JIT object and calling its <code>Run()</code> method. Using the 2-way
-    floating-point adder as an example:<p>```c
-   # include "xls/modules/fpadd_2x24_jit_wrapper.h"</p>
-<p>absl::StatusOr<Value> foo(Value a, Value b) {
-     ...
-     // Only create this once and re-use it; it's created here just as
-     // an illustration.
-     XLS_ASSIGN_OR_RETURN(Fpadd2x32 adder, Fpadd2x32::Create()); return
-     adder.Run(a, b);
-   }
-  ```</p>
+<li>
+<p>Add operation to
+    <a href="https://github.com/google/xls/tree/main/xls/ir/op_specification.py">op_specification.py</a></p>
+<p>Opcodes and IR node classes are defined in the file <code>op_specification.py</code>.
+  This Python code generates the C++ header and source files which define
+  opcodes (<code>op.h</code> and <code>op.cc</code>) and the IR node type heirarchy (<code>nodes.h</code> and
+  <code>nodes.cc</code>). Every opcode has an associated node subclass derived from the
+  <code>xls::Node</code> base class. Some opcodes such as <code>Op::kArray</code> have their own
+  class (<code>Array</code>) because of the unique structure of the operation. Other
+  opcodes such as the logical operations (<code>Op::kAnd</code>, <code>Op::kOr</code>, etc) share a
+  common base class (<code>BinOp</code>).</p>
+<p>The first step to adding a new operations is to add an opcode, and
+  potentially a new Node class, in <code>op_specification.py</code>. After adding the
+  opcode numerous files will fail to build because switch statements over the
+  set of opcodes will no longer be exhaustive. Add the necessary cases to each
+  switch statement. The exact code in each case will, of course, be
+  operation-specific. Initially the implementation might return an
+  <code>absl::UnimplementedError</code> status until later changes add proper support for
+  the new operation.</p>
+<p>As part of this change the new operations needs to be added to the DFS
+  visitor class <code>DfsVisitor</code> by adding a handler method. This class is used
+  throughout XLS to traverse the IR. This will also adding an implementation
+  of this new method to many of the subclasses derived from <code>DfsVisitor</code>.</p>
+<p><a href="https://github.com/google/xls/commit/5fd739abe3e28f4198e07d45987522b12ebdf051">(Code example)</a></p>
 </li>
-</ol>
-<p>The advantages of JIT compilation (or any
-compilation, for that matter) only come into play when repeatedly using the
-compiled object, so programs should be structured to create a JIT wrapper
-once and to reuse it many times, e.g., to test a module across many - or
-even exhaustively, across all possible - inputs.</p>
-<h3 id="specialized-matching">Specialized matching</h3>
-<p>In many cases, the types used by DSLX designs map to native types, such as the
-C/C++ <code>float</code>. In that case, a simplified wrapper call is available:</p>
-<pre><code>#include &quot;xls/modules/fpadd_2x24_jit_wrapper.h&quot;
-
-absl::StatusOr&lt;float&gt; foo(float a, float b) {
-  ...
-  // Only create this once and re-use it; it's created here just as
-  // an illustration.
-  XLS_ASSIGN_OR_RETURN(Fpadd2x32 adder, Fpadd2x32::Create());
-  return adder.Run(a, b);
-}
-</code></pre>
-
-<p>When available, these simplified wrappers should be used for higher performance
-(~30% in our measured cases). Currently, floats and integral types &gt;= 64 bits in
-this way. For non-native integral types, the generated wrapper will accept the
-next larger native type e.g., <code>uint64</code> for <code>bits[47]</code>. Proper operation with
-next-larger types depends on the input value being present in the
-least-significant bits of the containing type.</p>
-<p>These are higher performance because they avoid unnecessary marshaling of these
-types into Views (e.g., a <code>float</code> outside the JIT -&gt; View -&gt; <code>float</code> inside the
-JIT).</p>
-<h3 id="direct-usage">Direct usage</h3>
-<p>The JIT is also available as a library with a straightforward interface:</p>
-<pre><code>absl::StatusOr&lt;Value&gt; RunOnJit(
-    Function* function, absl::Span&lt;const Value&gt; args) {
-  XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function));
-  return jit-&gt;Run(args);
-}
-</code></pre>
-
-<p>The IR JIT is the default backend for the
-<a href="../tools/#eval-ir-main">eval_ir_main</a>
-tool, which loads IR from disk and runs with args present on either the command
-line or in a specified file.</p>
-<h2 id="design">Design</h2>
-<p>Internally, the JIT converts XLS IR to LLVM IR and uses
-<a href="https://llvm.org/docs/ORCv2.html">LLVM's ORC infrastructure</a> to convert that
-into native machine code. The details of compiling an LLVM IR program with ORC
-are mostly generic and are available online - here are discussed details
-specific to our usage in XLS.</p>
-<p>XLS IR is converted to LLVM IR by recursively visiting every node in a function
-using the DfsVisitor functions. Most nodes have relatively straightforward
-implementations, e.g., in Concat, we create an empty value with the combined
-width of the operands, and each is shifted and blitted into that value to
-produce the result. Some operations, though, merit more discussion.</p>
-<h3 id="arg-passing">Arg passing</h3>
-<p>When LLVM JIT-compiles a program, the resulting value is simply a function
-pointer to the requested entry point (that can be called like any function
-pointer). Calling such a function pointer with concrete-typed arguments, though,
-is difficult: one must either make heavy [ab]use of C++ templates or "hide" the
-argument types behind an opaque pointer. The latter approach is taken here.</p>
-<p>When a compiled function is invoked (via <code>IrJit::Run()</code>), the typed input args
-are "packed" into an opaque byte buffer which is passed into the new function.
-Inside there, any references to an argument (via <code>DfsVisitor::HandleParam()</code>)
-calculate the offset of that param in the opaque buffer and load from there
-appropriately (this should happen at most once per arg; LLVM and/or XLS should
-optimize away redundant loads).</p>
-<p>A special case is for function invocations (inside the JITted function): for
-these, the arguments already exist inside "LLVM-space", so there's no need for
-unpacking args, so <code>LlvmFunction::getArg()</code> can be used as usual.</p>
-<p>Results must be handled in a similar way - they could be of any type and will
-need to be packed inside XLS types before returning, so there's a corresponding
-argument unpacking phase at function exit.</p>
-<p>For both packing and unpacking, LLVM's DataLayout must be used to determining
-where input and output values will be placed, as LLVM will use those conventions
-when, e.g., loading values from a struct.</p>
-<h3 id="arrayindex">ArrayIndex</h3>
-<p>IRBuilder provides three means of extracting values from an aggregate type:</p>
-<ol>
-<li><code>CreateGEP</code>: these use the getelementptr instruction, which requires a
-    pointer-typed value (not the same thing as an array!). This requires holding
-    a value in a specially-created allocation (via <code>CreateAlloca()</code> or in an
-    input buffer).</li>
-<li><code>CreateExtractElement</code>: returns the value at a given index in a
-    <em>vector</em>-typed value.</li>
-<li><code>CreateExtractValue</code>: returns the value at a given <em>constant index</em> in an
-    aggregate value.</li>
-</ol>
-<p>Unfortunately, #2 doesn't apply, as arrays aren't LLVM vectors, and #3 doesn't
-apply, as an array index isn't necessarily a constant value. Uniformly managing
-arrays as allocas doesn't scale well (consider the case of arrays of arrays of
-tuples...), so for <code>ArrayIndex</code> nodes, we lazily create allocas for <em>only the
-array of interest</em> and load the requested index from there.</p>
-<h2 id="main-generator"><code>main()</code> generator</h2>
-<p>The IR JIT finds more than its share of LLVM bugs, in large part due to XLS' use
-of fuzzing, which often generates bit widths not often found in software, e.g. a
-231-bit wide integer, which won't be emitted by Clang (as it's not a native C
-type). To ensure that any mismatches between the JIT and the IR interpreter are
-correctly triaged, it's important to compare results between the JIT and
-LLVM-provided tools, e.g., lli or llc, the LLVM IR interpreter and compiler,
-respectively.</p>
-<p>Both lli and llc execute self-contained LLVM IR programs, i.e., those with an
-<code>int main(int argc, char** argv)</code> entry point - the JIT does not produce these
-(as they're not part of a hardware description). To avoid the need to manually
-edit the JIT-produced IR (which experience has shown to be very error prone), we
-can generate a <code>main</code> driver function for our samples.</p>
-<h3 id="usage_1">Usage</h3>
-<p>To generate and execute a <code>main</code> for LLVM IR produced by the JIT, run the
-following:</p>
-<pre><code>$ bazel build //xls/tools:llvm_main_generator \
-              //xls/tools:run_llvm_main
-$ ./bazel-bin/xls/tools/llvm_main_generator \
-  -entry_function &lt;Mangled IR function name&gt; \
-  -input &lt;Path to file containing JIT-generated LLVM IR&gt; \
-  -output &lt;Path to write output&gt;
-$ ./bazel-bin/xls/tools/run_llvm_main \
-  &lt;Output path from above&gt; \
-  &lt;Input values as string-formatted XLS Values&gt;
-</code></pre>
-
-<p>For a concrete example:</p>
-<pre><code>$ bazel-bin/xls/tools/llvm_main_generator \
-  -entry_function &quot;sample::__sample__main&quot; \
-  -input ~/fuzz/mismatch/sample.opt.ll \
-  -output ./foo.ll
-$ bazel-bin/xls/tools/run_llvm_main \
-  ./foo.ll \
-  bits[56]:0x800_0000_0000 \
-  bits[66]:0x4000_0000 \
-  bits[7]:0x1 \
-  bits[2]:0x3 \
-  bits[12]:0x0 \
-  bits[74]:0x3c5_482a_0984_e061_1a90
-bits[74]:0x3ff_ffc5_482a_0984_e061
-</code></pre>
-
-<p>The final line is the result of running the sample.</p>
-<p>If the value mismatch occurs both in the IR JIT evaluation as well as lli
-evaluation, then there's likely a bug in LLVM. A main-annotated IR sample is
-suitable for attaching to an LLVM bug report (on http://bugs.llvm.org) as a
-reproducer, along with the input to generate the mismatch.</p>
-<h3 id="design_1">Design</h3>
-<p>The main generator, at a high level, uses the LLVM tools (namely IRBuilder) to
-create a <code>main()</code> function to:</p>
-<ol>
-<li>Examine its command-line parameters to determine their overall size and to
-    them into the input buffer (as in Arg Passing above).</li>
-<li>Invoke the entry function (which remains unchanged from the source emitted
-    by the JIT).</li>
-<li>Unpack the output buffer after the entry function completes and print its
-    contents.</li>
-</ol>
-<p>For arg packing/unpacking, the functions provided by JitRuntime are used, but in
-a stateless context wrapped in an <code>extern "C"</code> space, to simplify invocation
-from within LLVM IR.</p>
-<h4 id="output-type-determination">Output type determination</h4>
-<p>Inferring the computation's output type merits special discussion. While it's
-trivial for the main generator to detect the output type, it's very difficult to
-do so inside the executing <code>main()</code> - in the former, the type is real data,
-wherein the latter, it's metadata.</p>
-<p>To make this possible (without doing down an RTTI rabbit hole, or even simply
-requiring the user to specify it on the command line), we do the following:</p>
-<ol>
-<li>Determine the <code>llvm::Type</code> of the output.</li>
-<li>Convert that into an <code>xls::Type</code>, and capture that type as a String.</li>
-<li>Hardcode that string as a constant in the emitted <code>main()</code> function.</li>
-<li>At runtime, pass that type string into <code>UnpackAndPrintBuffer()</code> (one of the
-    <code>extern "C"</code> function wrappers).</li>
-<li>Inside <code>UnpackAndPrintBuffer()</code>, parse that string (via
-    <code>xls::Parser::ParseType()</code>), and use the resulting <code>xls::Type</code> to determine
-    the contents of the computation's output buffer.</li>
+<li>
+<p><a href="https://github.com/google/xls/tree/main/xls/ir/verifier.h">IR Verifier</a></p>
+<p>The IR verifier checks numerous invariants about the IR including
+  operation-specific properties such as the number and type of operands. Add
+  an additional handler method for the new operand and add appropriate
+  operation-specific checks.</p>
+<p><a href="https://github.com/google/xls/commit/5fd739abe3e28f4198e07d45987522b12ebdf051">(Code example)</a></p>
+</li>
+<li>
+<p><a href="https://google.github.io/xls/ir_semantics/">IR Semantics document</a></p>
+<p>Describe the semantics and syntax of the new operation in the IR semantics
+  document.</p>
+<p><a href="https://github.com/google/xls/commit/5fd739abe3e28f4198e07d45987522b12ebdf051">(Code example)</a></p>
+</li>
+<li>
+<p><a href="https://github.com/google/xls/tree/main/xls/ir/function_builder.h">Function builder</a></p>
+<p>The function builder is the primary API for constructing IR. If appropriate,
+  add a method to the <code>BuilderBase</code> class which adds an IR node of the new
+  type to a function.</p>
+<p><a href="https://github.com/google/xls/commit/eb12ef77d51e2d65f4295e80ffa944043f021b2f">(Code example)</a></p>
+</li>
+<li>
+<p><a href="https://github.com/google/xls/tree/main/xls/ir/ir_parser.h">IR Parser</a></p>
+<p>Add support for parsing of the new operation. The parser tests typically
+  send a snippet of IR with the operation through the parser and text
+  serialization and verifies that the output matches the original. Supporting
+  the new operation may requre modifying the <code>xls::Node::ToString</code> method to
+  emit any special fields required by the operation.</p>
+<p><a href="https://github.com/google/xls/commit/eb12ef77d51e2d65f4295e80ffa944043f021b2f">(Code example)</a></p>
+</li>
+<li>
+<p><a href="https://github.com/google/xls/tree/main/xls/interpreter/ir_interpreter.h">IR Interpreter</a></p>
+<p>The IR interpreter has C++ implementations of all of the operations.
+  Implement the new operation and add tests.</p>
+<p><a href="https://github.com/google/xls/commit/eb12ef77d51e2d65f4295e80ffa944043f021b2f">(Code example)</a></p>
+</li>
+<li>
+<p><a href="https://github.com/google/xls/tree/main/xls/ir/ir_matcher.h">IR Matcher</a></p>
+<p>The IR matcher is used in tests to enable easy matching of IR expressions.
+  For example, the following tests that the return value of a function is the
+  parameter <code>x</code> plus the parameter <code>y</code>:</p>
+<p><code>EXPECT_THAT(f-&gt;return_value(), m::Add(m::Param("x", m::Param("y")));</code></p>
+<p>If the new operation has no named attributed, IR matcher support is
+  typically a single line using the macro <code>NODE_MATCHER</code>. Otherwise, a custom
+  matcher should be added to enable matching the attribute as well.</p>
+<p><a href="https://github.com/google/xls/commit/eb12ef77d51e2d65f4295e80ffa944043f021b2f">(Code example)</a></p>
+</li>
+<li>
+<p><a href="https://github.com/google/xls/tree/main/xls/jit/function_builder_visitor.h">LLVM JIT</a></p>
+<p>The LLVM JIT enables fast simulation of the XLS IR. The JIT constructs LLVM
+  IR for each XLS operation which is then optimized by LLVM and runs natively
+  on the host. Implement the new operation in the <code>FunctionBuilderVisitor</code>
+  class.</p>
+<p><a href="https://github.com/google/xls/commit/eb12ef77d51e2d65f4295e80ffa944043f021b2f">(Code example)</a></p>
+</li>
+<li>
+<p><a href="https://github.com/google/xls/tree/main/xls/codegen/node_expressions.h">Code generation</a></p>
+<p>In XLS "code generation" refers to the generation of (System)Verilog from
+  XLS IR. If the operation can be emitted as a single Verilog expression, then
+  likely support for the new operation can be added to <code>node_expressions.h</code>,
+  otherwise if the implementation requires multiple statements then support is
+  added to <code>module_builder.h</code>.</p>
+<p><a href="https://github.com/google/xls/commit/ef08b552ac3738eb98484cc46a7396c89f7cbb7d">(Code example)</a></p>
+</li>
+<li>
+<p><a href="https://github.com/google/xls/tree/main/xls/ir/abstract_evaluator.h">Abstract evaluator</a></p>
+<p>The abstract evaluator enables evaluation of the XLS IR using different
+  evaluation systems than Boolean algebra. Users define the semantics of
+  simple logical operations such as and, or, and not. Then, the abstract
+  evaluator interprets an IR function using these rules. One example use case
+  is ternary logic which uses three logic values (true, false, and unknown)
+  rather than two (true and false) Ternary evaluation is used by the optimizer
+  to discover statically known bits in the IR graph. The abstract evaluator
+  can also be used for translation of the IR to other representations. For
+  example, IR is translated to the Z3 solver representation for formal
+  verification using the abstract evaluator.</p>
+<p>If appropriate, the operation should be implemented in
+  <code>AbstractNodeEvaluator</code> by providing an implementation which decomposes the
+  operation into fundamental logical operations.</p>
+<p><a href="https://github.com/google/xls/commit/bda129fed73de323574d7955292753187af7bb20">(Code example)</a></p>
+</li>
+<li>
+<p><a href="https://github.com/google/xls/tree/main/xls/solvers/z3_ir_translator.h">Z3 solver</a></p>
+<p>The Z3 solver is used for theorem proving and logical equivalence checking
+  between the IR in different stages of compilation and the netlist. To enable
+  this functionality for the new operation, add a lowering of the operation to
+  Z3's internal representation.</p>
+<p><a href="https://github.com/google/xls/commit/bda129fed73de323574d7955292753187af7bb20">(Code example)</a></p>
+</li>
+<li>
+<p><a href="https://github.com/google/xls/tree/main/xls/delay_model">Delay model</a></p>
+<p>In order to generate efficient circuits which meet timing requirement, XLS
+  models the delay (in picoseconds) of each operation for different process
+  technology nodes. This model is constructed by characterizing the process
+  node using an EDA tool to synthesize the circuit and estimate delay.
+  Typically, a new operation will need to be characterized by running numerous
+  permutations of the operation (e.g., with different bit widths) through a
+  synthesis flow, extracting delay, and building a delay model.</p>
+<p><a href="https://github.com/google/xls/commit/19bb886a1471b074159fcbf95fccce17fba40031">(Code example)</a></p>
+</li>
+<li>
+<p><a href="https://github.com/google/xls/tree/main/xls/dslx">DSLX frontend</a></p>
+<p>Most ops are used by the DSLX frontend in the lowering of DSLX to IR. The
+  operation may be exposed directly as a builtin (or other operation) or used
+  in the lowering of other AST nodes. In any case, some changes to the DSLX
+  frontend will likely be necessary.</p>
+<p><a href="https://github.com/google/xls/commit/feeac2c4c0bcc73b529cb0c4a976abae47f96730">(Code example)</a></p>
+</li>
+<li>
+<p>Operation-specific optimizations</p>
+<p>Typically, a new operation provides optimization opportunities unique to the
+  node. The details, of course, will be vary for different operations.
+  However, typically these are at least several easy optimizations which can
+  be implemented.</p>
+</li>
 </ol>
                 
               
@@ -1183,7 +890,7 @@ requiring the user to specify it on the command line), we do the following:</p>
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid" aria-label="Footer">
         
-          <a href="../ir_visualization/" title="Visualizer" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../xls_style/" title="Style Guide" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-footer-nav__button md-icon">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
             </div>
@@ -1192,25 +899,11 @@ requiring the user to specify it on the command line), we do the following:</p>
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Visualizer
+                Style Guide
               </div>
             </div>
           </a>
         
-        
-          <a href="../data_layout/" title="Data Layout" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
-            <div class="md-footer-nav__title">
-              <div class="md-ellipsis">
-                <span class="md-footer-nav__direction">
-                  Next
-                </span>
-                Data Layout
-              </div>
-            </div>
-            <div class="md-footer-nav__button md-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"/></svg>
-            </div>
-          </a>
         
       </nav>
     </div>
