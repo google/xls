@@ -47,19 +47,13 @@ installed](https://docs.bazel.build/versions/master/install-ubuntu.html).
 # Afterwards we observe:
 
 $ bazel --version
-bazel 3.2.0
+bazel 4.0.0
 
-$ sudo apt install python3-distutils python3-dev libtinfo5
+# Note we're going to tell Ubuntu that `/usr/bin/env python` is actually python3
+# here, since that is not the case by default on Ubuntu 20.04.
+$ sudo apt install python3-distutils python3-dev libtinfo5 python3-is-python
 
-# py_binary currently assume they can refer to /usr/bin/env python
-# even though Ubuntu 20.04 has no `python`, only `python3`.
-# See https://github.com/bazelbuild/bazel/issues/8685
-
-$ mkdir -p $HOME/opt/bin/
-$ ln -s $(which python3) $HOME/opt/bin/python
-$ echo 'export PATH=$HOME/opt/bin:$PATH' >> ~/.bashrc
-$ source ~/.bashrc
-
+# Now build/test everything in optimized build mode.
 $ bazel test -c opt ...
 ```
 
@@ -68,7 +62,7 @@ A reference build/test environment setup is also provided via `Dockerfile`:
 ```console
 ~$ git clone https://github.com/google/xls.git
 ~$ cd xls
-~/xls$ docker build .  # Performs optimized build and test.
+~/xls$ docker build . -f Dockerfile-ubuntu-20.04 # Performs optimized build and test.
 ```
 
 ## Stack Diagram and Project Layout

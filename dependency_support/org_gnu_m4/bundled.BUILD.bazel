@@ -91,6 +91,9 @@ cc_binary(
     ],
     output_licenses = ["unencumbered"],
     defines = [
+	# TODO(https://github.com/google/xls/issues/159): this define is
+	# required on Ubuntu 20.04 but causes build failure on Ubuntu 18.04.
+	# Need to solve for both eventually, but solving just 20.04 for now.
         "_IO_ftrylockfile",
         # Glibc 2.28 made _IO_IN_BACKUP private.  For now, work around this
         # problem by defining it ourselves.  FIXME: Do not rely on glibc

@@ -1,22 +1,15 @@
 # https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions
 # See also: https://github.com/marketplace/actions/bazel-action
 
-name: Continuous Integration
+name: Continuous Integration aarch64
 on:
-  # Avoid triggering on pushes to /all/ open PR branches.
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
   # This lets us trigger manually from the UI.
   workflow_dispatch:
 
 jobs:
   build:
     name: Bazel Test All (opt)
-    runs-on: [ubuntu-20.04, x64]
+    runs-on: [ubuntu-20.04, ARM64]
     steps:
       - uses: actions/checkout@v2
       - name: Mount Bazel Cache
@@ -26,7 +19,7 @@ jobs:
           key: bazel
       - name: Install bazelisk
         run: |
-          curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.1.0/bazelisk-linux-amd64"
+          curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.7.5/bazelisk-linux-arm64"
           mkdir -p "${GITHUB_WORKSPACE}/bin/"
           mv bazelisk-linux-amd64 "${GITHUB_WORKSPACE}/bin/bazel"
           chmod +x "${GITHUB_WORKSPACE}/bin/bazel"

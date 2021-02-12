@@ -3,7 +3,7 @@ FROM ubuntu:20.04
 
 # LABEL about the custom image
 LABEL version="0.1"
-LABEL description="Docker Image for Building/Testing XLS"
+LABEL description="Docker Image for Building/Testing XLS on Ubuntu 20.04 x86-64"
 
 # Update package info
 RUN apt-get update -y
@@ -24,11 +24,10 @@ RUN apt-get install -y git vim
 RUN useradd -m xls-developer
 USER xls-developer
 
-# Clone the project
-WORKDIR /home/xls-developer/
-RUN git clone https://github.com/google/xls.git
+# Map the project contents in.
+ADD --chown=xls-developer . /home/xls-developer/xls/
+WORKDIR /home/xls-developer/xls/
 
-WORKDIR /home/xls-developer/xls
 
 # Build everything (opt)
 RUN bazel build -c opt ...
