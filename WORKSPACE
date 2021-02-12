@@ -8,10 +8,10 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 http_archive(
     name = "com_grail_bazel_toolchain",
     urls = [
-        "https://github.com/grailbio/bazel-toolchain/archive/f4c17a3ae40f927ff62cc0fb8fe22b1530871807.zip",
+        "https://github.com/grailbio/bazel-toolchain/archive/f2d1ba2c9d713b2aa6e7063f6d11dd3d64aa402a.zip",
     ],
-    strip_prefix = "bazel-toolchain-f4c17a3ae40f927ff62cc0fb8fe22b1530871807",
-    sha256 = "715fd98d566ed1304cb53e0c640427cf0916ec6db89588e3ac2b6a87632276d4",
+    strip_prefix = "bazel-toolchain-f2d1ba2c9d713b2aa6e7063f6d11dd3d64aa402a",
+    sha256 = "0246482b21a04667825c655d3b4f8f796d842817b2e11f536bbfed5673cbfd97",
     patches = ["//dependency_support/com_grail_bazel_toolchain:google_workstation_workaround.patch"],
 )
 load("@com_grail_bazel_toolchain//toolchain:deps.bzl", "bazel_toolchain_dependencies")
@@ -39,6 +39,3 @@ initialize_external_repositories()
 # the call to pip_install fails.
 load("@com_github_grpc_grpc//bazel:grpc_extra_deps.bzl", "grpc_extra_deps")
 grpc_extra_deps()
-
-load("@xls_pip_deps//:requirements.bzl", "pip_install")
-pip_install()

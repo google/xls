@@ -41,20 +41,21 @@ Note that we start by assuming [Bazel has been
 installed](https://docs.bazel.build/versions/master/install-ubuntu.html).
 
 ```console
-# Follow the bazel install instructions:
-# https://docs.bazel.build/versions/master/install-ubuntu.html
-#
-# Afterwards we observe:
+~$ git clone https://github.com/google/xls.git
+~$ cd xls
 
-$ bazel --version
+~/xls$ # Follow the bazel install instructions:
+~/xls$ # https://docs.bazel.build/versions/master/install-ubuntu.html
+~/xls$ # Afterwards we observe:
+~/xls$ bazel --version
 bazel 4.0.0
 
-# Note we're going to tell Ubuntu that `/usr/bin/env python` is actually python3
-# here, since that is not the case by default on Ubuntu 20.04.
-$ sudo apt install python3-distutils python3-dev libtinfo5 python3-is-python
+~/xls$ # Note we're going to tell Ubuntu that `/usr/bin/env python` is actually python3
+~/xls$ # here, since that is not the case by default on Ubuntu 20.04.
+~/xls$ sudo apt install python3-distutils python3-dev libtinfo5 python3-is-python
 
-# Now build/test everything in optimized build mode.
-$ bazel test -c opt ...
+~/xls$ # Now build/test everything in optimized build mode.
+~/xls$ bazel test -c opt ...
 ```
 
 A reference build/test environment setup is also provided via `Dockerfile`:

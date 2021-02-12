@@ -18,7 +18,7 @@ load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 load("@pybind11_bazel//:python_configure.bzl", "python_configure")
 load("@io_bazel_rules_closure//closure:repositories.bzl", "rules_closure_dependencies", "rules_closure_toolchains")
-load("@rules_python//python:pip.bzl", "pip_import")
+load("@rules_python//python:pip.bzl", "pip_install")
 load("//dependency_support/boost:initialize.bzl", initialize_boost = "initialize")
 
 def initialize_external_repositories():
@@ -28,7 +28,7 @@ def initialize_external_repositories():
     python_configure(name = "local_config_python")
     rules_closure_dependencies()
     rules_closure_toolchains()
-    pip_import(
+    pip_install(
         name = "xls_pip_deps",
         requirements = "//dependency_support:pip_requirements.txt",
         python_interpreter = "python3",

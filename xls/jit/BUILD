@@ -111,6 +111,8 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:value_helpers",
         "//xls/ir:value_view",
+        "@llvm//:AArch64AsmParser",  # build_cleaner: keep
+        "@llvm//:AArch64CodeGen",  # build_cleaner: keep
         "@llvm//:Analysis",
         "@llvm//:Core",
         "@llvm//:ExecutionEngine",
@@ -178,6 +180,8 @@ cc_library(
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
+        "@llvm//:AArch64AsmParser",  # build_cleaner: keep
+        "@llvm//:AArch64CodeGen",  # build_cleaner: keep
         "@llvm//:Core",
         "@llvm//:OrcJIT",
         "@llvm//:Support",
