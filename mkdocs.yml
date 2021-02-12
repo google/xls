@@ -36,5 +36,6 @@ nav:
   - Development:
     - Contributing: 'contributing.md'
     - Style Guide: 'xls_style.md'
+    - Adding a new IR operation: 'adding_ir_operation.md'
 markdown_extensions:
   - mdx_truly_sane_lists
