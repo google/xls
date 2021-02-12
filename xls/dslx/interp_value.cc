@@ -56,6 +56,8 @@ std::string TagToString(InterpValueTag tag) {
       return "enum";
     case InterpValueTag::kFunction:
       return "function";
+    case InterpValueTag::kToken:
+      return "token";
   }
   return absl::StrFormat("<invalid InterpValueTag(%d)>",
                          static_cast<int64>(tag));
@@ -113,6 +115,8 @@ std::string InterpValue::ToString(bool humanize) const {
       return absl::StrCat(
           "function:",
           absl::get<UserFnData>(GetFunctionOrDie()).function->identifier());
+    case InterpValueTag::kToken:
+      return absl::StrFormat("token:%p", GetTokenData().get());
     default:
       XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
   }
@@ -148,6 +152,8 @@ bool InterpValue::Eq(const InterpValue& other) const {
     case InterpValueTag::kUBits:
     case InterpValueTag::kEnum:
       return other.HasBits() && GetBitsOrDie() == other.GetBitsOrDie();
+    case InterpValueTag::kToken:
+      return other.IsToken() && GetTokenData() == other.GetTokenData();
     case InterpValueTag::kArray: {
       if (!other.IsArray()) {
         return false;

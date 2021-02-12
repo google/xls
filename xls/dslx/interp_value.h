@@ -80,6 +80,7 @@ enum class InterpValueTag {
   kArray,
   kEnum,
   kFunction,
+  kToken,
 };
 
 std::string TagToString(InterpValueTag tag);
@@ -88,6 +89,10 @@ inline std::ostream& operator<<(std::ostream& os, InterpValueTag tag) {
   os << TagToString(tag);
   return os;
 }
+
+struct TokenData {
+  // Currently empty.
+};
 
 // A DSLX interpreter value (variant), with InterpValueTag as a discriminator.
 class InterpValue {
@@ -133,6 +138,10 @@ class InterpValue {
   }
   static InterpValue MakeFunction(FnData fn_data) {
     return InterpValue(InterpValueTag::kFunction, std::move(fn_data));
+  }
+
+  static InterpValue MakeToken() {
+    return InterpValue(InterpValueTag::kToken, std::make_shared<TokenData>());
   }
 
   // Queries
@@ -266,10 +275,21 @@ class InterpValue {
     return absl::holds_alternative<std::vector<InterpValue>>(payload_);
   }
 
+  bool IsToken() const { return tag_ == InterpValueTag::kToken; }
+  const std::shared_ptr<TokenData>& GetTokenData() const {
+    return absl::get<std::shared_ptr<TokenData>>(payload_);
+  }
+
  private:
   friend struct InterpValuePickler;
 
-  using Payload = absl::variant<Bits, std::vector<InterpValue>, FnData>;
+  // Note: currently InterpValues are not scoped to a lifetime, so we use a
+  // shared_ptr for referring to token data for identity purposes.
+  //
+  // TODO(leary): 2020-02-10 When all Python bindings are eliminated we can more
+  // easily make an interpreter scoped lifetime that InterpValues can live in.
+  using Payload = absl::variant<Bits, std::vector<InterpValue>, FnData,
+                                std::shared_ptr<TokenData>>;
 
   InterpValue(InterpValueTag tag, Payload payload, EnumDef* type = nullptr)
       : tag_(tag), payload_(std::move(payload)), type_(type) {}

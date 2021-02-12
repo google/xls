@@ -499,6 +499,7 @@ cc_test(
     srcs = ["interpreter_test.cc"],
     deps = [
         ":interpreter",
+        ":parse_and_typecheck",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],

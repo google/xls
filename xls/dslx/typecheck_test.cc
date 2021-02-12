@@ -62,6 +62,10 @@ TEST(TypecheckTest, Identity) {
                HasSubstr("uN[4] vs uN[5]: Return type of function body")));
 }
 
+TEST(TypecheckTest, TokenIdentity) {
+  XLS_EXPECT_OK(Typecheck("fn f(x: token) -> token { x }"));
+}
+
 TEST(TypecheckTest, Nil) {
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> () { () }"));
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) { () }"));

@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {
 namespace {
@@ -43,6 +44,21 @@ TEST(InterpreterTest, RunIdentityFn) {
   InterpValue mol = InterpValue::MakeU32(42);
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue result, interp.RunFunction("id", {mol}));
   EXPECT_TRUE(mol.Eq(result));
+}
+
+TEST(InterpreterTest, RunTokenIdentityFn) {
+  absl::string_view program = "fn id(t: token) -> token { t }";
+  ImportCache import_cache;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(program, "test.x", "test", &import_cache));
+  Interpreter interp(tm.module, tm.type_info, /*typecheck=*/nullptr,
+                     /*additional_search_paths=*/{},
+                     /*import_cache=*/&import_cache);
+  InterpValue tok = InterpValue::MakeToken();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue result, interp.RunFunction("id", {tok}));
+  EXPECT_TRUE(result.Eq(tok));
+  EXPECT_EQ(result.ToString(), tok.ToString());
 }
 
 }  // namespace
