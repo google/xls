@@ -209,7 +209,7 @@ support arbitrary widths.
 
 Operation | Opcode      | Semantics
 --------- | ----------- | --------------------------------------------
-`add`     | `Op::kAnd`  | `result = lhs + rhs`
+`add`     | `Op::kAdd`  | `result = lhs + rhs`
 `sdiv`    | `Op::kSDiv` | `result = $signed(lhs) / $signed(rhs)` * **
 `smod`    | `Op::kSMod` | `result = $signed(lhs) % $signed(rhs)` * ***
 `smul`    | `Op::kSMul` | `result = $signed(lhs) * $signed(rhs)`
@@ -299,7 +299,7 @@ Operation | Opcode      | Semantics
 --------- | ----------- | --------------------------------------------------
 `shll`    | `Op::kShll` | `result = lhs << rhs` *
 `shra`    | `Op::kShra` | `result = lhs >>> rhs` (arithmetic shift right) **
-`shrl`    | `Op::kShra` | `result = lhs >> rhs` *
+`shrl`    | `Op::kShrl` | `result = lhs >> rhs` *
 
 \* Logically shifting greater than or equal to the number of bits in the `lhs`
 produces a result of zero.
