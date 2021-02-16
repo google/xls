@@ -12,7 +12,7 @@ on:
 jobs:
   build:
     name: Nightly Fuzz
-    runs-on: [ubuntu-20.04, x64]
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
       - name: Mount Bazel Cache

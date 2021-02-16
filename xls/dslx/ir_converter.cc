@@ -26,7 +26,8 @@
 namespace xls::dslx {
 namespace internal {
 
-// Helper that dispatches to the appropriate handler in the AST
+// Helper that dispatches to the appropriate handler for the AST node being
+// converted.
 class IrConverterVisitor : public AstNodeVisitor {
  public:
   explicit IrConverterVisitor(IrConverter* converter) : converter_(converter) {}

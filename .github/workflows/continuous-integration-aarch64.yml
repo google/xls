@@ -4,12 +4,27 @@
 name: Continuous Integration aarch64
 on:
   # This lets us trigger manually from the UI.
+  #
+  # Self-hosted runners are not recommended for public repos because they would
+  # run code from arbitrary pull requests so we just trigger this manually for
+  # experimentation for now:
+  #
+  # https://docs.github.com/en/actions/hosting-your-own-runners/about-self-hosted-runners#self-hosted-runner-security-with-public-repositories
+  #
+  # It appears it may also be ok to do it only on push, just not on pull request; some discussion here:
+  #
+  # https://github.community/t/self-hosted-runner-security-with-public-repositories/17860
   workflow_dispatch:
 
 jobs:
   build:
     name: Bazel Test All (opt)
-    runs-on: [self-hosted, ubuntu-20.04, ARM64]
+    runs-on: [self-hosted, linux, ARM64]
+    # Bump up to 24 hours, default seems to be ~6 hours (which is definitely
+    # too slow trying to do builds on a swapping Raspberry Pi 3 device with
+    # 1GiB of RAM ATM for aarch64 build experiments, we'll see how Raspberry Pi
+    # 4 does by comparison)
+    timeout-minutes: 1440
     steps:
       - uses: actions/checkout@v2
       - name: Mount Bazel Cache
