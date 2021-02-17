@@ -82,7 +82,6 @@ absl::StatusOr<std::string> ConvertModuleForTest(
   XLS_ASSIGN_OR_RETURN(std::string converted,
                        ConvertModule(tm.module, tm.type_info, import_cache,
                                      /*emit_positions=*/emit_positions));
-  tm.type_info->ClearTypeInfoRefsForGc();
   return converted;
 }
 

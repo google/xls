@@ -58,7 +58,6 @@ fn main() -> u32 { f(u2:0) }
       SymbolicBindings(absl::flat_hash_map<std::string, int64>{{"N", 2}}));
   EXPECT_EQ(order[1].f->identifier(), "main");
   EXPECT_EQ(order[1].bindings, SymbolicBindings());
-  tm.type_info->ClearTypeInfoRefsForGc();
 }
 
 TEST(ExtractConversionOrderTest, TransitiveParametric) {
@@ -84,7 +83,6 @@ fn main() -> u32 { f(u2:0) }
       SymbolicBindings(absl::flat_hash_map<std::string, int64>{{"N", 2}}));
   EXPECT_EQ(order[2].f->identifier(), "main");
   EXPECT_EQ(order[2].bindings, SymbolicBindings());
-  tm.type_info->ClearTypeInfoRefsForGc();
 }
 
 TEST(ExtractConversionOrderTest, BuiltinIsElided) {

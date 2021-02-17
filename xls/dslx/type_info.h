@@ -201,19 +201,6 @@ class TypeInfo {
   // Returns the expression for a ConstantDef that has the given name_def..
   absl::optional<Expr*> GetConstInt(NameDef* name_def) const;
 
-  // Clears out references to other TypeInfos to avoid circular references
-  // causing leaks. Somewhat unfortunately we invoke this from ownership points
-  // in Python code to avoid forming cycles, doesn't seem to be an easy way to
-  // interop with the Python cycle detector via pybind11.
-  //
-  // TODO(leary): 2020-10-03 Once this is all ported to C++, we can have type
-  // inferencing ownership lifetime.
-  void ClearTypeInfoRefsForGc() {
-    imports_.clear();
-    invocations_.clear();
-    parent_ = nullptr;
-  }
-
  private:
   friend class TypeInfoOwner;
 
