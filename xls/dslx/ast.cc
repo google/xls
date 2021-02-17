@@ -934,7 +934,15 @@ std::vector<AstNode*> TypeRefTypeAnnotation::GetChildren(
 }
 
 std::string TypeRefTypeAnnotation::ToString() const {
-  return type_ref_->ToString();
+  std::string parametric_str = "";
+  if (!parametrics_.empty()) {
+    std::vector<std::string> pieces;
+    for (Expr* e : parametrics_) {
+      pieces.push_back(e->ToString());
+    }
+    parametric_str = absl::StrCat("<", absl::StrJoin(pieces, ", "), ">");
+  }
+  return absl::StrCat(type_ref_->ToString(), parametric_str);
 }
 
 absl::StatusOr<BinopKind> BinopKindFromString(absl::string_view s) {

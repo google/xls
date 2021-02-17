@@ -93,6 +93,9 @@ class InterpBindings : public std::enable_shared_from_this<InterpBindings> {
   void AddStructDef(std::string identifier, StructDef* value) {
     map_.insert_or_assign(std::move(identifier), Entry(value));
   }
+  void AddEntry(std::string identifier, Entry entry) {
+    map_.insert_or_assign(std::move(identifier), entry);
+  }
 
   // Resolution functions from identifiers to values / AST nodes.
 

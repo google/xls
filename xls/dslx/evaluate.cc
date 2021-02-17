@@ -112,9 +112,9 @@ absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
 static absl::StatusOr<EnumDef*> EvaluateToEnum(TypeDefinition type_definition,
                                                InterpBindings* bindings,
                                                InterpCallbackData* callbacks) {
-  XLS_ASSIGN_OR_RETURN(
-      DerefVariant deref,
-      EvaluateToStructOrEnumOrAnnotation(type_definition, bindings, callbacks));
+  XLS_ASSIGN_OR_RETURN(DerefVariant deref,
+                       EvaluateToStructOrEnumOrAnnotation(
+                           type_definition, bindings, callbacks, nullptr));
   if (absl::holds_alternative<EnumDef*>(deref)) {
     return absl::get<EnumDef*>(deref);
   }
@@ -128,9 +128,9 @@ static absl::StatusOr<StructDef*> EvaluateToStruct(
     InterpCallbackData* callbacks) {
   XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
                        ToTypeDefinition(ToAstNode(struct_ref)));
-  XLS_ASSIGN_OR_RETURN(
-      DerefVariant deref,
-      EvaluateToStructOrEnumOrAnnotation(type_definition, bindings, callbacks));
+  XLS_ASSIGN_OR_RETURN(DerefVariant deref,
+                       EvaluateToStructOrEnumOrAnnotation(
+                           type_definition, bindings, callbacks, nullptr));
   if (absl::holds_alternative<StructDef*>(deref)) {
     return absl::get<StructDef*>(deref);
   }
@@ -1236,12 +1236,16 @@ absl::StatusOr<int64> ResolveDim(
 
 absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
     TypeDefinition type_definition, InterpBindings* bindings,
-    InterpCallbackData* callbacks) {
+    InterpCallbackData* callbacks, std::vector<Expr*>* parametrics) {
   while (absl::holds_alternative<TypeDef*>(type_definition)) {
     TypeDef* type_def = absl::get<TypeDef*>(type_definition);
     TypeAnnotation* annotation = type_def->type();
     if (auto* type_ref = dynamic_cast<TypeRefTypeAnnotation*>(annotation)) {
       type_definition = type_ref->type_ref()->type_definition();
+      if (parametrics != nullptr) {
+        parametrics->insert(parametrics->end(), type_ref->parametrics().begin(),
+                            type_ref->parametrics().end());
+      }
     } else {
       return annotation;
     }
@@ -1265,15 +1269,15 @@ absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<InterpBindings> imported_bindings,
                        MakeTopLevelBindings(imported_module, callbacks));
   return EvaluateToStructOrEnumOrAnnotation(td, imported_bindings.get(),
-                                            callbacks);
+                                            callbacks, parametrics);
 }
 
 // Helper that grabs the type_definition field out of a TypeRef and resolves it.
 static absl::StatusOr<DerefVariant> DerefTypeRef(
-    TypeRef* type_ref, InterpBindings* bindings,
-    InterpCallbackData* callbacks) {
+    TypeRef* type_ref, InterpBindings* bindings, InterpCallbackData* callbacks,
+    std::vector<Expr*>* parametrics) {
   return EvaluateToStructOrEnumOrAnnotation(type_ref->type_definition(),
-                                            bindings, callbacks);
+                                            bindings, callbacks, parametrics);
 }
 
 // Returns new (derived) Bindings populated with `parametrics`.
@@ -1333,18 +1337,18 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
               << type->owner()->name();
 
   // class TypeRefTypeAnnotation
+  absl::optional<InterpBindings> struct_parametric_bindings;
   if (auto* type_ref = dynamic_cast<TypeRefTypeAnnotation*>(type)) {
-    XLS_ASSIGN_OR_RETURN(DerefVariant deref, DerefTypeRef(type_ref->type_ref(),
-                                                          bindings, callbacks));
-    XLS_VLOG(3) << "Dereferenced type ref to "
-                << ToAstNode(deref)->GetNodeTypeName();
-    absl::optional<InterpBindings> struct_parametric_bindings;
-    if (type_ref->HasParametrics()) {
+    std::vector<Expr*> parametrics = type_ref->parametrics();
+    XLS_ASSIGN_OR_RETURN(
+        DerefVariant deref,
+        DerefTypeRef(type_ref->type_ref(), bindings, callbacks, &parametrics));
+    if (!parametrics.empty()) {
       XLS_RET_CHECK(absl::holds_alternative<StructDef*>(deref));
       auto* struct_def = absl::get<StructDef*>(deref);
-      XLS_ASSIGN_OR_RETURN(struct_parametric_bindings,
-                           BindingsWithStructParametrics(
-                               struct_def, type_ref->parametrics(), bindings));
+      XLS_ASSIGN_OR_RETURN(
+          struct_parametric_bindings,
+          BindingsWithStructParametrics(struct_def, parametrics, bindings));
       bindings = &struct_parametric_bindings.value();
     }
     TypeDefinition type_defn = type_ref->type_ref()->type_definition();
@@ -1367,6 +1371,17 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
       XLS_ASSIGN_OR_RETURN(derefd_top_level,
                            MakeTopLevelBindings(derefd_module, callbacks));
       bindings = derefd_top_level.get();
+    }
+
+    if (struct_parametric_bindings.has_value()) {
+      InterpBindings struct_bindings = struct_parametric_bindings.value();
+      for (const auto& key : struct_bindings.GetKeys()) {
+        absl::optional<InterpBindings::Entry> entry =
+            struct_bindings.ResolveEntry(key);
+        XLS_RET_CHECK(entry.has_value())
+            << "Unable to resolve struct parametric \"" << key << "\"";
+        bindings->AddEntry(key, entry.value());
+      }
     }
     return ConcretizeType(deref, bindings, callbacks);
   }

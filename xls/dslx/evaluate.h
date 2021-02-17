@@ -222,9 +222,12 @@ using DerefVariant = absl::variant<TypeAnnotation*, EnumDef*, StructDef*>;
 // Args:
 //   node: Node to resolve to a struct/enum/annotation.
 //   bindings: Current bindings for evaluating the node.
+//   parametrics: (Outparam) List of encountered parametric assignment
+//       expressions during type traversal. As new parametrics are encountered,
+//       they're added to the back of this vector.
 absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
     TypeDefinition type_definition, InterpBindings* bindings,
-    InterpCallbackData* callbacks);
+    InterpCallbackData* callbacks, std::vector<Expr*>* parametrics);
 
 }  // namespace xls::dslx
 

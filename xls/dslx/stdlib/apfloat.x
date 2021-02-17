@@ -143,6 +143,19 @@ fn unbiased_exponent_test() {
   ()
 }
 
+pub fn bias<EXP_SZ: u32, SFD_SZ: u32, UEXP_SZ: u32 = EXP_SZ + u32:1,
+    MASK_SZ: u32 = EXP_SZ - u32:1>(unbiased_exponent: bits[UEXP_SZ]) -> bits[EXP_SZ] {
+  (unbiased_exponent + (std::mask_bits<MASK_SZ>() as bits[UEXP_SZ])) as bits[EXP_SZ]
+}
+
+#![test]
+fn bias_test() {
+  let expected = u8:127;
+  let actual = bias<u32:8, u32:23>(u9:0);
+  let _ = assert_eq(expected, actual);
+  ()
+}
+
 pub fn flatten<EXP_SZ:u32, SFD_SZ:u32, TOTAL_SZ:u32 = u32:1+EXP_SZ+SFD_SZ>(
     x: APFloat<EXP_SZ, SFD_SZ>) -> bits[TOTAL_SZ] {
   x.sign ++ x.bexp ++ x.sfd
@@ -161,7 +174,7 @@ pub fn unflatten<EXP_SZ:u32, SFD_SZ:u32,
 
 pub fn subnormals_to_zero<EXP_SZ:u32, SFD_SZ:u32>(
     x: APFloat<EXP_SZ, SFD_SZ>) -> APFloat<EXP_SZ, SFD_SZ> {
-  zero(x.sign) if x.bexp == bits[EXP_SZ]:0 else x
+  zero<EXP_SZ, SFD_SZ>(x.sign) if x.bexp == bits[EXP_SZ]:0 else x
 }
 
 // Returns a normalized APFloat with the given components. 'sfd_with_hidden' is the
@@ -188,61 +201,18 @@ pub fn normalize<EXP_SZ:u32, SFD_SZ:u32, WIDE_SFD:u32 = SFD_SZ + u32:1>(
   }
 }
 
-#![test]
-fn normalize_test() {
-  let expected = APFloat<u32:8, u32:23>{
-      sign: u1:0, bexp: u8:0x12, sfd: u23:0x7e_dcba };
-  let actual = normalize<u32:8, u32:23>(u1:0, u8:0x12, u24:0xfe_dcba);
-  let _ = assert_eq(expected, actual);
-
-  let expected = APFloat<u32:8, u32:23>{
-      sign: u1:0, bexp: u8:0x0, sfd: u23:0x0 };
-  let actual = normalize<u32:8, u32:23>(u1:0, u8:0x1, u24:0x0);
-  let _ = assert_eq(expected, actual);
-
-  let expected = APFloat<u32:8, u32:23>{
-      sign: u1:0, bexp: u8:0x0, sfd: u23:0x0 };
-  let actual = normalize<u32:8, u32:23>(u1:0, u8:0xfe, u24:0x0);
-  let _ = assert_eq(expected, actual);
-
-  let expected = APFloat<u32:8, u32:23>{
-      sign: u1:1, bexp: u8:77, sfd: u23:0x0 };
-  let actual = normalize<u32:8, u32:23>(u1:1, u8:100, u24:1);
-  let _ = assert_eq(expected, actual);
-
-  let expected = APFloat<u32:8, u32:23>{
-      sign: u1:1, bexp: u8:2, sfd: u23:0b000_1111_0000_0101_0000_0000 };
-  let actual = normalize<u32:8, u32:23>(
-      u1:1, u8:10, u24:0b0000_0000_1000_1111_0000_0101);
-  let _ = assert_eq(expected, actual);
-
-  let expected = APFloat<u32:8, u32:23>{
-      sign: u1:1, bexp: u8:10, sfd: u23:0b000_0000_1000_1111_0000_0101};
-  let actual = normalize<u32:8, u32:23>(
-      u1:1, u8:10, u24:0b1000_0000_1000_1111_0000_0101);
-  let _ = assert_eq(expected, actual);
-
-  // Denormals should be flushed to zero.
-  let expected = zero<u32:8, u32:23>(u1:1);
-  let actual = normalize<u32:8, u32:23>(
-      u1:1, u8:5, u24:0b0000_0000_1000_1111_0000_0101);
-  let _ = assert_eq(expected, actual);
-
-  let expected = zero<u32:8, u32:23>(u1:0);
-  let actual = normalize<u32:8, u32:23>(
-      u1:0, u8:2, u24:0b0010_0000_1000_1111_0000_0101);
-  let _ = assert_eq(expected, actual);
-  ()
-}
-
-// Returns whether or not the given APFloat represents an infinite quantity.d
 pub fn is_inf<EXP_SZ:u32, SFD_SZ:u32, MASK_SZ:u32 = EXP_SZ - u32:1>(
     x: APFloat<EXP_SZ, SFD_SZ>) -> u1 {
-  (x.bexp == std::mask_bits<MASK_SZ>() & x.sfd == bits[SFD_SZ]:0)
+  (x.bexp == std::mask_bits<EXP_SZ>() && x.sfd == bits[SFD_SZ]:0)
 }
 
 // Returns whether or not the given F32 represents NaN.
 pub fn is_nan<EXP_SZ:u32, SFD_SZ:u32, MASK_SZ:u32 = EXP_SZ - u32:1>(
     x: APFloat<EXP_SZ, SFD_SZ>) -> u1 {
-  (x.bexp == std::mask_bits<MASK_SZ>() & x.sfd != bits[SFD_SZ]:0)
+  (x.bexp == std::mask_bits<EXP_SZ>() && x.sfd != bits[SFD_SZ]:0)
 }
+
+// TODO(rspringer): Create a broadly-applicable normalize test, that
+// could be used for multiple type instantiations (without needing
+// per-specialization data to be specified by a user).
+// Returns whether or not the given APFloat represents an infinite quantity.

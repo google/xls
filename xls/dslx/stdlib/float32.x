@@ -13,12 +13,12 @@
 // limitations under the License.
 
 // 32-bit floating point routines.
+import xls.dslx.stdlib.apfloat
 
-pub struct F32 {
-  sign: u1,  // sign bit
-  bexp: u8,  // biased exponent
-  sfd: u23,  // significand (no hidden bit)
-}
+// TODO(rspringer): Make u32:8 and u32:23 symbolic constants. Currently, such
+// constants don't propagate correctly and fail to resolve when in parametric
+// specifications.
+pub type F32 = apfloat::APFloat<u32:8, u32:23>;
 
 pub enum FloatTag : u3 {
   NAN       = 0,
@@ -34,24 +34,29 @@ pub fn qnan() -> F32 {
   F32 { sign: false, bexp: u8:0xff, sfd: u23:0x400000 }
 }
 
-pub fn zero(sign: u1) -> F32 { F32 { sign: sign, bexp: u8:0, sfd: u23:0 } }
-pub fn one(sign: u1) -> F32 { F32 { sign: sign, bexp: u8:127, sfd: u23:0 } }
-
-pub fn inf(sign: u1) -> F32 {
-  F32 { sign: sign, bexp: u8:0xff, sfd: u23:0 }
+pub fn zero(sign: u1) -> F32 { apfloat::zero<u32:8, u32:23>(sign) }
+pub fn one(sign: u1) -> F32 { apfloat::one<u32:8, u32:23>(sign) }
+pub fn inf(sign: u1) -> F32 { apfloat::inf<u32:8, u32:23>(sign) }
+pub fn unbiased_exponent(f: F32) -> u9 {
+  apfloat::unbiased_exponent<u32:8, u32:23>(f)
+}
+pub fn bias(unbiased_exponent_in: u9) -> u8 {
+  apfloat::bias<u32:8, u32:23>(unbiased_exponent_in)
+}
+pub fn flatten(f: F32) -> u32 { apfloat::flatten<u32:8, u32:23>(f) }
+pub fn unflatten(f: u32) -> F32 { apfloat::unflatten<u32:8, u32:23>(f) }
+pub fn subnormals_to_zero(f: F32) -> F32 {
+  apfloat::subnormals_to_zero<u32:8, u32:23>(f)
 }
 
-// Accessor helpers for the F32 typedef.
-pub fn unbiased_exponent(f: F32) -> u9 { (f.bexp as u9) - u9:127 }
-pub fn bias(unbiased_exponent_in: u9) -> u8 { (unbiased_exponent_in + u9:127) as u8 }
+pub fn is_inf(f: F32) -> u1 { apfloat::is_inf<u32:8, u32:23>(f) }
+pub fn is_nan(f: F32) -> u1 { apfloat::is_nan<u32:8, u32:23>(f) }
 
-pub fn flatten(x: F32) -> u32 { x.sign ++ x.bexp ++ x.sfd }
+pub fn normalize(sign:u1, exp: u8, sfd_with_hidden: u24) -> F32 {
+  apfloat::normalize<u32:8, u32:23>(sign, exp, sfd_with_hidden)
+}
 
 pub const F32_ONE_FLAT = u32:0x3f800000;
-
-pub fn unflatten(x: u32) -> F32 {
-  F32 { sign: (x >> u32:31) as u1, bexp: (x >> u32:23) as u8, sfd: x as u23 }
-}
 
 pub fn tag(input_float: F32) -> FloatTag {
   match (input_float.bexp, input_float.sfd) {
@@ -61,6 +66,53 @@ pub fn tag(input_float: F32) -> FloatTag {
     (u8:255,     _) => FloatTag::NAN,
     (     _,     _) => FloatTag::NORMAL,
   }
+}
+
+#![test]
+fn normalize_test() {
+  let expected = F32 {
+      sign: u1:0, bexp: u8:0x12, sfd: u23:0x7e_dcba };
+  let actual = normalize(u1:0, u8:0x12, u24:0xfe_dcba);
+  let _ = assert_eq(expected, actual);
+
+  let expected = F32 {
+      sign: u1:0, bexp: u8:0x0, sfd: u23:0x0 };
+  let actual = normalize(u1:0, u8:0x1, u24:0x0);
+  let _ = assert_eq(expected, actual);
+
+  let expected = F32 {
+      sign: u1:0, bexp: u8:0x0, sfd: u23:0x0 };
+  let actual = normalize(u1:0, u8:0xfe, u24:0x0);
+  let _ = assert_eq(expected, actual);
+
+  let expected = F32 {
+      sign: u1:1, bexp: u8:77, sfd: u23:0x0 };
+  let actual = normalize(u1:1, u8:100, u24:1);
+  let _ = assert_eq(expected, actual);
+
+  let expected = F32 {
+      sign: u1:1, bexp: u8:2, sfd: u23:0b000_1111_0000_0101_0000_0000 };
+  let actual = normalize(
+      u1:1, u8:10, u24:0b0000_0000_1000_1111_0000_0101);
+  let _ = assert_eq(expected, actual);
+
+  let expected = F32 {
+      sign: u1:1, bexp: u8:10, sfd: u23:0b000_0000_1000_1111_0000_0101};
+  let actual = normalize(
+      u1:1, u8:10, u24:0b1000_0000_1000_1111_0000_0101);
+  let _ = assert_eq(expected, actual);
+
+  // Denormals should be flushed to zero.
+  let expected = zero(u1:1);
+  let actual = normalize(
+      u1:1, u8:5, u24:0b0000_0000_1000_1111_0000_0101);
+  let _ = assert_eq(expected, actual);
+
+  let expected = zero(u1:0);
+  let actual = normalize(
+      u1:0, u8:2, u24:0b0010_0000_1000_1111_0000_0101);
+  let _ = assert_eq(expected, actual);
+  ()
 }
 
 #![test]
@@ -88,10 +140,6 @@ fn tag_test() {
   ()
 }
 
-pub fn subnormals_to_zero(x: F32) -> F32 {
-  zero(x.sign) if x.bexp == u8:0 else x
-}
-
 pub fn fixed_fraction(input_float: F32) -> u23 {
   let input_significand_magnitude: u25 = u2:0b01 ++ input_float.sfd;
   let unbiased_input_float_exponent: u9 = unbiased_exponent(input_float);
@@ -111,66 +159,5 @@ pub fn fixed_fraction(input_float: F32) -> u23 {
     else input_fraction_part_magnitude
  ;
   fixed_fraction as u23
-}
-
-// Returns a normalized F32 with the given components. 'sfd_with_hidden' is the
-// significand including the hidden bit. This function only normalizes in the
-// direction of decreasing the exponent. Input must be a normal number or
-// zero. Dernormals are flushed to zero in the result.
-pub fn normalize(sign: u1, exp: u8, sfd_with_hidden: u24) -> F32 {
-  let leading_zeros = clz(sfd_with_hidden) as u8;
-  match (exp <= leading_zeros, leading_zeros) {
-    // Significand is zero.
-    (_, u8:24) => zero(sign),
-    // Flush denormals to zero.
-    (true, _) => zero(sign),
-    // Normalize.
-    _ => F32 { sign: sign,
-               bexp: exp - (leading_zeros as u8),
-               sfd: (sfd_with_hidden << (leading_zeros as u24))[:23] },
-  }
-}
-
-// Returns whether or not the given F32 represents an infinite quantity.
-pub fn is_inf(x: F32) -> u1 {
-  (x.bexp == u8:255) & (x.sfd == u23:0)
-}
-
-// Returns whether or not the given F32 represents NaN.
-pub fn is_nan(x: F32) -> u1 {
-  (x.bexp == u8:255) & (x.sfd != u23:0)
-}
-
-#![test]
-fn normalize_test() {
-  let _ = assert_eq(normalize(u1:0, u8:0x12, u24:0xfe_dcba),
-                    F32 { sign: u1:0, bexp: u8:0x12, sfd: u23:0x7e_dcba });
-
-  let _ = assert_eq(normalize(u1:0, u8:0x01, u24:0),
-                    F32 { sign: u1:0, bexp: u8:0, sfd: u23:0 });
-  let _ = assert_eq(normalize(u1:0, u8:0xfe, u24:0),
-                    F32 { sign: u1:0, bexp: u8:0, sfd: u23:0 });
-
-  let _ = assert_eq(normalize(u1:1, u8:100, u24:1),
-                    F32 { sign: u1:1, bexp: u8:77, sfd: u23:0 });
-  let _ = assert_eq(normalize(u1:1,
-                              u8:10,
-                              u24:0b0000_0000_1000_1111_0000_0101),
-                    F32 { sign: u1:1, bexp: u8:2, sfd: u23:0b000_1111_0000_0101_0000_0000 });
-  let _ = assert_eq(normalize(u1:1,
-                              u8:10,
-                              u24:0b1000_0000_1000_1111_0000_0101),
-                    F32 { sign: u1:1, bexp: u8:10, sfd: u23:0b000_0000_1000_1111_0000_0101 });
-
-  // Denormals should be flushed to zero.
-  let _ = assert_eq(normalize(u1:1,
-                              u8:5,
-                              u24:0b0000_0000_1000_1111_0000_0101),
-                    zero(u1:1));
-  let _ = assert_eq(normalize(u1:0,
-                              u8:2,
-                              u24:0b0010_0000_1000_1111_0000_0101),
-                    zero(u1:0));
-  ()
 }
 
