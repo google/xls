@@ -1,0 +1,50 @@
+# Copyright 2021 The XLS Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+--- absl/copts/configure_copts.bzl
++++ absl/copts/configure_copts.bzl
+@@ -45,16 +45,17 @@
+ ABSL_RANDOM_RANDEN_COPTS = select({
+     # APPLE
+     ":cpu_darwin_x86_64": ABSL_RANDOM_HWAES_X64_FLAGS,
+     ":cpu_darwin": ABSL_RANDOM_HWAES_X64_FLAGS,
+     ":cpu_x64_windows_msvc": ABSL_RANDOM_HWAES_MSVC_X64_FLAGS,
+     ":cpu_x64_windows": ABSL_RANDOM_HWAES_MSVC_X64_FLAGS,
+     ":cpu_k8": ABSL_RANDOM_HWAES_X64_FLAGS,
+     ":cpu_ppc": ["-mcrypto"],
++    ":cpu_aarch64": ABSL_RANDOM_HWAES_ARM64_FLAGS,
+
+     # Supported by default or unsupported.
+     "//conditions:default": [],
+ })
+
+ # absl_random_randen_copts_init:
+ #  Initialize the config targets based on cpu, os, etc. used to select
+ #  the required values for ABSL_RANDOM_RANDEN_COPTS
+@@ -65,14 +66,15 @@
+     # These configs have consistent flags to enable HWAES intsructions.
+     cpu_configs = [
+         "ppc",
+         "k8",
+         "darwin_x86_64",
+         "darwin",
+         "x64_windows_msvc",
+         "x64_windows",
++        "aarch64",
+     ]
+     for cpu in cpu_configs:
+         native.config_setting(
+             name = "cpu_%s" % cpu,
+             values = {"cpu": cpu},
+         )

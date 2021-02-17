@@ -70,6 +70,7 @@ def load_external_repositories():
         strip_prefix = "abseil-cpp-3c8b5d7587dc8ecf730ce9996c89e156e408c3ed",
         urls = ["https://github.com/abseil/abseil-cpp/archive/3c8b5d7587dc8ecf730ce9996c89e156e408c3ed.zip"],
         sha256 = "2adc8d02700923164a1128afd36d245ac6fd9fe4a10ee936146b89cd9e4b82a5",
+        patches = ["//dependency_support/com_google_absl:aarch64_rng_flags.patch"],
     )
 
     # Protobuf depends on Skylib
