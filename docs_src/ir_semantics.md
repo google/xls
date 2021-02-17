@@ -452,24 +452,7 @@ number of data elements supported by the channel.
 | `channel_id` | `int64` | yes      |         | The ID of the channel to send |
 :              :         :          :         : data to.                      :
 
-### Miscellaneous operations
-
-#### **`after_all`**
-
-Used to construct partial orderings among channel operations.
-
-```
-result = after_all(operand_{0}, ..., operand_{N-1})
-```
-
-**Types**
-
-Value         | Type
-------------- | -------
-`operand_{i}` | `token`
-`result`      | `token`
-
-`after_all` can consume an arbitrary number of token operands including zero.
+### Array operations
 
 #### **`array`**
 
@@ -554,50 +537,52 @@ with the given value. If any index is out of bounds, the result is identical to
 the input `array`. The indexing semantics is identical to `array_index` with the
 exception of out-of-bounds behavior.
 
-#### **`assert`**
+### Tuple operations
 
-Raises an error at software run-time (DSLX/IR interpretation, JIT execution, RTL
-simulation) if the given condition evaluates to false. The operation takes a
-literal string attribute which is included in the error message. This is a
-software-only operation and has no representation in the generated hardware.
-Tokens are used to connect the operation to the graph and order with respect to
-other side-effecting operations.
+
+#### **`tuple`**
+
+Constructs a tuple of its operands.
 
 ```
-result = assert(tkn, condition, message=<string>)
-```
-
-**Types**
-
-Value       | Type
------------ | ---------
-`tkn`       | `token`
-`condition` | `bits[1]`
-`result`    | `token`
-
-**Keyword arguments**
-
-Keyword   | Type     | Required | Default | Description
---------- | -------- | -------- | ------- | ---------------------------------
-`message` | `string` | yes      |         | Message to include in raise error
-
-#### **`array`**
-
-Constructs a array of its operands.
-
-```
-result = array(operand_{0}, ..., operand_{N-1})
+result = tuple(operand_{0}, ..., operand_{N-1})
 ```
 
 **Types**
 
 Value         | Type
-------------- | ------
-`operand_{i}` | `T`
-`result`      | `T[N]`
+------------- | ------------------------
+`operand_{i}` | `T_{i}`
+`result`      | `(T_{0}, ... , T_{N-1})`
 
-Array can take an arbitrary number of operands including zero (which produces an
-empty array).
+Tuple can take and arbitrary number of operands including zero (which produces
+an empty tuple).
+
+#### **`tuple_index`**
+
+Returns a single element from a tuple-typed operand.
+
+**Syntax**
+
+```
+result = tuple_index(operand, index=<index>)
+```
+
+**Types**
+
+Value     | Type
+--------- | ------------------------
+`operand` | `(T_{0}, ... , T_{N-1})`
+`result`  | `T_{<index>}`
+
+**Keyword arguments**
+
+Keyword | Type    | Required | Default | Description
+------- | ------- | -------- | ------- | ---------------------------------
+`index` | `int64` | yes      |         | Index of tuple element to produce
+
+
+### Bit-vector operations
 
 #### **`bit_slice`**
 
@@ -712,117 +697,20 @@ Value         | Type
 
 This is equivalent to the verilog concat operator: `result = {arg0, ..., argN}`
 
-#### **`counted_for`**
+#### **`reverse`**
 
-Invokes a fixed-trip count loop.
-
-**Syntax**
+Reverses the order of bits of its operand.
 
 ```
-result = counted_for(init, trip_count=<trip_count>, stride=<stride>, body=<body>, invariant_args=<inv_args>)
+result = reverse(operand)
 ```
 
 **Types**
 
-Value    | Type
--------- | ----
-`init`   | `T`
-`result` | `T`
-
-**Keyword arguments**
-
-| Keyword          | Type     | Required | Default | Description               |
-| ---------------- | -------- | -------- | ------- | ------------------------- |
-| `trip_count`     | `int64`  | yes      |         | Trip count of the loop    |
-:                  :          :          :         : (number of times that the :
-:                  :          :          :         : loop body will be         :
-:                  :          :          :         : executed)                 :
-| `stride`         | `int64`  | no       | 1       | Stride of the induction   |
-:                  :          :          :         : variable                  :
-| `invariant_args` | array of | yes      |         | Names of the invariant    |
-:                  : operands :          :         : operands as the loop body :
-| `body`           | `string` | yes      |         | Name of the function to   |
-:                  :          :          :         : use as the loop body      :
-
-`counted_for` invokes the function `body` `trip_count` times, passing
-loop-carried data that starts with value `init`.
-
-*   The first argument passed to `body` is the induction variable -- presently,
-    the induction variable always starts at zero and increments by `stride`
-    after every trip.
-*   The second argument passed to `body` is the loop-carry data. The return type
-    of `body` must be the same as the type of the `init` loop carry data. The
-    value returned from the last trip is the result of the `counted_for`
-    expression.
-*   All subsequent arguments passed to `body` are passed from `invariant_args`;
-    e.g. if there are two members in `invariant_args` those values are passed as
-    the third and fourth arguments.
-
-Therefore `body` should have a signature that matches the following:
-
-```
-body(i, loop_carry_data[, invariant_arg0, invariant_arg1, ...])
-```
-
-Note that we currently inspect the `body` function to see what type of induction
-variable (`i` above) it accepts in order to pass an `i` value of that type.
-
-#### **`dynamic_counted_for`**
-
-Invokes a dynamic-trip count loop.
-
-**Syntax**
-
-```
-result = counted_for(init, trip_count, stride, body=<body>, invariant_args=<inv_args>)
-```
-
-**Types**
-
-Value        | Type
------------- | ------------------------------
-`init`       | `T`
-`trip_count` | `bits[N], treated as unsigned`
-`stride`     | `bits[M], treated as signed`,
-`result`     | `T`
-
-**Keyword arguments**
-
-| Keyword          | Type     | Required | Default | Description               |
-| ---------------- | -------- | -------- | ------- | ------------------------- |
-| `invariant_args` | array of | yes      |         | Names of the invariant    |
-:                  : operands :          :         : operands as the loop body :
-| `body`           | `string` | yes      |         | Name of the function to   |
-:                  :          :          :         : use as the loop body      :
-
-`dynamic_counted_for` invokes the function `body` `trip_count` times, passing
-loop-carried data that starts with value `init`. The induction variable is
-incremented by `stride` after each iteration.
-
-*   The first argument passed to `body` is the induction variable -- presently,
-    the induction variable always starts at zero and increments by `stride`
-    after every trip.
-*   The second argument passed to `body` is the loop-carry data. The return type
-    of `body` must be the same as the type of the `init` loop carry data. The
-    value returned from the last trip is the result of the `counted_for`
-    expression.
-*   All subsequent arguments passed to `body` are passed from `invariant_args`;
-    e.g. if there are two members in `invariant_args` those values are passed as
-    the third and fourth arguments.
-
-Therefore `body` should have a signature that matches the following:
-
-```
-body(i, loop_carry_data, [invariant_arg0, invariant_arg1, ...])
-```
-
-Note that we currently inspect the `body` function to see what type of induction
-variable (`i` above) it accepts in order to pass an `i` value of that type.
-`trip_count` must have fewer bits than `i` and `stride` should have fewer than
-or equal number of bits to `i`.
-
-Code generation support for `dynamic_counted_for` is limited because the
-pipeline generator cannot handle an unkown trip count.
+Value     | Type
+--------- | ---------
+`operand` | `bits[N]`
+`result`  | `bits[N]`
 
 #### **`decode`**
 
@@ -882,59 +770,6 @@ bit 5 of an `encode` input are set the result is equal to 3 | 5 = 7.
 
 If no bits of the input are set the result is zero.
 
-#### **`invoke`**
-
-Invokes a function.
-
-**Syntax**
-
-```
-result = invoke(operand_{0}, ... , operand_{N-1}, to_apply=<to_apply>)
-```
-
-**Types**
-
-Value    | Type
--------- | ----
-`init`   | `T`
-`result` | `T`
-
-**Keyword arguments**
-
-| Keyword    | Type     | Required | Default | Description                    |
-| ---------- | -------- | -------- | ------- | ------------------------------ |
-| `to_apply` | `string` | yes      |         | Name of the function to use as |
-:            :          :          :         : the loop body                  :
-
-TODO: finish
-
-#### **`map`**
-
-Applies a function to the elements of an array and returns the result as an
-array.
-
-**Syntax**
-
-```
-result = map(operand, to_apply=<to_apply>)
-```
-
-**Types**
-
-Value     | Type
---------- | ----------
-`operand` | `array[T]`
-`result`  | `array[U]`
-
-**Keyword arguments**
-
-| Keyword    | Type     | Required | Default | Description                    |
-| ---------- | -------- | -------- | ------- | ------------------------------ |
-| `to_apply` | `string` | yes      |         | Name of the function to apply  |
-:            :          :          :         : to each element of the operand :
-
-TODO: finish
-
 #### **`one_hot`**
 
 Produces a bits value with exactly one bit set. The index of the set bit depends
@@ -987,46 +822,46 @@ where a condition is matched against an ordered set of cases and the first match
 is chosen. It is also useful for one-hot canonicalizing, e.g. as a prelude to
 counting leading/trailing zeros.
 
-#### **`one_hot_sel`**
 
-Selects between operands based on a one-hot selector.
+### Control-oriented operations
+
+For context note that, in XLS, operations are evaluated eagerly in a very
+general sense: all "branches" of computation may be evaluated in full before the
+result is selected via an operation such as `one_hot_sel` or `sel`. This model
+is amenable to pipeline-like hardware execution, where operations tend to be
+fixed in some spatial area and operations execute a single function, while
+interconnect is used for reconfiguration purposes.
+
+Towards this eager-evaluation-capable model, operations used within a function
+are generally not Turing-complete: operations such as `counted_for` require a
+finite bound so that they could be implemented using a finite amount of pipeline
+area. Operations such as `dynamic_counted_for` are an exception, where that
+operation will only be possible to use in a time-multiplexed code generation
+mode, such as the XLS sequential emitter, where arbitrary iteration to some
+dynamic bound is likely to be possible.
+
+#### **`param`**
+
+A parameter to the current IR function, which can be used as an operand for
+operations within the function.
 
 **Syntax**
 
+Parameters have a special syntactic form distinct from other nodes, where they
+are listed directly in the function signature with their type.
+
 ```
-result = one_hot_sel(selector, cases=[case_{0}, ... , case_{N-1}])
+fn f(x: bits[32]) -> bits[32] {
+  ret identity.2 = identity(x, id=2)
+}
 ```
 
 **Types**
 
 Value      | Type
 ---------- | ---------
-`selector` | `bits[N]`
-`case_{i}` | `T`
-`result`   | `T`
-
-The result is the logical OR of all cases `case_{i}` for which the corresponding
-bit `i` is set in the selector. When selector is one-hot this performs a select
-operation.
-
-#### **`param`**
-
-TODO: finish
-
-#### **`reverse`**
-
-Reverses the order of bits of its operand.
-
-```
-result = reverse(operand)
-```
-
-**Types**
-
-Value     | Type
---------- | ---------
-`operand` | `bits[N]`
-`result`  | `bits[N]`
+`name`     | `str`
+`type`     | `type`
 
 #### **`sel`**
 
@@ -1047,43 +882,249 @@ Value      | Type
 `default`  | `T`
 `result`   | `T`
 
-#### **`tuple`**
+#### **`one_hot_sel`**
 
-Constructs a tuple of its operands.
+Selects between operands based on a one-hot selector.
 
-```
-result = tuple(operand_{0}, ..., operand_{N-1})
-```
+See `one_hot` for an example of the one-hot selector invariant. Note that when
+the one-hot selector is not one-hot, this operation is still well defined.
 
-**Types**
-
-Value         | Type
-------------- | ------------------------
-`operand_{i}` | `T_{i}`
-`result`      | `(T_{0}, ... , T_{N-1})`
-
-Tuple can take and arbitrary number of operands including zero (which produces
-an empty tuple).
-
-#### **`tuple_index`**
-
-Returns a single element from a tuple-typed operand.
+Note that when `one_hot` operations are used to precondition the `selector`
+operand to `one_hot_sel`, the XLS optimizer will try to determine when they are
+unnecessary and subsequently eliminate them.
 
 **Syntax**
 
 ```
-result = tuple_index(operand, index=<index>)
+result = one_hot_sel(selector, cases=[case_{0}, ... , case_{N-1}])
+```
+
+**Types**
+
+Value      | Type
+---------- | ---------
+`selector` | `bits[N]`
+`case_{i}` | `T`
+`result`   | `T`
+
+The result is the logical OR of all cases `case_{i}` for which the corresponding
+bit `i` is set in the selector. When selector is one-hot this performs a select
+operation.
+
+#### **`invoke`**
+
+Invokes a function. The return value for the invoked function is the result
+value.
+
+**Syntax**
+
+```
+result = invoke(operand_{0}, ... , operand_{N-1}, to_apply=<to_apply>)
+```
+
+**Types**
+
+Value    | Type
+-------- | ----
+`init`   | `T`
+`result` | `T`
+
+**Keyword arguments**
+
+| Keyword    | Type     | Required | Default | Description                    |
+| ---------- | -------- | -------- | ------- | ------------------------------ |
+| `to_apply` | `string` | yes      |         | Name of the function to use as |
+:            :          :          :         : the loop body                  :
+
+#### **`map`**
+
+Applies a function to the elements of an array and returns the result as an
+array.
+
+**Syntax**
+
+```
+result = map(operand, to_apply=<to_apply>)
 ```
 
 **Types**
 
 Value     | Type
---------- | ------------------------
-`operand` | `(T_{0}, ... , T_{N-1})`
-`result`  | `T_{<index>}`
+--------- | ----------
+`operand` | `array[T]`
+`result`  | `array[U]`
 
 **Keyword arguments**
 
-Keyword | Type    | Required | Default | Description
-------- | ------- | -------- | ------- | ---------------------------------
-`index` | `int64` | yes      |         | Index of tuple element to produce
+| Keyword    | Type     | Required | Default | Description                    |
+| ---------- | -------- | -------- | ------- | ------------------------------ |
+| `to_apply` | `string` | yes      |         | Name of the function to apply  |
+:            :          :          :         : to each element of the operand :
+
+#### **`dynamic_counted_for`**
+
+Invokes a dynamic-trip count loop.
+
+**Syntax**
+
+```
+result = counted_for(init, trip_count, stride, body=<body>, invariant_args=<inv_args>)
+```
+
+**Types**
+
+Value        | Type
+------------ | ------------------------------
+`init`       | `T`
+`trip_count` | `bits[N], treated as unsigned`
+`stride`     | `bits[M], treated as signed`,
+`result`     | `T`
+
+**Keyword arguments**
+
+| Keyword          | Type     | Required | Default | Description               |
+| ---------------- | -------- | -------- | ------- | ------------------------- |
+| `invariant_args` | array of | yes      |         | Names of the invariant    |
+:                  : operands :          :         : operands as the loop body :
+| `body`           | `string` | yes      |         | Name of the function to   |
+:                  :          :          :         : use as the loop body      :
+
+`dynamic_counted_for` invokes the function `body` `trip_count` times, passing
+loop-carried data that starts with value `init`. The induction variable is
+incremented by `stride` after each iteration.
+
+*   The first argument passed to `body` is the induction variable -- presently,
+    the induction variable always starts at zero and increments by `stride`
+    after every trip.
+*   The second argument passed to `body` is the loop-carry data. The return type
+    of `body` must be the same as the type of the `init` loop carry data. The
+    value returned from the last trip is the result of the `counted_for`
+    expression.
+*   All subsequent arguments passed to `body` are passed from `invariant_args`;
+    e.g. if there are two members in `invariant_args` those values are passed as
+    the third and fourth arguments.
+
+Therefore `body` should have a signature that matches the following:
+
+```
+body(i, loop_carry_data, [invariant_arg0, invariant_arg1, ...])
+```
+
+Note that we currently inspect the `body` function to see what type of induction
+variable (`i` above) it accepts in order to pass an `i` value of that type.
+`trip_count` must have fewer bits than `i` and `stride` should have fewer than
+or equal number of bits to `i`.
+
+Code generation support for `dynamic_counted_for` is limited because the
+pipeline generator cannot handle an unkown trip count.
+
+#### **`counted_for`**
+
+Invokes a fixed-trip count loop.
+
+**Syntax**
+
+```
+result = counted_for(init, trip_count=<trip_count>, stride=<stride>, body=<body>, invariant_args=<inv_args>)
+```
+
+**Types**
+
+Value    | Type
+-------- | ----
+`init`   | `T`
+`result` | `T`
+
+**Keyword arguments**
+
+| Keyword          | Type     | Required | Default | Description               |
+| ---------------- | -------- | -------- | ------- | ------------------------- |
+| `trip_count`     | `int64`  | yes      |         | Trip count of the loop    |
+:                  :          :          :         : (number of times that the :
+:                  :          :          :         : loop body will be         :
+:                  :          :          :         : executed)                 :
+| `stride`         | `int64`  | no       | 1       | Stride of the induction   |
+:                  :          :          :         : variable                  :
+| `invariant_args` | array of | yes      |         | Names of the invariant    |
+:                  : operands :          :         : operands as the loop body :
+| `body`           | `string` | yes      |         | Name of the function to   |
+:                  :          :          :         : use as the loop body      :
+
+`counted_for` invokes the function `body` `trip_count` times, passing
+loop-carried data that starts with value `init`.
+
+*   The first argument passed to `body` is the induction variable -- presently,
+    the induction variable always starts at zero and increments by `stride`
+    after every trip.
+*   The second argument passed to `body` is the loop-carry data. The return type
+    of `body` must be the same as the type of the `init` loop carry data. The
+    value returned from the last trip is the result of the `counted_for`
+    expression.
+*   All subsequent arguments passed to `body` are passed from `invariant_args`;
+    e.g. if there are two members in `invariant_args` those values are passed as
+    the third and fourth arguments.
+
+Therefore `body` should have a signature that matches the following:
+
+```
+body(i, loop_carry_data[, invariant_arg0, invariant_arg1, ...])
+```
+
+Note that we currently inspect the `body` function to see what type of induction
+variable (`i` above) it accepts in order to pass an `i` value of that type.
+
+### Sequencing operations
+
+Some operations in XLS IR are sensitive to sequence order, similar to
+[channel operations](#channel-operations), but are not themselves
+channel-related. Tokens are used to determine the possible sequencing of these
+effects, and `after_all` can be used to join together tokens as a sequencing
+"merge point" for concurrent threads of execution described by different tokens.
+`assert` is a side-effecting operation that is tied into the XLS IR's dataflow
+graph by way of token sequencing.
+
+#### **`after_all`**
+
+Used to construct partial orderings among channel operations.
+
+```
+result = after_all(operand_{0}, ..., operand_{N-1})
+```
+
+**Types**
+
+Value         | Type
+------------- | -------
+`operand_{i}` | `token`
+`result`      | `token`
+
+`after_all` can consume an arbitrary number of token operands including zero.
+
+
+#### **`assert`**
+
+Raises an error at software run-time (DSLX/IR interpretation, JIT execution, RTL
+simulation) if the given condition evaluates to false. The operation takes a
+literal string attribute which is included in the error message. This is a
+software-only operation and has no representation in the generated hardware.
+Tokens are used to connect the operation to the graph and order with respect to
+other side-effecting operations.
+
+```
+result = assert(tkn, condition, message=<string>)
+```
+
+**Types**
+
+Value       | Type
+----------- | ---------
+`tkn`       | `token`
+`condition` | `bits[1]`
+`result`    | `token`
+
+**Keyword arguments**
+
+Keyword   | Type     | Required | Default | Description
+--------- | -------- | -------- | ------- | ---------------------------------
+`message` | `string` | yes      |         | Message to include in raise error
+
