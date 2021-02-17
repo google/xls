@@ -1,0 +1,60 @@
+syntax = "proto2";
+
+// The proto file contains routing algorithm option descriptions for the network
+// configuration builder (xls.noc.NetworkConfigBuilderOptionsProto).
+
+package xls.noc;
+
+// A description of a single dimension.
+message DimensionOrderRoutingEntryOptionsProto {
+  // The index of a dimension is the identifier for the dimension. Within a
+  // dimensional space, the value should be unique.
+  optional int64 index = 1;
+  // The priority of the dimension is the order the dimension is processed in
+  // the dimension order routing algorithm. Within a dimensional space, the
+  // value should be unique.
+  optional int64 priority = 2;
+}
+
+// Uses dimension order routing algorithm to compute the route between routers.
+// The algorithm guarantees correctness with topologies defining hierarchical
+// structures and containing channels between the routers. Designed to be used
+// by topologies containing routers with a coordinate
+// (xls.noc.CoordinateOptionsProto). Topologies containing channels between the
+// routers and containing routers with a coordinate can be generated using
+// xls.noc.DimensionOrderOptionsProto.
+message DimensionOrderRoutingOptionsProto {
+  // For the dimensions field:
+  // - The set of indexes contain the terms of an arithmetic sequence with a
+  // difference of 1 where the first term has value 0.
+  // - The set of priorities contain the terms of an arithmetic sequence with a
+  // difference of 1 where the first term has value 0. Priority level increases
+  // as the value of the priority value decreases: priority value 0 has highest
+  // priority.
+  // The algorithm perform dimension-order routing on the dimension
+  // indices in descending order of priority (the highest priority first).
+  repeated DimensionOrderRoutingEntryOptionsProto dimensions = 1;
+}
+
+// Uses the minimum router-hop algorithm to compute the route. Multiple routes
+// with equivalent cost between two nodes are chosen arbitrarily.
+message MinimumRouterHopRoutingOptionsProto {}
+
+// Oblivious routing algorithms derive a route without using any information
+// about the network’s state. Adaptive routing algorithms derive a route using
+// any information about the network’s state. A deterministic routing algorithm
+// is a subset of oblivious routing algorithms that always produce the same
+// route from a source to a destination.
+message DeterministicRoutingAlgorithmOptionsProto {
+  oneof DeterministicRoutingAlgorithmOptions {
+    DimensionOrderRoutingOptionsProto dimension_order_routing_options = 1;
+    MinimumRouterHopRoutingOptionsProto minimum_router_hop_options = 2;
+  }
+}
+
+// The options for the routing algorithm between routers in a network.
+message RoutingAlgorithmOptionsProto {
+  oneof RoutingAlgorithmOptions {
+    DeterministicRoutingAlgorithmOptionsProto deterministic_routing_options = 1;
+  }
+}

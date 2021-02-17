@@ -1,0 +1,21 @@
+syntax = "proto2";
+
+// The proto file contains option descriptions for a network configuration
+// builder.
+
+package xls.noc;
+
+import "xls/noc/config_ng/component_configuration_options_network_config_builder.proto";
+import "xls/noc/config_ng/routing_algorithm_options_network_config_builder.proto";
+import "xls/noc/config_ng/topology_options_network_config_builder.proto";
+
+//  The options for the network config builder.
+message NetworkConfigBuilderOptionsProto {
+  // Options for describing a topology to build in the network config builder.
+  optional TopologyDescriptionOptionsProto topology_options = 1;
+  // Options for defining configuration properties of the components in the
+  // network.
+  optional ComponentConfigurationOptionsProto component_config_options = 2;
+  // Options for describing the routing algorithm applied to network.
+  optional RoutingAlgorithmOptionsProto routing_algorithm_options = 3;
+}

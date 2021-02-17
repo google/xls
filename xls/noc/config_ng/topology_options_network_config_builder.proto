@@ -1,0 +1,230 @@
+syntax = "proto2";
+
+// The proto file contains topology option descriptions for a network
+// configuration builder (xls.noc.NetworkConfigBuilderOptionsProto).
+
+package xls.noc;
+
+message TopologyEndpointOptionsProto {
+  optional int64 send_port_count = 1;
+  optional int64 recv_port_count = 2;
+}
+
+// A description of a single dimension of a hierarchical structure.
+message DimensionOrderEntryOptionsProto {
+  // The index of a dimension is the identifier for the dimension. Within a
+  // dimensional space, the value should be unique.
+  optional int64 index = 1;
+  // The number of entities (structures or router) at dimension index - 1 along
+  // the dimension identified by index. For index 0, the entities are routers.
+  // The value must be greater than zero.
+  optional int64 entity_count = 2;
+  // A flag that controls the presence of the channel between entities at the
+  // perimeter of this dimension. For a dimension with k entities, when the flag
+  // is set to true, the channel between entity 0 and entity k−1 is present.
+  // When the flag is set to false, the channel between entity 0 and entity k−1
+  // is not present.
+  optional bool loopback = 3;
+  // TODO(vmirian) 02-05-21 add support for volumetric shapes (e.g. sphere,
+  // pyramid). Use a flag that dictate the repetition of the structure created
+  // from index 0 to index - 1.
+}
+
+// A dimension-order topology is composed of one or more dimensions. A
+// coordinate within the dimensional space represents a router. There are two
+// channels interconnecting the routers: a channel for sending data and a
+// channel for receiving data. There is a fixed number of send ports and receive
+// ports connected to each router.
+message DimensionOrderOptionsProto {
+  // The set of indexes contain the terms of an arithmetic sequence with a
+  // difference of 1 where the first term has value 0.
+  repeated DimensionOrderEntryOptionsProto dimensions = 1;
+  // The number of endpoint nodes connected to each router of the network. An
+  // endpoint node represents a send port and a receive port.
+  optional TopologyEndpointOptionsProto endpoint_options = 2;
+}
+
+// A description of a single level of a tree structure.
+message LevelOptionsProto {
+  // The index of a level is the identifier for the level. Within a
+  // tree structure, the value should be unique. The root node of the tree
+  // has level with index 0.
+  optional int64 index = 1;
+  // The number of nodes connected to each router node at this level (radix).
+  // For the last level in the tree the nodes are endpoints. For the other
+  // levels, the nodes are routers.
+  optional int64 node_count = 2;
+}
+
+// There are two types of a unidirectional tree: an aggregation type and a
+// distribution type.
+message UnidirectionalTreeOptionsProto {
+  enum Type {
+    INVALID_TYPE = 0;
+    // In the aggregation tree, the communication flow is from the leaf routers
+    // of the tree to the root router of the tree. For an aggregation tree, an
+    // endpoint node represents a send port. There is one channel
+    // interconnecting the routers: a channel from a router at level i + 1 to a
+    // router at level i.
+    AGGREGATION = 1;
+    // In the distribution tree, the communication flow is from the root router
+    // of the tree to the leaf routers of the tree. For a distribution tree, an
+    // endpoint node represents a receive port. There is one channel
+    // interconnecting the routers: a channel from a router at level i to a
+    // router at level i + 1.
+    DISTRIBUTION = 2;
+  }
+  optional Type type = 2 [default = INVALID_TYPE];
+  // In the distribution type, the send ports are connected to the root of the
+  // tree. In the aggregation type, the receive ports are connected to the root
+  // of the tree.
+  optional int64 port_count_at_root = 1;
+}
+
+// The communication flow of bidirectional trees is: from the root router of the
+// tree to the leaf routers of the tree and from the leaf routers of the tree to
+// the root router of the tree. There are two channels interconnecting the
+// routers at level i and level i + 1. Endpoint nodes are connected to the root
+// of the tree. An endpoint node represents a send port and a receive port.
+message BidirectionalTreeOptionsProto {
+  optional int64 send_port_count_at_root = 1;
+  optional int64 recv_port_count_at_root = 2;
+}
+
+// The tree topology has multiple levels. The root node of the tree is level 0.
+// The root node is router node. Each level has a radix. It has send ports
+// and/or receive ports connected to the root node of the tree. The number of
+// endpoints nodes is the product of the radices at each level of the tree.
+message TreeOptionsProto {
+  repeated LevelOptionsProto levels = 1;
+  oneof TreeOptions {
+    UnidirectionalTreeOptionsProto unidirectional_tree = 2;
+    BidirectionalTreeOptionsProto bidirectional_tree = 3;
+  }
+}
+
+// The communication flows of a unidirectional butterfly is from the first stage
+// to the last stage or from the last stage to the first stage. The endpoint
+// nodes are connected to the first stage and the last stage. An endpoint node
+// represents a send port or a receive port.
+message UnidirectionalButterflyOptionsProto {
+  enum Flow {
+    INVALID_FLOW = 0;
+    // When the flow is from the first stage to the last stage in the network,
+    // the send ports of the endpoint nodes are connected to the routers of the
+    // first stage, and the receive ports of the endpoint nodes are connected to
+    // the routers of the last stage. There is one channel interconnecting the
+    // routers: a channel from a router at stage i to a router at stage i + 1.
+    FROM_FIRST_STAGE_TO_LAST_STAGE = 1;
+    // When the flow is from the last stage to the first stage in the network,
+    // the receive ports of the endpoint nodes are connected to the routers of
+    // the first stage, and the send ports of the endpoint nodes are connected
+    // to the routers of the last stage. There is one channel interconnecting
+    // the routers: a channel from a router at stage i to a router at stage i
+    // + 1.
+    FROM_LAST_STAGE_TO_FIRST_STAGE = 2;
+  }
+  optional Flow flow = 1 [default = INVALID_FLOW];
+}
+
+// The communication flows of a bidirectional butterfly is from the first stage
+// to the last stage and from the last stage to the first stage 0. There are two
+// channels interconnecting the routers at stage i and stage i + 1. The endpoint
+// nodes are connected to the first stage or the last stage. An endpoint node
+// represents a send port and a receive port.
+message BidirectionalButterflyOptionsProto {
+  enum EndpointConnection {
+    INVALID_ENDPOINT_CONNECTION = 0;
+    // The endpoint nodes are connected to the first stage.
+    CONNECT_TO_FIRST_STAGE = 1;
+    // The endpoint nodes are connected to the last stage.
+    CONNECT_TO_LAST_STAGE = 2;
+  }
+  optional EndpointConnection endpoint_connection = 1
+      [default = INVALID_ENDPOINT_CONNECTION];
+}
+
+// The number of endpoint nodes is equivalent to radix_per_stage to the power of
+// num_of_stages.
+message ButterflyOptionsProto {
+  optional int64 radix_per_stage = 1;
+  optional int64 stage_count = 2;
+  // A flag that controls flattening the routers of the network. When the flag
+  // is set to true, flattening the routers in each row of a conventional
+  // butterfly topology while maintaining the same inter-router connections.
+  // When the flag is set to false, the conventional butterfly topology remains
+  // intact.
+  optional bool flatten = 3;
+  oneof ButterflyOptions {
+    UnidirectionalButterflyOptionsProto unidirectional_butterfly = 4;
+    BidirectionalButterflyOptionsProto bidirectional_butterfly = 5;
+  }
+}
+
+// The fully-connected topology is a topology where each router has two channels
+// connecting it to each remaining router node of the topology.
+message FullyConnectedOptionsProto {
+  optional int64 router_count = 1;
+  // The number of endpoint ports connected to each router of the network.
+  optional TopologyEndpointOptionsProto endpoint_options = 2;
+}
+
+message HierarchicalStarOptionsProto {
+  repeated LevelOptionsProto levels = 1;
+}
+
+message StarOptionsProto {
+  oneof StarOptions {
+    // The hierarchical star topology has multiple levels. Each level has a
+    // radix. The number of endpoints nodes is the product of the radices at
+    // each level. An endpoint represents a send port and a receive port.
+    HierarchicalStarOptionsProto hierarchical_star = 1;
+    // The star topology is composed of a single router. Endpoint nodes are
+    // connected to the router. An endpoint represents a send port and a receive
+    // port. The entry described the number of endpoints.
+    int64 star = 2;
+    // The single router topology is composed of a single router. The entry
+    // described the number of send ports and receive ports for a single router
+    // topology.
+    TopologyEndpointOptionsProto single_router = 3;
+  }
+}
+
+message CoordinateOptionsProto {
+  // The index of a dimension is the identifier for the dimension. Within a
+  // dimensional space, the value should be unique.
+  optional int64 index = 1;
+  // The location within the dimension.
+  optional int64 location = 2;
+}
+
+message NodeOptionsProto {
+  // A unique identifier for the node.
+  optional string name = 1;
+  optional int64 send_port_count = 2;
+  optional int64 recv_port_count = 3;
+  // The coordinate of a router node in a dimensional space.
+  repeated CoordinateOptionsProto coordinate = 4;
+}
+
+message ChannelOptionsProto {
+  optional string source_node_name = 1;
+  optional string sink_node_name = 2;
+}
+
+// The custom topology describes the connection between nodes using channels.
+message CustomTopologyOptionsProto {
+  repeated NodeOptionsProto nodes = 1;
+  repeated ChannelOptionsProto channels = 2;
+}
+
+message TopologyDescriptionOptionsProto {
+  oneof TopologyDescriptionOptions {
+    DimensionOrderOptionsProto dimension_order_options = 1;
+    TreeOptionsProto tree_options = 2;
+    ButterflyOptionsProto butterfly_options = 3;
+    FullyConnectedOptionsProto fully_connected_options = 4;
+    StarOptionsProto star_options = 5;
+    CustomTopologyOptionsProto custom_topology_options = 6;
+  }
+}

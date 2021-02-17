@@ -1,0 +1,67 @@
+syntax = "proto2";
+
+// The proto file contains component configuration option descriptions for a
+// network configuration builder (xls.noc.NetworkConfigBuilderOptionsProto).
+
+package xls.noc;
+
+import "xls/noc/config/network_config.proto";
+
+// Options describing a channel represented as a xls.noc.LinkConfigProto in the
+// network.
+message ChannelComponentConfigurationOptionsProto {
+  enum FlowControlType {
+    FLOW_CONTROL_TYPE_INVALID = 0;
+    PEEK = 1;
+    TOKEN_CREDIT = 2;
+    TOTAL_CREDIT = 3;
+  }
+  // See xls.noc.LinkConfigProto.FlowControlConfigProto.
+  optional FlowControlType flow_control_type = 1
+      [default = FLOW_CONTROL_TYPE_INVALID];
+  // The physical bit width of the link (phit). The amount of data transferred
+  // in parallel in a 'cycle' over the physical wires.
+  optional uint64 phit_bit_width = 2;
+  // The number of pipeline stages for data sent from the source to the sink.
+  optional uint64 source_sink_pipeline_stage = 3;
+  // The number of pipeline stages for metadata sent from the sink to the
+  // source.
+  optional uint64 sink_source_pipeline_stage = 4;
+}
+
+// Options describing the virtual-channel-to-virtual-channel router. The router
+// must have virtual channels at the input port and/or the output port.
+message VcToVcRouterConfigurationOptionsProto {
+  // Flag to instantiate virtual channels at input ports of router. When set to
+  // true, the virtual channels are instantiated at the input. Otherwise, there
+  // are no virtual channels at the input.
+  optional bool instantiate_vcs_at_input = 1;
+  // Flag to instantiate virtual channels at output ports of router. When set to
+  // true, the virtual channels are instantiated at the output. Otherwise, there
+  // are no virtual channels at the output.
+  optional bool instantiate_vcs_at_output = 2;
+  // A description of the virtual channel configuration's in the router.
+  repeated VirtualChannelConfigProto virtual_channels = 3;
+  // TODO (vmirian 02-05-21) add arbitration options
+  // Currently, the router has a priority-based arbitration scheme implemented.
+  // The order of priority of the virtual channels mirrors the order that they
+  // are defined in the router with the first virtual channel having the highest
+  // priority.
+}
+
+// Options describing xls.noc.RouterConfigProto.
+message RouterComponentConfigurationOptionsProto {
+  // TODO (vmirian 02-05-21) add more router types including: user-defined
+  // router architecture type and packet switching router type
+  oneof RouterComponentConfigurationOptions {
+    VcToVcRouterConfigurationOptionsProto vc_to_vc_router = 1;
+  }
+}
+
+// The options for defining the components of the network.
+message ComponentConfigurationOptionsProto {
+  optional RouterComponentConfigurationOptionsProto router_component_options =
+      1;
+  optional ChannelComponentConfigurationOptionsProto channel_component_options =
+      2;
+}
