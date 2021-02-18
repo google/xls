@@ -604,14 +604,6 @@ BValue BuilderBase::Add(BValue lhs, BValue rhs,
   }
   return AddBinOp(Op::kAdd, lhs, rhs, loc, name);
 }
-BValue BuilderBase::Or(BValue lhs, BValue rhs,
-                       absl::optional<SourceLocation> loc,
-                       absl::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  return AddNaryOp(Op::kOr, std::vector<BValue>{lhs, rhs}, loc, name);
-}
 BValue BuilderBase::Or(absl::Span<const BValue> operands,
                        absl::optional<SourceLocation> loc,
                        absl::string_view name) {
@@ -620,21 +612,36 @@ BValue BuilderBase::Or(absl::Span<const BValue> operands,
   }
   return AddNaryOp(Op::kOr, operands, loc, name);
 }
-BValue BuilderBase::Xor(BValue lhs, BValue rhs,
+BValue BuilderBase::Or(BValue lhs, BValue rhs,
+                       absl::optional<SourceLocation> loc,
+                       absl::string_view name) {
+  return Or({lhs, rhs}, loc, name);
+}
+BValue BuilderBase::Xor(absl::Span<const BValue> operands,
                         absl::optional<SourceLocation> loc,
                         absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
-  return AddNaryOp(Op::kXor, std::vector<BValue>{lhs, rhs}, loc, name);
+  return AddNaryOp(Op::kXor, operands, loc, name);
+}
+BValue BuilderBase::Xor(BValue lhs, BValue rhs,
+                        absl::optional<SourceLocation> loc,
+                        absl::string_view name) {
+  return Xor({lhs, rhs}, loc, name);
+}
+BValue BuilderBase::And(absl::Span<const BValue> operands,
+                        absl::optional<SourceLocation> loc,
+                        absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return AddNaryOp(Op::kAnd, operands, loc, name);
 }
 BValue BuilderBase::And(BValue lhs, BValue rhs,
                         absl::optional<SourceLocation> loc,
                         absl::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  return AddNaryOp(Op::kAnd, std::vector<BValue>{lhs, rhs}, loc, name);
+  return And({lhs, rhs}, loc, name);
 }
 
 BValue BuilderBase::AndReduce(BValue operand,

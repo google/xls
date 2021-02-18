@@ -61,13 +61,29 @@ PYBIND11_MODULE(function_builder, m) {
       .def("has_assigned_name", PyWrap(&BValue::HasAssignedName))
       .def("get_name", PyWrap(&BValue::GetName));
 
-  // Explicitly select overload when pybind11 can't infer it.
+  // -- Explicitly select overload when pybind11 can't infer it.
+  // or
   BValue (FunctionBuilder::*add_or)(
       BValue, BValue, absl::optional<SourceLocation>, absl::string_view) =
       &FunctionBuilder::Or;
   BValue (FunctionBuilder::*add_nary_or)(
       absl::Span<const BValue>, absl::optional<SourceLocation>,
       absl::string_view) = &FunctionBuilder::Or;
+  // xor
+  BValue (FunctionBuilder::*add_xor)(
+      BValue, BValue, absl::optional<SourceLocation>, absl::string_view) =
+      &FunctionBuilder::Xor;
+  BValue (FunctionBuilder::*add_nary_xor)(
+      absl::Span<const BValue>, absl::optional<SourceLocation>,
+      absl::string_view) = &FunctionBuilder::Xor;
+  // and
+  BValue (FunctionBuilder::*add_and)(
+      BValue, BValue, absl::optional<SourceLocation>, absl::string_view) =
+      &FunctionBuilder::And;
+  BValue (FunctionBuilder::*add_nary_and)(
+      absl::Span<const BValue>, absl::optional<SourceLocation>,
+      absl::string_view) = &FunctionBuilder::And;
+
   BValue (FunctionBuilder::*add_literal_bits)(
       Bits, absl::optional<SourceLocation>, absl::string_view) =
       &FunctionBuilder::Literal;
@@ -107,14 +123,23 @@ PYBIND11_MODULE(function_builder, m) {
            py::arg("rhs"), py::arg("loc") = absl::nullopt, py::arg("name") = "")
       .def("add_shll", FbPyWrap(&FunctionBuilder::Shll), py::arg("lhs"),
            py::arg("rhs"), py::arg("loc") = absl::nullopt, py::arg("name") = "")
+      // -- Bitwise operations.
+      // or
       .def("add_or", FbPyWrap(add_or), py::arg("lhs"), py::arg("rhs"),
            py::arg("loc") = absl::nullopt, py::arg("name") = "")
       .def("add_nary_or", FbPyWrap(add_nary_or), py::arg("operands"),
            py::arg("loc") = absl::nullopt, py::arg("name") = "")
-      .def("add_xor", FbPyWrap(&FunctionBuilder::Xor), py::arg("lhs"),
-           py::arg("rhs"), py::arg("loc") = absl::nullopt, py::arg("name") = "")
-      .def("add_and", FbPyWrap(&FunctionBuilder::And), py::arg("lhs"),
-           py::arg("rhs"), py::arg("loc") = absl::nullopt, py::arg("name") = "")
+      // xor
+      .def("add_xor", FbPyWrap(add_xor), py::arg("lhs"), py::arg("rhs"),
+           py::arg("loc") = absl::nullopt, py::arg("name") = "")
+      .def("add_nary_xor", FbPyWrap(add_nary_xor), py::arg("operands"),
+           py::arg("loc") = absl::nullopt, py::arg("name") = "")
+      // and
+      .def("add_and", FbPyWrap(add_and), py::arg("lhs"), py::arg("rhs"),
+           py::arg("loc") = absl::nullopt, py::arg("name") = "")
+      .def("add_nary_and", FbPyWrap(add_nary_and), py::arg("operands"),
+           py::arg("loc") = absl::nullopt, py::arg("name") = "")
+
       .def("add_smul", PyWrap(add_smul), py::arg("lhs"), py::arg("rhs"),
            py::arg("loc") = absl::nullopt, py::arg("name") = "")
       .def("add_umul", PyWrap(add_umul), py::arg("lhs"), py::arg("rhs"),

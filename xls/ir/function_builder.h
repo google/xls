@@ -157,9 +157,15 @@ class BuilderBase {
   BValue Xor(BValue lhs, BValue rhs,
              absl::optional<SourceLocation> loc = absl::nullopt,
              absl::string_view name = "");
+  BValue Xor(absl::Span<const BValue> operands,
+             absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
 
   // Bitwise and.
   BValue And(BValue lhs, BValue rhs,
+             absl::optional<SourceLocation> loc = absl::nullopt,
+             absl::string_view name = "");
+  BValue And(absl::Span<const BValue> operands,
              absl::optional<SourceLocation> loc = absl::nullopt,
              absl::string_view name = "");
 

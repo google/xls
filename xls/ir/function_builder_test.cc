@@ -748,4 +748,43 @@ TEST(FunctionBuilderTest, AssertWrongTypeOperand1) {
               "Condition operand of assert must be of bits type of width 1")));
 }
 
+TEST(FunctionBuilderTest, NaryBitwiseXor) {
+  Package p("p");
+  BitsType* u1 = p.GetBitsType(1);
+  FunctionBuilder fb("f", &p);
+  BValue a = fb.Param("a", u1);
+  BValue b = fb.Param("b", u1);
+  BValue c = fb.Param("c", u1);
+  BValue nary_node = fb.Xor({a, b, c});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(nary_node));
+  EXPECT_THAT(f->return_value(),
+              m::Xor(m::Param("a"), m::Param("b"), m::Param("c")));
+}
+
+TEST(FunctionBuilderTest, NaryBitwiseOr) {
+  Package p("p");
+  BitsType* u1 = p.GetBitsType(1);
+  FunctionBuilder fb("f", &p);
+  BValue a = fb.Param("a", u1);
+  BValue b = fb.Param("b", u1);
+  BValue c = fb.Param("c", u1);
+  BValue nary_node = fb.Or({a, b, c});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(nary_node));
+  EXPECT_THAT(f->return_value(),
+              m::Or(m::Param("a"), m::Param("b"), m::Param("c")));
+}
+
+TEST(FunctionBuilderTest, NaryBitwiseAnd) {
+  Package p("p");
+  BitsType* u1 = p.GetBitsType(1);
+  FunctionBuilder fb("f", &p);
+  BValue a = fb.Param("a", u1);
+  BValue b = fb.Param("b", u1);
+  BValue c = fb.Param("c", u1);
+  BValue nary_node = fb.And({a, b, c});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(nary_node));
+  EXPECT_THAT(f->return_value(),
+              m::And(m::Param("a"), m::Param("b"), m::Param("c")));
+}
+
 }  // namespace xls
