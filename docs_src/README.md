@@ -185,6 +185,7 @@ project, see our
 [contributing documentation](https://google.github.io/xls/contributing/) and
 [good first issues](https://github.com/google/xls/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)!
 
+* [Albert Magyar](https://github.com/albert-magyar)
 * [Balint Christian](https://github.com/cbalint13)
 * [Blaok](https://github.com/Blaok)
 * [Brandon Jiang](https://github.com/brajiang)
