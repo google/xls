@@ -49,7 +49,7 @@ class TranslatorTest : public xls::IrTestBase {
            uint64 expected, absl::string_view cpp_source,
            xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
     testing::ScopedTrace trace(loc.file_name(), loc.line(), "Run failed");
-    XLS_ASSERT_OK_AND_ASSIGN(string ir, SourceToIr(cpp_source));
+    XLS_ASSERT_OK_AND_ASSIGN(std::string ir, SourceToIr(cpp_source));
     RunAndExpectEq(args, expected, ir, false, false, loc);
   }
 
@@ -74,7 +74,7 @@ class TranslatorTest : public xls::IrTestBase {
     return absl::OkStatus();
   }
 
-  absl::StatusOr<string> SourceToIr(
+  absl::StatusOr<std::string> SourceToIr(
       absl::string_view cpp_src, xlscc::GeneratedFunction** pfunc = nullptr) {
     XLS_RETURN_IF_ERROR(ScanFile(cpp_src));
 
@@ -191,9 +191,9 @@ class TranslatorTest : public xls::IrTestBase {
   }
 
   void ProcTest(std::string content, const HLSBlock& block_spec,
-                const absl::flat_hash_map<string, std::vector<xls::Value>>&
+                const absl::flat_hash_map<std::string, std::vector<xls::Value>>&
                     inputs_by_channel,
-                const absl::flat_hash_map<string, std::vector<xls::Value>>&
+                const absl::flat_hash_map<std::string, std::vector<xls::Value>>&
                     outputs_by_channel) {
     XLS_ASSERT_OK(ScanFile(content));
 
@@ -436,7 +436,7 @@ TEST_F(TranslatorTest, Array2D) {
 }
 
 TEST_F(TranslatorTest, Array2DInit) {
-  const string content = R"(
+  const std::string content = R"(
        struct ts {
          ts(int v) : x(v) { };
          operator int () const { return x; }
@@ -452,7 +452,7 @@ TEST_F(TranslatorTest, Array2DInit) {
 }
 
 TEST_F(TranslatorTest, Array2DClass) {
-  const string content = R"(
+  const std::string content = R"(
        struct ts {
          ts(int v) : x(v) { };
          operator int () const { return x; }
@@ -501,7 +501,7 @@ TEST_F(TranslatorTest, ArrayInitListWrongSize) {
 }
 
 TEST_F(TranslatorTest, ArrayInitLoop) {
-  const string content = R"(
+  const std::string content = R"(
        struct tss {
          tss() : ss(15) {}
          tss(const tss &o) : ss(o.ss) {}
@@ -970,7 +970,7 @@ TEST_F(TranslatorTest, ForUnroll) {
 }
 
 TEST_F(TranslatorTest, ForUnrollClass) {
-  const string content = R"(
+  const std::string content = R"(
        struct TestInt {
          TestInt(int v) : x(v) { }
          operator int()const {
@@ -1363,7 +1363,7 @@ TEST_F(TranslatorTest, AssignAfterReturnInIf) {
 }
 
 TEST_F(TranslatorTest, AssignAfterReturn3) {
-  const string content = R"(
+  const std::string content = R"(
       void ff(int x[8]) {
        x[4] = x[2];
        return;
@@ -1387,7 +1387,7 @@ TEST_F(TranslatorTest, AssignAfterReturn3) {
 }
 
 TEST_F(TranslatorTest, CapitalizeFirstLetter) {
-  const string content = R"(
+  const std::string content = R"(
        class State {
         public:
            State()
@@ -1406,7 +1406,7 @@ TEST_F(TranslatorTest, CapitalizeFirstLetter) {
        unsigned char my_package(State &st, unsigned char c) {
          return st.process(c);
        })";
-  XLS_ASSERT_OK_AND_ASSIGN(string ir_src, SourceToIr(content));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src, SourceToIr(content));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> package,
                            ParsePackage(ir_src));
 
@@ -1416,7 +1416,7 @@ TEST_F(TranslatorTest, CapitalizeFirstLetter) {
       xls::Value(xls::Value::TupleOwned({xls::Value(xls::UBits(1, 1))}));
 
   const char* input = "hello world";
-  string output = "";
+  std::string output = "";
   for (; *input; ++input) {
     const char inc = *input;
     XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry, package->EntryFunction());
@@ -1476,7 +1476,7 @@ TEST_F(TranslatorTest, ShadowAssigment) {
 }
 
 TEST_F(TranslatorTest, CompoundStructAccess) {
-  const string content = R"(
+  const std::string content = R"(
        struct TestX {
          int x;
        };
@@ -1516,7 +1516,7 @@ TEST_F(TranslatorTest, SubstTemplateType) {
 }
 
 TEST_F(TranslatorTest, TemplateStruct) {
-  const string content = R"(
+  const std::string content = R"(
        template<typename T>
        struct TestX {
          T x;
@@ -1530,7 +1530,7 @@ TEST_F(TranslatorTest, TemplateStruct) {
 }
 
 TEST_F(TranslatorTest, ArrayOfStructsAccess) {
-  const string content = R"(
+  const std::string content = R"(
        struct TestX {
          int x;
        };
@@ -1546,7 +1546,7 @@ TEST_F(TranslatorTest, ArrayOfStructsAccess) {
 }
 
 TEST_F(TranslatorTest, StructWithArrayAccess) {
-  const string content = R"(
+  const std::string content = R"(
        struct TestX {
          int x[3];
        };
@@ -1562,7 +1562,7 @@ TEST_F(TranslatorTest, StructWithArrayAccess) {
 }
 
 TEST_F(TranslatorTest, NoTupleStruct) {
-  const string content = R"(
+  const std::string content = R"(
        #pragma hls_no_tuple
        struct Test {
          int x;
@@ -1576,7 +1576,7 @@ TEST_F(TranslatorTest, NoTupleStruct) {
 }
 
 TEST_F(TranslatorTest, NoTupleMultiField) {
-  const string content = R"(
+  const std::string content = R"(
        #pragma hls_no_tuple
        struct Test {
          int x;
@@ -1596,7 +1596,7 @@ TEST_F(TranslatorTest, NoTupleMultiField) {
 }
 
 TEST_F(TranslatorTest, NoTupleMultiFieldLineComment) {
-  const string content = R"(
+  const std::string content = R"(
        //#pragma hls_no_tuple
        struct Test {
          int x;
@@ -1611,7 +1611,7 @@ TEST_F(TranslatorTest, NoTupleMultiFieldLineComment) {
 }
 
 TEST_F(TranslatorTest, NoTupleMultiFieldBlockComment) {
-  const string content = R"(
+  const std::string content = R"(
        /*
        #pragma hls_no_tuple*/
        struct Test {
@@ -1627,7 +1627,7 @@ TEST_F(TranslatorTest, NoTupleMultiFieldBlockComment) {
 }
 
 TEST_F(TranslatorTest, ImplicitConversion) {
-  const string content = R"(
+  const std::string content = R"(
        struct Test {
          Test(int v) : x(v) {
            this->y = 10;
@@ -1646,7 +1646,7 @@ TEST_F(TranslatorTest, ImplicitConversion) {
 }
 
 TEST_F(TranslatorTest, OperatorOverload) {
-  const string content = R"(
+  const std::string content = R"(
        struct Test {
          Test(int v) : x(v) {
            this->y = 10;
@@ -1671,7 +1671,7 @@ TEST_F(TranslatorTest, OperatorOverload) {
 }
 
 TEST_F(TranslatorTest, OperatorOnBuiltin) {
-  const string content = R"(
+  const std::string content = R"(
        struct Test {
          Test(int v) : x(v) {
          }
@@ -1688,7 +1688,7 @@ TEST_F(TranslatorTest, OperatorOnBuiltin) {
 }
 
 TEST_F(TranslatorTest, UnaryOperatorAvoidUnsequencedError2) {
-  const string content = R"(
+  const std::string content = R"(
        struct Test {
          Test(int v) : x(v) {
            this->y = 10;
@@ -1715,7 +1715,7 @@ TEST_F(TranslatorTest, UnaryOperatorAvoidUnsequencedError2) {
 }
 
 TEST_F(TranslatorTest, UnaryOperatorAvoidUnsequencedError3) {
-  const string content = R"(
+  const std::string content = R"(
        struct Test {
          Test(int v) : x(v) {
            this->y = 10;
@@ -1743,7 +1743,7 @@ TEST_F(TranslatorTest, UnaryOperatorAvoidUnsequencedError3) {
 }
 
 TEST_F(TranslatorTest, TypedefStruct) {
-  const string content = R"(
+  const std::string content = R"(
        typedef struct {
          int x;
          int y;
@@ -1758,7 +1758,7 @@ TEST_F(TranslatorTest, TypedefStruct) {
 }
 
 TEST_F(TranslatorTest, ConvertToVoid) {
-  const string content = R"(
+  const std::string content = R"(
        struct ts {int x;};
        long long my_package(long long a) {
          ts t;
@@ -1769,7 +1769,7 @@ TEST_F(TranslatorTest, ConvertToVoid) {
 }
 
 TEST_F(TranslatorTest, AvoidDoubleAssignmentFromBackwardsEval) {
-  const string content = R"(
+  const std::string content = R"(
        struct Test {
          Test(int v) : x(v) {
            this->y = 10;
@@ -1797,7 +1797,7 @@ TEST_F(TranslatorTest, AvoidDoubleAssignmentFromBackwardsEval) {
 }
 
 TEST_F(TranslatorTest, CompoundAvoidUnsequenced) {
-  const string content = R"(
+  const std::string content = R"(
        struct Test {
          int x;
        };
@@ -1811,7 +1811,7 @@ TEST_F(TranslatorTest, CompoundAvoidUnsequenced) {
 }
 
 TEST_F(TranslatorTest, CompoundAvoidUnsequenced2) {
-  const string content = R"(
+  const std::string content = R"(
        int my_package(int a) {
          int s1[2] = {a, a};
          s1[0] = ++s1[1];
@@ -1821,7 +1821,7 @@ TEST_F(TranslatorTest, CompoundAvoidUnsequenced2) {
 }
 
 TEST_F(TranslatorTest, DefaultValues) {
-  const string content = R"(
+  const std::string content = R"(
        struct Test {
          int x;
          int y;
@@ -1834,7 +1834,7 @@ TEST_F(TranslatorTest, DefaultValues) {
 }
 
 TEST_F(TranslatorTest, StructMemberReferenceParameter) {
-  const string content = R"(
+  const std::string content = R"(
        struct Test {
          int p;
        };
@@ -1852,7 +1852,7 @@ TEST_F(TranslatorTest, StructMemberReferenceParameter) {
 }
 
 TEST_F(TranslatorTest, AnonStruct) {
-  const string content = R"(
+  const std::string content = R"(
        int my_package(int a) {
          struct {
            int x;
@@ -1872,7 +1872,7 @@ TEST_F(TranslatorTest, AnonStruct) {
 }
 
 TEST_F(TranslatorTest, Inheritance) {
-  const string content = R"(
+  const std::string content = R"(
        struct Base {
          int x;
        };
@@ -1890,7 +1890,7 @@ TEST_F(TranslatorTest, Inheritance) {
 }
 
 TEST_F(TranslatorTest, BaseConstructor) {
-  const string content = R"(
+  const std::string content = R"(
        struct Base {
          Base() : x(88) { }
           int x;
@@ -1905,7 +1905,7 @@ TEST_F(TranslatorTest, BaseConstructor) {
 }
 
 TEST_F(TranslatorTest, BaseConstructorNoTuple) {
-  const string content = R"(
+  const std::string content = R"(
        #pragma hls_no_tuple
        struct Base {
          Base() : x(88) { }
@@ -1922,7 +1922,7 @@ TEST_F(TranslatorTest, BaseConstructorNoTuple) {
 }
 
 TEST_F(TranslatorTest, InheritanceNoTuple) {
-  const string content = R"(
+  const std::string content = R"(
        struct Base {
          int x;
        };
@@ -1941,7 +1941,7 @@ TEST_F(TranslatorTest, InheritanceNoTuple) {
 }
 
 TEST_F(TranslatorTest, InheritanceNoTuple2) {
-  const string content = R"(
+  const std::string content = R"(
        #pragma hls_no_tuple
        struct Base {
          int x;
@@ -1961,7 +1961,7 @@ TEST_F(TranslatorTest, InheritanceNoTuple2) {
 }
 
 TEST_F(TranslatorTest, InheritanceNoTuple4) {
-  const string content = R"(
+  const std::string content = R"(
        #pragma hls_no_tuple
        struct Base {
          int x;
@@ -1984,7 +1984,7 @@ TEST_F(TranslatorTest, InheritanceNoTuple4) {
 }
 
 TEST_F(TranslatorTest, InheritanceTuple) {
-  const string content = R"(
+  const std::string content = R"(
        struct Base {
          int x;
          void set(int v) { x=v; }
@@ -2005,7 +2005,7 @@ TEST_F(TranslatorTest, InheritanceTuple) {
 }
 
 TEST_F(TranslatorTest, Constructor) {
-  const string content = R"(
+  const std::string content = R"(
       struct Test {
         Test() : x(5) {
           y = 10;
@@ -2021,7 +2021,7 @@ TEST_F(TranslatorTest, Constructor) {
 }
 
 TEST_F(TranslatorTest, ConstructorWithArg) {
-  const string content = R"(
+  const std::string content = R"(
       struct Test {
         Test(int v) : x(v) {
           y = 10;
@@ -2037,7 +2037,7 @@ TEST_F(TranslatorTest, ConstructorWithArg) {
 }
 
 TEST_F(TranslatorTest, ConstructorWithThis) {
-  const string content = R"(
+  const std::string content = R"(
       struct Test {
         Test(int v) : x(v) {
           this->y = 10;
@@ -2053,7 +2053,7 @@ TEST_F(TranslatorTest, ConstructorWithThis) {
 }
 
 TEST_F(TranslatorTest, SetThis) {
-  const string content = R"(
+  const std::string content = R"(
        struct Test {
          void set_this(int v) {
            Test t;
@@ -2073,7 +2073,7 @@ TEST_F(TranslatorTest, SetThis) {
 }
 
 TEST_F(TranslatorTest, ExplicitDefaultConstructor) {
-  const string content = R"(
+  const std::string content = R"(
          struct TestR {
            int bb;
          };
@@ -2086,7 +2086,7 @@ TEST_F(TranslatorTest, ExplicitDefaultConstructor) {
 }
 
 TEST_F(TranslatorTest, ConditionallyAssignThis) {
-  const string content = R"(
+  const std::string content = R"(
        struct ts {
          void blah() {
            return;
@@ -2105,7 +2105,7 @@ TEST_F(TranslatorTest, ConditionallyAssignThis) {
 }
 
 TEST_F(TranslatorTest, SetMemberInnerContext) {
-  const string content = R"(
+  const std::string content = R"(
        struct Test {
          void set_x(int v) {
            { x = v; }
@@ -2123,7 +2123,7 @@ TEST_F(TranslatorTest, SetMemberInnerContext) {
 }
 
 TEST_F(TranslatorTest, StaticMethod) {
-  const string content = R"(
+  const std::string content = R"(
        struct Test {
           static int foo(int a) {
             return a+5;
@@ -2325,7 +2325,7 @@ TEST_F(TranslatorTest, ParseFailure) {
 }
 
 TEST_F(TranslatorTest, IO) {
-  const string content = R"(
+  const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
        void my_package(__xls_channel<int>& in,
@@ -2339,7 +2339,7 @@ TEST_F(TranslatorTest, IO) {
 }
 
 TEST_F(TranslatorTest, IOUnsequencedCheck) {
-  const string content = R"(
+  const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
        void my_package(__xls_channel<int>& in,
@@ -2353,7 +2353,7 @@ TEST_F(TranslatorTest, IOUnsequencedCheck) {
 }
 
 TEST_F(TranslatorTest, IOMulti) {
-  const string content = R"(
+  const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
        void my_package(int sel,
@@ -2387,7 +2387,7 @@ TEST_F(TranslatorTest, IOMulti) {
 }
 
 TEST_F(TranslatorTest, IOWriteConditional) {
-  const string content = R"(
+  const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
        void my_package(__xls_channel<int>& in,
@@ -2407,7 +2407,7 @@ TEST_F(TranslatorTest, IOWriteConditional) {
 }
 
 TEST_F(TranslatorTest, IOReadConditional) {
-  const string content = R"(
+  const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
        void my_package(__xls_channel<int>& in,
@@ -2428,7 +2428,7 @@ TEST_F(TranslatorTest, IOReadConditional) {
 }
 
 TEST_F(TranslatorTest, IOSubroutine) {
-  const string content = R"(
+  const std::string content = R"(
        #include "/xls_builtin.h"
        int sub_recv(__xls_channel<int>& in) {
          return in.read();
@@ -2449,7 +2449,7 @@ TEST_F(TranslatorTest, IOSubroutine) {
 }
 
 TEST_F(TranslatorTest, IOMethodSubroutine) {
-  const string content = R"(
+  const std::string content = R"(
        #include "/xls_builtin.h"
        struct Foo {
          int sub_recv(__xls_channel<int>& in) {
@@ -2473,7 +2473,7 @@ TEST_F(TranslatorTest, IOMethodSubroutine) {
 }
 
 TEST_F(TranslatorTest, IOOperatorSubroutine) {
-  const string content = R"(
+  const std::string content = R"(
        #include "/xls_builtin.h"
        struct Foo {
          int operator+=(__xls_channel<int>& in) {
@@ -2497,7 +2497,7 @@ TEST_F(TranslatorTest, IOOperatorSubroutine) {
 }
 
 TEST_F(TranslatorTest, IOSaveChannel) {
-  const string content = R"(
+  const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
        void my_package(__xls_channel<int>& in,
@@ -2518,7 +2518,7 @@ TEST_F(TranslatorTest, IOSaveChannel) {
 }
 
 TEST_F(TranslatorTest, IOSaveChannelStruct) {
-  const string content = R"(
+  const std::string content = R"(
        #include "/xls_builtin.h"
        struct Foo {
          __xls_channel<int>& out_;
@@ -2549,7 +2549,7 @@ TEST_F(TranslatorTest, IOSaveChannelStruct) {
 }
 
 TEST_F(TranslatorTest, IOUnrolled) {
-  const string content = R"(
+  const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
        void my_package(__xls_channel<int>& out) {
@@ -2565,7 +2565,7 @@ TEST_F(TranslatorTest, IOUnrolled) {
 }
 
 TEST_F(TranslatorTest, IOUnrolledUnsequenced) {
-  const string content = R"(
+  const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
        void my_package(__xls_channel<int>& in,
@@ -2586,7 +2586,7 @@ TEST_F(TranslatorTest, IOUnrolledUnsequenced) {
 }
 
 TEST_F(TranslatorTest, IOProcMux) {
-  const string content = R"(
+  const std::string content = R"(
     #include "/xls_builtin.h"
 
     #pragma hls_top
@@ -2630,12 +2630,12 @@ TEST_F(TranslatorTest, IOProcMux) {
     ch_out2->set_type(FIFO);
   }
 
-  absl::flat_hash_map<string, std::vector<xls::Value>> inputs;
+  absl::flat_hash_map<std::string, std::vector<xls::Value>> inputs;
   inputs["dir"] = {xls::Value(xls::SBits(0, 32))};
   inputs["in"] = {xls::Value(xls::SBits(55, 32))};
 
   {
-    absl::flat_hash_map<string, std::vector<xls::Value>> outputs;
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> outputs;
     outputs["out1"] = {xls::Value(xls::SBits(55, 32))};
     outputs["out2"] = {};
 
@@ -2645,7 +2645,7 @@ TEST_F(TranslatorTest, IOProcMux) {
   {
     inputs["dir"] = {xls::Value(xls::SBits(1, 32))};
 
-    absl::flat_hash_map<string, std::vector<xls::Value>> outputs;
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> outputs;
     outputs["out1"] = {};
     outputs["out2"] = {xls::Value(xls::SBits(55, 32))};
 
@@ -2654,7 +2654,7 @@ TEST_F(TranslatorTest, IOProcMux) {
 }
 
 TEST_F(TranslatorTest, IOProcMuxConstDir) {
-  const string content = R"(
+  const std::string content = R"(
     #include "/xls_builtin.h"
 
     #pragma hls_top
@@ -2698,12 +2698,12 @@ TEST_F(TranslatorTest, IOProcMuxConstDir) {
     ch_out2->set_type(FIFO);
   }
 
-  absl::flat_hash_map<string, std::vector<xls::Value>> inputs;
+  absl::flat_hash_map<std::string, std::vector<xls::Value>> inputs;
   inputs["dir"] = {xls::Value(xls::SBits(0, 32))};
   inputs["in"] = {xls::Value(xls::SBits(55, 32))};
 
   {
-    absl::flat_hash_map<string, std::vector<xls::Value>> outputs;
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> outputs;
     outputs["out1"] = {xls::Value(xls::SBits(55, 32))};
     outputs["out2"] = {};
 
@@ -2713,7 +2713,7 @@ TEST_F(TranslatorTest, IOProcMuxConstDir) {
   {
     inputs["dir"] = {xls::Value(xls::SBits(1, 32))};
 
-    absl::flat_hash_map<string, std::vector<xls::Value>> outputs;
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> outputs;
     outputs["out1"] = {};
     outputs["out2"] = {xls::Value(xls::SBits(55, 32))};
 
@@ -2722,7 +2722,7 @@ TEST_F(TranslatorTest, IOProcMuxConstDir) {
 }
 
 TEST_F(TranslatorTest, IOProcChainedConditionalRead) {
-  const string content = R"(
+  const std::string content = R"(
     #include "/xls_builtin.h"
 
     #pragma hls_top
@@ -2756,30 +2756,30 @@ TEST_F(TranslatorTest, IOProcChainedConditionalRead) {
   }
 
   {
-    absl::flat_hash_map<string, std::vector<xls::Value>> inputs;
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> inputs;
     inputs["in"] = {xls::Value(xls::SBits(55, 32))};
 
-    absl::flat_hash_map<string, std::vector<xls::Value>> outputs;
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> outputs;
     outputs["out"] = {xls::Value(xls::SBits(55, 32))};
 
     ProcTest(content, block_spec, inputs, outputs);
   }
   {
-    absl::flat_hash_map<string, std::vector<xls::Value>> inputs;
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> inputs;
     inputs["in"] = {xls::Value(xls::SBits(40, 32)),
                     xls::Value(xls::SBits(10, 32))};
 
-    absl::flat_hash_map<string, std::vector<xls::Value>> outputs;
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> outputs;
     outputs["out"] = {xls::Value(xls::SBits(40, 32))};
 
     ProcTest(content, block_spec, inputs, outputs);
   }
   {
-    absl::flat_hash_map<string, std::vector<xls::Value>> inputs;
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> inputs;
     inputs["in"] = {xls::Value(xls::SBits(40, 32)),
                     xls::Value(xls::SBits(65, 32))};
 
-    absl::flat_hash_map<string, std::vector<xls::Value>> outputs;
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> outputs;
     outputs["out"] = {xls::Value(xls::SBits(40, 32)),
                       xls::Value(xls::SBits(105, 32))};
 
@@ -2792,7 +2792,7 @@ TEST_F(TranslatorTest, IOProcChainedConditionalRead) {
 //  InlineAllInvokes(). Simulation tests already occur in the
 //  combinational_generator_test
 TEST_F(TranslatorTest, IOProcComboGenOneToNMux) {
-  const string content = R"(
+  const std::string content = R"(
     #include "/xls_builtin.h"
 
     #pragma hls_top
@@ -2870,7 +2870,7 @@ TEST_F(TranslatorTest, IOProcComboGenOneToNMux) {
 }
 
 TEST_F(TranslatorTest, IOProcComboGenNToOneMux) {
-  const string content = R"(
+  const std::string content = R"(
     #include "/xls_builtin.h"
 
     #pragma hls_top
@@ -2949,7 +2949,7 @@ TEST_F(TranslatorTest, IOProcComboGenNToOneMux) {
   std::cerr << result.verilog_text << std::endl;
 }
 
-string NativeOperatorTestIr(string op) {
+std::string NativeOperatorTestIr(std::string op) {
   return absl::StrFormat(R"(
       long long my_package(long long a, long long b) {
         return a %s b;
@@ -2957,7 +2957,7 @@ string NativeOperatorTestIr(string op) {
                          op);
 }
 
-string NativeOperatorTestIrEq(string op) {
+std::string NativeOperatorTestIrEq(std::string op) {
   return absl::StrFormat(R"(
       long long my_package(long long a, long long b) {
         a %s= b;
@@ -2967,7 +2967,7 @@ string NativeOperatorTestIrEq(string op) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorAdd) {
-  const string op = "+";
+  const std::string op = "+";
   {
     const std::string content = NativeOperatorTestIr(op);
 
@@ -2981,7 +2981,7 @@ TEST_F(TranslatorTest, NativeOperatorAdd) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorSub) {
-  const string op = "-";
+  const std::string op = "-";
   {
     const std::string content = NativeOperatorTestIr(op);
 
@@ -2995,7 +2995,7 @@ TEST_F(TranslatorTest, NativeOperatorSub) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorMul) {
-  const string op = "*";
+  const std::string op = "*";
   {
     const std::string content = NativeOperatorTestIr(op);
 
@@ -3009,7 +3009,7 @@ TEST_F(TranslatorTest, NativeOperatorMul) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorDiv) {
-  const string op = "/";
+  const std::string op = "/";
   {
     const std::string content = NativeOperatorTestIr(op);
 
@@ -3023,7 +3023,7 @@ TEST_F(TranslatorTest, NativeOperatorDiv) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorRem) {
-  const string op = "%";
+  const std::string op = "%";
   {
     const std::string content = NativeOperatorTestIr(op);
 
@@ -3037,7 +3037,7 @@ TEST_F(TranslatorTest, NativeOperatorRem) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorAnd) {
-  const string op = "&";
+  const std::string op = "&";
   {
     const std::string content = NativeOperatorTestIr(op);
 
@@ -3051,7 +3051,7 @@ TEST_F(TranslatorTest, NativeOperatorAnd) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorOr) {
-  const string op = "|";
+  const std::string op = "|";
   {
     const std::string content = NativeOperatorTestIr(op);
 
@@ -3070,7 +3070,7 @@ TEST_F(TranslatorTest, NativeOperatorOr) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorXor) {
-  const string op = "^";
+  const std::string op = "^";
   {
     const std::string content = NativeOperatorTestIr(op);
 
@@ -3111,7 +3111,7 @@ TEST_F(TranslatorTest, NativeOperatorNeg) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorShrSigned) {
-  const string op = ">>";
+  const std::string op = ">>";
   {
     const std::string content = NativeOperatorTestIr(op);
 
@@ -3133,7 +3133,7 @@ TEST_F(TranslatorTest, NativeOperatorShrUnsigned) {
   { Run({{"a", -20}, {"b", 2}}, 4611686018427387899L, content); }
 }
 TEST_F(TranslatorTest, NativeOperatorShl) {
-  const string op = "<<";
+  const std::string op = "<<";
   {
     const std::string content = NativeOperatorTestIr(op);
 
@@ -3222,7 +3222,7 @@ TEST_F(TranslatorTest, NativeOperatorPostDec) {
   }
 }
 
-string NativeBoolOperatorTestIr(string op) {
+std::string NativeBoolOperatorTestIr(std::string op) {
   return absl::StrFormat(R"(
       long long my_package(long long a, long long b) {
         return (long long)(a %s b);
@@ -3230,7 +3230,7 @@ string NativeBoolOperatorTestIr(string op) {
                          op);
 }
 
-string NativeUnsignedBoolOperatorTestIr(string op) {
+std::string NativeUnsignedBoolOperatorTestIr(std::string op) {
   return absl::StrFormat(R"(
       long long my_package(unsigned long long a, unsigned long long b) {
         return (long long)(a %s b);
@@ -3239,7 +3239,7 @@ string NativeUnsignedBoolOperatorTestIr(string op) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorEq) {
-  const string op = "==";
+  const std::string op = "==";
   const std::string content = NativeBoolOperatorTestIr(op);
 
   Run({{"a", 3}, {"b", 3}}, 1, content);
@@ -3247,7 +3247,7 @@ TEST_F(TranslatorTest, NativeOperatorEq) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorNe) {
-  const string op = "!=";
+  const std::string op = "!=";
   const std::string content = NativeBoolOperatorTestIr(op);
 
   Run({{"a", 3}, {"b", 3}}, 0, content);
@@ -3255,7 +3255,7 @@ TEST_F(TranslatorTest, NativeOperatorNe) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorGt) {
-  const string op = ">";
+  const std::string op = ">";
   const std::string content = NativeBoolOperatorTestIr(op);
 
   Run({{"a", -2}, {"b", 3}}, 0, content);
@@ -3265,7 +3265,7 @@ TEST_F(TranslatorTest, NativeOperatorGt) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorGtU) {
-  const string op = ">";
+  const std::string op = ">";
   const std::string content = NativeUnsignedBoolOperatorTestIr(op);
 
   Run({{"a", -2}, {"b", 3}}, 1, content);
@@ -3275,7 +3275,7 @@ TEST_F(TranslatorTest, NativeOperatorGtU) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorGte) {
-  const string op = ">=";
+  const std::string op = ">=";
   const std::string content = NativeBoolOperatorTestIr(op);
 
   Run({{"a", -2}, {"b", 3}}, 0, content);
@@ -3285,7 +3285,7 @@ TEST_F(TranslatorTest, NativeOperatorGte) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorGteU) {
-  const string op = ">=";
+  const std::string op = ">=";
   const std::string content = NativeUnsignedBoolOperatorTestIr(op);
 
   Run({{"a", -2}, {"b", 3}}, 1, content);
@@ -3295,7 +3295,7 @@ TEST_F(TranslatorTest, NativeOperatorGteU) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorLt) {
-  const string op = "<";
+  const std::string op = "<";
   const std::string content = NativeBoolOperatorTestIr(op);
 
   Run({{"a", -2}, {"b", 3}}, 1, content);
@@ -3305,7 +3305,7 @@ TEST_F(TranslatorTest, NativeOperatorLt) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorLtU) {
-  const string op = "<";
+  const std::string op = "<";
   const std::string content = NativeUnsignedBoolOperatorTestIr(op);
 
   Run({{"a", -2}, {"b", 3}}, 0, content);
@@ -3315,7 +3315,7 @@ TEST_F(TranslatorTest, NativeOperatorLtU) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorLte) {
-  const string op = "<=";
+  const std::string op = "<=";
   const std::string content = NativeBoolOperatorTestIr(op);
 
   Run({{"a", -2}, {"b", 3}}, 1, content);
@@ -3325,7 +3325,7 @@ TEST_F(TranslatorTest, NativeOperatorLte) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorLteU) {
-  const string op = "<=";
+  const std::string op = "<=";
   const std::string content = NativeUnsignedBoolOperatorTestIr(op);
 
   Run({{"a", -2}, {"b", 3}}, 0, content);
@@ -3335,7 +3335,7 @@ TEST_F(TranslatorTest, NativeOperatorLteU) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorLAnd) {
-  const string op = "&&";
+  const std::string op = "&&";
   const std::string content = NativeBoolOperatorTestIr(op);
 
   Run({{"a", 0b111}, {"b", 0b111}}, 1, content);
@@ -3345,7 +3345,7 @@ TEST_F(TranslatorTest, NativeOperatorLAnd) {
 }
 
 TEST_F(TranslatorTest, NativeOperatorLOr) {
-  const string op = "||";
+  const std::string op = "||";
   const std::string content = NativeBoolOperatorTestIr(op);
 
   Run({{"a", 0b111}, {"b", 0b111}}, 1, content);
