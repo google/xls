@@ -97,12 +97,10 @@ absl::Status RealMain(absl::string_view path,
   std::string converted;
   if (entry.has_value()) {
     XLS_ASSIGN_OR_RETURN(
-        converted,
-        ConvertOneFunction(module.get(), entry.value(), type_info,
-                           &import_cache, nullptr, /*emit_positions=*/true));
+        converted, ConvertOneFunction(module.get(), entry.value(), type_info,
+                                      nullptr, /*emit_positions=*/true));
   } else {
-    XLS_ASSIGN_OR_RETURN(converted,
-                         ConvertModule(module.get(), type_info, &import_cache));
+    XLS_ASSIGN_OR_RETURN(converted, ConvertModule(module.get(), type_info));
   }
   std::cout << converted;
 

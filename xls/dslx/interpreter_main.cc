@@ -168,10 +168,9 @@ absl::StatusOr<bool> ParseAndTest(
   std::unique_ptr<Package> ir_package;
   if (compare_jit) {
     XLS_ASSIGN_OR_RETURN(
-        ir_package,
-        ConvertModuleToPackage(module.get(), type_info.primary(), &import_cache,
-                               /*emit_positions=*/true,
-                               /*traverse_tests=*/true));
+        ir_package, ConvertModuleToPackage(module.get(), type_info.primary(),
+                                           /*emit_positions=*/true,
+                                           /*traverse_tests=*/true));
   }
 
   auto typecheck_callback = [&import_cache, &dslx_paths](Module* module) {
