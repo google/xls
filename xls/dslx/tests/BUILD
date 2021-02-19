@@ -116,6 +116,13 @@ dslx_test(
 )
 
 dslx_test(
+    name = "parametric_call_parametric",
+    srcs = ["parametric_call_parametric.x"],
+    generate_benchmark = False,
+    prove_unopt_eq_opt = False,
+)
+
+dslx_test(
     name = "parametric_importer",
     srcs = ["parametric_importer.x"],
     generate_benchmark = False,
