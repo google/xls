@@ -171,13 +171,15 @@ To test the two cases we've described above, we add the following two test cases
 right to this implementation file:
 
 ```
-test prefix_scan_eq_all_zero {
+#![test]
+fn test_prefix_scan_eq_all_zero() {
   let input = bits[8,32]:[0, 0, 0, 0, 0, 0, 0, 0];
   let result = prefix_scan_eq(input);
   assert_eq(result, bits[8,3]:[0, 1, 2, 3, 4, 5, 6, 7])
 }
 
-test prefix_scan_eq_doubles {
+#![test]
+fn test_prefix_scan_eq_doubles() {
   let input = bits[8,32]:[0, 0, 1, 1, 2, 2, 3, 3];
   let result = prefix_scan_eq(input);
   assert_eq(result, bits[8,3]:[0, 1, 0, 1, 0, 1, 0, 1])
