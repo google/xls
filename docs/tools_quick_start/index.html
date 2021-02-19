@@ -841,7 +841,8 @@ required.</p>
   x + y + u32:0  // Something to optimize.
 }
 
-test add {
+#![test]
+fn test_add() {
   assert_eq(add(u32:2, u32:3), u32:5)
 }
 </code></pre>

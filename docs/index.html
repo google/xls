@@ -858,20 +858,21 @@ we hope to enable them via continuous integration, <a href="https://github.com/g
 <p>The following instructions are for the Ubuntu 20.04 (Focal) Linux distribution.
 Note that we start by assuming <a href="https://docs.bazel.build/versions/master/install-ubuntu.html">Bazel has been
 installed</a>.</p>
-<pre><code class="console"># Follow the bazel install instructions:
-# https://docs.bazel.build/versions/master/install-ubuntu.html
-#
-# Afterwards we observe:
+<pre><code class="console">~$ git clone https://github.com/google/xls.git
+~$ cd xls
 
-$ bazel --version
+~/xls$ # Follow the bazel install instructions:
+~/xls$ # https://docs.bazel.build/versions/master/install-ubuntu.html
+~/xls$ # Afterwards we observe:
+~/xls$ bazel --version
 bazel 4.0.0
 
-# Note we're going to tell Ubuntu that `/usr/bin/env python` is actually python3
-# here, since that is not the case by default on Ubuntu 20.04.
-$ sudo apt install python3-distutils python3-dev libtinfo5 python3-is-python
+~/xls$ # Note we're going to tell Ubuntu that `/usr/bin/env python` is actually python3
+~/xls$ # here, since that is not the case by default on Ubuntu 20.04.
+~/xls$ sudo apt install python3-distutils python3-dev libtinfo5 python3-is-python
 
-# Now build/test everything in optimized build mode.
-$ bazel test -c opt ...
+~/xls$ # Now build/test everything in optimized build mode.
+~/xls$ bazel test -c opt ...
 </code></pre>
 
 <p>A reference build/test environment setup is also provided via <code>Dockerfile</code>:</p>
@@ -997,6 +998,7 @@ project, see our
 <a href="https://google.github.io/xls/contributing/">contributing documentation</a> and
 <a href="https://github.com/google/xls/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">good first issues</a>!</p>
 <ul>
+<li><a href="https://github.com/albert-magyar">Albert Magyar</a></li>
 <li><a href="https://github.com/cbalint13">Balint Christian</a></li>
 <li><a href="https://github.com/Blaok">Blaok</a></li>
 <li><a href="https://github.com/brajiang">Brandon Jiang</a></li>
