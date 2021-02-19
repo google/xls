@@ -7,7 +7,7 @@ functional stack, from input DSLX down to the netlist level.
 
 ## DSLX
 
-The DSLX interpreter (`//xls/dslx:cpp_interpreter_main`) operates on
+The DSLX interpreter (`//xls/dslx:interpreter_main`) operates on
 DSLX `.x` files that contain both the design and unit tests to execute (present
 as `#![test]` annotated functions).
 
@@ -30,9 +30,9 @@ bazel build -c opt //xls/examples:adler32_dslx_test
 To execute directly via the interpreter, you can instead run:
 
 ```
-bazel build -c opt //xls/dslx/interpreter:interpreter_main
-./bazel-bin/xls/dslx/interpreter/interpreter_main \
-  ./xls/examples/adler32.x
+$ bazel build -c opt //xls/dslx/interpreter_main
+$ ./bazel-bin/xls/dslx/interpreter_main \
+    ./xls/examples/adler32.x
 ```
 
 These two methods are equivalent.

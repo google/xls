@@ -29,7 +29,7 @@ Now, run it through the DSL interpreter -- the DSL interpreter is useful for
 interactive development and debugging.
 
 ```
-$ bazel run -c opt //xls/dslx/interpreter:interpreter_main -- /tmp/simple_add.x
+$ bazel run -c opt //xls/dslx:interpreter_main -- /tmp/simple_add.x
 [ RUN      ] add
 [       OK ] add
 ```
@@ -41,7 +41,7 @@ assume `bazel build -c opt //xls/...` has been completed so the binaries in
 `./bazel-bin` can be used directly:
 
 ```
-$ ./bazel-bin/xls/dslx/interpreter/interpreter_main /tmp/simple_add.x
+$ ./bazel-bin/xls/dslx/interpreter_main /tmp/simple_add.x
 [ RUN      ] add
 [       OK ] add
 ```
