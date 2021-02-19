@@ -851,7 +851,7 @@ fn test_add() {
 <h2 id="interpreting-the-dsl-file">Interpreting the DSL file</h2>
 <p>Now, run it through the DSL interpreter -- the DSL interpreter is useful for
 interactive development and debugging.</p>
-<pre><code>$ bazel run -c opt //xls/dslx/interpreter:interpreter_main -- /tmp/simple_add.x
+<pre><code>$ bazel run -c opt //xls/dslx:interpreter_main -- /tmp/simple_add.x
 [ RUN      ] add
 [       OK ] add
 </code></pre>
@@ -860,7 +860,7 @@ interactive development and debugging.</p>
 <p>In lieu of using bazel run for the subsequent commands, this document will
 assume <code>bazel build -c opt //xls/...</code> has been completed so the binaries in
 <code>./bazel-bin</code> can be used directly:</p>
-<pre><code>$ ./bazel-bin/xls/dslx/interpreter/interpreter_main /tmp/simple_add.x
+<pre><code>$ ./bazel-bin/xls/dslx/interpreter_main /tmp/simple_add.x
 [ RUN      ] add
 [       OK ] add
 </code></pre>

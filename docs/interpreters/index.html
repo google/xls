@@ -815,7 +815,7 @@ functional stack, from input DSLX down to the netlist level.</p>
 </ul>
 </div>
 <h2 id="dslx">DSLX</h2>
-<p>The DSLX interpreter (<code>//xls/dslx:cpp_interpreter_main</code>) operates on
+<p>The DSLX interpreter (<code>//xls/dslx:interpreter_main</code>) operates on
 DSLX <code>.x</code> files that contain both the design and unit tests to execute (present
 as <code>#![test]</code> annotated functions).</p>
 <p>The <a href="https://github.com/google/xls/tree/main/xls/examples/adler32.x">adler32</a> example
@@ -831,9 +831,9 @@ special declarations are necessary to wrap DSLX code.</p>
 </code></pre>
 
 <p>To execute directly via the interpreter, you can instead run:</p>
-<pre><code>bazel build -c opt //xls/dslx/interpreter:interpreter_main
-./bazel-bin/xls/dslx/interpreter/interpreter_main \
-  ./xls/examples/adler32.x
+<pre><code>$ bazel build -c opt //xls/dslx/interpreter_main
+$ ./bazel-bin/xls/dslx/interpreter_main \
+    ./xls/examples/adler32.x
 </code></pre>
 
 <p>These two methods are equivalent.</p>
