@@ -61,7 +61,7 @@ absl::StatusOr<InterpValue> BuiltinScmp(
     SignedCmp cmp, absl::Span<const InterpValue> args, const Span& span,
     Invocation* expr, const SymbolicBindings* symbolic_bindings);
 
-// Implements 'trace' builtin function.
+// Implements 'trace!' builtin function.
 absl::StatusOr<InterpValue> BuiltinTrace(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
     const SymbolicBindings* symbolic_bindings);

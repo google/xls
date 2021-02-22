@@ -256,7 +256,7 @@ TEST(TypecheckTest, ForBuiltinInBody) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32 {
   for (i, accum): (u32, u32) in range(u32:0, u32:3) {
-    trace(accum)
+    trace!(accum)
   }(u32:0)
 })"));
 }

@@ -116,7 +116,8 @@ fn add1(x: u32) -> u32 {
 
 Functions return the result of their last computed expression as their return
 value. There are no explicit return statements. By implication, functions return
-exactly one expression; they can't return multiple expressions (but this may change in the future as we migrate towards some Rust semantics).
+exactly one expression; they can't return multiple expressions (but this may
+change in the future as we migrate towards some Rust semantics).
 
 Tuples should be returned if a function should return multiple values.
 
@@ -671,8 +672,8 @@ fn widen_to_signed {
 DSLX performs type checking and produces an error if types in an expression
 don't match up.
 
-`let` expressions also perform type inference, which is quite convenient.
-For example, instead of writing:
+`let` expressions also perform type inference, which is quite convenient. For
+example, instead of writing:
 
 ```
 let ch: u32 = (e & f) ^ ((!e) & g);
@@ -719,11 +720,11 @@ fn add_wrapper(x: bits[2], y: bits[2]) -> bits[2] {
 }
 ```
 
-This function wraps the '+' operator. It presents two arguments
-to the '+' operator and then checks that the annotated return type on
-`add_wrapper` matches the deduced type for the body of that function; that is,
-we ask the following question of the '+' operator (since the type of the
-operands must be known at the point the add is performed):
+This function wraps the '+' operator. It presents two arguments to the '+'
+operator and then checks that the annotated return type on `add_wrapper` matches
+the deduced type for the body of that function; that is, we ask the following
+question of the '+' operator (since the type of the operands must be known at
+the point the add is performed):
 
 `(bits[2], bits[2]) -> ?`
 
@@ -731,15 +732,14 @@ To resolve the '?' the following procedure is being used:
 
 *   Pattern match the rule given above `(T, T) -> T` to determine the type T:
     the left hand side operand is `bits[2]`, called T.
-*   Check that the right hand side is also that same T, which it is:
-    another `bits[2]`.
+*   Check that the right hand side is also that same T, which it is: another
+    `bits[2]`.
 *   Deduce that the result type is that same type T: `bits[2]`.
-*   That becomes the return type of the body of the function.
-    Check that it is the same type as the annotated return type for the
-    function, and it is!
+*   That becomes the return type of the body of the function. Check that it is
+    the same type as the annotated return type for the function, and it is!
 
-The function is annotated to return `bits[2]`, and the deduced type of the
-body is also `bits[2]`. Qed.
+The function is annotated to return `bits[2]`, and the deduced type of the body
+is also `bits[2]`. Qed.
 
 #### Type errors
 
@@ -751,12 +751,11 @@ fn add_wrapper(x: bits[2], y: bits[3]) -> bits[2] {
 }
 ```
 
-Applying the type deduction rule for '+' finds an
-inconsistency. The left hand side operand has type `bits[2]`, called T,
-but the right hand side is `bits[3]`, which is not the same as T.
-Because the deductive type inference rule does not say what to do when the
-operand types are different, it results in a type error which is flagged
-at this point in the program.
+Applying the type deduction rule for '+' finds an inconsistency. The left hand
+side operand has type `bits[2]`, called T, but the right hand side is `bits[3]`,
+which is not the same as T. Because the deductive type inference rule does not
+say what to do when the operand types are different, it results in a type error
+which is flagged at this point in the program.
 
 #### Let Bindings, Names, and the Environment
 
@@ -764,7 +763,6 @@ All expressions in the language's expression grammar have a deductive type
 inference rule. The types must be known for inputs to an operator/function
 (otherwise there'd be a use-before-definition error) and every expression has a
 way to determine its type from its operand expressions.
-
 
 A more interesting deduction rule comes into view with "let" expressions, which
 are of the form:
@@ -782,11 +780,10 @@ In a let expression like this, we say `$name` gets "bound" to a value of type
 `$annotated_type`, as well as determine the type of `$subexpr`, which is the
 type of the overall "let expression".
 
-This leads to the deduction rule that "let just returns the type of
-`$subexpr`". But, in this example, the subexpr needs some
-information from the outer `let` expression, because if asked "what's the
-type of some symbol `y`" one immediately asks "well what comes before that in
-the program text?"
+This leads to the deduction rule that "let just returns the type of `$subexpr`".
+But, in this example, the subexpr needs some information from the outer `let`
+expression, because if asked "what's the type of some symbol `y`" one
+immediately asks "well what comes before that in the program text?"
 
 Let bindings lead to the introduction of the notion of an *environment* that is
 passed to type inference rules. The deduction rule says, "put the bindings that
@@ -799,7 +796,6 @@ In the DSLX prototype code this environment is called the `Bindings`, and it
 maps identifiers to the AST node that defines the name (`{Text: AstNode}`),
 which can be combined with a mapping from AST node to its deduced type
 (`{AstNode: ConcreteType}`) to resolve the type of an identifier.
-
 
 ## Expressions
 
@@ -892,7 +888,6 @@ fn f(t: (u8, (u16, u32))) -> u32 {
 
 Here we use a "catch all" wildcard pattern in the last match arm to ensure the
 match expression always matches the input somehow.
-
 
 ### let Expression
 
@@ -993,9 +988,9 @@ for (index, accumulator): (type-of-index, type-of-accumulator) in iterable {
 } (initial-accumulator-value)
 ```
 
-Because DSLX is a pure dataflow description, a for loop is an
-expression that produces a value. As a result, you grab the output of a for loop
-just like any other expression:
+Because DSLX is a pure dataflow description, a for loop is an expression that
+produces a value. As a result, you grab the output of a for loop just like any
+other expression:
 
 ```
 let final_accum = for (i, accum) in range(u32:0, u32:8) {
@@ -1163,10 +1158,10 @@ fn add_wrapper<T: type, U: type>(x: T, y: U) -> T {
 Based on the inference rule, we know that '+' can only type check when the
 operand types are the same. This means we can conclude that type `T` is the same
 as type `U`. Once we determine this, we need to make sure anywhere `U` is used
-it is consistent with the fact it is the same as `T`. In a sense the +
-operator is "adding a constraint" that `T` is equivalent to `U`, and trying to
-check that fact is valid is under the purview of type inference. The fact that
-the constraint is added that `T` and `U` are the same type is referred to as
+it is consistent with the fact it is the same as `T`. In a sense the + operator
+is "adding a constraint" that `T` is equivalent to `U`, and trying to check that
+fact is valid is under the purview of type inference. The fact that the
+constraint is added that `T` and `U` are the same type is referred to as
 "unification", as what was previously two entities with potentially different
 constraints now has a single set of constraints that comes from the union of its
 operand types.
@@ -1316,10 +1311,12 @@ fn match_nested {
 ## Parallel Primitives
 
 ### map
-### reduce
-### group-by
-TODO
 
+### reduce
+
+### group-by
+
+TODO
 
 ## Builtins
 
@@ -1334,11 +1331,11 @@ example:
   Value    1 0 0 0 1 1 1
 ```
 
-A slice expression `[n:m]` means to get from bit `n` (inclusive)
-to bit 'm' exclusive. This can be confusing, because the `n` stands to
-the left of `m` in the expression, but bit `n` would be to the 'right'
-of `m` in the classical bit numbering (note: Not in the classical
-array visualization, where element 0 is usually drawn to the left).
+A slice expression `[n:m]` means to get from bit `n` (inclusive) to bit 'm'
+exclusive. This can be confusing, because the `n` stands to the left of `m` in
+the expression, but bit `n` would be to the 'right' of `m` in the classical bit
+numbering (note: Not in the classical array visualization, where element 0 is
+usually drawn to the left).
 
 For example, the expression `[0:2]` would yield:
 
@@ -1357,18 +1354,17 @@ a non-literal-number start position, see the `+:` form described below.
 
 The slicing operation also support the python style slices with offsets from
 start or end. To visualize, one can think of `x[ : -1]` as the equivalent of
-`x[from the start :  bitwidth - 1]`. Correspondingly, `x[-1 : ]` can be
+`x[from the start : bitwidth - 1]`. Correspondingly, `x[-1 : ]` can be
 visualized as `[ bitwidth - 1 : to the end]`.
 
-For example, to get all bits, except the MSb (from the beginning,
-until the top element minus 1):
+For example, to get all bits, except the MSb (from the beginning, until the top
+element minus 1):
 
 ```
 x[:-1]
 ```
 
-Or to get the left-most 2 bits (from bitwidth - 2, all the way to
-the end):
+Or to get the left-most 2 bits (from bitwidth - 2, all the way to the end):
 
 ```
 x[-2:]
@@ -1556,9 +1552,9 @@ this, but can't guarantee the optimization is always made.
 DSLX allows specifying tests right in the implementation file via the `test` and
 `quickcheck` directives.
 
-Having key test code in the implementation file serves two purposes. It helps
-to ensure the code behaves as expected. Additionally it serves as
-'executable' documentation, similar in spirit to Python doc strings.
+Having key test code in the implementation file serves two purposes. It helps to
+ensure the code behaves as expected. Additionally it serves as 'executable'
+documentation, similar in spirit to Python doc strings.
 
 ### Unit Tests
 
@@ -1617,7 +1613,9 @@ inputs. This default may be changed by specifying the `test_count` key in the
 #![quickcheck(test_count=50000)]
 ```
 
-The framework also allows programmers to specify a seed to use in generating the random inputs, as opposed to letting the framework pick one. The seed chosen for production can be found in the execution log.
+The framework also allows programmers to specify a seed to use in generating the
+random inputs, as opposed to letting the framework pick one. The seed chosen for
+production can be found in the execution log.
 
 For determinism, the DSLX interpreter should be run with the `seed` flag:
 `./interpreter_main --seed=1234 <DSLX source file>`
@@ -1649,11 +1647,11 @@ fn test_divceil() {
 Note that in this example, the final `let _ = ... in _` construct could be
 omitted.
 
-`assert_eq` cannot be synthesized into equivalent Verilog. Because of that
-it is recommended to use it within `test` constructs (interpretation) only.
-
+`assert_eq` cannot be synthesized into equivalent Verilog. Because of that it is
+recommended to use it within `test` constructs (interpretation) only.
 
 ### trace
+
 DSLX supports printf-style debugging via the `trace` expression, which allows
 dumping of current values to stdout. For example:
 
@@ -1665,15 +1663,15 @@ fn decode_s_instruction(ins: u32) -> (u12, u5, u5, u3, u7) {
    let funct3 = (ins >> u32:12) & u32:0x07;
    let imm_4_0 = (ins >> u32:7) & u32:0x1F;
    let opcode = ins & u32:0x7F;
-   let _ = trace(imm_11_5);
-   let _ = trace(imm_4_0);
+   let _ = trace!(imm_11_5);
+   let _ = trace!(imm_4_0);
    (u12:(u7:imm_11_5 ++ u5:imm_4_0), u5:rs2, u5:rs1, u3:funct3, u7:opcode)
 }
 
 ```
 
-would produce the following output, with each trace being annotated with
-its corresponding source position:
+would produce the following output, with each trace being annotated with its
+corresponding source position:
 
 ```
 [...]
@@ -1686,7 +1684,7 @@ trace of imm_4_0 @ 70:17-70:26: bits[32]:0x1
 `trace` also returns the value passed to it, so it can be used inline, as in:
 
 ```
-match trace(my_thing) {
+match trace!(my_thing) {
    [...]
 }
 ```

@@ -1317,7 +1317,7 @@ absl::Status FunctionConverter::HandleInvocation(Invocation* node,
   }
 
   // A few builtins are handled specially.
-  if (called_name == "fail!" || called_name == "trace") {
+  if (called_name == "fail!" || called_name == "trace!") {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
     XLS_RET_CHECK_EQ(args.size(), 1)
         << called_name << " builtin only accepts a single argument";
@@ -1790,8 +1790,7 @@ absl::Status FunctionConverter::HandleBuiltinOneHotSel(Invocation* node) {
   }
 
   Def(node, [&](absl::optional<SourceLocation> loc) {
-    return function_builder_->OneHotSelect(
-        selector, cases, loc);
+    return function_builder_->OneHotSelect(selector, cases, loc);
   });
   return absl::OkStatus();
 }

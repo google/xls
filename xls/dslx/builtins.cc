@@ -162,7 +162,7 @@ void OptionalTrace(Expr* expr, const InterpValue& result) {
     if (callee == nullptr) {
       return false;
     }
-    return callee->identifier() == "trace";
+    return callee->identifier() == "trace!";
   };
 
   bool is_trace_instance = query_is_trace_instance();
@@ -176,7 +176,7 @@ void OptionalTrace(Expr* expr, const InterpValue& result) {
 absl::StatusOr<InterpValue> BuiltinTrace(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
     const SymbolicBindings* symbolic_bindings) {
-  XLS_RETURN_IF_ERROR(ArgChecker("trace", args).size(1).status());
+  XLS_RETURN_IF_ERROR(ArgChecker("trace!", args).size(1).status());
   PerformTrace(expr->FormatArgs(), span, args[0]);
   return args[0];
 }

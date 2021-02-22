@@ -13,7 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for xls.dslx.interpreter."""
 
 import subprocess as subp
@@ -411,7 +410,7 @@ class InterpreterTest(test_base.TestCase):
     program = """
     fn fut() -> u32 {
       while carry < u32:2 {
-        trace(carry + u32:1)
+        trace!(carry + u32:1)
       }(u32:0)
     }
     #![test]
@@ -422,8 +421,8 @@ class InterpreterTest(test_base.TestCase):
     program_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, '--compare_jit=false', program_file.full_path]
     result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
-    self.assertIn('4:14-4:29: bits[32]:0x1', result.stderr)
-    self.assertIn('4:14-4:29: bits[32]:0x2', result.stderr)
+    self.assertIn('4:15-4:30: bits[32]:0x1', result.stderr)
+    self.assertIn('4:15-4:30: bits[32]:0x2', result.stderr)
 
   def test_bitslice_syntax(self):
     program = """
@@ -587,7 +586,7 @@ class InterpreterTest(test_base.TestCase):
     #![test]
     fn t_test() {
       let x0 = u8:32;
-      let _ = trace(x0);
+      let _ = trace!(x0);
       let x1 = clz(x0);
       let x2 = x0 + x1;
       assert_eq(x2, u8:34)

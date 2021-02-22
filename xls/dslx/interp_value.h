@@ -44,7 +44,7 @@ namespace xls::dslx {
   X("sle", kSLe)                         \
   X("slice", kSlice)                     \
   X("slt", kSLt)                         \
-  X("trace", kTrace)                     \
+  X("trace!", kTrace)                    \
   X("update", kUpdate)                   \
   X("xor_reduce", kXorReduce)
 

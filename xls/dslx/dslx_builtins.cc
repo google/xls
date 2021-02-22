@@ -230,7 +230,7 @@ const absl::flat_hash_map<std::string, std::string>& GetParametricBuiltins() {
       // Use a dummy value to determine size.
       {"signex", "(xN[M], xN[N]) -> xN[N]"},
       {"slice", "(T[M], uN[N], T[P]) -> T[P]"},
-      {"trace", "(T) -> T"},
+      {"trace!", "(T) -> T"},
       {"update", "(T[N], uN[M], T) -> T[N]"},
       {"enumerate", "(T[N]) -> (u32, T)[N]"},
 

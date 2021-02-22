@@ -46,7 +46,7 @@ const std::vector<absl::string_view>& GetParametricBuiltinNames() {
                                               "slt",
                                               "signex",
                                               "slice",
-                                              "trace",
+                                              "trace!",
                                               "update",
                                               "enumerate",
                                               "range"};
@@ -762,8 +762,8 @@ absl::StatusOr<Expr*> Parser::ParseCast(Bindings* bindings,
   }
 
   if (auto* tuple = dynamic_cast<XlsTuple*>(term);
-            tuple != nullptr && std::all_of(
-                tuple->members().begin(), tuple->members().end(), IsConstant)) {
+      tuple != nullptr && std::all_of(tuple->members().begin(),
+                                      tuple->members().end(), IsConstant)) {
     return term;
   }
   return ParseErrorStatus(

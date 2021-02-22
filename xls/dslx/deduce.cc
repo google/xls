@@ -1571,7 +1571,7 @@ static const absl::flat_hash_set<std::string>& GetParametricBuiltinNames() {
       // Use a dummy value to determine size.
       "signex",
       "slice",
-      "trace",
+      "trace!",
       "update",
       "enumerate",
       // Require-const-argument.
