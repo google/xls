@@ -22,13 +22,11 @@
 namespace xls::dslx {
 
 std::string FnStackEntry::ToReprString() const {
-  return absl::StrFormat("FnStackEntry{\"%s\", %s}", name,
-                         symbolic_bindings.ToString());
+  return absl::StrFormat("FnStackEntry{\"%s\", %s}", name_,
+                         symbolic_bindings_.ToString());
 }
 
-bool FnStackEntry::Matches(const Function* f) const {
-  return f->identifier() == name && f->owner() == module;
-}
+bool FnStackEntry::Matches(const Function* f) const { return f == function_; }
 
 DeduceCtx::DeduceCtx(TypeInfoOwner* type_info_owner, TypeInfo* type_info,
                      Module* module, DeduceFn deduce_function,
