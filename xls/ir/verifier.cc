@@ -16,6 +16,7 @@
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
@@ -616,10 +617,16 @@ class NodeChecker : public DfsVisitor {
     // the Invoke node.
     Function* func = invoke->to_apply();
     if (invoke->operand_count() != func->params().size()) {
+      std::string arg_types_str = absl::StrJoin(
+          invoke->operands(), ", ", [](std::string* out, Node* node) {
+            absl::StrAppend(out, node->GetType()->ToString());
+          });
       return absl::InternalError(absl::StrFormat(
           "Expected invoke operand count (%d) to equal invoked function "
-          "parameter count (%d)",
-          invoke->operand_count(), func->params().size()));
+          "parameter count (%d); function name: %s; signature: %s; arg types: "
+          "[%s]",
+          invoke->operand_count(), func->params().size(), func->name(),
+          func->GetType()->ToString(), arg_types_str));
     }
     for (int64 i = 0; i < invoke->operand_count(); ++i) {
       XLS_RETURN_IF_ERROR(
