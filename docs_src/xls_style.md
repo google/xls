@@ -26,6 +26,9 @@ in the XLS project, with the relevant Google style guides
     but not for signaling that constant folding did not constant fold an
     expression.
 
+    See [how heavyweight is StatusOr](#how-heavyweight-is-statusor) for more
+    details on thinking about the costs involved.
+
 *   Internal errors for conditions that should never be false can use `CHECK`,
     but may also use `Status` or `StatusOr`.
 
@@ -61,3 +64,31 @@ in the XLS project, with the relevant Google style guides
     usage propagates outwards such that the few cases where a const reference
     could _actually_ be appropriate become odd outliers, so our guidance is that
     IR elements should uniformly be passed as non-const pointers.
+
+## FAQ
+
+### How heavyweight is `StatusOr`?
+
+What follows is the **general guidance on how absl::StatusOr is used** -- it is
+used extensively throughout the XLS code base as an error-style indicator object
+wrapper, so it is important to understand the mental model used for its cost.
+
+Consider cost wise that: a) creating an **ok** `StatusOr` is cheap, b) creating
+a **non-ok** `StatusOr` is expensive (that is, imagine the non-ok `Status`
+within a `StatusOr` is the expensive part).
+
+The implication being: if there's an API where "not found" is a reasonable
+outcome, prefer `absl::optional<>` as a return value to indicate that / go with
+the grain of cost.
+
+Something like a filesystem API would be a classic example -- where you
+shouldn't be rooting around looking for files that aren't there -- so a
+not-found `absl::StatusOr` result would be fine to use.
+
+A good potential mental model is to imagine the program may run with logging of
+a traceback for every non-ok status that is created. (This is related to a
+debugging capability in Google internally called
+`--util_status_save_stack_trace` that captures backtraces when error `Status`es
+are created.) Ideally, with such a logging flag turned on, the screen wouldn't
+fill up with "non error tracebacks", only tracebacks from events where something
+really went wrong.
