@@ -72,3 +72,90 @@ cc_proto_library(
         ":network_config_builder_options_proto",
     ],
 )
+
+cc_library(
+    name = "network_component_port",
+    srcs = ["network_component_port.cc"],
+    hdrs = ["network_component_port.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_set",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "network_component_port_test",
+    srcs = ["network_component_port_test.cc"],
+    deps = [
+        ":network_component",
+        ":network_component_port",
+        ":network_view",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "network_component",
+    srcs = ["network_component.cc"],
+    hdrs = ["network_component.h"],
+    deps = [
+        ":network_component_port",
+        "//xls/common:integral_types",
+        "//xls/common:iterator_range",
+        "//xls/common/logging",
+        "//xls/ir:unwrapping_iterator",
+    ],
+)
+
+cc_test(
+    name = "network_component_test",
+    srcs = ["network_component_test.cc"],
+    deps = [
+        ":network_component",
+        ":network_view",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "network_connection",
+    srcs = ["network_connection.cc"],
+    hdrs = ["network_connection.h"],
+    deps = [
+        ":network_component_port",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "network_connection_test",
+    srcs = ["network_connection_test.cc"],
+    deps = [
+        ":network_component",
+        ":network_component_port",
+        ":network_connection",
+        ":network_view",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "network_view",
+    srcs = ["network_view.cc"],
+    hdrs = ["network_view.h"],
+    deps = [
+        ":network_component",
+        ":network_connection",
+        "@com_google_absl//absl/memory",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "network_view_test",
+    srcs = ["network_view_test.cc"],
+    deps = [
+        ":network_view",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
