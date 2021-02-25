@@ -17,6 +17,6 @@ pub struct Type<A:u32, B:u32> {
   y: bits[B]
 }
 
-pub fn Zero<A:u32, B:u32>() -> Type<A, B> {
+pub fn zero<A:u32, B:u32>() -> Type<A, B> {
   Type<A, B>{ x: bits[A]: 0, y: bits[B]:0 }
 }

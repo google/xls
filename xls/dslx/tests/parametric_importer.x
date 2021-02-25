@@ -18,8 +18,7 @@ type LocalType = parametric_import::Type<u32:1, u32:2>;
 
 #![test]
 fn parametric_importer() {
-  // TODO(rspringer): This line fails to evaluate; the next one passes.
-  // let foo: LocalType = parametric_import::Zero<u32:1, u32:2>();
-  let foo = parametric_import::Zero<u32:1, u32:2>();
-  ()
+  let foo: LocalType = parametric_import::zero<u32:1, u32:2>();
+  let bar = parametric_import::zero<u32:1, u32:2>();
+  assert_eq(foo, bar)
 }
