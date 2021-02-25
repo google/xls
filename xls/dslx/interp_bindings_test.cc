@@ -36,10 +36,10 @@ TEST(InterpBindingsTest, AddResolveValue) {
 }
 
 TEST(InterpBindingsTest, ResolveValueViaParentLnk) {
-  auto parent = std::make_shared<InterpBindings>(nullptr);
-  parent->AddValue("t", InterpValue::MakeBool(true));
+  InterpBindings parent;
+  parent.AddValue("t", InterpValue::MakeBool(true));
 
-  InterpBindings child(parent);
+  InterpBindings child(&parent);
   child.ResolveValueFromIdentifier("t").value().IsTrue();
   EXPECT_THAT(child.ResolveModule("t"),
               status_testing::StatusIs(
@@ -48,10 +48,10 @@ TEST(InterpBindingsTest, ResolveValueViaParentLnk) {
 }
 
 TEST(InterpBindingsTest, GetKeysWithParentLink) {
-  auto parent = std::make_shared<InterpBindings>(nullptr);
-  parent->AddValue("p", InterpValue::MakeU32(42));
+  InterpBindings parent;
+  parent.AddValue("p", InterpValue::MakeU32(42));
 
-  InterpBindings child(parent);
+  InterpBindings child(&parent);
   child.AddValue("c", InterpValue::MakeU32(64));
 
   EXPECT_THAT(child.GetKeys(), testing::UnorderedElementsAre("c", "p"));

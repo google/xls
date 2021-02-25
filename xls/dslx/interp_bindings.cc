@@ -16,12 +16,11 @@
 
 namespace xls::dslx {
 
-/* static */ std::shared_ptr<InterpBindings> InterpBindings::CloneWith(
-    std::shared_ptr<InterpBindings> parent, NameDefTree* name_def_tree,
-    InterpValue value) {
-  auto new_bindings = std::make_shared<InterpBindings>(/*parent=*/parent);
-  new_bindings->AddValueTree(name_def_tree, value);
-  new_bindings->set_fn_ctx(parent->fn_ctx_);
+/* static */ InterpBindings InterpBindings::CloneWith(
+    InterpBindings* parent, NameDefTree* name_def_tree, InterpValue value) {
+  InterpBindings new_bindings(/*parent=*/parent);
+  new_bindings.AddValueTree(name_def_tree, value);
+  new_bindings.set_fn_ctx(parent->fn_ctx_);
   return new_bindings;
 }
 
@@ -44,8 +43,7 @@ namespace xls::dslx {
   XLS_LOG(FATAL) << "Unhandled binding entry variant.";
 }
 
-InterpBindings::InterpBindings(std::shared_ptr<InterpBindings> parent)
-    : parent_(parent) {
+InterpBindings::InterpBindings(InterpBindings* parent) : parent_(parent) {
   if (parent_ != nullptr) {
     fn_ctx_ = parent_->fn_ctx();
   }

@@ -192,7 +192,7 @@ absl::StatusOr<InterpValue> EvaluateIndex(Index* expr, InterpBindings* bindings,
 //   module: The top-level module to make bindings for.
 //   callbacks: Provide ability to call back into the interpreter facilities
 //    e.g. on import or for evaluating constant value expressions.
-absl::StatusOr<std::shared_ptr<InterpBindings>> MakeTopLevelBindings(
+absl::StatusOr<InterpBindings> MakeTopLevelBindings(
     Module* module, InterpCallbackData* callbacks);
 
 using ConcretizeVariant = absl::variant<TypeAnnotation*, EnumDef*, StructDef*>;

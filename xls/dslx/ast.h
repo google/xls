@@ -2062,7 +2062,7 @@ absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
 //   sequence
 //     instead of a mapping in case there are unnamed constructs at the module
 //     level (e.g. metadata, docstrings).
-class Module : public AstNode, public std::enable_shared_from_this<Module> {
+class Module : public AstNode {
  public:
   explicit Module(std::string name) : AstNode(this), name_(std::move(name)) {
     XLS_VLOG(3) << "Created module \"" << name_ << "\" @ " << this;

@@ -118,14 +118,13 @@ absl::StatusOr<InterpValue> Interpreter::RunFunction(
 }
 
 absl::Status Interpreter::RunTest(absl::string_view name) {
-  XLS_ASSIGN_OR_RETURN(std::shared_ptr<InterpBindings> bindings,
+  XLS_ASSIGN_OR_RETURN(InterpBindings bindings,
                        MakeTopLevelBindings(module_, &callbacks_));
   XLS_ASSIGN_OR_RETURN(TestFunction * test, module_->GetTest(name));
-  bindings->set_fn_ctx(
+  bindings.set_fn_ctx(
       FnCtx{module_->name(), absl::StrFormat("%s__test", name)});
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue result,
-      Evaluate(test->body(), bindings.get(), /*type_context=*/nullptr));
+  XLS_ASSIGN_OR_RETURN(InterpValue result, Evaluate(test->body(), &bindings,
+                                                    /*type_context=*/nullptr));
   if (!result.IsNilTuple()) {
     return absl::InternalError(absl::StrFormat(
         "EvaluateError: Want test %s to return nil tuple; got: %s",
@@ -172,9 +171,9 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
 
   Interpreter interp(entry_module, type_info, typecheck,
                      additional_search_paths, import_cache);
-  XLS_ASSIGN_OR_RETURN(std::shared_ptr<InterpBindings> bindings,
+  XLS_ASSIGN_OR_RETURN(InterpBindings bindings,
                        MakeTopLevelBindings(entry_module, &interp.callbacks_));
-  bindings->set_fn_ctx(fn_ctx);
+  bindings.set_fn_ctx(fn_ctx);
   for (const auto& [identifier, value] : env) {
     XLS_VLOG(3) << "Adding to bindings; identifier: " << identifier
                 << " value: " << value;
@@ -186,13 +185,13 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
           identifier, absl::StrJoin(env, ", ", absl::PairFormatter(":")),
           absl::StrJoin(bit_widths, ", ", absl::PairFormatter(":"))));
     }
-    bindings->AddValue(
+    bindings.AddValue(
         identifier,
         InterpValue::MakeUBits(/*bit_count=*/it->second, /*value=*/value));
   }
   XLS_ASSIGN_OR_RETURN(
       InterpValue result,
-      interp.Evaluate(expr, bindings.get(), /*type_context=*/nullptr));
+      interp.Evaluate(expr, &bindings, /*type_context=*/nullptr));
   return result.GetBitValueInt64();
 }
 

@@ -51,18 +51,16 @@ absl::StatusOr<InterpValue> EvaluateWhile(While* expr, InterpBindings* bindings,
                                           InterpCallbackData* callbacks) {
   XLS_ASSIGN_OR_RETURN(InterpValue carry,
                        callbacks->Eval(expr->init(), bindings));
-  auto new_bindings =
-      std::make_shared<InterpBindings>(bindings->shared_from_this());
-  new_bindings->AddValue("carry", carry);
+  InterpBindings new_bindings(bindings);
+  new_bindings.AddValue("carry", carry);
   while (true) {
     XLS_ASSIGN_OR_RETURN(InterpValue test,
-                         callbacks->Eval(expr->test(), new_bindings.get()));
+                         callbacks->Eval(expr->test(), &new_bindings));
     if (!test.IsTrue()) {
       break;
     }
-    XLS_ASSIGN_OR_RETURN(carry,
-                         callbacks->Eval(expr->body(), new_bindings.get()));
-    new_bindings->AddValue("carry", carry);
+    XLS_ASSIGN_OR_RETURN(carry, callbacks->Eval(expr->body(), &new_bindings));
+    new_bindings.AddValue("carry", carry);
   }
   return carry;
 }
@@ -406,19 +404,19 @@ absl::StatusOr<InterpValue> EvaluateFunction(
   }
 
   Module* m = f->owner();
-  XLS_ASSIGN_OR_RETURN(std::shared_ptr<InterpBindings> bindings,
+  XLS_ASSIGN_OR_RETURN(InterpBindings bindings,
                        MakeTopLevelBindings(m, callbacks));
   XLS_VLOG(5) << "Evaluated top level bindings for module: " << m->name()
-              << "; keys: {" << absl::StrJoin(bindings->GetKeys(), ", ") << "}";
-  XLS_RETURN_IF_ERROR(EvaluateDerivedParametrics(f, bindings.get(), callbacks,
+              << "; keys: {" << absl::StrJoin(bindings.GetKeys(), ", ") << "}";
+  XLS_RETURN_IF_ERROR(EvaluateDerivedParametrics(f, &bindings, callbacks,
                                                  symbolic_bindings.ToMap()));
 
-  bindings->set_fn_ctx(FnCtx{m->name(), f->identifier(), symbolic_bindings});
+  bindings.set_fn_ctx(FnCtx{m->name(), f->identifier(), symbolic_bindings});
   for (int64 i = 0; i < f->params().size(); ++i) {
-    bindings->AddValue(f->params()[i]->identifier(), args[i]);
+    bindings.AddValue(f->params()[i]->identifier(), args[i]);
   }
 
-  return callbacks->Eval(f->body(), bindings.get());
+  return callbacks->Eval(f->body(), &bindings);
 }
 
 absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
@@ -634,9 +632,9 @@ absl::StatusOr<InterpValue> EvaluateLet(Let* expr, InterpBindings* bindings,
     }
   }
 
-  std::shared_ptr<InterpBindings> new_bindings = InterpBindings::CloneWith(
-      bindings->shared_from_this(), expr->name_def_tree(), to_bind);
-  return callbacks->Eval(expr->body(), new_bindings.get());
+  InterpBindings new_bindings =
+      InterpBindings::CloneWith(bindings, expr->name_def_tree(), to_bind);
+  return callbacks->Eval(expr->body(), &new_bindings);
 }
 
 absl::StatusOr<InterpValue> EvaluateFor(For* expr, InterpBindings* bindings,
@@ -665,10 +663,9 @@ absl::StatusOr<InterpValue> EvaluateFor(For* expr, InterpBindings* bindings,
           ConcreteTypeFromValue(iteration)->ToString(),
           concrete_iteration_type->ToString()));
     }
-    std::shared_ptr<InterpBindings> new_bindings = InterpBindings::CloneWith(
-        bindings->shared_from_this(), expr->names(), iteration);
-    XLS_ASSIGN_OR_RETURN(carry,
-                         callbacks->Eval(expr->body(), new_bindings.get()));
+    InterpBindings new_bindings =
+        InterpBindings::CloneWith(bindings, expr->names(), iteration);
+    XLS_ASSIGN_OR_RETURN(carry, callbacks->Eval(expr->body(), &new_bindings));
   }
   return carry;
 }
@@ -717,13 +714,13 @@ static absl::StatusOr<InterpValue> EvaluateEnumRefHelper(
   // which may have been in a different module from the enum_def).
   TypeAnnotation* underlying_type = enum_def->type();
   XLS_ASSIGN_OR_RETURN(
-      std::shared_ptr<InterpBindings> fresh_bindings,
+      InterpBindings fresh_bindings,
       MakeTopLevelBindings(underlying_type->owner(), callbacks));
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_type,
-                       ConcretizeTypeAnnotation(
-                           underlying_type, fresh_bindings.get(), callbacks));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ConcreteType> concrete_type,
+      ConcretizeTypeAnnotation(underlying_type, &fresh_bindings, callbacks));
   XLS_ASSIGN_OR_RETURN(InterpValue raw_value,
-                       callbacks->Eval(value_node, fresh_bindings.get()));
+                       callbacks->Eval(value_node, &fresh_bindings));
   return InterpValue::MakeEnum(raw_value.GetBitsOrDie(), enum_def);
 }
 
@@ -779,11 +776,11 @@ static absl::StatusOr<absl::variant<EnumDef*, Module*>> ResolveColonRefSubject(
 
   XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
                        subject_module->GetTypeDefinition(subject->attr()));
-  XLS_ASSIGN_OR_RETURN(std::shared_ptr<InterpBindings> fresh_bindings,
+  XLS_ASSIGN_OR_RETURN(InterpBindings fresh_bindings,
                        MakeTopLevelBindings(subject_module, callbacks));
   XLS_ASSIGN_OR_RETURN(
       EnumDef * enum_def,
-      EvaluateToEnum(type_definition, fresh_bindings.get(), callbacks));
+      EvaluateToEnum(type_definition, &fresh_bindings, callbacks));
   return enum_def;
 }
 
@@ -810,9 +807,9 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
   }
   if (absl::holds_alternative<ConstantDef*>(*member.value())) {
     auto* cd = absl::get<ConstantDef*>(*member.value());
-    XLS_ASSIGN_OR_RETURN(std::shared_ptr<InterpBindings> module_top,
+    XLS_ASSIGN_OR_RETURN(InterpBindings module_top,
                          MakeTopLevelBindings(module, callbacks));
-    return callbacks->Eval(cd->value(), module_top.get());
+    return callbacks->Eval(cd->value(), &module_top);
   }
   return absl::InternalError(
       absl::StrFormat("EvaluateError: %s Unsupported module reference.",
@@ -1088,13 +1085,13 @@ absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
                        callbacks->Eval(expr->matched(), bindings));
   for (MatchArm* arm : expr->arms()) {
     for (NameDefTree* pattern : arm->patterns()) {
-      auto arm_bindings = std::make_shared<InterpBindings>(
-          /*parent=*/bindings->shared_from_this());
+      InterpBindings arm_bindings(
+          /*parent=*/bindings);
       XLS_ASSIGN_OR_RETURN(
           bool did_match,
-          EvaluateMatcher(pattern, to_match, arm_bindings.get(), callbacks));
+          EvaluateMatcher(pattern, to_match, &arm_bindings, callbacks));
       if (did_match) {
-        return callbacks->Eval(arm->expr(), arm_bindings.get());
+        return callbacks->Eval(arm->expr(), &arm_bindings);
       }
     }
   }
@@ -1104,20 +1101,20 @@ absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
                       expr->span().ToString(), to_match.ToString()));
 }
 
-absl::StatusOr<std::shared_ptr<InterpBindings>> MakeTopLevelBindings(
+absl::StatusOr<InterpBindings> MakeTopLevelBindings(
     Module* module, InterpCallbackData* callbacks) {
   XLS_VLOG(4) << "Making top level bindings for module: " << module->name();
-  auto b = std::make_shared<InterpBindings>(/*parent=*/nullptr);
+  InterpBindings b(/*parent=*/nullptr);
 
   // Add all the builtin functions.
   for (Builtin builtin : kAllBuiltins) {
-    b->AddFn(BuiltinToString(builtin), InterpValue::MakeFunction(builtin));
+    b.AddFn(BuiltinToString(builtin), InterpValue::MakeFunction(builtin));
   }
 
   // Add all the functions in the top level scope for the module.
   for (Function* f : module->GetFunctions()) {
-    b->AddFn(f->identifier(),
-             InterpValue::MakeFunction(InterpValue::UserFnData{module, f}));
+    b.AddFn(f->identifier(),
+            InterpValue::MakeFunction(InterpValue::UserFnData{module, f}));
   }
 
   // Add all the type definitions in the top level scope for the module to the
@@ -1125,13 +1122,13 @@ absl::StatusOr<std::shared_ptr<InterpBindings>> MakeTopLevelBindings(
   for (TypeDefinition td : module->GetTypeDefinitions()) {
     if (absl::holds_alternative<TypeDef*>(td)) {
       auto* type_def = absl::get<TypeDef*>(td);
-      b->AddTypeDef(type_def->identifier(), type_def);
+      b.AddTypeDef(type_def->identifier(), type_def);
     } else if (absl::holds_alternative<StructDef*>(td)) {
       auto* struct_def = absl::get<StructDef*>(td);
-      b->AddStructDef(struct_def->identifier(), struct_def);
+      b.AddStructDef(struct_def->identifier(), struct_def);
     } else {
       auto* enum_def = absl::get<EnumDef*>(td);
-      b->AddEnumDef(enum_def->identifier(), enum_def);
+      b.AddEnumDef(enum_def->identifier(), enum_def);
     }
   }
 
@@ -1155,11 +1152,11 @@ absl::StatusOr<std::shared_ptr<InterpBindings>> MakeTopLevelBindings(
         result = precomputed.value();
       } else {  // Otherwise, evaluate it and make a note.
         XLS_ASSIGN_OR_RETURN(result,
-                             callbacks->Eval(constant_def->value(), b.get()));
+                             callbacks->Eval(constant_def->value(), &b));
         callbacks->note_wip(constant_def, *result);
       }
       XLS_CHECK(result.has_value());
-      b->AddValue(constant_def->identifier(), *result);
+      b.AddValue(constant_def->identifier(), *result);
       XLS_VLOG(3) << "MakeTopLevelBindings evaluated: "
                   << constant_def->ToString() << " to " << result->ToString();
       continue;
@@ -1173,15 +1170,15 @@ absl::StatusOr<std::shared_ptr<InterpBindings>> MakeTopLevelBindings(
                    callbacks->additional_search_paths, callbacks->cache));
       XLS_VLOG(3) << "MakeTopLevelBindings adding import " << import->ToString()
                   << " as \"" << import->identifier() << "\"";
-      b->AddModule(import->identifier(), imported->module.get());
+      b.AddModule(import->identifier(), imported->module.get());
       continue;
     }
   }
 
   // Add a helpful value to the binding keys just to indicate what module these
   // top level bindings were created for, helpful for debugging.
-  b->AddValue(absl::StrCat("__top_level_bindings_", module->name()),
-              InterpValue::MakeNil());
+  b.AddValue(absl::StrCat("__top_level_bindings_", module->name()),
+             InterpValue::MakeNil());
 
   return b;
 }
@@ -1266,10 +1263,10 @@ absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
                        bindings->ResolveModule(identifier));
   XLS_ASSIGN_OR_RETURN(TypeDefinition td,
                        imported_module->GetTypeDefinition(attr));
-  XLS_ASSIGN_OR_RETURN(std::shared_ptr<InterpBindings> imported_bindings,
+  XLS_ASSIGN_OR_RETURN(InterpBindings imported_bindings,
                        MakeTopLevelBindings(imported_module, callbacks));
-  return EvaluateToStructOrEnumOrAnnotation(td, imported_bindings.get(),
-                                            callbacks, parametrics);
+  return EvaluateToStructOrEnumOrAnnotation(td, &imported_bindings, callbacks,
+                                            parametrics);
 }
 
 // Helper that grabs the type_definition field out of a TypeRef and resolves it.
@@ -1294,7 +1291,7 @@ static absl::StatusOr<DerefVariant> DerefTypeRef(
 static absl::StatusOr<InterpBindings> BindingsWithStructParametrics(
     StructDef* struct_def, const std::vector<Expr*>& parametrics,
     InterpBindings* bindings) {
-  InterpBindings nested_bindings(bindings->shared_from_this());
+  InterpBindings nested_bindings(bindings);
   XLS_CHECK_EQ(struct_def->parametric_bindings().size(), parametrics.size());
   for (int64 i = 0; i < parametrics.size(); ++i) {
     ParametricBinding* p = struct_def->parametric_bindings()[i];
@@ -1365,12 +1362,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
     // We may have resolved to a deref'd definition outside of the current
     // module, in which case we need to get the top level bindings for that
     // (dereferenced) module.
-    std::shared_ptr<InterpBindings> derefd_top_level;
+    InterpBindings derefd_top_level;
     Module* derefd_module = ToAstNode(deref)->owner();
     if (derefd_module != type->owner()) {
       XLS_ASSIGN_OR_RETURN(derefd_top_level,
                            MakeTopLevelBindings(derefd_module, callbacks));
-      bindings = derefd_top_level.get();
+      bindings = &derefd_top_level;
     }
 
     if (struct_parametric_bindings.has_value()) {

@@ -45,20 +45,20 @@ struct FnCtx {
 //   set of bindings when you enter a new binding scope; e.g. new bindings may
 //   be created in a loop body that you want to discard when you proceed past
 //   the loop body.
-class InterpBindings : public std::enable_shared_from_this<InterpBindings> {
+class InterpBindings {
  public:
   using Entry =
       absl::variant<InterpValue, TypeDef*, EnumDef*, StructDef*, Module*>;
 
   // Creates a new bindings object parented to "parent" and with the additional
   // binding given by name_def_tree/value.
-  static std::shared_ptr<InterpBindings> CloneWith(
-      std::shared_ptr<InterpBindings> parent, NameDefTree* name_def_tree,
-      InterpValue value);
+  static InterpBindings CloneWith(InterpBindings* parent,
+                                  NameDefTree* name_def_tree,
+                                  InterpValue value);
 
   static absl::string_view VariantAsString(const Entry& e);
 
-  explicit InterpBindings(std::shared_ptr<InterpBindings> parent = nullptr);
+  explicit InterpBindings(InterpBindings* parent = nullptr);
 
   // Various forms of binding additions (identifier to value / AST node).
 
@@ -134,7 +134,7 @@ class InterpBindings : public std::enable_shared_from_this<InterpBindings> {
 
  private:
   // Bindings from the outer scope, may be nullptr.
-  std::shared_ptr<InterpBindings> parent_;
+  InterpBindings* parent_;
 
   // Maps an identifier to its bound entry.
   absl::flat_hash_map<std::string, Entry> map_;
