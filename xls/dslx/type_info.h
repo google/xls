@@ -81,16 +81,18 @@ struct InvocationData {
 // any other sort of lifetime issues).
 class TypeInfoOwner {
  public:
-  TypeInfo* New(Module* module, TypeInfo* parent = nullptr);
-
-  // The type owner also includes a notion of a "main" type info, which is the
-  // first one created. Generally this one serves as the root for all type infos
-  // created during type inference.
-  TypeInfo* primary() const {
-    return type_infos_.empty() ? nullptr : type_infos_[0].get();
-  }
+  // Returns an error status iff parent is nullptr and "module" already has a
+  // root type info.
+  absl::StatusOr<TypeInfo*> New(Module* module, TypeInfo* parent = nullptr);
 
  private:
+  // Mapping from module to the "root" (or "parentmost") type info -- these have
+  // nullptr as their parent. There should only be one of these for any given
+  // module.
+  absl::flat_hash_map<Module*, TypeInfo*> module_to_root_;
+
+  // Owned type information objects -- TypeInfoOwner is the lifetime owner for
+  // these.
   std::vector<std::unique_ptr<TypeInfo>> type_infos_;
 };
 

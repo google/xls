@@ -75,10 +75,10 @@ using TypecheckFunctionFn = std::function<absl::Status(Function*, DeduceCtx*)>;
 
 // A single object that contains all the state/callbacks used in the
 // typechecking process.
-class DeduceCtx : public std::enable_shared_from_this<DeduceCtx> {
+class DeduceCtx {
  public:
-  DeduceCtx(TypeInfoOwner* type_info_owner, TypeInfo* type_info, Module* module,
-            DeduceFn deduce_function, TypecheckFunctionFn typecheck_function,
+  DeduceCtx(TypeInfo* type_info, Module* module, DeduceFn deduce_function,
+            TypecheckFunctionFn typecheck_function,
             TypecheckFn typecheck_module,
             absl::Span<std::string const> additional_search_paths,
             ImportCache* import_cache);
@@ -87,12 +87,11 @@ class DeduceCtx : public std::enable_shared_from_this<DeduceCtx> {
   // Uses the same callbacks as this current context.
   //
   // Note that the resulting DeduceCtx has an empty fn_stack.
-  std::shared_ptr<DeduceCtx> MakeCtx(TypeInfo* new_type_info,
+  std::unique_ptr<DeduceCtx> MakeCtx(TypeInfo* new_type_info,
                                      Module* new_module) const {
-    return std::make_shared<DeduceCtx>(type_info_owner_, new_type_info,
-                                       new_module, deduce_function_,
-                                       typecheck_function_, typecheck_module_,
-                                       additional_search_paths_, import_cache_);
+    return absl::make_unique<DeduceCtx>(
+        new_type_info, new_module, deduce_function_, typecheck_function_,
+        typecheck_module_, additional_search_paths_, import_cache_);
   }
 
   // Helper that calls back to the top-level deduce procedure for the given
@@ -109,7 +108,7 @@ class DeduceCtx : public std::enable_shared_from_this<DeduceCtx> {
 
   // Creates a new TypeInfo that has the current type_info_ as its parent.
   void AddDerivedTypeInfo() {
-    type_info_ = type_info_owner_->New(module(), /*parent=*/type_info_);
+    type_info_ = type_info_owner().New(module(), /*parent=*/type_info_).value();
   }
 
   // Pops the current type_info_ and sets the type_info_ to be the popped
@@ -145,13 +144,11 @@ class DeduceCtx : public std::enable_shared_from_this<DeduceCtx> {
     return additional_search_paths_;
   }
   ImportCache* import_cache() const { return import_cache_; }
-  TypeInfoOwner* type_info_owner() const { return type_info_owner_; }
+  TypeInfoOwner& type_info_owner() const {
+    return import_cache_->type_info_owner();
+  }
 
  private:
-  // Lifetime ownership for type information objects created during
-  // typechecking.
-  TypeInfoOwner* type_info_owner_;
-
   // Maps AST nodes to their deduced types.
   TypeInfo* type_info_ = nullptr;
 

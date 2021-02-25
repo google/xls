@@ -23,7 +23,7 @@ namespace xls::dslx {
 // An entry that goes into the ImportCache.
 struct ModuleInfo {
   std::unique_ptr<Module> module;
-  TypeInfoOwner type_info;
+  TypeInfo* type_info;
 };
 
 // Immutable "tuple" of tokens that name an absolute import location.
@@ -104,12 +104,15 @@ class ImportCache {
     return &it.first->second;
   }
 
+  TypeInfoOwner& type_info_owner() { return type_info_owner_; }
+
  private:
   absl::flat_hash_map<ImportTokens, ModuleInfo> cache_;
+  TypeInfoOwner type_info_owner_;
 };
 
 // Type-checking callback lambda.
-using TypecheckFn = std::function<absl::StatusOr<TypeInfoOwner>(Module*)>;
+using TypecheckFn = std::function<absl::StatusOr<TypeInfo*>(Module*)>;
 
 // Imports the module identified (globally) by 'subject'.
 //

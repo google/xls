@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/status/matchers.h"
 
 namespace xls::dslx {
 namespace {
@@ -23,7 +24,7 @@ namespace {
 TEST(TypeInfoTest, Instantiate) {
   Module module("test");
   TypeInfoOwner owner;
-  TypeInfo* type_info = owner.New(&module);
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * type_info, owner.New(&module));
   EXPECT_EQ(type_info->parent(), nullptr);
 }
 

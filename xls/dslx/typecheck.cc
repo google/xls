@@ -230,8 +230,10 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
           ctx->type_info()->GetImported(*import);
       XLS_RET_CHECK(import_info.has_value());
 
-      TypeInfo* invocation_imported_type_info = ctx->type_info_owner()->New(
-          (*import_info)->module, /*parent=*/(*import_info)->type_info);
+      XLS_ASSIGN_OR_RETURN(
+          TypeInfo * invocation_imported_type_info,
+          ctx->type_info_owner().New((*import_info)->module,
+                                     /*parent=*/(*import_info)->type_info));
       std::shared_ptr<DeduceCtx> imported_ctx =
           ctx->MakeCtx(invocation_imported_type_info, (*import_info)->module);
       imported_ctx->fn_stack().push_back(
@@ -552,23 +554,23 @@ class ScopedFnStackEntry {
   bool expect_popped_;
 };
 
-absl::StatusOr<TypeInfoOwner> CheckModule(
+absl::StatusOr<TypeInfo*> CheckModule(
     Module* module, ImportCache* import_cache,
     absl::Span<const std::string> additional_search_paths) {
   std::vector<std::string> additional_search_paths_copy(
       additional_search_paths.begin(), additional_search_paths.end());
-  TypeInfoOwner type_info_owner;
-  TypeInfo* type_info = type_info_owner.New(module);
+  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
+                       import_cache->type_info_owner().New(module));
   auto ftypecheck = [import_cache, additional_search_paths_copy](
-                        Module* module) -> absl::StatusOr<TypeInfoOwner> {
+                        Module* module) -> absl::StatusOr<TypeInfo*> {
     return CheckModule(module, import_cache, additional_search_paths_copy);
   };
-  auto ctx_shared = std::make_shared<DeduceCtx>(
-      &type_info_owner, type_info, module,
+  auto ctx_owned = absl::make_unique<DeduceCtx>(
+      type_info, module,
       /*deduce_function=*/&Deduce,
       /*typecheck_function=*/&CheckTopNodeInModule,
       /*typecheck_module=*/ftypecheck, additional_search_paths, import_cache);
-  DeduceCtx* ctx = ctx_shared.get();
+  DeduceCtx* ctx = ctx_owned.get();
 
   // First, populate type info with constants, enums, resolved imports, and
   // non-parametric functions.
@@ -579,7 +581,7 @@ absl::StatusOr<TypeInfoOwner> CheckModule(
                            DoImport(ftypecheck, ImportTokens(import->subject()),
                                     additional_search_paths, import_cache));
       ctx->type_info()->AddImport(import, imported->module.get(),
-                                  imported->type_info.primary());
+                                  imported->type_info);
     } else if (absl::holds_alternative<ConstantDef*>(member) ||
                absl::holds_alternative<EnumDef*>(member)) {
       ScopedFnStackEntry scoped(ctx, module);
@@ -664,8 +666,7 @@ absl::StatusOr<TypeInfoOwner> CheckModule(
     XLS_VLOG(2) << "Finished typechecking test: " << test->ToString();
   }
 
-  XLS_RET_CHECK_EQ(type_info_owner.primary(), ctx->type_info());
-  return std::move(type_info_owner);
+  return type_info;
 }
 
 }  // namespace xls::dslx

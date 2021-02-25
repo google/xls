@@ -139,9 +139,8 @@ absl::StatusOr<const ModuleInfo*> DoImport(
   Scanner scanner(found_path, contents);
   Parser parser(/*module_name=*/fully_qualified_name, &scanner);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
-  XLS_ASSIGN_OR_RETURN(TypeInfoOwner type_info, ftypecheck(module.get()));
-  return cache->Put(subject,
-                    ModuleInfo{std::move(module), std::move(type_info)});
+  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info, ftypecheck(module.get()));
+  return cache->Put(subject, ModuleInfo{std::move(module), type_info});
 }
 
 }  // namespace xls::dslx

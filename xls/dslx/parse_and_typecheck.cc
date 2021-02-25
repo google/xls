@@ -27,14 +27,13 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
   Parser parser(std::string{module_name}, &scanner);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
   XLS_ASSIGN_OR_RETURN(
-      TypeInfoOwner type_info,
+      TypeInfo * type_info,
       CheckModule(module.get(), import_cache, /*additional_search_paths=*/{}));
-  TypecheckedModule result{module.get(), type_info.primary()};
+  TypecheckedModule result{module.get(), type_info};
   XLS_ASSIGN_OR_RETURN(ImportTokens subject,
                        ImportTokens::FromString(module_name));
   XLS_RETURN_IF_ERROR(
-      import_cache
-          ->Put(subject, ModuleInfo{std::move(module), std::move(type_info)})
+      import_cache->Put(subject, ModuleInfo{std::move(module), type_info})
           .status());
   return result;
 }

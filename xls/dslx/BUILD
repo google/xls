@@ -97,6 +97,7 @@ cc_library(
         ":ast",
         ":concrete_type",
         ":symbolic_bindings",
+        "//xls/common/status:ret_check",
     ],
 )
 
@@ -105,6 +106,7 @@ cc_test(
     srcs = ["type_info_test.cc"],
     deps = [
         ":type_info",
+        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
 )

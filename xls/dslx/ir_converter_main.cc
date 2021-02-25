@@ -86,13 +86,13 @@ absl::Status RealMain(absl::string_view path,
                                  /*filename=*/path, printed_error));
 
   ImportCache import_cache;
-  absl::StatusOr<TypeInfoOwner> type_info_or =
+  absl::StatusOr<TypeInfo*> type_info_or =
       CheckModule(module.get(), &import_cache, dslx_paths);
   if (!type_info_or.ok()) {
     *printed_error = TryPrintError(type_info_or.status());
     return type_info_or.status();
   }
-  TypeInfo* type_info = type_info_or.value().primary();
+  TypeInfo* type_info = type_info_or.value();
 
   std::string converted;
   if (entry.has_value()) {

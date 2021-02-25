@@ -1460,8 +1460,10 @@ static absl::Status CheckParametricInvocation(
     absl::optional<const ImportedInfo*> imported =
         ctx->type_info()->GetImported(import_node);
     XLS_RET_CHECK(imported.has_value());
-    auto* invocation_imported_type_info = ctx->type_info_owner()->New(
-        (*imported)->module, /*parent=*/(*imported)->type_info);
+    XLS_ASSIGN_OR_RETURN(
+        TypeInfo * invocation_imported_type_info,
+        ctx->type_info_owner().New((*imported)->module,
+                                   /*parent=*/(*imported)->type_info));
     std::shared_ptr<DeduceCtx> imported_ctx =
         ctx->MakeCtx(invocation_imported_type_info, (*imported)->module);
     imported_ctx->fn_stack().push_back(

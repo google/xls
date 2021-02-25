@@ -38,7 +38,8 @@ TEST(InterpreterTest, RunIdentityFn) {
   module->AddTop(function);
 
   TypeInfoOwner type_info_owner;
-  TypeInfo* type_info = type_info_owner.New(/*module=*/nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * type_info,
+                           type_info_owner.New(/*module=*/nullptr));
   Interpreter interp(module.get(), type_info, /*typecheck=*/nullptr,
                      /*additional_search_paths=*/{}, /*import_cache=*/nullptr);
   InterpValue mol = InterpValue::MakeU32(42);

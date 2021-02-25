@@ -14,6 +14,8 @@
 
 #include "xls/dslx/type_info.h"
 
+#include "xls/common/status/ret_check.h"
+
 namespace xls::dslx {
 
 void InvocationData::Update(const InvocationData& other) {
@@ -39,10 +41,20 @@ std::string InvocationData::ToString() const {
 
 // -- class TypeInfoOwner
 
-TypeInfo* TypeInfoOwner::New(Module* module, TypeInfo* parent) {
+absl::StatusOr<TypeInfo*> TypeInfoOwner::New(Module* module, TypeInfo* parent) {
   // Note: private constructor so not using make_unique.
   type_infos_.push_back(absl::WrapUnique(new TypeInfo(this, module, parent)));
-  return type_infos_.back().get();
+  TypeInfo* result = type_infos_.back().get();
+  if (parent == nullptr) {
+    // Check we only have a single nullptr-parent TypeInfo for a given module.
+    XLS_RET_CHECK(!module_to_root_.contains(module))
+        << "module " << module->name() << " already has a root TypeInfo";
+    module_to_root_[module] = result;
+  } else {
+    // Check that we don't have parent links that traverse modules.
+    XLS_RET_CHECK_EQ(parent->module(), module);
+  }
+  return result;
 }
 
 // -- class typeInfo

@@ -155,7 +155,7 @@ absl::StatusOr<bool> ParseAndTest(
   }
   auto& module = module_or.value();
 
-  absl::StatusOr<TypeInfoOwner> type_info_or =
+  absl::StatusOr<TypeInfo*> type_info_or =
       CheckModule(module.get(), &import_cache, dslx_paths);
   if (!type_info_or.ok()) {
     if (TryPrintError(type_info_or.status())) {
@@ -163,21 +163,21 @@ absl::StatusOr<bool> ParseAndTest(
     }
     return type_info_or.status();
   }
-  TypeInfoOwner type_info = std::move(type_info_or).value();
+  TypeInfo* type_info = type_info_or.value();
 
   std::unique_ptr<Package> ir_package;
   if (compare_jit) {
-    XLS_ASSIGN_OR_RETURN(
-        ir_package, ConvertModuleToPackage(module.get(), type_info.primary(),
-                                           /*emit_positions=*/true,
-                                           /*traverse_tests=*/true));
+    XLS_ASSIGN_OR_RETURN(ir_package,
+                         ConvertModuleToPackage(module.get(), type_info,
+                                                /*emit_positions=*/true,
+                                                /*traverse_tests=*/true));
   }
 
   auto typecheck_callback = [&import_cache, &dslx_paths](Module* module) {
     return CheckModule(module, &import_cache, dslx_paths);
   };
 
-  Interpreter interpreter(module.get(), type_info.primary(), typecheck_callback,
+  Interpreter interpreter(module.get(), type_info, typecheck_callback,
                           dslx_paths, &import_cache, /*trace_all=*/trace_all,
                           /*ir_package=*/ir_package.get());
 
