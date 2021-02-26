@@ -189,6 +189,7 @@ project, see our
 * [Balint Christian](https://github.com/cbalint13)
 * [Blaok](https://github.com/Blaok)
 * [Brandon Jiang](https://github.com/brajiang)
+* [Brian Searls](https://github.com/briansrls)
 * [Chen-hao Chang](https://github.com/cchao)
 * [Chris Drake](https://github.com/cjdrake)
 * [Chris Leary](https://github.com/cdleary)
