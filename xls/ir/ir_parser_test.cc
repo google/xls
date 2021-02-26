@@ -1112,6 +1112,16 @@ fn bar(tkn: token, cond: bits[1]) -> token {
   ParsePackageAndCheckDump(input);
 }
 
+TEST(IrParserTest, ParseAssertWithLabel) {
+  const std::string input = R"(package foobar
+
+fn bar(tkn: token, cond: bits[1]) -> token {
+  ret assert.1: token = assert(tkn, cond, message="The foo is bar", label="assert_label", id=1)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
 TEST(IrParserTest, ParseBitSliceUpdate) {
   const std::string input = R"(package foobar
 

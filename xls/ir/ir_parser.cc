@@ -870,9 +870,15 @@ absl::StatusOr<BValue> Parser::ParseNode(
     }
     case Op::kAssert: {
       QuotedString* message = arg_parser.AddKeywordArg<QuotedString>("message");
+      absl::optional<QuotedString>* label =
+          arg_parser.AddOptionalKeywordArg<QuotedString>("label");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
-      bvalue =
-          fb->Assert(operands[0], operands[1], message->value, *loc, node_name);
+      absl::optional<std::string> label_string;
+      if (label->has_value()) {
+        label_string = label->value().value;
+      }
+      bvalue = fb->Assert(operands[0], operands[1], message->value,
+                          label_string, *loc, node_name);
       break;
     }
     case Op::kBitSliceUpdate: {

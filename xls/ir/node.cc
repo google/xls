@@ -506,6 +506,10 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
     case Op::kAssert:
       args.push_back(
           absl::StrFormat("message=\"%s\"", As<Assert>()->message()));
+      if (As<Assert>()->label().has_value()) {
+        args.push_back(
+            absl::StrFormat("label=\"%s\"", As<Assert>()->label().value()));
+      }
       break;
     default:
       break;

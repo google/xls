@@ -540,6 +540,7 @@ class BuilderBase {
   // Adds an assert op to the function. Assert raises an error containing the
   // given message if the given condition evaluates to false.
   BValue Assert(BValue token, BValue condition, absl::string_view message,
+                absl::optional<std::string> label = absl::nullopt,
                 absl::optional<SourceLocation> loc = absl::nullopt,
                 absl::string_view name = "");
 
@@ -760,6 +761,7 @@ class TokenlessProcBuilder : public ProcBuilder {
   // Add an assert operation
   using BuilderBase::Assert;
   void Assert(BValue condition, absl::string_view message,
+              absl::optional<std::string> label = absl::nullopt,
               absl::optional<SourceLocation> loc = absl::nullopt,
               absl::string_view name = "");
 

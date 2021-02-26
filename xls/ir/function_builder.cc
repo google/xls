@@ -1049,6 +1049,7 @@ BValue BuilderBase::AddBitwiseReductionOp(Op op, BValue arg,
 
 BValue BuilderBase::Assert(BValue token, BValue condition,
                            absl::string_view message,
+                           absl::optional<std::string> label,
                            absl::optional<SourceLocation> loc,
                            absl::string_view name) {
   if (ErrorPending()) {
@@ -1068,7 +1069,7 @@ BValue BuilderBase::Assert(BValue token, BValue condition,
                     loc);
   }
   return AddNode<xls::Assert>(loc, token.node(), condition.node(), message,
-                              name);
+                              label, name);
 }
 
 BValue ProcBuilder::Receive(Channel* channel, BValue token,
@@ -1181,10 +1182,11 @@ void TokenlessProcBuilder::SendIf(Channel* channel, BValue pred, BValue data,
 }
 
 void TokenlessProcBuilder::Assert(BValue condition, absl::string_view message,
+                                  absl::optional<std::string> label,
                                   absl::optional<SourceLocation> loc,
                                   absl::string_view name) {
-  BValue asrt =
-      BuilderBase::Assert(GetTokenParam(), condition, message, loc, name);
+  BValue asrt = BuilderBase::Assert(GetTokenParam(), condition, message, label,
+                                    loc, name);
   tokens_.push_back(asrt);
 }
 

@@ -96,15 +96,13 @@ result = operation(pos_arg_0, ..., pos_arg_N, keyword_0=value0, ..., keyword_M=v
 
 **Common keyword arguments**
 
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 | Keyword | Type             | Required | Default | Description           |
 | ------- | ---------------- | -------- | ------- | --------------------- |
-| `pos`   | `SourceLocation` | no       |         | The source location   |
-:         :                  :          :         : associated with this  :
-:         :                  :          :         : operation. The syntax :
-:         :                  :          :         : is a triplet of       :
-:         :                  :          :         : comma-separated       :
-:         :                  :          :         : integer values\:      :
-:         :                  :          :         : `Fileno,Lineno,Colno` :
+| `pos`   | `SourceLocation` | no       |         | The source location associated with this operation. The syntax is a triplet of comma-separated integer values: `Fileno,Lineno,Colno` |
+
+<!-- mdformat on -->
 
 ### Unary bitwise operations
 
@@ -365,10 +363,13 @@ Value    | Type
 
 **Keyword arguments**
 
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 | Keyword      | Type    | Required | Default | Description              |
 | ------------ | ------- | -------- | ------- | ------------------------ |
-| `channel_id` | `int64` | yes      |         | The ID of the channel to |
-:              :         :          :         : receive data from        :
+| `channel_id` | `int64` | yes      |         | The ID of the channel to receive data from |
+
+<!-- mdformat on -->
 
 #### **`receive_if`**
 
@@ -390,10 +391,13 @@ Value    | Type
 
 **Keyword arguments**
 
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 | Keyword      | Type    | Required | Default | Description              |
 | ------------ | ------- | -------- | ------- | ------------------------ |
-| `channel_id` | `int64` | yes      |         | The ID of the channel to |
-:              :         :          :         : receive data from        :
+| `channel_id` | `int64` | yes      |         | The ID of the channel to receive data from |
+
+<!-- mdformat on -->
 
 If the predicate is false the data values in the result are zero-filled.
 
@@ -419,10 +423,13 @@ number of data elements supported by the channel.
 
 **Keyword arguments**
 
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 | Keyword      | Type    | Required | Default | Description                   |
 | ------------ | ------- | -------- | ------- | ----------------------------- |
-| `channel_id` | `int64` | yes      |         | The ID of the channel to send |
-:              :         :          :         : data to.                      :
+| `channel_id` | `int64` | yes      |         | The ID of the channel to send data to. |
+
+<!-- mdformat on -->
 
 #### **`send_if`**
 
@@ -447,10 +454,13 @@ number of data elements supported by the channel.
 
 **Keyword arguments**
 
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 | Keyword      | Type    | Required | Default | Description                   |
 | ------------ | ------- | -------- | ------- | ----------------------------- |
-| `channel_id` | `int64` | yes      |         | The ID of the channel to send |
-:              :         :          :         : data to.                      :
+| `channel_id` | `int64` | yes      |         | The ID of the channel to send data to. |
+
+<!-- mdformat on -->
 
 ### Array operations
 
@@ -503,15 +513,17 @@ for the respective dimension.
 The table below shows examples of the result type `T` and the result expression
 assuming input array operand `A`.
 
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 | Indices   | Array type      | result type `T` | Result expression            |
 | --------- | --------------- | --------------- | ---------------------------- |
 | `{1, 2}`  | `bits[3][4][5]` | `bits[3]`       | `A[1][2]`                    |
-| `{10, 2}` | `bits[3][4][5]` | `bits[3]`       | `A[4][2]` (first index is    |
-:           :                 :                 : out-of-bounds and clamped at :
-:           :                 :                 : the maximum index)           :
+| `{10, 2}` | `bits[3][4][5]` | `bits[3]`       | `A[4][2]` (first index is out-of-bounds and clamped at the maximum index) |
 | `{1}`     | `bits[3][4][5]` | `bits[3][4]`    | `A[1]`                       |
 | `{}`      | `bits[3][4][5]` | `bits[3][4][5]` | `A`                          |
 | `{}`      | `bits[32]`      | `bits[32]`      | `A`                          |
+
+<!-- mdformat on -->
 
 #### **`array_update`**
 
@@ -603,18 +615,14 @@ Value     | Type
 
 **Keyword arguments**
 
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 | Keyword | Type    | Required | Default | Description       |
 | ------- | ------- | -------- | ------- | ----------------- |
-| `start` | `int64` | yes      |         | The starting bit  |
-:         :         :          :         : of the slice.     :
-:         :         :          :         : `start` is is     :
-:         :         :          :         : zero-indexed      :
-:         :         :          :         : where zero is the :
-:         :         :          :         : least-significant :
-:         :         :          :         : bit of the        :
-:         :         :          :         : operand.          :
-| `width` | `int64` | yes      |         | The width of the  |
-:         :         :          :         : slice.            :
+| `start` | `int64` | yes      |         | The starting bit of the slice. `start` is is zero-indexed where zero is the least-significant bit of the operand. |
+| `width` | `int64` | yes      |         | The width of the slice. |
+
+<!-- mdformat on -->
 
 The bit-width of `operand` must be greater than or equal to `<start>` plus
 `<width>`.
@@ -675,10 +683,13 @@ as an unsigned integer.
 
 **Keyword arguments**
 
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 | Keyword | Type    | Required | Default | Description       |
 | ------- | ------- | -------- | ------- | ----------------- |
-| `width` | `int64` | yes      |         | The width of the  |
-:         :         :          :         : slice.            :
+| `width` | `int64` | yes      |         | The width of the slice. |
+
+<!-- mdformat on -->
 
 #### **`concat`**
 
@@ -791,10 +802,13 @@ Value    | Type
 
 **Keyword arguments**
 
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 | Keyword    | Type     | Required | Default | Description                    |
 | ---------- | -------- | -------- | ------- | ------------------------------ |
-| `lsb_prio` | `bool`   | yes      |         | Whether the least significant  |
-:            :          :          :         : bit (LSb) has priority.        :
+| `lsb_prio` | `bool`   | yes      |         | Whether the least significant bit (LSb) has priority. |
+
+<!-- mdformat on -->
 
 For `lsb_prio=true`: result bit `i` for `0 <= i < N` is set in `result` iff bit
 `i` is set in the input and all lower bits `j` for `j < i` are not set in the
@@ -931,10 +945,13 @@ Value    | Type
 
 **Keyword arguments**
 
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 | Keyword    | Type     | Required | Default | Description                    |
 | ---------- | -------- | -------- | ------- | ------------------------------ |
-| `to_apply` | `string` | yes      |         | Name of the function to use as |
-:            :          :          :         : the loop body                  :
+| `to_apply` | `string` | yes      |         | Name of the function to use as the loop body |
+
+<!-- mdformat on -->
 
 #### **`map`**
 
@@ -956,10 +973,13 @@ Value     | Type
 
 **Keyword arguments**
 
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 | Keyword    | Type     | Required | Default | Description                    |
 | ---------- | -------- | -------- | ------- | ------------------------------ |
-| `to_apply` | `string` | yes      |         | Name of the function to apply  |
-:            :          :          :         : to each element of the operand :
+| `to_apply` | `string` | yes      |         | Name of the function to apply to each element of the operand |
+
+<!-- mdformat on -->
 
 #### **`dynamic_counted_for`**
 
@@ -982,12 +1002,14 @@ Value        | Type
 
 **Keyword arguments**
 
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 | Keyword          | Type     | Required | Default | Description               |
 | ---------------- | -------- | -------- | ------- | ------------------------- |
-| `invariant_args` | array of | yes      |         | Names of the invariant    |
-:                  : operands :          :         : operands as the loop body :
-| `body`           | `string` | yes      |         | Name of the function to   |
-:                  :          :          :         : use as the loop body      :
+| `invariant_args` | array of | yes      |         | Names of the invariant operands as the loop body |
+| `body`           | `string` | yes      |         | Name of the function to use as the loop body |
+
+<!-- mdformat on -->
 
 `dynamic_counted_for` invokes the function `body` `trip_count` times, passing
 loop-carried data that starts with value `init`. The induction variable is
@@ -1037,18 +1059,16 @@ Value    | Type
 
 **Keyword arguments**
 
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 | Keyword          | Type     | Required | Default | Description               |
 | ---------------- | -------- | -------- | ------- | ------------------------- |
-| `trip_count`     | `int64`  | yes      |         | Trip count of the loop    |
-:                  :          :          :         : (number of times that the :
-:                  :          :          :         : loop body will be         :
-:                  :          :          :         : executed)                 :
-| `stride`         | `int64`  | no       | 1       | Stride of the induction   |
-:                  :          :          :         : variable                  :
-| `invariant_args` | array of | yes      |         | Names of the invariant    |
-:                  : operands :          :         : operands as the loop body :
-| `body`           | `string` | yes      |         | Name of the function to   |
-:                  :          :          :         : use as the loop body      :
+| `trip_count`     | `int64`  | yes      |         | Trip count of the loop (number of times that the loop body will be executed) |
+| `stride`         | `int64`  | no       | 1       | Stride of the induction variable |
+| `invariant_args` | array of | yes      |         | Names of the invariant operands as the loop body |
+| `body`           | `string` | yes      |         | Name of the function to use as the loop body |
+
+<!-- mdformat on -->
 
 `counted_for` invokes the function `body` `trip_count` times, passing
 loop-carried data that starts with value `init`.
@@ -1112,6 +1132,7 @@ other side-effecting operations.
 
 ```
 result = assert(tkn, condition, message=<string>)
+result = assert(tkn, condition, message=<string>, label=<string>)
 ```
 
 **Types**
@@ -1124,7 +1145,11 @@ Value       | Type
 
 **Keyword arguments**
 
-Keyword   | Type     | Required | Default | Description
---------- | -------- | -------- | ------- | ---------------------------------
-`message` | `string` | yes      |         | Message to include in raise error
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
+| Keyword   | Type              | Required | Default | Description     |
+| --------- | ----------------- | -------- | ------- | --------------- |
+| `message` | `string`          | yes      |         | Message to include in raised error |
+| `label`   | `optional string` | yes      |         | Label to associate with the assert statement in the generated (System)Verilog |
+
+<!-- mdformat on -->

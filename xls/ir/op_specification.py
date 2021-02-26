@@ -184,6 +184,16 @@ class StringAttribute(Attribute):
         arg_cpp_type='absl::string_view')
 
 
+class OptionalStringAttribute(Attribute):
+
+  def __init__(self, name):
+    super(OptionalStringAttribute, self).__init__(
+        name,
+        cpp_type='absl::optional<std::string>',
+        return_cpp_type='absl::optional<std::string>',
+        arg_cpp_type='absl::optional<std::string>')
+
+
 class LsbOrMsbAttribute(Attribute):
 
   def __init__(self, name):
@@ -466,7 +476,7 @@ OpClass.kinds['ASSERT'] = OpClass(
                           return_cpp_type='Node*',
                           expression='operand(1)'),
                    ],
-    attributes=[StringAttribute('message')]
+    attributes=[StringAttribute('message'), OptionalStringAttribute('label')]
 )
 
 OpClass.kinds['BITWISE_REDUCTION_OP'] = OpClass(
