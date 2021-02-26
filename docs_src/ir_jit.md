@@ -10,7 +10,7 @@ compiler intermediate representation (IR) at native machine speed.
 Given a DSLX file and build target, one can build and run it through the JIT by:
 
 1.  Declaring a
-    [`dslx_jit_wrapper`](https://github.com/google/xls/tree/main/xls/build/build_defs.bzl)
+    [`dslx_jit_wrapper`](https://github.com/google/xls/tree/main/xls/build_rules/build_defs.bzl)
     target matching the DSLX build target.
 2.  Creating a JIT object and calling its `Run()` method. Using the 2-way
     floating-point adder as an example:
@@ -27,11 +27,10 @@ Given a DSLX file and build target, one can build and run it through the JIT by:
      }
     ```
 
-The advantages of JIT compilation (or any
-compilation, for that matter) only come into play when repeatedly using the
-compiled object, so programs should be structured to create a JIT wrapper
-once and to reuse it many times, e.g., to test a module across many - or
-even exhaustively, across all possible - inputs.
+The advantages of JIT compilation (or any compilation, for that matter) only
+come into play when repeatedly using the compiled object, so programs should be
+structured to create a JIT wrapper once and to reuse it many times, e.g., to
+test a module across many - or even exhaustively, across all possible - inputs.
 
 ### Specialized matching
 

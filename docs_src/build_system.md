@@ -15,13 +15,13 @@ described below, to simplify build target definition.
 
 Below are summaries of public macro functionality. Full documentation is
 available in
-[xls/build/build_defs.bzl](https://github.com/google/xls/tree/main/xls/build/build_defs.bzl).
+[xls/build_rules/build_defs.bzl](https://github.com/google/xls/tree/main/xls/build_rules/build_defs.bzl).
 
 ### `dslx_codegen`
 
 This macro generates Verilog from an DSLX target (currently given as a
 `dslx_test` target). This target also accepts several key/value parameters (as
-`configs` for generation:
+`configs` for generation):
 
 *   `clock_period_ps`: The target clock period in picoseconds. Only used with
     the pipeline generator.
@@ -50,11 +50,11 @@ manner as above.
 
 Main driver for:
 
-* Compiling DSLX files to IR
-* Running DSLX test cases (defined alongside the designs)
-* Proving DSLX/IR equivalence
-* Generating a benchmark for the associated IR
-* Proving logical equivalence for the optimized vs. unoptimized IR
+*   Compiling DSLX files to IR
+*   Running DSLX test cases (defined alongside the designs)
+*   Proving DSLX/IR equivalence
+*   Generating a benchmark for the associated IR
+*   Proving logical equivalence for the optimized vs. unoptimized IR
 
 In general, if one has a DSLX .x file, there should be an associated `dslx_test`
 target - this is the entry point to "downstream" capabilities (IR
