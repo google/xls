@@ -261,5 +261,47 @@ absl::Status BuildNetworkGraphFromProto(const NetworkConfigProto& proto,
   return builder.BuildNetworkGraph(proto);
 }
 
+absl::StatusOr<NetworkComponentId> FindNetworkComponentByName(
+    absl::string_view name, NetworkManager& network_mgr,
+    NocParameters& noc_parameters) {
+  for (Network& network : network_mgr.GetNetworks()) {
+    for (NetworkComponentId nc : network.GetNetworkComponentIds()) {
+      absl::StatusOr<NetworkComponentParam> param_status =
+          noc_parameters.GetNetworkComponentParam(nc);
+
+      if (param_status.ok()) {
+        std::string_view nc_name =
+            absl::visit([](auto nc) { return nc.GetName(); }, *param_status);
+        if (nc_name == name) {
+          return nc;
+        }
+      }
+    }
+  }
+
+  return absl::NotFoundError(absl::StrFormat(
+      "Unable to find network component with param name %s", name));
+}
+
+absl::StatusOr<PortId> FindPortByName(absl::string_view name,
+                                      NetworkManager& network_mgr,
+                                      NocParameters& noc_parameters) {
+  for (Network& network : network_mgr.GetNetworks()) {
+    for (NetworkComponent& nc : network.GetNetworkComponents()) {
+      for (PortId port : nc.GetPortIds()) {
+        absl::StatusOr<PortParam> param_status =
+            noc_parameters.GetPortParam(port);
+
+        if (param_status.ok() && param_status->GetName() == name) {
+          return port;
+        }
+      }
+    }
+  }
+
+  return absl::NotFoundError(
+      absl::StrFormat("Unable to find port with param name %s", name));
+}
+
 }  // namespace noc
 }  // namespace xls

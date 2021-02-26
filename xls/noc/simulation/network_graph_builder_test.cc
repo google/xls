@@ -135,6 +135,17 @@ TEST(SimNetworkGraphBuilderTest, UnitTest) {
                       ->GetName(),
                   "out0");
 
+        // Check that we can also retrieve by name.
+        {
+          XLS_ASSERT_OK_AND_ASSIGN(
+              NetworkComponentId router0,
+              FindNetworkComponentByName("Router0", graph, params));
+          XLS_ASSERT_OK_AND_ASSIGN(PortId in0,
+                                   FindPortByName("in0", graph, params));
+          EXPECT_EQ(router0, nid);
+          EXPECT_EQ(in0, network_component.GetInputPortIds()[0]);
+        }
+
         // Retreive and check link attached to input port
         connection_id =
             graph.GetPort(network_component.GetInputPortIds()[0]).connection();

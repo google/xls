@@ -42,6 +42,16 @@ absl::Status BuildNetworkGraphFromProto(const NetworkConfigProto& proto,
                                         NetworkManager* manager,
                                         NocParameters* parameters);
 
+// Retrieves NetworkComponentId, given name as specified in proto.
+absl::StatusOr<NetworkComponentId> FindNetworkComponentByName(
+    absl::string_view name, NetworkManager& network_mgr,
+    NocParameters& noc_parameters);
+
+// Retrieves PortId, given name as specified in proto.
+absl::StatusOr<PortId> FindPortByName(absl::string_view name,
+                                      NetworkManager& network_mgr,
+                                      NocParameters& noc_parameters);
+
 }  // namespace noc
 }  // namespace xls
 

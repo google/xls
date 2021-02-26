@@ -151,3 +151,35 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "global_routing_table",
+    srcs = ["global_routing_table.cc"],
+    hdrs = ["global_routing_table.h"],
+    deps = [
+        ":common",
+        ":indexer",
+        ":network_graph",
+        ":parameters",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:integral_types",
+        "//xls/common/status:ret_check",
+        "//xls/noc/config:network_config_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "global_routing_table_test",
+    srcs = ["global_routing_table_test.cc"],
+    deps = [
+        ":global_routing_table",
+        ":network_graph_builder",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/noc/config:network_config_cc_proto",
+        "//xls/noc/config:network_config_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
