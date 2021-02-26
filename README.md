@@ -52,7 +52,7 @@ bazel 4.0.0
 
 ~/xls$ # Note we're going to tell Ubuntu that `/usr/bin/env python` is actually python3
 ~/xls$ # here, since that is not the case by default on Ubuntu 20.04.
-~/xls$ sudo apt install python3-distutils python3-dev libtinfo5 python3-is-python
+~/xls$ sudo apt install python3-distutils python3-dev libtinfo5 python-is-python3
 
 ~/xls$ # Now build/test everything in optimized build mode.
 ~/xls$ bazel test -c opt ...
