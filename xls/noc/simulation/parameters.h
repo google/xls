@@ -55,114 +55,6 @@ class NetworkParam {
   const NetworkConfigProto* network_proto_;
 };
 
-// Interface to protos describing a link.
-struct LinkParam {
- public:
-  LinkParam(const NetworkConfigProto& network, const LinkConfigProto& link)
-      : network_proto_(&network), link_proto_(&link) {}
-
-  absl::string_view GetName() const { return link_proto_->name(); }
-
-  // Get pipeline stages from source to sink.
-  int64 GetSourceToSinkPipelineStages() const {
-    return link_proto_->source_sink_pipeline_stage();
-  }
-
-  // Get pipeline stages from sink to source (ex. for flow control).
-  int64 GetSinkToSourcePipelineStages() const {
-    return link_proto_->sink_source_pipeline_stage();
-  }
-
-  // Get number of data (non-control) bits in a phit.
-  //   i.e. for source-to-link path.
-  int64 GetPhitDataBitWidth() const { return link_proto_->phit_bit_width(); }
-
-  // Get source proto for the network this link is in.
-  const NetworkConfigProto& GetNetworkProto() const { return *network_proto_; }
-
-  // Get link proto associated with this link.
-  const LinkConfigProto& GetLinkProto() const { return *link_proto_; }
-
- private:
-  const NetworkConfigProto* network_proto_;
-  const LinkConfigProto* link_proto_;
-};
-
-// Interface to protos describing a source network interface.
-class NetworkInterfaceSrcParam {
- public:
-  NetworkInterfaceSrcParam(const NetworkConfigProto& network,
-                           const PortConfigProto& port)
-      : network_proto_(&network), port_proto_(&port) {}
-
-  absl::string_view GetName() const { return port_proto_->name(); }
-
-  // Get assoicated network proto for this network interface.
-  const NetworkConfigProto& GetNetworkProto() const { return *network_proto_; }
-
-  // Get associated port proto.
-  const PortConfigProto& GetPortProto() const { return *port_proto_; }
-
- private:
-  const NetworkConfigProto* network_proto_;
-  const PortConfigProto* port_proto_;
-};
-
-// Interface to protos describing a sink network interface.
-class NetworkInterfaceSinkParam {
- public:
-  NetworkInterfaceSinkParam(const NetworkConfigProto& network,
-                            const PortConfigProto& port, int64 depth = 0)
-      : network_proto_(&network), port_proto_(&port), depth_(depth) {}
-
-  // Sets depth (buffer/fifo size)of this network interface.
-  void SetDepth(int64 depth) { depth_ = depth; }
-
-  // Returns number of flits this network interface can buffer.
-  int64 GetDepth() const { return depth_; }
-
-  absl::string_view GetName() const { return port_proto_->name(); }
-
-  // Get assoicated network proto for this network interface.
-  const NetworkConfigProto& GetNetworkProto() const { return *network_proto_; }
-
-  // Get associated port proto.
-  const PortConfigProto& GetPortProto() const { return *port_proto_; }
-
- private:
-  const NetworkConfigProto* network_proto_;
-  const PortConfigProto* port_proto_;
-
-  // TODO(tedhong): 2020-12-14 support configuration via protos.
-  int64 depth_;
-};
-
-// Interface to protos describing a router.
-class RouterParam {
- public:
-  RouterParam(const NetworkConfigProto& network,
-              const RouterConfigProto& router)
-      : network_proto_(&network), router_proto_(&router) {}
-
-  absl::string_view GetName() const { return router_proto_->name(); }
-
-  // Get assoicated network proto for this router.
-  const NetworkConfigProto& GetNetworkProto() const { return *network_proto_; }
-
-  // Get associated router proto.
-  const RouterConfigProto& GetRouterProto() const { return *router_proto_; }
-
- private:
-  const NetworkConfigProto* network_proto_;
-  const RouterConfigProto* router_proto_;
-};
-
-// Variant used to store all possible param objects for
-// each type of network component.
-using NetworkComponentParam =
-    absl::variant<NetworkInterfaceSrcParam, NetworkInterfaceSinkParam,
-                  RouterParam, LinkParam>;
-
 // Interface to protos describing a virtual channel
 struct VirtualChannelParam {
  public:
@@ -180,7 +72,7 @@ struct VirtualChannelParam {
   // but not less.
   int64 GetDepth() const { return vc_proto_->depth(); }
 
-  // Get bits used for the data in a single flit.
+  // Get bits used for th  if () e data in a single flit.
   int64 GetFlitDataBitWidth() const { return vc_proto_->flit_bit_width(); }
 
   // Get assoicated network proto for this router.
@@ -239,6 +131,124 @@ struct PortParam {
   const NetworkConfigProto* network_proto_;
   const PortConfigProto* port_proto_;
 };
+
+// Interface to protos describing a link.
+struct LinkParam {
+ public:
+  LinkParam(const NetworkConfigProto& network, const LinkConfigProto& link)
+      : network_proto_(&network), link_proto_(&link) {}
+
+  absl::string_view GetName() const { return link_proto_->name(); }
+
+  // Get pipeline stages from source to sink.
+  int64 GetSourceToSinkPipelineStages() const {
+    return link_proto_->source_sink_pipeline_stage();
+  }
+
+  // Get pipeline stages from sink to source (ex. for flow control).
+  int64 GetSinkToSourcePipelineStages() const {
+    return link_proto_->sink_source_pipeline_stage();
+  }
+
+  // Get number of data (non-control) bits in a phit.
+  //   i.e. for source-to-link path.
+  int64 GetPhitDataBitWidth() const { return link_proto_->phit_bit_width(); }
+
+  // Get source proto for the network this link is in.
+  const NetworkConfigProto& GetNetworkProto() const { return *network_proto_; }
+
+  // Get link proto associated with this link.
+  const LinkConfigProto& GetLinkProto() const { return *link_proto_; }
+
+ private:
+  const NetworkConfigProto* network_proto_;
+  const LinkConfigProto* link_proto_;
+};
+
+// Interface to protos describing a source network interface.
+class NetworkInterfaceSrcParam {
+ public:
+  NetworkInterfaceSrcParam(const NetworkConfigProto& network,
+                           const PortConfigProto& port)
+      : network_proto_(&network), port_proto_(&port) {}
+
+  absl::string_view GetName() const { return port_proto_->name(); }
+
+  // Returns associated port param
+  PortParam GetPortParam() const {
+    return PortParam(*network_proto_, *port_proto_);
+  }
+
+  // Get assoicated network proto for this network interface.
+  const NetworkConfigProto& GetNetworkProto() const { return *network_proto_; }
+
+  // Get associated port proto.
+  const PortConfigProto& GetPortProto() const { return *port_proto_; }
+
+ private:
+  const NetworkConfigProto* network_proto_;
+  const PortConfigProto* port_proto_;
+};
+
+// Interface to protos describing a sink network interface.
+class NetworkInterfaceSinkParam {
+ public:
+  NetworkInterfaceSinkParam(const NetworkConfigProto& network,
+                            const PortConfigProto& port, int64 depth = 0)
+      : network_proto_(&network), port_proto_(&port), depth_(depth) {}
+
+  // Sets depth (buffer/fifo size)of this network interface.
+  void SetDepth(int64 depth) { depth_ = depth; }
+
+  // Returns number of flits this network interface can buffer.
+  int64 GetDepth() const { return depth_; }
+
+  absl::string_view GetName() const { return port_proto_->name(); }
+
+  // Construct associated port param
+  PortParam GetPortParam() const {
+    return PortParam(*network_proto_, *port_proto_);
+  }
+
+  // Get assoicated network proto for this network interface.
+  const NetworkConfigProto& GetNetworkProto() const { return *network_proto_; }
+
+  // Get associated port proto.
+  const PortConfigProto& GetPortProto() const { return *port_proto_; }
+
+ private:
+  const NetworkConfigProto* network_proto_;
+  const PortConfigProto* port_proto_;
+
+  // TODO(tedhong): 2020-12-14 support configuration via protos.
+  int64 depth_;
+};
+
+// Interface to protos describing a router.
+class RouterParam {
+ public:
+  RouterParam(const NetworkConfigProto& network,
+              const RouterConfigProto& router)
+      : network_proto_(&network), router_proto_(&router) {}
+
+  absl::string_view GetName() const { return router_proto_->name(); }
+
+  // Get assoicated network proto for this router.
+  const NetworkConfigProto& GetNetworkProto() const { return *network_proto_; }
+
+  // Get associated router proto.
+  const RouterConfigProto& GetRouterProto() const { return *router_proto_; }
+
+ private:
+  const NetworkConfigProto* network_proto_;
+  const RouterConfigProto* router_proto_;
+};
+
+// Variant used to store all possible param objects for
+// each type of network component.
+using NetworkComponentParam =
+    absl::variant<NetworkInterfaceSrcParam, NetworkInterfaceSinkParam,
+                  RouterParam, LinkParam>;
 
 // Associates Param objects with NetworkGraph objects.
 class NocParameters {

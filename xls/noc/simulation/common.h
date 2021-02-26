@@ -28,6 +28,8 @@ namespace noc {
 constexpr int kNullIdValue = -1;
 
 // Each simulation network component has a kind defined here.
+//
+// TODO(tedhong): 2021-02-22 Consider removing kNone.
 enum class NetworkComponentKind {
   kNone,    // A network component that is invalid or has not been configured.
   kRouter,  // A network router.

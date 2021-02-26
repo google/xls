@@ -183,3 +183,35 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "sim_objects",
+    srcs = ["sim_objects.cc"],
+    hdrs = ["sim_objects.h"],
+    deps = [
+        ":common",
+        ":global_routing_table",
+        ":network_graph",
+        ":parameters",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:integral_types",
+        "//xls/common/status:ret_check",
+        "//xls/noc/config:network_config_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "sim_objects_test",
+    srcs = ["sim_objects_test.cc"],
+    deps = [
+        ":network_graph_builder",
+        ":sim_objects",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/noc/config:network_config_cc_proto",
+        "//xls/noc/config:network_config_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
