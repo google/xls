@@ -27,7 +27,7 @@ class Ice40IoStrategy : public IoStrategy {
  public:
   explicit Ice40IoStrategy(VerilogFile* f);
 
-  absl::Status AddTopLevelDependencies(LogicRef1* clk, Reset reset,
+  absl::Status AddTopLevelDependencies(LogicRef* clk, Reset reset,
                                        Module* m) override;
 
   absl::Status InstantiateIoBlocks(Input input, Output output,
@@ -45,11 +45,11 @@ class Ice40IoStrategy : public IoStrategy {
   VerilogFile* f_;
 
   // Signals we add as top level dependencies on the module.
-  LogicRef1* clk_ = nullptr;
-  LogicRef1* rst_n_ = nullptr;
-  LogicRef1* rx_in_ = nullptr;
-  LogicRef1* tx_out_ = nullptr;
-  LogicRef1* clear_to_send_ = nullptr;
+  LogicRef* clk_ = nullptr;
+  LogicRef* rst_n_ = nullptr;
+  LogicRef* rx_in_ = nullptr;
+  LogicRef* tx_out_ = nullptr;
+  LogicRef* clear_to_send_ = nullptr;
 
   ParameterRef* clocks_per_baud_ = nullptr;
 };

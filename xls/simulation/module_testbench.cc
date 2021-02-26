@@ -60,8 +60,7 @@ ModuleTestbench::ModuleTestbench(Module* module,
   XLS_VLOG_LINES(3, verilog_text_);
 
   for (const Port& port : module->ports()) {
-    const int64 width =
-        port.wire->width()->AsLiteralOrDie()->bits().ToInt64().value();
+    const int64 width = port.wire->WidthAsInt64().value();
     if (port.direction == Direction::kInput) {
       input_port_widths_[port.name()] = width;
     } else {
@@ -344,7 +343,8 @@ absl::Status ModuleTestbench::Run() {
       continue;
     }
     const std::string& port_name = pair.first;
-    LogicRef* ref = m->AddReg(port_name, GetPortWidth(port_name));
+    LogicRef* ref =
+        m->AddReg(port_name, file.DataTypeOfWidth(GetPortWidth(port_name)));
     port_refs[port_name] = ref;
     connections.push_back(Connection{port_name, ref});
   }
@@ -356,13 +356,15 @@ absl::Status ModuleTestbench::Run() {
       continue;
     }
     const std::string& port_name = pair.first;
-    LogicRef* ref = m->AddWire(port_name, GetPortWidth(port_name));
+    LogicRef* ref =
+        m->AddWire(port_name, file.DataTypeOfWidth(GetPortWidth(port_name)));
     port_refs[port_name] = ref;
     connections.push_back(Connection{port_name, ref});
   }
   // For combinational modules define, but do not connect a clock signal.
-  LogicRef* clk =
-      clk_name_.has_value() ? port_refs.at(*clk_name_) : m->AddReg1("clk");
+  LogicRef* clk = clk_name_.has_value()
+                      ? port_refs.at(*clk_name_)
+                      : m->AddReg("clk", file.DataTypeOfWidth(1));
 
   // Instatiate the device under test module.
   const char kInstantiationName[] = "dut";

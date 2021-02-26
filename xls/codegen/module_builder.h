@@ -136,14 +136,14 @@ class ModuleBuilder {
   //
   // Declared registers must be passed to a subsequent AssignRegisters call for
   // assignment within an always block.
-  absl::StatusOr<Register> DeclareRegister(
-      absl::string_view name, Type* type, absl::optional<Expression*> next,
-      absl::optional<Expression*> reset_value = absl::nullopt);
+  absl::StatusOr<Register> DeclareRegister(absl::string_view name, Type* type,
+                                           Expression* next,
+                                           Expression* reset_value = nullptr);
 
   // As above, but declares a register of a given bit width.
-  absl::StatusOr<Register> DeclareRegister(
-      absl::string_view name, int64 bit_count, absl::optional<Expression*> next,
-      absl::optional<Expression*> reset_value = absl::nullopt);
+  absl::StatusOr<Register> DeclareRegister(absl::string_view name,
+                                           int64 bit_count, Expression* next,
+                                           Expression* reset_value = nullptr);
 
   // Construct an always block to assign values to the registers. Arguments:
   //   clk: Clock signal to use for registers.

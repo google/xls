@@ -38,12 +38,12 @@ class IoStrategy {
   // These connect to the top-level state machine that manages device RPCs.
   struct Output {
     // Byte to transfer to the host (driven externally, into the I/O block).
-    LogicRef8* tx_byte;
+    LogicRef* tx_byte;
     // Whether tx_byte holds valid data (driven externally, into the I/O block).
-    LogicRef1* tx_byte_valid;
+    LogicRef* tx_byte_valid;
     // Signals that the transmitter is done processing the tx_byte value and is
     // ready to receive a new value (driven internally, from the I/O block).
-    LogicRef1* tx_byte_ready;
+    LogicRef* tx_byte_ready;
   };
 
   // Signals related to accepting input (i.e. from the host).
@@ -51,12 +51,12 @@ class IoStrategy {
   // These connect to the top-level state machine that manages device RPCs.
   struct Input {
     // Byte that has been received from the host (driven from the I/O block).
-    LogicRef8* rx_byte;
+    LogicRef* rx_byte;
     // Whether rx_byte contains valid data (driven from the I/O block).
-    LogicRef1* rx_byte_valid;
+    LogicRef* rx_byte_valid;
     // Signals that the device is done processing the rx_byte value (driven
     // externally).
-    LogicRef1* rx_byte_done;
+    LogicRef* rx_byte_done;
   };
 
   virtual ~IoStrategy() = default;
@@ -66,7 +66,7 @@ class IoStrategy {
   //
   // For example, on ICE40 this ensures that the tx/rx signals are present on
   // the top level of the design for binding to those known top-level pins.
-  virtual absl::Status AddTopLevelDependencies(LogicRef1* clk, Reset reset,
+  virtual absl::Status AddTopLevelDependencies(LogicRef* clk, Reset reset,
                                                Module* m) = 0;
 
   // Instantiates transmitter/receiver blocks that operate in byte-wise fashion

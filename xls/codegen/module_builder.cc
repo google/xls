@@ -209,7 +209,7 @@ LogicRef* ModuleBuilder::DeclareUnpackedArrayWire(absl::string_view name,
                                                   ArrayType* array_type,
                                                   ModuleSection* section) {
   return file_->Make<LogicRef>(section->Add<UnpackedArrayWireDef>(
-      name, file_->PlainLiteral(NestedElementWidth(array_type)),
+      name, file_->DataTypeOfWidth(NestedElementWidth(array_type)),
       MakeUnpackedArrayBounds(array_type, file_, use_system_verilog_)));
 }
 
@@ -217,7 +217,7 @@ LogicRef* ModuleBuilder::DeclareUnpackedArrayReg(absl::string_view name,
                                                  ArrayType* array_type,
                                                  ModuleSection* section) {
   return file_->Make<LogicRef>(section->Add<UnpackedArrayRegDef>(
-      name, file_->PlainLiteral(NestedElementWidth(array_type)),
+      name, file_->DataTypeOfWidth(NestedElementWidth(array_type)),
       MakeUnpackedArrayBounds(array_type, file_, use_system_verilog_)));
 }
 
@@ -244,11 +244,12 @@ absl::Status ModuleBuilder::AssignFromSlice(
 
 absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(absl::string_view name,
                                                       Type* type) {
-  LogicRef* port = module_->AddPort(Direction::kInput, SanitizeIdentifier(name),
-                                    type->GetFlatBitCount());
+  LogicRef* port =
+      AddInputPort(SanitizeIdentifier(name), type->GetFlatBitCount());
   if (!type->IsArray()) {
     return port;
   }
+
   // All inputs are flattened so unflatten arrays with a sequence of
   // assignments.
   LogicRef* ar = DeclareUnpackedArrayWire(
@@ -262,14 +263,16 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(absl::string_view name,
 }
 
 LogicRef* ModuleBuilder::AddInputPort(absl::string_view name, int64 bit_count) {
-  return module_->AddPort(Direction::kInput, SanitizeIdentifier(name),
-                          bit_count);
+  return module_->AddInput(SanitizeIdentifier(name),
+                           file_->DataTypeOfWidth(bit_count));
 }
 
 absl::Status ModuleBuilder::AddOutputPort(absl::string_view name, Type* type,
                                           Expression* value) {
-  LogicRef* output_port = module_->AddPort(
-      Direction::kOutput, SanitizeIdentifier(name), type->GetFlatBitCount());
+  LogicRef* output_port =
+      module_->AddOutput(SanitizeIdentifier(name),
+                         file_->DataTypeOfWidth(type->GetFlatBitCount()));
+
   if (type->IsArray()) {
     // The output is flattened so flatten arrays with a sequence of assignments.
     XLS_RET_CHECK(value->IsIndexableExpression());
@@ -284,8 +287,8 @@ absl::Status ModuleBuilder::AddOutputPort(absl::string_view name, Type* type,
 
 absl::Status ModuleBuilder::AddOutputPort(absl::string_view name,
                                           int64 bit_count, Expression* value) {
-  LogicRef* output_port =
-      module_->AddPort(Direction::kOutput, SanitizeIdentifier(name), bit_count);
+  LogicRef* output_port = module_->AddOutput(SanitizeIdentifier(name),
+                                             file_->DataTypeOfWidth(bit_count));
   output_section()->Add<ContinuousAssignment>(output_port, value);
   return absl::OkStatus();
 }
@@ -302,7 +305,8 @@ absl::StatusOr<LogicRef*> ModuleBuilder::DeclareModuleConstant(
     ref = DeclareUnpackedArrayWire(SanitizeIdentifier(name),
                                    type->AsArrayOrDie(), constants_section());
   } else {
-    ref = module_->AddWire(SanitizeIdentifier(name), type->GetFlatBitCount(),
+    ref = module_->AddWire(SanitizeIdentifier(name),
+                           file_->DataTypeOfWidth(type->GetFlatBitCount()),
                            constants_section());
   }
   XLS_RETURN_IF_ERROR(
@@ -317,13 +321,15 @@ LogicRef* ModuleBuilder::DeclareVariable(absl::string_view name, Type* type) {
     return DeclareUnpackedArrayWire(
         SanitizeIdentifier(name), type->AsArrayOrDie(), declaration_section());
   }
-  return module_->AddWire(SanitizeIdentifier(name), type->GetFlatBitCount(),
+  return module_->AddWire(SanitizeIdentifier(name),
+                          file_->DataTypeOfWidth(type->GetFlatBitCount()),
                           declaration_section());
 }
 
 LogicRef* ModuleBuilder::DeclareVariable(absl::string_view name,
                                          int64 bit_count) {
-  return module_->AddWire(SanitizeIdentifier(name), bit_count,
+  return module_->AddWire(SanitizeIdentifier(name),
+                          file_->DataTypeOfWidth(bit_count),
                           declaration_section());
 }
 
@@ -739,8 +745,8 @@ absl::Status ModuleBuilder::Assign(LogicRef* lhs, Expression* rhs, Type* type) {
 }
 
 absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
-    absl::string_view name, Type* type, absl::optional<Expression*> next,
-    absl::optional<Expression*> reset_value) {
+    absl::string_view name, Type* type, Expression* next,
+    Expression* reset_value) {
   LogicRef* reg;
   if (type->IsArray()) {
     // Currently, an array register requires SystemVerilog because there is an
@@ -748,24 +754,23 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
     reg = DeclareUnpackedArrayReg(SanitizeIdentifier(name),
                                   type->AsArrayOrDie(), declaration_section());
   } else {
-    reg = module_->AddReg(SanitizeIdentifier(name), type->GetFlatBitCount(),
-                          /*init=*/absl::nullopt, declaration_section());
+    reg = module_->AddReg(SanitizeIdentifier(name),
+                          file_->DataTypeOfWidth(type->GetFlatBitCount()),
+                          /*init=*/nullptr, declaration_section());
   }
   return Register{
-      .ref = reg,
-      .next = next.has_value() ? next.value() : nullptr,
-      .reset_value = reset_value.has_value() ? reset_value.value() : nullptr,
-      .xls_type = type};
+      .ref = reg, .next = next, .reset_value = reset_value, .xls_type = type};
 }
 
 absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
-    absl::string_view name, int64 bit_count, absl::optional<Expression*> next,
-    absl::optional<Expression*> reset_value) {
+    absl::string_view name, int64 bit_count, Expression* next,
+    Expression* reset_value) {
   return Register{
-      .ref = module_->AddReg(SanitizeIdentifier(name), bit_count,
-                             /*init=*/absl::nullopt, declaration_section()),
-      .next = next.has_value() ? next.value() : nullptr,
-      .reset_value = reset_value.has_value() ? reset_value.value() : nullptr,
+      .ref = module_->AddReg(SanitizeIdentifier(name),
+                             file_->DataTypeOfWidth(bit_count),
+                             /*init=*/nullptr, declaration_section()),
+      .next = next,
+      .reset_value = reset_value,
       .xls_type = nullptr};
 }
 
@@ -873,17 +878,17 @@ VerilogFunction* DefineDynamicBitSliceFunction(DynamicBitSlice* slice,
                                                ModuleSection* section) {
   VerilogFile* file = section->file();
   VerilogFunction* func = section->Add<VerilogFunction>(
-      function_name, slice->BitCountOrDie(), file);
-  Expression* operand =
-      func->AddArgument("operand", slice->to_slice()->BitCountOrDie());
-  Expression* start =
-      func->AddArgument("start", slice->start()->BitCountOrDie());
+      function_name, file->DataTypeOfWidth(slice->BitCountOrDie()), file);
+  Expression* operand = func->AddArgument(
+      "operand", file->DataTypeOfWidth(slice->to_slice()->BitCountOrDie()));
+  Expression* start = func->AddArgument(
+      "start", file->DataTypeOfWidth(slice->start()->BitCountOrDie()));
   int64 width = slice->width();
 
   LogicRef* zexted_operand = func->AddRegDef(
       "zexted_operand",
-      file->PlainLiteral(slice->operand(0)->BitCountOrDie() + width),
-      /*init=*/UninitializedSentinel(), /*is_signed=*/false);
+      file->DataTypeOfWidth(slice->to_slice()->BitCountOrDie() + width),
+      /*init=*/nullptr);
 
   Expression* zeros = file->Literal(0, width);
   Expression* op_width = file->Literal(
@@ -909,13 +914,14 @@ VerilogFunction* DefineBitSliceUpdateFunction(BitSliceUpdate* update,
                                               ModuleSection* section) {
   VerilogFile* file = section->file();
   VerilogFunction* func = section->Add<VerilogFunction>(
-      function_name, update->BitCountOrDie(), file);
-  Expression* to_update =
-      func->AddArgument("to_update", update->to_update()->BitCountOrDie());
-  Expression* start =
-      func->AddArgument("start", update->start()->BitCountOrDie());
+      function_name, file->DataTypeOfWidth(update->BitCountOrDie()), file);
+  Expression* to_update = func->AddArgument(
+      "to_update", file->DataTypeOfWidth(update->to_update()->BitCountOrDie()));
+  Expression* start = func->AddArgument(
+      "start", file->DataTypeOfWidth(update->start()->BitCountOrDie()));
   Expression* update_value = func->AddArgument(
-      "update_value", update->update_value()->BitCountOrDie());
+      "update_value",
+      file->DataTypeOfWidth(update->update_value()->BitCountOrDie()));
 
   func->AddStatement<BlockingAssignment>(func->return_value_ref(), to_update);
   // By the (System)Verilog LRM, if some bits of a RHS part-select are
@@ -936,25 +942,33 @@ VerilogFunction* DefineSmulFunction(Node* node, absl::string_view function_name,
 
   ScopedLintDisable lint_disable(section, {Lint::kSignedType, Lint::kMultiply});
 
-  VerilogFunction* func =
-      section->Add<VerilogFunction>(function_name, node->BitCountOrDie(), file);
+  VerilogFunction* func = section->Add<VerilogFunction>(
+      function_name, file->DataTypeOfWidth(node->BitCountOrDie()), file);
   XLS_CHECK_EQ(node->operand_count(), 2);
-  Expression* lhs = func->AddArgument("lhs", node->operand(0)->BitCountOrDie());
-  Expression* rhs = func->AddArgument("rhs", node->operand(1)->BitCountOrDie());
+  Expression* lhs = func->AddArgument(
+      "lhs", file->DataTypeOfWidth(node->operand(0)->BitCountOrDie()));
+  Expression* rhs = func->AddArgument(
+      "rhs", file->DataTypeOfWidth(node->operand(1)->BitCountOrDie()));
   // The code conservatively assigns signed-casted inputs to temporary
   // variables, uses them in the multiply expression which is assigned to
   // another signed temporary. Finally, this is unsign-casted and assigned to
   // the return value of the function. These shenanigans ensure no surprising
   // sign/zero extensions of any values.
   LogicRef* signed_lhs = func->AddRegDef(
-      "signed_lhs", file->PlainLiteral(node->operand(0)->BitCountOrDie()),
-      /*init=*/UninitializedSentinel(), /*is_signed=*/true);
+      "signed_lhs",
+      DataType(/*width=*/file->PlainLiteral(node->operand(0)->BitCountOrDie()),
+               /*is_signed=*/true),
+      /*init=*/nullptr);
   LogicRef* signed_rhs = func->AddRegDef(
-      "signed_rhs", file->PlainLiteral(node->operand(1)->BitCountOrDie()),
-      /*init=*/UninitializedSentinel(), /*is_signed=*/true);
+      "signed_rhs",
+      DataType(/*width=*/file->PlainLiteral(node->operand(1)->BitCountOrDie()),
+               /*is_signed=*/true),
+      /*init=*/nullptr);
   LogicRef* signed_result = func->AddRegDef(
-      "signed_result", file->PlainLiteral(node->BitCountOrDie()),
-      /*init=*/UninitializedSentinel(), /*is_signed=*/true);
+      "signed_result",
+      DataType(/*width=*/file->PlainLiteral(node->BitCountOrDie()),
+               /*is_signed=*/true),
+      /*init=*/nullptr);
   func->AddStatement<BlockingAssignment>(signed_lhs,
                                          file->Make<SignedCast>(lhs));
   func->AddStatement<BlockingAssignment>(signed_rhs,
@@ -975,11 +989,13 @@ VerilogFunction* DefineUmulFunction(Node* node, absl::string_view function_name,
 
   ScopedLintDisable lint_disable(section, {Lint::kMultiply});
 
-  VerilogFunction* func =
-      section->Add<VerilogFunction>(function_name, node->BitCountOrDie(), file);
+  VerilogFunction* func = section->Add<VerilogFunction>(
+      function_name, file->DataTypeOfWidth(node->BitCountOrDie()), file);
   XLS_CHECK_EQ(node->operand_count(), 2);
-  Expression* lhs = func->AddArgument("lhs", node->operand(0)->BitCountOrDie());
-  Expression* rhs = func->AddArgument("rhs", node->operand(1)->BitCountOrDie());
+  Expression* lhs = func->AddArgument(
+      "lhs", file->DataTypeOfWidth(node->operand(0)->BitCountOrDie()));
+  Expression* rhs = func->AddArgument(
+      "rhs", file->DataTypeOfWidth(node->operand(1)->BitCountOrDie()));
   func->AddStatement<BlockingAssignment>(func->return_value_ref(),
                                          file->Mul(lhs, rhs));
 

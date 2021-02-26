@@ -17,15 +17,17 @@
 namespace xls {
 namespace verilog {
 
-absl::Status NullIoStrategy::AddTopLevelDependencies(LogicRef1* clk,
-                                                     Reset reset, Module* m) {
-  byte_in_ = m->AddPort(Direction::kInput, "byte_in", 8);
-  byte_in_ready_ = m->AddOutput("byte_in_ready");
-  byte_in_valid_ = m->AddInput("byte_in_valid");
+absl::Status NullIoStrategy::AddTopLevelDependencies(LogicRef* clk, Reset reset,
+                                                     Module* m) {
+  DataType u1 = m->parent()->DataTypeOfWidth(1);
+  DataType u8 = m->parent()->DataTypeOfWidth(8);
+  byte_in_ = m->AddInput("byte_in", u8);
+  byte_in_ready_ = m->AddOutput("byte_in_ready", u1);
+  byte_in_valid_ = m->AddInput("byte_in_valid", u1);
 
-  byte_out_ = m->AddPort(Direction::kOutput, "byte_out", 8);
-  byte_out_ready_ = m->AddInput("byte_out_ready");
-  byte_out_valid_ = m->AddOutput("byte_out_valid");
+  byte_out_ = m->AddOutput("byte_out", u8);
+  byte_out_ready_ = m->AddInput("byte_out_ready", u1);
+  byte_out_valid_ = m->AddOutput("byte_out_valid", u1);
 
   return absl::OkStatus();
 }

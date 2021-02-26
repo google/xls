@@ -60,7 +60,7 @@ absl::Status SequentialModuleBuilder::AddFsm(
   XLS_RET_CHECK(port_references_.reset.has_value());
   XLS_RET_CHECK(reset_options->value().has_asynchronous());
   XLS_RET_CHECK(reset_options->value().has_active_low());
-  Reset reset = {port_references_.reset.value()->AsLogicRefNOrDie<1>(),
+  Reset reset = {port_references_.reset.value(),
                  reset_options->value().asynchronous(),
                  reset_options->value().active_low()};
 
@@ -410,8 +410,8 @@ absl::Status SequentialModuleBuilder::InitializeModuleBuilder(
     return module_builder_->AddInputPort(SanitizeIdentifier(name), num_bits);
   };
   auto add_output_port = [&](absl::string_view name, int64 num_bits) {
-    return module_builder_->module()->AddPort(
-        Direction::kOutput, SanitizeIdentifier(name), num_bits);
+    return module_builder_->module()->AddOutput(
+        SanitizeIdentifier(name), file_.DataTypeOfWidth(num_bits));
   };
 
   // Clock.

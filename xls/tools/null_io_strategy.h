@@ -29,7 +29,7 @@ class NullIoStrategy : public IoStrategy {
  public:
   ~NullIoStrategy() override = default;
 
-  absl::Status AddTopLevelDependencies(LogicRef1* clk, Reset reset,
+  absl::Status AddTopLevelDependencies(LogicRef* clk, Reset reset,
                                        Module* m) override;
 
   absl::Status InstantiateIoBlocks(Input input, Output output,
@@ -42,12 +42,12 @@ class NullIoStrategy : public IoStrategy {
  private:
   // Top-level ports.
   LogicRef* byte_in_;
-  LogicRef1* byte_in_ready_;
-  LogicRef1* byte_in_valid_;
+  LogicRef* byte_in_ready_;
+  LogicRef* byte_in_valid_;
 
   LogicRef* byte_out_;
-  LogicRef1* byte_out_ready_;
-  LogicRef1* byte_out_valid_;
+  LogicRef* byte_out_ready_;
+  LogicRef* byte_out_valid_;
 };
 
 }  // namespace verilog

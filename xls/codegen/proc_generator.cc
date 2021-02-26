@@ -339,8 +339,7 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModule(
                           options.reset()->asynchronous(),
                           options.reset()->active_low());
     rst = Reset{
-        .signal = mb.AddInputPort(options.reset()->name(), /*bit_count=*/1)
-                      ->AsLogicRefNOrDie<1>(),
+        .signal = mb.AddInputPort(options.reset()->name(), /*bit_count=*/1),
         .asynchronous = options.reset()->asynchronous(),
         .active_low = options.reset()->active_low()};
   }
@@ -367,7 +366,7 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModule(
                 << reg.channel->ToString();
     XLS_VLOG(1) << "  receive: " << reg.receive->GetName();
     XLS_VLOG(1) << "  send: " << reg.send->GetName();
-    absl::optional<Expression*> reset_expr;
+    Expression* reset_expr = nullptr;
     if (reg.channel->reset_value().has_value()) {
       if (!rst.has_value()) {
         return absl::InvalidArgumentError(
@@ -386,11 +385,10 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModule(
                                      reg.channel->reset_value().value()));
       }
     }
-    XLS_ASSIGN_OR_RETURN(
-        reg.mb_register,
-        mb.DeclareRegister(absl::StrCat(reg.channel->name()),
-                           reg.channel->type(),
-                           /*next=*/absl::nullopt, reset_expr));
+    XLS_ASSIGN_OR_RETURN(reg.mb_register,
+                         mb.DeclareRegister(absl::StrCat(reg.channel->name()),
+                                            reg.channel->type(),
+                                            /*next=*/nullptr, reset_expr));
     node_exprs[reg.receive] =
         ReceiveData{UnrepresentedSentinel(), reg.mb_register.ref};
   }

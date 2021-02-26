@@ -42,8 +42,7 @@ struct FsmRegister {
   // The value of the register in the next cycle.
   LogicRef* next;
 
-  // The expression defining the reset state of the register. May be nullptr in
-  // which case the reset state is undefined.
+  // The expression defining the reset state of the register. May be null.
   Expression* reset_value;
 };
 
@@ -340,14 +339,15 @@ class FsmBuilder {
   // 'name' is added to the module.
   FsmOutput* AddOutput(absl::string_view name, int64 width,
                        int64 default_value) {
-    return AddOutputAsExpression(name, file_->PlainLiteral(width),
+    return AddOutputAsExpression(name, file_->DataTypeOfWidth(width),
                                  file_->PlainLiteral(default_value));
   }
-  FsmOutput* AddOutputAsExpression(absl::string_view name, Expression* width,
+  FsmOutput* AddOutputAsExpression(absl::string_view name,
+                                   const DataType& data_type,
                                    Expression* default_value);
 
   FsmOutput* AddOutput1(absl::string_view name, int64 default_value) {
-    return AddOutputAsExpression(name, /*width=*/file_->PlainLiteral(1),
+    return AddOutputAsExpression(name, /*data_type=*/file_->DataTypeOfWidth(1),
                                  file_->PlainLiteral(default_value));
   }
 
@@ -359,12 +359,8 @@ class FsmBuilder {
   // by calling SetRegisterNext.
   FsmRegister* AddRegister(absl::string_view name, int64 width,
                            absl::optional<int64> reset_value = absl::nullopt);
-  FsmRegister* AddRegisterAsExpression(absl::string_view name,
-                                       Expression* width,
-                                       Expression* reset_value = nullptr);
-
-  FsmRegister* AddRegister1(absl::string_view name,
-                            absl::optional<bool> reset_value = absl::nullopt);
+  FsmRegister* AddRegister(absl::string_view name, DataType data_type,
+                           Expression* reset_value = nullptr);
 
   // Overload which adds a previously defined reg as an FSM-controlled signal. A
   // RegDef named "*_next" is added to the module where "*" is the name of the
@@ -384,11 +380,11 @@ class FsmBuilder {
   void SetResetState(FsmState* reset_state) { reset_state_ = reset_state; }
 
  private:
-  // Creates a RegDef of the given name, width and optional initial
+  // Creates a RegDef of the given type and optional initial
   // value. Returns a LogicRef referring to it. The RegDef is added to the
   // module inline with the FSM logic when Build is called.
-  LogicRef* AddRegDef(absl::string_view name, Expression* width,
-                      RegInit init = UninitializedSentinel());
+  LogicRef* AddRegDef(absl::string_view name, const DataType& data_type,
+                      Expression* init = nullptr);
 
   // Build the always block containing the logic for state transitions.
   absl::Status BuildStateTransitionLogic(LogicRef* state, LogicRef* state_next);

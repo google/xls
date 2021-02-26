@@ -129,11 +129,10 @@ TEST_P(ModuleBuilderTest, RegisterWithSynchronousReset) {
       ModuleBuilder::Register b,
       mb.DeclareRegister("b", u32, y,
                          /*reset_value=*/file.Literal(UBits(0x42, 32))));
-  XLS_ASSERT_OK(mb.AssignRegisters(clk, {a, b},
-                                   /*load_enable=*/nullptr,
-                                   Reset{.signal = rst->AsLogicRefNOrDie<1>(),
-                                         .asynchronous = false,
-                                         .active_low = false}));
+  XLS_ASSERT_OK(mb.AssignRegisters(
+      clk, {a, b},
+      /*load_enable=*/nullptr,
+      Reset{.signal = rst, .asynchronous = false, .active_low = false}));
 
   XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref)));
 
@@ -160,11 +159,10 @@ TEST_P(ModuleBuilderTest, RegisterWithAsynchronousActiveLowReset) {
       ModuleBuilder::Register b,
       mb.DeclareRegister("b", u32, y,
                          /*reset_value=*/file.Literal(UBits(0x42, 32))));
-  XLS_ASSERT_OK(mb.AssignRegisters(clk, {a, b},
-                                   /*load_enable=*/nullptr,
-                                   Reset{.signal = rst->AsLogicRefNOrDie<1>(),
-                                         .asynchronous = true,
-                                         .active_low = true}));
+  XLS_ASSERT_OK(mb.AssignRegisters(
+      clk, {a, b},
+      /*load_enable=*/nullptr,
+      Reset{.signal = rst, .asynchronous = true, .active_low = true}));
 
   XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref)));
 
@@ -215,10 +213,9 @@ TEST_P(ModuleBuilderTest, RegisterWithLoadEnableAndReset) {
       ModuleBuilder::Register b,
       mb.DeclareRegister("b", u32, y,
                          /*reset_value=*/file.Literal(UBits(0x42, 32))));
-  XLS_ASSERT_OK(mb.AssignRegisters(clk, {a, b}, load_enable,
-                                   Reset{.signal = rst->AsLogicRefNOrDie<1>(),
-                                         .asynchronous = true,
-                                         .active_low = true}));
+  XLS_ASSERT_OK(mb.AssignRegisters(
+      clk, {a, b}, load_enable,
+      Reset{.signal = rst, .asynchronous = true, .active_low = true}));
 
   XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref)));
 

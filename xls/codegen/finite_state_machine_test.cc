@@ -37,7 +37,7 @@ TEST_P(FiniteStateMachineTest, TrivialFsm) {
   VerilogFile f;
   Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
 
-  LogicRef* clk = module->AddInput("clk");
+  LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
   FsmBuilder fsm("TrivialFsm", module, clk, UseSystemVerilog());
   auto foo = fsm.AddState("Foo");
   auto bar = fsm.AddState("Bar");
@@ -54,7 +54,7 @@ TEST_P(FiniteStateMachineTest, TrivialFsmWithOutputs) {
   VerilogFile f;
   Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
 
-  LogicRef* clk = module->AddInput("clk");
+  LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
   FsmBuilder fsm("TrivialFsm", module, clk, UseSystemVerilog());
   auto foo = fsm.AddState("Foo");
   auto bar = fsm.AddState("Bar");
@@ -80,13 +80,13 @@ TEST_P(FiniteStateMachineTest, SimpleFsm) {
   VerilogFile f;
   Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
 
-  LogicRef1* clk = module->AddInput("clk");
-  LogicRef1* rst_n = module->AddInput("rst_n");
-  LogicRef* ready_in = module->AddInput("ready_in");
-  LogicRef* done_out = module->AddOutput("done_out");
+  LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
+  LogicRef* rst_n = module->AddInput("rst_n", f.DataTypeOfWidth(1));
+  LogicRef* ready_in = module->AddInput("ready_in", f.DataTypeOfWidth(1));
+  LogicRef* done_out = module->AddOutput("done_out", f.DataTypeOfWidth(1));
 
   // The "done" output is a wire, create a reg copy for assignment in the FSM.
-  LogicRef* done = module->AddReg1("done");
+  LogicRef* done = module->AddReg("done", f.DataTypeOfWidth(1));
   module->Add<ContinuousAssignment>(done_out, done);
 
   FsmBuilder fsm("SimpleFsm", module, clk, UseSystemVerilog(),
@@ -113,11 +113,11 @@ TEST_P(FiniteStateMachineTest, FsmWithNestedLogic) {
   VerilogFile f;
   Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
 
-  LogicRef1* clk = module->AddInput("clk");
-  LogicRef1* rst_n = module->AddInput("rst_n");
-  LogicRef* foo = module->AddInput("foo");
-  LogicRef* bar = module->AddInput("bar");
-  LogicRef* qux = module->AddOutput("qux_out");
+  LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
+  LogicRef* rst_n = module->AddInput("rst_n", f.DataTypeOfWidth(1));
+  LogicRef* foo = module->AddInput("foo", f.DataTypeOfWidth(1));
+  LogicRef* bar = module->AddInput("bar", f.DataTypeOfWidth(1));
+  LogicRef* qux = module->AddOutput("qux_out", f.DataTypeOfWidth(1));
 
   FsmBuilder fsm("NestLogic", module, clk, UseSystemVerilog(),
                  Reset{rst_n, /*async=*/false, /*active_low=*/true});
@@ -150,8 +150,8 @@ TEST_P(FiniteStateMachineTest, CounterFsm) {
   VerilogFile f;
   Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
 
-  LogicRef1* clk = module->AddInput("clk");
-  LogicRef1* rst = module->AddInput("rst");
+  LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
+  LogicRef* rst = module->AddInput("rst", f.DataTypeOfWidth(1));
   FsmBuilder fsm("CounterFsm", module, clk, UseSystemVerilog(),
                  Reset{rst, /*async=*/true, /*active_low=*/false});
   auto foo = fsm.AddState("Foo");
@@ -173,10 +173,10 @@ TEST_P(FiniteStateMachineTest, ComplexFsm) {
   VerilogFile f;
   Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
 
-  LogicRef* clk = module->AddInput("clk");
-  LogicRef* foo_in = module->AddInput("foo_in");
-  LogicRef* bar_in = module->AddOutput("bar_in");
-  LogicRef* qux_in = module->AddOutput("qux_in");
+  LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
+  LogicRef* foo_in = module->AddInput("foo_in", f.DataTypeOfWidth(1));
+  LogicRef* bar_in = module->AddOutput("bar_in", f.DataTypeOfWidth(1));
+  LogicRef* qux_in = module->AddOutput("qux_in", f.DataTypeOfWidth(1));
 
   FsmBuilder fsm("ComplexFsm", module, clk, UseSystemVerilog());
   auto hungry = fsm.AddState("Hungry");
@@ -221,11 +221,11 @@ TEST_P(FiniteStateMachineTest, OutputAssignments) {
   VerilogFile f;
   Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
 
-  LogicRef1* clk = module->AddInput("clk");
-  LogicRef1* rst_n = module->AddInput("rst_n");
+  LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
+  LogicRef* rst_n = module->AddInput("rst_n", f.DataTypeOfWidth(1));
 
-  LogicRef* a = module->AddInput("a");
-  LogicRef* b = module->AddInput("b");
+  LogicRef* a = module->AddInput("a", f.DataTypeOfWidth(1));
+  LogicRef* b = module->AddInput("b", f.DataTypeOfWidth(1));
 
   FsmBuilder fsm("SimpleFsm", module, clk, UseSystemVerilog(),
                  Reset{rst_n, /*async=*/false, /*active_low=*/true});
@@ -289,10 +289,10 @@ TEST_P(FiniteStateMachineTest, MultipleAssignments) {
   VerilogFile f;
   Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
 
-  LogicRef1* clk = module->AddInput("clk");
-  LogicRef1* rst_n = module->AddInput("rst_n");
+  LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
+  LogicRef* rst_n = module->AddInput("rst_n", f.DataTypeOfWidth(1));
 
-  LogicRef* a = module->AddInput("a");
+  LogicRef* a = module->AddInput("a", f.DataTypeOfWidth(1));
 
   FsmBuilder fsm("SimpleFsm", module, clk, UseSystemVerilog(),
                  Reset{rst_n, /*async=*/false, /*active_low=*/true});
@@ -313,11 +313,11 @@ TEST_P(FiniteStateMachineTest, MultipleConditionalAssignments) {
   VerilogFile f;
   Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
 
-  LogicRef1* clk = module->AddInput("clk");
-  LogicRef1* rst_n = module->AddInput("rst_n");
+  LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
+  LogicRef* rst_n = module->AddInput("rst_n", f.DataTypeOfWidth(1));
 
-  LogicRef* a = module->AddInput("a");
-  LogicRef* b = module->AddInput("b");
+  LogicRef* a = module->AddInput("a", f.DataTypeOfWidth(1));
+  LogicRef* b = module->AddInput("b", f.DataTypeOfWidth(1));
 
   FsmBuilder fsm("SimpleFsm", module, clk, UseSystemVerilog(),
                  Reset{rst_n, /*async=*/false, /*active_low=*/true});

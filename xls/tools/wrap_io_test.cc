@@ -39,8 +39,8 @@ TEST_P(WrapIoTest, Ice40WrapIoIdentity32b) {
 
   const std::string kWrappedModuleName = "device_to_wrap";
   Module* wrapped_m = file.AddModule("device_to_wrap");
-  LogicRef* m_input = wrapped_m->AddPort(Direction::kInput, "in", 32);
-  LogicRef* m_output = wrapped_m->AddPort(Direction::kOutput, "out", 32);
+  LogicRef* m_input = wrapped_m->AddInput("in", file.DataTypeOfWidth(32));
+  LogicRef* m_output = wrapped_m->AddOutput("out", file.DataTypeOfWidth(32));
   wrapped_m->Add<ContinuousAssignment>(m_output, m_input);
 
   ModuleSignatureBuilder b(kWrappedModuleName);
@@ -66,8 +66,8 @@ TEST_P(WrapIoTest, WrapIoIncrement8b) {
 
   const std::string kWrappedModuleName = TestBaseName();
   Module* wrapped_m = file.AddModule(kWrappedModuleName);
-  LogicRef* m_input = wrapped_m->AddPort(Direction::kInput, "in", 8);
-  LogicRef* m_output = wrapped_m->AddPort(Direction::kOutput, "out", 8);
+  LogicRef* m_input = wrapped_m->AddInput("in", file.DataTypeOfWidth(8));
+  LogicRef* m_output = wrapped_m->AddOutput("out", file.DataTypeOfWidth(8));
   wrapped_m->Add<ContinuousAssignment>(m_output,
                                        file.Add(m_input, file.PlainLiteral(1)));
 
@@ -99,8 +99,8 @@ TEST_P(WrapIoTest, WrapIoNot16b) {
 
   const std::string kWrappedModuleName = TestBaseName();
   Module* wrapped_m = file.AddModule(kWrappedModuleName);
-  LogicRef* m_input = wrapped_m->AddPort(Direction::kInput, "in", 16);
-  LogicRef* m_output = wrapped_m->AddPort(Direction::kOutput, "out", 16);
+  LogicRef* m_input = wrapped_m->AddInput("in", file.DataTypeOfWidth(16));
+  LogicRef* m_output = wrapped_m->AddOutput("out", file.DataTypeOfWidth(16));
   wrapped_m->Add<ContinuousAssignment>(m_output, file.BitwiseNot(m_input));
 
   ModuleSignatureBuilder b(kWrappedModuleName);

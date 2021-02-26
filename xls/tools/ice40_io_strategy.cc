@@ -30,14 +30,15 @@ Ice40IoStrategy::Ice40IoStrategy(VerilogFile* f) : f_(f) {
   }
 }
 
-absl::Status Ice40IoStrategy::AddTopLevelDependencies(LogicRef1* clk,
+absl::Status Ice40IoStrategy::AddTopLevelDependencies(LogicRef* clk,
                                                       Reset reset, Module* m) {
   VerilogFile* f = m->parent();
   clk_ = clk;
-  rx_in_ = m->AddInput("rx_in");
-  tx_out_ = m->AddOutput("tx_out");
-  LogicRef1* clear_to_send_out_n = m->AddOutput("clear_to_send_out_n");
-  clear_to_send_ = m->AddWire1("clear_to_send");
+  rx_in_ = m->AddInput("rx_in", f->DataTypeOfWidth(1));
+  tx_out_ = m->AddOutput("tx_out", f->DataTypeOfWidth(1));
+  LogicRef* clear_to_send_out_n =
+      m->AddOutput("clear_to_send_out_n", f->DataTypeOfWidth(1));
+  clear_to_send_ = m->AddWire("clear_to_send", f->DataTypeOfWidth(1));
   m->Add<ContinuousAssignment>(clear_to_send_out_n,
                                f->LogicalNot(clear_to_send_));
 

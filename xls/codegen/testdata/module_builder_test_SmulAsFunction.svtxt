@@ -6,9 +6,9 @@ module SmulAsFunction(
   // lint_off SIGNED_TYPE
   // lint_off MULTIPLY
   function automatic [31:0] smul32b_32b_x_32b (input reg [31:0] lhs, input reg [31:0] rhs);
-    reg signed  [31:0] signed_lhs;
-    reg signed  [31:0] signed_rhs;
-    reg signed  [31:0] signed_result;
+    reg signed [31:0] signed_lhs;
+    reg signed [31:0] signed_rhs;
+    reg signed [31:0] signed_result;
     begin
       signed_lhs = $signed(lhs);
       signed_rhs = $signed(rhs);

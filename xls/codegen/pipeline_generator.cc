@@ -127,8 +127,7 @@ class PipelineGenerator {
       const ResetProto& reset_proto = options_.reset().value();
       rst_ = Reset();
       rst_->signal = mb_.AddInputPort(reset_proto.name(),
-                                      /*bit_count=*/1)
-                         ->AsLogicRefNOrDie<1>();
+                                      /*bit_count=*/1);
       rst_->asynchronous = reset_proto.asynchronous();
       rst_->active_low = reset_proto.active_low();
     }
@@ -540,10 +539,9 @@ class PipelineGenerator {
 
     mb_.declaration_section()->Add<BlankLine>();
 
-    absl::optional<Expression*> reset_value;
-    if (rst_.has_value()) {
-      reset_value = file_->Literal(0, /*bit_count=*/1);
-    }
+    Expression* reset_value =
+        rst_.has_value() ? reset_value = file_->Literal(0, /*bit_count=*/1)
+                         : nullptr;
 
     XLS_ASSIGN_OR_RETURN(
         ModuleBuilder::Register valid_load_enable_register,

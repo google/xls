@@ -141,28 +141,24 @@ bool ConditionalFsmBlock::HasAssignmentToOutput(const FsmOutput& output) const {
           final_alternate_->HasAssignmentToOutput(output));
 }
 
-LogicRef* FsmBuilder::AddRegDef(absl::string_view name, Expression* width,
-                                RegInit init) {
-  defs_.push_back(module_->parent()->Make<RegDef>(name, width, init));
+LogicRef* FsmBuilder::AddRegDef(absl::string_view name,
+                                const DataType& data_type, Expression* init) {
+  defs_.push_back(module_->parent()->Make<RegDef>(name, data_type, init));
   return module_->parent()->Make<LogicRef>(defs_.back());
 }
 
 FsmCounter* FsmBuilder::AddDownCounter(absl::string_view name, int64 width) {
-  LogicRef* ref = AddRegDef(name, file_->PlainLiteral(width));
+  LogicRef* ref = AddRegDef(name, file_->DataTypeOfWidth(width));
   LogicRef* ref_next =
-      AddRegDef(absl::StrCat(name, "_next"), file_->PlainLiteral(width));
+      AddRegDef(absl::StrCat(name, "_next"), file_->DataTypeOfWidth(width));
   counters_.push_back(FsmCounter{ref, ref_next, width});
   return &counters_.back();
 }
 
 FsmOutput* FsmBuilder::AddOutputAsExpression(absl::string_view name,
-                                             Expression* width,
+                                             const DataType& data_type,
                                              Expression* default_value) {
-  RegInit init = UninitializedSentinel();
-  if (default_value != nullptr) {
-    init = default_value;
-  }
-  LogicRef* logic_ref = AddRegDef(name, width, init);
+  LogicRef* logic_ref = AddRegDef(name, data_type, default_value);
   outputs_.push_back(FsmOutput{logic_ref, default_value});
   return &outputs_.back();
 }
@@ -173,36 +169,28 @@ FsmOutput* FsmBuilder::AddExistingOutput(LogicRef* logic_ref,
   return &outputs_.back();
 }
 
-FsmRegister* FsmBuilder::AddRegisterAsExpression(absl::string_view name,
-                                                 Expression* width,
-                                                 Expression* reset_value) {
+FsmRegister* FsmBuilder::AddRegister(absl::string_view name, DataType data_type,
+                                     Expression* reset_value) {
   // A reset value can only be specified if the FSM has a reset signal.
   XLS_CHECK(reset_value == nullptr || reset_.has_value());
-  LogicRef* logic_ref = reset_value == nullptr
-                            ? AddRegDef(name, width)
-                            : AddRegDef(name, width, reset_value);
-  LogicRef* logic_ref_next = AddRegDef(absl::StrCat(name, "_next"), width);
+  LogicRef* logic_ref = AddRegDef(name, data_type, reset_value);
+  LogicRef* logic_ref_next = AddRegDef(absl::StrCat(name, "_next"), data_type);
   registers_.push_back(FsmRegister{logic_ref, logic_ref_next, reset_value});
   return &registers_.back();
 }
 
 FsmRegister* FsmBuilder::AddRegister(absl::string_view name, int64 width,
                                      absl::optional<int64> reset_value) {
-  return AddRegisterAsExpression(
-      name, file_->PlainLiteral(width),
-      reset_value.has_value() ? file_->PlainLiteral(*reset_value) : nullptr);
-}
-
-FsmRegister* FsmBuilder::AddRegister1(absl::string_view name,
-                                      absl::optional<bool> reset_value) {
-  return AddRegisterAsExpression(
-      name, /*width=*/file_->PlainLiteral(1),
-      reset_value.has_value() ? file_->PlainLiteral(*reset_value) : nullptr);
+  Expression* reset_expr =
+      reset_value.has_value()
+          ? reset_expr = file_->Literal(UBits(reset_value.value(), width))
+          : nullptr;
+  return AddRegister(name, file_->DataTypeOfWidth(width), reset_expr);
 }
 
 FsmRegister* FsmBuilder::AddExistingRegister(LogicRef* reg) {
   LogicRef* logic_ref_next =
-      AddRegDef(absl::StrCat(reg->GetName(), "_next"), reg->def()->width());
+      AddRegDef(absl::StrCat(reg->GetName(), "_next"), reg->def()->data_type());
   registers_.push_back(FsmRegister{reg, logic_ref_next});
   return &registers_.back();
 }
@@ -505,10 +493,10 @@ absl::Status FsmBuilder::Build() {
   module_->AddModuleMember(state_local_param_);
 
   Expression* initial_state_value = states_.front().state_value();
-  LogicRef* state =
-      module_->AddRegAsExpression("state", state_bits, initial_state_value);
-  LogicRef* state_next = module_->AddRegAsExpression("state_next", state_bits,
-                                                     initial_state_value);
+  LogicRef* state = module_->AddReg("state", DataType(/*width=*/state_bits),
+                                    initial_state_value);
+  LogicRef* state_next = module_->AddReg(
+      "state_next", DataType(/*width=*/state_bits), initial_state_value);
   for (RegDef* def : defs_) {
     module_->AddModuleMember(def);
   }

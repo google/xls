@@ -67,6 +67,15 @@ std::string Include::Emit() {
   return absl::StrFormat("`include \"%s\"", path_);
 }
 
+DataType VerilogFile::DataTypeOfWidth(int64 bit_count) {
+  XLS_CHECK_GT(bit_count, 0);
+  if (bit_count == 1) {
+    return DataType();
+  } else {
+    return DataType(PlainLiteral(bit_count));
+  }
+}
+
 std::string VerilogFile::Emit() {
   auto file_member_str = [](const FileMember& member) -> std::string {
     return absl::visit(
@@ -117,7 +126,7 @@ Port Port::FromProto(const PortProto& proto, VerilogFile* f) {
   Port port;
   port.direction = proto.direction() == DIRECTION_INPUT ? Direction::kInput
                                                         : Direction::kOutput;
-  port.wire = f->Make<WireDef>(proto.name(), f->PlainLiteral(proto.width()));
+  port.wire = f->Make<WireDef>(proto.name(), f->DataTypeOfWidth(proto.width()));
   return port;
 }
 
@@ -127,41 +136,27 @@ std::string Port::ToString() const {
 }
 
 absl::StatusOr<PortProto> Port::ToProto() const {
-  if (!wire->width()->IsLiteral()) {
-    return absl::FailedPreconditionError(
-        "Width of port is not a literal, cannot convert to proto: " +
-        wire->Emit());
-  }
   PortProto proto;
   proto.set_direction(direction == Direction::kInput ? DIRECTION_INPUT
                                                      : DIRECTION_OUTPUT);
   proto.set_name(wire->GetName());
-  XLS_ASSIGN_OR_RETURN(int64 width,
-                       wire->width()->AsLiteralOrDie()->bits().ToUint64());
+  XLS_ASSIGN_OR_RETURN(int64 width, wire->FlatBitCountAsInt64());
   proto.set_width(width);
   return proto;
 }
 
-namespace {
-absl::StatusOr<int64> GetBitsForDirection(absl::Span<const Port> ports,
-                                          Direction direction) {
+static absl::StatusOr<int64> GetBitsForDirection(absl::Span<const Port> ports,
+                                                 Direction direction) {
   int64 result = 0;
   for (const Port& port : ports) {
     if (port.direction != direction) {
       continue;
     }
-    if (!port.wire->width()->IsLiteral()) {
-      return absl::FailedPreconditionError(absl::StrFormat(
-          "Port with name \"%s\" has width that is not a literal value.",
-          port.wire->GetName()));
-    }
-    XLS_ASSIGN_OR_RETURN(
-        int64 width, port.wire->width()->AsLiteralOrDie()->bits().ToUint64());
+    XLS_ASSIGN_OR_RETURN(int64 width, port.wire->FlatBitCountAsInt64());
     result += width;
   }
   return result;
 }
-}  // namespace
 
 absl::StatusOr<int64> GetInputBits(absl::Span<const Port> ports) {
   return GetBitsForDirection(ports, Direction::kInput);
@@ -171,43 +166,20 @@ absl::StatusOr<int64> GetOutputBits(absl::Span<const Port> ports) {
   return GetBitsForDirection(ports, Direction::kOutput);
 }
 
-VerilogFunction::VerilogFunction(absl::string_view name, int64 result_width,
+VerilogFunction::VerilogFunction(absl::string_view name, DataType result_type,
                                  VerilogFile* file)
     : name_(name),
-      result_width_(result_width),
-      return_value_def_(
-          file->Make<RegDef>(name, file->PlainLiteral(result_width_))),
+      return_value_def_(file->Make<RegDef>(name, result_type)),
       statement_block_(file->Make<StatementBlock>(file)),
       file_(file) {}
 
-LogicRef* VerilogFunction::AddArgument(absl::string_view name, int64 width) {
-  argument_defs_.push_back(
-      file_->Make<RegDef>(name, file_->PlainLiteral(width)));
+LogicRef* VerilogFunction::AddArgument(absl::string_view name, DataType type) {
+  argument_defs_.push_back(file_->Make<RegDef>(name, type));
   return file_->Make<LogicRef>(argument_defs_.back());
 }
 
 LogicRef* VerilogFunction::return_value_ref() {
   return file_->Make<LogicRef>(return_value_def_);
-}
-
-// For the given expression returns a string " [e - 1:0]". As a special case if
-// 'e' is the literal 1, then returns the empty string.
-static std::string WidthToString(Expression* e) {
-  if (e->IsLiteral()) {
-    uint64 value = e->AsLiteralOrDie()->bits().ToUint64().value();
-    // Elide the width if it is one.
-    // TODO(https://github.com/google/xls/issues/43): Avoid this special case
-    // and perform the equivalent logic at a higher abstraction level than VAST.
-    return value == 1 ? ""
-                      : absl::StrFormat(" [%s:0]", absl::StrCat(value - 1));
-  }
-  Literal literal(UBits(1, 32), FormatPreference::kDefault,
-                  /*emit_bit_count=*/false);
-  // TODO(meheff): It'd be better to use VerilogFile::Sub here to keep
-  // precedence values in one place but we don't have a VerilogFile.
-  const int64 kBinarySubPrecedence = 9;
-  BinaryInfix b(e, "-", &literal, /*precedence=*/kBinarySubPrecedence);
-  return absl::StrFormat(" [%s:0]", b.Emit());
 }
 
 std::string VerilogFunction::Emit() {
@@ -218,12 +190,7 @@ std::string VerilogFunction::Emit() {
   lines.push_back(statement_block_->Emit());
   return absl::StrCat(
       absl::StrFormat("function automatic%s %s (%s);\n",
-                      // Special case a single bit return value because
-                      // WidthToString returns the empty string in this case.
-                      return_value_ref()->IsScalarReg()
-                          ? " [0:0]"
-                          : WidthToString(return_value_ref()->width()),
-                      name(),
+                      return_value_ref()->def()->data_type().Emit(), name(),
                       absl::StrJoin(argument_defs_, ", ",
                                     [](std::string* out, RegDef* d) {
                                       absl::StrAppend(out, "input ",
@@ -240,98 +207,48 @@ std::string VerilogFunctionCall::Emit() {
       }));
 }
 
-LogicRef* Module::AddPortAsExpression(Direction direction,
-                                      absl::string_view name,
-                                      Expression* width) {
-  Def* def = parent_->Make<WireDef>(name, width);
+LogicRef* Module::AddPortDef(Direction direction, Def* def) {
   ports_.push_back(Port{direction, def});
   return parent_->Make<LogicRef>(def);
 }
 
-LogicRef* Module::AddPort(Direction direction, absl::string_view name,
-                          int64 width) {
-  return AddPortAsExpression(direction, name, parent()->PlainLiteral(width));
+LogicRef* Module::AddInput(absl::string_view name, DataType type) {
+  return AddPortDef(Direction::kInput,
+                    parent_->Make<WireDef>(name, std::move(type)));
 }
 
-LogicRef1* Module::AddInput(absl::string_view name) {
-  return AddPort(Direction::kInput, name, 1)->AsLogicRefNOrDie<1>();
-}
-
-LogicRef1* Module::AddOutput(absl::string_view name) {
-  return AddPort(Direction::kOutput, name, 1)->AsLogicRefNOrDie<1>();
-}
-
-LogicRef* Module::AddRegAsExpression(absl::string_view name, Expression* width,
-                                     RegInit init, ModuleSection* section) {
-  if (section == nullptr) {
-    section = &top_;
-  }
-  return parent_->Make<LogicRef>(section->Add<RegDef>(name, width, init));
+LogicRef* Module::AddOutput(absl::string_view name, DataType type) {
+  return AddPortDef(Direction::kOutput,
+                    parent_->Make<WireDef>(name, std::move(type)));
 }
 
 LogicRef* Module::AddUnpackedArrayReg(
-    absl::string_view name, Expression* element_width,
-    absl::Span<const UnpackedArrayBound> bounds, RegInit init,
+    absl::string_view name, DataType type,
+    absl::Span<const UnpackedArrayBound> bounds, Expression* init,
     ModuleSection* section) {
   if (section == nullptr) {
     section = &top_;
   }
   return parent_->Make<LogicRef>(
-      section->Add<UnpackedArrayRegDef>(name, element_width, bounds, init));
+      section->Add<UnpackedArrayRegDef>(name, std::move(type), bounds, init));
 }
 
-LogicRef* Module::AddReg(absl::string_view name, int64 width,
-                         absl::optional<int64> init, ModuleSection* section) {
-  if (init.has_value()) {
-    return AddRegAsExpression(name, parent_->PlainLiteral(width),
-                              parent_->Literal(*init, width), section);
-  } else {
-    return AddRegAsExpression(name, parent_->PlainLiteral(width),
-                              UninitializedSentinel(), section);
-  }
-}
-
-LogicRef* Module::AddWireAsExpression(absl::string_view name, Expression* width,
-                                      ModuleSection* section) {
+LogicRef* Module::AddReg(absl::string_view name, DataType type,
+                         Expression* init, ModuleSection* section) {
   if (section == nullptr) {
     section = &top_;
   }
-  return parent_->Make<LogicRef>(section->Add<WireDef>(name, width));
+  return parent_->Make<LogicRef>(
+      section->Add<RegDef>(name, std::move(type), init));
 }
 
-LogicRef* Module::AddWire(absl::string_view name, int64 width,
+LogicRef* Module::AddWire(absl::string_view name, DataType type,
                           ModuleSection* section) {
-  return AddWireAsExpression(name, parent_->PlainLiteral(width), section);
-}
-
-// TODO(meheff): Consider removing subtyped-by-bitcount reg and wire defs as
-// they are lightly used in the generators and may not add enough value to
-// justify their existence.
-#define ADD_REG_WIRE_N(__n)                                                 \
-  LogicRef##__n* Module::AddReg##__n(absl::string_view name,                \
-                                     absl::optional<int64> init,            \
-                                     ModuleSection* section) {              \
-    if (section == nullptr) {                                               \
-      section = &top_;                                                      \
-    }                                                                       \
-    RegInit init_expr = UninitializedSentinel();                            \
-    if (init.has_value()) {                                                 \
-      init_expr = parent_->Literal(*init, __n);                             \
-    }                                                                       \
-    return parent_->Make<LogicRef##__n>(                                    \
-        section->Add<RegDef>(name, parent_->PlainLiteral(__n), init_expr)); \
-  }                                                                         \
-  LogicRef##__n* Module::AddWire##__n(absl::string_view name,               \
-                                      ModuleSection* section) {             \
-    if (section == nullptr) {                                               \
-      section = &top_;                                                      \
-    }                                                                       \
-    return parent_->Make<LogicRef##__n>(                                    \
-        section->Add<WireDef>(name, parent_->PlainLiteral(__n)));           \
+  if (section == nullptr) {
+    section = &top_;
   }
-
-ADD_REG_WIRE_N(1)
-ADD_REG_WIRE_N(8)
+  return parent_->Make<LogicRef>(section->Add<WireDef>(name, std::move(type)));
+}
 
 ParameterRef* Module::AddParameter(absl::string_view name, Expression* rhs) {
   Parameter* param = AddModuleMember(parent_->Make<Parameter>(name, rhs));
@@ -360,25 +277,101 @@ LogicRef* Expression::AsLogicRefOrDie() {
 
 std::string XSentinel::Emit() { return absl::StrFormat("%d'dx", width_); }
 
-std::string ToString(const RegInit& init) {
-  return absl::visit(Visitor{[](Expression* e) { return e->Emit(); },
-                             [](UninitializedSentinel) {
-                               return std::string("<uninitialized>");
-                             }},
-                     init);
+// Returns a string representation of the given expression minus one.
+static std::string WidthToLimit(Expression* expr) {
+  if (expr->IsLiteral()) {
+    // If the expression is a literal, then we can emit the value - 1 directly.
+    uint64 value = expr->AsLiteralOrDie()->bits().ToUint64().value();
+    return absl::StrCat(value - 1);
+  }
+  Literal literal(UBits(1, 32), FormatPreference::kDefault,
+                  /*emit_bit_count=*/false);
+  // TODO(meheff): It'd be better to use VerilogFile::Sub here to keep
+  // precedence values in one place but we don't have a VerilogFile.
+  const int64 kBinarySubPrecedence = 9;
+  BinaryInfix b(expr, "-", &literal, /*precedence=*/kBinarySubPrecedence);
+  return absl::StrFormat("%s", b.Emit());
 }
 
-std::string WireDef::Emit() {
-  return absl::StrFormat("wire%s%s %s;", is_signed() ? " signed " : "",
-                         WidthToString(width()), name());
+// For the given expression returns a string " [width - 1:0]". The space before
+// the '[' is for more convenient formatting in the caller. If width is null
+// then the empty string is returned.
+static std::string WidthToRangeString(Expression* width) {
+  if (width == nullptr) {
+    return "";
+  }
+  return absl::StrFormat(" [%s:0]", WidthToLimit(width));
+}
+
+// Returns a string range representation of the given dimensions of a packed
+// array. For example, {2, 3, WIDTH} yields "[1:0][2:0][WIDTH-1:0]"
+static std::string PackedDimsToRangeString(absl::Span<Expression* const> dims) {
+  if (dims.empty()) {
+    return "";
+  }
+  std::string result;
+  for (Expression* dim : dims) {
+    absl::StrAppendFormat(&result, "[%s:0]", WidthToLimit(dim));
+  }
+  return result;
+}
+
+std::string DataType::Emit() const {
+  std::string result = is_signed_ ? " signed" : "";
+  absl::StrAppend(&result, WidthToRangeString(width_));
+  absl::StrAppend(&result, PackedDimsToRangeString(packed_dims_));
+  return result;
+}
+
+absl::StatusOr<int64> DataType::WidthAsInt64() const {
+  if (width() == nullptr) {
+    // No width indicates a single-bit signal.
+    return 1;
+  }
+
+  if (!width()->IsLiteral()) {
+    return absl::FailedPreconditionError("Width is not a literal: " +
+                                         width()->Emit());
+  }
+  return width()->AsLiteralOrDie()->bits().ToUint64();
+}
+
+absl::StatusOr<int64> DataType::FlatBitCountAsInt64() const {
+  XLS_ASSIGN_OR_RETURN(int64 bit_count, WidthAsInt64());
+  for (Expression* dim : packed_dims()) {
+    if (!dim->IsLiteral()) {
+      return absl::FailedPreconditionError("Dimension is not a literal:" +
+                                           dim->Emit());
+    }
+    XLS_ASSIGN_OR_RETURN(int64 dim_size,
+                         dim->AsLiteralOrDie()->bits().ToUint64());
+    bit_count = bit_count * dim_size;
+  }
+  return bit_count;
+}
+
+std::string Def::Emit() { return EmitNoSemi() + ";"; }
+
+std::string Def::EmitNoSemi() const {
+  std::string kind_str;
+  switch (data_kind()) {
+    case DataKind::kReg:
+      kind_str = "reg";
+      break;
+    case DataKind::kWire:
+      kind_str = "wire";
+      break;
+    case DataKind::kLogic:
+      kind_str = "logic";
+      break;
+  }
+  return absl::StrCat(kind_str, data_type().Emit(), " ", GetName());
 }
 
 std::string RegDef::Emit() {
-  std::string result =
-      absl::StrFormat("reg%s%s %s", is_signed() ? " signed " : "",
-                      WidthToString(width()), name());
-  if (!absl::holds_alternative<UninitializedSentinel>(init_)) {
-    absl::StrAppend(&result, " = ", ToString(init_));
+  std::string result = Def::EmitNoSemi();
+  if (init_ != nullptr) {
+    absl::StrAppend(&result, " = ", init_->Emit());
   }
   absl::StrAppend(&result, ";");
   return result;
@@ -408,11 +401,10 @@ static std::string UnpackedArrayBoundsToString(
 }
 
 std::string UnpackedArrayRegDef::Emit() {
-  std::string result =
-      absl::StrFormat("reg%s %s%s", WidthToString(width()), name(),
-                      UnpackedArrayBoundsToString(bounds()));
-  if (!absl::holds_alternative<UninitializedSentinel>(init_)) {
-    absl::StrAppend(&result, " = ", ToString(init_));
+  std::string result = absl::StrFormat("%s%s", Def::EmitNoSemi(),
+                                       UnpackedArrayBoundsToString(bounds()));
+  if (init_ != nullptr) {
+    absl::StrAppend(&result, " = ", init_->Emit());
   }
   absl::StrAppend(&result, ";");
   return result;
@@ -420,7 +412,7 @@ std::string UnpackedArrayRegDef::Emit() {
 
 std::string UnpackedArrayWireDef::Emit() {
   std::string result =
-      absl::StrFormat("wire%s %s%s", WidthToString(width()), name(),
+      absl::StrFormat("wire%s %s%s", WidthToRangeString(width()), GetName(),
                       UnpackedArrayBoundsToString(bounds()));
   absl::StrAppend(&result, ";");
   return result;
@@ -569,7 +561,7 @@ bool Literal::IsLiteralWithValue(int64 target) const {
 std::string QuotedString::Emit() { return absl::StrFormat("\"%s\"", str_); }
 
 std::string Slice::Emit() {
-  if (subject_->IsScalarReg()) {
+  if (subject_->IsScalar()) {
     // If subject is scalar (no width given in declaration) then avoid slicing
     // as this is invalid Verilog. The only valid hi/lo values are zero.
     // TODO(https://github.com/google/xls/issues/43): Avoid this special case
@@ -588,12 +580,13 @@ std::string PartSelect::Emit() {
 }
 
 std::string Index::Emit() {
-  if (subject_->IsScalarReg()) {
+  if (subject_->IsScalar()) {
     // If subject is scalar (no width given in declaration) then avoid indexing
     // as this is invalid Verilog. The only valid index values are zero.
     // TODO(https://github.com/google/xls/issues/43): Avoid this special case
     // and perform the equivalent logic at a higher abstraction level than VAST.
-    XLS_CHECK(index_->IsLiteralWithValue(0)) << index_->Emit();
+    XLS_CHECK(index_->IsLiteralWithValue(0))
+        << absl::StreamFormat("%s[%s]", subject_->Emit(), index_->Emit());
     return subject_->Emit();
   }
   return absl::StrFormat("%s[%s]", subject_->Emit(), index_->Emit());
@@ -657,8 +650,8 @@ std::string Concat::Emit() {
         absl::StrAppend(out, e->Emit());
       }));
 
-  if (replication_.has_value()) {
-    return absl::StrFormat("{%s%s}", (*replication_)->Emit(), arg_string);
+  if (replication_ != nullptr) {
+    return absl::StrFormat("{%s%s}", replication_->Emit(), arg_string);
   } else {
     return arg_string;
   }
@@ -840,7 +833,7 @@ AlwaysFlop::AlwaysFlop(VerilogFile* file, LogicRef* clk,
 
 void AlwaysFlop::AddRegister(LogicRef* reg, Expression* reg_next,
                              Expression* reset_value) {
-  if (reset_value) {
+  if (reset_value != nullptr) {
     XLS_CHECK(reset_block_ != nullptr);
     reset_block_->Add<NonblockingAssignment>(reg, reset_value);
   }

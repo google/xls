@@ -118,14 +118,14 @@ TEST_F(ValueFlatteningTest, ExpressionFlattening) {
   verilog::VerilogFile f;
   verilog::Module* m = f.AddModule(TestName());
 
-  EXPECT_EQ(FlattenArray(m->AddUnpackedArrayReg("foo", f.PlainLiteral(5),
+  EXPECT_EQ(FlattenArray(m->AddUnpackedArrayReg("foo", f.DataTypeOfWidth(5),
                                                 {f.PlainLiteral(3)}),
                          a_of_b5, &f)
                 ->Emit(),
             "{foo[0], foo[1], foo[2]}");
   EXPECT_EQ(
       FlattenArray(
-          m->AddUnpackedArrayReg("foo", f.PlainLiteral(5),
+          m->AddUnpackedArrayReg("foo", f.DataTypeOfWidth(5),
                                  {f.PlainLiteral(2), f.PlainLiteral(3)}),
           array_2d, &f)
           ->Emit(),
@@ -141,22 +141,26 @@ TEST_F(ValueFlatteningTest, ExpressionUnflattening) {
   verilog::VerilogFile f;
   verilog::Module* m = f.AddModule(TestName());
 
-  EXPECT_EQ(UnflattenArray(m->AddReg("foo", 15), a_of_b5, &f)->Emit(),
+  EXPECT_EQ(UnflattenArray(m->AddReg("foo", f.DataTypeOfWidth(15)), a_of_b5, &f)
+                ->Emit(),
             "'{foo[14:10], foo[9:5], foo[4:0]}");
-  EXPECT_EQ(UnflattenArray(m->AddReg("foo", 30), array_2d, &f)->Emit(),
-            "'{'{foo[29:25], foo[24:20], foo[19:15]}, '{foo[14:10], foo[9:5], "
-            "foo[4:0]}}");
+  EXPECT_EQ(
+      UnflattenArray(m->AddReg("foo", f.DataTypeOfWidth(30)), array_2d, &f)
+          ->Emit(),
+      "'{'{foo[29:25], foo[24:20], foo[19:15]}, '{foo[14:10], foo[9:5], "
+      "foo[4:0]}}");
 
   TupleType* tuple_type = p.GetTupleType({array_2d, b5, a_of_b5});
   EXPECT_EQ(
-      UnflattenArrayShapedTupleElement(m->AddReg("foo", 50), tuple_type, 0, &f)
+      UnflattenArrayShapedTupleElement(m->AddReg("foo", f.DataTypeOfWidth(50)),
+                                       tuple_type, 0, &f)
           ->Emit(),
       "'{'{foo[49:45], foo[44:40], foo[39:35]}, '{foo[34:30], foo[29:25], "
       "foo[24:20]}}");
-  EXPECT_EQ(
-      UnflattenArrayShapedTupleElement(m->AddReg("foo", 50), tuple_type, 2, &f)
-          ->Emit(),
-      "'{foo[14:10], foo[9:5], foo[4:0]}");
+  EXPECT_EQ(UnflattenArrayShapedTupleElement(
+                m->AddReg("foo", f.DataTypeOfWidth(50)), tuple_type, 2, &f)
+                ->Emit(),
+            "'{foo[14:10], foo[9:5], foo[4:0]}");
 }
 
 }  // namespace

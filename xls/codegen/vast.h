@@ -76,72 +76,152 @@ class Statement : public VastNode {
   virtual std::string Emit() = 0;
 };
 
-// Defines a named reg/wire of a given width.
-class Def : public Statement {
+// Represents the dimensions and signedness of a net/variable/argument/etc in
+// Verilog.
+// TODO(meheff): Add unpacked array dimensions to this data structure as well.
+class DataType {
  public:
-  Def(absl::string_view name, Expression* width, bool is_signed = false)
-      : name_(name), width_(width), is_signed_(is_signed) {}
+  // Constructor for a scalar type where no range is specified. Example:
+  //   wire foo;
+  DataType() : width_(nullptr), is_signed_(false) {}
 
-  std::string GetName() const { return name_; }
+  // Construct for a bit vector type. Example:
+  //   wire [7:0] foo;
+  explicit DataType(Expression* width, bool is_signed = false)
+      : width_(width), is_signed_(is_signed) {}
 
-  std::string EmitNoSemi() {
-    std::string result = Emit();
-    return std::string(absl::StripSuffix(result, ";"));
-  }
+  // Constructor for a packed array type. Width is the width of the innermost
+  // dimension. For example, the width is 8, and packed dims are {4, 43} for the
+  // following example:
+  //   wire [7:0][3:0][42:0] foo;
+  DataType(Expression* width, absl::Span<Expression* const> packed_dims,
+           bool is_signed = false)
+      : width_(width),
+        packed_dims_(packed_dims.begin(), packed_dims.end()),
+        is_signed_(is_signed) {}
 
-  const std::string& name() const { return name_; }
+  // Returns the width of the def (not counting packed dimensions) as an
+  // int64. Returns an error if this is not possible because the width is not a
+  // literal. For example, the width of the following def is 8:
+  //   wire [7:0][3:0][42:0] foo;
+  absl::StatusOr<int64> WidthAsInt64() const;
 
-  Expression* width() const {
-    return width_;
-  }
+  // Return flattened bit count of the def (total width of the def including
+  // packed dimensions). For example, the following has a flat bit count of
+  // 8 * 4 * 5 = 160:
+  //   wire [7:0][3:0][4:0] foo;
+  // Returns an error if this computation is not possible because the width or a
+  // packed dimension is not a literal.
+  absl::StatusOr<int64> FlatBitCountAsInt64() const;
 
-  // Returns true if this is a Def of an array.
-  virtual bool IsArrayDef() const { return false; }
+  // Returns the width expression for the type. Scalars (e.g.,
+  // "wire foo;") have a nullptr width expression.
+  Expression* width() const { return width_; }
+
+  // Returns the packed dimensions for the type. For example, the net type for
+  // "wire [7:0][42:0][3:0] foo;" might have {43, 4} as the packed dimensoins.
+  absl::Span<Expression* const> packed_dims() const { return packed_dims_; }
 
   bool is_signed() const { return is_signed_; }
 
+  // Returns a string which denotes this type for use in definitions, arguments,
+  // etc. Example output:
+  //
+  //  [7:0]
+  //  signed [123:0]
+  //  [1:0][33:0][44:0]
+  std::string Emit() const;
+
  private:
-  std::string name_;
   Expression* width_;
+  std::vector<Expression*> packed_dims_;
   bool is_signed_;
 };
 
-// Represents an uninitialized register definition.
-struct UninitializedSentinel {};
+// The kind of a net/variable.
+enum class DataKind { kReg, kWire, kLogic };
 
-// Register initialization value.
-using RegInit = absl::variant<Expression*, UninitializedSentinel>;
-
-std::string ToString(const RegInit& init);
-
-class WireDef : public Def {
+// Represents the definition of a variable or net.
+class Def : public Statement {
  public:
-  explicit WireDef(absl::string_view name, Expression* width,
-                   bool is_signed = false)
-      : Def(name, width, is_signed) {}
+  // Constructor for a single-bit signal without a range (width) specification.
+  // Examples:
+  //   wire foo;
+  //   reg bar;
+  Def(absl::string_view name, DataKind data_kind, DataType data_type)
+      : name_(name), data_kind_(data_kind), data_type_(std::move(data_type)) {}
 
   std::string Emit() override;
+
+  // Emit the definition without the trailing semicolon.
+  std::string EmitNoSemi() const;
+
+  const std::string& GetName() const { return name_; }
+  DataKind data_kind() const { return data_kind_; }
+  const DataType& data_type() const { return data_type_; }
+
+  // DataType methods exposed for convenience.
+  Expression* width() const { return data_type().width(); }
+  absl::StatusOr<int64> WidthAsInt64() const {
+    return data_type().WidthAsInt64();
+  }
+  absl::StatusOr<int64> FlatBitCountAsInt64() const {
+    return data_type().FlatBitCountAsInt64();
+  }
+  absl::Span<Expression* const> packed_dims() const {
+    return data_type().packed_dims();
+  }
+  bool is_signed() const { return data_type().is_signed(); }
+
+  virtual bool IsScalar() const { return data_type_.width() == nullptr; }
+
+ private:
+  std::string name_;
+  DataKind data_kind_;
+  DataType data_type_;
 };
 
-// Register definition.
+// A wire definition. Example:
+//   wire [41:0] foo;
+class WireDef : public Def {
+ public:
+  WireDef(absl::string_view name, DataType data_type)
+      : Def(name, DataKind::kWire, std::move(data_type)) {}
+};
+
+// Register variable definition.Example:
+//   reg [41:0] foo;
 class RegDef : public Def {
  public:
-  RegDef(absl::string_view name, Expression* width,
-         RegInit init = UninitializedSentinel(), bool is_signed = false)
-      : Def(name, width, is_signed), init_(init) {}
+  RegDef(absl::string_view name, DataType data_type, Expression* init = nullptr)
+      : Def(name, DataKind::kReg, std::move(data_type)), init_(init) {}
 
   std::string Emit() override;
 
  protected:
-  RegInit init_;
+  Expression* init_;
+};
+
+// Logic variable definition.Example:
+//   logic [41:0] foo;
+class LogicDef : public Def {
+ public:
+  LogicDef(absl::string_view name, DataType data_type,
+           Expression* init = nullptr)
+      : Def(name, DataKind::kLogic, std::move(data_type)), init_(init) {}
+
+  std::string Emit() override;
+
+ protected:
+  Expression* init_;
 };
 
 // Unpacked arrays can be declared using sizes (SystemVerilog only) or ranges
 // (SystemVerilog or Verilog) for the bounds. For example, the following two
 // declarations are equivalent:
 //
-//   reg [7:0] foo[42][123]
-//   reg [7:0] foo[0:41][0:122]
+//   reg [7:0] foo[42][123];
+//   reg [7:0] foo[0:41][0:122];
 //
 // UnpackedArrayBounds is a sum type which holds either form.
 using UnpackedArrayBound =
@@ -152,17 +232,18 @@ using UnpackedArrayBound =
 // an optional set of unpacked array bounds.
 class UnpackedArrayRegDef : public RegDef {
  public:
-  UnpackedArrayRegDef(absl::string_view name, Expression* element_width,
+  UnpackedArrayRegDef(absl::string_view name, DataType data_type,
                       absl::Span<const UnpackedArrayBound> bounds,
-                      RegInit init = UninitializedSentinel())
-      : RegDef(name, element_width, init),
-        bounds_(bounds.begin(), bounds.end()) {}
+                      Expression* init = nullptr)
+      : RegDef(name, data_type, init), bounds_(bounds.begin(), bounds.end()) {
+    XLS_CHECK(!bounds.empty());
+  }
 
   std::string Emit() override;
 
   absl::Span<const UnpackedArrayBound> bounds() const { return bounds_; }
 
-  bool IsArrayDef() const override { return true; }
+  bool IsScalar() const override { return false; }
 
  private:
   std::vector<UnpackedArrayBound> bounds_;
@@ -173,15 +254,15 @@ class UnpackedArrayRegDef : public RegDef {
 // an optional set of unpacked array bounds.
 class UnpackedArrayWireDef : public WireDef {
  public:
-  UnpackedArrayWireDef(absl::string_view name, Expression* element_width,
+  UnpackedArrayWireDef(absl::string_view name, DataType data_type,
                        absl::Span<const UnpackedArrayBound> bounds)
-      : WireDef(name, element_width), bounds_(bounds.begin(), bounds.end()) {}
+      : WireDef(name, data_type), bounds_(bounds.begin(), bounds.end()) {}
 
   std::string Emit() override;
 
   absl::Span<const UnpackedArrayBound> bounds() const { return bounds_; }
 
-  bool IsArrayDef() const override { return true; }
+  bool IsScalar() const override { return false; }
 
  private:
   std::vector<UnpackedArrayBound> bounds_;
@@ -585,46 +666,27 @@ class IndexableExpression : public Expression {
  public:
   bool IsIndexableExpression() const override { return true; }
 
-  // Returns whether this is a scalar register reference that should be referred
-  // to by name because indexing a scalar is invalid (System)Verilog.
-  virtual bool IsScalarReg() const { return false; }
+  // Returns whether this is a scalar signal reference (a definition without a
+  // range, e.g. "wire foo"). Scalar signals cannot be indexed (e.g., "foo[0]"),
+  // however, scalar signal references still are of type IndexableExpression due
+  // to coarseness of the C++ type heirarchy.
+  virtual bool IsScalar() const { return false; }
 };
 
-// Forward declaration.
-template <int64 N>
-class LogicRefN;
-
-// Refers to a WireDef's or RegDef's definition.
+// Reference to the definition of a WireDef, RegDef, or LogicDef.
 class LogicRef : public IndexableExpression {
  public:
   explicit LogicRef(Def* def) : def_(XLS_DIE_IF_NULL(def)) {}
 
   bool IsLogicRef() const override { return true; }
 
-  std::string Emit() override { return def_->name(); }
+  std::string Emit() override { return def_->GetName(); }
 
-  bool IsScalarReg() const override {
-    return def_->width()->IsLiteralWithValue(1) && !def_->IsArrayDef();
-  }
+  bool IsScalar() const override { return def_->IsScalar(); }
 
-  // Performs a checked-conversion of this LogicRef into a logic ref of the
-  // given width N.
-  //
-  // The width of this logic ref must be a literal value equal to N.
-  template <int64 N>
-  LogicRefN<N>* AsLogicRefNOrDie() {
-    using CastedT = LogicRefN<N>;
-    auto* result = static_cast<CastedT*>(this);
-    result->CheckInvariants();
-    return result;
-  }
+  Expression* width() { return def_->width(); }
 
-  // Returns the width of this logic signal.
-  Expression* width() {
-    auto* result = def_->width();
-    XLS_CHECK(result != nullptr);
-    return result;
-  }
+  absl::Span<Expression* const> packed_dims() { return def_->packed_dims(); }
 
   // Returns the Def that this LogicRef refers to.
   Def* def() const { return def_; }
@@ -636,25 +698,6 @@ class LogicRef : public IndexableExpression {
   // Logic signal definition.
   Def* def_;
 };
-
-// Templated subtype for representing fixed-width logic signals that have the
-// width imbued in the type. This is helpful in scenarios where only one width
-// of logic is acceptable; e.g. for a clock signal a "LogicRef1*" is more
-// precise.
-template <int64 N>
-class LogicRefN : public LogicRef {
- public:
-  explicit LogicRefN(Def* def) : LogicRef(def) { CheckInvariants(); }
-
-  void CheckInvariants() {
-    XLS_CHECK(width()->IsLiteralWithValue(N))
-        << "Expected logic of width: " << N << " found: " << width()->Emit();
-  }
-};
-
-// Some helper definitions for convenience.
-using LogicRef1 = LogicRefN<1>;
-using LogicRef8 = LogicRefN<8>;
 
 // Represents a Verilog unary expression.
 class Unary : public Operator {
@@ -673,7 +716,7 @@ class Unary : public Operator {
 
 // Abstraction describing a reset signal.
 struct Reset {
-  LogicRef1* signal;
+  LogicRef* signal;
   bool asynchronous;
   bool active_low;
 };
@@ -687,8 +730,8 @@ class AlwaysFlop : public VastNode {
   AlwaysFlop(VerilogFile* file, LogicRef* clk,
              absl::optional<Reset> rst = absl::nullopt);
 
-  // Add a register controlled by this AlwaysFlop. 'reset_value' can only be
-  // non-null if the AlwaysFlop has a reset signal.
+  // Add a register controlled by this AlwaysFlop. 'reset_value' can only have a
+  // value if the AlwaysFlop has a reset signal.
   void AddRegister(LogicRef* reg, Expression* reg_next,
                    Expression* reset_value = nullptr);
 
@@ -785,7 +828,7 @@ class Initial : public StructuredProcedure {
 class Concat : public Expression {
  public:
   explicit Concat(absl::Span<Expression* const> args)
-      : args_(args.begin(), args.end()), replication_(absl::nullopt) {}
+      : args_(args.begin(), args.end()), replication_(nullptr) {}
 
   // Defines a concatenation with replication. Example: {3{1'b101}}
   Concat(Expression* replication, absl::Span<Expression* const> args)
@@ -795,7 +838,7 @@ class Concat : public Expression {
 
  private:
   std::vector<Expression*> args_;
-  absl::optional<Expression*> replication_;
+  Expression* replication_;
 };
 
 // An array assignment pattern such as: "'{foo, bar, baz}"
@@ -1065,12 +1108,12 @@ class UnsignedCast : public SystemFunctionCall {
 // Represents the definition of a Verilog function.
 class VerilogFunction : public VastNode {
  public:
-  VerilogFunction(absl::string_view name, int64 result_width,
+  VerilogFunction(absl::string_view name, DataType result_type,
                   VerilogFile* file);
 
   // Adds an argument to the function and returns a reference to its value which
   // can be used in the body of the function.
-  LogicRef* AddArgument(absl::string_view name, int64 width);
+  LogicRef* AddArgument(absl::string_view name, DataType type);
 
   // Adds a RegDef to the function and returns a LogicRef to it. This should be
   // used for adding RegDefs to the function instead of AddStatement because
@@ -1096,7 +1139,6 @@ class VerilogFunction : public VastNode {
 
  private:
   std::string name_;
-  int64 result_width_;
   RegDef* return_value_def_;
 
   // The block containing all of the statements of the function. SystemVerilog
@@ -1185,7 +1227,7 @@ struct Port {
   static Port FromProto(const PortProto& proto, VerilogFile* f);
 
   absl::StatusOr<PortProto> ToProto() const;
-  const std::string& name() const { return wire->name(); }
+  const std::string& name() const { return wire->GetName(); }
   std::string ToString() const;
 
   Direction direction;
@@ -1214,50 +1256,25 @@ class Module : public VastNode {
   template <typename T, typename... Args>
   inline T* Add(Args&&... args);
 
-  // Adds a (wire) port to this module with the given direction/name/width and
-  // returns a reference to that wire.
-  //
-  // Note that width is permitted to be nullptr for default width (of a single
-  // bit).
-  LogicRef* AddPort(Direction direction, absl::string_view name, int64 width);
-  LogicRef* AddPortAsExpression(Direction direction, absl::string_view name,
-                                Expression* width);
+  // Adds a (wire) port to this module with the given name and type. Returns a
+  // reference to that wire.
+  LogicRef* AddInput(absl::string_view name, DataType type);
+  LogicRef* AddOutput(absl::string_view name, DataType type);
 
-  // Convenience wrappers around AddPort().
-  LogicRef1* AddInput(absl::string_view name);
-  LogicRef1* AddOutput(absl::string_view name);
-
-  // Adds a reg/wire Def to the module with the given width and initialized with
-  // the given value. Returns a reference to the reg/wire.
-  LogicRef* AddReg(absl::string_view name, int64 width,
-                   absl::optional<int64> init = absl::nullopt,
+  // Adds a reg/wire definition to the module with the given type and, for regs,
+  // initialized with the given value. Returns a reference to the definition.
+  LogicRef* AddReg(absl::string_view name, DataType type,
+                   Expression* init = nullptr,
                    ModuleSection* section = nullptr);
-  LogicRef* AddRegAsExpression(absl::string_view name, Expression* width,
-                               RegInit init = UninitializedSentinel(),
-                               ModuleSection* section = nullptr);
-
-  // Adds a unpacked array register.
-  LogicRef* AddUnpackedArrayReg(
-      absl::string_view name, Expression* element_width,
-      absl::Span<const UnpackedArrayBound> array_bounds,
-      RegInit init = UninitializedSentinel(), ModuleSection* section = nullptr);
-
-  LogicRef* AddWire(absl::string_view name, int64 width,
+  LogicRef* AddWire(absl::string_view name, DataType type,
                     ModuleSection* section = nullptr);
-  LogicRef* AddWireAsExpression(absl::string_view name, Expression* width,
-                                ModuleSection* section = nullptr);
 
-  // Wrappers which construct a single bit Def.
-  LogicRef1* AddReg1(absl::string_view name,
-                     absl::optional<int64> init = absl::nullopt,
-                     ModuleSection* section = nullptr);
-  LogicRef1* AddWire1(absl::string_view name, ModuleSection* section = nullptr);
-
-  // Wrappers which construct an 8-bit Def.
-  LogicRef8* AddReg8(absl::string_view name,
-                     absl::optional<int64> init = absl::nullopt,
-                     ModuleSection* section = nullptr);
-  LogicRef8* AddWire8(absl::string_view name, ModuleSection* section = nullptr);
+  // Adds a unpacked array register. 'type' defines the element bit-vector width
+  // and any packed dimensions.
+  LogicRef* AddUnpackedArrayReg(
+      absl::string_view name, DataType type,
+      absl::Span<const UnpackedArrayBound> array_bounds,
+      Expression* init = nullptr, ModuleSection* section = nullptr);
 
   ParameterRef* AddParameter(absl::string_view name, Expression* rhs);
 
@@ -1278,6 +1295,9 @@ class Module : public VastNode {
   const std::string& name() const { return name_; }
 
  private:
+  // Add the given Def as a port on the module.
+  LogicRef* AddPortDef(Direction direction, Def* def);
+
   std::string Emit(ModuleMember* member);
 
   VerilogFile* parent_;
@@ -1492,6 +1512,14 @@ class VerilogFile {
     return Make<verilog::Literal>(SBits(value, 32), FormatPreference::kDefault,
                                   /*emit_bit_count=*/false);
   }
+
+  // Returns the Datatype of a scalar or bit vector of the given statically
+  // known width. If the width is 1, then a scalar type is returned
+  // (default-constructed DataType) which results in no range emitted for the
+  // type. Example: "reg foo;". The motivation for this special case is
+  // avoiding types with trivial single bit ranges "[0:0]" (as in "reg [0:0]
+  // foo").
+  DataType DataTypeOfWidth(int64 bit_count);
 
  private:
   // Same as PlainLiteral if value fits in an int32. Otherwise creates a 64-bit

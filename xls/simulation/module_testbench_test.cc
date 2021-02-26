@@ -36,12 +36,12 @@ class ModuleTestbenchTest : public VerilogTestBase {
   // Creates and returns a module which simply flops its input twice.
   Module* MakeTwoStageIdentityPipeline(VerilogFile* f, int64 width = 16) {
     Module* m = f->AddModule("test_module");
-    LogicRef* clk = m->AddInput("clk");
-    LogicRef* in = m->AddPort(Direction::kInput, "in", width);
-    LogicRef* out = m->AddPort(Direction::kOutput, "out", width);
+    LogicRef* clk = m->AddInput("clk", f->DataTypeOfWidth(1));
+    LogicRef* in = m->AddInput("in", f->DataTypeOfWidth(width));
+    LogicRef* out = m->AddOutput("out", f->DataTypeOfWidth(width));
 
-    LogicRef* p0 = m->AddReg("p0", width);
-    LogicRef* p1 = m->AddReg("p1", width);
+    LogicRef* p0 = m->AddReg("p0", f->DataTypeOfWidth(width));
+    LogicRef* p1 = m->AddReg("p1", f->DataTypeOfWidth(width));
 
     auto af = m->Add<AlwaysFlop>(f, clk);
     af->AddRegister(p0, in);
@@ -132,15 +132,15 @@ TEST_P(ModuleTestbenchTest, TwoStageWithExpectationFailure) {
 TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
   VerilogFile f;
   Module* m = f.AddModule("test_module");
-  LogicRef* clk = m->AddInput("clk");
-  LogicRef* x = m->AddPort(Direction::kInput, "x", 8);
-  LogicRef* y = m->AddPort(Direction::kInput, "y", 8);
-  LogicRef* out0 = m->AddPort(Direction::kOutput, "out0", 8);
-  LogicRef* out1 = m->AddPort(Direction::kOutput, "out1", 8);
+  LogicRef* clk = m->AddInput("clk", f.DataTypeOfWidth(1));
+  LogicRef* x = m->AddInput("x", f.DataTypeOfWidth(8));
+  LogicRef* y = m->AddInput("y", f.DataTypeOfWidth(8));
+  LogicRef* out0 = m->AddOutput("out0", f.DataTypeOfWidth(8));
+  LogicRef* out1 = m->AddOutput("out1", f.DataTypeOfWidth(8));
 
-  LogicRef* not_x = m->AddReg("not_x", 8);
-  LogicRef* sum = m->AddReg("sum", 8);
-  LogicRef* sum_plus_1 = m->AddReg("sum_plus_1", 8);
+  LogicRef* not_x = m->AddReg("not_x", f.DataTypeOfWidth(8));
+  LogicRef* sum = m->AddReg("sum", f.DataTypeOfWidth(8));
+  LogicRef* sum_plus_1 = m->AddReg("sum_plus_1", f.DataTypeOfWidth(8));
 
   // Logic is as follows:
   //
@@ -177,8 +177,8 @@ TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
 TEST_P(ModuleTestbenchTest, TestTimeout) {
   VerilogFile f;
   Module* m = f.AddModule("test_module");
-  m->AddInput("clk");
-  LogicRef* out = m->AddOutput("out");
+  m->AddInput("clk", f.DataTypeOfWidth(1));
+  LogicRef* out = m->AddOutput("out", f.DataTypeOfWidth(1));
   m->Add<ContinuousAssignment>(out, f.PlainLiteral(0));
 
   ModuleTestbench tb(m, GetSimulator(), "clk");

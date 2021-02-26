@@ -775,7 +775,6 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterSimple) {
       SequentialModuleBuilder::StridedCounterReferences counter_refs,
       builder.AddStaticStridedCounter("m_counter", 1, 3, ports->clk,
                                       ports->data_in[0], ports->data_in[1]));
-  counter_refs.value->AsLogicRefNOrDie<num_counter_bits>();
   builder.AddContinuousAssignment(
       ports->data_out[0], counter_refs.value);
   builder.AddContinuousAssignment(
@@ -816,7 +815,6 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterIntermittentIncrement) {
       SequentialModuleBuilder::StridedCounterReferences counter_refs,
       builder.AddStaticStridedCounter("m_counter", 1, 3, ports->clk,
                                       ports->data_in[0], ports->data_in[1]));
-  counter_refs.value->AsLogicRefNOrDie<num_counter_bits>();
   builder.AddContinuousAssignment(
       ports->data_out[0], counter_refs.value);
   builder.AddContinuousAssignment(
@@ -860,7 +858,6 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterNonOneStride) {
       SequentialModuleBuilder::StridedCounterReferences counter_refs,
       builder.AddStaticStridedCounter("m_counter", 3, 7, ports->clk,
                                       ports->data_in[0], ports->data_in[1]));
-  counter_refs.value->AsLogicRefNOrDie<num_counter_bits>();
   builder.AddContinuousAssignment(
       ports->data_out[0], counter_refs.value);
   builder.AddContinuousAssignment(
@@ -901,7 +898,6 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterStrideMultipleLimit) {
       SequentialModuleBuilder::StridedCounterReferences counter_refs,
       builder.AddStaticStridedCounter("m_counter", 3, 6, ports->clk,
                                       ports->data_in[0], ports->data_in[1]));
-  counter_refs.value->AsLogicRefNOrDie<num_counter_bits>();
   builder.AddContinuousAssignment(
       ports->data_out[0], counter_refs.value);
   builder.AddContinuousAssignment(
@@ -942,7 +938,6 @@ TEST_P(SequentialGeneratorTest,
       SequentialModuleBuilder::StridedCounterReferences counter_refs,
       builder.AddStaticStridedCounter("m_counter", 3, 5, ports->clk,
                                       ports->data_in[0], ports->data_in[1]));
-  counter_refs.value->AsLogicRefNOrDie<num_counter_bits>();
   builder.AddContinuousAssignment(
       ports->data_out[0], counter_refs.value);
   builder.AddContinuousAssignment(
@@ -982,7 +977,6 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterClearValue) {
       SequentialModuleBuilder::StridedCounterReferences counter_refs,
       builder.AddStaticStridedCounter("m_counter", 1, 3, ports->clk,
                                       ports->data_in[0], ports->data_in[1]));
-  counter_refs.value->AsLogicRefNOrDie<num_counter_bits>();
   builder.AddContinuousAssignment(
       ports->data_out[0], counter_refs.value);
   builder.AddContinuousAssignment(
