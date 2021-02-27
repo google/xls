@@ -192,8 +192,7 @@ absl::Status SequentialModuleBuilder::AddSequentialLogic() {
                                   pipeline_output),
                     &module_signature_->data_outputs().at(0)));
   XLS_RETURN_IF_ERROR(module_builder_->AssignRegisters(
-      port_references_.clk, {accumulator_register},
-      file_.BitwiseOr(ready_in, last_pipeline_cycle)));
+      {accumulator_register}, file_.BitwiseOr(ready_in, last_pipeline_cycle)));
 
   // Add registers for invariants.
   int64 num_inputs = port_references_.data_in.size();
@@ -205,8 +204,8 @@ absl::Status SequentialModuleBuilder::AddSequentialLogic() {
         make_register(port_references_.data_in.at(input_idx),
                       &module_signature_->data_inputs().at(input_idx)));
   }
-  XLS_RETURN_IF_ERROR(module_builder_->AssignRegisters(
-      port_references_.clk, invariant_registers, ready_in));
+  XLS_RETURN_IF_ERROR(
+      module_builder_->AssignRegisters(invariant_registers, ready_in));
 
   // Add loop body pipeline.
   XLS_RETURN_IF_ERROR(
@@ -277,7 +276,7 @@ SequentialModuleBuilder::AddStaticStridedCounter(std::string name, int64 stride,
   // Add counter always-block.
   Expression* load_enable = file_.BitwiseOr(refs.increment, refs.set_zero);
   XLS_RETURN_IF_ERROR(
-      module_builder_->AssignRegisters(clk, {counter_register}, load_enable));
+      module_builder_->AssignRegisters({counter_register}, load_enable));
 
   // Compare counter value to maximum value.
   refs.holds_max_inclusive_value = DeclareVariableAndAssign(
@@ -404,7 +403,11 @@ absl::Status SequentialModuleBuilder::InitializeModuleBuilder(
   XLS_RET_CHECK(signature.proto().has_module_name());
   module_builder_ = absl::make_unique<ModuleBuilder>(
       signature.proto().module_name(), &file_,
-      sequential_options_.use_system_verilog());
+      sequential_options_.use_system_verilog(),
+      /*clk_name=*/"clk",
+      signature.proto().has_reset()
+          ? absl::optional<ResetProto>(signature.proto().reset())
+          : absl::nullopt);
 
   auto add_input_port = [&](absl::string_view name, int64 num_bits) {
     return module_builder_->AddInputPort(SanitizeIdentifier(name), num_bits);
@@ -416,13 +419,12 @@ absl::Status SequentialModuleBuilder::InitializeModuleBuilder(
 
   // Clock.
   XLS_RET_CHECK(signature.proto().has_clock_name());
-  port_references_.clk = add_input_port(signature.proto().clock_name(), 1);
+  port_references_.clk = module_builder_->clock();
 
   // Reset.
   if (signature.proto().has_reset()) {
     XLS_RET_CHECK(signature.proto().reset().has_name());
-    port_references_.reset =
-        add_input_port(signature.proto().reset().name(), 1);
+    port_references_.reset = module_builder_->reset()->signal;
   }
 
   // Ready-valid interface.

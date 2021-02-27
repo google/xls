@@ -779,12 +779,14 @@ TEST(VastTest, ModuleSections) {
   module->Add<Comment>("random comment at end");
   s1->Add<Comment>("more stuff in section 1");
   s0->Add<Comment>("more stuff in section 0");
+  s0->Add<RawStatement>("`SOME_MACRO(42);");
   module->AddReg("section_0_reg", f.DataTypeOfWidth(42), /*init=*/nullptr,
                  /*section=*/s0);
   EXPECT_EQ(module->Emit(),
             R"(module my_module;
   // section 0
   // more stuff in section 0
+  `SOME_MACRO(42);
   reg [41:0] section_0_reg;
   reg foo = 1;
   // section 1

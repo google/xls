@@ -336,6 +336,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:type",
         "//xls/ir:value",
+        "@com_github_google_re2//:re2",
     ],
 )
 

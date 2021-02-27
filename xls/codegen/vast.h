@@ -715,6 +715,8 @@ class Unary : public Operator {
 };
 
 // Abstraction describing a reset signal.
+// TODO(https://github.com/google/xls/issues/317): This belongs at a higher
+// level of abstraction.
 struct Reset {
   LogicRef* signal;
   bool asynchronous;
@@ -722,9 +724,9 @@ struct Reset {
 };
 
 // Defines an always_ff-equivalent block.
-// TODO(meheff): Replace uses of AlwaysFlop with Always or AlwaysFf. AlwaysFlop
-// has a higher level of abstraction which is now better handled by
-// ModuleBuilder.
+// TODO(https://github.com/google/xls/issues/317): Replace uses of AlwaysFlop
+// with Always or AlwaysFf. AlwaysFlop has a higher level of abstraction which
+// is now better handled by ModuleBuilder.
 class AlwaysFlop : public VastNode {
  public:
   AlwaysFlop(VerilogFile* file, LogicRef* clk,
@@ -1026,6 +1028,17 @@ class Comment : public Statement {
   std::string text_;
 };
 
+// A string which is emitted verbatim in the position of a statement.
+class RawStatement : public Statement {
+ public:
+  explicit RawStatement(absl::string_view text) : text_(text) {}
+
+  std::string Emit() override;
+
+ private:
+  std::string text_;
+};
+
 // Represents call of a system task such as $display.
 class SystemTaskCall : public Statement {
  public:
@@ -1184,6 +1197,7 @@ using ModuleMember =
                   AlwaysFlop*,            // "Flip-Flop" block.
                   Comment*,               // Comment text.
                   BlankLine*,             // Blank line.
+                  RawStatement*,          // Raw string statement.
                   VerilogFunction*,       // Function definition
                   ModuleSection*>;
 

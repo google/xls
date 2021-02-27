@@ -111,26 +111,15 @@ class PipelineGenerator {
  public:
   PipelineGenerator(Function* func, const PipelineSchedule& schedule,
                     const PipelineOptions& options, VerilogFile* file)
-      : func_(func),
-        schedule_(schedule),
-        options_(options),
-        file_(file),
-        mb_(options.module_name().has_value() ? options.module_name().value()
-                                              : func->name(),
-            file,
-            /*use_system_verilog=*/options.use_system_verilog()) {}
+      : func_(func), schedule_(schedule), options_(options), file_(file) {}
 
   absl::StatusOr<ModuleGeneratorResult> Run() {
-    clk_ = mb_.AddInputPort("clk", /*bit_count=*/1);
-
-    if (options_.reset().has_value()) {
-      const ResetProto& reset_proto = options_.reset().value();
-      rst_ = Reset();
-      rst_->signal = mb_.AddInputPort(reset_proto.name(),
-                                      /*bit_count=*/1);
-      rst_->asynchronous = reset_proto.asynchronous();
-      rst_->active_low = reset_proto.active_low();
-    }
+    mb_ = absl::make_unique<ModuleBuilder>(
+        options_.module_name().has_value() ? options_.module_name().value()
+                                           : func_->name(),
+        file_,
+        /*use_system_verilog=*/options_.use_system_verilog(),
+        /*clock_name=*/"clk", options_.reset());
 
     LogicRef* valid_load_enable = nullptr;
     LogicRef* manual_load_enable = nullptr;
@@ -144,7 +133,7 @@ class PipelineGenerator {
               "control");
         }
         valid_load_enable =
-            mb_.AddInputPort(valid_proto.input_name(), /*bit_count=*/1);
+            mb_->AddInputPort(valid_proto.input_name(), /*bit_count=*/1);
       } else if (options_.control()->has_manual()) {
         const ManualPipelineControl& manual = options_.control()->manual();
         if (manual.input_name().empty()) {
@@ -164,8 +153,8 @@ class PipelineGenerator {
         if (options_.flop_outputs()) {
           ++reg_count;
         }
-        manual_load_enable = mb_.AddInputPort(manual.input_name(),
-                                              /*bit_count=*/reg_count);
+        manual_load_enable = mb_->AddInputPort(manual.input_name(),
+                                               /*bit_count=*/reg_count);
       }
     }
 
@@ -176,12 +165,13 @@ class PipelineGenerator {
         // 'valid_load_enable' is updated to the latest flopped value in each
         // iteration of the loop. If the pipeline has a reset signal, OR in the
         // reset signal to enable pipeline flushing during reset.
-        if (rst_.has_value()) {
+        if (mb_->reset().has_value()) {
           return file_->LogicalOr(
               valid_load_enable,
-              rst_->active_low
-                  ? static_cast<Expression*>(file_->LogicalNot(rst_->signal))
-                  : static_cast<Expression*>(rst_->signal));
+              mb_->reset()->active_low
+                  ? static_cast<Expression*>(
+                        file_->LogicalNot(mb_->reset()->signal))
+                  : static_cast<Expression*>(mb_->reset()->signal));
         }
         return valid_load_enable;
       }
@@ -206,7 +196,7 @@ class PipelineGenerator {
       }
       XLS_ASSIGN_OR_RETURN(
           node_expressions[param],
-          mb_.AddInputPort(param->As<Param>()->name(), param->GetType()));
+          mb_->AddInputPort(param->As<Param>()->name(), param->GetType()));
     }
 
     // Emit non-bits-typed literals separately as module-scoped constants.
@@ -218,8 +208,8 @@ class PipelineGenerator {
         XLS_VLOG(4) << "  " << node->GetName();
         XLS_ASSIGN_OR_RETURN(
             node_expressions[node],
-            mb_.DeclareModuleConstant(node->GetName(),
-                                      node->As<xls::Literal>()->value()));
+            mb_->DeclareModuleConstant(node->GetName(),
+                                       node->As<xls::Literal>()->value()));
         module_constants.insert(node);
       }
     }
@@ -236,8 +226,8 @@ class PipelineGenerator {
         }
       }
       if (!assignments.empty()) {
-        mb_.declaration_section()->Add<BlankLine>();
-        mb_.declaration_section()->Add<Comment>(
+        mb_->declaration_section()->Add<BlankLine>();
+        mb_->declaration_section()->Add<Comment>(
             absl::StrFormat("===== Pipe stage %d:", stage));
         XLS_ASSIGN_OR_RETURN(
             std::vector<Expression*> register_refs,
@@ -258,11 +248,11 @@ class PipelineGenerator {
          ++schedule_cycle) {
       XLS_VLOG(4) << "Building pipeline stage " << stage;
       if (stage != 0) {
-        mb_.NewDeclarationAndAssignmentSections();
+        mb_->NewDeclarationAndAssignmentSections();
       }
 
-      mb_.declaration_section()->Add<BlankLine>();
-      mb_.declaration_section()->Add<Comment>(
+      mb_->declaration_section()->Add<BlankLine>();
+      mb_->declaration_section()->Add<Comment>(
           absl::StrFormat("===== Pipe stage %d:", stage));
 
       // Returns whether the given node is live out of this stage.
@@ -303,7 +293,7 @@ class PipelineGenerator {
         if (node->Is<Param>() || module_constants.contains(node)) {
           continue;
         }
-        if (!mb_.CanEmitAsInlineExpression(node, UsersInStage(node)) ||
+        if (!mb_->CanEmitAsInlineExpression(node, UsersInStage(node)) ||
             (FanoutInStage(node, schedule_cycle) > 1 &&
              !ShouldInlineExpressionIntoMultipleUses(node)) ||
             is_live_out_of_stage(node) || node->HasAssignedName()) {
@@ -326,11 +316,11 @@ class PipelineGenerator {
         if (named_temps.contains(node)) {
           XLS_ASSIGN_OR_RETURN(
               node_expressions[node],
-              mb_.EmitAsAssignment(PipelineSignalName(node, stage) + "_comb",
-                                   node, inputs));
+              mb_->EmitAsAssignment(PipelineSignalName(node, stage) + "_comb",
+                                    node, inputs));
         } else {
           XLS_ASSIGN_OR_RETURN(node_expressions[node],
-                               mb_.EmitAsInlineExpression(node, inputs));
+                               mb_->EmitAsInlineExpression(node, inputs));
         }
       }
 
@@ -360,7 +350,7 @@ class PipelineGenerator {
           (options_.flop_outputs() ||
            schedule_cycle != schedule_.length() - 1)) {
         // Add always flop block for the registers.
-        mb_.NewDeclarationAndAssignmentSections();
+        mb_->NewDeclarationAndAssignmentSections();
 
         std::vector<std::pair<Node*, Expression*>> assignments;
         for (Node* node : live_out_nodes) {
@@ -389,8 +379,8 @@ class PipelineGenerator {
       XLS_CHECK(options_.control().has_value());
       if (!options_.control()->valid().output_name().empty()) {
         XLS_RETURN_IF_ERROR(
-            mb_.AddOutputPort(options_.control()->valid().output_name(),
-                              /*bit_count=*/1, valid_load_enable));
+            mb_->AddOutputPort(options_.control()->valid().output_name(),
+                               /*bit_count=*/1, valid_load_enable));
       }
     }
 
@@ -403,17 +393,17 @@ class PipelineGenerator {
         for (int64 i = 0; i < output_type->size(); ++i) {
           int64 start = GetFlatBitIndexOfElement(output_type, i);
           int64 width = output_type->element_type(i)->GetFlatBitCount();
-          XLS_RETURN_IF_ERROR(mb_.AddOutputPort(
+          XLS_RETURN_IF_ERROR(mb_->AddOutputPort(
               absl::StrFormat("out_%d", i), output_type->element_type(i),
-              mb_.module()->parent()->Slice(
+              mb_->module()->parent()->Slice(
                   node_expressions.at(func_->return_value())
                       ->AsIndexableExpressionOrDie(),
                   start + width - 1, start)));
         }
       } else {
         XLS_RETURN_IF_ERROR(
-            mb_.AddOutputPort("out", func_->return_value()->GetType(),
-                              node_expressions.at(func_->return_value())));
+            mb_->AddOutputPort("out", func_->return_value()->GetType(),
+                               node_expressions.at(func_->return_value())));
       }
     }
 
@@ -425,7 +415,7 @@ class PipelineGenerator {
 
   // Builds and returns a module signature for the given latency.
   absl::StatusOr<ModuleSignature> BuildSignature(int64 latency) {
-    ModuleSignatureBuilder sig_builder(mb_.module()->name());
+    ModuleSignatureBuilder sig_builder(mb_->module()->name());
     sig_builder.WithClock("clk");
     for (Param* param : func_->params()) {
       sig_builder.AddDataInput(param->name(),
@@ -446,10 +436,7 @@ class PipelineGenerator {
     sig_builder.WithFunctionType(func_->GetType());
     sig_builder.WithPipelineInterface(
         /*latency=*/latency,
-        /*initiation_interval=*/1,
-        options_.control().has_value()
-            ? absl::optional<PipelineControl>(options_.control().value())
-            : absl::nullopt);
+        /*initiation_interval=*/1, options_.control());
 
     if (options_.reset().has_value()) {
       sig_builder.WithReset(options_.reset()->name(),
@@ -498,10 +485,10 @@ class PipelineGenerator {
       absl::Span<const std::pair<Node*, Expression*>> assignments, int64 stage,
       Expression* load_enable) {
     // Add always flop block for the registers.
-    mb_.NewDeclarationAndAssignmentSections();
+    mb_->NewDeclarationAndAssignmentSections();
 
-    mb_.declaration_section()->Add<BlankLine>();
-    mb_.declaration_section()->Add<Comment>(
+    mb_->declaration_section()->Add<BlankLine>();
+    mb_->declaration_section()->Add<Comment>(
         absl::StrFormat("Registers for pipe stage %d:", stage));
 
     std::vector<ModuleBuilder::Register> registers;
@@ -517,13 +504,13 @@ class PipelineGenerator {
         }
         XLS_ASSIGN_OR_RETURN(
             ModuleBuilder::Register reg,
-            mb_.DeclareRegister(PipelineSignalName(node, stage),
-                                node->GetType(), rhs));
+            mb_->DeclareRegister(PipelineSignalName(node, stage),
+                                 node->GetType(), rhs));
         registers.push_back(reg);
         register_refs.push_back(registers.back().ref);
       }
     }
-    XLS_RETURN_IF_ERROR(mb_.AssignRegisters(clk_, registers, load_enable));
+    XLS_RETURN_IF_ERROR(mb_->AssignRegisters(registers, load_enable));
 
     return register_refs;
   }
@@ -535,20 +522,19 @@ class PipelineGenerator {
     // Add always flop block for the valid signal. Add it separately from the
     // other pipeline register because it does not use a load_enable signal
     // like the other pipeline registers.
-    mb_.NewDeclarationAndAssignmentSections();
+    mb_->NewDeclarationAndAssignmentSections();
 
-    mb_.declaration_section()->Add<BlankLine>();
+    mb_->declaration_section()->Add<BlankLine>();
 
     Expression* reset_value =
-        rst_.has_value() ? reset_value = file_->Literal(0, /*bit_count=*/1)
-                         : nullptr;
+        mb_->reset().has_value() ? file_->Literal(0, /*bit_count=*/1) : nullptr;
 
     XLS_ASSIGN_OR_RETURN(
         ModuleBuilder::Register valid_load_enable_register,
-        mb_.DeclareRegister(absl::StrFormat("p%d_valid", stage),
-                            /*bit_count=*/1, valid_load_enable, reset_value));
-    XLS_RETURN_IF_ERROR(mb_.AssignRegisters(clk_, {valid_load_enable_register},
-                                            /*load_enable=*/nullptr, rst_));
+        mb_->DeclareRegister(absl::StrFormat("p%d_valid", stage),
+                             /*bit_count=*/1, valid_load_enable, reset_value));
+    XLS_RETURN_IF_ERROR(mb_->AssignRegisters({valid_load_enable_register},
+                                             /*load_enable=*/nullptr));
     return valid_load_enable_register.ref;
   }
 
@@ -558,10 +544,7 @@ class PipelineGenerator {
   const PipelineOptions& options_;
   VerilogFile* file_;
 
-  ModuleBuilder mb_;
-
-  LogicRef* clk_ = nullptr;
-  absl::optional<Reset> rst_;
+  std::unique_ptr<ModuleBuilder> mb_;
 };
 
 }  // namespace

@@ -46,7 +46,7 @@ class GeneratorOptions {
     clock_name_ = std::move(clock_name);
     return *this;
   }
-  absl::string_view clock_name() const { return clock_name_; }
+  absl::optional<absl::string_view> clock_name() const { return clock_name_; }
 
   // Name to use for the generated module. If not given, the name of the XLS
   // function is used.
@@ -54,7 +54,7 @@ class GeneratorOptions {
     module_name_ = name;
     return *this;
   }
-  const std::string module_name() const { return module_name_; }
+  absl::optional<absl::string_view> module_name() const { return module_name_; }
 
   // Whether to use SystemVerilog in the generated code otherwise Verilog is
   // used. The default is to use SystemVerilog.
@@ -64,11 +64,38 @@ class GeneratorOptions {
   }
   bool use_system_verilog() const { return use_system_verilog_; }
 
+  // Format string to use when emitting assert operations in the generated
+  // Verilog. Supports the following placeholders:
+  //  {message}   : Message of the assert operation.
+  //  {condition} : Condition of the assert.
+  //  {label}     : Label of the assert operation. Returns error if the
+  //                operation has no label.
+  //  {clk}       : Name of the clock signal. Returns error if no clock is
+  //                specified.
+  //  {rst}       : Name of the reset signal. Returns error if no reset is
+  //                specified.
+  //
+  // For example, the format string:
+  //
+  //    '{label}: `MY_ASSERT({condition}, "{message}")'
+  //
+  // Might result in the following in the emitted Verilog:
+  //
+  //    my_label: `MY_ASSERT(foo < 8'h42, "Oh noes!");
+  GeneratorOptions& assert_format(absl::string_view value) {
+    assert_format_ = std::string{value};
+    return *this;
+  }
+  absl::optional<absl::string_view> assert_format() const {
+    return assert_format_;
+  }
+
  private:
   absl::optional<ResetProto> reset_proto_;
-  std::string clock_name_;
-  std::string module_name_;
+  absl::optional<std::string> clock_name_;
+  absl::optional<std::string> module_name_;
   bool use_system_verilog_ = true;
+  absl::optional<std::string> assert_format_;
 };
 
 // Generates and returns a (System)Verilog module implementing the given proc

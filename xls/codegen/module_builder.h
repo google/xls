@@ -39,7 +39,9 @@ namespace verilog {
 class ModuleBuilder {
  public:
   ModuleBuilder(absl::string_view name, VerilogFile* file,
-                bool use_system_verilog);
+                bool use_system_verilog,
+                absl::optional<std::string_view> clk_name = absl::nullopt,
+                absl::optional<ResetProto> rst = absl::nullopt);
 
   // Returns the underlying module being constructed.
   Module* module() { return module_; }
@@ -87,8 +89,14 @@ class ModuleBuilder {
       absl::string_view name, Node* node, absl::Span<Expression* const> inputs);
 
   // Emit an XLS assert operation as a SystemVerilog assert statement. If
-  // SystemVerilog is not enabled then this is a nop.
-  absl::Status EmitAssert(xls::Assert* asrt, Expression* condition);
+  // SystemVerilog is not enabled then this is a nop. 'fmt_string' is the
+  // format string used to generate the assert. Format string details
+  // described in proc_generator.h.
+  // TODO(meheff): 2021/2/27 When format string is available at the user level,
+  // put the codegen-related documentation in a common place.
+  absl::Status EmitAssert(
+      xls::Assert* asrt, Expression* condition,
+      absl::optional<absl::string_view> fmt_string = absl::nullopt);
 
   // Declares a variable with the given name and XLS type. Returns a reference
   // to the variable.
@@ -116,8 +124,8 @@ class ModuleBuilder {
     // The expression to assign to the register at each clock.
     Expression* next;
 
-    // The register value upon reset. Should be non-null iff AssignRegisters is
-    // called with non-null Reset argument.
+    // The register value upon reset. Should be non-null iff the module has a
+    // reset signal.
     Expression* reset_value;
 
     // Optional XLS type of this register. Can be null.
@@ -131,8 +139,7 @@ class ModuleBuilder {
   //     specified then the returned Register's 'next' field must be filled in
   //     prior to calling AssignRegisters.
   //   reset_value: The value of the register on reset. Should be non-null iff
-  //     the corresponding AssignRegisters call includes a non-null Reset
-  //     argument.
+  //     the module has a reset signal.
   //
   // Declared registers must be passed to a subsequent AssignRegisters call for
   // assignment within an always block.
@@ -146,15 +153,12 @@ class ModuleBuilder {
                                            Expression* reset_value = nullptr);
 
   // Construct an always block to assign values to the registers. Arguments:
-  //   clk: Clock signal to use for registers.
   //   registers: Registers to assign within this block.
   //   load_enable: Optional load enable signal. The register is loaded only if
   //     this signal is asserted.
   //   rst: Optional reset signal.
-  absl::Status AssignRegisters(LogicRef* clk,
-                               absl::Span<const Register> registers,
-                               Expression* load_enable = nullptr,
-                               absl::optional<Reset> rst = absl::nullopt);
+  absl::Status AssignRegisters(absl::Span<const Register> registers,
+                               Expression* load_enable = nullptr);
 
   // For organization (not functionality) the module is divided into several
   // sections. The emitted module has the following structure:
@@ -200,6 +204,12 @@ class ModuleBuilder {
   ModuleSection* input_section() const { return input_section_; }
   ModuleSection* assert_section() const { return assert_section_; }
   ModuleSection* output_section() const { return output_section_; }
+
+  // Return clock signal. Is null if the module does not have a clock.
+  LogicRef* clock() const { return clk_; }
+
+  // Returns reset signal and reset metadata.
+  const absl::optional<Reset>& reset() const { return rst_; }
 
  private:
   // Declares an unpacked array wire/reg variable of the given XLS array type in
@@ -285,8 +295,25 @@ class ModuleBuilder {
   // exists which implements this node then the existing function is returned.
   absl::StatusOr<VerilogFunction*> DefineFunction(Node* node);
 
+  // Returns the assert string generated from the given format string. Replace
+  // the following placeholder values in the format string:
+  //  {message}   : Message of the assert operation.
+  //  {condition} : Condition of the assert.
+  //  {label}     : Label of the assert operation. Returns error if the
+  //                operation has no label.
+  //  {clk}       : Name of the clock signal. Returns error if no clock is
+  //                specified.
+  //  {rst}       : Name of the reset signal. Returns error if no reset is
+  //                specified.
+  absl::StatusOr<std::string> GenerateAssertString(absl::string_view fmt_string,
+                                                   xls::Assert* asrt,
+                                                   Expression* condition);
+
   std::string module_name_;
   VerilogFile* file_;
+
+  LogicRef* clk_ = nullptr;
+  absl::optional<Reset> rst_;
 
   // True if SystemVerilog constructs can be used. Otherwise the emitted code is
   // strictly Verilog.

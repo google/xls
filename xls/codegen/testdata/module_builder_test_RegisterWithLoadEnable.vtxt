@@ -1,7 +1,7 @@
 module RegisterWithLoadEnable(
+  input wire clk,
   input wire [31:0] x,
   input wire [31:0] y,
-  input wire clk,
   input wire le,
   output wire [31:0] out
 );

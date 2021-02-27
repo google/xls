@@ -30,6 +30,7 @@ namespace {
 
 using status_testing::StatusIs;
 using ::testing::HasSubstr;
+using ::testing::Not;
 
 constexpr char kTestName[] = "proc_generator_test";
 constexpr char kTestdataPath[] = "xls/codegen/testdata";
@@ -328,6 +329,143 @@ TEST_P(ProcGeneratorTest, ResetValueWithoutResetSignal) {
           absl::StatusCode::kInvalidArgument,
           HasSubstr(
               "Must specify a reset signal if registers have a reset value")));
+}
+
+TEST_P(ProcGeneratorTest, ProcWithAssertNoLabel) {
+  Package package(TestBaseName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch,
+      package.CreatePortChannel("a", ChannelOps::kReceiveOnly, u32));
+
+  TokenlessProcBuilder pb(TestBaseName(), /*init_value=*/Value::Tuple({}),
+                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  pb.Assert(pb.ULt(pb.Receive(ch), pb.Literal(UBits(42, 32))),
+            "a is not greater than 42");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+
+  {
+    // No format string.
+    XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult result,
+                             GenerateModule(proc, options()));
+    if (UseSystemVerilog()) {
+      EXPECT_THAT(
+          result.verilog_text,
+          HasSubstr(
+              R"(assert ($isunknown(a < 32'h0000_002a) || a < 32'h0000_002a) else $fatal(0, "a is not greater than 42"))"));
+    } else {
+      EXPECT_THAT(result.verilog_text, Not(HasSubstr("assert")));
+    }
+  }
+
+  {
+    // With format string, no label.
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ModuleGeneratorResult result,
+        GenerateModule(
+            proc,
+            options()
+                .reset("my_rst", /*asynchronous=*/false, /*active_low=*/false)
+                .clock_name("my_clk")
+                .assert_format(
+                    R"(`MY_ASSERT({condition}, "{message}", {clk}, {rst}))")));
+    if (UseSystemVerilog()) {
+      EXPECT_THAT(
+          result.verilog_text,
+          HasSubstr(
+              R"(`MY_ASSERT(a < 32'h0000_002a, "a is not greater than 42", my_clk, my_rst))"));
+    } else {
+      EXPECT_THAT(result.verilog_text, Not(HasSubstr("assert")));
+    }
+  }
+
+  // Format string with label but assert doesn't have label.
+  EXPECT_THAT(
+      GenerateModule(proc, options()
+                               .reset("my_rst", /*asynchronous=*/false,
+                                      /*active_low=*/false)
+                               .clock_name("my_clk")
+                               .assert_format(R"({label} foobar)")),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Assert format string has '{label}' placeholder, "
+                         "but assert operation has no label")));
+
+  // Format string with clock but block doesn't have clock.
+  EXPECT_THAT(
+      GenerateModule(proc, options()
+                               .reset("my_rst", /*asynchronous=*/false,
+                                      /*active_low=*/false)
+                               .assert_format(R"({clk} foobar)")),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Assert format string has '{clk}' placeholder, "
+                         "but block has no clock signal")));
+
+  // Format string with reset but block doesn't have reset.
+  EXPECT_THAT(
+      GenerateModule(proc, options().assert_format(R"({rst} foobar)")),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Assert format string has '{rst}' placeholder, "
+                         "but block has no reset signal")));
+
+  // Format string with invalid placeholder.
+  EXPECT_THAT(
+      GenerateModule(proc, options().assert_format(R"({foobar} blargfoobar)")),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Invalid placeholder '{foobar}' in assert format string. "
+                    "Supported placeholders: {clk}, {condition}, {label}, "
+                    "{message}, {rst}")));
+}
+
+TEST_P(ProcGeneratorTest, ProcWithAssertWithLabel) {
+  Package package(TestBaseName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch,
+      package.CreatePortChannel("a", ChannelOps::kReceiveOnly, u32));
+
+  TokenlessProcBuilder pb(TestBaseName(), /*init_value=*/Value::Tuple({}),
+                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  pb.Assert(pb.ULt(pb.Receive(ch), pb.Literal(UBits(42, 32))),
+            "a is not greater than 42", "the_label");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+
+  {
+    // No format string.
+    XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult result,
+                             GenerateModule(proc, options()));
+    if (UseSystemVerilog()) {
+      EXPECT_THAT(
+          result.verilog_text,
+          HasSubstr(
+              R"(assert ($isunknown(a < 32'h0000_002a) || a < 32'h0000_002a) else $fatal(0, "a is not greater than 42"))"));
+    } else {
+      EXPECT_THAT(result.verilog_text, Not(HasSubstr("assert")));
+    }
+  }
+
+  {
+    // With format string.
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ModuleGeneratorResult result,
+        GenerateModule(
+            proc,
+            options()
+                .reset("my_rst", /*asynchronous=*/false, /*active_low=*/false)
+                .clock_name("my_clk")
+                .assert_format(
+                    R"({label}: `MY_ASSERT({condition}, "{message}", {clk}, {rst}) // {label})")));
+    if (UseSystemVerilog()) {
+      EXPECT_THAT(
+          result.verilog_text,
+          HasSubstr(
+              R"(the_label: `MY_ASSERT(a < 32'h0000_002a, "a is not greater than 42", my_clk, my_rst) // the_label)"));
+    } else {
+      EXPECT_THAT(result.verilog_text, Not(HasSubstr("assert")));
+    }
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(ProcGeneratorTestInstantiation, ProcGeneratorTest,

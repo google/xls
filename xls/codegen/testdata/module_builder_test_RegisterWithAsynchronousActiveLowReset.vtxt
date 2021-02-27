@@ -1,8 +1,8 @@
 module RegisterWithAsynchronousActiveLowReset(
-  input wire [31:0] x,
-  input wire [31:0] y,
   input wire clk,
   input wire rst,
+  input wire [31:0] x,
+  input wire [31:0] y,
   output wire [31:0] out
 );
   reg [31:0] a;

@@ -310,7 +310,8 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModule(
 
   VerilogFile f;
   ModuleBuilder mb(proc->name(), &f,
-                   /*use_system_verilog=*/options.use_system_verilog());
+                   /*use_system_verilog=*/options.use_system_verilog(),
+                   options.clock_name(), options.reset());
 
   XLS_ASSIGN_OR_RETURN(std::vector<ChannelNode> input_ports,
                        GetInputPorts(proc));
@@ -322,26 +323,19 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModule(
   ModuleSignatureBuilder sig_builder(mb.module()->name());
 
   // Define clock and reset, if necessary.
-  absl::optional<LogicRef*> clk;
-  absl::optional<Reset> rst;
   if (!registers.empty()) {
-    if (options.clock_name().empty()) {
+    if (!options.clock_name().has_value()) {
       return absl::InvalidArgumentError(
           "Must specify clock name for proc containing registers.");
     }
   }
-  if (!options.clock_name().empty()) {
-    clk = mb.AddInputPort(options.clock_name(), /*bit_count=*/1);
-    sig_builder.WithClock(options.clock_name());
+  if (options.clock_name().has_value()) {
+    sig_builder.WithClock(options.clock_name().value());
   }
   if (options.reset().has_value()) {
     sig_builder.WithReset(options.reset()->name(),
                           options.reset()->asynchronous(),
                           options.reset()->active_low());
-    rst = Reset{
-        .signal = mb.AddInputPort(options.reset()->name(), /*bit_count=*/1),
-        .asynchronous = options.reset()->asynchronous(),
-        .active_low = options.reset()->active_low()};
   }
 
   // Map from Node* to the Verilog expression representing its value.
@@ -368,7 +362,7 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModule(
     XLS_VLOG(1) << "  send: " << reg.send->GetName();
     Expression* reset_expr = nullptr;
     if (reg.channel->reset_value().has_value()) {
-      if (!rst.has_value()) {
+      if (!mb.reset().has_value()) {
         return absl::InvalidArgumentError(
             "Must specify a reset signal if registers have a reset value "
             "(RegisterChannel initial values are not empty)");
@@ -413,8 +407,8 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModule(
 
     reg.mb_register.next =
         absl::get<Expression*>(node_exprs.at(reg.send->As<Send>()->data()));
-    XLS_RETURN_IF_ERROR(mb.AssignRegisters(clk.value(), {reg.mb_register},
-                                           /*load_enable=*/nullptr, rst));
+    XLS_RETURN_IF_ERROR(mb.AssignRegisters({reg.mb_register},
+                                           /*load_enable=*/nullptr));
   }
 
   // Add assert statements in a separate always_comb block.
@@ -423,7 +417,8 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModule(
       xls::Assert* asrt = node->As<xls::Assert>();
       Expression* condition =
           absl::get<Expression*>(node_exprs.at(asrt->condition()));
-      XLS_RETURN_IF_ERROR(mb.EmitAssert(asrt, condition));
+      XLS_RETURN_IF_ERROR(
+          mb.EmitAssert(asrt, condition, options.assert_format()));
     }
   }
 

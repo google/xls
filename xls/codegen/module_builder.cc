@@ -17,6 +17,8 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/str_replace.h"
 #include "xls/codegen/flattening.h"
 #include "xls/codegen/lint_annotate.h"
 #include "xls/codegen/node_expressions.h"
@@ -26,6 +28,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "re2/re2.h"
 
 namespace xls {
 namespace verilog {
@@ -183,7 +186,9 @@ absl::Status ModuleBuilder::AddAssignmentFromValue(
 }
 
 ModuleBuilder::ModuleBuilder(absl::string_view name, VerilogFile* file,
-                             bool use_system_verilog)
+                             bool use_system_verilog,
+                             absl::optional<absl::string_view> clk_name,
+                             absl::optional<ResetProto> rst_proto)
     : module_name_(SanitizeIdentifier(name)),
       file_(file),
       use_system_verilog_(use_system_verilog) {
@@ -196,6 +201,17 @@ ModuleBuilder::ModuleBuilder(absl::string_view name, VerilogFile* file,
   output_section_ = module_->Add<ModuleSection>(file_);
 
   NewDeclarationAndAssignmentSections();
+
+  if (clk_name.has_value()) {
+    clk_ = AddInputPort(clk_name.value(), /*bit_count=*/1);
+  }
+
+  if (rst_proto.has_value()) {
+    rst_ = Reset();
+    rst_->signal = AddInputPort(rst_proto->name(), /*bit_count=*/1);
+    rst_->asynchronous = rst_proto->asynchronous();
+    rst_->active_low = rst_proto->active_low();
+  }
 }
 
 void ModuleBuilder::NewDeclarationAndAssignmentSections() {
@@ -249,7 +265,6 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(absl::string_view name,
   if (!type->IsArray()) {
     return port;
   }
-
   // All inputs are flattened so unflatten arrays with a sequence of
   // assignments.
   LogicRef* ar = DeclareUnpackedArrayWire(
@@ -707,13 +722,75 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
   return ref;
 }
 
-absl::Status ModuleBuilder::EmitAssert(xls::Assert* asrt,
-                                       Expression* condition) {
-  if (!use_system_verilog_) {
-    // Asserts are a SystemVerilog only feature.
+absl::StatusOr<std::string> ModuleBuilder::GenerateAssertString(
+    absl::string_view fmt_string, xls::Assert* asrt, Expression* condition) {
+  RE2 re(R"(({\w+}))");
+  std::string placeholder;
+  absl::string_view piece(fmt_string);
+  // Using std::set for ordered emission of strings in error message.
+  const std::set<std::string> kSupportedPlaceholders = {
+      "{message}", "{condition}", "{label}", "{clk}", "{rst}"};
+  while (RE2::FindAndConsume(&piece, re, &placeholder)) {
+    if (kSupportedPlaceholders.find(placeholder) ==
+        kSupportedPlaceholders.end()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Invalid placeholder '%s' in assert format string. "
+          "Supported placeholders: %s",
+          placeholder,
+          absl::StrJoin(std::vector<std::string>(kSupportedPlaceholders.begin(),
+                                                 kSupportedPlaceholders.end()),
+                        ", ")));
+    }
+  }
+
+  std::string assert_str(fmt_string);
+  absl::StrReplaceAll({{"{message}", asrt->message()}}, &assert_str);
+  absl::StrReplaceAll({{"{condition}", condition->Emit()}}, &assert_str);
+  if (absl::StrContains(assert_str, "{label}")) {
+    if (!asrt->label().has_value()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Assert format string has '{label}' placeholder, "
+                          "but assert operation has no label."));
+    }
+    absl::StrReplaceAll({{"{label}", asrt->label().value()}}, &assert_str);
+  }
+  if (absl::StrContains(assert_str, "{clk}")) {
+    if (clk_ == nullptr) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Assert format string has '{clk}' placeholder, "
+                          "but block has no clock signal."));
+    }
+    absl::StrReplaceAll({{"{clk}", clk_->GetName()}}, &assert_str);
+  }
+  if (absl::StrContains(assert_str, "{rst}")) {
+    if (!rst_.has_value()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Assert format string has '{rst}' placeholder, "
+                          "but block has no reset signal."));
+    }
+    absl::StrReplaceAll({{"{rst}", rst_->signal->GetName()}}, &assert_str);
+  }
+  return assert_str;
+}
+
+absl::Status ModuleBuilder::EmitAssert(
+    xls::Assert* asrt, Expression* condition,
+    absl::optional<absl::string_view> fmt_string) {
+  if (fmt_string.has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        std::string assert_str,
+        GenerateAssertString(fmt_string.value(), asrt, condition));
+    assert_section_->Add<RawStatement>(assert_str + ";");
     return absl::OkStatus();
   }
 
+  if (!use_system_verilog_) {
+    // Asserts are a SystemVerilog only feature.
+    // TODO(meheff): 2021/02/27 We should raise an error here or possibly emit a
+    // construct like: if (!condition) $display("Assert failed ...");
+    XLS_LOG(WARNING) << "Asserts only supported in SystemVerilog.";
+    return absl::OkStatus();
+  }
   if (assert_always_comb_ == nullptr) {
     // Lazily create the always_comb block.
     assert_always_comb_ = assert_section_->Add<AlwaysComb>(file_);
@@ -747,6 +824,14 @@ absl::Status ModuleBuilder::Assign(LogicRef* lhs, Expression* rhs, Type* type) {
 absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
     absl::string_view name, Type* type, Expression* next,
     Expression* reset_value) {
+  if (clk_ == nullptr) {
+    return absl::InvalidArgumentError("Clock signal required for register.");
+  }
+  if (!rst_.has_value() && reset_value != nullptr) {
+    return absl::InvalidArgumentError(
+        "Block has no reset signal, but register has reset value.");
+  }
+
   LogicRef* reg;
   if (type->IsArray()) {
     // Currently, an array register requires SystemVerilog because there is an
@@ -765,6 +850,14 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
 absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
     absl::string_view name, int64 bit_count, Expression* next,
     Expression* reset_value) {
+  if (clk_ == nullptr) {
+    return absl::InvalidArgumentError("Clock signal required for register.");
+  }
+  if (!rst_.has_value() && reset_value != nullptr) {
+    return absl::InvalidArgumentError(
+        "Block has no reset signal, but register has reset value.");
+  }
+
   return Register{
       .ref = module_->AddReg(SanitizeIdentifier(name),
                              file_->DataTypeOfWidth(bit_count),
@@ -775,17 +868,18 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
 }
 
 absl::Status ModuleBuilder::AssignRegisters(
-    LogicRef* clk, absl::Span<const Register> registers,
-    Expression* load_enable, absl::optional<Reset> rst) {
+    absl::Span<const Register> registers, Expression* load_enable) {
+  XLS_RET_CHECK(clk_ != nullptr);
+
   // Construct an always_ff block.
   std::vector<SensitivityListElement> sensitivity_list;
-  sensitivity_list.push_back(file_->Make<PosEdge>(clk));
-  if (rst.has_value()) {
-    if (rst->asynchronous) {
-      if (rst->active_low) {
-        sensitivity_list.push_back(file_->Make<NegEdge>(rst->signal));
+  sensitivity_list.push_back(file_->Make<PosEdge>(clk_));
+  if (rst_.has_value()) {
+    if (rst_->asynchronous) {
+      if (rst_->active_low) {
+        sensitivity_list.push_back(file_->Make<NegEdge>(rst_->signal));
       } else {
-        sensitivity_list.push_back(file_->Make<PosEdge>(rst->signal));
+        sensitivity_list.push_back(file_->Make<PosEdge>(rst_->signal));
       }
     }
   }
@@ -799,19 +893,24 @@ absl::Status ModuleBuilder::AssignRegisters(
   // go. It can either be conditional (if there is a reset signal) or
   // unconditional.
   StatementBlock* assignment_block = always->statements();
-  if (rst.has_value()) {
+  if (rst_.has_value() &&
+      std::any_of(registers.begin(), registers.end(),
+                  [](const Register& r) { return r.reset_value != nullptr; })) {
     // Registers have a reset signal. Conditionally assign the registers based
     // on whether the reset signal is asserted.
     Expression* rst_condition;
-    if (rst->active_low) {
-      rst_condition = file_->LogicalNot(rst->signal);
+    if (rst_->active_low) {
+      rst_condition = file_->LogicalNot(rst_->signal);
     } else {
-      rst_condition = rst->signal;
+      rst_condition = rst_->signal;
     }
     Conditional* conditional =
         always->statements()->Add<Conditional>(file_, rst_condition);
     for (const Register& reg : registers) {
-      XLS_RET_CHECK_NE(reg.reset_value, nullptr);
+      if (reg.reset_value == nullptr) {
+        // Not all registers may have reset values.
+        continue;
+      }
       XLS_RETURN_IF_ERROR(AddAssignment(
           reg.xls_type, reg.ref, reg.reset_value,
           [&](Expression* lhs, Expression* rhs) {

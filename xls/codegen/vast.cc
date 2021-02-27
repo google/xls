@@ -429,6 +429,7 @@ std::string EmitModuleMember(const ModuleMember& member) {
                              [](ContinuousAssignment* c) { return c->Emit(); },
                              [](Comment* c) { return c->Emit(); },
                              [](BlankLine* b) { return b->Emit(); },
+                             [](RawStatement* s) { return s->Emit(); },
                              [](StructuredProcedure* sp) { return sp->Emit(); },
                              [](AlwaysComb* ac) { return ac->Emit(); },
                              [](AlwaysFf* af) { return af->Emit(); },
@@ -470,6 +471,8 @@ std::string ContinuousAssignment::Emit() {
 std::string Comment::Emit() {
   return absl::StrCat("// ", absl::StrReplaceAll(text_, {{"\n", "\n// "}}));
 }
+
+std::string RawStatement::Emit() { return text_; }
 
 std::string Assert::Emit() {
   // The $fatal statement takes finish_number as the first argument which is a
