@@ -1,13 +1,11 @@
 # DSLX Reference
 
-[TOC]
-
 ### Overview
 
-DSLX is a domain specific, functional language to build hardware that can also
-run effectively as host software. The DSL targets the XLS compiler (by
-conversion to XLS IR) to enable flows for FPGAs and ASICs (note that other
-frontends will become available in the future).
+DSLX is a domain specific, dataflow-oriented functional language used to build
+hardware that can also run effectively as host software. Within the XLS project,
+DSLX is also referred to as "the DSL". The DSL targets the XLS compiler (via
+conversion to XLS IR) to enable flows for FPGAs and ASICs.
 
 DSLX mimics Rust, while being an immutable expression-based dataflow DSL with
 hardware-oriented features; e.g. arbitrary bitwidths, entirely fixed size
@@ -18,6 +16,12 @@ for example, integer conversions all follow the same semantics as Rust.
 Note: There are *some* unnecessary differences today from Rust syntax due to
 early experimentation, but they are quickly being removed to converge on Rust
 syntax.
+
+Note that other frontends to XLS core functionality will become available in the
+future; e.g. [xlscc](https://github.com/google/xls/tree/main/xls/contrib/xlscc), for users
+familiar with the C++-and-pragma style of HLS computation. XLS team develops the
+DSL as part of the XLS project because we believe it can offer significant
+advantages over the C++-with-pragmas approach.
 
 Dataflow DSLs are a good fit for describing hardware, compared to languages
 whose design assumes
@@ -48,8 +52,8 @@ language features. The full code is in
 
 ### Comments
 
-Just as in languages like C/C++, comments start with `//` and last through the
-end of the line.
+Just as in languages like Rust/C++, comments start with `//` and last through
+the end of the line.
 
 ### Identifiers
 
@@ -119,7 +123,7 @@ value. There are no explicit return statements. By implication, functions return
 exactly one expression; they can't return multiple expressions (but this may
 change in the future as we migrate towards some Rust semantics).
 
-Tuples should be returned if a function should return multiple values.
+Tuples should be returned if a function needs to return multiple values.
 
 ### Parameters
 
@@ -797,6 +801,143 @@ maps identifiers to the AST node that defines the name (`{Text: AstNode}`),
 which can be combined with a mapping from AST node to its deduced type
 (`{AstNode: ConcreteType}`) to resolve the type of an identifier.
 
+## Statements
+
+### Imports
+
+DSLX modules can import other modules via the `import` keyword. Circular imports
+are not permitted (the dependencies among DSLX modules must form a DAG, as in
+languages like Go).
+
+The import statement takes the following form (note the lack of semicolon):
+
+```
+import path.to.my.imported_module
+```
+
+With that statement, the module will be accessible as (the trailing identifier
+after the last dot) `imported_module`; e.g. the program can refer to
+`imported_module::IMPORTED_MODULE_PUBLIC_CONSTANT`.
+
+NOTE Imports are relative to the Bazel "depot root" -- for external use of the
+tools a `DSLX_PATH` will be exposed, akin to a `PYTHONPATH`, for users to
+indicate paths where were should attempt module discovery.
+
+NOTE Importing **does not** introduce any names into the current file other than
+the one referred to by the import statement. That is, if `imported_module` had a
+constant defined in it `FOO`, this is referred to via `imported_module::FOO`,
+`FOO` does not "magically" get put in the current scope. This is analogous to
+how wildcard imports are discouraged in other languages (e.g. `from import *` in
+Python) on account of leading to "namespace pollution" and needing to specify
+what happens when names conflict.
+
+If you want to change the name of the imported module (for reference inside of
+the importing file) you can use the `as` keyword:
+
+```
+import path.to.my.imported_module as im
+```
+
+Just using the above construct,
+`imported_module::IMPORTED_MODULE_PUBLIC_CONSTANT` is *not* valid, only
+`im::IMPORTED_MODULE_PUBLIC_CONSTANT`. However, both statements can be used on
+different lines:
+
+```
+import path.to.my.imported_module
+import path.to.my.imported_module as im
+```
+
+In this case, either `im::IMPORTED_MODULE_PUBLIC_CONSTANT` or
+`imported_module::IMPORTED_MODULE_PUBLIC_CONSTANT` can be used to refer to the
+same thing.
+
+Here is an example using the same function via two different aliases for the
+same module:
+
+```
+import xls.dslx.interpreter.tests.mod_imported
+import xls.dslx.interpreter.tests.mod_imported as mi
+
+fn main(x: u3) -> u1 {
+  mod_imported::my_lsb(x) || mi::my_lsb(x)
+}
+
+#![test]
+fn main {
+  assert_eq(u1:0b1, main(u3:0b001))
+}
+```
+
+### Public module members
+
+Module members are private by default and not accessible from any importing
+module. To make a member public/visible to importing modules, the `pub` keyword
+must be added as a prefix; e.g.
+
+```
+const FOO = u32:42;      // Not accessible to importing modules.
+pub const BAR = u32:64;  // Accessible to importing modules.
+```
+
+This applies to other things defined at module scope as well: functions, enums,
+type aliases, etc.
+
+```
+import xls.dslx.interpreter.tests.mod_imported
+import xls.dslx.interpreter.tests.mod_imported as mi
+
+fn main(x: u3) -> u1 {
+  mod_imported::my_lsb(x) || mi::my_lsb(x)
+}
+
+#![test]
+fn main {
+  assert_eq(u1:0b1, main(u3:0b001))
+}
+```
+
+### Const
+
+The `const` keyword is used to define module-level constant values. Named
+constants should be usable anywhere a literal value can be used:
+
+```
+const FOO = u8:42;
+
+fn match_const(x: u8) -> u8 {
+  match x {
+    FOO => u8:0,
+    _ => u8:42,
+  }
+}
+
+#![test]
+fn match_const_not_binding {
+  let _ = assert_eq(u8:42, match_const(u8:0));
+  let _ = assert_eq(u8:42, match_const(u8:1));
+  let _ = assert_eq(u8:0, match_const(u8:42));
+  ()
+}
+
+fn h(t: (u8, (u16, u32))) -> u32 {
+  match t {
+    (FOO, (x, y)) => (x as u32) + y,
+    (_, (y, u32:42)) => y as u32,
+    _ => u32:7,
+  }
+}
+
+#![test]
+fn match_nested {
+  let _ = assert_eq(u32:3, h((u8:42, (u16:1, u32:2))));
+  let _ = assert_eq(u32:1, h((u8:0, (u16:1, u32:42))));
+  let _ = assert_eq(u32:7, h((u8:0, (u16:1, u32:0))));
+  ()
+}
+```
+
+
 ## Expressions
 
 ### Unary Expressions
@@ -892,9 +1033,9 @@ match expression always matches the input somehow.
 ### let Expression
 
 let expressions work the same way as let expressions in other functional
-languages, such as the ML languages or Haskell. let expressions provide a
-nested, lexically-scoped, list of declarations. The scope of the declaration is
-the expression and the right hand side of the declaration. For example,
+languages (such as the ML family languages). let expressions provide a nested,
+lexically-scoped, list of binding definitions. The scope of the binding is the
+expression on the right hand side of the declaration. For example:
 
 ```
 let a: u32 = u32:1 + u32:2;
@@ -902,21 +1043,24 @@ let b: u32 = a + u32:3;
 b
 ```
 
-would bind (and return) the value `6` to `b`. In effect there is little
-difference to other languages like C/C++ or python, where the same result would
-be achieved with code similar to this:
+would bind (and return as a value) the value `6` which corresponds to `b` when
+evaluated. In effect there is little difference to other languages like C/C++ or
+Python, where the same result would be achieved with code similar to this:
 
 ```
-a = 1+2
-b = a+3
+a = 1 + 2
+b = a + 3
 return b
 ```
 
-However, let expressions are lexically scoped. In above example, the value 3 is
-bound to `a` only during the combined let expression sequence. There is no other
-type of scoping in DSLX.
+However, `let` expressions are lexically scoped. In above example, the value `3`
+is bound to `a` only during the combined let expression sequence. There is no
+other type of scoping in DSLX.
 
 ### Ternary If Expression
+
+Note: ternary expression syntax is expected to change to mimic Rust's, see
+[#318](https://github.com/google/xls/issues/318).
 
 DSLX offers a ternary `if` expression, which is very similar to the Python
 ternary `if`. Blueprint:
@@ -943,7 +1087,7 @@ let result_exponent = wide_exponent as u8 if wide_exponent < u9:255 else u8:255;
 
 ### Iterable Expression
 
-Iterable expressions are used in counted for loops. DSLX currently support two
+Iterable expressions are used in counted for loops. DSLX currently supports two
 types of iterable expressions, `range` and `enumerate`.
 
 The range expression `range(m, n)` produces values from m to n-1 (similar to how
@@ -1144,187 +1288,11 @@ fn cast_to_array {
 }
 ```
 
-### Advanced Understanding: Parametricity, Constraints, and Unification
-
-An infamous wrinkle is introduced for parametric functions: consider the
-following function:
-
-```
-fn add_wrapper<T: type, U: type>(x: T, y: U) -> T {
-  x + y
-}
-```
-
-Based on the inference rule, we know that '+' can only type check when the
-operand types are the same. This means we can conclude that type `T` is the same
-as type `U`. Once we determine this, we need to make sure anywhere `U` is used
-it is consistent with the fact it is the same as `T`. In a sense the + operator
-is "adding a constraint" that `T` is equivalent to `U`, and trying to check that
-fact is valid is under the purview of type inference. The fact that the
-constraint is added that `T` and `U` are the same type is referred to as
-"unification", as what was previously two entities with potentially different
-constraints now has a single set of constraints that comes from the union of its
-operand types.
-
-DSLX's typechecker will go through the body of parametric functions per
-invocation. As such, the typechecker will always have the invocation's
-parametric values for use in asserting type consistency against "constraints"
-such as derived parametric expressions, body vs. annotated return type equality,
-and expression inference rules.
-
-## Statements
-
-### Imports
-
-DSLX modules can import other modules via the `import` keyword. Circular imports
-are not permitted (the dependencies among DSLX modules must form a DAG, as in
-languages like Go).
-
-The import statement takes the following form (note the lack of semicolon):
-
-```
-import path.to.my.imported_module
-```
-
-With that statement, the module will be accessible as (the trailing identifier
-after the last dot) `imported_module`; e.g. the program can refer to
-`imported_module::IMPORTED_MODULE_PUBLIC_CONSTANT`.
-
-NOTE Imports are relative to the Bazel "depot root" -- for external use of the
-tools a `DSLX_PATH` will be exposed, akin to a `PYTHONPATH`, for users to
-indicate paths where were should attempt module discovery.
-
-NOTE Importing **does not** introduce any names into the current file other than
-the one referred to by the import statement. That is, if `imported_module` had a
-constant defined in it `FOO`, this is referred to via `imported_module::FOO`,
-`FOO` does not "magically" get put in the current scope. This is analogous to
-how wildcard imports are discouraged in other languages (e.g. `from import *` in
-Python) on account of leading to "namespace pollution" and needing to specify
-what happens when names conflict.
-
-If you want to change the name of the imported module (for reference inside of
-the importing file) you can use the `as` keyword:
-
-```
-import path.to.my.imported_module as im
-```
-
-Just using the above construct,
-`imported_module::IMPORTED_MODULE_PUBLIC_CONSTANT` is *not* valid, only
-`im::IMPORTED_MODULE_PUBLIC_CONSTANT`. However, both statements can be used on
-different lines:
-
-```
-import path.to.my.imported_module
-import path.to.my.imported_module as im
-```
-
-In this case, either `im::IMPORTED_MODULE_PUBLIC_CONSTANT` or
-`imported_module::IMPORTED_MODULE_PUBLIC_CONSTANT` can be used to refer to the
-same thing.
-
-Here is an example using the same function via two different aliases for the
-same module:
-
-```
-import xls.dslx.interpreter.tests.mod_imported
-import xls.dslx.interpreter.tests.mod_imported as mi
-
-fn main(x: u3) -> u1 {
-  mod_imported::my_lsb(x) || mi::my_lsb(x)
-}
-
-#![test]
-fn main {
-  assert_eq(u1:0b1, main(u3:0b001))
-}
-```
-
-### Public module members
-
-Module members are private by default and not accessible from any importing
-module. To make a member public/visible to importing modules, the `pub` keyword
-must be added as a prefix; e.g.
-
-```
-const FOO = u32:42;      // Not accessible to importing modules.
-pub const BAR = u32:64;  // Accessible to importing modules.
-```
-
-This applies to other things defined at module scope as well: functions, enums,
-type aliases, etc.
-
-```
-import xls.dslx.interpreter.tests.mod_imported
-import xls.dslx.interpreter.tests.mod_imported as mi
-
-fn main(x: u3) -> u1 {
-  mod_imported::my_lsb(x) || mi::my_lsb(x)
-}
-
-#![test]
-fn main {
-  assert_eq(u1:0b1, main(u3:0b001))
-}
-```
-
-### Const
-
-The `const` keyword is used to define module-level constant values. Named
-constants should be usable anywhere a literal value can be used:
-
-```
-const FOO = u8:42;
-
-fn match_const(x: u8) -> u8 {
-  match x {
-    FOO => u8:0,
-    _ => u8:42,
-  }
-}
-
-#![test]
-fn match_const_not_binding {
-  let _ = assert_eq(u8:42, match_const(u8:0));
-  let _ = assert_eq(u8:42, match_const(u8:1));
-  let _ = assert_eq(u8:0, match_const(u8:42));
-  ()
-}
-
-fn h(t: (u8, (u16, u32))) -> u32 {
-  match t {
-    (FOO, (x, y)) => (x as u32) + y,
-    (_, (y, u32:42)) => y as u32,
-    _ => u32:7,
-  }
-}
-
-#![test]
-fn match_nested {
-  let _ = assert_eq(u32:3, h((u8:42, (u16:1, u32:2))));
-  let _ = assert_eq(u32:1, h((u8:0, (u16:1, u32:42))));
-  let _ = assert_eq(u32:7, h((u8:0, (u16:1, u32:0))));
-  ()
-}
-```
-
-## Parallel Primitives
-
-### map
-
-### reduce
-
-### group-by
-
-TODO
-
-## Builtins
-
-### Bit Slicing
+### Bit Slice Expressions
 
 DSLX supports Python-style bit slicing over bits types. Note that bits are
-numbered 0..N starting "from the right" (least significant bit, AKA LSb), for
-example:
+numbered 0..N starting "from the right (as you would write it on paper)" --
+least significant bit, AKA LSb -- for example:
 
 ```
     Bit    6 5 4 3 2 1 0
@@ -1376,7 +1344,7 @@ The type can be specified as either signed or unsigned; e.g. `[start +: s8]`
 will produce an 8-bit signed value starting at `start`, whereas `[start +: u4]`
 will produce a 4-bit unsigned number starting at `start`.
 
-Here are many more examples:
+[Here are many more examples](https://github.com/google/xls/tree/main/xls/dslx/tests/bit_slice_syntax.x):
 
 ```
 // Identity function helper.
@@ -1440,6 +1408,99 @@ fn bit_slice_syntax {
   ()
 }
 ```
+
+### Advanced Understanding: Parametricity, Constraints, and Unification
+
+An infamous wrinkle is introduced for parametric functions: consider the
+following function:
+
+```
+fn add_wrapper<T: type, U: type>(x: T, y: U) -> T {
+  x + y
+}
+```
+
+Based on the inference rule, we know that '+' can only type check when the
+operand types are the same. This means we can conclude that type `T` is the same
+as type `U`. Once we determine this, we need to make sure anywhere `U` is used
+it is consistent with the fact it is the same as `T`. In a sense the + operator
+is "adding a constraint" that `T` is equivalent to `U`, and trying to check that
+fact is valid is under the purview of type inference. The fact that the
+constraint is added that `T` and `U` are the same type is referred to as
+"unification", as what was previously two entities with potentially different
+constraints now has a single set of constraints that comes from the union of its
+operand types.
+
+DSLX's typechecker will go through the body of parametric functions per
+invocation. As such, the typechecker will always have the invocation's
+parametric values for use in asserting type consistency against "constraints"
+such as derived parametric expressions, body vs. annotated return type equality,
+and expression inference rules.
+
+### Operator Precedence
+
+DSLX's operator precedence matches Rust's. Listed below are DSLX's operators in
+descending precedence order. Binary operators at the same level share the same
+associativity and will be grouped accordingly.
+
+Operator                    | Associativity
+--------------------------- | -------------
+Unary `-` `!`               | n/a
+`as`                        | Left to right
+`*` `/` `%`                 | Left to right
+`+` `-`                     | Left to right
+`<<` `>>` `>>>`             | Left to right
+`&`                         | Left to right
+`^`                         | Left to right
+`\|`                        | Left to right
+`==` `!=` `<` `>` `<=` `>=` | Left to right
+`&&`                        | Left to right
+`\|\|`                      | Left to right
+
+## Builtins
+
+This section describes the built-in functions provided for use in the DSL that
+do not need to be explicitly imported.
+
+A note on "Parallel Primitives": the DSL is expected to grow additional support
+for use of high-level parallel primitives over time, adding operators for
+order-insensitive reductions, scans, groupings, and similar. By making these
+operations known to the compiler in their high level form, we potentially enable
+optimizations and analyses on their higher level ("lifted") form. As of now,
+`map` is the sole parallel-primitive-oriented built-in.
+
+### map
+
+`map`, similarly to other languages, executes a transformation function on all
+the elements of an original array to produce the resulting "mapped' array.
+[For example](https://github.com/google/xls/tree/main/xls/dslx/tests/map_of_stdlib_parametric.x):
+taking the absolute value of each element in an input array:
+
+```
+import std
+
+fn main(x: s3[3]) -> s3[3] {
+  let y: s3[3] = map(x, std::abs);
+  y
+}
+
+#![test]
+fn main_test() {
+  let got: s3[3] = main(s3[3]:[-1, 1, 0]);
+  assert_eq(s3[3]:[1, 1, 0], got)
+}
+```
+
+Note that map is special, in that we can pass it a callee *as if* it were a
+value. As a function that "takes" a function as an argument, `map` is a special
+builtin -- in language implementor parlance it is a *higher order function*.
+
+Implementation note: Functions are not first class values in the DSL, so the
+name of the function must be referred to directly.
+
+Note: Novel higher order functions (e.g. if a user wanted to write their own
+`map`) cannot currently be written in user-level DSL code.
+
 
 ### clz, ctz
 
@@ -1514,7 +1575,7 @@ are out of bounds (if `start + bit-width(value) >= bit-width(subject)`) are
 ignored. Example usage:
 [`dslx/tests/bit_slice_update.x`](https://github.com/google/xls/tree/main/xls/dslx/tests/bit_slice_update.x).
 
-### Bitwise reductions
+### Bitwise reduction builtins
 
 These are unary reduction operations applied to a bits-typed value:
 
@@ -1546,6 +1607,153 @@ that this is *not* an in-place update of the array, it is an "evolution" of
 `array`. It is the compiler's responsibility to optimize by using mutation
 instead of copying, when it's safe to do. The compiler makes a best effort to do
 this, but can't guarantee the optimization is always made.
+
+### assert_eq
+
+In a unit test pseudo function all valid DSLX code is allowed. To evaluate test
+results DSLX provides the `assert_eq` primitive (we'll add more of those in the
+future). Here is an example of a `divceil` implementation with its corresponding
+tests:
+
+```
+fn divceil(x: u32, y: u32) -> u32 {
+  (x-u32:1) / y + u32:1
+}
+
+#![test]
+fn test_divceil() {
+  let _ = assert_eq(u32:3, divceil(u32:5, u32:2));
+  let _ = assert_eq(u32:2, divceil(u32:4, u32:2));
+  let _ = assert_eq(u32:2, divceil(u32:3, u32:2));
+  let _ = assert_eq(u32:1, divceil(u32:2, u32:2));
+  _
+}
+```
+
+Note that in this example, the final `let _ = ... in _` construct could be
+omitted.
+
+`assert_eq` cannot be synthesized into equivalent Verilog. Because of that it is
+recommended to use it within `test` constructs (interpretation) only.
+
+### trace!
+
+DSLX supports printf-style debugging via the `trace!` builtin, which allows
+dumping of current values to stdout. For example:
+
+```
+fn decode_s_instruction(ins: u32) -> (u12, u5, u5, u3, u7) {
+   let imm_11_5 = (ins >> u32:25);
+   let rs2 = (ins >> u32:20) & u32:0x1F;
+   let rs1 = (ins >> u32:15) & u32:0x1F;
+   let funct3 = (ins >> u32:12) & u32:0x07;
+   let imm_4_0 = (ins >> u32:7) & u32:0x1F;
+   let opcode = ins & u32:0x7F;
+   let _ = trace!(imm_11_5);
+   let _ = trace!(imm_4_0);
+   (u12:(u7:imm_11_5 ++ u5:imm_4_0), u5:rs2, u5:rs1, u3:funct3, u7:opcode)
+}
+
+```
+
+would produce the following output, with each trace being annotated with its
+corresponding source position:
+
+```
+[...]
+[ RUN      ] decode_s_test_lsb
+trace of imm_11_5 @ 69:17-69:27: bits[32]:0x1
+trace of imm_4_0 @ 70:17-70:26: bits[32]:0x1
+[...]
+```
+
+`trace` also returns the value passed to it, so it can be used inline, as in:
+
+```
+match trace!(my_thing) {
+   [...]
+}
+```
+
+To see the values of _all_ expressions during interpretation, invoke the
+interpreter or test with the `--trace_all` flag:
+
+```
+$ ./interpreter_main clz.x -logtostderr -trace_all
+[ RUN      ] clz
+trace of (u3:0) @ clz.x:2:24: bits[3]:0x0
+trace of (u3:0b111) @ clz.x:2:34-2:39: bits[3]:0x7
+trace of clz((u3:0b111)) @ clz.x:2:30-2:40: bits[3]:0x0
+trace of assert_eq((u3:0), clz((u3:0b111))) @ clz.x:2:20-2:41: ()
+trace of (u3:1) @ clz.x:3:24: bits[3]:0x1
+trace of (u3:0b011) @ clz.x:3:34-3:39: bits[3]:0x3
+trace of clz((u3:0b011)) @ clz.x:3:30-3:40: bits[3]:0x1
+trace of assert_eq((u3:1), clz((u3:0b011))) @ clz.x:3:20-3:41: ()
+trace of (u3:2) @ clz.x:4:24: bits[3]:0x2
+trace of (u3:0b001) @ clz.x:4:34-4:39: bits[3]:0x1
+trace of clz((u3:0b001)) @ clz.x:4:30-4:40: bits[3]:0x2
+trace of assert_eq((u3:2), clz((u3:0b001))) @ clz.x:4:20-4:41: ()
+trace of (u3:3) @ clz.x:5:24: bits[3]:0x3
+trace of (u3:0b000) @ clz.x:5:34-5:39: bits[3]:0x0
+trace of clz((u3:0b000)) @ clz.x:5:30-5:40: bits[3]:0x3
+trace of assert_eq((u3:3), clz((u3:0b000))) @ clz.x:5:20-5:41: ()
+trace of () @ clz.x:6:3-6:5: ()
+[       OK ] clz
+
+```
+
+Implementation note: tracing has no equivalent node in the IR (nor would such a
+node make sense), so any `trace!` builtin invocations are silently dropped
+during conversion to XLS IR.
+
+### fail!
+
+Note: this section describes work-in-progress functionality, currently `fail!`
+will only trigger in DSL interpretation (it is discarded in IR conversion).
+Support for converting `fail!` to XLS `assert` IR is tracked in
+[#232](https://github.com/google/xls/issues/232) -- support for indicating the
+assertion was triggered in the JIT is tracked in
+[#308](https://github.com/google/xls/issues/308)
+
+The `fail!` builtin indicates dataflow that should not be occurring in practice.
+Its general signature is:
+
+```
+fail!(fallback_value)
+```
+
+The `fail!` builtin can be thought of as a "fatal assertion macro". It is used
+to **annotate dataflow that should not occur in practice** and, if triggered,
+should raise a fatal error in simulation (e.g. via a JIT-execution failure
+status or a Verilog assertion when running in RTL simulation).
+
+Note, however, that XLS will permit users to avoid inserting
+fatal-error-signaling hardware that correspond to this `fail!` -- assuming it
+will not be triggered in practice minimizes its cost in synthesized form. In
+this situation, **when it is "erased", it acts as the identity function**,
+propagating the `fallback_value`. This allows XLS to keep well defined semantics
+even when fatal assertion hardware is not present.
+
+Example: if only these two enum values shown should be possible (say, as a
+documented [precondition](https://en.wikipedia.org/wiki/Precondition) for
+`main`):
+
+```
+fn main(x: EnumType) -> u32 {
+  match x {
+    EnumType::FIRST => u32:0,
+    EnumType::SECOND => u32:1,
+    _ => fail!(u32:0),
+  }
+}
+```
+
+The `fail!(u32:0)` above indicates that a) that match arm *should* not be
+reached (and if it is in the JIT or RTL simulation it will cause an error status
+or assertion failure respectively), but b) provides a fallback value to use (of
+the appropriate type) in case it were to happen in synthesized gates which did
+not insert fatal-error-indicating hardware.
+
 
 ## Testing and Debugging
 
@@ -1621,126 +1829,3 @@ For determinism, the DSLX interpreter should be run with the `seed` flag:
 `./interpreter_main --seed=1234 <DSLX source file>`
 
 [hughes-paper]: https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf
-
-### assert_eq
-
-In a unit test pseudo function all valid DSLX code is allowed. To evaluate test
-results DSLX provides the `assert_eq` primitive (we'll add more of those in the
-future). Here is an example of a `divceil` implementation with its corresponding
-tests:
-
-```
-fn divceil(x: u32, y: u32) -> u32 {
-  (x-u32:1) / y + u32:1
-}
-
-#![test]
-fn test_divceil() {
-  let _ = assert_eq(u32:3, divceil(u32:5, u32:2));
-  let _ = assert_eq(u32:2, divceil(u32:4, u32:2));
-  let _ = assert_eq(u32:2, divceil(u32:3, u32:2));
-  let _ = assert_eq(u32:1, divceil(u32:2, u32:2));
-  _
-}
-```
-
-Note that in this example, the final `let _ = ... in _` construct could be
-omitted.
-
-`assert_eq` cannot be synthesized into equivalent Verilog. Because of that it is
-recommended to use it within `test` constructs (interpretation) only.
-
-### trace
-
-DSLX supports printf-style debugging via the `trace` expression, which allows
-dumping of current values to stdout. For example:
-
-```
-fn decode_s_instruction(ins: u32) -> (u12, u5, u5, u3, u7) {
-   let imm_11_5 = (ins >> u32:25);
-   let rs2 = (ins >> u32:20) & u32:0x1F;
-   let rs1 = (ins >> u32:15) & u32:0x1F;
-   let funct3 = (ins >> u32:12) & u32:0x07;
-   let imm_4_0 = (ins >> u32:7) & u32:0x1F;
-   let opcode = ins & u32:0x7F;
-   let _ = trace!(imm_11_5);
-   let _ = trace!(imm_4_0);
-   (u12:(u7:imm_11_5 ++ u5:imm_4_0), u5:rs2, u5:rs1, u3:funct3, u7:opcode)
-}
-
-```
-
-would produce the following output, with each trace being annotated with its
-corresponding source position:
-
-```
-[...]
-[ RUN      ] decode_s_test_lsb
-trace of imm_11_5 @ 69:17-69:27: bits[32]:0x1
-trace of imm_4_0 @ 70:17-70:26: bits[32]:0x1
-[...]
-```
-
-`trace` also returns the value passed to it, so it can be used inline, as in:
-
-```
-match trace!(my_thing) {
-   [...]
-}
-```
-
-To see the values of _all_ expressions during interpretation, invoke the
-interpreter or test with the `--trace_all` flag:
-
-```
-$ ./interpreter_main clz.x -logtostderr -trace_all
-[ RUN      ] clz
-trace of (u3:0) @ clz.x:2:24: bits[3]:0x0
-trace of (u3:0b111) @ clz.x:2:34-2:39: bits[3]:0x7
-trace of clz((u3:0b111)) @ clz.x:2:30-2:40: bits[3]:0x0
-trace of assert_eq((u3:0), clz((u3:0b111))) @ clz.x:2:20-2:41: ()
-trace of (u3:1) @ clz.x:3:24: bits[3]:0x1
-trace of (u3:0b011) @ clz.x:3:34-3:39: bits[3]:0x3
-trace of clz((u3:0b011)) @ clz.x:3:30-3:40: bits[3]:0x1
-trace of assert_eq((u3:1), clz((u3:0b011))) @ clz.x:3:20-3:41: ()
-trace of (u3:2) @ clz.x:4:24: bits[3]:0x2
-trace of (u3:0b001) @ clz.x:4:34-4:39: bits[3]:0x1
-trace of clz((u3:0b001)) @ clz.x:4:30-4:40: bits[3]:0x2
-trace of assert_eq((u3:2), clz((u3:0b001))) @ clz.x:4:20-4:41: ()
-trace of (u3:3) @ clz.x:5:24: bits[3]:0x3
-trace of (u3:0b000) @ clz.x:5:34-5:39: bits[3]:0x0
-trace of clz((u3:0b000)) @ clz.x:5:30-5:40: bits[3]:0x3
-trace of assert_eq((u3:3), clz((u3:0b000))) @ clz.x:5:20-5:41: ()
-trace of () @ clz.x:6:3-6:5: ()
-[       OK ] clz
-
-```
-
-Tracing has no equivalent node in the IR (nor would such a node make sense), so
-any `trace` nodes are silently dropped during conversion.
-
-### fail!()
-
-TODO(leary): Document the fail() expression.
-
-# Appendix
-
-## Operator Precedence
-
-DSLX's operator precedence matches Rust's. Listed below are DSLX's operators in
-descending precedence order. Binary operators at the same level share the same
-associativity and will be grouped accordingly.
-
-Operator                    | Associativity
---------------------------- | -------------
-Unary `-` `!`               | n/a
-`as`                        | Left to right
-`*` `/` `%`                 | Left to right
-`+` `-`                     | Left to right
-`<<` `>>` `>>>`             | Left to right
-`&`                         | Left to right
-`^`                         | Left to right
-`\|`                        | Left to right
-`==` `!=` `<` `>` `<=` `>=` | Left to right
-`&&`                        | Left to right
-`\|\|`                      | Left to right
