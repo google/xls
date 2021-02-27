@@ -926,11 +926,11 @@ described below, to simplify build target definition.</p>
 <h2 id="macros">Macros</h2>
 <p>Below are summaries of public macro functionality. Full documentation is
 available in
-<a href="https://github.com/google/xls/tree/main/xls/build/build_defs.bzl">xls/build/build_defs.bzl</a>.</p>
+<a href="https://github.com/google/xls/tree/main/xls/build_rules/build_defs.bzl">xls/build_rules/build_defs.bzl</a>.</p>
 <h3 id="dslx_codegen"><code>dslx_codegen</code></h3>
 <p>This macro generates Verilog from an DSLX target (currently given as a
 <code>dslx_test</code> target). This target also accepts several key/value parameters (as
-<code>configs</code> for generation:</p>
+<code>configs</code> for generation):</p>
 <ul>
 <li><code>clock_period_ps</code>: The target clock period in picoseconds. Only used with
     the pipeline generator.</li>

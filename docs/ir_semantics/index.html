@@ -1667,6 +1667,8 @@ arguments. Keyword arguments can include arbitrary value types.</p>
 </code></pre>
 
 <p><strong>Common keyword arguments</strong></p>
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 <table>
 <thead>
 <tr>
@@ -1683,52 +1685,12 @@ arguments. Keyword arguments can include arbitrary value types.</p>
 <td><code>SourceLocation</code></td>
 <td>no</td>
 <td></td>
-<td>The source location</td>
-</tr>
-<tr>
-<td>:         :                  :          :         : associated with this  :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>:         :                  :          :         : operation. The syntax :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>:         :                  :          :         : is a triplet of       :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>:         :                  :          :         : comma-separated       :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>:         :                  :          :         : integer values\:      :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>:         :                  :          :         : <code>Fileno,Lineno,Colno</code> :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>The source location associated with this operation. The syntax is a triplet of comma-separated integer values: <code>Fileno,Lineno,Colno</code></td>
 </tr>
 </tbody>
 </table>
+<!-- mdformat on -->
+
 <h3 id="unary-bitwise-operations">Unary bitwise operations</h3>
 <p>Performs a bit-wise operation on a single bits-typed operand.</p>
 <p><strong>Syntax</strong></p>
@@ -2169,6 +2131,8 @@ their type is determined by the channel.</p>
 </tbody>
 </table>
 <p><strong>Keyword arguments</strong></p>
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 <table>
 <thead>
 <tr>
@@ -2185,17 +2149,12 @@ their type is determined by the channel.</p>
 <td><code>int64</code></td>
 <td>yes</td>
 <td></td>
-<td>The ID of the channel to</td>
-</tr>
-<tr>
-<td>:              :         :          :         : receive data from        :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>The ID of the channel to receive data from</td>
 </tr>
 </tbody>
 </table>
+<!-- mdformat on -->
+
 <h4 id="receive_if"><strong><code>receive_if</code></strong></h4>
 <p>Receives data values from a specified channel if and only if the predicate
 operand is true. The number of data values <code>N</code> and their type is determined by
@@ -2227,6 +2186,8 @@ the channel.</p>
 </tbody>
 </table>
 <p><strong>Keyword arguments</strong></p>
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 <table>
 <thead>
 <tr>
@@ -2243,17 +2204,12 @@ the channel.</p>
 <td><code>int64</code></td>
 <td>yes</td>
 <td></td>
-<td>The ID of the channel to</td>
-</tr>
-<tr>
-<td>:              :         :          :         : receive data from        :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>The ID of the channel to receive data from</td>
 </tr>
 </tbody>
 </table>
+<!-- mdformat on -->
+
 <p>If the predicate is false the data values in the result are zero-filled.</p>
 <h4 id="send"><strong><code>send</code></strong></h4>
 <p>Sends data values to a specified channel. The number of data values <code>N</code> and
@@ -2287,6 +2243,8 @@ their type is determined by the channel.</p>
 <p>The types of operands <code>data_{i}</code> and the number <code>N</code> must match the types and
 number of data elements supported by the channel.</p>
 <p><strong>Keyword arguments</strong></p>
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 <table>
 <thead>
 <tr>
@@ -2303,17 +2261,12 @@ number of data elements supported by the channel.</p>
 <td><code>int64</code></td>
 <td>yes</td>
 <td></td>
-<td>The ID of the channel to send</td>
-</tr>
-<tr>
-<td>:              :         :          :         : data to.                      :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>The ID of the channel to send data to.</td>
 </tr>
 </tbody>
 </table>
+<!-- mdformat on -->
+
 <h4 id="send_if"><strong><code>send_if</code></strong></h4>
 <p>Sends data values to a specified channel if and only if the predicate operand is
 true. The number and type of data values is determined by the channel.</p>
@@ -2350,6 +2303,8 @@ true. The number and type of data values is determined by the channel.</p>
 <p>The types of operands <code>data_{i}</code> and the number <code>N</code> must match the types and
 number of data elements supported by the channel.</p>
 <p><strong>Keyword arguments</strong></p>
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 <table>
 <thead>
 <tr>
@@ -2366,17 +2321,12 @@ number of data elements supported by the channel.</p>
 <td><code>int64</code></td>
 <td>yes</td>
 <td></td>
-<td>The ID of the channel to send</td>
-</tr>
-<tr>
-<td>:              :         :          :         : data to.                      :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>The ID of the channel to send data to.</td>
 </tr>
 </tbody>
 </table>
+<!-- mdformat on -->
+
 <h3 id="array-operations">Array operations</h3>
 <h4 id="array_1"><strong><code>array</code></strong></h4>
 <p>Constructs a array of its operands.</p>
@@ -2443,6 +2393,8 @@ with the <code>N</code> outer most dimensions removed.</p>
 for the respective dimension.</p>
 <p>The table below shows examples of the result type <code>T</code> and the result expression
 assuming input array operand <code>A</code>.</p>
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 <table>
 <thead>
 <tr>
@@ -2463,19 +2415,7 @@ assuming input array operand <code>A</code>.</p>
 <td><code>{10, 2}</code></td>
 <td><code>bits[3][4][5]</code></td>
 <td><code>bits[3]</code></td>
-<td><code>A[4][2]</code> (first index is</td>
-</tr>
-<tr>
-<td>:           :                 :                 : out-of-bounds and clamped at :</td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>:           :                 :                 : the maximum index)           :</td>
-<td></td>
-<td></td>
-<td></td>
+<td><code>A[4][2]</code> (first index is out-of-bounds and clamped at the maximum index)</td>
 </tr>
 <tr>
 <td><code>{1}</code></td>
@@ -2497,6 +2437,8 @@ assuming input array operand <code>A</code>.</p>
 </tr>
 </tbody>
 </table>
+<!-- mdformat on -->
+
 <h4 id="array_update"><strong><code>array_update</code></strong></h4>
 <p>Returns a modified copy of an array.</p>
 <p><strong>Syntax</strong></p>
@@ -2634,6 +2576,8 @@ an empty tuple).</p>
 </tbody>
 </table>
 <p><strong>Keyword arguments</strong></p>
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 <table>
 <thead>
 <tr>
@@ -2650,73 +2594,19 @@ an empty tuple).</p>
 <td><code>int64</code></td>
 <td>yes</td>
 <td></td>
-<td>The starting bit</td>
-</tr>
-<tr>
-<td>:         :         :          :         : of the slice.     :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>:         :         :          :         : <code>start</code> is is     :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>:         :         :          :         : zero-indexed      :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>:         :         :          :         : where zero is the :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>:         :         :          :         : least-significant :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>:         :         :          :         : bit of the        :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>:         :         :          :         : operand.          :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>The starting bit of the slice. <code>start</code> is is zero-indexed where zero is the least-significant bit of the operand.</td>
 </tr>
 <tr>
 <td><code>width</code></td>
 <td><code>int64</code></td>
 <td>yes</td>
 <td></td>
-<td>The width of the</td>
-</tr>
-<tr>
-<td>:         :         :          :         : slice.            :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>The width of the slice.</td>
 </tr>
 </tbody>
 </table>
+<!-- mdformat on -->
+
 <p>The bit-width of <code>operand</code> must be greater than or equal to <code>&lt;start&gt;</code> plus
 <code>&lt;width&gt;</code>.</p>
 <h4 id="bit_slice_update"><strong><code>bit_slice_update</code></strong></h4>
@@ -2826,6 +2716,8 @@ treating all out-of-bounds bits as having value 0.</p>
 <p><code>start</code> can be of arbitrary bit width. It will be interpreted
 as an unsigned integer.</p>
 <p><strong>Keyword arguments</strong></p>
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 <table>
 <thead>
 <tr>
@@ -2842,17 +2734,12 @@ as an unsigned integer.</p>
 <td><code>int64</code></td>
 <td>yes</td>
 <td></td>
-<td>The width of the</td>
-</tr>
-<tr>
-<td>:         :         :          :         : slice.            :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>The width of the slice.</td>
 </tr>
 </tbody>
 </table>
+<!-- mdformat on -->
+
 <h4 id="concat"><strong><code>concat</code></strong></h4>
 <p>Concatenates and arbitrary number of bits-typed operands.</p>
 <pre><code>result = concat(operand{0}, ..., operand{n-1})
@@ -3015,6 +2902,8 @@ result = one_hot(input, lsb_prio=false)
 </tbody>
 </table>
 <p><strong>Keyword arguments</strong></p>
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 <table>
 <thead>
 <tr>
@@ -3031,17 +2920,12 @@ result = one_hot(input, lsb_prio=false)
 <td><code>bool</code></td>
 <td>yes</td>
 <td></td>
-<td>Whether the least significant</td>
-</tr>
-<tr>
-<td>:            :          :          :         : bit (LSb) has priority.        :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>Whether the least significant bit (LSb) has priority.</td>
 </tr>
 </tbody>
 </table>
+<!-- mdformat on -->
+
 <p>For <code>lsb_prio=true</code>: result bit <code>i</code> for <code>0 &lt;= i &lt; N</code> is set in <code>result</code> iff bit
 <code>i</code> is set in the input and all lower bits <code>j</code> for <code>j &lt; i</code> are not set in the
 input.</p>
@@ -3205,6 +3089,8 @@ value.</p>
 </tbody>
 </table>
 <p><strong>Keyword arguments</strong></p>
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 <table>
 <thead>
 <tr>
@@ -3221,17 +3107,12 @@ value.</p>
 <td><code>string</code></td>
 <td>yes</td>
 <td></td>
-<td>Name of the function to use as</td>
-</tr>
-<tr>
-<td>:            :          :          :         : the loop body                  :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>Name of the function to use as the loop body</td>
 </tr>
 </tbody>
 </table>
+<!-- mdformat on -->
+
 <h4 id="map"><strong><code>map</code></strong></h4>
 <p>Applies a function to the elements of an array and returns the result as an
 array.</p>
@@ -3259,6 +3140,8 @@ array.</p>
 </tbody>
 </table>
 <p><strong>Keyword arguments</strong></p>
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 <table>
 <thead>
 <tr>
@@ -3275,17 +3158,12 @@ array.</p>
 <td><code>string</code></td>
 <td>yes</td>
 <td></td>
-<td>Name of the function to apply</td>
-</tr>
-<tr>
-<td>:            :          :          :         : to each element of the operand :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>Name of the function to apply to each element of the operand</td>
 </tr>
 </tbody>
 </table>
+<!-- mdformat on -->
+
 <h4 id="dynamic_counted_for"><strong><code>dynamic_counted_for</code></strong></h4>
 <p>Invokes a dynamic-trip count loop.</p>
 <p><strong>Syntax</strong></p>
@@ -3320,6 +3198,8 @@ array.</p>
 </tbody>
 </table>
 <p><strong>Keyword arguments</strong></p>
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 <table>
 <thead>
 <tr>
@@ -3336,31 +3216,19 @@ array.</p>
 <td>array of</td>
 <td>yes</td>
 <td></td>
-<td>Names of the invariant</td>
-</tr>
-<tr>
-<td>:                  : operands :          :         : operands as the loop body :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>Names of the invariant operands as the loop body</td>
 </tr>
 <tr>
 <td><code>body</code></td>
 <td><code>string</code></td>
 <td>yes</td>
 <td></td>
-<td>Name of the function to</td>
-</tr>
-<tr>
-<td>:                  :          :          :         : use as the loop body      :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>Name of the function to use as the loop body</td>
 </tr>
 </tbody>
 </table>
+<!-- mdformat on -->
+
 <p><code>dynamic_counted_for</code> invokes the function <code>body</code> <code>trip_count</code> times, passing
 loop-carried data that starts with value <code>init</code>. The induction variable is
 incremented by <code>stride</code> after each iteration.</p>
@@ -3412,6 +3280,8 @@ pipeline generator cannot handle an unkown trip count.</p>
 </tbody>
 </table>
 <p><strong>Keyword arguments</strong></p>
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 <table>
 <thead>
 <tr>
@@ -3428,73 +3298,33 @@ pipeline generator cannot handle an unkown trip count.</p>
 <td><code>int64</code></td>
 <td>yes</td>
 <td></td>
-<td>Trip count of the loop</td>
-</tr>
-<tr>
-<td>:                  :          :          :         : (number of times that the :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>:                  :          :          :         : loop body will be         :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>:                  :          :          :         : executed)                 :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>Trip count of the loop (number of times that the loop body will be executed)</td>
 </tr>
 <tr>
 <td><code>stride</code></td>
 <td><code>int64</code></td>
 <td>no</td>
 <td>1</td>
-<td>Stride of the induction</td>
-</tr>
-<tr>
-<td>:                  :          :          :         : variable                  :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>Stride of the induction variable</td>
 </tr>
 <tr>
 <td><code>invariant_args</code></td>
 <td>array of</td>
 <td>yes</td>
 <td></td>
-<td>Names of the invariant</td>
-</tr>
-<tr>
-<td>:                  : operands :          :         : operands as the loop body :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>Names of the invariant operands as the loop body</td>
 </tr>
 <tr>
 <td><code>body</code></td>
 <td><code>string</code></td>
 <td>yes</td>
 <td></td>
-<td>Name of the function to</td>
-</tr>
-<tr>
-<td>:                  :          :          :         : use as the loop body      :</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td>Name of the function to use as the loop body</td>
 </tr>
 </tbody>
 </table>
+<!-- mdformat on -->
+
 <p><code>counted_for</code> invokes the function <code>body</code> <code>trip_count</code> times, passing
 loop-carried data that starts with value <code>init</code>.</p>
 <ul>
@@ -3556,6 +3386,7 @@ software-only operation and has no representation in the generated hardware.
 Tokens are used to connect the operation to the graph and order with respect to
 other side-effecting operations.</p>
 <pre><code>result = assert(tkn, condition, message=&lt;string&gt;)
+result = assert(tkn, condition, message=&lt;string&gt;, label=&lt;string&gt;)
 </code></pre>
 
 <p><strong>Types</strong></p>
@@ -3582,6 +3413,8 @@ other side-effecting operations.</p>
 </tbody>
 </table>
 <p><strong>Keyword arguments</strong></p>
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 <table>
 <thead>
 <tr>
@@ -3598,10 +3431,18 @@ other side-effecting operations.</p>
 <td><code>string</code></td>
 <td>yes</td>
 <td></td>
-<td>Message to include in raise error</td>
+<td>Message to include in raised error</td>
+</tr>
+<tr>
+<td><code>label</code></td>
+<td><code>optional string</code></td>
+<td>yes</td>
+<td></td>
+<td>Label to associate with the assert statement in the generated (System)Verilog</td>
 </tr>
 </tbody>
 </table>
+<!-- mdformat on -->
                 
               
               

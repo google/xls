@@ -981,7 +981,7 @@ compiler intermediate representation (IR) at native machine speed.</p>
 <p>Given a DSLX file and build target, one can build and run it through the JIT by:</p>
 <ol>
 <li>Declaring a
-    <a href="https://github.com/google/xls/tree/main/xls/build/build_defs.bzl"><code>dslx_jit_wrapper</code></a>
+    <a href="https://github.com/google/xls/tree/main/xls/build_rules/build_defs.bzl"><code>dslx_jit_wrapper</code></a>
     target matching the DSLX build target.</li>
 <li>Creating a JIT object and calling its <code>Run()</code> method. Using the 2-way
     floating-point adder as an example:<p>```c
@@ -996,11 +996,10 @@ compiler intermediate representation (IR) at native machine speed.</p>
   ```</p>
 </li>
 </ol>
-<p>The advantages of JIT compilation (or any
-compilation, for that matter) only come into play when repeatedly using the
-compiled object, so programs should be structured to create a JIT wrapper
-once and to reuse it many times, e.g., to test a module across many - or
-even exhaustively, across all possible - inputs.</p>
+<p>The advantages of JIT compilation (or any compilation, for that matter) only
+come into play when repeatedly using the compiled object, so programs should be
+structured to create a JIT wrapper once and to reuse it many times, e.g., to
+test a module across many - or even exhaustively, across all possible - inputs.</p>
 <h3 id="specialized-matching">Specialized matching</h3>
 <p>In many cases, the types used by DSLX designs map to native types, such as the
 C/C++ <code>float</code>. In that case, a simplified wrapper call is available:</p>
