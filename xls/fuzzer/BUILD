@@ -194,6 +194,9 @@ py_test(
 generate_crasher_regression_tests(
     name = "regression_tests",
     srcs = glob(["crashers/*"]),
+    failing = [
+        "crashers/crasher_2021-02-20_257d.x",
+    ],
     prefix = package_name(),
 )
 

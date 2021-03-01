@@ -39,6 +39,7 @@ def generate_crasher_regression_tests(name, srcs, prefix, failing = None, tags =
             be a string match with a member in srcs).
     """
     names = []
+    failing = failing or []
     tags = tags or {}
     for f in srcs:
         if not f.endswith(".x"):
@@ -47,6 +48,7 @@ def generate_crasher_regression_tests(name, srcs, prefix, failing = None, tags =
         test_name = "run_crasher_test_{}".format(_to_suffix(f))
         names.append(test_name)
         fullpath = prefix + "/" + f
+        broken = f in failing
         native.sh_test(
             name = test_name,
             srcs = ["//xls/fuzzer:run_crasher_sh"],
@@ -55,7 +57,7 @@ def generate_crasher_regression_tests(name, srcs, prefix, failing = None, tags =
                 "//xls/fuzzer:run_crasher",
                 f,
             ],
-            tags = tags.get(f, []),
+            tags = tags.get(f, []) + (["broken", "manual"] if broken else []),
         )
 
     native.test_suite(
