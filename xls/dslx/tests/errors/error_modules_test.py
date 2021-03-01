@@ -34,6 +34,23 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertNotEqual(p.returncode, 0)
     return p.stderr
 
+  def test_failing_test_output(self):
+    stderr = self._run('xls/dslx/tests/errors/two_failing_tests.x')
+    print(stderr)
+    lines = [line for line in stderr.splitlines() if line.startswith('[')]
+    self.assertLen(lines, 9)
+    self.assertEqual(lines[0], '[ RUN UNITTEST  ] first_failing')
+    self.assertEqual(lines[1], '[        FAILED ] first_failing')
+    self.assertEqual(lines[2], '[ RUN UNITTEST  ] second_failing')
+    self.assertEqual(lines[3], '[        FAILED ] second_failing')
+    self.assertEqual(lines[4],
+                     '[===============] 2 test(s) ran; 2 failed; 0 skipped.')
+    self.assertRegexpMatches(lines[5], r'\[ SEED [\d ]{16} \]')
+    self.assertEqual(lines[6],
+                     '[ RUN QUICKCHECK        ] always_false count: 1000')
+    self.assertEqual(lines[7], '[                FAILED ] always_false')
+    self.assertEqual(lines[8], '[=======================] 1 quickcheck(s) ran.')
+
   def test_imports_module_with_type_error(self):
     stderr = self._run('xls/dslx/tests/errors/imports_has_type_error.x')
     self.assertIn('xls/dslx/tests/errors/has_type_error.x:16:3-16:4', stderr)

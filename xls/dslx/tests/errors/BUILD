@@ -49,6 +49,7 @@ py_test(
         "multiple_mod_level_const_bindings.x",
         "self_recursion.x",
         "tail_call.x",
+        "two_failing_tests.x",
         "//xls/dslx:interpreter_main",
     ],
     python_version = "PY3",

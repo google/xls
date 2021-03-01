@@ -133,8 +133,10 @@ absl::StatusOr<bool> ParseAndTest(
   int64 failed = 0;
   int64 skipped = 0;
 
+  constexpr int kUnitSpaces = 7;
+  constexpr int kQuickcheckSpaces = 15;
   auto handle_error = [&](const absl::Status& status,
-                          absl::string_view test_name) {
+                          absl::string_view test_name, bool is_quickcheck) {
     absl::StatusOr<PositionalErrorData> data_or =
         GetPositionalErrorData(status);
     if (data_or.ok()) {
@@ -142,7 +144,9 @@ absl::StatusOr<bool> ParseAndTest(
       XLS_CHECK_OK(PrintPositionalError(data.span, data.GetMessageWithType(),
                                         std::cerr));
     }
-    std::cerr << "[          FAILED ]" << test_name << std::endl;
+    std::string spaces((is_quickcheck ? kQuickcheckSpaces : kUnitSpaces), ' ');
+    std::cerr << absl::StreamFormat("[ %sFAILED ] %s", spaces, test_name)
+              << std::endl;
     failed += 1;
   };
 
@@ -186,7 +190,7 @@ absl::StatusOr<bool> ParseAndTest(
     if (status.ok()) {
       std::cerr << "[            OK ]" << std::endl;
     } else {
-      handle_error(status, test_name);
+      handle_error(status, test_name, /*is_quickcheck=*/false);
     }
   }
 
@@ -203,7 +207,9 @@ absl::StatusOr<bool> ParseAndTest(
       // for rationale.
       seed = static_cast<int64>(getpid()) * static_cast<int64>(time(nullptr));
     }
-    std::cerr << "[ SEED " << *seed << " ]" << std::endl;
+    std::cerr << absl::StreamFormat("[ SEED %*d ]", kQuickcheckSpaces + 1,
+                                    *seed)
+              << std::endl;
     for (QuickCheck* quickcheck : entry_module->GetQuickChecks()) {
       const std::string& test_name = quickcheck->identifier();
       std::cerr << "[ RUN QUICKCHECK        ] " << test_name
@@ -211,7 +217,7 @@ absl::StatusOr<bool> ParseAndTest(
       absl::Status status =
           RunQuickCheck(&interpreter, ir_package.get(), quickcheck, *seed);
       if (!status.ok()) {
-        handle_error(status, test_name);
+        handle_error(status, test_name, /*is_quickcheck=*/true);
       } else {
         std::cerr << "[                    OK ] " << test_name << std::endl;
       }
