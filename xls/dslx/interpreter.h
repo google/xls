@@ -15,10 +15,10 @@
 #ifndef XLS_DSLX_INTERPRETER_H_
 #define XLS_DSLX_INTERPRETER_H_
 
+#include "xls/dslx/abstract_interpreter.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
-#include "xls/dslx/interp_callback_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_info.h"
 #include "xls/ir/package.h"
@@ -102,6 +102,7 @@ class Interpreter {
  private:
   friend struct TypeInfoSwap;
   friend class Evaluator;
+  friend class AbstractInterpreterAdapter;
 
   struct TypeInfoSwap {
     TypeInfoSwap(Interpreter* parent, absl::optional<TypeInfo*> new_type_info)
@@ -196,11 +197,12 @@ class Interpreter {
   Module* module_;
   TypeInfo* type_info_;
   TypecheckFn typecheck_;
+  std::vector<std::string> additional_search_paths_;
   ImportCache* import_cache_;
   bool trace_all_;
   Package* ir_package_;
 
-  InterpCallbackData callbacks_;
+  std::unique_ptr<AbstractInterpreter> abstract_adapter_;
 
   // Tracking for incomplete module evaluation status; e.g. on recursive calls
   // during module import; see IsWip().

@@ -29,37 +29,36 @@ using Tag = InterpValueTag;
 absl::StatusOr<InterpValue> EvaluateNameRef(NameRef* expr,
                                             InterpBindings* bindings,
                                             ConcreteType* type_context,
-                                            InterpCallbackData* callbacks) {
+                                            AbstractInterpreter* interp) {
   return bindings->ResolveValue(expr);
 }
 
 absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
                                              InterpBindings* bindings,
                                              ConcreteType* type_context,
-                                             InterpCallbackData* callbacks) {
+                                             AbstractInterpreter* interp) {
   return bindings->ResolveValue(expr);
 }
 
 absl::StatusOr<InterpValue> EvaluateCarry(Carry* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
-                                          InterpCallbackData* callbacks) {
+                                          AbstractInterpreter* interp) {
   return bindings->ResolveValueFromIdentifier("carry");
 }
 
 absl::StatusOr<InterpValue> EvaluateWhile(While* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
-                                          InterpCallbackData* callbacks) {
-  XLS_ASSIGN_OR_RETURN(InterpValue carry,
-                       callbacks->Eval(expr->init(), bindings));
+                                          AbstractInterpreter* interp) {
+  XLS_ASSIGN_OR_RETURN(InterpValue carry, interp->Eval(expr->init(), bindings));
   InterpBindings new_bindings(bindings);
   new_bindings.AddValue("carry", carry);
   while (true) {
     XLS_ASSIGN_OR_RETURN(InterpValue test,
-                         callbacks->Eval(expr->test(), &new_bindings));
+                         interp->Eval(expr->test(), &new_bindings));
     if (!test.IsTrue()) {
       break;
     }
-    XLS_ASSIGN_OR_RETURN(carry, callbacks->Eval(expr->body(), &new_bindings));
+    XLS_ASSIGN_OR_RETURN(carry, interp->Eval(expr->body(), &new_bindings));
     new_bindings.AddValue("carry", carry);
   }
   return carry;
@@ -68,7 +67,7 @@ absl::StatusOr<InterpValue> EvaluateWhile(While* expr, InterpBindings* bindings,
 absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
                                            InterpBindings* bindings,
                                            ConcreteType* type_context,
-                                           InterpCallbackData* callbacks) {
+                                           AbstractInterpreter* interp) {
   XLS_VLOG(4) << "Evaluating number: " << expr->ToString() << " @ "
               << expr->span();
   std::unique_ptr<ConcreteType> type_context_value;
@@ -93,7 +92,7 @@ absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
   if (type_context == nullptr) {
     XLS_ASSIGN_OR_RETURN(
         type_context_value,
-        ConcretizeTypeAnnotation(expr->type(), bindings, callbacks));
+        ConcretizeTypeAnnotation(expr->type(), bindings, interp));
     type_context = type_context_value.get();
   }
 
@@ -109,10 +108,10 @@ absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
 
 static absl::StatusOr<EnumDef*> EvaluateToEnum(TypeDefinition type_definition,
                                                InterpBindings* bindings,
-                                               InterpCallbackData* callbacks) {
+                                               AbstractInterpreter* interp) {
   XLS_ASSIGN_OR_RETURN(DerefVariant deref,
                        EvaluateToStructOrEnumOrAnnotation(
-                           type_definition, bindings, callbacks, nullptr));
+                           type_definition, bindings, interp, nullptr));
   if (absl::holds_alternative<EnumDef*>(deref)) {
     return absl::get<EnumDef*>(deref);
   }
@@ -123,12 +122,12 @@ static absl::StatusOr<EnumDef*> EvaluateToEnum(TypeDefinition type_definition,
 
 static absl::StatusOr<StructDef*> EvaluateToStruct(
     StructRef struct_ref, InterpBindings* bindings,
-    InterpCallbackData* callbacks) {
+    AbstractInterpreter* interp) {
   XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
                        ToTypeDefinition(ToAstNode(struct_ref)));
   XLS_ASSIGN_OR_RETURN(DerefVariant deref,
                        EvaluateToStructOrEnumOrAnnotation(
-                           type_definition, bindings, callbacks, nullptr));
+                           type_definition, bindings, interp, nullptr));
   if (absl::holds_alternative<StructDef*>(deref)) {
     return absl::get<StructDef*>(deref);
   }
@@ -140,7 +139,7 @@ static absl::StatusOr<StructDef*> EvaluateToStruct(
 absl::StatusOr<InterpValue> EvaluateXlsTuple(XlsTuple* expr,
                                              InterpBindings* bindings,
                                              ConcreteType* type_context,
-                                             InterpCallbackData* callbacks) {
+                                             AbstractInterpreter* interp) {
   XLS_VLOG(5) << "Evaluating tuple @ " << expr->span()
               << " :: " << expr->ToString();
   auto get_type_context =
@@ -156,7 +155,7 @@ absl::StatusOr<InterpValue> EvaluateXlsTuple(XlsTuple* expr,
   for (int64 i = 0; i < expr->members().size(); ++i) {
     Expr* m = expr->members()[i];
     XLS_ASSIGN_OR_RETURN(InterpValue value,
-                         callbacks->Eval(m, bindings, get_type_context(i)));
+                         interp->Eval(m, bindings, get_type_context(i)));
     members.push_back(std::move(value));
   }
   return InterpValue::MakeTuple(std::move(members));
@@ -362,7 +361,7 @@ absl::StatusOr<bool> ConcreteTypeAcceptsValue(const ConcreteType& type,
 //    binding names.
 //  bound_dims: Parametric bindings computed by the typechecker.
 static absl::Status EvaluateDerivedParametrics(
-    Function* fn, InterpBindings* bindings, InterpCallbackData* callbacks,
+    Function* fn, InterpBindings* bindings, AbstractInterpreter* interp,
     const absl::flat_hash_map<std::string, int64>& bound_dims) {
   XLS_VLOG(5) << "EvaluateDerivedParametrics; fn: " << fn->identifier()
               << " bound_dims: "
@@ -378,7 +377,7 @@ static absl::Status EvaluateDerivedParametrics(
 
     XLS_ASSIGN_OR_RETURN(
         std::unique_ptr<ConcreteType> type,
-        ConcretizeTypeAnnotation(parametric->type(), bindings, callbacks));
+        ConcretizeTypeAnnotation(parametric->type(), bindings, interp));
     // We already computed derived parametrics in the parametric instantiator.
     // All that's left is to add it to the current bindings.
     int64 raw_value = bound_dims.at(parametric->identifier());
@@ -393,7 +392,7 @@ static absl::Status EvaluateDerivedParametrics(
 
 absl::StatusOr<InterpValue> EvaluateFunction(
     Function* f, absl::Span<const InterpValue> args, const Span& span,
-    const SymbolicBindings& symbolic_bindings, InterpCallbackData* callbacks) {
+    const SymbolicBindings& symbolic_bindings, AbstractInterpreter* interp) {
   XLS_VLOG(5) << "Evaluating function: " << f->identifier()
               << " symbolic_bindings: " << symbolic_bindings;
   if (args.size() != f->params().size()) {
@@ -405,10 +404,10 @@ absl::StatusOr<InterpValue> EvaluateFunction(
 
   Module* m = f->owner();
   XLS_ASSIGN_OR_RETURN(InterpBindings bindings,
-                       MakeTopLevelBindings(m, callbacks));
+                       MakeTopLevelBindings(m, interp));
   XLS_VLOG(5) << "Evaluated top level bindings for module: " << m->name()
               << "; keys: {" << absl::StrJoin(bindings.GetKeys(), ", ") << "}";
-  XLS_RETURN_IF_ERROR(EvaluateDerivedParametrics(f, &bindings, callbacks,
+  XLS_RETURN_IF_ERROR(EvaluateDerivedParametrics(f, &bindings, interp,
                                                  symbolic_bindings.ToMap()));
 
   bindings.set_fn_ctx(FnCtx{m->name(), f->identifier(), symbolic_bindings});
@@ -416,7 +415,7 @@ absl::StatusOr<InterpValue> EvaluateFunction(
     bindings.AddValue(f->params()[i]->identifier(), args[i]);
   }
 
-  return callbacks->Eval(f->body(), &bindings);
+  return interp->Eval(f->body(), &bindings);
 }
 
 absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
@@ -529,7 +528,7 @@ absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
 // Retrieves the flat/evaluated members of enum if type_ is an EnumType.
 static absl::StatusOr<absl::optional<std::vector<InterpValue>>> GetEnumValues(
     const ConcreteType& type, InterpBindings* bindings,
-    InterpCallbackData* callbacks) {
+    AbstractInterpreter* interp) {
   auto* enum_type = dynamic_cast<const EnumType*>(&type);
   if (enum_type == nullptr) {
     return absl::nullopt;
@@ -539,7 +538,7 @@ static absl::StatusOr<absl::optional<std::vector<InterpValue>>> GetEnumValues(
   std::vector<InterpValue> result;
   for (const EnumMember& member : enum_def->values()) {
     XLS_ASSIGN_OR_RETURN(InterpValue value,
-                         callbacks->Eval(member.value, bindings));
+                         interp->Eval(member.value, bindings));
     result.push_back(std::move(value));
   }
   return absl::make_optional(std::move(result));
@@ -547,13 +546,13 @@ static absl::StatusOr<absl::optional<std::vector<InterpValue>>> GetEnumValues(
 
 absl::StatusOr<InterpValue> EvaluateArray(Array* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
-                                          InterpCallbackData* callbacks) {
+                                          AbstractInterpreter* interp) {
   XLS_VLOG(5) << "Evaluating array @ " << expr->span()
               << " :: " << expr->ToString();
   std::unique_ptr<ConcreteType> type;
   if (type_context == nullptr && expr->type() != nullptr) {
     XLS_ASSIGN_OR_RETURN(
-        type, ConcretizeTypeAnnotation(expr->type(), bindings, callbacks));
+        type, ConcretizeTypeAnnotation(expr->type(), bindings, interp));
     type_context = type.get();
   }
 
@@ -574,7 +573,7 @@ absl::StatusOr<InterpValue> EvaluateArray(Array* expr, InterpBindings* bindings,
       type_context = element_type->CloneToUnique();
     }
     XLS_ASSIGN_OR_RETURN(InterpValue e,
-                         callbacks->Eval(m, bindings, std::move(type_context)));
+                         interp->Eval(m, bindings, std::move(type_context)));
     elements.push_back(std::move(e));
   }
   if (expr->has_ellipsis()) {
@@ -592,15 +591,14 @@ absl::StatusOr<InterpValue> EvaluateArray(Array* expr, InterpBindings* bindings,
 
 absl::StatusOr<InterpValue> EvaluateCast(Cast* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,
-                                         InterpCallbackData* callbacks) {
+                                         AbstractInterpreter* interp) {
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ConcreteType> type,
-      ConcretizeTypeAnnotation(expr->type(), bindings, callbacks));
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue value,
-      callbacks->Eval(expr->expr(), bindings, type->CloneToUnique()));
+      ConcretizeTypeAnnotation(expr->type(), bindings, interp));
+  XLS_ASSIGN_OR_RETURN(InterpValue value, interp->Eval(expr->expr(), bindings,
+                                                       type->CloneToUnique()));
   XLS_ASSIGN_OR_RETURN(absl::optional<std::vector<InterpValue>> enum_values,
-                       GetEnumValues(*type, bindings, callbacks));
+                       GetEnumValues(*type, bindings, interp));
   return ConcreteTypeConvertValue(
       *type, value, expr->span(), std::move(enum_values),
       value.type() == nullptr
@@ -610,15 +608,15 @@ absl::StatusOr<InterpValue> EvaluateCast(Cast* expr, InterpBindings* bindings,
 
 absl::StatusOr<InterpValue> EvaluateLet(Let* expr, InterpBindings* bindings,
                                         ConcreteType* type_context,
-                                        InterpCallbackData* callbacks) {
+                                        AbstractInterpreter* interp) {
   std::unique_ptr<ConcreteType> want_type;
   if (expr->type() != nullptr) {
     XLS_ASSIGN_OR_RETURN(
-        want_type, ConcretizeTypeAnnotation(expr->type(), bindings, callbacks));
+        want_type, ConcretizeTypeAnnotation(expr->type(), bindings, interp));
   }
 
   XLS_ASSIGN_OR_RETURN(InterpValue to_bind,
-                       callbacks->Eval(expr->rhs(), bindings));
+                       interp->Eval(expr->rhs(), bindings));
   if (want_type != nullptr) {
     XLS_ASSIGN_OR_RETURN(bool accepted,
                          ConcreteTypeAcceptsValue(*want_type, to_bind));
@@ -634,19 +632,18 @@ absl::StatusOr<InterpValue> EvaluateLet(Let* expr, InterpBindings* bindings,
 
   InterpBindings new_bindings =
       InterpBindings::CloneWith(bindings, expr->name_def_tree(), to_bind);
-  return callbacks->Eval(expr->body(), &new_bindings);
+  return interp->Eval(expr->body(), &new_bindings);
 }
 
 absl::StatusOr<InterpValue> EvaluateFor(For* expr, InterpBindings* bindings,
                                         ConcreteType* type_context,
-                                        InterpCallbackData* callbacks) {
+                                        AbstractInterpreter* interp) {
   XLS_ASSIGN_OR_RETURN(InterpValue iterable,
-                       callbacks->Eval(expr->iterable(), bindings));
+                       interp->Eval(expr->iterable(), bindings));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ConcreteType> concrete_iteration_type,
-      ConcretizeTypeAnnotation(expr->type(), bindings, callbacks));
-  XLS_ASSIGN_OR_RETURN(InterpValue carry,
-                       callbacks->Eval(expr->init(), bindings));
+      ConcretizeTypeAnnotation(expr->type(), bindings, interp));
+  XLS_ASSIGN_OR_RETURN(InterpValue carry, interp->Eval(expr->init(), bindings));
   XLS_ASSIGN_OR_RETURN(int64 length, iterable.GetLength());
   for (int64 i = 0; i < length; ++i) {
     const InterpValue& x = iterable.GetValuesOrDie().at(i);
@@ -665,21 +662,20 @@ absl::StatusOr<InterpValue> EvaluateFor(For* expr, InterpBindings* bindings,
     }
     InterpBindings new_bindings =
         InterpBindings::CloneWith(bindings, expr->names(), iteration);
-    XLS_ASSIGN_OR_RETURN(carry, callbacks->Eval(expr->body(), &new_bindings));
+    XLS_ASSIGN_OR_RETURN(carry, interp->Eval(expr->body(), &new_bindings));
   }
   return carry;
 }
 
 absl::StatusOr<InterpValue> EvaluateStructInstance(
     StructInstance* expr, InterpBindings* bindings, ConcreteType* type_context,
-    InterpCallbackData* callbacks) {
-  XLS_ASSIGN_OR_RETURN(
-      StructDef * struct_def,
-      EvaluateToStruct(expr->struct_def(), bindings, callbacks));
+    AbstractInterpreter* interp) {
+  XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
+                       EvaluateToStruct(expr->struct_def(), bindings, interp));
   std::vector<InterpValue> members;
   for (auto [name, field_expr] : expr->GetOrderedMembers(struct_def)) {
     XLS_ASSIGN_OR_RETURN(InterpValue member,
-                         callbacks->Eval(field_expr, bindings));
+                         interp->Eval(field_expr, bindings));
     members.push_back(member);
   }
   return InterpValue::MakeTuple(std::move(members));
@@ -687,17 +683,16 @@ absl::StatusOr<InterpValue> EvaluateStructInstance(
 
 absl::StatusOr<InterpValue> EvaluateSplatStructInstance(
     SplatStructInstance* expr, InterpBindings* bindings,
-    ConcreteType* type_context, InterpCallbackData* callbacks) {
+    ConcreteType* type_context, AbstractInterpreter* interp) {
   // First we grab the "basis" struct value (the subject of the 'splat') that
   // we're going to update with the modified fields.
   XLS_ASSIGN_OR_RETURN(InterpValue named_tuple,
-                       callbacks->Eval(expr->splatted(), bindings));
-  XLS_ASSIGN_OR_RETURN(
-      StructDef * struct_def,
-      EvaluateToStruct(expr->struct_ref(), bindings, callbacks));
+                       interp->Eval(expr->splatted(), bindings));
+  XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
+                       EvaluateToStruct(expr->struct_ref(), bindings, interp));
   for (auto [name, field_expr] : expr->members()) {
     XLS_ASSIGN_OR_RETURN(InterpValue new_value,
-                         callbacks->Eval(field_expr, bindings));
+                         interp->Eval(field_expr, bindings));
     int64 i = struct_def->GetMemberIndex(name).value();
     XLS_ASSIGN_OR_RETURN(
         named_tuple, named_tuple.Update(InterpValue::MakeU64(i), new_value));
@@ -708,19 +703,18 @@ absl::StatusOr<InterpValue> EvaluateSplatStructInstance(
 
 static absl::StatusOr<InterpValue> EvaluateEnumRefHelper(
     Expr* expr, EnumDef* enum_def, absl::string_view attr,
-    InterpCallbackData* callbacks) {
+    AbstractInterpreter* interp) {
   XLS_ASSIGN_OR_RETURN(auto value_node, enum_def->GetValue(attr));
   // Note: we have grab bindings from the underlying type (not from the expr,
   // which may have been in a different module from the enum_def).
   TypeAnnotation* underlying_type = enum_def->type();
-  XLS_ASSIGN_OR_RETURN(
-      InterpBindings fresh_bindings,
-      MakeTopLevelBindings(underlying_type->owner(), callbacks));
+  XLS_ASSIGN_OR_RETURN(InterpBindings fresh_bindings,
+                       MakeTopLevelBindings(underlying_type->owner(), interp));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ConcreteType> concrete_type,
-      ConcretizeTypeAnnotation(underlying_type, &fresh_bindings, callbacks));
+      ConcretizeTypeAnnotation(underlying_type, &fresh_bindings, interp));
   XLS_ASSIGN_OR_RETURN(InterpValue raw_value,
-                       callbacks->Eval(value_node, &fresh_bindings));
+                       interp->Eval(value_node, &fresh_bindings));
   return InterpValue::MakeEnum(raw_value.GetBitsOrDie(), enum_def);
 }
 
@@ -740,7 +734,7 @@ static absl::StatusOr<InterpValue> EvaluateEnumRefHelper(
 // In that case the inner ColonRef will resolve the module, then the subsequent
 // step will resolve the EnumDef inside of that module.
 static absl::StatusOr<absl::variant<EnumDef*, Module*>> ResolveColonRefSubject(
-    ColonRef* expr, InterpBindings* bindings, InterpCallbackData* callbacks) {
+    ColonRef* expr, InterpBindings* bindings, AbstractInterpreter* interp) {
   if (absl::holds_alternative<NameRef*>(expr->subject())) {
     auto* name_ref = absl::get<NameRef*>(expr->subject());
     absl::optional<InterpBindings::Entry> entry =
@@ -758,7 +752,7 @@ static absl::StatusOr<absl::variant<EnumDef*, Module*>> ResolveColonRefSubject(
     if (absl::holds_alternative<TypeDef*>(*entry)) {
       auto* type_def = absl::get<TypeDef*>(*entry);
       XLS_ASSIGN_OR_RETURN(EnumDef * enum_def,
-                           EvaluateToEnum(type_def, bindings, callbacks));
+                           EvaluateToEnum(type_def, bindings, interp));
       return enum_def;
     }
     return absl::InternalError(absl::StrFormat(
@@ -769,7 +763,7 @@ static absl::StatusOr<absl::variant<EnumDef*, Module*>> ResolveColonRefSubject(
   XLS_RET_CHECK(absl::holds_alternative<ColonRef*>(expr->subject()));
   auto* subject = absl::get<ColonRef*>(expr->subject());
   XLS_ASSIGN_OR_RETURN(auto subject_resolved,
-                       ResolveColonRefSubject(subject, bindings, callbacks));
+                       ResolveColonRefSubject(subject, bindings, interp));
   // Has to be a module as the subject, since it's a nested colon-reference.
   XLS_RET_CHECK(absl::holds_alternative<Module*>(subject_resolved));
   auto* subject_module = absl::get<Module*>(subject_resolved);
@@ -777,24 +771,24 @@ static absl::StatusOr<absl::variant<EnumDef*, Module*>> ResolveColonRefSubject(
   XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
                        subject_module->GetTypeDefinition(subject->attr()));
   XLS_ASSIGN_OR_RETURN(InterpBindings fresh_bindings,
-                       MakeTopLevelBindings(subject_module, callbacks));
+                       MakeTopLevelBindings(subject_module, interp));
   XLS_ASSIGN_OR_RETURN(
       EnumDef * enum_def,
-      EvaluateToEnum(type_definition, &fresh_bindings, callbacks));
+      EvaluateToEnum(type_definition, &fresh_bindings, interp));
   return enum_def;
 }
 
 absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
                                              InterpBindings* bindings,
                                              ConcreteType* type_context,
-                                             InterpCallbackData* callbacks) {
+                                             AbstractInterpreter* interp) {
   XLS_ASSIGN_OR_RETURN(auto subject,
-                       ResolveColonRefSubject(expr, bindings, callbacks));
+                       ResolveColonRefSubject(expr, bindings, interp));
   XLS_VLOG(3) << "ColonRef resolved subject: " << ToAstNode(subject)->ToString()
               << " attr: " << expr->attr();
   if (absl::holds_alternative<EnumDef*>(subject)) {
     auto* enum_def = absl::get<EnumDef*>(subject);
-    return EvaluateEnumRefHelper(expr, enum_def, expr->attr(), callbacks);
+    return EvaluateEnumRefHelper(expr, enum_def, expr->attr(), interp);
   }
 
   auto* module = absl::get<Module*>(subject);
@@ -808,8 +802,8 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
   if (absl::holds_alternative<ConstantDef*>(*member.value())) {
     auto* cd = absl::get<ConstantDef*>(*member.value());
     XLS_ASSIGN_OR_RETURN(InterpBindings module_top,
-                         MakeTopLevelBindings(module, callbacks));
-    return callbacks->Eval(cd->value(), &module_top);
+                         MakeTopLevelBindings(module, interp));
+    return interp->Eval(cd->value(), &module_top);
   }
   return absl::InternalError(
       absl::StrFormat("EvaluateError: %s Unsupported module reference.",
@@ -818,9 +812,9 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
 
 absl::StatusOr<InterpValue> EvaluateUnop(Unop* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,
-                                         InterpCallbackData* callbacks) {
+                                         AbstractInterpreter* interp) {
   XLS_ASSIGN_OR_RETURN(InterpValue arg,
-                       callbacks->Eval(expr->operand(), bindings));
+                       interp->Eval(expr->operand(), bindings));
   switch (expr->kind()) {
     case UnopKind::kInvert:
       return arg.BitwiseNegate();
@@ -833,10 +827,10 @@ absl::StatusOr<InterpValue> EvaluateUnop(Unop* expr, InterpBindings* bindings,
 
 absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
-                                          InterpCallbackData* callbacks) {
+                                          AbstractInterpreter* interp) {
   XLS_VLOG(6) << "EvaluateBinop: " << expr->ToString() << " @ " << expr->span();
-  XLS_ASSIGN_OR_RETURN(InterpValue lhs, callbacks->Eval(expr->lhs(), bindings));
-  XLS_ASSIGN_OR_RETURN(InterpValue rhs, callbacks->Eval(expr->rhs(), bindings));
+  XLS_ASSIGN_OR_RETURN(InterpValue lhs, interp->Eval(expr->lhs(), bindings));
+  XLS_ASSIGN_OR_RETURN(InterpValue rhs, interp->Eval(expr->rhs(), bindings));
 
   // Check some preconditions; e.g. all logical operands are guaranteed to have
   // single-bit inputs by type checking so we can share the implementation with
@@ -896,20 +890,19 @@ absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
 absl::StatusOr<InterpValue> EvaluateTernary(Ternary* expr,
                                             InterpBindings* bindings,
                                             ConcreteType* type_context,
-                                            InterpCallbackData* callbacks) {
-  XLS_ASSIGN_OR_RETURN(InterpValue test,
-                       callbacks->Eval(expr->test(), bindings));
+                                            AbstractInterpreter* interp) {
+  XLS_ASSIGN_OR_RETURN(InterpValue test, interp->Eval(expr->test(), bindings));
   if (test.IsTrue()) {
-    return callbacks->Eval(expr->consequent(), bindings);
+    return interp->Eval(expr->consequent(), bindings);
   }
-  return callbacks->Eval(expr->alternate(), bindings);
+  return interp->Eval(expr->alternate(), bindings);
 }
 
 absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,
-                                         InterpCallbackData* callbacks) {
-  XLS_ASSIGN_OR_RETURN(InterpValue lhs, callbacks->Eval(expr->lhs(), bindings));
-  TypeInfo* type_info = callbacks->get_type_info();
+                                         AbstractInterpreter* interp) {
+  XLS_ASSIGN_OR_RETURN(InterpValue lhs, interp->Eval(expr->lhs(), bindings));
+  TypeInfo* type_info = interp->GetCurrentTypeInfo();
   XLS_RET_CHECK(type_info != nullptr);
   absl::optional<const ConcreteType*> maybe_type =
       type_info->GetItem(expr->lhs());
@@ -931,7 +924,7 @@ absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
 }
 
 static absl::StatusOr<InterpValue> EvaluateIndexBitSlice(
-    Index* expr, InterpBindings* bindings, InterpCallbackData* callbacks,
+    Index* expr, InterpBindings* bindings, AbstractInterpreter* interp,
     const Bits& bits) {
   IndexRhs index = expr->rhs();
   XLS_RET_CHECK(absl::holds_alternative<Slice*>(index));
@@ -939,7 +932,7 @@ static absl::StatusOr<InterpValue> EvaluateIndexBitSlice(
 
   const SymbolicBindings& sym_bindings = bindings->fn_ctx()->sym_bindings;
 
-  TypeInfo* type_info = callbacks->get_type_info();
+  TypeInfo* type_info = interp->GetCurrentTypeInfo();
   absl::optional<StartAndWidth> maybe_saw =
       type_info->GetSliceStartAndWidth(index_slice, sym_bindings);
   XLS_RET_CHECK(maybe_saw.has_value())
@@ -949,17 +942,17 @@ static absl::StatusOr<InterpValue> EvaluateIndexBitSlice(
 }
 
 static absl::StatusOr<InterpValue> EvaluateIndexWidthSlice(
-    Index* expr, InterpBindings* bindings, InterpCallbackData* callbacks,
+    Index* expr, InterpBindings* bindings, AbstractInterpreter* interp,
     Bits bits) {
   auto width_slice = absl::get<WidthSlice*>(expr->rhs());
   XLS_ASSIGN_OR_RETURN(
       InterpValue start,
-      callbacks->Eval(
+      interp->Eval(
           width_slice->start(), bindings,
           std::make_unique<BitsType>(/*is_signed=*/false, bits.bit_count())));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ConcreteType> width_type,
-      ConcretizeTypeAnnotation(width_slice->width(), bindings, callbacks));
+      ConcretizeTypeAnnotation(width_slice->width(), bindings, interp));
 
   auto* width_bits_type = dynamic_cast<BitsType*>(width_type.get());
   XLS_RET_CHECK(width_bits_type != nullptr);
@@ -994,23 +987,21 @@ static absl::StatusOr<InterpValue> EvaluateIndexWidthSlice(
 
 absl::StatusOr<InterpValue> EvaluateIndex(Index* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
-                                          InterpCallbackData* callbacks) {
-  XLS_ASSIGN_OR_RETURN(InterpValue lhs, callbacks->Eval(expr->lhs(), bindings));
+                                          AbstractInterpreter* interp) {
+  XLS_ASSIGN_OR_RETURN(InterpValue lhs, interp->Eval(expr->lhs(), bindings));
   if (lhs.IsBits()) {
     if (absl::holds_alternative<Slice*>(expr->rhs())) {
-      return EvaluateIndexBitSlice(expr, bindings, callbacks,
-                                   lhs.GetBitsOrDie());
+      return EvaluateIndexBitSlice(expr, bindings, interp, lhs.GetBitsOrDie());
     }
     XLS_RET_CHECK(absl::holds_alternative<WidthSlice*>(expr->rhs()));
-    return EvaluateIndexWidthSlice(expr, bindings, callbacks,
-                                   lhs.GetBitsOrDie());
+    return EvaluateIndexWidthSlice(expr, bindings, interp, lhs.GetBitsOrDie());
   }
 
   Expr* index = absl::get<Expr*>(expr->rhs());
   // Note: since we permit a type-unannotated literal number we provide a type
   // context here.
   XLS_ASSIGN_OR_RETURN(InterpValue index_value,
-                       callbacks->Eval(index, bindings, BitsType::MakeU32()));
+                       interp->Eval(index, bindings, BitsType::MakeU32()));
   XLS_ASSIGN_OR_RETURN(uint64 index_int, index_value.GetBitValueUint64());
   int64 length = lhs.GetLength().value();
   if (index_int >= length) {
@@ -1043,7 +1034,7 @@ absl::StatusOr<InterpValue> EvaluateIndex(Index* expr, InterpBindings* bindings,
 static absl::StatusOr<bool> EvaluateMatcher(NameDefTree* pattern,
                                             const InterpValue& to_match,
                                             InterpBindings* bindings,
-                                            InterpCallbackData* callbacks) {
+                                            AbstractInterpreter* interp) {
   if (pattern->is_leaf()) {
     NameDefTree::Leaf leaf = pattern->leaf();
     if (absl::holds_alternative<WildcardPattern*>(leaf)) {
@@ -1056,12 +1047,12 @@ static absl::StatusOr<bool> EvaluateMatcher(NameDefTree* pattern,
     if (absl::holds_alternative<Number*>(leaf) ||
         absl::holds_alternative<ColonRef*>(leaf)) {
       XLS_ASSIGN_OR_RETURN(InterpValue target,
-                           callbacks->Eval(ToExprNode(leaf), bindings));
+                           interp->Eval(ToExprNode(leaf), bindings));
       return target.Eq(to_match);
     }
     XLS_RET_CHECK(absl::holds_alternative<NameRef*>(leaf));
     XLS_ASSIGN_OR_RETURN(InterpValue target,
-                         callbacks->Eval(absl::get<NameRef*>(leaf), bindings));
+                         interp->Eval(absl::get<NameRef*>(leaf), bindings));
     return target.Eq(to_match);
   }
 
@@ -1070,7 +1061,7 @@ static absl::StatusOr<bool> EvaluateMatcher(NameDefTree* pattern,
     NameDefTree* subtree = pattern->nodes()[i];
     const InterpValue& member = to_match.GetValuesOrDie().at(i);
     XLS_ASSIGN_OR_RETURN(bool matched,
-                         EvaluateMatcher(subtree, member, bindings, callbacks));
+                         EvaluateMatcher(subtree, member, bindings, interp));
     if (!matched) {
       return false;
     }
@@ -1080,18 +1071,18 @@ static absl::StatusOr<bool> EvaluateMatcher(NameDefTree* pattern,
 
 absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
-                                          InterpCallbackData* callbacks) {
+                                          AbstractInterpreter* interp) {
   XLS_ASSIGN_OR_RETURN(InterpValue to_match,
-                       callbacks->Eval(expr->matched(), bindings));
+                       interp->Eval(expr->matched(), bindings));
   for (MatchArm* arm : expr->arms()) {
     for (NameDefTree* pattern : arm->patterns()) {
       InterpBindings arm_bindings(
           /*parent=*/bindings);
       XLS_ASSIGN_OR_RETURN(
           bool did_match,
-          EvaluateMatcher(pattern, to_match, &arm_bindings, callbacks));
+          EvaluateMatcher(pattern, to_match, &arm_bindings, interp));
       if (did_match) {
-        return callbacks->Eval(arm->expr(), &arm_bindings);
+        return interp->Eval(arm->expr(), &arm_bindings);
       }
     }
   }
@@ -1102,7 +1093,7 @@ absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
 }
 
 absl::StatusOr<InterpBindings> MakeTopLevelBindings(
-    Module* module, InterpCallbackData* callbacks) {
+    Module* module, AbstractInterpreter* interp) {
   XLS_VLOG(4) << "Making top level bindings for module: " << module->name();
   InterpBindings b(/*parent=*/nullptr);
 
@@ -1138,7 +1129,7 @@ absl::StatusOr<InterpBindings> MakeTopLevelBindings(
                 << " (" << ToAstNode(member)->GetNodeTypeName() << ")";
     if (absl::holds_alternative<ConstantDef*>(member)) {
       auto* constant_def = absl::get<ConstantDef*>(member);
-      if (callbacks->is_wip(constant_def)) {
+      if (interp->IsWip(constant_def)) {
         XLS_VLOG(3) << "Saw WIP constant definition; breaking early! "
                     << constant_def->ToString();
         break;
@@ -1146,14 +1137,13 @@ absl::StatusOr<InterpBindings> MakeTopLevelBindings(
       XLS_VLOG(3) << "MakeTopLevelBindings evaluating: "
                   << constant_def->ToString();
       absl::optional<InterpValue> precomputed =
-          callbacks->note_wip(constant_def, absl::nullopt);
+          interp->NoteWip(constant_def, absl::nullopt);
       absl::optional<InterpValue> result;
       if (precomputed.has_value()) {  // If we already computed it, use that.
         result = precomputed.value();
       } else {  // Otherwise, evaluate it and make a note.
-        XLS_ASSIGN_OR_RETURN(result,
-                             callbacks->Eval(constant_def->value(), &b));
-        callbacks->note_wip(constant_def, *result);
+        XLS_ASSIGN_OR_RETURN(result, interp->Eval(constant_def->value(), &b));
+        interp->NoteWip(constant_def, *result);
       }
       XLS_CHECK(result.has_value());
       b.AddValue(constant_def->identifier(), *result);
@@ -1166,8 +1156,9 @@ absl::StatusOr<InterpBindings> MakeTopLevelBindings(
       XLS_VLOG(3) << "MakeTopLevelBindings importing: " << import->ToString();
       XLS_ASSIGN_OR_RETURN(
           const ModuleInfo* imported,
-          DoImport(callbacks->typecheck, ImportTokens(import->subject()),
-                   callbacks->additional_search_paths, callbacks->cache));
+          DoImport(interp->GetTypecheckFn(), ImportTokens(import->subject()),
+                   interp->GetAdditionalSearchPaths(),
+                   interp->GetImportCache()));
       XLS_VLOG(3) << "MakeTopLevelBindings adding import " << import->ToString()
                   << " as \"" << import->identifier() << "\"";
       b.AddModule(import->identifier(), imported->module.get());
@@ -1233,7 +1224,7 @@ absl::StatusOr<int64> ResolveDim(
 
 absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
     TypeDefinition type_definition, InterpBindings* bindings,
-    InterpCallbackData* callbacks, std::vector<Expr*>* parametrics) {
+    AbstractInterpreter* interp, std::vector<Expr*>* parametrics) {
   while (absl::holds_alternative<TypeDef*>(type_definition)) {
     TypeDef* type_def = absl::get<TypeDef*>(type_definition);
     TypeAnnotation* annotation = type_def->type();
@@ -1264,17 +1255,17 @@ absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
   XLS_ASSIGN_OR_RETURN(TypeDefinition td,
                        imported_module->GetTypeDefinition(attr));
   XLS_ASSIGN_OR_RETURN(InterpBindings imported_bindings,
-                       MakeTopLevelBindings(imported_module, callbacks));
-  return EvaluateToStructOrEnumOrAnnotation(td, &imported_bindings, callbacks,
+                       MakeTopLevelBindings(imported_module, interp));
+  return EvaluateToStructOrEnumOrAnnotation(td, &imported_bindings, interp,
                                             parametrics);
 }
 
 // Helper that grabs the type_definition field out of a TypeRef and resolves it.
 static absl::StatusOr<DerefVariant> DerefTypeRef(
-    TypeRef* type_ref, InterpBindings* bindings, InterpCallbackData* callbacks,
+    TypeRef* type_ref, InterpBindings* bindings, AbstractInterpreter* interp,
     std::vector<Expr*>* parametrics) {
   return EvaluateToStructOrEnumOrAnnotation(type_ref->type_definition(),
-                                            bindings, callbacks, parametrics);
+                                            bindings, interp, parametrics);
 }
 
 // Returns new (derived) Bindings populated with `parametrics`.
@@ -1328,7 +1319,7 @@ static absl::StatusOr<InterpBindings> BindingsWithStructParametrics(
 // concrete type.
 absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
     TypeAnnotation* type, InterpBindings* bindings,
-    InterpCallbackData* callbacks) {
+    AbstractInterpreter* interp) {
   XLS_VLOG(3) << "Concretizing type annotation: " << type->ToString()
               << " node type: " << type->GetNodeTypeName() << " in module "
               << type->owner()->name();
@@ -1339,7 +1330,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
     std::vector<Expr*> parametrics = type_ref->parametrics();
     XLS_ASSIGN_OR_RETURN(
         DerefVariant deref,
-        DerefTypeRef(type_ref->type_ref(), bindings, callbacks, &parametrics));
+        DerefTypeRef(type_ref->type_ref(), bindings, interp, &parametrics));
     if (!parametrics.empty()) {
       XLS_RET_CHECK(absl::holds_alternative<StructDef*>(deref));
       auto* struct_def = absl::get<StructDef*>(deref);
@@ -1351,9 +1342,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
     TypeDefinition type_defn = type_ref->type_ref()->type_definition();
     if (absl::holds_alternative<EnumDef*>(type_defn)) {
       auto* enum_def = absl::get<EnumDef*>(type_defn);
-      XLS_ASSIGN_OR_RETURN(
-          std::unique_ptr<ConcreteType> underlying_type,
-          ConcretizeType(enum_def->type(), bindings, callbacks));
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> underlying_type,
+                           ConcretizeType(enum_def->type(), bindings, interp));
       XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bit_count,
                            underlying_type->GetTotalBitCount());
       return absl::make_unique<EnumType>(enum_def, bit_count);
@@ -1366,7 +1356,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
     Module* derefd_module = ToAstNode(deref)->owner();
     if (derefd_module != type->owner()) {
       XLS_ASSIGN_OR_RETURN(derefd_top_level,
-                           MakeTopLevelBindings(derefd_module, callbacks));
+                           MakeTopLevelBindings(derefd_module, interp));
       bindings = &derefd_top_level;
     }
 
@@ -1380,7 +1370,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
         bindings->AddEntry(key, entry.value());
       }
     }
-    return ConcretizeType(deref, bindings, callbacks);
+    return ConcretizeType(deref, bindings, interp);
   }
 
   // class TupleTypeAnnotation
@@ -1388,7 +1378,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
     std::vector<std::unique_ptr<ConcreteType>> members;
     for (TypeAnnotation* member : tuple->members()) {
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_member,
-                           ConcretizeType(member, bindings, callbacks));
+                           ConcretizeType(member, bindings, interp));
       members.push_back(std::move(concrete_member));
     }
     return absl::make_unique<TupleType>(std::move(members));
@@ -1405,7 +1395,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
       return std::make_unique<BitsType>(builtin_elem->GetSignedness(), dim);
     }
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_elem_type,
-                         ConcretizeType(elem_type, bindings, callbacks));
+                         ConcretizeType(elem_type, bindings, interp));
     return std::make_unique<ArrayType>(std::move(concrete_elem_type),
                                        ConcreteTypeDim(dim));
   }
@@ -1423,10 +1413,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeType(
     ConcretizeVariant type, InterpBindings* bindings,
-    InterpCallbackData* callbacks) {
+    AbstractInterpreter* interp) {
   // class EnumDef
   if (EnumDef** penum_def = absl::get_if<EnumDef*>(&type)) {
-    return ConcretizeType((*penum_def)->type(), bindings, callbacks);
+    return ConcretizeType((*penum_def)->type(), bindings, interp);
   }
   // class StructDef
   if (StructDef** pstruct_def = absl::get_if<StructDef*>(&type)) {
@@ -1434,14 +1424,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeType(
     for (auto& [name_def, type_annotation] : (*pstruct_def)->members()) {
       XLS_ASSIGN_OR_RETURN(
           std::unique_ptr<ConcreteType> concretized,
-          ConcretizeTypeAnnotation(type_annotation, bindings, callbacks));
+          ConcretizeTypeAnnotation(type_annotation, bindings, interp));
       members.push_back(std::move(concretized));
     }
     return absl::make_unique<TupleType>(std::move(members));
   }
   // class TypeAnnotation
   return ConcretizeTypeAnnotation(absl::get<TypeAnnotation*>(type), bindings,
-                                  callbacks);
+                                  interp);
 }
 
 }  // namespace xls::dslx

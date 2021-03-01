@@ -23,16 +23,15 @@ namespace xls::dslx {
 class Evaluator : public ExprVisitor {
  public:
   Evaluator(Interpreter* parent, InterpBindings* bindings,
-            ConcreteType* type_context, InterpCallbackData* callbacks)
+            ConcreteType* type_context, AbstractInterpreter* interp)
       : parent_(parent),
         bindings_(bindings),
         type_context_(type_context),
-        callbacks_(callbacks) {}
+        interp_(interp) {}
 
-#define DISPATCH(__expr_type)                                              \
-  void Handle##__expr_type(__expr_type* expr) override {                   \
-    value_ =                                                               \
-        Evaluate##__expr_type(expr, bindings_, type_context_, callbacks_); \
+#define DISPATCH(__expr_type)                                                \
+  void Handle##__expr_type(__expr_type* expr) override {                     \
+    value_ = Evaluate##__expr_type(expr, bindings_, type_context_, interp_); \
   }
 
   DISPATCH(Array)
@@ -71,8 +70,46 @@ class Evaluator : public ExprVisitor {
   Interpreter* parent_;
   InterpBindings* bindings_;
   ConcreteType* type_context_;
-  InterpCallbackData* callbacks_;
+  AbstractInterpreter* interp_;
   absl::StatusOr<InterpValue> value_;
+};
+
+// Adapts a concrete interpreter to present as an abstract one.
+class AbstractInterpreterAdapter : public AbstractInterpreter {
+ public:
+  explicit AbstractInterpreterAdapter(Interpreter* interp) : interp_(interp) {}
+
+  // TODO(leary): 2020-03-01 Porting artifact -- try to remove the unique_ptr
+  // from the signature in AbstractInterpreter, since we just pass on the
+  // ConcreteType's pointer here.
+  absl::StatusOr<InterpValue> Eval(
+      Expr* expr, InterpBindings* bindings,
+      std::unique_ptr<ConcreteType> type_context) override {
+    return interp_->Evaluate(expr, bindings, type_context.get());
+  }
+  absl::StatusOr<InterpValue> CallValue(
+      const InterpValue& value, absl::Span<const InterpValue> args,
+      const Span& invocation_span, Invocation* invocation,
+      const SymbolicBindings* sym_bindings) override {
+    return interp_->CallFnValue(value, args, invocation_span, invocation,
+                                sym_bindings);
+  }
+  TypecheckFn GetTypecheckFn() override { return interp_->typecheck_; }
+  bool IsWip(ConstantDef* constant_def) override {
+    return interp_->IsWip(constant_def);
+  }
+  absl::optional<InterpValue> NoteWip(
+      ConstantDef* constant_def, absl::optional<InterpValue> value) override {
+    return interp_->NoteWip(constant_def, value);
+  }
+  TypeInfo* GetCurrentTypeInfo() override { return interp_->type_info_; }
+  ImportCache* GetImportCache() override { return interp_->import_cache_; }
+  absl::Span<std::string const> GetAdditionalSearchPaths() override {
+    return interp_->additional_search_paths_;
+  }
+
+ private:
+  Interpreter* interp_;
 };
 
 Interpreter::Interpreter(Module* module, TypeInfo* type_info,
@@ -83,29 +120,12 @@ Interpreter::Interpreter(Module* module, TypeInfo* type_info,
     : module_(module),
       type_info_(type_info),
       typecheck_(std::move(typecheck)),
+      additional_search_paths_(additional_search_paths.begin(),
+                               additional_search_paths.end()),
       import_cache_(import_cache),
       trace_all_(trace_all),
-      ir_package_(ir_package) {
-  callbacks_.eval_fn = [this](Expr* e, InterpBindings* bindings,
-                              std::unique_ptr<ConcreteType> type_context) {
-    return Evaluate(e, bindings, type_context.get());
-  };
-  callbacks_.call_value_fn = [this](const InterpValue& fv,
-                                    absl::Span<const InterpValue> args,
-                                    const Span& span, Invocation* invocation,
-                                    const SymbolicBindings* symbolic_bindings) {
-    return CallFnValue(fv, args, span, invocation, symbolic_bindings);
-  };
-  callbacks_.is_wip = [this](ConstantDef* c) { return IsWip(c); };
-  callbacks_.note_wip = [this](ConstantDef* c,
-                               absl::optional<InterpValue> value) {
-    return NoteWip(c, std::move(value));
-  };
-  callbacks_.get_type_info = [this]() -> TypeInfo* { return type_info_; };
-  callbacks_.cache = import_cache;
-  callbacks_.additional_search_paths = std::vector(
-      additional_search_paths.begin(), additional_search_paths.end());
-}
+      ir_package_(ir_package),
+      abstract_adapter_(absl::make_unique<AbstractInterpreterAdapter>(this)) {}
 
 absl::StatusOr<InterpValue> Interpreter::RunFunction(
     absl::string_view name, absl::Span<const InterpValue> args,
@@ -119,7 +139,7 @@ absl::StatusOr<InterpValue> Interpreter::RunFunction(
 
 absl::Status Interpreter::RunTest(absl::string_view name) {
   XLS_ASSIGN_OR_RETURN(InterpBindings bindings,
-                       MakeTopLevelBindings(module_, &callbacks_));
+                       MakeTopLevelBindings(module_, abstract_adapter_.get()));
   XLS_ASSIGN_OR_RETURN(TestFunction * test, module_->GetTest(name));
   bindings.set_fn_ctx(
       FnCtx{module_->name(), absl::StrFormat("%s__test", name)});
@@ -142,7 +162,7 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateLiteral(Expr* expr) {
 absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
                                                   InterpBindings* bindings,
                                                   ConcreteType* type_context) {
-  Evaluator evaluator(this, bindings, type_context, &callbacks_);
+  Evaluator evaluator(this, bindings, type_context, abstract_adapter_.get());
   expr->AcceptExpr(&evaluator);
   absl::StatusOr<InterpValue> result_or = std::move(evaluator.value());
   if (!result_or.ok()) {
@@ -171,8 +191,9 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
 
   Interpreter interp(entry_module, type_info, typecheck,
                      additional_search_paths, import_cache);
-  XLS_ASSIGN_OR_RETURN(InterpBindings bindings,
-                       MakeTopLevelBindings(entry_module, &interp.callbacks_));
+  XLS_ASSIGN_OR_RETURN(
+      InterpBindings bindings,
+      MakeTopLevelBindings(entry_module, interp.abstract_adapter_.get()));
   bindings.set_fn_ctx(fn_ctx);
   for (const auto& [identifier, value] : env) {
     XLS_VLOG(3) << "Adding to bindings; identifier: " << identifier
@@ -237,7 +258,8 @@ absl::StatusOr<InterpValue> Interpreter::RunBuiltin(
       return BuiltinScmp(SignedCmp::kGe, args, span, invocation,
                          symbolic_bindings);
     case Builtin::kMap:  // Needs callbacks.
-      return BuiltinMap(args, span, invocation, symbolic_bindings, &callbacks_);
+      return BuiltinMap(args, span, invocation, symbolic_bindings,
+                        abstract_adapter_.get());
     default:
       return absl::UnimplementedError("Unhandled builtin: " +
                                       BuiltinToString(builtin));
@@ -301,7 +323,7 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateAndCompare(
       EvaluateFunction(f, args, span,
                        symbolic_bindings == nullptr ? SymbolicBindings()
                                                     : *symbolic_bindings,
-                       &callbacks_));
+                       abstract_adapter_.get()));
 
   XLS_RETURN_IF_ERROR(RunJitComparison(f, args, symbolic_bindings));
 

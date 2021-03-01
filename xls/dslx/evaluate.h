@@ -16,10 +16,10 @@
 #define XLS_DSLX_CPP_EVALUATE_H_
 
 #include "absl/status/statusor.h"
+#include "xls/dslx/abstract_interpreter.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
-#include "xls/dslx/interp_callback_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/ir/bits.h"
 
@@ -67,32 +67,32 @@ absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
 //     resulting from the function evaluation.
 absl::StatusOr<InterpValue> EvaluateFunction(
     Function* f, absl::Span<const InterpValue> args, const Span& span,
-    const SymbolicBindings& symbolic_bindings, InterpCallbackData* callbacks);
+    const SymbolicBindings& symbolic_bindings, AbstractInterpreter* interp);
 
 // Note: all interpreter "node evaluators" have the same signature.
 
 absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
                                              InterpBindings* bindings,
                                              ConcreteType* type_context,
-                                             InterpCallbackData* callbacks);
+                                             AbstractInterpreter* interp);
 
 absl::StatusOr<InterpValue> EvaluateNameRef(NameRef* expr,
                                             InterpBindings* bindings,
                                             ConcreteType* type_context,
-                                            InterpCallbackData* callbacks);
+                                            AbstractInterpreter* interp);
 
 absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
                                              InterpBindings* bindings,
                                              ConcreteType* type_context,
-                                             InterpCallbackData* callbacks);
+                                             AbstractInterpreter* interp);
 
 absl::StatusOr<InterpValue> EvaluateWhile(While* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
-                                          InterpCallbackData* callbacks);
+                                          AbstractInterpreter* interp);
 
 absl::StatusOr<InterpValue> EvaluateCarry(Carry* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
-                                          InterpCallbackData* callbacks);
+                                          AbstractInterpreter* interp);
 
 // Evaluates a Number AST node to a value.
 //
@@ -112,75 +112,76 @@ absl::StatusOr<InterpValue> EvaluateCarry(Carry* expr, InterpBindings* bindings,
 absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
                                            InterpBindings* bindings,
                                            ConcreteType* type_context,
-                                           InterpCallbackData* callbacks);
+                                           AbstractInterpreter* interp);
 
 // Evaluates a struct instance expression; e.g. `Foo { field: stuff }`.
-absl::StatusOr<InterpValue> EvaluateStructInstance(
-    StructInstance* expr, InterpBindings* bindings, ConcreteType* type_context,
-    InterpCallbackData* callbacks);
+absl::StatusOr<InterpValue> EvaluateStructInstance(StructInstance* expr,
+                                                   InterpBindings* bindings,
+                                                   ConcreteType* type_context,
+                                                   AbstractInterpreter* interp);
 
 // Evaluates a struct instance expression;
 // e.g. `Foo { field: stuff, ..other_foo }`.
 absl::StatusOr<InterpValue> EvaluateSplatStructInstance(
     SplatStructInstance* expr, InterpBindings* bindings,
-    ConcreteType* type_context, InterpCallbackData* callbacks);
+    ConcreteType* type_context, AbstractInterpreter* interp);
 
 // Evaluates a tuple expression; e.g. `(x, y)`.
 absl::StatusOr<InterpValue> EvaluateXlsTuple(XlsTuple* expr,
                                              InterpBindings* bindings,
                                              ConcreteType* type_context,
-                                             InterpCallbackData* callbacks);
+                                             AbstractInterpreter* interp);
 
 // Evaluates a let expression; e.g. `let x = y in z`
 absl::StatusOr<InterpValue> EvaluateLet(Let* expr, InterpBindings* bindings,
                                         ConcreteType* type_context,
-                                        InterpCallbackData* callbacks);
+                                        AbstractInterpreter* interp);
 
 // Evaluates a for expression.
 absl::StatusOr<InterpValue> EvaluateFor(For* expr, InterpBindings* bindings,
                                         ConcreteType* type_context,
-                                        InterpCallbackData* callbacks);
+                                        AbstractInterpreter* interp);
 
 // Evaluates a cast expression; e.g. `x as u32`.
 absl::StatusOr<InterpValue> EvaluateCast(Cast* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,
-                                         InterpCallbackData* callbacks);
+                                         AbstractInterpreter* interp);
 
 // Evaluates a unary operation expression; e.g. `-x`.
 absl::StatusOr<InterpValue> EvaluateUnop(Unop* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,
-                                         InterpCallbackData* callbacks);
+                                         AbstractInterpreter* interp);
 
 // Evaluates an array expression; e.g. `[a, b, c]`.
 absl::StatusOr<InterpValue> EvaluateArray(Array* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
-                                          InterpCallbackData* callbacks);
+                                          AbstractInterpreter* interp);
 
 // Evaluates a binary operation expression; e.g. `x + y`.
 absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
-                                          InterpCallbackData* callbacks);
+                                          AbstractInterpreter* interp);
 
 // Evaluates a ternary expression; e.g. `foo if bar else baz`.
 absl::StatusOr<InterpValue> EvaluateTernary(Ternary* expr,
                                             InterpBindings* bindings,
                                             ConcreteType* type_context,
-                                            InterpCallbackData* callbacks);
+                                            AbstractInterpreter* interp);
 
 // Evaluates an attribute expression; e.g. `x.y`.
 absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,
-                                         InterpCallbackData* callbacks);
+                                         AbstractInterpreter* interp);
 
 // Evaluates a match expression; e.g. `match x { ... }`.
 absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
-                                          InterpCallbackData* callbacks);
+                                          AbstractInterpreter* interp);
 
 // Evaluates an index expression; e.g. `a[i]`.
 absl::StatusOr<InterpValue> EvaluateIndex(Index* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
-                                          InterpCallbackData* callbacks);
+                                          AbstractInterpreter* interp);
 
 // Creates the top level bindings for a given module. We may not be able to
 // create a *complete* set of bindings if we've re-entered this routine; e.g. in
@@ -193,19 +194,19 @@ absl::StatusOr<InterpValue> EvaluateIndex(Index* expr, InterpBindings* bindings,
 //   callbacks: Provide ability to call back into the interpreter facilities
 //    e.g. on import or for evaluating constant value expressions.
 absl::StatusOr<InterpBindings> MakeTopLevelBindings(
-    Module* module, InterpCallbackData* callbacks);
+    Module* module, AbstractInterpreter* interp);
 
 using ConcretizeVariant = absl::variant<TypeAnnotation*, EnumDef*, StructDef*>;
 
 // Resolve "type" into a concrete type via expression evaluation.
 absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeType(
     ConcretizeVariant type, InterpBindings* bindings,
-    InterpCallbackData* callbacks);
+    AbstractInterpreter* interp);
 
 // As above, but specifically for concretizing TypeAnnotation nodes.
 absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
     TypeAnnotation* type, InterpBindings* bindings,
-    InterpCallbackData* callbacks);
+    AbstractInterpreter* interp);
 
 // Resolves (parametric) dimensions from deduction vs the current bindings.
 absl::StatusOr<int64> ResolveDim(
@@ -227,7 +228,7 @@ using DerefVariant = absl::variant<TypeAnnotation*, EnumDef*, StructDef*>;
 //       they're added to the back of this vector.
 absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
     TypeDefinition type_definition, InterpBindings* bindings,
-    InterpCallbackData* callbacks, std::vector<Expr*>* parametrics);
+    AbstractInterpreter* interp, std::vector<Expr*>* parametrics);
 
 }  // namespace xls::dslx
 

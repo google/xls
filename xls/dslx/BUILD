@@ -408,8 +408,8 @@ cc_library(
     srcs = ["builtins.cc"],
     hdrs = ["builtins.h"],
     deps = [
+        ":abstract_interpreter",
         ":ast",
-        ":interp_callback_data",
         ":interp_value",
         ":type_info",
         "//xls/common/status:ret_check",
@@ -420,8 +420,8 @@ cc_library(
 )
 
 cc_library(
-    name = "interp_callback_data",
-    hdrs = ["interp_callback_data.h"],
+    name = "abstract_interpreter",
+    hdrs = ["abstract_interpreter.h"],
     deps = [
         ":ast",
         ":concrete_type",
@@ -438,10 +438,10 @@ cc_library(
     srcs = ["evaluate.cc"],
     hdrs = ["evaluate.h"],
     deps = [
+        ":abstract_interpreter",
         ":ast",
         ":import_routines",
         ":interp_bindings",
-        ":interp_callback_data",
         ":interp_value",
         ":type_info",
         "//xls/common/status:ret_check",
@@ -483,12 +483,12 @@ cc_library(
     srcs = ["interpreter.cc"],
     hdrs = ["interpreter.h"],
     deps = [
+        ":abstract_interpreter",
         ":ast",
         ":builtins",
         ":evaluate",
         ":import_routines",
         ":interp_bindings",
-        ":interp_callback_data",
         ":interp_value",
         ":type_info",
         "//xls/common/status:ret_check",
