@@ -295,9 +295,9 @@ class NodeChecker : public DfsVisitor {
     if (actual_param_count != expected_param_count) {
       return absl::InternalError(
           StrFormat("Function %s used as counted_for body should have "
-                    "%d parameters, got %d instead: %s",
+                    "%d parameters, got %d instead; body type: %s; node: %s",
                     body->name(), expected_param_count, actual_param_count,
-                    counted_for->ToString()));
+                    body->GetType()->ToString(), counted_for->ToString()));
     }
 
     // Verify i is of type bits with a sufficient width and at least 1 bit
