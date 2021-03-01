@@ -28,6 +28,35 @@ namespace xls::dslx {
   return ImportTokens(absl::StrSplit(module_name, '.'));
 }
 
+absl::StatusOr<const ModuleInfo*> ImportCache::Get(
+    const ImportTokens& subject) const {
+  auto it = cache_.find(subject);
+  if (it == cache_.end()) {
+    return absl::NotFoundError("Module information was not found for import " +
+                               subject.ToString());
+  }
+  return &it->second;
+}
+
+absl::StatusOr<const ModuleInfo*> ImportCache::Put(const ImportTokens& subject,
+                                                   ModuleInfo module_info) {
+  auto it = cache_.insert({subject, std::move(module_info)});
+  if (!it.second) {
+    return absl::InvalidArgumentError(
+        "Module is already loaded for import of " + subject.ToString());
+  }
+  return &it.first->second;
+}
+
+absl::StatusOr<TypeInfo*> ImportCache::GetRootTypeInfoForNode(AstNode* node) {
+  XLS_RET_CHECK(node != nullptr);
+  return type_info_owner().GetRootTypeInfo(node->owner());
+}
+
+absl::StatusOr<TypeInfo*> ImportCache::GetRootTypeInfo(Module* module) {
+  return type_info_owner().GetRootTypeInfo(module);
+}
+
 static absl::StatusOr<std::filesystem::path> FindExistingPath(
     const ImportTokens& subject,
     absl::Span<const std::string> additional_search_paths) {

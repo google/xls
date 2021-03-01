@@ -73,38 +73,24 @@ class ImportTokens {
 // into.
 class ImportCache {
  public:
-  ImportCache() { XLS_VLOG(3) << "Creating ImportCache @ " << this; }
-
-  ~ImportCache() {
-    XLS_VLOG(3) << "Destroying ImportCache @ " << this;
-  }
-
   bool Contains(const ImportTokens& target) const {
     return cache_.find(target) != cache_.end();
   }
 
   // Note: returned pointer is not stable across mutations.
-  absl::StatusOr<const ModuleInfo*> Get(const ImportTokens& subject) const {
-    auto it = cache_.find(subject);
-    if (it == cache_.end()) {
-      return absl::NotFoundError(
-          "Module information was not found for import " + subject.ToString());
-    }
-    return &it->second;
-  }
+  absl::StatusOr<const ModuleInfo*> Get(const ImportTokens& subject) const;
 
   // Note: returned pointer is not stable across mutations.
   absl::StatusOr<const ModuleInfo*> Put(const ImportTokens& subject,
-                                        ModuleInfo module_info) {
-    auto it = cache_.insert({subject, std::move(module_info)});
-    if (!it.second) {
-      return absl::InvalidArgumentError(
-          "Module is already loaded for import of " + subject.ToString());
-    }
-    return &it.first->second;
-  }
+                                        ModuleInfo module_info);
 
   TypeInfoOwner& type_info_owner() { return type_info_owner_; }
+
+  // Helper that gets the "root" type information for the module of the given
+  // node. (Note that type information lives in a tree configuration where
+  // parametric specializations live under the root, see TypeInfo.)
+  absl::StatusOr<TypeInfo*> GetRootTypeInfoForNode(AstNode* node);
+  absl::StatusOr<TypeInfo*> GetRootTypeInfo(Module* module);
 
  private:
   absl::flat_hash_map<ImportTokens, ModuleInfo> cache_;

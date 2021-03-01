@@ -38,7 +38,7 @@ absl::StatusOr<std::string> MangleDslxName(
 //
 // Args:
 //   module: Module to convert.
-//   type_info: Concrete type information used in conversion.
+//   import_cache: Contains type information used in conversion.
 //   emit_positions: Whether to emit positional metadata into the output IR.
 //   traverse_tests: Whether to convert functions called in DSLX test
 //   constructs.
@@ -47,11 +47,12 @@ absl::StatusOr<std::string> MangleDslxName(
 // Returns:
 //   The IR package that corresponds to this module.
 absl::StatusOr<std::unique_ptr<xls::Package>> ConvertModuleToPackage(
-    Module* module, TypeInfo* type_info, bool emit_positions = true,
+    Module* module, ImportCache* import_cache, bool emit_positions = true,
     bool traverse_tests = false);
 
 // Wrapper around ConvertModuleToPackage that converts to IR text.
-absl::StatusOr<std::string> ConvertModule(Module* module, TypeInfo* type_info,
+absl::StatusOr<std::string> ConvertModule(Module* module,
+                                          ImportCache* import_cache,
                                           bool emit_positions = true);
 
 // Converts a single function into its emitted text form.
@@ -59,7 +60,9 @@ absl::StatusOr<std::string> ConvertModule(Module* module, TypeInfo* type_info,
 // Args:
 //   module: Module we're converting a function within.
 //   entry_function_name: Entry function used as the root for conversion.
-//   type_info: Type information about module from the typechecking phase.
+//   type_info: Contains type information used in conversion -- note that his
+//    may be a "derived" (non-root) TypeInfo, e.g. when the function being
+//    converted is parametrically instantiated.
 //   symbolic_bindings: Parametric bindings to use during conversion, if this
 //     function is parametric.
 //   emit_positions: Whether to emit position information into the IR based on
@@ -72,7 +75,8 @@ absl::StatusOr<std::string> ConvertModule(Module* module, TypeInfo* type_info,
 // Implementation note: creates a temporary IR package based on module's name.
 absl::StatusOr<std::string> ConvertOneFunction(
     Module* module, absl::string_view entry_function_name, TypeInfo* type_info,
-    const SymbolicBindings* symbolic_bindings, bool emit_positions);
+    ImportCache* import_cache, const SymbolicBindings* symbolic_bindings,
+    bool emit_positions);
 
 // Converts an interpreter value to an IR value.
 absl::StatusOr<Value> InterpValueToValue(const InterpValue& v);

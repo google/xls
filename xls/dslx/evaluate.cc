@@ -393,6 +393,7 @@ static absl::Status EvaluateDerivedParametrics(
 absl::StatusOr<InterpValue> EvaluateFunction(
     Function* f, absl::Span<const InterpValue> args, const Span& span,
     const SymbolicBindings& symbolic_bindings, AbstractInterpreter* interp) {
+  XLS_RET_CHECK_EQ(f->owner(), interp->GetCurrentTypeInfo()->module());
   XLS_VLOG(5) << "Evaluating function: " << f->identifier()
               << " symbolic_bindings: " << symbolic_bindings;
   if (args.size() != f->params().size()) {
@@ -592,6 +593,7 @@ absl::StatusOr<InterpValue> EvaluateArray(Array* expr, InterpBindings* bindings,
 absl::StatusOr<InterpValue> EvaluateCast(Cast* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,
                                          AbstractInterpreter* interp) {
+  XLS_RET_CHECK_EQ(expr->owner(), interp->GetCurrentTypeInfo()->module());
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ConcreteType> type,
       ConcretizeTypeAnnotation(expr->type(), bindings, interp));
@@ -710,9 +712,13 @@ static absl::StatusOr<InterpValue> EvaluateEnumRefHelper(
   TypeAnnotation* underlying_type = enum_def->type();
   XLS_ASSIGN_OR_RETURN(InterpBindings fresh_bindings,
                        MakeTopLevelBindings(underlying_type->owner(), interp));
+
+  AbstractInterpreter::ScopedTypeInfoSwap stis_type(interp, underlying_type);
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ConcreteType> concrete_type,
       ConcretizeTypeAnnotation(underlying_type, &fresh_bindings, interp));
+
+  AbstractInterpreter::ScopedTypeInfoSwap stis_value(interp, value_node);
   XLS_ASSIGN_OR_RETURN(InterpValue raw_value,
                        interp->Eval(value_node, &fresh_bindings));
   return InterpValue::MakeEnum(raw_value.GetBitsOrDie(), enum_def);
@@ -784,7 +790,7 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
                                              AbstractInterpreter* interp) {
   XLS_ASSIGN_OR_RETURN(auto subject,
                        ResolveColonRefSubject(expr, bindings, interp));
-  XLS_VLOG(3) << "ColonRef resolved subject: " << ToAstNode(subject)->ToString()
+  XLS_VLOG(5) << "ColonRef resolved subject: " << ToAstNode(subject)->ToString()
               << " attr: " << expr->attr();
   if (absl::holds_alternative<EnumDef*>(subject)) {
     auto* enum_def = absl::get<EnumDef*>(subject);
@@ -801,8 +807,10 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
   }
   if (absl::holds_alternative<ConstantDef*>(*member.value())) {
     auto* cd = absl::get<ConstantDef*>(*member.value());
+    XLS_VLOG(5) << "ColonRef resolved to ConstantDef: " << cd->ToString();
     XLS_ASSIGN_OR_RETURN(InterpBindings module_top,
                          MakeTopLevelBindings(module, interp));
+    AbstractInterpreter::ScopedTypeInfoSwap stis(interp, module);
     return interp->Eval(cd->value(), &module_top);
   }
   return absl::InternalError(
@@ -901,14 +909,20 @@ absl::StatusOr<InterpValue> EvaluateTernary(Ternary* expr,
 absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
                                          ConcreteType* type_context,
                                          AbstractInterpreter* interp) {
-  XLS_ASSIGN_OR_RETURN(InterpValue lhs, interp->Eval(expr->lhs(), bindings));
   TypeInfo* type_info = interp->GetCurrentTypeInfo();
-  XLS_RET_CHECK(type_info != nullptr);
+  XLS_RET_CHECK_EQ(expr->owner(), type_info->module());
+
+  // Resolve the tuple type to figure out what index of the tuple we're
+  // grabbing.
+  XLS_ASSIGN_OR_RETURN(InterpValue lhs, interp->Eval(expr->lhs(), bindings));
   absl::optional<const ConcreteType*> maybe_type =
       type_info->GetItem(expr->lhs());
-  XLS_RET_CHECK(maybe_type.has_value()) << "LHS of attr should have type info";
+  XLS_RET_CHECK(maybe_type.has_value())
+      << "LHS of attr: " << expr << " should have type info in: " << type_info
+      << " @ " << expr->lhs()->span();
   auto* tuple_type = dynamic_cast<const TupleType*>(maybe_type.value());
   XLS_RET_CHECK(tuple_type != nullptr) << (*maybe_type)->ToString();
+
   absl::optional<int64> index;
   for (int64 i = 0; i < tuple_type->size(); ++i) {
     absl::string_view name = tuple_type->GetMemberName(i);
@@ -1094,6 +1108,8 @@ absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
 
 absl::StatusOr<InterpBindings> MakeTopLevelBindings(
     Module* module, AbstractInterpreter* interp) {
+  AbstractInterpreter::ScopedTypeInfoSwap stis(interp, module);
+
   XLS_VLOG(4) << "Making top level bindings for module: " << module->name();
   InterpBindings b(/*parent=*/nullptr);
 
@@ -1315,12 +1331,11 @@ static absl::StatusOr<InterpBindings> BindingsWithStructParametrics(
   return nested_bindings;
 }
 
-// Turns the various possible subtypes for a TypeAnnotation AST node into a
-// concrete type.
 absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
     TypeAnnotation* type, InterpBindings* bindings,
     AbstractInterpreter* interp) {
-  XLS_VLOG(3) << "Concretizing type annotation: " << type->ToString()
+  XLS_RET_CHECK_EQ(type->owner(), interp->GetCurrentTypeInfo()->module());
+  XLS_VLOG(5) << "Concretizing type annotation: " << type->ToString()
               << " node type: " << type->GetNodeTypeName() << " in module "
               << type->owner()->name();
 
@@ -1370,6 +1385,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
         bindings->AddEntry(key, entry.value());
       }
     }
+
+    AbstractInterpreter::ScopedTypeInfoSwap stis(interp, derefd_module);
     return ConcretizeType(deref, bindings, interp);
   }
 
@@ -1414,6 +1431,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
 absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeType(
     ConcretizeVariant type, InterpBindings* bindings,
     AbstractInterpreter* interp) {
+  XLS_RET_CHECK_EQ(ToAstNode(type)->owner(),
+                   interp->GetCurrentTypeInfo()->module());
   // class EnumDef
   if (EnumDef** penum_def = absl::get_if<EnumDef*>(&type)) {
     return ConcretizeType((*penum_def)->type(), bindings, interp);

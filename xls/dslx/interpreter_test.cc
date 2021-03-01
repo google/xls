@@ -37,11 +37,14 @@ TEST(InterpreterTest, RunIdentityFn) {
 
   module->AddTop(function);
 
-  TypeInfoOwner type_info_owner;
-  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * type_info,
-                           type_info_owner.New(/*module=*/nullptr));
-  Interpreter interp(module.get(), type_info, /*typecheck=*/nullptr,
-                     /*additional_search_paths=*/{}, /*import_cache=*/nullptr);
+  ImportCache import_cache;
+
+  // Populate a type information entity so we can resolve it.
+  XLS_ASSERT_OK(import_cache.type_info_owner().New(module.get()).status());
+
+  Interpreter interp(module.get(), /*typecheck=*/nullptr,
+                     /*additional_search_paths=*/{},
+                     /*import_cache=*/&import_cache);
   InterpValue mol = InterpValue::MakeU32(42);
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue result, interp.RunFunction("id", {mol}));
   EXPECT_TRUE(mol.Eq(result));
@@ -53,7 +56,7 @@ TEST(InterpreterTest, RunTokenIdentityFn) {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_cache));
-  Interpreter interp(tm.module, tm.type_info, /*typecheck=*/nullptr,
+  Interpreter interp(tm.module, /*typecheck=*/nullptr,
                      /*additional_search_paths=*/{},
                      /*import_cache=*/&import_cache);
   InterpValue tok = InterpValue::MakeToken();

@@ -19,6 +19,17 @@
 
 namespace xls::dslx {
 
+Callee::Callee(Function* f, Module* m, TypeInfo* type_info,
+               SymbolicBindings sym_bindings)
+    : f_(f),
+      m_(m),
+      type_info_(type_info),
+      sym_bindings_(std::move(sym_bindings)) {
+  XLS_CHECK_EQ(f->owner(), m);
+  XLS_CHECK_EQ(type_info->module(), m)
+      << type_info->module()->name() << " vs " << m->name();
+}
+
 static std::string CalleesToString(absl::Span<const Callee> callees) {
   return absl::StrCat("[",
                       absl::StrJoin(callees, ", ",
@@ -40,8 +51,8 @@ static std::string ConversionRecordsToString(
 }
 
 std::string Callee::ToString() const {
-  return absl::StrFormat("Callee{m=%s, f=%s, bindings=%s}", m->name(),
-                         f->identifier(), sym_bindings.ToString());
+  return absl::StrFormat("Callee{m=%s, f=%s, bindings=%s}", m_->name(),
+                         f_->identifier(), sym_bindings_.ToString());
 }
 
 std::string ConversionRecord::ToString() const {
@@ -54,13 +65,16 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
  public:
   InvocationVisitor(Module* module, TypeInfo* type_info,
                     const SymbolicBindings& bindings)
-      : module_(module), type_info_(type_info), bindings_(bindings) {}
+      : module_(module), type_info_(type_info), bindings_(bindings) {
+    XLS_CHECK_EQ(type_info_->module(), module_);
+  }
 
   ~InvocationVisitor() override = default;
 
   absl::Status HandleInvocation(Invocation* node) {
     Module* this_m = nullptr;
     Function* f = nullptr;
+    TypeInfo* invocation_type_info = type_info_;
     if (auto* colon_ref = dynamic_cast<ColonRef*>(node->callee())) {
       absl::optional<Import*> import = colon_ref->ResolveImportSubject();
       XLS_RET_CHECK(import.has_value());
@@ -68,6 +82,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
           type_info_->GetImported(*import);
       XLS_RET_CHECK(info.has_value());
       this_m = (*info)->module;
+      invocation_type_info = (*info)->type_info;
       f = this_m->GetFunction(colon_ref->attr()).value();
     } else if (auto* name_ref = dynamic_cast<NameRef*>(node->callee())) {
       this_m = module_;
@@ -114,24 +129,19 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
           node->callee()->ToString());
     }
 
-    absl::optional<TypeInfo*> invocation_type_info;
     XLS_VLOG(5) << "Getting callee bindings for invocation: "
                 << node->ToString() << " @ " << node->span()
                 << " caller bindings: " << bindings_.ToString();
     absl::optional<const SymbolicBindings*> callee_bindings =
         type_info_->GetInvocationSymbolicBindings(node, bindings_);
-    if (callee_bindings.has_value()) {
+    if (callee_bindings.has_value() && !(*callee_bindings)->empty()) {
       XLS_RET_CHECK(*callee_bindings != nullptr);
       XLS_VLOG(5) << "Found callee bindings: " << **callee_bindings;
       invocation_type_info =
-          type_info_->GetInstantiation(node, **callee_bindings);
-    }
-    // If we don't have any special type info to use for the invocation
-    if (!invocation_type_info.has_value()) {
-      invocation_type_info.emplace(type_info_);
+          type_info_->GetInstantiation(node, **callee_bindings).value();
     }
     callees_.push_back(
-        Callee{f, this_m, invocation_type_info.value(),
+        Callee{f, this_m, invocation_type_info,
                callee_bindings ? **callee_bindings : SymbolicBindings()});
     return absl::OkStatus();
   }
@@ -160,6 +170,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
 static absl::StatusOr<std::vector<Callee>> GetCallees(
     AstNode* node, Module* m, TypeInfo* type_info,
     const SymbolicBindings& bindings) {
+  XLS_CHECK_EQ(type_info->module(), m);
   InvocationVisitor visitor(m, type_info, bindings);
   XLS_RETURN_IF_ERROR(
       WalkPostOrder(ToAstNode(node), &visitor, /*want_types=*/true));
@@ -195,7 +206,7 @@ static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
   std::vector<Callee> non_ready;
   {
     for (const Callee& callee : orig_callees) {
-      if (!IsReady(callee.f, callee.m, callee.sym_bindings, ready)) {
+      if (!IsReady(callee.f(), callee.m(), callee.sym_bindings(), ready)) {
         non_ready.push_back(callee);
       }
     }
@@ -204,9 +215,9 @@ static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
   // For all the remaining callees (that were not ready), add them to the list
   // before us, since we depend upon them.
   for (const Callee& callee : non_ready) {
-    XLS_RETURN_IF_ERROR(
-        AddToReady(absl::variant<Function*, TestFunction*>(callee.f), callee.m,
-                   callee.type_info, callee.sym_bindings, ready));
+    XLS_RETURN_IF_ERROR(AddToReady(
+        absl::variant<Function*, TestFunction*>(callee.f()), callee.m(),
+        callee.type_info(), callee.sym_bindings(), ready));
   }
 
   return absl::OkStatus();
@@ -217,6 +228,7 @@ static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
                                Module* m, TypeInfo* type_info,
                                const SymbolicBindings& bindings,
                                std::vector<ConversionRecord>* ready) {
+  XLS_CHECK_EQ(type_info->module(), m);
   if (IsReady(f, m, bindings, ready)) {
     return absl::OkStatus();
   }
@@ -242,6 +254,7 @@ static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
 absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
                                                        TypeInfo* type_info,
                                                        bool traverse_tests) {
+  XLS_CHECK_EQ(type_info->module(), module);
   std::vector<ConversionRecord> ready;
 
   for (ModuleMember member : module->top()) {

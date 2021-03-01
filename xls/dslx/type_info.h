@@ -43,13 +43,6 @@ struct StartAndWidth {
 struct SliceData {
   Slice* node;
   absl::flat_hash_map<SymbolicBindings, StartAndWidth> bindings_to_start_width;
-
-  void Update(const SliceData& other) {
-    XLS_CHECK_EQ(node, other.node);
-    for (const auto& [bindings, start_width] : other.bindings_to_start_width) {
-      bindings_to_start_width[bindings] = start_width;
-    }
-  }
 };
 
 // Parametric instantiation information related to an invocation AST node.
@@ -62,9 +55,6 @@ struct InvocationData {
   // Type information that is specialized for a particular parametric
   // instantiation of an invocation.
   absl::flat_hash_map<SymbolicBindings, TypeInfo*> instantiations;
-
-  // Adds all of the information in "other" to this InvocationData.
-  void Update(const InvocationData& other);
 
   std::string ToString() const;
 };
@@ -85,6 +75,10 @@ class TypeInfoOwner {
   // root type info.
   absl::StatusOr<TypeInfo*> New(Module* module, TypeInfo* parent = nullptr);
 
+  // Retrieves the root type information for the given module, or a not-found
+  // status error if it is not present.
+  absl::StatusOr<TypeInfo*> GetRootTypeInfo(Module* module);
+
  private:
   // Mapping from module to the "root" (or "parentmost") type info -- these have
   // nullptr as their parent. There should only be one of these for any given
@@ -98,20 +92,12 @@ class TypeInfoOwner {
 
 class TypeInfo {
  public:
-  ~TypeInfo() {
-    XLS_VLOG(3) << "Destroying type info for module \"" << module_->name()
-                << "\" @ " << this << " parent " << parent_;
-  }
-
   // Type information can be "differential"; e.g. when we obtain type
   // information for a particular parametric instantiation the type information
   // is backed by the enclosing type information for the module. Therefore, type
   // information objects can have a "parent" they delegate queries to if they
   // can't satisfy the information from their local mappings.
   TypeInfo* parent() const { return parent_; }
-
-  // Updates this type information object with data from 'other'.
-  void Update(const TypeInfo& other);
 
   // Returns if there's type info at 'invocation' with given caller bindings.
   bool HasInstantiation(Invocation* invocation,
@@ -164,6 +150,7 @@ class TypeInfo {
 
   // Sets the type associated with the given AST node.
   void SetItem(AstNode* key, const ConcreteType& value) {
+    XLS_CHECK_EQ(key->owner(), module_);
     dict_[key] = value.CloneToUnique();
   }
 
@@ -192,6 +179,10 @@ class TypeInfo {
     return imports_;
   }
 
+  // Returns the type information for m, if it is available either as this
+  // module or an import of this module.
+  absl::optional<TypeInfo*> GetImportedTypeInfo(Module* m);
+
   // Invocation AST node based information.
   absl::optional<TypeInfo*> GetInstantiation(
       Invocation* invocation, const SymbolicBindings& caller) const;
@@ -203,6 +194,10 @@ class TypeInfo {
   // Returns the expression for a ConstantDef that has the given name_def..
   absl::optional<Expr*> GetConstInt(NameDef* name_def) const;
 
+  // Retrieves a string that shows the module associated with this type info and
+  // which imported modules are present, suitable for debugging.
+  std::string GetImportsDebugString() const;
+
  private:
   friend class TypeInfoOwner;
 
@@ -212,26 +207,28 @@ class TypeInfo {
   //  parent: Type information that should be queried from the same scope (i.e.
   //    if an AST node is not resolved in the local member maps, the lookup is
   //    then performed in the parent, and so on transitively).
-  explicit TypeInfo(TypeInfoOwner* owner, Module* module,
-                    TypeInfo* parent = nullptr)
+  TypeInfo(TypeInfoOwner* owner, Module* module, TypeInfo* parent = nullptr)
       : owner_(owner), module_(module), parent_(parent) {
     XLS_VLOG(3) << "Created type info for module \"" << module_->name()
                 << "\" @ " << this << " parent " << parent;
+    if (parent_ != nullptr) {
+      XLS_CHECK_EQ(parent_->module(), module_);
+    }
   }
 
-  // Traverses to the 'most parent' TypeInfo. This is a place to stash
-  // context-free information (e.g. that is found in a parametric instantiation
-  // context, but that we want to be accessible to other parametric
-  // instantiations).
-  TypeInfo* GetTop() {
+  // Traverses to the 'root' (AKA 'most parent') TypeInfo. This is a place to
+  // stash context-free information (e.g. that is found in a parametric
+  // instantiation context, but that we want to be accessible to other
+  // parametric instantiations).
+  TypeInfo* GetRoot() {
     TypeInfo* t = this;
     while (t->parent_ != nullptr) {
       t = t->parent_;
     }
     return t;
   }
-  const TypeInfo* GetTop() const {
-    return const_cast<TypeInfo*>(this)->GetTop();
+  const TypeInfo* GetRoot() const {
+    return const_cast<TypeInfo*>(this)->GetRoot();
   }
 
   TypeInfoOwner* owner_;

@@ -24,13 +24,22 @@ namespace xls::dslx {
 
 // Describes a callee function in the conversion order (see
 // ConversionRecord::callees).
-struct Callee {
-  Function* f;
-  Module* m;
-  TypeInfo* type_info;
-  SymbolicBindings sym_bindings;
+class Callee {
+ public:
+  Callee(Function* f, Module* m, TypeInfo* type_info,
+         SymbolicBindings sym_bindings);
 
+  Function* f() const { return f_; }
+  Module* m() const { return m_; }
+  TypeInfo* type_info() const { return type_info_; }
+  const SymbolicBindings& sym_bindings() const { return sym_bindings_; }
   std::string ToString() const;
+
+ private:
+  Function* f_;
+  Module* m_;
+  TypeInfo* type_info_;
+  SymbolicBindings sym_bindings_;
 };
 
 // Record used in sequence, noting order functions should be converted in.

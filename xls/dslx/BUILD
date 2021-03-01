@@ -421,6 +421,7 @@ cc_library(
 
 cc_library(
     name = "abstract_interpreter",
+    srcs = ["abstract_interpreter.cc"],
     hdrs = ["abstract_interpreter.h"],
     deps = [
         ":ast",
@@ -712,6 +713,7 @@ cc_binary(
         ":error_printer",
         ":interpreter",
         ":ir_converter",
+        ":parse_and_typecheck",
         ":parser",
         ":scanner",
         ":typecheck",

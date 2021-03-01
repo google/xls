@@ -18,16 +18,6 @@
 
 namespace xls::dslx {
 
-void InvocationData::Update(const InvocationData& other) {
-  XLS_CHECK_EQ(node, other.node);
-  for (const auto& item : other.symbolic_bindings_map) {
-    symbolic_bindings_map.insert(item);
-  }
-  for (const auto& item : other.instantiations) {
-    instantiations.insert(item);
-  }
-}
-
 std::string InvocationData::ToString() const {
   return absl::StrCat("[",
                       absl::StrJoin(symbolic_bindings_map, ", ",
@@ -57,42 +47,34 @@ absl::StatusOr<TypeInfo*> TypeInfoOwner::New(Module* module, TypeInfo* parent) {
   return result;
 }
 
-// -- class typeInfo
-
-void TypeInfo::Update(const TypeInfo& other) {
-  for (const auto& [node, type] : other.dict_) {
-    dict_[node] = type->CloneToUnique();
+absl::StatusOr<TypeInfo*> TypeInfoOwner::GetRootTypeInfo(Module* module) {
+  auto it = module_to_root_.find(module);
+  if (it == module_to_root_.end()) {
+    return absl::NotFoundError(absl::StrCat(
+        "Could not find (root) type information for module: ", module->name()));
   }
-  for (const auto& item : other.imports_) {
-    imports_.insert(item);
-  }
-  // Merge in all the invocation information.
-  for (const auto& [node, other_data] : other.invocations_) {
-    auto it = invocations_.find(node);
-    if (it == invocations_.end()) {
-      invocations_[node] = other_data;
-    } else {
-      InvocationData& data = it->second;
-      data.Update(other_data);
-    }
-  }
-  // Merge in all the slice information.
-  for (const auto& [node, other_data] : other.slices_) {
-    auto it = slices_.find(node);
-    if (it == slices_.end()) {
-      slices_[node] = other_data;
-    } else {
-      SliceData& data = it->second;
-      data.Update(other_data);
-    }
-  }
+  return it->second;
 }
 
+// -- class TypeInfo
+
 bool TypeInfo::Contains(AstNode* key) const {
+  XLS_CHECK_EQ(key->owner(), module_);
   return dict_.contains(key) || (parent_ != nullptr && parent_->Contains(key));
 }
 
+std::string TypeInfo::GetImportsDebugString() const {
+  return absl::StrFormat(
+      "module %s imports:\n  %s", module()->name(),
+      absl::StrJoin(imports_, "\n  ", [](std::string* out, const auto& item) {
+        absl::StrAppend(out, item.second.module->name());
+      }));
+}
+
 absl::optional<ConcreteType*> TypeInfo::GetItem(AstNode* key) const {
+  XLS_CHECK_EQ(key->owner(), module_)
+      << key->owner()->name() << " vs " << module_->name()
+      << " key: " << key->ToString();
   auto it = dict_.find(key);
   if (it != dict_.end()) {
     return it->second.get();
@@ -106,7 +88,8 @@ absl::optional<ConcreteType*> TypeInfo::GetItem(AstNode* key) const {
 void TypeInfo::AddInvocationSymbolicBindings(Invocation* invocation,
                                              SymbolicBindings caller,
                                              SymbolicBindings callee) {
-  TypeInfo* top = GetTop();
+  XLS_CHECK_EQ(invocation->owner(), module_);
+  TypeInfo* top = GetRoot();
   XLS_VLOG(3) << "Type info " << top
               << " adding symbolic bindings for invocation: " << invocation
               << " " << invocation->ToString() << " @ " << invocation->span()
@@ -127,12 +110,16 @@ void TypeInfo::AddInvocationSymbolicBindings(Invocation* invocation,
 
 bool TypeInfo::HasInstantiation(Invocation* invocation,
                                 const SymbolicBindings& caller) const {
+  XLS_CHECK_EQ(invocation->owner(), module_)
+      << invocation->owner()->name() << " vs " << module_->name() << " @ "
+      << invocation->span();
   return GetInstantiation(invocation, caller).has_value();
 }
 
 absl::optional<TypeInfo*> TypeInfo::GetInstantiation(
     Invocation* invocation, const SymbolicBindings& caller) const {
-  const TypeInfo* top = GetTop();
+  XLS_CHECK_EQ(invocation->owner(), module_);
+  const TypeInfo* top = GetRoot();
   auto it = top->invocations_.find(invocation);
   if (it == top->invocations_.end()) {
     XLS_VLOG(5) << "Could not find instantiation for invocation: "
@@ -152,14 +139,17 @@ absl::optional<TypeInfo*> TypeInfo::GetInstantiation(
 
 void TypeInfo::AddInstantiation(Invocation* invocation, SymbolicBindings caller,
                                 TypeInfo* type_info) {
-  TypeInfo* top = GetTop();
+  XLS_CHECK_EQ(invocation->owner(), module_);
+  TypeInfo* top = GetRoot();
   InvocationData& data = top->invocations_[invocation];
   data.instantiations[caller] = type_info;
 }
 
 absl::optional<const SymbolicBindings*> TypeInfo::GetInvocationSymbolicBindings(
     Invocation* invocation, const SymbolicBindings& caller) const {
-  const TypeInfo* top = GetTop();
+  XLS_CHECK_EQ(invocation->owner(), module_)
+      << invocation->owner()->name() << " vs " << module_->name();
+  const TypeInfo* top = GetRoot();
   XLS_VLOG(3) << absl::StreamFormat(
       "TypeInfo %p getting invocation symbolic bindings: %p %s @ %s %s", top,
       invocation, invocation->ToString(), invocation->span().ToString(),
@@ -188,7 +178,8 @@ absl::optional<const SymbolicBindings*> TypeInfo::GetInvocationSymbolicBindings(
 void TypeInfo::AddSliceStartAndWidth(Slice* node,
                                      const SymbolicBindings& symbolic_bindings,
                                      StartAndWidth start_width) {
-  TypeInfo* top = GetTop();
+  XLS_CHECK_EQ(node->owner(), module_);
+  TypeInfo* top = GetRoot();
   auto it = top->slices_.find(node);
   if (it == top->slices_.end()) {
     top->slices_[node] =
@@ -201,7 +192,8 @@ void TypeInfo::AddSliceStartAndWidth(Slice* node,
 
 absl::optional<StartAndWidth> TypeInfo::GetSliceStartAndWidth(
     Slice* node, const SymbolicBindings& symbolic_bindings) const {
-  const TypeInfo* top = GetTop();
+  XLS_CHECK_EQ(node->owner(), module_);
+  const TypeInfo* top = GetRoot();
   auto it = top->slices_.find(node);
   if (it == top->slices_.end()) {
     return absl::nullopt;
@@ -215,23 +207,41 @@ absl::optional<StartAndWidth> TypeInfo::GetSliceStartAndWidth(
 }
 
 void TypeInfo::AddImport(Import* import, Module* module, TypeInfo* type_info) {
-  imports_[import] = ImportedInfo{module, type_info};
-  Update(*type_info);
+  XLS_CHECK_EQ(import->owner(), module_);
+  GetRoot()->imports_[import] = ImportedInfo{module, type_info};
 }
 
 absl::optional<const ImportedInfo*> TypeInfo::GetImported(
     Import* import) const {
-  auto it = imports_.find(import);
-  if (it == imports_.end()) {
-    if (parent_ != nullptr) {
-      return parent_->GetImported(import);
-    }
+  XLS_CHECK_EQ(import->owner(), module_)
+      << "Import node from: " << import->owner()->name() << " vs TypeInfo for "
+      << module_->name();
+  auto* self = GetRoot();
+  auto it = self->imports_.find(import);
+  if (it == self->imports_.end()) {
     return absl::nullopt;
   }
   return &it->second;
 }
 
+absl::optional<TypeInfo*> TypeInfo::GetImportedTypeInfo(Module* m) {
+  TypeInfo* root = GetRoot();
+  if (root != this) {
+    return root->GetImportedTypeInfo(m);
+  }
+  if (m == module()) {
+    return this;
+  }
+  for (auto& [import, info] : imports_) {
+    if (info.module == m) {
+      return info.type_info;
+    }
+  }
+  return absl::nullopt;
+}
+
 absl::optional<Expr*> TypeInfo::GetConstInt(NameDef* name_def) const {
+  XLS_CHECK_EQ(name_def->owner(), module_);
   auto it = name_to_const_.find(name_def);
   if (it == name_to_const_.end()) {
     if (parent_ != nullptr) {

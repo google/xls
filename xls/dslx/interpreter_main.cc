@@ -25,6 +25,7 @@
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/interpreter.h"
 #include "xls/dslx/ir_converter.h"
+#include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/parser.h"
 #include "xls/dslx/scanner.h"
 #include "xls/dslx/typecheck.h"
@@ -64,7 +65,7 @@ absl::Status RunQuickCheck(Interpreter* interp, Package* ir_package,
   XLS_ASSIGN_OR_RETURN(
       std::string ir_name,
       MangleDslxName(fn->identifier(), fn->GetFreeParametricKeySet(),
-                     interp->module()));
+                     interp->entry_module()));
   XLS_ASSIGN_OR_RETURN(xls::Function * ir_function,
                        ir_package->GetFunction(ir_name));
 
@@ -80,9 +81,12 @@ absl::Status RunQuickCheck(Interpreter* interp, Package* ir_package,
     return absl::OkStatus();
   }
 
+  XLS_RET_CHECK_EQ(interp->current_type_info()->module(),
+                   interp->entry_module());
   const std::vector<Value>& last_argset = argsets.back();
-  XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
-                       interp->type_info()->GetItemAs<FunctionType>(fn));
+  XLS_ASSIGN_OR_RETURN(
+      FunctionType * fn_type,
+      interp->current_type_info()->GetItemAs<FunctionType>(fn));
   const std::vector<std::unique_ptr<ConcreteType>>& params = fn_type->params();
 
   std::vector<InterpValue> dslx_argset;
@@ -143,32 +147,20 @@ absl::StatusOr<bool> ParseAndTest(
   };
 
   ImportCache import_cache;
-
-  Scanner scanner{std::string(filename), std::string(program)};
-  Parser parser(std::string(module_name), &scanner);
-  absl::StatusOr<std::unique_ptr<Module>> module_or = parser.ParseModule();
-  if (!module_or.ok()) {
-    if (TryPrintError(module_or.status())) {
+  absl::StatusOr<TypecheckedModule> tm_or =
+      ParseAndTypecheck(program, filename, module_name, &import_cache);
+  if (!tm_or.ok()) {
+    if (TryPrintError(tm_or.status())) {
       return true;
     }
-    return module_or.status();
+    return tm_or.status();
   }
-  auto& module = module_or.value();
-
-  absl::StatusOr<TypeInfo*> type_info_or =
-      CheckModule(module.get(), &import_cache, dslx_paths);
-  if (!type_info_or.ok()) {
-    if (TryPrintError(type_info_or.status())) {
-      return true;
-    }
-    return type_info_or.status();
-  }
-  TypeInfo* type_info = type_info_or.value();
+  Module* entry_module = tm_or.value().module;
 
   std::unique_ptr<Package> ir_package;
   if (compare_jit) {
     XLS_ASSIGN_OR_RETURN(ir_package,
-                         ConvertModuleToPackage(module.get(), type_info,
+                         ConvertModuleToPackage(entry_module, &import_cache,
                                                 /*emit_positions=*/true,
                                                 /*traverse_tests=*/true));
   }
@@ -177,12 +169,12 @@ absl::StatusOr<bool> ParseAndTest(
     return CheckModule(module, &import_cache, dslx_paths);
   };
 
-  Interpreter interpreter(module.get(), type_info, typecheck_callback,
-                          dslx_paths, &import_cache, /*trace_all=*/trace_all,
+  Interpreter interpreter(entry_module, typecheck_callback, dslx_paths,
+                          &import_cache, /*trace_all=*/trace_all,
                           /*ir_package=*/ir_package.get());
 
   // Run unit tests.
-  for (const std::string& test_name : module->GetTestNames()) {
+  for (const std::string& test_name : entry_module->GetTestNames()) {
     if (!TestMatchesFilter(test_name, test_filter)) {
       skipped += 1;
       continue;
@@ -204,7 +196,7 @@ absl::StatusOr<bool> ParseAndTest(
             << std::endl;
 
   // Run quickchecks.
-  if (ir_package != nullptr && !module->GetQuickChecks().empty()) {
+  if (ir_package != nullptr && !entry_module->GetQuickChecks().empty()) {
     if (!seed.has_value()) {
       // Note: we *want* to *provide* non-determinism by default. See
       // https://abseil.io/docs/cpp/guides/random#stability-of-generated-sequences
@@ -212,7 +204,7 @@ absl::StatusOr<bool> ParseAndTest(
       seed = static_cast<int64>(getpid()) * static_cast<int64>(time(nullptr));
     }
     std::cerr << "[ SEED " << *seed << " ]" << std::endl;
-    for (QuickCheck* quickcheck : module->GetQuickChecks()) {
+    for (QuickCheck* quickcheck : entry_module->GetQuickChecks()) {
       const std::string& test_name = quickcheck->identifier();
       std::cerr << "[ RUN QUICKCHECK        ] " << test_name
                 << " count: " << quickcheck->test_count() << std::endl;
@@ -226,7 +218,7 @@ absl::StatusOr<bool> ParseAndTest(
     }
     std::cerr << absl::StreamFormat(
                      "[=======================] %d quickcheck(s) ran.",
-                     module->GetQuickChecks().size())
+                     entry_module->GetQuickChecks().size())
               << std::endl;
   }
 

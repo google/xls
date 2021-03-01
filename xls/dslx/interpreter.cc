@@ -102,7 +102,12 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
       ConstantDef* constant_def, absl::optional<InterpValue> value) override {
     return interp_->NoteWip(constant_def, value);
   }
-  TypeInfo* GetCurrentTypeInfo() override { return interp_->type_info_; }
+  TypeInfo* GetCurrentTypeInfo() override {
+    return interp_->current_type_info_;
+  }
+  void SetCurrentTypeInfo(TypeInfo* updated) override {
+    interp_->current_type_info_ = updated;
+  }
   ImportCache* GetImportCache() override { return interp_->import_cache_; }
   absl::Span<std::string const> GetAdditionalSearchPaths() override {
     return interp_->additional_search_paths_;
@@ -112,13 +117,12 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
   Interpreter* interp_;
 };
 
-Interpreter::Interpreter(Module* module, TypeInfo* type_info,
-                         TypecheckFn typecheck,
+Interpreter::Interpreter(Module* entry_module, TypecheckFn typecheck,
                          absl::Span<std::string const> additional_search_paths,
                          ImportCache* import_cache, bool trace_all,
                          Package* ir_package)
-    : module_(module),
-      type_info_(type_info),
+    : entry_module_(entry_module),
+      current_type_info_(import_cache->GetRootTypeInfo(entry_module).value()),
       typecheck_(std::move(typecheck)),
       additional_search_paths_(additional_search_paths.begin(),
                                additional_search_paths.end()),
@@ -130,19 +134,23 @@ Interpreter::Interpreter(Module* module, TypeInfo* type_info,
 absl::StatusOr<InterpValue> Interpreter::RunFunction(
     absl::string_view name, absl::Span<const InterpValue> args,
     SymbolicBindings symbolic_bindings) {
-  XLS_ASSIGN_OR_RETURN(Function * f, module_->GetFunctionOrError(name));
+  XLS_ASSIGN_OR_RETURN(Function * f, entry_module_->GetFunctionOrError(name));
   Pos fake_pos("<fake>", 0, 0);
   Span fake_span(fake_pos, fake_pos);
-  return EvaluateAndCompare(f, args, fake_span, /*expr=*/nullptr,
-                            &symbolic_bindings);
+  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
+                       import_cache_->GetRootTypeInfoForNode(f));
+  TypeInfoSwap tis(this, type_info);
+  return EvaluateAndCompareInternal(f, args, fake_span, /*invocation=*/nullptr,
+                                    &symbolic_bindings);
 }
 
 absl::Status Interpreter::RunTest(absl::string_view name) {
-  XLS_ASSIGN_OR_RETURN(InterpBindings bindings,
-                       MakeTopLevelBindings(module_, abstract_adapter_.get()));
-  XLS_ASSIGN_OR_RETURN(TestFunction * test, module_->GetTest(name));
+  XLS_ASSIGN_OR_RETURN(TestFunction * test, entry_module_->GetTest(name));
+  XLS_ASSIGN_OR_RETURN(
+      InterpBindings bindings,
+      MakeTopLevelBindings(entry_module_, abstract_adapter_.get()));
   bindings.set_fn_ctx(
-      FnCtx{module_->name(), absl::StrFormat("%s__test", name)});
+      FnCtx{entry_module_->name(), absl::StrFormat("%s__test", name)});
   XLS_ASSIGN_OR_RETURN(InterpValue result, Evaluate(test->body(), &bindings,
                                                     /*type_context=*/nullptr));
   if (!result.IsNilTuple()) {
@@ -162,6 +170,8 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateLiteral(Expr* expr) {
 absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
                                                   InterpBindings* bindings,
                                                   ConcreteType* type_context) {
+  XLS_RET_CHECK_EQ(expr->owner(), current_type_info_->module())
+      << expr->span() << " vs " << current_type_info_->module()->name();
   Evaluator evaluator(this, bindings, type_context, abstract_adapter_.get());
   expr->AcceptExpr(&evaluator);
   absl::StatusOr<InterpValue> result_or = std::move(evaluator.value());
@@ -189,8 +199,8 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
   XLS_VLOG(3) << "InterpretExpr: " << expr->ToString() << " env: {"
               << absl::StrJoin(env, ", ", absl::PairFormatter(":")) << "}";
 
-  Interpreter interp(entry_module, type_info, typecheck,
-                     additional_search_paths, import_cache);
+  Interpreter interp(entry_module, typecheck, additional_search_paths,
+                     import_cache);
   XLS_ASSIGN_OR_RETURN(
       InterpBindings bindings,
       MakeTopLevelBindings(entry_module, interp.abstract_adapter_.get()));
@@ -210,6 +220,10 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
         identifier,
         InterpValue::MakeUBits(/*bit_count=*/it->second, /*value=*/value));
   }
+
+  XLS_ASSIGN_OR_RETURN(TypeInfo * expr_root_type_info,
+                       import_cache->GetRootTypeInfoForNode(expr));
+  TypeInfoSwap tis(&interp, expr_root_type_info);
   XLS_ASSIGN_OR_RETURN(
       InterpValue result,
       interp.Evaluate(expr, &bindings, /*type_context=*/nullptr));
@@ -266,6 +280,20 @@ absl::StatusOr<InterpValue> Interpreter::RunBuiltin(
   }
 }
 
+// Retrieves the module associated with the function_value if it is user
+// defined.
+//
+// Check-fails if function_value is not a function-typed value.
+static absl::optional<Module*> GetFunctionValueOwner(
+    const InterpValue& function_value) {
+  if (function_value.IsBuiltinFunction()) {
+    return absl::nullopt;
+  }
+  const auto& fn_data =
+      absl::get<InterpValue::UserFnData>(function_value.GetFunctionOrDie());
+  return fn_data.function->owner();
+}
+
 absl::StatusOr<InterpValue> Interpreter::CallFnValue(
     const InterpValue& fv, absl::Span<InterpValue const> args, const Span& span,
     Invocation* invocation, const SymbolicBindings* symbolic_bindings) {
@@ -275,8 +303,9 @@ absl::StatusOr<InterpValue> Interpreter::CallFnValue(
   }
   const auto& fn_data =
       absl::get<InterpValue::UserFnData>(fv.GetFunctionOrDie());
-  return EvaluateAndCompare(fn_data.function, args, span, invocation,
-                            symbolic_bindings);
+  XLS_RET_CHECK_EQ(fn_data.function->owner(), current_type_info_->module());
+  return EvaluateAndCompareInternal(fn_data.function, args, span, invocation,
+                                    symbolic_bindings);
 }
 
 absl::Status Interpreter::RunJitComparison(
@@ -300,24 +329,9 @@ absl::Status Interpreter::RunJitComparison(
   return absl::OkStatus();
 }
 
-absl::StatusOr<InterpValue> Interpreter::EvaluateAndCompare(
+absl::StatusOr<InterpValue> Interpreter::EvaluateAndCompareInternal(
     Function* f, absl::Span<const InterpValue> args, const Span& span,
-    Invocation* expr, const SymbolicBindings* symbolic_bindings) {
-  bool has_child_type_info =
-      expr != nullptr &&
-      type_info_->HasInstantiation(expr, symbolic_bindings == nullptr
-                                             ? SymbolicBindings()
-                                             : *symbolic_bindings);
-  absl::optional<TypeInfo*> invocation_type_info;
-  if (has_child_type_info) {
-    invocation_type_info =
-        type_info_->GetInstantiation(expr, *symbolic_bindings);
-  } else {
-    invocation_type_info = type_info_;
-  }
-
-  TypeInfoSwap tis(this, invocation_type_info);
-
+    Invocation* invocation, const SymbolicBindings* symbolic_bindings) {
   XLS_ASSIGN_OR_RETURN(
       InterpValue interpreter_value,
       EvaluateFunction(f, args, span,
@@ -334,6 +348,8 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
     Invocation* expr, InterpBindings* bindings, ConcreteType* type_context) {
   XLS_VLOG(3) << absl::StreamFormat("EvaluateInvocation: `%s` @ %s",
                                     expr->ToString(), expr->span().ToString());
+
+  // Evaluate all the argument values we want to pass to the function.
   std::vector<InterpValue> arg_values;
   for (Expr* arg : expr->args()) {
     XLS_ASSIGN_OR_RETURN(InterpValue arg_value,
@@ -341,6 +357,7 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
     arg_values.push_back(std::move(arg_value));
   }
 
+  // Evaluate the callee value.
   XLS_ASSIGN_OR_RETURN(
       InterpValue callee_value,
       Evaluate(expr->callee(), bindings, /*type_context=*/nullptr));
@@ -350,18 +367,22 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
         "determined during type inference; got %s",
         expr->callee()->span().ToString(), callee_value.ToString()));
   }
+
   if (trace_all_ && callee_value.IsTraceBuiltin()) {
     // TODO(leary): 2020-11-19 This was the previous behavior, but I'm pretty
     // sure it's not right to skip traces, because they're supposed to result in
     // their (traced) argument.
     return InterpValue::MakeNil();
   }
+
+  XLS_ASSIGN_OR_RETURN(TypeInfo * invocation_root_type_info,
+                       import_cache_->GetRootTypeInfoForNode(expr));
   const SymbolicBindings* fn_symbolic_bindings = nullptr;
   if (bindings->fn_ctx().has_value()) {
     // The symbolic bindings of this invocation were already computed during
     // typechecking.
     absl::optional<const SymbolicBindings*> callee_bindings =
-        type_info_->GetInvocationSymbolicBindings(
+        invocation_root_type_info->GetInvocationSymbolicBindings(
             expr, bindings->fn_ctx()->sym_bindings);
     if (!callee_bindings.has_value()) {
       return absl::NotFoundError(
@@ -371,15 +392,40 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
                           expr->span().ToString()));
     }
     fn_symbolic_bindings = callee_bindings.value();
+    XLS_VLOG(5) << "Found callee symbolic bindings: " << *fn_symbolic_bindings
+                << " @ " << expr->span();
   } else {
     // Note, when there's no function context we may be in a ConstantDef doing
     // e.g. a parametric invocation.
+    XLS_VLOG(5) << "Getting callee bindings without function context @ "
+                << expr->span();
     absl::optional<const SymbolicBindings*> callee_bindings =
-        type_info_->GetInvocationSymbolicBindings(expr, SymbolicBindings());
+        invocation_root_type_info->GetInvocationSymbolicBindings(
+            expr, SymbolicBindings());
     if (callee_bindings.has_value()) {
       fn_symbolic_bindings = callee_bindings.value();
     }
   }
+
+  TypeInfo* invocation_type_info;
+  if (invocation_root_type_info->HasInstantiation(expr,
+                                                  *fn_symbolic_bindings)) {
+    invocation_type_info =
+        invocation_root_type_info->GetInstantiation(expr, *fn_symbolic_bindings)
+            .value();
+    XLS_VLOG(5) << "Instantiation exists for " << expr->ToString()
+                << " sym_bindings: " << *fn_symbolic_bindings
+                << " invocation_type_info: " << invocation_type_info;
+  } else {
+    absl::optional<Module*> callee_module = GetFunctionValueOwner(callee_value);
+    if (callee_module) {
+      XLS_ASSIGN_OR_RETURN(invocation_type_info,
+                           import_cache_->GetRootTypeInfo(*callee_module));
+    } else {
+      invocation_type_info = invocation_root_type_info;
+    }
+  }
+  TypeInfoSwap tis(this, invocation_type_info);
   return CallFnValue(callee_value, arg_values, expr->span(), expr,
                      fn_symbolic_bindings);
 }

@@ -389,6 +389,21 @@ dslx_test(
 )
 
 dslx_test(
+    name = "mod_parametric_id_user",
+    srcs = ["mod_parametric_id_user.x"],
+    deps = [
+        "mod_parametric_id.x",
+        "mod_parametric_id_indirect.x",
+    ],
+)
+
+dslx_test(
+    name = "call_imported_fn_simple",
+    srcs = ["call_imported_fn_simple.x"],
+    deps = ["mod_imported.x"],
+)
+
+dslx_test(
     name = "mod_typedef_importer",
     srcs = ["mod_typedef_importer.x"],
     deps = ["mod_imported_aliases.x"],
@@ -433,6 +448,14 @@ dslx_test(
 dslx_test(
     name = "parametric_struct",
     srcs = ["parametric_struct.x"],
+)
+
+dslx_test(
+    name = "parametric_struct_simple",
+    srcs = ["parametric_struct_simple.x"],
+    # Only a parametric entry point, so no benchmark.
+    generate_benchmark = False,
+    prove_unopt_eq_opt = False,
 )
 
 dslx_test(

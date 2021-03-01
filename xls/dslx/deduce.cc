@@ -575,6 +575,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefImport(
   absl::optional<const ImportedInfo*> imported =
       ctx->type_info()->GetImported(import);
   XLS_RET_CHECK(imported.has_value());
+
+  // Find the member being referred to within the imported module.
   Module* imported_module = (*imported)->module;
   absl::optional<ModuleMember*> elem =
       imported_module->FindMemberWithName(node->attr());
@@ -604,13 +606,12 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefImport(
       // Let's typecheck this imported parametric function with respect to its
       // module (this will only get the type signature, the body gets
       // typechecked after parametric instantiation).
-      std::shared_ptr<DeduceCtx> imported_ctx =
+      std::unique_ptr<DeduceCtx> imported_ctx =
           ctx->MakeCtx(imported_type_info, imported_module);
       const FnStackEntry& peek_entry = ctx->fn_stack().back();
       imported_ctx->fn_stack().push_back(peek_entry);
       XLS_RETURN_IF_ERROR(
           ctx->typecheck_function()(function, imported_ctx.get()));
-      ctx->type_info()->Update(*imported_ctx->type_info());
       imported_type_info = imported_ctx->type_info();
     }
   }
@@ -1291,14 +1292,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArrayTypeAnnotation(
 // above, we will return `(A, 16)` instead.
 //
 // Args:
-//   module: Owning AST module for the nodes.
 //   type_annotation: The provided type annotation for this parametric struct.
-//   struct: The corresponding struct AST node.
+//   struct_def: The struct definition AST node.
 //   base_type: The TupleType of the struct, based only on the struct
-//   definition.
+//    definition (before parametrics are applied).
 static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
-    Module* module, TypeRefTypeAnnotation* type_annotation,
-    StructDef* struct_def, const ConcreteType& base_type) {
+    TypeRefTypeAnnotation* type_annotation, StructDef* struct_def,
+    const ConcreteType& base_type) {
   // Note: if there are too *few* annotated parametrics, some of them may be
   // derived.
   if (type_annotation->parametrics().size() >
@@ -1346,9 +1346,10 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
     }
   }
 
-  // For the remainder (after the annotated ones) we have to see if they're
-  // derived parametrics. If they're not derived via an expression, we should
-  // have been supplied some value in the annotation!
+  // For the remainder of the formal parameterics (i.e. after the explicitly
+  // supplied ones given as arguments) we have to see if they're derived
+  // parametrics. If they're *not* derived via an expression, we should have
+  // been supplied some value in the annotation, so we have to flag an error!
   for (int64 i = type_annotation->parametrics().size();
        i < struct_def->parametric_bindings().size(); ++i) {
     ParametricBinding* defined_parametric =
@@ -1374,6 +1375,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
           absl::get<std::unique_ptr<ParametricExpression>>(item.second).get();
     }
   }
+
+  // Now evaluate all the dimensions according to the values we've got.
   return base_type.MapSize([&env](ConcreteTypeDim dim) -> ConcreteTypeDim {
     if (absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(
             dim.value())) {
@@ -1397,8 +1400,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRefTypeAnnotation(
     auto* struct_def = struct_def_or.value();
     if (struct_def->IsParametric() && !node->parametrics().empty()) {
       XLS_ASSIGN_OR_RETURN(
-          base_type, ConcretizeStructAnnotation(ctx->module(), node, struct_def,
-                                                *base_type));
+          base_type, ConcretizeStructAnnotation(node, struct_def, *base_type));
     }
   }
   return base_type;
@@ -1460,11 +1462,12 @@ static absl::Status CheckParametricInvocation(
     absl::optional<const ImportedInfo*> imported =
         ctx->type_info()->GetImported(import_node);
     XLS_RET_CHECK(imported.has_value());
+
     XLS_ASSIGN_OR_RETURN(
         TypeInfo * invocation_imported_type_info,
         ctx->type_info_owner().New((*imported)->module,
                                    /*parent=*/(*imported)->type_info));
-    std::shared_ptr<DeduceCtx> imported_ctx =
+    std::unique_ptr<DeduceCtx> imported_ctx =
         ctx->MakeCtx(invocation_imported_type_info, (*imported)->module);
     imported_ctx->fn_stack().push_back(
         FnStackEntry::Make(parametric_fn, symbolic_bindings));
@@ -1497,7 +1500,9 @@ static absl::Status CheckParametricInvocation(
         FnStackEntry::Make(parametric_fn, symbolic_bindings));
     ctx->AddDerivedTypeInfo();
     XLS_VLOG(5) << "Throwing to typecheck parametric function: "
-                << parametric_fn->identifier() << " via " << symbolic_bindings;
+                << parametric_fn->identifier() << " via " << symbolic_bindings
+                << " in type info: " << ctx->type_info()
+                << "; parent: " << ctx->type_info()->parent();
     return TypeMissingErrorStatus(type_missing_error_node, nullptr);
   }
 
@@ -1697,13 +1702,21 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
     ParametricBinding* binding = callee_fn->parametric_bindings()[i];
     Expr* value = node->parametrics()[i];
 
-    XLS_VLOG(5) << "Populating callee parametric " << binding->ToString()
-                << " via invocation expression: " << value->ToString();
+    XLS_VLOG(5) << "Populating callee parametric `" << binding->ToString()
+                << "` via invocation expression: " << value->ToString();
 
+    // Note the callee_fn and thus the binding may be in another module, and
+    // so have to resolve against different TypeInfo.
+    Module* binding_module = binding->owner();
+    TypeInfo* binding_type_info =
+        ctx->type_info()->GetImportedTypeInfo(binding_module).value();
+    auto binding_ctx = ctx->MakeCtx(binding_type_info, binding_module);
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> binding_type,
-                         ctx->Deduce(binding->type()));
+                         binding_ctx->Deduce(binding->type()));
+
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> value_type,
                          ctx->Deduce(value));
+
     if (*binding_type != *value_type) {
       return XlsTypeErrorStatus(node->callee()->span(), *binding_type,
                                 *value_type,

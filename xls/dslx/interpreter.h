@@ -70,7 +70,7 @@ class Interpreter {
   //    the interpreter evaluation.
   //  ir_package: IR-converted form of the given module, used for JIT execution
   //    engine comparison purposes when provided.
-  Interpreter(Module* module, TypeInfo* type_info, TypecheckFn typecheck,
+  Interpreter(Module* entry_module, TypecheckFn typecheck,
               absl::Span<std::string const> additional_search_paths,
               ImportCache* import_cache, bool trace_all = false,
               Package* ir_package = nullptr);
@@ -95,9 +95,9 @@ class Interpreter {
 
   absl::StatusOr<InterpValue> EvaluateLiteral(Expr* expr);
 
-  Module* module() const { return module_; }
+  Module* entry_module() const { return entry_module_; }
   Package* ir_package() const { return ir_package_; }
-  TypeInfo* type_info() const { return type_info_; }
+  TypeInfo* current_type_info() const { return current_type_info_; }
 
  private:
   friend struct TypeInfoSwap;
@@ -106,13 +106,13 @@ class Interpreter {
 
   struct TypeInfoSwap {
     TypeInfoSwap(Interpreter* parent, absl::optional<TypeInfo*> new_type_info)
-        : parent_(parent), old_type_info_(parent->type_info_) {
+        : parent_(parent), old_type_info_(parent->current_type_info_) {
       if (new_type_info.has_value()) {
-        parent->type_info_ = new_type_info.value();
+        parent->current_type_info_ = new_type_info.value();
       }
     }
 
-    ~TypeInfoSwap() { parent_->type_info_ = old_type_info_; }
+    ~TypeInfoSwap() { parent_->current_type_info_ = old_type_info_; }
 
     Interpreter* parent_;
     TypeInfo* old_type_info_;
@@ -157,12 +157,18 @@ class Interpreter {
   //  f: Function to evaluate
   //  args: Arguments used to invoke f
   //  span: Span of the invocation causing this evaluation
+  //  invocation: Optional invocation node causing this function evaluation.
+  //    Note invocation may be in a different module.
   //  symbolic_bindings: Used if the function is parametric
   //
   // Returns the value that results from interpretation.
-  absl::StatusOr<InterpValue> EvaluateAndCompare(
+  //
+  // Note: doesn't establish the type information based on "f"'s module-level
+  // type information; e.g. this can be used for parametric calls where the type
+  // info is determined and set externally.
+  absl::StatusOr<InterpValue> EvaluateAndCompareInternal(
       Function* f, absl::Span<const InterpValue> args, const Span& span,
-      Invocation* expr, const SymbolicBindings* symbolic_bindings);
+      Invocation* invocation, const SymbolicBindings* symbolic_bindings);
 
   // Calls function values, either a builtin or user defined function.
   absl::StatusOr<InterpValue> CallFnValue(
@@ -194,8 +200,16 @@ class Interpreter {
   absl::optional<InterpValue> NoteWip(ConstantDef* c,
                                       absl::optional<InterpValue> value);
 
-  Module* module_;
-  TypeInfo* type_info_;
+  Module* const entry_module_;
+
+  // Note that the "current" type info changes over time as we execute:
+  // sometimes it will be the "root" type info for a module we're currently
+  // executing inside, sometimes it will be a "derived" type info when we're
+  // executing inside of a parametric context. The interpreter guts use
+  // TypeInfoSwap to set up / tear down the appropriate current_type_info_ as
+  // execution occurs.
+  TypeInfo* current_type_info_;
+
   TypecheckFn typecheck_;
   std::vector<std::string> additional_search_paths_;
   ImportCache* import_cache_;

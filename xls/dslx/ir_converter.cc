@@ -49,13 +49,14 @@ absl::Status ConversionErrorStatus(const absl::optional<Span>& span,
 // world via calls to `AddConstantDep()`.
 class FunctionConverter {
  public:
-  FunctionConverter(Package* package, Module* module, TypeInfo* type_info,
+  FunctionConverter(Package* package, Module* module, ImportCache* import_cache,
                     bool emit_positions);
 
   // Main entry point to request conversion of the DSLX function "f" to an IR
   // function.
   absl::StatusOr<xls::Function*> HandleFunction(
-      Function* node, const SymbolicBindings* symbolic_bindings);
+      Function* node, TypeInfo* type_info,
+      const SymbolicBindings* symbolic_bindings);
 
   // Notes a constant-definition dependency for the function (so it can
   // participate in the IR conversion).
@@ -64,6 +65,8 @@ class FunctionConverter {
  private:
   // Helper class used for dispatching to IR conversion methods.
   friend class FunctionConverterVisitor;
+
+  friend struct ScopedTypeInfoSwap;
 
   // An IR-conversion-time-constant value, decorates a BValue with its evaluated
   // constant form.
@@ -81,6 +84,10 @@ class FunctionConverter {
   static std::string ToString(const IrValue& value);
 
   void InstantiateFunctionBuilder(absl::string_view mangled_name);
+
+  // Returns the (root) type information that pertains to a given AST node
+  // (i.e. the type information for its module).
+  absl::StatusOr<TypeInfo*> GetRootTypeInfo(AstNode* node) const;
 
   // Aliases the (IR) result of AST node 'from' with AST node 'to'.
   //
@@ -183,7 +190,9 @@ class FunctionConverter {
   absl::optional<const SymbolicBindings*> GetInvocationBindings(
       Invocation* invocation) const {
     SymbolicBindings key = GetSymbolicBindingsTuple();
-    return type_info_->GetInvocationSymbolicBindings(invocation, key);
+    return GetRootTypeInfo(invocation)
+        .value()
+        ->GetInvocationSymbolicBindings(invocation, key);
   }
 
   // AstNode handlers.
@@ -350,9 +359,13 @@ class FunctionConverter {
   // Module that contains the entry point function being converted.
   Module* module_;
 
-  // Type information for this IR conversion (determined by the type inference
-  // phase).
-  TypeInfo* type_info_;
+  // The type information currently being used in IR conversion. Note that as we
+  // visit derived parametrics, or traverse to imported modules, this will be
+  // updated (in a stack-like fashion).
+  TypeInfo* current_type_info_ = nullptr;
+
+  // The import cache which holds type information for imported modules.
+  ImportCache* import_cache_;
 
   // Whether or not to emit source code positions into the XLS IR.
   //
@@ -382,6 +395,22 @@ class FunctionConverter {
   // The last expression emitted as part of IR conversion, used to help
   // determine which expression produces the return value.
   Expr* last_expression_ = nullptr;
+};
+
+struct ScopedTypeInfoSwap {
+  ScopedTypeInfoSwap(FunctionConverter* converter, TypeInfo* new_type_info)
+      : converter_(converter),
+        original_type_info_(converter_->current_type_info_) {
+    XLS_CHECK(new_type_info != nullptr);
+    converter_->current_type_info_ = new_type_info;
+  }
+
+  ~ScopedTypeInfoSwap() {
+    converter_->current_type_info_ = original_type_info_;
+  }
+
+  FunctionConverter* converter_;
+  TypeInfo* original_type_info_;
 };
 
 // Helper that dispatches to the appropriate FunctionConverter handler for the
@@ -514,15 +543,21 @@ absl::Status FunctionConverter::Visit(AstNode* node) {
 }
 
 FunctionConverter::FunctionConverter(Package* package, Module* module,
-                                     TypeInfo* type_info, bool emit_positions)
+                                     ImportCache* import_cache,
+                                     bool emit_positions)
     : package_(package),
       module_(module),
-      type_info_(type_info),
+      import_cache_(import_cache),
       emit_positions_(emit_positions),
       // TODO(leary): 2019-07-19 Create a way to get the file path from the
       // module.
       fileno_(package->GetOrCreateFileno("fake_file.x")) {
   XLS_VLOG(5) << "Constructed IR converter: " << this;
+}
+
+absl::StatusOr<TypeInfo*> FunctionConverter::GetRootTypeInfo(
+    AstNode* node) const {
+  return import_cache_->GetRootTypeInfo(node->owner());
 }
 
 void FunctionConverter::InstantiateFunctionBuilder(
@@ -944,9 +979,12 @@ absl::Status FunctionConverter::HandleFor(For* node) {
   XLS_ASSIGN_OR_RETURN(int64 trip_count, QueryConstRangeCall(node));
 
   XLS_VLOG(5) << "Converting for-loop @ " << node->span();
-  FunctionConverter body_converter(package_, module_, type_info_,
+  FunctionConverter body_converter(package_, module_, import_cache_,
                                    emit_positions_);
   body_converter.set_symbolic_binding_map(symbolic_binding_map_);
+
+  // The body conversion uses the same types that we use in the caller.
+  body_converter.current_type_info_ = current_type_info_;
 
   // Note: there should be no name collisions (i.e. this name is unique)
   // because:
@@ -1012,7 +1050,8 @@ absl::Status FunctionConverter::HandleFor(For* node) {
   std::vector<NameDef*> relevant_name_defs;
   for (const auto& any_name_def : freevars.GetNameDefs()) {
     auto* name_def = absl::get<NameDef*>(any_name_def);
-    absl::optional<const ConcreteType*> type = type_info_->GetItem(name_def);
+    absl::optional<const ConcreteType*> type =
+        current_type_info_->GetItem(name_def);
     if (!type.has_value()) {
       continue;
     }
@@ -1163,9 +1202,9 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(Invocation* node) {
     lookup_module = module_;
   } else if (auto* colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
     map_fn_name = colon_ref->attr();
-    absl::optional<Import*> import_node = colon_ref->ResolveImportSubject();
+    Import* import_node = colon_ref->ResolveImportSubject().value();
     absl::optional<const ImportedInfo*> info =
-        type_info_->GetImported(*import_node);
+        current_type_info_->GetImported(import_node);
     lookup_module = (*info)->module;
   } else {
     return absl::UnimplementedError("Unhandled function mapping: " +
@@ -1192,7 +1231,7 @@ absl::Status FunctionConverter::HandleIndex(Index* node) {
   XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->lhs()));
 
   absl::optional<const ConcreteType*> lhs_type =
-      type_info_->GetItem(node->lhs());
+      current_type_info_->GetItem(node->lhs());
   XLS_RET_CHECK(lhs_type.has_value());
   if (dynamic_cast<const TupleType*>(lhs_type.value()) != nullptr) {
     // Tuple indexing requires a compile-time-constant RHS.
@@ -1219,7 +1258,8 @@ absl::Status FunctionConverter::HandleIndex(Index* node) {
     } else {
       auto* slice = absl::get<Slice*>(rhs);
       absl::optional<StartAndWidth> saw =
-          type_info_->GetSliceStartAndWidth(slice, GetSymbolicBindingsTuple());
+          current_type_info_->GetSliceStartAndWidth(slice,
+                                                    GetSymbolicBindingsTuple());
       XLS_RET_CHECK(saw.has_value());
       Def(node, [&](absl::optional<SourceLocation> loc) {
         return function_builder_->BitSlice(lhs, saw->start, saw->width, loc);
@@ -1331,11 +1371,16 @@ absl::Status FunctionConverter::HandleInvocation(Invocation* node) {
 }
 
 absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
-    Function* node, const SymbolicBindings* symbolic_bindings) {
+    Function* node, TypeInfo* type_info,
+    const SymbolicBindings* symbolic_bindings) {
+  XLS_RET_CHECK(type_info != nullptr);
+
   XLS_VLOG(5) << "HandleFunction: " << node->ToString();
   if (symbolic_bindings != nullptr) {
     SetSymbolicBindings(symbolic_bindings);
   }
+
+  ScopedTypeInfoSwap stis(this, type_info);
 
   // We use a function builder for the duration of converting this AST Function.
   XLS_ASSIGN_OR_RETURN(
@@ -1400,9 +1445,10 @@ absl::Status FunctionConverter::HandleColonRef(ColonRef* node) {
 
   if (absl::optional<Import*> import = node->ResolveImportSubject()) {
     absl::optional<const ImportedInfo*> imported =
-        type_info_->GetImported(import.value());
+        current_type_info_->GetImported(*import);
     XLS_RET_CHECK(imported.has_value());
     Module* imported_mod = (*imported)->module;
+    ScopedTypeInfoSwap stis(this, (*imported)->type_info);
     XLS_ASSIGN_OR_RETURN(ConstantDef * constant_def,
                          imported_mod->GetConstantDef(node->attr()));
     XLS_RETURN_IF_ERROR(HandleConstantDef(constant_def));
@@ -1418,6 +1464,9 @@ absl::Status FunctionConverter::HandleColonRef(ColonRef* node) {
                          ToTypeDefinition(ToAstNode(node->subject())));
     XLS_ASSIGN_OR_RETURN(enum_def, DerefEnum(type_definition));
   }
+  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
+                       import_cache_->GetRootTypeInfo(enum_def->owner()));
+  ScopedTypeInfoSwap stis(this, type_info);
   XLS_ASSIGN_OR_RETURN(Expr * value, enum_def->GetValue(node->attr()));
   XLS_RETURN_IF_ERROR(Visit(value));
   return DefAlias(/*from=*/value, /*to=*/node).status();
@@ -1483,7 +1532,8 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
     callee_name = colon_ref->attr();
     absl::optional<Import*> import = colon_ref->ResolveImportSubject();
     XLS_RET_CHECK(import.has_value());
-    absl::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
+    absl::optional<const ImportedInfo*> info =
+        current_type_info_->GetImported(*import);
     m = (*info)->module;
   } else {
     return absl::InternalError("Invalid callee: " + callee->ToString());
@@ -1516,7 +1566,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
 absl::Status FunctionConverter::HandleBinop(Binop* node) {
   XLS_VLOG(5) << "HandleBinop: " << node->ToString();
   absl::optional<const ConcreteType*> lhs_type =
-      type_info_->GetItem(node->lhs());
+      current_type_info_->GetItem(node->lhs());
   XLS_RET_CHECK(lhs_type.has_value());
   auto* bits_type = dynamic_cast<const BitsType*>(lhs_type.value());
   bool signed_input = bits_type != nullptr && bits_type->is_signed();
@@ -1647,7 +1697,7 @@ absl::Status FunctionConverter::HandleBinop(Binop* node) {
 absl::Status FunctionConverter::HandleAttr(Attr* node) {
   XLS_RETURN_IF_ERROR(Visit(node->lhs()));
   absl::optional<const ConcreteType*> lhs_type =
-      type_info_->GetItem(node->lhs());
+      current_type_info_->GetItem(node->lhs());
   XLS_RET_CHECK(lhs_type.has_value());
   auto* tuple_type = dynamic_cast<const TupleType*>(lhs_type.value());
   const std::string& identifier = node->attr()->identifier();
@@ -1899,8 +1949,10 @@ FunctionConverter::DerefStructOrEnum(TypeDefinition node) {
   auto* colon_ref = absl::get<ColonRef*>(node);
   absl::optional<Import*> import = colon_ref->ResolveImportSubject();
   XLS_RET_CHECK(import.has_value());
-  absl::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
+  absl::optional<const ImportedInfo*> info =
+      current_type_info_->GetImported(*import);
   Module* imported_mod = (*info)->module;
+  ScopedTypeInfoSwap stis(this, (*info)->type_info);
   XLS_ASSIGN_OR_RETURN(TypeDefinition td,
                        imported_mod->GetTypeDefinition(colon_ref->attr()));
   // Recurse to resolve the typedef within the imported module.
@@ -1934,7 +1986,8 @@ absl::StatusOr<ConcreteTypeDim> FunctionConverter::ResolveDim(
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> FunctionConverter::ResolveType(
     AstNode* node) {
-  absl::optional<const ConcreteType*> t = type_info_->GetItem(node);
+  XLS_RET_CHECK(current_type_info_ != nullptr);
+  absl::optional<const ConcreteType*> t = current_type_info_->GetItem(node);
   if (!t.has_value()) {
     return ConversionErrorStatus(
         node->GetSpan(),
@@ -2044,7 +2097,8 @@ static absl::Status AddConstantDepFreevars(AstNode* node,
 
 absl::Status ConvertOneFunctionInternal(
     Package* package, Module* module, Function* function, TypeInfo* type_info,
-    const SymbolicBindings* symbolic_bindings, bool emit_positions) {
+    ImportCache* import_cache, const SymbolicBindings* symbolic_bindings,
+    bool emit_positions) {
   absl::flat_hash_map<std::string, Function*> function_by_name =
       module->GetFunctionByName();
   absl::flat_hash_map<std::string, ConstantDef*> constant_by_name =
@@ -2054,7 +2108,7 @@ absl::Status ConvertOneFunctionInternal(
   absl::flat_hash_map<std::string, Import*> import_by_name =
       module->GetImportByName();
 
-  FunctionConverter converter(package, module, type_info, emit_positions);
+  FunctionConverter converter(package, module, import_cache, emit_positions);
 
   XLS_RETURN_IF_ERROR(AddConstantDepFreevars(function->body(), &converter));
 
@@ -2089,7 +2143,8 @@ absl::Status ConvertOneFunctionInternal(
   XLS_VLOG(3) << absl::StreamFormat("Converting function: %s",
                                     function->ToString());
   XLS_RETURN_IF_ERROR(
-      converter.HandleFunction(function, symbolic_bindings).status());
+      converter.HandleFunction(function, type_info, symbolic_bindings)
+          .status());
   return absl::OkStatus();
 }
 
@@ -2127,10 +2182,12 @@ absl::StatusOr<std::string> MangleDslxName(
 }
 
 absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
-    Module* module, TypeInfo* type_info, bool emit_positions,
+    Module* module, ImportCache* import_cache, bool emit_positions,
     bool traverse_tests) {
+  XLS_ASSIGN_OR_RETURN(TypeInfo * root_type_info,
+                       import_cache->GetRootTypeInfo(module));
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
-                       GetOrder(module, type_info, traverse_tests));
+                       GetOrder(module, root_type_info, traverse_tests));
   XLS_VLOG(3) << "Conversion order: ["
               << absl::StrJoin(
                      order, ", ",
@@ -2142,8 +2199,8 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
   for (const ConversionRecord& record : order) {
     XLS_VLOG(3) << "Converting to IR: " << record.ToString();
     XLS_RETURN_IF_ERROR(ConvertOneFunctionInternal(
-        package.get(), record.m, record.f, record.type_info, &record.bindings,
-        emit_positions));
+        package.get(), record.m, record.f, record.type_info, import_cache,
+        &record.bindings, emit_positions));
   }
 
   XLS_VLOG(3) << "Verifying converted package";
@@ -2151,23 +2208,25 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
   return std::move(package);
 }
 
-absl::StatusOr<std::string> ConvertModule(Module* module, TypeInfo* type_info,
+absl::StatusOr<std::string> ConvertModule(Module* module,
+                                          ImportCache* import_cache,
                                           bool emit_positions) {
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Package> package,
-      ConvertModuleToPackage(module, type_info, emit_positions));
+      ConvertModuleToPackage(module, import_cache, emit_positions));
   return package->DumpIr();
 }
 
 absl::StatusOr<std::string> ConvertOneFunction(
     Module* module, absl::string_view entry_function_name, TypeInfo* type_info,
-    const SymbolicBindings* symbolic_bindings, bool emit_positions) {
+    ImportCache* import_cache, const SymbolicBindings* symbolic_bindings,
+    bool emit_positions) {
   Package package(module->name());
   absl::optional<Function*> f = module->GetFunction(entry_function_name);
   XLS_RET_CHECK(f.has_value());
   XLS_RETURN_IF_ERROR(ConvertOneFunctionInternal(
-      &package, module, *f, type_info,
-      /*symbolic_bindings=*/nullptr, emit_positions));
+      &package, module, *f, type_info, import_cache,
+      /*symbolic_bindings=*/symbolic_bindings, emit_positions));
   return package.DumpIr();
 }
 

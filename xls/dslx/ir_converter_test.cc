@@ -64,7 +64,9 @@ absl::StatusOr<std::string> ConvertOneFunctionForTest(
                        ParseAndTypecheck(program, /*path=*/"test_module.x",
                                          /*module_name=*/"test_module",
                                          /*import_cache=*/&import_cache));
-  return ConvertOneFunction(tm.module, fn_name, tm.type_info,
+  return ConvertOneFunction(tm.module, /*entry_function_name=*/fn_name,
+                            /*type_info=*/tm.type_info,
+                            /*import_cache=*/&import_cache,
                             /*symbolic_bindings=*/nullptr,
                             /*emit_positions=*/emit_positions);
 }
@@ -81,7 +83,7 @@ absl::StatusOr<std::string> ConvertModuleForTest(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test_module.x", "test_module", import_cache));
   XLS_ASSIGN_OR_RETURN(std::string converted,
-                       ConvertModule(tm.module, tm.type_info,
+                       ConvertModule(tm.module, import_cache,
                                      /*emit_positions=*/emit_positions));
   return converted;
 }

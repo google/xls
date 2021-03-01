@@ -65,8 +65,44 @@ class AbstractInterpreter {
 
   virtual ImportCache* GetImportCache() = 0;
 
+  // Law-of-Demeter helper for getting the root type info for a module (via the
+  // import cache).
+  absl::StatusOr<TypeInfo*> GetRootTypeInfo(Module* module) {
+    return GetImportCache()->GetRootTypeInfo(module);
+  }
+
   // Returns the additional search paths to use on import.
   virtual absl::Span<std::string const> GetAdditionalSearchPaths() = 0;
+
+  // RAII type that can be use to swap the type information on an
+  // AbstractInterpreter to a new value within a given lifetime.
+  class ScopedTypeInfoSwap {
+   public:
+    ScopedTypeInfoSwap(AbstractInterpreter* interp, TypeInfo* updated);
+
+    // Helper overload that uses the root TypeInfo associated with "module".
+    //
+    // Note: Check-fails if the module does not have TypeInfo in the import
+    // cache.
+    ScopedTypeInfoSwap(AbstractInterpreter* interp, Module* module);
+
+    // Helper overload that uses the module associated with "node" to determine
+    // the TypeInfo to establish, see Module overload above.
+    ScopedTypeInfoSwap(AbstractInterpreter* interp, AstNode* node);
+
+    ~ScopedTypeInfoSwap();
+
+   private:
+    AbstractInterpreter* interp;
+    TypeInfo* original;
+  };
+
+ protected:
+  friend class ScopedTypeInfoSwap;
+
+  // Sets the current type info on the interpreter -- only intended for user use
+  // via ScopedTypeInfoSwap so kept protected with ScopedTypeInfoSwap friended.
+  virtual void SetCurrentTypeInfo(TypeInfo* current_type_info) = 0;
 };
 
 }  // namespace xls::dslx
