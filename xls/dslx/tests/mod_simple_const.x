@@ -12,4 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub const FOO = u32:42;
+pub const FOUR = u32:4;

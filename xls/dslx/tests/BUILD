@@ -520,6 +520,12 @@ dslx_test(
 )
 
 dslx_test(
+    name = "importer_const_in_range",
+    srcs = ["importer_const_in_range.x"],
+    deps = ["mod_simple_const.x"],
+)
+
+dslx_test(
     name = "mod_const_enum_importer",
     srcs = ["mod_const_enum_importer.x"],
     deps = ["mod_simple_const_enum.x"],
