@@ -881,8 +881,9 @@ absl::Status FunctionBuilderVisitor::HandlePackedParam(Param* param) {
   llvm::LoadInst* load = builder_->CreateLoad(gep);
   if (param->GetType()->GetFlatBitCount() == 0) {
     // Create an empty structure, etc.
-    llvm::StructType* struct_type = llvm::StructType::create(ctx_);
-    return StoreResult(param, llvm::ConstantStruct::get(struct_type));
+    return StoreResult(
+        param, CreateTypedZeroValue(
+                   type_converter_->ConvertToLlvmType(param->GetType())));
   }
   llvm::Type* packed_arg_type =
       llvm::IntegerType::get(ctx_, param->GetType()->GetFlatBitCount());

@@ -98,12 +98,14 @@ class AstGenerator {
   static bool EnvContainsArray(const Env& e);
   static bool EnvContainsTuple(const Env& e);
 
-  // Generate an DSLX function with the given name and param count. call_depth
-  // is the current depth of the call stack (if any) calling this function to be
-  // generated.
+  // Generate an DSLX function with the given name. call_depth is the current
+  // depth of the call stack (if any) calling this function to be
+  // generated. param_types, if given, defines the number and types of the
+  // parameters.
   absl::StatusOr<Function*> GenerateFunction(
       std::string name, int64 call_depth = 0,
-      absl::optional<int64> param_count = absl::nullopt);
+      absl::optional<absl::Span<TypeAnnotation* const>> param_types =
+          absl::nullopt);
 
   // Chooses a value from the environment that satisfies the predicate "take",
   // or returns nullopt if none exists.
@@ -144,8 +146,14 @@ class AstGenerator {
     auto is_array = [&](const TypedExpr& e) -> bool { return IsArray(e.type); };
     return ChooseEnvValue(env, is_array);
   }
-  absl::StatusOr<TypedExpr> ChooseEnvValueTuple(Env* env) {
-    auto take = [&](const TypedExpr& e) -> bool { return IsTuple(e.type); };
+
+  // Chooses a random tuple from the environment (if one exists). 'min_size',
+  // if given, is the minimum number of elements in the chosen tuple.
+  absl::StatusOr<TypedExpr> ChooseEnvValueTuple(Env* env, int64 min_size = 0) {
+    auto take = [&](const TypedExpr& e) -> bool {
+      return IsTuple(e.type) &&
+             dynamic_cast<TupleTypeAnnotation*>(e.type)->size() >= min_size;
+    };
     return ChooseEnvValue(env, take);
   }
   absl::StatusOr<TypedExpr> ChooseEnvValueNotArray(Env* env) {
@@ -217,7 +225,13 @@ class AstGenerator {
   // Generates a primitive type token for use in building a type.
   absl::StatusOr<Token*> GenerateTypePrimitive();
 
-  absl::StatusOr<TypeAnnotation*> GenerateBitsType();
+  // Generates a random-width Bits type.
+  TypeAnnotation* GenerateBitsType();
+
+  // Generates a random type (bits, array, or tuple). Nesting is the amount of
+  // nesting within the currently generated type (e.g., element type of a
+  // tuple). Used to limit the depth of compound types.
+  TypeAnnotation* GenerateType(int64 nesting = 0);
 
   BuiltinTypeAnnotation* GeneratePrimitiveType();
 
@@ -231,8 +245,12 @@ class AstGenerator {
   // Generates a call to a unary builtin function.
   absl::StatusOr<TypedExpr> GenerateUnopBuiltin(Env* env);
 
-  absl::StatusOr<Param*> GenerateParam();
-  absl::StatusOr<std::vector<Param*>> GenerateParams(int64 count);
+  // Generates a parameter of a random type (if type is null) or the given type
+  // (if type is non-null).
+  Param* GenerateParam(TypeAnnotation* type = nullptr);
+
+  // Generates the given number of parameters of random types.
+  std::vector<Param*> GenerateParams(int64 count);
 
   TypeAnnotation* MakeTypeAnnotation(bool is_signed, int64 width);
 
@@ -343,12 +361,17 @@ class AstGenerator {
     std::bernoulli_distribution d(0.5);
     return d(rng_);
   }
+
   // Returns a random float uniformly distributed over [0, 1).
   float RandomFloat() {
     std::uniform_real_distribution<float> g(0.0f, 1.0f);
     return g(rng_);
   }
+
+  // Returns a random integer over the range [0, limit).
   int64 RandRange(int64 limit) { return RandRange(0, limit); }
+
+  // Returns a random integer over the range [start, limit).
   int64 RandRange(int64 start, int64 limit) {
     XLS_CHECK_GT(limit, start);
     std::uniform_int_distribution<int64> g(start, limit - 1);
@@ -357,8 +380,14 @@ class AstGenerator {
     XLS_CHECK_GE(value, start);
     return value;
   }
-  float RandomWeibull(float a, float b) {
-    std::weibull_distribution<float> distribution(a, b);
+
+  // Returns a random integer selected according to a poisson distribution. The
+  // distribution roughly rises up to the mean then decays exponentially. Useful
+  // for picking a number around some value with decreasing likelihood of
+  // picking something far away from the expected value.
+  // See: https://en.wikipedia.org/wiki/Poisson_distribution
+  int64 RandomPoisson(float mean) {
+    std::poisson_distribution<int64> distribution(mean);
     return distribution(rng_);
   }
 

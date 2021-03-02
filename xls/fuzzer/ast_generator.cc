@@ -96,9 +96,11 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
   });
 }
 
-absl::StatusOr<Param*> AstGenerator::GenerateParam() {
+Param* AstGenerator::GenerateParam(TypeAnnotation* type) {
   std::string identifier = GenSym();
-  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, GenerateBitsType());
+  if (type == nullptr) {
+    type = GenerateType();
+  }
   NameDef* name_def = module_->Make<NameDef>(fake_span_, std::move(identifier),
                                              /*definer=*/nullptr);
   Param* param = module_->Make<Param>(name_def, type);
@@ -106,11 +108,10 @@ absl::StatusOr<Param*> AstGenerator::GenerateParam() {
   return param;
 }
 
-absl::StatusOr<std::vector<Param*>> AstGenerator::GenerateParams(int64 count) {
+std::vector<Param*> AstGenerator::GenerateParams(int64 count) {
   std::vector<Param*> params;
   for (int64 i = 0; i < count; ++i) {
-    XLS_ASSIGN_OR_RETURN(Param * p, GenerateParam());
-    params.push_back(p);
+    params.push_back(GenerateParam());
   }
   return params;
 }
@@ -508,7 +509,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Env* env) {
   XLS_CHECK(env != nullptr);
   bool do_index = RandomBool() && EnvContainsTuple(*env);
   if (do_index) {
-    TypedExpr e = ChooseEnvValueTuple(env).value();
+    XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValueTuple(env, /*min_size=*/1));
     auto* tuple_type = dynamic_cast<TupleTypeAnnotation*>(e.type);
     int64 i = RandRange(tuple_type->size());
     Number* index_expr = MakeNumber(i);
@@ -545,40 +546,28 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64 call_depth,
     return absl::FailedPreconditionError("EmptyEnvError: Call depth too deep.");
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      Function * map_fn,
-      GenerateFunction(map_fn_name, call_depth + 1, /*param_count=*/1));
+  // Choose a random array from the environment and create a single-argument
+  // function which takes an element of that array.
+  XLS_ASSIGN_OR_RETURN(TypedExpr array, ChooseEnvValueArray(env));
+  ArrayTypeAnnotation* array_type = down_cast<ArrayTypeAnnotation*>(array.type);
+  XLS_ASSIGN_OR_RETURN(Function * map_fn,
+                       GenerateFunction(map_fn_name, call_depth + 1,
+                                        /*param_types=*/
+                                        std::vector<TypeAnnotation*>(
+                                            {array_type->element_type()})));
   functions_.push_back(map_fn);
 
-  TypeAnnotation* map_arg_type = map_fn->params()[0]->type();
-  XLS_RET_CHECK(IsBits(map_arg_type)) << map_arg_type->ToString();
-  bool map_arg_signedness = !IsUBits(map_arg_type);
-  int64 map_arg_bits = GetTypeBitCount(map_arg_type);
-  int64 max_array_size = options_.max_width_aggregate_types /
-                         GetTypeBitCount(map_fn->return_type());
-  int64 array_size = RandRange(1, std::max(int64{2}, max_array_size));
   TypeAnnotation* return_type =
-      MakeArrayType(map_fn->return_type(), array_size);
+      MakeArrayType(map_fn->return_type(), GetArraySize(array_type));
 
-  // It's unlikely we'll have the exact array we need, so we'll just create one.
-  // TODO(b/144724970): Consider creating arrays from values in the env.
-  std::vector<Expr*> numbers;
-  for (int64 i = 0; i < array_size; ++i) {
-    XLS_ASSIGN_OR_RETURN(
-        TypedExpr number,
-        GenerateNumber(env,
-                       BitsAndSignedness{map_arg_bits, map_arg_signedness}));
-    numbers.push_back(number.expr);
-  }
-  ConstantArray* args = module_->Make<ConstantArray>(
-      fake_span_, std::move(numbers), /*has_ellipsis=*/false);
   NameRef* fn_ref = MakeNameRef(MakeNameDef(map_fn_name));
-  auto* invocation = module_->Make<Invocation>(
-      fake_span_, MakeBuiltinNameRef("map"), std::vector<Expr*>{args, fn_ref});
+  auto* invocation =
+      module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("map"),
+                                std::vector<Expr*>{array.expr, fn_ref});
   return TypedExpr{invocation, return_type};
 }
 
-absl::StatusOr<TypeAnnotation*> AstGenerator::GenerateBitsType() {
+TypeAnnotation* AstGenerator::GenerateBitsType() {
   if (options_.max_width_bits_types <= 64 || RandRange(1, 10) != 1) {
     return GeneratePrimitiveType();
   }
@@ -591,6 +580,24 @@ absl::StatusOr<TypeAnnotation*> AstGenerator::GenerateBitsType() {
   }
   bool sign = RandomBool();
   return MakeTypeAnnotation(sign, 64 + RandRange(1, max_width - 64));
+}
+
+TypeAnnotation* AstGenerator::GenerateType(int64 nesting) {
+  float r = RandomFloat();
+  if (r < 0.1 * std::pow(2.0, -nesting)) {
+    // Generate tuple type.
+    std::vector<TypeAnnotation*> element_types;
+    for (int64 i = 0; i < RandomPoisson(3); ++i) {
+      element_types.push_back(GenerateType(nesting + 1));
+    }
+    return MakeTupleType(element_types);
+  }
+  if (r < 0.2 * std::pow(2.0, -nesting)) {
+    // Generate array type.
+    return MakeArrayType(GenerateType(nesting + 1),
+                         std::max(int64{1}, RandomPoisson(10)));
+  }
+  return GenerateBitsType();
 }
 
 absl::optional<TypedExpr> AstGenerator::ChooseEnvValueOptional(
@@ -1018,12 +1025,17 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(
 }
 
 absl::StatusOr<Function*> AstGenerator::GenerateFunction(
-    std::string name, int64 call_depth, absl::optional<int64> param_count) {
-  if (!param_count.has_value()) {
-    param_count = static_cast<int64>(std::ceil(RandomWeibull(1.0, 1.15) * 4));
+    std::string name, int64 call_depth,
+    absl::optional<absl::Span<TypeAnnotation* const>> param_types) {
+  std::vector<Param*> params;
+  if (param_types.has_value()) {
+    for (TypeAnnotation* param_type : param_types.value()) {
+      params.push_back(GenerateParam(param_type));
+    }
+  } else {
+    // Always have at least one parameter.
+    params = GenerateParams(RandomPoisson(3) + 1);
   }
-  XLS_ASSIGN_OR_RETURN(std::vector<Param*> params,
-                       GenerateParams(*param_count));
   XLS_ASSIGN_OR_RETURN(TypedExpr retval, GenerateBody(call_depth, params));
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);

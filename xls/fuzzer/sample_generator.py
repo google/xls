@@ -66,7 +66,12 @@ def generate_argument(arg_type: ConcreteType, rng: ast_generator.RngState,
     if not prior or rng.random() < 0.5:
       return _generate_unbiased_argument(arg_type, rng)
 
+  # Try to mutate a prior argument. If it happens to not be a bits type then
+  # just generate an unbiased argument.
   index = rng.randrange(len(prior))
+  if not prior[index].is_bits():
+    return _generate_unbiased_argument(arg_type, rng)
+
   to_mutate = prior[index].get_bits()
   bit_count = arg_type.get_total_bit_count().value
   if bit_count > to_mutate.bit_count():

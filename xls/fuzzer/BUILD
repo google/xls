@@ -15,6 +15,7 @@
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # pytype binary, test, library
+load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 load("//xls/fuzzer:build_defs.bzl", "generate_crasher_regression_tests")
 # cc_proto_library is used in this file
 
@@ -383,6 +384,12 @@ cc_proto_library(
     deps = [":sample_summary_proto"],
 )
 
+xls_py_proto_library(
+    name = "sample_summary_py_pb2",
+    srcs = ["sample_summary.proto"],
+    internal_deps = [":sample_summary_proto"],
+)
+
 proto_library(
     name = "sample_summary_proto",
     srcs = ["sample_summary.proto"],
@@ -397,6 +404,23 @@ py_test(
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
+    ],
+)
+
+py_test(
+    name = "fuzz_coverage_test",
+    srcs = ["fuzz_coverage_test.py"],
+    data = [":run_fuzz_multiprocess"],
+    python_version = "PY3",
+    shard_count = 3,
+    srcs_version = "PY3",
+    tags = ["optonly"],
+    deps = [
+        ":sample_summary_py_pb2",
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_protobuf//:protobuf_python",
     ],
 )
 

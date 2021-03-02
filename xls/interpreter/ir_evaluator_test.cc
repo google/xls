@@ -3105,4 +3105,76 @@ TEST_P(IrEvaluatorTest, BitSliceUpdateWideUpdateValue) {
   EXPECT_THAT(Run(function, {0x1234, 44, 0xabcdef}), IsOkAndHolds(0x1234));
 }
 
+TEST_P(IrEvaluatorTest, NestedEmptyTuple) {
+  auto package = CreatePackage();
+  std::string input = R"(
+  fn main(x: (())) -> () {
+    ret result: () = tuple_index(x, index=0)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseFunction(input, package.get()));
+  EXPECT_THAT(
+      GetParam().evaluator(function, {Value::Tuple({Value::Tuple({})})}),
+      IsOkAndHolds(Value::Tuple({})));
+}
+
+TEST_P(IrEvaluatorTest, NestedNestedEmptyTuple) {
+  auto package = CreatePackage();
+  std::string input = R"(
+  fn main(x: ((()))) -> (()) {
+    ret result: (()) = tuple_index(x, index=0)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseFunction(input, package.get()));
+  EXPECT_THAT(GetParam().evaluator(
+                  function, {Value::Tuple({Value::Tuple({Value::Tuple({})})})}),
+              IsOkAndHolds(Value::Tuple({Value::Tuple({})})));
+}
+
+TEST_P(IrEvaluatorTest, NestedEmptyTupleWithMultipleElements) {
+  auto package = CreatePackage();
+  std::string input = R"(
+  fn main(x: ((), ())) -> () {
+    ret result: () = tuple_index(x, index=1)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseFunction(input, package.get()));
+  EXPECT_THAT(
+      GetParam().evaluator(
+          function, {Value::Tuple({Value::Tuple({}), Value::Tuple({})})}),
+      IsOkAndHolds(Value::Tuple({})));
+}
+
+TEST_P(IrEvaluatorTest, ReturnEmptyTupleEmptyTuple) {
+  auto package = CreatePackage();
+  std::string input = R"(
+  fn main(x: ()) -> ((), ()) {
+    ret result: ((), ()) = tuple(x, x)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseFunction(input, package.get()));
+  EXPECT_THAT(GetParam().evaluator(function, {Value::Tuple({})}),
+              IsOkAndHolds(Value::Tuple({Value::Tuple({}), Value::Tuple({})})));
+}
+
+TEST_P(IrEvaluatorTest, ArrayOfEmptyTuples) {
+  auto package = CreatePackage();
+  std::string input = R"(
+  fn main(x: ()[2]) -> () {
+    index: bits[32] = literal(value=0)
+    ret result: () = array_index(x, indices=[index])
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseFunction(input, package.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Value arg,
+                           Value::Array({Value::Tuple({}), Value::Tuple({})}));
+  EXPECT_THAT(GetParam().evaluator(function, {arg}),
+              IsOkAndHolds(Value::Tuple({})));
+}
+
 }  // namespace xls
