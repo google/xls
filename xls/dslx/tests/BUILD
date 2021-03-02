@@ -526,6 +526,18 @@ dslx_test(
 )
 
 dslx_test(
+    name = "mod_const_in_type_alias",
+    srcs = ["mod_const_in_type_alias.x"],
+    deps = ["mod_simple_const.x"],
+)
+
+dslx_test(
+    name = "mod_const_in_type_alias_expr",
+    srcs = ["mod_const_in_type_alias_expr.x"],
+    deps = ["mod_simple_const.x"],
+)
+
+dslx_test(
     name = "mod_const_enum_importer",
     srcs = ["mod_const_enum_importer.x"],
     deps = ["mod_simple_const_enum.x"],

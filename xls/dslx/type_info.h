@@ -143,11 +143,6 @@ class TypeInfo {
   void AddInstantiation(Invocation* invocation, SymbolicBindings caller,
                         TypeInfo* type_info);
 
-  // Notes a constant definition associated with a given NameDef AST node.
-  void NoteConstant(NameDef* name_def, ConstantDef* constant_def) {
-    name_to_const_[name_def] = constant_def;
-  }
-
   // Sets the type associated with the given AST node.
   void SetItem(AstNode* key, const ConcreteType& value) {
     XLS_CHECK_EQ(key->owner(), module_);
@@ -191,8 +186,13 @@ class TypeInfo {
 
   Module* module() const { return module_; }
 
-  // Returns the expression for a ConstantDef that has the given name_def..
-  absl::optional<Expr*> GetConstInt(NameDef* name_def) const;
+  // Notes a constant definition associated with a given NameDef AST node.
+  void NoteConstant(NameDef* name_def, ConstantDef* constant_def) {
+    name_to_const_[name_def] = constant_def;
+  }
+
+  // Returns the expression for a ConstantDef that has the given name_def.
+  absl::optional<Expr*> GetConstant(NameDef* name_def) const;
 
   // Retrieves a string that shows the module associated with this type info and
   // which imported modules are present, suitable for debugging.

@@ -189,7 +189,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
   return result;
 }
 
-/* static */ absl::StatusOr<int64> Interpreter::InterpretExpr(
+/* static */ absl::StatusOr<int64> Interpreter::InterpretExprToInt(
     Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
     absl::Span<std::string const> additional_search_paths,
     ImportCache* import_cache,
@@ -227,7 +227,18 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
   XLS_ASSIGN_OR_RETURN(
       InterpValue result,
       interp.Evaluate(expr, &bindings, /*type_context=*/nullptr));
-  return result.GetBitValueInt64();
+  switch (result.tag()) {
+    case InterpValueTag::kUBits: {
+      XLS_ASSIGN_OR_RETURN(uint64 result, result.GetBitValueUint64());
+      return result;
+    }
+    case InterpValueTag::kSBits:
+      return result.GetBitValueInt64();
+    default:
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Expression %s @ %s did not evaluate to an integral value",
+          expr->ToString(), expr->span().ToString()));
+  }
 }
 
 absl::StatusOr<InterpValue> Interpreter::RunBuiltin(

@@ -16,6 +16,7 @@
 
 #include "absl/container/btree_set.h"
 #include "absl/strings/match.h"
+#include "xls/dslx/interpreter.h"
 #include "xls/dslx/parametric_instantiator.h"
 #include "xls/dslx/scanner.h"
 
@@ -1247,17 +1248,14 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
   }
   if (auto* const_ref = dynamic_cast<ConstRef*>(dim_expr)) {
     absl::optional<Expr*> const_expr =
-        ctx->type_info()->GetConstInt(const_ref->name_def());
-    auto* number = dynamic_cast<Number*>(const_expr.value());
-    if (number == nullptr) {
-      return TypeInferenceErrorStatus(
-          node->span(), nullptr,
-          absl::StrFormat("Expected a constant integral value for dimension "
-                          "with name '%s'; got %s",
-                          const_ref->identifier(),
-                          const_expr.value()->ToString()));
-    }
-    XLS_ASSIGN_OR_RETURN(int64 value, number->GetAsUint64());
+        ctx->type_info()->GetConstant(const_ref->name_def()).value();
+    XLS_RET_CHECK(const_expr.has_value());
+    XLS_ASSIGN_OR_RETURN(
+        int64 value,
+        Interpreter::InterpretExprToInt(
+            const_ref->owner(), ctx->type_info(), ctx->typecheck_module(),
+            ctx->additional_search_paths(), ctx->import_cache(),
+            /*env=*/{}, /*bit_widths=*/{}, *const_expr, FnCtx{}));
     return ConcreteTypeDim(value);
   }
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ParametricExpression> e,

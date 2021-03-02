@@ -95,7 +95,7 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
     const FnStackEntry& entry = ctx_->fn_stack().back();
     FnCtx fn_ctx{ctx_->module()->name(), entry.name(),
                  entry.symbolic_bindings()};
-    absl::StatusOr<int64> result = Interpreter::InterpretExpr(
+    absl::StatusOr<int64> result = Interpreter::InterpretExprToInt(
         ctx_->module(), ctx_->type_info(), ctx_->typecheck_module(),
         ctx_->additional_search_paths(), ctx_->import_cache(),
         symbolic_bindings_, bit_widths_, expr, fn_ctx);

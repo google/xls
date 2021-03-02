@@ -531,12 +531,12 @@ cc_library(
         ":deduce_ctx",
         ":import_routines",
         ":interp_bindings",
+        ":interpreter",
         ":parametric_instantiator",
         ":scanner",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:variant",
     ],
 )
 

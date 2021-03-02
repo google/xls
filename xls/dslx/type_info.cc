@@ -240,12 +240,12 @@ absl::optional<TypeInfo*> TypeInfo::GetImportedTypeInfo(Module* m) {
   return absl::nullopt;
 }
 
-absl::optional<Expr*> TypeInfo::GetConstInt(NameDef* name_def) const {
+absl::optional<Expr*> TypeInfo::GetConstant(NameDef* name_def) const {
   XLS_CHECK_EQ(name_def->owner(), module_);
   auto it = name_to_const_.find(name_def);
   if (it == name_to_const_.end()) {
     if (parent_ != nullptr) {
-      return parent_->GetConstInt(name_def);
+      return parent_->GetConstant(name_def);
     }
     return absl::nullopt;
   }

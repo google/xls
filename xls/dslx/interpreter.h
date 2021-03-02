@@ -27,8 +27,13 @@ namespace xls::dslx {
 
 class Interpreter {
  public:
-  // Helper used by type inference to evaluate derived parametric expressions --
-  // creates an interpreter and evaluates "expr".
+  // Helper used by type inference to evaluate "constexpr" expressions at type
+  // checking time (e.g. derived parametric expressions, forced constexpr
+  // evaluations for dimensions, etc.) to integral values.
+  //
+  // Creates top level bindings for the entry_module, adds the "env" to those
+  // bindings, and then evaluates "expr" via an interpreter instance in that
+  // environment.
   //
   // Args:
   //  entry_module: Entry-point module to be used in creating the interpreter.
@@ -43,7 +48,7 @@ class Interpreter {
   // TODO(leary): 2020-11-24 This signature is for backwards compatibility with
   // a Python API, we can likely eliminate it when everything is ported over to
   // C++, or at least consolidate the env/bit_widths maps.
-  static absl::StatusOr<int64> InterpretExpr(
+  static absl::StatusOr<int64> InterpretExprToInt(
       Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
       absl::Span<std::string const> additional_search_path,
       ImportCache* import_cache,
