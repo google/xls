@@ -429,6 +429,7 @@ cc_library(
     srcs = ["ast_generator.cc"],
     hdrs = ["ast_generator.h"],
     deps = [
+        "//xls/common:casts",
         "//xls/common/status:ret_check",
         "//xls/dslx:ast",
         "//xls/dslx:scanner",

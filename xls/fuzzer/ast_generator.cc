@@ -15,6 +15,7 @@
 #include "xls/fuzzer/ast_generator.h"
 
 #include "absl/strings/match.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/bits_ops.h"
 

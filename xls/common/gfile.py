@@ -38,7 +38,10 @@ def recursively_copy_dir(
 
 
 def remove(path: str) -> None:
-  return shutil.rmtree(path)
+  if os.path.isfile(path):
+    os.remove(path)
+  else:
+    shutil.rmtree(path)
 
 
 def make_dirs(path: str) -> None:
