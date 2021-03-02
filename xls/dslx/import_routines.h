@@ -120,7 +120,8 @@ using TypecheckFn = std::function<absl::StatusOr<TypeInfo*>(Module*)>;
 //  The imported module information.
 absl::StatusOr<const ModuleInfo*> DoImport(
     const TypecheckFn& ftypecheck, const ImportTokens& subject,
-    absl::Span<std::string const> additional_search_paths, ImportCache* cache);
+    absl::Span<std::string const> additional_search_paths, ImportCache* cache,
+    const Span& import_span);
 
 }  // namespace xls::dslx
 

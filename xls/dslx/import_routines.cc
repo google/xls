@@ -59,7 +59,8 @@ absl::StatusOr<TypeInfo*> ImportCache::GetRootTypeInfo(Module* module) {
 
 static absl::StatusOr<std::filesystem::path> FindExistingPath(
     const ImportTokens& subject,
-    absl::Span<const std::string> additional_search_paths) {
+    absl::Span<const std::string> additional_search_paths,
+    const Span& import_span) {
   absl::Span<std::string const> pieces = subject.pieces();
   std::string subject_path;
   absl::optional<std::string> subject_parent_path;
@@ -140,15 +141,18 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
     }
   }
 
-  return absl::NotFoundError(absl::StrFormat(
-      "Could not find DSLX file for import; attempted: [ %s ]; working "
-      "directory: %s",
-      absl::StrJoin(attempted, " :: "), GetCurrentDirectory().value()));
+  return absl::NotFoundError(
+      absl::StrFormat("ImportError: %s Could not find DSLX file for import; "
+                      "attempted: [ %s ]; working "
+                      "directory: %s",
+                      import_span.ToString(), absl::StrJoin(attempted, " :: "),
+                      GetCurrentDirectory().value()));
 }
 
 absl::StatusOr<const ModuleInfo*> DoImport(
     const TypecheckFn& ftypecheck, const ImportTokens& subject,
-    absl::Span<const std::string> additional_search_paths, ImportCache* cache) {
+    absl::Span<const std::string> additional_search_paths, ImportCache* cache,
+    const Span& import_span) {
   XLS_RET_CHECK(cache != nullptr);
   if (cache->Contains(subject)) {
     return cache->Get(subject);
@@ -156,8 +160,9 @@ absl::StatusOr<const ModuleInfo*> DoImport(
 
   XLS_VLOG(3) << "DoImport (uncached) subject: " << subject.ToString();
 
-  XLS_ASSIGN_OR_RETURN(std::filesystem::path found_path,
-                       FindExistingPath(subject, additional_search_paths));
+  XLS_ASSIGN_OR_RETURN(
+      std::filesystem::path found_path,
+      FindExistingPath(subject, additional_search_paths, import_span));
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(found_path));
 
   absl::Span<std::string const> pieces = subject.pieces();

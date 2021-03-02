@@ -12,6 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.mod_imported
+import xls.dslx.tests.errors.mod_private_enum
 
-type Foo = bits[mod_imported::MyEnum];  // Nonsenical!
+type Foo = bits[mod_private_enum::EnumType];  // Nonsenical!

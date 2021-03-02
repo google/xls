@@ -345,16 +345,13 @@ absl::StatusOr<Number*> Parser::TokenToNumber(const Token& tok) {
 
 absl::StatusOr<Expr*> Parser::ParseDim(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-  if (peek->kind() == TokenKind::kIdentifier) {
-    Token tok = PopTokenOrDie();
-    return ParseNameRef(bindings, &tok);
-  }
   if (peek->kind() == TokenKind::kNumber) {
     return TokenToNumber(PopTokenOrDie());
   }
-  return ParseErrorStatus(
-      peek->span(), absl::StrFormat("Expected number or identifier; got %s",
-                                    TokenKindToString(peek->kind())));
+  XLS_ASSIGN_OR_RETURN(
+      auto variant,
+      ParseNameOrColonRef(bindings, "expected a valid dimension"));
+  return ToExprNode(variant);
 }
 
 absl::StatusOr<StructRef> Parser::ResolveStruct(Bindings* bindings,
@@ -625,8 +622,9 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings* bindings,
 }
 
 absl::StatusOr<absl::variant<NameRef*, ColonRef*>> Parser::ParseNameOrColonRef(
-    Bindings* bindings) {
-  XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kIdentifier));
+    Bindings* bindings, absl::string_view context) {
+  XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kIdentifier,
+                                                  /*start=*/nullptr, context));
   XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
                        PeekTokenIs(TokenKind::kDoubleColon));
   if (peek_is_double_colon) {

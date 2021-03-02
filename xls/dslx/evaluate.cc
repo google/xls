@@ -1173,8 +1173,8 @@ absl::StatusOr<InterpBindings> MakeTopLevelBindings(
       XLS_ASSIGN_OR_RETURN(
           const ModuleInfo* imported,
           DoImport(interp->GetTypecheckFn(), ImportTokens(import->subject()),
-                   interp->GetAdditionalSearchPaths(),
-                   interp->GetImportCache()));
+                   interp->GetAdditionalSearchPaths(), interp->GetImportCache(),
+                   import->span()));
       XLS_VLOG(3) << "MakeTopLevelBindings adding import " << import->ToString()
                   << " as \"" << import->identifier() << "\"";
       b.AddModule(import->identifier(), imported->module.get());
@@ -1192,8 +1192,8 @@ absl::StatusOr<InterpBindings> MakeTopLevelBindings(
 
 // Resolves a dimension (e.g. as present in a type annotation) to an int64.
 absl::StatusOr<int64> ResolveDim(
-    absl::variant<Expr*, int64, ConcreteTypeDim> dim,
-    InterpBindings* bindings) {
+    absl::variant<Expr*, int64, ConcreteTypeDim> dim, InterpBindings* bindings,
+    AbstractInterpreter* interp) {
   if (absl::holds_alternative<int64>(dim)) {
     int64 result = absl::get<int64>(dim);
     XLS_RET_CHECK_GE(result, 0);
@@ -1213,6 +1213,13 @@ absl::StatusOr<int64> ResolveDim(
       XLS_ASSIGN_OR_RETURN(int64 result, value.GetBitValueUint64());
       XLS_RET_CHECK_GE(result, 0);
       return result;
+    }
+    if (ColonRef* colon_ref = dynamic_cast<ColonRef*>(expr)) {
+      XLS_ASSIGN_OR_RETURN(InterpValue v,
+                           EvaluateColonRef(colon_ref, bindings,
+                                            /*type_context=*/nullptr, interp));
+      XLS_ASSIGN_OR_RETURN(uint64 x, v.GetBitValueUint64());
+      return x;
     }
     return absl::UnimplementedError(
         "Resolve dim expression: " + expr->ToString() + " @ " +
@@ -1403,7 +1410,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
 
   // class ArrayTypeAnnotation
   if (auto* array = dynamic_cast<ArrayTypeAnnotation*>(type)) {
-    XLS_ASSIGN_OR_RETURN(int64 dim, ResolveDim(array->dim(), bindings));
+    XLS_ASSIGN_OR_RETURN(int64 dim, ResolveDim(array->dim(), bindings, interp));
     TypeAnnotation* elem_type = array->element_type();
     XLS_VLOG(3) << "Resolved array dim to: " << dim
                 << " elem_type: " << elem_type->ToString();

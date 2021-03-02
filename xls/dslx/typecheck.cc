@@ -577,9 +577,10 @@ absl::StatusOr<TypeInfo*> CheckModule(
   for (ModuleMember& member : *ctx->module()->mutable_top()) {
     if (absl::holds_alternative<Import*>(member)) {
       Import* import = absl::get<Import*>(member);
-      XLS_ASSIGN_OR_RETURN(const ModuleInfo* imported,
-                           DoImport(ftypecheck, ImportTokens(import->subject()),
-                                    additional_search_paths, import_cache));
+      XLS_ASSIGN_OR_RETURN(
+          const ModuleInfo* imported,
+          DoImport(ftypecheck, ImportTokens(import->subject()),
+                   additional_search_paths, import_cache, import->span()));
       ctx->type_info()->AddImport(import, imported->module.get(),
                                   imported->type_info);
     } else if (absl::holds_alternative<ConstantDef*>(member) ||

@@ -192,7 +192,7 @@ class Parser : public TokenParser {
   absl::StatusOr<Expr*> ParseCastOrStructInstance(Bindings* bindings);
 
   absl::StatusOr<absl::variant<NameRef*, ColonRef*>> ParseNameOrColonRef(
-      Bindings* bindings);
+      Bindings* bindings, absl::string_view context = "");
 
   absl::StatusOr<NameDef*> ParseNameDef(Bindings* bindings);
 

@@ -16,12 +16,7 @@
 
 import xls.dslx.tests.mod_simple_const
 
-// TODO(leary): 2020-03-01 Pull the constant into our namespace, currently can't
-// use a ColonRef in a type annotation's dimensions, it's rejected by the
-// grammar.
-const FOUR = mod_simple_const::FOUR;
-
-type U32X4 = u32[FOUR];
+type U32X4 = u32[mod_simple_const::FOUR];
 
 fn main(x: u32) -> U32X4 {
   U32X4:[x, ...]

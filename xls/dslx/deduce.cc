@@ -23,6 +23,45 @@
 namespace xls::dslx {
 namespace {
 
+// Resolves "ref" to an AST function.
+absl::StatusOr<Function*> ResolveColonRefToFn(ColonRef* ref, DeduceCtx* ctx) {
+  absl::optional<Import*> import = ref->ResolveImportSubject();
+  XLS_RET_CHECK(import.has_value())
+      << "ColonRef did not refer to an import: " << ref->ToString();
+  absl::optional<const ImportedInfo*> imported_info =
+      ctx->type_info()->GetImported(*import);
+  return imported_info.value()->module->GetFunctionOrError(ref->attr());
+}
+
+// Resolve "ref" to an AST ConstantDef's expression.
+absl::StatusOr<Expr*> ResolveColonRefToConstantExpr(ColonRef* ref,
+                                                    DeduceCtx* ctx) {
+  absl::optional<Import*> import = ref->ResolveImportSubject();
+  XLS_RET_CHECK(import.has_value())
+      << "ColonRef did not refer to an import: " << ref->ToString();
+  absl::optional<const ImportedInfo*> imported_info =
+      ctx->type_info()->GetImported(*import);
+  Module* module = imported_info.value()->module;
+  absl::optional<ModuleMember*> member =
+      module->FindMemberWithName(ref->attr());
+  if (!member.has_value()) {
+    return TypeInferenceErrorStatus(
+        ref->span(), nullptr,
+        absl::StrFormat(
+            "Referred to attribute '%s' of module '%s' which does not exist.",
+            ref->attr(), module->name()));
+  }
+  if (!absl::holds_alternative<ConstantDef*>(**member)) {
+    return TypeInferenceErrorStatus(
+        ref->span(), nullptr,
+        absl::StrFormat("Referred to attribute '%s' of module '%s' which was "
+                        "not a constant definition.",
+                        ref->attr(), module->name()));
+  }
+  auto* constant_def = absl::get<ConstantDef*>(**member);
+  return constant_def->value();
+}
+
 absl::Status CheckBitwidth(const Number& number, const ConcreteType& type) {
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bits_dim, type.GetTotalBitCount());
   XLS_RET_CHECK(absl::holds_alternative<int64>(bits_dim.value()))
@@ -1253,9 +1292,22 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
     XLS_ASSIGN_OR_RETURN(
         int64 value,
         Interpreter::InterpretExprToInt(
-            const_ref->owner(), ctx->type_info(), ctx->typecheck_module(),
+            (*const_expr)->owner(), ctx->type_info(), ctx->typecheck_module(),
             ctx->additional_search_paths(), ctx->import_cache(),
             /*env=*/{}, /*bit_widths=*/{}, *const_expr, FnCtx{}));
+    return ConcreteTypeDim(value);
+  }
+  if (auto* colon_ref = dynamic_cast<ColonRef*>(dim_expr)) {
+    XLS_ASSIGN_OR_RETURN(Expr * const_expr,
+                         ResolveColonRefToConstantExpr(colon_ref, ctx));
+    XLS_ASSIGN_OR_RETURN(
+        int64 value,
+        Interpreter::InterpretExprToInt(
+            const_expr->owner(),
+            ctx->import_cache()->GetRootTypeInfoForNode(const_expr).value(),
+            ctx->typecheck_module(), ctx->additional_search_paths(),
+            ctx->import_cache(),
+            /*env=*/{}, /*bit_widths=*/{}, const_expr, FnCtx{}));
     return ConcreteTypeDim(value);
   }
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ParametricExpression> e,
@@ -1591,21 +1643,6 @@ static absl::Status TypeMissingErrorStatusUpdateUser(const absl::Status& status,
   auto result = TypeMissingErrorStatus(node, new_user);
   XLS_VLOG(5) << "Updated from " << status << " to " << result;
   return result;
-}
-
-// Resolves "ref" to an AST function.
-static absl::StatusOr<Function*> ResolveColonRefToFn(ColonRef* ref,
-                                                     DeduceCtx* ctx) {
-  XLS_RET_CHECK(absl::holds_alternative<NameRef*>(ref->subject()));
-  auto* name_ref = absl::get<NameRef*>(ref->subject());
-  XLS_RET_CHECK(absl::holds_alternative<NameDef*>(name_ref->name_def()));
-  auto* name_def = absl::get<NameDef*>(name_ref->name_def());
-  AstNode* definer = name_def->definer();
-  Import* import = dynamic_cast<Import*>(definer);
-  XLS_RET_CHECK(import != nullptr);
-  absl::optional<const ImportedInfo*> imported_info =
-      ctx->type_info()->GetImported(import);
-  return imported_info.value()->module->GetFunctionOrError(ref->attr());
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,

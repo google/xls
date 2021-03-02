@@ -58,9 +58,9 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
   def test_imports_and_causes_ref_error(self):
     stderr = self._run('xls/dslx/tests/errors/imports_and_causes_ref_error.x')
-    self.assertIn('ParseError', stderr)
+    self.assertIn('TypeInferenceError', stderr)
     self.assertIn(
-        'xls/dslx/tests/errors/imports_and_causes_ref_error.x:17:29-17:31',
+        'xls/dslx/tests/errors/imports_and_causes_ref_error.x:17:33-17:43',
         stderr)
 
   def test_imports_private_enum(self):
@@ -135,7 +135,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
   def test_bad_dim(self):
     stderr = self._run('xls/dslx/tests/errors/bad_dim.x')
     self.assertIn('xls/dslx/tests/errors/bad_dim.x:15:16-15:17', stderr)
-    self.assertIn('Expected number or identifier; got +', stderr)
+    self.assertIn("Expected 'identifier', got '+': expected a valid dimension",
+                  stderr)
 
   def test_match_multi_pattern_with_bindings(self):
     stderr = self._run(
