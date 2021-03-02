@@ -171,18 +171,51 @@ See
 [advanced understanding](#advanced-understanding-parametricity-constraints-and-unification)
 for more information on parametricity.
 
-Functions and structs can also be explicitly parameterized, as in:
+#### Explicit parametric instantiation
+
+In some cases, parametric values cannot be inferred from function arguments,
+such as in the
+[`explicit_parametric_simple.x`](https://github.com/google/xls/tree/main/xls/dslx/tests/explicit_parametric_simple.x)
+test:
 
 ```
-struct Foo<X:u32, Y:u32> {
-  a: bits[X],
-  b: bits[Y]
-}
-
-fun MakeFoo<X: u64>(input: bits[4]) -> Foo<X as u32, u32:8> {
-  Foo<X as u32, u32:8>{ a: input as bits[X], b: bits[8]:1 }
-}
+fn add_one<E:u32, F:u32, G:u32 = E+F>(lhs: bits[E]) -> bits[G] { ... }
 ```
+
+For this call to instantiable, both `E` and `F` must be specified. Since `F`
+can't be inferred from an argument, we must rely on _explicit parametrics_:
+
+```
+  add_one<u32:1, {u32:2 + u32:3}>(u1:1);
+```
+
+This invocation will bind `1` to `E`, `5` to `F`, and `6` to `G`. Note the curly
+braces around the expression-defined parametric: simple literals and constant
+references do not need braces (but they _can_ have them), but any other
+expression requires them.
+
+##### Expression ambiguity
+
+Without curly braces, explicit parametric expressions could be ambiguous;
+consider the following, slightly changed from the previous example:
+
+```
+  add_one<u32:1, u32:2>(u32:3)>(u1:1);
+```
+
+Is the statement above computing `add_one<1, (2 > 3)>(1)`, or is it computing
+`(zero<1, 2>(3)) > 1)`? Without additional (and subtle and perhaps surprising)
+contextual precedence rules, this would be ambiguous and could lead to a parse
+error or, even worse, unexpected behavior.
+
+Fortunately, we can look to Rust for inspiration. Rust's const generics RPF
+introduced the `{ }` syntax for disambiguating just this case in generic
+specifications. With this, any expressions present in a parametric specification
+must be contained within curly braces, as in the original example.
+
+At present, if the braces are omitted, some unpredictable error will occur. Work
+to improve this is tracked in
+[XLS GitHub issue #321](https://github.com/google/xls/issues/321).
 
 ### Function Calls
 

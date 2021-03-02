@@ -36,3 +36,26 @@ fn parametric_with_comparison() {
   let _ = assert_eq(actual, expected);
   ()
 }
+
+// This set of functions tests what was an ambiguous case when
+// parsing parametrics: is foo<A>(B)>(C) an invocation of foo
+// parameterized by A with the argument B, or is it foo parameterized
+// by "A<B" and invoked with C?
+// We [now] use Rust generic expression rules, as of v1.51, which
+// contain parametric expressions in curly braces, which disambiguates
+// this sort of case.
+fn callee<A: u32>(x: bits[A]) -> bits[A] {
+  x + bits[A]:1
+}
+
+const X = u32:5;
+const Y = u32:6;
+const Z = u1:0;
+const W = u1:1;
+
+fn caller() -> u32{
+  let x = u32:16;
+  let y = callee<u32:32>(x);
+  let z = callee<{(u32:32 > u32:16) as u32 + u32:4}>(x as u5) as u32;
+  callee<{ (X > (Y) > (Z) > (W)) as u32 + u32:15 }>(u15:8) as u32
+}

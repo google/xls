@@ -18,6 +18,6 @@ fn add_one<E:u32, F:u32, G:u32 = E+F>(lhs: bits[E]) -> bits[G] {
 
 #![test]
 fn generic() {
-  let actual: u3 = add_one<u32:1, u32:2>(u1:1);
+  let actual: u3 = add_one<u32:1, {u32:1 + u32:1}>(u1:1);
   assert_eq(u3:2, actual)
 }

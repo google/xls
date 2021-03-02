@@ -1581,10 +1581,14 @@ absl::StatusOr<Param*> Parser::ParseParam(Bindings* bindings) {
 }
 
 absl::StatusOr<Number*> Parser::ParseNumber(Bindings* bindings) {
-  XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-  if (peek->kind() == TokenKind::kNumber ||
-      peek->kind() == TokenKind::kCharacter ||
-      peek->IsKeywordIn({Keyword::kTrue, Keyword::kFalse})) {
+  // Token pointers are not guaranteed to persist through Peek/Pop calls, so we
+  // need to make a copy for logging below.
+  XLS_ASSIGN_OR_RETURN(const Token* peek_tmp, PeekToken());
+  Token peek = *peek_tmp;
+
+  if (peek.kind() == TokenKind::kNumber ||
+      peek.kind() == TokenKind::kCharacter ||
+      peek.IsKeywordIn({Keyword::kTrue, Keyword::kFalse})) {
     return TokenToNumber(PopTokenOrDie());
   }
 
@@ -1595,10 +1599,10 @@ absl::StatusOr<Number*> Parser::ParseNumber(Bindings* bindings) {
     return dynamic_cast<Number*>(cast.value());
   }
 
-  return ParseErrorStatus(peek->span(),
-                          absl::StrFormat("Expected number; got %s @ %s",
-                                          TokenKindToString(peek->kind()),
-                                          peek->span().ToString()));
+  return ParseErrorStatus(
+      peek.span(),
+      absl::StrFormat("Expected number; got %s @ %s",
+                      TokenKindToString(peek.kind()), peek.span().ToString()));
 }
 
 absl::StatusOr<StructDef*> Parser::ParseStruct(bool is_public,
@@ -1700,19 +1704,37 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
   auto parse_parametric = [this, &txn]() -> absl::StatusOr<Expr*> {
-    // We can't mess with the top-level transation, or else rolling back/trying
-    // a different production would undo ALL updates, so we need to create a
-    // sub-transaction in here.
-    auto status_or_expr = TryOrRollback<Expr*>(
-        txn.bindings(),
-        [this](Bindings* bindings) { return ParseCast(bindings); });
-    if (status_or_expr.ok()) {
-      return status_or_expr;
+    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+    if (peek->kind() == TokenKind::kOBrace) {
+      // Ternary expressions are the first below the let/for/while set.
+      Transaction sub_txn(this, txn.bindings());
+      auto cleanup = xabsl::MakeCleanup([&sub_txn]() { sub_txn.Rollback(); });
+
+      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
+      XLS_ASSIGN_OR_RETURN(Expr * expr,
+                           ParseTernaryExpression(sub_txn.bindings()));
+      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
+
+      sub_txn.CommitAndCancelCleanup(&cleanup);
+      return expr;
     }
 
-    return TryOrRollback<Expr*>(txn.bindings(), [this](Bindings* bindings) {
-      return ParseCastAsExpression(bindings);
-    });
+    auto status_or_literal = TryOrRollback<Number*>(
+        txn.bindings(),
+        [this](Bindings* bindings) { return ParseNumber(bindings); });
+    if (status_or_literal.ok()) {
+      return status_or_literal;
+    }
+
+    auto status_or_ref = TryOrRollback<absl::variant<NameRef*, ColonRef*>>(
+        txn.bindings(),
+        [this](Bindings* bindings) { return ParseNameOrColonRef(bindings); });
+    XLS_ASSIGN_OR_RETURN(auto ref, status_or_ref);
+    if (absl::holds_alternative<NameRef*>(ref)) {
+      return absl::get<NameRef*>(ref);
+    }
+
+    return absl::get<ColonRef*>(ref);
   };
 
   auto status_or_exprs =
