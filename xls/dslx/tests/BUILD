@@ -627,3 +627,23 @@ dslx_test(
     name = "enum_value_from_const",
     srcs = ["enum_value_from_const.x"],
 )
+
+dslx_test(
+    name = "mod_importer_access_const_struct",
+    srcs = ["mod_importer_access_const_struct.x"],
+    deps = ["mod_imported_const_struct.x"],
+)
+
+dslx_test(
+    name = "mod_importer_access_const_struct_indirect",
+    srcs = ["mod_importer_access_const_struct_indirect.x"],
+    deps = [
+        "mod_imported_access_const_struct.x",
+        "mod_imported_const_struct.x",
+    ],
+)
+
+dslx_test(
+    name = "nest_alias_const_array",
+    srcs = ["nest_alias_const_array.x"],
+)
