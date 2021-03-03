@@ -11,7 +11,5 @@ module ArrayIndex2DArrayIndexSingleElement(
   assign a_unflattened[1][0] = a[23:16];
   assign a_unflattened[1][1] = a[15:8];
   assign a_unflattened[1][2] = a[7:0];
-  wire [7:0] array_index_4;
-  assign array_index_4 = a_unflattened[idx0][idx1];
-  assign out = array_index_4;
+  assign out = a_unflattened[idx0][idx1];
 endmodule

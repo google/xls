@@ -22,8 +22,10 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/codegen/flattening.h"
+#include "xls/codegen/function_to_proc.h"
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/node_expressions.h"
+#include "xls/codegen/proc_generator.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
@@ -180,87 +182,32 @@ absl::StatusOr<Channel*> GetChannelUsedByNode(Node* node) {
 
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
     Function* func, bool use_system_verilog) {
-  XLS_VLOG(2) << "Generating combinational module for function:";
-  XLS_VLOG_LINES(2, func->DumpIr());
+  XLS_ASSIGN_OR_RETURN(
+      Proc * proc,
+      FunctionToProc(func, absl::StrCat("__", func->name(), "_proc")));
+  std::string module_name = SanitizeIdentifier(func->name());
+  XLS_ASSIGN_OR_RETURN(
+      ModuleGeneratorResult result,
+      GenerateModule(proc, GeneratorOptions()
+                               .module_name(module_name)
+                               .use_system_verilog(use_system_verilog)));
 
-  VerilogFile f;
-  ModuleBuilder mb(func->name(), &f, /*use_system_verilog=*/use_system_verilog);
-
-  // Build the module signature.
-  ModuleSignatureBuilder sig_builder(mb.module()->name());
+  // Generate a signature for the module. ProcGenerate currently generates a
+  // signature with "Unknown" interface type.
+  // TODO(meheff): 2021/03/01 Remove this when proc builder can generate more
+  // expressive signatures.
+  ModuleSignatureBuilder sig_builder(module_name);
   for (Param* param : func->params()) {
     sig_builder.AddDataInput(param->name(),
                              param->GetType()->GetFlatBitCount());
   }
-  const int64 output_width = func->return_value()->GetType()->GetFlatBitCount();
-  // Don't use the assigned name if this is a parameter or there will be ports
-  // with duplicate names.
-  const char kOutputPortName[] = "out";
-  sig_builder.AddDataOutput(kOutputPortName, output_width);
+  sig_builder.AddDataOutput("out",
+                            func->return_value()->GetType()->GetFlatBitCount());
   sig_builder.WithFunctionType(func->GetType());
   sig_builder.WithCombinationalInterface();
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, sig_builder.Build());
 
-  // Map from Node* to the Verilog expression representing its value.
-  absl::flat_hash_map<Node*, NodeRepresentation> node_exprs;
-
-  // Add parameters explicitly so the input ports are added in the order they
-  // appear in the parameters of the function.
-  for (Param* param : func->params()) {
-    if (param->GetType()->GetFlatBitCount() == 0) {
-      XLS_RET_CHECK_EQ(param->users().size(), 0);
-      continue;
-    }
-    XLS_ASSIGN_OR_RETURN(
-        node_exprs[param],
-        mb.AddInputPort(param->As<Param>()->name(), param->GetType()));
-  }
-
-  // Generate list of nodes to emit as combinational logic.
-  std::vector<Node*> nodes;
-  for (Node* node : TopoSort(func)) {
-    if (node->Is<Param>()) {
-      // Parameters are added in the above loop.
-      continue;
-    }
-
-    // Verilog has no zero-bit data types so elide such types. They should have
-    // no uses.
-    if (node->GetType()->GetFlatBitCount() == 0) {
-      XLS_RET_CHECK_EQ(node->users().size(), 0);
-      continue;
-    }
-
-    // Emit non-bits-typed literals as module-level constants because in general
-    // these complicated types cannot be handled inline, and constructing them
-    // in Verilog may require a sequence of assignments.
-    if (node->Is<xls::Literal>() && !node->GetType()->IsBits()) {
-      XLS_ASSIGN_OR_RETURN(
-          node_exprs[node],
-          mb.DeclareModuleConstant(node->GetName(),
-                                   node->As<xls::Literal>()->value()));
-      continue;
-    }
-
-    if (!node->Is<Param>()) {
-      nodes.push_back(node);
-    }
-  }
-  XLS_RETURN_IF_ERROR(GenerateCombinationalLogic(nodes, &mb, &node_exprs));
-
-  // Skip adding an output port to the Verilog module if the output is
-  // zero-width.
-  if (output_width > 0) {
-    XLS_RETURN_IF_ERROR(mb.AddOutputPort(
-        kOutputPortName, func->return_value()->GetType(),
-        absl::get<Expression*>(node_exprs.at(func->return_value()))));
-  }
-  std::string text = f.Emit();
-
-  XLS_VLOG(2) << "Verilog output:";
-  XLS_VLOG_LINES(2, text);
-
-  return ModuleGeneratorResult{text, signature};
+  return ModuleGeneratorResult{result.verilog_text, signature};
 }
 
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(

@@ -7,7 +7,5 @@ module ArrayIndexSimpleArray(
   assign a_unflattened[0] = a[23:16];
   assign a_unflattened[1] = a[15:8];
   assign a_unflattened[2] = a[7:0];
-  wire [7:0] array_index_3;
-  assign array_index_3 = a_unflattened[idx];
-  assign out = array_index_3;
+  assign out = a_unflattened[idx];
 endmodule

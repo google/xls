@@ -38,10 +38,12 @@ cc_library(
     hdrs = ["combinational_generator.h"],
     deps = [
         ":flattening",
+        ":function_to_proc",
         ":module_builder",
         ":module_signature",
         ":name_to_bit_count",
         ":node_expressions",
+        ":proc_generator",
         ":vast",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/memory",
@@ -374,6 +376,20 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "function_to_proc",
+    srcs = ["function_to_proc.cc"],
+    hdrs = ["function_to_proc.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:function_builder",
+        "//xls/ir:value_helpers",
+    ],
+)
+
 proto_library(
     name = "module_signature_proto",
     srcs = ["module_signature.proto"],
@@ -491,6 +507,18 @@ cc_test(
         "//xls/ir:value",
         "//xls/simulation:module_simulator",
         "//xls/simulation:verilog_test_base",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "function_to_proc_test",
+    srcs = ["function_to_proc_test.cc"],
+    deps = [
+        ":function_to_proc",
+        "//xls/common/status:matchers",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest_main",
     ],
 )

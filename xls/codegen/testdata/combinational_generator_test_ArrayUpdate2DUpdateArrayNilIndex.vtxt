@@ -17,12 +17,12 @@ module ArrayUpdate2DUpdateArrayNilIndex(
   assign value_unflattened[1][0] = value[23:16];
   assign value_unflattened[1][1] = value[15:8];
   assign value_unflattened[1][2] = value[7:0];
-  wire [7:0] array_update_3[0:1][0:2];
-  assign array_update_3[0][0] = value_unflattened[0][0];
-  assign array_update_3[0][1] = value_unflattened[0][1];
-  assign array_update_3[0][2] = value_unflattened[0][2];
-  assign array_update_3[1][0] = value_unflattened[1][0];
-  assign array_update_3[1][1] = value_unflattened[1][1];
-  assign array_update_3[1][2] = value_unflattened[1][2];
-  assign out = {{array_update_3[0][0], array_update_3[0][1], array_update_3[0][2]}, {array_update_3[1][0], array_update_3[1][1], array_update_3[1][2]}};
+  wire [7:0] array_update_15[0:1][0:2];
+  assign array_update_15[0][0] = value_unflattened[0][0];
+  assign array_update_15[0][1] = value_unflattened[0][1];
+  assign array_update_15[0][2] = value_unflattened[0][2];
+  assign array_update_15[1][0] = value_unflattened[1][0];
+  assign array_update_15[1][1] = value_unflattened[1][1];
+  assign array_update_15[1][2] = value_unflattened[1][2];
+  assign out = {{array_update_15[0][0], array_update_15[0][1], array_update_15[0][2]}, {array_update_15[1][0], array_update_15[1][1], array_update_15[1][2]}};
 endmodule

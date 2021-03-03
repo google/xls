@@ -30,7 +30,8 @@ namespace verilog {
 
 // Emits the given function as a combinational Verilog module. If
 // use_system_verilog is true the generated module will be SystemVerilog
-// otherwise it will be Verilog.
+// otherwise it will be Verilog. This adds a proc to the package which
+// represents the combinational module. This proc is used for code generation.
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
     Function* func, bool use_system_verilog = true);
 

@@ -10,7 +10,7 @@ module ArrayIndex2DArrayIndexSubArray(
   assign a_unflattened[1][0] = a[23:16];
   assign a_unflattened[1][1] = a[15:8];
   assign a_unflattened[1][2] = a[7:0];
-  wire [7:0] array_index_3[3];
-  assign array_index_3 = a_unflattened[idx];
-  assign out = {array_index_3[0], array_index_3[1], array_index_3[2]};
+  wire [7:0] array_index_15[3];
+  assign array_index_15 = a_unflattened[idx];
+  assign out = {array_index_15[0], array_index_15[1], array_index_15[2]};
 endmodule

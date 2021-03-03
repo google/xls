@@ -168,21 +168,26 @@ using ReceiveData = std::pair<UnrepresentedSentinel, Expression*>;
 using NodeRepresentation =
     absl::variant<Expression*, UnrepresentedSentinel, ReceiveData>;
 
-// Returns true if the given type is an unrepresented type in the Verilog
-// (e.g., a token) or has as a unrepresented type as a subelement.
-bool HasUnrepresentedType(Type* type) {
-  if (type->IsToken() || type->GetFlatBitCount() == 0) {
+// Returns true if the given type is a token type or has as a token type as a
+// subelement.
+bool HasTokenType(Type* type) {
+  if (type->IsToken()) {
     return true;
   }
   if (type->IsTuple()) {
     return std::any_of(type->AsTupleOrDie()->element_types().begin(),
                        type->AsTupleOrDie()->element_types().end(),
-                       HasUnrepresentedType);
+                       HasTokenType);
   }
   if (type->IsArray()) {
-    return HasUnrepresentedType(type->AsArrayOrDie()->element_type());
+    return HasTokenType(type->AsArrayOrDie()->element_type());
   }
   return false;
+}
+
+// Returns true if the given type is representable in the Verilog.
+bool IsRepresentable(Type* type) {
+  return !HasTokenType(type) && type->GetFlatBitCount() > 0;
 }
 
 // Return the Verilog representation for the given node which has at least one
@@ -224,7 +229,7 @@ absl::Status GenerateCombinationalLogic(
     absl::flat_hash_map<Node*, NodeRepresentation>* node_exprs) {
   for (Node* node : nodes) {
     XLS_VLOG(1) << "Generating expression for: " << node->GetName();
-    if (HasUnrepresentedType(node->GetType())) {
+    if (!IsRepresentable(node->GetType())) {
       (*node_exprs)[node] = UnrepresentedSentinel();
       continue;
     }
@@ -308,8 +313,11 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModule(
 
   XLS_RETURN_IF_ERROR(VerifyProcForCodegen(proc));
 
+  std::string module_name = options.module_name().has_value()
+                                ? std::string{options.module_name().value()}
+                                : SanitizeIdentifier(proc->name());
   VerilogFile f;
-  ModuleBuilder mb(proc->name(), &f,
+  ModuleBuilder mb(module_name, &f,
                    /*use_system_verilog=*/options.use_system_verilog(),
                    options.clock_name(), options.reset());
 
@@ -391,6 +399,14 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModule(
   std::vector<Node*> nodes;
   for (Node* node : TopoSort(proc)) {
     if (node->Is<Param>() || IsChannelNode(node)) {
+      continue;
+    }
+    // Verilog has no zero-bit data types so elide such types. They should have
+    // no uses.
+    if (!IsRepresentable(node->GetType())) {
+      if (!node->GetType()->IsToken()) {
+        XLS_RET_CHECK_EQ(node->users().size(), 0) << node->ToString();
+      }
       continue;
     }
     nodes.push_back(node);
