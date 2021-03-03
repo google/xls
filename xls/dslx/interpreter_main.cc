@@ -17,6 +17,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -137,15 +138,24 @@ absl::StatusOr<bool> ParseAndTest(
   constexpr int kQuickcheckSpaces = 15;
   auto handle_error = [&](const absl::Status& status,
                           absl::string_view test_name, bool is_quickcheck) {
+    XLS_VLOG(1) << "Handling error; status: " << status
+                << " test_name: " << test_name;
     absl::StatusOr<PositionalErrorData> data_or =
         GetPositionalErrorData(status);
+    std::string suffix;
     if (data_or.ok()) {
       const auto& data = data_or.value();
       XLS_CHECK_OK(PrintPositionalError(data.span, data.GetMessageWithType(),
                                         std::cerr));
+    } else {
+      // If we can't extract positional data we log the error and put the error
+      // status into the "failed" prompted.
+      XLS_LOG(ERROR) << "Internal error: " << status;
+      suffix = absl::StrCat(": internal error: ", status.ToString());
     }
     std::string spaces((is_quickcheck ? kQuickcheckSpaces : kUnitSpaces), ' ');
-    std::cerr << absl::StreamFormat("[ %sFAILED ] %s", spaces, test_name)
+    std::cerr << absl::StreamFormat("[ %sFAILED ] %s%s", spaces, test_name,
+                                    suffix)
               << std::endl;
     failed += 1;
   };
