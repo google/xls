@@ -32,7 +32,7 @@ cc_library(
         "//xls/codegen:vast",
         "//xls/ir",
         "//xls/ir:bits_ops",
-        "@llvm//:Core",
+        "@llvm-project//llvm:Core",
     ],
 )
 
@@ -111,18 +111,18 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:value_helpers",
         "//xls/ir:value_view",
-        "@llvm//:AArch64AsmParser",  # build_cleaner: keep
-        "@llvm//:AArch64CodeGen",  # build_cleaner: keep
-        "@llvm//:Analysis",
-        "@llvm//:Core",
-        "@llvm//:ExecutionEngine",
-        "@llvm//:IPO",
-        "@llvm//:JITLink",  # build_cleaner: keep
-        "@llvm//:OrcJIT",
-        "@llvm//:Support",
-        "@llvm//:Target",
-        "@llvm//:X86AsmParser",  # build_cleaner: keep
-        "@llvm//:X86CodeGen",  # build_cleaner: keep
+        "@llvm-project//llvm:AArch64AsmParser",  # build_cleaner: keep
+        "@llvm-project//llvm:AArch64CodeGen",  # build_cleaner: keep
+        "@llvm-project//llvm:Analysis",
+        "@llvm-project//llvm:Core",
+        "@llvm-project//llvm:ExecutionEngine",
+        "@llvm-project//llvm:IPO",
+        "@llvm-project//llvm:JITLink",  # build_cleaner: keep
+        "@llvm-project//llvm:OrcJIT",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//llvm:Target",
+        "@llvm-project//llvm:X86AsmParser",  # build_cleaner: keep
+        "@llvm-project//llvm:X86CodeGen",  # build_cleaner: keep
     ],
 )
 
@@ -180,14 +180,14 @@ cc_library(
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
-        "@llvm//:AArch64AsmParser",  # build_cleaner: keep
-        "@llvm//:AArch64CodeGen",  # build_cleaner: keep
-        "@llvm//:Core",
-        "@llvm//:OrcJIT",
-        "@llvm//:Support",
-        "@llvm//:Target",
-        "@llvm//:X86AsmParser",  # build_cleaner: keep
-        "@llvm//:X86CodeGen",  # build_cleaner: keep
+        "@llvm-project//llvm:AArch64AsmParser",  # build_cleaner: keep
+        "@llvm-project//llvm:AArch64CodeGen",  # build_cleaner: keep
+        "@llvm-project//llvm:Core",
+        "@llvm-project//llvm:OrcJIT",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//llvm:Target",
+        "@llvm-project//llvm:X86AsmParser",  # build_cleaner: keep
+        "@llvm-project//llvm:X86CodeGen",  # build_cleaner: keep
     ],
 )
 
@@ -206,7 +206,7 @@ cc_library(
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
-        "@llvm//:Core",
+        "@llvm-project//llvm:Core",
     ],
 )
 
@@ -219,7 +219,7 @@ cc_library(
         ":jit_channel_queue",
         ":llvm_type_converter",
         "//xls/ir",
-        "@llvm//:Core",
+        "@llvm-project//llvm:Core",
     ],
 )
 
@@ -244,11 +244,11 @@ cc_test(
         "//xls/ir:type",
         "//xls/ir:value",
         "@com_google_googletest//:gtest_main",
-        "@llvm//:Core",
-        "@llvm//:ExecutionEngine",
-        "@llvm//:MCJIT",
-        "@llvm//:OrcJIT",
-        "@llvm//:Target",
+        "@llvm-project//llvm:Core",
+        "@llvm-project//llvm:ExecutionEngine",
+        "@llvm-project//llvm:MCJIT",
+        "@llvm-project//llvm:OrcJIT",
+        "@llvm-project//llvm:Target",
     ],
 )
 

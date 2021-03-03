@@ -20,6 +20,7 @@ load("@pybind11_bazel//:python_configure.bzl", "python_configure")
 load("@io_bazel_rules_closure//closure:repositories.bzl", "rules_closure_dependencies", "rules_closure_toolchains")
 load("@rules_python//python:pip.bzl", "pip_install")
 load("//dependency_support/boost:initialize.bzl", initialize_boost = "initialize")
+load("//dependency_support/llvm_bazel:initialize.bzl", initialize_llvm_bazel = "initialize")
 
 def initialize_external_repositories():
     """Calls set-up methods for external repositories that require that."""
@@ -35,3 +36,4 @@ def initialize_external_repositories():
         timeout = 600000,
     )
     initialize_boost()
+    initialize_llvm_bazel()

@@ -15,9 +15,9 @@
 #include "xls/jit/jit_runtime.h"
 
 #include "absl/strings/str_format.h"
-#include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
-#include "llvm/Support/TargetSelect.h"
-#include "llvm/Target/TargetMachine.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
+#include "llvm/include/llvm/Support/TargetSelect.h"
+#include "llvm/include/llvm/Target/TargetMachine.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/type.h"

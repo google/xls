@@ -16,24 +16,25 @@
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
-load("//dependency_support:edu_berkeley_abc/workspace.bzl", repo_abc = "repo")
-load("//dependency_support/boost:workspace.bzl", repo_boost = "repo")
-load("//dependency_support/org_gnu_bison:workspace.bzl", repo_bison = "repo")
-load("//dependency_support:org_sourceware_bzip2/workspace.bzl", repo_bzip2 = "repo")
-load("//dependency_support/org_tuxfamily_eigen:workspace.bzl", repo_eigen = "repo")
-load("//dependency_support/flex:workspace.bzl", repo_flex = "repo")
-load("//dependency_support/org_gnu_gperf:workspace.bzl", repo_gperf = "repo")
 load("//dependency_support/at_clifford_icestorm:workspace.bzl", repo_icestorm = "repo")
+load("//dependency_support/at_clifford_yosys:workspace.bzl", repo_yosys = "repo")
+load("//dependency_support/boost:workspace.bzl", repo_boost = "repo")
 load("//dependency_support/com_icarus_iverilog:workspace.bzl", repo_iverilog = "repo")
 load("//dependency_support/dk_thrysoee_libedit:workspace.bzl", repo_libedit = "repo")
-load("//dependency_support:org_sourceware_libffi/workspace.bzl", repo_libffi = "repo")
-load("//dependency_support/org_gnu_m4:workspace.bzl", repo_m4 = "repo")
+load("//dependency_support/flex:workspace.bzl", repo_flex = "repo")
+load("//dependency_support/llvm_bazel:workspace.bzl", repo_llvm_bazel = "repo")
 load("//dependency_support/net_invisible_island_ncurses:workspace.bzl", repo_ncurses = "repo")
 load("//dependency_support/nextpnr:workspace.bzl", repo_nextpnr = "repo")
+load("//dependency_support/org_gnu_bison:workspace.bzl", repo_bison = "repo")
+load("//dependency_support/org_gnu_gperf:workspace.bzl", repo_gperf = "repo")
+load("//dependency_support/org_gnu_m4:workspace.bzl", repo_m4 = "repo")
+load("//dependency_support/org_tuxfamily_eigen:workspace.bzl", repo_eigen = "repo")
 load("//dependency_support/prjtrellis:workspace.bzl", repo_prjtrellis = "repo")
 load("//dependency_support/prjtrellis_db:workspace.bzl", repo_prjtrellis_db = "repo")
+load("//dependency_support:edu_berkeley_abc/workspace.bzl", repo_abc = "repo")
+load("//dependency_support:org_sourceware_bzip2/workspace.bzl", repo_bzip2 = "repo")
+load("//dependency_support:org_sourceware_libffi/workspace.bzl", repo_libffi = "repo")
 load("//dependency_support:tk_tcl_tcl/workspace.bzl", repo_tcl = "repo")
-load("//dependency_support/at_clifford_yosys:workspace.bzl", repo_yosys = "repo")
 
 def load_external_repositories():
     """Loads external repositories with third-party code."""
@@ -49,6 +50,7 @@ def load_external_repositories():
     repo_iverilog()
     repo_libedit()
     repo_libffi()
+    repo_llvm_bazel()
     repo_m4()
     repo_ncurses()
     repo_nextpnr()
@@ -91,14 +93,6 @@ def load_external_repositories():
     )
 
     http_archive(
-        name = "llvm",
-        urls = ["https://github.com/llvm/llvm-project/archive/baa005c96ce610e9ee91ef55a3a1b1eacd5a0a27.tar.gz"],
-        strip_prefix = "llvm-project-baa005c96ce610e9ee91ef55a3a1b1eacd5a0a27/llvm",
-        build_file = "@//dependency_support/llvm:bundled.BUILD.bazel",
-        sha256 = "afa18d1c7c894868c6d8877b7037fb46a7f120ec8521a0493660d7c964eef3cd",
-    )
-
-    http_archive(
         name = "pybind11_bazel",
         strip_prefix = "pybind11_bazel-34206c29f891dbd5f6f5face7b91664c2ff7185c",
         urls = ["https://github.com/pybind/pybind11_bazel/archive/34206c29f891dbd5f6f5face7b91664c2ff7185c.zip"],
@@ -128,11 +122,12 @@ def load_external_repositories():
         ],
     )
 
+    # Version: pypi-v0.11.0, 2020/10/27
     http_archive(
         name = "com_google_absl_py",
-        strip_prefix = "abseil-py-06edd9c20592cec39178b94240b5e86f32e19768",
-        urls = ["https://github.com/abseil/abseil-py/archive/06edd9c20592cec39178b94240b5e86f32e19768.zip"],
-        sha256 = "6ace3cd8921804aaabc37970590edce05c6664901cc98d30010d09f2811dc56f",
+        strip_prefix = "abseil-py-ddbd7d46d01fa71b0584e948d68fcd1d47bea0c4",
+        urls = ["https://github.com/abseil/abseil-py/archive/ddbd7d46d01fa71b0584e948d68fcd1d47bea0c4.zip"],
+        sha256 = "c4d112feb36d254de0057b9e67f5423c64908f17219b13f799b47b4deacc279c",
     )
 
     # Note - use @com_github_google_re2 instead of more canonical

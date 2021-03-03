@@ -13,14 +13,14 @@
 // limitations under the License.
 #include "xls/jit/function_builder_visitor.h"
 
-#include "llvm/IR/DerivedTypes.h"
+#include "llvm/include/llvm/IR/DerivedTypes.h"
 #include "xls/ir/bits_ops.h"
 
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
 #include <sanitizer/msan_interface.h>
 #endif
 
-#include "llvm/IR/Constants.h"
+#include "llvm/include/llvm/IR/Constants.h"
 #include "xls/codegen/vast.h"
 #include "xls/ir/function.h"
 #include "xls/ir/proc.h"

@@ -14,9 +14,9 @@
 #ifndef XLS_JIT_PROC_BUILDER_VISITOR_H_
 #define XLS_JIT_PROC_BUILDER_VISITOR_H_
 
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
+#include "llvm/include/llvm/IR/IRBuilder.h"
+#include "llvm/include/llvm/IR/LLVMContext.h"
+#include "llvm/include/llvm/IR/Module.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/jit/function_builder_visitor.h"

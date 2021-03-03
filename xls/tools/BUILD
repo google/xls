@@ -658,9 +658,9 @@ cc_binary(
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/jit:jit_runtime",
-        "@llvm//:Core",
-        "@llvm//:IRReader",
-        "@llvm//:Support",
+        "@llvm-project//llvm:Core",
+        "@llvm-project//llvm:IRReader",
+        "@llvm-project//llvm:Support",
     ],
 )
 

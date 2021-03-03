@@ -13,10 +13,10 @@
 // limitations under the License.
 #include "xls/jit/proc_builder_visitor.h"
 
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/Instructions.h"
+#include "llvm/include/llvm/IR/BasicBlock.h"
+#include "llvm/include/llvm/IR/DerivedTypes.h"
+#include "llvm/include/llvm/IR/IRBuilder.h"
+#include "llvm/include/llvm/IR/Instructions.h"
 
 namespace xls {
 

@@ -17,9 +17,9 @@
 
 #include "absl/status/status.h"
 #include "absl/types/span.h"
-#include "llvm/IR/DataLayout.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/include/llvm/IR/DataLayout.h"
+#include "llvm/include/llvm/IR/LLVMContext.h"
+#include "llvm/include/llvm/Support/raw_ostream.h"
 #include "xls/common/integral_types.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/ir/type.h"

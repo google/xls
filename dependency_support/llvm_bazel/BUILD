@@ -1,4 +1,4 @@
-# Copyright 2020 The XLS Authors
+# Copyright 2021 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,14 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-package(
-    licenses = ["notice"],  # Apache 2.0
-)
-
-py_binary(
-    name = "expand_cmake_vars",
-    srcs = ["expand_cmake_vars.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    visibility = ["@llvm//:__subpackages__"],
-)
+# Needed to make this a package.

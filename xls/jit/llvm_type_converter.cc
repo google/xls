@@ -15,7 +15,7 @@
 #include "xls/jit/llvm_type_converter.h"
 
 #include "absl/status/statusor.h"
-#include "llvm/IR/DerivedTypes.h"
+#include "llvm/include/llvm/IR/DerivedTypes.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/ir_parser.h"
 
