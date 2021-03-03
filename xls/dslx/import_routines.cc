@@ -57,6 +57,22 @@ absl::StatusOr<TypeInfo*> ImportCache::GetRootTypeInfo(Module* module) {
   return type_info_owner().GetRootTypeInfo(module);
 }
 
+absl::optional<InterpBindings*> ImportCache::GetTopLevelBindings(
+    Module* module) {
+  auto it = top_level_bindings_.find(module);
+  if (it == top_level_bindings_.end()) {
+    return absl::nullopt;
+  }
+  return it->second.get();
+}
+
+void ImportCache::SetTopLevelBindings(Module* module,
+                                      std::unique_ptr<InterpBindings> tlb) {
+  auto it = top_level_bindings_.emplace(module, std::move(tlb));
+  XLS_CHECK(it.second) << "Module already had top level bindings: "
+                       << module->name();
+}
+
 static absl::StatusOr<std::filesystem::path> FindExistingPath(
     const ImportTokens& subject,
     absl::Span<const std::string> additional_search_paths,

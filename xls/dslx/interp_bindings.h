@@ -58,7 +58,7 @@ class InterpBindings {
 
   static absl::string_view VariantAsString(const Entry& e);
 
-  explicit InterpBindings(InterpBindings* parent = nullptr);
+  explicit InterpBindings(const InterpBindings* parent = nullptr);
 
   // Various forms of binding additions (identifier to value / AST node).
 
@@ -100,11 +100,12 @@ class InterpBindings {
   // Resolution functions from identifiers to values / AST nodes.
 
   absl::StatusOr<InterpValue> ResolveValueFromIdentifier(
-      absl::string_view identifier) const;
+      absl::string_view identifier, const Span* ref_span = nullptr) const;
 
   // Resolves a name reference to an interpreter value.
   absl::StatusOr<InterpValue> ResolveValue(NameRef* name_ref) const {
-    return ResolveValueFromIdentifier(name_ref->identifier());
+    return ResolveValueFromIdentifier(name_ref->identifier(),
+                                      &name_ref->span());
   }
 
   absl::StatusOr<Module*> ResolveModule(absl::string_view identifier) const;
@@ -134,7 +135,7 @@ class InterpBindings {
 
  private:
   // Bindings from the outer scope, may be nullptr.
-  InterpBindings* parent_;
+  const InterpBindings* parent_;
 
   // Maps an identifier to its bound entry.
   absl::flat_hash_map<std::string, Entry> map_;

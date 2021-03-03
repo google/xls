@@ -183,17 +183,24 @@ absl::StatusOr<InterpValue> EvaluateIndex(Index* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           AbstractInterpreter* interp);
 
-// Creates the top level bindings for a given module. We may not be able to
-// create a *complete* set of bindings if we've re-entered this routine; e.g. in
-// evaluating a top-level constant we recur to ask what enums (or similar) are
-// available in the module scope -- in those cases we populate as many top level
-// bindings as we can before we reach the work-in-progress point.
+// Get-or-creates the top level bindings for a given module (with respect to the
+// interpreter's ImportCache as storage).
+//
+// Note that we may not be able to create a *complete* set of bindings in the
+// return value if we've re-entered this routine; e.g. in evaluating a top-level
+// constant we recur to ask "what enums (or similar) are available in the module
+// scope?" -- in those cases we populate as many top level bindings as we can
+// before we reach the work-in-progress point.
 //
 // Args:
 //   module: The top-level module to make bindings for.
-//   callbacks: Provide ability to call back into the interpreter facilities
+//   interp: Provides ability to call back into the interpreter facilities
 //    e.g. on import or for evaluating constant value expressions.
-absl::StatusOr<InterpBindings> MakeTopLevelBindings(
+//
+// Implementation note: the work-in-progress (tracking for re-entrancy as
+// described above) is kept track of via the
+// AbstractInterpreter::{IsWip,NoteWip} functions.
+absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
     Module* module, AbstractInterpreter* interp);
 
 using ConcretizeVariant = absl::variant<TypeAnnotation*, EnumDef*, StructDef*>;

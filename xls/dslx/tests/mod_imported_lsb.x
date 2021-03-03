@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2021 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,22 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-struct Point {
-  x: u32,
-  y: u32,
-}
-
-const BEST_Y = u32:42;
-
-fn update_y(p: Point) -> Point {
-  Point{ y: BEST_Y, ..p }
-}
-
-#![test]
-fn test_update_y() {
-  let p = Point{ x: u32:1, y: u32:2 };
-  let q = update_y(p);
-  let _ = assert_eq(q.y, u32:42);
-  let _ = assert_eq(q.x, u32:1);
-  ()
+// Extracts the LSb (least significant bit) from the value `x` and returns it.
+pub fn lsb<N: u32>(x: uN[N]) -> u1 {
+  x as u1
 }

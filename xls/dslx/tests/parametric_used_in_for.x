@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2021 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,4 +11,18 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-const FOO = 42;
+
+fn p<N: u32>() -> u32 {
+  for (i, accum): (u32, u32) in range(u32:0, N) {
+    accum + i
+  }(u32:0)
+}
+
+fn main() -> u32 {
+  p<u32:4>()
+}
+
+#![test]
+fn test_main() {
+  assert_eq(main(), u32:6)
+}

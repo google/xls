@@ -43,7 +43,7 @@ namespace xls::dslx {
   XLS_LOG(FATAL) << "Unhandled binding entry variant.";
 }
 
-InterpBindings::InterpBindings(InterpBindings* parent) : parent_(parent) {
+InterpBindings::InterpBindings(const InterpBindings* parent) : parent_(parent) {
   if (parent_ != nullptr) {
     fn_ctx_ = parent_->fn_ctx();
   }
@@ -67,11 +67,16 @@ void InterpBindings::AddValueTree(NameDefTree* name_def_tree,
 }
 
 absl::StatusOr<InterpValue> InterpBindings::ResolveValueFromIdentifier(
-    absl::string_view identifier) const {
+    absl::string_view identifier, const Span* ref_span) const {
   absl::optional<Entry> entry = ResolveEntry(identifier);
   if (!entry.has_value()) {
+    std::string span_str;
+    if (ref_span != nullptr) {
+      span_str = " @ " + ref_span->ToString();
+    }
     return absl::NotFoundError(absl::StrFormat(
-        "Could not find bindings entry for identifier: \"%s\"", identifier));
+        "Could not find bindings entry for identifier: \"%s\"%s", identifier,
+        span_str));
   }
   InterpValue* value = absl::get_if<InterpValue>(&entry.value());
   if (value == nullptr) {

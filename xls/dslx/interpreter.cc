@@ -147,8 +147,9 @@ absl::StatusOr<InterpValue> Interpreter::RunFunction(
 absl::Status Interpreter::RunTest(absl::string_view name) {
   XLS_ASSIGN_OR_RETURN(TestFunction * test, entry_module_->GetTest(name));
   XLS_ASSIGN_OR_RETURN(
-      InterpBindings bindings,
-      MakeTopLevelBindings(entry_module_, abstract_adapter_.get()));
+      const InterpBindings* top_level_bindings,
+      GetOrCreateTopLevelBindings(entry_module_, abstract_adapter_.get()));
+  InterpBindings bindings(/*parent=*/top_level_bindings);
   bindings.set_fn_ctx(
       FnCtx{entry_module_->name(), absl::StrFormat("%s__test", name)});
   XLS_ASSIGN_OR_RETURN(InterpValue result, Evaluate(test->body(), &bindings,
@@ -201,9 +202,10 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
 
   Interpreter interp(entry_module, typecheck, additional_search_paths,
                      import_cache);
-  XLS_ASSIGN_OR_RETURN(
-      InterpBindings bindings,
-      MakeTopLevelBindings(entry_module, interp.abstract_adapter_.get()));
+  XLS_ASSIGN_OR_RETURN(const InterpBindings* top_level_bindings,
+                       GetOrCreateTopLevelBindings(
+                           entry_module, interp.abstract_adapter_.get()));
+  InterpBindings bindings(/*parent=*/top_level_bindings);
   bindings.set_fn_ctx(fn_ctx);
   for (const auto& [identifier, value] : env) {
     XLS_VLOG(3) << "Adding to bindings; identifier: " << identifier

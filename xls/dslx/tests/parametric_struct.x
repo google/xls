@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import std
-
 fn double(x: u32) -> u32 { x * u32:2 }
 
 struct ParametricPoint<A: u32, B: u32 = double(A)> {

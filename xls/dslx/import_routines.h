@@ -16,6 +16,7 @@
 #define XLS_DSLX_IMPORT_ROUTINES_H_
 
 #include "xls/dslx/ast.h"
+#include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/type_info.h"
 
 namespace xls::dslx {
@@ -92,8 +93,25 @@ class ImportCache {
   absl::StatusOr<TypeInfo*> GetRootTypeInfoForNode(AstNode* node);
   absl::StatusOr<TypeInfo*> GetRootTypeInfo(Module* module);
 
+  // The "top level bindings" for a given module are the values that get
+  // resolved at module scope on import. Keeping these on the ImportCache avoids
+  // recomputing them.
+  //
+  // Note: in the future having the bindings at this scope will also allow us to
+  // note work-in-progress status that can be observed in both type inferencing
+  // and interpretation.
+  absl::optional<InterpBindings*> GetTopLevelBindings(Module* module);
+
+  // Notes the top level bindings object for the given module.
+  //
+  // Precondition: bindings should not already be set for the given module, or
+  // this will check-fail.
+  void SetTopLevelBindings(Module* module, std::unique_ptr<InterpBindings> tlb);
+
  private:
   absl::flat_hash_map<ImportTokens, ModuleInfo> cache_;
+  absl::flat_hash_map<Module*, std::unique_ptr<InterpBindings>>
+      top_level_bindings_;
   TypeInfoOwner type_info_owner_;
 };
 

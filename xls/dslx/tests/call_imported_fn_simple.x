@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.mod_imported
+import xls.dslx.tests.mod_imported_lsb
 
 fn main(x: u3) -> u1 {
-  mod_imported::my_lsb(x)
+  mod_imported_lsb::lsb(x)
 }
 
 #![test]

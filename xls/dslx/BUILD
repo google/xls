@@ -469,6 +469,7 @@ cc_library(
     data = ["//xls/dslx/stdlib:x_files"],
     deps = [
         ":ast",
+        ":interp_bindings",
         ":parser",
         ":scanner",
         ":type_info",

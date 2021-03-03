@@ -323,6 +323,11 @@ dslx_test(
 )
 
 dslx_test(
+    name = "struct_splat_update_to_const",
+    srcs = ["struct_splat_update_to_const.x"],
+)
+
+dslx_test(
     name = "empty_struct_splat_update",
     srcs = ["empty_struct_splat_update.x"],
 )
@@ -400,7 +405,7 @@ dslx_test(
 dslx_test(
     name = "call_imported_fn_simple",
     srcs = ["call_imported_fn_simple.x"],
-    deps = ["mod_imported.x"],
+    deps = ["mod_imported_lsb.x"],
 )
 
 dslx_test(
@@ -646,4 +651,14 @@ dslx_test(
 dslx_test(
     name = "nest_alias_const_array",
     srcs = ["nest_alias_const_array.x"],
+)
+
+dslx_test(
+    name = "parametric_used_in_for",
+    srcs = ["parametric_used_in_for.x"],
+)
+
+dslx_test(
+    name = "parametric_to_value",
+    srcs = ["parametric_to_value.x"],
 )
