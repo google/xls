@@ -219,6 +219,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
 absl::StatusOr<int64> ResolveDim(
     absl::variant<Expr*, int64, ConcreteTypeDim> dim, InterpBindings* bindings);
 
+// The result of dereferencing a type definition. It can either be an enum, a
+// struct, or a TypeAnnotation which can be e.g. a tuple.
 using DerefVariant = absl::variant<TypeAnnotation*, EnumDef*, StructDef*>;
 
 // Returns the type_definition dereferenced into a Struct or Enum or

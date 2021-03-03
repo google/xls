@@ -1226,8 +1226,9 @@ absl::StatusOr<int64> ResolveDim(
     }
     if (NameRef* name_ref = dynamic_cast<NameRef*>(expr)) {
       const std::string& identifier = name_ref->identifier();
-      XLS_ASSIGN_OR_RETURN(InterpValue value,
-                           bindings->ResolveValueFromIdentifier(identifier));
+      XLS_ASSIGN_OR_RETURN(
+          InterpValue value,
+          bindings->ResolveValueFromIdentifier(identifier, &name_ref->span()));
       XLS_ASSIGN_OR_RETURN(int64 result, value.GetBitValueUint64());
       XLS_RET_CHECK_GE(result, 0);
       return result;
@@ -1374,6 +1375,8 @@ ConcretizeTypeRefTypeAnnotation(TypeRefTypeAnnotation* type_ref,
     return absl::make_unique<EnumType>(enum_def, bit_count);
   }
 
+  // Start with the parametrics that are given in the type reference, and then
+  // as we dereference to the final type we accumulate more parametrics.
   std::vector<Expr*> parametrics = type_ref->parametrics();
   XLS_ASSIGN_OR_RETURN(
       DerefVariant deref,
@@ -1399,17 +1402,6 @@ ConcretizeTypeRefTypeAnnotation(TypeRefTypeAnnotation* type_ref,
         struct_parametric_bindings,
         BindingsWithStructParametrics(struct_def, parametrics, bindings));
     bindings = &struct_parametric_bindings.value();
-  }
-
-  if (struct_parametric_bindings.has_value()) {
-    InterpBindings struct_bindings = struct_parametric_bindings.value();
-    for (const auto& key : struct_bindings.GetKeys()) {
-      absl::optional<InterpBindings::Entry> entry =
-          struct_bindings.ResolveEntry(key);
-      XLS_RET_CHECK(entry.has_value())
-          << "Unable to resolve struct parametric \"" << key << "\"";
-      bindings->AddEntry(key, entry.value());
-    }
   }
 
   AbstractInterpreter::ScopedTypeInfoSwap stis(interp, derefd_module);
@@ -1478,6 +1470,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeType(
   }
   // class StructDef
   if (StructDef** pstruct_def = absl::get_if<StructDef*>(&type)) {
+    XLS_VLOG(5) << "ConcretizeType StructDef: " << (*pstruct_def)->ToString();
     std::vector<std::unique_ptr<ConcreteType>> members;
     for (auto& [name_def, type_annotation] : (*pstruct_def)->members()) {
       XLS_ASSIGN_OR_RETURN(
