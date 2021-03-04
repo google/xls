@@ -1368,7 +1368,7 @@ absl::StatusOr<While*> Parser::ParseWhile(Bindings* bindings) {
 absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings* bindings,
                                                      Pos* limit_pos) {
   XLS_ASSIGN_OR_RETURN(Token obrack, PopTokenOrError(TokenKind::kOBrack));
-  XLS_ASSIGN_OR_RETURN(Expr * dim, ParseDim(bindings));
+  XLS_ASSIGN_OR_RETURN(Expr * dim, ParseTernaryExpression(bindings));
   std::vector<Expr*> dims = {dim};
   const char* const kContext = "at end of type dimensions";
   XLS_RETURN_IF_ERROR(
@@ -1379,7 +1379,7 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings* bindings,
     if (!dropped_obrack) {
       break;
     }
-    XLS_ASSIGN_OR_RETURN(Expr * dim, ParseDim(bindings));
+    XLS_ASSIGN_OR_RETURN(Expr * dim, ParseTernaryExpression(bindings));
     dims.push_back(dim);
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack, /*start=*/&obrack,
                                          /*context=*/kContext,

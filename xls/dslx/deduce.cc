@@ -16,6 +16,7 @@
 
 #include "absl/container/btree_set.h"
 #include "absl/strings/match.h"
+#include "xls/dslx/ast.h"
 #include "xls/dslx/interpreter.h"
 #include "xls/dslx/parametric_instantiator.h"
 #include "xls/dslx/scanner.h"
@@ -1285,6 +1286,8 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
     XLS_ASSIGN_OR_RETURN(int64 value, number->GetAsUint64());
     return ConcreteTypeDim(value);
   }
+  // TODO(rspringer): 2021/03/04 Can we unify all these cases into:
+  //   Evaluate(); GetBitValueUint64();
   if (auto* const_ref = dynamic_cast<ConstRef*>(dim_expr)) {
     absl::optional<Expr*> const_expr =
         ctx->type_info()->GetConstant(const_ref->name_def()).value();
@@ -1308,6 +1311,19 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
             ctx->typecheck_module(), ctx->additional_search_paths(),
             ctx->import_cache(),
             /*env=*/{}, /*bit_widths=*/{}, const_expr, FnCtx{}));
+    return ConcreteTypeDim(value);
+  }
+  if (auto* attr = dynamic_cast<Attr*>(dim_expr)) {
+    XLS_RET_CHECK(ctx->Deduce(attr->lhs()).ok());
+
+    XLS_ASSIGN_OR_RETURN(
+        int64 value,
+        Interpreter::InterpretExprToInt(
+            attr->owner(),
+            ctx->import_cache()->GetRootTypeInfoForNode(attr).value(),
+            ctx->typecheck_module(), ctx->additional_search_paths(),
+            ctx->import_cache(),
+            /*env=*/{}, /*bit_widths=*/{}, attr, FnCtx{}));
     return ConcreteTypeDim(value);
   }
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ParametricExpression> e,

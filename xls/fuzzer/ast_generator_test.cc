@@ -41,7 +41,8 @@ absl::Status ParseAndTypecheck(absl::string_view text,
 
   ImportCache import_cache;
   absl::StatusOr<TypecheckedModule> parsed_or = ParseAndTypecheck(
-      text, /*path=*/filename, /*module_name=*/module_name, &import_cache);
+      text, /*path=*/filename, /*module_name=*/module_name, &import_cache,
+      /*additional_search_paths=*/{});
   TryPrintError(parsed_or.status(), get_file_contents);
   XLS_ASSIGN_OR_RETURN(TypecheckedModule parsed, parsed_or);
   XLS_RETURN_IF_ERROR(parsed.module->GetFunctionOrError("main").status());

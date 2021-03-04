@@ -55,7 +55,8 @@ TEST(InterpreterTest, RunTokenIdentityFn) {
   ImportCache import_cache;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_cache));
+      ParseAndTypecheck(program, "test.x", "test", &import_cache,
+                        /*additional_search_paths=*/{}));
   Interpreter interp(tm.module, /*typecheck=*/nullptr,
                      /*additional_search_paths=*/{},
                      /*import_cache=*/&import_cache);

@@ -1232,6 +1232,8 @@ absl::StatusOr<int64> ResolveDim(
     if (Number* number = dynamic_cast<Number*>(expr)) {
       return number->GetAsUint64();
     }
+    // TODO(rspringer): 2021/03/04 Can we unify these cases into a single:
+    //   Evaluate(); GetBitValueUint64();
     if (NameRef* name_ref = dynamic_cast<NameRef*>(expr)) {
       const std::string& identifier = name_ref->identifier();
       XLS_ASSIGN_OR_RETURN(
@@ -1245,6 +1247,13 @@ absl::StatusOr<int64> ResolveDim(
       XLS_ASSIGN_OR_RETURN(InterpValue v,
                            EvaluateColonRef(colon_ref, bindings,
                                             /*type_context=*/nullptr, interp));
+      XLS_ASSIGN_OR_RETURN(uint64 x, v.GetBitValueUint64());
+      return x;
+    }
+    if (Attr* attr = dynamic_cast<Attr*>(expr)) {
+      XLS_ASSIGN_OR_RETURN(InterpValue v,
+                           EvaluateAttr(attr, bindings,
+                                        /*type_context=*/nullptr, interp));
       XLS_ASSIGN_OR_RETURN(uint64 x, v.GetBitValueUint64());
       return x;
     }

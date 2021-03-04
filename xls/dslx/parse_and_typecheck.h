@@ -32,9 +32,12 @@ struct TypecheckedModule {
 // "path" is used for error reporting (`Span`s) and module_name is the name
 // given to the returned `TypecheckedModule::module`. "import_cache" is used to
 // get-or-insert any imported modules.
+// TODO(rspringer): 2021/03/04 Move "additional_search_paths" into ImportData
+// (nee ImportCache), to avoid having to carry it everywhere.
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     absl::string_view text, absl::string_view path,
-    absl::string_view module_name, ImportCache* import_cache);
+    absl::string_view module_name, ImportCache* import_cache,
+    absl::Span<const std::string> additional_search_paths);
 
 }  // namespace xls::dslx
 

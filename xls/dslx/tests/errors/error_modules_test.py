@@ -109,12 +109,6 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'Old-style cast only permitted for constant arrays/tuples and literal numbers',
         stderr)
 
-  def test_bad_dim_expression(self):
-    stderr = self._run('xls/dslx/tests/errors/bad_dim_expression.x')
-    self.assertIn('xls/dslx/tests/errors/bad_dim_expression.x:15:34-15:35',
-                  stderr)
-    self.assertIn("Expected ']' for construct starting with '['", stderr)
-
   def test_multiple_mod_level_const_bindings(self):
     stderr = self._run(
         'xls/dslx/tests/errors/multiple_mod_level_const_bindings.x')
@@ -135,8 +129,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
   def test_bad_dim(self):
     stderr = self._run('xls/dslx/tests/errors/bad_dim.x')
     self.assertIn('xls/dslx/tests/errors/bad_dim.x:15:16-15:17', stderr)
-    self.assertIn("Expected 'identifier', got '+': expected a valid dimension",
-                  stderr)
+    self.assertIn('Expected start of an expression; got: +', stderr)
 
   def test_match_multi_pattern_with_bindings(self):
     stderr = self._run(

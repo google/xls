@@ -60,10 +60,11 @@ absl::StatusOr<std::string> ConvertOneFunctionForTest(
     absl::string_view program, absl::string_view fn_name,
     bool emit_positions = true) {
   ImportCache import_cache;
-  XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
-                       ParseAndTypecheck(program, /*path=*/"test_module.x",
-                                         /*module_name=*/"test_module",
-                                         /*import_cache=*/&import_cache));
+  XLS_ASSIGN_OR_RETURN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(program, /*path=*/"test_module.x",
+                        /*module_name=*/"test_module", &import_cache,
+                        /*additional_search_paths=*/{}));
   return ConvertOneFunction(tm.module, /*entry_function_name=*/fn_name,
                             /*type_info=*/tm.type_info,
                             /*import_cache=*/&import_cache,
@@ -81,7 +82,8 @@ absl::StatusOr<std::string> ConvertModuleForTest(
   }
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test_module.x", "test_module", import_cache));
+      ParseAndTypecheck(program, "test_module.x", "test_module", import_cache,
+                        /*additional_search_paths=*/{}));
   XLS_ASSIGN_OR_RETURN(std::string converted,
                        ConvertModule(tm.module, import_cache,
                                      /*emit_positions=*/emit_positions));
@@ -1537,7 +1539,8 @@ pub fn constexpr_fn(arg: u32) -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
-                        "fake.imported.stuff", &import_cache));
+                        "fake.imported.stuff", &import_cache,
+                        /*additional_search_paths=*/{}));
   const char* importer_program = R"(
 import fake.imported.stuff
 
@@ -1571,7 +1574,8 @@ pub fn constexpr_fn<N:u32>(arg: bits[N]) -> bits[N] {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
-                        "fake.imported.stuff", &import_cache));
+                        "fake.imported.stuff", &import_cache,
+                        /*additional_search_paths=*/{}));
   const char* importer_program = R"(
 import fake.imported.stuff
 

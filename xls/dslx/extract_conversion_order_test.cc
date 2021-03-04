@@ -31,7 +31,8 @@ fn main() -> u32 { f() }
   ImportCache import_cache;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_cache));
+      ParseAndTypecheck(program, "test.x", "test", &import_cache,
+                        /*additional_search_paths=*/{}));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(3, order.size());
@@ -48,7 +49,8 @@ fn main() -> u32 { f(u2:0) }
   ImportCache import_cache;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_cache));
+      ParseAndTypecheck(program, "test.x", "test", &import_cache,
+                        /*additional_search_paths=*/{}));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(2, order.size());
@@ -69,7 +71,8 @@ fn main() -> u32 { f(u2:0) }
   ImportCache import_cache;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_cache));
+      ParseAndTypecheck(program, "test.x", "test", &import_cache,
+                        /*additional_search_paths=*/{}));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(3, order.size());
@@ -92,7 +95,8 @@ fn main() -> u32 { fail!(u32:0) }
   ImportCache import_cache;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_cache));
+      ParseAndTypecheck(program, "test.x", "test", &import_cache,
+                        /*additional_search_paths=*/{}));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(1, order.size());

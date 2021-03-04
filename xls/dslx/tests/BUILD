@@ -45,6 +45,14 @@ dslx_test(
 )
 
 dslx_test(
+    name = "constexpr_attrs",
+    srcs = ["constexpr_attrs.x"],
+    generate_benchmark = False,
+    prove_unopt_eq_opt = False,
+    deps = ["constexpr.x"],
+)
+
+dslx_test(
     name = "constexpr_clog2",
     srcs = ["constexpr_clog2.x"],
 )

@@ -30,6 +30,14 @@ pub const CONST_ARRAY2 = u32[4]:[u32:4, u32:3, u32:2, u32:1];
 pub const CONST_TUPLE1 = (u16:1, u32:2, u64:3);
 pub const CONST_TUPLE2 = (u16:4, u32:5, u64:6);
 
+// Public for use in constexpr_attrs.x
+pub struct ImportedStruct {
+  a: u32,
+}
+
+pub const IMPORTED_STRUCT_INSTANCE = ImportedStruct { a: u32:32 };
+pub const IMPORTED_STRUCT_FIELD = IMPORTED_STRUCT_INSTANCE.a;
+
 pub fn main() -> u32 {
   CONST_1 + CONST_2 + CONST_3 + CONST_4 + CONST_5
 }

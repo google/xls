@@ -528,6 +528,7 @@ cc_library(
     srcs = ["deduce.cc"],
     hdrs = ["deduce.h"],
     deps = [
+        ":ast",
         ":concrete_type",
         ":deduce_ctx",
         ":import_routines",

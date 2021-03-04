@@ -50,7 +50,8 @@ PYBIND11_MODULE(interpreter, m) {
           XLS_ASSIGN_OR_RETURN(
               TypecheckedModule tm,
               ParseAndTypecheck(text, "get_function_type.x",
-                                "get_function_type", &import_cache));
+                                "get_function_type", &import_cache,
+                                /*additional_search_paths=*/{}));
           XLS_ASSIGN_OR_RETURN(Function * f,
                                tm.module->GetFunctionOrError(function_name));
           XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
@@ -66,7 +67,8 @@ PYBIND11_MODULE(interpreter, m) {
         ImportCache import_cache;
         XLS_ASSIGN_OR_RETURN(
             TypecheckedModule tm,
-            ParseAndTypecheck(text, "batched.x", "batched", &import_cache));
+            ParseAndTypecheck(text, "batched.x", "batched", &import_cache,
+                              /*additional_search_paths=*/{}));
         XLS_ASSIGN_OR_RETURN(Function * f,
                              tm.module->GetFunctionOrError(function_name));
         XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,

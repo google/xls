@@ -27,7 +27,6 @@ py_test(
     data = [
         "bad_annotation.x",
         "bad_dim.x",
-        "bad_dim_expression.x",
         "brace_scope.x",
         "co_recursion.x",
         "colon_ref_builtin.x",

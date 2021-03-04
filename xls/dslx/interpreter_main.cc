@@ -161,8 +161,8 @@ absl::StatusOr<bool> ParseAndTest(
   };
 
   ImportCache import_cache;
-  absl::StatusOr<TypecheckedModule> tm_or =
-      ParseAndTypecheck(program, filename, module_name, &import_cache);
+  absl::StatusOr<TypecheckedModule> tm_or = ParseAndTypecheck(
+      program, filename, module_name, &import_cache, dslx_paths);
   if (!tm_or.ok()) {
     if (TryPrintError(tm_or.status())) {
       return true;
