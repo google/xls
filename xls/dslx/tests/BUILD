@@ -662,3 +662,8 @@ dslx_test(
     name = "parametric_to_value",
     srcs = ["parametric_to_value.x"],
 )
+
+dslx_test(
+    name = "constexpr_with_typed_stuff_after",
+    srcs = ["constexpr_with_typed_stuff_after.x"],
+)

@@ -95,12 +95,10 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
                                 sym_bindings);
   }
   TypecheckFn GetTypecheckFn() override { return interp_->typecheck_; }
-  bool IsWip(ConstantDef* constant_def) override {
-    return interp_->IsWip(constant_def);
-  }
+  bool IsWip(AstNode* node) override { return interp_->IsWip(node); }
   absl::optional<InterpValue> NoteWip(
-      ConstantDef* constant_def, absl::optional<InterpValue> value) override {
-    return interp_->NoteWip(constant_def, value);
+      AstNode* node, absl::optional<InterpValue> value) override {
+    return interp_->NoteWip(node, value);
   }
   TypeInfo* GetCurrentTypeInfo() override {
     return interp_->current_type_info_;
@@ -443,24 +441,28 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
                      fn_symbolic_bindings);
 }
 
-bool Interpreter::IsWip(ConstantDef* c) const {
-  auto it = wip_.find(c);
-  return it != wip_.end() && !it->second.has_value();
+bool Interpreter::IsWip(AstNode* node) const {
+  auto it = wip_.find(node);
+  // If it's in the "work in progress" mapping but doesn't have a completed
+  // value associated with it, it's work in progress.
+  bool marked_wip = it != wip_.end() && !it->second.has_value();
+  return marked_wip ||
+         import_cache_->GetTypecheckWorkInProgress(node->owner()) == node;
 }
 
 absl::optional<InterpValue> Interpreter::NoteWip(
-    ConstantDef* c, absl::optional<InterpValue> value) {
+    AstNode* node, absl::optional<InterpValue> value) {
   if (!value.has_value()) {
     // Starting evaluation, attempting to mark as WIP.
-    auto it = wip_.find(c);
+    auto it = wip_.find(node);
     if (it != wip_.end() && it->second.has_value()) {
       return it->second;  // Already computed.
     }
-    wip_[c] = absl::nullopt;  // Mark as WIP.
+    wip_[node] = absl::nullopt;  // Mark as WIP.
     return absl::nullopt;
   }
 
-  wip_[c] = value;
+  wip_[node] = value;
   return value;
 }
 

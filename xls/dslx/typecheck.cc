@@ -574,7 +574,10 @@ absl::StatusOr<TypeInfo*> CheckModule(
 
   // First, populate type info with constants, enums, resolved imports, and
   // non-parametric functions.
-  for (ModuleMember& member : *ctx->module()->mutable_top()) {
+  for (ModuleMember& member : *module->mutable_top()) {
+    import_cache->SetTypecheckWorkInProgress(module, ToAstNode(member));
+    XLS_VLOG(3) << "WIP for " << module->name() << " is "
+                << ToAstNode(member)->ToString();
     if (absl::holds_alternative<Import*>(member)) {
       Import* import = absl::get<Import*>(member);
       XLS_ASSIGN_OR_RETURN(
@@ -619,6 +622,9 @@ absl::StatusOr<TypeInfo*> CheckModule(
     }
   }
 
+  import_cache->SetTypecheckWorkInProgress(module, nullptr);
+
+  // Then quickchecks...
   for (QuickCheck* qc : ctx->module()->GetQuickChecks()) {
     Function* f = qc->f();
     if (f->IsParametric()) {
@@ -645,7 +651,7 @@ absl::StatusOr<TypeInfo*> CheckModule(
     XLS_VLOG(2) << "Finished typechecking function: " << f->ToString();
   }
 
-  // Tests.
+  // Then tests...
   for (TestFunction* test : ctx->module()->GetTests()) {
     // New-style test constructs are specified using a function.
     // This function shouldn't be parametric and shouldn't take any arguments.

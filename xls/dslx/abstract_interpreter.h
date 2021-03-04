@@ -45,12 +45,11 @@ class AbstractInterpreter {
   // Returns a typecheck lambda analogous to the DoTypecheck() call above.
   virtual TypecheckFn GetTypecheckFn() = 0;
 
-  // Determines if a constant definition (at the module scope)
-  // is in the process of being evaluated -- this lets us detect re-entry (i.e.
-  // a top level constant that wants our top-level bindings to do the evaluation
-  // needs to make forward progress using definitions previous to it in the
-  // file).
-  virtual bool IsWip(ConstantDef* constant_def) = 0;
+  // Determines if a node (at the module scope) is in the process of being
+  // evaluated -- this lets us detect re-entry (i.e.  a top level constant that
+  // wants our top-level bindings to do the evaluation needs to make forward
+  // progress using definitions previous to it in the file).
+  virtual bool IsWip(AstNode* node) = 0;
 
   // Notes that a constant evaluation is "work in progress"
   // (underway) -- this is noted by passing nullopt before a call to evaluate
@@ -58,7 +57,7 @@ class AbstractInterpreter {
   // the given value. If this callback returns a non-nullopt value, the constant
   // had already been evaluated (and was cached).
   virtual absl::optional<InterpValue> NoteWip(
-      ConstantDef* constant_def, absl::optional<InterpValue> value) = 0;
+      AstNode* node, absl::optional<InterpValue> value) = 0;
 
   // Retrieves the current type information being used (from interpreter state).
   virtual TypeInfo* GetCurrentTypeInfo() = 0;

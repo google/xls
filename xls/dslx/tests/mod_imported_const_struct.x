@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Defines a struct and exports a constant with a value of that struct type.
+
 struct Point2D {
   x: u32,
   y: u16,

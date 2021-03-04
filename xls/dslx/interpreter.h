@@ -191,18 +191,29 @@ class Interpreter {
   // Helpers used for annotating work-in-progress constants on import, in case
   // of recursive calls in to the interpreter (e.g. when evaluating constant
   // expressions at the top of a module).
-  bool IsWip(ConstantDef* c) const;
+  bool IsWip(AstNode* node) const;
 
-  // Notes that "c" is in work in progress state indicated by value: nullopt
-  // means 'about to evaluate', a value means 'finished evalatuing to this
-  // value'. Returns the current state for 'c' (so we can check whether 'c' had
-  // a cached result value already).
+  // Notes that "node" is in work in progress state indicated by value: nullopt
+  // means 'about to evaluate', a value means 'finished evaluatuing to this
+  // value'. Returns the current state for 'node' (so we can check whether
+  // 'node' had a cached result value already).
+  //
+  // The API was intended to be used as follows (minimizing the number of
+  // callables required, see the todo below):
+  //
+  //    // Notes we're about to start computing top_node, and gives this API a
+  //    // chance to say "oh hey you already did that".
+  //    absl::optional<InterpValue> maybe_done = interp->NoteWip(
+  //      top_node, absl::nullopt);
+  //    if (maybe_done) { ... no need to compute ... }
+  //    InterpValue really_done = ComputeIt();
+  //    interp->NoteWip(top_node, really_done);  // Notes final computed value.
   //
   // TODO(leary): 2020-11-20 Rework this "note WIP" interface, it's too
   // overloaded in terms of what it's doing, was done this way to minimize the
   // number of callbacks passed across Python/C++ boundary but that should no
   // longer be a concern.
-  absl::optional<InterpValue> NoteWip(ConstantDef* c,
+  absl::optional<InterpValue> NoteWip(AstNode* node,
                                       absl::optional<InterpValue> value);
 
   Module* const entry_module_;
@@ -225,7 +236,7 @@ class Interpreter {
 
   // Tracking for incomplete module evaluation status; e.g. on recursive calls
   // during module import; see IsWip().
-  absl::flat_hash_map<ConstantDef*, absl::optional<InterpValue>> wip_;
+  absl::flat_hash_map<AstNode*, absl::optional<InterpValue>> wip_;
 };
 
 // Converts the values to matched the signedness of the concrete type.

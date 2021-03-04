@@ -1115,17 +1115,18 @@ absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
 absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
     Module* module, AbstractInterpreter* interp) {
   ImportCache* import_cache = interp->GetImportCache();
-  if (absl::optional<InterpBindings*> tlb =
-          import_cache->GetTopLevelBindings(module)) {
-    return *tlb;
+  InterpBindings& b = import_cache->GetOrCreateTopLevelBindings(module);
+
+  // If they're marked as done in the import cache, we can return them directly.
+  // Otherwise, we'll populate them, and if we populate everything, mark it as
+  // done.
+  if (import_cache->IsTopLevelBindingsDone(module)) {
+    return &b;
   }
 
   AbstractInterpreter::ScopedTypeInfoSwap stis(interp, module);
 
   XLS_VLOG(4) << "Making top level bindings for module: " << module->name();
-  auto bindings = absl::make_unique<InterpBindings>(/*parent=*/nullptr);
-  InterpBindings& b = *bindings;
-  import_cache->SetTopLevelBindings(module, std::move(bindings));
 
   // Add all the builtin functions.
   for (Builtin builtin : kAllBuiltins) {
@@ -1153,17 +1154,19 @@ absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
     }
   }
 
+  bool saw_wip = false;
+
   // Add constants/imports present at the top level to the bindings.
   for (ModuleMember member : module->top()) {
     XLS_VLOG(3) << "Evaluating module member: " << ToAstNode(member)->ToString()
                 << " (" << ToAstNode(member)->GetNodeTypeName() << ")";
+    if (interp->IsWip(ToAstNode(member))) {
+      XLS_VLOG(3) << "Saw WIP module member; breaking early!";
+      saw_wip = true;
+      break;
+    }
     if (absl::holds_alternative<ConstantDef*>(member)) {
       auto* constant_def = absl::get<ConstantDef*>(member);
-      if (interp->IsWip(constant_def)) {
-        XLS_VLOG(3) << "Saw WIP constant definition; breaking early! "
-                    << constant_def->ToString();
-        break;
-      }
       XLS_VLOG(3) << "GetOrCreateTopLevelBindings evaluating: "
                   << constant_def->ToString();
       absl::optional<InterpValue> precomputed =
@@ -1205,6 +1208,11 @@ absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
   b.AddValue(absl::StrCat("__top_level_bindings_", module->name()),
              InterpValue::MakeNil());
 
+  if (!saw_wip) {
+    // Marking the top level bindings as done avoids needless re-evaluation in
+    // the future.
+    import_cache->MarkTopLevelBindingsDone(module);
+  }
   return &b;
 }
 

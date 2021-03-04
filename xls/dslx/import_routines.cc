@@ -57,13 +57,15 @@ absl::StatusOr<TypeInfo*> ImportCache::GetRootTypeInfo(Module* module) {
   return type_info_owner().GetRootTypeInfo(module);
 }
 
-absl::optional<InterpBindings*> ImportCache::GetTopLevelBindings(
-    Module* module) {
+InterpBindings& ImportCache::GetOrCreateTopLevelBindings(Module* module) {
   auto it = top_level_bindings_.find(module);
   if (it == top_level_bindings_.end()) {
-    return absl::nullopt;
+    it = top_level_bindings_
+             .emplace(module,
+                      std::make_unique<InterpBindings>(/*parent=*/nullptr))
+             .first;
   }
-  return it->second.get();
+  return *it->second;
 }
 
 void ImportCache::SetTopLevelBindings(Module* module,

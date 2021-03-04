@@ -96,11 +96,7 @@ class ImportCache {
   // The "top level bindings" for a given module are the values that get
   // resolved at module scope on import. Keeping these on the ImportCache avoids
   // recomputing them.
-  //
-  // Note: in the future having the bindings at this scope will also allow us to
-  // note work-in-progress status that can be observed in both type inferencing
-  // and interpretation.
-  absl::optional<InterpBindings*> GetTopLevelBindings(Module* module);
+  InterpBindings& GetOrCreateTopLevelBindings(Module* module);
 
   // Notes the top level bindings object for the given module.
   //
@@ -108,10 +104,37 @@ class ImportCache {
   // this will check-fail.
   void SetTopLevelBindings(Module* module, std::unique_ptr<InterpBindings> tlb);
 
+  // Notes which node at the top level of the given module is currently
+  // work-in-progress. "node" may be set as nullptr when done with the entire
+  // module.
+  void SetTypecheckWorkInProgress(Module* module, AstNode* node) {
+    typecheck_wip_[module] = node;
+  }
+
+  // Retrieves which node was noted as currently work-in-progress, getter for
+  // SetTypecheckWorkInProgress() above.
+  AstNode* GetTypecheckWorkInProgress(Module* module) {
+    return typecheck_wip_[module];
+  }
+
+  // Helpers for marking/querying whether the top-level scope for a given module
+  // was completed being evaluated. That is, once the top-level bindings for a
+  // module have been evaluated successfully once by the interpreter (without
+  // hitting a work-in-progress indicator) those completed bindings can be
+  // re-used after that without any need for re-evaluation.
+  bool IsTopLevelBindingsDone(Module* module) const {
+    return top_level_bindings_done_.contains(module);
+  }
+  void MarkTopLevelBindingsDone(Module* module) {
+    top_level_bindings_done_.insert(module);
+  }
+
  private:
   absl::flat_hash_map<ImportTokens, ModuleInfo> cache_;
   absl::flat_hash_map<Module*, std::unique_ptr<InterpBindings>>
       top_level_bindings_;
+  absl::flat_hash_set<Module*> top_level_bindings_done_;
+  absl::flat_hash_map<Module*, AstNode*> typecheck_wip_;
   TypeInfoOwner type_info_owner_;
 };
 
