@@ -28,8 +28,8 @@ void FsmBlockBase::EmitAssignments(StatementBlock* statement_block) const {
   }
   for (const ConditionalFsmBlock& cond_block : conditional_blocks_) {
     if (cond_block.HasAssignments()) {
-      Conditional* conditional = statement_block->Add<Conditional>(
-          statement_block->parent(), cond_block.condition());
+      Conditional* conditional =
+          statement_block->Add<Conditional>(cond_block.condition());
       cond_block.EmitConditionalAssignments(conditional,
                                             conditional->consequent());
     }
@@ -44,8 +44,8 @@ void FsmBlockBase::EmitStateTransitions(StatementBlock* statement_block,
   }
   for (const ConditionalFsmBlock& cond_block : conditional_blocks_) {
     if (cond_block.HasStateTransitions()) {
-      Conditional* conditional = statement_block->Add<Conditional>(
-          statement_block->parent(), cond_block.condition());
+      Conditional* conditional =
+          statement_block->Add<Conditional>(cond_block.condition());
       cond_block.EmitConditionalStateTransitions(
           conditional, conditional->consequent(), state_next_var);
     }
@@ -143,8 +143,8 @@ bool ConditionalFsmBlock::HasAssignmentToOutput(const FsmOutput& output) const {
 
 LogicRef* FsmBuilder::AddRegDef(absl::string_view name,
                                 const DataType& data_type, Expression* init) {
-  defs_.push_back(module_->parent()->Make<RegDef>(name, data_type, init));
-  return module_->parent()->Make<LogicRef>(defs_.back());
+  defs_.push_back(module_->file()->Make<RegDef>(name, data_type, init));
+  return module_->file()->Make<LogicRef>(defs_.back());
 }
 
 FsmCounter* FsmBuilder::AddDownCounter(absl::string_view name, int64 width) {
@@ -197,7 +197,7 @@ FsmRegister* FsmBuilder::AddExistingRegister(LogicRef* reg) {
 
 FsmState* FsmBuilder::AddState(absl::string_view name) {
   if (state_local_param_ == nullptr) {
-    state_local_param_ = file_->Make<LocalParam>(file_);
+    state_local_param_ = file_->Make<LocalParam>();
   }
   XLS_CHECK(!absl::c_any_of(states_, [&](const FsmState& s) {
     return s.name() == name;
@@ -216,16 +216,16 @@ absl::Status FsmBuilder::BuildStateTransitionLogic(LogicRef* state,
   module_->Add<Comment>("FSM state transition logic.");
   AlwaysBase* ac;
   if (use_system_verilog_) {
-    ac = module_->Add<AlwaysComb>(file_);
+    ac = module_->Add<AlwaysComb>();
   } else {
-    ac = module_->Add<Always>(file_, std::vector<SensitivityListElement>(
-                                         {ImplicitEventExpression()}));
+    ac = module_->Add<Always>(
+        std::vector<SensitivityListElement>({ImplicitEventExpression()}));
   }
 
   // Set default assignments.
   ac->statements()->Add<BlockingAssignment>(state_next, state);
 
-  Case* case_statement = ac->statements()->Add<Case>(file_, state);
+  Case* case_statement = ac->statements()->Add<Case>(state);
   for (const auto& fsm_state : states_) {
     fsm_state.EmitStateTransitions(
         case_statement->AddCaseArm(fsm_state.state_value()), state_next);
@@ -425,10 +425,10 @@ absl::Status FsmBuilder::BuildOutputLogic(LogicRef* state) {
 
   AlwaysBase* ac;
   if (use_system_verilog_) {
-    ac = module_->Add<AlwaysComb>(file_);
+    ac = module_->Add<AlwaysComb>();
   } else {
-    ac = module_->Add<Always>(file_, std::vector<SensitivityListElement>(
-                                         {ImplicitEventExpression()}));
+    ac = module_->Add<Always>(
+        std::vector<SensitivityListElement>({ImplicitEventExpression()}));
   }
 
   for (const FsmRegister& reg : registers_) {
@@ -457,7 +457,7 @@ absl::Status FsmBuilder::BuildOutputLogic(LogicRef* state) {
     ac->statements()->Add<BlockingAssignment>(
         counter.next, file_->Sub(counter.logic_ref, file_->PlainLiteral(1)));
   }
-  Case* case_statement = ac->statements()->Add<Case>(file_, state);
+  Case* case_statement = ac->statements()->Add<Case>(state);
   for (const auto& fsm_state : states_) {
     fsm_state.EmitAssignments(
         case_statement->AddCaseArm(fsm_state.state_value()));
@@ -485,7 +485,7 @@ absl::Status FsmBuilder::Build() {
   module_->Add<BlankLine>();
   module_->Add<Comment>(absl::StrCat(name_, " ", "FSM:"));
 
-  LocalParamItemRef* state_bits = module_->Add<LocalParam>(file_)->AddItem(
+  LocalParamItemRef* state_bits = module_->Add<LocalParam>()->AddItem(
       "StateBits", file_->PlainLiteral(StateRegisterWidth()));
 
   // For each state, define its numeric encoding as a LocalParam gathered in
@@ -504,7 +504,9 @@ absl::Status FsmBuilder::Build() {
   XLS_RETURN_IF_ERROR(BuildStateTransitionLogic(state, state_next));
   XLS_RETURN_IF_ERROR(BuildOutputLogic(state));
 
-  AlwaysFlop* af = module_->Add<AlwaysFlop>(file_, clk_, reset_);
+  AlwaysFlop* af = reset_.has_value()
+                       ? module_->Add<AlwaysFlop>(clk_, reset_.value())
+                       : module_->Add<AlwaysFlop>(clk_);
   if (reset_.has_value()) {
     Expression* rstate = (reset_state_ == nullptr)
                              ? initial_state_value

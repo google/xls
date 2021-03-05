@@ -32,7 +32,7 @@ Ice40IoStrategy::Ice40IoStrategy(VerilogFile* f) : f_(f) {
 
 absl::Status Ice40IoStrategy::AddTopLevelDependencies(LogicRef* clk,
                                                       Reset reset, Module* m) {
-  VerilogFile* f = m->parent();
+  VerilogFile* f = m->file();
   clk_ = clk;
   rx_in_ = m->AddInput("rx_in", f->DataTypeOfWidth(1));
   tx_out_ = m->AddOutput("tx_out", f->DataTypeOfWidth(1));

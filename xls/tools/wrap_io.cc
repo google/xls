@@ -82,7 +82,7 @@ absl::Status InstantiateFixedLatencyDeviceFunction(
   // output controllers with the fixed latency of the device function.
   // TODO(meheff): Expose use_system_verilog as an option in the WrapIo API
   // rather than hard-coding it as false.
-  VerilogFile* f = m->parent();
+  VerilogFile* f = m->file();
   FsmBuilder fsm("fixed_latency_fsm", m, clk,
                  /*use_system_verilog=*/false,
                  Reset{rst_n, /*asynchronous=*/false, /*active_low=*/true});
@@ -253,7 +253,7 @@ absl::StatusOr<Module*> InputResetModule(VerilogFile* f) {
   auto rst_n_in = m->AddInput("rst_n_in", f->DataTypeOfWidth(1));
   auto rst_n_out = m->AddOutput("rst_n_out", f->DataTypeOfWidth(1));
 
-  LocalParamItemRef* reset_control_code = m->Add<LocalParam>(f)->AddItem(
+  LocalParamItemRef* reset_control_code = m->Add<LocalParam>()->AddItem(
       "ResetControlCode", Hex8Literal(IoControlCode::kReset, f));
 
   // TODO(meheff): Expose use_system_verilog as an option in the WrapIo API
@@ -298,7 +298,7 @@ absl::StatusOr<Module*> InputShiftRegisterModule(int64 bit_count,
   LogicRef* done = m->AddOutput("done", f->DataTypeOfWidth(1));
 
   const int64 n_bytes = CeilOfRatio(bit_count, int64{8});
-  LocalParamItemRef* n_bytes_ref = m->Add<LocalParam>(f)->AddItem(
+  LocalParamItemRef* n_bytes_ref = m->Add<LocalParam>()->AddItem(
       "TotalInputBytes", f->PlainLiteral(n_bytes));
 
   LogicRef* data_reg = m->AddReg("data", f->DataTypeOfWidth(bit_count));
@@ -326,8 +326,8 @@ absl::StatusOr<Module*> InputShiftRegisterModule(int64 bit_count,
   //     byte_countdown_next = byte_countdown;
   //   }
   auto ac = m->Add<Always>(
-      f, std::vector<SensitivityListElement>({ImplicitEventExpression()}));
-  auto cond = ac->statements()->Add<Conditional>(f, clear);
+      std::vector<SensitivityListElement>({ImplicitEventExpression()}));
+  auto cond = ac->statements()->Add<Conditional>(clear);
   cond->consequent()->Add<BlockingAssignment>(byte_countdown_next, n_bytes_ref);
   auto else_write_en = cond->AddAlternate(write_en);
   else_write_en->Add<BlockingAssignment>(
@@ -339,7 +339,7 @@ absl::StatusOr<Module*> InputShiftRegisterModule(int64 bit_count,
   els->Add<BlockingAssignment>(byte_countdown_next, byte_countdown);
   els->Add<BlockingAssignment>(data_reg_next, data_reg);
 
-  auto af = m->Add<AlwaysFlop>(f, clk);
+  auto af = m->Add<AlwaysFlop>(clk);
   af->AddRegister(data_reg, data_reg_next);
   af->AddRegister(byte_countdown, byte_countdown_next);
 
@@ -368,19 +368,19 @@ static absl::StatusOr<Module*> EscapeDecoderModule(VerilogFile* f) {
   //   } else {
   //     byte_out = byte_in;
   //   }
-  LocalParamItemRef* escaped_reset_byte = m->Add<LocalParam>(f)->AddItem(
+  LocalParamItemRef* escaped_reset_byte = m->Add<LocalParam>()->AddItem(
       "EscapedResetByte", Hex8Literal(IoEscapeCode::kResetByte, f));
-  LocalParamItemRef* escaped_escape_byte = m->Add<LocalParam>(f)->AddItem(
+  LocalParamItemRef* escaped_escape_byte = m->Add<LocalParam>()->AddItem(
       "EscapedEscapedByte", Hex8Literal(IoEscapeCode::kResetByte, f));
-  LocalParamItemRef* reset_control_code = m->Add<LocalParam>(f)->AddItem(
+  LocalParamItemRef* reset_control_code = m->Add<LocalParam>()->AddItem(
       "ResetControlCode", Hex8Literal(IoControlCode::kReset, f));
-  LocalParamItemRef* escape_control_code = m->Add<LocalParam>(f)->AddItem(
+  LocalParamItemRef* escape_control_code = m->Add<LocalParam>()->AddItem(
       "EscapeControlCode", Hex8Literal(IoControlCode::kEscape, f));
   LogicRef* byte_out_reg = m->AddReg("byte_out_reg", f->DataTypeOfWidth(8));
   auto ac = m->Add<Always>(
-      f, std::vector<SensitivityListElement>({ImplicitEventExpression()}));
+      std::vector<SensitivityListElement>({ImplicitEventExpression()}));
   auto cond = ac->statements()->Add<Conditional>(
-      f, f->LogicalAnd(is_escaped, f->Equals(byte_in, escaped_reset_byte)));
+      f->LogicalAnd(is_escaped, f->Equals(byte_in, escaped_reset_byte)));
   cond->consequent()->Add<BlockingAssignment>(byte_out_reg, reset_control_code);
   cond->AddAlternate(
           f->LogicalAnd(is_escaped, f->Equals(byte_in, escaped_escape_byte)))

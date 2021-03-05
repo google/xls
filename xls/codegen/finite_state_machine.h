@@ -330,7 +330,7 @@ class FsmBuilder {
              absl::optional<Reset> reset = absl::nullopt)
       : name_(name),
         module_(module),
-        file_(module->parent()),
+        file_(module->file()),
         clk_(clk),
         use_system_verilog_(use_system_verilog),
         reset_(reset) {}

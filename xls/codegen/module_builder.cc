@@ -193,12 +193,12 @@ ModuleBuilder::ModuleBuilder(absl::string_view name, VerilogFile* file,
       file_(file),
       use_system_verilog_(use_system_verilog) {
   module_ = file_->AddModule(module_name_);
-  functions_section_ = module_->Add<ModuleSection>(file_);
-  constants_section_ = module_->Add<ModuleSection>(file_);
-  input_section_ = module_->Add<ModuleSection>(file_);
-  declaration_and_assignment_section_ = module_->Add<ModuleSection>(file_);
-  assert_section_ = module_->Add<ModuleSection>(file_);
-  output_section_ = module_->Add<ModuleSection>(file_);
+  functions_section_ = module_->Add<ModuleSection>();
+  constants_section_ = module_->Add<ModuleSection>();
+  input_section_ = module_->Add<ModuleSection>();
+  declaration_and_assignment_section_ = module_->Add<ModuleSection>();
+  assert_section_ = module_->Add<ModuleSection>();
+  output_section_ = module_->Add<ModuleSection>();
 
   NewDeclarationAndAssignmentSections();
 
@@ -216,9 +216,9 @@ ModuleBuilder::ModuleBuilder(absl::string_view name, VerilogFile* file,
 
 void ModuleBuilder::NewDeclarationAndAssignmentSections() {
   declaration_subsections_.push_back(
-      declaration_and_assignment_section_->Add<ModuleSection>(file_));
+      declaration_and_assignment_section_->Add<ModuleSection>());
   assignment_subsections_.push_back(
-      declaration_and_assignment_section_->Add<ModuleSection>(file_));
+      declaration_and_assignment_section_->Add<ModuleSection>());
 }
 
 LogicRef* ModuleBuilder::DeclareUnpackedArrayWire(absl::string_view name,
@@ -793,7 +793,7 @@ absl::Status ModuleBuilder::EmitAssert(
   }
   if (assert_always_comb_ == nullptr) {
     // Lazily create the always_comb block.
-    assert_always_comb_ = assert_section_->Add<AlwaysComb>(file_);
+    assert_always_comb_ = assert_section_->Add<AlwaysComb>();
   }
 
   // Guard the assert with $isunknown to avoid triggering the assert condition
@@ -885,9 +885,9 @@ absl::Status ModuleBuilder::AssignRegisters(
   }
   AlwaysBase* always;
   if (use_system_verilog_) {
-    always = assignment_section()->Add<AlwaysFf>(file_, sensitivity_list);
+    always = assignment_section()->Add<AlwaysFf>(sensitivity_list);
   } else {
-    always = assignment_section()->Add<Always>(file_, sensitivity_list);
+    always = assignment_section()->Add<Always>(sensitivity_list);
   }
   // assignment_block is the block in which the foo <= foo_next assignments
   // go. It can either be conditional (if there is a reset signal) or
@@ -905,7 +905,7 @@ absl::Status ModuleBuilder::AssignRegisters(
       rst_condition = rst_->signal;
     }
     Conditional* conditional =
-        always->statements()->Add<Conditional>(file_, rst_condition);
+        always->statements()->Add<Conditional>(rst_condition);
     for (const Register& reg : registers) {
       if (reg.reset_value == nullptr) {
         // Not all registers may have reset values.
@@ -977,7 +977,7 @@ VerilogFunction* DefineDynamicBitSliceFunction(DynamicBitSlice* slice,
                                                ModuleSection* section) {
   VerilogFile* file = section->file();
   VerilogFunction* func = section->Add<VerilogFunction>(
-      function_name, file->DataTypeOfWidth(slice->BitCountOrDie()), file);
+      function_name, file->DataTypeOfWidth(slice->BitCountOrDie()));
   Expression* operand = func->AddArgument(
       "operand", file->DataTypeOfWidth(slice->to_slice()->BitCountOrDie()));
   Expression* start = func->AddArgument(
@@ -1013,7 +1013,7 @@ VerilogFunction* DefineBitSliceUpdateFunction(BitSliceUpdate* update,
                                               ModuleSection* section) {
   VerilogFile* file = section->file();
   VerilogFunction* func = section->Add<VerilogFunction>(
-      function_name, file->DataTypeOfWidth(update->BitCountOrDie()), file);
+      function_name, file->DataTypeOfWidth(update->BitCountOrDie()));
   Expression* to_update = func->AddArgument(
       "to_update", file->DataTypeOfWidth(update->to_update()->BitCountOrDie()));
   Expression* start = func->AddArgument(
@@ -1042,7 +1042,7 @@ VerilogFunction* DefineSmulFunction(Node* node, absl::string_view function_name,
   ScopedLintDisable lint_disable(section, {Lint::kSignedType, Lint::kMultiply});
 
   VerilogFunction* func = section->Add<VerilogFunction>(
-      function_name, file->DataTypeOfWidth(node->BitCountOrDie()), file);
+      function_name, file->DataTypeOfWidth(node->BitCountOrDie()));
   XLS_CHECK_EQ(node->operand_count(), 2);
   Expression* lhs = func->AddArgument(
       "lhs", file->DataTypeOfWidth(node->operand(0)->BitCountOrDie()));
@@ -1089,7 +1089,7 @@ VerilogFunction* DefineUmulFunction(Node* node, absl::string_view function_name,
   ScopedLintDisable lint_disable(section, {Lint::kMultiply});
 
   VerilogFunction* func = section->Add<VerilogFunction>(
-      function_name, file->DataTypeOfWidth(node->BitCountOrDie()), file);
+      function_name, file->DataTypeOfWidth(node->BitCountOrDie()));
   XLS_CHECK_EQ(node->operand_count(), 2);
   Expression* lhs = func->AddArgument(
       "lhs", file->DataTypeOfWidth(node->operand(0)->BitCountOrDie()));

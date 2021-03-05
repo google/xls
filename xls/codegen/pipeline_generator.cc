@@ -395,7 +395,7 @@ class PipelineGenerator {
           int64 width = output_type->element_type(i)->GetFlatBitCount();
           XLS_RETURN_IF_ERROR(mb_->AddOutputPort(
               absl::StrFormat("out_%d", i), output_type->element_type(i),
-              mb_->module()->parent()->Slice(
+              mb_->module()->file()->Slice(
                   node_expressions.at(func_->return_value())
                       ->AsIndexableExpressionOrDie(),
                   start + width - 1, start)));

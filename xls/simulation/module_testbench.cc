@@ -52,7 +52,7 @@ ModuleTestbench::ModuleTestbench(Module* module,
                                  absl::optional<absl::string_view> clk_name,
                                  absl::optional<ResetProto> reset)
     // Emit the entire file because the module may instantiate other modules.
-    : verilog_text_(module->parent()->Emit()),
+    : verilog_text_(module->file()->Emit()),
       module_name_(module->name()),
       simulator_(simulator),
       clk_name_(clk_name) {
@@ -376,7 +376,7 @@ absl::Status ModuleTestbench::Run() {
     // Generate the clock. It has a frequency of two time units. Start clk at 0
     // at time zero to avoid any races with rising edge of clock and
     // any initialization.
-    Initial* initial = m->Add<Initial>(&file);
+    Initial* initial = m->Add<Initial>();
     initial->statements()->Add<NonblockingAssignment>(clk,
                                                       file.PlainLiteral(0));
     initial->statements()->Add<Forever>(file.Make<DelayStatement>(
@@ -400,7 +400,7 @@ absl::Status ModuleTestbench::Run() {
   };
   {
     // Add a watchdog which stops the simulation after a long time.
-    Initial* initial = m->Add<Initial>(&file);
+    Initial* initial = m->Add<Initial>();
     wait_n_cycles(initial->statements(), kSimulationCycleLimit);
     initial->statements()->Add<Display>(
         std::vector<Expression*>{file.Make<QuotedString>(GetTimeoutMessage())});
@@ -409,7 +409,7 @@ absl::Status ModuleTestbench::Run() {
 
   {
     // Add a monitor statement which prints out all the port values.
-    Initial* initial = m->Add<Initial>(&file);
+    Initial* initial = m->Add<Initial>();
     initial->statements()->Add<Display>(
         std::vector<Expression*>{file.Make<QuotedString>(
             "Starting. Clock rises at start of odd time units:")});
@@ -428,7 +428,7 @@ absl::Status ModuleTestbench::Run() {
     initial->statements()->Add<Monitor>(monitor_args);
   }
 
-  Initial* initial = m->Add<Initial>(&file);
+  Initial* initial = m->Add<Initial>();
   wait_n_cycles(initial->statements(), 1);
 
   // All actions occur at the falling edge of the clock to avoid races with
@@ -468,8 +468,7 @@ absl::Status ModuleTestbench::Run() {
                 XLS_CHECK(absl::holds_alternative<IsNotX>(w.value));
                 cmp = file.EqualsX(port_refs.at(w.port));
               }
-              auto whle =
-                  initial->statements()->Add<WhileStatement>(&file, cmp);
+              auto whle = initial->statements()->Add<WhileStatement>(cmp);
               wait_n_cycles(whle->statements(), 1);
             },
             [&](const DisplayOutput& c) {

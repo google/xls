@@ -35,7 +35,7 @@ class FiniteStateMachineTest : public VerilogTestBase {};
 
 TEST_P(FiniteStateMachineTest, TrivialFsm) {
   VerilogFile f;
-  Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
+  Module* module = f.Add(f.Make<Module>(TestBaseName()));
 
   LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
   FsmBuilder fsm("TrivialFsm", module, clk, UseSystemVerilog());
@@ -52,7 +52,7 @@ TEST_P(FiniteStateMachineTest, TrivialFsm) {
 
 TEST_P(FiniteStateMachineTest, TrivialFsmWithOutputs) {
   VerilogFile f;
-  Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
+  Module* module = f.Add(f.Make<Module>(TestBaseName()));
 
   LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
   FsmBuilder fsm("TrivialFsm", module, clk, UseSystemVerilog());
@@ -78,7 +78,7 @@ TEST_P(FiniteStateMachineTest, TrivialFsmWithOutputs) {
 
 TEST_P(FiniteStateMachineTest, SimpleFsm) {
   VerilogFile f;
-  Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
+  Module* module = f.Add(f.Make<Module>(TestBaseName()));
 
   LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
   LogicRef* rst_n = module->AddInput("rst_n", f.DataTypeOfWidth(1));
@@ -111,7 +111,7 @@ TEST_P(FiniteStateMachineTest, SimpleFsm) {
 
 TEST_P(FiniteStateMachineTest, FsmWithNestedLogic) {
   VerilogFile f;
-  Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
+  Module* module = f.Add(f.Make<Module>(TestBaseName()));
 
   LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
   LogicRef* rst_n = module->AddInput("rst_n", f.DataTypeOfWidth(1));
@@ -148,7 +148,7 @@ TEST_P(FiniteStateMachineTest, FsmWithNestedLogic) {
 
 TEST_P(FiniteStateMachineTest, CounterFsm) {
   VerilogFile f;
-  Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
+  Module* module = f.Add(f.Make<Module>(TestBaseName()));
 
   LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
   LogicRef* rst = module->AddInput("rst", f.DataTypeOfWidth(1));
@@ -171,7 +171,7 @@ TEST_P(FiniteStateMachineTest, CounterFsm) {
 
 TEST_P(FiniteStateMachineTest, ComplexFsm) {
   VerilogFile f;
-  Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
+  Module* module = f.Add(f.Make<Module>(TestBaseName()));
 
   LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
   LogicRef* foo_in = module->AddInput("foo_in", f.DataTypeOfWidth(1));
@@ -219,7 +219,7 @@ TEST_P(FiniteStateMachineTest, OutputAssignments) {
   // values to the outputs such that each code path has exactly one assignment
   // per output.
   VerilogFile f;
-  Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
+  Module* module = f.Add(f.Make<Module>(TestBaseName()));
 
   LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
   LogicRef* rst_n = module->AddInput("rst_n", f.DataTypeOfWidth(1));
@@ -287,7 +287,7 @@ TEST_P(FiniteStateMachineTest, OutputAssignments) {
 
 TEST_P(FiniteStateMachineTest, MultipleAssignments) {
   VerilogFile f;
-  Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
+  Module* module = f.Add(f.Make<Module>(TestBaseName()));
 
   LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
   LogicRef* rst_n = module->AddInput("rst_n", f.DataTypeOfWidth(1));
@@ -311,7 +311,7 @@ TEST_P(FiniteStateMachineTest, MultipleAssignments) {
 
 TEST_P(FiniteStateMachineTest, MultipleConditionalAssignments) {
   VerilogFile f;
-  Module* module = f.Add(f.Make<Module>(TestBaseName(), &f));
+  Module* module = f.Add(f.Make<Module>(TestBaseName()));
 
   LogicRef* clk = module->AddInput("clk", f.DataTypeOfWidth(1));
   LogicRef* rst_n = module->AddInput("rst_n", f.DataTypeOfWidth(1));

@@ -93,14 +93,16 @@ std::string VerilogFile::Emit() {
 
 LocalParamItemRef* LocalParam::AddItem(absl::string_view name,
                                        Expression* value) {
-  items_.push_back(parent_->Make<LocalParamItem>(name, value));
-  return parent_->Make<LocalParamItemRef>(items_.back());
+  items_.push_back(file()->Make<LocalParamItem>(name, value));
+  return file()->Make<LocalParamItemRef>(items_.back());
 }
 
-CaseArm::CaseArm(VerilogFile* f, CaseLabel label)
-    : label_(label), statements_(f->Make<StatementBlock>(f)) {}
+CaseArm::CaseArm(CaseLabel label, VerilogFile* file)
+    : VastNode(file),
+      label_(label),
+      statements_(file->Make<StatementBlock>()) {}
 
-std::string CaseArm::GetLabelString() {
+std::string CaseArm::Emit() {
   return absl::visit(
       Visitor{[](Expression* named) { return named->Emit(); },
               [](DefaultSentinel) { return std::string("default"); }},
@@ -168,18 +170,18 @@ absl::StatusOr<int64> GetOutputBits(absl::Span<const Port> ports) {
 
 VerilogFunction::VerilogFunction(absl::string_view name, DataType result_type,
                                  VerilogFile* file)
-    : name_(name),
+    : VastNode(file),
+      name_(name),
       return_value_def_(file->Make<RegDef>(name, result_type)),
-      statement_block_(file->Make<StatementBlock>(file)),
-      file_(file) {}
+      statement_block_(file->Make<StatementBlock>()) {}
 
 LogicRef* VerilogFunction::AddArgument(absl::string_view name, DataType type) {
-  argument_defs_.push_back(file_->Make<RegDef>(name, type));
-  return file_->Make<LogicRef>(argument_defs_.back());
+  argument_defs_.push_back(file()->Make<RegDef>(name, type));
+  return file()->Make<LogicRef>(argument_defs_.back());
 }
 
 LogicRef* VerilogFunction::return_value_ref() {
-  return file_->Make<LogicRef>(return_value_def_);
+  return file()->Make<LogicRef>(return_value_def_);
 }
 
 std::string VerilogFunction::Emit() {
@@ -209,17 +211,17 @@ std::string VerilogFunctionCall::Emit() {
 
 LogicRef* Module::AddPortDef(Direction direction, Def* def) {
   ports_.push_back(Port{direction, def});
-  return parent_->Make<LogicRef>(def);
+  return file()->Make<LogicRef>(def);
 }
 
 LogicRef* Module::AddInput(absl::string_view name, DataType type) {
   return AddPortDef(Direction::kInput,
-                    parent_->Make<WireDef>(name, std::move(type)));
+                    file()->Make<WireDef>(name, std::move(type)));
 }
 
 LogicRef* Module::AddOutput(absl::string_view name, DataType type) {
   return AddPortDef(Direction::kOutput,
-                    parent_->Make<WireDef>(name, std::move(type)));
+                    file()->Make<WireDef>(name, std::move(type)));
 }
 
 LogicRef* Module::AddUnpackedArrayReg(
@@ -229,7 +231,7 @@ LogicRef* Module::AddUnpackedArrayReg(
   if (section == nullptr) {
     section = &top_;
   }
-  return parent_->Make<LogicRef>(
+  return file()->Make<LogicRef>(
       section->Add<UnpackedArrayRegDef>(name, std::move(type), bounds, init));
 }
 
@@ -238,7 +240,7 @@ LogicRef* Module::AddReg(absl::string_view name, DataType type,
   if (section == nullptr) {
     section = &top_;
   }
-  return parent_->Make<LogicRef>(
+  return file()->Make<LogicRef>(
       section->Add<RegDef>(name, std::move(type), init));
 }
 
@@ -247,12 +249,12 @@ LogicRef* Module::AddWire(absl::string_view name, DataType type,
   if (section == nullptr) {
     section = &top_;
   }
-  return parent_->Make<LogicRef>(section->Add<WireDef>(name, std::move(type)));
+  return file()->Make<LogicRef>(section->Add<WireDef>(name, std::move(type)));
 }
 
 ParameterRef* Module::AddParameter(absl::string_view name, Expression* rhs) {
-  Parameter* param = AddModuleMember(parent_->Make<Parameter>(name, rhs));
-  return parent_->Make<ParameterRef>(param);
+  Parameter* param = AddModuleMember(file()->Make<Parameter>(name, rhs));
+  return file()->Make<ParameterRef>(param);
 }
 
 Literal* Expression::AsLiteralOrDie() {
@@ -284,13 +286,9 @@ static std::string WidthToLimit(Expression* expr) {
     uint64 value = expr->AsLiteralOrDie()->bits().ToUint64().value();
     return absl::StrCat(value - 1);
   }
-  Literal literal(UBits(1, 32), FormatPreference::kDefault,
-                  /*emit_bit_count=*/false);
-  // TODO(meheff): It'd be better to use VerilogFile::Sub here to keep
-  // precedence values in one place but we don't have a VerilogFile.
-  const int64 kBinarySubPrecedence = 9;
-  BinaryInfix b(expr, "-", &literal, /*precedence=*/kBinarySubPrecedence);
-  return absl::StrFormat("%s", b.Emit());
+  Literal* one = expr->file()->PlainLiteral(1);
+  Expression* width_minus_one = expr->file()->Sub(expr, one);
+  return width_minus_one->Emit();
 }
 
 // For the given expression returns a string " [width - 1:0]". The space before
@@ -456,7 +454,7 @@ std::vector<ModuleMember> ModuleSection::GatherMembers() const {
   return all_members;
 }
 
-std::string ModuleSection::Emit() const {
+std::string ModuleSection::Emit() {
   std::vector<std::string> elements;
   for (const ModuleMember& member : GatherMembers()) {
     elements.push_back(EmitModuleMember(member));
@@ -678,7 +676,7 @@ std::string Unary::Emit() {
 }
 
 StatementBlock* Case::AddCaseArm(CaseLabel label) {
-  arms_.push_back(parent_->Make<CaseArm>(parent_, label));
+  arms_.push_back(file()->Make<CaseArm>(label));
   return arms_.back()->statements();
 }
 
@@ -686,7 +684,7 @@ std::string Case::Emit() {
   std::string result = absl::StrFormat("case (%s)\n", subject_->Emit());
   for (auto& arm : arms_) {
     absl::StrAppend(&result,
-                    Indent(absl::StrFormat("%s: %s", arm->GetLabelString(),
+                    Indent(absl::StrFormat("%s: %s", arm->Emit(),
                                            arm->statements()->Emit())),
                     "\n");
   }
@@ -694,16 +692,16 @@ std::string Case::Emit() {
   return result;
 }
 
-Conditional::Conditional(VerilogFile* f, Expression* condition)
-    : parent_(f),
+Conditional::Conditional(Expression* condition, VerilogFile* file)
+    : Statement(file),
       condition_(condition),
-      consequent_(f->Make<StatementBlock>(f)) {}
+      consequent_(file->Make<StatementBlock>()) {}
 
 StatementBlock* Conditional::AddAlternate(Expression* condition) {
   // The conditional must not have been previously closed with an unconditional
   // alternate ("else").
   XLS_CHECK(alternates_.empty() || alternates_.back().first != nullptr);
-  alternates_.push_back({condition, parent_->Make<StatementBlock>(parent_)});
+  alternates_.push_back({condition, file()->Make<StatementBlock>()});
   return alternates_.back().second;
 }
 
@@ -721,8 +719,10 @@ std::string Conditional::Emit() {
   return result;
 }
 
-WhileStatement::WhileStatement(VerilogFile* f, Expression* condition)
-    : condition_(condition), statements_(f->Make<StatementBlock>(f)) {}
+WhileStatement::WhileStatement(Expression* condition, VerilogFile* file)
+    : Statement(file),
+      condition_(condition),
+      statements_(file->Make<StatementBlock>()) {}
 
 std::string WhileStatement::Emit() {
   return absl::StrFormat("while (%s) %s", condition_->Emit(),
@@ -773,8 +773,8 @@ std::string NonblockingAssignment::Emit() {
   return absl::StrFormat("%s <= %s;", lhs_->Emit(), rhs_->Emit());
 }
 
-StructuredProcedure::StructuredProcedure(VerilogFile* f)
-    : statements_(f->Make<StatementBlock>(f)) {}
+StructuredProcedure::StructuredProcedure(VerilogFile* file)
+    : VastNode(file), statements_(file->Make<StatementBlock>()) {}
 
 namespace {
 
@@ -808,30 +808,29 @@ std::string Initial::Emit() {
   return result;
 }
 
-AlwaysFlop::AlwaysFlop(VerilogFile* file, LogicRef* clk,
-                       absl::optional<Reset> rst)
-    : file_(file),
+AlwaysFlop::AlwaysFlop(LogicRef* clk, Reset rst, VerilogFile* file)
+    : VastNode(file),
       clk_(clk),
       rst_(rst),
-      top_block_(file_->Make<StatementBlock>(file)) {
-  if (rst_.has_value()) {
-    // Reset signal specified. Construct conditional which switches the reset
-    // signal.
-    Expression* rst_condition;
-    if (rst_->active_low) {
-      rst_condition = file_->LogicalNot(rst_->signal);
-    } else {
-      rst_condition = rst_->signal;
-    }
-    Conditional* conditional =
-        top_block_->Add<Conditional>(file_, rst_condition);
-    reset_block_ = conditional->consequent();
-    assignment_block_ = conditional->AddAlternate();
+      top_block_(file->Make<StatementBlock>()) {
+  // Reset signal specified. Construct conditional which switches the reset
+  // signal.
+  Expression* rst_condition;
+  if (rst_->active_low) {
+    rst_condition = file->LogicalNot(rst_->signal);
   } else {
-    // No reset signal specified.
-    reset_block_ = nullptr;
-    assignment_block_ = top_block_;
+    rst_condition = rst_->signal;
   }
+  Conditional* conditional = top_block_->Add<Conditional>(rst_condition);
+  reset_block_ = conditional->consequent();
+  assignment_block_ = conditional->AddAlternate();
+}
+
+AlwaysFlop::AlwaysFlop(LogicRef* clk, VerilogFile* file)
+    : VastNode(file), clk_(clk), top_block_(file->Make<StatementBlock>()) {
+  // No reset signal specified.
+  reset_block_ = nullptr;
+  assignment_block_ = top_block_;
 }
 
 void AlwaysFlop::AddRegister(LogicRef* reg, Expression* reg_next,

@@ -43,7 +43,7 @@ class ModuleTestbenchTest : public VerilogTestBase {
     LogicRef* p0 = m->AddReg("p0", f->DataTypeOfWidth(width));
     LogicRef* p1 = m->AddReg("p1", f->DataTypeOfWidth(width));
 
-    auto af = m->Add<AlwaysFlop>(f, clk);
+    auto af = m->Add<AlwaysFlop>(clk);
     af->AddRegister(p0, in);
     af->AddRegister(p1, p0);
 
@@ -147,7 +147,7 @@ TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
   //  out0 <= x        // one-cycle latency.
   //  sum  <= x + y
   //  out1 <= sum + 1  // two-cycle latency.
-  auto af = m->Add<AlwaysFlop>(&f, clk);
+  auto af = m->Add<AlwaysFlop>(clk);
   af->AddRegister(not_x, f.BitwiseNot(x));
   af->AddRegister(sum, f.Add(x, y));
   af->AddRegister(sum_plus_1, f.Add(sum, f.PlainLiteral(1)));

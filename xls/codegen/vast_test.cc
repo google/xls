@@ -108,7 +108,7 @@ TEST(VastTest, DataTypes) {
 
 TEST(VastTest, ModuleWithManyVariableDefinitions) {
   VerilogFile f;
-  Module* module = f.Make<Module>("my_module", &f);
+  Module* module = f.Make<Module>("my_module");
   LogicRef* a_ref = module->AddInput("a", f.DataTypeOfWidth(1));
   LogicRef* b_ref = module->AddOutput("b", f.DataTypeOfWidth(4));
   module->AddInput("array", DataType(f.PlainLiteral(8),
@@ -160,7 +160,7 @@ endmodule)");
 
 TEST(VastTest, ModuleWithUnpackedArrayRegWithSize) {
   VerilogFile f;
-  Module* module = f.Make<Module>("my_module", &f);
+  Module* module = f.Make<Module>("my_module");
   LogicRef* out_ref = module->AddOutput("out", f.DataTypeOfWidth(64));
   LogicRef* arr_ref = module->AddUnpackedArrayReg(
       "arr", f.DataTypeOfWidth(4),
@@ -177,7 +177,7 @@ endmodule)");
 
 TEST(VastTest, ModuleWithUnpackedArrayRegWithPackedDims) {
   VerilogFile f;
-  Module* module = f.Make<Module>("my_module", &f);
+  Module* module = f.Make<Module>("my_module");
   LogicRef* out_ref = module->AddOutput("out", f.DataTypeOfWidth(64));
   LogicRef* arr_ref = module->AddUnpackedArrayReg(
       "arr",
@@ -196,7 +196,7 @@ endmodule)");
 
 TEST(VastTest, ModuleWithUnpackedArrayRegWithRanges) {
   VerilogFile f;
-  Module* module = f.Make<Module>("my_module", &f);
+  Module* module = f.Make<Module>("my_module");
   LogicRef* out_ref = module->AddOutput("out", DataType(f.PlainLiteral(64)));
   LogicRef* arr_ref = module->AddUnpackedArrayReg(
       "arr", f.DataTypeOfWidth(4),
@@ -214,16 +214,15 @@ endmodule)");
 }
 
 TEST(VastTest, Literals) {
-  EXPECT_EQ("32'd44",
-            Literal(UBits(44, 32), FormatPreference::kDecimal).Emit());
-  EXPECT_EQ("1'b1",
-            Literal(UBits(1, 1), FormatPreference::kBinary).Emit());
-  EXPECT_EQ("4'b1010",
-            Literal(UBits(10, 4), FormatPreference::kBinary).Emit());
-  EXPECT_EQ("42'h000_0000_3039",
-            Literal(UBits(12345, 42), FormatPreference::kHex).Emit());
-
   VerilogFile f;
+  EXPECT_EQ("32'd44",
+            f.Literal(UBits(44, 32), FormatPreference::kDecimal)->Emit());
+  EXPECT_EQ("1'b1", f.Literal(UBits(1, 1), FormatPreference::kBinary)->Emit());
+  EXPECT_EQ("4'b1010",
+            f.Literal(UBits(10, 4), FormatPreference::kBinary)->Emit());
+  EXPECT_EQ("42'h000_0000_3039",
+            f.Literal(UBits(12345, 42), FormatPreference::kHex)->Emit());
+
   EXPECT_EQ("13579", f.PlainLiteral(13579)->Emit());
 
   Bits b0 = UBits(0, 1);
@@ -231,19 +230,19 @@ TEST(VastTest, Literals) {
   Bits b55 = UBits(55, 32);
   Bits b1234 = UBits(1234, 55);
 
-  EXPECT_EQ(Literal(b0, FormatPreference::kDecimal).Emit(), "1'd0");
+  EXPECT_EQ(f.Literal(b0, FormatPreference::kDecimal)->Emit(), "1'd0");
 
-  EXPECT_EQ(Literal(b2, FormatPreference::kHex).Emit(), "3'h2");
-  EXPECT_EQ(Literal(b2, FormatPreference::kBinary).Emit(), "3'b010");
+  EXPECT_EQ(f.Literal(b2, FormatPreference::kHex)->Emit(), "3'h2");
+  EXPECT_EQ(f.Literal(b2, FormatPreference::kBinary)->Emit(), "3'b010");
 
-  EXPECT_EQ(Literal(b55, FormatPreference::kDefault).Emit(), "55");
-  EXPECT_EQ(Literal(b55, FormatPreference::kBinary).Emit(),
+  EXPECT_EQ(f.Literal(b55, FormatPreference::kDefault)->Emit(), "55");
+  EXPECT_EQ(f.Literal(b55, FormatPreference::kBinary)->Emit(),
             "32'b0000_0000_0000_0000_0000_0000_0011_0111");
 
-  EXPECT_EQ(Literal(b1234, FormatPreference::kHex).Emit(),
+  EXPECT_EQ(f.Literal(b1234, FormatPreference::kHex)->Emit(),
             "55'h00_0000_0000_04d2");
-  EXPECT_EQ(Literal(b1234, FormatPreference::kDecimal).Emit(), "55'd1234");
-  EXPECT_EQ(Literal(b1234, FormatPreference::kBinary).Emit(),
+  EXPECT_EQ(f.Literal(b1234, FormatPreference::kDecimal)->Emit(), "55'd1234");
+  EXPECT_EQ(f.Literal(b1234, FormatPreference::kBinary)->Emit(),
             "55'b000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0100_"
             "1101_0010");
 }
@@ -291,8 +290,8 @@ TEST(VastTest, Case) {
   LogicRef* thing_next = m->AddWire("thing_next", f.DataTypeOfWidth(1));
   LogicRef* thing = m->AddWire("thing", f.DataTypeOfWidth(1));
   LogicRef* my_state = m->AddWire("my_state", f.DataTypeOfWidth(2));
-  AlwaysComb* ac = m->Add<AlwaysComb>(&f);
-  Case* case_statement = ac->statements()->Add<Case>(&f, my_state);
+  AlwaysComb* ac = m->Add<AlwaysComb>();
+  Case* case_statement = ac->statements()->Add<Case>(my_state);
   StatementBlock* one_block = case_statement->AddCaseArm(f.Literal(1, 2));
   one_block->Add<BlockingAssignment>(thing_next, thing);
   StatementBlock* default_block = case_statement->AddCaseArm(DefaultSentinel());
@@ -320,7 +319,7 @@ TEST(VastTest, AlwaysFlopTestNoReset) {
   VerilogFile f;
   Module* m = f.AddModule("top");
   LogicRef* clk = m->AddInput("my_clk", f.DataTypeOfWidth(1));
-  AlwaysFlop* af = f.Make<AlwaysFlop>(&f, clk);
+  AlwaysFlop* af = f.Make<AlwaysFlop>(clk);
   for (const std::string& signal_name : fsm_signals) {
     LogicRef* signal = m->AddReg(signal_name, f.DataTypeOfWidth(1));
     LogicRef* signal_next =
@@ -350,7 +349,7 @@ TEST(VastTest, AlwaysFlopTestSyncReset) {
   LogicRef* b_next = m->AddReg("b_next", f.DataTypeOfWidth(8));
 
   AlwaysFlop* af = m->Add<AlwaysFlop>(
-      &f, clk, Reset{rst, /*async*/ false, /*active_low*/ false});
+      clk, Reset{rst, /*async*/ false, /*active_low*/ false});
   af->AddRegister(a, a_next, /*reset_value=*/f.Literal(42, 8));
   af->AddRegister(b, b_next);
 
@@ -376,8 +375,8 @@ TEST(VastTest, AlwaysFlopTestAsyncResetActiveLow) {
   LogicRef* b = m->AddReg("b", f.DataTypeOfWidth(8));
   LogicRef* b_next = m->AddReg("b_next", f.DataTypeOfWidth(8));
 
-  AlwaysFlop* af = m->Add<AlwaysFlop>(
-      &f, clk, Reset{rst, /*async*/ true, /*active_low*/ true});
+  AlwaysFlop* af =
+      m->Add<AlwaysFlop>(clk, Reset{rst, /*async*/ true, /*active_low*/ true});
   af->AddRegister(a, a_next, /*reset_value=*/f.Literal(42, 8));
   af->AddRegister(b, b_next);
 
@@ -403,9 +402,8 @@ TEST(VastTest, AlwaysFf) {
   LogicRef* foo_reg = m->AddReg("foo_reg", f.DataTypeOfWidth(1));
   LogicRef* bar_reg = m->AddReg("bar_reg", f.DataTypeOfWidth(1));
 
-  AlwaysFf* always_ff =
-      f.Make<AlwaysFf>(&f, std::vector<SensitivityListElement>{
-                               f.Make<PosEdge>(clk), f.Make<NegEdge>(rst_n)});
+  AlwaysFf* always_ff = f.Make<AlwaysFf>(std::vector<SensitivityListElement>{
+      f.Make<PosEdge>(clk), f.Make<NegEdge>(rst_n)});
   always_ff->statements()->Add<NonblockingAssignment>(foo_reg, foo);
   always_ff->statements()->Add<NonblockingAssignment>(bar_reg, bar);
   m->AddModuleMember(always_ff);
@@ -424,7 +422,7 @@ TEST(VastTest, Always) {
   LogicRef* bar = m->AddReg("bar", f.DataTypeOfWidth(32));
 
   Always* always = f.Make<Always>(
-      &f, std::vector<SensitivityListElement>{ImplicitEventExpression()});
+      std::vector<SensitivityListElement>{ImplicitEventExpression()});
   always->statements()->Add<BlockingAssignment>(foo, f.PlainLiteral(7));
   always->statements()->Add<BlockingAssignment>(bar, f.PlainLiteral(42));
   m->AddModuleMember(always);
@@ -450,7 +448,7 @@ TEST(VastTest, AlwaysCombTest) {
       m->AddWire("tx_byte_valid_next", f.DataTypeOfWidth(1));
   LogicRef* tx_byte_valid = m->AddWire("tx_byte_valid", f.DataTypeOfWidth(1));
 
-  AlwaysComb* ac = m->Add<AlwaysComb>(&f);
+  AlwaysComb* ac = m->Add<AlwaysComb>();
   for (auto p : std::vector<std::pair<Expression*, Expression*>>{
            {rx_byte_done_next, rx_byte_done},
            {tx_byte_next, tx_byte},
@@ -469,27 +467,27 @@ end)");
 
 TEST(VastTest, InstantiationTest) {
   VerilogFile f;
-  MacroRef default_clocks_per_baud("DEFAULT_CLOCKS_PER_BAUD");
-  WireDef clk_def("my_clk", f.DataTypeOfWidth(1));
-  LogicRef clk_ref(&clk_def);
+  auto* default_clocks_per_baud = f.Make<MacroRef>("DEFAULT_CLOCKS_PER_BAUD");
+  auto* clk_def = f.Make<WireDef>("my_clk", f.DataTypeOfWidth(1));
+  auto* clk_ref = f.Make<LogicRef>(clk_def);
 
   Literal* value_32d8 = f.PlainLiteral(8);
-  WireDef tx_byte_def("my_tx_byte", DataType(value_32d8));
-  LogicRef tx_byte_ref(&tx_byte_def);
-  Instantiation instantiation(
+  auto* tx_byte_def = f.Make<WireDef>("my_tx_byte", DataType(value_32d8));
+  auto* tx_byte_ref = f.Make<LogicRef>(tx_byte_def);
+  auto* instantiation = f.Make<Instantiation>(
       /*module_name=*/"uart_transmitter",
       /*instance_name=*/"tx",
       /*parameters=*/
       std::vector<Connection>{
-          {"ClocksPerBaud", &default_clocks_per_baud},
+          {"ClocksPerBaud", default_clocks_per_baud},
       },
       /*connections=*/
       std::vector<Connection>{
-          {"clk", &clk_ref},
-          {"tx_byte", &tx_byte_ref},
+          {"clk", clk_ref},
+          {"tx_byte", tx_byte_ref},
       });
 
-  EXPECT_EQ(instantiation.Emit(),
+  EXPECT_EQ(instantiation->Emit(),
             R"(uart_transmitter #(
   .ClocksPerBaud(`DEFAULT_CLOCKS_PER_BAUD)
 ) tx (
@@ -504,7 +502,7 @@ TEST(VastTest, BlockingAndNonblockingAssignments) {
   LogicRef* a = m->AddReg("a", f.DataTypeOfWidth(1));
   LogicRef* b = m->AddReg("b", f.DataTypeOfWidth(1));
   LogicRef* c = m->AddReg("c", f.DataTypeOfWidth(1));
-  AlwaysComb* ac = m->Add<AlwaysComb>(&f);
+  AlwaysComb* ac = m->Add<AlwaysComb>();
   ac->statements()->Add<BlockingAssignment>(a, b);
   ac->statements()->Add<NonblockingAssignment>(b, c);
 
@@ -519,13 +517,13 @@ TEST(VastTest, ParameterAndLocalParam) {
   VerilogFile f;
   Module* m = f.AddModule("top");
   m->AddParameter("ClocksPerBaud", f.Make<MacroRef>("DEFAULT_CLOCKS_PER_BAUD"));
-  LocalParam* p = m->Add<LocalParam>(&f);
+  LocalParam* p = m->Add<LocalParam>();
   LocalParamItemRef* idle = p->AddItem("StateIdle", f.Literal(0, 2));
   p->AddItem("StateGotByte", f.Literal(1, 2));
   p->AddItem("StateError", f.Literal(2, 2));
 
   LocalParamItemRef* state_bits =
-      m->Add<LocalParam>(&f)->AddItem("StateBits", f.Literal(2, 2));
+      m->Add<LocalParam>()->AddItem("StateBits", f.Literal(2, 2));
   m->AddReg("state", DataType(/*width=*/state_bits), idle);
 
   EXPECT_EQ(m->Emit(),
@@ -545,8 +543,8 @@ TEST(VastTest, SimpleConditional) {
   Module* m = f.AddModule("top");
   LogicRef* input = m->AddInput("input", f.DataTypeOfWidth(1));
   LogicRef* output = m->AddReg("output", f.DataTypeOfWidth(1));
-  AlwaysComb* ac = m->Add<AlwaysComb>(&f);
-  Conditional* if_statement = ac->statements()->Add<Conditional>(&f, input);
+  AlwaysComb* ac = m->Add<AlwaysComb>();
+  Conditional* if_statement = ac->statements()->Add<Conditional>(input);
   if_statement->consequent()->Add<BlockingAssignment>(output, f.Literal(1, 1));
   EXPECT_EQ(if_statement->Emit(),
             R"(if (input) begin
@@ -580,8 +578,8 @@ TEST(VastTest, ComplexConditional) {
   LogicRef* output1 = m->AddReg("output1", f.DataTypeOfWidth(1));
   LogicRef* output2 = m->AddReg("output2", f.DataTypeOfWidth(1));
 
-  AlwaysComb* ac = m->Add<AlwaysComb>(&f);
-  Conditional* conditional = ac->statements()->Add<Conditional>(&f, input1);
+  AlwaysComb* ac = m->Add<AlwaysComb>();
+  Conditional* conditional = ac->statements()->Add<Conditional>(input1);
   conditional->consequent()->Add<BlockingAssignment>(output1, f.Literal(1, 1));
 
   StatementBlock* alternate1 =
@@ -616,13 +614,13 @@ TEST(VastTest, NestedConditional) {
   LogicRef* output1 = m->AddReg("output1", f.DataTypeOfWidth(1));
   LogicRef* output2 = m->AddReg("output2", f.DataTypeOfWidth(1));
 
-  AlwaysComb* ac = m->Add<AlwaysComb>(&f);
-  Conditional* conditional = ac->statements()->Add<Conditional>(&f, input1);
+  AlwaysComb* ac = m->Add<AlwaysComb>();
+  Conditional* conditional = ac->statements()->Add<Conditional>(input1);
   conditional->consequent()->Add<BlockingAssignment>(output1, f.Literal(1, 1));
 
   StatementBlock* alternate = conditional->AddAlternate();
 
-  Conditional* nested_conditional = alternate->Add<Conditional>(&f, input2);
+  Conditional* nested_conditional = alternate->Add<Conditional>(input2);
   nested_conditional->consequent()->Add<BlockingAssignment>(output2,
                                                             f.Literal(1, 1));
   StatementBlock* nested_alternate = nested_conditional->AddAlternate();
@@ -656,7 +654,7 @@ TEST(VastTest, TestbenchClock) {
   Module* m = f.AddModule("testbench");
   LogicRef* clk = m->AddReg("clk", f.DataTypeOfWidth(1));
 
-  Initial* initial = m->Add<Initial>(&f);
+  Initial* initial = m->Add<Initial>();
   Statement* clk_equals_zero =
       f.Make<BlockingAssignment>(clk, f.PlainLiteral(0));
   initial->statements()->Add<DelayStatement>(f.PlainLiteral(1),
@@ -682,7 +680,7 @@ TEST(VastTest, TestbenchDisplayAndMonitor) {
   LogicRef* input1 = m->AddInput("input1", f.DataTypeOfWidth(1));
   LogicRef* input2 = m->AddInput("input2", f.DataTypeOfWidth(1));
 
-  Initial* initial = m->Add<Initial>(&f);
+  Initial* initial = m->Add<Initial>();
   std::vector<Expression*> display_args = {f.Make<QuotedString>(R"(foo\n)")};
   initial->statements()->Add<Display>(display_args);
   initial->statements()->Add<DelayStatement>(f.PlainLiteral(42));
@@ -764,17 +762,17 @@ TEST(VastTest, ArrayAssignmentPattern) {
 
 TEST(VastTest, ModuleSections) {
   VerilogFile f;
-  Module* module = f.Make<Module>("my_module", &f);
-  ModuleSection* s0 = module->Add<ModuleSection>(&f);
+  Module* module = f.Make<Module>("my_module");
+  ModuleSection* s0 = module->Add<ModuleSection>();
   module->AddReg("foo", f.DataTypeOfWidth(1), f.PlainLiteral(1));
-  ModuleSection* s1 = module->Add<ModuleSection>(&f);
+  ModuleSection* s1 = module->Add<ModuleSection>();
   // Create an empty section.
-  module->Add<ModuleSection>(&f);
+  module->Add<ModuleSection>();
 
   // Fill the sections and add something to the module top as well.
   s0->Add<Comment>("section 0");
   s1->Add<Comment>("section 1");
-  ModuleSection* nested_section = s1->Add<ModuleSection>(&f);
+  ModuleSection* nested_section = s1->Add<ModuleSection>();
   nested_section->Add<Comment>("  nested in section 1");
   module->Add<Comment>("random comment at end");
   s1->Add<Comment>("more stuff in section 1");
@@ -800,7 +798,7 @@ TEST(VastTest, VerilogFunction) {
   VerilogFile f;
   Module* m = f.AddModule("top");
   VerilogFunction* func =
-      m->Add<VerilogFunction>("func", f.DataTypeOfWidth(42), &f);
+      m->Add<VerilogFunction>("func", f.DataTypeOfWidth(42));
   LogicRef* foo = func->AddArgument("foo", f.DataTypeOfWidth(32));
   LogicRef* bar = func->AddArgument("bar", f.DataTypeOfWidth(3));
   func->AddStatement<BlockingAssignment>(func->return_value_ref(),
@@ -827,7 +825,7 @@ TEST(VastTest, VerilogFunctionNoArguments) {
   VerilogFile f;
   Module* m = f.AddModule("top");
   VerilogFunction* func =
-      m->Add<VerilogFunction>("func", f.DataTypeOfWidth(42), &f);
+      m->Add<VerilogFunction>("func", f.DataTypeOfWidth(42));
   func->AddStatement<BlockingAssignment>(func->return_value_ref(),
                                          f.Literal(UBits(0x42, 42)));
 
@@ -850,7 +848,7 @@ TEST(VastTest, VerilogFunctionWithRegDefs) {
   VerilogFile f;
   Module* m = f.AddModule("top");
   VerilogFunction* func =
-      m->Add<VerilogFunction>("func", f.DataTypeOfWidth(42), &f);
+      m->Add<VerilogFunction>("func", f.DataTypeOfWidth(42));
   LogicRef* foo = func->AddRegDef("foo", f.DataTypeOfWidth(42));
   LogicRef* bar = func->AddRegDef("bar", f.DataTypeOfWidth(42));
   func->AddStatement<BlockingAssignment>(foo, f.Literal(UBits(0x42, 42)));
@@ -879,7 +877,7 @@ endmodule)");
 TEST(VastTest, VerilogFunctionWithScalarReturn) {
   VerilogFile f;
   Module* m = f.AddModule("top");
-  VerilogFunction* func = m->Add<VerilogFunction>("func", DataType(), &f);
+  VerilogFunction* func = m->Add<VerilogFunction>("func", DataType());
   func->AddStatement<BlockingAssignment>(func->return_value_ref(),
                                          f.PlainLiteral(1));
 
@@ -905,7 +903,7 @@ TEST(VastTest, AssertTest) {
   LogicRef* b_ref = m->AddInput("b", f.DataTypeOfWidth(8));
   LogicRef* c_ref = m->AddOutput("c", f.DataTypeOfWidth(8));
 
-  AlwaysComb* ac = m->Add<AlwaysComb>(&f);
+  AlwaysComb* ac = m->Add<AlwaysComb>();
   ac->statements()->Add<Assert>(f.Equals(a_ref, f.Literal(42, 8)));
   ac->statements()->Add<BlockingAssignment>(c_ref, f.Add(a_ref, b_ref));
   ac->statements()->Add<Assert>(f.LessThan(c_ref, f.Literal(100, 8)),
@@ -939,7 +937,7 @@ TEST(VastTest, VerilogFunctionWithComplicatedTypes) {
   DataType baz_type =
       DataType(/*width=*/f.PlainLiteral(33), /*is_signed=*/true);
 
-  VerilogFunction* func = m->Add<VerilogFunction>("func", return_type, &f);
+  VerilogFunction* func = m->Add<VerilogFunction>("func", return_type);
   func->AddArgument("foo", foo_type);
   func->AddArgument("bar", bar_type);
   func->AddArgument("baz", baz_type);
