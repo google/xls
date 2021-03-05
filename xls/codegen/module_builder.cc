@@ -508,6 +508,7 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
   // Iterate through array elements and recurse.
   ArrayType* array_type = xls_type->AsArrayOrDie();
   IndexType index_type = indices.front();
+  int64 index_bit_count = index_type.xls_type->bit_count();
   for (int64 i = 0; i < array_type->size(); ++i) {
     // Compute the current index match expression for this index element.
     IndexMatch current_index_match;
@@ -515,11 +516,13 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
       // Index element is a literal. The condition is statically known (true or
       // false).
       current_index_match = index_type.expression->IsLiteralWithValue(i);
+    } else if (Bits::MinBitCountUnsigned(i) > index_bit_count) {
+      // Index is not wide enough to hold 'i'.
+      current_index_match = false;
     } else {
       // Index element is a not literal. The condition is not statically known.
       current_index_match = file_->Equals(
-          index_type.expression,
-          file_->Literal(UBits(i, index_type.xls_type->bit_count())));
+          index_type.expression, file_->Literal(UBits(i, index_bit_count)));
     }
     XLS_RETURN_IF_ERROR(EmitArrayCopyAndUpdate(
         file_->Index(lhs, i), file_->Index(rhs, i), update_value,

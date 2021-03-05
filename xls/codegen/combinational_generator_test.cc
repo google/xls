@@ -1746,6 +1746,23 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateWithDifferentTypesIndices) {
                                  result.verilog_text);
 }
 
+TEST_P(CombinationalGeneratorTest, ArrayUpdateWithNarrowIndex) {
+  VerilogFile file;
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u32 = package.GetBitsType(32);
+  BValue a = fb.Param("a", package.GetArrayType(10, u32));
+  BValue idx = fb.Param("idx", package.GetBitsType(2));
+  BValue value = fb.Param("v", u32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.ArrayUpdate(a, value, {idx})));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
 INSTANTIATE_TEST_SUITE_P(CombinationalGeneratorTestInstantiation,
                          CombinationalGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
