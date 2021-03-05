@@ -189,6 +189,11 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('Could not build IR: Parameter named "x" already exists',
                   stderr)
 
+  def test_non_constexpr_slice(self):
+    stderr = self._run('xls/dslx/tests/errors/non_constexpr_slice.x')
+    self.assertIn('Unable to resolve slice limit to a compile-time constant.',
+                  stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

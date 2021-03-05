@@ -552,6 +552,7 @@ cc_library(
         ":scanner",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],
 )

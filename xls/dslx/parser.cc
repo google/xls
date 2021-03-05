@@ -1266,22 +1266,9 @@ absl::StatusOr<Index*> Parser::ParseBitSlice(const Pos& start_pos, Expr* lhs,
   XLS_RETURN_IF_ERROR(
       DropTokenOrError(TokenKind::kCBrack, nullptr, "at end of bit slice"));
 
-  Number* start_num = dynamic_cast<Number*>(start);
-  if (start_num == nullptr && start != nullptr) {
-    return ParseErrorStatus(
-        start->span(),
-        "Only constant numbers are currently allowed in slice expressions.");
-  }
-
-  if (limit_expr != nullptr && dynamic_cast<Number*>(limit_expr) == nullptr) {
-    return ParseErrorStatus(
-        Span(start_pos, GetPos()),
-        "Only constant numbers are currently allowed in slice expressions.");
-  }
-
-  Number* limit = dynamic_cast<Number*>(limit_expr);
+  // Type deduction will verify that start & limit are constexpr.
   Slice* index =
-      module_->Make<Slice>(Span(start_pos, GetPos()), start_num, limit);
+      module_->Make<Slice>(Span(start_pos, GetPos()), start, limit_expr);
   return module_->Make<Index>(Span(start_pos, GetPos()), lhs, index);
 }
 

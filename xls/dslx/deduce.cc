@@ -15,6 +15,7 @@
 #include "xls/dslx/deduce.h"
 
 #include "absl/container/btree_set.h"
+#include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/interpreter.h"
@@ -869,16 +870,52 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     return DeduceWidthSliceType(node, *bits_type, *width_slice, ctx);
   }
 
+  absl::flat_hash_map<std::string, int64> env =
+      ctx->fn_stack().back().symbolic_bindings().ToMap();
+  absl::flat_hash_map<std::string, int64> bit_widths;
+  for (const auto& [identifier, _] : env) {
+    // TODO(leary): 2020-03-05 We should carry around the bitwidths of the
+    // symbolic bindings, right now we only know the value, so we're forced to
+    // guess this is ok. Potentially we should carry around InterpValues in
+    // symbolic bindings in general.
+    bit_widths[identifier] = 32;
+  }
+
+  std::unique_ptr<ConcreteType> s32 = BitsType::MakeS32();
   auto* slice = absl::get<Slice*>(node->rhs());
   absl::optional<int64> limit;
   if (slice->limit() != nullptr) {
-    XLS_ASSIGN_OR_RETURN(int64 limit_value, slice->limit()->GetAsUint64());
-    limit = limit_value;
+    auto status_or_limit = Interpreter::InterpretExprToInt(
+        slice->owner(), ctx->type_info(), ctx->typecheck_module(),
+        ctx->additional_search_paths(), ctx->import_data(), env, bit_widths,
+        slice->limit(), FnCtx{}, s32.get());
+    if (!status_or_limit.ok()) {
+      absl::Status status = status_or_limit.status();
+      if (absl::StrContains(status.message(),
+                            "Could not find bindings entry")) {
+        return TypeInferenceErrorStatus(
+            slice->limit()->span(), nullptr,
+            "Unable to resolve slice limit to a compile-time constant.");
+      }
+    }
+    limit = status_or_limit.value();
   }
   absl::optional<int64> start;
   if (slice->start() != nullptr) {
-    XLS_ASSIGN_OR_RETURN(int64 start_value, slice->start()->GetAsUint64());
-    start = start_value;
+    auto status_or_start = Interpreter::InterpretExprToInt(
+        slice->owner(), ctx->type_info(), ctx->typecheck_module(),
+        ctx->additional_search_paths(), ctx->import_data(), env, bit_widths,
+        slice->start(), FnCtx{}, s32.get());
+    if (!status_or_start.ok()) {
+      absl::Status status = status_or_start.status();
+      if (absl::StrContains(status.message(),
+                            "Could not find bindings entry")) {
+        return TypeInferenceErrorStatus(
+            slice->start()->span(), nullptr,
+            "Unable to resolve slice start to a compile-time constant.");
+      }
+    }
+    start = status_or_start.value();
   }
 
   const SymbolicBindings& fn_symbolic_bindings =

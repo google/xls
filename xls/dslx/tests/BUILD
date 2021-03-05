@@ -64,6 +64,13 @@ dslx_test(
 )
 
 dslx_test(
+    name = "constexpr_slice",
+    srcs = ["constexpr_slice.x"],
+    generate_benchmark = False,
+    prove_unopt_eq_opt = False,
+)
+
+dslx_test(
     name = "explicit_parametric",
     srcs = ["explicit_parametric.x"],
     generate_benchmark = False,

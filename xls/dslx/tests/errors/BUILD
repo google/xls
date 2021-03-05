@@ -46,6 +46,7 @@ py_test(
         "match_multi_pattern_with_bindings.x",
         "mod_private_enum.x",
         "multiple_mod_level_const_bindings.x",
+        "non_constexpr_slice.x",
         "self_recursion.x",
         "tail_call.x",
         "two_failing_tests.x",

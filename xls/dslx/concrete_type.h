@@ -365,6 +365,9 @@ class BitsType : public ConcreteType {
   static std::unique_ptr<BitsType> MakeU32() {
     return absl::make_unique<BitsType>(false, 32);
   }
+  static std::unique_ptr<BitsType> MakeS32() {
+    return absl::make_unique<BitsType>(true, 32);
+  }
   static std::unique_ptr<BitsType> MakeU8() {
     return absl::make_unique<BitsType>(false, 8);
   }

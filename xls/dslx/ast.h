@@ -1280,9 +1280,10 @@ class Invocation : public Expr {
 // Represents a slice in the AST.
 //
 // For example, we can have `x[-4:-2]`, where x is of bit width N.
+// The start and limit Exprs must be constexpr.
 class Slice : public AstNode {
  public:
-  Slice(Module* owner, Span span, Number* start, Number* limit)
+  Slice(Module* owner, Span span, Expr* start, Expr* limit)
       : AstNode(owner), span_(std::move(span)), start_(start), limit_(limit) {}
 
   absl::Status Accept(AstNodeVisitor* v) override {
@@ -1295,13 +1296,13 @@ class Slice : public AstNode {
   std::string ToString() const override;
   absl::optional<Span> GetSpan() const override { return span_; }
 
-  Number* start() const { return start_; }
-  Number* limit() const { return limit_; }
+  Expr* start() const { return start_; }
+  Expr* limit() const { return limit_; }
 
  private:
   Span span_;
-  Number* start_;  // May be nullptr.
-  Number* limit_;  // May be nullptr.
+  Expr* start_;  // May be nullptr.
+  Expr* limit_;  // May be nullptr.
 };
 
 // Helper struct for members items defined inside of enums.

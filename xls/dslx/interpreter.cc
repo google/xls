@@ -193,7 +193,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
     absl::Span<std::string const> additional_search_paths,
     ImportData* import_data, const absl::flat_hash_map<std::string, int64>& env,
     const absl::flat_hash_map<std::string, int64>& bit_widths, Expr* expr,
-    const FnCtx& fn_ctx) {
+    const FnCtx& fn_ctx, ConcreteType* type_context) {
   XLS_VLOG(3) << "InterpretExpr: " << expr->ToString() << " env: {"
               << absl::StrJoin(env, ", ", absl::PairFormatter(":")) << "}";
 
@@ -225,7 +225,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
   TypeInfoSwap tis(&interp, expr_root_type_info);
   XLS_ASSIGN_OR_RETURN(
       InterpValue result,
-      interp.Evaluate(expr, &bindings, /*type_context=*/nullptr));
+      interp.Evaluate(expr, &bindings, /*type_context=*/type_context));
   switch (result.tag()) {
     case InterpValueTag::kUBits: {
       XLS_ASSIGN_OR_RETURN(uint64 result, result.GetBitValueUint64());
