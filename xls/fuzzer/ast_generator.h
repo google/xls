@@ -122,6 +122,10 @@ class AstGenerator {
     });
   }
 
+  // Return all values from the environment which satisty the given predicate.
+  std::vector<TypedExpr> GatherAllValues(
+      Env* env, std::function<bool(const TypedExpr&)> take);
+
   // Returns a random bits-types value from the environment.
   absl::StatusOr<TypedExpr> ChooseEnvValueBits(
       Env* env, absl::optional<int64> bit_count = absl::nullopt) {
@@ -209,6 +213,15 @@ class AstGenerator {
   // Precondition: there must be an array value present in env or an error
   // status will be returned.
   absl::StatusOr<TypedExpr> GenerateArrayConcat(Env* env);
+
+  // Generates an array operation using values in "env".
+  absl::StatusOr<TypedExpr> GenerateArray(Env* env);
+
+  // Returns an array index operation using values in "env".
+  absl::StatusOr<TypedExpr> GenerateArrayIndex(Env* env);
+
+  // Returns an array update operation using values in "env".
+  absl::StatusOr<TypedExpr> GenerateArrayUpdate(Env* env);
 
   // Returns a (potentially vacuous) concatenate operation of values in "env".
   absl::StatusOr<TypedExpr> GenerateConcat(Env* env);

@@ -391,6 +391,92 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayConcat(Env* env) {
   return TypedExpr{result, result_type};
 }
 
+absl::StatusOr<TypedExpr> AstGenerator::GenerateArray(Env* env) {
+  // Choose an arbitrary value from the environment, then gather all elements
+  // from the environment of that type.
+  XLS_ASSIGN_OR_RETURN(TypedExpr value, ChooseEnvValue(env));
+  std::vector<TypedExpr> values = GatherAllValues(
+      env, [&](const TypedExpr& t) { return t.type == value.type; });
+  XLS_RET_CHECK(!values.empty());
+  if (RandomBool()) {
+    // Half the time extend the set of values by duplicating members. Walk
+    // through the vector randomly duplicating members along the way. On average
+    // this process will double the size of the array with the distribution
+    // falling off exponentially.
+    for (int64 i = 0; i < values.size(); ++i) {
+      if (RandomBool()) {
+        int64 idx = RandRange(values.size());
+        values.push_back(values[idx]);
+      }
+    }
+  }
+  std::vector<Expr*> value_exprs;
+  value_exprs.reserve(values.size());
+  for (TypedExpr t : values) {
+    value_exprs.push_back(t.expr);
+  }
+
+  // Create a type alias for the return type because arrays of tuples do not
+  // parse. For example, the following is a parse error:
+  //
+  //  let x1: (u32, u16)[42] = ...
+  //
+  // Instead do:
+  //
+  //  type x2 = (u32, u16);
+  //  ...
+  //  let x1: (x2)[42] = ...
+  //
+  // TODO(https://github.com/google/xls/issues/326) 2021-03-05 Remove this alias
+  // when parsing is fixed.
+  auto* element_type_alias = MakeTypeRefTypeAnnotation(value.type);
+  auto* result_type = module_->Make<ArrayTypeAnnotation>(
+      fake_span_, element_type_alias, MakeNumber(values.size()));
+
+  return TypedExpr{
+      module_->Make<Array>(fake_span_, value_exprs, /*has_ellipsis=*/false),
+      result_type};
+}
+
+absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayIndex(Env* env) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr array, ChooseEnvValueArray(env));
+  ArrayTypeAnnotation* array_type = down_cast<ArrayTypeAnnotation*>(array.type);
+  XLS_ASSIGN_OR_RETURN(TypedExpr index, ChooseEnvValueUBits(env));
+  int64 array_size = GetArraySize(array_type);
+  // An out-of-bounds array index raises an error in the DSLX interpreter so
+  // clamp the index so it is always in-bounds.
+  // TODO(https://github.com/google/xls/issues/327) 2021-03-05 Unify OOB
+  // behavior across different levels in XLS.
+  if (GetTypeBitCount(index.type) >= Bits::MinBitCountUnsigned(array_size)) {
+    int64 index_bound = RandRange(array_size);
+    XLS_ASSIGN_OR_RETURN(index.expr, GenerateUmin(index, index_bound));
+  }
+  return TypedExpr{module_->Make<Index>(fake_span_, array.expr, index.expr),
+                   array_type->element_type()};
+}
+
+absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayUpdate(Env* env) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr array, ChooseEnvValueArray(env));
+  ArrayTypeAnnotation* array_type = down_cast<ArrayTypeAnnotation*>(array.type);
+  XLS_ASSIGN_OR_RETURN(TypedExpr index, ChooseEnvValueUBits(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr element,
+                       ChooseEnvValue(env, array_type->element_type()));
+  int64 array_size = GetArraySize(array_type);
+  // An out-of-bounds array update raises an error in the DSLX interpreter so
+  // clamp the index so it is always in-bounds.
+  // TODO(https://github.com/google/xls/issues/327) 2021-03-05 Unify OOB
+  // behavior across different levels in XLS.
+  if (GetTypeBitCount(index.type) >= Bits::MinBitCountUnsigned(array_size)) {
+    int64 index_bound = RandRange(array_size);
+    XLS_ASSIGN_OR_RETURN(index.expr, GenerateUmin(index, index_bound));
+  }
+  return TypedExpr{
+      module_->Make<Invocation>(
+          fake_span_, MakeBuiltinNameRef("update"),
+          std::vector<Expr*>{array.expr, index.expr, element.expr}),
+      array.type};
+}
+
 absl::StatusOr<TypedExpr> AstGenerator::GenerateConcat(Env* env) {
   XLS_RET_CHECK(env != nullptr);
   if (EnvContainsArray(*env) && RandomBool()) {
@@ -521,7 +607,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Env* env) {
   std::vector<TypedExpr> members;
   int64 total_bit_count = 0;
   for (int64 i = 0; i < GenerateNaryOperandCount(env); ++i) {
-    XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValueNotArray(env));
+    XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValue(env));
     if (total_bit_count + GetTypeBitCount(e.type) >
         options_.max_width_aggregate_types) {
       continue;
@@ -633,6 +719,17 @@ absl::StatusOr<TypedExpr> AstGenerator::ChooseEnvValue(
         "EmptyEnvError: No elements in the environment satisfy the predicate.");
   }
   return result.value();
+}
+
+std::vector<TypedExpr> AstGenerator::GatherAllValues(
+    Env* env, std::function<bool(const TypedExpr&)> take) {
+  std::vector<TypedExpr> values;
+  for (auto& item : *env) {
+    if (take(item.second)) {
+      values.push_back(item.second);
+    }
+  }
+  return values;
 }
 
 absl::StatusOr<std::pair<TypedExpr, TypedExpr>>
@@ -783,6 +880,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSliceUpdate(Env* env) {
 namespace {
 
 enum OpChoice {
+  kArray,
+  kArrayIndex,
+  kArrayUpdate,
   kBinop,
   kBitSlice,
   kBitSliceUpdate,
@@ -807,6 +907,12 @@ enum OpChoice {
 // Returns the relative probability of the given op being generated.
 int OpProbability(OpChoice op) {
   switch (op) {
+    case kArray:
+      return 2;
+    case kArrayIndex:
+      return 2;
+    case kArrayUpdate:
+      return 2;
     case kBinop:
       return 10;
     case kBitSlice:
@@ -875,6 +981,15 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64 expr_size,
     // level, so we need to scale inversely.
     int choice = GetOpDistribution()(rng_);
     switch (static_cast<OpChoice>(choice)) {
+      case kArray:
+        generated = GenerateArray(env);
+        break;
+      case kArrayIndex:
+        generated = GenerateArrayIndex(env);
+        break;
+      case kArrayUpdate:
+        generated = GenerateArrayUpdate(env);
+        break;
       case kCountedFor:
         generated = GenerateCountedFor(env);
         break;
