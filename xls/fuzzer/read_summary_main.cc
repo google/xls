@@ -43,66 +43,166 @@ Show summary of a set of files emitted by the fuzzer:
 namespace xls {
 namespace {
 
+// Aggregate info about a particular IR op (e.g., 'array_updage').
 struct OpInfo {
   // Count of the number of instances of this op.
-  int64 samples;
+  int64 samples = 0;
 
   // Count of operations by type ("bits", "array", or "tuple").
   absl::flat_hash_map<std::string, int64> by_type;
 
   // Count of operations wider than 64 bits.
-  int64 wider_than_64bits;
+  int64 wider_than_64bits = 0;
 
   // Count of operations for which the operands are different widths.
-  int64 mixed_width;
+  int64 mixed_width = 0;
 
   // Count of operations with different arities.
-  int64 nullary;
-  int64 unary;
-  int64 binary;
-  int64 manyary;
+  int64 nullary = 0;
+  int64 unary = 0;
+  int64 binary = 0;
+  int64 manyary = 0;
 };
 
+// Aggregate information about a set of generated samples.
+struct SampleInfo {
+  int64 samples = 0;
+  int64 node_count = 0;
+  absl::flat_hash_map<std::string, OpInfo> per_op_info;
+};
+
+// Aggregate data about all the information in the summary file.
 struct SummaryInfo {
-  int64 samples;
-  absl::flat_hash_map<std::string, OpInfo> op_info;
+  SampleInfo unoptimized_info;
+  SampleInfo optimized_info;
+  // The breakdown of total time spent in the fuzzer for the various operations
+  // (e.g, generating the same, optimizing, JIT time, etc)..
+  fuzzer::SampleTimingProto total_timing;
+  // The maximum time spent on a single same for the various fuzzer operations.
+  fuzzer::SampleTimingProto max_timing;
 };
 
+// Aggregates the summary data in 'summary' into 'info'.
 void AggregateSummary(const fuzzer::SampleSummaryProto& summary,
                       SummaryInfo* info) {
-  info->samples++;
-  for (const fuzzer::NodeProto& node_proto : summary.nodes()) {
-    OpInfo& op_info = info->op_info[node_proto.op()];
-    op_info.samples++;
-    op_info.by_type[node_proto.type()]++;
-    if (node_proto.width() > 64) {
-      op_info.wider_than_64bits++;
-    }
-    switch (node_proto.operands_size()) {
-      case 0:
-        op_info.nullary++;
-        break;
-      case 1:
-        op_info.unary++;
-        break;
-      case 2:
-        op_info.binary++;
-        break;
-      default:
-        op_info.manyary++;
-        break;
-    }
-    for (const fuzzer::NodeProto& operand : node_proto.operands()) {
-      if (operand.width() != node_proto.operands(0).width()) {
-        op_info.mixed_width++;
-        break;
+  for (bool optimized : {false, true}) {
+    SampleInfo& sample_info =
+        optimized ? info->optimized_info : info->unoptimized_info;
+    const auto& nodes =
+        optimized ? summary.optimized_nodes() : summary.unoptimized_nodes();
+    sample_info.samples++;
+    for (const fuzzer::NodeProto& node_proto : nodes) {
+      sample_info.node_count++;
+      OpInfo& op_info = sample_info.per_op_info[node_proto.op()];
+      op_info.samples++;
+      op_info.by_type[node_proto.type()]++;
+      if (node_proto.width() > 64) {
+        op_info.wider_than_64bits++;
+      }
+      switch (node_proto.operands_size()) {
+        case 0:
+          op_info.nullary++;
+          break;
+        case 1:
+          op_info.unary++;
+          break;
+        case 2:
+          op_info.binary++;
+          break;
+        default:
+          op_info.manyary++;
+          break;
+      }
+      for (const fuzzer::NodeProto& operand : node_proto.operands()) {
+        if (operand.width() != node_proto.operands(0).width()) {
+          op_info.mixed_width++;
+          break;
+        }
       }
     }
   }
+
+  // Aggregate timing info including total and maximum times.
+#define AGGREGATE_FIELD(F)                                                     \
+  {                                                                            \
+    info->total_timing.set_##F(info->total_timing.F() + summary.timing().F()); \
+    info->max_timing.set_##F(                                                  \
+        std::max(info->max_timing.F(), summary.timing().F()));                 \
+  }
+  AGGREGATE_FIELD(total_ns);
+  AGGREGATE_FIELD(generate_sample_ns);
+  AGGREGATE_FIELD(interpret_dslx_ns);
+  AGGREGATE_FIELD(convert_ir_ns);
+  AGGREGATE_FIELD(unoptimized_interpret_ir_ns);
+  AGGREGATE_FIELD(unoptimized_jit_ns);
+  AGGREGATE_FIELD(optimize_ns);
+  AGGREGATE_FIELD(optimized_interpret_ir_ns);
+  AGGREGATE_FIELD(optimized_jit_ns);
+  AGGREGATE_FIELD(codegen_ns);
+  AGGREGATE_FIELD(simulate_ns);
+#undef AGGREGATE_FIELD
 }
 
-void DumpSummaryInfo(const SummaryInfo& info) {
-  std::cout << absl::StreamFormat("Sample count: %d\n", info.samples);
+// Print the timing info contained in 'info' to stdout.
+void DumpTimingInfo(const SummaryInfo& info) {
+  // Converts nanoseconds to seconds.
+  auto us_to_sec = [](int64 nanoseconds) {
+    return static_cast<float>(nanoseconds) / 1e9;
+  };
+
+  // Returns the percentage value of num/denom.
+  auto percent = [&](int64 num, int64 denom) {
+    return denom == 0 ? 0.0f : 100.0f * num / denom;
+  };
+
+  // Returns the mean value equal to total / count.
+  auto mean = [&](int64 total, int64 count) {
+    return count == 0 ? 0.0f : static_cast<float>(total) / count;
+  };
+
+  std::cout << absl::StreamFormat("Samples (unoptimized): %d\n",
+                                  info.unoptimized_info.samples);
+  std::cout << absl::StreamFormat(
+      "Mean size (unoptimized): %.1f nodes\n",
+      mean(info.unoptimized_info.node_count, info.unoptimized_info.samples));
+
+  std::cout << absl::StreamFormat("Samples (optimized): %d\n",
+                                  info.optimized_info.samples);
+  std::cout << absl::StreamFormat(
+      "Mean size (optimized): %.1f nodes\n",
+      mean(info.optimized_info.node_count, info.optimized_info.samples));
+
+  std::cout << absl::StreamFormat("Total time: %0.3fs\n",
+                                  us_to_sec(info.total_timing.total_ns()));
+  std::cout << absl::StreamFormat(
+      "Mean time:   %0.3fs\n", us_to_sec(mean(info.total_timing.total_ns(),
+                                              info.unoptimized_info.samples)));
+  std::cout << absl::StreamFormat("Max time:   %0.3fs\n",
+                                  us_to_sec(info.max_timing.total_ns()));
+  std::cout << "\nBreakdown:\n";
+#define PRINT_ROW(F)                                                         \
+  std::cout << absl::StreamFormat(                                           \
+      "%-30s %10.3fs (%4.1f%%), mean %5.3fs, max %6.3fs\n", #F,              \
+      us_to_sec(info.total_timing.F()),                                      \
+      percent(info.total_timing.F(), info.total_timing.total_ns()),          \
+      us_to_sec(mean(info.total_timing.F(), info.unoptimized_info.samples)), \
+      us_to_sec(info.max_timing.F()));
+  PRINT_ROW(generate_sample_ns);
+  PRINT_ROW(interpret_dslx_ns);
+  PRINT_ROW(convert_ir_ns);
+  PRINT_ROW(unoptimized_interpret_ir_ns);
+  PRINT_ROW(unoptimized_jit_ns);
+  PRINT_ROW(optimize_ns);
+  PRINT_ROW(optimized_interpret_ir_ns);
+  PRINT_ROW(optimized_jit_ns);
+  PRINT_ROW(codegen_ns);
+  PRINT_ROW(simulate_ns);
+#undef PRINT_ROW
+}
+
+// Dumps aggregate information about the generated samples described in 'info'
+// to stdout.
+void DumpSampleInfo(const SampleInfo& info) {
   auto fmt = [&](const std::string& s, bool first_col = false) {
     if (first_col) {
       return absl::StrFormat("%-20s", s);
@@ -121,8 +221,9 @@ void DumpSummaryInfo(const SummaryInfo& info) {
   std::cout << "\n" << std::string(20 + 13 * (fields.size() - 1), '-') << "\n";
   for (Op op : AllOps()) {
     std::string op_str = OpToString(op);
-    OpInfo op_info =
-        info.op_info.contains(op_str) ? info.op_info.at(op_str) : OpInfo{0};
+    OpInfo op_info = info.per_op_info.contains(op_str)
+                         ? info.per_op_info.at(op_str)
+                         : OpInfo{0};
     std::cout << fmt(op_str, /*first_col=*/true);
     std::cout << fmt_num(op_info.samples);
     std::cout << fmt_num(op_info.by_type["bits"]);
@@ -139,25 +240,30 @@ void DumpSummaryInfo(const SummaryInfo& info) {
 }
 
 absl::Status RealMain(absl::Span<const absl::string_view> input_paths) {
-  std::map<std::string, SummaryInfo> infos;
+  SummaryInfo summary_info;
   for (const absl::string_view input_path : input_paths) {
     XLS_ASSIGN_OR_RETURN(std::string summary_data, GetFileContents(input_path));
-    fuzzer::SampleSummaries summaries;
+    fuzzer::SampleSummariesProto summaries;
     if (!summaries.ParseFromString(summary_data)) {
-      return absl::DataLossError("Failed to parse summary protobuf file.");
+      return absl::InvalidArgumentError(
+          "Failed to parse summary protobuf file.");
     }
     for (const fuzzer::SampleSummaryProto& summary : summaries.samples()) {
-      AggregateSummary(summary, &infos[summary.tag()]);
+      AggregateSummary(summary, &summary_info);
     }
   }
 
-  for (const auto& pair : infos) {
-    const std::string& tag = pair.first;
-    const SummaryInfo& info = pair.second;
+  std::cout << "Before optimizations:\n";
+  std::cout << "--------------------\n";
+  DumpSampleInfo(summary_info.unoptimized_info);
 
-    std::cout << absl::StreamFormat("\nTag: \"%s\"\n", tag);
-    DumpSummaryInfo(info);
-  }
+  std::cout << "\nAfter optimizations\n";
+  std::cout << "-------------------\n";
+  DumpSampleInfo(summary_info.optimized_info);
+
+  std::cout << "\nTiming\n";
+  std::cout << "------\n";
+  DumpTimingInfo(summary_info);
   return absl::OkStatus();
 }
 

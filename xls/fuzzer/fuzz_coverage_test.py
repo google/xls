@@ -31,28 +31,37 @@ RUN_FUZZ_MULTIPROCESS_PATH = runfiles.get_path(
 class FuzzSummary:
   """Class encapsulating summary statistics from the fuzzer."""
 
-  def __init__(self, summaries: sample_summary_pb2.SampleSummaries):
+  def __init__(self, summaries: sample_summary_pb2.SampleSummariesProto):
     self.summaries = summaries
     self._ops = {}
     self._ops_types = {}
     self.max_bits_type_width = 0
     self.max_aggregate_type_width = 0
 
+    # Gather aggregate information about the number of nodes of each type and
+    # the maximum bit widths.
     for summary in self.summaries.samples:
       # Only count the ops before optimization because we are testing the fuzzer
       # coverage not the optimizer.
-      if summary.tag == 'before-opt':
-        for node in summary.nodes:
-          self._ops[node.op] = self._ops.get(node.op, 0) + 1
-          self._ops_types[(node.op, node.type)] = self._ops_types.get(
-              (node.op, node.type), 0) + 1
-          if node.type == 'bits':
-            self.max_bits_type_width = max(self.max_bits_type_width, node.width)
-          else:
-            self.max_aggregate_type_width = max(self.max_aggregate_type_width,
-                                                node.width)
+      for node in summary.unoptimized_nodes:
+        self._ops[node.op] = self._ops.get(node.op, 0) + 1
+        self._ops_types[(node.op, node.type)] = self._ops_types.get(
+            (node.op, node.type), 0) + 1
+        if node.type == 'bits':
+          self.max_bits_type_width = max(self.max_bits_type_width, node.width)
+        else:
+          self.max_aggregate_type_width = max(self.max_aggregate_type_width,
+                                              node.width)
+
+    # Compute aggregate timing information for each field in SampleTimingProto.
+    self.aggregate_timing = sample_summary_pb2.SampleTimingProto()
+    for summary in self.summaries.samples:
+      for field_desc, value in summary.timing.ListFields():
+        setattr(self.aggregate_timing, field_desc.name,
+                getattr(self.aggregate_timing, field_desc.name) + value)
 
   def get_op_count(self, op: str, type_str=None) -> int:
+    """Returns the number of generated ops of the given opcode and type."""
     if type_str is None:
       return self._ops.get(op, 0)
     else:
@@ -62,16 +71,46 @@ class FuzzSummary:
 class FuzzCoverageTest(test_base.TestCase):
 
   def _read_summaries(self, summary_dir: str) -> FuzzSummary:
-    summaries = sample_summary_pb2.SampleSummaries()
+    summaries = sample_summary_pb2.SampleSummariesProto()
     for filename in os.listdir(summary_dir):
       if filename.endswith('pb'):
         with open(os.path.join(summary_dir, filename), 'rb') as f:
           # Read in the binary proto file.
-          tmp = sample_summary_pb2.SampleSummaries().FromString(f.read())
+          tmp = sample_summary_pb2.SampleSummariesProto().FromString(f.read())
           # Then merge into existing one using text_format.Parse which appends
           # to the message.
           summaries = text_format.Parse(str(tmp), summaries)
     return FuzzSummary(summaries)
+
+  def test_timing(self):
+    # Verify the the elapsed time for the various operations performed by the
+    # fuzzer are non-zero.
+    crasher_path = self.create_tempdir().full_path
+    summaries_path = self.create_tempdir().full_path
+    subprocess.check_call([
+        RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
+        '--sample_count=10', '--summary_path=' + summaries_path,
+        '--calls_per_sample=1', '--worker_count=4',
+        '--max_width_bits_types=256', '--max_width_aggregate_types=1024'
+    ])
+    summary = self._read_summaries(summaries_path)
+
+    expect_nonzero = (
+        'total_ns generate_sample_ns interpret_dslx_ns '
+        'convert_ir_ns unoptimized_interpret_ir_ns unoptimized_jit_ns '
+        'optimize_ns optimized_jit_ns').split()
+    for field in expect_nonzero:
+      self.assertGreater(
+          getattr(summary.aggregate_timing, field),
+          0,
+          msg=f'Expected non-zero value in timing field {field}')
+
+    expect_zero = ('optimized_interpret_ir_ns codegen_ns simulate_ns').split()
+    for field in expect_zero:
+      self.assertEqual(
+          getattr(summary.aggregate_timing, field),
+          0,
+          msg=f'Expected zero value in timing field {field}')
 
   def test_width_coverage_wide(self):
     crasher_path = self.create_tempdir().full_path

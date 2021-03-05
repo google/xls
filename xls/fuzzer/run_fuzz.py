@@ -30,6 +30,7 @@ from xls.common import runfiles
 from xls.fuzzer import sample
 from xls.fuzzer import sample_generator
 from xls.fuzzer import sample_runner
+from xls.fuzzer import sample_summary_pb2
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
 
 SAMPLE_RUNNER_MAIN_PATH = runfiles.get_path('xls/fuzzer/sample_runner_main')
@@ -52,23 +53,37 @@ def _write_to_file(dir_path: Text,
     os.chmod(path, st.st_mode | stat.S_IXUSR)
 
 
-def _write_ir_summaries(run_dir, summary_path):
+def _write_ir_summaries(run_dir: str,
+                        timing: sample_summary_pb2.SampleTimingProto,
+                        summary_path: str):
   """Appends IR summaries of IR files in the run dir to the summary file."""
+  args = []
 
-  def maybe_generate_summary(filename, tag):
-    path = os.path.join(run_dir, filename)
-    if os.path.exists(path):
-      subprocess.run(
-          (SUMMARIZE_IR_MAIN_PATH, '--logtostderr', '--minloglevel=2',
-           '--tag=' + tag, '--summary_file=' + summary_path, path), check=False)
+  unoptimized_path = os.path.join(run_dir, 'sample.ir')
+  if os.path.exists(unoptimized_path):
+    args.append('--unoptimized_ir=' + unoptimized_path)
 
-  maybe_generate_summary('sample.ir', 'before-opt')
-  maybe_generate_summary('sample.opt.ir', 'after-opt')
+  optimized_path = os.path.join(run_dir, 'sample.opt.ir')
+  if os.path.exists(optimized_path):
+    args.append('--optimized_ir=' + optimized_path)
+  if not args:
+    return
+
+  subprocess.run(
+      [
+          SUMMARIZE_IR_MAIN_PATH,
+          '--logtostderr',
+          '--minloglevel=2',
+          '--summary_file=' + summary_path,
+          '--timing=' + str(timing),
+      ] + args,
+      check=False)
 
 
 def run_sample(smp: sample.Sample,
                run_dir: Text,
-               summary_file: Optional[Text] = None):
+               summary_file: Optional[Text] = None,
+               generate_sample_ns: Optional[int] = None):
   """Runs the given sample in the given directory.
 
   Args:
@@ -76,10 +91,15 @@ def run_sample(smp: sample.Sample,
     run_dir: Directory to run the sample in. The directory should exist and be
       empty.
     summary_file: The (optional) file to append sample summary.
+    generate_sample_ns: The (optional) time in nanoseconds to generate the
+      sample. Recorded in the summary file, if given.
 
   Raises:
     sample_runner.SampleError: on any non-zero status from the sample runner.
+
   """
+  start = time.time()
+
   _write_to_file(run_dir, 'sample.x', smp.input_text)
   _write_to_file(run_dir, 'options.json', smp.options.to_json())
   if smp.args_batch:
@@ -99,16 +119,24 @@ def run_sample(smp: sample.Sample,
       'run.sh',
       f'#!/bin/sh\n\n{subprocess.list2cmdline(args)}\n',
       executable=True)
-  start = time.time()
   logging.vlog(1, 'Starting to run sample')
   logging.vlog(2, smp.input_text)
   runner = sample_runner.SampleRunner(run_dir)
   runner.run_from_files('sample.x', 'options.json', 'args.txt')
+  timing = runner.timing
+
+  timing.total_ns = int((time.time() - start) * 1e9)
+  if generate_sample_ns:
+    # The sample generation time, if given, is not part of the measured total
+    # time, so add it in.
+    timing.total_ns += generate_sample_ns
+    timing.generate_sample_ns = generate_sample_ns
+
   logging.vlog(1, 'Completed running sample, elapsed: %0.2fs',
                time.time() - start)
 
   if summary_file:
-    _write_ir_summaries(run_dir, summary_file)
+    _write_ir_summaries(run_dir, timing, summary_file)
 
 
 def minimize_ir(smp: sample.Sample,

@@ -149,6 +149,10 @@ defined in `//xls/fuzzer/sample_summary.proto`. The summary
 information about the IR generated from the DSLX sample such as the number and
 type of each IR op as well as the bit width and number of operands.
 
+The summary information also includes a timing breakdown of the various
+operations performed for each sample (sample generation, IR conversion, etc).
+This can be used to identify performance bottlenecks in the fuzzer.
+
 The summaries can be read with the tool
 `//xls/fuzzer/read_summary_main`. See usage description in the code
 for more details.

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -22,20 +23,24 @@
 #include "xls/ir/package.h"
 
 const char kUsage[] = R"(
-Appends a summary of a given IR to the specified Protobuf summary
+
+Appends a summary of a given IR file(s) to the specified Protobuf summary
 file. emitted. The summary information includes information such as op types,
 widths, etc. This is used by the fuzzer to give an indication of what kind of IR
 operations are being covered. Usage:
 
-  summarize_ir_main --summary_file=SUMMARY_FILE IR_FILE
+  summarize_ir_main --optimized_ir=IR_FILE --unoptimized_ir=IR_FILE \
+    --summary_file=SUMMARY_FILE
 
 The summary file will be created if it does not exist. Otherwise the summary
 file is appended to.
 )";
 
-ABSL_FLAG(std::string, tag, "",
-          "String describing the provenance of the sample. Example: "
-          "\"before-opt\".");
+ABSL_FLAG(std::string, unoptimized_ir, "", "Unoptimized IR file to summarize.");
+ABSL_FLAG(std::string, optimized_ir, "", "Optimized IR file to summarize.");
+ABSL_FLAG(
+    std::string, timing, "",
+    "A serialized fuzzer::SampleTimingProto to write into the summary file.");
 ABSL_FLAG(std::string, summary_file, "", "Summary file to append to.");
 
 namespace xls {
@@ -52,13 +57,11 @@ std::string TypeToString(Type* type) {
   return "other";
 }
 
-fuzzer::SampleSummaries SummarizePackage(Package* package) {
-  fuzzer::SampleSummaries summaries;
-  fuzzer::SampleSummaryProto* summary = summaries.add_samples();
-  summary->set_tag(absl::GetFlag(FLAGS_tag));
+void SummarizePackage(Package* package,
+                      google::protobuf::RepeatedPtrField<fuzzer::NodeProto>* nodes) {
   for (const auto& function : package->functions()) {
     for (Node* node : function->nodes()) {
-      fuzzer::NodeProto* node_proto = summary->add_nodes();
+      fuzzer::NodeProto* node_proto = nodes->Add();
       node_proto->set_op(OpToString(node->op()));
       node_proto->set_type(TypeToString(node->GetType()));
       node_proto->set_width(node->GetType()->GetFlatBitCount());
@@ -70,24 +73,46 @@ fuzzer::SampleSummaries SummarizePackage(Package* package) {
       }
     }
   }
-  return summaries;
+}
+absl::StatusOr<std::unique_ptr<Package>> ParseFile(absl::string_view path) {
+  XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(path));
+  return Parser::ParsePackage(contents, path);
 }
 
-absl::Status RealMain(absl::string_view input_path) {
-  if (input_path == "-") {
-    input_path = "/dev/stdin";
-  }
-  XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(input_path));
-  std::unique_ptr<Package> package;
-  XLS_ASSIGN_OR_RETURN(package, Parser::ParsePackage(contents, input_path));
+absl::Status RealMain(absl::string_view unoptimized_path,
+                      absl::string_view optimized_path,
+                      absl::string_view timing_str) {
+  fuzzer::SampleSummariesProto summaries;
+  fuzzer::SampleSummaryProto* summary_proto = summaries.add_samples();
 
-  fuzzer::SampleSummaries summaries = SummarizePackage(package.get());
+  if (!timing_str.empty()) {
+    fuzzer::SampleTimingProto timing;
+    google::protobuf::TextFormat::Parser parser;
+    if (!parser.ParseFromString(std::string{timing_str}, &timing)) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Failed to parse --timing flag value as "
+                          "SampleTimingProto proto: %s",
+                          timing_str));
+    }
+    *summary_proto->mutable_timing() = timing;
+  }
+
+  if (!unoptimized_path.empty()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
+                         ParseFile(unoptimized_path));
+    SummarizePackage(package.get(), summary_proto->mutable_unoptimized_nodes());
+  }
+  if (!optimized_path.empty()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
+                         ParseFile(optimized_path));
+    SummarizePackage(package.get(), summary_proto->mutable_optimized_nodes());
+  }
 
   XLS_QCHECK(!absl::GetFlag(FLAGS_summary_file).empty())
       << "Must specify --summary_file.";
-  // Since SampleSummaries contains just a repeated field, appending a new
-  // such proto to a file that could potentially contain a SampleSummaries
-  // already will make the file contain a valid SampleSummaries proto where
+  // Since SampleSummariesProto contains just a repeated field, appending a new
+  // such proto to a file that could potentially contain a SampleSummariesProto
+  // already will make the file contain a valid SampleSummariesProto where
   // the prior repeated field and the one of `summaries` is concatenated. This
   // is essentially a quick and dirty RecordIO/Rigeli without the compression,
   // seeking and corruption handling features.
@@ -104,11 +129,12 @@ int main(int argc, char** argv) {
   std::vector<absl::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
-  if (positional_arguments.empty()) {
-    XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s IR_FILE",
-                                          argv[0]);
+  if (!positional_arguments.empty()) {
+    XLS_LOG(QFATAL) << "Usage:\n" << kUsage;
   }
 
-  XLS_QCHECK_OK(xls::RealMain(positional_arguments[0]));
+  XLS_QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_unoptimized_ir),
+                              absl::GetFlag(FLAGS_optimized_ir),
+                              absl::GetFlag(FLAGS_timing)));
   return EXIT_SUCCESS;
 }

@@ -45,6 +45,7 @@ py_library(
         ":sample",
         ":sample_generator",
         ":sample_runner",
+        ":sample_summary_py_pb2",
         requirement("termcolor"),
         "//xls/common:runfiles",
         "//xls/fuzzer/python:cpp_ast_generator",
@@ -161,14 +162,13 @@ py_library(
     srcs_version = "PY3ONLY",
     deps = [
         ":sample",
+        ":sample_summary_py_pb2",
         "//xls/common:check_simulator",
         "//xls/common:revision",
         "//xls/common:runfiles",
         "//xls/common:xls_error",
-        "//xls/dslx/python:cpp_concrete_type",
         "//xls/dslx/python:interp_value",
         "//xls/dslx/python:interpreter",
-        "//xls/ir/python:format_preference",
         "//xls/ir/python:ir_parser",
         "@com_google_absl_py//absl/logging",
     ],
@@ -327,6 +327,7 @@ cc_binary(
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:op",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 

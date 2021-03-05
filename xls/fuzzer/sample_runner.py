@@ -32,6 +32,7 @@ from xls.dslx.python import interpreter
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
 from xls.fuzzer import sample
+from xls.fuzzer import sample_summary_pb2
 from xls.ir.python import ir_parser
 from xls.ir.python import value as ir_value_mod
 
@@ -49,6 +50,24 @@ class SampleError(XlsError):
   miscompares(among others).
   """
   pass
+
+
+class Timer:
+  """Timer for measuring the elapsed time of an operation in nanoseconds.
+
+  Example usage:
+    with Timer() as t:
+      foo_bar()
+    print('foobar() took ' + str(t.elapsed_ns) + 'us')
+  """
+
+  def __enter__(self):
+    self.start = time.time()
+    return self
+
+  def __exit__(self, *args):
+    self.end = time.time()
+    self.elapsed_ns = int((self.end - self.start) * 1e9)
 
 
 def ir_value_to_interpreter_value(value: ir_value_mod.Value) -> Value:
@@ -81,6 +100,7 @@ class SampleRunner:
 
   def __init__(self, run_dir: Text):
     self._run_dir = run_dir
+    self.timing = sample_summary_pb2.SampleTimingProto()
 
   def run(self, smp: sample.Sample):
     """Runs the given sample.
@@ -134,51 +154,70 @@ class SampleRunner:
     results = collections.OrderedDict()  # type: Dict[Text, Sequence[Value]]
 
     try:
-      logging.vlog(1, 'Parsing DSLX file.')
-      start = time.time()
       if options.input_is_dslx:
         if args_batch is not None:
           logging.vlog(1, 'Interpreting DSLX file.')
-          start = time.time()
-          results['interpreted DSLX'] = self._interpret_dslx(
-              input_text, 'main', args_batch)
+          with Timer() as t:
+            results['interpreted DSLX'] = self._interpret_dslx(
+                input_text, 'main', args_batch)
           logging.vlog(1, 'Interpreting DSLX complete, elapsed %0.2fs',
-                       time.time() - start)
+                       t.elapsed_ns / 1e9)
+          self.timing.interpret_dslx_ns = t.elapsed_ns
 
         if not options.convert_to_ir:
           return
-        ir_filename = self._dslx_to_ir(input_filename)
+
+        with Timer() as t:
+          ir_filename = self._dslx_to_ir(input_filename)
+        self.timing.convert_ir_ns = t.elapsed_ns
       else:
         ir_filename = self._write_file('sample.ir', input_text)
 
       if args_filename is not None:
         # Unconditionally evaluate with the interpreter even if using the
         # JIT. This exercises the interpreter and serves as a reference.
-        results['evaluated unopt IR (interpreter)'] = self._evaluate_ir(
-            ir_filename, args_filename, False)
+        with Timer() as t:
+          results['evaluated unopt IR (interpreter)'] = self._evaluate_ir(
+              ir_filename, args_filename, False)
+        self.timing.unoptimized_interpret_ir_ns = t.elapsed_ns
+
         if options.use_jit:
-          results['evaluated unopt IR (JIT)'] = self._evaluate_ir(
-              ir_filename, args_filename, True)
+          with Timer() as t:
+            results['evaluated unopt IR (JIT)'] = self._evaluate_ir(
+                ir_filename, args_filename, True)
+          self.timing.unoptimized_jit_ns = t.elapsed_ns
 
       if options.optimize_ir:
-        opt_ir_filename = self._optimize_ir(ir_filename)
+        with Timer() as t:
+          opt_ir_filename = self._optimize_ir(ir_filename)
+        self.timing.optimize_ns = t.elapsed_ns
 
         if args_filename is not None:
           if options.use_jit:
-            results['evaluated opt IR (JIT)'] = self._evaluate_ir(
-                opt_ir_filename, args_filename, True)
+            with Timer() as t:
+              results['evaluated opt IR (JIT)'] = self._evaluate_ir(
+                  opt_ir_filename, args_filename, True)
+            self.timing.optimized_jit_ns = t.elapsed_ns
           else:
-            results['evaluated opt IR (interpreter)'] = self._evaluate_ir(
-                opt_ir_filename, args_filename, False)
+            with Timer() as t:
+              results['evaluated opt IR (interpreter)'] = self._evaluate_ir(
+                  opt_ir_filename, args_filename, False)
+            self.timing.optimized_interpret_ir_ns = t.elapsed_ns
+
         if options.codegen:
-          verilog_filename = self._codegen(opt_ir_filename,
-                                           options.codegen_args)
+          with Timer() as t:
+            verilog_filename = self._codegen(opt_ir_filename,
+                                             options.codegen_args)
+          self.timing.codegen_ns = t.elapsed_ns
+
           if options.simulate:
             assert args_filename is not None
-            results['simulated'] = self._simulate(verilog_filename,
-                                                  'module_sig.textproto',
-                                                  args_filename,
-                                                  options.simulator)
+            with Timer() as t:
+              results['simulated'] = self._simulate(verilog_filename,
+                                                    'module_sig.textproto',
+                                                    args_filename,
+                                                    options.simulator)
+            self.timing.simulate_ns = t.elapsed_ns
 
       self._compare_results(results, args_batch)
     except Exception as e:  # pylint: disable=broad-except

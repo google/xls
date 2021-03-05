@@ -27,7 +27,7 @@ import shutil
 import sys
 import tempfile
 import time
-from typing import Text, Optional, Tuple
+from typing import Text, Optional, Tuple, NamedTuple
 
 import termcolor
 
@@ -43,9 +43,17 @@ from xls.fuzzer.sample import SampleOptions
 
 class Command(enum.Enum):
   """Command sent from generator process to worker processes."""
-
   RUN = 1  # Run the accompanying payload.
   STOP = 2  # Terminate, no further work items.
+
+
+class QueueMessage(NamedTuple):
+  """An message in the multiprocess queue."""
+  command: Command
+  sample: Optional[Sample] = None
+  sampleno: Optional[int] = None
+  # The elapsed time to generate the sample in nanoseconds.
+  generate_sample_ns: Optional[int] = None
 
 
 def record_crasher(workerno: int, sampleno: int, minimize_ir: bool,
@@ -109,25 +117,28 @@ def do_worker_task(workerno: int,
 
   i = 0  # Silence pylint warning.
   for i in itertools.count():
-    command, payload = queue.get()
-    if command == Command.STOP:
+    message = queue.get()
+    if message.command == Command.STOP:
       break
-    assert command == Command.RUN, command
-    sampleno, sample = payload
-    calls += len(sample.args_batch)
+    assert message.command == Command.RUN, message.command
+    calls += len(message.sample.args_batch)
     run_dir = None
     if save_temps_path:
-      run_dir = os.path.join(save_temps_path, str(sampleno))
+      run_dir = os.path.join(save_temps_path, str(message.sampleno))
       os.makedirs(run_dir)
     else:
       run_dir = tempfile.mkdtemp(prefix='run_fuzz_')
 
     try:
-      run_fuzz.run_sample(sample, run_dir, summary_file=summary_temp_file)
+      run_fuzz.run_sample(
+          message.sample,
+          run_dir,
+          summary_file=summary_temp_file,
+          generate_sample_ns=message.generate_sample_ns)
     except sample_runner.SampleError:
       crashers += 1
-      record_crasher(workerno, sampleno, minimize_ir, sample, run_dir,
-                     crash_path, crashers)
+      record_crasher(workerno, message.sampleno, minimize_ir, message.sample,
+                     run_dir, crash_path, crashers)
 
     if summary_file and i % 25 == 0:
       # Append the local temporary summary file to the actual, potentially
@@ -192,12 +203,18 @@ def do_generator_task(queues: Tuple[mp.Queue, ...],
       sys.stdout.flush()
 
     # Generate a command message.
-    sample = sample_generator.generate_sample(rng, ast_generator_options,
-                                              calls_per_sample,
-                                              default_sample_options)
+    with sample_runner.Timer() as t:
+      sample = sample_generator.generate_sample(rng, ast_generator_options,
+                                                calls_per_sample,
+                                                default_sample_options)
+
     if print_samples:
       print_with_linenos(sample.input_text)
-    message = (Command.RUN, (i, sample))
+    message = QueueMessage(
+        command=Command.RUN,
+        sample=sample,
+        sampleno=i,
+        generate_sample_ns=t.elapsed_ns)
 
     # Cycle through the queues seeing if we can find one to enqueue into. In the
     # common case where queues are not full it'll happen on the first one. This
@@ -226,7 +243,7 @@ def do_generator_task(queues: Tuple[mp.Queue, ...],
   sys.stdout.flush()
 
   for queue in queues:
-    queue.put((Command.STOP, None))
+    queue.put(QueueMessage(command=Command.STOP))
 
   print('-- Generator task complete')
   sys.stdout.flush()
