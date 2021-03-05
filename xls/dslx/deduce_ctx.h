@@ -81,7 +81,7 @@ class DeduceCtx {
             TypecheckFunctionFn typecheck_function,
             TypecheckFn typecheck_module,
             absl::Span<std::string const> additional_search_paths,
-            ImportCache* import_cache);
+            ImportData* import_data);
 
   // Creates a new DeduceCtx reflecting the given type info and module.
   // Uses the same callbacks as this current context.
@@ -91,7 +91,7 @@ class DeduceCtx {
                                      Module* new_module) const {
     return absl::make_unique<DeduceCtx>(
         new_type_info, new_module, deduce_function_, typecheck_function_,
-        typecheck_module_, additional_search_paths_, import_cache_);
+        typecheck_module_, additional_search_paths_, import_data_);
   }
 
   // Helper that calls back to the top-level deduce procedure for the given
@@ -144,9 +144,9 @@ class DeduceCtx {
   absl::Span<std::string const> additional_search_paths() const {
     return additional_search_paths_;
   }
-  ImportCache* import_cache() const { return import_cache_; }
+  ImportData* import_data() const { return import_data_; }
   TypeInfoOwner& type_info_owner() const {
-    return import_cache_->type_info_owner();
+    return import_data_->type_info_owner();
   }
 
  private:
@@ -171,7 +171,7 @@ class DeduceCtx {
   std::vector<std::string> additional_search_paths_;
 
   // Cache used for imported modules, may be nullptr.
-  ImportCache* import_cache_;
+  ImportData* import_data_;
 
   // -- Metadata
 

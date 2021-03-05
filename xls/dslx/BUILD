@@ -463,12 +463,26 @@ cc_test(
 )
 
 cc_library(
+    name = "import_data",
+    srcs = ["import_data.cc"],
+    hdrs = ["import_data.h"],
+    deps = [
+        ":ast",
+        ":interp_bindings",
+        ":type_info",
+        "//xls/common/status:ret_check",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "import_routines",
     srcs = ["import_routines.cc"],
     hdrs = ["import_routines.h"],
     data = ["//xls/dslx/stdlib:x_files"],
     deps = [
         ":ast",
+        ":import_data",
         ":interp_bindings",
         ":parser",
         ":scanner",

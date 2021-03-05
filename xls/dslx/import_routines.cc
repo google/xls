@@ -23,58 +23,6 @@
 
 namespace xls::dslx {
 
-/* static */ absl::StatusOr<ImportTokens> ImportTokens::FromString(
-    absl::string_view module_name) {
-  return ImportTokens(absl::StrSplit(module_name, '.'));
-}
-
-absl::StatusOr<const ModuleInfo*> ImportCache::Get(
-    const ImportTokens& subject) const {
-  auto it = cache_.find(subject);
-  if (it == cache_.end()) {
-    return absl::NotFoundError("Module information was not found for import " +
-                               subject.ToString());
-  }
-  return &it->second;
-}
-
-absl::StatusOr<const ModuleInfo*> ImportCache::Put(const ImportTokens& subject,
-                                                   ModuleInfo module_info) {
-  auto it = cache_.insert({subject, std::move(module_info)});
-  if (!it.second) {
-    return absl::InvalidArgumentError(
-        "Module is already loaded for import of " + subject.ToString());
-  }
-  return &it.first->second;
-}
-
-absl::StatusOr<TypeInfo*> ImportCache::GetRootTypeInfoForNode(AstNode* node) {
-  XLS_RET_CHECK(node != nullptr);
-  return type_info_owner().GetRootTypeInfo(node->owner());
-}
-
-absl::StatusOr<TypeInfo*> ImportCache::GetRootTypeInfo(Module* module) {
-  return type_info_owner().GetRootTypeInfo(module);
-}
-
-InterpBindings& ImportCache::GetOrCreateTopLevelBindings(Module* module) {
-  auto it = top_level_bindings_.find(module);
-  if (it == top_level_bindings_.end()) {
-    it = top_level_bindings_
-             .emplace(module,
-                      std::make_unique<InterpBindings>(/*parent=*/nullptr))
-             .first;
-  }
-  return *it->second;
-}
-
-void ImportCache::SetTopLevelBindings(Module* module,
-                                      std::unique_ptr<InterpBindings> tlb) {
-  auto it = top_level_bindings_.emplace(module, std::move(tlb));
-  XLS_CHECK(it.second) << "Module already had top level bindings: "
-                       << module->name();
-}
-
 static absl::StatusOr<std::filesystem::path> FindExistingPath(
     const ImportTokens& subject,
     absl::Span<const std::string> additional_search_paths,
@@ -169,11 +117,11 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
 
 absl::StatusOr<const ModuleInfo*> DoImport(
     const TypecheckFn& ftypecheck, const ImportTokens& subject,
-    absl::Span<const std::string> additional_search_paths, ImportCache* cache,
-    const Span& import_span) {
-  XLS_RET_CHECK(cache != nullptr);
-  if (cache->Contains(subject)) {
-    return cache->Get(subject);
+    absl::Span<const std::string> additional_search_paths,
+    ImportData* import_data, const Span& import_span) {
+  XLS_RET_CHECK(import_data != nullptr);
+  if (import_data->Contains(subject)) {
+    return import_data->Get(subject);
   }
 
   XLS_VLOG(3) << "DoImport (uncached) subject: " << subject.ToString();
@@ -192,7 +140,7 @@ absl::StatusOr<const ModuleInfo*> DoImport(
   Parser parser(/*module_name=*/fully_qualified_name, &scanner);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info, ftypecheck(module.get()));
-  return cache->Put(subject, ModuleInfo{std::move(module), type_info});
+  return import_data->Put(subject, ModuleInfo{std::move(module), type_info});
 }
 
 }  // namespace xls::dslx

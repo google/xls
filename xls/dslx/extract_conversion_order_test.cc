@@ -28,10 +28,10 @@ fn g() -> u32 { u32:42 }
 fn f() -> u32 { g() }
 fn main() -> u32 { f() }
 )";
-  ImportCache import_cache;
+  ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_cache,
+      ParseAndTypecheck(program, "test.x", "test", &import_data,
                         /*additional_search_paths=*/{}));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
@@ -46,10 +46,10 @@ TEST(ExtractConversionOrderTest, Parametric) {
 fn f<N: u32>(x: bits[N]) -> u32 { N }
 fn main() -> u32 { f(u2:0) }
 )";
-  ImportCache import_cache;
+  ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_cache,
+      ParseAndTypecheck(program, "test.x", "test", &import_data,
                         /*additional_search_paths=*/{}));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
@@ -68,10 +68,10 @@ fn g<M: u32>(x: bits[M]) -> u32 { M }
 fn f<N: u32>(x: bits[N]) -> u32 { g(x) }
 fn main() -> u32 { f(u2:0) }
 )";
-  ImportCache import_cache;
+  ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_cache,
+      ParseAndTypecheck(program, "test.x", "test", &import_data,
                         /*additional_search_paths=*/{}));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
@@ -92,10 +92,10 @@ TEST(ExtractConversionOrderTest, BuiltinIsElided) {
   const char* program = R"(
 fn main() -> u32 { fail!(u32:0) }
 )";
-  ImportCache import_cache;
+  ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_cache,
+      ParseAndTypecheck(program, "test.x", "test", &import_data,
                         /*additional_search_paths=*/{}));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));

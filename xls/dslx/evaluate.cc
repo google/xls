@@ -1114,13 +1114,13 @@ absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
 
 absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
     Module* module, AbstractInterpreter* interp) {
-  ImportCache* import_cache = interp->GetImportCache();
-  InterpBindings& b = import_cache->GetOrCreateTopLevelBindings(module);
+  ImportData* import_data = interp->GetImportData();
+  InterpBindings& b = import_data->GetOrCreateTopLevelBindings(module);
 
   // If they're marked as done in the import cache, we can return them directly.
   // Otherwise, we'll populate them, and if we populate everything, mark it as
   // done.
-  if (import_cache->IsTopLevelBindingsDone(module)) {
+  if (import_data->IsTopLevelBindingsDone(module)) {
     return &b;
   }
 
@@ -1191,7 +1191,7 @@ absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
       XLS_ASSIGN_OR_RETURN(
           const ModuleInfo* imported,
           DoImport(interp->GetTypecheckFn(), ImportTokens(import->subject()),
-                   interp->GetAdditionalSearchPaths(), interp->GetImportCache(),
+                   interp->GetAdditionalSearchPaths(), interp->GetImportData(),
                    import->span()));
       XLS_VLOG(3) << "GetOrCreateTopLevelBindings adding import "
                   << import->ToString() << " as \"" << import->identifier()
@@ -1211,7 +1211,7 @@ absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
   if (!saw_wip) {
     // Marking the top level bindings as done avoids needless re-evaluation in
     // the future.
-    import_cache->MarkTopLevelBindingsDone(module);
+    import_data->MarkTopLevelBindingsDone(module);
   }
   return &b;
 }

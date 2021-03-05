@@ -85,9 +85,9 @@ absl::Status RealMain(absl::string_view path,
                        ParseText(text, module_name, /*print_on_error=*/true,
                                  /*filename=*/path, printed_error));
 
-  ImportCache import_cache;
+  ImportData import_data;
   absl::StatusOr<TypeInfo*> type_info_or =
-      CheckModule(module.get(), &import_cache, dslx_paths);
+      CheckModule(module.get(), &import_data, dslx_paths);
   if (!type_info_or.ok()) {
     *printed_error = TryPrintError(type_info_or.status());
     return type_info_or.status();
@@ -98,11 +98,11 @@ absl::Status RealMain(absl::string_view path,
   if (entry.has_value()) {
     XLS_ASSIGN_OR_RETURN(
         converted, ConvertOneFunction(module.get(), entry.value(), type_info,
-                                      /*import_cache=*/&import_cache,
+                                      /*import_data=*/&import_data,
                                       /*symbolic_bindings=*/nullptr,
                                       /*emit_positions=*/true));
   } else {
-    XLS_ASSIGN_OR_RETURN(converted, ConvertModule(module.get(), &import_cache));
+    XLS_ASSIGN_OR_RETURN(converted, ConvertModule(module.get(), &import_data));
   }
   std::cout << converted;
 

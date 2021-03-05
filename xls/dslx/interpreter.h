@@ -39,7 +39,7 @@ class Interpreter {
   //  entry_module: Entry-point module to be used in creating the interpreter.
   //  type_info: Type information (derived for the entry point) to be used in
   //    creating the interpreter.
-  //  typecheck/import_cache: Supplemental helpers used for import statements.
+  //  typecheck/import_data: Supplemental helpers used for import statements.
   //  env: Envionment of current parametric bindings.
   //  bit_widths: Bit widths for parametric bindings.
   //  expr: (Derived parametric) expression to evaluate.
@@ -51,7 +51,7 @@ class Interpreter {
   static absl::StatusOr<int64> InterpretExprToInt(
       Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
       absl::Span<std::string const> additional_search_paths,
-      ImportCache* import_cache,
+      ImportData* import_data,
       const absl::flat_hash_map<std::string, int64>& env,
       const absl::flat_hash_map<std::string, int64>& bit_widths, Expr* expr,
       const FnCtx& fn_ctx);
@@ -59,7 +59,7 @@ class Interpreter {
   // Creates an interpreter that can be used to interpreting entities
   // (functions, tests) within the given module.
   //
-  // Note: typecheck and import_cache args will likely be-provided or
+  // Note: typecheck and import_data args will likely be-provided or
   // not-be-provided together because they are both used in service of import
   // facilities.
   //
@@ -70,14 +70,14 @@ class Interpreter {
   //    of some AST nodes relies on this type information.
   //  typecheck: Optional, callback used to check modules on import.
   //  additional_search_paths: Additional paths to search for imported modules.
-  //  import_cache: Optional, cache for imported modules.
+  //  import_data: Optional, cache for imported modules.
   //  trace_all: Whether to trace "all" (really most "non-noisy") expressions in
   //    the interpreter evaluation.
   //  ir_package: IR-converted form of the given module, used for JIT execution
   //    engine comparison purposes when provided.
   Interpreter(Module* entry_module, TypecheckFn typecheck,
               absl::Span<std::string const> additional_search_paths,
-              ImportCache* import_cache, bool trace_all = false,
+              ImportData* import_data, bool trace_all = false,
               Package* ir_package = nullptr);
 
   // Since we capture pointers to "this" in lambdas, we don't want this object
@@ -228,7 +228,7 @@ class Interpreter {
 
   TypecheckFn typecheck_;
   std::vector<std::string> additional_search_paths_;
-  ImportCache* import_cache_;
+  ImportData* import_data_;
   bool trace_all_;
   Package* ir_package_;
 

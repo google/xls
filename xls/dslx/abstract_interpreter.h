@@ -62,12 +62,12 @@ class AbstractInterpreter {
   // Retrieves the current type information being used (from interpreter state).
   virtual TypeInfo* GetCurrentTypeInfo() = 0;
 
-  virtual ImportCache* GetImportCache() = 0;
+  virtual ImportData* GetImportData() = 0;
 
   // Law-of-Demeter helper for getting the root type info for a module (via the
   // import cache).
   absl::StatusOr<TypeInfo*> GetRootTypeInfo(Module* module) {
-    return GetImportCache()->GetRootTypeInfo(module);
+    return GetImportData()->GetRootTypeInfo(module);
   }
 
   // Returns the additional search paths to use on import.

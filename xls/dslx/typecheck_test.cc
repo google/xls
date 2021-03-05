@@ -25,8 +25,8 @@ using testing::HasSubstr;
 
 // Helper for parsing/typechecking a snippet of DSLX text.
 absl::Status Typecheck(absl::string_view text) {
-  ImportCache import_cache;
-  return ParseAndTypecheck(text, "fake.x", "fake", &import_cache,
+  ImportData import_data;
+  return ParseAndTypecheck(text, "fake.x", "fake", &import_data,
                            /*additional_search_paths=*/{})
       .status();
 }

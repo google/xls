@@ -1296,7 +1296,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
         int64 value,
         Interpreter::InterpretExprToInt(
             (*const_expr)->owner(), ctx->type_info(), ctx->typecheck_module(),
-            ctx->additional_search_paths(), ctx->import_cache(),
+            ctx->additional_search_paths(), ctx->import_data(),
             /*env=*/{}, /*bit_widths=*/{}, *const_expr, FnCtx{}));
     return ConcreteTypeDim(value);
   }
@@ -1307,9 +1307,9 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
         int64 value,
         Interpreter::InterpretExprToInt(
             const_expr->owner(),
-            ctx->import_cache()->GetRootTypeInfoForNode(const_expr).value(),
+            ctx->import_data()->GetRootTypeInfoForNode(const_expr).value(),
             ctx->typecheck_module(), ctx->additional_search_paths(),
-            ctx->import_cache(),
+            ctx->import_data(),
             /*env=*/{}, /*bit_widths=*/{}, const_expr, FnCtx{}));
     return ConcreteTypeDim(value);
   }
@@ -1320,9 +1320,9 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
         int64 value,
         Interpreter::InterpretExprToInt(
             attr->owner(),
-            ctx->import_cache()->GetRootTypeInfoForNode(attr).value(),
+            ctx->import_data()->GetRootTypeInfoForNode(attr).value(),
             ctx->typecheck_module(), ctx->additional_search_paths(),
-            ctx->import_cache(),
+            ctx->import_data(),
             /*env=*/{}, /*bit_widths=*/{}, attr, FnCtx{}));
     return ConcreteTypeDim(value);
   }

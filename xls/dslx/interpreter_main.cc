@@ -160,9 +160,9 @@ absl::StatusOr<bool> ParseAndTest(
     failed += 1;
   };
 
-  ImportCache import_cache;
+  ImportData import_data;
   absl::StatusOr<TypecheckedModule> tm_or = ParseAndTypecheck(
-      program, filename, module_name, &import_cache, dslx_paths);
+      program, filename, module_name, &import_data, dslx_paths);
   if (!tm_or.ok()) {
     if (TryPrintError(tm_or.status())) {
       return true;
@@ -174,17 +174,17 @@ absl::StatusOr<bool> ParseAndTest(
   std::unique_ptr<Package> ir_package;
   if (compare_jit) {
     XLS_ASSIGN_OR_RETURN(ir_package,
-                         ConvertModuleToPackage(entry_module, &import_cache,
+                         ConvertModuleToPackage(entry_module, &import_data,
                                                 /*emit_positions=*/true,
                                                 /*traverse_tests=*/true));
   }
 
-  auto typecheck_callback = [&import_cache, &dslx_paths](Module* module) {
-    return CheckModule(module, &import_cache, dslx_paths);
+  auto typecheck_callback = [&import_data, &dslx_paths](Module* module) {
+    return CheckModule(module, &import_data, dslx_paths);
   };
 
   Interpreter interpreter(entry_module, typecheck_callback, dslx_paths,
-                          &import_cache, /*trace_all=*/trace_all,
+                          &import_data, /*trace_all=*/trace_all,
                           /*ir_package=*/ir_package.get());
 
   // Run unit tests.

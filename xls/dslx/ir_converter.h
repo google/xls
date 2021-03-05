@@ -38,7 +38,7 @@ absl::StatusOr<std::string> MangleDslxName(
 //
 // Args:
 //   module: Module to convert.
-//   import_cache: Contains type information used in conversion.
+//   import_data: Contains type information used in conversion.
 //   emit_positions: Whether to emit positional metadata into the output IR.
 //   traverse_tests: Whether to convert functions called in DSLX test
 //   constructs.
@@ -47,12 +47,12 @@ absl::StatusOr<std::string> MangleDslxName(
 // Returns:
 //   The IR package that corresponds to this module.
 absl::StatusOr<std::unique_ptr<xls::Package>> ConvertModuleToPackage(
-    Module* module, ImportCache* import_cache, bool emit_positions = true,
+    Module* module, ImportData* import_data, bool emit_positions = true,
     bool traverse_tests = false);
 
 // Wrapper around ConvertModuleToPackage that converts to IR text.
 absl::StatusOr<std::string> ConvertModule(Module* module,
-                                          ImportCache* import_cache,
+                                          ImportData* import_data,
                                           bool emit_positions = true);
 
 // Converts a single function into its emitted text form.
@@ -75,7 +75,7 @@ absl::StatusOr<std::string> ConvertModule(Module* module,
 // Implementation note: creates a temporary IR package based on module's name.
 absl::StatusOr<std::string> ConvertOneFunction(
     Module* module, absl::string_view entry_function_name, TypeInfo* type_info,
-    ImportCache* import_cache, const SymbolicBindings* symbolic_bindings,
+    ImportData* import_data, const SymbolicBindings* symbolic_bindings,
     bool emit_positions);
 
 // Converts an interpreter value to an IR value.

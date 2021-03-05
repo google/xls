@@ -213,7 +213,7 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
         int64 value,
         Interpreter::InterpretExprToInt(
             arg->owner(), ctx->type_info(), ctx->typecheck_module(),
-            ctx->additional_search_paths(), ctx->import_cache(), /*env=*/env,
+            ctx->additional_search_paths(), ctx->import_data(), /*env=*/env,
             /*bit_widths=*/bit_widths,
             /*expr=*/arg, FnCtx{}));
     ctx->type_info()->NoteConstExpr(arg, value);
@@ -587,27 +587,27 @@ class ScopedFnStackEntry {
 };
 
 absl::StatusOr<TypeInfo*> CheckModule(
-    Module* module, ImportCache* import_cache,
+    Module* module, ImportData* import_data,
     absl::Span<const std::string> additional_search_paths) {
   std::vector<std::string> additional_search_paths_copy(
       additional_search_paths.begin(), additional_search_paths.end());
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                       import_cache->type_info_owner().New(module));
-  auto ftypecheck = [import_cache, additional_search_paths_copy](
+                       import_data->type_info_owner().New(module));
+  auto ftypecheck = [import_data, additional_search_paths_copy](
                         Module* module) -> absl::StatusOr<TypeInfo*> {
-    return CheckModule(module, import_cache, additional_search_paths_copy);
+    return CheckModule(module, import_data, additional_search_paths_copy);
   };
   auto ctx_owned = absl::make_unique<DeduceCtx>(
       type_info, module,
       /*deduce_function=*/&Deduce,
       /*typecheck_function=*/&CheckTopNodeInModule,
-      /*typecheck_module=*/ftypecheck, additional_search_paths, import_cache);
+      /*typecheck_module=*/ftypecheck, additional_search_paths, import_data);
   DeduceCtx* ctx = ctx_owned.get();
 
   // First, populate type info with constants, enums, resolved imports, and
   // non-parametric functions.
   for (ModuleMember& member : *module->mutable_top()) {
-    import_cache->SetTypecheckWorkInProgress(module, ToAstNode(member));
+    import_data->SetTypecheckWorkInProgress(module, ToAstNode(member));
     XLS_VLOG(3) << "WIP for " << module->name() << " is "
                 << ToAstNode(member)->ToString();
     if (absl::holds_alternative<Import*>(member)) {
@@ -615,7 +615,7 @@ absl::StatusOr<TypeInfo*> CheckModule(
       XLS_ASSIGN_OR_RETURN(
           const ModuleInfo* imported,
           DoImport(ftypecheck, ImportTokens(import->subject()),
-                   additional_search_paths, import_cache, import->span()));
+                   additional_search_paths, import_data, import->span()));
       ctx->type_info()->AddImport(import, imported->module.get(),
                                   imported->type_info);
     } else if (absl::holds_alternative<ConstantDef*>(member) ||
@@ -654,7 +654,7 @@ absl::StatusOr<TypeInfo*> CheckModule(
     }
   }
 
-  import_cache->SetTypecheckWorkInProgress(module, nullptr);
+  import_data->SetTypecheckWorkInProgress(module, nullptr);
 
   // Then quickchecks...
   for (QuickCheck* qc : ctx->module()->GetQuickChecks()) {

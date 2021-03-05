@@ -43,7 +43,7 @@ absl::Status CheckTopNodeInModule(
 // Returns type information mapping from AST nodes in the module to their
 // deduced/checked type. The owner for the type info is within the import_cache.
 absl::StatusOr<TypeInfo*> CheckModule(
-    Module* module, ImportCache* import_cache,
+    Module* module, ImportData* import_data,
     absl::Span<const std::string> additional_search_paths);
 
 }  // namespace xls::dslx

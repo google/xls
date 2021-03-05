@@ -15,128 +15,13 @@
 #ifndef XLS_DSLX_IMPORT_ROUTINES_H_
 #define XLS_DSLX_IMPORT_ROUTINES_H_
 
+#include <string>
+
 #include "xls/dslx/ast.h"
-#include "xls/dslx/interp_bindings.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_info.h"
 
 namespace xls::dslx {
-
-// An entry that goes into the ImportCache.
-struct ModuleInfo {
-  std::unique_ptr<Module> module;
-  TypeInfo* type_info;
-};
-
-// Immutable "tuple" of tokens that name an absolute import location.
-//
-// e.g. ("std",) or ("xls", "examples", "foo")
-//
-// Hashable (usable in a flat hash map).
-class ImportTokens {
- public:
-  static absl::StatusOr<ImportTokens> FromString(absl::string_view module_name);
-
-  explicit ImportTokens(std::vector<std::string> pieces)
-      : pieces_(std::move(pieces)) {}
-
-  template <typename H>
-  friend H AbslHashValue(H h, const ImportTokens& self) {
-    for (const std::string& s : self.pieces_) {
-      h = H::combine(std::move(h), s);
-    }
-    return h;
-  }
-
-  bool operator==(const ImportTokens& other) const {
-    if (pieces_.size() != other.pieces_.size()) {
-      return false;
-    }
-    for (int64 i = 0; i < pieces_.size(); ++i) {
-      if (pieces_[i] != other.pieces_[i]) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  // Returns the "dotted" version of the components that would appear in an
-  // import statement; e.g. "xls.examples.foo"
-  std::string ToString() const { return absl::StrJoin(pieces_, "."); }
-
-  // The underlying components.
-  const std::vector<std::string>& pieces() const { return pieces_; }
-
- private:
-  std::vector<std::string> pieces_;
-};
-
-// Wrapper around a {subject: module_info} mapping that modules can be imported
-// into.
-class ImportCache {
- public:
-  bool Contains(const ImportTokens& target) const {
-    return cache_.find(target) != cache_.end();
-  }
-
-  // Note: returned pointer is not stable across mutations.
-  absl::StatusOr<const ModuleInfo*> Get(const ImportTokens& subject) const;
-
-  // Note: returned pointer is not stable across mutations.
-  absl::StatusOr<const ModuleInfo*> Put(const ImportTokens& subject,
-                                        ModuleInfo module_info);
-
-  TypeInfoOwner& type_info_owner() { return type_info_owner_; }
-
-  // Helper that gets the "root" type information for the module of the given
-  // node. (Note that type information lives in a tree configuration where
-  // parametric specializations live under the root, see TypeInfo.)
-  absl::StatusOr<TypeInfo*> GetRootTypeInfoForNode(AstNode* node);
-  absl::StatusOr<TypeInfo*> GetRootTypeInfo(Module* module);
-
-  // The "top level bindings" for a given module are the values that get
-  // resolved at module scope on import. Keeping these on the ImportCache avoids
-  // recomputing them.
-  InterpBindings& GetOrCreateTopLevelBindings(Module* module);
-
-  // Notes the top level bindings object for the given module.
-  //
-  // Precondition: bindings should not already be set for the given module, or
-  // this will check-fail.
-  void SetTopLevelBindings(Module* module, std::unique_ptr<InterpBindings> tlb);
-
-  // Notes which node at the top level of the given module is currently
-  // work-in-progress. "node" may be set as nullptr when done with the entire
-  // module.
-  void SetTypecheckWorkInProgress(Module* module, AstNode* node) {
-    typecheck_wip_[module] = node;
-  }
-
-  // Retrieves which node was noted as currently work-in-progress, getter for
-  // SetTypecheckWorkInProgress() above.
-  AstNode* GetTypecheckWorkInProgress(Module* module) {
-    return typecheck_wip_[module];
-  }
-
-  // Helpers for marking/querying whether the top-level scope for a given module
-  // was completed being evaluated. That is, once the top-level bindings for a
-  // module have been evaluated successfully once by the interpreter (without
-  // hitting a work-in-progress indicator) those completed bindings can be
-  // re-used after that without any need for re-evaluation.
-  bool IsTopLevelBindingsDone(Module* module) const {
-    return top_level_bindings_done_.contains(module);
-  }
-  void MarkTopLevelBindingsDone(Module* module) {
-    top_level_bindings_done_.insert(module);
-  }
-
- private:
-  absl::flat_hash_map<ImportTokens, ModuleInfo> cache_;
-  absl::flat_hash_map<Module*, std::unique_ptr<InterpBindings>>
-      top_level_bindings_;
-  absl::flat_hash_set<Module*> top_level_bindings_done_;
-  absl::flat_hash_map<Module*, AstNode*> typecheck_wip_;
-  TypeInfoOwner type_info_owner_;
-};
 
 // Type-checking callback lambda.
 using TypecheckFn = std::function<absl::StatusOr<TypeInfo*>(Module*)>;
@@ -161,8 +46,8 @@ using TypecheckFn = std::function<absl::StatusOr<TypeInfo*>(Module*)>;
 //  The imported module information.
 absl::StatusOr<const ModuleInfo*> DoImport(
     const TypecheckFn& ftypecheck, const ImportTokens& subject,
-    absl::Span<std::string const> additional_search_paths, ImportCache* cache,
-    const Span& import_span);
+    absl::Span<std::string const> additional_search_paths,
+    ImportData* import_data, const Span& import_span);
 
 }  // namespace xls::dslx
 

@@ -184,7 +184,7 @@ absl::StatusOr<InterpValue> EvaluateIndex(Index* expr, InterpBindings* bindings,
                                           AbstractInterpreter* interp);
 
 // Get-or-creates the top level bindings for a given module (with respect to the
-// interpreter's ImportCache as storage).
+// interpreter's ImportData as storage).
 //
 // Note that we may not be able to create a *complete* set of bindings in the
 // return value if we've re-entered this routine; e.g. in evaluating a top-level

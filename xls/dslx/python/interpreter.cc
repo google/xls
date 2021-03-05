@@ -46,11 +46,11 @@ PYBIND11_MODULE(interpreter, m) {
   m.def("get_function_type",
         [](absl::string_view text, absl::string_view function_name)
             -> absl::StatusOr<std::unique_ptr<ConcreteType>> {
-          ImportCache import_cache;
+          ImportData import_data;
           XLS_ASSIGN_OR_RETURN(
               TypecheckedModule tm,
               ParseAndTypecheck(text, "get_function_type.x",
-                                "get_function_type", &import_cache,
+                                "get_function_type", &import_data,
                                 /*additional_search_paths=*/{}));
           XLS_ASSIGN_OR_RETURN(Function * f,
                                tm.module->GetFunctionOrError(function_name));
@@ -64,10 +64,10 @@ PYBIND11_MODULE(interpreter, m) {
       [](absl::string_view text, absl::string_view function_name,
          const std::vector<std::vector<InterpValue>> args_batch)
           -> absl::StatusOr<std::vector<InterpValue>> {
-        ImportCache import_cache;
+        ImportData import_data;
         XLS_ASSIGN_OR_RETURN(
             TypecheckedModule tm,
-            ParseAndTypecheck(text, "batched.x", "batched", &import_cache,
+            ParseAndTypecheck(text, "batched.x", "batched", &import_data,
                               /*additional_search_paths=*/{}));
         XLS_ASSIGN_OR_RETURN(Function * f,
                              tm.module->GetFunctionOrError(function_name));
@@ -76,7 +76,7 @@ PYBIND11_MODULE(interpreter, m) {
 
         Interpreter interpreter(tm.module, /*typecheck=*/nullptr,
                                 /*additional_search_paths=*/{},
-                                /*import_cache=*/&import_cache,
+                                /*import_data=*/&import_data,
                                 /*trace_all=*/false, /*package=*/nullptr);
         std::vector<InterpValue> results;
         results.reserve(args_batch.size());

@@ -59,33 +59,33 @@ std::string TestName() {
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
     absl::string_view program, absl::string_view fn_name,
     bool emit_positions = true) {
-  ImportCache import_cache;
-  XLS_ASSIGN_OR_RETURN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(program, /*path=*/"test_module.x",
-                        /*module_name=*/"test_module", &import_cache,
-                        /*additional_search_paths=*/{}));
+  ImportData import_data;
+  XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
+                       ParseAndTypecheck(program, /*path=*/"test_module.x",
+                                         /*module_name=*/"test_module",
+                                         /*import_data=*/&import_data,
+                                         /*additional_search_paths=*/{}));
   return ConvertOneFunction(tm.module, /*entry_function_name=*/fn_name,
                             /*type_info=*/tm.type_info,
-                            /*import_cache=*/&import_cache,
+                            /*import_data=*/&import_data,
                             /*symbolic_bindings=*/nullptr,
                             /*emit_positions=*/emit_positions);
 }
 
 absl::StatusOr<std::string> ConvertModuleForTest(
     absl::string_view program, bool emit_positions = true,
-    ImportCache* import_cache = nullptr) {
-  absl::optional<ImportCache> import_cache_value;
-  if (import_cache == nullptr) {
-    import_cache_value.emplace();
-    import_cache = &*import_cache_value;
+    ImportData* import_data = nullptr) {
+  absl::optional<ImportData> import_data_value;
+  if (import_data == nullptr) {
+    import_data_value.emplace();
+    import_data = &*import_data_value;
   }
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test_module.x", "test_module", import_cache,
+      ParseAndTypecheck(program, "test_module.x", "test_module", import_data,
                         /*additional_search_paths=*/{}));
   XLS_ASSIGN_OR_RETURN(std::string converted,
-                       ConvertModule(tm.module, import_cache,
+                       ConvertModule(tm.module, import_data,
                                      /*emit_positions=*/emit_positions));
   return converted;
 }
@@ -1435,7 +1435,7 @@ fn f() -> u32 {
 
 TEST(IrConverterTest, ConstexprImport) {
   // Place the *imported* module into the import cache.
-  ImportCache import_cache;
+  ImportData import_data;
   const char* imported_program = R"(
 pub const MY_CONST = bits[32]:5;
 
@@ -1446,7 +1446,7 @@ pub fn constexpr_fn(arg: u32) -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
-                        "fake.imported.stuff", &import_cache,
+                        "fake.imported.stuff", &import_data,
                         /*additional_search_paths=*/{}));
   const char* importer_program = R"(
 import fake.imported.stuff
@@ -1462,14 +1462,14 @@ fn f() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(importer_program, /*emit_positions=*/false,
-                           &import_cache));
+                           &import_data));
   ExpectIr(converted, TestName());
 }
 
 // Tests that a parametric constexpr function can be imported.
 TEST(IrConverterTest, ParametricConstexprImport) {
   // Place the *imported* module into the import cache.
-  ImportCache import_cache;
+  ImportData import_data;
   const char* imported_program = R"(
 pub const MY_CONST = bits[32]:5;
 
@@ -1481,7 +1481,7 @@ pub fn constexpr_fn<N:u32>(arg: bits[N]) -> bits[N] {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
-                        "fake.imported.stuff", &import_cache,
+                        "fake.imported.stuff", &import_data,
                         /*additional_search_paths=*/{}));
   const char* importer_program = R"(
 import fake.imported.stuff
@@ -1497,7 +1497,7 @@ fn f() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(importer_program, /*emit_positions=*/false,
-                           &import_cache));
+                           &import_data));
   ExpectIr(converted, TestName());
 }
 

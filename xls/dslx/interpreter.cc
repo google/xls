@@ -106,7 +106,7 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
   void SetCurrentTypeInfo(TypeInfo* updated) override {
     interp_->current_type_info_ = updated;
   }
-  ImportCache* GetImportCache() override { return interp_->import_cache_; }
+  ImportData* GetImportData() override { return interp_->import_data_; }
   absl::Span<std::string const> GetAdditionalSearchPaths() override {
     return interp_->additional_search_paths_;
   }
@@ -117,14 +117,14 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
 
 Interpreter::Interpreter(Module* entry_module, TypecheckFn typecheck,
                          absl::Span<std::string const> additional_search_paths,
-                         ImportCache* import_cache, bool trace_all,
+                         ImportData* import_data, bool trace_all,
                          Package* ir_package)
     : entry_module_(entry_module),
-      current_type_info_(import_cache->GetRootTypeInfo(entry_module).value()),
+      current_type_info_(import_data->GetRootTypeInfo(entry_module).value()),
       typecheck_(std::move(typecheck)),
       additional_search_paths_(additional_search_paths.begin(),
                                additional_search_paths.end()),
-      import_cache_(import_cache),
+      import_data_(import_data),
       trace_all_(trace_all),
       ir_package_(ir_package),
       abstract_adapter_(absl::make_unique<AbstractInterpreterAdapter>(this)) {}
@@ -136,7 +136,7 @@ absl::StatusOr<InterpValue> Interpreter::RunFunction(
   Pos fake_pos("<fake>", 0, 0);
   Span fake_span(fake_pos, fake_pos);
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                       import_cache_->GetRootTypeInfoForNode(f));
+                       import_data_->GetRootTypeInfoForNode(f));
   TypeInfoSwap tis(this, type_info);
   return EvaluateAndCompareInternal(f, args, fake_span, /*invocation=*/nullptr,
                                     &symbolic_bindings);
@@ -191,15 +191,14 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
 /* static */ absl::StatusOr<int64> Interpreter::InterpretExprToInt(
     Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
     absl::Span<std::string const> additional_search_paths,
-    ImportCache* import_cache,
-    const absl::flat_hash_map<std::string, int64>& env,
+    ImportData* import_data, const absl::flat_hash_map<std::string, int64>& env,
     const absl::flat_hash_map<std::string, int64>& bit_widths, Expr* expr,
     const FnCtx& fn_ctx) {
   XLS_VLOG(3) << "InterpretExpr: " << expr->ToString() << " env: {"
               << absl::StrJoin(env, ", ", absl::PairFormatter(":")) << "}";
 
   Interpreter interp(entry_module, typecheck, additional_search_paths,
-                     import_cache);
+                     import_data);
   XLS_ASSIGN_OR_RETURN(const InterpBindings* top_level_bindings,
                        GetOrCreateTopLevelBindings(
                            entry_module, interp.abstract_adapter_.get()));
@@ -222,7 +221,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
   }
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * expr_root_type_info,
-                       import_cache->GetRootTypeInfoForNode(expr));
+                       import_data->GetRootTypeInfoForNode(expr));
   TypeInfoSwap tis(&interp, expr_root_type_info);
   XLS_ASSIGN_OR_RETURN(
       InterpValue result,
@@ -387,7 +386,7 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
   }
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * invocation_root_type_info,
-                       import_cache_->GetRootTypeInfoForNode(expr));
+                       import_data_->GetRootTypeInfoForNode(expr));
   const SymbolicBindings* fn_symbolic_bindings = nullptr;
   if (bindings->fn_ctx().has_value()) {
     // The symbolic bindings of this invocation were already computed during
@@ -431,7 +430,7 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
     absl::optional<Module*> callee_module = GetFunctionValueOwner(callee_value);
     if (callee_module) {
       XLS_ASSIGN_OR_RETURN(invocation_type_info,
-                           import_cache_->GetRootTypeInfo(*callee_module));
+                           import_data_->GetRootTypeInfo(*callee_module));
     } else {
       invocation_type_info = invocation_root_type_info;
     }
@@ -447,7 +446,7 @@ bool Interpreter::IsWip(AstNode* node) const {
   // value associated with it, it's work in progress.
   bool marked_wip = it != wip_.end() && !it->second.has_value();
   return marked_wip ||
-         import_cache_->GetTypecheckWorkInProgress(node->owner()) == node;
+         import_data_->GetTypecheckWorkInProgress(node->owner()) == node;
 }
 
 absl::optional<InterpValue> Interpreter::NoteWip(
