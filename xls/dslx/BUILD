@@ -565,6 +565,7 @@ cc_library(
         ":deduce_ctx",
         ":dslx_builtins",
         ":import_routines",
+        ":interpreter",
         "@com_google_absl//absl/status:statusor",
     ],
 )

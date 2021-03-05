@@ -58,6 +58,16 @@ absl::StatusOr<TypeInfo*> TypeInfoOwner::GetRootTypeInfo(Module* module) {
 
 // -- class TypeInfo
 
+void TypeInfo::NoteConstExpr(Expr* const_expr, int64 value) {
+  const_exprs_[const_expr] = value;
+}
+absl::optional<int64> TypeInfo::GetConstExpr(Expr* const_expr) {
+  if (auto it = const_exprs_.find(const_expr); it != const_exprs_.end()) {
+    return it->second;
+  }
+  return absl::nullopt;
+}
+
 bool TypeInfo::Contains(AstNode* key) const {
   XLS_CHECK_EQ(key->owner(), module_);
   return dict_.contains(key) || (parent_ != nullptr && parent_->Contains(key));

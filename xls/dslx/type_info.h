@@ -194,6 +194,18 @@ class TypeInfo {
   // Returns the expression for a ConstantDef that has the given name_def.
   absl::optional<Expr*> GetConstant(NameDef* name_def) const;
 
+  // Notes the evaluation of a constexpr to a value, as discovered during type
+  // checking. Some constructs *require* constexprs, e.g. slice bounds or
+  // for-loop range upper limits.
+  //
+  // Since TypeInfos exist in a tree to indicate parametric instantiation, the
+  // note of constexpr evaluation lives on this TypeInfo specifically (it does
+  // not automatically get placed in the root of the tree). This avoids
+  // collisions in cases e.g. where you slice `[0:N]` where `N` is a parametric
+  // value.
+  void NoteConstExpr(Expr* const_expr, int64 value);
+  absl::optional<int64> GetConstExpr(Expr* const_expr);
+
   // Retrieves a string that shows the module associated with this type info and
   // which imported modules are present, suitable for debugging.
   std::string GetImportsDebugString() const;
@@ -238,6 +250,7 @@ class TypeInfo {
   absl::flat_hash_map<NameDef*, ConstantDef*> name_to_const_;
   absl::flat_hash_map<Invocation*, InvocationData> invocations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
+  absl::flat_hash_map<Expr*, int64> const_exprs_;
   TypeInfo* parent_;  // Note: may be nullptr.
 };
 

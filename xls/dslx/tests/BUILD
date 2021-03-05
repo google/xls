@@ -675,3 +675,8 @@ dslx_test(
     name = "constexpr_with_typed_stuff_after",
     srcs = ["constexpr_with_typed_stuff_after.x"],
 )
+
+dslx_test(
+    name = "for_up_to_constexpr_cast",
+    srcs = ["for_up_to_constexpr_cast.x"],
+)

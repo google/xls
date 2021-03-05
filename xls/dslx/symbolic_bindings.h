@@ -28,7 +28,7 @@ namespace xls::dslx {
 // A single symbolic binding entry (binds a parametric integral typed variable
 // name to a value). For example, in:
 //
-//    fn [N: u32] id(x: uN[N]) -> uN[N] { x }
+//    fn id<N: u32>(x: uN[N]) -> uN[N] { x }
 //    fn main() -> u32 { id(u32:0) }
 //
 // The symbolic binding for N given id invoked in main is `{"N", 32}`.

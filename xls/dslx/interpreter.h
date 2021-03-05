@@ -50,7 +50,7 @@ class Interpreter {
   // C++, or at least consolidate the env/bit_widths maps.
   static absl::StatusOr<int64> InterpretExprToInt(
       Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
-      absl::Span<std::string const> additional_search_path,
+      absl::Span<std::string const> additional_search_paths,
       ImportCache* import_cache,
       const absl::flat_hash_map<std::string, int64>& env,
       const absl::flat_hash_map<std::string, int64>& bit_widths, Expr* expr,

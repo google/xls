@@ -36,12 +36,27 @@ const absl::flat_hash_map<std::string, std::string>& GetParametricBuiltins();
 // Gets the namesa of all the unary parametric builtins; e.g. {"ctz", "clz"}.
 const absl::flat_hash_set<std::string>& GetUnaryParametricBuiltinNames();
 
+// Data provided to the lambdas below (of type SignatureFn) that help us do
+// deduction and handling for parametric builtin function instantiation.
+struct SignatureData {
+  // Argument types for the parametric builtin.
+  const std::vector<const ConcreteType*>& arg_types;
+  // Name of the builtin.
+  absl::string_view name;
+  // Span that we're invoking the builtin from (span for the entire invocation).
+  const Span& span;
+  // Any "higher order" parametric bindings e.g. for the callee in the case of
+  // map.
+  absl::optional<std::vector<ParametricBinding*>> parametric_bindings;
+  // Callback that can be used to perform constexpr evaluation on one of the
+  // function arguments; which is requested is given by argno.
+  const std::function<absl::Status(int64 argno)>& constexpr_eval;
+};
+
 // Deduction rule that determines the FunctionType and any associated symbolic
 // bindings for a parametric builtin function.
 using SignatureFn = std::function<absl::StatusOr<TypeAndBindings>(
-    const std::vector<const ConcreteType*>&, absl::string_view,
-    const Span& span, DeduceCtx* ctx,
-    absl::optional<std::vector<ParametricBinding*>>)>;
+    const SignatureData&, DeduceCtx*)>;
 
 // Returns a function that produces the type of builtin_name.
 //

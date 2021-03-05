@@ -21,6 +21,7 @@ namespace {
 
 using ArgTypes = const std::vector<const ConcreteType*>&;
 using ParametricBindings = absl::optional<std::vector<ParametricBinding*>>;
+using ConstexprEvalFn = std::function<absl::Status(int64 argno)>;
 
 // Fluent API for checking argument type properties (and raising errors).
 //
@@ -238,7 +239,7 @@ const absl::flat_hash_map<std::string, std::string>& GetParametricBuiltins() {
       //
       // Note this is messed up and should be replaced with
       // known-statically-sized iota syntax.
-      {"range", "(uN[N], uN[N]) -> ()"},
+      {"range", "(const uN[N], const uN[N]) -> ()"},
   };
   return *map;
 }
@@ -249,36 +250,34 @@ const absl::flat_hash_map<std::string, std::string>& GetParametricBuiltins() {
 static void PopulateSignatureToLambdaMap(
     absl::flat_hash_map<std::string, SignatureFn>* map_ptr) {
   auto& map = *map_ptr;
-  map["(T) -> T"] = [](ArgTypes arg_types, absl::string_view name,
-                       const Span& span, DeduceCtx* ctx,
-                       ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(arg_types, name, span).Len(1).status());
+  map["(T) -> T"] = [](const SignatureData& data,
+                       DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(
+        Checker(data.arg_types, data.name, data.span).Len(1).status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), arg_types[0]->CloneToUnique())};
+        CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
   map["(uN[T], uN[T]) -> (u1, uN[T])"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(arg_types, name, span)
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
                             .Len(2)
                             .IsUN(0)
                             .ArgsSameType(0, 1)
                             .status());
     std::vector<std::unique_ptr<ConcreteType>> elements;
     elements.push_back(BitsType::MakeU1());
-    elements.push_back(arg_types[0]->CloneToUnique());
+    elements.push_back(data.arg_types[0]->CloneToUnique());
     auto return_type = absl::make_unique<TupleType>(std::move(elements));
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), std::move(return_type))};
+        CloneToUnique(data.arg_types), std::move(return_type))};
   };
   map["(T[M], uN[N], T[P]) -> T[P]"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     const ArrayType* a0;
     const ArrayType* a2;
-    auto checker = Checker(arg_types, name, span)
+    auto checker = Checker(data.arg_types, data.name, data.span)
                        .Len(3)
                        .IsArray(0, &a0)
                        .IsUN(1)
@@ -292,16 +291,17 @@ static void PopulateSignatureToLambdaMap(
     });
     XLS_RETURN_IF_ERROR(checker.status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), arg_types[2]->CloneToUnique())};
+        CloneToUnique(data.arg_types), data.arg_types[2]->CloneToUnique())};
   };
   map["(xN[N], xN[M][N]) -> xN[M]"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     const ArrayType* a;
     const BitsType* b;
-    auto checker =
-        Checker(arg_types, name, span).Len(2).IsBits(0, &b).IsArray(1, &a);
+    auto checker = Checker(data.arg_types, data.name, data.span)
+                       .Len(2)
+                       .IsBits(0, &b)
+                       .IsArray(1, &a);
     XLS_RETURN_IF_ERROR(checker.status());
     const ConcreteType& return_type = a->element_type();
     checker.CheckIsBits(return_type, [&] {
@@ -315,165 +315,183 @@ static void PopulateSignatureToLambdaMap(
     });
     XLS_RETURN_IF_ERROR(checker.status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), return_type.CloneToUnique())};
+        CloneToUnique(data.arg_types), return_type.CloneToUnique())};
   };
-  map["(T, T) -> T"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(
-        Checker(arg_types, name, span).Len(2).ArgsSameType(0, 1).status());
+  map["(T, T) -> T"] = [](const SignatureData& data,
+                          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+                            .Len(2)
+                            .ArgsSameType(0, 1)
+                            .status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), arg_types[0]->CloneToUnique())};
+        CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
-  map["(T, T) -> ()"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(
-        Checker(arg_types, name, span).Len(2).ArgsSameType(0, 1).status());
+  map["(T, T) -> ()"] = [](const SignatureData& data,
+                           DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+                            .Len(2)
+                            .ArgsSameType(0, 1)
+                            .status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), ConcreteType::MakeNil())};
+        CloneToUnique(data.arg_types), ConcreteType::MakeNil())};
   };
-  map["(uN[N], uN[N]) -> ()"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(arg_types, name, span)
+  map["(const uN[N], const uN[N]) -> ()"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
                             .Len(2)
                             .IsUN(0)
                             .IsUN(1)
                             .ArgsSameType(0, 1)
                             .status());
+    XLS_RETURN_IF_ERROR(data.constexpr_eval(0));
+    XLS_RETURN_IF_ERROR(data.constexpr_eval(1));
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), ConcreteType::MakeNil())};
+        CloneToUnique(data.arg_types), ConcreteType::MakeNil())};
   };
   map["(T[N], uN[M], T) -> T[N]"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     const ArrayType* a;
-    auto checker = Checker(arg_types, name, span).Len(3).IsArray(0, &a).IsUN(1);
+    auto checker = Checker(data.arg_types, data.name, data.span)
+                       .Len(3)
+                       .IsArray(0, &a)
+                       .IsUN(1);
     XLS_RETURN_IF_ERROR(checker.status());
-    checker.TypesAreSame(a->element_type(), *arg_types[2], [&] {
+    checker.TypesAreSame(a->element_type(), *data.arg_types[2], [&] {
       return absl::StrFormat(
           "Want argument 0 element type %s to match argument 2 type %s",
-          a->element_type().ToString(), arg_types[2]->ToString());
+          a->element_type().ToString(), data.arg_types[2]->ToString());
     });
     XLS_RETURN_IF_ERROR(checker.status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), arg_types[0]->CloneToUnique())};
+        CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
   map["(xN[M], xN[N]) -> xN[N]"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(
-        Checker(arg_types, name, span).Len(2).IsBits(0).IsBits(1).status());
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+                            .Len(2)
+                            .IsBits(0)
+                            .IsBits(1)
+                            .status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), arg_types[1]->CloneToUnique())};
+        CloneToUnique(data.arg_types), data.arg_types[1]->CloneToUnique())};
   };
   map["(uN[M], uN[N]) -> ()"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(
-        Checker(arg_types, name, span).Len(2).IsUN(0).IsUN(1).status());
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+                            .Len(2)
+                            .IsUN(0)
+                            .IsUN(1)
+                            .status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), ConcreteType::MakeNil())};
+        CloneToUnique(data.arg_types), ConcreteType::MakeNil())};
   };
   map["(uN[M], uN[N]) -> uN[M+N]"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(
-        Checker(arg_types, name, span).Len(2).IsUN(0).IsUN(1).status());
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim m, arg_types[0]->GetTotalBitCount());
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim n, arg_types[1]->GetTotalBitCount());
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+                            .Len(2)
+                            .IsUN(0)
+                            .IsUN(1)
+                            .status());
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim m,
+                         data.arg_types[0]->GetTotalBitCount());
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim n,
+                         data.arg_types[1]->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim sum, m.Add(n));
     auto return_type =
         absl::make_unique<BitsType>(/*is_signed=*/false, /*size=*/sum);
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), std::move(return_type))};
+        CloneToUnique(data.arg_types), std::move(return_type))};
   };
   map["(uN[N], uN[U], uN[V]) -> uN[V]"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(
-        Checker(arg_types, name, span).Len(3).IsUN(0).IsUN(1).IsUN(2).status());
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+                            .Len(3)
+                            .IsUN(0)
+                            .IsUN(1)
+                            .IsUN(2)
+                            .status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), arg_types[2]->CloneToUnique())};
+        CloneToUnique(data.arg_types), data.arg_types[2]->CloneToUnique())};
   };
   map["(uN[N], uN[U], uN[V]) -> uN[N]"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(
-        Checker(arg_types, name, span).Len(3).IsUN(0).IsUN(1).IsUN(2).status());
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+                            .Len(3)
+                            .IsUN(0)
+                            .IsUN(1)
+                            .IsUN(2)
+                            .status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), arg_types[0]->CloneToUnique())};
+        CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
   map["(uN[N]) -> uN[N]"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(arg_types, name, span).Len(1).IsUN(0).status());
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(
+        Checker(data.arg_types, data.name, data.span).Len(1).IsUN(0).status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), arg_types[0]->CloneToUnique())};
+        CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
-  map["(uN[N]) -> u1"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(arg_types, name, span).Len(1).IsUN(0).status());
+  map["(uN[N]) -> u1"] = [](const SignatureData& data,
+                            DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(
+        Checker(data.arg_types, data.name, data.span).Len(1).IsUN(0).status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), BitsType::MakeU1())};
+        CloneToUnique(data.arg_types), BitsType::MakeU1())};
   };
   map["(u1, T, T) -> T"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(arg_types, name, span)
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
                             .Len(3)
                             .IsU1(0)
                             .ArgsSameType(1, 2)
                             .status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), arg_types[1]->CloneToUnique())};
+        CloneToUnique(data.arg_types), data.arg_types[1]->CloneToUnique())};
   };
   map["(uN[N], u1) -> uN[N+1]"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(
-        Checker(arg_types, name, span).Len(2).IsUN(0).IsU1(1).status());
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim n, arg_types[0]->GetTotalBitCount());
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+                            .Len(2)
+                            .IsUN(0)
+                            .IsU1(1)
+                            .status());
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim n,
+                         data.arg_types[0]->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim np1, n.Add(ConcreteTypeDim(1)));
     auto return_type =
         absl::make_unique<BitsType>(/*signed=*/false, /*size=*/np1);
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), std::move(return_type))};
+        CloneToUnique(data.arg_types), std::move(return_type))};
   };
   map["(xN[N], xN[N]) -> u1"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(arg_types, name, span)
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
                             .Len(2)
                             .IsBits(0)
                             .ArgsSameType(0, 1)
                             .status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), BitsType::MakeU1())};
+        CloneToUnique(data.arg_types), BitsType::MakeU1())};
   };
   map["(T[N]) -> (u32, T)[N]"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx,
-         ParametricBindings) -> absl::StatusOr<TypeAndBindings> {
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     const ArrayType* a;
-    XLS_RETURN_IF_ERROR(
-        Checker(arg_types, name, span).Len(1).IsArray(0, &a).status());
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+                            .Len(1)
+                            .IsArray(0, &a)
+                            .status());
     const ConcreteType& t = a->element_type();
     std::vector<std::unique_ptr<ConcreteType>> element_types;
     element_types.push_back(BitsType::MakeU32());
@@ -481,17 +499,16 @@ static void PopulateSignatureToLambdaMap(
     auto e = absl::make_unique<TupleType>(std::move(element_types));
     auto return_type = absl::make_unique<ArrayType>(std::move(e), a->size());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(arg_types), std::move(return_type))};
+        CloneToUnique(data.arg_types), std::move(return_type))};
   };
   // Note: for map's signature we instantiate the (possibly parametric) function
   // argument.
   map["(T[N], (T) -> U) -> U[N]"] =
-      [](ArgTypes arg_types, absl::string_view name, const Span& span,
-         DeduceCtx* ctx, ParametricBindings parametric_bindings)
-      -> absl::StatusOr<TypeAndBindings> {
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     const ArrayType* a = nullptr;
     const FunctionType* f = nullptr;
-    XLS_RETURN_IF_ERROR(Checker(arg_types, name, span)
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
                             .Len(2)
                             .IsArray(0, &a)
                             .IsFn(1, /*argc=*/1, &f)
@@ -503,20 +520,20 @@ static void PopulateSignatureToLambdaMap(
 
     absl::optional<absl::Span<ParametricBinding* const>>
         mapped_parametric_bindings;
-    if (parametric_bindings.has_value()) {
-      mapped_parametric_bindings.emplace(parametric_bindings.value());
+    if (data.parametric_bindings.has_value()) {
+      mapped_parametric_bindings.emplace(data.parametric_bindings.value());
     }
 
     // Note that InstantiateFunction will check that the mapped function type
     // lines up with the array (we're providing it the argument types it's being
     // invoked with).
     XLS_ASSIGN_OR_RETURN(TypeAndBindings tab,
-                         InstantiateFunction(span, *f, mapped_fn_arg_types, ctx,
-                                             mapped_parametric_bindings));
+                         InstantiateFunction(data.span, *f, mapped_fn_arg_types,
+                                             ctx, mapped_parametric_bindings));
     auto return_type =
         absl::make_unique<ArrayType>(std::move(tab.type), a->size());
     return TypeAndBindings{
-        absl::make_unique<FunctionType>(CloneToUnique(arg_types),
+        absl::make_unique<FunctionType>(CloneToUnique(data.arg_types),
                                         std::move(return_type)),
         tab.symbolic_bindings};
   };

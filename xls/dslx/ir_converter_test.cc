@@ -310,19 +310,7 @@ TEST(IrConverterTest, CountedFor) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(program, "f", /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
-  ret add.6: bits[32] = add(accum, i, id=6)
-}
-
-fn __test_module__f() -> bits[32] {
-  literal.1: bits[32] = literal(value=0, id=1)
-  literal.2: bits[32] = literal(value=0, id=2)
-  literal.3: bits[32] = literal(value=4, id=3)
-  ret counted_for.7: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=7)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, CountedForDestructuring) {
@@ -337,31 +325,7 @@ TEST(IrConverterTest, CountedForDestructuring) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(program, "f", /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn ____test_module__f_counted_for_0_body(i: bits[32], __loop_carry: (bits[32], bits[8])) -> (bits[32], bits[8]) {
-  literal.8: bits[1] = literal(value=1, id=8)
-  literal.10: bits[1] = literal(value=1, id=10)
-  tuple_index.9: bits[32] = tuple_index(__loop_carry, index=0, id=9)
-  and.11: bits[1] = and(literal.8, literal.10, id=11)
-  literal.13: bits[1] = literal(value=1, id=13)
-  add.15: bits[32] = add(tuple_index.9, i, id=15)
-  tuple_index.12: bits[8] = tuple_index(__loop_carry, index=1, id=12)
-  and.14: bits[1] = and(and.11, literal.13, id=14)
-  ret tuple.16: (bits[32], bits[8]) = tuple(add.15, tuple_index.12, id=16)
-}
-
-fn __test_module__f() -> bits[32] {
-  literal.1: bits[32] = literal(value=0, id=1)
-  literal.2: bits[8] = literal(value=0, id=2)
-  tuple.3: (bits[32], bits[8]) = tuple(literal.1, literal.2, id=3)
-  t: (bits[32], bits[8]) = counted_for(tuple.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=17)
-  literal.4: bits[32] = literal(value=0, id=4)
-  literal.5: bits[32] = literal(value=4, id=5)
-  literal.18: bits[32] = literal(value=0, id=18)
-  ret tuple_index.19: bits[32] = tuple_index(t, index=0, id=19)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, CountedForParametricConst) {
@@ -393,24 +357,7 @@ fn f() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__my_id(x: bits[32]) -> bits[32] {
-  ret identity.2: bits[32] = identity(x, id=2)
-}
-
-fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
-  add.8: bits[32] = add(accum, i, id=8)
-  ret invoke.9: bits[32] = invoke(add.8, to_apply=__test_module__my_id, id=9)
-}
-
-fn __test_module__f() -> bits[32] {
-  literal.3: bits[32] = literal(value=0, id=3)
-  literal.4: bits[32] = literal(value=0, id=4)
-  literal.5: bits[32] = literal(value=4, id=5)
-  ret counted_for.10: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=10)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, ExtendConversions) {
@@ -947,23 +894,7 @@ fn f() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32], other_outer_thing: bits[32], outer_thing: bits[32]) -> bits[32] {
-  add.10: bits[32] = add(accum, i, id=10)
-  add.11: bits[32] = add(add.10, outer_thing, id=11)
-  ret add.12: bits[32] = add(add.11, other_outer_thing, id=12)
-}
-
-fn __test_module__f() -> bits[32] {
-  literal.3: bits[32] = literal(value=0, id=3)
-  literal.2: bits[32] = literal(value=24, id=2)
-  literal.1: bits[32] = literal(value=42, id=1)
-  literal.4: bits[32] = literal(value=0, id=4)
-  literal.5: bits[32] = literal(value=4, id=5)
-  ret counted_for.13: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, invariant_args=[literal.2, literal.1], id=13)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, CountedForWithTupleAccumulator) {
@@ -978,31 +909,7 @@ fn f() -> (u32, u32) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn ____test_module__f_counted_for_0_body(i: bits[32], __loop_carry: (bits[32], bits[32])) -> (bits[32], bits[32]) {
-  literal.8: bits[1] = literal(value=1, id=8)
-  literal.10: bits[1] = literal(value=1, id=10)
-  tuple_index.9: bits[32] = tuple_index(__loop_carry, index=0, id=9)
-  tuple_index.12: bits[32] = tuple_index(__loop_carry, index=1, id=12)
-  literal.16: bits[32] = literal(value=1, id=16)
-  and.11: bits[1] = and(literal.8, literal.10, id=11)
-  literal.13: bits[1] = literal(value=1, id=13)
-  add.15: bits[32] = add(tuple_index.9, tuple_index.12, id=15)
-  add.17: bits[32] = add(tuple_index.12, literal.16, id=17)
-  and.14: bits[1] = and(and.11, literal.13, id=14)
-  ret tuple.18: (bits[32], bits[32]) = tuple(add.15, add.17, id=18)
-}
-
-fn __test_module__f() -> (bits[32], bits[32]) {
-  literal.1: bits[32] = literal(value=0, id=1)
-  literal.2: bits[32] = literal(value=1, id=2)
-  tuple.3: (bits[32], bits[32]) = tuple(literal.1, literal.2, id=3)
-  literal.4: bits[32] = literal(value=0, id=4)
-  literal.5: bits[32] = literal(value=4, id=5)
-  ret counted_for.19: (bits[32], bits[32]) = counted_for(tuple.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=19)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, InvokeMultipleArgs) {

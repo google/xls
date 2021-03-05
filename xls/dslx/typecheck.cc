@@ -18,6 +18,7 @@
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/import_routines.h"
+#include "xls/dslx/interpreter.h"
 
 namespace xls::dslx {
 
@@ -191,10 +192,41 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
 
   XLS_ASSIGN_OR_RETURN(SignatureFn fsignature, GetParametricBuiltinSignature(
                                                    builtin_name->identifier()));
+
+  // Callback that signatures can use to request constexpr evaluation of their
+  // arguments -- this is a special builtin superpower used by e.g. range().
+  auto constexpr_eval = [&](int64 argno) -> absl::Status {
+    Expr* arg = invocation->args()[argno];
+
+    absl::flat_hash_map<std::string, int64> env =
+        ctx->fn_stack().back().symbolic_bindings().ToMap();
+    absl::flat_hash_map<std::string, int64> bit_widths;
+    for (const auto& [identifier, _] : env) {
+      // TODO(leary): 2020-03-05 We should carry around the bitwidths of the
+      // symbolic bindings, right now we only know the value, so we're forced to
+      // guess this is ok. Potentially we should carry around InterpValues in
+      // symbolic bindings in general.
+      bit_widths[identifier] = 32;
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        int64 value,
+        Interpreter::InterpretExprToInt(
+            arg->owner(), ctx->type_info(), ctx->typecheck_module(),
+            ctx->additional_search_paths(), ctx->import_cache(), /*env=*/env,
+            /*bit_widths=*/bit_widths,
+            /*expr=*/arg, FnCtx{}));
+    ctx->type_info()->NoteConstExpr(arg, value);
+    return absl::OkStatus();
+  };
+
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
-      fsignature(arg_type_ptrs, builtin_name->identifier(), invocation->span(),
-                 ctx, higher_order_parametric_bindings));
+      fsignature(
+          SignatureData{arg_type_ptrs, builtin_name->identifier(),
+                        invocation->span(), higher_order_parametric_bindings,
+                        constexpr_eval},
+          ctx));
   FunctionType* fn_type = dynamic_cast<FunctionType*>(tab.type.get());
   XLS_RET_CHECK(fn_type != nullptr) << tab.type->ToString();
 

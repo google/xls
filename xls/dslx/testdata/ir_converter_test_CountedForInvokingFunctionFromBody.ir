@@ -1,0 +1,15 @@
+package test_module
+
+fn __test_module__my_id(x: bits[32]) -> bits[32] {
+  ret identity.2: bits[32] = identity(x, id=2)
+}
+
+fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
+  add.6: bits[32] = add(accum, i, id=6)
+  ret invoke.7: bits[32] = invoke(add.6, to_apply=__test_module__my_id, id=7)
+}
+
+fn __test_module__f() -> bits[32] {
+  literal.3: bits[32] = literal(value=0, id=3)
+  ret counted_for.8: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=8)
+}

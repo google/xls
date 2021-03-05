@@ -956,15 +956,14 @@ absl::StatusOr<int64> FunctionConverter::QueryConstRangeCall(For* node) {
   Expr* start = iterable_call->args()[0];
   Expr* limit = iterable_call->args()[1];
 
-  XLS_RETURN_IF_ERROR(Visit(start));
-  XLS_RETURN_IF_ERROR(Visit(limit));
-
-  XLS_ASSIGN_OR_RETURN(Bits start_bits, GetConstBits(start));
-  if (!start_bits.IsZero()) {
+  if (absl::optional<int64> value = current_type_info_->GetConstExpr(start);
+      !value || *value != 0) {
     return error();
   }
-  XLS_ASSIGN_OR_RETURN(Bits limit_bits, GetConstBits(limit));
-  return limit_bits.ToUint64();
+
+  absl::optional<int64> value = current_type_info_->GetConstExpr(limit);
+  XLS_RET_CHECK(value.has_value());
+  return *value;
 }
 
 absl::Status FunctionConverter::HandleFor(For* node) {

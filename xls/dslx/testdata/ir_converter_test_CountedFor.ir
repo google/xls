@@ -1,0 +1,10 @@
+package test_module
+
+fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
+  ret add.4: bits[32] = add(accum, i, id=4)
+}
+
+fn __test_module__f() -> bits[32] {
+  literal.1: bits[32] = literal(value=0, id=1)
+  ret counted_for.5: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, id=5)
+}
