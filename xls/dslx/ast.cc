@@ -857,10 +857,10 @@ std::string StructDef::ToString() const {
                       [](std::string* out, ParametricBinding* binding) {
                         absl::StrAppend(out, binding->ToString());
                       });
-    parametric_str = absl::StrFormat("[%s] ", guts);
+    parametric_str = absl::StrFormat("<%s>", guts);
   }
   std::string result = absl::StrFormat(
-      "%sstruct %s%s {\n", public_ ? "pub " : "", parametric_str, identifier());
+      "%sstruct %s%s {\n", public_ ? "pub " : "", identifier(), parametric_str);
   for (const auto& item : members_) {
     absl::StrAppendFormat(&result, "  %s: %s,\n", item.first->ToString(),
                           item.second->ToString());

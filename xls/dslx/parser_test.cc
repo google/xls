@@ -124,6 +124,13 @@ TEST_F(ParserTest, TestTokenIdentity) {
 })");
 }
 
+TEST_F(ParserTest, StructDefRoundTrip) {
+  RoundTrip(R"(pub struct foo<A: u32, B: bits[16]> {
+  a: bits[A],
+  b: bits[16][B],
+})");
+}
+
 TEST_F(ParserTest, ParseErrorSpan) {
   const char* kFakeFilename = "fake.x";
   Scanner scanner(kFakeFilename, "+");

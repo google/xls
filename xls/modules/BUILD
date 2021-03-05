@@ -33,6 +33,7 @@ dslx_test(
     srcs = ["fpadd_2x32.x"],
     # TODO(b/152546795): Takes too long.
     prove_unopt_eq_opt = False,
+    deps = [":apfloat_add_2.x"],
 )
 
 dslx_jit_wrapper(
