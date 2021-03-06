@@ -393,6 +393,7 @@ void Translator::LibToolThread::Run() {
     argv.emplace_back(view);
   }
   argv.emplace_back("-fsyntax-only");
+  argv.emplace_back("-std=c++17");
 
   llvm::IntrusiveRefCntPtr<clang::FileManager> libtool_files;
 
