@@ -556,7 +556,7 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   XLS_VLOG_LINES(2, func->DumpIr());
   XLS_VLOG_LINES(2, schedule.ToString());
 
-  VerilogFile file;
+  VerilogFile file(options.use_system_verilog());
   PipelineGenerator generator(func, schedule, options, &file);
   XLS_ASSIGN_OR_RETURN(ModuleGeneratorResult result, generator.Run());
 

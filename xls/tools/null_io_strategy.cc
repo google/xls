@@ -19,8 +19,8 @@ namespace verilog {
 
 absl::Status NullIoStrategy::AddTopLevelDependencies(LogicRef* clk, Reset reset,
                                                      Module* m) {
-  DataType u1 = m->file()->DataTypeOfWidth(1);
-  DataType u8 = m->file()->DataTypeOfWidth(8);
+  DataType* u1 = m->file()->ScalarType();
+  DataType* u8 = m->file()->BitVectorType(8);
   byte_in_ = m->AddInput("byte_in", u8);
   byte_in_ready_ = m->AddOutput("byte_in_ready", u1);
   byte_in_valid_ = m->AddInput("byte_in_valid", u1);

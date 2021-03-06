@@ -217,7 +217,7 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(
   XLS_VLOG(2) << "Generating combinational module for proc:";
   XLS_VLOG_LINES(2, proc->DumpIr());
 
-  VerilogFile f;
+  VerilogFile f(use_system_verilog);
   ModuleBuilder mb(proc->name(), &f, /*use_system_verilog=*/use_system_verilog);
 
   // In a combinational module, the proc cannot have any state to avoid

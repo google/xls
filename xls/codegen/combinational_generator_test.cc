@@ -699,7 +699,7 @@ TEST_P(CombinationalGeneratorTest, BuildComplicatedType) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayShapedSel) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   BValue p = fb.Param("p", package.GetBitsType(8));
@@ -759,7 +759,7 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedSel) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayShapedSelNoDefault) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   BValue p = fb.Param("p", package.GetBitsType(1));
@@ -787,7 +787,7 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedSelNoDefault) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayShapedOneHotSelect) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   BValue s = fb.Param("s", package.GetBitsType(2));
@@ -1727,7 +1727,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateBitsNilIndex) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayUpdateWithDifferentTypesIndices) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
@@ -1747,7 +1747,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateWithDifferentTypesIndices) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayUpdateWithNarrowIndex) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);

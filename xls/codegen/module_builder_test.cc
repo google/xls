@@ -52,7 +52,7 @@ Value Make2DArray(int64 element_width,
 class ModuleBuilderTest : public VerilogTestBase {};
 
 TEST_P(ModuleBuilderTest, AddTwoNumbers) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   Package p(TestBaseName());
   ModuleBuilder mb(TestBaseName(), &file,
                    /*use_system_verilog=*/UseSystemVerilog());
@@ -67,7 +67,7 @@ TEST_P(ModuleBuilderTest, AddTwoNumbers) {
 }
 
 TEST_P(ModuleBuilderTest, NewSections) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   Package p(TestBaseName());
   Type* u32 = p.GetBitsType(32);
   ModuleBuilder mb(TestBaseName(), &file,
@@ -89,7 +89,7 @@ TEST_P(ModuleBuilderTest, NewSections) {
 }
 
 TEST_P(ModuleBuilderTest, Registers) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   Package p(TestBaseName());
   Type* u32 = p.GetBitsType(32);
   ModuleBuilder mb(TestBaseName(), &file,
@@ -111,7 +111,7 @@ TEST_P(ModuleBuilderTest, Registers) {
 }
 
 TEST_P(ModuleBuilderTest, RegisterWithSynchronousReset) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   Package p(TestBaseName());
   Type* u32 = p.GetBitsType(32);
   ResetProto reset;
@@ -142,7 +142,7 @@ TEST_P(ModuleBuilderTest, RegisterWithSynchronousReset) {
 }
 
 TEST_P(ModuleBuilderTest, RegisterWithAsynchronousActiveLowReset) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   Package p(TestBaseName());
   Type* u32 = p.GetBitsType(32);
   ResetProto reset;
@@ -173,7 +173,7 @@ TEST_P(ModuleBuilderTest, RegisterWithAsynchronousActiveLowReset) {
 }
 
 TEST_P(ModuleBuilderTest, RegisterWithLoadEnable) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   Package p(TestBaseName());
   Type* u32 = p.GetBitsType(32);
   ModuleBuilder mb(TestBaseName(), &file,
@@ -196,7 +196,7 @@ TEST_P(ModuleBuilderTest, RegisterWithLoadEnable) {
 }
 
 TEST_P(ModuleBuilderTest, RegisterWithLoadEnableAndReset) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   Package p(TestBaseName());
   Type* u32 = p.GetBitsType(32);
   ResetProto reset;
@@ -227,7 +227,7 @@ TEST_P(ModuleBuilderTest, RegisterWithLoadEnableAndReset) {
 }
 
 TEST_P(ModuleBuilderTest, ComplexComputation) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   Package p(TestBaseName());
   Type* u32 = p.GetBitsType(32);
   Type* u16 = p.GetBitsType(16);
@@ -250,7 +250,7 @@ TEST_P(ModuleBuilderTest, ComplexComputation) {
 }
 
 TEST_P(ModuleBuilderTest, ReturnConstantArray) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   // The XLS IR package is just used for type management.
   Package package(TestBaseName());
   ModuleBuilder mb(TestBaseName(), &file,
@@ -265,7 +265,7 @@ TEST_P(ModuleBuilderTest, ReturnConstantArray) {
 }
 
 TEST_P(ModuleBuilderTest, PassThroughArray) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   // The XLS IR package is just used for type management.
   Package package(TestBaseName());
   ModuleBuilder mb(TestBaseName(), &file,
@@ -279,7 +279,7 @@ TEST_P(ModuleBuilderTest, PassThroughArray) {
 }
 
 TEST_P(ModuleBuilderTest, ReturnConstantTuple) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   // The XLS IR package is just used for type management.
   Package package(TestBaseName());
   ModuleBuilder mb(TestBaseName(), &file,
@@ -295,7 +295,7 @@ TEST_P(ModuleBuilderTest, ReturnConstantTuple) {
 }
 
 TEST_P(ModuleBuilderTest, PassThroughTuple) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   // The XLS IR package is just used for type management.
   Package package(TestBaseName());
   ModuleBuilder mb(TestBaseName(), &file,
@@ -311,7 +311,7 @@ TEST_P(ModuleBuilderTest, PassThroughTuple) {
 }
 
 TEST_P(ModuleBuilderTest, SmulAsFunction) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
@@ -337,7 +337,7 @@ TEST_P(ModuleBuilderTest, SmulAsFunction) {
 }
 
 TEST_P(ModuleBuilderTest, DynamicBitSliceAsFunction) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
@@ -371,7 +371,7 @@ TEST_P(ModuleBuilderTest, DynamicBitSliceAsFunction) {
 }
 
 TEST_P(ModuleBuilderTest, BitSliceUpdateAsFunction) {
-  VerilogFile file;
+  VerilogFile file(UseSystemVerilog());
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);

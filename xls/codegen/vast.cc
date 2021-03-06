@@ -61,22 +61,57 @@ std::string ToString(Direction direction) {
   }
 }
 
-std::string MacroRef::Emit() { return absl::StrCat("`", name_); }
+std::string MacroRef::Emit() const { return absl::StrCat("`", name_); }
 
-std::string Include::Emit() {
+std::string Include::Emit() const {
   return absl::StrFormat("`include \"%s\"", path_);
 }
 
-DataType VerilogFile::DataTypeOfWidth(int64 bit_count) {
+DataType* VerilogFile::BitVectorType(int64 bit_count, bool is_signed) {
   XLS_CHECK_GT(bit_count, 0);
   if (bit_count == 1) {
-    return DataType();
+    return Make<DataType>();
   } else {
-    return DataType(PlainLiteral(bit_count));
+    return Make<DataType>(PlainLiteral(bit_count), is_signed);
   }
 }
 
-std::string VerilogFile::Emit() {
+DataType* VerilogFile::PackedArrayType(int64 element_bit_count,
+                                       absl::Span<const int64> dims,
+                                       bool is_signed) {
+  XLS_CHECK_GT(element_bit_count, 0);
+  std::vector<Expression*> dim_exprs;
+  for (int64 d : dims) {
+    dim_exprs.push_back(PlainLiteral(d));
+  }
+  // For packed arrays we always use a bitvector (non-scalar) for the element
+  // type when the element bit width is 1. For example, if element bit width is
+  // one and dims is {42} we generate the following type:
+  //   reg [0:0][41:0] foo;
+  // If we emitted a scalar type, it would look like:
+  //   reg [41:0] foo;
+  // Which would generate invalid verilog if we index into an element
+  // (e.g. foo[2][0]) because scalars are not indexable.
+  return Make<DataType>(
+      PlainLiteral(element_bit_count), /*packed_dims=*/dim_exprs,
+      /*unpacked_dims=*/std::vector<Expression*>(), is_signed);
+}
+
+DataType* VerilogFile::UnpackedArrayType(int64 element_bit_count,
+                                         absl::Span<const int64> dims,
+                                         bool is_signed) {
+  XLS_CHECK_GT(element_bit_count, 0);
+  std::vector<Expression*> dim_exprs;
+  for (int64 d : dims) {
+    dim_exprs.push_back(PlainLiteral(d));
+  }
+  return Make<DataType>(
+      element_bit_count == 1 ? nullptr : PlainLiteral(element_bit_count),
+      /*packed_dims=*/std::vector<Expression*>(),
+      /*unpacked_dims=*/dim_exprs, is_signed);
+}
+
+std::string VerilogFile::Emit() const {
   auto file_member_str = [](const FileMember& member) -> std::string {
     return absl::visit(
         Visitor{[](Include* m) -> std::string { return m->Emit(); },
@@ -102,14 +137,14 @@ CaseArm::CaseArm(CaseLabel label, VerilogFile* file)
       label_(label),
       statements_(file->Make<StatementBlock>()) {}
 
-std::string CaseArm::Emit() {
+std::string CaseArm::Emit() const {
   return absl::visit(
       Visitor{[](Expression* named) { return named->Emit(); },
               [](DefaultSentinel) { return std::string("default"); }},
       label_);
 }
 
-std::string StatementBlock::Emit() {
+std::string StatementBlock::Emit() const {
   // TODO(meheff): We can probably be smarter about optionally emitting the
   // begin/end.
   if (statements_.empty()) {
@@ -128,7 +163,7 @@ Port Port::FromProto(const PortProto& proto, VerilogFile* f) {
   Port port;
   port.direction = proto.direction() == DIRECTION_INPUT ? Direction::kInput
                                                         : Direction::kOutput;
-  port.wire = f->Make<WireDef>(proto.name(), f->DataTypeOfWidth(proto.width()));
+  port.wire = f->Make<WireDef>(proto.name(), f->BitVectorType(proto.width()));
   return port;
 }
 
@@ -142,7 +177,7 @@ absl::StatusOr<PortProto> Port::ToProto() const {
   proto.set_direction(direction == Direction::kInput ? DIRECTION_INPUT
                                                      : DIRECTION_OUTPUT);
   proto.set_name(wire->GetName());
-  XLS_ASSIGN_OR_RETURN(int64 width, wire->FlatBitCountAsInt64());
+  XLS_ASSIGN_OR_RETURN(int64 width, wire->data_type()->FlatBitCountAsInt64());
   proto.set_width(width);
   return proto;
 }
@@ -154,7 +189,8 @@ static absl::StatusOr<int64> GetBitsForDirection(absl::Span<const Port> ports,
     if (port.direction != direction) {
       continue;
     }
-    XLS_ASSIGN_OR_RETURN(int64 width, port.wire->FlatBitCountAsInt64());
+    XLS_ASSIGN_OR_RETURN(int64 width,
+                         port.wire->data_type()->FlatBitCountAsInt64());
     result += width;
   }
   return result;
@@ -168,14 +204,14 @@ absl::StatusOr<int64> GetOutputBits(absl::Span<const Port> ports) {
   return GetBitsForDirection(ports, Direction::kOutput);
 }
 
-VerilogFunction::VerilogFunction(absl::string_view name, DataType result_type,
+VerilogFunction::VerilogFunction(absl::string_view name, DataType* result_type,
                                  VerilogFile* file)
     : VastNode(file),
       name_(name),
       return_value_def_(file->Make<RegDef>(name, result_type)),
       statement_block_(file->Make<StatementBlock>()) {}
 
-LogicRef* VerilogFunction::AddArgument(absl::string_view name, DataType type) {
+LogicRef* VerilogFunction::AddArgument(absl::string_view name, DataType* type) {
   argument_defs_.push_back(file()->Make<RegDef>(name, type));
   return file()->Make<LogicRef>(argument_defs_.back());
 }
@@ -184,24 +220,24 @@ LogicRef* VerilogFunction::return_value_ref() {
   return file()->Make<LogicRef>(return_value_def_);
 }
 
-std::string VerilogFunction::Emit() {
+std::string VerilogFunction::Emit() const {
   std::vector<std::string> lines;
   for (RegDef* reg_def : block_reg_defs_) {
     lines.push_back(reg_def->Emit());
   }
   lines.push_back(statement_block_->Emit());
   return absl::StrCat(
-      absl::StrFormat("function automatic%s %s (%s);\n",
-                      return_value_ref()->def()->data_type().Emit(), name(),
-                      absl::StrJoin(argument_defs_, ", ",
-                                    [](std::string* out, RegDef* d) {
-                                      absl::StrAppend(out, "input ",
-                                                      d->EmitNoSemi());
-                                    })),
+      absl::StrFormat(
+          "function automatic%s (%s);\n",
+          return_value_def_->data_type()->EmitWithIdentifier(name()),
+          absl::StrJoin(argument_defs_, ", ",
+                        [](std::string* out, RegDef* d) {
+                          absl::StrAppend(out, "input ", d->EmitNoSemi());
+                        })),
       Indent(absl::StrJoin(lines, "\n")), "\nendfunction");
 }
 
-std::string VerilogFunctionCall::Emit() {
+std::string VerilogFunctionCall::Emit() const {
   return absl::StrFormat(
       "%s(%s)", func_->name(),
       absl::StrJoin(args_, ", ", [](std::string* out, Expression* e) {
@@ -214,28 +250,17 @@ LogicRef* Module::AddPortDef(Direction direction, Def* def) {
   return file()->Make<LogicRef>(def);
 }
 
-LogicRef* Module::AddInput(absl::string_view name, DataType type) {
+LogicRef* Module::AddInput(absl::string_view name, DataType* type) {
   return AddPortDef(Direction::kInput,
                     file()->Make<WireDef>(name, std::move(type)));
 }
 
-LogicRef* Module::AddOutput(absl::string_view name, DataType type) {
+LogicRef* Module::AddOutput(absl::string_view name, DataType* type) {
   return AddPortDef(Direction::kOutput,
                     file()->Make<WireDef>(name, std::move(type)));
 }
 
-LogicRef* Module::AddUnpackedArrayReg(
-    absl::string_view name, DataType type,
-    absl::Span<const UnpackedArrayBound> bounds, Expression* init,
-    ModuleSection* section) {
-  if (section == nullptr) {
-    section = &top_;
-  }
-  return file()->Make<LogicRef>(
-      section->Add<UnpackedArrayRegDef>(name, std::move(type), bounds, init));
-}
-
-LogicRef* Module::AddReg(absl::string_view name, DataType type,
+LogicRef* Module::AddReg(absl::string_view name, DataType* type,
                          Expression* init, ModuleSection* section) {
   if (section == nullptr) {
     section = &top_;
@@ -244,7 +269,7 @@ LogicRef* Module::AddReg(absl::string_view name, DataType type,
       section->Add<RegDef>(name, std::move(type), init));
 }
 
-LogicRef* Module::AddWire(absl::string_view name, DataType type,
+LogicRef* Module::AddWire(absl::string_view name, DataType* type,
                           ModuleSection* section) {
   if (section == nullptr) {
     section = &top_;
@@ -277,7 +302,7 @@ LogicRef* Expression::AsLogicRefOrDie() {
   return static_cast<LogicRef*>(this);
 }
 
-std::string XSentinel::Emit() { return absl::StrFormat("%d'dx", width_); }
+std::string XSentinel::Emit() const { return absl::StrFormat("%d'dx", width_); }
 
 // Returns a string representation of the given expression minus one.
 static std::string WidthToLimit(Expression* expr) {
@@ -291,33 +316,24 @@ static std::string WidthToLimit(Expression* expr) {
   return width_minus_one->Emit();
 }
 
-// For the given expression returns a string " [width - 1:0]". The space before
-// the '[' is for more convenient formatting in the caller. If width is null
-// then the empty string is returned.
-static std::string WidthToRangeString(Expression* width) {
-  if (width == nullptr) {
-    return "";
+std::string DataType::EmitWithIdentifier(absl::string_view identifier) const {
+  std::string result = is_signed_ ? " signed" : "";
+  if (width_ != nullptr) {
+    absl::StrAppendFormat(&result, " [%s:0]", WidthToLimit(width()));
   }
-  return absl::StrFormat(" [%s:0]", WidthToLimit(width));
-}
-
-// Returns a string range representation of the given dimensions of a packed
-// array. For example, {2, 3, WIDTH} yields "[1:0][2:0][WIDTH-1:0]"
-static std::string PackedDimsToRangeString(absl::Span<Expression* const> dims) {
-  if (dims.empty()) {
-    return "";
-  }
-  std::string result;
-  for (Expression* dim : dims) {
+  for (Expression* dim : packed_dims()) {
     absl::StrAppendFormat(&result, "[%s:0]", WidthToLimit(dim));
   }
-  return result;
-}
-
-std::string DataType::Emit() const {
-  std::string result = is_signed_ ? " signed" : "";
-  absl::StrAppend(&result, WidthToRangeString(width_));
-  absl::StrAppend(&result, PackedDimsToRangeString(packed_dims_));
+  absl::StrAppend(&result, " ", identifier);
+  for (Expression* dim : unpacked_dims()) {
+    // In SystemVerilog unpacked arrays can be specified using only the size
+    // rather than a range.
+    if (file()->use_system_verilog()) {
+      absl::StrAppendFormat(&result, "[%s]", dim->Emit());
+    } else {
+      absl::StrAppendFormat(&result, "[0:%s]", WidthToLimit(dim));
+    }
+  }
   return result;
 }
 
@@ -338,8 +354,17 @@ absl::StatusOr<int64> DataType::FlatBitCountAsInt64() const {
   XLS_ASSIGN_OR_RETURN(int64 bit_count, WidthAsInt64());
   for (Expression* dim : packed_dims()) {
     if (!dim->IsLiteral()) {
-      return absl::FailedPreconditionError("Dimension is not a literal:" +
-                                           dim->Emit());
+      return absl::FailedPreconditionError(
+          "Packed dimension is not a literal:" + dim->Emit());
+    }
+    XLS_ASSIGN_OR_RETURN(int64 dim_size,
+                         dim->AsLiteralOrDie()->bits().ToUint64());
+    bit_count = bit_count * dim_size;
+  }
+  for (Expression* dim : unpacked_dims()) {
+    if (!dim->IsLiteral()) {
+      return absl::FailedPreconditionError(
+          "Unpacked dimension is not a literal:" + dim->Emit());
     }
     XLS_ASSIGN_OR_RETURN(int64 dim_size,
                          dim->AsLiteralOrDie()->bits().ToUint64());
@@ -348,7 +373,7 @@ absl::StatusOr<int64> DataType::FlatBitCountAsInt64() const {
   return bit_count;
 }
 
-std::string Def::Emit() { return EmitNoSemi() + ";"; }
+std::string Def::Emit() const { return EmitNoSemi() + ";"; }
 
 std::string Def::EmitNoSemi() const {
   std::string kind_str;
@@ -363,55 +388,14 @@ std::string Def::EmitNoSemi() const {
       kind_str = "logic";
       break;
   }
-  return absl::StrCat(kind_str, data_type().Emit(), " ", GetName());
+  return absl::StrCat(kind_str, data_type()->EmitWithIdentifier(GetName()));
 }
 
-std::string RegDef::Emit() {
+std::string RegDef::Emit() const {
   std::string result = Def::EmitNoSemi();
   if (init_ != nullptr) {
     absl::StrAppend(&result, " = ", init_->Emit());
   }
-  absl::StrAppend(&result, ";");
-  return result;
-}
-
-// Returns a string appropriate for defining the array bounds of a unpacked
-// array reg declaration. The string is a sequence of sizes (e.g.,
-// "[0:41][0:122]" or "[42][123]" depending upon whether the bounds are defined
-// with ranges or sizes) with the first size corresponding to the outer most
-// dimension of the array.
-static std::string UnpackedArrayBoundsToString(
-    absl::Span<const UnpackedArrayBound> bounds) {
-  XLS_CHECK_GE(bounds.size(), 1);
-  std::string result;
-  for (const UnpackedArrayBound& bound : bounds) {
-    absl::visit(Visitor{[&](Expression* size) {
-                          absl::StrAppendFormat(&result, "[%s]", size->Emit());
-                        },
-                        [&](std::pair<Expression*, Expression*> pair) {
-                          absl::StrAppendFormat(&result, "[%s:%s]",
-                                                pair.first->Emit(),
-                                                pair.second->Emit());
-                        }},
-                bound);
-  }
-  return result;
-}
-
-std::string UnpackedArrayRegDef::Emit() {
-  std::string result = absl::StrFormat("%s%s", Def::EmitNoSemi(),
-                                       UnpackedArrayBoundsToString(bounds()));
-  if (init_ != nullptr) {
-    absl::StrAppend(&result, " = ", init_->Emit());
-  }
-  absl::StrAppend(&result, ";");
-  return result;
-}
-
-std::string UnpackedArrayWireDef::Emit() {
-  std::string result =
-      absl::StrFormat("wire%s %s%s", WidthToRangeString(width()), GetName(),
-                      UnpackedArrayBoundsToString(bounds()));
   absl::StrAppend(&result, ";");
   return result;
 }
@@ -454,7 +438,7 @@ std::vector<ModuleMember> ModuleSection::GatherMembers() const {
   return all_members;
 }
 
-std::string ModuleSection::Emit() {
+std::string ModuleSection::Emit() const {
   std::vector<std::string> elements;
   for (const ModuleMember& member : GatherMembers()) {
     elements.push_back(EmitModuleMember(member));
@@ -462,17 +446,17 @@ std::string ModuleSection::Emit() {
   return absl::StrJoin(elements, "\n");
 }
 
-std::string ContinuousAssignment::Emit() {
+std::string ContinuousAssignment::Emit() const {
   return absl::StrFormat("assign %s = %s;", lhs_->Emit(), rhs_->Emit());
 }
 
-std::string Comment::Emit() {
+std::string Comment::Emit() const {
   return absl::StrCat("// ", absl::StrReplaceAll(text_, {{"\n", "\n// "}}));
 }
 
-std::string RawStatement::Emit() { return text_; }
+std::string RawStatement::Emit() const { return text_; }
 
-std::string Assert::Emit() {
+std::string Assert::Emit() const {
   // The $fatal statement takes finish_number as the first argument which is a
   // value in the set {0, 1, 2}. This value "may be used in an
   // implementation-specific manner" (from the SystemVerilog LRM). We choose
@@ -484,7 +468,7 @@ std::string Assert::Emit() {
                              : absl::StrFormat(", \"%s\"", error_message_));
 }
 
-std::string SystemTaskCall::Emit() {
+std::string SystemTaskCall::Emit() const {
   if (args_.has_value()) {
     return absl::StrFormat(
         "$%s(%s);", name_,
@@ -496,7 +480,7 @@ std::string SystemTaskCall::Emit() {
   }
 }
 
-std::string SystemFunctionCall::Emit() {
+std::string SystemFunctionCall::Emit() const {
   if (args_.has_value()) {
     return absl::StrFormat(
         "$%s(%s)", name_,
@@ -508,7 +492,7 @@ std::string SystemFunctionCall::Emit() {
   }
 }
 
-std::string Module::Emit() {
+std::string Module::Emit() const {
   std::string result = absl::StrCat("module ", name_);
   if (ports_.empty()) {
     absl::StrAppend(&result, ";\n");
@@ -527,7 +511,7 @@ std::string Module::Emit() {
   return result;
 }
 
-std::string Literal::Emit() {
+std::string Literal::Emit() const {
   if (format_ == FormatPreference::kDefault) {
     XLS_CHECK_LE(bits_.bit_count(), 32);
     return absl::StrFormat("%s", bits_.ToString(FormatPreference::kDecimal));
@@ -559,10 +543,17 @@ bool Literal::IsLiteralWithValue(int64 target) const {
 }
 
 // TODO(meheff): Escape string.
-std::string QuotedString::Emit() { return absl::StrFormat("\"%s\"", str_); }
+std::string QuotedString::Emit() const {
+  return absl::StrFormat("\"%s\"", str_);
+}
 
-std::string Slice::Emit() {
-  if (subject_->IsScalar()) {
+static bool IsScalarLogicRef(IndexableExpression* expr) {
+  auto* logic_ref = dynamic_cast<LogicRef*>(expr);
+  return logic_ref != nullptr && logic_ref->def()->data_type()->IsScalar();
+}
+
+std::string Slice::Emit() const {
+  if (IsScalarLogicRef(subject_)) {
     // If subject is scalar (no width given in declaration) then avoid slicing
     // as this is invalid Verilog. The only valid hi/lo values are zero.
     // TODO(https://github.com/google/xls/issues/43): Avoid this special case
@@ -575,13 +566,13 @@ std::string Slice::Emit() {
                          lo_->Emit());
 }
 
-std::string PartSelect::Emit() {
+std::string PartSelect::Emit() const {
   return absl::StrFormat("%s[%s +: %s]", subject_->Emit(), start_->Emit(),
                          width_->Emit());
 }
 
-std::string Index::Emit() {
-  if (subject_->IsScalar()) {
+std::string Index::Emit() const {
+  if (IsScalarLogicRef(subject_)) {
     // If subject is scalar (no width given in declaration) then avoid indexing
     // as this is invalid Verilog. The only valid index values are zero.
     // TODO(https://github.com/google/xls/issues/43): Avoid this special case
@@ -598,7 +589,7 @@ static std::string ParenWrap(absl::string_view s) {
   return absl::StrFormat("(%s)", s);
 }
 
-std::string Ternary::Emit() {
+std::string Ternary::Emit() const {
   auto maybe_paren_wrap = [this](Expression* e) {
     if (e->precedence() <= precedence()) {
       return ParenWrap(e->Emit());
@@ -610,15 +601,15 @@ std::string Ternary::Emit() {
                          maybe_paren_wrap(alternate_));
 }
 
-std::string Parameter::Emit() {
+std::string Parameter::Emit() const {
   return absl::StrFormat("parameter %s = %s;", name_, rhs_->Emit());
 }
 
-std::string LocalParamItem::Emit() {
+std::string LocalParamItem::Emit() const {
   return absl::StrFormat("%s = %s", name_, rhs_->Emit());
 }
 
-std::string LocalParam::Emit() {
+std::string LocalParam::Emit() const {
   std::string result = "localparam";
   if (items_.size() == 1) {
     absl::StrAppend(&result, " ", items_[0]->Emit(), ";");
@@ -632,7 +623,7 @@ std::string LocalParam::Emit() {
   return result;
 }
 
-std::string BinaryInfix::Emit() {
+std::string BinaryInfix::Emit() const {
   // Equal precedence operators are evaluated left-to-right so LHS only needs to
   // be wrapped if its precedence is strictly less than this operators. The
   // RHS, however, must be wrapped if its less than or equal precedence.
@@ -645,7 +636,7 @@ std::string BinaryInfix::Emit() {
   return absl::StrFormat("%s %s %s", lhs_string, op_, rhs_string);
 }
 
-std::string Concat::Emit() {
+std::string Concat::Emit() const {
   std::string arg_string = absl::StrFormat(
       "{%s}", absl::StrJoin(args_, ", ", [](std::string* out, Expression* e) {
         absl::StrAppend(out, e->Emit());
@@ -658,14 +649,14 @@ std::string Concat::Emit() {
   }
 }
 
-std::string ArrayAssignmentPattern::Emit() {
+std::string ArrayAssignmentPattern::Emit() const {
   return absl::StrFormat(
       "'{%s}", absl::StrJoin(args_, ", ", [](std::string* out, Expression* e) {
         absl::StrAppend(out, e->Emit());
       }));
 }
 
-std::string Unary::Emit() {
+std::string Unary::Emit() const {
   // Nested unary ops should be wrapped in parentheses as this is required by
   // some consumers of Verilog.
   return absl::StrFormat(
@@ -680,7 +671,7 @@ StatementBlock* Case::AddCaseArm(CaseLabel label) {
   return arms_.back()->statements();
 }
 
-std::string Case::Emit() {
+std::string Case::Emit() const {
   std::string result = absl::StrFormat("case (%s)\n", subject_->Emit());
   for (auto& arm : arms_) {
     absl::StrAppend(&result,
@@ -705,7 +696,7 @@ StatementBlock* Conditional::AddAlternate(Expression* condition) {
   return alternates_.back().second;
 }
 
-std::string Conditional::Emit() {
+std::string Conditional::Emit() const {
   std::string result;
   absl::StrAppendFormat(&result, "if (%s) %s", condition_->Emit(),
                         consequent()->Emit());
@@ -724,29 +715,29 @@ WhileStatement::WhileStatement(Expression* condition, VerilogFile* file)
       condition_(condition),
       statements_(file->Make<StatementBlock>()) {}
 
-std::string WhileStatement::Emit() {
+std::string WhileStatement::Emit() const {
   return absl::StrFormat("while (%s) %s", condition_->Emit(),
                          statements()->Emit());
 }
 
-std::string RepeatStatement::Emit() {
+std::string RepeatStatement::Emit() const {
   return absl::StrFormat("repeat (%s) %s;", repeat_count_->Emit(),
                          statement_->Emit());
 }
 
-std::string EventControl::Emit() {
+std::string EventControl::Emit() const {
   return absl::StrFormat("@(%s);", event_expression_->Emit());
 }
 
-std::string PosEdge::Emit() {
+std::string PosEdge::Emit() const {
   return absl::StrFormat("posedge %s", expression_->Emit());
 }
 
-std::string NegEdge::Emit() {
+std::string NegEdge::Emit() const {
   return absl::StrFormat("negedge %s", expression_->Emit());
 }
 
-std::string DelayStatement::Emit() {
+std::string DelayStatement::Emit() const {
   std::string delay_str = delay_->precedence() < Expression::kMaxPrecedence
                               ? ParenWrap(delay_->Emit())
                               : delay_->Emit();
@@ -757,19 +748,19 @@ std::string DelayStatement::Emit() {
   }
 }
 
-std::string WaitStatement::Emit() {
+std::string WaitStatement::Emit() const {
   return absl::StrFormat("wait(%s);", event_->Emit());
 }
 
-std::string Forever::Emit() {
+std::string Forever::Emit() const {
   return absl::StrCat("forever ", statement_->Emit());
 }
 
-std::string BlockingAssignment::Emit() {
+std::string BlockingAssignment::Emit() const {
   return absl::StrFormat("%s = %s;", lhs_->Emit(), rhs_->Emit());
 }
 
-std::string NonblockingAssignment::Emit() {
+std::string NonblockingAssignment::Emit() const {
   return absl::StrFormat("%s <= %s;", lhs_->Emit(), rhs_->Emit());
 }
 
@@ -788,7 +779,7 @@ std::string EmitSensitivityListElement(const SensitivityListElement& element) {
 
 }  // namespace
 
-std::string AlwaysBase::Emit() {
+std::string AlwaysBase::Emit() const {
   return absl::StrFormat(
       "%s @ (%s) %s", name(),
       absl::StrJoin(sensitivity_list_, " or ",
@@ -798,11 +789,11 @@ std::string AlwaysBase::Emit() {
       statements_->Emit());
 }
 
-std::string AlwaysComb::Emit() {
+std::string AlwaysComb::Emit() const {
   return absl::StrFormat("%s %s", name(), statements_->Emit());
 }
 
-std::string Initial::Emit() {
+std::string Initial::Emit() const {
   std::string result = "initial ";
   absl::StrAppend(&result, statements_->Emit());
   return result;
@@ -842,7 +833,7 @@ void AlwaysFlop::AddRegister(LogicRef* reg, Expression* reg_next,
   assignment_block_->Add<NonblockingAssignment>(reg, reg_next);
 }
 
-std::string AlwaysFlop::Emit() {
+std::string AlwaysFlop::Emit() const {
   std::string result;
   std::string sensitivity_list = absl::StrCat("posedge ", clk_->Emit());
   if (rst_.has_value() && rst_->asynchronous) {
@@ -855,7 +846,7 @@ std::string AlwaysFlop::Emit() {
   return result;
 }
 
-std::string Instantiation::Emit() {
+std::string Instantiation::Emit() const {
   std::string result = absl::StrCat(module_name_, " ");
   auto append_connection = [](std::string* out, const Connection& parameter) {
     absl::StrAppendFormat(out, ".%s(%s)", parameter.port_name,

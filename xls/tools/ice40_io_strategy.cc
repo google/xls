@@ -34,11 +34,11 @@ absl::Status Ice40IoStrategy::AddTopLevelDependencies(LogicRef* clk,
                                                       Reset reset, Module* m) {
   VerilogFile* f = m->file();
   clk_ = clk;
-  rx_in_ = m->AddInput("rx_in", f->DataTypeOfWidth(1));
-  tx_out_ = m->AddOutput("tx_out", f->DataTypeOfWidth(1));
+  rx_in_ = m->AddInput("rx_in", f->ScalarType());
+  tx_out_ = m->AddOutput("tx_out", f->ScalarType());
   LogicRef* clear_to_send_out_n =
-      m->AddOutput("clear_to_send_out_n", f->DataTypeOfWidth(1));
-  clear_to_send_ = m->AddWire("clear_to_send", f->DataTypeOfWidth(1));
+      m->AddOutput("clear_to_send_out_n", f->ScalarType());
+  clear_to_send_ = m->AddWire("clear_to_send", f->ScalarType());
   m->Add<ContinuousAssignment>(clear_to_send_out_n,
                                f->LogicalNot(clear_to_send_));
 

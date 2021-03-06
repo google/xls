@@ -24,6 +24,7 @@
 #include "absl/types/span.h"
 #include "xls/codegen/vast.h"
 #include "xls/ir/node.h"
+#include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -212,15 +213,6 @@ class ModuleBuilder {
   const absl::optional<Reset>& reset() const { return rst_; }
 
  private:
-  // Declares an unpacked array wire/reg variable of the given XLS array type in
-  // the given ModuleSection.
-  LogicRef* DeclareUnpackedArrayWire(absl::string_view name,
-                                     ArrayType* array_type,
-                                     ModuleSection* section);
-  LogicRef* DeclareUnpackedArrayReg(absl::string_view name,
-                                    ArrayType* array_type,
-                                    ModuleSection* section);
-
   // Assigns 'rhs' to 'lhs'. Depending upon the type this may require multiple
   // assignment statements (e.g., for array assignments in Verilog). The
   // function add_assignment should add a single assignment
@@ -312,12 +304,15 @@ class ModuleBuilder {
   std::string module_name_;
   VerilogFile* file_;
 
-  LogicRef* clk_ = nullptr;
-  absl::optional<Reset> rst_;
+  // A dummy package is required to generate types from Values.
+  Package package_;
 
   // True if SystemVerilog constructs can be used. Otherwise the emitted code is
   // strictly Verilog.
   bool use_system_verilog_;
+
+  LogicRef* clk_ = nullptr;
+  absl::optional<Reset> rst_;
 
   Module* module_;
   ModuleSection* functions_section_;

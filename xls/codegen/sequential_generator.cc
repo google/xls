@@ -413,8 +413,8 @@ absl::Status SequentialModuleBuilder::InitializeModuleBuilder(
     return module_builder_->AddInputPort(SanitizeIdentifier(name), num_bits);
   };
   auto add_output_port = [&](absl::string_view name, int64 num_bits) {
-    return module_builder_->module()->AddOutput(
-        SanitizeIdentifier(name), file_.DataTypeOfWidth(num_bits));
+    return module_builder_->module()->AddOutput(SanitizeIdentifier(name),
+                                                file_.BitVectorType(num_bits));
   };
 
   // Clock.

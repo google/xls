@@ -115,19 +115,15 @@ TEST_F(ValueFlatteningTest, ExpressionFlattening) {
   ArrayType* a_of_b5 = p.GetArrayType(3, b5);
   ArrayType* array_2d = p.GetArrayType(2, a_of_b5);
 
-  verilog::VerilogFile f;
+  verilog::VerilogFile f(/*use_system_verilog=*/false);
   verilog::Module* m = f.AddModule(TestName());
 
-  EXPECT_EQ(FlattenArray(m->AddUnpackedArrayReg("foo", f.DataTypeOfWidth(5),
-                                                {f.PlainLiteral(3)}),
-                         a_of_b5, &f)
-                ->Emit(),
-            "{foo[0], foo[1], foo[2]}");
   EXPECT_EQ(
-      FlattenArray(
-          m->AddUnpackedArrayReg("foo", f.DataTypeOfWidth(5),
-                                 {f.PlainLiteral(2), f.PlainLiteral(3)}),
-          array_2d, &f)
+      FlattenArray(m->AddReg("foo", f.UnpackedArrayType(5, {3})), a_of_b5, &f)
+          ->Emit(),
+      "{foo[0], foo[1], foo[2]}");
+  EXPECT_EQ(
+      FlattenArray(m->AddReg("foo", f.UnpackedArrayType(5, {2})), array_2d, &f)
           ->Emit(),
       "{{foo[0][0], foo[0][1], foo[0][2]}, {foo[1][0], foo[1][1], foo[1][2]}}");
 }
@@ -138,27 +134,26 @@ TEST_F(ValueFlatteningTest, ExpressionUnflattening) {
   ArrayType* a_of_b5 = p.GetArrayType(3, b5);
   ArrayType* array_2d = p.GetArrayType(2, a_of_b5);
 
-  verilog::VerilogFile f;
+  verilog::VerilogFile f(/*use_system_verilog=*/false);
   verilog::Module* m = f.AddModule(TestName());
 
-  EXPECT_EQ(UnflattenArray(m->AddReg("foo", f.DataTypeOfWidth(15)), a_of_b5, &f)
+  EXPECT_EQ(UnflattenArray(m->AddReg("foo", f.BitVectorType(15)), a_of_b5, &f)
                 ->Emit(),
             "'{foo[14:10], foo[9:5], foo[4:0]}");
-  EXPECT_EQ(
-      UnflattenArray(m->AddReg("foo", f.DataTypeOfWidth(30)), array_2d, &f)
-          ->Emit(),
-      "'{'{foo[29:25], foo[24:20], foo[19:15]}, '{foo[14:10], foo[9:5], "
-      "foo[4:0]}}");
+  EXPECT_EQ(UnflattenArray(m->AddReg("foo", f.BitVectorType(30)), array_2d, &f)
+                ->Emit(),
+            "'{'{foo[29:25], foo[24:20], foo[19:15]}, '{foo[14:10], foo[9:5], "
+            "foo[4:0]}}");
 
   TupleType* tuple_type = p.GetTupleType({array_2d, b5, a_of_b5});
   EXPECT_EQ(
-      UnflattenArrayShapedTupleElement(m->AddReg("foo", f.DataTypeOfWidth(50)),
+      UnflattenArrayShapedTupleElement(m->AddReg("foo", f.BitVectorType(50)),
                                        tuple_type, 0, &f)
           ->Emit(),
       "'{'{foo[49:45], foo[44:40], foo[39:35]}, '{foo[34:30], foo[29:25], "
       "foo[24:20]}}");
   EXPECT_EQ(UnflattenArrayShapedTupleElement(
-                m->AddReg("foo", f.DataTypeOfWidth(50)), tuple_type, 2, &f)
+                m->AddReg("foo", f.BitVectorType(50)), tuple_type, 2, &f)
                 ->Emit(),
             "'{foo[14:10], foo[9:5], foo[4:0]}");
 }

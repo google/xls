@@ -316,7 +316,7 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModule(
   std::string module_name = options.module_name().has_value()
                                 ? std::string{options.module_name().value()}
                                 : SanitizeIdentifier(proc->name());
-  VerilogFile f;
+  VerilogFile f(options.use_system_verilog());
   ModuleBuilder mb(module_name, &f,
                    /*use_system_verilog=*/options.use_system_verilog(),
                    options.clock_name(), options.reset());

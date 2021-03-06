@@ -96,7 +96,9 @@ class SequentialModuleBuilder {
  public:
   SequentialModuleBuilder(const SequentialOptions& options,
                           const CountedFor* loop)
-      : loop_(loop), sequential_options_(options) {}
+      : file_(options.use_system_verilog()),
+        loop_(loop),
+        sequential_options_(options) {}
 
   // Container for logical references to the ports of the sequential module.
   struct PortReferences {

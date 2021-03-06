@@ -27,7 +27,12 @@ using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::HasSubstr;
 
-TEST(VastTest, SanitizeIdentifier) {
+class VastTest : public testing::TestWithParam<bool> {
+ protected:
+  bool UseSystemVerilog() const { return GetParam(); }
+};
+
+TEST_P(VastTest, SanitizeIdentifier) {
   EXPECT_EQ("foo", SanitizeIdentifier("foo"));
   EXPECT_EQ("foo_bar", SanitizeIdentifier("foo_bar"));
   EXPECT_EQ("__bar77__", SanitizeIdentifier("__bar77__"));
@@ -40,101 +45,115 @@ TEST(VastTest, SanitizeIdentifier) {
   EXPECT_EQ("add_1234", SanitizeIdentifier("add.1234"));
 }
 
-TEST(VastTest, DataTypes) {
-  VerilogFile f;
+TEST_P(VastTest, DataTypes) {
+  VerilogFile f(UseSystemVerilog());
 
-  DataType scalar;
-  EXPECT_EQ(scalar.Emit(), "");
-  EXPECT_THAT(scalar.WidthAsInt64(), IsOkAndHolds(1));
-  EXPECT_THAT(scalar.FlatBitCountAsInt64(), IsOkAndHolds(1));
-  EXPECT_EQ(scalar.width(), nullptr);
-  EXPECT_FALSE(scalar.is_signed());
+  DataType* scalar = f.ScalarType();
+  EXPECT_EQ(scalar->EmitWithIdentifier("foo"), " foo");
+  EXPECT_THAT(scalar->WidthAsInt64(), IsOkAndHolds(1));
+  EXPECT_THAT(scalar->FlatBitCountAsInt64(), IsOkAndHolds(1));
+  EXPECT_EQ(scalar->width(), nullptr);
+  EXPECT_FALSE(scalar->is_signed());
 
-  // A width 1 data type returned from DataTypeOfWidth should be a scalar.
-  DataType width1 = f.DataTypeOfWidth(1);
-  EXPECT_EQ(width1.Emit(), "");
-  EXPECT_THAT(width1.WidthAsInt64(), IsOkAndHolds(1));
-  EXPECT_THAT(width1.FlatBitCountAsInt64(), IsOkAndHolds(1));
-  EXPECT_EQ(width1.width(), nullptr);
-  EXPECT_FALSE(width1.is_signed());
+  // A width 1 data type returned from BitVectorType should be a scalar.
+  DataType* width1 = f.BitVectorType(1);
+  EXPECT_EQ(width1->EmitWithIdentifier("foo"), " foo");
+  EXPECT_THAT(width1->WidthAsInt64(), IsOkAndHolds(1));
+  EXPECT_THAT(width1->FlatBitCountAsInt64(), IsOkAndHolds(1));
+  EXPECT_EQ(width1->width(), nullptr);
+  EXPECT_FALSE(width1->is_signed());
 
-  DataType u2 = f.DataTypeOfWidth(2);
-  EXPECT_EQ(u2.Emit(), " [1:0]");
-  EXPECT_THAT(u2.WidthAsInt64(), IsOkAndHolds(2));
-  EXPECT_THAT(u2.FlatBitCountAsInt64(), IsOkAndHolds(2));
-  EXPECT_FALSE(u2.is_signed());
+  DataType* u2 = f.BitVectorType(2);
+  EXPECT_EQ(u2->EmitWithIdentifier("foo"), " [1:0] foo");
+  EXPECT_THAT(u2->WidthAsInt64(), IsOkAndHolds(2));
+  EXPECT_THAT(u2->FlatBitCountAsInt64(), IsOkAndHolds(2));
+  EXPECT_FALSE(u2->is_signed());
 
-  DataType u32 = DataType(f.PlainLiteral(32));
-  EXPECT_EQ(u32.Emit(), " [31:0]");
-  EXPECT_THAT(u32.WidthAsInt64(), IsOkAndHolds(32));
-  EXPECT_THAT(u32.FlatBitCountAsInt64(), IsOkAndHolds(32));
-  EXPECT_FALSE(u32.is_signed());
+  DataType* u32 = f.BitVectorType(32);
+  EXPECT_EQ(u32->EmitWithIdentifier("foo"), " [31:0] foo");
+  EXPECT_THAT(u32->WidthAsInt64(), IsOkAndHolds(32));
+  EXPECT_THAT(u32->FlatBitCountAsInt64(), IsOkAndHolds(32));
+  EXPECT_FALSE(u32->is_signed());
 
-  DataType s32 = DataType(f.PlainLiteral(32), /*is_signed=*/true);
-  EXPECT_EQ(s32.Emit(), " signed [31:0]");
-  EXPECT_THAT(s32.WidthAsInt64(), IsOkAndHolds(32));
-  EXPECT_THAT(s32.FlatBitCountAsInt64(), IsOkAndHolds(32));
-  EXPECT_TRUE(s32.is_signed());
+  DataType* s32 = f.BitVectorType(32, /*is_signed=*/true);
+  EXPECT_EQ(s32->EmitWithIdentifier("foo"), " signed [31:0] foo");
+  EXPECT_THAT(s32->WidthAsInt64(), IsOkAndHolds(32));
+  EXPECT_THAT(s32->FlatBitCountAsInt64(), IsOkAndHolds(32));
+  EXPECT_TRUE(s32->is_signed());
 
-  DataType packed_array =
-      DataType(/*width=*/f.PlainLiteral(10),
-               /*packed_dims=*/{f.PlainLiteral(3), f.PlainLiteral(2)},
-               /*is_signed=*/false);
-  EXPECT_EQ(packed_array.Emit(), " [9:0][2:0][1:0]");
-  EXPECT_THAT(packed_array.WidthAsInt64(), IsOkAndHolds(10));
-  EXPECT_THAT(packed_array.FlatBitCountAsInt64(), IsOkAndHolds(60));
-  EXPECT_FALSE(packed_array.is_signed());
+  DataType* packed_array = f.PackedArrayType(10, {3, 2});
+  EXPECT_EQ(packed_array->EmitWithIdentifier("foo"), " [9:0][2:0][1:0] foo");
+  EXPECT_THAT(packed_array->WidthAsInt64(), IsOkAndHolds(10));
+  EXPECT_THAT(packed_array->FlatBitCountAsInt64(), IsOkAndHolds(60));
+  EXPECT_FALSE(packed_array->is_signed());
 
-  DataType spacked_array =
-      DataType(/*width=*/f.PlainLiteral(10),
-               /*packed_dims=*/{f.PlainLiteral(3), f.PlainLiteral(2)},
-               /*is_signed=*/true);
-  EXPECT_EQ(spacked_array.Emit(), " signed [9:0][2:0][1:0]");
-  EXPECT_THAT(spacked_array.WidthAsInt64(), IsOkAndHolds(10));
-  EXPECT_THAT(spacked_array.FlatBitCountAsInt64(), IsOkAndHolds(60));
-  EXPECT_TRUE(spacked_array.is_signed());
+  DataType* spacked_array = f.PackedArrayType(10, {3, 2}, /*is_signed=*/true);
+  EXPECT_EQ(spacked_array->EmitWithIdentifier("foo"),
+            " signed [9:0][2:0][1:0] foo");
+  EXPECT_THAT(spacked_array->WidthAsInt64(), IsOkAndHolds(10));
+  EXPECT_THAT(spacked_array->FlatBitCountAsInt64(), IsOkAndHolds(60));
+  EXPECT_TRUE(spacked_array->is_signed());
+
+  DataType* unpacked_array = f.UnpackedArrayType(10, {3, 2});
+  if (f.use_system_verilog()) {
+    EXPECT_EQ(unpacked_array->EmitWithIdentifier("foo"), " [9:0] foo[3][2]");
+  } else {
+    EXPECT_EQ(unpacked_array->EmitWithIdentifier("foo"),
+              " [9:0] foo[0:2][0:1]");
+  }
+  EXPECT_THAT(unpacked_array->WidthAsInt64(), IsOkAndHolds(10));
+  EXPECT_THAT(unpacked_array->FlatBitCountAsInt64(), IsOkAndHolds(60));
+  EXPECT_FALSE(unpacked_array->is_signed());
 
   // Bit vector type with non-literal range.
-  DataType bv =
-      DataType(/*width=*/(f.Mul(f.PlainLiteral(10), f.PlainLiteral(5))));
-  EXPECT_EQ(bv.Emit(), " [10 * 5 - 1:0]");
-  EXPECT_THAT(bv.WidthAsInt64(), StatusIs(absl::StatusCode::kFailedPrecondition,
-                                          HasSubstr("Width is not a literal")));
-  EXPECT_THAT(bv.FlatBitCountAsInt64(),
+  DataType* bv = f.Make<DataType>(
+      /*width=*/(f.Mul(f.PlainLiteral(10), f.PlainLiteral(5))),
+      /*is_signed=*/false);
+  EXPECT_EQ(bv->EmitWithIdentifier("foo"), " [10 * 5 - 1:0] foo");
+  EXPECT_THAT(bv->WidthAsInt64(),
               StatusIs(absl::StatusCode::kFailedPrecondition,
                        HasSubstr("Width is not a literal")));
-  EXPECT_FALSE(bv.is_signed());
+  EXPECT_THAT(bv->FlatBitCountAsInt64(),
+              StatusIs(absl::StatusCode::kFailedPrecondition,
+                       HasSubstr("Width is not a literal")));
+  EXPECT_FALSE(bv->is_signed());
 }
 
-TEST(VastTest, ModuleWithManyVariableDefinitions) {
-  VerilogFile f;
+TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
+  VerilogFile f(UseSystemVerilog());
   Module* module = f.Make<Module>("my_module");
-  LogicRef* a_ref = module->AddInput("a", f.DataTypeOfWidth(1));
-  LogicRef* b_ref = module->AddOutput("b", f.DataTypeOfWidth(4));
-  module->AddInput("array", DataType(f.PlainLiteral(8),
-                                     /*packed_dims=*/{f.PlainLiteral(42),
-                                                      f.PlainLiteral(3)}));
+  LogicRef* a_ref = module->AddInput("a", f.BitVectorType(1));
+  LogicRef* b_ref = module->AddOutput("b", f.BitVectorType(4));
+  module->AddInput("array", f.PackedArrayType(8, {42, 3}));
 
   // Define a bunch of random regs.
-  module->AddReg("r1", f.DataTypeOfWidth(1));
-  module->AddReg("r2", f.DataTypeOfWidth(2));
-  module->AddReg("r1_init", DataType(f.PlainLiteral(1)), f.PlainLiteral(1));
-  module->AddReg("s", DataType(f.PlainLiteral(42)));
-  module->AddReg("s_init", DataType(f.PlainLiteral(42)), f.Literal(123, 42));
-  module->AddReg("t", DataType(/*width=*/f.PlainLiteral(42), /*packed_dims=*/
-                               {f.PlainLiteral(8),
-                                f.Add(f.PlainLiteral(8), f.PlainLiteral(42))}));
-  module->AddReg("signed_foo",
-                 DataType(/*width=*/f.PlainLiteral(8), /*is_signed=*/true));
+  module->AddReg("r1", f.BitVectorType(1));
+  module->AddReg("r2", f.BitVectorType(2));
+  module->AddReg("r1_init",
+                 f.Make<DataType>(f.PlainLiteral(1), /*is_signed=*/false),
+                 f.PlainLiteral(1));
+  module->AddReg("s", f.BitVectorType(42));
+  module->AddReg("s_init", f.BitVectorType(42), f.Literal(123, 42));
+  module->AddReg(
+      "t", f.Make<DataType>(/*width=*/f.PlainLiteral(42), /*packed_dims=*/
+                            std::vector<Expression*>(
+                                {f.PlainLiteral(8),
+                                 f.Add(f.PlainLiteral(8), f.PlainLiteral(42))}),
+                            /*unpacked_dims=*/std::vector<Expression*>(),
+                            /*is_signed=*/false));
+  module->AddReg("signed_foo", f.BitVectorType(8, /*is_signed=*/true));
 
   // Define a bunch of random wires.
-  module->AddWire("x", f.DataTypeOfWidth(1));
-  module->AddWire("y", DataType(f.Literal(1, 16)));
-  module->AddWire("z", DataType(f.Mul(f.PlainLiteral(3), f.PlainLiteral(3)),
-                                /*packed_dims=*/
+  module->AddWire("x", f.BitVectorType(1));
+  module->AddWire("y", f.BitVectorType(1));
+  module->AddWire(
+      "z", f.Make<DataType>(f.Mul(f.PlainLiteral(3), f.PlainLiteral(3)),
+                            /*packed_dims=*/
+                            std::vector<Expression*>(
                                 {f.PlainLiteral(8),
-                                 f.Add(f.PlainLiteral(8), f.PlainLiteral(42))},
-                                /*is_signed=*/true));
+                                 f.Add(f.PlainLiteral(8), f.PlainLiteral(42))}),
+                            /*unpacked_dims=*/std::vector<Expression*>(),
+                            /*is_signed=*/true));
 
   module->Add<ContinuousAssignment>(b_ref,
                                     f.Concat({a_ref, a_ref, a_ref, a_ref}));
@@ -152,69 +171,71 @@ TEST(VastTest, ModuleWithManyVariableDefinitions) {
   reg [41:0][7:0][8 + 42 - 1:0] t;
   reg signed [7:0] signed_foo;
   wire x;
-  wire [0:0] y;
+  wire y;
   wire signed [3 * 3 - 1:0][7:0][8 + 42 - 1:0] z;
   assign b = {a, a, a, a};
 endmodule)");
 }
 
-TEST(VastTest, ModuleWithUnpackedArrayRegWithSize) {
-  VerilogFile f;
+TEST_P(VastTest, ModuleWithUnpackedArrayRegWithSize) {
+  VerilogFile f(UseSystemVerilog());
   Module* module = f.Make<Module>("my_module");
-  LogicRef* out_ref = module->AddOutput("out", f.DataTypeOfWidth(64));
-  LogicRef* arr_ref = module->AddUnpackedArrayReg(
-      "arr", f.DataTypeOfWidth(4),
-      /*array_bounds=*/{f.PlainLiteral(8), f.PlainLiteral(64)});
+  LogicRef* out_ref = module->AddOutput("out", f.BitVectorType(64));
+  LogicRef* arr_ref = module->AddReg("arr", f.UnpackedArrayType(4, {8, 64}));
   module->Add<ContinuousAssignment>(out_ref, f.Index(f.Index(arr_ref, 2), 1));
-  EXPECT_EQ(module->Emit(),
-            R"(module my_module(
+  if (UseSystemVerilog()) {
+    EXPECT_EQ(module->Emit(),
+              R"(module my_module(
   output wire [63:0] out
 );
   reg [3:0] arr[8][64];
   assign out = arr[2][1];
 endmodule)");
-}
-
-TEST(VastTest, ModuleWithUnpackedArrayRegWithPackedDims) {
-  VerilogFile f;
-  Module* module = f.Make<Module>("my_module");
-  LogicRef* out_ref = module->AddOutput("out", f.DataTypeOfWidth(64));
-  LogicRef* arr_ref = module->AddUnpackedArrayReg(
-      "arr",
-      DataType(f.PlainLiteral(4),
-               /*packed_dims=*/{f.PlainLiteral(42), f.PlainLiteral(7)}),
-      /*array_bounds=*/{f.PlainLiteral(8), f.PlainLiteral(64)});
-  module->Add<ContinuousAssignment>(out_ref, f.Index(f.Index(arr_ref, 2), 1));
-  EXPECT_EQ(module->Emit(),
-            R"(module my_module(
-  output wire [63:0] out
-);
-  reg [3:0][41:0][6:0] arr[8][64];
-  assign out = arr[2][1];
-endmodule)");
-}
-
-TEST(VastTest, ModuleWithUnpackedArrayRegWithRanges) {
-  VerilogFile f;
-  Module* module = f.Make<Module>("my_module");
-  LogicRef* out_ref = module->AddOutput("out", DataType(f.PlainLiteral(64)));
-  LogicRef* arr_ref = module->AddUnpackedArrayReg(
-      "arr", f.DataTypeOfWidth(4),
-      /*array_bounds=*/
-      {std::make_pair(f.PlainLiteral(0), f.PlainLiteral(7)),
-       std::make_pair(f.PlainLiteral(0), f.PlainLiteral(63))});
-  module->Add<ContinuousAssignment>(out_ref, f.Index(f.Index(arr_ref, 2), 1));
-  EXPECT_EQ(module->Emit(),
-            R"(module my_module(
+  } else {
+    EXPECT_EQ(module->Emit(),
+              R"(module my_module(
   output wire [63:0] out
 );
   reg [3:0] arr[0:7][0:63];
   assign out = arr[2][1];
 endmodule)");
+  }
 }
 
-TEST(VastTest, Literals) {
-  VerilogFile f;
+TEST_P(VastTest, ModuleWithUnpackedArrayRegWithPackedDims) {
+  VerilogFile f(UseSystemVerilog());
+  Module* module = f.Make<Module>("my_module");
+  LogicRef* out_ref = module->AddOutput("out", f.BitVectorType(64));
+  DataType* array_type = f.Make<DataType>(
+      /*width=*/f.PlainLiteral(4),
+      /*packed_dims=*/
+      std::vector<Expression*>({f.PlainLiteral(42), f.PlainLiteral(7)}),
+      /*unpacked_dims=*/
+      std::vector<Expression*>({f.PlainLiteral(8), f.PlainLiteral(64)}),
+      /*is_signed=*/false);
+  LogicRef* arr_ref = module->AddReg("arr", array_type);
+  module->Add<ContinuousAssignment>(out_ref, f.Index(f.Index(arr_ref, 2), 1));
+  if (UseSystemVerilog()) {
+    EXPECT_EQ(module->Emit(),
+              R"(module my_module(
+  output wire [63:0] out
+);
+  reg [3:0][41:0][6:0] arr[8][64];
+  assign out = arr[2][1];
+endmodule)");
+  } else {
+    EXPECT_EQ(module->Emit(),
+              R"(module my_module(
+  output wire [63:0] out
+);
+  reg [3:0][41:0][6:0] arr[0:7][0:63];
+  assign out = arr[2][1];
+endmodule)");
+  }
+}
+
+TEST_P(VastTest, Literals) {
+  VerilogFile f(UseSystemVerilog());
   EXPECT_EQ("32'd44",
             f.Literal(UBits(44, 32), FormatPreference::kDecimal)->Emit());
   EXPECT_EQ("1'b1", f.Literal(UBits(1, 1), FormatPreference::kBinary)->Emit());
@@ -247,12 +268,12 @@ TEST(VastTest, Literals) {
             "1101_0010");
 }
 
-TEST(VastTest, Precedence) {
-  VerilogFile f;
+TEST_P(VastTest, Precedence) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("precedence");
-  auto a = m->AddReg("a", f.DataTypeOfWidth(8));
-  auto b = m->AddReg("b", f.DataTypeOfWidth(8));
-  auto c = m->AddReg("c", f.DataTypeOfWidth(8));
+  auto a = m->AddReg("a", f.BitVectorType(8));
+  auto b = m->AddReg("b", f.BitVectorType(8));
+  auto c = m->AddReg("c", f.BitVectorType(8));
   EXPECT_EQ("-a", f.Negate(a)->Emit());
   // Though technically not required by precedence the Verilog consumers are
   // happier if nested unary are wrapped in parens.
@@ -272,11 +293,11 @@ TEST(VastTest, Precedence) {
             f.Shll(f.Mul(a, b), f.BitwiseAnd(b, c))->Emit());
 }
 
-TEST(VastTest, NestedUnaryOps) {
-  VerilogFile f;
+TEST_P(VastTest, NestedUnaryOps) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("NestedUnaryOps");
-  auto a = m->AddReg("a", f.DataTypeOfWidth(8));
-  auto b = m->AddReg("b", f.DataTypeOfWidth(8));
+  auto a = m->AddReg("a", f.BitVectorType(8));
+  auto b = m->AddReg("b", f.BitVectorType(8));
   EXPECT_EQ("-a", f.Negate(a)->Emit());
   EXPECT_EQ("-(~a)", f.Negate(f.BitwiseNot(a))->Emit());
   EXPECT_EQ("-(-(-a))", f.Negate(f.Negate(f.Negate(a)))->Emit());
@@ -284,12 +305,12 @@ TEST(VastTest, NestedUnaryOps) {
             f.Sub(f.Negate(f.BitwiseNot(f.Add(a, b))), b)->Emit());
 }
 
-TEST(VastTest, Case) {
-  VerilogFile f;
+TEST_P(VastTest, Case) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  LogicRef* thing_next = m->AddWire("thing_next", f.DataTypeOfWidth(1));
-  LogicRef* thing = m->AddWire("thing", f.DataTypeOfWidth(1));
-  LogicRef* my_state = m->AddWire("my_state", f.DataTypeOfWidth(2));
+  LogicRef* thing_next = m->AddWire("thing_next", f.BitVectorType(1));
+  LogicRef* thing = m->AddWire("thing", f.BitVectorType(1));
+  LogicRef* my_state = m->AddWire("my_state", f.BitVectorType(2));
   AlwaysComb* ac = m->Add<AlwaysComb>();
   Case* case_statement = ac->statements()->Add<Case>(my_state);
   StatementBlock* one_block = case_statement->AddCaseArm(f.Literal(1, 2));
@@ -308,7 +329,7 @@ TEST(VastTest, Case) {
 endcase)");
 }
 
-TEST(VastTest, AlwaysFlopTestNoReset) {
+TEST_P(VastTest, AlwaysFlopTestNoReset) {
   std::vector<std::string> fsm_signals = {
       "rx_byte_done",
       "state",
@@ -316,14 +337,14 @@ TEST(VastTest, AlwaysFlopTestNoReset) {
       "tx_byte_valid",
   };
 
-  VerilogFile f;
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  LogicRef* clk = m->AddInput("my_clk", f.DataTypeOfWidth(1));
+  LogicRef* clk = m->AddInput("my_clk", f.BitVectorType(1));
   AlwaysFlop* af = f.Make<AlwaysFlop>(clk);
   for (const std::string& signal_name : fsm_signals) {
-    LogicRef* signal = m->AddReg(signal_name, f.DataTypeOfWidth(1));
+    LogicRef* signal = m->AddReg(signal_name, f.BitVectorType(1));
     LogicRef* signal_next =
-        m->AddReg(absl::StrCat(signal_name, "_next"), f.DataTypeOfWidth(1));
+        m->AddReg(absl::StrCat(signal_name, "_next"), f.BitVectorType(1));
     af->AddRegister(signal, signal_next);
   }
   m->AddModuleMember(af);
@@ -337,16 +358,16 @@ TEST(VastTest, AlwaysFlopTestNoReset) {
 end)");
 }
 
-TEST(VastTest, AlwaysFlopTestSyncReset) {
-  VerilogFile f;
+TEST_P(VastTest, AlwaysFlopTestSyncReset) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  LogicRef* clk = m->AddInput("my_clk", f.DataTypeOfWidth(1));
-  LogicRef* rst = m->AddInput("my_rst", f.DataTypeOfWidth(1));
+  LogicRef* clk = m->AddInput("my_clk", f.BitVectorType(1));
+  LogicRef* rst = m->AddInput("my_rst", f.BitVectorType(1));
 
-  LogicRef* a = m->AddReg("a", f.DataTypeOfWidth(8));
-  LogicRef* a_next = m->AddReg("a_next", f.DataTypeOfWidth(8));
-  LogicRef* b = m->AddReg("b", f.DataTypeOfWidth(8));
-  LogicRef* b_next = m->AddReg("b_next", f.DataTypeOfWidth(8));
+  LogicRef* a = m->AddReg("a", f.BitVectorType(8));
+  LogicRef* a_next = m->AddReg("a_next", f.BitVectorType(8));
+  LogicRef* b = m->AddReg("b", f.BitVectorType(8));
+  LogicRef* b_next = m->AddReg("b_next", f.BitVectorType(8));
 
   AlwaysFlop* af = m->Add<AlwaysFlop>(
       clk, Reset{rst, /*async*/ false, /*active_low*/ false});
@@ -364,16 +385,16 @@ TEST(VastTest, AlwaysFlopTestSyncReset) {
 end)");
 }
 
-TEST(VastTest, AlwaysFlopTestAsyncResetActiveLow) {
-  VerilogFile f;
+TEST_P(VastTest, AlwaysFlopTestAsyncResetActiveLow) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  LogicRef* clk = m->AddInput("my_clk", f.DataTypeOfWidth(1));
-  LogicRef* rst = m->AddInput("my_rst_n", f.DataTypeOfWidth(1));
+  LogicRef* clk = m->AddInput("my_clk", f.BitVectorType(1));
+  LogicRef* rst = m->AddInput("my_rst_n", f.BitVectorType(1));
 
-  LogicRef* a = m->AddReg("a", f.DataTypeOfWidth(8));
-  LogicRef* a_next = m->AddReg("a_next", f.DataTypeOfWidth(8));
-  LogicRef* b = m->AddReg("b", f.DataTypeOfWidth(8));
-  LogicRef* b_next = m->AddReg("b_next", f.DataTypeOfWidth(8));
+  LogicRef* a = m->AddReg("a", f.BitVectorType(8));
+  LogicRef* a_next = m->AddReg("a_next", f.BitVectorType(8));
+  LogicRef* b = m->AddReg("b", f.BitVectorType(8));
+  LogicRef* b_next = m->AddReg("b_next", f.BitVectorType(8));
 
   AlwaysFlop* af =
       m->Add<AlwaysFlop>(clk, Reset{rst, /*async*/ true, /*active_low*/ true});
@@ -391,16 +412,16 @@ TEST(VastTest, AlwaysFlopTestAsyncResetActiveLow) {
 end)");
 }
 
-TEST(VastTest, AlwaysFf) {
-  VerilogFile f;
+TEST_P(VastTest, AlwaysFf) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  LogicRef* clk = m->AddInput("my_clk", f.DataTypeOfWidth(1));
-  LogicRef* rst_n = m->AddInput("rst_n", f.DataTypeOfWidth(1));
-  LogicRef* foo = m->AddInput("foo", f.DataTypeOfWidth(1));
-  LogicRef* bar = m->AddInput("bar", f.DataTypeOfWidth(1));
+  LogicRef* clk = m->AddInput("my_clk", f.BitVectorType(1));
+  LogicRef* rst_n = m->AddInput("rst_n", f.BitVectorType(1));
+  LogicRef* foo = m->AddInput("foo", f.BitVectorType(1));
+  LogicRef* bar = m->AddInput("bar", f.BitVectorType(1));
 
-  LogicRef* foo_reg = m->AddReg("foo_reg", f.DataTypeOfWidth(1));
-  LogicRef* bar_reg = m->AddReg("bar_reg", f.DataTypeOfWidth(1));
+  LogicRef* foo_reg = m->AddReg("foo_reg", f.BitVectorType(1));
+  LogicRef* bar_reg = m->AddReg("bar_reg", f.BitVectorType(1));
 
   AlwaysFf* always_ff = f.Make<AlwaysFf>(std::vector<SensitivityListElement>{
       f.Make<PosEdge>(clk), f.Make<NegEdge>(rst_n)});
@@ -415,11 +436,11 @@ TEST(VastTest, AlwaysFf) {
 end)");
 }
 
-TEST(VastTest, Always) {
-  VerilogFile f;
+TEST_P(VastTest, Always) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  LogicRef* foo = m->AddReg("foo", f.DataTypeOfWidth(32));
-  LogicRef* bar = m->AddReg("bar", f.DataTypeOfWidth(32));
+  LogicRef* foo = m->AddReg("foo", f.BitVectorType(32));
+  LogicRef* bar = m->AddReg("bar", f.BitVectorType(32));
 
   Always* always = f.Make<Always>(
       std::vector<SensitivityListElement>{ImplicitEventExpression()});
@@ -434,19 +455,19 @@ TEST(VastTest, Always) {
 end)");
 }
 
-TEST(VastTest, AlwaysCombTest) {
-  VerilogFile f;
+TEST_P(VastTest, AlwaysCombTest) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  LogicRef* rx_byte_done = m->AddWire("rx_byte_done", f.DataTypeOfWidth(1));
+  LogicRef* rx_byte_done = m->AddWire("rx_byte_done", f.BitVectorType(1));
   LogicRef* rx_byte_done_next =
-      m->AddWire("rx_byte_done_next", f.DataTypeOfWidth(1));
+      m->AddWire("rx_byte_done_next", f.BitVectorType(1));
 
-  LogicRef* tx_byte_next = m->AddWire("tx_byte_next", f.DataTypeOfWidth(8));
-  LogicRef* tx_byte = m->AddWire("tx_byte", f.DataTypeOfWidth(8));
+  LogicRef* tx_byte_next = m->AddWire("tx_byte_next", f.BitVectorType(8));
+  LogicRef* tx_byte = m->AddWire("tx_byte", f.BitVectorType(8));
 
   LogicRef* tx_byte_valid_next =
-      m->AddWire("tx_byte_valid_next", f.DataTypeOfWidth(1));
-  LogicRef* tx_byte_valid = m->AddWire("tx_byte_valid", f.DataTypeOfWidth(1));
+      m->AddWire("tx_byte_valid_next", f.BitVectorType(1));
+  LogicRef* tx_byte_valid = m->AddWire("tx_byte_valid", f.BitVectorType(1));
 
   AlwaysComb* ac = m->Add<AlwaysComb>();
   for (auto p : std::vector<std::pair<Expression*, Expression*>>{
@@ -465,14 +486,13 @@ TEST(VastTest, AlwaysCombTest) {
 end)");
 }
 
-TEST(VastTest, InstantiationTest) {
-  VerilogFile f;
+TEST_P(VastTest, InstantiationTest) {
+  VerilogFile f(UseSystemVerilog());
   auto* default_clocks_per_baud = f.Make<MacroRef>("DEFAULT_CLOCKS_PER_BAUD");
-  auto* clk_def = f.Make<WireDef>("my_clk", f.DataTypeOfWidth(1));
+  auto* clk_def = f.Make<WireDef>("my_clk", f.BitVectorType(1));
   auto* clk_ref = f.Make<LogicRef>(clk_def);
 
-  Literal* value_32d8 = f.PlainLiteral(8);
-  auto* tx_byte_def = f.Make<WireDef>("my_tx_byte", DataType(value_32d8));
+  auto* tx_byte_def = f.Make<WireDef>("my_tx_byte", f.BitVectorType(8));
   auto* tx_byte_ref = f.Make<LogicRef>(tx_byte_def);
   auto* instantiation = f.Make<Instantiation>(
       /*module_name=*/"uart_transmitter",
@@ -496,12 +516,12 @@ TEST(VastTest, InstantiationTest) {
 );)");
 }
 
-TEST(VastTest, BlockingAndNonblockingAssignments) {
-  VerilogFile f;
+TEST_P(VastTest, BlockingAndNonblockingAssignments) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  LogicRef* a = m->AddReg("a", f.DataTypeOfWidth(1));
-  LogicRef* b = m->AddReg("b", f.DataTypeOfWidth(1));
-  LogicRef* c = m->AddReg("c", f.DataTypeOfWidth(1));
+  LogicRef* a = m->AddReg("a", f.BitVectorType(1));
+  LogicRef* b = m->AddReg("b", f.BitVectorType(1));
+  LogicRef* c = m->AddReg("c", f.BitVectorType(1));
   AlwaysComb* ac = m->Add<AlwaysComb>();
   ac->statements()->Add<BlockingAssignment>(a, b);
   ac->statements()->Add<NonblockingAssignment>(b, c);
@@ -513,8 +533,8 @@ TEST(VastTest, BlockingAndNonblockingAssignments) {
 end)");
 }
 
-TEST(VastTest, ParameterAndLocalParam) {
-  VerilogFile f;
+TEST_P(VastTest, ParameterAndLocalParam) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
   m->AddParameter("ClocksPerBaud", f.Make<MacroRef>("DEFAULT_CLOCKS_PER_BAUD"));
   LocalParam* p = m->Add<LocalParam>();
@@ -524,7 +544,7 @@ TEST(VastTest, ParameterAndLocalParam) {
 
   LocalParamItemRef* state_bits =
       m->Add<LocalParam>()->AddItem("StateBits", f.Literal(2, 2));
-  m->AddReg("state", DataType(/*width=*/state_bits), idle);
+  m->AddReg("state", f.Make<DataType>(state_bits, /*is_signed=*/false), idle);
 
   EXPECT_EQ(m->Emit(),
             R"(module top;
@@ -538,11 +558,11 @@ TEST(VastTest, ParameterAndLocalParam) {
 endmodule)");
 }
 
-TEST(VastTest, SimpleConditional) {
-  VerilogFile f;
+TEST_P(VastTest, SimpleConditional) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  LogicRef* input = m->AddInput("input", f.DataTypeOfWidth(1));
-  LogicRef* output = m->AddReg("output", f.DataTypeOfWidth(1));
+  LogicRef* input = m->AddInput("input", f.BitVectorType(1));
+  LogicRef* output = m->AddReg("output", f.BitVectorType(1));
   AlwaysComb* ac = m->Add<AlwaysComb>();
   Conditional* if_statement = ac->statements()->Add<Conditional>(input);
   if_statement->consequent()->Add<BlockingAssignment>(output, f.Literal(1, 1));
@@ -552,12 +572,12 @@ TEST(VastTest, SimpleConditional) {
 end)");
 }
 
-TEST(VastTest, SignedOperation) {
-  VerilogFile f;
+TEST_P(VastTest, SignedOperation) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  LogicRef* a = m->AddInput("a", f.DataTypeOfWidth(8));
-  LogicRef* b = m->AddInput("b", f.DataTypeOfWidth(8));
-  LogicRef* out = m->AddOutput("out", f.DataTypeOfWidth(8));
+  LogicRef* a = m->AddInput("a", f.BitVectorType(8));
+  LogicRef* b = m->AddInput("b", f.BitVectorType(8));
+  LogicRef* out = m->AddOutput("out", f.BitVectorType(8));
   m->Add<ContinuousAssignment>(
       out, f.Div(f.Make<SignedCast>(a), f.Make<SignedCast>(b)));
   EXPECT_EQ(m->Emit(),
@@ -570,13 +590,13 @@ TEST(VastTest, SignedOperation) {
 endmodule)");
 }
 
-TEST(VastTest, ComplexConditional) {
-  VerilogFile f;
+TEST_P(VastTest, ComplexConditional) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  LogicRef* input1 = m->AddInput("input1", f.DataTypeOfWidth(1));
-  LogicRef* input2 = m->AddInput("input2", f.DataTypeOfWidth(1));
-  LogicRef* output1 = m->AddReg("output1", f.DataTypeOfWidth(1));
-  LogicRef* output2 = m->AddReg("output2", f.DataTypeOfWidth(1));
+  LogicRef* input1 = m->AddInput("input1", f.BitVectorType(1));
+  LogicRef* input2 = m->AddInput("input2", f.BitVectorType(1));
+  LogicRef* output1 = m->AddReg("output1", f.BitVectorType(1));
+  LogicRef* output2 = m->AddReg("output2", f.BitVectorType(1));
 
   AlwaysComb* ac = m->Add<AlwaysComb>();
   Conditional* conditional = ac->statements()->Add<Conditional>(input1);
@@ -606,13 +626,13 @@ end else begin
 end)");
 }
 
-TEST(VastTest, NestedConditional) {
-  VerilogFile f;
+TEST_P(VastTest, NestedConditional) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  LogicRef* input1 = m->AddInput("input1", f.DataTypeOfWidth(1));
-  LogicRef* input2 = m->AddInput("input2", f.DataTypeOfWidth(1));
-  LogicRef* output1 = m->AddReg("output1", f.DataTypeOfWidth(1));
-  LogicRef* output2 = m->AddReg("output2", f.DataTypeOfWidth(1));
+  LogicRef* input1 = m->AddInput("input1", f.BitVectorType(1));
+  LogicRef* input2 = m->AddInput("input2", f.BitVectorType(1));
+  LogicRef* output1 = m->AddReg("output1", f.BitVectorType(1));
+  LogicRef* output2 = m->AddReg("output2", f.BitVectorType(1));
 
   AlwaysComb* ac = m->Add<AlwaysComb>();
   Conditional* conditional = ac->statements()->Add<Conditional>(input1);
@@ -649,10 +669,10 @@ TEST(VastTest, NestedConditional) {
 endmodule)");
 }
 
-TEST(VastTest, TestbenchClock) {
-  VerilogFile f;
+TEST_P(VastTest, TestbenchClock) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("testbench");
-  LogicRef* clk = m->AddReg("clk", f.DataTypeOfWidth(1));
+  LogicRef* clk = m->AddReg("clk", f.BitVectorType(1));
 
   Initial* initial = m->Add<Initial>();
   Statement* clk_equals_zero =
@@ -674,11 +694,11 @@ endmodule
 )");
 }
 
-TEST(VastTest, TestbenchDisplayAndMonitor) {
-  VerilogFile f;
+TEST_P(VastTest, TestbenchDisplayAndMonitor) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("testbench");
-  LogicRef* input1 = m->AddInput("input1", f.DataTypeOfWidth(1));
-  LogicRef* input2 = m->AddInput("input2", f.DataTypeOfWidth(1));
+  LogicRef* input1 = m->AddInput("input1", f.BitVectorType(1));
+  LogicRef* input2 = m->AddInput("input2", f.BitVectorType(1));
 
   Initial* initial = m->Add<Initial>();
   std::vector<Expression*> display_args = {f.Make<QuotedString>(R"(foo\n)")};
@@ -710,61 +730,59 @@ endmodule
 )");
 }
 
-TEST(VastTest, Concat) {
-  VerilogFile f;
+TEST_P(VastTest, Concat) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("Concat");
   EXPECT_EQ("{32'h0000_002a}", f.Concat({f.Literal(42, 32)})->Emit());
   EXPECT_EQ("{a, 8'h7b, b}",
-            f.Concat({m->AddReg("a", f.DataTypeOfWidth(1)), f.Literal(123, 8),
-                      m->AddReg("b", f.DataTypeOfWidth(1))})
+            f.Concat({m->AddReg("a", f.BitVectorType(1)), f.Literal(123, 8),
+                      m->AddReg("b", f.BitVectorType(1))})
                 ->Emit());
   EXPECT_EQ("{42{a, 8'h7b, b}}",
             f.Concat(/*replication=*/42,
-                     {m->AddReg("a", f.DataTypeOfWidth(1)), f.Literal(123, 8),
-                      m->AddReg("b", f.DataTypeOfWidth(1))})
+                     {m->AddReg("a", f.BitVectorType(1)), f.Literal(123, 8),
+                      m->AddReg("b", f.BitVectorType(1))})
                 ->Emit());
 }
 
-TEST(VastTest, PartSelect) {
-  VerilogFile f;
+TEST_P(VastTest, PartSelect) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("PartSelect");
   EXPECT_EQ("a[4'h3 +: 16'h0006]",
-            f.PartSelect(m->AddReg("a", f.DataTypeOfWidth(8)), f.Literal(3, 4),
+            f.PartSelect(m->AddReg("a", f.BitVectorType(8)), f.Literal(3, 4),
                          f.Literal(6, 16))
                 ->Emit());
-  EXPECT_EQ(
-      "b[c +: 16'h0012]",
-      f.PartSelect(m->AddReg("b", f.DataTypeOfWidth(8)),
-                   m->AddReg("c", f.DataTypeOfWidth(1)), f.Literal(18, 16))
-          ->Emit());
+  EXPECT_EQ("b[c +: 16'h0012]",
+            f.PartSelect(m->AddReg("b", f.BitVectorType(8)),
+                         m->AddReg("c", f.BitVectorType(1)), f.Literal(18, 16))
+                ->Emit());
 }
 
-TEST(VastTest, ArrayAssignmentPattern) {
-  VerilogFile f;
+TEST_P(VastTest, ArrayAssignmentPattern) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("ArrayAssignmentPattern");
   EXPECT_EQ("'{32'h0000_002a}",
             f.ArrayAssignmentPattern({f.Literal(42, 32)})->Emit());
   EXPECT_EQ("'{a, 32'h0000_007b, b}",
-            f.ArrayAssignmentPattern({m->AddReg("a", f.DataTypeOfWidth(32)),
+            f.ArrayAssignmentPattern({m->AddReg("a", f.BitVectorType(32)),
                                       f.Literal(123, 32),
-                                      m->AddReg("b", f.DataTypeOfWidth(32))})
+                                      m->AddReg("b", f.BitVectorType(32))})
                 ->Emit());
   EXPECT_EQ(
       "'{'{foo, bar}, '{baz, qux}}",
       f.ArrayAssignmentPattern(
-           {f.ArrayAssignmentPattern({m->AddReg("foo", f.DataTypeOfWidth(32)),
-                                      m->AddReg("bar", f.DataTypeOfWidth(32))}),
-            f.ArrayAssignmentPattern(
-                {m->AddReg("baz", f.DataTypeOfWidth(32)),
-                 m->AddReg("qux", f.DataTypeOfWidth(32))})})
+           {f.ArrayAssignmentPattern({m->AddReg("foo", f.BitVectorType(32)),
+                                      m->AddReg("bar", f.BitVectorType(32))}),
+            f.ArrayAssignmentPattern({m->AddReg("baz", f.BitVectorType(32)),
+                                      m->AddReg("qux", f.BitVectorType(32))})})
           ->Emit());
 }
 
-TEST(VastTest, ModuleSections) {
-  VerilogFile f;
+TEST_P(VastTest, ModuleSections) {
+  VerilogFile f(UseSystemVerilog());
   Module* module = f.Make<Module>("my_module");
   ModuleSection* s0 = module->Add<ModuleSection>();
-  module->AddReg("foo", f.DataTypeOfWidth(1), f.PlainLiteral(1));
+  module->AddReg("foo", f.BitVectorType(1), f.PlainLiteral(1));
   ModuleSection* s1 = module->Add<ModuleSection>();
   // Create an empty section.
   module->Add<ModuleSection>();
@@ -778,7 +796,7 @@ TEST(VastTest, ModuleSections) {
   s1->Add<Comment>("more stuff in section 1");
   s0->Add<Comment>("more stuff in section 0");
   s0->Add<RawStatement>("`SOME_MACRO(42);");
-  module->AddReg("section_0_reg", f.DataTypeOfWidth(42), /*init=*/nullptr,
+  module->AddReg("section_0_reg", f.BitVectorType(42), /*init=*/nullptr,
                  /*section=*/s0);
   EXPECT_EQ(module->Emit(),
             R"(module my_module;
@@ -794,17 +812,16 @@ TEST(VastTest, ModuleSections) {
 endmodule)");
 }
 
-TEST(VastTest, VerilogFunction) {
-  VerilogFile f;
+TEST_P(VastTest, VerilogFunction) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  VerilogFunction* func =
-      m->Add<VerilogFunction>("func", f.DataTypeOfWidth(42));
-  LogicRef* foo = func->AddArgument("foo", f.DataTypeOfWidth(32));
-  LogicRef* bar = func->AddArgument("bar", f.DataTypeOfWidth(3));
+  VerilogFunction* func = m->Add<VerilogFunction>("func", f.BitVectorType(42));
+  LogicRef* foo = func->AddArgument("foo", f.BitVectorType(32));
+  LogicRef* bar = func->AddArgument("bar", f.BitVectorType(3));
   func->AddStatement<BlockingAssignment>(func->return_value_ref(),
                                          f.Shll(foo, bar));
 
-  LogicRef* qux = m->AddWire("qux", f.DataTypeOfWidth(32));
+  LogicRef* qux = m->AddWire("qux", f.BitVectorType(32));
   m->Add<ContinuousAssignment>(
       qux, f.Make<VerilogFunctionCall>(
                func, std::vector<Expression*>{f.Literal(UBits(12, 32)),
@@ -821,15 +838,14 @@ TEST(VastTest, VerilogFunction) {
 endmodule)");
 }
 
-TEST(VastTest, VerilogFunctionNoArguments) {
-  VerilogFile f;
+TEST_P(VastTest, VerilogFunctionNoArguments) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  VerilogFunction* func =
-      m->Add<VerilogFunction>("func", f.DataTypeOfWidth(42));
+  VerilogFunction* func = m->Add<VerilogFunction>("func", f.BitVectorType(42));
   func->AddStatement<BlockingAssignment>(func->return_value_ref(),
                                          f.Literal(UBits(0x42, 42)));
 
-  LogicRef* qux = m->AddWire("qux", f.DataTypeOfWidth(32));
+  LogicRef* qux = m->AddWire("qux", f.BitVectorType(32));
   m->Add<ContinuousAssignment>(
       qux, f.Make<VerilogFunctionCall>(func, std::vector<Expression*>{}));
   EXPECT_EQ(m->Emit(),
@@ -844,18 +860,17 @@ TEST(VastTest, VerilogFunctionNoArguments) {
 endmodule)");
 }
 
-TEST(VastTest, VerilogFunctionWithRegDefs) {
-  VerilogFile f;
+TEST_P(VastTest, VerilogFunctionWithRegDefs) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  VerilogFunction* func =
-      m->Add<VerilogFunction>("func", f.DataTypeOfWidth(42));
-  LogicRef* foo = func->AddRegDef("foo", f.DataTypeOfWidth(42));
-  LogicRef* bar = func->AddRegDef("bar", f.DataTypeOfWidth(42));
+  VerilogFunction* func = m->Add<VerilogFunction>("func", f.BitVectorType(42));
+  LogicRef* foo = func->AddRegDef("foo", f.BitVectorType(42));
+  LogicRef* bar = func->AddRegDef("bar", f.BitVectorType(42));
   func->AddStatement<BlockingAssignment>(foo, f.Literal(UBits(0x42, 42)));
   func->AddStatement<BlockingAssignment>(bar, foo);
   func->AddStatement<BlockingAssignment>(func->return_value_ref(), bar);
 
-  LogicRef* qux = m->AddWire("qux", f.DataTypeOfWidth(32));
+  LogicRef* qux = m->AddWire("qux", f.BitVectorType(32));
   m->Add<ContinuousAssignment>(
       qux, f.Make<VerilogFunctionCall>(func, std::vector<Expression*>{}));
   EXPECT_EQ(m->Emit(),
@@ -874,14 +889,14 @@ TEST(VastTest, VerilogFunctionWithRegDefs) {
 endmodule)");
 }
 
-TEST(VastTest, VerilogFunctionWithScalarReturn) {
-  VerilogFile f;
+TEST_P(VastTest, VerilogFunctionWithScalarReturn) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  VerilogFunction* func = m->Add<VerilogFunction>("func", DataType());
+  VerilogFunction* func = m->Add<VerilogFunction>("func", f.Make<DataType>());
   func->AddStatement<BlockingAssignment>(func->return_value_ref(),
                                          f.PlainLiteral(1));
 
-  LogicRef* qux = m->AddWire("qux", f.DataTypeOfWidth(1));
+  LogicRef* qux = m->AddWire("qux", f.BitVectorType(1));
   m->Add<ContinuousAssignment>(
       qux, f.Make<VerilogFunctionCall>(func, std::vector<Expression*>{}));
   EXPECT_EQ(m->Emit(),
@@ -896,12 +911,12 @@ TEST(VastTest, VerilogFunctionWithScalarReturn) {
 endmodule)");
 }
 
-TEST(VastTest, AssertTest) {
-  VerilogFile f;
+TEST_P(VastTest, AssertTest) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  LogicRef* a_ref = m->AddInput("a", f.DataTypeOfWidth(8));
-  LogicRef* b_ref = m->AddInput("b", f.DataTypeOfWidth(8));
-  LogicRef* c_ref = m->AddOutput("c", f.DataTypeOfWidth(8));
+  LogicRef* a_ref = m->AddInput("a", f.BitVectorType(8));
+  LogicRef* b_ref = m->AddInput("b", f.BitVectorType(8));
+  LogicRef* c_ref = m->AddOutput("c", f.BitVectorType(8));
 
   AlwaysComb* ac = m->Add<AlwaysComb>();
   ac->statements()->Add<Assert>(f.Equals(a_ref, f.Literal(42, 8)));
@@ -922,20 +937,17 @@ TEST(VastTest, AssertTest) {
 endmodule)");
 }
 
-TEST(VastTest, VerilogFunctionWithComplicatedTypes) {
-  VerilogFile f;
+TEST_P(VastTest, VerilogFunctionWithComplicatedTypes) {
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top");
-  DataType return_type =
-      DataType(/*width=*/f.PlainLiteral(6),
-               /*packed_dims=*/{f.PlainLiteral(3), f.PlainLiteral(33)},
-               /*is_signed=*/true);
-  DataType foo_type = f.DataTypeOfWidth(1);
-  DataType bar_type =
-      DataType(/*width=*/f.Add(f.PlainLiteral(6), f.PlainLiteral(6)),
-               /*packed_dims=*/{f.PlainLiteral(111)},
-               /*is_signed=*/true);
-  DataType baz_type =
-      DataType(/*width=*/f.PlainLiteral(33), /*is_signed=*/true);
+  DataType* return_type = f.PackedArrayType(6, {3, 33}, /*is_signed=*/true);
+  DataType* foo_type = f.BitVectorType(1);
+  DataType* bar_type = f.Make<DataType>(
+      /*width=*/f.Add(f.PlainLiteral(6), f.PlainLiteral(6)),
+      /*packed_dims=*/std::vector<Expression*>({f.PlainLiteral(111)}),
+      /*unpacked_dims=*/std::vector<Expression*>(),
+      /*is_signed=*/true);
+  DataType* baz_type = f.BitVectorType(33, /*is_signed=*/true);
 
   VerilogFunction* func = m->Add<VerilogFunction>("func", return_type);
   func->AddArgument("foo", foo_type);
@@ -965,6 +977,12 @@ TEST(VastTest, VerilogFunctionWithComplicatedTypes) {
   assign qux = func(a, b, c);
 endmodule)");
 }
+
+INSTANTIATE_TEST_SUITE_P(VastTestInstantiation, VastTest,
+                         testing::Values(false, true),
+                         [](const testing::TestParamInfo<bool>& info) {
+                           return info.param ? "SystemVerilog" : "Verilog";
+                         });
 
 }  // namespace
 }  // namespace verilog

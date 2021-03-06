@@ -339,15 +339,14 @@ class FsmBuilder {
   // 'name' is added to the module.
   FsmOutput* AddOutput(absl::string_view name, int64 width,
                        int64 default_value) {
-    return AddOutputAsExpression(name, file_->DataTypeOfWidth(width),
+    return AddOutputAsExpression(name, file_->BitVectorType(width),
                                  file_->PlainLiteral(default_value));
   }
-  FsmOutput* AddOutputAsExpression(absl::string_view name,
-                                   const DataType& data_type,
+  FsmOutput* AddOutputAsExpression(absl::string_view name, DataType* data_type,
                                    Expression* default_value);
 
   FsmOutput* AddOutput1(absl::string_view name, int64 default_value) {
-    return AddOutputAsExpression(name, /*data_type=*/file_->DataTypeOfWidth(1),
+    return AddOutputAsExpression(name, /*data_type=*/file_->ScalarType(),
                                  file_->PlainLiteral(default_value));
   }
 
@@ -359,7 +358,7 @@ class FsmBuilder {
   // by calling SetRegisterNext.
   FsmRegister* AddRegister(absl::string_view name, int64 width,
                            absl::optional<int64> reset_value = absl::nullopt);
-  FsmRegister* AddRegister(absl::string_view name, DataType data_type,
+  FsmRegister* AddRegister(absl::string_view name, DataType* data_type,
                            Expression* reset_value = nullptr);
 
   // Overload which adds a previously defined reg as an FSM-controlled signal. A
@@ -383,7 +382,7 @@ class FsmBuilder {
   // Creates a RegDef of the given type and optional initial
   // value. Returns a LogicRef referring to it. The RegDef is added to the
   // module inline with the FSM logic when Build is called.
-  LogicRef* AddRegDef(absl::string_view name, const DataType& data_type,
+  LogicRef* AddRegDef(absl::string_view name, DataType* data_type,
                       Expression* init = nullptr);
 
   // Build the always block containing the logic for state transitions.

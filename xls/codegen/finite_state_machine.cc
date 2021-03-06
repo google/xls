@@ -141,22 +141,22 @@ bool ConditionalFsmBlock::HasAssignmentToOutput(const FsmOutput& output) const {
           final_alternate_->HasAssignmentToOutput(output));
 }
 
-LogicRef* FsmBuilder::AddRegDef(absl::string_view name,
-                                const DataType& data_type, Expression* init) {
+LogicRef* FsmBuilder::AddRegDef(absl::string_view name, DataType* data_type,
+                                Expression* init) {
   defs_.push_back(module_->file()->Make<RegDef>(name, data_type, init));
   return module_->file()->Make<LogicRef>(defs_.back());
 }
 
 FsmCounter* FsmBuilder::AddDownCounter(absl::string_view name, int64 width) {
-  LogicRef* ref = AddRegDef(name, file_->DataTypeOfWidth(width));
+  LogicRef* ref = AddRegDef(name, file_->BitVectorType(width));
   LogicRef* ref_next =
-      AddRegDef(absl::StrCat(name, "_next"), file_->DataTypeOfWidth(width));
+      AddRegDef(absl::StrCat(name, "_next"), file_->BitVectorType(width));
   counters_.push_back(FsmCounter{ref, ref_next, width});
   return &counters_.back();
 }
 
 FsmOutput* FsmBuilder::AddOutputAsExpression(absl::string_view name,
-                                             const DataType& data_type,
+                                             DataType* data_type,
                                              Expression* default_value) {
   LogicRef* logic_ref = AddRegDef(name, data_type, default_value);
   outputs_.push_back(FsmOutput{logic_ref, default_value});
@@ -169,7 +169,8 @@ FsmOutput* FsmBuilder::AddExistingOutput(LogicRef* logic_ref,
   return &outputs_.back();
 }
 
-FsmRegister* FsmBuilder::AddRegister(absl::string_view name, DataType data_type,
+FsmRegister* FsmBuilder::AddRegister(absl::string_view name,
+                                     DataType* data_type,
                                      Expression* reset_value) {
   // A reset value can only be specified if the FSM has a reset signal.
   XLS_CHECK(reset_value == nullptr || reset_.has_value());
@@ -183,9 +184,9 @@ FsmRegister* FsmBuilder::AddRegister(absl::string_view name, int64 width,
                                      absl::optional<int64> reset_value) {
   Expression* reset_expr =
       reset_value.has_value()
-          ? reset_expr = file_->Literal(UBits(reset_value.value(), width))
+          ? file_->Literal(UBits(reset_value.value(), width))
           : nullptr;
-  return AddRegister(name, file_->DataTypeOfWidth(width), reset_expr);
+  return AddRegister(name, file_->BitVectorType(width), reset_expr);
 }
 
 FsmRegister* FsmBuilder::AddExistingRegister(LogicRef* reg) {
@@ -493,10 +494,11 @@ absl::Status FsmBuilder::Build() {
   module_->AddModuleMember(state_local_param_);
 
   Expression* initial_state_value = states_.front().state_value();
-  LogicRef* state = module_->AddReg("state", DataType(/*width=*/state_bits),
-                                    initial_state_value);
-  LogicRef* state_next = module_->AddReg(
-      "state_next", DataType(/*width=*/state_bits), initial_state_value);
+  DataType* type =
+      file_->Make<DataType>(/*width=*/state_bits, /*is_signed=*/false);
+  LogicRef* state = module_->AddReg("state", type, initial_state_value);
+  LogicRef* state_next =
+      module_->AddReg("state_next", type, initial_state_value);
   for (RegDef* def : defs_) {
     module_->AddModuleMember(def);
   }

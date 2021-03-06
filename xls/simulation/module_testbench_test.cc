@@ -36,12 +36,12 @@ class ModuleTestbenchTest : public VerilogTestBase {
   // Creates and returns a module which simply flops its input twice.
   Module* MakeTwoStageIdentityPipeline(VerilogFile* f, int64 width = 16) {
     Module* m = f->AddModule("test_module");
-    LogicRef* clk = m->AddInput("clk", f->DataTypeOfWidth(1));
-    LogicRef* in = m->AddInput("in", f->DataTypeOfWidth(width));
-    LogicRef* out = m->AddOutput("out", f->DataTypeOfWidth(width));
+    LogicRef* clk = m->AddInput("clk", f->ScalarType());
+    LogicRef* in = m->AddInput("in", f->BitVectorType(width));
+    LogicRef* out = m->AddOutput("out", f->BitVectorType(width));
 
-    LogicRef* p0 = m->AddReg("p0", f->DataTypeOfWidth(width));
-    LogicRef* p1 = m->AddReg("p1", f->DataTypeOfWidth(width));
+    LogicRef* p0 = m->AddReg("p0", f->BitVectorType(width));
+    LogicRef* p1 = m->AddReg("p1", f->BitVectorType(width));
 
     auto af = m->Add<AlwaysFlop>(clk);
     af->AddRegister(p0, in);
@@ -53,7 +53,7 @@ class ModuleTestbenchTest : public VerilogTestBase {
 };
 
 TEST_P(ModuleTestbenchTest, TwoStagePipeline) {
-  VerilogFile f;
+  VerilogFile f(UseSystemVerilog());
   Module* m = MakeTwoStageIdentityPipeline(&f);
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
@@ -66,7 +66,7 @@ TEST_P(ModuleTestbenchTest, TwoStagePipeline) {
 }
 
 TEST_P(ModuleTestbenchTest, WaitForXAndNotX) {
-  VerilogFile f;
+  VerilogFile f(UseSystemVerilog());
   Module* m = MakeTwoStageIdentityPipeline(&f);
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
@@ -79,7 +79,7 @@ TEST_P(ModuleTestbenchTest, WaitForXAndNotX) {
 }
 
 TEST_P(ModuleTestbenchTest, TwoStagePipelineWithWideInput) {
-  VerilogFile f;
+  VerilogFile f(UseSystemVerilog());
   Module* m = MakeTwoStageIdentityPipeline(&f, 128);
 
   Bits input1 = bits_ops::Concat(
@@ -97,7 +97,7 @@ TEST_P(ModuleTestbenchTest, TwoStagePipelineWithWideInput) {
 }
 
 TEST_P(ModuleTestbenchTest, TwoStagePipelineWithX) {
-  VerilogFile f;
+  VerilogFile f(UseSystemVerilog());
   Module* m = MakeTwoStageIdentityPipeline(&f);
 
   // Drive the pipeline with a valid value, then X, then another valid
@@ -112,7 +112,7 @@ TEST_P(ModuleTestbenchTest, TwoStagePipelineWithX) {
 }
 
 TEST_P(ModuleTestbenchTest, TwoStageWithExpectationFailure) {
-  VerilogFile f;
+  VerilogFile f(UseSystemVerilog());
   Module* m = MakeTwoStageIdentityPipeline(&f);
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
@@ -130,17 +130,17 @@ TEST_P(ModuleTestbenchTest, TwoStageWithExpectationFailure) {
 }
 
 TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
-  VerilogFile f;
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("test_module");
-  LogicRef* clk = m->AddInput("clk", f.DataTypeOfWidth(1));
-  LogicRef* x = m->AddInput("x", f.DataTypeOfWidth(8));
-  LogicRef* y = m->AddInput("y", f.DataTypeOfWidth(8));
-  LogicRef* out0 = m->AddOutput("out0", f.DataTypeOfWidth(8));
-  LogicRef* out1 = m->AddOutput("out1", f.DataTypeOfWidth(8));
+  LogicRef* clk = m->AddInput("clk", f.ScalarType());
+  LogicRef* x = m->AddInput("x", f.BitVectorType(8));
+  LogicRef* y = m->AddInput("y", f.BitVectorType(8));
+  LogicRef* out0 = m->AddOutput("out0", f.BitVectorType(8));
+  LogicRef* out1 = m->AddOutput("out1", f.BitVectorType(8));
 
-  LogicRef* not_x = m->AddReg("not_x", f.DataTypeOfWidth(8));
-  LogicRef* sum = m->AddReg("sum", f.DataTypeOfWidth(8));
-  LogicRef* sum_plus_1 = m->AddReg("sum_plus_1", f.DataTypeOfWidth(8));
+  LogicRef* not_x = m->AddReg("not_x", f.BitVectorType(8));
+  LogicRef* sum = m->AddReg("sum", f.BitVectorType(8));
+  LogicRef* sum_plus_1 = m->AddReg("sum_plus_1", f.BitVectorType(8));
 
   // Logic is as follows:
   //
@@ -175,10 +175,10 @@ TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
 }
 
 TEST_P(ModuleTestbenchTest, TestTimeout) {
-  VerilogFile f;
+  VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("test_module");
-  m->AddInput("clk", f.DataTypeOfWidth(1));
-  LogicRef* out = m->AddOutput("out", f.DataTypeOfWidth(1));
+  m->AddInput("clk", f.ScalarType());
+  LogicRef* out = m->AddOutput("out", f.ScalarType());
   m->Add<ContinuousAssignment>(out, f.PlainLiteral(0));
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
