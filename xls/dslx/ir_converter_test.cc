@@ -883,11 +883,11 @@ fn __test_module__f(x: bits[2]) -> bits[8] {
 TEST(IrConverterTest, CountedForWithLoopInvariants) {
   const char* program =
       R"(
-fn f() -> u32 {
-  let outer_thing: u32 = u32:42;
-  let other_outer_thing: u32 = u32:24;
+fn f(outer_thing_1: u32, outer_thing_2: u32) -> u32 {
+  let outer_thing_3: u32 = u32:42;
+  let outer_thing_4: u32 = u32:24;
   for (i, accum): (u32, u32) in range(u32:0, u32:4) {
-    accum + i + outer_thing + other_outer_thing
+    accum + i + outer_thing_1 + outer_thing_2 + outer_thing_3 + outer_thing_4
   }(u32:0)
 }
 )";
