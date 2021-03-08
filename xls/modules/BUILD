@@ -89,7 +89,7 @@ dslx_test(
     name = "fpmul_2x32",
     srcs = ["fpmul_2x32.x"],
     # TODO(rspringer): Currently takes too long.
-    prove_unopt_eq_opt = False,
+    prove_unopt_eq_opt = True,
 )
 
 dslx_jit_wrapper(

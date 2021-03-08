@@ -31,7 +31,7 @@ fn is_zero(x: F32) -> u1 {
   x.bexp == u8:0
 }
 
-fn fpmul_2x32(x: F32, y: F32) -> F32 {
+pub fn fpmul_2x32(x: F32, y: F32) -> F32 {
   // 1. Get and expand mantissas.
   let x_sfd = (x.sfd as u48) | u48:0x80_0000;
   let y_sfd = (y.sfd as u48) | u48:0x80_0000;
