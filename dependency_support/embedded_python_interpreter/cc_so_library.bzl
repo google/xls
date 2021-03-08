@@ -43,4 +43,6 @@ cc_so_library = rule(
         "src": attr.label(allow_single_file = True),
         "_cc_toolchain": attr.label(default = "@bazel_tools//tools/cpp:current_cc_toolchain"),
     },
+    incompatible_use_toolchain_transition = True,
+    toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
 )
