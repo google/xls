@@ -479,6 +479,32 @@
     Parametric Functions
   </a>
   
+    <nav class="md-nav" aria-label="Parametric Functions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#explicit-parametric-instantiation" class="md-nav__link">
+    Explicit parametric instantiation
+  </a>
+  
+    <nav class="md-nav" aria-label="Explicit parametric instantiation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#expression-ambiguity" class="md-nav__link">
+    Expression ambiguity
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -1240,6 +1266,32 @@
     Parametric Functions
   </a>
   
+    <nav class="md-nav" aria-label="Parametric Functions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#explicit-parametric-instantiation" class="md-nav__link">
+    Explicit parametric instantiation
+  </a>
+  
+    <nav class="md-nav" aria-label="Explicit parametric instantiation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#expression-ambiguity" class="md-nav__link">
+    Expression ambiguity
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -1828,17 +1880,40 @@ evaluated at that point in compilation.</p>
 <p>See
 <a href="#advanced-understanding-parametricity-constraints-and-unification">advanced understanding</a>
 for more information on parametricity.</p>
-<p>Functions and structs can also be explicitly parameterized, as in:</p>
-<pre><code>struct Foo&lt;X:u32, Y:u32&gt; {
-  a: bits[X],
-  b: bits[Y]
-}
-
-fun MakeFoo&lt;X: u64&gt;(input: bits[4]) -&gt; Foo&lt;X as u32, u32:8&gt; {
-  Foo&lt;X as u32, u32:8&gt;{ a: input as bits[X], b: bits[8]:1 }
-}
+<h4 id="explicit-parametric-instantiation">Explicit parametric instantiation</h4>
+<p>In some cases, parametric values cannot be inferred from function arguments,
+such as in the
+<a href="https://github.com/google/xls/tree/main/xls/dslx/tests/explicit_parametric_simple.x"><code>explicit_parametric_simple.x</code></a>
+test:</p>
+<pre><code>fn add_one&lt;E:u32, F:u32, G:u32 = E+F&gt;(lhs: bits[E]) -&gt; bits[G] { ... }
 </code></pre>
 
+<p>For this call to instantiable, both <code>E</code> and <code>F</code> must be specified. Since <code>F</code>
+can't be inferred from an argument, we must rely on <em>explicit parametrics</em>:</p>
+<pre><code>  add_one&lt;u32:1, {u32:2 + u32:3}&gt;(u1:1);
+</code></pre>
+
+<p>This invocation will bind <code>1</code> to <code>E</code>, <code>5</code> to <code>F</code>, and <code>6</code> to <code>G</code>. Note the curly
+braces around the expression-defined parametric: simple literals and constant
+references do not need braces (but they <em>can</em> have them), but any other
+expression requires them.</p>
+<h5 id="expression-ambiguity">Expression ambiguity</h5>
+<p>Without curly braces, explicit parametric expressions could be ambiguous;
+consider the following, slightly changed from the previous example:</p>
+<pre><code>  add_one&lt;u32:1, u32:2&gt;(u32:3)&gt;(u1:1);
+</code></pre>
+
+<p>Is the statement above computing <code>add_one&lt;1, (2 &gt; 3)&gt;(1)</code>, or is it computing
+<code>(zero&lt;1, 2&gt;(3)) &gt; 1)</code>? Without additional (and subtle and perhaps surprising)
+contextual precedence rules, this would be ambiguous and could lead to a parse
+error or, even worse, unexpected behavior.</p>
+<p>Fortunately, we can look to Rust for inspiration. Rust's const generics RPF
+introduced the <code>{ }</code> syntax for disambiguating just this case in generic
+specifications. With this, any expressions present in a parametric specification
+must be contained within curly braces, as in the original example.</p>
+<p>At present, if the braces are omitted, some unpredictable error will occur. Work
+to improve this is tracked in
+<a href="https://github.com/google/xls/issues/321">XLS GitHub issue #321</a>.</p>
 <h3 id="function-calls">Function Calls</h3>
 <p>Function calls are expressions and look and feel just like one would expect from
 other languages. For example:</p>

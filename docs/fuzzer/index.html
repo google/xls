@@ -1168,6 +1168,9 @@ summary files are Protobuf files containing the proto <code>SampleSummaryProto</
 defined in <code>//xls/fuzzer/sample_summary.proto</code>. The summary
 information about the IR generated from the DSLX sample such as the number and
 type of each IR op as well as the bit width and number of operands.</p>
+<p>The summary information also includes a timing breakdown of the various
+operations performed for each sample (sample generation, IR conversion, etc).
+This can be used to identify performance bottlenecks in the fuzzer.</p>
 <p>The summaries can be read with the tool
 <code>//xls/fuzzer/read_summary_main</code>. See usage description in the code
 for more details.</p>
