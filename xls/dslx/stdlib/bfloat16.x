@@ -12,17 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// "Brain float" routines.
+// bfloat16 routines.
+import xls.dslx.stdlib.apfloat
 
-pub struct BF16 {
-  sign: u1,  // sign bit
-  bexp: u8,  // biased exponent
-  sfd:  u7,  // significand (no hidden bit)
+pub type BF16 = apfloat::APFloat<u32:8, u32:7>;
+pub type FloatTag = apfloat::APFloatTag;
+
+pub fn qnan() -> BF16 { apfloat::qnan<u32:8, u32:7>() }
+pub fn zero(sign: u1) -> BF16 { apfloat::zero<u32:8, u32:7>(sign) }
+pub fn one(sign: u1) -> BF16 { apfloat::one<u32:8, u32:7>(sign) }
+pub fn inf(sign: u1) -> BF16 { apfloat::inf<u32:8, u32:7>(sign) }
+pub fn unbiased_exponent(f: BF16) -> u9 {
+  apfloat::unbiased_exponent<u32:8, u32:7>(f)
+}
+pub fn bias(unbiased_exponent_in: u9) -> u8 {
+  apfloat::bias<u32:8, u32:7>(unbiased_exponent_in)
+}
+pub fn flatten(f: BF16) -> u16 { apfloat::flatten<u32:8, u32:7>(f) }
+pub fn unflatten(f: u16) -> BF16 { apfloat::unflatten<u32:8, u32:7>(f) }
+pub fn subnormals_to_zero(f: BF16) -> BF16 {
+  apfloat::subnormals_to_zero<u32:8, u32:7>(f)
 }
 
-pub fn qnan() -> BF16 { BF16 { sign: u1:0, bexp: u8:0xff, sfd: u7:0x40 } }
-pub fn zero(sign: u1) -> BF16 { BF16 { sign: sign, bexp: u8:0, sfd: u7:0 } }
-pub fn inf(sign: u1) -> BF16 { BF16 { sign: sign, bexp: u8:0xff, sfd: u7:0 } }
+pub fn is_inf(f: BF16) -> u1 { apfloat::is_inf<u32:8, u32:7>(f) }
+pub fn is_nan(f: BF16) -> u1 { apfloat::is_nan<u32:8, u32:7>(f) }
+
+pub fn normalize(sign:u1, exp: u8, sfd_with_hidden: u8) -> BF16 {
+  apfloat::normalize<u32:8, u32:7>(sign, exp, sfd_with_hidden)
+}
+
+pub fn tag(f: BF16) -> FloatTag {
+  apfloat::tag(f)
+}
 
 // Increments the significand of the input BF16 by one and returns the
 // normalized result. Input must be a normal *non-zero* number.
@@ -70,4 +91,3 @@ fn increment_sfd_bf16_test() {
                     inf(u1:1));
   ()
 }
-

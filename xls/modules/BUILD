@@ -31,7 +31,7 @@ filegroup(
 dslx_test(
     name = "fpadd_2x32",
     srcs = ["fpadd_2x32.x"],
-    # TODO(b/152546795): Takes too long.
+    # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes).
     prove_unopt_eq_opt = False,
     deps = [":apfloat_add_2.x"],
 )
@@ -76,6 +76,7 @@ cc_test(
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:init_xls",
+        "//xls/common:math_util",
         "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
@@ -86,10 +87,53 @@ cc_test(
 )
 
 dslx_test(
+    name = "fpadd_2x64",
+    srcs = ["fpadd_2x64.x"],
+    # 2021-03-08 Takes too long (> 15 minutes).
+    prove_unopt_eq_opt = False,
+    deps = [":apfloat_add_2.x"],
+)
+
+dslx_jit_wrapper(
+    name = "fpadd_2x64_jit_wrapper",
+    dslx_name = "fpadd_2x64",
+    deps = [":fpadd_2x64_opt_ir"],
+)
+
+cc_test(
+    name = "fpadd_2x64_test",
+    srcs = ["fpadd_2x64_test.cc"],
+    data = [":fpadd_2x64_all_ir"],
+    tags = ["optonly"],
+    deps = [
+        ":fpadd_2x64_jit_wrapper",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "//xls/common:init_xls",
+        "//xls/common:math_util",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir:value_helpers",
+        "//xls/ir:value_view_helpers",
+        "//xls/tools:testbench",
+    ],
+)
+
+dslx_test(
+    name = "fpadd_2xbf16",
+    srcs = ["fpadd_2xbf16.x"],
+    # 2021-03-08: Takes too long (> 15 minutes).
+    prove_unopt_eq_opt = False,
+    deps = [":apfloat_add_2.x"],
+)
+
+dslx_test(
     name = "fpmul_2x32",
     srcs = ["fpmul_2x32.x"],
-    # TODO(rspringer): Currently takes too long.
+    # 2021-03-08: Takes too long (> 15 minutes).
     prove_unopt_eq_opt = False,
+    deps = [":apfloat_mul_2.x"],
 )
 
 dslx_jit_wrapper(

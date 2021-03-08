@@ -112,6 +112,23 @@ int64 CeilOfLog2(uint64 value);
 // Returns floor(log2(value)). Returns zero for the value zero.
 int64 FloorOfLog2(uint64 value);
 
+// Returns true if the given floating-point value is 0 or subnormal.
+template <typename T>
+bool ZeroOrSubnormal(T value) {
+  return value == 0 || std::fpclassify(value) == FP_SUBNORMAL;
+}
+
+// Returns 0 if the given floating-point value is subnormal or the original
+// value otherwise.
+template <typename T>
+T FlushSubnormal(T value) {
+  if (std::fpclassify(value) == FP_SUBNORMAL) {
+    return 0;
+  }
+
+  return value;
+}
+
 }  // namespace xls
 
 #endif  // XLS_COMMON_MATH_UTIL_H_

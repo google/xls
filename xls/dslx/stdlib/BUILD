@@ -40,6 +40,27 @@ dslx_test(
     convert_ir = False,
 )
 
+dslx_test(
+    name = "bfloat16",
+    srcs = ["bfloat16.x"],
+    # No meaningful entry point to convert.
+    convert_ir = False,
+)
+
+dslx_test(
+    name = "float32",
+    srcs = ["float32.x"],
+    # No meaningful entry point to convert.
+    convert_ir = False,
+)
+
+dslx_test(
+    name = "float64",
+    srcs = ["float64.x"],
+    # No meaningful entry point to convert.
+    convert_ir = False,
+)
+
 filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),

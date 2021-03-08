@@ -70,6 +70,27 @@ bool MatchFloat(const Type& type) {
   return false;
 }
 
+// Returns true if the given type matches the C float type layout.
+bool MatchDouble(const Type& type) {
+  if (!type.IsTuple()) {
+    return false;
+  }
+
+  const TupleType* tuple_type = type.AsTupleOrDie();
+  auto element_types = tuple_type->element_types();
+  if (element_types.size() != 3) {
+    return false;
+  }
+
+  if (element_types[0]->IsBits() && element_types[0]->GetFlatBitCount() == 1 &&
+      element_types[1]->IsBits() && element_types[1]->GetFlatBitCount() == 11 &&
+      element_types[2]->IsBits() && element_types[2]->GetFlatBitCount() == 52) {
+    return true;
+  }
+
+  return false;
+}
+
 // Returns the string representation of the packed view type corresponding to
 // the given Type.
 std::string PackedTypeString(const Type& type) {
@@ -112,6 +133,15 @@ std::string ConvertFloat(absl::string_view name) {
       name, "_view(reinterpret_cast<uint8*>(&", name, "), 0)");
 }
 
+// Emits the code necessary to convert a double value to its corresponding
+// packed view.
+std::string ConvertDouble(absl::string_view name) {
+  return absl::StrCat(
+      "PackedTupleView<PackedBitsView<1>, PackedBitsView<11>, "
+      "PackedBitsView<52>> ",
+      name, "_view(reinterpret_cast<uint8*>(&", name, "), 0)");
+}
+
 // Determines if the input type matches some other/simpler data type, and if so,
 // returns it.
 // Does not currently match > 1 specialization; i.e., if there were two types
@@ -125,6 +155,8 @@ absl::optional<std::string> MatchTypeSpecialization(const Type& type) {
     return type_string;
   } else if (MatchFloat(type)) {
     return "float";
+  } else if (MatchDouble(type)) {
+    return "double";
   }
 
   return absl::nullopt;
@@ -140,6 +172,8 @@ absl::optional<std::string> CreateConversion(absl::string_view name,
     return ConvertUint(name, type);
   } else if (MatchFloat(type)) {
     return ConvertFloat(name);
+  } else if (MatchDouble(type)) {
+    return ConvertDouble(name);
   }
 
   return absl::nullopt;

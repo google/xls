@@ -79,9 +79,11 @@ class Testbench
       std::function<std::unique_ptr<ShardDataT>()> create_shard,
       std::function<ResultT(ShardDataT*, InputT)> compute_expected,
       std::function<ResultT(JitWrapperT*, ShardDataT*, InputT)> compute_actual,
-      std::function<bool(ResultT, ResultT)> compare_results)
+      std::function<bool(ResultT, ResultT)> compare_results,
+      std::function<void(int64, InputT, ResultT, ResultT)> log_errors)
       : internal::TestbenchBase<JitWrapperT, InputT, ResultT, ShardDataT>(
-            start, end, max_failures, index_to_input, compare_results),
+            start, end, max_failures, index_to_input, compare_results,
+            log_errors),
         create_shard_(create_shard),
         compute_expected_(compute_expected),
         compute_actual_(compute_actual) {
@@ -90,7 +92,7 @@ class Testbench
           TestbenchThread<JitWrapperT, InputT, ResultT, ShardDataT>>(
           &this->mutex_, &this->wake_me_, start, end, this->max_failures_,
           this->index_to_input_, create_shard_, compute_expected_,
-          compute_actual_, this->compare_results_);
+          compute_actual_, this->compare_results_, this->log_errors_);
     };
   }
 
@@ -111,9 +113,11 @@ class Testbench<JitWrapperT, InputT, ResultT, ShardDataT,
             std::function<InputT(uint64)> index_to_input,
             std::function<ResultT(InputT)> compute_expected,
             std::function<ResultT(JitWrapperT*, InputT)> compute_actual,
-            std::function<bool(ResultT, ResultT)> compare_results)
+            std::function<bool(ResultT, ResultT)> compare_results,
+            std::function<void(int64, InputT, ResultT, ResultT)> log_errors)
       : internal::TestbenchBase<JitWrapperT, InputT, ResultT, ShardDataT>(
-            start, end, max_failures, index_to_input, compare_results),
+            start, end, max_failures, index_to_input, compare_results,
+            log_errors),
         compute_expected_(compute_expected),
         compute_actual_(compute_actual) {
     this->thread_create_fn_ = [this](uint64 start, uint64 end) {
@@ -121,7 +125,7 @@ class Testbench<JitWrapperT, InputT, ResultT, ShardDataT,
           TestbenchThread<JitWrapperT, InputT, ResultT, ShardDataT>>(
           &this->mutex_, &this->wake_me_, start, end, this->max_failures_,
           this->index_to_input_, compute_expected_, compute_actual_,
-          this->compare_results_);
+          this->compare_results_, this->log_errors_);
     };
   }
 
@@ -141,7 +145,8 @@ class TestbenchBase {
  public:
   TestbenchBase(uint64 start, uint64 end, uint64 max_failures,
                 std::function<InputT(uint64)> index_to_input,
-                std::function<bool(ResultT, ResultT)> compare_results)
+                std::function<bool(ResultT, ResultT)> compare_results,
+                std::function<void(int64, InputT, ResultT, ResultT)> log_errors)
       : started_(false),
         num_threads_(std::thread::hardware_concurrency()),
         start_(start),
@@ -149,7 +154,8 @@ class TestbenchBase {
         max_failures_(max_failures),
         num_samples_processed_(0),
         index_to_input_(index_to_input),
-        compare_results_(compare_results) {}
+        compare_results_(compare_results),
+        log_errors_(log_errors) {}
 
   // Sets the number of threads to use. Must be called before Run().
   absl::Status SetNumThreads(int num_threads) {
@@ -298,6 +304,7 @@ class TestbenchBase {
   uint64 num_samples_processed_;
   std::function<InputT(uint64)> index_to_input_;
   std::function<bool(ResultT, ResultT)> compare_results_;
+  std::function<void(int64, InputT, ResultT, ResultT)> log_errors_;
 
   using ThreadT = TestbenchThread<JitWrapperT, InputT, ResultT, ShardDataT>;
   std::function<std::unique_ptr<ThreadT>(uint64, uint64)> thread_create_fn_;

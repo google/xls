@@ -30,8 +30,10 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
   absl::Span<std::string const> pieces = subject.pieces();
   std::string subject_path;
   absl::optional<std::string> subject_parent_path;
-  if (pieces.size() == 1 && (pieces[0] == "std" || pieces[0] == "float32" ||
-                             pieces[0] == "bfloat16")) {
+  const absl::flat_hash_set<std::string> builtins = {
+    "std", "float32", "float64", "bfloat16"
+  };
+  if (pieces.size() == 1 && builtins.contains(pieces[0])) {
     subject_path = absl::StrFormat("xls/dslx/stdlib/%s.x", pieces[0]);
   } else {
     subject_path = absl::StrJoin(pieces, "/") + ".x";

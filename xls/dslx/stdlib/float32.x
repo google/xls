@@ -19,21 +19,11 @@ import xls.dslx.stdlib.apfloat
 // constants don't propagate correctly and fail to resolve when in parametric
 // specifications.
 pub type F32 = apfloat::APFloat<u32:8, u32:23>;
-
-pub enum FloatTag : u3 {
-  NAN       = 0,
-  INFINITY  = 1,
-  SUBNORMAL = 2,
-  ZERO      = 3,
-  NORMAL    = 4,
-}
+pub type FloatTag = apfloat::APFloatTag;
 
 pub type TaggedF32 = (FloatTag, F32);
 
-pub fn qnan() -> F32 {
-  F32 { sign: false, bexp: u8:0xff, sfd: u23:0x400000 }
-}
-
+pub fn qnan() -> F32 { apfloat::qnan<u32:8, u32:23>() }
 pub fn zero(sign: u1) -> F32 { apfloat::zero<u32:8, u32:23>(sign) }
 pub fn one(sign: u1) -> F32 { apfloat::one<u32:8, u32:23>(sign) }
 pub fn inf(sign: u1) -> F32 { apfloat::inf<u32:8, u32:23>(sign) }
@@ -58,14 +48,8 @@ pub fn normalize(sign:u1, exp: u8, sfd_with_hidden: u24) -> F32 {
 
 pub const F32_ONE_FLAT = u32:0x3f800000;
 
-pub fn tag(input_float: F32) -> FloatTag {
-  match (input_float.bexp, input_float.sfd) {
-    (  u8:0, u23:0) => FloatTag::ZERO,
-    (  u8:0,     _) => FloatTag::SUBNORMAL,
-    (u8:255, u23:0) => FloatTag::INFINITY,
-    (u8:255,     _) => FloatTag::NAN,
-    (     _,     _) => FloatTag::NORMAL,
-  }
+pub fn tag(f: F32) -> FloatTag {
+  apfloat::tag<u32:8, u32:23>(f)
 }
 
 #![test]

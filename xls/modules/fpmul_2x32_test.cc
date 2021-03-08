@@ -83,11 +83,20 @@ bool CompareResults(float a, float b) {
          (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
 }
 
+void LogMismatch(uint64 index, Float2x32 input, float actual, float expected) {
+  XLS_LOG(ERROR) << absl::StrFormat(
+      "Value mismatch at index %d, input (%f, %f):\n"
+      "  Expected: 0x%x\n"
+      "  Actual  : 0x%x",
+      index, std::get<0>(input), std::get<1>(input),
+      absl::bit_cast<uint32>(expected), absl::bit_cast<uint32>(actual));
+}
+
 absl::Status RealMain(bool use_opt_ir, uint64 num_samples, int num_threads) {
   Testbench<Fpmul2x32, Float2x32, float> testbench(
       0, num_samples,
       /*max_failures=*/1, IndexToInput, ComputeExpected, ComputeActual,
-      CompareResults);
+      CompareResults, LogMismatch);
   if (num_threads != 0) {
     XLS_RETURN_IF_ERROR(testbench.SetNumThreads(num_threads));
   }

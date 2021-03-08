@@ -63,10 +63,11 @@ class TestbenchThread
       std::function<std::unique_ptr<ShardDataT>()> create_shard,
       std::function<ResultT(ShardDataT*, InputT)> generate_expected,
       std::function<ResultT(JitWrapperT*, ShardDataT*, InputT)> generate_actual,
-      std::function<bool(ResultT, ResultT)> compare_results)
+      std::function<bool(ResultT, ResultT)> compare_results,
+      std::function<void(int64, InputT, ResultT, ResultT)> log_errors)
       : TestbenchThreadBase<JitWrapperT, InputT, ResultT, ShardDataT>(
             wake_parent_mutex, wake_parent, start_index, end_index,
-            max_failures, index_to_input, compare_results),
+            max_failures, index_to_input, compare_results, log_errors),
         shard_data_(create_shard()),
         generate_expected_(generate_expected),
         generate_actual_(generate_actual) {
@@ -94,15 +95,17 @@ class TestbenchThread<
     typename std::enable_if<std::is_void<ShardDataT>::value>::type>
     : public TestbenchThreadBase<JitWrapperT, InputT, ResultT, ShardDataT> {
  public:
-  TestbenchThread(absl::Mutex* wake_parent_mutex, absl::CondVar* wake_parent,
-                  uint64 start_index, uint64 end_index, uint64 max_failures,
-                  std::function<InputT(uint64)> index_to_input,
-                  std::function<ResultT(InputT)> generate_expected,
-                  std::function<ResultT(JitWrapperT*, InputT)> generate_actual,
-                  std::function<bool(ResultT, ResultT)> compare_results)
+  TestbenchThread(
+      absl::Mutex* wake_parent_mutex, absl::CondVar* wake_parent,
+      uint64 start_index, uint64 end_index, uint64 max_failures,
+      std::function<InputT(uint64)> index_to_input,
+      std::function<ResultT(InputT)> generate_expected,
+      std::function<ResultT(JitWrapperT*, InputT)> generate_actual,
+      std::function<bool(ResultT, ResultT)> compare_results,
+      std::function<void(int64, InputT, ResultT, ResultT)> log_errors)
       : TestbenchThreadBase<JitWrapperT, InputT, ResultT, ShardDataT>(
             wake_parent_mutex, wake_parent, start_index, end_index,
-            max_failures, index_to_input, compare_results),
+            max_failures, index_to_input, compare_results, log_errors),
         generate_expected_(generate_expected),
         generate_actual_(generate_actual) {
     this->generate_expected_fn_ = [this](InputT& input) {
@@ -125,11 +128,12 @@ template <typename JitWrapperT, typename InputT, typename ResultT,
           typename ShardDataT>
 class TestbenchThreadBase {
  public:
-  TestbenchThreadBase(absl::Mutex* wake_parent_mutex,
-                      absl::CondVar* wake_parent, uint64 start_index,
-                      uint64 end_index, uint64 max_failures,
-                      std::function<InputT(uint64)> index_to_input,
-                      std::function<bool(ResultT, ResultT)> compare_results)
+  TestbenchThreadBase(
+      absl::Mutex* wake_parent_mutex, absl::CondVar* wake_parent,
+      uint64 start_index, uint64 end_index, uint64 max_failures,
+      std::function<InputT(uint64)> index_to_input,
+      std::function<bool(ResultT, ResultT)> compare_results,
+      std::function<void(int64, InputT, ResultT, ResultT)> log_errors)
       : wake_parent_mutex_(wake_parent_mutex),
         wake_parent_(wake_parent),
         cancelled_(false),
@@ -140,7 +144,8 @@ class TestbenchThreadBase {
         num_passes_(0),
         num_failures_(0),
         index_to_input_(index_to_input),
-        compare_results_(compare_results) {}
+        compare_results_(compare_results),
+        log_errors_(log_errors) {}
 
   // Starts the thread. Silently returns if it's already running.
   // If the tax of calling index_to_input_ every iter is too high, we can
@@ -176,15 +181,9 @@ class TestbenchThreadBase {
       ResultT actual = generate_actual_fn_(input);
       if (!compare_results_(expected, actual)) {
         num_failures_.store(num_failures_.load() + 1);
-        std::string error = absl::StrFormat(
-            "Value mismatch at index %d:\n"
-            "  Expected: 0x%x\n"
-            "  Actual  : 0x%x",
-            i, absl::bit_cast<uint32>(expected),
-            absl::bit_cast<uint32>(actual));
-        XLS_LOG(ERROR) << error;
+        log_errors_(i, input, expected, actual);
         if (max_failures_ <= num_failures_.load()) {
-          return_status = absl::InternalError(error);
+          return_status = absl::UnknownError("Maximum error count reached.");
           break;
         }
       } else {
@@ -252,6 +251,7 @@ class TestbenchThreadBase {
   std::function<ResultT(InputT&)> generate_expected_fn_;
   std::function<ResultT(InputT&)> generate_actual_fn_;
   std::function<bool(ResultT, ResultT)> compare_results_;
+  std::function<void(int64, InputT, ResultT, ResultT)> log_errors_;
 
   std::string ir_text_;
   std::string entry_fn_;

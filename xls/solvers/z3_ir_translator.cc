@@ -460,9 +460,10 @@ absl::Status IrTranslator::HandleShift(BinOp* shift, FnT fshift) {
   auto f = [shift, fshift](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     int64 lhs_bit_count = shift->operand(0)->BitCountOrDie();
     int64 rhs_bit_count = shift->operand(1)->BitCountOrDie();
-    if (rhs_bit_count != lhs_bit_count) {
-      XLS_CHECK_GT(lhs_bit_count, rhs_bit_count);
+    if (rhs_bit_count < lhs_bit_count) {
       rhs = Z3_mk_zero_ext(ctx, lhs_bit_count - rhs_bit_count, rhs);
+    } else if (rhs_bit_count > lhs_bit_count) {
+      lhs = Z3_mk_zero_ext(ctx, rhs_bit_count - lhs_bit_count, lhs);
     }
     return fshift(ctx, lhs, rhs);
   };

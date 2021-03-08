@@ -15,7 +15,7 @@
 // Arbitrary-precision floating point routines.
 import std
 
-pub struct APFloat<EXP_SZ:u32, SFD_SZ:u32>  {
+pub struct APFloat<EXP_SZ:u32, SFD_SZ:u32> {
   sign: bits[1],  // sign bit
   bexp: bits[EXP_SZ],  // biased exponent
   sfd:  bits[SFD_SZ],  // significand (no hidden bit)
@@ -27,6 +27,17 @@ pub enum APFloatTag : u3 {
   SUBNORMAL = 2,
   ZERO      = 3,
   NORMAL    = 4,
+}
+
+pub fn tag<EXP_SZ:u32, SFD_SZ:u32>(input_float: APFloat<EXP_SZ, SFD_SZ>) -> APFloatTag {
+  const EXPR_MASK = std::mask_bits<EXP_SZ>();
+  match (input_float.bexp, input_float.sfd) {
+    (uN[EXP_SZ]:0, uN[SFD_SZ]:0) => APFloatTag::ZERO,
+    (uN[EXP_SZ]:0,            _) => APFloatTag::SUBNORMAL,
+    (   EXPR_MASK, uN[SFD_SZ]:0) => APFloatTag::INFINITY,
+    (   EXPR_MASK,            _) => APFloatTag::NAN,
+    (           _,            _) => APFloatTag::NORMAL,
+  }
 }
 
 pub fn qnan<EXP_SZ:u32, SFD_SZ:u32>() -> APFloat<EXP_SZ, SFD_SZ> {
@@ -166,8 +177,8 @@ pub fn unflatten<EXP_SZ:u32, SFD_SZ:u32,
     SIGN_OFFSET:u32 = EXP_SZ+SFD_SZ>(
     x: bits[TOTAL_SZ]) -> APFloat<EXP_SZ, SFD_SZ> {
   APFloat<EXP_SZ, SFD_SZ>{
-      sign: (x >> SIGN_OFFSET) as bits[1],
-      bexp: (x >> SFD_SZ) as bits[EXP_SZ],
+      sign: (x >> (SIGN_OFFSET as bits[TOTAL_SZ])) as bits[1],
+      bexp: (x >> (SFD_SZ as bits[TOTAL_SZ])) as bits[EXP_SZ],
       sfd: x as bits[SFD_SZ],
   }
 }
@@ -189,7 +200,8 @@ pub fn normalize<EXP_SZ:u32, SFD_SZ:u32, WIDE_SFD:u32 = SFD_SZ + u32:1>(
   let zero_sfd = WIDE_SFD as bits[SFD_SZ];
   let normalized_sfd = (sfd_with_hidden << (leading_zeros as bits[WIDE_SFD])) as bits[SFD_SZ];
 
-  match (exp <= (leading_zeros as bits[EXP_SZ]), leading_zeros) {
+  let is_denormal = exp <= (leading_zeros as bits[EXP_SZ]);
+  match (is_denormal, leading_zeros) {
     // Significand is zero.
     (_, zero_sfd) => zero_value,
     // Flush denormals to zero.
@@ -201,14 +213,12 @@ pub fn normalize<EXP_SZ:u32, SFD_SZ:u32, WIDE_SFD:u32 = SFD_SZ + u32:1>(
   }
 }
 
-pub fn is_inf<EXP_SZ:u32, SFD_SZ:u32, MASK_SZ:u32 = EXP_SZ - u32:1>(
-    x: APFloat<EXP_SZ, SFD_SZ>) -> u1 {
+pub fn is_inf<EXP_SZ:u32, SFD_SZ:u32>(x: APFloat<EXP_SZ, SFD_SZ>) -> u1 {
   (x.bexp == std::mask_bits<EXP_SZ>() && x.sfd == bits[SFD_SZ]:0)
 }
 
 // Returns whether or not the given F32 represents NaN.
-pub fn is_nan<EXP_SZ:u32, SFD_SZ:u32, MASK_SZ:u32 = EXP_SZ - u32:1>(
-    x: APFloat<EXP_SZ, SFD_SZ>) -> u1 {
+pub fn is_nan<EXP_SZ:u32, SFD_SZ:u32>(x: APFloat<EXP_SZ, SFD_SZ>) -> u1 {
   (x.bexp == std::mask_bits<EXP_SZ>() && x.sfd != bits[SFD_SZ]:0)
 }
 
