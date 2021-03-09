@@ -40,7 +40,7 @@ TEST(NetworkComponentPortTest, MemberFunctionDataOutput) {
   EXPECT_EQ(port.GetConnections().size(), 0);
   NetworkConnection& connection =
       view.AddConnection().ConnectToSourcePort(&port);
-  EXPECT_EQ(port.GetConnections().size(), 1);
+  ASSERT_EQ(port.GetConnections().size(), 1);
   EXPECT_EQ(*port.GetConnections().begin(), &connection);
 }
 
@@ -55,7 +55,7 @@ TEST(NetworkComponentPortTest, MemberFunctionControlInput) {
   EXPECT_TRUE(port.IsControl());
   EXPECT_EQ(port.GetConnections().size(), 0);
   NetworkConnection& connection = view.AddConnection().ConnectToSinkPort(&port);
-  EXPECT_EQ(port.GetConnections().size(), 1);
+  ASSERT_EQ(port.GetConnections().size(), 1);
   EXPECT_EQ(*port.GetConnections().begin(), &connection);
 }
 

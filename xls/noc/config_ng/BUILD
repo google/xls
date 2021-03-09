@@ -159,3 +159,115 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "fake_network_component",
+    testonly = True,
+    hdrs = ["fake_network_component.h"],
+    deps = [
+        ":network_component",
+    ],
+)
+
+cc_library(
+    name = "network_component_port_utils",
+    srcs = ["network_component_port_utils.cc"],
+    hdrs = ["network_component_port_utils.h"],
+    deps = [
+        ":network_component_port",
+        ":network_connection",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+    ],
+)
+
+cc_test(
+    name = "network_component_port_utils_test",
+    srcs = ["network_component_port_utils_test.cc"],
+    deps = [
+        ":fake_network_component",
+        ":network_component_port",
+        ":network_component_port_utils",
+        ":network_view",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "network_component_utils",
+    srcs = ["network_component_utils.cc"],
+    hdrs = ["network_component_utils.h"],
+    deps = [
+        ":network_component",
+        ":network_component_port_utils",
+        ":network_connection",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "network_component_utils_test",
+    srcs = ["network_component_utils_test.cc"],
+    deps = [
+        ":fake_network_component",
+        ":network_component_utils",
+        ":network_view",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "network_connection_utils",
+    srcs = ["network_connection_utils.cc"],
+    hdrs = ["network_connection_utils.h"],
+    deps = [
+        ":network_component_port",
+        ":network_connection",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_test(
+    name = "network_connection_utils_test",
+    srcs = ["network_connection_utils_test.cc"],
+    deps = [
+        ":fake_network_component",
+        ":network_component_port",
+        ":network_connection_utils",
+        ":network_view",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "network_view_utils",
+    srcs = ["network_view_utils.cc"],
+    hdrs = ["network_view_utils.h"],
+    deps = [
+        ":network_component_utils",
+        ":network_connection_utils",
+        ":network_view",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "network_view_utils_test",
+    srcs = ["network_view_utils_test.cc"],
+    deps = [
+        ":network_view",
+        ":network_view_utils",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
