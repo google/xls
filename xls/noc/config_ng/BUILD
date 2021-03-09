@@ -74,6 +74,26 @@ cc_proto_library(
 )
 
 cc_library(
+    name = "topology_endpoint_options_proto_builder",
+    srcs = ["topology_endpoint_options_proto_builder.cc"],
+    hdrs = ["topology_endpoint_options_proto_builder.h"],
+    deps = [
+        ":topology_options_network_config_builder_cc_proto",
+        "//xls/common:integral_types",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "topology_endpoint_options_proto_builder_test",
+    srcs = ["topology_endpoint_options_proto_builder_test.cc"],
+    deps = [
+        ":topology_endpoint_options_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "network_component_port",
     srcs = ["network_component_port.cc"],
     hdrs = ["network_component_port.h"],
