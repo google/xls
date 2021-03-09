@@ -172,3 +172,35 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+dslx_test(
+    name = "fpmul_2x64",
+    srcs = ["fpmul_2x64.x"],
+    # TODO(rspringer): Currently takes too long.
+    prove_unopt_eq_opt = False,
+    deps = [":apfloat_mul_2.x"],
+)
+
+dslx_jit_wrapper(
+    name = "fpmul_2x64_jit_wrapper",
+    dslx_name = "fpmul_2x64",
+    deps = [":fpmul_2x64_opt_ir"],
+)
+
+cc_test(
+    name = "fpmul_2x64_test",
+    srcs = ["fpmul_2x64_test.cc"],
+    data = [":fpmul_2x64_all_ir"],
+    deps = [
+        ":fpmul_2x64_jit_wrapper",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "//xls/common:init_xls",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir:value_helpers",
+        "//xls/ir:value_view_helpers",
+        "//xls/tools:testbench",
+    ],
+)

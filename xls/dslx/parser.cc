@@ -811,6 +811,8 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(Bindings* bindings) {
     Token op = PopTokenOrDie();
     auto status_or_rhs = ParseOrExpression(txn.bindings());
     if (status_or_rhs.ok()) {
+      // TODO(rspringer): 2021-03-08: Missing transaction rollback if this call
+      // fails.
       XLS_ASSIGN_OR_RETURN(BinopKind kind,
                            BinopKindFromString(TokenKindToString(op.kind())));
       lhs = module_->Make<Binop>(op.span(), kind, lhs, status_or_rhs.value());

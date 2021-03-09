@@ -21,8 +21,6 @@
 // conforming implementations (modulo exact significand
 // values in the NaN case.
 
-// TODO(rspringer): 2021/03/05: This still has lots of float32-specific
-// values/widths. It won't yet work for float64/bfloat16.
 import std
 import xls.dslx.stdlib.apfloat
 
@@ -31,22 +29,48 @@ type APFloat = apfloat::APFloat;
 // Determines if the given value is 0, taking into account
 // flushing subnormals.
 fn is_zero<EXP_SZ: u32, SFD_SZ: u32>(x: APFloat<EXP_SZ, SFD_SZ>) -> u1 {
-  x.bexp == u8:0
+  x.bexp == uN[EXP_SZ]:0
 }
 
-pub fn apfloat_mul_2<EXP_SZ: u32, SFD_SZ:u32>(
+// Usage:
+//  - EXP_SZ: The number of bits in the exponent.
+//  - SFD_SZ: The number of bits in the significand (see
+//        https://en.wikipedia.org/wiki/Significand for "significand"
+//        vs "mantissa" naming).
+//  - x, y: The two floating-point numbers to multiply.
+//
+// Derived parametrics:
+//  - WIDE_EXP: Widened exponent to capture a possible carry bit.
+//  - SIGNED_EXP: WIDE_EXP plus one sign bit.
+//  - ROUNDING_SFD: Result significand with one extra bit to capture
+//    potential carry if rounding up.
+//  - WIDE_SFD: Widened sfd to contain full precision + rounding
+//    (guard & sticky) bits.
+//  - SFD_ROUNDING_BIT: Position of the first rounding bit in the "wide" SFD.
+//  - STICKY_SFD: Location of the sticky bit in the wide SFD (same as
+//    "ROUNDING_SFD", but it's easier to understand the code if it
+//    has its own name).
+pub fn apfloat_mul_2<
+    EXP_SZ: u32,
+    SFD_SZ: u32,
+    WIDE_EXP: u32 = EXP_SZ + u32:1,
+    SIGNED_EXP: u32 = WIDE_EXP + u32:1,
+    ROUNDING_SFD: u32 = SFD_SZ + u32:1,
+    WIDE_SFD: u32 = SFD_SZ + SFD_SZ + u32:2,
+    SFD_ROUNDING_BIT: u32 = SFD_SZ - u32:1,
+    STICKY_SFD: u32 = SFD_SZ + u32:1>(
     x: APFloat<EXP_SZ, SFD_SZ>, y: APFloat<EXP_SZ, SFD_SZ>) ->
     APFloat<EXP_SZ, SFD_SZ> {
   // 1. Get and expand mantissas.
-  let x_sfd = (x.sfd as u48) | u48:0x80_0000;
-  let y_sfd = (y.sfd as u48) | u48:0x80_0000;
+  let x_sfd = (x.sfd as uN[WIDE_SFD]) | (uN[WIDE_SFD]:1 << (SFD_SZ as uN[WIDE_SFD]));
+  let y_sfd = (y.sfd as uN[WIDE_SFD]) | (uN[WIDE_SFD]:1 << (SFD_SZ as uN[WIDE_SFD]));
 
   // 1a. Flush subnorms to 0.
-  let x_sfd = u48:0 if x.bexp == u8:0 else x_sfd;
-  let y_sfd = u48:0 if y.bexp == u8:0 else y_sfd;
+  let x_sfd = uN[WIDE_SFD]:0 if x.bexp == uN[EXP_SZ]:0 else x_sfd;
+  let y_sfd = uN[WIDE_SFD]:0 if y.bexp == uN[EXP_SZ]:0 else y_sfd;
 
   // 2. Multiply integer mantissas.
-  let sfd: u48 = x_sfd * y_sfd;
+  let sfd: uN[WIDE_SFD] = x_sfd * y_sfd;
 
   // 3. Add non-biased exponents.
   //  - Remove the bias from the exponents, add them, then restore the bias.
@@ -54,7 +78,8 @@ pub fn apfloat_mul_2<EXP_SZ: u32, SFD_SZ:u32>(
   //      (A - 127) + (B - 127) + 127 = exp
   //    to
   //      A + B - 127 = exp
-  let exp = (x.bexp as s10) + (y.bexp as s10) - s10:0x7f;
+  let bias = std::mask_bits<EXP_SZ>() as sN[SIGNED_EXP] >> sN[SIGNED_EXP]:1;
+  let exp = (x.bexp as sN[SIGNED_EXP]) + (y.bexp as sN[SIGNED_EXP]) - bias;
 
   // Here is where we'd handle subnormals if we cared to.
   // If the exponent remains < 0, even after reapplying the bias,
@@ -63,23 +88,23 @@ pub fn apfloat_mul_2<EXP_SZ: u32, SFD_SZ:u32>(
   // to capture that "extra" exponent.
   // Since we just flush subnormals, we don't have to do any of that.
   // Instead, if we're multiplying by 0, the result is 0.
-  let exp = s10:0 if is_zero(x) || is_zero(y) else exp;
+  let exp = sN[SIGNED_EXP]:0 if is_zero(x) || is_zero(y) else exp;
 
   // 4. Normalize. Adjust the significand until our leading 1 is;
   // bit 47 (the first past the 46 bits of actual significand).
   // That'll be a shift of 1 or 0 places (since we're multiplying
   // two values with leading 1s in bit 24).
-  let sfd_shift = sfd[-1:] as u48;
+  let sfd_shift = sfd[-1:] as uN[WIDE_SFD];
 
   // If there is a leading 1, then we need to shift to the right one place -
   // that means we gained a new significant digit at the top.
   // Dont forget to maintain the sticky bit!
-  let sticky = sfd[0:1] as u48;
+  let sticky = sfd[0:1] as uN[WIDE_SFD];
   let sfd = sfd >> sfd_shift;
   let sfd = sfd | sticky;
 
   // Update the exponent if we shifted.
-  let exp = exp + (sfd_shift as s10);
+  let exp = exp + (sfd_shift as sN[SIGNED_EXP]);
   // If the value is currently subnormal, then we need to shift right by one
   // space: a subnormal value doesn't have the leading 1, and thus has one
   // fewer significant digits than normal numbers - in a sense, the -1th bit
@@ -89,8 +114,8 @@ pub fn apfloat_mul_2<EXP_SZ: u32, SFD_SZ:u32>(
   // Again, track the sticky bit. This could be combined with the shift
   // above, but it's easier to understand (and comment) if separated, and the
   // optimizer will clean it up anyway.
-  let sticky = sfd[0:1] as u48;
-  let sfd = sfd >> u48:1 if exp <= s10:0 else sfd;
+  let sticky = sfd[0:1] as uN[WIDE_SFD];
+  let sfd = sfd >> uN[WIDE_SFD]:1 if exp <= sN[SIGNED_EXP]:0 else sfd;
   let sfd = sfd | sticky;
 
   // 5. Round - we use nearest, half to even rounding.
@@ -101,41 +126,47 @@ pub fn apfloat_mul_2<EXP_SZ: u32, SFD_SZ:u32>(
   // - If halfway (bit 23 set and no bit lower), then we round;
   //   whichever direction makes the result even. In other words,
   //   we round up if bit 25 is set.
-  let is_half_way = sfd[22:23] & (sfd[0:22] == u22:0);
-  let greater_than_half_way = sfd[22:23] & (sfd[0:22] != u22:0);
-  let do_round_up = greater_than_half_way || (is_half_way & sfd[23:24]);
+  let is_half_way =
+      sfd[SFD_ROUNDING_BIT:SFD_SZ] &
+      (sfd[0:SFD_ROUNDING_BIT] == uN[SFD_ROUNDING_BIT]:0);
+  let greater_than_half_way =
+      sfd[SFD_ROUNDING_BIT:SFD_SZ] &
+      (sfd[0:SFD_ROUNDING_BIT] != uN[SFD_ROUNDING_BIT]:0);
+  let do_round_up =
+      greater_than_half_way || (is_half_way & sfd[SFD_SZ:STICKY_SFD]);
 
   // We're done with the extra precision bits now, so shift the
   // significand into its almost-final width, adding one extra
   // bit for potential rounding overflow.
-  let sfd = (sfd >> u48:23) as u23;
-  let sfd = sfd as u24;
-  let sfd = sfd + u24:1 if do_round_up else sfd;
+  let sfd = (sfd >> (SFD_SZ as uN[WIDE_SFD])) as uN[SFD_SZ];
+  let sfd = sfd as uN[ROUNDING_SFD];
+  let sfd = sfd + uN[ROUNDING_SFD]:1 if do_round_up else sfd;
 
   // Adjust the exponent if we overflowed during rounding.
   // After checking for subnormals, we don't need the sign bit anymore.
-  let exp = exp + s10:1 if sfd[-1:] else exp;
-  let is_subnormal = exp <= s10:0;
+  let exp = exp + sN[SIGNED_EXP]:1 if sfd[-1:] else exp;
+  let is_subnormal = exp <= sN[SIGNED_EXP]:0;
 
   // We're done - except for special cases...
   let result_sign = x.sign != y.sign;
-  let result_exp = exp as u9;
-  let result_sfd = sfd as u23;
+  let result_exp = exp as uN[WIDE_EXP];
+  let result_sfd = sfd as uN[SFD_SZ];
 
   // 6. Special cases!
   // - Subnormals: flush to 0.
-  let result_exp = u9:0 if is_subnormal else result_exp;
-  let result_sfd = u23:0 if is_subnormal else result_sfd;
+  let result_exp = uN[WIDE_EXP]:0 if is_subnormal else result_exp;
+  let result_sfd = uN[SFD_SZ]:0 if is_subnormal else result_sfd;
 
-  // - Overflow infinites. Exp to 255, clear sfd.
-  let result_sfd = result_sfd if result_exp < u9:0xff else u23:0;
-  let result_exp = result_exp as u8 if result_exp < u9:0xff else u8:0xff;
+  // - Overflow infinites - saturate exp, clear sfd.
+  let high_exp = std::mask_bits<EXP_SZ>();
+  let result_sfd = result_sfd if result_exp < (high_exp as uN[WIDE_EXP]) else uN[SFD_SZ]:0;
+  let result_exp = result_exp as uN[EXP_SZ] if result_exp < (high_exp as uN[WIDE_EXP]) else high_exp;
 
   // - Arg infinites. Any arg is infinite == result is infinite.
   let is_operand_inf = apfloat::is_inf<EXP_SZ, SFD_SZ>(x) ||
       apfloat::is_inf<EXP_SZ, SFD_SZ>(y);
-  let result_exp = u8:0xff if is_operand_inf else result_exp;
-  let result_sfd = u23:0 if is_operand_inf else result_sfd;
+  let result_exp = high_exp if is_operand_inf else result_exp;
+  let result_sfd = uN[SFD_SZ]:0 if is_operand_inf else result_sfd;
 
   // - NaNs. NaN trumps infinities, so we handle it last.
   //   inf * 0 = NaN, i.e.,
@@ -145,8 +176,9 @@ pub fn apfloat_mul_2<EXP_SZ: u32, SFD_SZ:u32>(
   let has_inf_arg = apfloat::is_inf<EXP_SZ, SFD_SZ>(x) ||
       apfloat::is_inf<EXP_SZ, SFD_SZ>(y);
   let is_result_nan = has_nan_arg || (has_0_arg && has_inf_arg);
-  let result_exp = u8:0xff if is_result_nan else result_exp;
-  let result_sfd = u23:0x40_0000 if is_result_nan else result_sfd;
+  let result_exp = high_exp if is_result_nan else result_exp;
+  let nan_sfd = uN[SFD_SZ]:1 << (SFD_SZ as uN[SFD_SZ] - uN[SFD_SZ]:1);
+  let result_sfd = nan_sfd if is_result_nan else result_sfd;
   let result_sign = u1:0 if is_result_nan else result_sign;
 
   APFloat<EXP_SZ, SFD_SZ>{
