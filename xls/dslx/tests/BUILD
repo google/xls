@@ -551,6 +551,12 @@ dslx_test(
 )
 
 dslx_test(
+    name = "importer_const_in_return_type",
+    srcs = ["importer_const_in_return_type.x"],
+    deps = ["mod_simple_const.x"],
+)
+
+dslx_test(
     name = "mod_const_in_type_alias",
     srcs = ["mod_const_in_type_alias.x"],
     deps = ["mod_simple_const.x"],
