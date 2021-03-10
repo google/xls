@@ -182,6 +182,14 @@ def load_external_repositories():
     )
 
     http_archive(
+        name = "linenoise",
+        sha256 = "e7dbebca81b518544bea6622d5cc1a2e6347d080793cb0ba134edc66c3822fd5",
+        strip_prefix = "linenoise-97d2850af13c339369093b78abe5265845d78220",
+        urls = ["https://github.com/antirez/linenoise/archive/97d2850af13c339369093b78abe5265845d78220.zip"],
+        build_file = "@//dependency_support/linenoise:bundled.BUILD.bazel",
+    )
+
+    http_archive(
         name = "com_github_grpc_grpc",
         urls = ["https://github.com/grpc/grpc/archive/v1.32.0.tar.gz"],
         sha256 = "f880ebeb2ccf0e47721526c10dd97469200e40b5f101a0d9774eb69efa0bd07a",
