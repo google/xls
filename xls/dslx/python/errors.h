@@ -28,15 +28,15 @@ namespace xls::dslx {
 // Raised when there is an error in token scanning.
 class ScanError : public std::exception {
  public:
-  ScanError(Pos pos, std::string message)
-      : pos_(std::move(pos)), message_(std::move(message)) {}
+  ScanError(Span span, std::string message)
+      : span_(std::move(span)), message_(std::move(message)) {}
 
   const char* what() const noexcept override { return message_.c_str(); }
 
-  const Pos& pos() const { return pos_; }
+  const Span& span() const { return span_; }
 
  private:
-  Pos pos_;
+  Span span_;
   std::string message_;
 };
 
@@ -50,8 +50,8 @@ inline void TryThrowScanError(const absl::Status& status) {
     if (pieces.size() < 2) {
       return;
     }
-    absl::StatusOr<Pos> pos = Pos::FromString(pieces[0]);
-    throw ScanError(std::move(pos.value()), std::string(pieces[1]));
+    absl::StatusOr<Span> span = Span::FromString(pieces[0]);
+    throw ScanError(std::move(span.value()), std::string(pieces[1]));
   }
 }
 

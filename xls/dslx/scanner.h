@@ -239,9 +239,9 @@ class Scanner {
   // easily encode a payload, this canonical formatting is used to convey
   // metadata; e.g. the position at which the scan error occurred, so it may be
   // raised into Python land as a more structured form of exception.
-  absl::Status ScanError(const Pos& pos, std::string message) {
+  absl::Status ScanError(const Span& span, std::string message) {
     return absl::InvalidArgumentError(
-        absl::StrFormat("ScanError: %s %s", pos.ToString(), message));
+        absl::StrFormat("ScanError: %s %s", span.ToString(), message));
   }
 
   // Determines whether string "s" matches a keyword -- if so, returns the

@@ -165,26 +165,26 @@ absl::StatusOr<Token> Scanner::ScanNumber(char startc, const Pos& start_pos) {
              ('A' <= c && c <= 'F') || c == '_';
     });
     if (s == "0x") {
-      return ScanError(start_pos,
+      return ScanError(Span(GetPos(), GetPos()),
                        "Expected hex characters following 0x prefix.");
     }
   } else if (startc == '0' && TryDropChar('b')) {  // Bin prefix.
     s = ScanWhile("0b",
                   [](char c) { return ('0' <= c && c <= '1') || c == '_'; });
     if (s == "0b") {
-      return ScanError(GetPos(),
+      return ScanError(Span(GetPos(), GetPos()),
                        "Expected binary characters following 0b prefix");
     }
     if (!AtEof() && '0' <= PeekChar() && PeekChar() <= '9') {
       return ScanError(
-          GetPos(),
+          Span(GetPos(), GetPos()),
           absl::StrFormat("Invalid digit for binary number: '%c'", PeekChar()));
     }
   } else {
     s = ScanWhile(startc, [](char c) { return std::isdigit(c); });
     if (absl::StartsWith(s, "0") && s.size() != 1) {
       return ScanError(
-          start_pos,
+          Span(GetPos(), GetPos()),
           "Invalid radix for number, expect 0b or 0x because of leading 0.");
     }
     XLS_CHECK(!s.empty())
@@ -274,7 +274,7 @@ absl::StatusOr<Token> Scanner::ScanChar(const Pos& start_pos) {
   const char open_quote = PopChar();
   XLS_CHECK_EQ(open_quote, '\'');
   if (AtCharEof()) {
-    return ScanError(GetPos(),
+    return ScanError(Span(GetPos(), GetPos()),
                      "Expected character after single quote, saw end of file.");
   }
   char c = PopChar();
@@ -282,7 +282,7 @@ absl::StatusOr<Token> Scanner::ScanChar(const Pos& start_pos) {
     std::string msg = absl::StrFormat(
         "Expected closing single quote for character literal; got %s",
         AtCharEof() ? std::string("end of file") : std::string(1, PeekChar()));
-    return ScanError(GetPos(), msg);
+    return ScanError(Span(GetPos(), GetPos()), msg);
   }
   return Token(TokenKind::kCharacter, Span(start_pos, GetPos()),
                std::string(1, c));
@@ -436,7 +436,7 @@ absl::StatusOr<Token> Scanner::Pop() {
           result = Token(TokenKind::kMinus, mk_span());
         }
       } else {
-        return ScanError(GetPos(),
+        return ScanError(Span(GetPos(), GetPos()),
                          absl::StrFormat("Unrecognized character: '%c' (%#x)",
                                          startc, startc));
       }

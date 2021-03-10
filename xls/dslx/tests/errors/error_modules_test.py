@@ -194,6 +194,11 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('Unable to resolve slice limit to a compile-time constant.',
                   stderr)
 
+  def test_scan_error_pretty_printed(self):
+    stderr = self._run('xls/dslx/tests/errors/no_radix.x')
+    self.assertIn(
+        '^^ ScanError: Invalid radix for number, expect 0b or 0x because of leading 0.',
+        stderr)
 
 if __name__ == '__main__':
   test_base.main()

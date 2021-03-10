@@ -103,7 +103,7 @@ PYBIND11_MODULE(scanner, m) {
       py::object& e_type = parse_exc;
       py::object instance = e_type();
       instance.attr("message") = e.what();
-      instance.attr("span") = Span(e.pos(), e.pos());
+      instance.attr("span") = e.span();
       PyErr_SetObject(parse_exc.ptr(), instance.ptr());
     }
   });
