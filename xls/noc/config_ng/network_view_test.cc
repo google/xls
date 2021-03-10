@@ -33,6 +33,7 @@ TEST(NetworkViewTest, MemberFunction) {
   NetworkComponentDerived& component =
       view.AddComponent<NetworkComponentDerived>();
   EXPECT_EQ(view.GetComponentCount(), 1);
+  EXPECT_EQ(view.GetCount<NetworkComponentDerived>(), 1);
   EXPECT_EQ(*view.components().begin(), &component);
   NetworkConnection& connection = view.AddConnection();
   EXPECT_EQ(view.GetConnectionCount(), 1);

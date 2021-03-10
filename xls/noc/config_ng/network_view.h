@@ -43,6 +43,21 @@ class NetworkView {
     return static_cast<Type&>(*components_.back());
   }
 
+  // Counts the number of a components of the type specified by the template.
+  // The component type must be a network component base class or derived class.
+  template <typename Type>
+  int64 GetCount() const {
+    static_assert(std::is_base_of<NetworkComponent, Type>::value,
+                  "Type is not a Network Component subclass");
+    int64 count = 0;
+    for (const NetworkComponent* component : components()) {
+      if (typeid(*component) == typeid(Type)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   // Returns an iterator range for the components. The objects are guaranteed to
   // be non-null. Note that, when using the result of this function, if the view
   // is modified (e.g. a component is added), the returned result may become
