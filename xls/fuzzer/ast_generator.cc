@@ -147,9 +147,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompare(Env* env) {
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Env* env) {
   BinopKind op = RandomSetChoice<BinopKind>(GetBinopShifts());
-  XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(env));
-  TypedExpr lhs = pair.first;
-  TypedExpr rhs = pair.second;
+  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueUBits(env));
   if (RandomFloat() < 0.8) {
     // Clamp the shift rhs to be in range most of the time.
     int64_t bit_count = GetTypeBitCount(rhs.type);
@@ -165,6 +164,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBinop(Env* env) {
   TypedExpr lhs = pair.first;
   TypedExpr rhs = pair.second;
   BinopKind op = RandomSetChoice(binops_);
+  if (GetBinopShifts().contains(op)) {
+    return GenerateShift(env);
+  }
   return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
                    lhs.type};
 }

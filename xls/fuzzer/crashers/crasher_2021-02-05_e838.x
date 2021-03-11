@@ -164,7 +164,7 @@ fn x6(x7: s40) -> (s40, (s40,), s40, s40, s40, s40, (s40, s40), s40, s40, s40, (
   let x17: u1 = for (i, x): (u4, u1) in range(u4:0x0, u4:0x7) {
     x
   }(x16);
-  let x18: s40 = (x8) << ((s40:0xb) if ((x8) >= (s40:0xb)) else (x8));
+  let x18: s40 = (x8) << ((u40:0xb) if ((x8) >= (s40:0xb)) else (x8 as u40));
   (x8, x12, x8, x14, x14, x15, x11, x18, x10, x10, x11, x9)
 }
 fn main(x0: s52, x1: s16, x2: u62, x3: u6) -> (u14, x48[0x4]) {
@@ -178,7 +178,7 @@ fn main(x0: s52, x1: s16, x2: u62, x3: u6) -> (u14, x48[0x4]) {
   }(x20);
   let x22: s64 = s64:0x1000000000000;
   let x23: u64 = u64:0x40000000;
-  let x24: s64 = (((x3) as s64)) << ((s64:0x3d) if ((x22) >= (s64:0x3d)) else (x22));
+  let x24: s64 = (((x3) as s64)) << ((u64:0x3d) if ((x22) >= (s64:0x3d)) else (x22 as u64));
   let x25: (u62, u6, u62, s64, u62, u6, s52, u62, u6, s64, u6) = (x2, x21, x2, x22, x2, x3, x0, x4, x20, x22, x20);
   let x26: u64 = (x23)[x21+:u64];
   let x27: u6 = x21;

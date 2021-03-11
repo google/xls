@@ -212,6 +212,39 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConcat(
   return absl::make_unique<BitsType>(/*signed=*/false, /*size=*/new_size);
 }
 
+// Shift operations are binary operations that require bits types as their
+// operands.
+static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceShift(
+    Binop* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs,
+                       DeduceAndResolve(node->lhs(), ctx));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> rhs,
+                       DeduceAndResolve(node->rhs(), ctx));
+
+  // Validate bits type for lhs and rhs.
+  BitsType* lhs_bit_type = dynamic_cast<BitsType*>(lhs.get());
+  if (lhs_bit_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->lhs()->span(), lhs.get(),
+        "Shift operations can only be applied to bits-typed operands.");
+  }
+  BitsType* rhs_bit_type = dynamic_cast<BitsType*>(rhs.get());
+  if (rhs_bit_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->rhs()->span(), rhs.get(),
+        "Shift operations can only be applied to bits-typed operands.");
+  }
+
+  if (rhs_bit_type->is_signed()) {
+    return TypeInferenceErrorStatus(node->rhs()->span(), rhs.get(),
+                                    "Shift amount must be unsigned.");
+  }
+
+  // TODO(https://github.com/google/xls/issues/79) 03-07-2021
+
+  return lhs;
+}
+
 // Returns a set of the kinds of binary operations that are comparisons; that
 // is, they are `(T, T) -> bool` typed.
 static const absl::flat_hash_set<BinopKind>& GetBinopComparisonKinds() {
@@ -240,6 +273,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(Binop* node,
                                                           DeduceCtx* ctx) {
   if (node->kind() == BinopKind::kConcat) {
     return DeduceConcat(node, ctx);
+  }
+
+  if (GetBinopShifts().contains(node->kind())) {
+    return DeduceShift(node, ctx);
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs,

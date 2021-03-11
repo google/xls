@@ -400,7 +400,7 @@ static int64_t BitsToNonNegInt64OrElse(const Bits& bits, int64_t else_value) {
   if (!bits.FitsInInt64()) {
     return else_value;
   }
-  int64_t result = bits.ToInt64().value();
+  int64_t result = static_cast<int64_t>(bits.ToUint64().value());
   return result < 0 ? else_value : result;
 }
 

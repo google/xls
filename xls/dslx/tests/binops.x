@@ -20,9 +20,9 @@ fn main32() -> sN[32] {
   let y = sN[32]:-1000;
   let add = x + y;
   let mul = add * y;
-  let shll = mul << y;
-  let shra = mul >>> x;
-  let shrl = mul >> x;
+  let shll = mul << (y as u32);
+  let shra = mul >>> (x as u32);
+  let shrl = mul >> (x as u32);
   let sub = shrl - y;
   sub / y
 }
@@ -32,9 +32,9 @@ fn main1k() -> sN[1024] {
   let y = sN[1024]:-3;
   let add = x + y;
   let mul = add * y;
-  let shll = mul << y;
-  let shra = mul >>> x;
-  let shrl = mul >> x;
+  let shll = mul << (y as u32);
+  let shra = mul >>> (x as u32);
+  let shrl = mul >> (x as u32);
   let sub = shrl - y;
   sub / y
 }
@@ -44,9 +44,17 @@ fn main() -> sN[128] {
   let y = sN[128]:-3;
   let add = x + y;
   let mul = add * y;
-  let shll = mul << y;
-  let shra = mul >>> x;
-  let shrl = mul >> x;
+  let shll = mul << (y as u32);
+  let shra = mul >>> (x as u32);
+  let shrl = mul >> (x as u32);
   let sub = shrl - y;
   sub / y
+}
+
+#![test]
+fn test_main() {
+  let _ = assert_eq(s32:-1, main32());
+  let _ = assert_eq(sN[1024]:-2, main1k());
+  let _ = assert_eq(sN[128]:-2, main());
+  ()
 }

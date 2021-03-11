@@ -982,9 +982,10 @@ DSLX supports three types of unary expressions:
 
 ### Binary Expressions
 
-DSLX support a familiar set of binary expressions. For those, both operands to
-the expression must be of the same bit type (i.e., not arrays or tuples). This
-is true even for the shift operators.
+DSLX supports a familiar set of binary expressions. There are two categories of
+binary expressions. A category where both operands to the expression must be of
+the same bit type (i.e., not arrays or tuples), and a category where the
+operands can be of arbitrary bit types (i.e. shift expressions).
 
 *   shift-right (`>>`)
 *   shift-right arithmetic (`>>>`)
@@ -997,6 +998,20 @@ is true even for the shift operators.
 *   multiply (`*`)
 *   logical or (`||`)
 *   logical and (`&&`)
+
+#### Shift Expressions
+
+Shift expressions include: shift-right (logical), shift-right arithmetic and
+shift-left. These are binary operations that don't require the same type on the
+left and right hand side. The right hand side must be unsigned, but it does not
+need to be the same type or width as the left hand side, i.e. the type signature
+for these operations is: `(xN[M], uN[N]) -> xN[M]`.
+
+Note that, compared to Rust, DSLX uses >> for shift-right (logical) and >>> for
+shift-right arithmetic, whereas Rust chooses shift-right arithmetic or
+shift-right (logical) depending on the signedness of the integer being shifted.
+As we try to follow Rust syntax as closely as is reasonably possible, we will
+address the latter (https://github.com/google/xls/issues/79).
 
 ### Comparison Expressions
 

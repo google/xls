@@ -151,7 +151,7 @@ fn main(x0: s53) -> (bool, s53, (s53, s53), u1, s53, s53, u1, s53, u1, (s53, s53
   let x5: bool = bool:true;
   let x6: u1 = !(x3);
   let x7: s16 = s16:0x8;
-  let x8: s16 = (x7) >>> (((x5) as s16));
+  let x8: s16 = (x7) >>> (((x5) as u16));
   let x9: u1 = for (i, x): (u4, u1) in range(u4:0x0, u4:0x6) {
     x
   }(x3);

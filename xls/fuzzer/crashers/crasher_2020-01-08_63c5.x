@@ -72,7 +72,7 @@ fn main(x0: u7, x1: s5, x2: u59, x3: u60, x4: u23, x5: s13) -> (s13, uN[15], s5,
     let x35: s13 = one_hot_sel(x25, [x5, x27, x27, x5, x27, x5, x5]);
     let x36: s13 = ((x29 as s13)) & (x35);
     let x37: s13 = !(x36);
-    let x38: s13 = (x36) >>> (((s13:0x5)) if ((x27) >= ((s13:0x5))) else (x27));
+    let x38: s13 = (x36) >>> (((u13:0x5)) if ((x27) >= ((s13:0x5))) else (x27 as u13));
     let x39: u14 = (u14:0x2000);
     let x40: uN[15] = one_hot(x39, (u1:1));
     let x41: u7 = (x25) ^ (x0);

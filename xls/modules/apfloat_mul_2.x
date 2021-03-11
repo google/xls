@@ -78,7 +78,7 @@ pub fn apfloat_mul_2<
   //      (A - 127) + (B - 127) + 127 = exp
   //    to
   //      A + B - 127 = exp
-  let bias = std::mask_bits<EXP_SZ>() as sN[SIGNED_EXP] >> sN[SIGNED_EXP]:1;
+  let bias = std::mask_bits<EXP_SZ>() as sN[SIGNED_EXP] >> uN[SIGNED_EXP]:1;
   let exp = (x.bexp as sN[SIGNED_EXP]) + (y.bexp as sN[SIGNED_EXP]) - bias;
 
   // Here is where we'd handle subnormals if we cared to.
