@@ -98,7 +98,7 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
     absl::StatusOr<int64> result = Interpreter::InterpretExprToInt(
         ctx_->module(), ctx_->type_info(), ctx_->typecheck_module(),
         ctx_->additional_search_paths(), ctx_->import_data(),
-        symbolic_bindings_, bit_widths_, expr, fn_ctx);
+        symbolic_bindings_, bit_widths_, expr, &fn_ctx);
     XLS_VLOG(5) << "Interpreted expr: " << expr->ToString() << " @ "
                 << expr->span() << " to status: " << result.status();
     if (!result.ok() && result.status().code() == absl::StatusCode::kNotFound &&

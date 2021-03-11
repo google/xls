@@ -64,6 +64,21 @@ dslx_test(
 )
 
 dslx_test(
+    name = "constexpr_types_via_invocations",
+    srcs = ["constexpr_types_via_invocations.x"],
+)
+
+dslx_test(
+    name = "constexpr_types_via_invocations_inline",
+    srcs = ["constexpr_types_via_invocations_inline.x"],
+)
+
+dslx_test(
+    name = "constexpr_types_via_stdlib_invocation",
+    srcs = ["constexpr_types_via_stdlib_invocation.x"],
+)
+
+dslx_test(
     name = "constexpr_slice",
     srcs = ["constexpr_slice.x"],
     generate_benchmark = False,

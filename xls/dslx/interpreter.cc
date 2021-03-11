@@ -193,7 +193,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
     absl::Span<std::string const> additional_search_paths,
     ImportData* import_data, const absl::flat_hash_map<std::string, int64>& env,
     const absl::flat_hash_map<std::string, int64>& bit_widths, Expr* expr,
-    const FnCtx& fn_ctx, ConcreteType* type_context) {
+    const FnCtx* fn_ctx, ConcreteType* type_context) {
   XLS_VLOG(3) << "InterpretExpr: " << expr->ToString() << " env: {"
               << absl::StrJoin(env, ", ", absl::PairFormatter(":")) << "}";
 
@@ -203,7 +203,9 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
                        GetOrCreateTopLevelBindings(
                            entry_module, interp.abstract_adapter_.get()));
   InterpBindings bindings(/*parent=*/top_level_bindings);
-  bindings.set_fn_ctx(fn_ctx);
+  if (fn_ctx != nullptr) {
+    bindings.set_fn_ctx(*fn_ctx);
+  }
   for (const auto& [identifier, value] : env) {
     XLS_VLOG(3) << "Adding to bindings; identifier: " << identifier
                 << " value: " << value;
@@ -401,22 +403,26 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
                           bindings->fn_ctx()->ToString(), expr->ToString(),
                           expr->span().ToString()));
     }
+    XLS_RET_CHECK(callee_bindings.value() != nullptr);
     fn_symbolic_bindings = callee_bindings.value();
     XLS_VLOG(5) << "Found callee symbolic bindings: " << *fn_symbolic_bindings
                 << " @ " << expr->span();
   } else {
     // Note, when there's no function context we may be in a ConstantDef doing
     // e.g. a parametric invocation.
-    XLS_VLOG(5) << "Getting callee bindings without function context @ "
-                << expr->span();
+    XLS_VLOG(5) << "EvaluateInvocation; getting callee bindings without "
+                   "function context"
+                << "; type_info: " << invocation_root_type_info
+                << "; node: " << expr << "; expr: `" << expr->ToString() << "`";
     absl::optional<const SymbolicBindings*> callee_bindings =
         invocation_root_type_info->GetInvocationSymbolicBindings(
             expr, SymbolicBindings());
-    if (callee_bindings.has_value()) {
-      fn_symbolic_bindings = callee_bindings.value();
-    }
+    XLS_RET_CHECK(callee_bindings.has_value());
+    XLS_RET_CHECK(callee_bindings.value() != nullptr);
+    fn_symbolic_bindings = callee_bindings.value();
   }
 
+  XLS_RET_CHECK(fn_symbolic_bindings != nullptr);
   TypeInfo* invocation_type_info;
   if (invocation_root_type_info->HasInstantiation(expr,
                                                   *fn_symbolic_bindings)) {

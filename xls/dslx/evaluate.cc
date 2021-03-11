@@ -364,8 +364,9 @@ static absl::Status EvaluateDerivedParametrics(
     Function* fn, InterpBindings* bindings, AbstractInterpreter* interp,
     const absl::flat_hash_map<std::string, int64>& bound_dims) {
   XLS_VLOG(5) << "EvaluateDerivedParametrics; fn: " << fn->identifier()
-              << " bound_dims: "
-              << absl::StrJoin(bound_dims, ", ", absl::PairFormatter(":"));
+              << " bound_dims: ["
+              << absl::StrJoin(bound_dims, ", ", absl::PairFormatter(":"))
+              << "]";
   XLS_RET_CHECK_EQ(bound_dims.size(), fn->parametric_bindings().size())
       << "bound dims: ["
       << absl::StrJoin(bound_dims, ", ", absl::PairFormatter(":"))

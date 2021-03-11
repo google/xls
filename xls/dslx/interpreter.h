@@ -54,7 +54,7 @@ class Interpreter {
       ImportData* import_data,
       const absl::flat_hash_map<std::string, int64>& env,
       const absl::flat_hash_map<std::string, int64>& bit_widths, Expr* expr,
-      const FnCtx& fn_ctx, ConcreteType* type_context = nullptr);
+      const FnCtx* fn_ctx = nullptr, ConcreteType* type_context = nullptr);
 
   // Creates an interpreter that can be used to interpreting entities
   // (functions, tests) within the given module.

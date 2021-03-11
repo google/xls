@@ -215,7 +215,7 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
             arg->owner(), ctx->type_info(), ctx->typecheck_module(),
             ctx->additional_search_paths(), ctx->import_data(), /*env=*/env,
             /*bit_widths=*/bit_widths,
-            /*expr=*/arg, FnCtx{}));
+            /*expr=*/arg));
     ctx->type_info()->NoteConstExpr(arg, value);
     return absl::OkStatus();
   };
@@ -384,9 +384,9 @@ static bool IsCalleeMap(AstNode* n) {
 }
 
 static void VLogStack(absl::Span<const TypecheckStackRecord> stack) {
-  XLS_VLOG(5) << "typecheck stack:";
+  XLS_VLOG(6) << absl::StreamFormat("typecheck stack (%d):", stack.size());
   for (const TypecheckStackRecord& record : stack) {
-    XLS_VLOG(5) << absl::StreamFormat(
+    XLS_VLOG(6) << absl::StreamFormat(
         "  name: '%s' kind: %s user: %s", record.name, record.kind,
         record.user == nullptr ? "none" : record.user->ToString());
   }
@@ -395,9 +395,9 @@ static void VLogStack(absl::Span<const TypecheckStackRecord> stack) {
 static void VLogSeen(
     const absl::flat_hash_map<std::pair<std::string, std::string>, WipRecord>&
         map) {
-  XLS_VLOG(5) << "seen map:";
+  XLS_VLOG(6) << "seen map:";
   for (const auto& item : map) {
-    XLS_VLOG(5) << absl::StreamFormat(
+    XLS_VLOG(6) << absl::StreamFormat(
         "  %s :: %s => %s wip: %s", item.first.first, item.first.second,
         Identifier(item.second.f), item.second.wip ? "true" : "false");
   }
@@ -411,7 +411,6 @@ static void VLogSeen(
 static absl::Status HandleMissingType(
     const absl::Status& status,
     const absl::flat_hash_map<std::string, Function*>& function_map,
-    const TopNode& f,
     absl::flat_hash_map<std::pair<std::string, std::string>, WipRecord>& seen,
     std::vector<TypecheckStackRecord>& stack, DeduceCtx* ctx) {
   NodeAndUser e = ParseTypeMissingErrorMessage(status.message());
@@ -445,6 +444,8 @@ static absl::Status HandleMissingType(
       stack.push_back(TypecheckStackRecord{
           callee->identifier(),
           std::string(ToAstNode(callee)->GetNodeTypeName()), e.user});
+      XLS_VLOG(5) << "Added a stack record for callee: "
+                  << callee->identifier();
       break;
     }
 
@@ -482,44 +483,38 @@ static absl::Status HandleMissingType(
   return absl::OkStatus();
 }
 
-absl::Status CheckTopNodeInModule(TopNode f, DeduceCtx* ctx) {
-  XLS_RET_CHECK(ToAstNode(f) != nullptr);
-  absl::flat_hash_map<std::pair<std::string, std::string>, WipRecord> seen;
+// Returns a key suitable for use in a "seen" set (maintained during
+// typechecking traversal).
+static std::pair<std::string, std::string> ToSeenKey(const TopNode& top_node) {
+  return std::pair<std::string, std::string>{
+      Identifier(top_node), ToAstNode(top_node)->GetNodeTypeName()};
+}
 
-  auto to_seen_key =
-      [](const TopNode& top_node) -> std::pair<std::string, std::string> {
-    return std::pair<std::string, std::string>{
-        Identifier(top_node), ToAstNode(top_node)->GetNodeTypeName()};
-  };
-
-  seen.emplace(to_seen_key(f), WipRecord{f, /*wip=*/true});
-
-  std::vector<TypecheckStackRecord> stack = {TypecheckStackRecord{
-      Identifier(f), std::string(ToAstNode(f)->GetNodeTypeName())}};
-
-  const absl::flat_hash_map<std::string, Function*>& function_map =
-      ctx->module()->GetFunctionByName();
+static absl::Status CheckTopNodeInModuleInternal(
+    const absl::flat_hash_map<std::string, Function*>& function_map,
+    absl::flat_hash_map<std::pair<std::string, std::string>, WipRecord>& seen,
+    std::vector<TypecheckStackRecord>& stack, DeduceCtx* ctx) {
   while (!stack.empty()) {
-    XLS_VLOG(5) << "Stack still not empty...";
+    XLS_VLOG(6) << "Stack still not empty...";
     VLogStack(stack);
     VLogSeen(seen);
     const TypecheckStackRecord& record = stack.back();
     const TopNode f = seen.at({record.name, record.kind}).f;
 
     absl::Status status = ProcessTopNode(f, ctx);
-    XLS_VLOG(5) << "Process top node status: " << status
+    XLS_VLOG(6) << "Process top node status: " << status
                 << "; f: " << ToAstNode(f)->ToString();
 
     if (IsTypeMissingErrorStatus(status)) {
       XLS_RETURN_IF_ERROR(
-          HandleMissingType(status, function_map, f, seen, stack, ctx));
+          HandleMissingType(status, function_map, seen, stack, ctx));
       continue;
     }
 
     XLS_RETURN_IF_ERROR(status);
 
     XLS_VLOG(5) << "Marking as done: " << Identifier(f);
-    seen[to_seen_key(f)] = WipRecord{f, /*wip=*/false};  // Mark as done.
+    seen[ToSeenKey(f)] = WipRecord{f, /*wip=*/false};  // Mark as done.
     const TypecheckStackRecord stack_record = stack.back();
     stack.pop_back();
     const std::string& fn_name = ctx->fn_stack().back().name();
@@ -542,6 +537,20 @@ absl::Status CheckTopNodeInModule(TopNode f, DeduceCtx* ctx) {
     }
   }
   return absl::OkStatus();
+}
+
+absl::Status CheckTopNodeInModule(TopNode f, DeduceCtx* ctx) {
+  XLS_RET_CHECK(ToAstNode(f) != nullptr);
+
+  absl::flat_hash_map<std::pair<std::string, std::string>, WipRecord> seen;
+  seen.emplace(ToSeenKey(f), WipRecord{f, /*wip=*/true});
+
+  std::vector<TypecheckStackRecord> stack = {TypecheckStackRecord{
+      Identifier(f), std::string(ToAstNode(f)->GetNodeTypeName())}};
+
+  const absl::flat_hash_map<std::string, Function*>& function_map =
+      ctx->module()->GetFunctionByName();
+  return CheckTopNodeInModuleInternal(function_map, seen, stack, ctx);
 }
 
 // Helper type to place on the stack when we intend to pop off a FnStackEntry
@@ -608,7 +617,7 @@ absl::StatusOr<TypeInfo*> CheckModule(
   // non-parametric functions.
   for (ModuleMember& member : *module->mutable_top()) {
     import_data->SetTypecheckWorkInProgress(module, ToAstNode(member));
-    XLS_VLOG(3) << "WIP for " << module->name() << " is "
+    XLS_VLOG(6) << "WIP for " << module->name() << " is "
                 << ToAstNode(member)->ToString();
     if (absl::holds_alternative<Import*>(member)) {
       Import* import = absl::get<Import*>(member);
@@ -621,7 +630,23 @@ absl::StatusOr<TypeInfo*> CheckModule(
     } else if (absl::holds_alternative<ConstantDef*>(member) ||
                absl::holds_alternative<EnumDef*>(member)) {
       ScopedFnStackEntry scoped(ctx, module);
-      XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
+    retry:
+      absl::Status status = ctx->Deduce(ToAstNode(member)).status();
+      if (!status.ok()) {
+        if (IsTypeMissingErrorStatus(status)) {
+          const absl::flat_hash_map<std::string, Function*>& function_map =
+              ctx->module()->GetFunctionByName();
+          absl::flat_hash_map<std::pair<std::string, std::string>, WipRecord>
+              seen;
+          std::vector<TypecheckStackRecord> stack;
+          XLS_RETURN_IF_ERROR(
+              HandleMissingType(status, function_map, seen, stack, ctx));
+          XLS_RETURN_IF_ERROR(
+              CheckTopNodeInModuleInternal(function_map, seen, stack, ctx));
+          goto retry;
+        }
+        return status;
+      }
       scoped.Finish();
     } else if (absl::holds_alternative<Function*>(member)) {
       Function* f = absl::get<Function*>(member);

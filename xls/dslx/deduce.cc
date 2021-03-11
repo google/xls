@@ -93,10 +93,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceParam(Param* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
     ConstantDef* node, DeduceCtx* ctx) {
+  ctx->type_info()->NoteConstant(node->name_def(), node);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> result,
                        ctx->Deduce(node->value()));
   ctx->type_info()->SetItem(node->name_def(), *result);
-  ctx->type_info()->NoteConstant(node->name_def(), node);
   return result;
 }
 
@@ -762,6 +762,24 @@ static absl::StatusOr<StartAndWidth> ResolveBitSliceIndices(
   return StartAndWidth{start, limit - start};
 }
 
+static std::pair<absl::flat_hash_map<std::string, int64>,
+                 absl::flat_hash_map<std::string, int64>>
+SymbolicBindingsToConstexprEnv(const SymbolicBindings* symbolic_bindings) {
+  if (symbolic_bindings == nullptr) {
+    return {{}, {}};
+  }
+  absl::flat_hash_map<std::string, int64> env = symbolic_bindings->ToMap();
+  absl::flat_hash_map<std::string, int64> bit_widths;
+  for (const auto& [identifier, _] : env) {
+    // TODO(leary): 2020-03-05 We should carry around the bitwidths of the
+    // symbolic bindings, right now we only know the value, so we're forced to
+    // guess this is ok. Potentially we should carry around InterpValues in
+    // symbolic bindings in general.
+    bit_widths[identifier] = 32;
+  }
+  return {std::move(env), std::move(bit_widths)};
+}
+
 static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
     Index* node, const BitsType& subject_type, const WidthSlice& width_slice,
     DeduceCtx* ctx) {
@@ -870,16 +888,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     return DeduceWidthSliceType(node, *bits_type, *width_slice, ctx);
   }
 
-  absl::flat_hash_map<std::string, int64> env =
-      ctx->fn_stack().back().symbolic_bindings().ToMap();
-  absl::flat_hash_map<std::string, int64> bit_widths;
-  for (const auto& [identifier, _] : env) {
-    // TODO(leary): 2020-03-05 We should carry around the bitwidths of the
-    // symbolic bindings, right now we only know the value, so we're forced to
-    // guess this is ok. Potentially we should carry around InterpValues in
-    // symbolic bindings in general.
-    bit_widths[identifier] = 32;
-  }
+  auto [env, bit_widths] = SymbolicBindingsToConstexprEnv(
+      &ctx->fn_stack().back().symbolic_bindings());
 
   std::unique_ptr<ConcreteType> s32 = BitsType::MakeS32();
   auto* slice = absl::get<Slice*>(node->rhs());
@@ -888,7 +898,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     auto status_or_limit = Interpreter::InterpretExprToInt(
         slice->owner(), ctx->type_info(), ctx->typecheck_module(),
         ctx->additional_search_paths(), ctx->import_data(), env, bit_widths,
-        slice->limit(), FnCtx{}, s32.get());
+        slice->limit(), /*fn_ctx=*/nullptr, s32.get());
     if (!status_or_limit.ok()) {
       absl::Status status = status_or_limit.status();
       if (absl::StrContains(status.message(),
@@ -905,7 +915,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     auto status_or_start = Interpreter::InterpretExprToInt(
         slice->owner(), ctx->type_info(), ctx->typecheck_module(),
         ctx->additional_search_paths(), ctx->import_data(), env, bit_widths,
-        slice->start(), FnCtx{}, s32.get());
+        slice->start(), /*fn_ctx=*/nullptr, s32.get());
     if (!status_or_start.ok()) {
       absl::Status status = status_or_start.status();
       if (absl::StrContains(status.message(),
@@ -1334,7 +1344,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
         Interpreter::InterpretExprToInt(
             (*const_expr)->owner(), ctx->type_info(), ctx->typecheck_module(),
             ctx->additional_search_paths(), ctx->import_data(),
-            /*env=*/{}, /*bit_widths=*/{}, *const_expr, FnCtx{}));
+            /*env=*/{}, /*bit_widths=*/{}, *const_expr));
     return ConcreteTypeDim(value);
   }
   if (auto* colon_ref = dynamic_cast<ColonRef*>(dim_expr)) {
@@ -1347,7 +1357,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
             ctx->import_data()->GetRootTypeInfoForNode(const_expr).value(),
             ctx->typecheck_module(), ctx->additional_search_paths(),
             ctx->import_data(),
-            /*env=*/{}, /*bit_widths=*/{}, const_expr, FnCtx{}));
+            /*env=*/{}, /*bit_widths=*/{}, const_expr));
     return ConcreteTypeDim(value);
   }
   if (auto* attr = dynamic_cast<Attr*>(dim_expr)) {
@@ -1360,7 +1370,18 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
             ctx->import_data()->GetRootTypeInfoForNode(attr).value(),
             ctx->typecheck_module(), ctx->additional_search_paths(),
             ctx->import_data(),
-            /*env=*/{}, /*bit_widths=*/{}, attr, FnCtx{}));
+            /*env=*/{}, /*bit_widths=*/{}, attr));
+    return ConcreteTypeDim(value);
+  }
+  if (auto* invocation = dynamic_cast<Invocation*>(dim_expr)) {
+    XLS_RETURN_IF_ERROR(ctx->Deduce(invocation).status());
+
+    XLS_ASSIGN_OR_RETURN(
+        int64 value,
+        Interpreter::InterpretExprToInt(
+            invocation->owner(), ctx->type_info(), ctx->typecheck_module(),
+            ctx->additional_search_paths(), ctx->import_data(), {}, {},
+            invocation));
     return ConcreteTypeDim(value);
   }
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ParametricExpression> e,
@@ -1370,6 +1391,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArrayTypeAnnotation(
     ArrayTypeAnnotation* node, DeduceCtx* ctx) {
+  XLS_VLOG(5) << "DeduceArrayTypeAnnotation; node: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim,
                        DimToConcrete(node, node->dim(), ctx));
   if (auto* element_type =
@@ -1378,6 +1400,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArrayTypeAnnotation(
     return absl::make_unique<BitsType>(element_type->GetSignedness(),
                                        std::move(dim));
   }
+  XLS_VLOG(5) << "DeduceArrayTypeAnnotation; element_type: "
+              << node->element_type()->ToString();
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> element_type,
                        ctx->Deduce(node->element_type()));
   auto result =
@@ -1546,6 +1570,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCarry(Carry* node,
 static absl::Status CheckParametricInvocation(
     Function* parametric_fn, Invocation* invocation,
     const SymbolicBindings& symbolic_bindings, DeduceCtx* ctx) {
+  XLS_VLOG(5) << "CheckParametricInvocation; parametric_fn: "
+              << parametric_fn->ToString()
+              << "; invocation: " << invocation->ToString();
   if (auto* colon_ref = dynamic_cast<ColonRef*>(invocation->callee())) {
     // We need to typecheck this function with respect to its own module.
 
@@ -1583,6 +1610,9 @@ static absl::Status CheckParametricInvocation(
     XLS_RETURN_IF_ERROR(
         ctx->typecheck_function()(parametric_fn, imported_ctx.get()));
 
+    XLS_VLOG(5) << "TypeInfo::AddInstantiation; invocation: "
+                << invocation->ToString()
+                << " symbolic_bindings: " << symbolic_bindings;
     ctx->type_info()->AddInstantiation(invocation, symbolic_bindings,
                                        invocation_imported_type_info);
     return absl::OkStatus();
@@ -1604,7 +1634,7 @@ static absl::Status CheckParametricInvocation(
     ctx->AddDerivedTypeInfo();
     XLS_VLOG(5) << "Throwing to typecheck parametric function: "
                 << parametric_fn->identifier() << " via " << symbolic_bindings
-                << " in type info: " << ctx->type_info()
+                << " in child type info: " << ctx->type_info()
                 << "; parent: " << ctx->type_info()->parent();
     return TypeMissingErrorStatus(type_missing_error_node, nullptr);
   }
@@ -1612,6 +1642,10 @@ static absl::Status CheckParametricInvocation(
   // If we haven't yet stored a type_info for these symbolic bindings and
   // we're at this point, it means we've just finished typechecking the
   // parametric function. Let's store the results.
+  XLS_VLOG(5) << "TypeInfo::AddInstantiation; " << ctx->type_info()->parent()
+              << "; invocation: " << invocation->ToString()
+              << "; symbolic_bindings: " << symbolic_bindings
+              << "; instantiated: " << ctx->type_info();
   ctx->type_info()->parent()->AddInstantiation(invocation, symbolic_bindings,
                                                ctx->type_info());
   XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo());
@@ -1848,6 +1882,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
                           new_bindings, &explicit_bindings));
   const SymbolicBindings& callee_symbolic_bindings = tab.symbolic_bindings;
 
+  // Make a note that this invocation node transitions us from these caller to
+  // these callee invocation bindings.
+  XLS_VLOG(5) << "TypeInfo::AddInvocationSymbolicBindings; type_info: "
+              << ctx->type_info() << "; node: `" << node
+              << "`; caller: " << caller_symbolic_bindings
+              << "; callee: " << callee_symbolic_bindings;
   ctx->type_info()->AddInvocationSymbolicBindings(
       node, caller_symbolic_bindings, callee_symbolic_bindings);
 
