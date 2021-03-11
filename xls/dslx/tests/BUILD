@@ -107,6 +107,11 @@ dslx_test(
 )
 
 dslx_test(
+    name = "parametric_dot_product",
+    srcs = ["parametric_dot_product.x"],
+)
+
+dslx_test(
     name = "import_constexpr",
     srcs = ["import_constexpr.x"],
     deps = ["constexpr.x"],
