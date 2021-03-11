@@ -627,6 +627,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:function_builder",
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:variant",
     ],

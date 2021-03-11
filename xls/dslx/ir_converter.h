@@ -46,7 +46,7 @@ absl::StatusOr<std::string> MangleDslxName(
 //
 // Returns:
 //   The IR package that corresponds to this module.
-absl::StatusOr<std::unique_ptr<xls::Package>> ConvertModuleToPackage(
+absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
     Module* module, ImportData* import_data, bool emit_positions = true,
     bool traverse_tests = false);
 

@@ -14,6 +14,7 @@
 
 #include "xls/dslx/ir_converter.h"
 
+#include "absl/status/status.h"
 #include "absl/strings/str_replace.h"
 #include "absl/types/variant.h"
 #include "xls/dslx/ast.h"
@@ -397,6 +398,37 @@ class FunctionConverter {
   Expr* last_expression_ = nullptr;
 };
 
+// For all free variables of "node", adds them transitively for any required
+// constant dependencies to the converter.
+static absl::StatusOr<std::vector<ConstantDef*>> GetConstantDepFreevars(
+    AstNode* node) {
+  FreeVariables free_variables =
+      node->GetFreeVariables(node->GetSpan().value().start());
+  std::vector<std::pair<std::string, AnyNameDef>> freevars =
+      free_variables.GetNameDefTuples();
+  std::vector<ConstantDef*> constant_deps;
+  for (const auto& [identifier, any_name_def] : freevars) {
+    if (absl::holds_alternative<BuiltinNameDef*>(any_name_def)) {
+      continue;
+    }
+    auto* name_def = absl::get<NameDef*>(any_name_def);
+    AstNode* definer = name_def->definer();
+    if (auto* constant_def = dynamic_cast<ConstantDef*>(definer)) {
+      XLS_ASSIGN_OR_RETURN(auto sub_deps, GetConstantDepFreevars(constant_def));
+      constant_deps.insert(constant_deps.end(), sub_deps.begin(),
+                           sub_deps.end());
+      constant_deps.push_back(constant_def);
+    } else if (auto* enum_def = dynamic_cast<EnumDef*>(definer)) {
+      XLS_ASSIGN_OR_RETURN(auto sub_deps, GetConstantDepFreevars(enum_def));
+      constant_deps.insert(constant_deps.end(), sub_deps.begin(),
+                           sub_deps.end());
+    } else {
+      // Not something we recognize as needing free variable analysis.
+    }
+  }
+  return constant_deps;
+}
+
 struct ScopedTypeInfoSwap {
   ScopedTypeInfoSwap(FunctionConverter* converter, TypeInfo* new_type_info)
       : converter_(converter),
@@ -583,9 +615,10 @@ absl::StatusOr<BValue> FunctionConverter::DefAlias(AstNode* from, AstNode* to) {
         from->GetNodeTypeName(), to->ToString(), to->GetNodeTypeName()));
   }
   IrValue value = it->second;
-  XLS_VLOG(5) << absl::StreamFormat("Aliased node '%s' to be same as '%s': %s",
-                                    to->ToString(), from->ToString(),
-                                    ToString(value));
+  XLS_VLOG(5) << absl::StreamFormat(
+      "Aliased node '%s' (%s) to be same as '%s' (%s): %s", to->ToString(),
+      to->GetNodeTypeName(), from->ToString(), from->GetNodeTypeName(),
+      ToString(value));
   node_to_ir_[to] = std::move(value);
   if (auto* name_def = dynamic_cast<NameDef*>(to)) {
     // Name the aliased node based on the identifier in the NameDef.
@@ -1438,10 +1471,9 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
 }
 
 absl::Status FunctionConverter::HandleColonRef(ColonRef* node) {
-  // Implementation note: ColonRef "invocation" are handled in Invocation (by
+  // Implementation note: ColonRef "invocations" are handled in Invocation (by
   // resolving the mangled callee name, which should have been IR converted in
   // dependency order).
-
   if (absl::optional<Import*> import = node->ResolveImportSubject()) {
     absl::optional<const ImportedInfo*> imported =
         current_type_info_->GetImported(*import);
@@ -1450,6 +1482,14 @@ absl::Status FunctionConverter::HandleColonRef(ColonRef* node) {
     ScopedTypeInfoSwap stis(this, (*imported)->type_info);
     XLS_ASSIGN_OR_RETURN(ConstantDef * constant_def,
                          imported_mod->GetConstantDef(node->attr()));
+    // A constant may be defined in terms of other constants
+    // (pub const MY_CONST = std::foo(ANOTHER_CONST);), so we need to collect
+    // constants transitively so we can visit all dependees.
+    XLS_ASSIGN_OR_RETURN(auto constant_deps,
+                         GetConstantDepFreevars(constant_def));
+    for (const auto& dep : constant_deps) {
+      XLS_RETURN_IF_ERROR(Visit(dep));
+    }
     XLS_RETURN_IF_ERROR(HandleConstantDef(constant_def));
     return DefAlias(constant_def->name_def(), /*to=*/node).status();
   }
@@ -1467,6 +1507,13 @@ absl::Status FunctionConverter::HandleColonRef(ColonRef* node) {
                        import_data_->GetRootTypeInfo(enum_def->owner()));
   ScopedTypeInfoSwap stis(this, type_info);
   XLS_ASSIGN_OR_RETURN(Expr * value, enum_def->GetValue(node->attr()));
+
+  // Find and visit transitive dependencies as above.
+  XLS_ASSIGN_OR_RETURN(auto constant_deps, GetConstantDepFreevars(value));
+  for (const auto& dep : constant_deps) {
+    XLS_RETURN_IF_ERROR(Visit(dep));
+  }
+
   XLS_RETURN_IF_ERROR(Visit(value));
   return DefAlias(/*from=*/value, /*to=*/node).status();
 }
@@ -2068,31 +2115,6 @@ absl::StatusOr<xls::Type*> FunctionConverter::TypeToIr(
   return package_->GetTupleType(std::move(members));
 }
 
-// For all free variables of "node", adds them transitively for any required
-// constant dependencies to the converter.
-static absl::Status AddConstantDepFreevars(AstNode* node,
-                                           FunctionConverter* converter) {
-  FreeVariables free_variables =
-      node->GetFreeVariables(node->GetSpan().value().start());
-  std::vector<std::pair<std::string, AnyNameDef>> freevars =
-      free_variables.GetNameDefTuples();
-  for (const auto& [identifier, any_name_def] : freevars) {
-    if (absl::holds_alternative<BuiltinNameDef*>(any_name_def)) {
-      continue;
-    }
-    auto* name_def = absl::get<NameDef*>(any_name_def);
-    AstNode* definer = name_def->definer();
-    if (auto* constant_def = dynamic_cast<ConstantDef*>(definer)) {
-      XLS_RETURN_IF_ERROR(AddConstantDepFreevars(constant_def, converter));
-      converter->AddConstantDep(constant_def);
-    } else if (auto* enum_def = dynamic_cast<EnumDef*>(definer)) {
-      XLS_RETURN_IF_ERROR(AddConstantDepFreevars(enum_def, converter));
-    } else {
-      // Not something we recognize as needing free variable analysis.
-    }
-  }
-  return absl::OkStatus();
-}
 
 absl::Status ConvertOneFunctionInternal(
     Package* package, Module* module, Function* function, TypeInfo* type_info,
@@ -2109,7 +2131,11 @@ absl::Status ConvertOneFunctionInternal(
 
   FunctionConverter converter(package, module, import_data, emit_positions);
 
-  XLS_RETURN_IF_ERROR(AddConstantDepFreevars(function->body(), &converter));
+  XLS_ASSIGN_OR_RETURN(auto constant_deps,
+                       GetConstantDepFreevars(function->body()));
+  for (const auto& dep : constant_deps) {
+    converter.AddConstantDep(dep);
+  }
 
   auto set_to_string = [](const absl::btree_set<std::string>& s) {
     return absl::StrCat("{", absl::StrJoin(s, ", "), "}");

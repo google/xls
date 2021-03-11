@@ -1437,7 +1437,10 @@ TEST(IrConverterTest, ConstexprImport) {
   // Place the *imported* module into the import cache.
   ImportData import_data;
   const char* imported_program = R"(
+import std
+
 pub const MY_CONST = bits[32]:5;
+pub const MY_OTHER_CONST = std::clog2(MY_CONST);
 
 pub fn constexpr_fn(arg: u32) -> u32 {
   arg * MY_CONST
@@ -1452,7 +1455,7 @@ pub fn constexpr_fn(arg: u32) -> u32 {
 import fake.imported.stuff
 
 fn f() -> u32 {
-  let x = stuff::constexpr_fn(stuff::MY_CONST);
+  let x = stuff::constexpr_fn(stuff::MY_OTHER_CONST);
   x
 }
 )";
@@ -1519,6 +1522,45 @@ TEST(IrConverterTest, TokenIdentityFunction) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, ImportEnumValue) {
+  ImportData import_data;
+
+  const std::string kImportModule = R"(
+import std
+
+pub const MY_CONST = u32:5;
+pub enum ImportEnum : u16 {
+  SINGLE_MY_CONST = MY_CONST as u16,
+  SOMETHING_MY_CONST = std::clog2(MY_CONST) as u16 * u16:2,
+  TRIPLE_MY_CONST = (MY_CONST * u32:3) as u16,
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kImportModule, "fake/imported/stuff.x",
+                        "fake.imported.stuff", &import_data,
+                        /*additional_search_paths=*/{}));
+  (void)tm;  // Already placed in import cache.
+
+  const std::string kImporterModule = R"(
+import fake.imported.stuff
+
+type ImportedEnum = stuff::ImportEnum;
+
+fn main(x: u32) -> u32 {
+  stuff::ImportEnum::TRIPLE_MY_CONST as u32 +
+      (ImportedEnum::SOMETHING_MY_CONST as u32) +
+      (stuff::ImportEnum::SINGLE_MY_CONST as u32)
+})";
+
+  // Convert the importer module to IR.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kImporterModule, /*emit_positions=*/false,
+                           &import_data));
   ExpectIr(converted, TestName());
 }
 

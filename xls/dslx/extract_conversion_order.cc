@@ -124,8 +124,8 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
       }
     } else {
       return absl::UnimplementedError(
-          "Only calls to named functionsa re currently supported, got "
-          "callee: " +
+          "Only calls to named functions are currently supported "
+          "for IR conversion; callee: " +
           node->callee()->ToString());
     }
 
@@ -146,6 +146,72 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleColonRef(ColonRef* node) override {
+    // Aside from direct function invocations (handled above), ColonRefs may
+    // themselves be defined by arbitrary expressions, which may themselves
+    // contain invocations, e.g.,
+    // pub const MY_EXPORTED_CONSTANT = foo(u32:5);
+    // so we need to traverse them.
+    absl::optional<Import*> import = node->ResolveImportSubject();
+    if (!import.has_value()) {
+      return absl::OkStatus();
+    }
+
+    absl::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
+    XLS_RET_CHECK(info.has_value());
+    Module* import_mod = (*info)->module;
+    TypeInfo* import_type_info = (*info)->type_info;
+    auto member_or = import_mod->FindMemberWithName(node->attr());
+    XLS_RET_CHECK(member_or.has_value());
+    ModuleMember* mm = member_or.value();
+
+    // Constants or enum values could be defined in terms of constant
+    // invocations, so we need to traverse values each sort.
+    // Other ModuleMembers (Function, TestFunction, QuickCheck, StructDef,
+    // Import) can't be defined in terms of constants, so they can be skipped.
+    // TODO(rspringer): 2021-03-10 Currently, type aliases of the form:
+    //   pub const MY_CONST = u32:1024;
+    //   pub type MyType = u32[std::clog2(MY_CONST)];
+    // can't be deduced. Once they can, then TypeDefs will need to be added
+    // here. Check StructDefs then, as well (e.g.,
+    //   struct Foo {
+    //     a: bits[std::clog2(MY_CONST)],
+    //   }
+    if (absl::holds_alternative<ConstantDef*>(*mm)) {
+      AstNode* member = absl::get<ConstantDef*>(*mm);
+      InvocationVisitor sub_visitor(import_mod, import_type_info, bindings_);
+      XLS_RETURN_IF_ERROR(
+          WalkPostOrder(member, &sub_visitor, /*want_types=*/true));
+      callees_.insert(callees_.end(), sub_visitor.callees().begin(),
+                      sub_visitor.callees().end());
+    } else if (absl::holds_alternative<EnumDef*>(*mm)) {
+      AstNode* member = absl::get<EnumDef*>(*mm);
+      InvocationVisitor sub_visitor(import_mod, import_type_info, bindings_);
+      XLS_RETURN_IF_ERROR(
+          WalkPostOrder(member, &sub_visitor, /*want_types=*/true));
+      callees_.insert(callees_.end(), sub_visitor.callees().begin(),
+                      sub_visitor.callees().end());
+    }
+
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleConstRef(ConstRef* node) override {
+    XLS_RET_CHECK(node->name_def() != nullptr);
+    AstNode* definer = node->name_def()->definer();
+    if (definer == nullptr) {
+      XLS_VLOG(3) << "NULL ConstRef definer: " << node->ToString();
+      return absl::OkStatus();
+    }
+
+    InvocationVisitor sub_visitor(module_, type_info_, bindings_);
+    XLS_RETURN_IF_ERROR(
+        WalkPostOrder(definer, &sub_visitor, /*want_types=*/true));
+    callees_.insert(callees_.end(), sub_visitor.callees().begin(),
+                    sub_visitor.callees().end());
+    return absl::OkStatus();
+  }
+
   std::vector<Callee>& callees() { return callees_; }
 
  private:
@@ -155,18 +221,18 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
   std::vector<Callee> callees_;
 };
 
-// Traverses the definition of f to find callees.
+// Traverses the definition of a node to find callees.
 //
 // Args:
 //   node: AST construct to inspect for calls.
-//   m: Module that f resides in.
-//   type_info: Node to type mapping that should be used with f.
+//   m: Module that "node" resides in.
+//   type_info: Node to type mapping that should be used with "node".
 //   imports: Mapping of modules imported by m.
-//   bindings: Bindings used in instantiation of f.
+//   bindings: Bindings used in instantiation of "node".
 //
 // Returns:
-//   Callee functions invoked by f, and the parametric bindings used in each of
-//   those invocations.
+//   Callee functions invoked by "node", and the parametric bindings used in
+//   each of those invocations.
 static absl::StatusOr<std::vector<Callee>> GetCallees(
     AstNode* node, Module* m, TypeInfo* type_info,
     const SymbolicBindings& bindings) {
