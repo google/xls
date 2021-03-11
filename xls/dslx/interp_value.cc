@@ -405,7 +405,6 @@ static int64_t BitsToNonNegInt64OrElse(const Bits& bits, int64_t else_value) {
 }
 
 absl::StatusOr<InterpValue> InterpValue::Shll(const InterpValue& other) const {
-  // TODO(leary): 2020-10-18 Make typechecker require RHS is unsigned.
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
   int64_t amount64 = BitsToNonNegInt64OrElse(rhs, lhs.bit_count());
@@ -413,7 +412,6 @@ absl::StatusOr<InterpValue> InterpValue::Shll(const InterpValue& other) const {
 }
 
 absl::StatusOr<InterpValue> InterpValue::Shrl(const InterpValue& other) const {
-  // TODO(leary): 2020-10-18 Make typechecker require RHS is unsigned.
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
   int64_t amount64 = BitsToNonNegInt64OrElse(rhs, lhs.bit_count());
@@ -421,7 +419,6 @@ absl::StatusOr<InterpValue> InterpValue::Shrl(const InterpValue& other) const {
 }
 
 absl::StatusOr<InterpValue> InterpValue::Shra(const InterpValue& other) const {
-  // TODO(leary): 2020-10-18 Make typechecker require RHS is unsigned.
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
   int64_t amount64 = BitsToNonNegInt64OrElse(rhs, lhs.bit_count());
