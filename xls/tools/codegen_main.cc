@@ -46,8 +46,8 @@ Emit a feed-forward pipelined module:
        IR_FILE
 )";
 
-ABSL_FLAG(int64, clock_period_ps, 0, "Target clock period, in picoseconds.");
-ABSL_FLAG(int64, pipeline_stages, 0,
+ABSL_FLAG(int64_t, clock_period_ps, 0, "Target clock period, in picoseconds.");
+ABSL_FLAG(int64_t, pipeline_stages, 0,
           "The number of stages in the generated pipeline.");
 ABSL_FLAG(std::string, delay_model, "",
           "Delay model name to use from registry.");
@@ -89,7 +89,7 @@ ABSL_FLAG(bool, flop_outputs, true,
 ABSL_FLAG(std::string, module_name, "",
           "Explicit name to use for the generated module; if not provided the "
           "mangled IR function name is used");
-ABSL_FLAG(int64, clock_margin_percent, 0,
+ABSL_FLAG(int64_t, clock_margin_percent, 0,
           "The percentage of clock period to set aside as a margin to ensure "
           "timing is met. Effectively, this lowers the clock period by this "
           "percentage amount for the purposes of scheduling.");

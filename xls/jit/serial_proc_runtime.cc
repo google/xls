@@ -52,7 +52,7 @@ void SerialProcRuntime::ThreadFn(ThreadData* thread_data) {
   while (true) {
     // RunWithViews takes an array of arg view pointers - even if they're unused
     // during execution, tokens still occupy one of those spots.
-    std::vector<uint8*> args({nullptr, thread_data->proc_state.get()});
+    std::vector<uint8_t*> args({nullptr, thread_data->proc_state.get()});
     XLS_CHECK_OK(thread_data->jit->RunWithViews(
         absl::MakeSpan(args),
         absl::MakeSpan(thread_data->proc_state.get(),
@@ -75,7 +75,8 @@ void SerialProcRuntime::ThreadFn(ThreadData* thread_data) {
 // queue is empty. The main thread unblocks it periodically (by changing its
 // ThreadData::State) to try to receive again.
 void SerialProcRuntime::RecvFn(JitChannelQueue* queue, Receive* recv,
-                               uint8* data, int64 data_bytes, void* user_data) {
+                               uint8_t* data, int64_t data_bytes,
+                               void* user_data) {
   ThreadData* thread_data = reinterpret_cast<ThreadData*>(user_data);
   absl::flat_hash_set<ThreadData::State> await_states(
       {ThreadData::State::kRunning, ThreadData::State::kCancelled});
@@ -92,8 +93,9 @@ void SerialProcRuntime::RecvFn(JitChannelQueue* queue, Receive* recv,
   queue->Recv(data, data_bytes);
 }
 
-void SerialProcRuntime::SendFn(JitChannelQueue* queue, Send* send, uint8* data,
-                               int64 data_bytes, void* user_data) {
+void SerialProcRuntime::SendFn(JitChannelQueue* queue, Send* send,
+                               uint8_t* data, int64_t data_bytes,
+                               void* user_data) {
   ThreadData* thread_data = reinterpret_cast<ThreadData*>(user_data);
   absl::MutexLock lock(&thread_data->mutex);
   thread_data->sent_data = true;
@@ -131,7 +133,7 @@ absl::Status SerialProcRuntime::Init() {
     auto* jit = thread->jit.get();
 
     thread->proc_state_size = jit->GetReturnTypeSize();
-    thread->proc_state = std::make_unique<uint8[]>(thread->proc_state_size);
+    thread->proc_state = std::make_unique<uint8_t[]>(thread->proc_state_size);
     jit->runtime()->BlitValueToBuffer(
         proc->InitValue(),
         FunctionBuilderVisitor::GetEffectiveReturnValue(proc)->GetType(),
@@ -224,8 +226,8 @@ absl::Status SerialProcRuntime::EnqueueValueToChannel(Channel* channel,
 
   XLS_RET_CHECK(!threads_.empty());
   IrJit* jit = threads_.front()->jit.get();
-  int64 size = jit->type_converter()->GetTypeByteSize(type);
-  auto buffer = absl::make_unique<uint8[]>(size);
+  int64_t size = jit->type_converter()->GetTypeByteSize(type);
+  auto buffer = absl::make_unique<uint8_t[]>(size);
   jit->runtime()->BlitValueToBuffer(value, type,
                                     absl::MakeSpan(buffer.get(), size));
 
@@ -241,8 +243,8 @@ absl::StatusOr<Value> SerialProcRuntime::DequeueValueFromChannel(
 
   XLS_RET_CHECK(!threads_.empty());
   IrJit* jit = threads_.front()->jit.get();
-  int64 size = jit->type_converter()->GetTypeByteSize(type);
-  auto buffer = absl::make_unique<uint8[]>(size);
+  int64_t size = jit->type_converter()->GetTypeByteSize(type);
+  auto buffer = absl::make_unique<uint8_t[]>(size);
 
   XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
                        queue_mgr()->GetQueueById(channel->id()));

@@ -53,7 +53,7 @@ class ImportTokens {
     if (pieces_.size() != other.pieces_.size()) {
       return false;
     }
-    for (int64 i = 0; i < pieces_.size(); ++i) {
+    for (int64_t i = 0; i < pieces_.size(); ++i) {
       if (pieces_[i] != other.pieces_[i]) {
         return false;
       }

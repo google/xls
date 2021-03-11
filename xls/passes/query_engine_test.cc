@@ -169,7 +169,7 @@ TEST_P(QueryEngineTest, SimpleBinaryOp) {
   )",
                                                        p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
-  for (int64 i = 0; i < 32; ++i) {
+  for (int64_t i = 0; i < 32; ++i) {
     for (Node* node :
          {FindNode("x", f), FindNode("y", f), FindNode("add.1", f)}) {
       EXPECT_FALSE(engine->IsKnown(BitLocation(node, i)));

@@ -34,7 +34,7 @@ IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
 
   // Package source function parameters as tuple parameters to integration
   // function.
-  int64 source_function_idx = 0;
+  int64_t source_function_idx = 0;
   integration_function->source_functions_.reserve(source_functions.size());
   for (const auto* source_func : source_functions) {
     // Record function and function index.
@@ -55,7 +55,7 @@ IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
             /*loc=*/std::nullopt, tuple_name, args_tuple_type));
 
     // Add TupleIndex nodes inside function to unpack tuple parameter.
-    int64 parameter_index = 0;
+    int64_t parameter_index = 0;
     for (const Node* param : source_func->params()) {
       XLS_ASSIGN_OR_RETURN(
           Node * tuple_index,
@@ -70,7 +70,7 @@ IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
   // Add input for global mux select.
   if (!integration_function->integration_options_
            .unique_select_signal_per_mux()) {
-    int64 num_bits = Bits::MinBitCountUnsigned(source_functions.size() - 1);
+    int64_t num_bits = Bits::MinBitCountUnsigned(source_functions.size() - 1);
     XLS_ASSIGN_OR_RETURN(
         integration_function->global_mux_select_param_,
         integration_function->function_->MakeNodeWithName<Param>(
@@ -156,38 +156,38 @@ IntegrationFunction::GetNodesMappedToNode(const Node* map_target) const {
   return &integrated_node_to_original_nodes_map_.at(map_target);
 }
 
-absl::StatusOr<const std::set<int64>*>
+absl::StatusOr<const std::set<int64_t>*>
 IntegrationFunction::GetGlobalMuxOccupiedCaseIndexes(const Node* node) const {
   XLS_RET_CHECK(global_mux_to_metadata_.contains(node));
   return &global_mux_to_metadata_.at(node).occupied_case_indexes;
 }
 
-absl::StatusOr<const std::set<int64>*>
+absl::StatusOr<const std::set<int64_t>*>
 IntegrationFunction::GetGlobalMuxLastCaseIndexesAdded(const Node* node) const {
   XLS_RET_CHECK(global_mux_to_metadata_.contains(node));
   return &global_mux_to_metadata_.at(node).last_case_indexes_added;
 }
 
-int64 IntegrationFunction::GetNumberOfGlobalMuxesTracked() const {
+int64_t IntegrationFunction::GetNumberOfGlobalMuxesTracked() const {
   return global_mux_to_metadata_.size();
 }
 
-absl::StatusOr<int64> IntegrationFunction::GetSourceFunctionIndexOfNode(
+absl::StatusOr<int64_t> IntegrationFunction::GetSourceFunctionIndexOfNode(
     const Node* node) const {
   XLS_RET_CHECK(!IntegrationFunctionOwnsNode(node));
   XLS_RET_CHECK(source_function_base_to_index_.contains(node->function_base()));
   return source_function_base_to_index_.at(node->function_base());
 }
 
-absl::StatusOr<std::set<int64>>
+absl::StatusOr<std::set<int64_t>>
 IntegrationFunction::GetSourceFunctionIndexesOfNodesMappedToNode(
     const Node* map_target) const {
   XLS_ASSIGN_OR_RETURN(const absl::flat_hash_set<const Node*>* src_nodes,
                        GetNodesMappedToNode(map_target));
 
-  std::set<int64> source_indexes;
+  std::set<int64_t> source_indexes;
   for (const auto* node : *src_nodes) {
-    XLS_ASSIGN_OR_RETURN(int64 index, GetSourceFunctionIndexOfNode(node));
+    XLS_ASSIGN_OR_RETURN(int64_t index, GetSourceFunctionIndexOfNode(node));
     source_indexes.insert(index);
   }
   return source_indexes;
@@ -199,20 +199,20 @@ absl::StatusOr<bool> IntegrationFunction::NodeSourceFunctionsCollide(
   // function, otherwise get the source function indexes of the nodes mapped to
   // the node.
   auto get_node_source_indexes =
-      [this](const Node* node) -> absl::StatusOr<std::set<int64>> {
+      [this](const Node* node) -> absl::StatusOr<std::set<int64_t>> {
     if (IntegrationFunctionOwnsNode(node)) {
       return GetSourceFunctionIndexesOfNodesMappedToNode(node);
     } else {
-      XLS_ASSIGN_OR_RETURN(int64 source_index,
+      XLS_ASSIGN_OR_RETURN(int64_t source_index,
                            GetSourceFunctionIndexOfNode(node));
-      return std::set<int64>({source_index});
+      return std::set<int64_t>({source_index});
     }
   };
 
   // Check for source function index collision.
-  XLS_ASSIGN_OR_RETURN(std::set<int64> node_a_sources,
+  XLS_ASSIGN_OR_RETURN(std::set<int64_t> node_a_sources,
                        get_node_source_indexes(node_a));
-  XLS_ASSIGN_OR_RETURN(std::set<int64> node_b_sources,
+  XLS_ASSIGN_OR_RETURN(std::set<int64_t> node_b_sources,
                        get_node_source_indexes(node_b));
   for (auto a_src : node_a_sources) {
     if (node_b_sources.find(a_src) != node_b_sources.end()) {
@@ -301,7 +301,7 @@ IntegrationFunction::UnifyIntegrationNodesWithPerMuxSelect(Node* node_a,
 
 absl::StatusOr<Node*> IntegrationFunction::ReplaceMuxCases(
     Node* mux_node,
-    const absl::flat_hash_map<int64, Node*>& source_index_to_case) {
+    const absl::flat_hash_map<int64_t, Node*>& source_index_to_case) {
   XLS_RET_CHECK(IntegrationFunctionOwnsNode(mux_node));
   XLS_RET_CHECK(!IsMappingTarget(mux_node));
   Select* mux = mux_node->As<Select>();
@@ -363,9 +363,9 @@ IntegrationFunction::UnifyIntegrationNodesWithGlobalMuxSelectNoMuxArg(
     Node* node_a, Node* node_b) {
   // Prefer a canonical ordering of arguments to increase debuggability /
   // reduce arbitrariness.
-  XLS_ASSIGN_OR_RETURN(std::set<int64> init_a_source_indexes,
+  XLS_ASSIGN_OR_RETURN(std::set<int64_t> init_a_source_indexes,
                        GetSourceFunctionIndexesOfNodesMappedToNode(node_a));
-  XLS_ASSIGN_OR_RETURN(std::set<int64> init_b_source_indexes,
+  XLS_ASSIGN_OR_RETURN(std::set<int64_t> init_b_source_indexes,
                        GetSourceFunctionIndexesOfNodesMappedToNode(node_b));
   if (*init_a_source_indexes.begin() > *init_b_source_indexes.begin()) {
     std::swap(node_a, node_b);
@@ -381,7 +381,7 @@ IntegrationFunction::UnifyIntegrationNodesWithGlobalMuxSelectNoMuxArg(
           IsPowerOfTwo(cases.size()) ? std::nullopt
                                      : absl::optional<Node*>(node_a)));
   // Track assigned cases.
-  XLS_ASSIGN_OR_RETURN(std::set<int64> a_source_indexes,
+  XLS_ASSIGN_OR_RETURN(std::set<int64_t> a_source_indexes,
                        GetSourceFunctionIndexesOfNodesMappedToNode(node_a));
   GlobalMuxMetadata& init_metadata = global_mux_to_metadata_[init_mux];
   init_metadata.occupied_case_indexes = a_source_indexes;
@@ -405,16 +405,16 @@ IntegrationFunction::UnifyIntegrationNodesWithGlobalMuxSelectArgIsMux(
     Node* mux, Node* case_node) {
   // Clear bookkeeping.
   XLS_RET_CHECK(global_mux_to_metadata_.contains(mux));
-  std::set<int64> occupied =
+  std::set<int64_t> occupied =
       global_mux_to_metadata_.at(mux).occupied_case_indexes;
   global_mux_to_metadata_.erase(mux);
 
   // For each source function that maps a node to case_node,
   // insert case_node as the corresponding mux case.
-  absl::flat_hash_map<int64, Node*> source_index_to_case;
-  XLS_ASSIGN_OR_RETURN(std::set<int64> case_source_indexes,
+  absl::flat_hash_map<int64_t, Node*> source_index_to_case;
+  XLS_ASSIGN_OR_RETURN(std::set<int64_t> case_source_indexes,
                        GetSourceFunctionIndexesOfNodesMappedToNode(case_node));
-  for (int64 index : case_source_indexes) {
+  for (int64_t index : case_source_indexes) {
     source_index_to_case[index] = case_node;
     XLS_RET_CHECK(occupied.find(index) == occupied.end());
   }
@@ -447,7 +447,7 @@ IntegrationFunction::UnifyNodeOperands(const Node* node_a, const Node* node_b) {
   // Unify operands.
   UnifiedOperands unify_result;
   unify_result.operands.reserve(a_ops.size());
-  for (int64 idx = 0; idx < a_ops.size(); ++idx) {
+  for (int64_t idx = 0; idx < a_ops.size(); ++idx) {
     XLS_ASSIGN_OR_RETURN(UnifiedNode uni_operand,
                          UnifyIntegrationNodes(a_ops.at(idx), b_ops.at(idx)));
     unify_result.operands.push_back(uni_operand.node);
@@ -506,7 +506,7 @@ IntegrationFunction::DeUnifyIntegrationNodesWithGlobalMuxSelect(Node* node) {
   XLS_RET_CHECK(!metadata.last_case_indexes_added.empty());
 
   // Clear occupied cases.
-  for (int64 updated_idx : metadata.last_case_indexes_added) {
+  for (int64_t updated_idx : metadata.last_case_indexes_added) {
     metadata.occupied_case_indexes.erase(updated_idx);
   }
 
@@ -522,8 +522,8 @@ IntegrationFunction::DeUnifyIntegrationNodesWithGlobalMuxSelect(Node* node) {
   } else {
     Node* reset_value =
         mux->cases().at(*metadata.occupied_case_indexes.begin());
-    absl::flat_hash_map<int64, Node*> case_updates;
-    for (int64 updated_idx : metadata.last_case_indexes_added) {
+    absl::flat_hash_map<int64_t, Node*> case_updates;
+    for (int64_t updated_idx : metadata.last_case_indexes_added) {
       case_updates[updated_idx] = reset_value;
     }
     XLS_ASSIGN_OR_RETURN(Node * new_mux, ReplaceMuxCases(node, case_updates));
@@ -638,7 +638,7 @@ IntegrationFunction::MergeNodesBackend(const Node* node_a, const Node* node_b) {
   return MergeNodesBackendResult{.can_merge = false};
 }
 
-absl::StatusOr<std::optional<int64>> IntegrationFunction::GetMergeNodesCost(
+absl::StatusOr<std::optional<int64_t>> IntegrationFunction::GetMergeNodesCost(
     const Node* node_a, const Node* node_b) {
   XLS_ASSIGN_OR_RETURN(MergeNodesBackendResult merge_result,
                        MergeNodesBackend(node_a, node_b));
@@ -648,7 +648,7 @@ absl::StatusOr<std::optional<int64>> IntegrationFunction::GetMergeNodesCost(
   }
 
   // Score.
-  int64 cost = 0;
+  int64_t cost = 0;
   auto tabulate_node_elimination_cost = [this, &cost](const Node* node) {
     if (IntegrationFunctionOwnsNode(node)) {
       cost -= GetNodeCost(node);
@@ -666,10 +666,10 @@ absl::StatusOr<std::optional<int64>> IntegrationFunction::GetMergeNodesCost(
   }
 
   // Cleanup.
-  int64 nodes_eliminated = 0;
-  int64 num_other_nodes_to_remove = merge_result.other_added_nodes.size();
+  int64_t nodes_eliminated = 0;
+  int64_t num_other_nodes_to_remove = merge_result.other_added_nodes.size();
   while (nodes_eliminated < num_other_nodes_to_remove) {
-    int64 initial_eliminated = nodes_eliminated;
+    int64_t initial_eliminated = nodes_eliminated;
     for (auto list_itr = merge_result.other_added_nodes.begin();
          list_itr != merge_result.other_added_nodes.end();) {
       Node* new_node = *list_itr;
@@ -692,7 +692,7 @@ absl::StatusOr<std::optional<int64>> IntegrationFunction::GetMergeNodesCost(
   return cost;
 }
 
-int64 IntegrationFunction::GetNodeCost(const Node* node) const {
+int64_t IntegrationFunction::GetNodeCost(const Node* node) const {
   // TODO: Actual estimate.
   switch (node->op()) {
     case Op::kArray:

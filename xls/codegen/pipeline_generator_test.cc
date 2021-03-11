@@ -41,7 +41,7 @@ constexpr char kTestdataPath[] = "xls/codegen/testdata";
 
 class TestDelayEstimator : public DelayEstimator {
  public:
-  absl::StatusOr<int64> GetOperationDelayInPs(Node* node) const override {
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
     switch (node->op()) {
       case Op::kParam:
       case Op::kLiteral:
@@ -393,7 +393,7 @@ TEST_P(PipelineGeneratorTest, TreeOfAdds) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.BuildWithReturnValue(out));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      int64 add_delay_in_ps,
+      int64_t add_delay_in_ps,
       TestDelayEstimator().GetOperationDelayInPs(out.node()));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
@@ -669,9 +669,9 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithSimulation) {
   // Now change the input and observe that the output never changes (because we
   // don't correspondingly set input_valid).
   tb.Set("z", 7);
-  int64 latency = result.signature.proto().pipeline().latency();
+  int64_t latency = result.signature.proto().pipeline().latency();
   ASSERT_GT(latency, 0);
-  for (int64 i = 0; i < 2 * latency; ++i) {
+  for (int64_t i = 0; i < 2 * latency; ++i) {
     tb.ExpectEq("out", kExpected);
     tb.ExpectEq("out_valid", 0);
     tb.NextCycle();
@@ -700,8 +700,8 @@ TEST_P(PipelineGeneratorTest, ValidSignalWithReset) {
 
   // Test with both active low and active high signals.
   for (bool active_low : {false, true}) {
-    const int64 kAssertReset = active_low ? 0 : 1;
-    const int64 kDeassertReset = active_low ? 1 : 0;
+    const int64_t kAssertReset = active_low ? 0 : 1;
+    const int64_t kDeassertReset = active_low ? 1 : 0;
     const std::string kResetSignal = active_low ? "the_rst_n" : "the_rst";
 
     ResetProto reset;
@@ -761,9 +761,9 @@ TEST_P(PipelineGeneratorTest, ValidSignalWithReset) {
     // Deassert reset and in_valid and change the input and observe that the
     // output never changes (because we don't correspondingly set input_valid).
     tb.Set("z", 7).Set(kResetSignal, kDeassertReset).Set("in_valid", 0);
-    int64 latency = result.signature.proto().pipeline().latency();
+    int64_t latency = result.signature.proto().pipeline().latency();
     ASSERT_GT(latency, 0);
-    for (int64 i = 0; i < 2 * latency; ++i) {
+    for (int64_t i = 0; i < 2 * latency; ++i) {
       tb.ExpectEq("out", kExpected);
       tb.ExpectEq("out_valid", 0);
       tb.NextCycle();
@@ -1206,9 +1206,9 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithResetSimulation) {
   // Now change the input and observe that the output never changes (because we
   // don't correspondingly set input_valid).
   tb.Set("z", 7);
-  int64 latency = result.signature.proto().pipeline().latency();
+  int64_t latency = result.signature.proto().pipeline().latency();
   ASSERT_GT(latency, 0);
-  for (int64 i = 0; i < 2 * latency; ++i) {
+  for (int64_t i = 0; i < 2 * latency; ++i) {
     tb.ExpectEq("out", kExpected);
     tb.ExpectEq("out_valid", 0);
     tb.NextCycle();
@@ -1217,10 +1217,10 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithResetSimulation) {
   // Asserting reset should flush the pipeline after the pipline latency even
   // without in_valid asserted.
   tb.Set("rst", 1).Set("in_valid", 0).Set("x", 0).Set("y", 0).Set("z", 0);
-  for (int64 i = 0; i < latency; ++i) {
+  for (int64_t i = 0; i < latency; ++i) {
     tb.ExpectEq("out", kExpected).NextCycle();
   }
-  for (int64 i = 0; i < latency; ++i) {
+  for (int64_t i = 0; i < latency; ++i) {
     tb.ExpectEq("out", 0).NextCycle();
   }
 

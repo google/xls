@@ -27,7 +27,7 @@ namespace verilog {
 // Control codes of the I/O state machine. These codes are not interpreted as
 // data, but rather initiate actions within the state machine. Passing data
 // bytes equal to these values requires an escape sequnce.
-enum IoControlCode : uint8 {
+enum IoControlCode : uint8_t {
   // Resets the I/O state machine and the device function. This control code
   // cannot be escaped (a reset is initiated even if the previous character
   // is the escape control code).
@@ -41,7 +41,7 @@ enum IoControlCode : uint8 {
 // Escape codes of the I/O state machine. These bytes are sent immediately
 // following the escape control code. An unrecognized escaped byte will be
 // interpretted as a data byte of that value.
-enum IoEscapeCode : uint8 {
+enum IoEscapeCode : uint8_t {
   // Interpreted as a data byte equal to the "reset" control code value
   // (IoControlCode::kReset).
   kResetByte = 0x00,
@@ -100,7 +100,7 @@ absl::StatusOr<Module*> InputResetModule(VerilogFile* f);
 
 // Creates and returns a shift register used by the InputControlerModuler. Takes
 // a byte at a time, and output is an arbitrary width given by 'bit_count'.
-absl::StatusOr<Module*> InputShiftRegisterModule(int64 bit_count,
+absl::StatusOr<Module*> InputShiftRegisterModule(int64_t bit_count,
                                                  VerilogFile* f);
 
 // Creates and returns a module which controls the output side of the I/O state

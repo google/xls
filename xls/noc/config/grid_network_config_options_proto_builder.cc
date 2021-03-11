@@ -17,13 +17,13 @@
 namespace xls::noc {
 
 GridNetworkConfigOptionsProtoBuilder&
-GridNetworkConfigOptionsProtoBuilder::WithNumRows(int64 num_rows) {
+GridNetworkConfigOptionsProtoBuilder::WithNumRows(int64_t num_rows) {
   proto_->set_num_rows(num_rows);
   return *this;
 }
 
 GridNetworkConfigOptionsProtoBuilder&
-GridNetworkConfigOptionsProtoBuilder::WithNumColumns(int64 num_columns) {
+GridNetworkConfigOptionsProtoBuilder::WithNumColumns(int64_t num_columns) {
   proto_->set_num_columns(num_columns);
   return *this;
 }

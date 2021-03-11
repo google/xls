@@ -39,7 +39,8 @@ std::string BuiltinToString(Builtin builtin) {
     XLS_DSLX_BUILTIN_EACH(CASIFY)
 #undef CASIFY
   }
-  return absl::StrFormat("<invalid Builtin(%d)>", static_cast<int64>(builtin));
+  return absl::StrFormat("<invalid Builtin(%d)>",
+                         static_cast<int64_t>(builtin));
 }
 
 std::string TagToString(InterpValueTag tag) {
@@ -60,7 +61,7 @@ std::string TagToString(InterpValueTag tag) {
       return "token";
   }
   return absl::StrFormat("<invalid InterpValueTag(%d)>",
-                         static_cast<int64>(tag));
+                         static_cast<int64_t>(tag));
 }
 
 /* static */ InterpValue InterpValue::MakeTuple(
@@ -73,12 +74,14 @@ std::string TagToString(InterpValueTag tag) {
   return InterpValue{InterpValueTag::kArray, std::move(elements)};
 }
 
-/* static */ InterpValue InterpValue::MakeUBits(int64 bit_count, int64 value) {
+/* static */ InterpValue InterpValue::MakeUBits(int64_t bit_count,
+                                                int64_t value) {
   return InterpValue{InterpValueTag::kUBits,
                      UBits(value, /*bit_count=*/bit_count)};
 }
 
-/* static */ InterpValue InterpValue::MakeSBits(int64 bit_count, int64 value) {
+/* static */ InterpValue InterpValue::MakeSBits(int64_t bit_count,
+                                                int64_t value) {
   return InterpValue{InterpValueTag::kSBits,
                      UBits(value, /*bit_count=*/bit_count)};
 }
@@ -129,7 +132,7 @@ bool InterpValue::Eq(const InterpValue& other) const {
     if (lhs.size() != rhs.size()) {
       return false;
     }
-    for (int64 i = 0; i < lhs.size(); ++i) {
+    for (int64_t i = 0; i < lhs.size(); ++i) {
       const InterpValue& lhs_elem = lhs[i];
       const InterpValue& rhs_elem = rhs[i];
       if (lhs_elem.Ne(rhs_elem)) {
@@ -300,7 +303,7 @@ absl::StatusOr<InterpValue> InterpValue::AddWithCarry(
   XLS_RET_CHECK(other.IsUBits());
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
-  int64 extended = std::max(lhs.bit_count(), rhs.bit_count()) + 1;
+  int64_t extended = std::max(lhs.bit_count(), rhs.bit_count()) + 1;
   Bits new_lhs = bits_ops::ZeroExtend(lhs, extended);
   Bits new_rhs = bits_ops::ZeroExtend(rhs, extended);
   Bits result = bits_ops::Add(new_lhs, new_rhs);
@@ -321,8 +324,8 @@ absl::StatusOr<InterpValue> InterpValue::Slice(
 
     XLS_ASSIGN_OR_RETURN(Bits start_bits, start.GetBits());
     XLS_ASSIGN_OR_RETURN(Bits length_bits, length.GetBits());
-    XLS_ASSIGN_OR_RETURN(uint64 start_index, start_bits.ToUint64());
-    XLS_ASSIGN_OR_RETURN(uint64 length_index, length_bits.ToUint64());
+    XLS_ASSIGN_OR_RETURN(uint64_t start_index, start_bits.ToUint64());
+    XLS_ASSIGN_OR_RETURN(uint64_t length_index, length_bits.ToUint64());
     return MakeBits(InterpValueTag::kUBits,
                     GetBitsOrDie().Slice(start_index, length_index));
   }
@@ -338,10 +341,10 @@ absl::StatusOr<InterpValue> InterpValue::Slice(
   const std::vector<InterpValue>& subject = GetValuesOrDie();
   XLS_ASSIGN_OR_RETURN(Bits start_bits, start.GetBits());
   XLS_ASSIGN_OR_RETURN(const auto* length_values, length.GetValues());
-  XLS_ASSIGN_OR_RETURN(int64 start_index, start_bits.ToUint64());
-  int64 length_value = length_values->size();
+  XLS_ASSIGN_OR_RETURN(int64_t start_index, start_bits.ToUint64());
+  int64_t length_value = length_values->size();
   std::vector<InterpValue> result;
-  for (int64 i = start_index; i < start_index + length_value; ++i) {
+  for (int64_t i = start_index; i < start_index + length_value; ++i) {
     if (i < 0 || i >= subject.size()) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Out of bounds slice; index %d size %d", i, subject.size()));
@@ -355,7 +358,7 @@ absl::StatusOr<InterpValue> InterpValue::Index(const InterpValue& other) const {
   XLS_RET_CHECK(other.IsUBits());
   XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* lhs, GetValues());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
-  XLS_ASSIGN_OR_RETURN(uint64 index, rhs.ToUint64());
+  XLS_ASSIGN_OR_RETURN(uint64_t index, rhs.ToUint64());
   if (lhs->size() <= index) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Index out of bounds: %d >= %d elements", index, lhs->size()));
@@ -368,7 +371,7 @@ absl::StatusOr<InterpValue> InterpValue::Update(
   XLS_RET_CHECK(index.IsUBits());
   XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* lhs, GetValues());
   XLS_ASSIGN_OR_RETURN(Bits index_bits, index.GetBits());
-  XLS_ASSIGN_OR_RETURN(uint64 index_value, index_bits.ToUint64());
+  XLS_ASSIGN_OR_RETURN(uint64_t index_value, index_bits.ToUint64());
   if (index_value >= lhs->size()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Update index %d is out of bounds; subject size: %d",
@@ -391,13 +394,13 @@ absl::StatusOr<Bits> InterpValue::GetBits() const {
   return absl::InvalidArgumentError("Value does not contain bits.");
 }
 
-// Returns the given bits value as an nonnegative int64. If the bits value is
-// negative or doesn't fit in an int64 then 'else_value' is returned.
-static int64 BitsToNonNegInt64OrElse(const Bits& bits, int64 else_value) {
+// Returns the given bits value as an nonnegative int64_t. If the bits value is
+// negative or doesn't fit in an int64_t then 'else_value' is returned.
+static int64_t BitsToNonNegInt64OrElse(const Bits& bits, int64_t else_value) {
   if (!bits.FitsInInt64()) {
     return else_value;
   }
-  int64 result = bits.ToInt64().value();
+  int64_t result = bits.ToInt64().value();
   return result < 0 ? else_value : result;
 }
 
@@ -405,7 +408,7 @@ absl::StatusOr<InterpValue> InterpValue::Shll(const InterpValue& other) const {
   // TODO(leary): 2020-10-18 Make typechecker require RHS is unsigned.
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
-  int64 amount64 = BitsToNonNegInt64OrElse(rhs, lhs.bit_count());
+  int64_t amount64 = BitsToNonNegInt64OrElse(rhs, lhs.bit_count());
   return InterpValue(tag_, bits_ops::ShiftLeftLogical(lhs, amount64));
 }
 
@@ -413,7 +416,7 @@ absl::StatusOr<InterpValue> InterpValue::Shrl(const InterpValue& other) const {
   // TODO(leary): 2020-10-18 Make typechecker require RHS is unsigned.
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
-  int64 amount64 = BitsToNonNegInt64OrElse(rhs, lhs.bit_count());
+  int64_t amount64 = BitsToNonNegInt64OrElse(rhs, lhs.bit_count());
   return InterpValue(tag_, bits_ops::ShiftRightLogical(lhs, amount64));
 }
 
@@ -421,11 +424,11 @@ absl::StatusOr<InterpValue> InterpValue::Shra(const InterpValue& other) const {
   // TODO(leary): 2020-10-18 Make typechecker require RHS is unsigned.
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
-  int64 amount64 = BitsToNonNegInt64OrElse(rhs, lhs.bit_count());
+  int64_t amount64 = BitsToNonNegInt64OrElse(rhs, lhs.bit_count());
   return InterpValue(tag_, bits_ops::ShiftRightArith(lhs, amount64));
 }
 
-absl::StatusOr<InterpValue> InterpValue::ZeroExt(int64 new_bit_count) const {
+absl::StatusOr<InterpValue> InterpValue::ZeroExt(int64_t new_bit_count) const {
   XLS_ASSIGN_OR_RETURN(Bits b, GetBits());
   InterpValueTag new_tag =
       IsSigned() ? InterpValueTag::kSBits : InterpValueTag::kUBits;
@@ -443,7 +446,7 @@ absl::StatusOr<InterpValue> InterpValue::OneHot(bool lsb_prio) const {
   return InterpValue(InterpValueTag::kUBits, bits_ops::OneHotMsbToLsb(arg));
 }
 
-absl::StatusOr<InterpValue> InterpValue::SignExt(int64 new_bit_count) const {
+absl::StatusOr<InterpValue> InterpValue::SignExt(int64_t new_bit_count) const {
   XLS_ASSIGN_OR_RETURN(Bits b, GetBits());
   InterpValueTag new_tag =
       IsSigned() ? InterpValueTag::kSBits : InterpValueTag::kUBits;
@@ -511,24 +514,24 @@ absl::StatusOr<InterpValue> InterpValue::Flatten() const {
                                     TagToString(tag_));
 }
 
-absl::StatusOr<int64> InterpValue::GetBitCount() const {
+absl::StatusOr<int64_t> InterpValue::GetBitCount() const {
   XLS_ASSIGN_OR_RETURN(Bits b, GetBits());
   return b.bit_count();
 }
 
-absl::StatusOr<int64> InterpValue::GetBitValueCheckSign() const {
+absl::StatusOr<int64_t> InterpValue::GetBitValueCheckSign() const {
   if (IsSBits() || (IsEnum() && type_->signedness().value())) {
     return GetBitValueInt64();
   }
   if (IsUBits() || (IsEnum() && !type_->signedness().value())) {
-    XLS_ASSIGN_OR_RETURN(uint64 x, GetBitValueUint64());
+    XLS_ASSIGN_OR_RETURN(uint64_t x, GetBitValueUint64());
     return x;
   }
   return absl::InvalidArgumentError("Value cannot be converted to bits: " +
                                     ToHumanString());
 }
 
-absl::StatusOr<uint64> InterpValue::GetBitValueUint64() const {
+absl::StatusOr<uint64_t> InterpValue::GetBitValueUint64() const {
   XLS_ASSIGN_OR_RETURN(Bits b, GetBits());
   return b.ToUint64();
 }
@@ -537,7 +540,7 @@ bool InterpValue::FitsInUint64() const {
   return HasBits() && GetBitsOrDie().FitsInUint64();
 }
 
-absl::StatusOr<int64> InterpValue::GetBitValueInt64() const {
+absl::StatusOr<int64_t> InterpValue::GetBitValueInt64() const {
   XLS_ASSIGN_OR_RETURN(Bits b, GetBits());
   return b.ToInt64();
 }

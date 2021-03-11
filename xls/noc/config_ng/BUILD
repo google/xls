@@ -79,7 +79,6 @@ cc_library(
     hdrs = ["topology_endpoint_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
-        "//xls/common:integral_types",
         "//xls/common/logging",
     ],
 )
@@ -120,7 +119,6 @@ cc_library(
     hdrs = ["network_component.h"],
     deps = [
         ":network_component_port",
-        "//xls/common:integral_types",
         "//xls/common:iterator_range",
         "//xls/common/logging",
         "//xls/ir:unwrapping_iterator",

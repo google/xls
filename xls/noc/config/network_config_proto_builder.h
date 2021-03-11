@@ -36,23 +36,23 @@ class NetworkConfigProtoBuilder {
 
   // Sets default flit bit width for links.
   NetworkConfigProtoBuilder& SetDefaultLinkPhitBitWidth(
-      absl::optional<int64> phit_bit_width);
+      absl::optional<int64_t> phit_bit_width);
 
   // Sets default source to sink pipeline stage for links.
   NetworkConfigProtoBuilder& SetDefaultLinkSourceSinkPipelineStage(
-      absl::optional<int64> pipeline_stage);
+      absl::optional<int64_t> pipeline_stage);
 
   // Sets default sink to source pipeline stage for links.
   NetworkConfigProtoBuilder& SetDefaultLinkSinkSourcePipelineStage(
-      absl::optional<int64> pipeline_stage);
+      absl::optional<int64_t> pipeline_stage);
 
   // Sets default flit bit width for Virtual Channels.
   NetworkConfigProtoBuilder& SetDefaultVirtualChannelFlitBitWidth(
-      absl::optional<int64> flit_bit_width);
+      absl::optional<int64_t> flit_bit_width);
 
   // Sets default depth for Virtual Channels.
   NetworkConfigProtoBuilder& SetDefaultVirtualChannelDepth(
-      absl::optional<int64> depth);
+      absl::optional<int64_t> depth);
 
   // Adds a port to this object. Returns its builder.
   PortConfigProtoBuilder WithPort(absl::string_view name);
@@ -82,11 +82,11 @@ class NetworkConfigProtoBuilder {
   NetworkConfigProto proto_;
   // The members below are used to preserve the default state for the builder.
   // See corresponding methods above for details.
-  absl::optional<int64> link_phit_bit_width_;
-  absl::optional<int64> link_source_sink_pipeline_stage_;
-  absl::optional<int64> link_sink_source_pipeline_stage_;
-  absl::optional<int64> virtual_channel_flit_bit_width_;
-  absl::optional<int64> virtual_channel_depth_;
+  absl::optional<int64_t> link_phit_bit_width_;
+  absl::optional<int64_t> link_source_sink_pipeline_stage_;
+  absl::optional<int64_t> link_sink_source_pipeline_stage_;
+  absl::optional<int64_t> virtual_channel_flit_bit_width_;
+  absl::optional<int64_t> virtual_channel_depth_;
   absl::optional<std::vector<std::string>> virtual_channels_for_input_;
   absl::optional<std::vector<std::string>> virtual_channels_for_output_;
 };

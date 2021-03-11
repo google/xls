@@ -50,13 +50,13 @@ void OnceInit() {
   LLVMInitializeNativeAsmParser();
 }
 
-void EnqueueData(JitChannelQueue* queue, uint32 data) {
-  queue->Send(reinterpret_cast<uint8*>(&data), sizeof(uint32));
+void EnqueueData(JitChannelQueue* queue, uint32_t data) {
+  queue->Send(reinterpret_cast<uint8_t*>(&data), sizeof(uint32_t));
 }
 
-uint32 DequeueData(JitChannelQueue* queue) {
-  uint32 data;
-  queue->Recv(reinterpret_cast<uint8*>(&data), sizeof(uint32));
+uint32_t DequeueData(JitChannelQueue* queue) {
+  uint32_t data;
+  queue->Recv(reinterpret_cast<uint8_t*>(&data), sizeof(uint32_t));
   return data;
 }
 
@@ -64,7 +64,7 @@ uint32 DequeueData(JitChannelQueue* queue) {
 // Thus, we'll use a fixture to wrap most of it up.
 class ProcBuilderVisitorTest : public ::testing::Test {
  protected:
-  using EntryFunctionT = void (*)(uint8**, uint8*, void*);
+  using EntryFunctionT = void (*)(uint8_t**, uint8_t*, void*);
   static constexpr const char kModuleName[] = "the_module";
   static constexpr const char kFunctionName[] = "the_function";
 
@@ -123,8 +123,8 @@ class ProcBuilderVisitorTest : public ::testing::Test {
   // Packs the input values into the format our LLVM functions expect (i.e.,
   // input params as an array of u8 pointers). The resulting pointers are held
   // as unique_ptrs to auto-magically handle dealloc.
-  absl::StatusOr<std::vector<uint8*>> PackArgs(FunctionBase* function,
-                                               absl::Span<const Value> values) {
+  absl::StatusOr<std::vector<uint8_t*>> PackArgs(
+      FunctionBase* function, absl::Span<const Value> values) {
     std::vector<Type*> param_types;
     for (Param* param : function->params()) {
       param_types.push_back(param->GetType());
@@ -132,14 +132,14 @@ class ProcBuilderVisitorTest : public ::testing::Test {
     XLS_RET_CHECK(values.size() == param_types.size());
 
     JitRuntime runtime(*data_layout(), type_converter());
-    std::vector<uint8*> arg_buffers;
+    std::vector<uint8_t*> arg_buffers;
     unique_arg_buffers_.clear();
     unique_arg_buffers_.reserve(param_types.size());
     arg_buffers.reserve(param_types.size());
 
     for (const Type* type : param_types) {
       unique_arg_buffers_.push_back(
-          std::make_unique<uint8[]>(type_converter()->GetTypeByteSize(type)));
+          std::make_unique<uint8_t[]>(type_converter()->GetTypeByteSize(type)));
       arg_buffers.push_back(unique_arg_buffers_.back().get());
     }
 
@@ -163,7 +163,7 @@ class ProcBuilderVisitorTest : public ::testing::Test {
   std::unique_ptr<LlvmTypeConverter> type_converter_;
   std::unique_ptr<llvm::ExecutionEngine> evaluator_;
 
-  std::vector<std::unique_ptr<uint8[]>> unique_arg_buffers_;
+  std::vector<std::unique_ptr<uint8_t[]>> unique_arg_buffers_;
 };
 
 // Simple smoke-style test verifying that ProcBuilderVisitor can still build
@@ -193,14 +193,14 @@ fn AddTwo(a: bits[8], b: bits[8]) -> bits[8] {
 
   // The Interpreter takes "generic values"; we need to pass a pointer into our
   // function - one for the arg array, and one for the return value.
-  uint8* input_buffer[2];
-  uint8 arg_0 = 47;
-  uint8 arg_1 = 33;
+  uint8_t* input_buffer[2];
+  uint8_t arg_0 = 47;
+  uint8_t arg_1 = 33;
   input_buffer[0] = &arg_0;
   input_buffer[1] = &arg_1;
   std::vector<llvm::GenericValue> args;
   args.push_back(llvm::GenericValue(input_buffer));
-  uint8 output_buffer;
+  uint8_t output_buffer;
   args.push_back(llvm::GenericValue(&output_buffer));
 
   llvm::EngineBuilder builder(std::move(module));
@@ -215,13 +215,13 @@ fn AddTwo(a: bits[8], b: bits[8]) -> bits[8] {
 
 // Recv/Send functions for the "CanCompileProcs" test.
 void CanCompileProcs_recv(JitChannelQueue* queue_ptr, Receive* recv_ptr,
-                          uint8* data_ptr, int64 data_sz, void* user_data) {
+                          uint8_t* data_ptr, int64_t data_sz, void* user_data) {
   JitChannelQueue* queue = reinterpret_cast<JitChannelQueue*>(queue_ptr);
   queue->Recv(data_ptr, data_sz);
 }
 
 void CanCompileProcs_send(JitChannelQueue* queue_ptr, Send* send_ptr,
-                          uint8* data_ptr, int64 data_sz, void* user_data) {
+                          uint8_t* data_ptr, int64_t data_sz, void* user_data) {
   JitChannelQueue* queue = reinterpret_cast<JitChannelQueue*>(queue_ptr);
   queue->Send(data_ptr, data_sz);
 }
@@ -293,7 +293,7 @@ proc the_proc(my_token: token, state: bits[1], init=0) {
   XLS_ASSERT_OK(InitLlvm(module.get(), package()->GetBitsType(1)));
   XLS_ASSERT_OK_AND_ASSIGN(auto xls_fn, package()->GetProc("the_proc"));
 
-  constexpr uint32 kQueueData = 0xbeef;
+  constexpr uint32_t kQueueData = 0xbeef;
   XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
                            JitChannelQueueManager::Create(package()));
   EnqueueData(queue_mgr->GetQueueById(0).value(), kQueueData);
@@ -304,18 +304,18 @@ proc the_proc(my_token: token, state: bits[1], init=0) {
       &CanCompileProcs_recv, &CanCompileProcs_send));
 
   // First: set state to 0; see that recv_if returns 0.
-  uint64 output;
+  uint64_t output;
   auto fn = BuildEntryFn(std::move(module), kFunctionName);
   std::vector<Value> args = {Value::Token(), Value(UBits(0, 1))};
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint8*> arg_buffers,
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint8_t*> arg_buffers,
                            PackArgs(xls_fn, args));
-  fn(arg_buffers.data(), reinterpret_cast<uint8*>(&output), nullptr);
+  fn(arg_buffers.data(), reinterpret_cast<uint8_t*>(&output), nullptr);
   EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 0);
 
   // Second: set state to 1, see that recv_if returns what we put in the queue
   args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(arg_buffers, PackArgs(xls_fn, args));
-  fn(arg_buffers.data(), reinterpret_cast<uint8*>(&output), nullptr);
+  fn(arg_buffers.data(), reinterpret_cast<uint8_t*>(&output), nullptr);
   EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), kQueueData);
 }
 
@@ -339,7 +339,7 @@ proc the_proc(my_token: token, state: bits[1], init=0) {
   XLS_ASSERT_OK(InitLlvm(module.get(), package()->GetBitsType(1)));
   XLS_ASSERT_OK_AND_ASSIGN(auto xls_fn, package()->GetProc("the_proc"));
 
-  constexpr uint32 kQueueData = 0xbeef;
+  constexpr uint32_t kQueueData = 0xbeef;
   XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
                            JitChannelQueueManager::Create(package()));
   EnqueueData(queue_mgr->GetQueueById(0).value(), kQueueData);
@@ -352,33 +352,33 @@ proc the_proc(my_token: token, state: bits[1], init=0) {
 
   // First: with state 0, make sure no send occurred (i.e., our output queue is
   // empty).
-  uint64 output;
+  uint64_t output;
   auto fn = BuildEntryFn(std::move(module), kFunctionName);
   std::vector<Value> args = {Value::Token(), Value(UBits(0, 1))};
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint8*> arg_buffers,
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint8_t*> arg_buffers,
                            PackArgs(xls_fn, args));
-  fn(arg_buffers.data(), reinterpret_cast<uint8*>(&output), nullptr);
+  fn(arg_buffers.data(), reinterpret_cast<uint8_t*>(&output), nullptr);
 
   // Second: with state 1, make sure we've now got output data.
   args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(arg_buffers, PackArgs(xls_fn, args));
-  fn(arg_buffers.data(), reinterpret_cast<uint8*>(&output), nullptr);
+  fn(arg_buffers.data(), reinterpret_cast<uint8_t*>(&output), nullptr);
   EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), kQueueData + 1);
 }
 
 // Recv/Send functions for the "GetsUserData" test.
 void GetsUserData_recv(JitChannelQueue* queue_ptr, Receive* recv_ptr,
-                       uint8* data_ptr, int64 data_sz, void* user_data) {
+                       uint8_t* data_ptr, int64_t data_sz, void* user_data) {
   JitChannelQueue* queue = reinterpret_cast<JitChannelQueue*>(queue_ptr);
-  uint64* int_data = reinterpret_cast<uint64*>(user_data);
+  uint64_t* int_data = reinterpret_cast<uint64_t*>(user_data);
   *int_data = *int_data * 2;
   queue->Recv(data_ptr, data_sz);
 }
 
 void GetsUserData_send(JitChannelQueue* queue_ptr, Send* send_ptr,
-                       uint8* data_ptr, int64 data_sz, void* user_data) {
+                       uint8_t* data_ptr, int64_t data_sz, void* user_data) {
   JitChannelQueue* queue = reinterpret_cast<JitChannelQueue*>(queue_ptr);
-  uint64* int_data = reinterpret_cast<uint64*>(user_data);
+  uint64_t* int_data = reinterpret_cast<uint64_t*>(user_data);
   *int_data = *int_data * 3;
   queue->Send(data_ptr, data_sz);
 }
@@ -421,7 +421,7 @@ proc the_proc(my_token: token, state: (), init=()) {
 
   // We don't have any persistent state, so we don't reference params, hence
   // nullptr.
-  uint64 user_data = 7;
+  uint64_t user_data = 7;
   fn(nullptr, nullptr, reinterpret_cast<void*>(&user_data));
   EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 21);
   EXPECT_EQ(user_data, 7 * 2 * 3);

@@ -58,7 +58,7 @@ inline bool ValueConformsToType(const Value& value, Type* type) {
       if (tuple_type->size() != value.size()) {
         return false;
       }
-      for (int64 i = 0; i < tuple_type->size(); ++i) {
+      for (int64_t i = 0; i < tuple_type->size(); ++i) {
         if (!ValueConformsToType(value.element(i),
                                  tuple_type->element_type(i))) {
           return false;

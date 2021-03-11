@@ -15,6 +15,7 @@
 #ifndef XLS_TOOLS_TESTBENCH_H_
 #define XLS_TOOLS_TESTBENCH_H_
 
+#include <cstdint>
 #include <functional>
 #include <thread>  // NOLINT(build/c++11)
 #include <type_traits>
@@ -23,7 +24,6 @@
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
 #include "xls/common/file/filesystem.h"
-#include "xls/common/integral_types.h"
 #include "xls/tools/testbench_thread.h"
 
 namespace xls {
@@ -74,20 +74,20 @@ class Testbench
   // changes might affect results).
   // All lambdas must be thread-safe.
   Testbench(
-      uint64 start, uint64 end, uint64 max_failures,
-      std::function<InputT(uint64)> index_to_input,
+      uint64_t start, uint64_t end, uint64_t max_failures,
+      std::function<InputT(uint64_t)> index_to_input,
       std::function<std::unique_ptr<ShardDataT>()> create_shard,
       std::function<ResultT(ShardDataT*, InputT)> compute_expected,
       std::function<ResultT(JitWrapperT*, ShardDataT*, InputT)> compute_actual,
       std::function<bool(ResultT, ResultT)> compare_results,
-      std::function<void(int64, InputT, ResultT, ResultT)> log_errors)
+      std::function<void(int64_t, InputT, ResultT, ResultT)> log_errors)
       : internal::TestbenchBase<JitWrapperT, InputT, ResultT, ShardDataT>(
             start, end, max_failures, index_to_input, compare_results,
             log_errors),
         create_shard_(create_shard),
         compute_expected_(compute_expected),
         compute_actual_(compute_actual) {
-    this->thread_create_fn_ = [this](uint64 start, uint64 end) {
+    this->thread_create_fn_ = [this](uint64_t start, uint64_t end) {
       return std::make_unique<
           TestbenchThread<JitWrapperT, InputT, ResultT, ShardDataT>>(
           &this->mutex_, &this->wake_me_, start, end, this->max_failures_,
@@ -109,18 +109,18 @@ class Testbench<JitWrapperT, InputT, ResultT, ShardDataT,
                 typename std::enable_if<std::is_void<ShardDataT>::value>::type>
     : public internal::TestbenchBase<JitWrapperT, InputT, ResultT, ShardDataT> {
  public:
-  Testbench(uint64 start, uint64 end, uint64 max_failures,
-            std::function<InputT(uint64)> index_to_input,
+  Testbench(uint64_t start, uint64_t end, uint64_t max_failures,
+            std::function<InputT(uint64_t)> index_to_input,
             std::function<ResultT(InputT)> compute_expected,
             std::function<ResultT(JitWrapperT*, InputT)> compute_actual,
             std::function<bool(ResultT, ResultT)> compare_results,
-            std::function<void(int64, InputT, ResultT, ResultT)> log_errors)
+            std::function<void(int64_t, InputT, ResultT, ResultT)> log_errors)
       : internal::TestbenchBase<JitWrapperT, InputT, ResultT, ShardDataT>(
             start, end, max_failures, index_to_input, compare_results,
             log_errors),
         compute_expected_(compute_expected),
         compute_actual_(compute_actual) {
-    this->thread_create_fn_ = [this](uint64 start, uint64 end) {
+    this->thread_create_fn_ = [this](uint64_t start, uint64_t end) {
       return std::make_unique<
           TestbenchThread<JitWrapperT, InputT, ResultT, ShardDataT>>(
           &this->mutex_, &this->wake_me_, start, end, this->max_failures_,
@@ -143,10 +143,11 @@ template <typename JitWrapperT, typename InputT, typename ResultT,
           typename ShardDataT>
 class TestbenchBase {
  public:
-  TestbenchBase(uint64 start, uint64 end, uint64 max_failures,
-                std::function<InputT(uint64)> index_to_input,
-                std::function<bool(ResultT, ResultT)> compare_results,
-                std::function<void(int64, InputT, ResultT, ResultT)> log_errors)
+  TestbenchBase(
+      uint64_t start, uint64_t end, uint64_t max_failures,
+      std::function<InputT(uint64_t)> index_to_input,
+      std::function<bool(ResultT, ResultT)> compare_results,
+      std::function<void(int64_t, InputT, ResultT, ResultT)> log_errors)
       : started_(false),
         num_threads_(std::thread::hardware_concurrency()),
         start_(start),
@@ -177,10 +178,10 @@ class TestbenchBase {
     start_time_ = absl::Now();
 
     // Set up all the workers.
-    uint64 chunk_size = (end_ - start_) / num_threads_;
-    uint64 chunk_remainder = (end_ - start_) % chunk_size;
-    uint64 first = 0;
-    uint64 last;
+    uint64_t chunk_size = (end_ - start_) / num_threads_;
+    uint64_t chunk_remainder = (end_ - start_) % chunk_size;
+    uint64_t first = 0;
+    uint64_t last;
     for (int i = 0; i < num_threads_; i++) {
       last = first + chunk_size;
       // Distribute any remainder evenly amongst the threads.
@@ -246,9 +247,9 @@ class TestbenchBase {
   void PrintStatus() {
     // Get the remainder-adjusted chunk size for this thread.
     auto thread_chunk_size = [this](int thread_index) {
-      uint64 total_size = end_ - start_;
-      uint64 chunk_size = total_size / threads_.size();
-      uint64 remainder = total_size % chunk_size;
+      uint64_t total_size = end_ - start_;
+      uint64_t chunk_size = total_size / threads_.size();
+      uint64_t remainder = total_size % chunk_size;
       if (thread_index < remainder) {
         chunk_size++;
       }
@@ -258,12 +259,12 @@ class TestbenchBase {
     // Ignore remainder issues here. It shouldn't matter much at all.
     absl::Time now = absl::Now();
     auto delta = now - start_time_;
-    uint64 total_done = 0;
-    for (int64 i = 0; i < threads_.size(); ++i) {
-      uint64 num_passes = threads_[i]->num_passes();
-      uint64 num_failures = threads_[i]->num_failures();
-      uint64 thread_done = num_passes + num_failures;
-      uint64 chunk_size = thread_chunk_size(i);
+    uint64_t total_done = 0;
+    for (int64_t i = 0; i < threads_.size(); ++i) {
+      uint64_t num_passes = threads_[i]->num_passes();
+      uint64_t num_failures = threads_[i]->num_failures();
+      uint64_t thread_done = num_passes + num_failures;
+      uint64_t chunk_size = thread_chunk_size(i);
       total_done += thread_done;
       std::cout << absl::StreamFormat(
                        "thread %02d: %f%% @ %.1f us/sample :: failures %d", i,
@@ -273,7 +274,7 @@ class TestbenchBase {
                 << "\n";
     }
     double done_per_second = total_done / absl::ToDoubleSeconds(delta);
-    int64 remaining = end_ - start_ - total_done;
+    int64_t remaining = end_ - start_ - total_done;
     auto estimate = absl::Seconds(remaining / done_per_second);
     double throughput_this_print =
         static_cast<double>(total_done - num_samples_processed_) /
@@ -298,16 +299,16 @@ class TestbenchBase {
   bool started_;
   int num_threads_;
   absl::Time start_time_;
-  uint64 start_;
-  uint64 end_;
-  uint64 max_failures_;
-  uint64 num_samples_processed_;
-  std::function<InputT(uint64)> index_to_input_;
+  uint64_t start_;
+  uint64_t end_;
+  uint64_t max_failures_;
+  uint64_t num_samples_processed_;
+  std::function<InputT(uint64_t)> index_to_input_;
   std::function<bool(ResultT, ResultT)> compare_results_;
-  std::function<void(int64, InputT, ResultT, ResultT)> log_errors_;
+  std::function<void(int64_t, InputT, ResultT, ResultT)> log_errors_;
 
   using ThreadT = TestbenchThread<JitWrapperT, InputT, ResultT, ShardDataT>;
-  std::function<std::unique_ptr<ThreadT>(uint64, uint64)> thread_create_fn_;
+  std::function<std::unique_ptr<ThreadT>(uint64_t, uint64_t)> thread_create_fn_;
   std::vector<std::unique_ptr<ThreadT>> threads_;
 
   // The main thread sleeps while tests are running. As worker threads finish,

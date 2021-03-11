@@ -66,10 +66,10 @@ absl::StatusOr<Expr*> ResolveColonRefToConstantExpr(ColonRef* ref,
 
 absl::Status CheckBitwidth(const Number& number, const ConcreteType& type) {
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bits_dim, type.GetTotalBitCount());
-  XLS_RET_CHECK(absl::holds_alternative<int64>(bits_dim.value()))
+  XLS_RET_CHECK(absl::holds_alternative<int64_t>(bits_dim.value()))
       << bits_dim.ToString() << " within " << number.ToString() << " @ "
       << number.span();
-  int64 bit_count = absl::get<int64>(bits_dim.value());
+  int64_t bit_count = absl::get<int64_t>(bits_dim.value());
   absl::StatusOr<Bits> bits = number.GetBits(bit_count);
   if (!bits.ok()) {
     return TypeInferenceErrorStatus(
@@ -339,7 +339,7 @@ static absl::Status BindNames(NameDefTree* name_def_tree,
                         name_def_tree->nodes().size(), tuple_type->size()));
   }
 
-  for (int64 i = 0; i < name_def_tree->nodes().size(); ++i) {
+  for (int64_t i = 0; i < name_def_tree->nodes().size(); ++i) {
     NameDefTree* subtree = name_def_tree->nodes()[i];
     const ConcreteType& subtype = tuple_type->GetMemberType(i);
     ctx->type_info()->SetItem(subtree, subtype);
@@ -469,7 +469,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
     member_types.push_back(std::move(member_type));
   }
 
-  for (int64 i = 1; i < member_types.size(); ++i) {
+  for (int64_t i = 1; i < member_types.size(); ++i) {
     if (*member_types[0] != *member_types[i]) {
       return XlsTypeErrorStatus(
           node->span(), *member_types[0], *member_types[i],
@@ -479,7 +479,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
 
   auto inferred = absl::make_unique<ArrayType>(
       member_types[0]->CloneToUnique(),
-      ConcreteTypeDim(static_cast<int64>(member_types.size())));
+      ConcreteTypeDim(static_cast<int64_t>(member_types.size())));
 
   if (node->type() == nullptr) {
     return inferred;
@@ -508,7 +508,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
   }
 
   if (array_type->size() !=
-      ConcreteTypeDim(static_cast<int64>(member_types.size()))) {
+      ConcreteTypeDim(static_cast<int64_t>(member_types.size()))) {
     return XlsTypeErrorStatus(
         node->span(), *array_type, *inferred,
         absl::StrFormat("Annotated array size %s does not match "
@@ -722,7 +722,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
         node->span().ToString(), node->ToString());
   }
 
-  XLS_ASSIGN_OR_RETURN(int64 value, number->GetAsUint64());
+  XLS_ASSIGN_OR_RETURN(int64_t value, number->GetAsUint64());
   if (value >= lhs_type.size()) {
     return TypeInferenceErrorStatus(
         node->span(), &lhs_type,
@@ -735,11 +735,11 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
 
 // Returns (start, width), resolving indices via DSLX bit slice semantics.
 static absl::StatusOr<StartAndWidth> ResolveBitSliceIndices(
-    int64 bit_count, absl::optional<int64> start_opt,
-    absl::optional<int64> limit_opt) {
+    int64_t bit_count, absl::optional<int64_t> start_opt,
+    absl::optional<int64_t> limit_opt) {
   XLS_RET_CHECK_GE(bit_count, 0);
-  int64 start = 0;
-  int64 limit = bit_count;
+  int64_t start = 0;
+  int64_t limit = bit_count;
 
   if (start_opt.has_value()) {
     start = *start_opt;
@@ -755,21 +755,21 @@ static absl::StatusOr<StartAndWidth> ResolveBitSliceIndices(
     limit += bit_count;
   }
 
-  limit = std::min(std::max(limit, int64{0}), bit_count);
-  start = std::min(std::max(start, int64{0}), limit);
+  limit = std::min(std::max(limit, int64_t{0}), bit_count);
+  start = std::min(std::max(start, int64_t{0}), limit);
   XLS_RET_CHECK_GE(start, 0);
   XLS_RET_CHECK_GE(limit, start);
   return StartAndWidth{start, limit - start};
 }
 
-static std::pair<absl::flat_hash_map<std::string, int64>,
-                 absl::flat_hash_map<std::string, int64>>
+static std::pair<absl::flat_hash_map<std::string, int64_t>,
+                 absl::flat_hash_map<std::string, int64_t>>
 SymbolicBindingsToConstexprEnv(const SymbolicBindings* symbolic_bindings) {
   if (symbolic_bindings == nullptr) {
     return {{}, {}};
   }
-  absl::flat_hash_map<std::string, int64> env = symbolic_bindings->ToMap();
-  absl::flat_hash_map<std::string, int64> bit_widths;
+  absl::flat_hash_map<std::string, int64_t> env = symbolic_bindings->ToMap();
+  absl::flat_hash_map<std::string, int64_t> bit_widths;
   for (const auto& [identifier, _] : env) {
     // TODO(leary): 2020-03-05 We should carry around the bitwidths of the
     // symbolic bindings, right now we only know the value, so we're forced to
@@ -801,13 +801,13 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
 
     // Get the start number as an integral value, after we make sure it fits.
     XLS_ASSIGN_OR_RETURN(Bits start_bits, start_number->GetBits(64));
-    XLS_ASSIGN_OR_RETURN(int64 start_int, start_bits.ToInt64());
+    XLS_ASSIGN_OR_RETURN(int64_t start_int, start_bits.ToInt64());
 
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved_start_type,
                          Resolve(*start_type, ctx));
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bit_count_ctd,
                          resolved_start_type->GetTotalBitCount());
-    int64 bit_count = absl::get<int64>(bit_count_ctd.value());
+    int64_t bit_count = absl::get<int64_t>(bit_count_ctd.value());
 
     // Make sure the start_int literal fits in the type we determined.
     absl::Status fits_status = SBitsWithStatus(start_int, bit_count).status();
@@ -845,10 +845,10 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim width_ctd,
                        width_type->GetTotalBitCount());
   ConcreteTypeDim subject_ctd = subject_type.size();
-  if (absl::holds_alternative<int64>(width_ctd.value()) &&
-      absl::holds_alternative<int64>(subject_ctd.value())) {
-    int64 width_bits = absl::get<int64>(width_ctd.value());
-    int64 subject_bits = absl::get<int64>(subject_ctd.value());
+  if (absl::holds_alternative<int64_t>(width_ctd.value()) &&
+      absl::holds_alternative<int64_t>(subject_ctd.value())) {
+    int64_t width_bits = absl::get<int64_t>(width_ctd.value());
+    int64_t subject_bits = absl::get<int64_t>(subject_ctd.value());
     if (width_bits > subject_bits) {
       return XlsTypeErrorStatus(
           start->span(), subject_type, *width_type,
@@ -893,7 +893,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
 
   std::unique_ptr<ConcreteType> s32 = BitsType::MakeS32();
   auto* slice = absl::get<Slice*>(node->rhs());
-  absl::optional<int64> limit;
+  absl::optional<int64_t> limit;
   if (slice->limit() != nullptr) {
     auto status_or_limit = Interpreter::InterpretExprToInt(
         slice->owner(), ctx->type_info(), ctx->typecheck_module(),
@@ -910,7 +910,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     }
     limit = status_or_limit.value();
   }
-  absl::optional<int64> start;
+  absl::optional<int64_t> start;
   if (slice->start() != nullptr) {
     auto status_or_start = Interpreter::InterpretExprToInt(
         slice->owner(), ctx->type_info(), ctx->typecheck_module(),
@@ -932,17 +932,17 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
       ctx->fn_stack().back().symbolic_bindings();
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim lhs_bit_count_ctd,
                        lhs_type->GetTotalBitCount());
-  int64 bit_count;
+  int64_t bit_count;
   if (absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(
           lhs_bit_count_ctd.value())) {
     auto& owned_parametric =
         absl::get<ConcreteTypeDim::OwnedParametric>(lhs_bit_count_ctd.value());
     ParametricExpression::Evaluated evaluated =
         owned_parametric->Evaluate(ToParametricEnv(fn_symbolic_bindings));
-    XLS_RET_CHECK(absl::holds_alternative<int64>(evaluated));
-    bit_count = absl::get<int64>(evaluated);
+    XLS_RET_CHECK(absl::holds_alternative<int64_t>(evaluated));
+    bit_count = absl::get<int64_t>(evaluated);
   } else {
-    bit_count = absl::get<int64>(lhs_bit_count_ctd.value());
+    bit_count = absl::get<int64_t>(lhs_bit_count_ctd.value());
   }
   XLS_ASSIGN_OR_RETURN(StartAndWidth saw,
                        ResolveBitSliceIndices(bit_count, start, limit));
@@ -1011,7 +1011,7 @@ static absl::Status Unify(NameDefTree* name_def_tree, const ConcreteType& other,
     const NameDefTree::Nodes& nodes = name_def_tree->nodes();
     if (auto* type = dynamic_cast<const TupleType*>(&other);
         type != nullptr && type->size() == nodes.size()) {
-      for (int64 i = 0; i < nodes.size(); ++i) {
+      for (int64_t i = 0; i < nodes.size(); ++i) {
         const ConcreteType& subtype = type->GetMemberType(i);
         NameDefTree* subtree = nodes[i];
         XLS_RETURN_IF_ERROR(Unify(subtree, subtype, ctx));
@@ -1039,7 +1039,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatch(Match* node,
     arm_types.push_back(std::move(arm_type));
   }
 
-  for (int64 i = 1; i < arm_types.size(); ++i) {
+  for (int64_t i = 1; i < arm_types.size(); ++i) {
     if (*arm_types[i] != *arm_types[0]) {
       return XlsTypeErrorStatus(
           node->arms()[i]->span(), *arm_types[i], *arm_types[0],
@@ -1330,7 +1330,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
                                                      DeduceCtx* ctx) {
   if (auto* number = dynamic_cast<Number*>(dim_expr)) {
     ctx->type_info()->SetItem(number, *BitsType::MakeU32());
-    XLS_ASSIGN_OR_RETURN(int64 value, number->GetAsUint64());
+    XLS_ASSIGN_OR_RETURN(int64_t value, number->GetAsUint64());
     return ConcreteTypeDim(value);
   }
   // TODO(rspringer): 2021/03/04 Can we unify all these cases into:
@@ -1340,7 +1340,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
         ctx->type_info()->GetConstant(const_ref->name_def()).value();
     XLS_RET_CHECK(const_expr.has_value());
     XLS_ASSIGN_OR_RETURN(
-        int64 value,
+        int64_t value,
         Interpreter::InterpretExprToInt(
             (*const_expr)->owner(), ctx->type_info(), ctx->typecheck_module(),
             ctx->additional_search_paths(), ctx->import_data(),
@@ -1351,7 +1351,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
     XLS_ASSIGN_OR_RETURN(Expr * const_expr,
                          ResolveColonRefToConstantExpr(colon_ref, ctx));
     XLS_ASSIGN_OR_RETURN(
-        int64 value,
+        int64_t value,
         Interpreter::InterpretExprToInt(
             const_expr->owner(),
             ctx->import_data()->GetRootTypeInfoForNode(const_expr).value(),
@@ -1364,7 +1364,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
     XLS_RET_CHECK(ctx->Deduce(attr->lhs()).ok());
 
     XLS_ASSIGN_OR_RETURN(
-        int64 value,
+        int64_t value,
         Interpreter::InterpretExprToInt(
             attr->owner(),
             ctx->import_data()->GetRootTypeInfoForNode(attr).value(),
@@ -1377,7 +1377,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
     XLS_RETURN_IF_ERROR(ctx->Deduce(invocation).status());
 
     XLS_ASSIGN_OR_RETURN(
-        int64 value,
+        int64_t value,
         Interpreter::InterpretExprToInt(
             invocation->owner(), ctx->type_info(), ctx->typecheck_module(),
             ctx->additional_search_paths(), ctx->import_data(), {}, {},
@@ -1440,10 +1440,11 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
   }
 
   absl::flat_hash_map<
-      std::string, absl::variant<int64, std::unique_ptr<ParametricExpression>>>
+      std::string,
+      absl::variant<int64_t, std::unique_ptr<ParametricExpression>>>
       defined_to_annotated;
 
-  for (int64 i = 0; i < type_annotation->parametrics().size(); ++i) {
+  for (int64_t i = 0; i < type_annotation->parametrics().size(); ++i) {
     ParametricBinding* defined_parametric =
         struct_def->parametric_bindings()[i];
     Expr* annotated_parametric = type_annotation->parametrics()[i];
@@ -1452,7 +1453,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
     if (auto* cast = dynamic_cast<Cast*>(annotated_parametric)) {
       Expr* expr = cast->expr();
       if (auto* number = dynamic_cast<Number*>(expr)) {
-        XLS_ASSIGN_OR_RETURN(int64 value, number->GetAsUint64());
+        XLS_ASSIGN_OR_RETURN(int64_t value, number->GetAsUint64());
         defined_to_annotated[defined_parametric->identifier()] = value;
       } else {
         auto* name_ref = dynamic_cast<NameRef*>(expr);
@@ -1477,7 +1478,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
   // supplied ones given as arguments) we have to see if they're derived
   // parametrics. If they're *not* derived via an expression, we should have
   // been supplied some value in the annotation, so we have to flag an error!
-  for (int64 i = type_annotation->parametrics().size();
+  for (int64_t i = type_annotation->parametrics().size();
        i < struct_def->parametric_bindings().size(); ++i) {
     ParametricBinding* defined_parametric =
         struct_def->parametric_bindings()[i];
@@ -1495,8 +1496,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
   // can `ParametricExpression::Evaluate()`).
   ParametricExpression::Env env;
   for (auto& item : defined_to_annotated) {
-    if (absl::holds_alternative<int64>(item.second)) {
-      env[item.first] = absl::get<int64>(item.second);
+    if (absl::holds_alternative<int64_t>(item.second)) {
+      env[item.first] = absl::get<int64_t>(item.second);
     } else {
       env[item.first] =
           absl::get<std::unique_ptr<ParametricExpression>>(item.second).get();
@@ -1820,7 +1821,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
   // Create new parametric bindings that capture the constraints from the
   // specified parametrics.
   std::vector<ParametricBinding*> new_bindings;
-  for (int64 i = 0; i < node->parametrics().size(); ++i) {
+  for (int64_t i = 0; i < node->parametrics().size(); ++i) {
     ParametricBinding* binding = callee_fn->parametric_bindings()[i];
     Expr* value = node->parametrics()[i];
 
@@ -1861,12 +1862,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
     new_bindings.push_back(remaining_binding);
   }
 
-  absl::flat_hash_map<std::string, int64> caller_symbolic_bindings_map =
+  absl::flat_hash_map<std::string, int64_t> caller_symbolic_bindings_map =
       caller_symbolic_bindings.ToMap();
 
   // Map resolved parametrics from the caller's context onto the corresponding
   // symbols in the callee's.
-  absl::flat_hash_map<std::string, int64> explicit_bindings;
+  absl::flat_hash_map<std::string, int64_t> explicit_bindings;
   for (ParametricBinding* new_binding : new_bindings) {
     if (auto* name_ref = dynamic_cast<NameRef*>(new_binding->expr());
         name_ref != nullptr &&

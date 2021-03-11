@@ -72,15 +72,15 @@ bool UGreaterThan(const Bits& lhs, const Bits& rhs);
 bool ULessThanOrEqual(const Bits& lhs, const Bits& rhs);
 bool ULessThan(const Bits& lhs, const Bits& rhs);
 
-// Overloads for unsigned comparisons against an int64. CHECK fails if 'rhs' if
-// negative because this is an unsigned comparison. We do not use an uint64 to
-// avoid surprising conversions. For example, with an uint64 argument, the
+// Overloads for unsigned comparisons against an int64_t. CHECK fails if 'rhs'
+// if negative because this is an unsigned comparison. We do not use an uint64_t
+// to avoid surprising conversions. For example, with an uint64_t argument, the
 // following would be true: LessThan(Ubits(42, 16), -1).
-bool UEqual(const Bits& lhs, int64 rhs);
-bool UGreaterThanOrEqual(const Bits& lhs, int64 rhs);
-bool UGreaterThan(const Bits& lhs, int64 rhs);
-bool ULessThanOrEqual(const Bits& lhs, int64 rhs);
-bool ULessThan(const Bits& lhs, int64 rhs);
+bool UEqual(const Bits& lhs, int64_t rhs);
+bool UGreaterThanOrEqual(const Bits& lhs, int64_t rhs);
+bool UGreaterThan(const Bits& lhs, int64_t rhs);
+bool ULessThanOrEqual(const Bits& lhs, int64_t rhs);
+bool ULessThan(const Bits& lhs, int64_t rhs);
 
 // Various signed comparison operations.  lhs and rhs can be different widths.
 bool SEqual(const Bits& lhs, const Bits& rhs);
@@ -89,23 +89,23 @@ bool SGreaterThan(const Bits& lhs, const Bits& rhs);
 bool SLessThanOrEqual(const Bits& lhs, const Bits& rhs);
 bool SLessThan(const Bits& lhs, const Bits& rhs);
 
-bool SEqual(const Bits& lhs, int64 rhs);
-bool SGreaterThanOrEqual(const Bits& lhs, int64 rhs);
-bool SGreaterThan(const Bits& lhs, int64 rhs);
-bool SLessThanOrEqual(const Bits& lhs, int64 rhs);
-bool SLessThan(const Bits& lhs, int64 rhs);
+bool SEqual(const Bits& lhs, int64_t rhs);
+bool SGreaterThanOrEqual(const Bits& lhs, int64_t rhs);
+bool SGreaterThan(const Bits& lhs, int64_t rhs);
+bool SLessThanOrEqual(const Bits& lhs, int64_t rhs);
+bool SLessThan(const Bits& lhs, int64_t rhs);
 
 // Zero/sign extend 'bits' to the new bit count and return the result.
 //
 // Check-fails if new_bit_count is not >= bits.bit_count().
-Bits ZeroExtend(const Bits& bits, int64 new_bit_count);
-Bits SignExtend(const Bits& bits, int64 new_bit_count);
+Bits ZeroExtend(const Bits& bits, int64_t new_bit_count);
+Bits SignExtend(const Bits& bits, int64_t new_bit_count);
 
 // Shift Left/Right Logical or Arithmetic (shift right only). The width of the
 // returned Bits object is the same as the input.
-Bits ShiftLeftLogical(const Bits& bits, int64 shift_amount);
-Bits ShiftRightLogical(const Bits& bits, int64 shift_amount);
-Bits ShiftRightArith(const Bits& bits, int64 shift_amount);
+Bits ShiftLeftLogical(const Bits& bits, int64_t shift_amount);
+Bits ShiftRightLogical(const Bits& bits, int64_t shift_amount);
+Bits ShiftRightArith(const Bits& bits, int64_t shift_amount);
 
 // Performs a twos-complement negate. The width of the returned bits object is
 // the same as the input. In case of negating the minimal negative number
@@ -124,10 +124,10 @@ Bits Concat(absl::Span<const Bits> inputs);
 Bits OneHotLsbToMsb(const Bits& bits);
 Bits OneHotMsbToLsb(const Bits& bits);
 
-inline int64 CountLeadingOnes(const Bits& bits) {
+inline int64_t CountLeadingOnes(const Bits& bits) {
   return Not(bits).CountLeadingZeros();
 }
-inline int64 CountTrailingOnes(const Bits& bits) {
+inline int64_t CountTrailingOnes(const Bits& bits) {
   return Not(bits).CountTrailingZeros();
 }
 
@@ -142,14 +142,14 @@ Bits DropLeadingZeroes(const Bits& bits);
 
 // Returns a Bits object with the sequence of bits starting at index 'start'
 // replaced with update_value. Any out-of-bounds updated bits are ignored.
-Bits BitSliceUpdate(const Bits& to_update, int64 start,
+Bits BitSliceUpdate(const Bits& to_update, int64_t start,
                     const Bits& update_value);
 
 }  // namespace bits_ops
 
 // Returns the identity value of the given width for the given logical Op (e.g.,
 // Op::kAnd).
-Bits LogicalOpIdentity(Op op, int64 width);
+Bits LogicalOpIdentity(Op op, int64_t width);
 
 // Returns the result of applying the given logical Op (e.g., Op::kAnd) to the
 // operands. Must have at least one operand.

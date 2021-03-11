@@ -39,7 +39,7 @@ using ::testing::HasSubstr;
 
 class TestDelayEstimator : public DelayEstimator {
  public:
-  absl::StatusOr<int64> GetOperationDelayInPs(Node* node) const override {
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
     switch (node->op()) {
       case Op::kParam:
       case Op::kLiteral:
@@ -107,17 +107,17 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughPipelineBatched) {
                             GetSimulator());
 
   // Run various size batches through the module.
-  for (int64 batch_size = 0; batch_size < 4; ++batch_size) {
+  for (int64_t batch_size = 0; batch_size < 4; ++batch_size) {
     std::vector<absl::flat_hash_map<std::string, Bits>> input_batches(
         batch_size);
-    for (int64 i = 0; i < batch_size; ++i) {
+    for (int64_t i = 0; i < batch_size; ++i) {
       input_batches[i]["x"] = UBits(42 + i, 8);
     }
     std::vector<absl::flat_hash_map<std::string, Bits>> outputs;
     XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.RunBatched(input_batches));
 
     EXPECT_EQ(outputs.size(), batch_size);
-    for (int64 i = 0; i < batch_size; ++i) {
+    for (int64_t i = 0; i < batch_size; ++i) {
       const absl::flat_hash_map<std::string, Bits>& output = outputs[i];
       ASSERT_TRUE(output.contains("out"));
       EXPECT_EQ(output.at("out"), UBits(42 + i, 8));
@@ -180,17 +180,17 @@ TEST_P(ModuleSimulatorCodegenTest, TripleNegatePipelineBatched) {
 
   // Run various size batches through the module up to and beyond the length of
   // the pipeline.
-  for (int64 batch_size = 0; batch_size < 6; ++batch_size) {
+  for (int64_t batch_size = 0; batch_size < 6; ++batch_size) {
     std::vector<absl::flat_hash_map<std::string, Bits>> input_batches(
         batch_size);
-    for (int64 i = 0; i < batch_size; ++i) {
+    for (int64_t i = 0; i < batch_size; ++i) {
       input_batches[i]["x"] = UBits(100 + i, 8);
     }
     std::vector<absl::flat_hash_map<std::string, Bits>> outputs;
     XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.RunBatched(input_batches));
 
     EXPECT_EQ(outputs.size(), batch_size);
-    for (int64 i = 0; i < batch_size; ++i) {
+    for (int64_t i = 0; i < batch_size; ++i) {
       const absl::flat_hash_map<std::string, Bits>& output = outputs[i];
       ASSERT_TRUE(output.contains("out"));
       EXPECT_EQ(output.at("out"), UBits((-(100 + i)) & 0xff, 8))

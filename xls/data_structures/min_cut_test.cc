@@ -158,15 +158,15 @@ TEST(MinCutTest, ComplexGraph) {
 
 // Returns the cost of the cut defined by the partitions source_set and
 // sink_set of the given graph.
-int64 CutCost(const Graph& graph, absl::flat_hash_set<NodeId> source_set,
-              absl::flat_hash_set<NodeId> sink_set) {
-  int64 cost = 0;
+int64_t CutCost(const Graph& graph, absl::flat_hash_set<NodeId> source_set,
+                absl::flat_hash_set<NodeId> sink_set) {
+  int64_t cost = 0;
   for (NodeId node : source_set) {
     for (EdgeId edge_id : graph.successors(node)) {
       if (sink_set.contains(graph.edge(edge_id).to)) {
         // To avoid overflow handle maximum weight edges specially.
-        if (graph.edge(edge_id).weight == std::numeric_limits<int64>::max()) {
-          return std::numeric_limits<int64>::max();
+        if (graph.edge(edge_id).weight == std::numeric_limits<int64_t>::max()) {
+          return std::numeric_limits<int64_t>::max();
         }
         cost += graph.edge(edge_id).weight;
       }
@@ -180,41 +180,41 @@ int64 CutCost(const Graph& graph, absl::flat_hash_set<NodeId> source_set,
 // edges are forward-directed (from lower layers to higher layers). Sets
 // 'source' and 'sink' to the NodeId of the source and sink nodes in the graph.
 Graph MakeLargeGraph(bool acyclic, NodeId* source, NodeId* sink,
-                     int64 layer_count, int64 nodes_in_layer) {
-  const int64 kMaxFanOut = 10;
+                     int64_t layer_count, int64_t nodes_in_layer) {
+  const int64_t kMaxFanOut = 10;
   Graph graph;
   *source = graph.AddNode("source");
   *sink = graph.AddNode("sink");
   std::vector<std::vector<NodeId>> layers(layer_count);
-  for (int64 i = 0; i < layer_count; ++i) {
-    for (int64 j = 0; j < nodes_in_layer; ++j) {
+  for (int64_t i = 0; i < layer_count; ++i) {
+    for (int64_t j = 0; j < nodes_in_layer; ++j) {
       layers[i].push_back(graph.AddNode(absl::StrFormat("node_%d_%d", i, j)));
     }
   }
   for (NodeId node : layers[0]) {
-    graph.AddEdge(*source, node, std::numeric_limits<int64>::max());
+    graph.AddEdge(*source, node, std::numeric_limits<int64_t>::max());
   }
   std::mt19937 gen;
-  std::uniform_int_distribution<int64> to_node_id_dis(0, nodes_in_layer - 1);
-  std::uniform_int_distribution<int64> to_weight_dis(0, 10);
-  std::uniform_int_distribution<int64> fanout_dis(0, kMaxFanOut);
-  for (int64 i = 0; i < layer_count - 1; ++i) {
+  std::uniform_int_distribution<int64_t> to_node_id_dis(0, nodes_in_layer - 1);
+  std::uniform_int_distribution<int64_t> to_weight_dis(0, 10);
+  std::uniform_int_distribution<int64_t> fanout_dis(0, kMaxFanOut);
+  for (int64_t i = 0; i < layer_count - 1; ++i) {
     // If graph is acyclic then edges can only extend to nodes in later
     // layers. If cyclic, then edges can extend to nodes in any layer.
-    std::uniform_int_distribution<int64> to_layer_dis(acyclic ? i + 1 : 0,
-                                                      layer_count - 1);
-    for (int64 from = 0; from < nodes_in_layer; ++from) {
-      int64 fanout = fanout_dis(gen);
-      for (int64 j = 0; j < fanout; ++j) {
-        int64 to_layer = to_layer_dis(gen);
-        int64 to_id = to_node_id_dis(gen);
-        int64 weight = to_weight_dis(gen);
+    std::uniform_int_distribution<int64_t> to_layer_dis(acyclic ? i + 1 : 0,
+                                                        layer_count - 1);
+    for (int64_t from = 0; from < nodes_in_layer; ++from) {
+      int64_t fanout = fanout_dis(gen);
+      for (int64_t j = 0; j < fanout; ++j) {
+        int64_t to_layer = to_layer_dis(gen);
+        int64_t to_id = to_node_id_dis(gen);
+        int64_t weight = to_weight_dis(gen);
         graph.AddEdge(layers[i][from], layers[to_layer][to_id], weight);
       }
     }
   }
   for (NodeId node : layers[layer_count - 1]) {
-    graph.AddEdge(node, *sink, std::numeric_limits<int64>::max());
+    graph.AddEdge(node, *sink, std::numeric_limits<int64_t>::max());
   }
 
   return graph;
@@ -225,8 +225,9 @@ TEST(MinCutTest, LargeDirectedGraphs) {
   // least at a local minimum. Verifying it actually is the min cut is hard
   // without reimplementing the algorithm.
   for (bool acyclic : {false, true}) {
-    for (int64 layer_count = 5; layer_count < 20; layer_count += 2) {
-      for (int64 nodes_in_layer = 5; nodes_in_layer < 20; nodes_in_layer += 2) {
+    for (int64_t layer_count = 5; layer_count < 20; layer_count += 2) {
+      for (int64_t nodes_in_layer = 5; nodes_in_layer < 20;
+           nodes_in_layer += 2) {
         NodeId source;
         NodeId sink;
         Graph graph = MakeLargeGraph(acyclic, &source, &sink, layer_count,
@@ -288,8 +289,8 @@ TEST(MinCutTest, MaxFlowToMinCutTraversalTest) {
   auto f = graph.AddNode("f");
   auto g = graph.AddNode("g");
   auto sink = graph.AddNode("sink");
-  graph.AddEdge(source, a, std::numeric_limits<int64>::max());
-  graph.AddEdge(source, b, std::numeric_limits<int64>::max());
+  graph.AddEdge(source, a, std::numeric_limits<int64_t>::max());
+  graph.AddEdge(source, b, std::numeric_limits<int64_t>::max());
 
   graph.AddEdge(a, c, 7);
   graph.AddEdge(a, f, 1);
@@ -298,8 +299,8 @@ TEST(MinCutTest, MaxFlowToMinCutTraversalTest) {
   graph.AddEdge(d, e, 7);
   graph.AddEdge(e, g, 10);
 
-  graph.AddEdge(f, sink, std::numeric_limits<int64>::max());
-  graph.AddEdge(g, sink, std::numeric_limits<int64>::max());
+  graph.AddEdge(f, sink, std::numeric_limits<int64_t>::max());
+  graph.AddEdge(g, sink, std::numeric_limits<int64_t>::max());
 
   GraphCut min_cut = MinCutBetweenNodes(graph, source, sink);
   EXPECT_EQ(min_cut.weight, 11);

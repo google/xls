@@ -47,12 +47,13 @@ std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
   absl::flat_hash_map<Node*, min_cut::NodeId> xls_to_mincut_node;
   absl::flat_hash_map<min_cut::NodeId, Node*> mincut_to_xls_node;
 
-  const int64 kMaxWeight = std::numeric_limits<int64>::max();
+  const int64_t kMaxWeight = std::numeric_limits<int64_t>::max();
 
   // Adds an edge to the mincut graph. To enforce that the cut is a dicut (no
   // circular dependencies between the two partitions), add an opposing edge of
   // maximum weight.
-  auto add_edge = [&](min_cut::NodeId src, min_cut::NodeId tgt, int64 weight) {
+  auto add_edge = [&](min_cut::NodeId src, min_cut::NodeId tgt,
+                      int64_t weight) {
     graph.AddEdge(src, tgt, weight);
     graph.AddEdge(tgt, src, kMaxWeight);
   };
@@ -109,8 +110,8 @@ std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
 
   // Returns the edge weight of an edge extending from the given node. Fanout is
   // the number of successors of the corresponding mincut node.
-  auto edge_weight = [&](Node* node, int64 fan_out) {
-    const int64 kWeightFactor = 1024 * 1024;
+  auto edge_weight = [&](Node* node, int64_t fan_out) {
+    const int64_t kWeightFactor = 1024 * 1024;
     return (node->GetType()->GetFlatBitCount() * kWeightFactor + fan_out / 2) /
            fan_out;
   };
@@ -157,7 +158,7 @@ std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
     //     x_fanin
     //
     min_cut::NodeId node_sink = graph.AddNode(node->GetName() + "_fanin");
-    int64 weight = edge_weight(node, /*fan_out=*/successors.size());
+    int64_t weight = edge_weight(node, /*fan_out=*/successors.size());
     for (min_cut::NodeId successor : successors) {
       add_edge(xls_to_mincut_node.at(node), successor, weight);
       add_edge(successor, node_sink, weight);

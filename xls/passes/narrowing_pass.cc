@@ -29,9 +29,9 @@ namespace xls {
 namespace {
 
 // Return the number of leading known zeros in the given nodes values.
-int64 CountLeadingKnownZeros(Node* node, const QueryEngine& query_engine) {
-  int64 leading_zeros = 0;
-  for (int64 i = node->BitCountOrDie() - 1; i >= 0; --i) {
+int64_t CountLeadingKnownZeros(Node* node, const QueryEngine& query_engine) {
+  int64_t leading_zeros = 0;
+  for (int64_t i = node->BitCountOrDie() - 1; i >= 0; --i) {
     if (!query_engine.IsZero(BitLocation{node, i})) {
       break;
     }
@@ -41,9 +41,9 @@ int64 CountLeadingKnownZeros(Node* node, const QueryEngine& query_engine) {
 }
 
 // Return the number of leading known ones in the given nodes values.
-int64 CountLeadingKnownOnes(Node* node, const QueryEngine& query_engine) {
-  int64 leading_ones = 0;
-  for (int64 i = node->BitCountOrDie() - 1; i >= 0; --i) {
+int64_t CountLeadingKnownOnes(Node* node, const QueryEngine& query_engine) {
+  int64_t leading_ones = 0;
+  for (int64_t i = node->BitCountOrDie() - 1; i >= 0; --i) {
     if (!query_engine.IsOne(BitLocation{node, i})) {
       break;
     }
@@ -58,10 +58,10 @@ absl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
                                         const QueryEngine& query_engine) {
   // Returns the number of consecutive leading/trailing bits that are known to
   // be equal between the LHS and RHS of the given compare operation.
-  auto matched_leading_operand_bits = [&](CompareOp* c) -> int64 {
-    int64 bit_count = c->operand(0)->BitCountOrDie();
-    for (int64 i = 0; i < bit_count; ++i) {
-      int64 bit_index = bit_count - i - 1;
+  auto matched_leading_operand_bits = [&](CompareOp* c) -> int64_t {
+    int64_t bit_count = c->operand(0)->BitCountOrDie();
+    for (int64_t i = 0; i < bit_count; ++i) {
+      int64_t bit_index = bit_count - i - 1;
       if (!query_engine.KnownEquals(BitLocation{c->operand(0), bit_index},
                                     BitLocation{c->operand(1), bit_index})) {
         return i;
@@ -69,9 +69,9 @@ absl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
     }
     return bit_count;
   };
-  auto matched_trailing_operand_bits = [&](CompareOp* c) -> int64 {
-    int64 bit_count = c->operand(0)->BitCountOrDie();
-    for (int64 i = 0; i < bit_count; ++i) {
+  auto matched_trailing_operand_bits = [&](CompareOp* c) -> int64_t {
+    int64_t bit_count = c->operand(0)->BitCountOrDie();
+    for (int64_t i = 0; i < bit_count; ++i) {
       if (!query_engine.KnownEquals(BitLocation{c->operand(0), i},
                                     BitLocation{c->operand(1), i})) {
         return i;
@@ -82,8 +82,8 @@ absl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
 
   // Narrow the operands of the compare to the given bit count. Replace the
   // given comparison operation with the new narrower compare operation.
-  auto narrow_compare_operands = [](CompareOp* c, int64 start,
-                                    int64 bit_count) -> absl::Status {
+  auto narrow_compare_operands = [](CompareOp* c, int64_t start,
+                                    int64_t bit_count) -> absl::Status {
     XLS_ASSIGN_OR_RETURN(Node * narrowed_lhs,
                          c->function_base()->MakeNode<BitSlice>(
                              c->loc(), c->operand(0), start, bit_count));
@@ -94,7 +94,7 @@ absl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
         .status();
   };
 
-  int64 operand_width = compare->operand(0)->BitCountOrDie();
+  int64_t operand_width = compare->operand(0)->BitCountOrDie();
 
   // Matched leading and trailing bits of operands for unsigned comparisons (and
   // Eq and Ne) can be stripped away. For example:
@@ -104,8 +104,8 @@ absl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
   // Skip this optimization if all bits match because the logic needs to be
   // special cased for this, and that case is handled via other optimization
   // passes.
-  int64 matched_leading_bits = matched_leading_operand_bits(compare);
-  int64 matched_trailing_bits = matched_trailing_operand_bits(compare);
+  int64_t matched_leading_bits = matched_leading_operand_bits(compare);
+  int64_t matched_trailing_bits = matched_trailing_operand_bits(compare);
   bool all_bits_match =
       matched_leading_bits == compare->operand(0)->BitCountOrDie();
   if ((IsUnsignedCompare(compare) || compare->op() == Op::kEq ||
@@ -121,7 +121,7 @@ absl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
   // All but one of the leading known zeros (ones) on both sides of an signed
   // compare can be sliced away except. The unsliced bit must remain as the sign
   // bit.
-  int64 common_leading_ones_or_zeros =
+  int64_t common_leading_ones_or_zeros =
       std::min(CountLeadingKnownZeros(compare->operand(0), query_engine),
                CountLeadingKnownZeros(compare->operand(1), query_engine));
   if (common_leading_ones_or_zeros == 0) {
@@ -140,7 +140,7 @@ absl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
   // the compare to wider of the two operands *before* sign_extension.
   if (IsSignedCompare(compare) && compare->operand(0)->op() == Op::kSignExt &&
       compare->operand(1)->op() == Op::kSignExt) {
-    int64 max_unextended_width =
+    int64_t max_unextended_width =
         std::max(compare->operand(0)->operand(0)->BitCountOrDie(),
                  compare->operand(1)->operand(0)->BitCountOrDie());
     if (max_unextended_width < operand_width) {
@@ -157,7 +157,8 @@ absl::StatusOr<bool> MaybeNarrowShiftAmount(Node* shift,
                                             const QueryEngine& query_engine) {
   XLS_RET_CHECK(shift->op() == Op::kShll || shift->op() == Op::kShrl ||
                 shift->op() == Op::kShra);
-  int64 leading_zeros = CountLeadingKnownZeros(shift->operand(1), query_engine);
+  int64_t leading_zeros =
+      CountLeadingKnownZeros(shift->operand(1), query_engine);
   if (leading_zeros == shift->operand(1)->BitCountOrDie()) {
     // Shift amount is zero. Replace with (slice of) input operand of shift.
     if (shift->BitCountOrDie() == shift->operand(0)->BitCountOrDie()) {
@@ -196,7 +197,7 @@ absl::StatusOr<bool> MaybeNarrowArrayIndex(ArrayIndex* array_index,
                                            const QueryEngine& query_engine) {
   bool changed = false;
   std::vector<Node*> new_indices;
-  for (int64 i = 0; i < array_index->indices().size(); ++i) {
+  for (int64_t i = 0; i < array_index->indices().size(); ++i) {
     Node* index = array_index->indices()[i];
 
     // TODO(b/148457283): Unconditionally narrow the width of the index to the
@@ -205,8 +206,8 @@ absl::StatusOr<bool> MaybeNarrowArrayIndex(ArrayIndex* array_index,
       continue;
     }
 
-    int64 index_width = index->BitCountOrDie();
-    int64 leading_zeros = CountLeadingKnownZeros(index, query_engine);
+    int64_t index_width = index->BitCountOrDie();
+    int64_t leading_zeros = CountLeadingKnownZeros(index, query_engine);
     if (leading_zeros == index_width) {
       XLS_ASSIGN_OR_RETURN(
           Node * zero, array_index->function_base()->MakeNode<Literal>(
@@ -245,14 +246,14 @@ absl::StatusOr<bool> MaybeNarrowAdd(Node* add,
 
   Node* lhs = add->operand(0);
   Node* rhs = add->operand(1);
-  const int64 bit_count = add->BitCountOrDie();
+  const int64_t bit_count = add->BitCountOrDie();
   if (lhs->BitCountOrDie() != rhs->BitCountOrDie()) {
     return false;
   }
 
-  int64 common_leading_zeros = std::min(
-      CountLeadingKnownZeros(lhs, query_engine),
-      CountLeadingKnownZeros(rhs, query_engine));
+  int64_t common_leading_zeros =
+      std::min(CountLeadingKnownZeros(lhs, query_engine),
+               CountLeadingKnownZeros(rhs, query_engine));
 
   if (common_leading_zeros > 1) {
     // Narrow the add removing all but one of the known-zero leading
@@ -265,7 +266,7 @@ absl::StatusOr<bool> MaybeNarrowAdd(Node* add,
       // elsewhere by replacing the operands with literal zeros.
       return false;
     }
-    int64 narrowed_bit_count = bit_count - common_leading_zeros + 1;
+    int64_t narrowed_bit_count = bit_count - common_leading_zeros + 1;
     XLS_ASSIGN_OR_RETURN(
         Node * narrowed_lhs,
         lhs->function_base()->MakeNode<BitSlice>(lhs->loc(), lhs, /*start=*/0,
@@ -295,9 +296,9 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
 
   Node* lhs = mul->operand(0);
   Node* rhs = mul->operand(1);
-  const int64 result_bit_count = mul->BitCountOrDie();
-  const int64 lhs_bit_count = lhs->BitCountOrDie();
-  const int64 rhs_bit_count = rhs->BitCountOrDie();
+  const int64_t result_bit_count = mul->BitCountOrDie();
+  const int64_t lhs_bit_count = lhs->BitCountOrDie();
+  const int64_t rhs_bit_count = rhs->BitCountOrDie();
   XLS_VLOG(3) << absl::StreamFormat(
       "  result_bit_count = %d, lhs_bit_count = %d, rhs_bit_count = %d",
       result_bit_count, lhs_bit_count, rhs_bit_count);
@@ -306,7 +307,7 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
   // zero-extended (if 'mul' is Op::kUMul) to the given bit count. If the node
   // is already of the given width, then the node is returned.
   auto maybe_extend = [&](Node* node,
-                          int64 bit_count) -> absl::StatusOr<Node*> {
+                          int64_t bit_count) -> absl::StatusOr<Node*> {
     XLS_RET_CHECK(node->BitCountOrDie() <= bit_count);
     if (node->BitCountOrDie() == bit_count) {
       return node;
@@ -320,7 +321,7 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
   // Return the given node narrowed to the given bit count. If the node
   // is already of the given width, then the node is returned.
   auto maybe_narrow = [&](Node* node,
-                          int64 bit_count) -> absl::StatusOr<Node*> {
+                          int64_t bit_count) -> absl::StatusOr<Node*> {
     XLS_RET_CHECK(node->BitCountOrDie() >= bit_count);
     if (node->BitCountOrDie() == bit_count) {
       return node;
@@ -371,7 +372,7 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
   if (mul->op() == Op::kUMul || is_sign_agnostic) {
     bool operand_narrowed = false;
     auto maybe_narrow_operand = [&](Node* operand) -> absl::StatusOr<Node*> {
-      int64 leading_zeros = CountLeadingKnownZeros(operand, query_engine);
+      int64_t leading_zeros = CountLeadingKnownZeros(operand, query_engine);
       if (leading_zeros == 0) {
         return operand;
       }

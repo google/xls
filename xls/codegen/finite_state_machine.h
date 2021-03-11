@@ -56,7 +56,7 @@ struct FsmCounter {
   LogicRef* next;
 
   // Width of the counter in bits.
-  int64 width;
+  int64_t width;
 };
 
 // A single assignment of an FSM output to a value.
@@ -179,7 +179,7 @@ class FsmBlock : public FsmBlockBase {
 
   // Sets the given output to the given value. This occurs immediately and
   // asynchronously.
-  T& SetOutput(FsmOutput* output, int64 value) {
+  T& SetOutput(FsmOutput* output, int64_t value) {
     return SetOutputAsExpression(output, file_->PlainLiteral(value));
   }
   T& SetOutputAsExpression(FsmOutput* output, Expression* value) {
@@ -188,7 +188,7 @@ class FsmBlock : public FsmBlockBase {
   }
 
   // Sets the given register to the given value in the next cycle.
-  T& SetRegisterNext(FsmRegister* reg, int64 value) {
+  T& SetRegisterNext(FsmRegister* reg, int64_t value) {
     return SetRegisterNextAsExpression(reg, file_->PlainLiteral(value));
   }
   T& SetRegisterNextAsExpression(FsmRegister* reg, Expression* value) {
@@ -197,7 +197,7 @@ class FsmBlock : public FsmBlockBase {
   }
 
   // Sets the given counter to the given value in the next cycle.
-  T& SetCounter(FsmCounter* counter, int64 value) {
+  T& SetCounter(FsmCounter* counter, int64_t value) {
     return SetCounterAsExpression(counter, file_->PlainLiteral(value));
   }
   T& SetCounterAsExpression(FsmCounter* counter, Expression* value) {
@@ -337,15 +337,15 @@ class FsmBuilder {
 
   // Adds an FSM-controled signal to the FSM with the given name. A RegDef named
   // 'name' is added to the module.
-  FsmOutput* AddOutput(absl::string_view name, int64 width,
-                       int64 default_value) {
+  FsmOutput* AddOutput(absl::string_view name, int64_t width,
+                       int64_t default_value) {
     return AddOutputAsExpression(name, file_->BitVectorType(width),
                                  file_->PlainLiteral(default_value));
   }
   FsmOutput* AddOutputAsExpression(absl::string_view name, DataType* data_type,
                                    Expression* default_value);
 
-  FsmOutput* AddOutput1(absl::string_view name, int64 default_value) {
+  FsmOutput* AddOutput1(absl::string_view name, int64_t default_value) {
     return AddOutputAsExpression(name, /*data_type=*/file_->ScalarType(),
                                  file_->PlainLiteral(default_value));
   }
@@ -356,8 +356,8 @@ class FsmBuilder {
   // Adds a FSM-driven register with the given name. RegDefs named 'name' and
   // 'name_next' are added to the module.  The state of the register is affected
   // by calling SetRegisterNext.
-  FsmRegister* AddRegister(absl::string_view name, int64 width,
-                           absl::optional<int64> reset_value = absl::nullopt);
+  FsmRegister* AddRegister(absl::string_view name, int64_t width,
+                           absl::optional<int64_t> reset_value = absl::nullopt);
   FsmRegister* AddRegister(absl::string_view name, DataType* data_type,
                            Expression* reset_value = nullptr);
 
@@ -367,7 +367,7 @@ class FsmBuilder {
   FsmRegister* AddExistingRegister(LogicRef* reg);
 
   // Add a cycle down-counter with the given name and width.
-  FsmCounter* AddDownCounter(absl::string_view name, int64 width);
+  FsmCounter* AddDownCounter(absl::string_view name, int64_t width);
 
   // Add a new state to the FSM.
   FsmState* AddState(absl::string_view name);
@@ -392,8 +392,8 @@ class FsmBuilder {
   absl::Status BuildOutputLogic(LogicRef* state);
 
   // Returns the state register width.
-  int64 StateRegisterWidth() const {
-    return std::max(int64{1}, Bits::MinBitCountUnsigned(states_.size() - 1));
+  int64_t StateRegisterWidth() const {
+    return std::max(int64_t{1}, Bits::MinBitCountUnsigned(states_.size() - 1));
   }
 
   std::string name_;

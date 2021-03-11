@@ -171,7 +171,7 @@ class IrTranslator : public DfsVisitorWithDefault {
 
   // Gets the bit count associated with the bit-vector-sort Z3 node "arg".
   // (Arg must be known to be of bit-vector sort.)
-  int64 GetBvBitCount(Z3_ast arg);
+  int64_t GetBvBitCount(Z3_ast arg);
 
   // Gets the translation of the given node. Crashes if "node" has not already
   // been translated. The following functions are short-cuts that assume the

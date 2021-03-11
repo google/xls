@@ -45,8 +45,8 @@ class TranslatorTest : public xls::IrTestBase {
  public:
   std::unique_ptr<xlscc::Translator> translator_;
 
-  void Run(const absl::flat_hash_map<std::string, uint64>& args,
-           uint64 expected, absl::string_view cpp_source,
+  void Run(const absl::flat_hash_map<std::string, uint64_t>& args,
+           uint64_t expected, absl::string_view cpp_source,
            xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
     testing::ScopedTrace trace(loc.file_name(), loc.line(), "Run failed");
     XLS_ASSERT_OK_AND_ASSIGN(std::string ir, SourceToIr(cpp_source));
@@ -157,7 +157,8 @@ class TranslatorTest : public xls::IrTestBase {
         XLS_CHECK(ch_name == test_op.name);
 
         ASSERT_TRUE(returns[op_idx].IsBits());
-        XLS_ASSERT_OK_AND_ASSIGN(uint64 val, returns[op_idx].bits().ToUint64());
+        XLS_ASSERT_OK_AND_ASSIGN(uint64_t val,
+                                 returns[op_idx].bits().ToUint64());
         ASSERT_EQ(val, test_op.condition ? 1 : 0);
 
       } else if (op.op == xlscc::OpType::kSend) {
@@ -173,8 +174,8 @@ class TranslatorTest : public xls::IrTestBase {
         ASSERT_EQ(elements.size(), 2);
         ASSERT_TRUE(elements[0].IsBits());
         ASSERT_TRUE(elements[1].IsBits());
-        XLS_ASSERT_OK_AND_ASSIGN(uint64 val0, elements[0].bits().ToUint64());
-        XLS_ASSERT_OK_AND_ASSIGN(uint64 val1, elements[1].bits().ToUint64());
+        XLS_ASSERT_OK_AND_ASSIGN(uint64_t val0, elements[0].bits().ToUint64());
+        XLS_ASSERT_OK_AND_ASSIGN(uint64_t val1, elements[1].bits().ToUint64());
         ASSERT_EQ(val1, test_op.condition ? 1 : 0);
         // Don't check data if it wasn't sent
         if (val1) {
@@ -398,7 +399,7 @@ TEST_F(TranslatorTest, ArrayParam) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src, SourceToIr(content));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> package,
                            ParsePackage(ir_src));
-  std::vector<const uint64> in_vals = {55, 20};
+  std::vector<const uint64_t> in_vals = {55, 20};
   XLS_ASSERT_OK_AND_ASSIGN(xls::Value in_arr,
                            xls::Value::UBitsArray(in_vals, 64));
   absl::flat_hash_map<std::string, xls::Value> args;
@@ -3094,9 +3095,9 @@ TEST_F(TranslatorTest, NativeOperatorNot) {
         return (long long)(~a);
       })";
 
-  Run({{"a", 0b000}}, ~static_cast<uint64>(0b000), content);
-  Run({{"a", 0b111}}, ~static_cast<uint64>(0b111), content);
-  Run({{"a", 0b101}}, ~static_cast<uint64>(0b101), content);
+  Run({{"a", 0b000}}, ~static_cast<uint64_t>(0b000), content);
+  Run({{"a", 0b111}}, ~static_cast<uint64_t>(0b111), content);
+  Run({{"a", 0b101}}, ~static_cast<uint64_t>(0b101), content);
 }
 
 TEST_F(TranslatorTest, NativeOperatorNeg) {

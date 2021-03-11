@@ -18,7 +18,7 @@
 
 namespace xls::noc {
 
-int64 NetworkComponent::GetPortCount() const { return ports_.size(); }
+int64_t NetworkComponent::GetPortCount() const { return ports_.size(); }
 
 void NetworkComponent::SetName(std::string name) { name_ = std::move(name); }
 

@@ -225,7 +225,7 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT> {
   // package name and ordinal.
   absl::Status DumpIr(const std::filesystem::path& ir_dump_path, IrT* ir,
                       absl::string_view top_level_name, absl::string_view tag,
-                      int64 ordinal, bool changed) const {
+                      int64_t ordinal, bool changed) const {
     std::filesystem::path path =
         ir_dump_path / absl::StrFormat("%s.%s.%03d.%s.%s.ir", ir->name(),
                                        top_level_name, ordinal, tag,

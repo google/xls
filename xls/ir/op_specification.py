@@ -149,7 +149,7 @@ class Attribute(object):
 class Int64Attribute(Attribute):
 
   def __init__(self, name):
-    super(Int64Attribute, self).__init__(name, cpp_type='int64')
+    super(Int64Attribute, self).__init__(name, cpp_type='int64_t')
 
 
 class TypeAttribute(Attribute):
@@ -400,7 +400,7 @@ OpClass.kinds['ARRAY'] = OpClass(
     xls_type_expression='function->package()->GetArrayType(elements.size(), element_type)',
     attributes=[TypeAttribute('element_type')],
     extra_methods=[Method(name='size',
-                          return_cpp_type='int64',
+                          return_cpp_type='int64_t',
                           expression='operand_count()')],
     custom_clone_method=True
 )
@@ -612,7 +612,7 @@ OpClass.kinds['CONCAT'] = OpClass(
     xls_type_expression='GetConcatType(function->package(), args)',
     extra_methods=[
         Method(name='GetOperandSliceData', return_cpp_type='SliceData',
-               expression=None, params='int64 operandno'),
+               expression=None, params='int64_t operandno'),
     ],
 )
 
@@ -719,7 +719,7 @@ OpClass.kinds['ONE_HOT_SELECT'] = OpClass(
                    Method(name='get_case',
                           return_cpp_type='Node*',
                           expression='cases().at(case_no)',
-                          params='int64 case_no')],
+                          params='int64_t case_no')],
     custom_clone_method=True
 )
 
@@ -751,7 +751,7 @@ OpClass.kinds['SELECT'] = OpClass(
     xls_type_expression='cases[0]->GetType()',
     extra_data_members=[
         DataMember(name='cases_size_',
-                   cpp_type='int64',
+                   cpp_type='int64_t',
                    init='cases.size()'),
         DataMember(name='has_default_value_',
                    cpp_type='bool',
@@ -765,7 +765,7 @@ OpClass.kinds['SELECT'] = OpClass(
                    Method(name='get_case',
                           return_cpp_type='Node*',
                           expression='cases().at(case_no)',
-                          params='int64 case_no'),
+                          params='int64_t case_no'),
                    Method(name='default_value',
                           return_cpp_type='absl::optional<Node*>',
                           expression='has_default_value_ '
@@ -787,7 +787,7 @@ OpClass.kinds['TUPLE'] = OpClass(
     operands=[OperandSpan('elements')],
     xls_type_expression='GetTupleType(function->package(), elements)',
     extra_methods=[Method(name='size',
-                          return_cpp_type='int64',
+                          return_cpp_type='int64_t',
                           expression='operand_count()')],
 )
 

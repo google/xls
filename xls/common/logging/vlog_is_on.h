@@ -42,21 +42,21 @@
 #define XLS_COMMON_LOGGING_VLOG_IS_ON_H_
 
 #include <atomic>
+#include <cstdint>
 #include <string>
 
 #include "absl/base/optimization.h"
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
 #include "absl/strings/string_view.h"
-#include "xls/common/integral_types.h"
 
-ABSL_DECLARE_FLAG(int32, v);
+ABSL_DECLARE_FLAG(int32_t, v);
 // Note: Setting vmodule with absl::SetFlag is not supported. Instead use
 // xls::SetVLOGLevel.
 ABSL_DECLARE_FLAG(std::string, vmodule);
 
-// We pack an int16 verbosity level and an int16 epoch into an
-// int32 at every XLS_VLOG_IS_ON() call site.  The level determines
+// We pack an int16_t verbosity level and an int16_t epoch into an
+// int32_t at every XLS_VLOG_IS_ON() call site.  The level determines
 // whether the site should log, and the epoch determines whether the
 // site is stale and should be reinitialized.  A verbosity level of
 // kUseFlag (kint16min) indicates that the value of FLAGS_v should be used as
@@ -67,8 +67,8 @@ ABSL_DECLARE_FLAG(std::string, vmodule);
 // with a stale epoch and a verbosity level of kUseFlag.
 #define XLS_VLOG_IS_ON(verbose_level)               \
   (::xls::logging_internal::VLogEnabled(            \
-      []() -> std::atomic<int32>* {                 \
-        static std::atomic<int32> site__(           \
+      []() -> std::atomic<int32_t>* {               \
+        static std::atomic<int32_t> site__(         \
             ::xls::logging_internal::kDefaultSite); \
         return &site__;                             \
       }(),                                          \
@@ -93,35 +93,35 @@ namespace logging_internal {
 // comparing its epoch to this global epoch.  Whenever the program's
 // vmodule configuration changes (ex: SetVLOGLevel is called), the
 // global epoch is advanced, invalidating all site epochs.
-extern std::atomic<int32> vlog_epoch;
+extern std::atomic<int32_t> vlog_epoch;
 
 // A log level of kUseFlag means "read the logging level from FLAGS_v."
-const int kUseFlag = kint16min;
+const int kUseFlag = (int16_t)~0x7FFF;
 
 // Log sites use FLAGS_v by default, and have an initial epoch of 0.
-const int32 kDefaultSite = static_cast<unsigned int>(kUseFlag) << 16;
+const int32_t kDefaultSite = static_cast<unsigned int>(kUseFlag) << 16;
 
-// The global epoch is the least significant half of an int32, and
+// The global epoch is the least significant half of an int32_t, and
 // may only be accessed through atomic operations.
-inline int32 GlobalEpoch() {
+inline int32_t GlobalEpoch() {
   return vlog_epoch.load(std::memory_order_acquire) & 0x0000FFFF;
 }
 
 // The least significant half of a site is the epoch.
-inline int SiteEpoch(int32 site) { return site & 0x0000FFFF; }
+inline int SiteEpoch(int32_t site) { return site & 0x0000FFFF; }
 
 // The most significant half of a site is the logging level.
-inline int SiteLevel(int32 site) { return site >> 16; }
+inline int SiteLevel(int32_t site) { return site >> 16; }
 
 // Attempt to initialize or reinitialize a VLOG site.  Returns the
 // level of the log site, regardless of whether the attempt succeeds
 // or fails.
 //   site: The address of the log site's state.
 //   fname: The filename of the current source file.
-int InitVLOG(std::atomic<int32>* site, absl::string_view full_path);
+int InitVLOG(std::atomic<int32_t>* site, absl::string_view full_path);
 
 // Slow path version of VLogEnabled.
-bool VLogEnabledSlow(std::atomic<int32>* site, int32 level,
+bool VLogEnabledSlow(std::atomic<int32_t>* site, int32_t level,
                      absl::string_view file);
 
 // Determine whether verbose logging should occur at a given log site. Fast path
@@ -133,11 +133,11 @@ bool VLogEnabledSlow(std::atomic<int32>* site, int32 level,
 #if defined(__GNUC__) && !defined(__clang__)
 ABSL_ATTRIBUTE_ALWAYS_INLINE
 #endif
-inline bool VLogEnabled(std::atomic<int32>* site, int32 level,
+inline bool VLogEnabled(std::atomic<int32_t>* site, int32_t level,
                         absl::string_view file) {
-  const int32 site_copy = site->load(std::memory_order_acquire);
+  const int32_t site_copy = site->load(std::memory_order_acquire);
   if (ABSL_PREDICT_TRUE(SiteEpoch(site_copy) == GlobalEpoch())) {
-    int32 site_level = SiteLevel(site_copy);
+    int32_t site_level = SiteLevel(site_copy);
     if (site_level == kUseFlag) {
       // Use global setting instead of per-site setting.
       site_level = absl::GetFlag(FLAGS_v);
@@ -172,12 +172,12 @@ class VLogSite {
   // Returns true if logging is enabled.  Like XLS_VLOG_IS_ON(2), this uses
   // internal atomics to be fast in the common case.  For any given instance of
   // `VLogSite`, all calls to `IsEnabled` must use the same value for `file`.
-  bool IsEnabled(int32 level, absl::string_view file) const {
+  bool IsEnabled(int32_t level, absl::string_view file) const {
     return logging_internal::VLogEnabled(&site_, level, file);
   }
 
  private:
-  mutable std::atomic<int32> site_{logging_internal::kDefaultSite};
+  mutable std::atomic<int32_t> site_{logging_internal::kDefaultSite};
 };
 
 }  // namespace xls

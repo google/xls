@@ -51,10 +51,10 @@ NodeId Graph::AddNode(std::string name) {
   return id;
 }
 
-EdgeId Graph::AddEdge(NodeId from, NodeId to, int64 weight) {
+EdgeId Graph::AddEdge(NodeId from, NodeId to, int64_t weight) {
   EdgeId id(edges_.size());
   edges_.push_back({from, to, weight, id});
-  successors_.at(static_cast<int64>(from)).push_back(id);
+  successors_.at(static_cast<int64_t>(from)).push_back(id);
   return id;
 }
 
@@ -62,17 +62,18 @@ std::string Graph::name(NodeId node) const {
   if (node_names_.contains(node)) {
     return node_names_.at(node);
   }
-  return absl::StrCat(static_cast<int64>(node));
+  return absl::StrCat(static_cast<int64_t>(node));
 }
 
 std::string Graph::name(EdgeId edge) const {
-  return absl::StrFormat("%s->%s", name(edges_[static_cast<int64>(edge)].from),
-                         name(edges_[static_cast<int64>(edge)].to));
+  return absl::StrFormat("%s->%s",
+                         name(edges_[static_cast<int64_t>(edge)].from),
+                         name(edges_[static_cast<int64_t>(edge)].to));
 }
 
 std::string Graph::ToString() const {
   std::string out = "Graph:\n";
-  for (int64 i = 0; i < node_count(); ++i) {
+  for (int64_t i = 0; i < node_count(); ++i) {
     NodeId node(i);
     absl::StrAppendFormat(
         &out, "  Node %s: %s\n", name(node),
@@ -90,7 +91,7 @@ namespace {
 struct ResidualEdge {
   NodeId from;
   NodeId to;
-  int64 capacity;
+  int64_t capacity;
 
   // The id of the other edge of the forward/backward pair of edges created in
   // the residual graph for each edge in the original graph.
@@ -116,37 +117,37 @@ class ResidualGraph {
     for (EdgeId edge_id = EdgeId{0}; edge_id <= graph.max_edge_id();
          edge_id += EdgeId{1}) {
       const Edge& edge = graph.edge(edge_id);
-      EdgeId backward_edge_id{int64{edge_id} + graph.edge_count()};
+      EdgeId backward_edge_id{int64_t{edge_id} + graph.edge_count()};
 
       // Add the forward edge to the residual graph. It has an inital capacity
       // equal to the weight of the edge in the original graph.
-      edges_[int64{edge_id}] =
+      edges_[int64_t{edge_id}] =
           ResidualEdge{edge.from, edge.to, edge.weight, backward_edge_id};
-      successors_[int64{edge.from}].push_back(edge_id);
+      successors_[int64_t{edge.from}].push_back(edge_id);
 
       // Add the backward edge to the residual graph. It has an inital capacity
       // of zero.
-      edges_[int64{backward_edge_id}] =
+      edges_[int64_t{backward_edge_id}] =
           ResidualEdge{edge.to, edge.from, 0, edge_id};
-      successors_[int64{edge.to}].push_back(backward_edge_id);
+      successors_[int64_t{edge.to}].push_back(backward_edge_id);
     }
   }
 
   // Returns the edges extended from the given node.
   absl::Span<const EdgeId> successors(NodeId node) const {
-    return successors_[int64{node}];
+    return successors_[int64_t{node}];
   }
 
   // Push flow along the given edge. The capacity of this edge is reduced and
   // the capacity of the dual edge is increased.
-  void PushFlow(int64 amount, ResidualEdge* residual_edge) {
+  void PushFlow(int64_t amount, ResidualEdge* residual_edge) {
     XLS_CHECK_GE(residual_edge->capacity, amount);
     residual_edge->capacity -= amount;
     edge(residual_edge->dual_edge).capacity += amount;
   }
 
-  const ResidualEdge& edge(EdgeId id) const { return edges_[int64{id}]; }
-  ResidualEdge& edge(EdgeId id) { return edges_[int64{id}]; }
+  const ResidualEdge& edge(EdgeId id) const { return edges_[int64_t{id}]; }
+  ResidualEdge& edge(EdgeId id) { return edges_[int64_t{id}]; }
 
  private:
   // The set of all edges in the graph. The vector is indexed by EdgeId.
@@ -181,15 +182,15 @@ std::string GraphWithFlowToString(const Graph& graph,
 // of any edge in the path. The augmenting path is found via Dinic's algorithm
 // which finds a shortest augmenting path via BFS search. Returns the amount of
 // augmented flow. If no augmenting path is found then zero is returned.
-int64 AugmentFlow(const Graph& graph, NodeId source, NodeId sink,
-                  ResidualGraph* residual_graph) {
+int64_t AugmentFlow(const Graph& graph, NodeId source, NodeId sink,
+                    ResidualGraph* residual_graph) {
   XLS_VLOG_LINES(4, GraphWithFlowToString(graph, *residual_graph));
 
   // Perform a BFS search from flow to find the shortest augmenting path (by
   // edge count) from source to sink. For each edge traversed in the BFS search,
   // 'path_back' holds the previous edge in the path from the source along with
   // the residual capacity of that path..
-  absl::flat_hash_map<NodeId, std::pair<ResidualEdge*, int64>> path_back;
+  absl::flat_hash_map<NodeId, std::pair<ResidualEdge*, int64_t>> path_back;
   std::vector<NodeId> frontier = {source};
   while (!frontier.empty()) {
     std::vector<NodeId> next_frontier;
@@ -199,9 +200,9 @@ int64 AugmentFlow(const Graph& graph, NodeId source, NodeId sink,
       if (path_back.contains(e->to)) {
         return;
       }
-      int64 path_capacity = path_back.contains(e->from)
-                                ? path_back.at(e->from).second
-                                : std::numeric_limits<int64>::max();
+      int64_t path_capacity = path_back.contains(e->from)
+                                  ? path_back.at(e->from).second
+                                  : std::numeric_limits<int64_t>::max();
       // The residual capacity of a path is the minimum residual capacity of any
       // edge in the path.
       path_capacity = std::min(path_capacity, e->capacity);
@@ -223,7 +224,7 @@ int64 AugmentFlow(const Graph& graph, NodeId source, NodeId sink,
             // Found augmenting path. As this is the first path we've found in a
             // BFS search it is necessarily a shortest path. Walk back along
             // path and augment the flow.
-            int64 augmented_flow_amount = path_back.at(sink).second;
+            int64_t augmented_flow_amount = path_back.at(sink).second;
             XLS_CHECK_GT(augmented_flow_amount, 0);
             NodeId n = sink;
             while (n != source) {

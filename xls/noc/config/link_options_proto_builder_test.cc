@@ -20,8 +20,8 @@ namespace xls::noc {
 
 // Test field values for a link option.
 TEST(LinkOptionsProtoBuilderTest, FieldValues) {
-  const int64 kSourceSinkPipelineStage = 4;
-  const int64 kSinkSourcePipelineStage = 2;
+  const int64_t kSourceSinkPipelineStage = 4;
+  const int64_t kSinkSourcePipelineStage = 2;
   LinkOptionsProto proto;
   LinkOptionsProtoBuilder link_options_proto_builder(&proto);
   link_options_proto_builder.WithSourceSinkPipelineStage(

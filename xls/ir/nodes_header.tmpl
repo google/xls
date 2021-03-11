@@ -1,11 +1,11 @@
 #ifndef XLS_IR_NODES_
 #define XLS_IR_NODES_
 
+#include <cstdint>
 #include <string>
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/integral_types.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
@@ -18,8 +18,8 @@ namespace xls {
 class Function;
 
 struct SliceData {
-  int64 start;
-  int64 width;
+  int64_t start;
+  int64_t width;
 };
 
 {% for op_class in spec.OpClass.kinds.values() -%}

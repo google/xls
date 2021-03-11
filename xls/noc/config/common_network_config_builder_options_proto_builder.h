@@ -31,10 +31,10 @@ class EndpointOptionsProtoBuilder {
       : proto_(XLS_DIE_IF_NULL(proto)) {}
 
   // Adds the number of send ports.
-  EndpointOptionsProtoBuilder& WithNumSendPorts(int64 number_send_ports);
+  EndpointOptionsProtoBuilder& WithNumSendPorts(int64_t number_send_ports);
 
   // Adds the number of receive ports.
-  EndpointOptionsProtoBuilder& WithNumRecvPorts(int64 number_recv_ports);
+  EndpointOptionsProtoBuilder& WithNumRecvPorts(int64_t number_recv_ports);
 
  private:
   EndpointOptionsProto* proto_;
@@ -48,7 +48,7 @@ class DataOptionsProtoBuilder {
       : proto_(XLS_DIE_IF_NULL(proto)) {}
 
   // Adds the data bit width.
-  DataOptionsProtoBuilder& WithDataBitWidth(int64 data_bit_width);
+  DataOptionsProtoBuilder& WithDataBitWidth(int64_t data_bit_width);
 
  private:
   DataOptionsProto* proto_;
@@ -73,7 +73,7 @@ class FlowControlOptionsProtoBuilder {
 
   // Enables the total available credit-based flow control option.
   FlowControlOptionsProtoBuilder& EnableTotalCreditBasedFlowControl(
-      int64 credit_bit_width);
+      int64_t credit_bit_width);
 
  private:
   LinkConfigProto::FlowControlConfigProto* proto_;
@@ -87,10 +87,10 @@ class LinkOptionsProtoBuilder {
       : proto_(XLS_DIE_IF_NULL(proto)) {}
 
   // Adds the pipeline stage for source to sink.
-  LinkOptionsProtoBuilder& WithSourceSinkPipelineStage(int64 pipeline_stage);
+  LinkOptionsProtoBuilder& WithSourceSinkPipelineStage(int64_t pipeline_stage);
 
   // Adds the pipeline stage for sink to source.
-  LinkOptionsProtoBuilder& WithSinkSourcePipelineStage(int64 pipeline_stage);
+  LinkOptionsProtoBuilder& WithSinkSourcePipelineStage(int64_t pipeline_stage);
 
   // Returns the flow control options proto builder of this builder.
   FlowControlOptionsProtoBuilder GetFlowControlOptionsProtoBuilder();
@@ -107,7 +107,7 @@ class VirtualChannelOptionsProtoBuilder {
       : proto_(XLS_DIE_IF_NULL(proto)) {}
 
   // Adds a virtual channel with depth.
-  VirtualChannelOptionsProtoBuilder& WithVirtualChannelDepth(int64 depth);
+  VirtualChannelOptionsProtoBuilder& WithVirtualChannelDepth(int64_t depth);
 
  private:
   VirtualChannelOptionsProto* proto_;

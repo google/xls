@@ -15,13 +15,14 @@
 #ifndef XLS_COMMON_STRING_TO_INT_H_
 #define XLS_COMMON_STRING_TO_INT_H_
 
+#include <cstdint>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "xls/common/integral_types.h"
 
 namespace xls {
 
-// Converts s into an int64 using the given base.
+// Converts s into an int64_t using the given base.
 //
 // Note: if a base is provided, the "leader" that indicates the base is
 // attempted to be consumed at the front of "s"; e.g. if you provide base 2
@@ -32,7 +33,7 @@ namespace xls {
 //
 // InvalidArgumentError: if invalid digits are present in the string for the
 // determined base, or if the value overflows a 64-bit value.
-absl::StatusOr<int64> StrTo64Base(absl::string_view s, int base);
+absl::StatusOr<int64_t> StrTo64Base(absl::string_view s, int base);
 
 }  // namespace xls
 

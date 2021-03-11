@@ -24,14 +24,14 @@ namespace xls {
 namespace {
 
 TEST(UnionFindTest, BasicUsage) {
-  constexpr int64 kNodeCount = 5;
+  constexpr int64_t kNodeCount = 5;
   struct Cluster {};
   std::vector<Cluster> clusters;
   std::vector<UnionFind<Cluster*>> cluster_for_node;
 
   clusters.resize(kNodeCount);
   cluster_for_node.resize(kNodeCount);
-  for (int64 i = 0; i < kNodeCount; ++i) {
+  for (int64_t i = 0; i < kNodeCount; ++i) {
     cluster_for_node[i].Get() = &clusters[i];
   }
 

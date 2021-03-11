@@ -30,7 +30,7 @@ namespace xls {
 namespace verilog {
 
 struct Observation {
-  int64 time;
+  int64_t time;
   std::string name;
   Bits value;
 };

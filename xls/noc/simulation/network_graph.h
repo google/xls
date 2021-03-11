@@ -15,10 +15,10 @@
 #ifndef XLS_NOC_SIMULATION_NETWORK_GRAPH_H_
 #define XLS_NOC_SIMULATION_NETWORK_GRAPH_H_
 
+#include <cstdint>
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "xls/common/integral_types.h"
 #include "xls/noc/simulation/common.h"
 
 namespace xls {
@@ -89,15 +89,15 @@ class NetworkManager {
   Port& GetPort(PortId id);
 
   // Get the id of the i-th network.
-  NetworkId GetNetworkIdByIndex(int64 i) { return NetworkId(i); }
+  NetworkId GetNetworkIdByIndex(int64_t i) { return NetworkId(i); }
 
   // Get the object of the i-th network.
-  Network& GetNetworkByIndex(int64 i) { return networks_[i]; }
+  Network& GetNetworkByIndex(int64_t i) { return networks_[i]; }
 
   // Returns a vector of all managed network ids.
   std::vector<NetworkId> GetNetworkIds() {
     std::vector<NetworkId> ret(networks_.size());
-    for (int64 i = 0; i < networks_.size(); ++i) {
+    for (int64_t i = 0; i < networks_.size(); ++i) {
       ret[i] = NetworkId(i);
     }
     return ret;
@@ -107,7 +107,7 @@ class NetworkManager {
   absl::Span<Network> GetNetworks() { return absl::MakeSpan(networks_); }
 
   // Count of networks managed by this object.
-  int64 GetNetworkCount() { return networks_.size(); }
+  int64_t GetNetworkCount() { return networks_.size(); }
 
   // Print to stdout information about the network graph.
   void Dump(int indent_level = 0);
@@ -158,19 +158,19 @@ class Network {
   NetworkId id() { return id_; }
 
   // Get the id of the i-th NetworkComponent.
-  NetworkComponentId GetNetworkComponentIdByIndex(int64 i) {
+  NetworkComponentId GetNetworkComponentIdByIndex(int64_t i) {
     return NetworkComponentId(id_.id(), i);
   }
 
   // Get the object of the i-th NetworkComponent.
-  NetworkComponent& GetNetworkComponentByIndex(int64 i) {
+  NetworkComponent& GetNetworkComponentByIndex(int64_t i) {
     return components_[i];
   }
 
   // Return a vector of all managed NetworkComponent ids.
   std::vector<NetworkComponentId> GetNetworkComponentIds() {
     std::vector<NetworkComponentId> ret(components_.size());
-    for (int64 i = 0; i < components_.size(); ++i) {
+    for (int64_t i = 0; i < components_.size(); ++i) {
       ret[i] = NetworkComponentId(id_.id(), i);
     }
     return ret;
@@ -182,17 +182,17 @@ class Network {
   }
 
   // Get the id of the i-th Connection.
-  ConnectionId GetConnectionIdByIndex(int64 i) {
+  ConnectionId GetConnectionIdByIndex(int64_t i) {
     return ConnectionId(id_.id(), i);
   }
 
   // Get the object of the i-th Connection.
-  Connection& GetConnectionByIndex(int64 i) { return connections_[i]; }
+  Connection& GetConnectionByIndex(int64_t i) { return connections_[i]; }
 
   // Return a vector of all managed Connection ids.
   std::vector<ConnectionId> GetConnectionIds() {
     std::vector<ConnectionId> ret(components_.size());
-    for (int64 i = 0; i < components_.size(); ++i) {
+    for (int64_t i = 0; i < components_.size(); ++i) {
       ret[i] = ConnectionId(id_.id(), i);
     }
     return ret;
@@ -204,10 +204,10 @@ class Network {
   }
 
   // Count of networks components managed by this object.
-  int64 GetNetworkComponentCount() { return components_.size(); }
+  int64_t GetNetworkComponentCount() { return components_.size(); }
 
   // Count of connections managed by this object.
-  int64 GetConnectionCount() { return connections_.size(); }
+  int64_t GetConnectionCount() { return connections_.size(); }
 
   // Print to stdout information about this object.
   void Dump(int indent_level = 0);
@@ -240,14 +240,14 @@ class NetworkComponent {
   NetworkComponentKind kind() { return kind_; }
 
   // Get the id of the i-th Port.
-  PortId GetPortIdByIndex(int64 i) {
+  PortId GetPortIdByIndex(int64_t i) {
     return PortId(id_.GetNetworkId().id(),  // network
                   id_.id(),                 // component
                   i);
   }
 
   // Get the object of the i-th Port.
-  Port& GetPortByIndex(int64 i) { return ports_[i]; }
+  Port& GetPortByIndex(int64_t i) { return ports_[i]; }
 
   // Returns a vector of all managed port ids.
   std::vector<PortId> GetPortIds();
@@ -262,7 +262,7 @@ class NetworkComponent {
   absl::Span<Port> GetPorts() { return absl::MakeSpan(ports_); }
 
   // Count of ports.
-  int64 GetPortCount() { return ports_.size(); }
+  int64_t GetPortCount() { return ports_.size(); }
 
   // Print to stdout information about this object.
   void Dump(int indent_level = 0);

@@ -66,7 +66,7 @@ TEST(BinaryDecisionDiagramTest, BddSize) {
 
   {
     // Add new expressions should increase the number of nodes.
-    int64 before_size = bdd.size();
+    int64_t before_size = bdd.size();
     bdd.Or(var1, var2);
     bdd.And(var1, var2);
     EXPECT_GT(bdd.size(), before_size);
@@ -75,7 +75,7 @@ TEST(BinaryDecisionDiagramTest, BddSize) {
   {
     // Constructing expressions that have already be created should not add any
     // additional nodes to the BDD.
-    int64 before_size = bdd.size();
+    int64_t before_size = bdd.size();
     bdd.Or(var1, var1);
     bdd.Or(var1, var2);
     bdd.Or(var2, var1);
@@ -218,25 +218,25 @@ TEST(BinaryDecisionDiagramTest, Parity) {
   // Construct and test a 64-bit even parity expression.
   BinaryDecisionDiagram bdd;
   std::vector<BddNodeIndex> variables;
-  for (int64 i = 0; i < 64; ++i) {
+  for (int64_t i = 0; i < 64; ++i) {
     variables.push_back(bdd.NewVariable());
   }
 
   BddNodeIndex parity = bdd.zero();
-  for (int64 i = 0; i < 64; ++i) {
+  for (int64_t i = 0; i < 64; ++i) {
     parity = bdd.Or(bdd.And(parity, bdd.Not(variables[i])),
                     bdd.And(bdd.Not(parity), variables[i]));
 
     if (i < 31) {
       EXPECT_EQ(bdd.minterm_count(parity), 1LL << i);
     } else {
-      EXPECT_EQ(bdd.minterm_count(parity), std::numeric_limits<int32>::max());
+      EXPECT_EQ(bdd.minterm_count(parity), std::numeric_limits<int32_t>::max());
     }
   }
 
-  auto uint64_to_bools = [&](uint64 value) {
+  auto uint64_to_bools = [&](uint64_t value) {
     absl::flat_hash_map<BddNodeIndex, bool> values;
-    for (int64 i = 0; i < 64; ++i) {
+    for (int64_t i = 0; i < 64; ++i) {
       values[variables[i]] = (value >> i) & 1;
     }
     return values;
@@ -256,7 +256,7 @@ TEST(BinaryDecisionDiagramTest, ThreeVariableExhaustive) {
   // possible inputs.
   BinaryDecisionDiagram bdd;
   std::vector<BddNodeIndex> vars;
-  for (int64 i = 0; i < 3; ++i) {
+  for (int64_t i = 0; i < 3; ++i) {
     vars.push_back(bdd.NewVariable());
   }
 
@@ -271,18 +271,18 @@ TEST(BinaryDecisionDiagramTest, ThreeVariableExhaustive) {
   }
 
   // There are 256 different three variable functions.
-  for (int64 truth_table = 0; truth_table < 256; ++truth_table) {
+  for (int64_t truth_table = 0; truth_table < 256; ++truth_table) {
     // Encode the function in the BDD as a sum of minterms.
     BddNodeIndex func = bdd.zero();
-    for (int64 j = 0; j < 8; ++j) {
+    for (int64_t j = 0; j < 8; ++j) {
       if ((truth_table >> j) & 1) {
         func = bdd.Or(func, minterms[j]);
       }
     }
 
-    auto to_binary = [](int64 value) {
+    auto to_binary = [](int64_t value) {
       std::string result;
-      for (int64 i = 7; i >= 0; --i) {
+      for (int64_t i = 7; i >= 0; --i) {
         result += (value >> i) & 1 ? "1" : "0";
       }
       return result;

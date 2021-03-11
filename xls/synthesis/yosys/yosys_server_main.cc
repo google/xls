@@ -45,7 +45,7 @@ Invocation:
   yosys_server --yosys_path=PATH --nextpnr_path=PATH
 )";
 
-ABSL_FLAG(int32, port, 10000, "Port to listen on.");
+ABSL_FLAG(int32_t, port, 10000, "Port to listen on.");
 ABSL_FLAG(std::string, yosys_path, "", "The path to the yosys binary.");
 ABSL_FLAG(std::string, nextpnr_path, "", "The path to the nextpnr binary.");
 ABSL_FLAG(std::string, synthesis_target, "",
@@ -97,7 +97,7 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
         InvokeSubprocess(args);
     if (!stdout_stderr_status.ok()) {
       XLS_LOG(ERROR) << stdout_stderr_status.status();
-      const int64 kMaxMessageSize = 1024;
+      const int64_t kMaxMessageSize = 1024;
       auto prune_error_message = [](absl::string_view message) -> std::string {
         if (message.size() >= kMaxMessageSize) {
           return absl::StrFormat(
@@ -200,7 +200,7 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
     }
 
     // Parse the stderr from nextpnr to get the maximum frequency.
-    XLS_ASSIGN_OR_RETURN(int64 max_frequency_hz,
+    XLS_ASSIGN_OR_RETURN(int64_t max_frequency_hz,
                          ParseNextpnrOutput(nextpnr_stderr));
     result->set_max_frequency_hz(max_frequency_hz);
     XLS_LOG(INFO) << "max_frequency_mhz: " << (max_frequency_hz / 1e6);

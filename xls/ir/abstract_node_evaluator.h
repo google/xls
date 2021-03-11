@@ -37,7 +37,7 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
   using Vector = typename AbstractEvaluatorT::Vector;
 
   XLS_VLOG(3) << "Handling " << node->ToString();
-  auto check_operand_count = [&](int64 expected) {
+  auto check_operand_count = [&](int64_t expected) {
     if (operands.size() != expected) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Expected %d operands, "
@@ -238,7 +238,7 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       XLS_RETURN_IF_ERROR(check_operand_count(1));
       return evaluator->ZeroExtend(operands[0], node->BitCountOrDie());
   }
-  XLS_LOG(FATAL) << "Invalid op: " << static_cast<int64>(node->op());
+  XLS_LOG(FATAL) << "Invalid op: " << static_cast<int64_t>(node->op());
 }
 
 }  // namespace xls

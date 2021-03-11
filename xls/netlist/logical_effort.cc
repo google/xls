@@ -24,7 +24,7 @@ namespace xls {
 namespace netlist {
 namespace logical_effort {
 
-absl::StatusOr<double> GetLogicalEffort(CellKind kind, int64 input_count) {
+absl::StatusOr<double> GetLogicalEffort(CellKind kind, int64_t input_count) {
   // Table 1.1 in the Logical Effort book.
   switch (kind) {
     case CellKind::kInverter:
@@ -52,7 +52,7 @@ absl::StatusOr<double> GetLogicalEffort(CellKind kind, int64 input_count) {
   }
 }
 
-absl::StatusOr<double> GetParasiticDelay(CellKind kind, int64 input_count) {
+absl::StatusOr<double> GetParasiticDelay(CellKind kind, int64_t input_count) {
   // Table 1.2 in the Logical Effort book.
   switch (kind) {
     case CellKind::kInverter:
@@ -79,7 +79,7 @@ absl::StatusOr<double> GetParasiticDelay(CellKind kind, int64 input_count) {
 }
 
 absl::StatusOr<double> ComputeElectricalEffort(const rtl::Cell& cell) {
-  int64 output_load_same_kind = 0;
+  int64_t output_load_same_kind = 0;
   for (const auto& iter : cell.outputs()) {
     rtl::NetRef output = iter.netref;
     for (const rtl::Cell* connected_cell : output->connected_cells()) {
@@ -141,7 +141,7 @@ absl::StatusOr<double> ComputePathParasiticDelay(
 absl::StatusOr<double> ComputePathBranchingEffort(
     absl::Span<rtl::Cell* const> path) {
   double branching_effort = 1.0;
-  for (int64 i = 0; i < path.size() - 1; ++i) {
+  for (int64_t i = 0; i < path.size() - 1; ++i) {
     if (path[i]->outputs().size() != 1) {
       return absl::UnimplementedError(
           "More than one output net, cannot compute branching effort.");

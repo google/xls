@@ -43,7 +43,7 @@ bool NodeMatcher::MatchAndExplain(
               << operands_.size() << ")";
     return false;
   }
-  for (int64 index = 0; index < operands.size(); index++) {
+  for (int64_t index = 0; index < operands.size(); index++) {
     ::testing::StringMatchResultListener inner_listener;
     if (!operands_[index].MatchAndExplain(operands[index], &inner_listener)) {
       if (listener->IsInterested()) {
@@ -151,8 +151,8 @@ bool LiteralMatcher::MatchAndExplain(
     if (value_.has_value()) {
       expected = *value_;
     } else {
-      // The int64 expected value does not carry width information, so create a
-      // value object with width matching the literal.
+      // The int64_t expected value does not carry width information, so create
+      // a value object with width matching the literal.
       if (!literal_value.IsBits() || Bits::MinBitCountUnsigned(*uint64_value_) >
                                          literal_value.bits().bit_count()) {
         // Literal value isn't a Bits value or it is too narrow to hold the

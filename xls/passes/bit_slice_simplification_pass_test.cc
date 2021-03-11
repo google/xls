@@ -107,19 +107,19 @@ fn main(x: bits[4], y: bits[1], z: bits[4]) -> bits[$1] {
     concat.1: bits[9] = concat(x, y, z)
     ret result: bits[$1] = bit_slice(concat.1, start=$0, width=$1)
 })";
-  auto gen_fn = [&](int64 start, int64 width) {
+  auto gen_fn = [&](int64_t start, int64_t width) {
     return absl::Substitute(fn_template, start, width);
   };
 
-  const int64 kInputWidth = 9;
+  const int64_t kInputWidth = 9;
   const Value x = Value(UBits(0xa, 4));
   const Value y = Value(UBits(1, 1));
   const Value z = Value(UBits(0x5, 4));
 
   // Try all possible combinations of start and width. Verify that the
   // interpreted IR generates the same value before and after.
-  for (int64 start = 0; start < kInputWidth; ++start) {
-    for (int64 width = 1; width < kInputWidth - start; ++width) {
+  for (int64_t start = 0; start < kInputWidth; ++start) {
+    for (int64_t width = 1; width < kInputWidth - start; ++width) {
       XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(gen_fn(start, width)));
       XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->EntryFunction());
       XLS_ASSERT_OK_AND_ASSIGN(Value expected,

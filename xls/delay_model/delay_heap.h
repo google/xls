@@ -116,16 +116,16 @@ class DelayHeap {
   FrontierSet::iterator Remove(Node* node);
 
   // Returns the number of nodes in the heap.
-  int64 size() const { return path_lengths_.size(); }
+  int64_t size() const { return path_lengths_.size(); }
 
   // Returns the delay of the critical-path through the heap.
-  int64 CriticalPathDelay() const {
+  int64_t CriticalPathDelay() const {
     return size() == 0 ? 0 : CriticalPathDelay(top());
   }
 
   // Returns the delay of the critical-path up through the given node. This
   // includes the delay of the node itself.
-  int64 CriticalPathDelay(Node* node) const {
+  int64_t CriticalPathDelay(Node* node) const {
     return path_lengths_.at(node).critical_path_delay;
   }
 
@@ -134,11 +134,11 @@ class DelayHeap {
 
   // Returns the critical path delay through the heap after adding the given
   // node.
-  absl::StatusOr<int64> CriticalPathDelayAfterAdding(Node* node) const;
+  absl::StatusOr<int64_t> CriticalPathDelayAfterAdding(Node* node) const;
 
   // Returns the critical path delay through the heap after removing the given
   // node. The node must be in the frontier set.
-  int64 CriticalPathDelayAfterRemoving(Node* node) const;
+  int64_t CriticalPathDelayAfterRemoving(Node* node) const;
 
   // Returns the direction in which the heap grows.
   Direction direction() const { return direction_; }
@@ -170,8 +170,8 @@ class DelayHeap {
              longest_path == other.longest_path;
     }
 
-    int64 critical_path_delay;
-    int64 longest_path;
+    int64_t critical_path_delay;
+    int64_t longest_path;
   };
 
   // Returns the predecessors of the given node. The predecessors are the graph

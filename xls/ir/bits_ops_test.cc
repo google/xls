@@ -26,12 +26,12 @@ namespace {
 
 // Create a Bits of the given bit count with the prime number index bits set to
 // one.
-Bits PrimeBits(int64 bit_count) {
-  auto is_prime = [](int64 n) {
+Bits PrimeBits(int64_t bit_count) {
+  auto is_prime = [](int64_t n) {
     if (n < 2) {
       return false;
     }
-    for (int64 i = 2; i * i < n; ++i) {
+    for (int64_t i = 2; i * i < n; ++i) {
       if (n % i == 0) {
         return false;
       }
@@ -39,8 +39,8 @@ Bits PrimeBits(int64 bit_count) {
     return true;
   };
 
-  std::vector<uint8> bytes(CeilOfRatio(bit_count, int64{8}), 0);
-  for (int64 i = 0; i < bit_count; ++i) {
+  std::vector<uint8_t> bytes(CeilOfRatio(bit_count, int64_t{8}), 0);
+  for (int64_t i = 0; i < bit_count; ++i) {
     if (is_prime(i)) {
       bytes[bytes.size() - 1 - i / 8] |= 1 << (i % 8);
     }
@@ -264,9 +264,9 @@ TEST(BitsOpsTest, SDiv) {
   EXPECT_EQ(bits_ops::SDiv(SBits(5, 4), SBits(0, 4)), SBits(7, 4));
   EXPECT_EQ(bits_ops::SDiv(SBits(-5, 4), SBits(0, 4)), SBits(-8, 4));
   EXPECT_EQ(bits_ops::SDiv(SBits(123456, 64), SBits(0, 64)),
-            SBits(std::numeric_limits<int64>::max(), 64));
+            SBits(std::numeric_limits<int64_t>::max(), 64));
   EXPECT_EQ(bits_ops::SDiv(SBits(-123456, 64), SBits(0, 64)),
-            SBits(std::numeric_limits<int64>::min(), 64));
+            SBits(std::numeric_limits<int64_t>::min(), 64));
 
   // Test wide values.
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -478,10 +478,10 @@ TEST(BitsOpsTest, Int64UnsignedComparisons) {
           "0x2fff_ffff_ffff_ffff_ffff_0000_0000_0000_0000_0000_1234_5555"));
   EXPECT_TRUE(bits_ops::UGreaterThanOrEqual(huge, 0));
   EXPECT_TRUE(
-      bits_ops::UGreaterThanOrEqual(huge, std::numeric_limits<int64>::max()));
+      bits_ops::UGreaterThanOrEqual(huge, std::numeric_limits<int64_t>::max()));
   EXPECT_TRUE(bits_ops::UGreaterThan(huge, 1234567));
   EXPECT_FALSE(
-      bits_ops::ULessThanOrEqual(huge, std::numeric_limits<int64>::max()));
+      bits_ops::ULessThanOrEqual(huge, std::numeric_limits<int64_t>::max()));
   EXPECT_FALSE(bits_ops::ULessThanOrEqual(huge, 33));
 }
 
@@ -509,8 +509,10 @@ TEST(BitsOpsTest, Int64SignedComparisons) {
   EXPECT_FALSE(bits_ops::SLessThan(b42, -10000));
   EXPECT_TRUE(bits_ops::SLessThan(minus42, -10));
 
-  EXPECT_TRUE(bits_ops::SLessThan(minus42, std::numeric_limits<int64>::max()));
-  EXPECT_FALSE(bits_ops::SLessThan(minus42, std::numeric_limits<int64>::min()));
+  EXPECT_TRUE(
+      bits_ops::SLessThan(minus42, std::numeric_limits<int64_t>::max()));
+  EXPECT_FALSE(
+      bits_ops::SLessThan(minus42, std::numeric_limits<int64_t>::min()));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Bits wide_minus2,
@@ -524,13 +526,13 @@ TEST(BitsOpsTest, Int64SignedComparisons) {
   EXPECT_FALSE(bits_ops::SGreaterThanOrEqual(wide_minus2, 0));
   EXPECT_TRUE(bits_ops::SGreaterThanOrEqual(huge, wide_minus2));
   EXPECT_TRUE(
-      bits_ops::SGreaterThanOrEqual(huge, std::numeric_limits<int64>::max()));
+      bits_ops::SGreaterThanOrEqual(huge, std::numeric_limits<int64_t>::max()));
   EXPECT_TRUE(bits_ops::SGreaterThan(huge, 1234567));
   EXPECT_FALSE(bits_ops::SGreaterThan(wide_minus2, 1234567));
   EXPECT_FALSE(
-      bits_ops::SLessThanOrEqual(huge, std::numeric_limits<int64>::max()));
+      bits_ops::SLessThanOrEqual(huge, std::numeric_limits<int64_t>::max()));
   EXPECT_FALSE(bits_ops::SLessThanOrEqual(wide_minus2,
-                                          std::numeric_limits<int64>::min()));
+                                          std::numeric_limits<int64_t>::min()));
   EXPECT_FALSE(bits_ops::SLessThanOrEqual(huge, 33));
   EXPECT_TRUE(bits_ops::SLessThanOrEqual(wide_minus2, 33));
 }
@@ -622,7 +624,7 @@ TEST(BitsOpsTest, Negate) {
 
   EXPECT_EQ(bits_ops::Negate(SBits(-4, 3)), UBits(4, 3));
   EXPECT_EQ(bits_ops::Negate(UBits(42, 37)), SBits(-42, 37));
-  EXPECT_EQ(bits_ops::Negate(UBits(std::numeric_limits<int64>::min(), 64)),
+  EXPECT_EQ(bits_ops::Negate(UBits(std::numeric_limits<int64_t>::min(), 64)),
             UBits(0x8000000000000000ULL, 64));
   EXPECT_EQ(bits_ops::Negate(UBits(0, 1234)), UBits(0, 1234));
   EXPECT_EQ(bits_ops::Negate(UBits(1, 1234)), SBits(-1, 1234));
@@ -667,7 +669,7 @@ TEST(BitsOpsTest, OneHot) {
 }
 
 TEST(BitsOpsTest, Nor3) {
-  std::vector<std::pair<std::array<uint8, 3>, uint8>> cases = {
+  std::vector<std::pair<std::array<uint8_t, 3>, uint8_t>> cases = {
       {{0, 0, 0}, 1},  //
       {{0, 0, 1}, 0},  //
       {{0, 1, 0}, 0},  //
@@ -686,7 +688,7 @@ TEST(BitsOpsTest, Nor3) {
 }
 
 TEST(BitsOpsTest, Nand3) {
-  std::vector<std::pair<std::array<uint8, 3>, uint8>> cases = {
+  std::vector<std::pair<std::array<uint8_t, 3>, uint8_t>> cases = {
       {{0, 0, 0}, 1},  //
       {{0, 0, 1}, 1},  //
       {{0, 1, 0}, 1},  //
@@ -755,22 +757,22 @@ TEST(BitsOpsTest, BitSliceUpdate) {
 
   // Exhaustively test all values of subect and update value from 0 to 5 bits
   // with start index ranging from 0 to 6.
-  for (int64 subject_width = 0; subject_width <= 5; ++subject_width) {
-    for (int64 subject_value = 0; subject_value < (1 << subject_width);
+  for (int64_t subject_width = 0; subject_width <= 5; ++subject_width) {
+    for (int64_t subject_value = 0; subject_value < (1 << subject_width);
          ++subject_value) {
       Bits subject = UBits(subject_value, subject_width);
-      for (int64 update_width = 0; update_width <= 5; ++update_width) {
-        for (int64 update_value = 0; update_value < (1 << update_width);
+      for (int64_t update_width = 0; update_width <= 5; ++update_width) {
+        for (int64_t update_value = 0; update_value < (1 << update_width);
              ++update_value) {
           Bits update = UBits(update_value, update_width);
-          for (int64 start = 0; start <= 6; ++start) {
+          for (int64_t start = 0; start <= 6; ++start) {
             // Create a mask like: 11..1100..0011..11 where the least-significan
             // string of 1's is 'start' long, and the number of zeros is equals
             // to update_width.
-            int64 mask = ~(((1 << update_width) - 1) << start);
-            int64 expected = (mask & subject.ToUint64().value()) |
-                             (update.ToUint64().value() << start);
-            int64 expected_trunc = expected & ((1 << subject_width) - 1);
+            int64_t mask = ~(((1 << update_width) - 1) << start);
+            int64_t expected = (mask & subject.ToUint64().value()) |
+                               (update.ToUint64().value() << start);
+            int64_t expected_trunc = expected & ((1 << subject_width) - 1);
             EXPECT_EQ(UBits(expected_trunc, subject_width),
                       bits_ops::BitSliceUpdate(subject, start, update));
           }

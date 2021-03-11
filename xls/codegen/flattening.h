@@ -43,10 +43,10 @@ absl::StatusOr<Value> UnflattenBitsToValue(const Bits& bits,
 
 // Returns the index of the first bit of tuple element at 'index' where the
 // tuple is flattened into a vector of bits.
-int64 GetFlatBitIndexOfElement(const TupleType* tuple_type, int64 index);
+int64_t GetFlatBitIndexOfElement(const TupleType* tuple_type, int64_t index);
 
 // Overload which returns the index of an element for an array type.
-int64 GetFlatBitIndexOfElement(const ArrayType* array_type, int64 index);
+int64_t GetFlatBitIndexOfElement(const ArrayType* array_type, int64_t index);
 
 // Unflattens the given VAST expression into a unpacked array
 // representation. 'array_type' is the underlying XLS type of the expression.
@@ -65,7 +65,7 @@ verilog::Expression* FlattenArray(verilog::IndexableExpression* input,
 // tuple. 'tuple_type' is the underlying XLS type of the tuple.
 verilog::Expression* UnflattenArrayShapedTupleElement(
     verilog::IndexableExpression* input, TupleType* tuple_type,
-    int64 tuple_index, verilog::VerilogFile* file);
+    int64_t tuple_index, verilog::VerilogFile* file);
 
 }  // namespace xls
 

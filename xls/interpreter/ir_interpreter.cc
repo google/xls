@@ -33,14 +33,14 @@ namespace xls {
 
 namespace {
 
-// Returns the given bits value as a uint64 value. If the value exceeds
+// Returns the given bits value as a uint64_t value. If the value exceeds
 // upper_limit, then upper_limit is returned.
-uint64 BitsToBoundedUint64(const Bits& bits, uint64 upper_limit) {
+uint64_t BitsToBoundedUint64(const Bits& bits, uint64_t upper_limit) {
   if (Bits::MinBitCountUnsigned(upper_limit) <= bits.bit_count() &&
       bits_ops::UGreaterThan(bits, UBits(upper_limit, bits.bit_count()))) {
     return upper_limit;
   }
-  // Necessarily the bits value fits in a uint64 so the value() call is safe.
+  // Necessarily the bits value fits in a uint64_t so the value() call is safe.
   return bits.ToUint64().value();
 }
 
@@ -54,7 +54,7 @@ uint64 BitsToBoundedUint64(const Bits& bits, uint64 upper_limit) {
         "Function %s wants %d arguments, got %d.", function->name(),
         function->params().size(), args.size()));
   }
-  for (int64 argno = 0; argno < args.size(); ++argno) {
+  for (int64_t argno = 0; argno < args.size(); ++argno) {
     Param* param = function->param(argno);
     const Value& value = args[argno];
     Type* param_type = param->GetType();
@@ -96,7 +96,7 @@ IrInterpreter::EvaluateNodeWithLiteralOperands(Node* node) {
     Node* node, absl::Span<const Value* const> operand_values) {
   XLS_RET_CHECK_EQ(node->operand_count(), operand_values.size());
   IrInterpreter visitor({}, /*stats=*/nullptr);
-  for (int64 i = 0; i < operand_values.size(); ++i) {
+  for (int64_t i = 0; i < operand_values.size(); ++i) {
     visitor.node_values_[node->operand(i)] = *operand_values[i];
   }
   XLS_RETURN_IF_ERROR(node->VisitSingleNode(&visitor));
@@ -202,9 +202,9 @@ absl::Status IrInterpreter::HandleBitSliceUpdate(BitSliceUpdate* update) {
     return SetBitsResult(update, to_update);
   }
 
-  // Safe to convert start to uint64 because of the above check that start is
+  // Safe to convert start to uint64_t because of the above check that start is
   // in-bounds.
-  int64 start_index = start.ToUint64().value();
+  int64_t start_index = start.ToUint64().value();
 
   return SetBitsResult(
       update, bits_ops::BitSliceUpdate(to_update, start_index, update_value));
@@ -212,13 +212,13 @@ absl::Status IrInterpreter::HandleBitSliceUpdate(BitSliceUpdate* update) {
 
 absl::Status IrInterpreter::HandleDynamicBitSlice(
     DynamicBitSlice* dynamic_bit_slice) {
-  int64 operand_width = dynamic_bit_slice->operand(0)->BitCountOrDie();
+  int64_t operand_width = dynamic_bit_slice->operand(0)->BitCountOrDie();
   const Bits& start_bits = ResolveAsBits(dynamic_bit_slice->operand(1));
   if (bits_ops::UGreaterThanOrEqual(start_bits, operand_width)) {
     // Slice is entirely out-of-bounds. Return value should be all zero bits.
     return SetBitsResult(dynamic_bit_slice, Bits(dynamic_bit_slice->width()));
   }
-  uint64 start = start_bits.ToUint64().value();
+  uint64_t start = start_bits.ToUint64().value();
   const Bits& operand = ResolveAsBits(dynamic_bit_slice->operand(0));
   Bits shifted_value = bits_ops::ShiftRightLogical(operand, start);
   Bits truncated_value = shifted_value.Slice(0, dynamic_bit_slice->width());
@@ -237,7 +237,7 @@ absl::Status IrInterpreter::HandleCountedFor(CountedFor* counted_for) {
   Function* body = counted_for->body();
   std::vector<Value> invariant_args;
   // Set the loop invariant args (from the second operand on up).
-  for (int64 i = 1; i < counted_for->operand_count(); ++i) {
+  for (int64_t i = 1; i < counted_for->operand_count(); ++i) {
     // The n-th operand of the counted for actually feeds the (n+1)-th
     // parameter of the body as the first two are the induction variable and
     // the loop state.
@@ -249,7 +249,7 @@ absl::Status IrInterpreter::HandleCountedFor(CountedFor* counted_for) {
   // state arguments (params 0 and 1) and recursively call the interpreter
   // Run() on the body function -- the new accumulator value is the return
   // value of interpreting body.
-  for (int64 i = 0, iv = 0; i < counted_for->trip_count();
+  for (int64_t i = 0, iv = 0; i < counted_for->trip_count();
        ++i, iv += counted_for->stride()) {
     std::vector<Value> args_for_body = {
         Value(UBits(iv, arg0_type->bit_count())), loop_state};
@@ -262,7 +262,7 @@ absl::Status IrInterpreter::HandleCountedFor(CountedFor* counted_for) {
 }
 
 absl::Status IrInterpreter::HandleDecode(Decode* decode) {
-  XLS_ASSIGN_OR_RETURN(int64 input_value,
+  XLS_ASSIGN_OR_RETURN(int64_t input_value,
                        ResolveAsBits(decode->operand(0)).ToUint64());
   if (input_value < decode->BitCountOrDie()) {
     return SetBitsResult(decode, Bits::PowerOfTwo(/*set_bit_index=*/input_value,
@@ -278,7 +278,7 @@ absl::Status IrInterpreter::HandleDynamicCountedFor(
 
   // Set the loop invariant args (from the fourth operand on up).
   std::vector<Value> invariant_args;
-  for (int64 i = 3; i < dynamic_counted_for->operand_count(); ++i) {
+  for (int64_t i = 3; i < dynamic_counted_for->operand_count(); ++i) {
     invariant_args.push_back(ResolveAsValue(dynamic_counted_for->operand(i)));
   }
 
@@ -317,7 +317,7 @@ absl::Status IrInterpreter::HandleDynamicCountedFor(
 absl::Status IrInterpreter::HandleEncode(Encode* encode) {
   const Bits& input = ResolveAsBits(encode->operand(0));
   Bits result(encode->BitCountOrDie());
-  for (int64 i = 0; i < input.bit_count(); ++i) {
+  for (int64_t i = 0; i < input.bit_count(); ++i) {
     if (input.Get(i)) {
       result = bits_ops::Or(result, UBits(i, encode->BitCountOrDie()));
     }
@@ -388,7 +388,7 @@ static absl::Status SetArrayElement(absl::Span<const Bits> indices,
                                     const Value& value,
                                     std::vector<Value>* elements) {
   XLS_RET_CHECK(!indices.empty());
-  uint64 index = BitsToBoundedUint64(indices.front(), elements->size());
+  uint64_t index = BitsToBoundedUint64(indices.front(), elements->size());
   if (index >= elements->size()) {
     // Out-of-bounds access it a no-op.
     return absl::OkStatus();
@@ -414,7 +414,7 @@ static absl::Status SetArrayElement(absl::Span<const Bits> indices,
 absl::Status IrInterpreter::HandleArrayIndex(ArrayIndex* index) {
   const Value* array = &ResolveAsValue(index->array());
   for (Node* index_operand : index->indices()) {
-    uint64 idx =
+    uint64_t idx =
         BitsToBoundedUint64(ResolveAsBits(index_operand), array->size() - 1);
     array = &array->element(idx);
   }
@@ -467,7 +467,7 @@ absl::Status IrInterpreter::HandleAssert(Assert* assert_op) {
 absl::Status IrInterpreter::HandleInvoke(Invoke* invoke) {
   Function* to_apply = invoke->to_apply();
   std::vector<Value> args;
-  for (int64 i = 0; i < to_apply->params().size(); ++i) {
+  for (int64_t i = 0; i < to_apply->params().size(); ++i) {
     args.push_back(ResolveAsValue(invoke->operand(i)));
   }
   XLS_ASSIGN_OR_RETURN(Value result, Run(to_apply, args, stats_));
@@ -516,7 +516,7 @@ absl::Status IrInterpreter::HandleMap(Map* map) {
 }
 
 absl::Status IrInterpreter::HandleSMul(ArithOp* mul) {
-  const int64 mul_width = mul->BitCountOrDie();
+  const int64_t mul_width = mul->BitCountOrDie();
   Bits result = bits_ops::SMul(ResolveAsBits(mul->operand(0)),
                                ResolveAsBits(mul->operand(1)));
   if (result.bit_count() > mul_width) {
@@ -528,7 +528,7 @@ absl::Status IrInterpreter::HandleSMul(ArithOp* mul) {
 }
 
 absl::Status IrInterpreter::HandleUMul(ArithOp* mul) {
-  const int64 mul_width = mul->BitCountOrDie();
+  const int64_t mul_width = mul->BitCountOrDie();
   Bits result = bits_ops::UMul(ResolveAsBits(mul->operand(0)),
                                ResolveAsBits(mul->operand(1)));
   if (result.bit_count() > mul_width) {
@@ -555,11 +555,11 @@ absl::Status IrInterpreter::HandleNot(UnOp* not_op) {
 }
 
 absl::Status IrInterpreter::HandleOneHot(OneHot* one_hot) {
-  int64 output_width = one_hot->BitCountOrDie();
+  int64_t output_width = one_hot->BitCountOrDie();
   const Bits& input = ResolveAsBits(one_hot->operand(0));
-  const int64 input_width = input.bit_count();
-  for (int64 i = 0; i < input.bit_count(); ++i) {
-    int64 index =
+  const int64_t input_width = input.bit_count();
+  for (int64_t i = 0; i < input.bit_count(); ++i) {
+    int64_t index =
         one_hot->priority() == LsbOrMsb::kLsb ? i : input_width - i - 1;
     if (ResolveAsBits(one_hot->operand(0)).Get(index)) {
       auto one = UBits(1, /*bit_count=*/output_width);
@@ -575,7 +575,7 @@ absl::Status IrInterpreter::HandleOneHot(OneHot* one_hot) {
 absl::Status IrInterpreter::HandleOneHotSel(OneHotSelect* sel) {
   const Bits& selector = ResolveAsBits(sel->selector());
   std::vector<const Value*> activated_inputs;
-  for (int64 i = 0; i < selector.bit_count(); ++i) {
+  for (int64_t i = 0; i < selector.bit_count(); ++i) {
     if (selector.Get(i)) {
       activated_inputs.push_back(&ResolveAsValue(sel->get_case(i)));
     }
@@ -585,7 +585,7 @@ absl::Status IrInterpreter::HandleOneHotSel(OneHotSelect* sel) {
 }
 
 absl::Status IrInterpreter::HandleParam(Param* param) {
-  XLS_ASSIGN_OR_RETURN(int64 index,
+  XLS_ASSIGN_OR_RETURN(int64_t index,
                        param->function_base()->GetParamIndex(param));
   if (index >= args_.size()) {
     return absl::InternalError(absl::StrFormat(
@@ -607,27 +607,27 @@ absl::Status IrInterpreter::HandleSel(Select* sel) {
     XLS_RET_CHECK(sel->default_value().has_value());
     return SetValueResult(sel, ResolveAsValue(*sel->default_value()));
   }
-  XLS_ASSIGN_OR_RETURN(uint64 i, selector.ToUint64());
+  XLS_ASSIGN_OR_RETURN(uint64_t i, selector.ToUint64());
   return SetValueResult(sel, ResolveAsValue(sel->get_case(i)));
 }
 
 absl::Status IrInterpreter::HandleShll(BinOp* shll) {
   const Bits& input = ResolveAsBits(shll->operand(0));
-  const int64 shift_amt =
+  const int64_t shift_amt =
       ResolveAsBoundedUint64(shll->operand(1), input.bit_count());
   return SetBitsResult(shll, bits_ops::ShiftLeftLogical(input, shift_amt));
 }
 
 absl::Status IrInterpreter::HandleShra(BinOp* shra) {
   const Bits& input = ResolveAsBits(shra->operand(0));
-  const int64 shift_amt =
+  const int64_t shift_amt =
       ResolveAsBoundedUint64(shra->operand(1), input.bit_count());
   return SetBitsResult(shra, bits_ops::ShiftRightArith(input, shift_amt));
 }
 
 absl::Status IrInterpreter::HandleShrl(BinOp* shrl) {
   const Bits& input = ResolveAsBits(shrl->operand(0));
-  const int64 shift_amt =
+  const int64_t shift_amt =
       ResolveAsBoundedUint64(shrl->operand(1), input.bit_count());
   return SetBitsResult(shrl, bits_ops::ShiftRightLogical(input, shift_amt));
 }
@@ -652,7 +652,7 @@ absl::Status IrInterpreter::HandleTuple(Tuple* tuple) {
 }
 
 absl::Status IrInterpreter::HandleTupleIndex(TupleIndex* index) {
-  int64 tuple_index = index->As<TupleIndex>()->index();
+  int64_t tuple_index = index->As<TupleIndex>()->index();
   return SetValueResult(
       index, ResolveAsValue(index->operand(0)).elements().at(tuple_index));
 }
@@ -700,11 +700,12 @@ std::vector<Bits> IrInterpreter::ResolveAsBitsVector(
   return results;
 }
 
-uint64 IrInterpreter::ResolveAsBoundedUint64(Node* node, uint64 upper_limit) {
+uint64_t IrInterpreter::ResolveAsBoundedUint64(Node* node,
+                                               uint64_t upper_limit) {
   return BitsToBoundedUint64(ResolveAsBits(node), upper_limit);
 }
 
-absl::Status IrInterpreter::SetUint64Result(Node* node, uint64 result) {
+absl::Status IrInterpreter::SetUint64Result(Node* node, uint64_t result) {
   XLS_RET_CHECK(node->GetType()->IsBits());
   XLS_RET_CHECK_GE(node->BitCountOrDie(), Bits::MinBitCountUnsigned(result));
   return SetValueResult(node, Value(UBits(result, node->BitCountOrDie())));
@@ -721,7 +722,7 @@ absl::Status IrInterpreter::SetBitsResult(Node* node, const Bits& result) {
 
 absl::Status IrInterpreter::SetValueResult(Node* node, Value result) {
   XLS_VLOG(4) << absl::StreamFormat("%s operands:", node->GetName());
-  for (int64 i = 0; i < node->operand_count(); ++i) {
+  for (int64_t i = 0; i < node->operand_count(); ++i) {
     XLS_VLOG(4) << absl::StreamFormat(
         "  operand %d (%s): %s", i, node->operand(i)->GetName(),
         ResolveAsValue(node->operand(i)).ToString());
@@ -743,9 +744,9 @@ absl::StatusOr<Value> IrInterpreter::DeepOr(
     return Value(result);
   }
 
-  auto input_elements = [&](int64 i) {
+  auto input_elements = [&](int64_t i) {
     std::vector<const Value*> values;
-    for (int64 j = 0; j < inputs.size(); ++j) {
+    for (int64_t j = 0; j < inputs.size(); ++j) {
       values.push_back(&inputs[j]->elements()[i]);
     }
     return values;
@@ -754,7 +755,7 @@ absl::StatusOr<Value> IrInterpreter::DeepOr(
   if (input_type->IsArray()) {
     Type* element_type = input_type->AsArrayOrDie()->element_type();
     std::vector<Value> elements;
-    for (int64 i = 0; i < input_type->AsArrayOrDie()->size(); ++i) {
+    for (int64_t i = 0; i < input_type->AsArrayOrDie()->size(); ++i) {
       XLS_ASSIGN_OR_RETURN(Value element,
                            DeepOr(element_type, input_elements(i)));
       elements.push_back(element);
@@ -764,7 +765,7 @@ absl::StatusOr<Value> IrInterpreter::DeepOr(
 
   XLS_RET_CHECK(input_type->IsTuple());
   std::vector<Value> elements;
-  for (int64 i = 0; i < input_type->AsTupleOrDie()->size(); ++i) {
+  for (int64_t i = 0; i < input_type->AsTupleOrDie()->size(); ++i) {
     XLS_ASSIGN_OR_RETURN(
         Value element,
         DeepOr(input_type->AsTupleOrDie()->element_type(i), input_elements(i)));

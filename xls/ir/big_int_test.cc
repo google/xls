@@ -30,7 +30,7 @@ using status_testing::StatusIs;
 
 class BigIntTest : public ::testing::Test {
  protected:
-  BigInt MakeBigInt(int64 value) {
+  BigInt MakeBigInt(int64_t value) {
     return BigInt::MakeSigned(SBits(value, 64));
   }
 

@@ -58,13 +58,13 @@ class TestbenchThread
   //                     under test.
   TestbenchThread(
       absl::Mutex* wake_parent_mutex, absl::CondVar* wake_parent,
-      uint64 start_index, uint64 end_index, uint64 max_failures,
-      std::function<InputT(uint64)> index_to_input,
+      uint64_t start_index, uint64_t end_index, uint64_t max_failures,
+      std::function<InputT(uint64_t)> index_to_input,
       std::function<std::unique_ptr<ShardDataT>()> create_shard,
       std::function<ResultT(ShardDataT*, InputT)> generate_expected,
       std::function<ResultT(JitWrapperT*, ShardDataT*, InputT)> generate_actual,
       std::function<bool(ResultT, ResultT)> compare_results,
-      std::function<void(int64, InputT, ResultT, ResultT)> log_errors)
+      std::function<void(int64_t, InputT, ResultT, ResultT)> log_errors)
       : TestbenchThreadBase<JitWrapperT, InputT, ResultT, ShardDataT>(
             wake_parent_mutex, wake_parent, start_index, end_index,
             max_failures, index_to_input, compare_results, log_errors),
@@ -97,12 +97,12 @@ class TestbenchThread<
  public:
   TestbenchThread(
       absl::Mutex* wake_parent_mutex, absl::CondVar* wake_parent,
-      uint64 start_index, uint64 end_index, uint64 max_failures,
-      std::function<InputT(uint64)> index_to_input,
+      uint64_t start_index, uint64_t end_index, uint64_t max_failures,
+      std::function<InputT(uint64_t)> index_to_input,
       std::function<ResultT(InputT)> generate_expected,
       std::function<ResultT(JitWrapperT*, InputT)> generate_actual,
       std::function<bool(ResultT, ResultT)> compare_results,
-      std::function<void(int64, InputT, ResultT, ResultT)> log_errors)
+      std::function<void(int64_t, InputT, ResultT, ResultT)> log_errors)
       : TestbenchThreadBase<JitWrapperT, InputT, ResultT, ShardDataT>(
             wake_parent_mutex, wake_parent, start_index, end_index,
             max_failures, index_to_input, compare_results, log_errors),
@@ -130,10 +130,10 @@ class TestbenchThreadBase {
  public:
   TestbenchThreadBase(
       absl::Mutex* wake_parent_mutex, absl::CondVar* wake_parent,
-      uint64 start_index, uint64 end_index, uint64 max_failures,
-      std::function<InputT(uint64)> index_to_input,
+      uint64_t start_index, uint64_t end_index, uint64_t max_failures,
+      std::function<InputT(uint64_t)> index_to_input,
       std::function<bool(ResultT, ResultT)> compare_results,
-      std::function<void(int64, InputT, ResultT, ResultT)> log_errors)
+      std::function<void(int64_t, InputT, ResultT, ResultT)> log_errors)
       : wake_parent_mutex_(wake_parent_mutex),
         wake_parent_(wake_parent),
         cancelled_(false),
@@ -149,7 +149,7 @@ class TestbenchThreadBase {
 
   // Starts the thread. Silently returns if it's already running.
   // If the tax of calling index_to_input_ every iter is too high, we can
-  // specialize this for simple cases, like uint64 -> uint64.
+  // specialize this for simple cases, like uint64_t -> uint64_t.
   void Run() {
     if (thread_) {
       return;
@@ -169,7 +169,7 @@ class TestbenchThreadBase {
     jit_wrapper_ = std::move(status_or_wrapper.value());
 
     running_.store(true);
-    for (uint64 i = start_index_; i < end_index_; i++) {
+    for (uint64_t i = start_index_; i < end_index_; i++) {
       // Don't check for cancelled on every iteration; it's a touch slow.
       if (i % 128 == 0 && cancelled_.load()) {
         return_status = absl::CancelledError("This thread was cancelled.");
@@ -210,9 +210,9 @@ class TestbenchThreadBase {
 
   bool running() { return running_.load(); }
 
-  uint64 num_failures() { return num_failures_.load(); }
+  uint64_t num_failures() { return num_failures_.load(); }
 
-  uint64 num_passes() { return num_passes_.load(); }
+  uint64_t num_passes() { return num_passes_.load(); }
 
   absl::Status status() {
     absl::MutexLock lock(&mutex_);
@@ -239,19 +239,19 @@ class TestbenchThreadBase {
   std::atomic<bool> cancelled_;
   std::atomic<bool> running_;
 
-  uint64 start_index_;
-  uint64 end_index_;
+  uint64_t start_index_;
+  uint64_t end_index_;
 
   // Bookkeeping data.
-  uint64 max_failures_;
-  std::atomic<uint64> num_passes_;
-  std::atomic<uint64> num_failures_;
+  uint64_t max_failures_;
+  std::atomic<uint64_t> num_passes_;
+  std::atomic<uint64_t> num_failures_;
 
-  std::function<InputT(uint64)> index_to_input_;
+  std::function<InputT(uint64_t)> index_to_input_;
   std::function<ResultT(InputT&)> generate_expected_fn_;
   std::function<ResultT(InputT&)> generate_actual_fn_;
   std::function<bool(ResultT, ResultT)> compare_results_;
-  std::function<void(int64, InputT, ResultT, ResultT)> log_errors_;
+  std::function<void(int64_t, InputT, ResultT, ResultT)> log_errors_;
 
   std::string ir_text_;
   std::string entry_fn_;

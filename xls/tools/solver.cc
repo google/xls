@@ -30,7 +30,7 @@ ABSL_FLAG(std::string, kind, "eq_zero",
           "Predicate to attempt to prove; choices: eq_zero, ne_zero, eq_node");
 ABSL_FLAG(std::string, other, "",
           "Node for comparison; e.g. when kind is eq_node");
-ABSL_FLAG(int64, timeout_ms, 60000,
+ABSL_FLAG(int64_t, timeout_ms, 60000,
           "Timeout for proof attempt, in milliseconds");
 
 const char kUsage[] = R"(
@@ -56,7 +56,7 @@ using solvers::z3::Predicate;
 absl::Status RealMain(absl::string_view ir_path,
                       absl::string_view subject_node_name,
                       absl::string_view predicate_kind,
-                      absl::string_view other_node_name, int64 timeout_ms) {
+                      absl::string_view other_node_name, int64_t timeout_ms) {
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(contents, ir_path));

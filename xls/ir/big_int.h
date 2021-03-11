@@ -49,14 +49,14 @@ class BigInt {
 
   // Returns the BigInt value as a Bits object of the specified width. Returns
   // an error if the value doesn't fit in the specified bit count.
-  absl::StatusOr<Bits> ToSignedBitsWithBitCount(int64 bit_count) const;
-  absl::StatusOr<Bits> ToUnsignedBitsWithBitCount(int64 bit_count) const;
+  absl::StatusOr<Bits> ToSignedBitsWithBitCount(int64_t bit_count) const;
+  absl::StatusOr<Bits> ToUnsignedBitsWithBitCount(int64_t bit_count) const;
 
   // Returns the minimum number of bits required to hold this BigInt value. For
   // SignedBitCount this is the number of bits required to hold the value in
   // twos-complement representation.
-  int64 SignedBitCount() const;
-  int64 UnsignedBitCount() const;
+  int64_t SignedBitCount() const;
+  int64_t UnsignedBitCount() const;
 
   // Various arithmetic and comparison operations.
   static BigInt Add(const BigInt& lhs, const BigInt& rhs);

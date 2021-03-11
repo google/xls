@@ -17,12 +17,12 @@
 #ifndef XLS_DSLX_PARAMETRIC_EXPRESSION_H_
 #define XLS_DSLX_PARAMETRIC_EXPRESSION_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "xls/common/integral_types.h"
 #include "xls/dslx/pos.h"
 
 namespace xls::dslx {
@@ -40,8 +40,9 @@ namespace xls::dslx {
 //     bits[10]
 class ParametricExpression {
  public:
-  using Evaluated = absl::variant<int64, std::unique_ptr<ParametricExpression>>;
-  using EnvValue = absl::variant<const ParametricExpression*, int64>;
+  using Evaluated =
+      absl::variant<int64_t, std::unique_ptr<ParametricExpression>>;
+  using EnvValue = absl::variant<const ParametricExpression*, int64_t>;
   using Env = absl::flat_hash_map<std::string, EnvValue>;
 
   virtual ~ParametricExpression() = default;
@@ -94,7 +95,7 @@ class ParametricExpression {
 // Where the '1' is a parametric constant.
 class ParametricConstant : public ParametricExpression {
  public:
-  explicit ParametricConstant(int64 value) : value_(value) {}
+  explicit ParametricConstant(int64_t value) : value_(value) {}
 
   std::string ToString() const override { return absl::StrCat(value_); }
   std::string ToRepr() const override {
@@ -116,10 +117,10 @@ class ParametricConstant : public ParametricExpression {
     return absl::make_unique<ParametricConstant>(value_);
   }
 
-  int64 value() const { return value_; }
+  int64_t value() const { return value_; }
 
  private:
-  int64 value_;
+  int64_t value_;
 };
 
 // Represents an add in a parametric dimension expression.

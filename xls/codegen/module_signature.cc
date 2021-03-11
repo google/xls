@@ -59,7 +59,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::WithReadyValidInterface(
 }
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithFixedLatencyInterface(
-    int64 latency) {
+    int64_t latency) {
   XLS_CHECK_EQ(proto_.interface_oneof_case(),
                ModuleSignatureProto::INTERFACE_ONEOF_NOT_SET);
   FixedLatencyInterface* interface = proto_.mutable_fixed_latency();
@@ -82,7 +82,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::WithUnknownInterface() {
 }
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithPipelineInterface(
-    int64 latency, int64 initiation_interval,
+    int64_t latency, int64_t initiation_interval,
     absl::optional<PipelineControl> pipeline_control) {
   XLS_CHECK_EQ(proto_.interface_oneof_case(),
                ModuleSignatureProto::INTERFACE_ONEOF_NOT_SET);
@@ -103,7 +103,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::WithFunctionType(
 }
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataInput(
-    absl::string_view name, int64 width) {
+    absl::string_view name, int64_t width) {
   PortProto* port = proto_.add_data_ports();
   port->set_direction(DIRECTION_INPUT);
   port->set_name(ToProtoString(name));
@@ -112,7 +112,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataInput(
 }
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataOutput(
-    absl::string_view name, int64 width) {
+    absl::string_view name, int64_t width) {
   PortProto* port = proto_.add_data_ports();
   port->set_direction(DIRECTION_OUTPUT);
   port->set_name(ToProtoString(name));
@@ -147,16 +147,16 @@ absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
   return signature;
 }
 
-int64 ModuleSignature::TotalDataInputBits() const {
-  int64 total = 0;
+int64_t ModuleSignature::TotalDataInputBits() const {
+  int64_t total = 0;
   for (const PortProto& port : data_inputs()) {
     total += port.width();
   }
   return total;
 }
 
-int64 ModuleSignature::TotalDataOutputBits() const {
-  int64 total = 0;
+int64_t ModuleSignature::TotalDataOutputBits() const {
+  int64_t total = 0;
   for (const PortProto& port : data_outputs()) {
     total += port.width();
   }
@@ -196,7 +196,7 @@ absl::Status ModuleSignature::ValidateInputs(
     const absl::flat_hash_map<std::string, Bits>& input_bits) const {
   XLS_ASSIGN_OR_RETURN(std::vector<const Bits*> ordered_inputs,
                        CheckAndReturnOrderedInputs(data_inputs(), input_bits));
-  for (int64 i = 0; i < ordered_inputs.size(); ++i) {
+  for (int64_t i = 0; i < ordered_inputs.size(); ++i) {
     const PortProto& port = data_inputs()[i];
     const Bits* input = ordered_inputs[i];
     if (port.width() != input->bit_count()) {
@@ -243,7 +243,7 @@ absl::Status ModuleSignature::ValidateInputs(
       CheckAndReturnOrderedInputs(data_inputs(), input_values));
   XLS_RET_CHECK_EQ(data_inputs().size(),
                    proto().function_type().parameters_size());
-  for (int64 i = 0; i < ordered_inputs.size(); ++i) {
+  for (int64_t i = 0; i < ordered_inputs.size(); ++i) {
     const Value* input = ordered_inputs[i];
     const TypeProto& expected_type_proto =
         proto().function_type().parameters(i);
@@ -267,7 +267,7 @@ ModuleSignature::ToKwargs(absl::Span<const Value> inputs) const {
         "Expected %d arguments, got %d.", data_inputs().size(), inputs.size()));
   }
   absl::flat_hash_map<std::string, Value> kwargs;
-  for (int64 i = 0; i < data_inputs().size(); ++i) {
+  for (int64_t i = 0; i < data_inputs().size(); ++i) {
     kwargs[data_inputs()[i].name()] = inputs[i];
   }
   return kwargs;

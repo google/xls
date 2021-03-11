@@ -46,13 +46,13 @@ absl::Status RealMain(absl::string_view netlist_path,
   netlist::rtl::Module* module = netlist->modules()[0].get();
   std::cout << "nets:  " << module->nets().size() << std::endl;
   std::cout << "cells: " << module->cells().size() << std::endl;
-  absl::flat_hash_map<netlist::CellKind, int64> cell_kind_to_count;
+  absl::flat_hash_map<netlist::CellKind, int64_t> cell_kind_to_count;
   for (const auto& name_and_cell : module->cells()) {
     cell_kind_to_count[name_and_cell->kind()]++;
   }
   std::cout << "cell-kind breakdown:" << std::endl;
-  for (int64 i = static_cast<int64>(netlist::CellKind::kFlop);
-       i <= static_cast<int64>(netlist::CellKind::kOther); ++i) {
+  for (int64_t i = static_cast<int64_t>(netlist::CellKind::kFlop);
+       i <= static_cast<int64_t>(netlist::CellKind::kOther); ++i) {
     netlist::CellKind cell_kind = static_cast<netlist::CellKind>(i);
     std::cout << absl::StreamFormat(" %8s: %d",
                                     netlist::CellKindToString(cell_kind),

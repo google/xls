@@ -16,12 +16,12 @@
 
 #include "xls/common/strong_int.h"
 
-DEFINE_STRONG_INT_TYPE(USD, int32);
-DEFINE_STRONG_INT_TYPE(EUR, int32);
+DEFINE_STRONG_INT_TYPE(USD, int32_t);
+DEFINE_STRONG_INT_TYPE(EUR, int32_t);
 
 class Explicit {
  public:
-  explicit Explicit(int32) {}
+  explicit Explicit(int32_t) {}
 };
 
 // Each case specified under each symbol must fail to compile.
@@ -41,7 +41,7 @@ void MustNotCompile() {
   dollars = 100;
 
 #elif defined(TEST_IMPLICIT_CAST)
-  int32 raw = dollars;
+  int32_t raw = dollars;
   (void)raw;
 
 #elif defined(TEST_IMPLICIT_DISALLOWED)

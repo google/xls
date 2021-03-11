@@ -119,11 +119,11 @@ Booleanifier::Vector Booleanifier::HandleSpecialOps(Node* node) {
       // offset/width.
       TupleIndex* tuple_index = node->As<TupleIndex>();
       TupleType* tuple_type = node->operand(0)->GetType()->AsTupleOrDie();
-      int64 start_bit = 0;
+      int64_t start_bit = 0;
       for (int i = 0; i < tuple_index->index(); i++) {
         start_bit += tuple_type->element_type(i)->GetFlatBitCount();
       }
-      int64 width =
+      int64_t width =
           tuple_type->element_type(tuple_index->index())->GetFlatBitCount();
       return evaluator_->BitSlice(node_map_.at(node->operand(0)), start_bit,
                                   width);
@@ -134,7 +134,7 @@ Booleanifier::Vector Booleanifier::HandleSpecialOps(Node* node) {
 }
 
 Booleanifier::Vector Booleanifier::UnpackParam(Type* type, BValue bv_node) {
-  int64 bit_count = type->GetFlatBitCount();
+  int64_t bit_count = type->GetFlatBitCount();
   switch (type->kind()) {
     case TypeKind::kBits: {
       Vector result;
@@ -176,7 +176,7 @@ BValue Booleanifier::PackReturnValue(absl::Span<const Element> bits,
     case TypeKind::kTuple: {
       const TupleType* tuple_type = type->AsTupleOrDie();
       std::vector<BValue> elements;
-      int64 offset = 0;
+      int64_t offset = 0;
       for (const Type* elem_type : tuple_type->element_types()) {
         absl::Span<const Element> elem =
             bits.subspan(offset, elem_type->GetFlatBitCount());

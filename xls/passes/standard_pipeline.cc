@@ -49,7 +49,7 @@ namespace xls {
 
 class SimplificationPass : public FixedPointCompoundPass {
  public:
-  explicit SimplificationPass(int64 opt_level)
+  explicit SimplificationPass(int64_t opt_level)
       : FixedPointCompoundPass("simp", "Simplification") {
     Add<ConstantFoldingPass>();
     Add<DeadCodeEliminationPass>();
@@ -83,7 +83,7 @@ class SimplificationPass : public FixedPointCompoundPass {
   }
 };
 
-std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64 opt_level) {
+std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   auto top = absl::make_unique<CompoundPass>("ir", "Top level pass pipeline");
   top->AddInvariantChecker<VerifierChecker>();
 
@@ -94,29 +94,29 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64 opt_level) {
   // run. 'opt_level' is the maximum level of optimization which should be run
   // in the entire pipeline so set the level of the simplification pass to the
   // minimum of the two values. Same below.
-  top->Add<SimplificationPass>(std::min(int64{2}, opt_level));
+  top->Add<SimplificationPass>(std::min(int64_t{2}, opt_level));
   top->Add<UnrollPass>();
   top->Add<MapInliningPass>();
   top->Add<InliningPass>();
   top->Add<DeadFunctionEliminationPass>();
-  top->Add<BddSimplificationPass>(std::min(int64{2}, opt_level));
+  top->Add<BddSimplificationPass>(std::min(int64_t{2}, opt_level));
   top->Add<DeadCodeEliminationPass>();
   top->Add<BddCsePass>();
   top->Add<DeadCodeEliminationPass>();
-  top->Add<SimplificationPass>(std::min(int64{2}, opt_level));
+  top->Add<SimplificationPass>(std::min(int64_t{2}, opt_level));
 
-  top->Add<BddSimplificationPass>(std::min(int64{3}, opt_level));
+  top->Add<BddSimplificationPass>(std::min(int64_t{3}, opt_level));
   top->Add<DeadCodeEliminationPass>();
   top->Add<BddCsePass>();
   top->Add<DeadCodeEliminationPass>();
-  top->Add<SimplificationPass>(std::min(int64{3}, opt_level));
+  top->Add<SimplificationPass>(std::min(int64_t{3}, opt_level));
   top->Add<LiteralUncommoningPass>();
   top->Add<DeadFunctionEliminationPass>();
   return top;
 }
 
 absl::StatusOr<bool> RunStandardPassPipeline(Package* package,
-                                             int64 opt_level) {
+                                             int64_t opt_level) {
   std::unique_ptr<CompoundPass> pipeline = CreateStandardPassPipeline();
   PassResults results;
   return pipeline->Run(package, PassOptions(), &results);

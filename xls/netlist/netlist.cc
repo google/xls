@@ -46,7 +46,7 @@ const CellLibraryEntry* Module::AsCellLibraryEntry() const {
   return &cell_library_entry_.value();
 }
 
-absl::StatusOr<NetRef> Module::AddOrResolveNumber(int64 number) {
+absl::StatusOr<NetRef> Module::AddOrResolveNumber(int64_t number) {
   auto status_or_ref = ResolveNumber(number);
   if (status_or_ref.ok()) {
     return status_or_ref.value();
@@ -57,7 +57,7 @@ absl::StatusOr<NetRef> Module::AddOrResolveNumber(int64 number) {
   return ResolveNet(wire_name);
 }
 
-absl::StatusOr<NetRef> Module::ResolveNumber(int64 number) const {
+absl::StatusOr<NetRef> Module::ResolveNumber(int64_t number) const {
   std::string wire_name = absl::StrFormat("<constant_%d>", number);
   return ResolveNet(wire_name);
 }
@@ -216,7 +216,7 @@ absl::StatusOr<const Module*> Netlist::GetModule(
 }
 
 absl::StatusOr<const CellLibraryEntry*> Netlist::GetOrCreateLut4CellEntry(
-    int64 lut_mask) {
+    int64_t lut_mask) {
   if ((lut_mask & Mask(16)) != lut_mask) {
     return absl::InvalidArgumentError("Mask for LUT4 must be 16 bits");
   }

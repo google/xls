@@ -15,6 +15,7 @@
 #ifndef XLS_CODEGEN_MODULE_TESTBENCH_H_
 #define XLS_CODEGEN_MODULE_TESTBENCH_H_
 
+#include <cstdint>
 #include <list>
 #include <vector>
 
@@ -24,7 +25,6 @@
 #include "absl/types/variant.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
-#include "xls/common/integral_types.h"
 #include "xls/ir/bits.h"
 #include "xls/simulation/verilog_simulator.h"
 
@@ -52,14 +52,14 @@ class ModuleTestbench {
   // cycle. The value is sticky and remains driven to this value across cycle
   // boundaries until it is Set again (if ever).
   ModuleTestbench& Set(absl::string_view input_port, const Bits& value);
-  ModuleTestbench& Set(absl::string_view input_port, uint64 value);
+  ModuleTestbench& Set(absl::string_view input_port, uint64_t value);
 
   // Sets the given module input to the unknown value in the current cycle. As
   // with Set() this is sticky.
   ModuleTestbench& SetX(absl::string_view input_port);
 
   // Advances the simulation the given number of cycles.
-  ModuleTestbench& AdvanceNCycles(int64 n_cycles);
+  ModuleTestbench& AdvanceNCycles(int64_t n_cycles);
 
   // Wait for an given single-bit output port to be asserted (unasserted). If
   // the signal is already asserted (unasserted), this action takes no simulator
@@ -89,7 +89,7 @@ class ModuleTestbench {
       absl::string_view output_port, const Bits& expected,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
   ModuleTestbench& ExpectEq(
-      absl::string_view output_port, uint64 expected,
+      absl::string_view output_port, uint64_t expected,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
   // Similar to ExpectEq, but expects the given output port to be X. For this
   // purpose an output port is considered to have the value X if *any* bit is X.
@@ -105,7 +105,7 @@ class ModuleTestbench {
   absl::Status CheckOutput(absl::string_view stdout_str) const;
 
   // Returns the width of the given port.
-  int64 GetPortWidth(absl::string_view port);
+  int64_t GetPortWidth(absl::string_view port);
 
   // CHECKs whether the given name is an input/output port.
   void CheckIsInput(absl::string_view name);
@@ -117,8 +117,8 @@ class ModuleTestbench {
   absl::optional<std::string> clk_name_;
 
   // Map of each input/output port name to its width.
-  absl::flat_hash_map<std::string, int64> input_port_widths_;
-  absl::flat_hash_map<std::string, int64> output_port_widths_;
+  absl::flat_hash_map<std::string, int64_t> input_port_widths_;
+  absl::flat_hash_map<std::string, int64_t> output_port_widths_;
 
   // The following structs define the actions which are set to occur during
   // simulation. This list of actions is built up by calling the methods on
@@ -126,7 +126,7 @@ class ModuleTestbench {
 
   // Advances the current cycle a certain amount.
   struct AdvanceCycle {
-    int64 amount;
+    int64_t amount;
   };
 
   // Drives the module input to a concrete value.
@@ -158,7 +158,7 @@ class ModuleTestbench {
 
     // A unique identifier which associates this display statement with a
     // particular Capture or ExpectEq call.
-    int64 instance;
+    int64_t instance;
   };
 
   // The list of actions to perform during simulation.
@@ -168,7 +168,7 @@ class ModuleTestbench {
 
   // A pair of instance number and port name used as a key for associating a
   // output display statement with a particular Capture or ExpectEq.
-  using InstancePort = std::pair<int64, std::string>;
+  using InstancePort = std::pair<int64_t, std::string>;
 
   // A map containing the pointers passed in to each Capture call. Use std::map
   // for stable iteration order.
@@ -184,7 +184,7 @@ class ModuleTestbench {
 
   // A increasing counter which is used to generate unique instance identifiers
   // for DisplayOutput and InstantPort objects.
-  int64 next_instance_ = 0;
+  int64_t next_instance_ = 0;
 };
 
 }  // namespace verilog

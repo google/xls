@@ -48,12 +48,12 @@ class Interpreter {
   // TODO(leary): 2020-11-24 This signature is for backwards compatibility with
   // a Python API, we can likely eliminate it when everything is ported over to
   // C++, or at least consolidate the env/bit_widths maps.
-  static absl::StatusOr<int64> InterpretExprToInt(
+  static absl::StatusOr<int64_t> InterpretExprToInt(
       Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
       absl::Span<std::string const> additional_search_paths,
       ImportData* import_data,
-      const absl::flat_hash_map<std::string, int64>& env,
-      const absl::flat_hash_map<std::string, int64>& bit_widths, Expr* expr,
+      const absl::flat_hash_map<std::string, int64_t>& env,
+      const absl::flat_hash_map<std::string, int64_t>& bit_widths, Expr* expr,
       const FnCtx* fn_ctx = nullptr, ConcreteType* type_context = nullptr);
 
   // Creates an interpreter that can be used to interpreting entities

@@ -21,8 +21,8 @@ namespace {
 
 // Test field values for a grid network configuration option.
 TEST(GridOptionsProtoBuilderTest, FieldValues) {
-  const int64 kNumRow = 4;
-  const int64 kNumColumn = 2;
+  const int64_t kNumRow = 4;
+  const int64_t kNumColumn = 2;
   const bool kRowLoopback = true;
   const bool kColumnLoopback = false;
   GridNetworkConfigOptionsProto proto;

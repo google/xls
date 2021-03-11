@@ -86,7 +86,7 @@ class NodeChecker : public DfsVisitor {
 
   absl::Status HandleAfterAll(AfterAll* after_all) override {
     XLS_RETURN_IF_ERROR(ExpectHasTokenType(after_all));
-    for (int64 i = 0; i < after_all->operand_count(); ++i) {
+    for (int64_t i = 0; i < after_all->operand_count(); ++i) {
       XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(after_all, i));
     }
     return absl::OkStatus();
@@ -194,7 +194,7 @@ class NodeChecker : public DfsVisitor {
     ArrayType* array_type = array->GetType()->AsArrayOrDie();
     XLS_RETURN_IF_ERROR(ExpectOperandCount(array, array_type->size()));
     Type* element_type = array_type->element_type();
-    for (int64 i = 0; i < array->operand_count(); ++i) {
+    for (int64_t i = 0; i < array->operand_count(); ++i) {
       XLS_RETURN_IF_ERROR(ExpectOperandHasType(array, i, element_type));
     }
     return absl::OkStatus();
@@ -215,7 +215,7 @@ class NodeChecker : public DfsVisitor {
           StrFormat("Width of bit slice must be non-negative: %s",
                     bit_slice->ToString()));
     }
-    const int64 bits_required = bit_slice->start() + bit_slice->width();
+    const int64_t bits_required = bit_slice->start() + bit_slice->width();
     if (operand_type->bit_count() < bits_required) {
       return absl::InternalError(
           StrFormat("Expected operand 0 of %s to have at least %d bits (start "
@@ -263,8 +263,8 @@ class NodeChecker : public DfsVisitor {
 
   absl::Status HandleConcat(Concat* concat) override {
     // All operands should be bits types.
-    int64 total_bits = 0;
-    for (int64 i = 0; i < concat->operand_count(); ++i) {
+    int64_t total_bits = 0;
+    for (int64_t i = 0; i < concat->operand_count(); ++i) {
       Type* operand_type = concat->operand(i)->GetType();
       XLS_RETURN_IF_ERROR(ExpectHasBitsType(concat->operand(i)));
       total_bits += operand_type->AsBitsOrDie()->bit_count();
@@ -286,11 +286,11 @@ class NodeChecker : public DfsVisitor {
     //  where N is of sufficient size to store 0 .. stride * (trip_count - 1)
     //  where T is an arbitrary type
     //  where inv_argX each have arbitrary types
-    int64 invariant_args_count = counted_for->operand_count() - 1;
+    int64_t invariant_args_count = counted_for->operand_count() - 1;
 
     // Verify number of parameters
-    int64 expected_param_count = 2 + invariant_args_count;
-    int64 actual_param_count = body->params().size();
+    int64_t expected_param_count = 2 + invariant_args_count;
+    int64_t actual_param_count = body->params().size();
 
     if (actual_param_count != expected_param_count) {
       return absl::InternalError(
@@ -303,9 +303,10 @@ class NodeChecker : public DfsVisitor {
     // Verify i is of type bits with a sufficient width and at least 1 bit
     Type* i_type = body->param(0)->GetType();
 
-    int64 trip_count = counted_for->trip_count();
-    int64 max_i = counted_for->stride() * (trip_count - 1);
-    int64 min_i_bits = (trip_count <= 1) ? 1 : Bits::MinBitCountUnsigned(max_i);
+    int64_t trip_count = counted_for->trip_count();
+    int64_t max_i = counted_for->stride() * (trip_count - 1);
+    int64_t min_i_bits =
+        (trip_count <= 1) ? 1 : Bits::MinBitCountUnsigned(max_i);
 
     if (!i_type->IsBits() || i_type->AsBitsOrDie()->bit_count() < min_i_bits) {
       return absl::InternalError(
@@ -338,7 +339,7 @@ class NodeChecker : public DfsVisitor {
     }
 
     // Verify invariant arg type matches corresponding function param type
-    for (int64 i = 0; i < invariant_args_count; ++i) {
+    for (int64_t i = 0; i < invariant_args_count; ++i) {
       Type* inv_arg_type = counted_for->operand(i + 1)->GetType();
       Type* body_inv_param_type = body->param(i + 2)->GetType();
 
@@ -360,7 +361,7 @@ class NodeChecker : public DfsVisitor {
     XLS_RETURN_IF_ERROR(ExpectHasBitsType(decode, decode->width()));
     // The width of the decode output must be less than or equal to
     // 2**input_width.
-    const int64 operand_width = decode->operand(0)->BitCountOrDie();
+    const int64_t operand_width = decode->operand(0)->BitCountOrDie();
     if (operand_width < 63 && (decode->width() > (1LL << operand_width))) {
       return absl::InternalError(
           StrFormat("Decode output width (%d) greater than 2**${operand width} "
@@ -377,11 +378,11 @@ class NodeChecker : public DfsVisitor {
     //  body(i: bits[N], loop_carry_data: T, [inv_arg0, ..., inv_argN]) -> T
     //  where T is an arbitrary type
     //  where inv_argX each have arbitrary types
-    int64 invariant_args_count = dynamic_counted_for->operand_count() - 3;
+    int64_t invariant_args_count = dynamic_counted_for->operand_count() - 3;
 
     // Verify number of parameters
-    int64 expected_param_count = 2 + invariant_args_count;
-    int64 actual_param_count = body->params().size();
+    int64_t expected_param_count = 2 + invariant_args_count;
+    int64_t actual_param_count = body->params().size();
     if (actual_param_count != expected_param_count) {
       return absl::InternalError(
           StrFormat("Function %s used as dynamic_counted_for body should have "
@@ -421,7 +422,7 @@ class NodeChecker : public DfsVisitor {
     }
 
     // Verify invariant arg type matches corresponding function param type
-    for (int64 i = 0; i < invariant_args_count; ++i) {
+    for (int64_t i = 0; i < invariant_args_count; ++i) {
       Type* inv_arg_type =
           dynamic_counted_for->invariant_args().at(i)->GetType();
       Type* body_inv_param_type = body->param(i + 2)->GetType();
@@ -583,10 +584,10 @@ class NodeChecker : public DfsVisitor {
 
     // Verify operands are all arrays and that their elements are
     // of the same type
-    int64 size = 0;
+    int64_t size = 0;
     Type* zeroth_element_type = nullptr;
 
-    for (int64 i = 0; i < array_concat->operand_count(); ++i) {
+    for (int64_t i = 0; i < array_concat->operand_count(); ++i) {
       Node* operand = array_concat->operand(i);
 
       XLS_RETURN_IF_ERROR(ExpectOperandHasArrayType(array_concat, i));
@@ -628,7 +629,7 @@ class NodeChecker : public DfsVisitor {
           invoke->operand_count(), func->params().size(), func->name(),
           func->GetType()->ToString(), arg_types_str));
     }
-    for (int64 i = 0; i < invoke->operand_count(); ++i) {
+    for (int64_t i = 0; i < invoke->operand_count(); ++i) {
       XLS_RETURN_IF_ERROR(
           ExpectOperandHasType(invoke, i, func->param(i)->GetType()));
     }
@@ -727,7 +728,7 @@ class NodeChecker : public DfsVisitor {
   absl::Status HandleOneHot(OneHot* one_hot) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(one_hot, 1));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(one_hot, 0));
-    int64 operand_bit_count = one_hot->operand(0)->BitCountOrDie();
+    int64_t operand_bit_count = one_hot->operand(0)->BitCountOrDie();
     // The output of one_hot should be one wider than the input to account for
     // the default value.
     return ExpectHasBitsType(one_hot, operand_bit_count + 1);
@@ -739,7 +740,7 @@ class NodeChecker : public DfsVisitor {
           StrFormat("Expected %s to have at least 2 operands", sel->GetName()));
     }
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(sel, /*operand_no=*/0));
-    int64 selector_width = sel->selector()->BitCountOrDie();
+    int64_t selector_width = sel->selector()->BitCountOrDie();
     if (selector_width != sel->cases().size()) {
       return absl::InternalError(StrFormat("Selector has %d bits for %d cases",
                                            selector_width,
@@ -774,8 +775,8 @@ class NodeChecker : public DfsVisitor {
     }
 
     XLS_RETURN_IF_ERROR(ExpectHasBitsType(sel->selector()));
-    const int64 selector_width = sel->selector()->BitCountOrDie();
-    const int64 minimum_selector_width =
+    const int64_t selector_width = sel->selector()->BitCountOrDie();
+    const int64_t minimum_selector_width =
         Bits::MinBitCountUnsigned(sel->cases().size() - 1);
     const bool power_of_2_cases = IsPowerOfTwo(sel->cases().size());
     if (selector_width < minimum_selector_width) {
@@ -798,7 +799,7 @@ class NodeChecker : public DfsVisitor {
           selector_width, sel->cases().size()));
     }
 
-    for (int64 i = 0; i < sel->cases().size(); ++i) {
+    for (int64_t i = 0; i < sel->cases().size(); ++i) {
       Type* operand_type = sel->get_case(i)->GetType();
       if (operand_type != sel->GetType()) {
         return absl::InternalError(StrFormat(
@@ -832,7 +833,7 @@ class NodeChecker : public DfsVisitor {
           StrFormat("Type element count %d does not match operand count %d: %s",
                     type->size(), tuple->operand_count(), tuple->ToString()));
     }
-    for (int64 i = 0; i < tuple->operand_count(); ++i) {
+    for (int64_t i = 0; i < tuple->operand_count(); ++i) {
       XLS_RETURN_IF_ERROR(
           ExpectOperandHasType(tuple, i, type->element_type(i)));
     }
@@ -875,8 +876,8 @@ class NodeChecker : public DfsVisitor {
   absl::Status HandleExtendOp(ExtendOp* ext) {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(ext, 1));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(ext, /*operand_no=*/0));
-    int64 operand_bit_count = ext->operand(0)->BitCountOrDie();
-    int64 new_bit_count = ext->new_bit_count();
+    int64_t operand_bit_count = ext->operand(0)->BitCountOrDie();
+    int64_t new_bit_count = ext->new_bit_count();
     if (new_bit_count < operand_bit_count) {
       return absl::InternalError(StrFormat(
           "Extending operation %s is actually truncating from %d bits to %d "
@@ -887,7 +888,7 @@ class NodeChecker : public DfsVisitor {
   }
 
   // Verifies that the given node has the expected number of operands.
-  absl::Status ExpectOperandCount(Node* node, int64 expected) {
+  absl::Status ExpectOperandCount(Node* node, int64_t expected) {
     if (node->operand_count() != expected) {
       return absl::InternalError(
           StrFormat("Expected %s to have %d operands, has %d", node->GetName(),
@@ -896,7 +897,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status ExpectOperandCountGt(Node* node, int64 expected) {
+  absl::Status ExpectOperandCountGt(Node* node, int64_t expected) {
     if (node->operand_count() <= expected) {
       return absl::InternalError(
           StrFormat("Expected %s to have > %d operands, has %d",
@@ -923,7 +924,7 @@ class NodeChecker : public DfsVisitor {
   }
 
   // Verifies that a particular operand of the given node has the given type.
-  absl::Status ExpectOperandHasType(Node* node, int64 operand_no,
+  absl::Status ExpectOperandHasType(Node* node, int64_t operand_no,
                                     Type* type) const {
     if (node->operand(operand_no)->GetType() != type) {
       return absl::InternalError(
@@ -945,7 +946,7 @@ class NodeChecker : public DfsVisitor {
 
   absl::Status ExpectHasArrayType(Node* node,
                                   Type* expected_element_type = nullptr,
-                                  int64 expected_size = -1) const {
+                                  int64_t expected_size = -1) const {
     if (!node->GetType()->IsArray()) {
       return absl::InternalError(
           StrFormat("Expected %s to have Array type, has type %s",
@@ -959,7 +960,7 @@ class NodeChecker : public DfsVisitor {
           expected_element_type->ToString(), element_type->ToString()));
     }
 
-    int64 size = node->GetType()->AsArrayOrDie()->size();
+    int64_t size = node->GetType()->AsArrayOrDie()->size();
     if (expected_size >= 0 && size != expected_size) {
       return absl::InternalError(
           StrFormat("Expected %s to have size %d, has size %d", node->GetName(),
@@ -969,9 +970,9 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status ExpectOperandHasArrayType(Node* node, int64 operand_no,
+  absl::Status ExpectOperandHasArrayType(Node* node, int64_t operand_no,
                                          Type* expected_element_type = nullptr,
-                                         int64 expected_size = -1) const {
+                                         int64_t expected_size = -1) const {
     Node* operand = node->operand(operand_no);
 
     if (!operand->GetType()->IsArray()) {
@@ -991,7 +992,7 @@ class NodeChecker : public DfsVisitor {
           element_type->ToString(), node->ToString()));
     }
 
-    int64 size = operand->GetType()->AsArrayOrDie()->size();
+    int64_t size = operand->GetType()->AsArrayOrDie()->size();
     if (expected_size >= 0 && size != expected_size) {
       return absl::InternalError(StrFormat(
           "Expected operand %d of %s to have size %d, "
@@ -1002,7 +1003,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status ExpectOperandHasTupleType(Node* node, int64 operand_no) {
+  absl::Status ExpectOperandHasTupleType(Node* node, int64_t operand_no) {
     Node* operand = node->operand(operand_no);
 
     if (!operand->GetType()->IsTuple()) {
@@ -1025,7 +1026,7 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status ExpectHasBitsType(Node* node,
-                                 int64 expected_bit_count = -1) const {
+                                 int64_t expected_bit_count = -1) const {
     if (!node->GetType()->IsBits()) {
       return absl::InternalError(
           StrFormat("Expected %s to have Bits type, has type %s",
@@ -1040,8 +1041,8 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status ExpectOperandHasBitsType(Node* node, int64 operand_no,
-                                        int64 expected_bit_count = -1) const {
+  absl::Status ExpectOperandHasBitsType(Node* node, int64_t operand_no,
+                                        int64_t expected_bit_count = -1) const {
     Node* operand = node->operand(operand_no);
     if (!operand->GetType()->IsBits()) {
       return absl::InternalError(
@@ -1058,7 +1059,7 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status ExpectOperandHasTokenType(Node* node, int64 operand_no) const {
+  absl::Status ExpectOperandHasTokenType(Node* node, int64_t operand_no) const {
     Node* operand = node->operand(operand_no);
     if (!operand->GetType()->IsToken()) {
       return absl::InternalError(StrFormat(
@@ -1078,7 +1079,7 @@ class NodeChecker : public DfsVisitor {
 
   // Verifies all operands and the node itself are the same type.
   absl::Status ExpectAllSameType(Node* node) const {
-    for (int64 i = 0; i < node->operand_count(); ++i) {
+    for (int64_t i = 0; i < node->operand_count(); ++i) {
       XLS_RETURN_IF_ERROR(ExpectOperandHasType(node, i, node->GetType()));
     }
     return absl::OkStatus();
@@ -1090,7 +1091,7 @@ class NodeChecker : public DfsVisitor {
       return absl::OkStatus();
     }
     Type* type = node->operand(0)->GetType();
-    for (int64 i = 1; i < node->operand_count(); ++i) {
+    for (int64_t i = 1; i < node->operand_count(); ++i) {
       XLS_RETURN_IF_ERROR(ExpectOperandHasType(node, i, type));
     }
     return absl::OkStatus();
@@ -1109,7 +1110,7 @@ class NodeChecker : public DfsVisitor {
         XLS_RET_CHECK(type->IsTuple());
         TupleType* tuple_type = type->AsTupleOrDie();
         XLS_RET_CHECK_EQ(value.elements().size(), tuple_type->size());
-        for (int64 i = 0; i < tuple_type->size(); ++i) {
+        for (int64_t i = 0; i < tuple_type->size(); ++i) {
           XLS_RETURN_IF_ERROR(ExpectValueIsType(value.elements()[i],
                                                 tuple_type->element_type(i)));
         }
@@ -1119,7 +1120,7 @@ class NodeChecker : public DfsVisitor {
         XLS_RET_CHECK(type->IsArray());
         ArrayType* array_type = type->AsArrayOrDie();
         XLS_RET_CHECK_EQ(value.elements().size(), array_type->size());
-        for (int64 i = 0; i < array_type->size(); ++i) {
+        for (int64_t i = 0; i < array_type->size(); ++i) {
           XLS_RETURN_IF_ERROR(ExpectValueIsType(value.elements()[i],
                                                 array_type->element_type()));
         }
@@ -1138,7 +1139,7 @@ class NodeChecker : public DfsVisitor {
                                                 Type* type_to_index,
                                                 Node* node) {
     // All elements of the index must be bits type.
-    for (int64 i = 0; i < indices.size(); ++i) {
+    for (int64_t i = 0; i < indices.size(); ++i) {
       Node* index = indices[i];
       if (!index->GetType()->IsBits()) {
         return absl::InvalidArgumentError(
@@ -1160,7 +1161,7 @@ class NodeChecker : public DfsVisitor {
 
 absl::Status VerifyNodeIdUnique(
     Node* node,
-    absl::flat_hash_map<int64, absl::optional<SourceLocation>>* ids) {
+    absl::flat_hash_map<int64_t, absl::optional<SourceLocation>>* ids) {
   // TODO(meheff): param IDs currently collide with non-param IDs. All IDs
   // should be globally unique.
   if (!node->Is<Param>()) {
@@ -1187,7 +1188,7 @@ absl::Status VerifyFunctionOrProc(FunctionBase* function) {
   }
 
   // Verify ids are unique within the function.
-  absl::flat_hash_map<int64, absl::optional<SourceLocation>> ids;
+  absl::flat_hash_map<int64_t, absl::optional<SourceLocation>> ids;
   ids.reserve(function->node_count());
   for (Node* node : function->nodes()) {
     XLS_RETURN_IF_ERROR(VerifyNodeIdUnique(node, &ids));
@@ -1209,7 +1210,7 @@ absl::Status VerifyFunctionOrProc(FunctionBase* function) {
         << "Param name " << param->GetName()
         << " is duplicated in Function::params()";
   }
-  int64 param_node_count = 0;
+  int64_t param_node_count = 0;
   for (Node* node : function->nodes()) {
     if (node->Is<Param>()) {
       XLS_RET_CHECK(param_set.contains(node))
@@ -1343,7 +1344,7 @@ absl::Status VerifyTokenConnectivity(Proc* proc) {
 // Verify various invariants about the channels owned by the given pacakge.
 absl::Status VerifyChannels(Package* package) {
   // Verify unique ids.
-  absl::flat_hash_map<int64, Channel*> channels_by_id;
+  absl::flat_hash_map<int64_t, Channel*> channels_by_id;
   for (Channel* channel : package->channels()) {
     XLS_RET_CHECK(!channels_by_id.contains(channel->id()))
         << absl::StreamFormat("More than one channel has id %d: '%s' and '%s'",
@@ -1455,7 +1456,7 @@ absl::Status VerifyPackage(Package* package) {
 
   // Verify node IDs are unique within the package and uplinks point to this
   // package.
-  absl::flat_hash_map<int64, absl::optional<SourceLocation>> ids;
+  absl::flat_hash_map<int64_t, absl::optional<SourceLocation>> ids;
   ids.reserve(package->GetNodeCount());
   for (FunctionBase* function : package->GetFunctionsAndProcs()) {
     XLS_RET_CHECK(function->package() == package);
@@ -1467,7 +1468,7 @@ absl::Status VerifyPackage(Package* package) {
 
   // Ensure that the package's "next ID" is not in the space of IDs currently
   // occupied by the package's nodes.
-  int64 max_id_seen = -1;
+  int64_t max_id_seen = -1;
   for (const auto& item : ids) {
     max_id_seen = std::max(item.first, max_id_seen);
   }

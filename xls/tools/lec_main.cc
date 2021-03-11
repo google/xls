@@ -74,7 +74,7 @@ ABSL_FLAG(std::string, schedule_path, "",
           "!IMPORTANT! If the netlist spans multiple stages, a schedule MUST "
           "be specified. Otherwise, mapping IR nodes to netlist cells is "
           "impossible.");
-ABSL_FLAG(int32, stage, -1,
+ABSL_FLAG(int32_t, stage, -1,
           "Pipeline stage to evaluate. Requires --schedule.\n"
           "If \"schedule\" is set, but this is not, then the entire module "
           "will be evaluated.");

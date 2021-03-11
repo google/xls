@@ -20,8 +20,8 @@ namespace xls::noc {
 
 // Test field values for a endpoint options.
 TEST(EndpointOptionsProtoBuilderTest, FieldValues) {
-  const int64 kNumSendPorts = 42;
-  const int64 kNumRecvPorts = 1337;
+  const int64_t kNumSendPorts = 42;
+  const int64_t kNumRecvPorts = 1337;
   EndpointOptionsProto proto;
   EndpointOptionsProtoBuilder builder(&proto);
   builder.WithNumSendPorts(kNumSendPorts);

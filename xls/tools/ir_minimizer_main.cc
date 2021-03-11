@@ -80,10 +80,10 @@ ABSL_FLAG(bool, can_remove_params, false,
           "Whether parameters can be removed during the minimization process. "
           "If the test executable interprets the IR using a fixed set of "
           "arguments, parameters should not be removed.");
-ABSL_FLAG(int64, failed_attempt_limit, 256,
+ABSL_FLAG(int64_t, failed_attempt_limit, 256,
           "Failed simplification attempts (in a row) before we conclude we're "
           "done reducing.");
-ABSL_FLAG(int64, total_attempt_limit, 16384,
+ABSL_FLAG(int64_t, total_attempt_limit, 16384,
           "Limit on total number of attempts to try before bailing.");
 ABSL_FLAG(
     std::string, test_executable, "",
@@ -305,7 +305,7 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
 
   // Try to replace the return value with an operand of the return value.
   if (orig->operand_count() > 0) {
-    int64 which_operand = absl::Uniform<int>(*rng, 0, orig->operand_count());
+    int64_t which_operand = absl::Uniform<int>(*rng, 0, orig->operand_count());
     XLS_RETURN_IF_ERROR(f->set_return_value(orig->operand(which_operand)));
     *which_transform =
         absl::StrFormat("return operand %d of return value", which_operand);
@@ -332,7 +332,7 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
   passes.push_back(absl::make_unique<UnrollPass>());
   passes.push_back(absl::make_unique<InliningPass>());
 
-  int64 pass_no = absl::Uniform<int64>(*rng, 0, passes.size());
+  int64_t pass_no = absl::Uniform<int64_t>(*rng, 0, passes.size());
   PassResults results;
   XLS_ASSIGN_OR_RETURN(
       bool changed,
@@ -378,7 +378,7 @@ absl::StatusOr<SimplificationResult> Simplify(
   if (inputs.has_value() && Random0To1(rng) < 0.3) {
     // Try to replace a parameter with a literal equal to the respective input
     // value.
-    int64 param_no = absl::Uniform<int64>(*rng, 0, f->params().size());
+    int64_t param_no = absl::Uniform<int64_t>(*rng, 0, f->params().size());
     Param* param = f->params()[param_no];
     if (!param->IsDead()) {
       XLS_RETURN_IF_ERROR(
@@ -391,13 +391,13 @@ absl::StatusOr<SimplificationResult> Simplify(
   }
 
   // Pick a random node and try to do something with it.
-  int64 i = absl::Uniform<int64>(*rng, 0, f->node_count());
+  int64_t i = absl::Uniform<int64_t>(*rng, 0, f->node_count());
   Node* n = *std::next(f->nodes().begin(), i);
 
   if (!n->operands().empty() && Random0To1(rng) < 0.3) {
     // Try to replace a node with one of its (potentially truncated/extended)
     // operands.
-    int64 operand_no = absl::Uniform<int64>(*rng, 0, n->operand_count());
+    int64_t operand_no = absl::Uniform<int64_t>(*rng, 0, n->operand_count());
     Node* operand = n->operand(operand_no);
 
     // If the chosen operand is the same type, just replace it.
@@ -480,8 +480,9 @@ absl::Status CleanUp(Function* f, bool can_remove_params) {
   return absl::OkStatus();
 }
 
-absl::Status RealMain(absl::string_view path, const int64 failed_attempt_limit,
-                      const int64 total_attempt_limit) {
+absl::Status RealMain(absl::string_view path,
+                      const int64_t failed_attempt_limit,
+                      const int64_t total_attempt_limit) {
   XLS_ASSIGN_OR_RETURN(std::string knownf_ir_text, GetFileContents(path));
   // Cache of test results to avoid duplicate invocations of the
   // test_executable.
@@ -526,8 +527,8 @@ absl::Status RealMain(absl::string_view path, const int64 failed_attempt_limit,
   std::mt19937 rng;  // Default constructor uses deterministic seed.
 
   // Smallest version of the function that's known to be failing.
-  int64 failed_simplification_attempts = 0;
-  int64 total_attempts = 0;
+  int64_t failed_simplification_attempts = 0;
+  int64_t total_attempts = 0;
 
   while (true) {
     if (failed_simplification_attempts >= failed_attempt_limit) {

@@ -48,9 +48,10 @@ absl::StatusOr<bool> SqueezeSelect(
         make_select,
     SelectT* select) {
   FunctionBase* f = select->function_base();
-  int64 bit_count = select->BitCountOrDie();
+  int64_t bit_count = select->BitCountOrDie();
   auto slice = [&](Node* n) -> absl::StatusOr<Node*> {
-    int64 new_width = bit_count - const_msb.bit_count() - const_lsb.bit_count();
+    int64_t new_width =
+        bit_count - const_msb.bit_count() - const_lsb.bit_count();
     return f->MakeNode<BitSlice>(select->loc(), n,
                                  /*start=*/const_lsb.bit_count(),
                                  /*width=*/new_width);
@@ -76,20 +77,20 @@ absl::StatusOr<bool> SqueezeSelect(
 
 // The source of a bit. Can be either a literal 0/1 or a bit at a particular
 // index of a Node.
-using BitSource = absl::variant<bool, std::pair<Node*, int64>>;
+using BitSource = absl::variant<bool, std::pair<Node*, int64_t>>;
 
 // Traces the bit at the given node and bit index through bit slices and concats
 // and returns its source.
 // TODO(meheff): Combine this into TernaryQueryEngine.
-BitSource GetBitSource(Node* node, int64 bit_index,
+BitSource GetBitSource(Node* node, int64_t bit_index,
                        const QueryEngine& query_engine) {
   if (node->Is<BitSlice>()) {
     return GetBitSource(node->operand(0),
                         bit_index + node->As<BitSlice>()->start(),
                         query_engine);
   } else if (node->Is<Concat>()) {
-    int64 offset = 0;
-    for (int64 i = node->operand_count() - 1; i >= 0; --i) {
+    int64_t offset = 0;
+    for (int64_t i = node->operand_count() - 1; i >= 0; --i) {
       Node* operand = node->operand(i);
       if (bit_index - offset < operand->BitCountOrDie()) {
         return GetBitSource(operand, bit_index - offset, query_engine);
@@ -108,14 +109,14 @@ BitSource GetBitSource(Node* node, int64 bit_index,
 
 std::string ToString(const BitSource& bit_source) {
   return absl::visit(Visitor{[](bool value) { return absl::StrCat(value); },
-                             [](const std::pair<Node*, int64>& p) {
+                             [](const std::pair<Node*, int64_t>& p) {
                                return absl::StrCat(p.first->GetName(), "[",
                                                    p.second, "]");
                              }},
                      bit_source);
 }
 
-using MatchedPairs = std::vector<std::pair<int64, int64>>;
+using MatchedPairs = std::vector<std::pair<int64_t, int64_t>>;
 
 // Returns the pairs of indices into 'nodes' for which the indexed Nodes have
 // the same of bits sources at the given bit index. The returned indices are
@@ -129,15 +130,15 @@ using MatchedPairs = std::vector<std::pair<int64, int64>>;
 //
 // PairsOfBitsWithSameSource({a, b, c, d, e}, 42) would return [(0, 3), (1, 2)]
 MatchedPairs PairsOfBitsWithSameSource(absl::Span<Node* const> nodes,
-                                       int64 bit_index,
+                                       int64_t bit_index,
                                        const QueryEngine& query_engine) {
   std::vector<BitSource> bit_sources;
   for (Node* node : nodes) {
     bit_sources.push_back(GetBitSource(node, bit_index, query_engine));
   }
   MatchedPairs matching_pairs;
-  for (int64 i = 0; i < bit_sources.size(); ++i) {
-    for (int64 j = i + 1; j < bit_sources.size(); ++j) {
+  for (int64_t i = 0; i < bit_sources.size(); ++i) {
+    for (int64_t j = i + 1; j < bit_sources.size(); ++j) {
       if (bit_sources[i] == bit_sources[j]) {
         matching_pairs.push_back({i, j});
       }
@@ -157,8 +158,8 @@ std::string ToString(const MatchedPairs& pairs) {
 // Returns a OneHotSelect instruction which selects a slice of the given
 // OneHotSelect's cases. The cases are sliced with the given start and width and
 // then selected with a new OnehotSelect which is returned.
-absl::StatusOr<OneHotSelect*> SliceOneHotSelect(OneHotSelect* ohs, int64 start,
-                                                int64 width) {
+absl::StatusOr<OneHotSelect*> SliceOneHotSelect(OneHotSelect* ohs,
+                                                int64_t start, int64_t width) {
   std::vector<Node*> case_slices;
   for (Node* cas : ohs->cases()) {
     XLS_ASSIGN_OR_RETURN(Node * case_slice,
@@ -182,13 +183,13 @@ absl::StatusOr<OneHotSelect*> SliceOneHotSelect(OneHotSelect* ohs, int64 start,
 //
 // RunOfNonDistinctCaseBits({a, b, c}, 1) returns 3 because bits 1, 2, and 3 of
 // 'a', and 'b' are the same (have the same BitSource).
-int64 RunOfNonDistinctCaseBits(absl::Span<Node* const> cases, int64 start,
-                               const QueryEngine& query_engine) {
+int64_t RunOfNonDistinctCaseBits(absl::Span<Node* const> cases, int64_t start,
+                                 const QueryEngine& query_engine) {
   XLS_VLOG(5) << "Finding runs of non-distinct bits starting at " << start;
   // Do a reduction via intersection of the set of matching pairs within
   // 'cases'. When the intersection is empty, the run is over.
   MatchedPairs matches;
-  int64 i = start;
+  int64_t i = start;
   while (i < cases.front()->BitCountOrDie()) {
     if (i == start) {
       matches = PairsOfBitsWithSameSource(cases, i, query_engine);
@@ -213,10 +214,10 @@ int64 RunOfNonDistinctCaseBits(absl::Span<Node* const> cases, int64 start,
 // Returns the length of the run of bit indices starting at 'start' for which
 // the indexed bits of the given cases are distinct at each
 // bit index. For example:
-int64 RunOfDistinctCaseBits(absl::Span<Node* const> cases, int64 start,
-                            const QueryEngine& query_engine) {
+int64_t RunOfDistinctCaseBits(absl::Span<Node* const> cases, int64_t start,
+                              const QueryEngine& query_engine) {
   XLS_VLOG(5) << "Finding runs of distinct case bit starting at " << start;
-  int64 i = start;
+  int64_t i = start;
   while (i < cases.front()->BitCountOrDie() &&
          PairsOfBitsWithSameSource(cases, i, query_engine).empty()) {
     ++i;
@@ -242,21 +243,21 @@ absl::StatusOr<std::vector<OneHotSelect*>> MaybeSplitOneHotSelect(
 
   XLS_VLOG(4) << "Trying to split: " << ohs->ToString();
   if (XLS_VLOG_IS_ON(4)) {
-    for (int64 i = 0; i < ohs->cases().size(); ++i) {
+    for (int64_t i = 0; i < ohs->cases().size(); ++i) {
       Node* cas = ohs->get_case(i);
       XLS_VLOG(4) << "  case (" << i << "): " << cas->ToString();
-      for (int64 j = 0; j < cas->BitCountOrDie(); ++j) {
+      for (int64_t j = 0; j < cas->BitCountOrDie(); ++j) {
         XLS_VLOG(4) << "    bit " << j << ": "
                     << ToString(GetBitSource(cas, j, query_engine));
       }
     }
   }
 
-  int64 start = 0;
+  int64_t start = 0;
   std::vector<Node*> ohs_slices;
   std::vector<OneHotSelect*> new_ohses;
   while (start < ohs->BitCountOrDie()) {
-    int64 run = RunOfDistinctCaseBits(ohs->cases(), start, query_engine);
+    int64_t run = RunOfDistinctCaseBits(ohs->cases(), start, query_engine);
     if (run == 0) {
       run = RunOfNonDistinctCaseBits(ohs->cases(), start, query_engine);
     }
@@ -280,7 +281,7 @@ absl::StatusOr<std::vector<OneHotSelect*>> MaybeSplitOneHotSelect(
 }
 
 absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
-                                  int64 opt_level) {
+                                  int64_t opt_level) {
   // Select with a constant selector can be replaced with the respective
   // case.
   if (node->Is<Select>() && node->As<Select>()->selector()->Is<Literal>()) {
@@ -291,7 +292,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       XLS_RET_CHECK(sel->default_value().has_value());
       XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(*sel->default_value()));
     } else {
-      XLS_ASSIGN_OR_RETURN(uint64 i, selector.ToUint64());
+      XLS_ASSIGN_OR_RETURN(uint64_t i, selector.ToUint64());
       XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(sel->get_case(i)));
     }
     return true;
@@ -329,7 +330,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     OneHotSelect* sel = node->As<OneHotSelect>();
     const Bits& selector = sel->selector()->As<Literal>()->value().bits();
     Node* replacement = nullptr;
-    for (int64 i = 0; i < selector.bit_count(); ++i) {
+    for (int64_t i = 0; i < selector.bit_count(); ++i) {
       if (selector.Get(i)) {
         if (replacement == nullptr) {
           replacement = sel->get_case(i);
@@ -398,7 +399,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     // case of the select.
     auto elements_at_tuple_index =
         [&](absl::Span<Node* const> nodes,
-            int64 tuple_index) -> absl::StatusOr<std::vector<Node*>> {
+            int64_t tuple_index) -> absl::StatusOr<std::vector<Node*>> {
       std::vector<Node*> elements;
       for (Node* n : nodes) {
         XLS_ASSIGN_OR_RETURN(Node * element,
@@ -412,7 +413,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     if (node->Is<OneHotSelect>()) {
       OneHotSelect* sel = node->As<OneHotSelect>();
       std::vector<Node*> selected_elements;
-      for (int64 i = 0; i < node->GetType()->AsTupleOrDie()->size(); ++i) {
+      for (int64_t i = 0; i < node->GetType()->AsTupleOrDie()->size(); ++i) {
         XLS_ASSIGN_OR_RETURN(std::vector<Node*> case_elements,
                              elements_at_tuple_index(sel->cases(), i));
         XLS_ASSIGN_OR_RETURN(Node * selected_element,
@@ -428,7 +429,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     if (node->Is<Select>()) {
       Select* sel = node->As<Select>();
       std::vector<Node*> selected_elements;
-      for (int64 i = 0; i < node->GetType()->AsTupleOrDie()->size(); ++i) {
+      for (int64_t i = 0; i < node->GetType()->AsTupleOrDie()->size(); ++i) {
         XLS_ASSIGN_OR_RETURN(std::vector<Node*> case_elements,
                              elements_at_tuple_index(sel->cases(), i));
         absl::optional<Node*> default_element = absl::nullopt;
@@ -461,7 +462,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       // select.
       std::vector<Node*> new_selectors;
       std::vector<Node*> new_cases;
-      for (int64 i = 0; i < sel->cases().size(); ++i) {
+      for (int64_t i = 0; i < sel->cases().size(); ++i) {
         Node* old_case = sel->get_case(i);
         XLS_ASSIGN_OR_RETURN(Node * old_selector,
                              f->MakeNode<BitSlice>(node->loc(), sel->selector(),
@@ -474,7 +475,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           new_cases.push_back(old_case);
         } else {
           // Or together the selectors, no need to append the old case.
-          int64 index = std::distance(new_cases.begin(), it);
+          int64_t index = std::distance(new_cases.begin(), it);
           XLS_ASSIGN_OR_RETURN(
               new_selectors[index],
               f->MakeNode<NaryOp>(
@@ -567,8 +568,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       // which are to remain unmodified (ie, not a single-use one-hot-select)
       // are passed over. This lambda gathers the passed over cases and updates
       // new_cases and new_selector_parts.
-      int64 unhandled_selector_bits = 0;
-      auto add_unhandled_selector_bits = [&](int64 index) -> absl::Status {
+      int64_t unhandled_selector_bits = 0;
+      auto add_unhandled_selector_bits = [&](int64_t index) -> absl::Status {
         if (unhandled_selector_bits != 0) {
           XLS_ASSIGN_OR_RETURN(Node * selector_part,
                                node->function_base()->MakeNode<BitSlice>(
@@ -577,7 +578,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                                    /*width=*/
                                    unhandled_selector_bits));
           new_selector_parts.push_back(selector_part);
-          for (int64 i = index - unhandled_selector_bits; i < index; ++i) {
+          for (int64_t i = index - unhandled_selector_bits; i < index; ++i) {
             new_cases.push_back(select->get_case(i));
           }
         }
@@ -585,7 +586,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         return absl::OkStatus();
       };
       // Iterate through the cases merging single-use one-hot-select cases.
-      for (int64 i = 0; i < cases.size(); ++i) {
+      for (int64_t i = 0; i < cases.size(); ++i) {
         if (is_single_user_ohs(cases[i])) {
           OneHotSelect* ohs_operand = cases[i]->As<OneHotSelect>();
           XLS_RETURN_IF_ERROR(add_unhandled_selector_bits(i));
@@ -646,7 +647,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                   [](Node* n) { return IsLiteralZero(n); })) {
     // Assemble the slices of the selector which correspond to non-zero cases.
     OneHotSelect* select = node->As<OneHotSelect>();
-    std::vector<int64> nonzero_indices =
+    std::vector<int64_t> nonzero_indices =
         IndicesWhereNot<Node*>(select->cases(), IsLiteralZero);
     if (nonzero_indices.empty()) {
       // If all cases were literal zeros, just replace with literal zero (chosen
@@ -679,7 +680,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   };
   if (is_select_with_zero(node)) {
     Select* sel = node->As<Select>();
-    int64 nonzero_case_no = IsLiteralZero(sel->get_case(0)) ? 1 : 0;
+    int64_t nonzero_case_no = IsLiteralZero(sel->get_case(0)) ? 1 : 0;
     Node* selector = sel->selector();
     if (nonzero_case_no == 0) {
       XLS_ASSIGN_OR_RETURN(selector, sel->function_base()->MakeNode<UnOp>(
@@ -709,14 +710,14 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           !query_engine.IsTracked(node)) {
         return false;
       }
-      int64 leading_known =
+      int64_t leading_known =
           bits_ops::CountLeadingOnes(query_engine.GetKnownBits(node));
-      int64 trailing_known =
+      int64_t trailing_known =
           bits_ops::CountTrailingOnes(query_engine.GetKnownBits(node));
       if (leading_known == 0 && trailing_known == 0) {
         return false;
       }
-      int64 bit_count = node->BitCountOrDie();
+      int64_t bit_count = node->BitCountOrDie();
       *msb = query_engine.GetKnownBitsValues(node).Slice(
           /*start=*/bit_count - leading_known, /*width=*/leading_known);
       if (leading_known == trailing_known && leading_known == bit_count) {
@@ -996,7 +997,7 @@ absl::StatusOr<bool> SpecializeSelectArms(FunctionBase* func) {
     Node* use;
 
     // The literal value to replace the selector with in the selector use.
-    int64 selector_value;
+    int64_t selector_value;
   };
 
   // Iterate through all selector-select nodes and collect transformation
@@ -1007,8 +1008,8 @@ absl::StatusOr<bool> SpecializeSelectArms(FunctionBase* func) {
   for (Node* selector : selectors) {
     for (Node* selector_user : selector->users()) {
       for (Select* select : selector_to_select.at(selector)) {
-        for (int64 selector_value = 0; selector_value < select->cases().size();
-             ++selector_value) {
+        for (int64_t selector_value = 0;
+             selector_value < select->cases().size(); ++selector_value) {
           Node* arm = select->get_case(selector_value);
           // The arm should have a single user (the select instruction) and it
           // should only appear once as an operand of the select.

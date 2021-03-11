@@ -67,7 +67,7 @@ TEST_F(BddFunctionTest, AndNot) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BddFunction> bdd_function,
                            BddFunction::Run(f));
   // AND of a value and its inverse should be zero.
-  for (int64 i = 0; i < 8; ++i) {
+  for (int64_t i = 0; i < 8; ++i) {
     EXPECT_EQ(bdd_function->GetBddNode(f->return_value(), i),
               bdd_function->bdd().zero());
   }
@@ -81,14 +81,14 @@ TEST_F(BddFunctionTest, Parity) {
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
   BValue parity = fb.Literal(UBits(0, 1));
-  for (int64 i = 0; i < 32; ++i) {
+  for (int64_t i = 0; i < 32; ++i) {
     parity = fb.Xor(parity, fb.BitSlice(x, i, 1));
   }
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  const int64 kNumSamples = 100;
+  const int64_t kNumSamples = 100;
   std::minstd_rand engine;
-  for (int64 minterm_limit : {0, 10, 1000, 10000}) {
+  for (int64_t minterm_limit : {0, 10, 1000, 10000}) {
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BddFunction> bdd_function,
                              BddFunction::Run(f, minterm_limit));
     EXPECT_THAT(bdd_function->Evaluate({Value(UBits(0, 32))}),
@@ -98,7 +98,7 @@ TEST_F(BddFunctionTest, Parity) {
     EXPECT_THAT(bdd_function->Evaluate({Value(UBits(0xffffffffLL, 32))}),
                 IsOkAndHolds(Value(UBits(0, 1))));
 
-    for (int64 i = 0; i < kNumSamples; ++i) {
+    for (int64_t i = 0; i < kNumSamples; ++i) {
       std::vector<Value> inputs = RandomFunctionArguments(f, &engine);
       XLS_ASSERT_OK_AND_ASSIGN(Value expected, IrInterpreter::Run(f, inputs));
       XLS_ASSERT_OK_AND_ASSIGN(Value actual, bdd_function->Evaluate(inputs));
@@ -116,11 +116,11 @@ TEST_F(BddFunctionTest, BenchmarkTest) {
     XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->EntryFunction());
 
     std::minstd_rand engine;
-    const int64 kSampleCount = 32;
-    for (int64 minterm_limit : {10, 100, 1000}) {
+    const int64_t kSampleCount = 32;
+    for (int64_t minterm_limit : {10, 100, 1000}) {
       XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BddFunction> bdd_function,
                                BddFunction::Run(entry, minterm_limit));
-      for (int64 i = 0; i < kSampleCount; ++i) {
+      for (int64_t i = 0; i < kSampleCount; ++i) {
         std::vector<Value> inputs = RandomFunctionArguments(entry, &engine);
         XLS_ASSERT_OK_AND_ASSIGN(Value expected,
                                  IrInterpreter::Run(entry, inputs));

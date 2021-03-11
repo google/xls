@@ -29,7 +29,7 @@ NetworkView::components() const {
                            MakeUnwrappingIterator(components_.end()));
 }
 
-int64 NetworkView::GetComponentCount() const { return components_.size(); }
+int64_t NetworkView::GetComponentCount() const { return components_.size(); }
 
 NetworkConnection& NetworkView::AddConnection() {
   // Using `new` to access a non-public constructor.
@@ -51,6 +51,6 @@ NetworkView::connections() const {
                            MakeUnwrappingIterator(connections_.end()));
 }
 
-int64 NetworkView::GetConnectionCount() const { return connections_.size(); }
+int64_t NetworkView::GetConnectionCount() const { return connections_.size(); }
 
 }  // namespace xls::noc

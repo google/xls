@@ -24,7 +24,7 @@ namespace py = pybind11;
 
 namespace xls {
 
-static Bits BitsFromPyInt(py::int_ x, int64 bit_count) {
+static Bits BitsFromPyInt(py::int_ x, int64_t bit_count) {
   bool negative = false;
   py::int_ zero(0);
   if (PyObject_RichCompareBool(x.ptr(), zero.ptr(), Py_LT)) {
@@ -33,7 +33,7 @@ static Bits BitsFromPyInt(py::int_ x, int64 bit_count) {
   }
   py::int_ one(1);
   InlineBitmap bitmap(bit_count);
-  for (int64 i = 0; i < bit_count; ++i) {
+  for (int64_t i = 0; i < bit_count; ++i) {
     auto low_bit =
         py::reinterpret_steal<py::int_>(PyNumber_And(x.ptr(), one.ptr()));
     x = py::reinterpret_steal<py::int_>(PyNumber_Rshift(x.ptr(), one.ptr()));
@@ -49,13 +49,13 @@ static Bits BitsFromPyInt(py::int_ x, int64 bit_count) {
 static py::int_ BitsToPyInt(Bits x, bool is_signed) {
   py::int_ result;
   py::int_ sixty_four(64);
-  int64 word_count = CeilOfRatio(x.bit_count(), int64{64});
+  int64_t word_count = CeilOfRatio(x.bit_count(), int64_t{64});
   bool input_sign = x.msb();
   if (is_signed && input_sign) {
     x = bits_ops::Negate(x);
   }
-  for (int64 i = 0; i < word_count; ++i) {
-    uint64 word = x.WordToUint64(word_count - i - 1).value();
+  for (int64_t i = 0; i < word_count; ++i) {
+    uint64_t word = x.WordToUint64(word_count - i - 1).value();
     result = py::reinterpret_steal<py::int_>(
         PyNumber_Lshift(result.ptr(), sixty_four.ptr()));
     result = py::reinterpret_steal<py::int_>(
@@ -71,7 +71,7 @@ PYBIND11_MODULE(bits, m) {
   ImportStatusModule();
 
   py::class_<Bits>(m, "Bits")
-      .def(py::init<int64>(), py::arg("bit_count"))
+      .def(py::init<int64_t>(), py::arg("bit_count"))
       .def("__eq__", &Bits::operator==)
       .def("__ne__", &Bits::operator!=)
       .def("__or__",
@@ -93,18 +93,18 @@ PYBIND11_MODULE(bits, m) {
             py::int_ value = BitsToPyInt(self, /*is_signed=*/false);
             return std::make_tuple(value, self.bit_count());
           },
-          [](std::tuple<py::int_, int64> t) {
+          [](std::tuple<py::int_, int64_t> t) {
             return BitsFromPyInt(/*x=*/std::get<0>(t),
                                  /*bit_count=*/std::get<1>(t));
           }))
       .def("__rshift__",
            [](const Bits& self, const Bits& amount) -> absl::StatusOr<Bits> {
-             XLS_ASSIGN_OR_RETURN(int64 amount64, amount.ToInt64());
+             XLS_ASSIGN_OR_RETURN(int64_t amount64, amount.ToInt64());
              amount64 = amount64 < 0 ? self.bit_count() : amount64;
              return bits_ops::ShiftRightLogical(self, amount64);
            })
       .def("__rshift__",
-           [](const Bits& self, int64 amount64) {
+           [](const Bits& self, int64_t amount64) {
              amount64 = amount64 < 0 ? self.bit_count() : amount64;
              return bits_ops::ShiftRightLogical(self, amount64);
            })
@@ -123,10 +123,10 @@ PYBIND11_MODULE(bits, m) {
            [](const Bits& self, const Bits& other) {
              return bits_ops::Concat({self, other});
            })
-      .def("slice", [](const Bits& self, int64 start,
-                       int64 width) { return self.Slice(start, width); })
+      .def("slice", [](const Bits& self, int64_t start,
+                       int64_t width) { return self.Slice(start, width); })
       .def("get_lsb_index",
-           [](const Bits& self, int64 i) -> absl::StatusOr<Bits> {
+           [](const Bits& self, int64_t i) -> absl::StatusOr<Bits> {
              if (i >= self.bit_count()) {
                return absl::InvalidArgumentError(
                    absl::StrFormat("Bit index %d is out of range; size %d", i,

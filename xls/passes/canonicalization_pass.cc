@@ -257,8 +257,8 @@ absl::StatusOr<bool> CanonicalizeNode(Node* n) {
 
   // Replace zero-extend operations with concat with zero.
   if (n->op() == Op::kZeroExt) {
-    const int64 operand_bit_count = n->operand(0)->BitCountOrDie();
-    const int64 bit_count = n->BitCountOrDie();
+    const int64_t operand_bit_count = n->operand(0)->BitCountOrDie();
+    const int64_t bit_count = n->BitCountOrDie();
     // The optimization above should have caught any degenerate non-extending
     // zero-extend ops.
     XLS_RET_CHECK_GT(bit_count, operand_bit_count);

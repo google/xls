@@ -14,9 +14,10 @@
 
 #include "xls/tools/wrap_io.h"
 
+#include <cstdint>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen/finite_state_machine.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -72,7 +73,7 @@ absl::Status InstantiateReadyValidDeviceFunction(
 // interface.
 absl::Status InstantiateFixedLatencyDeviceFunction(
     const ModuleSignature& signature, LogicRef* clk, LogicRef* rst_n,
-    ReadyValid input, ReadyValid output, int64 latency, Module* m) {
+    ReadyValid input, ReadyValid output, int64_t latency, Module* m) {
   XLS_RET_CHECK_EQ(signature.data_inputs().size(), 1);
   XLS_RET_CHECK_EQ(signature.data_outputs().size(), 1);
   const PortProto& input_port = signature.data_inputs().front();
@@ -96,7 +97,7 @@ absl::Status InstantiateFixedLatencyDeviceFunction(
   XLS_RET_CHECK_GE(latency, 1);
   auto cycle_counter = fsm.AddDownCounter(
       "cycle_counter",
-      std::max(int64{1}, Bits::MinBitCountUnsigned(latency - 1)));
+      std::max(int64_t{1}, Bits::MinBitCountUnsigned(latency - 1)));
 
   // This relies on the output ready staying asserted for the duration of the
   // computation.
@@ -236,7 +237,7 @@ absl::StatusOr<Module*> WrapIo(absl::string_view module_name,
 }
 
 // Returns a hex-formatted byte-sized VAST literal of the given value.
-static Literal* Hex8Literal(uint8 value, VerilogFile* f) {
+static Literal* Hex8Literal(uint8_t value, VerilogFile* f) {
   return f->Literal(value, 8, FormatPreference::kHex);
 }
 
@@ -282,7 +283,7 @@ absl::StatusOr<Module*> InputResetModule(VerilogFile* f) {
   return m;
 }
 
-absl::StatusOr<Module*> InputShiftRegisterModule(int64 bit_count,
+absl::StatusOr<Module*> InputShiftRegisterModule(int64_t bit_count,
                                                  VerilogFile* f) {
   Module* m = f->AddModule("input_shifter");
   LogicRef* clk = m->AddInput("clk", f->ScalarType());
@@ -293,7 +294,7 @@ absl::StatusOr<Module*> InputShiftRegisterModule(int64 bit_count,
   LogicRef* data_out = m->AddOutput("data_out", f->BitVectorType(bit_count));
   LogicRef* done = m->AddOutput("done", f->ScalarType());
 
-  const int64 n_bytes = CeilOfRatio(bit_count, int64{8});
+  const int64_t n_bytes = CeilOfRatio(bit_count, int64_t{8});
   LocalParamItemRef* n_bytes_ref = m->Add<LocalParam>()->AddItem(
       "TotalInputBytes", f->PlainLiteral(n_bytes));
 
@@ -530,7 +531,7 @@ absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
 
 absl::StatusOr<Module*> OutputControllerModule(const ModuleSignature& signature,
                                                VerilogFile* f) {
-  const int64 output_bits = signature.TotalDataOutputBits();
+  const int64_t output_bits = signature.TotalDataOutputBits();
 
   Module* m = f->AddModule("output_controller");
   LogicRef* clk = m->AddInput("clk", f->ScalarType());
@@ -557,7 +558,7 @@ absl::StatusOr<Module*> OutputControllerModule(const ModuleSignature& signature,
   auto byte_out_valid_output = fsm.AddOutput1("byte_out_valid_reg", 0);
   auto shift_reg = fsm.AddRegister("shift_out_reg", output_bits);
 
-  const int64 output_bytes = CeilOfRatio(output_bits, int64{8});
+  const int64_t output_bytes = CeilOfRatio(output_bits, int64_t{8});
   auto byte_counter =
       fsm.AddRegister("byte_counter", Bits::MinBitCountUnsigned(output_bytes));
 

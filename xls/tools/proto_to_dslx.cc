@@ -48,7 +48,7 @@ struct MessageRecord {
 
     // The greatest number of repeated entries seen in any single instance,
     // across all instances of this message.
-    int64 count;
+    int64_t count;
 
     // True if this element is of an unsupported type, such as "string".
     bool unsupported;
@@ -135,9 +135,9 @@ bool IsFieldSigned(FieldDescriptor::Type type) {
 // Returns the [integral] value contained in the specified field (...of the
 // specified message, etc.). If "index" is set, then the field is treated as
 // "repeated".
-uint64 GetFieldValue(const Message& message, const Reflection& reflection,
-                     const FieldDescriptor& fd,
-                     absl::optional<int> index = absl::nullopt) {
+uint64_t GetFieldValue(const Message& message, const Reflection& reflection,
+                       const FieldDescriptor& fd,
+                       absl::optional<int> index = absl::nullopt) {
   switch (fd.type()) {
     case FieldDescriptor::Type::TYPE_BOOL:
       if (index) {
@@ -300,7 +300,7 @@ absl::StatusOr<dslx::Expr*> MakeZeroValuedElement(
     // must be specified in proto definitions.
     auto* array_size = dynamic_cast<dslx::Number*>(array_type->dim());
     XLS_RET_CHECK(array_size) << "Array size must be a simple number.";
-    XLS_ASSIGN_OR_RETURN(uint64 real_size, array_size->GetAsUint64());
+    XLS_ASSIGN_OR_RETURN(uint64_t real_size, array_size->GetAsUint64());
     return module->Make<dslx::ConstantArray>(
         span, std::vector<dslx::Expr*>(real_size, member),
         /*has_ellipsis=*/false);
@@ -373,11 +373,11 @@ absl::Status CollectElementCounts(const std::string& top_package,
 
 // Collects the number of entries in a "message" field, and recurses to collect
 // its child counts.
-absl::StatusOr<int64> CollectMessageCounts(const std::string& top_package,
-                                           const Message& message,
-                                           const FieldDescriptor* fd,
-                                           MessageRecord* message_record,
-                                           NameToRecord* name_to_record) {
+absl::StatusOr<int64_t> CollectMessageCounts(const std::string& top_package,
+                                             const Message& message,
+                                             const FieldDescriptor* fd,
+                                             MessageRecord* message_record,
+                                             NameToRecord* name_to_record) {
   const Reflection* reflection = message.GetReflection();
   if (fd->is_repeated()) {
     for (int i = 0; i < reflection->FieldSize(message, fd); i++) {
@@ -397,14 +397,14 @@ absl::StatusOr<int64> CollectMessageCounts(const std::string& top_package,
 }
 
 // Collects the number of entries in an enum or integral field.
-absl::StatusOr<int64> CollectEnumOrIntegralCount(
+absl::StatusOr<int64_t> CollectEnumOrIntegralCount(
     const Message& message, const FieldDescriptor* fd,
     MessageRecord* message_record) {
   std::string field_name = fd->name();
   if (fd->is_repeated()) {
     const Reflection* reflection = message.GetReflection();
     return std::max(message_record->children[fd->name()].count,
-                    static_cast<int64>(reflection->FieldSize(message, fd)));
+                    static_cast<int64_t>(reflection->FieldSize(message, fd)));
   }
 
   return 1;
@@ -423,14 +423,14 @@ absl::Status CollectElementCounts(const std::string& top_package,
     std::string field_name = fd->name();
     if (fd->type() == FieldDescriptor::Type::TYPE_MESSAGE) {
       XLS_ASSIGN_OR_RETURN(
-          int64 count, CollectMessageCounts(top_package, message, fd,
-                                            message_record, name_to_record));
+          int64_t count, CollectMessageCounts(top_package, message, fd,
+                                              message_record, name_to_record));
       message_record->children[field_name].count =
           std::max(message_record->children[field_name].count, count);
     } else if (fd->type() == FieldDescriptor::Type::TYPE_ENUM ||
                FieldIsIntegral(fd->type())) {
-      XLS_ASSIGN_OR_RETURN(
-          int64 count, CollectEnumOrIntegralCount(message, fd, message_record));
+      XLS_ASSIGN_OR_RETURN(int64_t count, CollectEnumOrIntegralCount(
+                                              message, fd, message_record));
       message_record->children[field_name].count = count;
     } else {
       XLS_VLOG(1) << "Unsupported field type: " << fd->type() << " : "
@@ -450,7 +450,7 @@ absl::Status EmitEnumDef(dslx::Module* module, MessageRecord* message_record) {
   dslx::Span span(dslx::Pos{}, dslx::Pos{});
   int num_values = descriptor->value_count();
   members.reserve(num_values);
-  int32 max_value = 0;
+  int32_t max_value = 0;
   for (int i = 0; i < num_values; i++) {
     const google::protobuf::EnumValueDescriptor* value = descriptor->value(i);
     auto* name_def =
@@ -811,7 +811,7 @@ absl::Status EmitIntegralData(
 
     std::vector<dslx::Expr*> array_elements;
     for (int submsg_idx = 0; submsg_idx < num_submsgs; submsg_idx++) {
-      uint64 value = GetFieldValue(message, *reflection, *fd, submsg_idx);
+      uint64_t value = GetFieldValue(message, *reflection, *fd, submsg_idx);
       array_elements.push_back(module->Make<dslx::Number>(
           span, absl::StrCat(value), dslx::NumberKind::kOther,
           array_elem_type));
@@ -827,7 +827,7 @@ absl::Status EmitIntegralData(
         elements);
   }
 
-  uint64 value = GetFieldValue(message, *reflection, *fd);
+  uint64_t value = GetFieldValue(message, *reflection, *fd);
   dslx::Number* number = module->Make<dslx::Number>(
       span, absl::StrCat(value), dslx::NumberKind::kOther, array_elem_type);
   elements->push_back(std::make_pair(field_name, number));

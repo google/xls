@@ -181,7 +181,7 @@ TEST(GlobalRoutingTableTest, Index) {
                            routing_table.ComputeRoute(sendport0, recvport3));
 
   XLS_LOG(INFO) << "Route 03 is ...";
-  for (int64 i = 0; i < route03.size(); ++i) {
+  for (int64_t i = 0; i < route03.size(); ++i) {
     XLS_LOG(INFO) << absl::StrFormat(
         "%d : %s %x", i,
         absl::visit([](auto nc) { return nc.GetName(); },
@@ -199,7 +199,7 @@ TEST(GlobalRoutingTableTest, Index) {
                            routing_table.ComputeRoute(sendport0, recvport0));
 
   XLS_LOG(INFO) << "Route 00 is ...";
-  for (int64 i = 0; i < route00.size(); ++i) {
+  for (int64_t i = 0; i < route00.size(); ++i) {
     XLS_LOG(INFO) << absl::StrFormat(
         "%d : %s %x", i,
         absl::visit([](auto nc) { return nc.GetName(); },

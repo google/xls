@@ -15,12 +15,12 @@
 #ifndef XLS_IR_NAME_UNIQUER_H_
 #define XLS_IR_NAME_UNIQUER_H_
 
+#include <cstdint>
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/string_view.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 
 namespace xls {
@@ -57,8 +57,8 @@ class NameUniquer {
     // Tries to register the given ID. If the ID is not registered already,
     // register the ID and return it. Otherwise if the ID is registered return
     // the next available ID.
-    int64 RegisterId(int64 id) {
-      int64 result;
+    int64_t RegisterId(int64_t id) {
+      int64_t result;
       if (used_.insert(id).second) {
         // ID has not been used before.
         result = id;
@@ -77,14 +77,14 @@ class NameUniquer {
     }
 
     // Returns the next available unique ID.
-    int64 NextId() { return RegisterId(next_); }
+    int64_t NextId() { return RegisterId(next_); }
 
    private:
     // The next identifier to be tried.
-    int64 next_ = 1;
+    int64_t next_ = 1;
 
     // Set of all the identifiers which has been used.
-    absl::flat_hash_set<int64> used_;
+    absl::flat_hash_set<int64_t> used_;
   };
 
   // The string to use to separate the prefix of the name from the uniquing

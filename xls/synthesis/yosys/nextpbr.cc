@@ -61,7 +61,7 @@ absl::StatusOr<std::string> GetFlagValue(absl::string_view flag,
   // then split them.
   std::string joined_args = absl::StrJoin(args, " ");
   std::vector<std::string> split_args = absl::StrSplit(joined_args, ' ');
-  for (int64 i = 0; i < split_args.size(); ++i) {
+  for (int64_t i = 0; i < split_args.size(); ++i) {
     if (split_args[i] == flag) {
       return split_args[i + 1];
     }

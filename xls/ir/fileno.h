@@ -17,15 +17,16 @@
 #ifndef XLS_IR_FILENO_H_
 #define XLS_IR_FILENO_H_
 
+#include <cstdint>
+
 #include "absl/strings/string_view.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/strong_int.h"
 
 namespace xls {
 
-DEFINE_STRONG_INT_TYPE(Fileno, int32);
-DEFINE_STRONG_INT_TYPE(Lineno, int32);
-DEFINE_STRONG_INT_TYPE(Colno, int32);
+DEFINE_STRONG_INT_TYPE(Fileno, int32_t);
+DEFINE_STRONG_INT_TYPE(Lineno, int32_t);
+DEFINE_STRONG_INT_TYPE(Colno, int32_t);
 
 }  // namespace xls
 

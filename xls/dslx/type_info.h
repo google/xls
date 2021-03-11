@@ -34,8 +34,8 @@ struct ImportedInfo {
 // Represents a (start, width) pair used for a bit-slice operation, as
 // determined at type inference time.
 struct StartAndWidth {
-  int64 start;
-  int64 width;
+  int64_t start;
+  int64_t width;
 };
 
 // Data associated with a slice AST node, associating it with concrete
@@ -203,8 +203,8 @@ class TypeInfo {
   // not automatically get placed in the root of the tree). This avoids
   // collisions in cases e.g. where you slice `[0:N]` where `N` is a parametric
   // value.
-  void NoteConstExpr(Expr* const_expr, int64 value);
-  absl::optional<int64> GetConstExpr(Expr* const_expr);
+  void NoteConstExpr(Expr* const_expr, int64_t value);
+  absl::optional<int64_t> GetConstExpr(Expr* const_expr);
 
   // Retrieves a string that shows the module associated with this type info and
   // which imported modules are present, suitable for debugging.
@@ -250,7 +250,7 @@ class TypeInfo {
   absl::flat_hash_map<NameDef*, ConstantDef*> name_to_const_;
   absl::flat_hash_map<Invocation*, InvocationData> invocations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
-  absl::flat_hash_map<Expr*, int64> const_exprs_;
+  absl::flat_hash_map<Expr*, int64_t> const_exprs_;
   TypeInfo* parent_;  // Note: may be nullptr.
 };
 

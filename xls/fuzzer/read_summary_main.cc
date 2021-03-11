@@ -46,28 +46,28 @@ namespace {
 // Aggregate info about a particular IR op (e.g., 'array_updage').
 struct OpInfo {
   // Count of the number of instances of this op.
-  int64 samples = 0;
+  int64_t samples = 0;
 
   // Count of operations by type ("bits", "array", or "tuple").
-  absl::flat_hash_map<std::string, int64> by_type;
+  absl::flat_hash_map<std::string, int64_t> by_type;
 
   // Count of operations wider than 64 bits.
-  int64 wider_than_64bits = 0;
+  int64_t wider_than_64bits = 0;
 
   // Count of operations for which the operands are different widths.
-  int64 mixed_width = 0;
+  int64_t mixed_width = 0;
 
   // Count of operations with different arities.
-  int64 nullary = 0;
-  int64 unary = 0;
-  int64 binary = 0;
-  int64 manyary = 0;
+  int64_t nullary = 0;
+  int64_t unary = 0;
+  int64_t binary = 0;
+  int64_t manyary = 0;
 };
 
 // Aggregate information about a set of generated samples.
 struct SampleInfo {
-  int64 samples = 0;
-  int64 node_count = 0;
+  int64_t samples = 0;
+  int64_t node_count = 0;
   absl::flat_hash_map<std::string, OpInfo> per_op_info;
 };
 
@@ -146,17 +146,17 @@ void AggregateSummary(const fuzzer::SampleSummaryProto& summary,
 // Print the timing info contained in 'info' to stdout.
 void DumpTimingInfo(const SummaryInfo& info) {
   // Converts nanoseconds to seconds.
-  auto us_to_sec = [](int64 nanoseconds) {
+  auto us_to_sec = [](int64_t nanoseconds) {
     return static_cast<float>(nanoseconds) / 1e9;
   };
 
   // Returns the percentage value of num/denom.
-  auto percent = [&](int64 num, int64 denom) {
+  auto percent = [&](int64_t num, int64_t denom) {
     return denom == 0 ? 0.0f : 100.0f * num / denom;
   };
 
   // Returns the mean value equal to total / count.
-  auto mean = [&](int64 total, int64 count) {
+  auto mean = [&](int64_t total, int64_t count) {
     return count == 0 ? 0.0f : static_cast<float>(total) / count;
   };
 
@@ -210,12 +210,12 @@ void DumpSampleInfo(const SampleInfo& info) {
       return absl::StrFormat("%13s", s);
     }
   };
-  auto fmt_num = [&](int64 n) { return fmt(absl::StrCat(n), false); };
+  auto fmt_num = [&](int64_t n) { return fmt(absl::StrCat(n), false); };
 
   std::vector<std::string> fields{"op",    "count",    "bits",        "tuple",
                                   "array", ">64-bits", "mixed width", "nullary",
                                   "unary", "binary",   ">=3ary"};
-  for (int64 i = 0; i < fields.size(); ++i) {
+  for (int64_t i = 0; i < fields.size(); ++i) {
     std::cout << fmt(fields[i], /*first_col=*/i == 0);
   }
   std::cout << "\n" << std::string(20 + 13 * (fields.size() - 1), '-') << "\n";

@@ -55,7 +55,7 @@ TEST(AstGeneratorTest, GeneratesValidFunctions) {
   std::mt19937 rng(0);
   AstGeneratorOptions options;
   options.short_samples = true;
-  for (int64 i = 0; i < 32; ++i) {
+  for (int64_t i = 0; i < 32; ++i) {
     AstGenerator g(options, &rng);
     XLS_LOG(INFO) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
@@ -68,13 +68,13 @@ TEST(AstGeneratorTest, GeneratesValidFunctions) {
 }
 
 // Helper function that is used in a TEST_P so we can shard the work.
-static void TestRepeatable(int64 seed) {
+static void TestRepeatable(int64_t seed) {
   AstGeneratorOptions options;
   options.short_samples = true;
   // Capture first output at a given seed for comparison.
   absl::optional<std::string> first;
   // Try 32 generations at a given seed.
-  for (int64 i = 0; i < 32; ++i) {
+  for (int64_t i = 0; i < 32; ++i) {
     std::mt19937 rng(seed);
     AstGenerator g(options, &rng);
     XLS_ASSERT_OK_AND_ASSIGN(auto generated,
@@ -90,7 +90,7 @@ static void TestRepeatable(int64 seed) {
   }
 }
 
-class AstGeneratorRepeatableTest : public testing::TestWithParam<int64> {};
+class AstGeneratorRepeatableTest : public testing::TestWithParam<int64_t> {};
 
 TEST_P(AstGeneratorRepeatableTest, GenerationRepeatableAtSeed) {
   TestRepeatable(/*seed=*/GetParam());
@@ -98,7 +98,7 @@ TEST_P(AstGeneratorRepeatableTest, GenerationRepeatableAtSeed) {
 
 INSTANTIATE_TEST_SUITE_P(AstGeneratorRepeatableTestInstance,
                          AstGeneratorRepeatableTest,
-                         testing::Range(int64{0}, int64{1024}));
+                         testing::Range(int64_t{0}, int64_t{1024}));
 
 }  // namespace
 }  // namespace xls::dslx

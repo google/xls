@@ -31,7 +31,7 @@ using testing::Pair;
 
 class TestDelayEstimator : public DelayEstimator {
  public:
-  absl::StatusOr<int64> GetOperationDelayInPs(Node* node) const override {
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
     switch (node->op()) {
       case Op::kParam:
       case Op::kLiteral:
@@ -120,7 +120,7 @@ TEST_F(ScheduleBoundsTest, SimpleExpressionTightenBounds) {
   EXPECT_EQ(bounds.lb(result.node()), 2);
 
   // Upper bounds should still be all at their limit.
-  const int64 kMax = std::numeric_limits<int64>::max();
+  const int64_t kMax = std::numeric_limits<int64_t>::max();
   EXPECT_EQ(bounds.ub(x.node()), 0);
   EXPECT_EQ(bounds.ub(y.node()), 0);
   EXPECT_EQ(bounds.ub(not_x.node()), kMax);

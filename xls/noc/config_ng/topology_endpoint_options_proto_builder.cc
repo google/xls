@@ -31,14 +31,14 @@ TopologyEndpointOptionsProtoBuilder::TopologyEndpointOptionsProtoBuilder(
 
 TopologyEndpointOptionsProtoBuilder&
 TopologyEndpointOptionsProtoBuilder::SetSendPortCount(
-    const int64 send_port_count) {
+    const int64_t send_port_count) {
   proto_ptr_->set_send_port_count(send_port_count);
   return *this;
 }
 
 TopologyEndpointOptionsProtoBuilder&
 TopologyEndpointOptionsProtoBuilder::SetRecvPortCount(
-    const int64 recv_port_count) {
+    const int64_t recv_port_count) {
   proto_ptr_->set_recv_port_count(recv_port_count);
   return *this;
 }

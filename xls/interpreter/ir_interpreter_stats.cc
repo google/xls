@@ -30,7 +30,7 @@ std::string InterpreterStats::ToNodeReport() const {
 
 std::string InterpreterStats::ToReport() const {
   absl::MutexLock lock(&mutex_);
-  auto percent = [](int64 value, int64 all) -> double {
+  auto percent = [](int64_t value, int64_t all) -> double {
     if (all == 0) {
       return 100.0;
     }

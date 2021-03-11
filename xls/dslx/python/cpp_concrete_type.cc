@@ -29,23 +29,24 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
   py::class_<ConcreteTypeDim>(m, "ConcreteTypeDim")
       .def(py::init(
           [](const ParametricExpression& e) { return ConcreteTypeDim(e); }))
-      .def(py::init([](int64 value) { return ConcreteTypeDim(value); }))
+      .def(py::init([](int64_t value) { return ConcreteTypeDim(value); }))
       .def("__add__", &ConcreteTypeDim::Add)
       .def("__mul__", &ConcreteTypeDim::Mul)
       .def("__eq__", [](const ConcreteTypeDim& self,
                         const ConcreteTypeDim& other) { return self == other; })
-      .def("__eq__",
-           [](const ConcreteTypeDim& self,
-              const absl::variant<int64, const ParametricExpression*>& other) {
-             return self == other;
-           })
+      .def(
+          "__eq__",
+          [](const ConcreteTypeDim& self,
+             const absl::variant<int64_t, const ParametricExpression*>& other) {
+            return self == other;
+          })
       .def_property_readonly(
           "value",
           [](const ConcreteTypeDim& self)
-              -> absl::variant<int64, const ParametricExpression*> {
+              -> absl::variant<int64_t, const ParametricExpression*> {
             const ConcreteTypeDim::Variant& value = self.value();
-            if (absl::holds_alternative<int64>(value)) {
-              return absl::get<int64>(value);
+            if (absl::holds_alternative<int64_t>(value)) {
+              return absl::get<int64_t>(value);
             }
             if (absl::holds_alternative<std::unique_ptr<ParametricExpression>>(
                     value)) {
@@ -70,7 +71,7 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
            [](const ConcreteType& self) {
              std::vector<ConcreteTypeDim> dims = self.GetAllDims();
              py::tuple results(dims.size());
-             for (int64 i = 0; i < dims.size(); ++i) {
+             for (int64_t i = 0; i < dims.size(); ++i) {
                results[i] = std::move(dims[i]);
              }
              return results;
@@ -94,7 +95,7 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
            py::arg("members"))
       .def(
           "get_tuple_member",
-          [](const TupleType& self, int64 i) {
+          [](const TupleType& self, int64_t i) {
             return self.GetUnnamedMembers()[i];
           },
           py::return_value_policy::reference_internal)
@@ -148,7 +149,7 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
             XLS_ASSIGN_OR_RETURN(std::vector<std::string> names,
                                  t.GetMemberNames());
             py::tuple result(names.size());
-            for (int64 i = 0; i < names.size(); ++i) {
+            for (int64_t i = 0; i < names.size(); ++i) {
               result[i] = names[i];
             }
             return result;
@@ -156,7 +157,7 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
 
   // class ArrayType
   py::class_<ArrayType, ConcreteType>(m, "ArrayType")
-      .def(py::init([](const ConcreteType& elem_type, int64 size) {
+      .def(py::init([](const ConcreteType& elem_type, int64_t size) {
         return absl::make_unique<ArrayType>(elem_type.CloneToUnique(),
                                             ConcreteTypeDim(size));
       }))
@@ -179,7 +180,7 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
 
   // class BitsType
   py::class_<BitsType, ConcreteType>(m, "BitsType")
-      .def(py::init([](bool is_signed, int64 size) {
+      .def(py::init([](bool is_signed, int64_t size) {
              return absl::make_unique<BitsType>(is_signed,
                                                 ConcreteTypeDim(size));
            }),
@@ -216,7 +217,7 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
           [](const FunctionType& self) {
             py::tuple t(self.GetParamCount());
             std::vector<const ConcreteType*> params = self.GetParams();
-            for (int64 i = 0; i < params.size(); ++i) {
+            for (int64_t i = 0; i < params.size(); ++i) {
               t[i] = params[i]->CloneToUnique();
             }
             return t;

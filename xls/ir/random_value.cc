@@ -20,7 +20,7 @@ Value RandomValue(Type* type, std::minstd_rand* engine) {
   if (type->IsTuple()) {
     TupleType* tuple_type = type->AsTupleOrDie();
     std::vector<Value> elements;
-    for (int64 i = 0; i < tuple_type->size(); ++i) {
+    for (int64_t i = 0; i < tuple_type->size(); ++i) {
       elements.push_back(RandomValue(tuple_type->element_type(i), engine));
     }
     return Value::Tuple(elements);
@@ -28,15 +28,15 @@ Value RandomValue(Type* type, std::minstd_rand* engine) {
   if (type->IsArray()) {
     ArrayType* array_type = type->AsArrayOrDie();
     std::vector<Value> elements;
-    for (int64 i = 0; i < array_type->size(); ++i) {
+    for (int64_t i = 0; i < array_type->size(); ++i) {
       elements.push_back(RandomValue(array_type->element_type(), engine));
     }
     return Value::Array(elements).value();
   }
-  int64 bit_count = type->AsBitsOrDie()->bit_count();
-  std::vector<uint8> bytes;
-  std::uniform_int_distribution<uint8> generator(0, 255);
-  for (int64 i = 0; i < bit_count; i += 8) {
+  int64_t bit_count = type->AsBitsOrDie()->bit_count();
+  std::vector<uint8_t> bytes;
+  std::uniform_int_distribution<uint8_t> generator(0, 255);
+  for (int64_t i = 0; i < bit_count; i += 8) {
     bytes.push_back(generator(*engine));
   }
   return Value(Bits::FromBytes(bytes, bit_count));

@@ -21,15 +21,16 @@
 #ifndef XLS_CODEGEN_NAME_TO_BIT_COUNT_H_
 #define XLS_CODEGEN_NAME_TO_BIT_COUNT_H_
 
+#include <cstdint>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/string_view.h"
-#include "xls/common/integral_types.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/type.h"
 
 namespace xls {
 
-using NameToBitCount = absl::flat_hash_map<std::string, int64>;
+using NameToBitCount = absl::flat_hash_map<std::string, int64_t>;
 using NameToBits = absl::flat_hash_map<std::string, Bits>;
 
 }  // namespace xls

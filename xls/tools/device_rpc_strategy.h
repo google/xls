@@ -33,7 +33,7 @@ class DeviceRpcStrategy {
   //
   // TODO(leary): 2019-04-06 Create host-level abstraction for enumerating /
   // describing the properties of accessible devices.
-  virtual absl::Status Connect(int64 device_ordinal) = 0;
+  virtual absl::Status Connect(int64_t device_ordinal) = 0;
 
   // Calls an unnamed function on the device.
   virtual absl::StatusOr<Value> CallUnnamed(

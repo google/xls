@@ -37,19 +37,19 @@ LinkConfigProtoBuilder& LinkConfigProtoBuilder::WithSinkPort(
 }
 
 LinkConfigProtoBuilder& LinkConfigProtoBuilder::WithPhitBitWidth(
-    int64 phit_bit_width) {
+    int64_t phit_bit_width) {
   proto_->set_phit_bit_width(phit_bit_width);
   return *this;
 }
 
 LinkConfigProtoBuilder& LinkConfigProtoBuilder::WithSourceSinkPipelineStage(
-    int64 pipeline_stage) {
+    int64_t pipeline_stage) {
   proto_->set_source_sink_pipeline_stage(pipeline_stage);
   return *this;
 }
 
 LinkConfigProtoBuilder& LinkConfigProtoBuilder::WithSinkSourcePipelineStage(
-    int64 pipeline_stage) {
+    int64_t pipeline_stage) {
   proto_->set_sink_source_pipeline_stage(pipeline_stage);
   return *this;
 }
@@ -66,7 +66,7 @@ LinkConfigProtoBuilder::WithTokenCreditBasedFlowControl() {
 }
 
 LinkConfigProtoBuilder& LinkConfigProtoBuilder::WithTotalCreditBasedFlowControl(
-    int64 credit_bit_width) {
+    int64_t credit_bit_width) {
   proto_->mutable_flow_control()
       ->mutable_total_credit_based()
       ->set_credit_bit_width(credit_bit_width);

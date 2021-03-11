@@ -80,8 +80,8 @@ TEST(IrJitTest, QuickCheckBits) {
     ret eq_value: bits[1] = eq(first_bit, second_bit)
   }
   )";
-  int64 seed = 0;
-  int64 num_tests = 1000;
+  int64_t seed = 0;
+  int64_t num_tests = 1000;
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
   XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info,
@@ -103,8 +103,8 @@ TEST(IrJitTest, QuickCheckArray) {
     ret eq_value: bits[1] = eq(first_element, second_element)
   }
   )";
-  int64 seed = 0;
-  int64 num_tests = 1000;
+  int64_t seed = 0;
+  int64_t num_tests = 1000;
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
   XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info,
@@ -123,8 +123,8 @@ TEST(IrJitTest, QuickCheckTuple) {
     ret eq_value: bits[1] = eq(first_member, second_member)
   }
   )";
-  int64 seed = 0;
-  int64 num_tests = 1000;
+  int64_t seed = 0;
+  int64_t num_tests = 1000;
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
   XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info,
@@ -142,8 +142,8 @@ TEST(IrJitTest, NumTests) {
     ret eq_value: bits[1] = eq(x, x)
   }
   )";
-  int64 seed = 0;
-  int64 num_tests = 5050;
+  int64_t seed = 0;
+  int64_t num_tests = 5050;
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
   XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info,
@@ -167,8 +167,8 @@ TEST(IrJitTest, Seeding) {
     ret ugt.3: bits[1] = ugt(x, literal.2)
   }
   )";
-  int64 seed = 12345;
-  int64 num_tests = 1000;
+  int64_t seed = 12345;
+  int64_t num_tests = 1000;
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
   XLS_ASSERT_OK_AND_ASSIGN(auto quickcheck_info1,
@@ -198,8 +198,8 @@ TEST(IrJitTest, PackedSmoke) {
                            Parser::ParseFunction(ir_text, &package));
 
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
-  uint8 input_data[] = {0x5a, 0xa5};
-  uint8 output_data;
+  uint8_t input_data[] = {0x5a, 0xa5};
+  uint8_t output_data;
   PackedBitsView<8> input(input_data, 0);
   PackedBitsView<8> output(&output_data, 0);
   XLS_ASSERT_OK(jit->RunWithPackedViews(input, output));
@@ -207,7 +207,7 @@ TEST(IrJitTest, PackedSmoke) {
 }
 
 // Tests PackedBitView<X> input/output handling.
-template <int64 kBitWidth>
+template <int64_t kBitWidth>
 absl::Status TestPackedBits(std::minstd_rand& bitgen) {
   Package package("my_package");
   std::string ir_template = R"(
@@ -225,8 +225,8 @@ absl::Status TestPackedBits(std::minstd_rand& bitgen) {
   Bits b(v.bits());
   Bits expected = bits_ops::Add(a, b);
 
-  int64 byte_width = CeilOfRatio(kBitWidth, kCharBit);
-  auto output_data = std::make_unique<uint8[]>(byte_width);
+  int64_t byte_width = CeilOfRatio(kBitWidth, kCharBit);
+  auto output_data = std::make_unique<uint8_t[]>(byte_width);
   bzero(output_data.get(), byte_width);
 
   auto a_vector = a.ToBytes();
@@ -242,8 +242,8 @@ absl::Status TestPackedBits(std::minstd_rand& bitgen) {
   for (int i = 0; i < CeilOfRatio(kBitWidth, kCharBit); i++) {
     XLS_RET_CHECK(output_data[i] == expected_vector[i])
         << std::hex << ": byte " << i << ": "
-        << static_cast<uint64>(output_data[i]) << " vs. "
-        << static_cast<uint64>(expected_vector[i]);
+        << static_cast<uint64_t>(output_data[i]) << " vs. "
+        << static_cast<uint64_t>(expected_vector[i]);
   }
   return absl::OkStatus();
 }
@@ -292,13 +292,13 @@ struct TestData {
   explicit TestData(const Value& value_in)
       : value(value_in), bytes(FlattenValue(value)), view(bytes.data(), 0) {}
   Value value;
-  std::vector<uint8> bytes;
+  std::vector<uint8_t> bytes;
   ViewT view;
 
-  static std::vector<uint8> FlattenValue(const Value& value) {
+  static std::vector<uint8_t> FlattenValue(const Value& value) {
     BitsRope rope(value.GetFlatBitCount());
     FlattenValue(value, rope);
-    std::vector<uint8> bytes = rope.Build().ToBytes();
+    std::vector<uint8_t> bytes = rope.Build().ToBytes();
     std::reverse(bytes.begin(), bytes.end());
     return bytes;
   }
@@ -323,7 +323,7 @@ struct TestData {
 // Tests PackedArrayView input/output from the JIT. Takes in an array, an index,
 // and a replacement value, and does an array_update(). We then verify that the
 // output array looks like expected.
-template <int64 kBitWidth, int64 kNumElements>
+template <int64_t kBitWidth, int64_t kNumElements>
 absl::Status TestSimpleArray(std::minstd_rand& bitgen) {
   using ArrayT = PackedArrayView<PackedBitsView<kBitWidth>, kNumElements>;
 
@@ -379,7 +379,7 @@ TEST(IrJitTest, PackedArrays) {
 
 // Creates a simple function to perform a tuple update.
 absl::StatusOr<Function*> CreateTupleFunction(Package* p, TupleType* tuple_type,
-                                              int64 replacement_index) {
+                                              int64_t replacement_index) {
   FunctionBuilder builder("tuple_update", p);
   BValue input_tuple = builder.Param("input_tuple", tuple_type);
   BValue new_element =

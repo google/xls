@@ -37,19 +37,19 @@ struct RngState {
 
 PYBIND11_MODULE(cpp_ast_generator, m) {
   py::class_<RngState>(m, "RngState")
-      .def(py::init([](int64 seed) { return RngState{std::mt19937(seed)}; }))
+      .def(py::init([](int64_t seed) { return RngState{std::mt19937(seed)}; }))
       .def("random",
            [](RngState& self) -> double {
              std::uniform_real_distribution<double> d(0.0, 1.0);
              return d(self.rng);
            })
       .def("randrange",
-           [](RngState& self, int64 limit) -> int64 {
-             std::uniform_int_distribution<int64> d(0, limit - 1);
+           [](RngState& self, int64_t limit) -> int64_t {
+             std::uniform_int_distribution<int64_t> d(0, limit - 1);
              return d(self.rng);
            })
       .def("randrange_biased_towards_zero",
-           [](RngState& self, int64 limit) -> absl::StatusOr<int64> {
+           [](RngState& self, int64_t limit) -> absl::StatusOr<int64_t> {
              XLS_RET_CHECK_GT(limit, 0);
              if (limit == 1) {  // Only one possible value.
                return 0;
@@ -59,7 +59,7 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
              std::piecewise_linear_distribution<double> d(i.begin(), i.end(),
                                                           w.begin());
              double triangular = d(self.rng);
-             int64 result = static_cast<int64>(std::ceil(triangular)) - 1;
+             int64_t result = static_cast<int64_t>(std::ceil(triangular)) - 1;
              XLS_CHECK_GE(result, 0);
              XLS_CHECK_LT(result, limit);
              return result;
@@ -69,8 +69,8 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
       .def(py::init([](absl::optional<bool> disallow_divide,
                        absl::optional<bool> emit_loops,
                        absl::optional<bool> short_samples,
-                       absl::optional<int64> max_width_bits_types,
-                       absl::optional<int64> max_width_aggregate_types,
+                       absl::optional<int64_t> max_width_bits_types,
+                       absl::optional<int64_t> max_width_aggregate_types,
                        absl::optional<std::vector<BinopKind>> binop_allowlist) {
              AstGeneratorOptions options;
              if (disallow_divide.has_value()) {
@@ -108,7 +108,7 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
           return pair.second->ToString();
         });
 
-  m.def("choose_bit_pattern", [](int64 bit_count, RngState& state) -> Bits {
+  m.def("choose_bit_pattern", [](int64_t bit_count, RngState& state) -> Bits {
     AstGenerator g(AstGeneratorOptions(), &state.rng);
     return g.ChooseBitPattern(bit_count);
   });

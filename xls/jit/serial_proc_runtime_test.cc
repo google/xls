@@ -29,13 +29,13 @@ using status_testing::IsOkAndHolds;
 
 template <typename T>
 void EnqueueData(JitChannelQueue* queue, T data) {
-  queue->Send(reinterpret_cast<uint8*>(&data), sizeof(T));
+  queue->Send(reinterpret_cast<uint8_t*>(&data), sizeof(T));
 }
 
 template <typename T>
 T DequeueData(JitChannelQueue* queue) {
   T data;
-  queue->Recv(reinterpret_cast<uint8*>(&data), sizeof(T));
+  queue->Recv(reinterpret_cast<uint8_t*>(&data), sizeof(T));
   return data;
 }
 
@@ -331,15 +331,15 @@ proc b(my_token: token, state: (), init=()) {
   Thread thread([input_queue]() {
     // Give enough time for the network to block, then send in the missing data.
     sleep(1);
-    int32 data = 42;
-    input_queue->Send(reinterpret_cast<uint8*>(&data), sizeof(data));
+    int32_t data = 42;
+    input_queue->Send(reinterpret_cast<uint8_t*>(&data), sizeof(data));
   });
   XLS_ASSERT_OK(runtime->Tick());
   XLS_ASSERT_OK_AND_ASSIGN(auto output_queue,
                            runtime->queue_mgr()->GetQueueById(2));
 
-  int32 data;
-  output_queue->Recv(reinterpret_cast<uint8*>(&data), sizeof(data));
+  int32_t data;
+  output_queue->Recv(reinterpret_cast<uint8_t*>(&data), sizeof(data));
   EXPECT_EQ(data, 42);
   thread.Join();
 }
@@ -426,7 +426,7 @@ TEST(SerialProcRuntimeTest, ChannelInitValues) {
 
   XLS_ASSERT_OK_AND_ASSIGN(auto runtime, SerialProcRuntime::Create(p.get()));
 
-  for (int64 i = 0; i < 9; ++i) {
+  for (int64_t i = 0; i < 9; ++i) {
     XLS_ASSERT_OK(runtime->Tick());
   }
 

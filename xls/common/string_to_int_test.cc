@@ -31,7 +31,7 @@ TEST(StringToInt, TabularTest) {
   struct TestCase {
     std::string input;
     int base;
-    int64 expected;
+    int64_t expected;
   };
   auto cases = {
       // The simple string "0" should work in all bases.
@@ -50,13 +50,13 @@ TEST(StringToInt, TabularTest) {
       TestCase{"-10", /*base=*/16, -0x10},
       TestCase{"11", /*base=*/16, 0x11},
       TestCase{"abcdef", /*base=*/16, 0xabcdef},
-      TestCase{"AaBbCcDdEeFf", /*base=*/16, int64{0xaabbccddeeff}},
-      TestCase{"ffffffffffffffff", /*base=*/16, int64{-1}},
-      TestCase{"-ffffffffffffffff", /*base=*/16, int64{1}},
+      TestCase{"AaBbCcDdEeFf", /*base=*/16, int64_t{0xaabbccddeeff}},
+      TestCase{"ffffffffffffffff", /*base=*/16, int64_t{-1}},
+      TestCase{"-ffffffffffffffff", /*base=*/16, int64_t{1}},
       TestCase{"8000000000000000", /*base=*/16,
-               std::numeric_limits<int64>::min()},
+               std::numeric_limits<int64_t>::min()},
       TestCase{"7fffffffffffffff", /*base=*/16,
-               std::numeric_limits<int64>::max()},
+               std::numeric_limits<int64_t>::max()},
       TestCase{"-0", /*base=*/16, 0},
 
       TestCase{"0b0", /*base=*/0, 0},
@@ -71,7 +71,7 @@ TEST(StringToInt, TabularTest) {
       TestCase{"-0", /*base=*/8, 0},
   };
   for (const auto& test_case : cases) {
-    XLS_ASSERT_OK_AND_ASSIGN(int64 result,
+    XLS_ASSERT_OK_AND_ASSIGN(int64_t result,
                              StrTo64Base(test_case.input, test_case.base));
     EXPECT_EQ(result, test_case.expected) << absl::StreamFormat(
         "in: %s base: %d want: %#x got: %#x", test_case.input, test_case.base,
@@ -120,10 +120,10 @@ TEST(StringToInt, Overflow64Bits) {
                        HasSubstr("Number overflows 64-bit integer")));
 
   // Even though this has a leading 0 char it should be ok, the data does not
-  // overflow int64.
+  // overflow int64_t.
   input = "0x0_ffff_ffff_ffff_ffff";
   input = absl::StrReplaceAll(input, {{"_", ""}});
-  EXPECT_THAT(StrTo64Base(input, 0), IsOkAndHolds(int64{-1}));
+  EXPECT_THAT(StrTo64Base(input, 0), IsOkAndHolds(int64_t{-1}));
 }
 
 TEST(StringToInt, JustAMinus) {

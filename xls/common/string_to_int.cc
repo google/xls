@@ -23,7 +23,7 @@
 
 namespace xls {
 
-absl::StatusOr<int64> StrTo64Base(absl::string_view s, int base) {
+absl::StatusOr<int64_t> StrTo64Base(absl::string_view s, int base) {
   if (s == "0" || s == "-0") {
     return 0;
   }
@@ -62,14 +62,14 @@ absl::StatusOr<int64> StrTo64Base(absl::string_view s, int base) {
         absl::StrFormat("Number contained no digits: \"%s\"", original));
   }
 
-  auto char_to_digit = [&](char c) -> absl::StatusOr<uint64> {
+  auto char_to_digit = [&](char c) -> absl::StatusOr<uint64_t> {
     auto error = [&] {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Number character '%c' is invalid for numeric base %d in \"%s\"", c,
           base, original));
     };
 
-    uint64 digit = std::numeric_limits<uint64>::max();
+    uint64_t digit = std::numeric_limits<uint64_t>::max();
     switch (base) {
       case 2:
       case 8:
@@ -100,7 +100,7 @@ absl::StatusOr<int64> StrTo64Base(absl::string_view s, int base) {
   while (!s.empty()) {
     char c = s[0];
     s.remove_prefix(1);
-    XLS_ASSIGN_OR_RETURN(uint64 digit, char_to_digit(c));
+    XLS_ASSIGN_OR_RETURN(uint64_t digit, char_to_digit(c));
     accum *= base;
     accum += digit;
     if (Uint128High64(accum) != 0) {
@@ -109,9 +109,9 @@ absl::StatusOr<int64> StrTo64Base(absl::string_view s, int base) {
     }
   }
   // Note: even though the most-negative number in the space overflows when you
-  // negate it (that is, `-std::numeric_limits<int64>::min()`), we consider this
-  // to be not-an-error, because the characters we scanned didn't take us past
-  // the 64-bit boundary.
+  // negate it (that is, `-std::numeric_limits<int64_t>::min()`), we consider
+  // this to be not-an-error, because the characters we scanned didn't take us
+  // past the 64-bit boundary.
   if (negated) {
     accum = -accum;
   }

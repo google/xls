@@ -15,15 +15,15 @@
 #ifndef XLS_COMMON_INDENT_H_
 #define XLS_COMMON_INDENT_H_
 
+#include <cstdint>
 #include <string>
 
 #include "absl/strings/string_view.h"
-#include "xls/common/integral_types.h"
 
 namespace xls {
 
 // Indents every line in "text" by the given number of spaces.
-std::string Indent(absl::string_view text, int64 spaces = 2);
+std::string Indent(absl::string_view text, int64_t spaces = 2);
 
 }  // namespace xls
 

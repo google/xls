@@ -27,16 +27,17 @@ namespace {
 class IrTypeTests : public IrTestBase {
  protected:
   // Creates a one-dimensional array of Bits values of the given width.
-  Value Array1D(absl::Span<const int64> values, int64 width) {
+  Value Array1D(absl::Span<const int64_t> values, int64_t width) {
     std::vector<Value> elements;
-    for (int64 value : values) {
+    for (int64_t value : values) {
       elements.push_back(Value(UBits(value, width)));
     }
     return Value::ArrayOrDie(elements);
   }
 
   // Creates a two-dimensional array of Bits values of the given width.
-  Value Array2D(absl::Span<const absl::Span<const int64>> values, int64 width) {
+  Value Array2D(absl::Span<const absl::Span<const int64_t>> values,
+                int64_t width) {
     std::vector<Value> rows;
     for (auto row : values) {
       rows.push_back(Array1D(row, width));
@@ -150,7 +151,7 @@ fn main(in: bits[16][3][2], x: bits[16], y0: bits[16], y1:bits[16]) -> bits[16][
 }
 )";
 
-  auto v16 = [](int64 v) { return Value(UBits(v, 16)); };
+  auto v16 = [](int64_t v) { return Value(UBits(v, 16)); };
 
   Value input = Array2D({{101, 102, 103}, {201, 202, 203}}, 16);
   RunAndExpectEq({{"in", input}, {"x", v16(0)}, {"y0", v16(1)}, {"y1", v16(2)}},

@@ -67,7 +67,7 @@ std::string Include::Emit() const {
   return absl::StrFormat("`include \"%s\"", path_);
 }
 
-DataType* VerilogFile::BitVectorType(int64 bit_count, bool is_signed) {
+DataType* VerilogFile::BitVectorType(int64_t bit_count, bool is_signed) {
   XLS_CHECK_GT(bit_count, 0);
   if (bit_count == 1) {
     return Make<DataType>();
@@ -76,12 +76,12 @@ DataType* VerilogFile::BitVectorType(int64 bit_count, bool is_signed) {
   }
 }
 
-DataType* VerilogFile::PackedArrayType(int64 element_bit_count,
-                                       absl::Span<const int64> dims,
+DataType* VerilogFile::PackedArrayType(int64_t element_bit_count,
+                                       absl::Span<const int64_t> dims,
                                        bool is_signed) {
   XLS_CHECK_GT(element_bit_count, 0);
   std::vector<Expression*> dim_exprs;
-  for (int64 d : dims) {
+  for (int64_t d : dims) {
     dim_exprs.push_back(PlainLiteral(d));
   }
   // For packed arrays we always use a bitvector (non-scalar) for the element
@@ -97,12 +97,12 @@ DataType* VerilogFile::PackedArrayType(int64 element_bit_count,
       /*unpacked_dims=*/std::vector<Expression*>(), is_signed);
 }
 
-DataType* VerilogFile::UnpackedArrayType(int64 element_bit_count,
-                                         absl::Span<const int64> dims,
+DataType* VerilogFile::UnpackedArrayType(int64_t element_bit_count,
+                                         absl::Span<const int64_t> dims,
                                          bool is_signed) {
   XLS_CHECK_GT(element_bit_count, 0);
   std::vector<Expression*> dim_exprs;
-  for (int64 d : dims) {
+  for (int64_t d : dims) {
     dim_exprs.push_back(PlainLiteral(d));
   }
   return Make<DataType>(
@@ -177,30 +177,30 @@ absl::StatusOr<PortProto> Port::ToProto() const {
   proto.set_direction(direction == Direction::kInput ? DIRECTION_INPUT
                                                      : DIRECTION_OUTPUT);
   proto.set_name(wire->GetName());
-  XLS_ASSIGN_OR_RETURN(int64 width, wire->data_type()->FlatBitCountAsInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t width, wire->data_type()->FlatBitCountAsInt64());
   proto.set_width(width);
   return proto;
 }
 
-static absl::StatusOr<int64> GetBitsForDirection(absl::Span<const Port> ports,
-                                                 Direction direction) {
-  int64 result = 0;
+static absl::StatusOr<int64_t> GetBitsForDirection(absl::Span<const Port> ports,
+                                                   Direction direction) {
+  int64_t result = 0;
   for (const Port& port : ports) {
     if (port.direction != direction) {
       continue;
     }
-    XLS_ASSIGN_OR_RETURN(int64 width,
+    XLS_ASSIGN_OR_RETURN(int64_t width,
                          port.wire->data_type()->FlatBitCountAsInt64());
     result += width;
   }
   return result;
 }
 
-absl::StatusOr<int64> GetInputBits(absl::Span<const Port> ports) {
+absl::StatusOr<int64_t> GetInputBits(absl::Span<const Port> ports) {
   return GetBitsForDirection(ports, Direction::kInput);
 }
 
-absl::StatusOr<int64> GetOutputBits(absl::Span<const Port> ports) {
+absl::StatusOr<int64_t> GetOutputBits(absl::Span<const Port> ports) {
   return GetBitsForDirection(ports, Direction::kOutput);
 }
 
@@ -308,7 +308,7 @@ std::string XSentinel::Emit() const { return absl::StrFormat("%d'dx", width_); }
 static std::string WidthToLimit(Expression* expr) {
   if (expr->IsLiteral()) {
     // If the expression is a literal, then we can emit the value - 1 directly.
-    uint64 value = expr->AsLiteralOrDie()->bits().ToUint64().value();
+    uint64_t value = expr->AsLiteralOrDie()->bits().ToUint64().value();
     return absl::StrCat(value - 1);
   }
   Literal* one = expr->file()->PlainLiteral(1);
@@ -337,7 +337,7 @@ std::string DataType::EmitWithIdentifier(absl::string_view identifier) const {
   return result;
 }
 
-absl::StatusOr<int64> DataType::WidthAsInt64() const {
+absl::StatusOr<int64_t> DataType::WidthAsInt64() const {
   if (width() == nullptr) {
     // No width indicates a single-bit signal.
     return 1;
@@ -350,14 +350,14 @@ absl::StatusOr<int64> DataType::WidthAsInt64() const {
   return width()->AsLiteralOrDie()->bits().ToUint64();
 }
 
-absl::StatusOr<int64> DataType::FlatBitCountAsInt64() const {
-  XLS_ASSIGN_OR_RETURN(int64 bit_count, WidthAsInt64());
+absl::StatusOr<int64_t> DataType::FlatBitCountAsInt64() const {
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count, WidthAsInt64());
   for (Expression* dim : packed_dims()) {
     if (!dim->IsLiteral()) {
       return absl::FailedPreconditionError(
           "Packed dimension is not a literal:" + dim->Emit());
     }
-    XLS_ASSIGN_OR_RETURN(int64 dim_size,
+    XLS_ASSIGN_OR_RETURN(int64_t dim_size,
                          dim->AsLiteralOrDie()->bits().ToUint64());
     bit_count = bit_count * dim_size;
   }
@@ -366,7 +366,7 @@ absl::StatusOr<int64> DataType::FlatBitCountAsInt64() const {
       return absl::FailedPreconditionError(
           "Unpacked dimension is not a literal:" + dim->Emit());
     }
-    XLS_ASSIGN_OR_RETURN(int64 dim_size,
+    XLS_ASSIGN_OR_RETURN(int64_t dim_size,
                          dim->AsLiteralOrDie()->bits().ToUint64());
     bit_count = bit_count * dim_size;
   }
@@ -461,7 +461,7 @@ std::string Assert::Emit() const {
   // value in the set {0, 1, 2}. This value "may be used in an
   // implementation-specific manner" (from the SystemVerilog LRM). We choose
   // zero arbitrarily.
-  constexpr int64 kFinishNumber = 0;
+  constexpr int64_t kFinishNumber = 0;
   return absl::StrFormat(
       "assert (%s) else $fatal(%d%s);", condition_->Emit(), kFinishNumber,
       error_message_.empty() ? ""
@@ -535,7 +535,7 @@ std::string Literal::Emit() const {
       bits_.ToRawDigits(FormatPreference::kHex, /*emit_leading_zeros=*/true));
 }
 
-bool Literal::IsLiteralWithValue(int64 target) const {
+bool Literal::IsLiteralWithValue(int64_t target) const {
   if (!bits().FitsInInt64()) {
     return false;
   }

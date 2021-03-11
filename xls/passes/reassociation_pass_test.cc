@@ -129,7 +129,7 @@ TEST_F(ReassociationPassTest, DeepChain) {
   FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
   BValue lhs = fb.Param("p0", u32);
-  for (int64 i = 1; i < 41; ++i) {
+  for (int64_t i = 1; i < 41; ++i) {
     lhs = fb.Add(lhs, fb.Param(absl::StrFormat("p%d", i), u32));
   }
   XLS_ASSERT_OK(fb.Build().status());

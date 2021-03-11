@@ -117,10 +117,10 @@ class DataType : public VastNode {
            unpacked_dims().empty();
   }
   // Returns the width of the def (not counting packed dimensions) as an
-  // int64. Returns an error if this is not possible because the width is not a
-  // literal. For example, the width of the following def is 8:
+  // int64_t. Returns an error if this is not possible because the width is not
+  // a literal. For example, the width of the following def is 8:
   //   wire [7:0][3:0][42:0] foo;
-  absl::StatusOr<int64> WidthAsInt64() const;
+  absl::StatusOr<int64_t> WidthAsInt64() const;
 
   // Return flattened bit count of the def (total width of the def including
   // packed dimensions). For example, the following has a flat bit count of
@@ -128,7 +128,7 @@ class DataType : public VastNode {
   //   wire [7:0][3:0][4:0] foo;
   // Returns an error if this computation is not possible because the width or a
   // packed dimension is not a literal.
-  absl::StatusOr<int64> FlatBitCountAsInt64() const;
+  absl::StatusOr<int64_t> FlatBitCountAsInt64() const;
 
   // Returns the width expression for the type. Scalars (e.g.,
   // "wire foo;") have a nullptr width expression.
@@ -448,7 +448,7 @@ class Expression : public VastNode {
   using VastNode::VastNode;
 
   virtual bool IsLiteral() const { return false; }
-  virtual bool IsLiteralWithValue(int64 target) const { return false; }
+  virtual bool IsLiteralWithValue(int64_t target) const { return false; }
   Literal* AsLiteralOrDie();
 
   virtual bool IsLogicRef() const { return false; }
@@ -481,31 +481,32 @@ class Expression : public VastNode {
   //              (2)  &&
   //              (1)  ||
   //   Lowest:    (0)  ?: (conditional operator)
-  static constexpr int64 kMaxPrecedence = 13;
-  static constexpr int64 kMinPrecedence = -1;
-  virtual int64 precedence() const { return kMaxPrecedence; }
+  static constexpr int64_t kMaxPrecedence = 13;
+  static constexpr int64_t kMinPrecedence = -1;
+  virtual int64_t precedence() const { return kMaxPrecedence; }
 };
 
 // Represents an X value.
 class XSentinel : public Expression {
  public:
-  XSentinel(int64 width, VerilogFile* file) : Expression(file), width_(width) {}
+  XSentinel(int64_t width, VerilogFile* file)
+      : Expression(file), width_(width) {}
 
   std::string Emit() const override;
 
  private:
-  int64 width_;
+  int64_t width_;
 };
 
 // Represents an operation (unary, binary, etc) with a particular precedence.
 class Operator : public Expression {
  public:
-  Operator(int64 precedence, VerilogFile* file)
+  Operator(int64_t precedence, VerilogFile* file)
       : Expression(file), precedence_(precedence) {}
-  int64 precedence() const override { return precedence_; }
+  int64_t precedence() const override { return precedence_; }
 
  private:
-  int64 precedence_;
+  int64_t precedence_;
 };
 
 // A posedge edge identifier expression.
@@ -669,7 +670,7 @@ class LogicRef : public IndexableExpression {
 // Represents a Verilog unary expression.
 class Unary : public Operator {
  public:
-  Unary(absl::string_view op, Expression* arg, int64 precedence,
+  Unary(absl::string_view op, Expression* arg, int64_t precedence,
         VerilogFile* file)
       : Operator(precedence, file), op_(op), arg_(arg) {}
 
@@ -828,7 +829,7 @@ class ArrayAssignmentPattern : public IndexableExpression {
 class BinaryInfix : public Operator {
  public:
   BinaryInfix(Expression* lhs, absl::string_view op, Expression* rhs,
-              int64 precedence, VerilogFile* file)
+              int64_t precedence, VerilogFile* file)
       : Operator(precedence, file),
         op_(op),
         lhs_(XLS_DIE_IF_NULL(lhs)),
@@ -862,7 +863,7 @@ class Literal : public Expression {
   const Bits& bits() const { return bits_; }
 
   bool IsLiteral() const override { return true; }
-  bool IsLiteralWithValue(int64 target) const override;
+  bool IsLiteralWithValue(int64_t target) const override;
 
  private:
   Bits bits_;
@@ -954,7 +955,7 @@ class Ternary : public Expression {
         alternate_(alternate) {}
 
   std::string Emit() const override;
-  int64 precedence() const override { return 0; }
+  int64_t precedence() const override { return 0; }
 
  private:
   Expression* test_;
@@ -1246,8 +1247,8 @@ std::string PortsToString(absl::Span<const Port> ports);
 
 // Returns the flattened number of input/output bits required to represent the
 // port set.
-absl::StatusOr<int64> GetInputBits(absl::Span<const Port> ports);
-absl::StatusOr<int64> GetOutputBits(absl::Span<const Port> ports);
+absl::StatusOr<int64_t> GetInputBits(absl::Span<const Port> ports);
+absl::StatusOr<int64_t> GetOutputBits(absl::Span<const Port> ports);
 
 // Represents a module definition.
 class Module : public VastNode {
@@ -1347,7 +1348,7 @@ class VerilogFile {
                         Expression* lo) {
     return Make<verilog::Slice>(subject, hi, lo);
   }
-  verilog::Slice* Slice(IndexableExpression* subject, int64 hi, int64 lo) {
+  verilog::Slice* Slice(IndexableExpression* subject, int64_t hi, int64_t lo) {
     XLS_CHECK_GE(hi, 0);
     XLS_CHECK_GE(lo, 0);
     return Make<verilog::Slice>(subject, MaybePlainLiteral(hi),
@@ -1359,7 +1360,7 @@ class VerilogFile {
     return Make<verilog::PartSelect>(subject, start, width);
   }
   verilog::PartSelect* PartSelect(IndexableExpression* subject,
-                                  Expression* start, int64 width) {
+                                  Expression* start, int64_t width) {
     XLS_CHECK_GT(width, 0);
     return Make<verilog::PartSelect>(subject, start, MaybePlainLiteral(width));
   }
@@ -1367,7 +1368,7 @@ class VerilogFile {
   verilog::Index* Index(IndexableExpression* subject, Expression* index) {
     return Make<verilog::Index>(subject, index);
   }
-  verilog::Index* Index(IndexableExpression* subject, int64 index) {
+  verilog::Index* Index(IndexableExpression* subject, int64_t index) {
     XLS_CHECK_GE(index, 0);
     return Make<verilog::Index>(subject, MaybePlainLiteral(index));
   }
@@ -1398,7 +1399,7 @@ class VerilogFile {
                                absl::Span<Expression* const> args) {
     return Make<xls::verilog::Concat>(replication, args);
   }
-  xls::verilog::Concat* Concat(int64 replication,
+  xls::verilog::Concat* Concat(int64_t replication,
                                absl::Span<Expression* const> args) {
     return Make<xls::verilog::Concat>(MaybePlainLiteral(replication), args);
   }
@@ -1482,7 +1483,7 @@ class VerilogFile {
   verilog::XLiteral* XLiteral() { return Make<verilog::XLiteral>(); }
 
   // Creates an literal with the given value and bit_count.
-  verilog::Literal* Literal(uint64 value, int64 bit_count,
+  verilog::Literal* Literal(uint64_t value, int64_t bit_count,
                             FormatPreference format = FormatPreference::kHex) {
     return Make<verilog::Literal>(UBits(value, bit_count), format);
   }
@@ -1494,7 +1495,7 @@ class VerilogFile {
   }
 
   // Creates a one-bit literal.
-  verilog::Literal* Literal1(int64 value) {
+  verilog::Literal* Literal1(int64_t value) {
     // Avoid taking a bool argument as many types implicitly and undesirably
     // convert to bool
     XLS_CHECK((value == 0) || (value == 1));
@@ -1504,7 +1505,7 @@ class VerilogFile {
   // Creates a decimal literal representing a plain decimal number without a bit
   // count prefix (e.g., "42"). Use for clarity when bit width does not matter,
   // for example, as bit-slice indices.
-  verilog::Literal* PlainLiteral(int32 value) {
+  verilog::Literal* PlainLiteral(int32_t value) {
     return Make<verilog::Literal>(SBits(value, 32), FormatPreference::kDefault,
                                   /*emit_bit_count=*/false);
   }
@@ -1518,29 +1519,29 @@ class VerilogFile {
   // with trivial single bit ranges "[0:0]" (as in "reg [0:0] foo"). This
   // matches the behavior of the XLS code generation where one-wide Bits types
   // are represented as Verilog scalars.
-  DataType* BitVectorType(int64 bit_count, bool is_signed = false);
+  DataType* BitVectorType(int64_t bit_count, bool is_signed = false);
 
   // Returns a packed array type. Example:
   //   wire [7:0][41:0][122:0] foo;
-  DataType* PackedArrayType(int64 element_bit_count,
-                            absl::Span<const int64> dims,
+  DataType* PackedArrayType(int64_t element_bit_count,
+                            absl::Span<const int64_t> dims,
                             bool is_signed = false);
 
   // Returns an unpacked array type. Example:
   //   wire [7:0] foo[42][123];
-  DataType* UnpackedArrayType(int64 element_bit_count,
-                              absl::Span<const int64> dims,
+  DataType* UnpackedArrayType(int64_t element_bit_count,
+                              absl::Span<const int64_t> dims,
                               bool is_signed = false);
 
   // Returns whether this is a SystemVerilog or Verilog file.
   bool use_system_verilog() const { return use_system_verilog_; }
 
  private:
-  // Same as PlainLiteral if value fits in an int32. Otherwise creates a 64-bit
-  // literal to hold the value.
-  verilog::Literal* MaybePlainLiteral(int64 value) {
-    if (value >= std::numeric_limits<int32>::min() &&
-        value <= std::numeric_limits<int32>::max()) {
+  // Same as PlainLiteral if value fits in an int32_t. Otherwise creates a
+  // 64-bit literal to hold the value.
+  verilog::Literal* MaybePlainLiteral(int64_t value) {
+    if (value >= std::numeric_limits<int32_t>::min() &&
+        value <= std::numeric_limits<int32_t>::max()) {
       return PlainLiteral(value);
     } else {
       return Literal(SBits(value, 64));

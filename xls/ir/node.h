@@ -15,6 +15,7 @@
 #ifndef XLS_IR_NODE_H_
 #define XLS_IR_NODE_H_
 
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -25,7 +26,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -67,7 +67,9 @@ class Node {
 
   Type* GetType() const { return type_; }
 
-  int64 BitCountOrDie() const { return GetType()->AsBitsOrDie()->bit_count(); }
+  int64_t BitCountOrDie() const {
+    return GetType()->AsBitsOrDie()->bit_count();
+  }
 
   Op op() const { return op_; }
   FunctionBase* function_base() const { return function_base_; }
@@ -87,7 +89,7 @@ class Node {
   bool ReplaceOperand(Node* old_operand, Node* new_operand);
 
   // Replaces the existing operand at position 'operand_no' with 'new_operand'.
-  absl::Status ReplaceOperandNumber(int64 operand_no, Node* new_operand,
+  absl::Status ReplaceOperandNumber(int64_t operand_no, Node* new_operand,
                                     bool type_must_match = true);
 
   // Replace all uses of this node with 'replacement'. If this node is the
@@ -117,7 +119,7 @@ class Node {
   absl::StatusOr<bool> ReplaceImplicitUsesWith(Node* replacement);
 
   // Swaps the operands at indices 'a' and 'b' in the operands sequence.
-  void SwapOperands(int64 a, int64 b) {
+  void SwapOperands(int64_t a, int64_t b) {
     // Operand/user chains already set up properly.
     std::swap(operands_[a], operands_[b]);
   }
@@ -192,24 +194,24 @@ class Node {
   // Returns true when the Op is in the list of choices
   bool OpIn(const std::vector<Op>& choices);
 
-  Node* operand(int64 i) const {
+  Node* operand(int64_t i) const {
     XLS_CHECK_LT(i, operands_.size());
     return operands_[i];
   }
-  int64 operand_count() const { return operands_.size(); }
+  int64_t operand_count() const { return operands_.size(); }
 
   // Returns true if target is an operand of this node.
   bool HasOperand(const Node* target) const;
 
   // Returns the number of times that 'target' appears in the operand list of
   // this node.
-  int64 OperandInstanceCount(const Node* target) const;
+  int64_t OperandInstanceCount(const Node* target) const;
 
-  int64 id() const { return id_; }
+  int64_t id() const { return id_; }
 
   // Note: use with caution, the id should be unique among all nodes in a
   // function.
-  void set_id(int64 id);
+  void set_id(int64_t id);
 
   // Clones the node with the new operands. Returns the newly created
   // instruction.
@@ -255,7 +257,7 @@ class Node {
   void RemoveUser(Node* user);
 
   FunctionBase* function_base_;
-  int64 id_;
+  int64_t id_;
   Op op_;
   Type* type_;
   absl::optional<SourceLocation> loc_;

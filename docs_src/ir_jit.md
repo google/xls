@@ -52,7 +52,7 @@ absl::StatusOr<float> foo(float a, float b) {
 When available, these simplified wrappers should be used for higher performance
 (~30% in our measured cases). Currently, floats and integral types >= 64 bits in
 this way. For non-native integral types, the generated wrapper will accept the
-next larger native type e.g., `uint64` for `bits[47]`. Proper operation with
+next larger native type e.g., `uint64_t` for `bits[47]`. Proper operation with
 next-larger types depends on the input value being present in the
 least-significant bits of the containing type.
 

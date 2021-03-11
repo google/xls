@@ -321,7 +321,7 @@ result = sign_ext(x, new_bit_count=42)
 Value           | Type
 --------------- | ---------------------
 `arg`           | `bits[N]`
-`new_bit_count` | `int64`
+`new_bit_count` | `int64_t`
 `result`        | `bits[new_bit_count]`
 
 Note: `new_bit_count` should be `>= N` or an error may be raised.
@@ -367,7 +367,7 @@ Value    | Type
 
 | Keyword      | Type    | Required | Default | Description              |
 | ------------ | ------- | -------- | ------- | ------------------------ |
-| `channel_id` | `int64` | yes      |         | The ID of the channel to receive data from |
+| `channel_id` | `int64_t` | yes      |         | The ID of the channel to receive data from |
 
 <!-- mdformat on -->
 
@@ -395,7 +395,7 @@ Value    | Type
 
 | Keyword      | Type    | Required | Default | Description              |
 | ------------ | ------- | -------- | ------- | ------------------------ |
-| `channel_id` | `int64` | yes      |         | The ID of the channel to receive data from |
+| `channel_id` | `int64_t` | yes      |         | The ID of the channel to receive data from |
 
 <!-- mdformat on -->
 
@@ -427,7 +427,7 @@ number of data elements supported by the channel.
 
 | Keyword      | Type    | Required | Default | Description                   |
 | ------------ | ------- | -------- | ------- | ----------------------------- |
-| `channel_id` | `int64` | yes      |         | The ID of the channel to send data to. |
+| `channel_id` | `int64_t` | yes      |         | The ID of the channel to send data to. |
 
 <!-- mdformat on -->
 
@@ -458,7 +458,7 @@ number of data elements supported by the channel.
 
 | Keyword      | Type    | Required | Default | Description                   |
 | ------------ | ------- | -------- | ------- | ----------------------------- |
-| `channel_id` | `int64` | yes      |         | The ID of the channel to send data to. |
+| `channel_id` | `int64_t` | yes      |         | The ID of the channel to send data to. |
 
 <!-- mdformat on -->
 
@@ -589,10 +589,9 @@ Value     | Type
 
 **Keyword arguments**
 
-Keyword | Type    | Required | Default | Description
-------- | ------- | -------- | ------- | ---------------------------------
-`index` | `int64` | yes      |         | Index of tuple element to produce
-
+Keyword | Type      | Required | Default | Description
+------- | --------- | -------- | ------- | ---------------------------------
+`index` | `int64_t` | yes      |         | Index of tuple element to produce
 
 ### Bit-vector operations
 
@@ -619,8 +618,8 @@ Value     | Type
 
 | Keyword | Type    | Required | Default | Description       |
 | ------- | ------- | -------- | ------- | ----------------- |
-| `start` | `int64` | yes      |         | The starting bit of the slice. `start` is is zero-indexed where zero is the least-significant bit of the operand. |
-| `width` | `int64` | yes      |         | The width of the slice. |
+| `start` | `int64_t` | yes      |         | The starting bit of the slice. `start` is is zero-indexed where zero is the least-significant bit of the operand. |
+| `width` | `int64_t` | yes      |         | The width of the slice. |
 
 <!-- mdformat on -->
 
@@ -687,7 +686,7 @@ as an unsigned integer.
 
 | Keyword | Type    | Required | Default | Description       |
 | ------- | ------- | -------- | ------- | ----------------- |
-| `width` | `int64` | yes      |         | The width of the slice. |
+| `width` | `int64_t` | yes      |         | The width of the slice. |
 
 <!-- mdformat on -->
 
@@ -743,9 +742,9 @@ operand width.
 
 **Keyword arguments**
 
-Keyword | Type    | Required | Default | Description
-------- | ------- | -------- | ------- | -------------------
-`width` | `int64` | yes      |         | Width of the result
+Keyword | Type      | Required | Default | Description
+------- | --------- | -------- | ------- | -------------------
+`width` | `int64_t` | yes      |         | Width of the result
 
 `decode` converts the binary-encoded operand value into a one-hot result. For an
 operand value of `n` interpreted as an unsigned number the `n`-th result bit and
@@ -1063,8 +1062,8 @@ Value    | Type
 
 | Keyword          | Type     | Required | Default | Description               |
 | ---------------- | -------- | -------- | ------- | ------------------------- |
-| `trip_count`     | `int64`  | yes      |         | Trip count of the loop (number of times that the loop body will be executed) |
-| `stride`         | `int64`  | no       | 1       | Stride of the induction variable |
+| `trip_count`     | `int64_t`  | yes      |         | Trip count of the loop (number of times that the loop body will be executed) |
+| `stride`         | `int64_t`  | no       | 1       | Stride of the induction variable |
 | `invariant_args` | array of | yes      |         | Names of the invariant operands as the loop body |
 | `body`           | `string` | yes      |         | Name of the function to use as the loop body |
 

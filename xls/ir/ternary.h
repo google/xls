@@ -24,7 +24,11 @@ namespace xls {
 
 // Ternary logic is used to propagate known and unknown bit values through the
 // graph. Ternary logic allows three values for each "bit".
-enum class TernaryValue : int8 { kKnownZero = 0, kKnownOne = 1, kUnknown = 2 };
+enum class TernaryValue : int8_t {
+  kKnownZero = 0,
+  kKnownOne = 1,
+  kUnknown = 2
+};
 
 // A vector of ternary values. Analogous to the Bits object for concrete values.
 using TernaryVector = std::vector<TernaryValue>;
@@ -115,7 +119,7 @@ inline TernaryVector Equals(const TernaryVector& lhs,
   XLS_CHECK_EQ(lhs.size(), rhs.size());
   TernaryVector result;
   result.resize(lhs.size());
-  for (int64 i = 0; i < lhs.size(); ++i) {
+  for (int64_t i = 0; i < lhs.size(); ++i) {
     result[i] = Equals(lhs[i], rhs[i]);
   }
   return result;
@@ -124,7 +128,7 @@ inline TernaryVector Equals(const TernaryVector& lhs,
 inline TernaryVector BitsToTernary(const Bits& bits) {
   TernaryVector result;
   result.resize(bits.bit_count());
-  for (int64 i = 0; i < bits.bit_count(); ++i) {
+  for (int64_t i = 0; i < bits.bit_count(); ++i) {
     result[i] = static_cast<TernaryValue>(bits.Get(i));
   }
   return result;

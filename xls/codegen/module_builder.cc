@@ -36,10 +36,10 @@ namespace verilog {
 namespace {
 
 // Returns the bounds of the potentially-nested array type as a vector of
-// int64. Ordering of the vector is outer-most bound to inner-most. For example,
-// given array type 'bits[32][4][5]' yields {5, 4, 32}.
-std::vector<int64> NestedArrayBounds(ArrayType* type) {
-  std::vector<int64> bounds;
+// int64_t. Ordering of the vector is outer-most bound to inner-most. For
+// example, given array type 'bits[32][4][5]' yields {5, 4, 32}.
+std::vector<int64_t> NestedArrayBounds(ArrayType* type) {
+  std::vector<int64_t> bounds;
   Type* t = type;
   while (t->IsArray()) {
     bounds.push_back(t->AsArrayOrDie()->size());
@@ -50,7 +50,7 @@ std::vector<int64> NestedArrayBounds(ArrayType* type) {
 
 // Returns the width of the element of the potentially nested array type. For
 // example, given array type 'bits[32][4][5]' yields 32.
-int64 NestedElementWidth(ArrayType* type) {
+int64_t NestedElementWidth(ArrayType* type) {
   Type* t = type;
   while (t->IsArray()) {
     t = t->AsArrayOrDie()->element_type();
@@ -125,7 +125,7 @@ absl::Status ModuleBuilder::AddAssignmentToGeneratedExpression(
   if (xls_type != nullptr && xls_type->IsArray() &&
       !(use_system_verilog_ && sv_array_expr)) {
     ArrayType* array_type = xls_type->AsArrayOrDie();
-    for (int64 i = 0; i < array_type->size(); ++i) {
+    for (int64_t i = 0; i < array_type->size(); ++i) {
       std::vector<Expression*> input_elements;
       for (Expression* input : inputs) {
         input_elements.push_back(
@@ -153,7 +153,7 @@ absl::Status ModuleBuilder::AddAssignmentFromValue(
                            ValueToArrayAssignmentPattern(value, file_));
       add_assignment(lhs, rhs);
     } else {
-      for (int64 i = 0; i < value.size(); ++i) {
+      for (int64_t i = 0; i < value.size(); ++i) {
         XLS_RETURN_IF_ERROR(AddAssignmentFromValue(
             file_->Index(lhs->AsIndexableExpressionOrDie(), i),
             value.element(i), add_assignment));
@@ -205,11 +205,11 @@ void ModuleBuilder::NewDeclarationAndAssignmentSections() {
 }
 
 absl::Status ModuleBuilder::AssignFromSlice(
-    Expression* lhs, Expression* rhs, Type* xls_type, int64 slice_start,
+    Expression* lhs, Expression* rhs, Type* xls_type, int64_t slice_start,
     std::function<void(Expression*, Expression*)> add_assignment) {
   if (xls_type->IsArray()) {
     ArrayType* array_type = xls_type->AsArrayOrDie();
-    for (int64 i = 0; i < array_type->size(); ++i) {
+    for (int64_t i = 0; i < array_type->size(); ++i) {
       XLS_RETURN_IF_ERROR(
           AssignFromSlice(file_->Index(lhs->AsIndexableExpressionOrDie(), i),
                           rhs, array_type->element_type(),
@@ -247,7 +247,8 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(absl::string_view name,
   return ar;
 }
 
-LogicRef* ModuleBuilder::AddInputPort(absl::string_view name, int64 bit_count) {
+LogicRef* ModuleBuilder::AddInputPort(absl::string_view name,
+                                      int64_t bit_count) {
   return module_->AddInput(SanitizeIdentifier(name),
                            file_->BitVectorType(bit_count));
 }
@@ -270,7 +271,8 @@ absl::Status ModuleBuilder::AddOutputPort(absl::string_view name, Type* type,
 }
 
 absl::Status ModuleBuilder::AddOutputPort(absl::string_view name,
-                                          int64 bit_count, Expression* value) {
+                                          int64_t bit_count,
+                                          Expression* value) {
   LogicRef* output_port = module_->AddOutput(SanitizeIdentifier(name),
                                              file_->BitVectorType(bit_count));
   output_section()->Add<ContinuousAssignment>(output_port, value);
@@ -314,7 +316,7 @@ LogicRef* ModuleBuilder::DeclareVariable(absl::string_view name, Type* type) {
 }
 
 LogicRef* ModuleBuilder::DeclareVariable(absl::string_view name,
-                                         int64 bit_count) {
+                                         int64_t bit_count) {
   return module_->AddWire(SanitizeIdentifier(name),
                           file_->BitVectorType(bit_count),
                           declaration_section());
@@ -330,7 +332,7 @@ bool ModuleBuilder::CanEmitAsInlineExpression(
   absl::Span<Node* const> users =
       users_of_expression.has_value() ? *users_of_expression : node->users();
   for (Node* user : users) {
-    for (int64 i = 0; i < user->operand_count(); ++i) {
+    for (int64_t i = 0; i < user->operand_count(); ++i) {
       if (user->operand(i) == node && OperandMustBeNamedReference(user, i)) {
         return false;
       }
@@ -480,8 +482,8 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
   // Iterate through array elements and recurse.
   ArrayType* array_type = xls_type->AsArrayOrDie();
   IndexType index_type = indices.front();
-  int64 index_bit_count = index_type.xls_type->bit_count();
-  for (int64 i = 0; i < array_type->size(); ++i) {
+  int64_t index_bit_count = index_type.xls_type->bit_count();
+  for (int64_t i = 0; i < array_type->size(); ++i) {
     // Compute the current index match expression for this index element.
     IndexMatch current_index_match;
     if (index_type.expression->IsLiteral()) {
@@ -521,7 +523,7 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
     ArrayType* array_type = node->GetType()->AsArrayOrDie();
     switch (node->op()) {
       case Op::kArray: {
-        for (int64 i = 0; i < inputs.size(); ++i) {
+        for (int64_t i = 0; i < inputs.size(); ++i) {
           XLS_RETURN_IF_ERROR(AddAssignment(
               array_type->element_type(),
               file_->Index(ref, file_->PlainLiteral(i)), inputs[i],
@@ -547,7 +549,7 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
         // Gather the index expression values and types together. The index
         // operands of array update start at 2.
         std::vector<IndexType> index_types;
-        for (int64 i = 2; i < node->operand_count(); ++i) {
+        for (int64_t i = 2; i < node->operand_count(); ++i) {
           index_types.push_back(
               IndexType{inputs[i], node->operand(i)->GetType()->AsBitsOrDie()});
         }
@@ -567,8 +569,8 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
               node->ToString(), node->operands().size(), inputs.size()));
         }
 
-        int64 result_index = 0;
-        for (int64 i = 0; i < node->operand_count(); ++i) {
+        int64_t result_index = 0;
+        for (int64_t i = 0; i < node->operand_count(); ++i) {
           Node* operand = node->operand(i);
 
           if (!operand->GetType()->IsArray()) {
@@ -579,9 +581,9 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
 
           Expression* input = inputs.at(i);
           ArrayType* input_type = operand->GetType()->AsArrayOrDie();
-          int64 input_size = input_type->size();
+          int64_t input_size = input_type->size();
 
-          for (int64 j = 0; j < input_size; ++j) {
+          for (int64_t j = 0; j < input_size; ++j) {
             XLS_RETURN_IF_ERROR(AddAssignment(
                 input_type->element_type(),
                 file_->Index(ref, file_->PlainLiteral(result_index)),
@@ -621,7 +623,7 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
           Expression* default_expr =
               sel->default_value().has_value() ? inputs.back() : nullptr;
           Expression* result = default_expr;
-          for (int64 i = cases.size() - 1; i >= 0; --i) {
+          for (int64_t i = cases.size() - 1; i >= 0; --i) {
             if (result == nullptr) {
               result = cases[i];
             } else {
@@ -655,12 +657,12 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
         while (element_type->IsArray()) {
           element_type = element_type->AsArrayOrDie()->element_type();
         }
-        int64 element_width = element_type->GetFlatBitCount();
+        int64_t element_width = element_type->GetFlatBitCount();
         absl::Span<Expression* const> cases = inputs.subspan(1);
         // Generate a one-hot-select operation of the given inputs.
         auto ohs_element = [&](absl::Span<Expression* const> inputs) {
           Expression* result = nullptr;
-          for (int64 i = 0; i < inputs.size(); ++i) {
+          for (int64_t i = 0; i < inputs.size(); ++i) {
             Expression* masked_input =
                 element_width == 1
                     ? file_->BitwiseAnd(inputs[i], file_->Index(selector, i))
@@ -827,7 +829,7 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
 }
 
 absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
-    absl::string_view name, int64 bit_count, Expression* next,
+    absl::string_view name, int64_t bit_count, Expression* next,
     Expression* reset_value) {
   if (clk_ == nullptr) {
     return absl::InvalidArgumentError("Clock signal required for register.");
@@ -960,7 +962,7 @@ VerilogFunction* DefineDynamicBitSliceFunction(DynamicBitSlice* slice,
       "operand", file->BitVectorType(slice->to_slice()->BitCountOrDie()));
   Expression* start = func->AddArgument(
       "start", file->BitVectorType(slice->start()->BitCountOrDie()));
-  int64 width = slice->width();
+  int64_t width = slice->width();
 
   LogicRef* zexted_operand = func->AddRegDef(
       "zexted_operand",

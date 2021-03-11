@@ -31,8 +31,8 @@ namespace {
 
 // Returns the largest cycle value to which any node is mapped in the given
 // ScheduleCycleMap. This is the maximum value of any value element in the map.
-int64 MaximumCycle(const ScheduleCycleMap& cycle_map) {
-  int64 max_cycle = 0;
+int64_t MaximumCycle(const ScheduleCycleMap& cycle_map) {
+  int64_t max_cycle = 0;
   for (const auto& pair : cycle_map) {
     max_cycle = std::max(max_cycle, pair.second);
   }
@@ -43,7 +43,7 @@ int64 MaximumCycle(const ScheduleCycleMap& cycle_map) {
 // performing a minimum cost cut and tightens the bounds accordingly. Upon
 // return no node in the function will have a range which spans both 'cycle' and
 // 'cycle + 1'.
-absl::Status SplitAfterCycle(Function* f, int64 cycle,
+absl::Status SplitAfterCycle(Function* f, int64_t cycle,
                              const DelayEstimator& delay_estimator,
                              sched::ScheduleBounds* bounds) {
   XLS_VLOG(3) << "Splitting after cycle " << cycle;
@@ -73,12 +73,12 @@ absl::Status SplitAfterCycle(Function* f, int64 cycle,
 
 // Returns the number of pipeline registers (flops) on the interior of the
 // pipeline not counting the input and output flops (if any).
-absl::StatusOr<int64> CountInteriorPipelineRegisters(
+absl::StatusOr<int64_t> CountInteriorPipelineRegisters(
     Function* f, const sched::ScheduleBounds& bounds) {
-  int64 registers = 0;
+  int64_t registers = 0;
   for (Node* node : f->nodes()) {
     XLS_RET_CHECK_EQ(bounds.lb(node), bounds.ub(node));
-    int64 latest_use = bounds.lb(node);
+    int64_t latest_use = bounds.lb(node);
     for (Node* user : node->users()) {
       latest_use = std::max(latest_use, bounds.lb(user));
     }
@@ -93,7 +93,7 @@ absl::StatusOr<int64> CountInteriorPipelineRegisters(
 // flops in the pipeline stages is minimized without violating the target clock
 // period.
 absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
-    Function* f, int64 pipeline_stages, const DelayEstimator& delay_estimator,
+    Function* f, int64_t pipeline_stages, const DelayEstimator& delay_estimator,
     sched::ScheduleBounds* bounds) {
   XLS_VLOG(3) << "ScheduleToMinimizeRegisters()";
   XLS_VLOG(3) << "  pipeline stages = " << pipeline_stages;
@@ -104,9 +104,9 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
 
   // Try a number of different orderings of cycle boundary at which the min-cut
   // is performed and keep the best one.
-  int64 best_register_count;
+  int64_t best_register_count;
   absl::optional<sched::ScheduleBounds> best_bounds;
-  for (const std::vector<int64>& cut_order :
+  for (const std::vector<int64_t>& cut_order :
        GetMinCutCycleOrders(pipeline_stages - 1)) {
     XLS_VLOG(3) << absl::StreamFormat("Trying cycle order: {%s}",
                                       absl::StrJoin(cut_order, ", "));
@@ -115,13 +115,13 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
     // splits the nodes into those which must be scheduled at or before the
     // cycle and those which must be scheduled after. Upon loop completion each
     // node will have a range of exactly one cycle.
-    for (int64 cycle : cut_order) {
+    for (int64_t cycle : cut_order) {
       XLS_RETURN_IF_ERROR(
           SplitAfterCycle(f, cycle, delay_estimator, &trial_bounds));
       XLS_RETURN_IF_ERROR(trial_bounds.PropagateLowerBounds());
       XLS_RETURN_IF_ERROR(trial_bounds.PropagateUpperBounds());
     }
-    XLS_ASSIGN_OR_RETURN(int64 trial_register_count,
+    XLS_ASSIGN_OR_RETURN(int64_t trial_register_count,
                          CountInteriorPipelineRegisters(f, trial_bounds));
     if (!best_bounds.has_value() ||
         best_register_count > trial_register_count) {
@@ -141,16 +141,16 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
 
 // Returns the critical path of the function given a topological sort of its
 // nodes.
-absl::StatusOr<int64> FunctionCriticalPath(
+absl::StatusOr<int64_t> FunctionCriticalPath(
     absl::Span<Node* const> topo_sort, const DelayEstimator& delay_estimator) {
-  int64 function_cp = 0;
-  absl::flat_hash_map<Node*, int64> node_cp;
+  int64_t function_cp = 0;
+  absl::flat_hash_map<Node*, int64_t> node_cp;
   for (Node* node : topo_sort) {
-    int64 node_start = 0;
+    int64_t node_start = 0;
     for (Node* operand : node->operands()) {
       node_start = std::max(node_start, node_cp[operand]);
     }
-    XLS_ASSIGN_OR_RETURN(int64 node_delay,
+    XLS_ASSIGN_OR_RETURN(int64_t node_delay,
                          delay_estimator.GetOperationDelayInPs(node));
     node_cp[node] = node_start + node_delay;
     function_cp = std::max(function_cp, node_cp[node]);
@@ -160,32 +160,33 @@ absl::StatusOr<int64> FunctionCriticalPath(
 
 // Returns the minimum clock period in picoseconds for which it is feasible to
 // schedule the function into a pipeline with the given number of stages.
-absl::StatusOr<int64> FindMinimumClockPeriod(
-    Function* f, int64 pipeline_stages, const DelayEstimator& delay_estimator) {
+absl::StatusOr<int64_t> FindMinimumClockPeriod(
+    Function* f, int64_t pipeline_stages,
+    const DelayEstimator& delay_estimator) {
   XLS_VLOG(4) << "FindMinimumClockPeriod()";
   XLS_VLOG(4) << "  pipeline stages = " << pipeline_stages;
   auto topo_sort_it = TopoSort(f);
   std::vector<Node*> topo_sort(topo_sort_it.begin(), topo_sort_it.end());
-  XLS_ASSIGN_OR_RETURN(int64 function_cp,
+  XLS_ASSIGN_OR_RETURN(int64_t function_cp,
                        FunctionCriticalPath(topo_sort, delay_estimator));
   // The lower bound of the search is the critical path delay evenly distributed
   // across all stages (rounded up), and the upper bound is simply the critical
   // path of the entire function. It's possible this upper bound is the best you
   // can do if there exists a single operation with delay equal to the
   // critical-path delay of the function.
-  int64 search_start = (function_cp + pipeline_stages - 1) / pipeline_stages;
-  int64 search_end = function_cp;
+  int64_t search_start = (function_cp + pipeline_stages - 1) / pipeline_stages;
+  int64_t search_end = function_cp;
   XLS_VLOG(4) << absl::StreamFormat("Binary searching over interval [%d, %d]",
                                     search_start, search_end);
-  XLS_ASSIGN_OR_RETURN(int64 min_period,
+  XLS_ASSIGN_OR_RETURN(int64_t min_period,
                        BinarySearchMinTrueWithStatus(
                            search_start, search_end,
-                           [&](int64 clk_period_ps) -> absl::StatusOr<bool> {
+                           [&](int64_t clk_period_ps) -> absl::StatusOr<bool> {
                              // If any node does not fit in the clock period,
                              // fail outright.
                              for (Node* node : f->nodes()) {
                                XLS_ASSIGN_OR_RETURN(
-                                   int64 node_delay,
+                                   int64_t node_delay,
                                    delay_estimator.GetOperationDelayInPs(node));
                                if (node_delay > clk_period_ps) {
                                  return false;
@@ -204,7 +205,7 @@ absl::StatusOr<int64> FindMinimumClockPeriod(
 // the sequence is the middle element between first and last. Subsequent
 // elements are selected recursively out of the two intervals before and after
 // the middle element.
-std::vector<int64> MiddleFirstOrder(int64 first, int64 last) {
+std::vector<int64_t> MiddleFirstOrder(int64_t first, int64_t last) {
   if (first == last) {
     return {first};
   }
@@ -212,11 +213,11 @@ std::vector<int64> MiddleFirstOrder(int64 first, int64 last) {
     return {first, last};
   }
 
-  int64 middle = (first + last) / 2;
-  std::vector<int64> head = MiddleFirstOrder(first, middle - 1);
-  std::vector<int64> tail = MiddleFirstOrder(middle + 1, last);
+  int64_t middle = (first + last) / 2;
+  std::vector<int64_t> head = MiddleFirstOrder(first, middle - 1);
+  std::vector<int64_t> tail = MiddleFirstOrder(middle + 1, last);
 
-  std::vector<int64> ret;
+  std::vector<int64_t> ret;
   ret.push_back(middle);
   ret.insert(ret.end(), head.begin(), head.end());
   ret.insert(ret.end(), tail.begin(), tail.end());
@@ -225,7 +226,7 @@ std::vector<int64> MiddleFirstOrder(int64 first, int64 last) {
 
 }  // namespace
 
-std::vector<std::vector<int64>> GetMinCutCycleOrders(int64 length) {
+std::vector<std::vector<int64_t>> GetMinCutCycleOrders(int64_t length) {
   if (length == 0) {
     return {{}};
   }
@@ -237,12 +238,12 @@ std::vector<std::vector<int64>> GetMinCutCycleOrders(int64 length) {
   }
   // For lengths greater than 2, return forward, reverse and middle first
   // orderings.
-  std::vector<std::vector<int64>> orders;
-  std::vector<int64> forward(length);
+  std::vector<std::vector<int64_t>> orders;
+  std::vector<int64_t> forward(length);
   std::iota(forward.begin(), forward.end(), 0);
   orders.push_back(forward);
 
-  std::vector<int64> reverse(length);
+  std::vector<int64_t> reverse(length);
   std::iota(reverse.begin(), reverse.end(), 0);
   std::reverse(reverse.begin(), reverse.end());
   orders.push_back(reverse);
@@ -253,10 +254,10 @@ std::vector<std::vector<int64>> GetMinCutCycleOrders(int64 length) {
 
 PipelineSchedule::PipelineSchedule(Function* function,
                                    ScheduleCycleMap cycle_map,
-                                   absl::optional<int64> length)
+                                   absl::optional<int64_t> length)
     : function_(function), cycle_map_(std::move(cycle_map)) {
   // Build the mapping from cycle to the vector of nodes in that cycle.
-  int64 max_cycle = MaximumCycle(cycle_map_);
+  int64_t max_cycle = MaximumCycle(cycle_map_);
   if (length.has_value()) {
     XLS_CHECK_GT(*length, max_cycle);
     max_cycle = *length - 1;
@@ -266,13 +267,13 @@ PipelineSchedule::PipelineSchedule(Function* function,
   cycle_to_nodes_.resize(max_cycle + 1);
   for (const auto& pair : cycle_map_) {
     Node* node = pair.first;
-    int64 cycle = pair.second;
+    int64_t cycle = pair.second;
     cycle_to_nodes_[cycle].push_back(node);
   }
   // The nodes in each cycle held in cycle_to_nodes_ must be in a topological
   // sort order.
-  absl::flat_hash_map<Node*, int64> node_to_topo_index;
-  int64 i = 0;
+  absl::flat_hash_map<Node*, int64_t> node_to_topo_index;
+  int64_t i = 0;
   for (Node* node : TopoSort(function)) {
     node_to_topo_index[node] = i;
     ++i;
@@ -297,16 +298,16 @@ absl::StatusOr<PipelineSchedule> PipelineSchedule::FromProto(
   return PipelineSchedule(function, cycle_map);
 }
 
-absl::Span<Node* const> PipelineSchedule::nodes_in_cycle(int64 cycle) const {
+absl::Span<Node* const> PipelineSchedule::nodes_in_cycle(int64_t cycle) const {
   if (cycle < cycle_to_nodes_.size()) {
     return cycle_to_nodes_[cycle];
   }
   return absl::Span<Node* const>();
 }
 
-std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64 c) const {
+std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
   std::vector<Node*> live_out;
-  for (int64 i = 0; i <= c; ++i) {
+  for (int64_t i = 0; i <= c; ++i) {
     for (Node* node : nodes_in_cycle(i)) {
       if (node->function_base()->HasImplicitUse(node) ||
           absl::c_any_of(node->users(),
@@ -321,12 +322,12 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64 c) const {
 /*static*/ absl::StatusOr<PipelineSchedule> PipelineSchedule::Run(
     Function* f, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options) {
-  int64 clock_period_ps;
+  int64_t clock_period_ps;
   if (options.clock_period_ps().has_value()) {
     clock_period_ps = *options.clock_period_ps();
 
     if (options.clock_margin_percent().has_value()) {
-      int64 original_clock_period_ps = clock_period_ps;
+      int64_t original_clock_period_ps = clock_period_ps;
       clock_period_ps -=
           (clock_period_ps * options.clock_margin_percent().value() + 50) / 100;
       if (clock_period_ps <= 0) {
@@ -350,7 +351,7 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64 c) const {
   sched::ScheduleBounds bounds(f, clock_period_ps, delay_estimator);
   XLS_RETURN_IF_ERROR(bounds.PropagateLowerBounds());
 
-  int64 max_ub;
+  int64_t max_ub;
   if (options.pipeline_stages().has_value()) {
     if (*options.pipeline_stages() < bounds.max_lower_bound()) {
       return absl::ResourceExhaustedError(absl::StrFormat(
@@ -386,15 +387,15 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64 c) const {
 }
 
 std::string PipelineSchedule::ToString() const {
-  absl::flat_hash_map<const Node*, int64> topo_pos;
-  int64 pos = 0;
+  absl::flat_hash_map<const Node*, int64_t> topo_pos;
+  int64_t pos = 0;
   for (Node* node : TopoSort(function_)) {
     topo_pos[node] = pos;
     pos++;
   }
 
   std::string result;
-  for (int64 cycle = 0; cycle <= length(); ++cycle) {
+  for (int64_t cycle = 0; cycle <= length(); ++cycle) {
     absl::StrAppendFormat(&result, "Cycle %d:\n", cycle);
     // Emit nodes in topo-sort order for easier reading.
     std::vector<Node*> nodes(nodes_in_cycle(cycle).begin(),
@@ -422,11 +423,11 @@ absl::Status PipelineSchedule::Verify() const {
 }
 
 absl::Status PipelineSchedule::VerifyTiming(
-    int64 clock_period_ps, const DelayEstimator& delay_estimator) const {
+    int64_t clock_period_ps, const DelayEstimator& delay_estimator) const {
   // Critical path from start of the cycle that a node is scheduled through the
   // node itself. If the schedule meets timing, then this value should be less
   // than or equal to clock_period_ps for every node.
-  absl::flat_hash_map<Node*, int64> node_cp;
+  absl::flat_hash_map<Node*, int64_t> node_cp;
   // The predecessor (operand) of the node through which the critical-path from
   // the start of the cycle extends.
   absl::flat_hash_map<Node*, Node*> cp_pred;
@@ -436,7 +437,7 @@ absl::Status PipelineSchedule::VerifyTiming(
   for (Node* node : TopoSort(function_)) {
     // The critical-path delay from the start of the stage to the start of the
     // node.
-    int64 cp_to_node_start = 0;
+    int64_t cp_to_node_start = 0;
     cp_pred[node] = nullptr;
     for (Node* operand : node->operands()) {
       if (cycle(operand) == cycle(node)) {
@@ -446,7 +447,7 @@ absl::Status PipelineSchedule::VerifyTiming(
         }
       }
     }
-    XLS_ASSIGN_OR_RETURN(int64 node_delay,
+    XLS_ASSIGN_OR_RETURN(int64_t node_delay,
                          delay_estimator.GetOperationDelayInPs(node));
     node_cp[node] = cp_to_node_start + node_delay;
     if (max_cp_node == nullptr || node_cp[node] > node_cp[max_cp_node]) {

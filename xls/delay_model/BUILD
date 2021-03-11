@@ -27,7 +27,6 @@ cc_library(
     srcs = ["delay_estimator.cc"],
     hdrs = ["delay_estimator.h"],
     deps = [
-        "//xls/common:integral_types",
         "//xls/common/status:status_builder",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -96,7 +95,6 @@ cc_library(
     hdrs = ["analyze_critical_path.h"],
     deps = [
         ":delay_estimator",
-        "//xls/common:integral_types",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir",

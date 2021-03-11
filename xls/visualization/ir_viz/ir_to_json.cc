@@ -83,7 +83,7 @@ absl::StatusOr<IrForVisualization::Attributes> NodeAttributes(
     attributes.set_known_bits(query_engine.ToString(node));
   }
 
-  absl::StatusOr<int64> delay_ps_status =
+  absl::StatusOr<int64_t> delay_ps_status =
       GetStandardDelayEstimator().GetOperationDelayInPs(node);
   if (delay_ps_status.ok()) {
     attributes.set_delay_ps(delay_ps_status.value());
@@ -133,7 +133,7 @@ absl::StatusOr<std::string> IrToJson(FunctionBase* function,
   }
 
   for (Node* node : function->nodes()) {
-    for (int64 i = 0; i < node->operand_count(); ++i) {
+    for (int64_t i = 0; i < node->operand_count(); ++i) {
       Node* operand = node->operand(i);
       IrForVisualization::Edge* graph_edge = ir.add_edges();
       std::string source = sanitize_name(operand->GetName());

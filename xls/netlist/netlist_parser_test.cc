@@ -179,7 +179,7 @@ endmodule)";
     return absl::Substitute(module_base, number);
   };
 
-  std::vector<std::pair<std::string, int64>> test_cases({
+  std::vector<std::pair<std::string, int64_t>> test_cases({
       {"1'b1", 1},
       {"1'o1", 1},
       {"8'd255", 255},

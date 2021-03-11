@@ -32,7 +32,7 @@ std::string ChannelKindToString(ChannelKind kind) {
     case kLogical:
       return "logical";
   }
-  XLS_LOG(FATAL) << "Invalid channel kind: " << static_cast<int64>(kind);
+  XLS_LOG(FATAL) << "Invalid channel kind: " << static_cast<int64_t>(kind);
 }
 
 absl::StatusOr<ChannelKind> StringToChannelKind(absl::string_view str) {
@@ -63,7 +63,7 @@ std::string ChannelOpsToString(ChannelOps ops) {
     case ChannelOps::kSendReceive:
       return "send_receive";
   }
-  XLS_LOG(FATAL) << "Invalid channel kind: " << static_cast<int64>(ops);
+  XLS_LOG(FATAL) << "Invalid channel kind: " << static_cast<int64_t>(ops);
 }
 
 absl::StatusOr<ChannelOps> StringToChannelOps(absl::string_view str) {

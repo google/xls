@@ -106,14 +106,14 @@ class InterpValue {
   // Factories
 
   // TODO(leary): 2020-10-18 Port to be consistent with xls/ir/bits.h
-  static InterpValue MakeUBits(int64 bit_count, int64 value);
-  static InterpValue MakeSBits(int64 bit_count, int64 value);
+  static InterpValue MakeUBits(int64_t bit_count, int64_t value);
+  static InterpValue MakeSBits(int64_t bit_count, int64_t value);
 
   static InterpValue MakeNil() { return MakeTuple({}); }
-  static InterpValue MakeU32(uint32 value) {
+  static InterpValue MakeU32(uint32_t value) {
     return MakeUBits(/*bit_count=*/32, value);
   }
-  static InterpValue MakeU64(uint64 value) {
+  static InterpValue MakeU64(uint64_t value) {
     return MakeUBits(/*bit_count=*/64, value);
   }
   static InterpValue MakeEnum(const Bits& bits, EnumDef* type) {
@@ -181,17 +181,18 @@ class InterpValue {
   // Various operations -- tag is not applicable for the operation, a status
   // error should be returned.
 
-  absl::StatusOr<int64> GetBitValueCheckSign() const;
+  absl::StatusOr<int64_t> GetBitValueCheckSign() const;
 
-  absl::StatusOr<int64> GetBitCount() const;
-  absl::StatusOr<uint64> GetBitValueUint64() const;
-  absl::StatusOr<int64> GetBitValueInt64() const;
+  absl::StatusOr<int64_t> GetBitCount() const;
+  absl::StatusOr<uint64_t> GetBitValueUint64() const;
+  absl::StatusOr<int64_t> GetBitValueInt64() const;
 
-  // Returns true iff the value HasBits and the bits values fits in a (u)int64.
+  // Returns true iff the value HasBits and the bits values fits in a
+  // (u)int64_t.
   bool FitsInUint64() const;
   bool FitsInInt64() const;
 
-  absl::StatusOr<int64> GetLength() const {
+  absl::StatusOr<int64_t> GetLength() const {
     if (IsTuple() || IsArray()) {
       return GetValuesOrDie().size();
     }
@@ -199,8 +200,8 @@ class InterpValue {
                                       TagToString(tag_));
   }
 
-  absl::StatusOr<InterpValue> ZeroExt(int64 new_bit_count) const;
-  absl::StatusOr<InterpValue> SignExt(int64 new_bit_count) const;
+  absl::StatusOr<InterpValue> ZeroExt(int64_t new_bit_count) const;
+  absl::StatusOr<InterpValue> SignExt(int64_t new_bit_count) const;
   absl::StatusOr<InterpValue> Concat(const InterpValue& other) const;
   absl::StatusOr<InterpValue> AddWithCarry(const InterpValue& other) const;
 

@@ -20,17 +20,17 @@
 namespace xls {
 
 // Bits in a byte. Large-typed version of CHAR_BIT.
-constexpr int64 kCharBit = 8;
+constexpr int64_t kCharBit = 8;
 
 // Helper that generates an (unsigned) mask with "bit_count" low bits set.
-inline uint64 Mask(int64 bit_count) {
+inline uint64_t Mask(int64_t bit_count) {
   XLS_DCHECK_GE(bit_count, 0);
   XLS_DCHECK_LE(bit_count, 64);
   return bit_count == 64 ? -1ULL : (1ULL << bit_count) - 1;
 }
 
 // Swaps the byte order of the input vector.
-inline void ByteSwap(absl::Span<uint8> input) {
+inline void ByteSwap(absl::Span<uint8_t> input) {
   std::reverse(input.begin(), input.end());
 }
 

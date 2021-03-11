@@ -15,10 +15,11 @@
 #ifndef XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_
 #define XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_
 
+#include <cstdint>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
 
@@ -30,13 +31,13 @@ class DelayEstimator {
   virtual ~DelayEstimator() = default;
 
   // Returns the estimated delay of the given node in picoseconds.
-  virtual absl::StatusOr<int64> GetOperationDelayInPs(Node* node) const = 0;
+  virtual absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const = 0;
 
   // Compute the delay of the given node using logical effort estimation. Only
   // relatively simple operations (kAnd, kOr, etc) are supported using this
   // method.
-  static absl::StatusOr<int64> GetLogicalEffortDelayInPs(Node* node,
-                                                         int64 tau_in_ps);
+  static absl::StatusOr<int64_t> GetLogicalEffortDelayInPs(Node* node,
+                                                           int64_t tau_in_ps);
 };
 
 enum class DelayEstimatorPrecedence {

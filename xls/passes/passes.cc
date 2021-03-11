@@ -55,7 +55,7 @@ absl::StatusOr<bool> FunctionBasePass::TransformNodesToFixedPoint(
     std::function<absl::StatusOr<bool>(Node*)> simplify_f) const {
   // Store nodes by id to avoid running afoul of Node* pointer values being
   // reused.
-  absl::flat_hash_set<int64> simplified_node_ids;
+  absl::flat_hash_set<int64_t> simplified_node_ids;
   bool changed = false;
   bool changed_this_time = false;
   do {
@@ -72,7 +72,7 @@ absl::StatusOr<bool> FunctionBasePass::TransformNodesToFixedPoint(
       if (!node->IsDead() || !simplified_node_ids.contains(node->id())) {
         // Grab the node ID before simplifying because the node might be
         // removed when simplifying.
-        int64 node_id = node->id();
+        int64_t node_id = node->id();
         XLS_ASSIGN_OR_RETURN(bool node_changed, simplify_f(node));
         if (node_changed) {
           simplified_node_ids.insert(node_id);

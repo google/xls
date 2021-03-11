@@ -15,6 +15,7 @@
 #ifndef XLS_CODEGEN_SEQUENTIAL_GENERATOR_H_
 #define XLS_CODEGEN_SEQUENTIAL_GENERATOR_H_
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 
@@ -27,7 +28,6 @@
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/vast.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
@@ -130,14 +130,14 @@ class SequentialModuleBuilder {
   };
 
   // Adds the FSM that orchestrates the sequential module's execution.
-  absl::Status AddFsm(int64 pipeline_latency,
+  absl::Status AddFsm(int64_t pipeline_latency,
                       LogicRef* index_holds_max_inclusive_value,
                       LogicRef* last_pipeline_cycle);
 
   // Adds a strided counter with statically determined value_limit_exclusive to
   // the module. Note that this is not a saturating counter.
   absl::StatusOr<StridedCounterReferences> AddStaticStridedCounter(
-      std::string name, int64 stride, int64 value_limit_exclusive,
+      std::string name, int64_t stride, int64_t value_limit_exclusive,
       LogicRef* clk, LogicRef* set_zero_arg, LogicRef* increment_arg);
 
   // Assign lhs to rhs (flat bit types only).
@@ -176,7 +176,7 @@ class SequentialModuleBuilder {
 
   // Declares and assigns a wire, returning a logical reference to the wire.
   LogicRef* DeclareVariableAndAssign(absl::string_view name, Expression* rhs,
-                                     int64 bit_count) {
+                                     int64_t bit_count) {
     LogicRef* wire = module_builder_->DeclareVariable(name, bit_count);
     AddContinuousAssignment(wire, rhs);
     return wire;

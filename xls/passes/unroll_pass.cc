@@ -39,8 +39,8 @@ CountedFor* FindCountedFor(FunctionBase* f) {
 absl::Status UnrollCountedFor(CountedFor* loop) {
   FunctionBase* f = loop->function_base();
   Node* loop_carry = loop->initial_value();
-  int64 ivar_bit_count = loop->body()->params()[0]->BitCountOrDie();
-  for (int64 trip = 0, iv = 0; trip < loop->trip_count();
+  int64_t ivar_bit_count = loop->body()->params()[0]->BitCountOrDie();
+  for (int64_t trip = 0, iv = 0; trip < loop->trip_count();
        ++trip, iv += loop->stride()) {
     XLS_ASSIGN_OR_RETURN(
         Literal * iv_node,

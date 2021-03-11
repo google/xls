@@ -46,10 +46,10 @@ class NetworkView {
   // Counts the number of a components of the type specified by the template.
   // The component type must be a network component base class or derived class.
   template <typename Type>
-  int64 GetCount() const {
+  int64_t GetCount() const {
     static_assert(std::is_base_of<NetworkComponent, Type>::value,
                   "Type is not a Network Component subclass");
-    int64 count = 0;
+    int64_t count = 0;
     for (const NetworkComponent* component : components()) {
       if (typeid(*component) == typeid(Type)) {
         count++;
@@ -70,7 +70,7 @@ class NetworkView {
   components() const;
 
   // Returns the number of components.
-  int64 GetComponentCount() const;
+  int64_t GetComponentCount() const;
 
   // Add a connection to the view. The connection is owned by the view, the
   // lifetime of the connection is equivalent to the lifetime of the view.
@@ -88,7 +88,7 @@ class NetworkView {
   connections() const;
 
   // Returns the number of connections.
-  int64 GetConnectionCount() const;
+  int64_t GetConnectionCount() const;
 
   virtual ~NetworkView() = default;
 

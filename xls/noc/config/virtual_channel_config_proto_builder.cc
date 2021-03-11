@@ -25,13 +25,13 @@ VirtualChannelConfigProtoBuilder& VirtualChannelConfigProtoBuilder::WithName(
 }
 
 VirtualChannelConfigProtoBuilder&
-VirtualChannelConfigProtoBuilder::WithFlitBitWidth(int64 flit_bit_width) {
+VirtualChannelConfigProtoBuilder::WithFlitBitWidth(int64_t flit_bit_width) {
   proto_->set_flit_bit_width(flit_bit_width);
   return *this;
 }
 
 VirtualChannelConfigProtoBuilder& VirtualChannelConfigProtoBuilder::WithDepth(
-    int64 depth) {
+    int64_t depth) {
   proto_->set_depth(depth);
   return *this;
 }

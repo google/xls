@@ -42,7 +42,7 @@ absl::StatusOr<std::vector<Value>> KeywordArgsToPositional(
   for (const auto& pair : kwargs) {
     XLS_VLOG(2) << "  " << pair.first << " = " << pair.second;
     XLS_ASSIGN_OR_RETURN(Param * param, function.GetParamByName(pair.first));
-    XLS_ASSIGN_OR_RETURN(int64 param_index, function.GetParamIndex(param));
+    XLS_ASSIGN_OR_RETURN(int64_t param_index, function.GetParamIndex(param));
     positional_args.at(param_index) = pair.second;
   }
 

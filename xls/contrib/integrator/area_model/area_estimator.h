@@ -32,7 +32,7 @@ class AreaEstimator {
 
   // Returns the estimated area of the given node. Units of area
   // depend on the model / data used.
-  absl::StatusOr<int64> GetOperationArea(Node* node) const {
+  absl::StatusOr<int64_t> GetOperationArea(Node* node) const {
     return delay_estimator_->GetOperationDelayInPs(node);
   }
 

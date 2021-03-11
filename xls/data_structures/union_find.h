@@ -15,7 +15,7 @@
 #ifndef XLS_DATA_STRUCTURES_UNION_FIND_H_
 #define XLS_DATA_STRUCTURES_UNION_FIND_H_
 
-#include "xls/common/integral_types.h"
+#include <cstdint>
 
 namespace xls {
 
@@ -33,7 +33,7 @@ class UnionFind {
   UnionFind() : rank_(0), size_(1), parent_(nullptr) {}
 
   // Returns the number of elements in a cluster.
-  int64 Size() { return FindRoot()->size_; }
+  int64_t Size() { return FindRoot()->size_; }
 
   // Merges this cluster with 'other'. This cluster's value becomes
   // the value of the merged cluster; the value of 'other' is ignored.
@@ -47,8 +47,8 @@ class UnionFind {
   UnionFind* FindRoot();
 
  private:
-  int64 rank_;
-  int64 size_;  // Size of the cluster.
+  int64_t rank_;
+  int64_t size_;  // Size of the cluster.
   UnionFind* parent_;
   T value_;
 };

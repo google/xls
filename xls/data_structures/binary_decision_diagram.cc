@@ -49,10 +49,10 @@ BddNodeIndex BinaryDecisionDiagram::GetOrCreateNode(BddVariable var,
   }
   // Compute the number of minterms that the new node will have. Use int64s to
   // avoid overflowing and saturate at INT32_MAX.
-  int32 minterms =
-      std::min(static_cast<int64>(GetNode(low).minterm_count) +
+  int32_t minterms =
+      std::min(static_cast<int64_t>(GetNode(low).minterm_count) +
                    GetNode(high).minterm_count,
-               static_cast<int64>(std::numeric_limits<int32>::max()));
+               static_cast<int64_t>(std::numeric_limits<int32_t>::max()));
   nodes_.emplace_back(var, high, low, minterms);
   BddNodeIndex node_index = BddNodeIndex(nodes_.size() - 1);
   node_map_[key] = node_index;
@@ -152,7 +152,7 @@ absl::StatusOr<bool> BinaryDecisionDiagram::Evaluate(
     BddNodeIndex expr,
     const absl::flat_hash_map<BddNodeIndex, bool>& variable_values) const {
   BddNodeIndex result = expr;
-  XLS_VLOG(2) << "Evaluating node: " << static_cast<int64>(expr);
+  XLS_VLOG(2) << "Evaluating node: " << static_cast<int64_t>(expr);
   XLS_VLOG(2) << "  expression = " << ToStringDnf(expr, /*minterm_limit=*/5);
   if (XLS_VLOG_IS_ON(3)) {
     XLS_VLOG(3) << "  variable values: ";
@@ -181,7 +181,7 @@ absl::StatusOr<bool> BinaryDecisionDiagram::Evaluate(
 }
 
 void BinaryDecisionDiagram::ToStringDnfHelper(BddNodeIndex expr,
-                                              int64* minterms_to_emit,
+                                              int64_t* minterms_to_emit,
                                               std::vector<std::string>* terms,
                                               std::string* str) const {
   if (*minterms_to_emit < 0) {
@@ -214,7 +214,7 @@ void BinaryDecisionDiagram::ToStringDnfHelper(BddNodeIndex expr,
 }
 
 std::string BinaryDecisionDiagram::ToStringDnf(BddNodeIndex expr,
-                                               int64 minterm_limit) const {
+                                               int64_t minterm_limit) const {
   if (expr == zero()) {
     return "0";
   }
@@ -223,8 +223,8 @@ std::string BinaryDecisionDiagram::ToStringDnf(BddNodeIndex expr,
   }
   std::string result;
   std::vector<std::string> terms;
-  int64 minterms_to_emit =
-      minterm_limit == 0 ? std::numeric_limits<int64>::max() : minterm_limit;
+  int64_t minterms_to_emit =
+      minterm_limit == 0 ? std::numeric_limits<int64_t>::max() : minterm_limit;
   ToStringDnfHelper(expr, &minterms_to_emit, &terms, &result);
   return result;
 }

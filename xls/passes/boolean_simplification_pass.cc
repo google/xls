@@ -30,7 +30,7 @@ namespace {
 // We store up to two "frontier nodes" on the frontier of the boolean
 // computation -- if we have more than this many "frontier nodes", we switch
 // over to "TooMany" via the TooManySentinel type below.
-constexpr int64 kMaxFrontierNodes = 3;
+constexpr int64_t kMaxFrontierNodes = 3;
 
 }  // namespace
 
@@ -52,7 +52,7 @@ TruthTable::TruthTable(const Bits& xyz_present, const Bits& xyz_negated,
   XLS_CHECK(bits_ops::And(bits_ops::Not(xyz_present), xyz_negated).IsZero());
 }
 
-/* static */ Bits TruthTable::GetInitialVector(int64 i) {
+/* static */ Bits TruthTable::GetInitialVector(int64_t i) {
   XLS_CHECK_LT(i, kMaxFrontierNodes);
   switch (i) {
     case 0:
@@ -85,7 +85,7 @@ TruthTable::TruthTable(const Bits& xyz_present, const Bits& xyz_negated,
 
 Bits TruthTable::ComputeTruthTable() const {
   std::vector<Bits> operands;
-  for (int64 i = 0; i < kMaxFrontierNodes; ++i) {
+  for (int64_t i = 0; i < kMaxFrontierNodes; ++i) {
     if (xyz_present_.GetFromMsb(i)) {
       Bits bit_vector = GetInitialVector(i);
       if (xyz_negated_.GetFromMsb(i)) {
@@ -111,7 +111,7 @@ bool TruthTable::MatchesSymmetrical(
     if (original->op() != logical_op_.value()) {
       return false;
     }
-    for (int64 i = 0; i < kMaxFrontierNodes; ++i) {
+    for (int64_t i = 0; i < kMaxFrontierNodes; ++i) {
       if (!xyz_present_.GetFromMsb(i)) {
         continue;  // Don't care about this operand.
       }
@@ -136,7 +136,7 @@ bool TruthTable::MatchesSymmetrical(
   // When there is no logical function, only one of the "present" bits may be
   // set.
   XLS_CHECK_EQ(1, xyz_present_.PopCount());
-  for (int64 i = 0; i < kMaxFrontierNodes; ++i) {
+  for (int64_t i = 0; i < kMaxFrontierNodes; ++i) {
     if (!xyz_present_.GetFromMsb(i)) {
       continue;  // Don't care about this operand.
     }
@@ -154,7 +154,7 @@ absl::StatusOr<Node*> TruthTable::CreateReplacement(
     absl::Span<Node* const> operands, FunctionBase* f) const {
   XLS_CHECK_LE(operands.size(), kMaxFrontierNodes);
   std::vector<Node*> this_operands;
-  for (int64 i = 0; i < kMaxFrontierNodes; ++i) {
+  for (int64_t i = 0; i < kMaxFrontierNodes; ++i) {
     if (!xyz_present_.GetFromMsb(i)) {
       continue;
     }
@@ -271,10 +271,10 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
     return HandleLogicOp(or_op);
   }
 
-  static absl::flat_hash_map<uint64, TruthTable>* CreateTruthTables() {
-    auto results = new absl::flat_hash_map<uint64, TruthTable>;
+  static absl::flat_hash_map<uint64_t, TruthTable>* CreateTruthTables() {
+    auto results = new absl::flat_hash_map<uint64_t, TruthTable>;
     auto add = [results](TruthTable table) {
-      uint64 truth_table_bits = table.ComputeTruthTable().ToUint64().value();
+      uint64_t truth_table_bits = table.ComputeTruthTable().ToUint64().value();
       // Note: we don't update to the lowest-cost table, because other passes
       // (e.g. simplification passes) seem to do better with simpler operations
       // (e.g. or(x, y, z) instead of nand(~x, ~y, ~z) -- we also don't have a
@@ -287,7 +287,7 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
     const auto kLogicOps = {Op::kNand, Op::kNor, Op::kXor, Op::kAnd, Op::kOr};
 
     // First populate the truth tables for single values and their negations.
-    for (int64 presence = 0b0001; presence < 0b1000; presence <<= 1) {
+    for (int64_t presence = 0b0001; presence < 0b1000; presence <<= 1) {
       for (bool negate : {false, true}) {
         add(TruthTable(UBits(presence, /*bit_count=*/3),
                        UBits(negate ? presence : 0LL, /*bit_count=*/3),
@@ -298,16 +298,16 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
     // Then populate the truth tables for the operations, approximately
     // sequenced from cheap to more expensive.
     for (Op op : kLogicOps) {
-      for (int64 presence : {0b011, 0b101, 0b110, 0b111}) {
-        const uint64 negation = 0;
+      for (int64_t presence : {0b011, 0b101, 0b110, 0b111}) {
+        const uint64_t negation = 0;
         add(TruthTable(UBits(presence, /*bit_count=*/3),
                        UBits(negation, /*bit_count=*/3), op));
       }
     }
     // Now add operations that negate their operands.
     for (Op op : kLogicOps) {
-      for (int64 presence : {0b011, 0b101, 0b110, 0b111}) {
-        for (int64 negation = 1; negation < 0b1000; ++negation) {
+      for (int64_t presence : {0b011, 0b101, 0b110, 0b111}) {
+        for (int64_t negation = 1; negation < 0b1000; ++negation) {
           if ((~presence & negation)) {
             // Don't negate things that are not present.
             continue;
@@ -321,8 +321,8 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
   }
 
   // Returns a memoized (constant) version of all the truth tables.
-  static const absl::flat_hash_map<uint64, TruthTable>& GetTruthTables() {
-    static absl::flat_hash_map<uint64, TruthTable>* tables =
+  static const absl::flat_hash_map<uint64_t, TruthTable>& GetTruthTables() {
+    static absl::flat_hash_map<uint64_t, TruthTable>* tables =
         CreateTruthTables();
     return *tables;
   }

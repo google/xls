@@ -33,12 +33,12 @@
 
 namespace xls {
 
-absl::StatusOr<int64> Parser::ParseBitsTypeAndReturnWidth() {
+absl::StatusOr<int64_t> Parser::ParseBitsTypeAndReturnWidth() {
   XLS_ASSIGN_OR_RETURN(Token peek, scanner_.PeekToken());
   XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("bits"));
   XLS_RETURN_IF_ERROR(
       scanner_.DropTokenOrError(LexicalTokenType::kBracketOpen));
-  XLS_ASSIGN_OR_RETURN(int64 bit_count, ParseInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count, ParseInt64());
   if (bit_count < 0) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Only positive bit counts are permitted for bits types; found %d @ %s",
@@ -50,7 +50,7 @@ absl::StatusOr<int64> Parser::ParseBitsTypeAndReturnWidth() {
 }
 
 absl::StatusOr<Type*> Parser::ParseBitsType(Package* package) {
-  XLS_ASSIGN_OR_RETURN(int64 bit_count, ParseBitsTypeAndReturnWidth());
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count, ParseBitsTypeAndReturnWidth());
   return package->GetBitsType(bit_count);
 }
 
@@ -65,7 +65,7 @@ absl::StatusOr<Type*> Parser::ParseType(Package* package) {
   }
   while (scanner_.TryDropToken(LexicalTokenType::kBracketOpen)) {
     // Array type.
-    XLS_ASSIGN_OR_RETURN(int64 size, ParseInt64());
+    XLS_ASSIGN_OR_RETURN(int64_t size, ParseInt64());
     XLS_RETURN_IF_ERROR(
         scanner_.DropTokenOrError(LexicalTokenType::kBracketClose));
     type = package->GetArrayType(size, type);
@@ -110,7 +110,7 @@ struct QuotedString {
 // Variant which gathers all the possible keyword argument types. New
 // keywords arguments which require a new type should be added here.
 using KeywordVariant =
-    absl::variant<KeywordValue<int64>, KeywordValue<IdentifierString>,
+    absl::variant<KeywordValue<int64_t>, KeywordValue<IdentifierString>,
                   KeywordValue<QuotedString>, KeywordValue<BValue>,
                   KeywordValue<std::vector<BValue>>, KeywordValue<Value>,
                   KeywordValue<SourceLocation>, KeywordValue<bool>>;
@@ -180,8 +180,8 @@ class ArgParser {
 
   // Runs the argument parser. 'arity' is the expected number of operands
   // (positional arguments). Returns the BValues of the operands.
-  static constexpr int64 kVariadic = -1;
-  absl::StatusOr<std::vector<BValue>> Run(int64 arity) {
+  static constexpr int64_t kVariadic = -1;
+  absl::StatusOr<std::vector<BValue>> Run(int64_t arity) {
     absl::flat_hash_set<std::string> seen_keywords;
     std::vector<BValue> operands;
     XLS_ASSIGN_OR_RETURN(Token open_paren, parser_->scanner_.PopTokenOrError(
@@ -255,7 +255,7 @@ class ArgParser {
         Visitor{[&](KeywordValue<bool>& v) {
                   return v.SetOrReturn(parser_->ParseBool());
                 },
-                [&](KeywordValue<int64>& v) {
+                [&](KeywordValue<int64_t>& v) {
                   return v.SetOrReturn(parser_->ParseInt64());
                 },
                 [&](KeywordValue<IdentifierString>& v) -> absl::Status {
@@ -293,7 +293,7 @@ class ArgParser {
   absl::flat_hash_map<std::string, std::unique_ptr<KeywordVariant>> keywords_;
 };
 
-absl::StatusOr<int64> Parser::ParseInt64() {
+absl::StatusOr<int64_t> Parser::ParseInt64() {
   XLS_ASSIGN_OR_RETURN(Token literal,
                        scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
   return literal.GetValueInt64();
@@ -340,7 +340,7 @@ absl::StatusOr<Value> Parser::ParseValueInternal(absl::optional<Type*> type) {
   XLS_ASSIGN_OR_RETURN(Token peek, scanner_.PeekToken());
   const TokenPos start_pos = peek.pos();
   TypeKind type_kind;
-  int64 bit_count = 0;
+  int64_t bit_count = 0;
   if (type.has_value()) {
     type_kind = type.value()->kind();
     bit_count =
@@ -477,9 +477,9 @@ absl::StatusOr<SourceLocation> Parser::ParseSourceLocation() {
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
   XLS_ASSIGN_OR_RETURN(Token colno,
                        scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
-  XLS_ASSIGN_OR_RETURN(int64 fileno_value, fileno.GetValueInt64());
-  XLS_ASSIGN_OR_RETURN(int64 lineno_value, lineno.GetValueInt64());
-  XLS_ASSIGN_OR_RETURN(int64 colno_value, colno.GetValueInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t fileno_value, fileno.GetValueInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t lineno_value, lineno.GetValueInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t colno_value, colno.GetValueInt64());
   return SourceLocation(Fileno(fileno_value), Lineno(lineno_value),
                         Colno(colno_value));
 }
@@ -526,14 +526,14 @@ namespace {
 // returned.
 struct SplitName {
   std::string op_name;
-  int64 node_id;
+  int64_t node_id;
 };
 absl::optional<SplitName> SplitNodeName(absl::string_view name) {
   std::vector<absl::string_view> pieces = absl::StrSplit(name, '.');
   if (pieces.empty()) {
     return absl::nullopt;
   }
-  int64 result;
+  int64_t result;
   if (!absl::SimpleAtoi(pieces.back(), &result)) {
     return absl::nullopt;
   }
@@ -563,8 +563,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
   ArgParser arg_parser(*name_to_value, type, this);
   absl::optional<SourceLocation>* loc =
       arg_parser.AddOptionalKeywordArg<SourceLocation>("pos");
-  absl::optional<int64>* id_attribute =
-      arg_parser.AddOptionalKeywordArg<int64>("id");
+  absl::optional<int64_t>* id_attribute =
+      arg_parser.AddOptionalKeywordArg<int64_t>("id");
   BValue bvalue;
 
   absl::optional<SplitName> split_name = SplitNodeName(output_name.value());
@@ -577,14 +577,14 @@ absl::StatusOr<BValue> Parser::ParseNode(
   std::vector<BValue> operands;
   switch (op) {
     case Op::kBitSlice: {
-      int64* start = arg_parser.AddKeywordArg<int64>("start");
-      int64* width = arg_parser.AddKeywordArg<int64>("width");
+      int64_t* start = arg_parser.AddKeywordArg<int64_t>("start");
+      int64_t* width = arg_parser.AddKeywordArg<int64_t>("width");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
       bvalue = fb->BitSlice(operands[0], *start, *width, *loc, node_name);
       break;
     }
     case Op::kDynamicBitSlice: {
-      int64* width = arg_parser.AddKeywordArg<int64>("width");
+      int64_t* width = arg_parser.AddKeywordArg<int64_t>("width");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
       bvalue = fb->DynamicBitSlice(operands[0], operands[1], *width, *loc,
                                    node_name);
@@ -628,8 +628,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kCountedFor: {
-      int64* trip_count = arg_parser.AddKeywordArg<int64>("trip_count");
-      int64* stride = arg_parser.AddOptionalKeywordArg<int64>("stride", 1);
+      int64_t* trip_count = arg_parser.AddKeywordArg<int64_t>("trip_count");
+      int64_t* stride = arg_parser.AddOptionalKeywordArg<int64_t>("stride", 1);
       IdentifierString* body_name =
           arg_parser.AddKeywordArg<IdentifierString>("body");
       std::vector<BValue>* invariant_args =
@@ -713,7 +713,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kTupleIndex: {
-      int64* index = arg_parser.AddKeywordArg<int64>("index");
+      int64_t* index = arg_parser.AddKeywordArg<int64_t>("index");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
       if (operands[0].valid() && !operands[0].GetType()->IsTuple()) {
         return absl::InvalidArgumentError(absl::StrFormat(
@@ -764,7 +764,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
     }
     case Op::kZeroExt:
     case Op::kSignExt: {
-      int64* new_bit_count = arg_parser.AddKeywordArg<int64>("new_bit_count");
+      int64_t* new_bit_count =
+          arg_parser.AddKeywordArg<int64_t>("new_bit_count");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
       if (type->IsBits() &&
           type->AsBitsOrDie()->bit_count() != *new_bit_count) {
@@ -785,7 +786,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kDecode: {
-      int64* width = arg_parser.AddKeywordArg<int64>("width");
+      int64_t* width = arg_parser.AddKeywordArg<int64_t>("width");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
       if (type->IsBits() && type->AsBitsOrDie()->bit_count() != *width) {
         return absl::InvalidArgumentError(
@@ -805,7 +806,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kReceive: {
-      int64* channel_id = arg_parser.AddKeywordArg<int64>("channel_id");
+      int64_t* channel_id = arg_parser.AddKeywordArg<int64_t>("channel_id");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
       // Get the channel from the package.
       if (!package->HasChannelWithId(*channel_id)) {
@@ -824,7 +825,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kReceiveIf: {
-      int64* channel_id = arg_parser.AddKeywordArg<int64>("channel_id");
+      int64_t* channel_id = arg_parser.AddKeywordArg<int64_t>("channel_id");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
       // Get the channel from the package.
       if (!package->HasChannelWithId(*channel_id)) {
@@ -844,7 +845,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kSend: {
-      int64* channel_id = arg_parser.AddKeywordArg<int64>("channel_id");
+      int64_t* channel_id = arg_parser.AddKeywordArg<int64_t>("channel_id");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
       // Get the channel from the package.
       if (!package->HasChannelWithId(*channel_id)) {
@@ -856,7 +857,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kSendIf: {
-      int64* channel_id = arg_parser.AddKeywordArg<int64>("channel_id");
+      int64_t* channel_id = arg_parser.AddKeywordArg<int64_t>("channel_id");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/3));
       // Get the channel from the package.
       if (!package->HasChannelWithId(*channel_id)) {
@@ -1209,7 +1210,7 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
       scanner_.PopTokenOrError(LexicalTokenType::kIdent, "channel name"));
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen,
                                                 "'(' in channel definition"));
-  absl::optional<int64> id;
+  absl::optional<int64_t> id;
   absl::optional<ChannelOps> supported_ops;
   absl::optional<ChannelMetadataProto> metadata;
   std::vector<Value> initial_values;

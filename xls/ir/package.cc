@@ -219,7 +219,7 @@ absl::StatusOr<Type*> Package::MapTypeFromOtherPackage(
   }
 }
 
-BitsType* Package::GetBitsType(int64 bit_count) {
+BitsType* Package::GetBitsType(int64_t bit_count) {
   if (bit_count_to_type_.find(bit_count) != bit_count_to_type_.end()) {
     return &bit_count_to_type_.at(bit_count);
   }
@@ -229,7 +229,7 @@ BitsType* Package::GetBitsType(int64 bit_count) {
   return new_type;
 }
 
-ArrayType* Package::GetArrayType(int64 size, Type* element_type) {
+ArrayType* Package::GetArrayType(int64_t size, Type* element_type) {
   ArrayKey key{size, element_type};
   if (array_types_.find(key) != array_types_.end()) {
     return &array_types_.at(key);
@@ -369,8 +369,8 @@ Fileno Package::GetOrCreateFileno(absl::string_view filename) {
   return this_fileno;
 }
 
-int64 Package::GetNodeCount() const {
-  int64 count = 0;
+int64_t Package::GetNodeCount() const {
+  int64_t count = 0;
   for (const auto& f : functions()) {
     count += f->node_count();
   }
@@ -460,9 +460,9 @@ absl::Status VerifyValuesAreType(absl::Span<const Value> values, Type* type) {
 absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
     absl::string_view name, ChannelOps supported_ops, Type* type,
     absl::Span<const Value> initial_values,
-    const ChannelMetadataProto& metadata, absl::optional<int64> id) {
+    const ChannelMetadataProto& metadata, absl::optional<int64_t> id) {
   XLS_RETURN_IF_ERROR(VerifyValuesAreType(initial_values, type));
-  int64 actual_id = id.has_value() ? id.value() : next_channel_id_;
+  int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
   auto channel = absl::make_unique<StreamingChannel>(
       name, actual_id, supported_ops, type, initial_values, metadata);
   StreamingChannel* channel_ptr = channel.get();
@@ -472,8 +472,8 @@ absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
 
 absl::StatusOr<PortChannel*> Package::CreatePortChannel(
     absl::string_view name, ChannelOps supported_ops, Type* type,
-    const ChannelMetadataProto& metadata, absl::optional<int64> id) {
-  int64 actual_id = id.has_value() ? id.value() : next_channel_id_;
+    const ChannelMetadataProto& metadata, absl::optional<int64_t> id) {
+  int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
   auto channel = absl::make_unique<PortChannel>(name, actual_id, supported_ops,
                                                 type, metadata);
   PortChannel* channel_ptr = channel.get();
@@ -483,11 +483,11 @@ absl::StatusOr<PortChannel*> Package::CreatePortChannel(
 
 absl::StatusOr<RegisterChannel*> Package::CreateRegisterChannel(
     absl::string_view name, Type* type, absl::optional<Value> reset_value,
-    const ChannelMetadataProto& metadata, absl::optional<int64> id) {
+    const ChannelMetadataProto& metadata, absl::optional<int64_t> id) {
   if (reset_value.has_value()) {
     XLS_RETURN_IF_ERROR(VerifyValuesAreType({reset_value.value()}, type));
   }
-  int64 actual_id = id.has_value() ? id.value() : next_channel_id_;
+  int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
   auto channel = absl::make_unique<RegisterChannel>(name, actual_id, type,
                                                     reset_value, metadata);
   RegisterChannel* channel_ptr = channel.get();
@@ -496,7 +496,7 @@ absl::StatusOr<RegisterChannel*> Package::CreateRegisterChannel(
 }
 
 absl::Status Package::AddChannel(std::unique_ptr<Channel> channel) {
-  int64 id = channel->id();
+  int64_t id = channel->id();
   auto [channel_it, inserted] = channels_.insert({id, std::move(channel)});
   if (!inserted) {
     return absl::InternalError(
@@ -528,7 +528,7 @@ absl::Status Package::AddChannel(std::unique_ptr<Channel> channel) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<Channel*> Package::GetChannel(int64 id) const {
+absl::StatusOr<Channel*> Package::GetChannel(int64_t id) const {
   if (channels_.find(id) == channels_.end()) {
     return absl::NotFoundError(
         absl::StrFormat("No channel with id %d (package has %d channels).", id,

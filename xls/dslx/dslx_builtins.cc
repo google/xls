@@ -21,7 +21,7 @@ namespace {
 
 using ArgTypes = const std::vector<const ConcreteType*>&;
 using ParametricBindings = absl::optional<std::vector<ParametricBinding*>>;
-using ConstexprEvalFn = std::function<absl::Status(int64 argno)>;
+using ConstexprEvalFn = std::function<absl::Status(int64_t argno)>;
 
 // Fluent API for checking argument type properties (and raising errors).
 //
@@ -37,7 +37,7 @@ class Checker {
   Checker(ArgTypes arg_types, absl::string_view name, const Span& span)
       : arg_types_(arg_types), name_(name), span_(span) {}
 
-  Checker& Len(int64 target) {
+  Checker& Len(int64_t target) {
     if (!status_.ok()) {
       return *this;
     }
@@ -58,7 +58,8 @@ class Checker {
     }
     return *this;
   }
-  Checker& IsFn(int64 argno, int64 argc, const FunctionType** out = nullptr) {
+  Checker& IsFn(int64_t argno, int64_t argc,
+                const FunctionType** out = nullptr) {
     if (!status_.ok()) {
       return *this;
     }
@@ -83,7 +84,7 @@ class Checker {
     }
     return *this;
   }
-  Checker& IsArray(int64 argno, const ArrayType** out = nullptr) {
+  Checker& IsArray(int64_t argno, const ArrayType** out = nullptr) {
     if (!status_.ok()) {
       return *this;
     }
@@ -100,7 +101,7 @@ class Checker {
     }
     return *this;
   }
-  Checker& IsBits(int64 argno, const BitsType** out = nullptr) {
+  Checker& IsBits(int64_t argno, const BitsType** out = nullptr) {
     if (!status_.ok()) {
       return *this;
     }
@@ -117,7 +118,7 @@ class Checker {
     }
     return *this;
   }
-  Checker& IsUN(int64 argno) {
+  Checker& IsUN(int64_t argno) {
     if (!status_.ok()) {
       return *this;
     }
@@ -141,7 +142,7 @@ class Checker {
     }
     return *this;
   }
-  Checker& CheckIsLen(const ArrayType& t, int64 target,
+  Checker& CheckIsLen(const ArrayType& t, int64_t target,
                       const std::function<std::string()> make_msg) {
     if (!status_.ok()) {
       return *this;
@@ -151,7 +152,7 @@ class Checker {
     }
     return *this;
   }
-  Checker& IsU1(int64 argno) {
+  Checker& IsU1(int64_t argno) {
     if (!status_.ok()) {
       return *this;
     }
@@ -175,7 +176,7 @@ class Checker {
     }
     return *this;
   }
-  Checker& ArgsSameType(int64 argno0, int64 argno1) {
+  Checker& ArgsSameType(int64_t argno0, int64_t argno1) {
     if (!status_.ok()) {
       return *this;
     }
@@ -308,7 +309,7 @@ static void PopulateSignatureToLambdaMap(
       return absl::StrFormat("Want arg 1 element type to be bits; got %s",
                              return_type.ToString());
     });
-    int64 target = absl::get<int64>(b->size().value());
+    int64_t target = absl::get<int64_t>(b->size().value());
     checker.CheckIsLen(*a, target, [&] {
       return absl::StrFormat("Bit width %d must match %s array size %s", target,
                              a->ToString(), a->size().ToString());

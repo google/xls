@@ -31,10 +31,10 @@ class GridNetworkConfigOptionsProtoBuilder {
       : proto_(XLS_DIE_IF_NULL(proto)) {}
 
   // Adds the number of rows.
-  GridNetworkConfigOptionsProtoBuilder& WithNumRows(int64 num_rows);
+  GridNetworkConfigOptionsProtoBuilder& WithNumRows(int64_t num_rows);
 
   // Adds the number of columns.
-  GridNetworkConfigOptionsProtoBuilder& WithNumColumns(int64 num_columns);
+  GridNetworkConfigOptionsProtoBuilder& WithNumColumns(int64_t num_columns);
 
   // Adds the row loopback.
   GridNetworkConfigOptionsProtoBuilder& WithRowLoopback(bool row_loopback);
@@ -57,7 +57,7 @@ class UnidirectionalTreeNetworkConfigOptionsProtoBuilder {
       : proto_(XLS_DIE_IF_NULL(proto)) {}
 
   // Adds the maximum number of input ports for each router.
-  UnidirectionalTreeNetworkConfigOptionsProtoBuilder& WithRadix(int64 radix);
+  UnidirectionalTreeNetworkConfigOptionsProtoBuilder& WithRadix(int64_t radix);
 
   // Sets the tree type to distribution.
   UnidirectionalTreeNetworkConfigOptionsProtoBuilder& AsDistributionTree();
@@ -79,15 +79,15 @@ class BidirectionalTreeNetworkConfigOptionsProtoBuilder {
       : proto_(XLS_DIE_IF_NULL(proto)) {}
 
   // Adds the maximum number of input ports for each router.
-  BidirectionalTreeNetworkConfigOptionsProtoBuilder& WithRadix(int64 radix);
+  BidirectionalTreeNetworkConfigOptionsProtoBuilder& WithRadix(int64_t radix);
 
   // Adds the maximum number of send ports connected at the root.
   BidirectionalTreeNetworkConfigOptionsProtoBuilder& WithNumSendPortsAtRoot(
-      int64 num_send_ports_at_root);
+      int64_t num_send_ports_at_root);
 
   // Adds the maximum number of receive ports connected at the root.
   BidirectionalTreeNetworkConfigOptionsProtoBuilder& WithNumRecvPortsAtRoot(
-      int64 num_recv_ports_at_root);
+      int64_t num_recv_ports_at_root);
 
  private:
   BidirectionalTreeNetworkConfigOptionsProto* proto_;

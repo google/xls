@@ -31,13 +31,13 @@ class NetworkManager;
 // Used to denote a specific vc attached to a given port id..
 struct PortAndVCIndex {
   PortId port_id_;
-  int64 vc_index_;
+  int64_t vc_index_;
 };
 
 // Used to denote a specific vc attached to a given port index.
 struct PortIndexAndVCIndex {
-  int64 port_index_;
-  int64 vc_index_;
+  int64_t port_index_;
+  int64_t vc_index_;
 };
 
 // Generic class to store routing tables for an entire network.
@@ -58,7 +58,7 @@ class DistributedRoutingTable {
   // a specific destination
   //   1. Retrieve the associated PortRoutingList
   //   2. Find the tuple that matched the given destination within the list.
-  using PortRoutingList = std::vector<std::pair<int64, PortAndVCIndex>>;
+  using PortRoutingList = std::vector<std::pair<int64_t, PortAndVCIndex>>;
 
   struct RouterRoutingTable {
     std::vector<std::vector<PortRoutingList>> routes;
@@ -77,7 +77,7 @@ class DistributedRoutingTable {
   //   - The route exceeds max_hops (likely loop detected).
   absl::StatusOr<std::vector<NetworkComponentId>> ComputeRoute(
       NetworkComponentId source, NetworkComponentId sink,
-      int64 initial_vc_index = 0, int64 max_hops = 999);
+      int64_t initial_vc_index = 0, int64_t max_hops = 999);
 
   // Given a port, a local virtual channel, and
   // final destination (sink), return the next port and vc the data
@@ -95,7 +95,7 @@ class DistributedRoutingTable {
   // final destination index (sink), return the output port and vc the data
   // should go out on.
   absl::StatusOr<PortAndVCIndex> GetRouterOutputPortByIndex(
-      PortAndVCIndex from, int64 destination_index);
+      PortAndVCIndex from, int64_t destination_index);
 
   // TODO(tedhong): 2020-01-25 Add indexer for input/output ports of a router
   //                          and support routing directly via indices.
@@ -119,7 +119,7 @@ class DistributedRoutingTable {
 
   // Resize routing_tables to accomondate the number of networks and
   // number of components in a network.
-  void AllocateTableForNetwork(NetworkId network_id, int64 component_count);
+  void AllocateTableForNetwork(NetworkId network_id, int64_t component_count);
 
   // Get (and create if necessary) routing table associated for a component.
   RouterRoutingTable& GetRoutingTable(NetworkComponentId nc_id) {
@@ -172,7 +172,7 @@ class DistributedRoutingTableBuilderForTrees {
                                  DistributedRoutingTable* routing_table);
 
   // Updates routing table of nc for routes that travel to destination via_port.
-  absl::Status AddRoutes(int64 destination_index, NetworkComponentId nc,
+  absl::Status AddRoutes(int64_t destination_index, NetworkComponentId nc,
                          PortId via_port,
                          DistributedRoutingTable* routing_table);
 };

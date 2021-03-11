@@ -13,11 +13,12 @@
 // limitations under the License.
 #include "xls/ir/value_view.h"
 
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "xls/common/bits_util.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
@@ -52,10 +53,10 @@ TEST(PackedBitViewTest, ExtractsSimpleBytes) {
   constexpr int kElementWidth = 8;
   constexpr int kBitOffset = 0;
 
-  uint8 buffer = 0x13;
+  uint8_t buffer = 0x13;
 
   auto aligned_view = PackedBitsView<kElementWidth>(&buffer, kBitOffset);
-  uint8 return_buffer;
+  uint8_t return_buffer;
   aligned_view.Get(&return_buffer);
   EXPECT_EQ(return_buffer, 0x13);
 }
@@ -64,12 +65,12 @@ TEST(PackedBitViewTest, ExtractsSimpleBigs) {
   constexpr int kElementWidth = 64;
   constexpr int kBitOffset = 0;
 
-  uint64 buffer = 0xbeefbeefbeef;
+  uint64_t buffer = 0xbeefbeefbeef;
 
   auto aligned_view = PackedBitsView<kElementWidth>(
-      reinterpret_cast<uint8*>(&buffer), kBitOffset);
-  uint64 return_buffer;
-  aligned_view.Get(reinterpret_cast<uint8*>(&return_buffer));
+      reinterpret_cast<uint8_t*>(&buffer), kBitOffset);
+  uint64_t return_buffer;
+  aligned_view.Get(reinterpret_cast<uint8_t*>(&return_buffer));
   EXPECT_EQ(return_buffer, 0xbeefbeefbeef);
 }
 
@@ -77,13 +78,13 @@ TEST(PackedBitViewTest, ExtractsUnalignedBytes) {
   constexpr int kElementWidth = 8;
   constexpr int kBitOffset = 4;
 
-  uint8 buffer[2];
+  uint8_t buffer[2];
   buffer[0] = 0xA5;
   buffer[1] = 0x5A;
 
   auto view = PackedBitsView<kElementWidth>(buffer, kBitOffset);
-  uint8 return_buffer;
-  view.Get(reinterpret_cast<uint8*>(&return_buffer));
+  uint8_t return_buffer;
+  view.Get(reinterpret_cast<uint8_t*>(&return_buffer));
   EXPECT_EQ(return_buffer, 0xAA);
 }
 
@@ -91,20 +92,20 @@ TEST(PackedBitViewTest, ExtractsUnalignedBigs) {
   constexpr int kElementWidth = 64;
   constexpr int kBitOffset = 4;
 
-  uint64 buffer[2];
+  uint64_t buffer[2];
   buffer[0] = 0xBEEFBEEFF00DF00D;
   buffer[1] = 0xF00DF00DBEEFBEEF;
 
-  auto view = PackedBitsView<kElementWidth>(reinterpret_cast<uint8*>(buffer),
+  auto view = PackedBitsView<kElementWidth>(reinterpret_cast<uint8_t*>(buffer),
                                             kBitOffset);
-  uint64 return_buffer;
-  view.Get(reinterpret_cast<uint8*>(&return_buffer));
+  uint64_t return_buffer;
+  view.Get(reinterpret_cast<uint8_t*>(&return_buffer));
   EXPECT_EQ(return_buffer, 0xFBEEFBEEFF00DF00);
 }
 
 TEST(PackedBitViewTest, ExtractsUnalignedReallyBigs) {
-  constexpr int64 kElementWidth = 237;
-  constexpr int64 kBitOffset = 5;
+  constexpr int64_t kElementWidth = 237;
+  constexpr int64_t kBitOffset = 5;
 
   BitsRope rope(kElementWidth + kBitOffset);
   for (int i = 0; i < kBitOffset; i++) {
@@ -120,21 +121,21 @@ TEST(PackedBitViewTest, ExtractsUnalignedReallyBigs) {
     }
   }
   Bits bits = rope.Build();
-  std::vector<uint8> buffer = bits.ToBytes();
+  std::vector<uint8_t> buffer = bits.ToBytes();
 
-  std::vector<uint8> expected =
+  std::vector<uint8_t> expected =
       bits_ops::ShiftRightLogical(bits, kBitOffset).ToBytes();
 
   auto view = PackedBitsView<kElementWidth>(buffer.data(), kBitOffset);
-  auto return_buffer = std::make_unique<uint8[]>(
+  auto return_buffer = std::make_unique<uint8_t[]>(
       CeilOfRatio(kElementWidth + kBitOffset, kCharBit));
-  view.Get(reinterpret_cast<uint8*>(return_buffer.get()));
+  view.Get(reinterpret_cast<uint8_t*>(return_buffer.get()));
   for (int i = 0; i < buffer.size(); i++) {
     ASSERT_EQ(return_buffer[i], expected[i]);
   }
 }
 
-template <int64 kBitWidth>
+template <int64_t kBitWidth>
 absl::Status TestWidthAndOffset(int bit_offset) {
   BitsRope rope(kBitWidth + bit_offset);
   for (int i = 0; i < bit_offset; i++) {
@@ -150,18 +151,18 @@ absl::Status TestWidthAndOffset(int bit_offset) {
     }
   }
   Bits bits = rope.Build();
-  std::vector<uint8> buffer = bits.ToBytes();
+  std::vector<uint8_t> buffer = bits.ToBytes();
   std::reverse(buffer.begin(), buffer.end());
 
-  std::vector<uint8> expected =
+  std::vector<uint8_t> expected =
       bits_ops::ShiftRightLogical(bits, bit_offset).ToBytes();
   std::reverse(expected.begin(), expected.end());
 
   auto view = PackedBitsView<kBitWidth>(buffer.data(), bit_offset);
-  int64 buffer_bytes = CeilOfRatio(kBitWidth + bit_offset, kCharBit);
-  auto return_buffer = std::make_unique<uint8[]>(buffer_bytes);
+  int64_t buffer_bytes = CeilOfRatio(kBitWidth + bit_offset, kCharBit);
+  auto return_buffer = std::make_unique<uint8_t[]>(buffer_bytes);
   bzero(return_buffer.get(), buffer_bytes);
-  view.Get(reinterpret_cast<uint8*>(return_buffer.get()));
+  view.Get(reinterpret_cast<uint8_t*>(return_buffer.get()));
   for (int i = 0; i < buffer.size(); i++) {
     XLS_RET_CHECK(return_buffer[i] == expected[i]);
   }
@@ -218,24 +219,24 @@ TEST(PackedArrayViewTest, ExtractsUnaligned) {
       rope.push_back(i & (1 << j));
     }
   }
-  std::vector<uint8> buffer = rope.Build().ToBytes();
+  std::vector<uint8_t> buffer = rope.Build().ToBytes();
   std::reverse(buffer.begin(), buffer.end());
 
   PackedArrayView<PackedBitsView<kElementBits>, kNumElements> array_view(
       buffer.data(), kBitOffset);
   for (int i = 0; i < kNumElements; i++) {
     PackedBitsView<kElementBits> bits_view = array_view.Get(i);
-    uint32 result = 0;
-    bits_view.Get(reinterpret_cast<uint8*>(&result));
+    uint32_t result = 0;
+    bits_view.Get(reinterpret_cast<uint8_t*>(&result));
     EXPECT_EQ(result, i);
   }
 }
 
 TEST(PackedTupleViewTest, ExtractsSimpleUnaligned) {
-  constexpr int64 kValueBits = 32;
+  constexpr int64_t kValueBits = 32;
   constexpr int kBitOffset = 5;
 
-  uint32 int_value = 0xa5a5a5a5;
+  uint32_t int_value = 0xa5a5a5a5;
   Value value = F32ToTuple(absl::bit_cast<float>(int_value));
 
   using SignT = PackedBitsView<1>;
@@ -256,20 +257,21 @@ TEST(PackedTupleViewTest, ExtractsSimpleUnaligned) {
     }
   }
 
-  std::vector<uint8> buffer(CeilOfRatio(kValueBits + kBitOffset, kCharBit), 0);
+  std::vector<uint8_t> buffer(CeilOfRatio(kValueBits + kBitOffset, kCharBit),
+                              0);
   rope.Build().ToBytes(absl::MakeSpan(buffer), false);
 
   TupleT tuple_view(buffer.data(), kBitOffset);
-  uint8 sign_data = 0;
+  uint8_t sign_data = 0;
   tuple_view.Get<0>().Get(&sign_data);
   EXPECT_EQ(sign_data, value.element(0).bits().ToUint64().value());
 
-  uint8 exp_data = 0;
+  uint8_t exp_data = 0;
   tuple_view.Get<1>().Get(&exp_data);
   EXPECT_EQ(exp_data, value.element(1).bits().ToUint64().value());
 
-  uint32 sfd_data = 0;
-  tuple_view.Get<2>().Get(reinterpret_cast<uint8*>(&sfd_data));
+  uint32_t sfd_data = 0;
+  tuple_view.Get<2>().Get(reinterpret_cast<uint8_t*>(&sfd_data));
   EXPECT_EQ(sfd_data, value.element(2).bits().ToUint64().value());
 }
 

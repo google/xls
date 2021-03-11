@@ -90,7 +90,7 @@ absl::StatusOr<Bits> Token::GetValueBits() const {
   return ParseNumber(value());
 }
 
-absl::StatusOr<int64> Token::GetValueInt64() const {
+absl::StatusOr<int64_t> Token::GetValueInt64() const {
   if (type() != LexicalTokenType::kLiteral) {
     return absl::InternalError(
         "Can only get value as integer for literal tokens.");
@@ -130,7 +130,7 @@ class Tokenizer {
   // Drops all whitespace starting at current index. Returns true if any
   // whitespace was dropped.
   bool DropWhiteSpace() {
-    int64 old_index = index();
+    int64_t old_index = index();
     while (!EndOfString() && absl::ascii_isspace(current())) {
       Advance();
     }
@@ -166,10 +166,10 @@ class Tokenizer {
     if (!MatchSubstring(quote)) {
       return absl::nullopt;
     }
-    int64 start_colno = colno();
-    int64 start_lineno = lineno();
+    int64_t start_colno = colno();
+    int64_t start_lineno = lineno();
     Advance(quote.size());
-    int64 content_start = index();
+    int64_t content_start = index();
     while (!EndOfString()) {
       if (MatchSubstring(quote)) {
         absl::string_view content = absl::string_view(
@@ -189,9 +189,9 @@ class Tokenizer {
 
   // Advances the current index into the tokenized string by the given
   // amount. Updates column and line numbers.
-  int64 Advance(int64 amount = 1) {
+  int64_t Advance(int64_t amount = 1) {
     XLS_CHECK_LE(index_ + amount, str_.size());
-    for (int64 i = 0; i < amount; ++i) {
+    for (int64_t i = 0; i < amount; ++i) {
       if (current() == '\t') {
         colno_ += 2;
       } else if (current() == '\n') {
@@ -213,8 +213,8 @@ class Tokenizer {
   // last matching character. min_chars is the minimum number of characters
   // which are unconditionally captured.
   absl::string_view CaptureWhile(std::function<bool(char)> test_f,
-                                 int64 min_chars = 0) {
-    int64 start = index();
+                                 int64_t min_chars = 0) {
+    int64_t start = index();
     while (!EndOfString() &&
            ((index() < min_chars + start) || test_f(current()))) {
       Advance();
@@ -230,8 +230,8 @@ class Tokenizer {
         continue;
       }
 
-      const int64 start_lineno = lineno();
-      const int64 start_colno = colno();
+      const int64_t start_lineno = lineno();
+      const int64_t start_colno = colno();
 
       // Literal numbers can decimal, binary (eg, 0b0101) or hexadecimal (eg,
       // 0xbeef) so capture all alphanumeric characters after the initial
@@ -358,11 +358,11 @@ class Tokenizer {
   }
 
   // Returns the current index in the string.
-  int64 index() const { return index_; }
+  int64_t index() const { return index_; }
 
   // Returns the current line/column number.
-  int64 lineno() const { return lineno_; }
-  int64 colno() const { return colno_; }
+  int64_t lineno() const { return lineno_; }
+  int64_t colno() const { return colno_; }
 
  private:
   explicit Tokenizer(absl::string_view str) : str_(str) {}
@@ -371,11 +371,11 @@ class Tokenizer {
   absl::string_view str_;
 
   // Current index.
-  int64 index_ = 0;
+  int64_t index_ = 0;
 
   // Line/column number based on the current index.
-  int64 lineno_ = 0;
-  int64 colno_ = 0;
+  int64_t lineno_ = 0;
+  int64_t colno_ = 0;
 };
 
 }  // namespace

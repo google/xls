@@ -35,8 +35,8 @@ namespace xls {
 class ProcBuilderVisitor : public FunctionBuilderVisitor {
  public:
   // The receive function has the following prototype:
-  // void recv_fn(uint64 queue_ptr, uint64 recv_ptr, uint8* buffer,
-  //              int64 data_sz, void* user_data);
+  // void recv_fn(uint64_t queue_ptr, uint64_t recv_ptr, uint8_t* buffer,
+  //              int64_t data_sz, void* user_data);
   // where:
   //  - queue_ptr is a pointer to a JitChannelQueue,
   //  - recv_ptr is a pointer to a Receive node,
@@ -46,8 +46,8 @@ class ProcBuilderVisitor : public FunctionBuilderVisitor {
   //    processing, e.g., thread/queue info.
   //
   // The send function has the following prototype:
-  // void send_fn(uint64 queue_ptr, uint64 send_ptr, uint8* buffer,
-  //              int64 data_sz, void* user_data);
+  // void send_fn(uint64_t queue_ptr, uint64_t send_ptr, uint8_t* buffer,
+  //              int64_t data_sz, void* user_data);
   // where:
   //  - queue_ptr is a pointer to a JitChannelQueue,
   //  - send_ptr is a pointer to a Send node,
@@ -59,8 +59,9 @@ class ProcBuilderVisitor : public FunctionBuilderVisitor {
   // Populates llvm_fn with an LLVM IR translation of the given xls_fn, calling
   // out to the specified receive and send functions when encountering their
   // respective nodes.
-  using RecvFnT = void (*)(JitChannelQueue*, Receive*, uint8*, int64, void*);
-  using SendFnT = void (*)(JitChannelQueue*, Send*, uint8*, int64, void*);
+  using RecvFnT = void (*)(JitChannelQueue*, Receive*, uint8_t*, int64_t,
+                           void*);
+  using SendFnT = void (*)(JitChannelQueue*, Send*, uint8_t*, int64_t, void*);
   static absl::Status Visit(llvm::Module* module, llvm::Function* llvm_fn,
                             FunctionBase* xls_fn,
                             LlvmTypeConverter* type_converter, bool is_top,

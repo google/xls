@@ -117,11 +117,11 @@ class FunctionConverter {
   absl::StatusOr<ConcreteTypeDim> ResolveDim(ConcreteTypeDim dim);
 
   // As above, does ResolveDim() but then accesses the dimension value as an
-  // expected int64.
-  absl::StatusOr<int64> ResolveDimToInt(const ConcreteTypeDim& dim) {
+  // expected int64_t.
+  absl::StatusOr<int64_t> ResolveDimToInt(const ConcreteTypeDim& dim) {
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim resolved, ResolveDim(dim));
-    if (absl::holds_alternative<int64>(resolved.value())) {
-      return absl::get<int64>(resolved.value());
+    if (absl::holds_alternative<int64_t>(resolved.value())) {
+      return absl::get<int64_t>(resolved.value());
     }
     return absl::InternalError(absl::StrFormat(
         "Expected resolved dimension of %s to be an integer, got: %s",
@@ -143,18 +143,18 @@ class FunctionConverter {
       symbolic_binding_map_ = value->ToMap();
     }
   }
-  void set_symbolic_binding_map(absl::flat_hash_map<std::string, int64> map) {
+  void set_symbolic_binding_map(absl::flat_hash_map<std::string, int64_t> map) {
     symbolic_binding_map_ = std::move(map);
   }
 
   // Gets the current counter of counted_for loops we've observed and bumps it.
   // This is useful for generating new symbols for the functions that serve as
   // XLS counted_for "bodies".
-  int64 GetAndBumpCountedForCount() { return counted_for_count_++; }
+  int64_t GetAndBumpCountedForCount() { return counted_for_count_++; }
 
   // TODO(leary): 2020-12-22 Clean all this up to expose a minimal surface area
   // once everything is ported over to C++.
-  absl::optional<int64> get_symbolic_binding(
+  absl::optional<int64_t> get_symbolic_binding(
       absl::string_view identifier) const {
     auto it = symbolic_binding_map_.find(identifier);
     if (it == symbolic_binding_map_.end()) {
@@ -226,7 +226,7 @@ class FunctionConverter {
 
   // Handles an arm of a match expression.
   absl::StatusOr<BValue> HandleMatcher(NameDefTree* matcher,
-                                       absl::Span<const int64> index,
+                                       absl::Span<const int64_t> index,
                                        const BValue& matched_value,
                                        const ConcreteType& matched_type);
 
@@ -303,7 +303,7 @@ class FunctionConverter {
   //  `for ... in range(0, N)`
   //
   // Returns the value of N if so, or a conversion error if it is not.
-  absl::StatusOr<int64> QueryConstRangeCall(For* node);
+  absl::StatusOr<int64_t> QueryConstRangeCall(For* node);
 
   template <typename T>
   absl::StatusOr<T> DerefStructOrEnumFromNameRef(
@@ -385,13 +385,13 @@ class FunctionConverter {
 
   // Mapping of symbolic bindings active in this translation (e.g. what integral
   // values parametrics are taking on).
-  absl::flat_hash_map<std::string, int64> symbolic_binding_map_;
+  absl::flat_hash_map<std::string, int64_t> symbolic_binding_map_;
 
   // File number for use in source positions.
   Fileno fileno_;
 
   // Number of "counted for" nodes we've observed in this function.
-  int64 counted_for_count_ = 0;
+  int64_t counted_for_count_ = 0;
 
   // The last expression emitted as part of IR conversion, used to help
   // determine which expression produces the return value.
@@ -711,7 +711,7 @@ absl::Status FunctionConverter::HandleUnop(Unop* node) {
     }
   }
   return absl::InternalError(
-      absl::StrCat("Invalid UnopKind: ", static_cast<int64>(node->kind())));
+      absl::StrCat("Invalid UnopKind: ", static_cast<int64_t>(node->kind())));
 }
 
 absl::Status FunctionConverter::HandleConcat(Binop* node, BValue lhs,
@@ -740,7 +740,7 @@ SymbolicBindings FunctionConverter::GetSymbolicBindingsTuple() const {
   for (const ConstantDef* constant : module_->GetConstantDefs()) {
     module_level_constant_identifiers.insert(constant->identifier());
   }
-  absl::flat_hash_map<std::string, int64> sans_module_level_constants;
+  absl::flat_hash_map<std::string, int64_t> sans_module_level_constants;
   for (const auto& item : symbolic_binding_map_) {
     if (module_level_constant_identifiers.contains(item.first)) {
       continue;
@@ -753,7 +753,7 @@ SymbolicBindings FunctionConverter::GetSymbolicBindingsTuple() const {
 absl::Status FunctionConverter::HandleNumber(Number* node) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type, ResolveType(node));
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim, type->GetTotalBitCount());
-  int64 bit_count = absl::get<int64>(dim.value());
+  int64_t bit_count = absl::get<int64_t>(dim.value());
   XLS_ASSIGN_OR_RETURN(Bits bits, node->GetBits(bit_count));
   DefConst(node, Value(bits));
   return absl::OkStatus();
@@ -817,7 +817,8 @@ absl::Status FunctionConverter::HandleLet(Let* node) {
     //  x: Current subtree of the NameDefTree.
     //  level: Level (depth) in the NameDefTree, root is 0.
     //  index: Index of node in the current tree level (e.g. leftmost is 0).
-    auto walk = [&](NameDefTree* x, int64 level, int64 index) -> absl::Status {
+    auto walk = [&](NameDefTree* x, int64_t level,
+                    int64_t index) -> absl::Status {
       levels.resize(level);
       levels.push_back(Def(x, [this, &levels, x,
                                index](absl::optional<SourceLocation> loc) {
@@ -858,10 +859,10 @@ absl::Status FunctionConverter::HandleCast(Cast* node) {
   }
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_bit_count_ctd,
                        output_type->GetTotalBitCount());
-  int64 new_bit_count = absl::get<int64>(new_bit_count_ctd.value());
+  int64_t new_bit_count = absl::get<int64_t>(new_bit_count_ctd.value());
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim input_bit_count_ctd,
                        input_type->GetTotalBitCount());
-  int64 old_bit_count = absl::get<int64>(input_bit_count_ctd.value());
+  int64_t old_bit_count = absl::get<int64_t>(input_bit_count_ctd.value());
   if (new_bit_count < old_bit_count) {
     auto bvalue_status = DefWithStatus(
         node,
@@ -911,14 +912,14 @@ absl::Status FunctionConverter::HandleMatch(Match* node) {
   }
   XLS_RETURN_IF_ERROR(
       HandleMatcher(default_arm->patterns()[0],
-                    {static_cast<int64>(node->arms().size()) - 1}, matched,
+                    {static_cast<int64_t>(node->arms().size()) - 1}, matched,
                     *matched_type)
           .status());
   XLS_RETURN_IF_ERROR(Visit(default_arm->expr()));
 
   std::vector<BValue> arm_selectors;
   std::vector<BValue> arm_values;
-  for (int64 i = 0; i < node->arms().size() - 1; ++i) {
+  for (int64_t i = 0; i < node->arms().size() - 1; ++i) {
     MatchArm* arm = node->arms()[i];
 
     // Visit all the MatchArm's patterns.
@@ -960,7 +961,7 @@ absl::Status FunctionConverter::HandleMatch(Match* node) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<int64> FunctionConverter::QueryConstRangeCall(For* node) {
+absl::StatusOr<int64_t> FunctionConverter::QueryConstRangeCall(For* node) {
   auto error = [&] {
     return absl::InvalidArgumentError(
         absl::StrFormat("ConversionError: %s For-loop is of an unsupported "
@@ -989,12 +990,12 @@ absl::StatusOr<int64> FunctionConverter::QueryConstRangeCall(For* node) {
   Expr* start = iterable_call->args()[0];
   Expr* limit = iterable_call->args()[1];
 
-  if (absl::optional<int64> value = current_type_info_->GetConstExpr(start);
+  if (absl::optional<int64_t> value = current_type_info_->GetConstExpr(start);
       !value || *value != 0) {
     return error();
   }
 
-  absl::optional<int64> value = current_type_info_->GetConstExpr(limit);
+  absl::optional<int64_t> value = current_type_info_->GetConstExpr(limit);
   XLS_RET_CHECK(value.has_value());
   return *value;
 }
@@ -1008,7 +1009,7 @@ absl::Status FunctionConverter::HandleFor(For* node) {
   //  for (i, ...): (u32, ...) in range(u32:0, N) {
   //    ...
   //  }
-  XLS_ASSIGN_OR_RETURN(int64 trip_count, QueryConstRangeCall(node));
+  XLS_ASSIGN_OR_RETURN(int64_t trip_count, QueryConstRangeCall(node));
 
   XLS_VLOG(5) << "Converting for-loop @ " << node->span();
   FunctionConverter body_converter(package_, module_, import_data_,
@@ -1125,7 +1126,7 @@ absl::Status FunctionConverter::HandleFor(For* node) {
 }
 
 absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
-    NameDefTree* matcher, absl::Span<const int64> index,
+    NameDefTree* matcher, absl::Span<const int64_t> index,
     const BValue& matched_value, const ConcreteType& matched_type) {
   if (matcher->is_leaf()) {
     NameDefTree::Leaf leaf = matcher->leaf();
@@ -1167,11 +1168,11 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
 
   auto* matched_tuple_type = dynamic_cast<const TupleType*>(&matched_type);
   BValue ok = function_builder_->Literal(UBits(/*value=*/1, /*bit_count=*/1));
-  for (int64 i = 0; i < matched_tuple_type->size(); ++i) {
+  for (int64_t i = 0; i < matched_tuple_type->size(); ++i) {
     const ConcreteType& element_type = matched_tuple_type->GetMemberType(i);
     NameDefTree* element = matcher->nodes()[i];
     BValue member = function_builder_->TupleIndex(matched_value, i);
-    std::vector<int64> sub_index(index.begin(), index.end());
+    std::vector<int64_t> sub_index(index.begin(), index.end());
     sub_index.push_back(i);
     XLS_ASSIGN_OR_RETURN(
         BValue cond, HandleMatcher(element, sub_index, member, element_type));
@@ -1269,7 +1270,7 @@ absl::Status FunctionConverter::HandleIndex(Index* node) {
     // Tuple indexing requires a compile-time-constant RHS.
     XLS_RETURN_IF_ERROR(Visit(ToAstNode(node->rhs())));
     XLS_ASSIGN_OR_RETURN(Bits rhs, GetConstBits(ToAstNode(node->rhs())));
-    XLS_ASSIGN_OR_RETURN(uint64 index, rhs.ToUint64());
+    XLS_ASSIGN_OR_RETURN(uint64_t index, rhs.ToUint64());
     Def(node, [&](absl::optional<SourceLocation> loc) {
       return function_builder_->TupleIndex(lhs, index, loc);
     });
@@ -1283,7 +1284,7 @@ absl::Status FunctionConverter::HandleIndex(Index* node) {
                            ResolveType(node));
       XLS_ASSIGN_OR_RETURN(ConcreteTypeDim output_type_dim,
                            output_type->GetTotalBitCount());
-      int64 width = absl::get<int64>(output_type_dim.value());
+      int64_t width = absl::get<int64_t>(output_type_dim.value());
       Def(node, [&](absl::optional<SourceLocation> loc) {
         return function_builder_->DynamicBitSlice(lhs, start, width, loc);
       });
@@ -1320,7 +1321,7 @@ absl::Status FunctionConverter::HandleArray(Array* node) {
 
   if (node->has_ellipsis()) {
     ConcreteTypeDim array_size_ctd = array_type->size();
-    int64 array_size = absl::get<int64>(array_size_ctd.value());
+    int64_t array_size = absl::get<int64_t>(array_size_ctd.value());
     while (members.size() < array_size) {
       members.push_back(members.back());
     }
@@ -1429,14 +1430,14 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
     XLS_VLOG(4) << "Resolving parametric binding: "
                 << parametric_binding->ToString();
 
-    absl::optional<int64> sb_value =
+    absl::optional<int64_t> sb_value =
         get_symbolic_binding(parametric_binding->identifier());
     XLS_RET_CHECK(sb_value.has_value());
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_type,
                          ResolveType(parametric_binding->type()));
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim parametric_width_ctd,
                          parametric_type->GetTotalBitCount());
-    int64 bit_count = absl::get<int64>(parametric_width_ctd.value());
+    int64_t bit_count = absl::get<int64_t>(parametric_width_ctd.value());
     DefConst(parametric_binding,
              Value(UBits(*sb_value, /*bit_count=*/bit_count)));
     XLS_RETURN_IF_ERROR(
@@ -1532,7 +1533,7 @@ absl::Status FunctionConverter::HandleSplatStructInstance(
   XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
                        DerefStruct(ToTypeDefinition(node->struct_ref())));
   std::vector<BValue> members;
-  for (int64 i = 0; i < struct_def->members().size(); ++i) {
+  for (int64_t i = 0; i < struct_def->members().size(); ++i) {
     const std::string& k = struct_def->GetMemberName(i);
     if (auto it = updates.find(k); it != updates.end()) {
       members.push_back(it->second);
@@ -1747,7 +1748,7 @@ absl::Status FunctionConverter::HandleAttr(Attr* node) {
   XLS_RET_CHECK(lhs_type.has_value());
   auto* tuple_type = dynamic_cast<const TupleType*>(lhs_type.value());
   const std::string& identifier = node->attr()->identifier();
-  XLS_ASSIGN_OR_RETURN(int64 index, tuple_type->GetMemberIndex(identifier));
+  XLS_ASSIGN_OR_RETURN(int64_t index, tuple_type->GetMemberIndex(identifier));
   XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->lhs()));
   BValue ir = Def(node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->TupleIndex(lhs, index, loc);
@@ -1784,9 +1785,9 @@ absl::Status FunctionConverter::HandleBuiltinBitSlice(Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 3);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   XLS_ASSIGN_OR_RETURN(Bits start_bits, GetConstBits(node->args()[1]));
-  XLS_ASSIGN_OR_RETURN(uint64 start, start_bits.ToUint64());
+  XLS_ASSIGN_OR_RETURN(uint64_t start, start_bits.ToUint64());
   XLS_ASSIGN_OR_RETURN(Bits width_bits, GetConstBits(node->args()[2]));
-  XLS_ASSIGN_OR_RETURN(uint64 width, width_bits.ToUint64());
+  XLS_ASSIGN_OR_RETURN(uint64_t width, width_bits.ToUint64());
   Def(node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->BitSlice(arg, start, width, loc);
   });
@@ -1826,7 +1827,7 @@ absl::Status FunctionConverter::HandleBuiltinOneHot(Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 2);
   XLS_ASSIGN_OR_RETURN(BValue input, Use(node->args()[0]));
   XLS_ASSIGN_OR_RETURN(Bits lsb_prio, GetConstBits(node->args()[1]));
-  XLS_ASSIGN_OR_RETURN(uint64 lsb_prio_value, lsb_prio.ToUint64());
+  XLS_ASSIGN_OR_RETURN(uint64_t lsb_prio_value, lsb_prio.ToUint64());
 
   Def(node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->OneHot(
@@ -1882,7 +1883,7 @@ absl::Status FunctionConverter::HandleBuiltinSignex(Invocation* node) {
   XLS_RET_CHECK_NE(bit_count, nullptr);
   XLS_RET_CHECK(bit_count->type());
   auto* type_annot = dynamic_cast<BuiltinTypeAnnotation*>(bit_count->type());
-  int64 new_bit_count = type_annot->GetBitCount();
+  int64_t new_bit_count = type_annot->GetBitCount();
 
   Def(node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->SignExtend(arg, new_bit_count, loc);
@@ -1937,10 +1938,10 @@ absl::Status FunctionConverter::CastToArray(Cast* node,
   std::vector<BValue> slices;
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim element_bit_count_dim,
                        output_type.element_type().GetTotalBitCount());
-  int64 element_bit_count = absl::get<int64>(element_bit_count_dim.value());
-  int64 array_size = absl::get<int64>(output_type.size().value());
+  int64_t element_bit_count = absl::get<int64_t>(element_bit_count_dim.value());
+  int64_t array_size = absl::get<int64_t>(output_type.size().value());
   // MSb becomes lowest-indexed array element.
-  for (int64 i = 0; i < array_size; ++i) {
+  for (int64_t i = 0; i < array_size; ++i) {
     slices.push_back(function_builder_->BitSlice(bits, i * element_bit_count,
                                                  element_bit_count));
   }
@@ -1957,9 +1958,9 @@ absl::Status FunctionConverter::CastFromArray(Cast* node,
   XLS_ASSIGN_OR_RETURN(BValue array, Use(node->expr()));
   XLS_ASSIGN_OR_RETURN(xls::Type * input_type, ResolveTypeToIr(node->expr()));
   xls::ArrayType* array_type = input_type->AsArrayOrDie();
-  const int64 array_size = array_type->size();
+  const int64_t array_size = array_type->size();
   std::vector<BValue> pieces;
-  for (int64 i = 0; i < array_size; ++i) {
+  for (int64_t i = 0; i < array_size; ++i) {
     BValue index = function_builder_->Literal(UBits(i, 32));
     pieces.push_back(function_builder_->ArrayIndex(array, {index}));
   }
@@ -2085,7 +2086,7 @@ absl::StatusOr<xls::Type*> FunctionConverter::TypeToIr(
   if (auto* array_type = dynamic_cast<const ArrayType*>(&concrete_type)) {
     XLS_ASSIGN_OR_RETURN(xls::Type * element_type,
                          TypeToIr(array_type->element_type()));
-    XLS_ASSIGN_OR_RETURN(int64 element_count,
+    XLS_ASSIGN_OR_RETURN(int64_t element_count,
                          ResolveDimToInt(array_type->size()));
     xls::Type* result = package_->GetArrayType(element_count, element_type);
     XLS_VLOG(4) << "Converted type to IR; concrete type: " << concrete_type
@@ -2094,12 +2095,12 @@ absl::StatusOr<xls::Type*> FunctionConverter::TypeToIr(
     return result;
   }
   if (auto* bits_type = dynamic_cast<const BitsType*>(&concrete_type)) {
-    XLS_ASSIGN_OR_RETURN(int64 bit_count, ResolveDimToInt(bits_type->size()));
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count, ResolveDimToInt(bits_type->size()));
     return package_->GetBitsType(bit_count);
   }
   if (auto* enum_type = dynamic_cast<const EnumType*>(&concrete_type)) {
-    XLS_RET_CHECK(absl::holds_alternative<int64>(enum_type->size().value()));
-    int64 bit_count = absl::get<int64>(enum_type->size().value());
+    XLS_RET_CHECK(absl::holds_alternative<int64_t>(enum_type->size().value()));
+    int64_t bit_count = absl::get<int64_t>(enum_type->size().value());
     return package_->GetBitsType(bit_count);
   }
   if (dynamic_cast<const TokenType*>(&concrete_type)) {
@@ -2180,7 +2181,7 @@ absl::StatusOr<std::string> MangleDslxName(
     const absl::btree_set<std::string>& free_keys, Module* module,
     const SymbolicBindings* symbolic_bindings) {
   absl::btree_set<std::string> symbolic_bindings_keys;
-  std::vector<int64> symbolic_bindings_values;
+  std::vector<int64_t> symbolic_bindings_values;
   if (symbolic_bindings != nullptr) {
     for (const SymbolicBinding& item : symbolic_bindings->bindings()) {
       symbolic_bindings_keys.insert(item.identifier);
@@ -2295,7 +2296,7 @@ absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v,
     }
     case ValueKind::kArray:
     case ValueKind::kTuple: {
-      auto get_type = [&](int64 i) -> const ConcreteType* {
+      auto get_type = [&](int64_t i) -> const ConcreteType* {
         if (type == nullptr) {
           return nullptr;
         }
@@ -2309,7 +2310,7 @@ absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v,
         return &tuple_type->GetMemberType(i);
       };
       std::vector<InterpValue> members;
-      for (int64 i = 0; i < v.elements().size(); ++i) {
+      for (int64_t i = 0; i < v.elements().size(); ++i) {
         const Value& e = v.elements()[i];
         XLS_ASSIGN_OR_RETURN(InterpValue iv,
                              ValueToInterpValue(e, get_type(i)));

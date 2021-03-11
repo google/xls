@@ -24,7 +24,7 @@ ParametricInstantiator::ParametricInstantiator(
     Span span, absl::Span<std::unique_ptr<ConcreteType> const> arg_types,
     DeduceCtx* ctx,
     absl::optional<absl::Span<ParametricBinding* const>> parametric_constraints,
-    const absl::flat_hash_map<std::string, int64>* explicit_constraints)
+    const absl::flat_hash_map<std::string, int64_t>* explicit_constraints)
     : span_(std::move(span)), arg_types_(arg_types), ctx_(ctx) {
   if (explicit_constraints != nullptr) {
     symbolic_bindings_ = *explicit_constraints;
@@ -45,7 +45,7 @@ ParametricInstantiator::ParametricInstantiator(
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>>
-ParametricInstantiator::InstantiateOneArg(int64 i,
+ParametricInstantiator::InstantiateOneArg(int64_t i,
                                           const ConcreteType& param_type,
                                           const ConcreteType& arg_type) {
   if (typeid(param_type) != typeid(arg_type)) {
@@ -95,7 +95,7 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
     const FnStackEntry& entry = ctx_->fn_stack().back();
     FnCtx fn_ctx{ctx_->module()->name(), entry.name(),
                  entry.symbolic_bindings()};
-    absl::StatusOr<int64> result = Interpreter::InterpretExprToInt(
+    absl::StatusOr<int64_t> result = Interpreter::InterpretExprToInt(
         ctx_->module(), ctx_->type_info(), ctx_->typecheck_module(),
         ctx_->additional_search_paths(), ctx_->import_data(),
         symbolic_bindings_, bit_widths_, expr, &fn_ctx);
@@ -111,7 +111,7 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
     }
     if (auto it = symbolic_bindings_.find(name);
         it != symbolic_bindings_.end()) {
-      int64 seen = it->second;
+      int64_t seen = it->second;
       if (result.value() != seen) {
         auto lhs = absl::make_unique<BitsType>(/*signed=*/false, /*size=*/seen);
         auto rhs = absl::make_unique<BitsType>(/*signed=*/false,
@@ -151,11 +151,11 @@ absl::Status ParametricInstantiator::SymbolicBindDims(const T& param_type,
     return absl::OkStatus();  // Nothing to bind in the formal argument type.
   }
 
-  int64 arg_dim = absl::get<int64>(arg_type.size().value());
+  int64_t arg_dim = absl::get<int64_t>(arg_type.size().value());
   const std::string& pdim_name = symbol->identifier();
   if (symbolic_bindings_.contains(pdim_name) &&
       symbolic_bindings_.at(pdim_name) != arg_dim) {
-    int64 seen = symbolic_bindings_.at(pdim_name);
+    int64_t seen = symbolic_bindings_.at(pdim_name);
     // We see a conflict between something we previously observed and something
     // we are now observing.
     if (Expr* expr = constraints_[pdim_name]) {
@@ -184,7 +184,7 @@ absl::Status ParametricInstantiator::SymbolicBindDims(const T& param_type,
 absl::Status ParametricInstantiator::SymbolicBindTuple(
     const TupleType& param_type, const TupleType& arg_type) {
   XLS_RET_CHECK_EQ(param_type.size(), arg_type.size());
-  for (int64 i = 0; i < param_type.size(); ++i) {
+  for (int64_t i = 0; i < param_type.size(); ++i) {
     const ConcreteType& param_member = param_type.GetUnnamedMember(i);
     const ConcreteType& arg_member = arg_type.GetUnnamedMember(i);
     XLS_RETURN_IF_ERROR(SymbolicBind(param_member, arg_member));
@@ -270,7 +270,7 @@ absl::Status ParametricInstantiator::SymbolicBind(
     Span span, const FunctionType& function_type,
     absl::Span<std::unique_ptr<ConcreteType> const> arg_types, DeduceCtx* ctx,
     absl::optional<absl::Span<ParametricBinding* const>> parametric_constraints,
-    const absl::flat_hash_map<std::string, int64>* explicit_constraints) {
+    const absl::flat_hash_map<std::string, int64_t>* explicit_constraints) {
   XLS_VLOG(5)
       << "Making FunctionInstantiator for " << function_type.ToString()
       << " with "
@@ -291,7 +291,7 @@ absl::Status ParametricInstantiator::SymbolicBind(
 
 absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
   // Walk through all the params/args to collect symbolic bindings.
-  for (int64 i = 0; i < arg_types().size(); ++i) {
+  for (int64_t i = 0; i < arg_types().size(); ++i) {
     const ConcreteType& param_type = *param_types_[i];
     const ConcreteType& arg_type = *arg_types()[i];
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> instantiated_param_type,
@@ -324,7 +324,7 @@ absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
 }
 
 absl::StatusOr<TypeAndBindings> StructInstantiator::Instantiate() {
-  for (int64 i = 0; i < member_types_.size(); ++i) {
+  for (int64_t i = 0; i < member_types_.size(); ++i) {
     const ConcreteType& member_type = *member_types_[i];
     const ConcreteType& arg_type = GetArgType(i);
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> instantiated_member_type,
@@ -363,7 +363,7 @@ static std::string ToString(
   });
 }
 static std::string ToString(
-    const absl::flat_hash_map<std::string, int64>* map) {
+    const absl::flat_hash_map<std::string, int64_t>* map) {
   if (map == nullptr || map->empty()) {
     return "none";
   }
@@ -374,7 +374,7 @@ absl::StatusOr<TypeAndBindings> InstantiateFunction(
     Span span, const FunctionType& function_type,
     absl::Span<std::unique_ptr<ConcreteType> const> arg_types, DeduceCtx* ctx,
     absl::optional<absl::Span<ParametricBinding* const>> parametric_constraints,
-    const absl::flat_hash_map<std::string, int64>* explicit_constraints) {
+    const absl::flat_hash_map<std::string, int64_t>* explicit_constraints) {
   XLS_VLOG(5) << "Function instantiation @ " << span
               << " type: " << function_type.ToString();
   XLS_VLOG(5) << " arg types:              " << ToString(arg_types);

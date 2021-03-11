@@ -345,7 +345,6 @@ cc_library(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/synchronization",
-        "//xls/common:integral_types",
         "//xls/common/file:filesystem",
     ],
 )
@@ -377,7 +376,6 @@ cc_library(
         "//xls/codegen:finite_state_machine",
         "//xls/codegen:module_signature",
         "//xls/codegen:vast",
-        "//xls/common:integral_types",
         "//xls/common:math_util",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -912,7 +910,6 @@ cc_binary(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/time",
         "//xls/common:init_xls",
-        "//xls/common:integral_types",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/status:status_macros",

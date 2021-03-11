@@ -195,12 +195,12 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
 
   // Callback that signatures can use to request constexpr evaluation of their
   // arguments -- this is a special builtin superpower used by e.g. range().
-  auto constexpr_eval = [&](int64 argno) -> absl::Status {
+  auto constexpr_eval = [&](int64_t argno) -> absl::Status {
     Expr* arg = invocation->args()[argno];
 
-    absl::flat_hash_map<std::string, int64> env =
+    absl::flat_hash_map<std::string, int64_t> env =
         ctx->fn_stack().back().symbolic_bindings().ToMap();
-    absl::flat_hash_map<std::string, int64> bit_widths;
+    absl::flat_hash_map<std::string, int64_t> bit_widths;
     for (const auto& [identifier, _] : env) {
       // TODO(leary): 2020-03-05 We should carry around the bitwidths of the
       // symbolic bindings, right now we only know the value, so we're forced to
@@ -210,7 +210,7 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
     }
 
     XLS_ASSIGN_OR_RETURN(
-        int64 value,
+        int64_t value,
         Interpreter::InterpretExprToInt(
             arg->owner(), ctx->type_info(), ctx->typecheck_module(),
             ctx->additional_search_paths(), ctx->import_data(), /*env=*/env,
@@ -583,7 +583,7 @@ class ScopedFnStackEntry {
     if (expect_popped_) {
       XLS_CHECK_EQ(ctx_->fn_stack().size(), depth_before_);
     } else {
-      int64 depth_after_push = depth_before_ + 1;
+      int64_t depth_after_push = depth_before_ + 1;
       XLS_CHECK_EQ(ctx_->fn_stack().size(), depth_after_push);
       ctx_->fn_stack().pop_back();
     }
@@ -591,7 +591,7 @@ class ScopedFnStackEntry {
 
  private:
   DeduceCtx* ctx_;
-  int64 depth_before_;
+  int64_t depth_before_;
   bool expect_popped_;
 };
 

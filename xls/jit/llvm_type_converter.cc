@@ -32,12 +32,12 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) {
   }
   llvm::Type* llvm_type;
   if (xls_type->IsBits()) {
-    int64 bit_count = xls_type->AsBitsOrDie()->bit_count();
+    int64_t bit_count = xls_type->AsBitsOrDie()->bit_count();
     XLS_CHECK_GE(bit_count, 0);
     // LLVM does not accept 0-bit types, and we want to be able to JIT-compile
     // unoptimized IR, so for the time being we make a dummy 1-bit value.
     // See https://github.com/google/xls/issues/76
-    bit_count = std::max(bit_count, static_cast<int64>(1));
+    bit_count = std::max(bit_count, static_cast<int64_t>(1));
     llvm_type = llvm::IntegerType::get(context_, bit_count);
   } else if (xls_type->IsTuple()) {
     std::vector<llvm::Type*> tuple_types;
@@ -107,7 +107,7 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToIntegralConstant(
   Bits xls_bits = value.bits();
 
   if (xls_bits.bit_count() > 64) {
-    std::vector<uint8> bytes = xls_bits.ToBytes();
+    std::vector<uint8_t> bytes = xls_bits.ToBytes();
     if (data_layout_.isLittleEndian()) {
       ByteSwap(absl::MakeSpan(bytes));
     }
@@ -121,12 +121,12 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToIntegralConstant(
     return llvm::ConstantInt::get(type,
                                   llvm::APInt(xls_bits.bit_count(), array_ref));
   } else {
-    XLS_ASSIGN_OR_RETURN(uint64 bits, value.bits().ToUint64());
+    XLS_ASSIGN_OR_RETURN(uint64_t bits, value.bits().ToUint64());
     return llvm::ConstantInt::get(type, bits);
   }
 }
 
-int64 LlvmTypeConverter::GetTypeByteSize(const Type* type) {
+int64_t LlvmTypeConverter::GetTypeByteSize(const Type* type) {
   return data_layout_.getTypeAllocSize(ConvertToLlvmType(type)).getFixedSize();
 }
 

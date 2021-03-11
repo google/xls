@@ -93,7 +93,7 @@ std::optional<ClampExpr> MatchClampUpperLimit(Node* n) {
 //
 // Return 'true' if the IR was modified (uses of node was replaced with a
 // different expression).
-absl::StatusOr<bool> MatchArithPatterns(int64 opt_level, Node* n) {
+absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   // Pattern: Add/Sub/Or/Xor/Shift a value with 0 on the RHS.
   if ((n->op() == Op::kAdd || n->op() == Op::kSub || n->op() == Op::kShll ||
        n->op() == Op::kShrl || n->op() == Op::kShra) &&
@@ -311,7 +311,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64 opt_level, Node* n) {
   //
   //  (4) node width > bit_count and !is_signed: return node zero-extended to
   //  bit_count
-  auto maybe_extend_or_trunc = [](Node* node, int64 bit_count,
+  auto maybe_extend_or_trunc = [](Node* node, int64_t bit_count,
                                   bool is_signed) -> absl::StatusOr<Node*> {
     if (node->BitCountOrDie() == bit_count) {
       return node;
@@ -411,7 +411,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64 opt_level, Node* n) {
   // amount.
   if ((n->op() == Op::kShll || n->op() == Op::kShrl) &&
       n->operand(1)->Is<Literal>()) {
-    int64 bit_count = n->BitCountOrDie();
+    int64_t bit_count = n->BitCountOrDie();
     const Bits& shift_bits = n->operand(1)->As<Literal>()->value().bits();
     if (shift_bits.IsZero()) {
       // A shift by zero is a nop.
@@ -424,12 +424,12 @@ absl::StatusOr<bool> MatchArithPatterns(int64 opt_level, Node* n) {
           n->ReplaceUsesWithNew<Literal>(Value(UBits(0, bit_count))).status());
       return true;
     }
-    XLS_ASSIGN_OR_RETURN(uint64 shift_amount, shift_bits.ToUint64());
+    XLS_ASSIGN_OR_RETURN(uint64_t shift_amount, shift_bits.ToUint64());
     XLS_ASSIGN_OR_RETURN(Node * zero,
                          n->function_base()->MakeNode<Literal>(
                              n->loc(), Value(UBits(0, shift_amount))));
-    int64 slice_start = (n->op() == Op::kShll) ? 0 : shift_amount;
-    int64 slice_width = bit_count - shift_amount;
+    int64_t slice_start = (n->op() == Op::kShll) ? 0 : shift_amount;
+    int64_t slice_width = bit_count - shift_amount;
     XLS_ASSIGN_OR_RETURN(
         Node * slice, n->function_base()->MakeNode<BitSlice>(
                           n->loc(), n->operand(0), slice_start, slice_width));
@@ -459,18 +459,18 @@ absl::StatusOr<bool> MatchArithPatterns(int64 opt_level, Node* n) {
   // shift implies a barrel shifter which is not necessary for a shift by a
   // constant amount.
   if (n->op() == Op::kShra && n->operand(1)->Is<Literal>()) {
-    const int64 bit_count = n->BitCountOrDie();
+    const int64_t bit_count = n->BitCountOrDie();
     const Bits& shift_bits = n->operand(1)->As<Literal>()->value().bits();
     if (shift_bits.IsZero()) {
       // A shift by zero is a nop.
       XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
       return true;
     }
-    int64 slice_width;
+    int64_t slice_width;
     if (bits_ops::UGreaterThanOrEqual(shift_bits, bit_count)) {
       slice_width = 1;
     } else {
-      XLS_ASSIGN_OR_RETURN(uint64 shift_amount, shift_bits.ToUint64());
+      XLS_ASSIGN_OR_RETURN(uint64_t shift_amount, shift_bits.ToUint64());
       slice_width = bit_count - shift_amount;
     }
     XLS_ASSIGN_OR_RETURN(Node * slice, n->function_base()->MakeNode<BitSlice>(
@@ -615,7 +615,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64 opt_level, Node* n) {
   //
   //   x < 0b0001111  =>  or_reduce(msb_slice(x)) NOR and_reduce(lsb_slice(x))
   //   x > 0b0001111  =>  or_reduce(msb_slice(x))
-  int64 leading_zeros, trailing_ones;
+  int64_t leading_zeros, trailing_ones;
   if (NarrowingEnabled(opt_level) && OpIsCompare(n->op()) &&
       IsLiteralMask(n->operand(1), &leading_zeros, &trailing_ones)) {
     XLS_VLOG(2) << "Found comparison to literal mask; leading zeros: "

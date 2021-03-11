@@ -12,26 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
 #include <iostream>
 
 #include "absl/base/casts.h"
 #include "absl/flags/flag.h"
 #include "absl/types/span.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 
 ABSL_FLAG(std::string, input, "", "Input data to CRC.");
-ABSL_FLAG(uint32, polynomial, 0xEDB88320, "CRC polynomial value to use.");
+ABSL_FLAG(uint32_t, polynomial, 0xEDB88320, "CRC polynomial value to use.");
 
 namespace {
 
-uint32 Crc32Reference(absl::Span<const uint8> input, uint32 polynomial) {
-  uint32 crc = -1U;
-  for (uint8 byte : input) {
+uint32_t Crc32Reference(absl::Span<const uint8_t> input, uint32_t polynomial) {
+  uint32_t crc = -1U;
+  for (uint8_t byte : input) {
     crc = crc ^ byte;
     for (int i = 0; i < 8; ++i) {
-      uint32 mask = -(crc & 1U);
+      uint32_t mask = -(crc & 1U);
       crc = (crc >> 1U) ^ (polynomial & mask);
     }
   }
@@ -44,11 +44,11 @@ uint32 Crc32Reference(absl::Span<const uint8> input, uint32 polynomial) {
 int main(int argc, char** argv) {
   xls::InitXls(argv[0], argc, argv);
   std::string input = absl::GetFlag(FLAGS_input);
-  absl::Span<const uint8> data(absl::bit_cast<uint8*>(input.data()),
-                               input.size());
+  absl::Span<const uint8_t> data(absl::bit_cast<uint8_t*>(input.data()),
+                                 input.size());
   XLS_LOG(INFO) << "Performing CRC on " << data.size()
                 << " byte(s) of input data.";
-  uint32 result = Crc32Reference(data, absl::GetFlag(FLAGS_polynomial));
+  uint32_t result = Crc32Reference(data, absl::GetFlag(FLAGS_polynomial));
   std::cout << std::hex << result << std::endl;
   return 0;
 }

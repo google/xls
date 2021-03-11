@@ -68,14 +68,14 @@ class Value {
 
   // Shortcut to create an array of bits from an initializer list of literals
   // ex. UBitsArray({1, 2}, 32) will create a Value of type bits[32][2]
-  static absl::StatusOr<Value> UBitsArray(absl::Span<const uint64> elements,
-                                          int64 bit_count);
+  static absl::StatusOr<Value> UBitsArray(absl::Span<const uint64_t> elements,
+                                          int64_t bit_count);
   static absl::StatusOr<Value> UBits2DArray(
-      absl::Span<const absl::Span<const uint64>> elements, int64 bit_count);
-  static absl::StatusOr<Value> SBitsArray(absl::Span<const int64> elements,
-                                          int64 bit_count);
+      absl::Span<const absl::Span<const uint64_t>> elements, int64_t bit_count);
+  static absl::StatusOr<Value> SBitsArray(absl::Span<const int64_t> elements,
+                                          int64_t bit_count);
   static absl::StatusOr<Value> SBits2DArray(
-      absl::Span<const absl::Span<const int64>> elements, int64 bit_count);
+      absl::Span<const absl::Span<const int64_t>> elements, int64_t bit_count);
 
   // As above, but as a precondition all elements must be known to be of the
   // same type.
@@ -108,12 +108,12 @@ class Value {
   absl::Span<const Value> elements() const {
     return absl::get<std::vector<Value>>(payload_);
   }
-  const Value& element(int64 i) const { return elements().at(i); }
-  int64 size() const { return elements().size(); }
+  const Value& element(int64_t i) const { return elements().at(i); }
+  int64_t size() const { return elements().size(); }
   bool empty() const { return elements().empty(); }
 
   // Returns the total number of bits in this value.
-  int64 GetFlatBitCount() const;
+  int64_t GetFlatBitCount() const;
 
   // Returns whether all bits within this value are zeros/ones.
   bool IsAllZeros() const;

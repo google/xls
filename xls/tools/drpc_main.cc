@@ -28,7 +28,7 @@
 
 ABSL_FLAG(std::string, target_device, "",
           "Target (category of) device for DRPC targeting; e.g. ice40.");
-ABSL_FLAG(int64, device_ordinal, 0,
+ABSL_FLAG(int64_t, device_ordinal, 0,
           "Device ordinal within the -target_device category, useful when "
           "multiple are present.");
 ABSL_FLAG(std::string, function_type, "", "Function type being invoked.");
@@ -51,7 +51,7 @@ void RealMain(absl::Span<const absl::string_view> args) {
   FunctionType* function_type = function_type_status.value();
 
   std::vector<Value> arguments;
-  for (int64 i = 0; i < args.size(); ++i) {
+  for (int64_t i = 0; i < args.size(); ++i) {
     absl::string_view s = args[i];
     absl::StatusOr<Value> argument =
         Parser::ParseValue(s, function_type->parameter_type(i));

@@ -40,12 +40,12 @@ using CompoundPass = CompoundPassBase<Package>;
 using FixedPointCompoundPass = FixedPointCompoundPassBase<Package>;
 using InvariantChecker = CompoundPass::InvariantChecker;
 
-static constexpr int64 kMaxOptLevel = 3;
+static constexpr int64_t kMaxOptLevel = 3;
 
 // Whether optimizations which split operations into multiple pieces should be
 // performed at the given optimization level.
-inline bool SplitsEnabled(int64 opt_level) { return opt_level >= 3; }
-inline bool NarrowingEnabled(int64 opt_level) { return opt_level >= 2; }
+inline bool SplitsEnabled(int64_t opt_level) { return opt_level >= 3; }
+inline bool NarrowingEnabled(int64_t opt_level) { return opt_level >= 2; }
 
 // Abstract base class for passes operate at function/proc scope. The derived
 // class must define RunOnFunctionBaseInternal.

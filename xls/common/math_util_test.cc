@@ -150,11 +150,11 @@ IntegralType CeilOfRatioDenomMinusOne(IntegralType numerator,
   return (numerator + denominator - kOne) / denominator;
 }
 
-void TestThatCeilOfRatioDenomMinusOneIsIncorrect(int64 numerator,
-                                                 int64 denominator,
-                                                 int64 expected_error) {
-  const int64 correct_result = CeilOfRatio(numerator, denominator);
-  const int64 result_by_denom_minus_one =
+void TestThatCeilOfRatioDenomMinusOneIsIncorrect(int64_t numerator,
+                                                 int64_t denominator,
+                                                 int64_t expected_error) {
+  const int64_t correct_result = CeilOfRatio(numerator, denominator);
+  const int64_t result_by_denom_minus_one =
       CeilOfRatioDenomMinusOne(numerator, denominator);
   EXPECT_EQ(result_by_denom_minus_one + expected_error, correct_result)
       << "numerator = " << numerator << " denominator = " << denominator
@@ -162,21 +162,21 @@ void TestThatCeilOfRatioDenomMinusOneIsIncorrect(int64 numerator,
       << " Actual difference: " << (correct_result - result_by_denom_minus_one);
 }
 
-TEST(MathUtil, CeilOfRatioUint8) { TestCeilOfRatioUnsigned<uint8>(); }
+TEST(MathUtil, CeilOfRatioUint8) { TestCeilOfRatioUnsigned<uint8_t>(); }
 
-TEST(MathUtil, CeilOfRatioUint16) { TestCeilOfRatioUnsigned<uint16>(); }
+TEST(MathUtil, CeilOfRatioUint16) { TestCeilOfRatioUnsigned<uint16_t>(); }
 
-TEST(MathUtil, CeilOfRatioUint32) { TestCeilOfRatioUnsigned<uint32>(); }
+TEST(MathUtil, CeilOfRatioUint32) { TestCeilOfRatioUnsigned<uint32_t>(); }
 
-TEST(MathUtil, CeilOfRatioUint64) { TestCeilOfRatioUnsigned<uint64>(); }
+TEST(MathUtil, CeilOfRatioUint64) { TestCeilOfRatioUnsigned<uint64_t>(); }
 
-TEST(MathUtil, CeilOfRatioInt8) { TestCeilOfRatioSigned<int8>(); }
+TEST(MathUtil, CeilOfRatioInt8) { TestCeilOfRatioSigned<int8_t>(); }
 
-TEST(MathUtil, CeilOfRatioInt16) { TestCeilOfRatioSigned<int16>(); }
+TEST(MathUtil, CeilOfRatioInt16) { TestCeilOfRatioSigned<int16_t>(); }
 
-TEST(MathUtil, CeilOfRatioInt32) { TestCeilOfRatioSigned<int32>(); }
+TEST(MathUtil, CeilOfRatioInt32) { TestCeilOfRatioSigned<int32_t>(); }
 
-TEST(MathUtil, CeilOfRatioInt64) { TestCeilOfRatioSigned<int64>(); }
+TEST(MathUtil, CeilOfRatioInt64) { TestCeilOfRatioSigned<int64_t>(); }
 
 TEST(MathUtil, CeilOfRatioDenomMinusOneIsIncorrect) {
   // Here we demonstrate why not to use CeilOfRatioDenomMinusOne: It does not
@@ -196,7 +196,7 @@ TEST(MathUtil, CeilOfLog2) {
   EXPECT_EQ(CeilOfLog2((1ULL << 63) - 1ULL), 63);
   EXPECT_EQ(CeilOfLog2(1ULL << 63), 63);
   EXPECT_EQ(CeilOfLog2((1ULL << 63) + 1ULL), 64);
-  EXPECT_EQ(CeilOfLog2(std::numeric_limits<uint64>::max()), 64);
+  EXPECT_EQ(CeilOfLog2(std::numeric_limits<uint64_t>::max()), 64);
 }
 
 TEST(MathUtil, FloorOfLog2) {
@@ -209,7 +209,7 @@ TEST(MathUtil, FloorOfLog2) {
   EXPECT_EQ(FloorOfLog2((1ULL << 63) - 1ULL), 62);
   EXPECT_EQ(FloorOfLog2(1ULL << 63), 63);
   EXPECT_EQ(FloorOfLog2((1ULL << 63) + 1ULL), 63);
-  EXPECT_EQ(FloorOfLog2(std::numeric_limits<uint64>::max()), 63);
+  EXPECT_EQ(FloorOfLog2(std::numeric_limits<uint64_t>::max()), 63);
 }
 
 }  // namespace

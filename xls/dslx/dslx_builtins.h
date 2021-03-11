@@ -50,7 +50,7 @@ struct SignatureData {
   absl::optional<std::vector<ParametricBinding*>> parametric_bindings;
   // Callback that can be used to perform constexpr evaluation on one of the
   // function arguments; which is requested is given by argno.
-  const std::function<absl::Status(int64 argno)>& constexpr_eval;
+  const std::function<absl::Status(int64_t argno)>& constexpr_eval;
 };
 
 // Deduction rule that determines the FunctionType and any associated symbolic

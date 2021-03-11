@@ -64,14 +64,14 @@ class FunctionBase {
   absl::Span<Param* const> params() const { return params_; }
 
   // Return the parameter at the given index.
-  Param* param(int64 index) const { return params_.at(index); }
+  Param* param(int64_t index) const { return params_.at(index); }
 
   // Return the parameter with the given name.
   absl::StatusOr<Param*> GetParamByName(absl::string_view param_name) const;
 
-  absl::StatusOr<int64> GetParamIndex(Param* param) const;
+  absl::StatusOr<int64_t> GetParamIndex(Param* param) const;
 
-  int64 node_count() const { return nodes_.size(); }
+  int64_t node_count() const { return nodes_.size(); }
 
   // Expose Nodes, so that transformation passes can operate
   // on this function.

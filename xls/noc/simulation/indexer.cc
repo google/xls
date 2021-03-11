@@ -25,18 +25,18 @@ namespace {
 // ordered_index->at(i) = T iff (T, i) is within unordered_index.
 //
 // unordered_index should be a collection with an iterator
-// that that points to a std::pair<T, int64>.
+// that that points to a std::pair<T, int64_t>.
 template <typename T, typename IndexTPairCollection>
 absl::StatusOr<std::vector<T>> ConstructOrderedIndex(
     absl::string_view id_name, const IndexTPairCollection& unordered_index) {
-  int64 count = unordered_index.size();
+  int64_t count = unordered_index.size();
   if (count == 0) {
     return std::vector<T>();
   }
 
   std::vector<T> ordered_index(count, unordered_index.begin()->first);
 
-  absl::flat_hash_set<int64> present_indices;
+  absl::flat_hash_set<int64_t> present_indices;
 
   for (auto [id, index] : unordered_index) {
     if (index < 0 || index >= count) {
@@ -60,7 +60,8 @@ absl::StatusOr<std::vector<T>> ConstructOrderedIndex(
 }  // namespace
 
 absl::Status PortIndexMapBuilder::SetPortIndex(PortId port_id,
-                                               PortDirection dir, int64 index) {
+                                               PortDirection dir,
+                                               int64_t index) {
   if (!nc_to_ports_.contains(port_id.GetNetworkComponentId())) {
     // Add a new nc to the indexer.
     // Initialze VirtualChannelOrder with all present VCs and
@@ -84,8 +85,8 @@ absl::Status PortIndexMapBuilder::SetPortIndex(PortId port_id,
   return absl::OkStatus();
 }
 
-absl::StatusOr<int64> PortIndexMap::GetPortIndex(PortId port_id,
-                                                 PortDirection dir) const {
+absl::StatusOr<int64_t> PortIndexMap::GetPortIndex(PortId port_id,
+                                                   PortDirection dir) const {
   NetworkComponentId nc_id = port_id.GetNetworkComponentId();
   if (!nc_to_ports_.contains(nc_id)) {
     return absl::OutOfRangeError(absl::StrFormat(
@@ -97,7 +98,7 @@ absl::StatusOr<int64> PortIndexMap::GetPortIndex(PortId port_id,
           ? nc_to_ports_.at(nc_id).ordered_input_ports
           : nc_to_ports_.at(nc_id).ordered_output_ports;
 
-  for (int64 i = 0; i < port_index.size(); ++i) {
+  for (int64_t i = 0; i < port_index.size(); ++i) {
     if (port_index[i] == port_id) {
       return i;
     }
@@ -107,7 +108,7 @@ absl::StatusOr<int64> PortIndexMap::GetPortIndex(PortId port_id,
       absl::StrFormat("Unable to find index for port %x", port_id.AsUInt64()));
 }
 
-absl::StatusOr<int64> PortIndexMapBuilder::GetPortIndex(
+absl::StatusOr<int64_t> PortIndexMapBuilder::GetPortIndex(
     PortId port_id, PortDirection dir) const {
   NetworkComponentId nc_id = port_id.GetNetworkComponentId();
   if (!nc_to_ports_.contains(nc_id)) {
@@ -115,7 +116,7 @@ absl::StatusOr<int64> PortIndexMapBuilder::GetPortIndex(
         "Network Component %d has not been indexed", nc_id.AsUInt64()));
   }
 
-  const std::vector<std::pair<PortId, int64>>& port_index =
+  const std::vector<std::pair<PortId, int64_t>>& port_index =
       dir == PortDirection::kInput ? nc_to_ports_.at(nc_id).input_port_index
                                    : nc_to_ports_.at(nc_id).output_port_index;
 
@@ -133,12 +134,12 @@ absl::StatusOr<PortIndexMap> PortIndexMapBuilder::BuildPortIndex() {
   PortIndexMap ret;
 
   for (auto& [nc_id, nc_index] : nc_to_ports_) {
-    XLS_RET_CHECK_OK(ret.Add(
-        nc_id, PortDirection::kInput,
-        absl::Span<const std::pair<PortId, int64>>(nc_index.input_port_index)));
+    XLS_RET_CHECK_OK(ret.Add(nc_id, PortDirection::kInput,
+                             absl::Span<const std::pair<PortId, int64_t>>(
+                                 nc_index.input_port_index)));
 
     XLS_RET_CHECK_OK(ret.Add(nc_id, PortDirection::kOutput,
-                             absl::Span<const std::pair<PortId, int64>>(
+                             absl::Span<const std::pair<PortId, int64_t>>(
                                  nc_index.output_port_index)));
   }
 
@@ -147,7 +148,7 @@ absl::StatusOr<PortIndexMap> PortIndexMapBuilder::BuildPortIndex() {
 
 absl::Status PortIndexMap::Add(
     NetworkComponentId nc_id, PortDirection dir,
-    absl::Span<const std::pair<PortId, int64>> port_index) {
+    absl::Span<const std::pair<PortId, int64_t>> port_index) {
   std::vector<PortId>* ordered_ports =
       dir == PortDirection::kInput ? &nc_to_ports_[nc_id].ordered_input_ports
                                    : &nc_to_ports_[nc_id].ordered_output_ports;
@@ -157,7 +158,7 @@ absl::Status PortIndexMap::Add(
   return absl::OkStatus();
 }
 
-absl::StatusOr<int64> PortIndexMap::InputPortCount(
+absl::StatusOr<int64_t> PortIndexMap::InputPortCount(
     NetworkComponentId nc_id) const {
   if (!nc_to_ports_.contains(nc_id)) {
     return absl::OutOfRangeError(absl::StrFormat(
@@ -167,7 +168,7 @@ absl::StatusOr<int64> PortIndexMap::InputPortCount(
   return nc_to_ports_.at(nc_id).ordered_input_ports.size();
 }
 
-absl::StatusOr<int64> PortIndexMap::OutputPortCount(
+absl::StatusOr<int64_t> PortIndexMap::OutputPortCount(
     NetworkComponentId nc_id) const {
   if (!nc_to_ports_.contains(nc_id)) {
     return absl::OutOfRangeError(absl::StrFormat(
@@ -179,7 +180,7 @@ absl::StatusOr<int64> PortIndexMap::OutputPortCount(
 
 absl::StatusOr<PortId> PortIndexMap::GetPortByIndex(NetworkComponentId nc_id,
                                                     PortDirection dir,
-                                                    int64 port_index) const {
+                                                    int64_t port_index) const {
   if (!nc_to_ports_.contains(nc_id)) {
     return absl::OutOfRangeError(absl::StrFormat(
         "PortIndexMap did not index network component %x", nc_id.AsUInt64()));
@@ -199,7 +200,7 @@ absl::StatusOr<PortId> PortIndexMap::GetPortByIndex(NetworkComponentId nc_id,
   return ordered_ports[port_index];
 }
 
-absl::StatusOr<int64> VirtualChannelIndexMapBuilder::VirtualChannelCount(
+absl::StatusOr<int64_t> VirtualChannelIndexMapBuilder::VirtualChannelCount(
     PortId port_id) const {
   if (!port_to_vcs_.contains(port_id)) {
     return absl::OutOfRangeError(
@@ -209,7 +210,7 @@ absl::StatusOr<int64> VirtualChannelIndexMapBuilder::VirtualChannelCount(
   return port_to_vcs_.at(port_id).param_vc_index.size();
 }
 
-absl::StatusOr<int64> VirtualChannelIndexMap::VirtualChannelCount(
+absl::StatusOr<int64_t> VirtualChannelIndexMap::VirtualChannelCount(
     PortId port_id) const {
   if (!port_to_vcs_.contains(port_id)) {
     return absl::OutOfRangeError(
@@ -220,7 +221,7 @@ absl::StatusOr<int64> VirtualChannelIndexMap::VirtualChannelCount(
 }
 
 absl::Status VirtualChannelIndexMapBuilder::SetVirtualChannelIndex(
-    PortId port_id, PortParam port_param, int64 orig_index, int64 index) {
+    PortId port_id, PortParam port_param, int64_t orig_index, int64_t index) {
   if (!port_to_vcs_.contains(port_id)) {
     // Add a new port to the indexer.
     // Initialze VirtualChannelOrder with all present VCs and
@@ -230,12 +231,12 @@ absl::Status VirtualChannelIndexMapBuilder::SetVirtualChannelIndex(
 
     std::vector<VirtualChannelParam> vc_params =
         port_param.GetVirtualChannels();
-    for (int64 i = 0; i < vc_params.size(); ++i) {
+    for (int64_t i = 0; i < vc_params.size(); ++i) {
       vc_order.param_vc_index.push_back({vc_params[i], -1});
     }
   }
 
-  std::vector<std::pair<VirtualChannelParam, int64>>& param_vc_index =
+  std::vector<std::pair<VirtualChannelParam, int64_t>>& param_vc_index =
       port_to_vcs_[port_id].param_vc_index;
   if (orig_index < 0 || orig_index >= param_vc_index.size()) {
     return absl::OutOfRangeError(absl::StrFormat(
@@ -254,14 +255,14 @@ absl::Status VirtualChannelIndexMapBuilder::SetVirtualChannelIndex(
   return absl::OkStatus();
 }
 
-absl::StatusOr<int64> VirtualChannelIndexMapBuilder::GetVirtualChannelIndex(
+absl::StatusOr<int64_t> VirtualChannelIndexMapBuilder::GetVirtualChannelIndex(
     PortId port_id, VirtualChannelParam vc) const {
   if (!port_to_vcs_.contains(port_id)) {
     return absl::OutOfRangeError(
         absl::StrFormat("Port %d has not been indexed", port_id.AsUInt64()));
   }
 
-  const std::vector<std::pair<VirtualChannelParam, int64>>&
+  const std::vector<std::pair<VirtualChannelParam, int64_t>>&
       virtual_channel_index = port_to_vcs_.at(port_id).param_vc_index;
   for (auto& [vc_param, index] : virtual_channel_index) {
     if (vc_param.GetName() == vc.GetName()) {
@@ -274,7 +275,7 @@ absl::StatusOr<int64> VirtualChannelIndexMapBuilder::GetVirtualChannelIndex(
       port_id.AsUInt64()));
 }
 
-absl::StatusOr<int64> VirtualChannelIndexMap::GetVirtualChannelIndex(
+absl::StatusOr<int64_t> VirtualChannelIndexMap::GetVirtualChannelIndex(
     PortId port_id, VirtualChannelParam vc) const {
   if (!port_to_vcs_.contains(port_id)) {
     return absl::OutOfRangeError(
@@ -283,7 +284,7 @@ absl::StatusOr<int64> VirtualChannelIndexMap::GetVirtualChannelIndex(
 
   const std::vector<VirtualChannelParam>& virtual_channel_index =
       port_to_vcs_.at(port_id);
-  for (int64 i = 0; i < virtual_channel_index.size(); ++i) {
+  for (int64_t i = 0; i < virtual_channel_index.size(); ++i) {
     if (virtual_channel_index[i].GetName() == vc.GetName()) {
       return i;
     }
@@ -303,7 +304,7 @@ VirtualChannelIndexMapBuilder::BuildVirtualChannelIndex() const {
     const VirtualChannelOrder& vc_order = vc_order_iter.second;
 
     XLS_RETURN_IF_ERROR(ret.Add(
-        port_id, absl::Span<const std::pair<VirtualChannelParam, int64>>(
+        port_id, absl::Span<const std::pair<VirtualChannelParam, int64_t>>(
                      vc_order.param_vc_index)));
   }
 
@@ -312,7 +313,7 @@ VirtualChannelIndexMapBuilder::BuildVirtualChannelIndex() const {
 
 absl::Status VirtualChannelIndexMap::Add(
     PortId port_id,
-    absl::Span<const std::pair<VirtualChannelParam, int64>> vc_index) {
+    absl::Span<const std::pair<VirtualChannelParam, int64_t>> vc_index) {
   std::vector<VirtualChannelParam>& ordered_vc = port_to_vcs_[port_id];
 
   XLS_ASSIGN_OR_RETURN(ordered_vc, ConstructOrderedIndex<VirtualChannelParam>(
@@ -323,7 +324,7 @@ absl::Status VirtualChannelIndexMap::Add(
 
 absl::StatusOr<VirtualChannelParam>
 VirtualChannelIndexMap::GetVirtualChannelByIndex(PortId port_id,
-                                                 int64 vc_index) const {
+                                                 int64_t vc_index) const {
   if (!port_to_vcs_.contains(port_id)) {
     return absl::OutOfRangeError(
         absl::StrFormat("Port %d has not been indexed", port_id.AsUInt64()));
@@ -341,16 +342,16 @@ VirtualChannelIndexMap::GetVirtualChannelByIndex(PortId port_id,
   return ordered_virtual_channels[vc_index];
 }
 
-int64 NetworkComponentIndexMap::NetworkComponentCount() const {
+int64_t NetworkComponentIndexMap::NetworkComponentCount() const {
   return ordered_components_.size();
 }
 
-int64 NetworkComponentIndexMapBuilder::NetworkComponentCount() const {
+int64_t NetworkComponentIndexMapBuilder::NetworkComponentCount() const {
   return component_index_.size();
 }
 
 absl::Status NetworkComponentIndexMapBuilder::SetNetworkComponentIndex(
-    NetworkComponentId component_id, int64 index) {
+    NetworkComponentId component_id, int64_t index) {
   if (index < 0) {
     return absl::OutOfRangeError(
         absl::StrFormat("Index %d for component %d should non-negative", index,
@@ -362,7 +363,7 @@ absl::Status NetworkComponentIndexMapBuilder::SetNetworkComponentIndex(
   return absl::OkStatus();
 }
 
-absl::StatusOr<int64> NetworkComponentIndexMap::GetNetworkComponentIndex(
+absl::StatusOr<int64_t> NetworkComponentIndexMap::GetNetworkComponentIndex(
     NetworkComponentId id) const {
   if (!component_index_.contains(id)) {
     return absl::OutOfRangeError(
@@ -372,7 +373,8 @@ absl::StatusOr<int64> NetworkComponentIndexMap::GetNetworkComponentIndex(
   return component_index_.at(id);
 }
 
-absl::StatusOr<int64> NetworkComponentIndexMapBuilder::GetNetworkComponentIndex(
+absl::StatusOr<int64_t>
+NetworkComponentIndexMapBuilder::GetNetworkComponentIndex(
     NetworkComponentId id) const {
   for (auto [nc_id, index] : component_index_) {
     if (nc_id == id) {
@@ -385,7 +387,7 @@ absl::StatusOr<int64> NetworkComponentIndexMapBuilder::GetNetworkComponentIndex(
 }
 
 absl::Status NetworkComponentIndexMap::Add(
-    const absl::flat_hash_map<NetworkComponentId, int64>& nc_index) {
+    const absl::flat_hash_map<NetworkComponentId, int64_t>& nc_index) {
   component_index_ = nc_index;
 
   XLS_ASSIGN_OR_RETURN(
@@ -396,7 +398,7 @@ absl::Status NetworkComponentIndexMap::Add(
 }
 
 absl::StatusOr<NetworkComponentId>
-NetworkComponentIndexMap::GetNetworkComponentByIndex(int64 index) const {
+NetworkComponentIndexMap::GetNetworkComponentByIndex(int64_t index) const {
   if (index < 0 || index >= ordered_components_.size()) {
     return absl::OutOfRangeError(
         absl::StrFormat("Index %d out of range, expected [0, %d).", index,

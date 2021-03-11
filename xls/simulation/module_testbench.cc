@@ -38,7 +38,7 @@ std::string ToString(const xabsl::SourceLocation& loc) {
 // Upper limit on the length of simulation. Simulation terminates with
 // $finish after this many cycles. This is to avoid test timeouts in cases
 // that the simulation logic does not terminate.
-static constexpr int64 kSimulationCycleLimit = 10000;
+static constexpr int64_t kSimulationCycleLimit = 10000;
 
 std::string GetTimeoutMessage() {
   return absl::StrFormat("ERROR: timeout, simulation ran too long (%d cycles).",
@@ -60,7 +60,7 @@ ModuleTestbench::ModuleTestbench(Module* module,
   XLS_VLOG_LINES(3, verilog_text_);
 
   for (const Port& port : module->ports()) {
-    const int64 width = port.wire->data_type()->WidthAsInt64().value();
+    const int64_t width = port.wire->data_type()->WidthAsInt64().value();
     if (port.direction == Direction::kInput) {
       input_port_widths_[port.name()] = width;
     } else {
@@ -131,7 +131,7 @@ ModuleTestbench::ModuleTestbench(absl::string_view verilog_text,
 
 ModuleTestbench& ModuleTestbench::NextCycle() { return AdvanceNCycles(1); }
 
-ModuleTestbench& ModuleTestbench::AdvanceNCycles(int64 n_cycles) {
+ModuleTestbench& ModuleTestbench::AdvanceNCycles(int64_t n_cycles) {
   actions_.push_back(AdvanceCycle{n_cycles});
   return *this;
 }
@@ -166,7 +166,7 @@ ModuleTestbench& ModuleTestbench::Set(absl::string_view input_port,
 }
 
 ModuleTestbench& ModuleTestbench::Set(absl::string_view input_port,
-                                      uint64 value) {
+                                      uint64_t value) {
   CheckIsInput(input_port);
   return Set(input_port, UBits(value, GetPortWidth(input_port)));
 }
@@ -181,7 +181,7 @@ ModuleTestbench& ModuleTestbench::ExpectEq(absl::string_view output_port,
                                            const Bits& expected,
                                            xabsl::SourceLocation loc) {
   CheckIsOutput(output_port);
-  int64 instance = next_instance_++;
+  int64_t instance = next_instance_++;
   auto key = std::make_pair(instance, std::string(output_port));
   XLS_CHECK(expectations_.find(key) == expectations_.end());
   expectations_[key] = Expectation{.expected = expected, .loc = loc};
@@ -190,7 +190,7 @@ ModuleTestbench& ModuleTestbench::ExpectEq(absl::string_view output_port,
 }
 
 ModuleTestbench& ModuleTestbench::ExpectEq(absl::string_view output_port,
-                                           uint64 expected,
+                                           uint64_t expected,
                                            xabsl::SourceLocation loc) {
   CheckIsOutput(output_port);
   return ExpectEq(output_port, UBits(expected, GetPortWidth(output_port)), loc);
@@ -199,7 +199,7 @@ ModuleTestbench& ModuleTestbench::ExpectEq(absl::string_view output_port,
 ModuleTestbench& ModuleTestbench::ExpectX(absl::string_view output_port,
                                           xabsl::SourceLocation loc) {
   CheckIsOutput(output_port);
-  int64 instance = next_instance_++;
+  int64_t instance = next_instance_++;
   auto key = std::make_pair(instance, std::string(output_port));
   XLS_CHECK(expectations_.find(key) == expectations_.end());
   expectations_[key] = Expectation{.expected = IsX(), .loc = loc};
@@ -211,7 +211,7 @@ ModuleTestbench& ModuleTestbench::Capture(absl::string_view output_port,
                                           Bits* value) {
   CheckIsOutput(output_port);
   if (GetPortWidth(output_port) > 0) {
-    int64 instance = next_instance_++;
+    int64_t instance = next_instance_++;
     actions_.push_back(DisplayOutput{std::string(output_port), instance});
     auto key = std::make_pair(instance, std::string(output_port));
     captures_[key] = value;
@@ -250,9 +250,9 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
     XLS_VLOG(1) << absl::StreamFormat(
         "Found output %s width %s value %s instance %s", output_name,
         output_width, output_value, instance_str);
-    int64 width;
+    int64_t width;
     XLS_RET_CHECK(absl::SimpleAtoi(output_width, &width));
-    int64 instance;
+    int64_t instance;
     XLS_RET_CHECK(absl::SimpleAtoi(instance_str, &instance));
     if (absl::StrContains(output_value, "x")) {
       parsed_values[{instance, output_name}] = IsX();
@@ -386,7 +386,7 @@ absl::Status ModuleTestbench::Run() {
   // Insert statements into statement block which delay the simulation for the
   // given number of cycles. Regardless of delay, simulation resumes on the
   // falling edge of the clock.
-  auto wait_n_cycles = [&](StatementBlock* statement_block, int64 n_cycles) {
+  auto wait_n_cycles = [&](StatementBlock* statement_block, int64_t n_cycles) {
     XLS_CHECK_GT(n_cycles, 0);
     Expression* posedge_clk = file.Make<PosEdge>(clk);
     if (n_cycles == 1) {
@@ -504,7 +504,7 @@ absl::Status ModuleTestbench::Run() {
   return CheckOutput(stdout_str);
 }
 
-int64 ModuleTestbench::GetPortWidth(absl::string_view port) {
+int64_t ModuleTestbench::GetPortWidth(absl::string_view port) {
   if (input_port_widths_.contains(port)) {
     return input_port_widths_.at(port);
   } else {

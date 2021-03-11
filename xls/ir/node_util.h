@@ -52,18 +52,18 @@ inline bool IsLiteralAllOnes(Node* node) {
 
 // Checks whether the node is a literal that holds a bits value where
 // HasSingleRunOfSetBits (see bits_ops.h) is true.
-bool IsLiteralWithRunOfSetBits(Node* node, int64* leading_zero_count,
-                               int64* set_bit_count,
-                               int64* trailing_zero_count);
+bool IsLiteralWithRunOfSetBits(Node* node, int64_t* leading_zero_count,
+                               int64_t* set_bit_count,
+                               int64_t* trailing_zero_count);
 
 // Returns whether node is a literal "mask" value, which is of the form:
 // 0b[0]*[1]+
 //
 // Note that "leading_zeros" is easily calculated as width - "trailing_ones", it
 // is populated purely for caller convenience.
-inline bool IsLiteralMask(Node* node, int64* leading_zeros,
-                          int64* trailing_ones) {
-  int64 trailing_zeros = -1;
+inline bool IsLiteralMask(Node* node, int64_t* leading_zeros,
+                          int64_t* trailing_ones) {
+  int64_t trailing_zeros = -1;
   if (IsLiteralWithRunOfSetBits(node, leading_zeros, trailing_ones,
                                 &trailing_zeros) &&
       trailing_zeros == 0) {
@@ -84,7 +84,7 @@ inline bool AnyOperandWhere(Node* node,
 
 inline bool AnyTwoOperandsWhere(Node* node,
                             const std::function<bool(Node*)>& predicate) {
-  int64 count = 0;
+  int64_t count = 0;
   for (Node* operand : node->operands()) {
     count += predicate(operand);
     if (count >= 2) {
@@ -114,19 +114,19 @@ inline void NodeFormatter(std::string* out, Node* node) {
 // Returns an IR expression whose value is equal to the bits of 'operand' at the
 // given indices concated together. 'indices' must be unique and sorted in an
 // ascending order.
-absl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64 const> indices);
+absl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64_t const> indices);
 
 // And-reduces the trailing (least significant) "bit_count" bits of node.
 //
 // TODO(b/150557922): Create a dedicated opcode for and-reductions of multi-bit
 // values.
-absl::StatusOr<Node*> AndReduceTrailing(Node* node, int64 bit_count);
+absl::StatusOr<Node*> AndReduceTrailing(Node* node, int64_t bit_count);
 
 // Or-reduces the leading (most significant) "bit_count" bits of node.
 //
 // TODO(b/150557922): Create a dedicated opcode for or-reductions of multi-bit
 // values.
-absl::StatusOr<Node*> OrReduceLeading(Node* node, int64 bit_count);
+absl::StatusOr<Node*> OrReduceLeading(Node* node, int64_t bit_count);
 
 // Returns whether the given node is a signed/unsigned comparison operation (for
 // example, ULe or SGt).

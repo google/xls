@@ -23,7 +23,7 @@
 namespace xls {
 namespace synthesis {
 
-absl::StatusOr<int64> ParseNextpnrOutput(absl::string_view nextpnr_output) {
+absl::StatusOr<int64_t> ParseNextpnrOutput(absl::string_view nextpnr_output) {
   bool found = false;
   double max_mhz;
   // We're looking for lines of the form:
@@ -37,7 +37,7 @@ absl::StatusOr<int64> ParseNextpnrOutput(absl::string_view nextpnr_output) {
     if (absl::StartsWith(line, "Info: Max frequency for clock") &&
         absl::StrContains(line, " MHz ")) {
       std::vector<absl::string_view> tokens = absl::StrSplit(line, ' ');
-      for (int64 i = 1; i < tokens.size(); ++i) {
+      for (int64_t i = 1; i < tokens.size(); ++i) {
         if (tokens[i] == "MHz") {
           if (absl::SimpleAtod(tokens[i - 1], &max_mhz)) {
             found = true;
@@ -52,7 +52,7 @@ absl::StatusOr<int64> ParseNextpnrOutput(absl::string_view nextpnr_output) {
         "Could not find maximum frequency in nextpnr output.");
   }
 
-  return static_cast<int64>(max_mhz * 1e6);
+  return static_cast<int64_t>(max_mhz * 1e6);
 }
 
 absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
@@ -97,7 +97,7 @@ absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
   // Process cell histogram.
   for (parse_line_itr = last_num_cell_itr.value() + 1;
        parse_line_itr != lines.end(); ++parse_line_itr) {
-    int64 cell_count;
+    int64_t cell_count;
     std::string cell_name;
     if (RE2::FullMatch(*parse_line_itr, "\\s+(\\w+)\\s+(\\d+)\\s*", &cell_name,
                        &cell_count)) {

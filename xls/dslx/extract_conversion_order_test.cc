@@ -57,7 +57,7 @@ fn main() -> u32 { f(u2:0) }
   EXPECT_EQ(order[0].f->identifier(), "f");
   EXPECT_EQ(
       order[0].bindings,
-      SymbolicBindings(absl::flat_hash_map<std::string, int64>{{"N", 2}}));
+      SymbolicBindings(absl::flat_hash_map<std::string, int64_t>{{"N", 2}}));
   EXPECT_EQ(order[1].f->identifier(), "main");
   EXPECT_EQ(order[1].bindings, SymbolicBindings());
 }
@@ -79,11 +79,11 @@ fn main() -> u32 { f(u2:0) }
   EXPECT_EQ(order[0].f->identifier(), "g");
   EXPECT_EQ(
       order[0].bindings,
-      SymbolicBindings(absl::flat_hash_map<std::string, int64>{{"M", 2}}));
+      SymbolicBindings(absl::flat_hash_map<std::string, int64_t>{{"M", 2}}));
   EXPECT_EQ(order[1].f->identifier(), "f");
   EXPECT_EQ(
       order[1].bindings,
-      SymbolicBindings(absl::flat_hash_map<std::string, int64>{{"N", 2}}));
+      SymbolicBindings(absl::flat_hash_map<std::string, int64_t>{{"N", 2}}));
   EXPECT_EQ(order[2].f->identifier(), "main");
   EXPECT_EQ(order[2].bindings, SymbolicBindings());
 }

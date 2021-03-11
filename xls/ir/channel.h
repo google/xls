@@ -15,11 +15,11 @@
 #ifndef XLS_IR_CHANNEL_H_
 #define XLS_IR_CHANNEL_H_
 
+#include <cstdint>
 #include <iosfwd>
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/integral_types.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -65,7 +65,7 @@ std::ostream& operator<<(std::ostream& os, ChannelOps ops);
 // communication occurs over the channel.
 class Channel {
  public:
-  Channel(absl::string_view name, int64 id, ChannelOps supported_ops,
+  Channel(absl::string_view name, int64_t id, ChannelOps supported_ops,
           ChannelKind kind, Type* type, absl::Span<const Value> initial_values,
           const ChannelMetadataProto& metadata)
       : name_(name),
@@ -83,7 +83,7 @@ class Channel {
 
   // Returns the ID of the channel. The ID is unique within the scope of a
   // package.
-  int64 id() const { return id_; }
+  int64_t id() const { return id_; }
 
   // Returns the suppored ops for the channel: send-only, receive-only, or
   // send-receive.
@@ -114,7 +114,7 @@ class Channel {
 
  protected:
   std::string name_;
-  int64 id_;
+  int64_t id_;
   ChannelOps supported_ops_;
   ChannelKind kind_;
   Type* type_;
@@ -126,7 +126,7 @@ class Channel {
 // channel; receives remove an element from the channel with FIFO ordering.
 class StreamingChannel : public Channel {
  public:
-  StreamingChannel(absl::string_view name, int64 id, ChannelOps supported_ops,
+  StreamingChannel(absl::string_view name, int64_t id, ChannelOps supported_ops,
                    Type* type, absl::Span<const Value> initial_values,
                    const ChannelMetadataProto& metadata)
       : Channel(name, id, supported_ops, ChannelKind::kStreaming, type,
@@ -137,7 +137,7 @@ class StreamingChannel : public Channel {
 // support initial values.
 class PortChannel : public Channel {
  public:
-  PortChannel(absl::string_view name, int64 id, ChannelOps supported_ops,
+  PortChannel(absl::string_view name, int64_t id, ChannelOps supported_ops,
               Type* type, const ChannelMetadataProto& metadata)
       : Channel(name, id, supported_ops, ChannelKind::kPort, type,
                 /*initial_values=*/{}, metadata) {}
@@ -148,7 +148,7 @@ class PortChannel : public Channel {
 // value (the reset value).
 class RegisterChannel : public Channel {
  public:
-  RegisterChannel(absl::string_view name, int64 id, Type* type,
+  RegisterChannel(absl::string_view name, int64_t id, Type* type,
                   absl::optional<Value> reset_value,
                   const ChannelMetadataProto& metadata)
       : Channel(
@@ -171,7 +171,7 @@ class RegisterChannel : public Channel {
 // directly associated send/receive nodes.
 class LogicalChannel : public Channel {
  public:
-  LogicalChannel(absl::string_view name, int64 id, PortChannel* ready_channel,
+  LogicalChannel(absl::string_view name, int64_t id, PortChannel* ready_channel,
                  PortChannel* valid_channel, PortChannel* data_channel,
                  const ChannelMetadataProto& metadata)
       : Channel(name, id, data_channel->supported_ops(), ChannelKind::kLogical,

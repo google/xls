@@ -22,12 +22,6 @@ package(
 )
 
 cc_library(
-    name = "integral_types",
-    srcs = ["integral_types.inc"],
-    hdrs = ["integral_types.h"],
-)
-
-cc_library(
     name = "bits_util",
     hdrs = ["bits_util.h"],
     deps = [
@@ -80,7 +74,6 @@ cc_library(
     srcs = ["indent.cc"],
     hdrs = ["indent.h"],
     deps = [
-        ":integral_types",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -195,7 +188,6 @@ cc_library(
     name = "strong_int",
     hdrs = ["strong_int.h"],
     deps = [
-        ":integral_types",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/strings",
@@ -207,7 +199,6 @@ cc_library(
     srcs = ["string_to_int.cc"],
     hdrs = ["string_to_int.h"],
     deps = [
-        ":integral_types",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -234,7 +225,6 @@ cc_test(
     name = "strong_int_test",
     srcs = ["strong_int_test.cc"],
     deps = [
-        ":integral_types",
         ":strong_int",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:node_hash_map",

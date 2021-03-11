@@ -15,13 +15,14 @@
 #ifndef XLS_JIT_LLVM_TYPE_CONVERTER_H_
 #define XLS_JIT_LLVM_TYPE_CONVERTER_H_
 
+#include <cstdint>
+
 #include "absl/container/inlined_vector.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/Constants.h"
 #include "llvm/include/llvm/IR/Module.h"
-#include "xls/common/integral_types.h"
 #include "xls/ir/function.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -51,7 +52,7 @@ class LlvmTypeConverter {
   // instead of the three that the flat bit count would suggest. The type width
   // rules aren't necessarily immediately obvious, but fortunately the
   // DataLayout object can handle ~all of the work for us.
-  int64 GetTypeByteSize(const Type* type);
+  int64_t GetTypeByteSize(const Type* type);
 
   // Returns a new Value representing the LLVM form of a Token.
   llvm::Value* GetToken();

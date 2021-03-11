@@ -20,9 +20,9 @@ namespace xls::noc {
 
 // Test field values for a virtual channel option.
 TEST(VirtualChannelOptionsProtoBuilderTest, FieldValues) {
-  const int64 kDepth0 = 42;
-  const int64 kDepth1 = 4;
-  const int64 kDepth2 = 2;
+  const int64_t kDepth0 = 42;
+  const int64_t kDepth1 = 4;
+  const int64_t kDepth2 = 2;
   VirtualChannelOptionsProto proto;
   VirtualChannelOptionsProtoBuilder virtual_channel_options_proto_builder(
       &proto);

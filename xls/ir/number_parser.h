@@ -17,9 +17,10 @@
 #ifndef XLS_IR_NUMBER_PARSER_H_
 #define XLS_IR_NUMBER_PARSER_H_
 
+#include <cstdint>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "xls/common/integral_types.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
 
@@ -27,7 +28,7 @@ namespace xls {
 
 // Flag value to indicate that parsing a number to Bits should use the minimum
 // width necessary to represent the produced value.
-constexpr int64 kMinimumBitCount = -1;
+constexpr int64_t kMinimumBitCount = -1;
 
 // Returns a bool indicating whether the literal token is negative, and a Bits
 // containing the magnitude. The Bits value is the minimum width necessary to
@@ -55,10 +56,10 @@ absl::StatusOr<std::pair<bool, Bits>> GetSignAndMagnitude(
 //   "0x17" => UBits(0x17, 5)
 absl::StatusOr<Bits> ParseNumber(absl::string_view input);
 
-// Parses the string as a number and returns the value as a (u)int64. Returns an
-// error if the number is not representable as a (u)int64.
-absl::StatusOr<int64> ParseNumberAsInt64(absl::string_view input);
-absl::StatusOr<uint64> ParseNumberAsUint64(absl::string_view input);
+// Parses the string as a number and returns the value as a (u)int64_t. Returns
+// an error if the number is not representable as a (u)int64_t.
+absl::StatusOr<int64_t> ParseNumberAsInt64(absl::string_view input);
+absl::StatusOr<uint64_t> ParseNumberAsUint64(absl::string_view input);
 
 absl::StatusOr<bool> ParseNumberAsBool(absl::string_view input);
 
@@ -67,7 +68,7 @@ absl::StatusOr<bool> ParseNumberAsBool(absl::string_view input);
 // specified by argument.
 absl::StatusOr<Bits> ParseUnsignedNumberWithoutPrefix(
     absl::string_view input, FormatPreference format = FormatPreference::kHex,
-    int64 bit_count = kMinimumBitCount);
+    int64_t bit_count = kMinimumBitCount);
 
 }  // namespace xls
 

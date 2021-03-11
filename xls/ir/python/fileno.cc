@@ -21,14 +21,11 @@ namespace py = pybind11;
 namespace xls {
 
 PYBIND11_MODULE(fileno, m) {
-  py::class_<Fileno>(m, "Fileno")
-      .def(py::init<int32>());
+  py::class_<Fileno>(m, "Fileno").def(py::init<int32_t>());
 
-  py::class_<Lineno>(m, "Lineno")
-      .def(py::init<int32>());
+  py::class_<Lineno>(m, "Lineno").def(py::init<int32_t>());
 
-  py::class_<Colno>(m, "Colno")
-      .def(py::init<int32>());
+  py::class_<Colno>(m, "Colno").def(py::init<int32_t>());
 }
 
 }  // namespace xls

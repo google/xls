@@ -15,12 +15,13 @@
 #ifndef XLS_JIT_JIT_RUNTIME_H_
 #define XLS_JIT_JIT_RUNTIME_H_
 
+#include <cstdint>
+
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "llvm/include/llvm/IR/LLVMContext.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
-#include "xls/common/integral_types.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -42,17 +43,17 @@ class JitRuntime {
   // "args", with a matching amount of space allocated.
   absl::Status PackArgs(absl::Span<const Value> args,
                         absl::Span<Type* const> arg_types,
-                        absl::Span<uint8*> arg_buffers);
+                        absl::Span<uint8_t*> arg_buffers);
 
   // Returns a Value constructed from the data inside "buffer" whose
   // contents are laid out according to the LLVM interpretation of the passed-in
   // type.
-  Value UnpackBuffer(const uint8* buffer, const Type* result_type);
+  Value UnpackBuffer(const uint8_t* buffer, const Type* result_type);
 
   // Splats the value into the buffer according to the data layout expected by
   // LLVM.
   void BlitValueToBuffer(const Value& value, const Type* type,
-                         absl::Span<uint8> buffer);
+                         absl::Span<uint8_t> buffer);
 
   // Returns a textual description of the argument LLVM object.
   template <typename T>
@@ -78,17 +79,17 @@ extern "C" {
 // representations of XLS IR Values and determines how much storage is needed to
 // contain them as LLVM Values format.
 // On failure, a negative value will be returned.
-int64 GetArgBufferSize(int arg_count, const char** input_args);
+int64_t GetArgBufferSize(int arg_count, const char** input_args);
 
 // Packs the set of args (as above) into the specified buffer. This buffer must
 // be large enough to contain the LLVM Value representation of these values.
 // On failure, a negative value will be returned, otherwise this returns 0.
-int64 PackArgs(int arg_count, const char** input_args, uint8** buffer);
+int64_t PackArgs(int arg_count, const char** input_args, uint8_t** buffer);
 
 // Takes in a buffer containing LLVM-packed data and converts into an XLS Value,
 // which is then printed to stdout.
 int UnpackAndPrintBuffer(const char* output_type_string, int arg_count,
-                         const char** input_args, const uint8* buffer);
+                         const char** input_args, const uint8_t* buffer);
 
 }  // extern "C"
 

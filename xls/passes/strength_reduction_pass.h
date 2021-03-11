@@ -25,13 +25,13 @@ namespace xls {
 // by a power-of-two constant may be replaced with a shift left.
 class StrengthReductionPass : public FunctionBasePass {
  public:
-  explicit StrengthReductionPass(int64 opt_level = kMaxOptLevel)
+  explicit StrengthReductionPass(int64_t opt_level = kMaxOptLevel)
       : FunctionBasePass("strength_red", "Strength Reduction"),
         opt_level_(opt_level) {}
   ~StrengthReductionPass() override {}
 
  protected:
-  int64 opt_level_;
+  int64_t opt_level_;
 
   // Run all registered passes in order of registration.
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

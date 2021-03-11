@@ -38,8 +38,8 @@ namespace cell_lib {
 
 // Represents a position in the cell library text file.
 struct Pos {
-  int64 lineno;
-  int64 colno;
+  int64_t lineno;
+  int64_t colno;
 
   std::string ToHumanString() const {
     return absl::StrFormat("%d:%d", lineno + 1, colno + 1);
@@ -146,8 +146,8 @@ class CharStream {
 
   // text mode
   std::string text_;
-  int64 cursor_ = 0;
-  int64 last_colno_ = 0;
+  int64_t cursor_ = 0;
+  int64_t last_colno_ = 0;
 };
 
 enum class TokenKind {
@@ -348,7 +348,7 @@ struct Block {
 
   // Counts the number of entries with either the key of "target" for a
   // key/value entry or a kind of "target" for a block entry.
-  int64 CountEntries(absl::string_view target) const;
+  int64_t CountEntries(absl::string_view target) const;
 
   // Helper used for converting entries contained within the block into strings.
   static std::string EntryToString(const BlockEntry& entry);

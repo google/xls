@@ -52,9 +52,9 @@ TEST(LinkConfigBuilderTest, FieldValues) {
   const char* kName = "Test";
   const char* kSourceName = "Source";
   const char* kSinkName = "Sink";
-  const int64 kPhitBitWidth = 42;
-  const int64 kSourceSinkPipelineStage = 4;
-  const int64 kSinkSourcePipelineStage = 2;
+  const int64_t kPhitBitWidth = 42;
+  const int64_t kSourceSinkPipelineStage = 4;
+  const int64_t kSinkSourcePipelineStage = 2;
   LinkConfigProto proto;
   LinkConfigProtoBuilder builder(&proto);
   builder.WithName(kName);
@@ -112,7 +112,7 @@ TEST(LinkConfigBuilderTest, TokenCreditFlowControl) {
 
 // Test enabling total credit flow control of a link.
 TEST(LinkConfigBuilderTest, TotalCreditFlowControl) {
-  const int64 kCreditBitWidth = 42;
+  const int64_t kCreditBitWidth = 42;
   LinkConfigProto proto;
   LinkConfigProtoBuilder builder(&proto);
   builder.WithName("Test");

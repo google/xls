@@ -46,9 +46,9 @@ std::function<ReturnT(Scanner*, Args...)> ScanErrorWrap(
   };
 }
 
-std::unordered_map<Keyword, std::tuple<bool, int64>>
+std::unordered_map<Keyword, std::tuple<bool, int64_t>>
 GetTypeKeywordsToSignednessAndBits() {
-  std::unordered_map<Keyword, std::tuple<bool, int64>> result;
+  std::unordered_map<Keyword, std::tuple<bool, int64_t>> result;
 #define ADD(__enum, __pyname, __str, __signedness, __bits) \
   result.insert({Keyword::__enum, {__signedness, __bits}});
   XLS_DSLX_BUILTIN_TYPE_EACH(ADD)

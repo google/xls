@@ -18,8 +18,9 @@
 #ifndef XLS_NETLIST_LOGICAL_EFFORT_H_
 #define XLS_NETLIST_LOGICAL_EFFORT_H_
 
+#include <cstdint>
+
 #include "absl/status/statusor.h"
-#include "xls/common/integral_types.h"
 #include "xls/netlist/netlist.h"
 
 namespace xls {
@@ -27,14 +28,14 @@ namespace netlist {
 namespace logical_effort {
 
 // Also referred to as "g".
-absl::StatusOr<double> GetLogicalEffort(CellKind kind, int64 input_count);
+absl::StatusOr<double> GetLogicalEffort(CellKind kind, int64_t input_count);
 
 // Also referred to as "p".
 //
 // Returns a value in (coefficient) units of $p_{inv}$, the parasitic delay of
 // an inverter. Note a typical value convenient for analysis is 1.0 (in units of
 // \tao) for $p_{inv}$.
-absl::StatusOr<double> GetParasiticDelay(CellKind kind, int64 input_count);
+absl::StatusOr<double> GetParasiticDelay(CellKind kind, int64_t input_count);
 
 // Also referred to as "h".
 absl::StatusOr<double> ComputeElectricalEffort(const rtl::Cell& cell);

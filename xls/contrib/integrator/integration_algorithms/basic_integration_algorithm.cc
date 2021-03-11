@@ -48,7 +48,7 @@ BasicIntegrationAlgorithm::Run() {
     for (auto node_itr = ready_nodes_.begin(); node_itr != ready_nodes_.end();
          ++node_itr) {
       // Check insertion cost.
-      XLS_ASSIGN_OR_RETURN(int64 insert_cost,
+      XLS_ASSIGN_OR_RETURN(int64_t insert_cost,
                            integration_function_->GetInsertNodeCost(*node_itr));
       if (!move.has_value() || insert_cost < move.value().cost) {
         move = MakeInsertMove(node_itr, insert_cost);
@@ -64,7 +64,7 @@ BasicIntegrationAlgorithm::Run() {
 
         // Check if mergeable
         XLS_ASSIGN_OR_RETURN(
-            std::optional<int64> merge_cost,
+            std::optional<int64_t> merge_cost,
             integration_function_->GetMergeNodesCost(*node_itr, internal_node));
         if (!merge_cost.has_value()) {
           continue;

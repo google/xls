@@ -85,9 +85,9 @@ class IrEvaluatorTest
 
   // Runs the given function with uint64s as input. Converts to/from Values
   // under the hood. All arguments and result must be bits-typed.
-  absl::StatusOr<uint64> Run(Function* f, absl::Span<const uint64> args) {
+  absl::StatusOr<uint64_t> Run(Function* f, absl::Span<const uint64_t> args) {
     std::vector<Value> value_args;
-    for (int64 i = 0; i < args.size(); ++i) {
+    for (int64_t i = 0; i < args.size(); ++i) {
       XLS_RET_CHECK(f->param(i)->GetType()->IsBits());
       value_args.push_back(Value(UBits(args[i], f->param(i)->BitCountOrDie())));
     }
@@ -101,7 +101,7 @@ class IrEvaluatorTest
   // the hood. All arguments and result must be bits-typed.
   absl::StatusOr<Bits> RunBits(Function* f, absl::Span<const Bits> args) {
     std::vector<Value> value_args;
-    for (int64 i = 0; i < args.size(); ++i) {
+    for (int64_t i = 0; i < args.size(); ++i) {
       value_args.push_back(Value(args[i]));
     }
     XLS_ASSIGN_OR_RETURN(Value value_result,

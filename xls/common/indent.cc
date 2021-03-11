@@ -20,7 +20,7 @@
 
 namespace xls {
 
-std::string Indent(absl::string_view text, int64 spaces) {
+std::string Indent(absl::string_view text, int64_t spaces) {
   const std::string indent(spaces, ' ');
   std::vector<absl::string_view> lines = absl::StrSplit(text, '\n');
   std::string result;

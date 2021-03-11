@@ -31,12 +31,12 @@ using ::testing::HasSubstr;
 
 // Create a Bits of the given bit count with the prime number index bits set to
 // one.
-Bits PrimeBits(int64 bit_count) {
-  auto is_prime = [](int64 n) {
+Bits PrimeBits(int64_t bit_count) {
+  auto is_prime = [](int64_t n) {
     if (n < 2) {
       return false;
     }
-    for (int64 i = 2; i * i < n; ++i) {
+    for (int64_t i = 2; i * i < n; ++i) {
       if (n % i == 0) {
         return false;
       }
@@ -44,8 +44,8 @@ Bits PrimeBits(int64 bit_count) {
     return true;
   };
 
-  std::vector<uint8> bytes(CeilOfRatio(bit_count, int64{8}), 0);
-  for (int64 i = 0; i < bit_count; ++i) {
+  std::vector<uint8_t> bytes(CeilOfRatio(bit_count, int64_t{8}), 0);
+  for (int64_t i = 0; i < bit_count; ++i) {
     if (is_prime(i)) {
       bytes[bytes.size() - 1 - i / 8] |= 1 << (i % 8);
     }
@@ -63,7 +63,7 @@ TEST(BitsTest, BitsConstructor) {
   EXPECT_THAT(b0.ToUint64(), IsOkAndHolds(0));
 
   Bits b1(1234);
-  for (int64 i = 0; i < 1234; ++i) {
+  for (int64_t i = 0; i < 1234; ++i) {
     EXPECT_EQ(b1.Get(i), 0);
   }
 }
@@ -108,14 +108,14 @@ TEST(BitsTest, BitsToBytes) {
       ElementsAre(0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
   {
     Bits wide_bits = Bits::AllOnes(75);
-    std::vector<uint8> bytes(CeilOfRatio(wide_bits.bit_count(), int64{8}));
+    std::vector<uint8_t> bytes(CeilOfRatio(wide_bits.bit_count(), int64_t{8}));
     wide_bits.ToBytes(absl::MakeSpan(bytes), /*big_endian=*/true);
     EXPECT_THAT(bytes, ElementsAre(0x07, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
                                    0xff, 0xff, 0xff));
   }
   {
     Bits wide_bits = Bits::AllOnes(75);
-    std::vector<uint8> bytes(CeilOfRatio(wide_bits.bit_count(), int64{8}));
+    std::vector<uint8_t> bytes(CeilOfRatio(wide_bits.bit_count(), int64_t{8}));
     wide_bits.ToBytes(absl::MakeSpan(bytes), /*big_endian=*/false);
     EXPECT_THAT(bytes, ElementsAre(0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
                                    0xff, 0xff, 0x07));
@@ -125,7 +125,7 @@ TEST(BitsTest, BitsToBytes) {
     XLS_ASSERT_OK_AND_ASSIGN(
         Bits wide_bits,
         ParseNumber("0x4ff_ffff_0000_1111_2222_3333_4444_ffff_0000_cc31"));
-    std::vector<uint8> bytes(CeilOfRatio(wide_bits.bit_count(), int64{8}));
+    std::vector<uint8_t> bytes(CeilOfRatio(wide_bits.bit_count(), int64_t{8}));
     wide_bits.ToBytes(absl::MakeSpan(bytes), /*big_endian=*/true);
     EXPECT_THAT(bytes, ElementsAre(0x4, 0xff, 0xff, 0xff, 0x00, 0x00, 0x11,
                                    0x11, 0x22, 0x22, 0x33, 0x33, 0x44, 0x44,
@@ -135,7 +135,7 @@ TEST(BitsTest, BitsToBytes) {
     XLS_ASSERT_OK_AND_ASSIGN(
         Bits wide_bits,
         ParseNumber("0x4ff_ffff_0000_1111_2222_3333_4444_ffff_0000_cc31"));
-    std::vector<uint8> bytes(CeilOfRatio(wide_bits.bit_count(), int64{8}));
+    std::vector<uint8_t> bytes(CeilOfRatio(wide_bits.bit_count(), int64_t{8}));
     wide_bits.ToBytes(absl::MakeSpan(bytes), /*big_endian=*/false);
     EXPECT_THAT(bytes, ElementsAre(0x31, 0xcc, 0x00, 0x00, 0xff, 0xff, 0x44,
                                    0x44, 0x33, 0x33, 0x22, 0x22, 0x11, 0x11,
@@ -393,7 +393,7 @@ TEST(BitsTest, UBitsFactory) {
 
   // Verify that 1 in the MSB constructs properly.
   Bits b4 = UBits(1ull << 63, 64);
-  EXPECT_THAT(b4.ToInt64(), IsOkAndHolds(std::numeric_limits<int64>::min()));
+  EXPECT_THAT(b4.ToInt64(), IsOkAndHolds(std::numeric_limits<int64_t>::min()));
   EXPECT_THAT(b4.ToUint64(), IsOkAndHolds(0x8000000000000000ULL));
 }
 
@@ -422,19 +422,20 @@ TEST(BitsTest, SBitsFactory) {
   EXPECT_THAT(b5.ToInt64(), IsOkAndHolds(-987654321));
   EXPECT_THAT(b5.ToUint64(), IsOkAndHolds(18446744072721897295ULL));
 
-  Bits b6 = SBits(std::numeric_limits<int64>::min(), 64);
-  EXPECT_THAT(b6.ToInt64(), IsOkAndHolds(std::numeric_limits<int64>::min()));
+  Bits b6 = SBits(std::numeric_limits<int64_t>::min(), 64);
+  EXPECT_THAT(b6.ToInt64(), IsOkAndHolds(std::numeric_limits<int64_t>::min()));
   EXPECT_THAT(
       b6.ToUint64(),
-      IsOkAndHolds(static_cast<uint64>(std::numeric_limits<int64>::max()) + 1));
+      IsOkAndHolds(static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) +
+                   1));
 
-  Bits b7 = SBits(std::numeric_limits<int64>::max(), 64);
-  EXPECT_THAT(b7.ToInt64(), IsOkAndHolds(std::numeric_limits<int64>::max()));
-  EXPECT_THAT(b7.ToUint64(), IsOkAndHolds(std::numeric_limits<int64>::max()));
+  Bits b7 = SBits(std::numeric_limits<int64_t>::max(), 64);
+  EXPECT_THAT(b7.ToInt64(), IsOkAndHolds(std::numeric_limits<int64_t>::max()));
+  EXPECT_THAT(b7.ToUint64(), IsOkAndHolds(std::numeric_limits<int64_t>::max()));
 
-  const int64 kNLargeBits = 345;
+  const int64_t kNLargeBits = 345;
   Bits b8 = SBits(-4, kNLargeBits);
-  for (int64 i = 0; i < kNLargeBits; ++i) {
+  for (int64_t i = 0; i < kNLargeBits; ++i) {
     // All except the two LSb's should be set.
     if (i < 2) {
       EXPECT_EQ(b8.Get(i), 0) << "Bit " << i << " should be 0: " << b8;
@@ -444,7 +445,7 @@ TEST(BitsTest, SBitsFactory) {
   }
 
   Bits b9 = SBits(7, kNLargeBits);
-  for (int64 i = 0; i < kNLargeBits; ++i) {
+  for (int64_t i = 0; i < kNLargeBits; ++i) {
     // Only the three LSb's should be set.
     if (i < 3) {
       EXPECT_EQ(b9.Get(i), 1) << "Bit " << i << " should be 1: " << b9;
@@ -461,7 +462,7 @@ TEST(BitsTest, PowerOfTwo) {
   EXPECT_THAT(Bits::PowerOfTwo(63, 1024).ToUint64(), IsOkAndHolds(1ULL << 63));
 
   Bits big_bits = Bits::PowerOfTwo(1234, 5000);
-  for (int64 i = 0; i < 5000; ++i) {
+  for (int64_t i = 0; i < 5000; ++i) {
     EXPECT_EQ(big_bits.Get(i), i == 1234);
   }
 }
@@ -479,10 +480,11 @@ TEST(BitsTest, MinimumBits) {
   EXPECT_EQ(Bits::MinBitCountUnsigned(255), 8);
   EXPECT_EQ(Bits::MinBitCountSigned(255), 9);
 
-  EXPECT_EQ(Bits::MinBitCountUnsigned(std::numeric_limits<int64>::max()), 63);
-  EXPECT_EQ(Bits::MinBitCountSigned(std::numeric_limits<int64>::max()), 64);
+  EXPECT_EQ(Bits::MinBitCountUnsigned(std::numeric_limits<int64_t>::max()), 63);
+  EXPECT_EQ(Bits::MinBitCountSigned(std::numeric_limits<int64_t>::max()), 64);
 
-  EXPECT_EQ(Bits::MinBitCountUnsigned(std::numeric_limits<uint64>::max()), 64);
+  EXPECT_EQ(Bits::MinBitCountUnsigned(std::numeric_limits<uint64_t>::max()),
+            64);
 
   EXPECT_EQ(Bits::MinBitCountSigned(-1), 1);
   EXPECT_EQ(Bits::MinBitCountSigned(-2), 2);
@@ -491,7 +493,7 @@ TEST(BitsTest, MinimumBits) {
   EXPECT_EQ(Bits::MinBitCountSigned(-5), 4);
   EXPECT_EQ(Bits::MinBitCountSigned(-128), 8);
   EXPECT_EQ(Bits::MinBitCountSigned(-129), 9);
-  EXPECT_EQ(Bits::MinBitCountSigned(std::numeric_limits<int64>::min()), 64);
+  EXPECT_EQ(Bits::MinBitCountSigned(std::numeric_limits<int64_t>::min()), 64);
 }
 
 TEST(BitsTest, Equality) {

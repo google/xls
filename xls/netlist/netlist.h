@@ -18,6 +18,7 @@
 #ifndef XLS_NETLIST_NETLIST_H_
 #define XLS_NETLIST_NETLIST_H_
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -25,7 +26,6 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/netlist/cell_library.h"
 
@@ -158,9 +158,9 @@ class Module {
   absl::Status AddNetDecl(NetDeclKind kind, absl::string_view name);
 
   // Returns a NetRef to the given number, creating a NetDef if necessary.
-  absl::StatusOr<NetRef> AddOrResolveNumber(int64 number);
+  absl::StatusOr<NetRef> AddOrResolveNumber(int64_t number);
 
-  absl::StatusOr<NetRef> ResolveNumber(int64 number) const;
+  absl::StatusOr<NetRef> ResolveNumber(int64_t number) const;
 
   absl::StatusOr<NetRef> ResolveNet(absl::string_view name) const;
 
@@ -197,7 +197,7 @@ class Netlist {
   absl::StatusOr<const Module*> GetModule(const std::string& module_name) const;
   const absl::Span<const std::unique_ptr<Module>> modules() { return modules_; }
   absl::StatusOr<const CellLibraryEntry*> GetOrCreateLut4CellEntry(
-      int64 lut_mask);
+      int64_t lut_mask);
 
  private:
   // The Netlist itself manages the CellLibraryEntries corresponding to the LUT4

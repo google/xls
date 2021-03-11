@@ -23,7 +23,6 @@ cc_library(
     name = "union_find",
     hdrs = ["union_find.h"],
     deps = [
-        "//xls/common:integral_types",
     ],
 )
 
@@ -44,7 +43,6 @@ cc_library(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:inlined_vector",
         "//xls/common:bits_util",
-        "//xls/common:integral_types",
         "//xls/common:math_util",
         "//xls/common/logging",
     ],
@@ -66,7 +64,6 @@ cc_library(
     deps = [
         "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/types:span",
-        "//xls/common:integral_types",
     ],
 )
 
@@ -80,7 +77,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common:integral_types",
         "//xls/common:strong_int",
         "//xls/common/logging",
         "//xls/common/logging:vlog_is_on",
@@ -111,7 +107,6 @@ cc_library(
     deps = [
         "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:integral_types",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

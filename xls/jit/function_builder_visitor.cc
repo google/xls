@@ -74,7 +74,7 @@ absl::Status FunctionBuilderVisitor::BuildInternal() {
 
   UnpoisonOutputBuffer();
 
-  int64 return_width = xls_return_type->GetFlatBitCount();
+  int64_t return_width = xls_return_type->GetFlatBitCount();
   llvm::Value* output_arg = llvm_fn_->getArg(llvm_fn_->arg_size() - 2);
   if (generate_packed_) {
     if (return_width != 0) {
@@ -104,7 +104,8 @@ absl::Status FunctionBuilderVisitor::BuildInternal() {
       return absl::InternalError(stream.str());
     }
 
-    int64 return_type_bytes = type_converter_->GetTypeByteSize(xls_return_type);
+    int64_t return_type_bytes =
+        type_converter_->GetTypeByteSize(xls_return_type);
     builder_->CreateMemCpy(output_arg, llvm::MaybeAlign(0), return_value_,
                            llvm::MaybeAlign(0), return_type_bytes);
   } else {
@@ -141,7 +142,7 @@ absl::Status FunctionBuilderVisitor::HandleArray(Array* array) {
   llvm::Type* array_type = type_converter_->ConvertToLlvmType(array->GetType());
 
   llvm::Value* result = CreateTypedZeroValue(array_type);
-  for (uint32 i = 0; i < array->size(); ++i) {
+  for (uint32_t i = 0; i < array->size(); ++i) {
     result = builder_->CreateInsertValue(result,
                                          node_map_.at(array->operand(i)), {i});
   }
@@ -150,13 +151,13 @@ absl::Status FunctionBuilderVisitor::HandleArray(Array* array) {
 }
 
 absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::IndexIntoArray(
-    llvm::Value* array, llvm::Value* index, int64 array_size) {
-  int64 index_width = index->getType()->getIntegerBitWidth();
+    llvm::Value* array, llvm::Value* index, int64_t array_size) {
+  int64_t index_width = index->getType()->getIntegerBitWidth();
 
   // Check for out-of-bounds access. If the index is out of bounds it is set to
   // the maximum index value.
-  int64 index_bitwidth = index->getType()->getIntegerBitWidth();
-  int64 comparison_bitwidth = std::max(index_bitwidth, int64{64});
+  int64_t index_bitwidth = index->getType()->getIntegerBitWidth();
+  int64_t comparison_bitwidth = std::max(index_bitwidth, int64_t{64});
   llvm::Value* array_size_comparison_bitwidth = llvm::ConstantInt::get(
       llvm::Type::getIntNTy(ctx_, comparison_bitwidth), array_size);
   llvm::Value* index_value_comparison_bitwidth = builder_->CreateZExt(
@@ -222,8 +223,8 @@ absl::Status FunctionBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
   for (Node* index_operand : update->indices()) {
     llvm::Value* index = node_map_.at(index_operand);
 
-    int64 index_bitwidth = index->getType()->getIntegerBitWidth();
-    int64 comparison_bitwidth = std::max(index_bitwidth, int64{64});
+    int64_t index_bitwidth = index->getType()->getIntegerBitWidth();
+    int64_t comparison_bitwidth = std::max(index_bitwidth, int64_t{64});
     llvm::Value* array_size_comparison_bitwidth =
         llvm::ConstantInt::get(llvm::Type::getIntNTy(ctx_, comparison_bitwidth),
                                element_type->AsArrayOrDie()->size());
@@ -273,16 +274,16 @@ absl::Status FunctionBuilderVisitor::HandleArrayConcat(ArrayConcat* concat) {
 
   llvm::Value* result = CreateTypedZeroValue(array_type);
 
-  int64 result_index = 0;
-  int64 result_elements = array_type->getArrayNumElements();
+  int64_t result_index = 0;
+  int64_t result_elements = array_type->getArrayNumElements();
   for (Node* operand : concat->operands()) {
     llvm::Value* array = node_map_.at(operand);
     llvm::Type* array_type = array->getType();
 
-    int64 element_count = array_type->getArrayNumElements();
-    for (int64 j = 0; j < element_count; ++j) {
+    int64_t element_count = array_type->getArrayNumElements();
+    for (int64_t j = 0; j < element_count; ++j) {
       llvm::Value* element =
-          builder_->CreateExtractValue(array, {static_cast<uint32>(j)});
+          builder_->CreateExtractValue(array, {static_cast<uint32_t>(j)});
 
       if (result_index >= result_elements) {
         return absl::InternalError(absl::StrFormat(
@@ -291,8 +292,8 @@ absl::Status FunctionBuilderVisitor::HandleArrayConcat(ArrayConcat* concat) {
             concat->ToString(), result_elements));
       }
 
-      result = builder_->CreateInsertValue(result, element,
-                                           {static_cast<uint32>(result_index)});
+      result = builder_->CreateInsertValue(
+          result, element, {static_cast<uint32_t>(result_index)});
       ++result_index;
     }
   }
@@ -381,12 +382,12 @@ absl::Status FunctionBuilderVisitor::HandleDynamicBitSlice(
     DynamicBitSlice* dynamic_bit_slice) {
   llvm::Value* value = node_map_.at(dynamic_bit_slice->operand(0));
   llvm::Value* start = node_map_.at(dynamic_bit_slice->operand(1));
-  int64 value_width = value->getType()->getIntegerBitWidth();
-  int64 start_width = start->getType()->getIntegerBitWidth();
+  int64_t value_width = value->getType()->getIntegerBitWidth();
+  int64_t start_width = start->getType()->getIntegerBitWidth();
   // Either value or start may be wider, so we use the widest of both
   // since LLVM requires both arguments to be of the same type for
   // comparison and shifting.
-  int64 max_width = std::max(start_width, value_width);
+  int64_t max_width = std::max(start_width, value_width);
   llvm::IntegerType* max_width_type = builder_->getIntNTy(max_width);
   llvm::Value* value_ext = builder_->CreateZExt(value, max_width_type);
   llvm::Value* start_ext = builder_->CreateZExt(start, max_width_type);
@@ -426,7 +427,7 @@ absl::Status FunctionBuilderVisitor::HandleConcat(Concat* concat) {
   for (const Node* xls_operand : concat->operands()) {
     // Widen each operand to the full size, shift to the right location, and
     // bitwise or into the result value.
-    int64 operand_width = xls_operand->BitCountOrDie();
+    int64_t operand_width = xls_operand->BitCountOrDie();
     llvm::Value* operand = node_map_.at(xls_operand);
     operand = builder_->CreateZExt(operand, dest_type);
     llvm::Value* shifted_operand =
@@ -658,7 +659,7 @@ absl::Status FunctionBuilderVisitor::HandleMap(Map* map) {
       function_type->getReturnType(), input_type->getArrayNumElements()));
 
   llvm::Value* user_data = llvm_fn_->getArg(llvm_fn_->arg_size() - 1);
-  for (uint32 i = 0; i < input_type->getArrayNumElements(); ++i) {
+  for (uint32_t i = 0; i < input_type->getArrayNumElements(); ++i) {
     llvm::Value* iter_input = builder_->CreateExtractValue(input, {i});
     llvm::Value* iter_result =
         builder_->CreateCall(to_apply, {iter_input, user_data});
@@ -915,7 +916,7 @@ absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::UnpackParamBuffer(
 
       llvm::Value* array =
           CreateTypedZeroValue(type_converter_->ConvertToLlvmType(array_type));
-      for (uint32 i = 0; i < array_type->size(); i++) {
+      for (uint32_t i = 0; i < array_type->size(); i++) {
         XLS_ASSIGN_OR_RETURN(llvm::Value * element,
                              UnpackParamBuffer(element_type, param_buffer));
         array = builder_->CreateInsertValue(array, element, {i});
@@ -929,14 +930,14 @@ absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::UnpackParamBuffer(
       TupleType* tuple_type = param_type->AsTupleOrDie();
       llvm::Value* tuple =
           CreateTypedZeroValue(type_converter_->ConvertToLlvmType(tuple_type));
-      for (int32 i = tuple_type->size() - 1; i >= 0; i--) {
+      for (int32_t i = tuple_type->size() - 1; i >= 0; i--) {
         // Tuple elements are stored MSB -> LSB, so we need to extract in
         // reverse order to match native layout.
         Type* element_type = tuple_type->element_type(i);
         XLS_ASSIGN_OR_RETURN(llvm::Value * element,
                              UnpackParamBuffer(element_type, param_buffer));
         tuple = builder_->CreateInsertValue(tuple, element,
-                                            {static_cast<uint32>(i)});
+                                            {static_cast<uint32_t>(i)});
         param_buffer =
             builder_->CreateLShr(param_buffer, element_type->GetFlatBitCount());
       }
@@ -1040,7 +1041,7 @@ absl::Status FunctionBuilderVisitor::HandleTuple(Tuple* tuple) {
   llvm::Type* tuple_type = type_converter_->ConvertToLlvmType(tuple->GetType());
 
   llvm::Value* result = CreateTypedZeroValue(tuple_type);
-  for (uint32 i = 0; i < tuple->operand_count(); ++i) {
+  for (uint32_t i = 0; i < tuple->operand_count(); ++i) {
     if (tuple->operand(i)->GetType()->GetFlatBitCount() == 0) {
       continue;
     }
@@ -1330,7 +1331,7 @@ llvm::Value* FunctionBuilderVisitor::CreateAggregateOr(llvm::Value* lhs,
   llvm::Value* result = CreateTypedZeroValue(arg_type);
   int num_elements = arg_type->isArrayTy() ? arg_type->getArrayNumElements()
                                            : arg_type->getNumContainedTypes();
-  for (uint32 i = 0; i < num_elements; ++i) {
+  for (uint32_t i = 0; i < num_elements; ++i) {
     llvm::Value* iter_result =
         CreateAggregateOr(builder_->CreateExtractValue(lhs, {i}),
                           builder_->CreateExtractValue(rhs, {i}));
@@ -1435,7 +1436,7 @@ absl::Status FunctionBuilderVisitor::StoreResult(Node* node,
 
 absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::PackElement(
     llvm::Value* element, Type* element_type, llvm::Value* buffer,
-    int64 bit_offset) {
+    int64_t bit_offset) {
   switch (element_type->kind()) {
     case TypeKind::kBits:
       if (element->getType() != buffer->getType()) {
@@ -1446,7 +1447,7 @@ absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::PackElement(
     case TypeKind::kArray: {
       ArrayType* array_type = element_type->AsArrayOrDie();
       Type* array_element_type = array_type->element_type();
-      for (uint32 i = 0; i < array_type->size(); i++) {
+      for (uint32_t i = 0; i < array_type->size(); i++) {
         XLS_ASSIGN_OR_RETURN(
             buffer, PackElement(builder_->CreateExtractValue(element, {i}),
                                 array_element_type, buffer,
@@ -1459,12 +1460,12 @@ absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::PackElement(
       // As with HandlePackedParam, we need to reverse tuple packing order to
       // match native layout.
       TupleType* tuple_type = element_type->AsTupleOrDie();
-      for (int64 i = tuple_type->size() - 1; i >= 0; i--) {
+      for (int64_t i = tuple_type->size() - 1; i >= 0; i--) {
         XLS_ASSIGN_OR_RETURN(
             buffer,
-            PackElement(
-                builder_->CreateExtractValue(element, {static_cast<uint32>(i)}),
-                tuple_type->element_type(i), buffer, bit_offset));
+            PackElement(builder_->CreateExtractValue(
+                            element, {static_cast<uint32_t>(i)}),
+                        tuple_type->element_type(i), buffer, bit_offset));
         bit_offset += tuple_type->element_type(i)->GetFlatBitCount();
       }
       return buffer;
@@ -1482,8 +1483,9 @@ absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::PackElement(
 void FunctionBuilderVisitor::UnpoisonOutputBuffer() {
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
   Type* xls_return_type = GetEffectiveReturnValue(xls_fn_)->GetType();
-  llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
-      llvm::Type::getInt64Ty(ctx()), reinterpret_cast<uint64>(__msan_unpoison));
+  llvm::ConstantInt* fn_addr =
+      llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()),
+                             reinterpret_cast<uint64_t>(__msan_unpoison));
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
   llvm::Type* u8_ptr_type =
       llvm::PointerType::get(llvm::Type::getInt8Ty(ctx()), /*AddressSpace=*/0);

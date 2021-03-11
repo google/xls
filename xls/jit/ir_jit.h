@@ -49,11 +49,11 @@ class IrJit {
   // Returns an object containing a host-compiled version of the specified XLS
   // function.
   static absl::StatusOr<std::unique_ptr<IrJit>> Create(Function* xls_function,
-                                                       int64 opt_level = 3);
+                                                       int64_t opt_level = 3);
   static absl::StatusOr<std::unique_ptr<IrJit>> CreateProc(
       Proc* proc, JitChannelQueueManager* queue_mgr,
       ProcBuilderVisitor::RecvFnT recv_fn, ProcBuilderVisitor::SendFnT send_fn,
-      int64 opt_level = 3);
+      int64_t opt_level = 3);
 
   // Executes the compiled function with the specified arguments.
   // The optional opaque "user_data" argument is passed into Proc send/recv
@@ -75,8 +75,8 @@ class IrJit {
   // (and applying views) can eliminate this overhead and still give access tor
   // result data. Users needing less performance can still use the
   // Value-returning methods above for code simplicity.
-  absl::Status RunWithViews(absl::Span<uint8*> args,
-                            absl::Span<uint8> result_buffer,
+  absl::Status RunWithViews(absl::Span<uint8_t*> args,
+                            absl::Span<uint8_t> result_buffer,
                             void* user_data = nullptr);
 
   // Similar to RunWithViews(), except the arguments here are _packed_views_ -
@@ -100,8 +100,8 @@ class IrJit {
   // TODO(rspringer): Add user data support here.
   template <typename... ArgsT>
   absl::Status RunWithPackedViews(ArgsT... args) {
-    uint8* arg_buffers[sizeof...(ArgsT)];
-    uint8* result_buffer;
+    uint8_t* arg_buffers[sizeof...(ArgsT)];
+    uint8_t* result_buffer;
     // Walk the type tree to get each arg's data buffer into our view/arg list.
     PackArgBuffers(arg_buffers, &result_buffer, args...);
     packed_invoker_(arg_buffers, result_buffer, /*user_data=*/nullptr);
@@ -114,15 +114,15 @@ class IrJit {
   // Gets the size of the compiled function's args or return type in bytes.
   // These values only correspond to view buffers, and not *PACKED* view
   // buffers.
-  int64 GetArgTypeSize(int arg_index) { return arg_type_bytes_[arg_index]; }
-  int64 GetReturnTypeSize() { return return_type_bytes_; }
+  int64_t GetArgTypeSize(int arg_index) { return arg_type_bytes_[arg_index]; }
+  int64_t GetReturnTypeSize() { return return_type_bytes_; }
 
   JitRuntime* runtime() { return ir_runtime_.get(); }
 
   LlvmTypeConverter* type_converter() { return type_converter_.get(); }
 
  private:
-  explicit IrJit(FunctionBase* xls_function, int64 opt_level);
+  explicit IrJit(FunctionBase* xls_function, int64_t opt_level);
 
   // Performs non-trivial initialization (i.e., that which can fail).
   absl::Status Init();
@@ -149,15 +149,16 @@ class IrJit {
   // Simple templates to walk down the arg tree and populate the corresponding
   // arg/buffer pointer.
   template <typename FrontT, typename... RestT>
-  void PackArgBuffers(uint8** arg_buffers, uint8** result_buffer, FrontT front,
-                      RestT... rest) {
+  void PackArgBuffers(uint8_t** arg_buffers, uint8_t** result_buffer,
+                      FrontT front, RestT... rest) {
     arg_buffers[0] = front.buffer();
     PackArgBuffers(&arg_buffers[1], result_buffer, rest...);
   }
 
   // Base case for the above recursive template.
   template <typename LastT>
-  void PackArgBuffers(uint8** arg_buffers, uint8** result_buffer, LastT front) {
+  void PackArgBuffers(uint8_t** arg_buffers, uint8_t** result_buffer,
+                      LastT front) {
     *result_buffer = front.buffer();
   }
 
@@ -172,11 +173,11 @@ class IrJit {
   std::unique_ptr<llvm::orc::IRTransformLayer> transform_layer_;
 
   FunctionBase* xls_function_;
-  int64 opt_level_;
+  int64_t opt_level_;
 
   // Size of the function's args or return type as flat bytes.
-  std::vector<int64> arg_type_bytes_;
-  int64 return_type_bytes_;
+  std::vector<int64_t> arg_type_bytes_;
+  int64_t return_type_bytes_;
 
   // Cache for XLS type => LLVM type conversions.
   absl::flat_hash_map<const Type*, llvm::Type*> xls_to_llvm_type_;
@@ -185,13 +186,13 @@ class IrJit {
   std::unique_ptr<JitRuntime> ir_runtime_;
 
   // When initialized, this points to the compiled output.
-  using JitFunctionType = void (*)(const uint8* const* inputs, uint8* output,
-                                   void* user_data);
+  using JitFunctionType = void (*)(const uint8_t* const* inputs,
+                                   uint8_t* output, void* user_data);
   JitFunctionType invoker_;
 
   // Packed types for above.
-  using PackedJitFunctionType = void (*)(const uint8* const* inputs,
-                                         uint8* output, void* user_data);
+  using PackedJitFunctionType = void (*)(const uint8_t* const* inputs,
+                                         uint8_t* output, void* user_data);
   PackedJitFunctionType packed_invoker_;
 };
 
@@ -213,7 +214,7 @@ absl::StatusOr<Value> CreateAndRun(Function* xls_function,
 // TODO(hjmontero): 2020-08-09 Make RNG seeding possible.
 // TODO(leary): 2020-08-09 Factor out into its own module with Python bindings.
 absl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
-CreateAndQuickCheck(Function* xls_function, int64 seed, int64 num_tests);
+CreateAndQuickCheck(Function* xls_function, int64_t seed, int64_t num_tests);
 
 }  // namespace xls
 

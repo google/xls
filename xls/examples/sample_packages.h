@@ -68,7 +68,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildZeroExtendTo32();
 //      result
 //    }
 std::pair<std::unique_ptr<Package>, Function*> BuildAccumulateIvar(
-    int64 trip_count, int64 bit_count);
+    int64_t trip_count, int64_t bit_count);
 
 // Builds a function containing 2 independent counted loops.
 // The results of the loops are added, to make sure they

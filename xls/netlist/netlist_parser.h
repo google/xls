@@ -45,8 +45,8 @@ std::string TokenKindToString(TokenKind kind);
 
 // Represents a position in input text.
 struct Pos {
-  int64 lineno;
-  int64 colno;
+  int64_t lineno;
+  int64_t colno;
 
   std::string ToHumanString() const;
 };
@@ -99,9 +99,9 @@ class Scanner {
   bool AtEofInternal() const { return index_ >= text_.size(); }
 
   absl::string_view text_;
-  int64 index_ = 0;
-  int64 lineno_ = 0;
-  int64 colno_ = 0;
+  int64_t index_ = 0;
+  int64_t lineno_ = 0;
+  int64_t colno_ = 0;
   absl::optional<Token> lookahead_;
 };
 
@@ -141,10 +141,10 @@ class Parser {
 
   // Pops a name token and returns its value or gives an error status if a
   // number token is not immediately present in the stream.
-  absl::StatusOr<int64> PopNumberOrError();
+  absl::StatusOr<int64_t> PopNumberOrError();
 
   // Pops either a name or number token or returns an error.
-  absl::StatusOr<absl::variant<std::string, int64>> PopNameOrNumberOrError();
+  absl::StatusOr<absl::variant<std::string, int64_t>> PopNameOrNumberOrError();
 
   // Drops a token of kind target from the head of the stream or gives an error
   // status.

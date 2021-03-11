@@ -21,7 +21,7 @@ namespace {
 
 // Test field values for a unidirectional tree network configuration option.
 TEST(UnidirectionalTreeOptionsProtoBuilderTest, FieldValues) {
-  const int64 kRadix = 4;
+  const int64_t kRadix = 4;
   UnidirectionalTreeNetworkConfigOptionsProto proto;
   UnidirectionalTreeNetworkConfigOptionsProtoBuilder builder(&proto);
   builder.WithRadix(kRadix);

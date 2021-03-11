@@ -33,14 +33,14 @@ using ::testing::ElementsAre;
 // A test delay estimator that returns a fixed delay for every node.
 class TestDelayEstimator : public DelayEstimator {
  public:
-  explicit TestDelayEstimator(int64 delay) : delay_(delay) {}
+  explicit TestDelayEstimator(int64_t delay) : delay_(delay) {}
 
-  absl::StatusOr<int64> GetOperationDelayInPs(Node* node) const override {
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
     return delay_;
   }
 
  private:
-  int64 delay_;
+  int64_t delay_;
 };
 
 class DelayEstimatorTest : public IrTestBase {};

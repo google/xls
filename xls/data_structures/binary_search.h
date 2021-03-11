@@ -15,9 +15,10 @@
 #ifndef XLS_DATA_STRUCTURES_BINARY_SEARCH_H_
 #define XLS_DATA_STRUCTURES_BINARY_SEARCH_H_
 
+#include <cstdint>
+
 #include "absl/functional/function_ref.h"
 #include "absl/status/statusor.h"
-#include "xls/common/integral_types.h"
 
 namespace xls {
 
@@ -25,21 +26,23 @@ namespace xls {
 // given function returns true. The given function must be monotonic over the
 // range (range of zero or more true values followed by zero or more false
 // values). CHECK fails if no value such exists.
-int64 BinarySearchMaxTrue(int64 start, int64 end,
-                          absl::FunctionRef<bool(int64 i)> f);
+int64_t BinarySearchMaxTrue(int64_t start, int64_t end,
+                            absl::FunctionRef<bool(int64_t i)> f);
 
 // Finds the minimum value in the inclusive range [start, end] for which the
 // given function returns true. The given function must be monotonic over the
 // range (range of zero or more false values followed by zero or more true
 // values). CHECK fails if no value such exists.
-int64 BinarySearchMinTrue(int64 start, int64 end,
-                          absl::FunctionRef<bool(int64 i)> f);
+int64_t BinarySearchMinTrue(int64_t start, int64_t end,
+                            absl::FunctionRef<bool(int64_t i)> f);
 
 // Overloads which accept a StatusOr function.
-absl::StatusOr<int64> BinarySearchMaxTrueWithStatus(
-    int64 start, int64 end, absl::FunctionRef<absl::StatusOr<bool>(int64 i)> f);
-absl::StatusOr<int64> BinarySearchMinTrueWithStatus(
-    int64 start, int64 end, absl::FunctionRef<absl::StatusOr<bool>(int64 i)> f);
+absl::StatusOr<int64_t> BinarySearchMaxTrueWithStatus(
+    int64_t start, int64_t end,
+    absl::FunctionRef<absl::StatusOr<bool>(int64_t i)> f);
+absl::StatusOr<int64_t> BinarySearchMinTrueWithStatus(
+    int64_t start, int64_t end,
+    absl::FunctionRef<absl::StatusOr<bool>(int64_t i)> f);
 
 }  // namespace xls
 

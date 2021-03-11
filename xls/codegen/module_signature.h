@@ -53,12 +53,12 @@ class ModuleSignatureBuilder {
       absl::string_view output_ready, absl::string_view output_valid);
 
   // Defines the module interface as fixed latency.
-  ModuleSignatureBuilder& WithFixedLatencyInterface(int64 latency);
+  ModuleSignatureBuilder& WithFixedLatencyInterface(int64_t latency);
 
   // Defines the module interface as pipelined with the given latency and
   // initiation interval.
   ModuleSignatureBuilder& WithPipelineInterface(
-      int64 latency, int64 initiation_interval,
+      int64_t latency, int64_t initiation_interval,
       absl::optional<PipelineControl> pipeline_control = absl::nullopt);
 
   // Defines the module interface as purely combinational.
@@ -77,8 +77,8 @@ class ModuleSignatureBuilder {
 
   // Add data input/outputs to the interface. Control signals such as the clock,
   // reset, ready/valid signals, etc should not be added using these methods.
-  ModuleSignatureBuilder& AddDataInput(absl::string_view name, int64 width);
-  ModuleSignatureBuilder& AddDataOutput(absl::string_view name, int64 width);
+  ModuleSignatureBuilder& AddDataInput(absl::string_view name, int64_t width);
+  ModuleSignatureBuilder& AddDataOutput(absl::string_view name, int64_t width);
 
   absl::StatusOr<ModuleSignature> Build();
 
@@ -110,8 +110,8 @@ class ModuleSignature {
   absl::Span<const PortProto> data_outputs() const { return data_outputs_; }
 
   // Returns the total number of bits of the data input/outputs.
-  int64 TotalDataInputBits() const;
-  int64 TotalDataOutputBits() const;
+  int64_t TotalDataInputBits() const;
+  int64_t TotalDataOutputBits() const;
 
   std::string ToString() const { return proto_.DebugString(); }
 

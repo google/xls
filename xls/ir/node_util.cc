@@ -25,9 +25,9 @@
 
 namespace xls {
 
-bool IsLiteralWithRunOfSetBits(Node* node, int64* leading_zero_count,
-                               int64* set_bit_count,
-                               int64* trailing_zero_count) {
+bool IsLiteralWithRunOfSetBits(Node* node, int64_t* leading_zero_count,
+                               int64_t* set_bit_count,
+                               int64_t* trailing_zero_count) {
   if (!node->Is<Literal>()) {
     return false;
   }
@@ -40,7 +40,8 @@ bool IsLiteralWithRunOfSetBits(Node* node, int64* leading_zero_count,
                                     trailing_zero_count);
 }
 
-absl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64 const> indices) {
+absl::StatusOr<Node*> GatherBits(Node* node,
+                                 absl::Span<int64_t const> indices) {
   XLS_RET_CHECK(node->GetType()->IsBits());
   FunctionBase* f = node->function_base();
   if (indices.empty()) {
@@ -48,7 +49,7 @@ absl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64 const> indices) {
     return f->MakeNode<Literal>(node->loc(), Value(Bits()));
   }
   XLS_RET_CHECK(absl::c_is_sorted(indices)) << "Gather indices not sorted.";
-  for (int64 i = 1; i < indices.size(); ++i) {
+  for (int64_t i = 1; i < indices.size(); ++i) {
     XLS_RET_CHECK_NE(indices[i - 1], indices[i])
         << "Gather indices not unique.";
   }
@@ -58,17 +59,17 @@ absl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64 const> indices) {
   }
   std::vector<Node*> segments;
   std::vector<Node*> slices;
-  auto add_bit_slice = [&](int64 start, int64 end) -> absl::Status {
+  auto add_bit_slice = [&](int64_t start, int64_t end) -> absl::Status {
     XLS_ASSIGN_OR_RETURN(
         Node * slice, f->MakeNode<BitSlice>(node->loc(), node, /*start=*/start,
                                             /*width=*/end - start));
     slices.push_back(slice);
     return absl::OkStatus();
   };
-  int64 slice_start = indices.front();
-  int64 slice_end = slice_start + 1;
-  for (int64 i = 1; i < indices.size(); ++i) {
-    int64 index = indices[i];
+  int64_t slice_start = indices.front();
+  int64_t slice_end = slice_start + 1;
+  for (int64_t i = 1; i < indices.size(); ++i) {
+    int64_t index = indices[i];
     if (index == slice_end) {
       slice_end++;
     } else {
@@ -85,14 +86,14 @@ absl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64 const> indices) {
   return f->MakeNode<Concat>(node->loc(), slices);
 }
 
-absl::StatusOr<Node*> AndReduceTrailing(Node* node, int64 bit_count) {
+absl::StatusOr<Node*> AndReduceTrailing(Node* node, int64_t bit_count) {
   FunctionBase* f = node->function_base();
   // Reducing zero bits should return one (identity of AND).
   if (bit_count == 0) {
     return f->MakeNode<Literal>(node->loc(), Value(UBits(1, 1)));
   }
   std::vector<Node*> bits;
-  for (int64 i = 0; i < bit_count; ++i) {
+  for (int64_t i = 0; i < bit_count; ++i) {
     XLS_ASSIGN_OR_RETURN(
         Node * bit,
         f->MakeNode<BitSlice>(node->loc(), node, /*start=*/i, /*width=*/1));
@@ -101,16 +102,16 @@ absl::StatusOr<Node*> AndReduceTrailing(Node* node, int64 bit_count) {
   return f->MakeNode<NaryOp>(node->loc(), bits, Op::kAnd);
 }
 
-absl::StatusOr<Node*> OrReduceLeading(Node* node, int64 bit_count) {
+absl::StatusOr<Node*> OrReduceLeading(Node* node, int64_t bit_count) {
   FunctionBase* f = node->function_base();
   // Reducing zero bits should return zero (identity of OR).
   if (bit_count == 0) {
     return f->MakeNode<Literal>(node->loc(), Value(UBits(0, 1)));
   }
-  const int64 width = node->BitCountOrDie();
+  const int64_t width = node->BitCountOrDie();
   XLS_CHECK_LE(bit_count, width);
   std::vector<Node*> bits;
-  for (int64 i = 0; i < bit_count; ++i) {
+  for (int64_t i = 0; i < bit_count; ++i) {
     XLS_ASSIGN_OR_RETURN(
         Node * bit,
         f->MakeNode<BitSlice>(node->loc(), node,

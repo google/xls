@@ -30,7 +30,8 @@
 ABSL_FLAG(bool, use_opt_ir, true, "Use optimized IR.");
 ABSL_FLAG(int, num_threads, 0,
           "Number of threads to use. Set to 0 to use all.");
-ABSL_FLAG(int64, num_samples, 1024 * 1024, "Number of random samples to test.");
+ABSL_FLAG(int64_t, num_samples, 1024 * 1024,
+          "Number of random samples to test.");
 
 namespace xls {
 
@@ -52,10 +53,10 @@ bool ZeroOrSubnormal(float value) {
 }
 
 // Generates two floats with reasonably unformly random bit patterns.
-Float2x32 IndexToInput(uint64 index) {
+Float2x32 IndexToInput(uint64_t index) {
   thread_local absl::BitGen bitgen;
-  uint32 a = absl::Uniform(bitgen, 0u, std::numeric_limits<uint32_t>::max());
-  uint32 b = absl::Uniform(bitgen, 0u, std::numeric_limits<uint32_t>::max());
+  uint32_t a = absl::Uniform(bitgen, 0u, std::numeric_limits<uint32_t>::max());
+  uint32_t b = absl::Uniform(bitgen, 0u, std::numeric_limits<uint32_t>::max());
   return Float2x32(absl::bit_cast<float>(a), absl::bit_cast<float>(b));
 }
 
@@ -83,16 +84,17 @@ bool CompareResults(float a, float b) {
          (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
 }
 
-void LogMismatch(uint64 index, Float2x32 input, float actual, float expected) {
+void LogMismatch(uint64_t index, Float2x32 input, float actual,
+                 float expected) {
   XLS_LOG(ERROR) << absl::StrFormat(
       "Value mismatch at index %d, input (%f, %f):\n"
       "  Expected: 0x%x\n"
       "  Actual  : 0x%x",
       index, std::get<0>(input), std::get<1>(input),
-      absl::bit_cast<uint32>(expected), absl::bit_cast<uint32>(actual));
+      absl::bit_cast<uint32_t>(expected), absl::bit_cast<uint32_t>(actual));
 }
 
-absl::Status RealMain(bool use_opt_ir, uint64 num_samples, int num_threads) {
+absl::Status RealMain(bool use_opt_ir, uint64_t num_samples, int num_threads) {
   Testbench<Fpmul2x32, Float2x32, float> testbench(
       0, num_samples,
       /*max_failures=*/1, IndexToInput, ComputeExpected, ComputeActual,

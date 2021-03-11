@@ -127,7 +127,7 @@ TEST_F(TupleSimplificationPassTest, TupleReductionEmptyTuple) {
 }
 
 TEST_F(TupleSimplificationPassTest, TupleReductionDifferentSize) {
-  const int64 kTupleIndex = 0;
+  const int64_t kTupleIndex = 0;
   Package p("p");
   FunctionBuilder fb(TestName(), &p);
   Type* u32 = p.GetBitsType(32);
@@ -141,8 +141,8 @@ TEST_F(TupleSimplificationPassTest, TupleReductionDifferentSize) {
 }
 
 TEST_F(TupleSimplificationPassTest, TupleReductionDifferentIndex) {
-  const int64 kTupleIndex0 = 0;
-  const int64 kTupleIndex1 = 1;
+  const int64_t kTupleIndex0 = 0;
+  const int64_t kTupleIndex1 = 1;
   Package p("p");
   FunctionBuilder fb(TestName(), &p);
   Type* u32 = p.GetBitsType(32);
@@ -157,8 +157,8 @@ TEST_F(TupleSimplificationPassTest, TupleReductionDifferentIndex) {
 }
 
 TEST_F(TupleSimplificationPassTest, TupleReductionDifferentSubject) {
-  const int64 kTupleIndex0 = 0;
-  const int64 kTupleIndex1 = 1;
+  const int64_t kTupleIndex0 = 0;
+  const int64_t kTupleIndex1 = 1;
   Package p("p");
   FunctionBuilder fb(TestName(), &p);
   Type* u32 = p.GetBitsType(32);

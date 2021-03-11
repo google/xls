@@ -177,13 +177,13 @@ absl::StatusOr<bool> CollapseSelectChains(FunctionBase* f,
 }
 
 absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
-                                  int64 opt_level) {
+                                  int64_t opt_level) {
   // Replace a sequence of known bits at the least-significant (suffix) or
   // most-significant (prefix) bits of a value.
   if (!node->Is<Literal>() && node->GetType()->IsBits()) {
     // Sequence of known bits at the most-significant end of the value.
     absl::InlinedVector<bool, 1> known_prefix;
-    int64 i = node->BitCountOrDie() - 1;
+    int64_t i = node->BitCountOrDie() - 1;
     while (i >= 0 && query_engine.IsKnown(BitLocation{node, i})) {
       known_prefix.push_back(query_engine.IsOne(BitLocation{node, i}));
       --i;
@@ -350,10 +350,10 @@ absl::StatusOr<bool> SimplifyOneHotMsb(FunctionBase* f) {
     // Check if one-hot's MSB affect the function's output.
     if (node->Is<OneHot>()) {
       // Build predicates.
-      int64 msb_idx = node->BitCountOrDie() - 1;
+      int64_t msb_idx = node->BitCountOrDie() - 1;
       std::vector<std::pair<BitLocation, bool>> msb_one_predicate;
       std::vector<std::pair<BitLocation, bool>> msb_zero_predicate;
-      for (int64 bit_idx = 0; bit_idx < msb_idx; ++bit_idx) {
+      for (int64_t bit_idx = 0; bit_idx < msb_idx; ++bit_idx) {
         msb_one_predicate.push_back({{node, bit_idx}, false});
         msb_zero_predicate.push_back({{node, bit_idx}, false});
       }

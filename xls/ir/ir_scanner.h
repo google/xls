@@ -15,12 +15,12 @@
 #ifndef XLS_IR_IR_SCANNER_H_
 #define XLS_IR_IR_SCANNER_H_
 
+#include <cstdint>
 #include <string>
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 
@@ -51,8 +51,8 @@ enum class LexicalTokenType {
 std::string LexicalTokenTypeToString(LexicalTokenType token_type);
 
 struct TokenPos {
-  int64 lineno;
-  int64 colno;
+  int64_t lineno;
+  int64_t colno;
 
   // Humans think of line 0 column 0 as "1:1" in text editors, typically.
   std::string ToHumanString() const;
@@ -69,8 +69,8 @@ class Token {
 
   // Helper factory, returns a token of kKeyword type if "value" is a keyword
   // string, and a token of kIdent type otherwise.
-  static Token MakeIdentOrKeyword(absl::string_view value, int64 lineno,
-                                  int64 colno) {
+  static Token MakeIdentOrKeyword(absl::string_view value, int64_t lineno,
+                                  int64_t colno) {
     LexicalTokenType type = GetKeywords().contains(value)
                                 ? LexicalTokenType::kKeyword
                                 : LexicalTokenType::kIdent;
@@ -80,22 +80,22 @@ class Token {
     return Token(type, value, lineno, colno);
   }
 
-  Token(LexicalTokenType type, int64 lineno, int64 colno)
+  Token(LexicalTokenType type, int64_t lineno, int64_t colno)
       : type_(type), pos_({lineno, colno}) {}
 
-  Token(LexicalTokenType type, absl::string_view value, int64 lineno,
-        int64 colno)
+  Token(LexicalTokenType type, absl::string_view value, int64_t lineno,
+        int64_t colno)
       : type_(type), value_(value), pos_({lineno, colno}) {}
 
   LexicalTokenType type() const { return type_; }
   const std::string& value() const { return value_; }
   const TokenPos& pos() const { return pos_; }
 
-  // Returns the token as a (u)int64 value. Token must be a literal. The
+  // Returns the token as a (u)int64_t value. Token must be a literal. The
   // expected string representation is the same as with
   // ParseNumberAsBits. Returns an error if the number does not fit in a
-  // (u)int64.
-  absl::StatusOr<int64> GetValueInt64() const;
+  // (u)int64_t.
+  absl::StatusOr<int64_t> GetValueInt64() const;
 
   // Returns the token as a bool value. Token must be a literal. Returns an
   // error if the number does not fit in a bool.
@@ -196,7 +196,7 @@ class Scanner {
  private:
   explicit Scanner(std::vector<Token> tokens) : tokens_(tokens) {}
 
-  int64 token_idx_ = 0;
+  int64_t token_idx_ = 0;
   std::vector<Token> tokens_;
 };
 

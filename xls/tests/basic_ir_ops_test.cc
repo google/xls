@@ -58,7 +58,7 @@ fn main(x: bits[64], y: bits[64]) -> bits[64] {
 )";
 
   RunAndExpectEq({{"x", 42}, {"y", 123}}, 165, text);
-  RunAndExpectEq({{"x", std::numeric_limits<uint64>::max()}, {"y", 1}}, 0,
+  RunAndExpectEq({{"x", std::numeric_limits<uint64_t>::max()}, {"y", 1}}, 0,
                  text);
 }
 
@@ -70,7 +70,8 @@ fn main(x: bits[$0]) -> bits[$2] {
   ret result: bits[$2] = bit_slice(x, start=$1, width=$2)
 }
 )";
-  auto gen_bitslice = [&](int64 input_width, int64 start, int64 output_width) {
+  auto gen_bitslice = [&](int64_t input_width, int64_t start,
+                          int64_t output_width) {
     return absl::Substitute(text_template, input_width, start, output_width);
   };
 
@@ -157,7 +158,7 @@ fn main(x: bits[32], y: bits[32]) -> bits[4] {
   ret result: bits[4] = concat(sge.1, sgt.2, sle.3, slt.4)
 }
 )";
-  auto run_and_compare = [&](int64 x, int64 y, uint64 expected) {
+  auto run_and_compare = [&](int64_t x, int64_t y, uint64_t expected) {
     RunAndExpectEq({{"x", SBits(x, 32)}, {"y", SBits(y, 32)}},
                    UBits(expected, 4), text);
   };
@@ -211,8 +212,8 @@ fn main(x: bits[3]) -> bits[4] {
 )";
 
   struct Example {
-    uint32 input;
-    uint32 output;
+    uint32_t input;
+    uint32_t output;
   };
   std::vector<Example> examples = {
       // Note: when MSb has priority we still tack on the "all zeros" bit as the
@@ -302,8 +303,8 @@ TEST_F(BasicOpsTest, Clz) {
   std::string text = p->DumpIr();
 
   struct Example {
-    uint32 input;
-    uint32 output;
+    uint32_t input;
+    uint32_t output;
   };
   std::vector<Example> examples = {
       {0b000, 3},

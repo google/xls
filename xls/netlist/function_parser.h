@@ -19,12 +19,12 @@
 #ifndef XLS_NETLIST_FUNCTION_PARSER_H_
 #define XLS_NETLIST_FUNCTION_PARSER_H_
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/types/optional.h"
-#include "xls/common/integral_types.h"
 
 namespace xls {
 namespace netlist {
@@ -48,22 +48,22 @@ class Token {
   };
 
   // Builder for identifier tokens.
-  static Token Identifier(const std::string& s, int64 pos);
+  static Token Identifier(const std::string& s, int64_t pos);
 
   // Builder for all other tokens.
-  static Token Simple(Kind kind, int64 pos);
+  static Token Simple(Kind kind, int64_t pos);
 
-  Token(Kind kind, int64 pos,
+  Token(Kind kind, int64_t pos,
         absl::optional<std::string> payload = absl::nullopt)
       : kind_(kind), pos_(pos), payload_(payload) {}
 
   Kind kind() { return kind_; }
-  int64 pos() { return pos_; }
+  int64_t pos() { return pos_; }
   std::string payload() { return payload_.value(); }
 
  private:
   Kind kind_;
-  int64 pos_;
+  int64_t pos_;
   absl::optional<std::string> payload_;
 };
 
@@ -95,7 +95,7 @@ class Scanner {
   std::string function_;
   // Set if we've peeked @ a token. Calling Pop() will clear it.
   absl::optional<Token> peeked_;
-  int64 current_pos_;
+  int64_t current_pos_;
 };
 
 // Represents the logical computation represented by a function attribute in a
@@ -114,38 +114,38 @@ class Ast {
     kNot
   };
 
-  static Ast Identifier(const std::string& name, int64 pos) {
+  static Ast Identifier(const std::string& name, int64_t pos) {
     return Ast(Kind::kIdentifier, pos, name);
   }
 
-  static Ast LiteralOne(int64 pos) { return Ast(Kind::kLiteralOne, pos); }
+  static Ast LiteralOne(int64_t pos) { return Ast(Kind::kLiteralOne, pos); }
 
-  static Ast LiteralZero(int64 pos) { return Ast(Kind::kLiteralZero, pos); }
+  static Ast LiteralZero(int64_t pos) { return Ast(Kind::kLiteralZero, pos); }
 
-  static Ast Not(Ast expr, int64 pos) {
+  static Ast Not(Ast expr, int64_t pos) {
     Ast ast(Kind::kNot, pos);
     ast.children_.push_back(expr);
     return ast;
   }
 
-  static Ast BinOp(Kind kind, Ast lhs, Ast rhs, int64 pos) {
+  static Ast BinOp(Kind kind, Ast lhs, Ast rhs, int64_t pos) {
     Ast ast(kind, pos);
     ast.children_.push_back(lhs);
     ast.children_.push_back(rhs);
     return ast;
   }
 
-  Ast(Kind kind, int64 pos, std::string name = "")
+  Ast(Kind kind, int64_t pos, std::string name = "")
       : kind_(kind), pos_(pos), name_(name) {}
 
   Kind kind() const { return kind_; }
-  int64 pos() const { return pos_; }
+  int64_t pos() const { return pos_; }
   std::string name() const { return name_; }
   const std::vector<Ast>& children() const { return children_; }
 
  private:
   Kind kind_;
-  int64 pos_;
+  int64_t pos_;
   std::string name_;
   std::vector<Ast> children_;
 };

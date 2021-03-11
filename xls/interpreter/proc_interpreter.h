@@ -90,7 +90,7 @@ class ProcInterpreter {
 
   // A monotonically increasing value holding the number of complete iterations
   // that the proc has executed.
-  int64 current_iteration_;
+  int64_t current_iteration_;
 
   // The interpreter used for evaluating nodes in the proc.
   std::unique_ptr<IrInterpreter> visitor_;

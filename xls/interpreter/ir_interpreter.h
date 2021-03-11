@@ -135,13 +135,13 @@ class IrInterpreter : public DfsVisitor {
   // values. Each node should be bits-typed.
   std::vector<Bits> ResolveAsBitsVector(absl::Span<Node* const> nodes);
 
-  // Returns the previously evaluated value of 'node' as a uint64. If the value
-  // is greater than 'upper_limit' then 'upper_limit' is returned.
-  uint64 ResolveAsBoundedUint64(Node* node, uint64 upper_limit);
+  // Returns the previously evaluated value of 'node' as a uint64_t. If the
+  // value is greater than 'upper_limit' then 'upper_limit' is returned.
+  uint64_t ResolveAsBoundedUint64(Node* node, uint64_t upper_limit);
 
-  // Sets the evaluated value for 'node' to the given uint64 value. Returns an
+  // Sets the evaluated value for 'node' to the given uint64_t value. Returns an
   // error if 'node' is not a bits type or the result does not fit in the type.
-  absl::Status SetUint64Result(Node* node, uint64 result);
+  absl::Status SetUint64Result(Node* node, uint64_t result);
 
   // Sets the evaluated value for 'node' to the given bits value. Returns an
   // error if 'node' is not a bits type.

@@ -164,14 +164,14 @@ TEST_F(CanonicalizePassTest, ExhaustiveClampTest) {
   //
   // Testing consists of trying all values of 'x' with the interpreter and
   // verifying the results match before and after optimizations.
-  const int64 kBitWidth = 3;
-  const int64 kMaxValue = 1 << kBitWidth;
+  const int64_t kBitWidth = 3;
+  const int64_t kMaxValue = 1 << kBitWidth;
   for (Op cmp_op : {Op::kUGt, Op::kUGe, Op::kULt, Op::kULe}) {
     for (bool x_on_lhs : {true, false}) {
       for (bool x_on_true : {true, false}) {
-        for (int64 k0_value = 0; k0_value < kMaxValue; ++k0_value) {
+        for (int64_t k0_value = 0; k0_value < kMaxValue; ++k0_value) {
           std::string k0_str = absl::StrCat(k0_value);
-          for (int64 k1_value = 0; k1_value < kMaxValue; ++k1_value) {
+          for (int64_t k1_value = 0; k1_value < kMaxValue; ++k1_value) {
             std::string k1_str = absl::StrCat(k1_value);
             std::string expr_str = absl::StrFormat(
                 "%s %s %s ? %s : %s", x_on_lhs ? "x" : k0_str,
@@ -194,7 +194,7 @@ TEST_F(CanonicalizePassTest, ExhaustiveClampTest) {
             XLS_VLOG(2) << "Before canonicalization: " << f->DumpIr();
 
             std::vector<Value> expected(kMaxValue);
-            for (int64 x_value = 0; x_value < kMaxValue; ++x_value) {
+            for (int64_t x_value = 0; x_value < kMaxValue; ++x_value) {
               XLS_ASSERT_OK_AND_ASSIGN(
                   expected[x_value],
                   IrInterpreter::Run(f, {Value(UBits(x_value, kBitWidth))}));
@@ -205,7 +205,7 @@ TEST_F(CanonicalizePassTest, ExhaustiveClampTest) {
             XLS_VLOG(2) << "changed: " << changed;
             XLS_VLOG(2) << "After canonicalization: " << f->DumpIr();
 
-            for (int64 x_value = 0; x_value < kMaxValue; ++x_value) {
+            for (int64_t x_value = 0; x_value < kMaxValue; ++x_value) {
               XLS_ASSERT_OK_AND_ASSIGN(
                   Value actual,
                   IrInterpreter::Run(f, {Value(UBits(x_value, kBitWidth))}));

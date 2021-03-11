@@ -15,11 +15,11 @@
 #ifndef XLS_DSLX_CPP_POS_H_
 #define XLS_DSLX_CPP_POS_H_
 
+#include <cstdint>
 #include <string>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 
 namespace xls::dslx {
@@ -30,7 +30,7 @@ class Pos {
   static absl::StatusOr<Pos> FromString(absl::string_view s);
 
   Pos() : filename_(""), lineno_(0), colno_(0) {}
-  Pos(std::string filename, int64 lineno, int64 colno)
+  Pos(std::string filename, int64_t lineno, int64_t colno)
       : filename_(std::move(filename)), lineno_(lineno), colno_(colno) {}
 
   std::string ToString() const {
@@ -68,15 +68,15 @@ class Pos {
   bool operator>=(const Pos& other) const { return !((*this) < other); }
 
   const std::string& filename() const { return filename_; }
-  int64 lineno() const { return lineno_; }
-  int64 colno() const { return colno_; }
+  int64_t lineno() const { return lineno_; }
+  int64_t colno() const { return colno_; }
 
   Pos BumpCol() const { return Pos(filename_, lineno_, colno_ + 1); }
 
  private:
   std::string filename_;
-  int64 lineno_;
-  int64 colno_;
+  int64_t lineno_;
+  int64_t colno_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Pos& pos) {

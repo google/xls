@@ -24,19 +24,19 @@
 
 namespace xls {
 
-/* static */ Bits Bits::FromBytes(absl::Span<const uint8> bytes,
-                                  int64 bit_count) {
+/* static */ Bits Bits::FromBytes(absl::Span<const uint8_t> bytes,
+                                  int64_t bit_count) {
   XLS_CHECK_GE(bit_count, 0);
-  int64 byte_count = bytes.size();
+  int64_t byte_count = bytes.size();
   XLS_CHECK_LE(bit_count, byte_count * 8);
   InlineBitmap bitmap(bit_count);
-  for (int64 i = 0; i < byte_count; ++i) {
+  for (int64_t i = 0; i < byte_count; ++i) {
     bitmap.SetByte(byte_count - i - 1, bytes[i]);
   }
   return Bits(std::move(bitmap));
 }
 
-/* static */ int64 Bits::MinBitCountSigned(int64 value) {
+/* static */ int64_t Bits::MinBitCountSigned(int64_t value) {
   if (value == 0) {
     return 0;
   }
@@ -47,7 +47,7 @@ namespace xls {
   return MinBitCountUnsigned(value) + 1;
 }
 
-absl::StatusOr<Bits> UBitsWithStatus(uint64 value, int64 bit_count) {
+absl::StatusOr<Bits> UBitsWithStatus(uint64_t value, int64_t bit_count) {
   if (Bits::MinBitCountUnsigned(value) > bit_count) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Value %#x requires %d bits to fit in an unsigned "
@@ -57,7 +57,7 @@ absl::StatusOr<Bits> UBitsWithStatus(uint64 value, int64 bit_count) {
   return Bits(InlineBitmap::FromWord(value, bit_count, /*fill=*/false));
 }
 
-absl::StatusOr<Bits> SBitsWithStatus(int64 value, int64 bit_count) {
+absl::StatusOr<Bits> SBitsWithStatus(int64_t value, int64_t bit_count) {
   if (Bits::MinBitCountSigned(value) > bit_count) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Value %#x requires %d bits to fit in an signed "
@@ -69,36 +69,36 @@ absl::StatusOr<Bits> SBitsWithStatus(int64 value, int64 bit_count) {
 }
 
 Bits::Bits(absl::Span<bool const> bits) : bitmap_(bits.size()) {
-  for (int64 i = 0; i < bits.size(); ++i) {
+  for (int64_t i = 0; i < bits.size(); ++i) {
     bitmap_.Set(i, bits[i]);
   }
 }
 
 /* static */
-Bits Bits::AllOnes(int64 bit_count) {
+Bits Bits::AllOnes(int64_t bit_count) {
   return bit_count == 0 ? Bits() : SBits(-1, bit_count);
 }
 
 /* static */
-Bits Bits::MaxSigned(int64 bit_count) {
+Bits Bits::MaxSigned(int64_t bit_count) {
   return Bits::AllOnes(bit_count).UpdateWithSet(bit_count - 1, false);
 }
 
 /* static */
-Bits Bits::MinSigned(int64 bit_count) {
+Bits Bits::MinSigned(int64_t bit_count) {
   return Bits::PowerOfTwo(bit_count - 1, bit_count);
 }
 
 absl::InlinedVector<bool, 1> Bits::ToBitVector() const {
   absl::InlinedVector<bool, 1> bits(bit_count());
-  for (int64 i = 0; i < bit_count(); ++i) {
+  for (int64_t i = 0; i < bit_count(); ++i) {
     bits[i] = bitmap_.Get(i);
   }
   return bits;
 }
 
 /* static */
-Bits Bits::PowerOfTwo(int64 set_bit_index, int64 bit_count) {
+Bits Bits::PowerOfTwo(int64_t set_bit_index, int64_t bit_count) {
   Bits result(bit_count);
   result.bitmap_.Set(set_bit_index, true);
   return result;
@@ -106,9 +106,9 @@ Bits Bits::PowerOfTwo(int64 set_bit_index, int64 bit_count) {
 
 bool Bits::IsOne() const { return PopCount() == 1 && Get(0); }
 
-int64 Bits::PopCount() const {
-  int64 count = 0;
-  for (int64 i = 0; i < bit_count(); ++i) {
+int64_t Bits::PopCount() const {
+  int64_t count = 0;
+  for (int64_t i = 0; i < bit_count(); ++i) {
     if (Get(i)) {
       ++count;
     }
@@ -116,8 +116,8 @@ int64 Bits::PopCount() const {
   return count;
 }
 
-int64 Bits::CountLeadingZeros() const {
-  for (int64 i = 0; i < bit_count(); ++i) {
+int64_t Bits::CountLeadingZeros() const {
+  for (int64_t i = 0; i < bit_count(); ++i) {
     if (Get(bit_count() - 1 - i)) {
       return i;
     }
@@ -125,8 +125,8 @@ int64 Bits::CountLeadingZeros() const {
   return bit_count();
 }
 
-int64 Bits::CountLeadingOnes() const {
-  for (int64 i = 0; i < bit_count(); ++i) {
+int64_t Bits::CountLeadingOnes() const {
+  for (int64_t i = 0; i < bit_count(); ++i) {
     if (!Get(bit_count() - 1 - i)) {
       return i;
     }
@@ -134,8 +134,8 @@ int64 Bits::CountLeadingOnes() const {
   return bit_count();
 }
 
-int64 Bits::CountTrailingZeros() const {
-  for (int64 i = 0; i < bit_count(); ++i) {
+int64_t Bits::CountTrailingZeros() const {
+  for (int64_t i = 0; i < bit_count(); ++i) {
     if (Get(i)) {
       return i;
     }
@@ -143,8 +143,8 @@ int64 Bits::CountTrailingZeros() const {
   return bit_count();
 }
 
-int64 Bits::CountTrailingOnes() const {
-  for (int64 i = 0; i < bit_count(); ++i) {
+int64_t Bits::CountTrailingOnes() const {
+  for (int64_t i = 0; i < bit_count(); ++i) {
     if (!Get(i)) {
       return i;
     }
@@ -152,18 +152,18 @@ int64 Bits::CountTrailingOnes() const {
   return bit_count();
 }
 
-bool Bits::HasSingleRunOfSetBits(int64* leading_zero_count,
-                                 int64* set_bit_count,
-                                 int64* trailing_zero_count) const {
-  int64 leading_zeros = CountLeadingZeros();
+bool Bits::HasSingleRunOfSetBits(int64_t* leading_zero_count,
+                                 int64_t* set_bit_count,
+                                 int64_t* trailing_zero_count) const {
+  int64_t leading_zeros = CountLeadingZeros();
   XLS_CHECK_GE(leading_zeros, 0);
-  int64 trailing_zeros = CountTrailingZeros();
+  int64_t trailing_zeros = CountTrailingZeros();
   XLS_CHECK_GE(trailing_zeros, 0);
   if (bit_count() == trailing_zeros) {
     XLS_CHECK_EQ(leading_zeros, bit_count());
     return false;
   }
-  for (int64 i = trailing_zeros; i < bit_count() - leading_zeros; ++i) {
+  for (int64_t i = trailing_zeros; i < bit_count() - leading_zeros; ++i) {
     if (Get(i) != 1) {
       return false;
     }
@@ -179,9 +179,9 @@ bool Bits::FitsInUint64() const { return FitsInNBitsUnsigned(64); }
 
 bool Bits::FitsInInt64() const { return FitsInNBitsSigned(64); }
 
-bool Bits::FitsInNBitsUnsigned(int64 n) const {
+bool Bits::FitsInNBitsUnsigned(int64_t n) const {
   // All bits at and above bit 'n' must be zero.
-  for (int64 i = n; i < bit_count(); ++i) {
+  for (int64_t i = n; i < bit_count(); ++i) {
     if (Get(i)) {
       return false;
     }
@@ -189,13 +189,13 @@ bool Bits::FitsInNBitsUnsigned(int64 n) const {
   return true;
 }
 
-bool Bits::FitsInNBitsSigned(int64 n) const {
+bool Bits::FitsInNBitsSigned(int64_t n) const {
   if (n == 0) {
     return IsZero();
   }
 
   // All bits at and above bit N-1 must be the same.
-  for (int64 i = n - 1; i < bit_count(); ++i) {
+  for (int64_t i = n - 1; i < bit_count(); ++i) {
     if (Get(i) != msb()) {
       return false;
     }
@@ -203,7 +203,7 @@ bool Bits::FitsInNBitsSigned(int64 n) const {
   return true;
 }
 
-absl::StatusOr<uint64> Bits::ToUint64() const {
+absl::StatusOr<uint64_t> Bits::ToUint64() const {
   if (bit_count() == 0) {
     // By convention, an empty Bits has a numeric value of zero.
     return 0;
@@ -216,7 +216,7 @@ absl::StatusOr<uint64> Bits::ToUint64() const {
   return bitmap_.GetWord(0);
 }
 
-absl::StatusOr<uint64> Bits::WordToUint64(int64 word_number) const {
+absl::StatusOr<uint64_t> Bits::WordToUint64(int64_t word_number) const {
   if (bit_count() == 0) {
     // By convention, an empty Bits has a numeric value of zero.
     return 0;
@@ -225,27 +225,27 @@ absl::StatusOr<uint64> Bits::WordToUint64(int64 word_number) const {
   return bitmap_.GetWord(word_number);
 }
 
-absl::StatusOr<int64> Bits::ToInt64() const {
+absl::StatusOr<int64_t> Bits::ToInt64() const {
   if (!FitsInInt64()) {
     return absl::InvalidArgumentError(absl::StrCat(
         "Bits value cannot be represented as a signed 64-bit value: ",
         ToString()));
   }
 
-  uint64 word = bitmap_.GetWord(0);
+  uint64_t word = bitmap_.GetWord(0);
   if (msb() && bit_count() < 64) {
     word |= -1ULL << bit_count();
   }
 
-  return absl::bit_cast<int64>(word);
+  return absl::bit_cast<int64_t>(word);
 }
 
-Bits Bits::Slice(int64 start, int64 width) const {
+Bits Bits::Slice(int64_t start, int64_t width) const {
   XLS_CHECK_GE(width, 0);
   XLS_CHECK_LE(start + width, bit_count())
       << "start: " << start << " width: " << width;
   Bits result(width);
-  for (int64 i = 0; i < width; ++i) {
+  for (int64_t i = 0; i < width; ++i) {
     if (Get(start + i)) {
       result.bitmap_.Set(i, true);
     }
@@ -286,7 +286,7 @@ std::string Bits::ToRawDigits(FormatPreference preference,
     // TODO(meheff): 2019/4/3 Add support for arbitrary width decimal emission.
     XLS_CHECK(FitsInUint64())
         << "Decimal output not supported for values which do "
-           "not fit in a uint64";
+           "not fit in a uint64_t";
     return absl::StrCat(ToUint64().value());
   }
   if (bit_count() == 0) {
@@ -295,21 +295,21 @@ std::string Bits::ToRawDigits(FormatPreference preference,
 
   XLS_CHECK((preference == FormatPreference::kBinary) ||
             (preference == FormatPreference::kHex));
-  const int64 kSeparatorPeriod = 4;
-  const int64 digit_width = preference == FormatPreference::kBinary ? 1 : 4;
-  const int64 digit_count = CeilOfRatio(bit_count(), digit_width);
+  const int64_t kSeparatorPeriod = 4;
+  const int64_t digit_width = preference == FormatPreference::kBinary ? 1 : 4;
+  const int64_t digit_count = CeilOfRatio(bit_count(), digit_width);
   std::string result;
   bool eliding_leading_zeros = !emit_leading_zeros;
-  for (int64 digit_no = digit_count - 1; digit_no >= 0; --digit_no) {
+  for (int64_t digit_no = digit_count - 1; digit_no >= 0; --digit_no) {
     // Add a '_' every kSeparatorPeriod digits.
     if (((digit_no + 1) % kSeparatorPeriod == 0) && !result.empty()) {
       absl::StrAppend(&result, "_");
     }
     // Slice out a Bits which contains 1 digit.
-    int64 start = digit_no * digit_width;
-    int64 width = std::min(digit_width, bit_count() - start);
-    // As single digit necessarily fits in a uint64, so the value() is safe.
-    uint64 digit_value = Slice(start, width).ToUint64().value();
+    int64_t start = digit_no * digit_width;
+    int64_t width = std::min(digit_width, bit_count() - start);
+    // As single digit necessarily fits in a uint64_t, so the value() is safe.
+    uint64_t digit_value = Slice(start, width).ToUint64().value();
     if (digit_value == 0 && eliding_leading_zeros && digit_no != 0) {
       continue;
     }

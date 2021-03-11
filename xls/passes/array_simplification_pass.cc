@@ -75,7 +75,7 @@ bool IndicesAreDefinitelyEqual(absl::Span<Node* const> a,
   if (a.size() != b.size()) {
     return false;
   }
-  for (int64 i = 0; i < a.size(); ++i) {
+  for (int64_t i = 0; i < a.size(); ++i) {
     if (!query_engine.NodesKnownUnsignedEquals(a[i], b[i])) {
       return false;
     }
@@ -88,7 +88,7 @@ bool IndicesAreDefinitelyEqual(absl::Span<Node* const> a,
 bool IndicesDefinitelyNotEqual(absl::Span<Node* const> a,
                                absl::Span<Node* const> b,
                                const QueryEngine& query_engine) {
-  for (int64 i = 0; i < std::min(a.size(), b.size()); ++i) {
+  for (int64_t i = 0; i < std::min(a.size(), b.size()); ++i) {
     if (query_engine.NodesKnownUnsignedNotEquals(a[i], b[i])) {
       return true;
     }
@@ -123,7 +123,7 @@ absl::StatusOr<bool> ClampArrayIndexIndices(FunctionBase* func) {
     if (node->Is<ArrayIndex>()) {
       ArrayIndex* array_index = node->As<ArrayIndex>();
       Type* subtype = array_index->array()->GetType();
-      for (int64 i = 0; i < array_index->indices().size(); ++i) {
+      for (int64_t i = 0; i < array_index->indices().size(); ++i) {
         Node* index = array_index->indices()[i];
         ArrayType* array_type = subtype->AsArrayOrDie();
         if (IndexIsDefinitelyOutOfBounds(index, array_type, *query_engine)) {
@@ -173,7 +173,7 @@ absl::StatusOr<bool> SimplifyArrayIndex(ArrayIndex* array_index,
                                   query_engine)) {
       // Indices are always interpreted as unsigned numbers.
       XLS_ASSIGN_OR_RETURN(
-          uint64 operand_no,
+          uint64_t operand_no,
           first_index->As<Literal>()->value().bits().ToUint64());
       XLS_RETURN_IF_ERROR(
           array_index
@@ -200,12 +200,12 @@ absl::StatusOr<bool> SimplifyArrayIndex(ArrayIndex* array_index,
             first_index, array_index->array()->GetType()->AsArrayOrDie(),
             query_engine)) {
       const Value& orig_first_index_value = first_index->As<Literal>()->value();
-      XLS_ASSIGN_OR_RETURN(int64 index,
+      XLS_ASSIGN_OR_RETURN(int64_t index,
                            orig_first_index_value.bits().ToUint64());
       Node* indexed_operand = nullptr;
       for (Node* operand : array_index->array()->operands()) {
         XLS_RET_CHECK(operand->GetType()->IsArray());
-        int64 array_size = operand->GetType()->AsArrayOrDie()->size();
+        int64_t array_size = operand->GetType()->AsArrayOrDie()->size();
         if (index < array_size) {
           indexed_operand = operand;
           break;
@@ -403,7 +403,7 @@ absl::StatusOr<bool> SimplifyArrayUpdate(ArrayUpdate* array_update,
     if (IndexIsDefinitelyInBounds(idx, array_update->GetType()->AsArrayOrDie(),
                                   query_engine)) {
       // Indices are always interpreted as unsigned numbers.
-      XLS_ASSIGN_OR_RETURN(uint64 operand_no,
+      XLS_ASSIGN_OR_RETURN(uint64_t operand_no,
                            idx->As<Literal>()->value().bits().ToUint64());
       Array* array = array_update->array_to_update()->As<Array>();
 
@@ -512,14 +512,14 @@ absl::StatusOr<bool> SimplifyArrayUpdate(ArrayUpdate* array_update,
     if (IndexIsDefinitelyInBounds(idx, array_update->GetType()->AsArrayOrDie(),
                                   query_engine)) {
       // Indices are always interpreted as unsigned numbers.
-      XLS_ASSIGN_OR_RETURN(uint64 operand_no,
+      XLS_ASSIGN_OR_RETURN(uint64_t operand_no,
                            idx->As<Literal>()->value().bits().ToUint64());
       const Value& array_literal =
           array_update->array_to_update()->As<Literal>()->value();
       XLS_RET_CHECK_LT(operand_no, array_literal.size());
 
       std::vector<Node*> array_operands;
-      for (int64 i = 0; i < array_literal.size(); ++i) {
+      for (int64_t i = 0; i < array_literal.size(); ++i) {
         XLS_ASSIGN_OR_RETURN(Literal * array_element,
                              func->MakeNode<Literal>(array_update->loc(),
                                                      array_literal.element(i)));
@@ -556,7 +556,7 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
   // Identify cases where an array is constructed via a sequence of array update
   // operations and replace with a flat kArray operation gathering all the array
   // values.
-  absl::flat_hash_map<uint64, Node*> index_to_element;
+  absl::flat_hash_map<uint64_t, Node*> index_to_element;
 
   if (array_update->indices().empty()) {
     return absl::nullopt;
@@ -566,7 +566,7 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
       Type * subarray_type,
       GetIndexedElementType(array_update->GetType(),
                             array_update->indices().size() - 1));
-  int64 subarray_size = subarray_type->AsArrayOrDie()->size();
+  int64_t subarray_size = subarray_type->AsArrayOrDie()->size();
 
   // Walk up the chain of array updates.
   ArrayUpdate* current = array_update;
@@ -584,7 +584,7 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
       // Index is out of bound
       break;
     }
-    uint64 index = index_bits.ToUint64().value();
+    uint64_t index = index_bits.ToUint64().value();
 
     absl::Span<Node* const> index_prefix =
         current->indices().subspan(0, current->indices().size() - 1);
@@ -622,7 +622,7 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
   }
 
   std::vector<Node*> array_elements;
-  for (int64 i = 0; i < subarray_size; ++i) {
+  for (int64_t i = 0; i < subarray_size; ++i) {
     if (index_to_element.contains(i)) {
       array_elements.push_back(index_to_element.at(i));
     } else {
@@ -703,7 +703,7 @@ absl::StatusOr<bool> SimplifyArray(Array* array,
   //
   Node* origin_array = nullptr;
   absl::optional<std::vector<Node*>> common_index_prefix;
-  for (int64 i = 0; i < array->operand_count(); ++i) {
+  for (int64_t i = 0; i < array->operand_count(); ++i) {
     if (!array->operand(i)->Is<ArrayIndex>()) {
       return false;
     }
@@ -712,7 +712,7 @@ absl::StatusOr<bool> SimplifyArray(Array* array,
       return false;
     }
 
-    // Extract the last element of the index as a uint64.
+    // Extract the last element of the index as a uint64_t.
     Node* last_index_node = array_index->indices().back();
     if (!last_index_node->Is<Literal>()) {
       return false;
@@ -722,7 +722,7 @@ absl::StatusOr<bool> SimplifyArray(Array* array,
     if (!last_index_bits.FitsInUint64()) {
       return false;
     }
-    uint64 last_index = last_index_bits.ToUint64().value();
+    uint64_t last_index = last_index_bits.ToUint64().value();
 
     // The final index element (0 .. N in the example above) must be sequential.
     if (last_index != i) {
@@ -839,7 +839,7 @@ absl::StatusOr<bool> SimplifySelectOfArrays(Select* select) {
 
   ArrayType* array_type = select->GetType()->AsArrayOrDie();
   std::vector<Node*> selected_elements;
-  for (int64 i = 0; i < array_type->size(); ++i) {
+  for (int64_t i = 0; i < array_type->size(); ++i) {
     std::vector<Node*> elements;
     for (Node* sel_case : select->cases()) {
       elements.push_back(sel_case->operand(i));

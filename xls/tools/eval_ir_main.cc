@@ -75,7 +75,7 @@ ABSL_FLAG(std::string, input_file, "",
           "Inputs to interpreter, one set per line. Each line should contain a "
           "semicolon-separated set of typed values. Cannot be specified with "
           "--input.");
-ABSL_FLAG(int64, random_inputs, 0,
+ABSL_FLAG(int64_t, random_inputs, 0,
           "If non-zero, this is the number of randomly generated inputs to use "
           "in evaluation. Cannot be specified with --input.");
 ABSL_FLAG(std::string, expected, "",
@@ -98,7 +98,7 @@ ABSL_FLAG(bool, use_llvm_jit, true, "Use the LLVM IR JIT for execution.");
 ABSL_FLAG(bool, test_llvm_jit, false,
           "If true, then run the JIT and compare the results against the "
           "interpereter.");
-ABSL_FLAG(int64, llvm_opt_level, 3,
+ABSL_FLAG(int64_t, llvm_opt_level, 3,
           "The optimization level of the LLVM JIT. Valid values are from 0 (no "
           "optimizations) to 3 (maximum optimizations).");
 
@@ -212,7 +212,7 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
         << "Cannot specify both --test_llvm_jit and --optimize_ir";
     XLS_ASSIGN_OR_RETURN(std::vector<Value> interpreter_results,
                          Eval(f, arg_sets, /*use_jit=*/false));
-    for (int64 i = 0; i < arg_sets.size(); ++i) {
+    for (int64_t i = 0; i < arg_sets.size(); ++i) {
       XLS_QCHECK(!arg_sets[i].expected.has_value())
           << "Cannot specify expected values when using --test_llvm_jit";
       arg_sets[i].expected = interpreter_results[i];
@@ -226,7 +226,7 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
   // optimizations.
   XLS_ASSIGN_OR_RETURN(std::vector<Value> results,
                        Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit)));
-  for (int64 i = 0; i < arg_sets.size(); ++i) {
+  for (int64_t i = 0; i < arg_sets.size(); ++i) {
     if (!arg_sets[i].expected.has_value()) {
       arg_sets[i].expected = results[i];
     }
@@ -347,7 +347,7 @@ absl::Status RealMain(absl::string_view input_path) {
     XLS_QCHECK_EQ(expecteds.size(), arg_sets.size())
         << "Number of values in expected file does not match the number of "
            "inputs.";
-    for (int64 i = 0; i < arg_sets.size(); ++i) {
+    for (int64_t i = 0; i < arg_sets.size(); ++i) {
       arg_sets[i].expected = expecteds[i];
     }
   }

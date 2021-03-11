@@ -35,12 +35,12 @@ inline float F32TupleViewToFloat(F32TupleView tuple) {
 }
 
 // Populates the specified view with the values from the input float.
-inline void PopulateAsF32TupleView(float f, uint8* view_buffer) {
+inline void PopulateAsF32TupleView(float f, uint8_t* view_buffer) {
   using MutableF32TupleView =
       MutableTupleView<MutableBitsView<1>, MutableBitsView<8>,
                        MutableBitsView<23>>;
   MutableF32TupleView view(view_buffer);
-  uint32 i = absl::bit_cast<uint32>(f);
+  uint32_t i = absl::bit_cast<uint32_t>(f);
   view.Get<0>().SetValue(i >> 31);
   view.Get<1>().SetValue((i >> 23) & 0xff);
   view.Get<2>().SetValue(i & 0x7FFFFF);

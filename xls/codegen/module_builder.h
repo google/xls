@@ -51,7 +51,7 @@ class ModuleBuilder {
   absl::StatusOr<LogicRef*> AddInputPort(absl::string_view name, Type* type);
 
   // Add an input port of the given width.
-  LogicRef* AddInputPort(absl::string_view name, int64 bit_count);
+  LogicRef* AddInputPort(absl::string_view name, int64_t bit_count);
 
   // Add an output port of the given XLS type to the module. The output is
   // assigned the given value.
@@ -60,7 +60,7 @@ class ModuleBuilder {
 
   // Add an output port of the given width to the module. The output is assigned
   // the given value.
-  absl::Status AddOutputPort(absl::string_view name, int64 bit_count,
+  absl::Status AddOutputPort(absl::string_view name, int64_t bit_count,
                              Expression* value);
 
   // Returns whether the given node can be emitted as an inline expression in
@@ -105,7 +105,7 @@ class ModuleBuilder {
 
   // Declares a flat variable with the given name and number of bits. Returns a
   // reference to the variable.
-  LogicRef* DeclareVariable(absl::string_view name, int64 bit_count);
+  LogicRef* DeclareVariable(absl::string_view name, int64_t bit_count);
 
   // Assigns the rhs to the lhs using continuous assignment where both sides
   // have the given XLS type. The emitted verilog may require multiple
@@ -150,7 +150,7 @@ class ModuleBuilder {
 
   // As above, but declares a register of a given bit width.
   absl::StatusOr<Register> DeclareRegister(absl::string_view name,
-                                           int64 bit_count, Expression* next,
+                                           int64_t bit_count, Expression* next,
                                            Expression* reset_value = nullptr);
 
   // Construct an always block to assign values to the registers. Arguments:
@@ -270,7 +270,7 @@ class ModuleBuilder {
   // assignment statements. The function add_assignment should add a
   // single assignment statement.
   absl::Status AssignFromSlice(
-      Expression* lhs, Expression* rhs, Type* xls_type, int64 slice_start,
+      Expression* lhs, Expression* rhs, Type* xls_type, int64_t slice_start,
       std::function<void(Expression*, Expression*)> add_assignment);
 
   // Returns true if the node must be emitted as a function.

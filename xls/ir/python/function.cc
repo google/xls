@@ -26,8 +26,8 @@ namespace xls {
 std::string GetFunctionName(Function* f) { return f->name(); }
 
 // Functions for accessing parameter type information.
-int64 GetParamCount(Function* f) { return f->params().size(); }
-int64 GetParamBitCount(Function* f, int64 i) {
+int64_t GetParamCount(Function* f) { return f->params().size(); }
+int64_t GetParamBitCount(Function* f, int64_t i) {
   return f->param(i)->GetType()->GetFlatBitCount();
 }
 

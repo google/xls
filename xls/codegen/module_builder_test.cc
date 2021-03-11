@@ -32,16 +32,16 @@ namespace {
 constexpr char kTestName[] = "module_builder_test";
 constexpr char kTestdataPath[] = "xls/codegen/testdata";
 
-Value Make1DArray(int64 element_width, absl::Span<const int64> elements) {
+Value Make1DArray(int64_t element_width, absl::Span<const int64_t> elements) {
   std::vector<Value> values;
-  for (int64 element : elements) {
+  for (int64_t element : elements) {
     values.push_back(Value(UBits(element, element_width)));
   }
   return Value::ArrayOrDie(values);
 }
 
-Value Make2DArray(int64 element_width,
-                  absl::Span<const absl::Span<const int64>> elements) {
+Value Make2DArray(int64_t element_width,
+                  absl::Span<const absl::Span<const int64_t>> elements) {
   std::vector<Value> rows;
   for (const auto& row : elements) {
     rows.push_back(Make1DArray(element_width, row));

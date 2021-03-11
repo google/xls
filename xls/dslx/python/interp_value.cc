@@ -116,18 +116,18 @@ PYBIND11_MODULE(interp_value, m) {
       .def("scmp", &InterpValue::SCmp)
       .def("index", &InterpValue::Index)
       .def("index",
-           [](const InterpValue& self, uint64 i) {
+           [](const InterpValue& self, uint64_t i) {
              return self.Index(InterpValue::MakeUBits(/*bit_count=*/64, i));
            })
       .def("update", &InterpValue::Update)
       .def("update",
-           [](const InterpValue& self, uint64 i, const InterpValue& value) {
+           [](const InterpValue& self, uint64_t i, const InterpValue& value) {
              return self.Update(InterpValue::MakeU64(i), value);
            })
       .def("flatten", &InterpValue::Flatten)
       .def("slice", &InterpValue::Slice)
       .def("slice",
-           [](const InterpValue& self, uint64 start, uint64 length) {
+           [](const InterpValue& self, uint64_t start, uint64_t length) {
              return self.Slice(InterpValue::MakeU64(start),
                                InterpValue::MakeU64(length));
            })

@@ -71,7 +71,6 @@ cc_library(
     srcs = ["symbolic_bindings.cc"],
     hdrs = ["symbolic_bindings.h"],
     deps = [
-        "//xls/common:integral_types",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
@@ -175,7 +174,6 @@ cc_library(
     srcs = ["pos.cc"],
     hdrs = ["pos.h"],
     deps = [
-        "//xls/common:integral_types",
         "//xls/common/logging",
         "@com_github_google_re2//:re2",
         "@com_google_absl//absl/status:statusor",
@@ -331,7 +329,6 @@ cc_library(
     hdrs = ["parametric_expression.h"],
     deps = [
         ":pos",
-        "//xls/common:integral_types",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
     ],
@@ -344,7 +341,6 @@ cc_library(
     deps = [
         ":ast",
         ":parametric_expression",
-        "//xls/common:integral_types",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_github_google_re2//:re2",

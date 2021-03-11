@@ -22,8 +22,8 @@ namespace xls::noc {
 // Test field values for a virtual channel.
 TEST(VirtualChannelConfigBuilderTest, FieldValues) {
   const char* kName = "Test";
-  const int64 kFlitBitWidth = 42;
-  const int64 kDepth = 1337;
+  const int64_t kFlitBitWidth = 42;
+  const int64_t kDepth = 1337;
   VirtualChannelConfigProto proto;
   VirtualChannelConfigProtoBuilder builder(&proto);
   builder.WithName(kName);

@@ -17,7 +17,7 @@
 namespace xls::noc {
 
 DataOptionsProtoBuilder& DataOptionsProtoBuilder::WithDataBitWidth(
-    int64 data_bit_width) {
+    int64_t data_bit_width) {
   proto_->set_data_bit_width(data_bit_width);
   return *this;
 }

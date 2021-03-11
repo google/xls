@@ -17,7 +17,7 @@ in the XLS project, with the relevant Google style guides
     provides a Tricorder notification if `parameter_name` is mismatched against
     the parameter name of the callee.
 
-*   Prefer `int64` over `int` to avoid any possibility of overflow.
+*   Prefer `int64_t` over `int` to avoid any possibility of overflow.
 
 *   Always use `Status` or `StatusOr` for any error that a user could encounter.
 

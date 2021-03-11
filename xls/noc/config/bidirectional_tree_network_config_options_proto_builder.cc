@@ -17,21 +17,21 @@
 namespace xls::noc {
 
 BidirectionalTreeNetworkConfigOptionsProtoBuilder&
-BidirectionalTreeNetworkConfigOptionsProtoBuilder::WithRadix(int64 radix) {
+BidirectionalTreeNetworkConfigOptionsProtoBuilder::WithRadix(int64_t radix) {
   proto_->set_radix(radix);
   return *this;
 }
 
 BidirectionalTreeNetworkConfigOptionsProtoBuilder&
 BidirectionalTreeNetworkConfigOptionsProtoBuilder::WithNumSendPortsAtRoot(
-    int64 num_send_ports_at_root) {
+    int64_t num_send_ports_at_root) {
   proto_->set_num_send_ports_at_root(num_send_ports_at_root);
   return *this;
 }
 
 BidirectionalTreeNetworkConfigOptionsProtoBuilder&
 BidirectionalTreeNetworkConfigOptionsProtoBuilder::WithNumRecvPortsAtRoot(
-    int64 num_recv_ports_at_root) {
+    int64_t num_recv_ports_at_root) {
   proto_->set_num_recv_ports_at_root(num_recv_ports_at_root);
   return *this;
 }

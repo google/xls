@@ -22,8 +22,8 @@ namespace {
 
 // Test field values of the builder when constructed using a proto ptr.
 TEST(TopologyEndpointOptionsProtoBuilderTest, FieldValuesForPtr) {
-  constexpr int64 kSendPortCount = 42;
-  constexpr int64 kRecvPortCount = 1337;
+  constexpr int64_t kSendPortCount = 42;
+  constexpr int64_t kRecvPortCount = 1337;
   TopologyEndpointOptionsProto proto;
   TopologyEndpointOptionsProtoBuilder builder(&proto);
   builder.SetSendPortCount(kSendPortCount);
@@ -35,8 +35,8 @@ TEST(TopologyEndpointOptionsProtoBuilderTest, FieldValuesForPtr) {
 // Test field values of the builder when constructed using a proto ptr and a
 // default proto.
 TEST(TopologyEndpointOptionsProtoBuilderTest, FieldValuesForPtrWithDefault) {
-  constexpr int64 kSendPortCount = 42;
-  constexpr int64 kRecvPortCount = 1337;
+  constexpr int64_t kSendPortCount = 42;
+  constexpr int64_t kRecvPortCount = 1337;
   TopologyEndpointOptionsProto default_proto;
   TopologyEndpointOptionsProtoBuilder builder_default(&default_proto);
   builder_default.SetSendPortCount(kSendPortCount);

@@ -147,7 +147,7 @@ LogicRef* FsmBuilder::AddRegDef(absl::string_view name, DataType* data_type,
   return module_->file()->Make<LogicRef>(defs_.back());
 }
 
-FsmCounter* FsmBuilder::AddDownCounter(absl::string_view name, int64 width) {
+FsmCounter* FsmBuilder::AddDownCounter(absl::string_view name, int64_t width) {
   LogicRef* ref = AddRegDef(name, file_->BitVectorType(width));
   LogicRef* ref_next =
       AddRegDef(absl::StrCat(name, "_next"), file_->BitVectorType(width));
@@ -180,8 +180,8 @@ FsmRegister* FsmBuilder::AddRegister(absl::string_view name,
   return &registers_.back();
 }
 
-FsmRegister* FsmBuilder::AddRegister(absl::string_view name, int64 width,
-                                     absl::optional<int64> reset_value) {
+FsmRegister* FsmBuilder::AddRegister(absl::string_view name, int64_t width,
+                                     absl::optional<int64_t> reset_value) {
   Expression* reset_expr =
       reset_value.has_value()
           ? file_->Literal(UBits(reset_value.value(), width))
@@ -259,7 +259,7 @@ absl::Status FsmBlockBase::AddDefaultOutputAssignments(
       "AddDefaultOutputAssignments for output %s in block \"%s\"",
       output.logic_ref->GetName(), debug_name());
   // The count of the assignments along any code path through the block.
-  int64 assignment_count = 0;
+  int64_t assignment_count = 0;
   for (const Assignment& assignment : assignments_) {
     if (assignment.lhs == output.logic_ref) {
       XLS_VLOG(3) << absl::StreamFormat(
@@ -311,7 +311,7 @@ absl::Status ConditionalFsmBlock::ForEachAlternate(
 }
 
 absl::Status FsmBlockBase::RemoveAssignment(LogicRef* logic_ref) {
-  int64 size_before = assignments_.size();
+  int64_t size_before = assignments_.size();
   assignments_.erase(
       std::remove_if(assignments_.begin(), assignments_.end(),
                      [&](const Assignment& a) { return a.lhs == logic_ref; }),

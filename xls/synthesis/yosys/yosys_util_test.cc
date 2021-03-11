@@ -37,7 +37,7 @@ TEST(YosysUtilTest, GetMaxFrequency) {
       std::filesystem::path output_path,
       GetXlsRunfilePath("xls/synthesis/yosys/testdata/nextpnr.out"));
   XLS_ASSERT_OK_AND_ASSIGN(std::string output, GetFileContents(output_path));
-  XLS_ASSERT_OK_AND_ASSIGN(int64 freq_max, ParseNextpnrOutput(output));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t freq_max, ParseNextpnrOutput(output));
   EXPECT_EQ(freq_max, 180280000);
 }
 

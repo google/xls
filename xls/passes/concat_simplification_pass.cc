@@ -37,7 +37,7 @@ namespace {
 
 // Returns true if the given concat as consecutive literal operands.
 bool HasConsecutiveLiteralOperands(Concat* concat) {
-  for (int64 i = 1; i < concat->operand_count(); ++i) {
+  for (int64_t i = 1; i < concat->operand_count(); ++i) {
     if (concat->operand(i - 1)->Is<Literal>() &&
         concat->operand(i)->Is<Literal>()) {
       return true;
@@ -109,7 +109,7 @@ absl::StatusOr<Concat*> FlattenConcatTree(Concat* concat) {
 
 // Attempts to replace the given concat with a simpler or more canonical
 // form. Returns true if the concat was replaced.
-absl::StatusOr<bool> SimplifyConcat(Concat* concat, int64 opt_level,
+absl::StatusOr<bool> SimplifyConcat(Concat* concat, int64_t opt_level,
                                     std::deque<Concat*>* worklist) {
   absl::Span<Node* const> operands = concat->operands();
 
@@ -156,7 +156,7 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat, int64 opt_level,
   // concatenation input operands are reversed and then concatenated in reverse
   // order:
   //   reverse(concat(a, b, c)) => concat(reverse(c), reverse(b), reverse(a))
-  int64 num_reverse_users = 0;
+  int64_t num_reverse_users = 0;
   Node* reverse_user = nullptr;
   bool concat_has_nonreversible_user = false;
   for (Node* user : concat->users()) {
@@ -202,7 +202,7 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat, int64 opt_level,
 
   // If consecutive concat inputs are consecutive bit slices, create a new,
   // merged bit slice and a new concat that consumes the merged bit slice.
-  for (int64 idx = 0; idx < concat->operand_count() - 1; ++idx) {
+  for (int64_t idx = 0; idx < concat->operand_count() - 1; ++idx) {
     // Check if consecutive operands are bit slices.
     const Node* higher_op = concat->operands().at(idx);
     const Node* lower_op = concat->operands().at(idx + 1);
@@ -238,7 +238,8 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat, int64 opt_level,
     // Collect operands for new concat.
     std::vector<Node*> new_operands;
     new_operands.reserve(concat->operands().size() - 1);
-    for (int64 copy_idx = 0; copy_idx < concat->operands().size(); ++copy_idx) {
+    for (int64_t copy_idx = 0; copy_idx < concat->operands().size();
+         ++copy_idx) {
       if (copy_idx == idx) {
         new_operands.push_back(merged_slice);
         continue;
@@ -266,15 +267,15 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat, int64 opt_level,
 // inputs to the concatentation operations that are inputs
 // to 'node'.  e.g. for node = {A: u2, B:u3} OR {C: u3, B: u2},
 // we get begin_end_bits_inclusive = {{0,1},{2,2},{3, 4}}.
-absl::StatusOr<std::map<int64, int64>> GetBitRangeUnionOfInputConcats(
+absl::StatusOr<std::map<int64_t, int64_t>> GetBitRangeUnionOfInputConcats(
     Node* node) {
-  std::map<int64, int64> begin_end_bits_inclusive;
+  std::map<int64_t, int64_t> begin_end_bits_inclusive;
   // Record the beginning of all bit-ranges.
-  for (int64 i = 0; i < node->operand_count(); ++i) {
+  for (int64_t i = 0; i < node->operand_count(); ++i) {
     Concat* concat_i = node->operand(i)->As<Concat>();
     XLS_RET_CHECK(!concat_i->operands().empty());
 
-    int64 bit_lower_idx = 0;
+    int64_t bit_lower_idx = 0;
     for (auto cat_itr = concat_i->operands().rbegin();
          cat_itr != concat_i->operands().rend();
          bit_lower_idx += (*cat_itr)->BitCountOrDie(), ++cat_itr) {
@@ -335,7 +336,7 @@ absl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
   if (!union_result.ok()) {
     return union_result.status();
   }
-  std::map<int64, int64> begin_end_bits_inclusive = union_result.value();
+  std::map<int64_t, int64_t> begin_end_bits_inclusive = union_result.value();
 
   // Make bitwise operations.
   FunctionBase* func = node->function_base();
@@ -430,7 +431,7 @@ absl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
   // sub-slices.
   FunctionBase* f = concat->function_base();
   Node* result = nullptr;
-  for (int64 i = 0; i < concat->operands().size(); ++i) {
+  for (int64_t i = 0; i < concat->operands().size(); ++i) {
     SliceData concat_slice = concat->GetOperandSliceData(i);
     XLS_ASSIGN_OR_RETURN(
         Node * other_slice,

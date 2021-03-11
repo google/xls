@@ -23,12 +23,12 @@
 #ifndef XLS_DSLX_CONCRETE_TYPE_H_
 #define XLS_DSLX_CONCRETE_TYPE_H_
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/types/variant.h"
-#include "xls/common/integral_types.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/parametric_expression.h"
 
@@ -41,7 +41,7 @@ class TupleType;
 class ConcreteTypeDim {
  public:
   using OwnedParametric = std::unique_ptr<ParametricExpression>;
-  using Variant = absl::variant<int64, OwnedParametric>;
+  using Variant = absl::variant<int64_t, OwnedParametric>;
 
   explicit ConcreteTypeDim(Variant value) : value_(std::move(value)) {}
   explicit ConcreteTypeDim(const ParametricExpression& value)
@@ -67,7 +67,7 @@ class ConcreteTypeDim {
 
   bool operator==(const ConcreteTypeDim& other) const;
   bool operator==(
-      const absl::variant<int64, const ParametricExpression*>& other) const;
+      const absl::variant<int64_t, const ParametricExpression*>& other) const;
   bool operator!=(const ConcreteTypeDim& other) const {
     return !(*this == other);
   }
@@ -232,18 +232,18 @@ class TupleType : public ConcreteType {
 
   // Precondition: this TupleType must have named members and i must be <
   // members().size().
-  const std::string& GetMemberName(int64 i) const {
+  const std::string& GetMemberName(int64_t i) const {
     XLS_CHECK(absl::holds_alternative<NamedMembers>(members_));
     return absl::get<NamedMembers>(members_).at(i).name;
   }
-  ConcreteType& GetMemberType(int64 i) {
+  ConcreteType& GetMemberType(int64_t i) {
     if (absl::holds_alternative<NamedMembers>(members_)) {
       return *absl::get<NamedMembers>(members_).at(i).type;
     } else {
       return *absl::get<UnnamedMembers>(members_).at(i);
     }
   }
-  const ConcreteType& GetMemberType(int64 i) const {
+  const ConcreteType& GetMemberType(int64_t i) const {
     return const_cast<TupleType*>(this)->GetMemberType(i);
   }
 
@@ -255,10 +255,10 @@ class TupleType : public ConcreteType {
   // error if the member is not found (i.e. it is generally expected that the
   // caller knows the name is present), and an InvalidArgument error status if
   // this TupleType does not have named members.
-  absl::StatusOr<int64> GetMemberIndex(absl::string_view name) const;
+  absl::StatusOr<int64_t> GetMemberIndex(absl::string_view name) const;
 
   std::vector<const ConcreteType*> GetUnnamedMembers() const;
-  const ConcreteType& GetUnnamedMember(int64 i) const {
+  const ConcreteType& GetUnnamedMember(int64_t i) const {
     const ConcreteType* result = GetUnnamedMembers()[i];
     XLS_CHECK(result != nullptr);
     return *result;
@@ -375,7 +375,7 @@ class BitsType : public ConcreteType {
     return absl::make_unique<BitsType>(false, 1);
   }
 
-  BitsType(bool is_signed, int64 size)
+  BitsType(bool is_signed, int64_t size)
       : BitsType(is_signed, ConcreteTypeDim(size)) {}
   BitsType(bool is_signed, ConcreteTypeDim size)
       : is_signed_(is_signed), size_(std::move(size)) {}
@@ -452,7 +452,7 @@ class FunctionType : public ConcreteType {
   std::vector<const ConcreteType*> GetParams() const;
 
   // Number of parameters (formal arguments) to this function.
-  int64 GetParamCount() const { return params_.size(); }
+  int64_t GetParamCount() const { return params_.size(); }
 
   bool HasEnum() const override {
     auto has_enum = [](const auto& param) { return param->HasEnum(); };

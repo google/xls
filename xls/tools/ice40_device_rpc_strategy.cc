@@ -85,7 +85,7 @@ absl::StatusOr<bool> IsDeviceMatch(const std::filesystem::path& symlink_path) {
 
 // Finds the tty device path for the "device_ordinal" ICE40 device attached to
 // this host.
-absl::StatusOr<std::string> FindPath(int64 device_ordinal) {
+absl::StatusOr<std::string> FindPath(int64_t device_ordinal) {
   std::vector<std::string> device_paths;
 
   XLS_ASSIGN_OR_RETURN(std::vector<std::filesystem::path> usb_device_paths,
@@ -170,7 +170,7 @@ Ice40DeviceRpcStrategy::~Ice40DeviceRpcStrategy() {
   }
 }
 
-absl::Status Ice40DeviceRpcStrategy::Connect(int64 device_ordinal) {
+absl::Status Ice40DeviceRpcStrategy::Connect(int64_t device_ordinal) {
   if (tty_fd_.has_value()) {
     return absl::FailedPreconditionError(
         "Already connected to an ICE40 device.");
@@ -265,9 +265,9 @@ absl::StatusOr<Value> Ice40DeviceRpcStrategy::CallUnnamed(
     return absl::InvalidArgumentError("Cannot perform an empty-payload RPC.");
   }
 
-  std::vector<uint8> u8_data = buffer.GetUint8Data();
+  std::vector<uint8_t> u8_data = buffer.GetUint8Data();
 
-  int64 bytes_written = 0;
+  int64_t bytes_written = 0;
   while (bytes_written < buffer.size_in_bytes()) {
     int ret = write(tty_fd_.value(), u8_data.data() + bytes_written,
                     u8_data.size() - bytes_written);
@@ -285,13 +285,13 @@ absl::StatusOr<Value> Ice40DeviceRpcStrategy::CallUnnamed(
     return absl::InternalError("Could not flush write(s) to device.");
   }
 
-  int64 output_bits = function_type.return_type()->GetFlatBitCount();
-  std::vector<uint8> result(CeilOfRatio(output_bits, int64{8}));
+  int64_t output_bits = function_type.return_type()->GetFlatBitCount();
+  std::vector<uint8_t> result(CeilOfRatio(output_bits, int64_t{8}));
 
   XLS_VLOG(3) << "Reading device response; expecting " << result.size()
               << " bytes.";
 
-  int64 bytes_read = 0;
+  int64_t bytes_read = 0;
   while (bytes_read < result.size()) {
     int ret = read(tty_fd_.value(), result.data() + bytes_read,
                    result.size() - bytes_read);
@@ -312,7 +312,7 @@ absl::StatusOr<Value> Ice40DeviceRpcStrategy::CallUnnamed(
 
   if (function_type.return_type()->IsBits() &&
       function_type.return_type()->AsBitsOrDie()->bit_count() == 32) {
-    return Value(UBits(*absl::bit_cast<uint32*>(result.data()), 32));
+    return Value(UBits(*absl::bit_cast<uint32_t*>(result.data()), 32));
   }
 
   return absl::UnimplementedError("NYI: convert result to Value");

@@ -21,7 +21,7 @@ namespace xls {
 namespace {
 
 // Returns true if the given type can be represented as a native unsigned
-// integer type (uint8, uint16, ...) and sets "enclosing_type" to the name
+// integer type (uint8_t, uint16_t, ...) and sets "enclosing_type" to the name
 // of that type (as a string).
 // Not a "match", per se, since we're finding the next enclosing native type
 // (instead of strict matching), but for consistency with other match
@@ -33,16 +33,16 @@ bool MatchUint(const Type& type, std::string* enclosing_type) {
 
   int bit_count = type.GetFlatBitCount();
   if (bit_count <= 8) {
-    *enclosing_type = "uint8";
+    *enclosing_type = "uint8_t";
     return true;
   } else if (bit_count <= 16) {
-    *enclosing_type = "uint16";
+    *enclosing_type = "uint16_t";
     return true;
   } else if (bit_count <= 32) {
-    *enclosing_type = "uint32";
+    *enclosing_type = "uint32_t";
     return true;
   } else if (bit_count <= 64) {
-    *enclosing_type = "uint64";
+    *enclosing_type = "uint64_t";
     return true;
   }
 
@@ -120,7 +120,7 @@ std::string ConvertUint(absl::string_view name, const Type& type) {
   XLS_CHECK(type.IsBits());
 
   return absl::StrFormat(
-      "PackedBitsView<%d> %s_view(reinterpret_cast<uint8*>(&%s), 0)",
+      "PackedBitsView<%d> %s_view(reinterpret_cast<uint8_t*>(&%s), 0)",
       type.GetFlatBitCount(), name, name);
 }
 
@@ -130,7 +130,7 @@ std::string ConvertFloat(absl::string_view name) {
   return absl::StrCat(
       "PackedTupleView<PackedBitsView<1>, PackedBitsView<8>, "
       "PackedBitsView<23>> ",
-      name, "_view(reinterpret_cast<uint8*>(&", name, "), 0)");
+      name, "_view(reinterpret_cast<uint8_t*>(&", name, "), 0)");
 }
 
 // Emits the code necessary to convert a double value to its corresponding
@@ -139,7 +139,7 @@ std::string ConvertDouble(absl::string_view name) {
   return absl::StrCat(
       "PackedTupleView<PackedBitsView<1>, PackedBitsView<11>, "
       "PackedBitsView<52>> ",
-      name, "_view(reinterpret_cast<uint8*>(&", name, "), 0)");
+      name, "_view(reinterpret_cast<uint8_t*>(&", name, "), 0)");
 }
 
 // Determines if the input type matches some other/simpler data type, and if so,

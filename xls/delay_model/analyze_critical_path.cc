@@ -25,12 +25,12 @@
 namespace xls {
 
 absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
-    FunctionBase* f, absl::optional<int64> clock_period_ps,
+    FunctionBase* f, absl::optional<int64_t> clock_period_ps,
     const DelayEstimator& delay_estimator) {
-  absl::flat_hash_map<Node*, std::pair<int64, bool>> node_to_output_delay;
+  absl::flat_hash_map<Node*, std::pair<int64_t, bool>> node_to_output_delay;
 
   auto get_max_operands_delay = [&](Node* node) {
-    int64 earliest = 0;
+    int64_t earliest = 0;
     for (Node* operand : node->operands()) {
       earliest = std::max(earliest, node_to_output_delay[operand].first);
     }
@@ -38,8 +38,8 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
   };
 
   for (Node* node : TopoSort(f)) {
-    int64 earliest = get_max_operands_delay(node);
-    XLS_ASSIGN_OR_RETURN(int64 node_effort,
+    int64_t earliest = get_max_operands_delay(node);
+    XLS_ASSIGN_OR_RETURN(int64_t node_effort,
                          delay_estimator.GetOperationDelayInPs(node));
     bool bumped = false;
     // If the dependency straddles a clock boundary we have to make our delay
@@ -47,7 +47,7 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
     if (clock_period_ps.has_value() &&
         (((earliest + node_effort) / clock_period_ps.value()) >
          (earliest / clock_period_ps.value()))) {
-      int64 new_earliest =
+      int64_t new_earliest =
           RoundDownToNearest(earliest + node_effort, clock_period_ps.value());
       XLS_CHECK_GT(new_earliest, earliest);
       earliest = new_earliest;
@@ -65,9 +65,9 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
         n, delay_estimator.GetOperationDelayInPs(n).value(),
         node_to_output_delay[n].first, node_to_output_delay[n].second});
     Node* next = nullptr;
-    int64 next_delay = 0;
+    int64_t next_delay = 0;
     for (Node* operand : n->operands()) {
-      int64 operand_delay = node_to_output_delay[operand].first;
+      int64_t operand_delay = node_to_output_delay[operand].first;
       if (operand_delay > next_delay) {
         next = operand;
         next_delay = operand_delay;

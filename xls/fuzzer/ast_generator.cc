@@ -109,15 +109,16 @@ Param* AstGenerator::GenerateParam(TypeAnnotation* type) {
   return param;
 }
 
-std::vector<Param*> AstGenerator::GenerateParams(int64 count) {
+std::vector<Param*> AstGenerator::GenerateParams(int64_t count) {
   std::vector<Param*> params;
-  for (int64 i = 0; i < count; ++i) {
+  for (int64_t i = 0; i < count; ++i) {
     params.push_back(GenerateParam());
   }
   return params;
 }
 
-TypeAnnotation* AstGenerator::MakeTypeAnnotation(bool is_signed, int64 width) {
+TypeAnnotation* AstGenerator::MakeTypeAnnotation(bool is_signed,
+                                                 int64_t width) {
   XLS_CHECK_GT(width, 0);
   if (width <= 64) {
     return module_->Make<BuiltinTypeAnnotation>(
@@ -129,7 +130,7 @@ TypeAnnotation* AstGenerator::MakeTypeAnnotation(bool is_signed, int64 width) {
   return module_->Make<ArrayTypeAnnotation>(fake_span_, element_type, dim);
 }
 
-absl::StatusOr<Expr*> AstGenerator::GenerateUmin(TypedExpr arg, int64 other) {
+absl::StatusOr<Expr*> AstGenerator::GenerateUmin(TypedExpr arg, int64_t other) {
   Number* rhs = MakeNumber(other, arg.type);
   Expr* test = MakeGe(arg.expr, rhs);
   return MakeSel(test, rhs, arg.expr);
@@ -151,8 +152,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Env* env) {
   TypedExpr rhs = pair.second;
   if (RandomFloat() < 0.8) {
     // Clamp the shift rhs to be in range most of the time.
-    int64 bit_count = GetTypeBitCount(rhs.type);
-    int64 new_upper = RandRange(bit_count);
+    int64_t bit_count = GetTypeBitCount(rhs.type);
+    int64_t new_upper = RandRange(bit_count);
     XLS_ASSIGN_OR_RETURN(rhs.expr, GenerateUmin(rhs, new_upper));
   }
   return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
@@ -180,7 +181,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateLogicalOp(Env* env) {
                    lhs.type};
 }
 
-Number* AstGenerator::MakeNumber(int64 value, TypeAnnotation* type) {
+Number* AstGenerator::MakeNumber(int64_t value, TypeAnnotation* type) {
   if (IsBuiltinBool(type)) {
     XLS_CHECK(value == 0 || value == 1) << value;
     return module_->Make<Number>(fake_span_, value ? "true" : "false",
@@ -197,7 +198,7 @@ Number* AstGenerator::MakeNumberFromBits(const Bits& value,
                                NumberKind::kOther, type);
 }
 
-int64 AstGenerator::GetTypeBitCount(TypeAnnotation* type) {
+int64_t AstGenerator::GetTypeBitCount(TypeAnnotation* type) {
   std::string type_str = type->ToString();
   if (type_str == "uN" || type_str == "sN" || type_str == "bits") {
     // These types are not valid alone, but as the element type of an array
@@ -212,7 +213,7 @@ int64 AstGenerator::GetTypeBitCount(TypeAnnotation* type) {
     return GetArraySize(array) * GetTypeBitCount(array->element_type());
   }
   if (auto* tuple = dynamic_cast<TupleTypeAnnotation*>(type)) {
-    int64 total = 0;
+    int64_t total = 0;
     for (TypeAnnotation* type : tuple->members()) {
       total += GetTypeBitCount(type);
     }
@@ -222,7 +223,7 @@ int64 AstGenerator::GetTypeBitCount(TypeAnnotation* type) {
   return type_bit_counts_.at(type_str);
 }
 
-int64 AstGenerator::GetArraySize(ArrayTypeAnnotation* type) {
+int64_t AstGenerator::GetArraySize(ArrayTypeAnnotation* type) {
   Expr* dim = type->dim();
   if (auto* number = dynamic_cast<Number*>(dim)) {
     return number->GetAsUint64().value();
@@ -234,11 +235,11 @@ int64 AstGenerator::GetArraySize(ArrayTypeAnnotation* type) {
   return number->GetAsUint64().value();
 }
 
-ConstRef* AstGenerator::GetOrCreateConstRef(int64 value) {
+ConstRef* AstGenerator::GetOrCreateConstRef(int64_t value) {
   // We use a canonical naming scheme so we can detect duplicate requests for
   // the same value.
-  int64 width =
-      std::max(int64{1}, static_cast<int64>(std::ceil(std::log2(value + 1))));
+  int64_t width = std::max(
+      int64_t{1}, static_cast<int64_t>(std::ceil(std::log2(value + 1))));
   std::string identifier = absl::StrFormat("W%d_V%d", width, value);
   ConstantDef* constant_def;
   if (auto it = constants_.find(identifier); it != constants_.end()) {
@@ -259,7 +260,7 @@ ConstRef* AstGenerator::GetOrCreateConstRef(int64 value) {
 }
 
 ArrayTypeAnnotation* AstGenerator::MakeArrayType(TypeAnnotation* element_type,
-                                                 int64 array_size) {
+                                                 int64_t array_size) {
   Expr* dim;
   if (RandomBool()) {
     // Get-or-create a module level constant for the array size.
@@ -279,7 +280,7 @@ Invocation* AstGenerator::MakeRange(Expr* zero, Expr* arg) {
                                    /*args=*/args);
 }
 
-Bits AstGenerator::ChooseBitPattern(int64 bit_count) {
+Bits AstGenerator::ChooseBitPattern(int64_t bit_count) {
   if (bit_count == 0) {
     return Bits(0);
   }
@@ -305,27 +306,27 @@ Bits AstGenerator::ChooseBitPattern(int64 bit_count) {
       return bits_ops::ShiftRightLogical(Bits::AllOnes(bit_count), 1);
     case kOffOn: {
       InlineBitmap bitmap(bit_count);
-      for (int64 i = 1; i < bit_count; i += 2) {
+      for (int64_t i = 1; i < bit_count; i += 2) {
         bitmap.Set(i, 1);
       }
       return Bits::FromBitmap(std::move(bitmap));
     }
     case kOnOff: {
       InlineBitmap bitmap(bit_count);
-      for (int64 i = 0; i < bit_count; i += 2) {
+      for (int64_t i = 0; i < bit_count; i += 2) {
         bitmap.Set(i, 1);
       }
       return Bits::FromBitmap(std::move(bitmap));
     }
     case kOneHot: {
       InlineBitmap bitmap(bit_count);
-      int64 index = RandRange(bit_count);
+      int64_t index = RandRange(bit_count);
       bitmap.Set(index, 1);
       return Bits::FromBitmap(std::move(bitmap));
     }
     case kRandom: {
       InlineBitmap bitmap(bit_count);
-      for (int64 i = 0; i < bit_count; ++i) {
+      for (int64_t i = 0; i < bit_count; ++i) {
         bitmap.Set(i, RandomBool());
       }
       return Bits::FromBitmap(std::move(bitmap));
@@ -337,7 +338,7 @@ Bits AstGenerator::ChooseBitPattern(int64 bit_count) {
 absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(Env* env) {
   // We need to choose a selector with a certain number of bits, then form an
   // array from that many values in the environment.
-  constexpr int64 kMaxBitCount = 8;
+  constexpr int64_t kMaxBitCount = 8;
   auto choose_value = [this](const TypedExpr& e) -> bool {
     TypeAnnotation* t = e.type;
     return IsUBits(t) && 0 <= GetTypeBitCount(t) &&
@@ -349,15 +350,15 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(Env* env) {
   if (!lhs.has_value()) {
     // If there's no natural environment value to use as the LHS, make up a
     // number and number of bits.
-    int64 bits = RandRange(1, kMaxBitCount);
+    int64_t bits = RandRange(1, kMaxBitCount);
     XLS_ASSIGN_OR_RETURN(lhs,
                          GenerateNumber(env, BitsAndSignedness{bits, false}));
   }
 
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(env));
   std::vector<Expr*> cases = {rhs.expr};
-  int64 total_operands = GetTypeBitCount(lhs->type);
-  for (int64 i = 0; i < total_operands - 1; ++i) {
+  int64_t total_operands = GetTypeBitCount(lhs->type);
+  for (int64_t i = 0; i < total_operands - 1; ++i) {
     XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValue(env, rhs.type));
     cases.push_back(e.expr);
   }
@@ -390,7 +391,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayConcat(Env* env) {
   XLS_RET_CHECK(rhs_array_type != nullptr);
   Binop* result =
       module_->Make<Binop>(fake_span_, BinopKind::kConcat, lhs.expr, rhs.expr);
-  int64 result_size =
+  int64_t result_size =
       GetArraySize(lhs_array_type) + GetArraySize(rhs_array_type);
   Number* dim = MakeNumber(result_size);
   auto* result_type = module_->Make<ArrayTypeAnnotation>(
@@ -410,9 +411,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArray(Env* env) {
     // through the vector randomly duplicating members along the way. On average
     // this process will double the size of the array with the distribution
     // falling off exponentially.
-    for (int64 i = 0; i < values.size(); ++i) {
+    for (int64_t i = 0; i < values.size(); ++i) {
       if (RandomBool()) {
-        int64 idx = RandRange(values.size());
+        int64_t idx = RandRange(values.size());
         values.push_back(values[idx]);
       }
     }
@@ -449,13 +450,13 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayIndex(Env* env) {
   XLS_ASSIGN_OR_RETURN(TypedExpr array, ChooseEnvValueArray(env));
   ArrayTypeAnnotation* array_type = down_cast<ArrayTypeAnnotation*>(array.type);
   XLS_ASSIGN_OR_RETURN(TypedExpr index, ChooseEnvValueUBits(env));
-  int64 array_size = GetArraySize(array_type);
+  int64_t array_size = GetArraySize(array_type);
   // An out-of-bounds array index raises an error in the DSLX interpreter so
   // clamp the index so it is always in-bounds.
   // TODO(https://github.com/google/xls/issues/327) 2021-03-05 Unify OOB
   // behavior across different levels in XLS.
   if (GetTypeBitCount(index.type) >= Bits::MinBitCountUnsigned(array_size)) {
-    int64 index_bound = RandRange(array_size);
+    int64_t index_bound = RandRange(array_size);
     XLS_ASSIGN_OR_RETURN(index.expr, GenerateUmin(index, index_bound));
   }
   return TypedExpr{module_->Make<Index>(fake_span_, array.expr, index.expr),
@@ -468,13 +469,13 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayUpdate(Env* env) {
   XLS_ASSIGN_OR_RETURN(TypedExpr index, ChooseEnvValueUBits(env));
   XLS_ASSIGN_OR_RETURN(TypedExpr element,
                        ChooseEnvValue(env, array_type->element_type()));
-  int64 array_size = GetArraySize(array_type);
+  int64_t array_size = GetArraySize(array_type);
   // An out-of-bounds array update raises an error in the DSLX interpreter so
   // clamp the index so it is always in-bounds.
   // TODO(https://github.com/google/xls/issues/327) 2021-03-05 Unify OOB
   // behavior across different levels in XLS.
   if (GetTypeBitCount(index.type) >= Bits::MinBitCountUnsigned(array_size)) {
-    int64 index_bound = RandRange(array_size);
+    int64_t index_bound = RandRange(array_size);
     XLS_ASSIGN_OR_RETURN(index.expr, GenerateUmin(index, index_bound));
   }
   return TypedExpr{
@@ -490,18 +491,18 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateConcat(Env* env) {
     return GenerateArrayConcat(env);
   }
 
-  int64 count = GenerateNaryOperandCount(env) + 2;
+  int64_t count = GenerateNaryOperandCount(env) + 2;
   std::vector<TypedExpr> operands;
-  for (int64 i = 0; i < count; ++i) {
+  for (int64_t i = 0; i < count; ++i) {
     XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValueUBits(env));
     operands.push_back(e);
   }
 
   TypedExpr e = operands[0];
-  int64 result_bits = GetTypeBitCount(e.type);
+  int64_t result_bits = GetTypeBitCount(e.type);
   Expr* result = e.expr;
-  for (int64 i = 1; i < count; ++i) {
-    int64 this_bits = GetTypeBitCount(operands[i].type);
+  for (int64_t i = 1; i < count; ++i) {
+    int64_t this_bits = GetTypeBitCount(operands[i].type);
     if (result_bits + this_bits > options_.max_width_bits_types) {
       break;
     }
@@ -514,7 +515,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateConcat(Env* env) {
 }
 
 BuiltinTypeAnnotation* AstGenerator::GeneratePrimitiveType() {
-  int64 integral = RandRange(kConcreteBuiltinTypeLimit);
+  int64_t integral = RandRange(kConcreteBuiltinTypeLimit);
   auto type = static_cast<BuiltinType>(integral);
   return module_->Make<BuiltinTypeAnnotation>(fake_span_, type);
 }
@@ -527,13 +528,13 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateNumber(
   } else {
     type = GeneratePrimitiveType();
   }
-  int64 bit_count = GetTypeBitCount(type);
+  int64_t bit_count = GetTypeBitCount(type);
   Bits value = ChooseBitPattern(bit_count);
   return TypedExpr{MakeNumberFromBits(value, type), type};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Env* env) {
-  int64 retval_count = GenerateNaryOperandCount(env);
+  int64_t retval_count = GenerateNaryOperandCount(env);
 
   std::vector<TypedExpr> env_params;
   std::vector<TypedExpr> env_non_params;
@@ -549,8 +550,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Env* env) {
   XLS_RET_CHECK(!env_params.empty() || !env_non_params.empty());
 
   std::vector<TypedExpr> typed_exprs;
-  int64 total_bit_count = 0;
-  for (int64 i = 0; i < retval_count; ++i) {
+  int64_t total_bit_count = 0;
+  for (int64_t i = 0; i < retval_count; ++i) {
     TypedExpr expr;
     float p = RandomFloat();
     if (env_non_params.empty() || (p < 0.1 && !env_params.empty())) {
@@ -605,15 +606,15 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Env* env) {
   if (do_index) {
     XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValueTuple(env, /*min_size=*/1));
     auto* tuple_type = dynamic_cast<TupleTypeAnnotation*>(e.type);
-    int64 i = RandRange(tuple_type->size());
+    int64_t i = RandRange(tuple_type->size());
     Number* index_expr = MakeNumber(i);
     return TypedExpr{module_->Make<Index>(fake_span_, e.expr, index_expr),
                      tuple_type->members()[i]};
   }
 
   std::vector<TypedExpr> members;
-  int64 total_bit_count = 0;
-  for (int64 i = 0; i < GenerateNaryOperandCount(env); ++i) {
+  int64_t total_bit_count = 0;
+  for (int64_t i = 0; i < GenerateNaryOperandCount(env); ++i) {
     XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValue(env));
     if (total_bit_count + GetTypeBitCount(e.type) >
         options_.max_width_aggregate_types) {
@@ -628,7 +629,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Env* env) {
                    MakeTupleType(types)};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64 call_depth,
+absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64_t call_depth,
                                                     Env* env) {
   std::string map_fn_name = GenSym();
 
@@ -668,7 +669,7 @@ TypeAnnotation* AstGenerator::GenerateBitsType() {
   // Generate a type wider than 64-bits. With smallish probability choose a
   // *really* wide type if the max_width_bits_types supports it, otherwise
   // choose a width up to 128 bits.
-  int64 max_width = options_.max_width_bits_types;
+  int64_t max_width = options_.max_width_bits_types;
   if (max_width > 128 && RandRange(1, 10) > 1) {
     max_width = 128;
   }
@@ -676,12 +677,12 @@ TypeAnnotation* AstGenerator::GenerateBitsType() {
   return MakeTypeAnnotation(sign, 64 + RandRange(1, max_width - 64));
 }
 
-TypeAnnotation* AstGenerator::GenerateType(int64 nesting) {
+TypeAnnotation* AstGenerator::GenerateType(int64_t nesting) {
   float r = RandomFloat();
   if (r < 0.1 * std::pow(2.0, -nesting)) {
     // Generate tuple type.
     std::vector<TypeAnnotation*> element_types;
-    for (int64 i = 0; i < RandomPoisson(3); ++i) {
+    for (int64_t i = 0; i < RandomPoisson(3); ++i) {
       element_types.push_back(GenerateType(nesting + 1));
     }
     return MakeTupleType(element_types);
@@ -689,7 +690,7 @@ TypeAnnotation* AstGenerator::GenerateType(int64 nesting) {
   if (r < 0.2 * std::pow(2.0, -nesting)) {
     // Generate array type.
     return MakeArrayType(GenerateType(nesting + 1),
-                         std::max(int64{1}, RandomPoisson(10)));
+                         std::max(int64_t{1}, RandomPoisson(10)));
   }
   return GenerateBitsType();
 }
@@ -699,7 +700,7 @@ absl::optional<TypedExpr> AstGenerator::ChooseEnvValueOptional(
   if (take == nullptr) {
     // Fast path if there's no take function, we don't need to inspect/copy
     // things.
-    int64 index = RandRange(env->size());
+    int64_t index = RandRange(env->size());
     auto it = env->begin();
     std::advance(it, index);
     return it->second;
@@ -714,7 +715,7 @@ absl::optional<TypedExpr> AstGenerator::ChooseEnvValueOptional(
   if (choices.empty()) {
     return absl::nullopt;
   }
-  int64 index = RandRange(choices.size());
+  int64_t index = RandRange(choices.size());
   return *choices[index];
 }
 
@@ -741,7 +742,7 @@ std::vector<TypedExpr> AstGenerator::GatherAllValues(
 
 absl::StatusOr<std::pair<TypedExpr, TypedExpr>>
 AstGenerator::ChooseEnvValueBitsPair(Env* env,
-                                     absl::optional<int64> bit_count) {
+                                     absl::optional<int64_t> bit_count) {
   XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(env, bit_count));
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(env, bit_count));
   if (lhs.type == rhs.type) {
@@ -764,8 +765,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnop(Env* env) {
 }
 
 // Returns (start, width), resolving indices via DSLX bit slice semantics.
-static std::pair<int64, int64> ResolveBitSliceIndices(
-    int64 bit_count, absl::optional<int64> start, absl::optional<int64> limit) {
+static std::pair<int64_t, int64_t> ResolveBitSliceIndices(
+    int64_t bit_count, absl::optional<int64_t> start,
+    absl::optional<int64_t> limit) {
   if (!start.has_value()) {
     start = 0;
   }
@@ -778,8 +780,8 @@ static std::pair<int64, int64> ResolveBitSliceIndices(
   if (*limit < 0) {
     limit = *limit + bit_count;
   }
-  limit = std::min(std::max(*limit, int64{0}), bit_count);
-  start = std::min(std::max(*start, int64{0}), *limit);
+  limit = std::min(std::max(*limit, int64_t{0}), bit_count);
+  start = std::min(std::max(*start, int64_t{0}), *limit);
   XLS_CHECK_GE(*start, 0);
   XLS_CHECK_GE(*limit, *start);
   return {*start, *limit - *start};
@@ -787,7 +789,7 @@ static std::pair<int64, int64> ResolveBitSliceIndices(
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Env* env) {
   XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueBits(env));
-  int64 bit_count = GetTypeBitCount(arg.type);
+  int64_t bit_count = GetTypeBitCount(arg.type);
   enum class SliceType {
     kBitSlice,
     kWidthSlice,
@@ -795,11 +797,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Env* env) {
   };
   SliceType which = RandomChoice<SliceType>(
       {SliceType::kBitSlice, SliceType::kWidthSlice, SliceType::kDynamicSlice});
-  absl::optional<int64> start;
-  absl::optional<int64> limit;
-  int64 width = -1;
+  absl::optional<int64_t> start;
+  absl::optional<int64_t> limit;
+  int64_t width = -1;
   while (true) {
-    int64 start_low = (which == SliceType::kWidthSlice) ? 0 : -bit_count - 1;
+    int64_t start_low = (which == SliceType::kWidthSlice) ? 0 : -bit_count - 1;
     bool should_have_start = RandomBool();
     start = should_have_start
                 ? absl::make_optional(RandRange(start_low, bit_count + 1))
@@ -824,7 +826,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Env* env) {
       break;
     }
     case SliceType::kWidthSlice: {
-      int64 start_int = start.has_value() ? *start : 0;
+      int64_t start_int = start.has_value() ? *start : 0;
       rhs = module_->Make<WidthSlice>(fake_span_, MakeNumber(start_int),
                                       MakeTypeAnnotation(false, width));
       break;
@@ -857,9 +859,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCastBitsToArray(Env* env) {
   XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueUBits(env));
 
   // Next, find factors of the bit count and select one pair.
-  int64 bit_count = GetTypeBitCount(arg.type);
-  std::vector<std::pair<int64, int64>> factors;
-  for (int64 i = 1; i < bit_count + 1; ++i) {
+  int64_t bit_count = GetTypeBitCount(arg.type);
+  std::vector<std::pair<int64_t, int64_t>> factors;
+  for (int64_t i = 1; i < bit_count + 1; ++i) {
     if (bit_count % i == 0) {
       factors.push_back({i, bit_count / i});
     }
@@ -971,8 +973,8 @@ std::discrete_distribution<int>& GetOpDistribution() {
 
 }  // namespace
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64 expr_size,
-                                                     int64 call_depth,
+absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
+                                                     int64_t call_depth,
                                                      Env* env) {
   if (!ShouldNest(expr_size, call_depth)) {
     // Should not nest any more, select return values.
@@ -1114,7 +1116,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Env* env) {
   Invocation* invocation = nullptr;
   auto which = RandomChoice<UnopBuiltin>(choices);
   NameRef* name_ref = MakeBuiltinNameRef(to_string(which));
-  int64 result_bits = -1;
+  int64_t result_bits = -1;
   switch (which) {
     case kClz:
     case kCtz:
@@ -1138,7 +1140,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Env* env) {
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(
-    int64 call_depth, absl::Span<Param* const> params) {
+    int64_t call_depth, absl::Span<Param* const> params) {
   Env env;
   for (Param* param : params) {
     env[param->identifier()] =
@@ -1148,7 +1150,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(
 }
 
 absl::StatusOr<Function*> AstGenerator::GenerateFunction(
-    std::string name, int64 call_depth,
+    std::string name, int64_t call_depth,
     absl::optional<absl::Span<TypeAnnotation* const>> param_types) {
   std::vector<Param*> params;
   if (param_types.has_value()) {

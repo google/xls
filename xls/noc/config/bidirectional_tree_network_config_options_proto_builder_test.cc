@@ -21,9 +21,9 @@ namespace {
 
 // Test field values for a bidirectional tree network configuration option.
 TEST(BidirectionalTreeOptionsProtoBuilderTest, FieldValues) {
-  const int64 kRadix = 42;
-  const int64 kNumSendPortsAtRoot = 4;
-  const int64 kNumRecvPortsAtRoot = 2;
+  const int64_t kRadix = 42;
+  const int64_t kNumSendPortsAtRoot = 4;
+  const int64_t kNumRecvPortsAtRoot = 2;
   BidirectionalTreeNetworkConfigOptionsProto proto;
   BidirectionalTreeNetworkConfigOptionsProtoBuilder builder(&proto);
   builder.WithRadix(kRadix);

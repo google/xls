@@ -15,10 +15,11 @@
 #ifndef XLS_DATA_STRUCTURES_INLINE_BITMAP_H_
 #define XLS_DATA_STRUCTURES_INLINE_BITMAP_H_
 
+#include <cstdint>
+
 #include "absl/base/casts.h"
 #include "absl/container/inlined_vector.h"
 #include "xls/common/bits_util.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 
@@ -27,7 +28,7 @@ namespace xls {
 // A bitmap that has 64-bits of inline storage by default.
 class InlineBitmap {
  public:
-  static InlineBitmap FromWord(uint64 word, int64 bit_count, bool fill) {
+  static InlineBitmap FromWord(uint64_t word, int64_t bit_count, bool fill) {
     InlineBitmap result(bit_count, fill);
     if (bit_count != 0) {
       result.data_[0] = word & result.MaskForWord(0);
@@ -35,10 +36,9 @@ class InlineBitmap {
     return result;
   }
 
-  explicit InlineBitmap(int64 bit_count, bool fill = false)
+  explicit InlineBitmap(int64_t bit_count, bool fill = false)
       : bit_count_(bit_count),
-        data_(CeilOfRatio(bit_count, kWordBits),
-              fill ? -1ULL : 0ULL) {
+        data_(CeilOfRatio(bit_count, kWordBits), fill ? -1ULL : 0ULL) {
     XLS_DCHECK_GE(bit_count, 0);
   }
 
@@ -46,10 +46,10 @@ class InlineBitmap {
     if (bit_count_ != other.bit_count_) {
       return false;
     }
-    for (int64 wordno = 0; wordno < word_count(); ++wordno) {
-      uint64 mask = MaskForWord(wordno);
-      uint64 lhs = (data_[wordno] & mask);
-      uint64 rhs = (other.data_[wordno] & mask);
+    for (int64_t wordno = 0; wordno < word_count(); ++wordno) {
+      uint64_t mask = MaskForWord(wordno);
+      uint64_t lhs = (data_[wordno] & mask);
+      uint64_t rhs = (other.data_[wordno] & mask);
       if (lhs != rhs) {
         return false;
       }
@@ -58,10 +58,10 @@ class InlineBitmap {
   }
   bool operator!=(const InlineBitmap& other) const { return !(*this == other); }
 
-  int64 bit_count() const { return bit_count_; }
+  int64_t bit_count() const { return bit_count_; }
   bool IsAllOnes() const {
-    for (int64 wordno = 0; wordno < word_count(); ++wordno) {
-      uint64 mask = MaskForWord(wordno);
+    for (int64_t wordno = 0; wordno < word_count(); ++wordno) {
+      uint64_t mask = MaskForWord(wordno);
       if ((data_[wordno] & mask) != mask) {
         return false;
       }
@@ -69,26 +69,26 @@ class InlineBitmap {
     return true;
   }
   bool IsAllZeroes() const {
-    for (int64 wordno = 0; wordno < word_count(); ++wordno) {
-      uint64 mask = MaskForWord(wordno);
+    for (int64_t wordno = 0; wordno < word_count(); ++wordno) {
+      uint64_t mask = MaskForWord(wordno);
       if ((data_[wordno] & mask) != 0) {
         return false;
       }
     }
     return true;
   }
-  bool Get(int64 index) const {
+  bool Get(int64_t index) const {
     XLS_DCHECK_GE(index, 0);
     XLS_DCHECK_LT(index, bit_count());
-    uint64 word = data_[index / kWordBits];
-    uint64 bitno = index % kWordBits;
+    uint64_t word = data_[index / kWordBits];
+    uint64_t bitno = index % kWordBits;
     return (word >> bitno) & 1ULL;
   }
-  void Set(int64 index, bool value) {
+  void Set(int64_t index, bool value) {
     XLS_DCHECK_GE(index, 0);
     XLS_DCHECK_LT(index, bit_count());
-    uint64& word = data_[index / kWordBits];
-    uint64 bitno = index % kWordBits;
+    uint64_t& word = data_[index / kWordBits];
+    uint64_t bitno = index % kWordBits;
     if (value) {
       word |= 1ULL << bitno;
     } else {
@@ -98,7 +98,7 @@ class InlineBitmap {
 
   // Fast path for users of the InlineBitmap to get at the 64-bit word that
   // backs a group of 64 bits.
-  uint64 GetWord(int64 wordno) const {
+  uint64_t GetWord(int64_t wordno) const {
     if (wordno == 0 && word_count() == 0) {
       return 0;
     }
@@ -116,42 +116,42 @@ class InlineBitmap {
   // the user will observe that byte 0 is mapped to the least significant bits
   // of word 0, byte 7 is mapped to the most significant bits of word 0, byte 8
   // is mapped to the least significant bits of word 1, and so on.
-  void SetByte(int64 byteno, uint8 value) {
+  void SetByte(int64_t byteno, uint8_t value) {
     XLS_DCHECK_LT(byteno, byte_count());
     // Implementation note: this relies on the endianness of the machine.
-    absl::bit_cast<uint8*>(data_.data())[byteno] = value;
+    absl::bit_cast<uint8_t*>(data_.data())[byteno] = value;
     // Ensure the data is appropriately masked in case this byte writes to that
     // region of bits.
     MaskLastWord();
   }
 
-  uint8 GetByte(int64 byteno) const {
+  uint8_t GetByte(int64_t byteno) const {
     XLS_DCHECK_LT(byteno, byte_count());
     // Implementation note: this relies on the endianness of the machine.
-    return absl::bit_cast<uint8*>(data_.data())[byteno];
+    return absl::bit_cast<uint8_t*>(data_.data())[byteno];
   }
 
-  int64 byte_count() const { return CeilOfRatio(bit_count_, int64{8}); }
+  int64_t byte_count() const { return CeilOfRatio(bit_count_, int64_t{8}); }
 
  private:
-  static constexpr int64 kWordBits = 64;
-  static constexpr int64 kWordBytes = 8;
-  int64 word_count() const { return data_.size(); }
+  static constexpr int64_t kWordBits = 64;
+  static constexpr int64_t kWordBytes = 8;
+  int64_t word_count() const { return data_.size(); }
 
   void MaskLastWord() {
-    int64 last_wordno = word_count() - 1;
+    int64_t last_wordno = word_count() - 1;
     data_[last_wordno] &= MaskForWord(last_wordno);
   }
 
   // Creates a mask for the valid bits in word "wordno".
-  uint64 MaskForWord(int64 wordno) const {
-    int64 remainder = bit_count_ % kWordBits;
+  uint64_t MaskForWord(int64_t wordno) const {
+    int64_t remainder = bit_count_ % kWordBits;
     return ((wordno < word_count() - 1) || remainder == 0) ? Mask(kWordBits)
                                                            : Mask(remainder);
   }
 
-  int64 bit_count_;
-  absl::InlinedVector<uint64, 1> data_;
+  int64_t bit_count_;
+  absl::InlinedVector<uint64_t, 1> data_;
 };
 
 }  // namespace xls

@@ -182,7 +182,7 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   absl::StatusOr<llvm::Value*> PackElement(llvm::Value* element,
                                            Type* element_type,
                                            llvm::Value* buffer,
-                                           int64 bit_offset);
+                                           int64_t bit_offset);
 
   // Marks the output value as "unpoisoned" for MSAN - in other words, prevent
   // false positives from being thrown when running under MSAN (since it can't
@@ -194,7 +194,7 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   // 'index'. 'array_size' is the number of elements in the array.
   absl::StatusOr<llvm::Value*> IndexIntoArray(llvm::Value* array,
                                               llvm::Value* index,
-                                              int64 array_size);
+                                              int64_t array_size);
 
   llvm::LLVMContext& ctx_;
   llvm::Module* module_;

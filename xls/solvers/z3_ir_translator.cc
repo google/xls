@@ -104,11 +104,11 @@ class Z3OpTranslator {
   Z3_ast Eq(Z3_ast lhs, Z3_ast rhs) { return EqZero(Xor(lhs, rhs)); }
   Z3_ast ZextBy1b(Z3_ast arg) { return Z3_mk_zero_ext(z3_ctx_, 1, arg); }
   Z3_ast SextBy1b(Z3_ast arg) { return Z3_mk_sign_ext(z3_ctx_, 1, arg); }
-  Z3_ast Extract(Z3_ast arg, int64 bitno) {
+  Z3_ast Extract(Z3_ast arg, int64_t bitno) {
     return Z3_mk_extract(z3_ctx_, bitno, bitno, arg);
   }
 
-  int64 GetBvBitCount(Z3_ast arg) {
+  int64_t GetBvBitCount(Z3_ast arg) {
     Z3_sort sort = Z3_get_sort(z3_ctx_, arg);
     return Z3_get_bv_sort_size(z3_ctx_, sort);
   }
@@ -117,21 +117,21 @@ class Z3OpTranslator {
   // index 0 of the return value.
   std::vector<Z3_ast> ExplodeBits(Z3_ast arg) {
     std::vector<Z3_ast> bits;
-    int64 bit_count = GetBvBitCount(arg);
+    int64_t bit_count = GetBvBitCount(arg);
     bits.reserve(bit_count);
-    for (int64 i = 0; i < bit_count; ++i) {
+    for (int64_t i = 0; i < bit_count; ++i) {
       bits.push_back(Extract(arg, i));
     }
     return bits;
   }
 
   Z3_ast Msb(Z3_ast arg) {
-    int64 bit_count = GetBvBitCount(arg);
+    int64_t bit_count = GetBvBitCount(arg);
     return Extract(arg, bit_count - 1);
   }
 
-  Z3_ast SignExt(Z3_ast arg, int64 new_bit_count) {
-    int64 input_bit_count = GetBvBitCount(arg);
+  Z3_ast SignExt(Z3_ast arg, int64_t new_bit_count) {
+    int64_t input_bit_count = GetBvBitCount(arg);
     XLS_CHECK_GE(new_bit_count, input_bit_count);
     return Z3_mk_sign_ext(z3_ctx_, new_bit_count - input_bit_count, arg);
   }
@@ -141,7 +141,7 @@ class Z3OpTranslator {
   // bit is the least significant bit of the result.
   Z3_ast ConcatN(absl::Span<const Z3_ast> args) {
     Z3_ast accum = args[0];
-    for (int64 i = 1; i < args.size(); ++i) {
+    for (int64_t i = 1; i < args.size(); ++i) {
       accum = Z3_mk_concat(z3_ctx_, accum, args[i]);
     }
     return accum;
@@ -163,9 +163,9 @@ class Z3OpTranslator {
   }
 
   // Returns a bit vector filled with "bit_count" digits of "value".
-  Z3_ast Fill(bool value, int64 bit_count) {
+  Z3_ast Fill(bool value, int64_t bit_count) {
     std::unique_ptr<bool[]> bits(new bool[bit_count]);
-    for (int64 i = 0; i < bit_count; ++i) {
+    for (int64_t i = 0; i < bit_count; ++i) {
       bits[i] = value;
     }
     return Z3_mk_bv_numeral(z3_ctx_, bit_count, &bits[0]);
@@ -175,7 +175,7 @@ class Z3OpTranslator {
   // a bool (in lieu of a bit vector). We put the "Bool" suffix on these helper
   // routines.
   Z3_ast EqZeroBool(Z3_ast arg) {
-    int64 bits = GetBvBitCount(arg);
+    int64_t bits = GetBvBitCount(arg);
     return Z3_mk_eq(z3_ctx_, arg, Fill(false, bits));
   }
 
@@ -186,7 +186,7 @@ class Z3OpTranslator {
   }
 
   // Makes a bit count parameter.
-  Z3_ast MakeBvParam(int64 bit_count, absl::string_view name) {
+  Z3_ast MakeBvParam(int64_t bit_count, absl::string_view name) {
     Z3_sort type = Z3_mk_bv_sort(z3_ctx_, bit_count);
     return Z3_mk_const(
         z3_ctx_, Z3_mk_string_symbol(z3_ctx_, std::string(name).c_str()), type);
@@ -304,9 +304,9 @@ absl::StatusOr<Z3_ast> IrTranslator::ToFloat32(absl::Span<const Z3_ast> nodes) {
   }
 
   // Does some sanity checking and returns the node of interest.
-  auto get_fp_component = [this, nodes](
-                              int64 index,
-                              int64 expected_width) -> absl::StatusOr<Z3_ast> {
+  auto get_fp_component =
+      [this, nodes](int64_t index,
+                    int64_t expected_width) -> absl::StatusOr<Z3_ast> {
     Z3_sort sort = Z3_get_sort(ctx_, nodes[index]);
     Z3_sort_kind sort_kind = Z3_get_sort_kind(ctx_, sort);
     if (sort_kind != Z3_BV_SORT) {
@@ -458,8 +458,8 @@ absl::Status IrTranslator::HandleNe(CompareOp* ne) {
 template <typename FnT>
 absl::Status IrTranslator::HandleShift(BinOp* shift, FnT fshift) {
   auto f = [shift, fshift](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
-    int64 lhs_bit_count = shift->operand(0)->BitCountOrDie();
-    int64 rhs_bit_count = shift->operand(1)->BitCountOrDie();
+    int64_t lhs_bit_count = shift->operand(0)->BitCountOrDie();
+    int64_t rhs_bit_count = shift->operand(1)->BitCountOrDie();
     if (rhs_bit_count < lhs_bit_count) {
       rhs = Z3_mk_zero_ext(ctx, lhs_bit_count - rhs_bit_count, rhs);
     } else if (rhs_bit_count > lhs_bit_count) {
@@ -485,9 +485,9 @@ absl::Status IrTranslator::HandleShll(BinOp* shll) {
 template <typename OpT, typename FnT>
 absl::Status IrTranslator::HandleNary(OpT* op, FnT f, bool invert_result) {
   ScopedErrorHandler seh(ctx_);
-  int64 operands = op->operands().size();
+  int64_t operands = op->operands().size();
   Z3_ast accum = GetBitVec(op->operand(0));
-  for (int64 i = 1; i < operands; ++i) {
+  for (int64_t i = 1; i < operands; ++i) {
     accum = f(ctx_, accum, GetBitVec(op->operand(i)));
   }
   if (invert_result) {
@@ -551,7 +551,7 @@ absl::Status IrTranslator::HandleParam(Param* param) {
   if (imported_params_) {
     // Find the index of this param in the function, and pull that one out of
     // the imported set.
-    XLS_ASSIGN_OR_RETURN(int64 param_index,
+    XLS_ASSIGN_OR_RETURN(int64_t param_index,
                          param->function_base()->GetParamIndex(param));
     value = imported_params_.value().at(param_index);
   } else {
@@ -697,7 +697,7 @@ Z3_ast IrTranslator::UpdateArrayElement(Type* type, Z3_ast array, Z3_ast value,
   Z3_sort index_sort =
       Z3_mk_bv_sort(ctx_, Bits::MinBitCountUnsigned(array_type->size()));
   std::vector<Z3_ast> elements;
-  for (int64 i = 0; i < array_type->size(); ++i) {
+  for (int64_t i = 0; i < array_type->size(); ++i) {
     Z3_ast this_index =
         GetAsFormattedArrayIndex(Z3_mk_int64(ctx_, i, index_sort), array_type);
     Z3_ast updated_index =
@@ -738,14 +738,14 @@ absl::Status IrTranslator::HandleArrayConcat(ArrayConcat* array_concat) {
   for (Node* operand : array_concat->operands()) {
     // Get number of elements in this operand (which is an array)
     ArrayType* array_type = operand->GetType()->AsArrayOrDie();
-    int64 element_count = array_type->size();
+    int64_t element_count = array_type->size();
 
     Z3_sort index_sort =
         Z3_mk_bv_sort(ctx_, Bits::MinBitCountUnsigned(element_count));
 
     Z3_ast array = GetValue(operand);
 
-    for (int64 i = 0; i < element_count; ++i) {
+    for (int64_t i = 0; i < element_count; ++i) {
       Z3_ast index = Z3_mk_int64(ctx_, i, index_sort);
       Z3_ast element = Z3_mk_select(ctx_, array, index);
       elements.push_back(element);
@@ -830,7 +830,7 @@ absl::Status IrTranslator::HandleIdentity(UnOp* identity) {
 
 absl::Status IrTranslator::HandleSignExtend(ExtendOp* sign_ext) {
   ScopedErrorHandler seh(ctx_);
-  int64 input_bit_count = sign_ext->operand(0)->BitCountOrDie();
+  int64_t input_bit_count = sign_ext->operand(0)->BitCountOrDie();
   Z3_ast result =
       Z3_mk_sign_ext(ctx_, sign_ext->new_bit_count() - input_bit_count,
                      GetBitVec(sign_ext->operand(0)));
@@ -840,7 +840,7 @@ absl::Status IrTranslator::HandleSignExtend(ExtendOp* sign_ext) {
 
 absl::Status IrTranslator::HandleZeroExtend(ExtendOp* zero_ext) {
   ScopedErrorHandler seh(ctx_);
-  int64 input_bit_count = zero_ext->operand(0)->BitCountOrDie();
+  int64_t input_bit_count = zero_ext->operand(0)->BitCountOrDie();
   Z3_ast result =
       Z3_mk_zero_ext(ctx_, zero_ext->new_bit_count() - input_bit_count,
                      GetBitVec(zero_ext->operand(0)));
@@ -850,8 +850,8 @@ absl::Status IrTranslator::HandleZeroExtend(ExtendOp* zero_ext) {
 
 absl::Status IrTranslator::HandleBitSlice(BitSlice* bit_slice) {
   ScopedErrorHandler seh(ctx_);
-  int64 low = bit_slice->start();
-  int64 high = low + bit_slice->width() - 1;
+  int64_t low = bit_slice->start();
+  int64_t high = low + bit_slice->width() - 1;
   Z3_ast result =
       Z3_mk_extract(ctx_, high, low, GetBitVec(bit_slice->operand(0)));
   NoteTranslation(bit_slice, result);
@@ -883,10 +883,10 @@ absl::Status IrTranslator::HandleDynamicBitSlice(
   ScopedErrorHandler seh(ctx_);
   Z3_ast value = GetBitVec(dynamic_bit_slice->operand(0));
   Z3_ast start = GetBitVec(dynamic_bit_slice->operand(1));
-  int64 value_width = dynamic_bit_slice->operand(0)->BitCountOrDie();
-  int64 start_width = dynamic_bit_slice->operand(1)->BitCountOrDie();
+  int64_t value_width = dynamic_bit_slice->operand(0)->BitCountOrDie();
+  int64_t start_width = dynamic_bit_slice->operand(1)->BitCountOrDie();
 
-  int64 max_width = std::max(value_width, start_width);
+  int64_t max_width = std::max(value_width, start_width);
   Z3_ast value_ext = Z3_mk_zero_ext(ctx_, max_width - value_width, value);
   Z3_ast start_ext = Z3_mk_zero_ext(ctx_, max_width - start_width, start);
 
@@ -914,7 +914,7 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(Type* value_type,
   if (value.IsBits()) {
     const Bits& bits = value.bits();
     std::unique_ptr<bool[]> booleans(new bool[bits.bit_count()]);
-    for (int64 i = 0; i < bits.bit_count(); ++i) {
+    for (int64_t i = 0; i < bits.bit_count(); ++i) {
       booleans[i] = bits.Get(i);
     }
     return Z3_mk_bv_numeral(ctx_, bits.bit_count(), &booleans[0]);
@@ -1044,7 +1044,7 @@ Z3_ast IrTranslator::UnflattenZ3Ast(Type* type, absl::Span<const Z3_ast> flat,
       std::vector<Z3_ast> elements;
       int high = tuple_type->GetFlatBitCount();
       for (Type* element_type : tuple_type->element_types()) {
-        int64 element_bits = element_type->GetFlatBitCount();
+        int64_t element_bits = element_type->GetFlatBitCount();
         absl::Span<const Z3_ast> subspan =
             flat.subspan(high - element_bits, element_bits);
         elements.push_back(

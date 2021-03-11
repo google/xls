@@ -63,8 +63,8 @@ class IntegrationFunction {
 
   // Estimate the cost of merging node_a and node_b. If nodes cannot be
   // merged, not value is returned.
-  absl::StatusOr<std::optional<int64>> GetMergeNodesCost(const Node* node_a,
-                                                         const Node* node_b);
+  absl::StatusOr<std::optional<int64_t>> GetMergeNodesCost(const Node* node_a,
+                                                           const Node* node_b);
 
   // Merge node_a and node_b. Operands are automatically multiplexed.
   // Returns the nodes that node_a and node_b map to after merging (vector
@@ -102,17 +102,17 @@ class IntegrationFunction {
 
   // Return the case indexes which are in active use for a mux
   // whose selector is global_mux_select_param_;
-  absl::StatusOr<const std::set<int64>*> GetGlobalMuxOccupiedCaseIndexes(
+  absl::StatusOr<const std::set<int64_t>*> GetGlobalMuxOccupiedCaseIndexes(
       const Node* node) const;
 
   // Return the case indices which were most recently added to a mux
   // whose selector is global_mux_select_param_;
-  absl::StatusOr<const std::set<int64>*> GetGlobalMuxLastCaseIndexesAdded(
+  absl::StatusOr<const std::set<int64_t>*> GetGlobalMuxLastCaseIndexesAdded(
       const Node* node) const;
 
   // Returns how many muxes whose selector is global_mux_select_param_
   // we track metadata for.
-  int64 GetNumberOfGlobalMuxesTracked() const;
+  int64_t GetNumberOfGlobalMuxesTracked() const;
 
   // For a mux produced by UnifyIntegrationNodes, undoes the previous
   // call to UnifyIntegrationNodes. Also updates
@@ -135,10 +135,10 @@ class IntegrationFunction {
       const Node* map_target) const;
 
   // Returns the source function index for the given node.
-  absl::StatusOr<int64> GetSourceFunctionIndexOfNode(const Node* node) const;
+  absl::StatusOr<int64_t> GetSourceFunctionIndexOfNode(const Node* node) const;
 
   // Returns the source function index of all nodes that map to 'map_target'.
-  absl::StatusOr<std::set<int64>> GetSourceFunctionIndexesOfNodesMappedToNode(
+  absl::StatusOr<std::set<int64_t>> GetSourceFunctionIndexesOfNodesMappedToNode(
       const Node* map_target) const;
 
   // Returns true if node_a and node_b are both map targets for nodes from a
@@ -170,7 +170,7 @@ class IntegrationFunction {
   }
 
   // Returns an estimate of the (gate count? area?) cost of a node.
-  int64 GetNodeCost(const Node* node) const;
+  int64_t GetNodeCost(const Node* node) const;
 
  private:
   IntegrationFunction(Package* package, const IntegrationOptions& options)
@@ -250,7 +250,7 @@ class IntegrationFunction {
   // are replaced with the nodes specified.
   absl::StatusOr<Node*> ReplaceMuxCases(
       Node* mux_node,
-      const absl::flat_hash_map<int64, Node*>& source_index_to_case);
+      const absl::flat_hash_map<int64_t, Node*>& source_index_to_case);
 
   // Track mapping of original function nodes to integrated function nodes.
   absl::flat_hash_map<const Node*, Node*> original_node_to_integrated_node_map_;
@@ -272,7 +272,7 @@ class IntegrationFunction {
 
     // Track which select arms map meaningful nodes for muxes
     // using the global_mux_select_param_ select signal.
-    std::set<int64> occupied_case_indexes;
+    std::set<int64_t> occupied_case_indexes;
 
     // Track which select arms were most recently added for muxes
     // using the global_mux_select_param_ select signal. Note that
@@ -280,7 +280,7 @@ class IntegrationFunction {
     // after calling UnifyIntegrationNodes, with no other calls to
     // UnifyIntegrationNodes for a given mux inbetween. Further, there should
     // not be repeated calls to DeUnifyIntegrationNodes for a given node.
-    std::set<int64> last_case_indexes_added;
+    std::set<int64_t> last_case_indexes_added;
   };
   // Track information about muxes that use global_mux_select_param_ as their
   // select signal.
@@ -290,7 +290,7 @@ class IntegrationFunction {
   std::vector<const Function*> source_functions_;
 
   // Maps each source function to a unique index.
-  absl::flat_hash_map<const FunctionBase*, int64>
+  absl::flat_hash_map<const FunctionBase*, int64_t>
       source_function_base_to_index_;
 
   // Integrated function.

@@ -42,7 +42,7 @@ TEST(FlowControlOptionsProtoBuilderTest, TokenCreditFlowControlFieldValues) {
 
 // Test field values for a total credit flow control option.
 TEST(FlowControlOptionsProtoBuilderTest, TotalCreditFlowControlFieldValues) {
-  const int64 kCreditBitWidth = 42;
+  const int64_t kCreditBitWidth = 42;
   LinkConfigProto::FlowControlConfigProto proto;
   FlowControlOptionsProtoBuilder builder(&proto);
   builder.EnableTotalCreditBasedFlowControl(kCreditBitWidth);

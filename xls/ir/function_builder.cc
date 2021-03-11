@@ -182,7 +182,7 @@ BValue BuilderBase::MatchTrue(absl::Span<const BValue> case_clauses,
         loc);
   }
   std::vector<Case> cases;
-  for (int64 i = 0; i < case_clauses.size(); ++i) {
+  for (int64_t i = 0; i < case_clauses.size(); ++i) {
     cases.push_back(Case{case_clauses[i], case_values[i]});
   }
   return MatchTrue(cases, default_value, loc, name);
@@ -197,7 +197,7 @@ BValue BuilderBase::MatchTrue(absl::Span<const Case> cases,
   }
   std::vector<BValue> selector_bits;
   std::vector<BValue> case_values;
-  for (int64 i = 0; i < cases.size(); ++i) {
+  for (int64_t i = 0; i < cases.size(); ++i) {
     XLS_CHECK_EQ(cases[i].clause.builder(), default_value.builder());
     XLS_CHECK_EQ(cases[i].value.builder(), default_value.builder());
     if (GetType(cases[i].clause) != package()->GetBitsType(1)) {
@@ -276,7 +276,7 @@ BValue BuilderBase::Array(absl::Span<const BValue> elements, Type* element_type,
   return AddNode<xls::Array>(loc, nodes, element_type, name);
 }
 
-BValue BuilderBase::TupleIndex(BValue arg, int64 idx,
+BValue BuilderBase::TupleIndex(BValue arg, int64_t idx,
                                absl::optional<SourceLocation> loc,
                                absl::string_view name) {
   if (ErrorPending()) {
@@ -291,8 +291,8 @@ BValue BuilderBase::TupleIndex(BValue arg, int64 idx,
   return AddNode<xls::TupleIndex>(loc, arg.node(), idx, name);
 }
 
-BValue BuilderBase::CountedFor(BValue init_value, int64 trip_count,
-                               int64 stride, Function* body,
+BValue BuilderBase::CountedFor(BValue init_value, int64_t trip_count,
+                               int64_t stride, Function* body,
                                absl::Span<const BValue> invariant_args,
                                absl::optional<SourceLocation> loc,
                                absl::string_view name) {
@@ -353,7 +353,7 @@ BValue BuilderBase::ArrayIndex(BValue arg, absl::Span<const BValue> indices,
   if (ErrorPending()) {
     return BValue();
   }
-  for (int64 i = 0; i < indices.size(); ++i) {
+  for (int64_t i = 0; i < indices.size(); ++i) {
     const BValue& index = indices[i];
     if (!index.node()->GetType()->IsBits()) {
       return SetError(absl::StrFormat("Indices to multi-array index operation "
@@ -383,7 +383,7 @@ BValue BuilderBase::ArrayUpdate(BValue arg, BValue update_value,
   if (ErrorPending()) {
     return BValue();
   }
-  for (int64 i = 0; i < indices.size(); ++i) {
+  for (int64_t i = 0; i < indices.size(); ++i) {
     const BValue& index = indices[i];
     if (!index.node()->GetType()->IsBits()) {
       return SetError(absl::StrFormat("Indices to multi-array update operation "
@@ -480,7 +480,7 @@ BValue BuilderBase::Identity(BValue var, absl::optional<SourceLocation> loc,
   return AddUnOp(Op::kIdentity, var, loc);
 }
 
-BValue BuilderBase::SignExtend(BValue arg, int64 new_bit_count,
+BValue BuilderBase::SignExtend(BValue arg, int64_t new_bit_count,
                                absl::optional<SourceLocation> loc,
                                absl::string_view name) {
   if (ErrorPending()) {
@@ -490,7 +490,7 @@ BValue BuilderBase::SignExtend(BValue arg, int64 new_bit_count,
                                 name);
 }
 
-BValue BuilderBase::ZeroExtend(BValue arg, int64 new_bit_count,
+BValue BuilderBase::ZeroExtend(BValue arg, int64_t new_bit_count,
                                absl::optional<SourceLocation> loc,
                                absl::string_view name) {
   if (ErrorPending()) {
@@ -500,7 +500,7 @@ BValue BuilderBase::ZeroExtend(BValue arg, int64 new_bit_count,
                                 name);
 }
 
-BValue BuilderBase::BitSlice(BValue arg, int64 start, int64 width,
+BValue BuilderBase::BitSlice(BValue arg, int64_t start, int64_t width,
                              absl::optional<SourceLocation> loc,
                              absl::string_view name) {
   if (ErrorPending()) {
@@ -520,7 +520,7 @@ BValue BuilderBase::BitSliceUpdate(BValue arg, BValue start,
                                       update_value.node(), name);
 }
 
-BValue BuilderBase::DynamicBitSlice(BValue arg, BValue start, int64 width,
+BValue BuilderBase::DynamicBitSlice(BValue arg, BValue start, int64_t width,
                                     absl::optional<SourceLocation> loc,
                                     absl::string_view name) {
   if (ErrorPending()) {
@@ -538,7 +538,7 @@ BValue BuilderBase::Encode(BValue arg, absl::optional<SourceLocation> loc,
   return AddNode<xls::Encode>(loc, arg.node(), name);
 }
 
-BValue BuilderBase::Decode(BValue arg, absl::optional<int64> width,
+BValue BuilderBase::Decode(BValue arg, absl::optional<int64_t> width,
                            absl::optional<SourceLocation> loc,
                            absl::string_view name) {
   if (ErrorPending()) {
@@ -551,7 +551,7 @@ BValue BuilderBase::Decode(BValue arg, absl::optional<int64> width,
   }
   // The full output width ('width' not given) is an exponential function of the
   // argument width. Set a limit of 16 bits on the argument width.
-  const int64 arg_width = arg.GetType()->AsBitsOrDie()->bit_count();
+  const int64_t arg_width = arg.GetType()->AsBitsOrDie()->bit_count();
   if (!width.has_value() && arg_width > 16) {
     return SetError(
         StrFormat(
@@ -688,7 +688,7 @@ BValue BuilderBase::UMul(BValue lhs, BValue rhs,
   return AddArithOp(Op::kUMul, lhs, rhs, /*result_width=*/absl::nullopt, loc,
                     name);
 }
-BValue BuilderBase::SMul(BValue lhs, BValue rhs, int64 result_width,
+BValue BuilderBase::SMul(BValue lhs, BValue rhs, int64_t result_width,
                          absl::optional<SourceLocation> loc,
                          absl::string_view name) {
   if (ErrorPending()) {
@@ -696,7 +696,7 @@ BValue BuilderBase::SMul(BValue lhs, BValue rhs, int64 result_width,
   }
   return AddArithOp(Op::kSMul, lhs, rhs, result_width, loc, name);
 }
-BValue BuilderBase::UMul(BValue lhs, BValue rhs, int64 result_width,
+BValue BuilderBase::UMul(BValue lhs, BValue rhs, int64_t result_width,
                          absl::optional<SourceLocation> loc,
                          absl::string_view name) {
   if (ErrorPending()) {
@@ -946,7 +946,7 @@ BValue ProcBuilder::Param(absl::string_view name, Type* type,
 }
 
 BValue BuilderBase::AddArithOp(Op op, BValue lhs, BValue rhs,
-                               absl::optional<int64> result_width,
+                               absl::optional<int64_t> result_width,
                                absl::optional<SourceLocation> loc,
                                absl::string_view name) {
   XLS_CHECK_EQ(lhs.builder(), rhs.builder());
@@ -959,7 +959,7 @@ BValue BuilderBase::AddArithOp(Op op, BValue lhs, BValue rhs,
                   lhs.GetType()->ToString(), rhs.GetType()->ToString()),
         loc);
   }
-  int64 width;
+  int64_t width;
   if (result_width.has_value()) {
     width = *result_width;
   } else {

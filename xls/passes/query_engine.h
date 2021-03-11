@@ -25,10 +25,10 @@ namespace xls {
 // Abstraction representing a particular bit of a particular XLS Node.
 struct BitLocation {
   BitLocation() : node(nullptr), bit_index(0) {}
-  BitLocation(Node* n, int64 i) : node(n), bit_index(i) {}
+  BitLocation(Node* n, int64_t i) : node(n), bit_index(i) {}
 
   Node* node;
-  int64 bit_index;
+  int64_t bit_index;
 };
 
 // An abstract base class providing an interface for answering queries about the

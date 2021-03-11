@@ -31,10 +31,10 @@ class VirtualChannelConfigProtoBuilder {
   VirtualChannelConfigProtoBuilder& WithName(absl::string_view name);
 
   // Adds the flit bit width configuration to the virtual channel.
-  VirtualChannelConfigProtoBuilder& WithFlitBitWidth(int64 flit_bit_width);
+  VirtualChannelConfigProtoBuilder& WithFlitBitWidth(int64_t flit_bit_width);
 
   // Adds the depth configuration to the virtual channel.
-  VirtualChannelConfigProtoBuilder& WithDepth(int64 depth);
+  VirtualChannelConfigProtoBuilder& WithDepth(int64_t depth);
 
  private:
   VirtualChannelConfigProto* proto_;

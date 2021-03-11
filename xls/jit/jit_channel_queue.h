@@ -14,12 +14,12 @@
 #ifndef XLS_JIT_JIT_CHANNEL_QUEUE_H_
 #define XLS_JIT_JIT_CHANNEL_QUEUE_H_
 
+#include <cstdint>
 #include <deque>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/package.h"
 
@@ -35,16 +35,16 @@ namespace xls {
 // TODO(rspringer): Add data pools to avoid extra memcpy and heap alloc.
 class JitChannelQueue {
  public:
-  JitChannelQueue(int64 channel_id) : channel_id_(channel_id) {}
+  JitChannelQueue(int64_t channel_id) : channel_id_(channel_id) {}
 
   // Called to push data onto this queue/FIFO.
-  void Send(uint8* data, int64 num_bytes) {
+  void Send(uint8_t* data, int64_t num_bytes) {
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
     __msan_unpoison(data, num_bytes);
 #endif
-    std::unique_ptr<uint8[]> buffer;
+    std::unique_ptr<uint8_t[]> buffer;
     if (buffer_pool_.empty()) {
-      buffer = std::make_unique<uint8[]>(num_bytes);
+      buffer = std::make_unique<uint8_t[]>(num_bytes);
     } else {
       buffer = std::move(buffer_pool_.back());
       buffer_pool_.pop_back();
@@ -55,7 +55,7 @@ class JitChannelQueue {
   }
 
   // Called to pull data off of this queue/FIFO.
-  void Recv(uint8* buffer, int64 num_bytes) {
+  void Recv(uint8_t* buffer, int64_t num_bytes) {
     absl::MutexLock lock(&mutex_);
     memcpy(buffer, the_queue_.front().get(), num_bytes);
     buffer_pool_.push_back(std::move(the_queue_.front()));
@@ -67,13 +67,13 @@ class JitChannelQueue {
     return the_queue_.empty();
   }
 
-  int64 channel_id() { return channel_id_; }
+  int64_t channel_id() { return channel_id_; }
 
  protected:
-  int64 channel_id_;
+  int64_t channel_id_;
   absl::Mutex mutex_;
-  std::deque<std::unique_ptr<uint8[]>> the_queue_ ABSL_GUARDED_BY(mutex_);
-  std::vector<std::unique_ptr<uint8[]>> buffer_pool_;
+  std::deque<std::unique_ptr<uint8_t[]>> the_queue_ ABSL_GUARDED_BY(mutex_);
+  std::vector<std::unique_ptr<uint8_t[]>> buffer_pool_;
 };
 
 // JitChannelQueue respository. Holds the set of queues known by a given proc.
@@ -84,7 +84,7 @@ class JitChannelQueueManager {
   static absl::StatusOr<std::unique_ptr<JitChannelQueueManager>> Create(
       Package* package);
 
-  absl::StatusOr<JitChannelQueue*> GetQueueById(int64 channel_id) {
+  absl::StatusOr<JitChannelQueue*> GetQueueById(int64_t channel_id) {
     XLS_RET_CHECK(queues_.contains(channel_id));
     return queues_.at(channel_id).get();
   }
@@ -94,7 +94,7 @@ class JitChannelQueueManager {
   absl::Status Init();
 
   Package* package_;
-  absl::flat_hash_map<int64, std::unique_ptr<JitChannelQueue>> queues_;
+  absl::flat_hash_map<int64_t, std::unique_ptr<JitChannelQueue>> queues_;
 };
 
 }  // namespace xls

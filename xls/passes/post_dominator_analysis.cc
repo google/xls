@@ -33,7 +33,7 @@
 namespace xls {
 namespace {
 
-using NodeIndex = int64;
+using NodeIndex = int64_t;
 
 // Returns the intersection of the given sorted lists. Lists should be sorted in
 // ascending order.
@@ -43,12 +43,12 @@ std::vector<NodeIndex> IntersectSortedLists(
   if (lists.empty()) {
     return intersection;
   }
-  std::vector<int64> indices(lists.size(), 0);
+  std::vector<int64_t> indices(lists.size(), 0);
 
   // Returns true if any of the indices are at the end of their respective
   // lists.
   auto at_end_of_a_list = [&]() {
-    for (int64 i = 0; i < indices.size(); ++i) {
+    for (int64_t i = 0; i < indices.size(); ++i) {
       if (indices[i] == lists[i].size()) {
         return true;
       }
@@ -59,7 +59,7 @@ std::vector<NodeIndex> IntersectSortedLists(
     // Find the minimum value among the list elements at their respective
     // indices.
     NodeIndex min_value = lists[0][indices[0]];
-    for (int64 i = 1; i < lists.size(); ++i) {
+    for (int64_t i = 1; i < lists.size(); ++i) {
       NodeIndex value = lists[i][indices[i]];
       if (value < min_value) {
         min_value = value;
@@ -67,8 +67,8 @@ std::vector<NodeIndex> IntersectSortedLists(
     }
 
     // Advance all list indices which hold the minimum value.
-    int64 match_count = 0;
-    for (int64 i = 0; i < lists.size(); ++i) {
+    int64_t match_count = 0;
+    for (int64_t i = 0; i < lists.size(); ++i) {
       if (lists[i][indices[i]] == min_value) {
         indices[i]++;
         match_count++;

@@ -38,7 +38,7 @@ ABSL_FLAG(bool, trace_all, false, "Trace every expression.");
 ABSL_FLAG(bool, compare_jit, true,
           "Compare interpreted and JIT execution of each function.");
 ABSL_FLAG(
-    int64, seed, 0,
+    int64_t, seed, 0,
     "Seed for quickcheck random stimulus; 0 for an nondetermistic value.");
 // TODO(leary): 2021-01-19 allow filters with wildcards.
 ABSL_FLAG(std::string, test_filter, "",
@@ -61,7 +61,7 @@ bool TestMatchesFilter(absl::string_view test_name,
 }
 
 absl::Status RunQuickCheck(Interpreter* interp, Package* ir_package,
-                           QuickCheck* quickcheck, int64 seed) {
+                           QuickCheck* quickcheck, int64_t seed) {
   Function* fn = quickcheck->f();
   XLS_ASSIGN_OR_RETURN(
       std::string ir_name,
@@ -91,7 +91,7 @@ absl::Status RunQuickCheck(Interpreter* interp, Package* ir_package,
   const std::vector<std::unique_ptr<ConcreteType>>& params = fn_type->params();
 
   std::vector<InterpValue> dslx_argset;
-  for (int64 i = 0; i < params.size(); ++i) {
+  for (int64_t i = 0; i < params.size(); ++i) {
     const ConcreteType& arg_type = *params[i];
     const Value& value = last_argset[i];
     XLS_ASSIGN_OR_RETURN(InterpValue interp_value,
@@ -129,10 +129,10 @@ absl::StatusOr<bool> ParseAndTest(
     absl::string_view filename, absl::Span<const std::string> dslx_paths,
     absl::optional<absl::string_view> test_filter = absl::nullopt,
     bool trace_all = false, bool compare_jit = true,
-    absl::optional<int64> seed = absl::nullopt) {
-  int64 ran = 0;
-  int64 failed = 0;
-  int64 skipped = 0;
+    absl::optional<int64_t> seed = absl::nullopt) {
+  int64_t ran = 0;
+  int64_t failed = 0;
+  int64_t skipped = 0;
 
   constexpr int kUnitSpaces = 7;
   constexpr int kQuickcheckSpaces = 15;
@@ -215,7 +215,8 @@ absl::StatusOr<bool> ParseAndTest(
       // Note: we *want* to *provide* non-determinism by default. See
       // https://abseil.io/docs/cpp/guides/random#stability-of-generated-sequences
       // for rationale.
-      seed = static_cast<int64>(getpid()) * static_cast<int64>(time(nullptr));
+      seed =
+          static_cast<int64_t>(getpid()) * static_cast<int64_t>(time(nullptr));
     }
     std::cerr << absl::StreamFormat("[ SEED %*d ]", kQuickcheckSpaces + 1,
                                     *seed)
@@ -244,7 +245,7 @@ absl::StatusOr<bool> ParseAndTest(
 absl::Status RealMain(absl::string_view entry_module_path,
                       absl::Span<const std::string> dslx_paths,
                       absl::optional<std::string> test_filter, bool trace_all,
-                      bool compare_jit, absl::optional<int64> seed,
+                      bool compare_jit, absl::optional<int64_t> seed,
                       bool* printed_error) {
   XLS_ASSIGN_OR_RETURN(std::string program, GetFileContents(entry_module_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(entry_module_path));
@@ -273,8 +274,9 @@ int main(int argc, char* argv[]) {
   bool compare_jit = absl::GetFlag(FLAGS_compare_jit);
 
   // Optional seed value.
-  absl::optional<int64> seed;
-  if (int64 seed_flag_value = absl::GetFlag(FLAGS_seed); seed_flag_value != 0) {
+  absl::optional<int64_t> seed;
+  if (int64_t seed_flag_value = absl::GetFlag(FLAGS_seed);
+      seed_flag_value != 0) {
     seed = seed_flag_value;
   }
 

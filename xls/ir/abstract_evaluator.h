@@ -15,11 +15,11 @@
 #ifndef XLS_IR_ABSTRACT_EVALUATOR_H_
 #define XLS_IR_ABSTRACT_EVALUATOR_H_
 
+#include <cstdint>
 #include <vector>
 
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -66,7 +66,7 @@ class AbstractEvaluator {
   // Returns the given bits value as a Vector type.
   Vector BitsToVector(const Bits& bits) {
     Vector result(bits.bit_count());
-    for (int64 i = 0; i < bits.bit_count(); ++i) {
+    for (int64_t i = 0; i < bits.bit_count(); ++i) {
       result[i] = bits.Get(i) ? One() : Zero();
     }
     return result;
@@ -74,7 +74,7 @@ class AbstractEvaluator {
 
   Vector BitwiseNot(const Vector& input) {
     Vector result(input.size());
-    for (int64 i = 0; i < input.size(); ++i) {
+    for (int64_t i = 0; i < input.size(); ++i) {
       result[i] = Not(input[i]);
     }
     return result;
@@ -106,12 +106,12 @@ class AbstractEvaluator {
     return BitwiseXor({a, b});
   }
 
-  Vector BitSlice(const Vector& input, int64 start, int64 width) {
+  Vector BitSlice(const Vector& input, int64_t start, int64_t width) {
     XLS_CHECK_GE(start, 0);
     XLS_CHECK_LE(start + width, input.size());
     XLS_CHECK_GE(width, 0);
     Vector result(width);
-    for (int64 i = 0; i < width; ++i) {
+    for (int64_t i = 0; i < width; ++i) {
       result[i] = input[start + i];
     }
     return result;
@@ -119,7 +119,7 @@ class AbstractEvaluator {
 
   Vector Concat(absl::Span<const Vector> inputs) {
     Vector result;
-    for (int64 i = inputs.size() - 1; i >= 0; --i) {
+    for (int64_t i = inputs.size() - 1; i >= 0; --i) {
       result.insert(result.end(), inputs[i].begin(), inputs[i].end());
     }
     return result;
@@ -128,7 +128,7 @@ class AbstractEvaluator {
   Element Equals(const Vector& a, const Vector& b) {
     XLS_CHECK_EQ(a.size(), b.size());
     Element result = One();
-    for (int64 i = 0; i < a.size(); ++i) {
+    for (int64_t i = 0; i < a.size(); ++i) {
       result = And(result, Or(And(a[i], b[i]), And(Not(a[i]), Not(b[i]))));
     }
     return result;
@@ -153,7 +153,7 @@ class AbstractEvaluator {
     XLS_CHECK_EQ(a.size(), b.size());
     Element result = Zero();
     Element upper_bits_lte = One();
-    for (int64 i = a.size() - 1; i >= 0; --i) {
+    for (int64_t i = a.size() - 1; i >= 0; --i) {
       result = Or(result, And(upper_bits_lte, And(Not(a[i]), b[i])));
       upper_bits_lte = And(upper_bits_lte, Or(Not(a[i]), b[i]));
     }
@@ -174,7 +174,7 @@ class AbstractEvaluator {
                 absl::optional<const Vector> default_value = absl::nullopt) {
     // Turn the binary selector into a one-hot selector.
     Vector one_hot_selector;
-    for (int64 i = 0; i < cases.size(); ++i) {
+    for (int64_t i = 0; i < cases.size(); ++i) {
       one_hot_selector.push_back(
           Equals(selector, BitsToVector(UBits(i, selector.size()))));
     }
@@ -196,7 +196,7 @@ class AbstractEvaluator {
     Element all_zero = One();
     Element any_one = Zero();
     Vector result;
-    for (int64 i = input.size() - 1; i >= 0; --i) {
+    for (int64_t i = input.size() - 1; i >= 0; --i) {
       result.push_back(And(all_zero, input[i]));
       all_zero = And(all_zero, Not(input[i]));
       any_one = Or(any_one, input[i]);
@@ -209,7 +209,7 @@ class AbstractEvaluator {
     Element all_zero = One();
     Element any_one = Zero();
     Vector result;
-    for (int64 i = 0; i < input.size(); ++i) {
+    for (int64_t i = 0; i < input.size(); ++i) {
       result.push_back(And(all_zero, input[i]));
       all_zero = And(all_zero, Not(input[i]));
       any_one = Or(any_one, input[i]);
@@ -249,7 +249,7 @@ class AbstractEvaluator {
     //
     // Then left shifting it the dynamic amount 'start' and bit-wise inverting
     // it.
-    int64 num_ones = std::min(input.size(), value.size());
+    int64_t num_ones = std::min(input.size(), value.size());
     Bits start_ones =
         bits_ops::ZeroExtend(Bits::AllOnes(num_ones), input.size());
     Vector mask = BitwiseNot(ShiftLeftLogical(BitsToVector(start_ones), start));
@@ -264,18 +264,18 @@ class AbstractEvaluator {
   }
 
   // Binary encode and decode operations.
-  Vector Decode(const Vector& input, int64 result_width) {
+  Vector Decode(const Vector& input, int64_t result_width) {
     Vector result(result_width);
-    for (int64 i = 0; i < result_width; ++i) {
+    for (int64_t i = 0; i < result_width; ++i) {
       result[i] = Equals(input, BitsToVector(UBits(i, input.size())));
     }
     return result;
   }
   Vector Encode(const Vector& input) {
-    int64 result_width = Bits::MinBitCountUnsigned(input.size() - 1);
+    int64_t result_width = Bits::MinBitCountUnsigned(input.size() - 1);
     Vector result(result_width, Zero());
-    for (int64 i = 0; i < input.size(); ++i) {
-      for (int64 j = 0; j < result_width; ++j) {
+    for (int64_t i = 0; i < input.size(); ++i) {
+      for (int64_t j = 0; j < result_width; ++j) {
         if ((i >> j) & 1) {
           result[j] = Or(result[j], input[i]);
         }
@@ -284,12 +284,12 @@ class AbstractEvaluator {
     return result;
   }
 
-  Vector ZeroExtend(const Vector& input, int64 new_width) {
+  Vector ZeroExtend(const Vector& input, int64_t new_width) {
     XLS_CHECK_GE(new_width, input.size());
     return Concat({Vector(new_width - input.size(), Zero()), input});
   }
 
-  Vector SignExtend(const Vector& input, int64 new_width) {
+  Vector SignExtend(const Vector& input, int64_t new_width) {
     XLS_CHECK_GE(input.size(), 1);
     XLS_CHECK_GE(new_width, input.size());
     return Concat({Vector(new_width - input.size(), input.back()), input});
@@ -392,10 +392,10 @@ class AbstractEvaluator {
                               bool selector_can_be_zero) {
     XLS_CHECK_EQ(selector.size(), cases.size());
     XLS_CHECK_GT(selector.size(), 0);
-    int64 width = cases.front().size();
+    int64_t width = cases.front().size();
     Vector result(width, Zero());
-    for (int64 i = 0; i < selector.size(); ++i) {
-      for (int64 j = 0; j < width; ++j) {
+    for (int64_t i = 0; i < selector.size(); ++i) {
+      for (int64_t j = 0; j < width; ++j) {
         result[j] = Or(result[j], And(cases[i][j], selector[i]));
       }
     }
@@ -404,9 +404,9 @@ class AbstractEvaluator {
       // zero if one of the respective bits of one of the cases is zero.
       // Construct such a mask and or it with the result.
       Vector and_reduction(width, One());
-      for (int64 i = 0; i < selector.size(); ++i) {
+      for (int64_t i = 0; i < selector.size(); ++i) {
         if (selector[i] != Zero()) {
-          for (int64 j = 0; j < width; ++j) {
+          for (int64_t j = 0; j < width; ++j) {
             and_reduction[j] = And(and_reduction[j], cases[i][j]);
           }
         }
@@ -422,8 +422,8 @@ class AbstractEvaluator {
                 absl::FunctionRef<Element(const Element&, const Element&)> f) {
     XLS_CHECK_GT(inputs.size(), 0);
     Vector result(inputs.front());
-    for (int64 i = 1; i < inputs.size(); ++i) {
-      for (int64 j = 0; j < result.size(); ++j) {
+    for (int64_t i = 1; i < inputs.size(); ++i) {
+      for (int64_t j = 0; j < result.size(); ++j) {
         result[j] = f(result[j], inputs[i][j]);
       }
     }
@@ -445,10 +445,10 @@ class AbstractEvaluator {
     //   i == input.size()             : selector[i] = amount >= input.size()
     Vector selector;
     selector.reserve(input.size() + 1);
-    auto bits_vector = [&](int64 v) {
+    auto bits_vector = [&](int64_t v) {
       return BitsToVector(UBits(v, amount.size()));
     };
-    for (int64 i = 0; i < input.size(); ++i) {
+    for (int64_t i = 0; i < input.size(); ++i) {
       if (amount.size() < Bits::MinBitCountUnsigned(i)) {
         // 'amount' doesn't have enough bits to express this shift amount.
         break;
@@ -506,10 +506,10 @@ class AbstractEvaluator {
       //    cases[3] =  000a
       //    cases[4] = 0000
       extended.insert(extended.begin(), input.begin(), input.end());
-      for (int64 i = 0; i < selector.size() - 1; ++i) {
+      for (int64_t i = 0; i < selector.size() - 1; ++i) {
         extended.push_back(arithmetic ? input.back() : Zero());
       }
-      for (int64 i = 0; i < selector.size(); ++i) {
+      for (int64_t i = 0; i < selector.size(); ++i) {
         cases.push_back(absl::MakeConstSpan(&extended[i], input.size()));
       }
     } else {
@@ -523,13 +523,13 @@ class AbstractEvaluator {
       //    cases[2] =   cd00     // ...
       //    cases[3] =    c000
       //    cases[4] =     0000
-      for (int64 i = 0; i < selector.size() - 1; ++i) {
+      for (int64_t i = 0; i < selector.size() - 1; ++i) {
         extended.push_back(Zero());
       }
-      for (int64 i = 0; i < input.size(); ++i) {
+      for (int64_t i = 0; i < input.size(); ++i) {
         extended.push_back(input[i]);
       }
-      for (int64 i = 0; i < selector.size(); ++i) {
+      for (int64_t i = 0; i < selector.size(); ++i) {
         cases.push_back(absl::MakeConstSpan(&extended[selector.size() - 1 - i],
                                             input.size()));
       }

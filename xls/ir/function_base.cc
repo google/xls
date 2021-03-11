@@ -41,7 +41,7 @@ absl::StatusOr<Param*> FunctionBase::GetParamByName(
                       name(), param_name));
 }
 
-absl::StatusOr<int64> FunctionBase::GetParamIndex(Param* param) const {
+absl::StatusOr<int64_t> FunctionBase::GetParamIndex(Param* param) const {
   auto it = std::find(params_.begin(), params_.end(), param);
   if (it == params_.end()) {
     return absl::InvalidArgumentError(

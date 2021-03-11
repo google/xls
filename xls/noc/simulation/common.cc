@@ -20,17 +20,17 @@
 namespace xls {
 namespace noc {
 
-absl::StatusOr<NetworkId> NetworkId::ValidateAndReturnId(int64 id) {
+absl::StatusOr<NetworkId> NetworkId::ValidateAndReturnId(int64_t id) {
   if (id > MaxIndex()) {
     return absl::OutOfRangeError(absl::StrFormat(
         "Cannot pack %d to a NetworkId, expected <= %d", id, MaxIndex()));
   }
 
-  return NetworkId(static_cast<uint16>(id));
+  return NetworkId(static_cast<uint16_t>(id));
 }
 
 absl::StatusOr<NetworkComponentId> NetworkComponentId::ValidateAndReturnId(
-    int64 network, int64 id) {
+    int64_t network, int64_t id) {
   XLS_ASSIGN_OR_RETURN(NetworkId network_id,
                        NetworkId::ValidateAndReturnId(network));
 
@@ -40,11 +40,11 @@ absl::StatusOr<NetworkComponentId> NetworkComponentId::ValidateAndReturnId(
                         id, MaxIndex()));
   }
 
-  return NetworkComponentId(network_id.id(), static_cast<uint32>(id));
+  return NetworkComponentId(network_id.id(), static_cast<uint32_t>(id));
 }
 
-absl::StatusOr<ConnectionId> ConnectionId::ValidateAndReturnId(int64 network,
-                                                               int64 id) {
+absl::StatusOr<ConnectionId> ConnectionId::ValidateAndReturnId(int64_t network,
+                                                               int64_t id) {
   XLS_ASSIGN_OR_RETURN(NetworkId network_id,
                        NetworkId::ValidateAndReturnId(network));
 
@@ -53,11 +53,12 @@ absl::StatusOr<ConnectionId> ConnectionId::ValidateAndReturnId(int64 network,
         "Cannot pack %d to a ConnectionId, expected <= %d", id, MaxIndex()));
   }
 
-  return ConnectionId(network_id.id(), static_cast<uint32>(id));
+  return ConnectionId(network_id.id(), static_cast<uint32_t>(id));
 }
 
-absl::StatusOr<PortId> PortId::ValidateAndReturnId(int64 network,
-                                                   int64 component, int64 id) {
+absl::StatusOr<PortId> PortId::ValidateAndReturnId(int64_t network,
+                                                   int64_t component,
+                                                   int64_t id) {
   XLS_ASSIGN_OR_RETURN(
       NetworkComponentId component_id,
       NetworkComponentId::ValidateAndReturnId(network, component));
@@ -68,7 +69,7 @@ absl::StatusOr<PortId> PortId::ValidateAndReturnId(int64 network,
   }
 
   return PortId(component_id.GetNetworkId().id(), component_id.id(),
-                static_cast<uint16>(id));
+                static_cast<uint16_t>(id));
 }
 
 }  // namespace noc

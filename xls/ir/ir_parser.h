@@ -124,8 +124,8 @@ class Parser {
   // A thin convenience function which parses a single boolean literal.
   absl::StatusOr<bool> ParseBool();
 
-  // A thin convenience function which parses a single int64 number.
-  absl::StatusOr<int64> ParseInt64();
+  // A thin convenience function which parses a single int64_t number.
+  absl::StatusOr<int64_t> ParseInt64();
 
   // A thin convenience function which parses a single identifier string.
   absl::StatusOr<std::string> ParseIdentifier(TokenPos* pos = nullptr);
@@ -178,7 +178,7 @@ class Parser {
   absl::StatusOr<Type*> ParseBitsType(Package* package);
 
   // Parses a bits types and returns the width.
-  absl::StatusOr<int64> ParseBitsTypeAndReturnWidth();
+  absl::StatusOr<int64_t> ParseBitsTypeAndReturnWidth();
 
   // Builds a binary or unary BValue with the given Op using the given
   // FunctionBuilder and arg parser.

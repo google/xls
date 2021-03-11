@@ -84,16 +84,16 @@ namespace {
 
 // TODO(leary): 2019-08-19 Read all of the curve-fit values from a
 // characterization file for easier reference / recomputing if necessary.
-/* static */ absl::StatusOr<int64> GetLogicalEffortDelayInTau(Node* node) {
+/* static */ absl::StatusOr<int64_t> GetLogicalEffortDelayInTau(Node* node) {
   auto get_logical_effort = [node](netlist::CellKind kind,
-                                   bool invert) -> absl::StatusOr<int64> {
+                                   bool invert) -> absl::StatusOr<int64_t> {
     XLS_ASSIGN_OR_RETURN(double base_effort,
                          netlist::logical_effort::GetLogicalEffort(
                              kind, node->operands().size()));
     return std::ceil(invert ? base_effort + 1LL : base_effort);
   };
   auto get_reduction_logical_effort =
-      [node](netlist::CellKind kind, bool invert) -> absl::StatusOr<int64> {
+      [node](netlist::CellKind kind, bool invert) -> absl::StatusOr<int64_t> {
     int bit_count = node->BitCountOrDie();
     if (bit_count < 2) {
       return 0;
@@ -130,13 +130,13 @@ namespace {
       // Each output bit is the OR reduction of half of the input
       // bits. Equivalently the NOR reduction delay plus an inverter delay.
       // TODO(meheff): Characterize this properly.
-      int64 operand_width = node->operand(0)->BitCountOrDie();
+      int64_t operand_width = node->operand(0)->BitCountOrDie();
       if (operand_width <= 2) {
         // A 2-bit or less encode simply passes through the MSB.
         return 0;
       } else {
         XLS_ASSIGN_OR_RETURN(
-            int64 nor_delay,
+            int64_t nor_delay,
             netlist::logical_effort::GetLogicalEffort(netlist::CellKind::kNor,
                                                       (operand_width + 1) / 2));
         return std::ceil(nor_delay + 1);
@@ -152,9 +152,9 @@ namespace {
 
 }  // namespace
 
-/* static */ absl::StatusOr<int64> DelayEstimator::GetLogicalEffortDelayInPs(
-    Node* node, int64 tau_in_ps) {
-  XLS_ASSIGN_OR_RETURN(int64 delay_in_tau, GetLogicalEffortDelayInTau(node));
+/* static */ absl::StatusOr<int64_t> DelayEstimator::GetLogicalEffortDelayInPs(
+    Node* node, int64_t tau_in_ps) {
+  XLS_ASSIGN_OR_RETURN(int64_t delay_in_tau, GetLogicalEffortDelayInTau(node));
   return delay_in_tau * tau_in_ps;
 }
 

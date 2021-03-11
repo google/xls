@@ -33,7 +33,7 @@ namespace {
 
 // Generates a pipeline with the given number of stages.
 absl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithNStages(
-    Package* package, int64 stages, absl::string_view module_name) {
+    Package* package, int64_t stages, absl::string_view module_name) {
   XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
@@ -47,7 +47,7 @@ absl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithNStages(
 
 // Generates a pipeline with the given clock period.
 absl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithClockPeriod(
-    Package* package, int64 clock_period_ps, absl::string_view module_name) {
+    Package* package, int64_t clock_period_ps, absl::string_view module_name) {
   XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,

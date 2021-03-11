@@ -88,7 +88,7 @@ TEST_F(ChannelQueueTest, InputQueue) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kReceiveOnly,
                                      package.GetBitsType(32)));
-  int64 counter = 42;
+  int64_t counter = 42;
   RxOnlyChannelQueue queue(channel, &package, [&]() -> absl::StatusOr<Value> {
     return Value(UBits(counter++, 32));
   });

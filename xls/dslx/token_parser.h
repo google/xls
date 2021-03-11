@@ -31,7 +31,7 @@ class TokenParser {
   // Currently just a plain integer, representing the index into the token
   // stream, but this could be swapped out for a different representation as
   // designs get larger.
-  using ScannerCheckpoint = int64;
+  using ScannerCheckpoint = int64_t;
 
   // Returns the current location in the token stream. Used when "backtracking"
   // from a bad production in the parser.
@@ -182,7 +182,7 @@ class TokenParser {
 
  private:
   Scanner* scanner_;
-  int64 index_;
+  int64_t index_;
   std::vector<Token> tokens_;
 };
 

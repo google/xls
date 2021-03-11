@@ -41,7 +41,7 @@ PYBIND11_MODULE(cpp_parametric_expression, m) {
            [](const ParametricExpression& self,
               const std::unordered_map<
                   std::string,
-                  absl::variant<const ParametricExpression*, int64>>& env) {
+                  absl::variant<const ParametricExpression*, int64_t>>& env) {
              ParametricExpression::Env fhm_env(env.begin(), env.end());
              return self.Evaluate(fhm_env);
            });
@@ -56,7 +56,7 @@ PYBIND11_MODULE(cpp_parametric_expression, m) {
             return ParametricMul(lhs.Clone(), rhs.Clone());
           }));
   py::class_<ParametricConstant, ParametricExpression>(m, "ParametricConstant")
-      .def(py::init<int64>());
+      .def(py::init<int64_t>());
   py::class_<ParametricSymbol, ParametricExpression>(m, "ParametricSymbol")
       .def(py::init<std::string, Span>())
       .def_property_readonly("identifier", &ParametricSymbol::identifier);

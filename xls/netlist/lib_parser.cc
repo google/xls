@@ -59,7 +59,7 @@ std::string TokenKindToString(TokenKind kind) {
     case TokenKind::kComma:
       return "comma";
   }
-  return absl::StrFormat("<invalid TokenKind(%d)>", static_cast<int64>(kind));
+  return absl::StrFormat("<invalid TokenKind(%d)>", static_cast<int64_t>(kind));
 }
 
 absl::StatusOr<Token> Scanner::ScanIdentifier() {
@@ -213,8 +213,8 @@ const std::string& Block::GetKVOrDie(absl::string_view target_key) const {
                  << " block: " << target_key;
 }
 
-int64 Block::CountEntries(absl::string_view target) const {
-  int64 count = 0;
+int64_t Block::CountEntries(absl::string_view target) const {
+  int64_t count = 0;
   for (const BlockEntry& entry : entries) {
     if (const KVEntry* kv = absl::get_if<KVEntry>(&entry)) {
       count += kv->key == target;

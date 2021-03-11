@@ -44,7 +44,7 @@ class BValue {
 
   Node* node() const { return node_; }
   Type* GetType() const { return node()->GetType(); }
-  int64 BitCountOrDie() const { return node()->BitCountOrDie(); }
+  int64_t BitCountOrDie() const { return node()->BitCountOrDie(); }
   absl::optional<SourceLocation> loc() const { return node_->loc(); }
   std::string ToString() const {
     return node_ == nullptr ? std::string("<null BValue>") : node_->ToString();
@@ -195,10 +195,10 @@ class BuilderBase {
 
   // Signed/unsigned multiply with explicitly specified result width. Operand
   // widths can be arbitrary.
-  BValue UMul(BValue lhs, BValue rhs, int64 result_width,
+  BValue UMul(BValue lhs, BValue rhs, int64_t result_width,
               absl::optional<SourceLocation> loc = absl::nullopt,
               absl::string_view name = "");
-  BValue SMul(BValue lhs, BValue rhs, int64 result_width,
+  BValue SMul(BValue lhs, BValue rhs, int64_t result_width,
               absl::optional<SourceLocation> loc = absl::nullopt,
               absl::string_view name = "");
 
@@ -376,7 +376,7 @@ class BuilderBase {
                absl::string_view name = "");
 
   // Adds an tuple index expression.
-  BValue TupleIndex(BValue arg, int64 idx,
+  BValue TupleIndex(BValue arg, int64_t idx,
                     absl::optional<SourceLocation> loc = absl::nullopt,
                     absl::string_view name = "");
 
@@ -396,7 +396,7 @@ class BuilderBase {
   //
   // Returns the value that results from this counted for loop after it has
   // completed all of its trips.
-  BValue CountedFor(BValue init_value, int64 trip_count, int64 stride,
+  BValue CountedFor(BValue init_value, int64_t trip_count, int64_t stride,
                     Function* body,
                     absl::Span<const BValue> invariant_args = {},
                     absl::optional<SourceLocation> loc = absl::nullopt,
@@ -473,18 +473,18 @@ class BuilderBase {
                   absl::string_view name = "");
 
   // Sign-extends arg to the new_bit_count.
-  BValue SignExtend(BValue arg, int64 new_bit_count,
+  BValue SignExtend(BValue arg, int64_t new_bit_count,
                     absl::optional<SourceLocation> loc = absl::nullopt,
                     absl::string_view name = "");
 
   // Zero-extends arg to the new_bit_count.
-  BValue ZeroExtend(BValue arg, int64 new_bit_count,
+  BValue ZeroExtend(BValue arg, int64_t new_bit_count,
                     absl::optional<SourceLocation> loc = absl::nullopt,
                     absl::string_view name = "");
 
   // Extracts a slice from the bits-typed arg. 'start' is the first bit of the
   // slice and is zero-indexed where zero is the LSb of arg.
-  BValue BitSlice(BValue arg, int64 start, int64 width,
+  BValue BitSlice(BValue arg, int64_t start, int64_t width,
                   absl::optional<SourceLocation> loc = absl::nullopt,
                   absl::string_view name = "");
 
@@ -495,7 +495,7 @@ class BuilderBase {
                         absl::string_view name = "");
 
   // Same as BitSlice, but allows for dynamic 'start' offsets
-  BValue DynamicBitSlice(BValue arg, BValue start, int64 width,
+  BValue DynamicBitSlice(BValue arg, BValue start, int64_t width,
                          absl::optional<SourceLocation> loc = absl::nullopt,
                          absl::string_view name = "");
 
@@ -506,7 +506,7 @@ class BuilderBase {
   // Binary decodes the n-bit input to a one-hot output. 'width' can be at most
   // 2**n where n is the bit width of the operand. If 'width' is not specified
   // the output is 2**n bits wide.
-  BValue Decode(BValue arg, absl::optional<int64> width = absl::nullopt,
+  BValue Decode(BValue arg, absl::optional<int64_t> width = absl::nullopt,
                 absl::optional<SourceLocation> loc = absl::nullopt,
                 absl::string_view name = "");
 
@@ -530,7 +530,7 @@ class BuilderBase {
   // If result width is not given the result width set to the width of the
   // arguments lhs and rhs which must have the same width.
   BValue AddArithOp(Op op, BValue lhs, BValue rhs,
-                    absl::optional<int64> result_width,
+                    absl::optional<int64_t> result_width,
                     absl::optional<SourceLocation> loc = absl::nullopt,
                     absl::string_view name = "");
   BValue AddBitwiseReductionOp(

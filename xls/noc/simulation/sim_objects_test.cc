@@ -106,7 +106,7 @@ TEST(SimObjectsTest, BackToBackNetwork0) {
 
   // phit0 traverses a link of latency 4 so will arrive on cycle 5.
   XLS_ASSERT_OK_AND_ASSIGN(
-      int64 dest_index_0,
+      int64_t dest_index_0,
       simulator.GetRoutingTable()->GetSinkIndices().GetNetworkComponentIndex(
           recv_port_0));
 
@@ -121,7 +121,7 @@ TEST(SimObjectsTest, BackToBackNetwork0) {
                            simulator.GetSimNetworkInterfaceSrc(send_port_0));
   XLS_ASSERT_OK(sim_send_port_0->SendPhitAtTime(phit0));
 
-  for (int64 i = 0; i < 10; ++i) {
+  for (int64_t i = 0; i < 10; ++i) {
     XLS_ASSERT_OK(simulator.RunCycle());
   }
 
@@ -289,11 +289,11 @@ TEST(SimObjectsTest, TreeNework0) {
       FindNetworkComponentByName("RecvPort3", graph, params));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      int64 dest_index_1,
+      int64_t dest_index_1,
       simulator.GetRoutingTable()->GetSinkIndices().GetNetworkComponentIndex(
           recv_port_1));
   XLS_ASSERT_OK_AND_ASSIGN(
-      int64 dest_index_3,
+      int64_t dest_index_3,
       simulator.GetRoutingTable()->GetSinkIndices().GetNetworkComponentIndex(
           recv_port_3));
 
@@ -330,7 +330,7 @@ TEST(SimObjectsTest, TreeNework0) {
   XLS_ASSERT_OK(sim_send_port_1->SendPhitAtTime(phit1));
   XLS_ASSERT_OK(sim_send_port_1->SendPhitAtTime(phit2));
 
-  for (int64 i = 0; i < 10; ++i) {
+  for (int64_t i = 0; i < 10; ++i) {
     XLS_ASSERT_OK(simulator.RunCycle());
   }
 

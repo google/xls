@@ -111,7 +111,7 @@ Proc* IrTestBase::FindProc(absl::string_view name, Package* package) {
 }
 
 void IrTestBase::RunAndExpectEq(
-    const absl::flat_hash_map<std::string, uint64>& args, uint64 expected,
+    const absl::flat_hash_map<std::string, uint64_t>& args, uint64_t expected,
     absl::string_view package_text, bool run_optimized, bool simulate,
     xabsl::SourceLocation loc) {
   // Emit the filename/line of the test code in any failure message. The
@@ -163,11 +163,11 @@ void IrTestBase::RunAndExpectEq(
 
 absl::StatusOr<absl::flat_hash_map<std::string, Value>>
 IrTestBase::UInt64ArgsToValues(
-    const absl::flat_hash_map<std::string, uint64>& args, Package* package) {
+    const absl::flat_hash_map<std::string, uint64_t>& args, Package* package) {
   absl::flat_hash_map<std::string, Value> value_args;
   for (const auto& pair : args) {
     const std::string& param_name = pair.first;
-    const uint64 arg_value = pair.second;
+    const uint64_t arg_value = pair.second;
     XLS_ASSIGN_OR_RETURN(Function * entry, package->EntryFunction());
     XLS_ASSIGN_OR_RETURN(Param * param, entry->GetParamByName(pair.first));
     Type* type = param->GetType();
@@ -186,7 +186,7 @@ IrTestBase::UInt64ArgsToValues(
   return value_args;
 }
 
-absl::StatusOr<Value> IrTestBase::UInt64ResultToValue(uint64 value,
+absl::StatusOr<Value> IrTestBase::UInt64ResultToValue(uint64_t value,
                                                       Package* package) {
   XLS_ASSIGN_OR_RETURN(Function * entry, package->EntryFunction());
   Type* return_type = entry->return_value()->GetType();

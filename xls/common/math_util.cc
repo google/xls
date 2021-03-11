@@ -18,8 +18,8 @@ namespace xls {
 namespace {
 
 // Returns the number of leading zeros in the given value.
-int64 Clz(uint64 value) {
-  for (int64 i = 0; i < 64; ++i) {
+int64_t Clz(uint64_t value) {
+  for (int64_t i = 0; i < 64; ++i) {
     if ((value >> (64 - i - 1)) & 1) {
       return i;
     }
@@ -29,11 +29,11 @@ int64 Clz(uint64 value) {
 
 }  // namespace
 
-int64 CeilOfLog2(uint64 value) {
+int64_t CeilOfLog2(uint64_t value) {
   if (value == 0) {
     return 0;
   }
-  int64 floor = FloorOfLog2(value);
+  int64_t floor = FloorOfLog2(value);
   if ((value & (value - 1)) == 0) {
     // Power of two.
     return floor;
@@ -42,7 +42,7 @@ int64 CeilOfLog2(uint64 value) {
   }
 }
 
-int64 FloorOfLog2(uint64 value) {
+int64_t FloorOfLog2(uint64_t value) {
   if (value == 0) {
     return 0;
   }

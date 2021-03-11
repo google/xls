@@ -30,35 +30,35 @@ NetworkConfigProtoBuilder& NetworkConfigProtoBuilder::WithDescription(
 
 NetworkConfigProtoBuilder&
 NetworkConfigProtoBuilder::SetDefaultLinkPhitBitWidth(
-    absl::optional<int64> phit_bit_width) {
+    absl::optional<int64_t> phit_bit_width) {
   link_phit_bit_width_ = phit_bit_width;
   return *this;
 }
 
 NetworkConfigProtoBuilder&
 NetworkConfigProtoBuilder::SetDefaultLinkSourceSinkPipelineStage(
-    absl::optional<int64> pipeline_stage) {
+    absl::optional<int64_t> pipeline_stage) {
   link_source_sink_pipeline_stage_ = pipeline_stage;
   return *this;
 }
 
 NetworkConfigProtoBuilder&
 NetworkConfigProtoBuilder::SetDefaultLinkSinkSourcePipelineStage(
-    absl::optional<int64> pipeline_stage) {
+    absl::optional<int64_t> pipeline_stage) {
   link_sink_source_pipeline_stage_ = pipeline_stage;
   return *this;
 }
 
 NetworkConfigProtoBuilder&
 NetworkConfigProtoBuilder::SetDefaultVirtualChannelFlitBitWidth(
-    absl::optional<int64> flit_bit_width) {
+    absl::optional<int64_t> flit_bit_width) {
   virtual_channel_flit_bit_width_ = flit_bit_width;
   return *this;
 }
 
 NetworkConfigProtoBuilder&
 NetworkConfigProtoBuilder::SetDefaultVirtualChannelDepth(
-    absl::optional<int64> depth) {
+    absl::optional<int64_t> depth) {
   virtual_channel_depth_ = depth;
   return *this;
 }

@@ -1524,7 +1524,7 @@ fn f() -> bits[6] {
                              IrTranslator::CreateAndTranslate(f));
     Z3_context ctx = translator->ctx();
     Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
-    uint32 mask = 127;
+    uint32_t mask = 127;
     Z3_ast expected =
         Z3_mk_int(ctx, (test_case.first * test_case.second) & mask,
                   Z3_mk_bv_sort(ctx, 6));

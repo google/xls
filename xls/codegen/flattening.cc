@@ -58,7 +58,7 @@ absl::StatusOr<Value> UnflattenBitsToValue(const Bits& bits, const Type* type) {
   if (type->IsTuple()) {
     std::vector<Value> elements;
     const TupleType* tuple_type = type->AsTupleOrDie();
-    for (int64 i = 0; i < tuple_type->size(); ++i) {
+    for (int64_t i = 0; i < tuple_type->size(); ++i) {
       Type* element_type = tuple_type->element_type(i);
       XLS_ASSIGN_OR_RETURN(
           Value element, UnflattenBitsToValue(
@@ -72,7 +72,7 @@ absl::StatusOr<Value> UnflattenBitsToValue(const Bits& bits, const Type* type) {
   if (type->IsArray()) {
     std::vector<Value> elements;
     const ArrayType* array_type = type->AsArrayOrDie();
-    for (int64 i = 0; i < array_type->size(); ++i) {
+    for (int64_t i = 0; i < array_type->size(); ++i) {
       XLS_ASSIGN_OR_RETURN(
           Value element,
           UnflattenBitsToValue(
@@ -95,17 +95,17 @@ absl::StatusOr<Value> UnflattenBitsToValue(const Bits& bits,
   return UnflattenBitsToValue(bits, type);
 }
 
-int64 GetFlatBitIndexOfElement(const TupleType* tuple_type, int64 index) {
+int64_t GetFlatBitIndexOfElement(const TupleType* tuple_type, int64_t index) {
   XLS_CHECK_GE(index, 0);
   XLS_CHECK_LT(index, tuple_type->size());
-  int64 flat_index = 0;
-  for (int64 i = tuple_type->size() - 1; i > index; --i) {
+  int64_t flat_index = 0;
+  for (int64_t i = tuple_type->size() - 1; i > index; --i) {
     flat_index += tuple_type->element_type(i)->GetFlatBitCount();
   }
   return flat_index;
 }
 
-int64 GetFlatBitIndexOfElement(const ArrayType* array_type, int64 index) {
+int64_t GetFlatBitIndexOfElement(const ArrayType* array_type, int64_t index) {
   XLS_CHECK_GE(index, 0);
   XLS_CHECK_LT(index, array_type->size());
   return (array_type->size() - index - 1) *
@@ -113,14 +113,14 @@ int64 GetFlatBitIndexOfElement(const ArrayType* array_type, int64 index) {
 }
 
 // Recursive helper for Unflatten functions.
-verilog::Expression* UnflattenArrayHelper(int64 flat_index_offset,
+verilog::Expression* UnflattenArrayHelper(int64_t flat_index_offset,
                                           verilog::IndexableExpression* input,
                                           ArrayType* array_type,
                                           verilog::VerilogFile* file) {
   std::vector<verilog::Expression*> elements;
-  const int64 element_width = array_type->element_type()->GetFlatBitCount();
-  for (int64 i = 0; i < array_type->size(); ++i) {
-    const int64 element_start =
+  const int64_t element_width = array_type->element_type()->GetFlatBitCount();
+  for (int64_t i = 0; i < array_type->size(); ++i) {
+    const int64_t element_start =
         flat_index_offset + GetFlatBitIndexOfElement(array_type, i);
     if (array_type->element_type()->IsArray()) {
       elements.push_back(UnflattenArrayHelper(
@@ -142,7 +142,7 @@ verilog::Expression* UnflattenArray(verilog::IndexableExpression* input,
 
 verilog::Expression* UnflattenArrayShapedTupleElement(
     verilog::IndexableExpression* input, TupleType* tuple_type,
-    int64 tuple_index, verilog::VerilogFile* file) {
+    int64_t tuple_index, verilog::VerilogFile* file) {
   XLS_CHECK(tuple_type->element_type(tuple_index)->IsArray());
   ArrayType* array_type = tuple_type->element_type(tuple_index)->AsArrayOrDie();
   return UnflattenArrayHelper(
@@ -154,7 +154,7 @@ verilog::Expression* FlattenArray(verilog::IndexableExpression* input,
                                   ArrayType* array_type,
                                   verilog::VerilogFile* file) {
   std::vector<verilog::Expression*> elements;
-  for (int64 i = 0; i < array_type->size(); ++i) {
+  for (int64_t i = 0; i < array_type->size(); ++i) {
     verilog::IndexableExpression* element =
         file->Index(input, i);  // array_type->size() - i - 1);
     if (array_type->element_type()->IsArray()) {

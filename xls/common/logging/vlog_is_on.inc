@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+
 #include "absl/flags/flag.h"
 #include "absl/strings/numbers.h"
-#include "xls/common/integral_types.h"
 
-ABSL_FLAG(int32, v, 0,
+ABSL_FLAG(int32_t, v, 0,
           "Show all XLS_VLOG(m) messages for m <= this. Overridable by "
           "--vmodule.");
 

@@ -206,7 +206,7 @@ TEST_F(FunctionTest, IsLiteralMask) {
   auto zero_1b = fb.Literal(UBits(0b0, 1));
   auto zero_0b = fb.Literal(UBits(0b0, 0));
 
-  int64 leading_zeros, trailing_ones;
+  int64_t leading_zeros, trailing_ones;
   EXPECT_TRUE(IsLiteralMask(seven_3b.node(), &leading_zeros, &trailing_ones));
   EXPECT_EQ(0, leading_zeros);
   EXPECT_EQ(3, trailing_ones);

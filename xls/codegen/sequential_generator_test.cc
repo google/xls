@@ -58,7 +58,7 @@ constexpr char kTestdataPath[] = "xls/codegen/testdata";
 
 class TestDelayEstimator : public DelayEstimator {
  public:
-  absl::StatusOr<int64> GetOperationDelayInPs(Node* node) const override {
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
     switch (node->op()) {
       case Op::kParam:
       case Op::kLiteral:
@@ -170,7 +170,7 @@ fn __LoopBodyPipelineTest__main() -> bits[32] {
   oracle_builder.WithClock("clk");
   oracle_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                          "valid_out");
-  auto bit_type = [&package](int64 num_bits) {
+  auto bit_type = [&package](int64_t num_bits) {
     return package->GetBitsType(num_bits);
   };
   FunctionType func({bit_type(32)}, bit_type(32));
@@ -223,7 +223,7 @@ fn __LoopBodyPipelineTest__main() -> bits[32] {
   oracle_builder.WithClock("clk");
   oracle_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                          "valid_out");
-  auto bit_type = [&package](int64 num_bits) {
+  auto bit_type = [&package](int64_t num_bits) {
     return package->GetBitsType(num_bits);
   };
   FunctionType func({bit_type(32)}, bit_type(32));
@@ -279,7 +279,7 @@ fn __ModuleSignatureTestInvariants__main() -> bits[32] {
   oracle_builder.WithClock("clk");
   oracle_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                          "valid_out");
-  auto bit_type = [&package](int64 num_bits) {
+  auto bit_type = [&package](int64_t num_bits) {
     return package->GetBitsType(num_bits);
   };
   FunctionType func({bit_type(32), bit_type(32), bit_type(32)}, bit_type(32));
@@ -338,7 +338,7 @@ fn __LoopBodyPipelineTest__main() -> bits[32] {
                                          "valid_out");
   oracle_builder.WithReset(reset.name(), reset.asynchronous(),
                            reset.active_low());
-  auto bit_type = [&package](int64 num_bits) {
+  auto bit_type = [&package](int64_t num_bits) {
     return package->GetBitsType(num_bits);
   };
   FunctionType func({bit_type(32)}, bit_type(32));
@@ -397,7 +397,7 @@ fn __LoopBodyPipelineTest__main() -> bits[32] {
                                          "valid_out");
   oracle_builder.WithReset(reset.name(), reset.asynchronous(),
                            reset.active_low());
-  auto bit_type = [&package](int64 num_bits) {
+  auto bit_type = [&package](int64_t num_bits) {
     return package->GetBitsType(num_bits);
   };
   FunctionType func({bit_type(32)}, bit_type(32));
@@ -753,7 +753,7 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterZeroStride) {
 
 TEST_P(SequentialGeneratorTest, StaticStridedCounterSimple) {
   // Make counter signature.
-  constexpr int64 num_counter_bits = 2;
+  constexpr int64_t num_counter_bits = 2;
   ModuleSignatureBuilder signature_builder("static_strided_counter_signature");
   signature_builder.AddDataInput("set_zero", 1);
   signature_builder.AddDataInput("increment", 1);
@@ -793,7 +793,7 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterSimple) {
 
 TEST_P(SequentialGeneratorTest, StaticStridedCounterIntermittentIncrement) {
   // Make counter signature.
-  constexpr int64 num_counter_bits = 2;
+  constexpr int64_t num_counter_bits = 2;
   ModuleSignatureBuilder signature_builder("static_strided_counter_signature");
   signature_builder.AddDataInput("set_zero", 1);
   signature_builder.AddDataInput("increment", 1);
@@ -836,7 +836,7 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterIntermittentIncrement) {
 
 TEST_P(SequentialGeneratorTest, StaticStridedCounterNonOneStride) {
   // Make counter signature.
-  constexpr int64 num_counter_bits = 3;
+  constexpr int64_t num_counter_bits = 3;
   ModuleSignatureBuilder signature_builder("static_strided_counter_signature");
   signature_builder.AddDataInput("set_zero", 1);
   signature_builder.AddDataInput("increment", 1);
@@ -876,7 +876,7 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterNonOneStride) {
 
 TEST_P(SequentialGeneratorTest, StaticStridedCounterStrideMultipleLimit) {
   // Make counter signature.
-  constexpr int64 num_counter_bits = 2;
+  constexpr int64_t num_counter_bits = 2;
   ModuleSignatureBuilder signature_builder("static_strided_counter_signature");
   signature_builder.AddDataInput("set_zero", 1);
   signature_builder.AddDataInput("increment", 1);
@@ -916,7 +916,7 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterStrideMultipleLimit) {
 TEST_P(SequentialGeneratorTest,
        StaticStridedCounterOneLessThanStrideMultipleLimit) {
   // Make counter signature.
-  constexpr int64 num_counter_bits = 2;
+  constexpr int64_t num_counter_bits = 2;
   ModuleSignatureBuilder signature_builder("static_strided_counter_signature");
   signature_builder.AddDataInput("set_zero", 1);
   signature_builder.AddDataInput("increment", 1);
@@ -955,7 +955,7 @@ TEST_P(SequentialGeneratorTest,
 
 TEST_P(SequentialGeneratorTest, StaticStridedCounterClearValue) {
   // Make counter signature.
-  constexpr int64 num_counter_bits = 2;
+  constexpr int64_t num_counter_bits = 2;
   ModuleSignatureBuilder signature_builder("static_strided_counter_signature");
   signature_builder.AddDataInput("set_zero", 1);
   signature_builder.AddDataInput("increment", 1);
@@ -1014,7 +1014,7 @@ TEST_P(SequentialGeneratorTest, FsmSimple) {
   // Would be better to do this as a parameterized test, but this
   // conflicts with paramterizing based on the simulation target
   // defined by VerilogTestBase.
-  for (int64 latency = 0; latency < 3; ++latency) {
+  for (int64_t latency = 0; latency < 3; ++latency) {
     // Build the builder.
     SequentialOptions sequential_options;
     sequential_options.use_system_verilog(UseSystemVerilog());
@@ -1158,7 +1158,7 @@ TEST_P(SequentialGeneratorTest, FsmActiveLowReset) {
   // Would be better to do this as a parameterized test, but this
   // conflicts with paramterizing based on the simulation target
   // defined by VerilogTestBase.
-  for (int64 latency = 0; latency < 3; ++latency) {
+  for (int64_t latency = 0; latency < 3; ++latency) {
     // Build the builder.
     SequentialOptions sequential_options;
     sequential_options.use_system_verilog(UseSystemVerilog());
@@ -1302,7 +1302,7 @@ TEST_P(SequentialGeneratorTest, FsmIgnoreMaxValueUnlessRunning) {
   // Would be better to do this as a parameterized test, but this
   // conflicts with paramterizing based on the simulation target
   // defined by VerilogTestBase.
-  for (int64 latency = 0; latency < 3; ++latency) {
+  for (int64_t latency = 0; latency < 3; ++latency) {
     // Build the builder.
     SequentialOptions sequential_options;
     sequential_options.use_system_verilog(UseSystemVerilog());
@@ -1424,7 +1424,7 @@ TEST_P(SequentialGeneratorTest, FsmIgnoreValidInUnlessReady) {
   // Would be better to do this as a parameterized test, but this
   // conflicts with paramterizing based on the simulation target
   // defined by VerilogTestBase.
-  for (int64 latency = 0; latency < 3; ++latency) {
+  for (int64_t latency = 0; latency < 3; ++latency) {
     // Build the builder.
     SequentialOptions sequential_options;
     sequential_options.use_system_verilog(UseSystemVerilog());
@@ -1602,7 +1602,7 @@ fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
   // Would be better to do this as a parameterized test, but this
   // conflicts with paramterizing based on the simulation target
   // defined by VerilogTestBase.
-  for (int64 latency = 0; latency < 3; ++latency) {
+  for (int64_t latency = 0; latency < 3; ++latency) {
     // Build the builder.
     ResetProto reset;
     reset.set_name("reset");
@@ -1650,7 +1650,7 @@ fn __SequentialModuleInvariants__main(init_acc: bits[32], invara: bits[32], inva
   // Would be better to do this as a parameterized test, but this
   // conflicts with paramterizing based on the simulation target
   // defined by VerilogTestBase.
-  for (int64 latency = 0; latency < 3; ++latency) {
+  for (int64_t latency = 0; latency < 3; ++latency) {
     // Build the builder.
     ResetProto reset;
     reset.set_name("reset");
@@ -1698,7 +1698,7 @@ fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
   // Would be better to do this as a parameterized test, but this
   // conflicts with paramterizing based on the simulation target
   // defined by VerilogTestBase.
-  for (int64 latency = 0; latency < 3; ++latency) {
+  for (int64_t latency = 0; latency < 3; ++latency) {
     // Build the builder.
     ResetProto reset;
     reset.set_name("reset");
@@ -1809,7 +1809,7 @@ fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
   // Would be better to do this as a parameterized test, but this
   // conflicts with paramterizing based on the simulation target
   // defined by VerilogTestBase.
-  for (int64 latency = 0; latency < 3; ++latency) {
+  for (int64_t latency = 0; latency < 3; ++latency) {
     // Build the builder.
     ResetProto reset;
     reset.set_name("reset");

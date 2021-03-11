@@ -27,7 +27,7 @@ namespace xls {
 
 /* static */
 absl::StatusOr<std::unique_ptr<BddQueryEngine>> BddQueryEngine::Run(
-    FunctionBase* f, int64 minterm_limit,
+    FunctionBase* f, int64_t minterm_limit,
     absl::Span<const Op> do_not_evaluate_ops) {
   auto query_engine = absl::WrapUnique(new BddQueryEngine(minterm_limit));
   XLS_ASSIGN_OR_RETURN(query_engine->bdd_function_,
@@ -39,7 +39,7 @@ absl::StatusOr<std::unique_ptr<BddQueryEngine>> BddQueryEngine::Run(
     if (node->GetType()->IsBits()) {
       absl::InlinedVector<bool, 1> known_bits;
       absl::InlinedVector<bool, 1> bits_values;
-      for (int64 i = 0; i < node->BitCountOrDie(); ++i) {
+      for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
         if (query_engine->GetBddNode(BitLocation(node, i)) == bdd.zero()) {
           known_bits.push_back(true);
           bits_values.push_back(false);
@@ -61,7 +61,7 @@ absl::StatusOr<std::unique_ptr<BddQueryEngine>> BddQueryEngine::Run(
 
 bool BddQueryEngine::AtMostOneTrue(absl::Span<BitLocation const> bits) const {
   BddNodeIndex result = bdd().zero();
-  for (int64 i = 0; i < bits.size(); ++i) {
+  for (int64_t i = 0; i < bits.size(); ++i) {
     if (!IsTracked(bits[i].node)) {
       return false;
     }
@@ -69,8 +69,8 @@ bool BddQueryEngine::AtMostOneTrue(absl::Span<BitLocation const> bits) const {
   // Compute the OR-reduction of a pairwise AND of all bits. If this value is
   // zero then no two bits can be simultaneously true. Equivalently: at most one
   // bit is true.
-  for (int64 i = 0; i < bits.size(); ++i) {
-    for (int64 j = i + 1; j < bits.size(); ++j) {
+  for (int64_t i = 0; i < bits.size(); ++i) {
+    for (int64_t j = i + 1; j < bits.size(); ++j) {
       result =
           bdd().Or(result, bdd().And(GetBddNode(bits[i]), GetBddNode(bits[j])));
       if (ExceedsMintermLimit(result)) {

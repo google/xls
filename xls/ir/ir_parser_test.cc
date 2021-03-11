@@ -86,7 +86,7 @@ TEST(IrParserTest, ParseVariousBitsLiterals) {
   ret literal.1: bits[$0] = literal(value=$1)
 })";
   struct TestCase {
-    int64 width;
+    int64_t width;
     std::string literal;
     Bits expected;
   };
@@ -124,7 +124,7 @@ TEST(IrParserTest, ParseVariousLiteralsTooFewBits) {
   ret literal.1: bits[$0] = literal(value=$1)
 })";
   struct TestCase {
-    int64 width;
+    int64_t width;
     std::string literal;
   };
   for (const TestCase& test_case :

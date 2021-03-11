@@ -58,7 +58,7 @@ class SelectChain {
 
   bool Contains(Select* node) const { return elements_.contains(node); }
 
-  int64 size() const { return nodes_.size(); }
+  int64_t size() const { return nodes_.size(); }
 
   // Attempts to do the actual replacement of the Select nodes in the chain with
   // a literal array and ArrayIndex. At this point, the SelectChain should be

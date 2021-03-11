@@ -260,40 +260,40 @@ TEST(ValueTest, XBits2DArray) {
 
 TEST(ValueTest, XBitsArrayEmpty) {
   // Test empty array values
-  auto v0 = Value::UBitsArray(absl::Span<uint64>({}), 1);
+  auto v0 = Value::UBitsArray(absl::Span<uint64_t>({}), 1);
   EXPECT_FALSE(v0.ok());
   EXPECT_EQ(v0.status().message(), "Empty array Values are not supported.");
 
-  v0 = Value::SBitsArray(absl::Span<int64>({}), 1);
+  v0 = Value::SBitsArray(absl::Span<int64_t>({}), 1);
   EXPECT_FALSE(v0.ok());
   EXPECT_EQ(v0.status().message(), "Empty array Values are not supported.");
 
-  v0 = Value::UBits2DArray(absl::Span<const absl::Span<const uint64>>({}), 1);
+  v0 = Value::UBits2DArray(absl::Span<const absl::Span<const uint64_t>>({}), 1);
   EXPECT_FALSE(v0.ok());
   EXPECT_EQ(v0.status().message(), "Empty array Values are not supported.");
 
-  v0 = Value::SBits2DArray(absl::Span<const absl::Span<const int64>>({}), 1);
+  v0 = Value::SBits2DArray(absl::Span<const absl::Span<const int64_t>>({}), 1);
   EXPECT_FALSE(v0.ok());
   EXPECT_EQ(v0.status().message(), "Empty array Values are not supported.");
 
   // Test partially empty values (2D Arrays)
   v0 = Value::UBits2DArray(
-      absl::Span<const absl::Span<const uint64>>({{}, {1}}), 2);
+      absl::Span<const absl::Span<const uint64_t>>({{}, {1}}), 2);
   EXPECT_FALSE(v0.ok());
   EXPECT_EQ(v0.status().message(), "Empty array Values are not supported.");
 
-  v0 = Value::SBits2DArray(absl::Span<const absl::Span<const int64>>({{}, {1}}),
-                           2);
+  v0 = Value::SBits2DArray(
+      absl::Span<const absl::Span<const int64_t>>({{}, {1}}), 2);
   EXPECT_FALSE(v0.ok());
   EXPECT_EQ(v0.status().message(), "Empty array Values are not supported.");
 
   v0 = Value::UBits2DArray(
-      absl::Span<const absl::Span<const uint64>>({{1}, {}}), 2);
+      absl::Span<const absl::Span<const uint64_t>>({{1}, {}}), 2);
   EXPECT_FALSE(v0.ok());
   EXPECT_EQ(v0.status().message(), "Empty array Values are not supported.");
 
-  v0 = Value::SBits2DArray(absl::Span<const absl::Span<const int64>>({{1}, {}}),
-                           2);
+  v0 = Value::SBits2DArray(
+      absl::Span<const absl::Span<const int64_t>>({{1}, {}}), 2);
   EXPECT_FALSE(v0.ok());
   EXPECT_EQ(v0.status().message(), "Empty array Values are not supported.");
 }

@@ -33,7 +33,7 @@ bool IsChannelNode(Node* node) {
 // Returns the channel used by the given node which must be a
 // send/sendif/receive/receiveif node.
 absl::StatusOr<Channel*> GetChannelUsedByNode(Node* node) {
-  int64 channel_id;
+  int64_t channel_id;
   if (node->Is<Send>()) {
     channel_id = node->As<Send>()->channel_id();
   } else if (node->Is<Receive>()) {

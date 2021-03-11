@@ -21,7 +21,7 @@
 #include "xls/common/logging/vlog_is_on.inc"
 
 // Construct a logging site from a logging level and epoch.
-inline int32 Site(int level, int epoch) {
+inline int32_t Site(int level, int epoch) {
   return ((level & 0x0000FFFF) << 16) | (epoch & 0x0000FFFF);
 }
 
@@ -84,7 +84,7 @@ static std::atomic<VModuleInfo*> vmodule_list;
 
 // Logging sites initialize their epochs to zero.  We initialize the
 // global epoch to 1, so that all logging sites are initially stale.
-std::atomic<int32> xls::logging_internal::vlog_epoch{1};
+std::atomic<int32_t> xls::logging_internal::vlog_epoch{1};
 
 // This can be called very early, so we use SpinLock and RAW_VLOG here.
 int SetVLOGLevel(absl::string_view module_pattern, int log_level) {
@@ -134,7 +134,7 @@ namespace logging_internal {
 
 // NOTE: Individual XLS_VLOG statements cache the integer log level pointers.
 // NOTE: This function must not allocate memory or require any locks.
-int InitVLOG(std::atomic<int32>* site, absl::string_view full_path) {
+int InitVLOG(std::atomic<int32_t>* site, absl::string_view full_path) {
   // protect the errno global in case someone writes:
   // XLS_VLOG(..) << "The last error was " << strerror(errno)
   ErrnoSaver errno_saver_;
@@ -170,9 +170,9 @@ int InitVLOG(std::atomic<int32>* site, absl::string_view full_path) {
   // important that our view of the global epoch is no newer than our
   // view of the log site, and that the epoch value we store is no
   // newer than the list we traverse or the log site we fetch.
-  int32 global_epoch = GlobalEpoch();
-  int32 old_site = site->load(std::memory_order_acquire);
-  int32 new_site = Site(SiteLevel(kDefaultSite), global_epoch);
+  int32_t global_epoch = GlobalEpoch();
+  int32_t old_site = site->load(std::memory_order_acquire);
+  int32_t new_site = Site(SiteLevel(kDefaultSite), global_epoch);
 
   // Find target in list of modules, and set new_site with a
   // module-specific verbosity level, if found.
@@ -208,12 +208,12 @@ int InitVLOG(std::atomic<int32>* site, absl::string_view full_path) {
   return SiteLevel(new_site);
 }
 
-bool VLogEnabledSlow(std::atomic<int32>* site, int32 level,
+bool VLogEnabledSlow(std::atomic<int32_t>* site, int32_t level,
                      absl::string_view file) {
-  const int32 site_copy = site->load(std::memory_order_acquire);
-  int32 site_level = ABSL_PREDICT_TRUE(SiteEpoch(site_copy) == GlobalEpoch())
-                         ? SiteLevel(site_copy)
-                         : InitVLOG(site, file);
+  const int32_t site_copy = site->load(std::memory_order_acquire);
+  int32_t site_level = ABSL_PREDICT_TRUE(SiteEpoch(site_copy) == GlobalEpoch())
+                           ? SiteLevel(site_copy)
+                           : InitVLOG(site, file);
 
   if (site_level == kUseFlag) {
     // Use global setting instead of per-site setting.

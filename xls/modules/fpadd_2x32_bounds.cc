@@ -49,12 +49,13 @@ ABSL_FLAG(bool, flush_subnormals, true,
           "This option exists to demonstrate validity of result.");
 ABSL_FLAG(bool, reference_use_opt_ir, true,
           "Whether or not to use optimized IR or not.");
-ABSL_FLAG(uint32, error_bound, 0,
-          "The error bound to prove. Z3 will aim to prove that the maximum "
-          "error between its FP impl and ours - for all inputs - will be "
-          "less than this value. This is an absolute, not relative, value. "
-          "This is specified as a uint32 to enable, e.g., subnormal values to "
-          "be specified.");
+ABSL_FLAG(
+    uint32_t, error_bound, 0,
+    "The error bound to prove. Z3 will aim to prove that the maximum "
+    "error between its FP impl and ours - for all inputs - will be "
+    "less than this value. This is an absolute, not relative, value. "
+    "This is specified as a uint32_t to enable, e.g., subnormal values to "
+    "be specified.");
 
 namespace xls {
 
@@ -136,7 +137,7 @@ absl::StatusOr<std::unique_ptr<Package>> GetIr(bool opt_ir) {
   return Parser::ParsePackage(ir_text);
 }
 
-absl::Status CompareToReference(bool use_opt_ir, uint32 error_bound,
+absl::Status CompareToReference(bool use_opt_ir, uint32_t error_bound,
                                 bool flush_subnormals, absl::Duration timeout) {
   XLS_ASSIGN_OR_RETURN(auto package, GetIr(use_opt_ir));
   XLS_ASSIGN_OR_RETURN(auto function, package->GetFunction(kFunctionName));

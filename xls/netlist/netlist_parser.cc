@@ -294,7 +294,7 @@ absl::StatusOr<std::string> Parser::PopNameOrError() {
                                     token.ToString());
 }
 
-absl::StatusOr<int64> Parser::PopNumberOrError() {
+absl::StatusOr<int64_t> Parser::PopNumberOrError() {
   // We're assuming we won't see > 64b values. Fine for now, at least.
   XLS_ASSIGN_OR_RETURN(Token token, scanner_->Pop());
   if (token.kind == TokenKind::kNumber) {
@@ -303,7 +303,7 @@ absl::StatusOr<int64> Parser::PopNumberOrError() {
     if (RE2::FullMatch(
             token.value, R"(([0-9]+)'([Ss]?)([bodhBODH])([0-9a-f]+))",
             &width_string, &signed_string, &base_string, &value_string)) {
-      int64 width;
+      int64_t width;
       XLS_RET_CHECK(
           absl::SimpleAtoi(width_string, reinterpret_cast<int64_t*>(&width)))
           << "Unable to parse number width: " << width_string;
@@ -321,9 +321,9 @@ absl::StatusOr<int64> Parser::PopNumberOrError() {
             absl::StrCat("Invalid numeric base: ", base_string));
       }
 
-      XLS_ASSIGN_OR_RETURN(uint64 temp, StrTo64Base(value_string, base));
+      XLS_ASSIGN_OR_RETURN(uint64_t temp, StrTo64Base(value_string, base));
       if (signed_string.empty()) {
-        return static_cast<int64>(temp);
+        return static_cast<int64_t>(temp);
       }
 
       // If the number is actually signed, then throw it into a Bits for sign
@@ -332,10 +332,11 @@ absl::StatusOr<int64> Parser::PopNumberOrError() {
       return bits.ToInt64();
     }
 
-    int64 result;
+    int64_t result;
     if (!absl::SimpleAtoi(token.value, &result)) {
       return absl::InternalError(
-          "Number token's value cannot be parsed as an int64: " + token.value);
+          "Number token's value cannot be parsed as an int64_t: " +
+          token.value);
     }
     return result;
   }
@@ -343,7 +344,7 @@ absl::StatusOr<int64> Parser::PopNumberOrError() {
                                     token.ToString());
 }
 
-absl::StatusOr<absl::variant<std::string, int64>>
+absl::StatusOr<absl::variant<std::string, int64_t>>
 Parser::PopNameOrNumberOrError() {
   TokenKind kind = scanner_->Peek()->kind;
   if (kind == TokenKind::kName) {
@@ -409,7 +410,7 @@ absl::StatusOr<const CellLibraryEntry*> Parser::ParseCellModule(
           "Expected a single .LUT_INIT named parameter, got: " + param_name);
     }
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOpenParen));
-    XLS_ASSIGN_OR_RETURN(int64 lut_mask, PopNumberOrError());
+    XLS_ASSIGN_OR_RETURN(int64_t lut_mask, PopNumberOrError());
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCloseParen));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCloseParen));
     return netlist.GetOrCreateLut4CellEntry(lut_mask);
@@ -418,16 +419,16 @@ absl::StatusOr<const CellLibraryEntry*> Parser::ParseCellModule(
 }
 
 absl::StatusOr<NetRef> Parser::ParseNetRef(Module* module) {
-  using TokenT = absl::variant<std::string, int64>;
+  using TokenT = absl::variant<std::string, int64_t>;
   XLS_ASSIGN_OR_RETURN(TokenT token, PopNameOrNumberOrError());
-  if (absl::holds_alternative<int64>(token)) {
-    int64 value = absl::get<int64>(token);
+  if (absl::holds_alternative<int64_t>(token)) {
+    int64_t value = absl::get<int64_t>(token);
     return module->AddOrResolveNumber(value);
   }
 
   std::string name = absl::get<std::string>(token);
   if (TryDropToken(TokenKind::kOpenBracket)) {
-    XLS_ASSIGN_OR_RETURN(int64 index, PopNumberOrError());
+    XLS_ASSIGN_OR_RETURN(int64_t index, PopNumberOrError());
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCloseBracket));
     absl::StrAppend(&name, "[", index, "]");
   }
@@ -511,11 +512,11 @@ bool Parser::TryDropKeyword(absl::string_view target) {
 }
 
 absl::Status Parser::ParseNetDecl(Module* module, NetDeclKind kind) {
-  absl::optional<std::pair<int64, int64>> range;
+  absl::optional<std::pair<int64_t, int64_t>> range;
   if (TryDropToken(TokenKind::kOpenBracket)) {
-    XLS_ASSIGN_OR_RETURN(int64 high, PopNumberOrError());
+    XLS_ASSIGN_OR_RETURN(int64_t high, PopNumberOrError());
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kColon));
-    XLS_ASSIGN_OR_RETURN(int64 low, PopNumberOrError());
+    XLS_ASSIGN_OR_RETURN(int64_t low, PopNumberOrError());
     if (high < low) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Expected net range to be [high:low] with low <= "
@@ -543,7 +544,7 @@ absl::Status Parser::ParseNetDecl(Module* module, NetDeclKind kind) {
 
   for (const std::string& name : names) {
     if (range.has_value()) {
-      for (int64 i = range->second; i <= range->first; ++i) {
+      for (int64_t i = range->second; i <= range->first; ++i) {
         XLS_RETURN_IF_ERROR(
             module->AddNetDecl(kind, absl::StrFormat("%s[%d]", name, i)));
       }

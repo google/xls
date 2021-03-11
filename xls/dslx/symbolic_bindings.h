@@ -15,13 +15,13 @@
 #ifndef XLS_DSLX_SYMBOLIC_BINDINGS_H_
 #define XLS_DSLX_SYMBOLIC_BINDINGS_H_
 
+#include <cstdint>
 #include <ostream>
 #include <string>
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
-#include "xls/common/integral_types.h"
 
 namespace xls::dslx {
 
@@ -34,7 +34,7 @@ namespace xls::dslx {
 // The symbolic binding for N given id invoked in main is `{"N", 32}`.
 struct SymbolicBinding {
   std::string identifier;
-  int64 value;
+  int64_t value;
 
   bool operator==(const SymbolicBinding& other) const {
     return identifier == other.identifier && value == other.value;
@@ -53,14 +53,14 @@ class SymbolicBindings {
   SymbolicBindings() = default;
 
   explicit SymbolicBindings(
-      absl::Span<std::pair<std::string, int64> const> items) {
+      absl::Span<std::pair<std::string, int64_t> const> items) {
     for (const auto& item : items) {
       bindings_.push_back(SymbolicBinding{item.first, item.second});
     }
     Sort();
   }
   explicit SymbolicBindings(
-      const absl::flat_hash_map<std::string, int64>& mapping) {
+      const absl::flat_hash_map<std::string, int64_t>& mapping) {
     for (const auto& item : mapping) {
       bindings_.push_back(SymbolicBinding{item.first, item.second});
     }
@@ -85,13 +85,13 @@ class SymbolicBindings {
   std::string ToString() const;
 
   // Returns a map representation of these symbolic bindings.
-  absl::flat_hash_map<std::string, int64> ToMap() const;
+  absl::flat_hash_map<std::string, int64_t> ToMap() const;
 
   // Returns the set of keys in these symbolic bindings. A btree is given for
   // ease of range-based comparisons.
   absl::btree_set<std::string> GetKeySet() const;
 
-  int64 size() const { return bindings_.size(); }
+  int64_t size() const { return bindings_.size(); }
   const std::vector<SymbolicBinding>& bindings() const { return bindings_; }
 
  private:

@@ -14,28 +14,27 @@
 
 #include "xls/common/strong_int.h"
 
+#include <cstdint>
 #include <type_traits>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/node_hash_map.h"
 #include "absl/hash/hash_testing.h"
-#include "xls/common/integral_types.h"
 
 namespace xls {
 namespace {
 
 using ::testing::Eq;
 
-DEFINE_STRONG_INT_TYPE(StrongInt8, int8);
-DEFINE_STRONG_INT_TYPE(StrongUInt8, uint8);
-DEFINE_STRONG_INT_TYPE(StrongInt16, int16);
-DEFINE_STRONG_INT_TYPE(StrongUInt16, uint16);
-DEFINE_STRONG_INT_TYPE(StrongInt32, int32);
-DEFINE_STRONG_INT_TYPE(StrongInt64, int64);
-DEFINE_STRONG_INT_TYPE(StrongUInt32, uint32);
-DEFINE_STRONG_INT_TYPE(StrongUInt64, uint64);
-DEFINE_STRONG_INT_TYPE(StrongUWordt, uword_t);
+DEFINE_STRONG_INT_TYPE(StrongInt8, int8_t);
+DEFINE_STRONG_INT_TYPE(StrongUInt8, uint8_t);
+DEFINE_STRONG_INT_TYPE(StrongInt16, int16_t);
+DEFINE_STRONG_INT_TYPE(StrongUInt16, uint16_t);
+DEFINE_STRONG_INT_TYPE(StrongInt32, int32_t);
+DEFINE_STRONG_INT_TYPE(StrongInt64, int64_t);
+DEFINE_STRONG_INT_TYPE(StrongUInt32, uint32_t);
+DEFINE_STRONG_INT_TYPE(StrongUInt64, uint64_t);
 DEFINE_STRONG_INT_TYPE(StrongLong, long);  // NOLINT
 
 TEST(StrongIntTypeIdTest, TypeIdIsAsExpected) {
@@ -51,8 +50,7 @@ class StrongIntTest : public ::testing::Test {
 
 // All tests will be executed on the following StrongInt<> types.
 typedef ::testing::Types<StrongInt8, StrongUInt8, StrongInt16, StrongUInt16,
-                         StrongInt32, StrongInt64, StrongUInt64, StrongUWordt,
-                         StrongLong>
+                         StrongInt32, StrongInt64, StrongUInt64, StrongLong>
     SupportedStrongIntTypes;
 
 TYPED_TEST_SUITE(StrongIntTest, SupportedStrongIntTypes);
@@ -93,67 +91,67 @@ TYPED_TEST(StrongIntTest, TestCtors) {
     EXPECT_EQ(V(76), y.value());
   }
 
-  {  // Test construction from int8.
-    constexpr int8 i = 93;
+  {  // Test construction from int8_t.
+    constexpr int8_t i = 93;
     T x(i);
     EXPECT_EQ(V(93), x.value());
     static_assert(T(i).value() == 93, "value() is not constexpr");
 
-    int8 j = -76;
+    int8_t j = -76;
     T y(j);
     EXPECT_EQ(V(-76), y.value());
   }
 
-  {  // Test construction from uint8.
-    uint8 i = 93;
+  {  // Test construction from uint8_t.
+    uint8_t i = 93;
     T x(i);
     EXPECT_EQ(V(93), x.value());
   }
 
-  {  // Test construction from int16.
-    int16 i = 93;
+  {  // Test construction from int16_t.
+    int16_t i = 93;
     T x(i);
     EXPECT_EQ(V(93), x.value());
 
-    int16 j = -76;
+    int16_t j = -76;
     T y(j);
     EXPECT_EQ(V(-76), y.value());
   }
 
-  {  // Test construction from uint16.
-    uint16 i = 93;
+  {  // Test construction from uint16_t.
+    uint16_t i = 93;
     T x(i);
     EXPECT_EQ(V(93), x.value());
   }
 
-  {  // Test construction from int32.
-    int32 i = 93;
+  {  // Test construction from int32_t.
+    int32_t i = 93;
     T x(i);
     EXPECT_EQ(V(93), x.value());
 
-    int32 j = -76;
+    int32_t j = -76;
     T y(j);
     EXPECT_EQ(V(-76), y.value());
   }
 
-  {  // Test construction from uint32.
-    uint32 i = 93;
+  {  // Test construction from uint32_t.
+    uint32_t i = 93;
     T x(i);
     EXPECT_EQ(V(93), x.value());
   }
 
-  {  // Test construction from int64.
-    int64 i = 93;
+  {  // Test construction from int64_t.
+    int64_t i = 93;
     T x(i);
     EXPECT_EQ(V(93), x.value());
 
-    int64 j = -76;
+    int64_t j = -76;
     T y(j);
     EXPECT_EQ(V(-76), y.value());
   }
 
-  {  // Test construction from uint64.
-    uint64 i = 93;
+  {  // Test construction from uint64_t.
+    uint64_t i = 93;
     T x(i);
     EXPECT_EQ(V(93), x.value());
   }
@@ -437,30 +435,30 @@ TYPED_TEST(StrongIntTest, TestMultiplyOperators) {
     TEST_T_OP_NUM(93, *, V, -1);
     TEST_NUM_OP_T(V, 93, *, -1);
   }
-  // Test multiplication by int8.
-  TEST_T_OP_NUM(39, *, int8, 2);
-  TEST_NUM_OP_T(int8, 39, *, 2);
-  // Test multiplication by uint8.
-  TEST_T_OP_NUM(39, *, uint8, 2);
-  TEST_NUM_OP_T(uint8, 39, *, 2);
-  // Test multiplication by int16.
-  TEST_T_OP_NUM(39, *, int16, 2);
-  TEST_NUM_OP_T(int16, 39, *, 2);
-  // Test multiplication by uint16.
-  TEST_T_OP_NUM(39, *, uint16, 2);
-  TEST_NUM_OP_T(uint16, 39, *, 2);
-  // Test multiplication by int32.
-  TEST_T_OP_NUM(39, *, int32, 2);
-  TEST_NUM_OP_T(int32, 39, *, 2);
-  // Test multiplication by uint32.
-  TEST_T_OP_NUM(39, *, uint32, 2);
-  TEST_NUM_OP_T(uint32, 39, *, 2);
-  // Test multiplication by int64.
-  TEST_T_OP_NUM(39, *, int64, 2);
-  TEST_NUM_OP_T(int64, 39, *, 2);
-  // Test multiplication by uint64.
-  TEST_T_OP_NUM(39, *, uint64, 2);
-  TEST_NUM_OP_T(uint64, 39, *, 2);
+  // Test multiplication by int8_t.
+  TEST_T_OP_NUM(39, *, int8_t, 2);
+  TEST_NUM_OP_T(int8_t, 39, *, 2);
+  // Test multiplication by uint8_t.
+  TEST_T_OP_NUM(39, *, uint8_t, 2);
+  TEST_NUM_OP_T(uint8_t, 39, *, 2);
+  // Test multiplication by int16_t.
+  TEST_T_OP_NUM(39, *, int16_t, 2);
+  TEST_NUM_OP_T(int16_t, 39, *, 2);
+  // Test multiplication by uint16_t.
+  TEST_T_OP_NUM(39, *, uint16_t, 2);
+  TEST_NUM_OP_T(uint16_t, 39, *, 2);
+  // Test multiplication by int32_t.
+  TEST_T_OP_NUM(39, *, int32_t, 2);
+  TEST_NUM_OP_T(int32_t, 39, *, 2);
+  // Test multiplication by uint32_t.
+  TEST_T_OP_NUM(39, *, uint32_t, 2);
+  TEST_NUM_OP_T(uint32_t, 39, *, 2);
+  // Test multiplication by int64_t.
+  TEST_T_OP_NUM(39, *, int64_t, 2);
+  TEST_NUM_OP_T(int64_t, 39, *, 2);
+  // Test multiplication by uint64_t.
+  TEST_T_OP_NUM(39, *, uint64_t, 2);
+  TEST_NUM_OP_T(uint64_t, 39, *, 2);
   // Test multiplication by float.
   TEST_T_OP_NUM(39, *, float, 2.1);
   TEST_NUM_OP_T(float, 39, *, 2.1);
@@ -496,22 +494,22 @@ TYPED_TEST(StrongIntTest, TestDivideOperators) {
   TEST_T_OP_NUM(93, /, V, 1);
   // Test division by a negative.
   TEST_T_OP_NUM(93, /, V, -1);
-  // Test division by int8.
-  TEST_T_OP_NUM(93, /, int8, 2);
-  // Test division by uint8.
-  TEST_T_OP_NUM(93, /, uint8, 2);
-  // Test division by int16.
-  TEST_T_OP_NUM(93, /, int16, 2);
-  // Test division by uint16.
-  TEST_T_OP_NUM(93, /, uint16, 2);
-  // Test division by int32.
-  TEST_T_OP_NUM(93, /, int32, 2);
-  // Test division by uint32.
-  TEST_T_OP_NUM(93, /, uint32, 2);
-  // Test division by int64.
-  TEST_T_OP_NUM(93, /, int64, 2);
-  // Test division by uint64.
-  TEST_T_OP_NUM(93, /, uint64, 2);
+  // Test division by int8_t.
+  TEST_T_OP_NUM(93, /, int8_t, 2);
+  // Test division by uint8_t.
+  TEST_T_OP_NUM(93, /, uint8_t, 2);
+  // Test division by int16_t.
+  TEST_T_OP_NUM(93, /, int16_t, 2);
+  // Test division by uint16_t.
+  TEST_T_OP_NUM(93, /, uint16_t, 2);
+  // Test division by int32_t.
+  TEST_T_OP_NUM(93, /, int32_t, 2);
+  // Test division by uint32_t.
+  TEST_T_OP_NUM(93, /, uint32_t, 2);
+  // Test division by int64_t.
+  TEST_T_OP_NUM(93, /, int64_t, 2);
+  // Test division by uint64_t.
+  TEST_T_OP_NUM(93, /, uint64_t, 2);
   // Test division by float.
   TEST_T_OP_NUM(93, /, float, 2.1);
   // Test division by double.
@@ -544,22 +542,22 @@ TYPED_TEST(StrongIntTest, TestModuloOperators) {
   TEST_T_OP_NUM(93, %, V, 1);
   // Test modulo by a negative.
   TEST_T_OP_NUM(93, %, V, -5);
-  // Test modulo by int8.
-  TEST_T_OP_NUM(93, %, int8, 5);
-  // Test modulo by uint8.
-  TEST_T_OP_NUM(93, %, uint8, 5);
-  // Test modulo by int16.
-  TEST_T_OP_NUM(93, %, int16, 5);
-  // Test modulo by uint16.
-  TEST_T_OP_NUM(93, %, uint16, 5);
-  // Test modulo by int32.
-  TEST_T_OP_NUM(93, %, int32, 5);
-  // Test modulo by uint32.
-  TEST_T_OP_NUM(93, %, uint32, 5);
-  // Test modulo by int64.
-  TEST_T_OP_NUM(93, %, int64, 5);
-  // Test modulo by uint64.
-  TEST_T_OP_NUM(93, %, uint64, 5);
+  // Test modulo by int8_t.
+  TEST_T_OP_NUM(93, %, int8_t, 5);
+  // Test modulo by uint8_t.
+  TEST_T_OP_NUM(93, %, uint8_t, 5);
+  // Test modulo by int16_t.
+  TEST_T_OP_NUM(93, %, int16_t, 5);
+  // Test modulo by uint16_t.
+  TEST_T_OP_NUM(93, %, uint16_t, 5);
+  // Test modulo by int32_t.
+  TEST_T_OP_NUM(93, %, int32_t, 5);
+  // Test modulo by uint32_t.
+  TEST_T_OP_NUM(93, %, uint32_t, 5);
+  // Test modulo by int64_t.
+  TEST_T_OP_NUM(93, %, int64_t, 5);
+  // Test modulo by uint64_t.
+  TEST_T_OP_NUM(93, %, uint64_t, 5);
   // Test modulo by a larger value.
   TEST_T_OP_NUM(93, %, V, 100);
 
@@ -761,10 +759,10 @@ TYPED_TEST(StrongIntTest, TestHash) {
 
 TYPED_TEST(StrongIntTest, TestStrongIntRange) {
   using TypeUnderTest = typename TestFixture::StrongIntTypeUnderTest;
-  const int64 kMaxOuterIterations = 100;
-  for (int64 to = 0; to < kMaxOuterIterations; ++to) {
+  const int64_t kMaxOuterIterations = 100;
+  for (int64_t to = 0; to < kMaxOuterIterations; ++to) {
     int count = 0;
-    int64 sum = 0;
+    int64_t sum = 0;
     for (const auto x : MakeStrongIntRange(TypeUnderTest(to))) {
       ++count;
       sum += x.value();
@@ -772,10 +770,10 @@ TYPED_TEST(StrongIntTest, TestStrongIntRange) {
     EXPECT_EQ(to, count);
     EXPECT_EQ(to * (to - 1) / 2, sum);
   }
-  for (int64 to = 0; to < kMaxOuterIterations; ++to) {
-    for (int64 from = 0; from <= to; ++from) {
+  for (int64_t to = 0; to < kMaxOuterIterations; ++to) {
+    for (int64_t from = 0; from <= to; ++from) {
       int count = 0;
-      int64 sum = 0;
+      int64_t sum = 0;
       for (const auto x :
            MakeStrongIntRange(TypeUnderTest(from), TypeUnderTest(to))) {
         ++count;
@@ -842,7 +840,7 @@ TEST(StrongIntTest, Exhaustive) {
 
 TEST(StrongIntTest, ExplicitCasting) {
   StrongInt8 x(8);
-  EXPECT_THAT(static_cast<int8>(x), Eq(x.value()));
+  EXPECT_THAT(static_cast<int8_t>(x), Eq(x.value()));
   EXPECT_THAT(static_cast<size_t>(x), Eq(x.value()));
 }
 
@@ -850,9 +848,9 @@ TEST(StrongIntTest, ExplicitCasting) {
 // conversions work.
 namespace other_namespace {
 
-DEFINE_STRONG_INT_TYPE(Inches, int64);
-DEFINE_STRONG_INT_TYPE(Feet, int64);
-DEFINE_STRONG_INT_TYPE(Centimeters, int32);
+DEFINE_STRONG_INT_TYPE(Inches, int64_t);
+DEFINE_STRONG_INT_TYPE(Feet, int64_t);
+DEFINE_STRONG_INT_TYPE(Centimeters, int32_t);
 
 constexpr Feet StrongIntConvert(const Inches &arg, Feet * /* unused */) {
   return Feet(arg.value() / 12);
@@ -906,7 +904,7 @@ static_assert(std::is_convertible<int, StrongIntTestHelper<int>>::value, "");
 // Test the IsStrongInt type trait.
 static_assert(IsStrongInt<StrongInt8>::value, "");
 static_assert(IsStrongInt<StrongUInt16>::value, "");
-static_assert(!IsStrongInt<int8>::value, "");
+static_assert(!IsStrongInt<int8_t>::value, "");
 static_assert(!IsStrongInt<long>::value, "");  // NOLINT
 static_assert(!IsStrongInt<void>::value, "");
 

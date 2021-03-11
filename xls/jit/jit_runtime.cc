@@ -31,7 +31,7 @@ JitRuntime::JitRuntime(const llvm::DataLayout& data_layout,
 
 absl::Status JitRuntime::PackArgs(absl::Span<const Value> args,
                                   absl::Span<Type* const> arg_types,
-                                  absl::Span<uint8*> arg_buffers) {
+                                  absl::Span<uint8_t*> arg_buffers) {
   if (arg_buffers.size() < args.size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Input buffer is not large enough to hold all arguments: %d vs. %d",
@@ -49,13 +49,13 @@ absl::Status JitRuntime::PackArgs(absl::Span<const Value> args,
   return absl::OkStatus();
 }
 
-Value JitRuntime::UnpackBuffer(const uint8* buffer, const Type* result_type) {
+Value JitRuntime::UnpackBuffer(const uint8_t* buffer, const Type* result_type) {
   switch (result_type->kind()) {
     case TypeKind::kBits: {
       const BitsType* bits_type = result_type->AsBitsOrDie();
-      int64 bit_count = bits_type->bit_count();
-      int64 byte_count = CeilOfRatio(bit_count, kCharBit);
-      absl::InlinedVector<uint8, 8> data;
+      int64_t bit_count = bits_type->bit_count();
+      int64_t byte_count = CeilOfRatio(bit_count, kCharBit);
+      absl::InlinedVector<uint8_t, 8> data;
       data.reserve(byte_count);
       for (int i = 0; i < byte_count; ++i) {
         data.push_back(buffer[i]);
@@ -104,7 +104,7 @@ Value JitRuntime::UnpackBuffer(const uint8* buffer, const Type* result_type) {
         llvm::Constant* index =
             type_converter_->ToLlvmConstant(&bits_type, Value(UBits(i, 64)))
                 .value();
-        int64 offset =
+        int64_t offset =
             data_layout_.getIndexedOffsetInType(llvm_element_type, index);
         Value value = UnpackBuffer(buffer + offset, element_type);
         values.push_back(value);
@@ -120,10 +120,10 @@ Value JitRuntime::UnpackBuffer(const uint8* buffer, const Type* result_type) {
 }
 
 void JitRuntime::BlitValueToBuffer(const Value& value, const Type* type,
-                                   absl::Span<uint8> buffer) {
+                                   absl::Span<uint8_t> buffer) {
   if (value.IsBits()) {
     const Bits& bits = value.bits();
-    int64 byte_count = CeilOfRatio(bits.bit_count(), kCharBit);
+    int64_t byte_count = CeilOfRatio(bits.bit_count(), kCharBit);
     bits.ToBytes(absl::MakeSpan(buffer.data(), byte_count),
                  data_layout_.isBigEndian());
 
@@ -133,11 +133,11 @@ void JitRuntime::BlitValueToBuffer(const Value& value, const Type* type,
     // Max of 7 bits of remainder on the [little-endian] most-significant byte.
     int remainder_bits = bits.bit_count() % kCharBit;
     if (remainder_bits != 0) {
-      buffer[byte_count - 1] &= static_cast<uint8>(Mask(remainder_bits));
+      buffer[byte_count - 1] &= static_cast<uint8_t>(Mask(remainder_bits));
     }
   } else if (value.IsArray()) {
     const ArrayType* array_type = type->AsArrayOrDie();
-    int64 element_size =
+    int64_t element_size =
         type_converter_->GetTypeByteSize(array_type->element_type());
     for (int i = 0; i < value.size(); ++i) {
       BlitValueToBuffer(value.element(i), array_type->element_type(), buffer);
@@ -234,14 +234,14 @@ RuntimeState* GetRuntimeState() {
   return state.release();
 }
 
-int64 GetArgBufferSize(int arg_count, const char** input_args) {
+int64_t GetArgBufferSize(int arg_count, const char** input_args) {
   std::unique_ptr<RuntimeState> state(GetRuntimeState());
   if (state == nullptr) {
     return -1;
   }
 
   xls::Package package("get_arg_buffer_size");
-  int64 args_size = 0;
+  int64_t args_size = 0;
   for (int i = 1; i < arg_count; i++) {
     auto status_or_value = xls::Parser::ParseTypedValue(input_args[i]);
     if (!status_or_value.ok()) {
@@ -263,7 +263,7 @@ int64 GetArgBufferSize(int arg_count, const char** input_args) {
 // Since LLVM "main" execution isn't a throughput case, it's really not a
 // problem to be a bit wasteful, especially when it makes things that much
 // simpler.
-int64 PackArgs(int arg_count, const char** input_args, uint8** buffer) {
+int64_t PackArgs(int arg_count, const char** input_args, uint8_t** buffer) {
   std::unique_ptr<RuntimeState> state(GetRuntimeState());
   if (state == nullptr) {
     return -1;
@@ -272,7 +272,7 @@ int64 PackArgs(int arg_count, const char** input_args, uint8** buffer) {
   xls::Package package("pack_args");
   std::vector<xls::Value> values;
   std::vector<xls::Type*> types;
-  std::vector<int64> arg_sizes;
+  std::vector<int64_t> arg_sizes;
   values.reserve(arg_count);
   types.reserve(arg_count);
   arg_sizes.reserve(arg_count);
@@ -293,7 +293,7 @@ int64 PackArgs(int arg_count, const char** input_args, uint8** buffer) {
 }
 
 int UnpackAndPrintBuffer(const char* output_type_string, int arg_count,
-                         const char** input_args, const uint8* buffer) {
+                         const char** input_args, const uint8_t* buffer) {
   std::unique_ptr<RuntimeState> state(GetRuntimeState());
   if (state == nullptr) {
     return -1;

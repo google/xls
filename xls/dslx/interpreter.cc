@@ -188,11 +188,12 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
   return result;
 }
 
-/* static */ absl::StatusOr<int64> Interpreter::InterpretExprToInt(
+/* static */ absl::StatusOr<int64_t> Interpreter::InterpretExprToInt(
     Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
     absl::Span<std::string const> additional_search_paths,
-    ImportData* import_data, const absl::flat_hash_map<std::string, int64>& env,
-    const absl::flat_hash_map<std::string, int64>& bit_widths, Expr* expr,
+    ImportData* import_data,
+    const absl::flat_hash_map<std::string, int64_t>& env,
+    const absl::flat_hash_map<std::string, int64_t>& bit_widths, Expr* expr,
     const FnCtx* fn_ctx, ConcreteType* type_context) {
   XLS_VLOG(3) << "InterpretExpr: " << expr->ToString() << " env: {"
               << absl::StrJoin(env, ", ", absl::PairFormatter(":")) << "}";
@@ -230,7 +231,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
       interp.Evaluate(expr, &bindings, /*type_context=*/type_context));
   switch (result.tag()) {
     case InterpValueTag::kUBits: {
-      XLS_ASSIGN_OR_RETURN(uint64 result, result.GetBitValueUint64());
+      XLS_ASSIGN_OR_RETURN(uint64_t result, result.GetBitValueUint64());
       return result;
     }
     case InterpValueTag::kSBits:
@@ -475,9 +476,9 @@ absl::StatusOr<InterpValue> SignConvertValue(const ConcreteType& concrete_type,
                                              const InterpValue& value) {
   if (auto* tuple_type = dynamic_cast<const TupleType*>(&concrete_type)) {
     XLS_RET_CHECK(value.IsTuple()) << value.ToString();
-    const int64 tuple_size = value.GetValuesOrDie().size();
+    const int64_t tuple_size = value.GetValuesOrDie().size();
     std::vector<InterpValue> results;
-    for (int64 i = 0; i < tuple_size; ++i) {
+    for (int64_t i = 0; i < tuple_size; ++i) {
       const InterpValue& e = value.GetValuesOrDie()[i];
       const ConcreteType& t = tuple_type->GetMemberType(i);
       XLS_ASSIGN_OR_RETURN(InterpValue converted, SignConvertValue(t, e));
@@ -488,9 +489,9 @@ absl::StatusOr<InterpValue> SignConvertValue(const ConcreteType& concrete_type,
   if (auto* array_type = dynamic_cast<const ArrayType*>(&concrete_type)) {
     XLS_RET_CHECK(value.IsArray()) << value.ToString();
     const ConcreteType& t = array_type->element_type();
-    int64 array_size = value.GetValuesOrDie().size();
+    int64_t array_size = value.GetValuesOrDie().size();
     std::vector<InterpValue> results;
-    for (int64 i = 0; i < array_size; ++i) {
+    for (int64_t i = 0; i < array_size; ++i) {
       const InterpValue& e = value.GetValuesOrDie()[i];
       XLS_ASSIGN_OR_RETURN(InterpValue converted, SignConvertValue(t, e));
       results.push_back(converted);
@@ -524,7 +525,7 @@ absl::StatusOr<std::vector<InterpValue>> SignConvertArgs(
   XLS_RET_CHECK_EQ(params.size(), args.size());
   std::vector<InterpValue> converted;
   converted.reserve(args.size());
-  for (int64 i = 0; i < args.size(); ++i) {
+  for (int64_t i = 0; i < args.size(); ++i) {
     XLS_ASSIGN_OR_RETURN(InterpValue value,
                          SignConvertValue(*params[i], args[i]));
     converted.push_back(value);

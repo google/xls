@@ -48,7 +48,7 @@ namespace verilog {
 // return true for a kBitSlice nodes (for operand_no value of zero, it's only
 // operand) and the generator would be responsible for declaring and assigning
 // an intermediate value.
-bool OperandMustBeNamedReference(Node* node, int64 operand_no);
+bool OperandMustBeNamedReference(Node* node, int64_t operand_no);
 
 // Returns a VAST expression which computes the given node with the given
 // inputs. If the node cannot be expressed as an expression (e.g., CountedFor),

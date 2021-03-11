@@ -17,13 +17,13 @@
 namespace xls::noc {
 
 LinkOptionsProtoBuilder& LinkOptionsProtoBuilder::WithSourceSinkPipelineStage(
-    int64 pipeline_stage) {
+    int64_t pipeline_stage) {
   proto_->set_source_sink_pipeline_stage(pipeline_stage);
   return *this;
 }
 
 LinkOptionsProtoBuilder& LinkOptionsProtoBuilder::WithSinkSourcePipelineStage(
-    int64 pipeline_stage) {
+    int64_t pipeline_stage) {
   proto_->set_sink_source_pipeline_stage(pipeline_stage);
   return *this;
 }

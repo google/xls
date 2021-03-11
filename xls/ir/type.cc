@@ -88,7 +88,7 @@ bool TupleType::IsEqualTo(const Type* other) const {
   if (size() != other_tuple->size()) {
     return false;
   }
-  for (int64 i = 0; i < size(); ++i) {
+  for (int64_t i = 0; i < size(); ++i) {
     if (!element_type(i)->IsEqualTo(other_tuple->element_type(i))) {
       return false;
     }
@@ -142,7 +142,7 @@ std::string TupleType::ToString() const {
   return absl::StrCat("(", absl::StrJoin(pieces, ", "), ")");
 }
 
-BitsType::BitsType(int64 bit_count)
+BitsType::BitsType(int64_t bit_count)
     : Type(TypeKind::kBits), bit_count_(bit_count) {
   XLS_CHECK_GE(bit_count_, 0);
 }
@@ -176,7 +176,7 @@ bool FunctionType::IsEqualTo(const FunctionType* other) const {
   if (parameter_count() != other->parameter_count()) {
     return false;
   }
-  for (int64 i = 0; i < parameter_count(); ++i) {
+  for (int64_t i = 0; i < parameter_count(); ++i) {
     if (!parameter_type(i)->IsEqualTo(other->parameter_type(i))) {
       return false;
     }
@@ -199,9 +199,9 @@ std::ostream& operator<<(std::ostream& os, const Type* type) {
 }
 
 absl::StatusOr<Type*> GetIndexedElementType(Type* type_to_index,
-                                            int64 index_size) {
+                                            int64_t index_size) {
   Type* indexed_element_type = type_to_index;
-  for (int64 i = 0; i < index_size; ++i) {
+  for (int64_t i = 0; i < index_size; ++i) {
     if (!indexed_element_type->IsArray()) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Index has more elements (%d) than type %s has "
@@ -214,8 +214,8 @@ absl::StatusOr<Type*> GetIndexedElementType(Type* type_to_index,
   return indexed_element_type;
 }
 
-int64 GetArrayDimensionCount(Type* type) {
-  int64 count = 0;
+int64_t GetArrayDimensionCount(Type* type) {
+  int64_t count = 0;
   while (type->IsArray()) {
     count++;
     type = type->AsArrayOrDie()->element_type();

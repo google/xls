@@ -15,6 +15,7 @@
 #include "xls/jit/ir_jit.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <random>
 
@@ -54,7 +55,6 @@
 #include "llvm/include/llvm/Target/TargetMachine.h"
 #include "llvm/include/llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "xls/codegen/vast.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
@@ -92,7 +92,7 @@ IrJit::~IrJit() {
 }
 
 absl::StatusOr<std::unique_ptr<IrJit>> IrJit::Create(Function* xls_function,
-                                                     int64 opt_level) {
+                                                     int64_t opt_level) {
   absl::call_once(once, OnceInit);
 
   auto jit = absl::WrapUnique(new IrJit(xls_function, opt_level));
@@ -110,7 +110,7 @@ absl::StatusOr<std::unique_ptr<IrJit>> IrJit::Create(Function* xls_function,
 absl::StatusOr<std::unique_ptr<IrJit>> IrJit::CreateProc(
     Proc* proc, JitChannelQueueManager* queue_mgr,
     ProcBuilderVisitor::RecvFnT recv_fn, ProcBuilderVisitor::SendFnT send_fn,
-    int64 opt_level) {
+    int64_t opt_level) {
   absl::call_once(once, OnceInit);
 
   auto jit = absl::WrapUnique(new IrJit(proc, opt_level));
@@ -163,7 +163,7 @@ absl::Status IrJit::Compile(VisitFn visit_fn) {
   return absl::OkStatus();
 }
 
-IrJit::IrJit(FunctionBase* xls_function, int64 opt_level)
+IrJit::IrJit(FunctionBase* xls_function, int64_t opt_level)
     : context_(std::make_unique<llvm::LLVMContext>()),
       object_layer_(
           execution_session_,
@@ -337,13 +337,13 @@ absl::StatusOr<Value> IrJit::Run(absl::Span<const Value> args,
     }
   }
 
-  std::vector<std::unique_ptr<uint8[]>> unique_arg_buffers;
-  std::vector<uint8*> arg_buffers;
+  std::vector<std::unique_ptr<uint8_t[]>> unique_arg_buffers;
+  std::vector<uint8_t*> arg_buffers;
   unique_arg_buffers.reserve(xls_function_->params().size());
   arg_buffers.reserve(unique_arg_buffers.size());
   std::vector<Type*> param_types;
   for (const Param* param : xls_function_->params()) {
-    unique_arg_buffers.push_back(std::make_unique<uint8[]>(
+    unique_arg_buffers.push_back(std::make_unique<uint8_t[]>(
         type_converter_->GetTypeByteSize(param->GetType())));
     arg_buffers.push_back(unique_arg_buffers.back().get());
     param_types.push_back(param->GetType());
@@ -352,7 +352,7 @@ absl::StatusOr<Value> IrJit::Run(absl::Span<const Value> args,
   XLS_RETURN_IF_ERROR(
       ir_runtime_->PackArgs(args, param_types, absl::MakeSpan(arg_buffers)));
 
-  absl::InlinedVector<uint8, 16> outputs(return_type_bytes_);
+  absl::InlinedVector<uint8_t, 16> outputs(return_type_bytes_);
   invoker_(arg_buffers.data(), outputs.data(), user_data);
 
   return ir_runtime_->UnpackBuffer(
@@ -368,8 +368,8 @@ absl::StatusOr<Value> IrJit::Run(
   return Run(positional_args, user_data);
 }
 
-absl::Status IrJit::RunWithViews(absl::Span<uint8*> args,
-                                 absl::Span<uint8> result_buffer,
+absl::Status IrJit::RunWithViews(absl::Span<uint8_t*> args,
+                                 absl::Span<uint8_t> result_buffer,
                                  void* user_data) {
   absl::Span<Param* const> params = xls_function_->params();
   if (args.size() != params.size()) {
@@ -397,7 +397,7 @@ absl::StatusOr<Value> CreateAndRun(Function* xls_function,
 }
 
 absl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
-CreateAndQuickCheck(Function* xls_function, int64 seed, int64 num_tests) {
+CreateAndQuickCheck(Function* xls_function, int64_t seed, int64_t num_tests) {
   // No proc support from Python yet.
   XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(xls_function));
   std::vector<Value> results;
@@ -433,7 +433,7 @@ absl::Status IrJit::CompilePackedViewFunction(VisitFn visit_fn,
                            xls_function_->params().size()),
       /*AddressSpace=*/0));
 
-  int64 return_width =
+  int64_t return_width =
       FunctionBuilderVisitor::GetEffectiveReturnValue(xls_function_)
           ->GetType()
           ->GetFlatBitCount();

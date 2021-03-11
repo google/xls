@@ -25,7 +25,7 @@ namespace {
 std::vector<BitLocation> ToBitLocations(Node* node) {
   XLS_CHECK(node->GetType()->IsBits());
   std::vector<BitLocation> locations;
-  for (int64 i = 0; i < node->BitCountOrDie(); ++i) {
+  for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
     locations.push_back({node, i});
   }
   return locations;
@@ -101,7 +101,7 @@ bool QueryEngine::AllBitsKnown(Node* node) const {
 
 Bits QueryEngine::MaxUnsignedValue(Node* node) const {
   absl::InlinedVector<bool, 1> bits(node->BitCountOrDie());
-  for (int64 i = 0; i < node->BitCountOrDie(); ++i) {
+  for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
     bits[i] = IsZero(BitLocation{node, i}) ? false : true;
   }
   return Bits(bits);
@@ -109,7 +109,7 @@ Bits QueryEngine::MaxUnsignedValue(Node* node) const {
 
 Bits QueryEngine::MinUnsignedValue(Node* node) const {
   absl::InlinedVector<bool, 16> bits(node->BitCountOrDie());
-  for (int64 i = 0; i < node->BitCountOrDie(); ++i) {
+  for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
     bits[i] = IsOne(BitLocation{node, i});
   }
   return Bits(bits);
@@ -118,8 +118,8 @@ Bits QueryEngine::MinUnsignedValue(Node* node) const {
 bool QueryEngine::NodesKnownUnsignedNotEquals(Node* a, Node* b) const {
   XLS_CHECK(a->GetType()->IsBits());
   XLS_CHECK(b->GetType()->IsBits());
-  int64 max_width = std::max(a->BitCountOrDie(), b->BitCountOrDie());
-  auto get_known_bit = [this](Node* n, int64 index) {
+  int64_t max_width = std::max(a->BitCountOrDie(), b->BitCountOrDie());
+  auto get_known_bit = [this](Node* n, int64_t index) {
     if (index >= n->BitCountOrDie()) {
       return TernaryValue::kKnownZero;
     }
@@ -133,7 +133,7 @@ bool QueryEngine::NodesKnownUnsignedNotEquals(Node* a, Node* b) const {
     return TernaryValue::kUnknown;
   };
 
-  for (int64 i = 0; i < max_width; ++i) {
+  for (int64_t i = 0; i < max_width; ++i) {
     TernaryValue a_bit = get_known_bit(a, i);
     TernaryValue b_bit = get_known_bit(b, i);
     if (a_bit != b_bit && a_bit != TernaryValue::kUnknown &&
@@ -155,7 +155,7 @@ bool QueryEngine::NodesKnownUnsignedEquals(Node* a, Node* b) const {
 std::string QueryEngine::ToString(Node* node) const {
   XLS_CHECK(IsTracked(node));
   std::string ret = "0b";
-  for (int64 i = GetKnownBits(node).bit_count() - 1; i >= 0; --i) {
+  for (int64_t i = GetKnownBits(node).bit_count() - 1; i >= 0; --i) {
     std::string c = "X";
     if (IsKnown(BitLocation(node, i))) {
       c = IsOne(BitLocation(node, i)) ? "1" : "0";

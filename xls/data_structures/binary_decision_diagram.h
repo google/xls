@@ -15,9 +15,10 @@
 #ifndef XLS_DATA_STRUCTURES_BINARY_DECISION_DIAGRAM_H_
 #define XLS_DATA_STRUCTURES_BINARY_DECISION_DIAGRAM_H_
 
+#include <cstdint>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/strong_int.h"
 
 namespace xls {
@@ -33,15 +34,15 @@ namespace xls {
 
 // For efficiency variables and nodes are referred to by indices into vector
 // data members in the BDD.
-DEFINE_STRONG_INT_TYPE(BddVariable, int32);
-DEFINE_STRONG_INT_TYPE(BddNodeIndex, int32);
+DEFINE_STRONG_INT_TYPE(BddVariable, int32_t);
+DEFINE_STRONG_INT_TYPE(BddNodeIndex, int32_t);
 
 // A node in the BDD. The node is associated with a single variable and has
 // children corresponding to when the variable is true (high) and when it is
 // false (low).
 struct BddNode {
   BddNode() : variable(0), high(0), low(0), minterm_count(0) {}
-  BddNode(BddVariable v, BddNodeIndex h, BddNodeIndex l, int32 m)
+  BddNode(BddVariable v, BddNodeIndex h, BddNodeIndex l, int32_t m)
       : variable(v), high(h), low(l), minterm_count(m) {}
 
   BddVariable variable;
@@ -51,7 +52,7 @@ struct BddNode {
   // Number of minterms in the expression. A minterm is a term in a
   // sum-of-products form of the boolean function, or equivalently a path to the
   // leaf node '1' from the BDD node. Saturates at INT32_MAX.
-  int32 minterm_count;
+  int32_t minterm_count;
 };
 
 class BinaryDecisionDiagram {
@@ -89,20 +90,20 @@ class BinaryDecisionDiagram {
   }
 
   // Returns the number of nodes in the graph.
-  int64 size() const { return nodes_.size(); }
+  int64_t size() const { return nodes_.size(); }
 
   // Returns the number of variables in the graph.
-  int64 variable_count() const { return next_var_.value(); }
+  int64_t variable_count() const { return next_var_.value(); }
 
   // Returns the number of minterms in the given expression.
-  int64 minterm_count(BddNodeIndex expr) const {
+  int64_t minterm_count(BddNodeIndex expr) const {
     return GetNode(expr).minterm_count;
   }
 
   // Returns the given expression in disjunctive normal form (sum of products).
   // The expression is not minimal. 'minterm_limit' is the maximum number of
   // minterms to emit before truncating the output.
-  std::string ToStringDnf(BddNodeIndex expr, int64 minterm_limit = 0) const;
+  std::string ToStringDnf(BddNodeIndex expr, int64_t minterm_limit = 0) const;
 
   // Returns true if the given node is the "base" node for its respective
   // variable. The expression of a base node is exactly equal to the value of
@@ -113,7 +114,7 @@ class BinaryDecisionDiagram {
 
  private:
   // Helper for constructing a DNF string respresentation.
-  void ToStringDnfHelper(BddNodeIndex expr, int64* minterms_to_emit,
+  void ToStringDnfHelper(BddNodeIndex expr, int64_t* minterms_to_emit,
                          std::vector<std::string>* terms,
                          std::string* str) const;
 

@@ -17,13 +17,13 @@
 namespace xls::noc {
 
 EndpointOptionsProtoBuilder& EndpointOptionsProtoBuilder::WithNumSendPorts(
-    int64 number_send_ports) {
+    int64_t number_send_ports) {
   proto_->set_num_send_ports(number_send_ports);
   return *this;
 }
 
 EndpointOptionsProtoBuilder& EndpointOptionsProtoBuilder::WithNumRecvPorts(
-    int64 number_recv_ports) {
+    int64_t number_recv_ports) {
   proto_->set_num_recv_ports(number_recv_ports);
   return *this;
 }

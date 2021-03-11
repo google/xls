@@ -36,7 +36,7 @@ void NodeIterator::Initialize() {
   // the "pending_to_remaining_users" mapping if it is not yet present -- this
   // keeps track of how many more users must be seen (before that node is ready
   // to place into the ordering).
-  absl::flat_hash_map<Node*, int64> pending_to_remaining_users;
+  absl::flat_hash_map<Node*, int64_t> pending_to_remaining_users;
   pending_to_remaining_users.reserve(f_->node_count());
   std::deque<Node*> ready;
 
@@ -57,7 +57,7 @@ void NodeIterator::Initialize() {
     XLS_CHECK(!n->users().empty());
     auto result = pending_to_remaining_users.insert({n, n->users().size()});
     auto it = result.first;
-    int64& remaining_users = it->second;
+    int64_t& remaining_users = it->second;
     XLS_CHECK_GT(remaining_users, 0);
     remaining_users -= 1;
     XLS_VLOG(4) << "Bumped down remaining users for: " << n

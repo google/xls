@@ -52,7 +52,7 @@ bool BigInt::operator==(const BigInt& other) const {
 /* static */
 BigInt BigInt::MakeUnsigned(const Bits& bits) {
   BigInt value;
-  std::vector<uint8> byte_vector = bits.ToBytes();
+  std::vector<uint8_t> byte_vector = bits.ToBytes();
   BN_bin2bn(byte_vector.data(), byte_vector.size(), &value.bn_);
   return value;
 }
@@ -66,7 +66,7 @@ BigInt BigInt::MakeSigned(const Bits& bits) {
   // 'bits' is a twos-complement negative number, invert the bits and add one to
   // get the magnitude. Then negate it to produce the correct value in the
   // BigInt.
-  std::vector<uint8> byte_vector = bits.ToBytes();
+  std::vector<uint8_t> byte_vector = bits.ToBytes();
   for (auto& byte : byte_vector) {
     byte = ~byte;
   }
@@ -97,18 +97,18 @@ Bits BigInt::ToSignedBits() const {
     BN_sub_word(&decremented_if_negative.bn_, 1);
   }
 
-  std::vector<uint8> byte_vector;
+  std::vector<uint8_t> byte_vector;
   byte_vector.resize(BN_num_bytes(&decremented_if_negative.bn_));
   XLS_CHECK(BN_bn2bin_padded(byte_vector.data(), byte_vector.size(),
                              &decremented_if_negative.bn_));
 
   if (is_negative) {
-    for (uint8& byte : byte_vector) {
+    for (uint8_t& byte : byte_vector) {
       byte = ~byte;
     }
   }
 
-  int64 result_bit_count = SignedBitCount();
+  int64_t result_bit_count = SignedBitCount();
   BitsRope rope(result_bit_count);
   rope.push_back(Bits::FromBytes(byte_vector, result_bit_count - 1));
   rope.push_back(is_negative ? Bits::AllOnes(1) : Bits(1));
@@ -117,16 +117,16 @@ Bits BigInt::ToSignedBits() const {
 
 Bits BigInt::ToUnsignedBits() const {
   XLS_CHECK(!BN_is_negative(&bn_));
-  int64 bit_count = BN_num_bits(&bn_);
-  std::vector<uint8> byte_vector;
+  int64_t bit_count = BN_num_bits(&bn_);
+  std::vector<uint8_t> byte_vector;
   byte_vector.resize(BN_num_bytes(&bn_));
 
   XLS_CHECK(BN_bn2bin_padded(byte_vector.data(), byte_vector.size(), &bn_));
   return Bits::FromBytes(byte_vector, bit_count);
 }
 
-absl::StatusOr<Bits> BigInt::ToSignedBitsWithBitCount(int64 bit_count) const {
-  int64 min_bit_count = SignedBitCount();
+absl::StatusOr<Bits> BigInt::ToSignedBitsWithBitCount(int64_t bit_count) const {
+  int64_t min_bit_count = SignedBitCount();
   if (bit_count < min_bit_count) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Specified bit count (%d) is less than minimum required (%d)!",
@@ -145,8 +145,9 @@ absl::StatusOr<Bits> BigInt::ToSignedBitsWithBitCount(int64 bit_count) const {
   return rope.Build();
 }
 
-absl::StatusOr<Bits> BigInt::ToUnsignedBitsWithBitCount(int64 bit_count) const {
-  int64 min_bit_count = UnsignedBitCount();
+absl::StatusOr<Bits> BigInt::ToUnsignedBitsWithBitCount(
+    int64_t bit_count) const {
+  int64_t min_bit_count = UnsignedBitCount();
   if (bit_count < min_bit_count) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Specified bit count (%d) is less than minimum required (%d)!",
@@ -161,7 +162,7 @@ absl::StatusOr<Bits> BigInt::ToUnsignedBitsWithBitCount(int64 bit_count) const {
   return rope.Build();
 }
 
-int64 BigInt::SignedBitCount() const {
+int64_t BigInt::SignedBitCount() const {
   if (BN_is_zero(&bn_)) {
     return 0;
   }
@@ -179,7 +180,7 @@ int64 BigInt::SignedBitCount() const {
   return BN_num_bits(&bn_) + 1;
 }
 
-int64 BigInt::UnsignedBitCount() const {
+int64_t BigInt::UnsignedBitCount() const {
   XLS_CHECK_EQ(BN_is_negative(&bn_), 0) << "Value must be non-negative.";
   if (BN_is_negative(&bn_)) {
     return 0;

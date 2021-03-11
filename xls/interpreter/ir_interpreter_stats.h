@@ -15,12 +15,13 @@
 #ifndef XLS_IR_IR_INTERPRETER_STATS_H_
 #define XLS_IR_IR_INTERPRETER_STATS_H_
 
+#include <cstdint>
+
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/optional.h"
-#include "xls/common/integral_types.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
 
@@ -31,7 +32,7 @@ namespace xls {
 // IR interpreter itself.
 class InterpreterStats {
  public:
-  void NoteShllAmountForBitCount(int64 amount, int64 bit_count) {
+  void NoteShllAmountForBitCount(int64_t amount, int64_t bit_count) {
     absl::MutexLock lock(&mutex_);
     all_shlls_ += 1;
     overlarge_shlls_ += amount >= bit_count;
@@ -51,7 +52,7 @@ class InterpreterStats {
   std::string ToReport() const;
 
  private:
-  int64 in_range_shlls() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+  int64_t in_range_shlls() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
     return all_shlls_ - overlarge_shlls_ - zero_shlls_;
   }
 
@@ -83,9 +84,9 @@ class InterpreterStats {
   // (conflicting info).
   absl::flat_hash_map<std::string, absl::optional<TernaryVector>> value_profile_
       ABSL_GUARDED_BY(mutex_);
-  int64 overlarge_shlls_ ABSL_GUARDED_BY(mutex_) = 0;
-  int64 zero_shlls_ ABSL_GUARDED_BY(mutex_) = 0;
-  int64 all_shlls_ ABSL_GUARDED_BY(mutex_) = 0;
+  int64_t overlarge_shlls_ ABSL_GUARDED_BY(mutex_) = 0;
+  int64_t zero_shlls_ ABSL_GUARDED_BY(mutex_) = 0;
+  int64_t all_shlls_ ABSL_GUARDED_BY(mutex_) = 0;
 };
 
 }  // namespace xls

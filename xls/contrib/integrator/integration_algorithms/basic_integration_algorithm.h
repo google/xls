@@ -48,7 +48,7 @@ class BasicIntegrationAlgorithm
 
   // Make a BasicIntegrationMove for an insert.
   inline BasicIntegrationMove MakeInsertMove(
-      std::list<Node*>::iterator node_itr, int64 cost) {
+      std::list<Node*>::iterator node_itr, int64_t cost) {
     return BasicIntegrationMove{{.node = *node_itr,
                                  .move_type = IntegrationMoveType::kInsert,
                                  .cost = cost},
@@ -57,7 +57,7 @@ class BasicIntegrationAlgorithm
 
   // Make a BasicIntegrationMove for a merge.
   inline BasicIntegrationMove MakeMergeMove(std::list<Node*>::iterator node_itr,
-                                            Node* merge_node, int64 cost) {
+                                            Node* merge_node, int64_t cost) {
     return BasicIntegrationMove{{.node = *node_itr,
                                  .move_type = IntegrationMoveType::kMerge,
                                  .merge_node = merge_node,

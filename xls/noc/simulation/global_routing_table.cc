@@ -14,12 +14,12 @@
 
 #include "xls/noc/simulation/global_routing_table.h"
 
+#include <cstdint>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/simulation/common.h"
@@ -32,7 +32,8 @@ namespace noc {
 absl::StatusOr<std::vector<NetworkComponentId>>
 DistributedRoutingTable::ComputeRoute(NetworkComponentId source,
                                       NetworkComponentId sink,
-                                      int64 initial_vc_index, int64 max_hops) {
+                                      int64_t initial_vc_index,
+                                      int64_t max_hops) {
   NetworkComponent& source_nc = network_manager_->GetNetworkComponent(source);
   if (source_nc.kind() != NetworkComponentKind::kNISrc) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -50,7 +51,7 @@ DistributedRoutingTable::ComputeRoute(NetworkComponentId source,
   // Network interfaces should only have one port.
   PortId final_port = sink_nc.GetPortIdByIndex(0);
 
-  int64 current_vc_index = initial_vc_index;
+  int64_t current_vc_index = initial_vc_index;
   PortId current_port = source_nc.GetPortIdByIndex(0);
   NetworkComponentId current_network_component = source;
 
@@ -142,17 +143,17 @@ absl::StatusOr<PortAndVCIndex> DistributedRoutingTable::GetNextHopPort(
 
 absl::StatusOr<PortAndVCIndex> DistributedRoutingTable::GetRouterOutputPort(
     PortAndVCIndex from, NetworkComponentId sink) {
-  XLS_ASSIGN_OR_RETURN(int64 destination_index,
+  XLS_ASSIGN_OR_RETURN(int64_t destination_index,
                        sink_indices_.GetNetworkComponentIndex(sink));
   return GetRouterOutputPortByIndex(from, destination_index);
 }
 
 absl::StatusOr<PortAndVCIndex>
 DistributedRoutingTable::GetRouterOutputPortByIndex(PortAndVCIndex from,
-                                                    int64 destination_index) {
+                                                    int64_t destination_index) {
   PortRoutingList& routes = GetRoutingList(from);
 
-  for (std::pair<int64, PortAndVCIndex>& hop : routes) {
+  for (std::pair<int64_t, PortAndVCIndex>& hop : routes) {
     if (hop.first == destination_index) {
       return hop.second;
     }
@@ -174,8 +175,8 @@ DistributedRoutingTable::GetRouterOutputPortByIndex(PortAndVCIndex from,
 }
 
 void DistributedRoutingTable::AllocateTableForNetwork(NetworkId network_id,
-                                                      int64 component_count) {
-  int64 network_index = network_id.id();
+                                                      int64_t component_count) {
+  int64_t network_index = network_id.id();
 
   if (routing_tables_.size() <= network_index) {
     routing_tables_.resize(network_index + 1);
@@ -209,8 +210,8 @@ DistributedRoutingTableBuilderForTrees::BuildNetworkInterfaceIndices(
 
   // This function assigns network interface indices in-order.
   NetworkManager* network_manager = routing_table->network_manager_;
-  int64 next_src_index = 0;
-  int64 next_sink_index = 0;
+  int64_t next_src_index = 0;
+  int64_t next_sink_index = 0;
 
   for (NetworkComponent& nc :
        network_manager->GetNetwork(network_id).GetNetworkComponents()) {
@@ -244,8 +245,8 @@ DistributedRoutingTableBuilderForTrees::BuildPortAndVirtualChannelIndices(
 
   for (NetworkComponent& nc :
        network_manager->GetNetwork(network_id).GetNetworkComponents()) {
-    int64 input_port_index = 0;
-    int64 output_port_index = 0;
+    int64_t input_port_index = 0;
+    int64_t output_port_index = 0;
 
     for (Port& ports : nc.GetPorts()) {
       // This function assigns port indicies in-order.
@@ -263,10 +264,10 @@ DistributedRoutingTableBuilderForTrees::BuildPortAndVirtualChannelIndices(
       XLS_ASSIGN_OR_RETURN(PortParam port_param,
                            network_parameters->GetPortParam(ports.id()));
 
-      int64 vc_count = port_param.VirtualChannelCount();
+      int64_t vc_count = port_param.VirtualChannelCount();
 
       if (vc_count > 0) {
-        for (int64 i = 0; i < vc_count; ++i) {
+        for (int64_t i = 0; i < vc_count; ++i) {
           XLS_RET_CHECK_OK(vc_index_builder.SetVirtualChannelIndex(
               ports.id(), port_param, i, i));
         }
@@ -286,7 +287,7 @@ absl::Status DistributedRoutingTableBuilderForTrees::BuildRoutingTable(
     NetworkId network_id, DistributedRoutingTable* routing_table) {
   NetworkManager* network_manager = routing_table->network_manager_;
 
-  int64 component_count =
+  int64_t component_count =
       network_manager->GetNetwork(network_id).GetNetworkComponentCount();
 
   routing_table->AllocateTableForNetwork(network_id, component_count);
@@ -298,7 +299,7 @@ absl::Status DistributedRoutingTableBuilderForTrees::BuildRoutingTable(
   //  For each sink
   //   Perform DFS to srcs
   //     Record hop needed to reach destination
-  for (int64 i = 0; i < sink_indices.NetworkComponentCount(); ++i) {
+  for (int64_t i = 0; i < sink_indices.NetworkComponentCount(); ++i) {
     XLS_ASSIGN_OR_RETURN(NetworkComponentId sink_id,
                          sink_indices.GetNetworkComponentByIndex(i));
 
@@ -309,7 +310,7 @@ absl::Status DistributedRoutingTableBuilderForTrees::BuildRoutingTable(
 }
 
 absl::Status DistributedRoutingTableBuilderForTrees::AddRoutes(
-    int64 destination_index, NetworkComponentId nc_id, PortId via_port,
+    int64_t destination_index, NetworkComponentId nc_id, PortId via_port,
     DistributedRoutingTable* routing_table) {
   NetworkManager* network_manager = routing_table->network_manager_;
   NocParameters* network_parameters = routing_table->network_parameters_;
@@ -332,8 +333,8 @@ absl::Status DistributedRoutingTableBuilderForTrees::AddRoutes(
                              network_parameters->GetPortParam(via_port));
 
         // TODO(tedhong): 2020-01-15 Support other VC mapping strategies.
-        int64 from_port_vc_count = from_port_param.VirtualChannelCount();
-        int64 via_port_vc_count = via_port_param.VirtualChannelCount();
+        int64_t from_port_vc_count = from_port_param.VirtualChannelCount();
+        int64_t via_port_vc_count = via_port_param.VirtualChannelCount();
 
         if (from_port_vc_count != via_port_vc_count) {
           return absl::UnimplementedError(absl::StrFormat(
@@ -345,7 +346,7 @@ absl::Status DistributedRoutingTableBuilderForTrees::AddRoutes(
 
         if (from_port_param.VirtualChannelCount() == 0 &&
             via_port_param.VirtualChannelCount() == 0) {
-          int64 default_vc = 0;
+          int64_t default_vc = 0;
           table.routes[from_port.id()].resize(1);
           table.routes[from_port.id()][default_vc].emplace_back(
               destination_index, PortAndVCIndex{via_port, default_vc});
@@ -356,7 +357,7 @@ absl::Status DistributedRoutingTableBuilderForTrees::AddRoutes(
           // TODO(tedhong): 2020-01-15 Update this to use global virtual
           //                           channels to allow for more flexiblity.
           table.routes[from_port.id()].resize(from_port_vc_count);
-          for (int64 i = 0; i < from_port_vc_count; ++i) {
+          for (int64_t i = 0; i < from_port_vc_count; ++i) {
             table.routes[from_port.id()][i].emplace_back(
                 destination_index, PortAndVCIndex{via_port, i});
           }

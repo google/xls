@@ -58,7 +58,7 @@ absl::StatusOr<std::vector<Observation>> StdoutToObservations(
       return error(line, "missing time-delimiting ':'");
     }
 
-    int64 time;
+    int64_t time;
     if (!absl::SimpleAtoi(pieces[0], &time)) {
       return error(line, "invalid simulation time value");
     }
@@ -67,7 +67,7 @@ absl::StatusOr<std::vector<Observation>> StdoutToObservations(
     std::vector<absl::string_view> observed = absl::StrSplit(pieces[1], ';');
     for (absl::string_view observation : observed) {
       std::string name;
-      uint64 value;
+      uint64_t value;
       if (!RE2::FullMatch(observation, "\\s*(\\w+) = ([0-9A-Fa-f]+)\\s*", &name,
                           RE2::Hex(&value))) {
         return error(line, "monitoring line did not match expected pattern");
@@ -76,7 +76,7 @@ absl::StatusOr<std::vector<Observation>> StdoutToObservations(
       if (it == to_observe.end()) {
         continue;
       }
-      int64 bit_count = it->second;
+      int64_t bit_count = it->second;
       result.push_back(Observation{time, name, UBits(value, bit_count)});
     }
   }

@@ -30,7 +30,7 @@ absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBaseInternal(
       worklist.push_back(n);
     }
   }
-  int64 removed_count = 0;
+  int64_t removed_count = 0;
   absl::flat_hash_set<Node*> unique_operands;
   while (!worklist.empty()) {
     Node* node = worklist.front();

@@ -32,7 +32,7 @@ PYBIND11_MODULE(cpp_pos, m) {
 
   // class Pos
   py::class_<Pos>(m, "Pos")
-      .def(py::init<std::string, int64, int64>(), py::arg("filename"),
+      .def(py::init<std::string, int64_t, int64_t>(), py::arg("filename"),
            py::arg("lineno"), py::arg("colno"))
       .def("bump_col", &Pos::BumpCol)
       .def_property_readonly("filename", &Pos::filename)

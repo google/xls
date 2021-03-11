@@ -53,7 +53,7 @@ class LeafTypeTreeTest : public ::testing::Test {
 };
 
 TEST_F(LeafTypeTreeTest, BitsTypes) {
-  LeafTypeTree<int64> tree(AsType("bits[42]"));
+  LeafTypeTree<int64_t> tree(AsType("bits[42]"));
 
   EXPECT_EQ(tree.size(), 1);
   // Elements should be value-initialized to zero.
@@ -69,10 +69,10 @@ TEST_F(LeafTypeTreeTest, BitsTypes) {
   EXPECT_EQ(tree.Get({}), 123);
   EXPECT_THAT(tree.elements(), ElementsAre(123));
 
-  LeafTypeTree<int64> subtree = tree.CopySubtree({});
+  LeafTypeTree<int64_t> subtree = tree.CopySubtree({});
   EXPECT_THAT(subtree.elements(), ElementsAre(123));
 
-  LeafTypeTree<int64> tree_with_init(AsType("bits[42]"), 123456);
+  LeafTypeTree<int64_t> tree_with_init(AsType("bits[42]"), 123456);
   EXPECT_EQ(tree_with_init.Get({}), 123456);
 }
 
@@ -113,7 +113,7 @@ TEST_F(LeafTypeTreeTest, TupleType) {
 }
 
 TEST_F(LeafTypeTreeTest, ArrayType) {
-  LeafTypeTree<int64> tree(AsType("bits[1][5]"));
+  LeafTypeTree<int64_t> tree(AsType("bits[1][5]"));
 
   EXPECT_EQ(tree.size(), 5);
   EXPECT_THAT(
@@ -131,12 +131,12 @@ TEST_F(LeafTypeTreeTest, ArrayType) {
   EXPECT_THAT(tree.elements(), ElementsAre(0, 3, 4, 5, 6));
   EXPECT_EQ(tree.Get({3}), 5);
 
-  LeafTypeTree<int64> subtree = tree.CopySubtree({});
+  LeafTypeTree<int64_t> subtree = tree.CopySubtree({});
   EXPECT_THAT(subtree.elements(), ElementsAre(0, 3, 4, 5, 6));
 }
 
 TEST_F(LeafTypeTreeTest, NestedTupleType) {
-  LeafTypeTree<int64> tree(
+  LeafTypeTree<int64_t> tree(
       AsType("(bits[37][3], (bits[22], (bits[1], bits[1][2]), bits[42]))"));
 
   EXPECT_EQ(tree.size(), 8);
@@ -153,13 +153,13 @@ TEST_F(LeafTypeTreeTest, NestedTupleType) {
 
   EXPECT_THAT(tree.elements(), ElementsAre(0, 0, 3, 0, 42, 0, 0, 77));
 
-  LeafTypeTree<int64> subtree = tree.CopySubtree({1, 1});
+  LeafTypeTree<int64_t> subtree = tree.CopySubtree({1, 1});
   EXPECT_EQ(subtree.type()->ToString(), "(bits[1], bits[1][2])");
   EXPECT_THAT(subtree.elements(), ElementsAre(42, 0, 0));
 }
 
 TEST_F(LeafTypeTreeTest, NestedArrayType) {
-  LeafTypeTree<int64> tree(AsType("(bits[42], bits[123])[3]"));
+  LeafTypeTree<int64_t> tree(AsType("(bits[42], bits[123])[3]"));
 
   EXPECT_EQ(tree.size(), 6);
   EXPECT_THAT(tree.elements(), Each(Eq(0)));
@@ -174,13 +174,13 @@ TEST_F(LeafTypeTreeTest, NestedArrayType) {
 
   EXPECT_THAT(tree.elements(), ElementsAre(0, 3, 0, 0, 42, 0));
 
-  LeafTypeTree<int64> subtree = tree.CopySubtree({2});
+  LeafTypeTree<int64_t> subtree = tree.CopySubtree({2});
   EXPECT_EQ(subtree.type()->ToString(), "(bits[42], bits[123])");
   EXPECT_THAT(subtree.elements(), ElementsAre(42, 0));
 }
 
 TEST_F(LeafTypeTreeTest, EmptyTuple) {
-  LeafTypeTree<int64> tree(AsType("()"));
+  LeafTypeTree<int64_t> tree(AsType("()"));
   EXPECT_EQ(tree.size(), 0);
   EXPECT_TRUE(tree.elements().empty());
   EXPECT_TRUE(tree.leaf_types().empty());

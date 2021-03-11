@@ -17,7 +17,7 @@
 namespace xls::noc {
 
 VirtualChannelOptionsProtoBuilder&
-VirtualChannelOptionsProtoBuilder::WithVirtualChannelDepth(int64 depth) {
+VirtualChannelOptionsProtoBuilder::WithVirtualChannelDepth(int64_t depth) {
   proto_->add_virtual_channel_depth(depth);
   return *this;
 }

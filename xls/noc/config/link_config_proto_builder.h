@@ -37,13 +37,13 @@ class LinkConfigProtoBuilder {
   LinkConfigProtoBuilder& WithSinkPort(absl::string_view port_name);
 
   // Adds the phit bit width configuration to the link.
-  LinkConfigProtoBuilder& WithPhitBitWidth(int64 phit_bit_width);
+  LinkConfigProtoBuilder& WithPhitBitWidth(int64_t phit_bit_width);
 
   // Adds the pipeline stage configuration for source to sink on the link.
-  LinkConfigProtoBuilder& WithSourceSinkPipelineStage(int64 pipeline_stage);
+  LinkConfigProtoBuilder& WithSourceSinkPipelineStage(int64_t pipeline_stage);
 
   // Adds the pipeline stage configuration for sink to source on the link.
-  LinkConfigProtoBuilder& WithSinkSourcePipelineStage(int64 pipeline_stage);
+  LinkConfigProtoBuilder& WithSinkSourcePipelineStage(int64_t pipeline_stage);
 
   // When building the link configuration proto, the last flow control mechanism
   // triggered by the user is enabled.
@@ -59,7 +59,7 @@ class LinkConfigProtoBuilder {
   // Enables the total available credit-based flow control configuration to the
   // link, and disables any flow control mechanism scheme enabled.
   LinkConfigProtoBuilder& WithTotalCreditBasedFlowControl(
-      int64 credit_bit_width);
+      int64_t credit_bit_width);
 
  private:
   LinkConfigProto* proto_;

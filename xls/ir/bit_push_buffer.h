@@ -15,9 +15,9 @@
 #ifndef XLS_IR_BIT_PUSH_BUFFER_H_
 #define XLS_IR_BIT_PUSH_BUFFER_H_
 
+#include <cstdint>
 #include <vector>
 
-#include "xls/common/integral_types.h"
 #include "xls/common/math_util.h"
 
 namespace xls {
@@ -37,11 +37,11 @@ class BitPushBuffer {
   // The first-pushed bit goes into the MSb of the 0th byte. Concordantly, the
   // final byte, if it is partial, will have padding zeroes in the least
   // significant bits.
-  std::vector<uint8> GetUint8Data() const {
+  std::vector<uint8_t> GetUint8Data() const {
     // Implementation note: bitmap does not expose its underlying storage.
-    std::vector<uint8> result;
+    std::vector<uint8_t> result;
     result.resize(CeilOfRatio(bitmap_.size(), 8UL), 0);
-    for (int64 i = 0; i < static_cast<int64>(bitmap_.size()); ++i) {
+    for (int64_t i = 0; i < static_cast<int64_t>(bitmap_.size()); ++i) {
       result[i / 8] |= bitmap_[i] << (7 - i % 8);
     }
     return result;
@@ -50,9 +50,7 @@ class BitPushBuffer {
   bool empty() const { return bitmap_.empty(); }
 
   // Returns the number of bytes required to store the currently-pushed bits.
-  int64 size_in_bytes() const {
-    return CeilOfRatio(bitmap_.size(), 8UL);
-  }
+  int64_t size_in_bytes() const { return CeilOfRatio(bitmap_.size(), 8UL); }
 
  private:
   std::vector<bool> bitmap_;

@@ -15,6 +15,7 @@
 #ifndef XLS_IR_PACKAGE_H_
 #define XLS_IR_PACKAGE_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -25,7 +26,6 @@
 #include "absl/container/node_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "xls/common/integral_types.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/fileno.h"
@@ -60,8 +60,8 @@ class Package {
            owned_function_types_.end();
   }
 
-  BitsType* GetBitsType(int64 bit_count);
-  ArrayType* GetArrayType(int64 size, Type* element_type);
+  BitsType* GetBitsType(int64_t bit_count);
+  ArrayType* GetArrayType(int64_t size, Type* element_type);
   TupleType* GetTupleType(absl::Span<Type* const> element_types);
   TokenType* GetTokenType();
   FunctionType* GetFunctionType(absl::Span<Type* const> args_types,
@@ -121,7 +121,7 @@ class Package {
 
   // Retrieves the next node ID to assign to a node in the package and
   // increments the next node counter. For use in node construction.
-  int64 GetNextNodeId() { return next_node_id_++; }
+  int64_t GetNextNodeId() { return next_node_id_++; }
 
   // Adds a file to the file-number table and returns its corresponding number.
   // If it already exists, returns the existing file-number entry.
@@ -129,7 +129,7 @@ class Package {
 
   // Returns the total number of nodes in the graph. Traverses the functions and
   // sums the node counts.
-  int64 GetNodeCount() const;
+  int64_t GetNodeCount() const;
 
   // Returns the functions in this package.
   absl::Span<std::unique_ptr<Function>> functions() {
@@ -162,10 +162,10 @@ class Package {
   // Returns whether this package contains a function with the "target" name.
   bool HasFunctionWithName(absl::string_view target) const;
 
-  int64 next_node_id() const { return next_node_id_; }
+  int64_t next_node_id() const { return next_node_id_; }
 
   // Intended for use by the parser when node ids are suggested by the IR text.
-  void set_next_node_id(int64 value) { next_node_id_ = value; }
+  void set_next_node_id(int64_t value) { next_node_id_ = value; }
 
   // Create a channel. Channels are used with send/receive nodes in communicate
   // between procs or between procs and external (to XLS) components. If no
@@ -176,27 +176,27 @@ class Package {
       absl::string_view name, ChannelOps supported_ops, Type* type,
       absl::Span<const Value> initial_values = {},
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
-      absl::optional<int64> id = absl::nullopt);
+      absl::optional<int64_t> id = absl::nullopt);
   absl::StatusOr<PortChannel*> CreatePortChannel(
       absl::string_view name, ChannelOps supported_ops, Type* type,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
-      absl::optional<int64> id = absl::nullopt);
+      absl::optional<int64_t> id = absl::nullopt);
   absl::StatusOr<RegisterChannel*> CreateRegisterChannel(
       absl::string_view name, Type* type,
       absl::optional<Value> reset_value = absl::nullopt,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
-      absl::optional<int64> id = absl::nullopt);
+      absl::optional<int64_t> id = absl::nullopt);
 
   // Returns a span of the channels owned by the package. Sorted by channel ID.
   absl::Span<Channel* const> channels() const { return channel_vec_; }
 
   // Returns the channel with the given ID or returns an error if no such
   // channel exists.
-  absl::StatusOr<Channel*> GetChannel(int64 id) const;
+  absl::StatusOr<Channel*> GetChannel(int64_t id) const;
   absl::StatusOr<Channel*> GetChannel(absl::string_view name) const;
 
   // Returns whether there exists a channel with the given ID.
-  bool HasChannelWithId(int64 id) const {
+  bool HasChannelWithId(int64_t id) const {
     return channels_.find(id) != channels_.end();
   }
 
@@ -216,7 +216,7 @@ class Package {
   std::string name_;
 
   // Ordinal to assign to the next node created in this package.
-  int64 next_node_id_ = 1;
+  int64_t next_node_id_ = 1;
 
   std::vector<std::unique_ptr<Function>> functions_;
   std::vector<std::unique_ptr<Proc>> procs_;
@@ -229,11 +229,11 @@ class Package {
 
   // Mapping from bit count to the owned "bits" type with that many bits. Use
   // node_hash_map for pointer stability.
-  absl::node_hash_map<int64, BitsType> bit_count_to_type_;
+  absl::node_hash_map<int64_t, BitsType> bit_count_to_type_;
 
   // Mapping from the size and element type of an array type to the owned
   // ArrayType. Use node_hash_map for pointer stability.
-  using ArrayKey = std::pair<int64, const Type*>;
+  using ArrayKey = std::pair<int64_t, const Type*>;
   absl::node_hash_map<ArrayKey, ArrayType> array_types_;
 
   // Mapping from elements to the owned tuple type.
@@ -257,14 +257,14 @@ class Package {
 
   // Channels owned by this package. Indexed by channel id. Stored as
   // unique_ptrs for pointer stability.
-  absl::flat_hash_map<int64, std::unique_ptr<Channel>> channels_;
+  absl::flat_hash_map<int64_t, std::unique_ptr<Channel>> channels_;
 
   // Vector of channel pointers. Kept in sync with the channels_ map. Enables
   // easy, stable iteration over channels.
   std::vector<Channel*> channel_vec_;
 
   // The next channel ID to assign.
-  int64 next_channel_id_ = 0;
+  int64_t next_channel_id_ = 0;
 };
 
 std::ostream& operator<<(std::ostream& os, const Package& package);

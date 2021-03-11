@@ -65,11 +65,11 @@ TEST_F(AreaEstimatorTest, AreaModelIce40Multiply) {
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<AreaEstimator> area_estimator,
                            GetAreaEstimatorByName("ice40_lut4"));
-  XLS_ASSERT_OK_AND_ASSIGN(int64 mul_c_area,
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t mul_c_area,
                            area_estimator->GetOperationArea(mul_c));
-  XLS_ASSERT_OK_AND_ASSIGN(int64 mul_b_area,
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t mul_b_area,
                            area_estimator->GetOperationArea(mul_b));
-  XLS_ASSERT_OK_AND_ASSIGN(int64 mul_a_area,
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t mul_a_area,
                            area_estimator->GetOperationArea(mul_a));
 
   // Nearly all cpp delay expression components must work to

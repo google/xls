@@ -44,10 +44,10 @@ class TestVisitor : public DfsVisitorWithDefault {
   // Returns the ordered set of visited nodes.
   const std::vector<Node*>& visited() const { return visited_; }
 
-  int64 visited_count() const { return visited_.size(); }
+  int64_t visited_count() const { return visited_.size(); }
 
   // Returns the total number of unique nodes visited.
-  int64 unique_visited_count() const { return visited_set_.size(); }
+  int64_t unique_visited_count() const { return visited_set_.size(); }
 
  private:
   std::vector<Node*> visited_;

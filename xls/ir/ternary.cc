@@ -22,7 +22,7 @@ namespace xls {
 
 std::string ToString(const TernaryVector& value) {
   std::string result = "0b";
-  for (int64 i = value.size() - 1; i >= 0; --i) {
+  for (int64_t i = value.size() - 1; i >= 0; --i) {
     std::string symbol;
     switch (value[i]) {
       case TernaryValue::kKnownZero:

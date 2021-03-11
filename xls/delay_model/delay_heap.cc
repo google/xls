@@ -40,7 +40,7 @@ absl::Status DelayHeap::Add(Node* node) {
   XLS_CHECK(!contains(node));
   XLS_DCHECK(!std::any_of(successors(node).begin(), successors(node).end(),
                           [&](Node* n) { return contains(n); }));
-  XLS_ASSIGN_OR_RETURN(int64 node_delay,
+  XLS_ASSIGN_OR_RETURN(int64_t node_delay,
                        delay_estimator_.GetOperationDelayInPs(node));
   PathLength path = MaxAmongPredecessors(node);
   path_lengths_[node] = {path.critical_path_delay + node_delay,
@@ -83,16 +83,16 @@ DelayHeap::FrontierSet::iterator DelayHeap::Remove(Node* node) {
   return next_it;
 }
 
-absl::StatusOr<int64> DelayHeap::CriticalPathDelayAfterAdding(
+absl::StatusOr<int64_t> DelayHeap::CriticalPathDelayAfterAdding(
     Node* node) const {
   XLS_CHECK(!contains(node));
-  XLS_ASSIGN_OR_RETURN(int64 node_delay,
+  XLS_ASSIGN_OR_RETURN(int64_t node_delay,
                        delay_estimator_.GetOperationDelayInPs(node));
   return std::max(CriticalPathDelay(),
                   MaxAmongPredecessors(node).critical_path_delay + node_delay);
 }
 
-int64 DelayHeap::CriticalPathDelayAfterRemoving(Node* node) const {
+int64_t DelayHeap::CriticalPathDelayAfterRemoving(Node* node) const {
   XLS_CHECK(contains(node));
   XLS_DCHECK_EQ(frontier_.count(node), 1);
   if (node != top()) {
@@ -104,7 +104,7 @@ int64 DelayHeap::CriticalPathDelayAfterRemoving(Node* node) const {
   // Node is the top. After removing the top, the node with the next longest
   // critical path is either the second node on the frontier (if it exists) or a
   // predecessor of top.
-  int64 predecessor_delay = MaxAmongPredecessors(node).critical_path_delay;
+  int64_t predecessor_delay = MaxAmongPredecessors(node).critical_path_delay;
   if (frontier_.size() == 1) {
     return predecessor_delay;
   }

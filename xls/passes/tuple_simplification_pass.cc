@@ -35,7 +35,7 @@ namespace xls {
 // x = bar
 Node* FindEquivalentTuple(Tuple* tuple) {
   Node* common_subject = nullptr;
-  for (int64 operand_number = 0; operand_number < tuple->operand_count();
+  for (int64_t operand_number = 0; operand_number < tuple->operand_count();
        operand_number++) {
     Node* node = tuple->operand(operand_number);
     if (

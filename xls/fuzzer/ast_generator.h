@@ -32,7 +32,7 @@ struct TypedExpr {
 };
 
 struct BitsAndSignedness {
-  int64 bits;
+  int64_t bits;
   bool signedness;
 };
 
@@ -47,10 +47,10 @@ struct AstGeneratorOptions {
   bool disallow_divide = false;
 
   // The maximum (inclusive) width for bits types.
-  int64 max_width_bits_types = 64;
+  int64_t max_width_bits_types = 64;
 
   // The maximum (inclusive) width for aggregate types; e.g. tuples.
-  int64 max_width_aggregate_types = 1024;
+  int64_t max_width_aggregate_types = 1024;
 
   // Emit loops (currently not connected, loops are always generated).
   bool emit_loops = true;
@@ -85,7 +85,7 @@ class AstGenerator {
   GenerateFunctionInModule(std::string fn_name, std::string module_name);
 
   // Chooses a random "interesting" bit pattern with the given bit count.
-  Bits ChooseBitPattern(int64 bit_count);
+  Bits ChooseBitPattern(int64_t bit_count);
 
  private:
   static bool IsBits(TypeAnnotation* t);
@@ -103,7 +103,7 @@ class AstGenerator {
   // generated. param_types, if given, defines the number and types of the
   // parameters.
   absl::StatusOr<Function*> GenerateFunction(
-      std::string name, int64 call_depth = 0,
+      std::string name, int64_t call_depth = 0,
       absl::optional<absl::Span<TypeAnnotation* const>> param_types =
           absl::nullopt);
 
@@ -128,7 +128,7 @@ class AstGenerator {
 
   // Returns a random bits-types value from the environment.
   absl::StatusOr<TypedExpr> ChooseEnvValueBits(
-      Env* env, absl::optional<int64> bit_count = absl::nullopt) {
+      Env* env, absl::optional<int64_t> bit_count = absl::nullopt) {
     auto is_bits = [&](const TypedExpr& e) -> bool {
       return IsBits(e.type) &&
              !(bit_count.has_value() || GetTypeBitCount(e.type) == bit_count);
@@ -140,7 +140,7 @@ class AstGenerator {
   // returned values will have the same type potentially by coercing a value to
   // match the type of the other by truncation or zero-extension.
   absl::StatusOr<std::pair<TypedExpr, TypedExpr>> ChooseEnvValueBitsPair(
-      Env* env, absl::optional<int64> bit_count = absl::nullopt);
+      Env* env, absl::optional<int64_t> bit_count = absl::nullopt);
 
   absl::StatusOr<TypedExpr> ChooseEnvValueUBits(Env* env) {
     auto is_ubits = [&](const TypedExpr& e) -> bool { return IsUBits(e.type); };
@@ -153,7 +153,8 @@ class AstGenerator {
 
   // Chooses a random tuple from the environment (if one exists). 'min_size',
   // if given, is the minimum number of elements in the chosen tuple.
-  absl::StatusOr<TypedExpr> ChooseEnvValueTuple(Env* env, int64 min_size = 0) {
+  absl::StatusOr<TypedExpr> ChooseEnvValueTuple(Env* env,
+                                                int64_t min_size = 0) {
     auto take = [&](const TypedExpr& e) -> bool {
       return IsTuple(e.type) &&
              dynamic_cast<TupleTypeAnnotation*>(e.type)->size() >= min_size;
@@ -168,12 +169,12 @@ class AstGenerator {
   // Generates the body of a function AST node with the given
   // parameters. call_depth is the depth of the call stack (via map or other
   // function-calling operation) for the function being generated.
-  absl::StatusOr<TypedExpr> GenerateBody(int64 call_depth,
+  absl::StatusOr<TypedExpr> GenerateBody(int64_t call_depth,
                                          absl::Span<Param* const> params);
 
   absl::StatusOr<TypedExpr> GenerateUnop(Env* env);
 
-  absl::StatusOr<Expr*> GenerateUmin(TypedExpr arg, int64 other);
+  absl::StatusOr<Expr*> GenerateUmin(TypedExpr arg, int64_t other);
 
   // Generates a bit slice AST node.
   absl::StatusOr<TypedExpr> GenerateBitSlice(Env* env);
@@ -187,12 +188,12 @@ class AstGenerator {
   // Generates a bit_slice_update builtin call.
   absl::StatusOr<TypedExpr> GenerateBitSliceUpdate(Env* env);
 
-  int64 GenerateNaryOperandCount(Env* env) {
+  int64_t GenerateNaryOperandCount(Env* env) {
     XLS_CHECK(!env->empty());
     std::weibull_distribution<float> d(1.0, 0.5);
-    int64 count = static_cast<int64>(std::ceil(d(rng_) * 4));
+    int64_t count = static_cast<int64_t>(std::ceil(d(rng_) * 4));
     XLS_CHECK_GT(count, 0);
-    return std::min(count, static_cast<int64>(env->size()));
+    return std::min(count, static_cast<int64_t>(env->size()));
   }
 
   // Generates an expression AST node and returns it. expr_size is a measure of
@@ -200,7 +201,7 @@ class AstGenerator {
   // limit the size of the generated expression). call_depth is the depth of the
   // call stack (via map or other function-calling operation) for the function
   // being generated.
-  absl::StatusOr<TypedExpr> GenerateExpr(int64 expr_size, int64 call_depth,
+  absl::StatusOr<TypedExpr> GenerateExpr(int64_t expr_size, int64_t call_depth,
                                          Env* env);
 
   // Generates an invocation of the one_hot_sel builtin.
@@ -244,7 +245,7 @@ class AstGenerator {
   // Generates a random type (bits, array, or tuple). Nesting is the amount of
   // nesting within the currently generated type (e.g., element type of a
   // tuple). Used to limit the depth of compound types.
-  TypeAnnotation* GenerateType(int64 nesting = 0);
+  TypeAnnotation* GenerateType(int64_t nesting = 0);
 
   BuiltinTypeAnnotation* GeneratePrimitiveType();
 
@@ -253,7 +254,7 @@ class AstGenerator {
       Env* env, absl::optional<BitsAndSignedness> bas = absl::nullopt);
 
   // Generates an invocation of the map builtin.
-  absl::StatusOr<TypedExpr> GenerateMap(int64 call_depth, Env* env);
+  absl::StatusOr<TypedExpr> GenerateMap(int64_t call_depth, Env* env);
 
   // Generates a call to a unary builtin function.
   absl::StatusOr<TypedExpr> GenerateUnopBuiltin(Env* env);
@@ -263,9 +264,9 @@ class AstGenerator {
   Param* GenerateParam(TypeAnnotation* type = nullptr);
 
   // Generates the given number of parameters of random types.
-  std::vector<Param*> GenerateParams(int64 count);
+  std::vector<Param*> GenerateParams(int64_t count);
 
-  TypeAnnotation* MakeTypeAnnotation(bool is_signed, int64 width);
+  TypeAnnotation* MakeTypeAnnotation(bool is_signed, int64_t width);
 
   // Generates a binary operation AST node in which operands and results type
   // are all the same (excluding shifts), such as: add, and, mul, etc.
@@ -304,7 +305,7 @@ class AstGenerator {
   }
 
   // Creates a number AsT node with value 'value' of type 'type'.
-  Number* MakeNumber(int64 value, TypeAnnotation* type = nullptr);
+  Number* MakeNumber(int64_t value, TypeAnnotation* type = nullptr);
   Number* MakeNumberFromBits(const Bits& value, TypeAnnotation* type);
   Number* MakeBool(bool value) {
     return MakeNumber(value, MakeTypeAnnotation(false, 1));
@@ -312,7 +313,7 @@ class AstGenerator {
 
   // Creates an array type with the given size and element type.
   ArrayTypeAnnotation* MakeArrayType(TypeAnnotation* element_type,
-                                     int64 array_size);
+                                     int64_t array_size);
   TupleTypeAnnotation* MakeTupleType(
       absl::Span<TypeAnnotation* const> members) {
     return module_->Make<TupleTypeAnnotation>(
@@ -350,7 +351,7 @@ class AstGenerator {
   // is a measure of the current size of the expression (number of times
   // GenerateExpr has been invoked). call_depth is the current depth of the call
   // stack (if any) calling this function to be generated.
-  bool ShouldNest(int64 expr_size, int64 call_depth) {
+  bool ShouldNest(int64_t expr_size, int64_t call_depth) {
     // Make non-top level functions smaller.
     double alpha = (options_.short_samples || call_depth > 0) ? 1.0 : 7.0;
     std::gamma_distribution<float> g(alpha, 5.0);
@@ -358,7 +359,7 @@ class AstGenerator {
   }
 
   // Returns the (flattened) bit count of the given type.
-  int64 GetTypeBitCount(TypeAnnotation* type);
+  int64_t GetTypeBitCount(TypeAnnotation* type);
 
   // Returns the (constant) size of an array type.
   //
@@ -368,11 +369,11 @@ class AstGenerator {
   // Note: uN[42] is an ArrayTypeAnnotation, and this function will return 42
   // for it, since it's just evaluating-to-int the value in the "dim" field of
   // the ArrayTypeAnnotation.
-  int64 GetArraySize(ArrayTypeAnnotation* type);
+  int64_t GetArraySize(ArrayTypeAnnotation* type);
 
   // Gets-or-creates a top level constant with the given value, using the
   // minimum number of bits required to make that constant.
-  ConstRef* GetOrCreateConstRef(int64 value);
+  ConstRef* GetOrCreateConstRef(int64_t value);
 
   bool RandomBool() {
     std::bernoulli_distribution d(0.5);
@@ -386,13 +387,13 @@ class AstGenerator {
   }
 
   // Returns a random integer over the range [0, limit).
-  int64 RandRange(int64 limit) { return RandRange(0, limit); }
+  int64_t RandRange(int64_t limit) { return RandRange(0, limit); }
 
   // Returns a random integer over the range [start, limit).
-  int64 RandRange(int64 start, int64 limit) {
+  int64_t RandRange(int64_t start, int64_t limit) {
     XLS_CHECK_GT(limit, start);
-    std::uniform_int_distribution<int64> g(start, limit - 1);
-    int64 value = g(rng_);
+    std::uniform_int_distribution<int64_t> g(start, limit - 1);
+    int64_t value = g(rng_);
     XLS_CHECK_LT(value, limit);
     XLS_CHECK_GE(value, start);
     return value;
@@ -403,14 +404,14 @@ class AstGenerator {
   // for picking a number around some value with decreasing likelihood of
   // picking something far away from the expected value.
   // See: https://en.wikipedia.org/wiki/Poisson_distribution
-  int64 RandomPoisson(float mean) {
-    std::poisson_distribution<int64> distribution(mean);
+  int64_t RandomPoisson(float mean) {
+    std::poisson_distribution<int64_t> distribution(mean);
     return distribution(rng_);
   }
 
   template <typename T>
   T RandomSetChoice(const absl::btree_set<T>& choices) {
-    int64 index = RandRange(choices.size());
+    int64_t index = RandRange(choices.size());
     auto it = choices.begin();
     std::advance(it, index);
     return *it;
@@ -418,7 +419,7 @@ class AstGenerator {
   template <typename T>
   T RandomChoice(absl::Span<const T> choices) {
     XLS_CHECK(!choices.empty());
-    int64 index = RandRange(choices.size());
+    int64_t index = RandRange(choices.size());
     return choices[index];
   }
 
@@ -433,7 +434,7 @@ class AstGenerator {
 
   std::unique_ptr<Module> module_;
 
-  int64 next_name_index_ = 0;
+  int64_t next_name_index_ = 0;
 
   // Functions created during generation.
   std::vector<Function*> functions_;
@@ -442,7 +443,7 @@ class AstGenerator {
   std::vector<TypeDef*> type_defs_;
 
   // Widths of the aggregate types, indexed by TypeAnnotation::ToString().
-  absl::flat_hash_map<std::string, int64> type_bit_counts_;
+  absl::flat_hash_map<std::string, int64_t> type_bit_counts_;
 
   // Set of constants defined during module generation.
   absl::btree_map<std::string, ConstantDef*> constants_;

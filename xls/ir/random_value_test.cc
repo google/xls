@@ -47,18 +47,18 @@ TEST(RandomValueTest, RandomBits) {
   // (1) generated values should all be distinct.
   // (2) deltas between consecutive generated values should all be distinct.
   // (3) every bit should be set to 0 and 1 at least once.
-  const int64 kSampleCount = 1024;
-  const int64 kBitWidth = 64;
-  absl::flat_hash_set<uint64> samples;
-  std::vector<int64> bit_set_count(kBitWidth);
-  uint64 previous_sample = 1;
-  for (int64 i = 0; i < kSampleCount; ++i) {
+  const int64_t kSampleCount = 1024;
+  const int64_t kBitWidth = 64;
+  absl::flat_hash_set<uint64_t> samples;
+  std::vector<int64_t> bit_set_count(kBitWidth);
+  uint64_t previous_sample = 1;
+  for (int64_t i = 0; i < kSampleCount; ++i) {
     Value b = RandomValue(p.GetBitsType(kBitWidth), &rng_engine);
-    XLS_ASSERT_OK_AND_ASSIGN(uint64 as_uint64, b.bits().ToUint64());
-    uint64 delta = as_uint64 - previous_sample;
+    XLS_ASSERT_OK_AND_ASSIGN(uint64_t as_uint64, b.bits().ToUint64());
+    uint64_t delta = as_uint64 - previous_sample;
     EXPECT_FALSE(samples.contains(as_uint64));
     EXPECT_FALSE(samples.contains(delta));
-    for (int64 j = 0; j < kBitWidth; ++j) {
+    for (int64_t j = 0; j < kBitWidth; ++j) {
       if (b.bits().Get(j)) {
         ++bit_set_count[j];
       }
@@ -68,7 +68,7 @@ TEST(RandomValueTest, RandomBits) {
     previous_sample = as_uint64;
   }
 
-  for (int64 i = 0; i < kBitWidth; ++i) {
+  for (int64_t i = 0; i < kBitWidth; ++i) {
     EXPECT_GT(bit_set_count[i], 0);
     EXPECT_LT(bit_set_count[i], kSampleCount);
   }
@@ -105,7 +105,7 @@ TEST(RandomValueTest, RandomOtherTypes) {
       RandomValue(p.GetArrayType(123, p.GetBitsType(57)), &rng_engine);
   EXPECT_TRUE(array.IsArray());
   EXPECT_EQ(array.size(), 123);
-  for (int64 i = 0; i < 123; ++i) {
+  for (int64_t i = 0; i < 123; ++i) {
     // Overwhelmingly likely that the elements are non-zero.
     EXPECT_NE(array.element(i).bits().ToInt64().value(), 0);
   }

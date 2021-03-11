@@ -40,7 +40,7 @@ using xls::status_testing::StatusIs;
 
 class TestDelayEstimator : public DelayEstimator {
  public:
-  absl::StatusOr<int64> GetOperationDelayInPs(Node* node) const override {
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
     switch (node->op()) {
       case Op::kParam:
       case Op::kLiteral:
@@ -229,7 +229,7 @@ TEST_F(PipelineScheduleTest, JustClockPeriodGiven) {
                             SchedulingOptions().clock_period_ps(2)));
 
   // Returns the unique scheduled Ops in the given cycle.
-  auto scheduled_ops = [&](int64 cycle) {
+  auto scheduled_ops = [&](int64_t cycle) {
     absl::flat_hash_set<Op> ops;
     for (const auto& node : schedule.nodes_in_cycle(cycle)) {
       ops.insert(node->op());
@@ -292,7 +292,7 @@ TEST_F(PipelineScheduleTest, ClockPeriodAndPipelineLengthGiven) {
           SchedulingOptions().clock_period_ps(2).pipeline_stages(4)));
 
   // Returns the unique scheduled Ops in the given cycle.
-  auto scheduled_ops = [&](int64 cycle) {
+  auto scheduled_ops = [&](int64_t cycle) {
     absl::flat_hash_set<Op> ops;
     for (const auto& node : schedule.nodes_in_cycle(cycle)) {
       ops.insert(node->op());
@@ -326,7 +326,7 @@ TEST_F(PipelineScheduleTest, JustPipelineLengthGiven) {
                             SchedulingOptions().pipeline_stages(6)));
 
   // Returns the unique scheduled Ops in the given cycle.
-  auto scheduled_ops = [&](int64 cycle) {
+  auto scheduled_ops = [&](int64_t cycle) {
     absl::flat_hash_set<Op> ops;
     for (const auto& node : schedule.nodes_in_cycle(cycle)) {
       ops.insert(node->op());
@@ -370,7 +370,7 @@ TEST_F(PipelineScheduleTest, LongPipelineLength) {
               UnorderedElementsAre(x.node(), bitslice.node()));
   // The bitslice is the narrowest among the chain of operations so it should
   // precede the long chain of empty stages.
-  for (int64 i = 1; i < 99; ++i) {
+  for (int64_t i = 1; i < 99; ++i) {
     EXPECT_THAT(schedule.nodes_in_cycle(i), UnorderedElementsAre());
   }
   EXPECT_THAT(schedule.nodes_in_cycle(99), UnorderedElementsAre(zext.node()));
@@ -429,26 +429,27 @@ TEST_F(PipelineScheduleTest, ClockPeriodMargin) {
 }
 
 TEST_F(PipelineScheduleTest, MinCutCycleOrders) {
-  EXPECT_THAT(GetMinCutCycleOrders(0), ElementsAre(std::vector<int64>()));
-  EXPECT_THAT(GetMinCutCycleOrders(1), ElementsAre(std::vector<int64>({0})));
-  EXPECT_THAT(GetMinCutCycleOrders(2), ElementsAre(std::vector<int64>({0, 1}),
-                                                   std::vector<int64>({1, 0})));
+  EXPECT_THAT(GetMinCutCycleOrders(0), ElementsAre(std::vector<int64_t>()));
+  EXPECT_THAT(GetMinCutCycleOrders(1), ElementsAre(std::vector<int64_t>({0})));
   EXPECT_THAT(
-      GetMinCutCycleOrders(3),
-      ElementsAre(std::vector<int64>({0, 1, 2}), std::vector<int64>({2, 1, 0}),
-                  std::vector<int64>({1, 0, 2})));
+      GetMinCutCycleOrders(2),
+      ElementsAre(std::vector<int64_t>({0, 1}), std::vector<int64_t>({1, 0})));
+  EXPECT_THAT(GetMinCutCycleOrders(3),
+              ElementsAre(std::vector<int64_t>({0, 1, 2}),
+                          std::vector<int64_t>({2, 1, 0}),
+                          std::vector<int64_t>({1, 0, 2})));
   EXPECT_THAT(GetMinCutCycleOrders(4),
-              ElementsAre(std::vector<int64>({0, 1, 2, 3}),
-                          std::vector<int64>({3, 2, 1, 0}),
-                          std::vector<int64>({1, 0, 2, 3})));
+              ElementsAre(std::vector<int64_t>({0, 1, 2, 3}),
+                          std::vector<int64_t>({3, 2, 1, 0}),
+                          std::vector<int64_t>({1, 0, 2, 3})));
   EXPECT_THAT(GetMinCutCycleOrders(5),
-              ElementsAre(std::vector<int64>({0, 1, 2, 3, 4}),
-                          std::vector<int64>({4, 3, 2, 1, 0}),
-                          std::vector<int64>({2, 0, 1, 3, 4})));
+              ElementsAre(std::vector<int64_t>({0, 1, 2, 3, 4}),
+                          std::vector<int64_t>({4, 3, 2, 1, 0}),
+                          std::vector<int64_t>({2, 0, 1, 3, 4})));
   EXPECT_THAT(GetMinCutCycleOrders(8),
-              ElementsAre(std::vector<int64>({0, 1, 2, 3, 4, 5, 6, 7}),
-                          std::vector<int64>({7, 6, 5, 4, 3, 2, 1, 0}),
-                          std::vector<int64>({3, 1, 0, 2, 5, 4, 6, 7})));
+              ElementsAre(std::vector<int64_t>({0, 1, 2, 3, 4, 5, 6, 7}),
+                          std::vector<int64_t>({7, 6, 5, 4, 3, 2, 1, 0}),
+                          std::vector<int64_t>({3, 1, 0, 2, 5, 4, 6, 7})));
 }
 
 TEST_F(PipelineScheduleTest, SerializeAndDeserialize) {

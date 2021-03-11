@@ -31,14 +31,14 @@
 // A StrongInt<T> with a NullStrongIntValidator should compile away to a raw T
 // in optimized mode.  What this means is that the generated assembly for:
 //
-//   int64 foo = 123;
-//   int64 bar = 456;
-//   int64 baz = foo + bar;
-//   constexpr int64 fubar = 789;
+//   int64_t foo = 123;
+//   int64_t bar = 456;
+//   int64_t baz = foo + bar;
+//   constexpr int64_t fubar = 789;
 //
 // ...should be identical to the generated assembly for:
 //
-//    DEFINE_STRONG_INT_TYPE(MyStrongInt, int64);
+//    DEFINE_STRONG_INT_TYPE(MyStrongInt, int64_t);
 //    MyStrongInt foo(123);
 //    MyStrongInt bar(456);
 //    MyStrongInt baz = foo + bar;
@@ -54,8 +54,8 @@
 // For example, the below demonstrates a case where the 2 are not equivalent
 // at compile time and can lead to subtle initialization bugs:
 //
-//    DEFINE_STRONG_INT_TYPE(MyStrongInt8, int8);
-//    int8 foo = 1024;        // Compile error: const conversion to ...
+//    DEFINE_STRONG_INT_TYPE(MyStrongInt8, int8_t);
+//    int8_t foo = 1024;        // Compile error: const conversion to ...
 //    MyStrongInt8 foo(1024); // Compiles ok: foo has undefined / 0 value.
 //
 // Usage:
@@ -116,6 +116,7 @@
 #ifndef XLS_COMMON_STRONG_INT_H_
 #define XLS_COMMON_STRONG_INT_H_
 
+#include <cstdint>
 #include <functional>
 #include <iosfwd>
 #include <limits>
@@ -126,7 +127,6 @@
 #include "absl/base/macros.h"
 #include "absl/meta/type_traits.h"
 #include "absl/strings/string_view.h"
-#include "xls/common/integral_types.h"
 
 namespace xls {
 
@@ -206,12 +206,12 @@ struct NullStrongIntValidator {
   }
   // Verify lhs << rhs.
   template <typename T>
-  static constexpr bool ValidateLeftShift(T /*lhs*/, int64 /*rhs*/) {
+  static constexpr bool ValidateLeftShift(T /*lhs*/, int64_t /*rhs*/) {
     return true;
   }
   // Verify lhs >> rhs.
   template <typename T>
-  static constexpr bool ValidateRightShift(T /*lhs*/, int64 /*rhs*/) {
+  static constexpr bool ValidateRightShift(T /*lhs*/, int64_t /*rhs*/) {
     return true;
   }
   // Verify lhs & rhs.
@@ -264,8 +264,8 @@ class StrongInt {
   //
   // Example: Assume you have two StrongInt types.
   //
-  //      DEFINE_STRONG_INT_TYPE(Bytes, int64);
-  //      DEFINE_STRONG_INT_TYPE(Megabytes, int64);
+  //      DEFINE_STRONG_INT_TYPE(Bytes, int64_t);
+  //      DEFINE_STRONG_INT_TYPE(Megabytes, int64_t);
   //
   //  If you want to be able to (explicitly) construct an instance of Bytes from
   //  an instance of Megabytes, simply define a converter function in the same
@@ -388,12 +388,12 @@ class StrongInt {
     value_ %= arg;
     return *this;
   }
-  StrongInt &operator<<=(int64 arg) {  // NOLINT(whitespace/operators)
+  StrongInt &operator<<=(int64_t arg) {  // NOLINT(whitespace/operators)
     ValidatorType::template ValidateLeftShift<ValueType>(value_, arg);
     value_ <<= arg;
     return *this;
   }
-  StrongInt &operator>>=(int64 arg) {  // NOLINT(whitespace/operators)
+  StrongInt &operator>>=(int64_t arg) {  // NOLINT(whitespace/operators)
     ValidatorType::template ValidateRightShift<ValueType>(value_, arg);
     value_ >>= arg;
     return *this;
@@ -434,19 +434,19 @@ std::ostream &operator<<(std::ostream &os,
   return os << arg.value();
 }
 
-// Provide the << operator, primarily for logging purposes. Specialized for int8
-// so that an integer and not a character is printed.
+// Provide the << operator, primarily for logging purposes. Specialized for
+// int8_t so that an integer and not a character is printed.
 template <typename TagType, typename ValidatorType>
 std::ostream &operator<<(std::ostream &os,
-                         StrongInt<TagType, int8, ValidatorType> arg) {
+                         StrongInt<TagType, int8_t, ValidatorType> arg) {
   return os << static_cast<int>(arg.value());
 }
 
 // Provide the << operator, primarily for logging purposes. Specialized for
-// uint8 so that an integer and not a character is printed.
+// uint8_t so that an integer and not a character is printed.
 template <typename TagType, typename ValidatorType>
 std::ostream &operator<<(std::ostream &os,
-                         StrongInt<TagType, uint8, ValidatorType> arg) {
+                         StrongInt<TagType, uint8_t, ValidatorType> arg) {
   return os << static_cast<unsigned int>(arg.value());
 }
 

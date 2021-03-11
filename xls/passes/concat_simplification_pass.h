@@ -25,13 +25,13 @@ namespace xls {
 // flattening trees of dependent concats, and others.
 class ConcatSimplificationPass : public FunctionBasePass {
  public:
-  ConcatSimplificationPass(int64 opt_level = kMaxOptLevel)
+  ConcatSimplificationPass(int64_t opt_level = kMaxOptLevel)
       : FunctionBasePass("concat_simp", "Concat simplification"),
         opt_level_(opt_level) {}
   ~ConcatSimplificationPass() override {}
 
  protected:
-  int64 opt_level_;
+  int64_t opt_level_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const PassOptions& options,
       PassResults* results) const override;

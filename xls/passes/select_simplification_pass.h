@@ -25,13 +25,13 @@ namespace xls {
 // include removing dead arms and eliminating selects with constant selectors.
 class SelectSimplificationPass : public FunctionBasePass {
  public:
-  explicit SelectSimplificationPass(int64 opt_level = kMaxOptLevel)
+  explicit SelectSimplificationPass(int64_t opt_level = kMaxOptLevel)
       : FunctionBasePass("select_simp", "Select Simplification"),
         opt_level_(opt_level) {}
   ~SelectSimplificationPass() override {}
 
  protected:
-  int64 opt_level_;
+  int64_t opt_level_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const PassOptions& options,
       PassResults* results) const override;

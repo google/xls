@@ -17,7 +17,7 @@
 namespace xls::noc {
 
 UnidirectionalTreeNetworkConfigOptionsProtoBuilder&
-UnidirectionalTreeNetworkConfigOptionsProtoBuilder::WithRadix(int64 radix) {
+UnidirectionalTreeNetworkConfigOptionsProtoBuilder::WithRadix(int64_t radix) {
   proto_->set_radix(radix);
   return *this;
 }

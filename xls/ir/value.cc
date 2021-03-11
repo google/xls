@@ -33,14 +33,14 @@ namespace xls {
   }
 
   // Blow up if they're not all of the same type.
-  for (int64 i = 1; i < elements.size(); ++i) {
+  for (int64_t i = 1; i < elements.size(); ++i) {
     XLS_RET_CHECK(elements[0].SameTypeAs(elements[i]));
   }
   return Value(ValueKind::kArray, elements);
 }
 
 /* static */ absl::StatusOr<Value> Value::UBitsArray(
-    absl::Span<const uint64> elements, int64 bit_count) {
+    absl::Span<const uint64_t> elements, int64_t bit_count) {
   if (elements.empty()) {
     return absl::UnimplementedError("Empty array Values are not supported.");
   }
@@ -55,13 +55,13 @@ namespace xls {
 }
 
 /* static */ absl::StatusOr<Value> Value::UBits2DArray(
-    absl::Span<const absl::Span<const uint64>> elements, int64 bit_count) {
+    absl::Span<const absl::Span<const uint64_t>> elements, int64_t bit_count) {
   if (elements.empty()) {
     return absl::UnimplementedError("Empty array Values are not supported.");
   }
 
   std::vector<Value> elements_as_values;
-  int64 element_size = -1;
+  int64_t element_size = -1;
   for (auto x : elements) {
     XLS_ASSIGN_OR_RETURN(Value x_as_value, UBitsArray(x, bit_count));
 
@@ -79,7 +79,7 @@ namespace xls {
 }
 
 /* static */ absl::StatusOr<Value> Value::SBitsArray(
-    absl::Span<const int64> elements, int64 bit_count) {
+    absl::Span<const int64_t> elements, int64_t bit_count) {
   if (elements.empty()) {
     return absl::UnimplementedError("Empty array Values are not supported.");
   }
@@ -94,13 +94,13 @@ namespace xls {
 }
 
 /* static */ absl::StatusOr<Value> Value::SBits2DArray(
-    absl::Span<const absl::Span<const int64>> elements, int64 bit_count) {
+    absl::Span<const absl::Span<const int64_t>> elements, int64_t bit_count) {
   if (elements.empty()) {
     return absl::UnimplementedError("Empty array Values are not supported.");
   }
 
   std::vector<Value> elements_as_values;
-  int64 element_size = -1;
+  int64_t element_size = -1;
 
   for (auto x : elements) {
     XLS_ASSIGN_OR_RETURN(Value x_as_value, SBitsArray(x, bit_count));
@@ -135,11 +135,11 @@ std::string ValueKindToString(ValueKind kind) {
   }
 }
 
-int64 Value::GetFlatBitCount() const {
+int64_t Value::GetFlatBitCount() const {
   if (kind() == ValueKind::kBits) {
     return bits().bit_count();
   } else if (kind() == ValueKind::kTuple) {
-    int64 total_size = 0;
+    int64_t total_size = 0;
     for (const Value& e : elements()) {
       total_size += e.GetFlatBitCount();
     }
@@ -285,7 +285,7 @@ bool Value::SameTypeAs(const Value& other) const {
       if (size() != other.size()) {
         return false;
       }
-      for (int64 i = 0; i < size(); ++i) {
+      for (int64_t i = 0; i < size(); ++i) {
         if (!element(i).SameTypeAs(other.element(i))) {
           return false;
         }

@@ -27,15 +27,15 @@ namespace {
 // Attempts to replace the given bit slice with a simpler or more canonical
 // form. Returns true if the bit slice was replaced. Any newly created
 // bit-slices are added to the worklist.
-absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64 opt_level,
+absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
                                       std::deque<BitSlice*>* worklist) {
   Node* operand = bit_slice->operand(0);
   BitsType* operand_type = operand->GetType()->AsBitsOrDie();
 
   // Creates a new bit slice and adds it to the worklist.
   auto make_bit_slice = [&](absl::optional<SourceLocation> loc, Node* operand,
-                            int64 start,
-                            int64 width) -> absl::StatusOr<BitSlice*> {
+                            int64_t start,
+                            int64_t width) -> absl::StatusOr<BitSlice*> {
     XLS_ASSIGN_OR_RETURN(BitSlice * new_bit_slice,
                          bit_slice->function_base()->MakeNode<BitSlice>(
                              loc, operand, start, width));
@@ -75,20 +75,20 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64 opt_level,
     std::vector<Node*> new_operands;
     // Inclusive bounds of the start/end of the bit slice. Values are bit
     // indices within the output of the concat.
-    const int64 slice_start = bit_slice->start();
-    const int64 slice_end = bit_slice->start() + bit_slice->width() - 1;
+    const int64_t slice_start = bit_slice->start();
+    const int64_t slice_end = bit_slice->start() + bit_slice->width() - 1;
 
     // Start index of the current operand in the iteration.
-    int64 operand_start = 0;
+    int64_t operand_start = 0;
 
     // Iterate through the operands in reverse order because this is the
     // increasing order of bit indices.
-    for (int64 i = concat->operand_count() - 1; i >= 0; --i) {
+    for (int64_t i = concat->operand_count() - 1; i >= 0; --i) {
       Node* concat_operand = concat->operand(i);
-      const int64 concat_operand_width = concat_operand->BitCountOrDie();
+      const int64_t concat_operand_width = concat_operand->BitCountOrDie();
       // Inclusive bound on the bit offset of the operand in the concat
       // operation.
-      const int64 operand_end = operand_start + concat_operand_width - 1;
+      const int64_t operand_end = operand_start + concat_operand_width - 1;
 
       if (operand_start > slice_end) {
         // Operand (and all subsequent operands) is entirely after the end of
@@ -106,8 +106,9 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64 opt_level,
         // Operand is partially within the slice. Slice out the part of the
         // operand which is within the slice and add it to the list of operands
         // for the replacement concat.
-        const int64 operand_slice_start = std::max(slice_start, operand_start);
-        const int64 operand_slice_end = std::min(slice_end, operand_end);
+        const int64_t operand_slice_start =
+            std::max(slice_start, operand_start);
+        const int64_t operand_slice_end = std::min(slice_end, operand_end);
         XLS_ASSIGN_OR_RETURN(
             Node * operand_slice,
             make_bit_slice(bit_slice->loc(), concat_operand,
@@ -201,7 +202,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64 opt_level,
       bit_slice->operand(0)->op() == Op::kSignExt) {
     ExtendOp* ext = bit_slice->operand(0)->As<ExtendOp>();
     Node* x = ext->operand(0);
-    int64 x_bit_count = x->BitCountOrDie();
+    int64_t x_bit_count = x->BitCountOrDie();
     if (bit_slice->start() + bit_slice->width() <= x_bit_count) {
       // Case (1), replace with slice of sign-extend's operand.
       XLS_ASSIGN_OR_RETURN(
@@ -272,7 +273,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64 opt_level,
     // is unchanged.
     new_operands.push_back(select->operand(0));
     // The remaining operands are the cases and should all be sliced.
-    for (int64 i = 1; i < select->operand_count(); ++i) {
+    for (int64_t i = 1; i < select->operand_count(); ++i) {
       XLS_ASSIGN_OR_RETURN(
           Node * sliced_operand,
           make_bit_slice(operand->loc(), select->operand(i), bit_slice->start(),
@@ -311,13 +312,13 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
   // slice.
   for (Node* node : f->nodes()) {
     if (node->Is<DynamicBitSlice>() && node->operand(1)->Is<Literal>()) {
-      int64 result_width = node->BitCountOrDie();
-      int64 operand_width = node->operand(0)->BitCountOrDie();
+      int64_t result_width = node->BitCountOrDie();
+      int64_t operand_width = node->operand(0)->BitCountOrDie();
       const Bits& start_bits = node->operand(1)->As<Literal>()->value().bits();
       // TODO(meheff): Handle OOB case.
       if (bits_ops::ULessThanOrEqual(start_bits,
                                      operand_width - result_width)) {
-        XLS_ASSIGN_OR_RETURN(uint64 start, start_bits.ToUint64());
+        XLS_ASSIGN_OR_RETURN(uint64_t start, start_bits.ToUint64());
         XLS_RETURN_IF_ERROR(
             node->ReplaceUsesWithNew<BitSlice>(node->operand(0),
                                                /*start=*/start,

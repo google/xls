@@ -177,7 +177,7 @@ CIntType::operator std::string() const {
   } else if (width_ == 1) {
     return pre + "psuedobool";
   } else if (width_ == 64) {
-    return pre + "int64";
+    return pre + "int64_t";
   } else if (width_ == 16) {
     return pre + "short";
   } else if (width_ == 8) {
@@ -2361,8 +2361,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
       XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
                            TranslateTypeFromClang(ilit->getType(), loc));
       // Raw data is in little endian format
-      auto api_raw = reinterpret_cast<const uint8*>(api.getRawData());
-      vector<uint8> truncated;
+      auto api_raw = reinterpret_cast<const uint8_t*>(api.getRawData());
+      vector<uint8_t> truncated;
       const int truncated_n = ((ctype->GetBitWidth() + 7) / 8);
       truncated.reserve(truncated_n);
       for (int i = 0; i < truncated_n; ++i) {

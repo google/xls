@@ -49,7 +49,7 @@ class BddFunction {
   // bits are modeled as BDD variables. Otherwise, bits are represented as BDD
   // nodes whose values are determined by the values of other BDD nodes.
   static absl::StatusOr<std::unique_ptr<BddFunction>> Run(
-      FunctionBase* f, int64 minterm_limit = 0,
+      FunctionBase* f, int64_t minterm_limit = 0,
       absl::Span<const Op> do_not_evaluate_ops = {});
 
   // Returns the underlying BDD.
@@ -57,7 +57,7 @@ class BddFunction {
   BinaryDecisionDiagram& bdd() { return bdd_; }
 
   // Returns the node associated with the given bit.
-  BddNodeIndex GetBddNode(Node* node, int64 bit_index) const {
+  BddNodeIndex GetBddNode(Node* node, int64_t bit_index) const {
     XLS_CHECK(node->GetType()->IsBits());
     return node_map_.at(node).at(bit_index);
   }

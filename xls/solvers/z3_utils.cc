@@ -41,7 +41,7 @@ Z3_sort CreateTupleSort(Z3_context ctx, const Type& type) {
   Z3_symbol tuple_sort_name = Z3_mk_string_symbol(ctx, tuple_type_str.c_str());
 
   absl::Span<Type* const> element_types = tuple_type->element_types();
-  int64 num_elements = element_types.size();
+  int64_t num_elements = element_types.size();
   std::vector<Z3_symbol> field_names;
   std::vector<Z3_sort> field_sorts;
   field_names.reserve(num_elements);

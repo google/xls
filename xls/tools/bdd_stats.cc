@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
 #include <limits>
 
 #include "absl/status/status.h"
@@ -19,7 +20,6 @@
 #include "absl/time/clock.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/examples/sample_packages.h"
@@ -38,7 +38,7 @@ To gather BDD stats of a set of benchmarks:
    bdd_stats --benchmarks=all
 )";
 
-ABSL_FLAG(int64, bdd_minterm_limit, 0,
+ABSL_FLAG(int64_t, bdd_minterm_limit, 0,
           "Maximum number of minterms before truncating the BDD subgraph "
           "and declaring a new variable. If zero, then no limit.");
 ABSL_FLAG(std::vector<std::string>, benchmarks, {},
@@ -107,18 +107,18 @@ absl::Status RealMain(absl::string_view input_path) {
     std::cout << "BDD variable count: " << bdd_function->bdd().variable_count()
               << "\n";
 
-    int64 number_bits = 0;
+    int64_t number_bits = 0;
     for (Node* node : entry->nodes()) {
       number_bits += node->GetType()->GetFlatBitCount();
     }
     std::cout << "Bits in graph: " << number_bits << "\n";
 
-    int64 max_minterms = 0;
-    for (int64 i = 0; i < bdd_function->bdd().size(); ++i) {
+    int64_t max_minterms = 0;
+    for (int64_t i = 0; i < bdd_function->bdd().size(); ++i) {
       max_minterms = std::max(
           max_minterms, bdd_function->bdd().minterm_count(BddNodeIndex(i)));
     }
-    if (max_minterms == std::numeric_limits<int32>::max()) {
+    if (max_minterms == std::numeric_limits<int32_t>::max()) {
       std::cout << "Maximum minterms of any expression: INT32_MAX\n";
     } else {
       std::cout << "Maximum minterms of any expression: " << max_minterms

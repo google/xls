@@ -43,7 +43,7 @@ absl::optional<std::string> GetInlinedNodeName(Node* node, Invoke* invoke) {
   // 'foo_bar_42' is derived from 'foo_bar').
   Param* matching_param = nullptr;
   std::string derived_name;
-  for (int64 i = 0; i < invoke->operand_count(); ++i) {
+  for (int64_t i = 0; i < invoke->operand_count(); ++i) {
     Param* param = invoke->to_apply()->param(i);
     Node* operand = invoke->operand(i);
     if (operand->HasAssignedName() &&
@@ -66,7 +66,7 @@ absl::optional<std::string> GetInlinedNodeName(Node* node, Invoke* invoke) {
 absl::Status InlineInvoke(Invoke* invoke) {
   Function* invoked = invoke->to_apply();
   absl::flat_hash_map<Node*, Node*> invoked_node_to_replacement;
-  for (int64 i = 0; i < invoked->params().size(); ++i) {
+  for (int64_t i = 0; i < invoked->params().size(); ++i) {
     Node* param = invoked->param(i);
     invoked_node_to_replacement[param] = invoke->operand(i);
   }

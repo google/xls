@@ -32,7 +32,7 @@ namespace xls {
 Bits TernaryVectorToKnownBits(const TernaryEvaluator::Vector& ternary_vector) {
   // Use InlinedVector to avoid std::vector<bool> specialization madness.
   absl::InlinedVector<bool, 1> bits(ternary_vector.size());
-  for (int64 i = 0; i < bits.size(); ++i) {
+  for (int64_t i = 0; i < bits.size(); ++i) {
     bits[i] = (ternary_vector[i] == TernaryValue::kKnownOne ||
                ternary_vector[i] == TernaryValue::kKnownZero);
   }
@@ -42,7 +42,7 @@ Bits TernaryVectorToKnownBits(const TernaryEvaluator::Vector& ternary_vector) {
 Bits TernaryVectorToValueBits(const TernaryEvaluator::Vector& ternary_vector) {
   // Use InlinedVector to avoid std::vector<bool> specialization madness.
   absl::InlinedVector<bool, 1> bits(ternary_vector.size());
-  for (int64 i = 0; i < bits.size(); ++i) {
+  for (int64_t i = 0; i < bits.size(); ++i) {
     bits[i] = ternary_vector[i] == TernaryValue::kKnownOne;
   }
   return Bits(bits);
@@ -89,7 +89,7 @@ absl::StatusOr<std::unique_ptr<TernaryQueryEngine>> TernaryQueryEngine::Run(
 
 bool TernaryQueryEngine::AtMostOneTrue(
     absl::Span<BitLocation const> bits) const {
-  int64 maybe_one_count = 0;
+  int64_t maybe_one_count = 0;
   for (const BitLocation& location : bits) {
     if (!IsKnown(location) || IsOne(location)) {
       maybe_one_count++;

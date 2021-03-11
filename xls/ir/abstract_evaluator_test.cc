@@ -190,7 +190,7 @@ TEST(AbstractEvaluatorTest, SLessThan) {
 
 TEST(AbstractEvaluatorTest, BitSliceUpdate) {
   TestAbstractEvaluator eval;
-  auto test_eq = [&](int64 expected, const Bits& a, const Bits& start,
+  auto test_eq = [&](int64_t expected, const Bits& a, const Bits& start,
                      const Bits& value) {
     EXPECT_EQ(
         UBits(expected, a.bit_count()),

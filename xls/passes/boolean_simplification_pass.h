@@ -51,7 +51,7 @@ class TruthTable {
       absl::Span<Node* const> operands, FunctionBase* f) const;
 
   // Gets the truth table (input) vector for operand "i".
-  static Bits GetInitialVector(int64 i);
+  static Bits GetInitialVector(int64_t i);
   static Bits RunNaryOp(Op op, absl::Span<const Bits> operands);
 
  private:

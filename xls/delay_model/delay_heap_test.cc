@@ -41,7 +41,7 @@ using ::testing::ElementsAre;
 
 class TestDelayEstimator : public DelayEstimator {
  public:
-  absl::StatusOr<int64> GetOperationDelayInPs(Node* node) const override {
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
     switch (node->op()) {
       case Op::kParam:
       case Op::kLiteral:
@@ -139,7 +139,7 @@ TEST_F(DelayHeapTest, TrivialFunction) {
 // (2) Sorted in decending order by critical path
 // (3) No user (operand) of a node in the frontier should be in the heap.
 absl::Status VerifyFrontier(const DelayHeap& heap) {
-  int64 last_cp = std::numeric_limits<int64>::max();
+  int64_t last_cp = std::numeric_limits<int64_t>::max();
   for (Node* node : heap.frontier()) {
     EXPECT_TRUE(heap.contains(node));
     EXPECT_GE(last_cp, heap.CriticalPathDelay(node));

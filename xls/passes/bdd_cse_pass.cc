@@ -48,10 +48,10 @@ namespace {
 //
 absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f) {
   // Index of each node in the topological sort.
-  absl::flat_hash_map<Node*, int64> topo_index;
+  absl::flat_hash_map<Node*, int64_t> topo_index;
   // Critical-path distance from root in the graph to each node.
-  absl::flat_hash_map<Node*, int64> node_cp_delay;
-  int64 i = 0;
+  absl::flat_hash_map<Node*, int64_t> node_cp_delay;
+  int64_t i = 0;
 
   // Return an estimate of the delay of the given node. Because BDD-CSE may be
   // run at any point in the pipeline, some nodes with no delay model may be
@@ -60,13 +60,13 @@ absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f) {
   // TODO(meheff): Replace with the actual model being used when the delay model
   // is threaded through the pass pipeline.
   auto get_node_delay = [&](Node* n) {
-    absl::StatusOr<int64> delay_status =
+    absl::StatusOr<int64_t> delay_status =
         GetStandardDelayEstimator().GetOperationDelayInPs(n);
     return delay_status.ok() ? delay_status.value() : 0;
   };
   for (Node* node : TopoSort(f)) {
     topo_index[node] = i;
-    int64 node_start = 0;
+    int64_t node_start = 0;
     for (Node* operand : node->operands()) {
       node_start = std::max(
           node_start, node_cp_delay.at(operand) + get_node_delay(operand));
@@ -99,13 +99,13 @@ absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
                        BddFunction::Run(f, /*minterm_limit=*/4096));
 
   // To improve efficiency, bucket potentially common nodes together. The
-  // bucketing is done via a int64 hash value of the BDD node indices of each
+  // bucketing is done via a int64_t hash value of the BDD node indices of each
   // bit of the node.
-  auto hasher = absl::Hash<std::vector<int64>>();
+  auto hasher = absl::Hash<std::vector<int64_t>>();
   auto node_hash = [&](Node* n) {
     XLS_CHECK(n->GetType()->IsBits());
-    std::vector<int64> values_to_hash;
-    for (int64 i = 0; i < n->BitCountOrDie(); ++i) {
+    std::vector<int64_t> values_to_hash;
+    for (int64_t i = 0; i < n->BitCountOrDie(); ++i) {
       values_to_hash.push_back(bdd_function->GetBddNode(n, i).value());
     }
     return hasher(values_to_hash);
@@ -115,7 +115,7 @@ absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
     if (a->BitCountOrDie() != b->BitCountOrDie()) {
       return false;
     }
-    for (int64 i = 0; i < a->BitCountOrDie(); ++i) {
+    for (int64_t i = 0; i < a->BitCountOrDie(); ++i) {
       if (bdd_function->GetBddNode(a, i) != bdd_function->GetBddNode(b, i)) {
         return false;
       }
@@ -124,7 +124,7 @@ absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
   };
 
   bool changed = false;
-  absl::flat_hash_map<int64, std::vector<Node*>> node_buckets;
+  absl::flat_hash_map<int64_t, std::vector<Node*>> node_buckets;
   node_buckets.reserve(f->node_count());
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> node_order, GetNodeOrder(f));
   for (Node* node : node_order) {
@@ -132,7 +132,7 @@ absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
       continue;
     }
 
-    int64 hash = node_hash(node);
+    int64_t hash = node_hash(node);
     if (!node_buckets.contains(hash)) {
       node_buckets[hash].push_back(node);
       continue;

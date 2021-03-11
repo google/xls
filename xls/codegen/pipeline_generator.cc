@@ -40,7 +40,7 @@ namespace {
 
 // Returns pipeline-stage prefixed signal name for the given node. For
 // example: p3_foo.
-std::string PipelineSignalName(Node* node, int64 stage) {
+std::string PipelineSignalName(Node* node, int64_t stage) {
   return absl::StrFormat("p%d_%s", stage, SanitizeIdentifier(node->GetName()));
 }
 
@@ -146,7 +146,7 @@ class PipelineGenerator {
         // one register between each stage in the schedule, and optionally one
         // at the inputs and outputs.
         XLS_RET_CHECK_GT(schedule_.length(), 0);
-        int64 reg_count = schedule_.length() - 1;
+        int64_t reg_count = schedule_.length() - 1;
         if (options_.flop_inputs()) {
           ++reg_count;
         }
@@ -160,7 +160,7 @@ class PipelineGenerator {
 
     // Returns the load enable signal for the pipeline registers at the end of
     // the given stage.
-    auto get_load_enable = [&](int64 stage) -> Expression* {
+    auto get_load_enable = [&](int64_t stage) -> Expression* {
       if (valid_load_enable != nullptr) {
         // 'valid_load_enable' is updated to the latest flopped value in each
         // iteration of the loop. If the pipeline has a reset signal, OR in the
@@ -216,7 +216,7 @@ class PipelineGenerator {
     // The set of nodes which are live out of the previous stage.
     std::vector<Node*> live_out_last_stage;
 
-    int64 stage = 0;
+    int64_t stage = 0;
     if (options_.flop_inputs()) {
       XLS_VLOG(4) << "Flopping inputs.";
       std::vector<std::pair<Node*, Expression*>> assignments;
@@ -232,7 +232,7 @@ class PipelineGenerator {
         XLS_ASSIGN_OR_RETURN(
             std::vector<Expression*> register_refs,
             AddPipelineRegisters(assignments, stage, get_load_enable(stage)));
-        for (int64 i = 0; i < assignments.size(); ++i) {
+        for (int64_t i = 0; i < assignments.size(); ++i) {
           node_expressions[assignments[i].first] = register_refs[i];
         }
         if (valid_load_enable != nullptr) {
@@ -244,7 +244,7 @@ class PipelineGenerator {
     }
 
     // Construct the stages defined by the schedule.
-    for (int64 schedule_cycle = 0; schedule_cycle < schedule_.length();
+    for (int64_t schedule_cycle = 0; schedule_cycle < schedule_.length();
          ++schedule_cycle) {
       XLS_VLOG(4) << "Building pipeline stage " << stage;
       if (stage != 0) {
@@ -361,7 +361,7 @@ class PipelineGenerator {
         XLS_ASSIGN_OR_RETURN(
             std::vector<Expression*> register_refs,
             AddPipelineRegisters(assignments, stage, get_load_enable(stage)));
-        for (int64 i = 0; i < assignments.size(); ++i) {
+        for (int64_t i = 0; i < assignments.size(); ++i) {
           node_expressions[assignments[i].first] = register_refs[i];
         }
       }
@@ -390,9 +390,9 @@ class PipelineGenerator {
           func_->return_value()->GetType()->IsTuple()) {
         TupleType* output_type =
             func_->return_value()->GetType()->AsTupleOrDie();
-        for (int64 i = 0; i < output_type->size(); ++i) {
-          int64 start = GetFlatBitIndexOfElement(output_type, i);
-          int64 width = output_type->element_type(i)->GetFlatBitCount();
+        for (int64_t i = 0; i < output_type->size(); ++i) {
+          int64_t start = GetFlatBitIndexOfElement(output_type, i);
+          int64_t width = output_type->element_type(i)->GetFlatBitCount();
           XLS_RETURN_IF_ERROR(mb_->AddOutputPort(
               absl::StrFormat("out_%d", i), output_type->element_type(i),
               mb_->module()->file()->Slice(
@@ -414,7 +414,7 @@ class PipelineGenerator {
   }
 
   // Builds and returns a module signature for the given latency.
-  absl::StatusOr<ModuleSignature> BuildSignature(int64 latency) {
+  absl::StatusOr<ModuleSignature> BuildSignature(int64_t latency) {
     ModuleSignatureBuilder sig_builder(mb_->module()->name());
     sig_builder.WithClock("clk");
     for (Param* param : func_->params()) {
@@ -424,7 +424,7 @@ class PipelineGenerator {
     if (options_.split_outputs() &&
         func_->return_value()->GetType()->IsTuple()) {
       TupleType* output_type = func_->return_value()->GetType()->AsTupleOrDie();
-      for (int64 i = 0; i < output_type->size(); ++i) {
+      for (int64_t i = 0; i < output_type->size(); ++i) {
         sig_builder.AddDataOutput(
             absl::StrFormat("out_%d", i),
             output_type->element_type(i)->GetFlatBitCount());
@@ -448,9 +448,9 @@ class PipelineGenerator {
 
   // Returns number of uses of the node's value in this stage. This includes the
   // pipeline register if the node's value is used in a later stage.
-  int64 FanoutInStage(Node* node, int64 stage) {
+  int64_t FanoutInStage(Node* node, int64_t stage) {
     XLS_CHECK_EQ(schedule_.cycle(node), stage);
-    int64 fanout = 0;
+    int64_t fanout = 0;
     if (absl::c_any_of(node->users(),
                        [&](Node* n) { return schedule_.cycle(n) > stage; })) {
       fanout = 1;
@@ -482,8 +482,8 @@ class PipelineGenerator {
   // optional load enable (can be null). Returns references corresponding to the
   // defined registers.
   absl::StatusOr<std::vector<Expression*>> AddPipelineRegisters(
-      absl::Span<const std::pair<Node*, Expression*>> assignments, int64 stage,
-      Expression* load_enable) {
+      absl::Span<const std::pair<Node*, Expression*>> assignments,
+      int64_t stage, Expression* load_enable) {
     // Add always flop block for the registers.
     mb_->NewDeclarationAndAssignmentSections();
 
@@ -518,7 +518,7 @@ class PipelineGenerator {
   // Adds a "valid" signal register for the given stage using the given clock
   // signal. Returns a reference to the defined register.
   absl::StatusOr<LogicRef*> AddValidRegister(LogicRef* valid_load_enable,
-                                             int64 stage) {
+                                             int64_t stage) {
     // Add always flop block for the valid signal. Add it separately from the
     // other pipeline register because it does not use a load_enable signal
     // like the other pipeline registers.

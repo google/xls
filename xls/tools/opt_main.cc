@@ -37,7 +37,7 @@ ABSL_FLAG(std::vector<std::string>, skip_passes, {},
           "pass names are skipped. If both --run_only_passes and --skip_passes "
           "are specified only passes which are present in --run_only_passes "
           "and not present in --skip_passes will be run.");
-ABSL_FLAG(int64, opt_level, xls::kMaxOptLevel,
+ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel,
           absl::StrFormat("Optimization level. Ranges from 1 to %d.",
                           xls::kMaxOptLevel));
 

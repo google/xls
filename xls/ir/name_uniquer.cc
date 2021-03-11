@@ -53,11 +53,11 @@ std::string NameUniquer::GetSanitizedUniqueName(absl::string_view prefix) {
   // avoids the possibility of a given prefix (e.g., prefix is "foo__42")
   // colliding with a uniquified name (e.g., GetSanitizedUniqueName("foo")
   // returns "foo__42")
-  absl::optional<int64> numeric_suffix;
+  absl::optional<int64_t> numeric_suffix;
   size_t separator_index = root.rfind(separator_);
   if (separator_index != std::string::npos) {
     std::string suffix = root.substr(separator_index + separator_.size());
-    int64 i;
+    int64_t i;
     if (absl::SimpleAtoi(suffix, &i)) {
       numeric_suffix = i;
       // Remove numeric suffix from root.
@@ -99,7 +99,7 @@ std::string NameUniquer::GetSanitizedUniqueName(absl::string_view prefix) {
   if (!absl::ascii_isalpha(str[0]) && str[0] != '_') {
     return false;
   }
-  for (int64 i = 1; i < str.size(); ++i) {
+  for (int64_t i = 1; i < str.size(); ++i) {
     if (!absl::ascii_isalnum(str[i]) && str[i] != '_') {
       return false;
     }

@@ -34,7 +34,7 @@ using ::testing::HasSubstr;
 class ModuleTestbenchTest : public VerilogTestBase {
  protected:
   // Creates and returns a module which simply flops its input twice.
-  Module* MakeTwoStageIdentityPipeline(VerilogFile* f, int64 width = 16) {
+  Module* MakeTwoStageIdentityPipeline(VerilogFile* f, int64_t width = 16) {
     Module* m = f->AddModule("test_module");
     LogicRef* clk = m->AddInput("clk", f->ScalarType());
     LogicRef* in = m->AddInput("in", f->BitVectorType(width));

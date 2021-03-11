@@ -86,7 +86,7 @@ class IrTestBase : public ::testing::Test {
   // (3) pipeline generator emitted Verilog through a Verilog simulator.
   //          (enabled with simulate)
   static void RunAndExpectEq(
-      const absl::flat_hash_map<std::string, uint64>& args, uint64 expected,
+      const absl::flat_hash_map<std::string, uint64_t>& args, uint64_t expected,
       absl::string_view package_text, bool run_optimized = true,
       bool simulate = true,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
@@ -113,15 +113,15 @@ class IrTestBase : public ::testing::Test {
       const Value& expected, std::unique_ptr<Package>&& package,
       bool run_optimized = true, bool simulate = true);
 
-  // Converts the given map of uint64 arguments into a map of Value argument
+  // Converts the given map of uint64_t arguments into a map of Value argument
   // with the appropriate bit widths as determined by the package.
   static absl::StatusOr<absl::flat_hash_map<std::string, Value>>
-  UInt64ArgsToValues(const absl::flat_hash_map<std::string, uint64>& args,
+  UInt64ArgsToValues(const absl::flat_hash_map<std::string, uint64_t>& args,
                      Package* package);
 
-  // Converts the uint64 result to a Value with the appropriate bit widths as
+  // Converts the uint64_t result to a Value with the appropriate bit widths as
   // determined by the package return value.
-  static absl::StatusOr<Value> UInt64ResultToValue(uint64 value,
+  static absl::StatusOr<Value> UInt64ResultToValue(uint64_t value,
                                                    Package* package);
 };
 

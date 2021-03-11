@@ -75,7 +75,7 @@ absl::Status GatherAddsAndSubtracts(Node* node, bool negated,
   interior_nodes->push_back(node);
 
   XLS_RET_CHECK_EQ(node->operand_count(), 2);
-  for (int64 operand_no = 0; operand_no < 2; ++operand_no) {
+  for (int64_t operand_no = 0; operand_no < 2; ++operand_no) {
     Node* operand = node->operand(operand_no);
     // Subtraction negates it's second operand (operand number 1).
     bool negated_next =
@@ -151,7 +151,7 @@ absl::StatusOr<bool> ReassociateSubtracts(FunctionBase* f) {
 
     // Count the number of subtraction operations in the tree, and mark any
     // interior nodes as visited so they are not traverse in later iterations.
-    int64 subtract_count = 0;
+    int64_t subtract_count = 0;
     for (Node* interior_node : interior_nodes) {
       visited_nodes.insert(interior_node);
       if (interior_node->op() == Op::kSub) {
@@ -260,8 +260,8 @@ absl::StatusOr<bool> ReassociateSubtracts(FunctionBase* f) {
 //
 // And the function would return 2, the depth of the tree (not counting the
 // leaves).
-int64 GatherExpressionLeaves(Op op, Node* node, std::vector<Node*>* leaves,
-                             std::vector<Node*>* interior_nodes) {
+int64_t GatherExpressionLeaves(Op op, Node* node, std::vector<Node*>* leaves,
+                               std::vector<Node*>* interior_nodes) {
   if (node->op() != op || !NodeAndOperandsSameType(node)) {
     // 'node' does not match the other nodes of the tree and is thus a leaf.
     leaves->push_back(node);
@@ -271,7 +271,7 @@ int64 GatherExpressionLeaves(Op op, Node* node, std::vector<Node*>* leaves,
   // into the operands if the operand has a single use, otherwise the operand is
   // a leaf.
   interior_nodes->push_back(node);
-  int64 max_depth = 1;
+  int64_t max_depth = 1;
   for (Node* operand : node->operands()) {
     // TODO(meheff): 2021-01-27 Consider handling cases with more than one user.
     if (operand->users().size() == 1) {
@@ -309,7 +309,7 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
     }
     std::vector<Node*> leaves;
     std::vector<Node*> interior_nodes;
-    int64 expression_depth =
+    int64_t expression_depth =
         GatherExpressionLeaves(node->op(), node, &leaves, &interior_nodes);
 
     // Interior nodes in the expression will be reassociated so add them
@@ -397,7 +397,7 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
       // the other inputs.
       XLS_ASSIGN_OR_RETURN(Node * literal_expr,
                            new_node(literals[0], literals[1]));
-      for (int64 i = 2; i < literals.size(); ++i) {
+      for (int64_t i = 2; i < literals.size(); ++i) {
         XLS_ASSIGN_OR_RETURN(literal_expr, new_node(literals[i], literal_expr));
       }
       inputs.push_back(literal_expr);
@@ -409,14 +409,14 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
       // Number of operations to apply to the inputs to reduce operand count to
       // a power of two. These ops will be the ragged top layer of the
       // expression tree.
-      int64 op_count = inputs.size() - (1ULL << FloorOfLog2(inputs.size()));
+      int64_t op_count = inputs.size() - (1ULL << FloorOfLog2(inputs.size()));
       std::vector<Node*> next_inputs;
-      for (int64 i = 0; i < op_count; ++i) {
+      for (int64_t i = 0; i < op_count; ++i) {
         XLS_ASSIGN_OR_RETURN(Node * new_op,
                              new_node(inputs[2 * i], inputs[2 * i + 1]));
         next_inputs.push_back(new_op);
       }
-      for (int64 i = op_count * 2; i < inputs.size(); ++i) {
+      for (int64_t i = op_count * 2; i < inputs.size(); ++i) {
         next_inputs.push_back(inputs[i]);
       }
       inputs = std::move(next_inputs);
@@ -427,7 +427,7 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
       // Inputs for the next layer in the tree. Will contain half as many
       // elements as 'inputs'.
       std::vector<Node*> next_inputs;
-      for (int64 i = 0; i < inputs.size() / 2; ++i) {
+      for (int64_t i = 0; i < inputs.size() / 2; ++i) {
         XLS_ASSIGN_OR_RETURN(Node * new_op,
                              new_node(inputs[2 * i], inputs[2 * i + 1]));
         next_inputs.push_back(new_op);

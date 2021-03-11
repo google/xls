@@ -52,11 +52,11 @@ absl::Span<Node* const> GetOperandsForCse(
 absl::StatusOr<bool> CsePass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   // To improve efficiency, bucket potentially common nodes together. The
-  // bucketing is done via an int64 hash value which is constructed from the
+  // bucketing is done via an int64_t hash value which is constructed from the
   // op() of the node and the uid's of the node's operands.
-  auto hasher = absl::Hash<std::vector<int64>>();
+  auto hasher = absl::Hash<std::vector<int64_t>>();
   auto node_hash = [&](Node* n) {
-    std::vector<int64> values_to_hash = {static_cast<int64>(n->op())};
+    std::vector<int64_t> values_to_hash = {static_cast<int64_t>(n->op())};
     std::vector<Node*> span_backing_store;
     for (Node* operand : GetOperandsForCse(n, &span_backing_store)) {
       values_to_hash.push_back(operand->id());
@@ -67,10 +67,10 @@ absl::StatusOr<bool> CsePass::RunOnFunctionBaseInternal(
   };
 
   bool changed = false;
-  absl::flat_hash_map<int64, std::vector<Node*>> node_buckets;
+  absl::flat_hash_map<int64_t, std::vector<Node*>> node_buckets;
   node_buckets.reserve(f->node_count());
   for (Node* node : TopoSort(f)) {
-    int64 hash = node_hash(node);
+    int64_t hash = node_hash(node);
     if (!node_buckets.contains(hash)) {
       node_buckets[hash].push_back(node);
       continue;

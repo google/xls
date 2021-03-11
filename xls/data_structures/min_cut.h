@@ -25,14 +25,14 @@
 namespace xls {
 namespace min_cut {
 
-DEFINE_STRONG_INT_TYPE(NodeId, int32);
-DEFINE_STRONG_INT_TYPE(EdgeId, int32);
+DEFINE_STRONG_INT_TYPE(NodeId, int32_t);
+DEFINE_STRONG_INT_TYPE(EdgeId, int32_t);
 
 // A directed edge in the graph used for computing mincuts.
 struct Edge {
   NodeId from;
   NodeId to;
-  int64 weight;
+  int64_t weight;
 
   // The unique ID of the edge. IDs are numbered sequentially from zero.
   EdgeId id;
@@ -48,19 +48,19 @@ class Graph {
   NodeId AddNode(std::string name = "");
 
   // Adds a edge extending from 'from' to 'to' of the given weight.
-  EdgeId AddEdge(NodeId from, NodeId to, int64 weight);
+  EdgeId AddEdge(NodeId from, NodeId to, int64_t weight);
 
   // Returns the set of edges extending from the given node.
   absl::Span<const EdgeId> successors(NodeId node) const {
-    return successors_[static_cast<int64>(node)];
+    return successors_[static_cast<int64_t>(node)];
   }
 
   // Returns the edge with the given unique ID.
-  const Edge& edge(EdgeId id) const { return edges_[static_cast<int64>(id)]; }
+  const Edge& edge(EdgeId id) const { return edges_[static_cast<int64_t>(id)]; }
 
   // Returns the number of edges/nodes in the graph.
-  int64 edge_count() const { return edges_.size(); }
-  int64 node_count() const { return successors_.size(); }
+  int64_t edge_count() const { return edges_.size(); }
+  int64_t node_count() const { return successors_.size(); }
 
   // Returns the maximum value of any node/edge unique ID.
   EdgeId max_edge_id() const { return EdgeId(edges_.size() - 1); }
@@ -83,7 +83,7 @@ class Graph {
 
 struct GraphCut {
   // The total weight of the cut.
-  int64 weight;
+  int64_t weight;
 
   // The set of nodes in the partition containing the 'source' node of the cut.
   std::vector<NodeId> source_partition;

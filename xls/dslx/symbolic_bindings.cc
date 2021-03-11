@@ -23,7 +23,7 @@ bool SymbolicBindings::operator==(const SymbolicBindings& other) const {
   if (bindings_.size() != other.bindings_.size()) {
     return false;
   }
-  for (int64 i = 0; i < bindings_.size(); ++i) {
+  for (int64_t i = 0; i < bindings_.size(); ++i) {
     if (bindings_[i] != other.bindings_[i]) {
       return false;
     }
@@ -43,8 +43,8 @@ std::string SymbolicBindings::ToString() const {
                             }));
 }
 
-absl::flat_hash_map<std::string, int64> SymbolicBindings::ToMap() const {
-  absl::flat_hash_map<std::string, int64> map;
+absl::flat_hash_map<std::string, int64_t> SymbolicBindings::ToMap() const {
+  absl::flat_hash_map<std::string, int64_t> map;
   for (const SymbolicBinding& binding : bindings_) {
     map.insert({binding.identifier, binding.value});
   }

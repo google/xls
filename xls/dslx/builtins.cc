@@ -28,7 +28,7 @@ class ArgChecker {
   ArgChecker(std::string name, absl::Span<const InterpValue> args)
       : name_(std::move(name)), args_(args) {}
 
-  ArgChecker& size(int64 target) {
+  ArgChecker& size(int64_t target) {
     if (args_.size() != target) {
       status_.Update(absl::InvalidArgumentError(
           absl::StrFormat("Expect %d argument(s) to %s(); got %d", target,
@@ -37,7 +37,7 @@ class ArgChecker {
     return *this;
   }
 
-  ArgChecker& size_ge(int64 target) {
+  ArgChecker& size_ge(int64_t target) {
     if (args_.size() < target) {
       status_.Update(absl::InvalidArgumentError(
           absl::StrFormat("Expect >= %d argument(s) to %s(); got %d", target,
@@ -46,7 +46,7 @@ class ArgChecker {
     return *this;
   }
 
-  ArgChecker& array(int64 argno) {
+  ArgChecker& array(int64_t argno) {
     if (!args_[argno].IsArray()) {
       status_.Update(absl::InvalidArgumentError(
           absl::StrFormat("Expect argument %d to %s to be an array; got: %s",
@@ -55,7 +55,7 @@ class ArgChecker {
     return *this;
   }
 
-  ArgChecker& bits(int64 argno) {
+  ArgChecker& bits(int64_t argno) {
     if (!args_[argno].IsBits()) {
       status_.Update(absl::InvalidArgumentError(
           absl::StrFormat("Expect argument %d to %s to be bits; got: %s", argno,
@@ -84,10 +84,10 @@ absl::StatusOr<InterpValue> FailUnless(const InterpValue& pred,
 // Helper that finds the first differing index among value spans.
 //
 // Precondition: lhs and rhs must be same size.
-absl::optional<int64> FindFirstDifferingIndex(
+absl::optional<int64_t> FindFirstDifferingIndex(
     absl::Span<const InterpValue> lhs, absl::Span<const InterpValue> rhs) {
   XLS_CHECK_EQ(lhs.size(), rhs.size());
-  for (int64 i = 0; i < lhs.size(); ++i) {
+  for (int64_t i = 0; i < lhs.size(); ++i) {
     if (lhs[i].Ne(rhs[i])) {
       return i;
     }
@@ -108,7 +108,7 @@ std::string SignedCmpToString(SignedCmp cmp) {
     case SignedCmp::kGe:
       return "sge";
   }
-  return absl::StrFormat("<invalid SignedCmp(%d)>", static_cast<int64>(cmp));
+  return absl::StrFormat("<invalid SignedCmp(%d)>", static_cast<int64_t>(cmp));
 }
 
 absl::StatusOr<InterpValue> BuiltinScmp(
@@ -231,7 +231,7 @@ absl::StatusOr<InterpValue> BuiltinAssertEq(
                       lhs.ToHumanString(), rhs.ToHumanString());
 
   if (lhs.IsArray() && rhs.IsArray()) {
-    absl::optional<int64> i =
+    absl::optional<int64_t> i =
         FindFirstDifferingIndex(lhs.GetValuesOrDie(), rhs.GetValuesOrDie());
     XLS_RET_CHECK(i.has_value());
     const auto& lhs_values = lhs.GetValuesOrDie();
@@ -298,7 +298,7 @@ absl::StatusOr<InterpValue> BuiltinEnumerate(
   XLS_RETURN_IF_ERROR(ArgChecker("enumerate", args).size(1).array(0).status());
   auto& values = args[0].GetValuesOrDie();
   std::vector<InterpValue> results;
-  for (int64 i = 0; i < values.size(); ++i) {
+  for (int64_t i = 0; i < values.size(); ++i) {
     auto ordinal = InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/i);
     auto tuple = InterpValue::MakeTuple({ordinal, values[i]});
     results.push_back(tuple);
@@ -344,7 +344,7 @@ absl::StatusOr<InterpValue> BuiltinBitSlice(
   const InterpValue& width = args[2];
   XLS_ASSIGN_OR_RETURN(Bits subject_bits, subject.GetBits());
   XLS_ASSIGN_OR_RETURN(Bits start_bits, start.GetBits());
-  XLS_ASSIGN_OR_RETURN(uint64 start_index, start_bits.ToUint64());
+  XLS_ASSIGN_OR_RETURN(uint64_t start_index, start_bits.ToUint64());
   if (start_index >= subject_bits.bit_count()) {
     start_index = subject_bits.bit_count();
   }
@@ -353,7 +353,7 @@ absl::StatusOr<InterpValue> BuiltinBitSlice(
   // not the value. This is the "forcing a known-const to be available via the
   // type system" kind of trick before we can have explicit parametrics for
   // builtins.
-  XLS_ASSIGN_OR_RETURN(int64 bit_count, width.GetBitCount());
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count, width.GetBitCount());
   return InterpValue::MakeBits(InterpValueTag::kUBits,
                                subject_bits.Slice(start_index, bit_count));
 }
@@ -377,7 +377,7 @@ absl::StatusOr<InterpValue> BuiltinBitSliceUpdate(
     // Update is entirely out of bounds so no bits of the subject are updated.
     return InterpValue::MakeBits(InterpValueTag::kUBits, subject_bits);
   }
-  XLS_ASSIGN_OR_RETURN(int64 start_index, start_bits.ToUint64());
+  XLS_ASSIGN_OR_RETURN(int64_t start_index, start_bits.ToUint64());
   return InterpValue::MakeBits(
       InterpValueTag::kUBits,
       bits_ops::BitSliceUpdate(subject_bits, start_index, update_value_bits));
@@ -449,9 +449,9 @@ absl::StatusOr<InterpValue> BuiltinOneHotSel(
     return absl::InvalidArgumentError(
         "At least one value to select is required.");
   }
-  XLS_ASSIGN_OR_RETURN(int64 result_bit_count, (*values)[0].GetBitCount());
+  XLS_ASSIGN_OR_RETURN(int64_t result_bit_count, (*values)[0].GetBitCount());
   Bits accum(result_bit_count);
-  for (int64 i = 0; i < values->size(); ++i) {
+  for (int64_t i = 0; i < values->size(); ++i) {
     if (!selector_bits.Get(i)) {
       continue;
     }
@@ -467,7 +467,7 @@ absl::StatusOr<InterpValue> BuiltinSignex(
   XLS_RETURN_IF_ERROR(ArgChecker("signex", args).size(2).status());
   const InterpValue& lhs = args[0];
   const InterpValue& rhs = args[1];
-  XLS_ASSIGN_OR_RETURN(int64 new_bit_count, rhs.GetBitCount());
+  XLS_ASSIGN_OR_RETURN(int64_t new_bit_count, rhs.GetBitCount());
   XLS_ASSIGN_OR_RETURN(Bits lhs_bits, lhs.GetBits());
   return InterpValue::MakeBits(rhs.tag(),
                                bits_ops::SignExtend(lhs_bits, new_bit_count));

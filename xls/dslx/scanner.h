@@ -126,7 +126,7 @@ class Token {
     return *absl::get<absl::optional<std::string>>(payload_);
   }
 
-  absl::StatusOr<int64> GetValueAsInt64() const;
+  absl::StatusOr<int64_t> GetValueAsInt64() const;
 
   const absl::variant<absl::optional<std::string>, Keyword>& GetPayload()
       const {
@@ -335,7 +335,7 @@ class Scanner {
   //
   // Note: As with PopChar() if the character stream is extinguished when a
   // character is dropped this will check-fail.
-  void DropChar(int64 count = 1);
+  void DropChar(int64_t count = 1);
 
   // Attempts to drop a character equal to "target": if it is present at the
   // head of the character stream, drops it and return true; otherwise
@@ -365,9 +365,9 @@ class Scanner {
   std::string filename_;
   std::string text_;
   bool include_whitespace_and_comments_;
-  int64 index_ = 0;
-  int64 lineno_ = 0;
-  int64 colno_ = 0;
+  int64_t index_ = 0;
+  int64_t lineno_ = 0;
+  int64_t colno_ = 0;
 };
 
 }  // namespace xls::dslx

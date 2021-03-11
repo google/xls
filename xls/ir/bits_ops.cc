@@ -25,7 +25,7 @@ namespace {
 
 // Converts the given bits value to signed value of the given bit count. Uses
 // truncation or sign-extension to narrow/widen the value.
-Bits TruncateOrSignExtend(const Bits& bits, int64 bit_count) {
+Bits TruncateOrSignExtend(const Bits& bits, int64_t bit_count) {
   if (bits.bit_count() == bit_count) {
     return bits;
   } else if (bits.bit_count() < bit_count) {
@@ -43,9 +43,9 @@ Bits And(const Bits& lhs, const Bits& rhs) {
     return UBits(lhs.ToUint64().value() & rhs.ToUint64().value(),
                  lhs.bit_count());
   }
-  std::vector<uint8> bytes = lhs.ToBytes();
-  std::vector<uint8> rhs_bytes = rhs.ToBytes();
-  for (int64 i = 0; i < bytes.size(); ++i) {
+  std::vector<uint8_t> bytes = lhs.ToBytes();
+  std::vector<uint8_t> rhs_bytes = rhs.ToBytes();
+  for (int64_t i = 0; i < bytes.size(); ++i) {
     bytes[i] = bytes[i] & rhs_bytes[i];
   }
   return Bits::FromBytes(bytes, lhs.bit_count());
@@ -53,7 +53,7 @@ Bits And(const Bits& lhs, const Bits& rhs) {
 
 Bits NaryAnd(absl::Span<const Bits> operands) {
   Bits accum = operands.at(0);
-  for (int64 i = 1; i < operands.size(); ++i) {
+  for (int64_t i = 1; i < operands.size(); ++i) {
     accum = And(accum, operands[i]);
   }
   return accum;
@@ -62,14 +62,14 @@ Bits NaryAnd(absl::Span<const Bits> operands) {
 Bits Or(const Bits& lhs, const Bits& rhs) {
   XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (lhs.bit_count() <= 64) {
-    uint64 lhs_int = lhs.ToUint64().value();
-    uint64 rhs_int = rhs.ToUint64().value();
-    uint64 result = (lhs_int | rhs_int);
+    uint64_t lhs_int = lhs.ToUint64().value();
+    uint64_t rhs_int = rhs.ToUint64().value();
+    uint64_t result = (lhs_int | rhs_int);
     return UBits(result, lhs.bit_count());
   }
-  std::vector<uint8> bytes = lhs.ToBytes();
-  std::vector<uint8> rhs_bytes = rhs.ToBytes();
-  for (int64 i = 0; i < bytes.size(); ++i) {
+  std::vector<uint8_t> bytes = lhs.ToBytes();
+  std::vector<uint8_t> rhs_bytes = rhs.ToBytes();
+  for (int64_t i = 0; i < bytes.size(); ++i) {
     bytes[i] = bytes[i] | rhs_bytes[i];
   }
   return Bits::FromBytes(bytes, lhs.bit_count());
@@ -77,7 +77,7 @@ Bits Or(const Bits& lhs, const Bits& rhs) {
 
 Bits NaryOr(absl::Span<const Bits> operands) {
   Bits accum = operands.at(0);
-  for (int64 i = 1; i < operands.size(); ++i) {
+  for (int64_t i = 1; i < operands.size(); ++i) {
     accum = Or(accum, operands[i]);
   }
   return accum;
@@ -86,14 +86,14 @@ Bits NaryOr(absl::Span<const Bits> operands) {
 Bits Xor(const Bits& lhs, const Bits& rhs) {
   XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (lhs.bit_count() <= 64) {
-    uint64 lhs_int = lhs.ToUint64().value();
-    uint64 rhs_int = rhs.ToUint64().value();
-    uint64 result = (lhs_int ^ rhs_int);
+    uint64_t lhs_int = lhs.ToUint64().value();
+    uint64_t rhs_int = rhs.ToUint64().value();
+    uint64_t result = (lhs_int ^ rhs_int);
     return UBits(result, lhs.bit_count());
   }
-  std::vector<uint8> bytes = lhs.ToBytes();
-  std::vector<uint8> rhs_bytes = rhs.ToBytes();
-  for (int64 i = 0; i < bytes.size(); ++i) {
+  std::vector<uint8_t> bytes = lhs.ToBytes();
+  std::vector<uint8_t> rhs_bytes = rhs.ToBytes();
+  for (int64_t i = 0; i < bytes.size(); ++i) {
     bytes[i] = bytes[i] ^ rhs_bytes[i];
   }
   return Bits::FromBytes(bytes, lhs.bit_count());
@@ -101,7 +101,7 @@ Bits Xor(const Bits& lhs, const Bits& rhs) {
 
 Bits NaryXor(absl::Span<const Bits> operands) {
   Bits accum = operands.at(0);
-  for (int64 i = 1; i < operands.size(); ++i) {
+  for (int64_t i = 1; i < operands.size(); ++i) {
     accum = Xor(accum, operands[i]);
   }
   return accum;
@@ -114,9 +114,9 @@ Bits Nand(const Bits& lhs, const Bits& rhs) {
                      Mask(lhs.bit_count()),
                  lhs.bit_count());
   }
-  std::vector<uint8> bytes = lhs.ToBytes();
-  std::vector<uint8> rhs_bytes = rhs.ToBytes();
-  for (int64 i = 0; i < bytes.size(); ++i) {
+  std::vector<uint8_t> bytes = lhs.ToBytes();
+  std::vector<uint8_t> rhs_bytes = rhs.ToBytes();
+  for (int64_t i = 0; i < bytes.size(); ++i) {
     bytes[i] = ~(bytes[i] & rhs_bytes[i]);
   }
   return Bits::FromBytes(bytes, lhs.bit_count());
@@ -124,7 +124,7 @@ Bits Nand(const Bits& lhs, const Bits& rhs) {
 
 Bits NaryNand(absl::Span<const Bits> operands) {
   Bits accum = operands.at(0);
-  for (int64 i = 1; i < operands.size(); ++i) {
+  for (int64_t i = 1; i < operands.size(); ++i) {
     accum = And(accum, operands[i]);
   }
   return Not(accum);
@@ -137,9 +137,9 @@ Bits Nor(const Bits& lhs, const Bits& rhs) {
                      Mask(lhs.bit_count()),
                  lhs.bit_count());
   }
-  std::vector<uint8> bytes = lhs.ToBytes();
-  std::vector<uint8> rhs_bytes = rhs.ToBytes();
-  for (int64 i = 0; i < bytes.size(); ++i) {
+  std::vector<uint8_t> bytes = lhs.ToBytes();
+  std::vector<uint8_t> rhs_bytes = rhs.ToBytes();
+  for (int64_t i = 0; i < bytes.size(); ++i) {
     bytes[i] = ~(bytes[i] | rhs_bytes[i]);
   }
   return Bits::FromBytes(bytes, lhs.bit_count());
@@ -147,7 +147,7 @@ Bits Nor(const Bits& lhs, const Bits& rhs) {
 
 Bits NaryNor(absl::Span<const Bits> operands) {
   Bits accum = operands.at(0);
-  for (int64 i = 1; i < operands.size(); ++i) {
+  for (int64_t i = 1; i < operands.size(); ++i) {
     accum = Or(accum, operands[i]);
   }
   return Not(accum);
@@ -158,8 +158,8 @@ Bits Not(const Bits& bits) {
     return UBits((~bits.ToUint64().value()) & Mask(bits.bit_count()),
                  bits.bit_count());
   }
-  std::vector<uint8> bytes = bits.ToBytes();
-  for (uint8& byte : bytes) {
+  std::vector<uint8_t> bytes = bits.ToBytes();
+  for (uint8_t& byte : bytes) {
     byte = ~byte;
   }
   return Bits::FromBytes(bytes, bits.bit_count());
@@ -183,9 +183,9 @@ Bits XorReduce(const Bits& operand) {
 Bits Add(const Bits& lhs, const Bits& rhs) {
   XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (lhs.bit_count() <= 64) {
-    uint64 lhs_int = lhs.ToUint64().value();
-    uint64 rhs_int = rhs.ToUint64().value();
-    uint64 result = (lhs_int + rhs_int) & Mask(lhs.bit_count());
+    uint64_t lhs_int = lhs.ToUint64().value();
+    uint64_t rhs_int = rhs.ToUint64().value();
+    uint64_t result = (lhs_int + rhs_int) & Mask(lhs.bit_count());
     return UBits(result, lhs.bit_count());
   }
 
@@ -197,9 +197,9 @@ Bits Add(const Bits& lhs, const Bits& rhs) {
 Bits Sub(const Bits& lhs, const Bits& rhs) {
   XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (lhs.bit_count() <= 64) {
-    uint64 lhs_int = lhs.ToUint64().value();
-    uint64 rhs_int = rhs.ToUint64().value();
-    uint64 result = (lhs_int - rhs_int) & Mask(lhs.bit_count());
+    uint64_t lhs_int = lhs.ToUint64().value();
+    uint64_t rhs_int = rhs.ToUint64().value();
+    uint64_t result = (lhs_int - rhs_int) & Mask(lhs.bit_count());
     return UBits(result, lhs.bit_count());
   }
   Bits diff = BigInt::Sub(BigInt::MakeSigned(lhs), BigInt::MakeSigned(rhs))
@@ -210,9 +210,9 @@ Bits Sub(const Bits& lhs, const Bits& rhs) {
 Bits Mul(const Bits& lhs, const Bits& rhs) {
   XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (lhs.bit_count() <= 64) {
-    uint64 lhs_int = lhs.ToUint64().value();
-    uint64 rhs_int = rhs.ToUint64().value();
-    uint64 result = (lhs_int * rhs_int) & Mask(lhs.bit_count());
+    uint64_t lhs_int = lhs.ToUint64().value();
+    uint64_t rhs_int = rhs.ToUint64().value();
+    uint64_t result = (lhs_int * rhs_int) & Mask(lhs.bit_count());
     return UBits(result, lhs.bit_count());
   }
 
@@ -225,11 +225,11 @@ Bits Mul(const Bits& lhs, const Bits& rhs) {
 }
 
 Bits SMul(const Bits& lhs, const Bits& rhs) {
-  const int64 result_width = lhs.bit_count() + rhs.bit_count();
+  const int64_t result_width = lhs.bit_count() + rhs.bit_count();
   if (result_width <= 64) {
-    int64 lhs_int = lhs.ToInt64().value();
-    int64 rhs_int = rhs.ToInt64().value();
-    int64 result = lhs_int * rhs_int;
+    int64_t lhs_int = lhs.ToInt64().value();
+    int64_t rhs_int = rhs.ToInt64().value();
+    int64_t result = lhs_int * rhs_int;
     return SBits(result, result_width);
   }
 
@@ -239,11 +239,11 @@ Bits SMul(const Bits& lhs, const Bits& rhs) {
 }
 
 Bits UMul(const Bits& lhs, const Bits& rhs) {
-  const int64 result_width = lhs.bit_count() + rhs.bit_count();
+  const int64_t result_width = lhs.bit_count() + rhs.bit_count();
   if (result_width <= 64) {
-    uint64 lhs_int = lhs.ToUint64().value();
-    uint64 rhs_int = rhs.ToUint64().value();
-    uint64 result = lhs_int * rhs_int;
+    uint64_t lhs_int = lhs.ToUint64().value();
+    uint64_t rhs_int = rhs.ToUint64().value();
+    uint64_t result = lhs_int * rhs_int;
     return UBits(result, result_width);
   }
 
@@ -306,7 +306,7 @@ bool UEqual(const Bits& lhs, const Bits& rhs) {
   return BigInt::MakeUnsigned(lhs) == BigInt::MakeUnsigned(rhs);
 }
 
-bool UEqual(const Bits& lhs, int64 rhs) {
+bool UEqual(const Bits& lhs, int64_t rhs) {
   XLS_CHECK_GE(rhs, 0);
   return UEqual(lhs, UBits(rhs, 64));
 }
@@ -328,22 +328,22 @@ bool ULessThan(const Bits& lhs, const Bits& rhs) {
   return BigInt::LessThan(BigInt::MakeUnsigned(lhs), BigInt::MakeUnsigned(rhs));
 }
 
-bool UGreaterThanOrEqual(const Bits& lhs, int64 rhs) {
+bool UGreaterThanOrEqual(const Bits& lhs, int64_t rhs) {
   XLS_CHECK_GE(rhs, 0);
   return UGreaterThanOrEqual(lhs, UBits(rhs, 64));
 }
 
-bool UGreaterThan(const Bits& lhs, int64 rhs) {
+bool UGreaterThan(const Bits& lhs, int64_t rhs) {
   XLS_CHECK_GE(rhs, 0);
   return UGreaterThan(lhs, UBits(rhs, 64));
 }
 
-bool ULessThanOrEqual(const Bits& lhs, int64 rhs) {
+bool ULessThanOrEqual(const Bits& lhs, int64_t rhs) {
   XLS_CHECK_GE(rhs, 0);
   return ULessThanOrEqual(lhs, UBits(rhs, 64));
 }
 
-bool ULessThan(const Bits& lhs, int64 rhs) {
+bool ULessThan(const Bits& lhs, int64_t rhs) {
   XLS_CHECK_GE(rhs, 0);
   return ULessThan(lhs, UBits(rhs, 64));
 }
@@ -352,7 +352,9 @@ bool SEqual(const Bits& lhs, const Bits& rhs) {
   return BigInt::MakeSigned(lhs) == BigInt::MakeSigned(rhs);
 }
 
-bool SEqual(const Bits& lhs, int64 rhs) { return SEqual(lhs, SBits(rhs, 64)); }
+bool SEqual(const Bits& lhs, int64_t rhs) {
+  return SEqual(lhs, SBits(rhs, 64));
+}
 
 bool SGreaterThanOrEqual(const Bits& lhs, const Bits& rhs) {
   return !SLessThan(lhs, rhs);
@@ -373,45 +375,45 @@ bool SLessThan(const Bits& lhs, const Bits& rhs) {
   return BigInt::LessThan(BigInt::MakeSigned(lhs), BigInt::MakeSigned(rhs));
 }
 
-bool SGreaterThanOrEqual(const Bits& lhs, int64 rhs) {
+bool SGreaterThanOrEqual(const Bits& lhs, int64_t rhs) {
   return SGreaterThanOrEqual(lhs, SBits(rhs, 64));
 }
 
-bool SGreaterThan(const Bits& lhs, int64 rhs) {
+bool SGreaterThan(const Bits& lhs, int64_t rhs) {
   return SGreaterThan(lhs, SBits(rhs, 64));
 }
 
-bool SLessThanOrEqual(const Bits& lhs, int64 rhs) {
+bool SLessThanOrEqual(const Bits& lhs, int64_t rhs) {
   return SLessThanOrEqual(lhs, SBits(rhs, 64));
 }
 
-bool SLessThan(const Bits& lhs, int64 rhs) {
+bool SLessThan(const Bits& lhs, int64_t rhs) {
   return SLessThan(lhs, SBits(rhs, 64));
 }
 
-Bits ZeroExtend(const Bits& bits, int64 new_bit_count) {
+Bits ZeroExtend(const Bits& bits, int64_t new_bit_count) {
   XLS_CHECK_GE(new_bit_count, 0);
   XLS_CHECK_GE(new_bit_count, bits.bit_count());
   return Concat({UBits(0, new_bit_count - bits.bit_count()), bits});
 }
 
-Bits SignExtend(const Bits& bits, int64 new_bit_count) {
+Bits SignExtend(const Bits& bits, int64_t new_bit_count) {
   XLS_CHECK_GE(new_bit_count, 0);
   XLS_CHECK_GE(new_bit_count, bits.bit_count());
-  const int64 ext_width = new_bit_count - bits.bit_count();
+  const int64_t ext_width = new_bit_count - bits.bit_count();
   return Concat(
       {bits.msb() ? Bits::AllOnes(ext_width) : Bits(ext_width), bits});
 }
 
 Bits Concat(absl::Span<const Bits> inputs) {
-  int64 new_bit_count = 0;
+  int64_t new_bit_count = 0;
   for (const Bits& bits : inputs) {
     new_bit_count += bits.bit_count();
   }
   // Iterate in reverse order because the first input becomes the
   // most-significant bits.
   BitsRope rope(new_bit_count);
-  for (int64 i = 0; i < inputs.size(); ++i) {
+  for (int64_t i = 0; i < inputs.size(); ++i) {
     rope.push_back(inputs[inputs.size() - i - 1]);
   }
   return rope.Build();
@@ -434,21 +436,21 @@ Bits Abs(const Bits& bits) {
   }
 }
 
-Bits ShiftLeftLogical(const Bits& bits, int64 shift_amount) {
+Bits ShiftLeftLogical(const Bits& bits, int64_t shift_amount) {
   XLS_CHECK_GE(shift_amount, 0);
   shift_amount = std::min(shift_amount, bits.bit_count());
   return Concat(
       {bits.Slice(0, bits.bit_count() - shift_amount), UBits(0, shift_amount)});
 }
 
-Bits ShiftRightLogical(const Bits& bits, int64 shift_amount) {
+Bits ShiftRightLogical(const Bits& bits, int64_t shift_amount) {
   XLS_CHECK_GE(shift_amount, 0);
   shift_amount = std::min(shift_amount, bits.bit_count());
   return Concat({UBits(0, shift_amount),
                  bits.Slice(shift_amount, bits.bit_count() - shift_amount)});
 }
 
-Bits ShiftRightArith(const Bits& bits, int64 shift_amount) {
+Bits ShiftRightArith(const Bits& bits, int64_t shift_amount) {
   XLS_CHECK_GE(shift_amount, 0);
   shift_amount = std::min(shift_amount, bits.bit_count());
   return Concat(
@@ -457,7 +459,7 @@ Bits ShiftRightArith(const Bits& bits, int64 shift_amount) {
 }
 
 Bits OneHotLsbToMsb(const Bits& bits) {
-  for (int64 i = 0; i < bits.bit_count(); ++i) {
+  for (int64_t i = 0; i < bits.bit_count(); ++i) {
     if (bits.Get(i)) {
       return Bits::PowerOfTwo(i, bits.bit_count() + 1);
     }
@@ -466,7 +468,7 @@ Bits OneHotLsbToMsb(const Bits& bits) {
 }
 
 Bits OneHotMsbToLsb(const Bits& bits) {
-  for (int64 i = bits.bit_count() - 1; i >= 0; --i) {
+  for (int64_t i = bits.bit_count() - 1; i >= 0; --i) {
     if (bits.Get(i)) {
       return Bits::PowerOfTwo(i, bits.bit_count() + 1);
     }
@@ -481,7 +483,7 @@ Bits Reverse(const Bits& bits) {
 }
 
 Bits DropLeadingZeroes(const Bits& bits) {
-  int64 first_one;
+  int64_t first_one;
   for (first_one = bits.bit_count() - 1; first_one >= 0; first_one--) {
     if (bits.Get(first_one) == 1) {
       break;
@@ -495,7 +497,7 @@ Bits DropLeadingZeroes(const Bits& bits) {
   return bits.Slice(0, first_one + 1);
 }
 
-Bits BitSliceUpdate(const Bits& to_update, int64 start,
+Bits BitSliceUpdate(const Bits& to_update, int64_t start,
                     const Bits& update_value) {
   if (start >= to_update.bit_count()) {
     // Start index is entirely out-of-bounds. The return value is simply the
@@ -513,17 +515,17 @@ Bits BitSliceUpdate(const Bits& to_update, int64 start,
       /*start=*/0,
       /*width=*/std::min(update_value.bit_count(),
                          to_update.bit_count() - start));
-  int64 msb_start =
+  int64_t msb_start =
       std::min(to_update.bit_count(), start + update_value.bit_count());
   Bits msb_slice = to_update.Slice(
       /*start=*/msb_start,
-      /*width=*/std::max(int64{0}, to_update.bit_count() - msb_start));
+      /*width=*/std::max(int64_t{0}, to_update.bit_count() - msb_start));
   return Concat({msb_slice, update_slice, lsb_slice});
 }
 
 }  // namespace bits_ops
 
-Bits LogicalOpIdentity(Op op, int64 width) {
+Bits LogicalOpIdentity(Op op, int64_t width) {
   switch (op) {
     case Op::kAnd:
     case Op::kNand:

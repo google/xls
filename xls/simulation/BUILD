@@ -105,7 +105,6 @@ cc_library(
         "@com_google_absl//absl/types:variant",
         "//xls/codegen:module_signature",
         "//xls/codegen:vast",
-        "//xls/common:integral_types",
         "//xls/common:visitor",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",

@@ -22,12 +22,12 @@
 #ifndef XLS_NOC_SIMULATION_INDEXER_H_
 #define XLS_NOC_SIMULATION_INDEXER_H_
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "xls/common/integral_types.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/parameters.h"
 
@@ -40,26 +40,26 @@ namespace noc {
 class PortIndexMap {
  public:
   // Number of input ports associated with a network component.
-  absl::StatusOr<int64> InputPortCount(NetworkComponentId nc_id) const;
+  absl::StatusOr<int64_t> InputPortCount(NetworkComponentId nc_id) const;
 
   // Number of output ports associated with a network component.
   // If port is not found then -1 is returned.
-  absl::StatusOr<int64> OutputPortCount(NetworkComponentId nc_id) const;
+  absl::StatusOr<int64_t> OutputPortCount(NetworkComponentId nc_id) const;
 
   // Retrieve an input/output port based off of their index.
   // Note - must be called after FinalizePortOrder();
   absl::StatusOr<PortId> GetPortByIndex(NetworkComponentId nc_id,
                                         PortDirection dir,
-                                        int64 port_index) const;
+                                        int64_t port_index) const;
 
   // Returns corresponding index of a port.
-  absl::StatusOr<int64> GetPortIndex(PortId port_id, PortDirection dir) const;
+  absl::StatusOr<int64_t> GetPortIndex(PortId port_id, PortDirection dir) const;
 
   // Add to the index an ordering of ports.
   // All ports should be from the same network component, with the stated
   // direction, and the ordering should be unique within [0, port_index.size()).
   absl::Status Add(NetworkComponentId nc_id, PortDirection dir,
-                   absl::Span<const std::pair<PortId, int64>> port_index);
+                   absl::Span<const std::pair<PortId, int64_t>> port_index);
 
  private:
   // Stores ordering of a particular network component's ports.
@@ -76,10 +76,10 @@ class PortIndexMapBuilder {
  public:
   // Associate a given input/output port and vc with an index.
   // Note - index must be in the range [0, Input/OutputPortCount).
-  absl::Status SetPortIndex(PortId port_id, PortDirection dir, int64 index);
+  absl::Status SetPortIndex(PortId port_id, PortDirection dir, int64_t index);
 
   // Returns corresponding index of a port.
-  absl::StatusOr<int64> GetPortIndex(PortId port_id, PortDirection dir) const;
+  absl::StatusOr<int64_t> GetPortIndex(PortId port_id, PortDirection dir) const;
 
   // Returns a PortIndexMap which enables directly accessing ports based
   // off their index.
@@ -87,8 +87,8 @@ class PortIndexMapBuilder {
 
  private:
   struct PortOrder {
-    std::vector<std::pair<PortId, int64>> input_port_index;
-    std::vector<std::pair<PortId, int64>> output_port_index;
+    std::vector<std::pair<PortId, int64_t>> input_port_index;
+    std::vector<std::pair<PortId, int64_t>> output_port_index;
   };
 
   absl::flat_hash_map<NetworkComponentId, PortOrder> nc_to_ports_;
@@ -106,23 +106,23 @@ class VirtualChannelIndexMap {
  public:
   // Number of virtual channels associated with a port.
   // If port is not found then -1 is returned.
-  absl::StatusOr<int64> VirtualChannelCount(PortId port_id) const;
+  absl::StatusOr<int64_t> VirtualChannelCount(PortId port_id) const;
 
   // Returns corresponding index of virtual channel.
-  absl::StatusOr<int64> GetVirtualChannelIndex(PortId port_id,
-                                               VirtualChannelParam vc) const;
+  absl::StatusOr<int64_t> GetVirtualChannelIndex(PortId port_id,
+                                                 VirtualChannelParam vc) const;
 
   // Retrieve virtual channel based off of their index.
   // Note - must be called after FinalizeVirtualChannelOrder();
   absl::StatusOr<VirtualChannelParam> GetVirtualChannelByIndex(
-      PortId port_id, int64 vc_index) const;
+      PortId port_id, int64_t vc_index) const;
 
   // Add to the index an ordering of virtual channels.
   // All vcs should be from the same port
   // and the ordering should be unique within [0, vc_index.size()).
   absl::Status Add(
       PortId port_id,
-      absl::Span<const std::pair<VirtualChannelParam, int64>> vc_index);
+      absl::Span<const std::pair<VirtualChannelParam, int64_t>> vc_index);
 
  private:
   // Stores ordering of a particular port's virtual channels.
@@ -135,16 +135,16 @@ class VirtualChannelIndexMapBuilder {
  public:
   // Number of virtual channels associated with a port.
   // If port is not found then -1 is returned.
-  absl::StatusOr<int64> VirtualChannelCount(PortId port_id) const;
+  absl::StatusOr<int64_t> VirtualChannelCount(PortId port_id) const;
 
   // Associate a given port and vc with an index.
   // Note - index must be in the range [0, VirtualChannelCount).
   absl::Status SetVirtualChannelIndex(PortId port_id, PortParam port_param,
-                                      int64 orig_index, int64 index);
+                                      int64_t orig_index, int64_t index);
 
   // Returns corresponding index of virtual channel.
-  absl::StatusOr<int64> GetVirtualChannelIndex(PortId port_id,
-                                               VirtualChannelParam vc) const;
+  absl::StatusOr<int64_t> GetVirtualChannelIndex(PortId port_id,
+                                                 VirtualChannelParam vc) const;
 
   // Returns a VirtualChannelIndexMap which enables directly accessing vcs based
   // off their index.
@@ -153,7 +153,7 @@ class VirtualChannelIndexMapBuilder {
  private:
   // Stores ordering of a particular port's virtual channels.
   struct VirtualChannelOrder {
-    std::vector<std::pair<VirtualChannelParam, int64>> param_vc_index;
+    std::vector<std::pair<VirtualChannelParam, int64_t>> param_vc_index;
   };
 
   absl::flat_hash_map<PortId, VirtualChannelOrder> port_to_vcs_;
@@ -163,23 +163,23 @@ class VirtualChannelIndexMapBuilder {
 class NetworkComponentIndexMap {
  public:
   // Number of network components ordered by this object.
-  int64 NetworkComponentCount() const;
+  int64_t NetworkComponentCount() const;
 
   // Returns corresponding index of network component.
-  absl::StatusOr<int64> GetNetworkComponentIndex(NetworkComponentId id) const;
+  absl::StatusOr<int64_t> GetNetworkComponentIndex(NetworkComponentId id) const;
 
   // Retrieve network component based off of its index.
   absl::StatusOr<NetworkComponentId> GetNetworkComponentByIndex(
-      int64 index) const;
+      int64_t index) const;
 
   // Add to the index an ordering of
   // All vcs should be from the same port
   // and the ordering should be unique within [0, vc_index.size()).
   absl::Status Add(
-      const absl::flat_hash_map<NetworkComponentId, int64>& nc_index);
+      const absl::flat_hash_map<NetworkComponentId, int64_t>& nc_index);
 
  private:
-  absl::flat_hash_map<NetworkComponentId, int64> component_index_;
+  absl::flat_hash_map<NetworkComponentId, int64_t> component_index_;
   std::vector<NetworkComponentId> ordered_components_;
 };
 
@@ -187,23 +187,23 @@ class NetworkComponentIndexMap {
 class NetworkComponentIndexMapBuilder {
  public:
   // Number of network components ordered by this object.
-  int64 NetworkComponentCount() const;
+  int64_t NetworkComponentCount() const;
 
   // Associate a given network component with an index.
   // Note - index must be positive, and should be contiguous starting from
   //        0 once FinalizeNetworkComponentOrder() is called.
   absl::Status SetNetworkComponentIndex(NetworkComponentId component_id,
-                                        int64 index);
+                                        int64_t index);
 
   // Returns corresponding index of network component.
-  absl::StatusOr<int64> GetNetworkComponentIndex(NetworkComponentId id) const;
+  absl::StatusOr<int64_t> GetNetworkComponentIndex(NetworkComponentId id) const;
 
   // Returns a NetworkComponentIndexMap which enables directly accessing
   // components based off their index.
   absl::StatusOr<NetworkComponentIndexMap> BuildNetworkComponentIndex() const;
 
  private:
-  absl::flat_hash_map<NetworkComponentId, int64> component_index_;
+  absl::flat_hash_map<NetworkComponentId, int64_t> component_index_;
 };
 
 }  // namespace noc

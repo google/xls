@@ -168,7 +168,7 @@ static bool IsEqualRecurse(
     return false;
   }
 
-  for (int64 i = 0; i < node->operand_count(); ++i) {
+  for (int64_t i = 0; i < node->operand_count(); ++i) {
     if (!IsEqualRecurse(node->operand(i), other_node->operand(i),
                         matched_pairs)) {
       return false;
@@ -194,7 +194,7 @@ bool Function::IsDefinitelyEqualTo(const Function* other) const {
   }
 
   absl::flat_hash_map<const Node*, const Node*> matched_pairs;
-  for (int64 i = 0; i < params().size(); ++i) {
+  for (int64_t i = 0; i < params().size(); ++i) {
     // All we care about is the type (not the name) of the parameter so don't
     // use Param::IsDefinitelyEqualTo.
     if (!param(i)->GetType()->IsEqualTo(other->param(i)->GetType())) {

@@ -321,7 +321,7 @@ bool Node::IsDefinitelyEqualTo(const Node* other) const {
   if (operand_count() != other->operand_count()) {
     return false;
   }
-  for (int64 i = 0; i < operand_count(); ++i) {
+  for (int64_t i = 0; i < operand_count(); ++i) {
     if (!same_type(operand(i), other->operand(i))) {
       return false;
     }
@@ -372,7 +372,7 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
           absl::StrFormat("value=%s", As<Literal>()->value().ToHumanString()));
       break;
     case Op::kCountedFor:
-      for (int64 i = 0; i < As<CountedFor>()->invariant_args().size(); ++i) {
+      for (int64_t i = 0; i < As<CountedFor>()->invariant_args().size(); ++i) {
         args.pop_back();
       }
       args.push_back(
@@ -390,7 +390,7 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       }
       break;
     case Op::kDynamicCountedFor:
-      for (int64 i = 0; i < As<DynamicCountedFor>()->invariant_args().size();
+      for (int64_t i = 0; i < As<DynamicCountedFor>()->invariant_args().size();
            ++i) {
         args.pop_back();
       }
@@ -558,8 +558,8 @@ bool Node::HasOperand(const Node* target) const {
   return false;
 }
 
-int64 Node::OperandInstanceCount(const Node* target) const {
-  int64 count = 0;
+int64_t Node::OperandInstanceCount(const Node* target) const {
+  int64_t count = 0;
   for (const Node* operand : operands_) {
     if (operand == target) {
       ++count;
@@ -568,7 +568,7 @@ int64 Node::OperandInstanceCount(const Node* target) const {
   return count;
 }
 
-void Node::set_id(int64 id) {
+void Node::set_id(int64_t id) {
   id_ = id;
   package()->set_next_node_id(std::max(id + 1, package()->next_node_id()));
 }
@@ -587,7 +587,7 @@ bool Node::ReplaceOperand(Node* old_operand, Node* new_operand) {
     return true;
   }
   bool did_replace = false;
-  for (int64 i = 0; i < operand_count(); ++i) {
+  for (int64_t i = 0; i < operand_count(); ++i) {
     if (operands_[i] == old_operand) {
       if (!did_replace && new_operand != nullptr) {
         // Now we know we're definitely using this new operand.
@@ -601,7 +601,7 @@ bool Node::ReplaceOperand(Node* old_operand, Node* new_operand) {
   return did_replace;
 }
 
-absl::Status Node::ReplaceOperandNumber(int64 operand_no, Node* new_operand,
+absl::Status Node::ReplaceOperandNumber(int64_t operand_no, Node* new_operand,
                                         bool type_must_match) {
   Node* old_operand = operands_[operand_no];
   if (type_must_match) {

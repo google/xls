@@ -15,11 +15,11 @@
 #ifndef XLS_NOC_SIMULATION_SIM_OBJECTS_H_
 #define XLS_NOC_SIMULATION_SIM_OBJECTS_H_
 
+#include <cstdint>
 #include <queue>
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "xls/common/integral_types.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/global_routing_table.h"
 #include "xls/noc/simulation/parameters.h"
@@ -37,14 +37,14 @@ struct DataPhit {
   // TODO(tedhong) : 2020-01-24 - Convert to use Bits/DSLX structs.
   // TODO(tedhong) : 2020-02-20 - Add fluent phit builder to initialize struct.
   bool valid;
-  int16 destination_index;
-  int16 vc;
-  int64 data;
+  int16_t destination_index;
+  int16_t vc;
+  int64_t data;
 };
 
 // Associates a phit with a time (cycle).
 struct TimedDataPhit {
-  int64 cycle;
+  int64_t cycle;
   DataPhit phit;
 };
 
@@ -52,12 +52,12 @@ struct TimedDataPhit {
 struct MetadataPhit {
   // TODO(tedhong) : 2020-01-24 - Convert to use Bits/DSLX structs.
   bool valid;
-  int64 data;
+  int64_t data;
 };
 
 // Associates a metadata phit with a time (cycle).
 struct TimedMetadataPhit {
-  int64 cycle;
+  int64_t cycle;
   MetadataPhit phit;
 };
 
@@ -71,20 +71,20 @@ struct SimConnectionState {
 
 // Used to store the valid credit available at a certain time.
 struct CreditState {
-  int64 cycle;
-  int64 credit;
+  int64_t cycle;
+  int64_t credit;
 };
 
 // Represents a fifo/buffer used to store phits.
 struct DataFlitQueue {
   std::queue<DataPhit> queue;
-  int64 max_queue_size;
+  int64_t max_queue_size;
 };
 
 // Represents a fifo/buffer used to store metadata phits.
 struct MetadataFlitQueue {
   std::queue<MetadataPhit> queue;
-  int64 max_queue_size;
+  int64_t max_queue_size;
 };
 
 class NocSimulator;
@@ -155,8 +155,8 @@ class SimNetworkComponentBase {
   virtual bool TryReversePropagation(NocSimulator& simulator) { return true; }
 
   NetworkComponentId id_;
-  int64 forward_propagated_cycle_;
-  int64 reverse_propagated_cycle_;
+  int64_t forward_propagated_cycle_;
+  int64_t reverse_propagated_cycle_;
 };
 
 // A pair of pipeline stages connecting two ports/network components.
@@ -180,14 +180,14 @@ class SimLink : public SimNetworkComponentBase {
   bool TryForwardPropagation(NocSimulator& simulator) override;
   bool TryReversePropagation(NocSimulator& simulator) override;
 
-  int64 forward_pipeline_stages_;
-  int64 reverse_pipeline_stages_;
+  int64_t forward_pipeline_stages_;
+  int64_t reverse_pipeline_stages_;
 
   // TODO(tedhong): 2020-01-25 support phit_width, currently unused.
-  int64 phit_width_;
+  int64_t phit_width_;
 
-  int64 src_connection_index_;
-  int64 sink_connection_index_;
+  int64_t src_connection_index_;
+  int64_t sink_connection_index_;
 
   std::queue<DataPhit> forward_data_stages_;
 
@@ -214,8 +214,8 @@ class SimNetworkInterfaceSrc : public SimNetworkComponentBase {
   bool TryForwardPropagation(NocSimulator& simulator) override;
   bool TryReversePropagation(NocSimulator& simulator) override;
 
-  int64 sink_connection_index_;
-  std::vector<int64> credit_;
+  int64_t sink_connection_index_;
+  std::vector<int64_t> credit_;
   std::vector<CreditState> credit_update_;
   std::vector<std::queue<TimedDataPhit>> data_to_send_;
 };
@@ -243,7 +243,7 @@ class SimNetworkInterfaceSink : public SimNetworkComponentBase {
 
   bool TryForwardPropagation(NocSimulator& simulator) override;
 
-  int64 src_connection_index_;
+  int64_t src_connection_index_;
   std::vector<DataFlitQueue> input_buffers_;
   std::vector<TimedDataPhit> received_traffic_;
 };
@@ -284,8 +284,8 @@ class SimInputBufferedVCRouter : public SimNetworkComponentBase {
 
   // Represents a specific input or output location.
   struct PortIndexAndVCIndex {
-    int64 port_index;
-    int64 vc_index;
+    int64_t port_index;
+    int64_t vc_index;
   };
 
   absl::Status InitializeImpl(NocSimulator& simulator) override;
@@ -308,39 +308,39 @@ class SimInputBufferedVCRouter : public SimNetworkComponentBase {
   // along with the eventual phit destination.
   absl::StatusOr<PortIndexAndVCIndex> GetDestinationPortIndexAndVcIndex(
       NocSimulator& simulator, PortIndexAndVCIndex input,
-      int64 destination_index);
+      int64_t destination_index);
 
   // Index for the input connections associated with this router.
   // Each input port is associated with a single connection.
-  int64 input_connection_index_start_;
-  int64 input_connection_count_;
+  int64_t input_connection_index_start_;
+  int64_t input_connection_count_;
 
   // Index for the output connections associated with this router.
   // Each output port is associated with a single connection.
-  int64 output_connection_index_start_;
-  int64 output_connection_count_;
+  int64_t output_connection_index_start_;
+  int64_t output_connection_count_;
 
   // The router as finished internal propagation once it has
   // updated its credit count from the updates received in the previous cycle.
-  int64 internal_propagated_cycle_;
+  int64_t internal_propagated_cycle_;
 
   // Stores the input buffers associated with each input port and vc.
   std::vector<std::vector<DataFlitQueue>> input_buffers_;
 
   // Stores the credit count associated with each output port and vc.
   // Each cycle, the router updates its credit count from credit_update_.
-  std::vector<std::vector<int64>> credit_;
+  std::vector<std::vector<int64_t>> credit_;
 
   // Stores the credit count received on cycle N-1.
   std::vector<std::vector<CreditState>> credit_update_;
 
   // The maximum number of vcs on for an input port.
   // Used for the priority scheme implementation.
-  int64 max_vc_;
+  int64_t max_vc_;
 
   // Used by forward propagation to store the number of phits that left
   // the input buffers and hence credits that can be sent back upstream.
-  std::vector<std::vector<int64>> input_credit_to_send_;
+  std::vector<std::vector<int64_t>> input_credit_to_send_;
 };
 
 // Main simulator class that drives the simulation and stores simulation
@@ -369,18 +369,18 @@ class NocSimulator {
   DistributedRoutingTable* GetRoutingTable() { return routing_; }
 
   // Maps a given connection id to its index in the connection store.
-  int64 GetConnectionIndex(ConnectionId id) {
+  int64_t GetConnectionIndex(ConnectionId id) {
     return connection_index_map_[id];
   }
 
   // Returns a SimConnectionState given an index.
-  SimConnectionState& GetSimConnectionByIndex(int64 index) {
+  SimConnectionState& GetSimConnectionByIndex(int64_t index) {
     return connections_[index];
   }
 
   // Allocates and returns a new SimConnectionState object.
   SimConnectionState& NewConnection(ConnectionId id) {
-    int64 index = connections_.size();
+    int64_t index = connections_.size();
     connections_.resize(index + 1);
     connection_index_map_[id] = index;
     return GetSimConnectionByIndex(index);
@@ -388,41 +388,42 @@ class NocSimulator {
 
   // Returns a reference to the store previously reserved with
   // GetNewConnectionIndicesStore.
-  absl::Span<int64> GetConnectionIndicesStore(int64 start, int64 size = 1) {
-    return absl::Span<int64>(component_to_connection_index_.data() + start,
-                             size);
+  absl::Span<int64_t> GetConnectionIndicesStore(int64_t start,
+                                                int64_t size = 1) {
+    return absl::Span<int64_t>(component_to_connection_index_.data() + start,
+                               size);
   }
 
   // Allocates and returns an index that can then be used
   // with GetConnectionIndicesStore to retrieve an array of size.
-  int64 GetNewConnectionIndicesStore(int64 size) {
-    int64 next_start = component_to_connection_index_.size();
+  int64_t GetNewConnectionIndicesStore(int64_t size) {
+    int64_t next_start = component_to_connection_index_.size();
     component_to_connection_index_.resize(next_start + size);
     return next_start;
   }
 
   // Allocates and returns an index that can be used with
   // GetPortIdStore to retreive an array of size)
-  int64 GetNewPortIdStore(int64 size) {
-    int64 next_start = port_id_store_.size();
+  int64_t GetNewPortIdStore(int64_t size) {
+    int64_t next_start = port_id_store_.size();
     port_id_store_.resize(next_start + size);
     return next_start;
   }
 
   // Returns a reference to the store previously reserved with
   // GetNewConnectionIndicesStore.
-  absl::Span<PortId> GetPortIdStore(int64 start, int64 size = 1) {
+  absl::Span<PortId> GetPortIdStore(int64_t start, int64_t size = 1) {
     return absl::Span<PortId>(port_id_store_.data() + start, size);
   }
 
   // Returns current/in-progress cycle;
-  int64 GetCurrentCycle() { return cycle_; }
+  int64_t GetCurrentCycle() { return cycle_; }
 
   // Logs the current simulation state.
   void Dump();
 
   // Run a single cycle of the simulator.
-  absl::Status RunCycle(int64 max_ticks = 9999);
+  absl::Status RunCycle(int64_t max_ticks = 9999);
 
   // Runs a single tick of the simulator.
   bool Tick();
@@ -449,17 +450,17 @@ class NocSimulator {
   DistributedRoutingTable* routing_;
 
   NetworkId network_;
-  int64 cycle_;
+  int64_t cycle_;
 
   // Map a specific ConnectionId to an index used to access
   // a specific SimConnectionState via the connections_ object.
-  absl::flat_hash_map<ConnectionId, int64> connection_index_map_;
+  absl::flat_hash_map<ConnectionId, int64_t> connection_index_map_;
 
   // Map a network interface src to a SimNetworkInterfaceSrc.
-  absl::flat_hash_map<NetworkComponentId, int64> src_index_map_;
+  absl::flat_hash_map<NetworkComponentId, int64_t> src_index_map_;
 
   // Map a network interface sink to a SimNetworkInterfaceSink.
-  absl::flat_hash_map<NetworkComponentId, int64> sink_index_map_;
+  absl::flat_hash_map<NetworkComponentId, int64_t> sink_index_map_;
 
   // Used by network components to store an array of indices.
   //
@@ -469,7 +470,7 @@ class NocSimulator {
   // For example, a router can reserve space so that for port x
   //  connections_[component_to_connection_index_[x]] is then the
   //  corresponding SimConnectionState for said port.
-  std::vector<int64> component_to_connection_index_;
+  std::vector<int64_t> component_to_connection_index_;
   std::vector<SimConnectionState> connections_;
 
   // Stores port ids for routers.

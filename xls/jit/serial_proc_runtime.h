@@ -71,8 +71,8 @@ class SerialProcRuntime {
     std::unique_ptr<IrJit> jit;
 
     // The size of and actual buffer used to hold the Proc's carried state.
-    int64 proc_state_size;
-    std::unique_ptr<uint8[]> proc_state;
+    int64_t proc_state_size;
+    std::unique_ptr<uint8_t[]> proc_state;
 
     absl::Mutex mutex;
     State thread_state ABSL_GUARDED_BY(mutex);
@@ -83,7 +83,7 @@ class SerialProcRuntime {
 
     // True if this proc is blocked on data coming from "outside" the network,
     // i.e., a receive_only channel. Stops network deadlock false positives.
-    int64 blocking_channel ABSL_GUARDED_BY(mutex);
+    int64_t blocking_channel ABSL_GUARDED_BY(mutex);
   };
 
   SerialProcRuntime(Package* package);
@@ -91,12 +91,12 @@ class SerialProcRuntime {
   static void ThreadFn(ThreadData* thread_data);
 
   // Proc Receive/ReceiveIf handler function.
-  static void RecvFn(JitChannelQueue* queue, Receive* recv, uint8* data,
-                     int64 data_bytes, void* user_data);
+  static void RecvFn(JitChannelQueue* queue, Receive* recv, uint8_t* data,
+                     int64_t data_bytes, void* user_data);
 
   // Proc Send/SendIf handler function.
-  static void SendFn(JitChannelQueue* queue, Send* send, uint8* data,
-                     int64 data_bytes, void* user_data);
+  static void SendFn(JitChannelQueue* queue, Send* send, uint8_t* data,
+                     int64_t data_bytes, void* user_data);
   // Blocks the running thread until the given ThreadData is in one of the
   // states specified by "states".
   static void AwaitState(ThreadData* thread_data,

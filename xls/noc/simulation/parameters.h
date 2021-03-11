@@ -15,11 +15,12 @@
 #ifndef XLS_NOC_SIMULATION_PARAMETERS_H_
 #define XLS_NOC_SIMULATION_PARAMETERS_H_
 
+#include <cstdint>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/noc/config/network_config.pb.h"
@@ -70,10 +71,10 @@ struct VirtualChannelParam {
   //
   // Actual buffer depth used in hardware will be greater than this,
   // but not less.
-  int64 GetDepth() const { return vc_proto_->depth(); }
+  int64_t GetDepth() const { return vc_proto_->depth(); }
 
   // Get bits used for th  if () e data in a single flit.
-  int64 GetFlitDataBitWidth() const { return vc_proto_->flit_bit_width(); }
+  int64_t GetFlitDataBitWidth() const { return vc_proto_->flit_bit_width(); }
 
   // Get assoicated network proto for this router.
   const NetworkConfigProto& GetNetworkProto() const { return *network_proto_; }
@@ -98,14 +99,14 @@ struct PortParam {
 
   // Count of VCs associated with this port.
   //  Could be 0 if no VCs sare used.
-  int64 VirtualChannelCount() const {
+  int64_t VirtualChannelCount() const {
     return port_proto_->virtual_channels_size();
   }
 
   // Returns vector of virtual channel parameters associated with this port.
   std::vector<VirtualChannelParam> GetVirtualChannels() const {
     std::vector<VirtualChannelParam> ret;
-    for (int64 i = 0; i < VirtualChannelCount(); ++i) {
+    for (int64_t i = 0; i < VirtualChannelCount(); ++i) {
       absl::string_view vc_name = port_proto_->virtual_channels(i);
 
       const VirtualChannelConfigProto* vc_proto = nullptr;
@@ -141,18 +142,18 @@ struct LinkParam {
   absl::string_view GetName() const { return link_proto_->name(); }
 
   // Get pipeline stages from source to sink.
-  int64 GetSourceToSinkPipelineStages() const {
+  int64_t GetSourceToSinkPipelineStages() const {
     return link_proto_->source_sink_pipeline_stage();
   }
 
   // Get pipeline stages from sink to source (ex. for flow control).
-  int64 GetSinkToSourcePipelineStages() const {
+  int64_t GetSinkToSourcePipelineStages() const {
     return link_proto_->sink_source_pipeline_stage();
   }
 
   // Get number of data (non-control) bits in a phit.
   //   i.e. for source-to-link path.
-  int64 GetPhitDataBitWidth() const { return link_proto_->phit_bit_width(); }
+  int64_t GetPhitDataBitWidth() const { return link_proto_->phit_bit_width(); }
 
   // Get source proto for the network this link is in.
   const NetworkConfigProto& GetNetworkProto() const { return *network_proto_; }
@@ -194,14 +195,14 @@ class NetworkInterfaceSrcParam {
 class NetworkInterfaceSinkParam {
  public:
   NetworkInterfaceSinkParam(const NetworkConfigProto& network,
-                            const PortConfigProto& port, int64 depth = 0)
+                            const PortConfigProto& port, int64_t depth = 0)
       : network_proto_(&network), port_proto_(&port), depth_(depth) {}
 
   // Sets depth (buffer/fifo size)of this network interface.
-  void SetDepth(int64 depth) { depth_ = depth; }
+  void SetDepth(int64_t depth) { depth_ = depth; }
 
   // Returns number of flits this network interface can buffer.
-  int64 GetDepth() const { return depth_; }
+  int64_t GetDepth() const { return depth_; }
 
   absl::string_view GetName() const { return port_proto_->name(); }
 
@@ -221,7 +222,7 @@ class NetworkInterfaceSinkParam {
   const PortConfigProto* port_proto_;
 
   // TODO(tedhong): 2020-12-14 support configuration via protos.
-  int64 depth_;
+  int64_t depth_;
 };
 
 // Interface to protos describing a router.

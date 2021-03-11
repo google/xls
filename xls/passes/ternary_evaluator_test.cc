@@ -39,7 +39,7 @@ class TernaryLogicTest : public ::testing::Test {
   // Returns all TernaryVectors of the given width. For example, all
   // TernaryVectors of width 2 are: 0b00, 0b01, 0b0X, 0b10, 0b11, 0b1X, 0bX0,
   // 0bX1, 0bXX.
-  std::vector<TernaryVector> EnumerateTernaryVectors(int64 width) {
+  std::vector<TernaryVector> EnumerateTernaryVectors(int64_t width) {
     std::vector<TernaryVector> vectors;
     EnumerateTernaryVectorsHelper({}, width, &vectors);
     return vectors;
@@ -65,7 +65,7 @@ class TernaryLogicTest : public ::testing::Test {
     TernaryVector result = evaluator_.BitsToVector(bits_vector.front());
     for (const Bits& bits : bits_vector.subspan(1)) {
       XLS_CHECK_EQ(bits.bit_count(), result.size());
-      for (int64 i = 0; i < result.size(); ++i) {
+      for (int64_t i = 0; i < result.size(); ++i) {
         bool same = ((bits.Get(i) && result[i] == TernaryValue::kKnownOne) ||
                      (!bits.Get(i) && result[i] == TernaryValue::kKnownZero));
         result[i] = same ? result[i] : TernaryValue::kUnknown;
@@ -78,7 +78,7 @@ class TernaryLogicTest : public ::testing::Test {
 
  private:
   void EnumerateTernaryVectorsHelper(const TernaryVector& prefix,
-                                     int64 remaining,
+                                     int64_t remaining,
                                      std::vector<TernaryVector>* vectors) {
     if (remaining == 0) {
       vectors->push_back(prefix);
@@ -96,7 +96,7 @@ class TernaryLogicTest : public ::testing::Test {
 
   void ExpandToBitsHelper(const TernaryVector& vector, const Bits& prefix,
                           std::vector<Bits>* bits) {
-    int64 index = vector.size() - prefix.bit_count() - 1;
+    int64_t index = vector.size() - prefix.bit_count() - 1;
     if (index == -1) {
       bits->push_back(prefix);
       return;

@@ -49,7 +49,7 @@ class ChannelQueue {
   Channel* channel() const { return channel_; }
 
   // Returns the number of elements currently in the channel queue.
-  virtual int64 size() const {
+  virtual int64_t size() const {
     absl::MutexLock lock(&mutex_);
     return queue_.size();
   }
@@ -100,7 +100,7 @@ class RxOnlyChannelQueue : public ChannelQueue {
 
   // The number of elements is considered infinite as the generator function may
   // be called an arbitrary number of times.
-  int64 size() const override { return std::numeric_limits<int64>::max(); }
+  int64_t size() const override { return std::numeric_limits<int64_t>::max(); }
   bool empty() const override { return false; }
 
  private:
@@ -119,7 +119,7 @@ class FixedRxOnlyChannelQueue : public RxOnlyChannelQueue {
         values_(values.begin(), values.end()) {}
   virtual ~FixedRxOnlyChannelQueue() = default;
 
-  int64 size() const override { return values_.size(); }
+  int64_t size() const override { return values_.size(); }
   bool empty() const override { return values_.empty(); }
 
  private:
@@ -149,7 +149,7 @@ class ChannelQueueManager {
 
   // Returns the queue associated with the channel with the given
   // ID/name. Returns an error if no such channel exists.
-  absl::StatusOr<ChannelQueue*> GetQueueById(int64 channel_id);
+  absl::StatusOr<ChannelQueue*> GetQueueById(int64_t channel_id);
   absl::StatusOr<ChannelQueue*> GetQueueByName(absl::string_view name);
 
  private:

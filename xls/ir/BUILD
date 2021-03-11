@@ -31,7 +31,6 @@ cc_library(
     name = "bit_push_buffer",
     hdrs = ["bit_push_buffer.h"],
     deps = [
-        "//xls/common:integral_types",
         "//xls/common:math_util",
     ],
 )
@@ -54,7 +53,6 @@ cc_library(
         ":bit_push_buffer",
         ":format_preference",
         "//xls/common:bits_util",
-        "//xls/common:integral_types",
         "//xls/common:math_util",
         "//xls/common/logging",
         "//xls/data_structures:inline_bitmap",
@@ -101,7 +99,6 @@ cc_library(
     deps = [
         ":xls_type_cc_proto",
         "//xls/common:casts",
-        "//xls/common:integral_types",
         "//xls/common/logging",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -116,7 +113,6 @@ cc_library(
     hdrs = ["op.h"],
     deps = [
         ":op_cc_proto",
-        "//xls/common:integral_types",
         "//xls/common/logging",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -181,7 +177,6 @@ cc_library(
         ":value",
         ":value_helpers",
         "//xls/common:casts",
-        "//xls/common:integral_types",
         "//xls/common:iterator_range",
         "//xls/common:math_util",
         "//xls/common:strong_int",
@@ -254,7 +249,6 @@ cc_library(
         "source_location.h",
     ],
     deps = [
-        "//xls/common:integral_types",
         "//xls/common:strong_int",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -269,7 +263,6 @@ cc_library(
     deps = [
         ":bits",
         ":number_parser",
-        "//xls/common:integral_types",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -653,7 +646,6 @@ cc_library(
         ":bits",
         ":bits_ops",
         ":format_preference",
-        "//xls/common:integral_types",
         "//xls/common:string_to_int",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -710,7 +702,6 @@ cc_test(
     deps = [
         ":bits_ops",
         ":number_parser",
-        "//xls/common:integral_types",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest_main",
     ],
@@ -819,7 +810,6 @@ cc_library(
     deps = [
         ":bits",
         ":bits_ops",
-        "//xls/common:integral_types",
         "//xls/common/logging",
         "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/types:optional",
@@ -847,7 +837,6 @@ cc_library(
         ":ir",
         ":type",
         "//xls/common:bits_util",
-        "//xls/common:integral_types",
         "//xls/common:math_util",
         "//xls/common/logging",
     ],
@@ -870,7 +859,6 @@ cc_library(
         ":channel_cc_proto",
         ":type",
         ":value",
-        "//xls/common:integral_types",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -884,7 +872,6 @@ cc_library(
     srcs = ["name_uniquer.cc"],
     hdrs = ["name_uniquer.h"],
     deps = [
-        "//xls/common:integral_types",
         "//xls/common/logging",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -912,7 +899,6 @@ cc_test(
         ":value_helpers",
         ":value_view",
         "//xls/common:bits_util",
-        "//xls/common:integral_types",
         "//xls/common:math_util",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",

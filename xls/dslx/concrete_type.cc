@@ -33,8 +33,8 @@ ConcreteTypeDim::ConcreteTypeDim(const ConcreteTypeDim& other)
     : value_(std::move(other.Clone().value_)) {}
 
 ConcreteTypeDim ConcreteTypeDim::Clone() const {
-  if (absl::holds_alternative<int64>(value_)) {
-    return ConcreteTypeDim(absl::get<int64>(value_));
+  if (absl::holds_alternative<int64_t>(value_)) {
+    return ConcreteTypeDim(absl::get<int64_t>(value_));
   }
   if (absl::holds_alternative<std::unique_ptr<ParametricExpression>>(value_)) {
     return ConcreteTypeDim(
@@ -47,13 +47,13 @@ std::string ConcreteTypeDim::ToString() const {
   if (absl::holds_alternative<std::unique_ptr<ParametricExpression>>(value_)) {
     return absl::get<std::unique_ptr<ParametricExpression>>(value_)->ToString();
   }
-  return absl::StrCat(absl::get<int64>(value_));
+  return absl::StrCat(absl::get<int64_t>(value_));
 }
 
 std::string ConcreteTypeDim::ToRepr() const {
   std::string guts;
-  if (absl::holds_alternative<int64>(value_)) {
-    guts = absl::StrCat(absl::get<int64>(value_));
+  if (absl::holds_alternative<int64_t>(value_)) {
+    guts = absl::StrCat(absl::get<int64_t>(value_));
   } else {
     guts = absl::get<OwnedParametric>(value_)->ToRepr();
   }
@@ -61,10 +61,10 @@ std::string ConcreteTypeDim::ToRepr() const {
 }
 
 bool ConcreteTypeDim::operator==(
-    const absl::variant<int64, const ParametricExpression*>& other) const {
-  if (absl::holds_alternative<int64>(other)) {
-    return absl::holds_alternative<int64>(value_) &&
-           absl::get<int64>(value_) == absl::get<int64>(other);
+    const absl::variant<int64_t, const ParametricExpression*>& other) const {
+  if (absl::holds_alternative<int64_t>(other)) {
+    return absl::holds_alternative<int64_t>(value_) &&
+           absl::get<int64_t>(value_) == absl::get<int64_t>(other);
   }
   if (absl::holds_alternative<const ParametricExpression*>(other)) {
     return absl::holds_alternative<std::unique_ptr<ParametricExpression>>(
@@ -88,10 +88,10 @@ bool ConcreteTypeDim::operator==(const ConcreteTypeDim& other) const {
 
 absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::Mul(
     const ConcreteTypeDim& rhs) const {
-  if (absl::holds_alternative<int64>(value_) &&
-      absl::holds_alternative<int64>(rhs.value_)) {
-    return ConcreteTypeDim(absl::get<int64>(value_) *
-                           absl::get<int64>(rhs.value_));
+  if (absl::holds_alternative<int64_t>(value_) &&
+      absl::holds_alternative<int64_t>(rhs.value_)) {
+    return ConcreteTypeDim(absl::get<int64_t>(value_) *
+                           absl::get<int64_t>(rhs.value_));
   }
   return absl::InvalidArgumentError(absl::StrFormat(
       "Cannot multiply dimensions: %s * %s", ToString(), rhs.ToString()));
@@ -99,10 +99,10 @@ absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::Mul(
 
 absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::Add(
     const ConcreteTypeDim& rhs) const {
-  if (absl::holds_alternative<int64>(value_) &&
-      absl::holds_alternative<int64>(rhs.value_)) {
-    return ConcreteTypeDim(absl::get<int64>(value_) +
-                           absl::get<int64>(rhs.value_));
+  if (absl::holds_alternative<int64_t>(value_) &&
+      absl::holds_alternative<int64_t>(rhs.value_)) {
+    return ConcreteTypeDim(absl::get<int64_t>(value_) +
+                           absl::get<int64_t>(rhs.value_));
   }
   if (IsParametric() && rhs.IsParametric()) {
     return ConcreteTypeDim(absl::make_unique<ParametricAdd>(
@@ -223,7 +223,8 @@ absl::StatusOr<std::vector<std::string>> TupleType::GetMemberNames() const {
   return results;
 }
 
-absl::StatusOr<int64> TupleType::GetMemberIndex(absl::string_view name) const {
+absl::StatusOr<int64_t> TupleType::GetMemberIndex(
+    absl::string_view name) const {
   XLS_ASSIGN_OR_RETURN(std::vector<std::string> names, GetMemberNames());
   auto it = std::find(names.begin(), names.end(), name);
   if (it == names.end()) {
@@ -239,7 +240,7 @@ bool TupleType::CompatibleWith(const TupleType& other) const {
   if (self_members.size() != other_members.size()) {
     return false;
   }
-  for (int64 i = 0; i < self_members.size(); ++i) {
+  for (int64_t i = 0; i < self_members.size(); ++i) {
     if (!self_members[i]->CompatibleWith(*other_members[i])) {
       return false;
     }
@@ -359,7 +360,7 @@ absl::StatusOr<ConcreteTypeDim> TupleType::GetTotalBitCount() const {
   if (a.size() != b.size()) {
     return false;
   }
-  for (int64 i = 0; i < a.size(); ++i) {
+  for (int64_t i = 0; i < a.size(); ++i) {
     if (*a[i] != *b[i]) {
       return false;
     }
@@ -372,7 +373,7 @@ absl::StatusOr<ConcreteTypeDim> TupleType::GetTotalBitCount() const {
   if (a.size() != b.size()) {
     return false;
   }
-  for (int64 i = 0; i < a.size(); ++i) {
+  for (int64_t i = 0; i < a.size(); ++i) {
     if (a[i].name != b[i].name || *a[i].type != *b[i].type) {
       return false;
     }
@@ -479,7 +480,7 @@ bool FunctionType::operator==(const ConcreteType& other) const {
     if (params_.size() != o->params_.size()) {
       return false;
     }
-    for (int64 i = 0; i < params_.size(); ++i) {
+    for (int64_t i = 0; i < params_.size(); ++i) {
       if (*params_[i] != *o->params_[i]) {
         return false;
       }
@@ -546,7 +547,7 @@ absl::StatusOr<bool> IsSigned(const ConcreteType& c) {
 
 static absl::StatusOr<ConcreteTypeDim> ConsumeConcreteTypeDim(
     absl::string_view* s) {
-  int64 size;
+  int64_t size;
   if (RE2::Consume(s, R"((\d+))", &size)) {
     return ConcreteTypeDim(size);
   }
@@ -603,7 +604,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConsumeConcreteType(
                                 orig));
           }
           TupleType::NamedMembers named;
-          for (int64 i = 0; i < names.size(); ++i) {
+          for (int64_t i = 0; i < names.size(); ++i) {
             named.push_back(TupleType::NamedMember{std::move(names[i]),
                                                    std::move(members[i])});
           }

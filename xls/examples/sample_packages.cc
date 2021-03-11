@@ -119,7 +119,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildZeroExtendTo32() {
 }
 
 std::pair<std::unique_ptr<Package>, Function*> BuildAccumulateIvar(
-    int64 trip_count, int64 bit_count) {
+    int64_t trip_count, int64_t bit_count) {
   auto p = absl::make_unique<Package>("AccumulateIvar");
   Function* body = nullptr;
   {
@@ -143,9 +143,9 @@ std::pair<std::unique_ptr<Package>, Function*> BuildAccumulateIvar(
 
 std::pair<std::unique_ptr<Package>, Function*> BuildTwoLoops(
     bool same_trip_count, bool dependent_loops) {
-  int64 bit_count = 16;
-  int64 trip_cnt1 = 8;
-  int64 trip_cnt2 = same_trip_count ? trip_cnt1 : trip_cnt1 * 2;
+  int64_t bit_count = 16;
+  int64_t trip_cnt1 = 8;
+  int64_t trip_cnt2 = same_trip_count ? trip_cnt1 : trip_cnt1 * 2;
 
   auto p = absl::make_unique<Package>("TwoLoops");
   FunctionBuilder fb("main", p.get());

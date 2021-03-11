@@ -40,8 +40,8 @@ using ::testing::HasSubstr;
 
 class Result {
  public:
-  Result(int64 leading_zero_count, int64 set_bit_count,
-         int64 trailing_zero_count)
+  Result(int64_t leading_zero_count, int64_t set_bit_count,
+         int64_t trailing_zero_count)
       : leading_zero_count_(leading_zero_count),
         set_bit_count_(set_bit_count),
         trailing_zero_count_(trailing_zero_count) {}
@@ -55,9 +55,9 @@ class Result {
  private:
   friend std::ostream& operator<<(std::ostream&, const Result&);
 
-  int64 leading_zero_count_;
-  int64 set_bit_count_;
-  int64 trailing_zero_count_;
+  int64_t leading_zero_count_;
+  int64_t set_bit_count_;
+  int64_t trailing_zero_count_;
 };
 
 std::ostream& operator<<(std::ostream& os, const Result& result) {
@@ -74,7 +74,7 @@ class NodeUtilTest : public IrTestBase {
     fb.Literal(bits);
     XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
     Node* n = f->return_value();
-    int64 leading_zero_count, set_bit_count, trailing_zero_count;
+    int64_t leading_zero_count, set_bit_count, trailing_zero_count;
     XLS_RET_CHECK(IsLiteralWithRunOfSetBits(
         n, &leading_zero_count, &set_bit_count, &trailing_zero_count));
     return Result{leading_zero_count, set_bit_count, trailing_zero_count};
@@ -161,7 +161,7 @@ TEST_F(NodeUtilTest, IsLiteralMask) {
   auto zero_1b = fb.Literal(UBits(0b0, 1));
   auto zero_0b = fb.Literal(UBits(0b0, 0));
 
-  int64 leading_zeros, trailing_ones;
+  int64_t leading_zeros, trailing_ones;
   EXPECT_TRUE(IsLiteralMask(seven_3b.node(), &leading_zeros, &trailing_ones));
   EXPECT_EQ(0, leading_zeros);
   EXPECT_EQ(3, trailing_ones);

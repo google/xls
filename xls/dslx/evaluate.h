@@ -216,8 +216,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
     AbstractInterpreter* interp);
 
 // Resolves (parametric) dimensions from deduction vs the current bindings.
-absl::StatusOr<int64> ResolveDim(
-    absl::variant<Expr*, int64, ConcreteTypeDim> dim, InterpBindings* bindings);
+absl::StatusOr<int64_t> ResolveDim(
+    absl::variant<Expr*, int64_t, ConcreteTypeDim> dim,
+    InterpBindings* bindings);
 
 // The result of dereferencing a type definition. It can either be an enum, a
 // struct, or a TypeAnnotation which can be e.g. a tuple.

@@ -27,7 +27,7 @@
 namespace xls {
 namespace verilog {
 
-bool OperandMustBeNamedReference(Node* node, int64 operand_no) {
+bool OperandMustBeNamedReference(Node* node, int64_t operand_no) {
   // Returns true if the emitted expression for the specified operand is
   // necessarily indexable. Generally, if the expression emitted for a node is
   // an indexing operation and the operand is emitted as an indexable expression
@@ -125,7 +125,7 @@ Expression* ValueToVastLiteral(const Value& value, VerilogFile* file,
 
 absl::StatusOr<Expression*> EmitSel(Select* sel, Expression* selector,
                                     absl::Span<Expression* const> cases,
-                                    int64 caseno, VerilogFile* file) {
+                                    int64_t caseno, VerilogFile* file) {
   if (caseno + 1 == cases.size()) {
     return cases[caseno];
   }
@@ -142,16 +142,16 @@ absl::StatusOr<Expression*> EmitSel(Select* sel, Expression* selector,
 absl::StatusOr<Expression*> EmitOneHot(OneHot* one_hot,
                                        IndexableExpression* input,
                                        VerilogFile* file) {
-  const int64 input_width = one_hot->operand(0)->BitCountOrDie();
-  const int64 output_width = one_hot->BitCountOrDie();
-  auto do_index_input = [&](int64 i) {
-    int64 index =
+  const int64_t input_width = one_hot->operand(0)->BitCountOrDie();
+  const int64_t output_width = one_hot->BitCountOrDie();
+  auto do_index_input = [&](int64_t i) {
+    int64_t index =
         one_hot->priority() == LsbOrMsb::kLsb ? i : input_width - i - 1;
     return file->Index(input, index);
   };
   // When LSb has priority, does: x[hi_offset:0]
   // When MSb has priority, does: x[bit_count-1:bit_count-1-hi_offset]
-  auto do_slice_input = [&](int64 hi_offset) {
+  auto do_slice_input = [&](int64_t hi_offset) {
     if (one_hot->priority() == LsbOrMsb::kLsb) {
       return file->Slice(input, hi_offset, 0);
     }
@@ -159,7 +159,7 @@ absl::StatusOr<Expression*> EmitOneHot(OneHot* one_hot,
   };
   std::vector<Expression*> one_hot_bits;
   Expression* all_zero;
-  for (int64 i = 0; i < output_width; ++i) {
+  for (int64_t i = 0; i < output_width; ++i) {
     if (i == 0) {
       one_hot_bits.push_back(do_index_input(i));
       continue;
@@ -200,9 +200,9 @@ absl::StatusOr<Expression*> EmitOneHotSelect(
     return absl::UnimplementedError(absl::StrFormat(
         "Only bits-typed one-hot select supported:: %s", sel->ToString()));
   }
-  int64 sel_width = sel->BitCountOrDie();
+  int64_t sel_width = sel->BitCountOrDie();
   Expression* sum = nullptr;
-  for (int64 i = 0; i < inputs.size(); ++i) {
+  for (int64_t i = 0; i < inputs.size(); ++i) {
     Expression* masked_input =
         sel_width == 1
             ? file->BitwiseAnd(inputs[i], file->Index(selector, i))
@@ -238,9 +238,9 @@ absl::StatusOr<Expression*> EmitEncode(Encode* encode,
   // Encode produces the OR reduction of the ordinal positions of the set bits
   // of the input. For example, if bit 5 and bit 42 are set in the input, the
   // result is 5 | 42.
-  for (int64 i = 0; i < encode->BitCountOrDie(); ++i) {
+  for (int64_t i = 0; i < encode->BitCountOrDie(); ++i) {
     std::vector<Expression*> elements;
-    for (int64 j = 0; j < encode->operand(0)->BitCountOrDie(); ++j) {
+    for (int64_t j = 0; j < encode->operand(0)->BitCountOrDie(); ++j) {
       if (j & (1 << i)) {
         elements.push_back(file->Index(operand, j));
       }
@@ -256,9 +256,9 @@ absl::StatusOr<Expression*> EmitEncode(Encode* encode,
 absl::StatusOr<Expression*> EmitReverse(Node* reverse,
                                         IndexableExpression* operand,
                                         VerilogFile* file) {
-  const int64 width = reverse->BitCountOrDie();
+  const int64_t width = reverse->BitCountOrDie();
   std::vector<Expression*> output_bits(width);
-  for (int64 i = 0; i < width; ++i) {
+  for (int64_t i = 0; i < width; ++i) {
     // The concat below naturally reverse bit indices so lhs and rhs can use the
     // same index.
     output_bits[i] = file->Index(operand, i);
@@ -298,7 +298,7 @@ absl::StatusOr<Expression*> EmitShift(Node* shift, Expression* operand,
   // Verilog semantics are not defined for shifting by more than or equal to
   // the operand width so guard the shift with a test for overshifting (if
   // the width of the shift-amount is wide enough to overshift).
-  const int64 width = shift->BitCountOrDie();
+  const int64_t width = shift->BitCountOrDie();
   if (shift->operand(1)->BitCountOrDie() < Bits::MinBitCountUnsigned(width)) {
     // Shift amount is not wide enough to overshift.
     return shifted_operand;
@@ -372,7 +372,7 @@ absl::StatusOr<Expression*> NodeToExpression(
   auto do_nary_op =
       [&](std::function<Expression*(Expression*, Expression*)> f) {
         Expression* accum = inputs[0];
-        for (int64 i = 1; i < inputs.size(); ++i) {
+        for (int64_t i = 1; i < inputs.size(); ++i) {
           accum = f(accum, inputs[i]);
         }
         return accum;
@@ -524,7 +524,7 @@ absl::StatusOr<Expression*> NodeToExpression(
         return file->Concat(
             /*replication=*/node->BitCountOrDie(), {inputs[0]});
       } else {
-        int64 bits_added =
+        int64_t bits_added =
             node->BitCountOrDie() - node->operand(0)->BitCountOrDie();
         return file->Concat(
             {file->Concat(
@@ -567,10 +567,10 @@ absl::StatusOr<Expression*> NodeToExpression(
             node->operand(0)->GetType()->AsTupleOrDie(),
             node->As<TupleIndex>()->index(), file);
       }
-      const int64 start =
+      const int64_t start =
           GetFlatBitIndexOfElement(node->operand(0)->GetType()->AsTupleOrDie(),
                                    node->As<TupleIndex>()->index());
-      const int64 width = node->GetType()->GetFlatBitCount();
+      const int64_t width = node->GetType()->GetFlatBitCount();
       return file->Slice(inputs[0]->AsIndexableExpressionOrDie(),
                          start + width - 1, start);
     }
@@ -578,7 +578,7 @@ absl::StatusOr<Expression*> NodeToExpression(
       std::vector<Expression*> flattened_inputs;
       // Tuples are represented as a flat vector of bits. Flatten and
       // concatenate all operands.
-      for (int64 i = 0; i < node->operand_count(); ++i) {
+      for (int64_t i = 0; i < node->operand_count(); ++i) {
         Expression* input = inputs[i];
         if (node->operand(i)->GetType()->IsArray()) {
           flattened_inputs.push_back(
@@ -597,13 +597,13 @@ absl::StatusOr<Expression*> NodeToExpression(
     case Op::kXorReduce:
       return file->XorReduce(inputs[0]);
     case Op::kZeroExt: {
-      int64 bits_added =
+      int64_t bits_added =
           node->BitCountOrDie() - node->operand(0)->BitCountOrDie();
 
       return file->Concat({file->Literal(0, bits_added), inputs[0]});
     }
   }
-  XLS_LOG(FATAL) << "Invalid op: " << static_cast<int64>(node->op());
+  XLS_LOG(FATAL) << "Invalid op: " << static_cast<int64_t>(node->op());
 }
 
 bool ShouldInlineExpressionIntoMultipleUses(Node* node) {

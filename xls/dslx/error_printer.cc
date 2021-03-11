@@ -24,7 +24,7 @@ absl::Status PrintPositionalError(
     const Span& error_span, absl::string_view error_message, std::ostream& os,
     std::function<absl::StatusOr<std::string>(absl::string_view)>
         get_file_contents,
-    absl::optional<bool> color, int64 error_context_line_count) {
+    absl::optional<bool> color, int64_t error_context_line_count) {
   XLS_RET_CHECK_EQ(error_context_line_count % 2, 1);
 
   if (get_file_contents == nullptr) {
@@ -36,9 +36,10 @@ absl::Status PrintPositionalError(
                        get_file_contents(error_span.filename()));
   std::vector<absl::string_view> lines = absl::StrSplit(contents, '\n');
 
-  int64 line_count_each_side = error_context_line_count / 2;
-  int64 target_lineno = error_span.start().lineno();
-  int64 low_lineno = std::max(target_lineno - line_count_each_side, int64{0});
+  int64_t line_count_each_side = error_context_line_count / 2;
+  int64_t target_lineno = error_span.start().lineno();
+  int64_t low_lineno =
+      std::max(target_lineno - line_count_each_side, int64_t{0});
   absl::Span<const absl::string_view> lines_before =
       absl::MakeSpan(lines).subspan(low_lineno, target_lineno - low_lineno);
   absl::string_view target_line = lines[error_span.start().lineno()];
@@ -65,7 +66,7 @@ absl::Status PrintPositionalError(
     color_reset = "\e[1;0m";
   }
 
-  auto emit_line = [&](int64 lineno, absl::string_view line,
+  auto emit_line = [&](int64_t lineno, absl::string_view line,
                        bool is_culprit = false) {
     // Note: humans generally thing line i=0 is "line 1".
     absl::string_view sigil = is_culprit ? "*" : " ";
@@ -79,7 +80,7 @@ absl::Status PrintPositionalError(
                            error_span.limit().ToStringNoFile());
 
   // Emit the lines that come before.
-  for (int64 i = 0; i < lines_before.size(); ++i) {
+  for (int64_t i = 0; i < lines_before.size(); ++i) {
     emit_line(low_lineno + i, lines_before[i]);
   }
 
@@ -88,14 +89,14 @@ absl::Status PrintPositionalError(
 
   // Emit error indicator.
   std::string squiggles(error_span.start().colno() + 6, '~');
-  int64 width = std::max(
-      int64{1}, error_span.limit().colno() - error_span.start().colno() - 1);
+  int64_t width = std::max(
+      int64_t{1}, error_span.limit().colno() - error_span.start().colno() - 1);
   std::string dashes(width - 1, '-');
   os << absl::StreamFormat("%s  %s^%s^ %s%s\n", red_color_leader, squiggles,
                            dashes, error_message, color_reset);
 
   // Emit the lines that come after.
-  for (int64 i = 0; i < lines_after.size(); ++i) {
+  for (int64_t i = 0; i < lines_after.size(); ++i) {
     emit_line(error_span.start().lineno() + 1 + i, lines_after[i]);
   }
 

@@ -41,7 +41,7 @@ class BddQueryEngine : public QueryEngine {
   // 'do_not_evaluate_ops', its bits are modeled as BDD variables. See
   // BddFunction for details.
   static absl::StatusOr<std::unique_ptr<BddQueryEngine>> Run(
-      FunctionBase* f, int64 minterm_limit = 0,
+      FunctionBase* f, int64_t minterm_limit = 0,
       absl::Span<const Op> do_not_evaluate_ops = {});
 
   bool IsTracked(Node* node) const override {
@@ -69,7 +69,7 @@ class BddQueryEngine : public QueryEngine {
   const BddFunction& bdd_function() const { return *bdd_function_; }
 
  private:
-  explicit BddQueryEngine(int64 minterm_limit)
+  explicit BddQueryEngine(int64_t minterm_limit)
       : minterm_limit_(minterm_limit) {}
 
   // Returns the underlying BDD. This method is const, but queries on a BDD
@@ -97,7 +97,7 @@ class BddQueryEngine : public QueryEngine {
   }
 
   // The maximum number of minterms in expression in the BDD before truncating.
-  int64 minterm_limit_;
+  int64_t minterm_limit_;
 
   // Indicates the bits at the output of each node which have known values.
   absl::flat_hash_map<Node*, Bits> known_bits_;

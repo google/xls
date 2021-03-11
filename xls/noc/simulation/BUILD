@@ -24,7 +24,6 @@ cc_library(
     deps = [
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common:integral_types",
         "//xls/common/status:status_macros",
     ],
 )
@@ -47,7 +46,6 @@ cc_library(
         ":common",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common:integral_types",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -74,7 +72,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
-        "//xls/common:integral_types",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/noc/config:network_config_cc_proto",
@@ -104,7 +101,6 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common:integral_types",
         "//xls/common/status:ret_check",
         "//xls/noc/config:network_config_cc_proto",
     ],
@@ -134,7 +130,6 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common:integral_types",
     ],
 )
 
@@ -164,7 +159,6 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common:integral_types",
         "//xls/common/status:ret_check",
         "//xls/noc/config:network_config_cc_proto",
     ],
@@ -196,7 +190,6 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common:integral_types",
         "//xls/common/status:ret_check",
         "//xls/noc/config:network_config_cc_proto",
     ],

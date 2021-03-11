@@ -24,7 +24,7 @@
 namespace xls {
 namespace sched {
 
-ScheduleBounds::ScheduleBounds(Function* f, int64 clock_period_ps,
+ScheduleBounds::ScheduleBounds(Function* f, int64_t clock_period_ps,
                                const DelayEstimator& delay_estimator)
     : clock_period_ps_(clock_period_ps), delay_estimator_(&delay_estimator) {
   auto topo_sort_it = TopoSort(f);
@@ -33,7 +33,7 @@ ScheduleBounds::ScheduleBounds(Function* f, int64 clock_period_ps,
 }
 
 ScheduleBounds::ScheduleBounds(Function* f, std::vector<Node*> topo_sort,
-                               int64 clock_period_ps,
+                               int64_t clock_period_ps,
                                const DelayEstimator& delay_estimator)
     : topo_sort_(std::move(topo_sort)),
       clock_period_ps_(clock_period_ps),
@@ -49,9 +49,9 @@ void ScheduleBounds::Reset() {
       // Always schedule parameters in cycle zero.
       bounds_[node] = {0, 0};
     } else {
-      bounds_[node] = {0, std::numeric_limits<int64>::max()};
+      bounds_[node] = {0, std::numeric_limits<int64_t>::max()};
       max_lower_bound_ = 0;
-      min_upper_bound_ = std::numeric_limits<int64>::max();
+      min_upper_bound_ = std::numeric_limits<int64_t>::max();
     }
   }
 }
@@ -73,20 +73,20 @@ absl::Status ScheduleBounds::PropagateLowerBounds() {
   XLS_VLOG(4) << "PropagateLowerBounds()";
   // The delay in picoseconds from the beginning of a cycle to the start of the
   // node.
-  absl::flat_hash_map<Node*, int64> in_cycle_delay;
+  absl::flat_hash_map<Node*, int64_t> in_cycle_delay;
 
   // Compute the lower bound of each node based on the lower bounds of the
   // operands of the node.
   for (Node* node : topo_sort_) {
-    int64& node_in_cycle_delay = in_cycle_delay[node];
+    int64_t& node_in_cycle_delay = in_cycle_delay[node];
     XLS_VLOG(4) << absl::StreamFormat("  %s : original lb=%d", node->GetName(),
                                       lb(node));
     for (Node* operand : node->operands()) {
-      int64 operand_lb = lb(operand);
+      int64_t operand_lb = lb(operand);
       if (operand_lb < lb(node)) {
         continue;
       }
-      XLS_ASSIGN_OR_RETURN(int64 operand_delay,
+      XLS_ASSIGN_OR_RETURN(int64_t operand_delay,
                            delay_estimator_->GetOperationDelayInPs(operand));
       if (operand_lb > lb(node)) {
         XLS_VLOG(4) << absl::StreamFormat(
@@ -99,7 +99,7 @@ absl::Status ScheduleBounds::PropagateLowerBounds() {
       node_in_cycle_delay = std::max(
           node_in_cycle_delay, in_cycle_delay.at(operand) + operand_delay);
     }
-    XLS_ASSIGN_OR_RETURN(int64 node_delay,
+    XLS_ASSIGN_OR_RETURN(int64_t node_delay,
                          delay_estimator_->GetOperationDelayInPs(node));
     XLS_RET_CHECK_LE(node_delay, clock_period_ps_) << node;
     if (node_in_cycle_delay + node_delay > clock_period_ps_) {
@@ -116,21 +116,22 @@ absl::Status ScheduleBounds::PropagateLowerBounds() {
 absl::Status ScheduleBounds::PropagateUpperBounds() {
   XLS_VLOG(4) << "PropagateUpperBounds()";
   // The delay in picoseconds from the end of a cycle to the end of the node.
-  absl::flat_hash_map<Node*, int64> in_cycle_delay;
+  absl::flat_hash_map<Node*, int64_t> in_cycle_delay;
 
   // Compute the upper bound of each node based on the upper bounds of the
   // users of the node.
   for (auto it = topo_sort_.rbegin(); it != topo_sort_.rend(); ++it) {
     Node* node = *it;
-    int64& node_in_cycle_delay = in_cycle_delay[node];
+    int64_t& node_in_cycle_delay = in_cycle_delay[node];
     XLS_VLOG(4) << absl::StreamFormat("  %s : original ub=%d", node->GetName(),
                                       ub(node));
     for (Node* user : node->users()) {
-      int64 user_ub = ub(user);
-      if (user_ub == std::numeric_limits<int64>::max() || user_ub > ub(node)) {
+      int64_t user_ub = ub(user);
+      if (user_ub == std::numeric_limits<int64_t>::max() ||
+          user_ub > ub(node)) {
         continue;
       }
-      XLS_ASSIGN_OR_RETURN(int64 user_delay,
+      XLS_ASSIGN_OR_RETURN(int64_t user_delay,
                            delay_estimator_->GetOperationDelayInPs(user));
       if (user_ub < ub(node)) {
         XLS_VLOG(4) << absl::StreamFormat(
@@ -143,7 +144,7 @@ absl::Status ScheduleBounds::PropagateUpperBounds() {
       node_in_cycle_delay =
           std::max(node_in_cycle_delay, in_cycle_delay.at(user) + user_delay);
     }
-    XLS_ASSIGN_OR_RETURN(int64 node_delay,
+    XLS_ASSIGN_OR_RETURN(int64_t node_delay,
                          delay_estimator_->GetOperationDelayInPs(node));
     XLS_RET_CHECK_LE(node_delay, clock_period_ps_) << node;
     if (node_in_cycle_delay + node_delay > clock_period_ps_) {
@@ -159,7 +160,8 @@ absl::Status ScheduleBounds::PropagateUpperBounds() {
 
 /* static */
 absl::StatusOr<ScheduleBounds> ScheduleBounds::ComputeAsapAndAlapBounds(
-    Function* f, int64 clock_period_ps, const DelayEstimator& delay_estimator) {
+    Function* f, int64_t clock_period_ps,
+    const DelayEstimator& delay_estimator) {
   XLS_VLOG(4) << "ComputeAsapAndAlapBounds()";
   ScheduleBounds bounds(f, clock_period_ps, delay_estimator);
   XLS_RETURN_IF_ERROR(bounds.PropagateLowerBounds());

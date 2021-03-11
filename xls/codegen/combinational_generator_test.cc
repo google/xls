@@ -476,7 +476,7 @@ fn main(idx: bits[2]) -> bits[32][3] {
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
 
-  auto make_array = [](absl::Span<const int64> values) {
+  auto make_array = [](absl::Span<const int64_t> values) {
     std::vector<Value> elements;
     for (auto v : values) {
       elements.push_back(Value(UBits(v, 32)));
@@ -517,7 +517,7 @@ fn main(idx: bits[2]) -> bits[32][2][3] {
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
 
-  auto make_array = [](absl::Span<const int64> values) {
+  auto make_array = [](absl::Span<const int64_t> values) {
     std::vector<Value> elements;
     for (auto v : values) {
       elements.push_back(Value(UBits(v, 32)));
@@ -576,7 +576,7 @@ fn main(idx: bits[2]) -> (bits[32], bits[32])[3] {
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
 
-  auto make_tuple = [](absl::Span<const int64> values) {
+  auto make_tuple = [](absl::Span<const int64_t> values) {
     std::vector<Value> elements;
     for (auto v : values) {
       elements.push_back(Value(UBits(v, 32)));
@@ -635,7 +635,7 @@ fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
 
-  auto make_array = [](absl::Span<const int64> values) {
+  auto make_array = [](absl::Span<const int64_t> values) {
     std::vector<Value> elements;
     for (auto v : values) {
       elements.push_back(Value(UBits(v, 8)));

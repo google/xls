@@ -40,8 +40,8 @@ class FunctionPartitionTest : public IrTestBase {
 
   // Returns the cost of the given partitioning (sum of bit widths of nodes live
   // across the partition boundary).
-  int64 PartitionCost(absl::Span<Node* const> first_partition,
-                      absl::Span<Node* const> second_partition) {
+  int64_t PartitionCost(absl::Span<Node* const> first_partition,
+                        absl::Span<Node* const> second_partition) {
     absl::flat_hash_set<Node*> first_set(first_partition.begin(),
                                          first_partition.end());
     absl::flat_hash_set<Node*> second_set(second_partition.begin(),
@@ -63,7 +63,7 @@ class FunctionPartitionTest : public IrTestBase {
       }
     }
 
-    int64 cost = 0;
+    int64_t cost = 0;
     for (Node* node : cut_nodes) {
       cost += node->GetType()->GetFlatBitCount();
     }
@@ -176,7 +176,7 @@ TEST_F(FunctionPartitionTest, BenchmarkTest) {
 
     // Create a subspan of the given span with the given start and end indices
     // (inclusive).
-    auto make_span = [](absl::Span<Node* const> v, int64 start, int64 end) {
+    auto make_span = [](absl::Span<Node* const> v, int64_t start, int64_t end) {
       return absl::MakeConstSpan(v.data() + start, v.data() + end);
     };
 
@@ -191,12 +191,12 @@ TEST_F(FunctionPartitionTest, BenchmarkTest) {
     // typically when partitioning all the nodes the minimum cost partition is
     // right after the parameters or before the return value.
     for (auto start_end :
-         {std::make_pair(int64{0}, f->node_count() - 1),
+         {std::make_pair(int64_t{0}, f->node_count() - 1),
           std::make_pair(f->node_count() / 4, f->node_count() * 3 / 4)}) {
       // The start/end indices of the nodes to partition in the topological
       // sort.
-      int64 start = start_end.first;
-      int64 end = start_end.second;
+      int64_t start = start_end.first;
+      int64_t end = start_end.second;
       auto nodes_to_partition = make_span(topo_sort, start, end);
 
       auto partition = MinCostFunctionPartition(f, nodes_to_partition);
@@ -228,9 +228,9 @@ TEST_F(FunctionPartitionTest, BenchmarkTest) {
       // pieces. The split of the topological sort is done such that the
       // parameters are always in the first partition and the return value in
       // the second.
-      int64 last_param_index = 0;
-      int64 return_value_index = 0;
-      for (int64 i = 0; i < nodes_to_partition.size(); ++i) {
+      int64_t last_param_index = 0;
+      int64_t return_value_index = 0;
+      for (int64_t i = 0; i < nodes_to_partition.size(); ++i) {
         Node* node = nodes_to_partition[i];
         if (node->Is<Param>()) {
           last_param_index = i;
@@ -239,7 +239,7 @@ TEST_F(FunctionPartitionTest, BenchmarkTest) {
           return_value_index = i;
         }
       }
-      for (int64 i = last_param_index; i < return_value_index; ++i) {
+      for (int64_t i = last_param_index; i < return_value_index; ++i) {
         EXPECT_LE(PartitionCost(partition.first, partition.second),
                   PartitionCost(make_span(nodes_to_partition, 0, i),
                                 make_span(nodes_to_partition, i + 1,

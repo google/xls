@@ -264,13 +264,13 @@ enum class BuiltinType {
 // All builtin types up to this limit have a concrete width and sign -- above
 // this point are things like "bits", "uN", "sN" which need a corresponding
 // array dimension to have a known bit count.
-constexpr int64 kConcreteBuiltinTypeLimit =
-    static_cast<int64>(BuiltinType::kS64) + 1;
+constexpr int64_t kConcreteBuiltinTypeLimit =
+    static_cast<int64_t>(BuiltinType::kS64) + 1;
 
 std::string BuiltinTypeToString(BuiltinType t);
 absl::StatusOr<BuiltinType> BuiltinTypeFromString(absl::string_view s);
 
-absl::StatusOr<BuiltinType> GetBuiltinType(bool is_signed, int64 width);
+absl::StatusOr<BuiltinType> GetBuiltinType(bool is_signed, int64_t width);
 
 // Represents a built-in type annotation; e.g. `u32`, `bits`, etc.
 class BuiltinTypeAnnotation : public TypeAnnotation {
@@ -292,7 +292,7 @@ class BuiltinTypeAnnotation : public TypeAnnotation {
     return BuiltinTypeToString(builtin_type_);
   }
 
-  int64 GetBitCount() const;
+  int64_t GetBitCount() const;
 
   // Returns true if signed, false if unsigned.
   bool GetSignedness() const;
@@ -323,7 +323,7 @@ class TupleTypeAnnotation : public TypeAnnotation {
   }
 
   const std::vector<TypeAnnotation*>& members() const { return members_; }
-  int64 size() const { return members_.size(); }
+  int64_t size() const { return members_.size(); }
 
  private:
   std::vector<TypeAnnotation*> members_;
@@ -622,10 +622,10 @@ class Number : public Expr {
   const std::string& text() const { return text_; }
 
   // Turns the text for this number into a Bits object with the given bit_count.
-  absl::StatusOr<Bits> GetBits(int64 bit_count) const;
+  absl::StatusOr<Bits> GetBits(int64_t bit_count) const;
 
   // Note: fails if the value doesn't fit in 64 bits.
-  absl::StatusOr<uint64> GetAsUint64() const {
+  absl::StatusOr<uint64_t> GetAsUint64() const {
     XLS_ASSIGN_OR_RETURN(Bits bits, GetBits(64));
     return bits.ToUint64();
   }
@@ -1259,7 +1259,7 @@ class Invocation : public Expr {
 
   const absl::Span<Expr* const> args() const { return args_; }
   Expr* callee() const { return callee_; }
-  const std::vector<std::pair<std::string, int64>> symbolic_bindings() const {
+  const std::vector<std::pair<std::string, int64_t>> symbolic_bindings() const {
     return symbolic_bindings_;
   }
 
@@ -1274,7 +1274,7 @@ class Invocation : public Expr {
   Expr* callee_;
   std::vector<Expr*> args_;
   std::vector<Expr*> parametrics_;
-  std::vector<std::pair<std::string, int64>> symbolic_bindings_;
+  std::vector<std::pair<std::string, int64_t>> symbolic_bindings_;
 };
 
 // Represents a slice in the AST.
@@ -1405,13 +1405,13 @@ class StructDef : public AstNode {
   const Span& span() const { return span_; }
   absl::optional<Span> GetSpan() const override { return span_; }
 
-  const std::string& GetMemberName(int64 i) const {
+  const std::string& GetMemberName(int64_t i) const {
     return members_[i].first->identifier();
   }
   std::vector<std::string> GetMemberNames() const;
 
   // Returns the index at which the member name is "name".
-  absl::optional<int64> GetMemberIndex(absl::string_view name) const;
+  absl::optional<int64_t> GetMemberIndex(absl::string_view name) const;
 
  private:
   Span span_;
@@ -1653,10 +1653,10 @@ class TestFunction : public AstNode {
 // Represents a function to be quick-check'd.
 class QuickCheck : public AstNode {
  public:
-  static constexpr int64 kDefaultTestCount = 1000;
+  static constexpr int64_t kDefaultTestCount = 1000;
 
   QuickCheck(Module* owner, Span span, Function* f,
-             absl::optional<int64> test_count = absl::nullopt);
+             absl::optional<int64_t> test_count = absl::nullopt);
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleQuickCheck(this);
@@ -1672,7 +1672,7 @@ class QuickCheck : public AstNode {
   const std::string& identifier() const { return f_->identifier(); }
 
   Function* f() const { return f_; }
-  int64 test_count() const {
+  int64_t test_count() const {
     return test_count_ ? *test_count_ : kDefaultTestCount;
   }
   absl::optional<Span> GetSpan() const override { return f_->span(); }
@@ -1680,7 +1680,7 @@ class QuickCheck : public AstNode {
  private:
   Span span_;
   Function* f_;
-  absl::optional<int64> test_count_;
+  absl::optional<int64_t> test_count_;
 };
 
 // Represents an XLS tuple expression.
@@ -1696,7 +1696,7 @@ class XlsTuple : public Expr {
 
   absl::string_view GetNodeTypeName() const override { return "XlsTuple"; }
   absl::Span<Expr* const> members() const { return members_; }
-  int64 size() const { return members_.size(); }
+  int64_t size() const { return members_.size(); }
   bool empty() const { return members_.empty(); }
 
   std::string ToString() const override;
@@ -1965,12 +1965,12 @@ class NameDefTree : public AstNode {
   //  f: Callback invoked as `f(NameDefTree*, level, branchno)`.
   //  level: Current level of the node.
   absl::Status DoPreorder(
-      const std::function<absl::Status(NameDefTree*, int64, int64)>& f,
-      int64 level = 1) {
+      const std::function<absl::Status(NameDefTree*, int64_t, int64_t)>& f,
+      int64_t level = 1) {
     if (is_leaf()) {
       return absl::OkStatus();
     }
-    for (int64 i = 0; i < nodes().size(); ++i) {
+    for (int64_t i = 0; i < nodes().size(); ++i) {
       NameDefTree* node = nodes()[i];
       XLS_RETURN_IF_ERROR(f(node, level, i));
       XLS_RETURN_IF_ERROR(node->DoPreorder(f, level + 1));

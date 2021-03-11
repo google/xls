@@ -14,11 +14,12 @@
 
 #include "xls/netlist/cell_library.h"
 
+#include <cstdint>
+
 #include "google/protobuf/repeated_field.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/netlist/netlist.pb.h"
@@ -140,7 +141,7 @@ std::string CellKindToString(CellKind kind) {
     case CellKind::kOther:
       return "other";
   }
-  return absl::StrFormat("<invalid CellKind(%d)>", static_cast<int64>(kind));
+  return absl::StrFormat("<invalid CellKind(%d)>", static_cast<int64_t>(kind));
 }
 
 /* static */ absl::StatusOr<StateTable> StateTable::FromProto(

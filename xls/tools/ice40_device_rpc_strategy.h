@@ -24,7 +24,7 @@ class Ice40DeviceRpcStrategy : public DeviceRpcStrategy {
  public:
   ~Ice40DeviceRpcStrategy() override;
 
-  absl::Status Connect(int64 device_ordinal) override;
+  absl::Status Connect(int64_t device_ordinal) override;
 
   absl::StatusOr<Value> CallUnnamed(const FunctionType& function_type,
                                     absl::Span<const Value> arguments) override;

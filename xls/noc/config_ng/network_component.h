@@ -15,9 +15,9 @@
 #ifndef XLS_NOC_CONFIG_NETWORK_COMPONENT_H_
 #define XLS_NOC_CONFIG_NETWORK_COMPONENT_H_
 
+#include <cstdint>
 #include <vector>
 
-#include "xls/common/integral_types.h"
 #include "xls/common/iterator_range.h"
 #include "xls/ir/unwrapping_iterator.h"
 #include "xls/noc/config_ng/network_component_port.h"
@@ -60,7 +60,7 @@ class NetworkComponent {
   ports() const;
 
   // Returns the number of ports.
-  int64 GetPortCount() const;
+  int64_t GetPortCount() const;
 
   // Sets the name of the component.
   void SetName(std::string name);

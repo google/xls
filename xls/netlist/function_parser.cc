@@ -42,9 +42,9 @@ bool IsBinOp(char c) {
 
 }  // namespace
 
-Token Token::Simple(Kind kind, int64 pos) { return Token(kind, pos); }
+Token Token::Simple(Kind kind, int64_t pos) { return Token(kind, pos); }
 
-Token Token::Identifier(const std::string& s, int64 pos) {
+Token Token::Identifier(const std::string& s, int64_t pos) {
   return Token(Kind::kIdentifier, pos, s);
 }
 
@@ -85,7 +85,7 @@ absl::StatusOr<Token> Scanner::Pop() {
   }
 
   XLS_RETURN_IF_ERROR(DropChar());
-  int64 last_pos = current_pos_ - 1;
+  int64_t last_pos = current_pos_ - 1;
   switch (next_char) {
     case '\'':
       return Token::Simple(Token::Kind::kInvertPrevious, last_pos);
@@ -149,7 +149,7 @@ bool Scanner::IsIdentifierStart(char next_char) {
 }
 
 absl::StatusOr<Token> Scanner::ScanIdentifier() {
-  int64 start_pos = current_pos_;
+  int64_t start_pos = current_pos_;
   XLS_ASSIGN_OR_RETURN(char next_char, PeekChar());
   bool need_closing_quote = next_char == '"';
   if (need_closing_quote) {

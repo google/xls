@@ -41,7 +41,7 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindReducibleAdds(
     // position amongst the operands of the add.
     if (node->op() == Op::kAdd) {
       bool reducible = true;
-      for (int64 i = 0; i < node->BitCountOrDie(); ++i) {
+      for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
         if (!query_engine.IsZero(BitLocation(node->operand(0), i)) &&
             !query_engine.IsZero(BitLocation(node->operand(1), i))) {
           reducible = false;
@@ -61,7 +61,7 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindReducibleAdds(
 // with an OR.
 absl::StatusOr<bool> StrengthReduceNode(
     Node* node, const absl::flat_hash_set<Node*>& reducible_adds,
-    const QueryEngine& query_engine, int64 opt_level) {
+    const QueryEngine& query_engine, int64_t opt_level) {
   if (NarrowingEnabled(opt_level) && !node->Is<Literal>() &&
       node->GetType()->IsBits() && query_engine.AllBitsKnown(node)) {
     XLS_VLOG(2) << "Replacing node with its (entirely known) bits: " << node
@@ -88,9 +88,9 @@ absl::StatusOr<bool> StrengthReduceNode(
   // Note that we only do this if the mask is a single run of set bits, to avoid
   // putting too many nodes in the graph (e.g. for a 128-bit value where every
   // other bit was set).
-  int64 leading_zeros, selected_bits, trailing_zeros;
-  auto is_bitslice_and = [&](int64* leading_zeros, int64* selected_bits,
-                             int64* trailing_zeros) -> bool {
+  int64_t leading_zeros, selected_bits, trailing_zeros;
+  auto is_bitslice_and = [&](int64_t* leading_zeros, int64_t* selected_bits,
+                             int64_t* trailing_zeros) -> bool {
     if (node->op() != Op::kAnd || node->operand_count() != 2) {
       return false;
     }
@@ -246,9 +246,9 @@ absl::StatusOr<bool> StrengthReduceNode(
     const Bits& op1_literal_bits =
       node->operand(1)->As<Literal>()->value().bits();
     if (op1_literal_bits.IsPowerOfTwo()) {
-      int64 one_position = op1_literal_bits.bit_count() -
-                           op1_literal_bits.CountLeadingZeros() - 1;
-      int64 width = op1_literal_bits.bit_count() - one_position;
+      int64_t one_position = op1_literal_bits.bit_count() -
+                             op1_literal_bits.CountLeadingZeros() - 1;
+      int64_t width = op1_literal_bits.bit_count() - one_position;
       Op new_op = node->op() == Op::kUGe ? Op::kNe : Op::kEq;
       XLS_ASSIGN_OR_RETURN(Node * slice,
                            node->function_base()->MakeNode<BitSlice>(
@@ -288,19 +288,19 @@ absl::StatusOr<bool> StrengthReduceNode(
   // add can be narrowed.
   if (SplitsEnabled(opt_level) && node->op() == Op::kAdd) {
     auto lsb_known_zero_count = [&](Node* n) {
-      for (int64 i = 0; i < n->BitCountOrDie(); ++i) {
+      for (int64_t i = 0; i < n->BitCountOrDie(); ++i) {
         if (!query_engine.IsZero(BitLocation(n, i))) {
           return i;
         }
       }
       return n->BitCountOrDie();
     };
-    int64 op0_known_zero = lsb_known_zero_count(node->operand(0));
-    int64 op1_known_zero = lsb_known_zero_count(node->operand(1));
+    int64_t op0_known_zero = lsb_known_zero_count(node->operand(0));
+    int64_t op1_known_zero = lsb_known_zero_count(node->operand(1));
     if (op0_known_zero > 0 || op1_known_zero > 0) {
       Node* nonzero_operand =
           op0_known_zero > op1_known_zero ? node->operand(1) : node->operand(0);
-      int64 narrow_amt = std::max(op0_known_zero, op1_known_zero);
+      int64_t narrow_amt = std::max(op0_known_zero, op1_known_zero);
       auto narrow = [&](Node* n) -> absl::StatusOr<Node*> {
         return node->function_base()->MakeNode<BitSlice>(
             node->loc(), n, /*start=*/narrow_amt,

@@ -42,7 +42,7 @@ enum class SchedulingStrategy {
 // which the min-cut is performed (e.g., stage 0 then 1, vs stage 1 then 0) can
 // affect the total number of registers in the pipeline so multiple orderings
 // are tried. This function returns this set of orderings.  Exposed for testing.
-std::vector<std::vector<int64>> GetMinCutCycleOrders(int64 length);
+std::vector<std::vector<int64_t>> GetMinCutCycleOrders(int64_t length);
 
 // Options to use when generating a pipeline schedule. At least a clock period
 // or a pipeline length (or both) must be specified. If only one value is
@@ -70,39 +70,39 @@ class SchedulingOptions {
   SchedulingStrategy strategy() const { return strategy_; }
 
   // Sets/gets the target clock period in picoseconds.
-  SchedulingOptions& clock_period_ps(int64 value) {
+  SchedulingOptions& clock_period_ps(int64_t value) {
     clock_period_ps_ = value;
     return *this;
   }
-  absl::optional<int64> clock_period_ps() const { return clock_period_ps_; }
+  absl::optional<int64_t> clock_period_ps() const { return clock_period_ps_; }
 
   // Sets/gets the target number of stages in the pipeline.
-  SchedulingOptions& pipeline_stages(int64 value) {
+  SchedulingOptions& pipeline_stages(int64_t value) {
     pipeline_stages_ = value;
     return *this;
   }
-  absl::optional<int64> pipeline_stages() const { return pipeline_stages_; }
+  absl::optional<int64_t> pipeline_stages() const { return pipeline_stages_; }
 
   // Sets/gets the percentage of clock period to set aside as a margin to ensure
   // timing is met. Effectively, this lowers the clock period by this percentage
   // amount for the purposes of scheduling.
-  SchedulingOptions& clock_margin_percent(int64 value) {
+  SchedulingOptions& clock_margin_percent(int64_t value) {
     clock_margin_percent_ = value;
     return *this;
   }
-  absl::optional<int64> clock_margin_percent() const {
+  absl::optional<int64_t> clock_margin_percent() const {
     return clock_margin_percent_;
   }
 
  private:
   SchedulingStrategy strategy_;
-  absl::optional<int64> clock_period_ps_;
-  absl::optional<int64> pipeline_stages_;
-  absl::optional<int64> clock_margin_percent_;
+  absl::optional<int64_t> clock_period_ps_;
+  absl::optional<int64_t> pipeline_stages_;
+  absl::optional<int64_t> clock_margin_percent_;
 };
 
 // A map from node to cycle as a bare-bones representation of a schedule.
-using ScheduleCycleMap = absl::flat_hash_map<Node*, int64>;
+using ScheduleCycleMap = absl::flat_hash_map<Node*, int64_t>;
 
 // Abstraction describing the binding of Nodes to cycles.
 class PipelineSchedule {
@@ -121,7 +121,7 @@ class PipelineSchedule {
   // length is not given, then the length equal to the largest cycle in cycle
   // map minus one.
   PipelineSchedule(Function* function, ScheduleCycleMap cycle_map,
-                   absl::optional<int64> length = absl::nullopt);
+                   absl::optional<int64_t> length = absl::nullopt);
 
   Function* function() const { return function_; }
 
@@ -130,25 +130,25 @@ class PipelineSchedule {
 
   // Returns the cycle in which the node is placed. Dies if node has not
   // been placed in this schedule.
-  int64 cycle(const Node* node) const { return cycle_map_.at(node); }
+  int64_t cycle(const Node* node) const { return cycle_map_.at(node); }
 
   // Returns the nodes scheduled in the given cycle. The node order is
   // guaranteed to be topological.
-  absl::Span<Node* const> nodes_in_cycle(int64 cycle) const;
+  absl::Span<Node* const> nodes_in_cycle(int64_t cycle) const;
 
   std::string ToString() const;
 
   // Computes and returns the set of Nodes which are live out of the given
   // cycle. A node is live out of cycle N if it is scheduled at or before cycle
   // N and has users after cycle N.
-  std::vector<Node*> GetLiveOutOfCycle(int64 c) const;
+  std::vector<Node*> GetLiveOutOfCycle(int64_t c) const;
 
   // Returns the number of stages in the pipeline. Use 'length' instead of
   // 'size' as 'size' is ambiguous in this context (number of resources? number
   // of nodes? number of cycles?). Note that codegen may add flops to the input
   // or output of the pipeline so this value may not be the same as the latency
   // of the pipeline.
-  int64 length() const { return cycle_to_nodes_.size(); }
+  int64_t length() const { return cycle_to_nodes_.size(); }
 
   // Verifies various invariants of the schedule (each node scheduled exactly
   // once, node not scheduled before operands, etc.).
@@ -156,7 +156,7 @@ class PipelineSchedule {
 
   // Verifies that no path of nodes scheduled in the same cycle exceeds the
   // given clock period.
-  absl::Status VerifyTiming(int64 clock_period_ps,
+  absl::Status VerifyTiming(int64_t clock_period_ps,
                             const DelayEstimator& delay_estimator) const;
 
   // Returns a protobuf holding this object's scheduling info.

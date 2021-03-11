@@ -15,6 +15,7 @@
 #ifndef XLS_IR_TYPE_H_
 #define XLS_IR_TYPE_H_
 
+#include <cstdint>
 #include <memory>
 #include <ostream>
 #include <string>
@@ -24,7 +25,6 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/xls_type.pb.h"
 
@@ -82,10 +82,10 @@ class Type {
   // Returns the count of bits required to represent the underlying type; e.g.
   // for tuples this will be the sum of the bit count from all its members, for
   // a "bits" type it will be the count of bits.
-  virtual int64 GetFlatBitCount() const = 0;
+  virtual int64_t GetFlatBitCount() const = 0;
 
   // Returns the number of leaf Bits types in this object.
-  virtual int64 leaf_count() const = 0;
+  virtual int64_t leaf_count() const = 0;
 
   virtual std::string ToString() const = 0;
 
@@ -102,21 +102,21 @@ std::ostream& operator<<(std::ostream& os, const Type* type);
 // Represents a type that is vector of bits with a fixed bit_count().
 class BitsType : public Type {
  public:
-  explicit BitsType(int64 bit_count);
+  explicit BitsType(int64_t bit_count);
   ~BitsType() override {}
-  int64 bit_count() const { return bit_count_; }
+  int64_t bit_count() const { return bit_count_; }
 
   TypeProto ToProto() const override;
   bool IsEqualTo(const Type* other) const override;
-  int64 GetFlatBitCount() const override { return bit_count(); }
+  int64_t GetFlatBitCount() const override { return bit_count(); }
 
-  int64 leaf_count() const override { return 1; }
+  int64_t leaf_count() const override { return 1; }
 
   // Returns a string like "bits[32]".
   std::string ToString() const override;
 
  private:
-  int64 bit_count_;
+  int64_t bit_count_;
 };
 
 // Represents a type that is a tuple (of values of other potentially different
@@ -139,18 +139,18 @@ class TupleType : public Type {
   bool IsEqualTo(const Type* other) const override;
 
   // Returns the number of elements of the tuple.
-  int64 size() const { return members_.size(); }
+  int64_t size() const { return members_.size(); }
 
   // Returns the type of the given element.
-  Type* element_type(int64 index) const { return members_.at(index); }
+  Type* element_type(int64_t index) const { return members_.at(index); }
 
   // Returns the element types of the tuple.
   absl::Span<Type* const> element_types() const { return members_; }
 
-  int64 leaf_count() const override { return leaf_count_; }
+  int64_t leaf_count() const override { return leaf_count_; }
 
-  int64 GetFlatBitCount() const override {
-    int64 total = 0;
+  int64_t GetFlatBitCount() const override {
+    int64_t total = 0;
     for (const Type* type : members_) {
       total += type->GetFlatBitCount();
     }
@@ -158,7 +158,7 @@ class TupleType : public Type {
   }
 
  private:
-  int64 leaf_count_;
+  int64_t leaf_count_;
   std::vector<Type*> members_;
 };
 
@@ -167,7 +167,7 @@ class TupleType : public Type {
 // Note that arrays can be empty.
 class ArrayType : public Type {
  public:
-  explicit ArrayType(int64 size, Type* element_type)
+  explicit ArrayType(int64_t size, Type* element_type)
       : Type(TypeKind::kArray), size_(size), element_type_(element_type) {}
   ~ArrayType() override {}
   std::string ToString() const override;
@@ -176,18 +176,18 @@ class ArrayType : public Type {
   bool IsEqualTo(const Type* other) const override;
 
   Type* element_type() const { return element_type_; }
-  int64 size() const { return size_; }
+  int64_t size() const { return size_; }
 
-  int64 GetFlatBitCount() const override {
+  int64_t GetFlatBitCount() const override {
     return element_type_->GetFlatBitCount() * size_;
   }
 
-  int64 leaf_count() const override {
+  int64_t leaf_count() const override {
     return size_ * element_type()->leaf_count();
   }
 
  private:
-  int64 size_;
+  int64_t size_;
   Type* element_type_;
 };
 
@@ -202,8 +202,8 @@ class TokenType : public Type {
   bool IsEqualTo(const Type* other) const override;
 
   // Tokens contain no bits.
-  int64 GetFlatBitCount() const override { return 0; }
-  int64 leaf_count() const override { return 0; }
+  int64_t GetFlatBitCount() const override { return 0; }
+  int64_t leaf_count() const override { return 0; }
 };
 
 // Represents a type that is a function with parameters and return type.
@@ -218,9 +218,9 @@ class FunctionType {
   FunctionTypeProto ToProto() const;
   bool IsEqualTo(const FunctionType* other) const;
 
-  int64 parameter_count() const { return parameters_.size(); }
+  int64_t parameter_count() const { return parameters_.size(); }
   absl::Span<Type* const> parameters() const { return parameters_; }
-  Type* parameter_type(int64 i) const { return parameters_.at(i); }
+  Type* parameter_type(int64_t i) const { return parameters_.at(i); }
   Type* return_type() const { return return_type_; }
 
  private:
@@ -285,7 +285,7 @@ inline TokenType* Type::AsTokenOrDie() {
 //   GetIndexedElementType(bits[42], 0)
 //     => bits[42]
 absl::StatusOr<Type*> GetIndexedElementType(Type* type_to_index,
-                                            int64 index_size);
+                                            int64_t index_size);
 
 // Returns the number of array dimensions of the given type. A non-array type is
 // considered to have zero array dimensions.
@@ -296,7 +296,7 @@ absl::StatusOr<Type*> GetIndexedElementType(Type* type_to_index,
 //   GetArrayDimensionCount(bits[8][9]) => 1
 //   GetArrayDimensionCount(bits[8][9][10]) => 2
 //   GetArrayDimensionCount((bits[8][10], token)[42]) => 1
-int64 GetArrayDimensionCount(Type* type);
+int64_t GetArrayDimensionCount(Type* type);
 
 }  // namespace xls
 

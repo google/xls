@@ -38,7 +38,7 @@ class ProcNetworkInterpreterTest : public IrTestBase {};
 // which sends a sequence of U32 values starting at 'starting_value' and
 // increasing byte 'step' each tick.
 absl::StatusOr<Proc*> CreateIotaProc(absl::string_view proc_name,
-                                     int64 starting_value, int64 step,
+                                     int64_t starting_value, int64_t step,
                                      Channel* channel, Package* package) {
   ProcBuilder pb(proc_name, /*init_value=*/Value(UBits(starting_value, 32)),
                  /*token_name=*/"tok", /*state_name=*/"prev", package);

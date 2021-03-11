@@ -96,7 +96,7 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
               << signature_.ToString();
   if (XLS_VLOG_IS_ON(2)) {
     XLS_VLOG(1) << "Arguments:\n";
-    for (int64 i = 0; i < inputs.size(); ++i) {
+    for (int64_t i = 0; i < inputs.size(); ++i) {
       const auto& input = inputs[i];
       XLS_VLOG(1) << "  Set " << i << ":";
       for (const auto& pair : input) {
@@ -129,7 +129,7 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
   XLS_RETURN_IF_ERROR(ResetModule(&tb));
 
   // Drive data inputs. Values are flattened before using.
-  auto drive_data = [&](int64 index) {
+  auto drive_data = [&](int64_t index) {
     for (const PortProto& input : signature_.data_inputs()) {
       tb.Set(input.name(), inputs[index].at(input.name()));
     }
@@ -139,7 +139,7 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
   // stability necessary for ModuleTestbench::Capture().
   using OutputMap = absl::flat_hash_map<std::string, std::unique_ptr<Bits>>;
   std::vector<OutputMap> stable_outputs(inputs.size());
-  auto capture_outputs = [&](int64 index) {
+  auto capture_outputs = [&](int64_t index) {
     OutputMap& outputs = stable_outputs[index];
     for (const PortProto& output : signature_.data_outputs()) {
       outputs[output.name()] = absl::make_unique<Bits>();
@@ -148,7 +148,7 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
   };
 
   if (signature_.proto().has_fixed_latency()) {
-    for (int64 i = 0; i < inputs.size(); ++i) {
+    for (int64_t i = 0; i < inputs.size(); ++i) {
       drive_data(i);
       // Fixed latency interface: just wait for compute to complete.
       tb.AdvanceNCycles(signature_.proto().fixed_latency().latency());
@@ -159,7 +159,7 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
       tb.NextCycle();
     }
   } else if (signature_.proto().has_ready_valid()) {
-    for (int64 i = 0; i < inputs.size(); ++i) {
+    for (int64_t i = 0; i < inputs.size(); ++i) {
       drive_data(i);
       // Ready/valid interface: drive input and output flow control.
       const ReadyValidInterface& interface = signature_.proto().ready_valid();
@@ -179,9 +179,9 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
       tb.Set(interface.output_ready(), 0);
     }
   } else if (signature_.proto().has_pipeline()) {
-    const int64 latency = signature_.proto().pipeline().latency();
-    int64 cycle = 0;
-    int64 captured_outputs = 0;
+    const int64_t latency = signature_.proto().pipeline().latency();
+    int64_t cycle = 0;
+    int64_t captured_outputs = 0;
     absl::optional<PipelineControl> pipeline_control;
     if (signature_.proto().pipeline().has_pipeline_control()) {
       pipeline_control = signature_.proto().pipeline().pipeline_control();
@@ -246,7 +246,7 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
     tb.NextCycle();
     maybe_expect_output_valid(/*expect_x=*/false, /*expected_value=*/false);
   } else if (signature_.proto().has_combinational()) {
-    for (int64 i = 0; i < inputs.size(); ++i) {
+    for (int64_t i = 0; i < inputs.size(); ++i) {
       drive_data(i);
       capture_outputs(i);
       tb.NextCycle();
@@ -260,7 +260,7 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
 
   // Transfer outputs to an ArgumentSet for return.
   std::vector<BitsMap> outputs(inputs.size());
-  for (int64 i = 0; i < inputs.size(); ++i) {
+  for (int64_t i = 0; i < inputs.size(); ++i) {
     for (const auto& pair : stable_outputs[i]) {
       outputs[i][pair.first] = *pair.second;
     }
@@ -268,7 +268,7 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
 
   if (XLS_VLOG_IS_ON(1)) {
     XLS_VLOG(1) << "Results:\n";
-    for (int64 i = 0; i < outputs.size(); ++i) {
+    for (int64_t i = 0; i < outputs.size(); ++i) {
       XLS_VLOG(1) << "  Set " << i << ":";
       for (const auto& pair : outputs[i]) {
         XLS_VLOG(1) << "    " << pair.first << " : " << pair.second;

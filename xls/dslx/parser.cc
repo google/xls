@@ -708,7 +708,7 @@ absl::StatusOr<Array*> Parser::ParseArray(Bindings* bindings) {
                            parse_ellipsis_or_expression, {TokenKind::kCBrack}));
   std::vector<Expr*> exprs;
   bool has_trailing_ellipsis = false;
-  for (int64 i = 0; i < members.size(); ++i) {
+  for (int64_t i = 0; i < members.size(); ++i) {
     const ExprOrEllipsis& member = members[i];
     if (absl::holds_alternative<EllipsisSentinel>(member)) {
       if (i + 1 == members.size()) {
@@ -996,7 +996,7 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
 absl::StatusOr<QuickCheck*> Parser::ParseQuickCheck(
     absl::flat_hash_map<std::string, Function*>* name_to_fn, Bindings* bindings,
     const Span& directive_span) {
-  absl::optional<int64> test_count;
+  absl::optional<int64_t> test_count;
   XLS_ASSIGN_OR_RETURN(bool peek_is_paren, PeekTokenIs(TokenKind::kOParen));
   if (peek_is_paren) {  // Config is specified.
     DropTokenOrDie();

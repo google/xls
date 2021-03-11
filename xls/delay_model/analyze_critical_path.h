@@ -15,10 +15,10 @@
 #ifndef XLS_DELAY_MODEL_ANALYZE_CRITICAL_PATH_H_
 #define XLS_DELAY_MODEL_ANALYZE_CRITICAL_PATH_H_
 
+#include <cstdint>
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "xls/common/integral_types.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -29,11 +29,11 @@ struct CriticalPathEntry {
   Node* node;
 
   // Delay for producing the output of "node" from its inputs.
-  int64 node_delay_ps;
+  int64_t node_delay_ps;
 
   // Delay for producing the output of "node", as measured from the start of the
   // critical path (the path delay).
-  int64 path_delay_ps;
+  int64_t path_delay_ps;
 
   // Whether this node was "pushed out" by a cycle boundary; i.e. could have
   // executed earlier if there were no cycle boundaries. This will only be true
@@ -54,7 +54,7 @@ struct CriticalPathEntry {
 // The return value for the function (or recurrent state value of a proc) is at
 // the front of the returned vector.
 absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
-    FunctionBase* f, absl::optional<int64> clock_period_ps,
+    FunctionBase* f, absl::optional<int64_t> clock_period_ps,
     const DelayEstimator& delay_estimator);
 
 }  // namespace xls

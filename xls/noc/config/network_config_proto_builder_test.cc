@@ -61,8 +61,8 @@ TEST(NetworkConfigBuilderTest, FieldValues) {
 // Test the default phit bit width mode for links. The test creates a link in
 // non-default mode, default mode, then non-default mode (in that order).
 TEST(NetworkConfigBuilderTest, LinkDefaultPhitBitWidthField) {
-  const int64 kNonDefault = 2;
-  const int64 kDefault = 42;
+  const int64_t kNonDefault = 2;
+  const int64_t kDefault = 42;
   NetworkConfigProtoBuilder builder("Test");
   LinkConfigProtoBuilder link_builder0 = builder.WithLink("Link0");
   link_builder0.WithPhitBitWidth(kNonDefault);
@@ -83,8 +83,8 @@ TEST(NetworkConfigBuilderTest, LinkDefaultPhitBitWidthField) {
 // a link in non-default mode, default mode, then non-default mode (in that
 // order).
 TEST(NetworkConfigBuilderTest, LinkDefaultSourceSinkPipelineStageField) {
-  const int64 kNonDefault = 2;
-  const int64 kDefault = 42;
+  const int64_t kNonDefault = 2;
+  const int64_t kDefault = 42;
   NetworkConfigProtoBuilder builder("Test");
   LinkConfigProtoBuilder link_builder0 = builder.WithLink("Link0");
   link_builder0.WithSourceSinkPipelineStage(kNonDefault);
@@ -105,8 +105,8 @@ TEST(NetworkConfigBuilderTest, LinkDefaultSourceSinkPipelineStageField) {
 // a link in non-default mode, default mode, then non-default mode (in that
 // order).
 TEST(NetworkConfigBuilderTest, LinkDefaultSinkSourcePipelineStageField) {
-  const int64 kNonDefault = 2;
-  const int64 kDefault = 42;
+  const int64_t kNonDefault = 2;
+  const int64_t kDefault = 42;
   NetworkConfigProtoBuilder builder("Test");
   LinkConfigProtoBuilder link_builder0 = builder.WithLink("Link0");
   link_builder0.WithSinkSourcePipelineStage(kNonDefault);
@@ -127,8 +127,8 @@ TEST(NetworkConfigBuilderTest, LinkDefaultSinkSourcePipelineStageField) {
 // virtual channel in non-default mode, default mode, then non-default mode (in
 // that order).
 TEST(NetworkConfigBuilderTest, VirtualChannelFlitBitWidthDefaultFields) {
-  const int64 kNonDefault = 2;
-  const int64 kDefault = 42;
+  const int64_t kNonDefault = 2;
+  const int64_t kDefault = 42;
   NetworkConfigProtoBuilder builder("Test");
   VirtualChannelConfigProtoBuilder virtual_channel_builder0 =
       builder.WithVirtualChannel("VC0");
@@ -151,8 +151,8 @@ TEST(NetworkConfigBuilderTest, VirtualChannelFlitBitWidthDefaultFields) {
 // channel in non-default mode, default mode, then non-default mode (in that
 // order).
 TEST(NetworkConfigBuilderTest, VirtualChannelDepthDefaultFields) {
-  const int64 kNonDefault = 2;
-  const int64 kDefault = 42;
+  const int64_t kNonDefault = 2;
+  const int64_t kDefault = 42;
   NetworkConfigProtoBuilder builder("Test");
   VirtualChannelConfigProtoBuilder virtual_channel_builder0 =
       builder.WithVirtualChannel("VC0");

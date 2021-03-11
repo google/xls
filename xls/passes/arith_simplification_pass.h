@@ -26,13 +26,13 @@ namespace xls {
 // add of 0, etc.
 class ArithSimplificationPass : public FunctionBasePass {
  public:
-  ArithSimplificationPass(int64 opt_level = kMaxOptLevel)
+  ArithSimplificationPass(int64_t opt_level = kMaxOptLevel)
       : FunctionBasePass("arith_simp", "Arithmetic Simplifications"),
         opt_level_(opt_level) {}
   ~ArithSimplificationPass() override {}
 
  protected:
-  int64 opt_level_;
+  int64_t opt_level_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const PassOptions& options,
       PassResults* results) const override;

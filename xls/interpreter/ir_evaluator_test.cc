@@ -291,7 +291,7 @@ TEST_P(IrEvaluatorTest, InterpretNaryNand) {
 }
 
 absl::Status RunZeroExtendTest(const IrEvaluatorTestParam& param,
-                               int64 input_size, int64 output_size) {
+                               int64_t input_size, int64_t output_size) {
   constexpr absl::string_view ir_text = R"(
   package test
 
@@ -686,7 +686,7 @@ TEST_P(IrEvaluatorTest, MixedWidthMultiplicationExhaustive) {
   }
   )";
 
-  const int64 kMaxWidth = 3;
+  const int64_t kMaxWidth = 3;
   for (int x_width = 1; x_width <= kMaxWidth; ++x_width) {
     for (int y_width = 1; y_width <= kMaxWidth; ++y_width) {
       for (int result_width = 1; result_width <= kMaxWidth; ++result_width) {
@@ -751,7 +751,7 @@ TEST_P(IrEvaluatorTest, MixedWidthSignedMultiplicationExhaustive) {
   }
   )";
 
-  const int64 kMaxWidth = 3;
+  const int64_t kMaxWidth = 3;
   for (int x_width = 1; x_width <= kMaxWidth; ++x_width) {
     for (int y_width = 1; y_width <= kMaxWidth; ++y_width) {
       for (int result_width = 1; result_width <= kMaxWidth; ++result_width) {
@@ -1149,12 +1149,12 @@ absl::Status RunConcatTest(const IrEvaluatorTestParam& param,
   )";
 
   std::string bytes_str = "0x";
-  std::vector<uint8> bytes;
+  std::vector<uint8_t> bytes;
 
   Value a = kwargs.at("a");
   Value b = kwargs.at("b");
-  int64 a_width = a.GetFlatBitCount();
-  int64 b_width = b.GetFlatBitCount();
+  int64_t a_width = a.GetFlatBitCount();
+  int64_t b_width = b.GetFlatBitCount();
   std::string formatted_text =
       absl::Substitute(ir_text, a_width, b_width, a_width + b_width);
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_text));
@@ -1392,8 +1392,8 @@ TEST_P(IrEvaluatorTest, Interpret4WaySel) {
   }
   )"));
 
-  auto u2 = [](int64 i) { return Value(UBits(i, 2)); };
-  auto u8 = [](int64 i) { return Value(UBits(i, 8)); };
+  auto u2 = [](int64_t i) { return Value(UBits(i, 2)); };
+  auto u8 = [](int64_t i) { return Value(UBits(i, 8)); };
   absl::flat_hash_map<std::string, Value> args = {
       {"w", u8(0xa)}, {"x", u8(0xb)}, {"y", u8(0xc)}, {"z", u8(0xd)}};
   args["p"] = u2(0);
@@ -1420,8 +1420,8 @@ TEST_P(IrEvaluatorTest, InterpretManyWaySelWithDefault) {
   }
   )"));
 
-  auto u1024 = [](int64 i) { return Value(UBits(i, 1024)); };
-  auto u32 = [](int64 i) { return Value(UBits(i, 32)); };
+  auto u1024 = [](int64_t i) { return Value(UBits(i, 1024)); };
+  auto u32 = [](int64_t i) { return Value(UBits(i, 32)); };
   absl::flat_hash_map<std::string, Value> args = {
       {"w", u32(0xa)}, {"x", u32(0xb)}, {"y", u32(0xc)}};
   args["p"] = u1024(0);
@@ -1630,8 +1630,8 @@ fn main() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
   // The body function executed via counted_for above should be equivalent to
   // the following:
-  int64 expected = 0;
-  for (int64 i = 0; i < 4; ++i) {
+  int64_t expected = 0;
+  for (int64_t i = 0; i < 4; ++i) {
     expected += i;
     expected <<= 1;
   }
@@ -1966,7 +1966,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayOfArrayIndex) {
 }
 
 TEST_P(IrEvaluatorTest, InterpretArrayUpdateInBounds) {
-  auto make_array = [](absl::Span<const int64> values) {
+  auto make_array = [](absl::Span<const int64_t> values) {
     std::vector<Value> elements;
     for (auto v : values) {
       elements.push_back(Value(UBits(v, 32)));
@@ -2541,9 +2541,9 @@ TEST_P(IrEvaluatorTest, Encode) {
   EXPECT_THAT(Run(function, {18}), IsOkAndHolds(5));
 
   // Test all values in a loop.
-  for (uint64 i = 0; i < 31; ++i) {
-    uint64 expected = 0;
-    for (int64 j = 0; j < 5; ++j) {
+  for (uint64_t i = 0; i < 31; ++i) {
+    uint64_t expected = 0;
+    for (int64_t j = 0; j < 5; ++j) {
       if (i & (1 << j)) {
         expected |= j;
       }
@@ -2569,8 +2569,8 @@ TEST_P(IrEvaluatorTest, RunMismatchedType) {
 }
 
 absl::Status RunBitSliceTest(const IrEvaluatorTestParam& param,
-                             int64 literal_width, int64 slice_start,
-                             int64 slice_width) {
+                             int64_t literal_width, int64_t slice_start,
+                             int64_t slice_width) {
   constexpr absl::string_view ir_text = R"(
   package test
 
@@ -2581,9 +2581,9 @@ absl::Status RunBitSliceTest(const IrEvaluatorTestParam& param,
   )";
 
   std::string bytes_str = "0x";
-  std::vector<uint8> bytes;
-  for (int i = 0; i < CeilOfRatio(literal_width, static_cast<int64>(CHAR_BIT));
-       i++) {
+  std::vector<uint8_t> bytes;
+  for (int i = 0;
+       i < CeilOfRatio(literal_width, static_cast<int64_t>(CHAR_BIT)); i++) {
     absl::StrAppend(&bytes_str, absl::Hex(i % 256, absl::kZeroPad2));
     bytes.push_back(i % 256);
   }
@@ -2610,8 +2610,8 @@ TEST_P(IrEvaluatorTest, BitSlice) {
 }
 
 absl::Status RunDynamicBitSliceTest(const IrEvaluatorTestParam& param,
-                                    int64 literal_width, int64 slice_start,
-                                    int64 start_width, int64 slice_width) {
+                                    int64_t literal_width, int64_t slice_start,
+                                    int64_t start_width, int64_t slice_width) {
   constexpr absl::string_view ir_text = R"(
   package test
 
@@ -2625,10 +2625,10 @@ absl::Status RunDynamicBitSliceTest(const IrEvaluatorTestParam& param,
 
   std::string bytes_str = "0x";
   std::string start_bytes_str = "0x";
-  std::vector<uint8> bytes;
+  std::vector<uint8_t> bytes;
 
-  for (int i = 0; i < CeilOfRatio(literal_width, static_cast<int64>(CHAR_BIT));
-       i++) {
+  for (int i = 0;
+       i < CeilOfRatio(literal_width, static_cast<int64_t>(CHAR_BIT)); i++) {
     absl::StrAppend(&bytes_str, absl::Hex(i % 256, absl::kZeroPad2));
     bytes.push_back(i % 256);
   }
@@ -2655,8 +2655,8 @@ absl::Status RunDynamicBitSliceTest(const IrEvaluatorTestParam& param,
 }
 
 absl::Status RunDynamicBitSliceTestLargeStart(const IrEvaluatorTestParam& param,
-                                              int64 literal_width,
-                                              int64 slice_width) {
+                                              int64_t literal_width,
+                                              int64_t slice_width) {
   constexpr absl::string_view ir_text = R"(
   package test
 
@@ -2670,18 +2670,19 @@ absl::Status RunDynamicBitSliceTestLargeStart(const IrEvaluatorTestParam& param,
 
   std::string bytes_str = "0x";
   std::string start_bytes_str = "0x";
-  std::vector<uint8> bytes;
-  std::vector<uint8> start_bytes;
+  std::vector<uint8_t> bytes;
+  std::vector<uint8_t> start_bytes;
 
-  for (int i = 0; i < CeilOfRatio(literal_width, static_cast<int64>(CHAR_BIT));
-       i++) {
+  for (int i = 0;
+       i < CeilOfRatio(literal_width, static_cast<int64_t>(CHAR_BIT)); i++) {
     absl::StrAppend(&bytes_str, absl::Hex(i % 256, absl::kZeroPad2));
     bytes.push_back(i % 256);
   }
 
   // Set start to be much larger than the operand.
   for (int i = 0;
-       i < CeilOfRatio(2 * literal_width, static_cast<int64>(CHAR_BIT)); i++) {
+       i < CeilOfRatio(2 * literal_width, static_cast<int64_t>(CHAR_BIT));
+       i++) {
     absl::StrAppend(&start_bytes_str, absl::Hex(255, absl::kZeroPad2));
     start_bytes.push_back(255);
   }

@@ -41,7 +41,7 @@ namespace {
 
 // Returns true if we're checking a single pipeline stage.
 bool CheckingSingleStage(absl::optional<PipelineSchedule> schedule,
-                         int32 stage) {
+                         int32_t stage) {
   return schedule && stage != -1;
 }
 

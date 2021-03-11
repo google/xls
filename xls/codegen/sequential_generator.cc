@@ -14,6 +14,7 @@
 
 #include "xls/codegen/sequential_generator.h"
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -31,7 +32,6 @@
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/vast.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -48,7 +48,7 @@ namespace verilog {
 using Register = ModuleBuilder::Register;
 
 absl::Status SequentialModuleBuilder::AddFsm(
-    int64 pipeline_latency, LogicRef* index_holds_max_inclusive_value,
+    int64_t pipeline_latency, LogicRef* index_holds_max_inclusive_value,
     LogicRef* last_pipeline_cycle_wire) {
   // Configure reset options.
   const absl::optional<ResetProto>* reset_options =
@@ -98,7 +98,7 @@ absl::Status SequentialModuleBuilder::AddFsm(
   absl::flat_hash_map<LogicRef*, LogicRef*> wire_reg_assignments;
   auto add_output_and_drive_wire =
       [&fsm, &wire_reg_assignments](
-          absl::string_view name, int64 default_value,
+          absl::string_view name, int64_t default_value,
           LogicRef* driven_wire) -> absl::StatusOr<FsmOutput*> {
     FsmOutput* fsm_out = fsm.AddOutput1(name, default_value);
     if (wire_reg_assignments.contains(driven_wire)) {
@@ -174,7 +174,7 @@ absl::Status SequentialModuleBuilder::AddSequentialLogic() {
                               last_pipeline_cycle));
 
   // Add FSM.
-  int64 pipeline_latency =
+  int64_t pipeline_latency =
       loop_body_pipeline_result_->signature.proto().pipeline().latency();
   XLS_RETURN_IF_ERROR(AddFsm(pipeline_latency,
                              index_references.holds_max_inclusive_value,
@@ -195,10 +195,10 @@ absl::Status SequentialModuleBuilder::AddSequentialLogic() {
       {accumulator_register}, file_.BitwiseOr(ready_in, last_pipeline_cycle)));
 
   // Add registers for invariants.
-  int64 num_inputs = port_references_.data_in.size();
+  int64_t num_inputs = port_references_.data_in.size();
   std::vector<Register> invariant_registers;
   invariant_registers.resize(num_inputs - 1);
-  for (int64 input_idx = 1; input_idx < num_inputs; ++input_idx) {
+  for (int64_t input_idx = 1; input_idx < num_inputs; ++input_idx) {
     XLS_ASSIGN_OR_RETURN(
         invariant_registers.at(input_idx - 1),
         make_register(port_references_.data_in.at(input_idx),
@@ -220,11 +220,9 @@ absl::Status SequentialModuleBuilder::AddSequentialLogic() {
 }
 
 absl::StatusOr<SequentialModuleBuilder::StridedCounterReferences>
-SequentialModuleBuilder::AddStaticStridedCounter(std::string name, int64 stride,
-                                                 int64 value_limit_exclusive,
-                                                 LogicRef* clk,
-                                                 LogicRef* set_zero_arg,
-                                                 LogicRef* increment_arg) {
+SequentialModuleBuilder::AddStaticStridedCounter(
+    std::string name, int64_t stride, int64_t value_limit_exclusive,
+    LogicRef* clk, LogicRef* set_zero_arg, LogicRef* increment_arg) {
   // Create references.
   StridedCounterReferences refs;
   refs.set_zero = set_zero_arg;
@@ -252,10 +250,10 @@ SequentialModuleBuilder::AddStaticStridedCounter(std::string name, int64 stride,
 
   // Determine counter value limit and the number of bits needed to represent
   // this number.
-  int64 value_limit_exclusive_minus = value_limit_exclusive - 1;
-  int64 max_inclusive_value =
+  int64_t value_limit_exclusive_minus = value_limit_exclusive - 1;
+  int64_t max_inclusive_value =
       value_limit_exclusive_minus - ((value_limit_exclusive_minus) % stride);
-  int64 num_counter_bits = Bits::MinBitCountUnsigned(max_inclusive_value);
+  int64_t num_counter_bits = Bits::MinBitCountUnsigned(max_inclusive_value);
   XLS_CHECK_GT(num_counter_bits, 0);
 
   // Create the counter.
@@ -409,10 +407,10 @@ absl::Status SequentialModuleBuilder::InitializeModuleBuilder(
           ? absl::optional<ResetProto>(signature.proto().reset())
           : absl::nullopt);
 
-  auto add_input_port = [&](absl::string_view name, int64 num_bits) {
+  auto add_input_port = [&](absl::string_view name, int64_t num_bits) {
     return module_builder_->AddInputPort(SanitizeIdentifier(name), num_bits);
   };
-  auto add_output_port = [&](absl::string_view name, int64 num_bits) {
+  auto add_output_port = [&](absl::string_view name, int64_t num_bits) {
     return module_builder_->module()->AddOutput(SanitizeIdentifier(name),
                                                 file_.BitVectorType(num_bits));
   };
@@ -481,7 +479,7 @@ absl::Status SequentialModuleBuilder::InstantiateLoopBody(
   // Accumulator
   loop_connections.push_back({loop_in_names.at(1), accumulator_reg.ref});
   // Invariants
-  for (int64 input_idx = 2; input_idx < loop_in_names.size(); ++input_idx) {
+  for (int64_t input_idx = 2; input_idx < loop_in_names.size(); ++input_idx) {
     loop_connections.push_back({loop_in_names.at(input_idx),
                                 invariant_registers.at(input_idx - 2).ref});
   }

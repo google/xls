@@ -44,7 +44,6 @@
 #include "clang/include/clang/Tooling/CommonOptionsParser.h"
 #include "clang/include/clang/Tooling/Tooling.h"
 #include "llvm/include/llvm/ADT/APInt.h"
-#include "xls/common/integral_types.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
@@ -865,9 +864,9 @@ class Translator {
   absl::StatusOr<GeneratedFunction*> TranslateFunctionToXLS(
       const clang::FunctionDecl* decl);
 
-  absl::StatusOr<int64> EvaluateInt64(const clang::Expr& expr,
-                                      const class clang::ASTContext& ctx,
-                                      const xls::SourceLocation& loc);
+  absl::StatusOr<int64_t> EvaluateInt64(const clang::Expr& expr,
+                                        const class clang::ASTContext& ctx,
+                                        const xls::SourceLocation& loc);
   absl::StatusOr<bool> EvaluateBool(const clang::Expr& expr,
                                     const class clang::ASTContext& ctx,
                                     const xls::SourceLocation& loc);

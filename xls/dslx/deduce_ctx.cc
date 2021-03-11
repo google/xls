@@ -78,11 +78,11 @@ NodeAndUser ParseTypeMissingErrorMessage(absl::string_view s) {
   std::vector<absl::string_view> pieces =
       absl::StrSplit(s, absl::MaxSplits(' ', 3));
   XLS_CHECK_EQ(pieces.size(), 4);
-  int64 node = 0;
+  int64_t node = 0;
   if (pieces[1] != "(nil)") {
     node = StrTo64Base(pieces[1], 16).value();
   }
-  int64 user = 0;
+  int64_t user = 0;
   if (pieces[2] != "(nil)") {
     user = StrTo64Base(pieces[2], 16).value();
   }

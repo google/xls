@@ -60,7 +60,7 @@ std::vector<Cluster> FindLogicClouds(const Module& module,
 
   // Helper for debugging that counts the number of equivalence classes in
   // cell_to_uf.
-  auto count_equivalence_classes = [&cell_to_uf]() -> int64 {
+  auto count_equivalence_classes = [&cell_to_uf]() -> int64_t {
     absl::flat_hash_set<UnionFind<absl::monostate>*> classes;
     for (auto& item : cell_to_uf) {
       classes.insert(item.second->FindRoot());

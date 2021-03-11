@@ -14,9 +14,10 @@
 
 #include "xls/ir/number_parser.h"
 
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits_ops.h"
 
@@ -26,8 +27,8 @@ namespace {
 using status_testing::StatusIs;
 
 TEST(NumberParserTest, ParseNumbersAsUint64) {
-  auto expect_uint64_value = [](absl::string_view s, uint64 expected) {
-    XLS_ASSERT_OK_AND_ASSIGN(uint64 value, ParseNumberAsUint64(s));
+  auto expect_uint64_value = [](absl::string_view s, uint64_t expected) {
+    XLS_ASSERT_OK_AND_ASSIGN(uint64_t value, ParseNumberAsUint64(s));
     EXPECT_EQ(value, expected);
   };
   expect_uint64_value("0", 0);
@@ -41,12 +42,13 @@ TEST(NumberParserTest, ParseNumbersAsUint64) {
   expect_uint64_value("0x1", 1);
   expect_uint64_value("0xdeadbeef", 3735928559UL);
   expect_uint64_value("0xdeadbeefdeadbeef", 0xdeadbeefdeadbeefULL);
-  expect_uint64_value("0xffffffffffffffff", std::numeric_limits<uint64>::max());
+  expect_uint64_value("0xffffffffffffffff",
+                      std::numeric_limits<uint64_t>::max());
 }
 
 TEST(NumberParserTest, ParseNumbersAsInt64) {
-  auto expect_int64_value = [](absl::string_view s, int64 expected) {
-    XLS_ASSERT_OK_AND_ASSIGN(int64 value, ParseNumberAsInt64(s));
+  auto expect_int64_value = [](absl::string_view s, int64_t expected) {
+    XLS_ASSERT_OK_AND_ASSIGN(int64_t value, ParseNumberAsInt64(s));
     EXPECT_EQ(value, expected);
   };
   expect_int64_value("0", 0);
@@ -64,9 +66,9 @@ TEST(NumberParserTest, ParseNumbersAsInt64) {
   expect_int64_value("-0xf00", -0xf00);
   expect_int64_value("-0b1010", -10);
   expect_int64_value("0x7fff_ffff_ffff_ffff",
-                     std::numeric_limits<int64>::max());
+                     std::numeric_limits<int64_t>::max());
   expect_int64_value("-0x8000_0000_0000_0000",
-                     std::numeric_limits<int64>::min());
+                     std::numeric_limits<int64_t>::min());
 }
 
 TEST(NumberParserTest, ParseNumbersAsBits) {
@@ -89,7 +91,7 @@ TEST(NumberParserTest, ParseNumbersAsBits) {
   expect_bits_value("-128", SBits(-128, 8));
   expect_bits_value("-129", SBits(-129, 9));
   expect_bits_value("-0x8000_0000_0000_0000",
-                    SBits(std::numeric_limits<int64>::min(), 64));
+                    SBits(std::numeric_limits<int64_t>::min(), 64));
 
   expect_bits_value("0xbeef_abcd_fab2_3456_7890_1010_101a_cbde_fadd_fff",
                     bits_ops::Concat({UBits(0xbeefabcdfab23456ULL, 64),
@@ -158,24 +160,24 @@ TEST(NumberParserTest, ParseNumberErrors) {
   EXPECT_THAT(ParseNumberAsUint64("-1").status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        ::testing::HasSubstr(
-                           "Value is not representable as an uint64")));
+                           "Value is not representable as an uint64_t")));
   EXPECT_THAT(ParseNumberAsUint64("-0xdeadbeef").status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        ::testing::HasSubstr(
-                           "Value is not representable as an uint64")));
+                           "Value is not representable as an uint64_t")));
   EXPECT_THAT(ParseNumberAsUint64("0xdeadbeefdeadbeef000").status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        ::testing::HasSubstr(
-                           "Value is not representable as an uint64")));
+                           "Value is not representable as an uint64_t")));
 
-  EXPECT_THAT(
-      ParseNumberAsInt64("0xdeadbeefdeadbeef").status(),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               ::testing::HasSubstr("Value is not representable as an int64")));
-  EXPECT_THAT(
-      ParseNumberAsInt64("-0x8000_0000_0000_0001").status(),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               ::testing::HasSubstr("Value is not representable as an int64")));
+  EXPECT_THAT(ParseNumberAsInt64("0xdeadbeefdeadbeef").status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       ::testing::HasSubstr(
+                           "Value is not representable as an int64_t")));
+  EXPECT_THAT(ParseNumberAsInt64("-0x8000_0000_0000_0001").status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       ::testing::HasSubstr(
+                           "Value is not representable as an int64_t")));
 }
 
 }  // namespace

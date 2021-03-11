@@ -154,7 +154,7 @@ TEST_F(ConcatSimplificationPassTest, TreeOfConcatsOfSameValue) {
   EXPECT_EQ(f->node_count(), 2);
   EXPECT_TRUE(f->return_value()->Is<Concat>());
   ASSERT_EQ(f->return_value()->operand_count(), 6);
-  for (int64 i = 0; i < 6; ++i) {
+  for (int64_t i = 0; i < 6; ++i) {
     EXPECT_TRUE(f->return_value()->operand(i)->Is<Param>());
     EXPECT_EQ(f->return_value()->operand(i)->GetName(), "a");
   }

@@ -21,7 +21,7 @@ namespace xls::dslx {
 
 /* static */ absl::StatusOr<Span> Span::FromString(absl::string_view s) {
   std::string filename;
-  int64 start_lineno, start_colno, limit_lineno, limit_colno;
+  int64_t start_lineno, start_colno, limit_lineno, limit_colno;
   if (RE2::FullMatch(s, R"((.*):(\d+):(\d+)-(\d+):(\d+))", &filename,
                      &start_lineno, &start_colno, &limit_lineno,
                      &limit_colno)) {
@@ -37,7 +37,7 @@ namespace xls::dslx {
 
 /* static */ absl::StatusOr<Pos> Pos::FromString(absl::string_view s) {
   std::string filename;
-  int64 lineno, colno;
+  int64_t lineno, colno;
   if (RE2::FullMatch(s, "(.*):(\\d+):(\\d+)", &filename, &lineno, &colno)) {
     return Pos(filename, lineno - 1, colno - 1);
   }

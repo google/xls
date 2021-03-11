@@ -15,6 +15,7 @@
 #ifndef XLS_SCHEDULING_SCHEDULE_BOUNDS_H_
 #define XLS_SCHEDULING_SCHEDULE_BOUNDS_H_
 
+#include <cstdint>
 #include <limits>
 #include <utility>
 
@@ -22,7 +23,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/integral_types.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/delay_model/delay_estimator.h"
@@ -43,18 +43,19 @@ class ScheduleBounds {
   // The upper bounds of nodes with no uses (leaf nodes) are set to the maximum
   // lower bound of any node.
   static absl::StatusOr<ScheduleBounds> ComputeAsapAndAlapBounds(
-      Function* f, int64 clock_period_ps,
+      Function* f, int64_t clock_period_ps,
       const DelayEstimator& delay_estimator);
 
   // Upon construction all parameters have lower and upper bounds of 0. All
   // other nodes have a lower bound of 1 and an upper bound of INT64_MAX.
-  ScheduleBounds(Function* f, int64 clock_period_ps,
+  ScheduleBounds(Function* f, int64_t clock_period_ps,
                  const DelayEstimator& delay_estimator);
 
   // Constructor which uses an existing topological sort to avoid having to
   // recompute it.
   ScheduleBounds(Function* f, std::vector<Node*> topo_sort,
-                 int64 clock_period_ps, const DelayEstimator& delay_estimator);
+                 int64_t clock_period_ps,
+                 const DelayEstimator& delay_estimator);
 
   ScheduleBounds(const ScheduleBounds& other) = default;
   ScheduleBounds(ScheduleBounds&& other) = default;
@@ -65,18 +66,18 @@ class ScheduleBounds {
   void Reset();
 
   // Return the lower/upper bound of the given node.
-  int64 lb(Node* node) const { return bounds_.at(node).first; }
-  int64 ub(Node* node) const { return bounds_.at(node).second; }
+  int64_t lb(Node* node) const { return bounds_.at(node).first; }
+  int64_t ub(Node* node) const { return bounds_.at(node).second; }
 
   // Return the lower and upper bound as a pair (lower bound is first element).
-  const std::pair<int64, int64>& bounds(Node* node) const {
+  const std::pair<int64_t, int64_t>& bounds(Node* node) const {
     return bounds_.at(node);
   }
 
   // Sets the lower bound of the given node to the maximum of its existing value
   // and the given value. Raises a ResourceExhaustedError if the new value
   // results in infeasible bounds (lower bound is greater than upper bound).
-  absl::Status TightenNodeLb(Node* node, int64 value) {
+  absl::Status TightenNodeLb(Node* node, int64_t value) {
     if (value > ub(node)) {
       return absl::ResourceExhaustedError(
           absl::StrFormat("Unable to tighten the lower bound of node %s to %d.",
@@ -90,7 +91,7 @@ class ScheduleBounds {
   // Sets the upper bound of the given node to the minimum of its existing value
   // and the given value. Raises a ResourceExhaustedError if the new value
   // results in infeasible bounds (lower bound is greater than upper bound).
-  absl::Status TightenNodeUb(Node* node, int64 value) {
+  absl::Status TightenNodeUb(Node* node, int64_t value) {
     if (value < lb(node)) {
       return absl::ResourceExhaustedError(
           absl::StrFormat("Unable to tighten the upper bound of node %s to %d.",
@@ -102,8 +103,8 @@ class ScheduleBounds {
   }
 
   // Returns the maximum lower (upper) bound of any node in the function.
-  int64 max_lower_bound() const { return max_lower_bound_; }
-  int64 min_upper_bound() const { return min_upper_bound_; }
+  int64_t max_lower_bound() const { return max_lower_bound_; }
+  int64_t min_upper_bound() const { return min_upper_bound_; }
 
   std::string ToString() const;
 
@@ -120,14 +121,14 @@ class ScheduleBounds {
   // A topological sort of the nodes in the function.
   std::vector<Node*> topo_sort_;
 
-  int64 clock_period_ps_;
+  int64_t clock_period_ps_;
   const DelayEstimator* delay_estimator_;
 
   // The bounds of each node stored as a {lower, upper} pair.
-  absl::flat_hash_map<Node*, std::pair<int64, int64>> bounds_;
+  absl::flat_hash_map<Node*, std::pair<int64_t, int64_t>> bounds_;
 
-  int64 max_lower_bound_;
-  int64 min_upper_bound_;
+  int64_t max_lower_bound_;
+  int64_t min_upper_bound_;
 };
 
 }  // namespace sched

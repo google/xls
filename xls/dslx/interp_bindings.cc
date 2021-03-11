@@ -59,7 +59,7 @@ void InterpBindings::AddValueTree(NameDefTree* name_def_tree,
     }
     return;
   }
-  for (int64 i = 0; i < value.GetLength().value(); ++i) {
+  for (int64_t i = 0; i < value.GetLength().value(); ++i) {
     NameDefTree* sub_tree = name_def_tree->nodes()[i];
     const InterpValue& sub_value = value.GetValuesOrDie()[i];
     AddValueTree(sub_tree, sub_value);

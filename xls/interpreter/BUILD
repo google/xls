@@ -27,7 +27,6 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:optional",
-        "//xls/common:integral_types",
         "//xls/ir",
         "//xls/ir:ternary",
     ],

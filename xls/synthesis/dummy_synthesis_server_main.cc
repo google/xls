@@ -37,7 +37,7 @@ Invocation:
   dummy_synthesis_server --max_frequency_ghz=4.2
 )";
 
-ABSL_FLAG(int32, port, 10000, "Port to listen on.");
+ABSL_FLAG(int32_t, port, 10000, "Port to listen on.");
 ABSL_FLAG(double, max_frequency_ghz, 1000,
           "The maximum frequency to use for any synthesis request.");
 ABSL_FLAG(bool, serve_errors, false,
@@ -50,7 +50,8 @@ namespace {
 // Service implementation that dispatches compile requests.
 class DummySynthesisServiceImpl : public SynthesisService::Service {
  public:
-  explicit DummySynthesisServiceImpl(int64 max_frequency_hz, bool serve_errors)
+  explicit DummySynthesisServiceImpl(int64_t max_frequency_hz,
+                                     bool serve_errors)
       : max_frequency_hz_(max_frequency_hz), serve_errors_(serve_errors) {}
 
   ::grpc::Status Compile(::grpc::ServerContext* server_context,
@@ -75,13 +76,13 @@ class DummySynthesisServiceImpl : public SynthesisService::Service {
   }
 
  private:
-  int64 max_frequency_hz_;
+  int64_t max_frequency_hz_;
   bool serve_errors_;
 };
 
 void RealMain() {
-  int64 max_frequency_hz =
-      static_cast<int64>(1e9 * absl::GetFlag(FLAGS_max_frequency_ghz));
+  int64_t max_frequency_hz =
+      static_cast<int64_t>(1e9 * absl::GetFlag(FLAGS_max_frequency_ghz));
   int port = absl::GetFlag(FLAGS_port);
   std::string server_address = absl::StrCat("0.0.0.0:", port);
   DummySynthesisServiceImpl service(max_frequency_hz,

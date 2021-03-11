@@ -121,7 +121,7 @@ std::string BuiltinTypeToString(BuiltinType t) {
   return absl::StrFormat("<invalid BuiltinType(%d)>", static_cast<int>(t));
 }
 
-absl::StatusOr<BuiltinType> GetBuiltinType(bool is_signed, int64 width) {
+absl::StatusOr<BuiltinType> GetBuiltinType(bool is_signed, int64_t width) {
 #define TEST(__enum, __name, __str, __signedness, __width) \
   if (__signedness == is_signed && __width == width) {     \
     return BuiltinType::__enum;                            \
@@ -877,8 +877,9 @@ std::vector<std::string> StructDef::GetMemberNames() const {
   return names;
 }
 
-absl::optional<int64> StructDef::GetMemberIndex(absl::string_view name) const {
-  for (int64 i = 0; i < members_.size(); ++i) {
+absl::optional<int64_t> StructDef::GetMemberIndex(
+    absl::string_view name) const {
+  for (int64_t i = 0; i < members_.size(); ++i) {
     if (members_[i].first->identifier() == name) {
       return i;
     }
@@ -1117,7 +1118,7 @@ BuiltinTypeAnnotation::BuiltinTypeAnnotation(Module* owner, Span span,
                                              BuiltinType builtin_type)
     : TypeAnnotation(owner, std::move(span)), builtin_type_(builtin_type) {}
 
-int64 BuiltinTypeAnnotation::GetBitCount() const {
+int64_t BuiltinTypeAnnotation::GetBitCount() const {
   switch (builtin_type_) {
 #define CASE(__enum, _unused1, _unused2, _unused3, __bit_count) \
   case BuiltinType::__enum:                                     \
@@ -1154,7 +1155,7 @@ std::string TupleTypeAnnotation::ToString() const {
 // -- class QuickCheck
 
 QuickCheck::QuickCheck(Module* owner, Span span, Function* f,
-                       absl::optional<int64> test_count)
+                       absl::optional<int64_t> test_count)
     : AstNode(owner), span_(span), f_(f), test_count_(std::move(test_count)) {}
 
 std::string QuickCheck::ToString() const {
@@ -1168,7 +1169,7 @@ std::string QuickCheck::ToString() const {
 
 std::string XlsTuple::ToString() const {
   std::string result = "(";
-  for (int64 i = 0; i < members_.size(); ++i) {
+  for (int64_t i = 0; i < members_.size(); ++i) {
     absl::StrAppend(&result, members_[i]->ToString());
     if (i != members_.size() - 1) {
       absl::StrAppend(&result, ", ");
@@ -1287,7 +1288,7 @@ std::string Number::ToString() const {
 
 std::string Number::ToStringNoType() const { return text_; }
 
-absl::StatusOr<Bits> Number::GetBits(int64 bit_count) const {
+absl::StatusOr<Bits> Number::GetBits(int64_t bit_count) const {
   switch (kind_) {
     case NumberKind::kBool: {
       Bits result(bit_count);
@@ -1295,7 +1296,7 @@ absl::StatusOr<Bits> Number::GetBits(int64 bit_count) const {
     }
     case NumberKind::kCharacter: {
       XLS_RET_CHECK_EQ(text_.size(), 1);
-      Bits result = Bits::FromBytes(/*bytes=*/{static_cast<uint8>(text_[0])},
+      Bits result = Bits::FromBytes(/*bytes=*/{static_cast<uint8_t>(text_[0])},
                                     /*bit_count=*/CHAR_BIT);
       return bits_ops::ZeroExtend(result, bit_count);
     }
@@ -1316,7 +1317,7 @@ absl::StatusOr<Bits> Number::GetBits(int64 bit_count) const {
     }
   }
   return absl::InternalError(
-      absl::StrFormat("Invalid NumberKind: %d", static_cast<int64>(kind_)));
+      absl::StrFormat("Invalid NumberKind: %d", static_cast<int64_t>(kind_)));
 }
 
 TypeDef::TypeDef(Module* owner, Span span, NameDef* name_def,

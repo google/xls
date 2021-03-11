@@ -134,7 +134,7 @@ ChannelQueueManager::Create(
 }
 
 absl::StatusOr<ChannelQueue*> ChannelQueueManager::GetQueueById(
-    int64 channel_id) {
+    int64_t channel_id) {
   XLS_ASSIGN_OR_RETURN(Channel * channel, package_->GetChannel(channel_id));
   return queues_.at(channel).get();
 }

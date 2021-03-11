@@ -40,7 +40,7 @@ absl::StatusOr<bool> LiteralUncommoningPass::RunOnFunctionBaseInternal(
     for (Node* use : uses) {
       // Iterate through the operands explicitly because we want a new literal
       // for each operand slot.
-      for (int64 operand_no = 0; operand_no < use->operand_count();
+      for (int64_t operand_no = 0; operand_no < use->operand_count();
            ++operand_no) {
         if (use->operand(operand_no) == literal) {
           if (is_first_use) {

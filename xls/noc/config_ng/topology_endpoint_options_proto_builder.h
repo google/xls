@@ -15,7 +15,8 @@
 #ifndef XLS_NOC_CONFIG_TOPOLOGY_ENDPOINT_OPTIONS_PROTO_BUILDER_H_
 #define XLS_NOC_CONFIG_TOPOLOGY_ENDPOINT_OPTIONS_PROTO_BUILDER_H_
 
-#include "xls/common/integral_types.h"
+#include <cstdint>
+
 #include "xls/noc/config_ng/topology_options_network_config_builder.pb.h"
 
 namespace xls::noc {
@@ -38,10 +39,12 @@ class TopologyEndpointOptionsProtoBuilder {
       const TopologyEndpointOptionsProto& default_proto);
 
   // Sets the send port count of the topology endpoint options.
-  TopologyEndpointOptionsProtoBuilder& SetSendPortCount(int64 send_port_count);
+  TopologyEndpointOptionsProtoBuilder& SetSendPortCount(
+      int64_t send_port_count);
 
   // Sets the recv port count of the topology endpoint options.
-  TopologyEndpointOptionsProtoBuilder& SetRecvPortCount(int64 recv_port_count);
+  TopologyEndpointOptionsProtoBuilder& SetRecvPortCount(
+      int64_t recv_port_count);
 
  private:
   TopologyEndpointOptionsProto* proto_ptr_;

@@ -21,8 +21,8 @@
 
 namespace xls {
 
-int64 BinarySearchMaxTrue(int64 start, int64 end,
-                          absl::FunctionRef<bool(int64 i)> f) {
+int64_t BinarySearchMaxTrue(int64_t start, int64_t end,
+                            absl::FunctionRef<bool(int64_t i)> f) {
   XLS_CHECK_LE(start, end);
   XLS_CHECK(f(start))
       << "Lowest value in range fails condition of binary search.";
@@ -30,12 +30,13 @@ int64 BinarySearchMaxTrue(int64 start, int64 end,
     return end;
   }
   return BinarySearchMaxTrueWithStatus(
-             start, end, [&](int64 i) -> absl::StatusOr<bool> { return f(i); })
+             start, end,
+             [&](int64_t i) -> absl::StatusOr<bool> { return f(i); })
       .value();
 }
 
-int64 BinarySearchMinTrue(int64 start, int64 end,
-                          absl::FunctionRef<bool(int64 i)> f) {
+int64_t BinarySearchMinTrue(int64_t start, int64_t end,
+                            absl::FunctionRef<bool(int64_t i)> f) {
   XLS_CHECK_LE(start, end);
   XLS_CHECK(f(end))
       << "Highest value in range fails condition of binary search.";
@@ -43,13 +44,14 @@ int64 BinarySearchMinTrue(int64 start, int64 end,
     return start;
   }
   return BinarySearchMinTrueWithStatus(
-             start, end, [&](int64 i) -> absl::StatusOr<bool> { return f(i); })
+             start, end,
+             [&](int64_t i) -> absl::StatusOr<bool> { return f(i); })
       .value();
 }
 
-absl::StatusOr<int64> BinarySearchMaxTrueWithStatus(
-    int64 start, int64 end,
-    absl::FunctionRef<absl::StatusOr<bool>(int64 i)> f) {
+absl::StatusOr<int64_t> BinarySearchMaxTrueWithStatus(
+    int64_t start, int64_t end,
+    absl::FunctionRef<absl::StatusOr<bool>(int64_t i)> f) {
   XLS_RET_CHECK_LE(start, end);
   XLS_ASSIGN_OR_RETURN(bool f_start, f(start));
   if (!f_start) {
@@ -60,10 +62,10 @@ absl::StatusOr<int64> BinarySearchMaxTrueWithStatus(
   if (f_end) {
     return end;
   }
-  int64 highest_true = start;
-  int64 lowest_false = end;
+  int64_t highest_true = start;
+  int64_t lowest_false = end;
   while (highest_true < lowest_false - 1) {
-    int64 middle = highest_true + (lowest_false - highest_true) / 2;
+    int64_t middle = highest_true + (lowest_false - highest_true) / 2;
     XLS_ASSIGN_OR_RETURN(bool f_middle, f(middle));
     if (f_middle) {
       highest_true = middle;
@@ -74,9 +76,9 @@ absl::StatusOr<int64> BinarySearchMaxTrueWithStatus(
   return highest_true;
 }
 
-absl::StatusOr<int64> BinarySearchMinTrueWithStatus(
-    int64 start, int64 end,
-    absl::FunctionRef<absl::StatusOr<bool>(int64 i)> f) {
+absl::StatusOr<int64_t> BinarySearchMinTrueWithStatus(
+    int64_t start, int64_t end,
+    absl::FunctionRef<absl::StatusOr<bool>(int64_t i)> f) {
   XLS_RET_CHECK_LE(start, end);
   XLS_ASSIGN_OR_RETURN(bool f_end, f(end));
   if (!f_end) {
@@ -87,10 +89,10 @@ absl::StatusOr<int64> BinarySearchMinTrueWithStatus(
   if (f_start) {
     return start;
   }
-  int64 highest_false = start;
-  int64 lowest_true = end;
+  int64_t highest_false = start;
+  int64_t lowest_true = end;
   while (highest_false < lowest_true - 1) {
-    int64 middle = highest_false + (lowest_true - highest_false) / 2;
+    int64_t middle = highest_false + (lowest_true - highest_false) / 2;
     XLS_ASSIGN_OR_RETURN(bool f_middle, f(middle));
     if (f_middle) {
       lowest_true = middle;

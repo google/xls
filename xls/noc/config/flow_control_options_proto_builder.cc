@@ -30,7 +30,7 @@ FlowControlOptionsProtoBuilder::EnableTokenCreditBasedFlowControl() {
 
 FlowControlOptionsProtoBuilder&
 FlowControlOptionsProtoBuilder::EnableTotalCreditBasedFlowControl(
-    int64 credit_bit_width) {
+    int64_t credit_bit_width) {
   proto_->mutable_total_credit_based()->set_credit_bit_width(credit_bit_width);
   return *this;
 }

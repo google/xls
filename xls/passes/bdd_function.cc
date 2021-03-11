@@ -68,7 +68,7 @@ bool operator!=(const SaturatingBddNodeIndex& a,
 // input vector must not contain any TooManyMinterms values.
 BddNodeVector ToBddNodeVector(const SaturatingBddNodeVector& input) {
   BddNodeVector result(input.size());
-  for (int64 i = 0; i < input.size(); ++i) {
+  for (int64_t i = 0; i < input.size(); ++i) {
     XLS_CHECK(absl::holds_alternative<BddNodeIndex>(input[i]));
     result[i] = absl::get<BddNodeIndex>(input[i]);
   }
@@ -79,7 +79,7 @@ BddNodeVector ToBddNodeVector(const SaturatingBddNodeVector& input) {
 class SaturatingBddEvaluator
     : public AbstractEvaluator<SaturatingBddNodeIndex, SaturatingBddEvaluator> {
  public:
-  SaturatingBddEvaluator(int64 minterm_limit, BinaryDecisionDiagram* bdd)
+  SaturatingBddEvaluator(int64_t minterm_limit, BinaryDecisionDiagram* bdd)
       : minterm_limit_(minterm_limit), bdd_(bdd) {}
 
   SaturatingBddNodeIndex One() const { return bdd_->one(); }
@@ -126,7 +126,7 @@ class SaturatingBddEvaluator
   }
 
  private:
-  int64 minterm_limit_;
+  int64_t minterm_limit_;
   BinaryDecisionDiagram* bdd_;
 };
 
@@ -238,13 +238,13 @@ bool ShouldEvaluate(Node* node) {
     case Op::kBitSliceUpdate:
       return false;
   }
-  XLS_LOG(FATAL) << "Invalid op: " << static_cast<int64>(node->op());
+  XLS_LOG(FATAL) << "Invalid op: " << static_cast<int64_t>(node->op());
 }
 
 }  // namespace
 
 /* static */ absl::StatusOr<std::unique_ptr<BddFunction>> BddFunction::Run(
-    FunctionBase* f, int64 minterm_limit,
+    FunctionBase* f, int64_t minterm_limit,
     absl::Span<const Op> do_not_evaluate_ops) {
   XLS_VLOG(1) << absl::StreamFormat("BddFunction::Run(%s):", f->name());
   XLS_VLOG_LINES(5, f->DumpIr());
@@ -259,7 +259,7 @@ bool ShouldEvaluate(Node* node) {
   // Create and return a vector containing newly defined BDD variables.
   auto create_new_node_vector = [&](Node* n) {
     SaturatingBddNodeVector v;
-    for (int64 i = 0; i < n->BitCountOrDie(); ++i) {
+    for (int64_t i = 0; i < n->BitCountOrDie(); ++i) {
       v.push_back(bdd_function->bdd().NewVariable());
     }
     bdd_function->saturated_expressions_.insert(n);
@@ -299,7 +299,7 @@ bool ShouldEvaluate(Node* node) {
       }
     }
     XLS_VLOG(5) << "  " << node->GetName() << ":";
-    for (int64 i = 0; i < node->BitCountOrDie(); ++i) {
+    for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
       XLS_VLOG(5) << absl::StreamFormat(
           "    bit %d : %s", i,
           bdd_function->bdd().ToStringDnf(
@@ -334,7 +334,7 @@ absl::StatusOr<Value> BddFunction::Evaluate(
     XLS_VLOG(2) << "node: " << node;
     Value result;
     if (node->Is<Param>()) {
-      XLS_ASSIGN_OR_RETURN(int64 param_index,
+      XLS_ASSIGN_OR_RETURN(int64_t param_index,
                            function->GetParamIndex(node->As<Param>()));
       result = args.at(param_index);
     } else if (!node->GetType()->IsBits() ||
@@ -348,7 +348,7 @@ absl::StatusOr<Value> BddFunction::Evaluate(
     } else {
       const BddNodeVector& bdd_vector = node_map_.at(node);
       absl::InlinedVector<bool, 64> bits;
-      for (int64 i = 0; i < bdd_vector.size(); ++i) {
+      for (int64_t i = 0; i < bdd_vector.size(); ++i) {
         XLS_ASSIGN_OR_RETURN(bool bit_result,
                              bdd_.Evaluate(bdd_vector[i], bdd_variable_values));
         bits.push_back(bit_result);
@@ -361,7 +361,7 @@ absl::StatusOr<Value> BddFunction::Evaluate(
     // Write BDD variable values into the map used for evaluation.
     if (node_map_.contains(node)) {
       const BddNodeVector& bdd_vector = node_map_.at(node);
-      for (int64 i = 0; i < bdd_vector.size(); ++i) {
+      for (int64_t i = 0; i < bdd_vector.size(); ++i) {
         if (bdd_.IsVariableBaseNode(bdd_vector.at(i))) {
           bdd_variable_values[bdd_vector.at(i)] = result.bits().Get(i);
         }

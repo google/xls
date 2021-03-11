@@ -20,7 +20,7 @@ Type* GetTupleType(Package* package, absl::Span<Node* const> operands) {
 }
 
 Type* GetConcatType(Package* package, absl::Span<Node* const> operands) {
-  int64 width = 0;
+  int64_t width = 0;
   for (Node* operand : operands) {
     width += operand->BitCountOrDie();
   }
@@ -28,7 +28,7 @@ Type* GetConcatType(Package* package, absl::Span<Node* const> operands) {
 }
 
 Type* GetArrayConcatType(Package* package, absl::Span<Node* const> operands) {
-  int64 size = 0;
+  int64_t size = 0;
   Type* element_type = nullptr;
 
   for (Node* operand : operands) {
@@ -97,10 +97,10 @@ bool {{ op_class.name }}::IsDefinitelyEqualTo(const Node* other) const {
 
 {% endfor %}
 
-SliceData Concat::GetOperandSliceData(int64 operandno) const {
+SliceData Concat::GetOperandSliceData(int64_t operandno) const {
   XLS_CHECK_GE(operandno, 0);
-  int64 start = 0;
-  for (int64 i = operands().size()-1; i > operandno; --i) {
+  int64_t start = 0;
+  for (int64_t i = operands().size()-1; i > operandno; --i) {
     Node* operand = this->operand(i);
     start += operand->BitCountOrDie();
   }

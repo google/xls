@@ -68,7 +68,7 @@ class IntegrationAlgorithm {
     Node* node;
     IntegrationMoveType move_type;
     Node* merge_node = nullptr;
-    int64 cost;
+    int64_t cost;
   };
 
   // Perform the modification to 'integration_function' described by 'move'.

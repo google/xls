@@ -41,7 +41,7 @@ using status_testing::IsOkAndHolds;
 class BddSimplificationPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Function* f, bool run_cleanup_passes = false,
-                           int64 opt_level = kMaxOptLevel) {
+                           int64_t opt_level = kMaxOptLevel) {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          BddSimplificationPass(opt_level).RunOnFunctionBase(

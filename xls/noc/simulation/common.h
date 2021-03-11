@@ -15,11 +15,11 @@
 #ifndef XLS_NOC_SIMULATION_COMMON_H_
 #define XLS_NOC_SIMULATION_COMMON_H_
 
+#include <cstdint>
 #include <limits>
 #include <utility>
 
 #include "absl/status/statusor.h"
-#include "xls/common/integral_types.h"
 
 namespace xls {
 namespace noc {
@@ -52,24 +52,24 @@ class NetworkId {
   constexpr NetworkId() : id_(kNullIdValue) {}
 
   // Constructor given an expanded id.
-  constexpr explicit NetworkId(uint16 id) : id_(id) {}
+  constexpr explicit NetworkId(uint16_t id) : id_(id) {}
 
   // Returns true if id is not kInvalid.
   bool IsValid();
 
   // Returns the local id.
-  uint16 id() { return id_; }
+  uint16_t id() { return id_; }
 
   // Represent this as a 64-bit integer (used for logging/debug).
-  uint64 AsUInt64() { return static_cast<uint64>(id_) << 48; }
+  uint64_t AsUInt64() { return static_cast<uint64_t>(id_) << 48; }
 
   // Returns maximum index that can be encoded.
-  static constexpr int64 MaxIndex() {
+  static constexpr int64_t MaxIndex() {
     return std::numeric_limits<decltype(id_)>::max() - 1;
   }
 
   // Validate and return id object given an unpacked id.
-  static absl::StatusOr<NetworkId> ValidateAndReturnId(int64 id);
+  static absl::StatusOr<NetworkId> ValidateAndReturnId(int64_t id);
 
   // Hash.
   template <typename H>
@@ -81,7 +81,7 @@ class NetworkId {
   static const NetworkId kInvalid;
 
  private:
-  uint16 id_;
+  uint16_t id_;
 };
 
 // NetworkId equality.
@@ -114,37 +114,37 @@ class NetworkComponentId {
   constexpr NetworkComponentId() : network_(kNullIdValue), id_(kNullIdValue) {}
 
   // Constructor given an non-expanded NetworkId.
-  NetworkComponentId(NetworkId network, uint32 id)
+  NetworkComponentId(NetworkId network, uint32_t id)
       : network_(network.id()), id_(id) {}
 
   // Constructor given an expanded id.
-  constexpr NetworkComponentId(uint16 network, uint32 id)
+  constexpr NetworkComponentId(uint16_t network, uint32_t id)
       : network_(network), id_(id) {}
 
   // Validate and return id object given an unpacked id.
-  static absl::StatusOr<NetworkComponentId> ValidateAndReturnId(int64 network,
-                                                                int64 id);
+  static absl::StatusOr<NetworkComponentId> ValidateAndReturnId(int64_t network,
+                                                                int64_t id);
 
   // Returns true if id is not kInvalid.
   bool IsValid();
 
   // Returns the local id.
-  uint32 id() { return id_; }
+  uint32_t id() { return id_; }
 
   // Returns the local network id.
-  uint16 network() { return network_; }
+  uint16_t network() { return network_; }
 
   // Returns the NetworkId of this component.
   NetworkId GetNetworkId() { return NetworkId(network_); }
 
   // Represent this as a 64-bit integer (used for logging/debug).
-  uint64 AsUInt64() {
-    return (static_cast<uint64>(network_) << 48) |
-           (static_cast<uint64>(id_) << 16);
+  uint64_t AsUInt64() {
+    return (static_cast<uint64_t>(network_) << 48) |
+           (static_cast<uint64_t>(id_) << 16);
   }
 
   // Returns maximum id/index that can be encoded.
-  static constexpr int64 MaxIndex() {
+  static constexpr int64_t MaxIndex() {
     return std::numeric_limits<decltype(id_)>::max() - 1;
   }
 
@@ -160,8 +160,8 @@ class NetworkComponentId {
  private:
   // Store the raw unpacked network id so that these parent-id's can
   // be packed per efficiently (see PortId).
-  uint16 network_;
-  uint32 id_;
+  uint16_t network_;
+  uint32_t id_;
 };
 
 // NetworkComponentId equality.
@@ -195,37 +195,37 @@ class ConnectionId {
   constexpr ConnectionId() : network_(kNullIdValue), id_(kNullIdValue) {}
 
   // Constructor given an non-expanded NetworkId .
-  ConnectionId(NetworkId network, uint32 id)
+  ConnectionId(NetworkId network, uint32_t id)
       : network_(network.id()), id_(id) {}
 
   // Constructor given an expanded id.
-  constexpr ConnectionId(uint16 network, uint32 id)
+  constexpr ConnectionId(uint16_t network, uint32_t id)
       : network_(network), id_(id) {}
 
   // Validate and return id object given an unpacked id.
-  static absl::StatusOr<ConnectionId> ValidateAndReturnId(int64 network,
-                                                          int64 id);
+  static absl::StatusOr<ConnectionId> ValidateAndReturnId(int64_t network,
+                                                          int64_t id);
 
   // Returns true if id is not kInvalid.
   bool IsValid();
 
   // Returns the local id.
-  uint32 id() { return id_; }
+  uint32_t id() { return id_; }
 
   // Returns the local network id.
-  uint16 network() { return network_; }
+  uint16_t network() { return network_; }
 
   // Returns the NetworkId of this component.
   NetworkId GetNetworkId() { return NetworkId(network_); }
 
   // Represent this as a 64-bit integer (used for logging/debug).
-  uint64 AsUInt64() {
-    return (static_cast<uint64>(network_) << 48) |
-           (static_cast<uint64>(id_) << 16);
+  uint64_t AsUInt64() {
+    return (static_cast<uint64_t>(network_) << 48) |
+           (static_cast<uint64_t>(id_) << 16);
   }
 
   // Returns maximum id/index that can be encoded.
-  static constexpr int64 MaxIndex() {
+  static constexpr int64_t MaxIndex() {
     return std::numeric_limits<decltype(id_)>::max() - 1;
   }
 
@@ -239,8 +239,8 @@ class ConnectionId {
   static const ConnectionId kInvalid;
 
  private:
-  uint16 network_;
-  uint32 id_;
+  uint16_t network_;
+  uint32_t id_;
 };
 
 // ConnectionId equality.
@@ -273,30 +273,31 @@ struct PortId {
       : id_(kNullIdValue), network_(kNullIdValue), component_(kNullIdValue) {}
 
   // Constructor given an non-expanded NetworkComponentId.
-  PortId(NetworkComponentId component, uint16 id)
+  PortId(NetworkComponentId component, uint16_t id)
       : id_(id),
         network_(component.GetNetworkId().id()),
         component_(component.id()) {}
 
   // Constructor given an expanded id.
-  constexpr PortId(uint16 network, uint32 component, uint16 id)
+  constexpr PortId(uint16_t network, uint32_t component, uint16_t id)
       : id_(id), network_(network), component_(component) {}
 
   // Returns true if id is not kInvalid.
   bool IsValid();
 
   // Validate and return id object given an unpacked id.
-  static absl::StatusOr<PortId> ValidateAndReturnId(int64 network,
-                                                    int64 component, int64 id);
+  static absl::StatusOr<PortId> ValidateAndReturnId(int64_t network,
+                                                    int64_t component,
+                                                    int64_t id);
 
   // Returns the local id.
-  uint16 id() { return id_; }
+  uint16_t id() { return id_; }
 
   // Returns the local network id.
-  uint16 network() { return network_; }
+  uint16_t network() { return network_; }
 
   // Returns the local component id.
-  uint32 component() { return component_; }
+  uint32_t component() { return component_; }
 
   // Returns the NetworkId of this port.
   NetworkId GetNetworkId() { return NetworkId(network_); }
@@ -307,13 +308,14 @@ struct PortId {
   }
 
   // Represent this as a 64-bit integer (used for logging/debug).
-  uint64 AsUInt64() {
-    return (static_cast<uint64>(network_) << 48) |
-           (static_cast<uint64>(component_) << 16) | (static_cast<uint64>(id_));
+  uint64_t AsUInt64() {
+    return (static_cast<uint64_t>(network_) << 48) |
+           (static_cast<uint64_t>(component_) << 16) |
+           (static_cast<uint64_t>(id_));
   }
 
   // Returns maximum id/index that can be encoded.
-  static constexpr int64 MaxIndex() {
+  static constexpr int64_t MaxIndex() {
     return std::numeric_limits<decltype(id_)>::max() - 1;
   }
 
@@ -327,9 +329,9 @@ struct PortId {
   static const PortId kInvalid;
 
  private:
-  uint16 id_;
-  uint16 network_;
-  uint32 component_;
+  uint16_t id_;
+  uint16_t network_;
+  uint32_t component_;
 };
 
 // PortId equality.

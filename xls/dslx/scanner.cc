@@ -19,17 +19,17 @@
 
 namespace xls::dslx {
 
-absl::StatusOr<int64> Token::GetValueAsInt64() const {
+absl::StatusOr<int64_t> Token::GetValueAsInt64() const {
   absl::optional<std::string> value = GetValue();
   if (!value) {
     return absl::InvalidArgumentError(
-        "Token does not have a (string) value; cannot convert to int64.");
+        "Token does not have a (string) value; cannot convert to int64_t.");
   }
-  int64 result;
+  int64_t result;
   if (absl::SimpleAtoi(*value, &result)) {
     return result;
   }
-  return absl::InvalidArgumentError("Could not convert value to int64: " +
+  return absl::InvalidArgumentError("Could not convert value to int64_t: " +
                                     *value);
 }
 
@@ -76,8 +76,8 @@ char Scanner::PopChar() {
   return c;
 }
 
-void Scanner::DropChar(int64 count) {
-  for (int64 i = 0; i < count; ++i) {
+void Scanner::DropChar(int64_t count) {
+  for (int64_t i = 0; i < count; ++i) {
     (void)PopChar();
   }
 }

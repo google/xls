@@ -1,12 +1,12 @@
 #ifndef XLS_IR_OP_
 #define XLS_IR_OP_
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-#include "xls/common/integral_types.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/op.pb.h"
 
@@ -27,7 +27,7 @@ inline std::vector<Op> AllOps() {
   };
 }
 
-const int64 kOpLimit = static_cast<int64>(Op::{{ spec.OPS[-1].enum_name }})+1;
+const int64_t kOpLimit = static_cast<int64_t>(Op::{{ spec.OPS[-1].enum_name }})+1;
 
 // Converts an OpProto into an Op.
 Op FromOpProto(OpProto op_proto);
@@ -56,7 +56,7 @@ bool OpIsBitWise(Op op);
 // Returns the delay of this operation in picoseconds.
 // TODO(meheff): This value should be plugable and be derived from other aspects
 // of Node, not just the op.
-int64 OpDelayInPs(Op op);
+int64_t OpDelayInPs(Op op);
 
 // Forward declare all Op classes (subclasses of Node).
 {% for op_class in spec.OpClass.kinds.values() -%}

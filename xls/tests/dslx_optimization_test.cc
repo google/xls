@@ -50,8 +50,8 @@ class DslxOptimizationTest : public IrTestBase {
 
   // Returns the number of operations with one of the given opcodes in the
   // function.
-  int64 OpCount(Function* function, absl::Span<const Op> ops) {
-    int64 count = 0;
+  int64_t OpCount(Function* function, absl::Span<const Op> ops) {
+    int64_t count = 0;
     for (Node* node : function->nodes()) {
       if (std::find(ops.begin(), ops.end(), node->op()) != ops.end()) {
         ++count;

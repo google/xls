@@ -393,8 +393,9 @@ TEST_P(WrapIoTest, InputControllerEscapedCharacters) {
       .NextCycle();
   tb.Set("byte_in_valid", 0).Set("data_out_ready", 1);
   tb.WaitFor("data_out_valid")
-      .ExpectEq("data_out", (static_cast<uint16>(IoControlCode::kEscape) << 8) |
-                                IoControlCode::kReset)
+      .ExpectEq("data_out",
+                (static_cast<uint16_t>(IoControlCode::kEscape) << 8) |
+                    IoControlCode::kReset)
       .NextCycle();
 
   XLS_EXPECT_OK(tb.Run());

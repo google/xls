@@ -20,7 +20,7 @@ namespace xls::noc {
 
 // Test field values for a data options.
 TEST(DataOptionsProtoBuilderTest, FieldValues) {
-  const int64 kDataBitWidth = 42;
+  const int64_t kDataBitWidth = 42;
   DataOptionsProto proto;
   DataOptionsProtoBuilder builder(&proto);
   builder.WithDataBitWidth(kDataBitWidth);

@@ -23,8 +23,8 @@ namespace {
 
 class DelayEstimatorModel{{camel_case_name}} : public DelayEstimator {
 
-  absl::StatusOr<int64> GetOperationDelayInPs(Node* node) const {
-    absl::StatusOr<int64> delay_status;
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const {
+    absl::StatusOr<int64_t> delay_status;
     switch (node->op()) {
   {% for op in delay_model.ops() -%}
       case Op::{{op}}:
@@ -35,7 +35,7 @@ class DelayEstimatorModel{{camel_case_name}} : public DelayEstimator {
         return absl::UnimplementedError("Unhandled node for delay estimation: " + node->ToStringWithOperandTypes());
     }
     if (delay_status.ok()) {
-      return std::max<int64>(0, delay_status.value());
+      return std::max<int64_t>(0, delay_status.value());
     }
     return delay_status.status();
   }

@@ -25,7 +25,7 @@ namespace xls {
 // This is a branching-free, cast-to-double-free implementation.
 //
 // Casting to double is in general incorrect because of loss of precision
-// when casting an int64 into a double.
+// when casting an int64_t into a double.
 //
 // There's a bunch of 'recipes' to compute a integer ceil (or floor) on the web,
 // and most of them are incorrect.
@@ -107,10 +107,10 @@ inline bool IsPowerOfTwo(T x) {
 }
 
 // Returns ceil(log2(value)). Returns zero for the value zero.
-int64 CeilOfLog2(uint64 value);
+int64_t CeilOfLog2(uint64_t value);
 
 // Returns floor(log2(value)). Returns zero for the value zero.
-int64 FloorOfLog2(uint64 value);
+int64_t FloorOfLog2(uint64_t value);
 
 // Returns true if the given floating-point value is 0 or subnormal.
 template <typename T>

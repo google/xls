@@ -42,7 +42,7 @@ TEST(CppAst, ModuleWithConstant) {
 TEST(CppAst, GetNumberAsInt64) {
   struct Example {
     std::string text;
-    uint64 want;
+    uint64_t want;
   } kCases[] = {
       {"0b0", 0},
       {"0b1", 1},
@@ -55,8 +55,8 @@ TEST(CppAst, GetNumberAsInt64) {
       {"0b1_1001", 25},
       {"0b1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_"
        "1111_1111_1111",
-       static_cast<uint64>(-1)},
-      {"-1", static_cast<uint64>(-1)},
+       static_cast<uint64_t>(-1)},
+      {"-1", static_cast<uint64_t>(-1)},
   };
   Module m("test");
   auto make_num = [&m](std::string text) {
