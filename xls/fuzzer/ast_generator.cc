@@ -234,29 +234,36 @@ int64 AstGenerator::GetArraySize(ArrayTypeAnnotation* type) {
   return number->GetAsUint64().value();
 }
 
+ConstRef* AstGenerator::GetOrCreateConstRef(int64 value) {
+  // We use a canonical naming scheme so we can detect duplicate requests for
+  // the same value.
+  int64 width =
+      std::max(int64{1}, static_cast<int64>(std::ceil(std::log2(value + 1))));
+  std::string identifier = absl::StrFormat("W%d_V%d", width, value);
+  ConstantDef* constant_def;
+  if (auto it = constants_.find(identifier); it != constants_.end()) {
+    constant_def = it->second;
+  } else {
+    TypeAnnotation* size_type = MakeTypeAnnotation(false, width);
+
+    NameDef* name_def =
+        module_->Make<NameDef>(fake_span_, identifier, /*definer=*/nullptr);
+    constant_def = module_->Make<ConstantDef>(fake_span_, name_def,
+                                              MakeNumber(value, size_type),
+                                              /*is_public=*/false);
+    name_def->set_definer(constant_def);
+    constants_[identifier] = constant_def;
+  }
+  return module_->Make<ConstRef>(fake_span_, identifier,
+                                 constant_def->name_def());
+}
+
 ArrayTypeAnnotation* AstGenerator::MakeArrayType(TypeAnnotation* element_type,
                                                  int64 array_size) {
   Expr* dim;
   if (RandomBool()) {
     // Get-or-create a module level constant for the array size.
-    int64 width = std::max(
-        int64{1}, static_cast<int64>(std::ceil(std::log2(array_size + 1))));
-    std::string identifier = absl::StrFormat("W%d_V%d", width, array_size);
-    ConstantDef* constant_def;
-    if (auto it = constants_.find(identifier); it != constants_.end()) {
-      constant_def = it->second;
-    } else {
-      TypeAnnotation* size_type = MakeTypeAnnotation(false, width);
-      NameDef* name_def =
-          module_->Make<NameDef>(fake_span_, identifier, /*definer=*/nullptr);
-      constant_def = module_->Make<ConstantDef>(
-          fake_span_, name_def, MakeNumber(array_size, size_type),
-          /*is_public=*/false);
-      name_def->set_definer(constant_def);
-      constants_[identifier] = constant_def;
-    }
-    dim = module_->Make<ConstRef>(fake_span_, identifier,
-                                  constant_def->name_def());
+    dim = GetOrCreateConstRef(array_size);
   } else {
     dim = MakeNumber(array_size);
   }

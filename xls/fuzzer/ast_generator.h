@@ -370,6 +370,10 @@ class AstGenerator {
   // the ArrayTypeAnnotation.
   int64 GetArraySize(ArrayTypeAnnotation* type);
 
+  // Gets-or-creates a top level constant with the given value, using the
+  // minimum number of bits required to make that constant.
+  ConstRef* GetOrCreateConstRef(int64 value);
+
   bool RandomBool() {
     std::bernoulli_distribution d(0.5);
     return d(rng_);
