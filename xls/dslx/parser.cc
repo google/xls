@@ -808,20 +808,15 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(Bindings* bindings) {
     }
 
     Transaction txn(this, bindings);
+    auto cleanup = xabsl::MakeCleanup([&txn]() { txn.Rollback(); });
     Token op = PopTokenOrDie();
     auto status_or_rhs = ParseOrExpression(txn.bindings());
     if (status_or_rhs.ok()) {
-      // TODO(rspringer): 2021-03-08: Missing transaction rollback if this call
-      // fails.
       XLS_ASSIGN_OR_RETURN(BinopKind kind,
                            BinopKindFromString(TokenKindToString(op.kind())));
       lhs = module_->Make<Binop>(op.span(), kind, lhs, status_or_rhs.value());
-      txn.Commit();
+      txn.CommitAndCancelCleanup(&cleanup);
     } else {
-      // Push the op back on the queue in case we fair to handle this as a
-      // comparison op - it could be that we're in a parametric binding (so '>'
-      // could be a closing character, not a "greater than").
-      txn.Rollback();
       break;
     }
   }
