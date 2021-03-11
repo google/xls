@@ -36,9 +36,10 @@ class NetworkView {
   // base class or derived class. Returns a reference to the newly added
   // component. The component is owned by the view, the lifetime of the
   // component is equivalent to the lifetime of the view.
-  template <typename Type, typename = std::enable_if_t<
-                               std::is_base_of_v<NetworkComponent, Type>>>
+  template <typename Type>
   Type& AddComponent() {
+    static_assert(std::is_base_of<NetworkComponent, Type>::value,
+                  "Type is not a Network Component subclass");
     components_.emplace_back(absl::make_unique<Type>(this));
     return static_cast<Type&>(*components_.back());
   }
