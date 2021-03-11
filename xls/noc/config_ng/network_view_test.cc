@@ -15,25 +15,19 @@
 #include "xls/noc/config_ng/network_view.h"
 
 #include "gtest/gtest.h"
+#include "xls/noc/config_ng/fake_network_component.h"
 
 namespace xls::noc {
 namespace {
-
-class NetworkComponentDerived : public NetworkComponent {
- public:
-  explicit NetworkComponentDerived(NetworkView* network_view)
-      : NetworkComponent(network_view) {}
-};
 
 // Test member functions for network view.
 TEST(NetworkViewTest, MemberFunction) {
   NetworkView view;
   EXPECT_EQ(view.GetComponentCount(), 0);
   EXPECT_EQ(view.GetConnectionCount(), 0);
-  NetworkComponentDerived& component =
-      view.AddComponent<NetworkComponentDerived>();
+  FakeNetworkComponent& component = view.AddComponent<FakeNetworkComponent>();
   EXPECT_EQ(view.GetComponentCount(), 1);
-  EXPECT_EQ(view.GetCount<NetworkComponentDerived>(), 1);
+  EXPECT_EQ(view.GetCount<FakeNetworkComponent>(), 1);
   EXPECT_EQ(*view.components().begin(), &component);
   NetworkConnection& connection = view.AddConnection();
   EXPECT_EQ(view.GetConnectionCount(), 1);

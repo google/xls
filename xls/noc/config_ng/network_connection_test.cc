@@ -15,24 +15,17 @@
 #include "xls/noc/config_ng/network_connection.h"
 
 #include "gtest/gtest.h"
-#include "xls/noc/config_ng/network_component.h"
+#include "xls/noc/config_ng/fake_network_component.h"
 #include "xls/noc/config_ng/network_component_port.h"
 #include "xls/noc/config_ng/network_view.h"
 
 namespace xls::noc {
 namespace {
 
-class NetworkComponentDerived : public NetworkComponent {
- public:
-  explicit NetworkComponentDerived(NetworkView* network_view)
-      : NetworkComponent(network_view) {}
-};
-
 // Test member functions for network connection.
 TEST(NetworkConnectionTest, MemberFunction) {
   NetworkView view;
-  NetworkComponentDerived& component =
-      view.AddComponent<NetworkComponentDerived>();
+  FakeNetworkComponent& component = view.AddComponent<FakeNetworkComponent>();
   NetworkComponentPort& source_port =
       component.AddPort(PortType::kData, PortDirection::kOutput);
   NetworkComponentPort& sink_port =

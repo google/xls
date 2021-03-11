@@ -107,7 +107,7 @@ cc_test(
     name = "network_component_port_test",
     srcs = ["network_component_port_test.cc"],
     deps = [
-        ":network_component",
+        ":fake_network_component",
         ":network_component_port",
         ":network_view",
         "@com_google_googletest//:gtest_main",
@@ -131,7 +131,7 @@ cc_test(
     name = "network_component_test",
     srcs = ["network_component_test.cc"],
     deps = [
-        ":network_component",
+        ":fake_network_component",
         ":network_view",
         "@com_google_googletest//:gtest_main",
     ],
@@ -151,7 +151,7 @@ cc_test(
     name = "network_connection_test",
     srcs = ["network_connection_test.cc"],
     deps = [
-        ":network_component",
+        ":fake_network_component",
         ":network_component_port",
         ":network_connection",
         ":network_view",
@@ -175,6 +175,7 @@ cc_test(
     name = "network_view_test",
     srcs = ["network_view_test.cc"],
     deps = [
+        ":fake_network_component",
         ":network_view",
         "@com_google_googletest//:gtest_main",
     ],

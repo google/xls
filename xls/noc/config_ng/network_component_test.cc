@@ -12,26 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/noc/config_ng/network_component.h"
-
 #include "gtest/gtest.h"
+#include "xls/noc/config_ng/fake_network_component.h"
 #include "xls/noc/config_ng/network_view.h"
 
 namespace xls::noc {
 
 namespace {
 
-class NetworkComponentDerived : public NetworkComponent {
- public:
-  explicit NetworkComponentDerived(NetworkView* network_view)
-      : NetworkComponent(network_view) {}
-};
-
 // Test basic member functions for network component.
 TEST(NetworkComponentTest, MemberFunctionBasics) {
   NetworkView network_view;
-  NetworkComponentDerived& component =
-      network_view.AddComponent<NetworkComponentDerived>();
+  FakeNetworkComponent& component =
+      network_view.AddComponent<FakeNetworkComponent>();
   EXPECT_EQ(&component.GetNetworkView(), &network_view);
   component.SetName("Test");
   EXPECT_EQ(component.GetName(), "Test");
@@ -40,8 +33,8 @@ TEST(NetworkComponentTest, MemberFunctionBasics) {
 // Test member functions for network component with an input data port.
 TEST(NetworkComponentTest, MemberFunctionPortInputData) {
   NetworkView network_view;
-  NetworkComponentDerived& component =
-      network_view.AddComponent<NetworkComponentDerived>();
+  FakeNetworkComponent& component =
+      network_view.AddComponent<FakeNetworkComponent>();
   component.AddPort(PortType::kData, PortDirection::kInput);
   EXPECT_EQ(component.GetPortCount(), 1);
   EXPECT_TRUE(component.ports().begin()->IsInput());
@@ -51,8 +44,8 @@ TEST(NetworkComponentTest, MemberFunctionPortInputData) {
 // Test member functions for network component with an output control port.
 TEST(NetworkComponentTest, MemberFunctionPortOutputControl) {
   NetworkView network_view;
-  NetworkComponentDerived& component =
-      network_view.AddComponent<NetworkComponentDerived>();
+  FakeNetworkComponent& component =
+      network_view.AddComponent<FakeNetworkComponent>();
   component.AddPort(PortType::kControl, PortDirection::kOutput);
   EXPECT_EQ(component.GetPortCount(), 1);
   EXPECT_TRUE(component.ports().begin()->IsOutput());
