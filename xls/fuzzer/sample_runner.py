@@ -310,28 +310,42 @@ class SampleRunner:
     if args_batch:  # Check length is the same as results.
       assert len(next(iter(results.values()))) == len(args_batch)
 
+    # Returns whether the two given values are equal. The IR tools and the
+    # verilog simulator produce unsigned values while the DSLX interpreter can
+    # produce signed values so compare the results ignoring signedness.
+    def values_equal(a: Value, b: Value) -> bool:
+      return a.eq(b).is_true()
+
     reference = None
-    for name, values in results.items():
+    for name in sorted(results.keys()):
+      values = results[name]
       if reference is None:
         reference = name
       else:
         if len(results[reference]) != len(values):
           raise SampleError(
-              f'Results for {reference} has {len(results[reference])} values, {name} has {len(values)}'
-          )
+              f'Results for {reference} has {len(results[reference])} values,'
+              f' {name} has {len(values)}')
+
         for i in range(len(values)):
           ref_result = results[reference][i]
-          # The IR tools and the verilog simulator produce unsigned values while
-          # the DSLX interpreter can produce signed values so compare the
-          # results ignoring signedness.
-          if not ref_result.eq(values[i]).is_true():
+          if not values_equal(ref_result, values[i]):
+            # Bin all of the sources by whether they match the reference or
+            # 'values'. This helps identify which of the two is likely
+            # correct.
+            reference_matches = sorted(
+                n for n, v in results.items() if values_equal(v[i], ref_result))
+            values_matches = sorted(
+                n for n, v in results.items() if values_equal(v[i], values[i]))
             args = '(args unknown)'
             if args_batch:
               args = '; '.join(str(a) for a in args_batch[i])
             raise SampleError(f'Result miscompare for sample {i}:'
                               f'\nargs: {args}'
-                              f'\n{reference:40} = {ref_result}'
-                              f'\n{name:40} = {values[i]}')
+                              f'\n{", ".join(reference_matches)} ='
+                              f'\n   {ref_result}'
+                              f'\n{", ".join(values_matches)} ='
+                              f'\n   {values[i]}')
 
   def _interpret_dslx(self, text: str, function_name: str,
                       args_batch: sample.ArgsBatch) -> Tuple[Value, ...]:

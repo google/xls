@@ -170,7 +170,13 @@ class SampleRunnerTest(test_base.TestCase):
           sample.Sample(dslx_text, sample.SampleOptions(optimize_ir=False),
                         [[Value.make_ubits(8, 42),
                           Value.make_ubits(8, 100)]]))
-    self.assertIn('Result miscompare for sample 0', str(e.exception))
+    self.assertIn(
+        'Result miscompare for sample 0:\n'
+        'args: bits[8]:0x2a; bits[8]:0x64\n'
+        'evaluated unopt IR (JIT), evaluated unopt IR (interpreter) =\n'
+        '   bits[8]:0x1\n'
+        'interpreted DSLX =\n'
+        '   bits[8]:0x8e', str(e.exception))
     self.assertIn('Result miscompare for sample 0',
                   _read_file(sample_dir, 'exception.txt'))
 
@@ -200,10 +206,10 @@ class SampleRunnerTest(test_base.TestCase):
       runner.run(
           sample.Sample(dslx_text, sample.SampleOptions(optimize_ir=False), []))
     self.assertIn(
-        'Results for interpreted DSLX has 0 values, evaluated unopt IR (interpreter) has 1',
+        'Results for evaluated unopt IR (JIT) has 1 values, interpreted DSLX has 0',
         str(e.exception))
     self.assertIn(
-        'Results for interpreted DSLX has 0 values, evaluated unopt IR (interpreter) has 1',
+        'Results for evaluated unopt IR (JIT) has 1 values, interpreted DSLX has 0',
         _read_file(sample_dir, 'exception.txt'))
 
   def test_interpret_opt_ir(self):
