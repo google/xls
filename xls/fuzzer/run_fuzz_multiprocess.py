@@ -58,7 +58,7 @@ class QueueMessage(NamedTuple):
 
 def record_crasher(workerno: int, sampleno: int, minimize_ir: bool,
                    sample: Sample, run_dir: Text, crash_path: Text,
-                   num_crashers: int):
+                   num_crashers: int, error_message: str):
   """Records and writes details of a failing test as a crasher."""
   print('--- Worker {} observed an exception for sampleno {}'.format(
       workerno, sampleno))
@@ -90,7 +90,7 @@ def record_crasher(workerno: int, sampleno: int, minimize_ir: bool,
       'crasher_{}_{}.x'.format(datetime.date.today().strftime('%Y-%m-%d'),
                                digest[:4]))
   with gfile.open(crasher_path, 'w') as f:
-    f.write(sample.to_crasher())
+    f.write(sample.to_crasher(error_message))
 
 
 def do_worker_task(workerno: int,
@@ -135,10 +135,10 @@ def do_worker_task(workerno: int,
           run_dir,
           summary_file=summary_temp_file,
           generate_sample_ns=message.generate_sample_ns)
-    except sample_runner.SampleError:
+    except sample_runner.SampleError as e:
       crashers += 1
       record_crasher(workerno, message.sampleno, minimize_ir, message.sample,
-                     run_dir, crash_path, crashers)
+                     run_dir, crash_path, crashers, str(e))
 
     if summary_file and i % 25 == 0:
       # Append the local temporary summary file to the actual, potentially

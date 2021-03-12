@@ -99,6 +99,33 @@ class SampleTest(absltest.TestCase):
         }
         """))
 
+  def test_to_crasher_with_error_message(self):
+    s = sample.Sample(
+        'fn main(x: u8, y: u8) -> u8 {\nx + y\n}',
+        sample.SampleOptions(
+            input_is_dslx=True,
+            codegen=True,
+            codegen_args=('--generator=pipeline', '--pipeline_stages=2'),
+            simulate=True,
+            simulator='goat simulator',
+            use_system_verilog=True),
+        sample.parse_args_batch(
+            'bits[8]:42; bits[8]:11\nbits[8]:44; bits[8]:99'))
+    self.assertEqual(
+        s.to_crasher('oh no\nI crashed\n'),
+        textwrap.dedent("""\
+        // Exception:
+        // oh no
+        // I crashed
+        //
+        // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "use_jit": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "simulate": true, "simulator": "goat simulator", "use_system_verilog": true}
+        // args: bits[8]:0x2a; bits[8]:0xb
+        // args: bits[8]:0x2c; bits[8]:0x63
+        fn main(x: u8, y: u8) -> u8 {
+        x + y
+        }
+        """))
+
   def test_from_ir_crasher_with_codegen(self):
     crasher = textwrap.dedent("""\
     // options: {"input_is_dslx": false, "convert_to_ir": false, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "simulate": true, "simulator": "goat simulator", "use_system_verilog": false}

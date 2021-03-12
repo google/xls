@@ -118,7 +118,7 @@ class Sample(NamedTuple):
   options: SampleOptions
   args_batch: Optional[ArgsBatch] = None
 
-  def to_crasher(self) -> Text:
+  def to_crasher(self, error_message: Optional[str] = None) -> Text:
     """Returns a "crasher" text encapsulating the sample.
 
     A crasher is a text serialialization of the sample which enables easy
@@ -126,13 +126,22 @@ class Sample(NamedTuple):
     xls/fuzzer/crashers.
 
     A crasher has the following format:
+      // <error message>
       // options: <JSON-serialized SampleOptions>
       // args: <argument set 0>
       // ...
       // args: <argument set 1>
       <code sample>
+
+    Args:
+      error_message: Optional error message to include as a comment to the file.
     """
-    lines = ['// options: ' + self.options.to_json()]
+    lines = []
+    if error_message:
+      lines.append('// Exception:')
+      lines.extend(('// ' + l).strip() for l in error_message.splitlines())
+      lines.append('//')
+    lines.append('// options: ' + self.options.to_json())
     if self.args_batch is not None:
       for args in self.args_batch:  # pylint: disable=not-an-iterable
         lines.append('// args: ' + '; '.join(str(a) for a in args))
