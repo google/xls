@@ -42,6 +42,11 @@ fn shll_hex_literal() -> sN[16] {
   x << 0x3
 }
 
+fn shll_parametric<N: u32>() -> sN[16] {
+  let x = sN[16]:5;
+  x << N
+}
+
 #![test]
 fn test_shifts() {
   let _ = assert_eq(s16:40, shll_unsigned_type());
@@ -49,6 +54,7 @@ fn test_shifts() {
   let _ = assert_eq(s16:40, shll_binary_literal());
   let _ = assert_eq(s16:40, shll_hex_literal());
   let _ = assert_eq(s16:80, shll_literal_power_of_two());
+  let _ = assert_eq(s16:80, shll_parametric<u32:4>());
   ()
 }
 

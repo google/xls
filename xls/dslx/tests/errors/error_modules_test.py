@@ -215,5 +215,10 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('Negative literal values cannot be used as shift amounts',
                   stderr)
 
+  def test_over_shift(self):
+    stderr = self._run('xls/dslx/tests/errors/over_shift_amount.x')
+    self.assertIn('Shift amount is larger than shift value bit width of',
+                  stderr)
+
 if __name__ == '__main__':
   test_base.main()

@@ -219,6 +219,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceShift(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs,
                        DeduceAndResolve(node->lhs(), ctx));
 
+  absl::optional<uint64_t> number_value;
   if (auto* number = dynamic_cast<Number*>(node->rhs());
       number != nullptr && number->type() == nullptr) {
     // Infer RHS node as bit type and retrieve bit width.
@@ -231,10 +232,10 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceShift(
                           "amounts; got: %s",
                           number_str));
     }
-    XLS_ASSIGN_OR_RETURN(uint64_t value, number->GetAsUint64());
+    XLS_ASSIGN_OR_RETURN(number_value, number->GetAsUint64());
     ctx->type_info()->SetItem(
-        number,
-        BitsType(/*is_signed=*/false, Bits::MinBitCountUnsigned(value)));
+        number, BitsType(/*is_signed=*/false,
+                         Bits::MinBitCountUnsigned(number_value.value())));
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> rhs,
@@ -259,9 +260,19 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceShift(
                                     "Shift amount must be unsigned.");
   }
 
-  // TODO(https://github.com/google/xls/issues/323): 2021-03-04
-  // Add warning if shift amount maximum value is larger than
-  // shift value width. Need parametric analysis.
+  if (number_value.has_value()) {
+    const ConcreteTypeDim& lhs_size = lhs_bit_type->size();
+    XLS_CHECK(!lhs_size.IsParametric()) << "Shift amount type not inferred.";
+    int64_t lhs_bit_count = absl::get<int64_t>(lhs_size.value());
+    if (lhs_bit_count < number_value.value()) {
+      return TypeInferenceErrorStatus(
+          node->rhs()->span(), rhs.get(),
+          absl::StrFormat(
+              "Shift amount is larger than shift value bit width of %d.",
+              lhs_bit_count));
+    }
+  }
+
   return lhs;
 }
 
