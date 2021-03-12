@@ -154,6 +154,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Env* env) {
     int64_t bit_count = GetTypeBitCount(rhs.type);
     int64_t new_upper = RandRange(bit_count);
     XLS_ASSIGN_OR_RETURN(rhs.expr, GenerateUmin(rhs, new_upper));
+  } else if (RandomBool()) {
+    // Generate a numerical value (Number) as an untyped literal instead of the
+    // value we chose above.
+    int64_t shift_amount = RandRange(0, GetTypeBitCount(lhs.type));
+    rhs = TypedExpr();
+    rhs.expr = MakeNumber(shift_amount);
   }
   return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
                    lhs.type};

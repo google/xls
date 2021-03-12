@@ -633,7 +633,7 @@ class Number : public Expr {
   NumberKind kind() const { return kind_; }
 
  private:
-  std::string text_;
+  std::string text_;  // Will never be empty.
   NumberKind kind_;
   TypeAnnotation* type_;  // May be null.
 };

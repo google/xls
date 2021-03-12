@@ -200,5 +200,20 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         '^^ ScanError: Invalid radix for number, expect 0b or 0x because of leading 0.',
         stderr)
 
+  def test_negative_shift_amount_shll(self):
+    stderr = self._run('xls/dslx/tests/errors/negative_shift_amount_shll.x')
+    self.assertIn('Negative literal values cannot be used as shift amounts',
+                  stderr)
+
+  def test_negative_shift_amount_shrl(self):
+    stderr = self._run('xls/dslx/tests/errors/negative_shift_amount_shrl.x')
+    self.assertIn('Negative literal values cannot be used as shift amounts',
+                  stderr)
+
+  def test_negative_shift_amount_shra(self):
+    stderr = self._run('xls/dslx/tests/errors/negative_shift_amount_shra.x')
+    self.assertIn('Negative literal values cannot be used as shift amounts',
+                  stderr)
+
 if __name__ == '__main__':
   test_base.main()

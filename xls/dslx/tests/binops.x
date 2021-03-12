@@ -15,6 +15,43 @@
 // Tests for various sizes of binary operations.
 // Simple test of these ops and that wide data types work...
 // and as a starting point for debugging they don't.
+
+fn shll_unsigned_type() -> sN[16] {
+  let b = uN[3]:3;
+  let x = sN[16]:5;
+  x << b
+}
+
+fn shll_literal_power_of_two() -> sN[16] {
+  let x = sN[16]:5;
+  x << 4
+}
+
+fn shll_literal() -> sN[16] {
+  let x = sN[16]:5;
+  x << 3
+}
+
+fn shll_binary_literal() -> sN[16] {
+  let x = sN[16]:5;
+  x << 0b11
+}
+
+fn shll_hex_literal() -> sN[16] {
+  let x = sN[16]:5;
+  x << 0x3
+}
+
+#![test]
+fn test_shifts() {
+  let _ = assert_eq(s16:40, shll_unsigned_type());
+  let _ = assert_eq(s16:40, shll_literal());
+  let _ = assert_eq(s16:40, shll_binary_literal());
+  let _ = assert_eq(s16:40, shll_hex_literal());
+  let _ = assert_eq(s16:80, shll_literal_power_of_two());
+  ()
+}
+
 fn main32() -> sN[32] {
   let x = sN[32]:1000;
   let y = sN[32]:-1000;

@@ -1005,7 +1005,14 @@ Shift expressions include: shift-right (logical), shift-right arithmetic and
 shift-left. These are binary operations that don't require the same type on the
 left and right hand side. The right hand side must be unsigned, but it does not
 need to be the same type or width as the left hand side, i.e. the type signature
-for these operations is: `(xN[M], uN[N]) -> xN[M]`.
+for these operations is: `(xN[M], uN[N]) -> xN[M]`. If the right hand side is a
+literal value it does not need to be type annotated. For example:
+
+```
+  fn shr_two(x: s32) -> s32 {
+    x >> 2
+  }
+```
 
 Note that, compared to Rust, DSLX uses >> for shift-right (logical) and >>> for
 shift-right arithmetic, whereas Rust chooses shift-right arithmetic or

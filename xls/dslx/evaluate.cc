@@ -841,9 +841,44 @@ absl::StatusOr<InterpValue> EvaluateUnop(Unop* expr, InterpBindings* bindings,
                                           static_cast<int64_t>(expr->kind())));
 }
 
+absl::StatusOr<InterpValue> EvaluateShift(Binop* expr, InterpBindings* bindings,
+                                          ConcreteType* type_context,
+                                          AbstractInterpreter* interp) {
+  XLS_VLOG(6) << "EvaluateShift: " << expr->ToString() << " @ " << expr->span();
+  XLS_ASSIGN_OR_RETURN(InterpValue lhs, interp->Eval(expr->lhs(), bindings));
+  std::unique_ptr<ConcreteType> rhs_type = nullptr;
+  // Retrieve a type context for the right hand side as an un-type-annotated
+  // literal number is permitted.
+  absl::optional<ConcreteType*> rhs_item =
+      interp->GetCurrentTypeInfo()->GetItem(expr->rhs());
+  if (rhs_item.has_value()) {
+    rhs_type = rhs_item.value()->CloneToUnique();
+  }
+  XLS_ASSIGN_OR_RETURN(InterpValue rhs, interp->Eval(expr->rhs(), bindings,
+                                                     std::move(rhs_type)));
+
+  switch (expr->kind()) {
+    case BinopKind::kShll:
+      return lhs.Shll(rhs);
+    case BinopKind::kShrl:
+      return lhs.Shrl(rhs);
+    case BinopKind::kShra:
+      return lhs.Shra(rhs);
+    default:
+      // Not an exhaustive list: this function only handles the shift operators.
+      break;
+  }
+  return absl::InternalError(absl::StrCat("Invalid shift operation kind: ",
+                                          static_cast<int64_t>(expr->kind())));
+}
+
 absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           AbstractInterpreter* interp) {
+  if (GetBinopShifts().contains(expr->kind())) {
+    return EvaluateShift(expr, bindings, type_context, interp);
+  }
+
   XLS_VLOG(6) << "EvaluateBinop: " << expr->ToString() << " @ " << expr->span();
   XLS_ASSIGN_OR_RETURN(InterpValue lhs, interp->Eval(expr->lhs(), bindings));
   XLS_ASSIGN_OR_RETURN(InterpValue rhs, interp->Eval(expr->rhs(), bindings));
@@ -880,12 +915,6 @@ absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
       return lhs.BitwiseAnd(rhs);
     case BinopKind::kXor:
       return lhs.BitwiseXor(rhs);
-    case BinopKind::kShll:
-      return lhs.Shll(rhs);
-    case BinopKind::kShrl:
-      return lhs.Shrl(rhs);
-    case BinopKind::kShra:
-      return lhs.Shra(rhs);
     case BinopKind::kEq:
       return Value::MakeBool(lhs.Eq(rhs));
     case BinopKind::kNe:
@@ -898,6 +927,10 @@ absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
       return lhs.Le(rhs);
     case BinopKind::kGe:
       return lhs.Ge(rhs);
+    default:
+      // Not an exhaustive list as the shift cases are handled in
+      // EvaluateShift().
+      break;
   }
   return absl::InternalError(absl::StrCat("Invalid binary operation kind: ",
                                           static_cast<int64_t>(expr->kind())));

@@ -218,6 +218,25 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceShift(
     Binop* node, DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs,
                        DeduceAndResolve(node->lhs(), ctx));
+
+  if (auto* number = dynamic_cast<Number*>(node->rhs());
+      number != nullptr && number->type() == nullptr) {
+    // Infer RHS node as bit type and retrieve bit width.
+    const std::string& number_str = number->text();
+    XLS_RET_CHECK(!number_str.empty()) << "Number literal empty.";
+    if (number_str[0] == '-') {
+      return TypeInferenceErrorStatus(
+          number->span(), nullptr,
+          absl::StrFormat("Negative literal values cannot be used as shift "
+                          "amounts; got: %s",
+                          number_str));
+    }
+    XLS_ASSIGN_OR_RETURN(uint64_t value, number->GetAsUint64());
+    ctx->type_info()->SetItem(
+        number,
+        BitsType(/*is_signed=*/false, Bits::MinBitCountUnsigned(value)));
+  }
+
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> rhs,
                        DeduceAndResolve(node->rhs(), ctx));
 
@@ -240,8 +259,9 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceShift(
                                     "Shift amount must be unsigned.");
   }
 
-  // TODO(https://github.com/google/xls/issues/79) 03-07-2021
-
+  // TODO(https://github.com/google/xls/issues/323): 2021-03-04
+  // Add warning if shift amount maximum value is larger than
+  // shift value width. Need parametric analysis.
   return lhs;
 }
 
