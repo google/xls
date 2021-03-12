@@ -5,7 +5,7 @@ fn ____test_module__f__32_counted_for_0_body(i: bits[32], accum: bits[32]) -> bi
 }
 
 fn __test_module__f__32(init: bits[32]) -> bits[32] {
-  literal.2: bits[32] = literal(value=32, id=2)
+  N: bits[32] = literal(value=32, id=2)
   ret counted_for.6: bits[32] = counted_for(init, trip_count=4, stride=1, body=____test_module__f__32_counted_for_0_body, id=6)
 }
 

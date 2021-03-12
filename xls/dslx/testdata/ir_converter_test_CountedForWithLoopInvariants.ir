@@ -8,7 +8,7 @@ fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32], other_out
 
 fn __test_module__f() -> bits[32] {
   literal.3: bits[32] = literal(value=0, id=3)
-  literal.2: bits[32] = literal(value=24, id=2)
-  literal.1: bits[32] = literal(value=42, id=1)
-  ret counted_for.11: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, invariant_args=[literal.2, literal.1], id=11)
+  other_outer_thing: bits[32] = literal(value=24, id=2)
+  outer_thing: bits[32] = literal(value=42, id=1)
+  ret counted_for.11: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, invariant_args=[other_outer_thing, outer_thing], id=11)
 }

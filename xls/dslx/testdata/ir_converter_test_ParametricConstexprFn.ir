@@ -1,13 +1,13 @@
 package test_module
 
 fn __test_module__constexpr_fn__32(arg: bits[32]) -> bits[32] {
-  literal.3: bits[32] = literal(value=5, id=3)
-  literal.2: bits[32] = literal(value=32, id=2)
-  ret umul.4: bits[32] = umul(arg, literal.3, id=4)
+  MY_CONST: bits[32] = literal(value=5, id=3)
+  N: bits[32] = literal(value=32, id=2)
+  ret umul.4: bits[32] = umul(arg, MY_CONST, id=4)
 }
 
 fn __test_module__f() -> bits[32] {
-  literal.5: bits[32] = literal(value=5, id=5)
-  x: bits[32] = invoke(literal.5, to_apply=__test_module__constexpr_fn__32, id=6)
+  MY_CONST: bits[32] = literal(value=5, id=5)
+  x: bits[32] = invoke(MY_CONST, to_apply=__test_module__constexpr_fn__32, id=6)
   ret identity.7: bits[32] = identity(x, id=7)
 }

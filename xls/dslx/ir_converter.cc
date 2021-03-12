@@ -625,6 +625,9 @@ absl::StatusOr<BValue> FunctionConverter::DefAlias(AstNode* from, AstNode* to) {
     if (absl::holds_alternative<BValue>(node_to_ir_.at(from))) {
       BValue ir_node = absl::get<BValue>(node_to_ir_.at(from));
       ir_node.SetName(name_def->identifier());
+    } else {
+      BValue ir_node = absl::get<CValue>(node_to_ir_.at(from)).value;
+      ir_node.SetName(name_def->identifier());
     }
   }
   return Use(to);

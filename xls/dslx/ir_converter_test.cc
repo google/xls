@@ -90,6 +90,24 @@ absl::StatusOr<std::string> ConvertModuleForTest(
   return converted;
 }
 
+TEST(IrConverterTest, NamedConstant) {
+  const char* program =
+      R"(fn f() -> u32 {
+  let foo: u32 = u32:42;
+  foo
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(program, "f"));
+  EXPECT_EQ(converted, R"(package test_module
+
+fn __test_module__f() -> bits[32] {
+  foo: bits[32] = literal(value=42, id=1, pos=0,1,21)
+  ret identity.2: bits[32] = identity(foo, id=2, pos=0,2,2)
+}
+)");
+}
+
 TEST(IrConverterTest, Concat) {
   const char* program =
       R"(fn f(x: bits[31]) -> u32 {
@@ -151,8 +169,8 @@ TEST(IrConverterTest, LetBinding) {
   EXPECT_EQ(converted, R"(package test_module
 
 fn __test_module__f() -> bits[32] {
-  literal.1: bits[32] = literal(value=2, id=1, pos=0,1,19)
-  ret add.2: bits[32] = add(literal.1, literal.1, id=2, pos=0,2,3)
+  x: bits[32] = literal(value=2, id=1, pos=0,1,19)
+  ret add.2: bits[32] = add(x, x, id=2, pos=0,2,3)
 }
 )");
 }
@@ -693,19 +711,7 @@ fn f(x: u8) -> u2 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__f(x: bits[8]) -> bits[2] {
-  literal.2: bits[8] = literal(value=255, id=2)
-  eq.5: bits[1] = eq(literal.2, x, id=5)
-  concat.7: bits[1] = concat(eq.5, id=7)
-  one_hot.8: bits[2] = one_hot(concat.7, lsb_prio=true, id=8)
-  literal.6: bits[2] = literal(value=0, id=6)
-  bit_slice.4: bits[2] = bit_slice(x, start=0, width=2, id=4)
-  literal.3: bits[1] = literal(value=1, id=3)
-  ret one_hot_sel.9: bits[2] = one_hot_sel(one_hot.8, cases=[literal.6, bit_slice.4], id=9)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, ParametricInvocation) {
@@ -722,18 +728,7 @@ fn main(x: u8) -> u8 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__parametric_id__8(x: bits[8]) -> bits[8] {
-  literal.2: bits[32] = literal(value=8, id=2)
-  bit_slice.3: bits[8] = bit_slice(literal.2, start=0, width=8, id=3)
-  ret add.4: bits[8] = add(x, bit_slice.3, id=4)
-}
-
-fn __test_module__main(x: bits[8]) -> bits[8] {
-  ret invoke.6: bits[8] = invoke(x, to_apply=__test_module__parametric_id__8, id=6)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, MatchUnderLet) {
@@ -859,25 +854,7 @@ fn f(x: u2) -> u8 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__f(x: bits[2]) -> bits[8] {
-  literal.3: bits[2] = literal(value=2, id=3)
-  literal.2: bits[2] = literal(value=1, id=2)
-  literal.4: bits[2] = literal(value=0, id=4)
-  eq.11: bits[1] = eq(literal.3, x, id=11)
-  eq.9: bits[1] = eq(literal.2, x, id=9)
-  eq.7: bits[1] = eq(literal.4, x, id=7)
-  concat.13: bits[3] = concat(eq.11, eq.9, eq.7, id=13)
-  one_hot.14: bits[4] = one_hot(concat.13, lsb_prio=true, id=14)
-  literal.8: bits[8] = literal(value=42, id=8)
-  literal.10: bits[8] = literal(value=64, id=10)
-  literal.12: bits[8] = literal(value=128, id=12)
-  literal.6: bits[8] = literal(value=255, id=6)
-  literal.5: bits[1] = literal(value=1, id=5)
-  ret one_hot_sel.15: bits[8] = one_hot_sel(one_hot.14, cases=[literal.8, literal.10, literal.12, literal.6], id=15)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, CountedForWithLoopInvariants) {
@@ -958,15 +935,7 @@ fn main(x0: u19, x3: u29) -> u29 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__main(x0: bits[19], x3: bits[29]) -> bits[29] {
-  literal.3: bits[29] = literal(value=0, id=3)
-  bit_slice.4: bits[19] = bit_slice(literal.3, start=0, width=19, id=4)
-  x17: bits[19] = add(x0, bit_slice.4, id=5)
-  ret identity.6: bits[29] = identity(x3, id=6)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, ModuleLevelConstantDims) {
@@ -1134,22 +1103,7 @@ fn f(x: u8) -> u2 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__f(x: bits[8]) -> bits[2] {
-  literal.7: bits[8] = literal(value=64, id=7)
-  literal.4: bits[8] = literal(value=42, id=4)
-  eq.8: bits[1] = eq(literal.7, x, id=8)
-  eq.5: bits[1] = eq(literal.4, x, id=5)
-  concat.10: bits[2] = concat(eq.8, eq.5, id=10)
-  one_hot.11: bits[3] = one_hot(concat.10, lsb_prio=true, id=11)
-  literal.6: bits[2] = literal(value=0, id=6)
-  literal.9: bits[2] = literal(value=1, id=9)
-  literal.3: bits[2] = literal(value=2, id=3)
-  literal.2: bits[1] = literal(value=1, id=2)
-  ret one_hot_sel.12: bits[2] = one_hot_sel(one_hot.11, cases=[literal.6, literal.9, literal.3], id=12)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, SignexAcceptsSignedOutputType) {
@@ -1314,23 +1268,7 @@ fn main(x: u8) -> u8 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__parametric_id__8(x: bits[8]) -> bits[8] {
-  literal.2: bits[32] = literal(value=8, id=2)
-  bit_slice.3: bits[8] = bit_slice(literal.2, start=0, width=8, id=3)
-  ret add.4: bits[8] = add(x, bit_slice.3, id=4)
-}
-
-fn __test_module__parametric_id_wrapper__8(x: bits[8]) -> bits[8] {
-  literal.6: bits[32] = literal(value=8, id=6)
-  ret invoke.7: bits[8] = invoke(x, to_apply=__test_module__parametric_id__8, id=7)
-}
-
-fn __test_module__main(x: bits[8]) -> bits[8] {
-  ret invoke.9: bits[8] = invoke(x, to_apply=__test_module__parametric_id_wrapper__8, id=9)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, ParametricIrConversion) {

@@ -5,10 +5,10 @@ fn __std__clog2__32(x: bits[32]) -> bits[32] {
   sub.7: bits[32] = sub(x, literal.6, id=7)
   reverse.8: bits[32] = reverse(sub.7, id=8)
   one_hot.9: bits[33] = one_hot(reverse.8, lsb_prio=true, id=9)
-  literal.2: bits[32] = literal(value=32, id=2)
+  N: bits[32] = literal(value=32, id=2)
   encode.10: bits[6] = encode(one_hot.9, id=10)
   literal.3: bits[32] = literal(value=1, id=3)
-  zero_ext.5: bits[32] = zero_ext(literal.2, new_bit_count=32, id=5)
+  zero_ext.5: bits[32] = zero_ext(N, new_bit_count=32, id=5)
   zero_ext.11: bits[32] = zero_ext(encode.10, new_bit_count=32, id=11)
   uge.4: bits[1] = uge(x, literal.3, id=4)
   literal.13: bits[32] = literal(value=0, id=13)
@@ -17,13 +17,13 @@ fn __std__clog2__32(x: bits[32]) -> bits[32] {
 }
 
 fn __fake_imported_stuff__constexpr_fn(arg: bits[32]) -> bits[32] {
-  literal.16: bits[32] = literal(value=5, id=16)
-  ret umul.17: bits[32] = umul(arg, literal.16, id=17)
+  MY_CONST: bits[32] = literal(value=5, id=16)
+  ret umul.17: bits[32] = umul(arg, MY_CONST, id=17)
 }
 
 fn __test_module__f() -> bits[32] {
-  literal.18: bits[32] = literal(value=5, id=18)
-  MY_OTHER_CONST: bits[32] = invoke(literal.18, to_apply=__std__clog2__32, id=19)
+  MY_CONST: bits[32] = literal(value=5, id=18)
+  MY_OTHER_CONST: bits[32] = invoke(MY_CONST, to_apply=__std__clog2__32, id=19)
   x: bits[32] = invoke(MY_OTHER_CONST, to_apply=__fake_imported_stuff__constexpr_fn, id=20)
   ret identity.21: bits[32] = identity(x, id=21)
 }

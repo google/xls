@@ -1,9 +1,9 @@
 package test_module
 
 fn __test_module__parametric__3_5_8(x: bits[3], y: bits[5]) -> bits[8] {
-  literal.3: bits[32] = literal(value=3, id=3, pos=0,0,14)
-  literal.4: bits[32] = literal(value=5, id=4, pos=0,0,22)
-  literal.5: bits[32] = literal(value=8, id=5, pos=0,0,30)
+  M: bits[32] = literal(value=3, id=3, pos=0,0,14)
+  N: bits[32] = literal(value=5, id=4, pos=0,0,22)
+  R: bits[32] = literal(value=8, id=5, pos=0,0,30)
   ret concat.6: bits[8] = concat(x, y, id=6, pos=0,1,4)
 }
 
