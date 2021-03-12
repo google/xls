@@ -1299,6 +1299,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
               << absl::StrJoin(validated.seen_names, ", ") << "] "
               << " all names: [" << absl::StrJoin(all_names, ", ") << "]";
 
+  if (validated.seen_names.size() == all_names.size()) {
+    XLS_LOG(WARNING) << "'Splatted' struct instance @ " << node->span()
+                     << " has all members of struct defined.";
+  }
+
   for (const std::string& name : all_names) {
     if (!validated.seen_names.contains(name)) {
       const ConcreteType& splatted_member_type =
