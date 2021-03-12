@@ -210,6 +210,16 @@ dslx_test(
 )
 
 dslx_test(
+    name = "parametric_value_as_nested_loop_bound",
+    srcs = ["parametric_value_as_nested_loop_bound.x"],
+)
+
+dslx_test(
+    name = "derived_parametric_value_as_nested_loop_bound",
+    srcs = ["derived_parametric_value_as_nested_loop_bound.x"],
+)
+
+dslx_test(
     name = "bit_slice",
     srcs = ["bit_slice.x"],
     # Note: no meaningful function to convert.
@@ -462,6 +472,11 @@ dslx_test(
 dslx_test(
     name = "local_const_value",
     srcs = ["local_const_value.x"],
+)
+
+dslx_test(
+    name = "const_value_as_nested_loop_bound",
+    srcs = ["const_value_as_nested_loop_bound.x"],
 )
 
 dslx_test(

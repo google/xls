@@ -1099,12 +1099,30 @@ absl::Status FunctionConverter::HandleFor(For* node) {
         dynamic_cast<TypeDef*>(definer) != nullptr) {
       continue;
     }
-    relevant_name_defs.push_back(name_def);
     XLS_VLOG(5) << "Converting freevar name: " << name_def->ToString();
-    XLS_ASSIGN_OR_RETURN(xls::Type * name_def_type, TypeToIr(**type));
-    body_converter.SetNodeToIr(name_def,
-                               body_converter.function_builder_->Param(
-                                   name_def->identifier(), name_def_type));
+
+    absl::optional<IrValue> ir_value = GetNodeToIr(name_def);
+    if (!ir_value.has_value()) {
+      return absl::InternalError(
+          absl::StrFormat("AST node had no associated IR value: %s @ %s",
+                          node->ToString(), SpanToString(node->GetSpan())));
+    }
+
+    // If free variable is a constant, create constant node inside body.
+    // This preserves const-ness of loop body uses (e.g. loop bounds for
+    // a nested loop).
+    if (absl::holds_alternative<CValue>(*ir_value)) {
+      Value constant_value = absl::get<CValue>(*ir_value).ir_value;
+      body_converter.DefConst(name_def, constant_value);
+    } else {
+      // Otherwise, pass in the variable to the loop body function as
+      // a parameter.
+      relevant_name_defs.push_back(name_def);
+      XLS_ASSIGN_OR_RETURN(xls::Type * name_def_type, TypeToIr(**type));
+      body_converter.SetNodeToIr(name_def,
+                                 body_converter.function_builder_->Param(
+                                     name_def->identifier(), name_def_type));
+    }
   }
 
   FunctionConverterVisitor visitor(&body_converter);

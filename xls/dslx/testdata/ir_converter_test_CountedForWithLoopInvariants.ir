@@ -1,14 +1,18 @@
 package test_module
 
-fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32], other_outer_thing: bits[32], outer_thing: bits[32]) -> bits[32] {
-  add.8: bits[32] = add(accum, i, id=8)
-  add.9: bits[32] = add(add.8, outer_thing, id=9)
-  ret add.10: bits[32] = add(add.9, other_outer_thing, id=10)
+fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32], outer_thing_1: bits[32], outer_thing_2: bits[32]) -> bits[32] {
+  add.12: bits[32] = add(accum, i, id=12)
+  add.13: bits[32] = add(add.12, outer_thing_1, id=13)
+  add.14: bits[32] = add(add.13, outer_thing_2, id=14)
+  literal.10: bits[32] = literal(value=42, id=10)
+  add.15: bits[32] = add(add.14, literal.10, id=15)
+  literal.11: bits[32] = literal(value=24, id=11)
+  ret add.16: bits[32] = add(add.15, literal.11, id=16)
 }
 
-fn __test_module__f() -> bits[32] {
-  literal.3: bits[32] = literal(value=0, id=3)
-  other_outer_thing: bits[32] = literal(value=24, id=2)
-  outer_thing: bits[32] = literal(value=42, id=1)
-  ret counted_for.11: bits[32] = counted_for(literal.3, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, invariant_args=[other_outer_thing, outer_thing], id=11)
+fn __test_module__f(outer_thing_1: bits[32], outer_thing_2: bits[32]) -> bits[32] {
+  literal.5: bits[32] = literal(value=0, id=5)
+  outer_thing_3: bits[32] = literal(value=42, id=3)
+  outer_thing_4: bits[32] = literal(value=24, id=4)
+  ret counted_for.17: bits[32] = counted_for(literal.5, trip_count=4, stride=1, body=____test_module__f_counted_for_0_body, invariant_args=[outer_thing_1, outer_thing_2], id=17)
 }
