@@ -126,6 +126,14 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr)
     self.assertIn('defined in this module multiple times', stderr)
 
+  def test_double_define_test_function(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/double_define_test_function.x')
+    self.assertIn(
+        'xls/dslx/tests/errors/double_define_test_function.x:24:4-24:8',
+        stderr)
+    self.assertIn('has same name as module member', stderr)
+
   def test_bad_dim(self):
     stderr = self._run('xls/dslx/tests/errors/bad_dim.x')
     self.assertIn('xls/dslx/tests/errors/bad_dim.x:15:16-15:17', stderr)
