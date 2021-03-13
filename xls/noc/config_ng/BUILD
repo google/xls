@@ -93,6 +93,47 @@ cc_test(
 )
 
 cc_library(
+    name = "dimension_order_entry_options_proto_builder",
+    srcs = ["dimension_order_entry_options_proto_builder.cc"],
+    hdrs = ["dimension_order_entry_options_proto_builder.h"],
+    deps = [
+        ":topology_options_network_config_builder_cc_proto",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "dimension_order_entry_options_proto_builder_test",
+    srcs = ["dimension_order_entry_options_proto_builder_test.cc"],
+    deps = [
+        ":dimension_order_entry_options_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "dimension_order_options_proto_builder",
+    srcs = ["dimension_order_options_proto_builder.cc"],
+    hdrs = ["dimension_order_options_proto_builder.h"],
+    deps = [
+        ":dimension_order_entry_options_proto_builder",
+        ":topology_endpoint_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "dimension_order_options_proto_builder_test",
+    srcs = ["dimension_order_options_proto_builder_test.cc"],
+    deps = [
+        ":dimension_order_options_proto_builder",
+        ":topology_endpoint_options_proto_builder",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "network_component_port",
     srcs = ["network_component_port.cc"],
     hdrs = ["network_component_port.h"],

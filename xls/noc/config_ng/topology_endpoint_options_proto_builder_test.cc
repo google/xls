@@ -47,5 +47,20 @@ TEST(TopologyEndpointOptionsProtoBuilderTest, FieldValuesForPtrWithDefault) {
   EXPECT_EQ(proto.recv_port_count(), kRecvPortCount);
 }
 
+// Test field values of the builder when copied from another builder.
+TEST(TopologyEndpointOptionsProtoBuilderTest, FieldValuesForCopyFrom) {
+  constexpr int64_t kSendPortCount = 42;
+  constexpr int64_t kRecvPortCount = 1337;
+  TopologyEndpointOptionsProto default_proto;
+  TopologyEndpointOptionsProtoBuilder builder_default(&default_proto);
+  builder_default.SetSendPortCount(kSendPortCount);
+  builder_default.SetRecvPortCount(kRecvPortCount);
+  TopologyEndpointOptionsProto proto;
+  TopologyEndpointOptionsProtoBuilder builder(&proto);
+  builder.CopyFrom(builder_default);
+  EXPECT_EQ(proto.send_port_count(), kSendPortCount);
+  EXPECT_EQ(proto.recv_port_count(), kRecvPortCount);
+}
+
 }  // namespace
 }  // namespace xls::noc

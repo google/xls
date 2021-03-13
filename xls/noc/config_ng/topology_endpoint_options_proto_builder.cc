@@ -30,6 +30,13 @@ TopologyEndpointOptionsProtoBuilder::TopologyEndpointOptionsProtoBuilder(
 }
 
 TopologyEndpointOptionsProtoBuilder&
+TopologyEndpointOptionsProtoBuilder::CopyFrom(
+    const TopologyEndpointOptionsProtoBuilder& builder) {
+  *proto_ptr_ = *builder.proto_ptr_;
+  return *this;
+}
+
+TopologyEndpointOptionsProtoBuilder&
 TopologyEndpointOptionsProtoBuilder::SetSendPortCount(
     const int64_t send_port_count) {
   proto_ptr_->set_send_port_count(send_port_count);

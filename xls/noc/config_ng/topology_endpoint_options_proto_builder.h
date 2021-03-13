@@ -38,6 +38,11 @@ class TopologyEndpointOptionsProtoBuilder {
       TopologyEndpointOptionsProto* proto_ptr,
       const TopologyEndpointOptionsProto& default_proto);
 
+  // Copy the field values of the proto message object from another builder
+  // to the builder.
+  TopologyEndpointOptionsProtoBuilder& CopyFrom(
+      const TopologyEndpointOptionsProtoBuilder& builder);
+
   // Sets the send port count of the topology endpoint options.
   TopologyEndpointOptionsProtoBuilder& SetSendPortCount(
       int64_t send_port_count);
