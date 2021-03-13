@@ -203,6 +203,7 @@ cc_library(
     deps = [
         ":ast_builtin_types",
         ":pos",
+        "//xls/common:casts",
         "//xls/common:indent",
         "//xls/common/logging",
         "//xls/common/status:ret_check",

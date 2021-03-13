@@ -87,6 +87,18 @@ FreeVariables::GetNameDefTuples() const {
   return result;
 }
 
+std::vector<ConstRef*> FreeVariables::GetConstRefs() {
+  std::vector<ConstRef*> const_refs;
+  for (const auto& [name, refs] : values_) {
+    for (NameRef* name_ref : refs) {
+      if (ConstRef* const_ref = dynamic_cast<ConstRef*>(name_ref)) {
+        const_refs.push_back(const_ref);
+      }
+    }
+  }
+  return const_refs;
+}
+
 std::vector<AnyNameDef> FreeVariables::GetNameDefs() const {
   std::vector<AnyNameDef> result;
   for (auto& pair : GetNameDefTuples()) {
@@ -165,15 +177,22 @@ class DfsIteratorNoTypes {
   std::deque<AstNode*> to_visit_;
 };
 
-FreeVariables AstNode::GetFreeVariables(Pos start_pos) {
+FreeVariables AstNode::GetFreeVariables(const Pos* start_pos) {
   DfsIteratorNoTypes it(this);
   FreeVariables freevars;
   while (it.HasNext()) {
     AstNode* n = it.Next();
     if (auto* name_ref = dynamic_cast<NameRef*>(n)) {
-      absl::optional<Pos> name_def_start = name_ref->GetNameDefStart();
-      if (!name_def_start.has_value() || *name_def_start < start_pos) {
+      // If a start position was given we test whether the name definition
+      // occurs before that start positions. (If none was given we accept all
+      // name refs.)
+      if (start_pos == nullptr) {
         freevars.Add(name_ref->identifier(), name_ref);
+      } else {
+        absl::optional<Pos> name_def_start = name_ref->GetNameDefStart();
+        if (!name_def_start.has_value() || *name_def_start < *start_pos) {
+          freevars.Add(name_ref->identifier(), name_ref);
+        }
       }
     }
   }
@@ -1254,6 +1273,28 @@ NameDefTree::Flatten1() {
 }
 
 // -- class Let
+
+Let::Let(Module* owner, Span span, NameDefTree* name_def_tree,
+         TypeAnnotation* type, Expr* rhs, Expr* body, ConstantDef* const_def)
+    : Expr(owner, std::move(span)),
+      name_def_tree_(name_def_tree),
+      type_(type),
+      rhs_(rhs),
+      body_(body),
+      constant_def_(const_def) {}
+
+std::vector<AstNode*> Let::GetChildren(bool want_types) const {
+  std::vector<AstNode*> results = {name_def_tree_};
+  if (type_ != nullptr && want_types) {
+    results.push_back(type_);
+  }
+  results.push_back(rhs_);
+  results.push_back(body_);
+  if (constant_def_ != nullptr) {
+    results.push_back(constant_def_);
+  }
+  return results;
+}
 
 std::string Let::ToString() const {
   return absl::StrFormat("%s %s%s = %s;\n%s",

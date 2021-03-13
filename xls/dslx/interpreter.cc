@@ -388,14 +388,12 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
     return InterpValue::MakeNil();
   }
 
-  XLS_ASSIGN_OR_RETURN(TypeInfo * invocation_root_type_info,
-                       import_data_->GetRootTypeInfoForNode(expr));
   const SymbolicBindings* fn_symbolic_bindings = nullptr;
   if (bindings->fn_ctx().has_value()) {
     // The symbolic bindings of this invocation were already computed during
     // typechecking.
     absl::optional<const SymbolicBindings*> callee_bindings =
-        invocation_root_type_info->GetInvocationSymbolicBindings(
+        current_type_info_->GetInvocationSymbolicBindings(
             expr, bindings->fn_ctx()->sym_bindings);
     if (!callee_bindings.has_value()) {
       return absl::NotFoundError(
@@ -413,22 +411,23 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
     // e.g. a parametric invocation.
     XLS_VLOG(5) << "EvaluateInvocation; getting callee bindings without "
                    "function context"
-                << "; type_info: " << invocation_root_type_info
-                << "; node: " << expr << "; expr: `" << expr->ToString() << "`";
+                << "; type_info: " << current_type_info_ << "; node: " << expr
+                << "; expr: `" << expr->ToString() << "`";
     absl::optional<const SymbolicBindings*> callee_bindings =
-        invocation_root_type_info->GetInvocationSymbolicBindings(
-            expr, SymbolicBindings());
-    XLS_RET_CHECK(callee_bindings.has_value());
+        current_type_info_->GetInvocationSymbolicBindings(expr,
+                                                          SymbolicBindings());
+    XLS_RET_CHECK(callee_bindings.has_value()) << absl::StreamFormat(
+        "current_type_info: %p invocation: %p `%s` @ %s", current_type_info_,
+        expr, expr->ToString(), expr->span().ToString());
     XLS_RET_CHECK(callee_bindings.value() != nullptr);
     fn_symbolic_bindings = callee_bindings.value();
   }
 
   XLS_RET_CHECK(fn_symbolic_bindings != nullptr);
   TypeInfo* invocation_type_info;
-  if (invocation_root_type_info->HasInstantiation(expr,
-                                                  *fn_symbolic_bindings)) {
+  if (current_type_info_->HasInstantiation(expr, *fn_symbolic_bindings)) {
     invocation_type_info =
-        invocation_root_type_info->GetInstantiation(expr, *fn_symbolic_bindings)
+        current_type_info_->GetInstantiation(expr, *fn_symbolic_bindings)
             .value();
     XLS_VLOG(5) << "Instantiation exists for " << expr->ToString()
                 << " sym_bindings: " << *fn_symbolic_bindings
@@ -439,7 +438,7 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
       XLS_ASSIGN_OR_RETURN(invocation_type_info,
                            import_data_->GetRootTypeInfo(*callee_module));
     } else {
-      invocation_type_info = invocation_root_type_info;
+      invocation_type_info = current_type_info_;
     }
   }
   TypeInfoSwap tis(this, invocation_type_info);

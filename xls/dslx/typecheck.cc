@@ -190,6 +190,8 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
     arg_type_ptrs.push_back(arg_type.get());
   }
 
+  XLS_VLOG(5) << "Instantiating builtin parametric: "
+              << builtin_name->identifier();
   XLS_ASSIGN_OR_RETURN(SignatureFn fsignature, GetParametricBuiltinSignature(
                                                    builtin_name->identifier()));
 
@@ -198,24 +200,15 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
   auto constexpr_eval = [&](int64_t argno) -> absl::Status {
     Expr* arg = invocation->args()[argno];
 
-    absl::flat_hash_map<std::string, int64_t> env =
-        ctx->fn_stack().back().symbolic_bindings().ToMap();
-    absl::flat_hash_map<std::string, int64_t> bit_widths;
-    for (const auto& [identifier, _] : env) {
-      // TODO(leary): 2020-03-05 We should carry around the bitwidths of the
-      // symbolic bindings, right now we only know the value, so we're forced to
-      // guess this is ok. Potentially we should carry around InterpValues in
-      // symbolic bindings in general.
-      bit_widths[identifier] = 32;
-    }
+    auto [env, bit_widths] =
+        MakeConstexprEnv(arg, ctx->fn_stack().back().symbolic_bindings(), ctx);
 
     XLS_ASSIGN_OR_RETURN(
         int64_t value,
         Interpreter::InterpretExprToInt(
             arg->owner(), ctx->type_info(), ctx->typecheck_module(),
-            ctx->additional_search_paths(), ctx->import_data(), /*env=*/env,
-            /*bit_widths=*/bit_widths,
-            /*expr=*/arg));
+            ctx->additional_search_paths(), ctx->import_data(), env, bit_widths,
+            arg));
     ctx->type_info()->NoteConstExpr(arg, value);
     return absl::OkStatus();
   };

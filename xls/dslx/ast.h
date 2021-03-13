@@ -24,6 +24,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/pos.h"
@@ -170,6 +171,14 @@ class FreeVariables {
     return values_;
   }
 
+  // Returns all of the free variable NameRefs that are references to constants
+  // (as the ConstRef subtype of NameRef).
+  std::vector<ConstRef*> GetConstRefs();
+
+  // Returns the number of unique free variables (note: not the number of
+  // references, but the number of free variables).
+  int64_t GetFreeVariableCount() const { return values_.size(); }
+
  private:
   absl::flat_hash_map<std::string, std::vector<NameRef*>> values_;
 };
@@ -202,7 +211,15 @@ class AstNode {
 
   // Retrieves all the free variables (references to names that are defined
   // prior to start_pos) that are transitively in this AST subtree.
-  FreeVariables GetFreeVariables(Pos start_pos);
+  //
+  // For example, if given the AST node for this function:
+  //
+  //    const FOO = u32:42;
+  //    fn main(x: u32) { FOO+x }
+  //
+  // And using the starting point of the function as the start_pos, the FOO will
+  // be flagged as a free variable and returned.
+  FreeVariables GetFreeVariables(const Pos* start_pos = nullptr);
 
   Module* owner() const { return owner_; }
 
@@ -588,6 +605,13 @@ class ConstRef : public NameRef {
   // When holding a ConstRef we know that the corresponding NameDef cannot be
   // builtin (since consts are user constructs).
   NameDef* name_def() { return absl::get<NameDef*>(NameRef::name_def()); }
+
+  // Returns the constant definition that this ConstRef is referring to.
+  ConstantDef* GetConstantDef() {
+    AstNode* definer = name_def()->definer();
+    XLS_CHECK(definer != nullptr);
+    return down_cast<ConstantDef*>(definer);
+  }
 };
 
 enum class NumberKind {
@@ -1991,13 +2015,7 @@ class NameDefTree : public AstNode {
 class Let : public Expr {
  public:
   Let(Module* owner, Span span, NameDefTree* name_def_tree,
-      TypeAnnotation* type, Expr* rhs, Expr* body, ConstantDef* const_def)
-      : Expr(owner, std::move(span)),
-        name_def_tree_(name_def_tree),
-        type_(type),
-        rhs_(rhs),
-        body_(body),
-        constant_def_(const_def) {}
+      TypeAnnotation* type, Expr* rhs, Expr* body, ConstantDef* const_def);
 
   void AcceptExpr(ExprVisitor* v) override { v->HandleLet(this); }
   absl::Status Accept(AstNodeVisitor* v) override { return v->HandleLet(this); }
@@ -2005,18 +2023,7 @@ class Let : public Expr {
   absl::string_view GetNodeTypeName() const override { return "Let"; }
   std::string ToString() const override;
 
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    std::vector<AstNode*> results = {name_def_tree_};
-    if (type_ != nullptr && want_types) {
-      results.push_back(type_);
-    }
-    results.push_back(rhs_);
-    results.push_back(body_);
-    if (constant_def_ != nullptr) {
-      results.push_back(constant_def_);
-    }
-    return results;
-  }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   NameDefTree* name_def_tree() const { return name_def_tree_; }
   TypeAnnotation* type() const { return type_; }

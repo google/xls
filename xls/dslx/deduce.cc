@@ -96,6 +96,25 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
   ctx->type_info()->NoteConstant(node->name_def(), node);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> result,
                        ctx->Deduce(node->value()));
+  // Right now we only know how to do integral expressions as constexpr values.
+  if (BitsType* bits = dynamic_cast<BitsType*>(result.get())) {
+    auto [env, bit_widths] = MakeConstexprEnv(
+        node->value(), ctx->fn_stack().back().symbolic_bindings(), ctx);
+    const FnStackEntry& peek_entry = ctx->fn_stack().back();
+    absl::optional<FnCtx> fn_ctx;
+    if (peek_entry.function() != nullptr) {
+      fn_ctx.emplace(FnCtx{peek_entry.module()->name(),
+                           peek_entry.function()->identifier(),
+                           peek_entry.symbolic_bindings()});
+    }
+    absl::StatusOr<int64_t> constexpr_value = Interpreter::InterpretExprToInt(
+        node->owner(), ctx->type_info(), ctx->typecheck_module(),
+        ctx->additional_search_paths(), ctx->import_data(), env, bit_widths,
+        node->value(), fn_ctx ? &*fn_ctx : nullptr);
+    if (constexpr_value.ok()) {
+      ctx->type_info()->NoteConstExpr(node->value(), constexpr_value.value());
+    }
+  }
   ctx->type_info()->SetItem(node->name_def(), *result);
   return result;
 }
@@ -830,24 +849,6 @@ static absl::StatusOr<StartAndWidth> ResolveBitSliceIndices(
   return StartAndWidth{start, limit - start};
 }
 
-static std::pair<absl::flat_hash_map<std::string, int64_t>,
-                 absl::flat_hash_map<std::string, int64_t>>
-SymbolicBindingsToConstexprEnv(const SymbolicBindings* symbolic_bindings) {
-  if (symbolic_bindings == nullptr) {
-    return {{}, {}};
-  }
-  absl::flat_hash_map<std::string, int64_t> env = symbolic_bindings->ToMap();
-  absl::flat_hash_map<std::string, int64_t> bit_widths;
-  for (const auto& [identifier, _] : env) {
-    // TODO(leary): 2020-03-05 We should carry around the bitwidths of the
-    // symbolic bindings, right now we only know the value, so we're forced to
-    // guess this is ok. Potentially we should carry around InterpValues in
-    // symbolic bindings in general.
-    bit_widths[identifier] = 32;
-  }
-  return {std::move(env), std::move(bit_widths)};
-}
-
 static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
     Index* node, const BitsType& subject_type, const WidthSlice& width_slice,
     DeduceCtx* ctx) {
@@ -956,8 +957,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     return DeduceWidthSliceType(node, *bits_type, *width_slice, ctx);
   }
 
-  auto [env, bit_widths] = SymbolicBindingsToConstexprEnv(
-      &ctx->fn_stack().back().symbolic_bindings());
+  auto [env, bit_widths] =
+      MakeConstexprEnv(node, ctx->fn_stack().back().symbolic_bindings(), ctx);
 
   std::unique_ptr<ConcreteType> s32 = BitsType::MakeS32();
   auto* slice = absl::get<Slice*>(node->rhs());
@@ -2115,6 +2116,49 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(AstNode* node,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> deduced,
                        ctx->Deduce(node));
   return Resolve(*deduced, ctx);
+}
+
+ConstexprEnv MakeConstexprEnv(Expr* node,
+                              const SymbolicBindings& symbolic_bindings,
+                              DeduceCtx* ctx) {
+  XLS_VLOG(5) << "Creating constexpr environment for node: "
+              << node->ToString();
+  absl::flat_hash_map<std::string, int64_t> env;
+  absl::flat_hash_map<std::string, int64_t> bit_widths;
+
+  for (auto [id, value] : symbolic_bindings.ToMap()) {
+    env[id] = value;
+    bit_widths[id] = 32;
+  }
+
+  // Collect all the freevars that are constexpr.
+  //
+  // TODO(https://github.com/google/xls/issues/333): 2020-03-11 We'll want the
+  // expression to also be able to constexpr evaluate local non-integral values,
+  // like constant tuple definitions and such. We'll need to extend the
+  // constexpr ability to full InterpValues to accomplish this.
+  //
+  // E.g. fn main(x: u32) -> ... { const B = u32:20; x[:B] }
+  FreeVariables freevars = node->GetFreeVariables();
+  XLS_VLOG(5) << "freevars for " << node->ToString() << ": "
+              << freevars.GetFreeVariableCount();
+  for (ConstRef* const_ref : freevars.GetConstRefs()) {
+    XLS_VLOG(5) << "analyzing constant reference: " << const_ref->ToString();
+    ConstantDef* constant_def = const_ref->GetConstantDef();
+    absl::optional<int64_t> value =
+        ctx->type_info()->GetConstExpr(constant_def->value());
+    if (!value) {
+      // Could be a tuple or similar, not part of the (currently integral-only)
+      // constexpr environment.
+      XLS_VLOG(5) << "Could not find constexpr value for constant def: `"
+                  << constant_def->ToString() << "`";
+      continue;
+    }
+    env[const_ref->identifier()] = *value;
+    bit_widths[const_ref->identifier()] = 32;
+  }
+
+  return {std::move(env), std::move(bit_widths)};
 }
 
 }  // namespace xls::dslx

@@ -1411,11 +1411,10 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings* bindings) {
                         start_tok.span().ToString()));
   }
 
-  NameDef* name_def;
+  NameDef* name_def = nullptr;
   NameDefTree* name_def_tree;
   XLS_ASSIGN_OR_RETURN(bool peek_is_oparen, PeekTokenIs(TokenKind::kOParen));
   if (peek_is_oparen) {  // Destructuring binding.
-    name_def = nullptr;
     XLS_ASSIGN_OR_RETURN(name_def_tree, ParseNameDefTree(&new_bindings));
   } else {
     XLS_ASSIGN_OR_RETURN(name_def, ParseNameDef(&new_bindings));
@@ -1437,6 +1436,7 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings* bindings) {
     const_def =
         module_->Make<ConstantDef>(span, name_def, rhs, /*is_public=*/false);
     new_bindings.Add(name_def->identifier(), const_def);
+    name_def->set_definer(const_def);
   }
   XLS_ASSIGN_OR_RETURN(Expr * body, ParseExpression(&new_bindings));
   Span span(start_tok.span().start(), GetPos());

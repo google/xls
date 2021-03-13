@@ -402,8 +402,8 @@ class FunctionConverter {
 // constant dependencies to the converter.
 static absl::StatusOr<std::vector<ConstantDef*>> GetConstantDepFreevars(
     AstNode* node) {
-  FreeVariables free_variables =
-      node->GetFreeVariables(node->GetSpan().value().start());
+  Span span = node->GetSpan().value();
+  FreeVariables free_variables = node->GetFreeVariables(&span.start());
   std::vector<std::pair<std::string, AnyNameDef>> freevars =
       free_variables.GetNameDefTuples();
   std::vector<ConstantDef*> constant_deps;
@@ -1081,7 +1081,8 @@ absl::Status FunctionConverter::HandleFor(For* node) {
   //
   // So we suffix free variables for the function body onto the function
   // parameters.
-  FreeVariables freevars = node->body()->GetFreeVariables(node->span().start());
+  FreeVariables freevars =
+      node->body()->GetFreeVariables(&node->span().start());
   freevars = freevars.DropBuiltinDefs();
   std::vector<NameDef*> relevant_name_defs;
   for (const auto& any_name_def : freevars.GetNameDefs()) {

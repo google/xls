@@ -480,6 +480,11 @@ dslx_test(
 )
 
 dslx_test(
+    name = "local_const_value_in_parametric",
+    srcs = ["local_const_value_in_parametric.x"],
+)
+
+dslx_test(
     name = "constant_array_unannotated_type",
     srcs = ["constant_array_unannotated_type.x"],
 )
@@ -535,6 +540,11 @@ dslx_test(
     name = "for_up_to_const",
     srcs = ["for_up_to_const.x"],
     entry = "__for_up_to_const__f",
+)
+
+dslx_test(
+    name = "for_up_to_const_local",
+    srcs = ["for_up_to_const_local.x"],
 )
 
 dslx_test(

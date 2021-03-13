@@ -285,6 +285,36 @@ fn f(x: u32) -> u8 {
   EXPECT_EQ(slice->limit()->ToString(), "8");
 }
 
+TEST_F(ParserTest, LocalConstBinding) {
+  const char* text = R"(fn f() -> u8 {
+  const FOO = u8:42;
+  FOO
+})";
+  RoundTrip(text);
+  Scanner s{"test.x", std::string{text}};
+  Parser p{"test", &s};
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
+  auto* const_let = dynamic_cast<Let*>(f->body());
+  ASSERT_NE(const_let, nullptr);
+  auto* constant_def = const_let->constant_def();
+  ASSERT_NE(constant_def, nullptr);
+  EXPECT_EQ("u8:42", constant_def->value()->ToString());
+
+  auto* const_ref = dynamic_cast<ConstRef*>(const_let->body());
+  ASSERT_NE(const_ref, nullptr);
+  NameDef* name_def = const_ref->name_def();
+  EXPECT_EQ(name_def->ToString(), "FOO");
+  AstNode* definer = name_def->definer();
+  EXPECT_EQ(definer, constant_def);
+
+  std::vector<AstNode*> const_let_children =
+      const_let->GetChildren(/*want_types=*/false);
+  EXPECT_THAT(const_let_children, testing::Contains(constant_def));
+}
+
 TEST_F(ParserTest, BitSliceOfCall) {
   // TODO(leary): 2021-01-25 Eliminate unnecessary parens with a precedence
   // query.
@@ -546,7 +576,7 @@ TEST_F(ParserTest, MatchFreevars) {
   y => z,
 })",
                 {"x", "y", "z"}, absl::nullopt, &e);
-  FreeVariables fv = e->GetFreeVariables(e->span().start());
+  FreeVariables fv = e->GetFreeVariables(&e->span().start());
   EXPECT_THAT(fv.Keys(), testing::ContainerEq(
                              absl::flat_hash_set<std::string>{"x", "y", "z"}));
 }
@@ -558,7 +588,7 @@ TEST_F(ParserTest, ForFreevars) {
   new_accum
 }(u32:0))",
                 {"range", "j"}, absl::nullopt, &e);
-  FreeVariables fv = e->GetFreeVariables(e->span().start());
+  FreeVariables fv = e->GetFreeVariables(&e->span().start());
   EXPECT_THAT(fv.Keys(), testing::ContainerEq(
                              absl::flat_hash_set<std::string>{"j", "range"}));
 }
