@@ -16,6 +16,7 @@
 
 """Library describing code samples generated and run by the fuzzer."""
 
+import datetime
 import json
 import re
 
@@ -105,6 +106,22 @@ class SampleOptions(NamedTuple):
     return options
 
 
+_COPYRIGHT_NOTICE_FMT = """// Copyright {year} The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+"""
+
+
 class Sample(NamedTuple):
   """Abstraction describing a fuzzer code sample and how to run it.
 
@@ -126,6 +143,7 @@ class Sample(NamedTuple):
     xls/fuzzer/crashers.
 
     A crasher has the following format:
+      // <copyright notice>
       // <error message>
       // options: <JSON-serialized SampleOptions>
       // args: <argument set 0>
@@ -137,6 +155,10 @@ class Sample(NamedTuple):
       error_message: Optional error message to include as a comment to the file.
     """
     lines = []
+    lines = [
+        _COPYRIGHT_NOTICE_FMT.format(year=datetime.datetime.now().year) +
+        '\n// options: ' + self.options.to_json()
+    ]
     if error_message:
       lines.append('// Exception:')
       lines.extend(('// ' + l).strip() for l in error_message.splitlines())

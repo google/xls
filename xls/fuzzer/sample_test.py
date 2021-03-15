@@ -88,8 +88,11 @@ class SampleTest(absltest.TestCase):
             use_system_verilog=True),
         sample.parse_args_batch(
             'bits[8]:42; bits[8]:11\nbits[8]:44; bits[8]:99'))
-    self.assertEqual(
-        s.to_crasher(),
+    crasher = s.to_crasher()
+    self.assertTrue(
+        crasher.startswith('// Copyright'),
+        msg=f'Crasher does not start with copyright:\n{crasher}')
+    self.assertIn(
         textwrap.dedent("""\
         // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "use_jit": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "simulate": true, "simulator": "goat simulator", "use_system_verilog": true}
         // args: bits[8]:0x2a; bits[8]:0xb
@@ -97,7 +100,7 @@ class SampleTest(absltest.TestCase):
         fn main(x: u8, y: u8) -> u8 {
         x + y
         }
-        """))
+        """), crasher)
 
   def test_to_crasher_with_error_message(self):
     s = sample.Sample(
@@ -111,20 +114,24 @@ class SampleTest(absltest.TestCase):
             use_system_verilog=True),
         sample.parse_args_batch(
             'bits[8]:42; bits[8]:11\nbits[8]:44; bits[8]:99'))
-    self.assertEqual(
-        s.to_crasher('oh no\nI crashed\n'),
+    crasher = s.to_crasher('oh no\nI crashed\n')
+    self.assertTrue(
+        crasher.startswith('// Copyright'),
+        msg=f'Crasher does not start with copyright:\n{crasher}')
+    self.assertIn(
         textwrap.dedent("""\
         // Exception:
         // oh no
-        // I crashed
-        //
+        // I crashed"""), crasher)
+    self.assertIn(
+        textwrap.dedent("""\
         // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "use_jit": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "simulate": true, "simulator": "goat simulator", "use_system_verilog": true}
         // args: bits[8]:0x2a; bits[8]:0xb
         // args: bits[8]:0x2c; bits[8]:0x63
         fn main(x: u8, y: u8) -> u8 {
         x + y
         }
-        """))
+        """), crasher)
 
   def test_from_ir_crasher_with_codegen(self):
     crasher = textwrap.dedent("""\
