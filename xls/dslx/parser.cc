@@ -443,8 +443,20 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
     XLS_ASSIGN_OR_RETURN(std::vector<TypeAnnotation*> types,
                          ParseCommaSeq<TypeAnnotation*>(parse_type_annotation,
                                                         TokenKind::kCParen));
+
     Span span(tok.span().start(), GetPos());
-    return module_->Make<TupleTypeAnnotation>(span, std::move(types));
+    TypeAnnotation* type =
+        module_->Make<TupleTypeAnnotation>(span, std::move(types));
+
+    // Enable array of tuple type annotation.
+    XLS_ASSIGN_OR_RETURN(bool peek_is_obrack, PeekTokenIs(TokenKind::kOBrack));
+    if (peek_is_obrack) {
+      XLS_ASSIGN_OR_RETURN(std::vector<Expr*> dims, ParseDims(bindings));
+      for (Expr* dim : dims) {
+        type = module_->Make<ArrayTypeAnnotation>(span, type, dim);
+      }
+    }
+    return type;
   }
 
   // If the leader is not builtin and not a tuple, it's some form of type
