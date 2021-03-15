@@ -394,34 +394,33 @@ absl::StatusOr<Bits> InterpValue::GetBits() const {
   return absl::InvalidArgumentError("Value does not contain bits.");
 }
 
-// Returns the given bits value as an nonnegative int64_t. If the bits value is
-// negative or doesn't fit in an int64_t then 'else_value' is returned.
-static int64_t BitsToNonNegInt64OrElse(const Bits& bits, int64_t else_value) {
-  if (!bits.FitsInInt64()) {
-    return else_value;
+// Returns the minimum of the given bits value interpreted as an unsigned
+// number and limit.
+static int64_t ClampedUnsignedValue(const Bits& bits, int64_t limit) {
+  if (limit < 0 || bits_ops::UGreaterThanOrEqual(bits, limit)) {
+    return limit;
   }
-  int64_t result = static_cast<int64_t>(bits.ToUint64().value());
-  return result < 0 ? else_value : result;
+  return static_cast<int64_t>(bits.ToUint64().value());
 }
 
 absl::StatusOr<InterpValue> InterpValue::Shll(const InterpValue& other) const {
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
-  int64_t amount64 = BitsToNonNegInt64OrElse(rhs, lhs.bit_count());
+  int64_t amount64 = ClampedUnsignedValue(rhs, lhs.bit_count());
   return InterpValue(tag_, bits_ops::ShiftLeftLogical(lhs, amount64));
 }
 
 absl::StatusOr<InterpValue> InterpValue::Shrl(const InterpValue& other) const {
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
-  int64_t amount64 = BitsToNonNegInt64OrElse(rhs, lhs.bit_count());
+  int64_t amount64 = ClampedUnsignedValue(rhs, lhs.bit_count());
   return InterpValue(tag_, bits_ops::ShiftRightLogical(lhs, amount64));
 }
 
 absl::StatusOr<InterpValue> InterpValue::Shra(const InterpValue& other) const {
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
-  int64_t amount64 = BitsToNonNegInt64OrElse(rhs, lhs.bit_count());
+  int64_t amount64 = ClampedUnsignedValue(rhs, lhs.bit_count());
   return InterpValue(tag_, bits_ops::ShiftRightArith(lhs, amount64));
 }
 
