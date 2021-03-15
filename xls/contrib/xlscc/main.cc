@@ -107,7 +107,7 @@ absl::Status Run(absl::string_view cpp_path) {
                     ? absl::Span<absl::string_view>()
                     : absl::MakeSpan(&clang_argv[0], clang_argv.size())));
 
-  XLS_ASSIGN_OR_RETURN(absl::StatusOr<string> top_name,
+  XLS_ASSIGN_OR_RETURN(absl::StatusOr<std::string> top_name,
                        translator.GetEntryFunctionName());
 
   std::string package_name = absl::GetFlag(FLAGS_package);

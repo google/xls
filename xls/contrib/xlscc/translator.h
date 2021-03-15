@@ -742,7 +742,7 @@ class Translator {
     absl::flat_hash_map<const clang::ParmVarDecl*, xls::Channel*> fifo_by_param;
     absl::flat_hash_map<const IOOp*, int> arg_index_for_op;
     absl::flat_hash_map<const IOOp*, int> return_index_for_op;
-    absl::flat_hash_map<string, HLSChannel> channels_by_name;
+    absl::flat_hash_map<std::string, HLSChannel> channels_by_name;
     xls::BValue token;
   };
 
