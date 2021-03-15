@@ -296,6 +296,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
         "//xls/common/logging",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
@@ -363,6 +364,7 @@ cc_library(
         "testdata/proc_generator_test_*",
     ]),
     deps = [
+        ":flattening",
         ":module_builder",
         ":module_signature",
         ":vast",

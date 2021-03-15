@@ -468,6 +468,28 @@ TEST_P(ProcGeneratorTest, ProcWithAssertWithLabel) {
   }
 }
 
+TEST_P(ProcGeneratorTest, ProcWithEmptyTupleElementInOutput) {
+  Package package(TestBaseName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_ch,
+      package.CreatePortChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      package.CreatePortChannel(
+          "result", ChannelOps::kSendOnly,
+          package.GetTupleType({package.GetTupleType({}), u32})));
+
+  TokenlessProcBuilder pb(TestBaseName(), /*init_value=*/Value::Tuple({}),
+                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  BValue empty_tuple = pb.Tuple({});
+  pb.Send(out_ch, pb.Tuple({empty_tuple, pb.Receive(in_ch)}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult result,
+                           GenerateModule(proc, options()));
+}
+
 INSTANTIATE_TEST_SUITE_P(ProcGeneratorTestInstantiation, ProcGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
                          ParameterizedTestName<ProcGeneratorTest>);

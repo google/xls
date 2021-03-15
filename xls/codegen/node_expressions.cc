@@ -574,22 +574,8 @@ absl::StatusOr<Expression*> NodeToExpression(
       return file->Slice(inputs[0]->AsIndexableExpressionOrDie(),
                          start + width - 1, start);
     }
-    case Op::kTuple: {
-      std::vector<Expression*> flattened_inputs;
-      // Tuples are represented as a flat vector of bits. Flatten and
-      // concatenate all operands.
-      for (int64_t i = 0; i < node->operand_count(); ++i) {
-        Expression* input = inputs[i];
-        if (node->operand(i)->GetType()->IsArray()) {
-          flattened_inputs.push_back(
-              FlattenArray(input->AsIndexableExpressionOrDie(),
-                           node->operand(i)->GetType()->AsArrayOrDie(), file));
-        } else {
-          flattened_inputs.push_back(input);
-        }
-      }
-      return file->Concat(flattened_inputs);
-    }
+    case Op::kTuple:
+      return FlattenTuple(inputs, node->GetType()->AsTupleOrDie(), file);
     case Op::kXor:
       return do_nary_op([file](Expression* lhs, Expression* rhs) {
         return file->BitwiseXor(lhs, rhs);

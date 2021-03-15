@@ -48,6 +48,15 @@ int64_t GetFlatBitIndexOfElement(const TupleType* tuple_type, int64_t index);
 // Overload which returns the index of an element for an array type.
 int64_t GetFlatBitIndexOfElement(const ArrayType* array_type, int64_t index);
 
+// Flattens the given tuple elements as VAST expressions into a flat bit vector
+// representation of a tuple. 'inputs' should include an expression for each
+// non-zero-width element in 'tuple_type'. Zero-width elements which have no
+// representation in VAST are elided during flattening.  elements which have no
+// representation in VAST.
+absl::StatusOr<verilog::Expression*> FlattenTuple(
+    absl::Span<verilog::Expression* const> inputs, TupleType* tuple_type,
+    verilog::VerilogFile* file);
+
 // Unflattens the given VAST expression into a unpacked array
 // representation. 'array_type' is the underlying XLS type of the expression.
 // Uses the SystemVerilog-only array assignment construct.

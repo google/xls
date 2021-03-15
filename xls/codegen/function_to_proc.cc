@@ -36,6 +36,9 @@ absl::StatusOr<Proc*> FunctionToProc(Function* f, absl::string_view proc_name) {
   // Skip zero-width inputs/output. Verilog does not support zero-width ports.
   for (Param* param : f->params()) {
     if (param->GetType()->GetFlatBitCount() == 0) {
+      // Zero-width ports are not supported in verilog, so create a
+      // (zero-valued) literal of the given type to standin for the port.
+      node_map[param] = pb.Literal(ZeroOfType(param->GetType())).node();
       continue;
     }
     XLS_ASSIGN_OR_RETURN(

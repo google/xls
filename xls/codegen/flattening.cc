@@ -17,6 +17,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/package.h"
@@ -155,8 +156,7 @@ verilog::Expression* FlattenArray(verilog::IndexableExpression* input,
                                   verilog::VerilogFile* file) {
   std::vector<verilog::Expression*> elements;
   for (int64_t i = 0; i < array_type->size(); ++i) {
-    verilog::IndexableExpression* element =
-        file->Index(input, i);  // array_type->size() - i - 1);
+    verilog::IndexableExpression* element = file->Index(input, i);
     if (array_type->element_type()->IsArray()) {
       elements.push_back(FlattenArray(
           element, array_type->element_type()->AsArrayOrDie(), file));
@@ -165,6 +165,34 @@ verilog::Expression* FlattenArray(verilog::IndexableExpression* input,
     }
   }
   return file->Concat(elements);
+}
+
+absl::StatusOr<verilog::Expression*> FlattenTuple(
+    absl::Span<verilog::Expression* const> inputs, TupleType* tuple_type,
+    verilog::VerilogFile* file) {
+  // Tuples are represented as a flat vector of bits. Flatten and concatenate
+  // all operands. Only non-zero-width elements of the tuple are represented in
+  // inputs.
+  std::vector<Type*> nontrivial_element_types;
+  for (Type* type : tuple_type->element_types()) {
+    if (type->GetFlatBitCount() != 0) {
+      nontrivial_element_types.push_back(type);
+    }
+  }
+  XLS_RET_CHECK_EQ(nontrivial_element_types.size(), inputs.size());
+  std::vector<verilog::Expression*> flattened_elements;
+  for (int64_t i = 0; i < inputs.size(); ++i) {
+    verilog::Expression* element = inputs[i];
+    Type* element_type = nontrivial_element_types[i];
+    if (element_type->IsArray()) {
+      flattened_elements.push_back(
+          FlattenArray(element->AsIndexableExpressionOrDie(),
+                       element_type->AsArrayOrDie(), file));
+    } else {
+      flattened_elements.push_back(element);
+    }
+  }
+  return file->Concat(flattened_elements);
 }
 
 }  // namespace xls

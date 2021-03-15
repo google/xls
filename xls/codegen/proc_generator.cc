@@ -15,6 +15,7 @@
 #include "xls/codegen/proc_generator.h"
 
 #include "absl/status/status.h"
+#include "xls/codegen/flattening.h"
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/log_lines.h"
@@ -212,9 +213,24 @@ absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
     // Asserts are statements, not expressions, and are emitted after all other
     // operations.
     return UnrepresentedSentinel();
+  } else if (node->Is<Tuple>()) {
+    // A tuple may have unrepresentable inputs such as empty tuples.  Walk
+    // through and gather non-zero-width inputs and flatten them.
+    std::vector<Expression*> nonempty_elements;
+    for (Node* operand : node->operands()) {
+      if (!absl::holds_alternative<Expression*>(node_exprs.at(operand))) {
+        if (operand->GetType()->GetFlatBitCount() != 0) {
+          return absl::UnimplementedError(absl::StrFormat(
+              "Unable to generate code for: %s", node->ToString()));
+        }
+        continue;
+      }
+      nonempty_elements.push_back(
+          absl::get<Expression*>(node_exprs.at(operand)));
+    }
+    return FlattenTuple(nonempty_elements, node->GetType()->AsTupleOrDie(),
+                        mb->file());
   }
-  // TODO(meheff): Tuples not from receive nodes which contains tokens will
-  // return an error here. Implement a more general solution.
   return absl::UnimplementedError(
       absl::StrFormat("Unable to generate code for: %s", node->ToString()));
 }
@@ -399,14 +415,6 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModule(
   std::vector<Node*> nodes;
   for (Node* node : TopoSort(proc)) {
     if (node->Is<Param>() || IsChannelNode(node)) {
-      continue;
-    }
-    // Verilog has no zero-bit data types so elide such types. They should have
-    // no uses.
-    if (!IsRepresentable(node->GetType())) {
-      if (!node->GetType()->IsToken()) {
-        XLS_RET_CHECK_EQ(node->users().size(), 0) << node->ToString();
-      }
       continue;
     }
     nodes.push_back(node);

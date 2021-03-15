@@ -56,9 +56,10 @@ TEST_F(FunctionToProcTest, ZeroWidthInputsAndOutput) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetTupleType({}));
-  fb.Param("y", p->GetBitsType(0));
+  BValue y = fb.Param("y", p->GetBitsType(0));
   fb.Param("z", p->GetBitsType(1234));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(x));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Tuple({x, y})));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
                            FunctionToProc(f, "SimpleFunctionProc"));
 

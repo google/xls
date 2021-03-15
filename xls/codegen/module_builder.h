@@ -212,6 +212,8 @@ class ModuleBuilder {
   // Returns reset signal and reset metadata.
   const absl::optional<Reset>& reset() const { return rst_; }
 
+  VerilogFile* file() const { return file_; }
+
  private:
   // Assigns 'rhs' to 'lhs'. Depending upon the type this may require multiple
   // assignment statements (e.g., for array assignments in Verilog). The
