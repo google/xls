@@ -51,4 +51,8 @@ NetworkComponent::ports() const {
 NetworkComponent::NetworkComponent(NetworkView* network_view)
     : network_view_(*XLS_DIE_IF_NULL(network_view)) {}
 
+absl::Status NetworkComponent::Accept(NetworkComponentVisitor& v) {
+  return Visit(v);
+}
+
 }  // namespace xls::noc

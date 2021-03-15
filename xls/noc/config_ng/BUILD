@@ -160,6 +160,7 @@ cc_library(
     hdrs = ["network_component.h"],
     deps = [
         ":network_component_port",
+        "@com_google_absl//absl/status",
         "//xls/common:iterator_range",
         "//xls/common/logging",
         "//xls/ir:unwrapping_iterator",

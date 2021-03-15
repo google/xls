@@ -25,6 +25,10 @@ class FakeNetworkComponent : public NetworkComponent {
  public:
   explicit FakeNetworkComponent(NetworkView* network_view)
       : NetworkComponent(network_view) {}
+
+  absl::Status Visit(NetworkComponentVisitor& v) override {
+    return absl::Status();
+  };
 };
 
 }  // namespace xls::noc

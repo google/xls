@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "xls/common/iterator_range.h"
 #include "xls/ir/unwrapping_iterator.h"
 #include "xls/noc/config_ng/network_component_port.h"
@@ -26,6 +27,7 @@ namespace xls::noc {
 
 // Forward declaration: a network component has a reference to a network view.
 class NetworkView;
+class NetworkComponentVisitor;
 
 // The network component contains ports and a reference to the view that it
 // belongs to. The component owns the ports that it contains.
@@ -58,6 +60,12 @@ class NetworkComponent {
   xabsl::iterator_range<UnwrappingIterator<
       std::vector<std::unique_ptr<NetworkComponentPort>>::const_iterator>>
   ports() const;
+
+  // Visit the component.
+  virtual absl::Status Visit(NetworkComponentVisitor& v) = 0;
+
+  // Accepts a network component visitor to visit the component.
+  absl::Status Accept(NetworkComponentVisitor& v);
 
   // Returns the number of ports.
   int64_t GetPortCount() const;
