@@ -21,8 +21,8 @@ from xls.common import check_simulator
 from xls.common import test_base
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
-from xls.fuzzer import sample
 from xls.fuzzer import sample_runner
+from xls.fuzzer.python import cpp_sample as sample
 from xls.ir.python import bits as ir_bits
 
 
@@ -201,15 +201,21 @@ class SampleRunnerTest(test_base.TestCase):
     sample_dir = self._make_sample_dir()
     runner = sample_runner.SampleRunner(sample_dir)
     dslx_text = 'fn main(x: u8, y: u8) -> u8 { x + y }'
-    runner._evaluate_ir = lambda *args: (Value.make_ubits(8, 100),)
+    # Give back two results instead of one.
+    def fake_evaluate_ir(*_):
+      return (Value.make_ubits(8, 100), Value.make_ubits(8, 100))
+
+    runner._evaluate_ir = fake_evaluate_ir
+    args_batch = [(Value.make_ubits(8, 42), Value.make_ubits(8, 64))]
     with self.assertRaises(sample_runner.SampleError) as e:
       runner.run(
-          sample.Sample(dslx_text, sample.SampleOptions(optimize_ir=False), []))
+          sample.Sample(dslx_text, sample.SampleOptions(optimize_ir=False),
+                        args_batch))
     self.assertIn(
-        'Results for evaluated unopt IR (JIT) has 1 values, interpreted DSLX has 0',
+        'Results for evaluated unopt IR (JIT) has 2 values, interpreted DSLX has 1',
         str(e.exception))
     self.assertIn(
-        'Results for evaluated unopt IR (JIT) has 1 values, interpreted DSLX has 0',
+        'Results for evaluated unopt IR (JIT) has 2 values, interpreted DSLX has 1',
         _read_file(sample_dir, 'exception.txt'))
 
   def test_interpret_opt_ir(self):

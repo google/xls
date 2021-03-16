@@ -20,7 +20,7 @@ import collections
 import os
 import subprocess
 import time
-from typing import Text, Tuple, Optional, Dict, Sequence
+from typing import Text, Tuple, Optional, Dict, Sequence, List
 
 from absl import logging
 
@@ -31,8 +31,8 @@ from xls.common.xls_error import XlsError
 from xls.dslx.python import interpreter
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
-from xls.fuzzer import sample
 from xls.fuzzer import sample_summary_pb2
+from xls.fuzzer.python import cpp_sample as sample
 from xls.ir.python import ir_parser
 from xls.ir.python import value as ir_value_mod
 
@@ -41,6 +41,9 @@ EVAL_IR_MAIN_PATH = runfiles.get_path('xls/tools/eval_ir_main')
 IR_OPT_MAIN_PATH = runfiles.get_path('xls/tools/opt_main')
 CODEGEN_MAIN_PATH = runfiles.get_path('xls/tools/codegen_main')
 SIMULATE_MODULE_MAIN_PATH = runfiles.get_path('xls/tools/simulate_module_main')
+
+
+ArgsBatch = List[List[Value]]
 
 
 class SampleError(XlsError):
@@ -118,7 +121,7 @@ class SampleRunner:
     json_options_filename = self._write_file('options.json',
                                              smp.options.to_json())
     args_filename = None
-    if smp.args_batch is not None:
+    if smp.args_batch:
       args_filename = self._write_file(
           'args.txt', sample.args_batch_to_text(smp.args_batch))
 
@@ -143,7 +146,7 @@ class SampleRunner:
     input_text = self._read_file(input_filename)
     options = sample.SampleOptions.from_json(
         self._read_file(json_options_filename))
-    args_batch: Optional[sample.ArgsBatch] = None
+    args_batch: Optional[ArgsBatch] = None
     if args_filename:
       args_batch = sample.parse_args_batch(self._read_file(args_filename))
 
@@ -155,7 +158,7 @@ class SampleRunner:
 
     try:
       if options.input_is_dslx:
-        if args_batch is not None:
+        if args_batch:
           logging.vlog(1, 'Interpreting DSLX file.')
           with Timer() as t:
             results['interpreted DSLX'] = self._interpret_dslx(
@@ -288,7 +291,7 @@ class SampleRunner:
       return f.read()
 
   def _compare_results(self, results: Dict[Text, Sequence[Value]],
-                       args_batch: Optional[sample.ArgsBatch]):
+                       args_batch: Optional[ArgsBatch]):
     """Compares a set of results as for equality.
 
     Each entry in the map is sequence of Values generated from some source
@@ -348,7 +351,7 @@ class SampleRunner:
                               f'\n   {values[i]}')
 
   def _interpret_dslx(self, text: str, function_name: str,
-                      args_batch: sample.ArgsBatch) -> Tuple[Value, ...]:
+                      args_batch: ArgsBatch) -> Tuple[Value, ...]:
     """Interprets the DSLX module returns the result Values."""
     dslx_results = interpreter.run_batched(text, function_name, args_batch)
     self._write_file('sample.x.results',

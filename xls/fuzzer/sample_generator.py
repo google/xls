@@ -25,8 +25,8 @@ from xls.dslx.python.cpp_concrete_type import ConcreteType
 from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
-from xls.fuzzer import sample
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
+from xls.fuzzer.python import cpp_sample as sample
 from xls.ir.python import bits as ir_bits
 
 
@@ -149,10 +149,10 @@ def generate_sample(rng: ast_generator.RngState,
   args_batch = tuple(
       generate_arguments(fn_type.params, rng) for _ in range(calls_per_sample))
   # The generated sample is DSLX so input_is_dslx must be true.
-  options = default_options._replace(input_is_dslx=True)
+  options = default_options.replace(input_is_dslx=True)
   if options.codegen and not options.codegen_args:
     # Generate codegen args if codegen is given but no codegen args specified.
-    options = options._replace(
+    options = options.replace(
         codegen_args=generate_codegen_args(options.use_system_verilog, rng))
 
   return sample.Sample(dslx_text, options, args_batch)

@@ -24,8 +24,8 @@ from absl import flags
 
 from xls.common import gfile
 from xls.fuzzer import run_fuzz
-from xls.fuzzer import sample
 from xls.fuzzer import sample_runner
+from xls.fuzzer.python import cpp_sample as sample
 
 flags.DEFINE_string(
     'run_dir', None, help='The directory to run the crasher in.')

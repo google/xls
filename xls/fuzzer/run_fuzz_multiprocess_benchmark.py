@@ -24,9 +24,9 @@ from absl import app
 from absl import flags
 
 from xls.fuzzer import run_fuzz
-from xls.fuzzer import sample
 from xls.fuzzer import sample_generator
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
+from xls.fuzzer.python import cpp_sample as sample
 from xls.fuzzer.run_fuzz_multiprocess import do_generator_task
 
 flags.DEFINE_enum(

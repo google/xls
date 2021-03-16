@@ -27,11 +27,11 @@ from absl import logging
 import termcolor
 
 from xls.common import runfiles
-from xls.fuzzer import sample
 from xls.fuzzer import sample_generator
 from xls.fuzzer import sample_runner
 from xls.fuzzer import sample_summary_pb2
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
+from xls.fuzzer.python import cpp_sample as sample
 
 SAMPLE_RUNNER_MAIN_PATH = runfiles.get_path('xls/fuzzer/sample_runner_main')
 IR_MINIMIZER_MAIN_PATH = runfiles.get_path('xls/tools/ir_minimizer_main')
@@ -159,7 +159,7 @@ def minimize_ir(smp: sample.Sample,
   if os.path.exists(os.path.join(run_dir, 'sample.ir')):
     # First try to minimize using the sample runner binary as the minimization
     # test.
-    ir_minimize_options = smp.options._replace(input_is_dslx=False)
+    ir_minimize_options = smp.options.replace(input_is_dslx=False)
     _write_to_file(run_dir, 'ir_minimizer.options.json',
                    ir_minimize_options.to_json())
     # Generate the sample runner script. The script should return 0 (success) if

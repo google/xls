@@ -35,3 +35,20 @@ xls_pybind_extension(
         "//xls/fuzzer:ast_generator",
     ],
 )
+
+xls_pybind_extension(
+    name = "cpp_sample",
+    srcs = [
+        "cpp_sample.cc",
+    ],
+    deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status:statusor",
+        "@at_clifford_yosys//:json11",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/common/status:statusor_pybind_caster",
+        "//xls/fuzzer:ast_generator",
+        "//xls/fuzzer:cpp_sample",
+    ],
+)

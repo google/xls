@@ -37,8 +37,8 @@ from xls.fuzzer import run_fuzz
 from xls.fuzzer import sample_generator
 from xls.fuzzer import sample_runner
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
-from xls.fuzzer.sample import Sample
-from xls.fuzzer.sample import SampleOptions
+from xls.fuzzer.python.cpp_sample import Sample
+from xls.fuzzer.python.cpp_sample import SampleOptions
 
 
 class Command(enum.Enum):

@@ -25,9 +25,9 @@ from absl.testing import parameterized
 from xls.common import runfiles
 from xls.common import test_base
 from xls.fuzzer import run_fuzz
-from xls.fuzzer import sample
 from xls.fuzzer import sample_runner
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
+from xls.fuzzer.python import cpp_sample as sample
 
 flags.DEFINE_boolean('codegen', True,
                      'Whether to generate Verilog for generated samples.')

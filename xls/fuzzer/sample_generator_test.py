@@ -22,7 +22,7 @@ from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import TupleType
 from xls.fuzzer import sample_generator
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
-from xls.fuzzer.sample import SampleOptions
+from xls.fuzzer.python.cpp_sample import SampleOptions
 
 
 class SampleGeneratorTest(test_base.TestCase):
