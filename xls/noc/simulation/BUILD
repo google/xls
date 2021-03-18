@@ -33,8 +33,9 @@ cc_test(
     srcs = ["common_test.cc"],
     deps = [
         ":common",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -58,8 +59,9 @@ cc_test(
     deps = [
         ":common",
         ":network_graph",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -83,10 +85,11 @@ cc_test(
     srcs = ["parameters_test.cc"],
     deps = [
         ":parameters",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/config:network_config_proto_builder",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -111,11 +114,12 @@ cc_test(
     srcs = ["network_graph_builder_test.cc"],
     deps = [
         ":network_graph_builder",
+        "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/config:network_config_proto_builder",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -138,12 +142,12 @@ cc_test(
     srcs = ["indexer_test.cc"],
     deps = [
         ":indexer",
-        ":network_graph_builder",
+        "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/config:network_config_proto_builder",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -170,11 +174,12 @@ cc_test(
     deps = [
         ":global_routing_table",
         ":network_graph_builder",
+        "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/config:network_config_proto_builder",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -201,10 +206,11 @@ cc_test(
     deps = [
         ":network_graph_builder",
         ":sim_objects",
+        "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/config:network_config_proto_builder",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )

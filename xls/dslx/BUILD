@@ -105,8 +105,9 @@ cc_test(
     srcs = ["type_info_test.cc"],
     deps = [
         ":type_info",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -186,8 +187,9 @@ cc_test(
     srcs = ["pos_test.cc"],
     deps = [
         ":pos",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -228,8 +230,9 @@ cc_test(
     srcs = ["ast_test.cc"],
     deps = [
         ":ast",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -258,8 +261,9 @@ cc_test(
     srcs = ["scanner_test.cc"],
     deps = [
         ":scanner",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -282,8 +286,9 @@ cc_test(
     srcs = ["bindings_test.cc"],
     deps = [
         ":bindings",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -319,8 +324,9 @@ cc_test(
     srcs = ["parser_test.cc"],
     deps = [
         ":parser",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -358,8 +364,9 @@ cc_test(
     srcs = ["concrete_type_test.cc"],
     deps = [
         ":concrete_type",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -395,8 +402,9 @@ cc_test(
     srcs = ["interp_bindings_test.cc"],
     deps = [
         ":interp_bindings",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -454,8 +462,9 @@ cc_test(
     srcs = ["evaluate_test.cc"],
     deps = [
         ":evaluate",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -515,8 +524,9 @@ cc_test(
     deps = [
         ":interpreter",
         ":parse_and_typecheck",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -587,8 +597,9 @@ cc_test(
     srcs = ["typecheck_test.cc"],
     deps = [
         ":parse_and_typecheck",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -650,8 +661,9 @@ cc_test(
     deps = [
         ":extract_conversion_order",
         ":parse_and_typecheck",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -674,10 +686,11 @@ cc_test(
     srcs = ["error_printer_test.cc"],
     deps = [
         ":error_printer",
+        "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 

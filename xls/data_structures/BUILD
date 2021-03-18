@@ -32,7 +32,8 @@ cc_test(
     deps = [
         ":union_find",
         "@com_google_absl//absl/memory",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -119,7 +120,8 @@ cc_test(
     deps = [
         ":inline_bitmap",
         "@com_google_absl//absl/memory",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -129,10 +131,11 @@ cc_test(
     deps = [
         ":leaf_type_tree",
         "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit_main",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:ir_parser",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -143,10 +146,11 @@ cc_test(
         ":algorithm",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings:str_format",
+        "//xls/common:xls_gunit_main",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -156,11 +160,12 @@ cc_test(
     deps = [
         ":binary_decision_diagram",
         "@com_google_absl//absl/container:inlined_vector",
+        "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/ir:format_preference",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -169,14 +174,14 @@ cc_test(
     srcs = ["min_cut_test.cc"],
     deps = [
         ":min_cut",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:distributions",
         "@com_google_absl//absl/random:mocking_bit_gen",
         "@com_google_absl//absl/strings:str_format",
+        "//xls/common:xls_gunit_main",
         "//xls/common/logging",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -186,7 +191,8 @@ cc_test(
     deps = [
         ":binary_search",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )

@@ -61,6 +61,7 @@ cc_test(
     deps = [
         ":ir_evaluator_test",
         ":ir_interpreter",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",
@@ -68,7 +69,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -97,11 +98,12 @@ cc_test(
     deps = [
         ":proc_interpreter",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:channel",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -112,11 +114,12 @@ cc_test(
         ":channel_queue",
         ":ir_interpreter",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:channel",
         "//xls/ir:channel_cc_proto",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -127,12 +130,13 @@ cc_test(
         ":proc_network_interpreter",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 

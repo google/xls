@@ -88,7 +88,8 @@ cc_test(
     srcs = ["topology_endpoint_options_proto_builder_test.cc"],
     deps = [
         ":topology_endpoint_options_proto_builder",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -107,7 +108,8 @@ cc_test(
     srcs = ["dimension_order_entry_options_proto_builder_test.cc"],
     deps = [
         ":dimension_order_entry_options_proto_builder",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -129,7 +131,8 @@ cc_test(
     deps = [
         ":dimension_order_options_proto_builder",
         ":topology_endpoint_options_proto_builder",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -150,7 +153,8 @@ cc_test(
         ":fake_network_component",
         ":network_component_port",
         ":network_view",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -173,7 +177,8 @@ cc_test(
     deps = [
         ":fake_network_component",
         ":network_view",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -195,7 +200,8 @@ cc_test(
         ":network_component_port",
         ":network_connection",
         ":network_view",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -217,7 +223,8 @@ cc_test(
     deps = [
         ":fake_network_component",
         ":network_view",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -252,8 +259,9 @@ cc_test(
         ":network_component_port",
         ":network_component_port_utils",
         ":network_view",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -279,8 +287,9 @@ cc_test(
         ":fake_network_component",
         ":network_component_utils",
         ":network_view",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -300,11 +309,11 @@ cc_test(
     srcs = ["network_connection_utils_test.cc"],
     deps = [
         ":fake_network_component",
-        ":network_component_port",
         ":network_connection_utils",
         ":network_view",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -328,7 +337,8 @@ cc_test(
     deps = [
         ":network_view",
         ":network_view_utils",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )

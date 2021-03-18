@@ -70,6 +70,7 @@ cc_test(
     deps = [
         ":combinational_generator",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/examples:sample_packages",
         "//xls/interpreter:ir_interpreter",
@@ -81,7 +82,7 @@ cc_test(
         "//xls/simulation:module_simulator",
         "//xls/simulation:verilog_simulators",
         "//xls/simulation:verilog_test_base",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -132,6 +133,7 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
@@ -145,7 +147,7 @@ cc_test(
         "//xls/simulation:module_simulator",
         "//xls/simulation:module_testbench",
         "//xls/simulation:verilog_test_base",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -195,8 +197,9 @@ cc_test(
     deps = [
         ":vast",
         "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -207,10 +210,11 @@ cc_test(
     deps = [
         ":finite_state_machine",
         ":vast",
+        "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/simulation:verilog_test_base",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -424,6 +428,7 @@ cc_test(
         ":flattening",
         ":pipeline_generator",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
@@ -432,7 +437,7 @@ cc_test(
         "//xls/simulation:module_simulator",
         "//xls/simulation:module_testbench",
         "//xls/simulation:verilog_test_base",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -441,10 +446,11 @@ cc_test(
     srcs = ["module_signature_test.cc"],
     deps = [
         ":module_signature",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/ir:value",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -453,10 +459,11 @@ cc_test(
     srcs = ["flattening_test.cc"],
     deps = [
         ":flattening",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:ir_test_base",
         "//xls/ir:type",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -468,6 +475,7 @@ cc_test(
     deps = [
         ":module_builder",
         ":vast",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",
@@ -475,7 +483,7 @@ cc_test(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/simulation:verilog_test_base",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -484,12 +492,13 @@ cc_test(
     srcs = ["state_removal_pass_test.cc"],
     deps = [
         ":state_removal_pass",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/interpreter:channel_queue",
         "//xls/interpreter:proc_network_interpreter",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -498,6 +507,7 @@ cc_test(
     srcs = ["proc_generator_test.cc"],
     deps = [
         ":proc_generator",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:channel",
@@ -507,7 +517,6 @@ cc_test(
         "//xls/ir:value",
         "//xls/simulation:module_simulator",
         "//xls/simulation:verilog_test_base",
-        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -516,9 +525,10 @@ cc_test(
     srcs = ["function_to_proc_test.cc"],
     deps = [
         ":function_to_proc",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )

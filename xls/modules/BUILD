@@ -165,11 +165,11 @@ cc_test(
     srcs = ["fpadd_2x32_jit_wrapper_test.cc"],
     deps = [
         ":fpadd_2x32_jit_wrapper",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/ir:bits",
         "//xls/ir:value",
         "//xls/ir:value_helpers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 

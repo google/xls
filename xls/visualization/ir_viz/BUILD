@@ -116,6 +116,7 @@ cc_test(
     srcs = ["ir_to_json_test.cc"],
     deps = [
         ":ir_to_json",
+        "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
@@ -124,7 +125,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "@com_google_absl//absl/memory",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 

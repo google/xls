@@ -91,8 +91,9 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -124,8 +125,9 @@ cc_test(
         ":netlist_parser",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -163,8 +165,9 @@ cc_test(
         ":cell_library",
         ":netlist_cc_proto",
         "@com_google_absl//absl/memory",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -214,8 +217,9 @@ cc_test(
         ":find_logic_clouds",
         ":netlist_parser",
         "@com_google_absl//absl/memory",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -241,8 +245,9 @@ cc_test(
         ":logical_effort",
         ":netlist_parser",
         "@com_google_absl//absl/memory",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -267,10 +272,10 @@ cc_test(
     srcs = ["lib_parser_test.cc"],
     deps = [
         ":lib_parser",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -318,8 +323,9 @@ cc_test(
         ":lib_parser",
         ":netlist_cc_proto",
         "@com_google_absl//absl/container:flat_hash_set",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -343,7 +349,8 @@ cc_test(
     srcs = ["function_parser_test.cc"],
     deps = [
         ":function_parser",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )

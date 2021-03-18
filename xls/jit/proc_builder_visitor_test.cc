@@ -1,4 +1,4 @@
-// Copyright 2020 Google LLC
+// Copyright 2021 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "xls/jit/proc_builder_visitor.h"
 
 #include <filesystem>
@@ -207,6 +208,7 @@ fn AddTwo(a: bits[8], b: bits[8]) -> bits[8] {
   builder.setEngineKind(llvm::EngineKind::JIT);
   std::unique_ptr<llvm::ExecutionEngine> evaluator =
       absl::WrapUnique(builder.create());
+  ASSERT_TRUE(evaluator != nullptr);
   auto fn = reinterpret_cast<EntryFunctionT>(
       evaluator->getFunctionAddress(kFunctionName));
   fn(input_buffer, &output_buffer, nullptr);

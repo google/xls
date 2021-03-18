@@ -23,6 +23,7 @@ cc_test(
     shard_count = 2,
     deps = [
         "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -30,7 +31,7 @@ cc_test(
         "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -38,9 +39,10 @@ cc_test(
     name = "ir_types_test",
     srcs = ["ir_types_test.cc"],
     deps = [
+        "//xls/common:xls_gunit_main",
         "//xls/ir",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -51,6 +53,7 @@ cc_test(
     deps = [
         "@com_google_absl//absl/status:statusor",
         "//xls/common:subprocess",
+        "//xls/common:xls_gunit_main",
         "//xls/common/file:get_runfile_path",
         "//xls/common/file:temp_file",
         "//xls/common/logging",
@@ -60,6 +63,6 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "//xls/passes:standard_pipeline",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )

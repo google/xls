@@ -70,10 +70,11 @@ cc_test(
     srcs = ["jit_wrapper_generator_test.cc"],
     deps = [
         ":jit_wrapper_generator",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_parser",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -137,6 +138,7 @@ cc_test(
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/interpreter:channel_queue",
@@ -144,7 +146,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:random_value",
         "@com_github_google_re2//:re2",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -227,9 +229,9 @@ cc_test(
         ":jit_runtime",
         ":llvm_type_converter",
         ":proc_builder_visitor",
-        "@com_google_absl//absl/base:dynamic_annotations",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:subprocess",
+        "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/file:temp_directory",
@@ -239,12 +241,12 @@ cc_test(
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
         "@llvm-project//llvm:Core",
         "@llvm-project//llvm:ExecutionEngine",
-        "@llvm-project//llvm:MCJIT",
+        "@llvm-project//llvm:MCJIT",  # build_cleaner: keep
         "@llvm-project//llvm:OrcJIT",
-        "@llvm-project//llvm:Target",
+        "@llvm-project//llvm:Target",  # build_cleaner: keep
     ],
 )
 
@@ -273,10 +275,11 @@ cc_test(
         ":jit_channel_queue",
         ":serial_proc_runtime",
         "//xls/common:thread",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:ir_parser",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )

@@ -24,8 +24,9 @@ cc_test(
         ":verilog_simulator",
         ":verilog_simulators",
         ":verilog_test_base",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -86,9 +87,10 @@ cc_test(
         ":verilog_test_base",
         "@com_google_absl//absl/status:statusor",
         "//xls/codegen:module_signature",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -126,10 +128,11 @@ cc_test(
         ":verilog_simulators",
         ":verilog_test_base",
         "//xls/codegen:vast",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -181,8 +184,9 @@ cc_test(
     deps = [
         ":verilog_test_base",
         "@com_google_absl//absl/strings:str_format",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -198,12 +202,13 @@ cc_test(
         "//xls/codegen:module_signature",
         "//xls/codegen:pipeline_generator",
         "//xls/codegen:proc_generator",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/scheduling:pipeline_schedule",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )

@@ -42,8 +42,9 @@ cc_test(
     deps = [
         ":capture_stream",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -73,7 +74,8 @@ cc_test(
     deps = [
         ":errno_saver",
         "//xls/common:strerror",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -97,7 +99,8 @@ cc_test(
     deps = [
         ":log_entry",
         "@com_google_absl//absl/base:log_severity",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -120,7 +123,8 @@ cc_test(
         ":log_lines",
         ":scoped_mock_log",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -145,9 +149,10 @@ cc_test(
         ":log_flags",
         ":logging_test_base",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -194,7 +199,8 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:source_location",
         "//xls/common:strerror",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -245,15 +251,16 @@ cc_test(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
 cc_library(
     name = "logging_test_base",
-    testonly = 1,
+    testonly = True,
     srcs = ["logging_test_base.cc"],
     hdrs = ["logging_test_base.h"],
     deps = [
@@ -277,7 +284,8 @@ cc_test(
     srcs = ["null_guard_test.cc"],
     deps = [
         ":null_guard",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -299,19 +307,21 @@ cc_test(
     srcs = ["null_stream_test.cc"],
     deps = [
         ":null_stream",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
 cc_library(
     name = "scoped_mock_log",
-    testonly = 1,
+    testonly = True,
     hdrs = ["scoped_mock_log.h"],
     deps = [
         ":log_entry",
         ":logging",
         "@com_google_absl//absl/base:log_severity",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -336,7 +346,8 @@ cc_test(
     srcs = ["vlog_is_on_test.cc"],
     deps = [
         ":vlog_is_on",
-        "@com_google_googletest//:gtest_main",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
