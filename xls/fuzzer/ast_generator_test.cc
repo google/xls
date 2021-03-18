@@ -102,8 +102,3 @@ INSTANTIATE_TEST_SUITE_P(AstGeneratorRepeatableTestInstance,
 
 }  // namespace
 }  // namespace xls::dslx
-
-int main(int argc, char* argv[]) {
-  xls::InitXls(argv[0], argc, argv);
-  return RUN_ALL_TESTS();
-}

@@ -42,7 +42,6 @@ py_library(
     srcs_version = "PY3ONLY",
     tags = ["optonly"],
     deps = [
-        ":sample_generator",
         ":sample_runner",
         ":sample_summary_py_pb2",
         requirement("termcolor"),
@@ -210,7 +209,6 @@ py_library(
     srcs_version = "PY3ONLY",
     deps = [
         ":run_fuzz",
-        ":sample_generator",
         ":sample_runner",
         requirement("termcolor"),
         "//xls/common:gfile",
@@ -233,20 +231,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
-    ],
-)
-
-py_library(
-    name = "sample_generator",
-    srcs = ["sample_generator.py"],
-    srcs_version = "PY3ONLY",
-    deps = [
-        "//xls/dslx/python:cpp_concrete_type",
-        "//xls/dslx/python:interp_value",
-        "//xls/dslx/python:interpreter",
-        "//xls/fuzzer/python:cpp_ast_generator",
-        "//xls/fuzzer/python:cpp_sample",
-        "//xls/ir/python:bits",
     ],
 )
 
@@ -289,7 +273,6 @@ py_binary(
     deps = [
         ":run_fuzz",
         ":run_fuzz_multiprocess_lib",
-        ":sample_generator",
         "//xls/fuzzer/python:cpp_ast_generator",
         "//xls/fuzzer/python:cpp_sample",
         "@com_google_absl_py//absl:app",
@@ -316,7 +299,6 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":sample_generator",
         "//xls/common:test_base",
         "//xls/dslx/python:cpp_concrete_type",
         "//xls/fuzzer/python:cpp_ast_generator",
@@ -460,10 +442,36 @@ cc_test(
     deps = [
         ":ast_generator",
         "//xls/common:init_xls",
+        "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
         "//xls/dslx:command_line_utils",
         "//xls/dslx:parse_and_typecheck",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "cpp_sample_generator",
+    srcs = ["sample_generator.cc"],
+    hdrs = ["sample_generator.h"],
+    deps = [
+        ":ast_generator",
+        ":cpp_sample",
+        "//xls/common/status:ret_check",
+        "//xls/dslx:concrete_type",
+        "//xls/dslx:import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/ir:bits_ops",
+    ],
+)
+
+cc_test(
+    name = "cpp_sample_generator_test",
+    srcs = ["sample_generator_test.cc"],
+    deps = [
+        ":cpp_sample_generator",
+        "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
 )

@@ -34,7 +34,6 @@ import termcolor
 from xls.common import gfile
 from xls.common import multiprocess
 from xls.fuzzer import run_fuzz
-from xls.fuzzer import sample_generator
 from xls.fuzzer import sample_runner
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
 from xls.fuzzer.python.cpp_sample import Sample
@@ -204,9 +203,9 @@ def do_generator_task(queues: Tuple[mp.Queue, ...],
 
     # Generate a command message.
     with sample_runner.Timer() as t:
-      sample = sample_generator.generate_sample(rng, ast_generator_options,
-                                                calls_per_sample,
-                                                default_sample_options)
+      sample = ast_generator.generate_sample(ast_generator_options,
+                                             calls_per_sample,
+                                             default_sample_options, rng)
 
     if print_samples:
       print_with_linenos(sample.input_text)

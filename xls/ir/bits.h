@@ -249,6 +249,8 @@ class Bits {
   // twos complement signed number.
   static int64_t MinBitCountSigned(int64_t value);
 
+  const InlineBitmap& bitmap() const { return bitmap_; }
+
  private:
   friend class BitsRope;
   friend absl::StatusOr<Bits> UBitsWithStatus(uint64_t, int64_t);

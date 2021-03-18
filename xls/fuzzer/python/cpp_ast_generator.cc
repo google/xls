@@ -24,46 +24,22 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/fuzzer/ast_generator.h"
+#include "xls/fuzzer/sample_generator.h"
 
 namespace py = pybind11;
 
 namespace xls::dslx {
 
-// Holds our RNG state and is wrapped so our Python code can use the same
-// underlying engine for its sequences.
-struct RngState {
-  std::mt19937 rng;
-};
-
 PYBIND11_MODULE(cpp_ast_generator, m) {
+  ImportStatusModule();
+  py::module::import("xls.dslx.python.interp_value");
+
   py::class_<RngState>(m, "RngState")
       .def(py::init([](int64_t seed) { return RngState{std::mt19937(seed)}; }))
-      .def("random",
-           [](RngState& self) -> double {
-             std::uniform_real_distribution<double> d(0.0, 1.0);
-             return d(self.rng);
-           })
-      .def("randrange",
-           [](RngState& self, int64_t limit) -> int64_t {
-             std::uniform_int_distribution<int64_t> d(0, limit - 1);
-             return d(self.rng);
-           })
+      .def("random", &RngState::RandomDouble)
+      .def("randrange", &RngState::RandRange)
       .def("randrange_biased_towards_zero",
-           [](RngState& self, int64_t limit) -> absl::StatusOr<int64_t> {
-             XLS_RET_CHECK_GT(limit, 0);
-             if (limit == 1) {  // Only one possible value.
-               return 0;
-             }
-             std::array<double, 3> i = {{0, 0, limit - 1.0}};
-             std::array<double, 3> w = {{0, 1, 0}};
-             std::piecewise_linear_distribution<double> d(i.begin(), i.end(),
-                                                          w.begin());
-             double triangular = d(self.rng);
-             int64_t result = static_cast<int64_t>(std::ceil(triangular)) - 1;
-             XLS_CHECK_GE(result, 0);
-             XLS_CHECK_LT(result, limit);
-             return result;
-           });
+           &RngState::RandRangeBiasedTowardsZero);
 
   py::class_<AstGeneratorOptions>(m, "AstGeneratorOptions")
       .def(py::init([](absl::optional<bool> disallow_divide,
@@ -102,16 +78,31 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
   m.def("generate",
         [](const AstGeneratorOptions& options,
            RngState& state) -> absl::StatusOr<std::string> {
-          AstGenerator g(options, &state.rng);
+          AstGenerator g(options, &state.rng());
           XLS_ASSIGN_OR_RETURN(auto pair,
                                g.GenerateFunctionInModule("main", "test"));
           return pair.second->ToString();
         });
 
   m.def("choose_bit_pattern", [](int64_t bit_count, RngState& state) -> Bits {
-    AstGenerator g(AstGeneratorOptions(), &state.rng);
+    AstGenerator g(AstGeneratorOptions(), &state.rng());
     return g.ChooseBitPattern(bit_count);
   });
+
+  m.def("generate_arguments",
+        [](const std::vector<const ConcreteType*>& arg_types,
+           RngState* rng) -> absl::StatusOr<py::tuple> {
+          XLS_ASSIGN_OR_RETURN(auto arguments,
+                               GenerateArguments(arg_types, rng));
+          py::tuple result(arguments.size());
+          for (int64_t i = 0; i < arguments.size(); ++i) {
+            result[i] = arguments[i];
+          }
+          return result;
+        });
+  m.def("generate_sample", GenerateSample, py::arg("options"),
+        py::arg("calls_per_sample"), py::arg("default_options"),
+        py::arg("rng"));
 }
 
 }  // namespace xls::dslx

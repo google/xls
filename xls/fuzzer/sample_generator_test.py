@@ -20,7 +20,6 @@ from xls.common import test_base
 from xls.dslx.python.cpp_concrete_type import ArrayType
 from xls.dslx.python.cpp_concrete_type import BitsType
 from xls.dslx.python.cpp_concrete_type import TupleType
-from xls.fuzzer import sample_generator
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
 from xls.fuzzer.python.cpp_sample import SampleOptions
 
@@ -38,19 +37,19 @@ class SampleGeneratorTest(test_base.TestCase):
 
   def test_generate_empty_arguments(self):
     rng = ast_generator.RngState(0)
-    self.assertEqual(sample_generator.generate_arguments((), rng), ())
+    self.assertEqual(ast_generator.generate_arguments((), rng), ())
 
   def test_generate_single_bits_arguments(self):
     rng = ast_generator.RngState(0)
-    args = sample_generator.generate_arguments(
-        (BitsType(signed=False, size=42),), rng)
+    args = ast_generator.generate_arguments((BitsType(signed=False, size=42),),
+                                            rng)
     self.assertLen(args, 1)
     self.assertTrue(args[0].is_ubits())
     self.assertEqual(args[0].get_bit_count(), 42)
 
   def test_generate_mixed_bits_arguments(self):
     rng = ast_generator.RngState(0)
-    args = sample_generator.generate_arguments(
+    args = ast_generator.generate_arguments(
         (BitsType(signed=False, size=123), BitsType(signed=True, size=22)), rng)
     self.assertLen(args, 2)
     self.assertTrue(args[0].is_ubits())
@@ -60,9 +59,9 @@ class SampleGeneratorTest(test_base.TestCase):
 
   def test_generate_tuple_argument(self):
     rng = ast_generator.RngState(0)
-    args = sample_generator.generate_arguments((TupleType(
-        (BitsType(signed=False, size=123),
-         BitsType(signed=True, size=22))),), rng)
+    args = ast_generator.generate_arguments((TupleType(
+        (BitsType(signed=False, size=123), BitsType(signed=True, size=22))),),
+                                            rng)
     self.assertLen(args, 1)
     self.assertTrue(args[0].is_tuple())
     self.assertEqual(args[0].get_elements()[0].get_bit_count(), 123)
@@ -70,7 +69,7 @@ class SampleGeneratorTest(test_base.TestCase):
 
   def test_generate_array_argument(self):
     rng = ast_generator.RngState(0)
-    args = sample_generator.generate_arguments(
+    args = ast_generator.generate_arguments(
         (ArrayType(BitsType(signed=True, size=4), 24),), rng)
     self.assertLen(args, 1)
     self.assertTrue(args[0].is_array())
@@ -80,13 +79,13 @@ class SampleGeneratorTest(test_base.TestCase):
 
   def test_generate_basic_sample(self):
     rng = ast_generator.RngState(0)
-    sample = sample_generator.generate_sample(
-        rng,
+    sample = ast_generator.generate_sample(
         ast_generator.AstGeneratorOptions(),
         calls_per_sample=3,
         default_options=SampleOptions(
             convert_to_ir=True, optimize_ir=True, codegen=False,
-            simulate=False))
+            simulate=False),
+        rng=rng)
     self.assertTrue(sample.options.input_is_dslx)
     self.assertTrue(sample.options.convert_to_ir)
     self.assertTrue(sample.options.optimize_ir)
@@ -97,12 +96,12 @@ class SampleGeneratorTest(test_base.TestCase):
 
   def test_generate_codegen_sample(self):
     rng = ast_generator.RngState(0)
-    sample = sample_generator.generate_sample(
-        rng,
+    sample = ast_generator.generate_sample(
         ast_generator.AstGeneratorOptions(),
         calls_per_sample=0,
         default_options=SampleOptions(
-            convert_to_ir=True, optimize_ir=True, codegen=True, simulate=True))
+            convert_to_ir=True, optimize_ir=True, codegen=True, simulate=True),
+        rng=rng)
     self.assertTrue(sample.options.input_is_dslx)
     self.assertTrue(sample.options.convert_to_ir)
     self.assertTrue(sample.options.optimize_ir)

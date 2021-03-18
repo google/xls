@@ -26,6 +26,9 @@ xls_pybind_extension(
     srcs = [
         "cpp_ast_generator.cc",
     ],
+    py_deps = [
+        "//xls/dslx/python:interp_value",
+    ],
     deps = [
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
@@ -33,6 +36,7 @@ xls_pybind_extension(
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/fuzzer:ast_generator",
+        "//xls/fuzzer:cpp_sample_generator",
     ],
 )
 

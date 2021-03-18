@@ -24,7 +24,6 @@ from absl import app
 from absl import flags
 
 from xls.fuzzer import run_fuzz
-from xls.fuzzer import sample_generator
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
 from xls.fuzzer.python import cpp_sample as sample
 from xls.fuzzer.run_fuzz_multiprocess import do_generator_task
@@ -48,14 +47,14 @@ DISALLOW_DIVIDE = True
 def setup_worker():
   """Creates arguments to repeatedly pass to benchmark_worker."""
   rng = ast_generator.RngState(0)
-  smp = sample_generator.generate_sample(
-      rng, ast_generator.AstGeneratorOptions(disallow_divide=DISALLOW_DIVIDE),
+  smp = ast_generator.generate_sample(
+      ast_generator.AstGeneratorOptions(disallow_divide=DISALLOW_DIVIDE),
       CALLS_PER_SAMPLE,
       sample.SampleOptions(
           convert_to_ir=True,
           optimize_ir=True,
           codegen=FLAGS.codegen,
-          simulate=FLAGS.simulate))
+          simulate=FLAGS.simulate), rng)
 
   run_dir = tempfile.mkdtemp('run_fuzz_')
   return (run_dir, smp)

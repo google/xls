@@ -27,7 +27,6 @@ from absl import logging
 import termcolor
 
 from xls.common import runfiles
-from xls.fuzzer import sample_generator
 from xls.fuzzer import sample_runner
 from xls.fuzzer import sample_summary_pb2
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
@@ -238,13 +237,13 @@ def run_fuzz(
   """Runs a fuzzing loop for "sample_count" samples."""
   samples = []
   for i in range(sample_count):
-    smp = sample_generator.generate_sample(
-        rng, ast_generator_options, calls_per_sample,
+    smp = ast_generator.generate_sample(
+        ast_generator_options, calls_per_sample,
         sample.SampleOptions(
             convert_to_ir=True,
             optimize_ir=True,
             codegen=codegen,
-            simulate=simulate))
+            simulate=simulate), rng)
 
     if return_samples:
       samples.append(smp)
