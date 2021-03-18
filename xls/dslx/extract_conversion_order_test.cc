@@ -36,9 +36,9 @@ fn main() -> u32 { f() }
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(3, order.size());
-  EXPECT_EQ(order[0].f->identifier(), "g");
-  EXPECT_EQ(order[1].f->identifier(), "f");
-  EXPECT_EQ(order[2].f->identifier(), "main");
+  EXPECT_EQ(order[0].f()->identifier(), "g");
+  EXPECT_EQ(order[1].f()->identifier(), "f");
+  EXPECT_EQ(order[2].f()->identifier(), "main");
 }
 
 TEST(ExtractConversionOrderTest, Parametric) {
@@ -54,12 +54,12 @@ fn main() -> u32 { f(u2:0) }
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(2, order.size());
-  EXPECT_EQ(order[0].f->identifier(), "f");
+  EXPECT_EQ(order[0].f()->identifier(), "f");
   EXPECT_EQ(
-      order[0].bindings,
+      order[0].symbolic_bindings(),
       SymbolicBindings(absl::flat_hash_map<std::string, int64_t>{{"N", 2}}));
-  EXPECT_EQ(order[1].f->identifier(), "main");
-  EXPECT_EQ(order[1].bindings, SymbolicBindings());
+  EXPECT_EQ(order[1].f()->identifier(), "main");
+  EXPECT_EQ(order[1].symbolic_bindings(), SymbolicBindings());
 }
 
 TEST(ExtractConversionOrderTest, TransitiveParametric) {
@@ -76,16 +76,16 @@ fn main() -> u32 { f(u2:0) }
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(3, order.size());
-  EXPECT_EQ(order[0].f->identifier(), "g");
+  EXPECT_EQ(order[0].f()->identifier(), "g");
   EXPECT_EQ(
-      order[0].bindings,
+      order[0].symbolic_bindings(),
       SymbolicBindings(absl::flat_hash_map<std::string, int64_t>{{"M", 2}}));
-  EXPECT_EQ(order[1].f->identifier(), "f");
+  EXPECT_EQ(order[1].f()->identifier(), "f");
   EXPECT_EQ(
-      order[1].bindings,
+      order[1].symbolic_bindings(),
       SymbolicBindings(absl::flat_hash_map<std::string, int64_t>{{"N", 2}}));
-  EXPECT_EQ(order[2].f->identifier(), "main");
-  EXPECT_EQ(order[2].bindings, SymbolicBindings());
+  EXPECT_EQ(order[2].f()->identifier(), "main");
+  EXPECT_EQ(order[2].symbolic_bindings(), SymbolicBindings());
 }
 
 TEST(ExtractConversionOrderTest, BuiltinIsElided) {
@@ -100,8 +100,8 @@ fn main() -> u32 { fail!(u32:0) }
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(1, order.size());
-  EXPECT_EQ(order[0].f->identifier(), "main");
-  EXPECT_EQ(order[0].bindings, SymbolicBindings());
+  EXPECT_EQ(order[0].f()->identifier(), "main");
+  EXPECT_EQ(order[0].symbolic_bindings(), SymbolicBindings());
 }
 
 }  // namespace

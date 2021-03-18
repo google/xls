@@ -2143,6 +2143,13 @@ absl::Status ConvertOneFunctionInternal(
     Package* package, Module* module, Function* function, TypeInfo* type_info,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
     bool emit_positions) {
+  // Validate the requested conversion looks sound in terms of provided
+  // parametrics.
+  if (symbolic_bindings != nullptr) {
+    XLS_RETURN_IF_ERROR(
+        ConversionRecord::ValidateParametrics(function, *symbolic_bindings));
+  }
+
   absl::flat_hash_map<std::string, Function*> function_by_name =
       module->GetFunctionByName();
   absl::flat_hash_map<std::string, ConstantDef*> constant_by_name =
@@ -2158,34 +2165,6 @@ absl::Status ConvertOneFunctionInternal(
                        GetConstantDepFreevars(function->body()));
   for (const auto& dep : constant_deps) {
     converter.AddConstantDep(dep);
-  }
-
-  auto set_to_string = [](const absl::btree_set<std::string>& s) {
-    return absl::StrCat("{", absl::StrJoin(s, ", "), "}");
-  };
-  // TODO(leary): 2020-11-19 We use btrees in particular so this could use dual
-  // iterators via the sorted property for O(n) superset comparison, but this
-  // was easier to write and know it was correct on a first cut (couldn't find a
-  // superset helper in absl's container algorithms at a first pass).
-  auto is_superset = [](absl::btree_set<std::string> lhs,
-                        const absl::btree_set<std::string>& rhs) {
-    for (const auto& item : rhs) {
-      lhs.erase(item);
-    }
-    return !lhs.empty();
-  };
-
-  absl::btree_set<std::string> symbolic_binding_keys;
-  if (symbolic_bindings != nullptr) {
-    symbolic_binding_keys = symbolic_bindings->GetKeySet();
-  }
-  absl::btree_set<std::string> f_parametric_keys =
-      function->GetFreeParametricKeySet();
-  if (is_superset(f_parametric_keys, symbolic_binding_keys)) {
-    return absl::InternalError(absl::StrFormat(
-        "Not enough symbolic bindings to convert function: %s; need %s got %s",
-        function->identifier(), set_to_string(f_parametric_keys),
-        set_to_string(symbolic_binding_keys)));
   }
 
   XLS_VLOG(3) << absl::StreamFormat("Converting function: %s",
@@ -2247,8 +2226,8 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
   for (const ConversionRecord& record : order) {
     XLS_VLOG(3) << "Converting to IR: " << record.ToString();
     XLS_RETURN_IF_ERROR(ConvertOneFunctionInternal(
-        package.get(), record.m, record.f, record.type_info, import_data,
-        &record.bindings, emit_positions));
+        package.get(), record.module(), record.f(), record.type_info(),
+        import_data, &record.symbolic_bindings(), emit_positions));
   }
 
   XLS_VLOG(3) << "Verifying converted package";

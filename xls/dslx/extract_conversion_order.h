@@ -50,20 +50,50 @@ class Callee {
 //
 // Attributes:
 //   f: Function AST node to convert.
-//   m: Module that f resides in.
+//   module: Module that f resides in.
 //   type_info: Node to type mapping for use in converting this
 //     function instance.
 //   callees: Function names that 'f' calls.
-//   bindings: Parametric bindings for this function instance.
+//   symbolic_bindings: Parametric bindings for this function instance.
 //   callees: Functions that this instance calls.
-struct ConversionRecord {
-  Function* f;
-  Module* m;
-  TypeInfo* type_info;
-  SymbolicBindings bindings;
-  std::vector<Callee> callees;
+class ConversionRecord {
+ public:
+  // Note: performs ValidateParametrics() to potentially return an error status.
+  static absl::StatusOr<ConversionRecord> Make(
+      Function* f, Module* module, TypeInfo* type_info,
+      SymbolicBindings symbolic_bindings, std::vector<Callee> callees);
+
+  // Integrity-checks that the symbolic_bindings provided are sufficient to
+  // instantiate f (i.e. if it is parametric). Returns an internal error status
+  // if they are not sufficient.
+  static absl::Status ValidateParametrics(
+      Function* f, const SymbolicBindings& symbolic_bindings);
+
+  Function* f() const { return f_; }
+  Module* module() const { return module_; }
+  TypeInfo* type_info() const { return type_info_; }
+  const SymbolicBindings& symbolic_bindings() const {
+    return symbolic_bindings_;
+  }
+  const std::vector<Callee>& callees() const { return callees_; }
 
   std::string ToString() const;
+
+ private:
+  ConversionRecord(Function* f, Module* module, TypeInfo* type_info,
+                   SymbolicBindings symbolic_bindings,
+                   std::vector<Callee> callees)
+      : f_(f),
+        module_(module),
+        type_info_(type_info),
+        symbolic_bindings_(std::move(symbolic_bindings)),
+        callees_(std::move(callees)) {}
+
+  Function* f_;
+  Module* module_;
+  TypeInfo* type_info_;
+  SymbolicBindings symbolic_bindings_;
+  std::vector<Callee> callees_;
 };
 
 // Returns (topological) order for functions to be converted to IR.
