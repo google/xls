@@ -109,21 +109,45 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
                        [node](Node* op) { return op == node->operand(0); });
   };
 
-  // All operands the same for a non-inverting logical op (AND, OR):
+  // Duplicate operands of AND and OR (and their inverting forms NAND and OR)
+  // can be removed.
   //
-  //   Op(x, x, ...)  =>  x
-  const Op op = n->op();
-  if (n->Is<NaryOp>() && (op == Op::kAnd || op == Op::kOr) &&
-      all_operands_same(n)) {
+  //   Op(x, y, y, x)  =>  Op(x, y)
+  if (n->Is<NaryOp>() && (n->op() == Op::kAnd || n->op() == Op::kOr ||
+                          n->op() == Op::kNand || n->op() == Op::kNor)) {
+    std::vector<Node*> unique_operands;
+    for (Node* operand : n->operands()) {
+      // This is quadratic in the number of operands, but shouldn't cause
+      // problems unless we have at least hundreds of thousands of operands
+      // which seems unlikely.
+      if (std::find(unique_operands.begin(), unique_operands.end(), operand) ==
+          unique_operands.end()) {
+        unique_operands.push_back(operand);
+      }
+    }
+    if (unique_operands.size() != n->operand_count()) {
+      XLS_RETURN_IF_ERROR(
+          n->ReplaceUsesWithNew<NaryOp>(unique_operands, n->op()).status());
+      return true;
+    }
+  }
+
+  // Single operand forms of non-inverting logical ops (AND, OR) can be
+  // replaced with the operand.
+  //
+  //   Op(x)  =>  x
+  if (n->Is<NaryOp>() && (n->op() == Op::kAnd || n->op() == Op::kOr) &&
+      n->operand_count() == 1) {
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
     return true;
   }
 
-  // All operands the same for inverting logical op (NOR, NAND):
+  // Single operand forms of inverting logical ops (NAND, NOR) can be
+  // replaced with the inverted operand.
   //
-  //   Op(x, x, ...)  =>  Not(x)
-  if (n->Is<NaryOp>() && (op == Op::kNor || op == Op::kNand) &&
-      all_operands_same(n)) {
+  //   Op(x)  =>  Not(x)
+  if (n->Is<NaryOp>() && (n->op() == Op::kNor || n->op() == Op::kNand) &&
+      n->operand_count() == 1) {
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<UnOp>(n->operand(0), Op::kNot).status());
     return true;
@@ -133,7 +157,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   //
   //   XOR(x, x, ...)  =>  x  // Odd number of operands.
   //   XOR(x, x, ...)  =>  0  // Even number of operands.
-  if (op == Op::kXor && all_operands_same(n)) {
+  if (n->op() == Op::kXor && all_operands_same(n)) {
     if (n->operand_count() % 2 == 0) {
       // Even number of operands. Replace with zero.
       XLS_RETURN_IF_ERROR(
@@ -345,7 +369,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
                                n->loc(), Value(UBits(rhs.CountTrailingZeros(),
                                                      rhs.bit_count()))));
       Op shift_op;
-      if (op == Op::kSMul || op == Op::kUMul) {
+      if (n->op() == Op::kSMul || n->op() == Op::kUMul) {
         // Multiply operation is replaced with shift left;
         shift_op = Op::kShll;
       } else {

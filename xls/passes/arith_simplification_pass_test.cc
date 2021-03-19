@@ -618,7 +618,19 @@ TEST_F(ArithSimplificationPassTest, SingleOperandOr) {
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
-TEST_F(ArithSimplificationPassTest, RedundantAnd) {
+TEST_F(ArithSimplificationPassTest, AndWithDuplicateOperands) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn id_and(x: bits[32], y: bits[32]) -> bits[32] {
+       ret result: bits[32] = and(x, y, y, x, pos=0,1,5)
+    }
+)",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::And(m::Param("x"), m::Param("y")));
+}
+
+TEST_F(ArithSimplificationPassTest, AndWithSameOperands) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn id_and(x: bits[32], y: bits[32]) -> bits[32] {
@@ -630,7 +642,7 @@ TEST_F(ArithSimplificationPassTest, RedundantAnd) {
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
-TEST_F(ArithSimplificationPassTest, RedundantOr) {
+TEST_F(ArithSimplificationPassTest, OrWithSameOperands) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn id_or(x: bits[32], y: bits[32]) -> bits[32] {
@@ -640,6 +652,18 @@ TEST_F(ArithSimplificationPassTest, RedundantOr) {
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Param("x"));
+}
+
+TEST_F(ArithSimplificationPassTest, NandWithDuplicateOperands) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn id_or(x: bits[32], y: bits[32]) -> bits[32] {
+       ret result: bits[32] = nand(x, x, y, y, x, pos=0,1,5)
+    }
+)",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Nand(m::Param("x"), m::Param("y")));
 }
 
 TEST_F(ArithSimplificationPassTest, NandWithSameOperands) {
