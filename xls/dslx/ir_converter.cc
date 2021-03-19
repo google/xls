@@ -1669,6 +1669,9 @@ absl::Status FunctionConverter::HandleBinop(Binop* node) {
       break;
     case BinopKind::kDiv:
       ir_func = [&](absl::optional<SourceLocation> loc) {
+        if (signed_input) {
+          return function_builder_->SDiv(lhs, rhs, loc);
+        }
         return function_builder_->UDiv(lhs, rhs, loc);
       };
       break;

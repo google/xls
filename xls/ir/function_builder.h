@@ -184,7 +184,7 @@ class BuilderBase {
                    absl::optional<SourceLocation> loc = absl::nullopt,
                    absl::string_view name = "");
 
-  // Signed/unsigned multiply. Result width is the same as the operand
+  // Unsigned/signed multiply. Result width is the same as the operand
   // width. Operand widths must be the same.
   BValue UMul(BValue lhs, BValue rhs,
               absl::optional<SourceLocation> loc = absl::nullopt,
@@ -193,7 +193,7 @@ class BuilderBase {
               absl::optional<SourceLocation> loc = absl::nullopt,
               absl::string_view name = "");
 
-  // Signed/unsigned multiply with explicitly specified result width. Operand
+  // Unsigned/signed multiply with explicitly specified result width. Operand
   // widths can be arbitrary.
   BValue UMul(BValue lhs, BValue rhs, int64_t result_width,
               absl::optional<SourceLocation> loc = absl::nullopt,
@@ -202,8 +202,12 @@ class BuilderBase {
               absl::optional<SourceLocation> loc = absl::nullopt,
               absl::string_view name = "");
 
-  // Unsigned division.
+  // Unsigned/signed division. Result width is the same as the operand
+  // width. Operand widths must be the same.
   BValue UDiv(BValue lhs, BValue rhs,
+              absl::optional<SourceLocation> loc = absl::nullopt,
+              absl::string_view name = "");
+  BValue SDiv(BValue lhs, BValue rhs,
               absl::optional<SourceLocation> loc = absl::nullopt,
               absl::string_view name = "");
 

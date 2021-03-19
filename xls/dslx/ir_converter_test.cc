@@ -143,6 +143,21 @@ fn __test_module__two_plus_two() -> bits[32] {
 )");
 }
 
+TEST(IrConverterTest, SignedDiv) {
+  const char* program =
+      R"(fn signed_div(x: s32, y: s32) -> s32 {
+  x / y
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(program, "signed_div"));
+  EXPECT_EQ(converted, R"(package test_module
+
+fn __test_module__signed_div(x: bits[32], y: bits[32]) -> bits[32] {
+  ret sdiv.3: bits[32] = sdiv(x, y, id=3, pos=0,1,4)
+}
+)");
+}
+
 TEST(IrConverterTest, NegativeX) {
   const char* program =
       R"(fn negate(x: u32) -> u32 {

@@ -712,6 +712,14 @@ BValue BuilderBase::UDiv(BValue lhs, BValue rhs,
   }
   return AddBinOp(Op::kUDiv, lhs, rhs, loc, name);
 }
+BValue BuilderBase::SDiv(BValue lhs, BValue rhs,
+                         absl::optional<SourceLocation> loc,
+                         absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return AddBinOp(Op::kSDiv, lhs, rhs, loc, name);
+}
 BValue BuilderBase::Eq(BValue lhs, BValue rhs,
                        absl::optional<SourceLocation> loc,
                        absl::string_view name) {
