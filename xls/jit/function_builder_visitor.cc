@@ -75,7 +75,7 @@ absl::Status FunctionBuilderVisitor::BuildInternal() {
   UnpoisonOutputBuffer();
 
   int64_t return_width = xls_return_type->GetFlatBitCount();
-  llvm::Value* output_arg = llvm_fn_->getArg(llvm_fn_->arg_size() - 2);
+  llvm::Value* output_arg = GetOutputPtr();
   if (generate_packed_) {
     if (return_width != 0) {
       // Declare the return argument as an iX, and pack the actual data as such
@@ -136,6 +136,75 @@ absl::Status FunctionBuilderVisitor::HandleAfterAll(AfterAll* after_all) {
   // array is a convenient and low-overhead way to let the rest of the llvm
   // infrastructure treat token like a normal data-type.
   return StoreResult(after_all, type_converter_->GetToken());
+}
+
+void RecordAssertion(char* msg, absl::Status* assert_status) {
+  // Don't clobber a previously-recorded assertion failure.
+  if (assert_status->ok()) {
+    *assert_status = absl::AbortedError(msg);
+  }
+}
+
+absl::Status FunctionBuilderVisitor::InvokeAssertCallback(
+    llvm::IRBuilder<>* builder, const std::string& message) {
+  llvm::Constant* msg_constant = builder->CreateGlobalStringPtr(message);
+
+  llvm::Type* msg_type = msg_constant->getType();
+
+  // Using int64_t because LLVM doesn't like void* types.
+  llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
+
+  std::vector<llvm::Type*> params({msg_type, int64_type});
+
+  llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
+
+  llvm::FunctionType* fn_type =
+      llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
+
+  llvm::Value* assert_status_ptr = GetAssertStatusPtr();
+
+  std::vector<llvm::Value*> args = {msg_constant, assert_status_ptr};
+
+  llvm::ConstantInt* fn_addr =
+      llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()),
+                             reinterpret_cast<uint64_t>(&RecordAssertion));
+  llvm::Value* fn_ptr =
+      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
+  builder->CreateCall(fn_type, fn_ptr, args);
+  return absl::OkStatus();
+}
+
+absl::Status FunctionBuilderVisitor::HandleAssert(Assert* assert_op) {
+  std::string assert_label = assert_op->label().value_or("assert");
+
+  llvm::BasicBlock* after_block = llvm::BasicBlock::Create(
+      ctx(), absl::StrCat(assert_label, "_after"), llvm_fn());
+
+  llvm::BasicBlock* ok_block = llvm::BasicBlock::Create(
+      ctx(), absl::StrCat(assert_label, "_ok"), llvm_fn());
+
+  llvm::IRBuilder<> ok_builder(ok_block);
+
+  ok_builder.CreateBr(after_block);
+
+  llvm::BasicBlock* fail_block = llvm::BasicBlock::Create(
+      ctx(), absl::StrCat(assert_label, "_fail"), llvm_fn());
+  llvm::IRBuilder<> fail_builder(fail_block);
+  XLS_RETURN_IF_ERROR(
+      InvokeAssertCallback(&fail_builder, assert_op->message()));
+
+  fail_builder.CreateBr(after_block);
+
+  builder()->CreateCondBr(node_map().at(assert_op->condition()), ok_block,
+                          fail_block);
+
+  auto after_builder = std::make_unique<llvm::IRBuilder<>>(after_block);
+
+  set_builder(std::move(after_builder));
+
+  llvm::Value* token = type_converter_->GetToken();
+
+  return StoreResult(assert_op, token);
 }
 
 absl::Status FunctionBuilderVisitor::HandleArray(Array* array) {
@@ -449,7 +518,7 @@ absl::Status FunctionBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
     args[i + 2] = node_map_.at(counted_for->invariant_args()[i]);
   }
   args[1] = node_map_.at(counted_for->initial_value());
-  args.back() = llvm_fn_->getArg(llvm_fn_->arg_size() - 1);
+  args.back() = GetUserDataPtr();
 
   llvm::Type* function_type = function->getType()->getPointerElementType();
   for (int i = 0; i < counted_for->trip_count(); ++i) {
@@ -492,7 +561,7 @@ absl::Status FunctionBuilderVisitor::HandleDynamicCountedFor(
     args[i + 2] = node_map_.at(dynamic_counted_for->invariant_args()[i]);
   }
   // Add user data arg.
-  args.back() = llvm_fn_->getArg(llvm_fn_->arg_size() - 1);
+  args.back() = GetUserDataPtr();
 
   // Create basic blocks and corresponding builders. We have 4 blocks:
   // Entry     - the code executed before the loop.
@@ -631,7 +700,7 @@ absl::Status FunctionBuilderVisitor::HandleInvoke(Invoke* invoke) {
   for (int i = 0; i < invoke->operand_count(); i++) {
     args[i] = node_map_[invoke->operand(i)];
   }
-  args.back() = llvm_fn_->getArg(llvm_fn_->arg_size() - 1);
+  args.back() = GetUserDataPtr();
 
   llvm::Value* invoke_inst = builder_->CreateCall(function, args);
   return StoreResult(invoke, invoke_inst);
@@ -658,7 +727,7 @@ absl::Status FunctionBuilderVisitor::HandleMap(Map* map) {
   llvm::Value* result = CreateTypedZeroValue(llvm::ArrayType::get(
       function_type->getReturnType(), input_type->getArrayNumElements()));
 
-  llvm::Value* user_data = llvm_fn_->getArg(llvm_fn_->arg_size() - 1);
+  llvm::Value* user_data = GetUserDataPtr();
   for (uint32_t i = 0; i < input_type->getArrayNumElements(); ++i) {
     llvm::Value* iter_input = builder_->CreateExtractValue(input, {i});
     llvm::Value* iter_result =
@@ -1496,7 +1565,7 @@ void FunctionBuilderVisitor::UnpoisonOutputBuffer() {
   llvm::Value* fn_ptr =
       builder()->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
 
-  llvm::Value* out_param = llvm_fn_->getArg(llvm_fn_->arg_size() - 2);
+  llvm::Value* out_param = GetOutputPtr();
   std::vector<llvm::Value*> args(
       {out_param,
        llvm::ConstantInt::get(

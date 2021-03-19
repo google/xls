@@ -65,7 +65,7 @@ uint32_t DequeueData(JitChannelQueue* queue) {
 // Thus, we'll use a fixture to wrap most of it up.
 class ProcBuilderVisitorTest : public ::testing::Test {
  protected:
-  using EntryFunctionT = void (*)(uint8_t**, uint8_t*, void*);
+  using EntryFunctionT = void (*)(uint8_t**, uint8_t*, void*, void*);
   static constexpr const char kModuleName[] = "the_module";
   static constexpr const char kFunctionName[] = "the_function";
 
@@ -100,6 +100,9 @@ class ProcBuilderVisitorTest : public ::testing::Test {
         type_converter_->ConvertToLlvmType(return_type);
     llvm_param_types.push_back(
         llvm::PointerType::get(llvm_return_type, /*AddressSpace=*/0));
+
+    // The assert status pointer needs an argument too.
+    llvm_param_types.push_back(llvm::Type::getInt64Ty(context_));
 
     // Don't forget the user data pointer! Because I did the first time!
     llvm_param_types.push_back(llvm::Type::getInt64Ty(context_));
@@ -211,7 +214,7 @@ fn AddTwo(a: bits[8], b: bits[8]) -> bits[8] {
   ASSERT_TRUE(evaluator != nullptr);
   auto fn = reinterpret_cast<EntryFunctionT>(
       evaluator->getFunctionAddress(kFunctionName));
-  fn(input_buffer, &output_buffer, nullptr);
+  fn(input_buffer, &output_buffer, nullptr, nullptr);
   EXPECT_EQ(output_buffer, arg_0 + arg_1);
 }
 
@@ -266,12 +269,12 @@ proc the_proc(my_token: token, state: (), init=()) {
 
   // We don't have any persistent state, so we don't reference params, hence
   // nullptr.
-  fn(nullptr, nullptr, nullptr);
+  fn(nullptr, nullptr, nullptr, nullptr);
   EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 21);
 
   // Let's make sure we can call it 2x!
   EnqueueData(queue_mgr->GetQueueById(0).value(), 8);
-  fn(nullptr, nullptr, nullptr);
+  fn(nullptr, nullptr, nullptr, nullptr);
   EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 24);
 }
 
@@ -311,13 +314,13 @@ proc the_proc(my_token: token, state: bits[1], init=0) {
   std::vector<Value> args = {Value::Token(), Value(UBits(0, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint8_t*> arg_buffers,
                            PackArgs(xls_fn, args));
-  fn(arg_buffers.data(), reinterpret_cast<uint8_t*>(&output), nullptr);
+  fn(arg_buffers.data(), reinterpret_cast<uint8_t*>(&output), nullptr, nullptr);
   EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 0);
 
   // Second: set state to 1, see that recv_if returns what we put in the queue
   args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(arg_buffers, PackArgs(xls_fn, args));
-  fn(arg_buffers.data(), reinterpret_cast<uint8_t*>(&output), nullptr);
+  fn(arg_buffers.data(), reinterpret_cast<uint8_t*>(&output), nullptr, nullptr);
   EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), kQueueData);
 }
 
@@ -359,12 +362,12 @@ proc the_proc(my_token: token, state: bits[1], init=0) {
   std::vector<Value> args = {Value::Token(), Value(UBits(0, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint8_t*> arg_buffers,
                            PackArgs(xls_fn, args));
-  fn(arg_buffers.data(), reinterpret_cast<uint8_t*>(&output), nullptr);
+  fn(arg_buffers.data(), reinterpret_cast<uint8_t*>(&output), nullptr, nullptr);
 
   // Second: with state 1, make sure we've now got output data.
   args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(arg_buffers, PackArgs(xls_fn, args));
-  fn(arg_buffers.data(), reinterpret_cast<uint8_t*>(&output), nullptr);
+  fn(arg_buffers.data(), reinterpret_cast<uint8_t*>(&output), nullptr, nullptr);
   EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), kQueueData + 1);
 }
 
@@ -424,13 +427,13 @@ proc the_proc(my_token: token, state: (), init=()) {
   // We don't have any persistent state, so we don't reference params, hence
   // nullptr.
   uint64_t user_data = 7;
-  fn(nullptr, nullptr, reinterpret_cast<void*>(&user_data));
+  fn(nullptr, nullptr, nullptr, reinterpret_cast<void*>(&user_data));
   EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 21);
   EXPECT_EQ(user_data, 7 * 2 * 3);
 
   // Let's make sure we can call it 2x!
   EnqueueData(queue_mgr->GetQueueById(0).value(), 8);
-  fn(nullptr, nullptr, reinterpret_cast<void*>(&user_data));
+  fn(nullptr, nullptr, nullptr, reinterpret_cast<void*>(&user_data));
   EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 24);
   EXPECT_EQ(user_data, 7 * 2 * 3 * 2 * 3);
 }

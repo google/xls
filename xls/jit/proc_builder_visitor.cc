@@ -75,7 +75,7 @@ absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
       llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64_t>(node)),
       builder->CreatePointerCast(alloca, int8_ptr_type),
       llvm::ConstantInt::get(int64_type, recv_bytes),
-      llvm_fn()->getArg(llvm_fn()->arg_size() - 1),
+      GetUserDataPtr(),
   });
 
   // 3) finally emit the function call,
@@ -186,7 +186,7 @@ absl::Status ProcBuilderVisitor::InvokeSendCallback(llvm::IRBuilder<>* builder,
       llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64_t>(node)),
       builder->CreatePointerCast(alloca, int8_ptr_type),
       llvm::ConstantInt::get(int64_type, send_type_size),
-      llvm_fn()->getArg(llvm_fn()->arg_size() - 1),
+      GetUserDataPtr(),
   });
 
   llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(

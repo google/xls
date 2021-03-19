@@ -56,6 +56,7 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleArrayIndex(ArrayIndex* index) override;
   absl::Status HandleArrayUpdate(ArrayUpdate* update) override;
   absl::Status HandleArrayConcat(ArrayConcat* concat) override;
+  absl::Status HandleAssert(Assert* assert_op) override;
   absl::Status HandleBitSlice(BitSlice* bit_slice) override;
   absl::Status HandleBitSliceUpdate(BitSliceUpdate* update) override;
   absl::Status HandleDynamicBitSlice(
@@ -141,6 +142,20 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   // Array, or Tuple.
   llvm::Constant* CreateTypedZeroValue(llvm::Type* type);
 
+  // After the original arguments, JIT-compiled functions always end with
+  // the following three pointer arguments: output buffer, assertion status
+  // temporary and user data. These are descriptive convenience funtions for
+  // getting them.
+  llvm::Value* GetUserDataPtr() {
+    return llvm_fn_->getArg(llvm_fn_->arg_size() - 1);
+  }
+  llvm::Value* GetAssertStatusPtr() {
+    return llvm_fn_->getArg(llvm_fn_->arg_size() - 2);
+  }
+  llvm::Value* GetOutputPtr() {
+    return llvm_fn_->getArg(llvm_fn_->arg_size() - 3);
+  }
+
   // Updates the active IRBuilder. This is used when dealing with branches (and
   // _ONLY_ with branches), which require new BasicBlocks, and thus, new
   // IRBuilders. When branches re-converge, this function should be called with
@@ -196,6 +211,8 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
                                               llvm::Value* index,
                                               int64_t array_size);
 
+  absl::Status InvokeAssertCallback(llvm::IRBuilder<>* builder,
+                                    const std::string& message);
   llvm::LLVMContext& ctx_;
   llvm::Module* module_;
   llvm::Function* llvm_fn_;

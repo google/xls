@@ -14,6 +14,7 @@
 
 #include "xls/jit/ir_jit.h"
 
+#include <cstdio>
 #include <random>
 
 #include "gmock/gmock.h"
@@ -32,6 +33,7 @@
 namespace xls {
 namespace {
 
+using status_testing::IsOk;
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 
@@ -540,11 +542,63 @@ TEST(IrJitTest, ArrayConcatArrayOfArrays) {
 TEST(IrJitTest, Assert) {
   Package p("assert_test");
   FunctionBuilder b("fun", &p);
-  b.Assert(b.Param("tkn", p.GetTokenType()), b.Param("cond", p.GetBitsType(1)),
-           "the assertion error message");
+  auto p0 = b.Param("tkn", p.GetTokenType());
+  auto p1 = b.Param("cond", p.GetBitsType(1));
+  b.Assert(p0, p1, "the assertion error message");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
-  EXPECT_THAT(IrJit::Create(f).status(),
-              StatusIs(absl::StatusCode::kUnimplemented));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(f));
+
+  std::vector<Value> ok_args({Value::Token(), Value(UBits(1, 1))});
+  EXPECT_THAT(jit->Run(ok_args), IsOkAndHolds(Value::Token()));
+
+  std::vector<Value> fail_args({Value::Token(), Value(UBits(0, 1))});
+  EXPECT_THAT(jit->Run(fail_args),
+              StatusIs(absl::StatusCode::kAborted,
+                       testing::HasSubstr("the assertion error message")));
+}
+
+TEST(IrJitTest, TwoAssert) {
+  Package p("assert_test");
+  FunctionBuilder b("fun", &p);
+  auto p0 = b.Param("tkn", p.GetTokenType());
+  auto p1 = b.Param("cond1", p.GetBitsType(1));
+  auto p2 = b.Param("cond2", p.GetBitsType(1));
+
+  BValue token1 = b.Assert(p0, p1, "first assertion error message");
+  b.Assert(token1, p2, "second assertion error message");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(f));
+
+  std::vector<Value> ok_args = {Value::Token(), Value(UBits(1, 1)),
+                                Value(UBits(1, 1))};
+
+  EXPECT_THAT(jit->Run(ok_args), IsOkAndHolds(Value::Token()));
+
+  std::vector<Value> fail1_args = {Value::Token(), Value(UBits(0, 1)),
+                                   Value(UBits(1, 1))};
+
+  EXPECT_THAT(jit->Run(fail1_args),
+              StatusIs(absl::StatusCode::kAborted,
+                       testing::HasSubstr("first assertion error message")));
+
+  std::vector<Value> fail2_args = {Value::Token(), Value(UBits(1, 1)),
+                                   Value(UBits(0, 1))};
+
+  EXPECT_THAT(jit->Run(fail2_args),
+              StatusIs(absl::StatusCode::kAborted,
+                       testing::HasSubstr("second assertion error message")));
+
+  std::vector<Value> failboth_args = {Value::Token(), Value(UBits(0, 1)),
+                                      Value(UBits(0, 1))};
+
+  // The token-plumbing ensures that the first assertion is checked first,
+  // so test that it is reported properly.
+  EXPECT_THAT(jit->Run(failboth_args),
+              StatusIs(absl::StatusCode::kAborted,
+                       testing::HasSubstr("first assertion error message")));
 }
 
 }  // namespace

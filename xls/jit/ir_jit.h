@@ -104,8 +104,11 @@ class IrJit {
     uint8_t* result_buffer;
     // Walk the type tree to get each arg's data buffer into our view/arg list.
     PackArgBuffers(arg_buffers, &result_buffer, args...);
-    packed_invoker_(arg_buffers, result_buffer, /*user_data=*/nullptr);
-    return absl::OkStatus();
+
+    absl::Status assert_status = absl::OkStatus();
+    packed_invoker_(arg_buffers, result_buffer, &assert_status,
+                    /*user_data=*/nullptr);
+    return assert_status;
   }
 
   // Returns the function that the JIT executes.
@@ -187,12 +190,15 @@ class IrJit {
 
   // When initialized, this points to the compiled output.
   using JitFunctionType = void (*)(const uint8_t* const* inputs,
-                                   uint8_t* output, void* user_data);
+                                   uint8_t* output, absl::Status* assert_status,
+                                   void* user_data);
   JitFunctionType invoker_;
 
   // Packed types for above.
   using PackedJitFunctionType = void (*)(const uint8_t* const* inputs,
-                                         uint8_t* output, void* user_data);
+                                         uint8_t* output,
+                                         absl::Status* assert_status,
+                                         void* user_data);
   PackedJitFunctionType packed_invoker_;
 };
 
