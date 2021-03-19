@@ -112,7 +112,6 @@ absl::Status ProcBuilderVisitor::HandleReceiveIf(ReceiveIf* recv_if) {
                        queue_mgr_->GetQueueById(recv_if->channel_id()));
   XLS_ASSIGN_OR_RETURN(llvm::Value * true_result,
                        InvokeRecvCallback(&true_builder, queue, recv_if));
-  llvm::Value* true_token = type_converter()->GetToken();
   true_builder.CreateBr(join_block);
 
   // And the same for a false predicate - this will return an empty/zero value.
@@ -123,7 +122,6 @@ absl::Status ProcBuilderVisitor::HandleReceiveIf(ReceiveIf* recv_if) {
   llvm::Type* result_type =
       type_converter()->ConvertToLlvmType(recv_if->GetType());
   llvm::Value* false_result = CreateTypedZeroValue(result_type);
-  llvm::Value* false_token = node_map().at(recv_if->operand(0));
   false_builder.CreateBr(join_block);
 
   // Next, create a branch op w/the original builder,
@@ -132,16 +130,13 @@ absl::Status ProcBuilderVisitor::HandleReceiveIf(ReceiveIf* recv_if) {
 
   // then join the two branches back together.
   auto join_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
+
   llvm::PHINode* phi =
       join_builder->CreatePHI(result_type, /*NumReservedValues=*/2);
   phi->addIncoming(true_result, true_block);
   phi->addIncoming(false_result, false_block);
-
-  llvm::PHINode* token_phi = join_builder->CreatePHI(
-      type_converter()->GetTokenType(), /*NumReservedValues=*/2);
-  token_phi->addIncoming(true_token, true_block);
-  token_phi->addIncoming(false_token, false_block);
-  llvm::Value* result = join_builder->CreateInsertValue(phi, token_phi, {0});
+  llvm::Value* result =
+       join_builder->CreateInsertValue(phi, type_converter()->GetToken(), {0});
 
   // Finally, set this's IRBuilder to be the output block's (since that's where
   // the Function continues).
@@ -216,26 +211,20 @@ absl::Status ProcBuilderVisitor::HandleSendIf(SendIf* send_if) {
                        queue_mgr_->GetQueueById(send_if->channel_id()));
   XLS_RETURN_IF_ERROR(
       InvokeSendCallback(&true_builder, queue, send_if, send_if->data()));
-  llvm::Value* true_token = type_converter()->GetToken();
   true_builder.CreateBr(join_block);
 
   llvm::BasicBlock* false_block = llvm::BasicBlock::Create(
       ctx(), absl::StrCat(send_if->GetName(), "_false"), llvm_fn(), join_block);
   llvm::IRBuilder<> false_builder(false_block);
-  llvm::Value* false_token = node_map().at(send_if->operand(0));
   false_builder.CreateBr(join_block);
 
   builder()->CreateCondBr(node_map().at(send_if->predicate()), true_block,
                           false_block);
 
   auto join_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
-  llvm::PHINode* phi = join_builder->CreatePHI(type_converter()->GetTokenType(),
-                                               /*NumReservedValues=*/2);
-  phi->addIncoming(true_token, true_block);
-  phi->addIncoming(false_token, false_block);
 
   set_builder(std::move(join_builder));
-  return StoreResult(send_if, phi);
+  return StoreResult(send_if, type_converter()->GetToken());
 }
 
 }  // namespace xls
