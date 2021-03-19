@@ -27,7 +27,7 @@
 namespace xls {
 
 // Enum for the various kinds of channels supported in XLS.
-enum ChannelKind {
+enum class ChannelKind {
   //  A channel with FIFO semenatics.
   kStreaming,
 

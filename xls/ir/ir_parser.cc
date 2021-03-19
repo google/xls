@@ -1318,11 +1318,11 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   }
 
   switch (kind.value()) {
-    case kStreaming:
+    case ChannelKind::kStreaming:
       return package->CreateStreamingChannel(channel_name.value(),
                                              *supported_ops, type,
                                              initial_values, *metadata, *id);
-    case kPort: {
+    case ChannelKind::kPort: {
       if (!initial_values.empty()) {
         return absl::InvalidArgumentError(
             absl::StrFormat("Port channel %s cannot have initial value(s)",
@@ -1331,7 +1331,7 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
       return package->CreatePortChannel(channel_name.value(), *supported_ops,
                                         type, *metadata, *id);
     }
-    case kRegister: {
+    case ChannelKind::kRegister: {
       absl::optional<Value> reset_value;
       if (initial_values.size() == 1) {
         reset_value = initial_values.front();
@@ -1345,7 +1345,7 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
       return package->CreateRegisterChannel(channel_name.value(), type,
                                             reset_value, *metadata, *id);
     }
-    case kLogical:
+    case ChannelKind::kLogical:
       return absl::UnimplementedError("Logical channels not implemented.");
   }
 }

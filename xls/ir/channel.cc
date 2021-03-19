@@ -23,13 +23,13 @@ namespace xls {
 
 std::string ChannelKindToString(ChannelKind kind) {
   switch (kind) {
-    case kStreaming:
+    case ChannelKind::kStreaming:
       return "streaming";
-    case kPort:
+    case ChannelKind::kPort:
       return "port";
-    case kRegister:
+    case ChannelKind::kRegister:
       return "register";
-    case kLogical:
+    case ChannelKind::kLogical:
       return "logical";
   }
   XLS_LOG(FATAL) << "Invalid channel kind: " << static_cast<int64_t>(kind);
@@ -37,13 +37,13 @@ std::string ChannelKindToString(ChannelKind kind) {
 
 absl::StatusOr<ChannelKind> StringToChannelKind(absl::string_view str) {
   if (str == "streaming") {
-    return kStreaming;
+    return ChannelKind::kStreaming;
   } else if (str == "port") {
-    return kPort;
+    return ChannelKind::kPort;
   } else if (str == "register") {
-    return kRegister;
+    return ChannelKind::kRegister;
   } else if (str == "logical") {
-    return kLogical;
+    return ChannelKind::kLogical;
   }
   return absl::InvalidArgumentError(
       absl::StrFormat("Invalid channel kind '%s'", str));
