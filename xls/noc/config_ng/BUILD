@@ -364,3 +364,48 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "dimension_bounds",
+    srcs = ["dimension_bounds.cc"],
+    hdrs = ["dimension_bounds.h"],
+    deps = [
+        "@com_google_absl//absl/types:span",
+        "//xls/ir:bits",
+    ],
+)
+
+cc_test(
+    name = "dimension_bounds_test",
+    srcs = ["dimension_bounds_test.cc"],
+    deps = [
+        ":dimension_bounds",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "coordinate",
+    srcs = ["coordinate.cc"],
+    hdrs = ["coordinate.h"],
+    deps = [
+        ":dimension_bounds",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:inline_bitmap",
+        "//xls/ir:bits",
+    ],
+)
+
+cc_test(
+    name = "coordinate_test",
+    srcs = ["coordinate_test.cc"],
+    deps = [
+        ":coordinate",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
