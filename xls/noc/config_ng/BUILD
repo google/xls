@@ -342,3 +342,25 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "arbitrary_base_number",
+    srcs = ["arbitrary_base_number.cc"],
+    hdrs = ["arbitrary_base_number.h"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
+        "//xls/ir:bits",
+    ],
+)
+
+cc_test(
+    name = "arbitrary_base_number_test",
+    srcs = ["arbitrary_base_number_test.cc"],
+    deps = [
+        ":arbitrary_base_number",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
