@@ -130,6 +130,9 @@ class SampleTest(absltest.TestCase):
     self.assertTrue(
         crasher.startswith('// Copyright'),
         msg=f'Crasher does not start with copyright:\n{crasher}')
+    # Split D.N.S. string to avoid triggering presubmit checks.
+    self.assertIn('Issue: DO NOT ' + 'SUBMIT Insert link to GitHub issue here.',
+                  crasher)
     self.assertIn(
         textwrap.dedent("""\
         // Exception:

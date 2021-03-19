@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Issue: https://github.com/google/xls/issues/222
+//
 // options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "use_jit": true, "codegen": true, "codegen_args": ["--use_system_verilog", "--generator=pipeline", "--pipeline_stages=9"], "simulate": false, "simulator": null, "use_system_verilog": true}
 // args: bits[1]:0x1
 // args: bits[1]:0x0

@@ -211,6 +211,9 @@ std::string Sample::ToCrasher(
     }
     lines.push_back("//");
   }
+  // Split the D.N.S string to avoid triggering presubmit checks.
+  lines.push_back(std::string("// Issue: DO NOT ") +
+                  "SUBMIT Insert link to GitHub issue here.");
   lines.push_back(absl::StrCat("// options: ", options_.ToJsonText()));
   for (const std::vector<InterpValue>& args : args_batch_) {
     std::string args_str =
