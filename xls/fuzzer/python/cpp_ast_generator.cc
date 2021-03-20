@@ -47,7 +47,8 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
                        absl::optional<bool> short_samples,
                        absl::optional<int64_t> max_width_bits_types,
                        absl::optional<int64_t> max_width_aggregate_types,
-                       absl::optional<std::vector<BinopKind>> binop_allowlist) {
+                       absl::optional<std::vector<BinopKind>> binop_allowlist,
+                       absl::optional<bool> generate_empty_tuples) {
              AstGeneratorOptions options;
              if (disallow_divide.has_value()) {
                options.disallow_divide = disallow_divide.value();
@@ -66,6 +67,9 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
                options.binop_allowlist = absl::btree_set<BinopKind>(
                    binop_allowlist->begin(), binop_allowlist->end());
              }
+             if (generate_empty_tuples.has_value()) {
+               options.generate_empty_tuples = generate_empty_tuples.value();
+             }
              return options;
            }),
            py::arg("disallow_divide") = absl::nullopt,
@@ -73,7 +77,8 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
            py::arg("short_samples") = absl::nullopt,
            py::arg("max_width_bits_types") = absl::nullopt,
            py::arg("max_width_aggregate_types") = absl::nullopt,
-           py::arg("binop_allowlist") = absl::nullopt);
+           py::arg("binop_allowlist") = absl::nullopt,
+           py::arg("generate_empty_tuples") = absl::nullopt);
 
   m.def("generate",
         [](const AstGeneratorOptions& options,

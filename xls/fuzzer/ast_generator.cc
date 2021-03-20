@@ -543,7 +543,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateNumber(
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Env* env) {
-  int64_t retval_count = GenerateNaryOperandCount(env);
+  int64_t retval_count = GenerateNaryOperandCount(
+      env, /*lower_limit=*/options_.generate_empty_tuples ? 0 : 1);
 
   std::vector<TypedExpr> env_params;
   std::vector<TypedExpr> env_non_params;
@@ -623,7 +624,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Env* env) {
 
   std::vector<TypedExpr> members;
   int64_t total_bit_count = 0;
-  for (int64_t i = 0; i < GenerateNaryOperandCount(env); ++i) {
+  int64_t element_count = GenerateNaryOperandCount(
+      env, /*lower_limit=*/options_.generate_empty_tuples ? 0 : 1);
+  for (int64_t i = 0; i < element_count; ++i) {
     XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValue(env));
     if (total_bit_count + GetTypeBitCount(e.type) >
         options_.max_width_aggregate_types) {
@@ -689,9 +692,13 @@ TypeAnnotation* AstGenerator::GenerateBitsType() {
 TypeAnnotation* AstGenerator::GenerateType(int64_t nesting) {
   float r = RandomFloat();
   if (r < 0.1 * std::pow(2.0, -nesting)) {
-    // Generate tuple type.
+    // Generate tuple type. Use a mean value of 3 elements so the tuple isn't
+    // too big.
     std::vector<TypeAnnotation*> element_types;
-    for (int64_t i = 0; i < RandomIntWithExpectedValue(3); ++i) {
+    for (int64_t i = 0;
+         i < RandomIntWithExpectedValue(
+                 3, /*lower_limit=*/options_.generate_empty_tuples ? 0 : 1);
+         ++i) {
       element_types.push_back(GenerateType(nesting + 1));
     }
     return MakeTupleType(element_types);

@@ -50,7 +50,7 @@ class RunFuzzTest(parameterized.TestCase):
   KWARGS = {
       'calls_per_sample': 4,
       'save_temps': False,
-      'sample_count': 4,
+      'sample_count': 128,
       'return_samples': True,
       'codegen': True
   }
@@ -69,10 +69,8 @@ class RunFuzzTest(parameterized.TestCase):
         ast_generator.RngState(7), self._get_ast_options(), **self.KWARGS)
     self.assertEqual(samples0, samples1)
 
-  # TODO(leary): Bump up the number of seeds when the interpreter is ported to
-  # C++.
   @parameterized.named_parameters(*tuple(
-      dict(testcase_name='seed_{}'.format(x), seed=x) for x in range(11)))
+      dict(testcase_name='seed_{}'.format(x), seed=x) for x in range(50)))
   def test_first_n_seeds(self, seed):
     run_fuzz.run_fuzz(
         ast_generator.RngState(seed), self._get_ast_options(), **self.KWARGS)

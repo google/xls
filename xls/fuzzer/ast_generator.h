@@ -61,6 +61,12 @@ struct AstGeneratorOptions {
 
   // If true, then generated samples that have fewer operations.
   bool short_samples = false;
+
+  // If true, generate empty tuples potentially as the return value, parameters,
+  // or intermediate values.
+  // TODO(https://github.com/google/xls/issues/346): 2021-03-19 Remove this
+  // option when pipeline generator handles empty tuples properly.
+  bool generate_empty_tuples = true;
 };
 
 // Type that generates a random module for use in fuzz testing; i.e.
