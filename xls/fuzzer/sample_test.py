@@ -100,10 +100,15 @@ class SampleTest(absltest.TestCase):
             use_system_verilog=True),
         sample.parse_args_batch(
             'bits[8]:42; bits[8]:11\nbits[8]:44; bits[8]:99'))
-    crasher = s.to_crasher()
+    crasher = s.to_crasher('oh no\nI crashed\n')
     self.assertTrue(
         crasher.startswith('// Copyright'),
         msg=f'Crasher does not start with copyright:\n{crasher}')
+    self.assertIn(
+        textwrap.dedent("""\
+        // Exception:
+        // oh no
+        // I crashed"""), crasher)
     self.assertIn(
         textwrap.dedent("""\
         // options: {"codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true, "optimize_ir": true, "simulate": true, "simulator": "goat simulator", "use_jit": true, "use_system_verilog": true}
@@ -148,7 +153,7 @@ class SampleTest(absltest.TestCase):
         }
         """), crasher)
 
-  def test_from_ir_crasher_with_codegen(self):
+  def test_serialize_deserialize_with_codegen(self):
     crasher = textwrap.dedent("""\
     // options: {"codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "convert_to_ir": false, "input_is_dslx": false, "optimize_ir": true, "simulate": true, "simulator": "goat simulator", "use_system_verilog": false}
     // args: bits[8]:0x2a; bits[8]:0xb
@@ -158,7 +163,7 @@ class SampleTest(absltest.TestCase):
       ret add.1: bits[16] = add(x, y)
     }
     """)
-    got = sample.Sample.from_crasher(crasher)
+    got = sample.Sample.deserialize(crasher)
     want = sample.Sample(
         textwrap.dedent("""\
           package foo
@@ -176,10 +181,10 @@ class SampleTest(absltest.TestCase):
             use_system_verilog=False),
         sample.parse_args_batch(
             'bits[8]:0x2a; bits[8]:0xb\nbits[8]:0x2c; bits[8]:0x63'))
-    self.assertMultiLineEqual(want.to_crasher(), got.to_crasher())
+    self.assertMultiLineEqual(want.serialize(), got.serialize())
     self.assertEqual(got, want)
 
-  def test_from_crasher_without_codegen(self):
+  def test_deserialize_without_codegen(self):
     crasher = textwrap.dedent("""\
       // options: {"input_is_dslx": false, "convert_to_ir": false, "optimize_ir": true, "codegen": true, "codegen_args": null, "simulate": false, "simulator": null, "use_system_verilog": true}
       // args: bits[8]:0x2a; bits[8]:0xb
@@ -188,7 +193,7 @@ class SampleTest(absltest.TestCase):
       fn bar(x: bits[16], y: bits[16) -> bits[16] {
         ret add.1: bits[16] = add(x, y)
       }""")
-    got = sample.Sample.from_crasher(crasher)
+    got = sample.Sample.deserialize(crasher)
     want = sample.Sample(
         textwrap.dedent("""\
             package foo

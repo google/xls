@@ -17,6 +17,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/dslx/ir_converter.h"
+#include "xls/fuzzer/scrub_crasher.h"
 #include "xls/ir/ir_parser.h"
 #include "re2/re2.h"
 
@@ -158,7 +159,7 @@ bool Sample::ArgsBatchEqual(const Sample& other) const {
   return true;
 }
 
-/* static */ absl::StatusOr<Sample> Sample::FromCrasher(absl::string_view s) {
+/* static */ absl::StatusOr<Sample> Sample::Deserialize(absl::string_view s) {
   s = absl::StripAsciiWhitespace(s);
   absl::optional<SampleOptions> options;
   std::vector<std::vector<InterpValue>> args_batch;
@@ -184,8 +185,21 @@ bool Sample::ArgsBatchEqual(const Sample& other) const {
                 std::move(args_batch));
 }
 
-std::string Sample::ToCrasher(
-    absl::optional<absl::string_view> error_message) const {
+std::string Sample::Serialize() const {
+  std::vector<std::string> lines;
+  lines.push_back(absl::StrCat("// options: ", options_.ToJsonText()));
+  for (const std::vector<InterpValue>& args : args_batch_) {
+    std::string args_str =
+        absl::StrJoin(args, "; ", [](std::string* out, const InterpValue& v) {
+          absl::StrAppend(out, v.ToString());
+        });
+    lines.push_back(absl::StrCat("// args: ", args_str));
+  }
+  std::string header = absl::StrJoin(lines, "\n");
+  return absl::StrCat(header, "\n", input_text_, "\n");
+}
+
+std::string Sample::ToCrasher(absl::string_view error_message) const {
   absl::civil_year_t year =
       absl::ToCivilYear(absl::Now(), absl::TimeZone()).year();
   std::vector<std::string> lines = {
@@ -204,26 +218,16 @@ std::string Sample::ToCrasher(
 // limitations under the License.
 )",
                       year)};
-  if (error_message.has_value()) {
-    lines.push_back("// Exception:");
-    for (absl::string_view line : absl::StrSplit(*error_message, '\n')) {
-      lines.push_back(absl::StrCat("// ", line));
-    }
-    lines.push_back("//");
+  lines.push_back("// Exception:");
+  for (absl::string_view line : absl::StrSplit(error_message, '\n')) {
+    lines.push_back(absl::StrCat("// ", line));
   }
   // Split the D.N.S string to avoid triggering presubmit checks.
   lines.push_back(std::string("// Issue: DO NOT ") +
                   "SUBMIT Insert link to GitHub issue here.");
-  lines.push_back(absl::StrCat("// options: ", options_.ToJsonText()));
-  for (const std::vector<InterpValue>& args : args_batch_) {
-    std::string args_str =
-        absl::StrJoin(args, "; ", [](std::string* out, const InterpValue& v) {
-          absl::StrAppend(out, v.ToString());
-        });
-    lines.push_back(absl::StrCat("// args: ", args_str));
-  }
+  lines.push_back("//");
   std::string header = absl::StrJoin(lines, "\n");
-  return absl::StrCat(header, "\n", input_text_, "\n");
+  return ScrubCrasher(absl::StrCat(header, "\n", Serialize()));
 }
 
 }  // namespace xls

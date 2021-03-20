@@ -44,7 +44,7 @@ def main(argv):
             argv[0]))
 
   with gfile.open(argv[1], 'r') as f:
-    smp = sample.Sample.from_crasher(f.read())
+    smp = sample.Sample.deserialize(f.read())
   if FLAGS.simulator:
     smp = smp._replace(options=smp.options._replace(simulator=FLAGS.simulator))
 

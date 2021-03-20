@@ -224,6 +224,7 @@ cc_library(
     srcs = ["sample.cc"],
     hdrs = ["sample.h"],
     deps = [
+        ":scrub_crasher",
         "//xls/dslx:interp_value",
         "//xls/dslx:ir_converter",
         "//xls/ir:ir_parser",
@@ -464,6 +465,17 @@ cc_library(
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
         "//xls/ir:bits_ops",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "scrub_crasher",
+    srcs = ["scrub_crasher.cc"],
+    hdrs = ["scrub_crasher.h"],
+    deps = [
+        "@com_github_google_re2//:re2",
+        "@com_google_absl//absl/strings",
     ],
 )
 

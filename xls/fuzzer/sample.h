@@ -123,12 +123,20 @@ class SampleOptions {
 // Abstraction describing a fuzzer code sample and how to run it.
 class Sample {
  public:
-  // Parses a crasher and returns a Sample object that represents its contents.
-  static absl::StatusOr<Sample> FromCrasher(absl::string_view s);
+  // Serializes/deserializes a sample to/from a text representation. Used for
+  // pickling/unpickling for use in Python. ToCrasher includes this
+  // serialization as a substring.
+  // TODO(meheff): 2021-03-19 Remove this when we no longer need to
+  // pickle/depickle Samples for Python. Deserialize can be replaced with a
+  // method FromCrasher.
+  static absl::StatusOr<Sample> Deserialize(absl::string_view s);
+  std::string Serialize() const;
 
-  // Returns "crasher" text encapulating the sample.
+  // Returns "crasher" text serialization.
   //
-  // A crasher is a text serialization of the sample which enables easy
+  // A crasher is a text serialization of the sample along with a copyright
+  // message and the error message from the crash in the comments. As such, it
+  // is a valid text serialization of the sample. Crashers enable easy
   // reproduction from a single text file. Crashers may be checked in as tests
   // in `xls/fuzzer/crashers/`.
   //
@@ -140,7 +148,7 @@ class Sample {
   //  // ...
   //  // args: <argument set 1>
   //  <code sample>
-  std::string ToCrasher(absl::optional<absl::string_view> error_message) const;
+  std::string ToCrasher(absl::string_view error_message) const;
 
   Sample(std::string input_text, SampleOptions options,
          std::vector<std::vector<dslx::InterpValue>> args_batch)

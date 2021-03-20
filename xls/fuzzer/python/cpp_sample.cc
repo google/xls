@@ -122,23 +122,21 @@ PYBIND11_MODULE(cpp_sample, m) {
            py::arg("input_text"), py::arg("options"),
            py::arg("args_batch") = absl::nullopt)
       .def(py::pickle(
-          [](const Sample& self) {
-            return py::make_tuple(self.ToCrasher(absl::nullopt));
-          },
+          [](const Sample& self) { return py::make_tuple(self.Serialize()); },
           [](const py::tuple& t) {
             std::string s = t[0].cast<std::string>();
-            return Sample::FromCrasher(s).value();
+            return Sample::Deserialize(s).value();
           }))
       .def("__eq__", &Sample::operator==)
       .def("__ne__", &Sample::operator!=)
       .def(
           "to_crasher",
-          [](const Sample& self,
-             absl::optional<absl::string_view> error_message) {
+          [](const Sample& self, absl::string_view error_message) {
             return self.ToCrasher(error_message);
           },
           py::arg("error_message") = absl::nullopt)
-      .def_static("from_crasher", &Sample::FromCrasher)
+      .def("serialize", &Sample::Serialize)
+      .def_static("deserialize", &Sample::Deserialize)
       .def_property_readonly("options", &Sample::options)
       .def_property_readonly("input_text", &Sample::input_text)
       .def_property_readonly("args_batch", &Sample::args_batch);
