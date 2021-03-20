@@ -87,6 +87,44 @@ class AstGenerator {
   // Chooses a random "interesting" bit pattern with the given bit count.
   Bits ChooseBitPattern(int64_t bit_count);
 
+  bool RandomBool() {
+    std::bernoulli_distribution d(0.5);
+    return d(rng_);
+  }
+
+  // Returns a random float uniformly distributed over [0, 1).
+  float RandomFloat() {
+    std::uniform_real_distribution<float> g(0.0f, 1.0f);
+    return g(rng_);
+  }
+
+  // Returns a random integer over the range [0, limit).
+  int64_t RandRange(int64_t limit) { return RandRange(0, limit); }
+
+  // Returns a random integer over the range [start, limit).
+  int64_t RandRange(int64_t start, int64_t limit) {
+    XLS_CHECK_GT(limit, start);
+    std::uniform_int_distribution<int64_t> g(start, limit - 1);
+    int64_t value = g(rng_);
+    XLS_CHECK_LT(value, limit);
+    XLS_CHECK_GE(value, start);
+    return value;
+  }
+
+  // Returns a random integer with the given expected value from a distribution
+  // which tails off exponentially in both directions over the range
+  // [lower_limit, inf). Useful for picking a number around some value with
+  // decreasing likelihood of picking something far away from the expected
+  // value.  The underlying distribution is a Poisson distribution. See:
+  // https://en.wikipedia.org/wiki/Poisson_distribution
+  int64_t RandomIntWithExpectedValue(float expected_value,
+                                     int64_t lower_limit = 0) {
+    XLS_CHECK_GE(expected_value, lower_limit);
+    std::poisson_distribution<int64_t> distribution(expected_value -
+                                                    lower_limit);
+    return distribution(rng_) + lower_limit;
+  }
+
  private:
   static bool IsBits(TypeAnnotation* t);
   static bool IsUBits(TypeAnnotation* t);
@@ -188,12 +226,12 @@ class AstGenerator {
   // Generates a bit_slice_update builtin call.
   absl::StatusOr<TypedExpr> GenerateBitSliceUpdate(Env* env);
 
-  int64_t GenerateNaryOperandCount(Env* env) {
+  // Generate an operand count for a nary (variadic) instruction. lower_limit is
+  // the inclusive lower limit of the distribution.
+  int64_t GenerateNaryOperandCount(Env* env, int64_t lower_limit = 0) {
     XLS_CHECK(!env->empty());
-    std::weibull_distribution<float> d(1.0, 0.5);
-    int64_t count = static_cast<int64_t>(std::ceil(d(rng_) * 4));
-    XLS_CHECK_GT(count, 0);
-    return std::min(count, static_cast<int64_t>(env->size()));
+    return std::min(RandomIntWithExpectedValue(4, lower_limit),
+                    static_cast<int64_t>(env->size()));
   }
 
   // Generates an expression AST node and returns it. expr_size is a measure of
@@ -374,40 +412,6 @@ class AstGenerator {
   // Gets-or-creates a top level constant with the given value, using the
   // minimum number of bits required to make that constant.
   ConstRef* GetOrCreateConstRef(int64_t value);
-
-  bool RandomBool() {
-    std::bernoulli_distribution d(0.5);
-    return d(rng_);
-  }
-
-  // Returns a random float uniformly distributed over [0, 1).
-  float RandomFloat() {
-    std::uniform_real_distribution<float> g(0.0f, 1.0f);
-    return g(rng_);
-  }
-
-  // Returns a random integer over the range [0, limit).
-  int64_t RandRange(int64_t limit) { return RandRange(0, limit); }
-
-  // Returns a random integer over the range [start, limit).
-  int64_t RandRange(int64_t start, int64_t limit) {
-    XLS_CHECK_GT(limit, start);
-    std::uniform_int_distribution<int64_t> g(start, limit - 1);
-    int64_t value = g(rng_);
-    XLS_CHECK_LT(value, limit);
-    XLS_CHECK_GE(value, start);
-    return value;
-  }
-
-  // Returns a random integer selected according to a poisson distribution. The
-  // distribution roughly rises up to the mean then decays exponentially. Useful
-  // for picking a number around some value with decreasing likelihood of
-  // picking something far away from the expected value.
-  // See: https://en.wikipedia.org/wiki/Poisson_distribution
-  int64_t RandomPoisson(float mean) {
-    std::poisson_distribution<int64_t> distribution(mean);
-    return distribution(rng_);
-  }
 
   template <typename T>
   T RandomSetChoice(const absl::btree_set<T>& choices) {

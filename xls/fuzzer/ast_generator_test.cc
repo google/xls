@@ -96,6 +96,114 @@ TEST_P(AstGeneratorRepeatableTest, GenerationRepeatableAtSeed) {
   TestRepeatable(/*seed=*/GetParam());
 }
 
+TEST(AstGeneratorTest, RandomBool) {
+  const int64_t kSampleCount = 10000;
+  std::mt19937 rng(42);
+  AstGenerator g(AstGeneratorOptions(), &rng);
+
+  std::vector<int64_t> bool_values(2);
+  for (int64_t i = 0; i < kSampleCount; ++i) {
+    bool_values[g.RandomBool()]++;
+  }
+  // The buckets should not be skewed more the 40/60 with large probability.
+  EXPECT_GE(bool_values[true], kSampleCount * 4 / 10);
+  EXPECT_GE(bool_values[false], kSampleCount * 4 / 10);
+}
+
+TEST(AstGeneratorTest, RandomFloat) {
+  const int64_t kSampleCount = 10000;
+  std::mt19937 rng(42);
+  AstGenerator g(AstGeneratorOptions(), &rng);
+
+  float min = 1.0f;
+  float max = 0.0f;
+  for (int64_t i = 0; i < kSampleCount; ++i) {
+    float f = g.RandomFloat();
+    EXPECT_GE(f, 0.0f);
+    EXPECT_LT(f, 1.0f);
+    min = std::min(min, f);
+    max = std::max(max, f);
+  }
+  EXPECT_LT(min, 0.01);
+  EXPECT_GT(max, 0.99);
+}
+
+TEST(AstGeneratorTest, RandRangeStartAtZero) {
+  const int64_t kSampleCount = 10000;
+  std::mt19937 rng(42);
+  AstGenerator g(AstGeneratorOptions(), &rng);
+
+  absl::flat_hash_map<int64_t, int64_t> histogram;
+  for (int64_t i = 0; i < kSampleCount; ++i) {
+    int64_t x = g.RandRange(42);
+    EXPECT_GE(x, 0);
+    EXPECT_LT(x, 42);
+    histogram[x]++;
+  }
+
+  // All numbers [0, 42) should have been generated.
+  EXPECT_EQ(histogram.size(), 42);
+}
+
+TEST(AstGeneratorTest, RandRangeStartAtNonzero) {
+  const int64_t kSampleCount = 10000;
+  std::mt19937 rng(42);
+  AstGenerator g(AstGeneratorOptions(), &rng);
+
+  absl::flat_hash_map<int64_t, int64_t> histogram;
+  for (int64_t i = 0; i < kSampleCount; ++i) {
+    int64_t x = g.RandRange(10, 20);
+    EXPECT_GE(x, 10);
+    EXPECT_LT(x, 20);
+    histogram[x]++;
+  }
+
+  // All numbers [10, 20) should have been generated.
+  EXPECT_EQ(histogram.size(), 10);
+}
+
+TEST(AstGeneratorTest, RandomIntWithExpectedValue) {
+  const int64_t kSampleCount = 10000;
+  std::mt19937 rng(42);
+  AstGenerator g(AstGeneratorOptions(), &rng);
+
+  int64_t sum = 0;
+  absl::flat_hash_map<int64_t, int64_t> histogram;
+  for (int64_t i = 0; i < kSampleCount; ++i) {
+    int64_t x = g.RandomIntWithExpectedValue(10);
+    EXPECT_GE(x, 0);
+    sum += x;
+    histogram[x]++;
+  }
+  // The expected value rounded to the nearest integer should be 10 with large
+  // probability given the large sample size.
+  EXPECT_EQ(10, (sum + kSampleCount / 2) / kSampleCount);
+
+  // We should generate at least numbers up to 15 with large probability.
+  EXPECT_GT(histogram.size(), 15);
+}
+
+TEST(AstGeneratorTest, RandomIntWithExpectedValueWithLowerLimit) {
+  const int64_t kSampleCount = 10000;
+  std::mt19937 rng(42);
+  AstGenerator g(AstGeneratorOptions(), &rng);
+
+  int64_t sum = 0;
+  absl::flat_hash_map<int64_t, int64_t> histogram;
+  for (int64_t i = 0; i < kSampleCount; ++i) {
+    int64_t x = g.RandomIntWithExpectedValue(42, /*lower_limit=*/10);
+    EXPECT_GE(x, 10);
+    sum += x;
+    histogram[x]++;
+  }
+  // The expected value rounded to the nearest integer should be 42 with large
+  // probability given the large sample size.
+  EXPECT_EQ(42, (sum + kSampleCount / 2) / kSampleCount);
+
+  // We should generate at least numbers from 10 to 50 with large probability.
+  EXPECT_GT(histogram.size(), 40);
+}
+
 INSTANTIATE_TEST_SUITE_P(AstGeneratorRepeatableTestInstance,
                          AstGeneratorRepeatableTest,
                          testing::Range(int64_t{0}, int64_t{1024}));

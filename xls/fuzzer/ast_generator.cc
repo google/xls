@@ -499,7 +499,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateConcat(Env* env) {
     return GenerateArrayConcat(env);
   }
 
-  int64_t count = GenerateNaryOperandCount(env) + 2;
+  // Pick the number of operands of the concat. We need at least one value.
+  int64_t count = GenerateNaryOperandCount(env, /*lower_limit=*/1);
   std::vector<TypedExpr> operands;
   for (int64_t i = 0; i < count; ++i) {
     XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValueUBits(env));
@@ -690,7 +691,7 @@ TypeAnnotation* AstGenerator::GenerateType(int64_t nesting) {
   if (r < 0.1 * std::pow(2.0, -nesting)) {
     // Generate tuple type.
     std::vector<TypeAnnotation*> element_types;
-    for (int64_t i = 0; i < RandomPoisson(3); ++i) {
+    for (int64_t i = 0; i < RandomIntWithExpectedValue(3); ++i) {
       element_types.push_back(GenerateType(nesting + 1));
     }
     return MakeTupleType(element_types);
@@ -698,7 +699,7 @@ TypeAnnotation* AstGenerator::GenerateType(int64_t nesting) {
   if (r < 0.2 * std::pow(2.0, -nesting)) {
     // Generate array type.
     return MakeArrayType(GenerateType(nesting + 1),
-                         std::max(int64_t{1}, RandomPoisson(10)));
+                         RandomIntWithExpectedValue(10, /*lower_limit=*/1));
   }
   return GenerateBitsType();
 }
@@ -1167,7 +1168,7 @@ absl::StatusOr<Function*> AstGenerator::GenerateFunction(
     }
   } else {
     // Always have at least one parameter.
-    params = GenerateParams(RandomPoisson(3) + 1);
+    params = GenerateParams(RandomIntWithExpectedValue(4, /*lower_limit=*/1));
   }
   XLS_ASSIGN_OR_RETURN(TypedExpr retval, GenerateBody(call_depth, params));
   NameDef* name_def =
