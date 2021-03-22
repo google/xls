@@ -36,6 +36,17 @@ dslx_test(
     deps = [":apfloat_add_2.x"],
 )
 
+dslx_test(
+    name = "fpsub_2x32",
+    srcs = ["fpsub_2x32.x"],
+    # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes).
+    prove_unopt_eq_opt = False,
+    deps = [
+        ":apfloat_add_2.x",
+        ":fpadd_2x32.x",
+    ],
+)
+
 dslx_jit_wrapper(
     name = "fpadd_2x32_jit_wrapper",
     dslx_name = "fpadd_2x32",

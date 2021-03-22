@@ -25,6 +25,6 @@ import float32
 
 type F32 = float32::F32;
 
-fn fpmul_2x32(x: F32, y: F32) -> F32 {
+pub fn fpmul_2x32(x: F32, y: F32) -> F32 {
   apfloat_mul_2::apfloat_mul_2<u32:8, u32:23>(x, y)
 }
