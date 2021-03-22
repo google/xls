@@ -17,6 +17,7 @@
 
 #include "xls/dslx/ast.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/value.h"
 
 namespace xls::dslx {
 
@@ -280,6 +281,15 @@ class InterpValue {
   const std::shared_ptr<TokenData>& GetTokenData() const {
     return absl::get<std::shared_ptr<TokenData>>(payload_);
   }
+
+  // Convert any non-function InterpValue to an IR Value.
+  // Note: Enum conversions are lossy because enum types don't exist in the IR.
+  absl::StatusOr<xls::Value> ConvertToIr() const;
+
+  // Convert many non-function InterpValues to IR Values.
+  // Note: Enum conversions are lossy because enum types don't exist in the IR.
+  static absl::StatusOr<std::vector<xls::Value>> ConvertValuesToIr(
+      absl::Span<InterpValue const> values);
 
  private:
   friend struct InterpValuePickler;

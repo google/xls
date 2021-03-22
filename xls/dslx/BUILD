@@ -380,6 +380,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:value",
     ],
 )
 
@@ -501,6 +502,18 @@ cc_library(
 )
 
 cc_library(
+    name = "mangle",
+    srcs = ["mangle.cc"],
+    hdrs = ["mangle.h"],
+    deps = [
+        ":ast",
+        ":symbolic_bindings",
+        "//xls/common/status:ret_check",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "interpreter",
     srcs = ["interpreter.cc"],
     hdrs = ["interpreter.h"],
@@ -512,9 +525,11 @@ cc_library(
         ":import_routines",
         ":interp_bindings",
         ":interp_value",
+        ":mangle",
         ":type_info",
         "//xls/common/status:ret_check",
         "//xls/ir",
+        "//xls/jit:ir_jit",
     ],
 )
 
@@ -631,6 +646,7 @@ cc_library(
         ":import_routines",
         ":interp_value",
         ":interpreter",
+        ":mangle",
         ":type_info",
         "//xls/ir",
         "//xls/ir:function_builder",
@@ -742,6 +758,7 @@ cc_binary(
         ":error_printer",
         ":interpreter",
         ":ir_converter",
+        ":mangle",
         ":parse_and_typecheck",
         ":parser",
         ":scanner",

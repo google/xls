@@ -22,6 +22,7 @@
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/extract_conversion_order.h"
 #include "xls/dslx/interpreter.h"
+#include "xls/dslx/mangle.h"
 #include "xls/ir/lsb_or_msb.h"
 
 namespace xls::dslx {
@@ -2179,37 +2180,6 @@ absl::Status ConvertOneFunctionInternal(
 }
 
 }  // namespace
-
-absl::StatusOr<std::string> MangleDslxName(
-    absl::string_view function_name,
-    const absl::btree_set<std::string>& free_keys, Module* module,
-    const SymbolicBindings* symbolic_bindings) {
-  absl::btree_set<std::string> symbolic_bindings_keys;
-  std::vector<int64_t> symbolic_bindings_values;
-  if (symbolic_bindings != nullptr) {
-    for (const SymbolicBinding& item : symbolic_bindings->bindings()) {
-      symbolic_bindings_keys.insert(item.identifier);
-      symbolic_bindings_values.push_back(item.value);
-    }
-  }
-  absl::btree_set<std::string> difference;
-  absl::c_set_difference(free_keys, symbolic_bindings_keys,
-                         std::inserter(difference, difference.begin()));
-  if (!difference.empty()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Not enough symbolic bindings to convert function "
-                        "'%s'; need {%s} got {%s}",
-                        function_name, absl::StrJoin(free_keys, ", "),
-                        absl::StrJoin(symbolic_bindings_keys, ", ")));
-  }
-
-  std::string module_name = absl::StrReplaceAll(module->name(), {{".", "_"}});
-  if (symbolic_bindings_values.empty()) {
-    return absl::StrFormat("__%s__%s", module_name, function_name);
-  }
-  std::string suffix = absl::StrJoin(symbolic_bindings_values, "_");
-  return absl::StrFormat("__%s__%s__%s", module_name, function_name, suffix);
-}
 
 absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
     Module* module, ImportData* import_data, bool emit_positions,

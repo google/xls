@@ -120,9 +120,8 @@ std::string InterpValue::ToString(bool humanize) const {
           absl::get<UserFnData>(GetFunctionOrDie()).function->identifier());
     case InterpValueTag::kToken:
       return absl::StrFormat("token:%p", GetTokenData().get());
-    default:
-      XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
   }
+  XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
 }
 
 bool InterpValue::Eq(const InterpValue& other) const {
@@ -543,6 +542,48 @@ absl::StatusOr<int64_t> InterpValue::GetBitValueInt64() const {
 
 bool InterpValue::FitsInInt64() const {
   return HasBits() && GetBitsOrDie().FitsInInt64();
+}
+
+/* static */ absl::StatusOr<std::vector<xls::Value>>
+InterpValue::ConvertValuesToIr(absl::Span<InterpValue const> values) {
+  std::vector<xls::Value> converted;
+  for (const InterpValue& v : values) {
+    XLS_ASSIGN_OR_RETURN(Value c, v.ConvertToIr());
+    converted.push_back(c);
+  }
+  return converted;
+}
+
+absl::StatusOr<xls::Value> InterpValue::ConvertToIr() const {
+  switch (tag_) {
+    case InterpValueTag::kUBits: {
+      return xls::Value(GetBitsOrDie());
+    }
+    case InterpValueTag::kSBits: {
+      return xls::Value(GetBitsOrDie());
+    }
+    case InterpValueTag::kArray: {
+      XLS_ASSIGN_OR_RETURN(std::vector<xls::Value> converted,
+                           ConvertValuesToIr(GetValuesOrDie()));
+      return xls::Value::Array(converted);
+    }
+    case InterpValueTag::kTuple: {
+      XLS_ASSIGN_OR_RETURN(std::vector<xls::Value> converted,
+                           ConvertValuesToIr(GetValuesOrDie()));
+      return xls::Value::Tuple(converted);
+    }
+    case InterpValueTag::kEnum: {
+      return xls::Value(GetBitsOrDie());
+    }
+    case InterpValueTag::kToken: {
+      return xls::Value::Token();
+    }
+    case InterpValueTag::kFunction: {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Cannot convert functions to IR: %s", ToString(/*humanize=*/true)));
+    }
+  }
+  XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
 }
 
 }  // namespace xls::dslx

@@ -26,6 +26,7 @@
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/interpreter.h"
 #include "xls/dslx/ir_converter.h"
+#include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/parser.h"
 #include "xls/dslx/scanner.h"

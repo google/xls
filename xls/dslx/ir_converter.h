@@ -28,12 +28,6 @@
 
 namespace xls::dslx {
 
-// Returns the mangled name of function with the given parametric bindings.
-absl::StatusOr<std::string> MangleDslxName(
-    absl::string_view function_name,
-    const absl::btree_set<std::string>& free_keys, Module* module,
-    const SymbolicBindings* symbolic_bindings = nullptr);
-
 // Converts the contents of a module to IR form.
 //
 // Args:

@@ -182,7 +182,8 @@ class Interpreter {
       const SymbolicBindings* symbolic_bindings);
 
   absl::Status RunJitComparison(Function* f, absl::Span<InterpValue const> args,
-                                const SymbolicBindings* symbolic_bindings);
+                                const SymbolicBindings* symbolic_bindings,
+                                const InterpValue& expected_value);
 
   absl::StatusOr<InterpValue> RunBuiltin(
       Builtin builtin, absl::Span<InterpValue const> args, const Span& span,

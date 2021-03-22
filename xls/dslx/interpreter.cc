@@ -17,6 +17,8 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/builtins.h"
 #include "xls/dslx/evaluate.h"
+#include "xls/dslx/mangle.h"
+#include "xls/jit/ir_jit.h"
 
 namespace xls::dslx {
 
@@ -323,22 +325,39 @@ absl::StatusOr<InterpValue> Interpreter::CallFnValue(
 
 absl::Status Interpreter::RunJitComparison(
     Function* f, absl::Span<InterpValue const> args,
-    const SymbolicBindings* symbolic_bindings) {
-  // TODO(leary): 2020-11-20 Implement this, for now we lie and say the JIT
-  // execution matched even though we don't run anything.
-#if 0
-  std::string ir_name = MangleDslxName(
-      f->identifier(), f->GetFreeParametricKeys(), f->GetContainingModule(),
-      symbolic_bindings);
+    const SymbolicBindings* symbolic_bindings,
+    const InterpValue& expected_value) {
+  if (ir_package_ != nullptr) {
+    XLS_ASSIGN_OR_RETURN(
+        std::string ir_name,
+        MangleDslxName(f->identifier(), f->GetFreeParametricKeySet(),
+                       f->owner(), symbolic_bindings));
 
-  xls::Function* ir_function = ir_package_->GetFunction(ir_name);
-  std::vector<Value> ir_args = ConvertArgsToIr(args);
-  // TODO(leary): 2020-11-19 Cache JIT function so we don't have to create it
-  // every time.
-  XLS_ASSIGN_OR_RETURN(Value jit_value, IrJitRun(ir_function, ir_args));
-  XLS_RETURN_IF_ERROR(CompareValues(interpreter_value, jit_value));
-  return absl::OkStatus();
-#endif
+    auto get_result = ir_package_->GetFunction(ir_name);
+
+    // ir_package_ does not include specializations of parametric functions
+    // that are only called from test code, so not finding the function
+    // may be benign.
+    // TODO(amfv): 2021-03-18 Extend IR conversion to include those functions.
+    if (!get_result.ok()) {
+      XLS_LOG(WARNING) << "Could not find " << ir_name
+                       << " function for JIT comparison";
+      return absl::OkStatus();
+    }
+
+    xls::Function* ir_function = get_result.value();
+
+    XLS_ASSIGN_OR_RETURN(std::vector<Value> ir_args,
+                         InterpValue::ConvertValuesToIr(args));
+
+    // TODO(leary): 2020-11-19 Cache JIT function so we don't have to create it
+    // every time.
+    XLS_ASSIGN_OR_RETURN(Value jit_value, CreateAndRun(ir_function, ir_args));
+
+    XLS_ASSIGN_OR_RETURN(Value expected_ir, expected_value.ConvertToIr());
+    XLS_RET_CHECK_EQ(expected_ir, jit_value) << absl::StreamFormat(
+        "\n%s\n vs \n%s", f->ToString(), ir_function->DumpIr());
+  }
   return absl::OkStatus();
 }
 
@@ -352,7 +371,8 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateAndCompareInternal(
                                                     : *symbolic_bindings,
                        abstract_adapter_.get()));
 
-  XLS_RETURN_IF_ERROR(RunJitComparison(f, args, symbolic_bindings));
+  XLS_RETURN_IF_ERROR(
+      RunJitComparison(f, args, symbolic_bindings, interpreter_value));
 
   return interpreter_value;
 }
