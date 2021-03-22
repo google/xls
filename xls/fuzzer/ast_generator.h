@@ -136,6 +136,7 @@ class AstGenerator {
   static bool IsUBits(TypeAnnotation* t);
   static bool IsArray(TypeAnnotation* t);
   static bool IsTuple(TypeAnnotation* t);
+  static bool IsNil(TypeAnnotation* t);
   static std::pair<std::vector<Expr*>, std::vector<TypeAnnotation*>> Unzip(
       absl::Span<const TypedExpr> typed_exprs);
 
@@ -236,8 +237,10 @@ class AstGenerator {
   // the inclusive lower limit of the distribution.
   int64_t GenerateNaryOperandCount(Env* env, int64_t lower_limit = 0) {
     XLS_CHECK(!env->empty());
-    return std::min(RandomIntWithExpectedValue(4, lower_limit),
-                    static_cast<int64_t>(env->size()));
+    int64_t result = std::min(RandomIntWithExpectedValue(4, lower_limit),
+                              static_cast<int64_t>(env->size()));
+    XLS_CHECK_GE(result, lower_limit);
+    return result;
   }
 
   // Generates an expression AST node and returns it. expr_size is a measure of

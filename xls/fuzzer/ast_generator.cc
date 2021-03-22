@@ -85,6 +85,14 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
   return dynamic_cast<TupleTypeAnnotation*>(t) != nullptr;
 }
 
+/* static */ bool AstGenerator::IsNil(TypeAnnotation* t) {
+  if (auto* tuple = dynamic_cast<TupleTypeAnnotation*>(t);
+      tuple != nullptr && tuple->empty()) {
+    return true;
+  }
+  return false;
+}
+
 /* static */ bool AstGenerator::EnvContainsArray(const Env& e) {
   return std::any_of(e.begin(), e.end(), [](const auto& item) -> bool {
     return IsArray(item.second.type);
@@ -570,9 +578,21 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Env* env) {
       expr = RandomChoice<TypedExpr>(env_non_params);
     }
 
-    if (total_bit_count + GetTypeBitCount(expr.type) >
-        options_.max_width_aggregate_types) {
-      continue;
+    // See if the value we selected is going to push us over the "aggregate type
+    // width" limit.
+    if ((total_bit_count + GetTypeBitCount(expr.type) >
+         options_.max_width_aggregate_types)) {
+      if (options_.generate_empty_tuples) {
+        // If it's ok to generate empty tuples, we just try again. Note we'll
+        // end up with < retval_count elements by doing this, potentially 0.
+        continue;
+      }
+      // Make sure we have at least one value, since
+      // `!options._generate_empty_tuples`.
+      if (typed_exprs.empty()) {
+        typed_exprs.push_back(expr);
+      }
+      break;
     }
 
     typed_exprs.push_back(expr);
@@ -586,6 +606,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Env* env) {
   }
 
   auto [exprs, types] = Unzip(typed_exprs);
+  if (!options_.generate_empty_tuples) {
+    XLS_RET_CHECK(!exprs.empty())
+        << "retval_count was: " << retval_count
+        << " typed_exprs size: " << typed_exprs.size();
+  }
   auto* tuple = module_->Make<XlsTuple>(fake_span_, exprs);
   return TypedExpr{tuple, MakeTupleType(types)};
 }
@@ -628,8 +653,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Env* env) {
       env, /*lower_limit=*/options_.generate_empty_tuples ? 0 : 1);
   for (int64_t i = 0; i < element_count; ++i) {
     XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValue(env));
-    if (total_bit_count + GetTypeBitCount(e.type) >
-        options_.max_width_aggregate_types) {
+    if (options_.generate_empty_tuples &&
+        (total_bit_count + GetTypeBitCount(e.type) >
+         options_.max_width_aggregate_types)) {
       continue;
     }
     members.push_back(e);
@@ -637,6 +663,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Env* env) {
   }
 
   auto [exprs, types] = Unzip(members);
+  if (!options_.generate_empty_tuples) {
+    XLS_RET_CHECK(!exprs.empty());
+  }
   return TypedExpr{module_->Make<XlsTuple>(fake_span_, exprs),
                    MakeTupleType(types)};
 }
@@ -973,6 +1002,7 @@ int OpProbability(OpChoice op) {
     case kEndSentinel:
       return 0;
   }
+  XLS_LOG(FATAL) << "Invalid op choice: " << static_cast<int64_t>(op);
 }
 
 std::discrete_distribution<int>& GetOpDistribution() {
@@ -1178,6 +1208,9 @@ absl::StatusOr<Function*> AstGenerator::GenerateFunction(
     params = GenerateParams(RandomIntWithExpectedValue(4, /*lower_limit=*/1));
   }
   XLS_ASSIGN_OR_RETURN(TypedExpr retval, GenerateBody(call_depth, params));
+  if (!options_.generate_empty_tuples) {
+    XLS_RET_CHECK(!IsNil(retval.type));
+  }
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
   Function* f = module_->Make<Function>(

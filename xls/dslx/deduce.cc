@@ -97,7 +97,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> result,
                        ctx->Deduce(node->value()));
   // Right now we only know how to do integral expressions as constexpr values.
-  if (BitsType* bits = dynamic_cast<BitsType*>(result.get())) {
+  if (dynamic_cast<BitsType*>(result.get()) != nullptr) {
     auto [env, bit_widths] = MakeConstexprEnv(
         node->value(), ctx->fn_stack().back().symbolic_bindings(), ctx);
     const FnStackEntry& peek_entry = ctx->fn_stack().back();

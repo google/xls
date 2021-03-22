@@ -341,6 +341,7 @@ class TupleTypeAnnotation : public TypeAnnotation {
 
   const std::vector<TypeAnnotation*>& members() const { return members_; }
   int64_t size() const { return members_.size(); }
+  bool empty() const { return members_.empty(); }
 
  private:
   std::vector<TypeAnnotation*> members_;
