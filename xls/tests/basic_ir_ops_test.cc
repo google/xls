@@ -88,6 +88,33 @@ fn main(x: bits[$0]) -> bits[$2] {
   RunAndExpectEq({{"x", 0x12345678ULL}}, 2220, gen_bitslice(32, 7, 13));
 }
 
+TEST_F(BasicOpsTest, BitSliceUpdateOneBit) {
+  constexpr absl::string_view text = R"(
+package BitSlice
+
+fn main(x: bits[1]) -> bits[1] {
+  zero: bits[1] = literal(value=0)
+  ret result: bits[1] = bit_slice_update(x, zero, x)
+}
+)";
+  RunAndExpectEq({{"x", 1}}, 1, text);
+  RunAndExpectEq({{"x", 0}}, 0, text);
+}
+
+TEST_F(BasicOpsTest, BitSliceUpdateOneBitWithinTwo) {
+  constexpr absl::string_view text = R"(
+package BitSlice
+
+fn main(x: bits[2]) -> bits[2] {
+  zero: bits[1] = literal(value=0)
+  ret result: bits[2] = bit_slice_update(x, zero, zero)
+}
+)";
+  RunAndExpectEq({{"x", 0b11}}, 2, text);
+  RunAndExpectEq({{"x", 0b10}}, 2, text);
+  RunAndExpectEq({{"x", 0b01}}, 0, text);
+}
+
 TEST_F(BasicOpsTest, WideAndNot) {
   std::string text = R"(
 package WideAndNot

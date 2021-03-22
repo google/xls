@@ -67,13 +67,17 @@ std::string Include::Emit() const {
   return absl::StrFormat("`include \"%s\"", path_);
 }
 
+DataType* VerilogFile::BitVectorTypeNoScalar(int64_t bit_count,
+                                             bool is_signed) {
+  return Make<DataType>(PlainLiteral(bit_count), is_signed);
+}
+
 DataType* VerilogFile::BitVectorType(int64_t bit_count, bool is_signed) {
   XLS_CHECK_GT(bit_count, 0);
   if (bit_count == 1) {
     return Make<DataType>();
-  } else {
-    return Make<DataType>(PlainLiteral(bit_count), is_signed);
   }
+  return BitVectorTypeNoScalar(bit_count, is_signed);
 }
 
 DataType* VerilogFile::PackedArrayType(int64_t element_bit_count,

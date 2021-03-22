@@ -1521,6 +1521,12 @@ class VerilogFile {
   // are represented as Verilog scalars.
   DataType* BitVectorType(int64_t bit_count, bool is_signed = false);
 
+  // As above, but does not produce a scalar value when the bit_count is 1.
+  //
+  // Generally BitVectorType() should be preferred, this is for use in
+  // special-case Verilog operation contexts that cannot use scalars.
+  DataType* BitVectorTypeNoScalar(int64_t bit_count, bool is_signed = false);
+
   // Returns a packed array type. Example:
   //   wire [7:0][41:0][122:0] foo;
   DataType* PackedArrayType(int64_t element_bit_count,

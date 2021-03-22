@@ -992,15 +992,18 @@ VerilogFunction* DefineBitSliceUpdateFunction(BitSliceUpdate* update,
                                               absl::string_view function_name,
                                               ModuleSection* section) {
   VerilogFile* file = section->file();
+  // We purposefully avoid using scalars here, because they cannot be sliced
+  // portably (e.g. at least iverilog rejects the attempt).
   VerilogFunction* func = section->Add<VerilogFunction>(
-      function_name, file->BitVectorType(update->BitCountOrDie()));
+      function_name, file->BitVectorTypeNoScalar(update->BitCountOrDie()));
   Expression* to_update = func->AddArgument(
-      "to_update", file->BitVectorType(update->to_update()->BitCountOrDie()));
+      "to_update",
+      file->BitVectorTypeNoScalar(update->to_update()->BitCountOrDie()));
   Expression* start = func->AddArgument(
-      "start", file->BitVectorType(update->start()->BitCountOrDie()));
+      "start", file->BitVectorTypeNoScalar(update->start()->BitCountOrDie()));
   Expression* update_value = func->AddArgument(
       "update_value",
-      file->BitVectorType(update->update_value()->BitCountOrDie()));
+      file->BitVectorTypeNoScalar(update->update_value()->BitCountOrDie()));
 
   func->AddStatement<BlockingAssignment>(func->return_value_ref(), to_update);
   // By the (System)Verilog LRM, if some bits of a RHS part-select are
