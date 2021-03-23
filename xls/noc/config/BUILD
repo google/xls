@@ -152,7 +152,6 @@ cc_library(
         ":port_config_proto_builder",
         ":routing_scheme_config_proto_builder",
         "//xls/common:proto_adaptor_utils",
-        "//xls/common/logging",
     ],
 )
 
@@ -178,7 +177,6 @@ cc_library(
         ":virtual_channel_config_proto_builder",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:proto_adaptor_utils",
-        "//xls/common/logging",
     ],
 )
 
@@ -209,7 +207,8 @@ cc_proto_library(
 )
 
 cc_library(
-    name = "common_network_config_builder_options_proto_builder_h",
+    name = "common_network_config_builder_options_proto_builder",
+    srcs = ["common_network_config_builder_options_proto_builder.cc"],
     hdrs = ["common_network_config_builder_options_proto_builder.h"],
     deps = [
         ":network_config_builder_options_cc_proto",
@@ -218,219 +217,11 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "endpoint_options_proto_builder",
-    srcs = ["endpoint_options_proto_builder.cc"],
-    deps = [
-        ":common_network_config_builder_options_proto_builder_h",
-    ],
-)
-
 cc_test(
-    name = "endpoint_options_proto_builder_test",
-    srcs = ["endpoint_options_proto_builder_test.cc"],
+    name = "common_network_config_builder_options_proto_builder_test",
+    srcs = ["common_network_config_builder_options_proto_builder_test.cc"],
     deps = [
-        ":common_network_config_builder_options_proto_builder_h",
-        ":endpoint_options_proto_builder",
-        "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "data_options_proto_builder",
-    srcs = ["data_options_proto_builder.cc"],
-    deps = [
-        ":common_network_config_builder_options_proto_builder_h",
-    ],
-)
-
-cc_test(
-    name = "data_options_proto_builder_test",
-    srcs = ["data_options_proto_builder_test.cc"],
-    deps = [
-        ":common_network_config_builder_options_proto_builder_h",
-        ":data_options_proto_builder",
-        "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "flow_control_options_proto_builder",
-    srcs = ["flow_control_options_proto_builder.cc"],
-    deps = [
-        ":common_network_config_builder_options_proto_builder_h",
-    ],
-)
-
-cc_test(
-    name = "flow_control_options_proto_builder_test",
-    srcs = ["flow_control_options_proto_builder_test.cc"],
-    deps = [
-        ":common_network_config_builder_options_proto_builder_h",
-        ":flow_control_options_proto_builder",
-        "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "link_options_proto_builder",
-    srcs = ["link_options_proto_builder.cc"],
-    deps = [
-        ":common_network_config_builder_options_proto_builder_h",
-    ],
-)
-
-cc_test(
-    name = "link_options_proto_builder_test",
-    srcs = ["link_options_proto_builder_test.cc"],
-    deps = [
-        ":common_network_config_builder_options_proto_builder_h",
-        ":link_options_proto_builder",
-        "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "virtual_channel_options_proto_builder",
-    srcs = ["virtual_channel_options_proto_builder.cc"],
-    deps = [
-        ":common_network_config_builder_options_proto_builder_h",
-    ],
-)
-
-cc_test(
-    name = "virtual_channel_options_proto_builder_test",
-    srcs = ["virtual_channel_options_proto_builder_test.cc"],
-    deps = [
-        ":common_network_config_builder_options_proto_builder_h",
-        ":virtual_channel_options_proto_builder",
-        "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "routing_scheme_options_proto_builder",
-    srcs = ["routing_scheme_options_proto_builder.cc"],
-    deps = [
-        ":common_network_config_builder_options_proto_builder_h",
-    ],
-)
-
-cc_test(
-    name = "routing_scheme_options_proto_builder_test",
-    srcs = ["routing_scheme_options_proto_builder_test.cc"],
-    deps = [
-        ":common_network_config_builder_options_proto_builder_h",
-        ":routing_scheme_options_proto_builder",
-        "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "arbiter_scheme_options_proto_builder",
-    srcs = ["arbiter_scheme_options_proto_builder.cc"],
-    deps = [
-        ":common_network_config_builder_options_proto_builder_h",
-    ],
-)
-
-cc_test(
-    name = "arbiter_scheme_options_proto_builder_test",
-    srcs = ["arbiter_scheme_options_proto_builder_test.cc"],
-    deps = [
-        ":arbiter_scheme_options_proto_builder",
-        ":common_network_config_builder_options_proto_builder_h",
-        "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "router_options_proto_builder",
-    srcs = ["router_options_proto_builder.cc"],
-    deps = [
-        ":common_network_config_builder_options_proto_builder_h",
-    ],
-)
-
-cc_test(
-    name = "router_options_proto_builder_test",
-    srcs = ["router_options_proto_builder_test.cc"],
-    deps = [
-        ":common_network_config_builder_options_proto_builder_h",
-        ":router_options_proto_builder",
-        "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "custom_network_config_builder_options_proto_builder_h",
-    hdrs = ["custom_network_config_builder_options_proto_builder.h"],
-    deps = [
-        ":network_config_builder_options_cc_proto",
-        "//xls/common/logging",
-    ],
-)
-
-cc_library(
-    name = "grid_network_config_options_proto_builder",
-    srcs = ["grid_network_config_options_proto_builder.cc"],
-    deps = [
-        ":custom_network_config_builder_options_proto_builder_h",
-    ],
-)
-
-cc_test(
-    name = "grid_network_config_options_proto_builder_test",
-    srcs = ["grid_network_config_options_proto_builder_test.cc"],
-    deps = [
-        ":custom_network_config_builder_options_proto_builder_h",
-        ":grid_network_config_options_proto_builder",
-        "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "unidirectional_tree_network_config_options_proto_builder",
-    srcs = ["unidirectional_tree_network_config_options_proto_builder.cc"],
-    deps = [
-        ":custom_network_config_builder_options_proto_builder_h",
-    ],
-)
-
-cc_test(
-    name = "unidirectional_tree_network_config_options_proto_builder_test",
-    srcs = ["unidirectional_tree_network_config_options_proto_builder_test.cc"],
-    deps = [
-        ":custom_network_config_builder_options_proto_builder_h",
-        ":unidirectional_tree_network_config_options_proto_builder",
-        "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "bidirectional_tree_network_config_options_proto_builder",
-    srcs = ["bidirectional_tree_network_config_options_proto_builder.cc"],
-    deps = [
-        ":custom_network_config_builder_options_proto_builder_h",
-    ],
-)
-
-cc_test(
-    name = "bidirectional_tree_network_config_options_proto_builder_test",
-    srcs = ["bidirectional_tree_network_config_options_proto_builder_test.cc"],
-    deps = [
-        ":bidirectional_tree_network_config_options_proto_builder",
-        ":custom_network_config_builder_options_proto_builder_h",
+        ":common_network_config_builder_options_proto_builder",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -438,9 +229,20 @@ cc_test(
 
 cc_library(
     name = "custom_network_config_builder_options_proto_builder",
+    srcs = ["custom_network_config_builder_options_proto_builder.cc"],
+    hdrs = ["custom_network_config_builder_options_proto_builder.h"],
     deps = [
-        ":bidirectional_tree_network_config_options_proto_builder",
-        ":grid_network_config_options_proto_builder",
-        ":unidirectional_tree_network_config_options_proto_builder",
+        ":network_config_builder_options_cc_proto",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "custom_network_config_builder_options_proto_builder_test",
+    srcs = ["custom_network_config_builder_options_proto_builder_test.cc"],
+    deps = [
+        ":custom_network_config_builder_options_proto_builder",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
