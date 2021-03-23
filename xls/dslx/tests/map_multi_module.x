@@ -12,12 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Extracts the LSb (least significant bit) from the value `x` and returns it.
-pub fn lsb<N: u32>(x: uN[N]) -> u1 {
-  x as u1
+// Performs a map:
+// * of an array defined as a constant in one module, with...
+// * a parametric function defined in another module
+
+import xls.dslx.tests.mod_imported_array
+import xls.dslx.tests.mod_imported_lsb
+
+fn f() -> u1[4] {
+  map(mod_imported_array::A, mod_imported_lsb::lsb_u32)
 }
 
-// Wrapper around the above that exposes a non-parametric callable for u32s.
-pub fn lsb_u32(x: u32) -> u1 {
-  lsb(x)
+fn g() -> u1[4] {
+  map(mod_imported_array::A, mod_imported_lsb::lsb)
+}
+
+fn main() -> (u1[4], u1[4]) {
+  (f(), g())
+}
+
+#![test]
+fn main_test() {
+  let (f, g) = main();
+  let _ = assert_eq(u1[4]:[0, 1, 0, 1], f);
+  assert_eq(u1[4]:[0, 1, 0, 1], g)
 }

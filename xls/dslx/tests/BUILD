@@ -553,6 +553,15 @@ dslx_test(
 )
 
 dslx_test(
+    name = "map_multi_module",
+    srcs = ["map_multi_module.x"],
+    deps = [
+        "mod_imported_array.x",
+        "mod_imported_lsb.x",
+    ],
+)
+
+dslx_test(
     name = "parametric_const_ref",
     srcs = ["parametric_const_ref.x"],
     # Only a parametric entry point, so no benchmark.

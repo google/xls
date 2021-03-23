@@ -49,7 +49,8 @@ Callee::Callee(Function* f, Module* m, TypeInfo* type_info,
       sym_bindings_(std::move(sym_bindings)) {
   XLS_CHECK_EQ(f->owner(), m);
   XLS_CHECK_EQ(type_info->module(), m)
-      << type_info->module()->name() << " vs " << m->name();
+      << "type_info module: " << type_info->module()->name()
+      << " vs module: " << m->name();
 }
 
 std::string Callee::ToString() const {
@@ -140,7 +141,8 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
         Expr* fn_node = node->args()[1];
         XLS_VLOG(5) << "map() invoking: " << fn_node->ToString();
         if (auto* mapped_colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
-          XLS_VLOG(5) << "map() invoking ColonRef";
+          XLS_VLOG(5) << "map() invoking ColonRef: "
+                      << mapped_colon_ref->ToString();
           fn_identifier = mapped_colon_ref->attr();
           absl::optional<Import*> import =
               mapped_colon_ref->ResolveImportSubject();
@@ -149,6 +151,8 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
               type_info_->GetImported(*import);
           XLS_RET_CHECK(info.has_value());
           this_m = (*info)->module;
+          invocation_type_info = (*info)->type_info;
+          XLS_VLOG(5) << "Module for callee: " << this_m->name();
         } else {
           XLS_VLOG(5) << "map() invoking NameRef";
           auto* mapped_name_ref = dynamic_cast<NameRef*>(fn_node);

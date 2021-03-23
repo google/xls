@@ -186,13 +186,25 @@ absl::StatusOr<InterpValue> BuiltinMap(
     const SymbolicBindings* symbolic_bindings, AbstractInterpreter* interp) {
   XLS_RETURN_IF_ERROR(ArgChecker("map", args).size(2).status());
   const InterpValue& inputs = args[0];
-  const InterpValue& map_fn = args[1];
+  const InterpValue& mapped_fn = args[1];
+
+  // Establish type information for the callee (e.g. it could live in another
+  // module).
+  TypeInfo* mapped_type_info = interp->GetCurrentTypeInfo();
+  absl::optional<Module*> mapped_module = GetFunctionValueOwner(mapped_fn);
+  if (mapped_module.has_value()) {
+    XLS_ASSIGN_OR_RETURN(mapped_type_info,
+                         interp->GetRootTypeInfo(*mapped_module));
+  }
+
+  AbstractInterpreter::ScopedTypeInfoSwap stis(interp, mapped_type_info);
+
   std::vector<InterpValue> outputs;
   for (const InterpValue& v : inputs.GetValuesOrDie()) {
     std::vector<InterpValue> args = {v};
     XLS_ASSIGN_OR_RETURN(
         InterpValue result,
-        interp->CallValue(map_fn, args, span, expr, symbolic_bindings));
+        interp->CallValue(mapped_fn, args, span, expr, symbolic_bindings));
     outputs.push_back(result);
   }
   return InterpValue::MakeArray(std::move(outputs));

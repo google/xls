@@ -586,4 +586,14 @@ absl::StatusOr<xls::Value> InterpValue::ConvertToIr() const {
   XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
 }
 
+absl::optional<Module*> GetFunctionValueOwner(
+    const InterpValue& function_value) {
+  if (function_value.IsBuiltinFunction()) {
+    return absl::nullopt;
+  }
+  const auto& fn_data =
+      absl::get<InterpValue::UserFnData>(function_value.GetFunctionOrDie());
+  return fn_data.function->owner();
+}
+
 }  // namespace xls::dslx

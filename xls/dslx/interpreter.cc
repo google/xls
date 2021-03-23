@@ -295,20 +295,6 @@ absl::StatusOr<InterpValue> Interpreter::RunBuiltin(
   }
 }
 
-// Retrieves the module associated with the function_value if it is user
-// defined.
-//
-// Check-fails if function_value is not a function-typed value.
-static absl::optional<Module*> GetFunctionValueOwner(
-    const InterpValue& function_value) {
-  if (function_value.IsBuiltinFunction()) {
-    return absl::nullopt;
-  }
-  const auto& fn_data =
-      absl::get<InterpValue::UserFnData>(function_value.GetFunctionOrDie());
-  return fn_data.function->owner();
-}
-
 absl::StatusOr<InterpValue> Interpreter::CallFnValue(
     const InterpValue& fv, absl::Span<InterpValue const> args, const Span& span,
     Invocation* invocation, const SymbolicBindings* symbolic_bindings) {

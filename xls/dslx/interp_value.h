@@ -324,6 +324,13 @@ class InterpValue {
   EnumDef* type_ = nullptr;
 };
 
+// Retrieves the module associated with the function_value if it is user
+// defined.
+//
+// Check-fails if function_value is not a function-typed value.
+absl::optional<Module*> GetFunctionValueOwner(
+    const InterpValue& function_value);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_INTERP_VALUE_H_
