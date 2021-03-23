@@ -1034,8 +1034,22 @@ operations return a result of type `bits[1]`, aka `bool`.
 
 ### Concat Expression
 
-TODO(meheff): Explain the intricacies of our bits type interpretation and how it
-affects concat.
+Bitwise concatenation is performed with the `++` operator. The value on the left
+hand side becomes the most significant bits, the value on the right hand side
+becomes the least significant bits. These may be chained together as shown
+below:
+
+```
+#![test]
+fn test_bits_concat() {
+  let _ = assert_eq(u8:0b11000000, u2:0b11 ++ u6:0b000000);
+  let _ = assert_eq(u8:0b00000111, u2:0b00 ++ u6:0b000111));
+  let _ = assert_eq(u6:0b100111, u1:1 ++ u2:0b00 ++ u3:0b111);
+  let _ = assert_eq(u6:0b001000, u1:0 ++ u2:0b01 ++ u3:0b000);
+  let _ = assert_eq(u32:0xdeadbeef, u16:0xdead ++ u16:0xbeef);
+  ()
+}
+```
 
 ### Match Expression
 

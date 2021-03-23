@@ -743,3 +743,10 @@ dslx_test(
     name = "for_up_to_constexpr_cast",
     srcs = ["for_up_to_constexpr_cast.x"],
 )
+
+dslx_test(
+    name = "bits_concat",
+    srcs = ["bits_concat.x"],
+    # Note: no meaningful function to convert.
+    convert_ir = False,
+)
