@@ -98,14 +98,14 @@ class FuzzCoverageTest(test_base.TestCase):
     expect_nonzero = (
         'total_ns generate_sample_ns interpret_dslx_ns '
         'convert_ir_ns unoptimized_interpret_ir_ns unoptimized_jit_ns '
-        'optimize_ns optimized_jit_ns').split()
+        'optimize_ns optimized_jit_ns optimized_interpret_ir_ns').split()
     for field in expect_nonzero:
       self.assertGreater(
           getattr(summary.aggregate_timing, field),
           0,
           msg=f'Expected non-zero value in timing field {field}')
 
-    expect_zero = ('optimized_interpret_ir_ns codegen_ns simulate_ns').split()
+    expect_zero = ('codegen_ns simulate_ns').split()
     for field in expect_zero:
       self.assertEqual(
           getattr(summary.aggregate_timing, field),

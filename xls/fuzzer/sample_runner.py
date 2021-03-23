@@ -201,11 +201,10 @@ class SampleRunner:
               results['evaluated opt IR (JIT)'] = self._evaluate_ir(
                   opt_ir_filename, args_filename, True)
             self.timing.optimized_jit_ns = t.elapsed_ns
-          else:
-            with Timer() as t:
-              results['evaluated opt IR (interpreter)'] = self._evaluate_ir(
-                  opt_ir_filename, args_filename, False)
-            self.timing.optimized_interpret_ir_ns = t.elapsed_ns
+          with Timer() as t:
+            results['evaluated opt IR (interpreter)'] = self._evaluate_ir(
+                opt_ir_filename, args_filename, False)
+          self.timing.optimized_interpret_ir_ns = t.elapsed_ns
 
         if options.codegen:
           with Timer() as t:

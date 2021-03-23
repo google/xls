@@ -239,6 +239,7 @@ class SampleRunnerTest(test_base.TestCase):
         (Value.make_ubits(8, 100),),  # correct result
         (Value.make_ubits(8, 100),),  # correct result
         (Value.make_ubits(8, 0),),  # incorrect result
+        (Value.make_ubits(8, 100),),  # correct result
     ]
 
     def result_gen(*_):
