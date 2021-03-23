@@ -215,3 +215,5 @@ cc_test(
         "//xls/tools:testbench",
     ],
 )
+
+exports_files(glob(["*.x"]))
