@@ -114,10 +114,10 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToIntegralConstant(
 
     bytes.resize(xls::RoundUpToNearest(bytes.size(), 8UL), 0);
 
-    auto array_ref =
-        llvm::ArrayRef<uint64_t>(absl::bit_cast<const uint64_t*>(bytes.data()),
-                                 CeilOfRatio(static_cast<int>(bytes.size()),
-                                             static_cast<int>(CHAR_BIT)));
+    auto array_ref = llvm::ArrayRef<uint64_t>(
+        reinterpret_cast<const uint64_t*>(bytes.data()),
+        CeilOfRatio(static_cast<int>(bytes.size()),
+                    static_cast<int>(CHAR_BIT)));
     return llvm::ConstantInt::get(type,
                                   llvm::APInt(xls_bits.bit_count(), array_ref));
   } else {

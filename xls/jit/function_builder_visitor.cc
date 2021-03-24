@@ -167,7 +167,7 @@ absl::Status FunctionBuilderVisitor::InvokeAssertCallback(
 
   llvm::ConstantInt* fn_addr =
       llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()),
-                             absl::bit_cast<uint64_t>(&RecordAssertion));
+                             reinterpret_cast<uint64_t>(&RecordAssertion));
   llvm::Value* fn_ptr =
       builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
   builder->CreateCall(fn_type, fn_ptr, args);
@@ -1552,8 +1552,9 @@ absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::PackElement(
 void FunctionBuilderVisitor::UnpoisonOutputBuffer() {
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
   Type* xls_return_type = GetEffectiveReturnValue(xls_fn_)->GetType();
-  llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
-      llvm::Type::getInt64Ty(ctx()), absl::bit_cast<uint64_t>(__msan_unpoison));
+  llvm::ConstantInt* fn_addr =
+      llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()),
+                             reinterpret_cast<uint64_t>(__msan_unpoison));
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
   llvm::Type* u8_ptr_type =
       llvm::PointerType::get(llvm::Type::getInt8Ty(ctx()), /*AddressSpace=*/0);
