@@ -188,8 +188,8 @@ std::string JitRuntime::DumpToString<llvm::Module>(
 extern "C" {
 
 // One-time initialization of LLVM targets.
-absl::once_flag once;
-void OnceInit() {
+absl::once_flag xls_jit_llvm_once;
+void XlsJitLlvmOnceInit() {
   llvm::InitializeNativeTarget();
   llvm::InitializeNativeTargetAsmPrinter();
   llvm::InitializeNativeTargetAsmParser();
@@ -209,7 +209,7 @@ struct RuntimeState {
 // exposed via C ABI, so LLVM warns/errors if we do. Be sure to immediately wrap
 // in unique_ptr in C++ callers.
 RuntimeState* GetRuntimeState() {
-  absl::call_once(once, OnceInit);
+  absl::call_once(xls_jit_llvm_once, XlsJitLlvmOnceInit);
   auto state = std::make_unique<RuntimeState>();
   state->context = std::make_unique<llvm::LLVMContext>();
   auto error_or_target_builder =
