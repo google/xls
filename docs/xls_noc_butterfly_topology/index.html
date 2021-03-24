@@ -9,7 +9,7 @@
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
       
-        <link rel="canonical" href="https://google.github.io/xls/xls_style/">
+        <link rel="canonical" href="https://google.github.io/xls/xls_noc_butterfly_topology/">
       
       
       <link rel="shortcut icon" href="../assets/images/favicon.png">
@@ -17,7 +17,7 @@
     
     
       
-        <title>Style Guide - XLS: Accelerated HW Synthesis</title>
+        <title>k-ary n-fly Butterfly Topology Types - XLS: Accelerated HW Synthesis</title>
       
     
     
@@ -51,7 +51,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#xls-style-guide" class="md-skip">
+        <a href="#k-ary-n-fly-butterfly-topology-types" class="md-skip">
           Skip to content
         </a>
       
@@ -79,7 +79,7 @@
           </span>
           <span class="md-header-nav__topic md-ellipsis">
             
-              Style Guide
+              k-ary n-fly Butterfly Topology Types
             
           </span>
         </div>
@@ -615,12 +615,10 @@
       
       
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6" checked>
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
     
     <label class="md-nav__link" for="nav-6">
       Development
@@ -654,93 +652,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-    
-      
-    
-    
-      <label class="md-nav__link md-nav__link--active" for="__toc">
-        Style Guide
-        <span class="md-nav__icon md-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 9h14V7H3v2m0 4h14v-2H3v2m0 4h14v-2H3v2m16 0h2v-2h-2v2m0-10v2h2V7h-2m0 6h2v-2h-2v2z"/></svg>
-        </span>
-      </label>
-    
-    <a href="./" title="Style Guide" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../xls_style/" title="Style Guide" class="md-nav__link">
       Style Guide
     </a>
-    
-      
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
-      </span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#c" class="md-nav__link">
-    C++
-  </a>
-  
-    <nav class="md-nav" aria-label="C++">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#functions" class="md-nav__link">
-    Functions
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ir-nodes" class="md-nav__link">
-    IR nodes
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#faq" class="md-nav__link">
-    FAQ
-  </a>
-  
-    <nav class="md-nav" aria-label="FAQ">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#how-heavyweight-is-statusor" class="md-nav__link">
-    How heavyweight is StatusOr?
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-    
   </li>
 
         
@@ -787,23 +703,51 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#c" class="md-nav__link">
-    C++
+  <a href="#overview" class="md-nav__link">
+    Overview
   </a>
   
-    <nav class="md-nav" aria-label="C++">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unidirectional-types" class="md-nav__link">
+    Unidirectional Types
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bidirectional-types" class="md-nav__link">
+    Bidirectional Types
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cheat-sheet" class="md-nav__link">
+    Cheat Sheet
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#variants" class="md-nav__link">
+    Variants
+  </a>
+  
+    <nav class="md-nav" aria-label="Variants">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#functions" class="md-nav__link">
-    Functions
+  <a href="#flattened-butterfly" class="md-nav__link">
+    Flattened Butterfly
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#ir-nodes" class="md-nav__link">
-    IR nodes
+  <a href="#endpoint-connections" class="md-nav__link">
+    Endpoint Connections
   </a>
   
 </li>
@@ -814,22 +758,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#faq" class="md-nav__link">
-    FAQ
+  <a href="#references" class="md-nav__link">
+    References
   </a>
-  
-    <nav class="md-nav" aria-label="FAQ">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#how-heavyweight-is-statusor" class="md-nav__link">
-    How heavyweight is StatusOr?
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -845,7 +776,7 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/google/xls/tree/main/docs_src/xls_style.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/google/xls/tree/main/docs_src/xls_noc_butterfly_topology.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
@@ -853,94 +784,135 @@
                   
                 
                 
-                <h1 id="xls-style-guide">XLS Style Guide</h1>
-<p>The Google style guides recommend enforcing local consistency where stylistic
-choices are not pre-defined. This file notes some of the choices we make locally
-in the XLS project, with the relevant Google style guides
-(<a href="https://google.github.io/styleguide/cppguide.html">C++</a>,
-<a href="https://google.github.io/styleguide/pyguide.html">Python</a>) as their bases.</p>
-<h2 id="c">C++</h2>
+                <h1 id="k-ary-n-fly-butterfly-topology-types">k-ary n-fly Butterfly Topology Types</h1>
+<h2 id="overview">Overview</h2>
+<p>A <em>k</em>-ary <em>n</em>-fly butterfly topology type is a multistage logarithm network. It
+is implemented using <em>n</em> stages of identical routers, where <em>k</em> is the number of
+channels of a router that connect to the previous and/or to the next stage. For
+example, a 2-ary 3-tree butterfly topology has three stages composed of routers
+with two channels connect to the routers of the previous and/or the next stage
+(see Figure Butterfly_Topology_Example).</p>
+<p>Each endpoint node and channel has an <em>n</em>-digit radix-<em>k</em> identifier,
+{d<sub>n−1</sub>, d<sub>n−2</sub>, ..., d<sub>0</sub>}. The first <em>n−1</em> digits
+{d<sub>n−1</sub>, d<sub>n−2</sub>, ..., d<sub>1</sub>} of the identifier
+corresponds to the router that it is connected to. Each router node has an
+<em>n−1</em>-digit radix-<em>k</em> identifier. To distinguish nodes and channels from
+different stages, the stage number is appended to their identifier separated by
+a period. For example, for a 2-ary 4-fly butterfly network: 2.1010<sub>2</sub>
+is channel 10<sub>10</sub> from stage 2. <strong>[Butterfly_Ref_0]</strong></p>
+<p>The connection between the stages is a permutation of the channel identifier.
+The connection of a channel from stage <em>i</em>-1 to stage <em>i</em> swaps digits
+d<sub>n−i</sub> and d<sub>0</sub> of the channel identifier, with <em>i</em> &gt;= 1 and
+<em>i</em> &lt; n. For example, for a 2-ary 4-fly butterfly network: channel
+9<sub>10</sub> of stage 1 [1.1001<sub>2</sub>] is connected to router 4
+[1.<strong>100</strong>1<sub>2</sub>] of stage 1 and router 6
+[2.<strong>110</strong>0<sub>2</sub>] of stage 2. <strong>[Butterfly_Ref_0]</strong></p>
+<p><img alt="drawing" src="../butterfly_topology.png" />
+\
+<strong>Figure Butterfly_Topology_Example. The router nodes of a 2-ary 3-tree
+butterfly topology.</strong></p>
+<p>Figure Butterfly_Topology_Example shows the router nodes of a 2-ary 3-tree
+butterfly topology. The routers are labelled with an <strong>S.I</strong> format where <strong>S</strong>
+is the stage identifier and <strong>I</strong> is the router identifier. For example, router
+0.2 is router 2 from stage 0. Channel 0.6 is connected to router 3
+[0.<strong>11</strong>0<sub>2</sub>] of stage 0 and router 1 of stage 1
+[1.<strong>01</strong>1<sub>2</sub>], Channel 1.3 is connected to router 1
+[1.<strong>01</strong>1<sub>2</sub>] of stage 1 and to router 1
+[1.<strong>01</strong>1<sub>2</sub>] of stage 2.</p>
+<h2 id="unidirectional-types">Unidirectional Types</h2>
+<p>For the unidirectional type of the <em>k</em>-ary <em>n</em>-fly, there are endpoints
+connected to stage 0 <span style="text-decoration:underline;">and</span> stage
+<em>n</em>-1. There are two configurations: 1) the endpoints connected to stage 0 send
+to the network, and the endpoints connected to stage <em>n</em>-1 receive from the
+network, and 2) the endpoints connected to stage 0 receive from the network, and
+the endpoints connected to stage <em>n</em>-1 send to the network. A unidirectional
+<em>k</em>-ary <em>n</em>-fly butterfly topology has at most <em>k<sup>n</sup></em> endpoints
+connected to stage 0 and at most <em>k<sup>n</sup></em> endpoints connected to stage
+<em>n</em>-1. Typically, the endpoints nodes connected to stage 0 and stage <em>n</em>-1 are
+the same nodes, resulting in an equal number of nodes connected to stage 0 and
+stage <em>n</em>-1. Moreover, the endpoints nodes are connected to stage 0 in the same
+order as stage <em>n</em>-1 (mirrored from the vertical cross section).</p>
+<p><img alt="drawing" src="../unidirectional_butterfly.png" />
+\
+<strong>Figure Butterfly_Topology_Example. A 2-ary 3-fly butterfly with the
+endpoints connected to stage 0 sending to the network, and the endpoints
+connected to stage 2 receiving from the network example.</strong></p>
+<p>Figure Butterfly_Topology_Example shows a 2-ary 3-fly butterfly with the
+endpoints connected to stage 0 sending to the network, and the endpoints
+connected to stage 2 receiving from the network example.</p>
+<h2 id="bidirectional-types">Bidirectional Types</h2>
+<p>In the bidirectional type, there are endpoints connected to stage 0
+<span style="text-decoration:underline;">or</span> stage <em>n</em>-1. A bidirectional
+<em>k</em>-ary <em>n</em>-fly butterfly topology has at most <em>k<sup>n</sup></em> endpoints
+connected to stage 0 or stage <em>n</em>-1. A bidirectional <em>k</em>-ary <em>n</em>-fly butterfly
+topology with the endpoints connected to stage <em>n</em>-1 is also referred to as the
+<em>k</em>-ary <em>n</em>-fly fat tree butterfly topology or <em>k</em>-ary <em>n</em>-tree butterfly fat
+tree topology <strong>[Fat_Tree_Ref_0]</strong>.</p>
+<p>For context, minimal routing between a pair of nodes on a bidirectional k-ary
+n-tree can be accomplished by sending the message to one of the nearest common
+ancestors of both source and destination and from there to the destination. That
+is, each message experiences two phases, an ascending phase to get to a nearest
+common ancestor, followed by a descending phase. <strong>[Fat_Tree_Ref_1]</strong></p>
+<p><img alt="drawing" src="../bidirectional_butterfly.png" />
+\
+<strong>Figure Bidirectional_Butterfly_Topology_Example. A bidirectional 2-ary
+3-fly butterfly with the endpoints connected to stage 0 example.</strong></p>
+<p>Figure Bidirectional_Butterfly_Topology_Example shows a bidirectional 2-ary
+3-fly butterfly with the endpoints connected to stage 0 example.</p>
+<h2 id="cheat-sheet">Cheat Sheet</h2>
 <ul>
-<li>Align the pointer or reference modifier token with the type; e.g. <code>Foo&amp;
-    foo = ...</code> instead of <code>Foo &amp;foo = ...</code>, and <code>Foo* foo = ...</code> instead of <code>Foo
-    *foo= ...</code>.</li>
+<li><em>k</em>-ary <em>n</em>-flies are implemented by using <em>n</em> stages of identical routers,
+    where <em>k</em> is the number of channels of a router that connect to the previous
+    and/or to the next stage.</li>
+<li>For unidirectional <em>k</em>-ary <em>n</em>-fly, there are endpoints connected to stage 0
+    <span style="text-decoration:underline;">and</span> stage <em>n</em>-1. The
+    communication flows from stage 0 to stage <em>n</em>-1
+    <span style="text-decoration:underline;">or</span> from stage <em>n</em>-1 to
+    stage 0.</li>
+<li>For bidirectional <em>k</em>-ary <em>n</em>-fly, there are endpoints connected to stage 0
+    <span style="text-decoration:underline;">or</span> stage <em>n</em>-1. The
+    communication flows from stage 0 to stage <em>n</em>-1
+    <span style="text-decoration:underline;">and</span> from stage <em>n</em>-1 to
+    stage 0.</li>
 </ul>
-<ul>
-<li>Use <code>/*parameter_name=*/value</code> style comments if you choose to annotate
-    arguments in a function invocation. <code>clang-tidy</code> recognizes this form, and
-    provides a Tricorder notification if <code>parameter_name</code> is mismatched against
-    the parameter name of the callee.</li>
-</ul>
-<ul>
-<li>Prefer <code>int64_t</code> over <code>int</code> to avoid any possibility of overflow.</li>
-</ul>
-<ul>
-<li>Always use <code>Status</code> or <code>StatusOr</code> for any error that a user could encounter.</li>
-</ul>
-<ul>
-<li>Other than user-facing errors, use <code>Status</code> only in exceptional situations.
-    For example, <code>Status</code> is good to signal that a required file does not exist
-    but not for signaling that constant folding did not constant fold an
-    expression.<p>See <a href="#how-heavyweight-is-statusor">how heavyweight is StatusOr</a> for more
-  details on thinking about the costs involved.</p>
-</li>
-</ul>
-<ul>
-<li>Internal errors for conditions that should never be false can use <code>CHECK</code>,
-    but may also use <code>Status</code> or <code>StatusOr</code>.</li>
-</ul>
-<ul>
-<li>Prefer <code>CHECK</code> to <code>DCHECK</code>, except that <code>DCHECK</code> can be used to verify
-    conditions that it would be too expensive to verify in production, but that
-    are fast enough to include outside of production.</li>
-</ul>
-<h3 id="functions">Functions</h3>
-<ul>
-<li>Short or easily-explained argument lists (as defined by the developer) can
-    be explained inline with the rest of the function comment. For more complex
-    argument lists, the following pattern should be used:<p><code>// &lt;Function description&gt;
-  // Args:
-  //   arg1: &lt;arg1 description&gt;
-  //   arg2: &lt;arg2 description&gt;
-  //   ...</code></p>
-</li>
-</ul>
-<h3 id="ir-nodes">IR nodes</h3>
-<ul>
-<li>Unlike most data, IR elements should be passed as non-const pointers, even
-    when expected to be const (which would usually indicate passing them as
-    const references). Experience has shown that IR elements often develop
-    non-const usages over time. Consider the case of IR analysis passes - those
-    passes themselves rarely need to mutate their input data, but they build up
-    data structures whose users often need to mutate their contents. In
-    addition, treating elements as pointers makes equality comparisons more
-    straightforward (avoid taking an address of a reference) and helps avoid
-    accidental copies (assigning a reference to local, etc.). Non-const pointer
-    usage propagates outwards such that the few cases where a const reference
-    could <em>actually</em> be appropriate become odd outliers, so our guidance is that
-    IR elements should uniformly be passed as non-const pointers.</li>
-</ul>
-<h2 id="faq">FAQ</h2>
-<h3 id="how-heavyweight-is-statusor">How heavyweight is <code>StatusOr</code>?</h3>
-<p>What follows is the <strong>general guidance on how absl::StatusOr is used</strong> -- it is
-used extensively throughout the XLS code base as an error-style indicator object
-wrapper, so it is important to understand the mental model used for its cost.</p>
-<p>Consider cost wise that: a) creating an <strong>ok</strong> <code>StatusOr</code> is cheap, b) creating
-a <strong>non-ok</strong> <code>StatusOr</code> is expensive (that is, imagine the non-ok <code>Status</code>
-within a <code>StatusOr</code> is the expensive part).</p>
-<p>The implication being: if there's an API where "not found" is a reasonable
-outcome, prefer <code>absl::optional&lt;&gt;</code> as a return value to indicate that / go with
-the grain of cost.</p>
-<p>Something like a filesystem API would be a classic example -- where you
-shouldn't be rooting around looking for files that aren't there -- so a
-not-found <code>absl::StatusOr</code> result would be fine to use.</p>
-<p>A good potential mental model is to imagine the program may run with logging of
-a traceback for every non-ok status that is created. (This is related to a
-debugging capability in Google internally called
-<code>--util_status_save_stack_trace</code> that captures backtraces when error <code>Status</code>es
-are created.) Ideally, with such a logging flag turned on, the screen wouldn't
-fill up with "non error tracebacks", only tracebacks from events where something
-really went wrong.</p>
+<h2 id="variants">Variants</h2>
+<p>This section describes variants to the <em>k</em>-ary <em>n</em>-fly butterfly topology.</p>
+<h3 id="flattened-butterfly">Flattened Butterfly</h3>
+<p>The flattened butterfly is derived by flattening the routers in each row of a
+conventional butterfly topology while maintaining the same inter-router
+connections. <strong>[Butterfly_Ref_1]</strong></p>
+<p><img alt="drawing" src="../flatten_butterfly.png" />
+\
+<strong>Figure Flattened_Butterfly_Topology_Example. An example of a 2-ary 3-fly
+butterfly and its corresponding flattened butterfly topology.</strong></p>
+<p>Figure Flattened_Butterfly_Topology_Example shows an example of a 2-ary 3-fly
+butterfly and its corresponding flattened butterfly topology. For each row,
+routers from stage 0, 1 and 2 are flattened into individual routers. For
+example, router 0.0, 1.0 and 2.0 are flattened into router 0.</p>
+<h3 id="endpoint-connections">Endpoint Connections</h3>
+<p>As mentioned, typically, for the unidirectional butterfly topology, the
+endpoints nodes are connected to stage 0 in the same order as stage <em>n</em>-1
+(mirrored from the vertical cross section). However, different topologies are
+said to emerge by modifying the order of the endpoint nodes connected to the
+network. Such a change in connectivity may also change the routing algorithm.
+Ludovici et al present a Reduced Unidirectional Fat Tree derived from a k-ary
+n-fly topology. <strong>[Fat_Tree_Ref_0]</strong></p>
+<h2 id="references">References</h2>
+<p><strong>[Butterfly_Ref_0]</strong> William James Dally and Brian Patrick Towles. 2004.
+Principles and Practices of Interconnection Networks. Morgan Kaufmann Publishers
+Inc., San Francisco, CA, USA.</p>
+<p><strong>[Fat_Tree_Ref_0]</strong> D. Ludovici et al., "Assessing fat-tree topologies for
+regular network-on-chip design under nanoscale technology constraints," 2009
+Design, Automation &amp; Test in Europe Conference &amp; Exhibition, Nice, 2009, pp.
+562-565, doi: 10.1109/DATE.2009.5090727.</p>
+<p><strong>[Fat_Tree_Ref_1]</strong> F. Petrini and M. Vanneschi, "k-ary n-trees: high
+performance networks for massively parallel architectures," Proceedings 11th
+International Parallel Processing Symposium, Genva, Switzerland, 1997, pp.
+87-93, doi: 10.1109/IPPS.1997.580853.</p>
+<p><strong>[Butterfly_Ref_1]</strong> J. Kim, J. Balfour and W. Dally, "Flattened Butterfly
+Topology for On-Chip Networks," 40th Annual IEEE/ACM International Symposium on
+Microarchitecture (MICRO 2007), Chicago, IL, 2007, pp. 172-182, doi:
+10.1109/MICRO.2007.29.</p>
                 
               
               
@@ -955,41 +927,6 @@ really went wrong.</p>
       
         
 <footer class="md-footer">
-  
-    <div class="md-footer-nav">
-      <nav class="md-footer-nav__inner md-grid" aria-label="Footer">
-        
-          <a href="../contributing/" title="Contributing" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
-            <div class="md-footer-nav__button md-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
-            </div>
-            <div class="md-footer-nav__title">
-              <div class="md-ellipsis">
-                <span class="md-footer-nav__direction">
-                  Previous
-                </span>
-                Contributing
-              </div>
-            </div>
-          </a>
-        
-        
-          <a href="../adding_ir_operation/" title="Adding a new IR operation" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
-            <div class="md-footer-nav__title">
-              <div class="md-ellipsis">
-                <span class="md-footer-nav__direction">
-                  Next
-                </span>
-                Adding a new IR operation
-              </div>
-            </div>
-            <div class="md-footer-nav__button md-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"/></svg>
-            </div>
-          </a>
-        
-      </nav>
-    </div>
   
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">

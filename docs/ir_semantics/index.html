@@ -2082,7 +2082,7 @@ result = sign_ext(x, new_bit_count=42)
 </tr>
 <tr>
 <td><code>new_bit_count</code></td>
-<td><code>int64</code></td>
+<td><code>int64_t</code></td>
 </tr>
 <tr>
 <td><code>result</code></td>
@@ -2146,7 +2146,7 @@ their type is determined by the channel.</p>
 <tbody>
 <tr>
 <td><code>channel_id</code></td>
-<td><code>int64</code></td>
+<td><code>int64_t</code></td>
 <td>yes</td>
 <td></td>
 <td>The ID of the channel to receive data from</td>
@@ -2201,7 +2201,7 @@ the channel.</p>
 <tbody>
 <tr>
 <td><code>channel_id</code></td>
-<td><code>int64</code></td>
+<td><code>int64_t</code></td>
 <td>yes</td>
 <td></td>
 <td>The ID of the channel to receive data from</td>
@@ -2258,7 +2258,7 @@ number of data elements supported by the channel.</p>
 <tbody>
 <tr>
 <td><code>channel_id</code></td>
-<td><code>int64</code></td>
+<td><code>int64_t</code></td>
 <td>yes</td>
 <td></td>
 <td>The ID of the channel to send data to.</td>
@@ -2318,7 +2318,7 @@ number of data elements supported by the channel.</p>
 <tbody>
 <tr>
 <td><code>channel_id</code></td>
-<td><code>int64</code></td>
+<td><code>int64_t</code></td>
 <td>yes</td>
 <td></td>
 <td>The ID of the channel to send data to.</td>
@@ -2542,7 +2542,7 @@ an empty tuple).</p>
 <tbody>
 <tr>
 <td><code>index</code></td>
-<td><code>int64</code></td>
+<td><code>int64_t</code></td>
 <td>yes</td>
 <td></td>
 <td>Index of tuple element to produce</td>
@@ -2591,14 +2591,14 @@ an empty tuple).</p>
 <tbody>
 <tr>
 <td><code>start</code></td>
-<td><code>int64</code></td>
+<td><code>int64_t</code></td>
 <td>yes</td>
 <td></td>
 <td>The starting bit of the slice. <code>start</code> is is zero-indexed where zero is the least-significant bit of the operand.</td>
 </tr>
 <tr>
 <td><code>width</code></td>
-<td><code>int64</code></td>
+<td><code>int64_t</code></td>
 <td>yes</td>
 <td></td>
 <td>The width of the slice.</td>
@@ -2731,7 +2731,7 @@ as an unsigned integer.</p>
 <tbody>
 <tr>
 <td><code>width</code></td>
-<td><code>int64</code></td>
+<td><code>int64_t</code></td>
 <td>yes</td>
 <td></td>
 <td>The width of the slice.</td>
@@ -2829,7 +2829,7 @@ operand width.</p>
 <tbody>
 <tr>
 <td><code>width</code></td>
-<td><code>int64</code></td>
+<td><code>int64_t</code></td>
 <td>yes</td>
 <td></td>
 <td>Width of the result</td>
@@ -3295,14 +3295,14 @@ pipeline generator cannot handle an unkown trip count.</p>
 <tbody>
 <tr>
 <td><code>trip_count</code></td>
-<td><code>int64</code></td>
+<td><code>int64_t</code></td>
 <td>yes</td>
 <td></td>
 <td>Trip count of the loop (number of times that the loop body will be executed)</td>
 </tr>
 <tr>
 <td><code>stride</code></td>
-<td><code>int64</code></td>
+<td><code>int64_t</code></td>
 <td>no</td>
 <td>1</td>
 <td>Stride of the induction variable</td>
