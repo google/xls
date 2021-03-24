@@ -77,7 +77,7 @@ void SerialProcRuntime::ThreadFn(ThreadData* thread_data) {
 void SerialProcRuntime::RecvFn(JitChannelQueue* queue, Receive* recv,
                                uint8_t* data, int64_t data_bytes,
                                void* user_data) {
-  ThreadData* thread_data = reinterpret_cast<ThreadData*>(user_data);
+  ThreadData* thread_data = absl::bit_cast<ThreadData*>(user_data);
   absl::flat_hash_set<ThreadData::State> await_states(
       {ThreadData::State::kRunning, ThreadData::State::kCancelled});
 
@@ -96,7 +96,7 @@ void SerialProcRuntime::RecvFn(JitChannelQueue* queue, Receive* recv,
 void SerialProcRuntime::SendFn(JitChannelQueue* queue, Send* send,
                                uint8_t* data, int64_t data_bytes,
                                void* user_data) {
-  ThreadData* thread_data = reinterpret_cast<ThreadData*>(user_data);
+  ThreadData* thread_data = absl::bit_cast<ThreadData*>(user_data);
   absl::MutexLock lock(&thread_data->mutex);
   thread_data->sent_data = true;
   queue->Send(data, data_bytes);

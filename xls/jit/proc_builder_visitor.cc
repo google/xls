@@ -67,12 +67,12 @@ absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
   //     type used by every type and so on.
   static_assert(sizeof(Receive) == sizeof(ReceiveIf));
   std::vector<llvm::Value*> args({
-      llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64_t>(queue)),
+      llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(queue)),
       // This is sinful, I know, but ReceiveIf and Receive are
       // layout-compatible..._for now_ (hence the static_assert above).
       // TODO(meheff) : Make Receive & ReceiveIf share a common base
       // class (also Send & SendIf).
-      llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64_t>(node)),
+      llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(node)),
       builder->CreatePointerCast(alloca, int8_ptr_type),
       llvm::ConstantInt::get(int64_type, recv_bytes),
       GetUserDataPtr(),
@@ -80,7 +80,7 @@ absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
 
   // 3) finally emit the function call,
   llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
-      llvm::Type::getInt64Ty(ctx()), reinterpret_cast<uint64_t>(recv_fn_));
+      llvm::Type::getInt64Ty(ctx()), absl::bit_cast<uint64_t>(recv_fn_));
   llvm::Value* fn_ptr =
       builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
   builder->CreateCall(fn_type, fn_ptr, args);
@@ -177,15 +177,15 @@ absl::Status ProcBuilderVisitor::InvokeSendCallback(llvm::IRBuilder<>* builder,
   builder->CreateStore(tuple, alloca);
 
   std::vector<llvm::Value*> args({
-      llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64_t>(queue)),
-      llvm::ConstantInt::get(int64_type, reinterpret_cast<uint64_t>(node)),
+      llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(queue)),
+      llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(node)),
       builder->CreatePointerCast(alloca, int8_ptr_type),
       llvm::ConstantInt::get(int64_type, send_type_size),
       GetUserDataPtr(),
   });
 
   llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
-      llvm::Type::getInt64Ty(ctx()), reinterpret_cast<uint64_t>(send_fn_));
+      llvm::Type::getInt64Ty(ctx()), absl::bit_cast<uint64_t>(send_fn_));
   llvm::Value* fn_ptr =
       builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
   builder->CreateCall(fn_type, fn_ptr, args);

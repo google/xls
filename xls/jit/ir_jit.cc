@@ -154,11 +154,11 @@ absl::Status IrJit::Compile(VisitFn visit_fn) {
   std::string function_name = absl::StrFormat(
       "%s::%s", xls_function_->package()->name(), xls_function_->name());
   XLS_ASSIGN_OR_RETURN(auto fn_address, load_symbol(function_name));
-  invoker_ = reinterpret_cast<JitFunctionType>(fn_address);
+  invoker_ = absl::bit_cast<JitFunctionType>(fn_address);
 
   absl::StrAppend(&function_name, "_packed");
   XLS_ASSIGN_OR_RETURN(fn_address, load_symbol(function_name));
-  packed_invoker_ = reinterpret_cast<PackedJitFunctionType>(fn_address);
+  packed_invoker_ = absl::bit_cast<PackedJitFunctionType>(fn_address);
 
   return absl::OkStatus();
 }

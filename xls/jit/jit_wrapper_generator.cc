@@ -120,7 +120,7 @@ std::string ConvertUint(absl::string_view name, const Type& type) {
   XLS_CHECK(type.IsBits());
 
   return absl::StrFormat(
-      "PackedBitsView<%d> %s_view(reinterpret_cast<uint8_t*>(&%s), 0)",
+      "PackedBitsView<%d> %s_view(absl::bit_cast<uint8_t*>(&%s), 0)",
       type.GetFlatBitCount(), name, name);
 }
 
@@ -130,7 +130,7 @@ std::string ConvertFloat(absl::string_view name) {
   return absl::StrCat(
       "PackedTupleView<PackedBitsView<1>, PackedBitsView<8>, "
       "PackedBitsView<23>> ",
-      name, "_view(reinterpret_cast<uint8_t*>(&", name, "), 0)");
+      name, "_view(absl::bit_cast<uint8_t*>(&", name, "), 0)");
 }
 
 // Emits the code necessary to convert a double value to its corresponding
@@ -139,7 +139,7 @@ std::string ConvertDouble(absl::string_view name) {
   return absl::StrCat(
       "PackedTupleView<PackedBitsView<1>, PackedBitsView<11>, "
       "PackedBitsView<52>> ",
-      name, "_view(reinterpret_cast<uint8_t*>(&", name, "), 0)");
+      name, "_view(absl::bit_cast<uint8_t*>(&", name, "), 0)");
 }
 
 // Determines if the input type matches some other/simpler data type, and if so,
