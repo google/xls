@@ -309,6 +309,18 @@ absl::StatusOr<InterpValue> Interpreter::CallFnValue(
                                     symbolic_bindings);
 }
 
+absl::StatusOr<IrJit*> Interpreter::GetOrCompileJitFunction(
+    std::string ir_name, xls::Function* ir_function) {
+  auto it = jit_cache_.find(ir_name);
+  if (it != jit_cache_.end()) {
+    return it->second.get();
+  }
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit, IrJit::Create(ir_function));
+  IrJit* result = jit.get();
+  jit_cache_[ir_name] = std::move(jit);
+  return result;
+}
+
 absl::Status Interpreter::RunJitComparison(
     Function* f, absl::Span<InterpValue const> args,
     const SymbolicBindings* symbolic_bindings,
@@ -333,12 +345,13 @@ absl::Status Interpreter::RunJitComparison(
 
     xls::Function* ir_function = get_result.value();
 
+    XLS_ASSIGN_OR_RETURN(IrJit * jit,
+                         GetOrCompileJitFunction(ir_name, ir_function));
+
     XLS_ASSIGN_OR_RETURN(std::vector<Value> ir_args,
                          InterpValue::ConvertValuesToIr(args));
 
-    // TODO(leary): 2020-11-19 Cache JIT function so we don't have to create it
-    // every time.
-    XLS_ASSIGN_OR_RETURN(Value jit_value, CreateAndRun(ir_function, ir_args));
+    XLS_ASSIGN_OR_RETURN(Value jit_value, jit->Run(ir_args));
 
     XLS_ASSIGN_OR_RETURN(Value expected_ir, expected_value.ConvertToIr());
     XLS_RET_CHECK_EQ(expected_ir, jit_value) << absl::StreamFormat(

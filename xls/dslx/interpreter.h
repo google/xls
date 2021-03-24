@@ -22,6 +22,7 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_info.h"
 #include "xls/ir/package.h"
+#include "xls/jit/ir_jit.h"
 
 namespace xls::dslx {
 
@@ -181,6 +182,14 @@ class Interpreter {
       const Span& span, Invocation* invocation,
       const SymbolicBindings* symbolic_bindings);
 
+  // Returns the cached or newly-compiled jit function for ir_name.
+  // ir_name has already been mangled (see MangleDslxName) so it
+  // should be unique in the program and is used as the cache key.
+  // Note: There is no locking in jit compilation or on the jit function cache
+  // so this function is *not* thread-safe.
+  absl::StatusOr<IrJit*> GetOrCompileJitFunction(std::string ir_name,
+                                                 xls::Function* ir_function);
+
   absl::Status RunJitComparison(Function* f, absl::Span<InterpValue const> args,
                                 const SymbolicBindings* symbolic_bindings,
                                 const InterpValue& expected_value);
@@ -238,6 +247,10 @@ class Interpreter {
   // Tracking for incomplete module evaluation status; e.g. on recursive calls
   // during module import; see IsWip().
   absl::flat_hash_map<AstNode*, absl::optional<InterpValue>> wip_;
+
+  // Cache for JIT-compiled functions to avoid recompilation during
+  // JIT comparisons.
+  absl::flat_hash_map<std::string, std::unique_ptr<IrJit>> jit_cache_;
 };
 
 // Converts the values to matched the signedness of the concrete type.
