@@ -189,12 +189,12 @@ class FunctionConverter {
   //
   // Returns:
   //  The symbolic bindings for the given invocation.
-  absl::optional<const SymbolicBindings*> GetInvocationBindings(
+  absl::optional<const SymbolicBindings*> GetInstantiationCalleeBindings(
       Invocation* invocation) const {
     SymbolicBindings key = GetSymbolicBindingsTuple();
     return GetRootTypeInfo(invocation)
         .value()
-        ->GetInvocationSymbolicBindings(invocation, key);
+        ->GetInstantiationCalleeBindings(invocation, key);
   }
 
   // AstNode handlers.
@@ -1244,7 +1244,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(Invocation* node) {
   Expr* fn_node = node->args()[1];
   XLS_VLOG(5) << "Function being mapped AST: " << fn_node->ToString();
   absl::optional<const SymbolicBindings*> node_sym_bindings =
-      GetInvocationBindings(node);
+      GetInstantiationCalleeBindings(node);
 
   std::string map_fn_name;
   Module* lookup_module = nullptr;
@@ -1622,7 +1622,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
   }
 
   absl::optional<const SymbolicBindings*> resolved_symbolic_bindings =
-      GetInvocationBindings(node);
+      GetInstantiationCalleeBindings(node);
   XLS_RET_CHECK(resolved_symbolic_bindings.has_value());
   XLS_VLOG(2) << absl::StreamFormat("Node `%s` (%s) @ %s symbolic bindings %s",
                                     node->ToString(), node->GetNodeTypeName(),

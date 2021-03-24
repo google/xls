@@ -666,6 +666,7 @@ cc_library(
         ":dslx_builtins",
         ":symbolic_bindings",
         ":type_info",
+        "//xls/common:symbolized_stacktrace",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/container:flat_hash_map",
     ],

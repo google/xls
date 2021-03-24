@@ -26,8 +26,9 @@ namespace xls::dslx {
 // ConversionRecord::callees).
 class Callee {
  public:
-  Callee(Function* f, Module* m, TypeInfo* type_info,
-         SymbolicBindings sym_bindings);
+  static absl::StatusOr<Callee> Make(Function* f, Module* m,
+                                     TypeInfo* type_info,
+                                     SymbolicBindings sym_bindings);
 
   Function* f() const { return f_; }
   Module* m() const { return m_; }
@@ -36,6 +37,9 @@ class Callee {
   std::string ToString() const;
 
  private:
+  Callee(Function* f, Module* m, TypeInfo* type_info,
+         SymbolicBindings sym_bindings);
+
   Function* f_;
   Module* m_;
   TypeInfo* type_info_;

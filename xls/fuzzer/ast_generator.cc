@@ -267,7 +267,8 @@ ConstRef* AstGenerator::GetOrCreateConstRef(int64_t value) {
         module_->Make<NameDef>(fake_span_, identifier, /*definer=*/nullptr);
     constant_def = module_->Make<ConstantDef>(fake_span_, name_def,
                                               MakeNumber(value, size_type),
-                                              /*is_public=*/false);
+                                              /*is_public=*/false,
+                                              /*is_local=*/false);
     name_def->set_definer(constant_def);
     constants_[identifier] = constant_def;
   }

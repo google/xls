@@ -31,8 +31,8 @@ TEST(CppAst, ModuleWithConstant) {
   Number* number = m.Make<Number>(fake_span, std::string("42"),
                                   NumberKind::kOther, /*type=*/nullptr);
   NameDef* name_def = m.Make<NameDef>(fake_span, std::string("MOL"), nullptr);
-  ConstantDef* constant_def =
-      m.Make<ConstantDef>(fake_span, name_def, number, /*is_public=*/false);
+  ConstantDef* constant_def = m.Make<ConstantDef>(
+      fake_span, name_def, number, /*is_public=*/false, /*is_local=*/false);
   name_def->set_definer(constant_def);
   m.AddTop(constant_def);
 

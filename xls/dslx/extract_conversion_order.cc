@@ -15,6 +15,7 @@
 #include "xls/dslx/extract_conversion_order.h"
 
 #include "xls/common/status/ret_check.h"
+#include "xls/common/symbolized_stacktrace.h"
 #include "xls/dslx/dslx_builtins.h"
 
 namespace xls::dslx {
@@ -40,6 +41,13 @@ static std::string ConversionRecordsToString(
 }
 
 // -- class Callee
+
+/* static */ absl::StatusOr<Callee> Callee::Make(
+    Function* f, Module* module, TypeInfo* type_info,
+    SymbolicBindings sym_bindings) {
+  XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(f, sym_bindings));
+  return Callee(f, module, type_info, std::move(sym_bindings));
+}
 
 Callee::Callee(Function* f, Module* m, TypeInfo* type_info,
                SymbolicBindings sym_bindings)
@@ -117,60 +125,22 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
 
   ~InvocationVisitor() override = default;
 
-  absl::Status HandleInvocation(Invocation* node) {
-    Module* this_m = nullptr;
+  // Helper type used to hold callee information for different forms of
+  // invocations.
+  struct CalleeInfo {
+    Module* module = nullptr;
     Function* f = nullptr;
-    TypeInfo* invocation_type_info = type_info_;
-    if (auto* colon_ref = dynamic_cast<ColonRef*>(node->callee())) {
-      absl::optional<Import*> import = colon_ref->ResolveImportSubject();
-      XLS_RET_CHECK(import.has_value());
-      absl::optional<const ImportedInfo*> info =
-          type_info_->GetImported(*import);
-      XLS_RET_CHECK(info.has_value());
-      this_m = (*info)->module;
-      invocation_type_info = (*info)->type_info;
-      f = this_m->GetFunction(colon_ref->attr()).value();
-    } else if (auto* name_ref = dynamic_cast<NameRef*>(node->callee())) {
-      this_m = module_;
-      // TODO(leary): 2020-01-16 change to detect builtinnamedef map, identifier
-      // is fragile due to shadowing.
-      std::string fn_identifier = name_ref->identifier();
-      if (fn_identifier == "map") {
-        // We need to make sure we convert the mapped function!
-        XLS_RET_CHECK_EQ(node->args().size(), 2);
-        Expr* fn_node = node->args()[1];
-        XLS_VLOG(5) << "map() invoking: " << fn_node->ToString();
-        if (auto* mapped_colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
-          XLS_VLOG(5) << "map() invoking ColonRef: "
-                      << mapped_colon_ref->ToString();
-          fn_identifier = mapped_colon_ref->attr();
-          absl::optional<Import*> import =
-              mapped_colon_ref->ResolveImportSubject();
-          XLS_RET_CHECK(import.has_value());
-          absl::optional<const ImportedInfo*> info =
-              type_info_->GetImported(*import);
-          XLS_RET_CHECK(info.has_value());
-          this_m = (*info)->module;
-          invocation_type_info = (*info)->type_info;
-          XLS_VLOG(5) << "Module for callee: " << this_m->name();
-        } else {
-          XLS_VLOG(5) << "map() invoking NameRef";
-          auto* mapped_name_ref = dynamic_cast<NameRef*>(fn_node);
-          XLS_RET_CHECK(mapped_name_ref != nullptr);
-          fn_identifier = mapped_name_ref->identifier();
-        }
-      }
+    TypeInfo* type_info = nullptr;
+  };
 
-      absl::optional<Function*> maybe_f = this_m->GetFunction(fn_identifier);
-      if (maybe_f.has_value()) {
-        f = maybe_f.value();
-      } else {
-        if (GetParametricBuiltins().contains(name_ref->identifier())) {
-          return absl::OkStatus();
-        }
-        return absl::InternalError("Could not resolve invoked function: " +
-                                   fn_identifier);
-      }
+  absl::Status HandleInvocation(Invocation* node) {
+    absl::optional<CalleeInfo> callee_info;
+    if (auto* colon_ref = dynamic_cast<ColonRef*>(node->callee())) {
+      XLS_ASSIGN_OR_RETURN(callee_info,
+                           HandleColonRefInvocation(colon_ref, node));
+    } else if (auto* name_ref = dynamic_cast<NameRef*>(node->callee())) {
+      XLS_ASSIGN_OR_RETURN(callee_info,
+                           HandleNameRefInvocation(name_ref, node));
     } else {
       return absl::UnimplementedError(
           "Only calls to named functions are currently supported "
@@ -178,20 +148,42 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
           node->callee()->ToString());
     }
 
+    if (!callee_info.has_value()) {
+      // Happens for example when we're invoking a builtin, there's nothing to
+      // convert.
+      return absl::OkStatus();
+    }
+
+    // See if there are parametric bindings to use in the callee for this
+    // invocation.
     XLS_VLOG(5) << "Getting callee bindings for invocation: "
                 << node->ToString() << " @ " << node->span()
                 << " caller bindings: " << bindings_.ToString();
     absl::optional<const SymbolicBindings*> callee_bindings =
-        type_info_->GetInvocationSymbolicBindings(node, bindings_);
-    if (callee_bindings.has_value() && !(*callee_bindings)->empty()) {
+        type_info_->GetInstantiationCalleeBindings(node, bindings_);
+    if (callee_bindings.has_value()) {
       XLS_RET_CHECK(*callee_bindings != nullptr);
-      XLS_VLOG(5) << "Found callee bindings: " << **callee_bindings;
-      invocation_type_info =
-          type_info_->GetInstantiation(node, **callee_bindings).value();
+      XLS_VLOG(5) << "Found callee bindings: " << **callee_bindings
+                  << " for node: " << node->ToString();
+      absl::optional<TypeInfo*> instantiation_type_info =
+          type_info_->GetInstantiationTypeInfo(node, **callee_bindings);
+      XLS_RET_CHECK(instantiation_type_info.has_value())
+          << "Could not find instantiation for `" << node->ToString() << "`"
+          << " via bindings: " << **callee_bindings;
+      // Note: when mapping a function that is non-parametric, the instantiated
+      // type info can be nullptr (no associated type info, as the callee didn't
+      // have to be instantiated).
+      if (*instantiation_type_info != nullptr) {
+        callee_info->type_info = *instantiation_type_info;
+      }
     }
-    callees_.push_back(
-        Callee{f, this_m, invocation_type_info,
-               callee_bindings ? **callee_bindings : SymbolicBindings()});
+
+    XLS_ASSIGN_OR_RETURN(
+        auto callee,
+        Callee::Make(callee_info->f, callee_info->module,
+                     callee_info->type_info,
+                     callee_bindings ? **callee_bindings : SymbolicBindings()));
+    callees_.push_back(std::move(callee));
     return absl::OkStatus();
   }
 
@@ -227,7 +219,13 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     //     a: bits[std::clog2(MY_CONST)],
     //   }
     if (absl::holds_alternative<ConstantDef*>(*mm)) {
-      AstNode* member = absl::get<ConstantDef*>(*mm);
+      ConstantDef* member = absl::get<ConstantDef*>(*mm);
+      XLS_VLOG(5) << absl::StreamFormat("ColonRef %s @ %s is to ConstantDef",
+                                        node->ToString(),
+                                        node->span().ToString());
+      // Note that constant definitions may be local -- we /only/ pass our
+      // bindings if it is a local constant definition. Otherwise it's at the
+      // top level and we use fresh bindings.
       InvocationVisitor sub_visitor(import_mod, import_type_info, bindings_);
       XLS_RETURN_IF_ERROR(
           WalkPostOrder(member, &sub_visitor, /*want_types=*/true));
@@ -235,7 +233,9 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
                       sub_visitor.callees().end());
     } else if (absl::holds_alternative<EnumDef*>(*mm)) {
       AstNode* member = absl::get<EnumDef*>(*mm);
-      InvocationVisitor sub_visitor(import_mod, import_type_info, bindings_);
+      SymbolicBindings empty_bindings;
+      InvocationVisitor sub_visitor(import_mod, import_type_info,
+                                    empty_bindings);
       XLS_RETURN_IF_ERROR(
           WalkPostOrder(member, &sub_visitor, /*want_types=*/true));
       callees_.insert(callees_.end(), sub_visitor.callees().begin(),
@@ -253,9 +253,16 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
       return absl::OkStatus();
     }
 
-    InvocationVisitor sub_visitor(module_, type_info_, bindings_);
+    ConstantDef* const_def = down_cast<ConstantDef*>(definer);
+    if (const_def->is_local()) {
+      // We've already walked any local constant definitions.
+      return absl::OkStatus();
+    }
+
+    SymbolicBindings empty_bindings;
+    InvocationVisitor sub_visitor(module_, type_info_, empty_bindings);
     XLS_RETURN_IF_ERROR(
-        WalkPostOrder(definer, &sub_visitor, /*want_types=*/true));
+        WalkPostOrder(const_def, &sub_visitor, /*want_types=*/true));
     callees_.insert(callees_.end(), sub_visitor.callees().begin(),
                     sub_visitor.callees().end());
     return absl::OkStatus();
@@ -264,9 +271,72 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
   std::vector<Callee>& callees() { return callees_; }
 
  private:
+  // Helper for invocations of ColonRef callees.
+  absl::StatusOr<CalleeInfo> HandleColonRefInvocation(ColonRef* colon_ref,
+                                                      Invocation* invocation) {
+    absl::optional<Import*> import = colon_ref->ResolveImportSubject();
+    XLS_RET_CHECK(import.has_value());
+    absl::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
+    XLS_RET_CHECK(info.has_value());
+    Module* module = (*info)->module;
+    return CalleeInfo{module, module->GetFunction(colon_ref->attr()).value(),
+                      (*info)->type_info};
+  }
+
+  // Helper for invocations of NameRef callees.
+  absl::StatusOr<absl::optional<CalleeInfo>> HandleNameRefInvocation(
+      NameRef* name_ref, Invocation* invocation) {
+    Module* this_m = module_;
+    TypeInfo* callee_type_info = type_info_;
+    // TODO(leary): 2020-01-16 change to detect builtinnamedef map, identifier
+    // is fragile due to shadowing.
+    std::string fn_identifier = name_ref->identifier();
+    if (fn_identifier == "map") {
+      // We need to make sure we convert the mapped function!
+      XLS_RET_CHECK_EQ(invocation->args().size(), 2);
+      Expr* fn_node = invocation->args()[1];
+      XLS_VLOG(5) << "map() invoking: " << fn_node->ToString();
+      if (auto* mapped_colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
+        XLS_VLOG(5) << "map() invoking ColonRef: "
+                    << mapped_colon_ref->ToString();
+        fn_identifier = mapped_colon_ref->attr();
+        absl::optional<Import*> import =
+            mapped_colon_ref->ResolveImportSubject();
+        XLS_RET_CHECK(import.has_value());
+        absl::optional<const ImportedInfo*> info =
+            type_info_->GetImported(*import);
+        XLS_RET_CHECK(info.has_value());
+        this_m = (*info)->module;
+        callee_type_info = (*info)->type_info;
+        XLS_VLOG(5) << "Module for callee: " << this_m->name();
+      } else {
+        XLS_VLOG(5) << "map() invoking NameRef";
+        auto* mapped_name_ref = dynamic_cast<NameRef*>(fn_node);
+        XLS_RET_CHECK(mapped_name_ref != nullptr);
+        fn_identifier = mapped_name_ref->identifier();
+      }
+    }
+
+    Function* f = nullptr;
+    absl::optional<Function*> maybe_f = this_m->GetFunction(fn_identifier);
+    if (maybe_f.has_value()) {
+      f = maybe_f.value();
+    } else {
+      if (GetParametricBuiltins().contains(name_ref->identifier())) {
+        return absl::nullopt;
+      }
+      return absl::InternalError("Could not resolve invoked function: " +
+                                 fn_identifier);
+    }
+
+    return CalleeInfo{this_m, f, callee_type_info};
+  }
+
   Module* module_;
   TypeInfo* type_info_;
   const SymbolicBindings& bindings_;
+
+  // Built up list of callee records discovered during traversal.
   std::vector<Callee> callees_;
 };
 
@@ -285,6 +355,8 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
 static absl::StatusOr<std::vector<Callee>> GetCallees(
     AstNode* node, Module* m, TypeInfo* type_info,
     const SymbolicBindings& bindings) {
+  XLS_VLOG(5) << "Getting callees of " << node->ToString()
+              << " bindings: " << bindings;
   XLS_CHECK_EQ(type_info->module(), m);
   InvocationVisitor visitor(m, type_info, bindings);
   XLS_RETURN_IF_ERROR(

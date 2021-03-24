@@ -921,8 +921,8 @@ absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslx(
   dslx::Span span{dslx::Pos{}, dslx::Pos{}};
   auto* name_def = module->Make<dslx::NameDef>(
       span, static_cast<std::string>(output_var_name), /*definer=*/nullptr);
-  auto* constant_def =
-      module->Make<dslx::ConstantDef>(span, name_def, expr, /*is_public=*/true);
+  auto* constant_def = module->Make<dslx::ConstantDef>(
+      span, name_def, expr, /*is_public=*/true, /*is_local=*/false);
   name_def->set_definer(constant_def);
   module->AddTop(constant_def);
   return module;

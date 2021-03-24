@@ -148,6 +148,75 @@ static absl::Status CheckTest(TestFunction* t, DeduceCtx* ctx) {
                       t->identifier()));
 }
 
+// Helper for InstantiateBuiltinParametric() that handles map invocations.
+static absl::StatusOr<NameDef*> InstantiateBuiltinParametricMap(
+    const TypeAndBindings& tab, absl::string_view map_fn_name, Function* map_fn,
+    Invocation* invocation, DeduceCtx* ctx) {
+  Expr* map_fn_ref = invocation->args()[1];
+  if (GetParametricBuiltins().contains(map_fn_name) ||
+      !map_fn->IsParametric()) {
+    // A builtin higher-order parametric fn would've been typechecked when we
+    // were going through the arguments of this invocation. If the function
+    // wasn't parametric, then we're good to go.
+    ctx->type_info()->SetInstantiationTypeInfo(invocation,
+                                               tab.symbolic_bindings,
+                                               /*type_info=*/nullptr);
+    return nullptr;
+  }
+
+  if (ctx->type_info()->HasInstantiation(invocation, tab.symbolic_bindings)) {
+    // We've already typechecked this parametric function using these
+    // bindings.
+    return nullptr;
+  }
+
+  // If the higher order function is parametric, we need to typecheck its body
+  // with the symbolic bindings we just computed.
+  if (auto* colon_ref = dynamic_cast<ColonRef*>(map_fn_ref)) {
+    absl::optional<Import*> import = colon_ref->ResolveImportSubject();
+    XLS_RET_CHECK(import.has_value());
+    absl::optional<const ImportedInfo*> import_info =
+        ctx->type_info()->GetImported(*import);
+    XLS_RET_CHECK(import_info.has_value());
+
+    XLS_ASSIGN_OR_RETURN(
+        TypeInfo * invocation_imported_type_info,
+        ctx->type_info_owner().New((*import_info)->module,
+                                   /*parent=*/(*import_info)->type_info));
+    std::shared_ptr<DeduceCtx> imported_ctx =
+        ctx->MakeCtx(invocation_imported_type_info, (*import_info)->module);
+    imported_ctx->fn_stack().push_back(
+        FnStackEntry::Make(map_fn, tab.symbolic_bindings));
+    // We need to typecheck this imported function with respect to its module.
+    XLS_RETURN_IF_ERROR(ctx->typecheck_function()(map_fn, imported_ctx.get()));
+    XLS_VLOG(5) << "TypeInfo::AddInstantiation; invocation: "
+                << invocation->ToString()
+                << " symbolic_bindings: " << tab.symbolic_bindings;
+    ctx->type_info()->SetInstantiationTypeInfo(
+        invocation, /*caller=*/tab.symbolic_bindings,
+        /*type_info=*/invocation_imported_type_info);
+    return nullptr;
+  }
+
+  // If the higher-order parametric fn is in this module, let's push it onto the
+  // typechecking stack.
+  ctx->fn_stack().push_back(FnStackEntry::Make(map_fn, tab.symbolic_bindings));
+
+  // Create a "derived" type info (a child type info with the current type
+  // info as a parent), and note that it exists for an instantiation (in the
+  // parent type info).
+  TypeInfo* parent_type_info = ctx->type_info();
+  ctx->AddDerivedTypeInfo();
+  XLS_VLOG(5) << "TypeInfo::AddInstantiation; invocation: "
+              << invocation->ToString()
+              << " symbolic_bindings: " << tab.symbolic_bindings;
+  parent_type_info->SetInstantiationTypeInfo(invocation, tab.symbolic_bindings,
+                                             ctx->type_info());
+  auto* name_ref = dynamic_cast<NameRef*>(map_fn_ref);
+  XLS_RET_CHECK(absl::holds_alternative<NameDef*>(name_ref->name_def()));
+  return absl::get<NameDef*>(name_ref->name_def());
+}
+
 absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
     BuiltinNameDef* builtin_name, Invocation* invocation, DeduceCtx* ctx) {
   std::vector<std::unique_ptr<ConcreteType>> arg_types;
@@ -225,66 +294,19 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
 
   const SymbolicBindings& fn_symbolic_bindings =
       ctx->fn_stack().back().symbolic_bindings();
-  ctx->type_info()->AddInvocationSymbolicBindings(
-      invocation, fn_symbolic_bindings, tab.symbolic_bindings);
+  XLS_VLOG(5) << "TypeInfo::AddInstantiationCallBindings; type_info: "
+              << ctx->type_info() << "; node: `" << invocation->ToString()
+              << "`; caller: " << fn_symbolic_bindings
+              << "; callee: " << tab.symbolic_bindings;
+  ctx->type_info()->AddInstantiationCallBindings(
+      invocation, /*caller=*/fn_symbolic_bindings,
+      /*callee=*/tab.symbolic_bindings);
   ctx->type_info()->SetItem(invocation->callee(), *fn_type);
   ctx->type_info()->SetItem(invocation, fn_type->return_type());
 
   if (builtin_name->identifier() == "map") {
-    Expr* map_fn_ref = invocation->args()[1];
-    if (GetParametricBuiltins().contains(*map_fn_name) ||
-        !(*map_fn)->IsParametric()) {
-      // A builtin higher-order parametric fn would've been typechecked when we
-      // were going through the arguments of this invocation. If the function
-      // wasn't parametric, then we're good to go.
-      return nullptr;
-    }
-
-    if (ctx->type_info()->HasInstantiation(invocation, tab.symbolic_bindings)) {
-      // We've already typechecked this parametric function using these
-      // bindings.
-      return nullptr;
-    }
-
-    // If the higher order function is parametric, we need to typecheck its body
-    // with the symbolic bindings we just computed.
-    if (auto* colon_ref = dynamic_cast<ColonRef*>(map_fn_ref)) {
-      absl::optional<Import*> import = colon_ref->ResolveImportSubject();
-      XLS_RET_CHECK(import.has_value());
-      absl::optional<const ImportedInfo*> import_info =
-          ctx->type_info()->GetImported(*import);
-      XLS_RET_CHECK(import_info.has_value());
-
-      XLS_ASSIGN_OR_RETURN(
-          TypeInfo * invocation_imported_type_info,
-          ctx->type_info_owner().New((*import_info)->module,
-                                     /*parent=*/(*import_info)->type_info));
-      std::shared_ptr<DeduceCtx> imported_ctx =
-          ctx->MakeCtx(invocation_imported_type_info, (*import_info)->module);
-      imported_ctx->fn_stack().push_back(
-          FnStackEntry::Make(map_fn.value(), tab.symbolic_bindings));
-      // We need to typecheck this imported function with respect to its module.
-      XLS_RETURN_IF_ERROR(
-          ctx->typecheck_function()(map_fn.value(), imported_ctx.get()));
-      ctx->type_info()->AddInstantiation(invocation, tab.symbolic_bindings,
-                                         invocation_imported_type_info);
-    } else {
-      // If the higher-order parametric fn is in this module, let's try to push
-      // it onto the typechecking stack.
-      ctx->fn_stack().push_back(
-          FnStackEntry::Make(map_fn.value(), tab.symbolic_bindings));
-
-      // Create a "derived" type info (a child type info with the current type
-      // info as a parent), and note that it exists for an instantiation (in the
-      // parent type info).
-      TypeInfo* parent_type_info = ctx->type_info();
-      ctx->AddDerivedTypeInfo();
-      parent_type_info->AddInstantiation(invocation, tab.symbolic_bindings,
-                                         ctx->type_info());
-      auto* name_ref = dynamic_cast<NameRef*>(map_fn_ref);
-      XLS_RET_CHECK(absl::holds_alternative<NameDef*>(name_ref->name_def()));
-      return absl::get<NameDef*>(name_ref->name_def());
-    }
+    return InstantiateBuiltinParametricMap(tab, *map_fn_name, *map_fn,
+                                           invocation, ctx);
   }
 
   return nullptr;

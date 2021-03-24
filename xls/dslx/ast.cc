@@ -333,12 +333,13 @@ std::string For::ToString() const {
 }
 
 ConstantDef::ConstantDef(Module* owner, Span span, NameDef* name_def,
-                         Expr* value, bool is_public)
+                         Expr* value, bool is_public, bool is_local)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
       value_(value),
-      is_public_(is_public) {}
+      is_public_(is_public),
+      is_local_(is_local) {}
 
 std::string ConstantDef::ToString() const {
   std::string privacy;

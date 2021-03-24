@@ -46,7 +46,7 @@ struct SliceData {
 };
 
 // Parametric instantiation information related to an invocation AST node.
-struct InvocationData {
+struct InstantiationData {
   // Invocation AST node.
   Invocation* node;
   // Map from symbolic bindings in the caller to the corresponding symbolic
@@ -122,9 +122,9 @@ class TypeInfo {
   //     instantiation.
   //   caller: The caller's symbolic bindings at the point of invocation.
   //   callee: The callee's computed symbolic bindings for the invocation.
-  void AddInvocationSymbolicBindings(Invocation* invocation,
-                                     SymbolicBindings caller,
-                                     SymbolicBindings callee);
+  void AddInstantiationCallBindings(Invocation* invocation,
+                                    SymbolicBindings caller,
+                                    SymbolicBindings callee);
 
   // Adds derived type info for an "instantiation".
   //
@@ -140,8 +140,17 @@ class TypeInfo {
   //     occur.
   //   type_info: The type information that has been determined for this
   //     instantiation.
-  void AddInstantiation(Invocation* invocation, SymbolicBindings caller,
-                        TypeInfo* type_info);
+  //
+  // Note that the type_info may be nullptr in special cases, like when mapping
+  // a callee which is not parametric.
+  void SetInstantiationTypeInfo(Invocation* invocation, SymbolicBindings caller,
+                                TypeInfo* type_info);
+
+  // Attempts to retrieve "instantiation" type information -- that is, when
+  // there's an invocation with parametrics in a caller, it may map to
+  // particular type-information for the callee.
+  absl::optional<TypeInfo*> GetInstantiationTypeInfo(
+      Invocation* invocation, const SymbolicBindings& caller) const;
 
   // Sets the type associated with the given AST node.
   void SetItem(AstNode* key, const ConcreteType& value) {
@@ -178,10 +187,17 @@ class TypeInfo {
   // module or an import of this module.
   absl::optional<TypeInfo*> GetImportedTypeInfo(Module* m);
 
-  // Invocation AST node based information.
-  absl::optional<TypeInfo*> GetInstantiation(
-      Invocation* invocation, const SymbolicBindings& caller) const;
-  absl::optional<const SymbolicBindings*> GetInvocationSymbolicBindings(
+  // Attempts to retrieve the callee's parametric values in an "instantiation".
+  // That is, in the case of:
+  //
+  //    fn id<M: u32>(x: bits[M]) -> bits[M] { x }
+  //    fn p<N: u32>(x: bits[N]) -> bits[N] { id(x) }
+  //
+  // The invocation of `id(x)` in caller `p` when N=32 would resolve to a record
+  // with M=32.
+  //
+  // When calling a non-parametric callee, the record will be absent.
+  absl::optional<const SymbolicBindings*> GetInstantiationCalleeBindings(
       Invocation* invocation, const SymbolicBindings& caller) const;
 
   Module* module() const { return module_; }
@@ -248,7 +264,7 @@ class TypeInfo {
   absl::flat_hash_map<AstNode*, std::unique_ptr<ConcreteType>> dict_;
   absl::flat_hash_map<Import*, ImportedInfo> imports_;
   absl::flat_hash_map<NameDef*, ConstantDef*> name_to_const_;
-  absl::flat_hash_map<Invocation*, InvocationData> invocations_;
+  absl::flat_hash_map<Invocation*, InstantiationData> instantiations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
   absl::flat_hash_map<Expr*, int64_t> const_exprs_;
   TypeInfo* parent_;  // Note: may be nullptr.

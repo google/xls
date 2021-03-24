@@ -407,24 +407,22 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
     return InterpValue::MakeNil();
   }
 
+  absl::optional<SymbolicBindings> owned_symbolic_bindings;
   const SymbolicBindings* fn_symbolic_bindings = nullptr;
   if (bindings->fn_ctx().has_value()) {
     // The symbolic bindings of this invocation were already computed during
     // typechecking.
     absl::optional<const SymbolicBindings*> callee_bindings =
-        current_type_info_->GetInvocationSymbolicBindings(
+        current_type_info_->GetInstantiationCalleeBindings(
             expr, bindings->fn_ctx()->sym_bindings);
-    if (!callee_bindings.has_value()) {
-      return absl::NotFoundError(
-          absl::StrFormat("Could not find callee bindings in type info for "
-                          "FnCtx: %s expr: %s @ %s",
-                          bindings->fn_ctx()->ToString(), expr->ToString(),
-                          expr->span().ToString()));
+    if (callee_bindings.has_value()) {
+      fn_symbolic_bindings = callee_bindings.value();
+      XLS_VLOG(5) << "Found callee symbolic bindings: " << *fn_symbolic_bindings
+                  << " @ " << expr->span();
+    } else {
+      owned_symbolic_bindings.emplace();
+      fn_symbolic_bindings = &*owned_symbolic_bindings;
     }
-    XLS_RET_CHECK(callee_bindings.value() != nullptr);
-    fn_symbolic_bindings = callee_bindings.value();
-    XLS_VLOG(5) << "Found callee symbolic bindings: " << *fn_symbolic_bindings
-                << " @ " << expr->span();
   } else {
     // Note, when there's no function context we may be in a ConstantDef doing
     // e.g. a parametric invocation.
@@ -433,20 +431,23 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
                 << "; type_info: " << current_type_info_ << "; node: " << expr
                 << "; expr: `" << expr->ToString() << "`";
     absl::optional<const SymbolicBindings*> callee_bindings =
-        current_type_info_->GetInvocationSymbolicBindings(expr,
-                                                          SymbolicBindings());
-    XLS_RET_CHECK(callee_bindings.has_value()) << absl::StreamFormat(
-        "current_type_info: %p invocation: %p `%s` @ %s", current_type_info_,
-        expr, expr->ToString(), expr->span().ToString());
-    XLS_RET_CHECK(callee_bindings.value() != nullptr);
-    fn_symbolic_bindings = callee_bindings.value();
+        current_type_info_->GetInstantiationCalleeBindings(expr,
+                                                           SymbolicBindings());
+    if (callee_bindings.has_value()) {
+      XLS_RET_CHECK(callee_bindings.value() != nullptr);
+      fn_symbolic_bindings = callee_bindings.value();
+    } else {
+      owned_symbolic_bindings.emplace();
+      fn_symbolic_bindings = &*owned_symbolic_bindings;
+    }
   }
 
   XLS_RET_CHECK(fn_symbolic_bindings != nullptr);
   TypeInfo* invocation_type_info;
   if (current_type_info_->HasInstantiation(expr, *fn_symbolic_bindings)) {
     invocation_type_info =
-        current_type_info_->GetInstantiation(expr, *fn_symbolic_bindings)
+        current_type_info_
+            ->GetInstantiationTypeInfo(expr, *fn_symbolic_bindings)
             .value();
     XLS_VLOG(5) << "Instantiation exists for " << expr->ToString()
                 << " sym_bindings: " << *fn_symbolic_bindings

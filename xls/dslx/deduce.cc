@@ -1645,6 +1645,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCarry(Carry* node,
 static absl::Status CheckParametricInvocation(
     Function* parametric_fn, Invocation* invocation,
     const SymbolicBindings& symbolic_bindings, DeduceCtx* ctx) {
+  XLS_RET_CHECK(parametric_fn->IsParametric());
   XLS_VLOG(5) << "CheckParametricInvocation; parametric_fn: "
               << parametric_fn->ToString()
               << "; invocation: " << invocation->ToString();
@@ -1685,11 +1686,12 @@ static absl::Status CheckParametricInvocation(
     XLS_RETURN_IF_ERROR(
         ctx->typecheck_function()(parametric_fn, imported_ctx.get()));
 
-    XLS_VLOG(5) << "TypeInfo::AddInstantiation; invocation: "
+    XLS_VLOG(5) << "TypeInfo::SetInstantiationTypeInfo; invocation: "
                 << invocation->ToString()
                 << " symbolic_bindings: " << symbolic_bindings;
-    ctx->type_info()->AddInstantiation(invocation, symbolic_bindings,
-                                       invocation_imported_type_info);
+    ctx->type_info()->SetInstantiationTypeInfo(
+        invocation, /*caller=*/symbolic_bindings,
+        /*type_info=*/invocation_imported_type_info);
     return absl::OkStatus();
   }
 
@@ -1717,12 +1719,13 @@ static absl::Status CheckParametricInvocation(
   // If we haven't yet stored a type_info for these symbolic bindings and
   // we're at this point, it means we've just finished typechecking the
   // parametric function. Let's store the results.
-  XLS_VLOG(5) << "TypeInfo::AddInstantiation; " << ctx->type_info()->parent()
+  XLS_VLOG(5) << "TypeInfo::SetInstantiationTypeInfo; "
+              << ctx->type_info()->parent()
               << "; invocation: " << invocation->ToString()
               << "; symbolic_bindings: " << symbolic_bindings
               << "; instantiated: " << ctx->type_info();
-  ctx->type_info()->parent()->AddInstantiation(invocation, symbolic_bindings,
-                                               ctx->type_info());
+  ctx->type_info()->parent()->SetInstantiationTypeInfo(
+      invocation, symbolic_bindings, ctx->type_info());
   XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo());
   return absl::OkStatus();
 }
@@ -1957,16 +1960,17 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
                           new_bindings, &explicit_bindings));
   const SymbolicBindings& callee_symbolic_bindings = tab.symbolic_bindings;
 
-  // Make a note that this invocation node transitions us from these caller to
-  // these callee invocation bindings.
-  XLS_VLOG(5) << "TypeInfo::AddInvocationSymbolicBindings; type_info: "
-              << ctx->type_info() << "; node: `" << node
-              << "`; caller: " << caller_symbolic_bindings
-              << "; callee: " << callee_symbolic_bindings;
-  ctx->type_info()->AddInvocationSymbolicBindings(
-      node, caller_symbolic_bindings, callee_symbolic_bindings);
-
   if (callee_fn->IsParametric()) {
+    // Make a note that this invocation node transitions us from these caller to
+    // these callee invocation bindings.
+    XLS_VLOG(5) << "TypeInfo::AddInstantiationCallBindings; type_info: "
+                << ctx->type_info() << "; node: `" << node->ToString()
+                << "`; caller: " << caller_symbolic_bindings
+                << "; callee: " << callee_symbolic_bindings;
+    ctx->type_info()->AddInstantiationCallBindings(
+        node, /*caller=*/caller_symbolic_bindings,
+        /*callee=*/callee_symbolic_bindings);
+
     // Now that we have callee_symbolic_bindings, let's use them to typecheck
     // the body of callee_fn to make sure these values actually work.
     XLS_RETURN_IF_ERROR(CheckParametricInvocation(

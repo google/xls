@@ -1878,10 +1878,15 @@ class Carry : public Expr {
 };
 
 // Represents a constant definition.
+//
+//  is_public: Indicates whether the constant had a public annotation
+//    (applicable to module level constant definitions only)
+//  is_local: Indicates whether the constant was defined in a "local" function
+//    scope (as opposed to module-level scope).
 class ConstantDef : public AstNode {
  public:
   ConstantDef(Module* owner, Span span, NameDef* name_def, Expr* value,
-              bool is_public);
+              bool is_public, bool is_local);
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleConstantDef(this);
@@ -1901,12 +1906,14 @@ class ConstantDef : public AstNode {
   const Span& span() const { return span_; }
   absl::optional<Span> GetSpan() const override { return span_; }
   bool is_public() const { return is_public_; }
+  bool is_local() const { return is_local_; }
 
  private:
   Span span_;
   NameDef* name_def_;
   Expr* value_;
   bool is_public_;
+  bool is_local_;
 };
 
 // Tree of name definition nodes; e.g.

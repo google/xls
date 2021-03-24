@@ -1315,7 +1315,8 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(bool is_public,
   XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
   Span span(start_pos, GetPos());
-  auto* result = module_->Make<ConstantDef>(span, name_def, expr, is_public);
+  auto* result = module_->Make<ConstantDef>(span, name_def, expr, is_public,
+                                            /*is_local=*/false);
   name_def->set_definer(result);
   bindings->Add(name_def->identifier(), result);
   return result;
@@ -1445,8 +1446,8 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings* bindings) {
   ConstantDef* const_def = nullptr;
   if (const_ && name_def != nullptr) {
     Span span(name_def->span().start(), rhs->span().limit());
-    const_def =
-        module_->Make<ConstantDef>(span, name_def, rhs, /*is_public=*/false);
+    const_def = module_->Make<ConstantDef>(
+        span, name_def, rhs, /*is_public=*/false, /*is_local=*/true);
     new_bindings.Add(name_def->identifier(), const_def);
     name_def->set_definer(const_def);
   }

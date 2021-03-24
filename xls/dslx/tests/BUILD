@@ -759,3 +759,8 @@ dslx_test(
     # Note: no meaningful function to convert.
     convert_ir = False,
 )
+
+dslx_test(
+    name = "local_const_value_in_parametric_match",
+    srcs = ["local_const_value_in_parametric_match.x"],
+)

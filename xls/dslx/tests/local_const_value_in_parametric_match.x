@@ -12,24 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const FORTY_TWO = u32:42;
-const SIXTY_FOUR = u32:64;
+// Parametric identity function.
+fn id<N: u32>() -> u32 { N }
 
-// Returns the parametric value N this function is instantiated with.
-fn p_id<N: u32>() -> u32 {
-  N
+fn p<N: u32>(x: u32) -> bool {
+  const M = id<N>() + u32:1;
+  match x {
+    M => true,
+    N => true,
+    _ => false,
+  }
 }
 
-fn p<N: u32>() -> u32 {
-  const BASE = p_id<FORTY_TWO>();
-  BASE + N
-}
-
-fn main() -> u32{
-  p<SIXTY_FOUR>()
+fn main() -> (bool, bool, bool) {
+  let first = p<u32:42>(u32:42);
+  let second = p<u32:42>(u32:43);
+  let third = p<u32:42>(u32:44);
+  (first, second, third)
 }
 
 #![test]
 fn test_main() {
-  assert_eq(u32:106, main())
+  assert_eq((true, true, false), main())
 }
