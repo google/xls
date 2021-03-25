@@ -190,15 +190,18 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
   return result;
 }
 
-/* static */ absl::StatusOr<int64_t> Interpreter::InterpretExprToInt(
+/* static */ absl::StatusOr<InterpValue> Interpreter::InterpretExpr(
     Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
     absl::Span<std::string const> additional_search_paths,
     ImportData* import_data,
-    const absl::flat_hash_map<std::string, int64_t>& env,
-    const absl::flat_hash_map<std::string, int64_t>& bit_widths, Expr* expr,
+    const absl::flat_hash_map<std::string, InterpValue>& env, Expr* expr,
     const FnCtx* fn_ctx, ConcreteType* type_context) {
+  auto env_formatter = [](std::string* out,
+                          const std::pair<std::string, InterpValue>& p) {
+    out->append(absl::StrCat(p.first, ":", p.second.ToString()));
+  };
   XLS_VLOG(3) << "InterpretExpr: " << expr->ToString() << " env: {"
-              << absl::StrJoin(env, ", ", absl::PairFormatter(":")) << "}";
+              << absl::StrJoin(env, ", ", env_formatter) << "}";
 
   Interpreter interp(entry_module, typecheck, additional_search_paths,
                      import_data);
@@ -211,33 +214,30 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
   }
   for (const auto& [identifier, value] : env) {
     XLS_VLOG(3) << "Adding to bindings; identifier: " << identifier
-                << " value: " << value;
-    auto it = bit_widths.find(identifier);
-    if (it == bit_widths.end()) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Could not find bitwidth for identifier %s; env: {%s}; bit_widths: "
-          "{%s}",
-          identifier, absl::StrJoin(env, ", ", absl::PairFormatter(":")),
-          absl::StrJoin(bit_widths, ", ", absl::PairFormatter(":"))));
-    }
-    bindings.AddValue(
-        identifier,
-        InterpValue::MakeUBits(/*bit_count=*/it->second, /*value=*/value));
+                << " value: " << value.ToString();
+    bindings.AddValue(identifier, value);
   }
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * expr_root_type_info,
                        import_data->GetRootTypeInfoForNode(expr));
   TypeInfoSwap tis(&interp, expr_root_type_info);
+  return interp.Evaluate(expr, &bindings, /*type_context=*/type_context);
+}
+
+/* static */ absl::StatusOr<Bits> Interpreter::InterpretExprToBits(
+    Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
+    absl::Span<std::string const> additional_search_paths,
+    ImportData* import_data,
+    const absl::flat_hash_map<std::string, InterpValue>& env, Expr* expr,
+    const FnCtx* fn_ctx, ConcreteType* type_context) {
   XLS_ASSIGN_OR_RETURN(
-      InterpValue result,
-      interp.Evaluate(expr, &bindings, /*type_context=*/type_context));
-  switch (result.tag()) {
-    case InterpValueTag::kUBits: {
-      XLS_ASSIGN_OR_RETURN(uint64_t result, result.GetBitValueUint64());
-      return result;
-    }
+      InterpValue value,
+      InterpretExpr(entry_module, type_info, typecheck, additional_search_paths,
+                    import_data, env, expr, fn_ctx, type_context));
+  switch (value.tag()) {
+    case InterpValueTag::kUBits:
     case InterpValueTag::kSBits:
-      return result.GetBitValueInt64();
+      return value.GetBits();
     default:
       return absl::InvalidArgumentError(absl::StrFormat(
           "Expression %s @ %s did not evaluate to an integral value",

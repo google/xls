@@ -14,6 +14,8 @@
 
 #include "xls/dslx/concrete_type.h"
 
+#include <cstdint>
+
 #include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -27,6 +29,45 @@ namespace xls::dslx {
 
 std::unique_ptr<ConcreteType> ConcreteType::MakeNil() {
   return absl::make_unique<TupleType>(TupleType::UnnamedMembers{});
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteType::FromInterpValue(
+    const InterpValue& value) {
+  if (value.tag() == InterpValueTag::kUBits ||
+      value.tag() == InterpValueTag::kSBits) {
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count, value.GetBitCount());
+    return absl::make_unique<BitsType>(/*is_signed*/ value.IsSigned(),
+                                       /*size=*/bit_count);
+  } else if (value.tag() == InterpValueTag::kArray) {
+    XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
+                         value.GetValues());
+    if (elements->empty()) {
+      return absl::InvalidArgumentError(
+          "Cannot get the ConcreteType of a 0-element array.");
+    }
+    XLS_ASSIGN_OR_RETURN(auto element_type, FromInterpValue(elements->at(0)));
+    XLS_ASSIGN_OR_RETURN(int64_t size, value.GetLength());
+    XLS_ASSIGN_OR_RETURN(auto dim, ConcreteTypeDim::Create(size));
+    return absl::make_unique<ArrayType>(std::move(element_type), dim);
+  } else if (value.tag() == InterpValueTag::kTuple) {
+    XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
+                         value.GetValues());
+    if (elements->empty()) {
+      return absl::make_unique<TupleType>(
+          std::vector<std::unique_ptr<ConcreteType>>());
+    }
+    std::vector<std::unique_ptr<ConcreteType>> members;
+    members.reserve(elements->size());
+    for (const auto& element : *elements) {
+      XLS_ASSIGN_OR_RETURN(auto member, FromInterpValue(element));
+      members.push_back(std::move(member));
+    }
+
+    return absl::make_unique<TupleType>(std::move(members));
+  } else {
+    return absl::InvalidArgumentError(
+        "Only bits, array, and tuple types can be converted into concrete.");
+  }
 }
 
 ConcreteTypeDim::ConcreteTypeDim(const ConcreteTypeDim& other)
@@ -61,10 +102,13 @@ std::string ConcreteTypeDim::ToRepr() const {
 }
 
 bool ConcreteTypeDim::operator==(
-    const absl::variant<int64_t, const ParametricExpression*>& other) const {
+    const absl::variant<int64_t, InterpValue, const ParametricExpression*>&
+        other) const {
   if (absl::holds_alternative<int64_t>(other)) {
-    return absl::holds_alternative<int64_t>(value_) &&
-           absl::get<int64_t>(value_) == absl::get<int64_t>(other);
+    if (absl::holds_alternative<int64_t>(value_)) {
+      return absl::get<int64_t>(value_) == absl::get<int64_t>(other);
+    }
+    return false;
   }
   if (absl::holds_alternative<const ParametricExpression*>(other)) {
     return absl::holds_alternative<std::unique_ptr<ParametricExpression>>(
@@ -346,7 +390,7 @@ std::vector<ConcreteTypeDim> TupleType::GetAllDims() const {
 absl::StatusOr<ConcreteTypeDim> TupleType::GetTotalBitCount() const {
   std::vector<const ConcreteType*> unnamed = GetUnnamedMembers();
 
-  ConcreteTypeDim sum(0);
+  XLS_ASSIGN_OR_RETURN(auto sum, ConcreteTypeDim::Create(0));
   for (const ConcreteType* t : unnamed) {
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim elem_bit_count, t->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(sum, sum.Add(elem_bit_count));
@@ -519,7 +563,7 @@ std::vector<ConcreteTypeDim> FunctionType::GetAllDims() const {
 }
 
 absl::StatusOr<ConcreteTypeDim> FunctionType::GetTotalBitCount() const {
-  ConcreteTypeDim sum(0);
+  XLS_ASSIGN_OR_RETURN(auto sum, ConcreteTypeDim::Create(0));
   for (const auto& param : params_) {
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim param_bits, param->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(sum, sum.Add(param_bits));
@@ -549,11 +593,11 @@ static absl::StatusOr<ConcreteTypeDim> ConsumeConcreteTypeDim(
     absl::string_view* s) {
   int64_t size;
   if (RE2::Consume(s, R"((\d+))", &size)) {
-    return ConcreteTypeDim(size);
+    return ConcreteTypeDim::Create(size);
   }
   std::string symbol;
   if (RE2::Consume(s, R"((\w+))", &symbol)) {
-    return ConcreteTypeDim(
+    return ConcreteTypeDim::Create(
         absl::make_unique<ParametricSymbol>(std::move(symbol), Span::Fake()));
   }
   return absl::InvalidArgumentError(

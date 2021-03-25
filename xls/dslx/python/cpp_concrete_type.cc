@@ -29,17 +29,18 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
   py::class_<ConcreteTypeDim>(m, "ConcreteTypeDim")
       .def(py::init(
           [](const ParametricExpression& e) { return ConcreteTypeDim(e); }))
-      .def(py::init([](int64_t value) { return ConcreteTypeDim(value); }))
+      .def(py::init(
+          [](int64_t value) { return ConcreteTypeDim::Create(value).value(); }))
       .def("__add__", &ConcreteTypeDim::Add)
       .def("__mul__", &ConcreteTypeDim::Mul)
       .def("__eq__", [](const ConcreteTypeDim& self,
                         const ConcreteTypeDim& other) { return self == other; })
-      .def(
-          "__eq__",
-          [](const ConcreteTypeDim& self,
-             const absl::variant<int64_t, const ParametricExpression*>& other) {
-            return self == other;
-          })
+      .def("__eq__",
+           [](const ConcreteTypeDim& self,
+              const absl::variant<int64_t, InterpValue,
+                                  const ParametricExpression*>& other) {
+             return self == other;
+           })
       .def_property_readonly(
           "value",
           [](const ConcreteTypeDim& self)
@@ -158,8 +159,8 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
   // class ArrayType
   py::class_<ArrayType, ConcreteType>(m, "ArrayType")
       .def(py::init([](const ConcreteType& elem_type, int64_t size) {
-        return absl::make_unique<ArrayType>(elem_type.CloneToUnique(),
-                                            ConcreteTypeDim(size));
+        return absl::make_unique<ArrayType>(
+            elem_type.CloneToUnique(), ConcreteTypeDim::Create(size).value());
       }))
       .def(py::init(
           [](const ConcreteType& elem_type, const ParametricExpression& e) {
@@ -181,8 +182,8 @@ PYBIND11_MODULE(cpp_concrete_type, m) {
   // class BitsType
   py::class_<BitsType, ConcreteType>(m, "BitsType")
       .def(py::init([](bool is_signed, int64_t size) {
-             return absl::make_unique<BitsType>(is_signed,
-                                                ConcreteTypeDim(size));
+             return absl::make_unique<BitsType>(
+                 is_signed, ConcreteTypeDim::Create(size).value());
            }),
            py::arg("signed"), py::arg("size"))
       .def(py::init([](bool is_signed, const ParametricExpression& size) {

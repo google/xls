@@ -586,6 +586,47 @@ absl::StatusOr<xls::Value> InterpValue::ConvertToIr() const {
   XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
 }
 
+bool InterpValue::operator<(const InterpValue& rhs) const {
+  if (IsBits()) {
+    if (!rhs.IsBits()) {
+      return true;
+    }
+
+    return Lt(rhs).value().IsTrue();
+  } else if (IsTuple()) {
+    if (rhs.IsArray()) {
+      return true;
+    } else if (rhs.IsBits()) {
+      return false;
+    }
+  } else {
+    if (!rhs.IsArray()) {
+      return false;
+    }
+  }
+
+  // Common code for arrays & tuples.
+  int64_t lhs_length = GetLength().value();
+  int64_t rhs_length = rhs.GetLength().value();
+  if (lhs_length < rhs_length) {
+    return true;
+  } else if (rhs_length < lhs_length) {
+    return false;
+  }
+
+  for (int i = 0; i < lhs_length; i++) {
+    InterpValue index = MakeU64(i);
+    InterpValue lhs_element = Index(index).value();
+    InterpValue rhs_element = rhs.Index(index).value();
+    if (lhs_element < rhs_element) {
+      return true;
+    } else if (rhs_element < lhs_element) {
+      return false;
+    }
+  }
+  return false;
+}
+
 absl::optional<Module*> GetFunctionValueOwner(
     const InterpValue& function_value) {
   if (function_value.IsBuiltinFunction()) {

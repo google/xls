@@ -22,6 +22,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
+#include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
 
@@ -34,7 +35,7 @@ namespace xls::dslx {
 // The symbolic binding for N given id invoked in main is `{"N", 32}`.
 struct SymbolicBinding {
   std::string identifier;
-  int64_t value;
+  InterpValue value;
 
   bool operator==(const SymbolicBinding& other) const {
     return identifier == other.identifier && value == other.value;
@@ -53,14 +54,14 @@ class SymbolicBindings {
   SymbolicBindings() = default;
 
   explicit SymbolicBindings(
-      absl::Span<std::pair<std::string, int64_t> const> items) {
+      absl::Span<std::pair<std::string, InterpValue> const> items) {
     for (const auto& item : items) {
       bindings_.push_back(SymbolicBinding{item.first, item.second});
     }
     Sort();
   }
   explicit SymbolicBindings(
-      const absl::flat_hash_map<std::string, int64_t>& mapping) {
+      const absl::flat_hash_map<std::string, InterpValue>& mapping) {
     for (const auto& item : mapping) {
       bindings_.push_back(SymbolicBinding{item.first, item.second});
     }
@@ -70,7 +71,7 @@ class SymbolicBindings {
   template <typename H>
   friend H AbslHashValue(H h, const SymbolicBindings& self) {
     for (const SymbolicBinding& sb : self.bindings_) {
-      h = H::combine(std::move(h), sb.identifier, sb.value);
+      h = H::combine(std::move(h), sb.identifier, sb.value.ToString());
     }
     return h;
   }
@@ -85,7 +86,7 @@ class SymbolicBindings {
   std::string ToString() const;
 
   // Returns a map representation of these symbolic bindings.
-  absl::flat_hash_map<std::string, int64_t> ToMap() const;
+  absl::flat_hash_map<std::string, InterpValue> ToMap() const;
 
   // Returns the set of keys in these symbolic bindings. A btree is given for
   // ease of range-based comparisons.

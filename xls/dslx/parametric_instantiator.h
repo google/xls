@@ -28,7 +28,7 @@ absl::StatusOr<TypeAndBindings> InstantiateFunction(
     absl::Span<std::unique_ptr<ConcreteType> const> arg_types, DeduceCtx* ctx,
     absl::optional<absl::Span<ParametricBinding* const>>
         parametric_constraints = absl::nullopt,
-    const absl::flat_hash_map<std::string, int64_t>* explicit_constraints =
+    const absl::flat_hash_map<std::string, InterpValue>* explicit_constraints =
         nullptr);
 
 // Instantiates a struct using the bindings derived from arg_types.
@@ -64,7 +64,8 @@ class ParametricInstantiator {
       DeduceCtx* ctx,
       absl::optional<absl::Span<ParametricBinding* const>>
           parametric_constraints,
-      const absl::flat_hash_map<std::string, int64_t>* explicit_constraints);
+      const absl::flat_hash_map<std::string, InterpValue>*
+          explicit_constraints);
 
   ParametricInstantiator(ParametricInstantiator&& other) = default;
 
@@ -86,7 +87,8 @@ class ParametricInstantiator {
   absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(
       const ConcreteType& annotated);
 
-  const absl::flat_hash_map<std::string, int64_t>& symbolic_bindings() const {
+  const absl::flat_hash_map<std::string, InterpValue>& symbolic_bindings()
+      const {
     return symbolic_bindings_;
   }
 
@@ -148,9 +150,9 @@ class ParametricInstantiator {
   // Notes the iteration order in the original parametric bindings.
   std::vector<std::string> constraint_order_;
 
-  absl::flat_hash_map<std::string, int64_t> symbolic_bindings_;
   absl::flat_hash_map<std::string, Expr*> constraints_;
   absl::flat_hash_map<std::string, int64_t> bit_widths_;
+  absl::flat_hash_map<std::string, InterpValue> symbolic_bindings_;
 };
 
 // Instantiates a parametric function invocation.
@@ -161,8 +163,8 @@ class FunctionInstantiator : public ParametricInstantiator {
       absl::Span<std::unique_ptr<ConcreteType> const> arg_types, DeduceCtx* ctx,
       absl::optional<absl::Span<ParametricBinding* const>>
           parametric_constraints,
-      const absl::flat_hash_map<std::string, int64_t>* explicit_constraints =
-          nullptr);
+      const absl::flat_hash_map<std::string, InterpValue>*
+          explicit_constraints = nullptr);
 
   // Updates symbolic bindings for the parameter types according to arg_types.
   //
@@ -176,8 +178,8 @@ class FunctionInstantiator : public ParametricInstantiator {
       absl::Span<std::unique_ptr<ConcreteType> const> arg_types, DeduceCtx* ctx,
       absl::optional<absl::Span<ParametricBinding* const>>
           parametric_constraints,
-      const absl::flat_hash_map<std::string, int64_t>* explicit_constraints =
-          nullptr)
+      const absl::flat_hash_map<std::string, InterpValue>*
+          explicit_constraints = nullptr)
       : ParametricInstantiator(std::move(span), arg_types, ctx,
                                parametric_constraints, explicit_constraints),
         function_type_(CloneToUnique(function_type)),

@@ -16,13 +16,14 @@
 
 """Tests for xls.dslx.parametric_expression."""
 
+from absl.testing import absltest
+from xls.dslx.python import interp_value
 from xls.dslx.python.cpp_parametric_expression import ParametricAdd
 from xls.dslx.python.cpp_parametric_expression import ParametricConstant
 from xls.dslx.python.cpp_parametric_expression import ParametricMul
 from xls.dslx.python.cpp_parametric_expression import ParametricSymbol
 from xls.dslx.python.cpp_pos import Pos
 from xls.dslx.python.cpp_pos import Span
-from absl.testing import absltest
 
 
 class ParametricExpressionTest(absltest.TestCase):
@@ -31,15 +32,21 @@ class ParametricExpressionTest(absltest.TestCase):
   fake_span = Span(fake_pos, fake_pos)
 
   def test_sample_evaluation(self):
+    param_0 = interp_value.Value.make_ubits(32, 0)
+    param_1 = interp_value.Value.make_ubits(32, 1)
+    param_2 = interp_value.Value.make_ubits(32, 2)
+    param_3 = interp_value.Value.make_ubits(32, 3)
+    param_6 = interp_value.Value.make_ubits(32, 6)
+    param_12 = interp_value.Value.make_ubits(32, 12)
     e = ParametricMul(
-        ParametricConstant(3),
+        ParametricConstant(param_3),
         ParametricAdd(
             ParametricSymbol('M', self.fake_span),
             ParametricSymbol('N', self.fake_span)))
     self.assertEqual(e, e)
-    self.assertEqual('(3*(M+N))', str(e))
-    self.assertEqual(6, e.evaluate(dict(N=2, M=0)))
-    self.assertEqual(12, e.evaluate(dict(N=1, M=3)))
+    self.assertEqual('(bits[32]:0x3*(M+N))', str(e))
+    self.assertEqual(param_6, e.evaluate(dict(N=param_2, M=param_0)))
+    self.assertEqual(param_12, e.evaluate(dict(N=param_1, M=param_3)))
     self.assertEqual(set(['N', 'M']), e.get_freevars())
 
   def test_non_identity_equality(self):

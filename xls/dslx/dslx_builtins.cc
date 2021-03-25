@@ -147,7 +147,12 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    if (t.size() != ConcreteTypeDim(target)) {
+    auto status_or_target = ConcreteTypeDim::Create(target);
+    if (status_or_target.ok()) {
+      status_ = status_or_target.status();
+      return *this;
+    }
+    if (t.size() != ConcreteTypeDim(status_or_target.value())) {
       status_ = TypeInferenceErrorStatus(span_, &t, make_msg());
     }
     return *this;
@@ -158,7 +163,7 @@ class Checker {
     }
     const ConcreteType& t = *arg_types_[argno];
     if (auto* bits = dynamic_cast<const BitsType*>(&t);
-        bits == nullptr || bits->size() != ConcreteTypeDim(1)) {
+        bits == nullptr || bits->size() != ConcreteTypeDim::Create(1).value()) {
       status_ = TypeInferenceErrorStatus(
           span_, &t,
           absl::StrFormat("Expected argument %d to '%s' to be a u1; got %s",
@@ -468,7 +473,8 @@ static void PopulateSignatureToLambdaMap(
                             .status());
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim n,
                          data.arg_types[0]->GetTotalBitCount());
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim np1, n.Add(ConcreteTypeDim(1)));
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim np1,
+                         n.Add(ConcreteTypeDim::Create(1).value()));
     auto return_type =
         absl::make_unique<BitsType>(/*signed=*/false, /*size=*/np1);
     return TypeAndBindings{absl::make_unique<FunctionType>(

@@ -393,6 +393,19 @@ fn f() -> u32 {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, CountedForVariableRange) {
+  const char* program =
+      R"(fn f(x:u32) -> u32 {
+  for (i, accum): (u32, u32) in range(u32:0, x) {
+    accum + i
+  }(u32:0)
+}
+)";
+  auto status_or_ir =
+      ConvertOneFunctionForTest(program, "f", /*emit_positions=*/false);
+  ASSERT_FALSE(status_or_ir.ok());
+}
+
 TEST(IrConverterTest, ExtendConversions) {
   const char* program =
       R"(fn main(x: u8, y: s8) -> (u32, u32, s32, s32) {

@@ -269,15 +269,14 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
   auto constexpr_eval = [&](int64_t argno) -> absl::Status {
     Expr* arg = invocation->args()[argno];
 
-    auto [env, bit_widths] =
+    auto env =
         MakeConstexprEnv(arg, ctx->fn_stack().back().symbolic_bindings(), ctx);
 
     XLS_ASSIGN_OR_RETURN(
-        int64_t value,
-        Interpreter::InterpretExprToInt(
+        InterpValue value,
+        Interpreter::InterpretExpr(
             arg->owner(), ctx->type_info(), ctx->typecheck_module(),
-            ctx->additional_search_paths(), ctx->import_data(), env, bit_widths,
-            arg));
+            ctx->additional_search_paths(), ctx->import_data(), env, arg));
     ctx->type_info()->NoteConstExpr(arg, value);
     return absl::OkStatus();
   };

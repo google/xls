@@ -62,6 +62,7 @@ py_test(
     deps = [
         "//xls/dslx/python:cpp_parametric_expression",
         "//xls/dslx/python:cpp_pos",
+        "//xls/dslx/python:interp_value",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -71,6 +72,7 @@ cc_library(
     srcs = ["symbolic_bindings.cc"],
     hdrs = ["symbolic_bindings.h"],
     deps = [
+        ":interp_value",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
@@ -335,6 +337,7 @@ cc_library(
     srcs = ["parametric_expression.cc"],
     hdrs = ["parametric_expression.h"],
     deps = [
+        ":interp_value",
         ":pos",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -347,11 +350,13 @@ cc_library(
     hdrs = ["concrete_type.h"],
     deps = [
         ":ast",
+        ":interp_value",
         ":parametric_expression",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_github_google_re2//:re2",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -455,6 +460,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -590,6 +596,7 @@ cc_library(
         ":type_and_bindings",
         ":type_info",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 
@@ -626,6 +633,7 @@ cc_library(
         ":ast",
         ":concrete_type",
         ":deduce_ctx",
+        ":interp_value",
         ":parametric_instantiator",
         ":type_and_bindings",
         "@com_google_absl//absl/container:flat_hash_map",

@@ -18,43 +18,44 @@ namespace xls::dslx {
 
 /* static */ ParametricExpression::Evaluated ParametricExpression::ToEvaluated(
     const EnvValue& value) {
-  if (absl::holds_alternative<int64_t>(value)) {
-    return absl::get<int64_t>(value);
+  if (absl::holds_alternative<InterpValue>(value)) {
+    return absl::get<InterpValue>(value);
   }
   return absl::get<const ParametricExpression*>(value)->Clone();
 }
 
 /* static */ ParametricExpression::EnvValue ParametricExpression::ToEnvValue(
     const Evaluated& v) {
-  if (absl::holds_alternative<int64_t>(v)) {
-    return absl::get<int64_t>(v);
+  if (absl::holds_alternative<InterpValue>(v)) {
+    return absl::get<InterpValue>(v);
   }
   return absl::get<std::unique_ptr<ParametricExpression>>(v).get();
 }
 
 std::unique_ptr<ParametricExpression> ParametricExpression::ToOwned(
-    const std::variant<const ParametricExpression*, int64_t>& operand) {
-  if (absl::holds_alternative<int64_t>(operand)) {
-    return absl::make_unique<ParametricConstant>(absl::get<int64_t>(operand));
+    const std::variant<const ParametricExpression*, InterpValue>& operand) {
+  if (absl::holds_alternative<InterpValue>(operand)) {
+    return absl::make_unique<ParametricConstant>(
+        absl::get<InterpValue>(operand));
   }
   return absl::get<const ParametricExpression*>(operand)->Clone();
 }
 
 std::unique_ptr<ParametricExpression> ParametricExpression::Add(
     const EnvValue& lhs, const EnvValue& rhs) {
-  if (absl::holds_alternative<int64_t>(lhs) &&
-      absl::holds_alternative<int64_t>(rhs)) {
-    return absl::make_unique<ParametricConstant>(absl::get<int64_t>(lhs) +
-                                                 absl::get<int64_t>(rhs));
+  if (absl::holds_alternative<InterpValue>(lhs) &&
+      absl::holds_alternative<InterpValue>(rhs)) {
+    return absl::make_unique<ParametricConstant>(
+        absl::get<InterpValue>(lhs).Add(absl::get<InterpValue>(rhs)).value());
   }
   return absl::make_unique<ParametricAdd>(ToOwned(lhs), ToOwned(rhs));
 }
 std::unique_ptr<ParametricExpression> ParametricExpression::Mul(
     const EnvValue& lhs, const EnvValue& rhs) {
-  if (absl::holds_alternative<int64_t>(lhs) &&
-      absl::holds_alternative<int64_t>(rhs)) {
-    return absl::make_unique<ParametricConstant>(absl::get<int64_t>(lhs) *
-                                                 absl::get<int64_t>(rhs));
+  if (absl::holds_alternative<InterpValue>(lhs) &&
+      absl::holds_alternative<InterpValue>(rhs)) {
+    return absl::make_unique<ParametricConstant>(
+        absl::get<InterpValue>(lhs).Mul(absl::get<InterpValue>(rhs)).value());
   }
   return absl::make_unique<ParametricMul>(ToOwned(lhs), ToOwned(rhs));
 }

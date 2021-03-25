@@ -24,10 +24,10 @@ namespace {
 using status_testing::IsOkAndHolds;
 
 TEST(CppEvaluateTest, EmptyArrayCompatibility) {
-  auto empty_array_of_nil =
-      absl::make_unique<ArrayType>(ConcreteType::MakeNil(), ConcreteTypeDim(0));
-  auto empty_array_of_u32 =
-      absl::make_unique<ArrayType>(BitsType::MakeU32(), ConcreteTypeDim(0));
+  auto empty_array_of_nil = absl::make_unique<ArrayType>(
+      ConcreteType::MakeNil(), ConcreteTypeDim::Create(0).value());
+  auto empty_array_of_u32 = absl::make_unique<ArrayType>(
+      BitsType::MakeU32(), ConcreteTypeDim::Create(0).value());
   auto empty_array_value = InterpValue::MakeArray(/*elements=*/{}).value();
 
   EXPECT_THAT(ValueCompatibleWithType(*empty_array_of_nil, empty_array_value),
@@ -37,8 +37,8 @@ TEST(CppEvaluateTest, EmptyArrayCompatibility) {
 }
 
 TEST(CppEvaluateTest, DiffNumberOfElementsVs0Compatibility) {
-  auto empty_array_of_nil =
-      absl::make_unique<ArrayType>(ConcreteType::MakeNil(), ConcreteTypeDim(0));
+  auto empty_array_of_nil = absl::make_unique<ArrayType>(
+      ConcreteType::MakeNil(), ConcreteTypeDim::Create(0).value());
   auto array_of_1_value =
       InterpValue::MakeArray(/*elements=*/{InterpValue::MakeU32(1)}).value();
 

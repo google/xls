@@ -98,7 +98,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
                        ctx->Deduce(node->value()));
   // Right now we only know how to do integral expressions as constexpr values.
   if (dynamic_cast<BitsType*>(result.get()) != nullptr) {
-    auto [env, bit_widths] = MakeConstexprEnv(
+    auto env = MakeConstexprEnv(
         node->value(), ctx->fn_stack().back().symbolic_bindings(), ctx);
     const FnStackEntry& peek_entry = ctx->fn_stack().back();
     absl::optional<FnCtx> fn_ctx;
@@ -107,10 +107,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
                            peek_entry.function()->identifier(),
                            peek_entry.symbolic_bindings()});
     }
-    absl::StatusOr<int64_t> constexpr_value = Interpreter::InterpretExprToInt(
+    absl::StatusOr<InterpValue> constexpr_value = Interpreter::InterpretExpr(
         node->owner(), ctx->type_info(), ctx->typecheck_module(),
-        ctx->additional_search_paths(), ctx->import_data(), env, bit_widths,
-        node->value(), fn_ctx ? &*fn_ctx : nullptr);
+        ctx->additional_search_paths(), ctx->import_data(), env, node->value(),
+        fn_ctx ? &*fn_ctx : nullptr);
     if (constexpr_value.ok()) {
       ctx->type_info()->NoteConstExpr(node->value(), constexpr_value.value());
     }
@@ -564,9 +564,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
     }
   }
 
-  auto inferred = absl::make_unique<ArrayType>(
-      member_types[0]->CloneToUnique(),
-      ConcreteTypeDim(static_cast<int64_t>(member_types.size())));
+  XLS_ASSIGN_OR_RETURN(
+      auto dim,
+      ConcreteTypeDim::Create(static_cast<int64_t>(member_types.size())));
+  auto inferred =
+      absl::make_unique<ArrayType>(member_types[0]->CloneToUnique(), dim);
 
   if (node->type() == nullptr) {
     return inferred;
@@ -594,8 +596,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
     return annotated;
   }
 
-  if (array_type->size() !=
-      ConcreteTypeDim(static_cast<int64_t>(member_types.size()))) {
+  XLS_ASSIGN_OR_RETURN(
+      dim, ConcreteTypeDim::Create(static_cast<int64_t>(member_types.size())));
+  if (array_type->size() != dim) {
     return XlsTypeErrorStatus(
         node->span(), *array_type, *inferred,
         absl::StrFormat("Annotated array size %s does not match "
@@ -957,17 +960,17 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     return DeduceWidthSliceType(node, *bits_type, *width_slice, ctx);
   }
 
-  auto [env, bit_widths] =
+  auto env =
       MakeConstexprEnv(node, ctx->fn_stack().back().symbolic_bindings(), ctx);
 
   std::unique_ptr<ConcreteType> s32 = BitsType::MakeS32();
   auto* slice = absl::get<Slice*>(node->rhs());
   absl::optional<int64_t> limit;
   if (slice->limit() != nullptr) {
-    auto status_or_limit = Interpreter::InterpretExprToInt(
+    auto status_or_limit = Interpreter::InterpretExpr(
         slice->owner(), ctx->type_info(), ctx->typecheck_module(),
-        ctx->additional_search_paths(), ctx->import_data(), env, bit_widths,
-        slice->limit(), /*fn_ctx=*/nullptr, s32.get());
+        ctx->additional_search_paths(), ctx->import_data(), env, slice->limit(),
+        /*fn_ctx=*/nullptr, s32.get());
     if (!status_or_limit.ok()) {
       absl::Status status = status_or_limit.status();
       if (absl::StrContains(status.message(),
@@ -977,14 +980,15 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
             "Unable to resolve slice limit to a compile-time constant.");
       }
     }
-    limit = status_or_limit.value();
+    XLS_ASSIGN_OR_RETURN(limit,
+                         ConcreteTypeDim::GetAs64Bits(status_or_limit.value()));
   }
   absl::optional<int64_t> start;
   if (slice->start() != nullptr) {
-    auto status_or_start = Interpreter::InterpretExprToInt(
+    auto status_or_start = Interpreter::InterpretExpr(
         slice->owner(), ctx->type_info(), ctx->typecheck_module(),
-        ctx->additional_search_paths(), ctx->import_data(), env, bit_widths,
-        slice->start(), /*fn_ctx=*/nullptr, s32.get());
+        ctx->additional_search_paths(), ctx->import_data(), env, slice->start(),
+        /*fn_ctx=*/nullptr, s32.get());
     if (!status_or_start.ok()) {
       absl::Status status = status_or_start.status();
       if (absl::StrContains(status.message(),
@@ -994,7 +998,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
             "Unable to resolve slice start to a compile-time constant.");
       }
     }
-    start = status_or_start.value();
+    XLS_ASSIGN_OR_RETURN(start,
+                         ConcreteTypeDim::GetAs64Bits(status_or_start.value()));
   }
 
   const SymbolicBindings& fn_symbolic_bindings =
@@ -1008,8 +1013,13 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
         absl::get<ConcreteTypeDim::OwnedParametric>(lhs_bit_count_ctd.value());
     ParametricExpression::Evaluated evaluated =
         owned_parametric->Evaluate(ToParametricEnv(fn_symbolic_bindings));
-    XLS_RET_CHECK(absl::holds_alternative<int64_t>(evaluated));
-    bit_count = absl::get<int64_t>(evaluated);
+    if (absl::holds_alternative<int64_t>(evaluated)) {
+      bit_count = absl::get<int64_t>(evaluated);
+    } else {
+      InterpValue v = absl::get<InterpValue>(evaluated);
+      bit_count = v.IsSigned() ? v.GetBitValueInt64().value()
+                               : v.GetBitValueUint64().value();
+    }
   } else {
     bit_count = absl::get<int64_t>(lhs_bit_count_ctd.value());
   }
@@ -1405,62 +1415,70 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
   if (auto* number = dynamic_cast<Number*>(dim_expr)) {
     ctx->type_info()->SetItem(number, *BitsType::MakeU32());
     XLS_ASSIGN_OR_RETURN(int64_t value, number->GetAsUint64());
-    return ConcreteTypeDim(value);
+    return ConcreteTypeDim::Create(value);
   }
+
   // TODO(rspringer): 2021/03/04 Can we unify all these cases into:
   //   Evaluate(); GetBitValueUint64();
+  // Practically, dims are 64 bits, but conceptually, dims could be considered
+  // "unsized". 64 bits _should_ be large enough for any uses, but should this
+  // somehow prove inadequate, it can always be extended.
   if (auto* const_ref = dynamic_cast<ConstRef*>(dim_expr)) {
     absl::optional<Expr*> const_expr =
         ctx->type_info()->GetConstant(const_ref->name_def()).value();
     XLS_RET_CHECK(const_expr.has_value());
     XLS_ASSIGN_OR_RETURN(
-        int64_t value,
-        Interpreter::InterpretExprToInt(
+        InterpValue value,
+        Interpreter::InterpretExpr(
             (*const_expr)->owner(), ctx->type_info(), ctx->typecheck_module(),
             ctx->additional_search_paths(), ctx->import_data(),
-            /*env=*/{}, /*bit_widths=*/{}, *const_expr));
-    return ConcreteTypeDim(value);
+            /*env=*/{}, *const_expr));
+    XLS_ASSIGN_OR_RETURN(uint64_t int_value, value.GetBitValueUint64());
+    return ConcreteTypeDim::Create(static_cast<int64_t>(int_value));
   }
   if (auto* colon_ref = dynamic_cast<ColonRef*>(dim_expr)) {
     XLS_ASSIGN_OR_RETURN(Expr * const_expr,
                          ResolveColonRefToConstantExpr(colon_ref, ctx));
     XLS_ASSIGN_OR_RETURN(
-        int64_t value,
-        Interpreter::InterpretExprToInt(
+        InterpValue value,
+        Interpreter::InterpretExpr(
             const_expr->owner(),
             ctx->import_data()->GetRootTypeInfoForNode(const_expr).value(),
             ctx->typecheck_module(), ctx->additional_search_paths(),
             ctx->import_data(),
-            /*env=*/{}, /*bit_widths=*/{}, const_expr));
-    return ConcreteTypeDim(value);
+            /*env=*/{}, const_expr));
+    XLS_ASSIGN_OR_RETURN(uint64_t int_value, value.GetBitValueUint64());
+    return ConcreteTypeDim::Create(static_cast<int64_t>(int_value));
   }
   if (auto* attr = dynamic_cast<Attr*>(dim_expr)) {
     XLS_RET_CHECK(ctx->Deduce(attr->lhs()).ok());
 
     XLS_ASSIGN_OR_RETURN(
-        int64_t value,
-        Interpreter::InterpretExprToInt(
+        InterpValue value,
+        Interpreter::InterpretExpr(
             attr->owner(),
             ctx->import_data()->GetRootTypeInfoForNode(attr).value(),
             ctx->typecheck_module(), ctx->additional_search_paths(),
             ctx->import_data(),
-            /*env=*/{}, /*bit_widths=*/{}, attr));
-    return ConcreteTypeDim(value);
+            /*env=*/{}, attr));
+    XLS_ASSIGN_OR_RETURN(uint64_t int_value, value.GetBitValueUint64());
+    return ConcreteTypeDim::Create(static_cast<int64_t>(int_value));
   }
   if (auto* invocation = dynamic_cast<Invocation*>(dim_expr)) {
     XLS_RETURN_IF_ERROR(ctx->Deduce(invocation).status());
 
     XLS_ASSIGN_OR_RETURN(
-        int64_t value,
-        Interpreter::InterpretExprToInt(
-            invocation->owner(), ctx->type_info(), ctx->typecheck_module(),
-            ctx->additional_search_paths(), ctx->import_data(), {}, {},
-            invocation));
-    return ConcreteTypeDim(value);
+        InterpValue value,
+        Interpreter::InterpretExpr(invocation->owner(), ctx->type_info(),
+                                   ctx->typecheck_module(),
+                                   ctx->additional_search_paths(),
+                                   ctx->import_data(), {}, invocation));
+    XLS_ASSIGN_OR_RETURN(uint64_t int_value, value.GetBitValueUint64());
+    return ConcreteTypeDim::Create(static_cast<int64_t>(int_value));
   }
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ParametricExpression> e,
                        DimToParametric(node, dim_expr));
-  return ConcreteTypeDim(std::move(e));
+  return ConcreteTypeDim::Create(std::move(e));
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArrayTypeAnnotation(
@@ -1571,7 +1589,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
   ParametricExpression::Env env;
   for (auto& item : defined_to_annotated) {
     if (absl::holds_alternative<int64_t>(item.second)) {
-      env[item.first] = absl::get<int64_t>(item.second);
+      env[item.first] = InterpValue::MakeU64(absl::get<int64_t>(item.second));
     } else {
       env[item.first] =
           absl::get<std::unique_ptr<ParametricExpression>>(item.second).get();
@@ -1579,12 +1597,13 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
   }
 
   // Now evaluate all the dimensions according to the values we've got.
-  return base_type.MapSize([&env](ConcreteTypeDim dim) -> ConcreteTypeDim {
+  return base_type.MapSize([&env](ConcreteTypeDim dim)
+                               -> absl::StatusOr<ConcreteTypeDim> {
     if (absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(
             dim.value())) {
       auto& parametric =
           absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
-      return ConcreteTypeDim(parametric->Evaluate(env));
+      return ConcreteTypeDim::Create(parametric->Evaluate(env));
     }
     return dim;
   });
@@ -1939,18 +1958,19 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
     new_bindings.push_back(remaining_binding);
   }
 
-  absl::flat_hash_map<std::string, int64_t> caller_symbolic_bindings_map =
+  absl::flat_hash_map<std::string, InterpValue> caller_symbolic_bindings_map =
       caller_symbolic_bindings.ToMap();
 
   // Map resolved parametrics from the caller's context onto the corresponding
   // symbols in the callee's.
-  absl::flat_hash_map<std::string, int64_t> explicit_bindings;
+  absl::flat_hash_map<std::string, InterpValue> explicit_bindings;
   for (ParametricBinding* new_binding : new_bindings) {
     if (auto* name_ref = dynamic_cast<NameRef*>(new_binding->expr());
         name_ref != nullptr &&
         caller_symbolic_bindings_map.contains(name_ref->identifier())) {
-      explicit_bindings[new_binding->name_def()->identifier()] =
-          caller_symbolic_bindings_map[name_ref->identifier()];
+      explicit_bindings.insert(
+          {new_binding->name_def()->identifier(),
+           caller_symbolic_bindings_map.at(name_ref->identifier())});
     }
   }
 
@@ -2096,7 +2116,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
       const auto& parametric =
           absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
       ParametricExpression::Env env = ToParametricEnv(fn_symbolic_bindings);
-      return ConcreteTypeDim(parametric->Evaluate(env));
+      return ConcreteTypeDim::Create(parametric->Evaluate(env));
     }
     return dim;
   });
@@ -2127,12 +2147,11 @@ ConstexprEnv MakeConstexprEnv(Expr* node,
                               DeduceCtx* ctx) {
   XLS_VLOG(5) << "Creating constexpr environment for node: "
               << node->ToString();
-  absl::flat_hash_map<std::string, int64_t> env;
-  absl::flat_hash_map<std::string, int64_t> bit_widths;
+  absl::flat_hash_map<std::string, InterpValue> env;
+  absl::flat_hash_map<std::string, InterpValue> values;
 
   for (auto [id, value] : symbolic_bindings.ToMap()) {
-    env[id] = value;
-    bit_widths[id] = 32;
+    env.insert({id, value});
   }
 
   // Collect all the freevars that are constexpr.
@@ -2149,7 +2168,7 @@ ConstexprEnv MakeConstexprEnv(Expr* node,
   for (ConstRef* const_ref : freevars.GetConstRefs()) {
     XLS_VLOG(5) << "analyzing constant reference: " << const_ref->ToString();
     ConstantDef* constant_def = const_ref->GetConstantDef();
-    absl::optional<int64_t> value =
+    absl::optional<InterpValue> value =
         ctx->type_info()->GetConstExpr(constant_def->value());
     if (!value) {
       // Could be a tuple or similar, not part of the (currently integral-only)
@@ -2158,11 +2177,11 @@ ConstexprEnv MakeConstexprEnv(Expr* node,
                   << constant_def->ToString() << "`";
       continue;
     }
-    env[const_ref->identifier()] = *value;
-    bit_widths[const_ref->identifier()] = 32;
+
+    env.insert({const_ref->identifier(), *value});
   }
 
-  return {std::move(env), std::move(bit_widths)};
+  return env;
 }
 
 }  // namespace xls::dslx

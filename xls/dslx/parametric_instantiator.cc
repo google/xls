@@ -15,6 +15,7 @@
 #include "xls/dslx/parametric_instantiator.h"
 
 #include "absl/strings/match.h"
+#include "absl/types/variant.h"
 #include "xls/dslx/interpreter.h"
 
 namespace xls::dslx {
@@ -24,7 +25,7 @@ ParametricInstantiator::ParametricInstantiator(
     Span span, absl::Span<std::unique_ptr<ConcreteType> const> arg_types,
     DeduceCtx* ctx,
     absl::optional<absl::Span<ParametricBinding* const>> parametric_constraints,
-    const absl::flat_hash_map<std::string, int64_t>* explicit_constraints)
+    const absl::flat_hash_map<std::string, InterpValue>* explicit_constraints)
     : span_(std::move(span)), arg_types_(arg_types), ctx_(ctx) {
   if (explicit_constraints != nullptr) {
     symbolic_bindings_ = *explicit_constraints;
@@ -79,7 +80,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ParametricInstantiator::Resolve(
             absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
         ParametricExpression::Evaluated evaluated = parametric_expr->Evaluate(
             ToParametricEnv(SymbolicBindings(symbolic_bindings_)));
-        return ConcreteTypeDim(std::move(evaluated));
+        return ConcreteTypeDim::Create(std::move(evaluated));
       });
 }
 
@@ -95,10 +96,10 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
     const FnStackEntry& entry = ctx_->fn_stack().back();
     FnCtx fn_ctx{ctx_->module()->name(), entry.name(),
                  entry.symbolic_bindings()};
-    absl::StatusOr<int64_t> result = Interpreter::InterpretExprToInt(
+    absl::StatusOr<InterpValue> result = Interpreter::InterpretExpr(
         ctx_->module(), ctx_->type_info(), ctx_->typecheck_module(),
         ctx_->additional_search_paths(), ctx_->import_data(),
-        symbolic_bindings_, bit_widths_, expr, &fn_ctx);
+        symbolic_bindings_, expr, &fn_ctx);
     XLS_VLOG(5) << "Interpreted expr: " << expr->ToString() << " @ "
                 << expr->span() << " to status: " << result.status();
     if (!result.ok() && result.status().code() == absl::StatusCode::kNotFound &&
@@ -109,21 +110,26 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
       // We haven't seen enough bindings to evaluate this constraint yet.
       continue;
     }
+
     if (auto it = symbolic_bindings_.find(name);
         it != symbolic_bindings_.end()) {
-      int64_t seen = it->second;
+      InterpValue seen = it->second;
+      int64_t result_value = result.value().GetBitValueInt64().value();
+      int64_t seen_value = seen.GetBitValueInt64().value();
       if (result.value() != seen) {
-        auto lhs = absl::make_unique<BitsType>(/*signed=*/false, /*size=*/seen);
-        auto rhs = absl::make_unique<BitsType>(/*signed=*/false,
-                                               /*size=*/result.value());
+        XLS_ASSIGN_OR_RETURN(auto lhs_type,
+                             ConcreteType::FromInterpValue(result.value()));
+        XLS_ASSIGN_OR_RETURN(auto rhs_type,
+                             ConcreteType::FromInterpValue(result.value()));
         std::string message = absl::StrFormat(
             "Parametric constraint violated, first saw %s = %d; then saw %s = "
             "%s = %d",
-            name, seen, name, expr->ToString(), result.value());
-        return XlsTypeErrorStatus(span_, *lhs, *rhs, std::move(message));
+            name, seen_value, name, expr->ToString(), result_value);
+        return XlsTypeErrorStatus(span_, *rhs_type, *lhs_type,
+                                  std::move(message));
       }
     } else {
-      symbolic_bindings_[name] = result.value();
+      symbolic_bindings_.insert({name, result.value()});
     }
   }
   return absl::OkStatus();
@@ -151,33 +157,39 @@ absl::Status ParametricInstantiator::SymbolicBindDims(const T& param_type,
     return absl::OkStatus();  // Nothing to bind in the formal argument type.
   }
 
-  int64_t arg_dim = absl::get<int64_t>(arg_type.size().value());
+  XLS_ASSIGN_OR_RETURN(int64_t arg_dim,
+                       ConcreteTypeDim::GetAs64Bits(arg_type.size().value()));
+
   const std::string& pdim_name = symbol->identifier();
   if (symbolic_bindings_.contains(pdim_name) &&
-      symbolic_bindings_.at(pdim_name) != arg_dim) {
-    int64_t seen = symbolic_bindings_.at(pdim_name);
+      symbolic_bindings_.at(pdim_name).GetBitValueInt64().value() != arg_dim) {
+    InterpValue seen = symbolic_bindings_.at(pdim_name);
+    int64_t seen_value = seen.GetBitValueInt64().value();
     // We see a conflict between something we previously observed and something
     // we are now observing.
     if (Expr* expr = constraints_[pdim_name]) {
       // Error is violated constraint.
       std::string message = absl::StrFormat(
           "Parametric constraint violated, saw %s = %d; then %s = %s = %d",
-          pdim_name, seen, pdim_name, expr->ToString(), arg_dim);
+          pdim_name, seen_value, pdim_name, expr->ToString(), arg_dim);
       auto saw_type =
-          absl::make_unique<BitsType>(/*signed=*/false, /*size=*/seen);
+          absl::make_unique<BitsType>(/*signed=*/false, /*size=*/seen_value);
       return XlsTypeErrorStatus(span_, *saw_type, arg_type, message);
     } else {
       // Error is conflicting argument types.
       std::string message = absl::StrFormat(
           "Parametric value %s was bound to different values at different "
           "places in invocation; saw: %d; then: %d",
-          pdim_name, seen, arg_dim);
+          pdim_name, seen_value, arg_dim);
       return XlsTypeErrorStatus(span_, param_type, arg_type, message);
     }
   }
 
+  XLS_RET_CHECK(bit_widths_.contains(pdim_name))
+      << "Cannot bind " << pdim_name << " : it has no associated bit width.";
   XLS_VLOG(5) << "Binding " << pdim_name << " to " << arg_dim;
-  symbolic_bindings_[pdim_name] = arg_dim;
+  symbolic_bindings_.insert(
+      {pdim_name, InterpValue::MakeUBits(bit_widths_[pdim_name], arg_dim)});
   return absl::OkStatus();
 }
 
@@ -270,7 +282,7 @@ absl::Status ParametricInstantiator::SymbolicBind(
     Span span, const FunctionType& function_type,
     absl::Span<std::unique_ptr<ConcreteType> const> arg_types, DeduceCtx* ctx,
     absl::optional<absl::Span<ParametricBinding* const>> parametric_constraints,
-    const absl::flat_hash_map<std::string, int64_t>* explicit_constraints) {
+    const absl::flat_hash_map<std::string, InterpValue>* explicit_constraints) {
   XLS_VLOG(5)
       << "Making FunctionInstantiator for " << function_type.ToString()
       << " with "
@@ -369,12 +381,23 @@ static std::string ToString(
   }
   return absl::StrJoin(*map, ", ", absl::PairFormatter(":"));
 }
+static std::string ToString(
+    const absl::flat_hash_map<std::string, InterpValue>* map) {
+  if (map == nullptr || map->empty()) {
+    return "none";
+  }
+  return absl::StrJoin(
+      *map, ", ",
+      [](std::string* out, const std::pair<std::string, InterpValue>& p) {
+        out->append(absl::StrCat(p.first, ":", p.second.ToString()));
+      });
+}
 
 absl::StatusOr<TypeAndBindings> InstantiateFunction(
     Span span, const FunctionType& function_type,
     absl::Span<std::unique_ptr<ConcreteType> const> arg_types, DeduceCtx* ctx,
     absl::optional<absl::Span<ParametricBinding* const>> parametric_constraints,
-    const absl::flat_hash_map<std::string, int64_t>* explicit_constraints) {
+    const absl::flat_hash_map<std::string, InterpValue>* explicit_constraints) {
   XLS_VLOG(5) << "Function instantiation @ " << span
               << " type: " << function_type.ToString();
   XLS_VLOG(5) << " arg types:              " << ToString(arg_types);

@@ -44,16 +44,16 @@ std::vector<std::unique_ptr<ConcreteType>> GetConcreteTypesForTesting() {
     results.push_back(absl::make_unique<TupleType>(std::move(tuple_members)));
   }
   // u32[8]
-  results.push_back(
-      std::make_unique<ArrayType>(BitsType::MakeU32(), ConcreteTypeDim(8)));
+  results.push_back(std::make_unique<ArrayType>(
+      BitsType::MakeU32(), ConcreteTypeDim::Create(8).value()));
   // (u32, u8)[7]
   {
     std::vector<std::unique_ptr<ConcreteType>> tuple_members;
     tuple_members.push_back(BitsType::MakeU32());
     tuple_members.push_back(std::make_unique<BitsType>(true, 8));
     auto elem_type = absl::make_unique<TupleType>(std::move(tuple_members));
-    results.push_back(
-        std::make_unique<ArrayType>(std::move(elem_type), ConcreteTypeDim(7)));
+    results.push_back(std::make_unique<ArrayType>(
+        std::move(elem_type), ConcreteTypeDim::Create(7).value()));
   }
   return results;
 }
@@ -99,7 +99,8 @@ TEST(ConcreteTypeTest, TestU32) {
   EXPECT_EQ("ubits", t.GetDebugTypeName());
   EXPECT_EQ(false, t.is_signed());
   EXPECT_EQ(false, t.HasEnum());
-  EXPECT_EQ(std::vector<ConcreteTypeDim>{ConcreteTypeDim(32)}, t.GetAllDims());
+  EXPECT_EQ(std::vector<ConcreteTypeDim>{ConcreteTypeDim::Create(32).value()},
+            t.GetAllDims());
   EXPECT_EQ(t, *t.ToUBits());
   EXPECT_TRUE(IsUBits(t));
 }
@@ -114,12 +115,13 @@ TEST(ConcreteTypeTest, TestNil) {
 }
 
 TEST(ConcreteTypeTest, TestArrayOfU32) {
-  ArrayType t(absl::make_unique<BitsType>(false, 32), ConcreteTypeDim(1));
+  ArrayType t(absl::make_unique<BitsType>(false, 32),
+              ConcreteTypeDim::Create(1).value());
   EXPECT_EQ("uN[32][1]", t.ToString());
   EXPECT_EQ("array", t.GetDebugTypeName());
   EXPECT_EQ(false, t.HasEnum());
-  std::vector<ConcreteTypeDim> want_dims = {ConcreteTypeDim(1),
-                                            ConcreteTypeDim(32)};
+  std::vector<ConcreteTypeDim> want_dims = {
+      ConcreteTypeDim::Create(1).value(), ConcreteTypeDim::Create(32).value()};
   EXPECT_EQ(want_dims, t.GetAllDims());
   EXPECT_FALSE(IsUBits(t));
 }
@@ -133,9 +135,10 @@ TEST(ConcreteTypeTest, TestEnum) {
                             /*values=*/std::vector<EnumMember>{},
                             /*is_public=*/false);
   my_enum->set_definer(e);
-  EnumType t(e, /*bit_count=*/ConcreteTypeDim(2));
+  EnumType t(e, /*bit_count=*/ConcreteTypeDim::Create(2).value());
   EXPECT_TRUE(t.HasEnum());
-  EXPECT_EQ(std::vector<ConcreteTypeDim>{ConcreteTypeDim(2)}, t.GetAllDims());
+  EXPECT_EQ(std::vector<ConcreteTypeDim>{ConcreteTypeDim::Create(2).value()},
+            t.GetAllDims());
   EXPECT_EQ("MyEnum", t.ToString());
 }
 

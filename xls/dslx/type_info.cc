@@ -58,10 +58,11 @@ absl::StatusOr<TypeInfo*> TypeInfoOwner::GetRootTypeInfo(Module* module) {
 
 // -- class TypeInfo
 
-void TypeInfo::NoteConstExpr(Expr* const_expr, int64_t value) {
-  const_exprs_[const_expr] = value;
+void TypeInfo::NoteConstExpr(Expr* const_expr, InterpValue value) {
+  const_exprs_.insert({const_expr, value});
 }
-absl::optional<int64_t> TypeInfo::GetConstExpr(Expr* const_expr) {
+
+absl::optional<InterpValue> TypeInfo::GetConstExpr(Expr* const_expr) {
   if (auto it = const_exprs_.find(const_expr); it != const_exprs_.end()) {
     return it->second;
   }

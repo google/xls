@@ -27,9 +27,11 @@
 #include <string>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/variant.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/parametric_expression.h"
 
 namespace xls::dslx {
@@ -38,12 +40,60 @@ class BitsType;
 class TupleType;
 
 // See comment on ConcreteType below.
+// TODO(rspringer): 2020-03-25: Some users of ConcreteTypeDim use it to
+// represent signed values (think array slicing with a negative index). Type
+// dimensions, though, don't make sense as negative values, so we need to find
+// all such uses and convert them to another abstraction.
 class ConcreteTypeDim {
  public:
   using OwnedParametric = std::unique_ptr<ParametricExpression>;
+  // This class _accepts_ an InputVariant, but only stores either the
+  // integral or ParametricExpression variants (a "Variant").
+  // An accepted InterpValue input variant must be convertable to a uint64_t.
+  using InputVariant = absl::variant<int64_t, InterpValue, OwnedParametric>;
   using Variant = absl::variant<int64_t, OwnedParametric>;
 
-  explicit ConcreteTypeDim(Variant value) : value_(std::move(value)) {}
+  // Evaluates the given value to a 64-bit quantity.
+  // TODO(rspringer): 2021-03-25: Eliminate the InputVariant...variant. Once
+  // done, consider eliminating the Variant alias.
+  static absl::StatusOr<int64_t> GetAs64Bits(const Variant& variant) {
+    if (absl::holds_alternative<int64_t>(variant)) {
+      return absl::get<int64_t>(variant);
+    }
+
+    return absl::InvalidArgumentError(
+        "Can't evaluate a ParametricExpression to an integer.");
+  }
+
+  static absl::StatusOr<int64_t> GetAs64Bits(const InputVariant& variant) {
+    if (absl::holds_alternative<InterpValue>(variant)) {
+      return absl::get<InterpValue>(variant).GetBitValueCheckSign();
+    }
+
+    if (absl::holds_alternative<int64_t>(variant)) {
+      return absl::get<int64_t>(variant);
+    }
+
+    return absl::InvalidArgumentError(
+        "Can't evaluate a ParametricExpression to an integer.");
+  }
+
+  static absl::StatusOr<ConcreteTypeDim> Create(InputVariant variant) {
+    if (absl::holds_alternative<InterpValue>(variant)) {
+      XLS_ASSIGN_OR_RETURN(
+          int64_t int_value,
+          absl::get<InterpValue>(variant).GetBitValueCheckSign());
+      return ConcreteTypeDim(int_value);
+    }
+
+    if (auto ptr = absl::get_if<int64_t>(&variant)) {
+      return ConcreteTypeDim(*ptr);
+    }
+
+    OwnedParametric op = std::move(absl::get<OwnedParametric>(variant));
+    return ConcreteTypeDim(std::move(op));
+  }
+
   explicit ConcreteTypeDim(const ParametricExpression& value)
       : value_(value.Clone()) {}
   ConcreteTypeDim(const ConcreteTypeDim& other);
@@ -67,7 +117,8 @@ class ConcreteTypeDim {
 
   bool operator==(const ConcreteTypeDim& other) const;
   bool operator==(
-      const absl::variant<int64_t, const ParametricExpression*>& other) const;
+      const absl::variant<int64_t, InterpValue, const ParametricExpression*>&
+          other) const;
   bool operator!=(const ConcreteTypeDim& other) const {
     return !(*this == other);
   }
@@ -82,6 +133,7 @@ class ConcreteTypeDim {
   }
 
  private:
+  explicit ConcreteTypeDim(Variant value) : value_(std::move(value)) {}
   Variant value_;
 };
 
@@ -102,6 +154,10 @@ class ConcreteType {
  public:
   // Creates a "nil tuple" type (a tuple type with no members).
   static std::unique_ptr<ConcreteType> MakeNil();
+
+  // Creates a concrete type matching that of the given InterpValue.
+  static absl::StatusOr<std::unique_ptr<ConcreteType>> FromInterpValue(
+      const InterpValue& value);
 
   virtual ~ConcreteType() = default;
 
@@ -167,7 +223,7 @@ class TokenType : public ConcreteType {
   std::string ToString() const override { return "token"; }
   std::vector<ConcreteTypeDim> GetAllDims() const override { return {}; }
   absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override {
-    return ConcreteTypeDim(0);
+    return ConcreteTypeDim::Create(0);
   }
   std::string GetDebugTypeName() const override { return "token"; }
 
@@ -376,7 +432,7 @@ class BitsType : public ConcreteType {
   }
 
   BitsType(bool is_signed, int64_t size)
-      : BitsType(is_signed, ConcreteTypeDim(size)) {}
+      : BitsType(is_signed, ConcreteTypeDim::Create(size).value()) {}
   BitsType(bool is_signed, ConcreteTypeDim size)
       : is_signed_(is_signed), size_(std::move(size)) {}
   ~BitsType() override = default;

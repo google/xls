@@ -291,6 +291,22 @@ class InterpValue {
   static absl::StatusOr<std::vector<xls::Value>> ConvertValuesToIr(
       absl::Span<InterpValue const> values);
 
+  bool operator==(const InterpValue& rhs) const {
+    return Compare(
+               *this, rhs,
+               [](const Bits& lhs, const Bits& rhs) { return lhs == rhs; },
+               [](const Bits& lhs, const Bits& rhs) { return lhs == rhs; })
+        .value()
+        .IsTrue();
+  }
+
+  bool operator!=(const InterpValue& rhs) const { return !(*this == rhs); }
+
+  // Lt() only performs comparisons on bits-valued InterpValues, whereas this
+  // compares across Bits-, array-, and tuple-valued objects. For this set, the
+  // ordering Bits < arrays < tuples has been arbitrarily defined.
+  bool operator<(const InterpValue& rhs) const;
+
  private:
   friend struct InterpValuePickler;
 
@@ -330,6 +346,11 @@ class InterpValue {
 // Check-fails if function_value is not a function-typed value.
 absl::optional<Module*> GetFunctionValueOwner(
     const InterpValue& function_value);
+
+template <typename H>
+H AbslHashValue(H state, const InterpValue::UserFnData& v) {
+  return H::combine(std::move(state), v.module, v.function);
+}
 
 }  // namespace xls::dslx
 

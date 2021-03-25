@@ -24,11 +24,16 @@ absl::StatusOr<std::string> MangleDslxName(
     const absl::btree_set<std::string>& free_keys, Module* module,
     const SymbolicBindings* symbolic_bindings) {
   absl::btree_set<std::string> symbolic_bindings_keys;
+  // TODO(rspringer): 2021-03-25 This can't yet be InterpValue'd, since we'd
+  // have to be able to mangle array/tuple types, which is NYI.
   std::vector<int64_t> symbolic_bindings_values;
   if (symbolic_bindings != nullptr) {
     for (const SymbolicBinding& item : symbolic_bindings->bindings()) {
       symbolic_bindings_keys.insert(item.identifier);
-      symbolic_bindings_values.push_back(item.value);
+      int64_t value = item.value.IsSigned()
+                          ? item.value.GetBitValueInt64().value()
+                          : item.value.GetBitValueUint64().value();
+      symbolic_bindings_values.push_back(value);
     }
   }
   absl::btree_set<std::string> difference;

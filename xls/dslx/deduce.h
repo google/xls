@@ -53,10 +53,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(AstNode* node,
                                                                DeduceCtx* ctx);
 
 // See MakeConstexprEnv() below.
-struct ConstexprEnv {
-  absl::flat_hash_map<std::string, int64_t> env;
-  absl::flat_hash_map<std::string, int64_t> bit_widths;
-};
+using ConstexprEnv = absl::flat_hash_map<std::string, InterpValue>;
 
 // Makes a constexpr environment suitable for passing to
 // Interpreter::InterpExprToInt(). This will be populated with symbolic bindings

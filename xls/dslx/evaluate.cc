@@ -14,7 +14,9 @@
 
 #include "xls/dslx/evaluate.h"
 
+#include "absl/strings/match.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_info.h"
 #include "xls/ir/bits_ops.h"
 
@@ -185,7 +187,7 @@ static std::unique_ptr<ConcreteType> StrengthReduceEnum(EnumDef* enum_def,
 //
 // Args:
 //   value: Value to determine the concrete type for.
-static std::unique_ptr<ConcreteType> ConcreteTypeFromValue(
+static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromValue(
     const InterpValue& value) {
   switch (value.tag()) {
     case InterpValueTag::kUBits:
@@ -201,16 +203,19 @@ static std::unique_ptr<ConcreteType> ConcreteTypeFromValue(
         // just use nil.
         element_type = ConcreteType::MakeNil();
       } else {
-        element_type =
-            ConcreteTypeFromValue(value.Index(Value::MakeU32(0)).value());
+        XLS_ASSIGN_OR_RETURN(
+            element_type,
+            ConcreteTypeFromValue(value.Index(Value::MakeU32(0)).value()));
       }
-      return std::make_unique<ArrayType>(
-          std::move(element_type), ConcreteTypeDim(value.GetLength().value()));
+      XLS_ASSIGN_OR_RETURN(auto dim,
+                           ConcreteTypeDim::Create(value.GetLength().value()));
+      return std::make_unique<ArrayType>(std::move(element_type), dim);
     }
     case InterpValueTag::kTuple: {
       std::vector<std::unique_ptr<ConcreteType>> members;
       for (const InterpValue& m : value.GetValuesOrDie()) {
-        members.push_back(ConcreteTypeFromValue(m));
+        XLS_ASSIGN_OR_RETURN(auto dim, ConcreteTypeFromValue(m));
+        members.push_back(std::move(dim));
       }
       return absl::make_unique<TupleType>(std::move(members));
     }
@@ -362,17 +367,21 @@ absl::StatusOr<bool> ConcreteTypeAcceptsValue(const ConcreteType& type,
 //  bound_dims: Parametric bindings computed by the typechecker.
 static absl::Status EvaluateDerivedParametrics(
     Function* fn, InterpBindings* bindings, AbstractInterpreter* interp,
-    const absl::flat_hash_map<std::string, int64_t>& bound_dims) {
+    const absl::flat_hash_map<std::string, InterpValue>& bound_dims) {
+  // Formatter for elements in "bound_dims".
+  auto dims_formatter = [](std::string* out,
+                           const std::pair<std::string, InterpValue>& p) {
+    out->append(absl::StrCat(p.first, ":", p.second.ToString()));
+  };
   XLS_VLOG(5) << "EvaluateDerivedParametrics; fn: " << fn->identifier()
               << " bound_dims: ["
-              << absl::StrJoin(bound_dims, ", ", absl::PairFormatter(":"))
-              << "]";
+              << absl::StrJoin(bound_dims, ", ", dims_formatter) << "]";
   XLS_RET_CHECK_EQ(bound_dims.size(), fn->parametric_bindings().size())
-      << "bound dims: ["
-      << absl::StrJoin(bound_dims, ", ", absl::PairFormatter(":"))
+      << "bound dims: [" << absl::StrJoin(bound_dims, ", ", dims_formatter)
       << "] fn: " << fn->ToString();
   for (ParametricBinding* parametric : fn->parametric_bindings()) {
-    if (bindings->Contains(parametric->identifier())) {
+    std::string id = parametric->identifier();
+    if (bindings->Contains(id)) {
       continue;  // Already bound.
     }
 
@@ -381,12 +390,7 @@ static absl::Status EvaluateDerivedParametrics(
         ConcretizeTypeAnnotation(parametric->type(), bindings, interp));
     // We already computed derived parametrics in the parametric instantiator.
     // All that's left is to add it to the current bindings.
-    int64_t raw_value = bound_dims.at(parametric->identifier());
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim, type->GetTotalBitCount());
-    int64_t bit_count = absl::get<int64_t>(dim.value());
-    auto wrapped =
-        InterpValue::MakeUBits(/*bit_count=*/bit_count, /*value=*/raw_value);
-    bindings->AddValue(parametric->identifier(), wrapped);
+    bindings->AddValue(id, bound_dims.at(id));
   }
   return absl::OkStatus();
 }
@@ -627,12 +631,13 @@ absl::StatusOr<InterpValue> EvaluateLet(Let* expr, InterpBindings* bindings,
     XLS_ASSIGN_OR_RETURN(bool accepted,
                          ConcreteTypeAcceptsValue(*want_type, to_bind));
     if (!accepted) {
+      XLS_ASSIGN_OR_RETURN(auto concrete_type, ConcreteTypeFromValue(to_bind));
       return absl::InternalError(absl::StrFormat(
           "EvaluateError: %s Type error found! Let-expression right hand side "
           "did not "
           "conform to annotated type\n\twant: %s\n\tgot:  %s\n\tvalue: %s",
           expr->span().ToString(), want_type->ToString(),
-          ConcreteTypeFromValue(to_bind)->ToString(), to_bind.ToString()));
+          concrete_type->ToString(), to_bind.ToString()));
     }
   }
 
@@ -658,13 +663,14 @@ absl::StatusOr<InterpValue> EvaluateFor(For* expr, InterpBindings* bindings,
         bool type_checks,
         ConcreteTypeAcceptsValue(*concrete_iteration_type, iteration));
     if (!type_checks) {
+      XLS_ASSIGN_OR_RETURN(auto concrete_type,
+                           ConcreteTypeFromValue(iteration));
       return absl::InternalError(absl::StrFormat(
           "EvaluateError: %s Type error found! Iteration value does not "
           "conform to type annotation at top of iteration %d:\n  got value: "
           "%s\n  type: %s\n  want: %s",
           expr->span().ToString(), i, iteration.ToString(),
-          ConcreteTypeFromValue(iteration)->ToString(),
-          concrete_iteration_type->ToString()));
+          concrete_type->ToString(), concrete_iteration_type->ToString()));
     }
     InterpBindings new_bindings =
         InterpBindings::CloneWith(bindings, expr->names(), iteration);
@@ -1497,8 +1503,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
     }
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_elem_type,
                          ConcretizeType(elem_type, bindings, interp));
+    XLS_ASSIGN_OR_RETURN(auto concrete_dim, ConcreteTypeDim::Create(dim));
     return std::make_unique<ArrayType>(std::move(concrete_elem_type),
-                                       ConcreteTypeDim(dim));
+                                       concrete_dim);
   }
 
   // class BuiltinTypeAnnotation

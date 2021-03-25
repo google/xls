@@ -144,7 +144,8 @@ class FunctionConverter {
       symbolic_binding_map_ = value->ToMap();
     }
   }
-  void set_symbolic_binding_map(absl::flat_hash_map<std::string, int64_t> map) {
+  void set_symbolic_binding_map(
+      absl::flat_hash_map<std::string, InterpValue> map) {
     symbolic_binding_map_ = std::move(map);
   }
 
@@ -155,7 +156,7 @@ class FunctionConverter {
 
   // TODO(leary): 2020-12-22 Clean all this up to expose a minimal surface area
   // once everything is ported over to C++.
-  absl::optional<int64_t> get_symbolic_binding(
+  absl::optional<InterpValue> get_symbolic_binding(
       absl::string_view identifier) const {
     auto it = symbolic_binding_map_.find(identifier);
     if (it == symbolic_binding_map_.end()) {
@@ -386,7 +387,7 @@ class FunctionConverter {
 
   // Mapping of symbolic bindings active in this translation (e.g. what integral
   // values parametrics are taking on).
-  absl::flat_hash_map<std::string, int64_t> symbolic_binding_map_;
+  absl::flat_hash_map<std::string, InterpValue> symbolic_binding_map_;
 
   // File number for use in source positions.
   Fileno fileno_;
@@ -744,12 +745,12 @@ SymbolicBindings FunctionConverter::GetSymbolicBindingsTuple() const {
   for (const ConstantDef* constant : module_->GetConstantDefs()) {
     module_level_constant_identifiers.insert(constant->identifier());
   }
-  absl::flat_hash_map<std::string, int64_t> sans_module_level_constants;
+  absl::flat_hash_map<std::string, InterpValue> sans_module_level_constants;
   for (const auto& item : symbolic_binding_map_) {
     if (module_level_constant_identifiers.contains(item.first)) {
       continue;
     }
-    sans_module_level_constants[item.first] = item.second;
+    sans_module_level_constants.insert({item.first, item.second});
   }
   return SymbolicBindings(std::move(sans_module_level_constants));
 }
@@ -994,14 +995,20 @@ absl::StatusOr<int64_t> FunctionConverter::QueryConstRangeCall(For* node) {
   Expr* start = iterable_call->args()[0];
   Expr* limit = iterable_call->args()[1];
 
-  if (absl::optional<int64_t> value = current_type_info_->GetConstExpr(start);
-      !value || *value != 0) {
+  absl::optional<InterpValue> interp_value =
+      current_type_info_->GetConstExpr(start);
+  if (!interp_value || !interp_value->IsBits() ||
+      interp_value->GetBitValueUint64().value() != 0) {
     return error();
   }
 
-  absl::optional<int64_t> value = current_type_info_->GetConstExpr(limit);
-  XLS_RET_CHECK(value.has_value());
-  return *value;
+  absl::optional<InterpValue> value = current_type_info_->GetConstExpr(limit);
+  XLS_RET_CHECK(value.has_value() && value->IsBits());
+  if (value->IsSigned()) {
+    return value->GetBitValueInt64();
+  } else {
+    return value->GetBitValueUint64();
+  }
 }
 
 absl::Status FunctionConverter::HandleFor(For* node) {
@@ -1344,7 +1351,13 @@ absl::Status FunctionConverter::HandleArray(Array* node) {
 
   if (node->has_ellipsis()) {
     ConcreteTypeDim array_size_ctd = array_type->size();
-    int64_t array_size = absl::get<int64_t>(array_size_ctd.value());
+    int64_t array_size;
+    if (absl::holds_alternative<int64_t>(array_size_ctd.value())) {
+      array_size = absl::get<int64_t>(array_size_ctd.value());
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          array_size, ConcreteTypeDim::GetAs64Bits(array_size_ctd.value()));
+    }
     while (members.size() < array_size) {
       members.push_back(members.back());
     }
@@ -1453,7 +1466,7 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
     XLS_VLOG(4) << "Resolving parametric binding: "
                 << parametric_binding->ToString();
 
-    absl::optional<int64_t> sb_value =
+    absl::optional<InterpValue> sb_value =
         get_symbolic_binding(parametric_binding->identifier());
     XLS_RET_CHECK(sb_value.has_value());
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_type,
@@ -1461,8 +1474,15 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim parametric_width_ctd,
                          parametric_type->GetTotalBitCount());
     int64_t bit_count = absl::get<int64_t>(parametric_width_ctd.value());
-    DefConst(parametric_binding,
-             Value(UBits(*sb_value, /*bit_count=*/bit_count)));
+    Value param_value;
+    if (sb_value->IsSigned()) {
+      XLS_ASSIGN_OR_RETURN(int64_t bit_value, sb_value->GetBitValueInt64());
+      param_value = Value(SBits(bit_value, bit_count));
+    } else {
+      XLS_ASSIGN_OR_RETURN(uint64_t bit_value, sb_value->GetBitValueUint64());
+      param_value = Value(UBits(bit_value, bit_count));
+    }
+    DefConst(parametric_binding, param_value);
     XLS_RETURN_IF_ERROR(
         DefAlias(parametric_binding, /*to=*/parametric_binding->name_def())
             .status());
@@ -1964,8 +1984,11 @@ absl::Status FunctionConverter::CastToArray(Cast* node,
   std::vector<BValue> slices;
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim element_bit_count_dim,
                        output_type.element_type().GetTotalBitCount());
-  int64_t element_bit_count = absl::get<int64_t>(element_bit_count_dim.value());
-  int64_t array_size = absl::get<int64_t>(output_type.size().value());
+  XLS_ASSIGN_OR_RETURN(
+      int64_t element_bit_count,
+      ConcreteTypeDim::GetAs64Bits(element_bit_count_dim.value()));
+  XLS_ASSIGN_OR_RETURN(int64_t array_size, ConcreteTypeDim::GetAs64Bits(
+                                               output_type.size().value()));
   // MSb becomes lowest-indexed array element.
   for (int64_t i = 0; i < array_size; ++i) {
     slices.push_back(function_builder_->BitSlice(bits, i * element_bit_count,
@@ -2052,7 +2075,7 @@ absl::StatusOr<ConcreteTypeDim> FunctionConverter::ResolveDim(
         *absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
     ParametricExpression::Evaluated evaluated = original.Evaluate(
         ToParametricEnv(SymbolicBindings(symbolic_binding_map_)));
-    dim = ConcreteTypeDim(std::move(evaluated));
+    XLS_ASSIGN_OR_RETURN(dim, ConcreteTypeDim::Create(std::move(evaluated)));
   }
   return dim;
 }

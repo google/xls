@@ -23,6 +23,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/pos.h"
 
 namespace xls::dslx {
@@ -40,9 +41,9 @@ namespace xls::dslx {
 //     bits[10]
 class ParametricExpression {
  public:
-  using Evaluated =
-      absl::variant<int64_t, std::unique_ptr<ParametricExpression>>;
-  using EnvValue = absl::variant<const ParametricExpression*, int64_t>;
+  using Evaluated = absl::variant<int64_t, InterpValue,
+                                  std::unique_ptr<ParametricExpression>>;
+  using EnvValue = absl::variant<const ParametricExpression*, InterpValue>;
   using Env = absl::flat_hash_map<std::string, EnvValue>;
 
   virtual ~ParametricExpression() = default;
@@ -95,11 +96,11 @@ class ParametricExpression {
 // Where the '1' is a parametric constant.
 class ParametricConstant : public ParametricExpression {
  public:
-  explicit ParametricConstant(int64_t value) : value_(value) {}
+  explicit ParametricConstant(InterpValue value) : value_(value) {}
 
-  std::string ToString() const override { return absl::StrCat(value_); }
+  std::string ToString() const override { return value_.ToString(); }
   std::string ToRepr() const override {
-    return absl::StrFormat("ParametricConstant(%d)", value_);
+    return absl::StrFormat("ParametricConstant(%s)", value_.ToString());
   }
   bool operator==(const ParametricExpression& other) const override {
     if (auto* o = dynamic_cast<const ParametricConstant*>(&other)) {
@@ -117,10 +118,10 @@ class ParametricConstant : public ParametricExpression {
     return absl::make_unique<ParametricConstant>(value_);
   }
 
-  int64_t value() const { return value_; }
+  InterpValue value() const { return value_; }
 
  private:
-  int64_t value_;
+  InterpValue value_;
 };
 
 // Represents an add in a parametric dimension expression.

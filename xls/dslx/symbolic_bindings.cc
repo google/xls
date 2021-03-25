@@ -38,13 +38,14 @@ std::string SymbolicBindings::ToString() const {
   return absl::StrFormat(
       "{%s}", absl::StrJoin(bindings_, ", ",
                             [](std::string* out, const SymbolicBinding& sb) {
-                              absl::StrAppendFormat(out, "%s: %d",
-                                                    sb.identifier, sb.value);
+                              absl::StrAppendFormat(out, "%s: %s",
+                                                    sb.identifier,
+                                                    sb.value.ToString());
                             }));
 }
 
-absl::flat_hash_map<std::string, int64_t> SymbolicBindings::ToMap() const {
-  absl::flat_hash_map<std::string, int64_t> map;
+absl::flat_hash_map<std::string, InterpValue> SymbolicBindings::ToMap() const {
+  absl::flat_hash_map<std::string, InterpValue> map;
   for (const SymbolicBinding& binding : bindings_) {
     map.insert({binding.identifier, binding.value});
   }
@@ -60,6 +61,8 @@ absl::btree_set<std::string> SymbolicBindings::GetKeySet() const {
 }
 
 void SymbolicBindings::Sort() {
+  // We'll use the convention that bits types < tuple types < array types.
+  // Returns true if lhs < rhs.
   std::sort(
       bindings_.begin(), bindings_.end(), [](const auto& lhs, const auto& rhs) {
         return lhs.identifier < rhs.identifier ||
