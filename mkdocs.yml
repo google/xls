@@ -37,5 +37,15 @@ nav:
     - Contributing: 'contributing.md'
     - Style Guide: 'xls_style.md'
     - Adding a new IR operation: 'adding_ir_operation.md'
+  - NoC:
+    - Overview: 'xls_noc_readme.md'
+    - Topologies:
+      - Overview: 'xls_noc_topologies.md'
+      - Dimension Order: 'xls_noc_dimension_order_topology.md'
+      - Tree: 'xls_noc_tree_topology.md'
+      - k-ary n-fly Butterfly: 'xls_noc_butterfly_topology.md'
+      - Fully Connected: 'xls_noc_fully_connected_topology.md'
+      - Star: 'xls_noc_star_topology.md'
+    - Glossary: 'xls_noc_glossary.md'
 markdown_extensions:
   - mdx_truly_sane_lists

@@ -1,6 +1,6 @@
 # Tree Topology Types
 
-## Overview
+## Overview <a id="tree"></a>
 
 The tree topology is a hierarchical topology with a root node and children
 nodes. The radix of a node defines the number of children nodes for the given
@@ -9,24 +9,25 @@ tree topology has endpoints connected to the root router and leaf routers. It is
 called a tree topology because the router nodes form a tree data structure.
 
 ![drawing](./tree_topology.png)
- \
-**Figure Tree\_Topology\_Example. A tree topology example.**
 
-Figure Tree\_Topology\_Example shows an example of a tree topology. In the
-figure, there are nine nodes: three router nodes and six endpoint nodes. Router
-1 is a root router, and routers 2 and 5 are leaf routers. Router 1 has a radix
-of four, and routers 2 and 5 have a radix of two. Routers 2 and 5 are child
-routers of router 1. Endpoints 3 and 4 are child endpoints of router 1.
-Endpoints 6 and 7, and endpoints 8 and 9 are child endpoints of router 2 and
-router 5 respectively.
+**Figure Tree_Topology_Example<a id="tree_topology_example"></a>. A tree
+topology example.**
 
-## Unidirectional Types
+Figure [Tree_Topology_Example](#tree_topology_example) shows an example of a
+tree topology. In the figure, there are nine nodes: three router nodes and six
+endpoint nodes. Router 1 is a root router, and routers 2 and 5 are leaf routers.
+Router 1 has a radix of four, and routers 2 and 5 have a radix of two. Routers 2
+and 5 are child routers of router 1. Endpoints 3 and 4 are child endpoints of
+router 1. Endpoints 6 and 7, and endpoints 8 and 9 are child endpoints of router
+2 and router 5 respectively.
+
+## Unidirectional Types <a id="unidirectional_tree"></a>
 
 A unidirectional tree is a tree topology where the communication flow is
 unidirectional, thus all channels in the tree are unidirectional. There are two
 unidirectional tree types: aggregation tree and distribution tree.
 
-### Aggregation Tree
+### Aggregation Tree <a id="aggregation_tree"></a>
 
 In the aggregation tree, the communication flow is from the leaf routers of the
 tree to the root router of the tree. The endpoints connected to the root router
@@ -34,15 +35,18 @@ receive from the network, and the endpoints connected to the leaf routers send
 to the network.
 
 ![drawing](./aggregation_tree.png)
- \
-**Figure Aggregation\_Tree\_Topology\_Example. The aggregation tree topology
-representation of the tree in Figure Tree\_Topology\_Example.**
 
-Figure Aggregation\_Tree\_Topology\_Example shows the aggregation tree topology
-representation of the tree in Figure Tree\_Topology\_Example. Endpoints 6, 7, 8
-and 9 send to the network, and endpoints 3 and 4 receive from the network.
+**Figure
+Aggregation_Tree_Topology_Example<a id="aggregation_tree_topology_example"></a>.
+The aggregation tree topology representation of the tree in Figure
+[Tree_Topology_Example](#tree_topology_example).**
 
-### Distribution Tree
+Figure [Aggregation_Tree_Topology_Example](#aggregation_tree_topology_example)
+shows the aggregation tree topology representation of the tree in Figure
+[Tree_Topology_Example](#tree_topology_example). Endpoints 6, 7, 8 and 9 send to
+the network, and endpoints 3 and 4 receive from the network.
+
+### Distribution Tree <a id="distribution_tree"></a>
 
 In the distribution tree, the communication flow is from the root router of the
 tree to the leaf routers of the tree. The endpoints connected to the root router
@@ -50,16 +54,18 @@ send to the network, and the endpoints connected to the leaf routers receive
 from the network.
 
 ![drawing](./distribution_tree.png)
- \
-**Figure Distribution\_Tree\_Topology\_Example. The distribution tree topology
-representation of the tree in Figure Tree\_Topology\_Example.**
 
-Figure Distribution\_Tree\_Topology\_Example shows the distribution tree
-topology representation of the tree in Figure Tree\_Topology\_Example. Endpoints
-3 and 4 send to the network, and endpoints 6, 7, 8 and 9 receive from the
-network.
+**Figure
+Distribution_Tree_Topology_Example<a id="distribution_tree_topology_example"></a>.
+The distribution tree topology representation of the tree in Figure
+[Tree_Topology_Example](#tree_topology_example).**
 
-## Bidirectional Type {#bidirectional_tree}
+Figure [Distribution_Tree_Topology_Example](#distribution_tree_topology_example)
+shows the distribution tree topology representation of the tree in Figure
+[Tree_Topology_Example](#tree_topology_example). Endpoints 3 and 4 send to the
+network, and endpoints 6, 7, 8 and 9 receive from the network.
+
+## Bidirectional Type <a id="bidirectional_tree"></a>
 
 A bidirectional tree is a tree topology where the communication flow is
 bidirectional. The communication flows: from the root router of the tree to the
@@ -74,22 +80,28 @@ have all endpoints connected to the root router and leaf routers send to and
 receive from the network.
 
 ![drawing](./bidirectional_tree.png)
- \
-**Figure Bidirectional\_Tree\_Topology\_Example. The bidirectional tree topology
-representation of the tree in Figure Tree\_Topology\_Example.**
 
-Figure Bidirectional\_Tree\_Topology\_Example shows the bidirectional tree
-topology representation of the tree in Figure Tree\_Topology\_Example. All
-endpoints in the tree send to and receive from the network.
+**Figure
+Bidirectional_Tree_Topology_Example<a id="bidirectional_tree_topology_example"></a>.
+The bidirectional tree topology representation of the tree in Figure
+[Tree_Topology_Example](#tree_topology_example).**
+
+Figure
+[Bidirectional_Tree_Topology_Example](#bidirectional_tree_topology_example)
+shows the bidirectional tree topology representation of the tree in Figure
+[Tree_Topology_Example](#tree_topology_example). All endpoints in the tree send
+to and receive from the network.
 
 ## Cheat Sheet
-*   A tree topology has endpoints connected to the root router and leaf routers.
-*   Unidirectional Trees
-    *   In the aggregation tree, the communication flow is from the leaf routers
-    of the tree to the root router of the tree.
-    *   In the distribution tree, the communication flow is from the root router
-    of the tree to the leaf routers of the tree.
-*   The communication flow of bidirectional trees is: from the root router of
-    the tree to the leaf routers of the tree
+
+*   A [tree](#tree) topology has endpoints connected to the root router and leaf
+    routers.
+*   [Unidirectional Trees](#unidirectional_tree)
+   *    In the [aggregation tree](#aggregation_tree), the communication flow is
+        from the leaf routers of the tree to the root router of the tree.
+   *    In the [distribution tree](#distribution_tree), the communication flow
+        is from the root router of the tree to the leaf routers of the tree.
+*   The communication flow of a [bidirectional tree](#bidirectional_tree) is:
+    from the root router of the tree to the leaf routers of the tree
     <span style="text-decoration:underline;">and</span> from the leaf routers of
     the tree to the root router of the tree.
