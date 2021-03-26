@@ -23,353 +23,298 @@
 
 namespace xls {
 
-// SelectChain represents a "chain" of Select nodes, i.e., a graph of Select
-// nodes that choose between a Select node and a Literal which terminates in a
-// Select node that chooses between two literals. This sort of structure maps to
-// if A, then X else if B then Y else if C then Z, ...
-// This sort of structure maps to an ArrayIndex node - trivially if the indices
-// being checked have unit increment starting from 0, so this is used to
-// determine if an IR graph contains any chained Selects that could be
-// simplified in that manner.
-class SelectChain {
- public:
-  // If a chain is shorter than this, don't bother to tableize.
-  static constexpr int kMinimumSize = 3;
+// Returns true if the given node is a two-way select with a single-bit
+// selector.
+bool IsBinarySelect(Node* node) {
+  return node->Is<Select>() &&
+         node->As<Select>()->selector()->BitCountOrDie() == 1 &&
+         !node->As<Select>()->default_value().has_value();
+}
 
-  // Potential enhancements: This currently performs only the most basic
-  // matching and could be significantly enhanced by:
-  //  - Handling non-zero start indexes.
-  //  - Handling descending increments (from N -> 0).
-  //  - Support non-1 index increments:
-  //    - Extract a constant factor, e.g., 0, 4, 8, ... -> 0, 1, 2, ...
-  //    - Re-order indexes to be monotonically ascending/descending, i.e.,
-  //      0, 3, 1, 2, ... -> 0, 1, 2, 3, ...
-  //  - Handle "partial" chains - those that only cover part of the match space
-  //    (i.e., table-switch indexes 0-N of a 0-M range (where M > N).
-  static absl::StatusOr<absl::optional<SelectChain>> TryCreate(FunctionBase* f,
-                                                               Select* root) {
-    SelectChain chain;
-    XLS_ASSIGN_OR_RETURN(bool success, chain.Init(root));
-    if (!success) {
-      return absl::nullopt;
-    }
-    return chain;
+// If the given node is an Op::kEq node which compares against a bits-typed
+// literal which fits in a uint64_t, then return the two operands of the
+// comparison as a Uint64Comparison. Returns absl::nullopt otherwise.
+struct Uint64Comparison {
+  Node* index;
+  uint64_t key;
+};
+absl::optional<Uint64Comparison> MatchCompareEqAgainstUint64(Node* node) {
+  if (node->op() != Op::kEq) {
+    return absl::nullopt;
+  }
+  auto is_uint64_literal = [](Node* n) {
+    return n->Is<Literal>() && n->As<Literal>()->value().IsBits() &&
+           n->As<Literal>()->value().bits().FitsInUint64();
+  };
+  if (is_uint64_literal(node->operand(0))) {
+    // Literal is the lhs.
+    return Uint64Comparison{
+        node->operand(1),
+        node->operand(0)->As<Literal>()->value().bits().ToUint64().value()};
+  } else if (is_uint64_literal(node->operand(1))) {
+    // Literal is the rhs.
+    return Uint64Comparison{
+        node->operand(0),
+        node->operand(1)->As<Literal>()->value().bits().ToUint64().value()};
+  }
+  return absl::nullopt;
+}
+
+// Return type of the MatchLink function. See MatchLink comment for details.
+struct Link {
+  Select* node;
+  Node* index;
+  uint64_t key;
+  const Value& value;
+  Node* next;
+};
+
+// Matches the given node against the following Select instruction patterns:
+//
+//  Sel({index} == {key}, cases=[{next}, {value}])
+//  Sel({key} == {index}, cases=[{next}, {value}])
+//
+// Where:
+//   {key}   : A literal whose value fits in a uint64_t.
+//   {index} : Equal to the argument 'index' if 'index' is non-null.
+//   {next}  : Arbitrary node.
+//   {value} : A literal node.
+//
+// If a match is found, the respective Link fields are filled in (as named
+// above). Otherwise absl::nullopt is returned.
+absl::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
+  if (!IsBinarySelect(node)) {
+    return absl::nullopt;
+  }
+  Select* select = node->As<Select>();
+
+  // The select instruction must have a literal value for the selector is true
+  // case.
+  if (!select->get_case(1)->Is<Literal>()) {
+    return absl::nullopt;
+  }
+  Node* next = select->get_case(0);
+  const Value& value = select->get_case(1)->As<Literal>()->value();
+
+  // The selector must be a comparison to a literal which fits in a uint64_t.
+  absl::optional<Uint64Comparison> match =
+      MatchCompareEqAgainstUint64(select->selector());
+  if (!match.has_value()) {
+    return absl::nullopt;
   }
 
-  bool Contains(Select* node) const { return elements_.contains(node); }
-
-  int64_t size() const { return nodes_.size(); }
-
-  // Attempts to do the actual replacement of the Select nodes in the chain with
-  // a literal array and ArrayIndex. At this point, the SelectChain should be
-  // valid (checked in Init() below), so any failure should be an error.
-  absl::Status ReplaceWithArrayIndex() const {
-    FunctionBase* f = nodes_.front()->function_base();
-
-    // If increment_ is -1, that means we reversed the vector, so then the last
-    // node in the chain is now the back (remember, we start a chain w/the
-    // "last" node, i.e., the one on which no other chain element depends), and
-    // the first is in front.
-    int first_chain_index = nodes_.size() - 1;
-    if (bits_ops::SLessThan(increment_, 0)) {
-      first_chain_index = 0;
-    }
-
-    std::vector<Value> values;
-    values.reserve(nodes_.size() + 1);
-    for (int i = 0; i < nodes_.size(); i++) {
-      // Each node will have a single literal as the RHS of the select,
-      // except for the last, which will have one on both;
-      values.push_back(nodes_[i]->operand(2)->As<Literal>()->value());
-    }
-    // The "false"/0 case in the terminal chain element is essentially the
-    // "else" for any indices not matched by the chain. ArrayIndex semantics is
-    // for OOB accesses to return the last element in the array, so we put that
-    // OOB-capturing else case there.
-    values.push_back(
-        nodes_[first_chain_index]->operand(1)->As<Literal>()->value());
-
-    XLS_ASSIGN_OR_RETURN(Value array, Value::Array(values));
-    XLS_ASSIGN_OR_RETURN(Literal * literal,
-                         f->MakeNode<Literal>(nodes_.front()->loc(), array));
-    if (bits_ops::SGreaterThan(increment_, 0)) {
-      return nodes_.front()
-          ->ReplaceUsesWithNew<ArrayIndex>(literal,
-                                           std::vector<Node*>({eq_var_}))
-          .status();
-    }
-    return nodes_.back()
-        ->ReplaceUsesWithNew<ArrayIndex>(literal, std::vector<Node*>({eq_var_}))
-        .status();
+  // The index, if given, must match the non-literal operand of the eq.
+  if (index != nullptr && index != match->index) {
+    return absl::nullopt;
   }
 
- private:
-  enum class MatchChainResult {
-    kNoMatch,
-    kInnerMatch,
-    kTerminalMatch,
+  return Link{select, match->index, match->key, value, next};
+}
+
+// Returns an array Value of the table lookup effectively performed by the given
+// chain of selects. For example, given the following chain:
+//
+//                        else_value
+//                             |    Value_2
+//                             |   /
+// link[2]:  (index == 2) -> Select
+//                             |    Value_1
+//                             |   /
+// link[1]:  (index == 1) -> Select
+//                             |    Value_0
+//                             |   /
+// link[0]:  (index == 0) -> Select
+//                             |
+//
+// The returned array might be: {Value_0, Value_1, Value_2, else_value}
+//
+// Returns absl::nullopt if the chain cannot be represented as an index into a
+// literal array.
+absl::StatusOr<absl::optional<Value>> LinksToTable(
+    absl::Span<const Link> links) {
+  if (links.empty()) {
+    return absl::nullopt;
+  }
+
+  // Compute the size of the space indexed by the index of the select
+  // chain. Used to test if the selects cover the entire index space. If the
+  // index space is huge (>=2^64) we set this value to absl::nullopt and
+  // consider the index space size to be infinitely large for the purposes of
+  // this transformation.
+  int64_t index_width = links.front().index->GetType()->GetFlatBitCount();
+  absl::optional<uint64_t> index_space_size =
+      index_width >= 63 ? absl::nullopt
+                        : absl::optional<uint64_t>(uint64_t{1} << index_width);
+
+  // Gather all selectable Values in a map indexed by the uint64_t index
+  // associated with the Value.
+  absl::flat_hash_map<uint64_t, Value> map;
+  uint64_t min_key = std::numeric_limits<uint64_t>::max();
+  uint64_t max_key = 0;
+  for (const Link& link : links) {
+    if (map.contains(link.key)) {
+      // We're iterating from the bottom of the chain up, so if a key appears
+      // more than once then the value associated with the later instance is
+      // dead and can be ignored.
+      continue;
+    }
+    map[link.key] = link.value;
+    min_key = std::min(min_key, link.key);
+    max_key = std::max(max_key, link.key);
+  }
+
+  // Converts the dense map of Values into an array of Values.
+  auto map_to_array_value = [](const absl::flat_hash_map<uint64_t, Value>& m)
+      -> absl::StatusOr<Value> {
+    std::vector<Value> values(m.size());
+    for (auto& [key, value] : m) {
+      XLS_RET_CHECK_LT(key, values.size());
+      values[key] = value;
+    }
+    return Value::Array(values);
   };
 
-  // Returns true if we were able to create a chain from this root node, or a
-  // Status if an error occurred in that evaluation.
-  absl::StatusOr<bool> Init(Select* root) {
-    // Walk this candidate, returning an error if it's not a valid chain.
-    if (!root->operand(0)->Is<CompareOp>()) {
-      return absl::InvalidArgumentError(
-          "Select node selector needs a compare op!");
-    }
+  if (index_space_size.has_value() && map.size() == index_space_size.value()) {
+    // The on-true cases of the selects cover the entire index space. The final
+    // on-false case (else_value in the diagram above) is dead and need not be
+    // considered.
+    XLS_RET_CHECK_EQ(min_key, 0);
+    XLS_RET_CHECK_EQ(max_key, index_space_size.value() - 1);
+    XLS_ASSIGN_OR_RETURN(Value array, map_to_array_value(map));
+    return array;
+  }
 
-    CompareOp* selector = root->operand(0)->As<CompareOp>();
-    if (selector->op() != Op::kEq) {
-      return absl::InvalidArgumentError("Chains only match on equality");
-    }
+  // The entire index space is not covered so the final on-false case
+  // (else_value in the diagram above) is not dead and must be a literal in
+  // order for this to be converted into a table lookup.
+  if (!links.back().next->Is<Literal>()) {
+    return absl::nullopt;
+  }
+  const Value& else_value = links.back().next->As<Literal>()->value();
 
-    // Selector must have exactly a single literal operand.
-    if ((selector->operand(0)->Is<Literal>() &&
-         selector->operand(1)->Is<Literal>()) ||
-        (!selector->operand(0)->Is<Literal>() &&
-         !selector->operand(1)->Is<Literal>())) {
-      return false;
-    }
-
-    // The variable arg of the select comparison; must be the same for all
-    // elements in the chain.
-    XLS_ASSIGN_OR_RETURN(eq_var_, GetNonliteralArg(selector));
-
-    bool done = false;
-    Add(root);
-    Node* curr = root;
-    Select* prev = nullptr;
-    while (!done) {
-      // Walk up the chain, verifying that all elements are links or a terminal
-      // and compare to the same value.
-      // IsChainTerminal and IsChainElement verify that current is a Select.
-      prev = curr->As<Select>();
-      curr = curr->operand(1);
-      XLS_ASSIGN_OR_RETURN(MatchChainResult mr, MatchChain(curr, prev));
-      if (mr == MatchChainResult::kNoMatch) {
-        return false;
-      }
-
-      Add(curr->As<Select>());
-      if (mr == MatchChainResult::kTerminalMatch) {
+  if (index_space_size.has_value() &&
+      map.size() == index_space_size.value() - 1) {
+    // There is a single hole in the index space. Necessarily, if the index
+    // assumes this missing value the expression returns else_value so fill in
+    // the hole with else_value and return.
+    for (uint64_t i = 0; i < index_space_size; ++i) {
+      if (!map.contains(i)) {
+        map[i] = else_value;
         break;
       }
     }
-
-    if (size() < kMinimumSize) {
-      XLS_VLOG(3) << "Chain is too short to tablefy.";
-      return false;
-    }
-
-    Bits nodes_size = SBits(nodes_.size(), increment_.bit_count());
-    Bits one = SBits(1, increment_.bit_count());
-    for (int i = 0; i < nodes_.size(); i++) {
-      XLS_ASSIGN_OR_RETURN(
-          Literal * literal,
-          GetLiteralArg(nodes_[i]->operand(0)->As<CompareOp>()));
-      Bits index = literal->value().bits();
-      Bits expected_index = SBits(i, index.bit_count());
-      if (bits_ops::SLessThan(increment_, 0)) {
-        Bits bits_i = SBits(i, increment_.bit_count());
-        expected_index = bits_ops::Sub(bits_ops::Sub(nodes_size, bits_i), one);
-      }
-      if (expected_index != index) {
-        return false;
-      }
-    }
-
-    // Validate this is 0-N or N-0; reverse if necessary, so we can emit as 0-N.
-    if (increment_ == SBits(-1, increment_.bit_count())) {
-      std::reverse(nodes_.begin(), nodes_.end());
-    }
-
-    return true;
+    XLS_RET_CHECK_EQ(map.size(), index_space_size.value());
+    XLS_ASSIGN_OR_RETURN(Value array, map_to_array_value(map));
+    return array;
   }
 
-  absl::StatusOr<MatchChainResult> MatchChain(Node* curr_node, Select* prev) {
-    if (!curr_node->Is<Select>()) {
-      return MatchChainResult::kNoMatch;
-    }
-
-    Select* curr = curr_node->As<Select>();
-    if (IsChainTerminal(curr)) {
-      return MatchChainResult::kTerminalMatch;
-    }
-
-    if (!SelectIsChainShaped(curr)) {
-      return MatchChainResult::kNoMatch;
-    }
-
-    // Determine the expected increment based on the indices of the 1st and
-    // 2nd nodes.
-    XLS_ASSIGN_OR_RETURN(Literal * prev_literal,
-                         GetLiteralArg(prev->operand(0)->As<CompareOp>()));
-    XLS_ASSIGN_OR_RETURN(Literal * curr_literal,
-                         GetLiteralArg(curr->operand(0)->As<CompareOp>()));
-    // This check isn't _really_ necessary, since comparisons must be between
-    // Bits types, but defense is the best offense (really, this protects us in
-    // case those semantics change in the future).
-    if (!prev_literal->value().IsBits() || !curr_literal->value().IsBits()) {
-      return MatchChainResult::kNoMatch;
-    }
-    Bits prev_bits = prev_literal->value().bits();
-    Bits curr_bits = curr_literal->value().bits();
-    if (curr_bits.bit_count() != prev_bits.bit_count()) {
-      return MatchChainResult::kNoMatch;
-    }
-    if (prev == nodes_.front()) {
-      // On the first iter, just set the expected increment.
-      // TODO(rspringer): Matching increments shouldn't be necessary (and really
-      // makes some of this code inelegant. Instead, we can keep a map of
-      // matched literal -> value along with the "else" case, and use that to A)
-      // simplify this code and B) match sparse index sets. It's a win-win-win.
-      increment_ = bits_ops::Sub(curr_bits, prev_bits);
-      // Verify the initial increment is 1 or -1.
-      if (bits_ops::Abs(increment_).Get(0) != 1) {
-        XLS_VLOG(3) << "Index increment isn't unit: " << increment_;
-        return MatchChainResult::kNoMatch;
-      }
-    } else {
-      // On subsequent iters, make sure it's consistent.
-      Bits new_increment = bits_ops::Sub(curr_bits, prev_bits);
-      if (new_increment != increment_) {
-        XLS_VLOG(3) << "Index increment isn't consistent: " << new_increment
-                    << " vs. " << increment_;
-        return MatchChainResult::kNoMatch;
-      }
-    }
-
-    return MatchChainResult::kInnerMatch;
+  // As a special case we can rely on the saturating semantics of ArrayIndex to
+  // convert the select sequence to a table lookup. Specifically, if the index
+  // is OOB, ArrayIndex returns the element of the array at the max index. We
+  // put the else_value at the maximum index. For this to work, the map must be
+  // dense from zero on up.
+  if (map.size() == max_key + 1) {
+    // The condition above should imply that the min key is zero.
+    XLS_RET_CHECK_EQ(min_key, 0);
+    map[max_key + 1] = else_value;
+    XLS_ASSIGN_OR_RETURN(Value array, map_to_array_value(map));
+    return array;
   }
 
-  // Returns true of the given node is a "chain-shaped" Select, i.e., that it's
-  // a Select and chooses between a Select and a Literal.
-  bool SelectIsChainShaped(Select* select) {
-    if (VerifyCompareOp(select->selector()) && select->cases().size() == 2 &&
-        select->get_case(0)->op() == Op::kSel &&
-        select->get_case(1)->op() == Op::kLiteral) {
-      return true;
-    }
+  // Possible improvements that could be handled here:
+  //  - Handling non-zero start indexes.
+  //  - Support non-1 index strides:
+  //    - Extract a constant factor, e.g., 0, 4, 8, ... -> 0, 1, 2, ...
+  //  - Handle "partial" chains - those that only cover part of the match space
 
-    return false;
-  }
-
-  // Returns true if this node is the terminal node in a select chain, i.e.,
-  // that chooses between two Literals, instead of a Select and a Literal.
-  bool IsChainTerminal(Select* select) const {
-    // 1. Make sure the node is a select-eq, and that the comparison var is
-    //    the same node as the rest in the chain,
-    // 2. Make sure both options are literals.
-    if (VerifyCompareOp(select->selector()) && select->cases().size() == 2 &&
-        select->get_case(0)->op() == Op::kLiteral &&
-        select->get_case(1)->op() == Op::kLiteral) {
-      return true;
-    }
-
-    return false;
-  }
-
-  // Adds a node to the back of the select chain.
-  void Add(Select* node) {
-    nodes_.push_back(node);
-    elements_.insert(node);
-  }
-
-  // Verifies that the given Node is a select, its op is equals, and that its
-  // free var is the same as the given.
-  bool VerifyCompareOp(Node* node) const {
-    if (!node->Is<CompareOp>()) {
-      return false;
-    }
-
-    const CompareOp* op = node->As<CompareOp>();
-    if (op->op() != Op::kEq) {
-      return false;
-    }
-
-    return op->operand(0) == eq_var_;
-  }
-
-  // Returns the literal parameter to the given comparison op (if any).
-  absl::StatusOr<Literal*> GetLiteralArg(CompareOp* op) const {
-    Node* eq_lhs = op->operand(0);
-    Node* eq_rhs = op->operand(1);
-    if (eq_lhs->Is<Literal>() && !eq_rhs->Is<Literal>()) {
-      return eq_lhs->As<Literal>();
-    } else if (!eq_lhs->Is<Literal>() && eq_rhs->Is<Literal>()) {
-      return eq_rhs->As<Literal>();
-    } else {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Op either has no or both literal operands: %s", op->ToString()));
-    }
-  }
-
-  // Returns the nonliteral parameter to the given comparison op (if any).
-  absl::StatusOr<Node*> GetNonliteralArg(CompareOp* op) const {
-    Node* eq_lhs = op->operand(0);
-    Node* eq_rhs = op->operand(1);
-    if (eq_lhs->Is<Literal>() && !eq_rhs->Is<Literal>()) {
-      return eq_rhs;
-    } else if (!eq_lhs->Is<Literal>() && eq_rhs->Is<Literal>()) {
-      return eq_lhs;
-    } else {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Op either has no or both literal operands: %s", op->ToString()));
-    }
-  }
-
-  absl::flat_hash_set<Select*> elements_;
-  std::vector<Select*> nodes_;
-  Node* eq_var_;
-  Bits increment_;
-};
-
-// This excludes the first/last element in a chain (sel(eq, literal, literal)),
-// but there's no point in table-switching a two-element table.
-bool IsChainCandidate(Node* node) {
-  if (!node->Is<Select>()) {
-    return false;
-  }
-
-  Select* select = node->As<Select>();
-  return select->selector()->op() == Op::kEq && select->cases().size() == 2 &&
-         select->get_case(0)->op() == Op::kSel &&
-         select->get_case(1)->op() == Op::kLiteral;
-}
-
-// Returns true if this node is already in another SelectChain.
-bool IsInChain(Select* select, const std::vector<SelectChain>& chains) {
-  for (const auto& chain : chains) {
-    if (chain.Contains(select)) {
-      return true;
-    }
-  }
-
-  return false;
+  return absl::nullopt;
 }
 
 absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
-  // Find all candidate starts - sel(eq, sel, lit). Walk up from each (I guess);
-  // but we only need the first in each chain, so let's reverse toposort,
-  // and if node X is already in the chain of Y, then skip it.
-
-  std::vector<SelectChain> chains;
+  bool changed = false;
+  absl::flat_hash_set<Node*> transformed;
   for (Node* node : ReverseTopoSort(f)) {
-    if (IsChainCandidate(node) && !IsInChain(node->As<Select>(), chains)) {
-      XLS_ASSIGN_OR_RETURN(absl::optional<SelectChain> chain,
-                           SelectChain::TryCreate(f, node->As<Select>()));
-      if (chain) {
-        chains.push_back(*chain);
+    XLS_VLOG(3) << "Considering node: " << node->ToString();
+    if (transformed.contains(node)) {
+      XLS_VLOG(3) << absl::StreamFormat("Already transformed %s",
+                                        node->GetName());
+      continue;
+    }
+    // Check if this node is the start of a chain of selects. This also
+    // identifies the common index.
+    absl::optional<Link> start = MatchLink(node);
+    if (!start.has_value()) {
+      XLS_VLOG(3) << absl::StreamFormat("%s is not the start of a chain.",
+                                        node->GetName());
+      continue;
+    }
+
+    // Walk up the graph adding as many links as possible. When done, each
+    // element in 'links' represents one select instruction in the chain. For
+    // example:
+    //
+    //                             next_n
+    //                               |    Value_n
+    //                               |   /
+    // link[n]:  (index == C_n) -> Select
+    //                               |
+    //                              ...
+    //                               |    Value_1
+    //                               |   /
+    // link[1]:  (index == C_1) -> Select
+    //                               |    Value_0
+    //                               |   /
+    // link[0]:  (index == C_0) -> Select
+    //                               |
+    //
+    // In each link, the 'next' value points up to the next element in the
+    // chain.
+    Node* next = start->next;
+    Node* index = start->index;
+    std::vector<Link> links = {start.value()};
+    while (absl::optional<Link> link = MatchLink(next, index)) {
+      next = link->next;
+      links.push_back(link.value());
+    }
+
+    XLS_VLOG(3) << absl::StreamFormat("Chain of length %d found", links.size());
+    if (XLS_VLOG_IS_ON(4)) {
+      for (auto it = links.rbegin(); it != links.rend(); ++it) {
+        XLS_VLOG(4) << absl::StreamFormat(
+            "  %s = (%s == %d) ? %s : %s", it->node->GetName(),
+            it->index->GetName(), it->key, it->value.ToString(),
+            it->next->GetName());
       }
     }
-  }
 
-  XLS_VLOG(2) << "Potential chains: " << chains.size();
-  bool changed = false;
-  for (const SelectChain& chain : chains) {
-    XLS_RETURN_IF_ERROR(chain.ReplaceWithArrayIndex());
+    if (links.size() <= 2) {
+      XLS_VLOG(3) << "Chain is too short.";
+      continue;
+    }
+
+    // Try to convert the chain into a table representing the lookup being
+    // performed.
+    XLS_ASSIGN_OR_RETURN(absl::optional<Value> table, LinksToTable(links));
+    if (!table.has_value()) {
+      continue;
+    }
+
+    XLS_VLOG(3) << absl::StreamFormat(
+        "Replacing chain starting at %s with index of array: %s",
+        node->GetName(), table.value().ToString());
+
+    XLS_ASSIGN_OR_RETURN(Literal * array_literal,
+                         f->MakeNode<Literal>(node->loc(), table.value()));
+    XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<ArrayIndex>(
+                                array_literal, std::vector<Node*>({index}))
+                            .status());
+
+    // Mark the replaced nodes as being transformed to avoid quadratic
+    // behavior. These nodes will be skipped in future iterations.
+    for (const Link& link : links) {
+      transformed.insert(link.node);
+    }
     changed = true;
   }
 

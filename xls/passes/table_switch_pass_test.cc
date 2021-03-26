@@ -39,6 +39,12 @@ using status_testing::IsOkAndHolds;
 
 class TableSwitchPassTest : public IrTestBase {
  protected:
+  absl::StatusOr<bool> Run(FunctionBase* f) {
+    PassResults results;
+    TableSwitchPass pass;
+    return pass.RunOnFunctionBase(f, PassOptions(), &results);
+  }
+
   // Returns a vector holding the results of the given function when run with
   // the values from 0 to "max_index" before the table swich pass is applied.
   absl::StatusOr<std::vector<Value>> GetBeforeData(Function* f, int max_index,
@@ -79,8 +85,6 @@ class TableSwitchPassTest : public IrTestBase {
 TEST_F(TableSwitchPassTest, SwitchesBinaryTree) {
   constexpr int kNumLiterals = 7;
   const std::string program = R"(
-package p
-
 fn main(index: bits[32]) -> bits[32] {
   literal.0: bits[32] = literal(value=0)
   literal.1: bits[32] = literal(value=1)
@@ -103,18 +107,13 @@ fn main(index: bits[32]) -> bits[32] {
   ret sel.25: bits[32] = sel(eq.15, cases=[sel.24, literal.6])
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<VerifiedPackage> p,
-                           ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
-
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   // Capture the behavior before the transformation.
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
 
-  PassResults results;
-  TableSwitchPass pass;
-  ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
-              IsOkAndHolds(true));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({1, 2, 3, 4, 5, 6, 0}, 32));
   EXPECT_THAT(f->return_value(), m::ArrayIndex(m::Literal(array),
@@ -129,8 +128,6 @@ TEST_F(TableSwitchPassTest, HandlesLowHighOrder) {
   constexpr int kNumLiterals = 7;
 
   const std::string program = R"(
-package p
-
 fn main(index: bits[32]) -> bits[32] {
   literal.0: bits[32] = literal(value=0)
   literal.1: bits[32] = literal(value=1)
@@ -153,16 +150,12 @@ fn main(index: bits[32]) -> bits[32] {
   ret sel.25: bits[32] = sel(eq.10, cases=[sel.24, literal.0])
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<VerifiedPackage> p,
-                           ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
 
-  PassResults results;
-  TableSwitchPass pass;
-  ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
-              IsOkAndHolds(true));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({0, 1, 2, 3, 4, 6, 5}, 32));
   EXPECT_THAT(f->return_value(), m::ArrayIndex(m::Literal(array),
@@ -174,8 +167,6 @@ fn main(index: bits[32]) -> bits[32] {
 TEST_F(TableSwitchPassTest, IgnoresLiterals) {
   constexpr int kNumLiterals = 7;
   const std::string program = R"(
-package p
-
 fn main(index: bits[32]) -> bits[32] {
   literal.0: bits[32] = literal(value=0)
   literal.1: bits[32] = literal(value=1)
@@ -205,9 +196,8 @@ fn main(index: bits[32]) -> bits[32] {
   ret sel.25: bits[32] = sel(eq.15, cases=[sel.24, literal.56])
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<VerifiedPackage> p,
-                           ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   PassResults results;
   TableSwitchPass pass;
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
@@ -225,8 +215,6 @@ fn main(index: bits[32]) -> bits[32] {
 // lookup.
 TEST_F(TableSwitchPassTest, SkipsTrivial) {
   const std::string program = R"(
-package p
-
 fn main(index: bits[32]) -> bits[32] {
   literal.0: bits[32] = literal(value=0)
   literal.1 : bits[32]= literal(value=1)
@@ -235,9 +223,8 @@ fn main(index: bits[32]) -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<VerifiedPackage> p,
-                           ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   PassResults results;
   TableSwitchPass pass;
   EXPECT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
@@ -247,8 +234,6 @@ fn main(index: bits[32]) -> bits[32] {
 // Verifies that TableSwitch only allows binary selects.
 TEST_F(TableSwitchPassTest, BinaryOnly) {
   const std::string program = R"(
-package p
-
 fn main(index: bits[32], bad_selector: bits[3]) -> bits[32] {
   literal.0: bits[32] = literal(value=0)
   literal.1: bits[32] = literal(value=1)
@@ -272,9 +257,8 @@ fn main(index: bits[32], bad_selector: bits[3]) -> bits[32] {
   ret sel.25: bits[32] = sel(eq.15, cases=[sel.24, literal.56])
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<VerifiedPackage> p,
-                           ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   PassResults results;
   TableSwitchPass pass;
   EXPECT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
@@ -285,8 +269,6 @@ fn main(index: bits[32], bad_selector: bits[3]) -> bits[32] {
 // subsets >= the minimum size are.
 TEST_F(TableSwitchPassTest, DenseOnly) {
   const std::string program = R"(
-package p
-
 fn main(index: bits[32]) -> bits[32] {
   literal.0: bits[32] = literal(value=0)
   literal.1: bits[32] = literal(value=1)
@@ -311,13 +293,9 @@ fn main(index: bits[32]) -> bits[32] {
   ret sel.25: bits[32] = sel(eq.15, cases=[sel.24, literal.56])
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<VerifiedPackage> p,
-                           ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
-  PassResults results;
-  TableSwitchPass pass;
-  ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
-              IsOkAndHolds(true));
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({111, 222, 333, 0}, 32));
   bool has_array_index = false;
@@ -336,8 +314,6 @@ fn main(index: bits[32]) -> bits[32] {
 TEST_F(TableSwitchPassTest, CanCombine) {
   constexpr int kNumLiterals = 8;
   const std::string program = R"(
-package p
-
 fn main(index: bits[32]) -> bits[32] {
   literal.0: bits[32] = literal(value=0)
   literal.1: bits[32] = literal(value=1)
@@ -371,16 +347,12 @@ fn main(index: bits[32]) -> bits[32] {
   ret result: bits[32] = sel(eq.10, cases=[sel.22, sel.25])
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<VerifiedPackage> p,
-                           ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
 
-  PassResults results;
-  TableSwitchPass pass;
-  ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
-              IsOkAndHolds(true));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
   bool has_array_index = false;
   XLS_ASSERT_OK_AND_ASSIGN(Value array_0,
                            Value::UBitsArray({111, 222, 333, 0}, 32));
@@ -410,8 +382,6 @@ fn main(index: bits[32]) -> bits[32] {
 TEST_F(TableSwitchPassTest, HandlesOOBAccesses) {
   constexpr int kNumLiterals = 7;
   const std::string program = R"(
-package p
-
 fn main(index: bits[32]) -> bits[32] {
   literal.0: bits[32] = literal(value=0)
   literal.1: bits[32] = literal(value=1)
@@ -434,18 +404,13 @@ fn main(index: bits[32]) -> bits[32] {
   ret sel.25: bits[32] = sel(eq.15, cases=[sel.24, literal.6])
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<VerifiedPackage> p,
-                           ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
-
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   // Note the extra literals here.
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
 
-  PassResults results;
-  TableSwitchPass pass;
-  ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
-              IsOkAndHolds(true));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({1, 2, 3, 4, 5, 6, 0}, 32));
   EXPECT_THAT(f->return_value(), m::ArrayIndex(m::Literal(array),
@@ -457,8 +422,6 @@ fn main(index: bits[32]) -> bits[32] {
 TEST_F(TableSwitchPassTest, EnormousLiterals) {
   constexpr int kNumLiterals = 6;
   std::string program = R"(
-package p
-
 fn main(index: bits[128]) -> bits[128] {
   literal.0: bits[128] = literal(value=0x0)
   literal.1: bits[128] = literal(value=0x1)
@@ -493,16 +456,12 @@ fn main(index: bits[128]) -> bits[128] {
   }
   program = absl::Substitute(program, literals[0], literals[1], literals[2],
                              literals[3], literals[4], literals[5]);
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<VerifiedPackage> p,
-                           ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals, /*width=*/128));
 
-  PassResults results;
-  TableSwitchPass pass;
-  ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
-              IsOkAndHolds(true));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
   XLS_ASSERT_OK(CompareBeforeAfter(f, before_data));
 }
 
@@ -510,13 +469,34 @@ TEST_F(TableSwitchPassTest, Crasher70d2fb09) {
   // Minimized example extracted from the optimization pipeline right before
   // TableSwitchPass is run.
   std::string program = R"(
-package sample
-
 fn main(x0: bits[53]) -> bits[53] {
   x1: bits[1] = eq(x0, x0, id=2, pos=0,3,20)
   literal.31: bits[53] = literal(value=0, id=31, pos=0,18,28)
   x12: bits[53] = sel(x1, cases=[x0, literal.31], id=42, pos=0,18,28)
   ret x15: bits[53] = sel(x1, cases=[x12, literal.31], id=43, pos=0,21,28)
+}
+)";
+
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(TableSwitchPassTest, Crasher741eb996) {
+  // Minimized example extracted from the optimization pipeline right before
+  // TableSwitchPass is run.
+  std::string program = R"(
+package sample
+
+fn main(x4: bits[62], x1: bits[25], x2: bits[24]) -> bits[62] {
+  bit_slice.10: bits[24] = bit_slice(x4, start=0, width=24, id=10)
+  eq.69: bits[1] = eq(x2, bit_slice.10, id=69, pos=0,11,28)
+  literal.57: bits[62] = literal(value=0, id=57, pos=0,11,28)
+  literal.5: bits[24] = literal(value=0, id=5, pos=0,3,29)
+  x13: bits[62] = sel(eq.69, cases=[x4, literal.57], id=58, pos=0,11,28)
+  eq.70: bits[1] = eq(x2, literal.5, id=70, pos=0,32,28)
+  x16: bits[62] = sel(eq.69, cases=[x13, literal.57], id=62, pos=0,14,28)
+  ret x28: bits[62] = sel(eq.70, cases=[x16, literal.57], id=66, pos=0,32,28)
 }
 )";
 
@@ -527,6 +507,139 @@ fn main(x0: bits[53]) -> bits[53] {
   TableSwitchPass pass;
   ASSERT_THAT(pass.RunOnFunctionBase(f, PassOptions(), &results),
               IsOkAndHolds(false));
+}
+
+TEST_F(TableSwitchPassTest, FullIndexSpace) {
+  std::string program = R"(
+fn main(index: bits[2], else: bits[32]) -> bits[32] {
+  _111: bits[32] = literal(value=111)
+  _222: bits[32] = literal(value=222)
+  _333: bits[32] = literal(value=333)
+  _444: bits[32] = literal(value=444)
+
+  literal_0: bits[2] = literal(value=0)
+  literal_1: bits[2] = literal(value=1)
+  literal_2: bits[2] = literal(value=2)
+  literal_3: bits[2] = literal(value=3)
+  eq_0: bits[1] = eq(index, literal_0)
+  eq_1: bits[1] = eq(index, literal_1)
+  eq_2: bits[1] = eq(index, literal_2)
+  eq_3: bits[1] = eq(index, literal_3)
+
+  // The comparisons can appear in any order. Final else does not have to be a
+  // literal because it is dead (never selected by chain).
+  sel_3: bits[32] = sel(eq_1, cases=[else, _222])
+  sel_2: bits[32] = sel(eq_3, cases=[sel_3, _444])
+  sel_1: bits[32] = sel(eq_2, cases=[sel_2, _333])
+  ret sel_0: bits[32] = sel(eq_0, cases=[sel_1, _111])
+})";
+
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArrayIndex(
+          m::Literal(Value::UBitsArray({111, 222, 333, 444}, 32).value()),
+          /*indices=*/{m::Param()}));
+}
+
+TEST_F(TableSwitchPassTest, DifferentIndexes) {
+  std::string program = R"(
+fn main(index: bits[2], other_index: bits[2], else: bits[32]) -> bits[32] {
+  _111: bits[32] = literal(value=111)
+  _222: bits[32] = literal(value=222)
+  _333: bits[32] = literal(value=333)
+  _444: bits[32] = literal(value=444)
+
+  literal_0: bits[2] = literal(value=0)
+  literal_1: bits[2] = literal(value=1)
+  literal_2: bits[2] = literal(value=2)
+  literal_3: bits[2] = literal(value=3)
+  eq_0: bits[1] = eq(other_index, literal_0)
+  eq_1: bits[1] = eq(index, literal_1)
+  eq_2: bits[1] = eq(index, literal_2)
+  eq_3: bits[1] = eq(index, literal_3)
+
+  sel_3: bits[32] = sel(eq_1, cases=[else, _222])
+  sel_2: bits[32] = sel(eq_3, cases=[sel_3, _444])
+  sel_1: bits[32] = sel(eq_2, cases=[sel_2, _333])
+  ret sel_0: bits[32] = sel(eq_0, cases=[sel_1, _111])
+})";
+
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(TableSwitchPassTest, HoleInIndexSpace) {
+  std::string program = R"(
+fn main(index: bits[2]) -> bits[32] {
+  _111: bits[32] = literal(value=111)
+  _222: bits[32] = literal(value=222)
+  _333: bits[32] = literal(value=333)
+  _444: bits[32] = literal(value=444)
+
+  literal_0: bits[2] = literal(value=0)
+  literal_1: bits[2] = literal(value=1)
+  literal_2: bits[2] = literal(value=2)
+  literal_3: bits[2] = literal(value=3)
+  eq_0: bits[1] = eq(index, literal_0)
+  eq_1: bits[1] = eq(index, literal_1)
+  eq_3: bits[1] = eq(index, literal_3)
+
+  // There is no comparison of index to 2. This case is
+  // handled by the final alternative _222.
+  sel_2: bits[32] = sel(eq_1, cases=[_333, _222])
+  sel_1: bits[32] = sel(eq_3, cases=[sel_2, _444])
+  ret sel_0: bits[32] = sel(eq_0, cases=[sel_1, _111])
+})";
+
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArrayIndex(
+          m::Literal(Value::UBitsArray({111, 222, 333, 444}, 32).value()),
+          /*indices=*/{m::Param()}));
+}
+
+TEST_F(TableSwitchPassTest, DuplicateComparisonsValues) {
+  // The string of selects has duplicate comparisons against the same literal.
+  std::string program = R"(
+fn main(index: bits[2]) -> bits[32] {
+  _111: bits[32] = literal(value=111)
+  _222: bits[32] = literal(value=222)
+  _333: bits[32] = literal(value=333)
+  _444: bits[32] = literal(value=444)
+  _555: bits[32] = literal(value=555)
+
+  literal_0: bits[2] = literal(value=0)
+  literal_1: bits[2] = literal(value=1)
+  literal_2: bits[2] = literal(value=2)
+  literal_3: bits[2] = literal(value=3)
+  eq_0: bits[1] = eq(index, literal_0)
+  eq_0_but_swapped: bits[1] = eq(literal_0, index)
+  eq_1: bits[1] = eq(index, literal_1)
+  eq_3: bits[1] = eq(index, literal_3)
+
+  // There is no comparison of index to 2.
+  sel_3: bits[32] = sel(eq_1, cases=[_333, _222])
+  sel_2: bits[32] = sel(eq_3, cases=[sel_3, _444])
+  // _555 cannot be result of function.
+  sel_1: bits[32] = sel(eq_0_but_swapped, cases=[sel_2, _555])
+  ret sel_0: bits[32] = sel(eq_0, cases=[sel_1, _111])
+})";
+
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArrayIndex(
+          m::Literal(Value::UBitsArray({111, 222, 333, 444}, 32).value()),
+          /*indices=*/{m::Param()}));
 }
 
 }  // namespace
