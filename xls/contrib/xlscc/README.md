@@ -3,6 +3,12 @@
 XLS[cc] is a a C++ HLS tool built on top of XLS. It generates XLS IR from a
 subset of C++.
 
+Original author:
+
+Sean Purser-Haskell
+seanhaskell@google.com  sean.purserhaskell@gmail.com
+https://github.com/spurserh
+
 ### Summary ###
 
 XLS[cc] is based on libclang, and so it supports most C++17 language features.
