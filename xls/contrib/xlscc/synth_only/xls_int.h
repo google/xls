@@ -18,7 +18,7 @@
 #include <type_traits>
 
 #include "/xls_builtin.h"
-#include "ac_datatypes/include/ac_int.h"
+#include "ac_int.h"
 
 #ifndef __SYNTHESIS__
 static_assert(false, "This header is only for synthesis");
