@@ -82,6 +82,7 @@
 #include "xls/passes/standard_pipeline.h"
 #include "xls/passes/tuple_simplification_pass.h"
 #include "xls/passes/verifier_checker.h"
+#include "re2/re2.h"
 
 using std::list;
 using std::ostringstream;
@@ -386,6 +387,12 @@ Translator::LibToolThread::LibToolThread(
       command_line_args_(command_line_args),
       translator_(translator) {}
 
+void Translator::LibToolThread::Start() {
+  thread_.emplace([this] { Run(); });
+}
+
+void Translator::LibToolThread::Join() { thread_->Join(); }
+
 void Translator::LibToolThread::Run() {
   std::vector<std::string> argv;
   argv.emplace_back("binary");
@@ -465,11 +472,8 @@ absl::Status Translator::ScanFile(
   // Therefore, ToolInvocation::Run() is executed on another thread,
   //  and the ASTFrontendAction::EndSourceFileAction() blocks it
   //  until ~Translator(), preserving the AST.
-  std::unique_ptr<LibToolThread> libtool_thread(
+  libtool_thread_ = absl::WrapUnique(
       new LibToolThread(source_filename, command_line_args, *this));
-
-  libtool_thread_ = std::move(libtool_thread);
-  libtool_thread_->SetJoinable(true);
 
   libtool_wait_for_parse_ = absl::make_unique<absl::BlockingCounter>(1);
   libtool_wait_for_destruct_ = absl::make_unique<absl::BlockingCounter>(1);
@@ -2874,20 +2878,13 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
       }
 
       // Unique function name
-      {
-        sasm = StringReplace(sasm, "(fid)",
-                             absl::StrFormat("fid%i", next_asm_number_++),
-                             /*replace_all=*/true);
-      }
+      RE2::GlobalReplace(&sasm, "\\(fid\\)",
+                         absl::StrFormat("fid%i", next_asm_number_++));
       // Unique IR instruction name
-      {
-        sasm = StringReplace(sasm, "(aid)",
-                             absl::StrFormat("aid%i", next_asm_number_++),
-                             /*replace_all=*/true);
-      }
+      RE2::GlobalReplace(&sasm, "\\(aid\\)",
+                         absl::StrFormat("aid%i", next_asm_number_++));
       // File location
-      sasm = StringReplace(sasm, "(loc)", loc.ToString(),
-                           /*replace_all=*/true);
+      RE2::GlobalReplace(&sasm, "\\(loc\\)", loc.ToString());
 
       if (pasm->getNumOutputs() != 1) {
         return absl::UnimplementedError(

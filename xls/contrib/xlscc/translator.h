@@ -44,6 +44,7 @@
 #include "clang/include/clang/Tooling/CommonOptionsParser.h"
 #include "clang/include/clang/Tooling/Tooling.h"
 #include "llvm/include/llvm/ADT/APInt.h"
+#include "xls/common/thread.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
@@ -52,7 +53,6 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/passes/inlining_pass.h"
-#include "thread/thread.h"
 
 namespace xlscc {
 
@@ -614,15 +614,19 @@ class Translator {
    private:
     Translator& translator_;
   };
-  class LibToolThread : public Thread {
+  class LibToolThread {
    public:
     LibToolThread(absl::string_view source_filename,
                   absl::Span<absl::string_view> command_line_args,
                   Translator& translator);
 
-   protected:
-    void Run() override;
+    void Start();
+    void Join();
 
+   private:
+    void Run();
+
+    absl::optional<xls::Thread> thread_;
     absl::string_view source_filename_;
     absl::Span<absl::string_view> command_line_args_;
     Translator& translator_;

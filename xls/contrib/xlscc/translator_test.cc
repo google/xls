@@ -399,7 +399,7 @@ TEST_F(TranslatorTest, ArrayParam) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src, SourceToIr(content));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> package,
                            ParsePackage(ir_src));
-  std::vector<const uint64_t> in_vals = {55, 20};
+  std::vector<uint64_t> in_vals = {55, 20};
   XLS_ASSERT_OK_AND_ASSIGN(xls::Value in_arr,
                            xls::Value::UBitsArray(in_vals, 64));
   absl::flat_hash_map<std::string, xls::Value> args;
@@ -409,8 +409,7 @@ TEST_F(TranslatorTest, ArrayParam) {
   auto x = xls::IrInterpreter::RunKwargs(
       entry, {{"arr", xls::Value::UBitsArray({55, 20}, 64).value()}});
 
-  ASSERT_THAT(x,
-              ::testing::status::IsOkAndHolds(xls::Value(xls::UBits(75, 64))));
+  ASSERT_THAT(x, IsOkAndHolds(xls::Value(xls::UBits(75, 64))));
 }
 
 TEST_F(TranslatorTest, ArraySet) {
