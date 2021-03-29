@@ -1948,6 +1948,66 @@ TEST_P(IrEvaluatorTest, InterpretArrayIndex) {
   EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
               IsOkAndHolds(Value(UBits(123, 32))));
 }
+TEST_P(IrEvaluatorTest, InterpretArraySlice) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn array_slice(start: bits[32]) -> bits[32][4] {
+    array: bits[32][8] = literal(value=[5, 6, 7, 8, 9, 10, 11, 12])
+    ret result: bits[32][4] = array_slice(array, start, width=4)
+  }
+  )"));
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(Value correct_result,
+                             Value::UBitsArray({8, 9, 10, 11}, 32));
+    EXPECT_THAT(GetParam().evaluator(function, {Value(UBits(3, 32))}),
+                IsOkAndHolds(correct_result));
+  }
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(Value correct_result,
+                             Value::UBitsArray({11, 12, 12, 12}, 32));
+    EXPECT_THAT(GetParam().evaluator(function, {Value(UBits(6, 32))}),
+                IsOkAndHolds(correct_result));
+  }
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(Value correct_result,
+                             Value::UBitsArray({12, 12, 12, 12}, 32));
+    EXPECT_THAT(GetParam().evaluator(function, {Value(UBits(100, 32))}),
+                IsOkAndHolds(correct_result));
+  }
+}
+
+TEST_P(IrEvaluatorTest, InterpretArraySliceWideStart) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn array_slice(start: bits[256]) -> bits[32][4] {
+    array: bits[32][8] = literal(value=[5, 6, 7, 8, 9, 10, 11, 12])
+    ret result: bits[32][4] = array_slice(array, start, width=4)
+  }
+  )"));
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(Value correct_result,
+                             Value::UBitsArray({5, 6, 7, 8}, 32));
+    EXPECT_THAT(GetParam().evaluator(function, {Value(UBits(0, 256))}),
+                IsOkAndHolds(correct_result));
+  }
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(Value correct_result,
+                             Value::UBitsArray({12, 12, 12, 12}, 32));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Value start,
+        Parser::ParseTypedValue(/*random*/
+                                "bits[256]:0xc910_72a8_1cd9_5fce_db32"));
+    EXPECT_THAT(GetParam().evaluator(function, {start}),
+                IsOkAndHolds(correct_result));
+  }
+}
 
 TEST_P(IrEvaluatorTest, InterpretArrayOfArrayIndex) {
   Package package("my_package");

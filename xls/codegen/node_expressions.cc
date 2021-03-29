@@ -431,6 +431,10 @@ absl::StatusOr<Expression*> NodeToExpression(
     case Op::kArrayConcat: {
       return absl::UnimplementedError("ArrayConcat not yet implemented");
     }
+    case Op::kArraySlice: {
+      return absl::FailedPreconditionError(
+          "ArraySlice is handled in module_builder.cc");
+    }
     case Op::kBitSlice: {
       BitSlice* slice = node->As<BitSlice>();
       if (slice->width() == 1) {

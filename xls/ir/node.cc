@@ -160,6 +160,10 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
       XLS_RETURN_IF_ERROR(
           visitor->HandleArrayConcat(down_cast<ArrayConcat*>(this)));
       break;
+    case Op::kArraySlice:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleArraySlice(down_cast<ArraySlice*>(this)));
+      break;
     case Op::kInvoke:
       XLS_RETURN_IF_ERROR(visitor->HandleInvoke(down_cast<Invoke*>(this)));
       break;
@@ -490,6 +494,10 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
                                         [](std::string* out, const Node* node) {
                                           absl::StrAppend(out, node->GetName());
                                         })));
+      break;
+    }
+    case Op::kArraySlice: {
+      args.push_back(absl::StrFormat("width=%d", As<ArraySlice>()->width()));
       break;
     }
     case Op::kArrayUpdate: {

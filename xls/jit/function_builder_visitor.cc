@@ -274,6 +274,41 @@ absl::Status FunctionBuilderVisitor::HandleArrayIndex(ArrayIndex* index) {
   return StoreResult(index, element);
 }
 
+absl::Status FunctionBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
+  llvm::Value* array = node_map_.at(slice->array());
+  llvm::Value* start = node_map_.at(slice->start());
+  int64_t width = slice->width();
+
+  llvm::Type* index_type = start->getType();
+  llvm::Type* result_type =
+      type_converter_->ConvertToLlvmType(slice->GetType());
+  llvm::Type* result_element_type = type_converter_->ConvertToLlvmType(
+      slice->GetType()->AsArrayOrDie()->element_type());
+  llvm::AllocaInst* alloca_uncasted = builder_->CreateAlloca(result_type);
+  llvm::Value* alloca = builder_->CreateBitCast(
+      alloca_uncasted,
+      llvm::PointerType::get(result_element_type, /*AddressSpace=*/0),
+      "alloca");
+
+  for (int64_t i = 0; i < width; i++) {
+    llvm::Value* index = builder_->CreateAdd(
+        start, llvm::ConstantInt::get(index_type, i), "index");
+    XLS_ASSIGN_OR_RETURN(
+        llvm::Value * value,
+        IndexIntoArray(array, index,
+                       slice->array()->GetType()->AsArrayOrDie()->size()));
+    std::vector<llvm::Value*> gep_indices = {
+        llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), i)};
+    llvm::Value* gep = builder_->CreateGEP(alloca, gep_indices);
+    builder_->CreateStore(value, gep);
+  }
+
+  llvm::Value* sliced_array =
+      builder_->CreateLoad(result_type, alloca_uncasted);
+  array_storage_[sliced_array] = alloca_uncasted;
+  return StoreResult(slice, sliced_array);
+}
+
 absl::Status FunctionBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
   if (update->indices().empty()) {
     // An empty index replaces the entire array value.

@@ -473,5 +473,28 @@ fn main(x: bits[8]) -> bits[1] {
   RunAndExpectEq({{"x", 0xfe}}, 1, text);
 }
 
+TEST_F(BasicOpsTest, ArraySlice) {
+  std::string text = R"(
+package ArraySlice
+
+fn main(start: bits[32]) -> bits[32][4] {
+   literal.1: bits[32][8] = literal(value=[5, 6, 7, 8, 9, 10, 11, 12])
+   ret array_slice.3: bits[32][4] = array_slice(literal.1, start, width=4)
+}
+)";
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(Value correct_result,
+                             Value::UBitsArray({8, 9, 10, 11}, 32));
+    RunAndExpectEq({{"start", Value(UBits(3, 32))}}, correct_result, text);
+  }
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(Value correct_result,
+                             Value::UBitsArray({11, 12, 12, 12}, 32));
+    RunAndExpectEq({{"start", Value(UBits(6, 32))}}, correct_result, text);
+  }
+}
+
 }  // namespace
 }  // namespace xls

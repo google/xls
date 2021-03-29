@@ -454,6 +454,11 @@ class BuilderBase {
                     absl::optional<SourceLocation> loc = absl::nullopt,
                     absl::string_view name = "");
 
+  // Slices an array with a given start and end position.
+  BValue ArraySlice(BValue array, BValue start, int64_t width,
+                    absl::optional<SourceLocation> loc = absl::nullopt,
+                    absl::string_view name = "");
+
   // Updates the array element at index "idx" to update_value. The indices
   // should be all bits types.
   BValue ArrayUpdate(BValue arg, BValue update_value,

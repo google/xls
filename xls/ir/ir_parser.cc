@@ -753,6 +753,13 @@ absl::StatusOr<BValue> Parser::ParseNode(
       bvalue = fb->ArrayConcat(operands, *loc, node_name);
       break;
     }
+    case Op::kArraySlice: {
+      int64_t* width = arg_parser.AddKeywordArg<int64_t>("width");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
+      bvalue =
+          fb->ArraySlice(operands[0], operands[1], *width, *loc, node_name);
+      break;
+    }
     case Op::kInvoke: {
       IdentifierString* to_apply_name =
           arg_parser.AddKeywordArg<IdentifierString>("to_apply");

@@ -554,6 +554,24 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleArraySlice(ArraySlice* slice) override {
+    Node* array = slice->array();
+    int64_t width = slice->width();
+    XLS_RETURN_IF_ERROR(ExpectOperandHasArrayType(slice, 0));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(slice, 1));
+    XLS_RETURN_IF_ERROR(ExpectHasArrayType(
+        slice, array->GetType()->AsArrayOrDie()->element_type(), width));
+    if (array->GetType()->AsArrayOrDie()->size() == 0) {
+      return absl::InvalidArgumentError(
+          "Array slice cannot be applied to an empty array");
+    }
+    if (width <= 0) {
+      return absl::InvalidArgumentError(
+          "Array slice requires a positive width");
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(update, 1));
     XLS_RETURN_IF_ERROR(

@@ -66,7 +66,7 @@ absl::StatusOr<Expression*> FlattenValueToExpression(const Value& value,
   if (value.IsBits()) {
     return file->Literal(value.bits());
   }
-  // Compound types are represented as a concatentation of their elements.
+  // Compound types are represented as a concatenation of their elements.
   std::vector<Expression*> elements;
   for (const Value& element : value.elements()) {
     if (element.GetFlatBitCount() > 0) {
@@ -542,6 +542,21 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
             array_type, ref, rhs, [&](Expression* lhs, Expression* rhs) {
               assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
             }));
+        break;
+      }
+      case Op::kArraySlice: {
+        IndexableExpression* array = inputs[0]->AsIndexableExpressionOrDie();
+        int64_t input_size =
+            node->As<ArraySlice>()->array()->GetType()->AsArrayOrDie()->size();
+        for (int64_t i = 0; i < array_type->size(); i++) {
+          Expression* normal = file_->Add(inputs[1], file_->PlainLiteral(i));
+          Expression* overflow = file_->PlainLiteral(input_size - 1);
+          assignment_section()->Add<ContinuousAssignment>(
+              file_->Index(ref, file_->PlainLiteral(i)),
+              file_->Index(array,
+                           file_->Ternary(file_->GreaterThan(normal, overflow),
+                                          overflow, normal)));
+        }
         break;
       }
       case Op::kArrayUpdate: {

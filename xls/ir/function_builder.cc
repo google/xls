@@ -376,6 +376,31 @@ BValue BuilderBase::ArrayIndex(BValue arg, absl::Span<const BValue> indices,
   return AddNode<xls::ArrayIndex>(loc, arg.node(), index_operands, name);
 }
 
+BValue BuilderBase::ArraySlice(BValue array, BValue start, int64_t width,
+                               absl::optional<SourceLocation> loc,
+                               absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (width == 0) {
+    return SetError("Array slice operation must have width > 0", loc);
+  }
+  if (!array.node()->GetType()->IsArray()) {
+    return SetError(absl::StrFormat("Argument of array slice operation must "
+                                    "be an array type, array is: %s",
+                                    array.node()->GetType()->ToString()),
+                    loc);
+  }
+  if (!start.node()->GetType()->IsBits()) {
+    return SetError(absl::StrFormat("Indices to array slice operation must "
+                                    "be bits types, start is: %s",
+                                    start.node()->GetType()->ToString()),
+                    loc);
+  }
+
+  return AddNode<xls::ArraySlice>(loc, array.node(), start.node(), width, name);
+}
+
 BValue BuilderBase::ArrayUpdate(BValue arg, BValue update_value,
                                 absl::Span<const BValue> indices,
                                 absl::optional<SourceLocation> loc,

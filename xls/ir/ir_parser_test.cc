@@ -1157,6 +1157,16 @@ fn foo(x: bits[32][6]) -> bits[32] {
   ParseFunctionAndCheckDump(input);
 }
 
+TEST(IrParserTest, ParseArraySlice) {
+  const std::string input = R"(
+fn foo(arr: bits[32][6]) -> bits[32][2] {
+  literal.1: bits[32] = literal(value=5, id=1)
+  ret array_slice.2: bits[32][2] = array_slice(arr, literal.1, width=2, id=2)
+}
+)";
+  ParseFunctionAndCheckDump(input);
+}
+
 TEST(IrParserTest, ParseArrayUpdate) {
   const std::string input = R"(
 fn foo(array: bits[32][3], idx: bits[32], newval: bits[32]) -> bits[32][3] {

@@ -421,6 +421,22 @@ absl::Status IrInterpreter::HandleArrayIndex(ArrayIndex* index) {
   return SetValueResult(index, *array);
 }
 
+absl::Status IrInterpreter::HandleArraySlice(ArraySlice* slice) {
+  const Value& array = ResolveAsValue(slice->array());
+  uint64_t start = ResolveAsBoundedUint64(slice->start(), array.size() - 1);
+  std::vector<Value> sliced;
+  sliced.reserve(slice->width());
+  for (int64_t i = start; i < start + slice->width(); i++) {
+    if (i >= array.elements().size()) {
+      sliced.push_back(array.elements().back());
+    } else {
+      sliced.push_back(array.elements()[i]);
+    }
+  }
+  XLS_ASSIGN_OR_RETURN(Value result, Value::Array(sliced));
+  return SetValueResult(slice, result);
+}
+
 absl::Status IrInterpreter::HandleArrayUpdate(ArrayUpdate* update) {
   const Value& input_array = ResolveAsValue(update->array_to_update());
   const Value& update_value = ResolveAsValue(update->update_value());

@@ -419,6 +419,20 @@ OpClass.kinds['ARRAY_INDEX'] = OpClass(
     custom_clone_method=True,
 )
 
+OpClass.kinds['ARRAY_SLICE'] = OpClass(
+    name='ArraySlice',
+    op='Op::kArraySlice',
+    operands=[Operand('array'), Operand('start')],
+    attributes=[Int64Attribute('width')],
+    xls_type_expression='function->package()->GetArrayType(width, array->GetType()->AsArrayOrDie()->element_type())',
+    extra_methods=[Method(name='array',
+                          return_cpp_type='Node*',
+                          expression='operand(0)'),
+                   Method(name='start',
+                          return_cpp_type='Node*',
+                          expression='operand(1)')],
+)
+
 OpClass.kinds['ARRAY_UPDATE'] = OpClass(
     name='ArrayUpdate',
     op='Op::kArrayUpdate',
@@ -911,6 +925,12 @@ OPS = [
         enum_name='kArrayIndex',
         name='array_index',
         op_class=OpClass.kinds['ARRAY_INDEX'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kArraySlice',
+        name='array_slice',
+        op_class=OpClass.kinds['ARRAY_SLICE'],
         properties=[],
     ),
     Op(
