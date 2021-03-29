@@ -789,8 +789,11 @@ py_test(
     ],
     python_version = "PY3",
     srcs_version = "PY3",
-    # iverilog crashes with ASAN.
-    tags = ["noasan"],
+    # iverilog crashes with ASAN and MSAN.
+    tags = [
+        "noasan",
+        "nomsan",
+    ],
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
