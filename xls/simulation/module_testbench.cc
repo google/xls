@@ -221,7 +221,7 @@ ModuleTestbench& ModuleTestbench::Capture(absl::string_view output_port,
 
 absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
   // Check for timeout.
-  if (stdout_str.find(GetTimeoutMessage()) != std::string::npos) {
+  if (absl::StrContains(stdout_str, GetTimeoutMessage())) {
     return absl::DeadlineExceededError(
         absl::StrFormat("Simulation exceeded maximum length of %d cycles.",
                         kSimulationCycleLimit));
@@ -239,7 +239,7 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
   //
   //   5 OUTPUT out0 = 16'hxxab (#1)
   RE2 re(
-      R"(\s+[0-9]+\s+OUTPUT\s(\w+)\s+=\s+([0-9]+)'h([0-9a-fx]+)\s+\(#([0-9]+)\))");
+      R"(\s+[0-9]+\s+OUTPUT\s(\w+)\s+=\s+([0-9]+)'h([0-9a-fA-FxX]+)\s+\(#([0-9]+)\))");
   std::string output_name;
   std::string output_width;
   std::string output_value;
@@ -254,7 +254,8 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
     XLS_RET_CHECK(absl::SimpleAtoi(output_width, &width));
     int64_t instance;
     XLS_RET_CHECK(absl::SimpleAtoi(instance_str, &instance));
-    if (absl::StrContains(output_value, "x")) {
+    if (absl::StrContains(output_value, "x") ||
+        absl::StrContains(output_value, "X")) {
       parsed_values[{instance, output_name}] = IsX();
     } else {
       XLS_ASSIGN_OR_RETURN(

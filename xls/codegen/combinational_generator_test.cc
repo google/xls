@@ -1387,6 +1387,57 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexSimpleArray) {
   EXPECT_THAT(simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
                              {"idx", Value(UBits(2, 16))}}),
               IsOkAndHolds(Value(UBits(33, 8))));
+
+  // OOB access should return the last element.
+  EXPECT_THAT(simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
+                             {"idx", Value(UBits(42, 16))}}),
+              IsOkAndHolds(Value(UBits(33, 8))));
+}
+
+TEST_P(CombinationalGeneratorTest, ArrayIndexWithNarrowIndex) {
+  // An array index with a sufficiently narrow index that OOB access is not
+  // possible.
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  Type* u2 = package.GetBitsType(2);
+  auto a = fb.Param("a", package.GetArrayType(4, u8));
+  auto idx = fb.Param("idx", u2);
+  auto ret = fb.ArrayIndex(a, {idx});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(
+      simulator.Run({{"a", Value::UBitsArray({11, 22, 33, 44}, 8).value()},
+                     {"idx", Value(UBits(1, 2))}}),
+      IsOkAndHolds(Value(UBits(22, 8))));
+}
+
+TEST_P(CombinationalGeneratorTest, ArrayIndexWithLiteralIndex) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  auto a = fb.Param("a", package.GetArrayType(4, u8));
+  auto idx = fb.Literal(UBits(3, 42));
+  auto ret = fb.ArrayIndex(a, {idx});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(
+      simulator.Run({{"a", Value::UBitsArray({11, 22, 33, 44}, 8).value()}}),
+      IsOkAndHolds(Value(UBits(44, 8))));
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayIndexNilIndex) {

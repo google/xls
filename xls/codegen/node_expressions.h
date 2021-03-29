@@ -62,6 +62,12 @@ absl::StatusOr<Expression*> NodeToExpression(
 // reduce the verbosity of the Verilog and not required for correctness.
 bool ShouldInlineExpressionIntoMultipleUses(Node* node);
 
+// Return an expression which indexes into an array with the given indices as
+// described by the given ArrayIndex operation.
+absl::StatusOr<IndexableExpression*> ArrayIndexExpression(
+    IndexableExpression* array, absl::Span<Expression* const> indices,
+    ArrayIndex* array_index);
+
 }  // namespace verilog
 }  // namespace xls
 

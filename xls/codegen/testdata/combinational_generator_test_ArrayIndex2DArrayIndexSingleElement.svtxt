@@ -11,5 +11,5 @@ module ArrayIndex2DArrayIndexSingleElement(
   assign a_unflattened[1][0] = a[23:16];
   assign a_unflattened[1][1] = a[15:8];
   assign a_unflattened[1][2] = a[7:0];
-  assign out = a_unflattened[idx0][idx1];
+  assign out = a_unflattened[idx0 > 16'h0001 ? 16'h0001 : idx0][idx1 > 16'h0002 ? 16'h0002 : idx1];
 endmodule

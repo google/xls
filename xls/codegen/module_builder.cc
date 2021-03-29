@@ -534,13 +534,12 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
         break;
       }
       case Op::kArrayIndex: {
-        IndexableExpression* element = inputs[0]->AsIndexableExpressionOrDie();
-        for (Expression* index : inputs.subspan(1)) {
-          // TODO(meheff): Handle out-of-bounds index.
-          element = file_->Index(element, index);
-        }
+        XLS_ASSIGN_OR_RETURN(
+            IndexableExpression * rhs,
+            ArrayIndexExpression(inputs[0]->AsIndexableExpressionOrDie(),
+                                 inputs.subspan(1), node->As<ArrayIndex>()));
         XLS_RETURN_IF_ERROR(AddAssignment(
-            array_type, ref, element, [&](Expression* lhs, Expression* rhs) {
+            array_type, ref, rhs, [&](Expression* lhs, Expression* rhs) {
               assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
             }));
         break;

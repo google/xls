@@ -21,6 +21,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 
@@ -412,14 +413,9 @@ absl::StatusOr<Expression*> NodeToExpression(
       std::vector<Expression*> elements(inputs.begin(), inputs.end());
       return file->ArrayAssignmentPattern(elements);
     }
-    case Op::kArrayIndex: {
-      IndexableExpression* subexpr = inputs[0]->AsIndexableExpressionOrDie();
-      for (Expression* index : inputs.subspan(1)) {
-        // TODO(meheff): Handle out-of-bounds index.
-        subexpr = file->Index(subexpr, index);
-      }
-      return subexpr;
-    }
+    case Op::kArrayIndex:
+      return ArrayIndexExpression(inputs[0]->AsIndexableExpressionOrDie(),
+                                  inputs.subspan(1), node->As<ArrayIndex>());
     case Op::kArrayUpdate: {
       // This is only reachable as a corner case where the "array" operand of
       // the array update is not an array type. This is only possible with empty
@@ -595,6 +591,48 @@ absl::StatusOr<Expression*> NodeToExpression(
 bool ShouldInlineExpressionIntoMultipleUses(Node* node) {
   return node->Is<BitSlice>() || node->op() == Op::kNot ||
          node->op() == Op::kNeg;
+}
+
+absl::StatusOr<IndexableExpression*> ArrayIndexExpression(
+    IndexableExpression* array, absl::Span<Expression* const> indices,
+    ArrayIndex* array_index) {
+  VerilogFile* file = array->file();
+  IndexableExpression* value = array;
+  Type* type = array_index->array()->GetType();
+  XLS_RET_CHECK_EQ(indices.size(), array_index->indices().size());
+  for (int64_t i = 0; i < indices.size(); ++i) {
+    Expression* index = indices[i];
+    BitsType* index_type = array_index->indices()[i]->GetType()->AsBitsOrDie();
+    ArrayType* array_type = type->AsArrayOrDie();
+    Expression* clamped_index;
+    // Out-of-bounds accesses return the final element of the array. Clamp the
+    // index to the maximum index value. In some cases, clamping is not
+    // necessary (index is a literal or not wide enough to express an OOB
+    // index). This testing about whether a bounds check would be better handled
+    // via another mechanism (e.g., an annotation on the array operation
+    // indicating that the access is inbounds).
+    // TODO(meheff) 2021-03-25 Simplify this when we have a better way of
+    // handling OOB accesses.
+    if (Bits::MinBitCountUnsigned(array_type->size()) >
+        index_type->bit_count()) {
+      // Index cannot be out-of-bounds because it is not wide enough to express
+      // an out-of-bounds value.
+      clamped_index = index;
+    } else if (index->IsLiteral() &&
+               bits_ops::ULessThan(index->AsLiteralOrDie()->bits(),
+                                   array_type->size())) {
+      // Index is an in-bounds literal.
+      clamped_index = index;
+    } else {
+      Expression* max_index =
+          file->Literal(UBits(array_type->size() - 1, index_type->bit_count()));
+      clamped_index =
+          file->Ternary(file->GreaterThan(index, max_index), max_index, index);
+    }
+    value = file->Index(value, clamped_index);
+    type = array_type->element_type();
+  }
+  return value;
 }
 
 }  // namespace verilog
