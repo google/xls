@@ -17,7 +17,10 @@
 # XLS-internal-only.
 package_group(
     name = "xls_internal",
-    packages = ["//xls/..."],
+    packages = [
+        "//xls/...",
+        "//third_party/xls_machsuite/...",
+    ],
 )
 
 # TODO(leary): 2020-06-29 This structure is a work-around to publically expose
