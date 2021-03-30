@@ -62,12 +62,21 @@ question](https://stackoverflow.com/questions/17354353/git-squash-all-commits-in
 
 ## Rendering Documentation
 
-XLS uses mkdocs to render its documentation, and serves it via GitHub pages on
-https://google.github.io/xls -- to render documentation locally as a preview,
-set up mkdocs as follows:
+XLS uses [mkdocs](https://www.mkdocs.org/) to render its documentation, and
+serves it via GitHub pages at <https://google.github.io/xls>. To render
+documentation locally as a preview, you can set up mkdocs as follows:
 
 ```console
 proj/xls$ mkvirtualenv xls-mkdocs-env
 proj/xls$ pip install mkdocs-material mdx_truly_sane_lists
 proj/xls$ mkdocs serve
 ```
+
+This will start a local server that you can browse to and that will update the
+documentation on the fly as you make changes.
+
+Note that the `mkvirtualenv` command assumes you're using
+[virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/index.html)
+to manage your Python environment. You'll need to adjust these instrutions if
+you're doing something different. That can include explicitly adding `mkdocs` to
+your path, if locally installed Python binaries aren't available by default.
