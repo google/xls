@@ -609,94 +609,74 @@ class ScopedFnStackEntry {
   bool expect_popped_;
 };
 
-absl::StatusOr<TypeInfo*> CheckModule(
-    Module* module, ImportData* import_data,
-    absl::Span<const std::string> additional_search_paths) {
-  std::vector<std::string> additional_search_paths_copy(
-      additional_search_paths.begin(), additional_search_paths.end());
-  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                       import_data->type_info_owner().New(module));
-  auto ftypecheck = [import_data, additional_search_paths_copy](
-                        Module* module) -> absl::StatusOr<TypeInfo*> {
-    return CheckModule(module, import_data, additional_search_paths_copy);
-  };
-  auto ctx_owned = absl::make_unique<DeduceCtx>(
-      type_info, module,
-      /*deduce_function=*/&Deduce,
-      /*typecheck_function=*/&CheckTopNodeInModule,
-      /*typecheck_module=*/ftypecheck, additional_search_paths, import_data);
-  DeduceCtx* ctx = ctx_owned.get();
-
-  // First, populate type info with constants, enums, resolved imports, and
-  // non-parametric functions.
-  for (ModuleMember& member : *module->mutable_top()) {
-    import_data->SetTypecheckWorkInProgress(module, ToAstNode(member));
-    XLS_VLOG(6) << "WIP for " << module->name() << " is "
-                << ToAstNode(member)->ToString();
-    if (absl::holds_alternative<Import*>(member)) {
-      Import* import = absl::get<Import*>(member);
-      XLS_ASSIGN_OR_RETURN(
-          const ModuleInfo* imported,
-          DoImport(ftypecheck, ImportTokens(import->subject()),
-                   additional_search_paths, import_data, import->span()));
-      ctx->type_info()->AddImport(import, imported->module.get(),
-                                  imported->type_info);
-    } else if (absl::holds_alternative<ConstantDef*>(member) ||
-               absl::holds_alternative<EnumDef*>(member)) {
-      ScopedFnStackEntry scoped(ctx, module);
-    retry:
-      absl::Status status = ctx->Deduce(ToAstNode(member)).status();
-      if (!status.ok()) {
-        if (IsTypeMissingErrorStatus(status)) {
-          const absl::flat_hash_map<std::string, Function*>& function_map =
-              ctx->module()->GetFunctionByName();
-          absl::flat_hash_map<std::pair<std::string, std::string>, WipRecord>
-              seen;
-          std::vector<TypecheckStackRecord> stack;
-          XLS_RETURN_IF_ERROR(
-              HandleMissingType(status, function_map, seen, stack, ctx));
-          XLS_RETURN_IF_ERROR(
-              CheckTopNodeInModuleInternal(function_map, seen, stack, ctx));
-          goto retry;
-        }
-        return status;
-      }
-      scoped.Finish();
-    } else if (absl::holds_alternative<Function*>(member)) {
-      Function* f = absl::get<Function*>(member);
-      if (f->IsParametric()) {
-        continue;
-      }
-
-      XLS_VLOG(2) << "Typechecking function: " << f->ToString();
-      ScopedFnStackEntry scoped(f, ctx,
-                                /*expect_popped=*/true);
-      XLS_RETURN_IF_ERROR(CheckTopNodeInModule(f, ctx));
-      scoped.Finish();
-      XLS_VLOG(2) << "Finished typechecking function: " << f->ToString();
-    } else if (absl::holds_alternative<StructDef*>(member)) {
-      StructDef* struct_def = absl::get<StructDef*>(member);
-      XLS_VLOG(2) << "Typechecking struct: " << struct_def->ToString();
-      ScopedFnStackEntry scoped(ctx, module);
-      // Typecheck struct definitions using CheckTopNodeInModule() so that we
-      // can typecheck function calls in parametric bindings, if there are any.
-      XLS_RETURN_IF_ERROR(CheckTopNodeInModule(struct_def, ctx));
-      scoped.Finish();
-      XLS_VLOG(2) << "Finished typechecking struct: " << struct_def->ToString();
-    } else if (absl::holds_alternative<TypeDef*>(member)) {
-      TypeDef* type_def = absl::get<TypeDef*>(member);
-      XLS_VLOG(2) << "Typechecking typedef: " << type_def->ToString();
-      ScopedFnStackEntry scoped(ctx, module);
-      XLS_RETURN_IF_ERROR(CheckTopNodeInModule(type_def, ctx));
-      scoped.Finish();
-      XLS_VLOG(2) << "Finished typechecking typedef: " << type_def->ToString();
+// Typechecks top level "member" within "module".
+static absl::Status CheckModuleMember(ModuleMember member, Module* module,
+                                      ImportData* import_data, DeduceCtx* ctx) {
+  XLS_VLOG(6) << "WIP for " << module->name() << " is "
+              << ToAstNode(member)->ToString();
+  if (absl::holds_alternative<Import*>(member)) {
+    Import* import = absl::get<Import*>(member);
+    XLS_ASSIGN_OR_RETURN(
+        const ModuleInfo* imported,
+        DoImport(ctx->typecheck_module(), ImportTokens(import->subject()),
+                 ctx->additional_search_paths(), import_data, import->span()));
+    ctx->type_info()->AddImport(import, imported->module.get(),
+                                imported->type_info);
+  } else if (absl::holds_alternative<ConstantDef*>(member) ||
+             absl::holds_alternative<EnumDef*>(member)) {
+    ScopedFnStackEntry scoped(ctx, module);
+    absl::Status status = ctx->Deduce(ToAstNode(member)).status();
+    if (IsTypeMissingErrorStatus(status)) {
+      // If we got a type missing error from a constant definition or enum
+      // definition, there's likely a parametric function used in the definition
+      // we need to instantiate -- call to HandleMissingType to form the
+      // required stack, check that stack, and try again.
+      //
+      // TODO(leary): 2021-03-29 We can probably cut down on the boilerplate
+      // here with some refactoring TLC.
+      const absl::flat_hash_map<std::string, Function*>& function_map =
+          ctx->module()->GetFunctionByName();
+      absl::flat_hash_map<std::pair<std::string, std::string>, WipRecord> seen;
+      std::vector<TypecheckStackRecord> stack;
+      XLS_RETURN_IF_ERROR(
+          HandleMissingType(status, function_map, seen, stack, ctx));
+      XLS_RETURN_IF_ERROR(
+          CheckTopNodeInModuleInternal(function_map, seen, stack, ctx));
+      status = CheckModuleMember(member, module, import_data, ctx);
     }
-  }
+    XLS_RETURN_IF_ERROR(status);
+    scoped.Finish();
+  } else if (absl::holds_alternative<Function*>(member)) {
+    Function* f = absl::get<Function*>(member);
+    if (f->IsParametric()) {
+      // Typechecking of parametric functions is driven by invocation sites.
+      return absl::OkStatus();
+    }
 
-  import_data->SetTypecheckWorkInProgress(module, nullptr);
-
-  // Then quickchecks...
-  for (QuickCheck* qc : ctx->module()->GetQuickChecks()) {
+    XLS_VLOG(2) << "Typechecking function: " << f->ToString();
+    ScopedFnStackEntry scoped(f, ctx,
+                              /*expect_popped=*/true);
+    XLS_RETURN_IF_ERROR(CheckTopNodeInModule(f, ctx));
+    scoped.Finish();
+    XLS_VLOG(2) << "Finished typechecking function: " << f->ToString();
+  } else if (absl::holds_alternative<StructDef*>(member)) {
+    StructDef* struct_def = absl::get<StructDef*>(member);
+    XLS_VLOG(2) << "Typechecking struct: " << struct_def->ToString();
+    ScopedFnStackEntry scoped(ctx, module);
+    // Typecheck struct definitions using CheckTopNodeInModule() so that we
+    // can typecheck function calls in parametric bindings, if there are any.
+    XLS_RETURN_IF_ERROR(CheckTopNodeInModule(struct_def, ctx));
+    scoped.Finish();
+    XLS_VLOG(2) << "Finished typechecking struct: " << struct_def->ToString();
+  } else if (absl::holds_alternative<TypeDef*>(member)) {
+    TypeDef* type_def = absl::get<TypeDef*>(member);
+    XLS_VLOG(2) << "Typechecking typedef: " << type_def->ToString();
+    ScopedFnStackEntry scoped(ctx, module);
+    XLS_RETURN_IF_ERROR(CheckTopNodeInModule(type_def, ctx));
+    scoped.Finish();
+    XLS_VLOG(2) << "Finished typechecking typedef: " << type_def->ToString();
+  } else if (absl::holds_alternative<QuickCheck*>(member)) {
+    QuickCheck* qc = absl::get<QuickCheck*>(member);
     Function* f = qc->f();
     if (f->IsParametric()) {
       // TODO(leary): 2020-08-09 Add support for quickchecking parametric
@@ -707,9 +687,11 @@ absl::StatusOr<TypeInfo*> CheckModule(
           "https://github.com/google/xls/issues/81");
     }
 
-    XLS_VLOG(2) << "Typechecking function: " << f->ToString();
-    ctx->fn_stack().push_back(FnStackEntry::Make(f, SymbolicBindings()));
+    XLS_VLOG(2) << "Typechecking quickcheck function: " << f->ToString();
+    ScopedFnStackEntry scoped(f, ctx, module);
     XLS_RETURN_IF_ERROR(CheckTopNodeInModule(f, ctx));
+    scoped.Finish();
+
     absl::optional<const ConcreteType*> quickcheck_f_body_type =
         ctx->type_info()->GetItem(f->body());
     XLS_RET_CHECK(quickcheck_f_body_type.has_value());
@@ -719,11 +701,11 @@ absl::StatusOr<TypeInfo*> CheckModule(
                                 "Quickcheck functions must return a bool.");
     }
 
-    XLS_VLOG(2) << "Finished typechecking function: " << f->ToString();
-  }
-
-  // Then tests...
-  for (TestFunction* test : ctx->module()->GetTests()) {
+    XLS_VLOG(2) << "Finished typechecking quickcheck function: "
+                << f->ToString();
+  } else {
+    XLS_RET_CHECK(absl::holds_alternative<TestFunction*>(member));
+    TestFunction* test = absl::get<TestFunction*>(member);
     // New-style test constructs are specified using a function.
     // This function shouldn't be parametric and shouldn't take any arguments.
     if (!test->fn()->params().empty()) {
@@ -737,13 +719,43 @@ absl::StatusOr<TypeInfo*> CheckModule(
           "Test functions shouldn't be parametric.");
     }
 
-    ctx->fn_stack().push_back(
-        FnStackEntry::Make(test->fn(), SymbolicBindings()));
     XLS_VLOG(2) << "Typechecking test: " << test->ToString();
+    ScopedFnStackEntry scoped(test->fn(), ctx, module);
     XLS_RETURN_IF_ERROR(CheckTopNodeInModule(test->fn(), ctx));
+    scoped.Finish();
     XLS_VLOG(2) << "Finished typechecking test: " << test->ToString();
   }
+  return absl::OkStatus();
+}
 
+absl::StatusOr<TypeInfo*> CheckModule(
+    Module* module, ImportData* import_data,
+    absl::Span<const std::string> additional_search_paths) {
+  // Create a deduction context to use for checking this module.
+  std::vector<std::string> additional_search_paths_copy(
+      additional_search_paths.begin(), additional_search_paths.end());
+  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
+                       import_data->type_info_owner().New(module));
+  auto ftypecheck = [import_data, additional_search_paths_copy](
+                        Module* module) -> absl::StatusOr<TypeInfo*> {
+    return CheckModule(module, import_data, additional_search_paths_copy);
+  };
+  DeduceCtx deduce_ctx(type_info, module,
+                       /*deduce_function=*/&Deduce,
+                       /*typecheck_function=*/&CheckTopNodeInModule,
+                       /*typecheck_module=*/ftypecheck, additional_search_paths,
+                       import_data);
+  DeduceCtx* ctx = &deduce_ctx;
+
+  // First, populate type info with constants, enums, resolved imports, and
+  // non-parametric functions.
+  for (ModuleMember& member : *module->mutable_top()) {
+    import_data->SetTypecheckWorkInProgress(module, ToAstNode(member));
+    XLS_RETURN_IF_ERROR(CheckModuleMember(member, module, import_data, ctx));
+  }
+
+  // Make a note that we completed typechecking this module in the import data.
+  import_data->SetTypecheckWorkInProgress(module, nullptr);
   return type_info;
 }
 
