@@ -1603,10 +1603,17 @@ void FunctionBuilderVisitor::UnpoisonOutputBuffer() {
       builder()->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
 
   llvm::Value* out_param = GetOutputPtr();
-  std::vector<llvm::Value*> args(
-      {out_param,
-       llvm::ConstantInt::get(
-           size_t_type, type_converter()->GetTypeByteSize(xls_return_type))});
+
+  // The out_param can have any width, so cast the output argument pointer to a
+  // u8 pointer to match the parameter types above.
+  llvm::Value* out_param_casted =
+      builder()->CreatePointerCast(out_param, u8_ptr_type);
+
+  std::vector<llvm::Value*> args = {
+      out_param_casted,
+      llvm::ConstantInt::get(
+          size_t_type, type_converter()->GetTypeByteSize(xls_return_type))};
+
   builder()->CreateCall(fn_type, fn_ptr, args);
 #endif
 }
