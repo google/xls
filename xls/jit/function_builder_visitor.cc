@@ -444,7 +444,9 @@ absl::Status FunctionBuilderVisitor::HandleBitSliceUpdate(
   // updated slice is entirely out of bounds the result of the operation is
   // simply to_update.
   llvm::Value* in_bounds = builder_->CreateICmpULT(
-      start_wide, llvm::ConstantInt::get(max_width_type, max_width),
+      start_wide,
+      llvm::ConstantInt::get(max_width_type,
+                             to_update->getType()->getIntegerBitWidth()),
       "start_is_inbounds");
 
   // Create a mask 00..0011..11 where the number of ones is equal to the
@@ -471,7 +473,7 @@ absl::Status FunctionBuilderVisitor::HandleBitSliceUpdate(
   llvm::Value* masked_to_update =
       builder_->CreateAnd(shifted_mask, to_update_wide);
   llvm::Value* shifted_update_value =
-      builder_->CreateShl(update_value_wide, start_wide);
+      builder_->CreateShl(update_value_wide, shift_amount);
   llvm::Value* updated_slice = builder_->CreateTrunc(
       builder_->CreateOr(masked_to_update, shifted_update_value),
       result_type, "updated_slice");
