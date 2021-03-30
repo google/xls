@@ -26,6 +26,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "re2/re2.h"
@@ -1006,27 +1007,75 @@ VerilogFunction* DefineBitSliceUpdateFunction(BitSliceUpdate* update,
                                               absl::string_view function_name,
                                               ModuleSection* section) {
   VerilogFile* file = section->file();
-  // We purposefully avoid using scalars here, because they cannot be sliced
-  // portably (e.g. at least iverilog rejects the attempt).
+  int64_t to_update_width = update->to_update()->BitCountOrDie();
+  int64_t start_width = update->start()->BitCountOrDie();
+  int64_t update_value_width = update->update_value()->BitCountOrDie();
+
+  // We purposefully avoid using scalars here, because they cannot be sliced.
   VerilogFunction* func = section->Add<VerilogFunction>(
       function_name, file->BitVectorTypeNoScalar(update->BitCountOrDie()));
-  Expression* to_update = func->AddArgument(
-      "to_update",
-      file->BitVectorTypeNoScalar(update->to_update()->BitCountOrDie()));
-  Expression* start = func->AddArgument(
-      "start", file->BitVectorTypeNoScalar(update->start()->BitCountOrDie()));
-  Expression* update_value = func->AddArgument(
-      "update_value",
-      file->BitVectorTypeNoScalar(update->update_value()->BitCountOrDie()));
+  IndexableExpression* to_update = func->AddArgument(
+      "to_update", file->BitVectorTypeNoScalar(to_update_width));
+  IndexableExpression* start =
+      func->AddArgument("start", file->BitVectorTypeNoScalar(start_width));
+  IndexableExpression* update_value = func->AddArgument(
+      "update_value", file->BitVectorTypeNoScalar(update_value_width));
 
-  func->AddStatement<BlockingAssignment>(func->return_value_ref(), to_update);
-  // By the (System)Verilog LRM, if some bits of a RHS part-select are
-  // out-of-bounds, then they are safely ignored.
-  func->AddStatement<BlockingAssignment>(
-      file->PartSelect(
-          func->return_value_ref(), start,
-          file->PlainLiteral(update->update_value()->BitCountOrDie())),
-      update_value);
+  Expression* adjusted_update_value;
+  if (update_value_width > to_update_width) {
+    // Update value is the wider than the value to be updated. Slice update
+    // value to match the width.
+    adjusted_update_value =
+        file->Slice(update_value, file->PlainLiteral(to_update_width - 1),
+                    file->PlainLiteral(0));
+  } else if (update_value_width < to_update_width) {
+    // Update value is the narrower than the value to be updated. Zero-extend
+    // update value to match the width.
+    adjusted_update_value =
+        file->Concat({file->Literal(Bits(to_update_width - update_value_width)),
+                      update_value});
+  } else {
+    // Update value is the same width as the value to be updated.
+    adjusted_update_value = update_value;
+  }
+
+  // Create a mask for zeroing the bits of the updated bits of the value to
+  // update.
+  //
+  //            update value width
+  //                     |
+  //             +-------+------+
+  //             V              V
+  // mask:   111110000000000000001111111111
+  //                            ^         ^
+  //                          start       0
+  //
+  // updated_value = update_value << start | mask & to_update
+  Bits all_ones = bits_ops::ZeroExtend(
+      Bits::AllOnes(std::min(update_value_width, to_update_width)),
+      to_update_width);
+  Expression* mask =
+      file->BitwiseNot(file->Shll(file->Literal(all_ones), start));
+  Expression* updated_value =
+      file->BitwiseOr(file->Shll(adjusted_update_value, start),
+                      file->BitwiseAnd(mask, to_update));
+
+  if (Bits::MinBitCountUnsigned(to_update_width) > start_width) {
+    // Start value is not wide enough to encode the width of the value to
+    // update. No need to protect against overshifting.
+    func->AddStatement<BlockingAssignment>(func->return_value_ref(),
+                                           updated_value);
+  } else {
+    // Start value is wide enough to encode the width of the value to
+    // update. Protect against overshifting by selecting the unchanged value to
+    // update if start is greater than or equal to width.
+    func->AddStatement<BlockingAssignment>(
+        func->return_value_ref(),
+        file->Ternary(
+            file->GreaterThanEquals(
+                start, file->Literal(UBits(to_update_width, start_width))),
+            to_update, updated_value));
+  }
   return func;
 }
 
