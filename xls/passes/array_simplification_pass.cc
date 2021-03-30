@@ -15,6 +15,7 @@
 #include "xls/passes/array_simplification_pass.h"
 
 #include "absl/status/statusor.h"
+#include "xls/common/logging/logging.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
@@ -465,14 +466,18 @@ absl::StatusOr<bool> SimplifyArrayUpdate(ArrayUpdate* array_update,
   {
     ArrayUpdate* current = array_update;
     while (current->array_to_update()->Is<ArrayUpdate>()) {
-      ArrayUpdate* prev = current->array_to_update()->As<ArrayUpdate>();
-      if (current != array_update && prev->users().size() > 1) {
+      if (current != array_update && current->users().size() > 1) {
         break;
       }
+      ArrayUpdate* prev = current->array_to_update()->As<ArrayUpdate>();
       if (IndicesAreDefinitelyPrefixOf(array_update->indices(), prev->indices(),
                                        query_engine)) {
         // array_update necessarily overwrites the values updated in the
         // array update 'prev'. 'prev' update can be elided.
+        XLS_VLOG(3) << absl::StreamFormat(
+            "In chain of updates starting at %s, an index is written more than "
+            "once, skipping the first write of this index (%s)",
+            array_update->GetName(), prev->GetName());
         XLS_RETURN_IF_ERROR(
             current->ReplaceOperandNumber(0, prev->array_to_update()));
         return true;

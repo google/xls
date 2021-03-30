@@ -719,6 +719,7 @@ cc_library(
         ":passes",
         ":ternary_query_engine",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
         "//xls/ir",
         "//xls/ir:bits_ops",
         "//xls/ir:type",
