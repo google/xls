@@ -19,17 +19,17 @@ load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 
 def repo():
     """Initialize the llvm-bazel (and llvm-project) repository."""
-    LLVM_COMMIT = "7f086d74c347750c1da619058eb5b3e79c2fae14"  # 2021/03/02
-    LLVM_BAZEL_TAG = "llvm-project-%s" % (LLVM_COMMIT,)
-    LLVM_BAZEL_SHA256 = "4acee9aa70309542a2a806e4584750c07ead0ffbc5fcd9deb0ff05ed64d7ae21"
-    LLVM_SHA256 = "49590fd9975bab23a347859d945a8dcae1db35a1c32bd0d9387271a6b8058106"
+    LLVM_COMMIT = "22405685794a4908ae64e71d97532f8ab6d34f5c"  # 2021-03-29
+    LLVM_BAZEL_COMMIT = "3ae351146899f06d2c763e3dbbe3387f9e7c0408"
+    LLVM_BAZEL_SHA256 = "ea1fe96c57d425cd0d7eda2774dce55242c6292ba67983923919fecdff676d1a"
+    LLVM_SHA256 = "d08dc70b92e290a9ff33c2de294ce50065de322ef3ab427e2617321eb4eb94ec"
 
     maybe(
         http_archive,
         name = "llvm-bazel",
         sha256 = LLVM_BAZEL_SHA256,
-        strip_prefix = "llvm-bazel-{tag}/llvm-bazel".format(tag = LLVM_BAZEL_TAG),
-        url = "https://github.com/google/llvm-bazel/archive/{tag}.tar.gz".format(tag = LLVM_BAZEL_TAG),
+        strip_prefix = "llvm-bazel-{commit}/llvm-bazel".format(commit = LLVM_BAZEL_COMMIT),
+        url = "https://github.com/google/llvm-bazel/archive/{commit}.tar.gz".format(commit = LLVM_BAZEL_COMMIT),
     )
 
     maybe(
