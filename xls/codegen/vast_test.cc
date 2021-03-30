@@ -56,12 +56,19 @@ TEST_P(VastTest, DataTypes) {
   EXPECT_FALSE(scalar->is_signed());
 
   // A width 1 data type returned from BitVectorType should be a scalar.
-  DataType* width1 = f.BitVectorType(1);
-  EXPECT_EQ(width1->EmitWithIdentifier("foo"), " foo");
-  EXPECT_THAT(width1->WidthAsInt64(), IsOkAndHolds(1));
-  EXPECT_THAT(width1->FlatBitCountAsInt64(), IsOkAndHolds(1));
-  EXPECT_EQ(width1->width(), nullptr);
-  EXPECT_FALSE(width1->is_signed());
+  DataType* u1 = f.BitVectorType(1);
+  EXPECT_EQ(u1->EmitWithIdentifier("foo"), " foo");
+  EXPECT_THAT(u1->WidthAsInt64(), IsOkAndHolds(1));
+  EXPECT_THAT(u1->FlatBitCountAsInt64(), IsOkAndHolds(1));
+  EXPECT_EQ(u1->width(), nullptr);
+  EXPECT_FALSE(u1->is_signed());
+
+  DataType* s1 = f.BitVectorType(1, /*is_signed=*/true);
+  EXPECT_EQ(s1->EmitWithIdentifier("foo"), " signed foo");
+  EXPECT_THAT(s1->WidthAsInt64(), IsOkAndHolds(1));
+  EXPECT_THAT(s1->FlatBitCountAsInt64(), IsOkAndHolds(1));
+  EXPECT_EQ(s1->width(), nullptr);
+  EXPECT_TRUE(s1->is_signed());
 
   DataType* u2 = f.BitVectorType(2);
   EXPECT_EQ(u2->EmitWithIdentifier("foo"), " [1:0] foo");

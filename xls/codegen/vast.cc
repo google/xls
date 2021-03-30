@@ -75,7 +75,11 @@ DataType* VerilogFile::BitVectorTypeNoScalar(int64_t bit_count,
 DataType* VerilogFile::BitVectorType(int64_t bit_count, bool is_signed) {
   XLS_CHECK_GT(bit_count, 0);
   if (bit_count == 1) {
-    return Make<DataType>();
+    if (is_signed) {
+      return Make<DataType>(/*width=*/nullptr, /*is_signed=*/true);
+    } else {
+      return Make<DataType>();
+    }
   }
   return BitVectorTypeNoScalar(bit_count, is_signed);
 }
