@@ -44,6 +44,9 @@ pub fn subnormals_to_zero(f: F64) -> F64 {
 
 pub fn is_inf(f: F64) -> u1 { apfloat::is_inf<u32:11, u32:52>(f) }
 pub fn is_nan(f: F64) -> u1 { apfloat::is_nan<u32:11, u32:52>(f) }
+pub fn is_zero_or_subnormal(f: F64) -> u1 {
+  apfloat::is_zero_or_subnormal<u32:11, u32:52>(f)
+}
 
 pub fn normalize(sign:u1, exp: u11, sfd_with_hidden: u53) -> F64 {
   apfloat::normalize<u32:11, u32:52>(sign, exp, sfd_with_hidden)
