@@ -23,8 +23,7 @@
 #include "xls/netlist/fake_cell_library.h"
 #include "xls/netlist/netlist_parser.h"
 
-namespace xls {
-namespace netlist {
+namespace xls::netlist::logical_effort {
 namespace {
 
 TEST(LogicalEffortTest, FO4Delay) {
@@ -46,7 +45,7 @@ endmodule)";
                            rtl::Parser::ParseNetlist(&cell_library, &scanner));
   XLS_ASSERT_OK_AND_ASSIGN(auto m, n->GetModule("fo4"));
   XLS_ASSERT_OK_AND_ASSIGN(rtl::Cell * inv_0, m->ResolveCell("inv_0"));
-  XLS_ASSERT_OK_AND_ASSIGN(double delay, logical_effort::ComputeDelay(inv_0));
+  XLS_ASSERT_OK_AND_ASSIGN(double delay, ComputeDelay(inv_0));
   // Per Logical Effort book example 1.2.
   EXPECT_FLOAT_EQ(5.0, delay);
 }
@@ -81,8 +80,7 @@ endmodule)";
   XLS_ASSERT_OK_AND_ASSIGN(auto m, n->GetModule("test"));
   XLS_ASSERT_OK_AND_ASSIGN(rtl::Cell * nor_with_fo,
                            m->ResolveCell("nor_with_fo"));
-  XLS_ASSERT_OK_AND_ASSIGN(double delay,
-                           logical_effort::ComputeDelay(nor_with_fo));
+  XLS_ASSERT_OK_AND_ASSIGN(double delay, ComputeDelay(nor_with_fo));
   EXPECT_FLOAT_EQ(34.0, delay);
 }
 
@@ -107,10 +105,10 @@ endmodule)";
       m->ResolveCell("nand_2").value(),
   };
   XLS_ASSERT_OK_AND_ASSIGN(double path_logical_effort,
-                           logical_effort::ComputePathLogicalEffort(path));
+                           ComputePathLogicalEffort(path));
   EXPECT_NEAR(2.37, path_logical_effort, 1e-3);
   XLS_ASSERT_OK_AND_ASSIGN(double path_parasitic_delay,
-                           logical_effort::ComputePathParasiticDelay(path));
+                           ComputePathParasiticDelay(path));
   EXPECT_FLOAT_EQ(6.0, path_parasitic_delay);
   constexpr double kInputPinCapacitance = 1.0;
   constexpr double kOutputPinCapacitance = 1.0;
@@ -118,8 +116,8 @@ endmodule)";
   {
     XLS_ASSERT_OK_AND_ASSIGN(
         double least_delay,
-        logical_effort::ComputePathLeastDelayAchievable(
-            path, kInputPinCapacitance, kOutputPinCapacitance));
+        ComputePathLeastDelayAchievable(path, kInputPinCapacitance,
+                                        kOutputPinCapacitance));
     EXPECT_NEAR(10.0, least_delay, 1e-3);
   }
 
@@ -128,12 +126,25 @@ endmodule)";
     constexpr double kOutputPinCapacitance = 8.0;
     XLS_ASSERT_OK_AND_ASSIGN(
         double least_delay,
-        logical_effort::ComputePathLeastDelayAchievable(
-            path, kInputPinCapacitance, kOutputPinCapacitance));
+        ComputePathLeastDelayAchievable(path, kInputPinCapacitance,
+                                        kOutputPinCapacitance));
     EXPECT_NEAR(14.0, least_delay, 1e-3);
   }
 }
 
+TEST(LogicalEffortTest, ManyOperandXors) {
+  XLS_ASSERT_OK_AND_ASSIGN(double two_input_xor_effort,
+                           GetLogicalEffort(CellKind::kXor, 2));
+  EXPECT_NEAR(two_input_xor_effort, 4.0, 1e-3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(double five_input_xor_effort,
+                           GetLogicalEffort(CellKind::kXor, 5));
+  EXPECT_NEAR(five_input_xor_effort, 12.0, 1e-3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(double many_input_xor_effort,
+                           GetLogicalEffort(CellKind::kXor, 100));
+  EXPECT_NEAR(many_input_xor_effort, 28.0, 1e-3);
+}
+
 }  // namespace
-}  // namespace netlist
-}  // namespace xls
+}  // namespace xls::netlist::logical_effort

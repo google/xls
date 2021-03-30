@@ -17,6 +17,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 
@@ -41,10 +42,10 @@ absl::StatusOr<double> GetLogicalEffort(CellKind kind, int64_t input_count) {
       return 2;
     case CellKind::kXor:
       XLS_RET_CHECK_GE(input_count, 2);
-      // Section 4.5.4 provides the formula for XOR: N * 2**(N-1)
-      // TODO(meheff): add pass which splits many operand XORs up to avoid the
-      // exponential delay.
-      return input_count * std::pow(2.0, input_count - 1.0);
+      // Section 4.5.4 provides the formula for XOR: N * 2**(N-1). So a
+      // two-input XOR has logical effort 4. For XORs with more inputs we
+      // compute it as a tree of two-input XORs.
+      return CeilOfLog2(input_count) * 4;
     default:
       return absl::UnimplementedError(
           absl::StrFormat("Unhandled cell kind for logical effort: %s",

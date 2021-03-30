@@ -76,5 +76,32 @@ TEST_F(DelayEstimatorTest, DelayEstimatorManager) {
               StatusIs(absl::StatusCode::kNotFound));
 }
 
+TEST_F(DelayEstimatorTest, LogicalEffortForXors) {
+  {
+    // Two-input XOR.
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue x = fb.Param("x", p->GetBitsType(1));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                             fb.BuildWithReturnValue(fb.Xor({x, x})));
+    EXPECT_THAT(
+        DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
+        IsOkAndHolds(40));
+  }
+
+  {
+    // Many-input XOR.
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue x = fb.Param("x", p->GetBitsType(1));
+    std::vector<BValue> xor_inputs(100, x);
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                             fb.BuildWithReturnValue(fb.Xor(xor_inputs)));
+    EXPECT_THAT(
+        DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
+        IsOkAndHolds(280));
+  }
+}
+
 }  // namespace
 }  // namespace xls
