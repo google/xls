@@ -201,6 +201,92 @@ cc_test(
 )
 
 cc_library(
+    name = "level_options_proto_builder",
+    srcs = ["level_options_proto_builder.cc"],
+    hdrs = ["level_options_proto_builder.h"],
+    deps = [
+        ":topology_options_network_config_builder_cc_proto",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "level_options_proto_builder_test",
+    srcs = ["level_options_proto_builder_test.cc"],
+    deps = [
+        ":level_options_proto_builder",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "unidirectional_tree_options_proto_builder",
+    srcs = ["unidirectional_tree_options_proto_builder.cc"],
+    hdrs = ["unidirectional_tree_options_proto_builder.h"],
+    deps = [
+        ":topology_options_network_config_builder_cc_proto",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "unidirectional_tree_options_proto_builder_test",
+    srcs = ["unidirectional_tree_options_proto_builder_test.cc"],
+    deps = [
+        ":unidirectional_tree_options_proto_builder",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "bidirectional_tree_options_proto_builder",
+    srcs = ["bidirectional_tree_options_proto_builder.cc"],
+    hdrs = ["bidirectional_tree_options_proto_builder.h"],
+    deps = [
+        ":topology_options_network_config_builder_cc_proto",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "bidirectional_tree_options_proto_builder_test",
+    srcs = ["bidirectional_tree_options_proto_builder_test.cc"],
+    deps = [
+        ":bidirectional_tree_options_proto_builder",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "tree_options_proto_builder",
+    srcs = ["tree_options_proto_builder.cc"],
+    hdrs = ["tree_options_proto_builder.h"],
+    deps = [
+        ":bidirectional_tree_options_proto_builder",
+        ":level_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
+        ":unidirectional_tree_options_proto_builder",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "tree_options_proto_builder_test",
+    srcs = ["tree_options_proto_builder_test.cc"],
+    deps = [
+        ":bidirectional_tree_options_proto_builder",
+        ":tree_options_proto_builder",
+        ":unidirectional_tree_options_proto_builder",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "network_component_port",
     srcs = ["network_component_port.cc"],
     hdrs = ["network_component_port.h"],
