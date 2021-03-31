@@ -309,6 +309,96 @@ cc_test(
 )
 
 cc_library(
+    name = "coordinate_options_proto_builder",
+    srcs = ["coordinate_options_proto_builder.cc"],
+    hdrs = ["coordinate_options_proto_builder.h"],
+    deps = [
+        ":topology_options_network_config_builder_cc_proto",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "coordinate_options_proto_builder_test",
+    srcs = ["coordinate_options_proto_builder_test.cc"],
+    deps = [
+        ":coordinate_options_proto_builder",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "node_options_proto_builder",
+    srcs = ["node_options_proto_builder.cc"],
+    hdrs = ["node_options_proto_builder.h"],
+    deps = [
+        ":coordinate_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
+        "@com_google_absl//absl/strings",
+        "//xls/common:proto_adaptor_utils",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "node_options_proto_builder_test",
+    srcs = ["node_options_proto_builder_test.cc"],
+    deps = [
+        ":coordinate_options_proto_builder",
+        ":node_options_proto_builder",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "channel_options_proto_builder",
+    srcs = ["channel_options_proto_builder.cc"],
+    hdrs = ["channel_options_proto_builder.h"],
+    deps = [
+        ":topology_options_network_config_builder_cc_proto",
+        "@com_google_absl//absl/strings",
+        "//xls/common:proto_adaptor_utils",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "channel_options_proto_builder_test",
+    srcs = ["channel_options_proto_builder_test.cc"],
+    deps = [
+        ":channel_options_proto_builder",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "custom_topology_options_proto_builder",
+    srcs = ["custom_topology_options_proto_builder.cc"],
+    hdrs = ["custom_topology_options_proto_builder.h"],
+    deps = [
+        ":channel_options_proto_builder",
+        ":node_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "custom_topology_options_proto_builder_test",
+    srcs = ["custom_topology_options_proto_builder_test.cc"],
+    deps = [
+        ":channel_options_proto_builder",
+        ":custom_topology_options_proto_builder",
+        ":node_options_proto_builder",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "network_component_port",
     srcs = ["network_component_port.cc"],
     hdrs = ["network_component_port.h"],

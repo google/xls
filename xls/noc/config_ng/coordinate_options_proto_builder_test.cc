@@ -1,0 +1,60 @@
+// Copyright 2021 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "xls/noc/config_ng/coordinate_options_proto_builder.h"
+
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+
+namespace xls::noc {
+namespace {
+
+// Test field values of the builder when constructed using a proto ptr.
+TEST(CoordinateOptionsProtoBuilderTest, FieldValuesForPtr) {
+  CoordinateOptionsProto proto;
+  CoordinateOptionsProtoBuilder builder(&proto);
+  builder.SetIndex(42);
+  EXPECT_EQ(proto.index(), 42);
+  builder.SetLocation(1337);
+  EXPECT_EQ(proto.location(), 1337);
+}
+
+// Test field values of the builder when constructed using a proto ptr and a
+// default proto.
+TEST(CoordinateOptionsProtoBuilderTest, FieldValuesForPtrWithDefault) {
+  CoordinateOptionsProto default_proto;
+  CoordinateOptionsProtoBuilder builder_default(&default_proto);
+  builder_default.SetIndex(42);
+  builder_default.SetLocation(1337);
+  CoordinateOptionsProto proto;
+  CoordinateOptionsProtoBuilder builder(&proto, default_proto);
+  EXPECT_EQ(proto.index(), 42);
+  EXPECT_EQ(proto.location(), 1337);
+}
+
+// Test field values of the builder when copied from another builder.
+TEST(CoordinateOptionsProtoBuilderTest, FieldValuesForCopyFrom) {
+  CoordinateOptionsProto default_proto;
+  CoordinateOptionsProtoBuilder builder_default(&default_proto);
+  builder_default.SetIndex(42);
+  builder_default.SetLocation(1337);
+  CoordinateOptionsProto proto;
+  CoordinateOptionsProtoBuilder builder(&proto);
+  builder.CopyFrom(builder_default);
+  EXPECT_EQ(proto.index(), 42);
+  EXPECT_EQ(proto.location(), 1337);
+}
+
+}  // namespace
+}  // namespace xls::noc
