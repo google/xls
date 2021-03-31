@@ -18,7 +18,6 @@
 #include "xls/dslx/builtins.h"
 #include "xls/dslx/evaluate.h"
 #include "xls/dslx/mangle.h"
-#include "xls/jit/ir_jit.h"
 
 namespace xls::dslx {
 
@@ -120,15 +119,15 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
 Interpreter::Interpreter(Module* entry_module, TypecheckFn typecheck,
                          absl::Span<std::string const> additional_search_paths,
                          ImportData* import_data, bool trace_all,
-                         Package* ir_package)
+                         PostFnEvalHook post_fn_eval_hook)
     : entry_module_(entry_module),
       current_type_info_(import_data->GetRootTypeInfo(entry_module).value()),
+      post_fn_eval_hook_(std::move(post_fn_eval_hook)),
       typecheck_(std::move(typecheck)),
       additional_search_paths_(additional_search_paths.begin(),
                                additional_search_paths.end()),
       import_data_(import_data),
       trace_all_(trace_all),
-      ir_package_(ir_package),
       abstract_adapter_(absl::make_unique<AbstractInterpreterAdapter>(this)) {}
 
 absl::StatusOr<InterpValue> Interpreter::RunFunction(
@@ -309,57 +308,6 @@ absl::StatusOr<InterpValue> Interpreter::CallFnValue(
                                     symbolic_bindings);
 }
 
-absl::StatusOr<IrJit*> Interpreter::GetOrCompileJitFunction(
-    std::string ir_name, xls::Function* ir_function) {
-  auto it = jit_cache_.find(ir_name);
-  if (it != jit_cache_.end()) {
-    return it->second.get();
-  }
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit, IrJit::Create(ir_function));
-  IrJit* result = jit.get();
-  jit_cache_[ir_name] = std::move(jit);
-  return result;
-}
-
-absl::Status Interpreter::RunJitComparison(
-    Function* f, absl::Span<InterpValue const> args,
-    const SymbolicBindings* symbolic_bindings,
-    const InterpValue& expected_value) {
-  if (ir_package_ != nullptr) {
-    XLS_ASSIGN_OR_RETURN(
-        std::string ir_name,
-        MangleDslxName(f->identifier(), f->GetFreeParametricKeySet(),
-                       f->owner(), symbolic_bindings));
-
-    auto get_result = ir_package_->GetFunction(ir_name);
-
-    // ir_package_ does not include specializations of parametric functions
-    // that are only called from test code, so not finding the function
-    // may be benign.
-    // TODO(amfv): 2021-03-18 Extend IR conversion to include those functions.
-    if (!get_result.ok()) {
-      XLS_LOG(WARNING) << "Could not find " << ir_name
-                       << " function for JIT comparison";
-      return absl::OkStatus();
-    }
-
-    xls::Function* ir_function = get_result.value();
-
-    XLS_ASSIGN_OR_RETURN(IrJit * jit,
-                         GetOrCompileJitFunction(ir_name, ir_function));
-
-    XLS_ASSIGN_OR_RETURN(std::vector<Value> ir_args,
-                         InterpValue::ConvertValuesToIr(args));
-
-    XLS_ASSIGN_OR_RETURN(Value jit_value, jit->Run(ir_args));
-
-    XLS_ASSIGN_OR_RETURN(Value expected_ir, expected_value.ConvertToIr());
-    XLS_RET_CHECK_EQ(expected_ir, jit_value) << absl::StreamFormat(
-        "\n%s\n vs \n%s", f->ToString(), ir_function->DumpIr());
-  }
-  return absl::OkStatus();
-}
-
 absl::StatusOr<InterpValue> Interpreter::EvaluateAndCompareInternal(
     Function* f, absl::Span<const InterpValue> args, const Span& span,
     Invocation* invocation, const SymbolicBindings* symbolic_bindings) {
@@ -370,8 +318,10 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateAndCompareInternal(
                                                     : *symbolic_bindings,
                        abstract_adapter_.get()));
 
-  XLS_RETURN_IF_ERROR(
-      RunJitComparison(f, args, symbolic_bindings, interpreter_value));
+  if (post_fn_eval_hook_ != nullptr) {
+    XLS_RETURN_IF_ERROR(
+        post_fn_eval_hook_(f, args, symbolic_bindings, interpreter_value));
+  }
 
   return interpreter_value;
 }

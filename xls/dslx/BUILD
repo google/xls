@@ -535,7 +535,6 @@ cc_library(
         ":type_info",
         "//xls/common/status:ret_check",
         "//xls/ir",
-        "//xls/jit:ir_jit",
     ],
 )
 

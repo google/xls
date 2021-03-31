@@ -109,6 +109,77 @@ absl::Status RunQuickCheck(Interpreter* interp, Package* ir_package,
                       results.size(), dslx_argset_str));
 }
 
+// Returns the cached or newly-compiled jit function for ir_name.  ir_name has
+// already been mangled (see MangleDslxName) so it should be unique in the
+// program and is used as the cache key.
+//
+// Note: There is no locking in jit compilation or on the jit function cache so
+// this function is *not* thread-safe.
+static absl::StatusOr<IrJit*> GetOrCompileJitFunction(
+    absl::flat_hash_map<std::string, std::unique_ptr<IrJit>>& jit_cache,
+    std::string ir_name, xls::Function* ir_function) {
+  auto it = jit_cache.find(ir_name);
+  if (it != jit_cache.end()) {
+    return it->second.get();
+  }
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit, IrJit::Create(ir_function));
+  IrJit* result = jit.get();
+  jit_cache[ir_name] = std::move(jit);
+  return result;
+}
+
+// Runs a comparison of the interpreter-determined value against the
+// JIT-determined value.
+static absl::Status RunJitComparison(
+    absl::flat_hash_map<std::string, std::unique_ptr<IrJit>>& jit_cache,
+    Package* ir_package, Function* f, absl::Span<InterpValue const> args,
+    const SymbolicBindings* symbolic_bindings, const InterpValue& got) {
+  if (ir_package == nullptr) {
+    return absl::OkStatus();
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      std::string ir_name,
+      MangleDslxName(f->identifier(), f->GetFreeParametricKeySet(), f->owner(),
+                     symbolic_bindings));
+
+  auto get_result = ir_package->GetFunction(ir_name);
+
+  // The (converted) IR package does not include specializations of parametric
+  // functions that are only called from test code, so not finding the function
+  // may be benign.
+  //
+  // TODO(amfv): 2021-03-18 Extend IR conversion to include those functions.
+  if (!get_result.ok()) {
+    XLS_LOG(WARNING) << "Could not find " << ir_name
+                     << " function for JIT comparison";
+    return absl::OkStatus();
+  }
+
+  xls::Function* ir_function = get_result.value();
+
+  XLS_ASSIGN_OR_RETURN(
+      IrJit * jit, GetOrCompileJitFunction(jit_cache, ir_name, ir_function));
+
+  XLS_ASSIGN_OR_RETURN(std::vector<Value> ir_args,
+                       InterpValue::ConvertValuesToIr(args));
+
+  XLS_ASSIGN_OR_RETURN(Value jit_value, jit->Run(ir_args));
+
+  // Convert the interpreter value to an IR value so we can compare it.
+  // Note this conversion is lossy, but that's ok because we're just looking for
+  // mismatches.
+  XLS_ASSIGN_OR_RETURN(Value interp_ir_value, got.ConvertToIr());
+
+  if (interp_ir_value != jit_value) {
+    return absl::InternalError(absl::StrFormat(
+        "JIT produced a different value from the interpreter for %s; JIT: %s "
+        "interpreter: %s",
+        ir_function->name(), jit_value.ToString(), interp_ir_value.ToString()));
+  }
+  return absl::OkStatus();
+}
+
 // Parses program and run all tests contained inside.
 //
 // Args:
@@ -172,12 +243,25 @@ absl::StatusOr<bool> ParseAndTest(
   }
   Module* entry_module = tm_or.value().module;
 
+  // If JIT comparisons are on, we register a post-evaluation hook to compare
+  // with the interpreter.
   std::unique_ptr<Package> ir_package;
+  Interpreter::PostFnEvalHook post_fn_eval_hook;
+  // Cache for JIT-compiled functions to avoid recompilation during JIT
+  // comparisons.
+  absl::flat_hash_map<std::string, std::unique_ptr<IrJit>> jit_cache;
   if (compare_jit) {
     XLS_ASSIGN_OR_RETURN(ir_package,
                          ConvertModuleToPackage(entry_module, &import_data,
                                                 /*emit_positions=*/true,
                                                 /*traverse_tests=*/true));
+    post_fn_eval_hook = [&ir_package, &jit_cache](
+                            Function* f, absl::Span<const InterpValue> args,
+                            const SymbolicBindings* symbolic_bindings,
+                            const InterpValue& got) {
+      return RunJitComparison(jit_cache, ir_package.get(), f, args,
+                              symbolic_bindings, got);
+    };
   }
 
   auto typecheck_callback = [&import_data, &dslx_paths](Module* module) {
@@ -186,7 +270,7 @@ absl::StatusOr<bool> ParseAndTest(
 
   Interpreter interpreter(entry_module, typecheck_callback, dslx_paths,
                           &import_data, /*trace_all=*/trace_all,
-                          /*ir_package=*/ir_package.get());
+                          post_fn_eval_hook);
 
   // Run unit tests.
   for (const std::string& test_name : entry_module->GetTestNames()) {

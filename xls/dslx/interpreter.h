@@ -21,13 +21,19 @@
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_info.h"
-#include "xls/ir/package.h"
-#include "xls/jit/ir_jit.h"
 
 namespace xls::dslx {
 
 class Interpreter {
  public:
+  // Function signature for a "post function-evaluation hook" -- this is invoked
+  // after a function is evaluated by the interpreter. This is useful for e.g.
+  // externally-implementing and hooking-in comparison to the JIT execution
+  // mode.
+  using PostFnEvalHook = std::function<absl::Status(
+      Function* f, absl::Span<const InterpValue> args, const SymbolicBindings*,
+      const InterpValue& got)>;
+
   // Helper used by type inference to evaluate "constexpr" expressions at type
   // checking time (e.g. derived parametric expressions, forced constexpr
   // evaluations for dimensions, etc.) to integral values.
@@ -81,12 +87,12 @@ class Interpreter {
   //  import_data: Optional, cache for imported modules.
   //  trace_all: Whether to trace "all" (really most "non-noisy") expressions in
   //    the interpreter evaluation.
-  //  ir_package: IR-converted form of the given module, used for JIT execution
-  //    engine comparison purposes when provided.
+  //  post_fn_eval: Optional callback run after function evaluation. See
+  //    PostFnEvalHook above.
   Interpreter(Module* entry_module, TypecheckFn typecheck,
               absl::Span<std::string const> additional_search_paths,
               ImportData* import_data, bool trace_all = false,
-              Package* ir_package = nullptr);
+              PostFnEvalHook post_fn_eval = nullptr);
 
   // Since we capture pointers to "this" in lambdas, we don't want this object
   // to move/copy/assign.
@@ -109,7 +115,6 @@ class Interpreter {
   absl::StatusOr<InterpValue> EvaluateLiteral(Expr* expr);
 
   Module* entry_module() const { return entry_module_; }
-  Package* ir_package() const { return ir_package_; }
   TypeInfo* current_type_info() const { return current_type_info_; }
 
  private:
@@ -189,18 +194,6 @@ class Interpreter {
       const Span& span, Invocation* invocation,
       const SymbolicBindings* symbolic_bindings);
 
-  // Returns the cached or newly-compiled jit function for ir_name.
-  // ir_name has already been mangled (see MangleDslxName) so it
-  // should be unique in the program and is used as the cache key.
-  // Note: There is no locking in jit compilation or on the jit function cache
-  // so this function is *not* thread-safe.
-  absl::StatusOr<IrJit*> GetOrCompileJitFunction(std::string ir_name,
-                                                 xls::Function* ir_function);
-
-  absl::Status RunJitComparison(Function* f, absl::Span<InterpValue const> args,
-                                const SymbolicBindings* symbolic_bindings,
-                                const InterpValue& expected_value);
-
   absl::StatusOr<InterpValue> RunBuiltin(
       Builtin builtin, absl::Span<InterpValue const> args, const Span& span,
       Invocation* invocation, const SymbolicBindings* symbolic_bindings);
@@ -243,21 +236,17 @@ class Interpreter {
   // execution occurs.
   TypeInfo* current_type_info_;
 
+  PostFnEvalHook post_fn_eval_hook_;
   TypecheckFn typecheck_;
   std::vector<std::string> additional_search_paths_;
   ImportData* import_data_;
   bool trace_all_;
-  Package* ir_package_;
 
   std::unique_ptr<AbstractInterpreter> abstract_adapter_;
 
   // Tracking for incomplete module evaluation status; e.g. on recursive calls
   // during module import; see IsWip().
   absl::flat_hash_map<AstNode*, absl::optional<InterpValue>> wip_;
-
-  // Cache for JIT-compiled functions to avoid recompilation during
-  // JIT comparisons.
-  absl::flat_hash_map<std::string, std::unique_ptr<IrJit>> jit_cache_;
 };
 
 // Converts the values to matched the signedness of the concrete type.
