@@ -137,6 +137,70 @@ cc_test(
 )
 
 cc_library(
+    name = "unidirectional_butterfly_options_proto_builder",
+    srcs = ["unidirectional_butterfly_options_proto_builder.cc"],
+    hdrs = ["unidirectional_butterfly_options_proto_builder.h"],
+    deps = [
+        ":topology_options_network_config_builder_cc_proto",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "unidirectional_butterfly_options_proto_builder_test",
+    srcs = ["unidirectional_butterfly_options_proto_builder_test.cc"],
+    deps = [
+        ":unidirectional_butterfly_options_proto_builder",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "bidirectional_butterfly_options_proto_builder",
+    srcs = ["bidirectional_butterfly_options_proto_builder.cc"],
+    hdrs = ["bidirectional_butterfly_options_proto_builder.h"],
+    deps = [
+        ":topology_options_network_config_builder_cc_proto",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "bidirectional_butterfly_options_proto_builder_test",
+    srcs = ["bidirectional_butterfly_options_proto_builder_test.cc"],
+    deps = [
+        ":bidirectional_butterfly_options_proto_builder",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "butterfly_options_proto_builder",
+    srcs = ["butterfly_options_proto_builder.cc"],
+    hdrs = ["butterfly_options_proto_builder.h"],
+    deps = [
+        ":bidirectional_butterfly_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
+        ":unidirectional_butterfly_options_proto_builder",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "butterfly_options_proto_builder_test",
+    srcs = ["butterfly_options_proto_builder_test.cc"],
+    deps = [
+        ":bidirectional_butterfly_options_proto_builder",
+        ":butterfly_options_proto_builder",
+        ":unidirectional_butterfly_options_proto_builder",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "network_component_port",
     srcs = ["network_component_port.cc"],
     hdrs = ["network_component_port.h"],
