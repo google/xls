@@ -84,7 +84,7 @@ class Parser : public TokenParser {
     void CommitAndCancelCleanup(CleanupT* cleanup) {
       Commit();
       if (cleanup) {
-        cleanup->Cancel();
+        std::move(*cleanup).Cancel();
       }
     }
 

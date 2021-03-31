@@ -14,8 +14,8 @@
 
 #include "xls/dslx/parser.h"
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/status/statusor.h"
-#include "xls/common/cleanup.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/ast.h"
 
@@ -492,7 +492,7 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
 absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings* bindings,
                                               const Token* tok) {
   Transaction txn(this, bindings);
-  auto cleanup = xabsl::MakeCleanup([&txn]() { txn.Rollback(); });
+  auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
 
   absl::optional<Token> popped;
   if (tok == nullptr) {
@@ -536,7 +536,7 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstance(
     // Put the first potential production in an isolated transaction; the other
     // productions below want this first token to remain in the stream.
     Transaction txn(this, bindings);
-    auto cleanup = xabsl::MakeCleanup([&txn]() { txn.Rollback(); });
+    auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
     Token tok = PopTokenOrDie();
     XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
                          PeekTokenIs(TokenKind::kDoubleColon));
@@ -551,7 +551,7 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstance(
   }
 
   Transaction txn(this, bindings);
-  auto cleanup = xabsl::MakeCleanup([&txn]() { txn.Rollback(); });
+  auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
                        ParseTypeAnnotation(txn.bindings()));
   XLS_ASSIGN_OR_RETURN(bool peek_is_obrace, PeekTokenIs(TokenKind::kOBrace));
@@ -820,7 +820,7 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(Bindings* bindings) {
     }
 
     Transaction txn(this, bindings);
-    auto cleanup = xabsl::MakeCleanup([&txn]() { txn.Rollback(); });
+    auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
     Token op = PopTokenOrDie();
     auto status_or_rhs = ParseOrExpression(txn.bindings());
     if (status_or_rhs.ok()) {
@@ -1060,7 +1060,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
 
   // Holds popped tokens for rewinding the scanner in case of bad productions.
   Transaction txn(this, outer_bindings);
-  auto cleanup = xabsl::MakeCleanup([&txn]() { txn.Rollback(); });
+  auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
   Expr* lhs = nullptr;
   if (peek->IsKindIn({TokenKind::kNumber, TokenKind::kCharacter}) ||
       peek->IsKeywordIn({Keyword::kTrue, Keyword::kFalse})) {
@@ -1129,7 +1129,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     {
       Transaction inner_txn(this, txn.bindings());
       auto cleanup =
-          xabsl::MakeCleanup([&inner_txn]() { inner_txn.Rollback(); });
+          absl::MakeCleanup([&inner_txn]() { inner_txn.Rollback(); });
       auto status_or_annot = ParseTypeAnnotation(inner_txn.bindings());
       if (status_or_annot.ok()) {
         if (DropTokenOrError(TokenKind::kColon).ok()) {
@@ -1230,7 +1230,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
         // Comparison op or parametric function invocation.
         Transaction sub_txn(this, txn.bindings());
         auto sub_cleanup =
-            xabsl::MakeCleanup([&sub_txn]() { sub_txn.Rollback(); });
+            absl::MakeCleanup([&sub_txn]() { sub_txn.Rollback(); });
 
         auto status_or_parametrics = ParseParametrics(sub_txn.bindings());
         if (!status_or_parametrics.ok()) {
@@ -1695,7 +1695,7 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
   // We need two levels of bindings - one per-parse-parametrics call and one at
   // top-level.
   Transaction txn(this, bindings);
-  auto cleanup = xabsl::MakeCleanup([&txn]() { txn.Rollback(); });
+  auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
   auto parse_parametric = [this, &txn]() -> absl::StatusOr<Expr*> {
@@ -1703,7 +1703,7 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
     if (peek->kind() == TokenKind::kOBrace) {
       // Ternary expressions are the first below the let/for/while set.
       Transaction sub_txn(this, txn.bindings());
-      auto cleanup = xabsl::MakeCleanup([&sub_txn]() { sub_txn.Rollback(); });
+      auto cleanup = absl::MakeCleanup([&sub_txn]() { sub_txn.Rollback(); });
 
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
       XLS_ASSIGN_OR_RETURN(Expr * expr,

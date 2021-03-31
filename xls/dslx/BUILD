@@ -315,8 +315,8 @@ cc_library(
         ":ast",
         ":bindings",
         ":token_parser",
-        "//xls/common:cleanup",
         "//xls/common/status:ret_check",
+        "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/status:statusor",
     ],
 )

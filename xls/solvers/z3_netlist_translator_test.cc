@@ -16,11 +16,11 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/random/random.h"
 #include "absl/status/statusor.h"
 #include "absl/types/optional.h"
-#include "xls/common/cleanup.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
@@ -164,7 +164,7 @@ TEST(NetlistTranslatorTest_Standalone, BasicFunctionality) {
 
   Z3_config config = Z3_mk_config();
   Z3_context ctx = Z3_mk_context(config);
-  auto cleanup = xabsl::MakeCleanup([config, ctx] {
+  auto cleanup = absl::MakeCleanup([config, ctx] {
     Z3_del_context(ctx);
     Z3_del_config(config);
   });
@@ -187,7 +187,7 @@ TEST(NetlistTranslatorTest_Standalone, BasicFunctionality) {
 TEST(NetlistTranslatorTest_Standalone, SimpleNet) {
   Z3_config config = Z3_mk_config();
   Z3_context ctx = Z3_mk_context(config);
-  auto cleanup = xabsl::MakeCleanup([config, ctx] {
+  auto cleanup = absl::MakeCleanup([config, ctx] {
     Z3_del_context(ctx);
     Z3_del_config(config);
   });
@@ -340,7 +340,7 @@ TEST(NetlistTranslatorTest_Standalone, HandlesSubmodules) {
   //  - module_3: references module_2.
   Z3_config config = Z3_mk_config();
   Z3_context ctx = Z3_mk_context(config);
-  auto cleanup = xabsl::MakeCleanup([config, ctx] {
+  auto cleanup = absl::MakeCleanup([config, ctx] {
     Z3_del_context(ctx);
     Z3_del_config(config);
   });

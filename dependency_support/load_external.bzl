@@ -66,12 +66,12 @@ def load_external_repositories():
         sha256 = "9463ff914d7c3db02de6bd40a3c412a74e979e3c76eaa89920a49ff8488d6d69",
     )
 
-    # 2020-09-09
+    # 2021-03-31
     http_archive(
         name = "com_google_absl",
-        strip_prefix = "abseil-cpp-3c8b5d7587dc8ecf730ce9996c89e156e408c3ed",
-        urls = ["https://github.com/abseil/abseil-cpp/archive/3c8b5d7587dc8ecf730ce9996c89e156e408c3ed.zip"],
-        sha256 = "2adc8d02700923164a1128afd36d245ac6fd9fe4a10ee936146b89cd9e4b82a5",
+        strip_prefix = "abseil-cpp-20210324.0",
+        urls = ["https://github.com/abseil/abseil-cpp/archive/refs/tags/20210324.0.zip"],
+        sha256 = "11d6eea257cc9322cc49924cf9584dbe61922bfffe3e7c42e2bce3abc1694a1a",
         patches = ["//dependency_support/com_google_absl:aarch64_rng_flags.patch"],
     )
 

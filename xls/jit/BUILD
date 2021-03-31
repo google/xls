@@ -261,7 +261,6 @@ cc_library(
         ":proc_builder_visitor",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:cleanup",
         "//xls/common:thread",
         "//xls/common/status:status_macros",
         "//xls/ir",

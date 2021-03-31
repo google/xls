@@ -64,14 +64,6 @@ cc_test(
 )
 
 cc_library(
-    name = "cleanup",
-    hdrs = ["cleanup.h"],
-    deps = [
-        "@com_google_absl//absl/types:optional",
-    ],
-)
-
-cc_library(
     name = "indent",
     srcs = ["indent.cc"],
     hdrs = ["indent.h"],

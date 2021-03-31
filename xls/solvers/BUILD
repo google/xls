@@ -129,11 +129,11 @@ cc_test(
     deps = [
         ":z3_netlist_translator",
         ":z3_utils",
+        "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:optional",
-        "//xls/common:cleanup",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",

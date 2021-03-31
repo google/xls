@@ -14,7 +14,6 @@
 #include "xls/jit/serial_proc_runtime.h"
 
 #include "absl/status/status.h"
-#include "xls/common/cleanup.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/proc.h"
 #include "xls/jit/function_builder_visitor.h"
