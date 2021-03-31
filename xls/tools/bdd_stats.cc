@@ -38,8 +38,8 @@ To gather BDD stats of a set of benchmarks:
    bdd_stats --benchmarks=all
 )";
 
-ABSL_FLAG(int64_t, bdd_minterm_limit, 0,
-          "Maximum number of minterms before truncating the BDD subgraph "
+ABSL_FLAG(int64_t, bdd_path_limit, 0,
+          "Maximum number of paths before truncating the BDD subgraph "
           "and declaring a new variable. If zero, then no limit.");
 ABSL_FLAG(std::vector<std::string>, benchmarks, {},
           "Comma-separated list of benchmarks gather BDD stats about.");
@@ -99,7 +99,7 @@ absl::Status RealMain(absl::string_view input_path) {
     absl::Time start = absl::Now();
     XLS_ASSIGN_OR_RETURN(
         std::unique_ptr<BddFunction> bdd_function,
-        BddFunction::Run(entry, absl::GetFlag(FLAGS_bdd_minterm_limit)));
+        BddFunction::Run(entry, absl::GetFlag(FLAGS_bdd_path_limit)));
     absl::Duration bdd_time = absl::Now() - start;
     total_time += bdd_time;
     std::cout << "BDD construction time: " << bdd_time << "\n";
@@ -113,16 +113,15 @@ absl::Status RealMain(absl::string_view input_path) {
     }
     std::cout << "Bits in graph: " << number_bits << "\n";
 
-    int64_t max_minterms = 0;
+    int64_t max_paths = 0;
     for (int64_t i = 0; i < bdd_function->bdd().size(); ++i) {
-      max_minterms = std::max(
-          max_minterms, bdd_function->bdd().minterm_count(BddNodeIndex(i)));
+      max_paths =
+          std::max(max_paths, bdd_function->bdd().path_count(BddNodeIndex(i)));
     }
-    if (max_minterms == std::numeric_limits<int32_t>::max()) {
-      std::cout << "Maximum minterms of any expression: INT32_MAX\n";
+    if (max_paths == std::numeric_limits<int32_t>::max()) {
+      std::cout << "Maximum paths of any expression: INT32_MAX\n";
     } else {
-      std::cout << "Maximum minterms of any expression: " << max_minterms
-                << "\n";
+      std::cout << "Maximum paths of any expression: " << max_paths << "\n";
     }
   }
 

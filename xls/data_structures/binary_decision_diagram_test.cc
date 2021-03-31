@@ -52,11 +52,11 @@ TEST(BinaryDecisionDiagramTest, BasicInvariants) {
 
   EXPECT_NE(var1_or_var2, var1_and_var2);
 
-  EXPECT_EQ(bdd.minterm_count(var1), 1);
-  EXPECT_EQ(bdd.minterm_count(var2), 1);
-  EXPECT_EQ(bdd.minterm_count(not_var1), 1);
-  EXPECT_EQ(bdd.minterm_count(var1_or_var2), 2);
-  EXPECT_EQ(bdd.minterm_count(var1_and_var2), 1);
+  EXPECT_EQ(bdd.path_count(var1), 2);
+  EXPECT_EQ(bdd.path_count(var2), 2);
+  EXPECT_EQ(bdd.path_count(not_var1), 2);
+  EXPECT_EQ(bdd.path_count(var1_or_var2), 3);
+  EXPECT_EQ(bdd.path_count(var1_and_var2), 3);
 }
 
 TEST(BinaryDecisionDiagramTest, BddSize) {
@@ -210,8 +210,8 @@ TEST(BinaryDecisionDiagramTest, MultiwayAndOr) {
     }
   }
 
-  EXPECT_EQ(bdd.minterm_count(or_reduction), 4);
-  EXPECT_EQ(bdd.minterm_count(and_reduction), 1);
+  EXPECT_EQ(bdd.path_count(or_reduction), 5);
+  EXPECT_EQ(bdd.path_count(and_reduction), 5);
 }
 
 TEST(BinaryDecisionDiagramTest, Parity) {
@@ -227,10 +227,10 @@ TEST(BinaryDecisionDiagramTest, Parity) {
     parity = bdd.Or(bdd.And(parity, bdd.Not(variables[i])),
                     bdd.And(bdd.Not(parity), variables[i]));
 
-    if (i < 31) {
-      EXPECT_EQ(bdd.minterm_count(parity), 1LL << i);
+    if (i < 30) {
+      EXPECT_EQ(bdd.path_count(parity), 1LL << (i + 1));
     } else {
-      EXPECT_EQ(bdd.minterm_count(parity), std::numeric_limits<int32_t>::max());
+      EXPECT_EQ(bdd.path_count(parity), std::numeric_limits<int32_t>::max());
     }
   }
 

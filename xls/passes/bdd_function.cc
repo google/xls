@@ -36,24 +36,25 @@ namespace xls {
 namespace {
 
 // Construct a BDD-based abstract evaluator. The expressions in the BDD
-// saturates at a particular number of minterms. When the minterm limit is met,
-// a new BDD variable is created in its place effective forgetting any
-// information about the value. This avoids exponential blowup problems when
-// constructing the BDD at the cost of precision. The primitive bit element of
-// the abstract evaluator is a sum type consisting of a BDD node and a sentinel
-// value TooManyMinterms. The TooManyMinterms value is produced if the number of
-// minterms in the computed expression exceed some limit. Any logical operation
-// performed with a TooManyMinterms value produces a TooManyMinterms value.
-struct TooManyMinterms {};
-using SaturatingBddNodeIndex = absl::variant<BddNodeIndex, TooManyMinterms>;
+// saturates at a particular number of paths from the expression node to the
+// terminal nodes 0 and 1 in the BDD. When the path limit is met, a new BDD
+// variable is created in its place effective forgetting any information about
+// the value. This avoids exponential blowup problems when constructing the BDD
+// at the cost of precision. The primitive bit element of the abstract evaluator
+// is a sum type consisting of a BDD node and a sentinel value TooManyPaths. The
+// TooManyPaths value is produced if the number of paths in the computed
+// expression exceed some limit. Any logical operation performed with a
+// TooManyPaths value produces a TooManyPaths value.
+struct TooManyPaths {};
+using SaturatingBddNodeIndex = absl::variant<BddNodeIndex, TooManyPaths>;
 using SaturatingBddNodeVector = std::vector<SaturatingBddNodeIndex>;
 
 // The AbstractEvaluator requires equals to and not equals to operations on the
 // primitive element.
 bool operator==(const SaturatingBddNodeIndex& a,
                 const SaturatingBddNodeIndex& b) {
-  if (absl::holds_alternative<TooManyMinterms>(a) ||
-      absl::holds_alternative<TooManyMinterms>(b)) {
+  if (absl::holds_alternative<TooManyPaths>(a) ||
+      absl::holds_alternative<TooManyPaths>(b)) {
     return false;
   }
   return absl::get<BddNodeIndex>(a) == absl::get<BddNodeIndex>(b);
@@ -65,7 +66,7 @@ bool operator!=(const SaturatingBddNodeIndex& a,
 }
 
 // Converts the given saturating BDD vector to a normal vector of BDD nodes. The
-// input vector must not contain any TooManyMinterms values.
+// input vector must not contain any TooManyPaths values.
 BddNodeVector ToBddNodeVector(const SaturatingBddNodeVector& input) {
   BddNodeVector result(input.size());
   for (int64_t i = 0; i < input.size(); ++i) {
@@ -75,58 +76,58 @@ BddNodeVector ToBddNodeVector(const SaturatingBddNodeVector& input) {
   return result;
 }
 
-// The abstract evaluator based on a BDD with minterm-saturating logic.
+// The abstract evaluator based on a BDD with path-saturating logic.
 class SaturatingBddEvaluator
     : public AbstractEvaluator<SaturatingBddNodeIndex, SaturatingBddEvaluator> {
  public:
-  SaturatingBddEvaluator(int64_t minterm_limit, BinaryDecisionDiagram* bdd)
-      : minterm_limit_(minterm_limit), bdd_(bdd) {}
+  SaturatingBddEvaluator(int64_t path_limit, BinaryDecisionDiagram* bdd)
+      : path_limit_(path_limit), bdd_(bdd) {}
 
   SaturatingBddNodeIndex One() const { return bdd_->one(); }
 
   SaturatingBddNodeIndex Zero() const { return bdd_->zero(); }
 
   SaturatingBddNodeIndex Not(const SaturatingBddNodeIndex& input) const {
-    if (absl::holds_alternative<TooManyMinterms>(input)) {
-      return TooManyMinterms();
+    if (absl::holds_alternative<TooManyPaths>(input)) {
+      return TooManyPaths();
     }
     BddNodeIndex result = bdd_->Not(absl::get<BddNodeIndex>(input));
-    if (minterm_limit_ > 0 && bdd_->minterm_count(result) > minterm_limit_) {
-      return TooManyMinterms();
+    if (path_limit_ > 0 && bdd_->path_count(result) > path_limit_) {
+      return TooManyPaths();
     }
     return result;
   }
 
   SaturatingBddNodeIndex And(const SaturatingBddNodeIndex& a,
                              const SaturatingBddNodeIndex& b) const {
-    if (absl::holds_alternative<TooManyMinterms>(a) ||
-        absl::holds_alternative<TooManyMinterms>(b)) {
-      return TooManyMinterms();
+    if (absl::holds_alternative<TooManyPaths>(a) ||
+        absl::holds_alternative<TooManyPaths>(b)) {
+      return TooManyPaths();
     }
     BddNodeIndex result =
         bdd_->And(absl::get<BddNodeIndex>(a), absl::get<BddNodeIndex>(b));
-    if (minterm_limit_ > 0 && bdd_->minterm_count(result) > minterm_limit_) {
-      return TooManyMinterms();
+    if (path_limit_ > 0 && bdd_->path_count(result) > path_limit_) {
+      return TooManyPaths();
     }
     return result;
   }
 
   SaturatingBddNodeIndex Or(const SaturatingBddNodeIndex& a,
                             const SaturatingBddNodeIndex& b) const {
-    if (absl::holds_alternative<TooManyMinterms>(a) ||
-        absl::holds_alternative<TooManyMinterms>(b)) {
-      return TooManyMinterms();
+    if (absl::holds_alternative<TooManyPaths>(a) ||
+        absl::holds_alternative<TooManyPaths>(b)) {
+      return TooManyPaths();
     }
     BddNodeIndex result =
         bdd_->Or(absl::get<BddNodeIndex>(a), absl::get<BddNodeIndex>(b));
-    if (minterm_limit_ > 0 && bdd_->minterm_count(result) > minterm_limit_) {
-      return TooManyMinterms();
+    if (path_limit_ > 0 && bdd_->path_count(result) > path_limit_) {
+      return TooManyPaths();
     }
     return result;
   }
 
  private:
-  int64_t minterm_limit_;
+  int64_t path_limit_;
   BinaryDecisionDiagram* bdd_;
 };
 
@@ -245,13 +246,13 @@ bool ShouldEvaluate(Node* node) {
 }  // namespace
 
 /* static */ absl::StatusOr<std::unique_ptr<BddFunction>> BddFunction::Run(
-    FunctionBase* f, int64_t minterm_limit,
+    FunctionBase* f, int64_t path_limit,
     absl::Span<const Op> do_not_evaluate_ops) {
   XLS_VLOG(1) << absl::StreamFormat("BddFunction::Run(%s):", f->name());
   XLS_VLOG_LINES(5, f->DumpIr());
 
   auto bdd_function = absl::WrapUnique(new BddFunction(f));
-  SaturatingBddEvaluator evaluator(minterm_limit, &bdd_function->bdd());
+  SaturatingBddEvaluator evaluator(path_limit, &bdd_function->bdd());
   absl::flat_hash_set<Op> do_not_evaluate_ops_set;
   for (Op op : do_not_evaluate_ops) {
     do_not_evaluate_ops_set.insert(op);
@@ -290,10 +291,10 @@ bool ShouldEvaluate(Node* node) {
           AbstractEvaluate(node, operand_values, &evaluator,
                            /*default_handler=*/create_new_node_vector));
 
-      // Associate a new BDD variable with each bit that exceeded the minterm
+      // Associate a new BDD variable with each bit that exceeded the path
       // limit.
       for (SaturatingBddNodeIndex& value : values.at(node)) {
-        if (absl::holds_alternative<TooManyMinterms>(value)) {
+        if (absl::holds_alternative<TooManyPaths>(value)) {
           bdd_function->saturated_expressions_.insert(node);
           value = bdd_function->bdd().NewVariable();
         }
@@ -310,7 +311,7 @@ bool ShouldEvaluate(Node* node) {
   }
 
   // Copy over the vector and BDD variables into the node map which is exposed
-  // via the BddFunction interface. At this point any TooManyMinterm sentinel
+  // via the BddFunction interface. At this point any TooManyPaths sentinel
   // values have been replaced with new Bdd variables.
   for (const auto& pair : values) {
     bdd_function->node_map_[pair.first] = ToBddNodeVector(pair.second);

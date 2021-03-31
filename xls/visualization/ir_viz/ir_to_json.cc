@@ -115,8 +115,9 @@ absl::StatusOr<std::string> IrToJson(FunctionBase* function,
                      << critical_path.status();
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BddQueryEngine> query_engine,
-                       BddQueryEngine::Run(function, /*minterm_limit=*/4096));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<BddQueryEngine> query_engine,
+      BddQueryEngine::Run(function, BddFunction::kDefaultPathLimit));
 
   auto sanitize_name = [](absl::string_view name) {
     return absl::StrReplaceAll(name, {{".", "_"}});

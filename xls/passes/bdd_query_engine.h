@@ -36,12 +36,12 @@ namespace xls {
 // analysis.
 class BddQueryEngine : public QueryEngine {
  public:
-  // 'minterm_limit' is the maximum number of minterms to allow in a BDD
-  // expression before truncating it. If a node's op is in
-  // 'do_not_evaluate_ops', its bits are modeled as BDD variables. See
-  // BddFunction for details.
+  // 'path_limit' is the maximum number of paths from the BDD node to the
+  // terminals 0 and 1 to allow for a BDD expression before truncating it. If a
+  // node's op is in 'do_not_evaluate_ops', its bits are modeled as BDD
+  // variables. See BddFunction for details.
   static absl::StatusOr<std::unique_ptr<BddQueryEngine>> Run(
-      FunctionBase* f, int64_t minterm_limit = 0,
+      FunctionBase* f, int64_t path_limit = 0,
       absl::Span<const Op> do_not_evaluate_ops = {});
 
   bool IsTracked(Node* node) const override {
@@ -69,8 +69,7 @@ class BddQueryEngine : public QueryEngine {
   const BddFunction& bdd_function() const { return *bdd_function_; }
 
  private:
-  explicit BddQueryEngine(int64_t minterm_limit)
-      : minterm_limit_(minterm_limit) {}
+  explicit BddQueryEngine(int64_t path_limit) : path_limit_(path_limit) {}
 
   // Returns the underlying BDD. This method is const, but queries on a BDD
   // generally mutate the object. We sneakily avoid conflicts with C++ const
@@ -86,18 +85,17 @@ class BddQueryEngine : public QueryEngine {
   // A implies B  <=>  !(A && !B)
   bool Implies(const BddNodeIndex& a, const BddNodeIndex& b) const;
 
-  // Returns true if the expression of the given BDD node exceeds the minterm
+  // Returns true if the expression of the given BDD node exceeds the path
   // limit.
   // TODO(meheff): This should be part of the BDD itself where a query can be
-  // performed and the BDD method returns a union of minterm limit exceeded or
+  // performed and the BDD method returns a union of path limit exceeded or
   // the result of the query.
-  bool ExceedsMintermLimit(BddNodeIndex node) const {
-    return minterm_limit_ > 0 &&
-           bdd().GetNode(node).minterm_count > minterm_limit_;
+  bool ExceedsPathLimit(BddNodeIndex node) const {
+    return path_limit_ > 0 && bdd().GetNode(node).path_count > path_limit_;
   }
 
-  // The maximum number of minterms in expression in the BDD before truncating.
-  int64_t minterm_limit_;
+  // The maximum number of paths in expression in the BDD before truncating.
+  int64_t path_limit_;
 
   // Indicates the bits at the output of each node which have known values.
   absl::flat_hash_map<Node*, Bits> known_bits_;

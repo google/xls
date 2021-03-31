@@ -41,18 +41,18 @@ DEFINE_STRONG_INT_TYPE(BddNodeIndex, int32_t);
 // children corresponding to when the variable is true (high) and when it is
 // false (low).
 struct BddNode {
-  BddNode() : variable(0), high(0), low(0), minterm_count(0) {}
-  BddNode(BddVariable v, BddNodeIndex h, BddNodeIndex l, int32_t m)
-      : variable(v), high(h), low(l), minterm_count(m) {}
+  BddNode() : variable(0), high(0), low(0), path_count(0) {}
+  BddNode(BddVariable v, BddNodeIndex h, BddNodeIndex l, int32_t p)
+      : variable(v), high(h), low(l), path_count(p) {}
 
   BddVariable variable;
   BddNodeIndex high;
   BddNodeIndex low;
 
-  // Number of minterms in the expression. A minterm is a term in a
-  // sum-of-products form of the boolean function, or equivalently a path to the
-  // leaf node '1' from the BDD node. Saturates at INT32_MAX.
-  int32_t minterm_count;
+  // Number of paths from this node to the terminal nodes 0 and 1. Used to limit
+  // the growth of the BDD by halting evaluation if the number of paths gets too
+  // large. Saturates at INT32_MAX.
+  int32_t path_count;
 };
 
 class BinaryDecisionDiagram {
@@ -95,9 +95,9 @@ class BinaryDecisionDiagram {
   // Returns the number of variables in the graph.
   int64_t variable_count() const { return next_var_.value(); }
 
-  // Returns the number of minterms in the given expression.
-  int64_t minterm_count(BddNodeIndex expr) const {
-    return GetNode(expr).minterm_count;
+  // Returns the number of paths in the given expression.
+  int64_t path_count(BddNodeIndex expr) const {
+    return GetNode(expr).path_count;
   }
 
   // Returns the given expression in disjunctive normal form (sum of products).

@@ -41,15 +41,19 @@ using NodeMap = absl::flat_hash_map<const Node*, BddNodeVector>;
 // Node output.
 class BddFunction {
  public:
-  // Construct a BDD representing the given function/proc. 'minterm_limit' is an
-  // upper bound on the number of minterms in an expression. If a BDD node
-  // associated with a particular bit in the function ({Node*, bit index} pair)
-  // exceeds this value the bit's representation in the BDD is replaced with a
-  // new BDD variable. If a node's op is in 'do_not_evaluate_ops', its
-  // bits are modeled as BDD variables. Otherwise, bits are represented as BDD
-  // nodes whose values are determined by the values of other BDD nodes.
+  // The default limit on the number of paths from a BDD node to the BDD
+  // terminal nodes 0 and 1. If a BDD node associated with
+  // a particular bit in the function ({Node*, bit index} pair) exceeds this
+  // value the bit's representation in the BDD is replaced with a new BDD
+  // variable. This provides a mechanism for limiting the growth of the BDD.
+  static constexpr int64_t kDefaultPathLimit = 16 * 1024;
+
+  // Construct a BDD representing the given function/proc. If a node's op is in
+  // 'do_not_evaluate_ops', its bits are modeled as BDD variables. Otherwise,
+  // bits are represented as BDD nodes whose values are determined by the values
+  // of other BDD nodes.
   static absl::StatusOr<std::unique_ptr<BddFunction>> Run(
-      FunctionBase* f, int64_t minterm_limit = 0,
+      FunctionBase* f, int64_t path_limit = 0,
       absl::Span<const Op> do_not_evaluate_ops = {});
 
   // Returns the underlying BDD.
@@ -79,8 +83,10 @@ class BddFunction {
   // expression.
   NodeMap node_map_;
 
-  // Map containing the Nodes whose expressions exceeded the maximum number of
-  // minterms.
+  // Set containing the Nodes which have exceeded the maximum number of paths
+  // from the XLS node's BDD node to the terminal nodes 0 and 1 in the
+  // BDD. These are the XLS Nodes for which it was determined the precisely
+  // computing the expression for the node using the BDD was too expensive.
   absl::flat_hash_set<Node*> saturated_expressions_;
 };
 

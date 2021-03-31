@@ -30,10 +30,10 @@ namespace xls {
 BinaryDecisionDiagram::BinaryDecisionDiagram() {
   // Leaf node 0.
   nodes_.push_back(BddNode(BddVariable(-1), BddNodeIndex(-1), BddNodeIndex(-1),
-                           /*m=*/0));
+                           /*p=*/1));
   // Leaf node 1.
   nodes_.push_back(BddNode(BddVariable(-1), BddNodeIndex(-1), BddNodeIndex(-1),
-                           /*m=*/1));
+                           /*p=*/1));
 }
 
 BddNodeIndex BinaryDecisionDiagram::GetOrCreateNode(BddVariable var,
@@ -47,13 +47,12 @@ BddNodeIndex BinaryDecisionDiagram::GetOrCreateNode(BddVariable var,
   if (low == high) {
     return low;
   }
-  // Compute the number of minterms that the new node will have. Use int64s to
-  // avoid overflowing and saturate at INT32_MAX.
-  int32_t minterms =
-      std::min(static_cast<int64_t>(GetNode(low).minterm_count) +
-                   GetNode(high).minterm_count,
-               static_cast<int64_t>(std::numeric_limits<int32_t>::max()));
-  nodes_.emplace_back(var, high, low, minterms);
+  // Compute the number of paths that the new node will have to the terminal
+  // nodes 0 and 1. Use int64s to avoid overflowing and saturate at INT32_MAX.
+  int32_t paths = std::min(
+      static_cast<int64_t>(GetNode(low).path_count) + GetNode(high).path_count,
+      static_cast<int64_t>(std::numeric_limits<int32_t>::max()));
+  nodes_.emplace_back(var, high, low, paths);
   BddNodeIndex node_index = BddNodeIndex(nodes_.size() - 1);
   node_map_[key] = node_index;
   return node_index;

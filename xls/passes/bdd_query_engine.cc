@@ -27,11 +27,11 @@ namespace xls {
 
 /* static */
 absl::StatusOr<std::unique_ptr<BddQueryEngine>> BddQueryEngine::Run(
-    FunctionBase* f, int64_t minterm_limit,
+    FunctionBase* f, int64_t path_limit,
     absl::Span<const Op> do_not_evaluate_ops) {
-  auto query_engine = absl::WrapUnique(new BddQueryEngine(minterm_limit));
+  auto query_engine = absl::WrapUnique(new BddQueryEngine(path_limit));
   XLS_ASSIGN_OR_RETURN(query_engine->bdd_function_,
-                       BddFunction::Run(f, minterm_limit, do_not_evaluate_ops));
+                       BddFunction::Run(f, path_limit, do_not_evaluate_ops));
   // Construct the Bits objects indication which bit values are statically known
   // for each node and what those values are (0 or 1) if known.
   BinaryDecisionDiagram& bdd = query_engine->bdd();
@@ -73,9 +73,8 @@ bool BddQueryEngine::AtMostOneTrue(absl::Span<BitLocation const> bits) const {
     for (int64_t j = i + 1; j < bits.size(); ++j) {
       result =
           bdd().Or(result, bdd().And(GetBddNode(bits[i]), GetBddNode(bits[j])));
-      if (ExceedsMintermLimit(result)) {
-        XLS_VLOG(3) << "AtMostOneTrue exceeded minterm limit of "
-                    << minterm_limit_;
+      if (ExceedsPathLimit(result)) {
+        XLS_VLOG(3) << "AtMostOneTrue exceeded path limit of " << path_limit_;
         return false;
       }
     }
@@ -91,9 +90,8 @@ bool BddQueryEngine::AtLeastOneTrue(absl::Span<BitLocation const> bits) const {
       return false;
     }
     result = bdd().Or(result, GetBddNode(location));
-    if (ExceedsMintermLimit(result)) {
-      XLS_VLOG(3) << "AtLeastOneTrue exceeded minterm limit of "
-                  << minterm_limit_;
+    if (ExceedsPathLimit(result)) {
+      XLS_VLOG(3) << "AtLeastOneTrue exceeded path limit of " << path_limit_;
       return false;
     }
   }

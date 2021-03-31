@@ -329,7 +329,7 @@ absl::StatusOr<bool> SimplifyOneHotMsb(FunctionBase* f) {
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<PostDominatorAnalysis> post_dominator_analysis,
       PostDominatorAnalysis::Run(f));
-  // We performa a variant of bdd analysis without analyzing OneHot nodes. This
+  // We perform a variant of bdd analysis without analyzing OneHot nodes. This
   // is because we will check if a OneHot's MSB = 0 and LSBs = {0,...} implies
   // the same value for another node as MSB = 1 and LSBs = {0,...}.  However,
   // MSB = 0 and LSBs = {0,...} will never occur (MSB == 1 iff LSBs = {0,...}),
@@ -342,9 +342,10 @@ absl::StatusOr<bool> SimplifyOneHotMsb(FunctionBase* f) {
   // optimization opportunities.
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BddQueryEngine> bdd_query_engine_minus_one_hot,
-      BddQueryEngine::Run(f, /*minterm_limit=*/4096, {Op::kOneHot}));
+      BddQueryEngine::Run(f, BddFunction::kDefaultPathLimit,
+                          /*do_not_evaluate_ops=*/{Op::kOneHot}));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BddQueryEngine> bdd_query_engine_default,
-                       BddQueryEngine::Run(f, /*minterm_limit=*/4096));
+                       BddQueryEngine::Run(f, BddFunction::kDefaultPathLimit));
 
   for (Node* node : f->nodes()) {
     // Check if one-hot's MSB affect the function's output.
@@ -443,9 +444,8 @@ absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
     XLS_ASSIGN_OR_RETURN(one_hot_modified, SimplifyOneHotMsb(f));
   }
 
-  // TODO(meheff): Try tuning the minterm limit.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BddQueryEngine> query_engine,
-                       BddQueryEngine::Run(f, /*minterm_limit=*/4096));
+                       BddQueryEngine::Run(f, BddFunction::kDefaultPathLimit));
 
   bool modified = false;
   for (Node* node : TopoSort(f)) {

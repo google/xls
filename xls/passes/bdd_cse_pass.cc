@@ -94,9 +94,8 @@ absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f) {
 
 absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
-  // TODO(meheff): Try tuning the minterm limit.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BddFunction> bdd_function,
-                       BddFunction::Run(f, /*minterm_limit=*/4096));
+                       BddFunction::Run(f, BddFunction::kDefaultPathLimit));
 
   // To improve efficiency, bucket potentially common nodes together. The
   // bucketing is done via a int64_t hash value of the BDD node indices of each

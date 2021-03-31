@@ -88,9 +88,9 @@ TEST_F(BddFunctionTest, Parity) {
 
   const int64_t kNumSamples = 100;
   std::minstd_rand engine;
-  for (int64_t minterm_limit : {0, 10, 1000, 10000}) {
+  for (int64_t path_limit : {0, 10, 1000, 10000}) {
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BddFunction> bdd_function,
-                             BddFunction::Run(f, minterm_limit));
+                             BddFunction::Run(f, path_limit));
     EXPECT_THAT(bdd_function->Evaluate({Value(UBits(0, 32))}),
                 IsOkAndHolds(Value(UBits(0, 1))));
     EXPECT_THAT(bdd_function->Evaluate({Value(UBits(1, 32))}),
@@ -117,9 +117,9 @@ TEST_F(BddFunctionTest, BenchmarkTest) {
 
     std::minstd_rand engine;
     const int64_t kSampleCount = 32;
-    for (int64_t minterm_limit : {10, 100, 1000}) {
+    for (int64_t path_limit : {10, 100, 1000}) {
       XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BddFunction> bdd_function,
-                               BddFunction::Run(entry, minterm_limit));
+                               BddFunction::Run(entry, path_limit));
       for (int64_t i = 0; i < kSampleCount; ++i) {
         std::vector<Value> inputs = RandomFunctionArguments(entry, &engine);
         XLS_ASSERT_OK_AND_ASSIGN(Value expected,

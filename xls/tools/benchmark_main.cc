@@ -356,7 +356,7 @@ absl::Status RealMain(absl::string_view path,
   XLS_RETURN_IF_ERROR(RunOptimizationAndPrintStats(package.get()));
   XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BddQueryEngine> query_engine,
-                       BddQueryEngine::Run(f, /*minterm_limit=*/1024));
+                       BddQueryEngine::Run(f, BddFunction::kDefaultPathLimit));
   PrintNodeBreakdown(f);
 
   absl::optional<int64_t> effective_clock_period_ps;

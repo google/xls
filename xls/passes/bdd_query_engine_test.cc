@@ -247,15 +247,14 @@ TEST_F(BddQueryEngineTest, ForceNodeToBeModeledAsVariable) {
   BValue my_zero = fb.Literal(UBits(0, 1));
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto query_engine,
-      BddQueryEngine::Run(f, /*minterm_limit=*/0, {Op::kOr}));
+  XLS_ASSERT_OK_AND_ASSIGN(auto query_engine,
+                           BddQueryEngine::Run(f, /*path_limit=*/0, {Op::kOr}));
   EXPECT_FALSE(KnownEquals(*query_engine, andop.node(), my_one.node()));
   EXPECT_TRUE(KnownEquals(*query_engine, andop.node(), my_zero.node()));
   EXPECT_FALSE(KnownEquals(*query_engine, orop.node(), my_one.node()));
   EXPECT_FALSE(KnownEquals(*query_engine, orop.node(), my_zero.node()));
   XLS_ASSERT_OK_AND_ASSIGN(auto query_engine_empty_op_set,
-                           BddQueryEngine::Run(f, /*minterm_limit=*/0, {}));
+                           BddQueryEngine::Run(f, /*path_limit=*/0, {}));
   EXPECT_FALSE(
       KnownEquals(*query_engine_empty_op_set, andop.node(), my_one.node()));
   EXPECT_TRUE(
