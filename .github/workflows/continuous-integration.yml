@@ -17,6 +17,7 @@ jobs:
   build:
     name: Bazel Test All (opt)
     runs-on: ubuntu-20.04
+    timeout-minutes: 600
     steps:
       - uses: actions/checkout@v2
       - name: Mount Bazel Cache
@@ -32,9 +33,8 @@ jobs:
           chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
       - name: Install dependencies via apt
         run: sudo apt-get install python3-dev python3-distutils python3-dev python-is-python3 libtinfo5
-      - name: Bazel Build All (opt)
-        run: |
-          "${GITHUB_WORKSPACE}/bin/bazel" build -c opt //...
+      # Note: xlscc is excluded because it builds Clang, and that pushes us
+      # over 6 hours of build time.
       - name: Bazel Test All (opt)
         run: |
-          "${GITHUB_WORKSPACE}/bin/bazel" test -c opt //...
+          "${GITHUB_WORKSPACE}/bin/bazel" test -c opt -- //xls/... -//xls/contrib/xlscc/...
