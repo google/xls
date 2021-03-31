@@ -287,6 +287,28 @@ cc_test(
 )
 
 cc_library(
+    name = "fully_connected_options_proto_builder",
+    srcs = ["fully_connected_options_proto_builder.cc"],
+    hdrs = ["fully_connected_options_proto_builder.h"],
+    deps = [
+        ":topology_endpoint_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "fully_connected_options_proto_builder_test",
+    srcs = ["fully_connected_options_proto_builder_test.cc"],
+    deps = [
+        ":fully_connected_options_proto_builder",
+        ":topology_endpoint_options_proto_builder",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "network_component_port",
     srcs = ["network_component_port.cc"],
     hdrs = ["network_component_port.h"],
