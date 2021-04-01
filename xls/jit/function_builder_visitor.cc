@@ -468,15 +468,15 @@ absl::Status FunctionBuilderVisitor::HandleBitSliceUpdate(
   // optimization bugs. The shifted value is not even used in this case.
   llvm::Value* shift_amount = builder_->CreateSelect(
       in_bounds, start_wide, llvm::ConstantInt::get(max_width_type, 0));
-  llvm::Value* shifted_mask = builder_->CreateNot(
-      builder_->CreateShl(mask, shift_amount), "mask");
+  llvm::Value* shifted_mask =
+      builder_->CreateNot(builder_->CreateShl(mask, shift_amount), "mask");
   llvm::Value* masked_to_update =
       builder_->CreateAnd(shifted_mask, to_update_wide);
   llvm::Value* shifted_update_value =
       builder_->CreateShl(update_value_wide, shift_amount);
   llvm::Value* updated_slice = builder_->CreateTrunc(
-      builder_->CreateOr(masked_to_update, shifted_update_value),
-      result_type, "updated_slice");
+      builder_->CreateOr(masked_to_update, shifted_update_value), result_type,
+      "updated_slice");
 
   llvm::Value* result =
       builder_->CreateSelect(in_bounds, updated_slice, to_update, "result");
