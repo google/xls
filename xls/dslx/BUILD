@@ -718,6 +718,40 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "run_routines",
+    srcs = ["run_routines.cc"],
+    hdrs = ["run_routines.h"],
+    deps = [
+        ":bindings",
+        ":command_line_utils",
+        ":error_printer",
+        ":interp_value",
+        ":interpreter",
+        ":ir_converter",
+        ":mangle",
+        ":parse_and_typecheck",
+        ":symbolic_bindings",
+        ":typecheck",
+        "//xls/ir",
+        "//xls/ir:random_value",
+        "//xls/jit:ir_jit",
+    ],
+)
+
+cc_test(
+    name = "run_routines_test",
+    srcs = ["run_routines_test.cc"],
+    deps = [
+        ":run_routines",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:temp_file",
+        "//xls/common/status:matchers",
+        "//xls/ir:ir_parser",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 # -- Command line utilities.
 
 cc_library(
@@ -769,6 +803,7 @@ cc_binary(
         ":mangle",
         ":parse_and_typecheck",
         ":parser",
+        ":run_routines",
         ":scanner",
         ":typecheck",
         "//xls/common:init_xls",

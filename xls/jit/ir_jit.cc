@@ -17,7 +17,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <random>
 
 #include "absl/flags/flag.h"
 #include "absl/memory/memory.h"
@@ -405,27 +404,6 @@ absl::StatusOr<Value> CreateAndRun(Function* xls_function,
   XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(xls_function));
   XLS_ASSIGN_OR_RETURN(auto result, jit->Run(args));
   return result;
-}
-
-absl::StatusOr<std::pair<std::vector<std::vector<Value>>, std::vector<Value>>>
-CreateAndQuickCheck(Function* xls_function, int64_t seed, int64_t num_tests) {
-  // No proc support from Python yet.
-  XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(xls_function));
-  std::vector<Value> results;
-  std::vector<std::vector<Value>> argsets;
-  std::minstd_rand rng_engine(seed);
-
-  for (int i = 0; i < num_tests; i++) {
-    argsets.push_back(RandomFunctionArguments(xls_function, &rng_engine));
-    XLS_ASSIGN_OR_RETURN(auto result, jit->Run(argsets[i]));
-    results.push_back(result);
-    if (result.IsAllZeros())
-      // We were able to falsify the xls_function (predicate), bail out early
-      // and present this evidence.
-      break;
-  }
-
-  return std::make_pair(argsets, results);
 }
 
 // Much of the core here is the same as in CompileFunction() - refer there for
