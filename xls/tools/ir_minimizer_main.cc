@@ -270,6 +270,24 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
     Function* f, std::mt19937* rng, std::string* which_transform) {
   Node* orig = f->return_value();
 
+  // Try slicing array return values down to fewer elements.
+  if (orig->GetType()->IsArray() && Random0To1(rng) < 0.25 &&
+      orig->GetType()->AsArrayOrDie()->size() > 1) {
+    int64_t original_size = orig->GetType()->AsArrayOrDie()->size();
+    int64_t new_size = absl::Uniform<int64_t>(*rng, 1, original_size);
+    XLS_ASSIGN_OR_RETURN(
+        Node * zero,
+        f->MakeNode<Literal>(orig->loc(),
+                             ZeroOfType(f->package()->GetBitsType(1))));
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_return_value,
+        f->MakeNode<ArraySlice>(orig->loc(), orig, zero, new_size));
+    XLS_RETURN_IF_ERROR(f->set_return_value(new_return_value));
+    *which_transform = absl::StrFormat("array slice reduction: %d => %d",
+                                       original_size, new_size);
+    return SimplificationResult::kDidChange;
+  }
+
   // If the return value is a tuple, concat, or array, try to knock out some of
   // the operands which then become dead.
   if ((orig->Is<Tuple>() || orig->Is<Concat>() || orig->Is<Array>()) &&

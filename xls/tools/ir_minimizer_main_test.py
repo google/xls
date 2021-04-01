@@ -131,6 +131,27 @@ fn foo(x: bits[32], y: bits[32], z: bits[32]) -> (bits[32], (bits[32], bits[32])
     self.assertIn('ret tuple.9: (bits[32]) = tuple(x, id=9)',
                   minimized_ir.decode('utf-8'))
 
+  def test_simplify_array(self):
+    input_ir = """package foo
+
+fn foo() -> bits[32][3] {
+  ret a: bits[32][3] = literal(value=[0, 0, 0], id=3)
+}
+"""
+    ir_file = self.create_tempfile(content=input_ir)
+    test_sh_file = self.create_tempfile()
+    self._write_sh_script(test_sh_file.full_path,
+                          [r'/bin/grep "bits\[32\]\[[123]\]" $1'])
+    minimized_ir = subprocess.check_output([
+        IR_MINIMIZER_MAIN_PATH,
+        '--test_executable=' + test_sh_file.full_path,
+        ir_file.full_path,
+    ],
+                                           encoding='utf-8')
+    self.assertRegex(
+        minimized_ir,
+        r'ret \w+.\d+: bits\[32\]\[1\] = literal\(value=\[0\], id=\d+\)')
+
   def test_verify_return_code(self):
     # If the test script never successfully runs, then ir_minimizer_main should
     # return nonzero.
