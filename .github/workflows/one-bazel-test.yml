@@ -1,0 +1,44 @@
+# https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions
+# See also: https://github.com/marketplace/actions/bazel-action
+
+name: Solo Bazel Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Bazel Target Pattern'
+        default: '//xls/dslx:interpreter_test'
+        required: true
+      runs_per_test:
+        description: 'Number of Runs'
+        default: '1'
+        required: true
+
+env:
+  BAZEL_TARGET: ${{ github.event.inputs.target }}
+  BAZEL_RUNS_PER_TEST: ${{ github.event.inputs.runs_per_test }}
+
+jobs:
+  build:
+    name: Bazel Test (opt)
+    runs-on: ubuntu-20.04
+    timeout-minutes: 600
+    steps:
+      - uses: actions/checkout@v2
+      - name: Mount Bazel Cache
+        uses: actions/cache@v1
+        with:
+          path: "~/.cache/bazel"
+          key: bazel
+      - name: Install bazelisk
+        run: |
+          curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.1.0/bazelisk-linux-amd64"
+          mkdir -p "${GITHUB_WORKSPACE}/bin/"
+          mv bazelisk-linux-amd64 "${GITHUB_WORKSPACE}/bin/bazel"
+          chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
+      - name: Install dependencies via apt
+        run: sudo apt-get install python3-dev python3-distutils python3-dev python-is-python3 libtinfo5
+      - name: Bazel Test Target (opt)
+        run: |
+          "${GITHUB_WORKSPACE}/bin/bazel" test -c opt --test_output=all --runs_per_test=$BAZEL_RUNS_PER_TEST -- $BAZEL_TARGET
