@@ -601,8 +601,7 @@ class InterpreterTest(test_base.TestCase):
         cmd,
         stderr=subp.PIPE,  # Only capture stderr
         encoding='utf-8',
-        check=True,
-        env={})
+        check=True)
     stderr = result.stderr
 
     # Verify x0, x1, and x2 are traced.
