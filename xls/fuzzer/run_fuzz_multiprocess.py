@@ -181,6 +181,7 @@ def do_generator_task(queues: Tuple[mp.Queue, ...],
   """Makes DSLX text / args as fuzz samples and pushes them to workers."""
   start = datetime.datetime.now()
   i = 0
+  queue_sweeps = 0
   rng = ast_generator.RngState(seed)
   while True:
     if duration:  # Note: duration overrides sample count.
@@ -194,12 +195,17 @@ def do_generator_task(queues: Tuple[mp.Queue, ...],
       break
 
     if i != 0 and i % len(queues) == 0:
-      delta = datetime.datetime.now() - start
-      elapsed = delta.total_seconds()
+      queue_sweeps += 1
 
-      print(f'-- Generating sample {i:8,d}; elapsed: {delta}; '
-            f'aggregate generate samples/s: {i/elapsed:6.2f}')
-      sys.stdout.flush()
+      # Every 16 (arbitrary) sweeps through the queue we print out the generator
+      # rate and flush stdout.
+      if queue_sweeps & 0xf == 0:
+        delta = datetime.datetime.now() - start
+        elapsed = delta.total_seconds()
+
+        print(f'-- Generating sample {i:8,d}; elapsed: {delta}; '
+              f'aggregate generate samples/s: {i/elapsed:6.2f}')
+        sys.stdout.flush()
 
     # Generate a command message.
     with sample_runner.Timer() as t:
