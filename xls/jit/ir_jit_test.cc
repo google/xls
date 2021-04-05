@@ -430,10 +430,10 @@ TEST(IrJitTest, Assert) {
 
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(f));
 
-  std::vector<Value> ok_args({Value::Token(), Value(UBits(1, 1))});
+  std::vector<Value> ok_args = {Value::Token(), Value(UBits(1, 1))};
   EXPECT_THAT(jit->Run(ok_args), IsOkAndHolds(Value::Token()));
 
-  std::vector<Value> fail_args({Value::Token(), Value(UBits(0, 1))});
+  std::vector<Value> fail_args = {Value::Token(), Value(UBits(0, 1))};
   EXPECT_THAT(jit->Run(fail_args),
               StatusIs(absl::StatusCode::kAborted,
                        testing::HasSubstr("the assertion error message")));

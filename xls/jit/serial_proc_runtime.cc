@@ -29,7 +29,7 @@ void SerialProcRuntime::AwaitState(
     ThreadData* thread_data;
     const absl::flat_hash_set<ThreadData::State>* states;
   };
-  AwaitData await_data({thread_data, &states});
+  AwaitData await_data = {thread_data, &states};
   thread_data->mutex.AssertHeld();
   thread_data->mutex.Await(absl::Condition(
       +[](AwaitData* await_data) {
@@ -51,7 +51,7 @@ void SerialProcRuntime::ThreadFn(ThreadData* thread_data) {
   while (true) {
     // RunWithViews takes an array of arg view pointers - even if they're unused
     // during execution, tokens still occupy one of those spots.
-    std::vector<uint8_t*> args({nullptr, thread_data->proc_state.get()});
+    std::vector<uint8_t*> args = {nullptr, thread_data->proc_state.get()};
     XLS_CHECK_OK(thread_data->jit->RunWithViews(
         absl::MakeSpan(args),
         absl::MakeSpan(thread_data->proc_state.get(),

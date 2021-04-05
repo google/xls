@@ -154,7 +154,7 @@ absl::Status FunctionBuilderVisitor::InvokeAssertCallback(
   // Using int64_t because LLVM doesn't like void* types.
   llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
 
-  std::vector<llvm::Type*> params({msg_type, int64_type});
+  std::vector<llvm::Type*> params = {msg_type, int64_type};
 
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
 
