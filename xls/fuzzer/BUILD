@@ -201,6 +201,7 @@ generate_crasher_regression_tests(
         "crashers/crasher_2021-03-19_2649.x",
         "crashers/crasher_2021-03-28_dba9.x",
         "crashers/crasher_2021-03-29_141c.x",
+        "crashers/crasher_2021-04-05_2b5f.x",
     ],
     prefix = package_name(),
 )
