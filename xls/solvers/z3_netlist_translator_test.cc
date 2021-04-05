@@ -144,17 +144,6 @@ absl::Status CreateNetList(
   return absl::OkStatus();
 }
 
-absl::flat_hash_map<std::string, Z3_ast> CreateInputs(const Z3_context& ctx,
-                                                      const Module& module) {
-  absl::flat_hash_map<std::string, Z3_ast> inputs;
-  Z3_sort input_sort = Z3_mk_bv_sort(ctx, 1);
-  for (const auto& input : module.inputs()) {
-    inputs[input->name()] = Z3_mk_const(
-        ctx, Z3_mk_string_symbol(ctx, input->name().c_str()), input_sort);
-  }
-  return inputs;
-}
-
 // Simple test to make sure we can translate anything at all.
 // TODO(rspringer): This test should really be updated to specify the module as
 // a string.
