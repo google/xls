@@ -1124,6 +1124,9 @@ class NodeChecker : public DfsVisitor {
         XLS_RET_CHECK_EQ(value.bits().bit_count(),
                          type->AsBitsOrDie()->bit_count());
         break;
+      case ValueKind::kToken:
+        XLS_RET_CHECK(type->IsToken());
+        break;
       case ValueKind::kTuple: {
         XLS_RET_CHECK(type->IsTuple());
         TupleType* tuple_type = type->AsTupleOrDie();
