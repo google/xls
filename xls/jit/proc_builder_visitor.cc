@@ -45,6 +45,12 @@ absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
   llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
   llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
 
+  // Treat void pointers as int64_t values at the LLVM IR level.
+  // Using an actual pointer type triggers LLVM asserts when compiling
+  // in debug mode.
+  // TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
+  llvm::Type* void_ptr_type = int64_type;
+
   // To actually receive a message, we'll be pulling it from some queue (that
   // will be known at JIT compilation time). Rather than trying to code that
   // up as LLVM IR, we provide the dequeue operation as an external function
@@ -52,9 +58,8 @@ absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
   // outside LLVM - we need to:
   //  1) conceptually add it to our module under construction, which requires
   //     defining its signature to LLVM,
-  // LLVM doesn't like void* types, so we use int64_t's instead.
   std::vector<llvm::Type*> params = {int64_type, int64_type, int8_ptr_type,
-                                     int64_type, int64_type};
+                                     int64_type, void_ptr_type};
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
 
@@ -151,10 +156,16 @@ absl::Status ProcBuilderVisitor::InvokeSendCallback(llvm::IRBuilder<>* builder,
   llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
   llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
 
+  // Treat void pointers as int64_t values at the LLVM IR level.
+  // Using an actual pointer type triggers LLVM asserts when compiling
+  // in debug mode.
+  // TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
+  llvm::Type* void_ptr_type = int64_type;
+
   // We do the same for sending/enqueuing as we do for receiving/dequeueing
   // above (set up and call an external function).
   std::vector<llvm::Type*> params = {
-      int64_type, int64_type, int8_ptr_type, int64_type, int64_type,
+      int64_type, int64_type, int8_ptr_type, int64_type, void_ptr_type,
   };
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);

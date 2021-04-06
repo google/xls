@@ -301,10 +301,18 @@ absl::Status IrJit::CompileFunction(VisitFn visit_fn, llvm::Module* module) {
       type_converter_->ConvertToLlvmType(return_type);
   param_types.push_back(
       llvm::PointerType::get(llvm_return_type, /*AddressSpace=*/0));
+
+  // Treat void pointers as int64_t values at the LLVM IR level.
+  // Using an actual pointer type triggers LLVM asserts when compiling
+  // in debug mode.
+  // TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
+  llvm::Type* void_ptr_type = llvm::Type::getInt64Ty(*bare_context);
+
   // assertion status argument
-  param_types.push_back(llvm::Type::getInt64Ty(*bare_context));
+  param_types.push_back(void_ptr_type);
   // user data argument
-  param_types.push_back(llvm::Type::getInt64Ty(*bare_context));
+  param_types.push_back(void_ptr_type);
+
   llvm::FunctionType* function_type = llvm::FunctionType::get(
       llvm::Type::getVoidTy(*bare_context),
       llvm::ArrayRef<llvm::Type*>(param_types.data(), param_types.size()),

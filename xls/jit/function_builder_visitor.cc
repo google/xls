@@ -151,10 +151,13 @@ absl::Status FunctionBuilderVisitor::InvokeAssertCallback(
 
   llvm::Type* msg_type = msg_constant->getType();
 
-  // Using int64_t because LLVM doesn't like void* types.
-  llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
+  // Treat void pointers as int64_t values at the LLVM IR level.
+  // Using an actual pointer type triggers LLVM asserts when compiling
+  // in debug mode.
+  // TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
+  llvm::Type* void_ptr_type = llvm::Type::getInt64Ty(ctx());
 
-  std::vector<llvm::Type*> params = {msg_type, int64_type};
+  std::vector<llvm::Type*> params = {msg_type, void_ptr_type};
 
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
 
