@@ -244,21 +244,23 @@ absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::IndexIntoArray(
       builder_->CreateZExt(inbounds_index,
                            llvm::IntegerType::get(ctx_, index_width + 1))};
 
+  llvm::Type* array_type = array->getType();
   // Ideally, we'd use IRBuilder::CreateExtractValue here, but that requires
   // constant indices. Since there's no other way to extract a value from an
   // aggregate, we're left with storing the value in a temporary alloca and
   // using that pointer to extract the value.
   llvm::AllocaInst* alloca;
   if (!array_storage_.contains(array)) {
-    alloca = builder_->CreateAlloca(array->getType());
+    alloca = builder_->CreateAlloca(array_type);
     builder_->CreateStore(array, alloca);
     array_storage_[array] = alloca;
   } else {
     alloca = array_storage_[array];
   }
 
-  llvm::Value* gep = builder_->CreateGEP(alloca, gep_indices);
-  return builder_->CreateLoad(gep);
+  llvm::Type* element_type = array_type->getArrayElementType();
+  llvm::Value* gep = builder_->CreateGEP(array_type, alloca, gep_indices);
+  return builder_->CreateLoad(element_type, gep);
 }
 
 absl::Status FunctionBuilderVisitor::HandleArrayIndex(ArrayIndex* index) {
@@ -299,7 +301,8 @@ absl::Status FunctionBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
                        slice->array()->GetType()->AsArrayOrDie()->size()));
     std::vector<llvm::Value*> gep_indices = {
         llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), i)};
-    llvm::Value* gep = builder_->CreateGEP(alloca, gep_indices);
+    llvm::Value* gep =
+        builder_->CreateGEP(result_element_type, alloca, gep_indices);
     builder_->CreateStore(value, gep);
   }
 
@@ -355,7 +358,8 @@ absl::Status FunctionBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
       ctx(), absl::StrCat(update->GetName(), "_inbounds"), llvm_fn(),
       /*InsertBefore=*/join_block);
   llvm::IRBuilder<> inbounds_builder(inbounds_block);
-  llvm::Value* gep = inbounds_builder.CreateGEP(alloca, gep_indices);
+  llvm::Value* gep =
+      inbounds_builder.CreateGEP(array_type, alloca, gep_indices);
   inbounds_builder.CreateStore(node_map_.at(update->update_value()), gep);
   inbounds_builder.CreateBr(join_block);
 
@@ -983,9 +987,10 @@ absl::Status FunctionBuilderVisitor::HandlePackedParam(Param* param) {
           llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), index),
       });
 
-  // The GEP gives a pointer to a u8*; so 'load' is a i8. Cast it to its full
+  // The GEP gives a pointer to a u8*; so 'load' is an i8*. Cast it to its full
   // width so we can load the whole thing.
-  llvm::LoadInst* load = builder_->CreateLoad(gep);
+  llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
+  llvm::LoadInst* load = builder_->CreateLoad(int8_ptr_type, gep);
   if (param->GetType()->GetFlatBitCount() == 0) {
     // Create an empty structure, etc.
     return StoreResult(
@@ -996,7 +1001,7 @@ absl::Status FunctionBuilderVisitor::HandlePackedParam(Param* param) {
       llvm::IntegerType::get(ctx_, param->GetType()->GetFlatBitCount());
   llvm::Value* cast = builder_->CreateBitCast(
       load, llvm::PointerType::get(packed_arg_type, /*AddressSpace=*/0));
-  load = builder_->CreateLoad(cast);
+  load = builder_->CreateLoad(packed_arg_type, cast);
 
   // Now populate an Value of Param's type with the packed buffer contents.
   XLS_ASSIGN_OR_RETURN(llvm::Value * unpacked,

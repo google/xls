@@ -86,7 +86,7 @@ absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
   builder->CreateCall(fn_type, fn_ptr, args);
 
   // 4) then load its result from the bounce buffer.
-  return builder->CreateLoad(alloca);
+  return builder->CreateLoad(recv_type, alloca);
 }
 
 absl::Status ProcBuilderVisitor::HandleReceive(Receive* recv) {
