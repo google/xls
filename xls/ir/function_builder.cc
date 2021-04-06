@@ -39,14 +39,13 @@ BValue BValue::operator-() { return builder()->Negate(*this); }
 BValue BuilderBase::SetError(absl::string_view msg,
                              absl::optional<SourceLocation> loc) {
   error_pending_ = true;
-  error_msg_ = msg;
+  error_msg_ = std::string(msg);
   if (loc.has_value()) {
     error_loc_.emplace(loc.value());
   }
   error_stacktrace_ = GetSymbolizedStackTraceAsString();
   return BValue();
 }
-
 
 BValue BuilderBase::Literal(Value value, absl::optional<SourceLocation> loc,
                             absl::string_view name) {
