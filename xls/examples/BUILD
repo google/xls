@@ -75,6 +75,32 @@ cc_binary(
 )
 
 dslx_test(
+    name = "dot_product",
+    srcs = ["dot_product.x"],
+    # No meaningful entry point to convert.
+    convert_ir = False,
+    deps = [
+        "//xls/modules:apfloat_add_2.x",
+        "//xls/modules:apfloat_mul_2.x",
+        "//xls/modules:fpadd_2x32.x",
+        "//xls/modules:fpmul_2x32.x",
+    ],
+)
+
+dslx_test(
+    name = "fir_filter",
+    srcs = ["fir_filter.x"],
+    # No meaningful entry point to convert.
+    convert_ir = False,
+    deps = [
+        "//xls/modules:apfloat_add_2.x",
+        "//xls/modules:apfloat_mul_2.x",
+        "//xls/modules:fpadd_2x32.x",
+        "//xls/modules:fpmul_2x32.x",
+    ],
+)
+
+dslx_test(
     name = "riscv_simple",
     srcs = ["riscv_simple.x"],
     # TODO(hjmontero): run_instruction segfaults.

@@ -183,6 +183,183 @@ pub fn unflatten<EXP_SZ:u32, SFD_SZ:u32,
   }
 }
 
+pub fn cast_from_fixed<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1,
+  NUM_SRC_BITS:u32, EXTENDED_SFD_SZ:u32 = SFD_SZ + NUM_SRC_BITS>
+  (to_cast: sN[NUM_SRC_BITS]) -> APFloat<EXP_SZ, SFD_SZ> {
+  // Determine sign.
+  let sign = to_cast[NUM_SRC_BITS-u32:1 : NUM_SRC_BITS];
+
+  // Determine exponent.
+  let abs_magnitude = (to_cast if sign == u1:0 else -to_cast) as uN[NUM_SRC_BITS];
+  let lz = clz(abs_magnitude);
+  let num_trailing_nonzeros = (NUM_SRC_BITS as uN[NUM_SRC_BITS]) - lz;
+  let exp = (num_trailing_nonzeros as uN[UEXP_SZ]) - uN[UEXP_SZ]:1;
+  let max_exp_exclusive = uN[UEXP_SZ]:1 << ((EXP_SZ as uN[UEXP_SZ]) - uN[UEXP_SZ]:1);
+  let is_inf = exp >= max_exp_exclusive;
+  let bexp = bias<EXP_SZ, SFD_SZ>(exp);
+
+  // Determine significand (pre-rounding).
+  let extended_sfd = abs_magnitude ++ uN[SFD_SZ]:0;
+  let sfd = extended_sfd >>
+    ((num_trailing_nonzeros - uN[NUM_SRC_BITS]:1) as uN[EXTENDED_SFD_SZ]);
+  let sfd = sfd[0 : SFD_SZ];
+
+  // Round significand (round to nearest, half to even).
+  let lsb_idx = (num_trailing_nonzeros as uN[EXTENDED_SFD_SZ])
+    - uN[EXTENDED_SFD_SZ]:1;
+  let halfway_idx = lsb_idx - uN[EXTENDED_SFD_SZ]:1;
+  let halfway_bit_mask = uN[EXTENDED_SFD_SZ]:1 << halfway_idx;
+  let trunc_mask = (uN[EXTENDED_SFD_SZ]:1 << lsb_idx) - uN[EXTENDED_SFD_SZ]:1;
+  let trunc_bits = trunc_mask & extended_sfd;
+  let trunc_bits_gt_half = trunc_bits > halfway_bit_mask;
+  let trunc_bits_are_halfway = trunc_bits == halfway_bit_mask;
+  let sfd_is_odd = sfd[0:1] == u1:1;
+  let round_to_even = trunc_bits_are_halfway && sfd_is_odd;
+  let round_up = trunc_bits_gt_half || round_to_even;
+  let sfd = sfd + uN[SFD_SZ]:1 if round_up else sfd;
+
+  // Check if rounding up causes an exponent increment.
+  let overflow = round_up && (sfd == uN[SFD_SZ]:0);
+  let bexp = (bexp + uN[EXP_SZ]:1) if overflow else bexp;
+
+  // Check if rounding up caused us to overflow to infinity.
+  let is_inf = is_inf || bexp == std::mask_bits<EXP_SZ>();
+
+  let result =
+    APFloat<EXP_SZ, SFD_SZ>{
+      sign: sign,
+      bexp: bexp,
+      sfd: sfd
+  };
+
+  let is_zero = abs_magnitude == uN[NUM_SRC_BITS]:0;
+  let result = inf<EXP_SZ, SFD_SZ>(sign) if is_inf else result;
+  let result = zero<EXP_SZ, SFD_SZ>(sign) if is_zero else result;
+  result
+}
+
+#![test]
+fn cast_from_fixed_test() {
+  // Zero is a special case.
+  let zero_float = zero<u32:4, u32:4>(u1:0);
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:0), zero_float);
+
+  // +/-1
+  let one_float = one<u32:4, u32:4>(u1:0);
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:1), one_float);
+  let none_float = one<u32:4, u32:4>(u1:1);
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:-1), none_float);
+
+  // +/-4
+  let four_float =
+    APFloat<u32:4, u32:4>{
+      sign: u1:0,
+      bexp: u4:9,
+      sfd: u4:0
+    };
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:4), four_float);
+  let nfour_float =
+    APFloat<u32:4, u32:4>{
+      sign: u1:1,
+      bexp: u4:9,
+      sfd: u4:0
+    };
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:-4), nfour_float);
+
+  // Cast maximum representable exponent in target format.
+  let max_representable =
+    APFloat<u32:4, u32:4>{
+      sign: u1:0,
+      bexp: u4:14,
+      sfd: u4:0
+    };
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:128), max_representable);
+
+  // Cast minimum non-representable exponent in target format.
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:256),
+                    inf<u32:4, u32:4>(u1:0));
+
+  // Test rounding - maximum truncated bits that will round down, even sfd.
+  let truncate =
+    APFloat<u32:4, u32:4>{
+      sign: u1:0,
+      bexp: u4:14,
+      sfd: u4:0
+    };
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:131),
+                    truncate);
+
+  // Test rounding - maximum truncated bits that will round down, odd sfd.
+  let truncate =
+    APFloat<u32:4, u32:4>{
+      sign: u1:0,
+      bexp: u4:14,
+      sfd: u4:1
+    };
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:139),
+                    truncate);
+
+  // Test rounding - halfway and already even, round down
+  let truncate =
+    APFloat<u32:4, u32:4>{
+      sign: u1:0,
+      bexp: u4:14,
+      sfd: u4:0
+    };
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:132),
+                    truncate);
+
+  // Test rounding - halfway and odd, round up
+  let round_up =
+    APFloat<u32:4, u32:4>{
+      sign: u1:0,
+      bexp: u4:14,
+      sfd: u4:2
+    };
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:140),
+                    round_up);
+
+  // Test rounding - over halfway and even, round up
+  let round_up =
+    APFloat<u32:4, u32:4>{
+      sign: u1:0,
+      bexp: u4:14,
+      sfd: u4:1
+    };
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:133),
+                    round_up);
+
+  // Test rounding - over halfway and odd, round up
+  let round_up =
+    APFloat<u32:4, u32:4>{
+      sign: u1:0,
+      bexp: u4:14,
+      sfd: u4:2
+    };
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:141),
+                    round_up);
+
+  // Test rounding - Rounding up increases exponent.
+  let round_inc_exponent =
+    APFloat<u32:4, u32:4>{
+      sign: u1:0,
+      bexp: u4:14,
+      sfd: u4:0
+    };
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:126),
+                    round_inc_exponent);
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:127),
+                    round_inc_exponent);
+
+  // Test rounding - Rounding up overflows to infinity.
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:252),
+                    inf<u32:4, u32:4>(u1:0));
+  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:254),
+                    inf<u32:4, u32:4>(u1:0));
+  ()
+}
+
+
 pub fn subnormals_to_zero<EXP_SZ:u32, SFD_SZ:u32>(
     x: APFloat<EXP_SZ, SFD_SZ>) -> APFloat<EXP_SZ, SFD_SZ> {
   zero<EXP_SZ, SFD_SZ>(x.sign) if x.bexp == bits[EXP_SZ]:0 else x

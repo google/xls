@@ -30,6 +30,9 @@ pub fn bias(unbiased_exponent_in: u9) -> u8 {
 }
 pub fn flatten(f: BF16) -> u16 { apfloat::flatten<u32:8, u32:7>(f) }
 pub fn unflatten(f: u16) -> BF16 { apfloat::unflatten<u32:8, u32:7>(f) }
+pub fn cast_from_fixed<NUM_SRC_BITS:u32>(s: sN[NUM_SRC_BITS]) -> BF16 {
+  apfloat::cast_from_fixed<u32:8, u32:7>(s)
+}
 pub fn subnormals_to_zero(f: BF16) -> BF16 {
   apfloat::subnormals_to_zero<u32:8, u32:7>(f)
 }
