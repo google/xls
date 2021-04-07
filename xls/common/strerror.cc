@@ -15,13 +15,38 @@
 #include "xls/common/strerror.h"
 
 #include <stdio.h>
+#include <string.h>
+
+#include "absl/strings/str_format.h"
 
 namespace xls {
 
 std::string Strerror(int error_num) {
-  // Use sys_errlist API that was deprecated in favor of strerror, because at
-  // least it's thread safe.
-  return sys_errlist[error_num];
+  // The strerror_r function is available in two versions: XSI-compliant version
+  // and a GNU-specific version. The GNU-specific version in glibc returns an
+  // char* pointing to the error string. The XSI-compliant version returns an
+  // int where 0 indicates success.
+  using strerror_r_type = decltype(strerror_r(0, nullptr, 0));
+  constexpr bool kXsiCompliant = std::is_same<strerror_r_type, int>::value;
+  constexpr bool kGnuSpecific = std::is_same<strerror_r_type, char*>::value;
+  static_assert(kXsiCompliant != kGnuSpecific,
+                "strerror_r should be either the XSI-compliant version or the "
+                "GNU-specific version");
+
+  constexpr int kBufferSize = 512;
+  char buffer[kBufferSize] = {};
+
+  if constexpr (kXsiCompliant) {
+    if (strerror_r(error_num, buffer, kBufferSize) != 0) {
+      return absl::StrFormat(
+          "Unknown error, strerror_r failed. error number %d", error_num);
+    }
+    return buffer;
+  } else if constexpr (kGnuSpecific) {
+    // Note that without the `reinterpret_cast`, this cannot be compiled with
+    // the XSI-compliant version of strerror_r.
+    return reinterpret_cast<char*>(strerror_r(error_num, buffer, kBufferSize));
+  }
 }
 
 }  // namespace xls

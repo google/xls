@@ -171,6 +171,7 @@ cc_library(
     name = "strerror",
     srcs = ["strerror.cc"],
     hdrs = ["strerror.h"],
+    deps = ["@com_google_absl//absl/strings:str_format"],
 )
 
 cc_test(
