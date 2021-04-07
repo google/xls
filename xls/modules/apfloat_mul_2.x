@@ -70,7 +70,7 @@ pub fn apfloat_mul_2<
   let y_sfd = uN[WIDE_SFD]:0 if y.bexp == uN[EXP_SZ]:0 else y_sfd;
 
   // 2. Multiply integer mantissas.
-  let sfd: uN[WIDE_SFD] = x_sfd * y_sfd;
+  let sfd = x_sfd * y_sfd;
 
   // 3. Add non-biased exponents.
   //  - Remove the bias from the exponents, add them, then restore the bias.
@@ -90,7 +90,7 @@ pub fn apfloat_mul_2<
   // Instead, if we're multiplying by 0, the result is 0.
   let exp = sN[SIGNED_EXP]:0 if is_zero(x) || is_zero(y) else exp;
 
-  // 4. Normalize. Adjust the significand until our leading 1 is;
+  // 4. Normalize. Adjust the significand until our leading 1 is
   // bit 47 (the first past the 46 bits of actual significand).
   // That'll be a shift of 1 or 0 places (since we're multiplying
   // two values with leading 1s in bit 24).

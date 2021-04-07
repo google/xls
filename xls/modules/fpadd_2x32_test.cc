@@ -16,9 +16,9 @@
 #include <cmath>
 #include <limits>
 
+#include "absl/flags/flag.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
-#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
@@ -28,16 +28,12 @@
 #include "xls/modules/fpadd_2x32_jit_wrapper.h"
 #include "xls/tools/testbench.h"
 
-ABSL_FLAG(bool, use_opt_ir, true, "Use optimized IR.");
 ABSL_FLAG(int, num_threads, 0,
           "Number of threads to use. Set to 0 to use all.");
 ABSL_FLAG(int64_t, num_samples, 1024 * 1024,
           "Number of random samples to test.");
 
 namespace xls {
-
-constexpr const char kOptIrPath[] = "xls/modules/fpadd_2x32.opt.ir";
-constexpr const char kIrPath[] = "xls/modules/fpadd_2x32.ir";
 
 using Float2x32 = std::tuple<float, float>;
 
@@ -83,7 +79,7 @@ void LogMismatch(uint64_t index, Float2x32 input, float actual,
       absl::bit_cast<uint32_t>(expected), absl::bit_cast<uint32_t>(actual));
 }
 
-absl::Status RealMain(bool use_opt_ir, uint64_t num_samples, int num_threads) {
+absl::Status RealMain(uint64_t num_samples, int num_threads) {
   Testbench<Fpadd2x32, Float2x32, float> testbench(
       0, num_samples,
       /*max_failures=*/1, IndexToInput, ComputeExpected, ComputeActual,
@@ -98,8 +94,7 @@ absl::Status RealMain(bool use_opt_ir, uint64_t num_samples, int num_threads) {
 
 int main(int argc, char** argv) {
   xls::InitXls(argv[0], argc, argv);
-  XLS_QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_use_opt_ir),
-                              absl::GetFlag(FLAGS_num_samples),
+  XLS_QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_num_samples),
                               absl::GetFlag(FLAGS_num_threads)));
   return 0;
 }

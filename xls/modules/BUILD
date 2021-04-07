@@ -29,6 +29,36 @@ filegroup(
 )
 
 dslx_test(
+    name = "fma_32",
+    srcs = ["fma_32.x"],
+    # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes).
+    prove_unopt_eq_opt = False,
+)
+
+dslx_jit_wrapper(
+    name = "fma_32_jit_wrapper",
+    dslx_name = "fma_32",
+    deps = [":fma_32_opt_ir"],
+)
+
+cc_test(
+    name = "fma_32_test",
+    srcs = ["fma_32_test.cc"],
+    data = [":fma_32_all_ir"],
+    tags = ["optonly"],
+    deps = [
+        ":fma_32_jit_wrapper",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "//xls/common:init_xls",
+        "//xls/common:math_util",
+        "//xls/common/logging",
+        "//xls/tools:testbench",
+    ],
+)
+
+dslx_test(
     name = "fpadd_2x32",
     srcs = ["fpadd_2x32.x"],
     # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes).
@@ -80,15 +110,14 @@ cc_binary(
 cc_test(
     name = "fpadd_2x32_test",
     srcs = ["fpadd_2x32_test.cc"],
-    data = [":fpadd_2x32_all_ir"],
     tags = ["optonly"],
     deps = [
         ":fpadd_2x32_jit_wrapper",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:init_xls",
         "//xls/common:math_util",
-        "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir:value_helpers",
