@@ -222,6 +222,11 @@ pub fn is_nan<EXP_SZ:u32, SFD_SZ:u32>(x: APFloat<EXP_SZ, SFD_SZ>) -> u1 {
   (x.bexp == std::mask_bits<EXP_SZ>() && x.sfd != bits[SFD_SZ]:0)
 }
 
+// Returns true if x == 0 or x is a subnormal number.
+pub fn is_zero_or_subnormal<EXP_SZ: u32, SFD_SZ: u32>(x: APFloat<EXP_SZ, SFD_SZ>) -> u1 {
+  x.bexp == uN[EXP_SZ]:0
+}
+
 // TODO(rspringer): Create a broadly-applicable normalize test, that
 // could be used for multiple type instantiations (without needing
 // per-specialization data to be specified by a user).

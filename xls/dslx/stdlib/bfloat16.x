@@ -36,6 +36,9 @@ pub fn subnormals_to_zero(f: BF16) -> BF16 {
 
 pub fn is_inf(f: BF16) -> u1 { apfloat::is_inf<u32:8, u32:7>(f) }
 pub fn is_nan(f: BF16) -> u1 { apfloat::is_nan<u32:8, u32:7>(f) }
+pub fn is_zero_or_subnormal(f: BF16) -> u1 {
+  apfloat::is_zero_or_subnormal<u32:8, u32:7>(f)
+}
 
 pub fn normalize(sign:u1, exp: u8, sfd_with_hidden: u8) -> BF16 {
   apfloat::normalize<u32:8, u32:7>(sign, exp, sfd_with_hidden)

@@ -179,7 +179,8 @@ class TestbenchBase {
 
     // Set up all the workers.
     uint64_t chunk_size = (end_ - start_) / num_threads_;
-    uint64_t chunk_remainder = (end_ - start_) % chunk_size;
+    uint64_t chunk_remainder =
+        chunk_size == 0 ? (end_ - start_) : (end_ - start_) % chunk_size;
     uint64_t first = 0;
     uint64_t last;
     for (int i = 0; i < num_threads_; i++) {
@@ -249,7 +250,8 @@ class TestbenchBase {
     auto thread_chunk_size = [this](int thread_index) {
       uint64_t total_size = end_ - start_;
       uint64_t chunk_size = total_size / threads_.size();
-      uint64_t remainder = total_size % chunk_size;
+      uint64_t remainder =
+          chunk_size == 0 ? total_size : total_size % chunk_size;
       if (thread_index < remainder) {
         chunk_size++;
       }
@@ -273,9 +275,12 @@ class TestbenchBase {
                        num_failures)
                 << "\n";
     }
-    double done_per_second = total_done / absl::ToDoubleSeconds(delta);
+    double done_per_second = delta == absl::ZeroDuration()
+                                 ? 0.0
+                                 : total_done / absl::ToDoubleSeconds(delta);
     int64_t remaining = end_ - start_ - total_done;
-    auto estimate = absl::Seconds(remaining / done_per_second);
+    auto estimate = absl::Seconds(
+        done_per_second == 0.0 ? 0.0 : remaining / done_per_second);
     double throughput_this_print =
         static_cast<double>(total_done - num_samples_processed_) /
         ToInt64Seconds(kPrintInterval);
