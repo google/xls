@@ -62,6 +62,10 @@ class Booleanifier {
   // We take a span here, instead of a Vector, so we can easily create subspans.
   BValue PackReturnValue(absl::Span<const Element> bits, const Type* type);
 
+  // Takes in the given Value (not BValue!) and converts it into an
+  // AbstractEvaluator Vector type.
+  Vector FlattenValue(const Value& value);
+
   Function* input_fn_;
   FunctionBuilder builder_;
   std::unique_ptr<BitEvaluator> evaluator_;

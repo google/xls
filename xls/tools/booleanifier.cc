@@ -96,8 +96,30 @@ absl::StatusOr<Function*> Booleanifier::Run() {
       PackReturnValue(node_map_.at(return_node), return_node->GetType()));
 }
 
+Booleanifier::Vector Booleanifier::FlattenValue(const Value& value) {
+  if (value.IsBits()) {
+    return evaluator_->BitsToVector(value.bits());
+  }
+
+  Vector result;
+  for (const auto& element : value.elements()) {
+    Vector element_result = FlattenValue(element);
+    result.insert(result.end(), element_result.begin(), element_result.end());
+  }
+  return result;
+}
+
 Booleanifier::Vector Booleanifier::HandleSpecialOps(Node* node) {
+  // Rather than branching out here to handle tuple- and array-related ops, it
+  // might make sense to first apply a "flattening" pass to convert any non-Bits
+  // types to Bits. That seems like a more foolproof way to avoid
+  // missing functional gaps in composite type handling.
   switch (node->op()) {
+    case Op::kLiteral: {
+      Vector result;
+      Literal* literal = node->As<Literal>();
+      return FlattenValue(literal->value());
+    }
     case Op::kParam: {
       // Params are special, as they come in as n-bit objects. They're one of
       // the interfaces to the outside world that convert N-bit items into N

@@ -118,7 +118,10 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     case Op::kLiteral: {
       XLS_RETURN_IF_ERROR(check_operand_count(0));
       Literal* literal = node->As<Literal>();
-      return evaluator->BitsToVector(literal->value().bits());
+      if (literal->value().IsBits()) {
+        return evaluator->BitsToVector(literal->value().bits());
+      }
+      return default_handler(node);
     }
     case Op::kMap:
       return default_handler(node);
