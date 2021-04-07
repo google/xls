@@ -80,3 +80,18 @@ Note that the `mkvirtualenv` command assumes you're using
 to manage your Python environment. You'll need to adjust these instrutions if
 you're doing something different. That can include explicitly adding `mkdocs` to
 your path, if locally installed Python binaries aren't available by default.
+
+### DSL snippets in documentation
+
+There are a few different language annotations we use in different
+circumstances in the Markdown docs:
+
+* `dslx`: A full code block that should be parsed/typechecked/tested.
+* `dslx-snippet`: A fragment that should be syntax highlighted but not
+  parsed/typechecked/tested.
+* `dslx-bad`: An example of something that we expect to produce an error
+  when parsing/typechecking/testing.
+
+GitHub issue [google/xls#378](https://github.com/google/xls/issues/378) tracks
+a script that does the parse/typecheck/test that ensures our documentation is
+up to date and correct.

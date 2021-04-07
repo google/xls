@@ -49,3 +49,15 @@ nav:
     - Glossary: 'xls_noc_glossary.md'
 markdown_extensions:
   - mdx_truly_sane_lists
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      extend_pygments_lang:
+        - name: dslx
+          lang: rust
+        # dslx-snippet indicates the code block doesn't need to parse and
+        # typecheck.
+        - name: dslx-snippet
+          lang: rust
+        # dslx-bad indicates the code block is showing something wrong.
+        - name: dslx-bad
+          lang: rust

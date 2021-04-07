@@ -10,7 +10,7 @@ conversion to XLS IR) to enable flows for FPGAs and ASICs.
 DSLX mimics Rust, while being an immutable expression-based dataflow DSL with
 hardware-oriented features; e.g. arbitrary bitwidths, entirely fixed size
 objects, fully analyzeable call graph, etc. To avoid arbitrary new
-syntax/semantics choices the DSL mimics Rust where it is reasonably possible;
+syntax/semantics choices, the DSL mimics Rust where it is reasonably possible;
 for example, integer conversions all follow the same semantics as Rust.
 
 Note: There are *some* unnecessary differences today from Rust syntax due to
@@ -108,13 +108,13 @@ A single input file can contain many functions.
 
 Simple examples:
 
-```
+```dslx
 fn ret3() -> u32 {
-   3   // this function always returns 3.
+   u32:3   // This function always returns 3.
 }
 
 fn add1(x: u32) -> u32 {
-   x + u32:1   // returns x + 1, but you knew that.
+   x + u32:1  // Returns x + 1, but you knew that!
 }
 ```
 
@@ -150,16 +150,18 @@ Examples:
 DSLX functions can be parameterized in terms of the types of its arguments and
 in terms of types derived from other parametric values. For instance:
 
-```
-fn double(n: bits[32]) -> bits[32] {
-  n * bits[32]:2
+```dslx
+fn double(n: u32) -> u32 {
+  n * u32:2
 }
 
 fn self_append<A: u32, B: u32 = double(A)>(x: bits[A]) -> bits[B] {
   x++x
 }
 
-fn main() -> bits[10] { self_append(bits[5]:1) }
+fn main() -> bits[10] {
+  self_append(u5:1)
+}
 ```
 
 In `self_append(bits[5]:1)`, we see that `A = 5` based off of formal argument
@@ -185,7 +187,7 @@ fn add_one<E:u32, F:u32, G:u32 = E+F>(lhs: bits[E]) -> bits[G] { ... }
 For this call to instantiable, both `E` and `F` must be specified. Since `F`
 can't be inferred from an argument, we must rely on _explicit parametrics_:
 
-```
+```dslx-snippet
   add_one<u32:1, {u32:2 + u32:3}>(u1:1);
 ```
 
@@ -199,7 +201,7 @@ expression requires them.
 Without curly braces, explicit parametric expressions could be ambiguous;
 consider the following, slightly changed from the previous example:
 
-```
+```dslx-snippet
   add_one<u32:1, u32:2>(u32:3)>(u1:1);
 ```
 
@@ -222,7 +224,7 @@ to improve this is tracked in
 Function calls are expressions and look and feel just like one would expect from
 other languages. For example:
 
-```
+```dslx
 fn callee(x: bits[32], y: bits[32]) -> bits[32] {
   x + y
 }
@@ -283,7 +285,7 @@ operations like comparisons, (variable width) multiplications, and divisions.
 DSLX supports enumerations as a way of defining a group of related, scoped,
 named constants that do not pollute the module namespace. For example:
 
-```
+```dslx
 enum Opcode : u3 {
   FIRE_THE_MISSILES = 0,
   BE_TIRED = 1,
@@ -300,7 +302,7 @@ specifies that the enum behaves like a `u3`: its storage and extension (via
 casting) behavior are defined to be those of a `u3`. Attempts to define an enum
 value outside of the representable `u3` range will produce a compile time error.
 
-```
+```dslx-bad
 enum Opcode : u3 {
   FOO = 8  // Causes compile time error!
 }
@@ -309,7 +311,7 @@ enum Opcode : u3 {
 Enums can be compared for equality/inequality, but they do not permit arithmetic
 operations, they must be cast to numerical types in order to perform arithmetic:
 
-```
+```dslx
 fn same_opcode(x: Opcode, y: Opcode) -> bool {
   x == y  // ok
 }
@@ -326,7 +328,7 @@ will sign extend because the source type for the enum is signed. (See
 [numerical conversions](#numerical-conversions) for the full description of
 extension/truncation behavior.)
 
-```
+```dslx
 enum MySignedEnum : s3 {
   LOW = -1
   ZERO = 0
@@ -355,47 +357,63 @@ Tuples elements can be any type, e.g. bits, arrays, structs, tuples. Tuples may
 be empty (an empty tuple is also known as the unit type), or contain one or more
 types.
 
-Examples:
+Examples of tuple values:
 
+```dslx-snippet
+// The unit type, carries no information.
+let unit = ();
+
+// A tuple containing two bits elements.
+let pair = (0b100, 0b101);
 ```
-() // the unit type, carries no information
 
-let pair = (0b100, 0b101) // a tuple containing two bits elements
+Exmaple of a tuple type:
 
+```dslx
 // The type of a tuple with 2 elements.
 //   the 1st element is of type u32
 //   the 2nd element is a tuple with 3 elements
 //       the 1st element is of type u8
 //       the 2nd element is another tuple with 1 element of type u16
 //       the 3rd element is of type u8
-(u32, (u8, (u16,), u8)
+type MyTuple = (u32, (u8, (u16,), u8);
 ```
 
 To access individual tuple elements use simple indices, starting at 0. For
 example, to access the second element of a tuple (index 1):
 
-```
-let t = (u32:2, u8:3);
-assert_eq(u8:3, t[1])
+```dslx
+#![test]
+fn test_tuple_access() {
+  let t = (u32:2, u8:3);
+  assert_eq(u8:3, t[1])
+}
 ```
 
-Tuples can be destructured, which provides a convenient syntax to name elements
-of a tuple, if only at the use site:
+Tuples can be "destructured", similarly to how pattern matching works in
+`match` expressions, which provides a convenient syntax to name elements of a
+tuple for subsequent use. See `a` and `b` in the following:
 
-```
-let t = (u32:2, u8:3);
-let (a, b) = t;
-let _ = assert_eq(u32:2, a);
-assert_eq(u8:3, b)
+```dslx-snippet
+#![test]
+fn test_tuple_destructure() {
+  let t = (u32:2, u8:3);
+  let (a, b) = t;
+  let _ = assert_eq(u32:2, a);
+  assert_eq(u8:3, b)
+}
 ```
 
 Just as values can be discarded in a `let` by using the "black hole identifier"
 `_`, don't-care values can also be discarded when destructuring a tuple:
 
-```
-let t = (u32:2, u8:3, true);
-let (_, _, v) = t;
-assert_eq(v, true)
+```dslx-snippet
+#![test]
+fn test_black_hole() {
+  let t = (u32:2, u8:3, true);
+  let (_, _, v) = t;
+  assert_eq(v, true)
+}
 ```
 
 ### Struct Types
@@ -406,7 +424,7 @@ positions), and we introduce a new type.
 
 The following syntax is used to define a struct:
 
-```
+```dslx
 struct Point {
   x: u32,
   y: u32
@@ -416,7 +434,7 @@ struct Point {
 Once a struct is defined it can be constructed by naming the fields in any
 order:
 
-```
+```dslx
 struct Point {
   x: u32,
   y: u32,
@@ -433,7 +451,7 @@ fn struct_equality {
 There is a simple syntax when creating a struct whose field names match the
 names of in-scope values:
 
-```
+```dslx
 struct Point { x: u32, y: u32, }
 
 #![test]
@@ -448,7 +466,7 @@ fn struct_equality {
 
 Struct fields can also be accessed with "dot" syntax:
 
-```
+```dslx
 struct Point {
   x: u32,
   y: u32,
@@ -472,7 +490,7 @@ Note that structs cannot be mutated "in place", the user must construct new
 values by extracting the fields of the original struct mixed together with new
 field values, as in the following:
 
-```
+```dslx
 struct Point3 {
   x: u32,
   y: u32,
@@ -500,7 +518,7 @@ fn main {
 The DSL has syntax for conveniently producing a new value with a subset of
 fields updated to reduce verbosity. The "struct update" syntax is:
 
-```
+```dslx
 fn update_y(p: Point3) -> Point3 {
   Point3 { y: u32:42, ..p }
 }
@@ -516,7 +534,7 @@ DSLX also supports parametric structs. For more information on how
 type-parametricity works, see the [parametric functions](#parametric-functions)
 section.
 
-```
+```dslx
 fn double(n: u32) -> u32 { n * u32:2 }
 
 struct Point<N: u32, M: u32 = double(N)> Point { x: bits[N], y: bits[M], }
@@ -541,7 +559,7 @@ types, regardless of whether those structs have the same structure (i.e. even
 when all the fields of two structures are identical, those structures are a
 different type when they have a different name).
 
-```
+```dslx
 struct Point {
   x: u32,
   y: u32,
@@ -573,7 +591,7 @@ Arrays can be constructed via bracket notation. All values that make up the
 array must have the same type. Arrays can be indexed with indexing notation
 (`a[i]`) to retrieve a single element.
 
-```
+```dslx
 fn main(a: u32[2], i: u1) -> u32 {
   a[i]
 }
@@ -596,7 +614,7 @@ the last noted element. Because the compiler must know how many elements to
 fill, in order to use the ellipsis the type must be annotated explicitly as
 shown.
 
-```
+```dslx
 fn make_array(x: u32) -> u32[3] {
   u32[3]:[u32:42, x, ...]
 }
@@ -619,13 +637,13 @@ DLSX supports the definition of type aliases.
 Type aliases can be used to provide a more human-readable name for an existing
 type. The new name is on the left, the existing name on the right:
 
-```
+```dslx
 type Weight = u6;
 ```
 
 We can create an alias for an imported type:
 
-```
+```dslx
 import xls.dslx.interpreter.tests.mod_imported
 
 type MyEnum = mod_imported::MyEnum;
@@ -647,8 +665,8 @@ otherwise anonymous). For example, to define a tuple type that represents a
 float number with a sign bit, an 8-bit mantissa, and a 23-bit mantissa, one
 would write:
 
-```
-type F32 = (u1, u8, u23)
+```dslx
+type F32 = (u1, u8, u23);
 ```
 
 After this definition, the `F32` may be used as a type annotation
@@ -666,7 +684,7 @@ changed between signed and unsigned. Some examples are found below. See
 [Numerical Conversions](#numerical-conversions) for a description of the
 semantics.
 
-```
+```dslx
 #![test]
 fn narrow_cast {
   let twelve = u4:0b1100;
@@ -712,14 +730,14 @@ don't match up.
 `let` expressions also perform type inference, which is quite convenient. For
 example, instead of writing:
 
-```
+```dslx-snippet
 let ch: u32 = (e & f) ^ ((!e) & g);
 let (h, g, f): (u32, u32, u32) = (g, f, e);
 ```
 
 one can write the following, as long as the types can be properly inferred:
 
-```
+```dslx-snippet
 let ch = (e & f) ^ ((!e) & g);
 let (h, g, f) = (g, f, e);
 ```
@@ -751,7 +769,7 @@ same type as its operands, T.
 
 Let's instantiate this rule in a function:
 
-```
+```dslx
 fn add_wrapper(x: bits[2], y: bits[2]) -> bits[2] {
   x + y
 }
@@ -782,7 +800,7 @@ is also `bits[2]`. Qed.
 
 A **type error** would occur in the following:
 
-```
+```dslx
 fn add_wrapper(x: bits[2], y: bits[3]) -> bits[2] {
   x + y
 }
@@ -867,7 +885,7 @@ what happens when names conflict.
 If you want to change the name of the imported module (for reference inside of
 the importing file) you can use the `as` keyword:
 
-```
+```dslx-snippet
 import path.to.my.imported_module as im
 ```
 
@@ -876,7 +894,7 @@ Just using the above construct,
 `im::IMPORTED_MODULE_PUBLIC_CONSTANT`. However, both statements can be used on
 different lines:
 
-```
+```dslx-snippet
 import path.to.my.imported_module
 import path.to.my.imported_module as im
 ```
@@ -888,7 +906,7 @@ same thing.
 Here is an example using the same function via two different aliases for the
 same module:
 
-```
+```dslx
 import xls.dslx.interpreter.tests.mod_imported
 import xls.dslx.interpreter.tests.mod_imported as mi
 
@@ -908,7 +926,7 @@ Module members are private by default and not accessible from any importing
 module. To make a member public/visible to importing modules, the `pub` keyword
 must be added as a prefix; e.g.
 
-```
+```dslx
 const FOO = u32:42;      // Not accessible to importing modules.
 pub const BAR = u32:64;  // Accessible to importing modules.
 ```
@@ -916,7 +934,7 @@ pub const BAR = u32:64;  // Accessible to importing modules.
 This applies to other things defined at module scope as well: functions, enums,
 type aliases, etc.
 
-```
+```dslx
 import xls.dslx.interpreter.tests.mod_imported
 import xls.dslx.interpreter.tests.mod_imported as mi
 
@@ -935,7 +953,7 @@ fn main {
 The `const` keyword is used to define module-level constant values. Named
 constants should be usable anywhere a literal value can be used:
 
-```
+```dslx
 const FOO = u8:42;
 
 fn match_const(x: u8) -> u8 {
@@ -1008,10 +1026,10 @@ need to be the same type or width as the left hand side, i.e. the type signature
 for these operations is: `(xN[M], uN[N]) -> xN[M]`. If the right hand side is a
 literal value it does not need to be type annotated. For example:
 
-```
-  fn shr_two(x: s32) -> s32 {
-    x >> 2
-  }
+```dslx
+fn shr_two(x: s32) -> s32 {
+x >> 2
+}
 ```
 
 Note that, compared to Rust, DSLX uses >> for shift-right (logical) and >>> for
@@ -1039,7 +1057,7 @@ hand side becomes the most significant bits, the value on the right hand side
 becomes the least significant bits. These may be chained together as shown
 below:
 
-```
+```dslx
 #![test]
 fn test_bits_concat() {
   let _ = assert_eq(u8:0b11000000, u2:0b11 ++ u6:0b000000);
@@ -1057,7 +1075,7 @@ Match expressions permit "pattern matching" on data, like a souped-up switch
 statement. It can both test for values (like a conditional guard) and bind
 values to identifiers for subsequent use. For example:
 
-```
+```dslx
 fn f(t: (u8, u32)) -> u32 {
   match t {
     (u8:42, y) => y,
@@ -1073,7 +1091,7 @@ return that. The `_` symbolizes "I don't care about this value".
 Just like literal constants, pattern matching can also match via named
 constants; For example, consider this variation on the above:
 
-```
+```dslx
 const MY_FAVORITE_NUMBER = u8:42;
 fn f(t: (u8, u32)) -> u32 {
   match t {
@@ -1085,7 +1103,7 @@ fn f(t: (u8, u32)) -> u32 {
 
 This also works with nested tuples; for example:
 
-```
+```dslx
 const MY_FAVORITE_NUMBER = u8:42;
 fn f(t: (u8, (u16, u32))) -> u32 {
   match t {
@@ -1099,14 +1117,14 @@ fn f(t: (u8, (u16, u32))) -> u32 {
 Here we use a "catch all" wildcard pattern in the last match arm to ensure the
 match expression always matches the input somehow.
 
-### let Expression
+### `let` Expression
 
 let expressions work the same way as let expressions in other functional
 languages (such as the ML family languages). let expressions provide a nested,
 lexically-scoped, list of binding definitions. The scope of the binding is the
 expression on the right hand side of the declaration. For example:
 
-```
+```dslx-snippet
 let a: u32 = u32:1 + u32:2;
 let b: u32 = a + u32:3;
 b
@@ -1116,7 +1134,7 @@ would bind (and return as a value) the value `6` which corresponds to `b` when
 evaluated. In effect there is little difference to other languages like C/C++ or
 Python, where the same result would be achieved with code similar to this:
 
-```
+```python
 a = 1 + 2
 b = a + 3
 return b
@@ -1205,7 +1223,7 @@ Because DSLX is a pure dataflow description, a for loop is an expression that
 produces a value. As a result, you grab the output of a for loop just like any
 other expression:
 
-```
+```dslx-snippet
 let final_accum = for (i, accum) in range(u32:0, u32:8) {
   let new_accum = f(accum);
   new_accum
@@ -1220,7 +1238,7 @@ ultimately pops it out as the result of its evaluation.
 Add up all values from 0 to 4 (exclusive). Note that we pass the accumulator's
 initial value in as a parameter to this expression.
 
-```
+```dslx-snippet
 for (i, accum): (u32, u32) in range(u32:0, u32:4) {
   accum + i
 }(u32:0)
@@ -1228,7 +1246,7 @@ for (i, accum): (u32, u32) in range(u32:0, u32:4) {
 
 To add up values from 7 to 11 (exclusive), one would write:
 
-```
+```dslx-snippet
 let base = u32:7;
 for (i, accum): (u32, u32) in range(u32:0, u32:4) {
   accum + base + i
@@ -1238,7 +1256,7 @@ for (i, accum): (u32, u32) in range(u32:0, u32:4) {
 "Loop invariant" values (values that do not change as the loop runs) can be used
 in the loop body, for example, note the use of `outer_thing` below:
 
-```
+```dslx-snippet
 let outer_thing: u32 = u32:42;
 for (i, accum): (u32, u32) in range(u32:0, u32:4) {
     accum + i + outer_thing
@@ -1249,7 +1267,7 @@ Both the index and accumulator can be of any valid type, in particular, the
 accumulator can be a tuple type, which is useful for evolving a bunch of values.
 For example, this for loop "evolves" two arrays:
 
-```
+```dslx-snippet
 for (i, (xs, ys)): (u32, (u16[3], u8[3])) in range(u32:0, u32:4) {
   ...
 }((init_xs, init_ys))
@@ -1258,7 +1276,7 @@ for (i, (xs, ys)): (u32, (u16[3], u8[3])) in range(u32:0, u32:4) {
 Note in the above example arrays are dataflow values just like anything else. To
 conditionally update an array every other iteration:
 
-```
+```dslx-snippet
 let result: u4[8] = for (i, array) in range(u32:0, u32:8) {
   // Update every other cell with the square of the index.
   update(array, i, i*i) if i % 2 == 0 else array
@@ -1278,7 +1296,7 @@ for semantics of numeric casts:
 *   Casting from a bit-width to its own bit-width, between signed/unsigned, is a
     no-op.
 
-```
+```dslx
 #![test]
 fn numerical_conversions {
   let s8_m2 = s8:-2;
@@ -1311,7 +1329,7 @@ the MSbs of the resulting value.
 
 All casts between arrays and bits must have the same total bit count.
 
-```
+```dslx
 fn cast_to_array(x: u6) -> u2[3] {
   x as u2[3]
 }
@@ -1397,13 +1415,13 @@ visualized as `[ bitwidth - 1 : to the end]`.
 For example, to get all bits, except the MSb (from the beginning, until the top
 element minus 1):
 
-```
+```dslx-snippet
 x[:-1]
 ```
 
 Or to get the left-most 2 bits (from bitwidth - 2, all the way to the end):
 
-```
+```dslx-snippet
 x[-2:]
 ```
 
@@ -1415,7 +1433,7 @@ will produce a 4-bit unsigned number starting at `start`.
 
 [Here are many more examples](https://github.com/google/xls/tree/main/xls/dslx/tests/bit_slice_syntax.x):
 
-```
+```dslx
 // Identity function helper.
 fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 
@@ -1483,7 +1501,9 @@ fn bit_slice_syntax {
 An infamous wrinkle is introduced for parametric functions: consider the
 following function:
 
-```
+```dslx
+// (Note: DSLX does not currently support the `T: type` construct shown here,
+// it is for example purposes only.)
 fn add_wrapper<T: type, U: type>(x: T, y: U) -> T {
   x + y
 }
@@ -1538,14 +1558,14 @@ operations known to the compiler in their high level form, we potentially enable
 optimizations and analyses on their higher level ("lifted") form. As of now,
 `map` is the sole parallel-primitive-oriented built-in.
 
-### map
+### `map`
 
 `map`, similarly to other languages, executes a transformation function on all
 the elements of an original array to produce the resulting "mapped' array.
 [For example](https://github.com/google/xls/tree/main/xls/dslx/tests/map_of_stdlib_parametric.x):
 taking the absolute value of each element in an input array:
 
-```
+```dslx
 import std
 
 fn main(x: s3[3]) -> s3[3] {
@@ -1571,12 +1591,12 @@ Note: Novel higher order functions (e.g. if a user wanted to write their own
 `map`) cannot currently be written in user-level DSL code.
 
 
-### clz, ctz
+### `clz`, `ctz`
 
 DSLX provides the common "count leading zeroes" and "count trailing zeroes"
 functions:
 
-```
+```dslx-snippet
   let x0 = u32:0x0FFFFFF8;
   let x1 = clz(x0);
   let x2 = ctz(x0);
@@ -1584,7 +1604,7 @@ functions:
   assert_eq(u32:3, x2)
 ```
 
-### signex
+### `signex`
 
 Casting has well-defined extension rules, but in some cases it is necessary to
 be explicit about sign-extensions, if just for code readability. For this, there
@@ -1595,22 +1615,25 @@ To invoke the `signex` builtin, provide it with the operand to sign extend
 signed or unsigned. Note that the *value* of the right hand side is ignored,
 only its type is used to determine the result type of the sign extension.
 
-```
+```dslx
+#![test]
+fn test_signex() {
   let x = u8:-1;
   let s: s32 = signex(x, s32:0);
   let u: u32 = signex(x, u32:0);
   assert_eq(u32:s, u)
+}
 ```
 
 Note that both `s` and `u` contain the same bits in the above example.
 
-### rev
+### `rev`
 
 `rev` is used to reverse the bits in an unsigned bits value. The LSb in the
 input becomes the MSb in the result, the 2nd LSb becomes the 2nd MSb in the
 result, and so on.
 
-```
+```dslx
 // (Dummy) wrapper around reverse.
 fn wrapper<N: u32>(x: bits[N]) -> bits[N] {
   rev(x)
@@ -1634,7 +1657,7 @@ fn reverse {
 }
 ```
 
-### bit_slice_update
+### `bit_slice_update`
 
 `bit_slice_update(subject, start, value)` returns a copy of the bits-typed value
 `subject` where the contiguous bits starting at index `start` (where 0 is the
@@ -1658,7 +1681,7 @@ These are unary reduction operations applied to a bits-typed value:
 These functions return the identity element of the respective operation for
 trivial (0 bit wide) inputs:
 
-```
+```dslx
 #![test]
 fn trivial_reduce {
   let _ = assert_eq(and_reduce(bits[0]:0), true);
@@ -1684,7 +1707,7 @@ results DSLX provides the `assert_eq` primitive (we'll add more of those in the
 future). Here is an example of a `divceil` implementation with its corresponding
 tests:
 
-```
+```dslx
 fn divceil(x: u32, y: u32) -> u32 {
   (x-u32:1) / y + u32:1
 }
@@ -1710,7 +1733,7 @@ recommended to use it within `test` constructs (interpretation) only.
 DSLX supports printf-style debugging via the `trace!` builtin, which allows
 dumping of current values to stdout. For example:
 
-```
+```dslx
 fn decode_s_instruction(ins: u32) -> (u12, u5, u5, u3, u7) {
    let imm_11_5 = (ins >> u32:25);
    let rs2 = (ins >> u32:20) & u32:0x1F;
@@ -1807,7 +1830,7 @@ Example: if only these two enum values shown should be possible (say, as a
 documented [precondition](https://en.wikipedia.org/wiki/Precondition) for
 `main`):
 
-```
+```dslx
 fn main(x: EnumType) -> u32 {
   match x {
     EnumType::FIRST => u32:0,
@@ -1867,7 +1890,7 @@ directive to designate functions to be run via the toolchain's QuickCheck
 framework. Here is an example that complements the unit testing of DSLX's `rev`
 implementation from above:
 
-```
+```dslx
 // Reversing a value twice gets you the original value.
 
 #![quickcheck]
