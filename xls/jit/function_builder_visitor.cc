@@ -14,6 +14,8 @@
 #include "xls/jit/function_builder_visitor.h"
 
 #include "llvm/include/llvm/IR/DerivedTypes.h"
+#include "xls/common/logging/log_lines.h"
+#include "xls/common/logging/logging.h"
 #include "xls/ir/bits_ops.h"
 
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
@@ -32,6 +34,8 @@ absl::Status FunctionBuilderVisitor::Visit(llvm::Module* module,
                                            FunctionBase* xls_fn,
                                            LlvmTypeConverter* type_converter,
                                            bool is_top, bool generate_packed) {
+  XLS_VLOG_LINES(3, std::string("Generating LLVM IR for XLS function/proc:\n") +
+                        xls_fn->DumpIr());
   FunctionBuilderVisitor visitor(module, llvm_fn, xls_fn, type_converter,
                                  is_top, generate_packed);
   return visitor.BuildInternal();

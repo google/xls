@@ -30,6 +30,8 @@ cc_library(
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "//xls/codegen:vast",
+        "//xls/common/logging",
+        "//xls/common/logging:log_lines",
         "//xls/ir",
         "//xls/ir:bits_ops",
         "@llvm-project//llvm:Core",
