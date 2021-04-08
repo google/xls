@@ -476,15 +476,6 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayIndex(Env* env) {
     int64_t index_bound = RandRange(array_size);
     XLS_ASSIGN_OR_RETURN(index.expr, GenerateUmin(index, index_bound));
   }
-  // Some Verilog simulators have problems with wide indices, so slice down
-  // index to 64 bits if wider than 64-bits.
-  // TODO(b/183726730) 2021-03-25 Remove this when simulators are fixed.
-  if (GetTypeBitCount(index.type) > 64) {
-    index.expr = module_->Make<Index>(
-        fake_span_, index.expr,
-        module_->Make<Slice>(fake_span_, MakeNumber(0), MakeNumber(64)));
-    index.type = MakeTypeAnnotation(false, 64);
-  }
   return TypedExpr{module_->Make<Index>(fake_span_, array.expr, index.expr),
                    array_type->element_type()};
 }
