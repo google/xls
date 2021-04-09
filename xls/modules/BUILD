@@ -28,11 +28,14 @@ filegroup(
     ],
 )
 
+# TODO(rspringer): 2021-04-09: Make a macro to handle creating the three
+# related rules. Consider also doing this for multiple widths (32, 64, bf16).
 dslx_test(
     name = "fma_32",
     srcs = ["fma_32.x"],
     # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes).
     prove_unopt_eq_opt = False,
+    deps = ["apfloat_fma.x"],
 )
 
 dslx_jit_wrapper(
@@ -48,6 +51,37 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":fma_32_jit_wrapper",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "//xls/common:init_xls",
+        "//xls/common:math_util",
+        "//xls/common/logging",
+        "//xls/tools:testbench",
+    ],
+)
+
+dslx_test(
+    name = "fma_64",
+    srcs = ["fma_64.x"],
+    # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes).
+    prove_unopt_eq_opt = False,
+    deps = ["apfloat_fma.x"],
+)
+
+dslx_jit_wrapper(
+    name = "fma_64_jit_wrapper",
+    dslx_name = "fma_64",
+    deps = [":fma_64_opt_ir"],
+)
+
+cc_test(
+    name = "fma_64_test",
+    srcs = ["fma_64_test.cc"],
+    data = [":fma_64_all_ir"],
+    tags = ["optonly"],
+    deps = [
+        ":fma_64_jit_wrapper",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",

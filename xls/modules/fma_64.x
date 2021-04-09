@@ -22,9 +22,9 @@
 // conforming implementations (modulo exact significand
 // values in the NaN case.
 import xls.modules.apfloat_fma
-import float32
+import float64
 
-type F32 = float32::F32;
-pub fn fma_32(a: F32, b: F32, c: F32) -> F32 {
-  apfloat_fma::fma<u32:8, u32:23>(a, b, c)
+type F64 = float64::F64;
+pub fn fma_64(a: F64, b: F64, c: F64) -> F64 {
+  apfloat_fma::fma<u32:11, u32:52>(a, b, c)
 }
