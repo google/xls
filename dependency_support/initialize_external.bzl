@@ -31,7 +31,7 @@ def initialize_external_repositories():
     rules_closure_toolchains()
     pip_install(
         name = "xls_pip_deps",
-        requirements = "//dependency_support:pip_requirements.txt",
+        requirements = "@com_google_xls//dependency_support:pip_requirements.txt",
         python_interpreter = "python3",
         timeout = 600000,
     )

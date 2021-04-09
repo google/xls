@@ -155,7 +155,7 @@ def load_external_repositories():
         urls = ["https://github.com/Z3Prover/z3/archive/z3-4.8.7.tar.gz"],
         sha256 = "8c1c49a1eccf5d8b952dadadba3552b0eac67482b8a29eaad62aa7343a0732c3",
         strip_prefix = "z3-z3-4.8.7",
-        build_file = "@//dependency_support/z3:bundled.BUILD.bazel",
+        build_file = "@com_google_xls//dependency_support/z3:bundled.BUILD.bazel",
     )
 
     http_archive(
@@ -178,7 +178,7 @@ def load_external_repositories():
         urls = [
             "https://github.com/madler/zlib/archive/v1.2.11.zip",
         ],
-        build_file = "@//dependency_support/zlib:bundled.BUILD.bazel",
+        build_file = "@com_google_xls//dependency_support/zlib:bundled.BUILD.bazel",
     )
 
     http_archive(
@@ -186,7 +186,7 @@ def load_external_repositories():
         sha256 = "e7dbebca81b518544bea6622d5cc1a2e6347d080793cb0ba134edc66c3822fd5",
         strip_prefix = "linenoise-97d2850af13c339369093b78abe5265845d78220",
         urls = ["https://github.com/antirez/linenoise/archive/97d2850af13c339369093b78abe5265845d78220.zip"],
-        build_file = "@//dependency_support/linenoise:bundled.BUILD.bazel",
+        build_file = "@com_google_xls//dependency_support/linenoise:bundled.BUILD.bazel",
     )
 
     http_archive(
@@ -194,5 +194,5 @@ def load_external_repositories():
         urls = ["https://github.com/grpc/grpc/archive/v1.32.0.tar.gz"],
         sha256 = "f880ebeb2ccf0e47721526c10dd97469200e40b5f101a0d9774eb69efa0bd07a",
         strip_prefix = "grpc-1.32.0",
-        patches = ["//dependency_support/com_github_grpc_grpc:grpc-cython.patch"],
+        patches = ["@com_google_xls//dependency_support/com_github_grpc_grpc:grpc-cython.patch"],
     )
