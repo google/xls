@@ -77,10 +77,11 @@ fn trivial(x: u5) -> bool { id(true) }
   constexpr const char* kModuleName = "test";
   constexpr const char* kFilename = "test.x";
   JitComparator jit_comparator;
-  absl::StatusOr<bool> result = ParseAndTest(
-      kProgram, kModuleName, kFilename,
-      /*dslx_paths=*/{}, /*test_filter=*/absl::nullopt,
-      /*trace_all=*/false, &jit_comparator, /*seed=*/absl::nullopt);
+  absl::StatusOr<bool> result =
+      ParseAndTest(kProgram, kModuleName, kFilename,
+                   /*dslx_paths=*/{}, /*test_filter=*/absl::nullopt,
+                   /*trace_all=*/false, &jit_comparator, /* execute */ true,
+                   /*seed=*/absl::nullopt);
   EXPECT_THAT(result, status_testing::IsOkAndHolds(false));
 
   ASSERT_EQ(jit_comparator.jit_cache_.size(), 1);
@@ -99,7 +100,8 @@ fn trivial(x: u5) -> bool { false }
   absl::StatusOr<bool> result =
       ParseAndTest(kProgram, kModuleName, std::string(temp_file.path()),
                    /*dslx_paths=*/{}, /*test_filter=*/absl::nullopt,
-                   /*trace_all=*/false, &jit_comparator, /*seed=*/int64_t{42});
+                   /*trace_all=*/false, &jit_comparator, /*execute*/ true,
+                   /*seed=*/int64_t{42});
   EXPECT_THAT(result, status_testing::IsOkAndHolds(true));
 }
 

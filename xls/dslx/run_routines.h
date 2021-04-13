@@ -71,6 +71,7 @@ class JitComparator {
 //   trace_all: Whether or not to trace all expressions.
 //   compare_jit: Whether or not to assert equality between interpreted and
 //     JIT'd function return values.
+//   execute: Whether or not to execute the quickchecks and tests.
 //   seed: Seed for QuickCheck random input stimulus.
 //
 // Returns:
@@ -80,7 +81,7 @@ absl::StatusOr<bool> ParseAndTest(
     absl::string_view filename, absl::Span<const std::string> dslx_paths,
     absl::optional<absl::string_view> test_filter = absl::nullopt,
     bool trace_all = false, JitComparator* jit_comparator = nullptr,
-    absl::optional<int64_t> seed = absl::nullopt);
+    bool execute = true, absl::optional<int64_t> seed = absl::nullopt);
 
 struct QuickCheckResults {
   std::vector<std::vector<Value>> arg_sets;

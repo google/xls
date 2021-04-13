@@ -217,7 +217,7 @@ absl::StatusOr<bool> ParseAndTest(absl::string_view program,
                                   absl::Span<const std::string> dslx_paths,
                                   absl::optional<absl::string_view> test_filter,
                                   bool trace_all, JitComparator* jit_comparator,
-                                  absl::optional<int64_t> seed) {
+                                  bool execute, absl::optional<int64_t> seed) {
   int64_t ran = 0;
   int64_t failed = 0;
   int64_t skipped = 0;
@@ -255,6 +255,12 @@ absl::StatusOr<bool> ParseAndTest(absl::string_view program,
     }
     return tm_or.status();
   }
+
+  // If not executing tests and quickchecks, then return
+  if (!execute) {
+    return false;
+  }
+
   Module* entry_module = tm_or.value().module;
 
   // If JIT comparisons are "on", we register a post-evaluation hook to compare
