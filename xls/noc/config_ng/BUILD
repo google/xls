@@ -474,8 +474,6 @@ cc_library(
     deps = [
         ":network_component",
         ":network_connection",
-        "@com_google_absl//absl/memory",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -587,7 +585,6 @@ cc_library(
         ":network_component_utils",
         ":network_connection_utils",
         ":network_view",
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "//xls/common/status:status_macros",
     ],
@@ -667,6 +664,29 @@ cc_test(
     srcs = ["coordinate_test.cc"],
     deps = [
         ":coordinate",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "flattened_multi_dimensional_array",
+    hdrs = [
+        "flattened_multi_dimensional_array.h",
+    ],
+    deps = [
+        ":coordinate",
+        ":dimension_bounds",
+        "@com_google_absl//absl/container:inlined_vector",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "flattened_multi_dimensional_array_test",
+    srcs = ["flattened_multi_dimensional_array_test.cc"],
+    deps = [
+        ":flattened_multi_dimensional_array",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],

@@ -56,4 +56,18 @@ bool DimensionBounds::IsDimensionCountEqual(
   return GetDimensionCount() == dimension.GetDimensionCount();
 }
 
+bool DimensionBounds::HasZeroDimensions() const {
+  return GetDimensionCount() == 0;
+}
+
+bool DimensionBounds::operator==(const DimensionBounds& rhs) const {
+  bool equal =
+      IsDimensionCountEqual(rhs) && dimension_bounds_ == rhs.dimension_bounds_;
+  return equal;
+}
+
+bool DimensionBounds::operator!=(const DimensionBounds& rhs) const {
+  return !(*this == rhs);
+}
+
 }  // namespace xls::noc

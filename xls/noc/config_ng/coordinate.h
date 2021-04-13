@@ -36,6 +36,10 @@ class Coordinate {
   void SetCoordinate(int64_t dimension_index, int64_t value);
   int64_t GetDimensionCount() const;
 
+  // Returns true if the dimension count of the instance is equal to zero.
+  // Otherwise, returns false.
+  bool HasZeroDimensions() const;
+
   // Returns true if the dimension count between the instance and the
   // coordinate is equal. Otherwise, returns false.
   bool IsDimensionCountEqual(const Coordinate& coordinate) const;
@@ -75,6 +79,14 @@ class Coordinate {
   // differs between the instance and the other coordinate, nullopt is returned.
   absl::optional<int64_t> GetUniqueDifferentDimensionIndex(
       const Coordinate& coordinate) const;
+
+  // Returns true if the coordinates are equal. Otherwise, returns false.
+  // Equal coordinates have an equal number of dimensions and values for their
+  // dimensions.
+  bool operator==(const Coordinate& rhs) const;
+
+  // Returns the negation of the equal operator (==).
+  bool operator!=(const Coordinate& rhs) const;
 
  private:
   // The order of the dimensions is in ascending order of the indices in the

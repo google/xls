@@ -37,6 +37,18 @@ class DimensionBounds {
   // dimension is equal. Otherwise, returns false.
   bool IsDimensionCountEqual(const DimensionBounds& dimension) const;
 
+  // Returns true if the dimension count of the instance is equal to zero.
+  // Otherwise, returns false.
+  bool HasZeroDimensions() const;
+
+  // Returns true if dimension bounds are equal. Otherwise, returns false.
+  // Equal dimension bounds have an equal number of dimensions and values for
+  // their dimensions.
+  bool operator==(const DimensionBounds& rhs) const;
+
+  // Returns the negation of the equal operator (==).
+  bool operator!=(const DimensionBounds& rhs) const;
+
  private:
   // The order of the dimensions is in ascending order of the indices in the
   // list. Index 0 of the list is the first dimension (lowest dimension).

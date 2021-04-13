@@ -41,5 +41,22 @@ TEST(DimensionBoundsTest, IsNumberOfDimensionsEqual) {
   EXPECT_FALSE(dimension.IsDimensionCountEqual({1, 1}));
 }
 
+TEST(DimensionBoundsTest, HasZeroDimensions) {
+  EXPECT_TRUE(DimensionBounds({}).HasZeroDimensions());
+  EXPECT_FALSE(DimensionBounds({1, 2, 3}).HasZeroDimensions());
+}
+
+TEST(DimensionBoundsTest, EqualOperator) {
+  EXPECT_TRUE(DimensionBounds({}) == DimensionBounds({}));
+  EXPECT_TRUE(DimensionBounds({2, 3, 4}) == DimensionBounds({2, 3, 4}));
+  EXPECT_FALSE(DimensionBounds({1, 2, 3}) == DimensionBounds({2, 3, 4}));
+}
+
+TEST(DimensionBoundsTest, NotEqualOperator) {
+  EXPECT_FALSE(DimensionBounds({}) != DimensionBounds({}));
+  EXPECT_FALSE(DimensionBounds({2, 3, 4}) != DimensionBounds({2, 3, 4}));
+  EXPECT_TRUE(DimensionBounds({1, 2, 3}) != DimensionBounds({2, 3, 4}));
+}
+
 }  // namespace
 }  // namespace xls::noc

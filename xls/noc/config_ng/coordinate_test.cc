@@ -35,6 +35,11 @@ TEST(CoordinateTest, GetDimensionBounds) {
   }
 }
 
+TEST(CoordinateTest, HasZeroDimensions) {
+  EXPECT_TRUE(Coordinate({}).HasZeroDimensions());
+  EXPECT_FALSE(Coordinate({1, 2, 3}).HasZeroDimensions());
+}
+
 TEST(CoordinateTest, IsDimensionCountEqual) {
   Coordinate coordinate_a = {0, 2, 3};
   Coordinate coordinate_b = {0, 2, 3};
@@ -105,6 +110,18 @@ TEST(CoordinateTest, GetUniqueDifferentDimensionIndex) {
   // Test with no dimensions that differ.
   EXPECT_EQ(Coordinate({2, 0, 2}).GetUniqueDifferentDimensionIndex({2, 0, 2}),
             absl::nullopt);
+}
+
+TEST(CoordinateTest, EqualOperator) {
+  EXPECT_TRUE(Coordinate({}) == Coordinate({}));
+  EXPECT_TRUE(Coordinate({2, 3, 4}) == Coordinate({2, 3, 4}));
+  EXPECT_FALSE(Coordinate({1, 2, 3}) == Coordinate({2, 3, 4}));
+}
+
+TEST(CoordinateTest, NotEqualOperator) {
+  EXPECT_FALSE(Coordinate({}) != Coordinate({}));
+  EXPECT_FALSE(Coordinate({2, 3, 4}) != Coordinate({2, 3, 4}));
+  EXPECT_TRUE(Coordinate({1, 2, 3}) != Coordinate({2, 3, 4}));
 }
 
 }  // namespace

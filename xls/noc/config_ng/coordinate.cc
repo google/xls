@@ -49,6 +49,8 @@ void Coordinate::SetCoordinate(const int64_t dimension_index,
 
 int64_t Coordinate::GetDimensionCount() const { return coordinate_.size(); }
 
+bool Coordinate::HasZeroDimensions() const { return GetDimensionCount() == 0; }
+
 bool Coordinate::IsDimensionCountEqual(const Coordinate& coordinate) const {
   return GetDimensionCount() == coordinate.GetDimensionCount();
 }
@@ -121,6 +123,15 @@ absl::optional<int64_t> Coordinate::GetUniqueDifferentDimensionIndex(
   }
   return dimension_index == -1 ? absl::nullopt
                                : absl::optional(dimension_index);
+}
+
+bool Coordinate::operator==(const Coordinate& rhs) const {
+  bool equal = IsDimensionCountEqual(rhs) && coordinate_ == rhs.coordinate_;
+  return equal;
+}
+
+bool Coordinate::operator!=(const Coordinate& rhs) const {
+  return !(*this == rhs);
 }
 
 }  // namespace xls::noc
