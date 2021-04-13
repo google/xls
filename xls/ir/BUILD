@@ -98,6 +98,7 @@ cc_library(
     name = "type",
     srcs = ["type.cc"],
     hdrs = ["type.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":xls_type_cc_proto",
         "//xls/common:casts",
@@ -217,6 +218,7 @@ cc_library(
     name = "function_builder",
     srcs = ["function_builder.cc"],
     hdrs = ["function_builder.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":ir",
         ":source_location",
