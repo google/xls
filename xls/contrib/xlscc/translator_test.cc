@@ -424,6 +424,36 @@ TEST_F(TranslatorTest, ArraySet) {
   Run({{"a", 11}, {"b", 50}}, 61, content);
 }
 
+TEST_F(TranslatorTest, IncrementInArrayIndex1) {
+  const std::string content = R"(
+       long long my_package(long long a) {
+         int arr[4];
+         arr[a++] = 5;
+         return a;
+       })";
+
+  Run({{"a", 11}}, 12, content);
+}
+
+TEST_F(TranslatorTest, IncrementInArrayIndex2) {
+  const std::string content = R"(
+       struct Blah {
+         int operator=(int x) {
+           return 0;
+         }
+         int operator[](int idx) {
+           return 0;
+         }
+       };
+       long long my_package(long long a) {
+         Blah arr[4];
+         arr[a++] = 5;
+         return a;
+       })";
+
+  Run({{"a", 11}}, 12, content);
+}
+
 TEST_F(TranslatorTest, Array2D) {
   const std::string content = R"(
        int my_package(int a, int b) {

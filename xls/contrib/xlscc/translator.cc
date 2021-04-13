@@ -2073,16 +2073,24 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   PushContextGuard fork_guard(*this, loc);
   if (this_expr) {
     // If there is a "this" and any arguments, then this is a fork
-    // A fork is when an expression has more than on sub-expression.
+    // A fork is when an expression has more than one sub-expression.
     // In C++ the order of evaluation of these is undefined, and different
-    //  compilters produce different behaviors.
+    //  compilers produce different behaviors.
     // If there are assignments inside these sub-expressions, their order is
     //  undefined, and XLS[cc] is strict about references to variables assigned
     //  inside a "fork", generating an unsequenced assignment error instead of
     //  arbitrary / undefined behavior.
     if (!sequencing_safe)
       context().in_fork = context().in_fork || call->getNumArgs() > 0;
-    XLS_ASSIGN_OR_RETURN(this_value_orig, GenerateIR_Expr(this_expr, loc));
+
+    {
+      // The Assign() statement below will take care of any assignments
+      //  in the expression for "this". Don't do these twice, as it can cause
+      //  issues like double-increment https://github.com/google/xls/issues/389
+      MaskAssignmentsGuard mask(*this);
+      XLS_ASSIGN_OR_RETURN(this_value_orig, GenerateIR_Expr(this_expr, loc));
+    }
+
     thisval = this_value_orig.value();
     pthisval = &thisval;
   }
@@ -2523,6 +2531,16 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
       XLS_CHECK(arr_type != nullptr);
       XLS_ASSIGN_OR_RETURN(CValue idx_val,
                            GenerateIR_Expr(cast->getRHS(), loc));
+
+      // Generate the other way around to detect unsequenced errors,
+      //  and to get the lhs type
+      // unsequenced_gen_backwards_ should only be turned off for debugging
+      if (unsequenced_gen_backwards_) {
+        MaskAssignmentsGuard no_assignments(*this);
+        XLS_ASSIGN_OR_RETURN(CValue ignore,
+                             GenerateIR_Expr(cast->getLHS(), loc));
+      }
+
       return CValue(
           context().fb->ArrayIndex(arr_val.value(), {idx_val.value()}, loc),
           arr_type->GetElementType());
