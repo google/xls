@@ -972,6 +972,7 @@ cc_binary(
         "//xls/dslx:import_data",
         "//xls/dslx:interpreter",
         "//xls/dslx:ir_converter",
+        "//xls/dslx:mangle",
         "//xls/dslx:parser",
         "//xls/dslx:scanner",
         "//xls/dslx:type_info",

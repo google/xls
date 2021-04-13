@@ -58,6 +58,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interpreter.h"
 #include "xls/dslx/ir_converter.h"
+#include "xls/dslx/mangle.h"
 #include "xls/dslx/parser.h"
 #include "xls/dslx/scanner.h"
 #include "xls/dslx/type_info.h"
@@ -146,14 +147,20 @@ absl::optional<Command> ParseCommand(absl::string_view str) {
     result.command = CommandName::kReset;
   } else if (stripped_str == ":ir") {
     result.command = CommandName::kIr;
-  } else if (stripped_str == ":verilog") {
-    result.command = CommandName::kVerilog;
   } else if (stripped_str == ":llvm") {
     result.command = CommandName::kLlvm;
+  } else if (munch_prefix(":verilog")) {
+    result.command = CommandName::kVerilog;
+    // Optional function name argument.
+    str = absl::StripAsciiWhitespace(str);
+    if (!str.empty()) {
+      result.arguments.push_back(str);
+    }
   } else if (munch_prefix(":type ") || munch_prefix(":t ")) {
     result.command = CommandName::kType;
     result.arguments.push_back(absl::StripAsciiWhitespace(str));
   } else {
+    XLS_VLOG(1) << "Unknown command prefix: \"" << stripped_str << "\"";
     return absl::nullopt;
   }
   return result;
@@ -267,6 +274,10 @@ absl::Status UpdateIr() {
   return absl::OkStatus();
 }
 
+// Implementation note: commands should quash top-level-recoverable errors and
+// do their own printing to stderr (propagating OkStatus at the command top
+// level to the REPL despite the fact it quashed an error).
+
 // Function implementing the `:help` command, which shows a help message.
 absl::Status CommandHelp() {
   std::cout << "Commands:\n\n"
@@ -338,12 +349,50 @@ absl::Status CommandIr() {
   return absl::OkStatus();
 }
 
+// Attempts to find an IR function within package based on function_name --
+// attempts its value and its mangled value (against "module"'s name).
+//
+// Returns nullptr if neither of those can be found.
+absl::StatusOr<Function*> FindFunction(absl::string_view function_name,
+                                       dslx::Module* module, Package* package) {
+  // The user may have given us a mangled or demangled name, first we see if
+  // it's a mangled one, and if it's not, we mangle it and try that.
+  if (package->HasFunctionWithName(function_name)) {
+    return package->GetFunction(function_name);
+  }
+  XLS_ASSIGN_OR_RETURN(
+      std::string mangled_name,
+      dslx::MangleDslxName(function_name, /*free_keys=*/{}, module));
+  if (!package->HasFunctionWithName(mangled_name)) {
+    std::cerr << absl::StreamFormat(
+        "Symbol \"%s\" was not found in IR as either \"%s\" or (mangled) "
+        "\"%s\" -- run :ir "
+        "to see IR for this package.\n",
+        function_name, function_name, mangled_name);
+    return nullptr;
+  }
+  return package->GetFunction(mangled_name);
+}
+
 // Function implementing the `:verilog` command, which generates and dumps the
 // compiled Verilog for the module.
-absl::Status CommandVerilog() {
+absl::Status CommandVerilog(absl::optional<std::string> function_name) {
+  XLS_VLOG(1) << "Running verilog command with function name: "
+              << (function_name ? *function_name : "<none>");
   XLS_RETURN_IF_ERROR(UpdateIr());
-  XLS_ASSIGN_OR_RETURN(Function * main,
-                       GetSingletonGlobals()->ir_package->EntryFunction());
+  Package* package = GetSingletonGlobals()->ir_package.get();
+  dslx::Module* module = GetSingletonGlobals()->module.get();
+  Function* main;
+  if (function_name) {
+    XLS_ASSIGN_OR_RETURN(main, FindFunction(*function_name, module, package));
+    if (main == nullptr) {
+      std::cerr << "Could not convert to verilog.\n";
+      return absl::OkStatus();
+    }
+  } else {
+    XLS_ASSIGN_OR_RETURN(main, package->EntryFunction());
+  }
+  XLS_RET_CHECK(main != nullptr);
   // TODO(taktoa): 2021-03-10 add ability to generate non-combinational modules
   XLS_ASSIGN_OR_RETURN(
       verilog::ModuleGeneratorResult result,
@@ -469,7 +518,11 @@ absl::Status RealMain(absl::string_view dslx_path,
         break;
       }
       case CommandName::kVerilog: {
-        XLS_RETURN_IF_ERROR(CommandVerilog());
+        absl::optional<std::string> function_name;
+        if (!command->arguments.empty()) {
+          function_name = command->arguments[0];
+        }
+        XLS_RETURN_IF_ERROR(CommandVerilog(function_name));
         break;
       }
       case CommandName::kLlvm: {
