@@ -772,6 +772,14 @@ inline std::ostream &operator<<(std::ostream &os,
 
 #define ac_int XlsInt
 
+// XLS[cc] doesn't support returning a reference
+#undef ASSIGN_OP_WITH_INT
+#define ASSIGN_OP_WITH_INT(ASSIGN_OP, C_TYPE, W2, S2)                    \
+  template <int W, bool S>                                               \
+  inline ac_int<W, S> operator ASSIGN_OP(ac_int<W, S> &op, C_TYPE op2) { \
+    return op.operator ASSIGN_OP(ac_int<W2, S2>(op2));                   \
+  }
+
 OPS_WITH_INT(bool, 1, false)
 OPS_WITH_INT(signed char, 8, true)
 OPS_WITH_INT(unsigned char, 8, false)
