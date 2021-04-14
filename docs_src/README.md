@@ -205,6 +205,7 @@ project, see our
 *   [Chris Leary](https://github.com/cdleary)
 *   [Dan Killebrew](https://github.com/dkillebrew-g)
 *   [Derek Lockhart](https://github.com/dmlockhart)
+*   [Eric Astor](https://github.com/ericastor)
 *   [Felix Zhu](https://github.com/felixzhuologist)
 *   [Hans Montero](https://github.com/hmontero1205)
 *   [Jonathan Bailey](https://github.com/jbaileyhandle)
