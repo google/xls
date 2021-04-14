@@ -206,8 +206,17 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     case Op::kSignExt:
       XLS_RETURN_IF_ERROR(check_operand_count(1));
       return evaluator->SignExtend(operands[0], node->BitCountOrDie());
-    case Op::kSMul:
-      return default_handler(node);
+    case Op::kSMul: {
+      XLS_RETURN_IF_ERROR(check_operand_count(2));
+      Vector result = evaluator->SMul(operands[0], operands[1]);
+      int64_t expected_width = node->BitCountOrDie();
+      if (result.size() > expected_width) {
+        result = evaluator->BitSlice(result, 0, expected_width);
+      } else if (result.size() < expected_width) {
+        result = evaluator->SignExtend(result, expected_width);
+      }
+      return result;
+    }
     case Op::kSub:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return evaluator->Add(operands[0], evaluator->Neg(operands[1]));
@@ -233,8 +242,17 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     case Op::kULt:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return Vector({evaluator->ULessThan(operands[0], operands[1])});
-    case Op::kUMul:
-      return default_handler(node);
+    case Op::kUMul: {
+      XLS_RETURN_IF_ERROR(check_operand_count(2));
+      Vector result = evaluator->UMul(operands[0], operands[1]);
+      int64_t expected_width = node->BitCountOrDie();
+      if (result.size() > expected_width) {
+        result = evaluator->BitSlice(result, 0, expected_width);
+      } else if (result.size() < expected_width) {
+        result = evaluator->ZeroExtend(result, expected_width);
+      }
+      return result;
+    }
     case Op::kXor:
       return evaluator->BitwiseXor(operands);
     case Op::kXorReduce:
