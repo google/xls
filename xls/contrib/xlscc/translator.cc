@@ -402,6 +402,7 @@ void Translator::LibToolThread::Run() {
   }
   argv.emplace_back("-fsyntax-only");
   argv.emplace_back("-std=c++17");
+  argv.emplace_back("-nostdinc");
 
   llvm::IntrusiveRefCntPtr<clang::FileManager> libtool_files;
 
@@ -2632,9 +2633,15 @@ absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
   // Get the value referred to
   clang::ValueDecl* member = expr->getMemberDecl();
 
-  // Only FieldDecl is supported. This is the non-static "foo.bar" form.
-  // VarDecl for static values, for example, is unsupported.
-  if (member->getKind() != clang::ValueDecl::Kind::Field) {
+  // VarDecl for static values
+  if (member->getKind() == clang::ValueDecl::Kind::Var) {
+    XLS_ASSIGN_OR_RETURN(
+        CValue val,
+        TranslateVarDecl(clang_down_cast<const clang::VarDecl*>(member), loc));
+    return val;
+  } else if (member->getKind() != clang::ValueDecl::Kind::Field) {
+    // Otherwise only FieldDecl is supported. This is the non-static "foo.bar"
+    // form.
     return absl::UnimplementedError(
         absl::StrFormat("Unimplemented member expression %s at %s",
                         member->getDeclKindName(), LocString(loc)));

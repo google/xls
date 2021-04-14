@@ -18,6 +18,11 @@
 #include <type_traits>
 
 #include "/xls_builtin.h"
+
+#define __ASSERT_H__
+#define AC_USER_DEFINED_ASSERT
+#define assert(...)
+
 #include "ac_int.h"
 
 #ifndef __SYNTHESIS__
@@ -638,7 +643,6 @@ class XlsInt : public XlsIntBase<Width, Signed> {
 
   inline XlsInt operator>>(index_t offset) const {
     static_assert(index_t::width > 0, "Bug in Log2Ceil");
-    XlsInt as = *this;
     XlsInt ret;
     asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_5_(aid): bits[i] = "
         "identity(a, pos=(loc)) }"
@@ -746,16 +750,12 @@ class XlsInt : public XlsIntBase<Width, Signed> {
     static_assert(Width > 0, "Can't slice 0 bits");
     static_assert(ToW > 0, "Can't slice 0 bits");
 
-    XlsInt<ToW, false> slice(slice_raw);
-
-    // No arithmetic shift
-    XlsInt<Width, false> ones =
-        (~XlsInt<Width, false>(0)).template slc<Width>(0);
-    XlsInt mask_right = ones >> index_t(index_t(Width) - offset);
-    XlsInt mask_left = ones << index_t(offset + index_t(ToW));
-
-    *this = ((*this) & mask_right) | ((*this) & mask_left) |
-            (XlsInt<Width, false>(slice) << offset);
+    asm("fn (fid)(a: bits[i], o: bits[c], u: bits[d]) -> bits[i] { ret "
+        "op_(aid): bits[i] = "
+        "bit_slice_update(a, o, u, pos=(loc)) }"
+        : "=r"(this->storage)
+        : "i"(Width), "c"(index_t::width), "d"(ToW), "a"(this->storage),
+          "o"(offset.storage), "u"(slice_raw.storage));
 
     return *this;
   }
