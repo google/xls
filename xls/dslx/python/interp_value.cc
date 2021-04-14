@@ -106,7 +106,7 @@ PYBIND11_MODULE(interp_value, m) {
       .def("bitwise_and", &InterpValue::BitwiseAnd)
       .def("arithmetic_negate", &InterpValue::ArithmeticNegate)
       .def("add_with_carry", &InterpValue::AddWithCarry)
-      .def("shll", &InterpValue::Shll)
+      .def("shl", &InterpValue::Shl)
       .def("shrl", &InterpValue::Shrl)
       .def("shra", &InterpValue::Shra)
       .def("add", &InterpValue::Add)

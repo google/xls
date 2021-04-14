@@ -185,7 +185,7 @@ fn main(x0: s52, x1: s16, x2: u62, x3: u6) -> (u14, x48[0x4]) {
   let x28: x29[0x8] = ((x26) as x29[0x8]);
   let x30: u64 = ctz(x26);
   let x31: x32[0x2] = ((x4) as x32[0x2]);
-  let x33: u6 = (x27) >>> (x27);
+  let x33: u6 = ((x27 as s64) >> (x27)) as u6;
   let x34: s64 = one_hot_sel(x21, [x24, x22, x22, x22, x24, x24]);
   let x35: u64 = rev(x23);
   let x36: u64 = for (i, x): (u4, u64) in range(u4:0x0, u4:0x3) {
@@ -194,7 +194,7 @@ fn main(x0: s52, x1: s16, x2: u62, x3: u6) -> (u14, x48[0x4]) {
   let x37: u64 = ctz(x23);
   let x38: u6 = !(x20);
   let x39: u40 = (x23)[0xd:-0xb];
-  let x40: u6 = (((x24) as u6)) >>> ((u6:0x0) if ((x27) >= (u6:0x0)) else (x27));
+  let x40: u6 = ((((x24) as u6) as s6) >> ((u6:0x0) if ((x27) >= (u6:0x0)) else (x27))) as u6;
   let x41: u6 = one_hot_sel(x40, [x40, x40, x27, x40, x40, x27]);
   let x42: u14 = u14:0x2aaa;
   let x43: s19 = s19:0x80;

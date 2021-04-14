@@ -402,7 +402,7 @@ static int64_t ClampedUnsignedValue(const Bits& bits, int64_t limit) {
   return static_cast<int64_t>(bits.ToUint64().value());
 }
 
-absl::StatusOr<InterpValue> InterpValue::Shll(const InterpValue& other) const {
+absl::StatusOr<InterpValue> InterpValue::Shl(const InterpValue& other) const {
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
   int64_t amount64 = ClampedUnsignedValue(rhs, lhs.bit_count());

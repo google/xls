@@ -217,9 +217,8 @@ const absl::btree_set<BinopKind>& GetBinopComparisonKinds() {
 
 const absl::btree_set<BinopKind>& GetBinopShifts() {
   static auto* singleton = new absl::btree_set<BinopKind>{
-      BinopKind::kShll,
-      BinopKind::kShrl,
-      BinopKind::kShra,
+      BinopKind::kShl,
+      BinopKind::kShr,
   };
   return *singleton;
 }
@@ -228,9 +227,8 @@ std::string BinopKindFormat(BinopKind kind) {
   switch (kind) {
     // clang-format off
     // Shifts.
-    case BinopKind::kShll:       return "<<";
-    case BinopKind::kShrl:       return ">>";
-    case BinopKind::kShra:       return ">>>";
+    case BinopKind::kShl:       return "<<";
+    case BinopKind::kShr:       return ">>";
     // Comparisons.
     case BinopKind::kGe:         return ">=";
     case BinopKind::kGt:         return ">";

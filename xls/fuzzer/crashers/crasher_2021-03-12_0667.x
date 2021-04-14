@@ -159,7 +159,7 @@ fn main(x0: u19, x1: u23, x2: (u15, u29), x3: (), x4: u3) -> (bool, u23, u23, ()
   let x17: u23 = clz(x1);
   let x18: bool = !(x6);
   let x19: bool = !(x18);
-  let x20: u27 = (x13) >>> (x8);
+  let x20: u27 = ((x13 as s27) >> (x8)) as u27;
   let x21: u23 = ctz(x8);
   let x22: u24 = one_hot(x15, bool:true);
   let x23: u23 = !(x15);

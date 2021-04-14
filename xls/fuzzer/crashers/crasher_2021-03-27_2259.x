@@ -155,7 +155,7 @@ fn main(x0: s42, x1: s59, x2: sN[1750], x3: x4[W4_V9]) -> (sN[1750], uN[1621], s
   let x10: uN[1621] = (x2)[:-129];
   let x11: bool = (x1) == (((x2) as s59));
   let x12: bool = and_reduce(x6);
-  let x13: uN[599] = (x6) >>> ((uN[1621]:1031) if ((x10) >= (uN[1621]:1031)) else (x10));
+  let x13: uN[599] = ((x6 as sN[599]) >> ((uN[1621]:1031) if ((x10) >= (uN[1621]:1031)) else (x10))) as uN[599];
   let x14: sN[1750] = !(x2);
   let x15: x7 = (x8)[x11];
   let x16: uN[1621] = (((x13) as uN[1621])) ^ (x10);

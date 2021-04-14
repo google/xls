@@ -988,7 +988,6 @@ the same bit type (i.e., not arrays or tuples), and a category where the
 operands can be of arbitrary bit types (i.e. shift expressions).
 
 *   shift-right (`>>`)
-*   shift-right arithmetic (`>>>`)
 *   shift-left (`<<`)
 *   bit-wise or (`|`)
 *   bit-wise and (`&`)
@@ -1001,12 +1000,12 @@ operands can be of arbitrary bit types (i.e. shift expressions).
 
 #### Shift Expressions
 
-Shift expressions include: shift-right (logical), shift-right arithmetic and
-shift-left. These are binary operations that don't require the same type on the
-left and right hand side. The right hand side must be unsigned, but it does not
-need to be the same type or width as the left hand side, i.e. the type signature
-for these operations is: `(xN[M], uN[N]) -> xN[M]`. If the right hand side is a
-literal value it does not need to be type annotated. For example:
+Shift expressions include: shift-right (logical) and shift-left. These are
+binary operations that don't require the same type on the left and right hand
+side. The right hand side must be unsigned, but it does not need to be the same
+type or width as the left hand side, i.e. the type signature for these
+operations is: `(xN[M], uN[N]) -> xN[M]`. If the right hand side is a literal
+value it does not need to be type annotated. For example:
 
 ```
   fn shr_two(x: s32) -> s32 {
@@ -1014,11 +1013,11 @@ literal value it does not need to be type annotated. For example:
   }
 ```
 
-Note that, compared to Rust, DSLX uses >> for shift-right (logical) and >>> for
-shift-right arithmetic, whereas Rust chooses shift-right arithmetic or
-shift-right (logical) depending on the signedness of the integer being shifted.
-As we try to follow Rust syntax as closely as is reasonably possible, we will
-address the latter (https://github.com/google/xls/issues/79).
+Note that, as in Rust, the semantics of the shift-right (`>>`) operation depends
+on the signedness of the left hand side. For a signed-type left hand side, the
+shift-right (`>>`) operation performs a shift-right arithmetic and, for a
+unsigned-type left hand side, the shift-right (`>>`) operation performs a
+shift-right (logical).
 
 ### Comparison Expressions
 

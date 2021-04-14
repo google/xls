@@ -80,7 +80,7 @@ fn trivial(x: u5) -> bool { id(true) }
   absl::StatusOr<bool> result =
       ParseAndTest(kProgram, kModuleName, kFilename,
                    /*dslx_paths=*/{}, /*test_filter=*/absl::nullopt,
-                   /*trace_all=*/false, &jit_comparator, /* execute */ true,
+                   /*trace_all=*/false, &jit_comparator, /*execute=*/true,
                    /*seed=*/absl::nullopt);
   EXPECT_THAT(result, status_testing::IsOkAndHolds(false));
 
@@ -100,7 +100,7 @@ fn trivial(x: u5) -> bool { false }
   absl::StatusOr<bool> result =
       ParseAndTest(kProgram, kModuleName, std::string(temp_file.path()),
                    /*dslx_paths=*/{}, /*test_filter=*/absl::nullopt,
-                   /*trace_all=*/false, &jit_comparator, /*execute*/ true,
+                   /*trace_all=*/false, &jit_comparator, /*execute=*/true,
                    /*seed=*/int64_t{42});
   EXPECT_THAT(result, status_testing::IsOkAndHolds(true));
 }

@@ -928,9 +928,8 @@ class Unop : public Expr {
 
 #define XLS_DSLX_BINOP_KIND_EACH(X)       \
   /* enum member, python attr, tok str */ \
-  X(kShll, "SHLL", "<<")                  \
-  X(kShrl, "SHRL", ">>")                  \
-  X(kShra, "SHRA", ">>>")                 \
+  X(kShl, "SHLL", "<<")                   \
+  X(kShr, "SHRL", ">>")                   \
   X(kGe, "GE", ">=")                      \
   X(kGt, "GT", ">")                       \
   X(kLe, "LE", "<=")                      \

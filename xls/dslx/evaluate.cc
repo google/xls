@@ -864,12 +864,13 @@ absl::StatusOr<InterpValue> EvaluateShift(Binop* expr, InterpBindings* bindings,
                                                      std::move(rhs_type)));
 
   switch (expr->kind()) {
-    case BinopKind::kShll:
-      return lhs.Shll(rhs);
-    case BinopKind::kShrl:
+    case BinopKind::kShl:
+      return lhs.Shl(rhs);
+    case BinopKind::kShr:
+      if (lhs.IsSigned()) {
+        return lhs.Shra(rhs);
+      }
       return lhs.Shrl(rhs);
-    case BinopKind::kShra:
-      return lhs.Shra(rhs);
     default:
       // Not an exhaustive list: this function only handles the shift operators.
       break;

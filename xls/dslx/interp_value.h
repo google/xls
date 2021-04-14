@@ -210,7 +210,7 @@ class InterpValue {
   absl::StatusOr<InterpValue> Sub(const InterpValue& other) const;
 
   absl::StatusOr<InterpValue> Mul(const InterpValue& other) const;
-  absl::StatusOr<InterpValue> Shll(const InterpValue& other) const;
+  absl::StatusOr<InterpValue> Shl(const InterpValue& other) const;
   absl::StatusOr<InterpValue> Shrl(const InterpValue& other) const;
   absl::StatusOr<InterpValue> Shra(const InterpValue& other) const;
   absl::StatusOr<InterpValue> BitwiseXor(const InterpValue& other) const;

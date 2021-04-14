@@ -38,14 +38,14 @@ std::string InterpreterStats::ToReport() const {
   };
   return absl::StrFormat(
              R"(Interpreter stats report:
-shll:       %d
+shl:       %d
  zero:      %d (%.2f%%)
  overlarge: %d (%.2f%%)
  in-range:  %d (%.2f%%)
 )",
-             all_shlls_, zero_shlls_, percent(zero_shlls_, all_shlls_),
-             overlarge_shlls_, percent(overlarge_shlls_, all_shlls_),
-             in_range_shlls(), percent(in_range_shlls(), all_shlls_)) +
+             all_shls_, zero_shls_, percent(zero_shls_, all_shls_),
+             overlarge_shls_, percent(overlarge_shls_, all_shls_),
+             in_range_shls(), percent(in_range_shls(), all_shls_)) +
          ToNodeReport();
 }
 

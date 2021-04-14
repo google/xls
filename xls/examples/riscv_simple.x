@@ -377,7 +377,7 @@ fn run_r_instruction(pc: u32,
      // Note: SRL and SRA have the same opcode
      SRL => match funct7 {
         SRL_FUNCT7 => regs[rs1] >> regs[rs2],
-        SRA_FUNCT7 => regs[rs1] >>> regs[rs2],
+        SRA_FUNCT7 => ((regs[rs1] as s32) >> regs[rs2]) as u32,
         _          => fail!(u32:0),
         },
      // LD.R, ST.C (atomics) will not be implemented here.
@@ -402,7 +402,7 @@ fn run_i_instruction(pc: u32,
            SLLI => regs[rs1] <<  (imm12 as u32),
            XORI => regs[rs1] ^   (imm12 as u32),
            SRLI => regs[rs1] >>  (imm12 as u32),
-           SRLA => regs[rs1] >>> (imm12 as u32),
+           SRLA => ((regs[rs1] as s32) >> (imm12 as u32)) as u32,
            ORI  => regs[rs1] |   (imm12 as u32),
            ANDI => regs[rs1] &   (imm12 as u32),
            _    => fail!(u32:0)

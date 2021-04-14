@@ -227,25 +227,6 @@ TEST_F(ParserTest, ConcatFunction) {
   EXPECT_EQ(rhs->identifier(), "y");
 }
 
-TEST_F(ParserTest, ShiftRightArithmetic) {
-  const char* text = "fn shra(x: u32, y: u32) { x >>> y }";
-  Scanner s{"test.x", std::string{text}};
-  Parser p{"test", &s};
-  Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Function * f,
-      p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
-  EXPECT_EQ(f->params().size(), 2);
-  Binop* body = dynamic_cast<Binop*>(f->body());
-  ASSERT_TRUE(body != nullptr);
-  EXPECT_EQ(body->kind(), BinopKind::kShra);
-  NameRef* lhs = dynamic_cast<NameRef*>(body->lhs());
-  ASSERT_TRUE(lhs != nullptr);
-  EXPECT_EQ(lhs->identifier(), "x");
-  NameRef* rhs = dynamic_cast<NameRef*>(body->rhs());
-  EXPECT_EQ(rhs->identifier(), "y");
-}
-
 TEST_F(ParserTest, TrailingParameterComma) {
   const char* text = R"(
 fn concat(

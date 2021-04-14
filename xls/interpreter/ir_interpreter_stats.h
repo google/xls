@@ -32,11 +32,11 @@ namespace xls {
 // IR interpreter itself.
 class InterpreterStats {
  public:
-  void NoteShllAmountForBitCount(int64_t amount, int64_t bit_count) {
+  void NoteShlAmountForBitCount(int64_t amount, int64_t bit_count) {
     absl::MutexLock lock(&mutex_);
-    all_shlls_ += 1;
-    overlarge_shlls_ += amount >= bit_count;
-    zero_shlls_ += amount == 0;
+    all_shls_ += 1;
+    overlarge_shls_ += amount >= bit_count;
+    zero_shls_ += amount == 0;
   }
 
   // Notes the bits result for a given node (as determined by the interpreter)
@@ -52,8 +52,8 @@ class InterpreterStats {
   std::string ToReport() const;
 
  private:
-  int64_t in_range_shlls() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
-    return all_shlls_ - overlarge_shlls_ - zero_shlls_;
+  int64_t in_range_shls() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+    return all_shls_ - overlarge_shls_ - zero_shls_;
   }
 
   // Meets the observed "bits" value against the seen-so-far "lattice" of values
@@ -84,9 +84,9 @@ class InterpreterStats {
   // (conflicting info).
   absl::flat_hash_map<std::string, absl::optional<TernaryVector>> value_profile_
       ABSL_GUARDED_BY(mutex_);
-  int64_t overlarge_shlls_ ABSL_GUARDED_BY(mutex_) = 0;
-  int64_t zero_shlls_ ABSL_GUARDED_BY(mutex_) = 0;
-  int64_t all_shlls_ ABSL_GUARDED_BY(mutex_) = 0;
+  int64_t overlarge_shls_ ABSL_GUARDED_BY(mutex_) = 0;
+  int64_t zero_shls_ ABSL_GUARDED_BY(mutex_) = 0;
+  int64_t all_shls_ ABSL_GUARDED_BY(mutex_) = 0;
 };
 
 }  // namespace xls

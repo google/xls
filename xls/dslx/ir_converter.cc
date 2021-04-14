@@ -1740,19 +1740,17 @@ absl::Status FunctionConverter::HandleBinop(Binop* node) {
       };
       break;
     // Shifts.
-    case BinopKind::kShrl:
+    case BinopKind::kShr:
       ir_func = [&](absl::optional<SourceLocation> loc) {
+        if (signed_input) {
+          return function_builder_->Shra(lhs, rhs, loc);
+        }
         return function_builder_->Shrl(lhs, rhs, loc);
       };
       break;
-    case BinopKind::kShll:
+    case BinopKind::kShl:
       ir_func = [&](absl::optional<SourceLocation> loc) {
         return function_builder_->Shll(lhs, rhs, loc);
-      };
-      break;
-    case BinopKind::kShra:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
-        return function_builder_->Shra(lhs, rhs, loc);
       };
       break;
     // Bitwise.
