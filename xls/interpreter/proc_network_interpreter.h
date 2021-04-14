@@ -52,11 +52,9 @@ class ProcNetworkInterpreter {
   ChannelQueueManager& queue_manager() { return *queue_manager_; }
 
  private:
-  ProcNetworkInterpreter(Package* package,
-                         std::unique_ptr<ChannelQueueManager>&& queue_manager)
-      : package_(package), queue_manager_(std::move(queue_manager)) {}
+  ProcNetworkInterpreter(std::unique_ptr<ChannelQueueManager>&& queue_manager)
+      : queue_manager_(std::move(queue_manager)) {}
 
-  Package* package_;
   std::unique_ptr<ChannelQueueManager> queue_manager_;
 
   // The vector of interpreters for each proc in the package.

@@ -33,8 +33,8 @@ namespace xls {
 // not thread-safe.
 class ChannelQueue {
  public:
-  ChannelQueue(Channel* channel, Package* package)
-      : channel_(channel), package_(package) {}
+  ChannelQueue(Channel* channel)
+      : channel_(channel) {}
 
   // Channel queues should not be copyable. There should be no reason to as
   // there is a one-to-one correspondence between channels (which are not
@@ -69,7 +69,6 @@ class ChannelQueue {
 
  private:
   Channel* channel_;
-  Package* package_;
 
   // Values are enqueued to the back, and dequeued from the front.
   std::deque<Value> queue_ ABSL_GUARDED_BY(mutex_);
@@ -87,7 +86,7 @@ class RxOnlyChannelQueue : public ChannelQueue {
   // function should return an error to terminate the interpreter session.
   RxOnlyChannelQueue(Channel* channel, Package* package,
                      std::function<absl::StatusOr<Value>()> generator_func)
-      : ChannelQueue(channel, package),
+      : ChannelQueue(channel),
         generator_func_(std::move(generator_func)) {}
   virtual ~RxOnlyChannelQueue() = default;
 

@@ -38,7 +38,7 @@ TEST_F(ChannelQueueTest, SingleDataElementEnqueueDequeue) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
                                      package.GetBitsType(32)));
-  ChannelQueue queue(channel, &package);
+  ChannelQueue queue(channel);
   EXPECT_EQ(queue.channel(), channel);
   EXPECT_EQ(queue.size(), 0);
   EXPECT_TRUE(queue.empty());
@@ -67,7 +67,7 @@ TEST_F(ChannelQueueTest, ErrorConditions) {
       package.CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
                                      package.GetBitsType(1)));
 
-  ChannelQueue queue(channel, &package);
+  ChannelQueue queue(channel);
 
   EXPECT_THAT(
       queue.Dequeue(),

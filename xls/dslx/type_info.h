@@ -235,8 +235,8 @@ class TypeInfo {
   //  parent: Type information that should be queried from the same scope (i.e.
   //    if an AST node is not resolved in the local member maps, the lookup is
   //    then performed in the parent, and so on transitively).
-  TypeInfo(TypeInfoOwner* owner, Module* module, TypeInfo* parent = nullptr)
-      : owner_(owner), module_(module), parent_(parent) {
+  TypeInfo(Module* module, TypeInfo* parent = nullptr)
+      : module_(module), parent_(parent) {
     XLS_VLOG(3) << "Created type info for module \"" << module_->name()
                 << "\" @ " << this << " parent " << parent;
     if (parent_ != nullptr) {
@@ -259,7 +259,6 @@ class TypeInfo {
     return const_cast<TypeInfo*>(this)->GetRoot();
   }
 
-  TypeInfoOwner* owner_;
   Module* module_;
   absl::flat_hash_map<AstNode*, std::unique_ptr<ConcreteType>> dict_;
   absl::flat_hash_map<Import*, ImportedInfo> imports_;

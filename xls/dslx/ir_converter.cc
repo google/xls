@@ -518,7 +518,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   // A macro used for AST types that we never expect to visit (if we do we
   // provide an error message noting it was unexpected).
 #define INVALID(__type) \
-  absl::Status Handle##__type(__type* node) { return Invalid(node); }
+  absl::Status Handle##__type(__type* node) override { return Invalid(node); }
 
   // These are always custom-visited (i.e. traversed to in a specialized way
   // from their parent nodes).

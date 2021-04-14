@@ -375,13 +375,6 @@ static std::string ToString(
   });
 }
 static std::string ToString(
-    const absl::flat_hash_map<std::string, int64_t>* map) {
-  if (map == nullptr || map->empty()) {
-    return "none";
-  }
-  return absl::StrJoin(*map, ", ", absl::PairFormatter(":"));
-}
-static std::string ToString(
     const absl::flat_hash_map<std::string, InterpValue>* map) {
   if (map == nullptr || map->empty()) {
     return "none";

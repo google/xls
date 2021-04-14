@@ -133,7 +133,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     TypeInfo* type_info = nullptr;
   };
 
-  absl::Status HandleInvocation(Invocation* node) {
+  absl::Status HandleInvocation(Invocation* node) override {
     absl::optional<CalleeInfo> callee_info;
     if (auto* colon_ref = dynamic_cast<ColonRef*>(node->callee())) {
       XLS_ASSIGN_OR_RETURN(callee_info,

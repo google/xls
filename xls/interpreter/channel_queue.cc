@@ -117,8 +117,7 @@ ChannelQueueManager::Create(
       }
       continue;
     }
-    manager->queues_[channel] =
-        absl::make_unique<ChannelQueue>(channel, package);
+    manager->queues_[channel] = absl::make_unique<ChannelQueue>(channel);
   }
 
   // Create a sorted vector of channel queues in the manager for easy iteration

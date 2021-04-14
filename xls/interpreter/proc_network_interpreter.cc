@@ -32,7 +32,7 @@ ProcNetworkInterpreter::Create(
 
   // Create a network interpreter.
   auto interpreter = absl::WrapUnique(
-      new ProcNetworkInterpreter(package, std::move(queue_manager)));
+      new ProcNetworkInterpreter(std::move(queue_manager)));
 
   for (auto& proc : package->procs()) {
     interpreter->proc_interpreters_.push_back(

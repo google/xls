@@ -57,12 +57,6 @@ Op CompareOpInverse(Op op) {
   }
 }
 
-// Returns true if the node and its operands are all the same type.
-bool NodeAndOperandsSameType(Node* n) {
-  return std::all_of(n->operands().begin(), n->operands().end(),
-                     [n](Node* o) { return o->GetType() == n->GetType(); });
-}
-
 // Matches the given node to the following expression:
 //
 //  Select(UGt(x, LIMIT), cases=[x, LIMIT])
