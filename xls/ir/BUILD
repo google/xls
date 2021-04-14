@@ -933,6 +933,7 @@ cc_test(
 cc_test(
     name = "abstract_evaluator_test",
     srcs = ["abstract_evaluator_test.cc"],
+    shard_count = 10,
     deps = [
         ":abstract_evaluator",
         ":bits",

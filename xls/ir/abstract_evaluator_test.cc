@@ -14,6 +14,7 @@
 
 #include "xls/ir/abstract_evaluator.h"
 
+#include <random>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -119,6 +120,66 @@ TEST(AbstractEvaluatorTest, UMul) {
   b = UBits(64, 7);
   c = FromBoxedVector(eval.UMul(ToBoxedVector(a), ToBoxedVector(b)));
   EXPECT_EQ(c.ToInt64().value(), 8128);
+}
+
+// Performs random UMul and SMul implementations as constructed by the
+// TestAbstractEvaluator and compares them to the bits_ops reference
+// implementation (up to 16 bit values on either side).
+void DoMulRandoms(int seed, int64_t iterations) {
+  TestAbstractEvaluator eval;
+
+  std::mt19937 rng(seed);
+
+  std::uniform_int_distribution<int64_t> bit_count_dist(1, 16);
+
+  for (int64_t i = 0; i < iterations; ++i) {
+    int64_t lhs_bits = bit_count_dist(rng);
+    int64_t rhs_bits = bit_count_dist(rng);
+    uint64_t lhs_value =
+        std::uniform_int_distribution<uint64_t>(0, (1 << lhs_bits) - 1)(rng);
+    uint64_t rhs_value =
+        std::uniform_int_distribution<uint64_t>(0, (1 << rhs_bits) - 1)(rng);
+    Bits lhs = UBits(lhs_value, /*bit_count=*/lhs_bits);
+    Bits rhs = UBits(rhs_value, /*bit_count=*/rhs_bits);
+    Bits umul_got =
+        FromBoxedVector(eval.UMul(ToBoxedVector(lhs), ToBoxedVector(rhs)));
+    Bits umul_want = bits_ops::UMul(lhs, rhs);
+    EXPECT_EQ(umul_got, umul_want) << "lhs: " << lhs << " rhs: " << rhs;
+
+    Bits smul_got =
+        FromBoxedVector(eval.SMul(ToBoxedVector(lhs), ToBoxedVector(rhs)));
+    Bits smul_want = bits_ops::SMul(lhs, rhs);
+    EXPECT_EQ(smul_got, smul_want) << "lhs: " << lhs << " rhs: " << rhs;
+  }
+}
+
+// Note: a bit of manual sharding is easy and still gets us more coverage, since
+// BitGen is constructed with a nondeterministic seed on each construction.
+
+constexpr int64_t kRandomsPerShard = 4 * 1024;
+TEST(AbstractEvaluatorTest, MulRandomsShard0) {
+  DoMulRandoms(0, kRandomsPerShard);
+}
+TEST(AbstractEvaluatorTest, MulRandomsShard1) {
+  DoMulRandoms(1, kRandomsPerShard);
+}
+TEST(AbstractEvaluatorTest, MulRandomsShard2) {
+  DoMulRandoms(2, kRandomsPerShard);
+}
+TEST(AbstractEvaluatorTest, MulRandomsShard3) {
+  DoMulRandoms(3, kRandomsPerShard);
+}
+TEST(AbstractEvaluatorTest, MulRandomsShard4) {
+  DoMulRandoms(4, kRandomsPerShard);
+}
+TEST(AbstractEvaluatorTest, MulRandomsShard5) {
+  DoMulRandoms(5, kRandomsPerShard);
+}
+TEST(AbstractEvaluatorTest, MulRandomsShard6) {
+  DoMulRandoms(6, kRandomsPerShard);
+}
+TEST(AbstractEvaluatorTest, MulRandomsShard7) {
+  DoMulRandoms(7, kRandomsPerShard);
 }
 
 TEST(AbstractEvaluatorTest, SMul) {
