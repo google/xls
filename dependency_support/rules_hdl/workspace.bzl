@@ -1,4 +1,4 @@
-# Copyright 2020 The XLS Authors
+# Copyright 2021 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Loads the ABC system for sequential synthesis and verification, used by yosys."""
+"""Loads the rules_hdl package which contains Bazel rules for other tools that
+XLS uses."""
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
@@ -20,11 +21,10 @@ load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 def repo():
     maybe(
         http_archive,
-        name = "tk_tcl_tcl",
+        name = "rules_hdl",
+        sha256 = "3149a553a98c9b4bfe31eb00363dd535820b22abed568ba0c60957ff7ec63e2a",
+        strip_prefix = "bazel_rules_hdl-06705603bf3456bcabc28008d19ea5da22359fe5",
         urls = [
-            "https://prdownloads.sourceforge.net/tcl/tcl8.6.10-src.tar.gz",
+            "https://github.com/per-gron/bazel_rules_hdl/archive/06705603bf3456bcabc28008d19ea5da22359fe5.tar.gz",  # 2021-04-14
         ],
-        strip_prefix = "tcl8.6.10",
-        sha256 = "5196dbf6638e3df8d5c87b5815c8c2b758496eb6f0e41446596c9a4e638d87ed",
-        build_file = Label("//dependency_support:tk_tcl_tcl/bundled.BUILD.bazel"),
     )
