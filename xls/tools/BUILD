@@ -90,6 +90,7 @@ cc_test(
 cc_binary(
     name = "booleanify_main",
     srcs = ["booleanify_main.cc"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":booleanifier",
         "@com_google_absl//absl/flags:flag",

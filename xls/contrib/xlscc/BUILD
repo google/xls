@@ -111,6 +111,7 @@ cc_test(
 cc_binary(
     name = "xlscc",
     srcs = ["main.cc"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":hls_block_cc_proto",
         ":translator",
