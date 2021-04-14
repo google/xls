@@ -16,11 +16,13 @@
 #define XLS_IR_ABSTRACT_EVALUATOR_H_
 
 #include <cstdint>
+#include <queue>
 #include <vector>
 
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 
@@ -61,6 +63,22 @@ class AbstractEvaluator {
   }
   Element Or(const Element& a, const Element& b) const {
     return static_cast<const EvaluatorT*>(this)->Or(a, b);
+  }
+
+  struct AdderResult {
+    Element sum;
+    Element carry;
+  };
+  AdderResult HalfAdder(const Element& a, const Element& b) const {
+    Element carry = And(a, b);
+    Element sum = And(Or(a, b), Not(carry));
+    return {sum, carry};
+  }
+  AdderResult FullAdder(const Element& a, const Element& b,
+                        const Element& carry_in) const {
+    AdderResult first_result = HalfAdder(a, b);
+    AdderResult second_result = HalfAdder(first_result.sum, carry_in);
+    return {second_result.sum, Or(first_result.carry, second_result.carry)};
   }
 
   // Returns the given bits value as a Vector type.
@@ -324,27 +342,9 @@ class AbstractEvaluator {
     Vector result(a.size());
     Element carry = Zero();
     for (int i = 0; i < a.size(); i++) {
-      Element a_i = a[i];
-      Element b_i = b[i];
-      Element not_a_i = Not(a[i]);
-      Element not_b_i = Not(b[i]);
-      Element not_carry = Not(carry);
-
-      Vector bit_cases({
-          And(not_a_i, And(not_b_i, carry)),
-          And(not_a_i, And(b_i, not_carry)),
-          And(a_i, And(not_b_i, not_carry)),
-          And(a_i, And(b_i, carry)),
-      });
-      result[i] = OrReduce(bit_cases)[0];
-
-      Vector carry_cases({
-          And(not_a_i, And(b_i, carry)),
-          And(a_i, And(not_b_i, carry)),
-          And(a_i, And(b_i, not_carry)),
-          And(a_i, And(b_i, carry)),
-      });
-      carry = OrReduce(carry_cases)[0];
+      AdderResult r = FullAdder(a[i], b[i], carry);
+      result[i] = r.sum;
+      carry = r.carry;
     }
     return result;
   }
@@ -370,17 +370,124 @@ class AbstractEvaluator {
 
   // Unsigned multiplication of two Vectors.
   // Returns a Vector of a.size() + b.size().
+  //
+  // Implements a Dadda multiplier:
+  // https://en.wikipedia.org/wiki/Dadda_multiplier
   Vector UMul(const Vector& a, const Vector& b) {
-    Vector result(a.size() + b.size(), Zero());
-    Element one = One();
-    Vector zero_vector(a.size() + b.size(), Zero());
-    Vector temp_b = ZeroExtend(b, result.size());
-    for (const Element& e_a : a) {
-      Vector addend = Select({e_a}, {zero_vector, temp_b});
-      result = Add(result, addend);
-      temp_b = ShiftLeftLogical(temp_b, {one});
+    std::vector<std::queue<Element>> partial_products(a.size() + b.size());
+    for (int64_t i = 0; i < a.size(); ++i) {
+      for (int64_t j = 0; j < b.size(); ++j) {
+        partial_products[i + j].push(And(a[i], b[j]));
+      }
     }
-    return BitSlice(result, 0, a.size() + b.size());
+    // We reduce each column of partial products by stages, until all columns
+    // have height <= 2. Our stages use a sequence of maximum heights d_n,
+    // where d_1 = 2, and d_{j+1} = floor(1.5*d_j); the first pass starts with
+    // the largest d_n such that `max_height < max(a.size(), b.size())`.
+    int64_t max_height = 2;
+    while (max_height < std::max(a.size(), b.size())) {
+      max_height = FloorOfRatio<int64_t>(3 * max_height, 2);
+    }
+
+    while (max_height > 2) {
+      max_height = CeilOfRatio<int64_t>(2 * max_height, 3);
+
+      for (int64_t col = 0; col < partial_products.size(); ++col) {
+        std::queue<Element>& column = partial_products[col];
+        if (column.size() <= max_height) {
+          continue;
+        }
+        // The last column should never need reduction.
+        XLS_CHECK_LT(col + 1, partial_products.size());
+
+        std::queue<Element>& next_column = partial_products[col + 1];
+        while (column.size() > max_height + 1) {
+          // By the while condition, the column should have at least 3 elements.
+          // (Actually, it should have at least 4, but we only need 3.)
+          XLS_CHECK_GE(column.size(), 3);
+
+          // Use a full adder to combine the next 3 elements, outputting a sum
+          // with a carry into the next column.
+          Element a = column.front();
+          column.pop();
+          Element b = column.front();
+          column.pop();
+          Element c = column.front();
+          column.pop();
+
+          AdderResult r = FullAdder(a, b, c);
+          column.push(r.sum);
+          next_column.push(r.carry);
+        }
+        if (column.size() > max_height) {
+          // By this condition, the column should have at least 2 elements.
+          // (Actually, it should have at least 3, but we only need 2.)
+          XLS_CHECK_GE(column.size(), 2);
+
+          // Use a half-adder to combine the next 2 elements, outputting a sum
+          // with a carry into the next column.
+          Element a = column.front();
+          column.pop();
+          Element b = column.front();
+          column.pop();
+
+          AdderResult r = HalfAdder(a, b);
+          column.push(r.sum);
+          next_column.push(r.carry);
+        }
+      }
+    }
+    // All columns should now be reduced to height at most 2.
+    // Implement a ripple-carry adder to reduce to height 1.
+    Vector result(a.size() + b.size(), Zero());
+    for (int64_t i = 0; i < result.size(); ++i) {
+      std::queue<Element>& column = partial_products[i];
+
+      // All columns should start with height <= 2, and end up <= 3 if they
+      // receive a carry.
+      XLS_CHECK_LE(column.size(), 3);
+
+      // Reduce this column to a single entry, pushing any carry forward.
+      switch (column.size()) {
+        case 0:
+          column.push(Zero());
+          break;
+        case 1:
+          break;
+        case 2: {
+          // Combine all elements with a half-adder, and push the carry forward.
+          Element a = column.front();
+          column.pop();
+          Element b = column.front();
+          column.pop();
+          XLS_CHECK(column.empty());
+
+          AdderResult r = HalfAdder(a, b);
+          column.push(r.sum);
+          partial_products[i + 1].push(r.carry);
+          break;
+        }
+        case 3: {
+          // Combine all elements with a full adder, and push the carry forward.
+          Element a = column.front();
+          column.pop();
+          Element b = column.front();
+          column.pop();
+          Element c = column.front();
+          column.pop();
+          XLS_CHECK(column.empty());
+
+          AdderResult r = FullAdder(a, b, c);
+          column.push(r.sum);
+          partial_products[i + 1].push(r.carry);
+          break;
+        }
+      }
+
+      XLS_CHECK_EQ(column.size(), 1);
+      result[i] = column.front();
+    }
+    return result;
   }
 
  private:

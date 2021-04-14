@@ -831,8 +831,8 @@ cc_library(
     deps = [
         ":bits",
         ":bits_ops",
+        "//xls/common:math_util",
         "//xls/common/logging",
-        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
     ],
