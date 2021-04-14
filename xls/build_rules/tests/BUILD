@@ -13,6 +13,7 @@
 # limitations under the License.
 
 load("//xls/build_rules:build_defs.bzl", "dslx_generated_rtl", "dslx_test")
+load("//xls/build_rules:xls_dslx_rules.bzl", "dslx_library", dslx_ng_test = "dslx_test")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -76,4 +77,77 @@ sh_test(
     srcs = ["not_has_clk.sh"],
     args = ["$(rootpath :add_one_combinational_rtl.v)"],
     data = [":add_one_combinational_rtl.v"],
+)
+
+dslx_library(
+    name = "a",
+    srcs = [
+        "a.x",
+    ],
+)
+
+# dslx_library target depends on dslx_library target 'a'.
+dslx_library(
+    name = "b",
+    srcs = [
+        "b.x",
+    ],
+    deps = [
+        ":a",
+    ],
+)
+
+dslx_library(
+    name = "c",
+    srcs = [
+        "c.x",
+    ],
+    deps = [
+        ":a",
+    ],
+)
+
+# dslx_library target grouping DSLX files.
+dslx_library(
+    name = "files_123",
+    srcs = [
+        "file_1.x",
+        "file_2.x",
+        "file_3.x",
+    ],
+)
+
+dslx_library(
+    name = "file_4",
+    srcs = [
+        "file_4.x",
+    ],
+)
+
+# dslx_library target depends on dslx_library target 'file_4'.
+dslx_library(
+    name = "file_5",
+    srcs = [
+        "file_5.x",
+    ],
+    deps = [
+        ":file_4",
+    ],
+)
+
+# dslx_test with no dependencies.
+# TODO(vmirian) 04-13-21 after merge rename to dslx_test
+dslx_ng_test(
+    name = "a_test",
+    src = "a.x",
+)
+
+# dslx_test with a dependency.
+# TODO(vmirian) 04-13-21 after merge rename to dslx_test
+dslx_ng_test(
+    name = "d_test",
+    src = "d.x",
+    deps = [
+        ":c",
+    ],
 )
