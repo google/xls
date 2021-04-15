@@ -341,20 +341,20 @@ class SampleRunner:
                 n for n, v in results.items() if values_equal(v[i], values[i]))
             args = '(args unknown)'
             if args_batch:
-              args = '; '.join(str(a) for a in args_batch[i])
+              args = '; '.join(a.to_ir_str() for a in args_batch[i])
             raise SampleError(f'Result miscompare for sample {i}:'
                               f'\nargs: {args}'
                               f'\n{", ".join(reference_matches)} ='
-                              f'\n   {ref_result}'
+                              f'\n   {ref_result.to_ir_str()}'
                               f'\n{", ".join(values_matches)} ='
-                              f'\n   {values[i]}')
+                              f'\n   {values[i].to_ir_str()}')
 
   def _interpret_dslx(self, text: str, function_name: str,
                       args_batch: ArgsBatch) -> Tuple[Value, ...]:
     """Interprets the DSLX module returns the result Values."""
     dslx_results = interpreter.run_batched(text, function_name, args_batch)
     self._write_file('sample.x.results',
-                     '\n'.join(str(r) for r in dslx_results))
+                     '\n'.join(r.to_ir_str() for r in dslx_results))
     return tuple(dslx_results)
 
   def _parse_values(self, s: Text) -> Tuple[Value, ...]:

@@ -44,7 +44,7 @@ class ParametricExpressionTest(absltest.TestCase):
             ParametricSymbol('M', self.fake_span),
             ParametricSymbol('N', self.fake_span)))
     self.assertEqual(e, e)
-    self.assertEqual('(bits[32]:0x3*(M+N))', str(e))
+    self.assertEqual('(u32:3*(M+N))', str(e))
     self.assertEqual(param_6, e.evaluate(dict(N=param_2, M=param_0)))
     self.assertEqual(param_12, e.evaluate(dict(N=param_1, M=param_3)))
     self.assertEqual(set(['N', 'M']), e.get_freevars())

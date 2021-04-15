@@ -38,7 +38,8 @@ std::string SignedCmpToString(SignedCmp cmp);
 
 // Traces the given expression/result to stderr if it meets the bar for "not too
 // noisy an AST node" (and is not itself a trace).
-void OptionalTrace(Expr* expr, const InterpValue& result);
+void OptionalTrace(Expr* expr, const InterpValue& result,
+                   AbstractInterpreter* interp);
 
 // NOTE on the signature for builtin functions: symbolic_bindings may be null
 // e.g. in the entry function.
@@ -64,7 +65,7 @@ absl::StatusOr<InterpValue> BuiltinScmp(
 // Implements 'trace!' builtin function.
 absl::StatusOr<InterpValue> BuiltinTrace(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings);
+    const SymbolicBindings* symbolic_bindings, AbstractInterpreter* interp);
 
 // Implements 'fail!' builtin function.
 absl::StatusOr<InterpValue> BuiltinFail(

@@ -27,6 +27,9 @@
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
 ABSL_FLAG(bool, trace_all, false, "Trace every expression.");
+ABSL_FLAG(
+    std::string, trace_format_preference, "default",
+    "Preference for display of trace!() output: default|binary|hex|decimal");
 ABSL_FLAG(bool, execute, true, "Execute tests within the entry module.");
 ABSL_FLAG(bool, compare_jit, true,
           "Compare interpreted and JIT execution of each function.");
@@ -47,16 +50,24 @@ Parses, typechecks, and executes all tests inside of a DSLX module.
 absl::Status RealMain(absl::string_view entry_module_path,
                       absl::Span<const std::string> dslx_paths,
                       absl::optional<std::string> test_filter, bool trace_all,
+                      FormatPreference trace_format_preference,
                       bool compare_jit, bool execute,
                       absl::optional<int64_t> seed, bool* printed_error) {
   XLS_ASSIGN_OR_RETURN(std::string program, GetFileContents(entry_module_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(entry_module_path));
   JitComparator jit_comparator;
+  ParseAndTestOptions options = {
+      .dslx_paths = dslx_paths,
+      .test_filter = test_filter,
+      .trace_all = trace_all,
+      .trace_format_preference = trace_format_preference,
+      .jit_comparator = compare_jit ? &jit_comparator : nullptr,
+      .execute = execute,
+      .seed = seed,
+  };
   XLS_ASSIGN_OR_RETURN(
       *printed_error,
-      ParseAndTest(program, module_name, entry_module_path, dslx_paths,
-                   test_filter, trace_all,
-                   compare_jit ? &jit_comparator : nullptr, execute, seed));
+      ParseAndTest(program, module_name, entry_module_path, options));
   return absl::OkStatus();
 }
 
@@ -91,10 +102,16 @@ int main(int argc, char* argv[]) {
     test_filter = std::move(flag);
   }
 
+  absl::StatusOr<xls::FormatPreference> preference =
+      xls::FormatPreferenceFromString(
+          absl::GetFlag(FLAGS_trace_format_preference));
+  XLS_QCHECK_OK(preference.status())
+      << "-trace_format_preference accepts default|binary|hex|decimal";
+
   bool printed_error = false;
-  absl::Status status =
-      xls::dslx::RealMain(args[0], dslx_paths, test_filter, trace_all,
-                          compare_jit, execute, seed, &printed_error);
+  absl::Status status = xls::dslx::RealMain(
+      args[0], dslx_paths, test_filter, trace_all, preference.value(),
+      compare_jit, execute, seed, &printed_error);
   if (printed_error) {
     return EXIT_FAILURE;
   }

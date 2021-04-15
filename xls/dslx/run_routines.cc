@@ -214,10 +214,7 @@ static absl::Status RunQuickChecksIfJitEnabled(
 absl::StatusOr<bool> ParseAndTest(absl::string_view program,
                                   absl::string_view module_name,
                                   absl::string_view filename,
-                                  absl::Span<const std::string> dslx_paths,
-                                  absl::optional<absl::string_view> test_filter,
-                                  bool trace_all, JitComparator* jit_comparator,
-                                  bool execute, absl::optional<int64_t> seed) {
+                                  const ParseAndTestOptions& options) {
   int64_t ran = 0;
   int64_t failed = 0;
   int64_t skipped = 0;
@@ -248,7 +245,7 @@ absl::StatusOr<bool> ParseAndTest(absl::string_view program,
 
   ImportData import_data;
   absl::StatusOr<TypecheckedModule> tm_or = ParseAndTypecheck(
-      program, filename, module_name, &import_data, dslx_paths);
+      program, filename, module_name, &import_data, options.dslx_paths);
   if (!tm_or.ok()) {
     if (TryPrintError(tm_or.status())) {
       return true;
@@ -257,7 +254,7 @@ absl::StatusOr<bool> ParseAndTest(absl::string_view program,
   }
 
   // If not executing tests and quickchecks, then return
-  if (!execute) {
+  if (!options.execute) {
     return false;
   }
 
@@ -267,31 +264,31 @@ absl::StatusOr<bool> ParseAndTest(absl::string_view program,
   // with the interpreter.
   std::unique_ptr<Package> ir_package;
   Interpreter::PostFnEvalHook post_fn_eval_hook;
-  if (jit_comparator != nullptr) {
+  if (options.jit_comparator != nullptr) {
     XLS_ASSIGN_OR_RETURN(ir_package,
                          ConvertModuleToPackage(entry_module, &import_data,
                                                 /*emit_positions=*/true,
                                                 /*traverse_tests=*/true));
-    post_fn_eval_hook = [&ir_package, jit_comparator](
+    post_fn_eval_hook = [&ir_package, &options](
                             Function* f, absl::Span<const InterpValue> args,
                             const SymbolicBindings* symbolic_bindings,
                             const InterpValue& got) {
-      return jit_comparator->RunComparison(ir_package.get(), f, args,
-                                           symbolic_bindings, got);
+      return options.jit_comparator->RunComparison(ir_package.get(), f, args,
+                                                   symbolic_bindings, got);
     };
   }
 
-  auto typecheck_callback = [&import_data, &dslx_paths](Module* module) {
-    return CheckModule(module, &import_data, dslx_paths);
+  auto typecheck_callback = [&import_data, &options](Module* module) {
+    return CheckModule(module, &import_data, options.dslx_paths);
   };
 
-  Interpreter interpreter(entry_module, typecheck_callback, dslx_paths,
-                          &import_data, /*trace_all=*/trace_all,
-                          post_fn_eval_hook);
+  Interpreter interpreter(entry_module, typecheck_callback, options.dslx_paths,
+                          &import_data, options.trace_all,
+                          options.trace_format_preference, post_fn_eval_hook);
 
   // Run unit tests.
   for (const std::string& test_name : entry_module->GetTestNames()) {
-    if (!TestMatchesFilter(test_name, test_filter)) {
+    if (!TestMatchesFilter(test_name, options.test_filter)) {
       skipped += 1;
       continue;
     }
@@ -314,8 +311,8 @@ absl::StatusOr<bool> ParseAndTest(absl::string_view program,
   // Run quickchecks, but only if the JIT is enabled.
   if (!entry_module->GetQuickChecks().empty()) {
     XLS_RETURN_IF_ERROR(RunQuickChecksIfJitEnabled(
-        entry_module, interpreter.current_type_info(), jit_comparator,
-        ir_package.get(), seed, handle_error));
+        entry_module, interpreter.current_type_info(), options.jit_comparator,
+        ir_package.get(), options.seed, handle_error));
   }
 
   return failed != 0;

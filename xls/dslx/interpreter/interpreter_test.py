@@ -275,8 +275,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_array_equality(self):
     program = textwrap.dedent("""
-                              #![test]
-                              fn array_equality_test() {
+    #![test]
+    fn array_equality_test() {
       let a: u8[4] = u8[4]:[1,2,3,4];
       assert_eq(a, a)
     }
@@ -289,8 +289,8 @@ class InterpreterTest(test_base.TestCase):
           x: bits[X]) -> (u32, u32, u32) {
       (X, Y, Z)
     }
-                              #![test]
-                              fn parametric_test() {
+    #![test]
+    fn parametric_test() {
       assert_eq((u32:2, u32:4, u32:5), parametric(bits[2]:0))
     }
     """)
@@ -421,8 +421,8 @@ class InterpreterTest(test_base.TestCase):
     program_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, '--compare_jit=false', program_file.full_path]
     result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
-    self.assertIn('4:15-4:30: bits[32]:0x1', result.stderr)
-    self.assertIn('4:15-4:30: bits[32]:0x2', result.stderr)
+    self.assertIn('4:15-4:30: u32:1', result.stderr)
+    self.assertIn('4:15-4:30: u32:2', result.stderr)
 
   def test_bitslice_syntax(self):
     program = """

@@ -64,6 +64,9 @@ class AbstractInterpreter {
 
   virtual ImportData* GetImportData() = 0;
 
+  // Retrieves the format preference to use in `trace!()` builtin execution.
+  virtual FormatPreference GetTraceFormatPreference() const = 0;
+
   // Law-of-Demeter helper for getting the root type info for a module (via the
   // import cache).
   absl::StatusOr<TypeInfo*> GetRootTypeInfo(Module* module) {

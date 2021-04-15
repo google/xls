@@ -86,22 +86,72 @@ std::string TagToString(InterpValueTag tag) {
                      UBits(value, /*bit_count=*/bit_count)};
 }
 
-std::string InterpValue::ToString(bool humanize) const {
-  auto make_guts = [&] {
-    return absl::StrJoin(GetValuesOrDie(), ", ",
-                         [humanize](std::string* out, const InterpValue& v) {
-                           if (humanize && v.IsBits()) {
-                             absl::StrAppend(out, v.GetBitsOrDie().ToString());
-                             return;
-                           }
-                           absl::StrAppend(out, v.ToString(humanize));
-                         });
+// Converts an interp value (precondition: `v.IsBits()`) to a string, given a
+// format preference.
+static std::string BitsToString(const InterpValue& v, FormatPreference format,
+                                bool include_type = true) {
+  const Bits& bits = v.GetBitsOrDie();
+  const int64_t bit_count = v.GetBitCount().value();
+
+  auto bits_type_str = [bit_count, v]() {
+    bool is_signed = v.tag() == InterpValueTag::kSBits;
+    // Note: The DSL defines the first 128 bits as named builtin types, beyond
+    // that we have to use the uN/sN array-looking variants.
+    if (bit_count <= 128) {
+      return absl::StrFormat("%c%d", is_signed ? 's' : 'u', bit_count);
+    }
+    return absl::StrFormat("%cN[%d]", is_signed ? 's' : 'u', bit_count);
   };
+
+  switch (v.tag()) {
+    case InterpValueTag::kUBits: {
+      std::string value_str = bits.ToString(format);
+      if (!include_type) {
+        return value_str;
+      }
+      std::string type_str = bits_type_str();
+      return absl::StrCat(type_str, ":", value_str);
+    }
+    case InterpValueTag::kSBits: {
+      std::string value_str = bits.ToString(format);
+      if ((format == FormatPreference::kDecimal ||
+           format == FormatPreference::kDefault) &&
+          bits.msb()) {
+        // If we're a signed number in decimal format, give the value for the
+        // bit pattern that has the leading negative sign.
+        value_str = absl::StrCat("-", bits_ops::Negate(bits).ToString(format));
+      }
+      if (!include_type) {
+        return value_str;
+      }
+      std::string type_str = bits_type_str();
+      return absl::StrCat(type_str, ":", value_str);
+    }
+    default:
+      break;
+  }
+  XLS_LOG(FATAL) << "Invalid tag for BitsToString: " << v.tag();
+}
+
+std::string InterpValue::ToString(bool humanize,
+                                  FormatPreference format) const {
+  auto make_guts = [&] {
+    return absl::StrJoin(
+        GetValuesOrDie(), ", ",
+        [humanize, format](std::string* out, const InterpValue& v) {
+          if (humanize && v.IsBits()) {
+            absl::StrAppend(out,
+                            BitsToString(v, format, /*include_type=*/false));
+            return;
+          }
+          absl::StrAppend(out, v.ToString(humanize, format));
+        });
+  };
+
   switch (tag_) {
     case InterpValueTag::kUBits:
     case InterpValueTag::kSBits:
-      return absl::StrFormat("bits[%d]:%s", GetBitCount().value(),
-                             GetBitsOrDie().ToString(FormatPreference::kHex));
+      return BitsToString(*this, format);
     case InterpValueTag::kArray:
       return absl::StrFormat("[%s]", make_guts());
     case InterpValueTag::kTuple:

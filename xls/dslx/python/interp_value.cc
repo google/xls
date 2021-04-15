@@ -100,6 +100,11 @@ PYBIND11_MODULE(interp_value, m) {
              return InterpValue::MakeBool(self.Eq(other));
            })
       .def("to_human_str", &InterpValue::ToHumanString)
+      .def("to_ir_str",
+           [](const InterpValue& self) -> absl::StatusOr<std::string> {
+             XLS_ASSIGN_OR_RETURN(xls::Value value, self.ConvertToIr());
+             return value.ToString(FormatPreference::kHex);
+           })
       .def("bitwise_negate", &InterpValue::BitwiseNegate)
       .def("bitwise_xor", &InterpValue::BitwiseXor)
       .def("bitwise_or", &InterpValue::BitwiseOr)

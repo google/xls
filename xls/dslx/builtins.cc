@@ -140,13 +140,17 @@ absl::StatusOr<InterpValue> BuiltinScmp(
 }
 
 static void PerformTrace(absl::string_view text, const Span& span,
-                         const InterpValue& value) {
+                         const InterpValue& value,
+                         AbstractInterpreter* interp) {
+  FormatPreference format = interp->GetTraceFormatPreference();
   std::cerr << absl::StreamFormat("trace of %s @ %s: %s", text, span.ToString(),
-                                  value.ToString())
+                                  value.ToString(/*humanize=*/true,
+                                                 /*format=*/format))
             << std::endl;
 }
 
-void OptionalTrace(Expr* expr, const InterpValue& result) {
+void OptionalTrace(Expr* expr, const InterpValue& result,
+                   AbstractInterpreter* interp) {
   // Implementation note: We don't need to trace the 'trace' invocation, or Let
   // nodes -- we just want to see the non-Let bodies.
   //
@@ -169,15 +173,15 @@ void OptionalTrace(Expr* expr, const InterpValue& result) {
   bool is_let_instance = dynamic_cast<Let*>(expr) != nullptr;
 
   if (!is_trace_instance && !is_let_instance && !result.IsFunction()) {
-    PerformTrace(expr->ToString(), expr->span(), result);
+    PerformTrace(expr->ToString(), expr->span(), result, interp);
   }
 }
 
 absl::StatusOr<InterpValue> BuiltinTrace(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    const SymbolicBindings* symbolic_bindings, AbstractInterpreter* interp) {
   XLS_RETURN_IF_ERROR(ArgChecker("trace!", args).size(1).status());
-  PerformTrace(expr->FormatArgs(), span, args[0]);
+  PerformTrace(expr->FormatArgs(), span, args[0], interp);
   return args[0];
 }
 

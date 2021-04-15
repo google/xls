@@ -241,7 +241,9 @@ class InterpValue {
 
   // "humanize" indicates whether bits-based values /within containers/ should
   // not have their leading widths printed -- this can obscure readability.
-  std::string ToString(bool humanize = false) const;
+  std::string ToString(
+      bool humanize = false,
+      FormatPreference format = FormatPreference::kDefault) const;
   std::string ToHumanString() const { return ToString(/*humanize=*/true); }
 
   InterpValueTag tag() const { return tag_; }

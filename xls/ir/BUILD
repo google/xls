@@ -544,7 +544,9 @@ cc_library(
     srcs = ["format_preference.cc"],
     hdrs = ["format_preference.h"],
     deps = [
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 

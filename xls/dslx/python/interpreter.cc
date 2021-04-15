@@ -74,10 +74,13 @@ PYBIND11_MODULE(interpreter, m) {
         XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
                              tm.type_info->GetItemAs<FunctionType>(f));
 
-        Interpreter interpreter(tm.module, /*typecheck=*/nullptr,
-                                /*additional_search_paths=*/{},
-                                /*import_data=*/&import_data,
-                                /*trace_all=*/false, /*package=*/nullptr);
+        Interpreter interpreter(
+            tm.module, /*typecheck=*/nullptr,
+            /*additional_search_paths=*/{},
+            /*import_data=*/&import_data,
+            /*trace_all=*/false,
+            /*trace_format_preference=*/FormatPreference::kDefault,
+            /*package=*/nullptr);
         std::vector<InterpValue> results;
         results.reserve(args_batch.size());
         for (const std::vector<InterpValue>& unsigned_args : args_batch) {

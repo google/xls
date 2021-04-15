@@ -111,6 +111,9 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
   absl::Span<std::string const> GetAdditionalSearchPaths() override {
     return interp_->additional_search_paths_;
   }
+  FormatPreference GetTraceFormatPreference() const override {
+    return interp_->trace_format_preference();
+  }
 
  private:
   Interpreter* interp_;
@@ -119,6 +122,7 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
 Interpreter::Interpreter(Module* entry_module, TypecheckFn typecheck,
                          absl::Span<std::string const> additional_search_paths,
                          ImportData* import_data, bool trace_all,
+                         FormatPreference trace_format_preference,
                          PostFnEvalHook post_fn_eval_hook)
     : entry_module_(entry_module),
       current_type_info_(import_data->GetRootTypeInfo(entry_module).value()),
@@ -128,6 +132,7 @@ Interpreter::Interpreter(Module* entry_module, TypecheckFn typecheck,
                                additional_search_paths.end()),
       import_data_(import_data),
       trace_all_(trace_all),
+      trace_format_preference_(trace_format_preference),
       abstract_adapter_(absl::make_unique<AbstractInterpreterAdapter>(this)) {}
 
 absl::StatusOr<InterpValue> Interpreter::RunFunction(
@@ -184,7 +189,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
   }
   InterpValue result = std::move(result_or).value();
   if (trace_all_) {
-    OptionalTrace(expr, result);
+    OptionalTrace(expr, result, abstract_adapter_.get());
   }
   return result;
 }
@@ -266,7 +271,6 @@ absl::StatusOr<InterpValue> Interpreter::RunBuiltin(
     CASE(Rev);
     CASE(Signex);
     CASE(Slice);
-    CASE(Trace);
     CASE(Update);
     // Reductions.
     CASE(AndReduce);
@@ -288,6 +292,9 @@ absl::StatusOr<InterpValue> Interpreter::RunBuiltin(
     case Builtin::kMap:  // Needs callbacks.
       return BuiltinMap(args, span, invocation, symbolic_bindings,
                         abstract_adapter_.get());
+    case Builtin::kTrace:  // Needs callbacks.
+      return BuiltinTrace(args, span, invocation, symbolic_bindings,
+                          abstract_adapter_.get());
     default:
       return absl::UnimplementedError("Unhandled builtin: " +
                                       BuiltinToString(builtin));

@@ -59,6 +59,12 @@ absl::StatusOr<std::vector<std::vector<InterpValue>>> ParseArgsBatch(
   return args_batch;
 }
 
+// Converts an interpreter value to an argument string -- we use the
+// IR-converted hex form of the value.
+static std::string ToArgString(const InterpValue& v) {
+  return v.ConvertToIr().value().ToString(FormatPreference::kHex);
+}
+
 std::string ArgsBatchToText(
     const std::vector<std::vector<InterpValue>>& args_batch) {
   return absl::StrJoin(
@@ -67,7 +73,7 @@ std::string ArgsBatchToText(
         absl::StrAppend(
             out, absl::StrJoin(args, ";",
                                [](std::string* out, const InterpValue& v) {
-                                 absl::StrAppend(out, v.ToString());
+                                 absl::StrAppend(out, ToArgString(v));
                                }));
       });
 }
@@ -191,7 +197,7 @@ std::string Sample::Serialize() const {
   for (const std::vector<InterpValue>& args : args_batch_) {
     std::string args_str =
         absl::StrJoin(args, "; ", [](std::string* out, const InterpValue& v) {
-          absl::StrAppend(out, v.ToString());
+          absl::StrAppend(out, ToArgString(v));
         });
     lines.push_back(absl::StrCat("// args: ", args_str));
   }

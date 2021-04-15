@@ -59,13 +59,8 @@ class JitComparator {
   absl::flat_hash_map<std::string, std::unique_ptr<IrJit>> jit_cache_;
 };
 
-// Parses program and run all tests contained inside.
+// Optional arguments to ParseAndTest (that have sensible defaults).
 //
-// Args:
-//   program: The program text to parse.
-//   module_name: Name for the module.
-//   filename: The filename from which "program" text originates.
-//   dslx_paths: Additional paths at which we search for imported module files.
 //   test_filter: Test filter specification (e.g. as passed from bazel test
 //     environment).
 //   trace_all: Whether or not to trace all expressions.
@@ -73,15 +68,31 @@ class JitComparator {
 //     JIT'd function return values.
 //   execute: Whether or not to execute the quickchecks and tests.
 //   seed: Seed for QuickCheck random input stimulus.
+struct ParseAndTestOptions {
+  absl::Span<const std::string> dslx_paths = {};
+  absl::optional<absl::string_view> test_filter = absl::nullopt;
+  bool trace_all = false;
+  FormatPreference trace_format_preference = FormatPreference::kDefault;
+  JitComparator* jit_comparator = nullptr;
+  bool execute = true;
+  absl::optional<int64_t> seed = absl::nullopt;
+};
+
+// Parses program and run all tests contained inside.
+//
+// Args:
+//   program: The program text to parse.
+//   module_name: Name for the module.
+//   filename: The filename from which "program" text originates.
+//   dslx_paths: Additional paths at which we search for imported module files.
+//   options: Bundles together optional arguments -- see ParseAndTestOptions.
 //
 // Returns:
 //   Whether any test failed (as a boolean).
-absl::StatusOr<bool> ParseAndTest(
-    absl::string_view program, absl::string_view module_name,
-    absl::string_view filename, absl::Span<const std::string> dslx_paths,
-    absl::optional<absl::string_view> test_filter = absl::nullopt,
-    bool trace_all = false, JitComparator* jit_comparator = nullptr,
-    bool execute = true, absl::optional<int64_t> seed = absl::nullopt);
+absl::StatusOr<bool> ParseAndTest(absl::string_view program,
+                                  absl::string_view module_name,
+                                  absl::string_view filename,
+                                  const ParseAndTestOptions& options);
 
 struct QuickCheckResults {
   std::vector<std::vector<Value>> arg_sets;

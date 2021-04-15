@@ -14,6 +14,8 @@
 
 #include "xls/ir/format_preference.h"
 
+#include "absl/strings/str_format.h"
+
 namespace xls {
 
 absl::string_view FormatPreferenceToString(FormatPreference preference) {
@@ -29,6 +31,21 @@ absl::string_view FormatPreferenceToString(FormatPreference preference) {
     default:
       return "<invalid format preference>";
   }
+}
+
+absl::StatusOr<FormatPreference> FormatPreferenceFromString(
+    absl::string_view s) {
+  if (s == "default") {
+    return FormatPreference::kDefault;
+  } else if (s == "binary") {
+    return FormatPreference::kBinary;
+  } else if (s == "hex") {
+    return FormatPreference::kBinary;
+  } else if (s == "decimal") {
+    return FormatPreference::kDecimal;
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Invalid trace format preference: \"%s\"", s));
 }
 
 }  // namespace xls

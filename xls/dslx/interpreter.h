@@ -87,12 +87,16 @@ class Interpreter {
   //  import_data: Optional, cache for imported modules.
   //  trace_all: Whether to trace "all" (really most "non-noisy") expressions in
   //    the interpreter evaluation.
+  //  trace_format_preference: The preferred format to use when executing
+  //    `trace!()` builtins.
   //  post_fn_eval: Optional callback run after function evaluation. See
   //    PostFnEvalHook above.
-  Interpreter(Module* entry_module, TypecheckFn typecheck,
-              absl::Span<std::string const> additional_search_paths,
-              ImportData* import_data, bool trace_all = false,
-              PostFnEvalHook post_fn_eval = nullptr);
+  Interpreter(
+      Module* entry_module, TypecheckFn typecheck,
+      absl::Span<std::string const> additional_search_paths,
+      ImportData* import_data, bool trace_all = false,
+      FormatPreference trace_format_preference = FormatPreference::kDefault,
+      PostFnEvalHook post_fn_eval = nullptr);
 
   // Since we capture pointers to "this" in lambdas, we don't want this object
   // to move/copy/assign.
@@ -116,6 +120,10 @@ class Interpreter {
 
   Module* entry_module() const { return entry_module_; }
   TypeInfo* current_type_info() const { return current_type_info_; }
+
+  FormatPreference trace_format_preference() const {
+    return trace_format_preference_;
+  }
 
  private:
   friend struct TypeInfoSwap;
@@ -241,6 +249,7 @@ class Interpreter {
   std::vector<std::string> additional_search_paths_;
   ImportData* import_data_;
   bool trace_all_;
+  FormatPreference trace_format_preference_;
 
   std::unique_ptr<AbstractInterpreter> abstract_adapter_;
 

@@ -17,6 +17,7 @@
 
 #include <ostream>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 
 namespace xls {
@@ -33,6 +34,9 @@ enum class FormatPreference {
 };
 
 absl::string_view FormatPreferenceToString(FormatPreference preference);
+
+absl::StatusOr<FormatPreference> FormatPreferenceFromString(
+    absl::string_view s);
 
 inline std::ostream& operator<<(std::ostream& os, FormatPreference preference) {
   os << FormatPreferenceToString(preference);

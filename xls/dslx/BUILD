@@ -389,6 +389,16 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "interp_value_test",
+    srcs = ["interp_value_test.cc"],
+    deps = [
+        ":interp_value",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "interp_bindings",
     srcs = ["interp_bindings.cc"],
