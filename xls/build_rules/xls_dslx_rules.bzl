@@ -86,6 +86,8 @@ def parse_and_type_check(ctx, src, required_files):
     file = ctx.actions.declare_file(src.basename + ".dummy")
     ctx.actions.run_shell(
         outputs = [file],
+        # The DSLX interpreter executable is a tool needed by the action.
+        tools = [ctx.executable._dslx_interpreter_tool],
         # The files required for parsing and type checking also requires the
         # DSLX interpreter executable.
         inputs = required_files + [ctx.executable._dslx_interpreter_tool],
