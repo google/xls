@@ -14,6 +14,7 @@
 
 load("//xls/build_rules:build_defs.bzl", "dslx_generated_rtl", "dslx_test")
 load("//xls/build_rules:xls_dslx_rules.bzl", "dslx_library", dslx_ng_test = "dslx_test")
+load("//xls/build_rules:xls_ir_rules.bzl", "dslx_to_ir", "ir_equivalence_test", "ir_opt")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -150,4 +151,35 @@ dslx_ng_test(
     deps = [
         ":c",
     ],
+)
+
+# dslx_to_ir target depending on dslx_library target 'c'.
+dslx_to_ir(
+    name = "d_dslx_to_ir",
+    src = "d.x",
+    deps = [
+        ":c",
+    ],
+)
+
+# dslx_to_ir target with an entry defined.
+dslx_to_ir(
+    name = "a_dslx_to_ir",
+    src = "a.x",
+    entry = "a",
+)
+
+# ir_opt target with an entry defined.
+ir_opt(
+    name = "a_ir_opt",
+    src = "a_dslx_to_ir",
+    entry = "__a__a",
+)
+
+# ir_eval_test target with targets as the sources.
+ir_equivalence_test(
+    name = "a_equivalence_test",
+    entry = "__a__a",
+    src_0 = ":a_dslx_to_ir",
+    src_1 = ":a_ir_opt",
 )
