@@ -845,8 +845,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
     auto member_call = clang_down_cast<const clang::CXXMemberCallExpr*>(expr);
     const clang::Expr* object = member_call->getImplicitObjectArgument();
 
-    XLS_ASSIGN_OR_RETURN(bool is_channel,
-                         TypeIsChannel(object->getType(), loc));
+    XLS_ASSIGN_OR_RETURN(bool is_channel, ExprIsChannel(object, loc));
     if (is_channel) {
       if (object->getStmtClass() != clang::Stmt::DeclRefExprClass) {
         return absl::UnimplementedError(absl::StrFormat(
@@ -988,8 +987,8 @@ absl::Status Translator::DeepScanForIO(const clang::Stmt* body,
       auto member_call = clang_down_cast<const clang::CXXMemberCallExpr*>(body);
       const clang::Expr* object = member_call->getImplicitObjectArgument();
 
-      XLS_ASSIGN_OR_RETURN(bool is_channel,
-                           TypeIsChannel(object->getType(), body_loc));
+      XLS_ASSIGN_OR_RETURN(bool is_channel, ExprIsChannel(object, body_loc));
+
       if (is_channel) {
         if (object->getStmtClass() != clang::Stmt::DeclRefExprClass) {
           return absl::UnimplementedError(
@@ -2058,6 +2057,15 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
     const clang::FunctionDecl* callee = op_call->getDirectCallee();
     if (callee->getKind() == clang::Decl::CXXMethod) {
+      CValue ret;
+
+      // There is a special case here for a certain expression form
+      XLS_ASSIGN_OR_RETURN(bool applied,
+                           ApplyArrayAssignHack(op_call, loc, &ret));
+      if (applied) {
+        return ret;
+      }
+
       // this comes as first argument for operators
       this_expr = call->getArg(0);
 
@@ -2110,6 +2118,68 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   }
 
   return call_res;
+}
+
+absl::StatusOr<bool> Translator::ApplyArrayAssignHack(
+    const clang::CXXOperatorCallExpr* op_call, const xls::SourceLocation& loc,
+    CValue* output) {
+  // Hack to avoid returning reference object.
+  //  xls_int[n] = val
+  //  CXXOperatorCallExpr '=' {
+  //    MaterializeTemporaryExpr {
+  //      CXXOperatorCallExpr '[]' {
+  //      }
+  //    }
+  //  }
+  if (!op_call->isAssignmentOp()) {
+    return false;
+  }
+  if (op_call->getArg(0)->getStmtClass() !=
+      clang::Stmt::MaterializeTemporaryExprClass) {
+    return false;
+  }
+  auto materialize = clang_down_cast<const clang::MaterializeTemporaryExpr*>(
+      op_call->getArg(0));
+  if (materialize->getSubExpr()->getStmtClass() !=
+      clang::Stmt::CXXOperatorCallExprClass) {
+    return false;
+  }
+  auto sub_op_call = clang_down_cast<const clang::CXXOperatorCallExpr*>(
+      materialize->getSubExpr());
+  if (sub_op_call->getOperator() !=
+      clang::OverloadedOperatorKind::OO_Subscript) {
+    return false;
+  }
+  const clang::Expr* ivalue = sub_op_call->getArg(1);
+  const clang::Expr* rvalue = op_call->getArg(1);
+  const clang::Expr* lvalue = sub_op_call->getArg(0);
+
+  const clang::CXXRecordDecl* stype = lvalue->getType()->getAsCXXRecordDecl();
+  if (stype == nullptr) {
+    return false;
+  }
+  for (auto method : stype->methods()) {
+    if (method->getNameAsString() == "set_element") {
+      auto to_call = dynamic_cast<const clang::FunctionDecl*>(method);
+
+      XLS_CHECK(to_call != nullptr);
+
+      XLS_ASSIGN_OR_RETURN(CValue lvalue_initial, GenerateIR_Expr(lvalue, loc));
+
+      xls::BValue this_inout = lvalue_initial.value();
+      XLS_ASSIGN_OR_RETURN(
+          CValue f_return,
+          GenerateIR_Call(to_call, {ivalue, rvalue}, &this_inout, loc,
+                          // Avoid unsequenced error
+                          /*force_no_fork=*/true));
+      XLS_RETURN_IF_ERROR(
+          Assign(lvalue, CValue(this_inout, lvalue_initial.type()), loc));
+      *output = f_return;
+      return true;
+    }
+  }
+  // Recognized the pattern, but no set_element() method to use
+  return false;
 }
 
 // this_inout can be nullptr for non-members
@@ -3702,6 +3772,21 @@ absl::Status Translator::GenerateIRBlockPrepare(
   }
 
   return absl::OkStatus();
+}
+
+absl::StatusOr<bool> Translator::ExprIsChannel(const clang::Expr* object,
+                                               const xls::SourceLocation& loc) {
+  // Avoid "this", as it's a pointer
+  if (object->getStmtClass() == clang::Expr::ImplicitCastExprClass &&
+      clang_down_cast<const clang::CastExpr*>(object)
+              ->getSubExpr()
+              ->getStmtClass() == clang::Expr::CXXThisExprClass) {
+    return false;
+  }
+  if (object->getStmtClass() == clang::Expr::CXXThisExprClass) {
+    return false;
+  }
+  return TypeIsChannel(object->getType(), loc);
 }
 
 absl::StatusOr<bool> Translator::TypeIsChannel(const clang::QualType& param,

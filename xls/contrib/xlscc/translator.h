@@ -740,6 +740,12 @@ class Translator {
       std::vector<const clang::Expr*> expr_args, xls::BValue* this_inout,
       const xls::SourceLocation& loc, bool force_no_fork = false);
 
+  // This is a work-around for non-const operator [] needing to return
+  //  a reference to the object being modified.
+  absl::StatusOr<bool> ApplyArrayAssignHack(
+      const clang::CXXOperatorCallExpr* op_call, const xls::SourceLocation& loc,
+      CValue* output);
+
   struct PreparedBlock {
     GeneratedFunction* xls_func;
     std::vector<xls::BValue> args;
@@ -788,6 +794,8 @@ class Translator {
 
   // IOOp must have io_call, channel, and op members filled in
   absl::Status AddOpToChannel(IOOp op, const xls::SourceLocation& loc);
+  absl::StatusOr<bool> ExprIsChannel(const clang::Expr* object,
+                                     const xls::SourceLocation& loc);
   absl::StatusOr<bool> TypeIsChannel(const clang::QualType& param,
                                      const xls::SourceLocation& loc);
 

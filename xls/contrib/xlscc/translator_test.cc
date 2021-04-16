@@ -35,6 +35,8 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/value.h"
 
+using xls::status_testing::IsOkAndHolds;
+
 namespace xlscc {
 namespace {
 
@@ -1914,6 +1916,29 @@ TEST_F(TranslatorTest, SetThis) {
        int my_package(int a) {
          Test s;
          s.set_this(a);
+         s.y = 12;
+         return s.x+s.y;
+       })";
+  Run({{"a", 3}}, 15, content);
+}
+
+TEST_F(TranslatorTest, ThisCall) {
+  const std::string content = R"(
+       struct Test {
+         void set_this(int v) {
+           Test t;
+           t.x = v;
+           *this = t;
+         }
+         void set_this_b(int v) {
+           set_this(v);
+         }
+         int x;
+         int y;
+       };
+       int my_package(int a) {
+         Test s;
+         s.set_this_b(a);
          s.y = 12;
          return s.x+s.y;
        })";

@@ -432,7 +432,7 @@ class XlsIntBase<Width, true> {
 #pragma hls_no_tuple
 struct BitElemRef {
   template <typename T>
-  inline explicit BitElemRef(T in) : v(in & 1) {}
+  inline BitElemRef(T in) : v(in & 1) {}
 
   inline operator bool() const { return v; }
 

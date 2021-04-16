@@ -240,6 +240,20 @@ TEST_F(XlsIntTest, ConstBitRef) {
   RunIntTest({{"a", 0b101011}}, 4, content, xabsl::SourceLocation::current());
 }
 
+TEST_F(XlsIntTest, SetBitRef) {
+  const std::string content = R"(
+    #include "xls_int.h"
+
+    int my_package(unsigned long long a) {
+      XlsInt<32, true> ax = a;
+      ax[5] = 1;
+      ax[0] = 0;
+      return ax;
+    })";
+  RunIntTest({{"a", 0b000001}}, 0b100000, content,
+             xabsl::SourceLocation::current());
+}
+
 TEST_F(XlsIntTest, PreInc) {
   const std::string content = R"(
     #include "xls_int.h"
