@@ -20,6 +20,7 @@ package_group(
     packages = [
         "//xls/...",
         "//third_party/xls_berkeley_softfloat/...",
+        "//third_party/xls_go_math/...",
         "//third_party/xls_machsuite/...",
     ],
 )
