@@ -44,7 +44,6 @@ namespace xls::dslx {
   X(kPlus, PLUS, "+")                                                  \
   X(kMinus, MINUS, "-")                                                \
   X(kPlusColon, PLUS_COLON, "+:")                                      \
-  X(kTripleCAngle, TRIPLE_CANGLE, ">>>")                               \
   X(kDoubleCAngle, DOUBLE_CANGLE, ">>")                                \
   X(kDoubleOAngle, DOUBLE_OANGLE, "<<")                                \
   X(kEquals, EQUALS, "=")                                              \

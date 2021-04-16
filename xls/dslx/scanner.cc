@@ -361,11 +361,7 @@ absl::StatusOr<Token> Scanner::Pop() {
     case '>':
       DropChar();
       if (TryDropChar('>')) {
-        if (TryDropChar('>')) {
-          result = Token(TokenKind::kTripleCAngle, mk_span());
-        } else {
-          result = Token(TokenKind::kDoubleCAngle, mk_span());
-        }
+        result = Token(TokenKind::kDoubleCAngle, mk_span());
       } else if (TryDropChar('=')) {
         result = Token(TokenKind::kCAngleEquals, mk_span());
       } else {

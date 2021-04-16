@@ -316,7 +316,6 @@ class Parser : public TokenParser {
   static constexpr std::initializer_list<TokenKind> kBitwiseKinds = {
       TokenKind::kDoubleOAngle,
       TokenKind::kDoubleCAngle,
-      TokenKind::kTripleCAngle,
   };
   static constexpr std::initializer_list<TokenKind> kComparisonKinds = {
       TokenKind::kDoubleEquals, TokenKind::kBangEquals,
