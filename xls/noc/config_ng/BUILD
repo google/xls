@@ -691,3 +691,52 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "network_topology_component",
+    srcs = ["network_topology_component.cc"],
+    hdrs = [
+        "network_component_visitor_abstract.h",
+        "network_topology_component.h",
+    ],
+    deps = [
+        ":coordinate",
+        ":network_component",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_test(
+    name = "network_topology_component_test",
+    srcs = ["network_topology_component_test.cc"],
+    deps = [
+        ":network_topology_component",
+        ":network_topology_view",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "network_topology_view",
+    srcs = ["network_topology_view.cc"],
+    hdrs = ["network_topology_view.h"],
+    deps = [
+        ":network_topology_component",
+        ":network_view",
+        ":network_view_utils",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "network_topology_view_test",
+    srcs = ["network_topology_view_test.cc"],
+    deps = [
+        ":network_topology_view",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
