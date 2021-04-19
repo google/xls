@@ -756,6 +756,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefImport(
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRef(ColonRef* node,
                                                              DeduceCtx* ctx) {
+  XLS_VLOG(5) << "Deducing type for ColonRef @ " << node->span().ToString();
   bool subject_is_name_ref = absl::holds_alternative<NameRef*>(node->subject());
   if (subject_is_name_ref) {
     NameRef* name_ref = absl::get<NameRef*>(node->subject());
@@ -776,7 +777,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRef(ColonRef* node,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> subject_type,
                        ctx->Deduce(ToAstNode(node->subject())));
   auto* enum_type = dynamic_cast<EnumType*>(subject_type.get());
-  XLS_RET_CHECK(enum_type != nullptr);
+  if (enum_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), subject_type.get(),
+        absl::StrFormat("Cannot use '::' on '%s', it is not an enum or module",
+                        ToAstNode(node->subject())->ToString()));
+  }
   EnumDef* enum_def = enum_type->nominal_type();
   if (!enum_def->HasValue(node->attr())) {
     return TypeInferenceErrorStatus(
@@ -1877,6 +1883,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
     return TypeMissingErrorStatusUpdateUser(callee_type_or.status(),
                                             node->span(), node);
   }
+  XLS_RETURN_IF_ERROR(callee_type_or.status());
 
   FunctionType* callee_type =
       dynamic_cast<FunctionType*>(callee_type_or.value().get());

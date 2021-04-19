@@ -223,5 +223,11 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('Shift amount is larger than shift value bit width of',
                   stderr)
 
+  def test_colon_ref_of_type_alias(self):
+    stderr = self._run('xls/dslx/tests/errors/colon_ref_of_type_alias.x')
+    self.assertIn("Cannot use '::' on 'F32', it is not an enum or module",
+                  stderr)
+
+
 if __name__ == '__main__':
   test_base.main()
