@@ -743,6 +743,7 @@ cc_library(
         ":parse_and_typecheck",
         ":symbolic_bindings",
         ":typecheck",
+        "//xls/interpreter:ir_interpreter",
         "//xls/ir",
         "//xls/ir:random_value",
         "//xls/jit:ir_jit",

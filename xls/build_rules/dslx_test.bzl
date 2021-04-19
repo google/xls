@@ -128,7 +128,7 @@ def dslx_test(
         entry = None,
         args = None,
         convert_ir = True,
-        compare_jit = True,
+        compare = "jit",
         prove_unopt_eq_opt = True,
         generate_benchmark = True,
         tags = [],
@@ -144,8 +144,9 @@ def dslx_test(
       args: Additional arguments to pass to the DSLX interpreter and IR
         converter.
       convert_ir: Whether or not to convert the DSLX code to IR.
-      compare_jit: Whether or not to perform an equivalence check between the
-      	interpreted DSLX and the IR executed with the JIT.
+      compare: Perform a runtime equivalence check between the DSLX interpreter
+        and the IR JIT ('jit') or IR interpreter ('interpreter') or no IR
+        conversion / comparison at all ('none').
       generate_benchmark: Whether or not to create a benchmark target (that
         analyses XLS scheduled critical path).
       prove_unopt_eq_opt: Whether or not to generate a test to compare semantics
@@ -161,7 +162,7 @@ def dslx_test(
         fail("Entry argument must be a string.")
     src = srcs[0]
 
-    interpreter_args = ["--compare_jit={}".format(convert_ir and compare_jit)]
+    interpreter_args = ["--compare={}".format(compare if convert_ir else "none")]
     native.sh_test(
         name = name + "_dslx_test",
         srcs = [_DSLX_TEST],

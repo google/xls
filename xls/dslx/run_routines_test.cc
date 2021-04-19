@@ -36,9 +36,9 @@ fn test_simple() { unit() }
 )";
   constexpr const char* kModuleName = "test";
   constexpr const char* kFilename = "test.x";
-  JitComparator jit_comparator;
+  RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
-  options.jit_comparator = &jit_comparator;
+  options.run_comparator = &jit_comparator;
   absl::StatusOr<bool> result =
       ParseAndTest(kProgram, kModuleName, kFilename, options);
   EXPECT_THAT(result, status_testing::IsOkAndHolds(false));
@@ -56,9 +56,9 @@ fn trivial(x: u5) -> bool { id(true) }
 )";
   constexpr const char* kModuleName = "test";
   constexpr const char* kFilename = "test.x";
-  JitComparator jit_comparator;
+  RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
-  options.jit_comparator = &jit_comparator;
+  options.run_comparator = &jit_comparator;
   options.seed = int64_t{2};
   absl::StatusOr<bool> result =
       ParseAndTest(kProgram, kModuleName, kFilename, options);
@@ -77,9 +77,9 @@ fn trivial(x: u5) -> bool { id(true) }
 )";
   constexpr const char* kModuleName = "test";
   constexpr const char* kFilename = "test.x";
-  JitComparator jit_comparator;
+  RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
-  options.jit_comparator = &jit_comparator;
+  options.run_comparator = &jit_comparator;
   absl::StatusOr<bool> result =
       ParseAndTest(kProgram, kModuleName, kFilename, options);
   EXPECT_THAT(result, status_testing::IsOkAndHolds(false));
@@ -96,9 +96,9 @@ fn trivial(x: u5) -> bool { false }
   XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
                            TempFile::CreateWithContent(kProgram, "_test.x"));
   constexpr const char* kModuleName = "test";
-  JitComparator jit_comparator;
+  RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
-  options.jit_comparator = &jit_comparator;
+  options.run_comparator = &jit_comparator;
   options.seed = int64_t{42};
   absl::StatusOr<bool> result = ParseAndTest(
       kProgram, kModuleName, std::string(temp_file.path()), options);
@@ -120,7 +120,7 @@ TEST(QuickcheckTest, QuickCheckBits) {
   int64_t num_tests = 1000;
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  JitComparator jit_comparator;
+  RunComparator jit_comparator(CompareMode::kJit);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info,
       DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, num_tests));
@@ -144,7 +144,7 @@ TEST(QuickcheckTest, QuickCheckArray) {
   int64_t num_tests = 1000;
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  JitComparator jit_comparator;
+  RunComparator jit_comparator(CompareMode::kJit);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info,
       DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, num_tests));
@@ -165,7 +165,7 @@ TEST(QuickcheckTest, QuickCheckTuple) {
   int64_t num_tests = 1000;
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  JitComparator jit_comparator;
+  RunComparator jit_comparator(CompareMode::kJit);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info,
       DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, num_tests));
@@ -186,7 +186,7 @@ TEST(QuickcheckTest, NumTests) {
   int64_t num_tests = 5050;
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  JitComparator jit_comparator;
+  RunComparator jit_comparator(CompareMode::kJit);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info,
       DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, num_tests));
@@ -211,7 +211,7 @@ TEST(QuickcheckTest, Seeding) {
   int64_t num_tests = 1000;
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  JitComparator jit_comparator;
+  RunComparator jit_comparator(CompareMode::kJit);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info1,
       DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, num_tests));

@@ -27,14 +27,23 @@
 
 namespace xls::dslx {
 
+// Indicates whether the RunComparator should be comparing to the JIT's IR
+// execution or the IR interpreter's.
+enum class CompareMode {
+  kJit,
+  kInterpreter,
+};
+
 // Helper object that is used as a post-execution hook in the interpreter,
 // comparing interpreter results to results computed by the JIT to check that
 // they're equivalent.
 //
 // Implementation note: slightly simpler to keep in object form so we can
 // inspect cache state more easily than closing over it, e.g. for testing.
-class JitComparator {
+class RunComparator {
  public:
+  explicit RunComparator(CompareMode mode) : mode_(mode) {}
+
   // Runs a comparison of the interpreter-determined value against the
   // JIT-determined value.
   absl::Status RunComparison(Package* ir_package, Function* f,
@@ -57,6 +66,7 @@ class JitComparator {
   friend class RunRoutinesTest_NoSeedStillQuickChecks_Test;
 
   absl::flat_hash_map<std::string, std::unique_ptr<IrJit>> jit_cache_;
+  CompareMode mode_;
 };
 
 // Optional arguments to ParseAndTest (that have sensible defaults).
@@ -64,8 +74,8 @@ class JitComparator {
 //   test_filter: Test filter specification (e.g. as passed from bazel test
 //     environment).
 //   trace_all: Whether or not to trace all expressions.
-//   compare_jit: Whether or not to assert equality between interpreted and
-//     JIT'd function return values.
+//   run_comparator: Optional object that can compare DSLX interpreter
+//    executions with a reference (e.g. IR execution).
 //   execute: Whether or not to execute the quickchecks and tests.
 //   seed: Seed for QuickCheck random input stimulus.
 struct ParseAndTestOptions {
@@ -73,7 +83,7 @@ struct ParseAndTestOptions {
   absl::optional<absl::string_view> test_filter = absl::nullopt;
   bool trace_all = false;
   FormatPreference trace_format_preference = FormatPreference::kDefault;
-  JitComparator* jit_comparator = nullptr;
+  RunComparator* run_comparator = nullptr;
   bool execute = true;
   absl::optional<int64_t> seed = absl::nullopt;
 };
@@ -108,7 +118,7 @@ struct QuickCheckResults {
 // length of the returned vectors may be < 1000).
 absl::StatusOr<QuickCheckResults> DoQuickCheck(xls::Function* xls_function,
                                                std::string ir_name,
-                                               JitComparator* jit_comparator,
+                                               RunComparator* run_comparator,
                                                int64_t seed, int64_t num_tests);
 
 }  // namespace xls::dslx

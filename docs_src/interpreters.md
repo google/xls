@@ -37,6 +37,25 @@ $ ./bazel-bin/xls/dslx/interpreter_main \
 
 These two methods are equivalent.
 
+### Execution comparison
+
+The DSL interpreter provides a flag, `--compare`, to implicitly compare its run
+results to those of the IR-converted DSL functions. This helps "spot check"
+consistency between IR and DSL execution (in addition to other methods used in
+more generally in XLS, like the fuzzer).
+
+The user may compare DSL execution to IR interpreter execution, IR JIT
+execution, or not perform IR comparison at all.
+
+```console
+$ ./bazel-bin/xls/dslx/interpreter_main \
+    ./xls/examples/adler32.x --compare=jit
+$ ./bazel-bin/xls/dslx/interpreter_main \
+    ./xls/examples/adler32.x --compare=interpreter
+$ ./bazel-bin/xls/dslx/interpreter_main \
+    ./xls/examples/adler32.x --compare=none
+```
+
 ## IR
 
 XLS provides two means of evaluating IR - interpretation and native host

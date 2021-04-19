@@ -94,7 +94,7 @@ def parse_and_type_check(ctx, src, required_files):
         # Generate a dummy file for the DSLX source file when the source file is
         # successfully parsed and type checked.
         command = "\n".join([
-            "{} {} --compare_jit=false --execute=false".format(
+            "{} {} --compare=none --execute=false".format(
                 ctx.executable._dslx_interpreter_tool.path,
                 src.path,
             ),
@@ -146,9 +146,9 @@ _dslx_test_attrs = {
         mandatory = True,
         allow_single_file = [".x"],
     ),
-    "compare_jit": attr.bool(
-        doc = "Compare interpreted and JIT execution of each function.",
-        default = True,
+    "compare": attr.string(
+        doc = "Compare DSLX execution with IR execution of each function.",
+        default = "jit",
     ),
 }
 
@@ -270,10 +270,10 @@ def _dslx_test_impl(ctx):
         content = "\n".join([
             "#!/bin/bash",
             "set -e",
-            "{} {} --compare_jit={}".format(
+            "{} {} --compare={}".format(
                 ctx.executable._dslx_interpreter_tool.short_path,
                 src.path,
-                ctx.attr.compare_jit,
+                ctx.attr.compare,
             ),
             "exit 0",
         ]),

@@ -30,17 +30,17 @@ class InterpreterTest(test_base.TestCase):
   def _parse_and_test(self,
                       program: Text,
                       trace_all: bool = False,
-                      compare_jit: bool = True,
+                      compare: str = 'jit',
                       want_error: bool = False) -> str:
     temp_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, temp_file.full_path]
     cmd.append('--trace_all=%s' % str(trace_all).lower())
-    cmd.append('--compare_jit=%s' % str(compare_jit).lower())
+    cmd.append('--compare=%s' % compare)
     p = subp.run(cmd, check=False, stderr=subp.PIPE, encoding='utf-8')
     if want_error:
       self.assertNotEqual(p.returncode, 0)
     else:
-      self.assertEqual(p.returncode, 0)
+      self.assertEqual(p.returncode, 0, msg=p.stderr)
     return p.stderr
 
   def test_two_plus_two_module_test(self):
@@ -419,7 +419,8 @@ class InterpreterTest(test_base.TestCase):
     }
     """
     program_file = self.create_tempfile(content=program)
-    cmd = [_INTERP_PATH, '--compare_jit=false', program_file.full_path]
+    # Note: no support for `while` in IR conversion.
+    cmd = [_INTERP_PATH, '--compare=none', program_file.full_path]
     result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
     self.assertIn('4:15-4:30: u32:1', result.stderr)
     self.assertIn('4:15-4:30: u32:2', result.stderr)
@@ -434,7 +435,7 @@ class InterpreterTest(test_base.TestCase):
       ()
     }
     """
-    self._parse_and_test(program, compare_jit=True)
+    self._parse_and_test(program)
 
   def test_slice_builtin(self):
     program = """
@@ -451,7 +452,9 @@ class InterpreterTest(test_base.TestCase):
       ()
     }
     """
-    self._parse_and_test(program, compare_jit=False)
+    # TODO(https://github.com/google/xls/issues/312): requires IR conversion of
+    # slice.
+    self._parse_and_test(program, compare='none')
 
   def test_array_literal_ellipsis(self):
     program = """
@@ -467,7 +470,9 @@ class InterpreterTest(test_base.TestCase):
       ()
     }
     """
-    self._parse_and_test(program, compare_jit=False)
+    # TODO(https://github.com/google/xls/issues/312): requires IR conversion of
+    # slice.
+    self._parse_and_test(program, compare='none')
 
   def test_destructure(self):
     program = """
@@ -594,7 +599,7 @@ class InterpreterTest(test_base.TestCase):
     """
     program_file = self.create_tempfile(content=program)
     cmd = [
-        _INTERP_PATH, '--compare_jit=false', '--trace_all=true',
+        _INTERP_PATH, '--compare=interpreter', '--trace_all=true',
         program_file.full_path
     ]
     result = subp.run(

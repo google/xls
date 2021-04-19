@@ -23,6 +23,7 @@
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/typecheck.h"
+#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/random_value.h"
 
 namespace xls::dslx {
@@ -33,7 +34,7 @@ constexpr int kUnitSpaces = 7;
 constexpr int kQuickcheckSpaces = 15;
 }  // namespace
 
-absl::StatusOr<IrJit*> JitComparator::GetOrCompileJitFunction(
+absl::StatusOr<IrJit*> RunComparator::GetOrCompileJitFunction(
     std::string ir_name, xls::Function* ir_function) {
   auto it = jit_cache_.find(ir_name);
   if (it != jit_cache_.end()) {
@@ -45,7 +46,7 @@ absl::StatusOr<IrJit*> JitComparator::GetOrCompileJitFunction(
   return result;
 }
 
-absl::Status JitComparator::RunComparison(
+absl::Status RunComparator::RunComparison(
     Package* ir_package, dslx::Function* f, absl::Span<InterpValue const> args,
     const SymbolicBindings* symbolic_bindings, const InterpValue& got) {
   XLS_RET_CHECK(ir_package != nullptr);
@@ -76,7 +77,20 @@ absl::Status JitComparator::RunComparison(
   XLS_ASSIGN_OR_RETURN(std::vector<Value> ir_args,
                        InterpValue::ConvertValuesToIr(args));
 
-  XLS_ASSIGN_OR_RETURN(Value jit_value, jit->Run(ir_args));
+  const char* mode_str = nullptr;
+  Value ir_result;
+  switch (mode_) {
+    case CompareMode::kJit: {
+      XLS_ASSIGN_OR_RETURN(ir_result, jit->Run(ir_args));
+      mode_str = "JIT";
+      break;
+    }
+    case CompareMode::kInterpreter: {
+      XLS_ASSIGN_OR_RETURN(ir_result, IrInterpreter::Run(ir_function, ir_args));
+      mode_str = "interpreter";
+      break;
+    }
+  }
 
   // Convert the interpreter value to an IR value so we can compare it.
   //
@@ -84,11 +98,13 @@ absl::Status JitComparator::RunComparison(
   // mismatches.
   XLS_ASSIGN_OR_RETURN(Value interp_ir_value, got.ConvertToIr());
 
-  if (interp_ir_value != jit_value) {
-    return absl::InternalError(absl::StrFormat(
-        "JIT produced a different value from the interpreter for %s; JIT: %s "
-        "interpreter: %s",
-        ir_function->name(), jit_value.ToString(), interp_ir_value.ToString()));
+  if (interp_ir_value != ir_result) {
+    return absl::InternalError(
+        absl::StrFormat("IR %s produced a different value from the DSL "
+                        "interpreter for %s; IR %s: %s "
+                        "DSL interpreter: %s",
+                        mode_str, ir_function->name(), mode_str,
+                        ir_result.ToString(), interp_ir_value.ToString()));
   }
   return absl::OkStatus();
 }
@@ -104,10 +120,10 @@ static bool TestMatchesFilter(absl::string_view test_name,
 
 absl::StatusOr<QuickCheckResults> DoQuickCheck(xls::Function* xls_function,
                                                std::string ir_name,
-                                               JitComparator* jit_comparator,
+                                               RunComparator* run_comparator,
                                                int64_t seed,
                                                int64_t num_tests) {
-  XLS_ASSIGN_OR_RETURN(IrJit * jit, jit_comparator->GetOrCompileJitFunction(
+  XLS_ASSIGN_OR_RETURN(IrJit * jit, run_comparator->GetOrCompileJitFunction(
                                         std::move(ir_name), xls_function));
 
   QuickCheckResults results;
@@ -128,7 +144,7 @@ absl::StatusOr<QuickCheckResults> DoQuickCheck(xls::Function* xls_function,
   return results;
 }
 
-static absl::Status RunQuickCheck(JitComparator* jit_comparator,
+static absl::Status RunQuickCheck(RunComparator* run_comparator,
                                   Package* ir_package, QuickCheck* quickcheck,
                                   TypeInfo* type_info, int64_t seed) {
   Function* fn = quickcheck->f();
@@ -141,7 +157,7 @@ static absl::Status RunQuickCheck(JitComparator* jit_comparator,
 
   XLS_ASSIGN_OR_RETURN(
       QuickCheckResults qc_results,
-      DoQuickCheck(ir_function, std::move(ir_name), jit_comparator, seed,
+      DoQuickCheck(ir_function, std::move(ir_name), run_comparator, seed,
                    quickcheck->test_count()));
   const auto& [arg_sets, results] = qc_results;
   XLS_ASSIGN_OR_RETURN(Bits last_result, results.back().GetBitsWithStatus());
@@ -177,11 +193,11 @@ using HandleError = const std::function<void(
     const absl::Status&, absl::string_view test_name, bool is_quickcheck)>;
 
 static absl::Status RunQuickChecksIfJitEnabled(
-    Module* entry_module, TypeInfo* type_info, JitComparator* jit_comparator,
+    Module* entry_module, TypeInfo* type_info, RunComparator* run_comparator,
     Package* ir_package, absl::optional<int64_t> seed,
     const HandleError& handle_error) {
-  if (jit_comparator == nullptr) {
-    std::cerr << "[ SKIPPING QUICKCHECKS  ] (JIT is disabled)";
+  if (run_comparator == nullptr) {
+    std::cerr << "[ SKIPPING QUICKCHECKS  ] (JIT is disabled)" << std::endl;
     return absl::OkStatus();
   }
   if (!seed.has_value()) {
@@ -197,7 +213,7 @@ static absl::Status RunQuickChecksIfJitEnabled(
     std::cerr << "[ RUN QUICKCHECK        ] " << test_name
               << " count: " << quickcheck->test_count() << std::endl;
     absl::Status status =
-        RunQuickCheck(jit_comparator, ir_package, quickcheck, type_info, *seed);
+        RunQuickCheck(run_comparator, ir_package, quickcheck, type_info, *seed);
     if (!status.ok()) {
       handle_error(status, test_name, /*is_quickcheck=*/true);
     } else {
@@ -264,7 +280,7 @@ absl::StatusOr<bool> ParseAndTest(absl::string_view program,
   // with the interpreter.
   std::unique_ptr<Package> ir_package;
   Interpreter::PostFnEvalHook post_fn_eval_hook;
-  if (options.jit_comparator != nullptr) {
+  if (options.run_comparator != nullptr) {
     XLS_ASSIGN_OR_RETURN(ir_package,
                          ConvertModuleToPackage(entry_module, &import_data,
                                                 /*emit_positions=*/true,
@@ -273,7 +289,7 @@ absl::StatusOr<bool> ParseAndTest(absl::string_view program,
                             Function* f, absl::Span<const InterpValue> args,
                             const SymbolicBindings* symbolic_bindings,
                             const InterpValue& got) {
-      return options.jit_comparator->RunComparison(ir_package.get(), f, args,
+      return options.run_comparator->RunComparison(ir_package.get(), f, args,
                                                    symbolic_bindings, got);
     };
   }
@@ -311,7 +327,7 @@ absl::StatusOr<bool> ParseAndTest(absl::string_view program,
   // Run quickchecks, but only if the JIT is enabled.
   if (!entry_module->GetQuickChecks().empty()) {
     XLS_RETURN_IF_ERROR(RunQuickChecksIfJitEnabled(
-        entry_module, interpreter.current_type_info(), options.jit_comparator,
+        entry_module, interpreter.current_type_info(), options.run_comparator,
         ir_package.get(), options.seed, handle_error));
   }
 

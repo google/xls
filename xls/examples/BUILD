@@ -103,8 +103,8 @@ dslx_test(
 dslx_test(
     name = "riscv_simple",
     srcs = ["riscv_simple.x"],
-    # TODO(hjmontero): run_instruction segfaults.
-    compare_jit = False,
+    # TODO(hjmontero): run_instruction segfaults in the JIT.
+    compare = "interpreter",
     generate_benchmark = False,
     prove_unopt_eq_opt = False,
 )
