@@ -447,7 +447,7 @@ class __xls_channel {
 
   llvm::IntrusiveRefCntPtr<clang::DiagnosticOptions> diag_opts =
       new clang::DiagnosticOptions();
-  Translator::DiagnosticInterceptor diag_print(translator_, llvm::outs(),
+  Translator::DiagnosticInterceptor diag_print(translator_, llvm::errs(),
                                                &*diag_opts);
   libtool_inv->setDiagnosticConsumer(&diag_print);
 
@@ -1062,7 +1062,8 @@ absl::Status Translator::DeepScanForIO(const clang::Stmt* body,
 }
 
 absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
-    const clang::FunctionDecl* funcdecl, absl::string_view name_override) {
+    const clang::FunctionDecl* funcdecl, absl::string_view name_override,
+    bool force_static) {
   const bool trivial = funcdecl->hasTrivialBody() || funcdecl->isTrivial();
 
   if (!trivial && !funcdecl->getBody()) {
@@ -1137,7 +1138,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
       (funcdecl->getKind() == clang::FunctionDecl::Kind::CXXDestructor) ||
       (funcdecl->getKind() == clang::FunctionDecl::Kind::CXXConstructor)) {
     auto method = clang_down_cast<const clang::CXXMethodDecl*>(funcdecl);
-    if (!method->isStatic()) {
+    if (!method->isStatic() && !force_static) {
       // "This" is a PointerType, ignore and treat as reference
       const clang::QualType& thisQual = method->getThisType();
       XLS_CHECK(thisQual->isPointerType());
@@ -3506,7 +3507,7 @@ absl::Status Translator::SelectTop(absl::string_view top_function_name) {
 }
 
 absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
-    xls::Package* package) {
+    xls::Package* package, bool force_static) {
   if (top_function_ == nullptr) {
     return absl::NotFoundError("No top function found");
   }
@@ -3515,7 +3516,8 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
 
   XLS_ASSIGN_OR_RETURN(
       GeneratedFunction * ret,
-      GenerateIR_Function(top_function_, top_function_->getNameAsString()));
+      GenerateIR_Function(top_function_, top_function_->getNameAsString(),
+                          force_static));
 
   return ret;
 }
@@ -3571,7 +3573,11 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
   // Generate function without FIFO channel parameters
   context().package = package;
-  XLS_ASSIGN_OR_RETURN(prepared.xls_func, GenerateIR_Top_Function(package));
+
+  // Force top function in block to be static.
+  // TODO(seanhaskell): Handle block class members
+  XLS_ASSIGN_OR_RETURN(prepared.xls_func,
+                       GenerateIR_Top_Function(package, true));
 
   prepared.token = pb.GetTokenParam();
 

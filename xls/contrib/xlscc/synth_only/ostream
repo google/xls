@@ -13,15 +13,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef __MATH_H__
-#define __MATH_H__
+#ifndef __OSRTREAM__
+#define __OSRTREAM__
+
+#include <string>
 
 namespace std {
 
 class ostream {
-
+  public:
+    template<typename T>
+    ostream &operator << (const T& op) {return *this;}
 };
 
 }  // namespace std
 
-#endif//__MATH_H__
+#endif//__OSRTREAM__

@@ -12,22 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef __STRING_H__
-#define __STRING_H__
+#ifndef __AC_FIXED_H__
+#define __AC_FIXED_H__
 
-namespace std {
-class string {
+#include "ac_int.h"
+
+// Non-functional stub for ac_fixed
+template <int W, int I, bool S = true, ac_q_mode Q = AC_TRN,
+          ac_o_mode O = AC_WRAP>
+class ac_fixed {
  public:
-  string() {}
-  string(const char *s) {}
-
-  string &operator += (const string&rhs) {return *this;}
-  string &operator += (char rhs) {return *this;}
-
+  ac_fixed() {}
+  template <typename T>
+  ac_fixed(const T& o) {}
+  int to_int() { return 0; }
 };
 
-string operator + (const std::string& lhs, char rhs) {return lhs;}
-
-}  // namespace std
-
-#endif//__STRING_H__
+#endif  //__AC_FIXED_H__

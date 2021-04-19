@@ -12,22 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef __STRING_H__
-#define __STRING_H__
+#ifndef __AC_CHANNEL_COMPAT_H__
+#define __AC_CHANNEL_COMPAT_H__
 
-namespace std {
-class string {
- public:
-  string() {}
-  string(const char *s) {}
+#define ac_channel __xls_channel
 
-  string &operator += (const string&rhs) {return *this;}
-  string &operator += (char rhs) {return *this;}
-
-};
-
-string operator + (const std::string& lhs, char rhs) {return lhs;}
-
-}  // namespace std
-
-#endif//__STRING_H__
+#endif  //__AC_CHANNEL_COMPAT_H__

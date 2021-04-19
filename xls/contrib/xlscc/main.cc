@@ -16,6 +16,7 @@
 // front-end. It accepts as input a C/C++ file and produces as textual output
 // the equivalent XLS intermediate representation (IR).
 
+#include <cstdlib>
 #include <fstream>
 #include <streambuf>
 
@@ -132,8 +133,6 @@ absl::Status Run(absl::string_view cpp_path) {
 
     XLS_RETURN_IF_ERROR(translator.InlineAllInvokes(&package));
 
-    std::cout << package.DumpIr() << std::endl;
-
     absl::flat_hash_map<const xls::Channel*, xls::verilog::ProcPortType>
         channel_gen_types;
 
@@ -179,6 +178,11 @@ int main(int argc, char** argv) {
                                           argv[0]);
   }
   absl::string_view cpp_path = positional_arguments[0];
-  XLS_QCHECK_OK(xlscc::Run(cpp_path));
+  //  XLS_QCHECK_OK(xlscc::Run(cpp_path));
+  absl::Status status = xlscc::Run(cpp_path);
+  if (!status.ok()) {
+    std::cerr << status.ToString() << std::endl;
+    return EXIT_FAILURE;
+  }
   return EXIT_SUCCESS;
 }

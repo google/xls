@@ -12,22 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef __STRING_H__
-#define __STRING_H__
-
-namespace std {
-class string {
- public:
-  string() {}
-  string(const char *s) {}
-
-  string &operator += (const string&rhs) {return *this;}
-  string &operator += (char rhs) {return *this;}
-
-};
-
-string operator + (const std::string& lhs, char rhs) {return lhs;}
-
-}  // namespace std
-
-#endif//__STRING_H__
+#ifndef __ASSERT_H__
+#define __ASSERT_H__
+#define assert(...)
+#endif  //__ASSERT_H__

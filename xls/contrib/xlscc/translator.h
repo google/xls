@@ -437,8 +437,11 @@ class Translator {
   // Generates IR as an XLS function, that is, a pure function without
   //  IO / state / side effects.
   // If top_function is 0 or "" then top must be specified via pragma
+  // force_static=true Means the function is not generated with a "this"
+  //  parameter & output. It is generated as if static was specified in the
+  //  method prototype.
   absl::StatusOr<GeneratedFunction*> GenerateIR_Top_Function(
-      xls::Package* package);
+      xls::Package* package, bool force_static = false);
 
   // Generates IR as an HLS block / XLS proc.
   absl::StatusOr<xls::Proc*> GenerateIR_Block(
@@ -851,8 +854,8 @@ class Translator {
                                const xls::SourceLocation& loc);
 
   absl::StatusOr<GeneratedFunction*> GenerateIR_Function(
-      const clang::FunctionDecl* funcdecl,
-      absl::string_view name_override = "");
+      const clang::FunctionDecl* funcdecl, absl::string_view name_override = "",
+      bool force_static = false);
 
   struct StrippedType {
     StrippedType(clang::QualType base, bool is_ref)

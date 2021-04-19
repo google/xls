@@ -12,22 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef __STRING_H__
-#define __STRING_H__
+#ifndef __AC_WAIT_COMPAT_H__
+#define __AC_WAIT_COMPAT_H__
 
-namespace std {
-class string {
- public:
-  string() {}
-  string(const char *s) {}
+namespace ac {
 
-  string &operator += (const string&rhs) {return *this;}
-  string &operator += (char rhs) {return *this;}
+inline void wait() {}
 
-};
+}  // namespace ac
 
-string operator + (const std::string& lhs, char rhs) {return lhs;}
-
-}  // namespace std
-
-#endif//__STRING_H__
+#endif  //__AC_WAIT_COMPAT_H__

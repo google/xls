@@ -42,7 +42,13 @@ class XlsIntTest : public XlsccTestBase {
         std::string xls_int_path,
         xls::GetXlsRunfilePath("xls/contrib/xlscc/synth_only/xls_int.h"));
 
-    std::string ac_int_dir = std::filesystem::path(ac_int_path).parent_path();
+    // Get the path that includes the ac_datatypes folder, so that the
+    //  ac_datatypes headers can be included with the form:
+    // #include "ac_datatypes/include/foo.h"
+    std::string ac_int_dir = std::filesystem::path(ac_int_path)
+                                 .parent_path()
+                                 .parent_path()
+                                 .parent_path();
     std::string xls_int_dir = std::filesystem::path(xls_int_path).parent_path();
 
     std::string ac_include = std::string("-I") + ac_int_dir.data();

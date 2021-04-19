@@ -19,11 +19,8 @@
 
 #include "/xls_builtin.h"
 
-#define __ASSERT_H__
-#define AC_USER_DEFINED_ASSERT
-#define assert(...)
-
-#include "ac_int.h"
+#define __AC_NAMESPACE ac_datatypes
+#include "ac_datatypes/include/ac_int.h"
 
 #ifndef __SYNTHESIS__
 static_assert(false, "This header is only for synthesis");
@@ -511,7 +508,8 @@ class XlsInt : public XlsIntBase<Width, Signed> {
 
   // Defines the result types for each operation based on ac_int
   template <int ToW, bool ToSign>
-  struct rt : public ac_int<Width, Signed>::template rt<ToW, ToSign> {
+  struct rt
+      : public ac_datatypes::ac_int<Width, Signed>::template rt<ToW, ToSign> {
     typedef XlsInt<rt::mult_w, rt::mult_s> mult;
     typedef XlsInt<rt::plus_w, rt::plus_s> plus;
     typedef XlsInt<rt::minus_w, rt::minus_s> minus;
@@ -522,7 +520,7 @@ class XlsInt : public XlsIntBase<Width, Signed> {
     typedef XlsInt ident;
   };
 
-  struct rt_unary : public ac_int<Width, Signed>::rt_unary {
+  struct rt_unary : public ac_datatypes::ac_int<Width, Signed>::rt_unary {
     typedef XlsInt<rt_unary::neg_w, rt_unary::neg_s> neg;
     typedef XlsInt<Width + !Signed, true> bnot;
   };
@@ -730,8 +728,6 @@ class XlsInt : public XlsIntBase<Width, Signed> {
 
   // --- Hack: see comments for BitElemRef
   inline BitElemRef operator[](index_t i) {
-    assert(0 && "This hack is not merged yet");
-
     return BitElemRef(slc<1>(i));
 
     // NOP to ensure that clang parses the set_element function
