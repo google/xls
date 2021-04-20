@@ -1198,28 +1198,31 @@ BValue TokenlessProcBuilder::ReceiveIf(Channel* channel, BValue pred,
   return TupleIndex(rcv_if, 1);
 }
 
-void TokenlessProcBuilder::Send(Channel* channel, BValue data,
-                                absl::optional<SourceLocation> loc,
-                                absl::string_view name) {
-  BValue send = ProcBuilder::Send(channel, GetTokenParam(), data, loc, name);
-  tokens_.push_back(send);
-}
-
-void TokenlessProcBuilder::SendIf(Channel* channel, BValue pred, BValue data,
+BValue TokenlessProcBuilder::Send(Channel* channel, BValue data,
                                   absl::optional<SourceLocation> loc,
                                   absl::string_view name) {
+  BValue send = ProcBuilder::Send(channel, GetTokenParam(), data, loc, name);
+  tokens_.push_back(send);
+  return send;
+}
+
+BValue TokenlessProcBuilder::SendIf(Channel* channel, BValue pred, BValue data,
+                                    absl::optional<SourceLocation> loc,
+                                    absl::string_view name) {
   BValue send_if =
       ProcBuilder::SendIf(channel, GetTokenParam(), pred, data, loc, name);
   tokens_.push_back(send_if);
+  return send_if;
 }
 
-void TokenlessProcBuilder::Assert(BValue condition, absl::string_view message,
-                                  absl::optional<std::string> label,
-                                  absl::optional<SourceLocation> loc,
-                                  absl::string_view name) {
+BValue TokenlessProcBuilder::Assert(BValue condition, absl::string_view message,
+                                    absl::optional<std::string> label,
+                                    absl::optional<SourceLocation> loc,
+                                    absl::string_view name) {
   BValue asrt = BuilderBase::Assert(GetTokenParam(), condition, message, label,
                                     loc, name);
   tokens_.push_back(asrt);
+  return asrt;
 }
 
 absl::StatusOr<Proc*> TokenlessProcBuilder::Build(BValue next_state) {

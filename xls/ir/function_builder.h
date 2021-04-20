@@ -754,25 +754,25 @@ class TokenlessProcBuilder : public ProcBuilder {
                    absl::optional<SourceLocation> loc = absl::nullopt,
                    absl::string_view name = "");
 
-  // Add a send operation.
+  // Add a send operation. Returns the token-typed BValue of the send node.
   using ProcBuilder::Send;
-  void Send(Channel* channel, BValue data,
-            absl::optional<SourceLocation> loc = absl::nullopt,
-            absl::string_view name = "");
+  BValue Send(Channel* channel, BValue data,
+              absl::optional<SourceLocation> loc = absl::nullopt,
+              absl::string_view name = "");
 
   // Add a send_if operation. The send executes conditionally on the value of
-  // the predicate "pred".
+  // the predicate "pred". Returns the token-typed BValue of the send_if node.
   using ProcBuilder::SendIf;
-  void SendIf(Channel* channel, BValue pred, BValue data,
-              absl::optional<SourceLocation> loc = absl::nullopt,
-              absl::string_view name = "");
+  BValue SendIf(Channel* channel, BValue pred, BValue data,
+                absl::optional<SourceLocation> loc = absl::nullopt,
+                absl::string_view name = "");
 
-  // Add an assert operation
+  // Add an assert operation. Returns the token-typed assert operation.
   using BuilderBase::Assert;
-  void Assert(BValue condition, absl::string_view message,
-              absl::optional<std::string> label = absl::nullopt,
-              absl::optional<SourceLocation> loc = absl::nullopt,
-              absl::string_view name = "");
+  BValue Assert(BValue condition, absl::string_view message,
+                absl::optional<std::string> label = absl::nullopt,
+                absl::optional<SourceLocation> loc = absl::nullopt,
+                absl::string_view name = "");
 
  private:
   // The tokens from any added send(if)/receive(if) nodes.

@@ -18,13 +18,31 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+
+namespace m = xls::op_matchers;
 
 namespace xls {
 namespace verilog {
 namespace {
 
-class FunctionToProcTest : public IrTestBase {};
+class FunctionToProcTest : public IrTestBase {
+ protected:
+  // Returns the single send node of the proc. Check fails if no such unique
+  // send exists.
+  Send* GetOutputNode(Proc* proc) {
+    Send* send = nullptr;
+    for (Node* node : proc->nodes()) {
+      if (node->Is<Send>()) {
+        XLS_CHECK(send == nullptr);
+        send = node->As<Send>();
+      }
+    }
+    XLS_CHECK(send != nullptr);
+    return send;
+  }
+};
 
 TEST_F(FunctionToProcTest, SimpleFunction) {
   auto p = CreatePackage();
@@ -50,6 +68,9 @@ TEST_F(FunctionToProcTest, SimpleFunction) {
   XLS_ASSERT_OK_AND_ASSIGN(Channel * y_ch, p->GetChannel("y"));
   EXPECT_TRUE(y_ch->IsPort());
   EXPECT_EQ(y_ch->supported_ops(), ChannelOps::kReceiveOnly);
+
+  EXPECT_THAT(GetOutputNode(proc),
+              m::OutputPort(m::Add(m::InputPort("x"), m::InputPort("y"))));
 }
 
 TEST_F(FunctionToProcTest, ZeroWidthInputsAndOutput) {

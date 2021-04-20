@@ -15,17 +15,60 @@
 #include "xls/ir/ir_matcher.h"
 
 #include "gmock/gmock.h"
+#include "absl/strings/str_join.h"
 #include "xls/ir/nodes.h"
 
 namespace xls {
 namespace op_matchers {
+
+bool ChannelMatcher::MatchAndExplain(
+    const ::xls::Channel* channel,
+    ::testing::MatchResultListener* listener) const {
+  if (!channel) {
+    return false;
+  }
+  *listener << channel->ToString();
+  if (id_.has_value() && channel->id() != id_.value()) {
+    *listener << absl::StreamFormat(" has incorrect id (%d), expected: %d",
+                                    channel->id(), id_.value());
+    return false;
+  }
+
+  if (name_.has_value() && channel->name() != name_.value()) {
+    *listener << absl::StreamFormat(" has incorrect name (%s), expected: %s",
+                                    channel->name(), name_.value());
+    return false;
+  }
+
+  if (kind_.has_value() && channel->kind() != kind_.value()) {
+    *listener << absl::StreamFormat(" has incorrect kind (%s), expected: %s",
+                                    ChannelKindToString(channel->kind()),
+                                    ChannelKindToString(kind_.value()));
+    return false;
+  }
+  return true;
+}
+
+void ChannelMatcher::DescribeTo(::std::ostream* os) const {
+  std::vector<std::string> pieces;
+  if (id_.has_value()) {
+    pieces.push_back(absl::StrFormat("id=%d", id_.value()));
+  }
+  if (name_.has_value()) {
+    pieces.push_back(absl::StrFormat("name=%s", name_.value()));
+  }
+  if (kind_.has_value()) {
+    pieces.push_back(
+        absl::StrFormat("kind=%s", ChannelKindToString(kind_.value())));
+  }
+  *os << absl::StreamFormat("channel(%s)", absl::StrJoin(pieces, ", "));
+}
 
 bool NodeMatcher::MatchAndExplain(
     const Node* node, ::testing::MatchResultListener* listener) const {
   if (!node) {
     return false;
   }
-  *listener << node->ToString();
   if (node->op() != op_) {
     *listener << " has incorrect op, expected: " << OpToString(op_);
     return false;
@@ -63,17 +106,21 @@ bool NodeMatcher::MatchAndExplain(
 }
 
 void NodeMatcher::DescribeTo(::std::ostream* os) const {
+  DescribeToHelper(os, {});
+}
+
+void NodeMatcher::DescribeToHelper(
+    ::std::ostream* os, absl::Span<const std::string> additional_fields) const {
   *os << op_;
-  if (!operands_.empty()) {
-    *os << "(";
-    for (int i = 0; i < operands_.size(); i++) {
-      if (i > 0) {
-        *os << ", ";
-      }
-      operands_[i].DescribeTo(os);
-    }
-    *os << ")";
+  std::vector<std::string> all_fields;
+  for (int i = 0; i < operands_.size(); i++) {
+    std::ostringstream sub_os;
+    operands_[i].DescribeTo(&sub_os);
+    all_fields.push_back(sub_os.str());
   }
+  all_fields.insert(all_fields.end(), additional_fields.begin(),
+                    additional_fields.end());
+  *os << absl::StreamFormat("(%s)", absl::StrJoin(all_fields, ", "));
 }
 
 bool TypeMatcher::MatchAndExplain(
@@ -109,6 +156,14 @@ bool ParamMatcher::MatchAndExplain(
     return false;
   }
   return true;
+}
+
+void ParamMatcher::DescribeTo(::std::ostream* os) const {
+  if (name_.has_value()) {
+    DescribeToHelper(os, {absl::StrFormat("name=\"%s\"", name_.value())});
+  } else {
+    DescribeToHelper(os, {});
+  }
 }
 
 bool BitSliceMatcher::MatchAndExplain(
@@ -230,56 +285,73 @@ bool TupleIndexMatcher::MatchAndExplain(
   return true;
 }
 
-bool SendMatcher::MatchAndExplain(
-    const Node* node, ::testing::MatchResultListener* listener) const {
-  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+static bool MatchChannel(
+    int64_t channel_id, Package* package,
+    const ::testing::Matcher<const ::xls::Channel*>& channel_matcher,
+    ::testing::MatchResultListener* listener) {
+  absl::StatusOr<::xls::Channel*> channel_status =
+      package->GetChannel(channel_id);
+  if (!channel_status.ok()) {
+    *listener << " has an invalid channel id: " << channel_id;
     return false;
   }
-  if (channel_id_.has_value() &&
-      *channel_id_ != node->As<::xls::Send>()->channel_id()) {
-    *listener << " has incorrect channel id, expected: " << *channel_id_;
-    return false;
-  }
-  return true;
+  ::xls::Channel* ch = channel_status.value();
+  return channel_matcher.MatchAndExplain(ch, listener);
 }
 
-bool SendIfMatcher::MatchAndExplain(
-    const Node* node, ::testing::MatchResultListener* listener) const {
-  if (!NodeMatcher::MatchAndExplain(node, listener)) {
-    return false;
+static int64_t GetChannelId(const Node* node) {
+  switch (node->op()) {
+    case Op::kReceive:
+      return node->As<::xls::Receive>()->channel_id();
+    case Op::kReceiveIf:
+      return node->As<::xls::ReceiveIf>()->channel_id();
+    case Op::kSend:
+      return node->As<::xls::Send>()->channel_id();
+    case Op::kSendIf:
+      return node->As<::xls::SendIf>()->channel_id();
+    default:
+      XLS_LOG(FATAL) << "Node is not a channel node: " << node->ToString();
   }
-  if (channel_id_.has_value() &&
-      *channel_id_ != node->As<::xls::SendIf>()->channel_id()) {
-    *listener << " has incorrect channel id, expected: " << *channel_id_;
-    return false;
-  }
-  return true;
 }
 
-bool ReceiveMatcher::MatchAndExplain(
+bool ChannelNodeMatcher::MatchAndExplain(
     const Node* node, ::testing::MatchResultListener* listener) const {
   if (!NodeMatcher::MatchAndExplain(node, listener)) {
     return false;
   }
-  if (channel_id_.has_value() &&
-      *channel_id_ != node->As<::xls::Receive>()->channel_id()) {
-    *listener << " has incorrect channel id, expected: " << *channel_id_;
-    return false;
+  if (!channel_matcher_.has_value()) {
+    return true;
   }
-  return true;
+  return MatchChannel(GetChannelId(node), node->package(),
+                      channel_matcher_.value(), listener);
 }
 
-bool ReceiveIfMatcher::MatchAndExplain(
+void ChannelNodeMatcher::DescribeTo(::std::ostream* os) const {
+  std::vector<std::string> fields;
+  if (channel_matcher_.has_value()) {
+    std::ostringstream sub_os;
+    channel_matcher_.value().DescribeTo(&sub_os);
+    fields.push_back(sub_os.str());
+  }
+  NodeMatcher::DescribeToHelper(os, fields);
+}
+
+bool InputPortMatcher::MatchAndExplain(
     const Node* node, ::testing::MatchResultListener* listener) const {
-  if (!NodeMatcher::MatchAndExplain(node, listener)) {
-    return false;
-  }
-  if (channel_id_.has_value() &&
-      *channel_id_ != node->As<::xls::ReceiveIf>()->channel_id()) {
-    *listener << " has incorrect channel id, expected: " << *channel_id_;
-    return false;
-  }
-  return true;
+  return matcher_.MatchAndExplain(node, listener);
+}
+
+void InputPortMatcher::DescribeTo(::std::ostream* os) const {
+  matcher_.DescribeTo(os);
+}
+
+bool OutputPortMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  return matcher_.MatchAndExplain(node, listener);
+}
+
+void OutputPortMatcher::DescribeTo(::std::ostream* os) const {
+  matcher_.DescribeTo(os);
 }
 
 }  // namespace op_matchers

@@ -105,6 +105,8 @@ class Channel {
            supported_ops() == ChannelOps::kSendReceive;
   }
 
+  ChannelKind kind() const { return kind_; }
+
   bool IsStreaming() const;
   bool IsPort() const;
   bool IsRegister() const;

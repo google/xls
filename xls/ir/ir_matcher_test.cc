@@ -296,15 +296,15 @@ TEST(IrMatchersTest, SendOps) {
       b.Build(b.AfterAll({send, send_if}), b.GetStateParam()).status());
 
   EXPECT_THAT(send.node(), m::Send());
-  EXPECT_THAT(send.node(), m::Send(/*channel_id=*/42));
+  EXPECT_THAT(send.node(), m::Send(m::Channel(42)));
   EXPECT_THAT(send.node(), m::Send(m::Name("my_token"), {m::Name("my_state")},
-                                   /*channel_id=*/42));
+                                   m::Channel(42)));
 
   EXPECT_THAT(send_if.node(), m::SendIf());
-  EXPECT_THAT(send_if.node(), m::SendIf(/*channel_id=*/123));
-  EXPECT_THAT(send_if.node(), m::SendIf(m::Name("my_token"), m::Literal(),
-                                        {m::Name("my_state")},
-                                        /*channel_id=*/123));
+  EXPECT_THAT(send_if.node(), m::SendIf(m::Channel(123)));
+  EXPECT_THAT(send_if.node(),
+              m::SendIf(m::Name("my_token"), m::Literal(),
+                        {m::Name("my_state")}, m::Channel(123)));
 }
 
 TEST(IrMatchersTest, ReceiveOps) {
@@ -328,14 +328,71 @@ TEST(IrMatchersTest, ReceiveOps) {
                     .status());
 
   EXPECT_THAT(receive.node(), m::Receive());
-  EXPECT_THAT(receive.node(), m::Receive(/*channel_id=*/42));
+  EXPECT_THAT(receive.node(), m::Receive(m::Channel(42)));
+  EXPECT_THAT(receive.node(),
+              m::Receive(m::Name("my_token"), m::Channel("ch42")));
   EXPECT_THAT(receive.node(), m::Receive(m::Name("my_token"),
-                                         /*channel_id=*/42));
+                                         m::Channel(ChannelKind::kStreaming)));
 
   EXPECT_THAT(receive_if.node(), m::ReceiveIf());
-  EXPECT_THAT(receive_if.node(), m::ReceiveIf(/*channel_id=*/123));
+  EXPECT_THAT(receive_if.node(), m::ReceiveIf(m::Channel(123)));
   EXPECT_THAT(receive_if.node(), m::ReceiveIf(m::Name("my_token"), m::Literal(),
-                                              /*channel_id=*/123));
+                                              m::Channel("ch123")));
+  EXPECT_THAT(receive_if.node(), m::ReceiveIf(m::Channel(ChannelKind::kPort)));
+
+  // Mismatch conditions.
+  EXPECT_THAT(Explain(receive.node(), m::Receive(m::Channel(444))),
+              HasSubstr("has incorrect id (42), expected: 444"));
+  EXPECT_THAT(Explain(receive.node(), m::Receive(m::Channel("foobar"))),
+              HasSubstr("has incorrect name (ch42), expected: foobar"));
+  EXPECT_THAT(
+      Explain(receive.node(), m::Receive(m::Channel(ChannelKind::kRegister))),
+      HasSubstr(" has incorrect kind (streaming), expected: register"));
+}
+
+TEST(IrMatchersTest, PortMatcher) {
+  Package p("p");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_ch,
+      p.CreatePortChannel("x", ChannelOps::kReceiveOnly, p.GetBitsType(32),
+                          ChannelMetadataProto(), 42));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * y_ch,
+      p.CreatePortChannel("y", ChannelOps::kReceiveOnly, p.GetBitsType(32),
+                          ChannelMetadataProto(), 43));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreatePortChannel("out", ChannelOps::kSendOnly, p.GetBitsType(32),
+                          ChannelMetadataProto(), 44));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * z_ch,
+      p.CreateStreamingChannel("z", ChannelOps::kSendReceive, p.GetBitsType(32),
+                               {}, ChannelMetadataProto(), 45));
+
+  TokenlessProcBuilder b("proc", Value(UBits(333, 32)), "my_token", "my_state",
+                         &p);
+  auto x = b.Receive(x_ch);
+  auto y = b.Receive(y_ch);
+  auto z = b.Receive(z_ch);
+  auto out = b.Send(out_ch, b.Add(x, y));
+  XLS_ASSERT_OK(b.Build(b.GetStateParam()));
+
+  EXPECT_THAT(x.node(), m::InputPort());
+  EXPECT_THAT(x.node(), m::InputPort(/*channel_name=*/"x"));
+
+  EXPECT_THAT(y.node(), m::InputPort());
+  EXPECT_THAT(y.node(), m::InputPort(/*channel_name=*/"y"));
+
+  EXPECT_THAT(out.node(), m::OutputPort());
+  EXPECT_THAT(out.node(), m::OutputPort(/*channel_name=*/"out"));
+
+  // Check mismatch conditions.
+  EXPECT_THAT(Explain(x.node(), m::OutputPort()),
+              HasSubstr("has incorrect op, expected: send"));
+  EXPECT_THAT(Explain(x.node(), m::InputPort("foobar")),
+              HasSubstr("has incorrect name (x), expected: foobar"));
+  EXPECT_THAT(Explain(z.node(), m::InputPort("z")),
+              HasSubstr("has incorrect kind (streaming), expected: port"));
 }
 
 }  // namespace
