@@ -58,8 +58,7 @@ std::string TestName() {
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
     absl::string_view program, absl::string_view fn_name,
-    bool emit_positions = true) {
-  ImportData import_data;
+    ImportData& import_data, bool emit_positions = true) {
   XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
                        ParseAndTypecheck(program, /*path=*/"test_module.x",
                                          /*module_name=*/"test_module",
@@ -70,6 +69,14 @@ absl::StatusOr<std::string> ConvertOneFunctionForTest(
                             /*import_data=*/&import_data,
                             /*symbolic_bindings=*/nullptr,
                             /*emit_positions=*/emit_positions);
+}
+
+absl::StatusOr<std::string> ConvertOneFunctionForTest(
+    absl::string_view program, absl::string_view fn_name,
+    bool emit_positions = true) {
+  ImportData import_data;
+  return ConvertOneFunctionForTest(program, fn_name, import_data,
+                                   emit_positions);
 }
 
 absl::StatusOr<std::string> ConvertModuleForTest(
@@ -1527,6 +1534,32 @@ fn main(x: u32) -> u32 {
       std::string converted,
       ConvertModuleForTest(kImporterModule, /*emit_positions=*/false,
                            &import_data));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, ConvertOneFunctionWithImport) {
+  ImportData import_data;
+  const std::string kImportModule = R"(
+pub fn a() -> u32 {
+  u32:42
+}
+)";
+  XLS_ASSERT_OK(ParseAndTypecheck(kImportModule, "a.x", "a", &import_data,
+                                  /*additional_search_paths=*/{})
+                    .status());
+
+  const std::string kImporterModule = R"(
+import a
+
+fn main(x: u32) -> u32 {
+  a::a()
+})";
+
+  // Convert the importer module to IR.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kImporterModule, "main", import_data,
+                                /*emit_positions=*/false));
   ExpectIr(converted, TestName());
 }
 

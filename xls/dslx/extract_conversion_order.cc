@@ -483,4 +483,14 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
   return ready;
 }
 
+absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
+    Function* f, TypeInfo* type_info) {
+  std::vector<ConversionRecord> ready;
+  XLS_ASSIGN_OR_RETURN(Callee callee, Callee::Make(f, f->owner(), type_info,
+                                                   SymbolicBindings()));
+  XLS_RETURN_IF_ERROR(
+      AddToReady(f, f->owner(), type_info, SymbolicBindings(), &ready));
+  return ready;
+}
+
 }  // namespace xls::dslx
