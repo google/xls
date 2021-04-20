@@ -1537,6 +1537,18 @@ operations known to the compiler in their high level form, we potentially enable
 optimizations and analyses on their higher level ("lifted") form. As of now,
 `map` is the sole parallel-primitive-oriented built-in.
 
+### add_with_carry
+
+Operation that produces the result of the add, as well as the carry bit as an
+output. The binary add operators works similar to software programming
+languages, preserving the length of the input operands, so this builtin can
+assist when easy access to the carry out value is desired. Has the following
+signature:
+
+```
+fn add_with_carry<N>(x: uN[N], y: uN[N]) -> (u1, uN[N])
+```
+
 ### map
 
 `map`, similarly to other languages, executes a transformation function on all
@@ -1583,6 +1595,52 @@ functions:
   assert_eq(u32:3, x2)
 ```
 
+### concat
+
+Named variant of the binary `++` bits-concatenation operator. Has the following
+signature:
+
+```
+fn concat<N, M, NPM=N+M>(x: uN[N], y: uN[M]) -> uN[NPM]
+```
+
+In the above signature, `x` becomes the most significant bits in the results,
+whereas `y` becomes the less significant bits in the result.
+
+### one_hot
+
+Converts a value to one-hot form. Has the following signature:
+
+```
+fn one_hot<N, NP1=N+1>(x: uN[N], lsb_is_prio: bool) -> uN[NP1]
+```
+
+When `lsb_is_prio` is true, the least significant bit that is set becomes the
+one-hot bit in the result. When it is false, the most significant bit that is
+set becomes the one-hot bit in the result.
+
+When all bits in the input are unset, the additional bit present in the output
+value (MSb) becomes set.
+
+Example usage:
+[`dslx/tests/one_hot.x`](https://github.com/google/xls/tree/main/xls/dslx/tests/one_hot.x).
+
+See also the
+[IR semantics for the `one_hot` op](./ir_semantics.md#one_hot).
+
+### Explicitly-signed comparison builtins: sge, sgt, sle, slt
+
+Explicitly-signed comparison operations, that can be conveniently used on
+unsigned values as well (to avoid casting back and forth to signed). Has the
+following signature:
+
+```
+fn sgt<N>(x: xN[N], y: xN[N]) -> bool
+```
+
+Note that `xN` in the above signifies that the operand types must be the same,
+but may be, as a pair, either signed or unsigned (either uN or sN).
+
 ### signex
 
 Casting has well-defined extension rules, but in some cases it is necessary to
@@ -1602,6 +1660,17 @@ only its type is used to determine the result type of the sign extension.
 ```
 
 Note that both `s` and `u` contain the same bits in the above example.
+
+### slice
+
+Array-slice builtin operation. Note that the "want" argument is *not* used as a
+value, but is just used to reflect the desired slice type. (Prior to constexprs
+being passed to builtin functions, this was the canonical way to reflect a
+constexpr in the type system.) Has the following signature:
+
+```
+fn slice<T: type, N, M, S>(xs: T[N], start: uN[M], want: T[S]) -> T[S]
+```
 
 ### rev
 
@@ -1643,7 +1712,7 @@ are out of bounds (if `start + bit-width(value) >= bit-width(subject)`) are
 ignored. Example usage:
 [`dslx/tests/bit_slice_update.x`](https://github.com/google/xls/tree/main/xls/dslx/tests/bit_slice_update.x).
 
-### Bitwise reduction builtins
+### Bitwise reduction builtins: and_reduce, or_reduce, xor_reduce
 
 These are unary reduction operations applied to a bits-typed value:
 
@@ -1676,7 +1745,7 @@ that this is *not* an in-place update of the array, it is an "evolution" of
 instead of copying, when it's safe to do. The compiler makes a best effort to do
 this, but can't guarantee the optimization is always made.
 
-### assert_eq
+### assert_eq, assert_lt
 
 In a unit test pseudo function all valid DSLX code is allowed. To evaluate test
 results DSLX provides the `assert_eq` primitive (we'll add more of those in the
