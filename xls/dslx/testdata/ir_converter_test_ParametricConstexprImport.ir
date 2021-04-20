@@ -8,6 +8,5 @@ fn __fake_imported_stuff__constexpr_fn__32(arg: bits[32]) -> bits[32] {
 
 fn __test_module__f() -> bits[32] {
   MY_CONST: bits[32] = literal(value=5, id=5)
-  x: bits[32] = invoke(MY_CONST, to_apply=__fake_imported_stuff__constexpr_fn__32, id=6)
-  ret identity.7: bits[32] = identity(x, id=7)
+  ret x: bits[32] = invoke(MY_CONST, to_apply=__fake_imported_stuff__constexpr_fn__32, id=6)
 }

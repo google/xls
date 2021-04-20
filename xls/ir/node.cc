@@ -634,6 +634,7 @@ absl::Status Node::ReplaceOperandNumber(int64_t operand_no, Node* new_operand,
 }
 
 absl::Status Node::ReplaceUsesWith(Node* replacement) {
+  XLS_RET_CHECK(replacement != nullptr);
   XLS_RET_CHECK(GetType() == replacement->GetType())
       << "type was: " << GetType()->ToString()
       << " replacement: " << replacement->GetType()->ToString();

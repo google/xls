@@ -1,19 +1,17 @@
 package test_module
 
 fn __test_module__parametric__2(x: bits[2]) -> bits[32] {
-  N: bits[32] = literal(value=2, id=2)
-  ret identity.3: bits[32] = identity(N, id=3)
+  ret N: bits[32] = literal(value=2, id=2)
 }
 
 fn __test_module__parametric__3(x: bits[3]) -> bits[32] {
-  N: bits[32] = literal(value=3, id=5)
-  ret identity.6: bits[32] = identity(N, id=6)
+  ret N: bits[32] = literal(value=3, id=4)
 }
 
 fn __test_module__main() -> bits[32] {
-  literal.7: bits[2] = literal(value=0, id=7)
-  literal.9: bits[3] = literal(value=0, id=9)
-  invoke.8: bits[32] = invoke(literal.7, to_apply=__test_module__parametric__2, id=8)
-  invoke.10: bits[32] = invoke(literal.9, to_apply=__test_module__parametric__3, id=10)
-  ret add.11: bits[32] = add(invoke.8, invoke.10, id=11)
+  literal.5: bits[2] = literal(value=0, id=5)
+  literal.7: bits[3] = literal(value=0, id=7)
+  invoke.6: bits[32] = invoke(literal.5, to_apply=__test_module__parametric__2, id=6)
+  invoke.8: bits[32] = invoke(literal.7, to_apply=__test_module__parametric__3, id=8)
+  ret add.9: bits[32] = add(invoke.6, invoke.8, id=9)
 }

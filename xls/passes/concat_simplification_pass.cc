@@ -422,6 +422,12 @@ absl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
     return false;
   }
 
+  // For zero-bit concatenations, we simply report we didn't change anything
+  // (there's nothing to change with respect to operands).
+  if (concat->operands().empty()) {
+    return false;
+  }
+
   // For eq, the reduction is that all the sub-slices are equal (AND).
   // For ne, the reduction is that any one of the sub-slices is not-equal (OR).
   Op reducer = node->op() == Op::kEq ? Op::kAnd : Op::kOr;

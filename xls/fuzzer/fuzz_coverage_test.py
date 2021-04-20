@@ -151,7 +151,7 @@ class FuzzCoverageTest(test_base.TestCase):
     expect_seen = (
         'add and and_reduce array array_index array_update array_concat '
         'bit_slice bit_slice_update concat counted_for dynamic_bit_slice '
-        'encode eq identity literal map ne neg not one_hot one_hot_sel or '
+        'encode eq literal map ne neg not one_hot one_hot_sel or '
         'or_reduce reverse sel sge sgt shll shra shrl sign_ext sle slt smul '
         'sub tuple tuple_index uge ugt ule ult umul xor xor_reduce zero_ext'
     ).split()
@@ -162,7 +162,7 @@ class FuzzCoverageTest(test_base.TestCase):
           msg=f'Expected fuzzer to generate op "{op}"')
 
     # These ops are not yet supported by the fuzzer.
-    expect_not_seen = ('after_all assert decode '
+    expect_not_seen = ('after_all assert decode identity '
                        'dynamic_counted_for invoke nand nor receive receive_if '
                        'sdiv send send_if smod udiv umod').split()
     for op in expect_not_seen:

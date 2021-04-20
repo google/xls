@@ -764,3 +764,11 @@ dslx_test(
     name = "local_const_value_in_parametric_match",
     srcs = ["local_const_value_in_parametric_match.x"],
 )
+
+dslx_test(
+    name = "let_match_tuple",
+    srcs = ["let_match_tuple.x"],
+    # TODO(https://github.com/google/xls/issues/400): This produces a zero-bit
+    # concate which is currently not supported by Z3 translation.
+    prove_unopt_eq_opt = False,
+)

@@ -141,6 +141,18 @@ fn f(p: bits[2], q: bits[42], r: bits[42], s:bits[42]) -> bits[42] {
                        HasSubstr("Select has no default value")));
 }
 
+TEST_F(VerifierTest, EmptyConcatIsOk) {
+  std::string input = R"(
+package p
+
+fn f() -> bits[0] {
+  ret concat.1: bits[0] = concat()
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  XLS_EXPECT_OK(VerifyPackage(p.get()));
+}
+
 TEST_F(VerifierTest, SelectWithTooNarrowSelector) {
   std::string input = R"(
 package p

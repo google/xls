@@ -394,10 +394,6 @@ class FunctionConverter {
 
   // Number of "counted for" nodes we've observed in this function.
   int64_t counted_for_count_ = 0;
-
-  // The last expression emitted as part of IR conversion, used to help
-  // determine which expression produces the return value.
-  Expr* last_expression_ = nullptr;
 };
 
 // For all free variables of "node", adds them transitively for any required
@@ -790,7 +786,8 @@ absl::Status FunctionConverter::HandleConstRef(ConstRef* node) {
 }
 
 absl::Status FunctionConverter::HandleNameRef(NameRef* node) {
-  return DefAlias(ToAstNode(node->name_def()), /*to=*/node).status();
+  AstNode* from = ToAstNode(node->name_def());
+  return DefAlias(from, /*to=*/node).status();
 }
 
 absl::Status FunctionConverter::HandleConstantDef(ConstantDef* node) {
@@ -803,6 +800,16 @@ absl::Status FunctionConverter::HandleConstantDef(ConstantDef* node) {
 
 absl::Status FunctionConverter::HandleLet(Let* node) {
   XLS_RETURN_IF_ERROR(Visit(node->rhs()));
+  XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->rhs()));
+
+  // Sanity check that the RHS conforms to the annotation (if present).
+  if (node->type() != nullptr) {
+    XLS_ASSIGN_OR_RETURN(xls::Type * annotated_type,
+                         ResolveTypeToIr(node->type()));
+    xls::Type* value_type = rhs.GetType();
+    XLS_RET_CHECK_EQ(annotated_type, value_type);
+  }
+
   if (node->name_def_tree()->is_leaf()) {
     XLS_RETURN_IF_ERROR(
         DefAlias(node->rhs(), /*to=*/ToAstNode(node->name_def_tree()->leaf()))
@@ -813,7 +820,6 @@ absl::Status FunctionConverter::HandleLet(Let* node) {
     // Walk the tree of names we're trying to bind, performing tuple_index
     // operations on the RHS to get to the values we want to bind to those
     // names.
-    XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->rhs()));
     std::vector<BValue> levels = {rhs};
     // Invoked at each level of the NameDefTree: binds the name in the
     // NameDefTree to the correponding value (being pattern matched).
@@ -844,9 +850,6 @@ absl::Status FunctionConverter::HandleLet(Let* node) {
     XLS_RETURN_IF_ERROR(DefAlias(node->body(), /*to=*/node).status());
   }
 
-  if (last_expression_ == nullptr) {
-    last_expression_ = node->body();
-  }
   return absl::OkStatus();
 }
 
@@ -950,19 +953,18 @@ absl::Status FunctionConverter::HandleMatch(Match* node) {
 
   // So now we have the following representation of the match arms:
   //   match x {
-  //     42  => blah
-  //     64  => snarf
-  //     128 => yep
-  //     _   => burp
+  //     42  => a
+  //     64  => b
+  //     128 => d
+  //     _   => d
   //   }
   //
   //   selectors:     [x==42, x==64, x==128]
-  //   values:        [blah,  snarf,    yep]
-  //   default_value: burp
+  //   values:        [a,         b,      c]
+  //   default_value: d
   XLS_ASSIGN_OR_RETURN(BValue default_value, Use(default_arm->expr()));
   SetNodeToIr(node, function_builder_->MatchTrue(arm_selectors, arm_values,
                                                  default_value));
-  last_expression_ = node;
   return absl::OkStatus();
 }
 
@@ -1397,7 +1399,7 @@ absl::Status FunctionConverter::HandleInvocation(Invocation* node) {
     XLS_RET_CHECK_EQ(args.size(), 1)
         << called_name << " builtin only accepts a single argument";
     Def(node, [&](absl::optional<SourceLocation> loc) {
-      return function_builder_->Identity(args[0]);
+      return function_builder_->Identity(args[0], loc);
     });
     return absl::OkStatus();
   }
@@ -1496,19 +1498,10 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
 
   XLS_VLOG(5) << "body: " << node->body()->ToString();
   XLS_RETURN_IF_ERROR(Visit(node->body()));
-  auto* last_expression =
-      last_expression_ == nullptr ? node->body() : last_expression_;
 
-  // If the last expression is a name reference, it may refer to
-  // not-the-last-thing-we-function-built, so we go retrieve it explicitly and
-  // make it the last thing.
-  if (auto* name_ref = dynamic_cast<NameRef*>(last_expression)) {
-    XLS_ASSIGN_OR_RETURN(BValue last_value, Use(name_ref));
-    Def(last_expression, [&](absl::optional<SourceLocation> loc) {
-      return function_builder_->Identity(last_value, loc);
-    });
-  }
-  XLS_ASSIGN_OR_RETURN(xls::Function * f, function_builder_->Build());
+  XLS_ASSIGN_OR_RETURN(BValue return_value, Use(node->body()));
+  XLS_ASSIGN_OR_RETURN(xls::Function * f,
+                       function_builder_->BuildWithReturnValue(return_value));
   XLS_VLOG(5) << "Built function: " << f->name();
   XLS_RETURN_IF_ERROR(VerifyFunction(f));
   return f;

@@ -69,6 +69,20 @@ TEST(IrJitTest, ReuseTest) {
   EXPECT_THAT(jit->Run({Value(UBits(7, 8))}), IsOkAndHolds(Value(UBits(7, 8))));
 }
 
+TEST(IrJitTest, OneHotZeroBit) {
+  Package package("my_package");
+  std::string ir_text = R"(
+  fn get_identity(x: bits[0]) -> bits[1] {
+    ret one_hot: bits[1] = one_hot(x, lsb_prio=true)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
+  EXPECT_THAT(jit->Run({Value(UBits(0, 0))}), IsOkAndHolds(Value(UBits(1, 1))));
+}
+
 // Very basic smoke test for packed types.
 TEST(IrJitTest, PackedSmoke) {
   Package package("my_package");

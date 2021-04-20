@@ -24,6 +24,5 @@ fn __fake_imported_stuff__constexpr_fn(arg: bits[32]) -> bits[32] {
 fn __test_module__f() -> bits[32] {
   MY_CONST: bits[32] = literal(value=5, id=18)
   MY_OTHER_CONST: bits[32] = invoke(MY_CONST, to_apply=__std__clog2__32, id=19)
-  x: bits[32] = invoke(MY_OTHER_CONST, to_apply=__fake_imported_stuff__constexpr_fn, id=20)
-  ret identity.21: bits[32] = identity(x, id=21)
+  ret x: bits[32] = invoke(MY_OTHER_CONST, to_apply=__fake_imported_stuff__constexpr_fn, id=20)
 }

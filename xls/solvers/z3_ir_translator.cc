@@ -486,6 +486,7 @@ template <typename OpT, typename FnT>
 absl::Status IrTranslator::HandleNary(OpT* op, FnT f, bool invert_result) {
   ScopedErrorHandler seh(ctx_);
   int64_t operands = op->operands().size();
+  XLS_RET_CHECK_GT(operands, 0) << op->ToString();
   Z3_ast accum = GetBitVec(op->operand(0));
   for (int64_t i = 1; i < operands; ++i) {
     accum = f(ctx_, accum, GetBitVec(op->operand(i)));

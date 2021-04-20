@@ -106,13 +106,7 @@ TEST(IrConverterTest, NamedConstant) {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertOneFunctionForTest(program, "f"));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__f() -> bits[32] {
-  foo: bits[32] = literal(value=42, id=1, pos=0,1,21)
-  ret identity.2: bits[32] = identity(foo, id=2, pos=0,2,2)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, Concat) {
@@ -825,12 +819,7 @@ fn f(x: u32[1]) -> u32[1] {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__f(x: bits[32][1]) -> bits[32][1] {
-  ret identity.2: bits[32][1] = identity(x, id=2)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, SingleElementEnumArrayParam) {
@@ -844,12 +833,7 @@ fn f(x: Foo[1]) -> Foo[1] {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/false));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__f(x: bits[2][1]) -> bits[2][1] {
-  ret identity.2: bits[2][1] = identity(x, id=2)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, BitSliceCast) {
@@ -1266,12 +1250,7 @@ TEST(IrConverterTest, Identity) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, /*emit_positions=*/true));
-  EXPECT_EQ(converted, R"(package test_module
-
-fn __test_module__main(x: bits[8]) -> bits[8] {
-  ret identity.2: bits[8] = identity(x, id=2, pos=0,1,2)
-}
-)");
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, PackageLevelConstantArrayAccess) {

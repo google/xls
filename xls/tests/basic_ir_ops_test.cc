@@ -229,6 +229,19 @@ fn main(p: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
   RunAndExpectEq({{"p", 3}, {"x", 42}, {"y", 123}, {"z", 456}}, 0, text);
 }
 
+TEST_F(BasicOpsTest, OneHotZeroBitInput) {
+  std::string text = R"(
+package test
+
+fn main(x: bits[1]) -> bits[1] {
+  sliced: bits[0] = bit_slice(x, start=1, width=0)
+  ret result: bits[1] = one_hot(sliced, lsb_prio=false)
+}
+)";
+
+  RunAndExpectEq({{"x", 0}}, 1, text);
+}
+
 TEST_F(BasicOpsTest, OneHotWithMsbPriority3bInput) {
   std::string text = R"(
 package test

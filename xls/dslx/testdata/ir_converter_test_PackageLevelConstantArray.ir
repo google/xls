@@ -3,13 +3,11 @@ package test_module
 fn __test_module__f() -> bits[8][2] {
   literal.1: bits[8] = literal(value=1, id=1, pos=0,0,19)
   literal.2: bits[8] = literal(value=2, id=2, pos=0,0,22)
-  FOO: bits[8][2] = array(literal.1, literal.2, id=3, pos=0,0,18)
-  ret identity.4: bits[8][2] = identity(FOO, id=4, pos=0,1,18)
+  ret FOO: bits[8][2] = array(literal.1, literal.2, id=3, pos=0,0,18)
 }
 
 fn __test_module__g() -> bits[8][2] {
-  literal.5: bits[8] = literal(value=1, id=5, pos=0,0,19)
-  literal.6: bits[8] = literal(value=2, id=6, pos=0,0,22)
-  FOO: bits[8][2] = array(literal.5, literal.6, id=7, pos=0,0,18)
-  ret identity.8: bits[8][2] = identity(FOO, id=8, pos=0,2,18)
+  literal.4: bits[8] = literal(value=1, id=4, pos=0,0,19)
+  literal.5: bits[8] = literal(value=2, id=5, pos=0,0,22)
+  ret FOO: bits[8][2] = array(literal.4, literal.5, id=6, pos=0,0,18)
 }

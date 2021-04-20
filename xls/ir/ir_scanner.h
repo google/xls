@@ -148,7 +148,7 @@ class Scanner {
 
   // Pop the current token, advance token pointer to next token.
   Token PopToken() {
-    XLS_VLOG(3) << "Popping token: " << tokens_[token_idx_];
+    XLS_VLOG(6) << "Popping token: " << tokens_[token_idx_];
     return tokens_.at(token_idx_++);
   }
 

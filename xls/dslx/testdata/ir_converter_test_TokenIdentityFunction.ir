@@ -1,5 +1,5 @@
 package test_module
 
 fn __test_module__main(x: token) -> token {
-  ret identity.2: token = identity(x, id=2)
+  ret x: token = param(name=x)
 }

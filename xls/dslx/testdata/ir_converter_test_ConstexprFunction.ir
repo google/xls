@@ -7,6 +7,5 @@ fn __test_module__constexpr_fn(arg: bits[32]) -> bits[32] {
 
 fn __test_module__f() -> bits[32] {
   MY_CONST: bits[32] = literal(value=5, id=4)
-  x: bits[32] = invoke(MY_CONST, to_apply=__test_module__constexpr_fn, id=5)
-  ret identity.6: bits[32] = identity(x, id=6)
+  ret x: bits[32] = invoke(MY_CONST, to_apply=__test_module__constexpr_fn, id=5)
 }
