@@ -206,12 +206,13 @@ TEST(BitsOpsTest, SMul) {
 TEST(BitsOpsTest, UDiv) {
   EXPECT_EQ(bits_ops::UDiv(UBits(100, 64), UBits(5, 64)), UBits(20, 64));
   EXPECT_EQ(bits_ops::UDiv(UBits(100, 32), UBits(7, 32)), UBits(14, 32));
-  EXPECT_EQ(bits_ops::UDiv(UBits(0, 64), UBits(7, 64)), UBits(0, 64));
+  EXPECT_EQ(bits_ops::UDiv(UBits(100, 7), UBits(7, 4)), UBits(14, 7));
+  EXPECT_EQ(bits_ops::UDiv(UBits(0, 64), UBits(7, 32)), UBits(0, 64));
 
   // Divide by zero.
   EXPECT_EQ(bits_ops::UDiv(Bits(), Bits()), Bits());
   EXPECT_EQ(bits_ops::UDiv(UBits(10, 4), UBits(0, 4)), UBits(15, 4));
-  EXPECT_EQ(bits_ops::UDiv(UBits(123456, 64), UBits(0, 64)), Bits::AllOnes(64));
+  EXPECT_EQ(bits_ops::UDiv(UBits(123456, 64), UBits(0, 20)), Bits::AllOnes(64));
 
   // Test wide values.
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -227,12 +228,13 @@ TEST(BitsOpsTest, UDiv) {
 TEST(BitsOpsTest, UMod) {
   EXPECT_EQ(bits_ops::UMod(UBits(100, 64), UBits(5, 64)), UBits(0, 64));
   EXPECT_EQ(bits_ops::UMod(UBits(100, 32), UBits(7, 32)), UBits(2, 32));
-  EXPECT_EQ(bits_ops::UMod(UBits(0, 64), UBits(7, 64)), UBits(0, 64));
+  EXPECT_EQ(bits_ops::UMod(UBits(100, 7), UBits(7, 4)), UBits(2, 4));
+  EXPECT_EQ(bits_ops::UMod(UBits(0, 64), UBits(7, 32)), UBits(0, 32));
 
   // Zero right-hand side should always produce zero.
   EXPECT_EQ(bits_ops::UMod(Bits(), Bits()), Bits());
   EXPECT_EQ(bits_ops::UMod(UBits(10, 4), UBits(0, 4)), Bits(4));
-  EXPECT_EQ(bits_ops::UMod(UBits(123456, 64), UBits(0, 64)), Bits(64));
+  EXPECT_EQ(bits_ops::UMod(UBits(123456, 64), UBits(0, 20)), Bits(20));
 
   // Test wide values.
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -256,16 +258,21 @@ TEST(BitsOpsTest, SDiv) {
   EXPECT_EQ(bits_ops::SDiv(SBits(100, 32), SBits(-7, 32)), SBits(-14, 32));
   EXPECT_EQ(bits_ops::SDiv(SBits(-100, 32), SBits(-7, 32)), SBits(14, 32));
 
-  EXPECT_EQ(bits_ops::SDiv(SBits(0, 64), SBits(7, 64)), SBits(0, 64));
-  EXPECT_EQ(bits_ops::SDiv(SBits(0, 64), SBits(-7, 64)), SBits(0, 64));
+  EXPECT_EQ(bits_ops::SDiv(SBits(100, 8), SBits(7, 4)), SBits(14, 8));
+  EXPECT_EQ(bits_ops::SDiv(SBits(-100, 8), SBits(7, 4)), SBits(-14, 8));
+  EXPECT_EQ(bits_ops::SDiv(SBits(100, 8), SBits(-7, 4)), SBits(-14, 8));
+  EXPECT_EQ(bits_ops::SDiv(SBits(-100, 8), SBits(-7, 4)), SBits(14, 8));
+
+  EXPECT_EQ(bits_ops::SDiv(SBits(0, 64), SBits(7, 32)), SBits(0, 64));
+  EXPECT_EQ(bits_ops::SDiv(SBits(0, 64), SBits(-7, 32)), SBits(0, 64));
 
   // Divide by zero.
   EXPECT_EQ(bits_ops::SDiv(Bits(), Bits()), Bits());
   EXPECT_EQ(bits_ops::SDiv(SBits(5, 4), SBits(0, 4)), SBits(7, 4));
   EXPECT_EQ(bits_ops::SDiv(SBits(-5, 4), SBits(0, 4)), SBits(-8, 4));
-  EXPECT_EQ(bits_ops::SDiv(SBits(123456, 64), SBits(0, 64)),
+  EXPECT_EQ(bits_ops::SDiv(SBits(123456, 64), SBits(0, 20)),
             SBits(std::numeric_limits<int64_t>::max(), 64));
-  EXPECT_EQ(bits_ops::SDiv(SBits(-123456, 64), SBits(0, 64)),
+  EXPECT_EQ(bits_ops::SDiv(SBits(-123456, 64), SBits(0, 20)),
             SBits(std::numeric_limits<int64_t>::min(), 64));
 
   // Test wide values.
@@ -290,8 +297,13 @@ TEST(BitsOpsTest, SMod) {
   EXPECT_EQ(bits_ops::SMod(SBits(100, 32), SBits(-7, 32)), SBits(2, 32));
   EXPECT_EQ(bits_ops::SMod(SBits(-100, 32), SBits(-7, 32)), SBits(-2, 32));
 
-  EXPECT_EQ(bits_ops::SMod(SBits(0, 64), SBits(7, 64)), SBits(0, 64));
-  EXPECT_EQ(bits_ops::SMod(SBits(0, 64), SBits(-7, 64)), SBits(0, 64));
+  EXPECT_EQ(bits_ops::SMod(SBits(100, 8), SBits(7, 4)), SBits(2, 4));
+  EXPECT_EQ(bits_ops::SMod(SBits(-100, 8), SBits(7, 4)), SBits(-2, 4));
+  EXPECT_EQ(bits_ops::SMod(SBits(100, 8), SBits(-7, 4)), SBits(2, 4));
+  EXPECT_EQ(bits_ops::SMod(SBits(-100, 8), SBits(-7, 4)), SBits(-2, 4));
+
+  EXPECT_EQ(bits_ops::SMod(SBits(0, 64), SBits(7, 32)), SBits(0, 32));
+  EXPECT_EQ(bits_ops::SMod(SBits(0, 64), SBits(-7, 32)), SBits(0, 32));
 
   // Zero right hand side.
   EXPECT_EQ(bits_ops::SMod(Bits(), Bits()), Bits());

@@ -19,6 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/ir/big_int.h"
 #include "xls/ir/bits.h"
 
 namespace xls {
@@ -153,6 +154,108 @@ void DoMulRandoms(int seed, int64_t iterations) {
   }
 }
 
+TEST(AbstractEvaluatorTest, UDiv) {
+  TestAbstractEvaluator eval;
+  Bits a = UBits(4, 8);
+  Bits b = UBits(1, 8);
+  Bits c = FromBoxedVector(eval.UDiv(ToBoxedVector(a), ToBoxedVector(b)));
+  EXPECT_EQ(c.ToUint64().value(), 4);
+
+  a = UBits(1, 8);
+  b = UBits(4, 8);
+  c = FromBoxedVector(eval.UDiv(ToBoxedVector(a), ToBoxedVector(b)));
+  EXPECT_EQ(c.ToUint64().value(), 0);
+
+  a = UBits(4, 3);
+  b = UBits(1, 3);
+  c = FromBoxedVector(eval.UDiv(ToBoxedVector(a), ToBoxedVector(b)));
+  EXPECT_EQ(c.ToUint64().value(), 4);
+}
+
+TEST(AbstractEvaluatorTest, SDiv) {
+  TestAbstractEvaluator eval;
+  Bits a = SBits(4, 8);
+  Bits b = SBits(1, 8);
+  Bits c = FromBoxedVector(eval.SDiv(ToBoxedVector(a), ToBoxedVector(b)));
+  EXPECT_EQ(c.ToInt64().value(), 4);
+
+  a = SBits(-4, 8);
+  b = SBits(1, 8);
+  c = FromBoxedVector(eval.SDiv(ToBoxedVector(a), ToBoxedVector(b)));
+  EXPECT_EQ(c.ToInt64().value(), -4);
+
+  a = SBits(4, 8);
+  b = SBits(-1, 8);
+  c = FromBoxedVector(eval.SDiv(ToBoxedVector(a), ToBoxedVector(b)));
+  EXPECT_EQ(c.ToInt64().value(), -4);
+
+  a = SBits(-4, 8);
+  b = SBits(-1, 8);
+  c = FromBoxedVector(eval.SDiv(ToBoxedVector(a), ToBoxedVector(b)));
+  EXPECT_EQ(c.ToInt64().value(), 4);
+
+  a = SBits(1, 8);
+  b = SBits(4, 8);
+  c = FromBoxedVector(eval.SDiv(ToBoxedVector(a), ToBoxedVector(b)));
+  EXPECT_EQ(c.ToInt64().value(), 0);
+
+  // Note: an unsigned 3-bit 4 is, when interpreted as signed, -4.
+  a = UBits(4, 3);
+  b = UBits(1, 3);
+  c = FromBoxedVector(eval.SDiv(ToBoxedVector(a), ToBoxedVector(b)));
+  EXPECT_EQ(c.ToInt64().value(), -4);
+}
+
+// Performs random UDiv, SDiv, UMod, and SMod implementations as constructed by
+// the TestAbstractEvaluator and compares them to the bits_ops reference
+// implementation (up to 16 bit values on either side).
+void DoDivRandoms(int seed, int64_t iterations) {
+  TestAbstractEvaluator eval;
+
+  std::mt19937 rng(seed);
+
+  std::uniform_int_distribution<int64_t> bit_count_dist(1, 16);
+
+  for (int64_t i = 0; i < iterations; ++i) {
+    int64_t lhs_bits = bit_count_dist(rng);
+    int64_t rhs_bits = bit_count_dist(rng);
+    uint64_t lhs_value =
+        std::uniform_int_distribution<uint64_t>(0, (1 << lhs_bits) - 1)(rng);
+    uint64_t rhs_value =
+        std::uniform_int_distribution<uint64_t>(0, (1 << rhs_bits) - 1)(rng);
+    Bits lhs = UBits(lhs_value, /*bit_count=*/lhs_bits);
+    Bits rhs = UBits(rhs_value, /*bit_count=*/rhs_bits);
+
+    Bits udiv_got =
+        FromBoxedVector(eval.UDiv(ToBoxedVector(lhs), ToBoxedVector(rhs)));
+    Bits udiv_want = bits_ops::UDiv(lhs, rhs);
+    EXPECT_EQ(udiv_got, udiv_want) << "lhs: " << lhs << " rhs: " << rhs;
+
+    Bits umod_got =
+        FromBoxedVector(eval.UMod(ToBoxedVector(lhs), ToBoxedVector(rhs)));
+    Bits umod_want = bits_ops::UMod(lhs, rhs);
+    EXPECT_EQ(umod_got, umod_want) << "lhs: " << lhs << " rhs: " << rhs;
+
+    Bits sdiv_got =
+        FromBoxedVector(eval.SDiv(ToBoxedVector(lhs), ToBoxedVector(rhs)));
+    Bits sdiv_want = bits_ops::SDiv(lhs, rhs);
+    EXPECT_EQ(sdiv_got, sdiv_want)
+        << "lhs: " << BigInt::MakeSigned(lhs)
+        << " rhs: " << BigInt::MakeSigned(rhs)
+        << " got: " << BigInt::MakeSigned(sdiv_got)
+        << " want: " << BigInt::MakeSigned(sdiv_want);
+
+    Bits smod_got =
+        FromBoxedVector(eval.SMod(ToBoxedVector(lhs), ToBoxedVector(rhs)));
+    Bits smod_want = bits_ops::SMod(lhs, rhs);
+    EXPECT_EQ(smod_got, smod_want)
+        << "lhs: " << BigInt::MakeSigned(lhs)
+        << " rhs: " << BigInt::MakeSigned(rhs)
+        << " got: " << BigInt::MakeSigned(smod_got)
+        << " want: " << BigInt::MakeSigned(smod_want);
+  }
+}
+
 // Note: a bit of manual sharding is easy and still gets us more coverage, since
 // BitGen is constructed with a nondeterministic seed on each construction.
 
@@ -180,6 +283,30 @@ TEST(AbstractEvaluatorTest, MulRandomsShard6) {
 }
 TEST(AbstractEvaluatorTest, MulRandomsShard7) {
   DoMulRandoms(7, kRandomsPerShard);
+}
+TEST(AbstractEvaluatorTest, DivRandomsShard0) {
+  DoDivRandoms(0, kRandomsPerShard);
+}
+TEST(AbstractEvaluatorTest, DivRandomsShard1) {
+  DoDivRandoms(1, kRandomsPerShard);
+}
+TEST(AbstractEvaluatorTest, DivRandomsShard2) {
+  DoDivRandoms(2, kRandomsPerShard);
+}
+TEST(AbstractEvaluatorTest, DivRandomsShard3) {
+  DoDivRandoms(3, kRandomsPerShard);
+}
+TEST(AbstractEvaluatorTest, DivRandomsShard4) {
+  DoDivRandoms(4, kRandomsPerShard);
+}
+TEST(AbstractEvaluatorTest, DivRandomsShard5) {
+  DoDivRandoms(5, kRandomsPerShard);
+}
+TEST(AbstractEvaluatorTest, DivRandomsShard6) {
+  DoDivRandoms(6, kRandomsPerShard);
+}
+TEST(AbstractEvaluatorTest, DivRandomsShard7) {
+  DoDivRandoms(7, kRandomsPerShard);
 }
 
 TEST(AbstractEvaluatorTest, SMul) {

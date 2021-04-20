@@ -65,6 +65,10 @@ class AbstractEvaluator {
     return static_cast<const EvaluatorT*>(this)->Or(a, b);
   }
 
+  Element Xor(const Element& a, const Element& b) const {
+    return And(Or(a, b), Not(And(a, b)));
+  }
+
   struct AdderResult {
     Element sum;
     Element carry;
@@ -108,9 +112,8 @@ class AbstractEvaluator {
                   [&](const Element& a, const Element& b) { return Or(a, b); });
   }
   Vector BitwiseXor(absl::Span<const Vector> inputs) {
-    return NaryOp(inputs, [&](const Element& a, const Element& b) {
-      return Or(And(Not(a), b), And(a, Not(b)));
-    });
+    return NaryOp(
+        inputs, [&](const Element& a, const Element& b) { return Xor(a, b); });
   }
 
   // Overloads of bitwise operations for two operands.
@@ -353,6 +356,8 @@ class AbstractEvaluator {
     return Add(BitwiseNot(x), BitsToVector(UBits(1, x.size())));
   }
 
+  Vector Abs(const Vector& x) { return Select({x.back()}, {x, Neg(x)}); }
+
   // Signed multiplication of two Vectors.
   // Returns a Vector of a.size() + b.size().
   // Note: This is an inefficient implementation, but is adequate for immediate
@@ -488,6 +493,81 @@ class AbstractEvaluator {
       result[i] = column.front();
     }
     return result;
+  }
+
+  struct DivisionResult {
+    Vector quotient;
+    Vector remainder;
+  };
+
+  // Unsigned division of two Vectors.
+  // Returns a quotient Vector of n.size(), and a remainder Vector of d.size().
+  //
+  // Implements long division.
+  DivisionResult UDivMod(const Vector& n, const Vector& d) {
+    Vector nonzero_divisor = OrReduce(d);
+    Vector divisor = ZeroExtend(d, d.size() + 1);
+    Vector neg_divisor = Neg(divisor);
+
+    Vector q(n.size(), Zero());
+    Vector r(d.size(), Zero());
+    for (int64_t i = q.size() - 1; i >= 0; --i) {
+      // Shift the next bit of n into r.
+      r.insert(r.begin(), n[i]);
+      // Now: r.size() == d.size() + 1 == divisor.size().
+
+      // If r >= divisor, then subtract divisor from r and set q[i] := 1.
+      // Otherwise, set q[i] := 0.
+      q[i] = Not(ULessThan(r, divisor));
+      r = Select({q[i]}, {r, Add(r, neg_divisor)});
+
+      // Remove the MSB of r; guaranteed to be 0 because r < d.
+      // Ensures r.size() == d.size().
+      r.erase(r.end() - 1);
+    }
+    // If dividing by zero, return all 1s for q and all 0s for r.
+    q = Select({nonzero_divisor}, {Vector(q.size(), One()), q});
+    r = Select({nonzero_divisor}, {Vector(r.size(), Zero()), r});
+    return {.quotient = q, .remainder = r};
+  }
+  Vector UDiv(const Vector& n, const Vector& d) {
+    return UDivMod(n, d).quotient;
+  }
+  Vector UMod(const Vector& n, const Vector& d) {
+    return UDivMod(n, d).remainder;
+  }
+
+  // Signed division of two Vectors.
+  // Returns a quotient Vector of n.size(), and a remainder Vector of d.size().
+  //
+  // Convention: remainder has the same sign as n.
+  DivisionResult SDivMod(const Vector& n, const Vector& d) {
+    Element nonzero_divisor = OrReduce(d).back();
+    Element n_negative = n.size() > 0 ? n.back() : Zero();
+    Element d_negative = d.size() > 0 ? d.back() : Zero();
+    DivisionResult result = UDivMod(Abs(n), Abs(d));
+    result.remainder =
+        Select({n_negative}, {result.remainder, Neg(result.remainder)});
+    result.quotient = Select({Xor(n_negative, d_negative)},
+                             {result.quotient, Neg(result.quotient)});
+    // If dividing by zero and n is negative, return largest negative value;
+    // otherwise, return largest positive value.
+    Vector largest_positive = Vector(result.quotient.size(), One());
+    Vector largest_negative = Vector(result.quotient.size(), Zero());
+    if (result.quotient.size() > 0) {
+      largest_positive.back() = Zero();
+      largest_negative.back() = One();
+    }
+    result.quotient =
+        Select({n_negative, nonzero_divisor},
+               {largest_positive, largest_negative}, result.quotient);
+    return result;
+  }
+  Vector SDiv(const Vector& n, const Vector& d) {
+    return SDivMod(n, d).quotient;
+  }
+  Vector SMod(const Vector& n, const Vector& d) {
+    return SDivMod(n, d).remainder;
   }
 
  private:

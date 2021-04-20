@@ -165,9 +165,11 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       return result;
     }
     case Op::kSDiv:
-      return default_handler(node);
+      XLS_RETURN_IF_ERROR(check_operand_count(2));
+      return evaluator->SDiv(operands[0], operands[1]);
     case Op::kSMod:
-      return default_handler(node);
+      XLS_RETURN_IF_ERROR(check_operand_count(2));
+      return evaluator->SMod(operands[0], operands[1]);
     case Op::kSGe:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return Vector(
@@ -225,9 +227,11 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     case Op::kTupleIndex:
       return default_handler(node);
     case Op::kUDiv:
-      return default_handler(node);
+      XLS_RETURN_IF_ERROR(check_operand_count(2));
+      return evaluator->UDiv(operands[0], operands[1]);
     case Op::kUMod:
-      return default_handler(node);
+      XLS_RETURN_IF_ERROR(check_operand_count(2));
+      return evaluator->UMod(operands[0], operands[1]);
     case Op::kUGe:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return Vector(

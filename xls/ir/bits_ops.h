@@ -51,17 +51,19 @@ Bits Sub(const Bits& lhs, const Bits& rhs);
 Bits SMul(const Bits& lhs, const Bits& rhs);
 Bits UMul(const Bits& lhs, const Bits& rhs);
 
-// Performs an (un)signed divide with round toward zero. The width of the lhs
-// and rhs must be equal, and the returned result is the same width as the
-// inputs. For UDiv, if the rhs is zero the result is all ones. For SDiv, if the
-// rhs is zero the result is the maximal positive/negative value depending upon
-// whether the lhs is positive/negative.
+// Performs an (un)signed divide with round toward zero. The rhs and lhs can be
+// different widths, and the returned result is the same width as the left
+// operand. For UDiv, if the rhs is zero the result is all ones. For SDiv, if
+// the rhs is zero the result is the maximal positive/negative value depending
+// upon whether the lhs is positive/negative.
 Bits SDiv(const Bits& lhs, const Bits& rhs);
 Bits UDiv(const Bits& lhs, const Bits& rhs);
 
-// Performs the (un)signed modulus operation. For signed modulus, the sign of
-// the result matches the sign of the left operand. If the right operand is
-// zero, the result is zero for both signed and unsigned modulus.
+// Performs the (un)signed modulus operation. The rhs and lhs can be
+// different widths, and the returned result is the same width as the right
+// operand. For signed modulus, the sign of the result matches the sign of the
+// left operand. If the right operand is zero, the result is zero for both
+// signed and unsigned modulus.
 Bits SMod(const Bits& lhs, const Bits& rhs);
 Bits UMod(const Bits& lhs, const Bits& rhs);
 

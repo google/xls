@@ -253,7 +253,6 @@ Bits UMul(const Bits& lhs, const Bits& rhs) {
 }
 
 Bits UDiv(const Bits& lhs, const Bits& rhs) {
-  XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (rhs.IsZero()) {
     return Bits::AllOnes(lhs.bit_count());
   }
@@ -263,17 +262,15 @@ Bits UDiv(const Bits& lhs, const Bits& rhs) {
 }
 
 Bits UMod(const Bits& lhs, const Bits& rhs) {
-  XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (rhs.IsZero()) {
-    return Bits(lhs.bit_count());
+    return Bits(rhs.bit_count());
   }
   BigInt modulo =
       BigInt::Mod(BigInt::MakeUnsigned(lhs), BigInt::MakeUnsigned(rhs));
-  return ZeroExtend(modulo.ToUnsignedBits(), lhs.bit_count());
+  return ZeroExtend(modulo.ToUnsignedBits(), rhs.bit_count());
 }
 
 Bits SDiv(const Bits& lhs, const Bits& rhs) {
-  XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (rhs.IsZero()) {
     if (lhs.bit_count() == 0) {
       return UBits(0, 0);
@@ -294,12 +291,11 @@ Bits SDiv(const Bits& lhs, const Bits& rhs) {
 }
 
 Bits SMod(const Bits& lhs, const Bits& rhs) {
-  XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (rhs.IsZero()) {
-    return Bits(lhs.bit_count());
+    return Bits(rhs.bit_count());
   }
   BigInt modulo = BigInt::Mod(BigInt::MakeSigned(lhs), BigInt::MakeSigned(rhs));
-  return TruncateOrSignExtend(modulo.ToSignedBits(), lhs.bit_count());
+  return TruncateOrSignExtend(modulo.ToSignedBits(), rhs.bit_count());
 }
 
 bool UEqual(const Bits& lhs, const Bits& rhs) {

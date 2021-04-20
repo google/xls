@@ -938,6 +938,7 @@ cc_test(
     shard_count = 10,
     deps = [
         ":abstract_evaluator",
+        ":big_int",
         ":bits",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
