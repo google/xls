@@ -168,6 +168,19 @@ fn rrot_test() {
   _
 }
 
+// Returns the maximum of two unsigned integers.
+pub fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
+  x if x > y else y
+}
+
+#![test]
+fn umax_test() {
+  let _ = assert_eq(u1:1, umax(u1:1, u1:0));
+  let _ = assert_eq(u1:1, umax(u1:1, u1:1));
+  let _ = assert_eq(u2:3, umax(u2:3, u2:2));
+  ()
+}
+
 // Returns the minimum of two unsigned integers.
 pub fn umin<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
   x if x < y else y
