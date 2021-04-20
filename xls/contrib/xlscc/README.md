@@ -69,12 +69,11 @@ subsequent commands.
 ```console
 
 echo "-D__SYNTHESIS__
--I/path/to/your/xls
--I/path/to/your/ac_types/include
--I/usr/include/clang/10.0.1/include" > clang.args
+-I/path/to/your/xls/contrib/xlscc/synth_only
+-I/path/containing/ac_datatypes" > clang.args
 
 echo "
-#include \"xls/contrib/xlscc/synth_only/xls_int.h\"
+#include \"xls_int.h\"
 
 #pragma hls_top
 XlsInt<22, false> test(XlsInt<17, false> x) {
