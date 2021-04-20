@@ -21,6 +21,7 @@
 
 #include "absl/status/status.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
@@ -110,11 +111,39 @@ Booleanifier::Vector Booleanifier::FlattenValue(const Value& value) {
 }
 
 Booleanifier::Vector Booleanifier::HandleSpecialOps(Node* node) {
-  // Rather than branching out here to handle tuple- and array-related ops, it
-  // might make sense to first apply a "flattening" pass to convert any non-Bits
-  // types to Bits. That seems like a more foolproof way to avoid
-  // missing functional gaps in composite type handling.
   switch (node->op()) {
+    case Op::kArray:
+    case Op::kTuple: {
+      // Array and tuples are held as flat bit/Node arrays.
+      Vector result;
+      for (const Node* operand : node->operands()) {
+        Vector& v = node_map_.at(operand);
+        result.insert(result.end(), v.begin(), v.end());
+      }
+      return result;
+    }
+    case Op::kArrayIndex: {
+      // Remember that an "array" inside booleanified space is just a vector of
+      // bits. SO we need to calculate the start bit of the specified index.
+      Vector result;
+      ArrayIndex* array_index = node->As<ArrayIndex>();
+      const ArrayType* array_type =
+          array_index->array()->GetType()->AsArrayOrDie();
+      int64_t element_width = array_type->element_type()->GetFlatBitCount();
+      Vector& array = node_map_.at(array_index->array());
+
+      // TODO(rspringer): These will be changed to XLS_RETURN_IF_ERROR, etc.,
+      // once I update AbstractEvaluate()'s default_handler callback to return a
+      // StatusOr.
+      XLS_CHECK_EQ(array_index->indices().size(), 1);
+      XLS_CHECK(array_index->indices()[0]->Is<Literal>());
+      Literal* literal = array_index->indices()[0]->As<Literal>();
+      XLS_CHECK(literal->value().IsBits());
+      XLS_CHECK(literal->value().bits().ToUint64().ok());
+      int64_t start_index = literal->value().bits().ToUint64().value();
+      int64_t start_bit = start_index * element_width;
+      return evaluator_->BitSlice(array, start_bit, element_width);
+    }
     case Op::kLiteral: {
       Vector result;
       Literal* literal = node->As<Literal>();
@@ -126,15 +155,6 @@ Booleanifier::Vector Booleanifier::HandleSpecialOps(Node* node) {
       // 1-bit items.
       Param* param = node->As<Param>();
       return UnpackParam(param->GetType(), params_.at(param->name()));
-    }
-    case Op::kTuple: {
-      // Tuples (like arrays) become flat bit/Node arrays.
-      Vector result;
-      for (const Node* operand : node->operands()) {
-        Vector& v = node_map_.at(operand);
-        result.insert(result.end(), v.begin(), v.end());
-      }
-      return result;
     }
     case Op::kTupleIndex: {
       // Tuples are flat vectors, so we just need to extract the right
@@ -166,6 +186,18 @@ Booleanifier::Vector Booleanifier::UnpackParam(Type* type, BValue bv_node) {
       }
       return result;
     }
+    case TypeKind::kArray: {
+      Vector result;
+      ArrayType* array_type = type->AsArrayOrDie();
+      for (int i = 0; i < array_type->size(); i++) {
+        std::vector<BValue> indices = {
+            builder_.Literal(UBits(i, CeilOfLog2(array_type->size())))};
+        BValue array_index = builder_.ArrayIndex(bv_node, indices);
+        Vector element = UnpackParam(array_type->element_type(), array_index);
+        result.insert(result.end(), element.begin(), element.end());
+      }
+      return result;
+    }
     case TypeKind::kTuple: {
       Vector result;
       TupleType* tuple_type = type->AsTupleOrDie();
@@ -194,6 +226,19 @@ BValue Booleanifier::PackReturnValue(absl::Span<const Element> bits,
       // Need to reverse to match IR/Verilog Concat semantics.
       std::reverse(result.begin(), result.end());
       return builder_.Concat(result);
+    }
+    case TypeKind::kArray: {
+      const ArrayType* array_type = type->AsArrayOrDie();
+      Type* element_type = array_type->element_type();
+      std::vector<BValue> elements;
+      int64_t offset = 0;
+      for (int i = 0; i < array_type->size(); i++) {
+        absl::Span<const Element> element =
+            bits.subspan(offset, element_type->GetFlatBitCount());
+        elements.push_back(PackReturnValue(element, element_type));
+        offset += element_type->GetFlatBitCount();
+      }
+      return builder_.Array(elements, element_type);
     }
     case TypeKind::kTuple: {
       const TupleType* tuple_type = type->AsTupleOrDie();
