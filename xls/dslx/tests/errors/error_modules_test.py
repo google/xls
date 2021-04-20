@@ -228,6 +228,16 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn("Cannot use '::' on 'F32', it is not an enum or module",
                   stderr)
 
+  def test_cast_int_to_struct(self):
+    stderr = self._run('xls/dslx/tests/errors/cast_int_to_struct.x')
+    self.assertIn("Cannot cast from expression type uN[32] to struct 'S'",
+                  stderr)
+
+  def test_cast_struct_to_int(self):
+    stderr = self._run('xls/dslx/tests/errors/cast_struct_to_int.x')
+    self.assertIn("Cannot cast from expression type struct 'S' to uN[32]",
+                  stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

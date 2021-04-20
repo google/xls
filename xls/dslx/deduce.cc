@@ -485,8 +485,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(For* node,
   return init_type;
 }
 
-// TODO(leary): 2020-12-02 Seems like acceptable casts should be much more
-// restrictive than this...
+// Returns true if the cast-conversion from "from" to "to" is acceptable (i.e.
+// should not cause a type error to occur).
 static bool IsAcceptableCast(const ConcreteType& from, const ConcreteType& to) {
   auto is_array = [](const ConcreteType& ct) -> bool {
     return dynamic_cast<const ArrayType*>(&ct) != nullptr;
@@ -494,10 +494,19 @@ static bool IsAcceptableCast(const ConcreteType& from, const ConcreteType& to) {
   auto is_bits = [](const ConcreteType& ct) -> bool {
     return dynamic_cast<const BitsType*>(&ct) != nullptr;
   };
+  auto is_enum = [](const ConcreteType& ct) -> bool {
+    return dynamic_cast<const EnumType*>(&ct) != nullptr;
+  };
   if ((is_array(from) && is_bits(to)) || (is_bits(from) && is_array(to))) {
     return from.GetTotalBitCount() == to.GetTotalBitCount();
   }
-  return true;
+  if ((is_bits(from) || is_enum(from)) && is_bits(to)) {
+    return true;
+  }
+  if (is_bits(from) && is_enum(to)) {
+    return true;
+  }
+  return false;
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCast(Cast* node,
@@ -511,7 +520,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCast(Cast* node,
     return XlsTypeErrorStatus(
         node->span(), *expr, *type,
         absl::StrFormat("Cannot cast from expression type %s to %s.",
-                        expr->ToString(), type->ToString()));
+                        expr->ToErrorString(), type->ToErrorString()));
   }
   return type;
 }

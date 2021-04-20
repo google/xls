@@ -167,6 +167,9 @@ class ConcreteType {
   virtual std::string ToString() const = 0;
   virtual std::string ToRepr() const { return ToString(); }
 
+  // Variation on `ToString()` to be used in user-facing error reporting.
+  virtual std::string ToErrorString() const { return ToString(); }
+
   // Returns whether this type contains an enum type (transitively).
   virtual bool HasEnum() const = 0;
 
@@ -267,6 +270,10 @@ class TupleType : public ConcreteType {
   std::vector<ConcreteTypeDim> GetAllDims() const override;
   absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override;
   std::string GetDebugTypeName() const override { return "tuple"; }
+
+  // For user-level error reporting, we also note the name of the struct
+  // definition if one is available.
+  std::string ToErrorString() const override;
 
   bool HasEnum() const override;
 

@@ -376,6 +376,13 @@ std::string TupleType::ToString() const {
   return absl::StrCat("(", guts, ")");
 }
 
+std::string TupleType::ToErrorString() const {
+  if (StructDef* struct_type = nominal_type()) {
+    return absl::StrFormat("struct '%s'", struct_type->identifier());
+  }
+  return ToString();
+}
+
 std::vector<ConcreteTypeDim> TupleType::GetAllDims() const {
   std::vector<ConcreteTypeDim> results;
   for (const ConcreteType* t : GetUnnamedMembers()) {
