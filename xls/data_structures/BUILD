@@ -20,18 +20,22 @@ package(
 )
 
 cc_library(
-    name = "union_find",
-    hdrs = ["union_find.h"],
+    name = "union_find_map",
+    hdrs = ["union_find_map.h"],
     deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/types:optional",
     ],
 )
 
 cc_test(
-    name = "union_find_test",
-    srcs = ["union_find_test.cc"],
+    name = "union_find_map_test",
+    srcs = ["union_find_map_test.cc"],
     deps = [
-        ":union_find",
-        "@com_google_absl//absl/memory",
+        ":union_find_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/types:optional",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],

@@ -17,7 +17,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
-#include "xls/data_structures/union_find.h"
+#include "xls/data_structures/union_find_map.h"
 
 namespace xls {
 namespace netlist {
@@ -41,31 +41,26 @@ void Cluster::SortCells() {
 
 std::vector<Cluster> FindLogicClouds(const Module& module,
                                      bool include_vacuous) {
-  // We need stable pointers for the UnionFind nodes because they hold raw
-  // pointers to each other.
-  absl::flat_hash_map<Cell*, std::unique_ptr<UnionFind<absl::monostate>>>
-      cell_to_uf;
+  UnionFindMap<Cell*, absl::monostate> cell_to_uf;
 
-  // Gets-or-creates a UnionFind node for cell c.
-  auto get_uf = [&cell_to_uf](Cell* c) -> UnionFind<absl::monostate>* {
-    auto it = cell_to_uf.find(c);
-    if (it == cell_to_uf.end()) {
-      auto value = absl::make_unique<UnionFind<absl::monostate>>();
-      auto* ptr = value.get();
-      cell_to_uf[c] = std::move(value);
-      return ptr;
+  auto merge_monostate = [](absl::monostate x, absl::monostate y) {
+    return absl::monostate();
+  };
+
+  // Gets-or-adds the given cell to the UnionFindMap
+  auto get_uf = [&cell_to_uf](Cell* c) -> Cell* {
+    if (auto pair = cell_to_uf.Find(c)) {
+      return pair->first;
+    } else {
+      cell_to_uf.Insert(c, absl::monostate());
+      return c;
     }
-    return it->second.get();
   };
 
   // Helper for debugging that counts the number of equivalence classes in
   // cell_to_uf.
   auto count_equivalence_classes = [&cell_to_uf]() -> int64_t {
-    absl::flat_hash_set<UnionFind<absl::monostate>*> classes;
-    for (auto& item : cell_to_uf) {
-      classes.insert(item.second->FindRoot());
-    }
-    return classes.size();
+    return cell_to_uf.GetRepresentatives().size();
   };
 
   for (auto& item : module.cells()) {
@@ -79,7 +74,7 @@ std::vector<Cluster> FindLogicClouds(const Module& module,
       // map, in case it doesn't have any cells on the input side.
       (void)get_uf(cell);
       XLS_VLOG(4) << "--- Now " << count_equivalence_classes()
-                  << " equivalence classes for " << cell_to_uf.size()
+                  << " equivalence classes for " << cell_to_uf.GetKeys().size()
                   << " cells.";
       continue;
     }
@@ -99,10 +94,10 @@ std::vector<Cluster> FindLogicClouds(const Module& module,
         }
         XLS_VLOG(4) << absl::StreamFormat("-- Cell %s is connected to cell %s",
                                           cell->name(), connected->name());
-        get_uf(cell)->Merge(get_uf(connected));
+        cell_to_uf.Union(get_uf(cell), get_uf(connected), merge_monostate);
         XLS_VLOG(4) << "--- Now " << count_equivalence_classes()
-                    << " equivalence classes for " << cell_to_uf.size()
-                    << " cells.";
+                    << " equivalence classes for "
+                    << cell_to_uf.GetKeys().size() << " cells.";
       }
     }
 
@@ -115,22 +110,20 @@ std::vector<Cluster> FindLogicClouds(const Module& module,
         }
         XLS_VLOG(4) << absl::StreamFormat("-- Cell %s is connected to cell %s",
                                           cell->name(), connected->name());
-        get_uf(cell)->Merge(get_uf(connected));
+        cell_to_uf.Union(get_uf(cell), get_uf(connected), merge_monostate);
         XLS_VLOG(4) << "--- Now " << count_equivalence_classes()
-                    << " equivalence classes for " << cell_to_uf.size()
-                    << " cells.";
+                    << " equivalence classes for "
+                    << cell_to_uf.GetKeys().size() << " cells.";
       }
     }
   }
 
   // Run through the cells and put them into clusters according to their
   // equivalence classes.
-  absl::flat_hash_map<UnionFind<absl::monostate>*, Cluster>
-      equivalence_set_to_cluster;
+  absl::flat_hash_map<Cell*, Cluster> equivalence_set_to_cluster;
   for (auto& item : module.cells()) {
     Cell* cell = item.get();
-    UnionFind<absl::monostate>* equivalence_class = get_uf(cell)->FindRoot();
-    equivalence_set_to_cluster[equivalence_class].Add(cell);
+    equivalence_set_to_cluster[get_uf(cell)].Add(cell);
   }
 
   // Put them into a vector and sort each cluster's internal cells for

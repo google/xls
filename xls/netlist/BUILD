@@ -205,7 +205,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
-        "//xls/data_structures:union_find",
+        "//xls/data_structures:union_find_map",
     ],
 )
 
