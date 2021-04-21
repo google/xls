@@ -42,6 +42,23 @@ xls_py_proto_library(
     internal_deps = [":hls_block_proto"],
 )
 
+proto_library(
+    name = "metadata_output_proto",
+    srcs = ["metadata_output.proto"],
+    features = ["-proto_dynamic_mode_static_link"],
+)
+
+cc_proto_library(
+    name = "metadata_output_cc_proto",
+    deps = [":metadata_output_proto"],
+)
+
+xls_py_proto_library(
+    name = "metadata_output_py_pb2",
+    srcs = ["metadata_output.proto"],
+    internal_deps = [":metadat_oautput_proto"],
+)
+
 cc_library(
     name = "unit_test",
     testonly = 1,
@@ -74,6 +91,7 @@ cc_library(
     hdrs = ["translator.h"],
     deps = [
         ":hls_block_cc_proto",
+        ":metadata_output_cc_proto",
         "//xls/common:thread",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
@@ -115,6 +133,7 @@ cc_test(
     name = "translator_test",
     srcs = ["translator_test.cc"],
     deps = [
+        ":metadata_output_cc_proto",
         ":translator",
         ":unit_test",
         "//xls/codegen:combinational_generator",
@@ -132,6 +151,7 @@ cc_test(
         "//xls/ir:value",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
@@ -141,6 +161,7 @@ cc_binary(
     visibility = ["//xls:xls_users"],
     deps = [
         ":hls_block_cc_proto",
+        ":metadata_output_cc_proto",
         ":translator",
         "//xls/codegen:combinational_generator",
         "//xls/common:init_xls",

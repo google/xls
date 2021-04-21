@@ -64,6 +64,7 @@
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/fileno.h"
@@ -121,12 +122,23 @@ xls::Type* CType::GetXLSType(xls::Package* /*package*/) const {
 
 bool CType::StoredAsXLSBits() const { return false; }
 
+absl::Status CType::GetMetadata(xlscc_metadata::Type* output) const {
+  return absl::UnimplementedError(
+      "GetMetadata unsupported in CType base class");
+}
+
 CVoidType::~CVoidType() {}
 
 int CVoidType::GetBitWidth() const {
   XLS_CHECK(false);
   return 0;
 }
+
+absl::Status CVoidType::GetMetadata(xlscc_metadata::Type* output) const {
+  (void)output->mutable_as_void();
+  return absl::OkStatus();
+}
+
 CVoidType::operator std::string() const { return "void"; }
 
 bool CVoidType::operator==(const CType& o) const {
@@ -142,6 +154,11 @@ int CBitsType::GetBitWidth() const { return width_; }
 
 CBitsType::operator std::string() const {
   return absl::StrFormat("bits[%d]", width_);
+}
+
+absl::Status CBitsType::GetMetadata(xlscc_metadata::Type* output) const {
+  output->mutable_as_bits()->set_width(width_);
+  return absl::OkStatus();
 }
 
 bool CBitsType::StoredAsXLSBits() const { return true; }
@@ -190,11 +207,22 @@ CIntType::operator std::string() const {
   }
 }
 
+absl::Status CIntType::GetMetadata(xlscc_metadata::Type* output) const {
+  output->mutable_as_int()->set_width(width_);
+  output->mutable_as_int()->set_is_signed(is_signed_);
+  return absl::OkStatus();
+}
+
 CBoolType::~CBoolType() {}
 
 int CBoolType::GetBitWidth() const { return 1; }
 
 CBoolType::operator std::string() const { return "bool"; }
+
+absl::Status CBoolType::GetMetadata(xlscc_metadata::Type* output) const {
+  (void)output->mutable_as_bool();
+  return absl::OkStatus();
+}
 
 bool CBoolType::operator==(const CType& o) const {
   const auto* o_derived = dynamic_cast<const CBoolType*>(&o);
@@ -209,6 +237,16 @@ const clang::NamedDecl* CInstantiableTypeAlias::base() const { return base_; }
 
 CInstantiableTypeAlias::operator std::string() const {
   return absl::StrFormat("{%s}", base_->getNameAsString());
+}
+
+absl::Status CInstantiableTypeAlias::GetMetadata(
+    xlscc_metadata::Type* output) const {
+  output->mutable_as_inst()->mutable_name()->set_name(base_->getNameAsString());
+  output->mutable_as_inst()->mutable_name()->set_fully_qualified_name(
+      base_->getQualifiedNameAsString());
+  output->mutable_as_inst()->mutable_name()->set_id(
+      reinterpret_cast<uint64_t>(base_));
+  return absl::OkStatus();
 }
 
 int CInstantiableTypeAlias::GetBitWidth() const {
@@ -232,6 +270,28 @@ CStructType::CStructType(std::vector<std::shared_ptr<CField>> fields,
     XLS_CHECK(!fields_by_name_.contains(pf->name()));
     fields_by_name_[pf->name()] = pf;
   }
+}
+
+absl::Status CStructType::GetMetadata(xlscc_metadata::Type* output) const {
+  output->mutable_as_struct()->set_no_tuple(no_tuple_flag_);
+
+  absl::flat_hash_map<
+      int, std::pair<const clang::NamedDecl*, std::shared_ptr<CField>>>
+      fields_by_index;
+
+  for (std::pair<const clang::NamedDecl*, std::shared_ptr<CField>> field :
+       fields_by_name_) {
+    fields_by_index[field.second->index()] = field;
+  }
+
+  for (int i = 0; i < fields_by_name_.size(); ++i) {
+    std::pair<const clang::NamedDecl*, std::shared_ptr<CField>> field =
+        fields_by_index[i];
+    XLS_RETURN_IF_ERROR(
+        field.second->GetMetadata(output->mutable_as_struct()->add_fields()));
+  }
+
+  return absl::OkStatus();
 }
 
 bool CStructType::no_tuple_flag() const { return no_tuple_flag_; }
@@ -302,12 +362,25 @@ int CArrayType::GetBitWidth() const {
   return 0;
 }
 
+absl::Status CField::GetMetadata(xlscc_metadata::StructField* output) const {
+  output->set_name(name_->getNameAsString());
+  XLS_RETURN_IF_ERROR(type_->GetMetadata(output->mutable_type()));
+  return absl::OkStatus();
+}
+
 int CArrayType::GetSize() const { return size_; }
 
 std::shared_ptr<CType> CArrayType::GetElementType() const { return element_; }
 
 CArrayType::operator std::string() const {
   return absl::StrFormat("%s[%i]", string(*element_), size_);
+}
+
+absl::Status CArrayType::GetMetadata(xlscc_metadata::Type* output) const {
+  output->mutable_as_array()->set_size(size_);
+  XLS_RETURN_IF_ERROR(element_->GetMetadata(
+      output->mutable_as_array()->mutable_element_type()));
+  return absl::OkStatus();
 }
 
 Translator::Translator(int max_unroll_iters)
@@ -3822,6 +3895,68 @@ absl::Status Translator::InlineAllInvokes(xls::Package* package) {
 
   XLS_RETURN_IF_ERROR(pipeline->Run(package, options, &results).status());
   return absl::OkStatus();
+}
+
+absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
+  if (!top_function_) {
+    return absl::NotFoundError("No top function found");
+  }
+
+  xlscc_metadata::MetadataOutput ret;
+
+  // Top function proto
+  ret.mutable_top_func_proto()->mutable_name()->set_name(
+      top_function_->getNameAsString());
+  ret.mutable_top_func_proto()->mutable_name()->set_fully_qualified_name(
+      top_function_->getQualifiedNameAsString());
+  ret.mutable_top_func_proto()->mutable_name()->set_id(
+      reinterpret_cast<uint64_t>(
+          dynamic_cast<const clang::NamedDecl*>(top_function_)));
+
+  XLS_RETURN_IF_ERROR(GenerateMetadataType(
+      top_function_->getReturnType(),
+      ret.mutable_top_func_proto()->mutable_return_type()));
+
+  for (int pi = 0; pi < top_function_->getNumParams(); ++pi) {
+    const clang::ParmVarDecl* p = top_function_->getParamDecl(pi);
+    xlscc_metadata::FunctionParameter* proto_param =
+        ret.mutable_top_func_proto()->add_params();
+    proto_param->set_name(p->getNameAsString());
+
+    XLS_ASSIGN_OR_RETURN(StrippedType stripped,
+                         StripTypeQualifiers(p->getType()));
+
+    XLS_RETURN_IF_ERROR(
+        GenerateMetadataType(stripped.base, proto_param->mutable_type()));
+
+    proto_param->set_is_reference(stripped.is_ref);
+    proto_param->set_is_const(stripped.base.isConstQualified());
+  }
+
+  // Struct types
+  for (std::pair<std::shared_ptr<CInstantiableTypeAlias>,
+                 std::shared_ptr<CType>>
+           type : inst_types_) {
+    auto ctype_as_struct =
+        clang_down_cast<const CStructType*>(type.second.get());
+    if (ctype_as_struct == nullptr) {
+      continue;
+    }
+
+    xlscc_metadata::Type* struct_out = ret.add_structs();
+    XLS_RETURN_IF_ERROR(type.first->GetMetadata(
+        struct_out->mutable_as_struct()->mutable_name()));
+    XLS_RETURN_IF_ERROR(ctype_as_struct->GetMetadata(struct_out));
+  }
+
+  return ret;
+}
+
+absl::Status Translator::GenerateMetadataType(const clang::QualType& type_in,
+                                              xlscc_metadata::Type* type_out) {
+  XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
+                       TranslateTypeFromClang(type_in, xls::SourceLocation()));
+  return ctype->GetMetadata(type_out);
 }
 
 absl::StatusOr<xls::BValue> Translator::GenTypeConvert(

@@ -34,6 +34,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
+#include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/passes/standard_pipeline.h"
 
@@ -62,6 +63,9 @@ ABSL_FLAG(std::string, package, "", "Package name to generate");
 
 ABSL_FLAG(std::string, clang_args_file, "",
           "File containing on each line one command line argument for clang");
+
+ABSL_FLAG(std::string, meta_out, "",
+          "Path at which to output metadata protobuf");
 
 namespace xlscc {
 
@@ -162,6 +166,20 @@ absl::Status Run(absl::string_view cpp_path) {
             proc, channel_gen_types, false /*UseSystemVerilog*/));
 
     std::cout << result.verilog_text << std::endl;
+  }
+
+  const std::string metadata_out_path = absl::GetFlag(FLAGS_meta_out);
+  if (!metadata_out_path.empty()) {
+    XLS_ASSIGN_OR_RETURN(xlscc_metadata::MetadataOutput meta,
+                         translator.GenerateMetadata());
+    std::ofstream ostr(metadata_out_path);
+    if (!ostr.good()) {
+      return absl::NotFoundError(absl::StrFormat(
+          "Couldn't open metadata output path: %s", metadata_out_path));
+    }
+    if (!meta.SerializeToOstream(&ostr)) {
+      return absl::UnknownError("Error writing metadata proto");
+    }
   }
 
   return absl::OkStatus();

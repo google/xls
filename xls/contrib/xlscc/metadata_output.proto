@@ -1,0 +1,107 @@
+// Copyright 2021 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto2";
+
+package xlscc_metadata;
+
+// Top level message outputted from XLS[cc]
+message MetadataOutput {
+  // All struct types encountered in compilation
+  repeated Type structs = 1;
+  // Top function's prototype, for example, the function
+  // #pragma hls_top was specified for
+  optional FunctionPrototype top_func_proto = 2;
+}
+
+// Represents a parameter to a function
+message FunctionParameter {
+  optional string name = 1;
+  optional Type type = 2;
+  optional bool is_reference = 3;
+  optional bool is_const = 4;
+}
+
+// Represents the prototype / interface of a function
+message FunctionPrototype {
+  optional CPPName name = 1;
+  optional Type return_type = 2;
+  repeated FunctionParameter params = 3;
+}
+
+// The name of a C++ symbol / object.
+// "id" should be used to correlate these, for example to look up
+//  a struct type function parameter.
+message CPPName {
+  optional string name = 1;
+  // Full C++ name, like "Foo::Bar"
+  optional string fully_qualified_name = 2;
+  // Unique ID
+  optional uint64 id = 3;
+}
+
+// Placeholder for void
+message VoidType {}
+
+// __xls_bits built-in type
+message BitsType {
+  optional int32 width = 1;
+}
+
+// Any integral type: char, short, int, long
+message IntType {
+  optional int32 width = 1;
+  optional bool is_signed = 2;
+}
+
+// Placeholder for bool
+message BoolType {}
+
+// Represents an instantiation of a non-built-in type. Most commonly,
+//  this is an instance of a struct.
+message InstanceType {
+  optional CPPName name = 1;
+}
+
+// Fixed-length array type
+message ArrayType {
+  optional Type element_type = 1;
+  optional int32 size = 2;
+}
+
+// Generic type
+message Type {
+  optional VoidType as_void = 1;
+  optional BitsType as_bits = 2;
+  optional IntType as_int = 3;
+  optional BoolType as_bool = 4;
+  optional InstanceType as_inst = 5;
+  optional ArrayType as_array = 6;
+  optional StructType as_struct = 7;
+}
+
+// A field in a structure
+message StructField {
+  optional string name = 1;
+  optional Type type = 2;
+}
+
+//
+message StructType {
+  // name() Type is always an InstanceType, that is, it has as_inst() valid
+  optional Type name = 1;
+  repeated StructField fields = 2;
+  // Whether or not #pragma hls_no_tuple was specified in the struct declaration
+  optional bool no_tuple = 3;
+}
