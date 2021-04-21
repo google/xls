@@ -176,14 +176,11 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
           {evaluator->Not(evaluator->SLessThan(operands[0], operands[1]))});
     case Op::kSGt:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
-      return Vector({evaluator->And(
-          evaluator->Not(evaluator->SLessThan(operands[0], operands[1])),
-          evaluator->Not(evaluator->Equals(operands[0], operands[1])))});
+      return Vector({evaluator->SLessThan(operands[1], operands[0])});
     case Op::kSLe:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return Vector(
-          {evaluator->Or(evaluator->Equals(operands[0], operands[1]),
-                         evaluator->SLessThan(operands[0], operands[1]))});
+          {evaluator->Not(evaluator->SLessThan(operands[1], operands[0]))});
     case Op::kSLt:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return Vector({evaluator->SLessThan(operands[0], operands[1])});
