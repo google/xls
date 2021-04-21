@@ -354,3 +354,225 @@ ir_equivalence_test = rule(
     attrs = _ir_equivalence_test_attrs,
     test = True,
 )
+
+def _ir_eval_test_impl(ctx):
+    """The implementation of the 'ir_eval_test' rule.
+
+    Executes the IR Interpreter on an IR file.
+
+    Args:
+      ctx: The current rule's context object.
+    Returns:
+      DefaultInfo provider
+    """
+    ir_eval_args = ctx.attr.ir_eval_args
+    IR_EVAL_FLAGS = (
+        "entry",
+        "input",
+        "input_file",
+        "random_inputs",
+        "expected",
+        "expected_file",
+        "optimize_ir",
+        "eval_after_each_pass",
+        "use_llvm_jit",
+        "test_llvm_jit",
+        "llvm_opt_level",
+        "test_only_inject_jit_result",
+    )
+    src = ctx.file.src
+    my_args = ""
+    for flag_name in ir_eval_args:
+        if flag_name in IR_EVAL_FLAGS:
+            my_args += " --%s=%s" % (flag_name, ir_eval_args[flag_name])
+        else:
+            fail("Unrecognized argument: %s." % flag_name)
+
+    executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
+    ctx.actions.write(
+        output = executable_file,
+        content = "\n".join([
+            "#!/bin/bash",
+            "set -e",
+            "{} {} {}".format(
+                ctx.executable._ir_eval_tool.short_path,
+                src.short_path,
+                my_args,
+            ),
+            "exit 0",
+        ]),
+        is_executable = True,
+    )
+
+    runfiles = [src, ctx.executable._ir_eval_tool]
+
+    return [
+        DefaultInfo(
+            runfiles = ctx.runfiles(files = runfiles),
+            files = depset([executable_file]),
+            executable = executable_file,
+        ),
+    ]
+
+_ir_eval_test_attrs = {
+    "src": attr.label(
+        doc = "The IR source file for the rule. A single source file must be " +
+              "provided. The file must have a '.ir' extension.",
+        mandatory = True,
+        allow_single_file = [".ir"],
+    ),
+    "ir_eval_args": attr.string_dict(
+        doc = "Arguments of the IR interpreter.",
+        default = {
+            "random_inputs": "100",
+            "optimize_ir": "true",
+        },
+    ),
+    "_ir_eval_tool": attr.label(
+        doc = "The target of the IR interpreter executable.",
+        default = Label("//xls/tools:eval_ir_main"),
+        allow_single_file = True,
+        executable = True,
+        cfg = "exec",
+    ),
+}
+
+ir_eval_test = rule(
+    doc = """A IR evaluation test executes the IR interpreter on an IR file.
+
+        Example:
+
+         1) A file as the source.
+
+        ```
+            ir_eval_test(
+                name = "a_test",
+                src = "a.ir",
+            )
+        ```
+
+        2) An ir_opt target as the source.
+
+        ```
+            ir_opt(
+                name = "a",
+                src = "a.x",
+            )
+
+
+            ir_eval_test(
+                name = "a_test",
+                src = ":a",
+            )
+        ```
+    """,
+    implementation = _ir_eval_test_impl,
+    attrs = _ir_eval_test_attrs,
+    test = True,
+)
+
+def _ir_benchmark_impl(ctx):
+    """The implementation of the 'ir_benchmark' rule.
+
+    Executes the benchmark tool on an IR file.
+
+    Args:
+      ctx: The current rule's context object.
+    Returns:
+      DefaultInfo provider
+    """
+    benchmark_args = ctx.attr.benchmark_args
+    BENCHMARK_FLAGS = (
+        "clock_period_ps",
+        "pipeline_stages",
+        "clock_margin_percent",
+        "show_known_bits",
+        "entry",
+        "delay_model",
+    )
+    src = ctx.file.src
+    my_args = ""
+    for flag_name in benchmark_args:
+        if flag_name in BENCHMARK_FLAGS:
+            my_args += " --%s=%s" % (flag_name, benchmark_args[flag_name])
+        else:
+            fail("Unrecognized argument: %s." % flag_name)
+
+    executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
+    ctx.actions.write(
+        output = executable_file,
+        content = "\n".join([
+            "#!/bin/bash",
+            "set -e",
+            "{} {} {}".format(
+                ctx.executable._benchmark_tool.short_path,
+                src.short_path,
+                my_args,
+            ),
+            "exit 0",
+        ]),
+        is_executable = True,
+    )
+
+    runfiles = [src, ctx.executable._benchmark_tool]
+
+    return [
+        DefaultInfo(
+            runfiles = ctx.runfiles(files = runfiles),
+            files = depset([executable_file]),
+            executable = executable_file,
+        ),
+    ]
+
+_ir_benchmark_attrs = {
+    "src": attr.label(
+        doc = "The IR source file for the rule. A single source file must be " +
+              "provided. The file must have a '.ir' extension.",
+        mandatory = True,
+        allow_single_file = [".ir"],
+    ),
+    "benchmark_args": attr.string_dict(
+        doc = "Arguments of the benchmark tool.",
+    ),
+    "_benchmark_tool": attr.label(
+        doc = "The target of the benchmark executable.",
+        default = Label("//xls/tools:benchmark_main"),
+        allow_single_file = True,
+        executable = True,
+        cfg = "exec",
+    ),
+}
+
+ir_benchmark = rule(
+    doc = """A IR benchmark executes the benchmark tool on an IR file.
+
+        Example:
+
+         1) A file as the source.
+
+        ```
+            ir_benchmark(
+                name = "a_benchmark",
+                src = "a.ir",
+            )
+        ```
+
+        2) An ir_opt target as the source.
+
+        ```
+            ir_opt(
+                name = "a",
+                src = "a.x",
+            )
+
+
+            ir_benchmark(
+                name = "a_benchmark",
+                src = ":a",
+            )
+        ```
+    """,
+    implementation = _ir_benchmark_impl,
+    attrs = _ir_benchmark_attrs,
+    executable = True,
+)

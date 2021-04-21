@@ -14,7 +14,7 @@
 
 load("//xls/build_rules:build_defs.bzl", "dslx_generated_rtl", "dslx_test")
 load("//xls/build_rules:xls_dslx_rules.bzl", "dslx_library", dslx_ng_test = "dslx_test")
-load("//xls/build_rules:xls_ir_rules.bzl", "dslx_to_ir", "ir_equivalence_test", "ir_opt")
+load("//xls/build_rules:xls_ir_rules.bzl", "dslx_to_ir", "ir_benchmark", "ir_equivalence_test", "ir_eval_test", "ir_opt")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -182,4 +182,19 @@ ir_equivalence_test(
     entry = "__a__a",
     src_0 = ":a_dslx_to_ir",
     src_1 = ":a_ir_opt",
+)
+
+# ir_eval_test target with a target as a source.
+ir_eval_test(
+    name = "a_eval_test",
+    src = ":a_dslx_to_ir",
+)
+
+# ir_benchmark target with a target as a source.
+ir_benchmark(
+    name = "a_benchmark",
+    src = ":a_dslx_to_ir",
+    benchmark_args = {
+        "entry": "__a__a",
+    },
 )
