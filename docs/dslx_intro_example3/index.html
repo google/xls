@@ -994,12 +994,12 @@ input and produces an output of the same size. Each element in the output
 contains the count of duplicate values seen so far in the input. The counter
 resets to 0 if a new value is found.</p>
 <p>For example, for this input:</p>
-<pre><code>  let input = bits[8,32]:[0, 0, 0, 0, 0, 0, 0, 0]
-</code></pre>
+<div class="highlight"><pre><span></span><code>  let input = bits[8,32]:[0, 0, 0, 0, 0, 0, 0, 0]
+</code></pre></div>
 
 <p>the code should produce this output:</p>
-<pre><code>  bits[8,3]:[0, 1, 2, 3, 4, 5, 6, 7])
-</code></pre>
+<div class="highlight"><pre><span></span><code>  bits[8,3]:[0, 1, 2, 3, 4, 5, 6, 7])
+</code></pre></div>
 
 <p>At index 0 it has not yet found any value, so it assigns a counter value of <code>0</code>.</p>
 <p>At index 1 it finds the second occurrence of the value '0' (which is the 1st
@@ -1007,12 +1007,12 @@ duplicate) and therefore adds a 1 to the counter from index 0.</p>
 <p>At index 2 it finds the third occurrence of the value '0' (which is the 2nd
 duplicate) and therefore adds a 1 to the counter from index 1. And so on.</p>
 <p>Correspondingly, for this input:</p>
-<pre><code>  let input = bits[8,32]:[0, 0, 1, 1, 2, 2, 3, 3]
-</code></pre>
+<div class="highlight"><pre><span></span><code>  let input = bits[8,32]:[0, 0, 1, 1, 2, 2, 3, 3]
+</code></pre></div>
 
 <p>it should produce:</p>
-<pre><code>  assert_eq(result, bits[8,3]:[0, 1, 0, 1, 0, 1, 0, 1])
-</code></pre>
+<div class="highlight"><pre><span></span><code>  assert_eq(result, bits[8,3]:[0, 1, 0, 1, 0, 1, 0, 1])
+</code></pre></div>
 
 <p>The full listing is in <code>examples/dslx_intro/prefix_scan_equality.x</code>.</p>
 <h3 id="function-prefix_scan_eq">Function prefix_scan_eq</h3>
@@ -1020,14 +1020,14 @@ duplicate) and therefore adds a 1 to the counter from index 1. And so on.</p>
 <p>The function prototype is straigt-forward. Input is an array of 8 values of type
 <code>u32</code>. Output is an array of size 8 holding 3-bit values (the maximum resulting
 count can only be 7, which fits in 3 bits).</p>
-<pre><code>fn prefix_scan_eq(x: u32[8]) -&gt; bits[8,3] {
-</code></pre>
+<div class="highlight"><pre><span></span><code>fn prefix_scan_eq(x: u32[8]) -&gt; bits[8,3] {
+</code></pre></div>
 
 <p>The first let expression produces a tuple of 3 values. It only cares about the
 last value <code>result</code>, so it stubs out the other two elements via the 'ignore'
 placeholder <code>_</code>.</p>
-<pre><code>  let (_, _, result) =
-</code></pre>
+<div class="highlight"><pre><span></span><code>  let (_, _, result) =
+</code></pre></div>
 
 <p>Why a 3-Tuple? Because he following loop has tuple of three values as the
 accumulator. The return type of the loop is the type of the accumulator, so
@@ -1035,9 +1035,9 @@ above let needs to be of the same type.</p>
 <h4 id="enumerated-loop">Enumerated Loop</h4>
 <p>Using tuples as the accumulator is a convenient way to model multiple
 loop-carried values:</p>
-<pre><code>    for ((i, elem), (prior, count, result)): ((u32, u32), (u32, u3, bits[8,3]))
+<div class="highlight"><pre><span></span><code>    for ((i, elem), (prior, count, result)): ((u32, u32), (u32, u3, bits[8,3]))
           in enumerate(x) {
-</code></pre>
+</code></pre></div>
 
 <p>The iterable of this loop is <code>enumerate(x)</code>. On each iteration, this construct
 delivers a tuple consisting of current index and current element. This is
@@ -1055,8 +1055,8 @@ members of the tuple and will only return the <code>result</code> part.</p>
 <p>The next expression is an interesting <code>match</code> expression. The let expression
 binds the tuple <code>(to_place, new_count): (u3, u3)</code> to the result of the following
 match expression:</p>
-<pre><code>let (to_place, new_count): (u3, u3) = match (i == u32:0, prior == elem) {
-</code></pre>
+<div class="highlight"><pre><span></span><code>let (to_place, new_count): (u3, u3) = match (i == u32:0, prior == elem) {
+</code></pre></div>
 
 <p><code>to_place</code> will hold the value that is to be written at a given index.
 <code>new_count</code> will contain the updated counter value.</p>
@@ -1067,7 +1067,7 @@ match expression:</p>
 </ul>
 <p>Two tests mean there are four possible cases, which are all handled in the
 following four cases:</p>
-<pre><code>      // i == 0 (no matter whether prior == elem or not):
+<div class="highlight"><pre><span></span><code>      // i == 0 (no matter whether prior == elem or not):
       //    we set position 0 to 0 and update the new_counter to 1
       (true, true) =&gt; (u3:0, u3:1),
       (true, false) =&gt; (u3:0, u3:1),
@@ -1082,18 +1082,18 @@ following four cases:</p>
       //     set new_counter back to 1
       (false, false) =&gt; (u3:0, u3:1),
     };
-</code></pre>
+</code></pre></div>
 
 <p>To update the result, we set index <code>i</code> in the <code>result</code> array to the value
 <code>to_place</code> via the built-in <code>update</code> function, which produces a new value
 <code>new_result</code>):</p>
-<pre><code>    let new_result: bits[8,3] = update(result, i, to_place);
-</code></pre>
+<div class="highlight"><pre><span></span><code>    let new_result: bits[8,3] = update(result, i, to_place);
+</code></pre></div>
 
 <p>Finally the updated accumulator value is constructed, it is the last expression
 in the loop:</p>
-<pre><code>    (elem, new_count, new_result)
-</code></pre>
+<div class="highlight"><pre><span></span><code>    (elem, new_count, new_result)
+</code></pre></div>
 
 <p>Following the loop body, as an argument to the loop, we initialize the
 accumulator in the following way.</p>
@@ -1102,18 +1102,18 @@ accumulator in the following way.</p>
 <li>set element <code>count</code> to 0.</li>
 <li>set element <code>result</code> to 8 0's of size <code>u3</code></li>
 </ul>
-<pre><code>}((u32:-1, u3:0, bits[8,3]:[u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0]));
-</code></pre>
+<div class="highlight"><pre><span></span><code>}((u32:-1, u3:0, bits[8,3]:[u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0]));
+</code></pre></div>
 
 <p>And, finally, the function simply returns <code>result</code>:</p>
-<pre><code>  result
+<div class="highlight"><pre><span></span><code>  result
 }
-</code></pre>
+</code></pre></div>
 
 <h3 id="testing">Testing</h3>
 <p>To test the two cases we've described above, we add the following two test cases
 right to this implementation file:</p>
-<pre><code>#![test]
+<div class="highlight"><pre><span></span><code>#![test]
 fn test_prefix_scan_eq_all_zero() {
   let input = bits[8,32]:[0, 0, 0, 0, 0, 0, 0, 0];
   let result = prefix_scan_eq(input);
@@ -1126,7 +1126,7 @@ fn test_prefix_scan_eq_doubles() {
   let result = prefix_scan_eq(input);
   assert_eq(result, bits[8,3]:[0, 1, 0, 1, 0, 1, 0, 1])
 }
-</code></pre>
+</code></pre></div>
                 
               
               

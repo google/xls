@@ -1141,9 +1141,9 @@ solvers - currently only Z3, above.</p>
 IR is one half of the comparison. Here, the second half is the netlist
 translated into IR, which only requires a small amount of extra work. Consider
 the snippet below:</p>
-<pre><code>FOO p1_and_1 ( .A(p0_i0), .B(p0_i1), .Z(p1_and_1_comb) );
+<div class="highlight"><pre><span></span><code>FOO p1_and_1 ( .A(p0_i0), .B(p0_i1), .Z(p1_and_1_comb) );
 BAR p1_and_2 ( .A(p0_i2), .B(p0_i3), .Z(p1_and_2_comb) );
-</code></pre>
+</code></pre></div>
 
 <p>These lines describe, in order:</p>
 <ul>
@@ -1203,7 +1203,7 @@ Z3, "macros", instead requiring that
 <p>There is an extension that adds support for <em>recursive</em> function decls and defs,
 but in our experience, it doesn't behave the way we'd expect.</p>
 <p>Consider the following example:</p>
-<pre><code>package p
+<div class="highlight"><pre><span></span><code>package p
 
 fn mapper(value: bits[32]) -&gt; bits[32] {
   ret value
@@ -1216,7 +1216,7 @@ fn main() -&gt; bits[1] {
   eq_12: bits[1] = eq(literal_0, elem_0)
   ret and_13: bits[1] = and(eq_12, literal_1)
 }
-</code></pre>
+</code></pre></div>
 
 <p>Here, it's trivial for a human reader to see that the results are the same; the
 output should be equal to 1. Z3, however, reports that this is not necessarily

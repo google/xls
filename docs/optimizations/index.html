@@ -1461,8 +1461,8 @@ bits. Stripping leading bits must preserve the sign bit of the operand.</p>
 <p>When arithmetic comparisons occur with respect to constant values, comparisons
 which are be arithmetic in the general case may be strength reduced to more
 boolean-analyzeable patterns; for example, comparison with mask constants:</p>
-<pre><code>u4:0bwxyz &gt; u4:0b0011
-</code></pre>
+<div class="highlight"><pre><span></span><code>u4:0bwxyz &gt; u4:0b0011
+</code></pre></div>
 
 <p>Can be strength reduced -- for the left hand side to be greater one of the <code>wx</code>
 bits must be set, so we can simply replace this with an or-reduction of <code>wx</code>.
@@ -1499,13 +1499,13 @@ a series of dependent boolean operations.</p>
 truth table, enumerating all possible bit combinations for those operands. For
 example, consider two operands and a (bitwise) boolean function, the following
 is the truth table:</p>
-<pre><code>X Y | X+~Y
+<div class="highlight"><pre><span></span><code>X Y | X+~Y
 ----+------
 0 0 |  1
 0 1 |  0
 1 0 |  1
 1 1 |  1
-</code></pre>
+</code></pre></div>
 
 <p>Each column in this table is a representation of the possibilities for a node in
 the graph to take on, as a vector. After giving the vector <code>[0, 0, 1, 1]</code> to the
@@ -1597,33 +1597,33 @@ logic closer to other operations performing logic.</p>
 reduction operations (which are not sensitive to bit order), we hoist the
 <code>Reverse</code> above the <code>Concat</code>. In the modified IR, the <code>Concat</code> input operands
 are <code>Reverse</code>'d and then concatenated in reverse order, e.g. :</p>
-<pre><code>Reverse(Concat(a, b, c))
+<div class="highlight"><pre><span></span><code>Reverse(Concat(a, b, c))
 =&gt; Concat(Reverse(c), Reverse(b), Reverse(a))
-</code></pre>
+</code></pre></div>
 
 <h3 id="hoisting-a-bitwise-operation-above-a-concat">Hoisting a bitwise operation above a concat</h3>
 <p>If the output of multiple <code>Concat</code> operations are combined with a bitwise
 operation, the bitwise operation is hoisted above the <code>Concat</code>s. In the modified
 IR, we have a single <code>Concat</code> whose operands are bitwise'd <code>BitSlice</code>s of the
 original <code>Concat</code>s, e.g. :</p>
-<pre><code>Or(Concat(A, B), Concat(C, D)), where A,B,C, and D are 1-bit values
+<div class="highlight"><pre><span></span><code>Or(Concat(A, B), Concat(C, D)), where A,B,C, and D are 1-bit values
 =&gt; Concat(Or(Concat(A, B)[1], Concat(C, D)[1]), Or(Concat(A, B)[0], Concat(C, D)[0]))
-</code></pre>
+</code></pre></div>
 
 <p>In the case that an added <code>BitSlice</code> exactly aligns with an original <code>Concat</code>
 operand, other optimizations (bit slice simplification, constant folding, dead
 code elimination) will replace the <code>BitSlice</code> with the operand, e.g. for the
 above example:</p>
-<pre><code>=&gt; Concat(Or(A, C), Or(B, D))
-</code></pre>
+<div class="highlight"><pre><span></span><code>=&gt; Concat(Or(A, C), Or(B, D))
+</code></pre></div>
 
 <h3 id="merging-consecutive-bit-slices">Merging consecutive bit-slices</h3>
 <p>If consecutive <code>Concat</code> operands are consecutive <code>BitSlice</code>s, we create a new,
 merged <code>BitSlice</code> spanning the range of the consecutive <code>BitSlice</code>s. Then, we
 create a new <code>Concat</code> that includes this <code>BitSlice</code> as an operand, e.g.</p>
-<pre><code>Concat(A[3:2], A[1:0], B)
+<div class="highlight"><pre><span></span><code>Concat(A[3:2], A[1:0], B)
 =&gt; Concat(A[3:0], B)
-</code></pre>
+</code></pre></div>
 
 <p>This optimization is sometimes helpful and sometimes harmful, e.g. in the case
 that there are other consumers of the original <code>BitSlice</code>s, we may only end up
@@ -1707,9 +1707,9 @@ output is set to 1. The semantics of <code>OneHot</code> are described in detail
 <a href="../ir_semantics/">here</a>. If the MSB of a <code>OneHot</code>
 does not affect the functionality of a program, we replace the MSB with a 0-bit,
 e.g.</p>
-<pre><code>OneHot(A) such that the MSB has no effect
+<div class="highlight"><pre><span></span><code>OneHot(A) such that the MSB has no effect
 ⇒ Concat(0, OneHot(A)[all bits except MSB]))
-</code></pre>
+</code></pre></div>
 
 <p>This can open up opportunities for further optimization. To determine if a
 <code>OneHot</code>’s MSB has any effect on a function, we iterate over the <code>OneHot</code>’s

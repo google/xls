@@ -1142,7 +1142,7 @@ tool very useful for identifying optimization bugs.</p>
 <p>Tool for reducing IR to a minimal test case based on an external test.</p>
 <h2 id="ir_stats_main"><a href="https://github.com/google/xls/tree/main/xls/tools/ir_stats_main.cc"><code>ir_stats_main</code></a></h2>
 <p>Prints summary information/stats on an IR [Package] file. An example:</p>
-<pre><code>$ bazel-bin/xls/tools/ir_stats_main bazel-genfiles/xls/modules/fpadd_2x32.ir
+<div class="highlight"><pre><span></span><code>$ bazel-bin/xls/tools/ir_stats_main bazel-genfiles/xls/modules/fpadd_2x32.ir
 Package &quot;fpadd_2x32&quot;
   Function: &quot;__float32__is_inf&quot;
     Signature: ((bits[1], bits[8], bits[23])) -&gt; bits[1]
@@ -1155,7 +1155,7 @@ Package &quot;fpadd_2x32&quot;
   Function: &quot;__fpadd_2x32__fpadd_2x32&quot;
     Signature: ((bits[1], bits[8], bits[23]), (bits[1], bits[8], bits[23])) -&gt; (bits[1], bits[8], bits[23])
     Nodes: 252
-</code></pre>
+</code></pre></div>
 
 <h2 id="check_ir_equivalence"><a href="https://github.com/google/xls/tree/main/xls/tools/check_ir_equivalence_main.cc"><code>check_ir_equivalence</code></a></h2>
 <p>Verifies that two IR files (for example, optimized and unoptimized IR from the
@@ -1179,18 +1179,20 @@ or other behaviors requiring explanation:</p>
     maximum size of any instance of that repeated field across all instances in
     the input textproto. For example, if a message <code>Foo</code> has a repeated field
     <code>bar</code>, and this message is present multiple times in the input textproto,
-    say as:<p><code>foo: {
-      bar: 1
-    }
-    foo: {
-      bar: 1
-      bar: 2
-    }
-    foo: {
-      bar: 1
-      bar: 2
-      bar: 3
-    }</code></p>
+    say as:<div class="highlight"><pre><span></span><code>  foo: {
+    bar: 1
+  }
+  foo: {
+    bar: 1
+    bar: 2
+  }
+  foo: {
+    bar: 1
+    bar: 2
+    bar: 3
+  }
+</code></pre></div>
+
 <p>the DSLX version of <code>Foo</code> will declare <code>bar</code> has a 3-element array. An
   accessory field, <code>bar_count</code>, will also be created, which will contain the
   number of valid entries in an actual instance of <code>Foo::bar</code>.</p>

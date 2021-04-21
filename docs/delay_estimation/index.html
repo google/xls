@@ -1225,8 +1225,8 @@ one or more the following delay components:</p>
     components of multipliers).</li>
 </ul>
 <p>So given this observation we fit a curve of the form:</p>
-<pre><code>a * bitwidth + b * log_2(bitwidth) + c
-</code></pre>
+<div class="highlight"><pre><span></span><code>a * bitwidth + b * log_2(bitwidth) + c
+</code></pre></div>
 
 <p>to the sweep data for each operation, giving us <code>(a, b, c)</code> values to use in our
 XLS delay estimator.</p>
@@ -1239,8 +1239,8 @@ shows a good correspondence to the measured delay.</p>
 across multiple dimensions. An example is <code>Op::kOneHotSelect</code> which has
 dimensions of bitwidth and number of cases. For the <code>Op::kOneHotSelect</code> example
 the formula is:</p>
-<pre><code>a * bitwidth + b * log_2(bitwidth) + c * (# of cases) + d * log_2(# of cases) + c
-</code></pre>
+<div class="highlight"><pre><span></span><code>a * bitwidth + b * log_2(bitwidth) + c * (# of cases) + d * log_2(# of cases) + c
+</code></pre></div>
 
 <p>Below is plot of delay for <code>Op::kOneHotSelect</code> showing the two dimensions of
 bitwidth and operand count affecting delay:</p>
@@ -1345,7 +1345,7 @@ one-off modifications!</p>
 <p>XLS provides tools for analyzing its delay estimation model. (Note that the
 given IR should be in a form suitable for code generation; e.g. it has run
 through the <code>opt_main</code> binary).</p>
-<pre><code>$ tools/benchmark_main crc32.opt.ir --clock_period_ps=500
+<div class="highlight"><pre><span></span><code>$ tools/benchmark_main crc32.opt.ir --clock_period_ps=500
 &lt;snip&gt;
 Return value delay: 1362ps
 Critical path entry count: 42
@@ -1361,7 +1361,7 @@ Critical path:
       5ps (+  0ps): bit_slice.214: bits[1] = bit_slice(not.208: bits[8], start=0, width=1, pos=0,23,21)
       5ps (+  5ps): not.208: bits[8] = not(message: bits[8], pos=0,20,16)
 &lt;snip&gt;
-</code></pre>
+</code></pre></div>
 
 <p>In addition to the critical path, the cycle-by-cycle breakdown of which
 operations have been scheduled is provided in stdout.</p>

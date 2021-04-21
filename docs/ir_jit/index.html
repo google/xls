@@ -1140,16 +1140,17 @@ compiler intermediate representation (IR) at native machine speed.</p>
     <a href="https://github.com/google/xls/tree/main/xls/build_rules/build_defs.bzl"><code>dslx_jit_wrapper</code></a>
     target matching the DSLX build target.</li>
 <li>Creating a JIT object and calling its <code>Run()</code> method. Using the 2-way
-    floating-point adder as an example:<p>```c
-   # include "xls/modules/fpadd_2x24_jit_wrapper.h"</p>
-<p>absl::StatusOr<Value> foo(Value a, Value b) {
-     ...
-     // Only create this once and re-use it; it's created here just as
-     // an illustration.
-     XLS_ASSIGN_OR_RETURN(Fpadd2x32 adder, Fpadd2x32::Create()); return
-     adder.Run(a, b);
-   }
-  ```</p>
+    floating-point adder as an example:<div class="highlight"><pre><span></span><code> <span class="cp"># include &quot;xls/modules/fpadd_2x24_jit_wrapper.h&quot;</span>
+
+ <span class="n">absl</span><span class="o">::</span><span class="n">StatusOr</span><span class="o">&lt;</span><span class="n">Value</span><span class="o">&gt;</span> <span class="n">foo</span><span class="p">(</span><span class="n">Value</span> <span class="n">a</span><span class="p">,</span> <span class="n">Value</span> <span class="n">b</span><span class="p">)</span> <span class="p">{</span>
+   <span class="p">...</span>
+   <span class="c1">// Only create this once and re-use it; it&#39;s created here just as</span>
+   <span class="c1">// an illustration.</span>
+   <span class="n">XLS_ASSIGN_OR_RETURN</span><span class="p">(</span><span class="n">Fpadd2x32</span> <span class="n">adder</span><span class="p">,</span> <span class="n">Fpadd2x32</span><span class="o">::</span><span class="n">Create</span><span class="p">());</span> <span class="k">return</span>
+   <span class="n">adder</span><span class="p">.</span><span class="n">Run</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">);</span>
+ <span class="p">}</span>
+</code></pre></div>
+
 </li>
 </ol>
 <p>The advantages of JIT compilation (or any compilation, for that matter) only
@@ -1159,16 +1160,16 @@ test a module across many - or even exhaustively, across all possible - inputs.<
 <h3 id="specialized-matching">Specialized matching</h3>
 <p>In many cases, the types used by DSLX designs map to native types, such as the
 C/C++ <code>float</code>. In that case, a simplified wrapper call is available:</p>
-<pre><code>#include &quot;xls/modules/fpadd_2x24_jit_wrapper.h&quot;
+<div class="highlight"><pre><span></span><code>#include &quot;xls/modules/fpadd_2x24_jit_wrapper.h&quot;
 
 absl::StatusOr&lt;float&gt; foo(float a, float b) {
   ...
-  // Only create this once and re-use it; it's created here just as
+  // Only create this once and re-use it; it&#39;s created here just as
   // an illustration.
   XLS_ASSIGN_OR_RETURN(Fpadd2x32 adder, Fpadd2x32::Create());
   return adder.Run(a, b);
 }
-</code></pre>
+</code></pre></div>
 
 <p>When available, these simplified wrappers should be used for higher performance
 (~30% in our measured cases). Currently, floats and integral types &gt;= 64 bits in
@@ -1181,12 +1182,12 @@ types into Views (e.g., a <code>float</code> outside the JIT -&gt; View -&gt; <c
 JIT).</p>
 <h3 id="direct-usage">Direct usage</h3>
 <p>The JIT is also available as a library with a straightforward interface:</p>
-<pre><code>absl::StatusOr&lt;Value&gt; RunOnJit(
+<div class="highlight"><pre><span></span><code>absl::StatusOr&lt;Value&gt; RunOnJit(
     Function* function, absl::Span&lt;const Value&gt; args) {
   XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function));
   return jit-&gt;Run(args);
 }
-</code></pre>
+</code></pre></div>
 
 <p>The IR JIT is the default backend for the
 <a href="../tools/#eval-ir-main">eval_ir_main</a>
@@ -1257,7 +1258,7 @@ can generate a <code>main</code> driver function for our samples.</p>
 <h3 id="usage_1">Usage</h3>
 <p>To generate and execute a <code>main</code> for LLVM IR produced by the JIT, run the
 following:</p>
-<pre><code>$ bazel build //xls/tools:llvm_main_generator \
+<div class="highlight"><pre><span></span><code>$ bazel build //xls/tools:llvm_main_generator \
               //xls/tools:run_llvm_main
 $ ./bazel-bin/xls/tools/llvm_main_generator \
   -entry_function &lt;Mangled IR function name&gt; \
@@ -1266,10 +1267,10 @@ $ ./bazel-bin/xls/tools/llvm_main_generator \
 $ ./bazel-bin/xls/tools/run_llvm_main \
   &lt;Output path from above&gt; \
   &lt;Input values as string-formatted XLS Values&gt;
-</code></pre>
+</code></pre></div>
 
 <p>For a concrete example:</p>
-<pre><code>$ bazel-bin/xls/tools/llvm_main_generator \
+<div class="highlight"><pre><span></span><code>$ bazel-bin/xls/tools/llvm_main_generator \
   -entry_function &quot;sample::__sample__main&quot; \
   -input ~/fuzz/mismatch/sample.opt.ll \
   -output ./foo.ll
@@ -1282,7 +1283,7 @@ $ bazel-bin/xls/tools/run_llvm_main \
   bits[12]:0x0 \
   bits[74]:0x3c5_482a_0984_e061_1a90
 bits[74]:0x3ff_ffc5_482a_0984_e061
-</code></pre>
+</code></pre></div>
 
 <p>The final line is the result of running the sample.</p>
 <p>If the value mismatch occurs both in the IR JIT evaluation as well as lli

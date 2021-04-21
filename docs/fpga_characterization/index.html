@@ -890,28 +890,28 @@
 registering properly, see
 <a href="https://github.com/google/xls/issues/188">issue #188</a>. As a result, we have to
 use out-of-tree <code>yosys</code> and <code>nextpnr-ice40</code> builds for the moment.</p>
-<pre><code>$ bazel build -c opt //xls/synthesis/yosys:yosys_server_main
+<div class="highlight"><pre><span></span><code>$ bazel build -c opt //xls/synthesis/yosys:yosys_server_main
 $ ./bazel-bin/xls/synthesis/yosys/yosys_server_main \
     --yosys_path $(which yosys) \
     --nextpnr_path $(which nextpnr-ice40) \
     --synthesis_target=ice40 \
     --alsologtostderr
-</code></pre>
+</code></pre></div>
 
 <p>The above runs a gRPC service, so in another terminal pane, we run the
 characterization driver:</p>
-<pre><code>$ bazel run -c opt //xls/synthesis:timing_characterization_client_main
+<div class="highlight"><pre><span></span><code>$ bazel run -c opt //xls/synthesis:timing_characterization_client_main
 $ ./bazel-bin/xls/synthesis/timing_characterization_client_main \
     &gt; ./xls/delay_model/models/ice40.textproto
-</code></pre>
+</code></pre></div>
 
 <p>This produces a textual representation of the delay model protobuf.</p>
 <h2 id="building-in-tree-binaries">Building In-Tree Binaries</h2>
 <p>Note that these cannot currently be used for the above characterization flow,
 see <a href="https://github.com/google/xls/issues/188">issue #188</a></p>
 <p>Build <code>yosys</code> and <code>nextpnr-ice40</code>:</p>
-<pre><code>$ bazel build -c opt @at_clifford_yosys//:yosys @nextpnr//:nextpnr-ice40
-</code></pre>
+<div class="highlight"><pre><span></span><code>$ bazel build -c opt @at_clifford_yosys//:yosys @nextpnr//:nextpnr-ice40
+</code></pre></div>
                 
               
               

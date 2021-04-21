@@ -1136,11 +1136,11 @@ documentation (linked above) is comprehensive.</p>
 <h3 id="finding-transitive-dependencies">Finding transitive dependencies</h3>
 <p>To understand why, for example, the combinational verilog generator depends on
 the ABSL container algorithm library, one could run:</p>
-<pre><code>$ bazel query 'somepath(//xls/codegen:combinational_generator, @com_google_absl//absl/algorithm:container)'
+<div class="highlight"><pre><span></span><code>$ bazel query &#39;somepath(//xls/codegen:combinational_generator, @com_google_absl//absl/algorithm:container)&#39;
 //xls/codegen:combinational_generator
 //xls/codegen:vast
 @com_google_absl//absl/algorithm:container
-</code></pre>
+</code></pre></div>
 
 <p>This result shows that one such path goes through the <code>:vast</code> target. Another
 such path goes through the xls/ir:ir target, then the xls/ir:value target.
@@ -1148,12 +1148,12 @@ such path goes through the xls/ir:ir target, then the xls/ir:value target.
 <h3 id="finding-dependees-reverse-dependencies">Finding dependees ("reverse dependencies")</h3>
 <p>Sometimes it's useful to identify the set of targets depending on some other
 target - the <code>rdeps</code> query performs this:</p>
-<pre><code>$ bazel query 'rdeps(//xls/codegen:all, //xls/codegen:combinational_generator)'
+<div class="highlight"><pre><span></span><code>$ bazel query &#39;rdeps(//xls/codegen:all, //xls/codegen:combinational_generator)&#39;
 //xls/codegen:flattening_test
 //xls/ir:ir_test_base
 //xls/codegen:combinational_generator_test
 //xls/codegen:combinational_generator
-</code></pre>
+</code></pre></div>
 
 <p>This shows the transitive closure of all dependencies of the combinational
 generator, with the starting set being all targets in <code>//xls/codegen:all</code>. This

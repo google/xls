@@ -1205,10 +1205,10 @@
 </ul>
 </div>
 <p>To execute the XLS fuzz driver simply run a command line like the following:</p>
-<pre><code>bazel run -c opt \
+<div class="highlight"><pre><span></span><code>bazel run -c opt \
   //xls/fuzzer/run_fuzz_multiprocess \
-  -- --crash_path=/tmp/crashers-$(date +'%Y-%m-%d') --seed=0 --duration=8h
-</code></pre>
+  -- --crash_path=/tmp/crashers-$(date +&#39;%Y-%m-%d&#39;) --seed=0 --duration=8h
+</code></pre></div>
 
 <p>The XLS fuzzer generates a sequence of randomly generated DSLX functions and a
 set of random inputs to each function often with interesting bit patterns.</p>
@@ -1242,13 +1242,13 @@ sample.</p>
 <p>The crashers directory includes a subdirectory created for each failing sample.
 To avoid collisions the subdirectory is named using a hash of the DSLX code.
 Each crasher subdirectory has the following contents:</p>
-<pre><code>$ ls /tmp/crashers-2019-06-25/05adbd50
+<div class="highlight"><pre><span></span><code>$ ls /tmp/crashers-2019-06-25/05adbd50
 args.txt                   ir_converter_main.stderr   run.sh
 cl.txt                     ir_minimizer.options.json  sample.ir
 crasher_2020-04-23_9b05.x  ir_minimizer_test.sh       sample.ir.results
 eval_ir_main.stderr        options.json               sample.x
 exception.txt              opt_main.stderr            sample.x.results
-</code></pre>
+</code></pre></div>
 
 <p>The directory includes the problematic DSLX sample (<code>sample.x</code>) and the input
 arguments (<code>args.txt</code>) as well as all artifacts generated and stderr output
@@ -1273,16 +1273,16 @@ include:</p>
 This will be written to <code>minimized.ir</code>. See <a href="#minimization">below</a> for details.</p>
 <h3 id="single-file-reproducers-reproducers">Single-file reproducers {#reproducers}</h3>
 <p>When the fuzzer encounters an issue it will create a single-file reproducer:</p>
-<pre><code>--- Worker 14 observed an exception, noting
+<div class="highlight"><pre><span></span><code>--- Worker 14 observed an exception, noting
 --- Worker 14 noted crasher #1 for sampleno 42 at /tmp/crashers/095fb405
-</code></pre>
+</code></pre></div>
 
 <p>Copying that file to the directory <code>//xls/fuzzer/crashers</code> will
 automatically create a bazel test target for it and add it to the regression
 suite. Tests can also be added as known failures in
 <code>//xls/fuzzer/build_defs.bzl</code> as they're being triaged /
 investigated like so:</p>
-<pre><code>generate_crasher_regression_tests(
+<div class="highlight"><pre><span></span><code>generate_crasher_regression_tests(
     srcs = glob([&quot;crashers/*&quot;]),
     prefix = &quot;xls/fuzzer&quot;,
     # TODO(xls-team): 2019-06-30 Triage and fix these.
@@ -1291,22 +1291,22 @@ investigated like so:</p>
         &quot;crashers/crasher_2019-06-29_402110.x&quot;,
     ],
 )
-</code></pre>
+</code></pre></div>
 
 <p>Known-failures are marked as manual and excluded from continuous testing.</p>
 <p>To run the regression suite:</p>
-<pre><code>bazel test //xls/fuzzer:all
-</code></pre>
+<div class="highlight"><pre><span></span><code>bazel test //xls/fuzzer:all
+</code></pre></div>
 
 <p>To run the regression suite including known-failures, run the regression target
 directly:</p>
-<pre><code>bazel test //xls/fuzzer:regression_tests
-</code></pre>
+<div class="highlight"><pre><span></span><code>bazel test //xls/fuzzer:regression_tests
+</code></pre></div>
 
 <p>To reproduce from that single-file reproducer there is a command line tool:</p>
-<pre><code>bazel run //xls/fuzzer/run_crasher -- \
+<div class="highlight"><pre><span></span><code>bazel run //xls/fuzzer/run_crasher -- \
   crasher_2019-06-26_3354.x
-</code></pre>
+</code></pre></div>
 
 <h2 id="ir-minimization-minimization">IR minimization {#minimization}</h2>
 <p>By default the fuzzer attempts to generate a minimal IR reproducer for the
@@ -1370,8 +1370,8 @@ miscomparison here can indicate a bug in one of several places:</p>
 </ol>
 <p>To help narrow this down, the IR interpreter can be compared against the JIT
 with the <code>eval_ir_main</code> tool:</p>
-<pre><code>  eval_ir_main --test_llvm_jit --input_file=args.txt sample.ir
-</code></pre>
+<div class="highlight"><pre><span></span><code>  eval_ir_main --test_llvm_jit --input_file=args.txt sample.ir
+</code></pre></div>
 
 <p>This runs both the JIT and the interpreter on the unoptimized IR file
 (<code>sample.ir</code>) using the arguments in <code>args.txt</code> and compares the results. If
@@ -1388,8 +1388,8 @@ against the DSLX interpreter has already succeeds so DSLX interpretation or
 conversion is unlikely to be the underlying cause.</p>
 <p>As with miscomparison involving the <em>unoptimized</em> IR, <code>eval_ir_main</code> can be used
 to compare the JIT results against the interpreter results:</p>
-<pre><code>  eval_ir_main --test_llvm_jit --input_file=args.txt sample.opt.ir
-</code></pre>
+<div class="highlight"><pre><span></span><code>  eval_ir_main --test_llvm_jit --input_file=args.txt sample.opt.ir
+</code></pre></div>
 
 <p>If the above invocation fails there is a bug in the JIT or the interpreter.
 Otherwise, there may be a bug in the optimizer. The tool <code>eval_ir_main</code> can help
@@ -1398,57 +1398,57 @@ isolate the problematic optimization pass by running with the options
 the optimization pipeline on the given IR and evaluates the IR after each pass
 is run. The first pass which results in a miscompare against the unoptimized
 input IR is flagged. Invocation:</p>
-<pre><code>  eval_ir_main --input_file=args.txt \
+<div class="highlight"><pre><span></span><code>  eval_ir_main --input_file=args.txt \
     --optimize_ir \
     --eval_after_each_pass \
     sample.ir
-</code></pre>
+</code></pre></div>
 
 <h4 id="debugging-the-llvm-jit">Debugging the LLVM JIT</h4>
 <p>To help isolate bugs in the JIT, LLVM's optimization level can be set using the
 <code>--llvm_opt_level</code> flag:</p>
-<pre><code>  eval_ir_main --test_llvm_jit \
+<div class="highlight"><pre><span></span><code>  eval_ir_main --test_llvm_jit \
     --llvm_opt_level=0 \
     --input_file=args.txt sample.opt.ir
-</code></pre>
+</code></pre></div>
 
 <p>If the results match (pass) with the optimization level set to zero but fail
 with the default optimization level of 3, there is likely a bug in the LLVM
 optimizer or the XLS-generated LLVM program has undefined behavior.</p>
 <p>Unoptimized and optimized LLVM IR are dumped by the JIT with vlog level of 2 or
 higher, and the assembly is dumped at level 3 or higher. For example:</p>
-<pre><code>  eval_ir_main -v=3 --logtostderr sample.opt.ir
-</code></pre>
+<div class="highlight"><pre><span></span><code>  eval_ir_main -v=3 --logtostderr sample.opt.ir
+</code></pre></div>
 
 <p>Extract the unoptimized LLVM IR to file to enable working with it in isolation.</p>
 <h5 id="building-llvm-tools">Building LLVM tools</h5>
 <p>The various LLVM tools such as <code>opt</code> and <code>lli</code> can be built with:</p>
-<pre><code>  bazel build /llvm/llvm-project/llvm:all
-</code></pre>
+<div class="highlight"><pre><span></span><code>  bazel build /llvm/llvm-project/llvm:all
+</code></pre></div>
 
 <p>Build in fastbuild mode to get checks and debug features in LLVM.</p>
 <h5 id="isolating-the-bug">Isolating the bug</h5>
 <p>To inspect the optimized LLVM IR, run:</p>
-<pre><code>  opt sample.ll -O3 -S
-</code></pre>
+<div class="highlight"><pre><span></span><code>  opt sample.ll -O3 -S
+</code></pre></div>
 
 <p>To print the IR before and after each pass:</p>
-<pre><code> opt sample.ll -S -print-after-all -print-before-all -O3
-</code></pre>
+<div class="highlight"><pre><span></span><code> opt sample.ll -S -print-after-all -print-before-all -O3
+</code></pre></div>
 
 <h5 id="instcombine">Instcombine</h5>
 <p>Instcombine is an LLVM optimization pass which is a common source of bugs in
 code generated from XLS because XLS uses unusual bit widths which exercise
 little used paths in this optimization. To run instcombine alone:</p>
-<pre><code> opt /tmp/bad.ll -S --instcombine
-</code></pre>
+<div class="highlight"><pre><span></span><code> opt /tmp/bad.ll -S --instcombine
+</code></pre></div>
 
 <p>Instcombine is a large monolithic pass and it can be difficult to isolate the
 exact transformation which caused the problem. Fortunately, this pass includes a
 "compiler fuel" option which can be used to limit the number of transformations
 performed by the pass. Example usage (fastbuild of LLVM is required):</p>
-<pre><code>opt -S --instcombine sample.ll --debug-counter=instcombine-visit-skip=0,instcombine-visit-count=42
-</code></pre>
+<div class="highlight"><pre><span></span><code>opt -S --instcombine sample.ll --debug-counter=instcombine-visit-skip=0,instcombine-visit-count=42
+</code></pre></div>
 
 <h5 id="evaluating-llvm-ir">Evaluating LLVM IR</h5>
 <p>The LLVM tool <code>lli</code> evaluates LLVM IR. The tool expects the IR to include a
@@ -1457,26 +1457,26 @@ entry function <code>main</code>. See the uploaded file in this
 file which includes a main function that calls a (slightly modified)
 XLS-generated function.</p>
 <p>The LLVM tool <code>opt</code> optimizes the LLVM IR and can be piped to <code>lli</code> like so:</p>
-<pre><code>  opt sample.ll --O2 | lli
-</code></pre>
+<div class="highlight"><pre><span></span><code>  opt sample.ll --O2 | lli
+</code></pre></div>
 
 <h5 id="building-llvm-at-head">Building LLVM at head</h5>
 <p>Although the internal Google mirror of LLVM is updated frequently, prior to
 filing an LLVM bug it's a good idea to verify the failure against LLVM head.
 Steps to build:</p>
-<pre><code>git clone https://github.com/llvm/llvm-project.git
+<div class="highlight"><pre><span></span><code>git clone https://github.com/llvm/llvm-project.git
 cd llvm
 mkdir build
 cd build
 cmake -G Ninja ../llvm/
 cmake --build . -- opt
-</code></pre>
+</code></pre></div>
 
 <h3 id="result-miscomparison-simulated-verilog">Result miscomparison: simulated Verilog</h3>
 <p>This can be a bug in codegen, XLS's Verilog testbench code, or the Verilog
 simulator itself. Running the generated Verilog with different simulators can
 help isolate the problem:</p>
-<pre><code>  simulate_module_main --signature_file=module_sig.textproto \
+<div class="highlight"><pre><span></span><code>  simulate_module_main --signature_file=module_sig.textproto \
     --args_file=args.txt \
     --verilog_simulator=iverilog \
     sample.v
@@ -1485,7 +1485,7 @@ help isolate the problem:</p>
     --args_file=args.txt \
     --verilog_simulator=${SIM_2} \
     sample.v
-</code></pre>
+</code></pre></div>
 
 <p>The tool outputs the results of the evaluation to stdout so diffing their
 outputs is required.</p>

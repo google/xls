@@ -1819,8 +1819,8 @@ has no correlate in hardware.</p>
 argument list. Positional arguments are exclusively the identifiers of the
 operands. Keyword arguments are unordered and must appear after the positional
 arguments. Keyword arguments can include arbitrary value types.</p>
-<pre><code>result = operation(pos_arg_0, ..., pos_arg_N, keyword_0=value0, ..., keyword_M=valueM, ...)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = operation(pos_arg_0, ..., pos_arg_N, keyword_0=value0, ..., keyword_M=valueM, ...)
+</code></pre></div>
 
 <p><strong>Common keyword arguments</strong></p>
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
@@ -1850,9 +1850,9 @@ arguments. Keyword arguments can include arbitrary value types.</p>
 <h3 id="unary-bitwise-operations">Unary bitwise operations</h3>
 <p>Performs a bit-wise operation on a single bits-typed operand.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = identity(operand)
+<div class="highlight"><pre><span></span><code>result = identity(operand)
 result = not(operand)
-</code></pre>
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -1899,10 +1899,10 @@ result = not(operand)
 <p>Performs a bit-wise operation on one-or-more identically-typed bits operands. If
 only a single argument is provided the operation is a no-op.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = and(operand_{0}, ..., operand_{N-1})
+<div class="highlight"><pre><span></span><code>result = and(operand_{0}, ..., operand_{N-1})
 result = or(operand_{0}, ..., operand_{N-1})
 result = xor(operand_{0}, ..., operand_{N-1})
-</code></pre>
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -1953,8 +1953,8 @@ result = xor(operand_{0}, ..., operand_{N-1})
 <h3 id="arithmetic-unary-operations">Arithmetic unary operations</h3>
 <p>Performs an arithmetic operation on a single bits-typed operand.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = neg(operand)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = neg(operand)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -1996,13 +1996,13 @@ result = xor(operand_{0}, ..., operand_{N-1})
 <p>Performs an arithmetic operation on a pair of bits operands. Unsigned operations
 are prefixed with a 'u', and signed operations are prefixed with a 's'.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = add(lhs, rhs)
+<div class="highlight"><pre><span></span><code>result = add(lhs, rhs)
 result = smul(lhs, rhs)
 result = umul(lhs, rhs)
 result = sdiv(lhs, rhs)
 result = sub(lhs, rhs)
 result = udiv(lhs, rhs)
-</code></pre>
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <p>Currently signed and unsigned multiply support arbitrary width operands and
@@ -2076,7 +2076,7 @@ the right operand is zero the result is zero.</p>
 operations are prefixed with a 'u', and signed operations are prefixed with a
 's'. Produces a result of bits[1] type.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = eq(lhs, rhs)
+<div class="highlight"><pre><span></span><code>result = eq(lhs, rhs)
 result = ne(lhs, rhs)
 result = sge(lhs, rhs)
 result = sgt(lhs, rhs)
@@ -2086,7 +2086,7 @@ result = uge(lhs, rhs)
 result = ugt(lhs, rhs)
 result = ule(lhs, rhs)
 result = ult(lhs, rhs)
-</code></pre>
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -2177,10 +2177,10 @@ result = ult(lhs, rhs)
 <p>Performs an shift operation on an input operand where the shift amount is
 specified by a second operand.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = shll(operand, amount)
+<div class="highlight"><pre><span></span><code>result = shll(operand, amount)
 result = shra(operand, amount)
 result = shrl(operand, amount)
-</code></pre>
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <p>The shifted operand and the result of the shift are the same width. Widths of
@@ -2219,9 +2219,9 @@ produces a result of zero.</p>
 <h3 id="extension-operations">Extension operations</h3>
 <p>Extends a bit value to a new (larger) target bit-length.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = zero_ext(x, new_bit_count=42)
+<div class="highlight"><pre><span></span><code>result = zero_ext(x, new_bit_count=42)
 result = sign_ext(x, new_bit_count=42)
-</code></pre>
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -2264,8 +2264,8 @@ in a single transaction.</p>
 <h4 id="receive"><strong><code>receive</code></strong></h4>
 <p>Receives data values from a specified channel. The number of data values <code>N</code> and
 their type is determined by the channel.</p>
-<pre><code>result = receive(tkn, channel_id=&lt;ch&gt;)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = receive(tkn, channel_id=&lt;ch&gt;)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -2315,8 +2315,8 @@ their type is determined by the channel.</p>
 <p>Receives data values from a specified channel if and only if the predicate
 operand is true. The number of data values <code>N</code> and their type is determined by
 the channel.</p>
-<pre><code>result = receive_if(tkn, pred, channel_id=&lt;ch&gt;)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = receive_if(tkn, pred, channel_id=&lt;ch&gt;)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -2370,8 +2370,8 @@ the channel.</p>
 <h4 id="send"><strong><code>send</code></strong></h4>
 <p>Sends data values to a specified channel. The number of data values <code>N</code> and
 their type is determined by the channel.</p>
-<pre><code>result = send(tkn, data_{0}, ..., data_{N-1}, channel_id=&lt;ch&gt;)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = send(tkn, data_{0}, ..., data_{N-1}, channel_id=&lt;ch&gt;)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -2426,8 +2426,8 @@ number of data elements supported by the channel.</p>
 <h4 id="send_if"><strong><code>send_if</code></strong></h4>
 <p>Sends data values to a specified channel if and only if the predicate operand is
 true. The number and type of data values is determined by the channel.</p>
-<pre><code>result = send_if(tkn, pred, data_{0}, ..., data_{N-1}, channel_id=&lt;ch&gt;)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = send_if(tkn, pred, data_{0}, ..., data_{N-1}, channel_id=&lt;ch&gt;)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -2486,8 +2486,8 @@ number of data elements supported by the channel.</p>
 <h3 id="array-operations">Array operations</h3>
 <h4 id="array_1"><strong><code>array</code></strong></h4>
 <p>Constructs a array of its operands.</p>
-<pre><code>result = array(operand_{0}, ..., operand_{N-1})
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = array(operand_{0}, ..., operand_{N-1})
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -2513,8 +2513,8 @@ empty array).</p>
 <h4 id="array_index"><strong><code>array_index</code></strong></h4>
 <p>Returns a single element from an array.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = array_index(array, indices=[idx_{0}, ... , idx_{N-1}])
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = array_index(array, indices=[idx_{0}, ... , idx_{N-1}])
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -2598,8 +2598,8 @@ assuming input array operand <code>A</code>.</p>
 <h4 id="array_update"><strong><code>array_update</code></strong></h4>
 <p>Returns a modified copy of an array.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = array_update(array, value, indices=[idx_{0}, ... , idx_{N-1}])
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = array_update(array, value, indices=[idx_{0}, ... , idx_{N-1}])
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -2635,8 +2635,8 @@ exception of out-of-bounds behavior.</p>
 <h3 id="tuple-operations">Tuple operations</h3>
 <h4 id="tuple_1"><strong><code>tuple</code></strong></h4>
 <p>Constructs a tuple of its operands.</p>
-<pre><code>result = tuple(operand_{0}, ..., operand_{N-1})
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = tuple(operand_{0}, ..., operand_{N-1})
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -2662,8 +2662,8 @@ an empty tuple).</p>
 <h4 id="tuple_index"><strong><code>tuple_index</code></strong></h4>
 <p>Returns a single element from a tuple-typed operand.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = tuple_index(operand, index=&lt;index&gt;)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = tuple_index(operand, index=&lt;index&gt;)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -2709,8 +2709,8 @@ an empty tuple).</p>
 <h4 id="bit_slice"><strong><code>bit_slice</code></strong></h4>
 <p>Slices a contiguous range of bits from a bits-typed operand.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = bit_slice(operand, start=&lt;start&gt;, width=&lt;width&gt;)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = bit_slice(operand, start=&lt;start&gt;, width=&lt;width&gt;)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -2769,8 +2769,8 @@ an empty tuple).</p>
 <p>Replaces a contiguous range of bits in a bits-typed operand at a variable start
 index with a given value.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = bit_slice_update(operand, start, update_value)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = bit_slice_update(operand, start, update_value)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -2843,8 +2843,8 @@ are ignored. Examples:</p>
 starting index but fixed width. Out-of-bounds slicing is supported by
 treating all out-of-bounds bits as having value 0.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = dynamic_bit_slice(operand, start, width=&lt;width&gt;)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = dynamic_bit_slice(operand, start, width=&lt;width&gt;)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -2898,8 +2898,8 @@ as an unsigned integer.</p>
 
 <h4 id="concat"><strong><code>concat</code></strong></h4>
 <p>Concatenates and arbitrary number of bits-typed operands.</p>
-<pre><code>result = concat(operand{0}, ..., operand{n-1})
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = concat(operand{0}, ..., operand{n-1})
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -2923,8 +2923,8 @@ as an unsigned integer.</p>
 <p>This is equivalent to the verilog concat operator: <code>result = {arg0, ..., argN}</code></p>
 <h4 id="reverse"><strong><code>reverse</code></strong></h4>
 <p>Reverses the order of bits of its operand.</p>
-<pre><code>result = reverse(operand)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = reverse(operand)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -2947,8 +2947,8 @@ as an unsigned integer.</p>
 </table>
 <h4 id="decode"><strong><code>decode</code></strong></h4>
 <p>Implements a binary decoder.</p>
-<pre><code>result = decode(operand, width=&lt;width&gt;)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = decode(operand, width=&lt;width&gt;)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -3000,8 +3000,8 @@ encoded operand value is larger than the number of bits of the result the result
 is zero.</p>
 <h4 id="encode"><strong><code>encode</code></strong></h4>
 <p>Implements a binary encoder.</p>
-<pre><code>result = encode(operand, width=&lt;width&gt;)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = encode(operand, width=&lt;width&gt;)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -3034,9 +3034,9 @@ bit 5 of an <code>encode</code> input are set the result is equal to 3 | 5 = 7.<
 <p>Produces a bits value with exactly one bit set. The index of the set bit depends
 upon the input value.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = one_hot(input, lsb_prio=true)
+<div class="highlight"><pre><span></span><code>result = one_hot(input, lsb_prio=true)
 result = one_hot(input, lsb_prio=false)
-</code></pre>
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -3124,10 +3124,10 @@ operations within the function.</p>
 <p><strong>Syntax</strong></p>
 <p>Parameters have a special syntactic form distinct from other nodes, where they
 are listed directly in the function signature with their type.</p>
-<pre><code>fn f(x: bits[32]) -&gt; bits[32] {
+<div class="highlight"><pre><span></span><code>fn f(x: bits[32]) -&gt; bits[32] {
   ret identity.2 = identity(x, id=2)
 }
-</code></pre>
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -3151,8 +3151,8 @@ are listed directly in the function signature with their type.</p>
 <h4 id="sel"><strong><code>sel</code></strong></h4>
 <p>Selects between operands based on a selector value.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = sel(selector, cases=[case_{0}, ... , case_{N-1}], default=&lt;default&gt;)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = sel(selector, cases=[case_{0}, ... , case_{N-1}], default=&lt;default&gt;)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -3189,8 +3189,8 @@ the one-hot selector is not one-hot, this operation is still well defined.</p>
 operand to <code>one_hot_sel</code>, the XLS optimizer will try to determine when they are
 unnecessary and subsequently eliminate them.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = one_hot_sel(selector, cases=[case_{0}, ... , case_{N-1}])
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = one_hot_sel(selector, cases=[case_{0}, ... , case_{N-1}])
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -3222,8 +3222,8 @@ operation.</p>
 <p>Invokes a function. The return value for the invoked function is the result
 value.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = invoke(operand_{0}, ... , operand_{N-1}, to_apply=&lt;to_apply&gt;)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = invoke(operand_{0}, ... , operand_{N-1}, to_apply=&lt;to_apply&gt;)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -3273,8 +3273,8 @@ value.</p>
 <p>Applies a function to the elements of an array and returns the result as an
 array.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = map(operand, to_apply=&lt;to_apply&gt;)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = map(operand, to_apply=&lt;to_apply&gt;)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -3323,8 +3323,8 @@ array.</p>
 <h4 id="dynamic_counted_for"><strong><code>dynamic_counted_for</code></strong></h4>
 <p>Invokes a dynamic-trip count loop.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = counted_for(init, trip_count, stride, body=&lt;body&gt;, invariant_args=&lt;inv_args&gt;)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = counted_for(init, trip_count, stride, body=&lt;body&gt;, invariant_args=&lt;inv_args&gt;)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -3401,8 +3401,8 @@ incremented by <code>stride</code> after each iteration.</p>
     the third and fourth arguments.</li>
 </ul>
 <p>Therefore <code>body</code> should have a signature that matches the following:</p>
-<pre><code>body(i, loop_carry_data, [invariant_arg0, invariant_arg1, ...])
-</code></pre>
+<div class="highlight"><pre><span></span><code>body(i, loop_carry_data, [invariant_arg0, invariant_arg1, ...])
+</code></pre></div>
 
 <p>Note that we currently inspect the <code>body</code> function to see what type of induction
 variable (<code>i</code> above) it accepts in order to pass an <code>i</code> value of that type.
@@ -3413,8 +3413,8 @@ pipeline generator cannot handle an unkown trip count.</p>
 <h4 id="counted_for"><strong><code>counted_for</code></strong></h4>
 <p>Invokes a fixed-trip count loop.</p>
 <p><strong>Syntax</strong></p>
-<pre><code>result = counted_for(init, trip_count=&lt;trip_count&gt;, stride=&lt;stride&gt;, body=&lt;body&gt;, invariant_args=&lt;inv_args&gt;)
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = counted_for(init, trip_count=&lt;trip_count&gt;, stride=&lt;stride&gt;, body=&lt;body&gt;, invariant_args=&lt;inv_args&gt;)
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -3496,8 +3496,8 @@ loop-carried data that starts with value <code>init</code>.</p>
     the third and fourth arguments.</li>
 </ul>
 <p>Therefore <code>body</code> should have a signature that matches the following:</p>
-<pre><code>body(i, loop_carry_data[, invariant_arg0, invariant_arg1, ...])
-</code></pre>
+<div class="highlight"><pre><span></span><code>body(i, loop_carry_data[, invariant_arg0, invariant_arg1, ...])
+</code></pre></div>
 
 <p>Note that we currently inspect the <code>body</code> function to see what type of induction
 variable (<code>i</code> above) it accepts in order to pass an <code>i</code> value of that type.</p>
@@ -3511,8 +3511,8 @@ effects, and <code>after_all</code> can be used to join together tokens as a seq
 graph by way of token sequencing.</p>
 <h4 id="after_all"><strong><code>after_all</code></strong></h4>
 <p>Used to construct partial orderings among channel operations.</p>
-<pre><code>result = after_all(operand_{0}, ..., operand_{N-1})
-</code></pre>
+<div class="highlight"><pre><span></span><code>result = after_all(operand_{0}, ..., operand_{N-1})
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>
@@ -3541,9 +3541,9 @@ literal string attribute which is included in the error message. This is a
 software-only operation and has no representation in the generated hardware.
 Tokens are used to connect the operation to the graph and order with respect to
 other side-effecting operations.</p>
-<pre><code>result = assert(tkn, condition, message=&lt;string&gt;)
+<div class="highlight"><pre><span></span><code>result = assert(tkn, condition, message=&lt;string&gt;)
 result = assert(tkn, condition, message=&lt;string&gt;, label=&lt;string&gt;)
-</code></pre>
+</code></pre></div>
 
 <p><strong>Types</strong></p>
 <table>

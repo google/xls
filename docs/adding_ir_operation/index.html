@@ -953,7 +953,9 @@ which are optional, are described below:</p>
 <p>The IR matcher is used in tests to enable easy matching of IR expressions.
   For example, the following tests that the return value of a function is the
   parameter <code>x</code> plus the parameter <code>y</code>:</p>
-<p><code>EXPECT_THAT(f-&gt;return_value(), m::Add(m::Param("x", m::Param("y")));</code></p>
+<div class="highlight"><pre><span></span><code>EXPECT_THAT(f-&gt;return_value(), m::Add(m::Param(&quot;x&quot;, m::Param(&quot;y&quot;)));
+</code></pre></div>
+
 <p>If the new operation has no named attributed, IR matcher support is
   typically a single line using the macro <code>NODE_MATCHER</code>. Otherwise, a custom
   matcher should be added to enable matching the attribute as well.</p>

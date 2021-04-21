@@ -993,7 +993,7 @@ tools, from DSL input to RTL generation.</p>
 There is currently no binary tools distribution so building from source is
 required.</p>
 <p>Create a file <code>/tmp/simple_add.x</code> with the following contents:</p>
-<pre><code>fn add(x: u32, y: u32) -&gt; u32 {
+<div class="highlight"><pre><span></span><code>fn add(x: u32, y: u32) -&gt; u32 {
   x + y + u32:0  // Something to optimize.
 }
 
@@ -1001,47 +1001,47 @@ required.</p>
 fn test_add() {
   assert_eq(add(u32:2, u32:3), u32:5)
 }
-</code></pre>
+</code></pre></div>
 
 <p>This contains a function, and a unit test of that function.</p>
 <h2 id="interpreting-the-dsl-file">Interpreting the DSL file</h2>
 <p>Now, run it through the DSL interpreter -- the DSL interpreter is useful for
 interactive development and debugging.</p>
-<pre><code>$ bazel run -c opt //xls/dslx:interpreter_main -- /tmp/simple_add.x
+<div class="highlight"><pre><span></span><code>$ bazel run -c opt //xls/dslx:interpreter_main -- /tmp/simple_add.x
 [ RUN      ] add
 [       OK ] add
-</code></pre>
+</code></pre></div>
 
 <p>The DSL interpreter is the execution engine running the test shown.</p>
 <p>In lieu of using bazel run for the subsequent commands, this document will
 assume <code>bazel build -c opt //xls/...</code> has been completed so the binaries in
 <code>./bazel-bin</code> can be used directly:</p>
-<pre><code>$ ./bazel-bin/xls/dslx/interpreter_main /tmp/simple_add.x
+<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/dslx/interpreter_main /tmp/simple_add.x
 [ RUN      ] add
 [       OK ] add
-</code></pre>
+</code></pre></div>
 
 <h2 id="dsl-to-ir-conversion">DSL to IR conversion</h2>
 <p>To convert the DSL file to IR, run the following command:</p>
-<pre><code>$ ./bazel-bin/xls/dslx/ir_converter_main /tmp/simple_add.x &gt; /tmp/simple_add.ir
-</code></pre>
+<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/dslx/ir_converter_main /tmp/simple_add.x &gt; /tmp/simple_add.ir
+</code></pre></div>
 
 <h2 id="ir-optimization">IR optimization</h2>
 <p>To optimize the IR, use the <code>opt_main</code> tool:</p>
-<pre><code>$ ./bazel-bin/xls/tools/opt_main /tmp/simple_add.ir &gt; /tmp/simple_add.opt.ir
-</code></pre>
+<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/tools/opt_main /tmp/simple_add.ir &gt; /tmp/simple_add.opt.ir
+</code></pre></div>
 
 <p>Check the output of <code>diff -U8 /tmp/simple_add*.ir</code> to see that the optimizer
 eliminated the useless add-with-zero.</p>
 <h2 id="verilog-rtl-generation">Verilog RTL generation</h2>
 <p>To generate RTL from the optimized IR, use the codegen tool:</p>
-<pre><code>$ ./bazel-bin/xls/tools/codegen_main --pipeline_stages=1 --delay_model=unit /tmp/simple_add.opt.ir &gt; /tmp/simple_add.v
-</code></pre>
+<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/tools/codegen_main --pipeline_stages=1 --delay_model=unit /tmp/simple_add.opt.ir &gt; /tmp/simple_add.v
+</code></pre></div>
 
 <h2 id="ir-visualizer">IR visualizer</h2>
 <p>To get a graphical view of the IR files, use the IR visualization tool:</p>
-<pre><code>$ ./bazel-bin/xls/visualization/ir_viz/app --delay_model=unit --preload_ir_path=/tmp/simple_add.ir
-</code></pre>
+<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/visualization/ir_viz/app --delay_model=unit --preload_ir_path=/tmp/simple_add.ir
+</code></pre></div>
 
 <p>This starts a server on the local host port 5000 by default, so you can access
 it from your machine as <code>http://localhost:5000</code> in a web browser.</p>

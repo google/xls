@@ -1027,9 +1027,9 @@ a <code>Bits</code> via the <code>ToBytes()</code> member function, the results 
 big-endian layout, i.e, with the most-significant data elements stored in the
 lowest addressible location. For example, the 32-bit value 12,345,678
 (0xBC614E), would be returned as:</p>
-<pre><code>High  &lt;--  Low
+<div class="highlight"><pre><span></span><code>High  &lt;--  Low
 0x 4E 61 BC 00
-</code></pre>
+</code></pre></div>
 
 <h2 id="host-data-layout">Host data layout</h2>
 <p>Different architectures can use different native layouts. For example, x86 (and
@@ -1069,8 +1069,8 @@ declared from most significant to least significant element. This way, when
 running on a host, the in-memory layout of input data matches that expected by
 XLS tools. That means, using the usual float32 example, that the packed view
 declaration is:</p>
-<pre><code>PackedTupleView&lt;PackedBitsView&lt;1&gt;, PackedBitsView&lt;8&gt;, PackedBitsView&lt;23&gt;&gt;
-</code></pre>
+<div class="highlight"><pre><span></span><code>PackedTupleView&lt;PackedBitsView&lt;1&gt;, PackedBitsView&lt;8&gt;, PackedBitsView&lt;23&gt;&gt;
+</code></pre></div>
 
 <p>(The non-packed-View tuple declaration is much the same, but matters less, as it
 doesn't directly correspond to in-memory data layout.)</p>

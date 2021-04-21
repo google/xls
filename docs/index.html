@@ -1024,28 +1024,28 @@ we hope to enable them via continuous integration,
 <p>The following instructions are for the Ubuntu 20.04 (Focal) Linux distribution.
 Note that we start by assuming
 <a href="https://docs.bazel.build/versions/master/install-ubuntu.html">Bazel has been installed</a>.</p>
-<pre><code class="console">~$ git clone https://github.com/google/xls.git
-~$ cd xls
+<div class="highlight"><pre><span></span><code><span class="go">~$ git clone https://github.com/google/xls.git</span>
+<span class="go">~$ cd xls</span>
 
-~/xls$ # Follow the bazel install instructions:
-~/xls$ # https://docs.bazel.build/versions/master/install-ubuntu.html
-~/xls$ # Afterwards we observe:
-~/xls$ bazel --version
-bazel 4.0.0
+<span class="go">~/xls$ # Follow the bazel install instructions:</span>
+<span class="go">~/xls$ # https://docs.bazel.build/versions/master/install-ubuntu.html</span>
+<span class="go">~/xls$ # Afterwards we observe:</span>
+<span class="go">~/xls$ bazel --version</span>
+<span class="go">bazel 4.0.0</span>
 
-~/xls$ # Note we're going to tell Ubuntu that `/usr/bin/env python` is actually python3
-~/xls$ # here, since that is not the case by default on Ubuntu 20.04.
-~/xls$ sudo apt install python3-distutils python3-dev libtinfo5 python-is-python3
+<span class="go">~/xls$ # Note we&#39;re going to tell Ubuntu that `/usr/bin/env python` is actually python3</span>
+<span class="go">~/xls$ # here, since that is not the case by default on Ubuntu 20.04.</span>
+<span class="go">~/xls$ sudo apt install python3-distutils python3-dev libtinfo5 python-is-python3</span>
 
-~/xls$ # Now build/test everything in optimized build mode.
-~/xls$ bazel test -c opt ...
-</code></pre>
+<span class="go">~/xls$ # Now build/test everything in optimized build mode.</span>
+<span class="go">~/xls$ bazel test -c opt ...</span>
+</code></pre></div>
 
 <p>A reference build/test environment setup is also provided via <code>Dockerfile</code>:</p>
-<pre><code class="console">~$ git clone https://github.com/google/xls.git
-~$ cd xls
-~/xls$ docker build . -f Dockerfile-ubuntu-20.04 # Performs optimized build and test.
-</code></pre>
+<div class="highlight"><pre><span></span><code><span class="go">~$ git clone https://github.com/google/xls.git</span>
+<span class="go">~$ cd xls</span>
+<span class="go">~/xls$ docker build . -f Dockerfile-ubuntu-20.04 # Performs optimized build and test.</span>
+</code></pre></div>
 
 <h2 id="stack-diagram-and-project-layout">Stack Diagram and Project Layout</h2>
 <p>Navigating a new code base can be daunting; the following description provides a

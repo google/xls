@@ -990,48 +990,35 @@
 with a discussion on the algorithm and how it maps to DSLX.</p>
 <p>This document assumes familiarity with floating-point numbers in general
 (layout, precision, error, etc.).</p>
-<div class="toc">
-<ul>
-<li><a href="#dslx-example-floating-point-addition">DSLX Example: Floating-point addition</a><ul>
-<li><a href="#background">Background</a></li>
-<li><a href="#dslx-implementation">DSLX implementation</a><ul>
-<li><a href="#result-sign-determination">Result sign determination</a></li>
-<li><a href="#rounding">Rounding</a></li>
-</ul>
-</li>
-</ul>
-</li>
-</ul>
-</div>
 <h2 id="background">Background</h2>
 <p>Floating-point addition, like any FP operation, is much more complicated than
 integer addition, and has many more steps.</p>
 <ol>
-<li>Expand significands: Floating-point operations are computed with bits beyond
+<li><strong>Expand significands:</strong> Floating-point operations are computed with bits beyond
     that in their normal representations for increased precision. For IEEE 754
     numbers, there are three extra, called the guard, rounding and sticky bits.
     The first two behave normally, but the last, the "sticky" bit, is special.
     During shift operations (below), if a "1" value is ever shifted into the
     sticky bit, it "sticks" - the bit will remain "1" through any further shift
     operations. In this step, the significands are expanded by these three bits.</li>
-<li>Align significands: To ensure that significands are added with appropriate
+<li><strong>Align significands:</strong> To ensure that significands are added with appropriate
     magnitudes, they must be aligned according to their exponents. To do so, the
     smaller significant needs to be shifted to the right (each right shift is
     equivalent to increasing the exponent by one).
     -   The extra precision bits are populated in this shift.
     -   As part of this step, the leading 1 bit... and a sign bit Note: The
         sticky bit is calculated and applied in this step.</li>
-<li>Sign-adjustment: if the significands differ in sign, then the significand
+<li><strong>Sign-adjustment:</strong> if the significands differ in sign, then the significand
     with the smaller initial exponent needs to be (two's complement) negated.</li>
-<li>Add the significands and capture the carry bit. Note that, if the signs of
+<li><strong>Add the significands and capture the carry bit.</strong> Note that, if the signs of
     the significands differs, then this could result in higher bits being
     cleared.</li>
-<li>Normalize the significands: Shift the result so that the leading '1' is
+<li><strong>Normalize the significands:</strong> Shift the result so that the leading '1' is
     present in the proper space. This means shifting right one place if the
     result set the carry bit, and to the left some number of places if high bits
     were cleared.
     -   The sticky bit must be preserved in any of these shifts!</li>
-<li>Rounding: Here, the extra precision bits are examined to determine if the
+<li><strong>Rounding:</strong> Here, the extra precision bits are examined to determine if the
     result significand's last bit should be rounded up. IEEE 754 supports five
     rounding modes:
     -   Round towards 0: just chop off the extra precision bits.
@@ -1048,8 +1035,8 @@ integer addition, and has many more steps.</p>
         -   This is the most commonly-used rounding mode.
         -   This is [currently] the only supported mode by the DSLX
             implementation.</li>
-<li>Special case handling: The results are examined for special cases such as
-    NaNs, infinities, or (optionally) subnormals.</li>
+<li><strong>Special case handling:</strong> The results are examined for special cases such
+    as NaNs, infinities, or (optionally) subnormals.</li>
 </ol>
 <h2 id="dslx-implementation">DSLX implementation</h2>
 <p>With an understanding of the algorithm above, the DSLX implementation is
@@ -1059,29 +1046,29 @@ relatively straightforward. "Interesting" chunks are described below.</p>
 the greater exponent, but there are two extra cases to consider. If the operands
 have the same exponent, then the sign will be that of the greater significand,
 and if the result is 0, then we favor positive 0 vs. negative 0.</p>
-<pre><code>  let sfd = (addend_x as s29) + (addend_y as s29);
-  let sfd_is_zero = sfd == s29:0;
-  let result_sign = match (sfd_is_zero, sfd &lt; s29:0) {
-    (true, _) =&gt; u1:0,
-    (false, true) =&gt; !greater_exp.sign,
-    _ =&gt; greater_exp.sign,
-  };
-</code></pre>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">sfd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">addend_x</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s29</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">addend_y</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s29</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">sfd_is_zero</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sfd</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">s29</span>:<span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">result_sign</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="p">(</span><span class="n">sfd_is_zero</span><span class="p">,</span><span class="w"> </span><span class="n">sfd</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">s29</span>:<span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="p">(</span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="n">_</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">u1</span>:<span class="mi">0</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="p">(</span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="o">!</span><span class="n">greater_exp</span><span class="p">.</span><span class="n">sign</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="n">_</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">greater_exp</span><span class="p">.</span><span class="n">sign</span><span class="p">,</span><span class="w"></span>
+<span class="w">  </span><span class="p">};</span><span class="w"></span>
+</code></pre></div>
 
 <h3 id="rounding">Rounding</h3>
 <p>As complicated as rounding is to describe, its implementation is relatively
 straightforward.</p>
-<pre><code>  let normal_chunk = shifted_sfd[0:3];
-  let half_way_chunk = shifted_sfd[2:4];
-  let do_round_up =
-      u1:1 if (normal_chunk &gt; u3:0x4) | (half_way_chunk == u2:0x3)
-      else u1:0;
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">normal_chunk</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">shifted_sfd</span><span class="p">[</span><span class="mi">0</span>:<span class="mi">3</span><span class="p">];</span><span class="w"></span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">half_way_chunk</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">shifted_sfd</span><span class="p">[</span><span class="mi">2</span>:<span class="mi">4</span><span class="p">];</span><span class="w"></span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">do_round_up</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
+<span class="w">      </span><span class="n">u1</span>:<span class="mi">1</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">normal_chunk</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">u3</span>:<span class="mh">0x4</span><span class="p">)</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="n">half_way_chunk</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">u2</span>:<span class="mh">0x3</span><span class="p">)</span><span class="w"></span>
+<span class="w">      </span><span class="k">else</span><span class="w"> </span><span class="n">u1</span>:<span class="mi">0</span><span class="p">;</span><span class="w"></span>
 
-  // We again need an extra bit for carry.
-  let rounded_sfd = (shifted_sfd as u28) + u28:0x8 if do_round_up
-      else (shifted_sfd as u28);
-  let rounding_carry = rounded_sfd[-1:];
-</code></pre>
+<span class="w">  </span><span class="c1">// We again need an extra bit for carry.</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">rounded_sfd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">shifted_sfd</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">u28</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">u28</span>:<span class="mh">0x8</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">do_round_up</span><span class="w"></span>
+<span class="w">      </span><span class="k">else</span><span class="w"> </span><span class="p">(</span><span class="n">shifted_sfd</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">u28</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">rounding_carry</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rounded_sfd</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span>:<span class="p">];</span><span class="w"></span>
+</code></pre></div>
 
 <p>The behavior of logic descriptions - even in a higher level language such as
 DSLX - can be non-obvious to a new reader, so extensive comments, such as those

@@ -1011,15 +1011,15 @@ also be present).</p>
 <p>Interpreter targets are automatically generated for <code>dslx_test()</code> targets, so no
 special declarations are necessary to wrap DSLX code.</p>
 <p>To invoke these samples, execute the following:</p>
-<pre><code>bazel build -c opt //xls/examples:adler32_dslx_test
+<div class="highlight"><pre><span></span><code>bazel build -c opt //xls/examples:adler32_dslx_test
 ./bazel-bin/xls/examples/adler32_dslx_test
-</code></pre>
+</code></pre></div>
 
 <p>To execute directly via the interpreter, you can instead run:</p>
-<pre><code>$ bazel build -c opt //xls/dslx/interpreter_main
+<div class="highlight"><pre><span></span><code>$ bazel build -c opt //xls/dslx/interpreter_main
 $ ./bazel-bin/xls/dslx/interpreter_main \
     ./xls/examples/adler32.x
-</code></pre>
+</code></pre></div>
 
 <p>These two methods are equivalent.</p>
 <h3 id="execution-comparison">Execution comparison</h3>
@@ -1029,13 +1029,13 @@ consistency between IR and DSL execution (in addition to other methods used in
 more generally in XLS, like the fuzzer).</p>
 <p>The user may compare DSL execution to IR interpreter execution, IR JIT
 execution, or not perform IR comparison at all.</p>
-<pre><code class="console">$ ./bazel-bin/xls/dslx/interpreter_main \
-    ./xls/examples/adler32.x --compare=jit
-$ ./bazel-bin/xls/dslx/interpreter_main \
-    ./xls/examples/adler32.x --compare=interpreter
-$ ./bazel-bin/xls/dslx/interpreter_main \
-    ./xls/examples/adler32.x --compare=none
-</code></pre>
+<div class="highlight"><pre><span></span><code><span class="gp">$</span> ./bazel-bin/xls/dslx/interpreter_main <span class="se">\</span>
+    ./xls/examples/adler32.x --compare<span class="o">=</span>jit
+<span class="gp">$</span> ./bazel-bin/xls/dslx/interpreter_main <span class="se">\</span>
+    ./xls/examples/adler32.x --compare<span class="o">=</span>interpreter
+<span class="gp">$</span> ./bazel-bin/xls/dslx/interpreter_main <span class="se">\</span>
+    ./xls/examples/adler32.x --compare<span class="o">=</span>none
+</code></pre></div>
 
 <h2 id="ir">IR</h2>
 <p>XLS provides two means of evaluating IR - interpretation and native host
@@ -1048,11 +1048,11 @@ case will be to run a sample through a design. To evaluate a sample (1.0 + 2.5)
 on the
 <a href="https://github.com/google/xls/tree/main/xls/modules/fpadd_2x32.x">floating-point adder</a>,
 one would run the following:</p>
-<pre><code>bazel build -c opt //xls/tools:eval_ir_main
+<div class="highlight"><pre><span></span><code>bazel build -c opt //xls/tools:eval_ir_main
 ./bazel-bin/xls/tools/eval_ir_main \
-  --input '(bits[1]: 0x0, bits[8]:0x7F, bits[23]:0x0); (bits[1]: 0x0, bits[8]:0x80, bits[23]:0x200000)' \
+  --input &#39;(bits[1]: 0x0, bits[8]:0x7F, bits[23]:0x0); (bits[1]: 0x0, bits[8]:0x80, bits[23]:0x200000)&#39; \
   ./xls/modules/fpadd_2x32.x
-</code></pre>
+</code></pre></div>
 
 <p>By default, this runs via the JIT. To use the interpreter, add the
 <code>--use_llvm_jit=false</code> flag to the invocation.</p>
@@ -1064,13 +1064,13 @@ aptly-named
 <a href="https://github.com/google/xls/tree/main/xls/tools/netlist_interpreter_main.cc"><code>netlist_interpreter_main</code></a>
 tool. This tool currently only supports single sample evaluation (as illustrated
 in the IR section above):</p>
-<pre><code>bazel build -c opt //xls/tools:netlist_interpreter_main
+<div class="highlight"><pre><span></span><code>bazel build -c opt //xls/tools:netlist_interpreter_main
 ./bazel-bin/xls/tools/netlist_interpreter_main \
   --netlist &lt;path to netlist&gt;
   --module  &lt;module to evaluate&gt;
-  --cell_library[_proto] &lt;path to the module's cell library [proto]&gt;
+  --cell_library[_proto] &lt;path to the module&#39;s cell library [proto]&gt;
   --inputs  &lt;input sample, as above&gt;
-</code></pre>
+</code></pre></div>
 
 <p>As XLS does not currently provide an sample/example netlist (TODO(rspringer)),
 concrete values can't [yet] be provided here. The <code>--cell_library</code> flag merits
