@@ -54,12 +54,13 @@ class DistributedRoutingTable {
   // PortRoutingList
   //   is a list of tuples of <destination, PortAndVCIndex>
   //
-  // To find the output port for a phit arriving at index and vc that has
+  // To find the output port for a flit arriving at index and vc that has
   // a specific destination
   //   1. Retrieve the associated PortRoutingList
   //   2. Find the tuple that matched the given destination within the list.
   using PortRoutingList = std::vector<std::pair<int64_t, PortAndVCIndex>>;
 
+  // See comment above.
   struct RouterRoutingTable {
     std::vector<std::vector<PortRoutingList>> routes;
   };

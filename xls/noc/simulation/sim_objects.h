@@ -21,6 +21,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/noc/simulation/common.h"
+#include "xls/noc/simulation/flit.h"
 #include "xls/noc/simulation/global_routing_table.h"
 #include "xls/noc/simulation/parameters.h"
 
@@ -32,41 +33,12 @@
 namespace xls {
 namespace noc {
 
-// Represents a phit being sent from a source to a sink (forward).
-struct DataPhit {
-  // TODO(tedhong) : 2020-01-24 - Convert to use Bits/DSLX structs.
-  // TODO(tedhong) : 2020-02-20 - Add fluent phit builder to initialize struct.
-  bool valid;
-  int16_t destination_index;
-  int16_t vc;
-  int64_t data;
-};
-
-// Associates a phit with a time (cycle).
-struct TimedDataPhit {
-  int64_t cycle;
-  DataPhit phit;
-};
-
-// Represents a phit being used for metadata (i.e. credits).
-struct MetadataPhit {
-  // TODO(tedhong) : 2020-01-24 - Convert to use Bits/DSLX structs.
-  bool valid;
-  int64_t data;
-};
-
-// Associates a metadata phit with a time (cycle).
-struct TimedMetadataPhit {
-  int64_t cycle;
-  MetadataPhit phit;
-};
-
 // Used to store the state of phits in-flight for a network.
 // It is associated with a ConnectionId which connects two ports.
 struct SimConnectionState {
   ConnectionId id;
-  TimedDataPhit forward_channels;
-  std::vector<TimedMetadataPhit> reverse_channels;
+  TimedDataFlit forward_channels;
+  std::vector<TimedMetadataFlit> reverse_channels;
 };
 
 // Used to store the valid credit available at a certain time.
@@ -77,13 +49,13 @@ struct CreditState {
 
 // Represents a fifo/buffer used to store phits.
 struct DataFlitQueue {
-  std::queue<DataPhit> queue;
+  std::queue<DataFlit> queue;
   int64_t max_queue_size;
 };
 
 // Represents a fifo/buffer used to store metadata phits.
 struct MetadataFlitQueue {
-  std::queue<MetadataPhit> queue;
+  std::queue<MetadataFlit> queue;
   int64_t max_queue_size;
 };
 
@@ -161,7 +133,7 @@ class SimNetworkComponentBase {
 
 // A pair of pipeline stages connecting two ports/network components.
 //
-// DataPhits are propagated forward, while MetaDataPhits are propagated
+// DataFlits are propagated forward, while MetaDataFlits are propagated
 // backwards.
 class SimLink : public SimNetworkComponentBase {
  public:
@@ -189,9 +161,9 @@ class SimLink : public SimNetworkComponentBase {
   int64_t src_connection_index_;
   int64_t sink_connection_index_;
 
-  std::queue<DataPhit> forward_data_stages_;
+  std::queue<DataFlit> forward_data_stages_;
 
-  std::vector<std::queue<MetadataPhit>> reverse_credit_stages_;
+  std::vector<std::queue<MetadataFlit>> reverse_credit_stages_;
 };
 
 // Source - injects traffic into the network.
@@ -204,8 +176,8 @@ class SimNetworkInterfaceSrc : public SimNetworkComponentBase {
     return ret;
   }
 
-  // Register a phit to be sent at a specific time.
-  absl::Status SendPhitAtTime(TimedDataPhit phit);
+  // Register a flit to be sent at a specific time.
+  absl::Status SendFlitAtTime(TimedDataFlit flit);
 
  private:
   SimNetworkInterfaceSrc() = default;
@@ -217,7 +189,7 @@ class SimNetworkInterfaceSrc : public SimNetworkComponentBase {
   int64_t sink_connection_index_;
   std::vector<int64_t> credit_;
   std::vector<CreditState> credit_update_;
-  std::vector<std::queue<TimedDataPhit>> data_to_send_;
+  std::vector<std::queue<TimedDataFlit>> data_to_send_;
 };
 
 // Sink - traffic leaves the network via a sink.
@@ -232,7 +204,7 @@ class SimNetworkInterfaceSink : public SimNetworkComponentBase {
 
   // Returns all traffic received by this sink from the beginning
   // of the simulation.
-  absl::Span<const TimedDataPhit> GetReceivedTraffic() {
+  absl::Span<const TimedDataFlit> GetReceivedTraffic() {
     return received_traffic_;
   }
 
@@ -245,7 +217,7 @@ class SimNetworkInterfaceSink : public SimNetworkComponentBase {
 
   int64_t src_connection_index_;
   std::vector<DataFlitQueue> input_buffers_;
-  std::vector<TimedDataPhit> received_traffic_;
+  std::vector<TimedDataFlit> received_traffic_;
 };
 
 // Represents a input-buffered, fixed priority, credit-based, virtual-channel
@@ -257,7 +229,7 @@ class SimNetworkInterfaceSink : public SimNetworkComponentBase {
 //
 // Specific features include
 //   - Input buffered - phits are buffered at the input.
-//   - Input bypass - a phit can enter the router and leave on the same cycle.
+//   - Input bypass - a flit can enter the router and leave on the same cycle.
 //   - Credits - the router keeps track of the absolute credit count and
 //               expects incremental updates from the components downstream.
 //             - credits are registered so there is a one-cycle delay
@@ -266,7 +238,7 @@ class SimNetworkInterfaceSink : public SimNetworkComponentBase {
 //             - the router likewise sends credit updates upstream.
 //   - Dedicated credit channels - Each vc is associated with an indepenendent
 //                                 channel for credit updates.
-//   - Output bufferless - once a phit is arbitrated for, the phit is
+//   - Output bufferless - once a flit is arbitrated for, the flit is
 //                         immediately transfered downstream.
 //   - Fixed priority - a fixed priority scheme is implemented.
 // TODO(tedhong): 2021-01-31 - Add support for alternative prority scheme.
@@ -304,8 +276,8 @@ class SimInputBufferedVCRouter : public SimNetworkComponentBase {
   // Perform the routing function of this router.
   //
   // Returns a pair of <output_port_index, output_vc_index> -- the
-  // output port and vc a phit should go out on given the input port and vc
-  // along with the eventual phit destination.
+  // output port and vc a flit should go out on given the input port and vc
+  // along with the eventual flit destination.
   absl::StatusOr<PortIndexAndVCIndex> GetDestinationPortIndexAndVcIndex(
       NocSimulator& simulator, PortIndexAndVCIndex input,
       int64_t destination_index);

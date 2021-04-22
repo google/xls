@@ -19,61 +19,25 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/noc/config/network_config.pb.h"
-#include "xls/noc/config/network_config_proto_builder.h"
 #include "xls/noc/simulation/network_graph_builder.h"
+#include "xls/noc/simulation/sample_network_graphs.h"
 
 namespace xls {
 namespace noc {
 namespace {
 
 TEST(SimObjectsTest, BackToBackNetwork0) {
-  XLS_LOG(INFO) << "Setting up network ...";
-  NetworkConfigProtoBuilder builder("Test");
-
-  // Network:
-  //   SendPort0
-  //       |
-  //       |
-  //     Ain0
-  //  [ RouterA ]
-  //     Aout0
-  //       |
-  //       |
-  //   RecvPort0
-  builder.WithVirtualChannel("VC0").WithFlitBitWidth(100).WithDepth(3);
-
-  builder.WithPort("SendPort0").AsInputDirection().WithVirtualChannel("VC0");
-  builder.WithPort("RecvPort0").AsOutputDirection().WithVirtualChannel("VC0");
-
-  auto routera = builder.WithRouter("RouterA");
-  routera.WithInputPort("Ain0").WithVirtualChannel("VC0");
-  routera.WithOutputPort("Aout0").WithVirtualChannel("VC0");
-
-  builder.WithLink("Link0A")
-      .WithSourcePort("SendPort0")
-      .WithSinkPort("Ain0")
-      .WithSourceSinkPipelineStage(2);
-  builder.WithLink("LinkA0")
-      .WithSourcePort("Aout0")
-      .WithSinkPort("RecvPort0")
-      .WithSourceSinkPipelineStage(2);
-
-  XLS_ASSERT_OK_AND_ASSIGN(NetworkConfigProto nc_proto, builder.Build());
-  XLS_LOG(INFO) << nc_proto.DebugString();
-  XLS_LOG(INFO) << "Done ...";
-
   // Build and assign simulation objects
+  NetworkConfigProto proto;
   NetworkManager graph;
   NocParameters params;
-
-  XLS_ASSERT_OK(BuildNetworkGraphFromProto(nc_proto, &graph, &params));
-  graph.Dump();
+  XLS_ASSERT_OK(BuildNetworkGraphLinear000(&proto, &graph, &params));
 
   // Sanity check network
   ASSERT_EQ(graph.GetNetworkIds().size(), 1);
   EXPECT_EQ(params.GetNetworkParam(graph.GetNetworkIds()[0])->GetName(),
             "Test");
-  XLS_LOG(INFO) << "Network Graph Complete ...";
+  XLS_LOG(INFO) << "Network Checks Complete";
 
   XLS_ASSERT_OK_AND_ASSIGN(
       NetworkComponentId routera_id,
@@ -110,16 +74,20 @@ TEST(SimObjectsTest, BackToBackNetwork0) {
       simulator.GetRoutingTable()->GetSinkIndices().GetNetworkComponentIndex(
           recv_port_0));
 
-  TimedDataPhit phit0;
-  phit0.phit.valid = true;
-  phit0.phit.vc = 0;
-  phit0.phit.data = 707;
-  phit0.phit.destination_index = dest_index_0;
-  phit0.cycle = 1;
+  XLS_ASSERT_OK_AND_ASSIGN(TimedDataFlit flit0,
+                           DataFlitBuilder()
+                               .Cycle(1)
+                               .Type(FlitType::kTail)
+                               .VirtualChannel(0)
+                               .SourceIndex(0)
+                               .DestinationIndex(dest_index_0)
+                               .Data(UBits(707, 64))
+                               .Cycle(1)
+                               .BuildTimedFlit());
 
   XLS_ASSERT_OK_AND_ASSIGN(SimNetworkInterfaceSrc * sim_send_port_0,
                            simulator.GetSimNetworkInterfaceSrc(send_port_0));
-  XLS_ASSERT_OK(sim_send_port_0->SendPhitAtTime(phit0));
+  XLS_ASSERT_OK(sim_send_port_0->SendFlitAtTime(flit0));
 
   for (int64_t i = 0; i < 10; ++i) {
     XLS_ASSERT_OK(simulator.RunCycle());
@@ -128,111 +96,20 @@ TEST(SimObjectsTest, BackToBackNetwork0) {
   XLS_ASSERT_OK_AND_ASSIGN(SimNetworkInterfaceSink * sim_recv_port_0,
                            simulator.GetSimNetworkInterfaceSink(recv_port_0));
 
-  absl::Span<const TimedDataPhit> traffic_recv_port_0 =
+  absl::Span<const TimedDataFlit> traffic_recv_port_0 =
       sim_recv_port_0->GetReceivedTraffic();
 
   EXPECT_EQ(traffic_recv_port_0.size(), 1);
   EXPECT_EQ(traffic_recv_port_0[0].cycle, 5);
-  EXPECT_EQ(traffic_recv_port_0[0].phit.data, 707);
+  EXPECT_EQ(traffic_recv_port_0[0].flit.data, 707);
 }
 
 TEST(SimObjectsTest, TreeNework0) {
-  XLS_LOG(INFO) << "Setting up network ...";
-  NetworkConfigProtoBuilder builder("Test");
-
-  // Network:
-  //
-  //   SendPort0     SendPort1    SendPort2
-  //     \           /                |
-  //      \         /                 |
-  //     Ain0     Ain1                |
-  //      [ RouterA ]                 |
-  //     Aout0    Aout1               |
-  //       |        \                 |
-  //       |         \----------|     |
-  //       |                  Bin0   Bin1
-  //       |                    [    RouterB   ]
-  //       |                  Bout0  Bout1  Bout2
-  //       |                   /      |         \
-  //       |                  /L=2    |          \
-  //   RecvPort0          RecvPort1   RecvPort2  RecvPort3
-  builder.WithVirtualChannel("VC0").WithFlitBitWidth(100).WithDepth(3);
-  builder.WithVirtualChannel("VC1").WithFlitBitWidth(200).WithDepth(3);
-
-  builder.WithPort("SendPort0")
-      .AsInputDirection()
-      .WithVirtualChannel("VC0")
-      .WithVirtualChannel("VC1");
-  builder.WithPort("SendPort1")
-      .AsInputDirection()
-      .WithVirtualChannel("VC0")
-      .WithVirtualChannel("VC1");
-  builder.WithPort("SendPort2")
-      .AsInputDirection()
-      .WithVirtualChannel("VC0")
-      .WithVirtualChannel("VC1");
-  builder.WithPort("RecvPort0")
-      .AsOutputDirection()
-      .WithVirtualChannel("VC0")
-      .WithVirtualChannel("VC1");
-  builder.WithPort("RecvPort1")
-      .AsOutputDirection()
-      .WithVirtualChannel("VC0")
-      .WithVirtualChannel("VC1");
-  builder.WithPort("RecvPort2")
-      .AsOutputDirection()
-      .WithVirtualChannel("VC0")
-      .WithVirtualChannel("VC1");
-  builder.WithPort("RecvPort3")
-      .AsOutputDirection()
-      .WithVirtualChannel("VC0")
-      .WithVirtualChannel("VC1");
-
-  auto routera = builder.WithRouter("RouterA");
-  routera.WithInputPort("Ain0").WithVirtualChannel("VC0").WithVirtualChannel(
-      "VC1");
-  routera.WithInputPort("Ain1").WithVirtualChannel("VC0").WithVirtualChannel(
-      "VC1");
-  routera.WithOutputPort("Aout0").WithVirtualChannel("VC0").WithVirtualChannel(
-      "VC1");
-  routera.WithOutputPort("Aout1").WithVirtualChannel("VC0").WithVirtualChannel(
-      "VC1");
-
-  auto routerb = builder.WithRouter("RouterB");
-  routerb.WithInputPort("Bin0").WithVirtualChannel("VC0").WithVirtualChannel(
-      "VC1");
-  routerb.WithInputPort("Bin1").WithVirtualChannel("VC0").WithVirtualChannel(
-      "VC1");
-  routerb.WithOutputPort("Bout0").WithVirtualChannel("VC0").WithVirtualChannel(
-      "VC1");
-  routerb.WithOutputPort("Bout1").WithVirtualChannel("VC0").WithVirtualChannel(
-      "VC1");
-  routerb.WithOutputPort("Bout2").WithVirtualChannel("VC0").WithVirtualChannel(
-      "VC1");
-
-  builder.WithLink("Link0A").WithSourcePort("SendPort0").WithSinkPort("Ain0");
-  builder.WithLink("Link1A").WithSourcePort("SendPort1").WithSinkPort("Ain1");
-  builder.WithLink("LinkAB").WithSourcePort("Aout1").WithSinkPort("Bin0");
-  builder.WithLink("Link2A").WithSourcePort("SendPort2").WithSinkPort("Bin1");
-
-  builder.WithLink("LinkA0").WithSourcePort("Aout0").WithSinkPort("RecvPort0");
-  builder.WithLink("LinkB1")
-      .WithSourcePort("Bout0")
-      .WithSinkPort("RecvPort1")
-      .WithSourceSinkPipelineStage(2);
-  builder.WithLink("LinkB2").WithSourcePort("Bout1").WithSinkPort("RecvPort2");
-  builder.WithLink("LinkB3").WithSourcePort("Bout2").WithSinkPort("RecvPort3");
-
-  XLS_ASSERT_OK_AND_ASSIGN(NetworkConfigProto nc_proto, builder.Build());
-  XLS_LOG(INFO) << nc_proto.DebugString();
-  XLS_LOG(INFO) << "Done ...";
-
   // Build and assign simulation objects
+  NetworkConfigProto proto;
   NetworkManager graph;
   NocParameters params;
-
-  XLS_ASSERT_OK(BuildNetworkGraphFromProto(nc_proto, &graph, &params));
-  graph.Dump();
+  XLS_ASSERT_OK(BuildNetworkGraphTree000(&proto, &graph, &params));
 
   // Sanity check network
   ASSERT_EQ(graph.GetNetworkIds().size(), 1);
@@ -298,37 +175,47 @@ TEST(SimObjectsTest, TreeNework0) {
           recv_port_3));
 
   // phit0 traverses a link of latency 2 so will arrive on cycle 3.
-  TimedDataPhit phit0;
-  phit0.phit.valid = true;
-  phit0.phit.vc = 0;
-  phit0.phit.data = 707;
-  phit0.phit.destination_index = dest_index_1;
-  phit0.cycle = 1;
+  XLS_ASSERT_OK_AND_ASSIGN(TimedDataFlit flit0,
+                           DataFlitBuilder()
+                               .Cycle(1)
+                               .Type(FlitType::kTail)
+                               .VirtualChannel(0)
+                               .SourceIndex(0)
+                               .DestinationIndex(dest_index_1)
+                               .Data(UBits(707, 64))
+                               .Cycle(1)
+                               .BuildTimedFlit());
 
   // phit1 will be blocked by phit0 so it will actually arrive on cycle 2.
-  TimedDataPhit phit1;
-  phit1.phit.valid = true;
-  phit1.phit.vc = 1;
-  phit1.phit.data = 1001;
-  phit1.phit.destination_index = dest_index_3;
-  phit1.cycle = 1;
+  XLS_ASSERT_OK_AND_ASSIGN(TimedDataFlit flit1,
+                           DataFlitBuilder()
+                               .Cycle(1)
+                               .Type(FlitType::kTail)
+                               .VirtualChannel(1)
+                               .SourceIndex(0)
+                               .DestinationIndex(dest_index_3)
+                               .Data(UBits(1001, 64))
+                               .BuildTimedFlit());
 
   // phit2 goes though all router bypass paths so will arrive on cycle 3.
-  TimedDataPhit phit2;
-  phit2.phit.valid = true;
-  phit2.phit.vc = 1;
-  phit2.phit.data = 2002;
-  phit2.phit.destination_index = dest_index_3;
-  phit2.cycle = 3;
+  XLS_ASSERT_OK_AND_ASSIGN(TimedDataFlit flit2,
+                           DataFlitBuilder()
+                               .Cycle(3)
+                               .Type(FlitType::kTail)
+                               .VirtualChannel(1)
+                               .SourceIndex(0)
+                               .DestinationIndex(dest_index_3)
+                               .Data(UBits(2002, 64))
+                               .BuildTimedFlit());
 
   XLS_ASSERT_OK_AND_ASSIGN(SimNetworkInterfaceSrc * sim_send_port_0,
                            simulator.GetSimNetworkInterfaceSrc(send_port_0));
-  XLS_ASSERT_OK(sim_send_port_0->SendPhitAtTime(phit0));
+  XLS_ASSERT_OK(sim_send_port_0->SendFlitAtTime(flit0));
 
   XLS_ASSERT_OK_AND_ASSIGN(SimNetworkInterfaceSrc * sim_send_port_1,
                            simulator.GetSimNetworkInterfaceSrc(send_port_1));
-  XLS_ASSERT_OK(sim_send_port_1->SendPhitAtTime(phit1));
-  XLS_ASSERT_OK(sim_send_port_1->SendPhitAtTime(phit2));
+  XLS_ASSERT_OK(sim_send_port_1->SendFlitAtTime(flit1));
+  XLS_ASSERT_OK(sim_send_port_1->SendFlitAtTime(flit2));
 
   for (int64_t i = 0; i < 10; ++i) {
     XLS_ASSERT_OK(simulator.RunCycle());
@@ -343,13 +230,13 @@ TEST(SimObjectsTest, TreeNework0) {
   XLS_ASSERT_OK_AND_ASSIGN(SimNetworkInterfaceSink * sim_recv_port_3,
                            simulator.GetSimNetworkInterfaceSink(recv_port_3));
 
-  absl::Span<const TimedDataPhit> traffic_recv_port_0 =
+  absl::Span<const TimedDataFlit> traffic_recv_port_0 =
       sim_recv_port_0->GetReceivedTraffic();
-  absl::Span<const TimedDataPhit> traffic_recv_port_1 =
+  absl::Span<const TimedDataFlit> traffic_recv_port_1 =
       sim_recv_port_1->GetReceivedTraffic();
-  absl::Span<const TimedDataPhit> traffic_recv_port_2 =
+  absl::Span<const TimedDataFlit> traffic_recv_port_2 =
       sim_recv_port_2->GetReceivedTraffic();
-  absl::Span<const TimedDataPhit> traffic_recv_port_3 =
+  absl::Span<const TimedDataFlit> traffic_recv_port_3 =
       sim_recv_port_3->GetReceivedTraffic();
 
   EXPECT_EQ(traffic_recv_port_0.size(), 0);
@@ -358,11 +245,11 @@ TEST(SimObjectsTest, TreeNework0) {
   EXPECT_EQ(traffic_recv_port_3.size(), 2);
 
   EXPECT_EQ(traffic_recv_port_1[0].cycle, 3);
-  EXPECT_EQ(traffic_recv_port_1[0].phit.data, 707);
+  EXPECT_EQ(traffic_recv_port_1[0].flit.data, 707);
   EXPECT_EQ(traffic_recv_port_3[0].cycle, 2);
-  EXPECT_EQ(traffic_recv_port_3[0].phit.data, 1001);
+  EXPECT_EQ(traffic_recv_port_3[0].flit.data, 1001);
   EXPECT_EQ(traffic_recv_port_3[1].cycle, 3);
-  EXPECT_EQ(traffic_recv_port_3[1].phit.data, 2002);
+  EXPECT_EQ(traffic_recv_port_3[1].flit.data, 2002);
 }
 
 }  // namespace

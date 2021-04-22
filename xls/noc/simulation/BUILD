@@ -124,6 +124,24 @@ cc_test(
 )
 
 cc_library(
+    name = "sample_network_graphs",
+    srcs = ["sample_network_graphs.cc"],
+    hdrs = ["sample_network_graphs.h"],
+    deps = [
+        ":common",
+        ":network_graph",
+        ":network_graph_builder",
+        ":parameters",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/noc/config:network_config_cc_proto",
+        "//xls/noc/config:network_config_proto_builder",
+    ],
+)
+
+cc_library(
     name = "indexer",
     srcs = ["indexer.cc"],
     hdrs = ["indexer.h"],
@@ -184,11 +202,23 @@ cc_test(
 )
 
 cc_library(
+    name = "flit",
+    hdrs = ["flit.h"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:status_macros",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+    ],
+)
+
+cc_library(
     name = "sim_objects",
     srcs = ["sim_objects.cc"],
     hdrs = ["sim_objects.h"],
     deps = [
         ":common",
+        ":flit",
         ":global_routing_table",
         ":network_graph",
         ":parameters",
@@ -205,12 +235,54 @@ cc_test(
     srcs = ["sim_objects_test.cc"],
     deps = [
         ":network_graph_builder",
+        ":sample_network_graphs",
         ":sim_objects",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/noc/config:network_config_cc_proto",
-        "//xls/noc/config:network_config_proto_builder",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "packetizer",
+    srcs = ["packetizer.cc"],
+    hdrs = ["packetizer.h"],
+    deps = [
+        ":common",
+        ":sim_objects",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+    ],
+)
+
+cc_test(
+    name = "packetizer_test",
+    srcs = ["packetizer_test.cc"],
+    deps = [
+        ":packetizer",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "sim_packets_test",
+    srcs = ["sim_packets_test.cc"],
+    deps = [
+        ":packetizer",
+        ":sample_network_graphs",
+        ":sim_objects",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
 )
