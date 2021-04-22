@@ -107,7 +107,7 @@ TEST(SimObjectsTest, BackToBackNetwork0) {
   EXPECT_EQ(flit0.flit.destination_index, dest_index_0);
   EXPECT_EQ(flit0.flit.type, FlitType::kHead);
   EXPECT_EQ(flit0.flit.vc, 0);
-  EXPECT_EQ(UBits(flit0.flit.data, flit0.flit.data_bit_count),
+  EXPECT_EQ(flit0.flit.data.Slice(0, flit0.flit.data_bit_count),
             UBits(0b0'0110'1100'0011, 13));
 
   EXPECT_EQ(flit1.cycle, 6);
@@ -115,7 +115,8 @@ TEST(SimObjectsTest, BackToBackNetwork0) {
   EXPECT_EQ(flit1.flit.destination_index, dest_index_0);
   EXPECT_EQ(flit1.flit.type, FlitType::kTail);
   EXPECT_EQ(flit1.flit.vc, 0);
-  EXPECT_EQ(UBits(flit1.flit.data, flit1.flit.data_bit_count), UBits(0b101, 3));
+  EXPECT_EQ(flit1.flit.data.Slice(0, flit1.flit.data_bit_count),
+            UBits(0b101, 3));
 }
 
 }  // namespace

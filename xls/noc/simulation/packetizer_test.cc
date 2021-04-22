@@ -68,7 +68,7 @@ TEST(PacketizerTest, SendSingleFlit) {
   EXPECT_EQ(flit0.vc, packet.vc);
   EXPECT_EQ(flit0.type, FlitType::kTail);
 
-  EXPECT_EQ(UBits(flit0.data, 16), UBits(0b1010'0110'1100'0011, 16));
+  EXPECT_EQ(flit0.data, UBits(0b1010'0110'1100'0011, 16));
 
   // Test flit to packet behavior.
   Packetizer packetizer(16, 3, 16, 1);
@@ -114,7 +114,7 @@ TEST(PacketizerTest, SendMultiplePhit) {
   EXPECT_EQ(flit0.vc, packet.vc);
   EXPECT_EQ(flit0.type, FlitType::kHead);
 
-  EXPECT_EQ(UBits(flit0.data, flit0.data_bit_count),
+  EXPECT_EQ(flit0.data.Slice(0, flit0.data_bit_count),
             UBits(0b0'0110'1100'0011, 13));
 
   XLS_ASSERT_OK_AND_ASSIGN(DataFlit flit1, depacketizer.ComputeNextFlit());
@@ -125,7 +125,7 @@ TEST(PacketizerTest, SendMultiplePhit) {
   EXPECT_EQ(flit1.vc, packet.vc);
   EXPECT_EQ(flit1.type, FlitType::kTail);
 
-  EXPECT_EQ(UBits(flit1.data, flit1.data_bit_count), UBits(0b101, 3));
+  EXPECT_EQ(flit1.data.Slice(0, flit1.data_bit_count), UBits(0b101, 3));
 
   // Test flit to packet behavior.
   Packetizer packetizer(16, 3, 128, 1);

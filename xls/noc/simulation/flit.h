@@ -28,6 +28,21 @@ namespace xls::noc {
 // Universal encoding of Flit types.
 enum class FlitType { kInvalid = 0x0, kHead = 0x2, kBody = 0x1, kTail = 0x3 };
 
+std::string FlitTypeToString(FlitType type) {
+  switch (type) {
+    case FlitType::kInvalid:
+      return "kInvalid";
+    case FlitType::kHead:
+      return "kHead";
+    case FlitType::kBody:
+      return "kBody";
+    case FlitType::kTail:
+      return "kTail";
+  }
+
+  return absl::StrFormat("<invalid FlitType: %d>", static_cast<int64_t>(type));
+}
+
 // Represents a flit being sent from a source to a sink (forward).
 struct DataFlit {
   // TODO(tedhong) : 2021-03-07 - Support parameterization of flit depending
@@ -45,26 +60,117 @@ struct DataFlit {
   int16_t destination_index;
   int16_t vc;  // Virtual channel.
   int16_t data_bit_count;
-  int64_t data;
+  Bits data;
+
+  std::string ToString() const {
+    return absl::StrFormat(
+        "{type: %s (%d), source_index: %d, dest_index: %d, "
+        "vc: %d, data: %s}",
+        FlitTypeToString(type), type, source_index, destination_index, vc,
+        data.ToString(FormatPreference::kHex, true));
+  }
+
+  // String converter to support absl::StrFormat() and related functions.
+  friend absl::FormatConvertResult<absl::FormatConversionCharSet::kString>
+  AbslFormatConvert(const DataFlit& flit,
+                    const absl::FormatConversionSpec& spec,
+                    absl::FormatSink* s) {
+    s->Append(flit.ToString());
+    return {true};
+  }
 };
 
 // Associates a flit with a time (cycle).
 struct TimedDataFlit {
   int64_t cycle;
   DataFlit flit;
+
+  std::string ToString() const {
+    return absl::StrFormat("{cycle: %d, flit: %s}", cycle, flit);
+  }
+  // String converter to support absl::StrFormat() and related functions.
+  friend absl::FormatConvertResult<absl::FormatConversionCharSet::kString>
+  AbslFormatConvert(const TimedDataFlit& timed_flit,
+                    const absl::FormatConversionSpec& spec,
+                    absl::FormatSink* s) {
+    s->Append(timed_flit.ToString());
+    return {true};
+  }
 };
 
 // Represents a flit being used for metadata (i.e. credits).
 struct MetadataFlit {
   // TODO(tedhong) : 2020-01-24 - Convert to use Bits/DSLX structs.
   FlitType type;
-  int64_t data;
+  Bits data;
+
+  std::string ToString() const {
+    return absl::StrFormat("{type: %s (%d), data: %s}", FlitTypeToString(type),
+                           type, data.ToString(FormatPreference::kHex, true));
+  }
+
+  // String converter to support absl::StrFormat() and related functions.
+  friend absl::FormatConvertResult<absl::FormatConversionCharSet::kString>
+  AbslFormatConvert(const MetadataFlit& flit,
+                    const absl::FormatConversionSpec& spec,
+                    absl::FormatSink* s) {
+    s->Append(flit.ToString());
+    return {true};
+  }
 };
 
 // Associates a metadata flit with a time (cycle).
 struct TimedMetadataFlit {
   int64_t cycle;
   MetadataFlit flit;
+
+  std::string ToString() const {
+    return absl::StrFormat("{cycle: %d, flit: %s}", cycle, flit);
+  }
+  // String converter to support absl::StrFormat() and related functions.
+  friend absl::FormatConvertResult<absl::FormatConversionCharSet::kString>
+  AbslFormatConvert(const TimedMetadataFlit& timed_flit,
+                    const absl::FormatConversionSpec& spec,
+                    absl::FormatSink* s) {
+    s->Append(timed_flit.ToString());
+    return {true};
+  }
+};
+
+// Fluent builder for a MetadataFlit.
+class MetadataFlitBuilder {
+ public:
+  MetadataFlitBuilder& Invalid() {
+    flit_.type = FlitType::kInvalid;
+    return *this;
+  }
+
+  MetadataFlitBuilder& Type(FlitType type) {
+    flit_.type = type;
+    return *this;
+  }
+
+  MetadataFlitBuilder& Data(Bits data) {
+    flit_.data = data;
+    return *this;
+  }
+
+  // Builds a DataFlit flit.
+  absl::StatusOr<MetadataFlit> BuildFlit() { return flit_; }
+
+  // Builds a flit with an associated time.
+  absl::StatusOr<TimedMetadataFlit> BuildTimedFlit() {
+    TimedMetadataFlit timed_flit;
+
+    timed_flit.cycle = cycle_;
+    XLS_ASSIGN_OR_RETURN(timed_flit.flit, BuildFlit());
+
+    return timed_flit;
+  }
+
+ private:
+  MetadataFlit flit_ = {.type = FlitType::kInvalid};
+  int64_t cycle_;
 };
 
 // Fluent builder for a DataFlit.
@@ -108,7 +214,7 @@ class DataFlitBuilder {
   // Builds a DataFlit flit.
   absl::StatusOr<DataFlit> BuildFlit() {
     flit_.data_bit_count = data_.bit_count();
-    XLS_ASSIGN_OR_RETURN(flit_.data, data_.ToUint64());
+    flit_.data = data_;
 
     return flit_;
   }

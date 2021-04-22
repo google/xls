@@ -19,6 +19,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/noc/config/network_config.pb.h"
+#include "xls/noc/simulation/flit.h"
 #include "xls/noc/simulation/network_graph_builder.h"
 #include "xls/noc/simulation/sample_network_graphs.h"
 
@@ -89,7 +90,12 @@ TEST(SimObjectsTest, BackToBackNetwork0) {
                            simulator.GetSimNetworkInterfaceSrc(send_port_0));
   XLS_ASSERT_OK(sim_send_port_0->SendFlitAtTime(flit0));
 
-  for (int64_t i = 0; i < 10; ++i) {
+  // Queue up a couple of more flits, each should arrive in subsquent cycles.
+  for (int64_t i = 0; i < 4; ++i) {
+    XLS_ASSERT_OK(sim_send_port_0->SendFlitAtTime(flit0));
+  }
+
+  for (int64_t i = 0; i < 15; ++i) {
     XLS_ASSERT_OK(simulator.RunCycle());
   }
 
@@ -99,9 +105,11 @@ TEST(SimObjectsTest, BackToBackNetwork0) {
   absl::Span<const TimedDataFlit> traffic_recv_port_0 =
       sim_recv_port_0->GetReceivedTraffic();
 
-  EXPECT_EQ(traffic_recv_port_0.size(), 1);
+  EXPECT_EQ(traffic_recv_port_0.size(), 5);
   EXPECT_EQ(traffic_recv_port_0[0].cycle, 5);
-  EXPECT_EQ(traffic_recv_port_0[0].flit.data, 707);
+  EXPECT_EQ(traffic_recv_port_0[0].flit.data, UBits(707, 64));
+  EXPECT_EQ(traffic_recv_port_0[4].cycle, 9);
+  EXPECT_EQ(traffic_recv_port_0[4].flit.data, UBits(707, 64));
 }
 
 TEST(SimObjectsTest, TreeNework0) {
@@ -245,11 +253,11 @@ TEST(SimObjectsTest, TreeNework0) {
   EXPECT_EQ(traffic_recv_port_3.size(), 2);
 
   EXPECT_EQ(traffic_recv_port_1[0].cycle, 3);
-  EXPECT_EQ(traffic_recv_port_1[0].flit.data, 707);
+  EXPECT_EQ(traffic_recv_port_1[0].flit.data, UBits(707, 64));
   EXPECT_EQ(traffic_recv_port_3[0].cycle, 2);
-  EXPECT_EQ(traffic_recv_port_3[0].flit.data, 1001);
+  EXPECT_EQ(traffic_recv_port_3[0].flit.data, UBits(1001, 64));
   EXPECT_EQ(traffic_recv_port_3[1].cycle, 3);
-  EXPECT_EQ(traffic_recv_port_3[1].flit.data, 2002);
+  EXPECT_EQ(traffic_recv_port_3[1].flit.data, UBits(2002, 64));
 }
 
 }  // namespace

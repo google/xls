@@ -41,7 +41,7 @@ struct DataPacket {
   int16_t vc;  // Virtual channel.
   Bits data;
 
-  const std::string ToString() const {
+  std::string ToString() const {
     return absl::StrFormat(
         "{valid: %d, source_index: %d, dest_index: %d, "
         "vc: %d, data: %s}",

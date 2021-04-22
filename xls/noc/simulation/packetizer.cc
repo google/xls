@@ -50,12 +50,10 @@ void Packetizer::DeallocatePartialPacketStore(int64_t source_index) {
 }
 
 absl::Status Packetizer::AcceptNewFlit(DataFlit flit) {
-  Bits data = UBits(flit.data, flit.data_bit_count);
-
   XLS_ASSIGN_OR_RETURN(std::vector<Bits> * partial_packet_store,
                        AllocateOrRetrievePartialPacketStore(flit.source_index));
 
-  partial_packet_store->push_back(data);
+  partial_packet_store->push_back(flit.data);
 
   if (flit.type == FlitType::kTail) {
     // Concat all received flits together.

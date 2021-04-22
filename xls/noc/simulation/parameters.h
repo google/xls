@@ -73,7 +73,7 @@ struct VirtualChannelParam {
   // but not less.
   int64_t GetDepth() const { return vc_proto_->depth(); }
 
-  // Get bits used for th  if () e data in a single flit.
+  // Get bits used for the data in a single flit.
   int64_t GetFlitDataBitWidth() const { return vc_proto_->flit_bit_width(); }
 
   // Get assoicated network proto for this router.
