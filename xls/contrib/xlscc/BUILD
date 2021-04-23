@@ -50,6 +50,7 @@ proto_library(
 
 cc_proto_library(
     name = "metadata_output_cc_proto",
+    visibility = ["//xls:xls_users"],
     deps = [":metadata_output_proto"],
 )
 
