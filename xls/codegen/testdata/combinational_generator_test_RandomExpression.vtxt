@@ -12,12 +12,12 @@ module RandomExpression(
   endfunction
   // lint_on MULTIPLY
   wire [7:0] diff;
-  wire [7:0] umul_23;
-  wire [7:0] umul_24;
+  wire [7:0] umul_20;
+  wire [7:0] umul_21;
   wire [7:0] the_output;
   assign diff = a - b;
-  assign umul_23 = umul8b_8b_x_8b(diff, diff);
-  assign umul_24 = umul8b_8b_x_8b(c, diff);
-  assign the_output = umul_23 + umul_24;
+  assign umul_20 = umul8b_8b_x_8b(diff, diff);
+  assign umul_21 = umul8b_8b_x_8b(c, diff);
+  assign the_output = umul_20 + umul_21;
   assign out = the_output;
 endmodule

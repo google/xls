@@ -3,7 +3,7 @@ module rrot(
   input wire [31:0] y,
   output wire [31:0] out
 );
-  wire [31:0] sub_20;
-  assign sub_20 = 32'h0000_0020 - y;
-  assign out = (y >= 32'h0000_0020 ? 32'h0000_0000 : x >> y) | (sub_20 >= 32'h0000_0020 ? 32'h0000_0000 : x << sub_20);
+  wire [31:0] sub_17;
+  assign sub_17 = 32'h0000_0020 - y;
+  assign out = (y >= 32'h0000_0020 ? 32'h0000_0000 : x >> y) | (sub_17 >= 32'h0000_0020 ? 32'h0000_0000 : x << sub_17);
 endmodule

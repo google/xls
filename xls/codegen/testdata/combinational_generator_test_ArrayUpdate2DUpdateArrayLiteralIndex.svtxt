@@ -14,8 +14,8 @@ module ArrayUpdate2DUpdateArrayLiteralIndex(
   assign value_unflattened[0] = value[23:16];
   assign value_unflattened[1] = value[15:8];
   assign value_unflattened[2] = value[7:0];
-  wire [7:0] array_update_17[2][3];
-  assign array_update_17[0] = a_unflattened[0];
-  assign array_update_17[1] = value_unflattened;
-  assign out = {{array_update_17[0][0], array_update_17[0][1], array_update_17[0][2]}, {array_update_17[1][0], array_update_17[1][1], array_update_17[1][2]}};
+  wire [7:0] array_update_14[2][3];
+  assign array_update_14[0] = a_unflattened[0];
+  assign array_update_14[1] = value_unflattened;
+  assign out = {{array_update_14[0][0], array_update_14[0][1], array_update_14[0][2]}, {array_update_14[1][0], array_update_14[1][1], array_update_14[1][2]}};
 endmodule

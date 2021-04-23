@@ -3,18 +3,18 @@ module main(
   input wire [31:0] y,
   output wire [43:0] out
 );
-  wire [43:0] literal_17[0:1][0:2];
-  assign literal_17[0][0] = 44'h000_0000_0001;
-  assign literal_17[0][1] = 44'h000_0000_0002;
-  assign literal_17[0][2] = 44'h000_0000_0003;
-  assign literal_17[1][0] = 44'h000_0000_0004;
-  assign literal_17[1][1] = 44'h000_0000_0005;
-  assign literal_17[1][2] = 44'h000_0000_0006;
-  wire [43:0] array_index_18[0:2];
+  wire [43:0] literal_14[0:1][0:2];
+  assign literal_14[0][0] = 44'h000_0000_0001;
+  assign literal_14[0][1] = 44'h000_0000_0002;
+  assign literal_14[0][2] = 44'h000_0000_0003;
+  assign literal_14[1][0] = 44'h000_0000_0004;
+  assign literal_14[1][1] = 44'h000_0000_0005;
+  assign literal_14[1][2] = 44'h000_0000_0006;
+  wire [43:0] array_index_15[0:2];
   wire [43:0] result;
-  assign array_index_18[0] = literal_17[x > 32'h0000_0001 ? 32'h0000_0001 : x][0];
-  assign array_index_18[1] = literal_17[x > 32'h0000_0001 ? 32'h0000_0001 : x][1];
-  assign array_index_18[2] = literal_17[x > 32'h0000_0001 ? 32'h0000_0001 : x][2];
-  assign result = array_index_18[y > 32'h0000_0002 ? 32'h0000_0002 : y];
+  assign array_index_15[0] = literal_14[x > 32'h0000_0001 ? 32'h0000_0001 : x][0];
+  assign array_index_15[1] = literal_14[x > 32'h0000_0001 ? 32'h0000_0001 : x][1];
+  assign array_index_15[2] = literal_14[x > 32'h0000_0001 ? 32'h0000_0001 : x][2];
+  assign result = array_index_15[y > 32'h0000_0002 ? 32'h0000_0002 : y];
   assign out = result;
 endmodule

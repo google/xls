@@ -354,5 +354,62 @@ void OutputPortMatcher::DescribeTo(::std::ostream* os) const {
   matcher_.DescribeTo(os);
 }
 
+bool RegisterMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  // First match the output of the register. It should be a tuple-index of a
+  // receive operation.
+  if (!d_matcher_.MatchAndExplain(node, listener)) {
+    return false;
+  }
+  if (q_matcher_.has_value()) {
+    // If d_matching above was successful, then node must be a tuple-index of a
+    // receive node. Find matching send node in proc.
+    int64_t channel_id = node->As<::xls::TupleIndex>()
+                             ->operand(0)
+                             ->As<::xls::Receive>()
+                             ->channel_id();
+    // Find the send operation associated with the receive on the register
+    // channel.
+    // TODO(meheff): 2021/04/20 Find a better way of doing this.
+    ::xls::Send* send = nullptr;
+    for (Node* node : node->function_base()->nodes()) {
+      if (node->Is<::xls::Send>() &&
+          node->As<::xls::Send>()->channel_id() == channel_id) {
+        send = node->As<::xls::Send>();
+        break;
+      }
+    }
+    if (send == nullptr) {
+      *listener
+          << " has no associated register send operation. IR may be malformed.";
+      return false;
+    }
+    ::testing::StringMatchResultListener inner_listener;
+    if (!q_matcher_->MatchAndExplain(send->data(), &inner_listener)) {
+      if (listener->IsInterested()) {
+        *listener << absl::StreamFormat(
+            "\ndata (%s) of send operation (%s) assocated with receive "
+            "(%s):\n\t%s\ndoesn't match expected:\n\t",
+            send->data()->GetName(), send->GetName(),
+            node->operand(0)->GetName(), send->data()->ToString());
+        std::string explanation = inner_listener.str();
+        if (!inner_listener.str().empty()) {
+          *listener << inner_listener.str();
+        }
+      }
+      return false;
+    }
+  }
+  return true;
+}
+
+void RegisterMatcher::DescribeTo(::std::ostream* os) const {
+  *os << "register(";
+  if (q_matcher_.has_value()) {
+    q_matcher_->DescribeTo(os);
+  }
+  *os << ")";
+}
+
 }  // namespace op_matchers
 }  // namespace xls

@@ -395,5 +395,47 @@ TEST(IrMatchersTest, PortMatcher) {
               HasSubstr("has incorrect kind (streaming), expected: port"));
 }
 
+TEST(IrMatchersTest, RegisterMatcher) {
+  Package p("p");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * reg_ch, p.CreateRegisterChannel("reg", p.GetBitsType(32),
+                                                /*reset_value=*/absl::nullopt,
+                                                ChannelMetadataProto()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_ch,
+      p.CreatePortChannel("in", ChannelOps::kReceiveOnly, p.GetBitsType(32),
+                          ChannelMetadataProto()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreatePortChannel("out", ChannelOps::kSendOnly, p.GetBitsType(32),
+                          ChannelMetadataProto()));
+
+  TokenlessProcBuilder b("proc", Value(UBits(333, 32)), "my_token", "my_state",
+                         &p);
+  auto in = b.Receive(in_ch);
+  b.Send(reg_ch, in);
+  auto in_d = b.Receive(reg_ch);
+  auto out = b.Send(out_ch, in_d);
+  XLS_ASSERT_OK(b.Build(b.GetStateParam()));
+
+  EXPECT_THAT(in_d.node(), m::Register());
+  EXPECT_THAT(in_d.node(), m::Register(m::InputPort()));
+  EXPECT_THAT(in_d.node(), m::Register("reg"));
+  EXPECT_THAT(in_d.node(), m::Register(m::InputPort(), "reg"));
+  EXPECT_THAT(out.node(),
+              m::OutputPort(m::Register(m::InputPort("in")), "out"));
+
+  // Check mismatch conditions.
+  EXPECT_THAT(Explain(in_d.node(), m::Register(m::Add())),
+              HasSubstr("has incorrect op, expected: add"));
+  EXPECT_THAT(Explain(in_d.node(), m::Register("wrong-channel")),
+              HasSubstr("has incorrect name (reg), expected: wrong-channel"));
+  EXPECT_THAT(Explain(in_d.node(), m::Register(m::Add(), "reg")),
+              HasSubstr("has incorrect op, expected: add"));
+  EXPECT_THAT(
+      Explain(in_d.node(), m::Register(m::InputPort(), "wrong-channel")),
+      HasSubstr("has incorrect name (reg), expected: wrong-channel"));
+}
+
 }  // namespace
 }  // namespace xls

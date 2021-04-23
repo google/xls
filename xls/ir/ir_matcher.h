@@ -59,6 +59,7 @@ namespace op_matchers {
 // then recursively checks the operands. The second simply matches the name.
 class NodeMatcher : public ::testing::MatcherInterface<const Node*> {
  public:
+  NodeMatcher(const NodeMatcher&) = default;
   NodeMatcher(Op op, absl::Span<const ::testing::Matcher<const Node*>> operands)
       : op_(op), operands_(operands.begin(), operands.end()) {}
 
@@ -875,6 +876,60 @@ inline ::testing::Matcher<const ::xls::Node*> OutputPort(
     absl::optional<std::string> channel_name = absl::nullopt) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::OutputPortMatcher(data, channel_name));
+}
+
+// Register matcher. Supported forms:
+//
+//   EXPECT_THAT(foo, m::Register());
+//   EXPECT_THAT(foo, m::Register(/*channel_name=*/"foo"));
+//   EXPECT_THAT(foo, m::Register(m::Add()));
+//   EXPECT_THAT(foo, m::Register(m::Add(), /*channel_name=*/"foo"));
+//
+// Unlike most other matches, Register matches multiple nodes, specifically the
+// following pattern:
+//
+//   TupleIndex(Receive(), /*index=*/1)
+//
+// This pattern is used because a receive operation produces a two-tuple (token,
+// data), and this matcher matches the data element. The channel specifications
+// (if given) match the channel of the Receive which must be a port channel.
+class RegisterMatcher : public ::testing::MatcherInterface<const Node*> {
+ public:
+  explicit RegisterMatcher(absl::optional<std::string> channel_name)
+      : d_matcher_(Receive(Channel(/*id=*/absl::nullopt, channel_name,
+                                   ChannelKind::kRegister)),
+                   /*index=*/1) {}
+  RegisterMatcher(::testing::Matcher<const Node*> input,
+                  absl::optional<std::string> channel_name)
+      : q_matcher_(input),
+        d_matcher_(Receive(Channel(/*id=*/absl::nullopt, channel_name,
+                                   ChannelKind::kRegister)),
+                   /*index=*/1) {}
+
+  bool MatchAndExplain(const Node* node,
+                       ::testing::MatchResultListener* listener) const override;
+  void DescribeTo(::std::ostream* os) const override;
+
+ private:
+  // Optional matcher for the send side of the register (the Q input port).
+  absl::optional<::testing::Matcher<const Node*>> q_matcher_;
+
+  // Matcher for the receive side of the register (the D output port). This
+  // matches a tuple index of a receive operation.
+  TupleIndexMatcher d_matcher_;
+};
+
+inline ::testing::Matcher<const ::xls::Node*> Register(
+    absl::optional<std::string> channel_name = absl::nullopt) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::RegisterMatcher(channel_name));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> Register(
+    ::testing::Matcher<const Node*> input,
+    absl::optional<std::string> channel_name = absl::nullopt) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::RegisterMatcher(input, channel_name));
 }
 
 }  // namespace op_matchers

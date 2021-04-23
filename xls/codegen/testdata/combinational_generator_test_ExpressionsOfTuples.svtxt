@@ -5,12 +5,12 @@ module ExpressionsOfTuples(
   output wire [31:0] out
 );
   wire [43:0] big_tuple;
-  wire [25:0] tuple_index_31;
-  wire [15:0] add_39;
-  wire [15:0] sub_40;
+  wire [25:0] tuple_index_28;
+  wire [15:0] add_36;
+  wire [15:0] sub_37;
   assign big_tuple = {a, b, c};
-  assign tuple_index_31 = big_tuple[25:0];
-  assign add_39 = {8'h00, big_tuple[43:36]} + {6'h00, big_tuple[35:26]};
-  assign sub_40 = {6'h00, tuple_index_31[25:16]} - tuple_index_31[15:0];
-  assign out = {add_39, sub_40};
+  assign tuple_index_28 = big_tuple[25:0];
+  assign add_36 = {8'h00, big_tuple[43:36]} + {6'h00, big_tuple[35:26]};
+  assign sub_37 = {6'h00, tuple_index_28[25:16]} - tuple_index_28[15:0];
+  assign out = {add_36, sub_37};
 endmodule

@@ -6,7 +6,7 @@ module ArrayIndexNilIndex(
   assign a_unflattened[0] = a[23:16];
   assign a_unflattened[1] = a[15:8];
   assign a_unflattened[2] = a[7:0];
-  wire [7:0] array_index_11[3];
-  assign array_index_11 = a_unflattened;
-  assign out = {array_index_11[0], array_index_11[1], array_index_11[2]};
+  wire [7:0] array_index_8[3];
+  assign array_index_8 = a_unflattened;
+  assign out = {array_index_8[0], array_index_8[1], array_index_8[2]};
 endmodule

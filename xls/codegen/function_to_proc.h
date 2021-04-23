@@ -18,6 +18,7 @@
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/proc.h"
+#include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls {
 namespace verilog {
@@ -27,6 +28,13 @@ namespace verilog {
 // receive nodes over port channels, the function return value becomes a send
 // over a port channel. Returns a pointer to the proc.
 absl::StatusOr<Proc*> FunctionToProc(Function* f, absl::string_view proc_name);
+
+// Converts a function in a pipelined (stateless) proc. The pipeline is
+// constructed using the given schedule. Registers are inserted between each
+// stage. Inputs and outputs are not flopped.
+absl::StatusOr<Proc*> FunctionToPipelinedProc(const PipelineSchedule& schedule,
+                                              Function* f,
+                                              absl::string_view proc_name);
 
 }  // namespace verilog
 }  // namespace xls
