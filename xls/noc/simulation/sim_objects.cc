@@ -587,7 +587,7 @@ bool SimNetworkInterfaceSrc::TryForwardPropagation(NocSimulator& simulator) {
 
   if (!did_send_flit) {
     sink.forward_channels.flit =
-        DataFlitBuilder().Invalid().BuildFlit().ValueOrDie();
+        DataFlitBuilder().Invalid().BuildFlit().value();
     sink.forward_channels.cycle = current_cycle;
   }
 
@@ -611,7 +611,7 @@ bool SimNetworkInterfaceSrc::TryReversePropagation(NocSimulator& simulator) {
         credit_update_[vc].cycle = current_cycle;
 
         if (possible_credit.flit.type != FlitType::kInvalid) {
-          int64_t credit = possible_credit.flit.data.ToInt64().ValueOrDie();
+          int64_t credit = possible_credit.flit.data.ToInt64().value();
           credit_update_[vc].credit = credit;
         } else {
           credit_update_[vc].credit = 0;
@@ -808,7 +808,7 @@ bool SimInputBufferedVCRouter::TryForwardPropagation(NocSimulator& simulator) {
         simulator.GetSimConnectionByIndex(output_connection_index[i]);
     if (output.forward_channels.cycle != current_cycle) {
       output.forward_channels.flit =
-          DataFlitBuilder().Invalid().BuildFlit().ValueOrDie();
+          DataFlitBuilder().Invalid().BuildFlit().value();
       output.forward_channels.cycle = current_cycle;
     }
   }
@@ -875,7 +875,7 @@ bool SimInputBufferedVCRouter::TryReversePropagation(NocSimulator& simulator) {
           credit_update_[i][vc].cycle = current_cycle;
 
           if (possible_credit.flit.type != FlitType::kInvalid) {
-            int64_t credit = possible_credit.flit.data.ToInt64().ValueOrDie();
+            int64_t credit = possible_credit.flit.data.ToInt64().value();
             credit_update_[i][vc].credit = credit;
           } else {
             credit_update_[i][vc].credit = 0;
