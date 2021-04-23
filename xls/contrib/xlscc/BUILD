@@ -19,6 +19,7 @@
 
 # cc_proto_library is used in this file
 load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -57,7 +58,15 @@ cc_proto_library(
 xls_py_proto_library(
     name = "metadata_output_py_pb2",
     srcs = ["metadata_output.proto"],
-    internal_deps = [":metadat_oautput_proto"],
+    internal_deps = [":metadata_output_proto"],
+)
+
+build_test(
+    name = "metadata_proto_libraries_build",
+    targets = [
+        ":metadata_output_cc_proto",
+        ":metadata_output_py_pb2",
+    ],
 )
 
 cc_library(
