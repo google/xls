@@ -1,0 +1,9 @@
+package test_module
+
+fn __test_module__main(x: bits[8], y: bits[8]) -> (bits[32], bits[32], bits[32], bits[32]) {
+  zero_ext.3: bits[32] = zero_ext(x, new_bit_count=32, id=3)
+  sign_ext.4: bits[32] = sign_ext(y, new_bit_count=32, id=4)
+  zero_ext.5: bits[32] = zero_ext(x, new_bit_count=32, id=5)
+  sign_ext.6: bits[32] = sign_ext(y, new_bit_count=32, id=6)
+  ret tuple.7: (bits[32], bits[32], bits[32], bits[32]) = tuple(zero_ext.3, sign_ext.4, zero_ext.5, sign_ext.6, id=7)
+}

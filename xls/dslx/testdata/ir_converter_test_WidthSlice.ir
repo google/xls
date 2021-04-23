@@ -1,0 +1,8 @@
+package test_module
+
+fn __test_module__f(x: bits[32], y: bits[32]) -> bits[8] {
+  literal.3: bits[32] = literal(value=2, id=3)
+  dynamic_bit_slice.4: bits[8] = dynamic_bit_slice(x, literal.3, width=8, id=4)
+  dynamic_bit_slice.5: bits[8] = dynamic_bit_slice(x, y, width=8, id=5)
+  ret add.6: bits[8] = add(dynamic_bit_slice.4, dynamic_bit_slice.5, id=6)
+}

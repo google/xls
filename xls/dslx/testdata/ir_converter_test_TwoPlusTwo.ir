@@ -1,0 +1,7 @@
+package test_module
+
+fn __test_module__two_plus_two() -> bits[32] {
+  literal.1: bits[32] = literal(value=2, id=1, pos=0,1,6)
+  literal.2: bits[32] = literal(value=2, id=2, pos=0,1,14)
+  ret add.3: bits[32] = add(literal.1, literal.2, id=3, pos=0,1,8)
+}

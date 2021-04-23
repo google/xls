@@ -1,0 +1,11 @@
+package test_module
+
+fn __test_module__main(x: bits[32], y: bits[32]) -> bits[1] {
+  sgt.3: bits[1] = sgt(x, y, id=3)
+  slt.4: bits[1] = slt(x, y, id=4)
+  and.5: bits[1] = and(sgt.3, slt.4, id=5)
+  sge.6: bits[1] = sge(x, y, id=6)
+  and.7: bits[1] = and(and.5, sge.6, id=7)
+  sle.8: bits[1] = sle(x, y, id=8)
+  ret and.9: bits[1] = and(and.7, sle.8, id=9)
+}

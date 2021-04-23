@@ -1,0 +1,6 @@
+package test_module
+
+fn __test_module__f(x: bits[31]) -> bits[32] {
+  literal.2: bits[1] = literal(value=1, id=2, pos=0,1,10)
+  ret concat.3: bits[32] = concat(literal.2, x, id=3, pos=0,1,12)
+}

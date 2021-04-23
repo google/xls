@@ -1,0 +1,6 @@
+package test_module
+
+fn __test_module__main(x: bits[8], y: bits[8]) -> bits[32] {
+  add.3: bits[8] = add(x, y, id=3)
+  ret zero_ext.4: bits[32] = zero_ext(add.3, new_bit_count=32, id=4)
+}

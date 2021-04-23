@@ -1,0 +1,5 @@
+package test_module
+
+fn __test_module__f(xy: bits[32]) -> (bits[32], bits[32]) {
+  ret tuple.2: (bits[32], bits[32]) = tuple(xy, xy, id=2)
+}

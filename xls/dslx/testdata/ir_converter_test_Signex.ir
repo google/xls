@@ -1,0 +1,6 @@
+package test_module
+
+fn __test_module__main(x: bits[8]) -> bits[32] {
+  literal.2: bits[32] = literal(value=0, id=2)
+  ret sign_ext.3: bits[32] = sign_ext(x, new_bit_count=32, id=3)
+}

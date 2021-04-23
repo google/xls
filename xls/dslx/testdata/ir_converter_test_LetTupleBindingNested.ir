@@ -1,0 +1,20 @@
+package test_module
+
+fn __test_module__f() -> bits[32] {
+  literal.3: bits[32] = literal(value=4, id=3)
+  literal.2: bits[32] = literal(value=3, id=2)
+  tuple.4: (bits[32]) = tuple(literal.3, id=4)
+  literal.5: bits[32] = literal(value=5, id=5)
+  literal.1: bits[32] = literal(value=2, id=1)
+  tuple.6: (bits[32], (bits[32]), bits[32]) = tuple(literal.2, tuple.4, literal.5, id=6)
+  t: (bits[32], (bits[32], (bits[32]), bits[32])) = tuple(literal.1, tuple.6, id=7)
+  tuple_index.9: (bits[32], (bits[32]), bits[32]) = tuple_index(t, index=1, id=9)
+  x: bits[32] = tuple_index(t, index=0, id=8)
+  y: bits[32] = tuple_index(tuple_index.9, index=0, id=10)
+  tuple_index.11: (bits[32]) = tuple_index(tuple_index.9, index=1, id=11)
+  add.14: bits[32] = add(x, y, id=14)
+  z: bits[32] = tuple_index(tuple_index.11, index=0, id=12)
+  add.15: bits[32] = add(add.14, z, id=15)
+  a: bits[32] = tuple_index(tuple_index.9, index=2, id=13)
+  ret add.16: bits[32] = add(add.15, a, id=16)
+}

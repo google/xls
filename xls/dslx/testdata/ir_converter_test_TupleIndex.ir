@@ -1,0 +1,9 @@
+package test_module
+
+fn __test_module__main() -> bits[8] {
+  literal.1: bits[32] = literal(value=3, id=1)
+  literal.2: bits[8] = literal(value=4, id=2)
+  t: (bits[32], bits[8]) = tuple(literal.1, literal.2, id=3)
+  literal.4: bits[32] = literal(value=1, id=4)
+  ret tuple_index.5: bits[8] = tuple_index(t, index=1, id=5)
+}

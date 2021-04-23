@@ -1,0 +1,10 @@
+package test_module
+
+fn __test_module__main(r: bits[9], l: bits[10], input: ((bits[1], (bits[6], bits[1]), bits[3])[3], bits[3], bits[1])) -> (bits[9], bits[10], (bits[64], bits[1])) {
+  literal.6: bits[64] = literal(value=0, id=6)
+  literal.7: bits[1] = literal(value=0, id=7)
+  literal.4: bits[9] = literal(value=0, id=4)
+  literal.5: bits[10] = literal(value=0, id=5)
+  tuple.8: (bits[64], bits[1]) = tuple(literal.6, literal.7, id=8)
+  ret tuple.9: (bits[9], bits[10], (bits[64], bits[1])) = tuple(literal.4, literal.5, tuple.8, id=9)
+}

@@ -1,0 +1,6 @@
+package test_module
+
+fn __test_module__f() -> bits[32] {
+  x: bits[32] = literal(value=2, id=1, pos=0,1,19)
+  ret add.2: bits[32] = add(x, x, id=2, pos=0,2,3)
+}
