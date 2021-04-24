@@ -12,11 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Utility binary to convert input XLS IR to SMTLIB2.
-// Adds the handy option of converting the XLS IR into a "fundamental"
+// Utility binary to convert input XLS IR to a "fundamental"
 // representation, i.e., consisting of only AND/OR/NOT ops.
-
-// TODO(rspringer): No array support yet. Should be pretty trivial to add.
 
 #include <filesystem>
 #include <string>
