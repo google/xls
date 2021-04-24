@@ -77,9 +77,8 @@ class GraphContraction {
   // Identifies two vertices (a generalization of edge contraction). The vertex
   // weights of the identified vertices are combined with `vw_merge`. If vertex
   // identification results in multiple edges (a multigraph), the edge weights
-  // are combined using `ew_merge`. Returns false if the state of the graph was
-  // unchanged; i.e.: you tried to identify nonexistent vertices, or a vertex
-  // was identified with itself. Otherwise, returns true.
+  // are combined using `ew_merge`. Returns false (and leaves the graph in an
+  // unmodified state) iff one of the given vertices is nonexistent.
   //
   // `vw_merge` should have a type compatible with
   // `std::function<VW(const VW&, const VW&)>`.
