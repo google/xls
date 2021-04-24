@@ -42,6 +42,33 @@ cc_test(
 )
 
 cc_library(
+    name = "graph_contraction",
+    hdrs = ["graph_contraction.h"],
+    deps = [
+        ":union_find_map",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/types:optional",
+        "//xls/common/logging",
+        "//xls/common/logging:log_message",
+    ],
+)
+
+cc_test(
+    name = "graph_contraction_test",
+    srcs = ["graph_contraction_test.cc"],
+    deps = [
+        ":graph_contraction",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "inline_bitmap",
     hdrs = ["inline_bitmap.h"],
     deps = [
