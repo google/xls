@@ -323,7 +323,7 @@ absl::Status VerifyProcForCodegen(Proc* proc) {
 }  // namespace
 
 absl::StatusOr<ModuleGeneratorResult> GenerateModule(
-    Proc* proc, const GeneratorOptions& options) {
+    Proc* proc, const CodegenOptions& options) {
   XLS_VLOG(2) << "Generating combinational module for proc:";
   XLS_VLOG_LINES(2, proc->DumpIr());
 

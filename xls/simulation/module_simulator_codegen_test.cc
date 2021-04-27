@@ -490,8 +490,8 @@ TEST_P(ModuleSimulatorCodegenTest, Assert) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(b.GetStateParam()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
-      GenerateModule(
-          proc, GeneratorOptions().use_system_verilog(UseSystemVerilog())));
+      GenerateModule(proc,
+                     CodegenOptions().use_system_verilog(UseSystemVerilog())));
 
   // Manually construct the signature because the proc generator produces a
   // signature with the "unknown" interface type which the module builder

@@ -37,8 +37,8 @@ constexpr char kTestdataPath[] = "xls/codegen/testdata";
 
 class ProcGeneratorTest : public VerilogTestBase {
  protected:
-  GeneratorOptions options() {
-    return GeneratorOptions().use_system_verilog(UseSystemVerilog());
+  CodegenOptions options() {
+    return CodegenOptions().use_system_verilog(UseSystemVerilog());
   }
 };
 

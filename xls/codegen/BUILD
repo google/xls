@@ -36,6 +36,7 @@ cc_library(
     srcs = ["combinational_generator.cc"],
     hdrs = ["combinational_generator.h"],
     deps = [
+        ":codegen_options",
         ":flattening",
         ":function_to_proc",
         ":module_builder",
@@ -370,6 +371,7 @@ cc_library(
         "testdata/proc_generator_test_*",
     ]),
     deps = [
+        ":codegen_options",
         ":flattening",
         ":module_builder",
         ":module_signature",
@@ -394,6 +396,19 @@ cc_library(
         "//xls/ir:channel",
         "//xls/ir:function_builder",
         "//xls/ir:value_helpers",
+        "//xls/scheduling:pipeline_schedule",
+    ],
+)
+
+cc_library(
+    name = "codegen_options",
+    srcs = ["codegen_options.cc"],
+    hdrs = ["codegen_options.h"],
+    deps = [
+        ":module_signature_cc_proto",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
+        "//xls/common:proto_adaptor_utils",
         "//xls/scheduling:pipeline_schedule",
     ],
 )

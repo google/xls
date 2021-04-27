@@ -21,6 +21,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/flattening.h"
 #include "xls/codegen/function_to_proc.h"
 #include "xls/codegen/module_builder.h"
@@ -188,7 +189,7 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
   std::string module_name = SanitizeIdentifier(func->name());
   XLS_ASSIGN_OR_RETURN(
       ModuleGeneratorResult result,
-      GenerateModule(proc, GeneratorOptions()
+      GenerateModule(proc, CodegenOptions()
                                .module_name(module_name)
                                .use_system_verilog(use_system_verilog)));
 
