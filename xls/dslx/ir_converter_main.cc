@@ -31,6 +31,8 @@ ABSL_FLAG(std::string, entry, "",
           "are converted.");
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
+ABSL_FLAG(bool, unused_emit_fail_as_assert, false,
+          "Feature flag for emitting fail!() in the DSL as an assert IR op.");
 
 namespace xls::dslx {
 namespace {
@@ -77,7 +79,7 @@ absl::StatusOr<std::string> PathToName(absl::string_view path) {
 absl::Status RealMain(absl::string_view path,
                       absl::optional<absl::string_view> entry,
                       absl::Span<const std::string> dslx_paths,
-                      bool* printed_error) {
+                      bool emit_fail_as_assert, bool* printed_error) {
   XLS_ASSIGN_OR_RETURN(std::string text, GetFileContents(path));
 
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path));
@@ -94,15 +96,20 @@ absl::Status RealMain(absl::string_view path,
   }
   TypeInfo* type_info = type_info_or.value();
 
+  const ConvertOptions convert_options = {
+      .emit_positions = true,
+      .emit_fail_as_assert = emit_fail_as_assert,
+  };
   std::string converted;
   if (entry.has_value()) {
     XLS_ASSIGN_OR_RETURN(
-        converted, ConvertOneFunction(module.get(), entry.value(), type_info,
-                                      /*import_data=*/&import_data,
-                                      /*symbolic_bindings=*/nullptr,
-                                      /*emit_positions=*/true));
+        converted,
+        ConvertOneFunction(module.get(), entry.value(), type_info,
+                           /*import_data=*/&import_data,
+                           /*symbolic_bindings=*/nullptr, convert_options));
   } else {
-    XLS_ASSIGN_OR_RETURN(converted, ConvertModule(module.get(), &import_data));
+    XLS_ASSIGN_OR_RETURN(
+        converted, ConvertModule(module.get(), &import_data, convert_options));
   }
   std::cout << converted;
 
@@ -126,9 +133,10 @@ int main(int argc, char* argv[]) {
   if (!absl::GetFlag(FLAGS_entry).empty()) {
     entry = absl::GetFlag(FLAGS_entry);
   }
+  bool emit_fail_as_assert = absl::GetFlag(FLAGS_unused_emit_fail_as_assert);
   bool printed_error = false;
-  absl::Status status =
-      xls::dslx::RealMain(args[0], entry, dslx_paths, &printed_error);
+  absl::Status status = xls::dslx::RealMain(
+      args[0], entry, dslx_paths, emit_fail_as_assert, &printed_error);
   if (printed_error) {
     return EXIT_FAILURE;
   }

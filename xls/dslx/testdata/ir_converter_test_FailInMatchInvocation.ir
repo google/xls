@@ -1,0 +1,15 @@
+package test_module
+
+fn __test_module__do_fail(x: bits[32]) -> bits[32] {
+  ret identity.2: bits[32] = identity(x, id=2)
+}
+
+fn __test_module__main(x: bits[32]) -> bits[32] {
+  literal.5: bits[32] = literal(value=42, id=5)
+  eq.6: bits[1] = eq(literal.5, x, id=6)
+  concat.8: bits[1] = concat(eq.6, id=8)
+  one_hot.9: bits[2] = one_hot(concat.8, lsb_prio=true, id=9)
+  invoke.7: bits[32] = invoke(x, to_apply=__test_module__do_fail, id=7)
+  literal.4: bits[1] = literal(value=1, id=4)
+  ret one_hot_sel.10: bits[32] = one_hot_sel(one_hot.9, cases=[invoke.7, x], id=10)
+}

@@ -1,0 +1,14 @@
+package test_module
+
+fn __test_module__main(x: bits[32]) -> bits[32] {
+  literal.6: bits[32] = literal(value=42, id=6)
+  eq.7: bits[1] = eq(literal.6, x, id=7)
+  literal.3: bits[32] = literal(value=1, id=3)
+  concat.9: bits[1] = concat(eq.7, id=9)
+  add.4: bits[32] = add(x, literal.3, id=4)
+  one_hot.10: bits[2] = one_hot(concat.9, lsb_prio=true, id=10)
+  identity.8: bits[32] = identity(x, id=8)
+  identity.5: bits[32] = identity(add.4, id=5)
+  literal.2: bits[1] = literal(value=1, id=2)
+  ret one_hot_sel.11: bits[32] = one_hot_sel(one_hot.10, cases=[identity.8, identity.5], id=11)
+}

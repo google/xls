@@ -267,7 +267,7 @@ absl::Status UpdateIr() {
   XLS_ASSIGN_OR_RETURN(
       globals->ir_package,
       ConvertModuleToPackage(globals->module.get(), &globals->import_data,
-                             /*emit_positions=*/true,
+                             dslx::ConvertOptions{},
                              /*traverse_tests=*/true));
   XLS_RETURN_IF_ERROR(
       RunStandardPassPipeline(globals->ir_package.get()).status());

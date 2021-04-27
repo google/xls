@@ -52,7 +52,7 @@ absl::Status ConversionErrorStatus(const absl::optional<Span>& span,
 class FunctionConverter {
  public:
   FunctionConverter(Package* package, Module* module, ImportData* import_data,
-                    bool emit_positions);
+                    ConvertOptions options);
 
   // Main entry point to request conversion of the DSLX function "f" to an IR
   // function.
@@ -328,7 +328,7 @@ class FunctionConverter {
 
   absl::optional<SourceLocation> ToSourceLocation(
       const absl::optional<Span>& span) {
-    if (!emit_positions_ || !span.has_value()) {
+    if (!options_.emit_positions || !span.has_value()) {
       return absl::nullopt;
     }
     const Pos& start_pos = span->start();
@@ -370,14 +370,12 @@ class FunctionConverter {
   // The import cache which holds type information for imported modules.
   ImportData* import_data_;
 
-  // Whether or not to emit source code positions into the XLS IR.
-  //
-  // Stripping positions can be useful for less fragile string matching in
-  // development, e.g. tests.
-  bool emit_positions_;
-
   // Mapping from AST node to its corresponding IR value.
   absl::flat_hash_map<AstNode*, IrValue> node_to_ir_;
+
+  // Various conversion options; e.g. whether or not to emit source code
+  // positions into the XLS IR.
+  ConvertOptions options_;
 
   // Constants that this translation depends upon (as determined externally).
   std::vector<ConstantDef*> constant_deps_;
@@ -574,11 +572,11 @@ absl::Status FunctionConverter::Visit(AstNode* node) {
 
 FunctionConverter::FunctionConverter(Package* package, Module* module,
                                      ImportData* import_data,
-                                     bool emit_positions)
+                                     ConvertOptions options)
     : package_(package),
       module_(module),
       import_data_(import_data),
-      emit_positions_(emit_positions),
+      options_(std::move(options)),
       // TODO(leary): 2019-07-19 Create a way to get the file path from the
       // module.
       fileno_(package->GetOrCreateFileno("fake_file.x")) {
@@ -1025,8 +1023,7 @@ absl::Status FunctionConverter::HandleFor(For* node) {
   XLS_ASSIGN_OR_RETURN(int64_t trip_count, QueryConstRangeCall(node));
 
   XLS_VLOG(5) << "Converting for-loop @ " << node->span();
-  FunctionConverter body_converter(package_, module_, import_data_,
-                                   emit_positions_);
+  FunctionConverter body_converter(package_, module_, import_data_, options_);
   body_converter.set_symbolic_binding_map(symbolic_binding_map_);
 
   // The body conversion uses the same types that we use in the caller.
@@ -2156,11 +2153,10 @@ absl::StatusOr<xls::Type*> FunctionConverter::TypeToIr(
   return package_->GetTupleType(std::move(members));
 }
 
-
 absl::Status ConvertOneFunctionInternal(
     Package* package, Module* module, Function* function, TypeInfo* type_info,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
-    bool emit_positions) {
+    ConvertOptions options) {
   // Validate the requested conversion looks sound in terms of provided
   // parametrics.
   if (symbolic_bindings != nullptr) {
@@ -2177,7 +2173,7 @@ absl::Status ConvertOneFunctionInternal(
   absl::flat_hash_map<std::string, Import*> import_by_name =
       module->GetImportByName();
 
-  FunctionConverter converter(package, module, import_data, emit_positions);
+  FunctionConverter converter(package, module, import_data, options);
 
   XLS_ASSIGN_OR_RETURN(auto constant_deps,
                        GetConstantDepFreevars(function->body()));
@@ -2200,11 +2196,12 @@ absl::Status ConvertOneFunctionInternal(
 // Args:
 //   order: order for conversion
 //   import_data: Contains type information used in conversion.
-//   emit_positions: Whether to emit positional metadata into the output IR.
+//   options: Conversion option flags.
 //   package: output of function
 static absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
                                      ImportData* import_data,
-                                     bool emit_positions, Package* package) {
+                                     const ConvertOptions& options,
+                                     Package* package) {
   XLS_VLOG(3) << "Conversion order: ["
               << absl::StrJoin(
                      order, ", ",
@@ -2216,7 +2213,7 @@ static absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
     XLS_VLOG(3) << "Converting to IR: " << record.ToString();
     XLS_RETURN_IF_ERROR(ConvertOneFunctionInternal(
         package, record.module(), record.f(), record.type_info(), import_data,
-        &record.symbolic_bindings(), emit_positions));
+        &record.symbolic_bindings(), options));
   }
 
   XLS_VLOG(3) << "Verifying converted package";
@@ -2225,7 +2222,7 @@ static absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
 }
 
 absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
-    Module* module, ImportData* import_data, bool emit_positions,
+    Module* module, ImportData* import_data, const ConvertOptions& options,
     bool traverse_tests) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * root_type_info,
                        import_data->GetRootTypeInfo(module));
@@ -2233,23 +2230,22 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
                        GetOrder(module, root_type_info, traverse_tests));
   auto package = absl::make_unique<Package>(module->name());
   XLS_RETURN_IF_ERROR(
-      ConvertCallGraph(order, import_data, emit_positions, package.get()));
+      ConvertCallGraph(order, import_data, options, package.get()));
   return std::move(package);
 }
 
 absl::StatusOr<std::string> ConvertModule(Module* module,
                                           ImportData* import_data,
-                                          bool emit_positions) {
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<Package> package,
-      ConvertModuleToPackage(module, import_data, emit_positions));
+                                          const ConvertOptions& options) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
+                       ConvertModuleToPackage(module, import_data, options));
   return package->DumpIr();
 }
 
 absl::StatusOr<std::string> ConvertOneFunction(
     Module* module, absl::string_view entry_function_name, TypeInfo* type_info,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
-    bool emit_positions) {
+    const ConvertOptions& options) {
   absl::optional<Function*> f = module->GetFunction(entry_function_name);
   XLS_RET_CHECK(f.has_value());
   XLS_ASSIGN_OR_RETURN(TypeInfo * func_type_info,
@@ -2257,8 +2253,7 @@ absl::StatusOr<std::string> ConvertOneFunction(
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
                        GetOrderForEntry(f.value(), func_type_info));
   Package package(module->name());
-  XLS_RETURN_IF_ERROR(
-      ConvertCallGraph(order, import_data, emit_positions, &package));
+  XLS_RETURN_IF_ERROR(ConvertCallGraph(order, import_data, options, &package));
   return package.DumpIr();
 }
 

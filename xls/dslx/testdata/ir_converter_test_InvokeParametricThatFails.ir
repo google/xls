@@ -1,0 +1,11 @@
+package test_module
+
+fn __test_module__does_fail__32() -> bits[32] {
+  literal.2: bits[32] = literal(value=42, id=2)
+  N: bits[32] = literal(value=32, id=1)
+  ret identity.3: bits[32] = identity(literal.2, id=3)
+}
+
+fn __test_module__main(x: bits[32]) -> bits[32] {
+  ret invoke.5: bits[32] = invoke(to_apply=__test_module__does_fail__32, id=5)
+}

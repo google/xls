@@ -20,6 +20,7 @@
 
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interpreter.h"
+#include "xls/dslx/ir_converter.h"
 #include "xls/dslx/symbolic_bindings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
@@ -78,6 +79,8 @@ class RunComparator {
 //    executions with a reference (e.g. IR execution).
 //   execute: Whether or not to execute the quickchecks and tests.
 //   seed: Seed for QuickCheck random input stimulus.
+//   convert_options: Options used in IR conversion, see `ConvertOptions` for
+//    details.
 struct ParseAndTestOptions {
   absl::Span<const std::string> dslx_paths = {};
   absl::optional<absl::string_view> test_filter = absl::nullopt;
@@ -86,6 +89,7 @@ struct ParseAndTestOptions {
   RunComparator* run_comparator = nullptr;
   bool execute = true;
   absl::optional<int64_t> seed = absl::nullopt;
+  ConvertOptions convert_options;
 };
 
 // Parses program and run all tests contained inside.

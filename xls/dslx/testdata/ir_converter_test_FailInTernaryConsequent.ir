@@ -1,0 +1,8 @@
+package test_module
+
+fn __test_module__main(x: bits[32]) -> bits[32] {
+  literal.2: bits[32] = literal(value=0, id=2)
+  eq.3: bits[1] = eq(x, literal.2, id=3)
+  identity.4: bits[32] = identity(x, id=4)
+  ret sel.5: bits[32] = sel(eq.3, cases=[x, identity.4], id=5)
+}

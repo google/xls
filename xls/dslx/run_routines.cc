@@ -283,7 +283,7 @@ absl::StatusOr<bool> ParseAndTest(absl::string_view program,
   if (options.run_comparator != nullptr) {
     XLS_ASSIGN_OR_RETURN(ir_package,
                          ConvertModuleToPackage(entry_module, &import_data,
-                                                /*emit_positions=*/true,
+                                                options.convert_options,
                                                 /*traverse_tests=*/true));
     post_fn_eval_hook = [&ir_package, &options](
                             Function* f, absl::Span<const InterpValue> args,

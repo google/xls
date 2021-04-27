@@ -58,7 +58,7 @@ std::string TestName() {
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
     absl::string_view program, absl::string_view fn_name,
-    ImportData& import_data, bool emit_positions = true) {
+    ImportData& import_data, const ConvertOptions& options) {
   XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
                        ParseAndTypecheck(program, /*path=*/"test_module.x",
                                          /*module_name=*/"test_module",
@@ -67,20 +67,18 @@ absl::StatusOr<std::string> ConvertOneFunctionForTest(
   return ConvertOneFunction(tm.module, /*entry_function_name=*/fn_name,
                             /*type_info=*/tm.type_info,
                             /*import_data=*/&import_data,
-                            /*symbolic_bindings=*/nullptr,
-                            /*emit_positions=*/emit_positions);
+                            /*symbolic_bindings=*/nullptr, options);
 }
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
     absl::string_view program, absl::string_view fn_name,
-    bool emit_positions = true) {
+    const ConvertOptions& options = ConvertOptions{}) {
   ImportData import_data;
-  return ConvertOneFunctionForTest(program, fn_name, import_data,
-                                   emit_positions);
+  return ConvertOneFunctionForTest(program, fn_name, import_data, options);
 }
 
 absl::StatusOr<std::string> ConvertModuleForTest(
-    absl::string_view program, bool emit_positions = true,
+    absl::string_view program, const ConvertOptions& options = ConvertOptions{},
     ImportData* import_data = nullptr) {
   absl::optional<ImportData> import_data_value;
   if (import_data == nullptr) {
@@ -92,8 +90,7 @@ absl::StatusOr<std::string> ConvertModuleForTest(
       ParseAndTypecheck(program, "test_module.x", "test_module", import_data,
                         /*additional_search_paths=*/{}));
   XLS_ASSIGN_OR_RETURN(std::string converted,
-                       ConvertModule(tm.module, import_data,
-                                     /*emit_positions=*/emit_positions));
+                       ConvertModule(tm.module, import_data, options));
   return converted;
 }
 
@@ -183,7 +180,8 @@ TEST(IrConverterTest, LetTupleBindingNested) {
 })";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(program, "f", /*emit_positions=*/false));
+      ConvertOneFunctionForTest(program, "f",
+                                ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -201,7 +199,8 @@ fn f(a: S, b: S) -> u8 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(program, "f", /*emit_positions=*/false));
+      ConvertOneFunctionForTest(program, "f",
+                                ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -210,9 +209,8 @@ TEST(IrConverterTest, Index) {
       R"(fn f(x: uN[32][4]) -> u32 {
   x[u32:0]
 })";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertOneFunctionForTest(program, "f", /*emit_positions=*/true));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(program, "f"));
   ExpectIr(converted, TestName());
 }
 
@@ -222,9 +220,8 @@ TEST(IrConverterTest, TupleOfParameters) {
   (x, y)
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertOneFunctionForTest(program, "f", /*emit_positions=*/true));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(program, "f"));
   ExpectIr(converted, TestName());
 }
 
@@ -234,9 +231,8 @@ TEST(IrConverterTest, TupleOfLiterals) {
   (u8:0xaa, u8:0x55)
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertOneFunctionForTest(program, "f", /*emit_positions=*/true));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(program, "f"));
   ExpectIr(converted, TestName());
 }
 
@@ -250,7 +246,8 @@ TEST(IrConverterTest, CountedFor) {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(program, "f", /*emit_positions=*/false));
+      ConvertOneFunctionForTest(program, "f",
+                                ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -265,7 +262,8 @@ TEST(IrConverterTest, CountedForDestructuring) {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(program, "f", /*emit_positions=*/false));
+      ConvertOneFunctionForTest(program, "f",
+                                ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -282,7 +280,7 @@ fn main() -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -297,7 +295,7 @@ fn f() -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -309,8 +307,8 @@ TEST(IrConverterTest, CountedForVariableRange) {
   }(u32:0)
 }
 )";
-  auto status_or_ir =
-      ConvertOneFunctionForTest(program, "f", /*emit_positions=*/false);
+  auto status_or_ir = ConvertOneFunctionForTest(
+      program, "f", ConvertOptions{.emit_positions = false});
   ASSERT_FALSE(status_or_ir.ok());
 }
 
@@ -322,7 +320,7 @@ TEST(IrConverterTest, ExtendConversions) {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -335,7 +333,7 @@ TEST(IrConverterTest, TupleIndex) {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -353,7 +351,7 @@ fn f(xy: u32) -> Point {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -366,9 +364,8 @@ fn caller() -> u32 {
   callee()
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/true));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
   ExpectIr(converted, TestName());
 }
 
@@ -385,7 +382,7 @@ fn f(x: u8) -> u2 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -403,7 +400,7 @@ fn f(x: u2) -> u8 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -420,7 +417,7 @@ fn f(x: Foo) -> Foo {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -433,7 +430,7 @@ fn main() -> u8[2] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -446,7 +443,7 @@ fn main(x: bits[8]) -> u8[4] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -459,7 +456,7 @@ fn main(input: u8[2]) -> u8[2] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -477,7 +474,7 @@ fn f(p: Point, new_y: u32) -> Point {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -490,7 +487,7 @@ fn f(x: u8) -> bool {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -506,7 +503,7 @@ fn f(x: u8) -> u2 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -516,9 +513,8 @@ TEST(IrConverterTest, Ternary) {
   u8:42 if x else u8:24
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/true));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
   ExpectIr(converted, TestName());
 }
 
@@ -534,7 +530,7 @@ fn f(x: u8) -> u2 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -551,7 +547,7 @@ fn main(x: u8) -> u8 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -568,7 +564,7 @@ fn main(x: u8) -> u8 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -581,7 +577,7 @@ fn f(x: u32, y: u32) -> u8 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -594,7 +590,7 @@ fn f(x: u32[1]) -> u32[1] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -608,7 +604,7 @@ fn f(x: Foo[1]) -> Foo[1] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -621,7 +617,7 @@ fn main(x: u2) -> u1 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -643,7 +639,7 @@ fn f(x: u2) -> u8 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -660,7 +656,7 @@ fn f(outer_thing_1: u32, outer_thing_2: u32) -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -675,7 +671,7 @@ fn f() -> (u32, u32) {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -688,9 +684,8 @@ fn caller() -> u32 {
   callee(u32:2, u32:3)
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/true));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
   ExpectIr(converted, TestName());
 }
 
@@ -703,7 +698,7 @@ fn main(x: u8, y: u8) -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -718,7 +713,7 @@ fn main(x0: u19, x3: u29) -> u29 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -733,7 +728,7 @@ fn main(x: u32[BATCH_SIZE]) -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -746,7 +741,7 @@ fn main(x: u32, y: u32) -> bool {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -759,7 +754,7 @@ fn main(x: u8) -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -772,7 +767,7 @@ fn main(s: u2) -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -785,7 +780,7 @@ fn f(x: u4) -> u2 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -798,9 +793,8 @@ fn main() -> u8 {
   parametric(bits[3]:0, bits[5]:1)
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/true));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
   ExpectIr(converted, TestName());
 }
 
@@ -814,7 +808,7 @@ fn f(in1: u32[2]) -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -824,9 +818,8 @@ TEST(IrConverterTest, PackageLevelConstantArray) {
 fn f() -> u8[2] { FOO }
 fn g() -> u8[2] { FOO }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/true));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
   ExpectIr(converted, TestName());
 }
 
@@ -843,7 +836,7 @@ fn f(x: u8) -> u2 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -856,7 +849,7 @@ fn main(x: u8) -> s32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -874,7 +867,7 @@ fn get_thing(x: Foo, i: u32) -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -895,7 +888,7 @@ fn f() -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -922,7 +915,7 @@ TEST(IrConverterTest, NestedTupleSignature) {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -937,7 +930,7 @@ fn main() -> u8[2] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -948,7 +941,7 @@ TEST(IrConverterTest, Identity) {
 })";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/true));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -961,7 +954,7 @@ fn g() -> u8 { FOO[u32:1] }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -980,7 +973,7 @@ fn main(x: u8) -> u8 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -997,7 +990,7 @@ fn main() -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -1010,7 +1003,161 @@ fn main() -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, FailInTernaryConsequent) {
+  const char* program = R"(
+fn main(x: u32) -> u32 {
+  fail!(x) if x == u32:0 else x
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, FailInTernaryAlternate) {
+  const char* program = R"(
+fn main(x: u32) -> u32 {
+  x if x == u32:0 else fail!(x)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+// Fail within one arm of a match expression.
+TEST(IrConverterTest, FailInMatch) {
+  const char* program = R"(
+fn main(x: u32) -> u32 {
+  match x {
+    u32:42 => fail!(x),
+    _ => x
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, FailInMatchInvocation) {
+  const char* program = R"(
+fn do_fail(x: u32) -> u32 {
+  fail!(x)
+}
+
+fn main(x: u32) -> u32 {
+  match x {
+    u32:42 => do_fail(x),
+    _ => x
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, MatchMultiFail) {
+  const char* program = R"(
+fn main(x: u32) -> u32 {
+  match x {
+    u32:42 => fail!(x),
+    _ => fail!(x+u32:1)
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, InvokeMethodThatFails) {
+  const char* program = R"(
+fn does_fail() -> u32 {
+  fail!(u32:42)
+}
+
+fn main(x: u32) -> u32 {
+  does_fail()
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, InvokeParametricThatFails) {
+  const char* program = R"(
+fn does_fail<N: u32>() -> bits[N] {
+  fail!(bits[N]:42)
+}
+
+fn main(x: u32) -> u32 {
+  does_fail<u32:32>()
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, InvokeParametricThatInvokesFailing) {
+  const char* program = R"(
+fn does_fail() -> u32 {
+  fail!(u32:42)
+}
+
+fn calls_failing<N: u32>() -> bits[N] {
+  does_fail()
+}
+
+fn main(x: u32) -> u32 {
+  calls_failing<u32:32>()
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, FailInsideFor) {
+  const char* program = R"(
+fn main(x: u32) -> u32 {
+  for (i, x): (u32, u32) in range(u32:0, u32:1) {
+    fail!(x)
+  }(u32:0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, FailInsideForWithTupleAccum) {
+  const char* program = R"(
+fn main(x: u32) -> (u32, u32) {
+  for (i, (x, y)): (u32, (u32, u32)) in range(u32:0, u32:1) {
+    fail!((x, y))
+  }((u32:0, u32:0))
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -1029,7 +1176,7 @@ fn main() -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -1042,7 +1189,7 @@ fn main(x: s32, y: s32) -> bool {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -1063,7 +1210,7 @@ fn f() -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -1098,7 +1245,8 @@ fn f() -> u32 {
   // Convert the *importer* module to IR.
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(importer_program, /*emit_positions=*/false,
+      ConvertModuleForTest(importer_program,
+                           ConvertOptions{.emit_positions = false},
                            &import_data));
   ExpectIr(converted, TestName());
 }
@@ -1133,7 +1281,8 @@ fn f() -> u32 {
   // Convert the *importer* module to IR.
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(importer_program, /*emit_positions=*/false,
+      ConvertModuleForTest(importer_program,
+                           ConvertOptions{.emit_positions = false},
                            &import_data));
   ExpectIr(converted, TestName());
 }
@@ -1147,7 +1296,7 @@ fn main(x: u32, y: u16, z: u8) -> u32 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -1155,7 +1304,7 @@ TEST(IrConverterTest, TokenIdentityFunction) {
   absl::string_view program = "fn main(x: token) -> token { x }";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(program, /*emit_positions=*/false));
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
@@ -1193,7 +1342,8 @@ fn main(x: u32) -> u32 {
   // Convert the importer module to IR.
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertModuleForTest(kImporterModule, /*emit_positions=*/false,
+      ConvertModuleForTest(kImporterModule,
+                           ConvertOptions{.emit_positions = false},
                            &import_data));
   ExpectIr(converted, TestName());
 }
@@ -1220,7 +1370,7 @@ fn main(x: u32) -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kImporterModule, "main", import_data,
-                                /*emit_positions=*/false));
+                                ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
 
