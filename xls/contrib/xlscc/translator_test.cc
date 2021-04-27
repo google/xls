@@ -1310,6 +1310,7 @@ TEST_F(TranslatorTest, ShadowAssigment) {
         {
           int r = 22;
           r = 55;
+          (void)r;
         }
         return r;
       })";
