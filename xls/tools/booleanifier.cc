@@ -123,26 +123,17 @@ Booleanifier::Vector Booleanifier::HandleSpecialOps(Node* node) {
       return result;
     }
     case Op::kArrayIndex: {
-      // Remember that an "array" inside booleanified space is just a vector of
-      // bits. SO we need to calculate the start bit of the specified index.
-      Vector result;
       ArrayIndex* array_index = node->As<ArrayIndex>();
       const ArrayType* array_type =
           array_index->array()->GetType()->AsArrayOrDie();
-      int64_t element_width = array_type->element_type()->GetFlatBitCount();
-      Vector& array = node_map_.at(array_index->array());
-
-      // TODO(rspringer): These will be changed to XLS_RETURN_IF_ERROR, etc.,
-      // once I update AbstractEvaluate()'s default_handler callback to return a
-      // StatusOr.
-      XLS_CHECK_EQ(array_index->indices().size(), 1);
-      XLS_CHECK(array_index->indices()[0]->Is<Literal>());
-      Literal* literal = array_index->indices()[0]->As<Literal>();
-      XLS_CHECK(literal->value().IsBits());
-      XLS_CHECK(literal->value().bits().ToUint64().ok());
-      int64_t start_index = literal->value().bits().ToUint64().value();
-      int64_t start_bit = start_index * element_width;
-      return evaluator_->BitSlice(array, start_bit, element_width);
+      int64_t element_size = array_type->element_type()->GetFlatBitCount();
+      std::vector<Vector> cases;
+      cases.reserve(array_type->size());
+      for (int i = 0; i < array_type->size(); i++) {
+        cases.push_back(evaluator_->BitSlice(node_map_.at(array_index->array()),
+                                             i * element_size, element_size));
+      }
+      return evaluator_->Select(node_map_.at(array_index->indices()[0]), cases);
     }
     case Op::kLiteral: {
       Vector result;
