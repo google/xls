@@ -560,19 +560,22 @@ absl::Status FunctionBuilderVisitor::HandleConcat(Concat* concat) {
 absl::Status FunctionBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
   XLS_ASSIGN_OR_RETURN(llvm::Function * function,
                        GetModuleFunction(counted_for->body()));
-  // One for the loop carry, one for the index, and one for user data.
-  std::vector<llvm::Value*> args(counted_for->invariant_args().size() + 3);
+  // Add the loop carry and the index to the invariant arguments.
+  std::vector<llvm::Value*> args(counted_for->invariant_args().size() + 2);
   for (int i = 0; i < counted_for->invariant_args().size(); i++) {
     args[i + 2] = node_map_.at(counted_for->invariant_args()[i]);
   }
+
   args[1] = node_map_.at(counted_for->initial_value());
-  args.back() = GetUserDataPtr();
+
+  auto required = GetRequiredArgs();
+  args.insert(args.end(), required.begin(), required.end());
 
   llvm::Type* function_type = function->getType()->getPointerElementType();
   for (int i = 0; i < counted_for->trip_count(); ++i) {
     args[0] = llvm::ConstantInt::get(function_type->getFunctionParamType(0),
                                      i * counted_for->stride());
-    args[1] = builder_->CreateCall(function, {args});
+    args[1] = builder_->CreateCall(function, args);
   }
 
   return StoreResult(counted_for, args[1]);
@@ -601,15 +604,16 @@ absl::Status FunctionBuilderVisitor::HandleDynamicCountedFor(
   llvm::Type* loop_body_function_type =
       loop_body_function->getType()->getPointerElementType();
 
-  // Add invariants to loop body args.
-  // One extra arg for the loop carry, one for the index, and one for user data.
+  // The loop body arguments are the invariant arguments plus the loop carry and
+  // index.
   std::vector<llvm::Value*> args(dynamic_counted_for->invariant_args().size() +
-                                 3);
+                                 2);
   for (int i = 0; i < dynamic_counted_for->invariant_args().size(); i++) {
     args[i + 2] = node_map_.at(dynamic_counted_for->invariant_args()[i]);
   }
-  // Add user data arg.
-  args.back() = GetUserDataPtr();
+
+  auto required = GetRequiredArgs();
+  args.insert(args.end(), required.begin(), required.end());
 
   // Create basic blocks and corresponding builders. We have 4 blocks:
   // Entry     - the code executed before the loop.
@@ -743,12 +747,13 @@ absl::Status FunctionBuilderVisitor::HandleInvoke(Invoke* invoke) {
   XLS_ASSIGN_OR_RETURN(llvm::Function * function,
                        GetModuleFunction(invoke->to_apply()));
 
-  // One extra for user data.
-  std::vector<llvm::Value*> args(invoke->operand_count() + 1);
+  std::vector<llvm::Value*> args(invoke->operand_count());
   for (int i = 0; i < invoke->operand_count(); i++) {
     args[i] = node_map_[invoke->operand(i)];
   }
-  args.back() = GetUserDataPtr();
+
+  auto required = GetRequiredArgs();
+  args.insert(args.end(), required.begin(), required.end());
 
   llvm::Value* invoke_inst = builder_->CreateCall(function, args);
   return StoreResult(invoke, invoke_inst);
@@ -775,11 +780,14 @@ absl::Status FunctionBuilderVisitor::HandleMap(Map* map) {
   llvm::Value* result = CreateTypedZeroValue(llvm::ArrayType::get(
       function_type->getReturnType(), input_type->getArrayNumElements()));
 
-  llvm::Value* user_data = GetUserDataPtr();
   for (uint32_t i = 0; i < input_type->getArrayNumElements(); ++i) {
-    llvm::Value* iter_input = builder_->CreateExtractValue(input, {i});
-    llvm::Value* iter_result =
-        builder_->CreateCall(to_apply, {iter_input, user_data});
+    llvm::Value* map_arg = builder_->CreateExtractValue(input, {i});
+
+    std::vector<llvm::Value*> iter_args = GetRequiredArgs();
+    // The argument of the map function goes before the required arguments.
+    iter_args.insert(iter_args.begin(), map_arg);
+
+    llvm::Value* iter_result = builder_->CreateCall(to_apply, iter_args);
     result = builder_->CreateInsertValue(result, iter_result, {i});
   }
 
@@ -1514,17 +1522,24 @@ absl::StatusOr<llvm::Function*> FunctionBuilderVisitor::GetModuleFunction(
   // There are a couple of differences between this and entry function
   // visitor initialization such that I think it makes slightly more sense
   // to not factor it into a common block, but it's not clear-cut.
-  std::vector<llvm::Type*> param_types(xls_function->params().size() + 1);
+  std::vector<llvm::Type*> param_types(xls_function->params().size() + 2);
   for (int i = 0; i < xls_function->params().size(); ++i) {
     param_types[i] =
         type_converter_->ConvertToLlvmType(xls_function->param(i)->GetType());
   }
+
+  // Treat void pointers as int64_t values at the LLVM IR level.
+  // Using an actual pointer type triggers LLVM asserts when compiling
+  // in debug mode.
+  // TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
+  llvm::Type* void_ptr_type = llvm::Type::getInt64Ty(ctx());
+
+  // Pointer to assertion status temporary
+  param_types.at(param_types.size() - 2) = void_ptr_type;
+
   // We need to add an extra param to every function call to carry our "user
   // data", i.e., callback info.
-  param_types.back() =
-      // llvm::PointerType::get(llvm::Type::getInt8Ty(ctx()),
-      // /*AddressSpace=*/0);
-      llvm::Type::getInt64Ty(ctx());
+  param_types.back() = void_ptr_type;
 
   Type* return_type = GetEffectiveReturnValue(xls_function)->GetType();
   llvm::Type* llvm_return_type =

@@ -453,6 +453,42 @@ TEST(IrJitTest, Assert) {
                        testing::HasSubstr("the assertion error message")));
 }
 
+TEST(IrJitTest, FunAssert) {
+  Package p("fun_assert_test");
+
+  FunctionBuilder fun_builder("fun", &p);
+  auto x = fun_builder.Param("x", p.GetBitsType(5));
+
+  auto seven = fun_builder.Literal(Value(UBits(7, 5)));
+  auto test = fun_builder.ULe(x, seven);
+
+  auto token = fun_builder.Literal(Value::Token());
+  fun_builder.Assert(token, test, "x is more than 7");
+
+  auto one = fun_builder.Literal(Value(UBits(1, 5)));
+  fun_builder.Add(x, one);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fun, fun_builder.Build());
+
+  FunctionBuilder top_builder("top", &p);
+  auto y = top_builder.Param("y", p.GetBitsType(5));
+
+  std::vector<BValue> args = {y};
+  top_builder.Invoke(args, fun);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * top, top_builder.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(top));
+
+  std::vector<Value> ok_args = {Value(UBits(6, 5))};
+  EXPECT_THAT(jit->Run(ok_args), IsOkAndHolds(Value(UBits(7, 5))));
+
+  std::vector<Value> fail_args = {Value(UBits(8, 5))};
+  EXPECT_THAT(jit->Run(fail_args),
+              StatusIs(absl::StatusCode::kAborted,
+                       testing::HasSubstr("x is more than 7")));
+}
+
 TEST(IrJitTest, TwoAssert) {
   Package p("assert_test");
   FunctionBuilder b("fun", &p);

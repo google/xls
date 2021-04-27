@@ -214,6 +214,13 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
 
   absl::Status InvokeAssertCallback(llvm::IRBuilder<>* builder,
                                     const std::string& message);
+
+  // Get the required assertion status and user data arguments that need to be
+  // included at the end of the argument list for every function call.
+  std::vector<llvm::Value*> GetRequiredArgs() {
+    return {GetAssertStatusPtr(), GetUserDataPtr()};
+  }
+
   llvm::LLVMContext& ctx_;
   llvm::Module* module_;
   llvm::Function* llvm_fn_;
