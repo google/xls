@@ -1230,6 +1230,8 @@ class ModuleSection : public VastNode {
 };
 
 // Represents a module port.
+// TODO(meheff): 2021/04/26 Sink this data type into Module as a nested type and
+// remove superfluous proto conversion (or even remove it).
 struct Port {
   static Port FromProto(const PortProto& proto, VerilogFile* file);
 
@@ -1240,15 +1242,6 @@ struct Port {
   Direction direction;
   Def* wire;
 };
-
-// Helper for converting a sequence of ports to a string; e.g. for debugging /
-// logging.
-std::string PortsToString(absl::Span<const Port> ports);
-
-// Returns the flattened number of input/output bits required to represent the
-// port set.
-absl::StatusOr<int64_t> GetInputBits(absl::Span<const Port> ports);
-absl::StatusOr<int64_t> GetOutputBits(absl::Span<const Port> ports);
 
 // Represents a module definition.
 class Module : public VastNode {

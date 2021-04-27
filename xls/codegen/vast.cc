@@ -190,28 +190,6 @@ absl::StatusOr<PortProto> Port::ToProto() const {
   return proto;
 }
 
-static absl::StatusOr<int64_t> GetBitsForDirection(absl::Span<const Port> ports,
-                                                   Direction direction) {
-  int64_t result = 0;
-  for (const Port& port : ports) {
-    if (port.direction != direction) {
-      continue;
-    }
-    XLS_ASSIGN_OR_RETURN(int64_t width,
-                         port.wire->data_type()->FlatBitCountAsInt64());
-    result += width;
-  }
-  return result;
-}
-
-absl::StatusOr<int64_t> GetInputBits(absl::Span<const Port> ports) {
-  return GetBitsForDirection(ports, Direction::kInput);
-}
-
-absl::StatusOr<int64_t> GetOutputBits(absl::Span<const Port> ports) {
-  return GetBitsForDirection(ports, Direction::kOutput);
-}
-
 VerilogFunction::VerilogFunction(absl::string_view name, DataType* result_type,
                                  VerilogFile* file)
     : VastNode(file),
