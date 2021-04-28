@@ -16,6 +16,7 @@ load("//xls/build_rules:build_defs.bzl", "dslx_generated_rtl", "dslx_test")
 load("//xls/build_rules:xls_dslx_rules.bzl", "dslx_library", dslx_ng_test = "dslx_test")
 load("//xls/build_rules:xls_ir_rules.bzl", "dslx_to_ir", "ir_benchmark", "ir_equivalence_test", "ir_eval_test", "ir_opt")
 load("//xls/build_rules:xls_codegen_rules.bzl", "ir_to_codegen")
+load("//xls/build_rules:xls_rules.bzl", "dslx_to_codegen")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -210,6 +211,14 @@ ir_benchmark(
 ir_to_codegen(
     name = "a_ir_to_codegen",
     src = ":a_dslx_to_ir",
+    codegen_args = {
+        "pipeline_stages": "1",
+    },
+)
+
+dslx_to_codegen(
+    name = "e_verilog",
+    src = "e.x",
     codegen_args = {
         "pipeline_stages": "1",
     },
