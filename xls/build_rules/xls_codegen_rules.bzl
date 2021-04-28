@@ -16,6 +16,8 @@
 This module contains codegen-related build rules for XLS.
 """
 
+load("//xls/build_rules:xls_ir_rules.bzl", "ir_common_attrs")
+
 CodegenInfo = provider(
     doc = "A provider containing Codegen file information for the target. It " +
           "is created and returned by the codegen rule.",
@@ -26,13 +28,7 @@ CodegenInfo = provider(
     },
 )
 
-_ir_to_codegen_attrs = {
-    "src": attr.label(
-        doc = "The IR source file for the rule. A single source file must be " +
-              "provided. The file must have a '.ir' extension.",
-        mandatory = True,
-        allow_single_file = [".ir"],
-    ),
+ir_to_codegen_attrs = {
     "codegen_args": attr.string_dict(
         doc = "Arguments of the codegen tool.",
     ),
@@ -45,18 +41,18 @@ _ir_to_codegen_attrs = {
     ),
 }
 
-def _ir_to_codegen_impl(ctx):
-    """The implementation of the 'ir_to_codegen' rule.
+def ir_to_codegen_impl(ctx, src):
+    """The core implementation of the 'ir_to_codegen' rule.
 
     Generates a Verilog file.
 
     Args:
       ctx: The current rule's context object.
+      src: The source file.
     Returns:
       CodegenInfo provider
       DefaultInfo provider
     """
-    src = ctx.file.src
     src_basename = src.basename[:-2]
     my_generated_files = []
 
@@ -127,6 +123,18 @@ def _ir_to_codegen_impl(ctx):
         ),
     ]
 
+def _ir_to_codegen_impl_wrapper(ctx):
+    """The implementation of the 'ir_to_codegen' rule.
+
+    Wrapper for ir_to_codegen_impl. See: ir_to_codegen_impl.
+
+    Args:
+      ctx: The current rule's context object.
+    Returns:
+      See: codegen_impl.
+    """
+    return ir_to_codegen_impl(ctx, ctx.file.src)
+
 ir_to_codegen = rule(
     doc = """A build rule that generates a Verilog file.
 
@@ -154,6 +162,6 @@ ir_to_codegen = rule(
             )
         ```
     """,
-    implementation = _ir_to_codegen_impl,
-    attrs = _ir_to_codegen_attrs,
+    implementation = _ir_to_codegen_impl_wrapper,
+    attrs = dict(ir_common_attrs.items() + ir_to_codegen_attrs.items()),
 )

@@ -167,20 +167,26 @@ dslx_to_ir(
 dslx_to_ir(
     name = "a_dslx_to_ir",
     src = "a.x",
-    entry = "a",
+    ir_conv_args = {
+        "entry": "a",
+    },
 )
 
 # ir_opt target with an entry defined.
 ir_opt(
     name = "a_ir_opt",
     src = "a_dslx_to_ir",
-    entry = "__a__a",
+    ir_opt_args = {
+        "entry": "__a__a",
+    },
 )
 
 # ir_eval_test target with targets as the sources.
 ir_equivalence_test(
     name = "a_equivalence_test",
-    entry = "__a__a",
+    ir_equivalence_args = {
+        "function": "__a__a",
+    },
     src_0 = ":a_dslx_to_ir",
     src_1 = ":a_ir_opt",
 )

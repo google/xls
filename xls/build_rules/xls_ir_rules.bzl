@@ -15,35 +15,108 @@
 
 load("//xls/build_rules:xls_dslx_rules.bzl", "DslxFilesInfo")
 
-def _convert_to_ir(ctx, src, required_files):
+DEFAULT_IR_EVAL_TEST_ARGS = {
+    "random_inputs": "100",
+    "optimize_ir": "true",
+}
+
+def _get_args(arguments, valid_arguments, default_arguments = {}):
+    """Returns a string representation of the arguments.
+
+    The macro builds a string representation of the arguments. If no value is
+    specified in the arguments, the a default value will be selected (if
+    present). If an argument in the list is not an acceptable argument, an error
+    is thrown.
+
+    Example:
+      1) An unspecified a default argument value.
+        Input:
+          arguments = {"argument1": "42", "argument2": "binary"}
+          valid_arguments = {"argument1", "argument2", "arguments3"}
+          default_arguments = {"arguments3" : "foo"}
+          _get_args(arguments, valid_arguments, default_arguments)
+
+        Output:
+            --argument1=42 --argument2=binary --argument3=foo
+      2) Overriding a default argument value.
+        Input:
+          arguments = {"argument1": "42", "argument2": "binary"}
+          valid_arguments = {"argument1", "argument2", "arguments3"}
+          default_arguments = {"argument1" : "0", "arguments3" : "foo"}
+          _get_args(arguments, valid_arguments, default_arguments)
+
+        Output:
+            --argument1=42 --argument2=binary --argument3=foo
+      3) An invalid argument.
+        Input:
+          arguments = {"argument1": "42", "argument2": "binary"}
+          valid_arguments = {"argument1"}
+          default_arguments = {}
+          _get_args(arguments, valid_arguments, default_arguments)
+
+        Output (error with message):
+            Unrecognized argument: argument2.
+
+    Args:
+      arguments: The current rule's context object.
+      valid_arguments: The source file.
+      default_arguments: A list of default argument values.
+    Returns:
+      A string of the arguments.
+    """
+
+    # Add arguments
+    my_args = ""
+    for flag_name in arguments:
+        if flag_name not in valid_arguments:
+            fail("Unrecognized argument: %s." % flag_name)
+        my_args += " --%s=%s" % (flag_name, arguments[flag_name])
+
+    # Add default arguments
+    for flag_name in default_arguments:
+        if flag_name not in valid_arguments:
+            fail("Unrecognized argument: %s." % flag_name)
+        if flag_name not in arguments:
+            my_args += " --%s=%s" % (flag_name, default_arguments[flag_name])
+    return my_args
+
+def convert_to_ir(ctx, src):
     """Converts a DSLX source file to an IR file.
 
     The macro creates an action in the context that converts a DSLX source
-    file
-    to an IR file.
+    file to an IR file.
 
     Args:
       ctx: The current rule's context object.
       src: The source file.
-      required_files: A list of DSLX sources files required to perform the
-        conversion action.
-
     Returns:
       A File referencing the IR file.
     """
-    entry = ctx.attr.entry
-    args = ("--entry=" + entry) if entry else ""
+    ir_conv_args = ctx.attr.ir_conv_args
+    IR_CONV_FLAGS = (
+        "entry",
+        "dslx_path",
+    )
+
+    my_args = _get_args(ir_conv_args, IR_CONV_FLAGS)
+
+    required_files = ctx.files._dslx_std_lib + [src]
+    required_files += [
+        item
+        for dep in ctx.attr.deps
+        for item in dep[DslxFilesInfo].dslx_sources.to_list()
+    ]
+
     ir_file = ctx.actions.declare_file(src.basename[:-1] + "ir")
     ctx.actions.run_shell(
         outputs = [ir_file],
         # The IR converter executable is a tool needed by the action.
         tools = [ctx.executable._ir_converter_tool],
-        # The files required for converting the DSLX source file also requires
-        # the IR converter executable.
+        # The files required for converting the DSLX source file.
         inputs = required_files + [ctx.executable._ir_converter_tool],
         command = "{} {} {} > {}".format(
             ctx.executable._ir_converter_tool.path,
-            args,
+            my_args,
             src.path,
             ir_file.path,
         ),
@@ -52,7 +125,7 @@ def _convert_to_ir(ctx, src, required_files):
     )
     return ir_file
 
-def _optimize_ir(ctx, src):
+def optimize_ir(ctx, src):
     """Optimizes an IR file.
 
     The macro creates an action in the context that optimizes an IR file.
@@ -64,20 +137,28 @@ def _optimize_ir(ctx, src):
     Returns:
       A File referencing the optimized IR file.
     """
-    entry = ctx.attr.entry
-    args = ("--entry=" + entry) if entry else ""
+    ir_opt_args = ctx.attr.ir_opt_args
+    IR_OPT_FLAGS = (
+        "entry",
+        "ir_dump_path",
+        "run_only_passes",
+        "skip_passes",
+        "opt_level",
+    )
+
+    my_args = _get_args(ir_opt_args, IR_OPT_FLAGS)
+
     opt_ir_file = ctx.actions.declare_file(src.basename[:-2] + "opt.ir")
     ctx.actions.run_shell(
         outputs = [opt_ir_file],
         # The IR optimization executable is a tool needed by the action.
         tools = [ctx.executable._ir_opt_tool],
-        # The files required for optimizing the IR file also requires the IR
-        # optimization executable.
+        # The files required for optimizing the IR file.
         inputs = [src, ctx.executable._ir_opt_tool],
         command = "{} {} {} > {}".format(
             ctx.executable._ir_opt_tool.path,
             src.path,
-            args,
+            my_args,
             opt_ir_file.path,
         ),
         mnemonic = "OptimizeIR",
@@ -97,18 +178,21 @@ def _dslx_to_ir_impl(ctx):
     DefaultInfo provider
     """
     src = ctx.file.src
-    my_srcs = [
-        item
-        for dep in ctx.attr.deps
-        for item in dep[DslxFilesInfo].dslx_sources.to_list()
-    ]
-    my_srcs += [src] + ctx.files._dslx_std_lib
-    ir_file = _convert_to_ir(ctx, src, my_srcs)
+    ir_file = convert_to_ir(ctx, src)
     return [
         DefaultInfo(files = depset([ir_file])),
     ]
 
-_dslx_to_ir_attrs = {
+ir_common_attrs = {
+    "src": attr.label(
+        doc = "The IR source file for the rule. A single source file must be " +
+              "provided. The file must have a '.ir' extension.",
+        mandatory = True,
+        allow_single_file = [".ir"],
+    ),
+}
+
+dslx_to_ir_attrs = {
     "src": attr.label(
         doc = "The DSLX source file for the rule. A single source file must " +
               "be provided. The file must have a '.x' extension.",
@@ -119,7 +203,9 @@ _dslx_to_ir_attrs = {
         doc = "Dependency targets for the rule.",
         providers = [DslxFilesInfo],
     ),
-    "entry": attr.string(doc = "Entry function name for conversion."),
+    "ir_conv_args": attr.string_dict(
+        doc = "Arguments of the IR conversion tool.",
+    ),
     "_dslx_std_lib": attr.label(
         doc = "The target containing the DSLX std library.",
         default = Label("//xls/dslx/stdlib:dslx_std_lib"),
@@ -146,7 +232,9 @@ dslx_to_ir = rule(
             dslx_to_ir(
                 name = "a_dslx_to_ir",
                 src = "a.x",
-                entry = "a",
+                ir_conv_args = {
+                    "entry" : "a",
+                },
             )
         ```
 
@@ -179,7 +267,7 @@ dslx_to_ir = rule(
         ```
     """,
     implementation = _dslx_to_ir_impl,
-    attrs = _dslx_to_ir_attrs,
+    attrs = dslx_to_ir_attrs,
 )
 
 def _ir_opt_impl(ctx):
@@ -194,20 +282,16 @@ def _ir_opt_impl(ctx):
     DefaultInfo provider
     """
     ir_file = ctx.file.src
-    opt_ir_file = _optimize_ir(ctx, ir_file)
+    opt_ir_file = optimize_ir(ctx, ir_file)
 
     return [
         DefaultInfo(files = depset([opt_ir_file])),
     ]
 
-_ir_opt_attrs = {
-    "src": attr.label(
-        doc = "The IR source file for the rule. A single source file must be " +
-              "provided. The file must have a '.ir' extension.",
-        mandatory = True,
-        allow_single_file = [".ir"],
+ir_opt_attrs = {
+    "ir_opt_args": attr.string_dict(
+        doc = "Arguments of the IR optimizer tool.",
     ),
-    "entry": attr.string(doc = "Entry function name for the optimization."),
     "_ir_opt_tool": attr.label(
         doc = "The target of the IR optimizer executable.",
         default = Label("//xls/tools:opt_main"),
@@ -229,7 +313,9 @@ ir_opt = rule(
             ir_opt(
                 name = "a_ir_opt",
                 src = "a.ir",
-                entry = "a",
+                ir_opt_args = {
+                    "entry" : "a",
+                },
             )
         ```
 
@@ -247,7 +333,7 @@ ir_opt = rule(
         ```
     """,
     implementation = _ir_opt_impl,
-    attrs = _ir_opt_attrs,
+    attrs = dict(ir_common_attrs.items() + ir_opt_attrs.items()),
 )
 
 def _ir_equivalence_test_impl(ctx):
@@ -263,8 +349,13 @@ def _ir_equivalence_test_impl(ctx):
     """
     ir_file_a = ctx.file.src_0
     ir_file_b = ctx.file.src_1
-    entry = ctx.attr.entry
-    args = ("--function=" + entry) if entry else ""
+    ir_equivalence_args = ctx.attr.ir_equivalence_args
+    IR_EQUIVALENCE_FLAGS = (
+        "function",
+        "timeout",
+    )
+
+    my_args = _get_args(ir_equivalence_args, IR_EQUIVALENCE_FLAGS)
 
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
@@ -276,7 +367,7 @@ def _ir_equivalence_test_impl(ctx):
                 ctx.executable._ir_equivalence_tool.short_path,
                 ir_file_a.short_path,
                 ir_file_b.short_path,
-                args,
+                my_args,
             ),
             "exit 0",
         ]),
@@ -293,7 +384,7 @@ def _ir_equivalence_test_impl(ctx):
         ),
     ]
 
-_ir_equivalence_test_attrs = {
+_two_ir_files_attrs = {
     "src_0": attr.label(
         doc = "An IR source file for the rule. A single source file must be " +
               "provided. The file must have a '.ir' extension.",
@@ -306,8 +397,11 @@ _ir_equivalence_test_attrs = {
         mandatory = True,
         allow_single_file = [".ir"],
     ),
-    "entry": attr.string(
-        doc = "Entry function name for the optimization test.",
+}
+
+_ir_equivalence_test_attrs = {
+    "ir_equivalence_args": attr.string_dict(
+        doc = "Arguments of the IR equivalence tool.",
     ),
     "_ir_equivalence_tool": attr.label(
         doc = "The target of the IR equivalence executable.",
@@ -351,7 +445,7 @@ ir_equivalence_test = rule(
 
     """,
     implementation = _ir_equivalence_test_impl,
-    attrs = _ir_equivalence_test_attrs,
+    attrs = dict(_two_ir_files_attrs.items() + _ir_equivalence_test_attrs.items()),
     test = True,
 )
 
@@ -365,6 +459,8 @@ def _ir_eval_test_impl(ctx):
     Returns:
       DefaultInfo provider
     """
+    src = ctx.file.src
+    ir_eval_default_args = DEFAULT_IR_EVAL_TEST_ARGS
     ir_eval_args = ctx.attr.ir_eval_args
     IR_EVAL_FLAGS = (
         "entry",
@@ -380,14 +476,8 @@ def _ir_eval_test_impl(ctx):
         "llvm_opt_level",
         "test_only_inject_jit_result",
     )
-    src = ctx.file.src
-    my_args = ""
-    for flag_name in ir_eval_args:
-        if flag_name in IR_EVAL_FLAGS:
-            my_args += " --%s=%s" % (flag_name, ir_eval_args[flag_name])
-        else:
-            fail("Unrecognized argument: %s." % flag_name)
 
+    my_args = _get_args(ir_eval_args, IR_EVAL_FLAGS, ir_eval_default_args)
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
         output = executable_file,
@@ -415,18 +505,9 @@ def _ir_eval_test_impl(ctx):
     ]
 
 _ir_eval_test_attrs = {
-    "src": attr.label(
-        doc = "The IR source file for the rule. A single source file must be " +
-              "provided. The file must have a '.ir' extension.",
-        mandatory = True,
-        allow_single_file = [".ir"],
-    ),
     "ir_eval_args": attr.string_dict(
         doc = "Arguments of the IR interpreter.",
-        default = {
-            "random_inputs": "100",
-            "optimize_ir": "true",
-        },
+        default = DEFAULT_IR_EVAL_TEST_ARGS,
     ),
     "_ir_eval_tool": attr.label(
         doc = "The target of the IR interpreter executable.",
@@ -467,7 +548,7 @@ ir_eval_test = rule(
         ```
     """,
     implementation = _ir_eval_test_impl,
-    attrs = _ir_eval_test_attrs,
+    attrs = dict(ir_common_attrs.items() + _ir_eval_test_attrs.items()),
     test = True,
 )
 
@@ -481,6 +562,7 @@ def _ir_benchmark_impl(ctx):
     Returns:
       DefaultInfo provider
     """
+    src = ctx.file.src
     benchmark_args = ctx.attr.benchmark_args
     BENCHMARK_FLAGS = (
         "clock_period_ps",
@@ -490,13 +572,8 @@ def _ir_benchmark_impl(ctx):
         "entry",
         "delay_model",
     )
-    src = ctx.file.src
-    my_args = ""
-    for flag_name in benchmark_args:
-        if flag_name in BENCHMARK_FLAGS:
-            my_args += " --%s=%s" % (flag_name, benchmark_args[flag_name])
-        else:
-            fail("Unrecognized argument: %s." % flag_name)
+
+    my_args = _get_args(benchmark_args, BENCHMARK_FLAGS)
 
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
@@ -525,12 +602,6 @@ def _ir_benchmark_impl(ctx):
     ]
 
 _ir_benchmark_attrs = {
-    "src": attr.label(
-        doc = "The IR source file for the rule. A single source file must be " +
-              "provided. The file must have a '.ir' extension.",
-        mandatory = True,
-        allow_single_file = [".ir"],
-    ),
     "benchmark_args": attr.string_dict(
         doc = "Arguments of the benchmark tool.",
     ),
@@ -573,6 +644,6 @@ ir_benchmark = rule(
         ```
     """,
     implementation = _ir_benchmark_impl,
-    attrs = _ir_benchmark_attrs,
+    attrs = dict(ir_common_attrs.items() + _ir_benchmark_attrs.items()),
     executable = True,
 )
