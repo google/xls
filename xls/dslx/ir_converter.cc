@@ -198,6 +198,9 @@ class FunctionConverter {
         ->GetInstantiationCalleeBindings(invocation, key);
   }
 
+  // Helper for HandleBinop().
+  absl::Status HandleConcat(Binop* node, BValue lhs, BValue rhs);
+
   // AstNode handlers.
   absl::Status HandleBinop(Binop* node);
   absl::Status HandleConstRef(ConstRef* node);
@@ -208,23 +211,20 @@ class FunctionConverter {
   absl::Status HandleUnop(Unop* node);
   absl::Status HandleXlsTuple(XlsTuple* node);
 
-  absl::Status HandleConcat(Binop* node, BValue lhs, BValue rhs);
-
   // AstNode handlers that recur "manually" internal to the handler.
+  absl::Status HandleArray(Array* node);
   absl::Status HandleAttr(Attr* node);
+  absl::Status HandleCast(Cast* node);
+  absl::Status HandleColonRef(ColonRef* node);
+  absl::Status HandleConstantArray(ConstantArray* node);
+  absl::Status HandleConstantDef(ConstantDef* node);
+  absl::Status HandleFor(For* node);
+  absl::Status HandleIndex(Index* node);
+  absl::Status HandleInvocation(Invocation* node);
+  absl::Status HandleLet(Let* node);
+  absl::Status HandleMatch(Match* node);
   absl::Status HandleSplatStructInstance(SplatStructInstance* node);
   absl::Status HandleStructInstance(StructInstance* node);
-  absl::Status HandleColonRef(ColonRef* node);
-  absl::Status HandleConstantDef(ConstantDef* node);
-  absl::Status HandleLet(Let* node);
-  absl::Status HandleCast(Cast* node);
-  absl::Status HandleMatch(Match* node);
-  absl::Status HandleIndex(Index* node);
-  absl::Status HandleConstantArray(ConstantArray* node);
-  absl::Status HandleArray(Array* node);
-  absl::Status HandleInvocation(Invocation* node);
-
-  absl::Status HandleFor(For* node);
 
   // Handles an arm of a match expression.
   absl::StatusOr<BValue> HandleMatcher(NameDefTree* matcher,
@@ -262,10 +262,10 @@ class FunctionConverter {
   absl::Status HandleBuiltinOneHotSel(Invocation* node);
   absl::Status HandleBuiltinOrReduce(Invocation* node);
   absl::Status HandleBuiltinRev(Invocation* node);
+  absl::Status HandleBuiltinScmp(SignedCmp cmp, Invocation* node);
   absl::Status HandleBuiltinSignex(Invocation* node);
   absl::Status HandleBuiltinUpdate(Invocation* node);
   absl::Status HandleBuiltinXorReduce(Invocation* node);
-  absl::Status HandleBuiltinScmp(SignedCmp cmp, Invocation* node);
 
   // Signed comparisons.
   absl::Status HandleBuiltinSLt(Invocation* node) {
