@@ -866,9 +866,8 @@ absl::Status FunctionBuilderVisitor::HandleOneHot(OneHot* one_hot) {
   llvm::Type* input_type = input->getType();
   int input_width = input_type->getIntegerBitWidth();
 
-  llvm::Type* int1_type = llvm::Type::getInt1Ty(ctx_);
-  llvm::Value* llvm_false = llvm::ConstantInt::getFalse(int1_type);
-  llvm::Value* llvm_true = llvm::ConstantInt::getTrue(int1_type);
+  llvm::Value* llvm_false = builder_->getFalse();
+  llvm::Value* llvm_true =  builder_->getTrue();
 
   // Special case the 0-bit input value, it produces a single true output bit.
   if (one_hot->operand(0)->GetType()->AsBitsOrDie()->bit_count() == 0) {
