@@ -39,6 +39,64 @@ fn umul_test() {
   ()
 }
 
+// Calculate x / y one bit at a time. This is an alternative to using
+// the division operator '/' which may not synthesize nicely.
+pub fn iterative_div<N: u32, DN: u32 = N * u32:2>(x: uN[N], y: uN[N]) -> uN[N] {
+
+  let init_shift_amount = ((N as uN[N])-uN[N]:1);
+  let x = x as uN[DN];
+
+  let (_, _, _, div_result) =
+        for(idx, (shifted_y, shifted_index_bit, running_product, running_result)): (u32, (uN[DN], uN[N], uN[DN], uN[N]))
+        in range(u32:0, N) {
+
+    // Increment running_result by current power of 2
+    // if the prodcut running_result * y < x.
+    let inc_running_result = running_result | shifted_index_bit;
+    let inc_running_product = running_product + shifted_y;
+    let (running_result, running_product) =
+            (inc_running_result, inc_running_product)
+        if (inc_running_product <= x)
+        else (running_result, running_product);
+
+    // Shift to next (lower) power of 2.
+    let shifted_y = shifted_y >> uN[N]:1;
+    let shifted_index_bit = shifted_index_bit >> uN[N]:1;
+
+    (shifted_y, shifted_index_bit, running_product, running_result)
+  } (( (y as uN[DN]) << (init_shift_amount as uN[DN]),
+       uN[N]:1 << init_shift_amount,
+       uN[DN]:0,
+       uN[N]:0));
+
+  div_result
+}
+
+#![test]
+fn iterative_div_test () {
+  // Power of 2.
+  let _ = assert_eq(u4:0, iterative_div(u4:8, u4:15));
+  let _ = assert_eq(u4:1, iterative_div(u4:8, u4:8));
+  let _ = assert_eq(u4:2, iterative_div(u4:8, u4:4));
+  let _ = assert_eq(u4:4, iterative_div(u4:8, u4:2));
+  let _ = assert_eq(u4:8, iterative_div(u4:8, u4:1));
+  let _ = assert_eq(u4:8 / u4:0, iterative_div(u4:8, u4:0));
+  let _ = assert_eq(u4:15, iterative_div(u4:8, u4:0));
+
+  // Non-powers-of-2.
+  let _ = assert_eq(u32:6, iterative_div(u32:18, u32:3));
+  let _ = assert_eq(u32:6, iterative_div(u32:36, u32:6));
+  let _ = assert_eq(u32:6, iterative_div(u32:48, u32:8));
+  let _ = assert_eq(u32:20, iterative_div(u32:900, u32:45));
+
+  // Results w/ remainder.
+  let _ = assert_eq(u32:6, iterative_div(u32:20, u32:3));
+  let _ = assert_eq(u32:6, iterative_div(u32:41, u32:6));
+  let _ = assert_eq(u32:6, iterative_div(u32:55, u32:8));
+  let _ = assert_eq(u32:20, iterative_div(u32:944, u32:45));
+  ()
+}
+
 // Returns the value of x-1 with saturation at 0.
 pub fn bounded_minus_1<N: u32>(x: uN[N]) -> uN[N] {
   x if x == uN[N]:0 else x-uN[N]:1

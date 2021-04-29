@@ -183,6 +183,7 @@ pub fn unflatten<EXP_SZ:u32, SFD_SZ:u32,
   }
 }
 
+// Cast the fixed point number to a floating point number.
 pub fn cast_from_fixed<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1,
   NUM_SRC_BITS:u32, EXTENDED_SFD_SZ:u32 = SFD_SZ + NUM_SRC_BITS>
   (to_cast: sN[NUM_SRC_BITS]) -> APFloat<EXP_SZ, SFD_SZ> {
@@ -390,6 +391,7 @@ pub fn normalize<EXP_SZ:u32, SFD_SZ:u32, WIDE_SFD:u32 = SFD_SZ + u32:1>(
   }
 }
 
+// Returns whether or not the given APFloat represents an infinite quantity.
 pub fn is_inf<EXP_SZ:u32, SFD_SZ:u32>(x: APFloat<EXP_SZ, SFD_SZ>) -> u1 {
   (x.bexp == std::mask_bits<EXP_SZ>() && x.sfd == bits[SFD_SZ]:0)
 }
@@ -404,7 +406,139 @@ pub fn is_zero_or_subnormal<EXP_SZ: u32, SFD_SZ: u32>(x: APFloat<EXP_SZ, SFD_SZ>
   x.bexp == uN[EXP_SZ]:0
 }
 
+// Cast the floating point number to a fixed point number.
+// Unrepresentable numbers are cast to the minimum representable
+// number (largest magnitude negative number).
+pub fn cast_to_fixed<NUM_DST_BITS:u32, EXP_SZ:u32, SFD_SZ:u32, 
+  UEXP_SZ:u32 = EXP_SZ + u32:1,
+  EXTENDED_FIXED_SZ:u32 = NUM_DST_BITS + u32:1 + SFD_SZ + NUM_DST_BITS>
+  (to_cast: APFloat<EXP_SZ, SFD_SZ>) -> sN[NUM_DST_BITS] {
+
+  const MIN_FIXED_VALUE = (uN[NUM_DST_BITS]:1 << (
+    (NUM_DST_BITS as uN[NUM_DST_BITS]) - uN[NUM_DST_BITS]:1)) 
+    as sN[NUM_DST_BITS];
+  const MAX_EXPONENT = NUM_DST_BITS - u32:1;
+
+  // Convert to fixed point and truncate fractional bits.
+  let exp = unbiased_exponent(to_cast);
+  let result = (uN[NUM_DST_BITS]:0 ++ u1:1 
+                ++ to_cast.sfd ++ uN[NUM_DST_BITS]:0) 
+                as sN[EXTENDED_FIXED_SZ];
+  let result = result >> 
+    ((SFD_SZ as uN[EXTENDED_FIXED_SZ])
+    + (NUM_DST_BITS as uN[EXTENDED_FIXED_SZ]) 
+    - (exp as uN[EXTENDED_FIXED_SZ]));
+  let result = result[0:NUM_DST_BITS] as sN[NUM_DST_BITS];
+  let result = -result if to_cast.sign else result;
+
+  // NaN and too-large inputs --> MIN_FIXED_VALUE
+  let overflow = (exp as u32) >= MAX_EXPONENT;
+  let result = MIN_FIXED_VALUE if overflow || is_nan(to_cast)
+                               else result;
+  // Underflow / to_cast < 1 --> 0
+  let result = sN[NUM_DST_BITS]:0 
+    if to_cast.bexp < bias<EXP_SZ, SFD_SZ>(uN[UEXP_SZ]:0)
+    else result;
+
+  result
+}
+
+#![test]
+fn cast_to_fixed_test() {
+  // Cast +/-0.0
+  let _ = assert_eq(
+    cast_to_fixed<u32:32>(zero<u32:8, u32:23>(u1:0)), s32:0);
+  let _ = assert_eq(
+    cast_to_fixed<u32:32>(zero<u32:8, u32:23>(u1:1)), s32:0);
+
+  // Cast +/-1.0
+  let _ = assert_eq(
+    cast_to_fixed<u32:32>(one<u32:8, u32:23>(u1:0)), s32:1);
+  let _ = assert_eq(
+    cast_to_fixed<u32:32>(one<u32:8, u32:23>(u1:1)), s32:-1);
+
+  // Cast +/-1.5 --> +/- 1
+  let one_point_five = APFloat<u32:8, u32:23>{sign: u1:0,
+                                              bexp: u8:0x7f,
+                                              sfd:  u1:1 ++ u22:0}; 
+  let _ = assert_eq(
+    cast_to_fixed<u32:32>(one_point_five), s32:1);
+  let n_one_point_five = APFloat<u32:8, u32:23>{sign: u1:1,
+                                                bexp: u8:0x7f,
+                                                sfd:  u1:1 ++ u22:0}; 
+  let _ = assert_eq(
+    cast_to_fixed<u32:32>(n_one_point_five), s32:-1);
+
+  // Cast +/-4.0
+  let four = cast_from_fixed<u32:8, u32:23>(s32:4);
+  let neg_four = cast_from_fixed<u32:8, u32:23>(s32:-4);
+  let _ = assert_eq(
+    cast_to_fixed<u32:32>(four), s32:4);
+  let _ = assert_eq(
+    cast_to_fixed<u32:32>(neg_four), s32:-4);
+
+  // Cast 7
+  let seven = cast_from_fixed<u32:8, u32:23>(s32:7);
+  let _ = assert_eq(
+    cast_to_fixed<u32:32>(seven), s32:7);
+
+  // Cast big number (more digits left of decimal than hidden bit + sfd).
+  let big_num = (u1:0 ++ std::mask_bits<u32:23>() ++ u8:0) as s32;
+  let fp_big_num = cast_from_fixed<u32:8, u32:23>(big_num);
+  let _ = assert_eq(
+    cast_to_fixed<u32:32>(fp_big_num), big_num);
+
+  // Cast large, non-overflowing numbers.
+  let big_fit = APFloat<u32:8, u32:23>{sign: u1:0, 
+                                       bexp: u8:127 + u8:30,
+                                       sfd: u23:0x7fffff};
+  let _ = assert_eq(
+    cast_to_fixed<u32:32>(big_fit), 
+    (u1:0 ++ u24:0xffffff ++ u7:0) as s32);
+  let big_fit = APFloat<u32:8, u32:23>{sign: u1:1, 
+                                       bexp: u8:127 + u8:30,
+                                       sfd: u23:0x7fffff};
+  let _ = assert_eq(
+    cast_to_fixed<u32:32>(big_fit), 
+    (s32:0 - (u1:0 ++ u24:0xffffff ++ u7:0) as s32));
+
+
+  // Cast barely overflowing postive number.
+  let big_overflow = APFloat<u32:8, u32:23>{sign: u1:0, 
+                                            bexp: u8:127 + u8:31,
+                                            sfd: u23:0x0};
+  let _ = assert_eq(
+    cast_to_fixed<u32:32>(big_overflow), 
+    (u1:1 ++ u31:0) as s32);
+
+
+  // This produces the largest negative int, but doesn't actually
+  // overflow
+  let max_negative = APFloat<u32:8, u32:23>{sign: u1:1, 
+                                            bexp: u8:127 + u8:31,
+                                            sfd: u23:0x0};
+  let _ = assert_eq(
+    cast_to_fixed<u32:32>(max_negative), 
+    (u1:1 ++ u31:0) as s32);
+
+
+  // Negative overflow.
+  let negative_overflow = APFloat<u32:8, u32:23>{sign: u1:1, 
+                                            bexp: u8:127 + u8:31,
+                                            sfd: u23:0x1};
+  let _ = assert_eq(
+    cast_to_fixed<u32:32>(negative_overflow), 
+    (u1:1 ++ u31:0) as s32);
+
+
+  // NaN input.
+  let _ = assert_eq(
+    cast_to_fixed<u32:32>(qnan<u32:8, u32:23>()),
+    (u1:1 ++ u31:0) as s32);
+
+  ()
+}
+
 // TODO(rspringer): Create a broadly-applicable normalize test, that
 // could be used for multiple type instantiations (without needing
 // per-specialization data to be specified by a user).
-// Returns whether or not the given APFloat represents an infinite quantity.
