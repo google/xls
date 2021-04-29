@@ -110,6 +110,36 @@ Booleanifier::Vector Booleanifier::FlattenValue(const Value& value) {
   return result;
 }
 
+Booleanifier::Vector Booleanifier::HandleArrayIndex(const ArrayType* array_type,
+                                                    const Vector& array,
+                                                    const Vector& index) {
+  int64_t element_size = array_type->element_type()->GetFlatBitCount();
+  std::vector<Vector> cases;
+  cases.reserve(array_type->size());
+  for (int i = 0; i < array_type->size(); i++) {
+    cases.push_back(
+        evaluator_->BitSlice(array, i * element_size, element_size));
+  }
+  return evaluator_->Select(index, cases, cases.back());
+}
+
+Booleanifier::Vector Booleanifier::HandleArrayUpdate(
+    const ArrayType* array_type, const Vector& array,
+    const Vector& update_index, const Vector& update_value) {
+  Vector result;
+  const int64_t index_width = update_index.size();
+  for (int i = 0; i < array_type->size(); i++) {
+    const Vector loop_index = FlattenValue(Value(UBits(i, index_width)));
+
+    const Element equals_index = evaluator_->Equals(loop_index, update_index);
+    const Vector old_value = HandleArrayIndex(array_type, array, loop_index);
+    const Vector new_value =
+        evaluator_->Select(Vector({equals_index}), {old_value, update_value});
+    result.insert(result.end(), new_value.begin(), new_value.end());
+  }
+  return result;
+}
+
 Booleanifier::Vector Booleanifier::HandleSpecialOps(Node* node) {
   switch (node->op()) {
     case Op::kArray:
@@ -126,14 +156,22 @@ Booleanifier::Vector Booleanifier::HandleSpecialOps(Node* node) {
       ArrayIndex* array_index = node->As<ArrayIndex>();
       const ArrayType* array_type =
           array_index->array()->GetType()->AsArrayOrDie();
-      int64_t element_size = array_type->element_type()->GetFlatBitCount();
-      std::vector<Vector> cases;
-      cases.reserve(array_type->size());
-      for (int i = 0; i < array_type->size(); i++) {
-        cases.push_back(evaluator_->BitSlice(node_map_.at(array_index->array()),
-                                             i * element_size, element_size));
-      }
-      return evaluator_->Select(node_map_.at(array_index->indices()[0]), cases);
+      XLS_CHECK(array_index->indices().size() == 1)
+          << "Booleanification is only supported for 1d arrays; got "
+          << array_index->indices().size() << ".";
+      return HandleArrayIndex(array_type, node_map_.at(array_index->array()),
+                              node_map_.at(array_index->indices()[0]));
+    }
+    case Op::kArrayUpdate: {
+      // Use the old value for each element, except for the updated element.
+      ArrayUpdate* array_update = node->As<ArrayUpdate>();
+      XLS_CHECK(array_update->indices().size() == 1)
+          << "Booleanification is only supported for 1d arrays; got "
+          << array_update->indices().size() << ".";
+      return HandleArrayUpdate(array_update->GetType()->AsArrayOrDie(),
+                               node_map_.at(array_update->array_to_update()),
+                               node_map_.at(array_update->indices()[0]),
+                               node_map_.at(array_update->update_value()));
     }
     case Op::kLiteral: {
       Vector result;
