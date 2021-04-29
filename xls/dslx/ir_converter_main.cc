@@ -31,7 +31,11 @@ ABSL_FLAG(std::string, entry, "",
           "are converted.");
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
-ABSL_FLAG(bool, unused_emit_fail_as_assert, false,
+
+// TODO(https://github.com/google/xls/issues/232): 2021-04-28 Make "true" the
+// default, requires us to wrap up entry points so they don't need the "implicit
+// token" calling convention.
+ABSL_FLAG(bool, emit_fail_as_assert, false,
           "Feature flag for emitting fail!() in the DSL as an assert IR op.");
 
 namespace xls::dslx {
@@ -94,7 +98,6 @@ absl::Status RealMain(absl::string_view path,
     *printed_error = TryPrintError(type_info_or.status());
     return type_info_or.status();
   }
-  TypeInfo* type_info = type_info_or.value();
 
   const ConvertOptions convert_options = {
       .emit_positions = true,
@@ -104,7 +107,7 @@ absl::Status RealMain(absl::string_view path,
   if (entry.has_value()) {
     XLS_ASSIGN_OR_RETURN(
         converted,
-        ConvertOneFunction(module.get(), entry.value(), type_info,
+        ConvertOneFunction(module.get(), entry.value(),
                            /*import_data=*/&import_data,
                            /*symbolic_bindings=*/nullptr, convert_options));
   } else {
@@ -133,7 +136,7 @@ int main(int argc, char* argv[]) {
   if (!absl::GetFlag(FLAGS_entry).empty()) {
     entry = absl::GetFlag(FLAGS_entry);
   }
-  bool emit_fail_as_assert = absl::GetFlag(FLAGS_unused_emit_fail_as_assert);
+  bool emit_fail_as_assert = absl::GetFlag(FLAGS_emit_fail_as_assert);
   bool printed_error = false;
   absl::Status status = xls::dslx::RealMain(
       args[0], entry, dslx_paths, emit_fail_as_assert, &printed_error);

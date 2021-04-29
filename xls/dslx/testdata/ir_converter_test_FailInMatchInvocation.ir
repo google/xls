@@ -1,15 +1,25 @@
 package test_module
 
-fn __test_module__do_fail(x: bits[32]) -> bits[32] {
-  ret identity.2: bits[32] = identity(x, id=2)
+fn __test_module__do_fail(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+  not.4: bits[1] = not(__activated, id=4)
+  assert.5: token = assert(__token, not.4, message="Assertion failure via fail! @ test_module.x:3:8-3:11", id=5)
+  after_all.7: token = after_all(assert.5, id=7)
+  identity.6: bits[32] = identity(x, id=6)
+  ret tuple.8: (token, bits[32]) = tuple(after_all.7, identity.6, id=8)
 }
 
-fn __test_module__main(x: bits[32]) -> bits[32] {
-  literal.5: bits[32] = literal(value=42, id=5)
-  eq.6: bits[1] = eq(literal.5, x, id=6)
-  concat.8: bits[1] = concat(eq.6, id=8)
-  one_hot.9: bits[2] = one_hot(concat.8, lsb_prio=true, id=9)
-  invoke.7: bits[32] = invoke(x, to_apply=__test_module__do_fail, id=7)
-  literal.4: bits[1] = literal(value=1, id=4)
-  ret one_hot_sel.10: bits[32] = one_hot_sel(one_hot.9, cases=[invoke.7, x], id=10)
+fn __test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+  literal.12: bits[32] = literal(value=42, id=12)
+  literal.14: bits[1] = literal(value=1, id=14)
+  eq.13: bits[1] = eq(literal.12, x, id=13)
+  and.15: bits[1] = and(__activated, literal.14, eq.13, id=15)
+  invoke.16: (token, bits[32]) = invoke(__token, and.15, x, to_apply=__test_module__do_fail, id=16)
+  concat.20: bits[1] = concat(eq.13, id=20)
+  tuple_index.17: token = tuple_index(invoke.16, index=0, id=17)
+  one_hot.21: bits[2] = one_hot(concat.20, lsb_prio=true, id=21)
+  tuple_index.18: bits[32] = tuple_index(invoke.16, index=1, id=18)
+  after_all.23: token = after_all(tuple_index.17, id=23)
+  one_hot_sel.22: bits[32] = one_hot_sel(one_hot.21, cases=[tuple_index.18, x], id=22)
+  literal.19: bits[1] = literal(value=1, id=19)
+  ret tuple.24: (token, bits[32]) = tuple(after_all.23, one_hot_sel.22, id=24)
 }

@@ -32,7 +32,9 @@ class DelayEstimatorModel{{camel_case_name}} : public DelayEstimator {
         break;
   {%- endfor %}
       default:
-        return absl::UnimplementedError("Unhandled node for delay estimation: " + node->ToStringWithOperandTypes());
+        return absl::UnimplementedError(
+          "Unhandled node for delay estimation in delay model '{{name}}': "
+          + node->ToStringWithOperandTypes());
     }
     if (delay_status.ok()) {
       return std::max<int64_t>(0, delay_status.value());

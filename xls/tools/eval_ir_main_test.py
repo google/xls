@@ -80,7 +80,7 @@ class EvalMainTest(absltest.TestCase):
         stderr=subprocess.PIPE,
         check=False)
     self.assertNotEqual(comp.returncode, 0)
-    self.assertIn('Arg list has the wrong size: 1 vs expected 2',
+    self.assertIn("Arg list to 'foo' has the wrong size: 1 vs expected 2",
                   comp.stderr.decode('utf-8'))
 
   def test_one_input_with_expected(self):

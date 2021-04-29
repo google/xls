@@ -78,7 +78,7 @@ absl::StatusOr<std::string> ConvertModule(Module* module,
 //
 // Implementation note: creates a temporary IR package based on module's name.
 absl::StatusOr<std::string> ConvertOneFunction(
-    Module* module, absl::string_view entry_function_name, TypeInfo* type_info,
+    Module* module, absl::string_view entry_function_name,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
     const ConvertOptions& options);
 

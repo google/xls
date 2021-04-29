@@ -68,3 +68,7 @@ op_models { op: "kUMod" estimator { fixed: 1 } }
 op_models { op: "kXor" estimator { fixed: 1 } }
 op_models { op: "kXorReduce" estimator { fixed: 1 } }
 op_models { op: "kZeroExt" estimator { fixed: 1 } }
+
+# Always-free ops.
+op_models { op: "kAssert" estimator { fixed: 0 } }
+op_models { op: "kAfterAll" estimator { fixed: 0 } }

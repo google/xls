@@ -580,6 +580,13 @@ class BuilderBase {
 
   Package* package() const { return function_->package(); }
 
+  // Returns the last node enqueued onto this builder -- when Build() is called
+  // this is what is used as the return value.
+  absl::StatusOr<BValue> GetLastValue() {
+    XLS_RET_CHECK(last_node_ != nullptr);
+    return BValue(last_node_, this);
+  }
+
  protected:
   BValue SetError(absl::string_view msg, absl::optional<SourceLocation> loc);
   bool ErrorPending() { return error_pending_; }

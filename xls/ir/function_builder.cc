@@ -904,8 +904,8 @@ absl::StatusOr<Function*> FunctionBuilder::Build() {
   if (function_->node_count() == 0) {
     return absl::InvalidArgumentError("Function cannot be empty");
   }
-  XLS_RET_CHECK(last_node_ != nullptr);
-  return BuildWithReturnValue(BValue(last_node_, this));
+  XLS_ASSIGN_OR_RETURN(BValue last_value, GetLastValue());
+  return BuildWithReturnValue(last_value);
 }
 
 absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(

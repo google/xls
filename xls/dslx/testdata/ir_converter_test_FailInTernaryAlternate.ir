@@ -1,8 +1,14 @@
 package test_module
 
-fn __test_module__main(x: bits[32]) -> bits[32] {
-  literal.2: bits[32] = literal(value=0, id=2)
-  eq.3: bits[1] = eq(x, literal.2, id=3)
-  identity.4: bits[32] = identity(x, id=4)
-  ret sel.5: bits[32] = sel(eq.3, cases=[identity.4, x], id=5)
+fn __test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+  literal.4: bits[32] = literal(value=0, id=4)
+  eq.5: bits[1] = eq(x, literal.4, id=5)
+  not.6: bits[1] = not(eq.5, id=6)
+  and.7: bits[1] = and(__activated, not.6, id=7)
+  not.8: bits[1] = not(and.7, id=8)
+  assert.9: token = assert(__token, not.8, message="Assertion failure via fail! @ test_module.x:3:29-3:32", id=9)
+  identity.10: bits[32] = identity(x, id=10)
+  after_all.12: token = after_all(assert.9, id=12)
+  sel.11: bits[32] = sel(eq.5, cases=[identity.10, x], id=11)
+  ret tuple.13: (token, bits[32]) = tuple(after_all.12, sel.11, id=13)
 }

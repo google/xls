@@ -187,6 +187,11 @@ class TypeInfo {
   // module or an import of this module.
   absl::optional<TypeInfo*> GetImportedTypeInfo(Module* m);
 
+  // Returns whether function "f" requires an implicit token parameter; i.e. it
+  // contains a `fail!()` as determined during type inferencing.
+  absl::optional<bool> GetRequiresImplicitToken(Function* f) const;
+  void NoteRequiresImplicitToken(Function* f, bool is_required);
+
   // Attempts to retrieve the callee's parametric values in an "instantiation".
   // That is, in the case of:
   //
@@ -235,14 +240,7 @@ class TypeInfo {
   //  parent: Type information that should be queried from the same scope (i.e.
   //    if an AST node is not resolved in the local member maps, the lookup is
   //    then performed in the parent, and so on transitively).
-  TypeInfo(Module* module, TypeInfo* parent = nullptr)
-      : module_(module), parent_(parent) {
-    XLS_VLOG(3) << "Created type info for module \"" << module_->name()
-                << "\" @ " << this << " parent " << parent;
-    if (parent_ != nullptr) {
-      XLS_CHECK_EQ(parent_->module(), module_);
-    }
-  }
+  TypeInfo(Module* module, TypeInfo* parent = nullptr);
 
   // Traverses to the 'root' (AKA 'most parent') TypeInfo. This is a place to
   // stash context-free information (e.g. that is found in a parametric
@@ -266,6 +264,7 @@ class TypeInfo {
   absl::flat_hash_map<Invocation*, InstantiationData> instantiations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
   absl::flat_hash_map<Expr*, InterpValue> const_exprs_;
+  absl::flat_hash_map<Function*, bool> requires_implicit_token_;
   TypeInfo* parent_;  // Note: may be nullptr.
 };
 

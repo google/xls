@@ -1676,6 +1676,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCarry(Carry* node,
 }
 
 // Checks the parametric function body using the invocation's symbolic bindings.
+//
+// Args:
+//  parametric_fn: The function being instantiated.
+//  invocation: The invocation causing the instantiation.
+//  symbolic_bindings: The caller's symbolic bindings (the caller being the
+//    entity containing the invocation).
+//  ctx: Deduction context.
 static absl::Status CheckParametricInvocation(
     Function* parametric_fn, Invocation* invocation,
     const SymbolicBindings& symbolic_bindings, DeduceCtx* ctx) {
@@ -1851,6 +1858,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
   XLS_VLOG(5) << "Deducing type for invocation: " << node->ToString()
               << " caller symbolic bindings: " << caller_symbolic_bindings;
 
+  // Gather up the type of all the (actual) arguments.
   std::vector<std::unique_ptr<ConcreteType>> arg_types;
   for (Expr* arg : node->args()) {
     absl::StatusOr<std::unique_ptr<ConcreteType>> type =
@@ -2011,6 +2019,23 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
     // the body of callee_fn to make sure these values actually work.
     XLS_RETURN_IF_ERROR(CheckParametricInvocation(
         callee_fn, node, callee_symbolic_bindings, ctx));
+  }
+
+  // If the callee function needs an implicit token type (e.g. because it has a
+  // fail!() operation transitively) then so do we.
+  if (absl::optional<bool> callee_opt =
+          ctx->import_data()
+              ->GetRootTypeInfoForNode(callee_fn)
+              .value()
+              ->GetRequiresImplicitToken(callee_fn);
+      callee_opt.value()) {
+    Function* caller_fn = ctx->fn_stack().back().function();
+    // Note: caller_fn could be nullptr; e.g. when we're calling a function that
+    // can fail!() from the top level of a module; e.g. in a module-level const
+    // expression.
+    if (caller_fn != nullptr) {
+      ctx->type_info()->NoteRequiresImplicitToken(caller_fn, true);
+    }
   }
 
   return std::move(tab.type);

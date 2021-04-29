@@ -23,10 +23,6 @@
 
 namespace xls::dslx {
 
-// Instantiates a builtin parametric invocation; e.g. `update()`.
-absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
-    BuiltinNameDef* builtin_name, Invocation* invocation, DeduceCtx* ctx);
-
 // Type-checks function f in the given module.
 absl::Status CheckTopNodeInModule(
     absl::variant<Function*, TestFunction*, StructDef*, TypeDef*> f,

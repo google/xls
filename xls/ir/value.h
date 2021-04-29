@@ -86,6 +86,9 @@ class Value {
   static Value Token() {
     return Value(ValueKind::kToken, std::vector<Value>({}));
   }
+  static Value Bool(bool enabled) {
+    return Value(UBits(/*value=*/enabled, /*bit_count=*/1));
+  }
 
   Value() : kind_(ValueKind::kInvalid), payload_(nullptr) {}
 

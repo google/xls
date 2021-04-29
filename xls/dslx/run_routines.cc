@@ -47,7 +47,8 @@ absl::StatusOr<IrJit*> RunComparator::GetOrCompileJitFunction(
 }
 
 absl::Status RunComparator::RunComparison(
-    Package* ir_package, dslx::Function* f, absl::Span<InterpValue const> args,
+    Package* ir_package, bool requires_implicit_token, dslx::Function* f,
+    absl::Span<InterpValue const> args,
     const SymbolicBindings* symbolic_bindings, const InterpValue& got) {
   XLS_RET_CHECK(ir_package != nullptr);
 
@@ -71,16 +72,22 @@ absl::Status RunComparator::RunComparison(
 
   xls::Function* ir_function = get_result.value();
 
-  XLS_ASSIGN_OR_RETURN(IrJit * jit,
-                       GetOrCompileJitFunction(ir_name, ir_function));
-
   XLS_ASSIGN_OR_RETURN(std::vector<Value> ir_args,
                        InterpValue::ConvertValuesToIr(args));
+
+  // We need to know if the function-that-we're-doing-a-comparison-for needs an
+  // implicit token.
+  if (requires_implicit_token) {
+    ir_args.insert(ir_args.begin(), Value::Bool(true));
+    ir_args.insert(ir_args.begin(), Value::Token());
+  }
 
   const char* mode_str = nullptr;
   Value ir_result;
   switch (mode_) {
     case CompareMode::kJit: {
+      XLS_ASSIGN_OR_RETURN(IrJit * jit,
+                           GetOrCompileJitFunction(ir_name, ir_function));
       XLS_ASSIGN_OR_RETURN(ir_result, jit->Run(ir_args));
       mode_str = "JIT";
       break;
@@ -90,6 +97,14 @@ absl::Status RunComparator::RunComparison(
       mode_str = "interpreter";
       break;
     }
+  }
+
+  if (requires_implicit_token) {
+    // Slice off the first value.
+    XLS_RET_CHECK(ir_result.element(0).IsToken());
+    XLS_RET_CHECK_EQ(ir_result.size(), 2);
+    Value real_ir_result = std::move(ir_result.element(1));
+    ir_result = std::move(real_ir_result);
   }
 
   // Convert the interpreter value to an IR value so we can compare it.
@@ -285,11 +300,19 @@ absl::StatusOr<bool> ParseAndTest(absl::string_view program,
                          ConvertModuleToPackage(entry_module, &import_data,
                                                 options.convert_options,
                                                 /*traverse_tests=*/true));
-    post_fn_eval_hook = [&ir_package, &options](
+    post_fn_eval_hook = [&ir_package, &import_data, &options](
                             Function* f, absl::Span<const InterpValue> args,
                             const SymbolicBindings* symbolic_bindings,
-                            const InterpValue& got) {
-      return options.run_comparator->RunComparison(ir_package.get(), f, args,
+                            const InterpValue& got) -> absl::Status {
+      absl::optional<bool> requires_implicit_token =
+          import_data.GetRootTypeInfoForNode(f)
+              .value()
+              ->GetRequiresImplicitToken(f);
+      XLS_RET_CHECK(requires_implicit_token.has_value());
+      bool use_implicit_token = options.convert_options.emit_fail_as_assert &&
+                                *requires_implicit_token;
+      return options.run_comparator->RunComparison(ir_package.get(),
+                                                   use_implicit_token, f, args,
                                                    symbolic_bindings, got);
     };
   }

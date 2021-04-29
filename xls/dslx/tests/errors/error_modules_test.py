@@ -238,6 +238,12 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn("Cannot cast from expression type struct 'S' to uN[32]",
                   stderr)
 
+  def test_destructure_fallible(self):
+    stderr = self._run('xls/dslx/tests/errors/destructure_fallible.x')
+    self.assertIn(
+        'FailureError: The program being interpreted failed! (u8:0, u8:0)',
+        stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

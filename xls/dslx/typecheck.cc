@@ -22,6 +22,10 @@
 
 namespace xls::dslx {
 
+// TODO(leary): 2021-03-29 The name here should be more like "Checkable" --
+// these are the AST node variants we keep in a stacked order for typechecking.
+using TopNode = absl::variant<Function*, TestFunction*, StructDef*, TypeDef*>;
+
 // Checks the function's parametrics' and arguments' types.
 static absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
 CheckFunctionParams(Function* f, DeduceCtx* ctx) {
@@ -127,6 +131,16 @@ static absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
                         f->identifier()));
   }
 
+  // Implementation note: though we could have all functions have
+  // NoteRequiresImplicitToken() be false unless otherwise noted, this helps
+  // guarantee we did consider and make a note for every function -- the code is
+  // generally complex enough it's nice to have this sanity check.
+  if (absl::optional<bool> requires =
+          ctx->type_info()->GetRequiresImplicitToken(f);
+      !requires.has_value()) {
+    ctx->type_info()->NoteRequiresImplicitToken(f, false);
+  }
+
   FunctionType function_type(std::move(param_types),
                              std::move(body_return_type));
   ctx->type_info()->SetItem(f->name_def(), function_type);
@@ -217,8 +231,10 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametricMap(
   return absl::get<NameDef*>(name_ref->name_def());
 }
 
-absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
-    BuiltinNameDef* builtin_name, Invocation* invocation, DeduceCtx* ctx) {
+// Instantiates a builtin parametric invocation; e.g. `update()`.
+static absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
+    const TopNode* f, BuiltinNameDef* builtin_name, Invocation* invocation,
+    DeduceCtx* ctx) {
   std::vector<std::unique_ptr<ConcreteType>> arg_types;
   for (Expr* arg : invocation->args()) {
     absl::optional<ConcreteType*> arg_type = ctx->type_info()->GetItem(arg);
@@ -250,6 +266,15 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
                              ctx->module()->GetFunctionOrError(*map_fn_name));
         higher_order_parametric_bindings = (*map_fn)->parametric_bindings();
       }
+    }
+  } else if (builtin_name->identifier() == "fail!") {
+    if (f != nullptr && absl::holds_alternative<Function*>(*f)) {
+      ctx->type_info()->NoteRequiresImplicitToken(absl::get<Function*>(*f),
+                                                  true);
+    } else {
+      return TypeInferenceErrorStatus(
+          invocation->span(), nullptr,
+          "Observed a fail!() outside of a function.");
     }
   }
 
@@ -327,7 +352,6 @@ absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
 // its user (which would often be an invocation), which allows us to drive the
 // appropriate instantiation of that parametric.
 
-using TopNode = absl::variant<Function*, TestFunction*, StructDef*, TypeDef*>;
 struct WipRecord {
   TopNode f;
   bool wip;
@@ -422,8 +446,16 @@ static void VLogSeen(
 //
 // * For a name that refers to a function in the "function_map", we push that
 //   onto the top of the processing stack.
+//
+// Args:
+//  f: The top node being processed when we observed the missing type status --
+//    this is optional since we can encounter e.g. a parametric function in a
+//    constant definition at the top level, so there's no TopNode to speak of in
+//    that case.
+//  status: The missing type status, this encodes the node that had the type
+//    error and its user node that discovered the type was missing.
 static absl::Status HandleMissingType(
-    const absl::Status& status,
+    const TopNode* f, const absl::Status& status,
     const absl::flat_hash_map<std::string, Function*>& function_map,
     absl::flat_hash_map<std::pair<std::string, std::string>, WipRecord>& seen,
     std::vector<TypecheckStackRecord>& stack, DeduceCtx* ctx) {
@@ -475,7 +507,7 @@ static absl::Status HandleMissingType(
       if (auto* invocation = dynamic_cast<Invocation*>(e.user)) {
         XLS_ASSIGN_OR_RETURN(
             NameDef * func,
-            InstantiateBuiltinParametric(builtin_name_def, invocation, ctx));
+            InstantiateBuiltinParametric(f, builtin_name_def, invocation, ctx));
         if (func != nullptr) {
           // We need to figure out what to do with this higher order
           // parametric function.
@@ -521,7 +553,7 @@ static absl::Status CheckTopNodeInModuleInternal(
 
     if (IsTypeMissingErrorStatus(status)) {
       XLS_RETURN_IF_ERROR(
-          HandleMissingType(status, function_map, seen, stack, ctx));
+          HandleMissingType(&f, status, function_map, seen, stack, ctx));
       continue;
     }
 
@@ -638,8 +670,8 @@ static absl::Status CheckModuleMember(ModuleMember member, Module* module,
           ctx->module()->GetFunctionByName();
       absl::flat_hash_map<std::pair<std::string, std::string>, WipRecord> seen;
       std::vector<TypecheckStackRecord> stack;
-      XLS_RETURN_IF_ERROR(
-          HandleMissingType(status, function_map, seen, stack, ctx));
+      XLS_RETURN_IF_ERROR(HandleMissingType(/*f=*/nullptr, status, function_map,
+                                            seen, stack, ctx));
       XLS_RETURN_IF_ERROR(
           CheckTopNodeInModuleInternal(function_map, seen, stack, ctx));
       status = CheckModuleMember(member, module, import_data, ctx);

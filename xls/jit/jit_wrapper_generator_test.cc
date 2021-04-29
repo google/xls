@@ -26,6 +26,8 @@
 namespace xls {
 namespace {
 
+using ::testing::HasSubstr;
+
 TEST(JitWrapperGeneratorTest, GeneratesHeaderGuards) {
   constexpr const char kClassName[] = "MyClass";
   const std::filesystem::path kHeaderPath =
@@ -164,6 +166,30 @@ fn foo65(x: bits[65]) -> bits[65] {
                                  "some/silly/genfiles/path");
   pos = generated.header.find("absl::StatusOr<uint64_t> Run(uint64_t x);");
   EXPECT_EQ(pos, std::string::npos);
+}
+
+TEST(JitWrapperGeneratorTest, GeneratesTokenActivatedFunction) {
+  constexpr const char kClassName[] = "MyClass";
+  const std::filesystem::path kHeaderPath =
+      "some/silly/genfiles/path/this_is_myclass.h";
+
+  const std::string program = R"(package p
+
+fn main(t: token, activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+  ret r: (token, bits[32]) = tuple(t, x)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
+  GeneratedJitWrapper generated = GenerateJitWrapper(
+      *f, kClassName, kHeaderPath, "some/silly/genfiles/path");
+  EXPECT_THAT(
+      generated.header,
+      HasSubstr("Run(PackedBitsView<32> x, PackedBitsView<32> result)"));
+  EXPECT_THAT(generated.header,
+              HasSubstr("absl::StatusOr<Value> Run(Value x)"));
 }
 
 }  // namespace

@@ -1,10 +1,21 @@
 package test_module
 
-fn ____test_module__main_counted_for_0_body(i: bits[32], x: bits[32]) -> bits[32] {
-  ret identity.5: bits[32] = identity(x, id=5)
+fn ____test_module__main_counted_for_0_body(i: bits[32], __token_wrapped: (token, bits[1], bits[32])) -> (token, bits[1], bits[32]) {
+  tuple_index.8: bits[1] = tuple_index(__token_wrapped, index=1, id=8)
+  tuple_index.9: bits[32] = tuple_index(__token_wrapped, index=2, id=9)
+  tuple_index.7: token = tuple_index(__token_wrapped, index=0, id=7)
+  not.10: bits[1] = not(tuple_index.8, id=10)
+  identity.12: bits[32] = identity(tuple_index.9, id=12)
+  assert.11: token = assert(tuple_index.7, not.10, message="Assertion failure via fail! @ test_module.x:4:10-4:13", id=11)
+  ret tuple.13: (token, bits[1], bits[32]) = tuple(tuple_index.7, tuple_index.8, identity.12, id=13)
 }
 
-fn __test_module__main(x: bits[32]) -> bits[32] {
-  literal.2: bits[32] = literal(value=0, id=2)
-  ret counted_for.6: bits[32] = counted_for(literal.2, trip_count=1, stride=1, body=____test_module__main_counted_for_0_body, id=6)
+fn __test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+  literal.4: bits[32] = literal(value=0, id=4)
+  tuple.14: (token, bits[1], bits[32]) = tuple(__token, __activated, literal.4, id=14)
+  counted_for.15: (token, bits[1], bits[32]) = counted_for(tuple.14, trip_count=1, stride=1, body=____test_module__main_counted_for_0_body, id=15)
+  tuple_index.16: token = tuple_index(counted_for.15, index=0, id=16)
+  after_all.18: token = after_all(tuple_index.16, id=18)
+  tuple_index.17: bits[32] = tuple_index(counted_for.15, index=2, id=17)
+  ret tuple.19: (token, bits[32]) = tuple(after_all.18, tuple_index.17, id=19)
 }

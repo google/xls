@@ -334,9 +334,9 @@ absl::StatusOr<Value> IrJit::Run(absl::Span<const Value> args,
                                  void* user_data) {
   absl::Span<Param* const> params = xls_function_->params();
   if (args.size() != params.size()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Arg list has the wrong size: %d vs expected %d.",
-                        args.size(), xls_function_->params().size()));
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Arg list to '%s' has the wrong size: %d vs expected %d.",
+        xls_function_->name(), args.size(), xls_function_->params().size()));
   }
 
   for (int i = 0; i < params.size(); i++) {

@@ -1,20 +1,31 @@
 package test_module
 
-fn ____test_module__main_counted_for_0_body(i: bits[32], __loop_carry: (bits[32], bits[32])) -> (bits[32], bits[32]) {
-  literal.7: bits[1] = literal(value=1, id=7)
-  literal.9: bits[1] = literal(value=1, id=9)
-  tuple_index.8: bits[32] = tuple_index(__loop_carry, index=0, id=8)
-  tuple_index.11: bits[32] = tuple_index(__loop_carry, index=1, id=11)
-  and.10: bits[1] = and(literal.7, literal.9, id=10)
+fn ____test_module__main_counted_for_0_body(i: bits[32], __token_wrapped: (token, bits[1], (bits[32], bits[32]))) -> (token, bits[1], (bits[32], bits[32])) {
+  tuple_index.11: (bits[32], bits[32]) = tuple_index(__token_wrapped, index=2, id=11)
+  tuple_index.13: bits[32] = tuple_index(tuple_index.11, index=0, id=13)
+  tuple_index.16: bits[32] = tuple_index(tuple_index.11, index=1, id=16)
   literal.12: bits[1] = literal(value=1, id=12)
-  tuple.14: (bits[32], bits[32]) = tuple(tuple_index.8, tuple_index.11, id=14)
-  and.13: bits[1] = and(and.10, literal.12, id=13)
-  ret identity.15: (bits[32], bits[32]) = identity(tuple.14, id=15)
+  literal.14: bits[1] = literal(value=1, id=14)
+  tuple_index.10: bits[1] = tuple_index(__token_wrapped, index=1, id=10)
+  tuple.19: (bits[32], bits[32]) = tuple(tuple_index.13, tuple_index.16, id=19)
+  and.15: bits[1] = and(literal.12, literal.14, id=15)
+  literal.17: bits[1] = literal(value=1, id=17)
+  tuple_index.9: token = tuple_index(__token_wrapped, index=0, id=9)
+  not.20: bits[1] = not(tuple_index.10, id=20)
+  identity.22: (bits[32], bits[32]) = identity(tuple.19, id=22)
+  and.18: bits[1] = and(and.15, literal.17, id=18)
+  assert.21: token = assert(tuple_index.9, not.20, message="Assertion failure via fail! @ test_module.x:4:10-4:18", id=21)
+  ret tuple.23: (token, bits[1], (bits[32], bits[32])) = tuple(tuple_index.9, tuple_index.10, identity.22, id=23)
 }
 
-fn __test_module__main(x: bits[32]) -> (bits[32], bits[32]) {
-  literal.2: bits[32] = literal(value=0, id=2)
-  literal.3: bits[32] = literal(value=0, id=3)
-  tuple.4: (bits[32], bits[32]) = tuple(literal.2, literal.3, id=4)
-  ret counted_for.16: (bits[32], bits[32]) = counted_for(tuple.4, trip_count=1, stride=1, body=____test_module__main_counted_for_0_body, id=16)
+fn __test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, (bits[32], bits[32])) {
+  literal.4: bits[32] = literal(value=0, id=4)
+  literal.5: bits[32] = literal(value=0, id=5)
+  tuple.6: (bits[32], bits[32]) = tuple(literal.4, literal.5, id=6)
+  tuple.24: (token, bits[1], (bits[32], bits[32])) = tuple(__token, __activated, tuple.6, id=24)
+  counted_for.25: (token, bits[1], (bits[32], bits[32])) = counted_for(tuple.24, trip_count=1, stride=1, body=____test_module__main_counted_for_0_body, id=25)
+  tuple_index.26: token = tuple_index(counted_for.25, index=0, id=26)
+  after_all.28: token = after_all(tuple_index.26, id=28)
+  tuple_index.27: (bits[32], bits[32]) = tuple_index(counted_for.25, index=2, id=27)
+  ret tuple.29: (token, (bits[32], bits[32])) = tuple(after_all.28, tuple_index.27, id=29)
 }

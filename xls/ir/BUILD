@@ -457,6 +457,7 @@ cc_library(
         ":type",
         ":value",
         "//xls/common/logging",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

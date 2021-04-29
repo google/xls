@@ -127,6 +127,31 @@ bool TypeInfo::HasInstantiation(Invocation* invocation,
   return GetInstantiationTypeInfo(invocation, caller).has_value();
 }
 
+absl::optional<bool> TypeInfo::GetRequiresImplicitToken(Function* f) const {
+  XLS_CHECK_EQ(f->owner(), module_) << "function owner: " << f->owner()->name()
+                                    << " module: " << module_->name();
+  const TypeInfo* root = GetRoot();
+  const absl::flat_hash_map<Function*, bool>& map =
+      root->requires_implicit_token_;
+  auto it = map.find(f);
+  if (it == map.end()) {
+    return absl::nullopt;
+  }
+  bool result = it->second;
+  XLS_VLOG(6) << absl::StreamFormat("GetRequiresImplicitToken %p %s::%s => %s",
+                                    root, f->owner()->name(), f->identifier(),
+                                    (result ? "true" : "false"));
+  return result;
+}
+
+void TypeInfo::NoteRequiresImplicitToken(Function* f, bool is_required) {
+  TypeInfo* root = GetRoot();
+  XLS_VLOG(6) << absl::StreamFormat(
+      "NoteRequiresImplicitToken %p: %s::%s => %s", root, f->owner()->name(),
+      f->identifier(), is_required ? "true" : "false");
+  root->requires_implicit_token_.emplace(f, is_required);
+}
+
 absl::optional<TypeInfo*> TypeInfo::GetInstantiationTypeInfo(
     Invocation* invocation, const SymbolicBindings& caller) const {
   XLS_CHECK_EQ(invocation->owner(), module_);
@@ -263,6 +288,12 @@ absl::optional<Expr*> TypeInfo::GetConstant(NameDef* name_def) const {
     return absl::nullopt;
   }
   return it->second->value();
+}
+
+TypeInfo::TypeInfo(Module* module, TypeInfo* parent)
+    : module_(module), parent_(parent) {
+  XLS_VLOG(6) << "Created type info for module \"" << module_->name() << "\" @ "
+              << this << " parent " << parent << " root " << GetRoot();
 }
 
 }  // namespace xls::dslx

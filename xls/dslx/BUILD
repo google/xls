@@ -124,6 +124,7 @@ cc_test(
         "//xls/common:update_golden_files",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
+        "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/flags:flag",
         "@com_google_googletest//:gtest",

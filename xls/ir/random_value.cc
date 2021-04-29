@@ -33,6 +33,9 @@ Value RandomValue(Type* type, std::minstd_rand* engine) {
     }
     return Value::Array(elements).value();
   }
+  if (type->IsToken()) {
+    return Value::Token();
+  }
   int64_t bit_count = type->AsBitsOrDie()->bit_count();
   std::vector<uint8_t> bytes;
   std::uniform_int_distribution<uint8_t> generator(0, 255);

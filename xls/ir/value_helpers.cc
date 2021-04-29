@@ -16,6 +16,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/type.h"
 
@@ -75,8 +76,13 @@ Value F32ToTuple(float value) {
 }
 
 absl::StatusOr<float> TupleToF32(const Value& v) {
+  XLS_RET_CHECK(v.IsTuple()) << v.ToString();
+  XLS_RET_CHECK_EQ(v.elements().size(), 3) << v.ToString();
+  XLS_RET_CHECK_EQ(v.element(0).bits().bit_count(), 1);
   XLS_ASSIGN_OR_RETURN(uint32_t sign, v.element(0).bits().ToUint64());
+  XLS_RET_CHECK_EQ(v.element(1).bits().bit_count(), 8);
   XLS_ASSIGN_OR_RETURN(uint32_t exp, v.element(1).bits().ToUint64());
+  XLS_RET_CHECK_EQ(v.element(2).bits().bit_count(), 23);
   XLS_ASSIGN_OR_RETURN(uint32_t fraction, v.element(2).bits().ToUint64());
   // Validate the values were all appropriate.
   XLS_DCHECK_EQ(sign, sign & Mask(1));

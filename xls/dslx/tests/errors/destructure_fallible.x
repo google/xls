@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2021 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,20 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main() -> u32 {
-  let x0 = clz(u32:0x0005a000);
-  let x1 = clz(x0);
-  clz(x1)
+// Test case that showed an IR conversion issue in the development of
+// synthesizable fail!() support -- f() is fallible, and the destructuring in
+// main() had an issue as a result.
+
+fn f(x: u8) -> (u8, u8, u8) {
+  let (a, b) = match x {
+    _ => fail!((u8:0, u8:0))
+  };
+  (a, x, b)
 }
 
-#![test]
-fn ctz_test() {
-  let _ = assert_eq(u32:27, main());
-  let _ = assert_eq(u3:2, ctz(u3:0b100));
-  let _ = assert_eq(u3:1, ctz(u3:0b010));
-  let _ = assert_eq(u3:0, ctz(u3:0b001));
-  let _ = assert_eq(u3:0, ctz(u3:0b111));
-  let _ = assert_eq(u3:3, ctz(u3:0b000));
+fn main(x: u8) -> () {
+  let t: (u8, u8, u8) = f(x);
+  let (a, b, c) = t;
   ()
 }
 
+#![test]
+fn main_test() {
+  let x: u8 = u8:0;
+  let result = main(x);
+  assert_eq((), result)
+}

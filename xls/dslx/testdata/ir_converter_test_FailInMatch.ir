@@ -1,11 +1,17 @@
 package test_module
 
-fn __test_module__main(x: bits[32]) -> bits[32] {
-  literal.3: bits[32] = literal(value=42, id=3)
-  eq.4: bits[1] = eq(literal.3, x, id=4)
-  concat.6: bits[1] = concat(eq.4, id=6)
-  one_hot.7: bits[2] = one_hot(concat.6, lsb_prio=true, id=7)
-  identity.5: bits[32] = identity(x, id=5)
-  literal.2: bits[1] = literal(value=1, id=2)
-  ret one_hot_sel.8: bits[32] = one_hot_sel(one_hot.7, cases=[identity.5, x], id=8)
+fn __test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+  literal.4: bits[32] = literal(value=42, id=4)
+  literal.6: bits[1] = literal(value=1, id=6)
+  eq.5: bits[1] = eq(literal.4, x, id=5)
+  and.7: bits[1] = and(__activated, literal.6, eq.5, id=7)
+  not.8: bits[1] = not(and.7, id=8)
+  concat.12: bits[1] = concat(eq.5, id=12)
+  assert.9: token = assert(__token, not.8, message="Assertion failure via fail! @ test_module.x:4:20-4:23", id=9)
+  one_hot.13: bits[2] = one_hot(concat.12, lsb_prio=true, id=13)
+  identity.10: bits[32] = identity(x, id=10)
+  after_all.15: token = after_all(assert.9, id=15)
+  one_hot_sel.14: bits[32] = one_hot_sel(one_hot.13, cases=[identity.10, x], id=14)
+  literal.11: bits[1] = literal(value=1, id=11)
+  ret tuple.16: (token, bits[32]) = tuple(after_all.15, one_hot_sel.14, id=16)
 }

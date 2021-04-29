@@ -26,6 +26,7 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/update_golden_files.inc"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -36,6 +37,11 @@ ABSL_FLAG(std::string, xls_source_dir, "",
 
 namespace xls::dslx {
 namespace {
+
+constexpr ConvertOptions kFailNoPos = {
+    .emit_positions = false,
+    .emit_fail_as_assert = true,
+};
 
 void ExpectIr(absl::string_view got, absl::string_view test_name) {
   std::string suffix =
@@ -49,6 +55,7 @@ void ExpectIr(absl::string_view got, absl::string_view test_name) {
   XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path runfile,
                            GetXlsRunfilePath(absl::StrCat("xls/", suffix)));
   XLS_ASSERT_OK_AND_ASSIGN(std::string want, GetFileContents(runfile));
+  XLS_LOG_LINES(INFO, got);
   EXPECT_EQ(got, want);
 }
 
@@ -65,7 +72,6 @@ absl::StatusOr<std::string> ConvertOneFunctionForTest(
                                          /*import_data=*/&import_data,
                                          /*additional_search_paths=*/{}));
   return ConvertOneFunction(tm.module, /*entry_function_name=*/fn_name,
-                            /*type_info=*/tm.type_info,
                             /*import_data=*/&import_data,
                             /*symbolic_bindings=*/nullptr, options);
 }
@@ -994,16 +1000,14 @@ fn main() -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, FailIsElided) {
-  const char* program =
-      R"(
+TEST(IrConverterTest, UnconditionalFail) {
+  const char* program = R"(
 fn main() -> u32 {
   fail!(u32:42)
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, kFailNoPos));
   ExpectIr(converted, TestName());
 }
 
@@ -1013,9 +1017,8 @@ fn main(x: u32) -> u32 {
   fail!(x) if x == u32:0 else x
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, kFailNoPos));
   ExpectIr(converted, TestName());
 }
 
@@ -1025,9 +1028,8 @@ fn main(x: u32) -> u32 {
   x if x == u32:0 else fail!(x)
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, kFailNoPos));
   ExpectIr(converted, TestName());
 }
 
@@ -1041,9 +1043,8 @@ fn main(x: u32) -> u32 {
   }
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, kFailNoPos));
   ExpectIr(converted, TestName());
 }
 
@@ -1060,9 +1061,8 @@ fn main(x: u32) -> u32 {
   }
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, kFailNoPos));
   ExpectIr(converted, TestName());
 }
 
@@ -1075,9 +1075,8 @@ fn main(x: u32) -> u32 {
   }
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, kFailNoPos));
   ExpectIr(converted, TestName());
 }
 
@@ -1091,9 +1090,8 @@ fn main(x: u32) -> u32 {
   does_fail()
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, kFailNoPos));
   ExpectIr(converted, TestName());
 }
 
@@ -1107,9 +1105,8 @@ fn main(x: u32) -> u32 {
   does_fail<u32:32>()
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, kFailNoPos));
   ExpectIr(converted, TestName());
 }
 
@@ -1127,9 +1124,8 @@ fn main(x: u32) -> u32 {
   calls_failing<u32:32>()
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, kFailNoPos));
   ExpectIr(converted, TestName());
 }
 
@@ -1141,9 +1137,25 @@ fn main(x: u32) -> u32 {
   }(u32:0)
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, kFailNoPos));
+  ExpectIr(converted, TestName());
+}
+
+// Even though the fail comes after the `for` construct, we currently prepare
+// the `for` to be capable of failing, since the fallibility marking happens at
+// the function scope.
+TEST(IrConverterTest, FailOutsideFor) {
+  const char* program = R"(
+fn main(x: u32) -> u32 {
+  let x = for (i, x): (u32, u32) in range(u32:0, u32:1) {
+    x
+  }(u32:0);
+  fail!(x)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, kFailNoPos));
   ExpectIr(converted, TestName());
 }
 
@@ -1155,9 +1167,8 @@ fn main(x: u32) -> (u32, u32) {
   }((u32:0, u32:0))
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, kFailNoPos));
   ExpectIr(converted, TestName());
 }
 
@@ -1174,9 +1185,8 @@ fn main() -> u32 {
   f(u32:0)
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program, kFailNoPos));
   ExpectIr(converted, TestName());
 }
 

@@ -47,8 +47,8 @@ class RunComparator {
 
   // Runs a comparison of the interpreter-determined value against the
   // JIT-determined value.
-  absl::Status RunComparison(Package* ir_package, Function* f,
-                             absl::Span<InterpValue const> args,
+  absl::Status RunComparison(Package* ir_package, bool requires_implicit_token,
+                             Function* f, absl::Span<InterpValue const> args,
                              const SymbolicBindings* symbolic_bindings,
                              const InterpValue& got);
 
