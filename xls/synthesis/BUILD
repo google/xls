@@ -98,26 +98,20 @@ py_binary(
     srcs_version = "PY3",
     deps = [
         ":client_credentials",
-        ":synthesis_py_pb2",
         ":synthesis_service_py_pb2_grpc",
-        "//xls/common:gfile",
-        "//xls/common/file/python:filesystem",
-        "//xls/delay_model:delay_model_py_pb2",
-        "//xls/delay_model:op_module_generator",
-        "//xls/ir:op_specification_typechecked",
+        ":timing_characterization_client",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/logging",
     ],
 )
 
 py_test(
-    name = "timing_characterization_client_main_test",
-    srcs = ["timing_characterization_client_main_test.py"],
+    name = "timing_characterization_client_test",
+    srcs = ["timing_characterization_client_test.py"],
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":timing_characterization_client_main",
+        ":timing_characterization_client",
         "//xls/delay_model:delay_model_py_pb2",
         "@com_google_absl_py//absl/testing:absltest",
     ],
@@ -183,6 +177,24 @@ py_library(
         ":synthesis_py_pb2",
         ":synthesis_service_py_pb2_grpc",
         "@com_google_absl_py//absl/logging",
+    ],
+)
+
+py_library(
+    name = "timing_characterization_client",
+    srcs = ["timing_characterization_client.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":synthesis_py_pb2",
+        ":synthesis_service_py_pb2_grpc",
+        "//xls/common:gfile",
+        "//xls/common/file/python:filesystem",
+        "//xls/delay_model:delay_model_py_pb2",
+        "//xls/delay_model:op_module_generator",
+        "//xls/ir:op_specification_typechecked",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/logging",
+        "@com_google_protobuf//:protobuf_python",
     ],
 )
 

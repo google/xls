@@ -20,7 +20,7 @@ import tempfile
 
 from absl.testing import absltest
 from xls.delay_model import delay_model_pb2
-from xls.synthesis import timing_characterization_client_main as client
+from xls.synthesis import timing_characterization_client as client
 
 
 class TimingCharacterizationClientMainTest(absltest.TestCase):
