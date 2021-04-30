@@ -55,8 +55,10 @@ class Booleanifier {
   // construction/access, etc.
   Vector HandleSpecialOps(Node* node);
 
+  Vector HandleLiteralArrayIndex(const ArrayType* array_type,
+                                 const Vector& array, const Value& index);
   Vector HandleArrayIndex(const ArrayType* array_type, const Vector& array,
-                          const Vector& index);
+                          const Element index);
 
   Vector HandleArrayUpdate(const ArrayType* array_type, const Vector& array,
                            const Vector& update_index,

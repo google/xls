@@ -25,6 +25,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
@@ -110,17 +111,37 @@ Booleanifier::Vector Booleanifier::FlattenValue(const Value& value) {
   return result;
 }
 
+Booleanifier::Vector Booleanifier::HandleLiteralArrayIndex(
+    const ArrayType* array_type, const Vector& array, const Value& index) {
+  const int64_t element_size = array_type->element_type()->GetFlatBitCount();
+
+  XLS_CHECK(index.IsBits());
+  int64_t start_index =
+      bits_ops::UGreaterThanOrEqual(index.bits(), array_type->size())
+          ? array_type->size() - 1
+          : index.bits().ToUint64().value();
+  int64_t start_bit = start_index * element_size;
+  return evaluator_->BitSlice(array, start_bit, element_size);
+}
+
 Booleanifier::Vector Booleanifier::HandleArrayIndex(const ArrayType* array_type,
                                                     const Vector& array,
-                                                    const Vector& index) {
-  int64_t element_size = array_type->element_type()->GetFlatBitCount();
+                                                    const Element index) {
+  const int64_t element_size = array_type->element_type()->GetFlatBitCount();
+
+  if (index->Is<Literal>()) {
+    // Literal index; directly slice out the relevant bits.
+    return HandleLiteralArrayIndex(array_type, array,
+                                   index->As<Literal>()->value());
+  }
+
   std::vector<Vector> cases;
   cases.reserve(array_type->size());
   for (int i = 0; i < array_type->size(); i++) {
     cases.push_back(
         evaluator_->BitSlice(array, i * element_size, element_size));
   }
-  return evaluator_->Select(index, cases, cases.back());
+  return evaluator_->Select(node_map_[index], cases, cases.back());
 }
 
 Booleanifier::Vector Booleanifier::HandleArrayUpdate(
@@ -129,10 +150,12 @@ Booleanifier::Vector Booleanifier::HandleArrayUpdate(
   Vector result;
   const int64_t index_width = update_index.size();
   for (int i = 0; i < array_type->size(); i++) {
-    const Vector loop_index = FlattenValue(Value(UBits(i, index_width)));
+    const Value loop_index(UBits(i, index_width));
 
-    const Element equals_index = evaluator_->Equals(loop_index, update_index);
-    const Vector old_value = HandleArrayIndex(array_type, array, loop_index);
+    const Element equals_index =
+        evaluator_->Equals(FlattenValue(loop_index), update_index);
+    const Vector old_value =
+        HandleLiteralArrayIndex(array_type, array, loop_index);
     const Vector new_value =
         evaluator_->Select(Vector({equals_index}), {old_value, update_value});
     result.insert(result.end(), new_value.begin(), new_value.end());
@@ -160,7 +183,7 @@ Booleanifier::Vector Booleanifier::HandleSpecialOps(Node* node) {
           << "Booleanification is only supported for 1d arrays; got "
           << array_index->indices().size() << ".";
       return HandleArrayIndex(array_type, node_map_.at(array_index->array()),
-                              node_map_.at(array_index->indices()[0]));
+                              array_index->indices()[0]);
     }
     case Op::kArrayUpdate: {
       // Use the old value for each element, except for the updated element.

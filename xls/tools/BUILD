@@ -63,6 +63,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:abstract_evaluator",
         "//xls/ir:abstract_node_evaluator",
+        "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:type",
     ],
