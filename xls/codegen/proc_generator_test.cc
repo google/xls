@@ -14,6 +14,7 @@
 
 #include "xls/codegen/proc_generator.h"
 
+#include "xls/codegen/signature_generator.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
@@ -37,7 +38,7 @@ constexpr char kTestdataPath[] = "xls/codegen/testdata";
 
 class ProcGeneratorTest : public VerilogTestBase {
  protected:
-  CodegenOptions options() {
+  CodegenOptions codegen_options() {
     return CodegenOptions().use_system_verilog(UseSystemVerilog());
   }
 };
@@ -63,13 +64,14 @@ TEST_P(ProcGeneratorTest, APlusB) {
   pb.Send(output_ch, pb.Add(a, b));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateModule(proc, options()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(codegen_options(), proc));
 
-  // The block should not have a clock or reset signal.
-  EXPECT_FALSE(result.signature.proto().has_reset());
-  EXPECT_FALSE(result.signature.proto().has_clock_name());
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(codegen_options(), proc));
 
-  ModuleTestbench tb(result.verilog_text, result.signature, GetSimulator());
+  ModuleTestbench tb(verilog, sig, GetSimulator());
+
   tb.ExpectX("sum");
   // The combinational module doesn't a connected clock, but the clock can still
   // be used to sequence events in time.
@@ -125,18 +127,14 @@ TEST_P(ProcGeneratorTest, PipelinedAPlusB) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto result,
-      GenerateModule(proc, options()
+  CodegenOptions options = codegen_options()
                                .clock_name("the_clock")
                                .reset("the_reset", /*asynchronous=*/false,
-                                      /*active_low=*/false)));
-
-  // The block should have a clock or reset signal.
-  EXPECT_EQ(result.signature.proto().reset().name(), "the_reset");
-  EXPECT_EQ(result.signature.proto().clock_name(), "the_clock");
-
-  ModuleTestbench tb(result.verilog_text, result.signature, GetSimulator());
+                                      /*active_low=*/false);
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog, GenerateVerilog(options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, proc));
+  ModuleTestbench tb(verilog, sig, GetSimulator());
 
   tb.ExpectX("sum");
   tb.Set("a", 0).Set("b", 0);
@@ -175,14 +173,12 @@ TEST_P(ProcGeneratorTest, RegisteredInputNoReset) {
   pb.Send(output_ch, reg_data);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, GenerateModule(proc, options().clock_name("foo_clock")));
+  CodegenOptions options = codegen_options().clock_name("foo_clock");
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog, GenerateVerilog(options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, proc));
 
-  ModuleTestbench tb(result.verilog_text, result.signature, GetSimulator());
-
-  // The block should have a clock, but no reset.
-  EXPECT_FALSE(result.signature.proto().has_reset());
-  EXPECT_EQ(result.signature.proto().clock_name(), "foo_clock");
+  ModuleTestbench tb(verilog, sig, GetSimulator());
 
   tb.ExpectX("out");
   tb.Set("foo", 42).NextCycle().ExpectEq("out", 42);
@@ -216,15 +212,17 @@ TEST_P(ProcGeneratorTest, Accumulator) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, GenerateModule(proc, options().clock_name("clk").reset(
-                                            "rst_n", /*asynchronous=*/false,
-                                            /*active_low=*/true)));
+  CodegenOptions options =
+      codegen_options().clock_name("clk").reset("rst_n", /*asynchronous=*/false,
+                                                /*active_low=*/true);
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog, GenerateVerilog(options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, proc));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 result.verilog_text);
+                                 verilog);
 
-  ModuleTestbench tb(result.verilog_text, result.signature, GetSimulator());
+  ModuleTestbench tb(verilog, sig, GetSimulator());
 
   tb.Set("in", 0).Set("rst_n", 0).NextCycle().Set("rst_n", 1);
 
@@ -267,7 +265,7 @@ TEST_P(ProcGeneratorTest, SendIfRegister) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
 
   ASSERT_THAT(
-      GenerateModule(proc, options().clock_name("clk")).status(),
+      GenerateVerilog(codegen_options().clock_name("clk"), proc).status(),
       StatusIs(absl::StatusCode::kUnimplemented,
                HasSubstr("SendIf to register channels not supported yet")));
 }
@@ -279,7 +277,7 @@ TEST_P(ProcGeneratorTest, ProcWithNonNilState) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
 
   EXPECT_THAT(
-      GenerateModule(proc, options()).status(),
+      GenerateVerilog(codegen_options(), proc).status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("The proc state must be an empty tuple for codegen")));
 }
@@ -298,7 +296,7 @@ TEST_P(ProcGeneratorTest, ProcWithStreamingChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(sum));
 
   EXPECT_THAT(
-      GenerateModule(proc, options()).status(),
+      GenerateVerilog(codegen_options(), proc).status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr(
                    "Only register and port channel are supported in codegen")));
@@ -324,7 +322,7 @@ TEST_P(ProcGeneratorTest, ResetValueWithoutResetSignal) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
 
   EXPECT_THAT(
-      GenerateModule(proc, options().clock_name("clk")).status(),
+      GenerateVerilog(codegen_options().clock_name("clk"), proc).status(),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           HasSubstr(
@@ -347,70 +345,73 @@ TEST_P(ProcGeneratorTest, ProcWithAssertNoLabel) {
 
   {
     // No format string.
-    XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult result,
-                             GenerateModule(proc, options()));
+    XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                             GenerateVerilog(codegen_options(), proc));
     if (UseSystemVerilog()) {
       EXPECT_THAT(
-          result.verilog_text,
+          verilog,
           HasSubstr(
               R"(assert ($isunknown(a < 32'h0000_002a) || a < 32'h0000_002a) else $fatal(0, "a is not greater than 42"))"));
     } else {
-      EXPECT_THAT(result.verilog_text, Not(HasSubstr("assert")));
+      EXPECT_THAT(verilog, Not(HasSubstr("assert")));
     }
   }
 
   {
     // With format string, no label.
     XLS_ASSERT_OK_AND_ASSIGN(
-        ModuleGeneratorResult result,
-        GenerateModule(
-            proc,
-            options()
+        std::string verilog,
+        GenerateVerilog(
+            codegen_options()
                 .reset("my_rst", /*asynchronous=*/false, /*active_low=*/false)
                 .clock_name("my_clk")
                 .assert_format(
-                    R"(`MY_ASSERT({condition}, "{message}", {clk}, {rst}))")));
+                    R"(`MY_ASSERT({condition}, "{message}", {clk}, {rst}))"),
+            proc));
     if (UseSystemVerilog()) {
       EXPECT_THAT(
-          result.verilog_text,
+          verilog,
           HasSubstr(
               R"(`MY_ASSERT(a < 32'h0000_002a, "a is not greater than 42", my_clk, my_rst))"));
     } else {
-      EXPECT_THAT(result.verilog_text, Not(HasSubstr("assert")));
+      EXPECT_THAT(verilog, Not(HasSubstr("assert")));
     }
   }
 
   // Format string with label but assert doesn't have label.
   EXPECT_THAT(
-      GenerateModule(proc, options()
-                               .reset("my_rst", /*asynchronous=*/false,
-                                      /*active_low=*/false)
-                               .clock_name("my_clk")
-                               .assert_format(R"({label} foobar)")),
+      GenerateVerilog(codegen_options()
+                          .reset("my_rst", /*asynchronous=*/false,
+                                 /*active_low=*/false)
+                          .clock_name("my_clk")
+                          .assert_format(R"({label} foobar)"),
+                      proc),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Assert format string has '{label}' placeholder, "
                          "but assert operation has no label")));
 
   // Format string with clock but block doesn't have clock.
   EXPECT_THAT(
-      GenerateModule(proc, options()
-                               .reset("my_rst", /*asynchronous=*/false,
-                                      /*active_low=*/false)
-                               .assert_format(R"({clk} foobar)")),
+      GenerateVerilog(codegen_options()
+                          .reset("my_rst", /*asynchronous=*/false,
+                                 /*active_low=*/false)
+                          .assert_format(R"({clk} foobar)"),
+                      proc),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Assert format string has '{clk}' placeholder, "
                          "but block has no clock signal")));
 
   // Format string with reset but block doesn't have reset.
   EXPECT_THAT(
-      GenerateModule(proc, options().assert_format(R"({rst} foobar)")),
+      GenerateVerilog(codegen_options().assert_format(R"({rst} foobar)"), proc),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Assert format string has '{rst}' placeholder, "
                          "but block has no reset signal")));
 
   // Format string with invalid placeholder.
   EXPECT_THAT(
-      GenerateModule(proc, options().assert_format(R"({foobar} blargfoobar)")),
+      GenerateVerilog(
+          codegen_options().assert_format(R"({foobar} blargfoobar)"), proc),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           HasSubstr("Invalid placeholder '{foobar}' in assert format string. "
@@ -434,36 +435,36 @@ TEST_P(ProcGeneratorTest, ProcWithAssertWithLabel) {
 
   {
     // No format string.
-    XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult result,
-                             GenerateModule(proc, options()));
+    XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                             GenerateVerilog(codegen_options(), proc));
     if (UseSystemVerilog()) {
       EXPECT_THAT(
-          result.verilog_text,
+          verilog,
           HasSubstr(
               R"(assert ($isunknown(a < 32'h0000_002a) || a < 32'h0000_002a) else $fatal(0, "a is not greater than 42"))"));
     } else {
-      EXPECT_THAT(result.verilog_text, Not(HasSubstr("assert")));
+      EXPECT_THAT(verilog, Not(HasSubstr("assert")));
     }
   }
 
   {
     // With format string.
     XLS_ASSERT_OK_AND_ASSIGN(
-        ModuleGeneratorResult result,
-        GenerateModule(
-            proc,
-            options()
+        std::string verilog,
+        GenerateVerilog(
+            codegen_options()
                 .reset("my_rst", /*asynchronous=*/false, /*active_low=*/false)
                 .clock_name("my_clk")
                 .assert_format(
-                    R"({label}: `MY_ASSERT({condition}, "{message}", {clk}, {rst}) // {label})")));
+                    R"({label}: `MY_ASSERT({condition}, "{message}", {clk}, {rst}) // {label})"),
+            proc));
     if (UseSystemVerilog()) {
       EXPECT_THAT(
-          result.verilog_text,
+          verilog,
           HasSubstr(
               R"(the_label: `MY_ASSERT(a < 32'h0000_002a, "a is not greater than 42", my_clk, my_rst) // the_label)"));
     } else {
-      EXPECT_THAT(result.verilog_text, Not(HasSubstr("assert")));
+      EXPECT_THAT(verilog, Not(HasSubstr("assert")));
     }
   }
 }
@@ -486,8 +487,9 @@ TEST_P(ProcGeneratorTest, ProcWithEmptyTupleElementInOutput) {
   pb.Send(out_ch, pb.Tuple({empty_tuple, pb.Receive(in_ch)}));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult result,
-                           GenerateModule(proc, options()));
+
+  XLS_LOG(INFO) << package.DumpIr();
+  XLS_ASSERT_OK(GenerateVerilog(codegen_options(), proc).status());
 }
 
 INSTANTIATE_TEST_SUITE_P(ProcGeneratorTestInstantiation, ProcGeneratorTest,

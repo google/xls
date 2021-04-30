@@ -17,8 +17,6 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
-#include "xls/codegen/module_signature.h"
-#include "xls/common/proto_adaptor_utils.h"
 #include "xls/ir/proc.h"
 
 namespace xls {
@@ -29,8 +27,8 @@ namespace verilog {
 // the state type must be an empty tuple. Typically, the state should have
 // already been converted to a channel. Nodes in the proc (send/receive) must
 // only communicate over RegisterChannels and PortChannels.
-absl::StatusOr<ModuleGeneratorResult> GenerateModule(
-    Proc* proc, const CodegenOptions& options);
+absl::StatusOr<std::string> GenerateVerilog(const CodegenOptions& options,
+                                            Proc* proc);
 
 }  // namespace verilog
 }  // namespace xls

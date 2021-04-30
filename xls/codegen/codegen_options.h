@@ -24,14 +24,15 @@ namespace xls::verilog {
 
 // Options describing how codegen should be performed.
 struct CodegenOptions {
-  // The name of the top-level proc to generate a Verilog module for. Required.
-  CodegenOptions& top_level_proc_name(absl::string_view proc_name);
-  absl::optional<absl::string_view> top_level_proc_name() const {
-    return top_proc_name_;
-  }
+  // The name of the top-level function or proc to generate a Verilog module
+  // for. Required.
+  // TODO(meheff): 2021/04/21 As this is required, perhaps this should be made a
+  // constructor argument.
+  CodegenOptions& entry(absl::string_view name);
+  absl::optional<absl::string_view> entry() const { return entry_; }
 
   // Name to use for the generated module. If not given, the name of the XLS
-  // proc is used.
+  // function/proc is used.
   CodegenOptions& module_name(absl::string_view name);
   const absl::optional<std::string_view> module_name() const {
     return module_name_;
@@ -86,7 +87,7 @@ struct CodegenOptions {
   }
 
  private:
-  absl::optional<std::string> top_proc_name_;
+  absl::optional<std::string> entry_;
   absl::optional<std::string> module_name_;
   absl::optional<ResetProto> reset_proto_;
   absl::optional<std::string> clock_name_;

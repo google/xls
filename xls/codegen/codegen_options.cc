@@ -18,9 +18,8 @@
 
 namespace xls::verilog {
 
-CodegenOptions& CodegenOptions::top_level_proc_name(
-    absl::string_view proc_name) {
-  top_proc_name_ = proc_name;
+CodegenOptions& CodegenOptions::entry(absl::string_view name) {
+  entry_ = name;
   return *this;
 }
 

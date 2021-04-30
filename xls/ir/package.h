@@ -83,7 +83,8 @@ class Package {
   Function* AddFunction(std::unique_ptr<Function> f);
   Proc* AddProc(std::unique_ptr<Proc> proc);
 
-  // Get a function (or proc) by name.
+  // Get a function (or proc) by name. Returns an error if no such function/proc
+  // of the indicated kind (Function or Proc) exists with that name.
   absl::StatusOr<Function*> GetFunction(absl::string_view func_name) const;
   absl::StatusOr<Proc*> GetProc(absl::string_view proc_name) const;
 

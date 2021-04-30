@@ -298,9 +298,9 @@ absl::Status VerifyProcForCodegen(Proc* proc) {
 
 }  // namespace
 
-absl::StatusOr<ModuleGeneratorResult> GenerateModule(
-    Proc* proc, const CodegenOptions& options) {
-  XLS_VLOG(2) << "Generating combinational module for proc:";
+absl::StatusOr<std::string> GenerateVerilog(const CodegenOptions& options,
+                                            Proc* proc) {
+  XLS_VLOG(2) << "Generating Verilog for proc:";
   XLS_VLOG_LINES(2, proc->DumpIr());
 
   XLS_RETURN_IF_ERROR(VerifyProcForCodegen(proc));
@@ -313,14 +313,8 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModule(
                    /*use_system_verilog=*/options.use_system_verilog(),
                    options.clock_name(), options.reset());
 
-  XLS_ASSIGN_OR_RETURN(std::vector<ChannelNode> input_ports,
-                       GetInputPorts(proc));
-  XLS_ASSIGN_OR_RETURN(std::vector<ChannelNode> output_ports,
-                       GetOutputPorts(proc));
+  XLS_ASSIGN_OR_RETURN(std::vector<Proc::Port> ports, proc->GetPorts());
   XLS_ASSIGN_OR_RETURN(std::vector<RegisterInfo> registers, GetRegisters(proc));
-
-  // Build the module signature along the way.
-  ModuleSignatureBuilder sig_builder(mb.module()->name());
 
   // Define clock and reset, if necessary.
   if (!registers.empty()) {
@@ -329,28 +323,18 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModule(
           "Must specify clock name for proc containing registers.");
     }
   }
-  if (options.clock_name().has_value()) {
-    sig_builder.WithClock(options.clock_name().value());
-  }
-  if (options.reset().has_value()) {
-    sig_builder.WithReset(options.reset()->name(),
-                          options.reset()->asynchronous(),
-                          options.reset()->active_low());
-  }
 
   // Map from Node* to the Verilog expression representing its value.
   absl::flat_hash_map<Node*, NodeRepresentation> node_exprs;
 
   // Add the input ports.
-  for (const ChannelNode& cn : input_ports) {
-    if (cn.node->Is<Receive>()) {
-      std::vector<Expression*> ports;
+  for (const Proc::Port& port : ports) {
+    if (port.direction == Proc::PortDirection::kInput) {
+      std::vector<Expression*> port_exprs;
       XLS_ASSIGN_OR_RETURN(
-          Expression * port,
-          mb.AddInputPort(cn.channel->name(), cn.channel->type()));
-      sig_builder.AddDataInput(cn.channel->name(),
-                               cn.channel->type()->GetFlatBitCount());
-      node_exprs[cn.node] = ReceiveData{UnrepresentedSentinel(), port};
+          Expression * port_expr,
+          mb.AddInputPort(port.channel->name(), port.channel->type()));
+      node_exprs[port.node] = ReceiveData{UnrepresentedSentinel(), port_expr};
     }
   }
 
@@ -423,30 +407,21 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModule(
   }
 
   // Add the output ports.
-  for (const ChannelNode& cn : output_ports) {
-    if (cn.node->Is<Send>()) {
-      Send* send = cn.node->As<Send>();
+  for (const Proc::Port& port : ports) {
+    if (port.direction == Proc::PortDirection::kOutput) {
+      Send* send = port.node->As<Send>();
       XLS_RETURN_IF_ERROR(mb.AddOutputPort(
-          cn.channel->name(), cn.channel->type(),
+          port.channel->name(), port.channel->type(),
           absl::get<Expression*>(node_exprs.at(send->data()))));
-      sig_builder.AddDataOutput(cn.channel->name(),
-                                cn.channel->type()->GetFlatBitCount());
     }
   }
-
-  // Build the signature. Use "unknown" interface because the proc may have an
-  // arbitrary interface/protocol.
-  sig_builder.WithUnknownInterface();
-  XLS_ASSIGN_OR_RETURN(ModuleSignature signature, sig_builder.Build());
 
   std::string text = f.Emit();
 
   XLS_VLOG(2) << "Verilog output:";
   XLS_VLOG_LINES(2, text);
-  XLS_VLOG(2) << "Signature:";
-  XLS_VLOG_LINES(2, signature.ToString());
 
-  return ModuleGeneratorResult{text, signature};
+  return text;
 }
 
 }  // namespace verilog

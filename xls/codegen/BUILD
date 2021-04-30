@@ -44,6 +44,7 @@ cc_library(
         ":name_to_bit_count",
         ":node_expressions",
         ":proc_generator",
+        ":signature_generator",
         ":vast",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/memory",
@@ -415,6 +416,22 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "signature_generator",
+    srcs = ["signature_generator.cc"],
+    hdrs = ["signature_generator.h"],
+    deps = [
+        ":codegen_options",
+        ":module_signature",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:node_util",
+        "//xls/scheduling:pipeline_schedule",
+    ],
+)
+
 proto_library(
     name = "module_signature_proto",
     srcs = ["module_signature.proto"],
@@ -528,6 +545,7 @@ cc_test(
     srcs = ["proc_generator_test.cc"],
     deps = [
         ":proc_generator",
+        ":signature_generator",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -552,6 +570,24 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "//xls/scheduling:pipeline_schedule",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "signature_generator_test",
+    srcs = ["signature_generator_test.cc"],
+    deps = [
+        ":codegen_options",
+        ":module_signature_cc_proto",
+        ":signature_generator",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/delay_model:delay_estimators",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:type",
         "//xls/scheduling:pipeline_schedule",
         "@com_google_googletest//:gtest",
     ],

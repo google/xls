@@ -27,6 +27,7 @@
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/node_expressions.h"
 #include "xls/codegen/proc_generator.h"
+#include "xls/codegen/signature_generator.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
@@ -169,28 +170,14 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
       Proc * proc,
       FunctionToProc(func, absl::StrCat("__", func->name(), "_proc")));
   std::string module_name = SanitizeIdentifier(func->name());
-  XLS_ASSIGN_OR_RETURN(
-      ModuleGeneratorResult result,
-      GenerateModule(proc, CodegenOptions()
-                               .module_name(module_name)
-                               .use_system_verilog(use_system_verilog)));
+  CodegenOptions options;
+  options.module_name(module_name).use_system_verilog(use_system_verilog);
 
-  // Generate a signature for the module. ProcGenerate currently generates a
-  // signature with "Unknown" interface type.
-  // TODO(meheff): 2021/03/01 Remove this when proc builder can generate more
-  // expressive signatures.
-  ModuleSignatureBuilder sig_builder(module_name);
-  for (Param* param : func->params()) {
-    sig_builder.AddDataInput(param->name(),
-                             param->GetType()->GetFlatBitCount());
-  }
-  sig_builder.AddDataOutput("out",
-                            func->return_value()->GetType()->GetFlatBitCount());
-  sig_builder.WithFunctionType(func->GetType());
-  sig_builder.WithCombinationalInterface();
-  XLS_ASSIGN_OR_RETURN(ModuleSignature signature, sig_builder.Build());
+  XLS_ASSIGN_OR_RETURN(ModuleSignature signature,
+                       GenerateSignature(options, func));
+  XLS_ASSIGN_OR_RETURN(std::string verilog, GenerateVerilog(options, proc));
 
-  return ModuleGeneratorResult{result.verilog_text, signature};
+  return ModuleGeneratorResult{verilog, signature};
 }
 
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(

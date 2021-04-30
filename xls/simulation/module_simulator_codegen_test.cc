@@ -20,6 +20,7 @@
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/proc_generator.h"
+#include "xls/codegen/signature_generator.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
@@ -488,22 +489,14 @@ TEST_P(ModuleSimulatorCodegenTest, Assert) {
   b.Assert(in_lt_42, "input is not less than 42!");
   b.Send(output_ch, in);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(b.GetStateParam()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
-      GenerateModule(proc,
-                     CodegenOptions().use_system_verilog(UseSystemVerilog())));
+  CodegenOptions options;
+  options.use_system_verilog(UseSystemVerilog());
 
-  // Manually construct the signature because the proc generator produces a
-  // signature with the "unknown" interface type which the module builder
-  // doesn't known what to do with.
-  // TODO(meheff): Fix this when we have a unified code generator which properly
-  // lowers combinational and pipeline procs.
-  ModuleSignatureBuilder sig_b("assert_test");
-  sig_b.WithCombinationalInterface();
-  sig_b.AddDataInput("in", 8);
-  sig_b.AddDataOutput("out", 8);
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig, sig_b.Build());
-  ModuleSimulator simulator(sig, result.verilog_text, GetSimulator());
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog, GenerateVerilog(options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, proc));
+
+  ModuleSimulator simulator(sig, verilog, GetSimulator());
 
   absl::flat_hash_map<std::string, Bits> outputs;
   XLS_ASSERT_OK(

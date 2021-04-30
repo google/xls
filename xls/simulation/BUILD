@@ -202,6 +202,7 @@ cc_test(
         "//xls/codegen:module_signature",
         "//xls/codegen:pipeline_generator",
         "//xls/codegen:proc_generator",
+        "//xls/codegen:signature_generator",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",

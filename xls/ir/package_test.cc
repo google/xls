@@ -354,7 +354,7 @@ TEST_F(PackageTest, ChannelRemoval) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * other_ch,
       other_p.CreateStreamingChannel("other", ChannelOps::kSendOnly,
-                                     p.GetBitsType(32)));
+                                     other_p.GetBitsType(32)));
 
   EXPECT_EQ(p.channels().size(), 2);
 

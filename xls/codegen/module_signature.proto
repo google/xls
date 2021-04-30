@@ -135,5 +135,7 @@ message ModuleSignatureProto {
   }
 
   // The XLS function type that it generated a module for.
+  // TODO(meheff): 2021/04/23 Consider removing this field and adding types to
+  // the inputs/outputs.
   optional FunctionTypeProto function_type = 9;
 }
