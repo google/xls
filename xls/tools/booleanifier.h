@@ -57,8 +57,10 @@ class Booleanifier {
 
   Vector HandleLiteralArrayIndex(const ArrayType* array_type,
                                  const Vector& array, const Value& index);
+
   Vector HandleArrayIndex(const ArrayType* array_type, const Vector& array,
-                          const Element index);
+                          absl::Span<Node* const> indices,
+                          int64_t start_offset);
 
   Vector HandleArrayUpdate(const ArrayType* array_type, const Vector& array,
                            const Vector& update_index,

@@ -212,5 +212,37 @@ TEST_F(BooleanifierTest, BooleanFunctionName) {
   EXPECT_EQ(given_name_f->name(), "baz");
 }
 
+TEST_F(BooleanifierTest, HandlesMultidimArrayIndex) {
+  const std::string kIrText = R"(
+package p
+
+fn main(a: bits[4][4][4], i: bits[2][2]) -> bits[4] {
+  literal.1: bits[1] = literal(value=0)
+  literal.2: bits[1] = literal(value=1)
+  array_index.3: bits[2] = array_index(i, indices=[literal.1])
+  array_index.4: bits[2] = array_index(i, indices=[literal.2])
+  ret x: bits[4] = array_index(a, indices=[array_index.3, array_index.4])
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(FunctionData fd, GetFunctionData(kIrText, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, IrJit::Create(fd.source));
+  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit, IrJit::Create(fd.boolified));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Value a, Value::UBits2DArray({{0x0, 0x1, 0x2, 0x3},
+                                                         {0x4, 0x5, 0x6, 0x7},
+                                                         {0x8, 0x9, 0xa, 0xb},
+                                                         {0xc, 0xd, 0xe, 0xf}},
+                                                        4));
+
+  std::vector<Value> inputs(2);
+  inputs[0] = a;
+  for (uint64_t i = 0; i < 16; ++i) {
+    XLS_ASSERT_OK_AND_ASSIGN(inputs[1], Value::UBitsArray({i / 4, i % 4}, 2));
+    XLS_ASSERT_OK_AND_ASSIGN(Value fancy_value, fancy_jit->Run(inputs));
+    XLS_ASSERT_OK_AND_ASSIGN(Value basic_value, basic_jit->Run(inputs));
+    ASSERT_EQ(fancy_value, basic_value);
+  }
+}
+
 }  // namespace
 }  // namespace xls
