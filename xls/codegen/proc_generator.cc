@@ -20,35 +20,11 @@
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/node_util.h"
 
 namespace xls {
 namespace verilog {
 namespace {
-
-// Returns true if the given node communicates over a channel (e.g., send).
-bool IsChannelNode(Node* node) {
-  return node->Is<Send>() || node->Is<Receive>() || node->Is<SendIf>() ||
-         node->Is<ReceiveIf>();
-}
-
-// Returns the channel used by the given node which must be a
-// send/sendif/receive/receiveif node.
-absl::StatusOr<Channel*> GetChannelUsedByNode(Node* node) {
-  int64_t channel_id;
-  if (node->Is<Send>()) {
-    channel_id = node->As<Send>()->channel_id();
-  } else if (node->Is<Receive>()) {
-    channel_id = node->As<Receive>()->channel_id();
-  } else if (node->Is<SendIf>()) {
-    channel_id = node->As<SendIf>()->channel_id();
-  } else if (node->Is<ReceiveIf>()) {
-    channel_id = node->As<ReceiveIf>()->channel_id();
-  } else {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("No channel associated with node %s", node->GetName()));
-  }
-  return node->package()->GetChannel(channel_id);
-}
 
 // Simple record holding a channel and a node associated with the channel
 // (Send(If) or Receive(If)).

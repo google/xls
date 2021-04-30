@@ -200,6 +200,10 @@ class Package {
     return channels_.find(id) != channels_.end();
   }
 
+  // Removes the given channel. If the channel has any associated send/receive
+  // nodes an error is returned.
+  absl::Status RemoveChannel(Channel* channel);
+
  private:
   // Adds the given channel to the package.
   absl::Status AddChannel(std::unique_ptr<Channel> channel);

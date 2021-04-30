@@ -20,6 +20,7 @@
 #include "absl/functional/function_ref.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/nodes.h"
 
 namespace xls {
@@ -135,6 +136,13 @@ bool IsSignedCompare(Node* node);
 
 // For <AndReduce, OrReduce, XorReduce>, returns <And, Or, Xor>.
 absl::StatusOr<Op> OpToNonReductionOp(Op reduce_op);
+
+// Returns true if the given node is a send/sendif/receive/recieveif node.
+bool IsChannelNode(Node* node);
+
+// Returns the channel used by the given node. If node is not a
+// send/sendif/receive/receiveif node then an error is returned.
+absl::StatusOr<Channel*> GetChannelUsedByNode(Node* node);
 
 }  // namespace xls
 

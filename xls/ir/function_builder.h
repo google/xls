@@ -745,8 +745,9 @@ class TokenlessProcBuilder : public ProcBuilder {
   absl::StatusOr<Proc*> Build(BValue next_state);
 
   // Add a receive operation. The type of the data value received is determined
-  // by the channel. The returned BValue is the received data itself (not a
-  // tuple containing a token and the data).
+  // by the channel. The returned BValue is the received data itself (*not* the
+  // receive operation itself which produces a tuple containing a token and the
+  // data).
   using ProcBuilder::Receive;
   BValue Receive(Channel* channel,
                  absl::optional<SourceLocation> loc = absl::nullopt,
@@ -754,8 +755,9 @@ class TokenlessProcBuilder : public ProcBuilder {
 
   // Add a receive_if operation. The receive executes conditionally on the value
   // of the predicate "pred". The type of the data value received is determined
-  // by the channel.  The returned BValue is the received data itself (not a
-  // tuple containing a token and the data).
+  // by the channel.  The returned BValue is the received data itself (*not* the
+  // receiveif operation itself which produces a tuple containing a token and
+  // the data).
   using ProcBuilder::ReceiveIf;
   BValue ReceiveIf(Channel* channel, BValue pred,
                    absl::optional<SourceLocation> loc = absl::nullopt,

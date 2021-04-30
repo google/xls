@@ -37,6 +37,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 
@@ -158,25 +159,6 @@ absl::Status GenerateCombinationalLogic(
     }
   }
   return absl::OkStatus();
-}
-
-// Returns the channel used by the given node which must be a
-// send/sendif/receive/receiveif node.
-absl::StatusOr<Channel*> GetChannelUsedByNode(Node* node) {
-  int64_t channel_id;
-  if (node->Is<Send>()) {
-    channel_id = node->As<Send>()->channel_id();
-  } else if (node->Is<Receive>()) {
-    channel_id = node->As<Receive>()->channel_id();
-  } else if (node->Is<SendIf>()) {
-    channel_id = node->As<SendIf>()->channel_id();
-  } else if (node->Is<ReceiveIf>()) {
-    channel_id = node->As<ReceiveIf>()->channel_id();
-  } else {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("No channel associated with node %s", node->GetName()));
-  }
-  return node->package()->GetChannel(channel_id);
 }
 
 }  // namespace

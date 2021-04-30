@@ -57,6 +57,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:node_util",
         "//xls/ir:type",
     ],
 )
@@ -381,6 +382,7 @@ cc_library(
         "//xls/common:proto_adaptor_utils",
         "//xls/common/logging:log_lines",
         "//xls/ir",
+        "//xls/ir:node_util",
     ],
 )
 

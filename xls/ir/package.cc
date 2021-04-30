@@ -495,6 +495,41 @@ absl::StatusOr<RegisterChannel*> Package::CreateRegisterChannel(
   return channel_ptr;
 }
 
+absl::Status Package::RemoveChannel(Channel* channel) {
+  // First check that the channel is owned by this package.
+  auto it = std::find(channel_vec_.begin(), channel_vec_.end(), channel);
+  XLS_RET_CHECK(it != channel_vec_.end()) << "Channel not owned by package";
+
+  // Check that no send/receive nodes are associted with the channel.
+  // TODO(https://github.com/google/xls/issues/411) 2012/04/24 Avoid iterating
+  // through all the nodes after channels are mapped to send/receive nodes.
+  for (const auto& proc : procs()) {
+    for (Node* node : proc->nodes()) {
+      if ((node->Is<Send>() &&
+           node->As<Send>()->channel_id() == channel->id()) ||
+          (node->Is<SendIf>() &&
+           node->As<SendIf>()->channel_id() == channel->id()) ||
+          (node->Is<Receive>() &&
+           node->As<Receive>()->channel_id() == channel->id()) ||
+          (node->Is<ReceiveIf>() &&
+           node->As<ReceiveIf>()->channel_id() == channel->id())) {
+        return absl::InternalError(absl::StrFormat(
+            "Channel %s (%d) cannot be removed because it is used by node %s",
+            channel->name(), channel->id(), node->GetName()));
+      }
+    }
+  }
+
+  // Remove from channel vector.
+  channel_vec_.erase(it);
+
+  // Remove from channel map.
+  XLS_RET_CHECK(channels_.contains(channel->id()));
+  channels_.erase(channel->id());
+
+  return absl::OkStatus();
+}
+
 absl::Status Package::AddChannel(std::unique_ptr<Channel> channel) {
   int64_t id = channel->id();
   auto [channel_it, inserted] = channels_.insert({id, std::move(channel)});

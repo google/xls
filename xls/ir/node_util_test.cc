@@ -35,6 +35,7 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 
+using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::HasSubstr;
 
@@ -91,8 +92,7 @@ TEST_F(NodeUtilTest, RunOfSetBits) {
   EXPECT_EQ(Result(8, 8, 0), t);
 
   bits = UBits(0x0500, /*bit_count=*/16);
-  EXPECT_THAT(RunOn(bits),
-              status_testing::StatusIs(absl::StatusCode::kInternal));
+  EXPECT_THAT(RunOn(bits), StatusIs(absl::StatusCode::kInternal));
 
   bits = UBits(0x0010, /*bit_count=*/16);
   XLS_ASSERT_OK_AND_ASSIGN(t, RunOn(bits));
@@ -189,6 +189,33 @@ TEST_F(NodeUtilTest, NonReductiveEquivalents) {
       Op xor_op, OpToNonReductionOp(Op::kXorReduce));
   EXPECT_EQ(xor_op, Op::kXor);
   EXPECT_FALSE(OpToNonReductionOp(Op::kBitSlice).ok());
+}
+
+TEST_F(NodeUtilTest, ChannelNodes) {
+  Package p("my_package");
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0, p.CreateStreamingChannel("ch0", ChannelOps::kReceiveOnly,
+                                              p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch1, p.CreateStreamingChannel("ch1", ChannelOps::kSendOnly,
+                                              p.GetBitsType(32)));
+  ProcBuilder b(TestName(), Value::Tuple({}), "tkn", "st", &p);
+  BValue rcv = b.Receive(ch0, b.GetTokenParam());
+  BValue send = b.Send(ch1, b.GetTokenParam(), b.Literal(Value(UBits(42, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc,
+      b.Build(b.AfterAll({b.TupleIndex(rcv, 0), send}), b.GetStateParam()));
+
+  EXPECT_TRUE(IsChannelNode(rcv.node()));
+  EXPECT_TRUE(IsChannelNode(send.node()));
+  EXPECT_FALSE(IsChannelNode(proc->StateParam()));
+
+  EXPECT_THAT(GetChannelUsedByNode(rcv.node()), IsOkAndHolds(ch0));
+  EXPECT_THAT(GetChannelUsedByNode(send.node()), IsOkAndHolds(ch1));
+  EXPECT_THAT(GetChannelUsedByNode(proc->StateParam()),
+              StatusIs(absl::StatusCode::kNotFound,
+                       HasSubstr("No channel associated with node")));
 }
 
 }  // namespace

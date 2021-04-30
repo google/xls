@@ -340,6 +340,7 @@ cc_test(
     srcs = ["package_test.cc"],
     deps = [
         "ir",
+        ":function_builder",
         ":ir_test_base",
         ":type",
         ":xls_type_cc_proto",
@@ -693,6 +694,7 @@ cc_library(
     hdrs = ["node_util.h"],
     deps = [
         ":bits_ops",
+        ":channel",
         ":ir",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
