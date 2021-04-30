@@ -359,6 +359,56 @@ TEST_F(TranslatorTest, ArrayInitLoop) {
   Run({{"a", 110}}, 110, content);
 }
 
+TEST_F(TranslatorTest, StringConstantArray) {
+  const std::string content = R"(
+       long long my_package(long long a) {
+         const char foo[] = "A";
+         return a+foo[0];
+       })";
+  Run({{"a", 11}}, 11 + 'A', content);
+}
+
+TEST_F(TranslatorTest, StaticConst) {
+  const std::string content = R"(
+       long long my_package(long long a) {
+         static const int off = 6;
+         return a+off;
+       })";
+  Run({{"a", 11}}, 11 + 6, content);
+}
+
+TEST_F(TranslatorTest, GlobalInt) {
+  const std::string content = R"(
+       const int off = 60;
+       int foo() {
+         // Reference it from another function to test context management
+         return off;
+       }
+       long long my_package(long long a) {
+         // Reference it twice to test global value re-use
+         long long ret = a+foo();
+         // Check context pop
+         {
+           ret += off;
+         }
+         ret += off;
+         return ret;
+       })";
+  Run({{"a", 11}}, 11 + 60 + 60 + 60, content);
+}
+
+TEST_F(TranslatorTest, SetGlobal) {
+  const std::string content = R"(
+       int off = 60;
+       long long my_package(long long a) {
+         off = 5;
+         long long ret = a;
+         ret += off;
+         return ret;
+       })";
+  ASSERT_FALSE(SourceToIr(content).ok());
+}
+
 TEST_F(TranslatorTest, UnsequencedAssign) {
   const std::string content = R"(
       int my_package(int a) {

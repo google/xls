@@ -313,6 +313,9 @@ struct GeneratedFunction {
   //  in the order specified in this list.
   // Use list for safe pointers to values
   std::list<IOOp> io_ops;
+
+  // Global values built with this FunctionBuilder
+  absl::flat_hash_map<const clang::NamedDecl*, CValue> global_values;
 };
 
 // Encapsulates a context for translating Clang AST to XLS IR.

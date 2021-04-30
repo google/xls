@@ -1619,9 +1619,36 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
                                                  bool for_lvalue) {
   auto found = context().variables.find(decl);
   if (found == context().variables.end()) {
-    return absl::NotFoundError(absl::StrFormat("Undeclared identifier %s at %s",
-                                               decl->getNameAsString(),
-                                               LocString(loc)));
+    // Is this static/global?
+    auto var_decl = dynamic_cast<const clang::VarDecl*>(decl);
+    if (var_decl == nullptr) {
+      return absl::NotFoundError(
+          absl::StrFormat("Undeclared identifier %s at %s",
+                          decl->getNameAsString(), LocString(loc)));
+    }
+
+    XLS_CHECK(var_decl->hasGlobalStorage());
+
+    // Don't re-build the global value for each reference
+    // They need to be built once for each Function[Builder]
+    auto found_global = context().sf->global_values.find(var_decl);
+    if (found_global != context().sf->global_values.end()) {
+      return found_global->second;
+    }
+
+    XLS_CHECK(context().fb);
+
+    CValue value;
+    if (var_decl->getInit() != nullptr) {
+      XLS_ASSIGN_OR_RETURN(value, GenerateIR_Expr(var_decl->getInit(), loc));
+    } else {
+      XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> type,
+                           TranslateTypeFromClang(var_decl->getType(), loc));
+      XLS_ASSIGN_OR_RETURN(xls::BValue bval, CreateDefaultValue(type, loc));
+      value = CValue(bval, type);
+    }
+    context().sf->global_values[var_decl] = value;
+    return value;
   }
   if (!for_lvalue) {
     if (context().forbidden_rvalues.contains(decl)) {
@@ -1653,6 +1680,15 @@ absl::StatusOr<CValue> Translator::PrepareRValueForAssignment(
 absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
                                 const CValue& rvalue,
                                 const xls::SourceLocation& loc) {
+  // Don't allow assignment to globals. This doesn't work because
+  //  each function has a different FunctionBuilder.
+  if (auto var_decl = dynamic_cast<const clang::VarDecl*>(lvalue);
+      var_decl != nullptr && var_decl->hasGlobalStorage()) {
+    return absl::UnimplementedError(absl::StrFormat(
+        "Assignments to global variables not supported for %s at %s",
+        lvalue->getNameAsString(), LocString(loc)));
+  }
+
   XLS_ASSIGN_OR_RETURN(CValue found, GetIdentifier(lvalue, loc, true));
   if (*found.type() != *rvalue.type()) {
     lvalue->dump();
@@ -2751,6 +2787,29 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
           TranslateTypeFromClang(scalar_init_expr->getType(), loc));
       XLS_ASSIGN_OR_RETURN(xls::BValue def, CreateDefaultValue(ctype, loc));
       return CValue(def, ctype);
+    }
+    case clang::Stmt::StringLiteralClass: {
+      auto* string_literal_expr =
+          clang_down_cast<const clang::StringLiteral*>(expr);
+      if (!(string_literal_expr->isAscii() || string_literal_expr->isUTF8())) {
+        return absl::UnimplementedError(
+            "Only 8 bit character strings supported");
+      }
+      llvm::StringRef strref = string_literal_expr->getString();
+      std::string str = strref.str();
+
+      std::shared_ptr<CType> element_type(new CIntType(8, true));
+      std::shared_ptr<CType> type(new CArrayType(element_type, str.size()));
+
+      std::vector<xls::Value> elements;
+
+      for (char c : str) {
+        elements.push_back(xls::Value(xls::SBits(c, 8)));
+      }
+
+      XLS_ASSIGN_OR_RETURN(xls::Value arrval, xls::Value::Array(elements));
+
+      return CValue(context().fb->Literal(arrval, loc), type);
     }
     default: {
       expr->dump();
