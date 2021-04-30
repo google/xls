@@ -16,6 +16,7 @@ load("//xls/build_rules:build_defs.bzl", "dslx_generated_rtl", "dslx_test")
 load("//xls/build_rules:xls_dslx_rules.bzl", "dslx_library", dslx_ng_test = "dslx_test")
 load("//xls/build_rules:xls_ir_rules.bzl", "dslx_to_ir", "ir_benchmark", "ir_equivalence_test", "ir_eval_test", "ir_opt")
 load("//xls/build_rules:xls_codegen_rules.bzl", "ir_to_codegen")
+load("//xls/build_rules:xls_jit_wrapper_rules.bzl", "cc_ir_to_jit_wrapper", "ir_to_jit_wrapper")
 load("//xls/build_rules:xls_rules.bzl", "dslx_to_codegen")
 
 package(
@@ -222,4 +223,20 @@ dslx_to_codegen(
     codegen_args = {
         "pipeline_stages": "1",
     },
+)
+
+# dslx_to_ir target to test JIT wrapper rules
+dslx_to_ir(
+    name = "jit_test_dslx_to_ir",
+    src = "file_for_ir_to_jit_wrapper_test.x",
+)
+
+ir_to_jit_wrapper(
+    name = "jit_test_jit_wrapper",
+    src = ":jit_test_dslx_to_ir",
+)
+
+cc_ir_to_jit_wrapper(
+    name = "jit_test_jit_wrapper_cc",
+    src = ":jit_test_dslx_to_ir",
 )

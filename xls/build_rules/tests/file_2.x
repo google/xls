@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Tests for various sizes of binary operations.
-// Simple test of these ops and that wide data types work...
-// and as a starting point for debugging they don't.
-
 fn two() -> u32 {
   u32: 2
 }

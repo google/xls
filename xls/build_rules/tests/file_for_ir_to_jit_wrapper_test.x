@@ -12,14 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.build_rules.tests.c
-
-pub fn d() -> u32 {
-  c::c() + u32:0
-}
-
-#![test]
-fn d_test() {
-  let _ = assert_eq(u32:3, d());
-  ()
+fn jit_test(A: u32) -> u32 {
+  A
 }

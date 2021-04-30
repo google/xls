@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Tests for various sizes of binary operations.
-// Simple test of these ops and that wide data types work...
-// and as a starting point for debugging they don't.
-
 import xls.build_rules.tests.a
 
 pub fn c() -> u32 {

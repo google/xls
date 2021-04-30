@@ -83,8 +83,8 @@ def _get_args(arguments, valid_arguments, default_arguments = {}):
 def convert_to_ir(ctx, src):
     """Converts a DSLX source file to an IR file.
 
-    The macro creates an action in the context that converts a DSLX source
-    file to an IR file.
+    Creates an action in the context that converts a DSLX source file to an
+    IR file.
 
     Args:
       ctx: The current rule's context object.
@@ -101,11 +101,8 @@ def convert_to_ir(ctx, src):
     my_args = _get_args(ir_conv_args, IR_CONV_FLAGS)
 
     required_files = ctx.files._dslx_std_lib + [src]
-    required_files += [
-        item
-        for dep in ctx.attr.deps
-        for item in dep[DslxFilesInfo].dslx_sources.to_list()
-    ]
+    for dep in ctx.attr.deps:
+        required_files += dep[DslxFilesInfo].dslx_sources.to_list()
 
     ir_file = ctx.actions.declare_file(src.basename[:-1] + "ir")
     ctx.actions.run_shell(
@@ -128,7 +125,7 @@ def convert_to_ir(ctx, src):
 def optimize_ir(ctx, src):
     """Optimizes an IR file.
 
-    The macro creates an action in the context that optimizes an IR file.
+    Creates an action in the context that optimizes an IR file.
 
     Args:
       ctx: The current rule's context object.
