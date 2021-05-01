@@ -25,6 +25,6 @@ import float64
 
 type F64 = float64::F64;
 
-fn fpmul_2x64(x: F64, y: F64) -> F64 {
+pub fn fpmul_2x64(x: F64, y: F64) -> F64 {
   apfloat_mul_2::apfloat_mul_2<u32:11, u32:52>(x, y)
 }
