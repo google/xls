@@ -114,16 +114,17 @@ Booleanifier::Vector Booleanifier::FlattenValue(const Value& value) {
 }
 
 Booleanifier::Vector Booleanifier::HandleLiteralArrayIndex(
-    const ArrayType* array_type, const Vector& array, const Value& index) {
+    const ArrayType* array_type, const Vector& array, const Value& index,
+    int64_t start_offset) {
   const int64_t element_size = array_type->element_type()->GetFlatBitCount();
 
   XLS_CHECK(index.IsBits());
-  int64_t start_index =
+  int64_t concrete_index =
       bits_ops::UGreaterThanOrEqual(index.bits(), array_type->size())
           ? array_type->size() - 1
           : index.bits().ToUint64().value();
-  int64_t start_bit = start_index * element_size;
-  return evaluator_->BitSlice(array, start_bit, element_size);
+  start_offset += concrete_index * element_size;
+  return evaluator_->BitSlice(array, start_offset, element_size);
 }
 
 Booleanifier::Vector Booleanifier::HandleArrayIndex(
@@ -137,8 +138,8 @@ Booleanifier::Vector Booleanifier::HandleArrayIndex(
     // TODO(rspringer): We can statically determine the exact set of
     // bits to carve out for an array of literal indices (or subarrays of
     // literals), but it's not of paramount importance at present.
-    return HandleLiteralArrayIndex(array_type, array,
-                                   indices[0]->As<Literal>()->value());
+    return HandleLiteralArrayIndex(
+        array_type, array, indices[0]->As<Literal>()->value(), start_offset);
   }
 
   std::vector<Vector> cases;
@@ -167,7 +168,7 @@ Booleanifier::Vector Booleanifier::HandleArrayUpdate(
     const Element equals_index =
         evaluator_->Equals(FlattenValue(loop_index), update_index);
     const Vector old_value =
-        HandleLiteralArrayIndex(array_type, array, loop_index);
+        HandleLiteralArrayIndex(array_type, array, loop_index, 0);
     const Vector new_value =
         evaluator_->Select(Vector({equals_index}), {old_value, update_value});
     result.insert(result.end(), new_value.begin(), new_value.end());
