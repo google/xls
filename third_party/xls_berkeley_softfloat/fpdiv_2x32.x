@@ -45,7 +45,7 @@ fn is_zero(x: F32) -> u1 {
   x.bexp == u8:0
 }
 
-fn fpdiv_2x32(x: F32, y: F32) -> F32 {
+pub fn fpdiv_2x32(x: F32, y: F32) -> F32 {
   // 1. Get and expand mantissas.
   let x_sfd = (x.sfd as u64) | u64:0x80_0000;
   let y_sfd = (y.sfd as u64) | u64:0x80_0000;
@@ -67,10 +67,7 @@ fn fpdiv_2x32(x: F32, y: F32) -> F32 {
   let x_sfd = x_sfd << u64:31 if x_sfd < y_sfd else x_sfd << u64:30;
 
   // 4. Divide integer mantissas.
-  // TODO(jbaileyhandle): Integer divisor may produce unusable RTL.
-  // We should look into breaking this down into smaller ops
-  // or mapping onto DSP blocks for FPGAs.
-  let sfd = (x_sfd / y_sfd) as u32;
+  let sfd = std::iterative_div(x_sfd, y_sfd) as u32;
 
   // 5. Account for remainder / error.
   let sfd_has_bit_in_six_lsbs = sfd[0:6] != u6:0;
@@ -82,7 +79,7 @@ fn fpdiv_2x32(x: F32, y: F32) -> F32 {
   // We use nearest, half to even rounding.
   // - We round down if less than 1/2 way between values, i.e.
   // - We round up if we're more than 1/2 way
-  // - If halfway, then we round whichever direction makes the 
+  // - If halfway, then we round whichever direction makes the
   //   result even.
   let round_bits = sfd[0:7];
   let is_half_way = round_bits[-1:] & (round_bits[:-1] == u6:0);

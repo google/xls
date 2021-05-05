@@ -45,3 +45,5 @@ cc_test(
         "//xls/tools:testbench",
     ],
 )
+
+exports_files(["fpdiv_2x32.x"])

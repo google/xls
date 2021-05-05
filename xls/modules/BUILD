@@ -203,6 +203,37 @@ dslx_test(
 )
 
 dslx_test(
+    name = "fpldexp_32",
+    srcs = ["fpldexp_32.x"],
+)
+
+dslx_jit_wrapper(
+    name = "fpldexp_32_jit_wrapper",
+    dslx_name = "fpldexp_32",
+    deps = [":fpldexp_32_opt_ir"],
+)
+
+cc_test(
+    name = "fpldexp_32_test",
+    srcs = ["fpldexp_32_test.cc"],
+    data = [":fpldexp_32_all_ir"],
+    tags = ["optonly"],
+    deps = [
+        ":fpldexp_32_jit_wrapper",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "//xls/common:init_xls",
+        "//xls/common:math_util",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir:value_helpers",
+        "//xls/ir:value_view_helpers",
+        "//xls/tools:testbench",
+    ],
+)
+
+dslx_test(
     name = "fpmul_2x32",
     srcs = ["fpmul_2x32.x"],
     # 2021-03-08: Takes too long (> 15 minutes).
