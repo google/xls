@@ -51,6 +51,26 @@ pub fn is_zero_or_subnormal(f: F32) -> u1 {
   apfloat::is_zero_or_subnormal<u32:8, u32:23>(f)
 }
 
+pub fn eq_2(x: F32, y: F32) -> u1 {
+  apfloat::eq_2<u32:8, u32:23>(x, y)
+}
+
+pub fn gt_2(x: F32, y: F32) -> u1 {
+  apfloat::gt_2<u32:8, u32:23>(x, y)
+}
+
+pub fn gte_2(x: F32, y: F32) -> u1 {
+  apfloat::gte_2<u32:8, u32:23>(x, y)
+}
+
+pub fn lt_2(x: F32, y: F32) -> u1 {
+  apfloat::lt_2<u32:8, u32:23>(x, y)
+}
+
+pub fn lte_2(x: F32, y: F32) -> u1 {
+  apfloat::lte_2<u32:8, u32:23>(x, y)
+}
+
 pub fn normalize(sign:u1, exp: u8, sfd_with_hidden: u24) -> F32 {
   apfloat::normalize<u32:8, u32:23>(sign, exp, sfd_with_hidden)
 }

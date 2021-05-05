@@ -20,6 +20,13 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+dslx_test(
+    name = "apfloat_sub_2",
+    srcs = ["apfloat_sub_2.x"],
+    convert_ir = False,
+    deps = [":apfloat_add_2.x"],
+)
+
 filegroup(
     name = "ir_examples",
     srcs = [
@@ -107,7 +114,20 @@ dslx_test(
     prove_unopt_eq_opt = False,
     deps = [
         ":apfloat_add_2.x",
+        ":apfloat_sub_2.x",
         ":fpadd_2x32.x",
+    ],
+)
+
+dslx_test(
+    name = "fpsub_2x64",
+    srcs = ["fpsub_2x64.x"],
+    # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes).
+    prove_unopt_eq_opt = False,
+    deps = [
+        ":apfloat_add_2.x",
+        ":apfloat_sub_2.x",
+        ":fpadd_2x64.x",
     ],
 )
 

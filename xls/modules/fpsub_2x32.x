@@ -20,31 +20,12 @@
 // In all other cases, results should be identical to other
 // conforming implementations (modulo exact significand
 // values in the NaN case.
-import float32
+import xls.modules.apfloat_sub_2
 import xls.modules.fpadd_2x32
+import float32
 
 type F32 = float32::F32;
 
 pub fn fpsub_2x32(x: F32, y: F32) -> F32 {
-  let y = F32 {sign: !y.sign, ..y};
-  fpadd_2x32::fpadd_2x32(x, y)
-}
-
-// fpadd_2x32 is thoroughly tested elsewhere
-// and fpsub_2x32 is a trivial modification of
-// fpadd_2x32, so a few simple tests is sufficient.
-#![test]
-fn test_fpsub_2x32() {
-  let one = float32::one(u1:0);
-  let two = fpadd_2x32::fpadd_2x32(one, one);
-  let neg_two = F32 {sign: u1:1, ..two};
-  let three = fpadd_2x32::fpadd_2x32(one, two);
-  let four = fpadd_2x32::fpadd_2x32(two, two);
-
-  let _ = assert_eq(fpsub_2x32(four, one), three);
-  let _ = assert_eq(fpsub_2x32(four, two), two);
-  let _ = assert_eq(fpsub_2x32(four, three), one);
-  let _ = assert_eq(fpsub_2x32(three, two), one);
-  let _ = assert_eq(fpsub_2x32(two, four), neg_two);
-  ()
+  apfloat_sub_2::apfloat_sub_2<u32:8, u32:23>(x,y)
 }

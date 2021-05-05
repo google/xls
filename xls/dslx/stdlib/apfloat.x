@@ -539,6 +539,461 @@ fn cast_to_fixed_test() {
   ()
 }
 
+// Returns u1:1 if x == y.
+// Denormals are Zero (DAZ).
+// Always returns false if x or y is NaN.
+pub fn eq_2<EXP_SZ: u32, SFD_SZ: u32>(
+    x: APFloat<EXP_SZ, SFD_SZ>,
+    y: APFloat<EXP_SZ, SFD_SZ>) -> u1 {
+  ((flatten(x) == flatten(y))
+        || (is_zero_or_subnormal(x) && is_zero_or_subnormal(y)))
+    if !(is_nan(x) || is_nan(y))
+    else u1:0
+}
+
+#![test]
+fn test_fp_eq_2() {
+  let neg_zero = zero<u32:8, u32:23>(u1:1);
+  let zero = zero<u32:8, u32:23>(u1:0);
+  let neg_one = one<u32:8, u32:23>(u1:1);
+  let one = one<u32:8, u32:23>(u1:0);
+  let two = APFloat<8, 23> {bexp: one.bexp + uN[8]:1, ..one};
+  let neg_inf = inf<u32:8, u32:23>(u1:1);
+  let inf = inf<u32:8, u32:23>(u1:0);
+  let nan = qnan<u32:8, u32:23>();
+  let denormal_1 = unflatten<u32:8, u32:23>(u32:1);
+  let denormal_2 = unflatten<u32:8, u32:23>(u32:2);
+
+  // Test unequal.
+  let _ = assert_eq(eq_2(one, two), u1:0);
+  let _ = assert_eq(eq_2(two, one), u1:0);
+
+  // Test equal.
+  let _ = assert_eq(eq_2(neg_zero, zero), u1:1);
+  let _ = assert_eq(eq_2(one, one), u1:1);
+  let _ = assert_eq(eq_2(two, two), u1:1);
+
+  // Test equal (subnormals and zero).
+  let _ = assert_eq(eq_2(zero, zero), u1:1);
+  let _ = assert_eq(eq_2(zero, neg_zero), u1:1);
+  let _ = assert_eq(eq_2(zero, denormal_1), u1:1);
+  let _ = assert_eq(eq_2(denormal_2, denormal_1), u1:1);
+
+  // Test negatives.
+  let _ = assert_eq(eq_2(one, neg_one), u1:0);
+  let _ = assert_eq(eq_2(neg_one, one), u1:0);
+  let _ = assert_eq(eq_2(neg_one, neg_one), u1:1);
+
+  // Special case - inf.
+  let _ = assert_eq(eq_2(inf, one), u1:0);
+  let _ = assert_eq(eq_2(neg_inf, inf), u1:0);
+  let _ = assert_eq(eq_2(inf, inf), u1:1);
+  let _ = assert_eq(eq_2(neg_inf, neg_inf), u1:1);
+
+  // Special case - NaN (always returns false).
+  let _ = assert_eq(eq_2(one, nan), u1:0);
+  let _ = assert_eq(eq_2(neg_one, nan), u1:0);
+  let _ = assert_eq(eq_2(inf, nan), u1:0);
+  let _ = assert_eq(eq_2(nan, inf), u1:0);
+  let _ = assert_eq(eq_2(nan, nan), u1:0);
+
+  ()
+}
+
+// Returns u1:1 if x > y.
+// Denormals are Zero (DAZ).
+// Always returns false if x or y is NaN.
+pub fn gt_2<EXP_SZ: u32, SFD_SZ: u32>(
+    x: APFloat<EXP_SZ, SFD_SZ>,
+    y: APFloat<EXP_SZ, SFD_SZ>) -> u1 {
+  // Flush denormals.
+  let x = subnormals_to_zero(x);
+  let y = subnormals_to_zero(y);
+
+  let gt_exp = x.bexp > y.bexp;
+  let eq_exp = x.bexp == y.bexp;
+  let gt_sfd = x.sfd > y.sfd;
+  let abs_gt = gt_exp || (eq_exp && gt_sfd);
+  let result = match(x.sign, y.sign) {
+    // Both positive.
+    (u1:0, u1:0) => abs_gt,
+    // x positive, y negative.
+    (u1:0, u1:1) => u1:1,
+    // x negative, y positive.
+    (u1:1, u1:0) => u1:0,
+    // Both negative.
+    _ => !abs_gt && !eq_2(x,y)
+  };
+
+
+  result if !(is_nan(x) || is_nan(y))
+             else u1:0
+}
+
+#![test]
+fn test_fp_gt_2() {
+  let zero = zero<u32:8, u32:23>(u1:0);
+  let neg_one = one<u32:8, u32:23>(u1:1);
+  let one = one<u32:8, u32:23>(u1:0);
+  let two = APFloat<u32:8, u32:23>{bexp: one.bexp + u8:1, ..one};
+  let neg_two = APFloat<u32:8, u32:23>{bexp: neg_one.bexp + u8:1, ..neg_one};
+  let neg_inf = inf<u32:8, u32:23>(u1:1);
+  let inf = inf<u32:8, u32:23>(u1:0);
+  let nan = qnan<u32:8, u32:23>();
+  let denormal_1 = unflatten<u32:8, u32:23>(u32:1);
+  let denormal_2 = unflatten<u32:8, u32:23>(u32:2);
+
+  // Test unequal.
+  let _ = assert_eq(gt_2(one, two), u1:0);
+  let _ = assert_eq(gt_2(two, one), u1:1);
+
+  // Test equal.
+  let _ = assert_eq(gt_2(one, one), u1:0);
+  let _ = assert_eq(gt_2(two, two), u1:0);
+  let _ = assert_eq(gt_2(denormal_1, denormal_2), u1:0);
+  let _ = assert_eq(gt_2(denormal_2, denormal_1), u1:0);
+  let _ = assert_eq(gt_2(denormal_1, zero), u1:0);
+
+  // Test negatives.
+  let _ = assert_eq(gt_2(zero, neg_one), u1:1);
+  let _ = assert_eq(gt_2(neg_one, zero), u1:0);
+  let _ = assert_eq(gt_2(one, neg_one), u1:1);
+  let _ = assert_eq(gt_2(neg_one, one), u1:0);
+  let _ = assert_eq(gt_2(neg_one, neg_one), u1:0);
+  let _ = assert_eq(gt_2(neg_two, neg_two), u1:0);
+  let _ = assert_eq(gt_2(neg_one, neg_two), u1:1);
+  let _ = assert_eq(gt_2(neg_two, neg_one), u1:0);
+
+  // Special case - inf.
+  let _ = assert_eq(gt_2(inf, one), u1:1);
+  let _ = assert_eq(gt_2(inf, neg_one), u1:1);
+  let _ = assert_eq(gt_2(inf, two), u1:1);
+  let _ = assert_eq(gt_2(neg_two, neg_inf), u1:1);
+  let _ = assert_eq(gt_2(inf, inf), u1:0);
+  let _ = assert_eq(gt_2(neg_inf, inf), u1:0);
+  let _ = assert_eq(gt_2(inf, neg_inf), u1:1);
+  let _ = assert_eq(gt_2(neg_inf, neg_inf), u1:0);
+
+  // Special case - NaN (always returns false).
+  let _ = assert_eq(gt_2(one, nan), u1:0);
+  let _ = assert_eq(gt_2(nan, one), u1:0);
+  let _ = assert_eq(gt_2(neg_one, nan), u1:0);
+  let _ = assert_eq(gt_2(nan, neg_one), u1:0);
+  let _ = assert_eq(gt_2(inf, nan), u1:0);
+  let _ = assert_eq(gt_2(nan, inf), u1:0);
+  let _ = assert_eq(gt_2(nan, nan), u1:0);
+
+  ()
+}
+
+// Returns u1:1 if x >= y.
+// Denormals are Zero (DAZ).
+// Always returns false if x or y is NaN.
+pub fn gte_2<EXP_SZ: u32, SFD_SZ: u32>(
+    x: APFloat<EXP_SZ, SFD_SZ>,
+    y: APFloat<EXP_SZ, SFD_SZ>) -> u1 {
+  gt_2(x, y) || eq_2(x,y)
+}
+
+#![test]
+fn test_fp_gte_2() {
+  let zero = zero<u32:8, u32:23>(u1:0);
+  let neg_one = one<u32:8, u32:23>(u1:1);
+  let one = one<u32:8, u32:23>(u1:0);
+  let two = APFloat<u32:8, u32:23>{bexp: one.bexp + u8:1, ..one};
+  let neg_two = APFloat<u32:8, u32:23>{bexp: neg_one.bexp + u8:1, ..neg_one};
+  let neg_inf = inf<u32:8, u32:23>(u1:1);
+  let inf = inf<u32:8, u32:23>(u1:0);
+  let nan = qnan<u32:8, u32:23>();
+  let denormal_1 = unflatten<u32:8, u32:23>(u32:1);
+  let denormal_2 = unflatten<u32:8, u32:23>(u32:2);
+
+  // Test unequal.
+  let _ = assert_eq(gte_2(one, two), u1:0);
+  let _ = assert_eq(gte_2(two, one), u1:1);
+
+  // Test equal.
+  let _ = assert_eq(gte_2(one, one), u1:1);
+  let _ = assert_eq(gte_2(two, two), u1:1);
+  let _ = assert_eq(gte_2(denormal_1, denormal_2), u1:1);
+  let _ = assert_eq(gte_2(denormal_2, denormal_1), u1:1);
+  let _ = assert_eq(gte_2(denormal_1, zero), u1:1);
+
+  // Test negatives.
+  let _ = assert_eq(gte_2(zero, neg_one), u1:1);
+  let _ = assert_eq(gte_2(neg_one, zero), u1:0);
+  let _ = assert_eq(gte_2(one, neg_one), u1:1);
+  let _ = assert_eq(gte_2(neg_one, one), u1:0);
+  let _ = assert_eq(gte_2(neg_one, neg_one), u1:1);
+  let _ = assert_eq(gte_2(neg_two, neg_two), u1:1);
+  let _ = assert_eq(gte_2(neg_one, neg_two), u1:1);
+  let _ = assert_eq(gte_2(neg_two, neg_one), u1:0);
+
+  // Special case - inf.
+  let _ = assert_eq(gte_2(inf, one), u1:1);
+  let _ = assert_eq(gte_2(inf, neg_one), u1:1);
+  let _ = assert_eq(gte_2(inf, two), u1:1);
+  let _ = assert_eq(gte_2(neg_two, neg_inf), u1:1);
+  let _ = assert_eq(gte_2(inf, inf), u1:1);
+  let _ = assert_eq(gte_2(neg_inf, inf), u1:0);
+  let _ = assert_eq(gte_2(inf, neg_inf), u1:1);
+  let _ = assert_eq(gte_2(neg_inf, neg_inf), u1:1);
+
+  // Special case - NaN (always returns false).
+  let _ = assert_eq(gte_2(one, nan), u1:0);
+  let _ = assert_eq(gte_2(nan, one), u1:0);
+  let _ = assert_eq(gte_2(neg_one, nan), u1:0);
+  let _ = assert_eq(gte_2(nan, neg_one), u1:0);
+  let _ = assert_eq(gte_2(inf, nan), u1:0);
+  let _ = assert_eq(gte_2(nan, inf), u1:0);
+  let _ = assert_eq(gte_2(nan, nan), u1:0);
+
+  ()
+}
+
+
+// Returns u1:1 if x <= y.
+// Denormals are Zero (DAZ).
+// Always returns false if x or y is NaN.
+pub fn lte_2<EXP_SZ: u32, SFD_SZ: u32>(
+    x: APFloat<EXP_SZ, SFD_SZ>,
+    y: APFloat<EXP_SZ, SFD_SZ>) -> u1 {
+  !gt_2(x,y) if !(is_nan(x) || is_nan(y))
+             else u1:0
+}
+
+#![test]
+fn test_fp_lte_2() {
+  let zero = zero<u32:8, u32:23>(u1:0);
+  let neg_one = one<u32:8, u32:23>(u1:1);
+  let one = one<u32:8, u32:23>(u1:0);
+  let two = APFloat<u32:8, u32:23>{bexp: one.bexp + u8:1, ..one};
+  let neg_two = APFloat<u32:8, u32:23>{bexp: neg_one.bexp + u8:1, ..neg_one};
+  let neg_inf = inf<u32:8, u32:23>(u1:1);
+  let inf = inf<u32:8, u32:23>(u1:0);
+  let nan = qnan<u32:8, u32:23>();
+  let denormal_1 = unflatten<u32:8, u32:23>(u32:1);
+  let denormal_2 = unflatten<u32:8, u32:23>(u32:2);
+
+  // Test unequal.
+  let _ = assert_eq(lte_2(one, two), u1:1);
+  let _ = assert_eq(lte_2(two, one), u1:0);
+
+  // Test equal.
+  let _ = assert_eq(lte_2(one, one), u1:1);
+  let _ = assert_eq(lte_2(two, two), u1:1);
+  let _ = assert_eq(lte_2(denormal_1, denormal_2), u1:1);
+  let _ = assert_eq(lte_2(denormal_2, denormal_1), u1:1);
+  let _ = assert_eq(lte_2(denormal_1, zero), u1:1);
+
+  // Test negatives.
+  let _ = assert_eq(lte_2(zero, neg_one), u1:0);
+  let _ = assert_eq(lte_2(neg_one, zero), u1:1);
+  let _ = assert_eq(lte_2(one, neg_one), u1:0);
+  let _ = assert_eq(lte_2(neg_one, one), u1:1);
+  let _ = assert_eq(lte_2(neg_one, neg_one), u1:1);
+  let _ = assert_eq(lte_2(neg_two, neg_two), u1:1);
+  let _ = assert_eq(lte_2(neg_one, neg_two), u1:0);
+  let _ = assert_eq(lte_2(neg_two, neg_one), u1:1);
+
+  // Special case - inf.
+  let _ = assert_eq(lte_2(inf, one), u1:0);
+  let _ = assert_eq(lte_2(inf, neg_one), u1:0);
+  let _ = assert_eq(lte_2(inf, two), u1:0);
+  let _ = assert_eq(lte_2(neg_two, neg_inf), u1:0);
+  let _ = assert_eq(lte_2(inf, inf), u1:1);
+  let _ = assert_eq(lte_2(neg_inf, inf), u1:1);
+  let _ = assert_eq(lte_2(inf, neg_inf), u1:0);
+  let _ = assert_eq(lte_2(neg_inf, neg_inf), u1:1);
+
+  // Special case - NaN (always returns false).
+  let _ = assert_eq(lte_2(one, nan), u1:0);
+  let _ = assert_eq(lte_2(nan, one), u1:0);
+  let _ = assert_eq(lte_2(neg_one, nan), u1:0);
+  let _ = assert_eq(lte_2(nan, neg_one), u1:0);
+  let _ = assert_eq(lte_2(inf, nan), u1:0);
+  let _ = assert_eq(lte_2(nan, inf), u1:0);
+  let _ = assert_eq(lte_2(nan, nan), u1:0);
+
+  ()
+}
+
+// Returns u1:1 if x < y.
+// Denormals are Zero (DAZ).
+// Always returns false if x or y is NaN.
+pub fn lt_2<EXP_SZ: u32, SFD_SZ: u32>(
+    x: APFloat<EXP_SZ, SFD_SZ>,
+    y: APFloat<EXP_SZ, SFD_SZ>) -> u1 {
+  !gte_2(x,y) if !(is_nan(x) || is_nan(y))
+             else u1:0
+}
+
+#![test]
+fn test_fp_lt_2() {
+  let zero = zero<u32:8, u32:23>(u1:0);
+  let neg_one = one<u32:8, u32:23>(u1:1);
+  let one = one<u32:8, u32:23>(u1:0);
+  let two = APFloat<u32:8, u32:23>{bexp: one.bexp + u8:1, ..one};
+  let neg_two = APFloat<u32:8, u32:23>{bexp: neg_one.bexp + u8:1, ..neg_one};
+  let neg_inf = inf<u32:8, u32:23>(u1:1);
+  let inf = inf<u32:8, u32:23>(u1:0);
+  let nan = qnan<u32:8, u32:23>();
+  let denormal_1 = unflatten<u32:8, u32:23>(u32:1);
+  let denormal_2 = unflatten<u32:8, u32:23>(u32:2);
+
+  // Test unequal.
+  let _ = assert_eq(lt_2(one, two), u1:1);
+  let _ = assert_eq(lt_2(two, one), u1:0);
+
+  // Test equal.
+  let _ = assert_eq(lt_2(one, one), u1:0);
+  let _ = assert_eq(lt_2(two, two), u1:0);
+  let _ = assert_eq(lt_2(denormal_1, denormal_2), u1:0);
+  let _ = assert_eq(lt_2(denormal_2, denormal_1), u1:0);
+  let _ = assert_eq(lt_2(denormal_1, zero), u1:0);
+
+  // Test negatives.
+  let _ = assert_eq(lt_2(zero, neg_one), u1:0);
+  let _ = assert_eq(lt_2(neg_one, zero), u1:1);
+  let _ = assert_eq(lt_2(one, neg_one), u1:0);
+  let _ = assert_eq(lt_2(neg_one, one), u1:1);
+  let _ = assert_eq(lt_2(neg_one, neg_one), u1:0);
+  let _ = assert_eq(lt_2(neg_two, neg_two), u1:0);
+  let _ = assert_eq(lt_2(neg_one, neg_two), u1:0);
+  let _ = assert_eq(lt_2(neg_two, neg_one), u1:1);
+
+  // Special case - inf.
+  let _ = assert_eq(lt_2(inf, one), u1:0);
+  let _ = assert_eq(lt_2(inf, neg_one), u1:0);
+  let _ = assert_eq(lt_2(inf, two), u1:0);
+  let _ = assert_eq(lt_2(neg_two, neg_inf), u1:0);
+  let _ = assert_eq(lt_2(inf, inf), u1:0);
+  let _ = assert_eq(lt_2(neg_inf, inf), u1:1);
+  let _ = assert_eq(lt_2(inf, neg_inf), u1:0);
+  let _ = assert_eq(lt_2(neg_inf, neg_inf), u1:0);
+
+  // Special case - NaN (always returns false).
+  let _ = assert_eq(lt_2(one, nan), u1:0);
+  let _ = assert_eq(lt_2(nan, one), u1:0);
+  let _ = assert_eq(lt_2(neg_one, nan), u1:0);
+  let _ = assert_eq(lt_2(nan, neg_one), u1:0);
+  let _ = assert_eq(lt_2(inf, nan), u1:0);
+  let _ = assert_eq(lt_2(nan, inf), u1:0);
+  let _ = assert_eq(lt_2(nan, nan), u1:0);
+
+  ()
+}
+
+// Set all bits past the decimal point to 0.
+pub fn round_towards_zero<EXP_SZ:u32, SFD_SZ:u32,
+    EXTENDED_SFD_SZ:u32 = SFD_SZ + u32:1>(
+    x: APFloat<EXP_SZ, SFD_SZ>) -> APFloat<EXP_SZ, SFD_SZ> {
+  let exp = signex(unbiased_exponent(x), s32:0);
+  let mask = !((u32:1 << ((SFD_SZ as u32) - (exp as u32)))
+                - u32:1);
+  let trunc_sfd = x.sfd & (mask as uN[SFD_SZ]);
+  let result = APFloat<EXP_SZ, SFD_SZ> {
+                sign: x.sign,
+                bexp: x.bexp,
+                sfd:  trunc_sfd};
+
+  let result = x if (exp >= (SFD_SZ as s32))
+                            else result;
+  let result = zero<EXP_SZ, SFD_SZ>(x.sign) if (exp < s32:0)
+                            else result;
+  let result = qnan<EXP_SZ, SFD_SZ>() if is_nan<EXP_SZ, SFD_SZ>(x)
+                                      else result;
+
+  result
+}
+
+#![test]
+fn round_towards_zero_test() {
+  // Special cases.
+  let _ = assert_eq(round_towards_zero(zero<u32:8, u32:23>(u1:0)),
+    zero<u32:8, u32:23>(u1:0));
+  let _ = assert_eq(round_towards_zero(zero<u32:8, u32:23>(u1:1)),
+    zero<u32:8, u32:23>(u1:1));
+  let _ = assert_eq(round_towards_zero(qnan<u32:8, u32:23>()),
+    qnan<u32:8, u32:23>());
+  let _ = assert_eq(round_towards_zero(inf<u32:8, u32:23>(u1:0)),
+    inf<u32:8, u32:23>(u1:0));
+  let _ = assert_eq(round_towards_zero(inf<u32:8, u32:23>(u1:1)),
+    inf<u32:8, u32:23>(u1:1));
+
+  // Truncate all.
+  let fraction = APFloat<u32:8, u32:23> {
+                    sign: u1:0,
+                    bexp: u8:50,
+                    sfd:  u23: 0x7fffff
+                  };
+  let _ = assert_eq(round_towards_zero(fraction),
+    zero<u32:8, u32:23>(u1:0));
+
+  let fraction = APFloat<u32:8, u32:23> {
+                    sign: u1:0,
+                    bexp: u8:126,
+                    sfd:  u23: 0x7fffff
+                  };
+  let _ = assert_eq(round_towards_zero(fraction),
+    zero<u32:8, u32:23>(u1:0));
+
+  // Truncate all but hidden bit.
+  let fraction = APFloat<u32:8, u32:23> {
+                    sign: u1:0,
+                    bexp: u8:127,
+                    sfd:  u23: 0x7fffff
+                  };
+  let _ = assert_eq(round_towards_zero(fraction),
+    one<u32:8, u32:23>(u1:0));
+
+  // Truncate some.
+  let fraction = APFloat<u32:8, u32:23> {
+                    sign: u1:0,
+                    bexp: u8:128,
+                    sfd:  u23: 0x7fffff
+                  };
+  let trunc_fraction = APFloat<u32:8, u32:23> {
+                    sign: u1:0,
+                    bexp: u8:128,
+                    sfd:  u23: 0x400000
+                  };
+  let _ = assert_eq(round_towards_zero(fraction),
+    trunc_fraction);
+
+  let fraction = APFloat<u32:8, u32:23> {
+                    sign: u1:0,
+                    bexp: u8:149,
+                    sfd:  u23: 0x7fffff
+                  };
+  let trunc_fraction = APFloat<u32:8, u32:23> {
+                    sign: u1:0,
+                    bexp: u8:149,
+                    sfd:  u23: 0x7ffffe
+                  };
+  let _ = assert_eq(round_towards_zero(fraction),
+    trunc_fraction);
+
+  // Truncate none.
+  let fraction = APFloat<u32:8, u32:23> {
+                    sign: u1:0,
+                    bexp: u8:200,
+                    sfd:  u23: 0x7fffff
+                  };
+  let _ = assert_eq(round_towards_zero(fraction),
+    fraction);
+
+  let fraction = APFloat<u32:8, u32:23> {
+                    sign: u1:0,
+                    bexp: u8:200,
+                    sfd:  u23: 0x7fffff
+                  };
+  let _ = assert_eq(round_towards_zero(fraction),
+    fraction);
+
+  ()
+}
+
 // TODO(rspringer): Create a broadly-applicable normalize test, that
 // could be used for multiple type instantiations (without needing
 // per-specialization data to be specified by a user).

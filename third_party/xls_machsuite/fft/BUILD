@@ -38,6 +38,7 @@ dslx_test(
         "test_data/dslx_test_data.x",
         "//xls/modules:apfloat_add_2.x",
         "//xls/modules:apfloat_mul_2.x",
+        "//xls/modules:apfloat_sub_2.x",
         "//xls/modules:fpadd_2x32.x",
         "//xls/modules:fpmul_2x32.x",
         "//xls/modules:fpsub_2x32.x",
