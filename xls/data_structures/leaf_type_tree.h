@@ -69,7 +69,7 @@ class LeafTypeTree {
   // Constructor for tuples/arrays where members are provided as a span..
   LeafTypeTree(Type* type, absl::Span<LeafTypeTree<T> const> init_values)
       : type_(type) {
-    // Sanity check types of given values.
+    // Validate types of given values.
     if (type->IsArray()) {
       XLS_CHECK_EQ(type->AsArrayOrDie()->size(), init_values.size());
       for (auto& init_value : init_values) {

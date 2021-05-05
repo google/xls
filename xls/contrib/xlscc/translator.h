@@ -701,7 +701,7 @@ class Translator {
 
   // The translator assumes NamedDecls are unique. This set is used to
   //  generate an error if that assumption is violated.
-  absl::flat_hash_set<const clang::NamedDecl*> sanity_check_unique_ids_;
+  absl::flat_hash_set<const clang::NamedDecl*> check_unique_ids_;
 
   using PragmaLoc = std::tuple<std::string, int>;
   enum Pragma { Pragma_Null = 0, Pragma_NoTuples, Pragma_Unroll, Pragma_Top };
@@ -776,11 +776,11 @@ class Translator {
     xls::BValue token;
   };
 
-  // Sanity checks the function prototype in the Clang AST and HLSBlock
-  absl::Status GenerateIRBlockSanityCheck(PreparedBlock& prepared,
-                                          const HLSBlock& block,
-                                          const clang::FunctionDecl* definition,
-                                          const xls::SourceLocation& body_loc);
+  // Verifies the function prototype in the Clang AST and HLSBlock are sound.
+  absl::Status GenerateIRBlockCheck(PreparedBlock& prepared,
+                                    const HLSBlock& block,
+                                    const clang::FunctionDecl* definition,
+                                    const xls::SourceLocation& body_loc);
 
   // Prepares IO channels for generating XLS Proc
   absl::Status GenerateIRBlockPrepare(

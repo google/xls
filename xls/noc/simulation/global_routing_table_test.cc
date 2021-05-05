@@ -101,7 +101,7 @@ TEST(GlobalRoutingTableTest, Index) {
   XLS_ASSERT_OK(BuildNetworkGraphFromProto(nc_proto, &graph, &params));
   graph.Dump();
 
-  // Sanity check network
+  // Validate network
   ASSERT_EQ(graph.GetNetworkIds().size(), 1);
   EXPECT_EQ(params.GetNetworkParam(graph.GetNetworkIds()[0])->GetName(),
             "Test");

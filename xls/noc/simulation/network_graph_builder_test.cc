@@ -50,7 +50,7 @@ TEST(SimNetworkGraphBuilderTest, UnitTest) {
   XLS_ASSERT_OK(BuildNetworkGraphFromProto(network, &graph, &params));
   graph.Dump();
 
-  // Sanity check network
+  // Verify network
   ASSERT_EQ(graph.GetNetworkIds().size(), 1);
   EXPECT_EQ(params.GetNetworkParam(graph.GetNetworkIds()[0])->GetName(),
             "Test");

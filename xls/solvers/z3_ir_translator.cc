@@ -303,7 +303,7 @@ absl::StatusOr<Z3_ast> IrTranslator::ToFloat32(absl::Span<const Z3_ast> nodes) {
         "Incorrect number of arguments - need 3, got ", nodes.size()));
   }
 
-  // Does some sanity checking and returns the node of interest.
+  // Does some validation and returns the node of interest.
   auto get_fp_component =
       [this, nodes](int64_t index,
                     int64_t expected_width) -> absl::StatusOr<Z3_ast> {

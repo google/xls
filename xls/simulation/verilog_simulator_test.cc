@@ -29,7 +29,7 @@ using ::testing::HasSubstr;
 
 class VerilogSimulatorTest : public VerilogTestBase {};
 
-// A trivial sanity test for the verilog simulators.
+// A trivial smoke test for the verilog simulators.
 TEST_P(VerilogSimulatorTest, SimulatesSampleCombinationalTestbenchText) {
   std::string text = R"(module device_under_test(
   input [1:0] x,

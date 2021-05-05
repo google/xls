@@ -14,14 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Sanity run of a few samples in a single shard for the fuzzer."""
+"""Smoke test of a few samples in a single shard for the fuzzer."""
 
 from xls.fuzzer import run_fuzz
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
 from absl.testing import absltest
 
 
-class RunFuzzSanityTest(absltest.TestCase):
+class RunFuzzSmokeTest(absltest.TestCase):
 
   KWARGS = {
       'calls_per_sample': 4,

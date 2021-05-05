@@ -959,7 +959,7 @@ absl::Status FunctionConverter::HandleLet(Let* node) {
   XLS_RETURN_IF_ERROR(Visit(node->rhs()));
   XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->rhs()));
 
-  // Sanity check that the RHS conforms to the annotation (if present).
+  // Verify that the RHS conforms to the annotation (if present).
   if (node->type() != nullptr) {
     XLS_ASSIGN_OR_RETURN(xls::Type * annotated_type,
                          ResolveTypeToIr(node->type()));

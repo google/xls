@@ -21,8 +21,8 @@ load("//xls/build_rules:dslx_codegen.bzl", "codegen")
 _IR_CONVERTER_MAIN = "//xls/dslx:ir_converter_main"
 _OPT_MAIN = "//xls/tools:opt_main"
 
-# TODO(meheff): This macro should define some tests to sanity check the
-# generated RTL.
+# TODO(meheff): This macro should define some tests to validate the generated
+# RTL.
 def dslx_generated_rtl(
         name,
         srcs,

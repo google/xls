@@ -126,7 +126,7 @@ Interpreter::InterpretModule(
     }
   }
 
-  // Sanity check that we've processed all cells (i.e., that there aren't
+  // Soundness check that we've processed all cells (i.e., that there aren't
   // unsatisfiable cells).
   for (const auto& cell : module->cells()) {
     for (const auto& output : cell->outputs()) {

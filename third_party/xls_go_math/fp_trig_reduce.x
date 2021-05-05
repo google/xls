@@ -114,9 +114,8 @@ pub fn fp_trig_reduce_32(x: F32) -> (u3, F32) {
   fp_trig_reduce<u32:8, u32:23>(x, PI_DIV_4_FP32)
 }
 
-// This is just a quick sanity check - thorough validation
-// will be achieved for 32 bit trig_reduce by testing
-// 32 bit sin/cos.
+// This is just a smoke test validation - thorough validation will be achieved
+// for 32 bit trig_reduce by testing 32 bit sin/cos.
 #![test]
 fn fp_trig_reduce_32_test() {
   let num = float32::unflatten(u32:0x45492679);
@@ -136,7 +135,7 @@ fn fp_trig_reduce_64_test() {
   ()
 }
 
-// Main / entry function only used for jit
+// Main / entry function that's only used for JIT.
 fn main(x: F64) -> (u3, F64) {
   fp_trig_reduce_64(x)
 }

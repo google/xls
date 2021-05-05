@@ -220,7 +220,7 @@ absl::Status ExtractFromPin(const cell_lib::Block& pin,
 // function calculating the output value of the cell after the next clock.
 // Since all our current (logic-checking) purposes are clockless, this is
 // equivalent to being the "function" of an output pin. All known FF cells have
-// a single output pin, so we sanity check for that.
+// a single output pin, so we check for that.
 // If so, then we replace that function with the one from the next_state field.
 absl::Status ExtractFromFf(const cell_lib::Block& ff,
                            CellLibraryEntryProto* entry_proto) {

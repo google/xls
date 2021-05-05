@@ -90,7 +90,7 @@ class RunFuzzTest(parameterized.TestCase):
     minimized_ir_path = run_fuzz.minimize_ir(s, run_dir)
     self.assertIsNotNone(minimized_ir_path)
     self.assertIn('ir_minimizer_test.sh', os.listdir(run_dir))
-    # Sanity check the minimized IR.
+    # Validate the minimized IR.
     with open(minimized_ir_path, 'r') as f:
       contents = f.read()
       self.assertIn('package ', contents)

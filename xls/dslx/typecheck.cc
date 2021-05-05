@@ -134,7 +134,7 @@ static absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   // Implementation note: though we could have all functions have
   // NoteRequiresImplicitToken() be false unless otherwise noted, this helps
   // guarantee we did consider and make a note for every function -- the code is
-  // generally complex enough it's nice to have this sanity check.
+  // generally complex enough it's nice to have this soundness check.
   if (absl::optional<bool> requires =
           ctx->type_info()->GetRequiresImplicitToken(f);
       !requires.has_value()) {

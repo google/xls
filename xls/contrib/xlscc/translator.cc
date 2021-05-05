@@ -1115,14 +1115,14 @@ absl::Status Translator::DeepScanForIO(const clang::Stmt* body,
       auto forst = clang_down_cast<const clang::ForStmt*>(body);
 
       // Don't generate double declared error when actually generating IR
-      auto saved_sanity_ids = sanity_check_unique_ids_;
+      auto saved_check_unique_ids = check_unique_ids_;
 
       PushContextGuard context_guard(*this, body_loc);
       context_guard.propagate_up = false;
 
       XLS_RETURN_IF_ERROR(GenerateIR_UnrolledFor(forst, ctx, body_loc, true));
 
-      sanity_check_unique_ids_ = saved_sanity_ids;
+      check_unique_ids_ = saved_check_unique_ids;
     } else {
       // Recurse into sub-statements, sub-expressions
       for (const clang::Stmt* child : body->children()) {
@@ -1884,12 +1884,12 @@ absl::Status Translator::DeclareVariable(const clang::NamedDecl* lvalue,
         absl::StrFormat("Declaration '%s' duplicated at %s\n",
                         lvalue->getNameAsString(), LocString(loc)));
   }
-  if (sanity_check_unique_ids_.contains(lvalue)) {
+  if (check_unique_ids_.contains(lvalue)) {
     return absl::InternalError(
         absl::StrFormat("Code assumes NamedDecls are unique, but %s isn't",
                         lvalue->getNameAsString()));
   }
-  sanity_check_unique_ids_.insert(lvalue);
+  check_unique_ids_.insert(lvalue);
   context().variables[lvalue] = rvalue;
   return absl::OkStatus();
 }
@@ -3264,12 +3264,12 @@ absl::Status Translator::GenerateIR_UnrolledFor(const clang::ForStmt* stmt,
 
   XLS_RETURN_IF_ERROR(GetIdentifier(counter_namedecl, loc).status());
 
-  // Loop unrolling causes duplicate NamedDecls which fail the sanity check.
+  // Loop unrolling causes duplicate NamedDecls which fail the soundness check.
   // Reset the known set before each iteration.
-  auto saved_sanity_ids = sanity_check_unique_ids_;
+  auto saved_check_ids = check_unique_ids_;
 
   for (int nIters = 0;; ++nIters) {
-    sanity_check_unique_ids_ = saved_sanity_ids;
+    check_unique_ids_ = saved_check_ids;
 
     if (nIters >= max_unroll_iters_) {
       return absl::UnimplementedError(
@@ -3714,7 +3714,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
   prepared.token = pb.GetTokenParam();
 
   XLS_RETURN_IF_ERROR(
-      GenerateIRBlockSanityCheck(prepared, block, definition, body_loc));
+      GenerateIRBlockCheck(prepared, block, definition, body_loc));
 
   XLS_RETURN_IF_ERROR(GenerateIRBlockPrepare(prepared, pb, block, channel_mode,
                                              definition, package, body_loc));
@@ -3770,7 +3770,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
   return pb.Build(prepared.token, pb.GetStateParam());
 }
 
-absl::Status Translator::GenerateIRBlockSanityCheck(
+absl::Status Translator::GenerateIRBlockCheck(
     PreparedBlock& prepared, const HLSBlock& block,
     const clang::FunctionDecl* definition,
     const xls::SourceLocation& body_loc) {

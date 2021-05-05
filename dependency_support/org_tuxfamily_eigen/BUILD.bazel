@@ -17,8 +17,8 @@ package(
 )
 
 cc_test(
-    name = "sanity_test",
-    srcs = ["sanity_test.cc"],
+    name = "smoke_test",
+    srcs = ["smoke_test.cc"],
     deps = [
         "@org_tuxfamily_eigen//:eigen",
     ],

@@ -123,7 +123,7 @@ class FunctionBase {
   // Removes the node from the function. The node must have no users.
   //
   // If remove_param_ok is false and a parameter is given for removal, this
-  // method will return an error -- this is a sanity check against removing
+  // method will return an error -- this is a soundness check against removing
   // parameters and changing the type signature when that is not intended.
   //
   // Warning: if you remove a parameter node via this method (with

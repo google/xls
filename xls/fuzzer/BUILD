@@ -53,8 +53,8 @@ py_library(
 )
 
 py_test(
-    name = "run_fuzz_sanity_test",
-    srcs = ["run_fuzz_sanity_test.py"],
+    name = "run_fuzz_smoke_test",
+    srcs = ["run_fuzz_smoke_test.py"],
     data = glob(["testdata/run_fuzz_test*.x"]),
     python_version = "PY3",
     srcs_version = "PY3",

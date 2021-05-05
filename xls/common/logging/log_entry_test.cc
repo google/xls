@@ -73,7 +73,7 @@ TEST(LogEntryTest, SetPrefixSetsField) {
 
 TEST(LogEntryTest, SetLogSeveritySetsField) {
   auto entry = AnEntry();
-  EXPECT_NE(entry.log_severity(), absl::LogSeverity::kError);  // Sanity check.
+  EXPECT_NE(entry.log_severity(), absl::LogSeverity::kError);
 
   entry.set_log_severity(absl::LogSeverity::kError);
 

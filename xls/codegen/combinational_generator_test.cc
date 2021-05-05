@@ -364,9 +364,9 @@ fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
   EXPECT_THAT(simulator.Run(args), IsOkAndHolds(Value(UBits(0xf0ff, 16))));
 }
 
-TEST_P(CombinationalGeneratorTest, CrazyParameterTypes) {
+TEST_P(CombinationalGeneratorTest, UncommonParameterTypes) {
   std::string text = R"(
-package CrazyParameterTypes
+package UncommonParameterTypes
 
 fn main(a: bits[32],
         b: (bits[32], ()),

@@ -145,7 +145,7 @@ absl::Status TestPackedBits(std::minstd_rand& bitgen) {
   return absl::OkStatus();
 }
 
-// Tests sanity of PackedBitsViews in the JIT.
+// Smoke test of PackedBitsViews in the JIT.
 TEST(IrJitTest, PackedBits) {
   std::minstd_rand bitgen;
 

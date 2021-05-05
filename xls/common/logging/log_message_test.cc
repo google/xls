@@ -202,8 +202,8 @@ TEST_F(LogMessageTest, StreamOperatorAcceptsNullIntPointer) {
   int* i_ptr = nullptr;
   XLS_LOG(INFO) << i_ptr;
   // It's undefined behavior to send nullptr to a stream, but our
-  // compilers/libraries output either "(nil)" or "0", so this is just a sanity
-  // check.
+  // compilers/libraries output either "(nil)" or "0", so this is just a smoke
+  // test.
   EXPECT_THAT(GetSingleEntry().text_message, AnyOf(Eq("(nil)"), "0"));
 }
 

@@ -15,8 +15,8 @@
 #include "Eigen/Core"
 
 int main() {
-  // Just a sanity check to see if the library is properly imported. This helps
-  // because Eigen is a header-only library.
+  // Just a soundness check to see if the library is properly imported. This
+  // helps because Eigen is a header-only library.
   Eigen::MatrixXd matrix(2, 2);
   matrix << 0, 1, 2, 3;
   return matrix(0, 0);

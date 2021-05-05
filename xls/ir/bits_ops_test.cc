@@ -756,7 +756,7 @@ TEST(BitsOpsTest, DropLeadingZeroes) {
 }
 
 TEST(BitsOpsTest, BitSliceUpdate) {
-  // Sanity check a few values.
+  // Validate a few values.
   EXPECT_EQ(bits_ops::BitSliceUpdate(Bits(), 0, Bits()), Bits());
   EXPECT_EQ(bits_ops::BitSliceUpdate(Bits(), 42, Bits()), Bits());
   EXPECT_EQ(bits_ops::BitSliceUpdate(UBits(0x1234abcd, 32), 0, UBits(7, 4)),

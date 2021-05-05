@@ -34,7 +34,7 @@ TEST(SimObjectsTest, BackToBackNetwork0) {
   NocParameters params;
   XLS_ASSERT_OK(BuildNetworkGraphLinear000(&proto, &graph, &params));
 
-  // Sanity check network
+  // Validate the network.
   ASSERT_EQ(graph.GetNetworkIds().size(), 1);
   EXPECT_EQ(params.GetNetworkParam(graph.GetNetworkIds()[0])->GetName(),
             "Test");
@@ -119,7 +119,7 @@ TEST(SimObjectsTest, TreeNework0) {
   NocParameters params;
   XLS_ASSERT_OK(BuildNetworkGraphTree000(&proto, &graph, &params));
 
-  // Sanity check network
+  // Validate the network.
   ASSERT_EQ(graph.GetNetworkIds().size(), 1);
   EXPECT_EQ(params.GetNetworkParam(graph.GetNetworkIds()[0])->GetName(),
             "Test");

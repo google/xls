@@ -121,7 +121,7 @@ Derived3 WontCompile(Base& r) {
   return down_cast<Derived3>(r);
 }
 
-#else  // Sanity test
+#else  // Smoke test
 
 // Finally, tests that good code does compile (i.e. the compiler is
 // not blindly failing everything).

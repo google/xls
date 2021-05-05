@@ -232,8 +232,8 @@ TEST(MinCutTest, LargeDirectedGraphs) {
         NodeId sink;
         Graph graph = MakeLargeGraph(acyclic, &source, &sink, layer_count,
                                      nodes_in_layer);
-        // It's hard to verify that this is *actually* the min cut, but sanity
-        // check the partition.
+        // It's hard to verify that this is *actually* the min cut, but do basic
+        // validation of the partition.
         GraphCut min_cut = MinCutBetweenNodes(graph, source, sink);
         EXPECT_EQ(
             min_cut.source_partition.size() + min_cut.sink_partition.size(),

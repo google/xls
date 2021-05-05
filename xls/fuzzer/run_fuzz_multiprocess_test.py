@@ -42,7 +42,7 @@ class RunFuzzMultiprocessTest(test_base.TestCase):
     # Sample path should have two samples in it.
     self.assertSequenceEqual(sorted(os.listdir(samples_path)), ('0', '1'))
 
-    # Sanity check sample 1 directory.
+    # Validate sample 1 directory.
     sample1_contents = os.listdir(os.path.join(samples_path, '1'))
     self.assertIn('sample.x', sample1_contents)
     self.assertIn('sample.x.results', sample1_contents)
@@ -83,7 +83,7 @@ class RunFuzzMultiprocessTest(test_base.TestCase):
         '--calls_per_sample=3', '--worker_count=1', '--codegen', '--simulate',
         '--nouse_system_verilog'
     ])
-    # Sanity check sample 1 directory.
+    # Validate sample 1 directory.
     sample1_contents = os.listdir(os.path.join(samples_path, '1'))
     self.assertIn('sample.x', sample1_contents)
     self.assertIn('sample.x.results', sample1_contents)

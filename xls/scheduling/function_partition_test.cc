@@ -162,7 +162,7 @@ TEST_F(FunctionPartitionTest, BitSliceReturnValue) {
 }
 
 TEST_F(FunctionPartitionTest, BenchmarkTest) {
-  // Compute the minimum cost partition of each benchmark and sanity check the
+  // Compute the minimum cost partition of each benchmark and validate the
   // results.
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<std::string> benchmark_names,
                            sample_packages::GetBenchmarkNames());
