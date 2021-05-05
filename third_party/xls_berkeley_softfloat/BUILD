@@ -31,6 +31,7 @@ dslx_jit_wrapper(
 cc_test(
     name = "fpdiv_2x32_test",
     srcs = ["fpdiv_2x32_test.cc"],
+    tags = ["optonly"],
     deps = [
         ":fpdiv_2x32_jit_wrapper",
         "@com_google_absl//absl/random",
