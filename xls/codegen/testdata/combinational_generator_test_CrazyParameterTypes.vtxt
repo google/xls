@@ -13,8 +13,8 @@ module main(
   assign c_unflattened[2] = c[31:0];
   wire [63:0] d_unflattened[0:0];
   assign d_unflattened[0] = d[63:0];
-  wire [31:0] tuple_index_39[0:1];
-  assign tuple_index_39[0] = e[63:32];
-  assign tuple_index_39[1] = e[31:0];
-  assign out = a | b[31:0] | c_unflattened[g] | d_unflattened[32'h0000_0000][31:0] | tuple_index_39[g];
+  wire [31:0] tuple_index_41[0:1];
+  assign tuple_index_41[0] = e[63:32];
+  assign tuple_index_41[1] = e[31:0];
+  assign out = a | b[31:0] | c_unflattened[g] | d_unflattened[32'h0000_0000][31:0] | tuple_index_41[g];
 endmodule

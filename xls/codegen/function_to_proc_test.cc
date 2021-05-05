@@ -109,17 +109,6 @@ TEST_F(FunctionToProcTest, ZeroInputs) {
   EXPECT_THAT(GetOutputNode(proc), m::OutputPort(m::Literal(42)));
 }
 
-TEST_F(FunctionToProcTest, NoInputAndOutputPorts) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  BValue x = fb.Param("x", p->GetBitsType(0));
-  BValue y = fb.Param("y", p->GetBitsType(0));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.Add(x, y)));
-  XLS_ASSERT_OK(FunctionToProc(f, "ZeroWidthIoProc").status());
-
-  EXPECT_EQ(p->channels().size(), 0);
-}
-
 TEST_F(FunctionToProcTest, ZeroWidthInputsAndOutput) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -133,7 +122,7 @@ TEST_F(FunctionToProcTest, ZeroWidthInputsAndOutput) {
 
   EXPECT_EQ(proc->name(), "SimpleFunctionProc");
   EXPECT_EQ(proc->StateType(), p->GetTupleType({}));
-  EXPECT_EQ(p->channels().size(), 1);
+  EXPECT_EQ(p->channels().size(), 4);
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel * z_ch, p->GetChannel("z"));
   EXPECT_TRUE(z_ch->IsPort());
@@ -196,9 +185,7 @@ TEST_F(FunctionToProcTest, ZeroWidthPipeline) {
   XLS_ASSERT_OK(
       FunctionToPipelinedProc(schedule, f, "ZeroWidthPipelineProc").status());
 
-  // Even though this is a 3 stage pipeline, there should be no registers
-  // (actually no channels) because all values are zero width.
-  EXPECT_EQ(p->channels().size(), 0);
+  EXPECT_EQ(p->channels().size(), 3);
 }
 
 }  // namespace

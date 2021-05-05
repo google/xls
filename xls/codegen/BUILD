@@ -37,6 +37,8 @@ cc_library(
     hdrs = ["combinational_generator.h"],
     deps = [
         ":codegen_options",
+        ":codegen_pass",
+        ":codegen_pass_pipeline",
         ":flattening",
         ":function_to_proc",
         ":module_builder",
@@ -433,6 +435,45 @@ cc_library(
 )
 
 cc_library(
+    name = "signature_generation_pass",
+    srcs = ["signature_generation_pass.cc"],
+    hdrs = ["signature_generation_pass.h"],
+    deps = [
+        ":codegen_pass",
+        ":signature_generator",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:node_util",
+    ],
+)
+
+cc_library(
+    name = "codegen_pass_pipeline",
+    srcs = ["codegen_pass_pipeline.cc"],
+    hdrs = ["codegen_pass_pipeline.h"],
+    deps = [
+        ":codegen_checker",
+        ":codegen_pass",
+        ":port_legalization_pass",
+        ":signature_generation_pass",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "port_legalization_pass",
+    srcs = ["port_legalization_pass.cc"],
+    hdrs = ["port_legalization_pass.h"],
+    deps = [
+        ":codegen_pass",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/ir:value_helpers",
+    ],
+)
+
+cc_library(
     name = "signature_generator",
     srcs = ["signature_generator.cc"],
     hdrs = ["signature_generator.h"],
@@ -616,6 +657,20 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:type",
         "//xls/scheduling:pipeline_schedule",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "port_legalization_pass_test",
+    srcs = ["port_legalization_pass_test.cc"],
+    deps = [
+        ":codegen_pass",
+        ":port_legalization_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],
 )

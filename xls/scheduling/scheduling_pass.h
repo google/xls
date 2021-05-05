@@ -25,6 +25,8 @@ namespace xls {
 
 // Defines the pass types for passes which operate on the IR and the schedule
 // including passes which create the schedule.
+// TODO(meheff): 2021/04/30 Remove this pass type as it is superceded by
+// CodegenPass.
 
 // Data structure operated on by scheduling passes. Contains the IR and the
 // associated schedule.

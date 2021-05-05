@@ -30,32 +30,20 @@ namespace verilog {
 // Adds the function parameters as input ports on the proc (receives on a port
 // channel). For each function parameter adds a key/value to node map where the
 // key is the parameter and the value is the received data from the
-// port. Zero-width values are not emitted as ports as Verilog does not support
-// zero-width ports. In these cases, a zero-valued literal is added to the map
-// rather than a receive operation. Returns a vector containing the tokens from
-// the receive operations.
+// port.
 static absl::StatusOr<std::vector<Node*>> AddInputPorts(
     Function* f, Proc* proc, absl::flat_hash_map<Node*, Node*>* node_map) {
   std::vector<Node*> tokens;
 
-  // Skip zero-width inputs/output. Verilog does not support zero-width ports.
+  int64_t port_position = 0;
+
   for (Param* param : f->params()) {
-    if (param->GetType()->GetFlatBitCount() == 0) {
-      // Create a (zero-valued) literal of the given type to standin for the
-      // port.
-      // TODO(meheff): 2021/04/21 Consider adding these ports unconditionally
-      // then removing them as a separate pass. This simplifies this process
-      // and is a better separation of concerns.
-      XLS_ASSIGN_OR_RETURN(Node * dummy_input,
-                           proc->MakeNode<xls::Literal>(
-                               param->loc(), ZeroOfType(param->GetType())));
-      (*node_map)[param] = dummy_input;
-      continue;
-    }
     XLS_ASSIGN_OR_RETURN(
         PortChannel * ch,
         f->package()->CreatePortChannel(
             param->GetName(), ChannelOps::kReceiveOnly, param->GetType()));
+    ch->SetPosition(port_position++);
+
     XLS_ASSIGN_OR_RETURN(
         Node * rcv,
         proc->MakeNode<Receive>(param->loc(), proc->TokenParam(), ch->id()));
@@ -69,21 +57,21 @@ static absl::StatusOr<std::vector<Node*>> AddInputPorts(
   return tokens.empty() ? std::vector<Node*>({proc->TokenParam()}) : tokens;
 }
 
-// Add an output port which sends the given return value. The send operation
-// uses the given token. Returns the token from the send operation.
-static absl::StatusOr<Node*> AddOutputPort(Node* return_value, Node* token) {
-  if (return_value->GetType()->GetFlatBitCount() == 0) {
-    return token;
-  }
+// Add an output port to the given proc which sends the return value of the
+// given function.  The send operation uses the given token. Returns the token
+// from the send operation.
+static absl::StatusOr<Node*> AddOutputPort(
+    Function* f, Proc* proc, const absl::flat_hash_map<Node*, Node*>& node_map,
+    Node* token) {
+  Node* output = node_map.at(f->return_value());
 
   // TODO(meheff): 2021-03-01 Allow port names other than "out".
-  XLS_ASSIGN_OR_RETURN(
-      PortChannel * out_ch,
-      return_value->package()->CreatePortChannel("out", ChannelOps::kSendOnly,
-                                                 return_value->GetType()));
-  XLS_ASSIGN_OR_RETURN(
-      Node * send, return_value->function_base()->MakeNode<Send>(
-                       return_value->loc(), token, return_value, out_ch->id()));
+  XLS_ASSIGN_OR_RETURN(PortChannel * out_ch,
+                       f->package()->CreatePortChannel(
+                           "out", ChannelOps::kSendOnly, output->GetType()));
+  out_ch->SetPosition(f->params().size());
+  XLS_ASSIGN_OR_RETURN(Node * send, proc->MakeNode<Send>(output->loc(), token,
+                                                         output, out_ch->id()));
 
   return send;
 }
@@ -121,9 +109,8 @@ absl::StatusOr<Proc*> FunctionToProc(Function* f, absl::string_view proc_name) {
   XLS_ASSIGN_OR_RETURN(
       Node * merged_input_token,
       proc->MakeNode<AfterAll>(/*loc=*/absl::nullopt, input_tokens));
-  XLS_ASSIGN_OR_RETURN(
-      Node * output_token,
-      AddOutputPort(node_map.at(f->return_value()), merged_input_token));
+  XLS_ASSIGN_OR_RETURN(Node * output_token,
+                       AddOutputPort(f, proc, node_map, merged_input_token));
 
   XLS_RETURN_IF_ERROR(proc->SetNextToken(output_token));
   XLS_RETURN_IF_ERROR(proc->SetNextState(proc->StateParam()));
@@ -215,9 +202,8 @@ absl::StatusOr<Proc*> FunctionToPipelinedProc(const PipelineSchedule& schedule,
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      Node * output_token,
-      AddOutputPort(node_map.at(f->return_value()), previous_token));
+  XLS_ASSIGN_OR_RETURN(Node * output_token,
+                       AddOutputPort(f, proc, node_map, previous_token));
 
   XLS_RETURN_IF_ERROR(proc->SetNextToken(output_token));
   XLS_RETURN_IF_ERROR(proc->SetNextState(proc->StateParam()));

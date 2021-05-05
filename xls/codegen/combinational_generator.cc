@@ -22,6 +22,8 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/codegen_pass_pipeline.h"
 #include "xls/codegen/flattening.h"
 #include "xls/codegen/function_to_proc.h"
 #include "xls/codegen/module_builder.h"
@@ -170,14 +172,19 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
       Proc * proc,
       FunctionToProc(func, absl::StrCat("__", func->name(), "_proc")));
   std::string module_name = SanitizeIdentifier(func->name());
-  CodegenOptions options;
-  options.module_name(module_name).use_system_verilog(use_system_verilog);
+  CodegenPassUnit unit(func->package(), proc);
+  CodegenPassOptions pass_options;
+  pass_options.codegen_options.entry(proc->name())
+      .module_name(module_name)
+      .use_system_verilog(use_system_verilog);
+  PassResults results;
+  XLS_RETURN_IF_ERROR(
+      CreateCodegenPassPipeline()->Run(&unit, pass_options, &results).status());
+  XLS_RET_CHECK(unit.signature.has_value());
+  XLS_ASSIGN_OR_RETURN(std::string verilog,
+                       GenerateVerilog(pass_options.codegen_options, proc));
 
-  XLS_ASSIGN_OR_RETURN(ModuleSignature signature,
-                       GenerateSignature(options, func));
-  XLS_ASSIGN_OR_RETURN(std::string verilog, GenerateVerilog(options, proc));
-
-  return ModuleGeneratorResult{verilog, signature};
+  return ModuleGeneratorResult{verilog, unit.signature.value()};
 }
 
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(
