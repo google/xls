@@ -231,7 +231,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
     if (!known_prefix.empty() || !known_suffix.empty()) {
       if (known_prefix.size() == node->BitCountOrDie()) {
-        XLS_VLOG(1)
+        XLS_VLOG(2)
             << "Replacing node with its (entirely known) bits: " << node
             << " as "
             << Value(Bits(known_prefix)).ToString(FormatPreference::kBinary);
@@ -243,7 +243,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                                      node->users().end());
         std::vector<Node*> concat_elements;
         if (!known_prefix.empty()) {
-          XLS_VLOG(1) << node->GetName()
+          XLS_VLOG(2) << node->GetName()
                       << " has known bits prefix: " << Bits(known_prefix);
           XLS_ASSIGN_OR_RETURN(Node * prefix_literal,
                                node->function_base()->MakeNode<Literal>(
@@ -258,7 +258,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                     known_suffix.size()));
         concat_elements.push_back(sliced_node);
         if (!known_suffix.empty()) {
-          XLS_VLOG(1) << node->GetName()
+          XLS_VLOG(2) << node->GetName()
                       << " has known bits suffix: " << Bits(known_suffix);
           XLS_ASSIGN_OR_RETURN(Node * suffix_literal,
                                node->function_base()->MakeNode<Literal>(
@@ -285,6 +285,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     OneHotSelect* ohs = node->As<OneHotSelect>();
     if (query_engine.AtLeastOneBitTrue(ohs->selector()) &&
         query_engine.AtMostOneBitTrue(ohs->selector())) {
+      XLS_VLOG(2) << absl::StreamFormat(
+          "Replacing one-hot-select %swith two-way select", node->GetName());
       XLS_ASSIGN_OR_RETURN(Node * bit0_selector,
                            node->function_base()->MakeNode<BitSlice>(
                                node->loc(), ohs->selector(),
@@ -300,150 +302,28 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   }
 
   // Remove kOneHot operations with an input that is already one-hot.
-  // Require split ops to ensure this optimizations isn't applied before
-  // SimplifyOneHotMsb.
-  if (SplitsEnabled(opt_level)) {
-    if (node->Is<OneHot>() && query_engine.AtMostOneBitTrue(node->operand(0))) {
-      XLS_ASSIGN_OR_RETURN(
-          Node * zero,
-          node->function_base()->MakeNode<Literal>(
-              node->loc(),
-              Value(
-                  UBits(0, /*bit_count=*/node->operand(0)->BitCountOrDie()))));
-      XLS_ASSIGN_OR_RETURN(Node * operand_eq_zero,
-                           node->function_base()->MakeNode<CompareOp>(
-                               node->loc(), node->operand(0), zero, Op::kEq));
-      XLS_RETURN_IF_ERROR(
-          node->ReplaceUsesWithNew<Concat>(
-                  std::vector{operand_eq_zero, node->operand(0)})
-              .status());
-      return true;
-    }
+  if (node->Is<OneHot>() && query_engine.AtMostOneBitTrue(node->operand(0))) {
+    XLS_ASSIGN_OR_RETURN(
+        Node * zero,
+        node->function_base()->MakeNode<Literal>(
+            node->loc(),
+            Value(UBits(0, /*bit_count=*/node->operand(0)->BitCountOrDie()))));
+    XLS_ASSIGN_OR_RETURN(Node * operand_eq_zero,
+                         node->function_base()->MakeNode<CompareOp>(
+                             node->loc(), node->operand(0), zero, Op::kEq));
+    XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Concat>(
+                                std::vector{operand_eq_zero, node->operand(0)})
+                            .status());
+    return true;
   }
 
   return false;
-}
-
-absl::StatusOr<bool> SimplifyOneHotMsb(FunctionBase* f) {
-  bool changed = false;
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<PostDominatorAnalysis> post_dominator_analysis,
-      PostDominatorAnalysis::Run(f));
-  // We perform a variant of bdd analysis without analyzing OneHot nodes. This
-  // is because we will check if a OneHot's MSB = 0 and LSBs = {0,...} implies
-  // the same value for another node as MSB = 1 and LSBs = {0,...}.  However,
-  // MSB = 0 and LSBs = {0,...} will never occur (MSB == 1 iff LSBs = {0,...}),
-  // so the BDD query engine will always evaluate MSB = 0 and LSBs = {0,...} as
-  // false. This prevents implication analysis from telling us anything useful.
-  // By forcing BDD to treat OneHots as variables, we can assume any values for
-  // the bits of OneHot nodes and perform the implicaiton analysis. Note that
-  // this is not necessary for the case MSB = 1. Performing BDD analysis
-  // including OneHots in this case gives more information / opens up more
-  // optimization opportunities.
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<BddQueryEngine> bdd_query_engine_minus_one_hot,
-      BddQueryEngine::Run(f, BddFunction::kDefaultPathLimit,
-                          /*do_not_evaluate_ops=*/{Op::kOneHot}));
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BddQueryEngine> bdd_query_engine_default,
-                       BddQueryEngine::Run(f, BddFunction::kDefaultPathLimit));
-
-  for (Node* node : f->nodes()) {
-    // Check if one-hot's MSB affect the function's output.
-    if (node->Is<OneHot>()) {
-      // Build predicates.
-      int64_t msb_idx = node->BitCountOrDie() - 1;
-      std::vector<std::pair<BitLocation, bool>> msb_one_predicate;
-      std::vector<std::pair<BitLocation, bool>> msb_zero_predicate;
-      for (int64_t bit_idx = 0; bit_idx < msb_idx; ++bit_idx) {
-        msb_one_predicate.push_back({{node, bit_idx}, false});
-        msb_zero_predicate.push_back({{node, bit_idx}, false});
-      }
-      msb_one_predicate.push_back({{node, msb_idx}, true});
-      msb_zero_predicate.push_back({{node, msb_idx}, false});
-
-      // Don't apply the optimization recursively.
-      if (node->users().size() == 1 &&
-          (*node->users().begin())->Is<BitSlice>()) {
-        const BitSlice* slice = (*node->users().begin())->As<BitSlice>();
-        if (slice->start() + slice->width() <= msb_idx) {
-          continue;
-        }
-      }
-
-      // Check if the predicates imply the same value for any of the node's
-      // postdominators.
-      for (Node* post_dominator :
-           post_dominator_analysis->GetPostDominatorsOfNode(node)) {
-        if (post_dominator == node) {
-          continue;
-        }
-
-        absl::optional<Bits> msb_one_implied =
-            bdd_query_engine_default->ImpliedNodeValue(msb_one_predicate,
-                                                       post_dominator);
-        if (!msb_one_implied.has_value()) {
-          continue;
-        }
-        absl::optional<Bits> msb_zero_implied =
-            bdd_query_engine_minus_one_hot->ImpliedNodeValue(msb_zero_predicate,
-                                                             post_dominator);
-        if (!msb_zero_implied.has_value()) {
-          continue;
-        }
-
-        // Predicates imply the same value for the postdominator. Therefore,
-        // we know that the OneHot's MSB cannot possibly affect the function's
-        // output. We replace the MSB with a 0 bit to enable other
-        // optimizations.
-        // Note: This anlysis assumes that XLS IR is data-flow only / side
-        // effect free. If/when memory or other nodes with side affects are
-        // added, either this anlysis
-        // or post-dominator anlysis will need to be updated to account for
-        // this.
-        if (msb_one_implied.value().ToBitVector() ==
-            msb_zero_implied.value().ToBitVector()) {
-          XLS_ASSIGN_OR_RETURN(
-              Node * zero_bit,
-              f->MakeNode<Literal>(node->loc(), Value(UBits(0, 1))));
-          XLS_ASSIGN_OR_RETURN(
-              Node * lsb_slice,
-              f->MakeNode<BitSlice>(node->loc(), node, /*start=*/0,
-                                    /*width=*/msb_idx));
-          XLS_ASSIGN_OR_RETURN(
-              Node * concat,
-              f->MakeNode<Concat>(node->loc(),
-                                  std::vector<Node*>({zero_bit, lsb_slice})));
-
-          // Not safe to iterate over users() span while modifying underlying
-          // users, so postpone modification.
-          std::vector<Node*> users_to_modify;
-          for (Node* user : node->users()) {
-            if (user != lsb_slice) {
-              users_to_modify.push_back(user);
-            }
-          }
-          for (Node* user : users_to_modify) {
-            XLS_RET_CHECK(user->ReplaceOperand(node, concat));
-          }
-          changed = true;
-          break;
-        }
-      }
-    }
-  }
-
-  return changed;
 }
 
 }  // namespace
 
 absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
-  bool one_hot_modified = false;
-  if (SplitsEnabled(opt_level_)) {
-    XLS_ASSIGN_OR_RETURN(one_hot_modified, SimplifyOneHotMsb(f));
-  }
-
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BddQueryEngine> query_engine,
                        BddQueryEngine::Run(f, BddFunction::kDefaultPathLimit));
 
@@ -457,7 +337,7 @@ absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(bool selects_collapsed,
                        CollapseSelectChains(f, *query_engine));
 
-  return modified || one_hot_modified || selects_collapsed;
+  return modified || selects_collapsed;
 }
 
 }  // namespace xls

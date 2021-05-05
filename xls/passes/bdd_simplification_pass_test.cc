@@ -221,7 +221,9 @@ TEST_F(BddSimplificationPassTest, SelectChainOneHotOrZeroSelectors) {
                                m::Param("x2")}));
 }
 
-TEST_F(BddSimplificationPassTest, OneHotMsbTypical) {
+// TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
+// sensitivity analysis added.
+TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbTypical) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -242,7 +244,9 @@ TEST_F(BddSimplificationPassTest, OneHotMsbTypical) {
                             m::BitSlice(m::OneHot(m::Param("input")), 0, 7)))));
 }
 
-TEST_F(BddSimplificationPassTest, OneHotMsbAlternateForm) {
+// TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
+// sensitivity analysis added.
+TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbAlternateForm) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -264,8 +268,10 @@ TEST_F(BddSimplificationPassTest, OneHotMsbAlternateForm) {
                             m::BitSlice(m::OneHot(m::Param("input")), 0, 7)))));
 }
 
+// TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
+// sensitivity analysis added.
 TEST_F(BddSimplificationPassTest,
-       OneHotMsbRequireFullBddToAnalyzeOneMsbCase) {
+       DISABLED_OneHotMsbRequireFullBddToAnalyzeOneMsbCase) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -281,7 +287,9 @@ TEST_F(BddSimplificationPassTest,
                         m::BitSlice(m::OneHot(m::Param("input")), 0, 7)));
 }
 
-TEST_F(BddSimplificationPassTest, OneHotMsbMsbLeaks) {
+// TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
+// sensitivity analysis added.
+TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbMsbLeaks) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -298,7 +306,9 @@ TEST_F(BddSimplificationPassTest, OneHotMsbMsbLeaks) {
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
 }
 
-TEST_F(BddSimplificationPassTest, OneHotMsbNonMsbOneComparison) {
+// TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
+// sensitivity analysis added.
+TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNonMsbOneComparison) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -315,7 +325,9 @@ TEST_F(BddSimplificationPassTest, OneHotMsbNonMsbOneComparison) {
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
 }
 
-TEST_F(BddSimplificationPassTest, OneHotMsbNonZeroReplacementValue) {
+// TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
+// sensitivity analysis added.
+TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNonZeroReplacementValue) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -332,7 +344,9 @@ TEST_F(BddSimplificationPassTest, OneHotMsbNonZeroReplacementValue) {
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
 }
 
-TEST_F(BddSimplificationPassTest, OneHotMsbNoRecursion) {
+// TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
+// sensitivity analysis added.
+TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNoRecursion) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -354,8 +368,10 @@ TEST_F(BddSimplificationPassTest, OneHotMsbNoRecursion) {
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/false), IsOkAndHolds(false));
 }
 
+// TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
+// sensitivity analysis added.
 TEST_F(BddSimplificationPassTest,
-       OneHotMsbNoRecursionExistingSliceIncludesMsb) {
+       DISABLED_OneHotMsbNoRecursionExistingSliceIncludesMsb) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -378,8 +394,10 @@ TEST_F(BddSimplificationPassTest,
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/false), IsOkAndHolds(false));
 }
 
+// TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
+// sensitivity analysis added.
 TEST_F(BddSimplificationPassTest,
-       OneHotMsbNoRecursionExistingSliceExcludesMsb) {
+       DISABLED_OneHotMsbNoRecursionExistingSliceExcludesMsb) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(7));
@@ -397,9 +415,11 @@ TEST_F(BddSimplificationPassTest,
   EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
 }
 
+// TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
+// sensitivity analysis added.
 TEST_F(
     BddSimplificationPassTest,
-    OneHotMsbPostponeOneHotNativeOneHotDetectionUntilAfterOneHotMsb) {
+    DISABLED_OneHotMsbPostponeOneHotNativeOneHotDetectionUntilAfterOneHotMsb) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(2));
@@ -428,7 +448,10 @@ TEST_F(
                     m::Eq(m::Literal(UBits(3, 2)), m::Param("input"))))));
 }
 
-TEST_F(BddSimplificationPassTest, BddNotStaleAfterOneHotSimplification) {
+// TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
+// sensitivity analysis added.
+TEST_F(BddSimplificationPassTest,
+       DISABLED_BddNotStaleAfterOneHotSimplification) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue input = fb.Param("input", p->GetBitsType(1));
