@@ -143,6 +143,14 @@ class PortChannel : public Channel {
               Type* type, const ChannelMetadataProto& metadata)
       : Channel(name, id, supported_ops, ChannelKind::kPort, type,
                 /*initial_values=*/{}, metadata) {}
+
+  // The ordinal position of the port among all ports in the module. The first
+  // port has position zero. If not specified, ports are ordered by channel ID.
+  void SetPosition(int64_t position) { position_ = position; }
+  absl::optional<int64_t> GetPosition() const { return position_; }
+
+ private:
+  absl::optional<int64_t> position_;
 };
 
 // A channel representing a register within a block. All register channels are

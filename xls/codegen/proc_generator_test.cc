@@ -492,6 +492,67 @@ TEST_P(ProcGeneratorTest, ProcWithEmptyTupleElementInOutput) {
   XLS_ASSERT_OK(GenerateVerilog(codegen_options(), proc).status());
 }
 
+TEST_P(ProcGeneratorTest, PortOrderTest) {
+  Package package(TestBaseName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PortChannel * a_ch,
+      package.CreatePortChannel("a", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PortChannel * b_ch,
+      package.CreatePortChannel("b", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PortChannel * c_ch,
+      package.CreatePortChannel("c", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PortChannel * output_ch,
+      package.CreatePortChannel("sum", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder pb(TestBaseName(), /*init_value=*/Value::Tuple({}),
+                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  BValue a = pb.Receive(a_ch);
+  BValue b = pb.Receive(b_ch);
+  BValue c = pb.Receive(c_ch);
+  pb.Send(output_ch, pb.Add(pb.Add(a, b), c));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+
+  {
+    a_ch->SetPosition(0);
+    b_ch->SetPosition(1);
+    c_ch->SetPosition(2);
+    output_ch->SetPosition(3);
+    XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                             GenerateVerilog(codegen_options(), proc));
+    EXPECT_THAT(verilog,
+                HasSubstr("input wire [31:0] a,\n  input wire [31:0] b,\n  "
+                          "input wire [31:0] c,\n  output wire [31:0] sum"));
+  }
+
+  {
+    a_ch->SetPosition(2);
+    b_ch->SetPosition(0);
+    c_ch->SetPosition(1);
+    output_ch->SetPosition(3);
+    XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                             GenerateVerilog(codegen_options(), proc));
+    EXPECT_THAT(verilog,
+                HasSubstr("input wire [31:0] b,\n  input wire [31:0] c,\n  "
+                          "input wire [31:0] a,\n  output wire [31:0] sum"));
+  }
+
+  {
+    a_ch->SetPosition(3);
+    b_ch->SetPosition(0);
+    c_ch->SetPosition(1);
+    output_ch->SetPosition(2);
+    EXPECT_THAT(GenerateVerilog(codegen_options(), proc),
+                StatusIs(absl::StatusCode::kUnimplemented,
+                         HasSubstr("Output ports must be ordered after all "
+                                   "input ports in the proc.")));
+  }
+}
+
 INSTANTIATE_TEST_SUITE_P(ProcGeneratorTestInstantiation, ProcGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
                          ParameterizedTestName<ProcGeneratorTest>);

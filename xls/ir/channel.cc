@@ -94,10 +94,19 @@ std::string Channel::ToString() const {
                                                           v.ToHumanString());
                                         }));
   }
-  absl::StrAppendFormat(
-      &result, "id=%d, kind=%s, ops=%s, metadata=\"\"\"%s\"\"\")", id(),
-      ChannelKindToString(kind_), ChannelOpsToString(supported_ops()),
-      metadata().ShortDebugString());
+  absl::StrAppendFormat(&result, "id=%d, kind=%s, ops=%s, ", id(),
+                        ChannelKindToString(kind_),
+                        ChannelOpsToString(supported_ops()));
+
+  if (const PortChannel* port_channel =
+          dynamic_cast<const PortChannel*>(this)) {
+    if (port_channel->GetPosition().has_value()) {
+      absl::StrAppendFormat(&result, "position=%d, ",
+                            port_channel->GetPosition().value());
+    }
+  }
+  absl::StrAppendFormat(&result, "metadata=\"\"\"%s\"\"\")",
+                        metadata().ShortDebugString());
 
   return result;
 }

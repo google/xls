@@ -1223,6 +1223,7 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   std::vector<Value> initial_values;
   bool must_end = false;
   absl::optional<ChannelKind> kind;
+  absl::optional<int64_t> position;
   // Iterate through the comma-separated elements in the channel definition.
   // Examples:
   //
@@ -1231,6 +1232,9 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   //
   //  // Initial values.
   //  chan my_channel(bits[32], initial_values={1, 2, 3}, id=42, ...)
+  //
+  //  // Port channel with position.
+  //  chan my_channel(bits[32], kind=port, position=3, ...)
   //
   // First parse type.
   XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
@@ -1298,6 +1302,10 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
                               metadata_token.pos().ToHumanString()));
         }
         metadata = proto;
+      } else if (field_name.value() == "position") {
+        XLS_ASSIGN_OR_RETURN(Token pos_token, scanner_.PopTokenOrError(
+                                                  LexicalTokenType::kLiteral));
+        XLS_ASSIGN_OR_RETURN(position, pos_token.GetValueInt64());
       } else {
         return absl::InvalidArgumentError(absl::StrFormat(
             "Invalid channel attribute \"%s\" @ %s", field_name.value(),
@@ -1323,6 +1331,9 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   if (!kind.has_value()) {
     return error("Missing channel kind");
   }
+  if (position.has_value() && kind != ChannelKind::kPort) {
+    return error("Only port channels can have positions");
+  }
 
   switch (kind.value()) {
     case ChannelKind::kStreaming:
@@ -1335,8 +1346,14 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
             absl::StrFormat("Port channel %s cannot have initial value(s)",
                             channel_name.value()));
       }
-      return package->CreatePortChannel(channel_name.value(), *supported_ops,
-                                        type, *metadata, *id);
+      XLS_ASSIGN_OR_RETURN(
+          PortChannel * channel,
+          package->CreatePortChannel(channel_name.value(), *supported_ops, type,
+                                     *metadata, *id));
+      if (position.has_value()) {
+        channel->SetPosition(position.value());
+      }
+      return channel;
     }
     case ChannelKind::kRegister: {
       absl::optional<Value> reset_value;

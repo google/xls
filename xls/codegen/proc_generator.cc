@@ -26,55 +26,6 @@ namespace xls {
 namespace verilog {
 namespace {
 
-// Simple record holding a channel and a node associated with the channel
-// (Send(If) or Receive(If)).
-struct ChannelNode {
-  Channel* channel;
-  Node* node;
-};
-
-// Returns all input ports of the proc. An input port is represented with a
-// Receive node on a PortChannel.
-absl::StatusOr<std::vector<ChannelNode>> GetInputPorts(Proc* proc) {
-  std::vector<ChannelNode> ports;
-  for (Node* node : proc->nodes()) {
-    // Port channels should only have send/receive nodes, not
-    // send_if/receive_if.
-    if (node->Is<Receive>()) {
-      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-      if (channel->IsPort()) {
-        ports.push_back(ChannelNode{channel, node});
-      }
-    }
-  }
-  std::sort(ports.begin(), ports.end(),
-            [](const ChannelNode& a, const ChannelNode& b) {
-              return a.channel->id() < b.channel->id();
-            });
-  return ports;
-}
-
-// Returns all output ports of the proc. An output port is represented with a
-// Send node on a PortChannel.
-absl::StatusOr<std::vector<ChannelNode>> GetOutputPorts(Proc* proc) {
-  std::vector<ChannelNode> ports;
-  for (Node* node : proc->nodes()) {
-    // Port channels should only have send/receive nodes, not
-    // send_if/receive_if.
-    if (node->Is<Send>()) {
-      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-      if (channel->IsPort()) {
-        ports.push_back(ChannelNode{channel, node});
-      }
-    }
-  }
-  std::sort(ports.begin(), ports.end(),
-            [](const ChannelNode& a, const ChannelNode& b) {
-              return a.channel->id() < b.channel->id();
-            });
-  return ports;
-}
-
 // Record holding a register channel and the associated send/receive nodes as
 // well as the ModuleBuilder-level abstraction for a register.
 struct RegisterInfo {
@@ -314,6 +265,22 @@ absl::StatusOr<std::string> GenerateVerilog(const CodegenOptions& options,
                    options.clock_name(), options.reset());
 
   XLS_ASSIGN_OR_RETURN(std::vector<Proc::Port> ports, proc->GetPorts());
+
+  // A current limitation is that the output ports must all follow the input
+  // ports. This is because the input ports must be added first to create VAST
+  // expressions to use in the module body and adding an output port with
+  // ModuleBuilder requires an expression to assign to the output which means
+  // the output(s) must be added after all other nodes used to generate the
+  // output expression(s).
+  bool seen_output = false;
+  for (const Proc::Port& port : ports) {
+    if (seen_output && port.direction == Proc::PortDirection::kInput) {
+      return absl::UnimplementedError(
+          "Output ports must be ordered after all input ports in the proc.");
+    }
+    seen_output = seen_output || port.direction == Proc::PortDirection::kOutput;
+  }
+
   XLS_ASSIGN_OR_RETURN(std::vector<RegisterInfo> registers, GetRegisters(proc));
 
   // Define clock and reset, if necessary.

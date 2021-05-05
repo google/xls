@@ -307,6 +307,46 @@ proc my_proc(t: token, s: bits[42], init=45) {
               "Cannot send over channel ch (42), send operation: send.1")));
 }
 
+TEST_F(VerifierTest, InvalidPositionsMissingPosition) {
+  const std::string input = R"(package test
+
+chan ch0(bits[32], id=0, kind=port, ops=send_only, metadata="""""")
+chan ch1(bits[32], id=1, kind=port, ops=send_only, position=0, metadata="""""")
+
+proc my_proc(my_token: token, my_state: bits[32], init=42) {
+  literal.1: bits[32] = literal(value=42, id=1)
+  send.2: token = send(my_token, literal.1, channel_id=0, id=2)
+  send.3: token = send(my_token, literal.1, channel_id=1, id=3)
+  after_all.4: token = after_all(send.2, send.3, id=4)
+  next (after_all.4, my_state)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(VerifyPackage(p.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Some but not all ports have positions")));
+}
+
+TEST_F(VerifierTest, InvalidPositionsOutOfRange) {
+  const std::string input = R"(package test
+
+chan ch0(bits[32], id=0, kind=port, ops=send_only, position=0, metadata="""""")
+chan ch1(bits[32], id=1, kind=port, ops=send_only, position=2, metadata="""""")
+
+proc my_proc(my_token: token, my_state: bits[32], init=42) {
+  literal.1: bits[32] = literal(value=42, id=1)
+  send.2: token = send(my_token, literal.1, channel_id=0, id=2)
+  send.3: token = send(my_token, literal.1, channel_id=1, id=3)
+  after_all.4: token = after_all(send.2, send.3, id=4)
+  next (after_all.4, my_state)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(VerifyPackage(p.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Port ch1 has invalid position 2")));
+}
+
 TEST_F(VerifierTest, DynamicCountedForBodyParamterCountMismatch) {
   std::string input = R"(
 package p

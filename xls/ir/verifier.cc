@@ -1461,6 +1461,41 @@ absl::Status VerifyChannels(Package* package) {
   return absl::OkStatus();
 }
 
+// Verifies that the given proc's port order (as determined by
+// PortChannel::GetPosition()) is valid. Either all ports must have a position
+// or no port must have a position. If ports do have a position, they must be
+// numbered sequentially from 0.
+absl::Status VerifyPortOrdering(Proc* proc) {
+  XLS_ASSIGN_OR_RETURN(std::vector<Proc::Port> ports, proc->GetPorts());
+  absl::flat_hash_map<int64_t, const Proc::Port*> port_positions;
+  for (const Proc::Port& port : ports) {
+    if (port.channel->GetPosition().has_value()) {
+      int64_t position = port.channel->GetPosition().value();
+      if (port_positions.contains(position)) {
+        return absl::InternalError(absl::StrFormat(
+            "Multiple ports have the same position %d: %s and %s", position,
+            port.channel->name(),
+            port_positions.at(position)->channel->name()));
+      }
+      if (position < 0 || position >= ports.size()) {
+        return absl::InternalError(
+            absl::StrFormat("Port %s has invalid position %d. Must be greater "
+                            "than zero and less than %d",
+                            port.channel->name(), position, ports.size()));
+      }
+      port_positions[position] = &port;
+    }
+  }
+  if (port_positions.empty()) {
+    return absl::OkStatus();
+  }
+
+  if (port_positions.size() != ports.size()) {
+    return absl::InternalError("Some but not all ports have positions.");
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::Status VerifyPackage(Package* package) {
@@ -1570,6 +1605,9 @@ absl::Status VerifyProc(Proc* proc) {
   // Verify that all send/receive nodes are connected to the token parameter and
   // the return value via paths of tokens.
   XLS_RETURN_IF_ERROR(VerifyTokenConnectivity(proc));
+
+  // Verify any port channels are numbered properly.
+  XLS_RETURN_IF_ERROR(VerifyPortOrdering(proc));
 
   return absl::OkStatus();
 }

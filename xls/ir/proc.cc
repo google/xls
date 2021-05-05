@@ -107,6 +107,11 @@ absl::StatusOr<std::vector<Proc::Port>> Proc::GetPorts() const {
     }
   }
   std::sort(ports.begin(), ports.end(), [](const Port& a, const Port& b) {
+    // The IR verifier verifies that either no or all ports have positions.
+    if (a.channel->GetPosition().has_value() &&
+        b.channel->GetPosition().has_value()) {
+      return a.channel->GetPosition() < b.channel->GetPosition();
+    }
     return a.channel->id() < b.channel->id();
   });
   return std::move(ports);
