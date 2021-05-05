@@ -86,7 +86,10 @@ struct PassResults {
 //     logging in compound passes. A pass which strictly operate on the XLS IR
 //     may use the xls::Package type as the IrT template argument. Passes which
 //     operate on the IR and a schedule may be instantiated on a data structure
-//     containing both an xls::Package and a schedule.
+//     containing both an xls::Package and a schedule. Roughly, IrT should
+//     contain the IR and (optionally) any metadata generated or transformed by
+//     the passes which is necessary for the passes to function (e.g., not just
+//     telemetry or logging info which should be held in ResultT).
 //
 //   OptionsT : Options type passed as an immutable object to each invocation of
 //     PassBase::Run. This type should be derived from PassOptions because

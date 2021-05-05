@@ -404,6 +404,22 @@ cc_library(
 )
 
 cc_library(
+    name = "codegen_pass",
+    srcs = ["codegen_pass.cc"],
+    hdrs = ["codegen_pass.h"],
+    deps = [
+        ":codegen_options",
+        ":module_signature",
+        ":module_signature_cc_proto",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
+        "//xls/ir",
+        "//xls/passes:pass_base",
+        "//xls/scheduling:pipeline_schedule",
+    ],
+)
+
+cc_library(
     name = "codegen_options",
     srcs = ["codegen_options.cc"],
     hdrs = ["codegen_options.h"],
@@ -429,6 +445,17 @@ cc_library(
         "//xls/ir",
         "//xls/ir:node_util",
         "//xls/scheduling:pipeline_schedule",
+    ],
+)
+
+cc_library(
+    name = "codegen_checker",
+    srcs = ["codegen_checker.cc"],
+    hdrs = ["codegen_checker.h"],
+    deps = [
+        ":codegen_pass",
+        "@com_google_absl//absl/status",
+        "//xls/ir",
     ],
 )
 
