@@ -522,10 +522,15 @@ std::string Literal::Emit() const {
 }
 
 bool Literal::IsLiteralWithValue(int64_t target) const {
-  if (!bits().FitsInInt64()) {
+  // VAST Literals are always unsigned. Signed literal values are created by
+  // casting a VAST Literal to a signed type.
+  if (target < 0) {
     return false;
   }
-  return bits().ToInt64().value() == target;
+  if (!bits().FitsInUint64()) {
+    return false;
+  }
+  return bits().ToUint64().value() == target;
 }
 
 // TODO(meheff): Escape string.

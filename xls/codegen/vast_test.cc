@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/number_parser.h"
 
 namespace xls {
 namespace verilog {
@@ -257,6 +258,9 @@ TEST_P(VastTest, Literals) {
   Bits b2 = UBits(2, 3);
   Bits b55 = UBits(55, 32);
   Bits b1234 = UBits(1234, 55);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Bits huge,
+      ParseNumber("0xabcd_000_0000_1234_4321_0000_aaaa_bbbb_cccc_dddd_eeee"));
 
   EXPECT_EQ(f.Literal(b0, FormatPreference::kDecimal)->Emit(), "1'd0");
 
@@ -266,6 +270,7 @@ TEST_P(VastTest, Literals) {
   EXPECT_EQ(f.Literal(b55, FormatPreference::kDefault)->Emit(), "55");
   EXPECT_EQ(f.Literal(b55, FormatPreference::kBinary)->Emit(),
             "32'b0000_0000_0000_0000_0000_0000_0011_0111");
+  EXPECT_TRUE(f.Literal(b55)->IsLiteralWithValue(55));
 
   EXPECT_EQ(f.Literal(b1234, FormatPreference::kHex)->Emit(),
             "55'h00_0000_0000_04d2");
@@ -273,6 +278,36 @@ TEST_P(VastTest, Literals) {
   EXPECT_EQ(f.Literal(b1234, FormatPreference::kBinary)->Emit(),
             "55'b000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0100_"
             "1101_0010");
+  EXPECT_TRUE(f.Literal(b1234)->IsLiteralWithValue(1234));
+
+  EXPECT_TRUE(f.Literal(huge)->IsLiteral());
+  EXPECT_FALSE(f.Literal(huge)->IsLiteralWithValue(42));
+
+  Literal* zero = f.Literal(UBits(0, 32));
+  EXPECT_TRUE(zero->IsLiteral());
+  EXPECT_TRUE(zero->IsLiteralWithValue(0));
+  EXPECT_FALSE(zero->IsLiteralWithValue(1));
+
+  Literal* plain_zero = f.PlainLiteral(0);
+  EXPECT_TRUE(plain_zero->IsLiteral());
+  EXPECT_TRUE(plain_zero->IsLiteralWithValue(0));
+  EXPECT_FALSE(plain_zero->IsLiteralWithValue(1));
+
+  Literal* forty_two = f.Literal(UBits(42, 32));
+  EXPECT_TRUE(forty_two->IsLiteral());
+  EXPECT_FALSE(forty_two->IsLiteralWithValue(0));
+  EXPECT_TRUE(forty_two->IsLiteralWithValue(42));
+
+  Literal* wide_forty_two = f.Literal(UBits(42, 123456));
+  EXPECT_TRUE(wide_forty_two->IsLiteral());
+  EXPECT_FALSE(wide_forty_two->IsLiteralWithValue(0));
+  EXPECT_TRUE(wide_forty_two->IsLiteralWithValue(42));
+
+  Literal* all_ones = f.Literal(UBits(15, 4));
+  EXPECT_TRUE(all_ones->IsLiteral());
+  EXPECT_FALSE(all_ones->IsLiteralWithValue(0));
+  EXPECT_TRUE(all_ones->IsLiteralWithValue(15));
+  EXPECT_FALSE(all_ones->IsLiteralWithValue(-1));
 }
 
 TEST_P(VastTest, Precedence) {

@@ -448,7 +448,10 @@ class Expression : public VastNode {
   using VastNode::VastNode;
 
   virtual bool IsLiteral() const { return false; }
+
+  // Returns true if the node is a literal with the given unsigned value.
   virtual bool IsLiteralWithValue(int64_t target) const { return false; }
+
   Literal* AsLiteralOrDie();
 
   virtual bool IsLogicRef() const { return false; }

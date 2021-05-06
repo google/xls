@@ -204,6 +204,7 @@ cc_test(
         "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/ir:number_parser",
         "@com_google_googletest//:gtest",
     ],
 )

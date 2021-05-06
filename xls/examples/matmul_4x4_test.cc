@@ -93,16 +93,16 @@ TEST(Matmul4x4Test, Works) {
   }
 
   XLS_ASSERT_OK_AND_ASSIGN(Value value, c30->Dequeue());
-  ASSERT_THAT(value.bits().ToInt64(), IsOkAndHolds(222));
+  ASSERT_THAT(value.bits().ToUint64(), IsOkAndHolds(222));
 
   XLS_ASSERT_OK_AND_ASSIGN(value, c31->Dequeue());
-  ASSERT_THAT(value.bits().ToInt64(), IsOkAndHolds(4444));
+  ASSERT_THAT(value.bits().ToUint64(), IsOkAndHolds(4444));
 
   XLS_ASSERT_OK_AND_ASSIGN(value, c32->Dequeue());
-  ASSERT_THAT(value.bits().ToInt64(), IsOkAndHolds(66666));
+  ASSERT_THAT(value.bits().ToUint64(), IsOkAndHolds(66666));
 
   XLS_ASSERT_OK_AND_ASSIGN(value, c33->Dequeue());
-  ASSERT_THAT(value.bits().ToInt64(), IsOkAndHolds(888888));
+  ASSERT_THAT(value.bits().ToUint64(), IsOkAndHolds(888888));
 }
 
 }  // namespace

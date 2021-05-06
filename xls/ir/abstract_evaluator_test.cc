@@ -69,17 +69,17 @@ TEST(AbstractEvaluatorTest, Add) {
   Bits a = UBits(2, 32);
   Bits b = UBits(4, 32);
   Bits c = FromBoxedVector(eval.Add(ToBoxedVector(a), ToBoxedVector(b)));
-  EXPECT_EQ(c.ToInt64().value(), 6);
+  EXPECT_EQ(c.ToUint64().value(), 6);
 
   a = UBits(1024, 32);
   b = UBits(1023, 32);
   c = FromBoxedVector(eval.Add(ToBoxedVector(a), ToBoxedVector(b)));
-  EXPECT_EQ(c.ToInt64().value(), 2047);
+  EXPECT_EQ(c.ToUint64().value(), 2047);
 
   a = UBits(1024768, 32);
   b = UBits(5893798, 32);
   c = FromBoxedVector(eval.Add(ToBoxedVector(a), ToBoxedVector(b)));
-  EXPECT_EQ(c.ToInt64().value(), 6918566);
+  EXPECT_EQ(c.ToUint64().value(), 6918566);
 
   a = SBits(-1024, 32);
   b = SBits(1023, 32);
@@ -115,12 +115,12 @@ TEST(AbstractEvaluatorTest, UMul) {
   Bits a = UBits(3, 8);
   Bits b = UBits(3, 8);
   Bits c = FromBoxedVector(eval.UMul(ToBoxedVector(a), ToBoxedVector(b)));
-  EXPECT_EQ(c.ToInt64().value(), 9);
+  EXPECT_EQ(c.ToUint64().value(), 9);
 
   a = UBits(127, 10);
   b = UBits(64, 7);
   c = FromBoxedVector(eval.UMul(ToBoxedVector(a), ToBoxedVector(b)));
-  EXPECT_EQ(c.ToInt64().value(), 8128);
+  EXPECT_EQ(c.ToUint64().value(), 8128);
 }
 
 // Performs random UMul and SMul implementations as constructed by the
