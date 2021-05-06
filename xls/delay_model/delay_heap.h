@@ -174,19 +174,24 @@ class DelayHeap {
     int64_t longest_path;
   };
 
+  // Returns a span containing the users of 'node'. Because Node::users() is not
+  // a vector, this function may create vector containing the users and store
+  // the value in a cache for later use.
+  absl::Span<Node* const> GetUsersSpan(Node* node) const;
+
   // Returns the predecessors of the given node. The predecessors are the graph
   // neighbors of the given node in the opposite direction of the direction the
   // heap grows.
   absl::Span<Node* const> predecessors(Node* node) const {
     return direction_ == Direction::kGrowsTowardUsers ? node->operands()
-                                                      : node->users();
+                                                      : GetUsersSpan(node);
   }
 
   // Returns the successors of the given node. The successors are the graph
   // neighbors of the given node in the opposite direction of the direction the
   // heap grows.
   absl::Span<Node* const> successors(Node* node) const {
-    return direction_ == Direction::kGrowsTowardUsers ? node->users()
+    return direction_ == Direction::kGrowsTowardUsers ? GetUsersSpan(node)
                                                       : node->operands();
   }
 
@@ -204,6 +209,9 @@ class DelayHeap {
 
   // A map from node in the heap to the longest path length value for the node.
   absl::flat_hash_map<Node*, PathLength> path_lengths_;
+
+  // A cache containing vectors with the users of each node.
+  mutable absl::flat_hash_map<Node*, std::vector<Node*>> users_vectors_;
 };
 
 }  // namespace sched

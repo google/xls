@@ -187,8 +187,8 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat, int64_t opt_level,
          riter != concat->operands().rend(); ++riter) {
       XLS_ASSIGN_OR_RETURN(
           Node * hoisted_rev,
-          concat->function_base()->MakeNode<UnOp>(concat->users().at(0)->loc(),
-                                                  *riter, Op::kReverse));
+          concat->function_base()->MakeNode<UnOp>(
+              (*concat->users().begin())->loc(), *riter, Op::kReverse));
       new_operands.push_back(hoisted_rev);
     }
 

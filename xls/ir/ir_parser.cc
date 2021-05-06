@@ -934,7 +934,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
             split_name->node_id, output_name.value(), id_attribute->value(),
             op_token.pos().ToHumanString()));
       }
-      node->set_id(split_name->node_id);
+      node->SetId(split_name->node_id);
       if (split_name->op_name != OpToString(node->op())) {
         return absl::InvalidArgumentError(absl::StrFormat(
             "The substring '%s' in node name %s does not match the node op "
@@ -949,7 +949,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
       XLS_RET_CHECK(node->HasAssignedName());
       // Also set the ID to the attribute ID (if given).
       if (id_attribute->has_value()) {
-        node->set_id(id_attribute->value());
+        node->SetId(id_attribute->value());
       }
     }
   }

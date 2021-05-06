@@ -39,7 +39,7 @@ fn main(p: bits[8], q: bits[8]) -> bits[8] {
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<VerifiedPackage> p,
                              ParsePackage(kTestPackage));
     // Set an id to a duplicate value.
-    FindNode("add.2", p.get())->set_id(1);
+    FindNode("add.2", p.get())->SetId(1);
   }
 };
 

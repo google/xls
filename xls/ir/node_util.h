@@ -100,7 +100,7 @@ inline bool SoleUserSatisfies(Node* node,
   if (node->users().size() != 1) {
     return false;
   }
-  return predicate(node->users()[0]);
+  return predicate(*node->users().begin());
 }
 
 inline bool IsNotOf(const Node* node, const Node* inverted) {

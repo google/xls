@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -181,8 +182,22 @@ class Node {
   // Returns a string with the user of users; e.g. "{add.3, sub.7}".
   std::string GetUsersString() const;
 
+  // Comparator used for sorting by node ID.
+  struct NodeIdLessThan {
+    bool operator()(const Node* a, const Node* b) const {
+      // Params may have duplicate node ids so compare pointers if id's match.
+      // TODO(b/138805124): 2019/08/19 Figure out how to represent param uids in
+      // the textual IR so parameters can get unique ids like all other nodes
+      // rather than being unconditionally numbered from zero.
+      if (a->id() == b->id()) {
+        return a < b;
+      }
+      return a->id() < b->id();
+    }
+  };
+
   // Returns the unique set of users of this node sorted by id.
-  absl::Span<Node* const> users() const { return users_; }
+  const absl::btree_set<Node*, NodeIdLessThan>& users() const { return users_; }
 
   // Helper for querying whether "target" is a user of this node.
   bool HasUser(const Node* target) const;
@@ -209,9 +224,11 @@ class Node {
 
   int64_t id() const { return id_; }
 
-  // Note: use with caution, the id should be unique among all nodes in a
-  // function.
-  void set_id(int64_t id);
+  // Sets the id of the node. Mutates the user sets of the operands of the node
+  // because user sets are sorted by id.  Note: this should only be used by the
+  // parser and ideally not even there.
+  // TODO(meheff): 2021/05/05 Remove this method.
+  void SetId(int64_t id);
 
   // Clones the node with the new operands. Returns the newly created
   // instruction.
@@ -265,8 +282,8 @@ class Node {
 
   std::vector<Node*> operands_;
 
-  absl::flat_hash_set<Node*> users_set_;
-  std::vector<Node*> users_;
+  // Set of users sorted by node_id for stability.
+  absl::btree_set<Node*, NodeIdLessThan> users_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Node& node) {

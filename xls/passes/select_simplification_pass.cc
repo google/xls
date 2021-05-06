@@ -1014,7 +1014,7 @@ absl::StatusOr<bool> SpecializeSelectArms(FunctionBase* func) {
           // The arm should have a single user (the select instruction) and it
           // should only appear once as an operand of the select.
           if (arm->users().size() != 1 ||
-              arm->users().front()->OperandInstanceCount(arm) != 1) {
+              (*arm->users().begin())->OperandInstanceCount(arm) != 1) {
             continue;
           }
           if (post_dominator_analysis->NodeIsPostDominatedBy(selector_user,

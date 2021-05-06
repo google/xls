@@ -330,8 +330,15 @@ bool ModuleBuilder::CanEmitAsInlineExpression(
     return false;
   }
 
-  absl::Span<Node* const> users =
-      users_of_expression.has_value() ? *users_of_expression : node->users();
+  std::vector<Node*> users_vec;
+  absl::Span<Node* const> users;
+  if (users_of_expression.has_value()) {
+    users = *users_of_expression;
+  } else {
+    users_vec.insert(users_vec.begin(), node->users().begin(),
+                     node->users().end());
+    users = users_vec;
+  }
   for (Node* user : users) {
     for (int64_t i = 0; i < user->operand_count(); ++i) {
       if (user->operand(i) == node && OperandMustBeNamedReference(user, i)) {

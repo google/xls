@@ -68,19 +68,9 @@ absl::Status Node::AddNodeToFunctionAndReplace(
   return ReplaceUsesWith(replacement_ptr);
 }
 
-void Node::AddUser(Node* user) {
-  auto insert_result = users_set_.insert(user);
-  if (insert_result.second) {
-    users_.push_back(user);
-    // Keep the users sequence sorted by ordinal for stability.
-    absl::c_sort(users_, [](Node* a, Node* b) { return a->id() < b->id(); });
-  }
-}
+void Node::AddUser(Node* user) { users_.insert(user); }
 
-void Node::RemoveUser(Node* user) {
-  users_set_.erase(user);
-  users_.erase(std::remove(users_.begin(), users_.end(), user), users_.end());
-}
+void Node::RemoveUser(Node* user) { XLS_CHECK_EQ(users_.erase(user), 1); }
 
 absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
   switch (op()) {
@@ -549,7 +539,7 @@ std::string Node::GetUsersString() const {
 }
 
 bool Node::HasUser(const Node* target) const {
-  return users_set_.find(const_cast<Node*>(target)) != users_set_.end();
+  return users_.contains(const_cast<Node*>(target));
 }
 
 bool Node::IsDead() const {
@@ -576,8 +566,17 @@ int64_t Node::OperandInstanceCount(const Node* target) const {
   return count;
 }
 
-void Node::set_id(int64_t id) {
+void Node::SetId(int64_t id) {
+  // The data structure (btree) containing the users of each node is sorted by
+  // node id. To avoid violating invariants of the data structure, remove this
+  // node from all users lists, change id, then readd to users list.
+  for (Node* operand : operands()) {
+    operand->users_.erase(this);
+  }
   id_ = id;
+  for (Node* operand : operands()) {
+    operand->users_.insert(this);
+  }
   package()->set_next_node_id(std::max(id + 1, package()->next_node_id()));
 }
 

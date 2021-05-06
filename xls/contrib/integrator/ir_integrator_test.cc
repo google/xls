@@ -597,7 +597,7 @@ TEST_F(IntegratorTest, UnifyIntegrationNodesDifferentNodes) {
   XLS_ASSERT_OK_AND_ASSIGN(Node * mux_sel,
                            integration->function()->GetNode(select_name));
   EXPECT_EQ(mux_sel->users().size(), 1);
-  Node* mux = mux_sel->users().at(0);
+  Node* mux = *mux_sel->users().begin();
   EXPECT_EQ(unity.node, mux);
   EXPECT_THAT(unity.node,
               m::Select(m::Param(select_name),
@@ -635,7 +635,7 @@ TEST_F(IntegratorTest, UnifyIntegrationNodesDifferentNodesRepeated) {
   XLS_ASSERT_OK_AND_ASSIGN(Node * mux_sel,
                            integration->function()->GetNode(select_name));
   EXPECT_EQ(mux_sel->users().size(), 1);
-  Node* mux = mux_sel->users().at(0);
+  Node* mux = *mux_sel->users().begin();
   EXPECT_EQ(unity.node, mux);
   EXPECT_THAT(unity.node,
               m::Select(m::Param(select_name),
@@ -678,7 +678,7 @@ TEST_F(IntegratorTest,
   XLS_ASSERT_OK_AND_ASSIGN(Node * mux_sel,
                            integration->function()->GetNode(select_name));
   EXPECT_EQ(mux_sel->users().size(), 1);
-  Node* mux = mux_sel->users().at(0);
+  Node* mux = *mux_sel->users().begin();
   EXPECT_EQ(unity.node, mux);
   EXPECT_THAT(unity.node,
               m::Select(m::Param(select_name),
@@ -1742,10 +1742,10 @@ TEST_F(IntegratorTest, UnifyNodeOperands) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, func_a->Clone("clone"));
   Node* a_in1 = FindNode("in1", func_a);
   Node* a_in2 = FindNode("in2", func_a);
-  Node* a_add = a_in1->users().at(0);
+  Node* a_add = *a_in1->users().begin();
   Node* b_in1 = FindNode("in1", func_b);
   Node* b_in2 = FindNode("in2", func_b);
-  Node* b_add = b_in1->users().at(0);
+  Node* b_add = *b_in1->users().begin();
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<IntegrationFunction> integration,
@@ -1780,10 +1780,10 @@ TEST_F(IntegratorTest, UnifyNodeOperandsMultipleMux) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, func_a->Clone("clone"));
   Node* a_in1 = FindNode("in1", func_a);
   Node* a_in2 = FindNode("in2", func_a);
-  Node* a_add = a_in1->users().at(0);
+  Node* a_add = *a_in1->users().begin();
   Node* b_in1 = FindNode("in1", func_b);
   Node* b_in2 = FindNode("in2", func_b);
-  Node* b_add = b_in1->users().at(0);
+  Node* b_add = *b_in1->users().begin();
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<IntegrationFunction> integration,
@@ -1822,9 +1822,9 @@ TEST_F(IntegratorTest, UnifyNodeOperandsRepeatedMux) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, func_a->Clone("clone"));
   Node* a_in1 = FindNode("in1", func_a);
-  Node* a_add = a_in1->users().at(0);
+  Node* a_add = *a_in1->users().begin();
   Node* b_in1 = FindNode("in1", func_b);
-  Node* b_add = b_in1->users().at(0);
+  Node* b_add = *b_in1->users().begin();
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<IntegrationFunction> integration,
@@ -1857,10 +1857,10 @@ TEST_F(IntegratorTest, UnifyNodeOperandsNoAddedMuxes) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, func_a->Clone("clone"));
   Node* a_in1 = FindNode("in1", func_a);
   Node* a_in2 = FindNode("in2", func_a);
-  Node* a_add = a_in1->users().at(0);
+  Node* a_add = *a_in1->users().begin();
   Node* b_in1 = FindNode("in1", func_b);
   Node* b_in2 = FindNode("in2", func_b);
-  Node* b_add = b_in1->users().at(0);
+  Node* b_add = *b_in1->users().begin();
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<IntegrationFunction> integration,
@@ -1892,13 +1892,13 @@ TEST_F(IntegratorTest, UnifyNodeOperandsGlobalMuxSelect) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_c, func_a->Clone("func_c"));
   Node* a_in1 = FindNode("in1", func_a);
   Node* a_in2 = FindNode("in2", func_a);
-  Node* a_cat = a_in1->users().at(0);
+  Node* a_cat = *a_in1->users().begin();
   Node* b_in1 = FindNode("in1", func_b);
   Node* b_in2 = FindNode("in2", func_b);
-  Node* b_cat = b_in1->users().at(0);
+  Node* b_cat = *b_in1->users().begin();
   Node* c_in1 = FindNode("in1", func_c);
   Node* c_in2 = FindNode("in2", func_c);
-  Node* c_cat = c_in1->users().at(0);
+  Node* c_cat = *c_in1->users().begin();
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<IntegrationFunction> integration,
@@ -1977,7 +1977,7 @@ TEST_F(IntegratorTest, MergeBackendErrorNonMappedInternal) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb.Build());
   Node* a_in1 = FindNode("in1", func_a);
   Node* a_in2 = FindNode("in2", func_a);
-  Node* a_add = a_in1->users().at(0);
+  Node* a_add = *a_in1->users().begin();
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<IntegrationFunction> integration,
@@ -2015,9 +2015,9 @@ TEST_F(IntegratorTest, MergeBackendErrorMappedExternal) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, func_a->Clone("clone"));
   Node* a_in1 = FindNode("in1", func_a);
-  Node* a_add = a_in1->users().at(0);
+  Node* a_add = *a_in1->users().begin();
   Node* b_in1 = FindNode("in1", func_b);
-  Node* b_add = b_in1->users().at(0);
+  Node* b_add = *b_in1->users().begin();
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<IntegrationFunction> integration,
@@ -2047,8 +2047,8 @@ TEST_F(IntegratorTest, MergeBackendNodeSourceFunctionsCollide) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb.Build());
   Node* a_in1 = FindNode("in1", func_a);
   Node* a_in3 = FindNode("in3", func_a);
-  Node* a_add1 = a_in1->users().at(0);
-  Node* a_add2 = a_in3->users().at(0);
+  Node* a_add1 = *a_in1->users().begin();
+  Node* a_add2 = *a_in3->users().begin();
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<IntegrationFunction> integration,
@@ -2074,9 +2074,9 @@ TEST_F(IntegratorTest, MergeBackendDoNotMergeIncompatible) {
   fb_b.Concat({b_in1, b_in2});
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, fb_b.Build());
   Node* a_in1_node = FindNode("in1", func_a);
-  Node* a_add_node = a_in1_node->users().at(0);
+  Node* a_add_node = *a_in1_node->users().begin();
   Node* b_in1_node = FindNode("in1", func_b);
-  Node* b_cat_node = b_in1_node->users().at(0);
+  Node* b_cat_node = *b_in1_node->users().begin();
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<IntegrationFunction> integration,
@@ -2255,7 +2255,7 @@ TEST_F(IntegratorTest, MergeCostInternalExternalOneMux) {
     EXPECT_TRUE(found_nodes.contains(target));
     if (used_by_add) {
       EXPECT_EQ(target->users().size(), 1);
-      EXPECT_EQ(target->users().front(), a_add_target);
+      EXPECT_EQ(*target->users().begin(), a_add_target);
     } else {
       EXPECT_TRUE(target->users().empty());
     }

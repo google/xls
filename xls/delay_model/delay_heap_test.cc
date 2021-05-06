@@ -143,10 +143,14 @@ absl::Status VerifyFrontier(const DelayHeap& heap) {
   for (Node* node : heap.frontier()) {
     EXPECT_TRUE(heap.contains(node));
     EXPECT_GE(last_cp, heap.CriticalPathDelay(node));
-    for (Node* succ : heap.direction() == Direction::kGrowsTowardUsers
-                          ? node->users()
-                          : node->operands()) {
-      EXPECT_FALSE(heap.contains(succ));
+    if (heap.direction() == Direction::kGrowsTowardUsers) {
+      for (Node* succ : node->users()) {
+        EXPECT_FALSE(heap.contains(succ));
+      }
+    } else {
+      for (Node* succ : node->operands()) {
+        EXPECT_FALSE(heap.contains(succ));
+      }
     }
     last_cp = heap.CriticalPathDelay(node);
   }

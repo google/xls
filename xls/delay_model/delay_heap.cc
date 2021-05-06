@@ -133,5 +133,16 @@ std::string DelayHeap::ToString() const {
   return out;
 }
 
+absl::Span<Node* const> DelayHeap::GetUsersSpan(Node* node) const {
+  auto it = users_vectors_.find(node);
+  if (it != users_vectors_.end()) {
+    return it->second;
+  }
+  std::vector<Node*>& users_vector = users_vectors_[node];
+  users_vector.insert(users_vector.begin(), node->users().begin(),
+                      node->users().end());
+  return users_vector;
+}
+
 }  // namespace sched
 }  // namespace xls
