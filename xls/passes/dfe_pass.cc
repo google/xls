@@ -23,7 +23,7 @@ namespace {
 void MarkReachedFunctions(Function* func,
                           absl::flat_hash_set<Function*>* reached) {
   reached->insert(func);
-  // iterate over statements and find invocations or references.
+  // Iterate over statements and find invocations or references.
   for (Node* node : func->nodes()) {
     switch (node->op()) {
       case Op::kCountedFor:

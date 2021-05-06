@@ -15,6 +15,8 @@
 #ifndef XLS_DSLX_PARSE_AND_TYPECHECK_H_
 #define XLS_DSLX_PARSE_AND_TYPECHECK_H_
 
+#include <filesystem>
+
 #include "xls/dslx/ast.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/type_info.h"
@@ -38,7 +40,7 @@ struct TypecheckedModule {
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     absl::string_view text, absl::string_view path,
     absl::string_view module_name, ImportData* import_data,
-    absl::Span<const std::string> additional_search_paths);
+    absl::Span<const std::filesystem::path> additional_search_paths);
 
 }  // namespace xls::dslx
 

@@ -82,7 +82,7 @@ class RunComparator {
 //   convert_options: Options used in IR conversion, see `ConvertOptions` for
 //    details.
 struct ParseAndTestOptions {
-  absl::Span<const std::string> dslx_paths = {};
+  absl::Span<const std::filesystem::path> dslx_paths = {};
   absl::optional<absl::string_view> test_filter = absl::nullopt;
   bool trace_all = false;
   FormatPreference trace_format_preference = FormatPreference::kDefault;

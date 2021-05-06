@@ -82,7 +82,7 @@ absl::StatusOr<std::string> PathToName(absl::string_view path) {
 
 absl::Status RealMain(absl::string_view path,
                       absl::optional<absl::string_view> entry,
-                      absl::Span<const std::string> dslx_paths,
+                      absl::Span<const std::filesystem::path> dslx_paths,
                       bool emit_fail_as_assert, bool* printed_error) {
   XLS_ASSIGN_OR_RETURN(std::string text, GetFileContents(path));
 
@@ -131,7 +131,14 @@ int main(int argc, char* argv[]) {
                     << "`; want " << argv[0] << " <input-file>";
   }
   std::string dslx_path = absl::GetFlag(FLAGS_dslx_path);
-  std::vector<std::string> dslx_paths = absl::StrSplit(dslx_path, ':');
+  std::vector<std::string> dslx_path_strs = absl::StrSplit(dslx_path, ':');
+
+  std::vector<std::filesystem::path> dslx_paths;
+  dslx_paths.reserve(dslx_path_strs.size());
+  for (const auto& path : dslx_path_strs) {
+    dslx_paths.push_back(std::filesystem::path(path));
+  }
+
   absl::optional<std::string> entry;
   if (!absl::GetFlag(FLAGS_entry).empty()) {
     entry = absl::GetFlag(FLAGS_entry);

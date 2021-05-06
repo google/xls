@@ -28,12 +28,11 @@ std::string FnStackEntry::ToReprString() const {
 
 bool FnStackEntry::Matches(const Function* f) const { return f == function_; }
 
-DeduceCtx::DeduceCtx(TypeInfo* type_info, Module* module,
-                     DeduceFn deduce_function,
-                     TypecheckFunctionFn typecheck_function,
-                     TypecheckFn typecheck_module,
-                     absl::Span<std::string const> additional_search_paths,
-                     ImportData* import_data)
+DeduceCtx::DeduceCtx(
+    TypeInfo* type_info, Module* module, DeduceFn deduce_function,
+    TypecheckFunctionFn typecheck_function, TypecheckFn typecheck_module,
+    absl::Span<const std::filesystem::path> additional_search_paths,
+    ImportData* import_data)
     : type_info_(type_info),
       module_(module),
       deduce_function_(std::move(XLS_DIE_IF_NULL(deduce_function))),

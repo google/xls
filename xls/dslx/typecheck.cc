@@ -762,9 +762,9 @@ static absl::Status CheckModuleMember(ModuleMember member, Module* module,
 
 absl::StatusOr<TypeInfo*> CheckModule(
     Module* module, ImportData* import_data,
-    absl::Span<const std::string> additional_search_paths) {
+    absl::Span<const std::filesystem::path> additional_search_paths) {
   // Create a deduction context to use for checking this module.
-  std::vector<std::string> additional_search_paths_copy(
+  std::vector<std::filesystem::path> additional_search_paths_copy(
       additional_search_paths.begin(), additional_search_paths.end());
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data->type_info_owner().New(module));

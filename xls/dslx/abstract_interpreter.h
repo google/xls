@@ -74,7 +74,8 @@ class AbstractInterpreter {
   }
 
   // Returns the additional search paths to use on import.
-  virtual absl::Span<std::string const> GetAdditionalSearchPaths() = 0;
+  virtual absl::Span<const std::filesystem::path>
+  GetAdditionalSearchPaths() = 0;
 
   // RAII type that can be use to swap the type information on an
   // AbstractInterpreter to a new value within a given lifetime.

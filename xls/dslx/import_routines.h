@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_IMPORT_ROUTINES_H_
 #define XLS_DSLX_IMPORT_ROUTINES_H_
 
+#include <filesystem>
 #include <string>
 
 #include "xls/dslx/ast.h"
@@ -46,7 +47,7 @@ using TypecheckFn = std::function<absl::StatusOr<TypeInfo*>(Module*)>;
 //  The imported module information.
 absl::StatusOr<const ModuleInfo*> DoImport(
     const TypecheckFn& ftypecheck, const ImportTokens& subject,
-    absl::Span<std::string const> additional_search_paths,
+    absl::Span<const std::filesystem::path> additional_search_paths,
     ImportData* import_data, const Span& import_span);
 
 }  // namespace xls::dslx

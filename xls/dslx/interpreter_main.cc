@@ -55,7 +55,7 @@ Parses, typechecks, and executes all tests inside of a DSLX module.
 )";
 
 absl::Status RealMain(absl::string_view entry_module_path,
-                      absl::Span<const std::string> dslx_paths,
+                      absl::Span<const std::filesystem::path> dslx_paths,
                       absl::optional<std::string> test_filter, bool trace_all,
                       FormatPreference trace_format_preference,
                       CompareFlag compare_flag, bool execute,
@@ -100,7 +100,12 @@ int main(int argc, char* argv[]) {
                     << "`; want " << argv[0] << " <input-file>";
   }
   std::string dslx_path = absl::GetFlag(FLAGS_dslx_path);
-  std::vector<std::string> dslx_paths = absl::StrSplit(dslx_path, ':');
+  std::vector<std::string> dslx_path_strs = absl::StrSplit(dslx_path, ':');
+  std::vector<std::filesystem::path> dslx_paths;
+  dslx_paths.reserve(dslx_path_strs.size());
+  for (const auto& path : dslx_path_strs) {
+    dslx_paths.push_back(std::filesystem::path(path));
+  }
 
   bool trace_all = absl::GetFlag(FLAGS_trace_all);
   std::string compare_flag_str = absl::GetFlag(FLAGS_compare);

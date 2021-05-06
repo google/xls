@@ -25,7 +25,7 @@ namespace xls::dslx {
 
 static absl::StatusOr<std::filesystem::path> FindExistingPath(
     const ImportTokens& subject,
-    absl::Span<const std::string> additional_search_paths,
+    absl::Span<const std::filesystem::path> additional_search_paths,
     const Span& import_span) {
   absl::Span<std::string const> pieces = subject.pieces();
   std::string subject_path;
@@ -43,8 +43,10 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
   std::vector<std::string> attempted;
 
   // Helper that tries to see if "path" is present relative to "base".
-  auto try_path = [&attempted](absl::string_view base, absl::string_view path)
-      -> absl::optional<std::filesystem::path> {
+  auto try_path =
+      [&attempted](
+          const std::filesystem::path& base,
+          absl::string_view path) -> absl::optional<std::filesystem::path> {
     auto full_path = std::filesystem::path(base) / path;
     XLS_VLOG(3) << "Trying path: " << full_path;
     attempted.push_back(std::string(full_path));
@@ -55,9 +57,9 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
     return absl::nullopt;
   };
   // Helper that tries to see if the path/parent_path are present
-  auto try_paths =
-      [&try_path, subject_path, subject_parent_path](
-          absl::string_view base) -> absl::optional<std::filesystem::path> {
+  auto try_paths = [&try_path, subject_path,
+                    subject_parent_path](const std::filesystem::path& base)
+      -> absl::optional<std::filesystem::path> {
     if (auto result = try_path(base, subject_path)) {
       return *result;
     }
@@ -102,7 +104,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
   }
 
   // Look through the externally-supplied additional search paths.
-  for (const std::string& search_path : additional_search_paths) {
+  for (const std::filesystem::path& search_path : additional_search_paths) {
     XLS_VLOG(3) << "Attempting search path root: " << search_path;
     if (auto found = try_paths(search_path)) {
       return *found;
@@ -119,7 +121,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
 
 absl::StatusOr<const ModuleInfo*> DoImport(
     const TypecheckFn& ftypecheck, const ImportTokens& subject,
-    absl::Span<const std::string> additional_search_paths,
+    absl::Span<const std::filesystem::path> additional_search_paths,
     ImportData* import_data, const Span& import_span) {
   XLS_RET_CHECK(import_data != nullptr);
   if (import_data->Contains(subject)) {

@@ -576,11 +576,27 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "opt",
+    srcs = ["opt.cc"],
+    hdrs = ["opt.h"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/dslx:ir_converter",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/ir:ir_parser",
+        "//xls/passes",
+        "//xls/passes:standard_pipeline",
+    ],
+)
+
 cc_binary(
     name = "opt_main",
     srcs = ["opt_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":opt",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:init_xls",

@@ -25,6 +25,7 @@
 #include "xls/ir/package.h"
 #include "xls/passes/passes.h"
 #include "xls/passes/standard_pipeline.h"
+#include "xls/tools/opt.h"
 
 ABSL_FLAG(std::string, entry, "", "Entry function name to optimize.");
 ABSL_FLAG(std::string, ir_dump_path, "",
@@ -41,40 +42,35 @@ ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel,
           absl::StrFormat("Optimization level. Ranges from 1 to %d.",
                           xls::kMaxOptLevel));
 
-namespace xls {
+namespace xls::tools {
 namespace {
 
 absl::Status RealMain(absl::string_view input_path) {
   if (input_path == "-") {
     input_path = "/dev/stdin";
   }
-  XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(input_path));
-  std::unique_ptr<Package> package;
-  if (absl::GetFlag(FLAGS_entry).empty()) {
-    XLS_ASSIGN_OR_RETURN(package, Parser::ParsePackage(contents, input_path));
-  } else {
-    XLS_ASSIGN_OR_RETURN(package,
-                         Parser::ParsePackageWithEntry(
-                             contents, absl::GetFlag(FLAGS_entry), input_path));
-  }
-  std::unique_ptr<CompoundPass> pipeline =
-      CreateStandardPassPipeline(absl::GetFlag(FLAGS_opt_level));
-  PassOptions options;
-  options.ir_dump_path = absl::GetFlag(FLAGS_ir_dump_path);
-  if (!absl::GetFlag(FLAGS_run_only_passes).empty()) {
-    options.run_only_passes = absl::GetFlag(FLAGS_run_only_passes);
-  }
-  if (!absl::GetFlag(FLAGS_skip_passes).empty()) {
-    options.skip_passes = absl::GetFlag(FLAGS_skip_passes);
-  }
-  PassResults results;
-  XLS_RETURN_IF_ERROR(pipeline->Run(package.get(), options, &results).status());
-  std::cout << package->DumpIr();
+  XLS_ASSIGN_OR_RETURN(std::string ir, GetFileContents(input_path));
+  std::string entry = absl::GetFlag(FLAGS_entry);
+  std::string ir_dump_path = absl::GetFlag(FLAGS_ir_dump_path);
+  std::vector<std::string> run_only_passes =
+      absl::GetFlag(FLAGS_run_only_passes);
+  const OptOptions options = {
+      .opt_level = absl::GetFlag(FLAGS_opt_level),
+      .entry = entry,
+      .ir_dump_path = ir_dump_path,
+      .run_only_passes = run_only_passes.empty()
+                             ? absl::nullopt
+                             : absl::make_optional(std::move(run_only_passes)),
+      .skip_passes = absl::GetFlag(FLAGS_skip_passes),
+  };
+  XLS_ASSIGN_OR_RETURN(std::string opt_ir,
+                       tools::OptimizeIrForEntry(ir, options));
+  std::cout << opt_ir;
   return absl::OkStatus();
 }
 
 }  // namespace
-}  // namespace xls
+}  // namespace xls::tools
 
 int main(int argc, char **argv) {
   std::vector<absl::string_view> positional_arguments =
@@ -85,6 +81,6 @@ int main(int argc, char **argv) {
                                           argv[0]);
   }
 
-  XLS_QCHECK_OK(xls::RealMain(positional_arguments[0]));
+  XLS_QCHECK_OK(xls::tools::RealMain(positional_arguments[0]));
   return EXIT_SUCCESS;
 }

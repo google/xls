@@ -361,6 +361,7 @@ cc_library(
     name = "xls_gunit_main",
     testonly = True,
     srcs = ["xls_gunit_main.cc"],
+    visibility = ["//xls:xls_utility_users"],
     deps = [
         ":init_xls",
         "@com_google_googletest//:gtest",

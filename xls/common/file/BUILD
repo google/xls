@@ -40,6 +40,7 @@ cc_library(
     name = "filesystem",
     srcs = ["filesystem.cc"],
     hdrs = ["filesystem.h"],
+    visibility = ["//xls:xls_utility_users"],
     deps = [
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -81,6 +82,7 @@ cc_library(
     name = "get_runfile_path",
     srcs = ["get_runfile_path.cc"],
     hdrs = ["get_runfile_path.h"],
+    visibility = ["//xls:xls_utility_users"],
     deps = [
         ":filesystem",
         "@com_google_absl//absl/status",
@@ -133,6 +135,7 @@ cc_library(
     name = "temp_directory",
     srcs = ["temp_directory.cc"],
     hdrs = ["temp_directory.h"],
+    visibility = ["//xls:xls_utility_users"],
     deps = [
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

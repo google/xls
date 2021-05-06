@@ -23,7 +23,7 @@ namespace xls::dslx {
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     absl::string_view text, absl::string_view path,
     absl::string_view module_name, ImportData* import_data,
-    absl::Span<const std::string> additional_search_paths) {
+    absl::Span<const std::filesystem::path> additional_search_paths) {
   Scanner scanner{std::string{path}, std::string{text}};
   Parser parser(std::string{module_name}, &scanner);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());

@@ -108,7 +108,7 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
     interp_->current_type_info_ = updated;
   }
   ImportData* GetImportData() override { return interp_->import_data_; }
-  absl::Span<std::string const> GetAdditionalSearchPaths() override {
+  absl::Span<const std::filesystem::path> GetAdditionalSearchPaths() override {
     return interp_->additional_search_paths_;
   }
   FormatPreference GetTraceFormatPreference() const override {
@@ -119,11 +119,11 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
   Interpreter* interp_;
 };
 
-Interpreter::Interpreter(Module* entry_module, TypecheckFn typecheck,
-                         absl::Span<std::string const> additional_search_paths,
-                         ImportData* import_data, bool trace_all,
-                         FormatPreference trace_format_preference,
-                         PostFnEvalHook post_fn_eval_hook)
+Interpreter::Interpreter(
+    Module* entry_module, TypecheckFn typecheck,
+    absl::Span<const std::filesystem::path> additional_search_paths,
+    ImportData* import_data, bool trace_all,
+    FormatPreference trace_format_preference, PostFnEvalHook post_fn_eval_hook)
     : entry_module_(entry_module),
       current_type_info_(import_data->GetRootTypeInfo(entry_module).value()),
       post_fn_eval_hook_(std::move(post_fn_eval_hook)),
@@ -196,7 +196,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
 
 /* static */ absl::StatusOr<InterpValue> Interpreter::InterpretExpr(
     Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
-    absl::Span<std::string const> additional_search_paths,
+    absl::Span<const std::filesystem::path> additional_search_paths,
     ImportData* import_data,
     const absl::flat_hash_map<std::string, InterpValue>& env, Expr* expr,
     const FnCtx* fn_ctx, ConcreteType* type_context) {
@@ -230,7 +230,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
 
 /* static */ absl::StatusOr<Bits> Interpreter::InterpretExprToBits(
     Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
-    absl::Span<std::string const> additional_search_paths,
+    absl::Span<const std::filesystem::path> additional_search_paths,
     ImportData* import_data,
     const absl::flat_hash_map<std::string, InterpValue>& env, Expr* expr,
     const FnCtx* fn_ctx, ConcreteType* type_context) {

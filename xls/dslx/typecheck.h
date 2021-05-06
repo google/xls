@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_TYPECHECK_H_
 #define XLS_DSLX_TYPECHECK_H_
 
+#include <filesystem>
 #include <memory>
 #include <vector>
 
@@ -40,7 +41,7 @@ absl::Status CheckTopNodeInModule(
 // deduced/checked type. The owner for the type info is within the import_cache.
 absl::StatusOr<TypeInfo*> CheckModule(
     Module* module, ImportData* import_data,
-    absl::Span<const std::string> additional_search_paths);
+    absl::Span<const std::filesystem::path> additional_search_paths);
 
 }  // namespace xls::dslx
 

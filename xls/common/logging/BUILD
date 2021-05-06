@@ -108,6 +108,7 @@ cc_library(
     name = "log_lines",
     srcs = ["log_lines.cc"],
     hdrs = ["log_lines.h"],
+    visibility = ["//xls:xls_utility_users"],
     deps = [
         ":logging",
         ":vlog_is_on",

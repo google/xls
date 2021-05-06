@@ -300,11 +300,6 @@ absl::Status CommandHelp() {
 absl::Status CommandReload() {
   Globals* globals = GetSingletonGlobals();
 
-  // This makes an empty paths list, since we don't yet support passing in a
-  // custom paths list.
-  std::vector<std::string> dslx_paths_temp;
-  absl::Span<const std::string> dslx_paths(dslx_paths_temp);
-
   XLS_ASSIGN_OR_RETURN(std::string dslx_contents,
                        GetFileContents(globals->dslx_path));
 
@@ -323,9 +318,9 @@ absl::Status CommandReload() {
     return absl::OkStatus();
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      globals->type_info,
-      CheckModule(globals->module.get(), &globals->import_data, dslx_paths));
+  XLS_ASSIGN_OR_RETURN(globals->type_info,
+                       CheckModule(globals->module.get(), &globals->import_data,
+                                   /*dslx_paths=*/{}));
 
   PopulateIdentifierTrie();
 
