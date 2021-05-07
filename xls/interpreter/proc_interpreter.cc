@@ -17,6 +17,8 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/log_lines.h"
+#include "xls/ir/node_iterator.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {

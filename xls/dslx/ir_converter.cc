@@ -33,6 +33,7 @@
 #include "xls/dslx/extract_conversion_order.h"
 #include "xls/dslx/interpreter.h"
 #include "xls/dslx/mangle.h"
+#include "xls/ir/function.h"
 #include "xls/ir/lsb_or_msb.h"
 
 namespace xls::dslx {

@@ -37,3 +37,11 @@ cc_library(
         "//xls/tools:opt",
     ],
 )
+
+cc_library(
+    name = "function_builder",
+    hdrs = ["function_builder.h"],
+    deps = [
+        "//xls/ir:function_builder",
+    ],
+)

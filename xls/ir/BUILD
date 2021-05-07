@@ -222,6 +222,7 @@ cc_library(
     visibility = ["//xls:xls_users"],
     deps = [
         ":ir",
+        ":op",
         ":source_location",
         ":value",
         "//xls/common:symbolized_stacktrace",

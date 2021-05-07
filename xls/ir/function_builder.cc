@@ -19,11 +19,45 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/symbolized_stacktrace.h"
+#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/verifier.h"
 
 namespace xls {
+
+Type* BValue::GetType() const { return node()->GetType(); }
+
+int64_t BValue::BitCountOrDie() const { return node()->BitCountOrDie(); }
+
+absl::optional<SourceLocation> BValue::loc() const { return node_->loc(); }
+
+std::string BValue::ToString() const {
+  return node_ == nullptr ? std::string("<null BValue>") : node_->ToString();
+}
+
+std::string BValue::SetName(absl::string_view name) {
+  if (node_ != nullptr) {
+    node_->SetName(name);
+  }
+  return "";
+}
+
+std::string BValue::GetName() const {
+  if (node_ != nullptr) {
+    return node_->GetName();
+  }
+  return "";
+}
+
+bool BValue::HasAssignedName() const {
+  if (node_ != nullptr) {
+    return node_->HasAssignedName();
+  }
+  return false;
+}
 
 BValue BValue::operator>>(BValue rhs) { return builder()->Shrl(*this, rhs); }
 BValue BValue::operator<<(BValue rhs) { return builder()->Shll(*this, rhs); }
@@ -33,6 +67,22 @@ BValue BValue::operator*(BValue rhs) { return builder()->UMul(*this, rhs); }
 BValue BValue::operator-(BValue rhs) { return builder()->Subtract(*this, rhs); }
 BValue BValue::operator+(BValue rhs) { return builder()->Add(*this, rhs); }
 BValue BValue::operator-() { return builder()->Negate(*this); }
+
+template <typename NodeT, typename... Args>
+BValue BuilderBase::AddNode(absl::optional<SourceLocation> loc,
+                            Args&&... args) {
+  last_node_ = function_->AddNode<NodeT>(absl::make_unique<NodeT>(
+      loc, std::forward<Args>(args)..., function_.get()));
+  if (should_verify_) {
+    absl::Status verify_status = VerifyNode(last_node_);
+    if (!verify_status.ok()) {
+      return SetError(verify_status.message(), loc);
+    }
+  }
+  return BValue(last_node_, this);
+}
+
+const std::string& BuilderBase::name() const { return function_->name(); }
 
 BValue BuilderBase::SetError(absl::string_view msg,
                              absl::optional<SourceLocation> loc) {
@@ -848,6 +898,11 @@ BValue BuilderBase::Concat(absl::Span<const BValue> operands,
   return AddNode<xls::Concat>(loc, node_operands, name);
 }
 
+FunctionBuilder::FunctionBuilder(absl::string_view name, Package* package,
+                                 bool should_verify)
+    : BuilderBase(absl::make_unique<Function>(std::string(name), package),
+                  should_verify) {}
+
 BValue FunctionBuilder::Param(absl::string_view name, Type* type,
                               absl::optional<SourceLocation> loc) {
   if (ErrorPending()) {
@@ -935,6 +990,21 @@ absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
   return f;
 }
 
+ProcBuilder::ProcBuilder(absl::string_view name, const Value& init_value,
+                         absl::string_view token_name,
+                         absl::string_view state_name, Package* package,
+                         bool should_verify)
+    : BuilderBase(absl::make_unique<Proc>(name, init_value, token_name,
+                                          state_name, package),
+                  should_verify),
+      // The parameter nodes are added at construction time. Create a BValue
+      // for each param node so they may be used in construction of
+      // expressions.
+      token_param_(proc()->TokenParam(), this),
+      state_param_(proc()->StateParam(), this) {}
+
+Proc* ProcBuilder::proc() const { return down_cast<Proc*>(function()); }
+
 absl::StatusOr<Proc*> ProcBuilder::Build(BValue token, BValue next_state) {
   if (ErrorPending()) {
     std::string msg = error_msg_ + " ";
@@ -978,6 +1048,16 @@ BValue ProcBuilder::Param(absl::string_view name, Type* type,
   }
   return SetError("Cannot add parameters to procs", loc);
 }
+
+BuilderBase::BuilderBase(std::unique_ptr<FunctionBase> function,
+                         bool should_verify)
+    : function_(std::move(function)),
+      error_pending_(false),
+      should_verify_(should_verify) {}
+
+BuilderBase::~BuilderBase() = default;
+
+Package* BuilderBase::package() const { return function_->package(); }
 
 BValue BuilderBase::AddArithOp(Op op, BValue lhs, BValue rhs,
                                absl::optional<int64_t> result_width,

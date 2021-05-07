@@ -15,18 +15,31 @@
 #ifndef XLS_IR_FUNCTION_BUILDER_H_
 #define XLS_IR_FUNCTION_BUILDER_H_
 
+// NOTE: We're trying to keep the API minimal here to not drag too much into
+// publicly-exposed APIs (FunctionBuilder/ProcBuilder are publicly exposed), so
+// forward decls are used.
+//
+// To this end, DO NOT add node/function headers here.
+
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/logging/logging.h"
-#include "xls/ir/function.h"
-#include "xls/ir/proc.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/ir/lsb_or_msb.h"
+#include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 
 namespace xls {
 
 class BuilderBase;
+class Channel;
+class Function;
+class FunctionBase;
 class Node;
+class Package;
+class Proc;
+class Type;
 
 // Represents a value for use in the function-definition building process,
 // supports some basic C++ operations that have a natural correspondence to the
@@ -43,12 +56,10 @@ class BValue {
   BuilderBase* builder() const { return builder_; }
 
   Node* node() const { return node_; }
-  Type* GetType() const { return node()->GetType(); }
-  int64_t BitCountOrDie() const { return node()->BitCountOrDie(); }
-  absl::optional<SourceLocation> loc() const { return node_->loc(); }
-  std::string ToString() const {
-    return node_ == nullptr ? std::string("<null BValue>") : node_->ToString();
-  }
+  Type* GetType() const;
+  int64_t BitCountOrDie() const;
+  absl::optional<SourceLocation> loc() const;
+  std::string ToString() const;
 
   bool valid() const {
     XLS_CHECK_EQ(node_ == nullptr, builder_ == nullptr);
@@ -56,29 +67,14 @@ class BValue {
   }
 
   // Sets the name of the node.
-  std::string SetName(absl::string_view name) {
-    if (node_ != nullptr) {
-      node_->SetName(name);
-    }
-    return "";
-  }
+  std::string SetName(absl::string_view name);
 
   // Returns the name of the node.
-  std::string GetName() const {
-    if (node_ != nullptr) {
-      return node_->GetName();
-    }
-    return "";
-  }
+  std::string GetName() const;
 
   // Returns whether the node has been assigned a name. Nodes without assigned
   // names have names generated from the opcode and unique id.
-  bool HasAssignedName() const {
-    if (node_ != nullptr) {
-      return node_->HasAssignedName();
-    }
-    return false;
-  }
+  bool HasAssignedName() const;
 
   BValue operator>>(BValue rhs);
   BValue operator<<(BValue rhs);
@@ -115,13 +111,10 @@ class BuilderBase {
   // 'should_verify' is a test-only argument which can be set to false in tests
   // that wish to build malformed IR.
   explicit BuilderBase(std::unique_ptr<FunctionBase> function,
-                       bool should_verify = true)
-      : function_(std::move(function)),
-        error_pending_(false),
-        should_verify_(should_verify) {}
-  virtual ~BuilderBase() = default;
+                       bool should_verify = true);
+  virtual ~BuilderBase();
 
-  const std::string& name() const { return function_->name(); }
+  const std::string& name() const;
 
   // Get access to currently built up function (or proc).
   FunctionBase* function() const { return function_.get(); }
@@ -520,7 +513,7 @@ class BuilderBase {
                 absl::string_view name = "");
 
   // Retrieves the type of "value" and returns it.
-  Type* GetType(BValue value) { return value.node()->GetType(); }
+  Type* GetType(const BValue& value) { return value.GetType(); }
 
   // Adds a Arith/UnOp/BinOp/CompareOp to the function. Exposed for
   // programmatically adding these ops using with variable Op values.
@@ -578,7 +571,7 @@ class BuilderBase {
                         absl::optional<SourceLocation> loc = absl::nullopt,
                         absl::string_view name = "") = 0;
 
-  Package* package() const { return function_->package(); }
+  Package* package() const;
 
   // Returns the last node enqueued onto this builder -- when Build() is called
   // this is what is used as the return value.
@@ -594,17 +587,7 @@ class BuilderBase {
   // Constructs and adds a node to the function and returns a corresponding
   // BValue.
   template <typename NodeT, typename... Args>
-  BValue AddNode(absl::optional<SourceLocation> loc, Args&&... args) {
-    last_node_ = function_->AddNode<NodeT>(absl::make_unique<NodeT>(
-        loc, std::forward<Args>(args)..., function_.get()));
-    if (should_verify_) {
-      absl::Status verify_status = VerifyNode(last_node_);
-      if (!verify_status.ok()) {
-        return SetError(verify_status.message(), loc);
-      }
-    }
-    return BValue(last_node_, this);
-  }
+  BValue AddNode(absl::optional<SourceLocation> loc, Args&&... args);
 
   // The most recently added node to the function.
   Node* last_node_ = nullptr;
@@ -629,9 +612,7 @@ class FunctionBuilder : public BuilderBase {
   // Builder for xls::Functions. 'should_verify' is a test-only argument which
   // can be set to false in tests that wish to build malformed IR.
   FunctionBuilder(absl::string_view name, Package* package,
-                  bool should_verify = true)
-      : BuilderBase(absl::make_unique<Function>(std::string(name), package),
-                    should_verify) {}
+                  bool should_verify = true);
   virtual ~FunctionBuilder() = default;
 
   BValue Param(absl::string_view name, Type* type,
@@ -667,19 +648,11 @@ class ProcBuilder : public BuilderBase {
   // be set to false in tests that wish to build malformed IR.
   ProcBuilder(absl::string_view name, const Value& init_value,
               absl::string_view token_name, absl::string_view state_name,
-              Package* package, bool should_verify = true)
-      : BuilderBase(absl::make_unique<Proc>(name, init_value, token_name,
-                                            state_name, package),
-                    should_verify),
-        // The parameter nodes are added at construction time. Create a BValue
-        // for each param node so they may be used in construction of
-        // expressions.
-        token_param_(proc()->TokenParam(), this),
-        state_param_(proc()->StateParam(), this) {}
+              Package* package, bool should_verify = true);
   virtual ~ProcBuilder() = default;
 
   // Returns the Proc being constructed.
-  Proc* proc() const { return down_cast<Proc*>(function()); }
+  Proc* proc() const;
 
   // Returns the Param BValue for the state or token parameter. Unlike
   // BuilderBase::Param this does add a Param node to the Proc. Rather the state
