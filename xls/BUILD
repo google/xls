@@ -49,6 +49,17 @@ package_group(
     packages = ["//..."],
 )
 
+# "Best effort" users are ones that are using some XLS internals
+# (ideally temporarily) and are agreeing to be broken at any
+# time if we can't figure out how to fix them, since we need to
+# be able to evolve XLS innards as necessary.
+package_group(
+    name = "xls_best_effort_users",
+    # Everything best effort users can see is also visible internally.
+    includes = [":xls_internal"],
+    packages = ["//..."],
+)
+
 package(
     default_visibility = [":xls_internal"],
     licenses = ["notice"],  # Apache 2.0

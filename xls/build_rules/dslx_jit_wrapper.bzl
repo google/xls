@@ -62,10 +62,9 @@ def dslx_jit_wrapper(
             "@com_google_absl//absl/status",
             "//xls/common/status:status_macros",
             "@com_google_absl//absl/status:statusor",
-            "//xls/ir",
+            "//xls/public:function_builder",
+            "//xls/public:value",
             "//xls/ir:ir_parser",
-            "//xls/ir:value",
-            "//xls/ir:value_view",
             "//xls/jit:ir_jit",
         ],
     )

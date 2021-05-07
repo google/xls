@@ -45,3 +45,13 @@ cc_library(
         "//xls/ir:function_builder",
     ],
 )
+
+cc_library(
+    name = "value",
+    hdrs = ["value.h"],
+    deps = [
+        "//xls/ir:bits",
+        "//xls/ir:value",
+        "//xls/ir:value_view",
+    ],
+)

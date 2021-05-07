@@ -49,7 +49,6 @@ cc_library(
     name = "bits",
     srcs = ["bits.cc"],
     hdrs = ["bits.h"],
-    visibility = ["//xls:xls_users"],
     deps = [
         ":bit_push_buffer",
         ":format_preference",
@@ -98,7 +97,7 @@ cc_library(
     name = "type",
     srcs = ["type.cc"],
     hdrs = ["type.h"],
-    visibility = ["//xls:xls_users"],
+    visibility = ["//xls:xls_best_effort_users"],
     deps = [
         ":xls_type_cc_proto",
         "//xls/common:casts",
@@ -167,7 +166,7 @@ cc_library(
         "proc.h",
         "verifier.h",
     ],
-    visibility = ["//xls:xls_users"],
+    visibility = ["//xls:xls_best_effort_users"],
     deps = [
         ":bits",
         ":channel",
@@ -219,7 +218,6 @@ cc_library(
     name = "function_builder",
     srcs = ["function_builder.cc"],
     hdrs = ["function_builder.h"],
-    visibility = ["//xls:xls_users"],
     deps = [
         ":ir",
         ":op",
@@ -293,11 +291,13 @@ cc_test(
     ],
 )
 
+# TODO(leary): 2021-05-06 Eliminate need for IR parser direct visibility with a
+# public XLS "MakeExecutable" API.
 cc_library(
     name = "ir_parser",
     srcs = ["ir_parser.cc"],
     hdrs = ["ir_parser.h"],
-    visibility = ["//xls:xls_users"],
+    visibility = ["//xls:xls_best_effort_users"],
     deps = [
         ":bits_ops",
         ":channel",
@@ -436,7 +436,6 @@ cc_library(
     name = "value",
     srcs = ["value.cc"],
     hdrs = ["value.h"],
-    visibility = ["//xls:xls_users"],
     deps = [
         ":bits",
         ":xls_type_cc_proto",
@@ -860,7 +859,6 @@ cc_library(
 cc_library(
     name = "value_view",
     hdrs = ["value_view.h"],
-    visibility = ["//xls:xls_users"],
     deps = [
         ":ir",
         ":type",

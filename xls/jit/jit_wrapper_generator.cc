@@ -340,10 +340,8 @@ std::string GenerateWrapperHeader(const Function& function,
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/ir/package.h"
-#include "xls/ir/value.h"
-#include "xls/ir/value_view.h"
 #include "xls/jit/ir_jit.h"
+#include "xls/public/value.h"
 
 namespace xls {
 

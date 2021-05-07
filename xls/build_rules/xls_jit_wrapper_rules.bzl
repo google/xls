@@ -181,8 +181,8 @@ def cc_ir_to_jit_wrapper(
             "@com_google_absl//absl/status:statusor",
             "//xls/ir",
             "//xls/ir:ir_parser",
-            "//xls/ir:value",
-            "//xls/ir:value_view",
+            "//xls/public:function_builder",
+            "//xls/public:value",
             "//xls/jit:ir_jit",
         ],
     )
