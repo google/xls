@@ -31,8 +31,6 @@
 namespace xls {
 namespace verilog {
 
-using absl::StrJoin;
-
 std::string SanitizeIdentifier(absl::string_view name) {
   if (name.empty()) {
     return "_";

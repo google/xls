@@ -24,8 +24,6 @@
 
 namespace xls {
 
-using absl::StrFormat;
-
 // Parses the given input as an unsigned number (with no format prefix) of the
 // given format. 'orig_string' is the string used in error message.
 static absl::StatusOr<Bits> ParseUnsignedNumberHelper(
@@ -38,7 +36,7 @@ static absl::StatusOr<Bits> ParseUnsignedNumberHelper(
   std::string numeric_string = absl::StrReplaceAll(input, {{"_", ""}});
   if (numeric_string.empty()) {
     return absl::InvalidArgumentError(
-        StrFormat("Could not convert %s to a number", orig_string));
+        absl::StrFormat("Could not convert %s to a number", orig_string));
   }
 
   if (format == FormatPreference::kDecimal) {
@@ -49,7 +47,7 @@ static absl::StatusOr<Bits> ParseUnsignedNumberHelper(
       uint32_t magnitude;
       std::string digit_str(1, numeric_string.at(i));
       if (!absl::SimpleAtoi(digit_str, &magnitude)) {
-        return absl::InvalidArgumentError(StrFormat(
+        return absl::InvalidArgumentError(absl::StrFormat(
             "Could not convert %s to 32-bit decimal number", orig_string));
       }
       Bits new_char(UBits(magnitude, result.bit_count()));
@@ -72,7 +70,8 @@ static absl::StatusOr<Bits> ParseUnsignedNumberHelper(
     base_bits = 4;
     base_name = "hexadecimal";
   } else {
-    return absl::InvalidArgumentError(StrFormat("Invalid format: %d", format));
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Invalid format: %d", format));
   }
 
   // Walk through string 64 bits at a time (16 hexadecimal symbols or 64
@@ -87,8 +86,8 @@ static absl::StatusOr<Bits> ParseUnsignedNumberHelper(
         StrTo64Base(numeric_string.substr(i, chunk_length), base);
     if (!chunk_value_or.ok()) {
       return absl::InvalidArgumentError(
-          StrFormat("Could not convert %s to %s number: %s", orig_string,
-                    base_name, chunk_value_or.status().message()));
+          absl::StrFormat("Could not convert %s to %s number: %s", orig_string,
+                          base_name, chunk_value_or.status().message()));
     }
     chunks.push_back(UBits(*chunk_value_or, chunk_length * base_bits));
   }
@@ -125,7 +124,7 @@ absl::StatusOr<std::pair<bool, Bits>> GetSignAndMagnitude(
   // must fit in 64 bits.
   if (input.empty()) {
     return absl::InvalidArgumentError(
-        StrFormat("Cannot parse empty string as a number."));
+        absl::StrFormat("Cannot parse empty string as a number."));
   }
   bool is_negative = false;
   // The substring containing the actual numeric characters.
@@ -142,9 +141,9 @@ absl::StatusOr<std::pair<bool, Bits>> GetSignAndMagnitude(
     } else if (base_char == 'x') {
       format = FormatPreference::kHex;
     } else {
-      return absl::InvalidArgumentError(
-          StrFormat("Invalid numeric base %#x = '%c'. Expected 'b' or 'x'.",
-                    base_char, base_char));
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Invalid numeric base %#x = '%c'. Expected 'b' or 'x'.", base_char,
+          base_char));
     }
     numeric_substring = numeric_substring.substr(2);
   }
@@ -180,8 +179,8 @@ absl::StatusOr<uint64_t> ParseNumberAsUint64(absl::string_view input) {
   XLS_ASSIGN_OR_RETURN(pair, GetSignAndMagnitude(input));
   bool is_negative = pair.first;
   if ((is_negative && !pair.second.IsZero()) || pair.second.bit_count() > 64) {
-    return absl::InvalidArgumentError(
-        StrFormat("Value is not representable as an uint64_t: %s", input));
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Value is not representable as an uint64_t: %s", input));
   }
   return pair.second.ToUint64();
 }
@@ -193,7 +192,7 @@ absl::StatusOr<int64_t> ParseNumberAsInt64(absl::string_view input) {
   Bits magnitude = pair.second;
   auto not_representable = [&]() {
     return absl::InvalidArgumentError(
-        StrFormat("Value is not representable as an int64_t: %s", input));
+        absl::StrFormat("Value is not representable as an int64_t: %s", input));
   };
   if (!is_negative) {
     // A non-negative number must fit in 63 bits to be represented as a 64-bit
@@ -232,7 +231,7 @@ absl::StatusOr<bool> ParseNumberAsBool(absl::string_view input) {
   bool is_negative = pair.first;
   auto not_representable = [&]() {
     return absl::InvalidArgumentError(
-        StrFormat("Value is not representable as a bool: %s", input));
+        absl::StrFormat("Value is not representable as a bool: %s", input));
   };
   if (is_negative) {
     return not_representable();

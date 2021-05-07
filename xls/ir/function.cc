@@ -24,8 +24,6 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/package.h"
 
-using absl::StrAppend;
-
 namespace xls {
 
 FunctionType* Function::GetType() {
@@ -45,13 +43,13 @@ std::string Function::DumpIr(bool recursive) const {
     param_strings.push_back(
         absl::StrFormat("%s: %s", param->name(), param->GetType()->ToString()));
   }
-  StrAppend(&res, absl::StrJoin(param_strings, ", "));
-  StrAppend(&res, ") -> ");
+  absl::StrAppend(&res, absl::StrJoin(param_strings, ", "));
+  absl::StrAppend(&res, ") -> ");
 
   if (return_value() != nullptr) {
-    StrAppend(&res, return_value()->GetType()->ToString());
+    absl::StrAppend(&res, return_value()->GetType()->ToString());
   }
-  StrAppend(&res, " {\n");
+  absl::StrAppend(&res, " {\n");
 
   for (Node* node : TopoSort(const_cast<Function*>(this))) {
     if (node->op() == Op::kParam && node == return_value()) {
@@ -72,11 +70,11 @@ std::string Function::DumpIr(bool recursive) const {
     if (recursive && (node->op() == Op::kInvoke)) {
       nested_funcs += node->As<Invoke>()->to_apply()->DumpIr() + "\n";
     }
-    StrAppend(&res, "  ", node == return_value() ? "ret " : "",
-              node->ToString(), "\n");
+    absl::StrAppend(&res, "  ", node == return_value() ? "ret " : "",
+                    node->ToString(), "\n");
   }
 
-  StrAppend(&res, "}\n");
+  absl::StrAppend(&res, "}\n");
   return nested_funcs + res;
 }
 

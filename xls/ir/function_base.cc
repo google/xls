@@ -25,8 +25,6 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 
-using absl::StrAppend;
-
 namespace xls {
 
 absl::StatusOr<Param*> FunctionBase::GetParamByName(
