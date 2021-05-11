@@ -236,40 +236,6 @@ TEST_P(ProcGeneratorTest, Accumulator) {
   XLS_ASSERT_OK(tb.Run());
 }
 
-TEST_P(ProcGeneratorTest, SendIfRegister) {
-  Package package(TestBaseName());
-  Type* u32 = package.GetBitsType(32);
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * pred_ch,
-      package.CreatePortChannel("pred", ChannelOps::kReceiveOnly,
-                                package.GetBitsType(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * data_ch,
-      package.CreatePortChannel("data", ChannelOps::kReceiveOnly, u32));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * reg_ch,
-                           package.CreateRegisterChannel("reg", u32));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * output_ch,
-      package.CreatePortChannel("out", ChannelOps::kSendOnly, u32));
-
-  TokenlessProcBuilder pb(TestBaseName(),
-                          /*init_value=*/Value::Tuple({}),
-                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
-  BValue pred = pb.Receive(pred_ch);
-  BValue data = pb.Receive(data_ch);
-  pb.SendIf(reg_ch, pred, data);
-  BValue reg_data = pb.Receive(reg_ch);
-  pb.Send(output_ch, reg_data);
-
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
-
-  ASSERT_THAT(
-      GenerateVerilog(codegen_options().clock_name("clk"), proc).status(),
-      StatusIs(absl::StatusCode::kUnimplemented,
-               HasSubstr("SendIf to register channels not supported yet")));
-}
-
 TEST_P(ProcGeneratorTest, ProcWithNonNilState) {
   Package package(TestBaseName());
   TokenlessProcBuilder pb(TestBaseName(), /*init_value=*/Value(UBits(42, 32)),
@@ -551,6 +517,101 @@ TEST_P(ProcGeneratorTest, PortOrderTest) {
                          HasSubstr("Output ports must be ordered after all "
                                    "input ports in the proc.")));
   }
+}
+
+TEST_P(ProcGeneratorTest, LoadEnables) {
+  // Construct a block with two parallel data paths: "a" and "b". Each consists
+  // of a single register with a load enable. Verify that the two load enables
+  // work as expected.
+  Package package(TestBaseName());
+
+  Type* u1 = package.GetBitsType(1);
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_ch,
+      package.CreatePortChannel("a", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_le_ch,
+      package.CreatePortChannel("a_le", ChannelOps::kReceiveOnly, u1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * b_ch,
+      package.CreatePortChannel("b", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * b_le_ch,
+      package.CreatePortChannel("b_le", ChannelOps::kReceiveOnly, u1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_reg,
+      package.CreateRegisterChannel("a_reg", u32,
+                                    /*reset_value=*/Value(UBits(42, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * b_reg,
+      package.CreateRegisterChannel("b_reg", u32,
+                                    /*reset_value=*/Value(UBits(43, 32))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_out,
+      package.CreatePortChannel("a_out", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * b_out,
+      package.CreatePortChannel("b_out", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder pb(TestBaseName(), /*init_value=*/Value::Tuple({}),
+                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+
+  BValue a = pb.Receive(a_ch);
+  BValue a_le = pb.Receive(a_le_ch);
+  BValue b = pb.Receive(b_ch);
+  BValue b_le = pb.Receive(b_le_ch);
+
+  pb.SendIf(a_reg, a_le, a);
+  BValue a_d = pb.Receive(a_reg);
+  pb.SendIf(b_reg, b_le, b);
+  BValue b_d = pb.Receive(b_reg);
+
+  pb.Send(a_out, a_d);
+  pb.Send(b_out, b_d);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+
+  CodegenOptions options =
+      codegen_options().clock_name("clk").reset("rst", /*asynchronous=*/false,
+                                                /*active_low=*/false);
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog, GenerateVerilog(options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, proc));
+  ModuleTestbench tb(verilog, sig, GetSimulator());
+
+  // Set inputs to zero and disable load-enables.
+  tb.Set("a", 100).Set("b", 200).Set("a_le", 0).Set("b_le", 0).Set("rst", 1);
+  tb.NextCycle();
+  tb.Set("rst", 0);
+  tb.NextCycle();
+
+  // Outputs should be at the reset value.
+  tb.ExpectEq("a_out", 42).ExpectEq("b_out", 43);
+
+  // Outputs should remain at reset values after clocking because load enables
+  // are unasserted.
+  tb.NextCycle();
+  tb.ExpectEq("a_out", 42).ExpectEq("b_out", 43);
+
+  // Assert load enable of 'a'. Load enable of 'b' remains unasserted.
+  tb.Set("a_le", 1);
+  tb.NextCycle();
+  tb.ExpectEq("a_out", 100).ExpectEq("b_out", 43);
+
+  // Assert load enable of 'b'. Deassert load enable of 'a' and change a's
+  // input. New input of 'a' should not propagate.
+  tb.Set("a", 101).Set("a_le", 0).Set("b_le", 1);
+  tb.NextCycle();
+  tb.ExpectEq("a_out", 100).ExpectEq("b_out", 200);
+
+  // Assert both load enables.
+  tb.Set("b", 201).Set("a_le", 1).Set("b_le", 1);
+  tb.NextCycle();
+  tb.ExpectEq("a_out", 101).ExpectEq("b_out", 201);
+
+  XLS_ASSERT_OK(tb.Run());
 }
 
 INSTANTIATE_TEST_SUITE_P(ProcGeneratorTestInstantiation, ProcGeneratorTest,

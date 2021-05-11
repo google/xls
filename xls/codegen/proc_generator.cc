@@ -351,15 +351,16 @@ absl::StatusOr<std::string> GenerateVerilog(const CodegenOptions& options,
   // Assign the next values to the registers. These are the data operands of
   // the Receive node of the operand.
   for (RegisterInfo& reg : registers) {
+    Expression* load_enable = nullptr;
     if (reg.send->Is<SendIf>()) {
-      return absl::UnimplementedError(
-          "SendIf to register channels not supported yet.");
+      load_enable = absl::get<Expression*>(
+          node_exprs.at(reg.send->As<SendIf>()->predicate()));
     }
+    Node* data = reg.send->Is<Send>() ? reg.send->As<Send>()->data()
+                                      : reg.send->As<SendIf>()->data();
 
-    reg.mb_register.next =
-        absl::get<Expression*>(node_exprs.at(reg.send->As<Send>()->data()));
-    XLS_RETURN_IF_ERROR(mb.AssignRegisters({reg.mb_register},
-                                           /*load_enable=*/nullptr));
+    reg.mb_register.next = absl::get<Expression*>(node_exprs.at(data));
+    XLS_RETURN_IF_ERROR(mb.AssignRegisters({reg.mb_register}, load_enable));
   }
 
   // Add assert statements in a separate always_comb block.
