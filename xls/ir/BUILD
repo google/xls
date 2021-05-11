@@ -171,6 +171,7 @@ cc_library(
         ":bits",
         ":channel",
         ":channel_cc_proto",
+        ":channel_ops",
         ":name_uniquer",
         ":op",
         ":source_location",
@@ -219,6 +220,7 @@ cc_library(
     srcs = ["function_builder.cc"],
     hdrs = ["function_builder.h"],
     deps = [
+        ":channel",
         ":ir",
         ":op",
         ":source_location",
@@ -342,6 +344,7 @@ cc_test(
     srcs = ["package_test.cc"],
     deps = [
         "ir",
+        ":channel",
         ":function_builder",
         ":ir_test_base",
         ":type",
@@ -878,11 +881,23 @@ cc_library(
 )
 
 cc_library(
+    name = "channel_ops",
+    srcs = ["channel_ops.cc"],
+    hdrs = ["channel_ops.h"],
+    deps = [
+        "//xls/common/logging",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "channel",
     srcs = ["channel.cc"],
     hdrs = ["channel.h"],
     deps = [
         ":channel_cc_proto",
+        ":channel_ops",
         ":type",
         ":value",
         "//xls/common/status:ret_check",

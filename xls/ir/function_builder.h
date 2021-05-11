@@ -27,6 +27,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/op.h"
+#include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 
@@ -37,7 +38,6 @@ class Channel;
 class Function;
 class FunctionBase;
 class Node;
-class Package;
 class Proc;
 class Type;
 

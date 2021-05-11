@@ -26,8 +26,8 @@
 #include "absl/container/node_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
@@ -38,6 +38,10 @@ namespace xls {
 class FunctionBase;
 class Function;
 class Proc;
+class Channel;
+class StreamingChannel;
+class PortChannel;
+class RegisterChannel;
 
 class Package {
  public:

@@ -11,10 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "xls/jit/jit_channel_queue.h"
 
 #include "absl/memory/memory.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/channel.h"
 
 namespace xls {
 

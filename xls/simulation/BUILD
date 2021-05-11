@@ -208,6 +208,7 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
+        "//xls/ir:channel",
         "//xls/ir:function_builder",
         "//xls/scheduling:pipeline_schedule",
         "@com_google_googletest//:gtest",

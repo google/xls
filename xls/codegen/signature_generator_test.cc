@@ -20,6 +20,7 @@
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/delay_estimators.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"

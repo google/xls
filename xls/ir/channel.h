@@ -21,6 +21,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/ir/channel.pb.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -45,18 +46,6 @@ enum class ChannelKind {
 std::string ChannelKindToString(ChannelKind kind);
 absl::StatusOr<ChannelKind> StringToChannelKind(absl::string_view str);
 std::ostream& operator<<(std::ostream& os, ChannelKind kind);
-
-// Indicates the type(s) of operations permitted on the channel. Send-only
-// channels can only have send operations (not receive) associated with the
-// channel as might be used for communicated to a component outside of
-// XLS. Receive-only channels are similarly defined. Send-receive channels can
-// have both send and receive operations and can be used for communicated
-// between procs.
-enum class ChannelOps { kSendOnly, kReceiveOnly, kSendReceive };
-
-std::string ChannelOpsToString(ChannelOps ops);
-absl::StatusOr<ChannelOps> StringToChannelOps(absl::string_view str);
-std::ostream& operator<<(std::ostream& os, ChannelOps ops);
 
 // Abstraction describing a channel in XLS IR. Channels are a mechanism for
 // communicating between procs or between procs and components outside of

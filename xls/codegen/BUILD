@@ -470,6 +470,7 @@ cc_library(
     deps = [
         ":codegen_pass",
         "@com_google_absl//absl/status:statusor",
+        "//xls/ir:channel",
         "//xls/ir:value_helpers",
     ],
 )
@@ -655,6 +656,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimators",
         "//xls/ir",
+        "//xls/ir:channel",
         "//xls/ir:function_builder",
         "//xls/ir:type",
         "//xls/scheduling:pipeline_schedule",
@@ -670,6 +672,7 @@ cc_test(
         ":port_legalization_pass",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/ir:channel",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",

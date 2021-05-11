@@ -14,6 +14,7 @@
 
 #include "xls/codegen/port_legalization_pass.h"
 
+#include "xls/ir/channel.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls::verilog {

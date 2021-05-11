@@ -54,35 +54,6 @@ std::ostream& operator<<(std::ostream& os, ChannelKind kind) {
   return os;
 }
 
-std::string ChannelOpsToString(ChannelOps ops) {
-  switch (ops) {
-    case ChannelOps::kSendOnly:
-      return "send_only";
-    case ChannelOps::kReceiveOnly:
-      return "receive_only";
-    case ChannelOps::kSendReceive:
-      return "send_receive";
-  }
-  XLS_LOG(FATAL) << "Invalid channel kind: " << static_cast<int64_t>(ops);
-}
-
-absl::StatusOr<ChannelOps> StringToChannelOps(absl::string_view str) {
-  if (str == "send_only") {
-    return ChannelOps::kSendOnly;
-  } else if (str == "receive_only") {
-    return ChannelOps::kReceiveOnly;
-  } else if (str == "send_receive") {
-    return ChannelOps::kSendReceive;
-  }
-  return absl::InvalidArgumentError(
-      absl::StrCat("Unknown channel ops value: ", str));
-}
-
-std::ostream& operator<<(std::ostream& os, ChannelOps ops) {
-  os << ChannelOpsToString(ops);
-  return os;
-}
-
 std::string Channel::ToString() const {
   std::string result = absl::StrFormat("chan %s(", name());
   absl::StrAppendFormat(&result, "%s, ", type()->ToString());
