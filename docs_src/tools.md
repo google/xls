@@ -31,6 +31,11 @@ signature which includes metadata about the block. The tool does not run any XLS
 passes so unoptimized IR may fail if the IR contains constructs not expected by
 the backend.
 
+## [`delay_info_main`](https://github.com/google/xls/tree/main/xls/tools/delay_info_main.cc)
+
+Dumps delay information about an XLS function including per-node delay
+information and critical-path.
+
 ## [`eval_ir_main`](https://github.com/google/xls/tree/main/xls/tools/eval_ir_main.cc)
 
 Evaluates an XLS IR file with user-specified or random inputs. Includes

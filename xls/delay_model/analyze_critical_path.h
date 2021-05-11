@@ -57,6 +57,25 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
     FunctionBase* f, absl::optional<int64_t> clock_period_ps,
     const DelayEstimator& delay_estimator);
 
+// Returns a string representation of the critical-path. Includes delay
+// information for each node as well as cumulative delay. Example output:
+//
+//   869ps (+  0ps): tuple.629: (bits[32], bits[32]) = tuple(...)
+//   869ps (+104ps): array_update.628: bits[32][32] = array_update(...)
+//   765ps (+263ps): regs__1: bits[32][32] = one_hot_sel(...)
+//     ...
+//   295ps (+104ps): array_index.1858: bits[32] = array_index(...)
+//   191ps (+ 87ps): addr: bits[32] = add(...)
+//   104ps (+104ps): array_index.1832: bits[32] = array_index(...)
+//
+// extra_info, if given, allows emitting extra per-node information. The
+// function is called for each node in the critical path and the result is
+// printed on the line immediately after the critical path entry for that node.
+std::string CriticalPathToString(
+    absl::Span<const CriticalPathEntry> critical_path,
+    absl::optional<std::function<std::string(Node*)>> extra_info =
+        absl::nullopt);
+
 }  // namespace xls
 
 #endif  // XLS_DELAY_MODEL_ANALYZE_CRITICAL_PATH_H_

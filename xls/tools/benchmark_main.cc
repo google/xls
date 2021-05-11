@@ -153,24 +153,25 @@ absl::Status PrintCriticalPath(
 
   absl::flat_hash_map<Op, std::pair<int64_t, int64_t>> op_to_sum;
   std::cout << "Critical path:" << std::endl;
+  std::cout << CriticalPathToString(
+      critical_path, [&query_engine](Node* n) -> std::string {
+        if (absl::GetFlag(FLAGS_show_known_bits)) {
+          return absl::StrFormat(
+              "        %s <= [%s]\n", KnownBitString(n, query_engine),
+              absl::StrJoin(
+                  n->operands(), ", ", [&](std::string* out, Node* n) {
+                    absl::StrAppend(out, KnownBitString(n, query_engine));
+                  }));
+        } else {
+          return "";
+        }
+      });
+
   for (CriticalPathEntry& entry : critical_path) {
     // Make a note of the sums.
     auto& tally = op_to_sum[entry.node->op()];
     tally.first += entry.node_delay_ps;
     tally.second += 1;
-
-    std::cout << absl::StreamFormat(" %6dps (+%3dps)%s: %s\n",
-                                    entry.path_delay_ps, entry.node_delay_ps,
-                                    entry.delayed_by_cycle_boundary ? "!" : "",
-                                    entry.node->ToStringWithOperandTypes());
-    if (absl::GetFlag(FLAGS_show_known_bits)) {
-      std::cout << absl::StreamFormat(
-          "        %s <= [%s]\n", KnownBitString(entry.node, query_engine),
-          absl::StrJoin(entry.node->operands(), ", ",
-                        [&](std::string* out, Node* n) {
-                          absl::StrAppend(out, KnownBitString(n, query_engine));
-                        }));
-    }
   }
 
   int64_t total_delay = critical_path.front().path_delay_ps;

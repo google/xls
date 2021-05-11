@@ -1004,3 +1004,41 @@ cc_binary(
         "@linenoise",
     ],
 )
+
+cc_binary(
+    name = "delay_info_main",
+    srcs = ["delay_info_main.cc"],
+    deps = [
+        ":opt",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/delay_model:analyze_critical_path",
+        "//xls/delay_model:delay_estimator",
+        "//xls/delay_model:delay_estimators",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/passes",
+        "//xls/passes:standard_pipeline",
+        "//xls/scheduling:extract_stage",
+        "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:pipeline_schedule_cc_proto",
+    ],
+)
+
+py_test(
+    name = "delay_info_main_test",
+    srcs = ["delay_info_main_test.py"],
+    data = [
+        ":delay_info_main",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+    ],
+)

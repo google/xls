@@ -82,4 +82,21 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
   return critical_path;
 }
 
+std::string CriticalPathToString(
+    absl::Span<const CriticalPathEntry> critical_path,
+    absl::optional<std::function<std::string(Node*)>> extra_info) {
+  std::string result;
+  absl::flat_hash_map<Op, std::pair<int64_t, int64_t>> op_to_sum;
+  for (const CriticalPathEntry& entry : critical_path) {
+    absl::StrAppendFormat(&result, " %6dps (+%3dps)%s: %s\n",
+                          entry.path_delay_ps, entry.node_delay_ps,
+                          entry.delayed_by_cycle_boundary ? "!" : "",
+                          entry.node->ToStringWithOperandTypes());
+    if (extra_info.has_value()) {
+      absl::StrAppend(&result, extra_info.value()(entry.node));
+    }
+  }
+  return result;
+}
+
 }  // namespace xls
