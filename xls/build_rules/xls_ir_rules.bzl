@@ -13,72 +13,13 @@
 # limitations under the License.
 """This module contains IR-related build rules for XLS."""
 
+load("//xls/build_rules:xls_common_rules.bzl", "get_args")
 load("//xls/build_rules:xls_dslx_rules.bzl", "DslxFilesInfo")
 
 DEFAULT_IR_EVAL_TEST_ARGS = {
     "random_inputs": "100",
     "optimize_ir": "true",
 }
-
-def _get_args(arguments, valid_arguments, default_arguments = {}):
-    """Returns a string representation of the arguments.
-
-    The macro builds a string representation of the arguments. If no value is
-    specified in the arguments, the a default value will be selected (if
-    present). If an argument in the list is not an acceptable argument, an error
-    is thrown.
-
-    Example:
-      1) An unspecified a default argument value.
-        Input:
-          arguments = {"argument1": "42", "argument2": "binary"}
-          valid_arguments = {"argument1", "argument2", "arguments3"}
-          default_arguments = {"arguments3" : "foo"}
-          _get_args(arguments, valid_arguments, default_arguments)
-
-        Output:
-            --argument1=42 --argument2=binary --argument3=foo
-      2) Overriding a default argument value.
-        Input:
-          arguments = {"argument1": "42", "argument2": "binary"}
-          valid_arguments = {"argument1", "argument2", "arguments3"}
-          default_arguments = {"argument1" : "0", "arguments3" : "foo"}
-          _get_args(arguments, valid_arguments, default_arguments)
-
-        Output:
-            --argument1=42 --argument2=binary --argument3=foo
-      3) An invalid argument.
-        Input:
-          arguments = {"argument1": "42", "argument2": "binary"}
-          valid_arguments = {"argument1"}
-          default_arguments = {}
-          _get_args(arguments, valid_arguments, default_arguments)
-
-        Output (error with message):
-            Unrecognized argument: argument2.
-
-    Args:
-      arguments: The current rule's context object.
-      valid_arguments: The source file.
-      default_arguments: A list of default argument values.
-    Returns:
-      A string of the arguments.
-    """
-
-    # Add arguments
-    my_args = ""
-    for flag_name in arguments:
-        if flag_name not in valid_arguments:
-            fail("Unrecognized argument: %s." % flag_name)
-        my_args += " --%s=%s" % (flag_name, arguments[flag_name])
-
-    # Add default arguments
-    for flag_name in default_arguments:
-        if flag_name not in valid_arguments:
-            fail("Unrecognized argument: %s." % flag_name)
-        if flag_name not in arguments:
-            my_args += " --%s=%s" % (flag_name, default_arguments[flag_name])
-    return my_args
 
 def convert_to_ir(ctx, src):
     """Converts a DSLX source file to an IR file.
@@ -98,7 +39,7 @@ def convert_to_ir(ctx, src):
         "dslx_path",
     )
 
-    my_args = _get_args(ir_conv_args, IR_CONV_FLAGS)
+    my_args = get_args(ir_conv_args, IR_CONV_FLAGS)
 
     required_files = ctx.files._dslx_std_lib + [src]
     for dep in ctx.attr.deps:
@@ -143,7 +84,7 @@ def optimize_ir(ctx, src):
         "opt_level",
     )
 
-    my_args = _get_args(ir_opt_args, IR_OPT_FLAGS)
+    my_args = get_args(ir_opt_args, IR_OPT_FLAGS)
 
     opt_ir_file = ctx.actions.declare_file(src.basename[:-2] + "opt.ir")
     ctx.actions.run_shell(
@@ -352,7 +293,7 @@ def _ir_equivalence_test_impl(ctx):
         "timeout",
     )
 
-    my_args = _get_args(ir_equivalence_args, IR_EQUIVALENCE_FLAGS)
+    my_args = get_args(ir_equivalence_args, IR_EQUIVALENCE_FLAGS)
 
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
@@ -474,7 +415,7 @@ def _ir_eval_test_impl(ctx):
         "test_only_inject_jit_result",
     )
 
-    my_args = _get_args(ir_eval_args, IR_EVAL_FLAGS, ir_eval_default_args)
+    my_args = get_args(ir_eval_args, IR_EVAL_FLAGS, ir_eval_default_args)
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
         output = executable_file,
@@ -570,7 +511,7 @@ def _ir_benchmark_impl(ctx):
         "delay_model",
     )
 
-    my_args = _get_args(benchmark_args, BENCHMARK_FLAGS)
+    my_args = get_args(benchmark_args, BENCHMARK_FLAGS)
 
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(

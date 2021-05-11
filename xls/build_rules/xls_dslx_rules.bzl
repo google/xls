@@ -14,6 +14,12 @@
 
 """This module contains DSLX-related build rules for XLS."""
 
+load("//xls/build_rules:xls_common_rules.bzl", "get_args")
+
+DEFAULT_DSLX_TEST_ARGS = {
+    "compare": "none",
+}
+
 DslxFilesInfo = provider(
     doc = "A provider containing DSLX file information for the target. It is " +
           "created and returned by the dslx_library rule.",
@@ -146,9 +152,8 @@ _dslx_test_attrs = {
         mandatory = True,
         allow_single_file = [".x"],
     ),
-    "compare": attr.string(
-        doc = "Compare DSLX execution with IR execution of each function.",
-        default = "jit",
+    "dslx_test_args": attr.string_dict(
+        doc = "Arguments of the DSLX interpreter executable.",
     ),
 }
 
@@ -264,16 +269,24 @@ def _dslx_test_impl(ctx):
     """
     src = ctx.file.src
 
+    dslx_test_default_args = DEFAULT_DSLX_TEST_ARGS
+    dslx_test_args = ctx.attr.dslx_test_args
+    DSLX_TEST_FLAGS = (
+        "compare",
+    )
+
+    my_args = get_args(dslx_test_args, DSLX_TEST_FLAGS, dslx_test_args)
+
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
         output = executable_file,
         content = "\n".join([
             "#!/bin/bash",
             "set -e",
-            "{} {} --compare={}".format(
+            "{} {} {}".format(
                 ctx.executable._dslx_interpreter_tool.short_path,
                 src.path,
-                ctx.attr.compare,
+                my_args,
             ),
             "exit 0",
         ]),
