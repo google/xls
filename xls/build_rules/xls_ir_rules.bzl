@@ -104,6 +104,113 @@ def optimize_ir(ctx, src):
     )
     return opt_ir_file
 
+def get_ir_equivalence_test_cmd(ctx, src_0, src_1):
+    """Returns the runfiles and command that executes in the ir_equivalence_test rule.
+
+    Args:
+      ctx: The current rule's context object.
+      src_0: A file for the test.
+      src_1: A file for the test.
+
+    Returns:
+      A tuple with two elements. The files element is a list of runfiles to
+      execute the command. The second element is the command.
+    """
+    ir_equivalence_args = ctx.attr.ir_equivalence_args
+    IR_EQUIVALENCE_FLAGS = (
+        "function",
+        "timeout",
+    )
+
+    my_args = get_args(ir_equivalence_args, IR_EQUIVALENCE_FLAGS)
+
+    cmd = "{} {} {} {}\n".format(
+        ctx.executable._ir_equivalence_tool.short_path,
+        src_0.short_path,
+        src_1.short_path,
+        my_args,
+    )
+
+    # The required runfiles are the source files and the IR equivalence tool
+    # executable.
+    runfiles = [src_0, src_1, ctx.executable._ir_equivalence_tool]
+    return runfiles, cmd
+
+def get_ir_eval_test_cmd(ctx, src):
+    """Returns the runfiles and command that executes in the ir_eval_test rule.
+
+    Args:
+      ctx: The current rule's context object.
+      src: The file to test.
+
+    Returns:
+      A tuple with two elements. The files element is a list of runfiles to
+      execute the command. The second element is the command.
+    """
+    ir_eval_default_args = DEFAULT_IR_EVAL_TEST_ARGS
+    ir_eval_args = ctx.attr.ir_eval_args
+    IR_EVAL_FLAGS = (
+        "entry",
+        "input",
+        "input_file",
+        "random_inputs",
+        "expected",
+        "expected_file",
+        "optimize_ir",
+        "eval_after_each_pass",
+        "use_llvm_jit",
+        "test_llvm_jit",
+        "llvm_opt_level",
+        "test_only_inject_jit_result",
+    )
+
+    my_args = get_args(ir_eval_args, IR_EVAL_FLAGS, ir_eval_default_args)
+
+    cmd = "{} {} {}".format(
+        ctx.executable._ir_eval_tool.short_path,
+        src.short_path,
+        my_args,
+    )
+
+    # The required runfiles are the source file and the IR interpreter tool
+    # executable.
+    runfiles = [src, ctx.executable._ir_eval_tool]
+    return runfiles, cmd
+
+def get_ir_benchmark_cmd(ctx, src):
+    """Returns the runfiles and command that executes in the ir_benchmark rule.
+
+    Args:
+      ctx: The current rule's context object.
+      src: The file to benchmark.
+
+    Returns:
+      A tuple with two elements. The files element is a list of runfiles to
+      execute the command. The second element is the command.
+    """
+    benchmark_args = ctx.attr.benchmark_args
+    BENCHMARK_FLAGS = (
+        "clock_period_ps",
+        "pipeline_stages",
+        "clock_margin_percent",
+        "show_known_bits",
+        "entry",
+        "delay_model",
+    )
+
+    my_args = get_args(benchmark_args, BENCHMARK_FLAGS)
+
+    cmd = "{} {} {}".format(
+        ctx.executable._benchmark_tool.short_path,
+        src.short_path,
+        my_args,
+    )
+
+    # The required runfiles are the source files and the IR benchmark tool
+    # executable.
+    runfiles = [src, ctx.executable._benchmark_tool]
+    return runfiles, cmd
+
 def _dslx_to_ir_impl(ctx):
     """The implementation of the 'dslx_to_ir' rule.
 
@@ -280,39 +387,25 @@ def _ir_equivalence_test_impl(ctx):
     Executes the equivalence tool on two IR files.
 
     Args:
-    ctx: The current rule's context object.
+      ctx: The current rule's context object.
 
     Returns:
-    DefaultInfo provider
+      DefaultInfo provider
     """
     ir_file_a = ctx.file.src_0
     ir_file_b = ctx.file.src_1
-    ir_equivalence_args = ctx.attr.ir_equivalence_args
-    IR_EQUIVALENCE_FLAGS = (
-        "function",
-        "timeout",
-    )
-
-    my_args = get_args(ir_equivalence_args, IR_EQUIVALENCE_FLAGS)
-
+    runfiles, cmd = get_ir_equivalence_test_cmd(ctx, ir_file_a, ir_file_b)
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
         output = executable_file,
         content = "\n".join([
             "#!/bin/bash",
             "set -e",
-            "{} {} {} {}\n".format(
-                ctx.executable._ir_equivalence_tool.short_path,
-                ir_file_a.short_path,
-                ir_file_b.short_path,
-                my_args,
-            ),
+            cmd,
             "exit 0",
         ]),
         is_executable = True,
     )
-
-    runfiles = [ir_file_a, ir_file_b, ctx.executable._ir_equivalence_tool]
 
     return [
         DefaultInfo(
@@ -337,7 +430,7 @@ _two_ir_files_attrs = {
     ),
 }
 
-_ir_equivalence_test_attrs = {
+ir_equivalence_test_attrs = {
     "ir_equivalence_args": attr.string_dict(
         doc = "Arguments of the IR equivalence tool.",
     ),
@@ -383,7 +476,7 @@ ir_equivalence_test = rule(
 
     """,
     implementation = _ir_equivalence_test_impl,
-    attrs = dict(_two_ir_files_attrs.items() + _ir_equivalence_test_attrs.items()),
+    attrs = dict(_two_ir_files_attrs.items() + ir_equivalence_test_attrs.items()),
     test = True,
 )
 
@@ -398,41 +491,18 @@ def _ir_eval_test_impl(ctx):
       DefaultInfo provider
     """
     src = ctx.file.src
-    ir_eval_default_args = DEFAULT_IR_EVAL_TEST_ARGS
-    ir_eval_args = ctx.attr.ir_eval_args
-    IR_EVAL_FLAGS = (
-        "entry",
-        "input",
-        "input_file",
-        "random_inputs",
-        "expected",
-        "expected_file",
-        "optimize_ir",
-        "eval_after_each_pass",
-        "use_llvm_jit",
-        "test_llvm_jit",
-        "llvm_opt_level",
-        "test_only_inject_jit_result",
-    )
-
-    my_args = get_args(ir_eval_args, IR_EVAL_FLAGS, ir_eval_default_args)
+    runfiles, cmd = get_ir_eval_test_cmd(ctx, src)
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
         output = executable_file,
         content = "\n".join([
             "#!/bin/bash",
             "set -e",
-            "{} {} {}".format(
-                ctx.executable._ir_eval_tool.short_path,
-                src.short_path,
-                my_args,
-            ),
+            cmd,
             "exit 0",
         ]),
         is_executable = True,
     )
-
-    runfiles = [src, ctx.executable._ir_eval_tool]
 
     return [
         DefaultInfo(
@@ -442,7 +512,7 @@ def _ir_eval_test_impl(ctx):
         ),
     ]
 
-_ir_eval_test_attrs = {
+ir_eval_test_attrs = {
     "ir_eval_args": attr.string_dict(
         doc = "Arguments of the IR interpreter.",
         default = DEFAULT_IR_EVAL_TEST_ARGS,
@@ -486,7 +556,7 @@ ir_eval_test = rule(
         ```
     """,
     implementation = _ir_eval_test_impl,
-    attrs = dict(ir_common_attrs.items() + _ir_eval_test_attrs.items()),
+    attrs = dict(ir_common_attrs.items() + ir_eval_test_attrs.items()),
     test = True,
 )
 
@@ -501,35 +571,18 @@ def _ir_benchmark_impl(ctx):
       DefaultInfo provider
     """
     src = ctx.file.src
-    benchmark_args = ctx.attr.benchmark_args
-    BENCHMARK_FLAGS = (
-        "clock_period_ps",
-        "pipeline_stages",
-        "clock_margin_percent",
-        "show_known_bits",
-        "entry",
-        "delay_model",
-    )
-
-    my_args = get_args(benchmark_args, BENCHMARK_FLAGS)
-
+    runfiles, cmd = get_ir_benchmark_cmd(ctx, src)
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
         output = executable_file,
         content = "\n".join([
             "#!/bin/bash",
             "set -e",
-            "{} {} {}".format(
-                ctx.executable._benchmark_tool.short_path,
-                src.short_path,
-                my_args,
-            ),
+            cmd,
             "exit 0",
         ]),
         is_executable = True,
     )
-
-    runfiles = [src, ctx.executable._benchmark_tool]
 
     return [
         DefaultInfo(
@@ -539,7 +592,7 @@ def _ir_benchmark_impl(ctx):
         ),
     ]
 
-_ir_benchmark_attrs = {
+ir_benchmark_attrs = {
     "benchmark_args": attr.string_dict(
         doc = "Arguments of the benchmark tool.",
     ),
@@ -582,6 +635,6 @@ ir_benchmark = rule(
         ```
     """,
     implementation = _ir_benchmark_impl,
-    attrs = dict(ir_common_attrs.items() + _ir_benchmark_attrs.items()),
+    attrs = dict(ir_common_attrs.items() + ir_benchmark_attrs.items()),
     executable = True,
 )

@@ -116,12 +116,44 @@ def parse_and_type_check(ctx, src, required_files):
     )
     return file
 
+def get_dslx_test_cmd(ctx, src):
+    """Returns the runfiles and command that executes in the dslx_test rule.
+
+    Args:
+      ctx: The current rule's context object.
+      src: The file to test.
+
+    Returns:
+      A tuple with two elements. The files element is a list of runfiles to
+      execute the command. The second element is the command.
+    """
+    dslx_test_default_args = DEFAULT_DSLX_TEST_ARGS
+    dslx_test_args = ctx.attr.dslx_test_args
+    DSLX_TEST_FLAGS = (
+        "compare",
+    )
+
+    my_args = get_args(dslx_test_args, DSLX_TEST_FLAGS, dslx_test_args)
+    cmd = "{} {} {}".format(
+        ctx.executable._dslx_interpreter_tool.short_path,
+        src.path,
+        my_args,
+    )
+
+    # The required runfiles are the source file, the DSLX interpreter executable
+    # and the DSLX std library.
+    runfiles = [src, ctx.executable._dslx_interpreter_tool]
+    runfiles += ctx.files._dslx_std_lib
+    return runfiles, cmd
+
 # Common attributes for the dslx_library and dslx_test rules.
 _dslx_common_attrs = {
     "deps": attr.label_list(
         doc = "Dependency targets for the rule.",
         providers = [DslxFilesInfo],
     ),
+}
+dslx_exec_attrs = {
     "_dslx_std_lib": attr.label(
         doc = "The target containing the DSLX std library.",
         default = Label("//xls/dslx/stdlib:dslx_std_lib"),
@@ -152,6 +184,10 @@ _dslx_test_attrs = {
         mandatory = True,
         allow_single_file = [".x"],
     ),
+}
+
+# Common attributes for DSLX testing.
+dslx_test_common_attrs = {
     "dslx_test_args": attr.string_dict(
         doc = "Arguments of the DSLX interpreter executable.",
     ),
@@ -253,7 +289,11 @@ dslx_library = rule(
         ```
     """,
     implementation = _dslx_library_impl,
-    attrs = dict(_dslx_common_attrs.items() + _dslx_library_attrs.items()),
+    attrs = dict(
+        _dslx_common_attrs.items() +
+        _dslx_library_attrs.items() +
+        dslx_exec_attrs.items(),
+    ),
 )
 
 def _dslx_test_impl(ctx):
@@ -268,14 +308,12 @@ def _dslx_test_impl(ctx):
       DefaultInfo provider
     """
     src = ctx.file.src
+    runfiles, cmd = get_dslx_test_cmd(ctx, src)
 
-    dslx_test_default_args = DEFAULT_DSLX_TEST_ARGS
-    dslx_test_args = ctx.attr.dslx_test_args
-    DSLX_TEST_FLAGS = (
-        "compare",
-    )
-
-    my_args = get_args(dslx_test_args, DSLX_TEST_FLAGS, dslx_test_args)
+    # The runfiles also require the source files from its transitive
+    # dependencies.
+    for dep in ctx.attr.deps:
+        runfiles += dep[DslxFilesInfo].dslx_sources.to_list()
 
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
@@ -283,24 +321,11 @@ def _dslx_test_impl(ctx):
         content = "\n".join([
             "#!/bin/bash",
             "set -e",
-            "{} {} {}".format(
-                ctx.executable._dslx_interpreter_tool.short_path,
-                src.path,
-                my_args,
-            ),
+            cmd,
             "exit 0",
         ]),
         is_executable = True,
     )
-
-    # The requires runfiles are the source files (from the current target and its
-    # transitive dependencies), the DSLX interpreter executable and the DSLX std
-    # library.
-    runfiles = [
-        item
-        for dep in ctx.attr.deps
-        for item in dep[DslxFilesInfo].dslx_sources.to_list()
-    ] + [src, ctx.executable._dslx_interpreter_tool] + ctx.files._dslx_std_lib
     return [
         DefaultInfo(
             runfiles = ctx.runfiles(files = runfiles),
@@ -326,6 +351,11 @@ dslx_test = rule(
         ```
     """,
     implementation = _dslx_test_impl,
-    attrs = dict(_dslx_common_attrs.items() + _dslx_test_attrs.items()),
+    attrs = dict(
+        _dslx_common_attrs.items() +
+        _dslx_test_attrs.items() +
+        dslx_test_common_attrs.items() +
+        dslx_exec_attrs.items(),
+    ),
     test = True,
 )
