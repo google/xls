@@ -12,12 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//xls/build_rules:build_defs.bzl", "dslx_generated_rtl", "dslx_test")
-load("//xls/build_rules:xls_dslx_rules.bzl", "dslx_library", dslx_ng_test = "dslx_test")
-load("//xls/build_rules:xls_ir_rules.bzl", "dslx_to_ir", "ir_benchmark", "ir_equivalence_test", "ir_eval_test", "ir_opt")
-load("//xls/build_rules:xls_codegen_rules.bzl", "ir_to_codegen")
-load("//xls/build_rules:xls_jit_wrapper_rules.bzl", "cc_ir_to_jit_wrapper", "ir_to_jit_wrapper")
-load("//xls/build_rules:xls_rules.bzl", "dslx_to_codegen")
+load(
+    "//xls/build_rules:build_defs.bzl",
+    "dslx_generated_rtl",
+    "dslx_test",
+)
+load(
+    "//xls/build_rules:xls_dslx_rules.bzl",
+    "dslx_library",
+    dslx_ng_test = "dslx_test",
+)
+load(
+    "//xls/build_rules:xls_ir_rules.bzl",
+    "dslx_to_ir",
+    "ir_benchmark",
+    "ir_equivalence_test",
+    "ir_eval_test",
+    "ir_opt",
+)
+load(
+    "//xls/build_rules:xls_codegen_rules.bzl",
+    "ir_to_codegen",
+)
+load(
+    "//xls/build_rules:xls_jit_wrapper_rules.bzl",
+    "cc_ir_to_jit_wrapper",
+    "ir_to_jit_wrapper",
+)
+load(
+    "//xls/build_rules:xls_rules.bzl",
+    "dslx_to_codegen",
+    "dslx_to_codegen_test",
+)
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -223,6 +249,11 @@ dslx_to_codegen(
     codegen_args = {
         "pipeline_stages": "1",
     },
+)
+
+dslx_to_codegen_test(
+    name = "e_verilog_test",
+    dep = "e_verilog",
 )
 
 # dslx_to_ir target to test JIT wrapper rules
