@@ -32,6 +32,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "//xls/dslx:import_data",
         "//xls/dslx:ir_converter",
+        "//xls/dslx:mangle",
         "//xls/dslx:parse_and_typecheck",
         "//xls/passes",
         "//xls/tools:opt",

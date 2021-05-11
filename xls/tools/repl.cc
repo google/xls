@@ -357,7 +357,7 @@ absl::StatusOr<Function*> FindFunction(absl::string_view function_name,
   }
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
-      dslx::MangleDslxName(function_name, /*free_keys=*/{}, module));
+      dslx::MangleDslxName(module->name(), function_name, /*free_keys=*/{}));
   if (!package->HasFunctionWithName(mangled_name)) {
     std::cerr << absl::StreamFormat(
         "Symbol \"%s\" was not found in IR as either \"%s\" or (mangled) "

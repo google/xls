@@ -63,6 +63,11 @@ absl::StatusOr<std::string> ConvertDslxPathToIr(
 absl::StatusOr<std::string> OptimizeIr(absl::string_view ir,
                                        absl::string_view entry);
 
+// Mangles the given DSL module/function name combination so it can be resolved
+// as a corresponding symbol in converted IR.
+absl::StatusOr<std::string> MangleDslxName(absl::string_view module_name,
+                                           absl::string_view function_name);
+
 }  // namespace xls
 
 #endif  // XLS_PUBLIC_RUNTIME_BUILD_ACTIONS_H_

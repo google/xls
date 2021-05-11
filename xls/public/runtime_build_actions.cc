@@ -18,6 +18,7 @@
 
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_converter.h"
+#include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/passes/passes.h"
 #include "xls/tools/opt.h"
@@ -62,6 +63,12 @@ absl::StatusOr<std::string> OptimizeIr(absl::string_view ir,
       .entry = entry,
   };
   return tools::OptimizeIrForEntry(ir, options);
+}
+
+absl::StatusOr<std::string> MangleDslxName(absl::string_view module_name,
+                                           absl::string_view function_name) {
+  return dslx::MangleDslxName(module_name, function_name, /*free_keys=*/{},
+                              /*symbolic_bindings=*/nullptr);
 }
 
 }  // namespace xls

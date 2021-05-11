@@ -54,8 +54,8 @@ absl::Status RunComparator::RunComparison(
 
   XLS_ASSIGN_OR_RETURN(
       std::string ir_name,
-      MangleDslxName(f->identifier(), f->GetFreeParametricKeySet(), f->owner(),
-                     symbolic_bindings));
+      MangleDslxName(f->owner()->name(), f->identifier(),
+                     f->GetFreeParametricKeySet(), symbolic_bindings));
 
   auto get_result = ir_package->GetFunction(ir_name);
 
@@ -163,10 +163,9 @@ static absl::Status RunQuickCheck(RunComparator* run_comparator,
                                   Package* ir_package, QuickCheck* quickcheck,
                                   TypeInfo* type_info, int64_t seed) {
   Function* fn = quickcheck->f();
-  XLS_ASSIGN_OR_RETURN(
-      std::string ir_name,
-      MangleDslxName(fn->identifier(), fn->GetFreeParametricKeySet(),
-                     fn->owner()));
+  XLS_ASSIGN_OR_RETURN(std::string ir_name,
+                       MangleDslxName(fn->owner()->name(), fn->identifier(),
+                                      fn->GetFreeParametricKeySet()));
   XLS_ASSIGN_OR_RETURN(xls::Function * ir_function,
                        ir_package->GetFunction(ir_name));
 

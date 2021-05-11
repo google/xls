@@ -1485,9 +1485,9 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
 absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
     Invocation* parent_node, NameRef* node, AstNode* arg,
     const SymbolicBindings& symbolic_bindings) {
-  XLS_ASSIGN_OR_RETURN(
-      const std::string mangled_name,
-      MangleDslxName(node->identifier(), {}, module_, &symbolic_bindings));
+  XLS_ASSIGN_OR_RETURN(const std::string mangled_name,
+                       MangleDslxName(module_->name(), node->identifier(),
+                                      /*free_keys=*/{}, &symbolic_bindings));
   XLS_ASSIGN_OR_RETURN(BValue arg_value, Use(arg));
   XLS_VLOG(5) << "Mapping with builtin; arg: "
               << arg_value.GetType()->ToString();
@@ -1550,8 +1550,8 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(Invocation* node) {
   absl::btree_set<std::string> free_set(free.begin(), free.end());
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
-      MangleDslxName((*mapped_fn)->identifier(), free_set, lookup_module,
-                     node_sym_bindings.value()));
+      MangleDslxName(lookup_module->name(), (*mapped_fn)->identifier(),
+                     free_set, node_sym_bindings.value()));
   XLS_VLOG(5) << "Getting function with mangled name: " << mangled_name
               << " from package: " << package()->name();
   XLS_ASSIGN_OR_RETURN(xls::Function * f, package()->GetFunction(mangled_name));
@@ -1814,8 +1814,8 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
   // We use a function builder for the duration of converting this AST Function.
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
-      MangleDslxName(node->identifier(), node->GetFreeParametricKeySet(),
-                     module_, symbolic_bindings));
+      MangleDslxName(module_->name(), node->identifier(),
+                     node->GetFreeParametricKeySet(), symbolic_bindings));
   InstantiateFunctionBuilder(mangled_name);
 
   bool requires_implicit_token = GetRequiresImplicitToken(node);
@@ -2013,7 +2013,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
   // resolved symbol.
   absl::btree_set<std::string> free_keys = (*f)->GetFreeParametricKeySet();
   if (!(*f)->IsParametric()) {
-    return MangleDslxName((*f)->identifier(), free_keys, m);
+    return MangleDslxName(m->name(), (*f)->identifier(), free_keys);
   }
 
   absl::optional<const SymbolicBindings*> resolved_symbolic_bindings =
@@ -2024,7 +2024,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
                                     node->span().ToString(),
                                     (*resolved_symbolic_bindings)->ToString());
   XLS_RET_CHECK(!(*resolved_symbolic_bindings)->empty());
-  return MangleDslxName((*f)->identifier(), free_keys, m,
+  return MangleDslxName(m->name(), (*f)->identifier(), free_keys,
                         resolved_symbolic_bindings.value());
 }
 
