@@ -480,6 +480,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../floating_point/" title="Floating Point" class="md-nav__link">
+      Floating Point
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../fuzzer/" title="Fuzzer" class="md-nav__link">
       Fuzzer
     </a>
@@ -648,6 +660,13 @@
         <li class="md-nav__item">
   <a href="#codegen_main" class="md-nav__link">
     codegen_main
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#delay_info_main" class="md-nav__link">
+    delay_info_main
   </a>
   
 </li>
@@ -1022,6 +1041,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#delay_info_main" class="md-nav__link">
+    delay_info_main
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#eval_ir_main" class="md-nav__link">
     eval_ir_main
   </a>
@@ -1134,6 +1160,9 @@ pipeline or a purely combinational block. Emits both a Verilog file and a module
 signature which includes metadata about the block. The tool does not run any XLS
 passes so unoptimized IR may fail if the IR contains constructs not expected by
 the backend.</p>
+<h2 id="delay_info_main"><a href="https://github.com/google/xls/tree/main/xls/tools/delay_info_main.cc"><code>delay_info_main</code></a></h2>
+<p>Dumps delay information about an XLS function including per-node delay
+information and critical-path.</p>
 <h2 id="eval_ir_main"><a href="https://github.com/google/xls/tree/main/xls/tools/eval_ir_main.cc"><code>eval_ir_main</code></a></h2>
 <p>Evaluates an XLS IR file with user-specified or random inputs. Includes
 features for evaluating the IR before and after optimizations which makes this
@@ -1297,6 +1326,10 @@ against the post-sythesis netlist.</p>
           }, typeof search !== "undefined" && search)
         })
       </script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>

@@ -734,6 +734,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../floating_point/" title="Floating Point" class="md-nav__link">
+      Floating Point
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../fuzzer/" title="Fuzzer" class="md-nav__link">
       Fuzzer
     </a>
@@ -1480,7 +1492,7 @@ approach.</p>
 larger amount of boolean logic appears in XLS' optimized graphs (e.g. or-ing
 together bits in the selector to eliminate duplicate <code>one_hot_select</code> operands).
 Un-simplified boolean operations compound their delay on the critical path; with
-the process independent constant $$\tau$$ a single bit <code>or</code> might be $$6\tau$$,
+the process independent constant <span class="arithmatex">\(\tau\)</span> a single bit <code>or</code> might be <span class="arithmatex">\(6\tau\)</span>,
 which is just to say that having lots of dependent <code>or</code> operations can
 meaningfully add up in the delay estimation for the critical path. If we can
 simplify several layers of boolean operations into one operation (say, perhaps
@@ -1527,9 +1539,9 @@ purposes of analysis).</p>
 <p><img alt="Two-Input Boolean Simplification" src="../two_input_boolean_simplification.png" />{style="display:block;margin:auto;width:75%"}</p>
 <p>As shown in the picture, the algorithm starts flowing the bit vector, which
 represents all possible input values for <code>x</code> and <code>y</code>. You can see that the <code>not</code>
-which produces $$\bar{x}$$ (marked with a red star) simply inverts all the
-entries in the vector and corresponds to the $$\bar{x}$$ column in the truth
-table. Similarly the <code>and</code> operation joins the two vector with the binary <code>&amp;</code>
+which produces <span class="arithmatex">\(\bar{x}\)</span> (marked with a red star) simply inverts all the entries
+in the vector and corresponds to the <span class="arithmatex">\(\bar{x}\)</span> column in the truth table.
+Similarly the <code>and</code> operation joins the two vector with the binary <code>&amp;</code>
 operation, and finally we end up with the blue-starred bit vector on the "output
 frontier", feeding the dependent <code>one_hot_select</code> (marked as <code>ohs</code> in the
 diagram).</p>
@@ -1537,13 +1549,13 @@ diagram).</p>
 table of known function substitutions, we see that the final result can be
 replaced with a node that is simply <code>or(x, y)</code>, saving two unnecessary levels of
 logic, and reducing the critical path delay in this example from something like
-$$13\tau$$ to something like $$6\tau$$.</p>
+<span class="arithmatex">\(13\tau\)</span> to something like <span class="arithmatex">\(6\tau\)</span>.</p>
 <p>This basic procedure is then extended to permit three variables on the input
 frontier to the boolean expression nodes, and the "known function" table is
 extended to include all of our supported logical operators (i.e. <code>nand</code>, <code>nor</code>,
 <code>xor</code>, <code>and</code>, <code>or</code>) with bit vectors for all combinations of inputs being
 present, and when present, either asserted, or their inversions (e.g. we can
-find $$nand(\bar{X}, Y)$$ even though X is inverted).</p>
+find <span class="arithmatex">\(nand(\bar{X}, Y)\)</span> even though X is inverted).</p>
 <h2 id="bit-slice-optimizations">Bit-slice optimizations</h2>
 <p>Bit-slice operations narrow values by selecting a contiguous subset of bits from
 their operand. Bit-slices are zero-cost operations as no computation is
@@ -1831,6 +1843,10 @@ in the expression to two.</p>
           }, typeof search !== "undefined" && search)
         })
       </script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>

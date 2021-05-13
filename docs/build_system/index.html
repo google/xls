@@ -480,6 +480,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../floating_point/" title="Floating Point" class="md-nav__link">
+      Floating Point
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../fuzzer/" title="Fuzzer" class="md-nav__link">
       Fuzzer
     </a>
@@ -1121,6 +1133,9 @@ manner as above.</p>
 <p>In general, if one has a DSLX .x file, there should be an associated <code>dslx_test</code>
 target - this is the entry point to "downstream" capabilities (IR
 transformations, codegen, interpretation/JIT, etc.).</p>
+<p>The "entry" attribute to the <code>dslx_test</code> rule, if provided, must be an IR symbol
+(which is a "mangled" DSLX name). Prefer to use the <code>dslx_mangle</code> macro to
+construct these mangled names from <code>BUILD</code> files.</p>
 <p>Note: This macro is targeted for refactoring, as it currently contains a broad
 swath of not-always-directly-related functionality.</p>
 <h3 id="dslx_generated_rtl"><code>dslx_generated_rtl</code></h3>
@@ -1238,6 +1253,10 @@ argument for maximum search depth.</p>
           }, typeof search !== "undefined" && search)
         })
       </script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>

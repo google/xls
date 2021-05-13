@@ -601,6 +601,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../floating_point/" title="Floating Point" class="md-nav__link">
+      Floating Point
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../fuzzer/" title="Fuzzer" class="md-nav__link">
       Fuzzer
     </a>
@@ -1273,7 +1285,7 @@ percent) with a single HLS iteration.</p>
   a select is accounted for the in delay timing of the select operation. It is
   the <em>output</em> logic layer that is only loaded by a single flop in our
   characterization. Notably because most of these operations turn into trees
-  of logic, there are $$log_2(bitcount)$$ layers of logic in which we can
+  of logic, there are <span class="arithmatex">\(<span class="arithmatex">\(log_2(bitcount)\)</span>\)</span> layers of logic in which we can
   potentially smoothly increase drive strength out to the output logic layer,
   and paths can presumably be replicated by synthesis tools to reduce
   pointwise fanout when multiple high-level operations are data-dependent
@@ -1443,6 +1455,10 @@ operations have been scheduled is provided in stdout.</p>
           }, typeof search !== "undefined" && search)
         })
       </script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>
