@@ -14,12 +14,13 @@
 
 """Contains macros for DSLX targets."""
 
-load("//xls/build_rules:dslx_test.bzl", _dslx_test = "dslx_test")
+load("//xls/build_rules:dslx_test.bzl", _dslx_mangle = "dslx_mangle", _dslx_test = "dslx_test")
 load("//xls/build_rules:dslx_codegen.bzl", _dslx_codegen = "dslx_codegen")
 load("//xls/build_rules:dslx_generated_rtl.bzl", _dslx_generated_rtl = "dslx_generated_rtl")
 load("//xls/build_rules:dslx_jit_wrapper.bzl", _dslx_jit_wrapper = "dslx_jit_wrapper")
 
 dslx_test = _dslx_test
+dslx_mangle = _dslx_mangle
 dslx_codegen = _dslx_codegen
 dslx_generated_rtl = _dslx_generated_rtl
 dslx_jit_wrapper = _dslx_jit_wrapper

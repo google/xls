@@ -60,6 +60,10 @@ In general, if one has a DSLX .x file, there should be an associated `dslx_test`
 target - this is the entry point to "downstream" capabilities (IR
 transformations, codegen, interpretation/JIT, etc.).
 
+The "entry" attribute to the `dslx_test` rule, if provided, must be an IR symbol
+(which is a "mangled" DSLX name). Prefer to use the `dslx_mangle` macro to
+construct these mangled names from `BUILD` files.
+
 Note: This macro is targeted for refactoring, as it currently contains a broad
 swath of not-always-directly-related functionality.
 

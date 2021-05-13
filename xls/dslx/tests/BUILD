@@ -14,7 +14,7 @@
 
 # Interpreter-based standalone tests.
 
-load("//xls/build_rules:build_defs.bzl", "dslx_test")
+load("//xls/build_rules:build_defs.bzl", "dslx_mangle", "dslx_test")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -502,7 +502,11 @@ dslx_test(
 dslx_test(
     name = "parametric_multidim_array",
     srcs = ["parametric_multidim_array.x"],
-    entry = "__parametric_multidim_array__id_6_3_2",
+    entry = dslx_mangle(
+        "parametric_multidim_array",
+        "id",
+        (6, 3, 2),
+    ),
 )
 
 dslx_test(
@@ -526,7 +530,7 @@ dslx_test(
 dslx_test(
     name = "test_f_calls_parametric_f",
     srcs = ["test_f_calls_parametric_f.x"],
-    entry = "__test_f_calls_parametric_f__f",
+    entry = dslx_mangle("test_f_calls_parametric_f", "f"),
 )
 
 dslx_test(
@@ -539,7 +543,7 @@ dslx_test(
 dslx_test(
     name = "for_up_to_const",
     srcs = ["for_up_to_const.x"],
-    entry = "__for_up_to_const__f",
+    entry = dslx_mangle("for_up_to_const", "f"),
 )
 
 dslx_test(
