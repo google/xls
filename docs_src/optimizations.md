@@ -104,7 +104,7 @@ With the addition of the `one_hot_select` and its corresponding optimizations, a
 larger amount of boolean logic appears in XLS' optimized graphs (e.g. or-ing
 together bits in the selector to eliminate duplicate `one_hot_select` operands).
 Un-simplified boolean operations compound their delay on the critical path; with
-the process independent constant $$\tau$$ a single bit `or` might be $$6\tau$$,
+the process independent constant $\tau$ a single bit `or` might be $6\tau$,
 which is just to say that having lots of dependent `or` operations can
 meaningfully add up in the delay estimation for the critical path. If we can
 simplify several layers of boolean operations into one operation (say, perhaps
@@ -157,9 +157,9 @@ purposes of analysis).
 
 As shown in the picture, the algorithm starts flowing the bit vector, which
 represents all possible input values for `x` and `y`. You can see that the `not`
-which produces $$\bar{x}$$ (marked with a red star) simply inverts all the
-entries in the vector and corresponds to the $$\bar{x}$$ column in the truth
-table. Similarly the `and` operation joins the two vector with the binary `&`
+which produces $\bar{x}$ (marked with a red star) simply inverts all the entries
+in the vector and corresponds to the $\bar{x}$ column in the truth table.
+Similarly the `and` operation joins the two vector with the binary `&`
 operation, and finally we end up with the blue-starred bit vector on the "output
 frontier", feeding the dependent `one_hot_select` (marked as `ohs` in the
 diagram).
@@ -168,14 +168,14 @@ When we resolve that final result bit vector with the blue star against our
 table of known function substitutions, we see that the final result can be
 replaced with a node that is simply `or(x, y)`, saving two unnecessary levels of
 logic, and reducing the critical path delay in this example from something like
-$$13\tau$$ to something like $$6\tau$$.
+$13\tau$ to something like $6\tau$.
 
 This basic procedure is then extended to permit three variables on the input
 frontier to the boolean expression nodes, and the "known function" table is
 extended to include all of our supported logical operators (i.e. `nand`, `nor`,
 `xor`, `and`, `or`) with bit vectors for all combinations of inputs being
 present, and when present, either asserted, or their inversions (e.g. we can
-find $$nand(\bar{X}, Y)$$ even though X is inverted).
+find $nand(\bar{X}, Y)$ even though X is inverted).
 
 ## Bit-slice optimizations
 
