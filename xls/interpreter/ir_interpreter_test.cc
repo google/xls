@@ -29,6 +29,8 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
+using status_testing::StatusIs;
+using ::testing::HasSubstr;
 
 INSTANTIATE_TEST_SUITE_P(
     IrInterpreterTest, IrEvaluatorTestBase,
@@ -67,6 +69,25 @@ TEST_F(IrInterpreterOnlyTest, EvaluateNode) {
               IsOkAndHolds(Value(UBits(0b1011, 4))));
   EXPECT_THAT(InterpretNode(FindNode("literal.1", function), {}),
               IsOkAndHolds(Value(UBits(6, 4))));
+}
+
+TEST_F(IrInterpreterOnlyTest, AssertTestWithData) {
+  auto p = CreatePackage();
+  FunctionBuilder b(TestName(), p.get());
+  auto p0 = b.Param("tkn", p->GetTokenType());
+  auto p1 = b.Param("cond", p->GetBitsType(1));
+  auto p2 = b.Param("value", p->GetBitsType(8));
+
+  b.Assert(p0, p1, "default: {}, hex: {:#x}, bits: {:#b}, decimal: {:d}",
+           {p2, p2, p2, p2});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  EXPECT_THAT(
+      InterpretFunction(
+          f, {Value::Token(), Value(UBits(0, 1)), Value(UBits(67, 8))}),
+      StatusIs(absl::StatusCode::kAborted,
+               HasSubstr("default: bits[8]:67, hex: bits[8]:0x43, bits: "
+                         "bits[8]:0b100_0011, decimal: bits[8]:67")));
 }
 
 }  // namespace

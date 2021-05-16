@@ -530,5 +530,34 @@ block my_block(a: bits[32], b: bits[32], out: bits[32]) {
   XLS_ASSERT_OK(VerifyBlock(FindBlock("my_block", p.get())));
 }
 
+TEST_F(VerifierTest, AssertNotEnoughOperands) {
+  std::string input = R"(
+package test_package
+
+fn f(tkn: token, cond: bits[1]) -> token {
+  ret assert.1: token = assert(tkn, cond, message="Uh {} oh", data_operands=[])
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Expected assert.1 to have 1 data operands, has 0")));
+}
+
+TEST_F(VerifierTest, AssertBadFormatString) {
+  std::string input = R"(
+package test_package
+
+fn f(tkn: token, cond: bits[1], data: bits[32]) -> token {
+  ret assert.1: token = assert(tkn, cond, message="{abc}", data_operands=[data])
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(VerifyPackage(p.get()),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("format specifier")));
+}
+
 }  // namespace
 }  // namespace xls

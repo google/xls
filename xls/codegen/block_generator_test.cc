@@ -338,7 +338,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
   BlockBuilder b(TestBaseName(), &package);
   BValue a = b.InputPort("a", package.GetBitsType(32));
   b.Assert(b.AfterAll({}), b.ULt(a, b.Literal(UBits(42, 32))),
-           "a is not greater than 42", "the_label");
+           "a is not greater than 42", /*data_operands=*/{}, "the_label");
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
   {

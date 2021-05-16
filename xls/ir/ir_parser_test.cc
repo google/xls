@@ -14,10 +14,10 @@
 
 #include "xls/ir/ir_parser.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/strings/substitute.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits_ops.h"
@@ -1127,6 +1127,18 @@ TEST(IrParserTest, ParseCover) {
 
 fn bar(tkn: token, cond: bits[1]) -> token {
   ret cover.1: token = cover(tkn, cond, label="The foo is bar", id=1)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseAssertWithOperands) {
+  const std::string input = R"(package foobar
+
+fn bar(tkn: token, cond: bits[1]) -> token {
+  literal.1: bits[32] = literal(value=1, id=1)
+  literal.2: bits[32] = literal(value=2, id=2)
+  ret assert.3: token = assert(tkn, cond, message="The {} is {:#x}", data_operands=[literal.1, literal.2], label="assert_label", id=3)
 }
 )";
   ParsePackageAndCheckDump(input);

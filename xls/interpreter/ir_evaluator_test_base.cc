@@ -3260,7 +3260,7 @@ TEST_P(IrEvaluatorTestBase, AssertTest) {
   FunctionBuilder b(TestName(), p.get());
   auto p0 = b.Param("tkn", p->GetTokenType());
   auto p1 = b.Param("cond", p->GetBitsType(1));
-  b.Assert(p0, p1, "the assertion error message");
+  b.Assert(p0, p1, "the assertion error message", {});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
 
   EXPECT_THAT(RunWithValues(f, {Value::Token(), Value(UBits(1, 1))}),

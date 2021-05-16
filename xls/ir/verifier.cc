@@ -25,6 +25,7 @@
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
@@ -65,10 +66,21 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleAssert(Assert* assert_op) override {
-    XLS_RETURN_IF_ERROR(ExpectOperandCount(assert_op, 2));
+    XLS_RETURN_IF_ERROR(ExpectOperandCountGt(assert_op, 1));
     XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(assert_op, 0));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(assert_op, /*operand_no=*/1,
                                                  /*expected_bit_count=*/1));
+    XLS_ASSIGN_OR_RETURN(std::vector<FormatStep> parsed,
+                         ParseFormatString(assert_op->message()));
+    int64_t expected_operand_count = std::count_if(
+        parsed.cbegin(), parsed.cend(), [](const FormatStep& step) {
+          return absl::holds_alternative<FormatPreference>(step);
+        });
+    if (expected_operand_count != assert_op->data_operands().size()) {
+      return absl::InternalError(StrFormat(
+          "Expected %s to have %d data operands, has %d", assert_op->GetName(),
+          expected_operand_count, assert_op->data_operands().size()));
+    }
     return ExpectHasTokenType(assert_op);
   }
 

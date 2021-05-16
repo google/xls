@@ -1107,6 +1107,7 @@ other side-effecting operations.
 ```
 result = assert(tkn, condition, message=<string>)
 result = assert(tkn, condition, message=<string>, label=<string>)
+result = assert(tkn, condition, message=<string>, data_operands=<operands>, label=<string>)
 ```
 
 **Types**
@@ -1125,8 +1126,27 @@ Value       | Type
 | --------- | ----------------- | -------- | ------- | --------------- |
 | `message` | `string`          | yes      |         | Message to include in raised error |
 | `label`   | `optional string` | yes      |         | Label to associate with the assert statement in the generated (System)Verilog |
+| `data_operands` | array of    | no       | `[]`    | Data operands that are interpolated in the provided message |
 
 <!-- mdformat on -->
+
+The message can interpolate data operands using curly `{}`. Anything that is not
+contained in braces is considered literal text, which is copied unchanged to the
+output. Curly braces can be escaped by doubling up, e.g. `{{` or `}}`. A format
+specifier can be provided within the braces to set how the argument should be
+printed. The valid specifiers are:
+
+* no specifier: Print the argument in its default format.
+* `:d`: Print argument in decimal.
+* `:#x`: Print argument in hex.
+* `:#b`: Print argument in binary.
+
+Printing a compound type (e.g. tuple or array) will apply the specifier
+recursively to the contained bits.
+
+Invalid interpolation arguments (for example, not enough data operands being
+provided, or an invalid specifier being used) will simply print the unformatted
+message.
 
 #### **`cover`**
 

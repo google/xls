@@ -21,10 +21,12 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/package.h"
@@ -454,7 +456,25 @@ absl::Status IrInterpreter::HandleArrayConcat(ArrayConcat* concat) {
 
 absl::Status IrInterpreter::HandleAssert(Assert* assert_op) {
   if (!ResolveAsBool(assert_op->condition())) {
-    return absl::AbortedError(assert_op->message());
+    XLS_ASSIGN_OR_RETURN(std::vector<FormatStep> steps,
+                         ParseFormatString(assert_op->message()));
+
+    std::string formatted;
+    size_t current_operand = 0;
+    auto data_operands = assert_op->data_operands();
+    for (const auto& step : steps) {
+      absl::visit(
+          Visitor{[&formatted](std::string s) { formatted.append(s); },
+                  [this, &formatted, &data_operands,
+                   &current_operand](FormatPreference f) {
+                    formatted.append(
+                        node_values_.at(data_operands[current_operand++])
+                            .ToString(f));
+                  }},
+          step);
+    }
+
+    return absl::AbortedError(formatted);
   }
   return SetValueResult(assert_op, Value::Token());
 }
