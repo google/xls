@@ -254,6 +254,15 @@ fn f() -> u32 {
 })"));
 }
 
+TEST(TypecheckTest, ForNoAnnotation) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn f() -> u32 {
+  for (i, accum) in range(u32:0, u32:3) {
+    accum
+  }(u32:0)
+})"));
+}
+
 TEST(TypecheckTest, ForBuiltinInBody) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32 {
@@ -283,7 +292,8 @@ fn f(x: u32) -> (u32, u8) {
 })"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr("Expected a tuple type for these names, but got uN[8].")));
+          HasSubstr("(uN[32], uN[8]) vs (uN[32], (uN[32], uN[8])): For-loop "
+                    "annotated type did not match inferred type.")));
 }
 
 TEST(TypecheckTest, DerivedExprTypeMismatch) {

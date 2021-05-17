@@ -630,7 +630,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Env* env) {
       fake_span_, std::vector<NameDefTree*>{i_ndt, x_ndt});
   XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValueNotArray(env));
   NameRef* body = MakeNameRef(x_def);
-  TupleTypeAnnotation* tree_type = MakeTupleType({ivar_type, e.type});
+
+  // Randomly decide to use or not-use the type annotation on the loop.
+  TupleTypeAnnotation* tree_type = nullptr;
+  if (RandomBool()) {
+    tree_type = MakeTupleType({ivar_type, e.type});
+  }
   For* for_ = module_->Make<For>(fake_span_, name_def_tree, tree_type, iterable,
                                  body, /*init=*/e.expr);
   return TypedExpr{for_, e.type};

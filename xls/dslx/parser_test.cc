@@ -378,6 +378,15 @@ accum)",
                 {"range"});
 }
 
+TEST_F(ParserTest, ForSansTypeAnnotation) {
+  RoundTripExpr(
+      R"(let init = ();
+for (i, accum) in range(u32:0, u32:4) {
+  accum
+}(init))",
+      {"range"});
+}
+
 TEST_F(ParserTest, MatchWithConstPattern) {
   RoundTrip(R"(const FOO = u32:64;
 fn f(x: u32) {

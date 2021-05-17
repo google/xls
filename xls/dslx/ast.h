@@ -1755,6 +1755,7 @@ class For : public Expr {
 
  private:
   NameDefTree* names_;    // NameDefTree bound in the body of the loop.
+  // TODO(leary): 2021-05-13 Rename to `type_annotation_`.
   TypeAnnotation* type_;  // Annotation corresponding to "names".
   Expr* iterable_;        // Expression for "thing to iterate over".
   Expr* body_;  // Expression for the loop body, should evaluate to type type_.

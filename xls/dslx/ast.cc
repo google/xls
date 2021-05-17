@@ -322,12 +322,15 @@ std::string StructInstance::ToString() const {
 }
 
 std::string For::ToString() const {
-  return absl::StrFormat(R"(for %s: %s in %s {
+  std::string type_str;
+  if (type_ != nullptr) {
+    type_str = absl::StrCat(": ", type_->ToString());
+  }
+  return absl::StrFormat(R"(for %s%s in %s {
 %s
 }(%s))",
-                         names_->ToString(), type_->ToString(),
-                         iterable_->ToString(), Indent(body_->ToString()),
-                         init_->ToString());
+                         names_->ToString(), type_str, iterable_->ToString(),
+                         Indent(body_->ToString()), init_->ToString());
 }
 
 ConstantDef::ConstantDef(Module* owner, Span span, NameDef* name_def,
@@ -1012,7 +1015,7 @@ For::For(Module* owner, Span span, NameDefTree* names, TypeAnnotation* type,
 
 std::vector<AstNode*> For::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {names_};
-  if (want_types) {
+  if (want_types && type_ != nullptr) {
     results.push_back(type_);
   }
   results.push_back(iterable_);

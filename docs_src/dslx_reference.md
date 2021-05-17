@@ -1218,6 +1218,9 @@ for (index, accumulator): (type-of-index, type-of-accumulator) in iterable {
 } (initial-accumulator-value)
 ```
 
+The type annotation in the above "blueprint" is optional, but often helpful to
+include for increased clarity.
+
 Because DSLX is a pure dataflow description, a for loop is an expression that
 produces a value. As a result, you grab the output of a for loop just like any
 other expression:

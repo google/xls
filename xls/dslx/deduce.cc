@@ -462,16 +462,48 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(Let* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(For* node,
                                                         DeduceCtx* ctx) {
+  // Type of the init value to the for loop (also the accumulator type).
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> init_type,
                        DeduceAndResolve(node->init(), ctx));
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated_type,
-                       ctx->Deduce(node->type()));
 
-  XLS_RETURN_IF_ERROR(BindNames(node->names(), *annotated_type, ctx));
+  // Type of the iterable (whose elements are being used as the induction
+  // variable in the for loop).
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> iterable_type,
+                       DeduceAndResolve(node->iterable(), ctx));
+  auto* iterable_array_type = dynamic_cast<ArrayType*>(iterable_type.get());
+  if (iterable_array_type == nullptr) {
+    return TypeInferenceErrorStatus(node->iterable()->span(),
+                                    iterable_type.get(),
+                                    "For loop iterable value is not an array.");
+  }
+  const ConcreteType& iterable_element_type =
+      iterable_array_type->element_type();
+
+  std::vector<std::unique_ptr<ConcreteType>> target_annotated_type_elems;
+  target_annotated_type_elems.push_back(iterable_element_type.CloneToUnique());
+  target_annotated_type_elems.push_back(init_type->CloneToUnique());
+  auto target_annotated_type =
+      absl::make_unique<TupleType>(std::move(target_annotated_type_elems));
+
+  // If there was an explicitly annotated type, ensure it matches our inferred
+  // one.
+  if (node->type() != nullptr) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated_type,
+                         DeduceAndResolve(node->type(), ctx));
+
+    if (*target_annotated_type != *annotated_type) {
+      return XlsTypeErrorStatus(
+          node->span(), *annotated_type, *target_annotated_type,
+          "For-loop annotated type did not match inferred type.");
+    }
+  }
+
+  // Bind the names to their associated types for use in the body.
+  XLS_RETURN_IF_ERROR(BindNames(node->names(), *target_annotated_type, ctx));
+
+  // Now we can deduce the body.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_type,
                        DeduceAndResolve(node->body(), ctx));
-
-  XLS_RETURN_IF_ERROR(ctx->Deduce(node->iterable()).status());
 
   if (*init_type != *body_type) {
     return XlsTypeErrorStatus(node->span(), *init_type, *body_type,
@@ -479,9 +511,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(For* node,
                               "for-loop body's result type.");
   }
 
-  // TODO(leary): 2019-02-19 Type check annotated_type (the bound names each
-  // iteration) against init_type/body_type -- this requires us to understand
-  // how iterables turn into induction values.
   return init_type;
 }
 

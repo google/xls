@@ -47,8 +47,8 @@ pub fn iterative_div<N: u32, DN: u32 = N * u32:2>(x: uN[N], y: uN[N]) -> uN[N] {
   let x = x as uN[DN];
 
   let (_, _, _, div_result) =
-        for(idx, (shifted_y, shifted_index_bit, running_product, running_result)): (u32, (uN[DN], uN[N], uN[DN], uN[N]))
-        in range(u32:0, N) {
+  for (idx, (shifted_y, shifted_index_bit, running_product, running_result))
+      in range(u32:0, N) {
 
     // Increment running_result by current power of 2
     // if the prodcut running_result * y < x.

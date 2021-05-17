@@ -552,6 +552,11 @@ dslx_test(
 )
 
 dslx_test(
+    name = "for_sans_type_annotation",
+    srcs = ["for_sans_type_annotation.x"],
+)
+
+dslx_test(
     name = "map_of_stdlib_parametric",
     srcs = ["map_of_stdlib_parametric.x"],
 )

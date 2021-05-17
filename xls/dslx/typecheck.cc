@@ -291,7 +291,7 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
 
   // Callback that signatures can use to request constexpr evaluation of their
   // arguments -- this is a special builtin superpower used by e.g. range().
-  auto constexpr_eval = [&](int64_t argno) -> absl::Status {
+  auto constexpr_eval = [&](int64_t argno) -> absl::StatusOr<InterpValue> {
     Expr* arg = invocation->args()[argno];
 
     auto env =
@@ -303,7 +303,7 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
             arg->owner(), ctx->type_info(), ctx->typecheck_module(),
             ctx->additional_search_paths(), ctx->import_data(), env, arg));
     ctx->type_info()->NoteConstExpr(arg, value);
-    return absl::OkStatus();
+    return value;
   };
 
   XLS_ASSIGN_OR_RETURN(

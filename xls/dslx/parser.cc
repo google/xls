@@ -1462,12 +1462,14 @@ absl::StatusOr<For*> Parser::ParseFor(Bindings* bindings) {
 
   Bindings for_bindings(bindings);
   XLS_ASSIGN_OR_RETURN(NameDefTree * names, ParseNameDefTree(&for_bindings));
-  // TODO(leary): 2020-09-12 Make this type annotation optional.
-  XLS_RETURN_IF_ERROR(
-      DropTokenOrError(TokenKind::kColon, nullptr,
-                       "Expect type annotation on for-loop values."));
-  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
-                       ParseTypeAnnotation(&for_bindings));
+  XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
+  TypeAnnotation* type = nullptr;
+  if (peek_is_colon) {
+    XLS_RETURN_IF_ERROR(
+        DropTokenOrError(TokenKind::kColon, nullptr,
+                         "Expect type annotation on for-loop values."));
+    XLS_ASSIGN_OR_RETURN(type, ParseTypeAnnotation(&for_bindings));
+  }
   XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kIn));
   XLS_ASSIGN_OR_RETURN(Expr * iterable, ParseExpression(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));

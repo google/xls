@@ -243,9 +243,9 @@ const absl::flat_hash_map<std::string, std::string>& GetParametricBuiltins() {
 
       // Require-const-argument.
       //
-      // Note this is messed up and should be replaced with
-      // known-statically-sized iota syntax.
-      {"range", "(const uN[N], const uN[N]) -> ()"},
+      // Note this is a messed up type signature to need to support and should
+      // really be replaced with known-statically-sized iota syntax.
+      {"range", "(const uN[N], const uN[N]) -> uN[N][R]"},
   };
   return *map;
 }
@@ -341,19 +341,31 @@ static void PopulateSignatureToLambdaMap(
     return TypeAndBindings{absl::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), ConcreteType::MakeNil())};
   };
-  map["(const uN[N], const uN[N]) -> ()"] =
+  map["(const uN[N], const uN[N]) -> uN[N][R]"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
                             .Len(2)
                             .IsUN(0)
-                            .IsUN(1)
                             .ArgsSameType(0, 1)
                             .status());
-    XLS_RETURN_IF_ERROR(data.constexpr_eval(0));
-    XLS_RETURN_IF_ERROR(data.constexpr_eval(1));
+    XLS_ASSIGN_OR_RETURN(InterpValue start, data.constexpr_eval(0));
+    XLS_ASSIGN_OR_RETURN(InterpValue limit, data.constexpr_eval(1));
+    XLS_ASSIGN_OR_RETURN(int64_t start_int, start.GetBitValueUint64());
+    XLS_ASSIGN_OR_RETURN(int64_t limit_int, limit.GetBitValueUint64());
+    int64_t length = limit_int - start_int;
+    if (length < 0) {
+      return TypeInferenceErrorStatus(
+          data.span, nullptr,
+          absl::StrFormat("Need limit to '%s' to be >= than start value; "
+                          "start: %s, limit: %s",
+                          data.name, start.ToString(), limit.ToString()));
+    }
+    auto return_type =
+        absl::make_unique<ArrayType>(data.arg_types[0]->CloneToUnique(),
+                                     ConcreteTypeDim::Create(length).value());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(data.arg_types), ConcreteType::MakeNil())};
+        CloneToUnique(data.arg_types), std::move(return_type))};
   };
   map["(T[N], uN[M], T) -> T[N]"] =
       [](const SignatureData& data,

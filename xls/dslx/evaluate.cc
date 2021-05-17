@@ -651,27 +651,38 @@ absl::StatusOr<InterpValue> EvaluateFor(For* expr, InterpBindings* bindings,
                                         AbstractInterpreter* interp) {
   XLS_ASSIGN_OR_RETURN(InterpValue iterable,
                        interp->Eval(expr->iterable(), bindings));
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<ConcreteType> concrete_iteration_type,
-      ConcretizeTypeAnnotation(expr->type(), bindings, interp));
+
+  std::unique_ptr<ConcreteType> concrete_iteration_type;
+  if (expr->type() != nullptr) {
+    XLS_ASSIGN_OR_RETURN(
+        concrete_iteration_type,
+        ConcretizeTypeAnnotation(expr->type(), bindings, interp));
+  }
+
   XLS_ASSIGN_OR_RETURN(InterpValue carry, interp->Eval(expr->init(), bindings));
   XLS_ASSIGN_OR_RETURN(int64_t length, iterable.GetLength());
   for (int64_t i = 0; i < length; ++i) {
     const InterpValue& x = iterable.GetValuesOrDie().at(i);
     InterpValue iteration = InterpValue::MakeTuple({x, carry});
-    XLS_ASSIGN_OR_RETURN(
-        bool type_checks,
-        ConcreteTypeAcceptsValue(*concrete_iteration_type, iteration));
-    if (!type_checks) {
-      XLS_ASSIGN_OR_RETURN(auto concrete_type,
-                           ConcreteTypeFromValue(iteration));
-      return absl::InternalError(absl::StrFormat(
-          "EvaluateError: %s Type error found! Iteration value does not "
-          "conform to type annotation at top of iteration %d:\n  got value: "
-          "%s\n  type: %s\n  want: %s",
-          expr->span().ToString(), i, iteration.ToString(),
-          concrete_type->ToString(), concrete_iteration_type->ToString()));
+
+    // If there's a type annotation, validate that the value we evaluated
+    // conforms to it as a spot check.
+    if (concrete_iteration_type != nullptr) {
+      XLS_ASSIGN_OR_RETURN(
+          bool type_checks,
+          ConcreteTypeAcceptsValue(*concrete_iteration_type, iteration));
+      if (!type_checks) {
+        XLS_ASSIGN_OR_RETURN(auto concrete_type,
+                             ConcreteTypeFromValue(iteration));
+        return absl::InternalError(absl::StrFormat(
+            "EvaluateError: %s Type error found! Iteration value does not "
+            "conform to type annotation at top of iteration %d:\n  got value: "
+            "%s\n  type: %s\n  want: %s",
+            expr->span().ToString(), i, iteration.ToString(),
+            concrete_type->ToString(), concrete_iteration_type->ToString()));
+      }
     }
+
     InterpBindings new_bindings =
         InterpBindings::CloneWith(bindings, expr->names(), iteration);
     XLS_ASSIGN_OR_RETURN(carry, interp->Eval(expr->body(), &new_bindings));
