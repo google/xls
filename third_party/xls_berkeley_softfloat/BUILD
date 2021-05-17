@@ -8,7 +8,10 @@ package(
 
 licenses(["notice"])
 
-exports_files(["LICENSE"])
+exports_files([
+               "LICENSE",
+               "fpdiv_2x32.x"
+               ])
 
 dslx_test(
     name = "fpdiv_2x32",
@@ -46,5 +49,3 @@ cc_test(
         "//xls/tools:testbench",
     ],
 )
-
-exports_files(["fpdiv_2x32.x"])

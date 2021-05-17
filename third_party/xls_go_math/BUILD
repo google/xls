@@ -8,7 +8,12 @@ package(
 
 licenses(["notice"])
 
-exports_files(["LICENSE"])
+exports_files([
+               "LICENSE",
+               "fpexp_32.x",
+               "fp_sincos_32.x",
+               "fpsqrt_32.x",
+               ])
 
 dslx_test(
     name = "fpexp_32",

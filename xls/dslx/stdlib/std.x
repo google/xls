@@ -226,6 +226,24 @@ fn rrot_test() {
   _
 }
 
+// Returns the maximum of two signed integers.
+pub fn smax<N: u32>(x: sN[N], y: sN[N]) -> sN[N] {
+  x if x > y else y
+}
+
+#![test]
+fn smax_test() {
+  let _ = assert_eq(s32:1,  smax(s32:1,  s32:0));
+  let _ = assert_eq(s32:1,  smax(s32:1,  s32:1));
+  let _ = assert_eq(s32:3,  smax(s32:3,  s32:2));
+  let _ = assert_eq(s32:0,  smax(s32:-1, s32:0));
+  let _ = assert_eq(s32:-1, smax(s32:-1, s32:-1));
+  let _ = assert_eq(s32:-2, smax(s32:-2, s32:-3));
+  let _ = assert_eq(s32:2,  smax(s32:-3, s32:2));
+  let _ = assert_eq(s32:2,  smax(s32:-1, s32:2));
+  ()
+}
+
 // Returns the maximum of two unsigned integers.
 pub fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
   x if x > y else y
@@ -249,6 +267,39 @@ fn umin_test() {
   let _ = assert_eq(u1:0, umin(u1:1, u1:0));
   let _ = assert_eq(u1:1, umin(u1:1, u1:1));
   let _ = assert_eq(u2:2, umin(u2:3, u2:2));
+  ()
+}
+
+// Returns the minimum of two signed integers.
+pub fn smin<N: u32>(x: sN[N], y: sN[N]) -> sN[N] {
+  x if x < y else y
+}
+
+#![test]
+fn smin_test() {
+  let _ = assert_eq(s32:0,  smin(s32:1,  s32:0));
+  let _ = assert_eq(s32:1,  smin(s32:1,  s32:1));
+  let _ = assert_eq(s32:2,  smin(s32:3,  s32:2));
+  let _ = assert_eq(s32:-1, smin(s32:-1, s32:0));
+  let _ = assert_eq(s32:-1, smin(s32:-1, s32:-1));
+  let _ = assert_eq(s32:-3, smin(s32:-2, s32:-3));
+  let _ = assert_eq(s32:-3, smin(s32:-3, s32:2));
+  let _ = assert_eq(s32:-1, smin(s32:-1, s32:2));
+  ()
+}
+
+// Return 'x' clammped to be within the bounds [min_inc, max_inc].
+pub fn sclamp(x:s32, min_inc:s32, max_inc:s32) -> s32 {
+  smax(min_inc, smin(max_inc, x))
+}
+
+#![test]
+fn sclamp_test() {
+  let _ = assert_eq(sclamp(s32:5, s32:0, s32:10), s32:5);
+  let _ = assert_eq(sclamp(s32:-5, s32:0, s32:10), s32:0);
+  let _ = assert_eq(sclamp(s32:15, s32:0, s32:10), s32:10);
+  let _ = assert_eq(sclamp(s32:0, s32:0, s32:10), s32:0);
+  let _ = assert_eq(sclamp(s32:10, s32:0, s32:10), s32:10);
   ()
 }
 

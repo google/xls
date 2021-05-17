@@ -994,6 +994,120 @@ fn round_towards_zero_test() {
   ()
 }
 
+// Round off the sfd of 'x' after the sfd bit a index 'sfd_idx'
+// If the bis after 'sfd_idx' are 100..., then we round up.
+// No effect if 'sfd_idx' >= SFD_SZ.
+pub fn round_to_nearest_sfd_idx<EXP_SZ:u32, SFD_SZ:u32,
+    EXTENDED_SFD_SZ:u32 = SFD_SZ + u32:1>(
+    x: APFloat<EXP_SZ, SFD_SZ>, sfd_idx: u32) -> APFloat<EXP_SZ, SFD_SZ> {
+  // We add 1/2 the value of the sfd bit at sfd_idx and
+  // then truncate to do rounding.
+  let addend = uN[SFD_SZ]:1 << (sfd_idx - u32:1);
+  let mask  = !((uN[EXTENDED_SFD_SZ]:1 << sfd_idx) - uN[EXTENDED_SFD_SZ]:1) as uN[SFD_SZ];
+  let inc_sfd = x.sfd + addend;
+  let new_sfd = inc_sfd & mask;
+  let new_x = APFloat<EXP_SZ, SFD_SZ>{sign: x.sign, bexp: x.bexp, sfd: new_sfd, ..x};
+
+  // Rollover exponent (covers case of overflowing to infinity).
+  let new_x = APFloat<EXP_SZ, SFD_SZ>{sign: x.sign, bexp: x.bexp + uN[EXP_SZ]:1, sfd: uN[SFD_SZ]:0}
+              if inc_sfd < x.sfd
+              else new_x;
+
+  new_x if (!is_inf(x) && !is_nan(x) && sfd_idx < SFD_SZ)
+          else x
+}
+
+#![test]
+fn round_to_nearest_sfd_idx_test() {
+  // Round down - 0 sfd.
+  let input = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0};
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:0), input);
+
+  // Round down - 0 sfd.
+  let input = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0};
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:1), input);
+
+  // Round down - 0 sfd.
+  let input = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0};
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:15), input);
+
+  // Round down.
+  let input = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x000007};
+  let expected = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x000000};
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:4), expected);
+
+  // Round down.
+  let input = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x00007f};
+  let expected = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x000000};
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:8), expected);
+
+  // Round up.
+  let input = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x000007};
+  let expected = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x000008};
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:3), expected);
+
+  // Round up.
+  let input = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x00007f};
+  let expected = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x000080};
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:7), expected);
+
+  // Round up - halfway.
+  let input = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x000004};
+  let expected = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x000008};
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:3), expected);
+
+  // Round to idx 0 (no effect).
+  let input = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x000007};
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:0), input);
+
+  // Round to idx 0 (no effect).
+  let input = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x000007};
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:23), input);
+
+  // inf
+  let input = inf<u32:8, u32:23>(u1:0);
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:8), input);
+
+  // -inf
+  let input = inf<u32:8, u32:23>(u1:1);
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:8), input);
+
+  // NaN
+  let input = qnan<u32:8, u32:23>();
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:8), input);
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:22), input);
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:23), input);
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:24), input);
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:25), input);
+
+  // Rollover exponent.
+  let input = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x7ffff0};
+  let expected = APFloat<u32:8, u32:23>{sign: u1:0, bexp: bias<u32:8, u32:23>(u9:1), sfd: u23:0};
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:8), expected);
+
+  // Rollover exponent to infinity.
+  let input = APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0xfe, sfd: u23:0x7ffff0};
+  let expected = inf<u32:8, u32:23>(u1:0);
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:5), expected);
+
+  // Round down, negative
+  let input = APFloat<u32:8, u32:23>{sign: u1:1, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x000007};
+  let expected = APFloat<u32:8, u32:23>{sign: u1:1, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x000000};
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:4), expected);
+
+  // Round up, negative
+  let input = APFloat<u32:8, u32:23>{sign: u1:1, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x000007};
+  let expected = APFloat<u32:8, u32:23>{sign: u1:1, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x000008};
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:3), expected);
+
+  // Round up - halfway, negative
+  let input = APFloat<u32:8, u32:23>{sign: u1:1, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x000004};
+  let expected = APFloat<u32:8, u32:23>{sign: u1:1, bexp: bias<u32:8, u32:23>(u9:0), sfd: u23:0x000008};
+  let _ = assert_eq(round_to_nearest_sfd_idx(input, u32:3), expected);
+
+  ()
+}
+
 // TODO(rspringer): Create a broadly-applicable normalize test, that
 // could be used for multiple type instantiations (without needing
 // per-specialization data to be specified by a user).

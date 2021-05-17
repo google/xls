@@ -78,6 +78,10 @@ pub fn normalize(sign:u1, exp: u11, sfd_with_hidden: u53) -> F64 {
   apfloat::normalize<u32:11, u32:52>(sign, exp, sfd_with_hidden)
 }
 
+pub fn round_to_nearest_sfd_idx(x: F64, sfd_idx: u32) -> F64 {
+  apfloat::round_to_nearest_sfd_idx<u32:11, u32:52>(x, sfd_idx)
+}
+
 pub fn tag(f: F64) -> FloatTag {
   apfloat::tag<u32:11, u32:52>(f)
 }
