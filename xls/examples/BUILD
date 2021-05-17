@@ -124,6 +124,20 @@ dslx_jit_wrapper(
     deps = [":sha256_opt_ir"],
 )
 
+dslx_test(
+    name = "sobel_filter",
+    srcs = ["sobel_filter.x"],
+    # No meaningful entry point to convert.
+    convert_ir = False,
+    deps = [
+        "//third_party/xls_go_math:fpsqrt_32.x",
+        "//xls/modules:apfloat_add_2.x",
+        "//xls/modules:apfloat_mul_2.x",
+        "//xls/modules:fpadd_2x32.x",
+        "//xls/modules:fpmul_2x32.x",
+    ],
+)
+
 list_filegroup_files(
     name = "ir_example_file_list",
     src = ":ir_examples",
