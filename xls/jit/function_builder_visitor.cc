@@ -732,10 +732,79 @@ absl::Status FunctionBuilderVisitor::HandleEncode(Encode* encode) {
   return StoreResult(encode, result);
 }
 
+absl::StatusOr<std::vector<FunctionBuilderVisitor::CompareTerm>>
+FunctionBuilderVisitor::ExpandTerms(Node* lhs, Node* rhs, Node* src) {
+  XLS_RET_CHECK(lhs->GetType() == rhs->GetType()) << absl::StreamFormat(
+      "The lhs and rhs of %s have different types: lhs %s rhs %s",
+      src->ToString(), lhs->GetType()->ToString(), rhs->GetType()->ToString());
+
+  struct ToExpand {
+    Type* ty;
+    llvm::Value* lhs;
+    llvm::Value* rhs;
+  };
+
+  std::vector<ToExpand> unexpanded = {
+      ToExpand{lhs->GetType(), node_map_.at(lhs), node_map_.at(rhs)}};
+
+  std::vector<CompareTerm> terms;
+
+  while (!unexpanded.empty() > 0) {
+    ToExpand next = unexpanded.back();
+    unexpanded.pop_back();
+
+    switch (next.ty->kind()) {
+      case TypeKind::kToken:
+        // Tokens represent different points in time and are incomparable.
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Tokens are incomparable so this expression is illegal: %s",
+            src->ToString()));
+      case TypeKind::kBits:
+        terms.push_back(CompareTerm{next.lhs, next.rhs});
+        break;
+      case TypeKind::kArray: {
+        ArrayType* array_type = next.ty->AsArrayOrDie();
+        Type* element_type = array_type->element_type();
+        // Cast once so we do not have to cast when calling CreateExtractValue
+        uint32_t array_size = static_cast<uint32_t>(array_type->size());
+        for (uint32_t i = 0; i < array_size; i++) {
+          llvm::Value* lhs_value = builder_->CreateExtractValue(next.lhs, {i});
+          llvm::Value* rhs_value = builder_->CreateExtractValue(next.rhs, {i});
+          unexpanded.push_back(ToExpand{element_type, lhs_value, rhs_value});
+        }
+        break;
+      }
+      case TypeKind::kTuple: {
+        TupleType* tuple_type = next.ty->AsTupleOrDie();
+        // Cast once so we do not have to cast when calling CreateExtractValue
+        uint32_t tuple_size = static_cast<uint32_t>(tuple_type->size());
+        for (uint32_t i = 0; i < tuple_size; i++) {
+          Type* element_type = tuple_type->element_type(i);
+          llvm::Value* lhs_value = builder_->CreateExtractValue(next.lhs, {i});
+          llvm::Value* rhs_value = builder_->CreateExtractValue(next.rhs, {i});
+          unexpanded.push_back(ToExpand{element_type, lhs_value, rhs_value});
+        }
+        break;
+      }
+    }
+  }
+  return terms;
+}
+
 absl::Status FunctionBuilderVisitor::HandleEq(CompareOp* eq) {
-  llvm::Value* lhs = node_map_.at(eq->operand(0));
-  llvm::Value* rhs = node_map_.at(eq->operand(1));
-  llvm::Value* result = builder_->CreateICmpEQ(lhs, rhs);
+  Node* lhs = eq->operand(0);
+  Node* rhs = eq->operand(1);
+
+  XLS_ASSIGN_OR_RETURN(std::vector<CompareTerm> eq_terms,
+                       ExpandTerms(lhs, rhs, eq));
+
+  llvm::Value* result = builder_->getTrue();
+
+  for (const auto& eq_term : eq_terms) {
+    llvm::Value* term_test = builder_->CreateICmpEQ(eq_term.lhs, eq_term.rhs);
+    result = builder_->CreateAnd(result, term_test);
+  }
+
   return StoreResult(eq, result);
 }
 
@@ -845,9 +914,19 @@ absl::Status FunctionBuilderVisitor::HandleNaryXor(NaryOp* xor_op) {
 }
 
 absl::Status FunctionBuilderVisitor::HandleNe(CompareOp* ne) {
-  llvm::Value* lhs = node_map_.at(ne->operand(0));
-  llvm::Value* rhs = node_map_.at(ne->operand(1));
-  llvm::Value* result = builder_->CreateICmpNE(lhs, rhs);
+  Node* lhs = ne->operand(0);
+  Node* rhs = ne->operand(1);
+
+  XLS_ASSIGN_OR_RETURN(std::vector<CompareTerm> ne_terms,
+                       ExpandTerms(lhs, rhs, ne));
+
+  llvm::Value* result = builder_->getFalse();
+
+  for (const auto& ne_term : ne_terms) {
+    llvm::Value* term_test = builder_->CreateICmpNE(ne_term.lhs, ne_term.rhs);
+    result = builder_->CreateOr(result, term_test);
+  }
+
   return StoreResult(ne, result);
 }
 
@@ -867,7 +946,7 @@ absl::Status FunctionBuilderVisitor::HandleOneHot(OneHot* one_hot) {
   int input_width = input_type->getIntegerBitWidth();
 
   llvm::Value* llvm_false = builder_->getFalse();
-  llvm::Value* llvm_true =  builder_->getTrue();
+  llvm::Value* llvm_true = builder_->getTrue();
 
   // Special case the 0-bit input value, it produces a single true output bit.
   if (one_hot->operand(0)->GetType()->AsBitsOrDie()->bit_count() == 0) {

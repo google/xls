@@ -181,6 +181,18 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   // Generates a modulo operation.
   llvm::Value* EmitMod(llvm::Value* lhs, llvm::Value* rhs, bool is_signed);
 
+  // Local struct to hold the individual elements of a (possibly) compound
+  // comparison.
+  struct CompareTerm {
+    llvm::Value* lhs;
+    llvm::Value* rhs;
+  };
+
+  // Expand the lhs and rhs of a comparison into a vector of the individual leaf
+  // terms to compare.
+  absl::StatusOr<std::vector<CompareTerm>> ExpandTerms(Node* lhs, Node* rhs,
+                                                       Node* src);
+
   // ORs together all elements in the two given values, be they Bits, Arrays, or
   // Tuples.
   llvm::Value* CreateAggregateOr(llvm::Value* lhs, llvm::Value* rhs);

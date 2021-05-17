@@ -40,6 +40,13 @@ dslx_test(
 )
 
 dslx_test(
+    name = "compound_eq",
+    srcs = ["compound_eq.x"],
+    generate_benchmark = False,
+    prove_unopt_eq_opt = False,
+)
+
+dslx_test(
     name = "constexpr",
     srcs = ["constexpr.x"],
 )
@@ -536,8 +543,6 @@ dslx_test(
 dslx_test(
     name = "array_concat",
     srcs = ["array_concat.x"],
-    # TODO(hjmontero): 10-08-2020 array comparison via JIT is incorrect.
-    compare = "none",
 )
 
 dslx_test(

@@ -532,5 +532,38 @@ TEST(IrJitTest, TwoAssert) {
                        testing::HasSubstr("first assertion error message")));
 }
 
+TEST(IrJitTest, TokenCompareError) {
+  Package p("token_eq");
+  FunctionBuilder b("fun", &p);
+  auto p0 = b.Param("tkn", p.GetTokenType());
+
+  b.Eq(p0, p0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  EXPECT_THAT(IrJit::Create(f),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       testing::HasSubstr("Tokens are incomparable")));
+}
+
+// Make sure the token comparison error is still reported when the token is
+// inside a larger structure.
+TEST(IrJitTest, CompoundTokenCompareError) {
+  Package p("compound_token_eq");
+  FunctionBuilder b("fun", &p);
+
+  auto p0 = b.Param("tkn", p.GetTokenType());
+  BValue two = b.Literal(Value(UBits(2, 32)));
+
+  BValue tup = b.Tuple({p0, two});
+
+  b.Eq(tup, tup);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  EXPECT_THAT(IrJit::Create(f),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       testing::HasSubstr("Tokens are incomparable")));
+}
 }  // namespace
 }  // namespace xls
