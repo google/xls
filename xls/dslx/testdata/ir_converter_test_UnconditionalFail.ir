@@ -1,6 +1,6 @@
 package test_module
 
-fn __test_module__main(__token: token, __activated: bits[1]) -> (token, bits[32]) {
+fn __itok__test_module__main(__token: token, __activated: bits[1]) -> (token, bits[32]) {
   not.4: bits[1] = not(__activated, id=4)
   assert.5: token = assert(__token, not.4, message="Assertion failure via fail! @ test_module.x:3:8-3:16", id=5)
   literal.3: bits[32] = literal(value=42, id=3)

@@ -67,7 +67,9 @@ absl::StatusOr<std::string> OptimizeIr(absl::string_view ir,
 
 absl::StatusOr<std::string> MangleDslxName(absl::string_view module_name,
                                            absl::string_view function_name) {
-  return dslx::MangleDslxName(module_name, function_name, /*free_keys=*/{},
+  return dslx::MangleDslxName(module_name, function_name,
+                              dslx::CallingConvention::kTypical,
+                              /*free_keys=*/{},
                               /*symbolic_bindings=*/nullptr);
 }
 

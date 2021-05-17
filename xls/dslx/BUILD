@@ -530,6 +530,17 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "mangle_test",
+    srcs = ["mangle_test.cc"],
+    deps = [
+        ":mangle",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "interpreter",
     srcs = ["interpreter.cc"],

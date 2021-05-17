@@ -1,6 +1,6 @@
 package test_module
 
-fn __test_module__do_fail(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+fn __itok__test_module__do_fail(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
   not.4: bits[1] = not(__activated, id=4)
   assert.5: token = assert(__token, not.4, message="Assertion failure via fail! @ test_module.x:3:8-3:11", id=5)
   after_all.7: token = after_all(assert.5, id=7)
@@ -8,12 +8,12 @@ fn __test_module__do_fail(__token: token, __activated: bits[1], x: bits[32]) -> 
   ret tuple.8: (token, bits[32]) = tuple(after_all.7, identity.6, id=8)
 }
 
-fn __test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+fn __itok__test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
   literal.12: bits[32] = literal(value=42, id=12)
   literal.14: bits[1] = literal(value=1, id=14)
   eq.13: bits[1] = eq(literal.12, x, id=13)
   and.15: bits[1] = and(__activated, literal.14, eq.13, id=15)
-  invoke.16: (token, bits[32]) = invoke(__token, and.15, x, to_apply=__test_module__do_fail, id=16)
+  invoke.16: (token, bits[32]) = invoke(__token, and.15, x, to_apply=__itok__test_module__do_fail, id=16)
   concat.20: bits[1] = concat(eq.13, id=20)
   tuple_index.17: token = tuple_index(invoke.16, index=0, id=17)
   one_hot.21: bits[2] = one_hot(concat.20, lsb_prio=true, id=21)

@@ -21,7 +21,7 @@ namespace xls::dslx {
 
 absl::StatusOr<std::string> MangleDslxName(
     absl::string_view module_name, absl::string_view function_name,
-    const absl::btree_set<std::string>& free_keys,
+    CallingConvention convention, const absl::btree_set<std::string>& free_keys,
     const SymbolicBindings* symbolic_bindings) {
   absl::btree_set<std::string> symbolic_bindings_keys;
   // TODO(rspringer): 2021-03-25 This can't yet be InterpValue'd, since we'd
@@ -47,13 +47,19 @@ absl::StatusOr<std::string> MangleDslxName(
                         absl::StrJoin(symbolic_bindings_keys, ", ")));
   }
 
+  std::string convention_str;
+  if (convention == CallingConvention::kImplicitToken) {
+    // Note that this is an implicit token threaded call target.
+    convention_str = "itok__";
+  }
   std::string module_name_str = absl::StrReplaceAll(module_name, {{".", "_"}});
   if (symbolic_bindings_values.empty()) {
-    return absl::StrFormat("__%s__%s", module_name_str, function_name);
+    return absl::StrFormat("__%s%s__%s", convention_str, module_name_str,
+                           function_name);
   }
   std::string suffix = absl::StrJoin(symbolic_bindings_values, "_");
-  return absl::StrFormat("__%s__%s__%s", module_name_str, function_name,
-                         suffix);
+  return absl::StrFormat("__%s%s__%s__%s", convention_str, module_name_str,
+                         function_name, suffix);
 }
 
 }  // namespace xls::dslx

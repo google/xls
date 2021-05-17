@@ -1,6 +1,6 @@
 package test_module
 
-fn __test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+fn __itok__test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
   literal.4: bits[32] = literal(value=42, id=4)
   eq.5: bits[1] = eq(literal.4, x, id=5)
   or.14: bits[1] = or(eq.5, id=14)

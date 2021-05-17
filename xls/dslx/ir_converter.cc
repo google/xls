@@ -174,6 +174,11 @@ class FunctionConverter {
     return requires_opt.value();
   }
 
+  CallingConvention GetCallingConvention(Function* f) const {
+    return GetRequiresImplicitToken(f) ? CallingConvention::kImplicitToken
+                                       : CallingConvention::kTypical;
+  }
+
   // Populates the implicit_token_data_.
   absl::Status AddImplicitTokenParams();
 
@@ -1485,8 +1490,11 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
 absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
     Invocation* parent_node, NameRef* node, AstNode* arg,
     const SymbolicBindings& symbolic_bindings) {
+  // Builtins always use the "typical" calling convention (are never "implicit
+  // token").
   XLS_ASSIGN_OR_RETURN(const std::string mangled_name,
                        MangleDslxName(module_->name(), node->identifier(),
+                                      CallingConvention::kTypical,
                                       /*free_keys=*/{}, &symbolic_bindings));
   XLS_ASSIGN_OR_RETURN(BValue arg_value, Use(arg));
   XLS_VLOG(5) << "Mapping with builtin; arg: "
@@ -1548,10 +1556,11 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(Invocation* node) {
   absl::optional<Function*> mapped_fn = lookup_module->GetFunction(map_fn_name);
   std::vector<std::string> free = (*mapped_fn)->GetFreeParametricKeys();
   absl::btree_set<std::string> free_set(free.begin(), free.end());
+  CallingConvention convention = GetCallingConvention(mapped_fn.value());
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
       MangleDslxName(lookup_module->name(), (*mapped_fn)->identifier(),
-                     free_set, node_sym_bindings.value()));
+                     convention, free_set, node_sym_bindings.value()));
   XLS_VLOG(5) << "Getting function with mangled name: " << mangled_name
               << " from package: " << package()->name();
   XLS_ASSIGN_OR_RETURN(xls::Function * f, package()->GetFunction(mangled_name));
@@ -1812,13 +1821,15 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
   ScopedTypeInfoSwap stis(this, type_info);
 
   // We use a function builder for the duration of converting this AST Function.
+  const bool requires_implicit_token = GetRequiresImplicitToken(node);
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
       MangleDslxName(module_->name(), node->identifier(),
+                     requires_implicit_token ? CallingConvention::kImplicitToken
+                                             : CallingConvention::kTypical,
                      node->GetFreeParametricKeySet(), symbolic_bindings));
   InstantiateFunctionBuilder(mangled_name);
 
-  bool requires_implicit_token = GetRequiresImplicitToken(node);
   XLS_VLOG(6) << "Function " << node->identifier()
               << " requires_implicit_token? "
               << (requires_implicit_token ? "true" : "false");
@@ -2002,7 +2013,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
     return absl::InternalError("Invalid callee: " + callee->ToString());
   }
 
-  absl::optional<Function*> f = m->GetFunction(callee_name);
+  absl::optional<dslx::Function*> f = m->GetFunction(callee_name);
   if (!f.has_value()) {
     // For e.g. builtins that are not in the module we just provide the name
     // directly.
@@ -2012,8 +2023,9 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
   // We have to mangle the symbolic bindings into the name to get the fully
   // resolved symbol.
   absl::btree_set<std::string> free_keys = (*f)->GetFreeParametricKeySet();
+  const CallingConvention convention = GetCallingConvention(f.value());
   if (!(*f)->IsParametric()) {
-    return MangleDslxName(m->name(), (*f)->identifier(), free_keys);
+    return MangleDslxName(m->name(), (*f)->identifier(), convention, free_keys);
   }
 
   absl::optional<const SymbolicBindings*> resolved_symbolic_bindings =
@@ -2024,7 +2036,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
                                     node->span().ToString(),
                                     (*resolved_symbolic_bindings)->ToString());
   XLS_RET_CHECK(!(*resolved_symbolic_bindings)->empty());
-  return MangleDslxName(m->name(), (*f)->identifier(), free_keys,
+  return MangleDslxName(m->name(), (*f)->identifier(), convention, free_keys,
                         resolved_symbolic_bindings.value());
 }
 

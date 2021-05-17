@@ -1,16 +1,16 @@
 package test_module
 
-fn ____test_module__main_counted_for_0_body(i: bits[32], __token_wrapped: (token, bits[1], bits[32])) -> (token, bits[1], bits[32]) {
+fn ____itok__test_module__main_counted_for_0_body(i: bits[32], __token_wrapped: (token, bits[1], bits[32])) -> (token, bits[1], bits[32]) {
   tuple_index.7: token = tuple_index(__token_wrapped, index=0, id=7)
   tuple_index.8: bits[1] = tuple_index(__token_wrapped, index=1, id=8)
   tuple_index.9: bits[32] = tuple_index(__token_wrapped, index=2, id=9)
   ret tuple.10: (token, bits[1], bits[32]) = tuple(tuple_index.7, tuple_index.8, tuple_index.9, id=10)
 }
 
-fn __test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+fn __itok__test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
   literal.4: bits[32] = literal(value=0, id=4)
   tuple.11: (token, bits[1], bits[32]) = tuple(__token, __activated, literal.4, id=11)
-  counted_for.12: (token, bits[1], bits[32]) = counted_for(tuple.11, trip_count=1, stride=1, body=____test_module__main_counted_for_0_body, id=12)
+  counted_for.12: (token, bits[1], bits[32]) = counted_for(tuple.11, trip_count=1, stride=1, body=____itok__test_module__main_counted_for_0_body, id=12)
   not.15: bits[1] = not(__activated, id=15)
   tuple_index.13: token = tuple_index(counted_for.12, index=0, id=13)
   assert.16: token = assert(__token, not.15, message="Assertion failure via fail! @ test_module.x:6:8-6:11", id=16)

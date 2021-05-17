@@ -20,10 +20,24 @@
 
 namespace xls::dslx {
 
+enum class CallingConvention {
+  // The IR converted parameters are identical to the DSL parameters in their
+  // type, number, and name.
+  kTypical,
+
+  // DSL functions that have `fail!()` operations inside are IR converted to
+  // automatically take a `(seq: token, activated: bool)` as initial parameters,
+  // so that caller contexts can say whether the function is activated (such
+  // that an assertion should actually cause a failure when the predicate is
+  // false).
+  kImplicitToken,
+};
+
 // Returns the mangled name of function with the given parametric bindings.
 absl::StatusOr<std::string> MangleDslxName(
     absl::string_view module_name, absl::string_view function_name,
-    const absl::btree_set<std::string>& free_keys,
+    CallingConvention convention,
+    const absl::btree_set<std::string>& free_keys = {},
     const SymbolicBindings* symbolic_bindings = nullptr);
 }  // namespace xls::dslx
 
