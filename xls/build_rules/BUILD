@@ -13,6 +13,6 @@
 # limitations under the License.
 
 package(
-    default_visibility = [":xls_internal"],
+    default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )

@@ -67,6 +67,7 @@ def _ir_to_jit_wrapper_impl(ctx):
     JIT_WRAPPER_FLAGS = (
         "class_name",
         "function",
+        "output_name",
     )
     for flag_name in jit_wrapper_args:
         if flag_name in JIT_WRAPPER_FLAGS:
@@ -80,7 +81,10 @@ def _ir_to_jit_wrapper_impl(ctx):
 
     # output filename
     name = ctx.attr.name
-    jit_wrapper_flags.add("--output_name", name)
+    if "output_name" in jit_wrapper_args:
+        name = jit_wrapper_args["output_name"]
+    else:
+        jit_wrapper_flags.add("--output_name", name)
     cc_file = ctx.actions.declare_file(name + ".cc")
     h_file = ctx.actions.declare_file(name + ".h")
 
@@ -145,7 +149,8 @@ ir_to_jit_wrapper = rule(
 def cc_ir_to_jit_wrapper(
         name,
         src = None,
-        jit_wrapper_args = None):
+        jit_wrapper_args = None,
+        **kwargs):
     """Instantiates ir_to_jit_wrapper and a cc_library target with the files.
 
     The macro generates sources files (.cc and .h) using the
@@ -157,24 +162,29 @@ def cc_ir_to_jit_wrapper(
       src: The path to the IR file.
       jit_wrapper_args: Arguments of the JIT wrapper tool.
     """
-    if jit_wrapper_args and not type(jit_wrapper_args) != dict:
+    if jit_wrapper_args != None and type(jit_wrapper_args) != type({}):
         fail("JIT Wrapper arguments must be a dictionary.")
-    if src:
-        if not type(src) != str:
-            fail("The source must be a string.")
-    else:
+    if src == None:
         fail("The source must be defined.")
-    filename = "__" + name + "_ir_to_jit_wrapper"
+    if type(src) != type(""):
+        fail("The source must be a string.")
+    _jit_wrapper_args = {"output_name": name}
+    if jit_wrapper_args != None:
+        _jit_wrapper_args = dict(
+            jit_wrapper_args.items() + _jit_wrapper_args.items(),
+        )
     ir_to_jit_wrapper(
-        name = filename,
+        name = "__" + name + "_ir_to_jit_wrapper",
         src = src,
-        jit_wrapper_args = jit_wrapper_args,
-        source_file = filename + ".cc",
-        header_file = filename + ".h",
+        jit_wrapper_args = _jit_wrapper_args,
+        source_file = name + ".cc",
+        header_file = name + ".h",
+        **kwargs
     )
     native.cc_library(
         name = name,
-        srcs = [":" + filename + ".h", ":" + filename + ".cc"],
+        srcs = [":" + name + ".cc"],
+        hdrs = [":" + name + ".h"],
         deps = [
             "@com_google_absl//absl/status",
             "//xls/common/status:status_macros",
@@ -185,4 +195,5 @@ def cc_ir_to_jit_wrapper(
             "//xls/public:value",
             "//xls/jit:ir_jit",
         ],
+        **kwargs
     )

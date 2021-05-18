@@ -45,7 +45,7 @@ def convert_to_ir(ctx, src):
     for dep in ctx.attr.deps:
         required_files += dep[DslxFilesInfo].dslx_sources.to_list()
 
-    ir_file = ctx.actions.declare_file(src.basename[:-1] + "ir")
+    ir_file = ctx.actions.declare_file(ctx.attr.name + ".ir")
     ctx.actions.run_shell(
         outputs = [ir_file],
         # The IR converter executable is a tool needed by the action.
@@ -86,7 +86,7 @@ def optimize_ir(ctx, src):
 
     my_args = get_args(ir_opt_args, IR_OPT_FLAGS)
 
-    opt_ir_file = ctx.actions.declare_file(src.basename[:-2] + "opt.ir")
+    opt_ir_file = ctx.actions.declare_file(ctx.attr.name + ".opt.ir")
     ctx.actions.run_shell(
         outputs = [opt_ir_file],
         # The IR optimization executable is a tool needed by the action.
@@ -251,9 +251,12 @@ dslx_to_ir_attrs = {
     "ir_conv_args": attr.string_dict(
         doc = "Arguments of the IR conversion tool.",
     ),
+    "ir_file": attr.output(
+        doc = "The IR file generated.",
+    ),
     "_dslx_std_lib": attr.label(
         doc = "The target containing the DSLX std library.",
-        default = Label("//xls/dslx/stdlib:dslx_std_lib"),
+        default = Label("//xls/dslx/stdlib:x_files"),
         cfg = "target",
     ),
     "_ir_converter_tool": attr.label(
@@ -336,6 +339,9 @@ def _ir_opt_impl(ctx):
 ir_opt_attrs = {
     "ir_opt_args": attr.string_dict(
         doc = "Arguments of the IR optimizer tool.",
+    ),
+    "opt_ir_file": attr.output(
+        doc = "The optimized IR file generated.",
     ),
     "_ir_opt_tool": attr.label(
         doc = "The target of the IR optimizer executable.",

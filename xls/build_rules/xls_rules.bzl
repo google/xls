@@ -46,6 +46,9 @@ DSLXToCodegenInfo = provider(
     doc = "A provider containing file information for a 'dslx_to_codegen' " +
           "target. It is created and returned by the dslx_to_codegen rule.",
     fields = {
+        # TODO(https://github.com/google/xls/issues/392)
+        # When the issue (above) is resolved, use 'dummy' files for compilation
+        # and testing.
         "dslx_source_files": "List: The DSLX source files.",
         "dslx_test_file": "File: The DSLX test file.",
         "ir_conv_file": "File: The IR file converted from a DSLX source.",

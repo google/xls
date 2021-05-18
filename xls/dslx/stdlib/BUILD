@@ -19,11 +19,6 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
-filegroup(
-    name = "dslx_std_lib",
-    srcs = ["std.x"],
-)
-
 dslx_test(
     name = "std",
     srcs = ["std.x"],

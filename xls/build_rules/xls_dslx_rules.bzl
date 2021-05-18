@@ -17,7 +17,7 @@
 load("//xls/build_rules:xls_common_rules.bzl", "get_args")
 
 DEFAULT_DSLX_TEST_ARGS = {
-    "compare": "none",
+    "compare": "jit",
 }
 
 DslxFilesInfo = provider(
@@ -133,7 +133,7 @@ def get_dslx_test_cmd(ctx, src):
         "compare",
     )
 
-    my_args = get_args(dslx_test_args, DSLX_TEST_FLAGS, dslx_test_args)
+    my_args = get_args(dslx_test_args, DSLX_TEST_FLAGS, dslx_test_default_args)
     cmd = "{} {} {}".format(
         ctx.executable._dslx_interpreter_tool.short_path,
         src.path,
@@ -156,7 +156,7 @@ _dslx_common_attrs = {
 dslx_exec_attrs = {
     "_dslx_std_lib": attr.label(
         doc = "The target containing the DSLX std library.",
-        default = Label("//xls/dslx/stdlib:dslx_std_lib"),
+        default = Label("//xls/dslx/stdlib:x_files"),
         cfg = "target",
     ),
     "_dslx_interpreter_tool": attr.label(
