@@ -75,6 +75,7 @@ class IrInterpreter : public DfsVisitor {
   absl::Status HandleEncode(Encode* encode) override;
   absl::Status HandleEq(CompareOp* eq) override;
   absl::Status HandleIdentity(UnOp* identity) override;
+  absl::Status HandleInputPort(InputPort* input_port) override;
   absl::Status HandleInvoke(Invoke* invoke) override;
   absl::Status HandleLiteral(Literal* literal) override;
   absl::Status HandleMap(Map* map) override;
@@ -89,6 +90,7 @@ class IrInterpreter : public DfsVisitor {
   absl::Status HandleOneHot(OneHot* one_hot) override;
   absl::Status HandleOneHotSel(OneHotSelect* sel) override;
   absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) override;
+  absl::Status HandleOutputPort(OutputPort* output_port) override;
   absl::Status HandleParam(Param* param) override;
   absl::Status HandleReverse(UnOp* reverse) override;
   absl::Status HandleSDiv(BinOp* div) override;

@@ -72,7 +72,7 @@ absl::StatusOr<Proc*> IrTestBase::ParseProc(absl::string_view text,
 }
 
 Node* IrTestBase::FindNode(absl::string_view name, Package* package) {
-  for (FunctionBase* function : package->GetFunctionsAndProcs()) {
+  for (FunctionBase* function : package->GetFunctionBases()) {
     for (Node* node : function->nodes()) {
       if (node->GetName() == name) {
         return node;
@@ -108,6 +108,15 @@ Proc* IrTestBase::FindProc(absl::string_view name, Package* package) {
     }
   }
   XLS_LOG(FATAL) << "No proc named " << name << " in package:\n" << *package;
+}
+
+Block* IrTestBase::FindBlock(absl::string_view name, Package* package) {
+  for (auto& block : package->blocks()) {
+    if (block->name() == name) {
+      return block.get();
+    }
+  }
+  XLS_LOG(FATAL) << "No block named " << name << " in package:\n" << *package;
 }
 
 void IrTestBase::RunAndExpectEq(

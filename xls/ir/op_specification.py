@@ -840,6 +840,39 @@ OpClass.kinds['ENCODE'] = OpClass(
     xls_type_expression='function->package()->GetBitsType(Bits::MinBitCountUnsigned(arg->BitCountOrDie() - 1))',
 )
 
+OpClass.kinds['INPUT_PORT'] = OpClass(
+    name='InputPort',
+    op='Op::kInputPort',
+    operands=[],
+    xls_type_expression='type',
+    extra_constructor_args=[ConstructorArgument(name='name',
+                                                cpp_type='absl::string_view',
+                                                clone_expression='name()'),
+                            ConstructorArgument(name='type',
+                                                cpp_type='Type*',
+                                                clone_expression='GetType()')],
+    extra_methods=[Method(name='name',
+                          return_cpp_type='absl::string_view',
+                          expression='name_')],
+    # Ports are never equivalent to other nodes.
+    custom_equivalence_expression='false',
+)
+
+OpClass.kinds['OUTPUT_PORT'] = OpClass(
+    name='OutputPort',
+    op='Op::kOutputPort',
+    operands=[Operand('operand')],
+    xls_type_expression='operand->GetType()',
+    extra_constructor_args=[ConstructorArgument(name='name',
+                                                cpp_type='absl::string_view',
+                                                clone_expression='name()')],
+    extra_methods=[Method(name='name',
+                          return_cpp_type='absl::string_view',
+                          expression='name_')],
+    # Ports are never equivalent to other nodes.
+    custom_equivalence_expression='false',
+)
+
 OPS = [
     Op(
         enum_name='kAdd',
@@ -1013,6 +1046,12 @@ OPS = [
         properties=[],
     ),
     Op(
+        enum_name='kInputPort',
+        name='input_port',
+        op_class=OpClass.kinds['INPUT_PORT'],
+        properties=[],
+    ),
+    Op(
         enum_name='kLiteral',
         name='literal',
         op_class=OpClass.kinds['LITERAL'],
@@ -1067,6 +1106,12 @@ OPS = [
         enum_name='kOrReduce',
         name='or_reduce',
         op_class=OpClass.kinds['BITWISE_REDUCTION_OP'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kOutputPort',
+        name='output_port',
+        op_class=OpClass.kinds['OUTPUT_PORT'],
         properties=[],
     ),
     Op(

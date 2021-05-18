@@ -42,7 +42,7 @@ absl::StatusOr<bool> FunctionBasePass::RunInternal(Package* p,
                                                    const PassOptions& options,
                                                    PassResults* results) const {
   bool changed = false;
-  for (FunctionBase* f : p->GetFunctionsAndProcs()) {
+  for (FunctionBase* f : p->GetFunctionBases()) {
     XLS_ASSIGN_OR_RETURN(bool function_changed,
                          RunOnFunctionBaseInternal(f, options, results));
     changed |= function_changed;

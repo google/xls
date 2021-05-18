@@ -144,6 +144,7 @@ xls_py_proto_library(
 cc_library(
     name = "ir",
     srcs = [
+        "block.cc",
         "dfs_visitor.cc",
         "function.cc",
         "function_base.cc",
@@ -155,6 +156,7 @@ cc_library(
         "verifier.cc",
     ],
     hdrs = [
+        "block.h",
         "dfs_visitor.h",
         "function.h",
         "function_base.h",
@@ -1024,6 +1026,19 @@ cc_test(
     deps = [
         ":name_uniquer",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "block_test",
+    srcs = ["block_test.cc"],
+    deps = [
+        ":ir",
+        ":ir_matcher",
+        ":ir_test_base",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
 )

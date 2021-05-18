@@ -895,6 +895,20 @@ absl::StatusOr<BValue> Parser::ParseNode(
                                   node_name);
       break;
     }
+    case Op::kInputPort: {
+      IdentifierString* name =
+          arg_parser.AddKeywordArg<IdentifierString>("name");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
+      bvalue = fb->InputPort(name->value, type, *loc);
+      break;
+    }
+    case Op::kOutputPort: {
+      IdentifierString* name =
+          arg_parser.AddKeywordArg<IdentifierString>("name");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
+      bvalue = fb->OutputPort(name->value, operands[0], *loc);
+      break;
+    }
     default:
       XLS_ASSIGN_OR_RETURN(
           bvalue, BuildBinaryOrUnaryOp(op, fb, loc, node_name, &arg_parser));
@@ -1021,12 +1035,16 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
 
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlClose,
                                                 "'}' at end of function body"));
-  if (!result.has_value()) {
+  if (result.has_value()) {
+    return result.value();
+  }
+  if (fb->function()->IsProc() || fb->function()->IsProc()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Expected 'ret' or 'next' in function/proc."));
   }
-
-  return result.value();
+  // Return an empty BValue for blocks as no ret or next is supported.
+  XLS_RET_CHECK(fb->function()->IsBlock());
+  return BValue();
 }
 
 absl::StatusOr<Type*> Parser::ParseTupleType(Package* package) {
@@ -1107,7 +1125,7 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   XLS_ASSIGN_OR_RETURN(Type * token_type, ParseType(package));
   if (!token_type->IsToken()) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Expected second argument of proc to be token type, is: %s @ %s",
+        "Expected first argument of proc to be token type, is: %s @ %s",
         token_type->ToString(), token_type_pos.ToHumanString()));
   }
 
@@ -1145,6 +1163,27 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   (*name_to_value)[token_name.value()] = builder->GetTokenParam();
   (*name_to_value)[state_name.value()] = builder->GetStateParam();
 
+  return std::move(builder);
+}
+
+absl::StatusOr<std::unique_ptr<BlockBuilder>> Parser::ParseBlockSignature(
+    Package* package) {
+  // A Block definition is simply:
+  //
+  //   block foo {
+  //     ...
+  //
+  // The signature being parsed by this method starts at the block name and ends
+  // with the open brace.
+  XLS_ASSIGN_OR_RETURN(Token name, scanner_.PopTokenOrError(
+                                       LexicalTokenType::kIdent, "block name"));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen,
+                                                "start of proc body"));
+
+  // The parser does its own verification so pass should_verify=false. This
+  // enables the parser to parse and construct malformed IR for tests.
+  auto builder = absl::make_unique<BlockBuilder>(name.value(), package,
+                                                 /*should_verify=*/false);
   return std::move(builder);
 }
 
@@ -1205,6 +1244,24 @@ absl::StatusOr<Proc*> Parser::ParseProc(Package* package) {
   ProcNext proc_next = absl::get<ProcNext>(body_result);
 
   return pb->Build(proc_next.next_token, proc_next.next_state);
+}
+
+absl::StatusOr<Block*> Parser::ParseBlock(Package* package) {
+  if (AtEof()) {
+    return absl::InvalidArgumentError("Could not parse block; at EOF.");
+  }
+  XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("block"));
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BlockBuilder> pb,
+                       ParseBlockSignature(package));
+
+  absl::flat_hash_map<std::string, BValue> name_to_value;
+  XLS_ASSIGN_OR_RETURN(BodyResult body_result,
+                       ParseBody(pb.get(), &name_to_value, package));
+
+  XLS_RET_CHECK(absl::holds_alternative<BValue>(body_result));
+
+  return pb->Build();
 }
 
 absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
@@ -1445,6 +1502,19 @@ absl::StatusOr<Proc*> Parser::ParseProc(absl::string_view input_string,
 
   // Verify the whole package because the addition of the proc may break
   // package-scoped invariants (eg, duplicate proc name).
+  XLS_RETURN_IF_ERROR(VerifyAndSwapError(package));
+  return proc;
+}
+
+/* static */
+absl::StatusOr<Block*> Parser::ParseBlock(absl::string_view input_string,
+                                          Package* package) {
+  XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
+  Parser p(std::move(scanner));
+  XLS_ASSIGN_OR_RETURN(Block * proc, p.ParseBlock(package));
+
+  // Verify the whole package because the addition of the block may break
+  // package-scoped invariants (eg, duplicate block name).
   XLS_RETURN_IF_ERROR(VerifyAndSwapError(package));
   return proc;
 }

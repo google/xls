@@ -56,11 +56,12 @@ TEST_F(ProcTest, MutateProc) {
   ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
                  p.get());
   BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam());
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(pb.AfterAll({pb.GetTokenParam()}), add));
+  BValue after_all = pb.AfterAll({pb.GetTokenParam()});
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, add));
 
   EXPECT_THAT(proc->NextToken(), m::AfterAll(m::Param("tkn")));
   XLS_ASSERT_OK(proc->SetNextToken(proc->TokenParam()));
+  XLS_ASSERT_OK(proc->RemoveNode(after_all.node()));
   EXPECT_THAT(proc->NextToken(), m::Param("tkn"));
 
   EXPECT_THAT(proc->NextState(), m::Add());

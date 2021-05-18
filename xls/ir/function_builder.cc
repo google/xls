@@ -69,11 +69,9 @@ BValue BValue::operator-(BValue rhs) { return builder()->Subtract(*this, rhs); }
 BValue BValue::operator+(BValue rhs) { return builder()->Add(*this, rhs); }
 BValue BValue::operator-() { return builder()->Negate(*this); }
 
-template <typename NodeT, typename... Args>
-BValue BuilderBase::AddNode(absl::optional<SourceLocation> loc,
-                            Args&&... args) {
-  last_node_ = function_->AddNode<NodeT>(absl::make_unique<NodeT>(
-      loc, std::forward<Args>(args)..., function_.get()));
+BValue BuilderBase::CreateBValue(Node* node,
+                                 absl::optional<SourceLocation> loc) {
+  last_node_ = node;
   if (should_verify_) {
     absl::Status verify_status = VerifyNode(last_node_);
     if (!verify_status.ok()) {
@@ -81,6 +79,14 @@ BValue BuilderBase::AddNode(absl::optional<SourceLocation> loc,
     }
   }
   return BValue(last_node_, this);
+}
+
+template <typename NodeT, typename... Args>
+BValue BuilderBase::AddNode(absl::optional<SourceLocation> loc,
+                            Args&&... args) {
+  last_node_ = function_->AddNode<NodeT>(absl::make_unique<NodeT>(
+      loc, std::forward<Args>(args)..., function_.get()));
+  return CreateBValue(last_node_, loc);
 }
 
 const std::string& BuilderBase::name() const { return function_->name(); }
@@ -918,40 +924,56 @@ BValue FunctionBuilder::Param(absl::string_view name, Type* type,
   return AddNode<xls::Param>(loc, name, type);
 }
 
-BValue FunctionBuilder::Receive(Channel* channel, BValue token,
-                                absl::optional<SourceLocation> loc,
-                                absl::string_view name) {
+BValue BuilderBase::Receive(Channel* channel, BValue token,
+                            absl::optional<SourceLocation> loc,
+                            absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
-  return SetError("Receive operations not supported in functions", loc);
+  return SetError("Receive operations are only supported in procs", loc);
 }
 
-BValue FunctionBuilder::ReceiveIf(Channel* channel, BValue token, BValue pred,
-                                  absl::optional<SourceLocation> loc,
-                                  absl::string_view name) {
+BValue BuilderBase::ReceiveIf(Channel* channel, BValue token, BValue pred,
+                              absl::optional<SourceLocation> loc,
+                              absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
-  return SetError("ReceiveIf operations not supported in functions", loc);
+  return SetError("ReceiveIf operations are only supported in procs", loc);
 }
 
-BValue FunctionBuilder::Send(Channel* channel, BValue token, BValue data,
-                             absl::optional<SourceLocation> loc,
-                             absl::string_view name) {
+BValue BuilderBase::Send(Channel* channel, BValue token, BValue data,
+                         absl::optional<SourceLocation> loc,
+                         absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
-  return SetError("Send operations not supported in functions", loc);
+  return SetError("Send operations are only supported in procs", loc);
 }
 
-BValue FunctionBuilder::SendIf(Channel* channel, BValue token, BValue pred,
-                               BValue data, absl::optional<SourceLocation> loc,
-                               absl::string_view name) {
+BValue BuilderBase::SendIf(Channel* channel, BValue token, BValue pred,
+                           BValue data, absl::optional<SourceLocation> loc,
+                           absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
-  return SetError("SendIf operations not supported in functions", loc);
+  return SetError("SendIf operations are only supported in procs", loc);
+}
+
+BValue BuilderBase::InputPort(absl::string_view name, Type* type,
+                              absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return SetError("Ports may only be added to blocks", loc);
+}
+
+BValue BuilderBase::OutputPort(absl::string_view name, BValue operand,
+                               absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return SetError("Ports may only be added to blocks", loc);
 }
 
 absl::StatusOr<Function*> FunctionBuilder::Build() {
@@ -979,9 +1001,9 @@ absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
     return absl::InvalidArgumentError("Could not build IR: " + msg);
   }
   XLS_RET_CHECK_EQ(return_value.builder(), this);
-  // down_cast the std::unique_ptr<FunctionBase> to std::unique_ptr<Function>.
-  // We know this is safe because FunctionBuilder constructs and passes a
-  // Function to BuilderBase constructor so function_ is always a Function.
+  // down_cast the FunctionBase* to Function*. We know this is safe because
+  // FunctionBuilder constructs and passes a Function to BuilderBase
+  // constructor so function_ is always a Function.
   Function* f = package()->AddFunction(
       absl::WrapUnique(down_cast<Function*>(function_.release())));
   XLS_RETURN_IF_ERROR(f->set_return_value(return_value.node()));
@@ -1029,9 +1051,9 @@ absl::StatusOr<Proc*> ProcBuilder::Build(BValue token, BValue next_state) {
         GetType(GetStateParam())->ToString(), GetType(next_state)->ToString()));
   }
 
-  // down_cast the std::unique_ptr<FunctionBase> to std::unique_ptr<Proc>. We
-  // know this is safe because ProcBuilder constructs and passes a Proc to
-  // BuilderBase constructor so function_ is always a Proc.
+  // down_cast the FunctionBase* to Proc*. We know this is safe because
+  // ProcBuilder constructs and passes a Proc to BuilderBase constructor so
+  // function_ is always a Proc.
   Proc* proc = package()->AddProc(
       absl::WrapUnique(down_cast<Proc*>(function_.release())));
   XLS_RETURN_IF_ERROR(proc->SetNextToken(token.node()));
@@ -1064,10 +1086,10 @@ BValue BuilderBase::AddArithOp(Op op, BValue lhs, BValue rhs,
                                absl::optional<int64_t> result_width,
                                absl::optional<SourceLocation> loc,
                                absl::string_view name) {
-  XLS_CHECK_EQ(lhs.builder(), rhs.builder());
   if (ErrorPending()) {
     return BValue();
   }
+  XLS_CHECK_EQ(lhs.builder(), rhs.builder());
   if (!lhs.GetType()->IsBits() || !rhs.GetType()->IsBits()) {
     return SetError(
         absl::StrFormat(
@@ -1094,10 +1116,10 @@ BValue BuilderBase::AddArithOp(Op op, BValue lhs, BValue rhs,
 
 BValue BuilderBase::AddUnOp(Op op, BValue x, absl::optional<SourceLocation> loc,
                             absl::string_view name) {
-  XLS_CHECK_EQ(this, x.builder());
   if (ErrorPending()) {
     return BValue();
   }
+  XLS_CHECK_EQ(this, x.builder());
   if (!IsOpClass<UnOp>(op)) {
     return SetError(absl::StrFormat("Op %s is not a operation of class UnOp",
                                     OpToString(op)),
@@ -1109,10 +1131,10 @@ BValue BuilderBase::AddUnOp(Op op, BValue x, absl::optional<SourceLocation> loc,
 BValue BuilderBase::AddBinOp(Op op, BValue lhs, BValue rhs,
                              absl::optional<SourceLocation> loc,
                              absl::string_view name) {
-  XLS_CHECK_EQ(lhs.builder(), rhs.builder());
   if (ErrorPending()) {
     return BValue();
   }
+  XLS_CHECK_EQ(lhs.builder(), rhs.builder());
   if (!IsOpClass<BinOp>(op)) {
     return SetError(absl::StrFormat("Op %s is not a operation of class BinOp",
                                     OpToString(op)),
@@ -1124,10 +1146,10 @@ BValue BuilderBase::AddBinOp(Op op, BValue lhs, BValue rhs,
 BValue BuilderBase::AddCompareOp(Op op, BValue lhs, BValue rhs,
                                  absl::optional<SourceLocation> loc,
                                  absl::string_view name) {
-  XLS_CHECK_EQ(lhs.builder(), rhs.builder());
   if (ErrorPending()) {
     return BValue();
   }
+  XLS_CHECK_EQ(lhs.builder(), rhs.builder());
   if (!IsOpClass<CompareOp>(op)) {
     return SetError(
         absl::StrFormat("Op %s is not a operation of class CompareOp",
@@ -1158,10 +1180,10 @@ BValue BuilderBase::AddNaryOp(Op op, absl::Span<const BValue> args,
 BValue BuilderBase::AddBitwiseReductionOp(Op op, BValue arg,
                                           absl::optional<SourceLocation> loc,
                                           absl::string_view name) {
-  XLS_CHECK_EQ(this, arg.builder());
   if (ErrorPending()) {
     return BValue();
   }
+  XLS_CHECK_EQ(this, arg.builder());
   return AddNode<BitwiseReductionOp>(loc, arg.node(), op, name);
 }
 
@@ -1322,6 +1344,67 @@ absl::StatusOr<Proc*> TokenlessProcBuilder::Build(BValue next_state) {
   } else {
     return ProcBuilder::Build(AfterAll(tokens_), next_state);
   }
+}
+
+BValue BlockBuilder::Param(absl::string_view name, Type* type,
+                           absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return SetError("Cannot add parameters to blocks", loc);
+}
+
+BValue BlockBuilder::InputPort(absl::string_view name, Type* type,
+                               absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  absl::StatusOr<xls::InputPort*> port_status =
+      block()->AddInputPort(name, type, loc);
+  if (!port_status.ok()) {
+    return SetError(absl::StrFormat("Unable to add port to block: %s",
+                                    port_status.status().message()),
+                    loc);
+  }
+  return CreateBValue(port_status.value(), loc);
+}
+
+BValue BlockBuilder::OutputPort(absl::string_view name, BValue operand,
+                                absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  absl::StatusOr<xls::OutputPort*> port_status =
+      block()->AddOutputPort(name, operand.node(), loc);
+  if (!port_status.ok()) {
+    return SetError(absl::StrFormat("Unable to add port to block: %s",
+                                    port_status.status().message()),
+                    loc);
+  }
+  return CreateBValue(port_status.value(), loc);
+}
+
+absl::StatusOr<Block*> BlockBuilder::Build() {
+  if (ErrorPending()) {
+    std::string msg = error_msg_ + " ";
+    if (error_loc_.has_value()) {
+      absl::StrAppendFormat(
+          &msg, "File: %d, Line: %d, Col: %d", error_loc_->fileno().value(),
+          error_loc_->lineno().value(), error_loc_->colno().value());
+    }
+    absl::StrAppend(&msg, "\nStack Trace:\n" + error_stacktrace_);
+    return absl::InvalidArgumentError("Could not build IR: " + msg);
+  }
+
+  // down_cast the FunctionBase* to Block*. We know this is safe because
+  // BlockBuilder constructs and passes a Block to BuilderBase constructor so
+  // function_ is always a Block.
+  Block* block = package()->AddBlock(
+      absl::WrapUnique(down_cast<Block*>(function_.release())));
+  if (should_verify_) {
+    XLS_RETURN_IF_ERROR(VerifyBlock(block));
+  }
+  return block;
 }
 
 }  // namespace xls

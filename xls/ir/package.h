@@ -35,13 +35,14 @@
 
 namespace xls {
 
-class FunctionBase;
-class Function;
-class Proc;
+class Block;
 class Channel;
-class StreamingChannel;
+class Function;
+class FunctionBase;
 class PortChannel;
+class Proc;
 class RegisterChannel;
+class StreamingChannel;
 
 class Package {
  public:
@@ -82,15 +83,17 @@ class Package {
 
   Type* GetTypeForValue(const Value& value);
 
-  // Add a function (or proc) to the package. Ownership is tranferred to the
+  // Add a function (proc/block) to the package. Ownership is tranferred to the
   // package.
   Function* AddFunction(std::unique_ptr<Function> f);
   Proc* AddProc(std::unique_ptr<Proc> proc);
+  Block* AddBlock(std::unique_ptr<Block> block);
 
   // Get a function (or proc) by name. Returns an error if no such function/proc
   // of the indicated kind (Function or Proc) exists with that name.
   absl::StatusOr<Function*> GetFunction(absl::string_view func_name) const;
   absl::StatusOr<Proc*> GetProc(absl::string_view proc_name) const;
+  absl::StatusOr<Block*> GetBlock(absl::string_view block_name) const;
 
   // Remove (dead) functions.
   void DeleteDeadFunctions(absl::Span<Function* const> dead_funcs);
@@ -148,9 +151,16 @@ class Package {
   absl::Span<std::unique_ptr<Proc>> procs() { return absl::MakeSpan(procs_); }
   absl::Span<const std::unique_ptr<Proc>> procs() const { return procs_; }
 
-  // Returns the procs and functions in this package.
+  // Returns the blocks in this package.
+  absl::Span<std::unique_ptr<Block>> blocks() {
+    return absl::MakeSpan(blocks_);
+  }
+  absl::Span<const std::unique_ptr<Block>> blocks() const { return blocks_; }
+
+  // Returns the procs, functions, and blocks in this package (all types derived
+  // from FunctionBase).
   // TODO(meheff): Consider holding functions and procs in a common vector.
-  std::vector<FunctionBase*> GetFunctionsAndProcs() const;
+  std::vector<FunctionBase*> GetFunctionBases() const;
 
   const std::string& name() const { return name_; }
 
@@ -229,6 +239,7 @@ class Package {
 
   std::vector<std::unique_ptr<Function>> functions_;
   std::vector<std::unique_ptr<Proc>> procs_;
+  std::vector<std::unique_ptr<Block>> blocks_;
 
   // Set of owned types in this package.
   absl::flat_hash_set<const Type*> owned_types_;

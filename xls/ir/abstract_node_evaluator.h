@@ -115,6 +115,8 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       return operands[0];
     case Op::kInvoke:
       return default_handler(node);
+    case Op::kInputPort:
+      return default_handler(node);
     case Op::kLiteral: {
       XLS_RETURN_IF_ERROR(check_operand_count(0));
       Literal* literal = node->As<Literal>();
@@ -156,6 +158,8 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       return evaluator->BitwiseOr(operands);
     case Op::kOrReduce:
       return evaluator->OrReduce(operands[0]);
+    case Op::kOutputPort:
+      return default_handler(node);
     case Op::kParam:
       return default_handler(node);
     case Op::kReverse: {

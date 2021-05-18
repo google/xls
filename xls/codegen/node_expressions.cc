@@ -588,6 +588,9 @@ absl::StatusOr<Expression*> NodeToExpression(
 
       return file->Concat({file->Literal(0, bits_added), inputs[0]});
     }
+    case Op::kInputPort:
+    case Op::kOutputPort:
+      return unimplemented();
   }
   XLS_LOG(FATAL) << "Invalid op: " << static_cast<int64_t>(node->op());
 }

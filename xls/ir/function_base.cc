@@ -20,6 +20,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/block.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/package.h"
@@ -107,6 +108,10 @@ bool FunctionBase::IsFunction() const {
 
 bool FunctionBase::IsProc() const {
   return dynamic_cast<const Proc*>(this) != nullptr;
+}
+
+bool FunctionBase::IsBlock() const {
+  return dynamic_cast<const Block*>(this) != nullptr;
 }
 
 Function* FunctionBase::AsFunctionOrDie() {

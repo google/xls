@@ -29,6 +29,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -63,6 +64,10 @@ class Parser {
   // Parse the input_string as a proc into the given package.
   static absl::StatusOr<Proc*> ParseProc(absl::string_view input_string,
                                          Package* package);
+
+  // Parse the input_string as a block into the given package.
+  static absl::StatusOr<Block*> ParseBlock(absl::string_view input_string,
+                                           Package* package);
 
   // Parse the input_string as a channel in the given package.
   static absl::StatusOr<Channel*> ParseChannel(absl::string_view input_string,
@@ -114,6 +119,9 @@ class Parser {
 
   // Parse a proc starting at the current scanner position.
   absl::StatusOr<Proc*> ParseProc(Package* package);
+
+  // Parse a block starting at the current scanner position.
+  absl::StatusOr<Block*> ParseBlock(Package* package);
 
   // Parse a proc starting at the current scanner position.
   absl::StatusOr<Channel*> ParseChannel(Package* package);
@@ -202,20 +210,22 @@ class Parser {
       BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value,
       Package* package);
 
-  // Parses a full function signature, starting after the 'fn' keyword.
+  // Parses a full function (proc or block) signature, starting after the 'fn'
+  // ('proc' or 'block') keyword.
   //
-  // Returns the newly created function builder and the annotated return type
-  // (may be nullptr) after the opening brace has been popped.
+  // Returns the newly created builder and the annotated return type (may be
+  // nullptr) after the opening brace has been popped.
   //
-  // Note: FunctionBuilder must be unique_ptr because it is referred to by
-  // pointer in BValue types.
+  // Note: The builder must be a unique_ptr because it is referred to by pointer
+  // in BValue types.
   absl::StatusOr<std::pair<std::unique_ptr<FunctionBuilder>, Type*>>
   ParseFunctionSignature(
       absl::flat_hash_map<std::string, BValue>* name_to_value,
       Package* package);
-
   absl::StatusOr<std::unique_ptr<ProcBuilder>> ParseProcSignature(
       absl::flat_hash_map<std::string, BValue>* name_to_value,
+      Package* package);
+  absl::StatusOr<std::unique_ptr<BlockBuilder>> ParseBlockSignature(
       Package* package);
 
   // Pops the package name out of the scanner, of the form:
@@ -252,6 +262,11 @@ absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
     }
     if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "proc") {
       XLS_RETURN_IF_ERROR(parser.ParseProc(package.get()).status())
+          << "@ " << filename_str;
+      continue;
+    }
+    if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "block") {
+      XLS_RETURN_IF_ERROR(parser.ParseBlock(package.get()).status())
           << "@ " << filename_str;
       continue;
     }

@@ -146,13 +146,13 @@ std::vector<FunctionBase*> InvokedFunctions(FunctionBase* f) {
 // the functions which are not called by any other functions.
 std::vector<FunctionBase*> GetRootFunctions(Package* p) {
   absl::flat_hash_set<FunctionBase*> invoked_functions;
-  for (FunctionBase* f : p->GetFunctionsAndProcs()) {
+  for (FunctionBase* f : p->GetFunctionBases()) {
     for (FunctionBase* invoked : InvokedFunctions(f)) {
       invoked_functions.insert(invoked);
     }
   }
   std::vector<FunctionBase*> roots;
-  for (FunctionBase* f : p->GetFunctionsAndProcs()) {
+  for (FunctionBase* f : p->GetFunctionBases()) {
     if (!invoked_functions.contains(f)) {
       roots.push_back(f);
     }

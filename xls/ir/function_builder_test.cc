@@ -665,7 +665,7 @@ TEST(FunctionBuilderTest, AddSendToFunction) {
   EXPECT_THAT(
       b.Build().status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Send operations not supported in functions")));
+               HasSubstr("Send operations are only supported in procs")));
 }
 
 TEST(FunctionBuilderTest, AddParamToProc) {

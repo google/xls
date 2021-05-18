@@ -221,6 +221,8 @@ bool ShouldEvaluate(Node* node) {
     case Op::kParam:
     case Op::kTuple:
     case Op::kTupleIndex:
+    case Op::kInputPort:
+    case Op::kOutputPort:
       return false;
 
     // Unsupported comparison operations.

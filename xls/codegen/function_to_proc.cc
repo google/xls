@@ -138,8 +138,8 @@ absl::StatusOr<Proc*> FunctionToPipelinedProc(const PipelineSchedule& schedule,
   XLS_ASSIGN_OR_RETURN(
       Node * previous_token,
       proc->MakeNode<AfterAll>(/*loc=*/absl::nullopt, input_tokens));
-  std::vector<Node*> output_tokens;
   for (int64_t stage = 0; stage < schedule.length(); ++stage) {
+    std::vector<Node*> output_tokens;
     for (Node* function_node : schedule.nodes_in_cycle(stage)) {
       if (function_node->Is<Param>()) {
         // Parameters become receive nodes in the proc and are added above.

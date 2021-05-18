@@ -143,6 +143,13 @@ absl::Status DfsVisitorWithDefault::HandleIdentity(UnOp* identity) {
   return DefaultHandler(identity);
 }
 
+absl::Status DfsVisitorWithDefault::HandleInputPort(InputPort* input_port) {
+  return DefaultHandler(input_port);
+}
+absl::Status DfsVisitorWithDefault::HandleOutputPort(OutputPort* output_port) {
+  return DefaultHandler(output_port);
+}
+
 absl::Status DfsVisitorWithDefault::HandleInvoke(Invoke* invoke) {
   return DefaultHandler(invoke);
 }

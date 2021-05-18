@@ -238,11 +238,10 @@ proc my_proc(t: token, s: bits[42], init=45) {
 
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  EXPECT_THAT(
-      VerifyPackage(p.get()),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Send and receive nodes must be connected to the "
-                         "token parameter via a path of tokens: send.2")));
+  EXPECT_THAT(VerifyPackage(p.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Token-typed nodes must be connected to the "
+                                 "sink token value via a path of tokens")));
 }
 
 TEST_F(VerifierTest, DisconnectedReceiveNode) {
@@ -258,11 +257,10 @@ proc my_proc(t: token, s: bits[42], init=45) {
 
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  EXPECT_THAT(
-      VerifyPackage(p.get()),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Send and receive nodes must be connected to the "
-                         "next token value via a path of tokens: receive.")));
+  EXPECT_THAT(VerifyPackage(p.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Token-typed nodes must be connected to the "
+                                 "sink token value via a path of tokens")));
 }
 
 TEST_F(VerifierTest, DisconnectedReturnValueInProc) {
@@ -276,12 +274,10 @@ proc my_proc(t: token, s: bits[42], init=45) {
 
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  EXPECT_THAT(
-      VerifyPackage(p.get()),
-      StatusIs(
-          absl::StatusCode::kInternal,
-          HasSubstr("Next token value of proc must be connected to the token "
-                    "parameter via a path of tokens")));
+  EXPECT_THAT(VerifyPackage(p.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Token-typed nodes must be connected to the "
+                                 "sink token value via a path of tokens")));
 }
 
 TEST_F(VerifierTest, SendOnReceiveOnlyChannel) {
@@ -539,6 +535,23 @@ fn top(invariant_1: bits[48], invariant_2: bits[64], stride: bits[33], trip_coun
                HasSubstr(
                    "Operand 2 / stride of dynamic_counted_for should have <= "
                    "the number of bits of the function body index parameter")));
+}
+
+TEST_F(VerifierTest, SimpleBlock) {
+  std::string input = R"(
+package test_package
+
+block my_block {
+  a: bits[32] = input_port(name=a)
+  b: bits[32] = input_port(name=b)
+  sum: bits[32] = add(a, b)
+  out: bits[32] = output_port(sum, name=out)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  XLS_ASSERT_OK(VerifyPackage(p.get()));
+  XLS_ASSERT_OK(VerifyBlock(FindBlock("my_block", p.get())));
 }
 
 }  // namespace

@@ -22,19 +22,15 @@ namespace xls {
 class Node;
 class Function;
 class Proc;
+class Block;
 class Package;
 
-// Verifies numerous invariants of the IR for the given package. Returns a
+// Verifies numerous invariants of the IR for the given IR construct. Returns a
 // error status if a violation is found.
 absl::Status VerifyPackage(Package* package);
-
-// Overload for Procs.
-absl::Status VerifyProc(Proc* Proc);
-
-// Overload for functions.
 absl::Status VerifyFunction(Function* function);
-
-// Overload for nodes.
+absl::Status VerifyProc(Proc* Proc);
+absl::Status VerifyBlock(Block* Block);
 absl::Status VerifyNode(Node* Node);
 
 }  // namespace xls

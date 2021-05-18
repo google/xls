@@ -80,6 +80,8 @@ class Proc : public FunctionBase {
 
   // Abstraction representing a port (send/receive operation using a port
   // channel).
+  // TODO(https://github.com/google/xls/issues/410): 2021/05/07 Remove Port data
+  // structures when blocks are supported.
   enum class PortDirection { kInput, kOutput };
   struct Port {
     PortChannel* channel;

@@ -141,9 +141,10 @@ class FunctionBase {
     return node_name_uniquer_.GetSanitizedUniqueName(name);
   }
 
-  // Returns whether this FunctionBase is a function or proc.
+  // Returns whether this FunctionBase is a function, proc, or block.
   bool IsFunction() const;
   bool IsProc() const;
+  bool IsBlock() const;
 
   Function* AsFunctionOrDie();
   Proc* AsProcOrDie();

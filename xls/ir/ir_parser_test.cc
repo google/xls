@@ -1181,6 +1181,19 @@ proc my_proc(my_token: token, my_state: bits[32], init=42) {
   ParsePackageAndCheckDump(input);
 }
 
+TEST(IrParserTest, ParseSimpleBlock) {
+  const std::string input = R"(package test
+
+block my_block {
+  a: bits[32] = input_port(name=a, id=2)
+  b: bits[32] = input_port(name=b, id=3)
+  add.4: bits[32] = add(a, b, id=4)
+  out: bits[32] = output_port(add.4, name=out, id=5)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
 TEST(IrParserTest, ParseArrayIndex) {
   const std::string input = R"(
 fn foo(x: bits[32][6]) -> bits[32] {
@@ -1790,7 +1803,7 @@ proc foo(my_token: bits[1], my_state: bits[32], init=42) {
   EXPECT_THAT(
       Parser::ParsePackage(program).status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Expected second argument of proc to be token type")));
+               HasSubstr("Expected first argument of proc to be token type")));
 }
 
 TEST(IrParserTest, ProcWrongInitValueType) {
@@ -2201,6 +2214,31 @@ fn f(x: bits[4]) -> bits[4] {
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("The id '30' in node name add.30 does not match the "
                          "id '42' specified as an attribute")));
+}
+
+TEST(IrParserTest, FunctionWithPort) {
+  const std::string input = R"(
+fn foo(a: bits[32]) -> bits[32][3] {
+  b: bits[32] = input_port(name=b, id=1)
+  ret sum: bits[32] = add(a, b)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Ports may only be added to blocks")));
+}
+
+TEST(IrParserTest, BlockWithReturnValue) {
+  const std::string input = R"(
+block my_block {
+  ret a: bits[32] = input_port(name=a)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("ret keyword only supported in functions")));
 }
 
 }  // namespace xls

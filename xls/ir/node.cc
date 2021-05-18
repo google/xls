@@ -279,6 +279,14 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
       XLS_RETURN_IF_ERROR(
           visitor->HandleZeroExtend(down_cast<ExtendOp*>(this)));
       break;
+    case Op::kInputPort:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleInputPort(down_cast<InputPort*>(this)));
+      break;
+    case Op::kOutputPort:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleOutputPort(down_cast<OutputPort*>(this)));
+      break;
   }
   return absl::OkStatus();
 }
@@ -508,6 +516,10 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
         args.push_back(
             absl::StrFormat("label=\"%s\"", As<Assert>()->label().value()));
       }
+      break;
+    case Op::kInputPort:
+    case Op::kOutputPort:
+      args.push_back(absl::StrFormat("name=%s", GetName()));
       break;
     default:
       break;

@@ -186,6 +186,15 @@ absl::Status IrInterpreter::HandleArray(Array* array) {
   return SetValueResult(array, result);
 }
 
+absl::Status IrInterpreter::HandleInputPort(InputPort* input_port) {
+  return absl::UnimplementedError("InputPort not implemented in IrInterpreter");
+}
+
+absl::Status IrInterpreter::HandleOutputPort(OutputPort* output_port) {
+  return absl::UnimplementedError(
+      "OutputPort not implemented in IrInterpreter");
+}
+
 absl::Status IrInterpreter::HandleBitSlice(BitSlice* bit_slice) {
   return SetBitsResult(bit_slice,
                        ResolveAsBits(bit_slice->operand(0))

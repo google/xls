@@ -22,6 +22,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/strong_int.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/proc.h"
@@ -50,6 +51,11 @@ Function* Package::AddFunction(std::unique_ptr<Function> f) {
 Proc* Package::AddProc(std::unique_ptr<Proc> proc) {
   procs_.push_back(std::move(proc));
   return procs_.back().get();
+}
+
+Block* Package::AddBlock(std::unique_ptr<Block> block) {
+  blocks_.push_back(std::move(block));
+  return blocks_.back().get();
 }
 
 absl::StatusOr<Function*> Package::GetFunction(
@@ -83,13 +89,31 @@ absl::StatusOr<Proc*> Package::GetProc(absl::string_view proc_name) const {
                     })));
 }
 
-std::vector<FunctionBase*> Package::GetFunctionsAndProcs() const {
+absl::StatusOr<Block*> Package::GetBlock(absl::string_view block_name) const {
+  for (auto& block : blocks_) {
+    if (block->name() == block_name) {
+      return block.get();
+    }
+  }
+  return absl::NotFoundError(absl::StrFormat(
+      "Package does not have a block with name: \"%s\"; available: [%s]",
+      block_name,
+      absl::StrJoin(blocks_, ", ",
+                    [](std::string* out, const std::unique_ptr<Block>& block) {
+                      absl::StrAppend(out, block->name());
+                    })));
+}
+
+std::vector<FunctionBase*> Package::GetFunctionBases() const {
   std::vector<FunctionBase*> result;
   for (auto& function : functions()) {
     result.push_back(function.get());
   }
   for (auto& proc : procs()) {
     result.push_back(proc.get());
+  }
+  for (auto& block : blocks()) {
+    result.push_back(block.get());
   }
   return result;
 }
@@ -407,6 +431,9 @@ std::string Package::DumpIr() const {
   }
   for (auto& proc : procs()) {
     function_dumps.push_back(proc->DumpIr());
+  }
+  for (auto& block : blocks()) {
+    function_dumps.push_back(block->DumpIr());
   }
   absl::StrAppend(&out, absl::StrJoin(function_dumps, "\n"));
   return out;

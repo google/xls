@@ -25,9 +25,12 @@
 #include "absl/strings/string_view.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/ir/block.h"
+#include "xls/ir/function.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 
@@ -547,29 +550,35 @@ class BuilderBase {
                 absl::string_view name = "");
 
   // Add a receive operation. The type of the data value received is
-  // determined by the channel.
+  // determined by the channel. Only supported on procs.
   virtual BValue Receive(Channel* channel, BValue token,
                          absl::optional<SourceLocation> loc = absl::nullopt,
-                         absl::string_view name = "") = 0;
+                         absl::string_view name = "");
 
   // Add a receive_if operation. The receive executes conditionally on the value
   // of the predicate "pred". The type of the data value received is
-  // determined by the channel.
+  // determined by the channel. Only supported on procs.
   virtual BValue ReceiveIf(Channel* channel, BValue token, BValue pred,
                            absl::optional<SourceLocation> loc = absl::nullopt,
-                           absl::string_view name = "") = 0;
+                           absl::string_view name = "");
 
-  // Add a send operation.
+  // Add a send operation. Only supported on procs.
   virtual BValue Send(Channel* channel, BValue token, BValue data,
                       absl::optional<SourceLocation> loc = absl::nullopt,
-                      absl::string_view name = "") = 0;
+                      absl::string_view name = "");
 
   // Add a send_if operation. The send executes conditionally on the value of
-  // the predicate "pred".
+  // the predicate "pred". Only supported on procs.
   virtual BValue SendIf(Channel* channel, BValue token, BValue pred,
                         BValue data,
                         absl::optional<SourceLocation> loc = absl::nullopt,
-                        absl::string_view name = "") = 0;
+                        absl::string_view name = "");
+
+  // Add an input/output port. Only supported on blocks.
+  virtual BValue InputPort(absl::string_view name, Type* type,
+                           absl::optional<SourceLocation> loc = absl::nullopt);
+  virtual BValue OutputPort(absl::string_view name, BValue operand,
+                            absl::optional<SourceLocation> loc = absl::nullopt);
 
   Package* package() const;
 
@@ -588,6 +597,8 @@ class BuilderBase {
   // BValue.
   template <typename NodeT, typename... Args>
   BValue AddNode(absl::optional<SourceLocation> loc, Args&&... args);
+
+  BValue CreateBValue(Node* node, absl::optional<SourceLocation> loc);
 
   // The most recently added node to the function.
   Node* last_node_ = nullptr;
@@ -617,18 +628,6 @@ class FunctionBuilder : public BuilderBase {
 
   BValue Param(absl::string_view name, Type* type,
                absl::optional<SourceLocation> loc = absl::nullopt) override;
-  BValue Receive(Channel* channel, BValue token,
-                 absl::optional<SourceLocation> loc = absl::nullopt,
-                 absl::string_view name = "") override;
-  BValue ReceiveIf(Channel* channel, BValue token, BValue pred,
-                   absl::optional<SourceLocation> loc = absl::nullopt,
-                   absl::string_view name = "") override;
-  BValue Send(Channel* channel, BValue token, BValue data,
-              absl::optional<SourceLocation> loc = absl::nullopt,
-              absl::string_view name = "") override;
-  BValue SendIf(Channel* channel, BValue token, BValue pred, BValue data,
-                absl::optional<SourceLocation> loc = absl::nullopt,
-                absl::string_view name = "") override;
 
   // Adds the function internally being built-up by this builder to the package
   // given at construction time, and returns a pointer to it (the function is
@@ -657,13 +656,12 @@ class ProcBuilder : public BuilderBase {
   // Returns the Param BValue for the state or token parameter. Unlike
   // BuilderBase::Param this does add a Param node to the Proc. Rather the state
   // and token parameters are added to the Proc at construction time and these
-  // methods return references to the these parameters.
+  // methods return references to these parameters.
   BValue GetStateParam() const { return state_param_; }
   BValue GetTokenParam() const { return token_param_; }
 
   // Build the proc using the given BValues as the recurrent token and state
-  // respectively. The return value of the proc is constructed as a two-tuple
-  // of the token and next-state.
+  // respectively.
   absl::StatusOr<Proc*> Build(BValue token, BValue next_state);
 
   BValue Param(absl::string_view name, Type* type,
@@ -682,10 +680,10 @@ class ProcBuilder : public BuilderBase {
                 absl::string_view name = "") override;
 
  private:
-  // The BValue of the token parameter (parameter 1).
+  // The BValue of the token parameter (parameter 0).
   BValue token_param_;
 
-  // The BValue of the state parameter (parameter 0).
+  // The BValue of the state parameter (parameter 1).
   BValue state_param_;
 };
 
@@ -759,6 +757,32 @@ class TokenlessProcBuilder : public ProcBuilder {
  private:
   // The tokens from any added send(if)/receive(if) nodes.
   std::vector<BValue> tokens_;
+};
+
+// Class for building an XLS Block.
+class BlockBuilder : public BuilderBase {
+ public:
+  // Builder for xls::Blocks. 'should_verify' is a test-only argument which can
+  // be set to false in tests that wish to build malformed IR.
+  BlockBuilder(absl::string_view name, Package* package,
+               bool should_verify = true)
+      : BuilderBase(absl::make_unique<Block>(name, package), should_verify) {}
+  virtual ~BlockBuilder() = default;
+
+  // Returns the Block being constructed.
+  Block* block() const { return down_cast<Block*>(function()); }
+
+  // Build the block.
+  absl::StatusOr<Block*> Build();
+
+  BValue Param(absl::string_view name, Type* type,
+               absl::optional<SourceLocation> loc = absl::nullopt) override;
+
+  BValue InputPort(absl::string_view name, Type* type,
+                   absl::optional<SourceLocation> loc = absl::nullopt) override;
+  BValue OutputPort(
+      absl::string_view name, BValue operand,
+      absl::optional<SourceLocation> loc = absl::nullopt) override;
 };
 
 }  // namespace xls

@@ -46,6 +46,7 @@ class DfsVisitor {
   virtual absl::Status HandleEncode(Encode* encode) = 0;
   virtual absl::Status HandleEq(CompareOp* eq) = 0;
   virtual absl::Status HandleIdentity(UnOp* identity) = 0;
+  virtual absl::Status HandleInputPort(InputPort* input_port) = 0;
   virtual absl::Status HandleInvoke(Invoke* invoke) = 0;
   virtual absl::Status HandleLiteral(Literal* literal) = 0;
   virtual absl::Status HandleMap(Map* map) = 0;
@@ -63,6 +64,7 @@ class DfsVisitor {
   virtual absl::Status HandleOneHot(OneHot* one_hot) = 0;
   virtual absl::Status HandleOneHotSel(OneHotSelect* sel) = 0;
   virtual absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) = 0;
+  virtual absl::Status HandleOutputPort(OutputPort* output_port) = 0;
   virtual absl::Status HandleParam(Param* param) = 0;
   virtual absl::Status HandleReceive(Receive* receive) = 0;
   virtual absl::Status HandleReceiveIf(ReceiveIf* receive_if) = 0;
@@ -152,6 +154,7 @@ class DfsVisitorWithDefault : public DfsVisitor {
   absl::Status HandleEncode(Encode* encode) override;
   absl::Status HandleEq(CompareOp* eq) override;
   absl::Status HandleIdentity(UnOp* identity) override;
+  absl::Status HandleInputPort(InputPort* input_port) override;
   absl::Status HandleInvoke(Invoke* invoke) override;
   absl::Status HandleLiteral(Literal* literal) override;
   absl::Status HandleMap(Map* map) override;
@@ -169,6 +172,7 @@ class DfsVisitorWithDefault : public DfsVisitor {
   absl::Status HandleOneHot(OneHot* one_hot) override;
   absl::Status HandleOneHotSel(OneHotSelect* sel) override;
   absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) override;
+  absl::Status HandleOutputPort(OutputPort* output_port) override;
   absl::Status HandleParam(Param* param) override;
   absl::Status HandleReceive(Receive* receive) override;
   absl::Status HandleReceiveIf(ReceiveIf* receive_if) override;

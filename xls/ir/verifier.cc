@@ -22,6 +22,7 @@
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
@@ -881,6 +882,18 @@ class NodeChecker : public DfsVisitor {
     return HandleExtendOp(zero_ext);
   }
 
+  absl::Status HandleInputPort(InputPort* input_port) override {
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleOutputPort(OutputPort* output_port) override {
+    XLS_RETURN_IF_ERROR(ExpectSameType(output_port->operand(0),
+                                       output_port->operand(0)->GetType(),
+                                       output_port, output_port->GetType(),
+                                       "operand 0", "output_port operation"));
+    return absl::OkStatus();
+  }
+
  private:
   absl::Status HandleShiftOp(Node* shift) {
     // A shift-amount operand can have arbitrary width, but the shifted operand
@@ -1197,8 +1210,8 @@ absl::Status VerifyNodeIdUnique(
   return absl::OkStatus();
 }
 
-// Verify common invariants to procs and functions.
-absl::Status VerifyFunctionOrProc(FunctionBase* function) {
+// Verify common invariants to function-level constucts.
+absl::Status VerifyFunctionBase(FunctionBase* function) {
   XLS_VLOG(2) << absl::StreamFormat("Verifying function %s:\n",
                                     function->name());
   XLS_VLOG_LINES(4, function->DumpIr());
@@ -1293,10 +1306,10 @@ bool TypeHasToken(Type* type) {
   return false;
 }
 
-// Verify that all send/receive nodes are connected to the initial Param token
-// and the return token via token paths. Verify return value similarly
-// connected to token param.
-absl::Status VerifyTokenConnectivity(Proc* proc) {
+// Verify that all tokens in the given FunctionBase are connected. All tokens
+// should flow from the source token to the sink token.
+absl::Status VerifyTokenConnectivity(Node* source_token, Node* sink_token,
+                                     FunctionBase* f) {
   absl::flat_hash_set<Node*> visited;
   std::deque<Node*> worklist;
   auto maybe_add_to_worklist = [&](Node* n) {
@@ -1307,13 +1320,13 @@ absl::Status VerifyTokenConnectivity(Proc* proc) {
     visited.insert(n);
   };
 
-  // Verify connectivity to token param.
-  absl::flat_hash_set<Node*> connected_to_param;
-  maybe_add_to_worklist(proc->TokenParam());
+  // Verify connectivity to source param.
+  absl::flat_hash_set<Node*> connected_to_source;
+  maybe_add_to_worklist(source_token);
   while (!worklist.empty()) {
     Node* node = worklist.front();
     worklist.pop_front();
-    connected_to_param.insert(node);
+    connected_to_source.insert(node);
     if (TypeHasToken(node->GetType())) {
       for (Node* user : node->users()) {
         maybe_add_to_worklist(user);
@@ -1321,14 +1334,14 @@ absl::Status VerifyTokenConnectivity(Proc* proc) {
     }
   }
 
-  // Verify connectivity to next token value.
-  absl::flat_hash_set<Node*> connected_to_return;
+  // Verify connectivity to sink token.
+  absl::flat_hash_set<Node*> connected_to_sink;
   visited.clear();
-  maybe_add_to_worklist(proc->NextToken());
+  maybe_add_to_worklist(sink_token);
   while (!worklist.empty()) {
     Node* node = worklist.front();
     worklist.pop_front();
-    connected_to_return.insert(node);
+    connected_to_sink.insert(node);
     for (Node* operand : node->operands()) {
       if (TypeHasToken(operand->GetType())) {
         maybe_add_to_worklist(operand);
@@ -1336,28 +1349,28 @@ absl::Status VerifyTokenConnectivity(Proc* proc) {
     }
   }
 
-  for (Node* node : proc->nodes()) {
-    if (IsSendOrReceive(node)) {
-      if (!connected_to_param.contains(node)) {
+  for (Node* node : f->nodes()) {
+    if (TypeHasToken(node->GetType())) {
+      if (!connected_to_source.contains(node)) {
         return absl::InternalError(absl::StrFormat(
-            "Send and receive nodes must be connected to the token parameter "
+            "Token-typed nodes must be connected to the source token "
             "via a path of tokens: %s.",
             node->GetName()));
       }
-      if (!connected_to_return.contains(node)) {
+      if (!connected_to_sink.contains(node)) {
         return absl::InternalError(absl::StrFormat(
-            "Send and receive nodes must be connected to the next token value "
+            "Token-typed nodes must be connected to the sink token value "
             "via a path of tokens: %s.",
             node->GetName()));
       }
     }
   }
 
-  if (!connected_to_param.contains(proc->NextToken())) {
-    return absl::InternalError(absl::StrFormat(
-        "Next token value of proc must be connected to the token parameter "
-        "via a path of tokens: %s.",
-        proc->NextToken()->GetName()));
+  if (!connected_to_source.contains(sink_token)) {
+    return absl::InternalError(
+        absl::StrFormat("The sink token must be connected to the token "
+                        "parameter via a path of tokens: %s.",
+                        sink_token->GetName()));
   }
 
   return absl::OkStatus();
@@ -1515,7 +1528,7 @@ absl::Status VerifyPackage(Package* package) {
   // package.
   absl::flat_hash_map<int64_t, absl::optional<SourceLocation>> ids;
   ids.reserve(package->GetNodeCount());
-  for (FunctionBase* function : package->GetFunctionsAndProcs()) {
+  for (FunctionBase* function : package->GetFunctionBases()) {
     XLS_RET_CHECK(function->package() == package);
     for (Node* node : function->nodes()) {
       XLS_RETURN_IF_ERROR(VerifyNodeIdUnique(node, &ids));
@@ -1534,7 +1547,7 @@ absl::Status VerifyPackage(Package* package) {
   // Verify function (proc) names are unique within the package.
   absl::flat_hash_set<FunctionBase*> functions;
   absl::flat_hash_set<std::string> function_names;
-  for (FunctionBase* function : package->GetFunctionsAndProcs()) {
+  for (FunctionBase* function : package->GetFunctionBases()) {
     XLS_RET_CHECK(!function_names.contains(function->name()))
         << "Function or proc with name " << function->name()
         << " is not unique within package " << package->name();
@@ -1560,7 +1573,7 @@ absl::Status VerifyFunction(Function* function) {
   XLS_VLOG(4) << "Verifying function:\n";
   XLS_VLOG_LINES(4, function->DumpIr());
 
-  XLS_RETURN_IF_ERROR(VerifyFunctionOrProc(function));
+  XLS_RETURN_IF_ERROR(VerifyFunctionBase(function));
 
   for (Node* node : function->nodes()) {
     if (IsSendOrReceive(node)) {
@@ -1577,7 +1590,7 @@ absl::Status VerifyProc(Proc* proc) {
   XLS_VLOG(4) << "Verifying proc:\n";
   XLS_VLOG_LINES(4, proc->DumpIr());
 
-  XLS_RETURN_IF_ERROR(VerifyFunctionOrProc(proc));
+  XLS_RETURN_IF_ERROR(VerifyFunctionBase(proc));
 
   // A Proc should have two parameters: a token (parameter 0), and the recurent
   // state (parameter 1).
@@ -1605,10 +1618,55 @@ absl::Status VerifyProc(Proc* proc) {
 
   // Verify that all send/receive nodes are connected to the token parameter and
   // the return value via paths of tokens.
-  XLS_RETURN_IF_ERROR(VerifyTokenConnectivity(proc));
+  XLS_RETURN_IF_ERROR(
+      VerifyTokenConnectivity(proc->TokenParam(), proc->NextToken(), proc));
 
   // Verify any port channels are numbered properly.
   XLS_RETURN_IF_ERROR(VerifyPortOrdering(proc));
+
+  return absl::OkStatus();
+}
+
+absl::Status VerifyBlock(Block* block) {
+  XLS_VLOG(4) << "Verifying block:\n";
+  XLS_VLOG_LINES(4, block->DumpIr());
+
+  XLS_RETURN_IF_ERROR(VerifyFunctionBase(block));
+
+  // Verify the nodes returned by Block::Get*Port methods are consistent.
+  absl::flat_hash_set<Node*> all_ports(block->GetPorts().begin(),
+                                       block->GetPorts().end());
+  absl::flat_hash_set<Node*> input_ports(block->GetInputPorts().begin(),
+                                         block->GetInputPorts().end());
+  absl::flat_hash_set<Node*> output_ports(block->GetOutputPorts().begin(),
+                                          block->GetOutputPorts().end());
+
+  // All the pointers returned by the GetPort methods should be unique.
+  XLS_RET_CHECK_EQ(block->GetPorts().size(), all_ports.size());
+  XLS_RET_CHECK_EQ(block->GetInputPorts().size(), input_ports.size());
+  XLS_RET_CHECK_EQ(block->GetOutputPorts().size(), output_ports.size());
+  XLS_RET_CHECK_EQ(
+      block->GetInputPorts().size() + block->GetOutputPorts().size(),
+      all_ports.size());
+
+  int64_t input_port_count = 0;
+  int64_t output_port_count = 0;
+  for (Node* node : block->nodes()) {
+    if (node->Is<InputPort>()) {
+      XLS_RET_CHECK(all_ports.contains(node));
+      XLS_RET_CHECK(input_ports.contains(node));
+      input_port_count++;
+    } else if (node->Is<OutputPort>()) {
+      XLS_RET_CHECK(all_ports.contains(node));
+      XLS_RET_CHECK(output_ports.contains(node));
+      output_port_count++;
+    }
+  }
+  XLS_RET_CHECK_EQ(input_port_count, input_ports.size());
+  XLS_RET_CHECK_EQ(output_port_count, output_ports.size());
+
+  // Blocks should have no parameters.
+  XLS_RET_CHECK(block->params().empty());
 
   return absl::OkStatus();
 }

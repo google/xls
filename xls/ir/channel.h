@@ -29,10 +29,12 @@ namespace xls {
 
 // Enum for the various kinds of channels supported in XLS.
 enum class ChannelKind {
-  //  A channel with FIFO semenatics.
+  //  A channel with FIFO semantics.
   kStreaming,
 
   // A channel corresponding to a port in code-generated block.
+  // TODO(https://github.com/google/xls/issues/410): 2021/05/07 Remove when
+  // blocks are supported.
   kPort,
 
   // A channel corresponding to a hardware register in codegen.
@@ -126,6 +128,8 @@ class StreamingChannel : public Channel {
 
 // A channel representing a port in a generated block. PortChannels do not
 // support initial values.
+// TODO(https://github.com/google/xls/issues/410): 2021/05/07 Remove when
+// blocks are supported.
 class PortChannel : public Channel {
  public:
   PortChannel(absl::string_view name, int64_t id, ChannelOps supported_ops,
