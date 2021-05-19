@@ -397,6 +397,17 @@ TEST_F(TranslatorTest, GlobalInt) {
   Run({{"a", 11}}, 11 + 60 + 60 + 60, content);
 }
 
+TEST_F(TranslatorTest, GlobalEnum) {
+  const std::string content = R"(
+       enum BlahE {
+         A=2,B,C
+       };
+       long long my_package(long long a) {
+         return a+B+B;
+       })";
+  Run({{"a", 11}}, 11 + 3 + 3, content);
+}
+
 TEST_F(TranslatorTest, SetGlobal) {
   const std::string content = R"(
        int off = 60;

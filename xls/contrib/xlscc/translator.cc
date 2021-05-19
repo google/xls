@@ -1619,35 +1619,61 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
                                                  bool for_lvalue) {
   auto found = context().variables.find(decl);
   if (found == context().variables.end()) {
+    // Is it an enum?
+    auto enum_decl = dynamic_cast<const clang::EnumConstantDecl*>(decl);
     // Is this static/global?
     auto var_decl = dynamic_cast<const clang::VarDecl*>(decl);
-    if (var_decl == nullptr) {
+
+    XLS_CHECK(!(enum_decl && var_decl));
+
+    if (var_decl == nullptr && enum_decl == nullptr) {
       return absl::NotFoundError(
           absl::StrFormat("Undeclared identifier %s at %s",
                           decl->getNameAsString(), LocString(loc)));
     }
 
-    XLS_CHECK(var_decl->hasGlobalStorage());
+    const clang::NamedDecl* name =
+        (var_decl != nullptr)
+            ? absl::implicit_cast<const clang::NamedDecl*>(var_decl)
+            : absl::implicit_cast<const clang::NamedDecl*>(enum_decl);
 
     // Don't re-build the global value for each reference
     // They need to be built once for each Function[Builder]
-    auto found_global = context().sf->global_values.find(var_decl);
+    auto found_global = context().sf->global_values.find(name);
     if (found_global != context().sf->global_values.end()) {
       return found_global->second;
     }
 
-    XLS_CHECK(context().fb);
+    const xls::SourceLocation global_loc = GetLoc(*name);
 
     CValue value;
-    if (var_decl->getInit() != nullptr) {
-      XLS_ASSIGN_OR_RETURN(value, GenerateIR_Expr(var_decl->getInit(), loc));
-    } else {
-      XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> type,
-                           TranslateTypeFromClang(var_decl->getType(), loc));
-      XLS_ASSIGN_OR_RETURN(xls::BValue bval, CreateDefaultValue(type, loc));
+
+    if (enum_decl != nullptr) {
+      const llvm::APSInt& aps = enum_decl->getInitVal();
+
+      std::shared_ptr<CType> type(std::make_shared<CIntType>(32, true));
+      xls::BValue bval =
+          context().fb->Literal(xls::SBits(aps.getExtValue(), 32), global_loc);
+
       value = CValue(bval, type);
+    } else {
+      XLS_CHECK(var_decl->hasGlobalStorage());
+
+      XLS_CHECK(context().fb);
+
+      if (var_decl->getInit() != nullptr) {
+        XLS_ASSIGN_OR_RETURN(value,
+                             GenerateIR_Expr(var_decl->getInit(), global_loc));
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            std::shared_ptr<CType> type,
+            TranslateTypeFromClang(var_decl->getType(), global_loc));
+        XLS_ASSIGN_OR_RETURN(xls::BValue bval,
+                             CreateDefaultValue(type, global_loc));
+        value = CValue(bval, type);
+      }
     }
-    context().sf->global_values[var_decl] = value;
+    context().sf->global_values[name] = value;
     return value;
   }
   if (!for_lvalue) {
@@ -3803,7 +3829,7 @@ absl::Status Translator::GenerateIRBlockCheck(
   for (const clang::ParmVarDecl* param : definition->parameters()) {
     if (!channel_names_in_block.contains(param->getNameAsString())) {
       return absl::InvalidArgumentError(absl::StrFormat(
-          "Block proto does not contain channels %s in function prototype",
+          "Block proto does not contain channels '%s' in function prototype",
           param->getNameAsString()));
     }
     channel_names_in_block.erase(param->getNameAsString());
