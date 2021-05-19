@@ -46,7 +46,8 @@ bool IncrementBitVector(std::vector<bool>* vec) {
 // Convert a bitvector whose length is equal to the number of edges in the path
 // into a cut on the path, where bits equal to 1 represent cut edges and bits
 // equal to 0 represent uncut edges.
-PathCut CutFromBitVector(const PathGraph& path, const std::vector<bool>& vec) {
+PathCut CutFromBitVector(const PathGraph<int32_t, int32_t>& path,
+                         const std::vector<bool>& vec) {
   XLS_CHECK_EQ(vec.size(), path.NumEdges())
       << "Size of bitvector must be equal to number of edges";
   std::vector<PathEdgeId> cut_edges;
@@ -55,11 +56,11 @@ PathCut CutFromBitVector(const PathGraph& path, const std::vector<bool>& vec) {
       cut_edges.push_back(PathEdgeId(i));
     }
   }
-  return CutEdgesToPathCut(path, cut_edges);
+  return path.CutEdgesToPathCut(cut_edges);
 }
 
 // Enumerate all cuts for a path, calling the given function on each cut.
-void EnumerateAllCuts(const PathGraph& path,
+void EnumerateAllCuts(const PathGraph<int32_t, int32_t>& path,
                       std::function<void(const PathCut&)> callback) {
   std::vector<bool> bitvector;
   bitvector.resize(path.NumEdges(), false);
@@ -70,10 +71,10 @@ void EnumerateAllCuts(const PathGraph& path,
 }
 
 // Determine whether the given cut violates the max node weight constraint.
-bool PathCutIsValid(const PathGraph& path, const PathCut& cut,
-                    PathNodeWeight maximum_weight) {
+bool PathCutIsValid(const PathGraph<int32_t, int32_t>& path, const PathCut& cut,
+                    int32_t maximum_weight) {
   for (const std::vector<PathNodeId>& piece : cut) {
-    PathNodeWeight piece_weight(0);
+    int32_t piece_weight(0);
     for (PathNodeId node : piece) {
       piece_weight += path.WeightOfNode(node);
     }
@@ -85,8 +86,9 @@ bool PathCutIsValid(const PathGraph& path, const PathCut& cut,
 }
 
 // Compute the cost of the given cut.
-PathEdgeWeight PathCutCost(const PathGraph& path, const PathCut& cut) {
-  PathEdgeWeight result(0);
+int32_t PathCutCost(const PathGraph<int32_t, int32_t>& path,
+                    const PathCut& cut) {
+  int32_t result(0);
   for (int i = 0; i < cut.size(); i++) {
     if (absl::optional<PathEdgeId> edge =
             path.NodeSuccessorEdge(cut[i].back())) {
@@ -98,15 +100,15 @@ PathEdgeWeight PathCutCost(const PathGraph& path, const PathCut& cut) {
 
 // A brute force solution for the path cut problem, to compare against the
 // smarter dynamic programming solution in `path_cut.cc`.
-absl::optional<PathCut> BruteForcePathCut(const PathGraph& path,
-                                          PathNodeWeight maximum_weight) {
+absl::optional<PathCut> BruteForcePathCut(
+    const PathGraph<int32_t, int32_t>& path, int32_t maximum_weight) {
   absl::optional<PathCut> best;
-  absl::optional<PathEdgeWeight> best_cost;
+  absl::optional<int32_t> best_cost;
   EnumerateAllCuts(path, [&](const PathCut& cut) {
     if (!PathCutIsValid(path, cut, maximum_weight)) {
       return;
     }
-    PathEdgeWeight cost = PathCutCost(path, cut);
+    int32_t cost = PathCutCost(path, cut);
     if (!best_cost || (cost < *best_cost)) {
       best = cut;
       best_cost = cost;
@@ -115,37 +117,53 @@ absl::optional<PathCut> BruteForcePathCut(const PathGraph& path,
   return best;
 }
 
-using PNW = PathNodeWeight;
-using PEW = PathEdgeWeight;
+using PG = PathGraph<int32_t, int32_t>;
+
+template <typename T>
+PartialDifferenceMonoid<T> AddSubPDM() {
+  return {[]() { return 0; },
+          [](T x, T y) -> absl::optional<T> { return x + y; },
+          [](T x, T y) -> absl::optional<T> { return x - y; }};
+}
+
+template <typename T>
+TotalOrder<T> LessThanTotalOrder() {
+  return {[](T x, T y) { return x == y; }, [](T x, T y) { return x < y; }};
+}
+
+PG CreatePathGraph(absl::Span<const int32_t> node_weights,
+                   absl::Span<const int32_t> edge_weights) {
+  return *PG::Create(node_weights, edge_weights, AddSubPDM<int32_t>(),
+                     AddSubPDM<int32_t>(), LessThanTotalOrder<int32_t>(),
+                     LessThanTotalOrder<int32_t>());
+}
 
 TEST(PathCutTest, SingleNodeTest) {
   // (50)
-  PathGraph path = *PathGraph::Create({PNW(50)}, {});
-  EXPECT_EQ(ComputePathCut(path, PNW(30)), absl::nullopt);
-  EXPECT_EQ(ComputePathCut(path, PNW(70)).value(), PathCut({{PathNodeId(0)}}));
+  PG path = CreatePathGraph({50}, {});
+  EXPECT_EQ(path.ComputePathCut(30), absl::nullopt);
+  EXPECT_EQ(path.ComputePathCut(70).value(), PathCut({{PathNodeId(0)}}));
 }
 
 TEST(PathCutTest, SimpleTest) {
   // (50) >-- 10 --> (10) >-- 10 --> (20) >-- 10 --> (50)
-  PathGraph path = *PathGraph::Create({PNW(50), PNW(10), PNW(20), PNW(50)},
-                                      {PEW(10), PEW(10), PEW(10)});
-  EXPECT_EQ(ComputePathCut(path, PNW(70)),
+  PG path = CreatePathGraph({50, 10, 20, 50}, {10, 10, 10});
+  EXPECT_EQ(path.ComputePathCut(70),
             absl::make_optional<PathCut>({{PathNodeId(0), PathNodeId(1)},
                                           {PathNodeId(2), PathNodeId(3)}}));
   for (int32_t i = 0; i < 100; i += 5) {
-    EXPECT_EQ(ComputePathCut(path, PNW(i)), BruteForcePathCut(path, PNW(i)));
+    EXPECT_EQ(path.ComputePathCut(i), BruteForcePathCut(path, i));
   }
 }
 
 TEST(PathCutTest, ComplexTest) {
   // Generated by fair dice roll
-  PathGraph path = *PathGraph::Create(
-      {PNW(17), PNW(16), PNW(18), PNW(93), PNW(55), PNW(75), PNW(51), PNW(63)},
-      {PEW(23), PEW(34), PEW(61), PEW(22), PEW(76), PEW(54), PEW(77)});
+  PG path = CreatePathGraph({17, 16, 18, 93, 55, 75, 51, 63},
+                            {23, 34, 61, 22, 76, 54, 77});
   for (int32_t i = 0; i < 300; i += 1) {
     XLS_VLOG(3) << "i = " << i << "\n";
-    PNW max_weight(i);
-    absl::optional<PathCut> smart = ComputePathCut(path, max_weight);
+    int32_t max_weight(i);
+    absl::optional<PathCut> smart = path.ComputePathCut(max_weight);
     absl::optional<PathCut> brute = BruteForcePathCut(path, max_weight);
     EXPECT_EQ(smart.has_value(), brute.has_value());
     if (smart.has_value()) {
@@ -156,6 +174,76 @@ TEST(PathCutTest, ComplexTest) {
       EXPECT_EQ(PathCutCost(path, *smart), PathCutCost(path, *brute));
     }
   }
+}
+
+struct ColoredNodeWeight {
+  absl::optional<std::pair<PathNodeId, PathNodeId>> interval;
+  int32_t weight;
+};
+
+PartialDifferenceMonoid<ColoredNodeWeight> ColoredNodeWeightPDM() {
+  return {[]() -> ColoredNodeWeight {
+            return {absl::nullopt, 0};
+          },
+          [](const ColoredNodeWeight& x,
+             const ColoredNodeWeight& y) -> absl::optional<ColoredNodeWeight> {
+            if (!x.interval) {
+              XLS_CHECK_EQ(x.weight, 0);
+              return {{y.interval, y.weight}};
+            }
+            if (!y.interval) {
+              XLS_CHECK_EQ(y.weight, 0);
+              return {{x.interval, x.weight}};
+            }
+            if (static_cast<int32_t>(x.interval->second) + 1 !=
+                static_cast<int32_t>(y.interval->first)) {
+              return absl::nullopt;
+            }
+            return {{{{x.interval->first, y.interval->second}},
+                     x.weight + y.weight}};
+          },
+          [](const ColoredNodeWeight& x,
+             const ColoredNodeWeight& y) -> absl::optional<ColoredNodeWeight> {
+            if (!x.interval) {
+              return absl::nullopt;
+            }
+            if (!y.interval) {
+              XLS_CHECK_EQ(y.weight, 0);
+              return x;
+            }
+            if (x.interval->first != y.interval->first) {
+              return absl::nullopt;
+            }
+            PathNodeId start(static_cast<int32_t>(y.interval->second) + 1);
+            PathNodeId end(x.interval->second);
+            return {{{{start, end}}, x.weight - y.weight}};
+          }};
+}
+
+TotalOrder<ColoredNodeWeight> ColoredNodeWeightTotalOrder() {
+  return {[](const ColoredNodeWeight& x, const ColoredNodeWeight& y) -> bool {
+            return x.weight == y.weight;
+          },
+          [](const ColoredNodeWeight& x, const ColoredNodeWeight& y) -> bool {
+            return x.weight < y.weight;
+          }};
+}
+
+TEST(PathCutTest, NonIntNodeWeightsTest) {
+  EXPECT_TRUE(true);
+  auto cnw = [](int32_t weight, int32_t node) -> ColoredNodeWeight {
+    PathNodeId path_node(node);
+    return {{{path_node, path_node}}, weight};
+  };
+  PathGraph<ColoredNodeWeight, int32_t> path =
+      *PathGraph<ColoredNodeWeight, int32_t>::Create(
+          {cnw(50, 0), cnw(10, 1), cnw(20, 2), cnw(50, 3)}, {10, 10, 10},
+          ColoredNodeWeightPDM(), AddSubPDM<int32_t>(),
+          ColoredNodeWeightTotalOrder(), LessThanTotalOrder<int32_t>());
+
+  EXPECT_EQ(path.ComputePathCut({absl::nullopt, 70}),
+            absl::make_optional<PathCut>({{PathNodeId(0), PathNodeId(1)},
+                                          {PathNodeId(2), PathNodeId(3)}}));
 }
 
 }  // namespace
