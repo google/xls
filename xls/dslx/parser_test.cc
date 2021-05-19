@@ -150,7 +150,7 @@ TEST_F(ParserTest, ParseLetExpression) {
   ASSERT_TRUE(let != nullptr) << e->ToString();
   NameDef* name_def = absl::get<NameDef*>(let->name_def_tree()->leaf());
   EXPECT_EQ(name_def->identifier(), "x");
-  EXPECT_EQ(let->type()->ToString(), "u32");
+  EXPECT_EQ(let->type_annotation()->ToString(), "u32");
   EXPECT_EQ(let->rhs()->ToString(), "2");
   EXPECT_EQ(let->body()->ToString(), "x");
 }

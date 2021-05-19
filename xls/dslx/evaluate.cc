@@ -81,11 +81,11 @@ absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
   // `s1:true` we skip providing the type context as u1 and pick up the
   // evaluation of the s1 below.
   if (type_context == nullptr && expr->kind() == NumberKind::kBool &&
-      expr->type() == nullptr) {
+      expr->type_annotation() == nullptr) {
     type_context_value = BitsType::MakeU1();
     type_context = type_context_value.get();
   }
-  if (type_context == nullptr && expr->type() == nullptr) {
+  if (type_context == nullptr && expr->type_annotation() == nullptr) {
     return absl::InternalError(
         absl::StrFormat("FailureError: %s No type context for expression, "
                         "should be caught by type inference.",
@@ -94,7 +94,7 @@ absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
   if (type_context == nullptr) {
     XLS_ASSIGN_OR_RETURN(
         type_context_value,
-        ConcretizeTypeAnnotation(expr->type(), bindings, interp));
+        ConcretizeTypeAnnotation(expr->type_annotation(), bindings, interp));
     type_context = type_context_value.get();
   }
 
@@ -385,9 +385,9 @@ static absl::Status EvaluateDerivedParametrics(
       continue;  // Already bound.
     }
 
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<ConcreteType> type,
-        ConcretizeTypeAnnotation(parametric->type(), bindings, interp));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+                         ConcretizeTypeAnnotation(parametric->type_annotation(),
+                                                  bindings, interp));
     // We already computed derived parametrics in the parametric instantiator.
     // All that's left is to add it to the current bindings.
     bindings->AddValue(id, bound_dims.at(id));
@@ -559,9 +559,9 @@ absl::StatusOr<InterpValue> EvaluateArray(Array* expr, InterpBindings* bindings,
   XLS_VLOG(5) << "Evaluating array @ " << expr->span()
               << " :: " << expr->ToString();
   std::unique_ptr<ConcreteType> type;
-  if (type_context == nullptr && expr->type() != nullptr) {
-    XLS_ASSIGN_OR_RETURN(
-        type, ConcretizeTypeAnnotation(expr->type(), bindings, interp));
+  if (type_context == nullptr && expr->type_annotation() != nullptr) {
+    XLS_ASSIGN_OR_RETURN(type, ConcretizeTypeAnnotation(expr->type_annotation(),
+                                                        bindings, interp));
     type_context = type.get();
   }
 
@@ -604,7 +604,7 @@ absl::StatusOr<InterpValue> EvaluateCast(Cast* expr, InterpBindings* bindings,
   XLS_RET_CHECK_EQ(expr->owner(), interp->GetCurrentTypeInfo()->module());
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ConcreteType> type,
-      ConcretizeTypeAnnotation(expr->type(), bindings, interp));
+      ConcretizeTypeAnnotation(expr->type_annotation(), bindings, interp));
   XLS_ASSIGN_OR_RETURN(InterpValue value, interp->Eval(expr->expr(), bindings,
                                                        type->CloneToUnique()));
   XLS_ASSIGN_OR_RETURN(absl::optional<std::vector<InterpValue>> enum_values,
@@ -620,9 +620,10 @@ absl::StatusOr<InterpValue> EvaluateLet(Let* expr, InterpBindings* bindings,
                                         ConcreteType* type_context,
                                         AbstractInterpreter* interp) {
   std::unique_ptr<ConcreteType> want_type;
-  if (expr->type() != nullptr) {
+  if (expr->type_annotation() != nullptr) {
     XLS_ASSIGN_OR_RETURN(
-        want_type, ConcretizeTypeAnnotation(expr->type(), bindings, interp));
+        want_type,
+        ConcretizeTypeAnnotation(expr->type_annotation(), bindings, interp));
   }
 
   XLS_ASSIGN_OR_RETURN(InterpValue to_bind,
@@ -653,10 +654,10 @@ absl::StatusOr<InterpValue> EvaluateFor(For* expr, InterpBindings* bindings,
                        interp->Eval(expr->iterable(), bindings));
 
   std::unique_ptr<ConcreteType> concrete_iteration_type;
-  if (expr->type() != nullptr) {
+  if (expr->type_annotation() != nullptr) {
     XLS_ASSIGN_OR_RETURN(
         concrete_iteration_type,
-        ConcretizeTypeAnnotation(expr->type(), bindings, interp));
+        ConcretizeTypeAnnotation(expr->type_annotation(), bindings, interp));
   }
 
   XLS_ASSIGN_OR_RETURN(InterpValue carry, interp->Eval(expr->init(), bindings));
@@ -730,7 +731,7 @@ static absl::StatusOr<InterpValue> EvaluateEnumRefHelper(
   XLS_ASSIGN_OR_RETURN(auto value_node, enum_def->GetValue(attr));
   // Note: we have grab bindings from the underlying type (not from the expr,
   // which may have been in a different module from the enum_def).
-  TypeAnnotation* underlying_type = enum_def->type();
+  TypeAnnotation* underlying_type = enum_def->type_annotation();
   XLS_ASSIGN_OR_RETURN(
       const InterpBindings* top_bindings,
       GetOrCreateTopLevelBindings(underlying_type->owner(), interp));
@@ -1339,7 +1340,7 @@ absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
     AbstractInterpreter* interp, std::vector<Expr*>* parametrics) {
   while (absl::holds_alternative<TypeDef*>(type_definition)) {
     TypeDef* type_def = absl::get<TypeDef*>(type_definition);
-    TypeAnnotation* annotation = type_def->type();
+    TypeAnnotation* annotation = type_def->type_annotation();
     if (auto* type_ref = dynamic_cast<TypeRefTypeAnnotation*>(annotation)) {
       type_definition = type_ref->type_ref()->type_definition();
       if (parametrics != nullptr) {
@@ -1402,15 +1403,16 @@ static absl::StatusOr<InterpBindings> BindingsWithStructParametrics(
     Expr* d = parametrics[i];
     if (Number* n = dynamic_cast<Number*>(d)) {
       int64_t value = n->GetAsUint64().value();
-      TypeAnnotation* type = n->type();
-      if (type == nullptr) {
+      TypeAnnotation* type_annotation = n->type_annotation();
+      if (type_annotation == nullptr) {
         // If the number didn't have a type annotation, use the one from the
         // parametric we're binding to.
-        type = p->type();
+        type_annotation = p->type_annotation();
       }
-      XLS_RET_CHECK(type != nullptr)
+      XLS_RET_CHECK(type_annotation != nullptr)
           << "`" << n->ToString() << "` @ " << n->span();
-      auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type);
+      auto* builtin_type =
+          dynamic_cast<BuiltinTypeAnnotation*>(type_annotation);
       XLS_CHECK(builtin_type != nullptr);
       int64_t bit_count = builtin_type->GetBitCount();
       nested_bindings.AddValue(p->name_def()->identifier(),
@@ -1438,8 +1440,9 @@ ConcretizeTypeRefTypeAnnotation(TypeRefTypeAnnotation* type_ref,
   TypeDefinition type_defn = type_ref->type_ref()->type_definition();
   if (absl::holds_alternative<EnumDef*>(type_defn)) {
     auto* enum_def = absl::get<EnumDef*>(type_defn);
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> underlying_type,
-                         ConcretizeType(enum_def->type(), bindings, interp));
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<ConcreteType> underlying_type,
+        ConcretizeType(enum_def->type_annotation(), bindings, interp));
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bit_count,
                          underlying_type->GetTotalBitCount());
     return absl::make_unique<EnumType>(enum_def, bit_count);
@@ -1538,7 +1541,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeType(
                    interp->GetCurrentTypeInfo()->module());
   // class EnumDef
   if (EnumDef** penum_def = absl::get_if<EnumDef*>(&type)) {
-    return ConcretizeType((*penum_def)->type(), bindings, interp);
+    return ConcretizeType((*penum_def)->type_annotation(), bindings, interp);
   }
   // class StructDef
   if (StructDef** pstruct_def = absl::get_if<StructDef*>(&type)) {

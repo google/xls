@@ -88,7 +88,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnop(Unop* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceParam(Param* node,
                                                           DeduceCtx* ctx) {
-  return ctx->Deduce(node->type());
+  return ctx->Deduce(node->type_annotation());
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
@@ -127,7 +127,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRef(TypeRef* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeDef(TypeDef* node,
                                                             DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
-                       ctx->Deduce(node->type()));
+                       ctx->Deduce(node->type_annotation()));
   ctx->type_info()->SetItem(node->name_def(), *type);
   return type;
 }
@@ -144,7 +144,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(XlsTuple* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
                                                            DeduceCtx* ctx) {
-  if (node->type() == nullptr) {
+  if (node->type_annotation() == nullptr) {
     switch (node->kind()) {
       case NumberKind::kBool:
         return BitsType::MakeU1();
@@ -159,7 +159,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_type,
-                       ctx->Deduce(node->type()));
+                       ctx->Deduce(node->type_annotation()));
   XLS_ASSIGN_OR_RETURN(concrete_type, Resolve(*concrete_type, ctx));
   XLS_RETURN_IF_ERROR(CheckBitwidth(*node, *concrete_type));
   return concrete_type;
@@ -240,7 +240,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceShift(
 
   absl::optional<uint64_t> number_value;
   if (auto* number = dynamic_cast<Number*>(node->rhs());
-      number != nullptr && number->type() == nullptr) {
+      number != nullptr && number->type_annotation() == nullptr) {
     // Infer RHS node as bit type and retrieve bit width.
     const std::string& number_str = number->text();
     XLS_RET_CHECK(!number_str.empty()) << "Number literal empty.";
@@ -366,7 +366,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(Binop* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(EnumDef* node,
                                                             DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
-                       DeduceAndResolve(node->type(), ctx));
+                       DeduceAndResolve(node->type_annotation(), ctx));
   auto* bits_type = dynamic_cast<BitsType*>(type.get());
   if (bits_type == nullptr) {
     return TypeInferenceErrorStatus(node->span(), bits_type,
@@ -441,11 +441,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(Let* node,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> rhs,
                        DeduceAndResolve(node->rhs(), ctx));
 
-  if (node->type() != nullptr) {
+  if (node->type_annotation() != nullptr) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated,
-                         DeduceAndResolve(node->type(), ctx));
+                         DeduceAndResolve(node->type_annotation(), ctx));
     if (*rhs != *annotated) {
-      return XlsTypeErrorStatus(node->type()->span(), *annotated, *rhs,
+      return XlsTypeErrorStatus(node->type_annotation()->span(), *annotated,
+                                *rhs,
                                 "Annotated type did not match inferred type "
                                 "of right hand side expression.");
     }
@@ -487,9 +488,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(For* node,
 
   // If there was an explicitly annotated type, ensure it matches our inferred
   // one.
-  if (node->type() != nullptr) {
+  if (node->type_annotation() != nullptr) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated_type,
-                         DeduceAndResolve(node->type(), ctx));
+                         DeduceAndResolve(node->type_annotation(), ctx));
 
     if (*target_annotated_type != *annotated_type) {
       return XlsTypeErrorStatus(
@@ -541,7 +542,7 @@ static bool IsAcceptableCast(const ConcreteType& from, const ConcreteType& to) {
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCast(Cast* node,
                                                          DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
-                       DeduceAndResolve(node->type(), ctx));
+                       DeduceAndResolve(node->type_annotation(), ctx));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr,
                        DeduceAndResolve(node->expr(), ctx));
 
@@ -558,7 +559,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(StructDef* node,
                                                               DeduceCtx* ctx) {
   for (const ParametricBinding* parametric : node->parametric_bindings()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_binding_type,
-                         ctx->Deduce(parametric->type()));
+                         ctx->Deduce(parametric->type_annotation()));
     if (parametric->expr() != nullptr) {
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr_type,
                            ctx->Deduce(parametric->expr()));
@@ -608,12 +609,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
   auto inferred =
       absl::make_unique<ArrayType>(member_types[0]->CloneToUnique(), dim);
 
-  if (node->type() == nullptr) {
+  if (node->type_annotation() == nullptr) {
     return inferred;
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated,
-                       ctx->Deduce(node->type()));
+                       ctx->Deduce(node->type_annotation()));
   auto* array_type = dynamic_cast<ArrayType*>(annotated.get());
   if (array_type == nullptr) {
     return TypeInferenceErrorStatus(
@@ -680,26 +681,27 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAttr(Attr* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
     ConstantArray* node, DeduceCtx* ctx) {
-  if (node->type() == nullptr) {
+  if (node->type_annotation() == nullptr) {
     return DeduceArray(node, ctx);
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
-                       ctx->Deduce(node->type()));
+                       ctx->Deduce(node->type_annotation()));
   auto* array_type = dynamic_cast<ArrayType*>(type.get());
   if (array_type == nullptr) {
     return TypeInferenceErrorStatus(
-        node->type()->span(), type.get(),
+        node->type_annotation()->span(), type.get(),
         absl::StrFormat("Annotated type for array "
                         "literal must be an array type; got %s %s",
-                        type->GetDebugTypeName(), node->type()->ToString()));
+                        type->GetDebugTypeName(),
+                        node->type_annotation()->ToString()));
   }
 
   const ConcreteType& element_type = array_type->element_type();
   for (Expr* member : node->members()) {
     XLS_RET_CHECK(IsConstant(member));
     if (Number* number = dynamic_cast<Number*>(member);
-        number != nullptr && number->type() == nullptr) {
+        number != nullptr && number->type_annotation() == nullptr) {
       ctx->type_info()->SetItem(member, element_type);
       XLS_RETURN_IF_ERROR(CheckBitwidth(*number, element_type));
     }
@@ -846,7 +848,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
         "Tuple index is not a literal number or named constant.");
   }
 
-  if (number->type() == nullptr) {
+  if (number->type_annotation() == nullptr) {
     ctx->type_info()->SetItem(number, *BitsType::MakeU32());
   } else {
     // If the number has an annotated type, flag it as unnecessary.
@@ -907,7 +909,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
   BitsType* start_type;
 
   if (Number* start_number = dynamic_cast<Number*>(start);
-      start_number != nullptr && start_number->type() == nullptr) {
+      start_number != nullptr && start_number->type_annotation() == nullptr) {
     // A literal number with no annotated type as the slice start.
     //
     // By default, we use the "subject" type (converted to unsigned) as the type
@@ -1251,7 +1253,7 @@ static absl::StatusOr<StructDef*> DerefToStruct(
     }
     if (absl::holds_alternative<TypeDef*>(current)) {
       auto* type_def = absl::get<TypeDef*>(current);
-      TypeAnnotation* annotation = type_def->type();
+      TypeAnnotation* annotation = type_def->type_annotation();
       TypeRefTypeAnnotation* type_ref =
           dynamic_cast<TypeRefTypeAnnotation*>(annotation);
       if (type_ref == nullptr) {
@@ -1984,7 +1986,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
         ctx->type_info()->GetImportedTypeInfo(binding_module).value();
     auto binding_ctx = ctx->MakeCtx(binding_type_info, binding_module);
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> binding_type,
-                         binding_ctx->Deduce(binding->type()));
+                         binding_ctx->Deduce(binding->type_annotation()));
 
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> value_type,
                          ctx->Deduce(value));

@@ -372,7 +372,8 @@ absl::StatusOr<StructRef> Parser::ResolveStruct(Bindings* bindings,
     return StructRef(absl::get<ColonRef*>(type_defn));
   }
   if (absl::holds_alternative<TypeDef*>(type_defn)) {
-    return ResolveStruct(bindings, absl::get<TypeDef*>(type_defn)->type());
+    return ResolveStruct(bindings,
+                         absl::get<TypeDef*>(type_defn)->type_annotation());
   }
   if (absl::holds_alternative<EnumDef*>(type_defn)) {
     return absl::InvalidArgumentError(
@@ -763,10 +764,10 @@ absl::StatusOr<Expr*> Parser::ParseCast(Bindings* bindings,
   XLS_ASSIGN_OR_RETURN(Expr * term, ParseTerm(bindings));
   if (IsOneOf<Number, Array>(term)) {
     if (auto* n = dynamic_cast<Number*>(term)) {
-      n->set_type(type);
+      n->set_type_annotation(type);
     } else {
       auto* a = dynamic_cast<Array*>(term);
-      a->set_type(type);
+      a->set_type_annotation(type);
     }
     return term;
   }
@@ -1496,23 +1497,24 @@ absl::StatusOr<EnumDef*> Parser::ParseEnumDef(bool is_public,
       DropTokenOrError(TokenKind::kColon, nullptr,
                        "enum requires a ': type' annotation to indicate "
                        "enum's underlying type."));
-  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
+  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type_annotation,
+                       ParseTypeAnnotation(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
   Bindings enum_bindings(bindings);
 
   auto parse_enum_entry = [this, &enum_bindings,
-                           type]() -> absl::StatusOr<EnumMember> {
+                           type_annotation]() -> absl::StatusOr<EnumMember> {
     XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(&enum_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
     XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(&enum_bindings));
     // Propagate type annotation to un-annotated enum entries -- this is a
     // convenience until we have proper unifying type inference.
     if (auto* number = dynamic_cast<Number*>(expr); number != nullptr) {
-      if (number->type() == nullptr) {
-        number->set_type(type);
+      if (number->type_annotation() == nullptr) {
+        number->set_type_annotation(type_annotation);
       } else {
         return ParseErrorStatus(
-            number->type()->span(),
+            number->type_annotation()->span(),
             "A type is annotated on this enum value, but the enum defines a "
             "type, so this is not necessary: please remove it.");
       }
@@ -1523,8 +1525,8 @@ absl::StatusOr<EnumDef*> Parser::ParseEnumDef(bool is_public,
   XLS_ASSIGN_OR_RETURN(
       std::vector<EnumMember> entries,
       ParseCommaSeq<EnumMember>(parse_enum_entry, TokenKind::kCBrace));
-  auto* enum_def = module_->Make<EnumDef>(enum_tok.span(), name_def, type,
-                                          entries, is_public);
+  auto* enum_def = module_->Make<EnumDef>(enum_tok.span(), name_def,
+                                          type_annotation, entries, is_public);
   bindings->Add(name_def->identifier(), enum_def);
   name_def->set_definer(enum_def);
   return enum_def;

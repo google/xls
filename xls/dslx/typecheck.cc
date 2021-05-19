@@ -31,7 +31,7 @@ static absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
 CheckFunctionParams(Function* f, DeduceCtx* ctx) {
   for (ParametricBinding* parametric : f->parametric_bindings()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_binding_type,
-                         ctx->Deduce(parametric->type()));
+                         ctx->Deduce(parametric->type_annotation()));
     if (parametric->expr() != nullptr) {
       // TODO(leary): 2020-07-06 Fully document the behavior of parametric
       // function calls in parametric expressions.

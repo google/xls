@@ -937,7 +937,8 @@ absl::Status FunctionConverter::HandleXlsTuple(XlsTuple* node) {
 
 absl::Status FunctionConverter::HandleParam(Param* node) {
   XLS_VLOG(5) << "HandleParam: " << node->ToString();
-  XLS_ASSIGN_OR_RETURN(xls::Type * type, ResolveTypeToIr(node->type()));
+  XLS_ASSIGN_OR_RETURN(xls::Type * type,
+                       ResolveTypeToIr(node->type_annotation()));
   Def(node->name_def(), [&](absl::optional<SourceLocation> loc) {
     return function_builder_->Param(node->identifier(), type);
   });
@@ -966,9 +967,9 @@ absl::Status FunctionConverter::HandleLet(Let* node) {
   XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->rhs()));
 
   // Verify that the RHS conforms to the annotation (if present).
-  if (node->type() != nullptr) {
+  if (node->type_annotation() != nullptr) {
     XLS_ASSIGN_OR_RETURN(xls::Type * annotated_type,
-                         ResolveTypeToIr(node->type()));
+                         ResolveTypeToIr(node->type_annotation()));
     xls::Type* value_type = rhs.GetType();
     XLS_RET_CHECK_EQ(annotated_type, value_type);
   }
@@ -1850,7 +1851,7 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
         get_symbolic_binding(parametric_binding->identifier());
     XLS_RET_CHECK(sb_value.has_value());
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_type,
-                         ResolveType(parametric_binding->type()));
+                         ResolveType(parametric_binding->type_annotation()));
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim parametric_width_ctd,
                          parametric_type->GetTotalBitCount());
     int64_t bit_count = absl::get<int64_t>(parametric_width_ctd.value());
@@ -2337,9 +2338,10 @@ absl::Status FunctionConverter::HandleBuiltinSignex(Invocation* node) {
   // count, not the value!
   auto* bit_count = dynamic_cast<Number*>(node->args()[1]);
   XLS_RET_CHECK_NE(bit_count, nullptr);
-  XLS_RET_CHECK(bit_count->type());
-  auto* type_annot = dynamic_cast<BuiltinTypeAnnotation*>(bit_count->type());
-  int64_t new_bit_count = type_annot->GetBitCount();
+  XLS_RET_CHECK(bit_count->type_annotation());
+  auto* type_annotation =
+      dynamic_cast<BuiltinTypeAnnotation*>(bit_count->type_annotation());
+  int64_t new_bit_count = type_annotation->GetBitCount();
 
   Def(node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->SignExtend(arg, new_bit_count, loc);
@@ -2433,7 +2435,7 @@ absl::StatusOr<FunctionConverter::DerefVariant>
 FunctionConverter::DerefStructOrEnum(TypeDefinition node) {
   while (absl::holds_alternative<TypeDef*>(node)) {
     auto* type_def = absl::get<TypeDef*>(node);
-    TypeAnnotation* annotation = type_def->type();
+    TypeAnnotation* annotation = type_def->type_annotation();
     if (auto* type_ref_annotation =
             dynamic_cast<TypeRefTypeAnnotation*>(annotation)) {
       node = type_ref_annotation->type_ref()->type_definition();

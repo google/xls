@@ -1196,7 +1196,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(
   Env env;
   for (Param* param : params) {
     env[param->identifier()] =
-        TypedExpr{MakeNameRef(param->name_def()), param->type()};
+        TypedExpr{MakeNameRef(param->name_def()), param->type_annotation()};
   }
   return GenerateExpr(/*expr_size=*/0, call_depth, &env);
 }

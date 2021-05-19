@@ -111,10 +111,10 @@ absl::StatusOr<TypeAnnotation*> InterpBindings::ResolveTypeAnnotation(
         absl::StrFormat("No binding for identifier \"%s\"", identifier));
   }
   if (absl::holds_alternative<EnumDef*>(entry.value())) {
-    return absl::get<EnumDef*>(entry.value())->type();
+    return absl::get<EnumDef*>(entry.value())->type_annotation();
   }
   if (absl::holds_alternative<TypeDef*>(entry.value())) {
-    return absl::get<TypeDef*>(entry.value())->type();
+    return absl::get<TypeDef*>(entry.value())->type_annotation();
   }
   return absl::InvalidArgumentError(absl::StrFormat(
       "Attempted to resolve a type but identifier \"%s\" was bound to a %s",
@@ -130,7 +130,7 @@ InterpBindings::ResolveTypeDefinition(absl::string_view identifier) const {
         identifier));
   }
   if (absl::holds_alternative<TypeDef*>(entry.value())) {
-    return absl::get<TypeDef*>(entry.value())->type();
+    return absl::get<TypeDef*>(entry.value())->type_annotation();
   }
   if (absl::holds_alternative<EnumDef*>(entry.value())) {
     return absl::get<EnumDef*>(entry.value());

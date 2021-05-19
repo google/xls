@@ -282,7 +282,8 @@ Ternary::Ternary(Module* owner, Span span, Expr* test, Expr* consequent,
       alternate_(alternate) {}
 
 ParametricBinding* ParametricBinding::Clone(Expr* new_expr) const {
-  return owner()->Make<ParametricBinding>(name_def_, type_, new_expr);
+  return owner()->Make<ParametricBinding>(name_def_, type_annotation_,
+                                          new_expr);
 }
 
 std::string MatchArm::ToString() const {
@@ -323,8 +324,8 @@ std::string StructInstance::ToString() const {
 
 std::string For::ToString() const {
   std::string type_str;
-  if (type_ != nullptr) {
-    type_str = absl::StrCat(": ", type_->ToString());
+  if (type_annotation_ != nullptr) {
+    type_str = absl::StrCat(": ", type_annotation_->ToString());
   }
   return absl::StrFormat(R"(for %s%s in %s {
 %s
@@ -421,11 +422,11 @@ absl::optional<Import*> ColonRef::ResolveImportSubject() const {
 
 // -- class Param
 
-Param::Param(Module* owner, NameDef* name_def, TypeAnnotation* type)
+Param::Param(Module* owner, NameDef* name_def, TypeAnnotation* type_annotation)
     : AstNode(owner),
       name_def_(name_def),
-      type_(type),
-      span_(name_def_->span().start(), type_->span().limit()) {}
+      type_annotation_(type_annotation),
+      span_(name_def_->span().start(), type_annotation_->span().limit()) {}
 
 // -- class Module
 
@@ -761,12 +762,12 @@ std::string Slice::ToString() const {
 // -- class EnumDef
 
 EnumDef::EnumDef(Module* owner, Span span, NameDef* name_def,
-                 TypeAnnotation* type, std::vector<EnumMember> values,
-                 bool is_public)
+                 TypeAnnotation* type_annotation,
+                 std::vector<EnumMember> values, bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
-      type_(type),
+      type_annotation_(type_annotation),
       values_(std::move(values)),
       is_public_(is_public) {}
 
@@ -792,7 +793,7 @@ absl::StatusOr<Expr*> EnumDef::GetValue(absl::string_view name) const {
 std::string EnumDef::ToString() const {
   std::string result =
       absl::StrFormat("%senum %s : %s {\n", is_public_ ? "pub " : "",
-                      identifier(), type_->ToString());
+                      identifier(), type_annotation_->ToString());
 
   auto value_to_string = [](Expr* value) -> std::string {
     if (Number* number = dynamic_cast<Number*>(value)) {
@@ -1004,19 +1005,20 @@ std::string UnopKindToString(UnopKind k) {
 
 // -- class For
 
-For::For(Module* owner, Span span, NameDefTree* names, TypeAnnotation* type,
-         Expr* iterable, Expr* body, Expr* init)
+For::For(Module* owner, Span span, NameDefTree* names,
+         TypeAnnotation* type_annotation, Expr* iterable, Expr* body,
+         Expr* init)
     : Expr(owner, std::move(span)),
       names_(names),
-      type_(type),
+      type_annotation_(type_annotation),
       iterable_(iterable),
       body_(body),
       init_(init) {}
 
 std::vector<AstNode*> For::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {names_};
-  if (want_types && type_ != nullptr) {
-    results.push_back(type_);
+  if (want_types && type_annotation_ != nullptr) {
+    results.push_back(type_annotation_);
   }
   results.push_back(iterable_);
   results.push_back(body_);
@@ -1277,18 +1279,19 @@ NameDefTree::Flatten1() {
 // -- class Let
 
 Let::Let(Module* owner, Span span, NameDefTree* name_def_tree,
-         TypeAnnotation* type, Expr* rhs, Expr* body, ConstantDef* const_def)
+         TypeAnnotation* type_annotation, Expr* rhs, Expr* body,
+         ConstantDef* const_def)
     : Expr(owner, std::move(span)),
       name_def_tree_(name_def_tree),
-      type_(type),
+      type_annotation_(type_annotation),
       rhs_(rhs),
       body_(body),
       constant_def_(const_def) {}
 
 std::vector<AstNode*> Let::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {name_def_tree_};
-  if (type_ != nullptr && want_types) {
-    results.push_back(type_);
+  if (type_annotation_ != nullptr && want_types) {
+    results.push_back(type_annotation_);
   }
   results.push_back(rhs_);
   results.push_back(body_);
@@ -1299,32 +1302,32 @@ std::vector<AstNode*> Let::GetChildren(bool want_types) const {
 }
 
 std::string Let::ToString() const {
-  return absl::StrFormat("%s %s%s = %s;\n%s",
-                         constant_def_ == nullptr ? "let" : "const",
-                         name_def_tree_->ToString(),
-                         type_ == nullptr ? "" : ": " + type_->ToString(),
-                         rhs_->ToString(), body_->ToString());
+  return absl::StrFormat(
+      "%s %s%s = %s;\n%s", constant_def_ == nullptr ? "let" : "const",
+      name_def_tree_->ToString(),
+      type_annotation_ == nullptr ? "" : ": " + type_annotation_->ToString(),
+      rhs_->ToString(), body_->ToString());
 }
 
 // -- class Number
 
 Number::Number(Module* owner, Span span, std::string text, NumberKind kind,
-               TypeAnnotation* type)
+               TypeAnnotation* type_annotation)
     : Expr(owner, std::move(span)),
       text_(std::move(text)),
       kind_(kind),
-      type_(type) {}
+      type_annotation_(type_annotation) {}
 
 std::vector<AstNode*> Number::GetChildren(bool want_types) const {
-  if (type_ == nullptr) {
+  if (type_annotation_ == nullptr) {
     return {};
   }
-  return {type_};
+  return {type_annotation_};
 }
 
 std::string Number::ToString() const {
-  if (type_ != nullptr) {
-    return absl::StrFormat("%s:%s", type_->ToString(), text_);
+  if (type_annotation_ != nullptr) {
+    return absl::StrFormat("%s:%s", type_annotation_->ToString(), text_);
   }
   return text_;
 }
@@ -1368,13 +1371,13 @@ TypeDef::TypeDef(Module* owner, Span span, NameDef* name_def,
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
-      type_(type),
+      type_annotation_(type),
       is_public_(is_public) {}
 
 std::string Array::ToString() const {
   std::string type_prefix;
-  if (type_ != nullptr) {
-    type_prefix = absl::StrCat(type_->ToString(), ":");
+  if (type_annotation_ != nullptr) {
+    type_prefix = absl::StrCat(type_annotation_->ToString(), ":");
   }
   return absl::StrFormat("%s[%s%s]", type_prefix,
                          absl::StrJoin(members_, ", ",
@@ -1386,8 +1389,8 @@ std::string Array::ToString() const {
 
 std::vector<AstNode*> Array::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
-  if (want_types && type_ != nullptr) {
-    results.push_back(type_);
+  if (want_types && type_annotation_ != nullptr) {
+    results.push_back(type_annotation_);
   }
   for (Expr* member : members_) {
     XLS_CHECK(member != nullptr);

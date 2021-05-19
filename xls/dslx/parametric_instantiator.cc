@@ -34,8 +34,8 @@ ParametricInstantiator::ParametricInstantiator(
   if (parametric_constraints.has_value()) {
     for (ParametricBinding* binding : *parametric_constraints) {
       constraint_order_.push_back(binding->identifier());
-      TypeAnnotation* type = binding->type();
-      auto* bits_type = dynamic_cast<BuiltinTypeAnnotation*>(type);
+      TypeAnnotation* type_annotation = binding->type_annotation();
+      auto* bits_type = dynamic_cast<BuiltinTypeAnnotation*>(type_annotation);
       // TODO(leary): 2020-12-11 This is a bug, we should be able to use uN[32]
       // style annotations here.
       XLS_CHECK(bits_type != nullptr);
