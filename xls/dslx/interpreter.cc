@@ -156,12 +156,16 @@ absl::Status Interpreter::RunTest(absl::string_view name) {
   InterpBindings bindings(/*parent=*/top_level_bindings);
   bindings.set_fn_ctx(
       FnCtx{entry_module_->name(), absl::StrFormat("%s__test", name)});
-  XLS_ASSIGN_OR_RETURN(InterpValue result, Evaluate(test->body(), &bindings,
-                                                    /*type_context=*/nullptr));
-  if (!result.IsNilTuple()) {
+  absl::StatusOr<InterpValue> result_or =
+      Evaluate(test->body(), &bindings, /*type_context=*/nullptr);
+  if (!result_or.status().ok()) {
+    XLS_LOG(ERROR) << result_or.status();
+    return result_or.status();
+  }
+  if (!result_or.value().IsNilTuple()) {
     return absl::InternalError(absl::StrFormat(
         "EvaluateError: Want test %s to return nil tuple; got: %s",
-        test->identifier(), result.ToString()));
+        test->identifier(), result_or.value().ToString()));
   }
   XLS_VLOG(2) << "Ran test " << name << " successfully.";
   return absl::OkStatus();
@@ -181,10 +185,6 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
   expr->AcceptExpr(&evaluator);
   absl::StatusOr<InterpValue> result_or = std::move(evaluator.value());
   if (!result_or.ok()) {
-    if (result_or.status().code() != absl::StatusCode::kNotFound) {
-      XLS_LOG(ERROR) << "error @ " << expr->span() << ": "
-                     << result_or.status();
-    }
     return result_or;
   }
   InterpValue result = std::move(result_or).value();
@@ -419,8 +419,18 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
     }
   }
   TypeInfoSwap tis(this, invocation_type_info);
-  return CallFnValue(callee_value, arg_values, expr->span(), expr,
-                     fn_symbolic_bindings);
+  absl::StatusOr<InterpValue> result = CallFnValue(
+      callee_value, arg_values, expr->span(), expr, fn_symbolic_bindings);
+  if (!result.ok()) {
+    Invocation* invocation = dynamic_cast<Invocation*>(expr);
+    std::string function_name = absl::StrCat(invocation->owner()->name(),
+                                             "::", bindings->fn_ctx()->fn_name);
+    return absl::Status(
+        result.status().code(),
+        absl::StrCat(result.status().message(), "\n  via ", function_name,
+                     " @ ", expr->span().ToString(), " : ", expr->ToString()));
+  }
+  return result;
 }
 
 bool Interpreter::IsWip(AstNode* node) const {

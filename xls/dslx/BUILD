@@ -568,6 +568,7 @@ cc_test(
         ":parse_and_typecheck",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],
 )

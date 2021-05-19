@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/strings/match.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
@@ -64,6 +65,46 @@ TEST(InterpreterTest, RunTokenIdentityFn) {
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue result, interp.RunFunction("id", {tok}));
   EXPECT_TRUE(result.Eq(tok));
   EXPECT_EQ(result.ToString(), tok.ToString());
+}
+
+TEST(InterpreterTest, FailureBacktrace) {
+  const std::string kProgram = R"(
+fn failer(x: u32) -> u1 {
+  let y = x + u32:7;
+  let _ = assert_eq(y, u32:1024);
+  u1:1
+}
+
+fn interposer(x: u32, y:u32) -> u32 {
+  let x = x + u32:1;
+  let y = y + u32:1;
+  let z = x + y;
+  z + (failer(z) as u32)
+}
+
+fn top(x: u32) -> u32 {
+  let y = x * x;
+  interposer(x, y)
+}
+)";
+
+  ImportData import_data;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data,
+                        /*additional_search_paths=*/{}));
+  Interpreter interp(tm.module, /*typecheck=*/nullptr,
+                     /*additional_search_paths=*/{},
+                     /*import_data=*/&import_data);
+  InterpValue x = InterpValue::MakeU32(7);
+  absl::StatusOr<InterpValue> result = interp.RunFunction("top", {x});
+  ASSERT_FALSE(result.ok());
+  std::string message = result.status().ToString();
+  EXPECT_TRUE(
+      absl::StrContains(message, "via test::failer @ test.x:4:20-4:33"));
+  EXPECT_TRUE(
+      absl::StrContains(message, "via test::interposer @ test.x:12:14-12:17"));
+  EXPECT_TRUE(absl::StrContains(message, "via test::top @ test.x:17:13-17:19"));
 }
 
 }  // namespace
