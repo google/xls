@@ -226,6 +226,19 @@ fn rrot_test() {
   _
 }
 
+// Returns the maximum of two signed integers.
+pub fn smax<N: u32>(x: sN[N], y: sN[N]) -> sN[N] {
+  x if x > y else y
+}
+
+#![test]
+fn smax_test() {
+  let _ = assert_eq(s2:0, smax(s2:0, s2:0));
+  let _ = assert_eq(s2:1, smax(s2:-1, s2:1));
+  let _ = assert_eq(s7:-3, smax(s7:-3, s7:-6));
+  ()
+}
+
 // Returns the maximum of two unsigned integers.
 pub fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
   x if x > y else y
