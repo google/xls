@@ -29,6 +29,19 @@
 
 namespace xls {
 
+// Returns whether the operation will be computationally expensive to
+// compute. The ternary query engine is intended to be fast so the analysis of
+// these expensive operations is skipped with the effect being all bits are
+// considered unknown. Operations and limits can be added as needed when
+// pathological cases are encountered.
+static bool IsExpensiveToEvaluate(Node* node) {
+  // Shifts are quadratic in the width of the operand so wide shifts are very
+  // slow to evaluate in the abstract evaluator.
+  return (node->op() == Op::kShrl || node->op() == Op::kShra ||
+          node->op() == Op::kShll) &&
+         node->GetType()->GetFlatBitCount() > 256;
+}
+
 Bits TernaryVectorToKnownBits(const TernaryEvaluator::Vector& ternary_vector) {
   // Use InlinedVector to avoid std::vector<bool> specialization madness.
   absl::InlinedVector<bool, 1> bits(ternary_vector.size());
@@ -61,11 +74,13 @@ absl::StatusOr<std::unique_ptr<TernaryQueryEngine>> TernaryQueryEngine::Run(
       return TernaryEvaluator::Vector(n->BitCountOrDie(),
                                       TernaryValue::kUnknown);
     };
-    if (std::any_of(node->operands().begin(), node->operands().end(),
+    if (IsExpensiveToEvaluate(node) ||
+        std::any_of(node->operands().begin(), node->operands().end(),
                     [](Node* o) { return !o->GetType()->IsBits(); })) {
       values[node] = create_unknown_vector(node);
       continue;
     }
+
     std::vector<TernaryEvaluator::Vector> operand_values;
     for (Node* operand : node->operands()) {
       operand_values.push_back(values.at(operand));
