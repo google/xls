@@ -18,31 +18,19 @@ load(
     "dslx_test",
 )
 load(
-    "//xls/build_rules:xls_dslx_rules.bzl",
+    "//xls/build_rules:xls_build_defs.bzl",
+    "cc_ir_to_jit_wrapper",
     "dslx_library",
-    dslx_ng_test = "dslx_test",
-)
-load(
-    "//xls/build_rules:xls_ir_rules.bzl",
+    "dslx_to_codegen",
+    "dslx_to_codegen_test",
     "dslx_to_ir",
     "ir_benchmark",
     "ir_equivalence_test",
     "ir_eval_test",
     "ir_opt",
-)
-load(
-    "//xls/build_rules:xls_codegen_rules.bzl",
     "ir_to_codegen",
-)
-load(
-    "//xls/build_rules:xls_jit_wrapper_rules.bzl",
-    "cc_ir_to_jit_wrapper",
     "ir_to_jit_wrapper",
-)
-load(
-    "//xls/build_rules:xls_rules.bzl",
-    "dslx_to_codegen",
-    "dslx_to_codegen_test",
+    dslx_ng_test = "dslx_test",
 )
 
 package(

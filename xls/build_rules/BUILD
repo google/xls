@@ -16,3 +16,16 @@ package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
+
+exports_files(
+    [
+        "xls_codegen_rules.bzl",
+        "xls_common_rules.bzl",
+        "xls_codegen_rules.bzl",
+        "xls_dslx_rules.bzl",
+        "xls_ir_rules.bzl",
+        "xls_jit_wrapper_rules.bzl",
+        "xls_rules.bzl",
+    ],
+    visibility = ["//visibility:private"],
+)
