@@ -16,6 +16,7 @@
 This module contains jit-wrapper-related build rules for XLS.
 """
 
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("//xls/build_rules:xls_ir_rules.bzl", "ir_common_attrs")
 
 IRToJitWrapperInfo = provider(
@@ -143,7 +144,10 @@ ir_to_jit_wrapper = rule(
         ```
     """,
     implementation = _ir_to_jit_wrapper_impl,
-    attrs = dict(ir_common_attrs.items() + _ir_to_jit_wrapper_attrs.items()),
+    attrs = dicts.add(
+        ir_common_attrs,
+        _ir_to_jit_wrapper_attrs,
+    ),
 )
 
 def cc_ir_to_jit_wrapper(

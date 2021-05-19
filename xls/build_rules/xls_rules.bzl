@@ -41,6 +41,7 @@ load(
     "ir_to_codegen_attrs",
     "ir_to_codegen_impl",
 )
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
 
 DSLXToCodegenInfo = provider(
     doc = "A provider containing file information for a 'dslx_to_codegen' " +
@@ -92,8 +93,11 @@ def _dslx_to_codegen_impl(ctx):
         ])),
     ]
 
-_dslx_to_codegen_attrs = dict(dslx_to_ir_attrs.items() + ir_opt_attrs.items() +
-                              ir_to_codegen_attrs.items())
+_dslx_to_codegen_attrs = dicts.add(
+    dslx_to_ir_attrs,
+    ir_opt_attrs,
+    ir_to_codegen_attrs,
+)
 
 dslx_to_codegen = rule(
     doc = """A build rule that generates a Verilog file from a DSLX source file.
@@ -255,13 +259,13 @@ dslx_to_codegen_test = rule(
         ```
     """,
     implementation = _dslx_to_codegen_test_impl,
-    attrs = dict(
-        _dslx_to_codegen_test_impl_attrs.items() +
-        dslx_exec_attrs.items() +
-        dslx_test_common_attrs.items() +
-        ir_equivalence_test_attrs.items() +
-        ir_eval_test_attrs.items() +
-        ir_benchmark_attrs.items(),
+    attrs = dicts.add(
+        _dslx_to_codegen_test_impl_attrs,
+        dslx_exec_attrs,
+        dslx_test_common_attrs,
+        ir_equivalence_test_attrs,
+        ir_eval_test_attrs,
+        ir_benchmark_attrs,
     ),
     test = True,
 )

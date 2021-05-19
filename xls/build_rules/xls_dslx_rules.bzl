@@ -15,6 +15,7 @@
 """This module contains DSLX-related build rules for XLS."""
 
 load("//xls/build_rules:xls_common_rules.bzl", "get_args")
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
 
 DEFAULT_DSLX_TEST_ARGS = {
     "compare": "jit",
@@ -289,9 +290,9 @@ dslx_library = rule(
         ```
     """,
     implementation = _dslx_library_impl,
-    attrs = dict(
-        _dslx_common_attrs.items() +
-        _dslx_library_attrs.items() +
+    attrs = dicts.add(
+        _dslx_common_attrs.items(),
+        _dslx_library_attrs.items(),
         dslx_exec_attrs.items(),
     ),
 )
@@ -351,10 +352,10 @@ dslx_test = rule(
         ```
     """,
     implementation = _dslx_test_impl,
-    attrs = dict(
-        _dslx_common_attrs.items() +
-        _dslx_test_attrs.items() +
-        dslx_test_common_attrs.items() +
+    attrs = dicts.add(
+        _dslx_common_attrs.items(),
+        _dslx_test_attrs.items(),
+        dslx_test_common_attrs.items(),
         dslx_exec_attrs.items(),
     ),
     test = True,

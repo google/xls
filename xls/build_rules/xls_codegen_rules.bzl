@@ -16,6 +16,7 @@
 This module contains codegen-related build rules for XLS.
 """
 
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("//xls/build_rules:xls_ir_rules.bzl", "ir_common_attrs")
 
 CodegenInfo = provider(
@@ -165,5 +166,8 @@ ir_to_codegen = rule(
         ```
     """,
     implementation = _ir_to_codegen_impl_wrapper,
-    attrs = dict(ir_common_attrs.items() + ir_to_codegen_attrs.items()),
+    attrs = dicts.add(
+        ir_common_attrs,
+        ir_to_codegen_attrs,
+    ),
 )

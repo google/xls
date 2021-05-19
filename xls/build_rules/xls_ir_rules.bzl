@@ -14,6 +14,7 @@
 """This module contains IR-related build rules for XLS."""
 
 load("//xls/build_rules:xls_common_rules.bzl", "get_args")
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("//xls/build_rules:xls_dslx_rules.bzl", "DslxFilesInfo")
 
 DEFAULT_IR_EVAL_TEST_ARGS = {
@@ -384,7 +385,10 @@ ir_opt = rule(
         ```
     """,
     implementation = _ir_opt_impl,
-    attrs = dict(ir_common_attrs.items() + ir_opt_attrs.items()),
+    attrs = dicts.add(
+        ir_common_attrs,
+        ir_opt_attrs,
+    ),
 )
 
 def _ir_equivalence_test_impl(ctx):
@@ -482,7 +486,10 @@ ir_equivalence_test = rule(
 
     """,
     implementation = _ir_equivalence_test_impl,
-    attrs = dict(_two_ir_files_attrs.items() + ir_equivalence_test_attrs.items()),
+    attrs = dicts.add(
+        _two_ir_files_attrs,
+        ir_equivalence_test_attrs,
+    ),
     test = True,
 )
 
@@ -562,7 +569,10 @@ ir_eval_test = rule(
         ```
     """,
     implementation = _ir_eval_test_impl,
-    attrs = dict(ir_common_attrs.items() + ir_eval_test_attrs.items()),
+    attrs = dicts.add(
+        ir_common_attrs,
+        ir_eval_test_attrs,
+    ),
     test = True,
 )
 
@@ -641,6 +651,9 @@ ir_benchmark = rule(
         ```
     """,
     implementation = _ir_benchmark_impl,
-    attrs = dict(ir_common_attrs.items() + ir_benchmark_attrs.items()),
+    attrs = dicts.add(
+        ir_common_attrs,
+        ir_benchmark_attrs,
+    ),
     executable = True,
 )
