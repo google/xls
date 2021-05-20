@@ -33,6 +33,7 @@
 #include "xls/dslx/extract_conversion_order.h"
 #include "xls/dslx/interpreter.h"
 #include "xls/dslx/mangle.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/lsb_or_msb.h"
 
@@ -298,6 +299,7 @@ class FunctionConverter {
   absl::Status HandleNameRef(NameRef* node);
   absl::Status HandleNumber(Number* node);
   absl::Status HandleParam(Param* node);
+  absl::Status HandleString(String* node);
   absl::Status HandleUnop(Unop* node);
   absl::Status HandleXlsTuple(XlsTuple* node);
 
@@ -651,6 +653,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH(NameRef)
   NO_TRAVERSE_DISPATCH(ConstRef)
   NO_TRAVERSE_DISPATCH(Number)
+  NO_TRAVERSE_DISPATCH(String)
 
   // A macro used for AST types where we don't want to visit any children, just
   // call the FunctionConverter handler.
@@ -920,6 +923,16 @@ absl::Status FunctionConverter::HandleNumber(Number* node) {
   int64_t bit_count = absl::get<int64_t>(dim.value());
   XLS_ASSIGN_OR_RETURN(Bits bits, node->GetBits(bit_count));
   DefConst(node, Value(bits));
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleString(String* node) {
+  std::vector<Value> elements;
+  for (const char letter : node->text()) {
+    elements.push_back(Value(UBits(letter, /*bit_count=*/8)));
+  }
+  XLS_ASSIGN_OR_RETURN(Value array, Value::Array(elements));
+  DefConst(node, array);
   return absl::OkStatus();
 }
 

@@ -108,6 +108,17 @@ absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
   return InterpValue::MakeBits(tag, std::move(bits));
 }
 
+absl::StatusOr<InterpValue> EvaluateString(String* expr,
+                                           InterpBindings* bindings,
+                                           ConcreteType* type_context,
+                                           AbstractInterpreter* interp) {
+  std::vector<InterpValue> elements;
+  for (const char letter : expr->text()) {
+    elements.push_back(InterpValue::MakeUBits(8, letter));
+  }
+  return InterpValue::MakeArray(elements);
+}
+
 static absl::StatusOr<EnumDef*> EvaluateToEnum(TypeDefinition type_definition,
                                                InterpBindings* bindings,
                                                AbstractInterpreter* interp) {

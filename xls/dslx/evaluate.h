@@ -114,6 +114,12 @@ absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
                                            ConcreteType* type_context,
                                            AbstractInterpreter* interp);
 
+// Evaluates a string node down to its flat representation as an array of u8s.
+absl::StatusOr<InterpValue> EvaluateString(String* expr,
+                                           InterpBindings* bindings,
+                                           ConcreteType* type_context,
+                                           AbstractInterpreter* interp);
+
 // Evaluates a struct instance expression; e.g. `Foo { field: stuff }`.
 absl::StatusOr<InterpValue> EvaluateStructInstance(StructInstance* expr,
                                                    InterpBindings* bindings,

@@ -22,6 +22,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
@@ -66,6 +67,7 @@ bool IsOneOf(ObjT* obj) {
   X(Next)                          \
   X(Number)                        \
   X(SplatStructInstance)           \
+  X(String)                        \
   X(StructInstance)                \
   X(Ternary)                       \
   X(Unop)                          \
@@ -519,6 +521,7 @@ class ExprVisitor {
   virtual void HandleNameRef(NameRef* expr) = 0;
   virtual void HandleNext(Next* expr) = 0;
   virtual void HandleNumber(Number* expr) = 0;
+  virtual void HandleString(String* expr) = 0;
   virtual void HandleStructInstance(StructInstance* expr) = 0;
   virtual void HandleSplatStructInstance(SplatStructInstance* expr) = 0;
   virtual void HandleTernary(Ternary* expr) = 0;
@@ -670,6 +673,33 @@ class Number : public Expr {
   std::string text_;  // Will never be empty.
   NumberKind kind_;
   TypeAnnotation* type_annotation_;  // May be null.
+};
+
+// A literal string of u8s. Does not internally include opening and closing
+// quotation marks.
+class String : public Expr {
+ public:
+  String(Module* owner, Span span, absl::string_view text)
+      : Expr(owner, span), text_(text) {}
+
+  absl::Status Accept(AstNodeVisitor* v) override {
+    return v->HandleString(this);
+  }
+  void AcceptExpr(ExprVisitor* v) override { v->HandleString(this); }
+  absl::string_view GetNodeTypeName() const override { return "String"; }
+  std::string ToString() const override {
+    // We need to re-insert the quote-escaping slash.
+    return absl::StrFormat("\"%s\"",
+                           absl::StrReplaceAll(text_, {{"\"", "\\\""}}));
+  }
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {};
+  }
+
+  const std::string& text() const { return text_; }
+
+ private:
+  std::string text_;
 };
 
 // Represents a user-defined-type definition; e.g.

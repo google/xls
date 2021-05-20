@@ -231,6 +231,9 @@ class Scanner {
     return AtCharEof();
   }
 
+  // Proceeds through the stream until an unescaped double quote is encountered.
+  absl::StatusOr<std::string> ScanUntilDoubleQuote();
+
  private:
   // Helper routine that creates a canonically-formatted scan error (which uses
   // the status code for an InvalidArgumentError, on the assumption the invalid

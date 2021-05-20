@@ -49,6 +49,7 @@ class Evaluator : public ExprVisitor {
   DISPATCH(NameRef)
   DISPATCH(Number)
   DISPATCH(SplatStructInstance)
+  DISPATCH(String)
   DISPATCH(StructInstance)
   DISPATCH(Ternary)
   DISPATCH(Unop)

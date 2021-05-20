@@ -14,6 +14,7 @@
 
 #include "xls/dslx/scanner.h"
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 
@@ -105,6 +106,43 @@ absl::StatusOr<Token> Scanner::PopWhitespace(const Pos& start_pos) {
     chars.append(1, PopChar());
   }
   return Token(TokenKind::kWhitespace, Span(start_pos, GetPos()), chars);
+}
+
+absl::StatusOr<std::string> Scanner::ScanUntilDoubleQuote() {
+  auto at_double_quote = [](char current, bool last_was_backslash) {
+    if (last_was_backslash) {
+      return false;
+    }
+    return current == '"';
+  };
+
+  bool last_was_backslash = false;
+  char current = PeekChar();
+  std::string value;
+  while (!AtCharEof() && !at_double_quote(current, last_was_backslash)) {
+    current = PopChar();
+    // If the last one was a backslash but we're still processing, then that
+    // backslash wasn't escaping a quote, so we need to keep it.
+    if (last_was_backslash && current != '"') {
+      value.push_back('\\');
+    }
+
+    last_was_backslash = false;
+    if (current == '\\') {
+      last_was_backslash = true;
+    } else {
+      value.push_back(current);
+    }
+
+    current = PeekChar();
+  }
+
+  if (current == '"') {
+    return value;
+  }
+
+  return absl::InvalidArgumentError(
+      "Consumed all input without finding a closing double quote.");
 }
 
 /* static */ absl::optional<Keyword> Scanner::GetKeyword(absl::string_view s) {
@@ -416,6 +454,7 @@ absl::StatusOr<Token> Scanner::Pop() {
     case '*': DropChar(); result = Token(TokenKind::kStar, mk_span()); break;  // NOLINT
     case '^': DropChar(); result = Token(TokenKind::kHat, mk_span()); break;  // NOLINT
     case '/': DropChar(); result = Token(TokenKind::kSlash, mk_span()); break;  // NOLINT
+    case '"': DropChar(); result = Token(TokenKind::kDoubleQuote, mk_span()); break;  // NOLINT
     // clang-format on
     default:
       if (std::isalpha(startc) || startc == '_') {

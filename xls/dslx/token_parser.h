@@ -180,6 +180,14 @@ class TokenParser {
 
   absl::Status DropKeywordOrError(Keyword target, Pos* limit_pos = nullptr);
 
+  // Returns a string if present at the head of the token string. This will
+  // match stream contents of "abcd....xyz" - including the quotation marks The
+  // quotation marks will not be present in the returned string.
+  // When an open quotation mark is seen, characters will be consumed until an
+  // unescaped quotation mark is seen. In other words, ..." will terminate the
+  // string, but ...\" will not.
+  absl::StatusOr<std::string> PopString();
+
  private:
   Scanner* scanner_;
   int64_t index_;

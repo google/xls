@@ -52,6 +52,11 @@ cc_binary(
 )
 
 dslx_test(
+    name = "capitalize",
+    srcs = ["capitalize.x"],
+)
+
+dslx_test(
     name = "crc32",
     srcs = ["crc32.x"],
 )

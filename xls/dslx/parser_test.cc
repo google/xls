@@ -626,6 +626,15 @@ a)",
                 {"x"});
 }
 
+TEST_F(ParserTest, Strings) {
+  RoundTripExpr(R"(let x = "dummy --> \" <-- string";
+x)",
+                {"x"});
+  RoundTripExpr(R"(let x = "dummy --> \"";
+x)",
+                {"x"});
+}
+
 // -- Parse-time errors
 
 TEST_F(ParserTest, BadEnumRef) {

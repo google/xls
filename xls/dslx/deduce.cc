@@ -165,6 +165,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
   return concrete_type;
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceString(String* string,
+                                                           DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(
+      auto dim,
+      ConcreteTypeDim::Create(static_cast<int64_t>(string->text().size())));
+  return absl::make_unique<ArrayType>(BitsType::MakeU8(), std::move(dim));
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTernary(Ternary* node,
                                                             DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> test_type,
@@ -2102,6 +2110,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(Param)
   DEDUCE_DISPATCH(ConstantDef)
   DEDUCE_DISPATCH(Number)
+  DEDUCE_DISPATCH(String)
   DEDUCE_DISPATCH(TypeRef)
   DEDUCE_DISPATCH(TypeDef)
   DEDUCE_DISPATCH(XlsTuple)

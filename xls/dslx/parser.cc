@@ -16,6 +16,7 @@
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/numbers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/ast.h"
 
@@ -1073,6 +1074,17 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
           tok.span(), "Carry keyword encountered outside of a while loop.");
     }
     lhs = module_->Make<Carry>(tok.span(), loop_stack_.back());
+  } else if (peek->IsKindIn({TokenKind::kDoubleQuote})) {
+    // Eat characters until the first unescaped double quote.
+    Span span = peek->span();
+    XLS_ASSIGN_OR_RETURN(std::string text, PopString());
+    if (text.empty()) {
+      // TODO(rspringer): 2021-05-20 Add zero-length support.
+      return ParseErrorStatus(peek->span(),
+                              "Zero-length strings are not supported.");
+    }
+    txn.CommitAndCancelCleanup(&cleanup);
+    return module_->Make<String>(span, text);
   } else if (peek->IsKindIn({TokenKind::kBang, TokenKind::kMinus})) {
     Token tok = PopTokenOrDie();
     XLS_ASSIGN_OR_RETURN(Expr * arg, ParseTerm(txn.bindings()));

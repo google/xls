@@ -14,6 +14,8 @@
 
 #include "xls/dslx/token_parser.h"
 
+#include "xls/common/status/status_macros.h"
+
 namespace xls::dslx {
 
 absl::StatusOr<bool> TokenParser::PeekTokenIs(TokenKind target) {
@@ -103,6 +105,13 @@ absl::Status TokenParser::DropKeywordOrError(Keyword target, Pos* limit_pos) {
   XLS_ASSIGN_OR_RETURN(Token token, PopKeywordOrError(target, /*context=*/"",
                                                       /*limit_pos=*/limit_pos));
   return absl::OkStatus();
+}
+
+absl::StatusOr<std::string> TokenParser::PopString() {
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kDoubleQuote));
+  XLS_ASSIGN_OR_RETURN(std::string text, scanner_->ScanUntilDoubleQuote());
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kDoubleQuote));
+  return text;
 }
 
 }  // namespace xls::dslx

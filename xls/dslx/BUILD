@@ -252,6 +252,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -319,6 +320,7 @@ cc_library(
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -679,6 +681,7 @@ cc_library(
         ":mangle",
         ":type_info",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:function_builder",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/status",

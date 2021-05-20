@@ -119,6 +119,11 @@ dslx_test(
 )
 
 dslx_test(
+    name = "string_conversion",
+    srcs = ["string_conversion.x"],
+)
+
+dslx_test(
     name = "import_constexpr",
     srcs = ["import_constexpr.x"],
     deps = ["constexpr.x"],
