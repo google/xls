@@ -749,7 +749,7 @@ FunctionBuilderVisitor::ExpandTerms(Node* lhs, Node* rhs, Node* src) {
 
   std::vector<CompareTerm> terms;
 
-  while (!unexpanded.empty() > 0) {
+  while (!unexpanded.empty()) {
     ToExpand next = unexpanded.back();
     unexpanded.pop_back();
 
