@@ -26,17 +26,13 @@ namespace xls {
 PYBIND11_MODULE(ir_interpreter, m) {
   ImportStatusModule();
 
-  // clang-format off
-  py::module::import("xls.interpreter."
-                     "python.ir_interpreter_stats");
   py::module::import("xls.ir.python.function");
   py::module::import("xls.ir.python.value");
-  // clang-format on
 
   m.def("run_function_kwargs", PyWrap(&IrInterpreter::RunKwargs), py::arg("f"),
-        py::arg("args"), py::arg("stats") = nullptr);
+        py::arg("args"));
   m.def("run_function", PyWrap(&IrInterpreter::Run), py::arg("f"),
-        py::arg("args"), py::arg("stats") = nullptr);
+        py::arg("args"));
 }
 
 }  // namespace xls

@@ -47,7 +47,7 @@ uint64_t BitsToBoundedUint64(const Bits& bits, uint64_t upper_limit) {
 }  // namespace
 
 /* static */ absl::StatusOr<Value> IrInterpreter::Run(
-    Function* function, absl::Span<const Value> args, InterpreterStats* stats) {
+    Function* function, absl::Span<const Value> args) {
   XLS_VLOG(3) << "Interpreting function " << function->name();
   if (args.size() != function->params().size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -65,7 +65,7 @@ uint64_t BitsToBoundedUint64(const Bits& bits, uint64_t upper_limit) {
           value.ToString(), argno, param_type->ToString()));
     }
   }
-  IrInterpreter visitor(args, stats);
+  IrInterpreter visitor(args);
   XLS_RETURN_IF_ERROR(function->return_value()->Accept(&visitor));
   Value result = visitor.ResolveAsValue(function->return_value());
   XLS_VLOG(2) << "Result = " << result;
@@ -74,20 +74,19 @@ uint64_t BitsToBoundedUint64(const Bits& bits, uint64_t upper_limit) {
 
 /* static */
 absl::StatusOr<Value> IrInterpreter::RunKwargs(
-    Function* function, const absl::flat_hash_map<std::string, Value>& args,
-    InterpreterStats* stats) {
+    Function* function, const absl::flat_hash_map<std::string, Value>& args) {
   XLS_VLOG(2) << "Interpreting function " << function->name()
               << " with arguments:";
   XLS_ASSIGN_OR_RETURN(std::vector<Value> positional_args,
                        KeywordArgsToPositional(*function, args));
-  return Run(function, positional_args, stats);
+  return Run(function, positional_args);
 }
 
 /* static */ absl::StatusOr<Value>
 IrInterpreter::EvaluateNodeWithLiteralOperands(Node* node) {
   XLS_RET_CHECK(std::all_of(node->operands().begin(), node->operands().end(),
                             [](Node* n) { return n->Is<Literal>(); }));
-  IrInterpreter visitor({}, /*stats=*/nullptr);
+  IrInterpreter visitor({});
   XLS_RETURN_IF_ERROR(node->Accept(&visitor));
   return visitor.ResolveAsValue(node);
 }
@@ -95,7 +94,7 @@ IrInterpreter::EvaluateNodeWithLiteralOperands(Node* node) {
 /* static */ absl::StatusOr<Value> IrInterpreter::EvaluateNode(
     Node* node, absl::Span<const Value* const> operand_values) {
   XLS_RET_CHECK_EQ(node->operand_count(), operand_values.size());
-  IrInterpreter visitor({}, /*stats=*/nullptr);
+  IrInterpreter visitor({});
   for (int64_t i = 0; i < operand_values.size(); ++i) {
     visitor.node_values_[node->operand(i)] = *operand_values[i];
   }
@@ -265,7 +264,7 @@ absl::Status IrInterpreter::HandleCountedFor(CountedFor* counted_for) {
     for (const auto& value : invariant_args) {
       args_for_body.push_back(value);
     }
-    XLS_ASSIGN_OR_RETURN(loop_state, Run(body, args_for_body, stats_));
+    XLS_ASSIGN_OR_RETURN(loop_state, Run(body, args_for_body));
   }
   return SetValueResult(counted_for, loop_state);
 }
@@ -315,7 +314,7 @@ absl::Status IrInterpreter::HandleDynamicCountedFor(
     for (const auto& value : invariant_args) {
       args_for_body.push_back(value);
     }
-    XLS_ASSIGN_OR_RETURN(loop_state, Run(body, args_for_body, stats_));
+    XLS_ASSIGN_OR_RETURN(loop_state, Run(body, args_for_body));
 
     index = bits_ops::Add(index, extended_stride);
   }
@@ -495,7 +494,7 @@ absl::Status IrInterpreter::HandleInvoke(Invoke* invoke) {
   for (int64_t i = 0; i < to_apply->params().size(); ++i) {
     args.push_back(ResolveAsValue(invoke->operand(i)));
   }
-  XLS_ASSIGN_OR_RETURN(Value result, Run(to_apply, args, stats_));
+  XLS_ASSIGN_OR_RETURN(Value result, Run(to_apply, args));
   return SetValueResult(invoke, result);
 }
 
@@ -532,8 +531,7 @@ absl::Status IrInterpreter::HandleMap(Map* map) {
   std::vector<Value> results;
   for (const Value& operand_element :
        ResolveAsValue(map->operand(0)).elements()) {
-    XLS_ASSIGN_OR_RETURN(Value result,
-                         Run(to_apply, {operand_element}, stats_));
+    XLS_ASSIGN_OR_RETURN(Value result, Run(to_apply, {operand_element}));
     results.push_back(result);
   }
   XLS_ASSIGN_OR_RETURN(Value result_array, Value::Array(results));
@@ -739,9 +737,6 @@ absl::Status IrInterpreter::SetUint64Result(Node* node, uint64_t result) {
 absl::Status IrInterpreter::SetBitsResult(Node* node, const Bits& result) {
   XLS_RET_CHECK(node->GetType()->IsBits());
   XLS_RET_CHECK_EQ(node->BitCountOrDie(), result.bit_count());
-  if (stats_ != nullptr) {
-    stats_->NoteNodeBits(node->ToString(), result);
-  }
   return SetValueResult(node, Value(result));
 }
 

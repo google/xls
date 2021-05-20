@@ -25,7 +25,6 @@ xls_pybind_extension(
     srcs = ["ir_interpreter.cc"],
     py_deps = [
         "//xls/ir/python:function",  # build_cleaner: keep
-        ":ir_interpreter_stats",  # build_cleaner: keep
         "//xls/ir/python:value",  # build_cleaner: keep
     ],
     deps = [
@@ -45,13 +44,5 @@ py_test(
         "@com_google_absl_py//absl/testing:absltest",
         "//xls/ir/python:ir_parser",
         "//xls/ir/python:value",  # build_cleaner: keep
-    ],
-)
-
-xls_pybind_extension(
-    name = "ir_interpreter_stats",
-    srcs = ["ir_interpreter_stats.cc"],
-    deps = [
-        "//xls/interpreter:ir_interpreter_stats",
     ],
 )

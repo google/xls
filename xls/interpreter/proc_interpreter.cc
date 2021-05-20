@@ -29,10 +29,8 @@ namespace {
 class ProcIrInterpreter : public IrInterpreter {
  public:
   // "state" is the value to use for the proc state during interpretation.
-  ProcIrInterpreter(const Value& state, ChannelQueueManager* queue_manager,
-                    InterpreterStats* stats = nullptr)
-      : IrInterpreter({Value::Token(), state}, stats),
-        queue_manager_(queue_manager) {}
+  ProcIrInterpreter(const Value& state, ChannelQueueManager* queue_manager)
+      : IrInterpreter({Value::Token(), state}), queue_manager_(queue_manager) {}
 
   absl::Status HandleReceive(Receive* receive) override {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,

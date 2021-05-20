@@ -18,26 +18,10 @@ package(
 )
 
 cc_library(
-    name = "ir_interpreter_stats",
-    srcs = ["ir_interpreter_stats.cc"],
-    hdrs = ["ir_interpreter_stats.h"],
-    deps = [
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/synchronization",
-        "@com_google_absl//absl/types:optional",
-        "//xls/ir",
-        "//xls/ir:ternary",
-    ],
-)
-
-cc_library(
     name = "ir_interpreter",
     srcs = ["ir_interpreter.cc"],
     hdrs = ["ir_interpreter.h"],
     deps = [
-        ":ir_interpreter_stats",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

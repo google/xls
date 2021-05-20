@@ -2975,8 +2975,7 @@ absl::StatusOr<xls::BValue> Translator::CreateInitValue(
 }
 
 absl::StatusOr<xls::Value> Translator::EvaluateBVal(xls::BValue bval) {
-  xls::InterpreterStats stats;
-  xls::IrInterpreter visitor({}, &stats);
+  xls::IrInterpreter visitor({});
   XLS_RETURN_IF_ERROR(bval.node()->Accept(&visitor));
   xls::Value result = visitor.ResolveAsValue(bval.node());
   return result;
