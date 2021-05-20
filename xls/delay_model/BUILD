@@ -208,8 +208,9 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":op_module_generator",
+        # fixdeps: keep go/proto_python_default
+        "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:runfiles",
         "//xls/common/python:init_xls",
-        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
