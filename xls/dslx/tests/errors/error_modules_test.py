@@ -101,6 +101,12 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('xls/dslx/tests/errors/bad_annotation.x:15:11-15:12', stderr)
     self.assertIn("identifier 'x' doesn't resolve to a type", stderr)
 
+  def test_invalid_colon_ref_as_literal_type(self):
+    test_path = 'xls/dslx/tests/errors/invalid_colon_ref_as_literal_type.x'
+    stderr = self._run(test_path)
+    self.assertIn('{}:23:25-23:26'.format(test_path), stderr)
+    self.assertIn('Non-bits type used to define a numeric literal.', stderr)
+
   def test_invalid_parameter_cast(self):
     stderr = self._run('xls/dslx/tests/errors/invalid_parameter_cast.x')
     self.assertIn('xls/dslx/tests/errors/invalid_parameter_cast.x:16:7-16:10',

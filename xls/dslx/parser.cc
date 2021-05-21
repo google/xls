@@ -1185,6 +1185,20 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     const Pos new_pos = GetPos();
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     switch (peek->kind()) {
+      case TokenKind::kColon: {  // Possibly a Number of ColonRef type.
+        Span span(new_pos, GetPos());
+        // The only valid construct here would be declaring a number via
+        // ColonRef-colon-Number, e.g., "module::type:7"
+        if (dynamic_cast<ColonRef*>(lhs) == nullptr) {
+          goto done;
+        }
+        auto* type_ref = module_->Make<TypeRef>(span, lhs->ToString(),
+                                                ToTypeDefinition(lhs).value());
+        auto* type_annot = module_->Make<TypeRefTypeAnnotation>(
+            span, type_ref, std::vector<Expr*>());
+        XLS_ASSIGN_OR_RETURN(lhs, ParseCast(txn.bindings(), type_annot));
+        break;
+      }
       case TokenKind::kOParen: {  // Invocation.
         DropTokenOrDie();
         XLS_ASSIGN_OR_RETURN(

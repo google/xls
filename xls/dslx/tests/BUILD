@@ -155,6 +155,12 @@ dslx_test(
 )
 
 dslx_test(
+    name = "number_of_imported_type",
+    srcs = ["number_of_imported_type.x"],
+    deps = ["number_of_imported_type_import.x"],
+)
+
+dslx_test(
     name = "type_aliasing_importer",
     srcs = ["type_aliasing_importer.x"],
     generate_benchmark = False,

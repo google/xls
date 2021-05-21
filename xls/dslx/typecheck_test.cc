@@ -644,7 +644,7 @@ fn f(x: u32[5]) -> u32[5] {
 TEST(TypecheckTest, UpdateMultidimIndex) {
   EXPECT_THAT(Typecheck(R"(
 fn f(x: u32[6][5], i: u32[2]) -> u32[6][5] {
-  update(x, i, u32[6]:0)
+  update(x, i, u32[6]:[0, ...])
 }
 )"),
               StatusIs(absl::StatusCode::kInvalidArgument,

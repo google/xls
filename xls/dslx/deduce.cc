@@ -161,6 +161,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_type,
                        ctx->Deduce(node->type_annotation()));
   XLS_ASSIGN_OR_RETURN(concrete_type, Resolve(*concrete_type, ctx));
+  if (dynamic_cast<BitsType*>(concrete_type.get()) == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), concrete_type.get(),
+        "Non-bits type used to define a numeric literal.");
+  }
   XLS_RETURN_IF_ERROR(CheckBitwidth(*node, *concrete_type));
   return concrete_type;
 }
