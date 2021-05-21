@@ -90,14 +90,21 @@ def ir_to_codegen_impl(ctx, src):
     schedule_file = None
     for flag_name in codegen_args:
         if flag_name in CODEGEN_FLAGS:
-            codegen_flags += " --{}={}".format(flag_name, codegen_args[flag_name])
-            if flag_name == "generator" and codegen_args[flag_name] == "combinational":
+            codegen_flags += (
+                " --{}={}".format(flag_name, codegen_args[flag_name])
+            )
+            if (
+                flag_name == "generator" and
+                codegen_args[flag_name] == "combinational"
+            ):
                 # Pipeline generator produces a schedule artifact.
                 schedule_file = ctx.actions.declare_file(
                     ctx.attr.name + ".schedule.textproto",
                 )
                 my_generated_files.append(schedule_file)
-                codegen_flags += " --output_schedule_path={}".format(schedule_file.path)
+                codegen_flags += (
+                    " --output_schedule_path={}".format(schedule_file.path)
+                )
         else:
             fail("Unrecognized argument: %s." % flag_name)
 

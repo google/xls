@@ -56,12 +56,15 @@ def _convert_to_ir(ctx, src):
     Returns:
       A File referencing the IR file.
     """
-    ir_conv_args = ctx.attr.ir_conv_args
+    _ir_conv_args = ctx.attr.ir_conv_args
     IR_CONV_FLAGS = (
         "entry",
         "dslx_path",
     )
 
+    ir_conv_args = dict(_ir_conv_args)
+    ir_conv_args["dslx_path"] = ir_conv_args.get("dslx_path", "") + \
+                                ":" + ctx.genfiles_dir.path
     my_args = get_args(ir_conv_args, IR_CONV_FLAGS)
 
     required_files = ctx.files._dslx_std_lib + [src]
@@ -128,7 +131,8 @@ def _optimize_ir(ctx, src):
     return opt_ir_file
 
 def get_ir_equivalence_test_cmd(ctx, src_0, src_1):
-    """Returns the runfiles and command that executes in the ir_equivalence_test rule.
+    """Returns the runfiles and command that executes in the ir_equivalence_test
+    rule.
 
     Args:
       ctx: The current rule's context object.
@@ -249,8 +253,8 @@ def get_mangled_ir_symbol(module_name, function_name, parametric_values = None):
     Args:
       module_name: The DSLX module name that the function is within.
       function_name: The DSLX function name within the module.
-      parametric_values: Any parametric values used for instantiation (e.g. for a
-        parametric entry point that is known to be instantiated in the IR
+      parametric_values: Any parametric values used for instantiation (e.g. for
+        a parametric entry point that is known to be instantiated in the IR
         converted module). This is generally for more advanced use cases like
         internals testing.
 

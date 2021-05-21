@@ -101,9 +101,10 @@ def parse_and_type_check(ctx, src, required_files):
         # Generate a dummy file for the DSLX source file when the source file is
         # successfully parsed and type checked.
         command = "\n".join([
-            "{} {} --compare=none --execute=false".format(
+            "{} {} --compare=none --execute=false --dslx_path={}".format(
                 ctx.executable._dslx_interpreter_tool.path,
                 src.path,
+                ctx.genfiles_dir.path,
             ),
             "if [ $? -ne 0 ]; then",
             "exit -1",
@@ -129,11 +130,16 @@ def get_dslx_test_cmd(ctx, src):
       execute the command. The second element is the command.
     """
     dslx_test_default_args = DEFAULT_DSLX_TEST_ARGS
-    dslx_test_args = ctx.attr.dslx_test_args
+    _dslx_test_args = ctx.attr.dslx_test_args
     DSLX_TEST_FLAGS = (
         "compare",
+        "dslx_path",
     )
 
+    dslx_test_args = dict(_dslx_test_args)
+    dslx_test_args["dslx_path"] = (
+        dslx_test_args.get("dslx_path", "") + ":" + ctx.genfiles_dir.path
+    )
     my_args = get_args(dslx_test_args, DSLX_TEST_FLAGS, dslx_test_default_args)
     cmd = "{} {} {}".format(
         ctx.executable._dslx_interpreter_tool.short_path,
@@ -199,8 +205,8 @@ def _dslx_library_impl(ctx):
 
     Parses and type checks DSLX source files. When a DSLX file is successfully
     parsed and type checked, a DSLX dummy file is generated. The dummy file is
-    used to create a dependency between the current target and targets
-    descendents.
+    used to create a dependency between the current target and the target's
+    descendants.
 
     Args:
       ctx: The current rule's context object.
@@ -212,13 +218,13 @@ def _dslx_library_impl(ctx):
     my_srcs_list = ctx.files.srcs
     my_dummy_files = []
     my_srcs_depset = get_transitive_dslx_srcs_files_depset(
-        ctx.files.srcs + ctx.files._dslx_std_lib,
+        ctx.files.srcs,
         ctx.attr.deps,
     )
 
     # The required files are the source files from the current target and its
     # transitive dependencies
-    required_files = my_srcs_depset.to_list()
+    required_files = my_srcs_depset.to_list() + ctx.files._dslx_std_lib
 
     # Parse and type check each source file
     for src in my_srcs_list:

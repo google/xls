@@ -115,7 +115,8 @@ def _ir_to_jit_wrapper_impl(ctx):
     ]
 
 ir_to_jit_wrapper = rule(
-    doc = """A build rule that generates the sources for JIT invocation wrappers.
+    doc = """
+    A build rule that generates the sources for JIT invocation wrappers.
 
         Example:
 

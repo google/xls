@@ -268,3 +268,21 @@ cc_ir_to_jit_wrapper(
     name = "jit_test_jit_wrapper_cc",
     src = ":jit_test_dslx_to_ir",
 )
+
+dslx_library(
+    name = "generated_dslx",
+    srcs = ["generated.x"],
+)
+
+dslx_to_ir(
+    name = "with_dep_test",
+    src = "importer.x",
+    deps = [
+        "generated_dslx",
+    ],
+)
+
+dslx_to_ir(
+    name = "as_input_test",
+    src = "generated.x",
+)
