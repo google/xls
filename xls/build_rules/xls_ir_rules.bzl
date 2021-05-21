@@ -22,6 +22,10 @@ DEFAULT_IR_EVAL_TEST_ARGS = {
     "optimize_ir": "true",
 }
 
+DEFAULT_BENCHMARK_IR_ARGS = {
+    "delay_model": "unit",
+}
+
 IRConvInfo = provider(
     doc = "A provider containing IR conversion file information for the " +
           "target. It is created and returned by the dslx_to_ir rule.",
@@ -217,7 +221,11 @@ def get_ir_benchmark_cmd(ctx, src):
         "delay_model",
     )
 
-    my_args = get_args(benchmark_args, BENCHMARK_FLAGS)
+    my_args = get_args(
+        benchmark_args,
+        BENCHMARK_FLAGS,
+        DEFAULT_BENCHMARK_IR_ARGS,
+    )
 
     cmd = "{} {} {}".format(
         ctx.executable._benchmark_tool.short_path,

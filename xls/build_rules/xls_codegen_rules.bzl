@@ -36,6 +36,9 @@ ir_to_codegen_attrs = {
     "verilog_file": attr.output(
         doc = "The Verilog file generated.",
     ),
+    "module_sig_file": attr.output(
+        doc = "The module signature of the generated Verilog file.",
+    ),
     "_codegen_tool": attr.label(
         doc = "The target of the codegen executable.",
         default = Label("//xls/tools:codegen_main"),
@@ -61,9 +64,7 @@ def ir_to_codegen_impl(ctx, src):
 
     # default arguments
     codegen_args = ctx.attr.codegen_args
-    codegen_flags = ctx.actions.args()
-    codegen_flags.add(src.path)
-    codegen_flags.add("--delay_model", codegen_args.get("delay_model", "unit"))
+    codegen_flags = " --delay_model=" + codegen_args.get("delay_model", "unit")
 
     # parse arguments
     CODEGEN_FLAGS = (
@@ -89,29 +90,32 @@ def ir_to_codegen_impl(ctx, src):
     schedule_file = None
     for flag_name in codegen_args:
         if flag_name in CODEGEN_FLAGS:
-            codegen_flags.add("--{}".format(flag_name), codegen_args[flag_name])
+            codegen_flags += " --{}={}".format(flag_name, codegen_args[flag_name])
             if flag_name == "generator" and codegen_args[flag_name] == "combinational":
                 # Pipeline generator produces a schedule artifact.
                 schedule_file = ctx.actions.declare_file(
                     ctx.attr.name + ".schedule.textproto",
                 )
                 my_generated_files.append(schedule_file)
-                codegen_flags.add("--output_schedule_path", schedule_file.path)
+                codegen_flags += " --output_schedule_path={}".format(schedule_file.path)
         else:
             fail("Unrecognized argument: %s." % flag_name)
 
     verilog_file = ctx.actions.declare_file(ctx.attr.name + ".v")
     module_sig_file = ctx.actions.declare_file(ctx.attr.name + ".sig.textproto")
     my_generated_files += [verilog_file, module_sig_file]
-    codegen_flags.add("--output_verilog_path", verilog_file.path)
-    codegen_flags.add("--output_signature_path", module_sig_file.path)
+    codegen_flags += " --output_verilog_path={}".format(verilog_file.path)
+    codegen_flags += " --output_signature_path={}".format(module_sig_file.path)
 
-    ctx.actions.run(
+    ctx.actions.run_shell(
         outputs = my_generated_files,
         tools = [ctx.executable._codegen_tool],
         inputs = [src, ctx.executable._codegen_tool],
-        arguments = [codegen_flags],
-        executable = ctx.executable._codegen_tool.path,
+        command = "{} {} {}".format(
+            ctx.executable._codegen_tool.path,
+            src.path,
+            codegen_flags,
+        ),
         mnemonic = "Codegen",
         progress_message = "Building Verilog file: %s" % (verilog_file.path),
     )
