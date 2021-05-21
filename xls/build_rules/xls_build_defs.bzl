@@ -44,13 +44,14 @@ load(
 load(
     "//xls/build_rules:xls_rules.bzl",
     _dslx_to_codegen = "dslx_to_codegen",
-    _dslx_to_codegen_test = "dslx_to_codegen_test",
+    _dslx_to_ir_opt = "dslx_to_ir_opt",
+    _dslx_to_ir_opt_test = "dslx_to_ir_opt_test",
 )
 
 dslx_library = _dslx_library
 dslx_test = _dslx_test
-dslx_to_ir = _dslx_to_ir
 
+dslx_to_ir = _dslx_to_ir
 ir_benchmark = _ir_benchmark
 ir_equivalence_test = _ir_equivalence_test
 ir_eval_test = _ir_eval_test
@@ -61,4 +62,5 @@ cc_ir_to_jit_wrapper = _cc_ir_to_jit_wrapper
 ir_to_jit_wrapper = _ir_to_jit_wrapper
 
 dslx_to_codegen = _dslx_to_codegen
-dslx_to_codegen_test = _dslx_to_codegen_test
+dslx_to_ir_opt = _dslx_to_ir_opt
+dslx_to_ir_opt_test = _dslx_to_ir_opt_test

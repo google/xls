@@ -12,6 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import xls.build_rules.tests.file_4
+
 fn five() -> u32 {
   u32: 5
+}
+
+fn main() -> u32 {
+  five() + file_4::four()
 }

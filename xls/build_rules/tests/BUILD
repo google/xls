@@ -22,8 +22,9 @@ load(
     "cc_ir_to_jit_wrapper",
     "dslx_library",
     "dslx_to_codegen",
-    "dslx_to_codegen_test",
     "dslx_to_ir",
+    "dslx_to_ir_opt",
+    "dslx_to_ir_opt_test",
     "ir_benchmark",
     "ir_equivalence_test",
     "ir_eval_test",
@@ -231,17 +232,25 @@ ir_to_codegen(
     },
 )
 
+dslx_to_ir_opt(
+    name = "file_5_ir_opt",
+    src = "file_5.x",
+    deps = [
+        ":file_4",
+    ],
+)
+
+dslx_to_ir_opt_test(
+    name = "file_5_ir_opt_test",
+    dep = ":file_5_ir_opt",
+)
+
 dslx_to_codegen(
     name = "e_verilog",
     src = "e.x",
     codegen_args = {
         "pipeline_stages": "1",
     },
-)
-
-dslx_to_codegen_test(
-    name = "e_verilog_test",
-    dep = "e_verilog",
 )
 
 # dslx_to_ir target to test JIT wrapper rules

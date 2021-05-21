@@ -12,6 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn four() -> u32 {
+pub fn four() -> u32 {
   u32: 4
 }
