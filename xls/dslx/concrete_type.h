@@ -94,6 +94,7 @@ class ConcreteTypeDim {
     return ConcreteTypeDim(std::move(op));
   }
 
+  explicit ConcreteTypeDim(int64_t value) : value_(value) {}
   explicit ConcreteTypeDim(const ParametricExpression& value)
       : value_(value.Clone()) {}
   ConcreteTypeDim(const ConcreteTypeDim& other);

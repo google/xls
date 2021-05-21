@@ -296,19 +296,6 @@ py_test(
     ],
 )
 
-py_test(
-    name = "sample_generator_test",
-    srcs = ["sample_generator_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//xls/common:test_base",
-        "//xls/dslx/python:cpp_concrete_type",
-        "//xls/fuzzer/python:cpp_ast_generator",
-        "//xls/fuzzer/python:cpp_sample",
-    ],
-)
-
 cc_binary(
     name = "summarize_ir_main",
     srcs = ["summarize_ir_main.cc"],
@@ -481,11 +468,12 @@ cc_library(
 )
 
 cc_test(
-    name = "cpp_sample_generator_test",
+    name = "sample_generator_test",
     srcs = ["sample_generator_test.cc"],
     deps = [
         ":cpp_sample_generator",
         "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
 )

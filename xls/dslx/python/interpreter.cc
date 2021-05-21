@@ -41,7 +41,6 @@ absl::flat_hash_map<K, V> ToAbsl(const std::unordered_map<K, V>& m) {
 
 PYBIND11_MODULE(interpreter, m) {
   ImportStatusModule();
-  py::module::import("xls.dslx.python.cpp_concrete_type");
 
   m.def("get_function_type",
         [](absl::string_view text, absl::string_view function_name)

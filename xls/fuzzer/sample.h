@@ -76,12 +76,14 @@ class SampleOptions {
   bool codegen() const { return codegen_; }
   bool simulate() const { return simulate_; }
   const absl::optional<std::string>& simulator() const { return simulator_; }
-  const absl::optional<std::vector<std::string>>& codegen_args() {
+  const absl::optional<std::vector<std::string>>& codegen_args() const {
     return codegen_args_;
   }
   bool use_system_verilog() const { return use_system_verilog_; }
 
   void set_input_is_dslx(bool value) { input_is_dslx_ = value; }
+  void set_codegen(bool value) { codegen_ = value; }
+  void set_simulate(bool value) { simulate_ = value; }
   void set_codegen_args(const std::vector<std::string>& value) {
     codegen_args_ = value;
   }
