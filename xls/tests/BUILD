@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pytype tests are present in this file
+
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
@@ -64,5 +66,22 @@ cc_test(
         "//xls/ir:op",
         "//xls/passes:standard_pipeline",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+py_test(
+    name = "documentation_test",
+    srcs = ["documentation_test.py"],
+    data = [
+        "//docs_src:dslx_reference",
+        "//xls/dslx:interpreter_main",
+        "//xls/dslx/tests:mod_imported_file",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_absl_py//absl/testing:parameterized",
+        "//xls/common:runfiles",
     ],
 )

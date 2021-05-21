@@ -431,6 +431,11 @@ dslx_test(
     deps = ["mod_imported.x"],
 )
 
+filegroup(
+    name = "mod_imported_file",
+    srcs = ["mod_imported.x"],
+)
+
 dslx_test(
     name = "mod_importer_typedef",
     srcs = ["mod_importer_typedef.x"],
