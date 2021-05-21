@@ -63,6 +63,10 @@ absl::StatusOr<std::string> ConvertModule(Module* module,
 
 // Converts a single function into its emitted text form.
 //
+// Note that there may be several IR functions in the result text due to either
+// call graph dependencies within the module or constructs that turn into
+// multiple functions (e.g. for-loop bodies).
+//
 // Args:
 //   module: Module we're converting a function within.
 //   entry_function_name: Entry function used as the root for conversion.

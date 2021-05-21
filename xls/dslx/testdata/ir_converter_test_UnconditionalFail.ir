@@ -8,3 +8,10 @@ fn __itok__test_module__main(__token: token, __activated: bits[1]) -> (token, bi
   identity.6: bits[32] = identity(literal.3, id=6)
   ret tuple.8: (token, bits[32]) = tuple(after_all.7, identity.6, id=8)
 }
+
+fn __test_module__main() -> bits[32] {
+  literal.9: token = literal(value=token, id=9)
+  literal.10: bits[1] = literal(value=1, id=10)
+  invoke.11: (token, bits[32]) = invoke(literal.9, literal.10, to_apply=__itok__test_module__main, id=11)
+  ret tuple_index.12: bits[32] = tuple_index(invoke.11, index=1, id=12)
+}

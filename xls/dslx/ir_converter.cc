@@ -75,6 +75,23 @@ struct ImplicitTokenData {
   std::vector<BValue> assertion_tokens;
 };
 
+// Wrapper around the type information query for whether DSL function "f"
+// requires an implicit token calling convention.
+//
+// This query is not necessary when emit_fail_as_assert is off, then we never
+// use the "implicit token" calling convention.
+static bool GetRequiresImplicitToken(dslx::Function* f, ImportData* import_data,
+                                     const ConvertOptions& options) {
+  if (!options.emit_fail_as_assert) {
+    return false;
+  }
+  absl::optional<bool> requires_opt = import_data->GetRootTypeInfo(f->owner())
+                                          .value()
+                                          ->GetRequiresImplicitToken(f);
+  XLS_CHECK(requires_opt.has_value());
+  return requires_opt.value();
+}
+
 // Helper type that creates XLS IR for a function -- this is done within a
 // Package, given a DSLX AST, its type information, and an entry point function.
 //
@@ -156,23 +173,9 @@ class FunctionConverter {
 
   void InstantiateFunctionBuilder(absl::string_view mangled_name);
 
-  // Returns the (root) type information that pertains to a given AST node
-  // (i.e. the type information for its module).
-  absl::StatusOr<TypeInfo*> GetRootTypeInfo(AstNode* node) const;
-
-  // Wrapper around the type information query for whether DSL function "f"
-  // requires an implicit token calling convention.
-  //
-  // This query is not necessary when emit_fail_as_assert is off, then we never
-  // use the "implicit token" calling convention.
-  bool GetRequiresImplicitToken(Function* f) const {
-    if (!options_.emit_fail_as_assert) {
-      return false;
-    }
-    absl::optional<bool> requires_opt =
-        GetRootTypeInfo(f->owner()).value()->GetRequiresImplicitToken(f);
-    XLS_CHECK(requires_opt.has_value());
-    return requires_opt.value();
+  // See `GetRequiresImplicitToken(f, import_data, options)`.
+  bool GetRequiresImplicitToken(dslx::Function* f) const {
+    return xls::dslx::GetRequiresImplicitToken(f, import_data_, options_);
   }
 
   CallingConvention GetCallingConvention(Function* f) const {
@@ -285,7 +288,7 @@ class FunctionConverter {
   absl::optional<const SymbolicBindings*> GetInstantiationCalleeBindings(
       Invocation* invocation) const {
     SymbolicBindings key = GetSymbolicBindingsTuple();
-    return GetRootTypeInfo(invocation)
+    return import_data_->GetRootTypeInfo(invocation->owner())
         .value()
         ->GetInstantiationCalleeBindings(invocation, key);
   }
@@ -751,11 +754,6 @@ FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
   XLS_VLOG(5) << "Constructed IR converter: " << this;
 }
 
-absl::StatusOr<TypeInfo*> FunctionConverter::GetRootTypeInfo(
-    AstNode* node) const {
-  return import_data_->GetRootTypeInfo(node->owner());
-}
-
 void FunctionConverter::InstantiateFunctionBuilder(
     absl::string_view mangled_name) {
   XLS_CHECK(!function_builder_.has_value());
@@ -852,6 +850,7 @@ void FunctionConverter::SetNodeToIr(AstNode* node, IrValue value) {
                                     node->ToString(), node, ToString(value));
   node_to_ir_[node] = value;
 }
+
 absl::optional<FunctionConverter::IrValue> FunctionConverter::GetNodeToIr(
     AstNode* node) const {
   auto it = node_to_ir_.find(node);
@@ -1821,6 +1820,68 @@ absl::Status FunctionConverter::AddImplicitTokenParams() {
   return absl::OkStatus();
 }
 
+// Creates a function that wraps up `implicit_token_f`.
+//
+// Precondition: `implicit_token_f` must use the "implicit token" calling
+// convention, see `CallingConvention` for details.
+//
+// The wrapped function exposes the implicit token function as if it were a
+// normal function, so it can be called by the outside world in a typical
+// fashion as an entry point (e.g. the IR JIT, Verilog module signature, etc).
+static absl::Status EmitImplicitTokenEntryWrapper(
+    xls::Function* implicit_token_f, dslx::Function* dslx_function) {
+  XLS_RET_CHECK_GE(implicit_token_f->params().size(), 2);
+  XLS_ASSIGN_OR_RETURN(
+      std::string mangled_name,
+      MangleDslxName(dslx_function->owner()->name(),
+                     dslx_function->identifier(), CallingConvention::kTypical,
+                     /*free_keys=*/{}, /*symbolic_bindings=*/nullptr));
+  FunctionBuilder fb(mangled_name, implicit_token_f->package());
+
+  // Clone all the params except for the leading `(token, bool)`.
+  std::vector<BValue> params;
+  for (const xls::Param* p : implicit_token_f->params().subspan(2)) {
+    params.push_back(fb.Param(p->name(), p->GetType()));
+  }
+
+  // Invoke the function with the primordial "implicit token" values.
+  BValue token = fb.Literal(Value::Token());
+  BValue activated = fb.Literal(Value::Bool(true));
+  std::vector<BValue> args = {token, activated};
+  args.insert(args.end(), params.begin(), params.end());
+
+  // The built wrapper simply "exists" inside of the package as a side effect of
+  // IR conversion, no need to return it back out to caller.
+  BValue wrapped_result = fb.Invoke(args, implicit_token_f);
+  XLS_RET_CHECK(wrapped_result.GetType()->IsTuple());
+  BValue result = fb.TupleIndex(wrapped_result, 1);
+  return fb.BuildWithReturnValue(result).status();
+}
+
+// As a postprocessing step for converting a module to a package, we check and
+// see if the entry point has the "implicit token" calling convention, to see if
+// it should be wrapped up.
+//
+// Note: we do this as a postprocessing step because we can't know what the
+// module entry point is _until_ all functions have been converted.
+static absl::Status WrapEntryIfImplicitToken(const PackageData& package_data,
+                                             ImportData* import_data,
+                                             const ConvertOptions& options) {
+  absl::StatusOr<xls::Function*> entry_or =
+      package_data.package->EntryFunction();
+  if (!entry_or.ok()) {  // Entry point not found.
+    XLS_RET_CHECK_EQ(entry_or.status().code(), absl::StatusCode::kNotFound);
+    return absl::OkStatus();
+  }
+
+  xls::Function* entry = entry_or.value();
+  dslx::Function* dslx_entry = package_data.ir_to_dslx.at(entry);
+  if (GetRequiresImplicitToken(dslx_entry, import_data, options)) {
+    return EmitImplicitTokenEntryWrapper(entry, dslx_entry);
+  }
+  return absl::OkStatus();
+}
+
 absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
     Function* node, TypeInfo* type_info,
     const SymbolicBindings* symbolic_bindings) {
@@ -1908,6 +1969,21 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
                        function_builder_->BuildWithReturnValue(return_value));
   XLS_VLOG(5) << "Built function: " << f->name();
   XLS_RETURN_IF_ERROR(VerifyFunction(f));
+
+  // If it's a public fallible function, or it's the entry function for the
+  // package, we make a wrapper so that the external world (e.g. JIT, verilog
+  // module) doesn't need to take implicit token arguments.
+  //
+  // Implementation note regarding parametric functions: *if* we wrapped those
+  // to be exposed, we'd be wrapping up all the (implicitly instantiated based
+  // on usage) concrete IR conversions (with the instantiation args mangled into
+  // the name). Those don't seem like very public symbols with respect to the
+  // outside world, since they're driven and named by DSL instantiation, so we
+  // forgo exposing them here.
+  if (requires_implicit_token && node->is_public() && !node->IsParametric()) {
+    XLS_RETURN_IF_ERROR(EmitImplicitTokenEntryWrapper(f, node));
+  }
+
   package_data_.ir_to_dslx[f] = node;
   return f;
 }
@@ -2669,6 +2745,10 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
   PackageData package_data{package.get()};
   XLS_RETURN_IF_ERROR(
       ConvertCallGraph(order, import_data, options, package_data));
+
+  XLS_RETURN_IF_ERROR(
+      WrapEntryIfImplicitToken(package_data, import_data, options));
+
   return std::move(package);
 }
 
