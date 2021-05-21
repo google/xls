@@ -22,11 +22,15 @@ load(
     "dslx_exec_attrs",
     "dslx_test_common_attrs",
     "get_dslx_test_cmd",
+    "get_transitive_dslx_dummy_files_depset",
+    "get_transitive_dslx_srcs_files_depset",
 )
 load(
     "//xls/build_rules:xls_ir_rules.bzl",
-    "convert_to_ir",
+    "IRConvInfo",
+    "IROptInfo",
     "dslx_to_ir_attrs",
+    "dslx_to_ir_impl",
     "get_ir_benchmark_cmd",
     "get_ir_equivalence_test_cmd",
     "get_ir_eval_test_cmd",
@@ -34,29 +38,15 @@ load(
     "ir_equivalence_test_attrs",
     "ir_eval_test_attrs",
     "ir_opt_attrs",
-    "optimize_ir",
+    "ir_opt_impl",
 )
 load(
     "//xls/build_rules:xls_codegen_rules.bzl",
+    "CodegenInfo",
     "ir_to_codegen_attrs",
     "ir_to_codegen_impl",
 )
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
-
-DSLXToCodegenInfo = provider(
-    doc = "A provider containing file information for a 'dslx_to_codegen' " +
-          "target. It is created and returned by the dslx_to_codegen rule.",
-    fields = {
-        # TODO(https://github.com/google/xls/issues/392)
-        # When the issue (above) is resolved, use 'dummy' files for compilation
-        # and testing.
-        "dslx_source_files": "List: The DSLX source files.",
-        "dslx_test_file": "File: The DSLX test file.",
-        "ir_conv_file": "File: The IR file converted from a DSLX source.",
-        "ir_opt_file": "File: The IR optimized file.",
-        "verilog_file": "File: The Verilog file.",
-    },
-)
 
 def _dslx_to_codegen_impl(ctx):
     """The implementation of the 'dslx_to_codegen' rule.
@@ -67,30 +57,43 @@ def _dslx_to_codegen_impl(ctx):
     Args:
       ctx: The current rule's context object.
     Returns:
-      DSLXToCodegenInfo provider.
+      DslxFilesInfo provider.
+      IRConvInfo provider.
+      IROptInfo provider.
+      CodegenInfo provider.
+      DefaultInfo provider.
     """
     dslx_test_file = ctx.file.src
-    dslx_source_files = []
-    for dep in ctx.attr.deps:
-        dslx_source_files += dep[DslxFilesInfo].dslx_sources.to_list()
-    ir_conv_file = convert_to_ir(ctx, dslx_test_file)
-    ir_opt_file = optimize_ir(ctx, ir_conv_file)
-    codegen_info, _ = ir_to_codegen_impl(ctx, ir_opt_file)
-    verilog_file = codegen_info.verilog_file
+    ir_conv_info, ir_conv_default_info = dslx_to_ir_impl(ctx, dslx_test_file)
+    ir_opt_info, ir_opt_default_info = ir_opt_impl(
+        ctx,
+        ir_conv_info.ir_conv_file,
+    )
+    codegen_info, codegen_default_info = ir_to_codegen_impl(
+        ctx,
+        ir_opt_info.ir_opt_file,
+    )
     return [
-        DSLXToCodegenInfo(
-            dslx_source_files = dslx_source_files,
-            dslx_test_file = dslx_test_file,
-            ir_conv_file = ir_conv_file,
-            ir_opt_file = ir_opt_file,
-            verilog_file = verilog_file,
+        DslxFilesInfo(
+            dslx_sources = get_transitive_dslx_srcs_files_depset(
+                [dslx_test_file],
+                ctx.attr.deps,
+            ),
+            dslx_dummy_files = get_transitive_dslx_dummy_files_depset(
+                None,
+                ctx.attr.deps,
+            ),
         ),
-        DefaultInfo(files = depset([
-            dslx_test_file,
-            ir_conv_file,
-            ir_opt_file,
-            verilog_file,
-        ])),
+        ir_conv_info,
+        ir_opt_info,
+        codegen_info,
+        DefaultInfo(
+            files = depset(
+                ir_conv_default_info.files.to_list() +
+                ir_opt_default_info.files.to_list() +
+                codegen_default_info.files.to_list(),
+            ),
+        ),
     ]
 
 _dslx_to_codegen_attrs = dicts.add(
@@ -166,13 +169,12 @@ def _dslx_to_codegen_test_impl(ctx):
     Returns:
       DefaultInfo provider
     """
-    dslx_to_codegen_info = ctx.attr.dep[DSLXToCodegenInfo]
-    dslx_source_files = dslx_to_codegen_info.dslx_source_files
-    dslx_test_file = dslx_to_codegen_info.dslx_test_file
-    ir_conv_file = dslx_to_codegen_info.ir_conv_file
-    ir_opt_file = dslx_to_codegen_info.ir_opt_file
-    verilog_file = dslx_to_codegen_info.verilog_file
-    runfiles = list(dslx_source_files)
+    dslx_source_files = ctx.attr.dep[DslxFilesInfo].dslx_sources.to_list()
+    dslx_test_file = ctx.attr.dep[IRConvInfo].dslx_source_file
+    ir_conv_file = ctx.attr.dep[IRConvInfo].ir_conv_file
+    ir_opt_file = ctx.attr.dep[IROptInfo].ir_opt_file
+    verilog_file = ctx.attr.dep[CodegenInfo].verilog_file
+    runfiles = dslx_source_files
 
     # dslx_test
     my_runfiles, dslx_test_cmd = get_dslx_test_cmd(ctx, dslx_test_file)
@@ -225,7 +227,12 @@ def _dslx_to_codegen_test_impl(ctx):
 _dslx_to_codegen_test_impl_attrs = {
     "dep": attr.label(
         doc = "The dslx_to_codegen target to test.",
-        providers = [DSLXToCodegenInfo],
+        providers = [
+            DslxFilesInfo,
+            IRConvInfo,
+            IROptInfo,
+            CodegenInfo,
+        ],
     ),
     "prove_unopt_eq_opt": attr.bool(
         doc = "Whether or not to generate a test to compare semantics of opt" +

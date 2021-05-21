@@ -22,7 +22,25 @@ DEFAULT_IR_EVAL_TEST_ARGS = {
     "optimize_ir": "true",
 }
 
-def convert_to_ir(ctx, src):
+IRConvInfo = provider(
+    doc = "A provider containing IR conversion file information for the " +
+          "target. It is created and returned by the dslx_to_ir rule.",
+    fields = {
+        "dslx_source_file": "File: The DSLX source.",
+        "ir_conv_file": "File: The IR file converted from a DSLX source.",
+    },
+)
+
+IROptInfo = provider(
+    doc = "A provider containing IR optimization file information for the " +
+          "target. It is created and returned by the ir_opt rule.",
+    fields = {
+        "ir_input_file": "File: The IR file input file.",
+        "ir_opt_file": "File: The IR optimized file.",
+    },
+)
+
+def _convert_to_ir(ctx, src):
     """Converts a DSLX source file to an IR file.
 
     Creates an action in the context that converts a DSLX source file to an
@@ -64,7 +82,7 @@ def convert_to_ir(ctx, src):
     )
     return ir_file
 
-def optimize_ir(ctx, src):
+def _optimize_ir(ctx, src):
     """Optimizes an IR file.
 
     Creates an action in the context that optimizes an IR file.
@@ -212,20 +230,26 @@ def get_ir_benchmark_cmd(ctx, src):
     runfiles = [src, ctx.executable._benchmark_tool]
     return runfiles, cmd
 
-def _dslx_to_ir_impl(ctx):
+def dslx_to_ir_impl(ctx, src):
     """The implementation of the 'dslx_to_ir' rule.
 
     Converts a DSLX source file to an IR file.
 
     Args:
-    ctx: The current rule's context object.
+      ctx: The current rule's context object.
+      src: The source file.
 
     Returns:
-    DefaultInfo provider
+      IRConvInfo provider
+      DefaultInfo provider
     """
     src = ctx.file.src
-    ir_file = convert_to_ir(ctx, src)
+    ir_file = _convert_to_ir(ctx, src)
     return [
+        IRConvInfo(
+            dslx_source_file = src,
+            ir_conv_file = ir_file,
+        ),
         DefaultInfo(files = depset([ir_file])),
     ]
 
@@ -268,6 +292,18 @@ dslx_to_ir_attrs = {
         cfg = "exec",
     ),
 }
+
+def _dslx_to_ir_impl_wrapper(ctx):
+    """The implementation of the 'dslx_to_ir' rule.
+
+    Wrapper for dslx_to_ir_impl. See: dslx_to_ir_impl.
+
+    Args:
+      ctx: The current rule's context object.
+    Returns:
+      See: dslx_to_ir_impl.
+    """
+    return dslx_to_ir_impl(ctx, ctx.file.src)
 
 dslx_to_ir = rule(
     doc = """
@@ -315,25 +351,30 @@ dslx_to_ir = rule(
             )
         ```
     """,
-    implementation = _dslx_to_ir_impl,
+    implementation = _dslx_to_ir_impl_wrapper,
     attrs = dslx_to_ir_attrs,
 )
 
-def _ir_opt_impl(ctx):
+def ir_opt_impl(ctx, src):
     """The implementation of the 'ir_opt' rule.
 
     Optimizes an IR file.
 
     Args:
-    ctx: The current rule's context object.
+      ctx: The current rule's context object.
+      src: The source file.
 
     Returns:
-    DefaultInfo provider
+      IROptInfo provider
+      DefaultInfo provider
     """
-    ir_file = ctx.file.src
-    opt_ir_file = optimize_ir(ctx, ir_file)
+    opt_ir_file = _optimize_ir(ctx, src)
 
     return [
+        IROptInfo(
+            ir_input_file = src,
+            ir_opt_file = opt_ir_file,
+        ),
         DefaultInfo(files = depset([opt_ir_file])),
     ]
 
@@ -352,6 +393,18 @@ ir_opt_attrs = {
         cfg = "exec",
     ),
 }
+
+def _ir_opt_impl_wrapper(ctx):
+    """The implementation of the 'ir_opt' rule.
+
+    Wrapper for ir_opt_impl. See: ir_opt_impl.
+
+    Args:
+      ctx: The current rule's context object.
+    Returns:
+      See: ir_opt_impl.
+    """
+    return ir_opt_impl(ctx, ctx.file.src)
 
 ir_opt = rule(
     doc = """
@@ -384,7 +437,7 @@ ir_opt = rule(
             )
         ```
     """,
-    implementation = _ir_opt_impl,
+    implementation = _ir_opt_impl_wrapper,
     attrs = dicts.add(
         ir_common_attrs,
         ir_opt_attrs,
