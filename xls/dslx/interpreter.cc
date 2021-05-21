@@ -446,13 +446,10 @@ bool Interpreter::IsWip(AstNode* node) const {
 absl::optional<InterpValue> Interpreter::NoteWip(
     AstNode* node, absl::optional<InterpValue> value) {
   if (!value.has_value()) {
-    // Starting evaluation, attempting to mark as WIP.
-    auto it = wip_.find(node);
-    if (it != wip_.end() && it->second.has_value()) {
-      return it->second;  // Already computed.
-    }
-    wip_[node] = absl::nullopt;  // Mark as WIP.
-    return absl::nullopt;
+    // Implicitly value-initializes wip_ entry with absl::nullopt
+    // marking as WIP if not already present. Otherwise returns the
+    // cached value.
+    return wip_[node];
   }
 
   wip_[node] = value;
