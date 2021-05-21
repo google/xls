@@ -27,6 +27,7 @@ load(
 load(
     "//xls/build_rules:xls_ir_rules.bzl",
     _dslx_to_ir = "dslx_to_ir",
+    _get_mangled_ir_symbol = "get_mangled_ir_symbol",
     _ir_benchmark = "ir_benchmark",
     _ir_equivalence_test = "ir_equivalence_test",
     _ir_eval_test = "ir_eval_test",
@@ -52,6 +53,7 @@ dslx_library = _dslx_library
 dslx_test = _dslx_test
 
 dslx_to_ir = _dslx_to_ir
+get_mangled_ir_symbol = _get_mangled_ir_symbol
 ir_benchmark = _ir_benchmark
 ir_equivalence_test = _ir_equivalence_test
 ir_eval_test = _ir_eval_test

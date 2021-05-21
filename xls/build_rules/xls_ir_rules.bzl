@@ -230,6 +230,36 @@ def get_ir_benchmark_cmd(ctx, src):
     runfiles = [src, ctx.executable._benchmark_tool]
     return runfiles, cmd
 
+def get_mangled_ir_symbol(module_name, function_name, parametric_values = None):
+    """Returns the mangled IR symbol for the module/function combination.
+
+    "Mangling" is the process of turning nicely namedspaced symbols into
+    "grosser" (mangled) flat (non hierarchical) symbol, e.g. that lives on a
+    package after IR conversion. To retrieve/execute functions that have been IR
+    converted, we use their mangled names to refer to them in the IR namespace.
+
+    Args:
+      module_name: The DSLX module name that the function is within.
+      function_name: The DSLX function name within the module.
+      parametric_values: Any parametric values used for instantiation (e.g. for a
+        parametric entry point that is known to be instantiated in the IR
+        converted module). This is generally for more advanced use cases like
+        internals testing.
+
+    Returns:
+      The "mangled" symbol string.
+    """
+    parametric_values_str = ""
+
+    if parametric_values:
+        parametric_values_str = "__" + "_".join(
+            [
+                str(v)
+                for v in parametric_values
+            ],
+        )
+    return "__" + module_name + "__" + function_name + parametric_values_str
+
 def dslx_to_ir_impl(ctx, src):
     """The implementation of the 'dslx_to_ir' rule.
 

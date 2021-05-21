@@ -16,6 +16,10 @@
 
 load("//xls/build_rules:genrule_wrapper.bzl", "genrule_wrapper")
 load("//xls/build_rules:dslx_codegen.bzl", "make_benchmark_args")
+load(
+    "//xls/build_rules:xls_build_defs.bzl",
+    "get_mangled_ir_symbol",
+)
 
 _INTERPRETER_MAIN = "//xls/dslx:interpreter_main"
 _DSLX_TEST = "//xls/dslx/interpreter:dslx_test"
@@ -198,27 +202,5 @@ def dslx_test(
     )
 
 def dslx_mangle(module_name, function_name, parametric_values = None):
-    """Returns the mangled IR symbol for the module/function combination.
-
-    "Mangling" is the process of turning nicely namedspaced symbols into
-    "grosser" (mangled) flat (non hierarchical) symbol, e.g. that lives on a
-    package after IR conversion. To retrieve/execute functions that have been IR
-    converted, we use their mangled names to refer to them in the IR namespace.
-
-    Args:
-      module_name: The DSLX module name that the function is within.
-      function_name: The DSLX function name within the module.
-      parametric_values: Any parametric values used for instantiation (e.g. for a
-        parametric entry point that is known to be instantiated in the IR
-        converted module). This is generally for more advanced use cases like
-        internals testing.
-
-    Returns:
-      The "mangled" symbol string.
-    """
-    if parametric_values:
-        parametric_values_str = "__" + "_".join([str(v) for v in parametric_values])
-    else:
-        parametric_values_str = ""
-
-    return "__" + module_name + "__" + function_name + parametric_values_str
+    """See get_mangled_ir_symbol"""
+    return get_mangled_ir_symbol(module_name, function_name, parametric_values)
