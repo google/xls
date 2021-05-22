@@ -68,7 +68,7 @@ documentation locally as a preview, you can set up mkdocs as follows:
 
 ```console
 proj/xls$ mkvirtualenv xls-mkdocs-env
-proj/xls$ pip install mkdocs-material mdx_truly_sane_lists
+proj/xls$ pip install mkdocs-material mkdocs-exclude mdx_truly_sane_lists
 proj/xls$ mkdocs serve
 ```
 
