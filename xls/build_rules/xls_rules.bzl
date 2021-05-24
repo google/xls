@@ -19,36 +19,36 @@ This module contains build rules for XLS.
 load(
     "//xls/build_rules:xls_dslx_rules.bzl",
     "DslxFilesInfo",
-    "dslx_exec_attrs",
-    "dslx_test_common_attrs",
     "get_dslx_test_cmd",
     "get_transitive_dslx_dummy_files_depset",
     "get_transitive_dslx_srcs_files_depset",
+    "xls_dslx_exec_attrs",
+    "xls_dslx_test_common_attrs",
 )
 load(
     "//xls/build_rules:xls_ir_rules.bzl",
-    "IRConvInfo",
-    "IROptInfo",
-    "dslx_to_ir_attrs",
-    "dslx_to_ir_impl",
-    "get_ir_benchmark_cmd",
+    "ConvIRInfo",
+    "OptIRInfo",
+    "get_benchmark_ir_cmd",
+    "get_eval_ir_test_cmd",
     "get_ir_equivalence_test_cmd",
-    "get_ir_eval_test_cmd",
-    "ir_benchmark_attrs",
-    "ir_equivalence_test_attrs",
-    "ir_eval_test_attrs",
-    "ir_opt_attrs",
-    "ir_opt_impl",
+    "xls_benchmark_ir_attrs",
+    "xls_dslx_ir_attrs",
+    "xls_dslx_ir_impl",
+    "xls_eval_ir_test_attrs",
+    "xls_ir_equivalence_test_attrs",
+    "xls_ir_opt_ir_attrs",
+    "xls_ir_opt_ir_impl",
 )
 load(
     "//xls/build_rules:xls_codegen_rules.bzl",
-    "ir_to_codegen_attrs",
-    "ir_to_codegen_impl",
+    "xls_ir_verilog_attrs",
+    "xls_ir_verilog_impl",
 )
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 
-def _dslx_to_ir_opt_impl(ctx, src):
-    """The implementation of the 'dslx_to_ir_opt' rule.
+def _xls_dslx_opt_ir_impl(ctx, src):
+    """The implementation of the 'xls_dslx_opt_ir' rule.
 
     Converts a DSLX file to an IR and optimizes the IR.
 
@@ -57,18 +57,18 @@ def _dslx_to_ir_opt_impl(ctx, src):
       src: The source file.
     Returns:
       DslxFilesInfo provider.
-      IRConvInfo provider.
-      IROptInfo provider.
+      ConvIRInfo provider.
+      OptIRInfo provider.
       DefaultInfo provider.
     """
-    ir_conv_info, ir_conv_default_info = dslx_to_ir_impl(ctx, src)
-    ir_opt_info, ir_opt_default_info = ir_opt_impl(
+    ir_conv_info, ir_conv_default_info = xls_dslx_ir_impl(ctx, src)
+    ir_opt_info, ir_opt_default_info = xls_ir_opt_ir_impl(
         ctx,
-        ir_conv_info.ir_conv_file,
+        ir_conv_info.conv_ir_file,
     )
     return [
         DslxFilesInfo(
-            dslx_sources = get_transitive_dslx_srcs_files_depset(
+            dslx_source_files = get_transitive_dslx_srcs_files_depset(
                 [src],
                 ctx.attr.deps,
             ),
@@ -87,24 +87,24 @@ def _dslx_to_ir_opt_impl(ctx, src):
         ),
     ]
 
-_dslx_to_ir_opt_attrs = dicts.add(
-    dslx_to_ir_attrs,
-    ir_opt_attrs,
+_xls_dslx_opt_ir_attrs = dicts.add(
+    xls_dslx_ir_attrs,
+    xls_ir_opt_ir_attrs,
 )
 
-def _dslx_to_ir_opt_impl_wrapper(ctx):
-    """The implementation of the 'dslx_to_ir_opt' rule.
+def _xls_dslx_opt_ir_impl_wrapper(ctx):
+    """The implementation of the 'xls_dslx_opt_ir' rule.
 
-    Wrapper for _dslx_to_ir_opt_impl. See: _dslx_to_ir_opt_impl.
+    Wrapper for _xls_dslx_opt_ir_impl. See: _xls_dslx_opt_ir_impl.
 
     Args:
       ctx: The current rule's context object.
     Returns:
-      See: _dslx_to_ir_opt_impl.
+      See: _xls_dslx_opt_ir_impl.
     """
-    return _dslx_to_ir_opt_impl(ctx, ctx.file.src)
+    return _xls_dslx_opt_ir_impl(ctx, ctx.file.src)
 
-dslx_to_ir_opt = rule(
+xls_dslx_opt_ir = rule(
     doc = """A build rule that generates an optimized IR file from a DSLX source file.
 
         Examples:
@@ -112,88 +112,88 @@ dslx_to_ir_opt = rule(
         1) Generate optimized IR from a DSLX source.
 
         ```
-            dslx_to_ir_opt(
-                name = "a_ir_opt",
+            xls_dslx_opt_ir(
+                name = "a_opt_ir",
                 src = "a.x",
             )
         ```
 
-        2) Generate optimized IR with dependency on dslx_library targets.
+        2) Generate optimized IR with dependency on xls_dslx_library targets.
 
         ```
-            dslx_library(
-                name = "files_ab",
+            xls_dslx_library(
+                name = "files_ab_dslx",
                 srcs = [
                     "a.x",
                     "b.x",
                 ],
             )
 
-            dslx_library(
-                name = "c",
+            xls_dslx_library(
+                name = "c_dslx",
                 srcs = [
                     "c.x",
                 ],
             )
 
-            dslx_to_ir_opt(
-                name = "d_ir_opt",
+            xls_dslx_opt_ir(
+                name = "d_opt_ir",
                 src = "d.x",
                 deps = [
-                    ":files_ab",
-                    ":c",
+                    ":files_ab_dslx",
+                    ":c_dslx",
                 ],
             )
         ```
     """,
-    implementation = _dslx_to_ir_opt_impl_wrapper,
-    attrs = _dslx_to_ir_opt_attrs,
+    implementation = _xls_dslx_opt_ir_impl_wrapper,
+    attrs = _xls_dslx_opt_ir_attrs,
 )
 
-def _dslx_to_ir_opt_test_impl(ctx):
-    """The implementation of the 'dslx_to_ir_opt_test' rule.
+def _xls_dslx_opt_ir_test_impl(ctx):
+    """The implementation of the 'xls_dslx_opt_ir_test' rule.
 
     Executes the commands in the order presented in the list for the following
     rules:
-      1) dslx_test
-      2) ir_equivalence_test (if attribute prove_unopt_eq_opt is enabled)
-      3) ir_eval_test (if attribute generate_benchmark is enabled)
-      4) ir_benchmark (if attribute generate_benchmark is enabled)
+      1) xls_dslx_test
+      2) xls_ir_equivalence_test (if attribute prove_unopt_eq_opt is enabled)
+      3) xls_eval_ir_test (if attribute generate_benchmark is enabled)
+      4) xls_benchmark_ir (if attribute generate_benchmark is enabled)
 
     Args:
       ctx: The current rule's context object.
     Returns:
       DefaultInfo provider
     """
-    dslx_source_files = ctx.attr.dep[DslxFilesInfo].dslx_sources.to_list()
-    dslx_test_file = ctx.attr.dep[IRConvInfo].dslx_source_file
-    ir_conv_file = ctx.attr.dep[IRConvInfo].ir_conv_file
-    ir_opt_file = ctx.attr.dep[IROptInfo].ir_opt_file
+    dslx_source_files = ctx.attr.dep[DslxFilesInfo].dslx_source_files.to_list()
+    dslx_test_file = ctx.attr.dep[ConvIRInfo].dslx_source_file
+    conv_ir_file = ctx.attr.dep[ConvIRInfo].conv_ir_file
+    opt_ir_file = ctx.attr.dep[OptIRInfo].opt_ir_file
     runfiles = dslx_source_files
 
-    # dslx_test
+    # xls_dslx_test
     my_runfiles, dslx_test_cmd = get_dslx_test_cmd(ctx, dslx_test_file)
     runfiles += my_runfiles
 
-    # ir_equivalence_test
+    # xls_ir_equivalence_test
     my_runfiles, ir_equivalence_test_cmd = get_ir_equivalence_test_cmd(
         ctx,
-        ir_conv_file,
-        ir_opt_file,
+        conv_ir_file,
+        opt_ir_file,
     )
     runfiles += my_runfiles
 
-    # ir_eval_test
-    my_runfiles, ir_eval_test_cmd = get_ir_eval_test_cmd(
+    # xls_eval_ir_test
+    my_runfiles, eval_ir_test_cmd = get_eval_ir_test_cmd(
         ctx,
-        ir_conv_file,
+        conv_ir_file,
     )
     runfiles += my_runfiles
 
-    # ir_benchmark
-    my_runfiles, ir_benchmark_cmd = get_ir_benchmark_cmd(
+    # xls_benchmark_ir
+    my_runfiles, benchmark_ir_cmd = get_benchmark_ir_cmd(
         ctx,
-        ir_conv_file,
+        conv_ir_file,
     )
     runfiles += my_runfiles
 
@@ -205,8 +205,8 @@ def _dslx_to_ir_opt_test_impl(ctx):
             "set -e",
             dslx_test_cmd,
             ir_equivalence_test_cmd if ctx.attr.prove_unopt_eq_opt else "",
-            ir_eval_test_cmd if ctx.attr.generate_benchmark else "",
-            ir_benchmark_cmd if ctx.attr.generate_benchmark else "",
+            eval_ir_test_cmd if ctx.attr.generate_benchmark else "",
+            benchmark_ir_cmd if ctx.attr.generate_benchmark else "",
             "exit 0",
         ]),
         is_executable = True,
@@ -219,13 +219,13 @@ def _dslx_to_ir_opt_test_impl(ctx):
         ),
     ]
 
-_dslx_to_ir_opt_test_impl_attrs = {
+_xls_dslx_opt_ir_test_impl_attrs = {
     "dep": attr.label(
-        doc = "The dslx_to_ir_opt target to test.",
+        doc = "The xls_dslx_opt_ir target to test.",
         providers = [
             DslxFilesInfo,
-            IRConvInfo,
-            IROptInfo,
+            ConvIRInfo,
+            OptIRInfo,
         ],
     ),
     "prove_unopt_eq_opt": attr.bool(
@@ -240,36 +240,36 @@ _dslx_to_ir_opt_test_impl_attrs = {
     ),
 }
 
-dslx_to_ir_opt_test = rule(
-    doc = """A build rule that tests a dslx_to_ir_opt target.
+xls_dslx_opt_ir_test = rule(
+    doc = """A build rule that tests a xls_dslx_opt_ir target.
 
         Example:
         ```
-            dslx_to_ir_opt(
-                name = "a_ir_opt",
+            xls_dslx_opt_ir(
+                name = "a_opt_ir",
                 src = "a.x",
             )
 
-            dslx_to_ir_opt_test(
-                name = "a_ir_opt_test",
-                dep = ":a_ir_opt",
+            xls_dslx_opt_ir_test(
+                name = "a_opt_ir_test",
+                dep = ":a_opt_ir",
             )
         ```
     """,
-    implementation = _dslx_to_ir_opt_test_impl,
+    implementation = _xls_dslx_opt_ir_test_impl,
     attrs = dicts.add(
-        _dslx_to_ir_opt_test_impl_attrs,
-        dslx_exec_attrs,
-        dslx_test_common_attrs,
-        ir_equivalence_test_attrs,
-        ir_eval_test_attrs,
-        ir_benchmark_attrs,
+        _xls_dslx_opt_ir_test_impl_attrs,
+        xls_dslx_exec_attrs,
+        xls_dslx_test_common_attrs,
+        xls_ir_equivalence_test_attrs,
+        xls_eval_ir_test_attrs,
+        xls_benchmark_ir_attrs,
     ),
     test = True,
 )
 
-def _dslx_to_codegen_impl(ctx):
-    """The implementation of the 'dslx_to_codegen' rule.
+def _xls_dslx_verilog_impl(ctx):
+    """The implementation of the 'xls_dslx_verilog' rule.
 
     Converts a DSLX file to an IR, optimizes the IR, and generates a verilog
     file from the optimized IR.
@@ -278,19 +278,19 @@ def _dslx_to_codegen_impl(ctx):
       ctx: The current rule's context object.
     Returns:
       DslxFilesInfo provider.
-      IRConvInfo provider.
-      IROptInfo provider.
+      ConvIRInfo provider.
+      OptIRInfo provider.
       CodegenInfo provider.
       DefaultInfo provider.
     """
     dslx_test_file = ctx.file.src
-    dslx_files_info, ir_conv_info, ir_opt_info, dslx_to_ir_default_info = _dslx_to_ir_opt_impl(
+    dslx_files_info, ir_conv_info, ir_opt_info, dslx_ir_default_info = _xls_dslx_opt_ir_impl(
         ctx,
         dslx_test_file,
     )
-    codegen_info, codegen_default_info = ir_to_codegen_impl(
+    codegen_info, codegen_default_info = xls_ir_verilog_impl(
         ctx,
-        ir_opt_info.ir_opt_file,
+        ir_opt_info.opt_ir_file,
     )
     return [
         dslx_files_info,
@@ -299,19 +299,19 @@ def _dslx_to_codegen_impl(ctx):
         codegen_info,
         DefaultInfo(
             files = depset(
-                dslx_to_ir_default_info.files.to_list() +
+                dslx_ir_default_info.files.to_list() +
                 codegen_default_info.files.to_list(),
             ),
         ),
     ]
 
 _dslx_to_codegen_attrs = dicts.add(
-    dslx_to_ir_attrs,
-    ir_opt_attrs,
-    ir_to_codegen_attrs,
+    xls_dslx_ir_attrs,
+    xls_ir_opt_ir_attrs,
+    xls_ir_verilog_attrs,
 )
 
-dslx_to_codegen = rule(
+xls_dslx_verilog = rule(
     doc = """A build rule that generates a Verilog file from a DSLX source file.
 
         Examples:
@@ -319,7 +319,7 @@ dslx_to_codegen = rule(
         1) Generate Verilog from a DSLX source.
 
         ```
-            dslx_to_codegen(
+            xls_dslx_verilog(
                 name = "a_verilog",
                 src = "a.x",
                 codegen_args = {
@@ -328,30 +328,30 @@ dslx_to_codegen = rule(
             )
         ```
 
-        2) Generate Verilog with dependency on dslx_library targets.
+        2) Generate Verilog with dependency on xls_dslx_library targets.
 
         ```
-            dslx_library(
-                name = "files_ab",
+            xls_dslx_library(
+                name = "files_ab_dslx",
                 srcs = [
                     "a.x",
                     "b.x",
                 ],
             )
 
-            dslx_library(
-                name = "c",
+            xls_dslx_library(
+                name = "c_dslx",
                 srcs = [
                     "c.x",
                 ],
             )
 
-            dslx_to_codegen(
+            xls_dslx_verilog(
                 name = "d_verilog",
                 src = "d.x",
                 deps = [
-                    ":files_ab",
-                    ":c",
+                    ":files_ab_dslx",
+                    ":c_dslx",
                 ],
                 codegen_args = {
                     "pipeline_stages": "1",
@@ -359,10 +359,10 @@ dslx_to_codegen = rule(
             )
         ```
     """,
-    implementation = _dslx_to_codegen_impl,
+    implementation = _xls_dslx_verilog_impl,
     attrs = _dslx_to_codegen_attrs,
 )
 
 # TODO(vmirian) 2021-05-20 When https://github.com/google/xls/issues/418 and
 # https://github.com/google/xls/issues/419 are resolved:
-# implement dslx_to_codegen_test
+# implement xls_dslx_verilog_test

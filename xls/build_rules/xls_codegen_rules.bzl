@@ -17,11 +17,11 @@ This module contains codegen-related build rules for XLS.
 """
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
-load("//xls/build_rules:xls_ir_rules.bzl", "ir_common_attrs")
+load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
 
 CodegenInfo = provider(
     doc = "A provider containing Codegen file information for the target. It " +
-          "is created and returned by the codegen rule.",
+          "is created and returned by the xls_ir_verilog rule.",
     fields = {
         "verilog_file": "File: The Verilog file.",
         "module_sig_file": "File: The module signature of the Verilog file.",
@@ -29,7 +29,7 @@ CodegenInfo = provider(
     },
 )
 
-ir_to_codegen_attrs = {
+xls_ir_verilog_attrs = {
     "codegen_args": attr.string_dict(
         doc = "Arguments of the codegen tool.",
     ),
@@ -48,10 +48,10 @@ ir_to_codegen_attrs = {
     ),
 }
 
-def ir_to_codegen_impl(ctx, src):
-    """The core implementation of the 'ir_to_codegen' rule.
+def xls_ir_verilog_impl(ctx, src):
+    """The core implementation of the 'xls_ir_verilog' rule.
 
-    Generates a Verilog file.
+    Generates a Verilog file, module signature file and schedule file.
 
     Args:
       ctx: The current rule's context object.
@@ -137,19 +137,19 @@ def ir_to_codegen_impl(ctx, src):
         ),
     ]
 
-def _ir_to_codegen_impl_wrapper(ctx):
-    """The implementation of the 'ir_to_codegen' rule.
+def _xls_ir_verilog_impl_wrapper(ctx):
+    """The implementation of the 'xls_ir_verilog' rule.
 
-    Wrapper for ir_to_codegen_impl. See: ir_to_codegen_impl.
+    Wrapper for xls_ir_verilog_impl. See: xls_ir_verilog_impl.
 
     Args:
       ctx: The current rule's context object.
     Returns:
       See: codegen_impl.
     """
-    return ir_to_codegen_impl(ctx, ctx.file.src)
+    return xls_ir_verilog_impl(ctx, ctx.file.src)
 
-ir_to_codegen = rule(
+xls_ir_verilog = rule(
     doc = """A build rule that generates a Verilog file.
 
         Examples:
@@ -157,8 +157,8 @@ ir_to_codegen = rule(
         1) A file as the source.
 
         ```
-            ir_to_codegen(
-                name = "a_ir_to_codegen",
+            xls_ir_verilog(
+                name = "a_verilog",
                 src = "a.ir",
             )
         ```
@@ -166,19 +166,19 @@ ir_to_codegen = rule(
         2) A target as the source.
 
         ```
-            ir_opt(
+            xls_ir_opt_ir(
                 name = "a",
                 src = "a.ir",
             )
-            ir_to_codegen(
-                name = "a_ir_to_codegen",
+            xls_ir_verilog(
+                name = "a_verilog",
                 src = ":a",
             )
         ```
     """,
-    implementation = _ir_to_codegen_impl_wrapper,
+    implementation = _xls_ir_verilog_impl_wrapper,
     attrs = dicts.add(
-        ir_common_attrs,
-        ir_to_codegen_attrs,
+        xls_ir_common_attrs,
+        xls_ir_verilog_attrs,
     ),
 )

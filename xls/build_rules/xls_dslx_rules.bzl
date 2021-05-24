@@ -23,16 +23,16 @@ DEFAULT_DSLX_TEST_ARGS = {
 
 DslxFilesInfo = provider(
     doc = "A provider containing DSLX file information for the target. It is " +
-          "created and returned by the dslx_library rule.",
+          "created and returned by the xls_dslx_library rule.",
     fields = {
-        "dslx_sources": "Depset: A depset containing the DSLX source (.x) " +
-                        "files of the target and its dependencies.",
+        "dslx_source_files": "Depset: A depset containing the DSLX source " +
+                             "(.x) files of the target and its dependencies.",
         "dslx_dummy_files": "Depset: A depset containing the DSLX generated " +
                             "dummy (.dummy) files of the target and its " +
                             "dependencies. A DSLX dummy file is generated " +
                             "when a DSLX file is successfully parsed and " +
                             "type checked. It is used to create a dependency " +
-                            "between dslx_library targets.",
+                            "between xls_dslx_library targets.",
     },
 )
 
@@ -52,7 +52,7 @@ def get_transitive_dslx_srcs_files_depset(srcs, deps):
     """
     return depset(
         srcs,
-        transitive = [dep[DslxFilesInfo].dslx_sources for dep in deps],
+        transitive = [dep[DslxFilesInfo].dslx_source_files for dep in deps],
     )
 
 def get_transitive_dslx_dummy_files_depset(srcs, deps):
@@ -119,14 +119,14 @@ def parse_and_type_check(ctx, src, required_files):
     return file
 
 def get_dslx_test_cmd(ctx, src):
-    """Returns the runfiles and command that executes in the dslx_test rule.
+    """Returns the runfiles and command that executes in the xls_dslx_test rule.
 
     Args:
       ctx: The current rule's context object.
       src: The file to test.
 
     Returns:
-      A tuple with two elements. The files element is a list of runfiles to
+      A tuple with two elements. The first element is a list of runfiles to
       execute the command. The second element is the command.
     """
     dslx_test_default_args = DEFAULT_DSLX_TEST_ARGS
@@ -141,9 +141,10 @@ def get_dslx_test_cmd(ctx, src):
         dslx_test_args.get("dslx_path", "") + ":" + ctx.genfiles_dir.path
     )
     my_args = get_args(dslx_test_args, DSLX_TEST_FLAGS, dslx_test_default_args)
+
     cmd = "{} {} {}".format(
         ctx.executable._dslx_interpreter_tool.short_path,
-        src.path,
+        src.short_path,
         my_args,
     )
 
@@ -153,14 +154,14 @@ def get_dslx_test_cmd(ctx, src):
     runfiles += ctx.files._dslx_std_lib
     return runfiles, cmd
 
-# Common attributes for the dslx_library and dslx_test rules.
-_dslx_common_attrs = {
+# Common attributes for the xls_dslx_library and xls_dslx_test rules.
+_xls_dslx_common_attrs = {
     "deps": attr.label_list(
         doc = "Dependency targets for the rule.",
         providers = [DslxFilesInfo],
     ),
 }
-dslx_exec_attrs = {
+xls_dslx_exec_attrs = {
     "_dslx_std_lib": attr.label(
         doc = "The target containing the DSLX std library.",
         default = Label("//xls/dslx/stdlib:x_files"),
@@ -175,16 +176,16 @@ dslx_exec_attrs = {
     ),
 }
 
-# Attributes for the dslx_library rule.
-_dslx_library_attrs = {
+# Attributes for the xls_dslx_library rule.
+_xls_dslx_library_attrs = {
     "srcs": attr.label_list(
         doc = "Source files for the rule. Files must have a '.x' extension.",
         allow_files = [".x"],
     ),
 }
 
-# Attributes for the dslx_test rule.
-_dslx_test_attrs = {
+# Attributes for the xls_dslx_test rule.
+_xls_dslx_test_attrs = {
     "src": attr.label(
         doc = "The DSLX source file for the rule. A single source file must " +
               "be provided. The file must have a '.x' extension.",
@@ -194,14 +195,14 @@ _dslx_test_attrs = {
 }
 
 # Common attributes for DSLX testing.
-dslx_test_common_attrs = {
+xls_dslx_test_common_attrs = {
     "dslx_test_args": attr.string_dict(
         doc = "Arguments of the DSLX interpreter executable.",
     ),
 }
 
-def _dslx_library_impl(ctx):
-    """The implementation of the 'dslx_library' rule.
+def _xls_dslx_library_impl(ctx):
+    """The implementation of the 'xls_dslx_library' rule.
 
     Parses and type checks DSLX source files. When a DSLX file is successfully
     parsed and type checked, a DSLX dummy file is generated. The dummy file is
@@ -222,11 +223,11 @@ def _dslx_library_impl(ctx):
         ctx.attr.deps,
     )
 
-    # The required files are the source files from the current target and its
-    # transitive dependencies
+    # The required files are the source files from the current target, the
+    # standard library files, and its transitive dependencies.
     required_files = my_srcs_depset.to_list() + ctx.files._dslx_std_lib
 
-    # Parse and type check each source file
+    # Parse and type check each source file.
     for src in my_srcs_list:
         file = parse_and_type_check(ctx, src, required_files)
         my_dummy_files.append(file)
@@ -237,13 +238,13 @@ def _dslx_library_impl(ctx):
     )
     return [
         DslxFilesInfo(
-            dslx_sources = my_srcs_depset,
+            dslx_source_files = my_srcs_depset,
             dslx_dummy_files = dummy_files_depset,
         ),
         DefaultInfo(files = dummy_files_depset),
     ]
 
-dslx_library = rule(
+xls_dslx_library = rule(
     doc = """
         A build rule that parses and type checks DSLX source files.
 
@@ -252,8 +253,8 @@ dslx_library = rule(
         1) A collection of DSLX source files.
 
         ```
-        dslx_library(
-            name = "files_123",
+        xls_dslx_library(
+            name = "files_123_dslx",
             srcs = [
                 "file_1.x",
                 "file_2.x",
@@ -262,49 +263,49 @@ dslx_library = rule(
         )
         ```
 
-        2) Dependency on other dslx_library targets.
+        2) Dependency on other xls_dslx_library targets.
 
         ```
-        dslx_library(
-            name = "a",
+        xls_dslx_library(
+            name = "a_dslx",
             srcs = [
                 "a.x",
             ],
         )
 
         # Depends on target a.
-        dslx_library(
-            name = "b",
+        xls_dslx_library(
+            name = "b_dslx",
             srcs = [
                 "b.x",
             ],
             deps = [
-                ":a",
+                ":a_dslx",
             ],
         )
 
         # Depends on target a.
-        dslx_library(
-            name = "c",
+        xls_dslx_library(
+            name = "c_dslx",
             srcs = [
                 "c.x",
             ],
             deps = [
-                ":a",
+                ":a_dslx",
             ],
         )
         ```
     """,
-    implementation = _dslx_library_impl,
+    implementation = _xls_dslx_library_impl,
     attrs = dicts.add(
-        _dslx_common_attrs.items(),
-        _dslx_library_attrs.items(),
-        dslx_exec_attrs.items(),
+        _xls_dslx_common_attrs.items(),
+        _xls_dslx_library_attrs.items(),
+        xls_dslx_exec_attrs.items(),
     ),
 )
 
-def _dslx_test_impl(ctx):
-    """The implementation of the 'dslx_test' rule.
+def _xls_dslx_test_impl(ctx):
+    """The implementation of the 'xls_dslx_test' rule.
 
     Executes the tests and quick checks of a DSLX source file.
 
@@ -320,7 +321,7 @@ def _dslx_test_impl(ctx):
     # The runfiles also require the source files from its transitive
     # dependencies.
     for dep in ctx.attr.deps:
-        runfiles += dep[DslxFilesInfo].dslx_sources.to_list()
+        runfiles += dep[DslxFilesInfo].dslx_source_files.to_list()
 
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
@@ -341,14 +342,35 @@ def _dslx_test_impl(ctx):
         ),
     ]
 
-dslx_test = rule(
+# TODO(vmirian) 05-22-2021 Add dep attribute on rule to read ConvIRInfo:
+# This feature would enable the following semantics:
+#
+# xls_dslx_ir(
+#     name = "d_ir",
+#     src = ":d.x",
+# )
+#
+# xls_dslx_test(
+#     name = "d_test",
+#     dep = ":d_ir",
+# )
+#
+# Note: Only dep or src can be provided, not both, but at least one (XOR).
+#
+# xls_dslx_test(
+#     name = "d_test",
+#     src = ":d.x",
+#     dep = ":d_ir",
+# )
+# produces an error.
+xls_dslx_test = rule(
     doc = """
         A dslx test executes the tests and quick checks of a DSLX source file.
 
         Example:
         ```
-            # Assume a dslx_library target c is present.
-            dslx_test(
+            # Assume a xls_dslx_library target c is present.
+            xls_dslx_test(
                 name = "d_test",
                 src = "d.x",
                 deps = [
@@ -357,12 +379,12 @@ dslx_test = rule(
             )
         ```
     """,
-    implementation = _dslx_test_impl,
+    implementation = _xls_dslx_test_impl,
     attrs = dicts.add(
-        _dslx_common_attrs.items(),
-        _dslx_test_attrs.items(),
-        dslx_test_common_attrs.items(),
-        dslx_exec_attrs.items(),
+        _xls_dslx_common_attrs.items(),
+        _xls_dslx_test_attrs.items(),
+        xls_dslx_test_common_attrs.items(),
+        xls_dslx_exec_attrs.items(),
     ),
     test = True,
 )

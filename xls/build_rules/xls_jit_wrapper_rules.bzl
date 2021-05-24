@@ -17,18 +17,18 @@ This module contains jit-wrapper-related build rules for XLS.
 """
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
-load("//xls/build_rules:xls_ir_rules.bzl", "ir_common_attrs")
+load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
 
-IRToJitWrapperInfo = provider(
+JitWrapperInfo = provider(
     doc = "A provider containing JIT Wrapper file information for the " +
-          "target. It is created and returned by the ir_to_jit_wrapper rule.",
+          "target. It is created and returned by the xls_ir_jit_wrapper rule.",
     fields = {
         "source_file": "File: The source file.",
         "header_file": "File: The header file.",
     },
 )
 
-_ir_to_jit_wrapper_attrs = {
+_xls_ir_jit_wrapper_attrs = {
     "jit_wrapper_args": attr.string_dict(
         doc = "Arguments of the JIT wrapper tool.",
     ),
@@ -38,7 +38,7 @@ _ir_to_jit_wrapper_attrs = {
     "header_file": attr.output(
         doc = "The generated header file.",
     ),
-    "_ir_to_jit_wrapper_tool": attr.label(
+    "_jit_wrapper_tool": attr.label(
         doc = "The target of the JIT wrapper executable.",
         default = Label("//xls/jit:jit_wrapper_generator_main"),
         allow_single_file = True,
@@ -47,8 +47,8 @@ _ir_to_jit_wrapper_attrs = {
     ),
 }
 
-def _ir_to_jit_wrapper_impl(ctx):
-    """The implementation of the 'ir_to_jit_wrapper' rule.
+def _xls_ir_jit_wrapper_impl(ctx):
+    """The implementation of the 'xls_ir_jit_wrapper' rule.
 
     Execute the JIT wrapper tool on the IR file.
 
@@ -56,7 +56,7 @@ def _ir_to_jit_wrapper_impl(ctx):
       ctx: The current rule's context object.
 
     Returns:
-      IRToJitWrapperInfo provider
+      JitWrapperInfo provider
       DefaultInfo provider
     """
 
@@ -97,15 +97,15 @@ def _ir_to_jit_wrapper_impl(ctx):
     my_generated_files = [cc_file, h_file]
     ctx.actions.run(
         outputs = my_generated_files,
-        tools = [ctx.executable._ir_to_jit_wrapper_tool],
-        inputs = [src, ctx.executable._ir_to_jit_wrapper_tool],
+        tools = [ctx.executable._jit_wrapper_tool],
+        inputs = [src, ctx.executable._jit_wrapper_tool],
         arguments = [jit_wrapper_flags],
-        executable = ctx.executable._ir_to_jit_wrapper_tool.path,
+        executable = ctx.executable._jit_wrapper_tool.path,
         mnemonic = "IRJITWrapper",
         progress_message = "Building JIT wrapper for source file: %s" % (src.path),
     )
     return [
-        IRToJitWrapperInfo(
+        JitWrapperInfo(
             source_file = cc_file,
             header_file = h_file,
         ),
@@ -114,7 +114,7 @@ def _ir_to_jit_wrapper_impl(ctx):
         ),
     ]
 
-ir_to_jit_wrapper = rule(
+xls_ir_jit_wrapper = rule(
     doc = """
     A build rule that generates the sources for JIT invocation wrappers.
 
@@ -123,49 +123,50 @@ ir_to_jit_wrapper = rule(
          1) A file as the source.
 
         ```
-            ir_to_jit_wrapper(
+            xls_ir_jit_wrapper(
                 name = "a_jit_wrapper",
                 src = "a.ir",
             )
         ```
 
-        2) An ir_opt target as the source.
+        2) An xls_ir_opt_ir target as the source.
 
         ```
-            ir_opt(
+            xls_ir_opt_ir(
                 name = "a",
                 src = "a.x",
             )
 
 
-            ir_to_jit_wrapper(
+            xls_ir_jit_wrapper(
                 name = "a_jit_wrapper",
                 src = ":a",
             )
         ```
     """,
-    implementation = _ir_to_jit_wrapper_impl,
+    implementation = _xls_ir_jit_wrapper_impl,
     attrs = dicts.add(
-        ir_common_attrs,
-        _ir_to_jit_wrapper_attrs,
+        xls_ir_common_attrs,
+        _xls_ir_jit_wrapper_attrs,
     ),
 )
 
-def cc_ir_to_jit_wrapper(
+def cc_xls_ir_jit_wrapper(
         name,
         src = None,
         jit_wrapper_args = None,
         **kwargs):
-    """Instantiates ir_to_jit_wrapper and a cc_library target with the files.
+    """Instantiates xls_ir_jit_wrapper and a cc_library target with the files.
 
     The macro generates sources files (.cc and .h) using the
-    ir_to_jit_wrapper rule. The source files are the input to a cc_library
+    xls_ir_jit_wrapper rule. The source files are the input to a cc_library
     target with the same name as this macro.
 
     Args:
       name: The name of the cc_library target.
       src: The path to the IR file.
       jit_wrapper_args: Arguments of the JIT wrapper tool.
+      **kwargs: Additional arguments.
     """
     if jit_wrapper_args != None and type(jit_wrapper_args) != type({}):
         fail("JIT Wrapper arguments must be a dictionary.")
@@ -178,8 +179,8 @@ def cc_ir_to_jit_wrapper(
         _jit_wrapper_args = dict(
             jit_wrapper_args.items() + _jit_wrapper_args.items(),
         )
-    ir_to_jit_wrapper(
-        name = "__" + name + "_ir_to_jit_wrapper",
+    xls_ir_jit_wrapper(
+        name = "__" + name + "_xls_ir_jit_wrapper",
         src = src,
         jit_wrapper_args = _jit_wrapper_args,
         source_file = name + ".cc",

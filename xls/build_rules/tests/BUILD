@@ -19,19 +19,19 @@ load(
 )
 load(
     "//xls/build_rules:xls_build_defs.bzl",
-    "cc_ir_to_jit_wrapper",
-    "dslx_library",
-    "dslx_to_codegen",
-    "dslx_to_ir",
-    "dslx_to_ir_opt",
-    "dslx_to_ir_opt_test",
-    "ir_benchmark",
-    "ir_equivalence_test",
-    "ir_eval_test",
-    "ir_opt",
-    "ir_to_codegen",
-    "ir_to_jit_wrapper",
-    dslx_ng_test = "dslx_test",
+    "cc_xls_ir_jit_wrapper",
+    "xls_benchmark_ir",
+    "xls_dslx_ir",
+    "xls_dslx_library",
+    "xls_dslx_opt_ir",
+    "xls_dslx_opt_ir_test",
+    "xls_dslx_test",
+    "xls_dslx_verilog",
+    "xls_eval_ir_test",
+    "xls_ir_equivalence_test",
+    "xls_ir_jit_wrapper",
+    "xls_ir_opt_ir",
+    "xls_ir_verilog",
 )
 
 package(
@@ -98,15 +98,15 @@ sh_test(
     data = [":add_one_combinational_rtl.v"],
 )
 
-dslx_library(
+xls_dslx_library(
     name = "a",
     srcs = [
         "a.x",
     ],
 )
 
-# dslx_library target depends on dslx_library target 'a'.
-dslx_library(
+# xls_dslx_library target depends on xls_dslx_library target 'a'.
+xls_dslx_library(
     name = "b",
     srcs = [
         "b.x",
@@ -116,7 +116,7 @@ dslx_library(
     ],
 )
 
-dslx_library(
+xls_dslx_library(
     name = "c",
     srcs = [
         "c.x",
@@ -126,8 +126,8 @@ dslx_library(
     ],
 )
 
-# dslx_library target grouping DSLX files.
-dslx_library(
+# xls_dslx_library target grouping DSLX files.
+xls_dslx_library(
     name = "files_123",
     srcs = [
         "file_1.x",
@@ -136,15 +136,15 @@ dslx_library(
     ],
 )
 
-dslx_library(
+xls_dslx_library(
     name = "file_4",
     srcs = [
         "file_4.x",
     ],
 )
 
-# dslx_library target depends on dslx_library target 'file_4'.
-dslx_library(
+# xls_dslx_library target depends on xls_dslx_library target 'file_4'.
+xls_dslx_library(
     name = "file_5",
     srcs = [
         "file_5.x",
@@ -154,16 +154,14 @@ dslx_library(
     ],
 )
 
-# dslx_test with no dependencies.
-# TODO(vmirian) 04-13-21 after merge rename to dslx_test
-dslx_ng_test(
+# xls_dslx_test with no dependencies.
+xls_dslx_test(
     name = "a_test",
     src = "a.x",
 )
 
-# dslx_test with a dependency.
-# TODO(vmirian) 04-13-21 after merge rename to dslx_test
-dslx_ng_test(
+# xls_dslx_test with a dependency.
+xls_dslx_test(
     name = "d_test",
     src = "d.x",
     deps = [
@@ -171,81 +169,81 @@ dslx_ng_test(
     ],
 )
 
-# dslx_to_ir target depending on dslx_library target 'c'.
-dslx_to_ir(
-    name = "d_dslx_to_ir",
+# xls_dslx_ir target depending on xls_dslx_library target 'c'.
+xls_dslx_ir(
+    name = "d_ir",
     src = "d.x",
     deps = [
         ":c",
     ],
 )
 
-# dslx_to_ir target with an entry defined.
-dslx_to_ir(
-    name = "a_dslx_to_ir",
+# xls_dslx_ir target with an entry defined.
+xls_dslx_ir(
+    name = "a_ir",
     src = "a.x",
     ir_conv_args = {
         "entry": "a",
     },
 )
 
-# ir_opt target with an entry defined.
-ir_opt(
-    name = "a_ir_opt",
-    src = "a_dslx_to_ir",
-    ir_opt_args = {
+# xls_ir_opt_ir target with an entry defined.
+xls_ir_opt_ir(
+    name = "a_opt_ir",
+    src = "a_ir",
+    opt_ir_args = {
         "entry": "__a__a",
     },
 )
 
-# ir_eval_test target with targets as the sources.
-ir_equivalence_test(
+# xls_eval_ir_test target with targets as the sources.
+xls_ir_equivalence_test(
     name = "a_equivalence_test",
     ir_equivalence_args = {
         "function": "__a__a",
     },
-    src_0 = ":a_dslx_to_ir",
-    src_1 = ":a_ir_opt",
+    src_0 = ":a_ir",
+    src_1 = ":a_opt_ir",
 )
 
-# ir_eval_test target with a target as a source.
-ir_eval_test(
+# xls_eval_ir_test target with a target as a source.
+xls_eval_ir_test(
     name = "a_eval_test",
-    src = ":a_dslx_to_ir",
+    src = ":a_ir",
 )
 
-# ir_benchmark target with a target as a source.
-ir_benchmark(
+# xls_benchmark_ir target with a target as a source.
+xls_benchmark_ir(
     name = "a_benchmark",
-    src = ":a_dslx_to_ir",
-    benchmark_args = {
+    src = ":a_ir",
+    benchmark_ir_args = {
         "entry": "__a__a",
     },
 )
 
-# ir_to_codegen target with a target as a source.
-ir_to_codegen(
-    name = "a_ir_to_codegen",
-    src = ":a_dslx_to_ir",
+# xls_ir_verilog target with a target as a source.
+xls_ir_verilog(
+    name = "a_verilog",
+    src = ":a_ir",
     codegen_args = {
         "pipeline_stages": "1",
     },
 )
 
-dslx_to_ir_opt(
-    name = "file_5_ir_opt",
+xls_dslx_opt_ir(
+    name = "file_5_opt_ir",
     src = "file_5.x",
     deps = [
         ":file_4",
     ],
 )
 
-dslx_to_ir_opt_test(
-    name = "file_5_ir_opt_test",
-    dep = ":file_5_ir_opt",
+xls_dslx_opt_ir_test(
+    name = "file_5_opt_ir_test",
+    dep = ":file_5_opt_ir",
 )
 
-dslx_to_codegen(
+xls_dslx_verilog(
     name = "e_verilog",
     src = "e.x",
     codegen_args = {
@@ -253,28 +251,28 @@ dslx_to_codegen(
     },
 )
 
-# dslx_to_ir target to test JIT wrapper rules
-dslx_to_ir(
-    name = "jit_test_dslx_to_ir",
+# xls_dslx_ir target to test JIT wrapper rules
+xls_dslx_ir(
+    name = "jit_test_dslx_ir",
     src = "file_for_ir_to_jit_wrapper_test.x",
 )
 
-ir_to_jit_wrapper(
+xls_ir_jit_wrapper(
     name = "jit_test_jit_wrapper",
-    src = ":jit_test_dslx_to_ir",
+    src = ":jit_test_dslx_ir",
 )
 
-cc_ir_to_jit_wrapper(
+cc_xls_ir_jit_wrapper(
     name = "jit_test_jit_wrapper_cc",
-    src = ":jit_test_dslx_to_ir",
+    src = ":jit_test_dslx_ir",
 )
 
-dslx_library(
+xls_dslx_library(
     name = "generated_dslx",
     srcs = ["generated.x"],
 )
 
-dslx_to_ir(
+xls_dslx_ir(
     name = "with_dep_test",
     src = "importer.x",
     deps = [
@@ -282,7 +280,7 @@ dslx_to_ir(
     ],
 )
 
-dslx_to_ir(
+xls_dslx_ir(
     name = "as_input_test",
     src = "generated.x",
 )

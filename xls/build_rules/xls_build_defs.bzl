@@ -21,48 +21,48 @@ exposed to the user. This module is created for convenience.
 
 load(
     "//xls/build_rules:xls_dslx_rules.bzl",
-    _dslx_library = "dslx_library",
-    _dslx_test = "dslx_test",
+    _xls_dslx_library = "xls_dslx_library",
+    _xls_dslx_test = "xls_dslx_test",
 )
 load(
     "//xls/build_rules:xls_ir_rules.bzl",
-    _dslx_to_ir = "dslx_to_ir",
     _get_mangled_ir_symbol = "get_mangled_ir_symbol",
-    _ir_benchmark = "ir_benchmark",
-    _ir_equivalence_test = "ir_equivalence_test",
-    _ir_eval_test = "ir_eval_test",
-    _ir_opt = "ir_opt",
+    _xls_benchmark_ir = "xls_benchmark_ir",
+    _xls_dslx_ir = "xls_dslx_ir",
+    _xls_eval_ir_test = "xls_eval_ir_test",
+    _xls_ir_equivalence_test = "xls_ir_equivalence_test",
+    _xls_ir_opt_ir = "xls_ir_opt_ir",
 )
 load(
     "//xls/build_rules:xls_codegen_rules.bzl",
-    _ir_to_codegen = "ir_to_codegen",
+    _xls_ir_verilog = "xls_ir_verilog",
 )
 load(
     "//xls/build_rules:xls_jit_wrapper_rules.bzl",
-    _cc_ir_to_jit_wrapper = "cc_ir_to_jit_wrapper",
-    _ir_to_jit_wrapper = "ir_to_jit_wrapper",
+    _cc_xls_ir_jit_wrapper = "cc_xls_ir_jit_wrapper",
+    _xls_ir_jit_wrapper = "xls_ir_jit_wrapper",
 )
 load(
     "//xls/build_rules:xls_rules.bzl",
-    _dslx_to_codegen = "dslx_to_codegen",
-    _dslx_to_ir_opt = "dslx_to_ir_opt",
-    _dslx_to_ir_opt_test = "dslx_to_ir_opt_test",
+    _xls_dslx_opt_ir = "xls_dslx_opt_ir",
+    _xls_dslx_opt_ir_test = "xls_dslx_opt_ir_test",
+    _xls_dslx_verilog = "xls_dslx_verilog",
 )
 
-dslx_library = _dslx_library
-dslx_test = _dslx_test
+xls_dslx_library = _xls_dslx_library
+xls_dslx_test = _xls_dslx_test
 
-dslx_to_ir = _dslx_to_ir
+xls_dslx_ir = _xls_dslx_ir
 get_mangled_ir_symbol = _get_mangled_ir_symbol
-ir_benchmark = _ir_benchmark
-ir_equivalence_test = _ir_equivalence_test
-ir_eval_test = _ir_eval_test
-ir_opt = _ir_opt
-ir_to_codegen = _ir_to_codegen
+xls_benchmark_ir = _xls_benchmark_ir
+xls_ir_equivalence_test = _xls_ir_equivalence_test
+xls_eval_ir_test = _xls_eval_ir_test
+xls_ir_opt_ir = _xls_ir_opt_ir
+xls_ir_verilog = _xls_ir_verilog
 
-cc_ir_to_jit_wrapper = _cc_ir_to_jit_wrapper
-ir_to_jit_wrapper = _ir_to_jit_wrapper
+cc_xls_ir_jit_wrapper = _cc_xls_ir_jit_wrapper
+xls_ir_jit_wrapper = _xls_ir_jit_wrapper
 
-dslx_to_codegen = _dslx_to_codegen
-dslx_to_ir_opt = _dslx_to_ir_opt
-dslx_to_ir_opt_test = _dslx_to_ir_opt_test
+xls_dslx_verilog = _xls_dslx_verilog
+xls_dslx_opt_ir = _xls_dslx_opt_ir
+xls_dslx_opt_ir_test = _xls_dslx_opt_ir_test
