@@ -83,8 +83,9 @@ absl::Status RealMain(absl::string_view entry_module_path,
       .seed = seed,
   };
   XLS_ASSIGN_OR_RETURN(
-      *printed_error,
+      TestResult test_result,
       ParseAndTest(program, module_name, entry_module_path, options));
+  *printed_error = test_result == TestResult::kSomeFailed;
   return absl::OkStatus();
 }
 

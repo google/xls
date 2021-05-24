@@ -39,9 +39,9 @@ fn test_simple() { unit() }
   RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
   options.run_comparator = &jit_comparator;
-  absl::StatusOr<bool> result =
+  absl::StatusOr<TestResult> result =
       ParseAndTest(kProgram, kModuleName, kFilename, options);
-  EXPECT_THAT(result, status_testing::IsOkAndHolds(false));
+  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kAllPassed));
 
   EXPECT_EQ(jit_comparator.jit_cache_.size(), 1);
   EXPECT_EQ(jit_comparator.jit_cache_.begin()->first, "__test__unit");
@@ -60,9 +60,9 @@ fn trivial(x: u5) -> bool { id(true) }
   ParseAndTestOptions options;
   options.run_comparator = &jit_comparator;
   options.seed = int64_t{2};
-  absl::StatusOr<bool> result =
+  absl::StatusOr<TestResult> result =
       ParseAndTest(kProgram, kModuleName, kFilename, options);
-  EXPECT_THAT(result, status_testing::IsOkAndHolds(false));
+  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kAllPassed));
 
   ASSERT_EQ(jit_comparator.jit_cache_.size(), 1);
   EXPECT_EQ(jit_comparator.jit_cache_.begin()->first, "__test__trivial");
@@ -80,9 +80,9 @@ fn trivial(x: u5) -> bool { id(true) }
   RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
   options.run_comparator = &jit_comparator;
-  absl::StatusOr<bool> result =
+  absl::StatusOr<TestResult> result =
       ParseAndTest(kProgram, kModuleName, kFilename, options);
-  EXPECT_THAT(result, status_testing::IsOkAndHolds(false));
+  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kAllPassed));
 
   ASSERT_EQ(jit_comparator.jit_cache_.size(), 1);
   EXPECT_EQ(jit_comparator.jit_cache_.begin()->first, "__test__trivial");
@@ -100,9 +100,9 @@ fn trivial(x: u5) -> bool { false }
   ParseAndTestOptions options;
   options.run_comparator = &jit_comparator;
   options.seed = int64_t{42};
-  absl::StatusOr<bool> result = ParseAndTest(
+  absl::StatusOr<TestResult> result = ParseAndTest(
       kProgram, kModuleName, std::string(temp_file.path()), options);
-  EXPECT_THAT(result, status_testing::IsOkAndHolds(true));
+  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kSomeFailed));
 }
 
 // Verifies that the QuickCheck mechanism can find counter-examples for a simple

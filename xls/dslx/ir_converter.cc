@@ -51,7 +51,7 @@ struct PackageData {
 absl::Status ConversionErrorStatus(const absl::optional<Span>& span,
                                    absl::string_view message) {
   return absl::InternalError(
-      absl::StrFormat("ConversionErrorStatus: %s %s",
+      absl::StrFormat("ConversionError: %s %s",
                       span ? span->ToString() : "<no span>", message));
 }
 
@@ -1082,10 +1082,10 @@ absl::Status FunctionConverter::HandleCast(Cast* node) {
 absl::Status FunctionConverter::HandleMatch(Match* node) {
   if (node->arms().empty() ||
       !node->arms().back()->patterns()[0]->IsIrrefutable()) {
-    return absl::UnimplementedError(absl::StrFormat(
-        "ConversionError: %s Only matches with trailing irrefutable patterns "
-        "are currently supported for IR conversion.",
-        node->span().ToString()));
+    return ConversionErrorStatus(
+        node->span(),
+        "Only matches with trailing irrefutable patterns (i.e. `_ => ...`) "
+        "are currently supported for IR conversion.");
   }
 
   XLS_RETURN_IF_ERROR(Visit(node->matched()));

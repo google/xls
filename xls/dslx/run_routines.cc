@@ -244,10 +244,10 @@ static absl::Status RunQuickChecksIfJitEnabled(
   return absl::OkStatus();
 }
 
-absl::StatusOr<bool> ParseAndTest(absl::string_view program,
-                                  absl::string_view module_name,
-                                  absl::string_view filename,
-                                  const ParseAndTestOptions& options) {
+absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
+                                        absl::string_view module_name,
+                                        absl::string_view filename,
+                                        const ParseAndTestOptions& options) {
   int64_t ran = 0;
   int64_t failed = 0;
   int64_t skipped = 0;
@@ -281,14 +281,14 @@ absl::StatusOr<bool> ParseAndTest(absl::string_view program,
       program, filename, module_name, &import_data, options.dslx_paths);
   if (!tm_or.ok()) {
     if (TryPrintError(tm_or.status())) {
-      return true;
+      return TestResult::kSomeFailed;
     }
     return tm_or.status();
   }
 
-  // If not executing tests and quickchecks, then return
+  // If not executing tests and quickchecks, then return vacuous success.
   if (!options.execute) {
-    return false;
+    return TestResult::kAllPassed;
   }
 
   Module* entry_module = tm_or.value().module;
@@ -298,10 +298,17 @@ absl::StatusOr<bool> ParseAndTest(absl::string_view program,
   std::unique_ptr<Package> ir_package;
   Interpreter::PostFnEvalHook post_fn_eval_hook;
   if (options.run_comparator != nullptr) {
-    XLS_ASSIGN_OR_RETURN(ir_package,
-                         ConvertModuleToPackage(entry_module, &import_data,
-                                                options.convert_options,
-                                                /*traverse_tests=*/true));
+    absl::StatusOr<std::unique_ptr<Package>> ir_package_or =
+        ConvertModuleToPackage(entry_module, &import_data,
+                               options.convert_options,
+                               /*traverse_tests=*/true);
+    if (!ir_package_or.ok()) {
+      if (TryPrintError(ir_package_or.status())) {
+        return TestResult::kSomeFailed;
+      }
+      return ir_package_or.status();
+    }
+    ir_package = std::move(ir_package_or).value();
     post_fn_eval_hook = [&ir_package, &import_data, &options](
                             Function* f, absl::Span<const InterpValue> args,
                             const SymbolicBindings* symbolic_bindings,
@@ -356,7 +363,7 @@ absl::StatusOr<bool> ParseAndTest(absl::string_view program,
         ir_package.get(), options.seed, handle_error));
   }
 
-  return failed != 0;
+  return failed == 0 ? TestResult::kAllPassed : TestResult::kSomeFailed;
 }
 
 }  // namespace xls::dslx

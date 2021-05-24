@@ -250,6 +250,11 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'FailureError: The program being interpreted failed! (u8:0, u8:0)',
         stderr)
 
+  def test_match_not_exhaustive(self):
+    stderr = self._run('xls/dslx/tests/errors/match_not_exhaustive.x')
+    self.assertIn('match_not_exhaustive.x:16:3-19:4', stderr)
+    self.assertIn('Only matches with trailing irrefutable patterns', stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

@@ -92,6 +92,11 @@ struct ParseAndTestOptions {
   ConvertOptions convert_options;
 };
 
+enum class TestResult {
+  kSomeFailed,
+  kAllPassed,
+};
+
 // Parses program and run all tests contained inside.
 //
 // Args:
@@ -103,10 +108,10 @@ struct ParseAndTestOptions {
 //
 // Returns:
 //   Whether any test failed (as a boolean).
-absl::StatusOr<bool> ParseAndTest(absl::string_view program,
-                                  absl::string_view module_name,
-                                  absl::string_view filename,
-                                  const ParseAndTestOptions& options);
+absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
+                                        absl::string_view module_name,
+                                        absl::string_view filename,
+                                        const ParseAndTestOptions& options);
 
 struct QuickCheckResults {
   std::vector<std::vector<Value>> arg_sets;
