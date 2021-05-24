@@ -38,14 +38,17 @@ absl::Status PrintPositionalError(
 
   int64_t line_count_each_side = error_context_line_count / 2;
   int64_t target_lineno = error_span.start().lineno();
+  int64_t limit_lineno = error_span.limit().lineno();
   int64_t low_lineno =
       std::max(target_lineno - line_count_each_side, int64_t{0});
   absl::Span<const absl::string_view> lines_before =
       absl::MakeSpan(lines).subspan(low_lineno, target_lineno - low_lineno);
   absl::string_view target_line = lines[error_span.start().lineno()];
-  // Note: since this is a limit there's a trailing +1.
+
+  int64_t limit_lineno_after = limit_lineno + line_count_each_side;
   absl::Span<const absl::string_view> lines_after =
-      absl::MakeSpan(lines).subspan(target_lineno + 1, line_count_each_side);
+      absl::MakeSpan(lines).subspan(target_lineno + 1,
+                                    limit_lineno_after - target_lineno);
 
   // Note: "color" is a tristate, nullopt means no fixed request.
   bool use_color;
@@ -66,12 +69,26 @@ absl::Status PrintPositionalError(
     color_reset = "\e[1;0m";
   }
 
-  auto emit_line = [&](int64_t lineno, absl::string_view line,
-                       bool is_culprit = false) {
-    // Note: humans generally thing line i=0 is "line 1".
-    absl::string_view sigil = is_culprit ? "*" : " ";
-    os << absl::StreamFormat("%s%s %04d:%s %s\n", yellow_color_leader, sigil,
-                             lineno + 1, color_reset, line);
+  bool is_multiline = error_span.limit().lineno() > error_span.start().lineno();
+
+  auto emit_line = [&](int64_t lineno, absl::string_view line) {
+    // When emitting multiline errors, we put a leading bar at the start of the
+    // line to show which are in the error range. When we're not doing multiline
+    // errors, this is just empty.
+    std::string multiline_bar;
+    if (is_multiline) {
+      absl::StrAppend(&multiline_bar, red_color_leader);
+      if (error_span.start().lineno() < lineno &&
+          lineno <= error_span.limit().lineno()) {
+        absl::StrAppend(&multiline_bar, " |");
+      } else {
+        absl::StrAppend(&multiline_bar, "  ");
+      }
+      absl::StrAppend(&multiline_bar, color_reset);
+    }
+
+    os << absl::StreamFormat("%s%04d:%s%s %s\n", yellow_color_leader,
+                             lineno + 1, multiline_bar, color_reset, line);
   };
 
   // Emit an indicator of what we're displaying.
@@ -84,20 +101,39 @@ absl::Status PrintPositionalError(
     emit_line(low_lineno + i, lines_before[i]);
   }
 
-  // Emit the culprit line.
-  emit_line(error_span.start().lineno(), target_line, /*is_culprit=*/true);
+  // Emit the first "culprit" line.
+  emit_line(error_span.start().lineno(), target_line);
 
   // Emit error indicator.
-  std::string squiggles(error_span.start().colno() + 6, '~');
-  int64_t width = std::max(
-      int64_t{1}, error_span.limit().colno() - error_span.start().colno() - 1);
-  std::string dashes(width - 1, '-');
-  os << absl::StreamFormat("%s  %s^%s^ %s%s\n", red_color_leader, squiggles,
-                           dashes, error_message, color_reset);
+  if (is_multiline) {
+    std::string spaces(absl::string_view("0000: |").size(), ' ');
+    std::string underscores(error_span.start().colno() + 1, '_');
+    os << absl::StreamFormat("%s%s%s^%s\n", red_color_leader, spaces,
+                             underscores, color_reset);
+  } else {
+    std::string squiggles(error_span.start().colno() + 6, '~');
+    int64_t width = std::max(int64_t{1}, error_span.limit().colno() -
+                                             error_span.start().colno() - 1);
+    std::string dashes(width - 1, '-');
+    os << absl::StreamFormat("%s%s^%s^ %s%s\n", red_color_leader, squiggles,
+                             dashes, error_message, color_reset);
+  }
 
-  // Emit the lines that come after.
+  // Emit the lines that come after. In a multiline error these will have
+  // leading bars.
   for (int64_t i = 0; i < lines_after.size(); ++i) {
-    emit_line(error_span.start().lineno() + 1 + i, lines_after[i]);
+    int64_t lineno = error_span.start().lineno() + 1 + i;
+    emit_line(lineno, lines_after[i]);
+
+    // For multiline errors we put an indicator at the "bottom" of the span to
+    // say what the error was after the whole relevant region of text has been
+    // displayed.
+    if (is_multiline && lineno == error_span.limit().lineno()) {
+      std::string spaces(absl::string_view("0000: ").size(), ' ');
+      std::string underscores(error_span.limit().colno(), '_');
+      os << absl::StreamFormat("%s%s|%s^ %s%s\n", red_color_leader, spaces,
+                               underscores, error_message, color_reset);
+    }
   }
 
   return absl::OkStatus();

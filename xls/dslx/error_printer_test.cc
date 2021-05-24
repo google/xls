@@ -44,15 +44,56 @@ line 7)",
                                      /*color=*/false,
                                      /*error_context_line_count=*/3));
   std::string output = ss.str();
+  // Note: we split lines and compare instead of doing a full string comparison
+  // because the leader is a tempfile path, seems a bit clearer than regex this
+  // way.
   std::vector<absl::string_view> output_lines = absl::StrSplit(output, '\n');
   ASSERT_EQ(output_lines.size(), 6);
   EXPECT_THAT(output_lines[0], testing::HasSubstr("some_file.x:6:1-6:5"));
-  EXPECT_EQ(output_lines[1], "  0005: line 5");
-  EXPECT_EQ(output_lines[2], "* 0006: line 6");
-  EXPECT_EQ(output_lines[3], "  ~~~~~~^--^ my error message");
-  EXPECT_EQ(output_lines[4], "  0007: line 7");
+  EXPECT_EQ(output_lines[1], "0005: line 5");
+  EXPECT_EQ(output_lines[2], "0006: line 6");
+  EXPECT_EQ(output_lines[3], "~~~~~~^--^ my error message");
+  EXPECT_EQ(output_lines[4], "0007: line 7");
   // Because of trailing newline after displaying line 7.
   EXPECT_EQ(output_lines[5], "");
+}
+
+TEST(PrintPositionalErrorTest, MultiLineErrorTest) {
+  XLS_ASSERT_OK_AND_ASSIGN(TempFile temp, TempFile::CreateWithContent(
+                                              R"(fn f(x: u32) -> u32 {
+  match x {
+    u32:42 => x
+  }
+})",
+                                              "some_file.x"));
+
+  const std::string filename = temp.path();
+  const Pos start_pos(filename, 1, 10);
+  // Note: colno 2 is where the character lives, but colno 3 is where the limit
+  // of the span is.
+  const Pos limit_pos(filename, 3, 3);
+  const Span error_span(start_pos, limit_pos);
+  std::stringstream ss;
+  XLS_ASSERT_OK(PrintPositionalError(error_span, "match not exhaustive", ss,
+                                     /*get_file_contents=*/nullptr,
+                                     /*color=*/false,
+                                     /*error_context_line_count=*/3));
+  std::string output = ss.str();
+  // Note: we split lines and compare instead of doing a full string comparison
+  // because the leader is a tempfile path, seems a bit clearer than regex this
+  // way.
+  std::vector<absl::string_view> output_lines = absl::StrSplit(output, '\n');
+  ASSERT_EQ(output_lines.size(), 9);
+  EXPECT_THAT(output_lines[0], testing::HasSubstr("some_file.x:2:11-4:4"));
+  EXPECT_EQ(output_lines[1], "0001:   fn f(x: u32) -> u32 {");
+  EXPECT_EQ(output_lines[2], "0002:     match x {");
+  EXPECT_EQ(output_lines[3], "       ___________^");
+  EXPECT_EQ(output_lines[4], "0003: |     u32:42 => x");
+  EXPECT_EQ(output_lines[5], "0004: |   }");
+  EXPECT_EQ(output_lines[6], "      |___^ match not exhaustive");
+  EXPECT_EQ(output_lines[7], "0005:   }");
+  // Because of trailing newline after displaying line 5.
+  EXPECT_EQ(output_lines[8], "");
 }
 
 }  // namespace
