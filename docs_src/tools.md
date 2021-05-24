@@ -145,3 +145,7 @@ to prove equivalence of transformed representations with their original version.
 Parses a cell library ".lib" file and extracts boolean formulas from it that
 determine the functionality of cells. This is useful for LEC of the XLS IR
 against the post-sythesis netlist.
+
+## [`dslx/highlight_main`](https://github.com/google/xls/tree/main/xls/dslx/highlight_main.cc)
+
+Performs terminal-based color code highlighting of a DSL file.

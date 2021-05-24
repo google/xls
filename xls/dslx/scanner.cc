@@ -47,8 +47,14 @@ std::string Token::ToString() const {
   if (kind() == TokenKind::kKeyword) {
     return KeywordToString(GetKeyword());
   }
+  if (kind() == TokenKind::kComment) {
+    return absl::StrCat("//", GetValue().value());
+  }
+  if (kind() == TokenKind::kCharacter) {
+    return absl::StrCat("'", GetValue().value(), "'");
+  }
   if (GetValue().has_value()) {
-    return *GetValue();
+    return GetValue().value();
   }
   return TokenKindToString(kind_);
 }
@@ -60,7 +66,7 @@ std::string Token::ToRepr() const {
   }
   if (GetValue().has_value()) {
     return absl::StrFormat("Token(%s, %s, \"%s\")", TokenKindToString(kind_),
-                           span_.ToRepr(), *GetValue());
+                           span_.ToRepr(), GetValue().value());
   }
   return absl::StrFormat("Token(%s, %s)", TokenKindToString(kind_),
                          span_.ToRepr());
@@ -95,8 +101,12 @@ bool Scanner::TryDropChar(char target) {
 
 absl::StatusOr<Token> Scanner::PopComment(const Pos& start_pos) {
   std::string chars;
-  while (!AtCharEof() && !TryDropChar('\n')) {
-    chars.append(1, PopChar());
+  while (!AtCharEof()) {
+    char c = PopChar();
+    chars.append(1, c);
+    if (c == '\n') {
+      break;
+    }
   }
   return Token(TokenKind::kComment, Span(start_pos, GetPos()), chars);
 }
@@ -342,15 +352,14 @@ std::string KeywordToString(Keyword keyword) {
   return absl::StrFormat("<invalid Keyword(%d)>", static_cast<int>(keyword));
 }
 
-absl::StatusOr<Keyword> KeywordFromString(absl::string_view s) {
+absl::optional<Keyword> KeywordFromString(absl::string_view s) {
 #define MAKE_CASE(__enum, unused, __str, ...) \
   if (s == __str) {                           \
     return Keyword::__enum;                   \
   }
   XLS_DSLX_KEYWORDS(MAKE_CASE)
 #undef MAKE_CASE
-  return absl::InvalidArgumentError(
-      absl::StrFormat("Not a valid keyword: \"%s\"", s));
+  return absl::nullopt;
 }
 
 std::string TokenKindToString(TokenKind kind) {

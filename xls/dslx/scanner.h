@@ -96,7 +96,7 @@ enum class Keyword { XLS_DSLX_KEYWORDS(XLS_FIRST_COMMA) };
 
 std::string KeywordToString(Keyword keyword);
 
-absl::StatusOr<Keyword> KeywordFromString(absl::string_view s);
+absl::optional<Keyword> KeywordFromString(absl::string_view s);
 
 // Returns a singleton set of type keywords.
 const absl::flat_hash_set<Keyword>& GetTypeKeywords();

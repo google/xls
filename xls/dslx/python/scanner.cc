@@ -46,24 +46,6 @@ std::function<ReturnT(Scanner*, Args...)> ScanErrorWrap(
   };
 }
 
-std::unordered_map<Keyword, std::tuple<bool, int64_t>>
-GetTypeKeywordsToSignednessAndBits() {
-  std::unordered_map<Keyword, std::tuple<bool, int64_t>> result;
-#define ADD(__enum, __pyname, __str, __signedness, __bits) \
-  result.insert({Keyword::__enum, {__signedness, __bits}});
-  XLS_DSLX_BUILTIN_TYPE_EACH(ADD)
-#undef ADD
-  return result;
-}
-
-std::unordered_set<std::string> GetTypeKeywordStrings() {
-  std::unordered_set<std::string> result;
-#define ADD(__enum, __pyname, __str, __signedness, __bits) result.insert(__str);
-  XLS_DSLX_BUILTIN_TYPE_EACH(ADD)
-#undef ADD
-  return result;
-}
-
 PYBIND11_MODULE(scanner, m) {
   ImportStatusModule();
 
@@ -84,14 +66,6 @@ PYBIND11_MODULE(scanner, m) {
           .def_property_readonly(
               "value", [](TokenKind kind) { return TokenKindToString(kind); });
 
-  m.attr("TYPE_KEYWORDS") = std::unordered_set<Keyword>(
-      GetTypeKeywords().begin(), GetTypeKeywords().end());
-  m.attr("TYPE_KEYWORDS_TO_SIGNEDNESS_AND_BITS") =
-      GetTypeKeywordsToSignednessAndBits();
-  m.attr("TYPE_KEYWORD_STRINGS") = GetTypeKeywordStrings();
-
-  m.def("KeywordFromString",
-        [](absl::string_view s) { return KeywordFromString(s); });
   m.def("TokenKindFromString",
         [](absl::string_view s) { return TokenKindFromString(s); });
 

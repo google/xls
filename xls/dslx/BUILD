@@ -14,7 +14,7 @@
 
 # Frontend syntax.
 
-# pytype binary, test, library
+# pytype test and library
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
@@ -131,16 +131,30 @@ cc_test(
     ],
 )
 
-py_binary(
+cc_binary(
     name = "highlight_main",
-    srcs = ["highlight_main.py"],
+    srcs = ["highlight_main.cc"],
+    deps = [
+        ":dslx_builtins",
+        ":scanner",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+py_test(
+    name = "highlight_main_test",
+    srcs = ["highlight_main_test.py"],
+    data = [
+        ":highlight_main",
+        "//xls/examples:sha256_source",
+    ],
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        requirement("termcolor"),
-        "//xls/dslx/python:scanner",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
