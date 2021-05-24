@@ -113,7 +113,7 @@ absl::StatusOr<InterpValue> EvaluateString(String* expr,
                                            ConcreteType* type_context,
                                            AbstractInterpreter* interp) {
   std::vector<InterpValue> elements;
-  for (const char letter : expr->text()) {
+  for (const unsigned char letter : expr->text()) {
     elements.push_back(InterpValue::MakeUBits(8, letter));
   }
   return InterpValue::MakeArray(elements);

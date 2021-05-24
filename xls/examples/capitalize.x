@@ -77,6 +77,14 @@ fn sponge_cap_test() {
   ()
 }
 
+#![test]
+fn escape_sequences_test() {
+  let _ = assert_eq(
+      "H\t\tE\tLLO\nFR\u{beef}IENDS",
+      capitalize("H\t\te\tLlO\nfR\u{beef}iEnDs"));
+  ()
+}
+
 // Simple main driver to test IR conversion.
 fn main() -> u8[37] {
     capitalize("engage hardware-accelerated caps lock")

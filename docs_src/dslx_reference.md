@@ -648,6 +648,30 @@ fn test_make_array() {
 TODO(meheff): Explain arrays and the intricacies of our bits type interpretation
 and how it affects arrays of bits etc.
 
+#### Character String Constants
+
+Character strings are a special case of array types, being implicitly-sized
+arrays of u8 elements. String constants can be used just as traditional arrays:
+
+```dslx
+fn add_one<N: u32>(input: u8[N]) -> u8[N] {
+  for (i, result) : (u32, u8[N]) in range(u32:0, N) {
+    update(result, i, result[i] + u8:1)
+  }(input)
+}
+
+#![test]
+fn test_main() {
+  assert_eq("bcdef", add_one("abcde"))
+}
+```
+
+DSLX string constants support the
+[full Rust set of escape sequences](https://doc.rust-lang.org/reference/tokens.html) -
+for multi-byte sequences, i.e., Unicode escapes, the resulting byte sequence
+will be in printed order. In other words, the sequence `\u{89ab}` will result in
+an array with the (binary) values `1000 1001 1010 1011` in sequence.
+
 ### Type Aliases
 
 DLSX supports the definition of type aliases.

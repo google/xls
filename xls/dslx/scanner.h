@@ -364,6 +364,11 @@ class Scanner {
   // If none of whitespace, comment, or EOF is observed, returns nullopt.
   absl::StatusOr<absl::optional<Token>> TryPopWhitespaceOrComment();
 
+  // Reads in the next "character" (or escape sequence) in the stream. A
+  // string is returned instead of a char, since multi-byte Unicode characters
+  // are valid constituents of a string.
+  absl::StatusOr<std::string> ProcessNextStringChar();
+
   std::string filename_;
   std::string text_;
   bool include_whitespace_and_comments_;

@@ -16,7 +16,9 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
+#include "xls/common/logging/logging.h"
 
 namespace xls::dslx {
 
@@ -108,37 +110,132 @@ absl::StatusOr<Token> Scanner::PopWhitespace(const Pos& start_pos) {
   return Token(TokenKind::kWhitespace, Span(start_pos, GetPos()), chars);
 }
 
-absl::StatusOr<std::string> Scanner::ScanUntilDoubleQuote() {
-  auto at_double_quote = [](char current, bool last_was_backslash) {
-    if (last_was_backslash) {
-      return false;
-    }
-    return current == '"';
-  };
+// This is too simple to need to return absl::Status. Just never call it
+// with a non-hex character.
+int HexCharToInt(char hex_char) {
+  if (std::isdigit(hex_char)) {
+    return hex_char - '0';
+  }
+  if ('a' <= hex_char && hex_char <= 'f') {
+    return hex_char - 'a' + 10;
+  }
+  if ('A' <= hex_char && hex_char <= 'F') {
+    return hex_char - 'A' + 10;
+  }
+  XLS_LOG(FATAL) << "Non-hex character received: " << hex_char;
+}
 
-  bool last_was_backslash = false;
-  char current = PeekChar();
-  std::string value;
-  while (!AtCharEof() && !at_double_quote(current, last_was_backslash)) {
-    current = PopChar();
-    // If the last one was a backslash but we're still processing, then that
-    // backslash wasn't escaping a quote, so we need to keep it.
-    if (last_was_backslash && current != '"') {
-      value.push_back('\\');
-    }
-
-    last_was_backslash = false;
-    if (current == '\\') {
-      last_was_backslash = true;
-    } else {
-      value.push_back(current);
-    }
-
-    current = PeekChar();
+// Returns a string with the next "character" in the string. A string is
+// returned instead of a "char", since multi-byte Unicode characters are valid
+// constituents of a string.
+absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
+  char current = PopChar();
+  if (current != '\\' || AtCharEof()) {
+    return std::string(1, current);
   }
 
-  if (current == '"') {
-    return value;
+  // All codes given in hex for consistency.
+  char next = PeekChar();
+  if (next == 'n') {
+    DropChar();
+    return std::string(1, '\x0a');  // Newline.
+  } else if (next == 'r') {
+    DropChar();
+    return std::string(1, '\x0d');  // Carriage return.
+  } else if (next == 't') {
+    DropChar();
+    return std::string(1, '\x09');  // Tab.
+  } else if (next == '\\') {
+    DropChar();
+    return std::string(1, '\x5c');  // Backslash.
+  } else if (next == '0') {
+    DropChar();
+    return std::string(1, '\x00');  // Null.
+  } else if (next == '\'') {
+    DropChar();
+    return std::string(1, '\x27');  // Single quote/apostraphe.
+  } else if (next == '"') {
+    DropChar();
+    return std::string(1, '\x22');
+  } else if (next == 'x') {
+    // Hex character code. Now read [exactly] two more digits.
+    DropChar();
+    uint8_t code = 0;
+    for (int i = 0; i < 2; i++) {
+      next = PeekChar();
+      if (!absl::ascii_isxdigit(next)) {
+        return absl::InvalidArgumentError(
+            "Only hex digits are allowed within a 7-bit character code.");
+      }
+      code = (code << 4) | HexCharToInt(next);
+      DropChar();
+    }
+
+    std::string result(1, code & 255);
+    return result;
+  } else if (next == 'u') {
+    // Unicode character code.
+    DropChar();
+    if (PeekChar() != '{') {
+      return absl::InvalidArgumentError(
+          "Unicode character code escape sequence start (\\u) "
+          "must be followed by a character code, such as \"{...}\".");
+    }
+    DropChar();
+
+    // At most 6 hex digits allowed.
+    uint32_t code = 0;
+    for (int i = 0; i < 3; i++) {
+      uint8_t byte = 0;
+      for (int j = 0; j < 2; j++) {
+        next = PeekChar();
+        if (absl::ascii_isxdigit(next)) {
+          byte = byte << 4 | HexCharToInt(next);
+          DropChar();
+        } else if (next == '}') {
+          break;
+        } else {
+          return absl::InvalidArgumentError(
+              "Only hex digits are allowed within a Unicode character code.");
+        }
+      }
+      if (byte & 0xF0) {
+        code = code << 8 | byte;
+      } else {
+        code = code << 4 | byte;
+      }
+    }
+
+    if (PeekChar() != '}') {
+      return absl::InvalidArgumentError(
+          "Unicode character code escape sequence must terminate "
+          "(after 6 digits at most) with a '}'");
+    }
+    DropChar();
+
+    // Now convert the up-to-six digit number to string.
+    std::string result;
+    for (int i = 0; i < 3; i++) {
+      int c = code & 255;
+      result.push_back(static_cast<uint8_t>(c));
+      code >>= 8;
+    }
+    return result;
+  } else {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Unrecognized escape sequence: \\", std::string(1, next)));
+  }
+}
+
+absl::StatusOr<std::string> Scanner::ScanUntilDoubleQuote() {
+  std::string result;
+  while (!AtCharEof() && PeekChar() != '\"') {
+    XLS_ASSIGN_OR_RETURN(std::string next, ProcessNextStringChar());
+    absl::StrAppend(&result, next);
+  }
+
+  if (PeekChar() == '"') {
+    return result;
   }
 
   return absl::InvalidArgumentError(
