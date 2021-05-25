@@ -41,8 +41,43 @@ OptIRInfo = provider(
     fields = {
         "input_ir_file": "File: The IR file input file.",
         "opt_ir_file": "File: The IR optimized file.",
+        "opt_ir_args": "Dictionary: The arguments for the IR optimizer.",
     },
 )
+
+def _add_entry_attr(
+        ctx,
+        arguments,
+        argument_name,
+        universal_entry_value = None):
+    """Using a priority scheme, adds the entry point to the 'arguments'.
+
+    The entry point value can come from three location:
+        local - argument list (highest priority)
+        global - the rule's context
+        universal - outside the rule's context (lowest priority)
+
+    The entry point value is added to the 'arguments' using the priority scheme.
+
+    Args:
+      ctx: The current rule's context object.
+      arguments: The arguments dictionary.
+      argument_name: The argument name to lookup in the arguments dictionary.
+      universal_entry_value: The 'universal' entry point value. The value is
+        outside the rule's context.
+
+    Returns:
+      If the entry value is present in one of the locations, a copy of the
+      argument dictionary with the entry point value added. Otherwise, return
+      the argument dictionary untouched.
+    """
+    my_arguments = dict(arguments)
+    if argument_name not in my_arguments:
+        if hasattr(ctx.attr, "entry") and ctx.attr.entry != "":
+            my_arguments[argument_name] = ctx.attr.entry
+        elif universal_entry_value:
+            my_arguments[argument_name] = universal_entry_value
+    return my_arguments
 
 def _convert_to_ir(ctx, src):
     """Converts a DSLX source file to an IR file.
@@ -56,16 +91,16 @@ def _convert_to_ir(ctx, src):
     Returns:
       A File referencing the IR file.
     """
-    _ir_conv_args = ctx.attr.ir_conv_args
     IR_CONV_FLAGS = (
         "entry",
         "dslx_path",
     )
 
-    ir_conv_args = dict(_ir_conv_args)
+    ir_conv_args = dict(ctx.attr.ir_conv_args)
     ir_conv_args["dslx_path"] = (
         ir_conv_args.get("dslx_path", "") + ":" + ctx.genfiles_dir.path
     )
+
     my_args = get_args(ir_conv_args, IR_CONV_FLAGS)
 
     required_files = ctx.files._dslx_std_lib + [src]
@@ -131,7 +166,7 @@ def _optimize_ir(ctx, src):
     )
     return opt_ir_file
 
-def get_ir_equivalence_test_cmd(ctx, src_0, src_1):
+def get_ir_equivalence_test_cmd(ctx, src_0, src_1, entry = None):
     """
     Returns the runfiles and command that executes in the ir_equivalence_test rule.
 
@@ -139,15 +174,30 @@ def get_ir_equivalence_test_cmd(ctx, src_0, src_1):
       ctx: The current rule's context object.
       src_0: A file for the test.
       src_1: A file for the test.
+      entry: The 'universal' entry: the value from outside the rule's context.
+        The value can be overwritten by the entry attribute of the rule's
+        context. Typically, the value is from another rule. For example, assume
+        this function is used within rule B, where rule B depends on rule A, the
+        value is from rule A
 
     Returns:
       A tuple with two elements. The first element is a list of runfiles to
       execute the command. The second element is the command.
     """
-    ir_equivalence_args = ctx.attr.ir_equivalence_args
     IR_EQUIVALENCE_FLAGS = (
+        # Overrides global entry attribute.
         "function",
         "timeout",
+    )
+
+    ir_equivalence_args = dict(ctx.attr.ir_equivalence_args)
+
+    # If "function" not defined in arguments, use global "entry" attribute.
+    ir_equivalence_args = _add_entry_attr(
+        ctx,
+        ir_equivalence_args,
+        "function",
+        entry,
     )
 
     my_args = get_args(ir_equivalence_args, IR_EQUIVALENCE_FLAGS)
@@ -164,20 +214,25 @@ def get_ir_equivalence_test_cmd(ctx, src_0, src_1):
     runfiles = [src_0, src_1, ctx.executable._ir_equivalence_tool]
     return runfiles, cmd
 
-def get_eval_ir_test_cmd(ctx, src):
+def get_eval_ir_test_cmd(ctx, src, entry = None):
     """Returns the runfiles and command that executes in the xls_eval_ir_test rule.
 
     Args:
       ctx: The current rule's context object.
       src: The file to test.
+      entry: The 'universal' entry: the value from outside the rule's context.
+        The value can be overwritten by the entry attribute of the rule's
+        context. Typically, the value is from another rule. For example, assume
+        this function is used within rule B, where rule B depends on rule A, the
+        value is from rule A
 
     Returns:
       A tuple with two elements. The first element is a list of runfiles to
       execute the command. The second element is the command.
     """
     ir_eval_default_args = DEFAULT_IR_EVAL_TEST_ARGS
-    ir_eval_args = ctx.attr.ir_eval_args
     IR_EVAL_FLAGS = (
+        # Overrides global entry attribute.
         "entry",
         "input",
         "input_file",
@@ -192,6 +247,11 @@ def get_eval_ir_test_cmd(ctx, src):
         "test_only_inject_jit_result",
     )
 
+    ir_eval_args = dict(ctx.attr.ir_eval_args)
+
+    # If "entry" not defined in arguments, use global "entry" attribute.
+    ir_eval_args = _add_entry_attr(ctx, ir_eval_args, "entry", entry)
+
     my_args = get_args(ir_eval_args, IR_EVAL_FLAGS, ir_eval_default_args)
 
     cmd = "{} {} {}".format(
@@ -205,26 +265,36 @@ def get_eval_ir_test_cmd(ctx, src):
     runfiles = [src, ctx.executable._ir_eval_tool]
     return runfiles, cmd
 
-def get_benchmark_ir_cmd(ctx, src):
+def get_benchmark_ir_cmd(ctx, src, entry = None):
     """Returns the runfiles and command that executes in the xls_benchmark_ir rule.
 
     Args:
       ctx: The current rule's context object.
       src: The file to benchmark.
+      entry: The 'universal' entry: the value from outside the rule's context.
+        The value can be overwritten by the entry attribute of the rule's
+        context. Typically, the value is from another rule. For example, assume
+        this function is used within rule B, where rule B depends on rule A, the
+        value is from rule A
 
     Returns:
       A tuple with two elements. The first element is a list of runfiles to
       execute the command. The second element is the command.
     """
-    benchmark_ir_args = ctx.attr.benchmark_ir_args
     BENCHMARK_IR_FLAGS = (
         "clock_period_ps",
         "pipeline_stages",
         "clock_margin_percent",
         "show_known_bits",
+        # Overrides global entry attribute.
         "entry",
         "delay_model",
     )
+
+    benchmark_ir_args = dict(ctx.attr.benchmark_ir_args)
+
+    # If "entry" not defined in arguments, use global "entry" attribute.
+    benchmark_ir_args = _add_entry_attr(ctx, benchmark_ir_args, "entry", entry)
 
     my_args = get_args(
         benchmark_ir_args,
@@ -295,6 +365,18 @@ def xls_dslx_ir_impl(ctx, src):
         ),
         DefaultInfo(files = depset([ir_file])),
     ]
+
+# Global entry attribute. It can be overwritten by a local argument
+# representative.
+xls_entry_attrs = {
+    "entry": attr.string(
+        doc = "The (*mangled*) name of the entry point. See " +
+              "get_mangled_ir_symbol. The value is applied to the rule " +
+              "context. It can be overwritten by a local argument " +
+              "representative.",
+        default = "",
+    ),
+}
 
 xls_ir_common_attrs = {
     "src": attr.label(
@@ -417,6 +499,7 @@ def xls_ir_opt_ir_impl(ctx, src):
         OptIRInfo(
             input_ir_file = src,
             opt_ir_file = opt_ir_file,
+            opt_ir_args = ctx.attr.opt_ir_args,
         ),
         DefaultInfo(files = depset([opt_ir_file])),
     ]
@@ -584,6 +667,7 @@ xls_ir_equivalence_test = rule(
     attrs = dicts.add(
         _two_ir_files_attrs,
         xls_ir_equivalence_test_attrs,
+        xls_entry_attrs,
     ),
     test = True,
 )
@@ -667,6 +751,7 @@ xls_eval_ir_test = rule(
     attrs = dicts.add(
         xls_ir_common_attrs,
         xls_eval_ir_test_attrs,
+        xls_entry_attrs,
     ),
     test = True,
 )
@@ -749,6 +834,7 @@ xls_benchmark_ir = rule(
     attrs = dicts.add(
         xls_ir_common_attrs,
         xls_benchmark_ir_attrs,
+        xls_entry_attrs,
     ),
     executable = True,
 )

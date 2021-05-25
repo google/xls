@@ -35,6 +35,7 @@ load(
     "xls_benchmark_ir_attrs",
     "xls_dslx_ir_attrs",
     "xls_dslx_ir_impl",
+    "xls_entry_attrs",
     "xls_eval_ir_test_attrs",
     "xls_ir_equivalence_test_attrs",
     "xls_ir_opt_ir_attrs",
@@ -169,6 +170,9 @@ def _xls_dslx_opt_ir_test_impl(ctx):
     dslx_test_file = ctx.attr.dep[ConvIRInfo].dslx_source_file
     conv_ir_file = ctx.attr.dep[ConvIRInfo].conv_ir_file
     opt_ir_file = ctx.attr.dep[OptIRInfo].opt_ir_file
+    opt_ir_args = ctx.attr.dep[OptIRInfo].opt_ir_args
+    entry = opt_ir_args.get("entry", None)
+
     runfiles = dslx_source_files
 
     # xls_dslx_test
@@ -180,6 +184,7 @@ def _xls_dslx_opt_ir_test_impl(ctx):
         ctx,
         conv_ir_file,
         opt_ir_file,
+        entry,
     )
     runfiles += my_runfiles
 
@@ -187,6 +192,7 @@ def _xls_dslx_opt_ir_test_impl(ctx):
     my_runfiles, eval_ir_test_cmd = get_eval_ir_test_cmd(
         ctx,
         conv_ir_file,
+        entry,
     )
     runfiles += my_runfiles
 
@@ -194,6 +200,7 @@ def _xls_dslx_opt_ir_test_impl(ctx):
     my_runfiles, benchmark_ir_cmd = get_benchmark_ir_cmd(
         ctx,
         conv_ir_file,
+        entry,
     )
     runfiles += my_runfiles
 
@@ -264,6 +271,7 @@ xls_dslx_opt_ir_test = rule(
         xls_ir_equivalence_test_attrs,
         xls_eval_ir_test_attrs,
         xls_benchmark_ir_attrs,
+        xls_entry_attrs,
     ),
     test = True,
 )

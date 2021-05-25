@@ -24,6 +24,7 @@ load(
     "xls_benchmark_ir",
     "xls_dslx_ir",
     "xls_dslx_library",
+    "xls_dslx_opt_ir",
     "xls_dslx_opt_ir_test",
     "xls_dslx_test",
     "xls_dslx_verilog",
@@ -448,4 +449,51 @@ cc_xls_ir_jit_wrapper(
 xls_dslx_opt_ir_test(
     name = "simple_example_5_dslx_opt_ir_test",
     dep = ":simple_example_5_one_stage",
+)
+
+################################################################################
+# Examples using entry points.
+################################################################################
+# Base rule for entry points.
+# The rule performs: DSLX -> IR -> Optimized IR.
+xls_dslx_opt_ir(
+    name = "simple_example_5_entry_five",
+    src = ":simple_example_five.x",
+    ir_conv_args = {
+        "entry": "five",
+    },
+    # Output the Optimized IR file to reference.
+    deps = [":simple_example_4_dslx"],
+)
+
+# Universal entry example: The value is provided by the
+# 'simple_example_5_entry_five' target.
+xls_dslx_opt_ir_test(
+    name = "simple_example_5_one_stage_entry_five_universal_test",
+    dep = ":simple_example_5_entry_five",
+)
+
+# Global entry example: The value is provided by the rule's context using the
+# 'entry' attribute. The global entry overwrites the universal entry.
+xls_dslx_opt_ir_test(
+    name = "simple_example_5_one_stage_entry_five_global_test",
+    dep = ":simple_example_5_entry_five",
+    entry = get_mangled_ir_symbol("simple_example_five", "five"),
+)
+
+# Local entry example: The value is provided by the arguments. The local entry
+# overwrites the universal entry and global entry.
+xls_dslx_opt_ir_test(
+    name = "simple_example_5_one_stage_entry_five_local_test",
+    benchmark_ir_args = {
+        "entry": get_mangled_ir_symbol("simple_example_five", "five"),
+    },
+    dep = ":simple_example_5_entry_five",
+    entry = "Global entry gets overwritten by local arguments.",
+    ir_equivalence_args = {
+        "function": get_mangled_ir_symbol("simple_example_five", "five"),
+    },
+    ir_eval_args = {
+        "entry": get_mangled_ir_symbol("simple_example_five", "five"),
+    },
 )
