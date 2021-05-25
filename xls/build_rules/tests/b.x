@@ -14,6 +14,6 @@
 
 import xls.build_rules.tests.a
 
-fn b() -> u32 {
+pub fn b() -> u32 {
   u32: 1 + a::CONST_A
 }

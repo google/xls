@@ -12,6 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn three() -> u32 {
-  u32: 3
+pub fn two() -> u32 {
+  u32: 2
 }

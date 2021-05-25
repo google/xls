@@ -12,6 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn jit_test(A: u32) -> u32 {
-  A
+import xls.build_rules.tests.simple_example_four as four
+
+fn five() -> u32 {
+  u32: 5
+}
+
+fn main(offset: u32) -> u32 {
+  five() + four::result() + offset
+}
+
+#![test]
+fn test_main_value() {
+  let _ = assert_eq(main(u32: 0), u32:15);
+  let _ = assert_eq(main(u32: 1), u32:16);
+  ()
 }

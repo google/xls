@@ -12,6 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn one() -> u32 {
-  u32: 1
+fn double(value: u32) -> u32 {
+  u32: 2 * value
+}
+
+fn triple(value: u32) -> u32 {
+  u32: 3 * value
+}
+
+fn main(value: u32) -> u32 {
+  double(value) + triple(value)
+}
+
+#![test]
+fn test_main_value() {
+  let _ = assert_eq(double(u32: 2), u32:4);
+  let _ = assert_eq(triple(u32: 2), u32:6);
+  let _ = assert_eq(main(u32: 2), u32:10);
+  ()
 }

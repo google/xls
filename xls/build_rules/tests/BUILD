@@ -20,10 +20,10 @@ load(
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
+    "get_mangled_ir_symbol",
     "xls_benchmark_ir",
     "xls_dslx_ir",
     "xls_dslx_library",
-    "xls_dslx_opt_ir",
     "xls_dslx_opt_ir_test",
     "xls_dslx_test",
     "xls_dslx_verilog",
@@ -98,189 +98,354 @@ sh_test(
     data = [":add_one_combinational_rtl.v"],
 )
 
-xls_dslx_library(
-    name = "a",
-    srcs = [
-        "a.x",
-    ],
-)
-
-# xls_dslx_library target depends on xls_dslx_library target 'a'.
-xls_dslx_library(
-    name = "b",
-    srcs = [
-        "b.x",
-    ],
-    deps = [
-        ":a",
-    ],
-)
-
-xls_dslx_library(
-    name = "c",
-    srcs = [
-        "c.x",
-    ],
-    deps = [
-        ":a",
-    ],
-)
-
-# xls_dslx_library target grouping DSLX files.
-xls_dslx_library(
-    name = "files_123",
-    srcs = [
-        "file_1.x",
-        "file_2.x",
-        "file_3.x",
-    ],
-)
-
-xls_dslx_library(
-    name = "file_4",
-    srcs = [
-        "file_4.x",
-    ],
-)
-
-# xls_dslx_library target depends on xls_dslx_library target 'file_4'.
-xls_dslx_library(
-    name = "file_5",
-    srcs = [
-        "file_5.x",
-    ],
-    deps = [
-        ":file_4",
-    ],
-)
-
-# xls_dslx_test with no dependencies.
+# Run the test inside of the generated file.
 xls_dslx_test(
-    name = "a_test",
-    src = "a.x",
+    name = "generated_file_as_input_test",
+    src = "generated.x",
 )
 
-# xls_dslx_test with a dependency.
-xls_dslx_test(
-    name = "d_test",
-    src = "d.x",
-    deps = [
-        ":c",
-    ],
-)
-
-# xls_dslx_ir target depending on xls_dslx_library target 'c'.
-xls_dslx_ir(
-    name = "d_ir",
-    src = "d.x",
-    deps = [
-        ":c",
-    ],
-)
-
-# xls_dslx_ir target with an entry defined.
-xls_dslx_ir(
-    name = "a_ir",
-    src = "a.x",
-    ir_conv_args = {
-        "entry": "a",
-    },
-)
-
-# xls_ir_opt_ir target with an entry defined.
-xls_ir_opt_ir(
-    name = "a_opt_ir",
-    src = "a_ir",
-    opt_ir_args = {
-        "entry": "__a__a",
-    },
-)
-
-# xls_eval_ir_test target with targets as the sources.
-xls_ir_equivalence_test(
-    name = "a_equivalence_test",
-    ir_equivalence_args = {
-        "function": "__a__a",
-    },
-    src_0 = ":a_ir",
-    src_1 = ":a_opt_ir",
-)
-
-# xls_eval_ir_test target with a target as a source.
-xls_eval_ir_test(
-    name = "a_eval_test",
-    src = ":a_ir",
-)
-
-# xls_benchmark_ir target with a target as a source.
-xls_benchmark_ir(
-    name = "a_benchmark",
-    src = ":a_ir",
-    benchmark_ir_args = {
-        "entry": "__a__a",
-    },
-)
-
-# xls_ir_verilog target with a target as a source.
-xls_ir_verilog(
-    name = "a_verilog",
-    src = ":a_ir",
-    codegen_args = {
-        "pipeline_stages": "1",
-    },
-)
-
-xls_dslx_opt_ir(
-    name = "file_5_opt_ir",
-    src = "file_5.x",
-    deps = [
-        ":file_4",
-    ],
-)
-
-xls_dslx_opt_ir_test(
-    name = "file_5_opt_ir_test",
-    dep = ":file_5_opt_ir",
-)
-
-xls_dslx_verilog(
-    name = "e_verilog",
-    src = "e.x",
-    codegen_args = {
-        "pipeline_stages": "1",
-    },
-)
-
-# xls_dslx_ir target to test JIT wrapper rules
-xls_dslx_ir(
-    name = "jit_test_dslx_ir",
-    src = "file_for_ir_to_jit_wrapper_test.x",
-)
-
-xls_ir_jit_wrapper(
-    name = "jit_test_jit_wrapper",
-    src = ":jit_test_dslx_ir",
-)
-
-cc_xls_ir_jit_wrapper(
-    name = "jit_test_jit_wrapper_cc",
-    src = ":jit_test_dslx_ir",
-)
-
+# Encapsulate the generated file as a library.
 xls_dslx_library(
     name = "generated_dslx",
     srcs = ["generated.x"],
 )
 
-xls_dslx_ir(
-    name = "with_dep_test",
+# Reference the library with the generated file inside of a xls_dslx_test rule.
+xls_dslx_test(
+    name = "dependent_on_library_with_generated_file_test",
     src = "importer.x",
     deps = [
-        "generated_dslx",
+        ":generated_dslx",
     ],
 )
 
+xls_dslx_library(
+    name = "a_dslx",
+    srcs = [
+        "a.x",
+    ],
+)
+
+# xls_dslx_library target depends on xls_dslx_library target 'a_dslx'.
+xls_dslx_library(
+    name = "bc_dslx",
+    srcs = [
+        "b.x",
+        "c.x",
+    ],
+    deps = [
+        ":a_dslx",
+    ],
+)
+
+# xls_dslx_test with a transitive dependency.
+xls_dslx_test(
+    name = "d_dslx_test",
+    src = "d.x",
+    deps = [
+        ":bc_dslx",
+    ],
+)
+
+################################################################################
+# Simple example with rule chaining.
+#
+# Below is a diagram illustrating the rule chaining example. The build flow
+# is on the left and the test flow is on the right. The flow is from top to
+# down. The names of the rules target names are displayed.
+#
+# Overview:
+# The 'chaining_example.x' file is the input to the build and test flow. In the
+# build flow, the file is the input to a xls_dslx_ir rule named
+# 'chaining_example_ir'. The output of the latter is the input to a
+# xls_ir_opt_ir rule named 'chaining_example_opt_ir'. The output of the latter
+# is the input to a xls_ir_verilog rule named chaining_example_verilog.
+#
+# In the test flow, the 'chaining_example.x' file is the input to a
+# xls_dslx_test rule named 'chaining_example_test'. The output of the
+# 'chaining_example_ir' rule is the input to a xls_eval_ir_test rule named
+# 'chaining_example_eval_ir_test', and the input to a xls_ir_equivalence_test
+# rule named chaining_example_ir_equivalence_test. The output of the
+# 'chaining_example_opt_ir' rule is the input to a xls_benchmark_ir rule named
+# 'chaining_example_benchmark_ir', and the input to a xls_ir_equivalence_test
+# rule named chaining_example_ir_equivalence_test.
+#
+#           Build Flow                  Test/Execution Flow
+#           ----------                  -------------------
+#
+#                     chaining_example.x
+#                             |
+#               ---------------------------------
+#              |                                |
+#              |                      chaining_example_test
+#              |
+#              |               |--> chaining_example_eval_ir_test
+#              |               |
+#      chaining_example_ir  ---|
+#              |               |
+#              |               |----------------------------------------------|
+#              |                                                              |
+#              |                  |--> chaining_example_ir_equivalence_test <-|
+#              |                  |
+#     chaining_example_opt_ir  ---|
+#              |                  |
+#    chaining_example_verilog     |--> chaining_example_benchmark_ir
+################################################################################
+
+xls_dslx_test(
+    name = "chaining_example_test",
+    src = ":chaining_example.x",
+)
+
 xls_dslx_ir(
-    name = "as_input_test",
-    src = "generated.x",
+    name = "chaining_example_ir",
+    src = ":chaining_example.x",
+)
+
+xls_ir_opt_ir(
+    name = "chaining_example_opt_ir",
+    src = ":chaining_example_ir",
+    opt_ir_file = ":chaining_example_opt_ir.opt.ir",
+)
+
+xls_ir_verilog(
+    name = "chaining_example_verilog",
+    src = ":chaining_example_opt_ir",
+    codegen_args = {
+        "pipeline_stages": "1",
+    },
+)
+
+xls_eval_ir_test(
+    name = "chaining_example_eval_ir_test",
+    src = ":chaining_example_ir",
+)
+
+xls_ir_equivalence_test(
+    name = "chaining_example_ir_equivalence_test",
+    src_0 = ":chaining_example_ir",
+    src_1 = ":chaining_example_opt_ir",
+)
+
+xls_benchmark_ir(
+    name = "chaining_example_benchmark_ir",
+    src = ":chaining_example_opt_ir",
+)
+
+################################################################################
+# Extending the simple example with rule chaining.
+#
+# Below is a diagram illustrating an extension to the build flow of the rule
+# chaining example. The names of the rules target names and outputs of the
+# targets are displayed. The flow is from top to down.
+#
+# Overview:
+# The 'chaining_example_opt_ir.opt.ir' file, the output from the
+# 'chaining_example_opt_ir' target from the simple example with chaining, is the
+# input to the cc_xls_ir_jit_wrapper macro named
+# 'chaining_example_opt_ir_jit_wrapper_main_cc'.
+#
+# The 'chaining_example_ir' target is the input to two xls_ir_opt_ir rules named
+# 'chaining_example_double_opt_ir' and
+# 'chaining_example_triple_run_only_opt_ir'. The output of the
+# chaining_example_double_opt_ir target is the input to a
+# cc_xls_ir_jit_wrapper macro named
+# 'chaining_example_opt_ir_jit_wrapper_double_cc'. Note the reuse of the
+# chaining_example_ir target as input to two xls_ir_opt_ir rules using different
+# entry points.
+#
+# The output of the 'chaining_example_triple_run_only_opt_ir' target is the
+# input to a xls_ir_opt_ir rule named
+# 'chaining_example_triple_skip_passes_opt_ir'. Note the chaining of two
+# xls_ir_opt_ir rules.
+#
+#           Build Flow
+#           ----------
+#  chaining_example_opt_ir.opt.ir (output from chaining_example_opt_ir target -
+#               |                  See the simple example with chaining the
+#               |                  rules above.)
+#               |
+#               |------------->  chaining_example_opt_ir_jit_wrapper_main_cc
+#
+#
+#
+#  chaining_example_ir (Target from the simple example with chaining the rules
+#               |       shown above.)
+#               |
+#               |------------->  chaining_example_double_opt_ir
+#               |           (Optimizes at the 'double' entry point)
+#               |                              |
+#               |                              |
+#               |                              |
+#               |        chaining_example_opt_ir_jit_wrapper_double_cc
+#               |
+#               |
+#               |------------->  chaining_example_triple_run_only_opt_ir
+#                                (Optimizes at the 'triple' entry point
+#                                          with selected passes.)
+#                                                  |
+#                                                  |
+#                                                  |
+#                                chaining_example_triple_skip_passes_opt_ir
+#                                (Optimizes by skipping selected passes.)
+#
+# Below is a diagram illustrating the test flow of an extension to the rule
+# chaining example. The names of the rules target names and outputs of the
+# targets are displayed. The flow is from top to down.
+#
+# Overview:
+# The output of the 'chaining_example_triple_run_only_opt_ir' target and the
+# output of the 'chaining_example_triple_skip_passes_opt_ir' are the inputs to
+# an xls_ir_equivalence_test rule named
+# 'chaining_example_triple_skip_passes_opt_ir'.
+#
+#           Test Flow
+#           ----------
+#    chaining_example_triple_run_only_opt_ir.opt.ir (output from
+#               |                  chaining_example_triple_run_only_opt_ir
+#               |                  target)
+#               |
+#               |--> chaining_example_triple_ir_equivalence_test <--|
+#                                                                   |
+#                                                                   |
+#              chaining_example_triple_skip_passes_opt_ir.opt.ir----|
+#            (output from chaining_example_triple_skip_passes_opt_ir target)
+################################################################################
+
+cc_xls_ir_jit_wrapper(
+    name = "chaining_example_opt_ir_jit_wrapper_main_cc",
+    src = ":chaining_example_opt_ir.opt.ir",
+)
+
+xls_ir_opt_ir(
+    name = "chaining_example_double_opt_ir",
+    src = ":chaining_example_ir",
+    opt_ir_args = {
+        "entry": get_mangled_ir_symbol("chaining_example", "double"),
+    },
+    opt_ir_file = ":chaining_example_double_opt_ir.opt.ir",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "chaining_example_opt_ir_jit_wrapper_double_cc",
+    src = ":chaining_example_double_opt_ir.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "chaining_example",
+        "function": get_mangled_ir_symbol("chaining_example", "double"),
+    },
+)
+
+xls_ir_opt_ir(
+    name = "chaining_example_triple_run_only_opt_ir",
+    src = ":chaining_example_ir",
+    opt_ir_args = {
+        "entry": get_mangled_ir_symbol("chaining_example", "triple"),
+        "run_only_passes": "arith_simp",
+    },
+    opt_ir_file = ":chaining_example_triple_run_only_opt_ir.opt.ir",
+)
+
+xls_ir_opt_ir(
+    name = "chaining_example_triple_skip_passes_opt_ir",
+    src = ":chaining_example_triple_run_only_opt_ir",
+    opt_ir_args = {
+        "skip_passes": "arith_simp",
+    },
+    opt_ir_file = ":chaining_example_triple_skip_passes_opt_ir.opt.ir",
+)
+
+xls_ir_equivalence_test(
+    name = "chaining_example_triple_ir_equivalence_test",
+    src_0 = ":chaining_example_triple_run_only_opt_ir.opt.ir",
+    src_1 = ":chaining_example_triple_skip_passes_opt_ir.opt.ir",
+)
+
+################################################################################
+# Simple example hierarchy layout:
+#     one        two        three  -> DSLX libraries (compile and parse)
+#      \__________|__________/
+#                 |
+#               four      -> DSLX interpreter test
+#                |
+#               five      -> synthesis, JIT wrapper and tests
+################################################################################
+
+# xls_dslx_library target grouping DSLX files.
+xls_dslx_library(
+    name = "simple_example_123_dslx",
+    srcs = [
+        ":simple_example_one.x",
+        ":simple_example_three.x",
+        ":simple_example_two.x",
+    ],
+)
+
+# Execute the DSLX interpreter.
+xls_dslx_test(
+    name = "simple_example_four_test",
+    src = ":simple_example_four.x",
+    deps = [":simple_example_123_dslx"],
+)
+
+# xls_dslx_library target depends on xls_dslx_library target
+# 'simple_example_123_dslx'.
+xls_dslx_library(
+    name = "simple_example_4_dslx",
+    srcs = [
+        ":simple_example_four.x",
+    ],
+    deps = [":simple_example_123_dslx"],
+)
+
+# Generate verilog from a dslx file.
+# The rule performs: DSLX -> IR -> Optimized IR -> Verilog.
+xls_dslx_verilog(
+    name = "simple_example_5_one_stage",
+    src = ":simple_example_five.x",
+    codegen_args = {
+        "pipeline_stages": "1",
+    },
+    # Output the Optimized IR file to reference.
+    opt_ir_file = "simple_example_5_one_stage.opt.ir",
+    deps = [":simple_example_4_dslx"],
+)
+
+# The xls_ir_jit_wrapper rule using an optimized IR file as input.
+# The header and source files are outputs of the rule, they can be referenced
+# by other rules.
+xls_ir_jit_wrapper(
+    name = "simple_example_5_one_stage_jit_wrapper",
+    src = ":simple_example_5_one_stage.opt.ir",
+    header_file = "simple_example_5_one_stage_jit_wrapper.h",
+    source_file = "simple_example_5_one_stage_jit_wrapper.cc",
+)
+
+# cc_xls_ir_jit_wrapper macro with a cc_library target with name
+# simple_example_5_one_stage_jit_wrapper_cc created.
+# The target can be referenced by other cc_* rules.
+#
+# For example:
+#     cc_library (
+#         ...
+#         deps = [
+#             ...
+#             ":simple_example_5_one_stage_jit_wrapper_cc",
+#             ...
+#         ]
+#     )
+#
+cc_xls_ir_jit_wrapper(
+    name = "simple_example_5_one_stage_jit_wrapper_cc",
+    src = ":simple_example_5_one_stage.opt.ir",
+)
+
+# The rule performs tests using the DSLX, IR and Optimized IR files from the
+# xls_dslx_verilog. See the xls_dslx_opt_ir_test rule description for a list of
+# tests.
+# Note the rule can depend on a xls_dslx_verilog target because the target
+# generates all the data that the xls_dslx_opt_ir_test rule requires for its
+# tests.
+xls_dslx_opt_ir_test(
+    name = "simple_example_5_dslx_opt_ir_test",
+    dep = ":simple_example_5_one_stage",
 )

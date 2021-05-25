@@ -12,6 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn e() -> u32 {
-  u32: 42
+import xls.build_rules.tests.simple_example_one as one
+import xls.build_rules.tests.simple_example_two as two
+import xls.build_rules.tests.simple_example_three as three
+
+fn four() -> u32 {
+  u32: 4
+}
+
+pub fn result() -> u32 {
+  one::one() + two::two() + three::three() + four()
+}
+
+#![test]
+fn test_result_value() {
+  assert_eq(result(), u32:10)
 }
