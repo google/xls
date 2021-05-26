@@ -363,6 +363,7 @@ class FunctionConverter {
 
   // Builtin invocation handlers.
   absl::Status HandleBuiltinAndReduce(Invocation* node);
+  absl::Status HandleBuiltinArraySlice(Invocation* node);
   absl::Status HandleBuiltinBitSlice(Invocation* node);
   absl::Status HandleBuiltinBitSliceUpdate(Invocation* node);
   absl::Status HandleBuiltinClz(Invocation* node);
@@ -1821,6 +1822,7 @@ absl::Status FunctionConverter::HandleInvocation(Invocation* node) {
           {"signex", &FunctionConverter::HandleBuiltinSignex},
           {"one_hot", &FunctionConverter::HandleBuiltinOneHot},
           {"one_hot_sel", &FunctionConverter::HandleBuiltinOneHotSel},
+          {"slice", &FunctionConverter::HandleBuiltinArraySlice},
           {"bit_slice", &FunctionConverter::HandleBuiltinBitSlice},
           {"bit_slice_update", &FunctionConverter::HandleBuiltinBitSliceUpdate},
           {"rev", &FunctionConverter::HandleBuiltinRev},
@@ -2360,6 +2362,25 @@ absl::Status FunctionConverter::HandleBuiltinAndReduce(Invocation* node) {
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   Def(node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->AndReduce(arg, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinArraySlice(Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 3);
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(BValue start, Use(node->args()[1]));
+
+  auto* width_array = dynamic_cast<Array*>(node->args()[2]);
+  XLS_RET_CHECK_NE(width_array, nullptr);
+  XLS_RET_CHECK_NE(width_array->type_annotation(), nullptr);
+  auto* width_type =
+      dynamic_cast<ArrayTypeAnnotation*>(width_array->type_annotation());
+  XLS_ASSIGN_OR_RETURN(uint64_t width,
+                       dynamic_cast<Number*>(width_type->dim())->GetAsUint64());
+
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->ArraySlice(arg, start, width, loc);
   });
   return absl::OkStatus();
 }

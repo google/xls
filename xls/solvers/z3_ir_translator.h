@@ -116,6 +116,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleArrayIndex(ArrayIndex* array_index) override;
   absl::Status HandleArrayUpdate(ArrayUpdate* array_update) override;
   absl::Status HandleArrayConcat(ArrayConcat* array_concat) override;
+  absl::Status HandleArraySlice(ArraySlice* array_slice) override;
   absl::Status HandleBitSlice(BitSlice* bit_slice) override;
   absl::Status HandleBitSliceUpdate(BitSliceUpdate* update) override;
   absl::Status HandleConcat(Concat* concat) override;

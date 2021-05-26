@@ -288,7 +288,13 @@ absl::Status FunctionBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
   llvm::Value* start = node_map_.at(slice->start());
   int64_t width = slice->width();
 
-  llvm::Type* index_type = start->getType();
+  // This overestimates the number of bits needed but in all practical
+  // situations it should be fine. The only exception to that is if some code
+  // uses a 64 bit index but doesn't actually make full use of that range, then
+  // this will possibly push us over a performance cliff.
+  int64_t index_bits = start->getType()->getIntegerBitWidth() +
+                       Bits::MinBitCountSigned(width) + 1;
+  llvm::Type* index_type = builder_->getIntNTy(index_bits);
   llvm::Type* result_type =
       type_converter_->ConvertToLlvmType(slice->GetType());
   llvm::Type* result_element_type = type_converter_->ConvertToLlvmType(
@@ -298,10 +304,11 @@ absl::Status FunctionBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
       alloca_uncasted,
       llvm::PointerType::get(result_element_type, /*AddressSpace=*/0),
       "alloca");
+  llvm::Value* start_big = builder_->CreateZExt(start, index_type, "start_big");
 
   for (int64_t i = 0; i < width; i++) {
     llvm::Value* index = builder_->CreateAdd(
-        start, llvm::ConstantInt::get(index_type, i), "index");
+        start_big, llvm::ConstantInt::get(index_type, i), "index");
     XLS_ASSIGN_OR_RETURN(
         llvm::Value * value,
         IndexIntoArray(array, index,

@@ -219,6 +219,11 @@ dslx_test(
 )
 
 dslx_test(
+    name = "array_slice",
+    srcs = ["array_slice.x"],
+)
+
+dslx_test(
     name = "parametric_array_of_tuples",
     srcs = ["parametric_array_of_tuples.x"],
     # TODO(leary): 2019-07-24 Missing support for array of tuples eliding cast

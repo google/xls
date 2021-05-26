@@ -191,9 +191,15 @@ class AstGenerator {
     auto is_ubits = [&](const TypedExpr& e) -> bool { return IsUBits(e.type); };
     return ChooseEnvValue(env, is_ubits);
   }
-  absl::StatusOr<TypedExpr> ChooseEnvValueArray(Env* env) {
-    auto is_array = [&](const TypedExpr& e) -> bool { return IsArray(e.type); };
-    return ChooseEnvValue(env, is_array);
+
+  absl::StatusOr<TypedExpr> ChooseEnvValueArray(
+      Env* env, std::function<bool(const ArrayTypeAnnotation*)> take =
+                    [](auto _) { return true; }) {
+    auto predicate = [&](const TypedExpr& e) -> bool {
+      return IsArray(e.type) &&
+             take(dynamic_cast<const ArrayTypeAnnotation*>(e.type));
+    };
+    return ChooseEnvValue(env, predicate);
   }
 
   // Chooses a random tuple from the environment (if one exists). 'min_size',
@@ -232,6 +238,9 @@ class AstGenerator {
 
   // Generates a bit_slice_update builtin call.
   absl::StatusOr<TypedExpr> GenerateBitSliceUpdate(Env* env);
+
+  // Generates a slice builtin call.
+  absl::StatusOr<TypedExpr> GenerateArraySlice(Env* env);
 
   // Generate an operand count for a nary (variadic) instruction. lower_limit is
   // the inclusive lower limit of the distribution.

@@ -937,12 +937,49 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSliceUpdate(Env* env) {
   return TypedExpr{invocation, arg.type};
 }
 
+absl::StatusOr<TypedExpr> AstGenerator::GenerateArraySlice(Env* env) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueArray(env));
+
+  auto arg_type = dynamic_cast<ArrayTypeAnnotation*>(arg.type);
+  XLS_CHECK_NE(arg_type, nullptr)
+      << "Postcondition of ChooseEnvValueArray violated";
+
+  XLS_ASSIGN_OR_RETURN(TypedExpr start, ChooseEnvValueUBits(env));
+
+  int64_t slice_width;
+
+  if (RandomBool()) {
+    slice_width = RandomIntWithExpectedValue(1.0);
+  } else {
+    slice_width = RandomIntWithExpectedValue(10.0);
+  }
+
+  slice_width = std::max(int64_t{1}, slice_width);
+  slice_width = std::min(int64_t{1000}, slice_width);
+
+  std::vector<Expr*> width_array_elements = {module_->Make<Index>(
+      fake_span_, arg.expr, MakeNumber(0, MakeTypeAnnotation(false, 64)))};
+  Array* width_expr = module_->Make<Array>(fake_span_, width_array_elements,
+                                           /*has_ellipsis=*/true);
+  TypeAnnotation* width_type = module_->Make<ArrayTypeAnnotation>(
+      fake_span_, arg_type->element_type(),
+      MakeNumber(slice_width, MakeTypeAnnotation(false, 64)));
+  width_expr->set_type_annotation(width_type);
+
+  TypedExpr width{width_expr, width_type};
+  auto* invocation = module_->Make<Invocation>(
+      fake_span_, MakeBuiltinNameRef("slice"),
+      std::vector<Expr*>{arg.expr, start.expr, width.expr});
+  return TypedExpr{invocation, width_type};
+}
+
 namespace {
 
 enum OpChoice {
   kArray,
   kArrayIndex,
   kArrayUpdate,
+  kArraySlice,
   kBinop,
   kBitSlice,
   kBitSliceUpdate,
@@ -972,6 +1009,8 @@ int OpProbability(OpChoice op) {
     case kArrayIndex:
       return 2;
     case kArrayUpdate:
+      return 2;
+    case kArraySlice:
       return 2;
     case kBinop:
       return 10;
@@ -1050,6 +1089,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
         break;
       case kArrayUpdate:
         generated = GenerateArrayUpdate(env);
+        break;
+      case kArraySlice:
+        generated = GenerateArraySlice(env);
         break;
       case kCountedFor:
         generated = GenerateCountedFor(env);
