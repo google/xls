@@ -35,13 +35,36 @@ fn blob_eq(x: TestBlob, y:TestBlob) -> bool {
   }
 }
 
-// Check the equality of TestBlob arrays element-by-element two different ways:
+// Check equality of TestBlob arrays element-by-element two different ways:
 // 1. Relying on built-in support for tuple equality.
 // 2. Manually expanding the TestBlob and checking the leaf values directly.
 fn eq_by_element(x: TestBlob[3], y: TestBlob[3]) -> bool {
   for (i, eq):(u32, bool) in range (u32:0, u32:3) {
     eq && x[i] == y[i] && blob_eq(y[i], x[i])
   }(true)
+}
+
+// Manually expand a test blob into its leaf components to check if any are
+// not equal.
+fn blob_neq(x: TestBlob, y:TestBlob) -> bool {
+  let zero = u32:0;
+  let one  = u32:1;
+  match (x,y) {
+    ((x_arr, (x_tup1, x_tup2), x_bool),
+     (y_arr, (y_tup1, y_tup2), y_bool)) =>
+       x_arr[zero] != y_arr[zero] || x_arr[one] != y_arr[one] ||
+       x_tup1 != y_tup1 || x_tup2 != y_tup2 ||
+       x_bool != y_bool
+  }
+}
+
+// Check inequality of TestBlob arrays element-by-element two different ways:
+// 1. Relying on built-in support for tuple inequality.
+// 2. Manually expanding the TestBlob and checking the leaf values directly.
+fn neq_by_element(x: TestBlob[3], y: TestBlob[3]) -> bool {
+  for (i, neq):(u32, bool) in range (u32:0, u32:3) {
+    neq || x[i] != y[i] || blob_neq(y[i], x[i])
+  }(false)
 }
 
 // The default 1000 tests aren't enough to generate a counterexample
@@ -52,4 +75,23 @@ fn prop_consistent_eq(x: TestBlob[3], y: TestBlob[3]) -> bool {
   x == y == eq_by_element(x,y)
 }
 
+// Use the same test count as prop_consistent_eq because while the edge cases
+// may be different, the difficulty in finding them should be similar.
+#![quickcheck(test_count=100000)]
+fn prop_consistent_neq(x: TestBlob[3], y: TestBlob[3]) -> bool {
+  !(x != x) && !(neq_by_element(x,x)) && !(y != y) && !(neq_by_element(y,y)) &&
+  x != y == neq_by_element(x,y)
+}
 
+#![test]
+fn empty_eq_test() {
+  let _ = assert_eq (() == (), true);
+  let _ = assert_eq (() != (), false);
+// These tests crash because of https://github.com/google/xls/issues/439
+// TODO(amfv): 2021-05-25 Re-enable this code once it is fixed.
+//  let a: u32[0] = [];
+//  let b: u32[0] = [];
+//  let _ = assert_eq (a == b, true);
+//  let _ = assert_eq (a != b, false);
+  ()
+}
