@@ -1855,6 +1855,7 @@ static const absl::flat_hash_set<std::string>& GetParametricBuiltinNames() {
       "bit_slice",
       "bit_slice_update",
       "clz",
+      "cover!",
       "ctz",
       "concat",
       "fail!",
@@ -2066,7 +2067,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
   }
 
   // If the callee function needs an implicit token type (e.g. because it has a
-  // fail!() operation transitively) then so do we.
+  // fail!() or cover!() operation transitively) then so do we.
   if (absl::optional<bool> callee_opt =
           ctx->import_data()
               ->GetRootTypeInfoForNode(callee_fn)

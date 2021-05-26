@@ -1384,6 +1384,19 @@ fn main(x: u32) -> u32 {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, ConvertCoverOp) {
+  const std::string kProgram = R"(
+fn main(x: u32, y: u32) {
+  let foo = x == y;
+  cover!("x_equals_y", foo)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram, kFailNoPos));
+  ExpectIr(converted, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx
 

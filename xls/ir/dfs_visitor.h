@@ -38,6 +38,7 @@ class DfsVisitor {
   virtual absl::Status HandleBitSliceUpdate(BitSliceUpdate* update) = 0;
   virtual absl::Status HandleConcat(Concat* concat) = 0;
   virtual absl::Status HandleCountedFor(CountedFor* counted_for) = 0;
+  virtual absl::Status HandleCover(Cover* cover) = 0;
   virtual absl::Status HandleDecode(Decode* decode) = 0;
   virtual absl::Status HandleDynamicBitSlice(
       DynamicBitSlice* dynamic_bit_slice) = 0;
@@ -146,6 +147,7 @@ class DfsVisitorWithDefault : public DfsVisitor {
   absl::Status HandleBitSliceUpdate(BitSliceUpdate* update) override;
   absl::Status HandleConcat(Concat* concat) override;
   absl::Status HandleCountedFor(CountedFor* counted_for) override;
+  absl::Status HandleCover(Cover* cover) override;
   absl::Status HandleDecode(Decode* decode) override;
   absl::Status HandleDynamicBitSlice(
       DynamicBitSlice* dynamic_bit_slice) override;

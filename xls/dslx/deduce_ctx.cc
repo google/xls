@@ -113,4 +113,10 @@ absl::Status ArgCountMismatchErrorStatus(const Span& span,
       "ArgCountMismatchError: %s %s", span.ToString(), message));
 }
 
+absl::Status InvalidIdentifierErrorStatus(const Span& span,
+                                          absl::string_view message) {
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "InvalidIdentifierError: %s %s", span.ToString(), message));
+}
+
 }  // namespace xls::dslx

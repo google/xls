@@ -14,6 +14,7 @@
 
 #include "xls/dslx/dslx_builtins.h"
 
+#include "xls/dslx/concrete_type.h"
 #include "xls/dslx/parametric_instantiator.h"
 
 namespace xls::dslx {
@@ -216,6 +217,7 @@ const absl::flat_hash_map<std::string, std::string>& GetParametricBuiltins() {
       {"clz", "(uN[N]) -> uN[N]"},
       {"ctz", "(uN[N]) -> uN[N]"},
       {"concat", "(uN[M], uN[N]) -> uN[M+N]"},
+      {"cover!", "(u8[N], u1) -> ()"},
       {"fail!", "(T) -> T"},
       {"map", "(T[N], (T) -> U) -> U[N]"},
       {"one_hot", "(uN[N], u1) -> uN[N+1]"},
@@ -555,6 +557,22 @@ static void PopulateSignatureToLambdaMap(
         absl::make_unique<FunctionType>(CloneToUnique(data.arg_types),
                                         std::move(return_type)),
         tab.symbolic_bindings};
+  };
+  map["(u8[N], u1) -> ()"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    const ArrayType* array_type;
+    auto checker = Checker(data.arg_types, data.name, data.span)
+                       .Len(2)
+                       .IsArray(0, &array_type)
+                       .IsU1(1);
+    checker.Eq(array_type->element_type(), BitsType(false, 8), [&] {
+      return absl::StrFormat("Element type of argument 0 %s should be a u8.",
+                             array_type->ToString());
+    });
+    XLS_RETURN_IF_ERROR(checker.status());
+    return TypeAndBindings{absl::make_unique<FunctionType>(
+        CloneToUnique(data.arg_types), ConcreteType::MakeNil())};
   };
 }
 

@@ -210,6 +210,7 @@ bool ShouldEvaluate(Node* node) {
     case Op::kArrayConcat:
     case Op::kArraySlice:
     case Op::kAssert:
+    case Op::kCover:
     case Op::kReceive:
     case Op::kReceiveIf:
     case Op::kSend:

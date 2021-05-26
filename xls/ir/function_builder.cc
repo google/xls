@@ -1213,6 +1213,33 @@ BValue BuilderBase::Assert(BValue token, BValue condition,
                               label, name);
 }
 
+BValue BuilderBase::Cover(BValue token, BValue condition,
+                          absl::string_view label,
+                          absl::optional<SourceLocation> loc,
+                          absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        absl::StrFormat("First operand of cover must be of token type; is: %s",
+                        token.GetType()->ToString()),
+        loc);
+  }
+  if (!condition.GetType()->IsBits() ||
+      condition.GetType()->AsBitsOrDie()->bit_count() != 1) {
+    return SetError(
+        absl::StrFormat("Condition operand of cover must be of bits "
+                        "type of width 1; is: %s",
+                        condition.GetType()->ToString()),
+        loc);
+  }
+  if (label.empty()) {
+    return SetError("The label of a cover node cannot be empty.", loc);
+  }
+  return AddNode<xls::Cover>(loc, token.node(), condition.node(), label, name);
+}
+
 BValue ProcBuilder::Receive(Channel* channel, BValue token,
                             absl::optional<SourceLocation> loc,
                             absl::string_view name) {

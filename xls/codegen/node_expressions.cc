@@ -389,6 +389,8 @@ absl::StatusOr<Expression*> NodeToExpression(
       return file->AndReduce(inputs[0]);
     case Op::kAssert:
       return unimplemented();
+    case Op::kCover:
+      return unimplemented();
     case Op::kNand:
       return file->BitwiseNot(
           do_nary_op([file](Expression* lhs, Expression* rhs) {

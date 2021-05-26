@@ -549,6 +549,12 @@ class BuilderBase {
                 absl::optional<SourceLocation> loc = absl::nullopt,
                 absl::string_view name = "");
 
+  // Adds a coverpoint to the function that records every time the associated
+  // condition evaluates to true.
+  BValue Cover(BValue token, BValue condition, absl::string_view label,
+               absl::optional<SourceLocation> loc = absl::nullopt,
+               absl::string_view name = "");
+
   // Add a receive operation. The type of the data value received is
   // determined by the channel. Only supported on procs.
   virtual BValue Receive(Channel* channel, BValue token,

@@ -72,7 +72,8 @@ struct ImplicitTokenData {
   BValue entry_token;
   BValue activated;
   PredicateFun create_control_predicate;
-  std::vector<BValue> assertion_tokens;
+  // Used for sequencing by both fail! and cover! ops.
+  std::vector<BValue> control_tokens;
 };
 
 // Wrapper around the type information query for whether DSL function "f"
@@ -328,6 +329,9 @@ class FunctionConverter {
 
   // Handles the fail!() builtin invocation.
   absl::Status HandleFailBuiltin(Invocation* node, BValue arg);
+
+  // Handles the cover!() builtin invocation.
+  absl::Status HandleCoverBuiltin(Invocation* node, BValue condition);
 
   // Handles an arm of a match expression.
   absl::StatusOr<BValue> HandleMatcher(NameDefTree* matcher,
@@ -1436,7 +1440,7 @@ absl::Status FunctionConverter::HandleFor(For* node) {
     // token.
     if (implicit_token_data_.has_value()) {
       BValue token = function_builder_->TupleIndex(result, 0);
-      implicit_token_data_->assertion_tokens.push_back(token);
+      implicit_token_data_->control_tokens.push_back(token);
       return function_builder_->TupleIndex(result, 2);
     }
     return result;
@@ -1696,10 +1700,10 @@ absl::Status FunctionConverter::HandleUdfInvocation(Invocation* node,
     }
     // If the callee needs an implicit token it will also produce an implicit
     // result token. We have to grab that and make it one of our
-    // "assertion_tokens_". It is guaranteed to be the first member of the
+    // "control_tokens_". It is guaranteed to be the first member of the
     // tuple result.
     BValue result_token = function_builder_->TupleIndex(result, 0);
-    implicit_token_data_->assertion_tokens.push_back(result_token);
+    implicit_token_data_->control_tokens.push_back(result_token);
     return function_builder_->TupleIndex(result, 1);
   });
   return absl::OkStatus();
@@ -1720,13 +1724,43 @@ absl::Status FunctionConverter::HandleFailBuiltin(Invocation* node,
     BValue assert_result_token = function_builder_->Assert(
         implicit_token_data_->entry_token,
         function_builder_->Not(control_predicate), message);
-    implicit_token_data_->assertion_tokens.push_back(assert_result_token);
+    implicit_token_data_->control_tokens.push_back(assert_result_token);
   }
   // The result of the failure call is the argument given; e.g. if we were to
   // remove assertions this is the value that would flow in the case that the
   // assertion was hit.
   Def(node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->Identity(arg);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleCoverBuiltin(Invocation* node,
+                                                   BValue condition) {
+  // TODO(https://github.com/google/xls/issues/232): 2021-05-21: Control cover!
+  // emission with the same flag as fail!, since they share a good amount of
+  // infra and conceptually are related in how they lower to Verilog.
+  if (options_.emit_fail_as_assert) {
+    // For a cover node we both create a predicate that corresponds to the
+    // "control" leading to this DSL program point.
+    XLS_RET_CHECK(implicit_token_data_.has_value())
+        << "Invoking cover!(), but no implicit token is present for caller @ "
+        << node->span();
+    XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
+    XLS_RET_CHECK_EQ(node->args().size(), 2);
+    String* label = dynamic_cast<String*>(node->args()[0]);
+    XLS_RET_CHECK(label != nullptr)
+        << "cover!() argument 0 must be a literal string "
+        << "(should have been typechecked?).";
+    BValue cover_result_token = function_builder_->Cover(
+        implicit_token_data_->entry_token, condition, label->text());
+    implicit_token_data_->control_tokens.push_back(cover_result_token);
+  }
+
+  // The result of the cover call is the argument given; e.g. if we were to
+  // turn off coverpoints, this is the value that would be used.
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->Tuple(std::vector<BValue>());
   });
   return absl::OkStatus();
 }
@@ -1757,8 +1791,12 @@ absl::Status FunctionConverter::HandleInvocation(Invocation* node) {
     XLS_RET_CHECK_EQ(args.size(), 1)
         << called_name << " builtin only accepts a single argument";
     return HandleFailBuiltin(node, std::move(args[0]));
-  }
-  if (called_name == "trace!") {
+  } else if (called_name == "cover!") {
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
+    XLS_RET_CHECK_EQ(args.size(), 2)
+        << called_name << " builtin requires two arguments";
+    return HandleCoverBuiltin(node, std::move(args[1]));
+  } else if (called_name == "trace!") {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
     XLS_RET_CHECK_EQ(args.size(), 1)
         << called_name << " builtin only accepts a single argument";
@@ -1766,8 +1804,7 @@ absl::Status FunctionConverter::HandleInvocation(Invocation* node) {
       return function_builder_->Identity(args[0], loc);
     });
     return absl::OkStatus();
-  }
-  if (called_name == "map") {
+  } else if (called_name == "map") {
     return HandleMap(node).status();
   }
 
@@ -1956,11 +1993,11 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
 
   if (requires_implicit_token) {
     // Now join all the assertion tokens together to make the output token.
-    XLS_RET_CHECK(!implicit_token_data_->assertion_tokens.empty())
+    XLS_RET_CHECK(!implicit_token_data_->control_tokens.empty())
         << "Function " << node->ToString()
         << " has no assertion tokens to join!";
     BValue join_token =
-        function_builder_->AfterAll(implicit_token_data_->assertion_tokens);
+        function_builder_->AfterAll(implicit_token_data_->control_tokens);
     std::vector<BValue> elements = {join_token, return_value};
     return_value = function_builder_->Tuple(std::move(elements));
   }

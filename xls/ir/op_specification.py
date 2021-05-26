@@ -493,6 +493,21 @@ OpClass.kinds['ASSERT'] = OpClass(
     attributes=[StringAttribute('message'), OptionalStringAttribute('label')]
 )
 
+OpClass.kinds['COVER'] = OpClass(
+    name='Cover',
+    op='Op::kCover',
+    operands=[Operand('token'), Operand('condition')],
+    xls_type_expression='function->package()->GetTokenType()',
+    extra_methods=[Method(name='token',
+                          return_cpp_type='Node*',
+                          expression='operand(0)'),
+                   Method(name='condition',
+                          return_cpp_type='Node*',
+                          expression='operand(1)'),
+                   ],
+    attributes=[StringAttribute('label')]
+)
+
 OpClass.kinds['BITWISE_REDUCTION_OP'] = OpClass(
     name='BitwiseReductionOp',
     op='op',
@@ -899,6 +914,12 @@ OPS = [
         enum_name='kAssert',
         name='assert',
         op_class=OpClass.kinds['ASSERT'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kCover',
+        name='cover',
+        op_class=OpClass.kinds['COVER'],
         properties=[],
     ),
     Op(

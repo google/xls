@@ -1915,7 +1915,7 @@ during conversion to XLS IR.
 
 ### fail!
 
-Note: this section describes work-in-progress functionality, currently `fail!`
+NOTE: this section describes work-in-progress functionality, currently `fail!`
 will only trigger in DSL interpretation (it is discarded in IR conversion).
 Support for converting `fail!` to XLS `assert` IR is tracked in
 [#232](https://github.com/google/xls/issues/232) -- support for indicating the
@@ -1966,6 +1966,26 @@ or assertion failure respectively), but b) provides a fallback value to use (of
 the appropriate type) in case it were to happen in synthesized gates which did
 not insert fatal-error-indicating hardware.
 
+### cover!
+
+NOTE: This section describes work-in-progress functionality. Currently, `cover!`
+has no effect. Progress is being tracked in
+[#436](https://github.com/google/xls/issues/436).
+
+The `cover!` builtin tracks how often some condition is satisfied. Its signature
+is:
+
+```
+cover!(<name>, <condition>);
+```
+
+Where `name` is a function-unique literal string identifying the coverpoint and
+`condition` is a boolean element. When `condition` is true, a counter with the
+given name is incremented that can be inspected upon program termination.
+Coverpoints can be used to give an indication of code "coverage", i.e. to see
+what paths of a design are exercised in practice. The name of the coverpoint
+must begin with either a letter or underscore, and its remainder must consist of
+letters, digits, underscores, or dollar signs.
 
 ## Testing and Debugging
 

@@ -255,6 +255,11 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('match_not_exhaustive.x:16:3-19:4', stderr)
     self.assertIn('Only matches with trailing irrefutable patterns', stderr)
 
+  def test_bad_coverpoint_name(self):
+    stderr = self._run('xls/dslx/tests/errors/coverpoint_bad_name.x')
+    self.assertIn('coverpoint_bad_name.x:16:9-16:40', stderr)
+    self.assertIn('A coverpoint identifer must start with', stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

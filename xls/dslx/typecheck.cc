@@ -19,6 +19,7 @@
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interpreter.h"
+#include "re2/re2.h"
 
 namespace xls::dslx {
 
@@ -267,14 +268,47 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
         higher_order_parametric_bindings = (*map_fn)->parametric_bindings();
       }
     }
-  } else if (builtin_name->identifier() == "fail!") {
+  } else if (builtin_name->identifier() == "fail!" ||
+             builtin_name->identifier() == "cover!") {
     if (f != nullptr && absl::holds_alternative<Function*>(*f)) {
       ctx->type_info()->NoteRequiresImplicitToken(absl::get<Function*>(*f),
                                                   true);
     } else {
       return TypeInferenceErrorStatus(
           invocation->span(), nullptr,
-          "Observed a fail!() outside of a function.");
+          "Observed a fail!() or cover!() outside of a function.");
+    }
+
+    if (builtin_name->identifier() == "cover!") {
+      // Make sure that the coverpoint's identifier is valid in both Verilog
+      // and DSLX - notably, we don't support Verilog escaped strings.
+      // TODO(rspringer): 2021-05-26: Ensure only one instance of an identifier
+      // in a design.
+      String* identifier_node = dynamic_cast<String*>(invocation->args()[0]);
+      XLS_RET_CHECK(identifier_node != nullptr);
+      if (identifier_node->text().empty()) {
+        return InvalidIdentifierErrorStatus(
+            invocation->span(),
+            "An identifier must be specified with a cover! op.");
+      }
+
+      std::string identifier = identifier_node->text();
+      if (identifier[0] == '\\') {
+        return InvalidIdentifierErrorStatus(
+            invocation->span(), "Verilog escaped strings are not supported.");
+      }
+
+      // if identifier[0] == '\' -> We don't support escaped
+      // else make sure match [a-z_][a-z_]*
+      // Unescaped: begin w/letter or under, contains a-z0-9_$
+      // Escaped: begin w/backslash, end with shitespace
+      if (!RE2::FullMatch(identifier, "[a-zA-Z_][a-zA-Z_]*")) {
+        return InvalidIdentifierErrorStatus(
+            invocation->span(),
+            "A coverpoint identifer must start with a letter or underscore, "
+            "and otherwise consist of letters, digits, underscores, and/or "
+            "dollar signs.");
+      }
     }
   }
 

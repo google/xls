@@ -232,6 +232,11 @@ bool IsTypeMissingErrorStatus(const absl::Status& status);
 absl::Status ArgCountMismatchErrorStatus(const Span& span,
                                          absl::string_view message);
 
+// Returned when an invalid identifier (invalid at some position in the
+// compilation chain, DSLX, IR, or Verilog) is encountered.
+absl::Status InvalidIdentifierErrorStatus(const Span& span,
+                                          absl::string_view message);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_DEDUCE_CTX_H_

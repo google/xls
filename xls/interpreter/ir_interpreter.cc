@@ -488,6 +488,11 @@ absl::Status IrInterpreter::HandleAssert(Assert* assert_op) {
   return SetValueResult(assert_op, Value::Token());
 }
 
+absl::Status IrInterpreter::HandleCover(Cover* cover) {
+  // TODO(rspringer): 2021-05-25: Implement.
+  return absl::OkStatus();
+}
+
 absl::Status IrInterpreter::HandleInvoke(Invoke* invoke) {
   Function* to_apply = invoke->to_apply();
   std::vector<Value> args;

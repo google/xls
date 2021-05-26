@@ -1,0 +1,17 @@
+package test_module
+
+fn __itok__test_module__main(__token: token, __activated: bits[1], x: bits[32], y: bits[32]) -> (token, ()) {
+  foo: bits[1] = eq(x, y, id=5)
+  cover.7: token = cover(__token, foo, id=7)
+  after_all.9: token = after_all(cover.7, id=9)
+  tuple.8: () = tuple(id=8)
+  literal.6: bits[8][10] = literal(value=[120, 95, 101, 113, 117, 97, 108, 115, 95, 121], id=6)
+  ret tuple.10: (token, ()) = tuple(after_all.9, tuple.8, id=10)
+}
+
+fn __test_module__main(x: bits[32], y: bits[32]) -> () {
+  literal.13: token = literal(value=token, id=13)
+  literal.14: bits[1] = literal(value=1, id=14)
+  invoke.15: (token, ()) = invoke(literal.13, literal.14, x, y, to_apply=__itok__test_module__main, id=15)
+  ret tuple_index.16: () = tuple_index(invoke.15, index=1, id=16)
+}

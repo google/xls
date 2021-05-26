@@ -93,6 +93,11 @@ dslx_test(
 )
 
 dslx_test(
+    name = "cover",
+    srcs = ["cover.x"],
+)
+
+dslx_test(
     name = "explicit_parametric",
     srcs = ["explicit_parametric.x"],
     generate_benchmark = False,

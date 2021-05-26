@@ -93,6 +93,10 @@ absl::Status DfsVisitorWithDefault::HandleBitSliceUpdate(
   return DefaultHandler(update);
 }
 
+absl::Status DfsVisitorWithDefault::HandleCover(Cover* cover) {
+  return DefaultHandler(cover);
+}
+
 absl::Status DfsVisitorWithDefault::HandleReceive(Receive* receive) {
   return DefaultHandler(receive);
 }

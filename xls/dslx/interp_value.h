@@ -29,6 +29,7 @@ namespace xls::dslx {
   X("bit_slice", kBitSlice)              \
   X("bit_slice_update", kBitSliceUpdate) \
   X("clz", kClz)                         \
+  X("cover!", kCover)                    \
   X("ctz", kCtz)                         \
   X("enumerate", kEnumerate)             \
   X("fail!", kFail)                      \

@@ -188,7 +188,7 @@ class TypeInfo {
   absl::optional<TypeInfo*> GetImportedTypeInfo(Module* m);
 
   // Returns whether function "f" requires an implicit token parameter; i.e. it
-  // contains a `fail!()` as determined during type inferencing.
+  // contains a `fail!()` or `cover!()` as determined during type inferencing.
   absl::optional<bool> GetRequiresImplicitToken(Function* f) const;
   void NoteRequiresImplicitToken(Function* f, bool is_required);
 

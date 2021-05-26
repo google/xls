@@ -30,6 +30,7 @@ const std::vector<absl::string_view>& GetParametricBuiltinNames() {
                                               "bit_slice",
                                               "bit_slice_update",
                                               "clz",
+                                              "cover!",
                                               "ctz",
                                               "concat",
                                               "fail!",

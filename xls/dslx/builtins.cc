@@ -221,6 +221,13 @@ absl::StatusOr<InterpValue> BuiltinFail(
   return FailureErrorStatus(span, args[0].ToString());
 }
 
+absl::StatusOr<InterpValue> BuiltinCover(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings) {
+  XLS_RETURN_IF_ERROR(ArgChecker("cover!", args).size(2).status());
+  return InterpValue::MakeNil();
+}
+
 absl::StatusOr<InterpValue> BuiltinUpdate(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
     const SymbolicBindings* symbolic_bindings) {

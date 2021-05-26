@@ -648,6 +648,7 @@ cc_library(
         ":dslx_builtins",
         ":import_routines",
         ":interpreter",
+        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/status:statusor",
     ],
 )

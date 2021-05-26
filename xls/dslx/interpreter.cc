@@ -263,6 +263,7 @@ absl::StatusOr<InterpValue> Interpreter::RunBuiltin(
     CASE(BitSlice);
     CASE(BitSliceUpdate);
     CASE(Clz);
+    CASE(Cover);
     CASE(Ctz);
     CASE(Enumerate);
     CASE(Fail);

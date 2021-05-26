@@ -87,6 +87,9 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
     case Op::kAssert:
       XLS_RETURN_IF_ERROR(visitor->HandleAssert(down_cast<Assert*>(this)));
       break;
+    case Op::kCover:
+      XLS_RETURN_IF_ERROR(visitor->HandleCover(down_cast<Cover*>(this)));
+      break;
     case Op::kReceive:
       XLS_RETURN_IF_ERROR(visitor->HandleReceive(down_cast<Receive*>(this)));
       break;
