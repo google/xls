@@ -36,6 +36,18 @@ cc_library(
         "//xls/dslx:parse_and_typecheck",
         "//xls/passes",
         "//xls/tools:opt",
+        "//xls/tools:proto_to_dslx",
+    ],
+)
+
+cc_test(
+    name = "runtime_build_actions_test",
+    srcs = ["runtime_build_actions_test.cc"],
+    deps = [
+        ":runtime_build_actions",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )
 

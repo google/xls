@@ -23,6 +23,11 @@ namespace xls {
 
 // Returns a string type with contents equivalent to the string view.
 // The generated proto API for strings does not support string_view assignment.
+//
+// This gives us a convenient way to note which "string view to string"
+// conversions are done "just for conformance with the open source API's need
+// for full `std::string`s" -- if at some point the protobuf APIs are upgraded
+// in open source, all of these conversion calls could be removed.
 inline std::string ToProtoString(absl::string_view s) { return std::string(s); }
 
 }  // namespace xls

@@ -31,18 +31,28 @@ namespace xls {
 // converts those definitions into a cooresponding DSLX file.
 // Args:
 //   source_root: The path to the root directory containing the input schema
-//       _as_well_as_ any .proto files referenced therein.
+//       _as_well_as_ any .proto files referenced therein (e.g. that are
+//       imported).
 //   proto_schema_path: The .proto file containing the declaration of the
 //       schema to translate.
 //   message_name: The name of the message inside the top-level proto file to
 //       emit.
-//   textproto: The text of the message definition to translate.
-//   output_var_name: The name to assign to the resulting DSLX constant.
+//   text_proto: The text of the message definition to translate.
+//   binding_name: The name to assign to the resulting DSLX constant.
 absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslx(
     const std::filesystem::path& source_root,
     const std::filesystem::path& proto_schema_path,
-    const std::string& message_name, const std::string& textproto,
-    const std::string& output_var_name);
+    absl::string_view message_name, absl::string_view text_proto,
+    absl::string_view binding_name);
+
+// As above, but doesn't refer directly to the filesystem for resolution.
+//
+// Args:
+//  proto_def: Contents of the proto schema file (i.e. `.proto` file).
+//  ..rest: as above
+absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxViaText(
+    absl::string_view proto_def, absl::string_view message_name,
+    absl::string_view text_proto, absl::string_view binding_name);
 
 }  // namespace xls
 

@@ -68,6 +68,24 @@ absl::StatusOr<std::string> OptimizeIr(absl::string_view ir,
 absl::StatusOr<std::string> MangleDslxName(absl::string_view module_name,
                                            absl::string_view function_name);
 
+// Converts protocol buffer data into its equivalent DSLX text, as a
+// module-level constant.
+//
+// Note: this currently only supports "standalone" protobuf schemas; i.e. this
+// cannot translate schemas that import other `.proto` files. If this limitation
+// affects you, please file an issue at `github.com/google/xls/issues`
+//
+// Args:
+//  proto_def: Protobuf schema (e.g. contents of `.proto` file).
+//  message_name: Name of the message type (inside the protobuf schema) to emit.
+//  text_proto: Protobuf text to translate to DSLX.
+//  binding_name: Name of the (const) DSLX binding (i.e. const variable name) to
+//    make in the output text.
+absl::StatusOr<std::string> ProtoToDslx(absl::string_view proto_def,
+                                        absl::string_view message_name,
+                                        absl::string_view text_proto,
+                                        absl::string_view binding_name);
+
 }  // namespace xls
 
 #endif  // XLS_PUBLIC_RUNTIME_BUILD_ACTIONS_H_

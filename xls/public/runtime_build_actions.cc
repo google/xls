@@ -22,6 +22,7 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/passes/passes.h"
 #include "xls/tools/opt.h"
+#include "xls/tools/proto_to_dslx.h"
 
 namespace xls {
 
@@ -71,6 +72,16 @@ absl::StatusOr<std::string> MangleDslxName(absl::string_view module_name,
                               dslx::CallingConvention::kTypical,
                               /*free_keys=*/{},
                               /*symbolic_bindings=*/nullptr);
+}
+
+absl::StatusOr<std::string> ProtoToDslx(absl::string_view proto_def,
+                                        absl::string_view message_name,
+                                        absl::string_view text_proto,
+                                        absl::string_view binding_name) {
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<dslx::Module> module,
+      ProtoToDslxViaText(proto_def, message_name, text_proto, binding_name));
+  return module->ToString();
 }
 
 }  // namespace xls

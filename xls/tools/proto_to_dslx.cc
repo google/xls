@@ -20,7 +20,10 @@
 #include "google/protobuf/text_format.h"
 #include "absl/container/btree_map.h"
 #include "absl/strings/str_replace.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/proto_adaptor_utils.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
@@ -108,8 +111,9 @@ int GetFieldWidth(FieldDescriptor::Type type) {
     case FieldDescriptor::Type::TYPE_UINT64:
       return 64;
     default:
-      XLS_LOG(FATAL) << "Should not get here!";
+      break;
   }
+  XLS_LOG(FATAL) << "Should not get here!";
 }
 
 bool IsFieldSigned(FieldDescriptor::Type type) {
@@ -128,8 +132,9 @@ bool IsFieldSigned(FieldDescriptor::Type type) {
     case FieldDescriptor::Type::TYPE_SINT64:
       return true;
     default:
-      XLS_LOG(FATAL) << "Should not get here!";
+      break;
   }
+  XLS_LOG(FATAL) << "Should not get here!";
 }
 
 // Returns the [integral] value contained in the specified field (...of the
@@ -172,8 +177,9 @@ uint64_t GetFieldValue(const Message& message, const Reflection& reflection,
       }
       return reflection.GetUInt64(message, &fd);
     default:
-      XLS_LOG(FATAL) << "Should not get here!";
+      break;
   }
+  XLS_LOG(FATAL) << "Should not get here!";
 }
 
 // Returns the name of the described type with any parent elements prepended,
@@ -247,8 +253,8 @@ absl::StatusOr<std::unique_ptr<DescriptorPool>> ProcessProtoSchema(
   FileDescriptorProto descriptor_proto;
   DbErrorCollector db_collector;
   db.RecordErrorsTo(&db_collector);
-  XLS_RET_CHECK(db.FindFileByName(static_cast<std::string>(proto_schema_path),
-                                  &descriptor_proto));
+  XLS_RET_CHECK(
+      db.FindFileByName(std::string(proto_schema_path), &descriptor_proto));
 
   auto pool = std::make_unique<DescriptorPool>();
   PoolErrorCollector pool_collector;
@@ -260,6 +266,39 @@ absl::StatusOr<std::unique_ptr<DescriptorPool>> ProcessProtoSchema(
         << "Error building dependency proto " << dependency;
   }
 
+  pool->BuildFileCollectingErrors(descriptor_proto, &pool_collector);
+  return pool;
+}
+
+// As above, but takes the proto schema definition as a string.
+//
+// TODO(leary): 2021-05-26 There should be a more suitable API for doing this
+// when the schema is in string form -- as a temporary kluge this places the
+// schema in a temporary file and loads it from that path, but really we should
+// find the better API -- this also checks that there are no dependencies
+// (imports) unlike the above.
+absl::StatusOr<std::unique_ptr<DescriptorPool>> ProcessStringProtoSchema(
+    absl::string_view proto_def) {
+  DiskSourceTree source_tree;
+
+  XLS_ASSIGN_OR_RETURN(auto tempdir, TempDirectory::Create());
+
+  XLS_RETURN_IF_ERROR(
+      SetFileContents(tempdir.path() / "schema.proto", proto_def));
+
+  // Our proto might have other dependencies, so we have to let the proto
+  // compiler know about the layout of our source tree.
+  source_tree.MapPath("", tempdir.path());
+
+  SourceTreeDescriptorDatabase db(&source_tree);
+  FileDescriptorProto descriptor_proto;
+  DbErrorCollector db_collector;
+  db.RecordErrorsTo(&db_collector);
+  XLS_RET_CHECK(db.FindFileByName("schema.proto", &descriptor_proto));
+  XLS_RET_CHECK(descriptor_proto.dependency().empty());
+
+  auto pool = std::make_unique<DescriptorPool>();
+  PoolErrorCollector pool_collector;
   pool->BuildFileCollectingErrors(descriptor_proto, &pool_collector);
   return pool;
 }
@@ -888,26 +927,21 @@ absl::StatusOr<dslx::Expr*> EmitData(const std::string& top_package,
       span, absl::get<dslx::ColonRef*>(struct_def), elements);
 }
 
-}  // namespace
-
-absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslx(
-    const std::filesystem::path& source_root,
-    const std::filesystem::path& proto_schema_path,
-    const std::string& message_name, const std::string& textproto,
-    const std::string& output_var_name) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<DescriptorPool> descriptor_pool,
-                       ProcessProtoSchema(source_root, proto_schema_path));
+absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxWithDescriptorPool(
+    absl::string_view message_name, absl::string_view text_proto,
+    absl::string_view binding_name, DescriptorPool* descriptor_pool) {
   const Descriptor* descriptor =
-      descriptor_pool->FindMessageTypeByName(message_name);
-  std::string top_package = descriptor->file()->package();
+      descriptor_pool->FindMessageTypeByName(ToProtoString(message_name));
   XLS_RET_CHECK_NE(descriptor, nullptr);
+  std::string top_package = descriptor->file()->package();
 
   google::protobuf::DynamicMessageFactory factory;
   const Message* message = factory.GetPrototype(descriptor);
   XLS_RET_CHECK(message != nullptr);
   std::unique_ptr<Message> new_message(message->New());
 
-  google::protobuf::TextFormat::ParseFromString(textproto, new_message.get());
+  google::protobuf::TextFormat::ParseFromString(ToProtoString(text_proto),
+                                      new_message.get());
   NameToRecord name_to_record;
   XLS_RETURN_IF_ERROR(
       CollectMessageLayout(top_package, *descriptor, &name_to_record));
@@ -919,13 +953,35 @@ absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslx(
       dslx::Expr * expr,
       EmitData(top_package, module.get(), *new_message, name_to_record));
   dslx::Span span{dslx::Pos{}, dslx::Pos{}};
-  auto* name_def = module->Make<dslx::NameDef>(
-      span, static_cast<std::string>(output_var_name), /*definer=*/nullptr);
+  auto* name_def = module->Make<dslx::NameDef>(span, std::string(binding_name),
+                                               /*definer=*/nullptr);
   auto* constant_def = module->Make<dslx::ConstantDef>(
       span, name_def, expr, /*is_public=*/true, /*is_local=*/false);
   name_def->set_definer(constant_def);
   module->AddTop(constant_def);
   return module;
+}
+
+}  // namespace
+
+absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslx(
+    const std::filesystem::path& source_root,
+    const std::filesystem::path& proto_schema_path,
+    absl::string_view message_name, absl::string_view text_proto,
+    absl::string_view binding_name) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<DescriptorPool> descriptor_pool,
+                       ProcessProtoSchema(source_root, proto_schema_path));
+  return ProtoToDslxWithDescriptorPool(message_name, text_proto, binding_name,
+                                       descriptor_pool.get());
+}
+
+absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxViaText(
+    absl::string_view proto_def, absl::string_view message_name,
+    absl::string_view text_proto, absl::string_view binding_name) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<DescriptorPool> descriptor_pool,
+                       ProcessStringProtoSchema(proto_def));
+  return ProtoToDslxWithDescriptorPool(message_name, text_proto, binding_name,
+                                       descriptor_pool.get());
 }
 
 }  // namespace xls
