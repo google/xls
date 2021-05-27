@@ -25,7 +25,8 @@ namespace xls::dslx {
 // Instantiates a function invocation using the bindings derived from arg_types.
 absl::StatusOr<TypeAndBindings> InstantiateFunction(
     Span span, const FunctionType& function_type,
-    absl::Span<std::unique_ptr<ConcreteType> const> arg_types, DeduceCtx* ctx,
+    absl::Span<std::unique_ptr<ConcreteType> const> arg_types,
+    absl::Span<const dslx::Span> arg_spans, DeduceCtx* ctx,
     absl::optional<absl::Span<ParametricBinding* const>>
         parametric_constraints = absl::nullopt,
     const absl::flat_hash_map<std::string, InterpValue>* explicit_constraints =
@@ -35,6 +36,7 @@ absl::StatusOr<TypeAndBindings> InstantiateFunction(
 absl::StatusOr<TypeAndBindings> InstantiateStruct(
     Span span, const TupleType& struct_type,
     absl::Span<std::unique_ptr<ConcreteType> const> arg_types,
+    absl::Span<const dslx::Span> arg_spans,
     absl::Span<std::unique_ptr<ConcreteType> const> member_types,
     DeduceCtx* ctx,
     absl::optional<absl::Span<ParametricBinding* const>> parametric_bindings =
@@ -61,7 +63,7 @@ class ParametricInstantiator {
   //    types -- the formal types may be parametric.
   ParametricInstantiator(
       Span span, absl::Span<std::unique_ptr<ConcreteType> const> arg_types,
-      DeduceCtx* ctx,
+      absl::Span<const dslx::Span> arg_spans, DeduceCtx* ctx,
       absl::optional<absl::Span<ParametricBinding* const>>
           parametric_constraints,
       const absl::flat_hash_map<std::string, InterpValue>*
@@ -95,6 +97,7 @@ class ParametricInstantiator {
   absl::Span<const std::unique_ptr<ConcreteType>> arg_types() const {
     return arg_types_;
   }
+  absl::Span<const dslx::Span> arg_spans() const { return arg_spans_; }
   const ConcreteType& GetArgType(int64_t i) const {
     const std::unique_ptr<ConcreteType>& arg_type = arg_types_[i];
     XLS_CHECK(arg_type != nullptr);
@@ -145,6 +148,7 @@ class ParametricInstantiator {
   Span span_;
 
   absl::Span<std::unique_ptr<ConcreteType> const> arg_types_;
+  absl::Span<const dslx::Span> arg_spans_;
   DeduceCtx* ctx_;
 
   // Notes the iteration order in the original parametric bindings.
@@ -160,7 +164,8 @@ class FunctionInstantiator : public ParametricInstantiator {
  public:
   static absl::StatusOr<FunctionInstantiator> Make(
       Span span, const FunctionType& function_type,
-      absl::Span<std::unique_ptr<ConcreteType> const> arg_types, DeduceCtx* ctx,
+      absl::Span<std::unique_ptr<ConcreteType> const> arg_types,
+      absl::Span<const dslx::Span> arg_spans, DeduceCtx* ctx,
       absl::optional<absl::Span<ParametricBinding* const>>
           parametric_constraints,
       const absl::flat_hash_map<std::string, InterpValue>*
@@ -175,12 +180,13 @@ class FunctionInstantiator : public ParametricInstantiator {
  private:
   FunctionInstantiator(
       Span span, const FunctionType& function_type,
-      absl::Span<std::unique_ptr<ConcreteType> const> arg_types, DeduceCtx* ctx,
+      absl::Span<std::unique_ptr<ConcreteType> const> arg_types,
+      absl::Span<const dslx::Span> arg_spans, DeduceCtx* ctx,
       absl::optional<absl::Span<ParametricBinding* const>>
           parametric_constraints,
       const absl::flat_hash_map<std::string, InterpValue>*
           explicit_constraints = nullptr)
-      : ParametricInstantiator(std::move(span), arg_types, ctx,
+      : ParametricInstantiator(std::move(span), arg_types, arg_spans, ctx,
                                parametric_constraints, explicit_constraints),
         function_type_(CloneToUnique(function_type)),
         param_types_(function_type_->params()) {}
@@ -195,6 +201,7 @@ class StructInstantiator : public ParametricInstantiator {
   static absl::StatusOr<StructInstantiator> Make(
       Span span, const TupleType& struct_type,
       absl::Span<std::unique_ptr<ConcreteType> const> arg_types,
+      absl::Span<const dslx::Span> arg_spans,
       absl::Span<std::unique_ptr<ConcreteType> const> member_types,
       DeduceCtx* ctx,
       absl::optional<absl::Span<ParametricBinding* const>> parametric_bindings);
@@ -205,10 +212,11 @@ class StructInstantiator : public ParametricInstantiator {
   StructInstantiator(
       Span span, const TupleType& struct_type,
       absl::Span<std::unique_ptr<ConcreteType> const> arg_types,
+      absl::Span<const dslx::Span> arg_spans,
       absl::Span<std::unique_ptr<ConcreteType> const> member_types,
       DeduceCtx* ctx,
       absl::optional<absl::Span<ParametricBinding* const>> parametric_bindings)
-      : ParametricInstantiator(std::move(span), arg_types, ctx,
+      : ParametricInstantiator(std::move(span), arg_types, arg_spans, ctx,
                                /*parametric_constraints=*/parametric_bindings,
                                /*explicit_constraints=*/nullptr),
         struct_type_(CloneToUnique(struct_type)),

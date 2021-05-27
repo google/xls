@@ -41,6 +41,7 @@ const absl::flat_hash_set<std::string>& GetUnaryParametricBuiltinNames();
 struct SignatureData {
   // Argument types for the parametric builtin.
   const std::vector<const ConcreteType*>& arg_types;
+  const std::vector<dslx::Span>& arg_spans;
   // Name of the builtin.
   absl::string_view name;
   // Span that we're invoking the builtin from (span for the entire invocation).

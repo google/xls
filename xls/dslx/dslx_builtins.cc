@@ -548,9 +548,10 @@ static void PopulateSignatureToLambdaMap(
     // Note that InstantiateFunction will check that the mapped function type
     // lines up with the array (we're providing it the argument types it's being
     // invoked with).
-    XLS_ASSIGN_OR_RETURN(TypeAndBindings tab,
-                         InstantiateFunction(data.span, *f, mapped_fn_arg_types,
-                                             ctx, mapped_parametric_bindings));
+    XLS_ASSIGN_OR_RETURN(
+        TypeAndBindings tab,
+        InstantiateFunction(data.span, *f, mapped_fn_arg_types, data.arg_spans,
+                            ctx, mapped_parametric_bindings));
     auto return_type =
         absl::make_unique<ArrayType>(std::move(tab.type), a->size());
     return TypeAndBindings{

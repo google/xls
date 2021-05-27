@@ -260,6 +260,26 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('coverpoint_bad_name.x:16:9-16:40', stderr)
     self.assertIn('A coverpoint identifer must start with', stderr)
 
+  def test_arg0_type_mismatch(self):
+    stderr = self._run('xls/dslx/tests/errors/arg0_type_mismatch.x')
+    # TODO(https://github.com/google/xls/issues/438): 2021-05-24 Numbers are
+    # currently reported with inaccurate spans, this will need to change once
+    # that's addressed.
+    self.assertIn('arg0_type_mismatch.x:18:9-18:14', stderr)
+    self.assertIn(
+        'uN[2] vs uN[32]: Mismatch between parameter and argument types',
+        stderr)
+
+  def test_arg1_type_mismatch(self):
+    stderr = self._run('xls/dslx/tests/errors/arg1_type_mismatch.x')
+    # TODO(https://github.com/google/xls/issues/438): 2021-05-24 Numbers are
+    # currently reported with inaccurate spans, this will need to change once
+    # that's addressed.
+    self.assertIn('arg1_type_mismatch.x:19:9-19:14', stderr)
+    self.assertIn(
+        'uN[3] vs uN[32]: Mismatch between parameter and argument types',
+        stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

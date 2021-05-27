@@ -237,11 +237,15 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
     const TopNode* f, BuiltinNameDef* builtin_name, Invocation* invocation,
     DeduceCtx* ctx) {
   std::vector<std::unique_ptr<ConcreteType>> arg_types;
+  std::vector<dslx::Span> arg_spans;
+  arg_spans.reserve(invocation->args().size());
+  arg_types.reserve(invocation->args().size());
   for (Expr* arg : invocation->args()) {
     absl::optional<ConcreteType*> arg_type = ctx->type_info()->GetItem(arg);
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved,
                          Resolve(**arg_type, ctx));
     arg_types.push_back(std::move(resolved));
+    arg_spans.push_back(arg->span());
   }
 
   absl::optional<std::string> map_fn_name;
@@ -343,7 +347,7 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
       fsignature(
-          SignatureData{arg_type_ptrs, builtin_name->identifier(),
+          SignatureData{arg_type_ptrs, arg_spans, builtin_name->identifier(),
                         invocation->span(), higher_order_parametric_bindings,
                         constexpr_eval},
           ctx));

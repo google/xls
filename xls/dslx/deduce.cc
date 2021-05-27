@@ -1197,6 +1197,7 @@ struct ValidatedStructMembers {
   absl::btree_set<std::string> seen_names;
 
   std::vector<std::unique_ptr<ConcreteType>> arg_types;
+  std::vector<dslx::Span> arg_spans;
   std::vector<std::unique_ptr<ConcreteType>> member_types;
 };
 
@@ -1230,6 +1231,7 @@ static absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr_type,
                          DeduceAndResolve(expr, ctx));
     result.arg_types.push_back(std::move(expr_type));
+    result.arg_spans.push_back(expr->span());
     absl::optional<const ConcreteType*> maybe_type =
         struct_type.GetMemberTypeByName(name);
     if (maybe_type.has_value()) {
@@ -1360,7 +1362,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
       InstantiateStruct(node->span(), *tuple_type, validated.arg_types,
-                        validated.member_types, ctx,
+                        validated.arg_spans, validated.member_types, ctx,
                         struct_def->parametric_bindings()));
 
   return std::move(tab.type);
@@ -1430,7 +1432,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
       InstantiateStruct(node->span(), *struct_type, validated.arg_types,
-                        validated.member_types, ctx,
+                        validated.arg_spans, validated.member_types, ctx,
                         struct_def->parametric_bindings()));
 
   return std::move(tab.type);
@@ -1905,7 +1907,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
 
   // Gather up the type of all the (actual) arguments.
   std::vector<std::unique_ptr<ConcreteType>> arg_types;
+  std::vector<dslx::Span> arg_spans;
+  arg_spans.reserve(node->args().size());
   for (Expr* arg : node->args()) {
+    arg_spans.push_back(arg->span());
     absl::StatusOr<std::unique_ptr<ConcreteType>> type =
         DeduceAndResolve(arg, ctx);
     if (IsTypeMissingErrorStatus(type.status())) {
@@ -2045,7 +2050,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
 
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
-      InstantiateFunction(node->span(), *callee_type, arg_types, ctx,
+      InstantiateFunction(node->span(), *callee_type, arg_types, arg_spans, ctx,
                           new_bindings, &explicit_bindings));
   const SymbolicBindings& callee_symbolic_bindings = tab.symbolic_bindings;
 
