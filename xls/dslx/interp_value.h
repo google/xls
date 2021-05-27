@@ -111,7 +111,7 @@ class InterpValue {
   static InterpValue MakeUBits(int64_t bit_count, int64_t value);
   static InterpValue MakeSBits(int64_t bit_count, int64_t value);
 
-  static InterpValue MakeNil() { return MakeTuple({}); }
+  static InterpValue MakeUnit() { return MakeTuple({}); }
   static InterpValue MakeU32(uint32_t value) {
     return MakeUBits(/*bit_count=*/32, value);
   }
@@ -150,7 +150,7 @@ class InterpValue {
 
   bool IsTuple() const { return tag_ == InterpValueTag::kTuple; }
   bool IsArray() const { return tag_ == InterpValueTag::kArray; }
-  bool IsNilTuple() const { return IsTuple() && GetLength().value() == 0; }
+  bool IsUnit() const { return IsTuple() && GetLength().value() == 0; }
   bool IsUBits() const { return tag_ == InterpValueTag::kUBits; }
   bool IsSBits() const { return tag_ == InterpValueTag::kSBits; }
   bool IsBits() const { return IsUBits() || IsSBits(); }

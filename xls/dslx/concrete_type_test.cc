@@ -29,7 +29,7 @@ std::vector<std::unique_ptr<ConcreteType>> GetConcreteTypesForTesting() {
   results.push_back(BitsType::MakeU32());
   results.push_back(std::make_unique<BitsType>(true, 8));
   results.push_back(std::make_unique<BitsType>(true, 32));
-  results.push_back(ConcreteType::MakeNil());
+  results.push_back(ConcreteType::MakeUnit());
   {
     // (u32,)
     std::vector<std::unique_ptr<ConcreteType>> tuple_members;
@@ -105,7 +105,7 @@ TEST(ConcreteTypeTest, TestU32) {
   EXPECT_TRUE(IsUBits(t));
 }
 
-TEST(ConcreteTypeTest, TestNil) {
+TEST(ConcreteTypeTest, TestUnit) {
   TupleType t({});
   EXPECT_EQ("()", t.ToString());
   EXPECT_EQ("tuple", t.GetDebugTypeName());

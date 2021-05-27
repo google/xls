@@ -68,7 +68,7 @@ TEST(TypecheckTest, TokenIdentity) {
   XLS_EXPECT_OK(Typecheck("fn f(x: token) -> token { x }"));
 }
 
-TEST(TypecheckTest, Nil) {
+TEST(TypecheckTest, Unit) {
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> () { () }"));
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) { () }"));
 }

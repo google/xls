@@ -78,7 +78,7 @@ absl::StatusOr<InterpValue> FailUnless(const InterpValue& pred,
   if (pred.IsFalse()) {
     return FailureErrorStatus(span, message);
   }
-  return InterpValue::MakeNil();
+  return InterpValue::MakeUnit();
 }
 
 // Helper that finds the first differing index among value spans.
@@ -225,7 +225,7 @@ absl::StatusOr<InterpValue> BuiltinCover(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
     const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("cover!", args).size(2).status());
-  return InterpValue::MakeNil();
+  return InterpValue::MakeUnit();
 }
 
 absl::StatusOr<InterpValue> BuiltinUpdate(
@@ -246,7 +246,7 @@ absl::StatusOr<InterpValue> BuiltinAssertEq(
   const InterpValue& lhs = args[0];
   const InterpValue& rhs = args[1];
   if (lhs.Eq(rhs)) {
-    return InterpValue::MakeNil();
+    return InterpValue::MakeUnit();
   }
 
   std::string message =

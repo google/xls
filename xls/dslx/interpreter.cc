@@ -163,7 +163,7 @@ absl::Status Interpreter::RunTest(absl::string_view name) {
     XLS_LOG(ERROR) << result_or.status();
     return result_or.status();
   }
-  if (!result_or.value().IsNilTuple()) {
+  if (!result_or.value().IsUnit()) {
     return absl::InternalError(absl::StrFormat(
         "EvaluateError: Want test %s to return nil tuple; got: %s",
         test->identifier(), result_or.value().ToString()));
@@ -363,7 +363,7 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
     // TODO(leary): 2020-11-19 This was the previous behavior, but I'm pretty
     // sure it's not right to skip traces, because they're supposed to result in
     // their (traced) argument.
-    return InterpValue::MakeNil();
+    return InterpValue::MakeUnit();
   }
 
   absl::optional<SymbolicBindings> owned_symbolic_bindings;

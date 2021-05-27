@@ -157,7 +157,6 @@ PYBIND11_MODULE(interp_value, m) {
       .def("is_tuple", &InterpValue::IsTuple)
       .def("is_true", &InterpValue::IsTrue)
       .def("is_false", &InterpValue::IsFalse)
-      .def("is_nil_tuple", &InterpValue::IsNilTuple)
       // Factories.
       .def_static("make_bool", &InterpValue::MakeBool, py::arg("value"))
       .def_static("make_ubits", &InterpValue::MakeUBits, py::arg("bit_count"),

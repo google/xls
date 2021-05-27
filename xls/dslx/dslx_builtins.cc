@@ -341,7 +341,7 @@ static void PopulateSignatureToLambdaMap(
                             .ArgsSameType(0, 1)
                             .status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(data.arg_types), ConcreteType::MakeNil())};
+        CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
   };
   map["(const uN[N], const uN[N]) -> uN[N][R]"] =
       [](const SignatureData& data,
@@ -407,7 +407,7 @@ static void PopulateSignatureToLambdaMap(
                             .IsUN(1)
                             .status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(data.arg_types), ConcreteType::MakeNil())};
+        CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
   };
   map["(uN[M], uN[N]) -> uN[M+N]"] =
       [](const SignatureData& data,
@@ -574,7 +574,7 @@ static void PopulateSignatureToLambdaMap(
     });
     XLS_RETURN_IF_ERROR(checker.status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(data.arg_types), ConcreteType::MakeNil())};
+        CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
   };
 }
 

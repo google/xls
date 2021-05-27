@@ -153,8 +153,8 @@ class ConcreteTypeDim {
 // dealing with ConcreteTypeDims that hold ints.
 class ConcreteType {
  public:
-  // Creates a "nil tuple" type (a tuple type with no members).
-  static std::unique_ptr<ConcreteType> MakeNil();
+  // Creates a "unit" tuple type (a tuple type with no members).
+  static std::unique_ptr<ConcreteType> MakeUnit();
 
   // Creates a concrete type matching that of the given InterpValue.
   static absl::StatusOr<std::unique_ptr<ConcreteType>> FromInterpValue(
@@ -199,7 +199,7 @@ class ConcreteType {
   // Type equality, but ignores tuple member naming discrepancies.
   bool CompatibleWith(const ConcreteType& other) const;
 
-  bool IsNil() const;
+  bool IsUnit() const;
   bool IsToken() const;
 };
 

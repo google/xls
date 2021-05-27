@@ -212,7 +212,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromValue(
       if (value.GetLength().value() == 0) {
         // Can't determine the type from the value of a 0-element array, so we
         // just use nil.
-        element_type = ConcreteType::MakeNil();
+        element_type = ConcreteType::MakeUnit();
       } else {
         XLS_ASSIGN_OR_RETURN(
             element_type,
@@ -1271,7 +1271,7 @@ absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
   // when you have an arbitrary InterpBindings and want to understand its
   // provenance.
   b.AddValue(absl::StrCat("__top_level_bindings_", module->name()),
-             InterpValue::MakeNil());
+             InterpValue::MakeUnit());
 
   if (!saw_wip) {
     // Marking the top level bindings as done avoids needless re-evaluation in

@@ -27,7 +27,7 @@
 
 namespace xls::dslx {
 
-std::unique_ptr<ConcreteType> ConcreteType::MakeNil() {
+std::unique_ptr<ConcreteType> ConcreteType::MakeUnit() {
   return absl::make_unique<TupleType>(TupleType::UnnamedMembers{});
 }
 
@@ -181,7 +181,7 @@ bool ConcreteType::CompatibleWith(const ConcreteType& other) const {
   return false;
 }
 
-bool ConcreteType::IsNil() const {
+bool ConcreteType::IsUnit() const {
   if (auto* t = dynamic_cast<const TupleType*>(this)) {
     return t->empty();
   }

@@ -89,7 +89,7 @@ static absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
       // invocation. Let's return this for now, and typecheck the body once we
       // have symbolic bindings.
       if (f->return_type() == nullptr) {
-        annotated_return_type = TupleType::MakeNil();
+        annotated_return_type = TupleType::MakeUnit();
       } else {
         XLS_ASSIGN_OR_RETURN(annotated_return_type,
                              ctx->Deduce(f->return_type()));
@@ -108,7 +108,7 @@ static absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   // Note: if there is no annotated return type, we assume nil.
   std::unique_ptr<ConcreteType> return_type;
   if (f->return_type() == nullptr) {
-    return_type = TupleType::MakeNil();
+    return_type = TupleType::MakeUnit();
   } else {
     XLS_ASSIGN_OR_RETURN(return_type, DeduceAndResolve(f->return_type(), ctx));
   }
@@ -153,11 +153,11 @@ static absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
 static absl::Status CheckTest(TestFunction* t, DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_return_type,
                        ctx->Deduce(t->body()));
-  if (body_return_type->IsNil()) {
+  if (body_return_type->IsUnit()) {
     return absl::OkStatus();
   }
   return XlsTypeErrorStatus(
-      t->body()->span(), *body_return_type, *ConcreteType::MakeNil(),
+      t->body()->span(), *body_return_type, *ConcreteType::MakeUnit(),
       absl::StrFormat("Return type of test body for '%s' did not match the "
                       "expected test return type `()`.",
                       t->identifier()));
