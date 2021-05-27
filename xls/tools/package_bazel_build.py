@@ -23,6 +23,7 @@ and upload pre-built XLS releases.
 
 import os
 import shutil
+from typing import Optional
 
 from absl import app
 from absl import flags
@@ -200,7 +201,7 @@ class BazelTargetPackager:
 
       self._copy_to_output(mf_path, mf_mapping)
 
-  def _copy_to_output(self, path: str, mapping: str = None):
+  def _copy_to_output(self, path: str, mapping: Optional[str] = None):
     """Copy a single file from a manifest to the output directory.
 
     When copying a file from a bazel build to the output directory, this

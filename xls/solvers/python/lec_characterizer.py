@@ -15,7 +15,7 @@
 """Characterizes time-to-LEC for a given computation."""
 
 import time
-from typing import Callable, Iterable, Tuple
+from typing import Callable, Iterable, Optional, Tuple
 
 from absl import logging
 import grpc
@@ -135,8 +135,8 @@ class LecCharacterizer(object):
       num_iters: int,
       cell_library_textproto: str,
       lec_fn: Callable[[str, str, str, str], bool] = z3_lec.run,
-      results_fn: Callable[[lec_characterizer_pb2.LecTiming],
-                           None] = None) -> bool:
+      results_fn: Optional[Callable[[lec_characterizer_pb2.LecTiming],
+                                    None]] = None) -> bool:
     """Executes LEC for a single IR/netlist pair.
 
     Args:

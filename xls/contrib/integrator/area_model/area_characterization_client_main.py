@@ -886,7 +886,8 @@ def _yield_array_dimension_sizes(num_dimensions: int):
                                                  dimension_sizes)
 
 
-def _get_array_num_elements(array_dims: List[int], index_depth: int = None):
+def _get_array_num_elements(array_dims: List[int],
+                            index_depth: Optional[int] = None):
   """Returns the number of elements in a (nested) array.
 
   Returns the number of elements in a (nested) array with dimensions
