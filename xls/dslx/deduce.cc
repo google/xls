@@ -1196,8 +1196,11 @@ struct ValidatedStructMembers {
   // (which works on ordered sets).
   absl::btree_set<std::string> seen_names;
 
-  std::vector<std::unique_ptr<ConcreteType>> arg_types;
-  std::vector<dslx::Span> arg_spans;
+  // Contains types that are deduced and must be owned, but are referred to by
+  // reference in "args".
+  std::vector<std::unique_ptr<ConcreteType>> owned_arg_types;
+
+  std::vector<InstantiateArg> args;
   std::vector<std::unique_ptr<ConcreteType>> member_types;
 };
 
@@ -1230,8 +1233,9 @@ static absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
     }
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr_type,
                          DeduceAndResolve(expr, ctx));
-    result.arg_types.push_back(std::move(expr_type));
-    result.arg_spans.push_back(expr->span());
+    result.owned_arg_types.push_back(std::move(expr_type));
+    result.args.push_back(
+        InstantiateArg{*result.owned_arg_types.back(), expr->span()});
     absl::optional<const ConcreteType*> maybe_type =
         struct_type.GetMemberTypeByName(name);
     if (maybe_type.has_value()) {
@@ -1361,8 +1365,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
 
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
-      InstantiateStruct(node->span(), *tuple_type, validated.arg_types,
-                        validated.arg_spans, validated.member_types, ctx,
+      InstantiateStruct(node->span(), *tuple_type, validated.args,
+                        validated.member_types, ctx,
                         struct_def->parametric_bindings()));
 
   return std::move(tab.type);
@@ -1375,6 +1379,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> splatted_type_ct,
                        ctx->Deduce(node->splatted()));
 
+  // The splatted type should be (nominally) equivalent to the struct type,
+  // because that's where we're filling in the default values from (those values
+  // that were not directly provided by the user).
   TupleType* struct_type = dynamic_cast<TupleType*>(struct_type_ct.get());
   TupleType* splatted_type = dynamic_cast<TupleType*>(splatted_type_ct.get());
 
@@ -1408,20 +1415,22 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
   }
 
   for (const std::string& name : all_names) {
+    // If we didn't see the name, it comes from the "splatted" argument.
     if (!validated.seen_names.contains(name)) {
       const ConcreteType& splatted_member_type =
           *splatted_type->GetMemberTypeByName(name).value();
       const ConcreteType& struct_member_type =
           *struct_type->GetMemberTypeByName(name).value();
 
-      validated.arg_types.push_back(splatted_member_type.CloneToUnique());
+      validated.args.push_back(
+          InstantiateArg{splatted_member_type, node->splatted()->span()});
       validated.member_types.push_back(struct_member_type.CloneToUnique());
     }
   }
 
   // At this point, we should have the same number of args compared to the
   // number of members defined in the struct.
-  XLS_RET_CHECK_EQ(validated.arg_types.size(), validated.member_types.size());
+  XLS_RET_CHECK_EQ(validated.args.size(), validated.member_types.size());
 
   StructRef struct_ref = node->struct_ref();
   XLS_ASSIGN_OR_RETURN(
@@ -1431,8 +1440,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
 
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
-      InstantiateStruct(node->span(), *struct_type, validated.arg_types,
-                        validated.arg_spans, validated.member_types, ctx,
+      InstantiateStruct(node->span(), *struct_type, validated.args,
+                        validated.member_types, ctx,
                         struct_def->parametric_bindings()));
 
   return std::move(tab.type);
@@ -1906,11 +1915,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
               << " caller symbolic bindings: " << caller_symbolic_bindings;
 
   // Gather up the type of all the (actual) arguments.
-  std::vector<std::unique_ptr<ConcreteType>> arg_types;
-  std::vector<dslx::Span> arg_spans;
-  arg_spans.reserve(node->args().size());
+  std::vector<std::unique_ptr<ConcreteType>> owned_arg_types;
+  std::vector<InstantiateArg> args;
   for (Expr* arg : node->args()) {
-    arg_spans.push_back(arg->span());
     absl::StatusOr<std::unique_ptr<ConcreteType>> type =
         DeduceAndResolve(arg, ctx);
     if (IsTypeMissingErrorStatus(type.status())) {
@@ -1930,14 +1937,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
             ctx->module(), node->span(), arg_name_ref, node->args()[0]);
         XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> invocation_type,
                              DeduceAndResolve(invocation, ctx));
-        arg_types.push_back(std::move(invocation_type));
+        owned_arg_types.push_back(std::move(invocation_type));
       } else {
         return type.status();
       }
     } else {
       XLS_RETURN_IF_ERROR(type.status());
-      arg_types.push_back(std::move(type).value());
+      owned_arg_types.push_back(std::move(type).value());
     }
+    args.push_back(InstantiateArg{*owned_arg_types.back(), arg->span()});
   }
 
   // This will get us the type signature of the function. If the function is
@@ -1959,26 +1967,27 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
                                     "Callee does not have a function type.");
   }
 
+  // Find the callee as a DSLX function from the expression.
   Expr* callee = node->callee();
-  std::string callee_name;
   Function* callee_fn;
   if (auto* colon_ref = dynamic_cast<ColonRef*>(callee)) {
     XLS_ASSIGN_OR_RETURN(callee_fn, ResolveColonRefToFn(colon_ref, ctx));
-    callee_name = callee_fn->identifier();
   } else {
     auto* name_ref = dynamic_cast<NameRef*>(callee);
     XLS_RET_CHECK(name_ref != nullptr);
-    callee_name = name_ref->identifier();
+    const std::string& callee_name = name_ref->identifier();
     XLS_ASSIGN_OR_RETURN(callee_fn,
                          ctx->module()->GetFunctionOrError(callee_name));
   }
 
-  // We need to deduce the type of all Invocation parametrics so they're in the
-  // type cache.
+  // We need to deduce the type of all Invocation parametrics (the expressions
+  // in the instantiation brackets <>) so they're in the type cache.
   for (Expr* parametric : node->parametrics()) {
     XLS_RETURN_IF_ERROR(ctx->Deduce(parametric).status());
   }
 
+  // The number of given parametric expressions always has to be <= the
+  // parametric bindings count.
   if (node->parametrics().size() > callee_fn->parametric_bindings().size()) {
     return ArgCountMismatchErrorStatus(
         node->span(),
@@ -1988,8 +1997,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
             node->parametrics().size()));
   }
 
-  // Create new parametric bindings that capture the constraints from the
+  // Create new parametric bindings that reflect the constraints from the
   // specified parametrics.
+  //
+  // TODO(leary): 2021-05-27 Here we're imbuing an expression from a caller
+  // (invocation) module into a parametric binding node from the callee
+  // (invoked) module by instantiating a new ParamtricBinding node -- there has
+  // to be a cleaner way to do this, by separating the exprs into a different
+  // array at least.
   std::vector<ParametricBinding*> new_bindings;
   for (int64_t i = 0; i < node->parametrics().size(); ++i) {
     ParametricBinding* binding = callee_fn->parametric_bindings()[i];
@@ -2050,8 +2065,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
 
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
-      InstantiateFunction(node->span(), *callee_type, arg_types, arg_spans, ctx,
-                          new_bindings, &explicit_bindings));
+      InstantiateFunction(node->span(), *callee_type, args, ctx,
+                          /*parametric_constraints=*/new_bindings,
+                          /*explicit_constraints=*/&explicit_bindings));
   const SymbolicBindings& callee_symbolic_bindings = tab.symbolic_bindings;
 
   if (callee_fn->IsParametric()) {

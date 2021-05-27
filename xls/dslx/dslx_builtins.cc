@@ -536,8 +536,8 @@ static void PopulateSignatureToLambdaMap(
                             .status());
 
     const ConcreteType& t = a->element_type();
-    std::vector<std::unique_ptr<ConcreteType>> mapped_fn_arg_types;
-    mapped_fn_arg_types.push_back(t.CloneToUnique());
+    std::vector<InstantiateArg> mapped_fn_args = {
+        InstantiateArg{t, data.arg_spans[0]}};
 
     absl::optional<absl::Span<ParametricBinding* const>>
         mapped_parametric_bindings;
@@ -550,8 +550,9 @@ static void PopulateSignatureToLambdaMap(
     // invoked with).
     XLS_ASSIGN_OR_RETURN(
         TypeAndBindings tab,
-        InstantiateFunction(data.span, *f, mapped_fn_arg_types, data.arg_spans,
-                            ctx, mapped_parametric_bindings));
+        InstantiateFunction(
+            data.span, *f, mapped_fn_args, ctx,
+            /*parametric_constraints=*/mapped_parametric_bindings));
     auto return_type =
         absl::make_unique<ArrayType>(std::move(tab.type), a->size());
     return TypeAndBindings{
