@@ -53,20 +53,6 @@ py_test(
     ],
 )
 
-py_test(
-    name = "py_parametric_expression_test",
-    srcs = ["parametric_expression_test.py"],
-    main = "parametric_expression_test.py",
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx/python:cpp_parametric_expression",
-        "//xls/dslx/python:cpp_pos",
-        "//xls/dslx/python:interp_value",
-        "@com_google_absl_py//absl/testing:absltest",
-    ],
-)
-
 cc_library(
     name = "symbolic_bindings",
     srcs = ["symbolic_bindings.cc"],
@@ -335,6 +321,17 @@ cc_library(
         ":pos",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+    ],
+)
+
+cc_test(
+    name = "parametric_expression_test",
+    srcs = ["parametric_expression_test.cc"],
+    deps = [
+        ":parametric_expression",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )
 
