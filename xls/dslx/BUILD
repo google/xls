@@ -164,29 +164,6 @@ filegroup(
     visibility = ["//xls:xls_users"],
 )
 
-py_library(
-    name = "fakefs_util",
-    srcs = ["fakefs_util.py"],
-    srcs_version = "PY3",
-    deps = [
-        requirement("pyfakefs"),
-    ],
-)
-
-py_library(
-    name = "fakefs_test_util",
-    # If we don't mark this as testonly we can get warnings (when the modified
-    # third party version drags in googletest as a dependency and the test
-    # main is not called).
-    testonly = True,
-    srcs = ["fakefs_test_util.py"],
-    srcs_version = "PY3",
-    deps = [
-        ":fakefs_util",
-        requirement("pyfakefs"),  # unittest
-    ],
-)
-
 cc_library(
     name = "pos",
     srcs = ["pos.cc"],

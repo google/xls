@@ -44,7 +44,6 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        requirement("pyfakefs"),  # unittest
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "//xls/dslx/python:interpreter",
