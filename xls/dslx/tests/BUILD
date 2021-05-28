@@ -14,431 +14,742 @@
 
 # Interpreter-based standalone tests.
 
-load("//xls/build_rules:build_defs.bzl", "dslx_mangle", "dslx_test")
+load(
+    "//xls/build_rules:xls_build_defs.bzl",
+    "get_mangled_ir_symbol",
+    "xls_dslx_library",
+    "xls_dslx_opt_ir",
+    "xls_dslx_opt_ir_test",
+    "xls_dslx_test",
+)
 
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "tuple_with_array_member",
-    srcs = ["tuple_with_array_member.x"],
+    src = "tuple_with_array_member.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "tuple_with_array_member_test",
+    dep = ":tuple_with_array_member",
+)
+
+xls_dslx_opt_ir(
     name = "binops",
-    srcs = ["binops.x"],
+    src = "binops.x",
+)
+
+xls_dslx_opt_ir_test(
+    name = "binops_test",
+    dep = ":binops",
     prove_unopt_eq_opt = False,
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "comparisons",
-    srcs = ["comparisons.x"],
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
+    src = "comparisons.x",
 )
 
-dslx_test(
-    name = "compound_eq",
-    srcs = ["compound_eq.x"],
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
+xls_dslx_test(
+    name = "comparisons_test",
+    src = "comparisons.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "constexpr",
+    src = "constexpr.x",
+)
+
+xls_dslx_opt_ir_test(
+    name = "constexpr_test",
+    dep = ":constexpr",
+)
+
+xls_dslx_library(
+    name = "constexpr_dslx",
     srcs = ["constexpr.x"],
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "constexpr_attrs",
-    srcs = ["constexpr_attrs.x"],
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
-    deps = ["constexpr.x"],
+    src = "constexpr_attrs.x",
+    deps = [":constexpr_dslx"],
 )
 
-dslx_test(
+xls_dslx_test(
+    name = "constexpr_attrs_test",
+    src = "constexpr_attrs.x",
+    deps = [":constexpr_dslx"],
+)
+
+xls_dslx_opt_ir(
+    name = "compound_eq",
+    src = "compound_eq.x",
+)
+
+xls_dslx_test(
+    name = "compound_eq_test",
+    src = "compound_eq.x",
+)
+
+xls_dslx_opt_ir(
     name = "constexpr_clog2",
-    srcs = ["constexpr_clog2.x"],
+    src = "constexpr_clog2.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "constexpr_clog2_test",
+    dep = ":constexpr_clog2",
+)
+
+xls_dslx_opt_ir(
     name = "constexpr_imported_clog2",
-    srcs = ["constexpr_imported_clog2.x"],
-    deps = ["constexpr.x"],
+    src = "constexpr_imported_clog2.x",
+    deps = [":constexpr_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "constexpr_imported_clog2_test",
+    dep = ":constexpr_imported_clog2",
+)
+
+xls_dslx_opt_ir(
     name = "constexpr_types_via_invocations",
-    srcs = ["constexpr_types_via_invocations.x"],
+    src = "constexpr_types_via_invocations.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "constexpr_types_via_invocations_test",
+    dep = ":constexpr_types_via_invocations",
+)
+
+xls_dslx_opt_ir(
     name = "constexpr_types_via_invocations_inline",
-    srcs = ["constexpr_types_via_invocations_inline.x"],
+    src = "constexpr_types_via_invocations_inline.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "constexpr_types_via_invocations_inline_test",
+    dep = ":constexpr_types_via_invocations_inline",
+)
+
+xls_dslx_opt_ir(
     name = "constexpr_types_via_stdlib_invocation",
-    srcs = ["constexpr_types_via_stdlib_invocation.x"],
+    src = "constexpr_types_via_stdlib_invocation.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "constexpr_types_via_stdlib_invocation_test",
+    dep = ":constexpr_types_via_stdlib_invocation",
+)
+
+xls_dslx_opt_ir(
     name = "constexpr_slice",
-    srcs = ["constexpr_slice.x"],
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
+    src = "constexpr_slice.x",
 )
 
-dslx_test(
-    name = "cover",
-    srcs = ["cover.x"],
+xls_dslx_test(
+    name = "constexpr_slice_test",
+    src = "constexpr_slice.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "explicit_parametric",
-    srcs = ["explicit_parametric.x"],
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
+    src = "explicit_parametric.x",
 )
 
-dslx_test(
+xls_dslx_test(
+    name = "explicit_parametric_test",
+    src = "explicit_parametric.x",
+)
+
+xls_dslx_opt_ir(
     name = "explicit_parametric_simple",
-    srcs = ["explicit_parametric_simple.x"],
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
+    src = "explicit_parametric_simple.x",
 )
 
-dslx_test(
+xls_dslx_test(
+    name = "explicit_parametric_simple_test",
+    src = "explicit_parametric_simple.x",
+)
+
+xls_dslx_opt_ir(
     name = "explicit_parametric_reduced",
-    srcs = ["explicit_parametric_reduced.x"],
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
+    src = "explicit_parametric_reduced.x",
 )
 
-dslx_test(
+xls_dslx_test(
+    name = "explicit_parametric_reduced_test",
+    src = "explicit_parametric_reduced.x",
+)
+
+xls_dslx_opt_ir(
     name = "parametric_dot_product",
-    srcs = ["parametric_dot_product.x"],
+    src = "parametric_dot_product.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "parametric_dot_product_test",
+    dep = ":parametric_dot_product",
+)
+
+xls_dslx_opt_ir(
     name = "string_conversion",
-    srcs = ["string_conversion.x"],
+    src = "string_conversion.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "string_conversion_test",
+    dep = ":string_conversion",
+)
+
+xls_dslx_opt_ir(
     name = "import_constexpr",
-    srcs = ["import_constexpr.x"],
-    deps = ["constexpr.x"],
+    src = "import_constexpr.x",
+    deps = ["constexpr_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "import_constexpr_test",
+    dep = ":import_constexpr",
+)
+
+xls_dslx_opt_ir(
     name = "map",
-    srcs = ["map.x"],
+    src = "map.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "map_test",
+    dep = ":map",
+)
+
+xls_dslx_opt_ir(
     name = "multiplies",
-    srcs = ["multiplies.x"],
+    src = "multiplies.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "multiplies_test",
+    dep = ":multiplies",
+)
+
+xls_dslx_opt_ir(
     name = "match_sample",
-    srcs = ["match_sample.x"],
+    src = "match_sample.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "match_sample_test",
+    dep = ":match_sample",
+)
+
+xls_dslx_opt_ir(
     name = "match_const",
-    srcs = ["match_const.x"],
+    src = "match_const.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "match_const_test",
+    dep = ":match_const",
+)
+
+xls_dslx_opt_ir(
     name = "match_multi",
-    srcs = ["match_multi.x"],
+    src = "match_multi.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "match_multi_test",
+    dep = ":match_multi",
+)
+
+xls_dslx_library(
+    name = "number_of_imported_type_import_dslx",
+    srcs = ["number_of_imported_type_import.x"],
+)
+
+xls_dslx_opt_ir(
     name = "number_of_imported_type",
-    srcs = ["number_of_imported_type.x"],
-    deps = ["number_of_imported_type_import.x"],
+    src = "number_of_imported_type.x",
+    deps = [":number_of_imported_type_import_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "number_of_imported_type_test",
+    dep = ":number_of_imported_type",
+)
+
+xls_dslx_library(
+    name = "mod_struct_point_dslx",
+    srcs = ["mod_struct_point.x"],
+)
+
+xls_dslx_opt_ir(
     name = "type_aliasing_importer",
-    srcs = ["type_aliasing_importer.x"],
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
-    deps = ["mod_struct_point.x"],
+    src = "type_aliasing_importer.x",
+    deps = ["mod_struct_point_dslx"],
 )
 
-dslx_test(
+xls_dslx_test(
+    name = "type_aliasing_importer_test",
+    src = "type_aliasing_importer.x",
+    deps = ["mod_struct_point_dslx"],
+)
+
+xls_dslx_opt_ir(
     name = "parametric_call_parametric",
-    srcs = ["parametric_call_parametric.x"],
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
+    src = "parametric_call_parametric.x",
 )
 
-dslx_test(
+xls_dslx_test(
+    name = "parametric_call_parametric_test",
+    src = "parametric_call_parametric.x",
+)
+
+xls_dslx_library(
+    name = "parametric_import_dslx",
+    srcs = ["parametric_import.x"],
+)
+
+xls_dslx_opt_ir(
     name = "parametric_importer",
-    srcs = ["parametric_importer.x"],
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
-    deps = ["parametric_import.x"],
+    src = "parametric_importer.x",
+    deps = ["parametric_import_dslx"],
 )
 
-dslx_test(
+xls_dslx_test(
+    name = "parametric_importer_test",
+    src = "parametric_importer.x",
+    deps = ["parametric_import_dslx"],
+)
+
+xls_dslx_opt_ir(
     name = "signed_comparisons",
-    srcs = ["signed_comparisons.x"],
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
+    src = "signed_comparisons.x",
 )
 
-dslx_test(
+xls_dslx_test(
+    name = "signed_comparisons_test",
+    src = "signed_comparisons.x",
+)
+
+xls_dslx_opt_ir(
     name = "subtract_to_negative",
-    srcs = ["subtract_to_negative.x"],
+    src = "subtract_to_negative.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "subtract_to_negative_test",
+    dep = ":subtract_to_negative",
+)
+
+xls_dslx_opt_ir(
     name = "trace",
-    srcs = ["trace.x"],
+    src = "trace.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "trace_test",
+    dep = ":trace",
+)
+
+xls_dslx_opt_ir(
     name = "array_of_typedef_in_tuple",
-    srcs = ["array_of_typedef_in_tuple.x"],
+    src = "array_of_typedef_in_tuple.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "array_of_typedef_in_tuple_test",
+    dep = ":array_of_typedef_in_tuple",
+)
+
+xls_dslx_opt_ir(
     name = "array_of_tuple",
-    srcs = ["array_of_tuple.x"],
-    # Only a test function.
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
+    src = "array_of_tuple.x",
 )
 
-dslx_test(
+xls_dslx_test(
+    name = "array_of_tuple_test",
+    src = "array_of_tuple.x",
+)
+
+xls_dslx_opt_ir(
     name = "array_slice",
-    srcs = ["array_slice.x"],
+    src = "array_slice.x",
 )
 
-dslx_test(
+xls_dslx_test(
+    name = "array_slice_test",
+    src = "array_slice.x",
+)
+
+# TODO(leary): 2019-07-24 Missing support for array of tuples eliding cast node.
+xls_dslx_test(
     name = "parametric_array_of_tuples",
-    srcs = ["parametric_array_of_tuples.x"],
-    # TODO(leary): 2019-07-24 Missing support for array of tuples eliding cast
-    # node.
-    convert_ir = False,
+    src = "parametric_array_of_tuples.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+xls_dslx_test(
     name = "parametric_functions",
-    srcs = ["parametric_functions.x"],
-    convert_ir = False,
+    src = "parametric_functions.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "parametric_value_as_nested_loop_bound",
-    srcs = ["parametric_value_as_nested_loop_bound.x"],
+    src = "parametric_value_as_nested_loop_bound.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "parametric_value_as_nested_loop_bound_test",
+    dep = ":parametric_value_as_nested_loop_bound",
+)
+
+xls_dslx_opt_ir(
     name = "derived_parametric_value_as_nested_loop_bound",
-    srcs = ["derived_parametric_value_as_nested_loop_bound.x"],
+    src = "derived_parametric_value_as_nested_loop_bound.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "derived_parametric_value_as_nested_loop_bound_test",
+    dep = ":derived_parametric_value_as_nested_loop_bound",
+)
+
+# Note: no meaningful function to convert.
+xls_dslx_test(
     name = "bit_slice",
-    srcs = ["bit_slice.x"],
-    # Note: no meaningful function to convert.
-    convert_ir = False,
+    src = "bit_slice.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "bit_slice_update",
-    srcs = ["bit_slice_update.x"],
+    src = "bit_slice_update.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "bit_slice_update_test",
+    dep = ":bit_slice_update",
+)
+
+xls_dslx_opt_ir(
     name = "const_slice_limit",
-    srcs = ["const_slice_limit.x"],
+    src = "const_slice_limit.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "const_slice_limit_test",
+    dep = ":const_slice_limit",
+)
+
+# Note: no meaningful function to convert.
+xls_dslx_test(
     name = "bit_slice_syntax",
-    srcs = ["bit_slice_syntax.x"],
-    # Note: no meaningful function to convert.
-    convert_ir = False,
+    src = "bit_slice_syntax.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+# Note: no meaningful function to convert.
+xls_dslx_test(
     name = "tuple_indexing",
-    srcs = ["tuple_indexing.x"],
-    # Note: no meaningful function to convert.
-    convert_ir = False,
+    src = "tuple_indexing.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "clz",
-    srcs = ["clz.x"],
+    src = "clz.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "clz_test",
+    dep = ":clz",
+)
+
+xls_dslx_opt_ir(
     name = "ctz",
-    srcs = ["ctz.x"],
+    src = "ctz.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "ctz_test",
+    dep = ":ctz",
+)
+
+# Note: no meaningful function to convert.
+xls_dslx_test(
     name = "one_hot",
-    srcs = ["one_hot.x"],
-    # Note: no meaningful function to convert.
-    convert_ir = False,
+    src = "one_hot.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+# Note: no meaningful function to convert.
+xls_dslx_test(
     name = "one_hot_sel",
-    srcs = ["one_hot_sel.x"],
-    # Note: no meaningful function to convert.
-    convert_ir = False,
+    src = "one_hot_sel.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "reductions",
-    srcs = ["reductions.x"],
+    src = "reductions.x",
+)
+
+xls_dslx_opt_ir_test(
+    name = "reductions_test",
+    dep = ":reductions",
     prove_unopt_eq_opt = False,
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "signed_number_type",
-    srcs = ["signed_number_type.x"],
+    src = "signed_number_type.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "signed_number_type_test",
+    dep = ":signed_number_type",
+)
+
+# Note: no meaningful function to convert.
+xls_dslx_test(
     name = "numerical_conversions",
-    srcs = ["numerical_conversions.x"],
-    # Note: no meaningful function to convert.
-    convert_ir = False,
+    src = "numerical_conversions.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+# Note: no meaningful function to convert.
+xls_dslx_test(
     name = "numerical_conversions2",
-    srcs = ["numerical_conversions2.x"],
-    # Note: no meaningful function to convert.
-    convert_ir = False,
+    src = "numerical_conversions2.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+# Note: no meaningful function to convert.
+xls_dslx_test(
     name = "signex_builtin",
-    srcs = ["signex_builtin.x"],
-    # Note: no meaningful function to convert.
-    convert_ir = False,
+    src = "signex_builtin.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+# Note: no meaningful function to convert.
+xls_dslx_test(
     name = "enum_values",
-    srcs = ["enum_values.x"],
-    # Note: no meaningful function to convert.
-    convert_ir = False,
+    src = "enum_values.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+# TODO(leary); 2019-10-24 Enable when we have ConcatArray op.
+xls_dslx_test(
     name = "casts",
-    srcs = ["casts.x"],
-    # TODO(leary); 2019-10-24 Enable when we have ConcatArray op.
-    convert_ir = False,
+    src = "casts.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+# TODO(leary); 2019-10-24 Enable when we have ConcatArray op.
+xls_dslx_test(
     name = "cast_to_array",
-    srcs = ["cast_to_array.x"],
-    # TODO(leary); 2019-10-24 Enable when we have ConcatArray op.
-    convert_ir = False,
+    src = "cast_to_array.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+xls_dslx_test(
     name = "parametric_with_comparison",
-    srcs = ["parametric_with_comparison.x"],
-    convert_ir = False,
+    src = "parametric_with_comparison.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+# Note: no meaningful function to convert.
+xls_dslx_test(
     name = "parametric_smul",
-    srcs = ["parametric_smul.x"],
-    # Note: no meaningful function to convert.
-    convert_ir = False,
+    src = "parametric_smul.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "basic_struct",
-    srcs = ["basic_struct.x"],
+    src = "basic_struct.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "basic_struct_test",
+    dep = ":basic_struct",
+)
+
+xls_dslx_opt_ir(
     name = "basic_struct_parameter",
-    srcs = ["basic_struct_parameter.x"],
+    src = "basic_struct_parameter.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "basic_struct_parameter_test",
+    dep = ":basic_struct_parameter",
+)
+
+xls_dslx_opt_ir(
     name = "basic_struct_attr",
-    srcs = ["basic_struct_attr.x"],
+    src = "basic_struct_attr.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "basic_struct_attr_test",
+    dep = ":basic_struct_attr",
+)
+
+# Note: no meaningful function to convert.
+xls_dslx_test(
     name = "struct_equality",
-    srcs = ["struct_equality.x"],
-    # Note: no meaningful function to convert.
-    convert_ir = False,
+    src = "struct_equality.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "basic_struct_update",
-    srcs = ["basic_struct_update.x"],
+    src = "basic_struct_update.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "basic_struct_update_test",
+    dep = ":basic_struct_update",
+)
+
+xls_dslx_opt_ir(
     name = "struct_splat_update",
-    srcs = ["struct_splat_update.x"],
+    src = "struct_splat_update.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "struct_splat_update_test",
+    dep = ":struct_splat_update",
+)
+
+xls_dslx_opt_ir(
     name = "struct_splat_update_to_const",
-    srcs = ["struct_splat_update_to_const.x"],
+    src = "struct_splat_update_to_const.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "struct_splat_update_to_const_test",
+    dep = ":struct_splat_update_to_const",
+)
+
+xls_dslx_opt_ir(
     name = "empty_struct_splat_update",
-    srcs = ["empty_struct_splat_update.x"],
+    src = "empty_struct_splat_update.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "empty_struct_splat_update_test",
+    dep = ":empty_struct_splat_update",
+)
+
+xls_dslx_opt_ir(
     name = "basic_struct_array",
-    srcs = ["basic_struct_array.x"],
+    src = "basic_struct_array.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "basic_struct_array_test",
+    dep = ":basic_struct_array",
+)
+
+xls_dslx_opt_ir(
     name = "basic_enum_array",
-    srcs = ["basic_enum_array.x"],
+    src = "basic_enum_array.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "basic_enum_array_test",
+    dep = ":basic_enum_array",
+)
+
+xls_dslx_opt_ir(
     name = "basic_array",
-    srcs = ["basic_array.x"],
+    src = "basic_array.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "basic_array_test",
+    dep = ":basic_array",
+)
+
+xls_dslx_opt_ir(
     name = "std_lsb",
-    srcs = ["std_lsb.x"],
+    src = "std_lsb.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "std_lsb_test",
+    dep = ":std_lsb",
+)
+
+xls_dslx_opt_ir(
     name = "std_alias",
-    srcs = ["std_alias.x"],
+    src = "std_alias.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "std_alias_test",
+    dep = ":std_alias",
+)
+
+xls_dslx_library(
+    name = "mod_imported_dslx",
+    srcs = ["mod_imported.x"],
+)
+
+xls_dslx_opt_ir(
     name = "mod_importer",
-    srcs = ["mod_importer.x"],
-    deps = ["mod_imported.x"],
+    src = "mod_importer.x",
+    deps = ["mod_imported_dslx"],
+)
+
+xls_dslx_opt_ir_test(
+    name = "mod_importer_test",
+    dep = ":mod_importer",
+)
+
+xls_dslx_library(
+    name = "mod_imported_typedef_dslx",
+    srcs = ["mod_imported_typedef.x"],
 )
 
 filegroup(
@@ -446,299 +757,592 @@ filegroup(
     srcs = ["mod_imported.x"],
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "mod_importer_typedef",
-    srcs = ["mod_importer_typedef.x"],
-    deps = ["mod_imported_typedef.x"],
+    src = "mod_importer_typedef.x",
+    deps = ["mod_imported_typedef_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "mod_importer_typedef_test",
+    dep = ":mod_importer_typedef",
+)
+
+xls_dslx_library(
+    name = "mod_imported_struct_of_enum_dslx",
+    srcs = ["mod_imported_struct_of_enum.x"],
+)
+
+xls_dslx_opt_ir(
     name = "mod_importer_struct_of_enum",
-    srcs = ["mod_importer_struct_of_enum.x"],
-    deps = ["mod_imported_struct_of_enum.x"],
+    src = "mod_importer_struct_of_enum.x",
+    deps = ["mod_imported_struct_of_enum_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "mod_importer_struct_of_enum_test",
+    dep = ":mod_importer_struct_of_enum",
+)
+
+xls_dslx_opt_ir(
     name = "mod_importer_simple",
-    srcs = ["mod_importer_simple.x"],
-    deps = ["mod_imported.x"],
+    src = "mod_importer_simple.x",
+    deps = ["mod_imported_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "mod_importer_simple_test",
+    dep = ":mod_importer_simple",
+)
+
+xls_dslx_opt_ir(
     name = "mod_struct_importer",
-    srcs = ["mod_struct_importer.x"],
-    deps = ["mod_imported.x"],
+    src = "mod_struct_importer.x",
+    deps = ["mod_imported_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "mod_struct_importer_test",
+    dep = ":mod_struct_importer",
+)
+
+xls_dslx_opt_ir(
     name = "mod_enum_importer",
-    srcs = ["mod_enum_importer.x"],
-    deps = ["mod_imported.x"],
+    src = "mod_enum_importer.x",
+    deps = ["mod_imported_dslx"],
 )
 
-dslx_test(
-    name = "mod_parametric_id_user",
-    srcs = ["mod_parametric_id_user.x"],
-    deps = [
+xls_dslx_opt_ir_test(
+    name = "mod_enum_importer_test",
+    dep = ":mod_enum_importer",
+)
+
+xls_dslx_library(
+    name = "mod_parametric_id_dslx",
+    srcs = [
         "mod_parametric_id.x",
         "mod_parametric_id_indirect.x",
     ],
 )
 
-dslx_test(
+xls_dslx_opt_ir(
+    name = "mod_parametric_id_user",
+    src = "mod_parametric_id_user.x",
+    deps = ["mod_parametric_id_dslx"],
+)
+
+xls_dslx_opt_ir_test(
+    name = "mod_parametric_id_user_test",
+    dep = ":mod_parametric_id_user",
+)
+
+xls_dslx_library(
+    name = "mod_imported_lsb_dslx",
+    srcs = ["mod_imported_lsb.x"],
+)
+
+xls_dslx_opt_ir(
     name = "call_imported_fn_simple",
-    srcs = ["call_imported_fn_simple.x"],
-    deps = ["mod_imported_lsb.x"],
+    src = "call_imported_fn_simple.x",
+    deps = ["mod_imported_lsb_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "call_imported_fn_simple_test",
+    dep = ":call_imported_fn_simple",
+)
+
+xls_dslx_library(
+    name = "mod_imported_aliases_dslx",
+    srcs = ["mod_imported_aliases.x"],
+)
+
+xls_dslx_opt_ir(
     name = "mod_typedef_importer",
-    srcs = ["mod_typedef_importer.x"],
-    deps = ["mod_imported_aliases.x"],
+    src = "mod_typedef_importer.x",
+    deps = ["mod_imported_aliases_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "mod_typedef_importer_test",
+    dep = ":mod_typedef_importer",
+)
+
+xls_dslx_opt_ir(
     name = "array_ellipsis",
-    srcs = ["array_ellipsis.x"],
+    src = "array_ellipsis.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "array_ellipsis_test",
+    dep = ":array_ellipsis",
+)
+
+xls_dslx_opt_ir(
     name = "local_const_value",
-    srcs = ["local_const_value.x"],
+    src = "local_const_value.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "local_const_value_test",
+    dep = ":local_const_value",
+)
+
+xls_dslx_opt_ir(
     name = "const_value_as_nested_loop_bound",
-    srcs = ["const_value_as_nested_loop_bound.x"],
+    src = "const_value_as_nested_loop_bound.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "const_value_as_nested_loop_bound_test",
+    dep = ":const_value_as_nested_loop_bound",
+)
+
+xls_dslx_opt_ir(
     name = "local_const_value_in_parametric",
-    srcs = ["local_const_value_in_parametric.x"],
+    src = "local_const_value_in_parametric.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "local_const_value_in_parametric_test",
+    dep = ":local_const_value_in_parametric",
+)
+
+xls_dslx_opt_ir(
     name = "constant_array_unannotated_type",
-    srcs = ["constant_array_unannotated_type.x"],
+    src = "constant_array_unannotated_type.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "constant_array_unannotated_type_test",
+    dep = ":constant_array_unannotated_type",
+)
+
+xls_dslx_opt_ir(
     name = "reverse",
-    srcs = ["reverse.x"],
+    src = "reverse.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "reverse_test",
+    dep = ":reverse",
+)
+
+xls_dslx_opt_ir(
     name = "typedef_multidim_array",
-    srcs = ["typedef_multidim_array.x"],
+    src = "typedef_multidim_array.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "typedef_multidim_array_test",
+    dep = ":typedef_multidim_array",
+)
+
+xls_dslx_opt_ir(
     name = "parametric_multidim_array",
-    srcs = ["parametric_multidim_array.x"],
-    entry = dslx_mangle(
-        "parametric_multidim_array",
-        "id",
-        (6, 3, 2),
-    ),
+    src = "parametric_multidim_array.x",
+    opt_ir_args = {
+        "entry": get_mangled_ir_symbol(
+            "parametric_multidim_array",
+            "id",
+            (6, 3, 2),
+        ),
+    },
 )
 
-dslx_test(
-    name = "derived_parametrics",
-    srcs = ["derived_parametrics.x"],
+xls_dslx_opt_ir_test(
+    name = "parametric_multidim_array_test",
+    dep = ":parametric_multidim_array",
 )
 
-dslx_test(
-    name = "parametric_struct",
-    srcs = ["parametric_struct.x"],
-)
-
-dslx_test(
-    name = "parametric_struct_simple",
-    srcs = ["parametric_struct_simple.x"],
-    # Only a parametric entry point, so no benchmark.
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
-)
-
-dslx_test(
-    name = "test_f_calls_parametric_f",
-    srcs = ["test_f_calls_parametric_f.x"],
-    entry = dslx_mangle("test_f_calls_parametric_f", "f"),
-)
-
-dslx_test(
-    name = "array_concat",
-    srcs = ["array_concat.x"],
-)
-
-dslx_test(
-    name = "for_up_to_const",
-    srcs = ["for_up_to_const.x"],
-    entry = dslx_mangle("for_up_to_const", "f"),
-)
-
-dslx_test(
-    name = "for_up_to_const_local",
-    srcs = ["for_up_to_const_local.x"],
-)
-
-dslx_test(
+xls_dslx_opt_ir(
     name = "for_sans_type_annotation",
-    srcs = ["for_sans_type_annotation.x"],
+    src = "for_sans_type_annotation.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "for_sans_type_annotation_test",
+    dep = ":for_sans_type_annotation",
+)
+
+xls_dslx_opt_ir(
+    name = "derived_parametrics",
+    src = "derived_parametrics.x",
+)
+
+xls_dslx_opt_ir_test(
+    name = "derived_parametrics_test",
+    dep = ":derived_parametrics",
+)
+
+xls_dslx_opt_ir(
+    name = "parametric_struct",
+    src = "parametric_struct.x",
+)
+
+xls_dslx_opt_ir_test(
+    name = "parametric_struct_test",
+    dep = ":parametric_struct",
+)
+
+xls_dslx_opt_ir(
+    name = "parametric_struct_simple",
+    src = "parametric_struct_simple.x",
+)
+
+# Only a parametric entry point, so no benchmark.
+xls_dslx_test(
+    name = "parametric_struct_simple_test",
+    src = "parametric_struct_simple.x",
+)
+
+xls_dslx_opt_ir(
+    name = "test_f_calls_parametric_f",
+    src = "test_f_calls_parametric_f.x",
+    opt_ir_args = {
+        "entry": get_mangled_ir_symbol("test_f_calls_parametric_f", "f"),
+    },
+)
+
+xls_dslx_opt_ir_test(
+    name = "test_f_calls_parametric_f_test",
+    dep = ":test_f_calls_parametric_f",
+)
+
+xls_dslx_opt_ir(
+    name = "array_concat",
+    src = "array_concat.x",
+)
+
+xls_dslx_opt_ir_test(
+    name = "array_concat_test",
+    dep = ":array_concat",
+)
+
+xls_dslx_opt_ir(
+    name = "for_up_to_const",
+    src = "for_up_to_const.x",
+    opt_ir_args = {
+        "entry": get_mangled_ir_symbol("for_up_to_const", "f"),
+    },
+)
+
+xls_dslx_opt_ir_test(
+    name = "for_up_to_const_test",
+    dep = ":for_up_to_const",
+)
+
+xls_dslx_opt_ir(
+    name = "for_up_to_const_local",
+    src = "for_up_to_const_local.x",
+)
+
+xls_dslx_opt_ir_test(
+    name = "for_up_to_const_local_test",
+    dep = ":for_up_to_const_local",
+)
+
+xls_dslx_opt_ir(
     name = "map_of_stdlib_parametric",
-    srcs = ["map_of_stdlib_parametric.x"],
+    src = "map_of_stdlib_parametric.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "map_of_stdlib_parametric_test",
+    dep = ":map_of_stdlib_parametric",
+)
+
+xls_dslx_library(
+    name = "mod_imported_array_dslx",
+    srcs = ["mod_imported_array.x"],
+)
+
+xls_dslx_opt_ir(
     name = "map_multi_module",
-    srcs = ["map_multi_module.x"],
+    src = "map_multi_module.x",
     deps = [
-        "mod_imported_array.x",
-        "mod_imported_lsb.x",
+        ":mod_imported_array_dslx",
+        ":mod_imported_lsb_dslx",
     ],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "map_multi_module_test",
+    dep = ":map_multi_module",
+)
+
+xls_dslx_opt_ir(
     name = "parametric_const_ref",
-    srcs = ["parametric_const_ref.x"],
-    # Only a parametric entry point, so no benchmark.
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
+    src = "parametric_const_ref.x",
 )
 
-dslx_test(
+# Only a parametric entry point, so no benchmark.
+xls_dslx_test(
+    name = "parametric_const_ref_test",
+    src = "parametric_const_ref.x",
+)
+
+xls_dslx_opt_ir(
     name = "array_with_binary_dim",
-    srcs = ["array_with_binary_dim.x"],
+    src = "array_with_binary_dim.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "array_with_binary_dim_test",
+    dep = ":array_with_binary_dim",
+)
+
+xls_dslx_library(
+    name = "mod_simple_enum_dslx",
+    srcs = ["mod_simple_enum.x"],
+)
+
+xls_dslx_opt_ir(
     name = "mod_simple_enum_importer",
-    srcs = ["mod_simple_enum_importer.x"],
-    deps = ["mod_simple_enum.x"],
+    src = "mod_simple_enum_importer.x",
+    deps = [":mod_simple_enum_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "mod_simple_enum_importer_test",
+    dep = ":mod_simple_enum_importer",
+)
+
+xls_dslx_opt_ir(
     name = "mod_enum_use_in_for_match_importer",
-    srcs = ["mod_enum_use_in_for_match_importer.x"],
-    deps = ["mod_simple_enum.x"],
+    src = "mod_enum_use_in_for_match_importer.x",
+    deps = [":mod_simple_enum_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "mod_enum_use_in_for_match_importer_test",
+    dep = ":mod_enum_use_in_for_match_importer",
+)
+
+xls_dslx_opt_ir(
     name = "mod_enum_fully_qualified_match_importer",
-    srcs = ["mod_enum_fully_qualified_match_importer.x"],
-    deps = ["mod_simple_enum.x"],
+    src = "mod_enum_fully_qualified_match_importer.x",
+    deps = [":mod_simple_enum_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "mod_enum_fully_qualified_match_importer_test",
+    dep = ":mod_enum_fully_qualified_match_importer",
+)
+
+xls_dslx_library(
+    name = "mod_simple_const_dslx",
+    srcs = ["mod_simple_const.x"],
+)
+
+xls_dslx_opt_ir(
     name = "mod_const_importer",
-    srcs = ["mod_const_importer.x"],
-    deps = ["mod_simple_const.x"],
+    src = "mod_const_importer.x",
+    deps = [":mod_simple_const_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "mod_const_importer_test",
+    dep = ":mod_const_importer",
+)
+
+xls_dslx_opt_ir(
     name = "importer_const_in_range",
-    srcs = ["importer_const_in_range.x"],
-    deps = ["mod_simple_const.x"],
+    src = "importer_const_in_range.x",
+    deps = [":mod_simple_const_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "importer_const_in_range_test",
+    dep = ":importer_const_in_range",
+)
+
+xls_dslx_opt_ir(
     name = "importer_const_in_return_type",
-    srcs = ["importer_const_in_return_type.x"],
-    deps = ["mod_simple_const.x"],
+    src = "importer_const_in_return_type.x",
+    deps = [":mod_simple_const_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "importer_const_in_return_type_test",
+    dep = ":importer_const_in_return_type",
+)
+
+xls_dslx_opt_ir(
     name = "mod_const_in_type_alias",
-    srcs = ["mod_const_in_type_alias.x"],
-    deps = ["mod_simple_const.x"],
+    src = "mod_const_in_type_alias.x",
+    deps = [":mod_simple_const_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "mod_const_in_type_alias_test",
+    dep = ":mod_const_in_type_alias",
+)
+
+xls_dslx_opt_ir(
     name = "mod_const_in_type_alias_expr",
-    srcs = ["mod_const_in_type_alias_expr.x"],
-    deps = ["mod_simple_const.x"],
+    src = "mod_const_in_type_alias_expr.x",
+    deps = [":mod_simple_const_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "mod_const_in_type_alias_expr_test",
+    dep = ":mod_const_in_type_alias_expr",
+)
+
+xls_dslx_library(
+    name = "mod_simple_const_enum_dslx",
+    srcs = ["mod_simple_const_enum.x"],
+)
+
+xls_dslx_opt_ir(
     name = "mod_const_enum_importer",
-    srcs = ["mod_const_enum_importer.x"],
-    deps = ["mod_simple_const_enum.x"],
+    src = "mod_const_enum_importer.x",
+    deps = [":mod_simple_const_enum_dslx"],
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "mod_const_enum_importer_test",
+    dep = ":mod_const_enum_importer",
+)
+
+xls_dslx_opt_ir(
     name = "mod_simple_enum_alias_importer",
-    srcs = ["mod_simple_enum_alias_importer.x"],
-    deps = ["mod_simple_enum.x"],
+    src = "mod_simple_enum_alias_importer.x",
+    deps = [":mod_simple_enum_dslx"],
 )
 
-dslx_test(
-    name = "mod_simple_const_array_of_enums_importer",
-    srcs = ["mod_const_array_of_enum_importer.x"],
-    deps = ["mod_simple_const_array_of_enums.x"],
+xls_dslx_opt_ir_test(
+    name = "mod_simple_enum_alias_importer_test",
+    dep = ":mod_simple_enum_alias_importer",
 )
 
-dslx_test(
+xls_dslx_library(
+    name = "mod_simple_const_array_of_enums_dslx",
+    srcs = ["mod_simple_const_array_of_enums.x"],
+)
+
+xls_dslx_opt_ir(
+    name = "mod_const_array_of_enum_importer",
+    src = "mod_const_array_of_enum_importer.x",
+    deps = [":mod_simple_const_array_of_enums_dslx"],
+)
+
+xls_dslx_opt_ir_test(
+    name = "mod_const_array_of_enum_importer_test",
+    dep = ":mod_const_array_of_enum_importer",
+)
+
+xls_dslx_opt_ir(
     name = "simple_enum_usage",
-    srcs = ["simple_enum_usage.x"],
+    src = "simple_enum_usage.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "simple_enum_usage_test",
+    dep = ":simple_enum_usage",
+)
+
+xls_dslx_opt_ir(
     name = "for_rotate",
-    srcs = ["for_rotate.x"],
+    src = "for_rotate.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "for_rotate_test",
+    dep = ":for_rotate",
+)
+
+xls_dslx_opt_ir(
     name = "for_enum_ref",
-    srcs = ["for_enum_ref.x"],
+    src = "for_enum_ref.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "for_enum_ref_test",
+    dep = ":for_enum_ref",
+)
+
+xls_dslx_opt_ir(
     name = "update_within_parametric",
-    srcs = ["update_within_parametric.x"],
-    # Only a parametric entry point, so no benchmark.
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
+    src = "update_within_parametric.x",
 )
 
-dslx_test(
+# Only a parametric entry point, so no benchmark.
+xls_dslx_test(
+    name = "update_within_parametric_test",
+    src = "update_within_parametric.x",
+)
+
+xls_dslx_opt_ir(
     name = "width_slice_to_parametric",
-    srcs = ["width_slice_to_parametric.x"],
+    src = "width_slice_to_parametric.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "width_slice_to_parametric_test",
+    dep = ":width_slice_to_parametric",
+)
+
+xls_dslx_opt_ir(
     name = "array_size_all_bits_set_ellipsis",
-    srcs = ["array_size_all_bits_set_ellipsis.x"],
+    src = "array_size_all_bits_set_ellipsis.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "array_size_all_bits_set_ellipsis_test",
+    dep = ":array_size_all_bits_set_ellipsis",
+)
+
+xls_dslx_opt_ir(
     name = "mask_bits",
-    srcs = ["mask_bits.x"],
-    # Only a parametric entry point, so no benchmark.
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
+    src = "mask_bits.x",
 )
 
-dslx_test(
+# Only a parametric entry point, so no benchmark.
+xls_dslx_test(
+    name = "mask_bits_test",
+    src = "mask_bits.x",
+)
+
+xls_dslx_opt_ir(
     name = "function_called_in_derived_parametric_simple",
-    srcs = ["function_called_in_derived_parametric_simple.x"],
+    src = "function_called_in_derived_parametric_simple.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "function_called_in_derived_parametric_simple_test",
+    dep = ":function_called_in_derived_parametric_simple",
+)
+
+xls_dslx_opt_ir(
     name = "non_parametric_called_solely_from_parametric",
-    srcs = ["non_parametric_called_solely_from_parametric.x"],
+    src = "non_parametric_called_solely_from_parametric.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "non_parametric_called_solely_from_parametric_test",
+    dep = ":non_parametric_called_solely_from_parametric",
+)
+
+xls_dslx_opt_ir(
     name = "function_called_in_derived_parametric_struct_simple",
-    srcs = ["function_called_in_derived_parametric_struct_simple.x"],
+    src = "function_called_in_derived_parametric_struct_simple.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "function_called_in_derived_parametric_struct_simple_test",
+    dep = ":function_called_in_derived_parametric_struct_simple",
+)
+
+xls_dslx_opt_ir(
     name = "identifiers_with_ticks",
-    srcs = ["identifiers_with_ticks.x"],
+    src = "identifiers_with_ticks.x",
+)
+
+xls_dslx_opt_ir_test(
+    name = "identifiers_with_ticks_test",
+    dep = ":identifiers_with_ticks",
 )
 
 # TODO(https://github.com/google/xls/issues/246) Need const values to be
@@ -748,66 +1352,130 @@ dslx_test(
 #    srcs = ["bitslice_with_constexpr_bounds.x"],
 #)
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "enum_value_from_const",
-    srcs = ["enum_value_from_const.x"],
+    src = "enum_value_from_const.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "enum_value_from_const_test",
+    dep = ":enum_value_from_const",
+)
+
+xls_dslx_library(
+    name = "mod_imported_const_struct_dslx",
+    srcs = ["mod_imported_const_struct.x"],
+)
+
+xls_dslx_opt_ir(
     name = "mod_importer_access_const_struct",
-    srcs = ["mod_importer_access_const_struct.x"],
-    deps = ["mod_imported_const_struct.x"],
+    src = "mod_importer_access_const_struct.x",
+    deps = [":mod_imported_const_struct_dslx"],
 )
 
-dslx_test(
-    name = "mod_importer_access_const_struct_indirect",
-    srcs = ["mod_importer_access_const_struct_indirect.x"],
+xls_dslx_opt_ir_test(
+    name = "mod_importer_access_const_struct_test",
+    dep = ":mod_importer_access_const_struct",
+)
+
+xls_dslx_library(
+    name = "mod_imported_access_const_struct_dslx",
+    srcs = ["mod_imported_access_const_struct.x"],
     deps = [
-        "mod_imported_access_const_struct.x",
-        "mod_imported_const_struct.x",
+        ":mod_imported_const_struct_dslx",
     ],
 )
 
-dslx_test(
+xls_dslx_opt_ir(
+    name = "mod_importer_access_const_struct_indirect",
+    src = "mod_importer_access_const_struct_indirect.x",
+    deps = [
+        ":mod_imported_access_const_struct_dslx",
+    ],
+)
+
+xls_dslx_opt_ir_test(
+    name = "mod_importer_access_const_struct_indirect_test",
+    dep = ":mod_importer_access_const_struct_indirect",
+)
+
+xls_dslx_opt_ir(
     name = "nest_alias_const_array",
-    srcs = ["nest_alias_const_array.x"],
+    src = "nest_alias_const_array.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "nest_alias_const_array_test",
+    dep = ":nest_alias_const_array",
+)
+
+xls_dslx_opt_ir(
     name = "parametric_used_in_for",
-    srcs = ["parametric_used_in_for.x"],
+    src = "parametric_used_in_for.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "parametric_used_in_for_test",
+    dep = ":parametric_used_in_for",
+)
+
+xls_dslx_opt_ir(
     name = "parametric_to_value",
-    srcs = ["parametric_to_value.x"],
+    src = "parametric_to_value.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "parametric_to_value_test",
+    dep = ":parametric_to_value",
+)
+
+xls_dslx_opt_ir(
     name = "constexpr_with_typed_stuff_after",
-    srcs = ["constexpr_with_typed_stuff_after.x"],
+    src = "constexpr_with_typed_stuff_after.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "constexpr_with_typed_stuff_after_test",
+    dep = ":constexpr_with_typed_stuff_after",
+)
+
+xls_dslx_opt_ir(
     name = "for_up_to_constexpr_cast",
-    srcs = ["for_up_to_constexpr_cast.x"],
+    src = "for_up_to_constexpr_cast.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "for_up_to_constexpr_cast_test",
+    dep = ":for_up_to_constexpr_cast",
+)
+
+# Note: no meaningful function to convert.
+xls_dslx_test(
     name = "bits_concat",
-    srcs = ["bits_concat.x"],
-    # Note: no meaningful function to convert.
-    convert_ir = False,
+    src = "bits_concat.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "local_const_value_in_parametric_match",
-    srcs = ["local_const_value_in_parametric_match.x"],
+    src = "local_const_value_in_parametric_match.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "local_const_value_in_parametric_match_test",
+    dep = ":local_const_value_in_parametric_match",
+)
+
+xls_dslx_opt_ir(
     name = "let_match_tuple",
-    srcs = ["let_match_tuple.x"],
+    src = "let_match_tuple.x",
+)
+
+xls_dslx_opt_ir_test(
+    name = "let_match_tuple_test",
+    dep = ":let_match_tuple",
     # TODO(https://github.com/google/xls/issues/400): This produces a zero-bit
     # concate which is currently not supported by Z3 translation.
     prove_unopt_eq_opt = False,

@@ -14,40 +14,54 @@
 
 # Integration tests for the generated JIT wrapper being invoked from C++ code.
 
-load("//xls/build_rules:build_defs.bzl", "dslx_jit_wrapper", "dslx_test")
+load(
+    "//xls/build_rules:xls_build_defs.bzl",
+    "cc_xls_ir_jit_wrapper",
+    "xls_dslx_opt_ir",
+    "xls_dslx_test",
+)
 
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "simple",
-    srcs = ["simple.x"],
-    # Disable these because there's no main entry point to speak of.
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
+    src = "simple.x",
+    opt_ir_file = "simple.opt.ir",
 )
 
-dslx_jit_wrapper(
+xls_dslx_test(
+    name = "simple_test",
+    src = "simple.x",
+)
+
+cc_xls_ir_jit_wrapper(
     name = "identity",
-    dslx_name = "F32Identity",
-    entry_function = "identity",
-    deps = [":simple_opt_ir"],
+    src = ":simple.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "F32Identity",
+        "function": "identity",
+    },
 )
 
-dslx_jit_wrapper(
+cc_xls_ir_jit_wrapper(
     name = "is_inf",
-    dslx_name = "F32IsInf",
-    entry_function = "is_inf",
-    deps = [":simple_opt_ir"],
+    src = ":simple.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "F32IsInf",
+        "function": "is_inf",
+    },
 )
 
-dslx_jit_wrapper(
+cc_xls_ir_jit_wrapper(
     name = "fail_on_42",
-    dslx_name = "FailOn42",
-    entry_function = "fail_on_42",
-    deps = [":simple_opt_ir"],
+    src = ":simple.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "FailOn42",
+        "function": "fail_on_42",
+    },
 )
 
 cc_test(

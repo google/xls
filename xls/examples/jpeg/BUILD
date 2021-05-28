@@ -12,17 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//xls/build_rules:build_defs.bzl", "dslx_test")
+load(
+    "//xls/build_rules:xls_build_defs.bzl",
+    "get_mangled_ir_symbol",
+    "xls_dslx_opt_ir",
+    "xls_dslx_opt_ir_test",
+)
 
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "idct_chen",
-    srcs = ["idct_chen.x"],
-    entry = "__idct_chen__idct",
+    src = "idct_chen.x",
+    opt_ir_args = {
+        "entry": get_mangled_ir_symbol("idct_chen", "idct"),
+    },
+    # Note: times out in fastbuild 2020-11-09.
+    tags = ["optonly"],
+)
+
+xls_dslx_opt_ir_test(
+    name = "idct_chen_test",
+    dep = ":idct_chen",
     # Note: times out.
     prove_unopt_eq_opt = False,
     # Note: times out in fastbuild 2020-11-09.

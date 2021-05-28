@@ -14,27 +14,46 @@
 
 # Build rules for XLS examples.
 
-load("//xls/build_rules:build_defs.bzl", "dslx_jit_wrapper", "dslx_test")
 load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
+load(
+    "//xls/build_rules:xls_build_defs.bzl",
+    "xls_dslx_library",
+    "xls_dslx_opt_ir",
+    "xls_dslx_opt_ir_test",
+    "xls_dslx_test",
+    "xls_ir_jit_wrapper",
+)
 
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],
 )
 
+exports_files(["sha256.x"])
+
 filegroup(
     name = "ir_examples",
     srcs = [
-        ":adler32_all_ir",
-        ":crc32_all_ir",
+        ":adler32.ir",
+        ":adler32.opt.ir",
+        ":crc32.ir",
+        ":crc32.opt.ir",
         ":matmul_4x4.ir",
-        ":sha256_all_ir",
+        ":sha256.ir",
+        ":sha256.opt.ir",
     ],
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "adler32",
-    srcs = ["adler32.x"],
+    src = "adler32.x",
+    ir_file = "adler32.ir",
+    opt_ir_file = "adler32.opt.ir",
+)
+
+xls_dslx_opt_ir_test(
+    name = "adler32_test",
+    dep = ":adler32",
     # TODO(rspringer): OOMs.
     prove_unopt_eq_opt = False,
 )
@@ -51,20 +70,34 @@ cc_binary(
     ],
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "capitalize",
-    srcs = ["capitalize.x"],
+    src = "capitalize.x",
 )
 
-dslx_test(
+xls_dslx_opt_ir_test(
+    name = "capitalize_test",
+    dep = ":capitalize",
+)
+
+xls_dslx_opt_ir(
     name = "crc32",
-    srcs = ["crc32.x"],
+    src = "crc32.x",
+    ir_file = "crc32.ir",
+    opt_ir_file = "crc32.opt.ir",
 )
 
-dslx_jit_wrapper(
+xls_dslx_opt_ir_test(
+    name = "crc32_test",
+    dep = ":crc32",
+)
+
+xls_ir_jit_wrapper(
     name = "crc32_jit_wrapper",
-    dslx_name = "crc32",
-    deps = [":crc32_opt_ir"],
+    src = ":crc32.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "crc32",
+    },
 )
 
 cc_binary(
@@ -79,54 +112,73 @@ cc_binary(
     ],
 )
 
-dslx_test(
+xls_dslx_library(
+    name = "module_libs",
+    srcs = [
+        "//xls/modules:apfloat_add_2.x",
+        "//xls/modules:apfloat_mul_2.x",
+        "//xls/modules:fpadd_2x32.x",
+        "//xls/modules:fpmul_2x32.x",
+    ],
+)
+
+xls_dslx_test(
     name = "dot_product",
-    srcs = ["dot_product.x"],
-    # No meaningful entry point to convert.
-    convert_ir = False,
-    deps = [
-        "//xls/modules:apfloat_add_2.x",
-        "//xls/modules:apfloat_mul_2.x",
-        "//xls/modules:fpadd_2x32.x",
-        "//xls/modules:fpmul_2x32.x",
-    ],
+    src = "dot_product.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    deps = ["module_libs"],
 )
 
-dslx_test(
+xls_dslx_test(
     name = "fir_filter",
-    srcs = ["fir_filter.x"],
-    # No meaningful entry point to convert.
-    convert_ir = False,
-    deps = [
-        "//xls/modules:apfloat_add_2.x",
-        "//xls/modules:apfloat_mul_2.x",
-        "//xls/modules:fpadd_2x32.x",
-        "//xls/modules:fpmul_2x32.x",
-    ],
+    src = "fir_filter.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    deps = ["module_libs"],
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "riscv_simple",
-    srcs = ["riscv_simple.x"],
-    # TODO(hjmontero): run_instruction segfaults in the JIT.
-    compare = "interpreter",
+    src = "riscv_simple.x",
+)
+
+xls_dslx_opt_ir_test(
+    name = "riscv_simple_test",
+    dep = ":riscv_simple",
+    dslx_test_args = {
+        # TODO(hjmontero): run_instruction segfaults in the JIT.
+        "compare": "interpreter",
+    },
     generate_benchmark = False,
     prove_unopt_eq_opt = False,
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "sha256",
-    srcs = ["sha256.x"],
+    src = "sha256.x",
+    ir_file = "sha256.ir",
+    opt_ir_file = "sha256.opt.ir",
+    tags = ["optonly"],
+)
+
+xls_dslx_opt_ir_test(
+    name = "sha256_test",
+    dep = ":sha256",
     # TODO(rspringer): OOMs on some machines.
     prove_unopt_eq_opt = False,
     tags = ["optonly"],
 )
 
-dslx_jit_wrapper(
+xls_ir_jit_wrapper(
     name = "sha256_jit_wrapper",
-    dslx_name = "sha256",
-    entry_function = "main",
-    deps = [":sha256_opt_ir"],
+    src = ":sha256.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "sha256",
+        "function": "main",
+    },
 )
 
 list_filegroup_files(

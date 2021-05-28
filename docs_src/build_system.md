@@ -4,73 +4,95 @@ XLS uses the [Bazel](http://bazel.build) build system for itself and all its
 dependencies. Bazel is an easy to configure and use, and has powerful extension
 facilities. (It's also
 [well-documented](https://docs.bazel.build/versions/master/bazel-overview.html)!)
-XLS provdes a number of
+XLS provides a number of
 [Starlark](https://docs.bazel.build/versions/master/skylark/language.html)
-[macros](https://docs.bazel.build/versions/master/skylark/macros.html),
-described below, to simplify build target definition.
+[rules](https://docs.bazel.build/versions/master/skylark/rules.html) and
+[macros](https://docs.bazel.build/versions/master/skylark/macros.html) to define
+a build flow.
 
 [TOC]
 
+## Rules
+
+Below is a brief summary of the public rules. An extensive description of the
+rules is available at
+[xls/build_rules/xls_build_defs.bzl](https://github.com/google/xls/tree/main/xls/build_rules/xls_build_defs.bzl).
+Examples using the rules are found at
+[xls/build_rules/tests/BUILD](https://github.com/google/xls/tree/main/xls/build_rules/tests/BUILD).
+
+### `xls_dslx_library`
+
+A build rule that parses and type checks DSLX source files.
+
+### `xls_dslx_test`
+
+A test rule that executes the tests and quick checks of a DSLX source file.
+
+### `xls_dslx_ir`
+
+A build rule that converts a DSLX source file to an IR file.
+
+### `xls_benchmark_ir`
+
+An execution rule that executes the benchmark tool on an IR file.
+
+### `xls_ir_equivalence_test`
+
+A test rule that executes the equivalence tool on two IR files.
+
+### `xls_eval_ir_test`
+
+A test rule that executes the IR interpreter on an IR file.
+
+### `xls_ir_opt_ir`
+
+A build rule that optimizes an IR file.
+
+### `xls_ir_verilog`
+
+A build rule that generates a Verilog file from an IR file.
+
+### `xls_ir_jit_wrapper`
+
+A build rule that generates the sources for JIT invocation wrappers.
+
+### `xls_dslx_verilog`
+
+A build rule that generates a Verilog file from a DSLX source file. The rule
+executes the `xls_dslx_ir`, `xls_ir_opt_ir` and `xls_ir_verilog` rules in that
+order.
+
+### `xls_dslx_opt_ir`
+
+A build rule that generates an optimized IR file from a DSLX source file. The
+rule executes the `xls_dslx_ir` and `xls_ir_opt_ir` rules in that order.
+
+### `xls_dslx_opt_ir_test`
+
+A test rule that executes the commands in the order presented in the list for
+the following rules:
+   1. xls_dslx_test
+   1. xls_ir_equivalence_test (if attribute prove_unopt_eq_opt is enabled)
+   1. xls_eval_ir_test (if attribute generate_benchmark is enabled)
+   1. xls_benchmark_ir (if attribute generate_benchmark is enabled)
+
 ## Macros
 
-Below are summaries of public macro functionality. Full documentation is
-available in
-[xls/build_rules/build_defs.bzl](https://github.com/google/xls/tree/main/xls/build_rules/build_defs.bzl).
+Below is a brief summary of the public macros. An extensive description of the
+macros is available at
+[xls/build_rules/xls_build_defs.bzl](https://github.com/google/xls/tree/main/xls/build_rules/xls_build_defs.bzl).
+Examples using the macros are found at
+[xls/build_rules/tests/BUILD](https://github.com/google/xls/tree/main/xls/build_rules/tests/BUILD).
 
-### `dslx_codegen`
+### `get_mangled_ir_symbol`
 
-This macro generates Verilog from an DSLX target (currently given as a
-`dslx_test` target). This target also accepts several key/value parameters (as
-`configs` for generation):
+Returns the mangled IR symbol for the module/function combination.
 
-*   `clock_period_ps`: The target clock period in picoseconds. Only used with
-    the pipeline generator.
-*   `clock_margin_percent`: The percent of the target clock period to reserve as
-    "margin". Only used with the pipeline generator.
-*   `entry`: The DSLX function to synthesize. If not given, a "best guess" will
-    be made.
-*   `flop_inputs`, `flop_outputs`: Whether to add flops at the inputs/outputs of
-    the generated module. Only used with the pipeline generator.
-*   `generator`: The code generator to be used. Can be either `combinational` or
-    `pipeline`.
-*   `module_name`: The desired name of the generated Verilog module.
-*   `pipeline_stages`: The desired number of pipeline stages.
-*   `reset`: The name of the reset signal to use, if any.
-*   `reset_active_low`: Whether the reset signal is active low. Must also
-    specify `reset` option. Only used with the pipeline generator.
+### `cc_xls_ir_jit_wrapper`
 
-### `dslx_jit_wrapper`
-
-Generates a source/header file pair to wrap invocation of a DSLX function by the
-JIT - this wrapper is a much more straightforward way to interact with the JIT
-versus direct use. It accepts a DSLX target and entry function in the same
-manner as above.
-
-### `dslx_test`
-
-Main driver for:
-
-*   Compiling DSLX files to IR
-*   Running DSLX test cases (defined alongside the designs)
-*   Proving DSLX/IR equivalence
-*   Generating a benchmark for the associated IR
-*   Proving logical equivalence for the optimized vs. unoptimized IR
-
-In general, if one has a DSLX .x file, there should be an associated `dslx_test`
-target - this is the entry point to "downstream" capabilities (IR
-transformations, codegen, interpretation/JIT, etc.).
-
-The "entry" attribute to the `dslx_test` rule, if provided, must be an IR symbol
-(which is a "mangled" DSLX name). Prefer to use the `dslx_mangle` macro to
-construct these mangled names from `BUILD` files.
-
-Note: This macro is targeted for refactoring, as it currently contains a broad
-swath of not-always-directly-related functionality.
-
-### `dslx_generated_rtl`
-
-This macro is for internal developer use only, for generating RTL with
-internally-released toolchains.
+The macro generates sources files (.cc and .h) using the xls_ir_jit_wrapper
+rule. The source files are the input to a cc_library target with the same name
+as this macro.
 
 ## Bazel queries
 

@@ -195,12 +195,12 @@ xls_dslx_test(
 
 xls_dslx_test(
     name = "chaining_example_test",
-    src = ":chaining_example.x",
+    src = "chaining_example.x",
 )
 
 xls_dslx_ir(
     name = "chaining_example_ir",
-    src = ":chaining_example.x",
+    src = "chaining_example.x",
 )
 
 xls_ir_opt_ir(
@@ -375,16 +375,16 @@ xls_ir_equivalence_test(
 xls_dslx_library(
     name = "simple_example_123_dslx",
     srcs = [
-        ":simple_example_one.x",
-        ":simple_example_three.x",
-        ":simple_example_two.x",
+        "simple_example_one.x",
+        "simple_example_three.x",
+        "simple_example_two.x",
     ],
 )
 
 # Execute the DSLX interpreter.
 xls_dslx_test(
     name = "simple_example_four_test",
-    src = ":simple_example_four.x",
+    src = "simple_example_four.x",
     deps = [":simple_example_123_dslx"],
 )
 
@@ -392,9 +392,7 @@ xls_dslx_test(
 # 'simple_example_123_dslx'.
 xls_dslx_library(
     name = "simple_example_4_dslx",
-    srcs = [
-        ":simple_example_four.x",
-    ],
+    srcs = ["simple_example_four.x"],
     deps = [":simple_example_123_dslx"],
 )
 
@@ -402,7 +400,7 @@ xls_dslx_library(
 # The rule performs: DSLX -> IR -> Optimized IR -> Verilog.
 xls_dslx_verilog(
     name = "simple_example_5_one_stage",
-    src = ":simple_example_five.x",
+    src = "simple_example_five.x",
     codegen_args = {
         "pipeline_stages": "1",
     },
@@ -458,7 +456,7 @@ xls_dslx_opt_ir_test(
 # The rule performs: DSLX -> IR -> Optimized IR.
 xls_dslx_opt_ir(
     name = "simple_example_5_entry_five",
-    src = ":simple_example_five.x",
+    src = "simple_example_five.x",
     ir_conv_args = {
         "entry": "five",
     },

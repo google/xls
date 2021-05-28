@@ -134,7 +134,7 @@ py_test(
     srcs = ["highlight_main_test.py"],
     data = [
         ":highlight_main",
-        "//xls/examples:sha256_source",
+        "//xls/examples:sha256.x",
     ],
     python_version = "PY3",
     srcs_version = "PY3",

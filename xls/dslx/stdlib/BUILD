@@ -12,53 +12,41 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//xls/build_rules:build_defs.bzl", "dslx_test")
+load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_test")
 
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
 
-dslx_test(
+xls_dslx_test(
     name = "std",
-    srcs = ["std.x"],
-    # No meaningful entry point to convert.
-    convert_ir = False,
+    src = "std.x",
 )
 
-dslx_test(
+xls_dslx_test(
     name = "acm_random",
-    srcs = ["acm_random.x"],
-    # No meaningful entry point to convert.
-    convert_ir = False,
+    src = "acm_random.x",
 )
 
-dslx_test(
+xls_dslx_test(
     name = "apfloat",
-    srcs = ["apfloat.x"],
-    # No meaningful entry point to convert.
-    convert_ir = False,
+    src = "apfloat.x",
 )
 
-dslx_test(
+xls_dslx_test(
     name = "bfloat16",
-    srcs = ["bfloat16.x"],
-    # No meaningful entry point to convert.
-    convert_ir = False,
+    src = "bfloat16.x",
 )
 
-dslx_test(
+xls_dslx_test(
     name = "float32",
-    srcs = ["float32.x"],
-    # No meaningful entry point to convert.
-    convert_ir = False,
+    src = "float32.x",
 )
 
-dslx_test(
+xls_dslx_test(
     name = "float64",
-    srcs = ["float64.x"],
-    # No meaningful entry point to convert.
-    convert_ir = False,
+    src = "float64.x",
 )
 
 filegroup(
