@@ -1695,19 +1695,6 @@ Example usage:
 See also the
 [IR semantics for the `one_hot` op](./ir_semantics.md#one_hot).
 
-### Explicitly-signed comparison builtins: sge, sgt, sle, slt
-
-Explicitly-signed comparison operations, that can be conveniently used on
-unsigned values as well (to avoid casting back and forth to signed). Has the
-following signature:
-
-```
-fn sgt<N>(x: xN[N], y: xN[N]) -> bool
-```
-
-Note that `xN` in the above signifies that the operand types must be the same,
-but may be, as a pair, either signed or unsigned (either uN or sN).
-
 ### signex
 
 Casting has well-defined extension rules, but in some cases it is necessary to

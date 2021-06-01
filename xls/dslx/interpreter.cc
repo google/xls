@@ -279,18 +279,6 @@ absl::StatusOr<InterpValue> Interpreter::RunBuiltin(
     CASE(OrReduce);
     CASE(XorReduce);
 #undef CASE
-    case Builtin::kSLt:
-      return BuiltinScmp(SignedCmp::kLt, args, span, invocation,
-                         symbolic_bindings);
-    case Builtin::kSLe:
-      return BuiltinScmp(SignedCmp::kLe, args, span, invocation,
-                         symbolic_bindings);
-    case Builtin::kSGt:
-      return BuiltinScmp(SignedCmp::kGt, args, span, invocation,
-                         symbolic_bindings);
-    case Builtin::kSGe:
-      return BuiltinScmp(SignedCmp::kGe, args, span, invocation,
-                         symbolic_bindings);
     case Builtin::kMap:  // Needs callbacks.
       return BuiltinMap(args, span, invocation, symbolic_bindings,
                         abstract_adapter_.get());

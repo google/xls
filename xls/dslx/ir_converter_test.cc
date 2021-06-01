@@ -738,19 +738,6 @@ fn main(x: u32[BATCH_SIZE]) -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, SignedComparisons) {
-  const char* program =
-      R"(
-fn main(x: u32, y: u32) -> bool {
-  sgt(x, y) && slt(x, y) && sge(x, y) && sle(x, y)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
-  ExpectIr(converted, TestName());
-}
-
 TEST(IrConverterTest, Signex) {
   const char* program =
       R"(

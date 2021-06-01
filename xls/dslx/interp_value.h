@@ -40,12 +40,8 @@ namespace xls::dslx {
   X("range", kRange)                     \
   X("rev", kRev)                         \
   X("select", kSelect)                   \
-  X("sge", kSGe)                         \
-  X("sgt", kSGt)                         \
   X("signex", kSignex)                   \
-  X("sle", kSLe)                         \
   X("slice", kSlice)                     \
-  X("slt", kSLt)                         \
   X("trace!", kTrace)                    \
   X("update", kUpdate)                   \
   X("xor_reduce", kXorReduce)

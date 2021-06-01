@@ -230,12 +230,6 @@ const absl::flat_hash_map<std::string, std::string>& GetParametricBuiltins() {
       {"or_reduce", "(uN[N]) -> u1"},
       {"xor_reduce", "(uN[N]) -> u1"},
 
-      // Signed comparisons.
-      {"sge", "(xN[N], xN[N]) -> u1"},
-      {"sgt", "(xN[N], xN[N]) -> u1"},
-      {"sle", "(xN[N], xN[N]) -> u1"},
-      {"slt", "(xN[N], xN[N]) -> u1"},
-
       // Use a dummy value to determine size.
       {"signex", "(xN[M], xN[N]) -> xN[N]"},
       {"slice", "(T[M], uN[N], T[P]) -> T[P]"},
@@ -493,17 +487,6 @@ static void PopulateSignatureToLambdaMap(
         absl::make_unique<BitsType>(/*signed=*/false, /*size=*/np1);
     return TypeAndBindings{absl::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
-  };
-  map["(xN[N], xN[N]) -> u1"] =
-      [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
-                            .Len(2)
-                            .IsBits(0)
-                            .ArgsSameType(0, 1)
-                            .status());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
-        CloneToUnique(data.arg_types), BitsType::MakeU1())};
   };
   map["(T[N]) -> (u32, T)[N]"] =
       [](const SignatureData& data,

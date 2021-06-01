@@ -365,3 +365,21 @@ fn mask_bits_test() {
   let _ = assert_eq(u13:0x1fff, mask_bits<u32:13>());
   ()
 }
+
+// "Explicit signed comparison" helpers for working with unsigned values, can be
+// a bit more convenient and a bit more explicit intent than doing casting of
+// left hand side and right hand side.
+
+pub fn sge<N: u32>(x: uN[N], y: uN[N]) -> bool { (x as sN[N]) >= (y as sN[N]) }
+pub fn sgt<N: u32>(x: uN[N], y: uN[N]) -> bool { (x as sN[N]) >  (y as sN[N]) }
+pub fn sle<N: u32>(x: uN[N], y: uN[N]) -> bool { (x as sN[N]) <= (y as sN[N]) }
+pub fn slt<N: u32>(x: uN[N], y: uN[N]) -> bool { (x as sN[N]) <  (y as sN[N]) }
+
+#![test]
+fn test_scmps() {
+  let _ = assert_eq(sge(u2:3, u2:1), false);
+  let _ = assert_eq(sgt(u2:3, u2:1), false);
+  let _ = assert_eq(sle(u2:3, u2:1), true);
+  let _ = assert_eq(slt(u2:3, u2:1), true);
+  ()
+}

@@ -157,7 +157,7 @@ pub fn fixed_fraction(input_float: F32) -> u23 {
   let input_significand_magnitude: u25 = u2:0b01 ++ input_float.sfd;
   let unbiased_input_float_exponent: u9 = unbiased_exponent(input_float);
 
-  let input_fixed_magnitude: u25 = match sgt(unbiased_input_float_exponent, u9:0) {
+  let input_fixed_magnitude: u25 = match unbiased_input_float_exponent as s9 > s9:0 {
     true =>
       let significand_left_shift = unbiased_input_float_exponent as u3;
       input_significand_magnitude << (significand_left_shift as u25),

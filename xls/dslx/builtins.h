@@ -57,11 +57,6 @@ absl::StatusOr<InterpValue> BuiltinMap(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
     const SymbolicBindings* symbolic_bindings, AbstractInterpreter* interp);
 
-// Implements signed comparison family of builtin functions.
-absl::StatusOr<InterpValue> BuiltinScmp(
-    SignedCmp cmp, absl::Span<const InterpValue> args, const Span& span,
-    Invocation* expr, const SymbolicBindings* symbolic_bindings);
-
 // Implements 'trace!' builtin function.
 absl::StatusOr<InterpValue> BuiltinTrace(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,

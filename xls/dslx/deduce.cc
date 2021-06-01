@@ -1879,11 +1879,6 @@ static const absl::flat_hash_set<std::string>& GetParametricBuiltinNames() {
       "and_reduce",
       "or_reduce",
       "xor_reduce",
-      // Signed comparisons.
-      "sge",
-      "sgt",
-      "sle",
-      "slt",
       // Use a dummy value to determine size.
       "signex",
       "slice",
