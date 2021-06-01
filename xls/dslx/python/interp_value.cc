@@ -32,11 +32,12 @@ struct InterpValuePickler {
   // nice auto-conversion that pybind11 provides and we'd have to register the
   // type explicitly. Since this should go away once everything is ported to
   // C++, we leave it for now.
-  using State = std::tuple<InterpValueTag, absl::optional<Bits>,
+  using State = std::tuple<int64_t, absl::optional<Bits>,
                            absl::optional<std::vector<InterpValue>>>;
 
   static State Pickle(const InterpValue& self) {
     InterpValueTag tag = self.tag();
+    int64_t tag_value = static_cast<int64_t>(tag);
     absl::optional<Bits> bits;
     if (self.HasBits()) {
       bits = self.GetBitsOrDie();
@@ -45,7 +46,7 @@ struct InterpValuePickler {
     if (self.HasValues()) {
       values = self.GetValuesOrDie();
     }
-    return std::make_tuple(tag, bits, values);
+    return std::make_tuple(tag_value, bits, values);
   }
   static InterpValue Unpickle(const State& state) {
     InterpValue::Payload payload;
@@ -57,20 +58,16 @@ struct InterpValuePickler {
       XLS_CHECK(values.has_value());
       payload = values.value();
     }
-    return InterpValue(std::get<0>(state), payload);
+    return InterpValue(static_cast<InterpValueTag>(std::get<0>(state)),
+                       payload);
   }
 };
 
 PYBIND11_MODULE(interp_value, m) {
   ImportStatusModule();
 
-  py::enum_<InterpValueTag>(m, "Tag")
-      .value("UBITS", InterpValueTag::kUBits)
-      .value("SBITS", InterpValueTag::kSBits)
-      .value("ARRAY", InterpValueTag::kArray)
-      .value("TUPLE", InterpValueTag::kTuple)
-      .value("ENUM", InterpValueTag::kEnum)
-      .value("FUNCTION", InterpValueTag::kFunction);
+  // Required to be able to pickle IR `Bits` inside of `InterpValue`s.
+  py::module::import("xls.ir.python.bits");
 
   py::enum_<Builtin>(m, "Builtin").def("to_name", &BuiltinToString);
 
@@ -86,15 +83,6 @@ PYBIND11_MODULE(interp_value, m) {
       .def("__ne__", &InterpValue::Ne)
       .def("__str__", [](const InterpValue& self) { return self.ToString(); })
       .def("__repr__", &InterpValue::ToHumanString)
-      .def("__len__", &InterpValue::GetLength)
-      .def("gt", &InterpValue::Gt)
-      .def("ge", &InterpValue::Ge)
-      .def("lt", &InterpValue::Lt)
-      .def("le", &InterpValue::Le)
-      .def("ne",
-           [](const InterpValue& self, const InterpValue& other) {
-             return InterpValue::MakeBool(self.Ne(other));
-           })
       .def("eq",
            [](const InterpValue& self, const InterpValue& other) {
              return InterpValue::MakeBool(self.Eq(other));
@@ -105,56 +93,6 @@ PYBIND11_MODULE(interp_value, m) {
              XLS_ASSIGN_OR_RETURN(xls::Value value, self.ConvertToIr());
              return value.ToString(FormatPreference::kHex);
            })
-      .def("bitwise_negate", &InterpValue::BitwiseNegate)
-      .def("bitwise_xor", &InterpValue::BitwiseXor)
-      .def("bitwise_or", &InterpValue::BitwiseOr)
-      .def("bitwise_and", &InterpValue::BitwiseAnd)
-      .def("arithmetic_negate", &InterpValue::ArithmeticNegate)
-      .def("add_with_carry", &InterpValue::AddWithCarry)
-      .def("shl", &InterpValue::Shl)
-      .def("shrl", &InterpValue::Shrl)
-      .def("shra", &InterpValue::Shra)
-      .def("add", &InterpValue::Add)
-      .def("floordiv", &InterpValue::FloorDiv)
-      .def("mul", &InterpValue::Mul)
-      .def("sub", &InterpValue::Sub)
-      .def("scmp", &InterpValue::SCmp)
-      .def("index", &InterpValue::Index)
-      .def("index",
-           [](const InterpValue& self, uint64_t i) {
-             return self.Index(InterpValue::MakeUBits(/*bit_count=*/64, i));
-           })
-      .def("update", &InterpValue::Update)
-      .def("update",
-           [](const InterpValue& self, uint64_t i, const InterpValue& value) {
-             return self.Update(InterpValue::MakeU64(i), value);
-           })
-      .def("flatten", &InterpValue::Flatten)
-      .def("slice", &InterpValue::Slice)
-      .def("slice",
-           [](const InterpValue& self, uint64_t start, uint64_t length) {
-             return self.Slice(InterpValue::MakeU64(start),
-                               InterpValue::MakeU64(length));
-           })
-      .def("one_hot", &InterpValue::OneHot)
-      .def("concat", &InterpValue::Concat)
-      .def("get_bits", &InterpValue::GetBits)
-      .def("get_bit_count", &InterpValue::GetBitCount)
-      .def("get_bit_value_uint64", &InterpValue::GetBitValueUint64)
-      .def("get_bit_value_int64", &InterpValue::GetBitValueInt64)
-      .def("get_bit_value_check_sign", &InterpValue::GetBitValueCheckSign)
-      .def("sign_ext", &InterpValue::SignExt)
-      .def("zero_ext", &InterpValue::ZeroExt)
-      .def("get_elements", &InterpValue::GetValues)
-      .def("is_builtin_function", &InterpValue::IsBuiltinFunction)
-      .def_property_readonly("tag", &InterpValue::tag)
-      .def("is_bits", &InterpValue::IsBits)
-      .def("is_ubits", &InterpValue::IsUBits)
-      .def("is_sbits", &InterpValue::IsSBits)
-      .def("is_enum", &InterpValue::IsEnum)
-      .def("is_function", &InterpValue::IsFunction)
-      .def("is_array", &InterpValue::IsArray)
-      .def("is_tuple", &InterpValue::IsTuple)
       .def("is_true", &InterpValue::IsTrue)
       .def("is_false", &InterpValue::IsFalse)
       // Factories.

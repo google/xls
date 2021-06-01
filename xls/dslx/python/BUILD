@@ -95,6 +95,7 @@ xls_pybind_extension(
         "interp_value.cc",
     ],
     py_deps = [
+        "//xls/ir/python:bits",
     ],
     deps = [
         "@com_google_absl//absl/base",
@@ -126,11 +127,13 @@ xls_pybind_extension(
         "//xls/dslx:import_routines",
         "//xls/dslx:interp_bindings",
         "//xls/dslx:interpreter",
+        "//xls/dslx:ir_converter",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:parser",
         "//xls/dslx:scanner",
         "//xls/dslx:symbolic_bindings",
         "//xls/dslx:typecheck",
+        "//xls/ir:ir_parser",
         "//xls/ir/python:wrapper_types",
     ],
 )

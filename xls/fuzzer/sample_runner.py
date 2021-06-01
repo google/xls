@@ -29,12 +29,9 @@ from xls.common import revision
 from xls.common import runfiles
 from xls.common.xls_error import XlsError
 from xls.dslx.python import interpreter
-from xls.dslx.python.interp_value import Tag
 from xls.dslx.python.interp_value import Value
 from xls.fuzzer import sample_summary_pb2
 from xls.fuzzer.python import cpp_sample as sample
-from xls.ir.python import ir_parser
-from xls.ir.python import value as ir_value_mod
 
 IR_CONVERTER_MAIN_PATH = runfiles.get_path('xls/dslx/ir_converter_main')
 EVAL_IR_MAIN_PATH = runfiles.get_path('xls/tools/eval_ir_main')
@@ -71,19 +68,6 @@ class Timer:
   def __exit__(self, *args):
     self.end = time.time()
     self.elapsed_ns = int((self.end - self.start) * 1e9)
-
-
-def ir_value_to_interpreter_value(value: ir_value_mod.Value) -> Value:
-  """Converts an IR Value to an interpreter Value."""
-  if value.is_bits():
-    return Value.make_bits(Tag.UBITS, value.get_bits())
-  elif value.is_array():
-    return Value.make_array(
-        tuple(ir_value_to_interpreter_value(e) for e in value.get_elements()))
-  else:
-    assert value.is_tuple()
-    return Value.make_tuple(
-        tuple(ir_value_to_interpreter_value(e) for e in value.get_elements()))
 
 
 class SampleRunner:
@@ -371,12 +355,10 @@ class SampleRunner:
       Tuple of parsed Values.
     """
 
-    def str_to_value(s: Text) -> Value:
-      return ir_value_to_interpreter_value(
-          ir_parser.Parser.parse_typed_value(s))
-
     return tuple(
-        str_to_value(line.strip()) for line in s.split('\n') if line.strip())
+        interpreter.ir_value_text_to_interp_value(line.strip())
+        for line in s.split('\n')
+        if line.strip())
 
   def _evaluate_ir(self, ir_filename: Text, args_filename: Text,
                    use_jit: bool) -> Tuple[Value, ...]:

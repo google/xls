@@ -19,11 +19,10 @@ from typing import Tuple, Text
 
 from xls.common import check_simulator
 from xls.common import test_base
-from xls.dslx.python.interp_value import Tag
+from xls.dslx.python.interp_value import interp_value_from_string
 from xls.dslx.python.interp_value import Value
 from xls.fuzzer import sample_runner
 from xls.fuzzer.python import cpp_sample as sample
-from xls.ir.python import bits as ir_bits
 
 
 def _read_file(dirname: Text, filename: Text) -> Text:
@@ -117,16 +116,12 @@ class SampleRunnerTest(test_base.TestCase):
         sample.Sample(
             dslx_text, sample.SampleOptions(optimize_ir=False),
             [[
-                Value.make_bits(Tag.UBITS,
-                                ir_bits.from_long(10**30, bit_count=100)),
-                Value.make_bits(Tag.UBITS,
-                                ir_bits.from_long(10**30, bit_count=100))
+                interp_value_from_string('bits[100]:{0:#x}'.format(10**30)),
+                interp_value_from_string('bits[100]:{0:#x}'.format(10**30)),
             ],
              [
-                 Value.make_bits(Tag.UBITS,
-                                 ir_bits.from_long(2**80, bit_count=100)),
-                 Value.make_bits(Tag.UBITS,
-                                 ir_bits.from_long(2**81, bit_count=100))
+                 interp_value_from_string('bits[100]:{0:#x}'.format(2**80)),
+                 interp_value_from_string('bits[100]:{0:#x}'.format(2**81)),
              ]]))
     self.assertSequenceEqual(
         _split_nonempty_lines(sample_dir, 'sample.x.results'), [

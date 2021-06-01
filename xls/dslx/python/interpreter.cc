@@ -22,12 +22,14 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/dslx/import_routines.h"
+#include "xls/dslx/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/parser.h"
 #include "xls/dslx/python/errors.h"
 #include "xls/dslx/scanner.h"
 #include "xls/dslx/symbolic_bindings.h"
 #include "xls/dslx/typecheck.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/ir/python/wrapper_types.h"
 
 namespace py = pybind11;
@@ -58,6 +60,11 @@ PYBIND11_MODULE(interpreter, m) {
           return fn_type->CloneToUnique();
         });
 
+  m.def("ir_value_text_to_interp_value",
+        [](absl::string_view text) -> absl::StatusOr<InterpValue> {
+          XLS_ASSIGN_OR_RETURN(Value v, xls::Parser::ParseTypedValue(text));
+          return ValueToInterpValue(v);
+        });
   m.def(
       "run_batched",
       [](absl::string_view text, absl::string_view function_name,
