@@ -16,9 +16,15 @@
 This module contains build rules for XLS.
 """
 
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load(
+    "//xls/build_rules:xls_providers.bzl",
+    "ConvIRInfo",
+    "DslxFilesInfo",
+    "OptIRInfo",
+)
 load(
     "//xls/build_rules:xls_dslx_rules.bzl",
-    "DslxFilesInfo",
     "get_dslx_test_cmd",
     "get_transitive_dslx_dummy_files_depset",
     "get_transitive_dslx_srcs_files_depset",
@@ -27,8 +33,6 @@ load(
 )
 load(
     "//xls/build_rules:xls_ir_rules.bzl",
-    "ConvIRInfo",
-    "OptIRInfo",
     "get_benchmark_ir_cmd",
     "get_eval_ir_test_cmd",
     "get_ir_equivalence_test_cmd",
@@ -46,7 +50,6 @@ load(
     "xls_ir_verilog_attrs",
     "xls_ir_verilog_impl",
 )
-load("@bazel_skylib//lib:dicts.bzl", "dicts")
 
 def _xls_dslx_opt_ir_impl(ctx, src):
     """The implementation of the 'xls_dslx_opt_ir' rule.

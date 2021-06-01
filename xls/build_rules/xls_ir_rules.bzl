@@ -13,9 +13,14 @@
 # limitations under the License.
 """This module contains IR-related build rules for XLS."""
 
-load("//xls/build_rules:xls_common_rules.bzl", "get_args")
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
-load("//xls/build_rules:xls_dslx_rules.bzl", "DslxFilesInfo")
+load("//xls/build_rules:xls_common_rules.bzl", "get_args")
+load(
+    "//xls/build_rules:xls_providers.bzl",
+    "ConvIRInfo",
+    "DslxFilesInfo",
+    "OptIRInfo",
+)
 
 DEFAULT_IR_EVAL_TEST_ARGS = {
     "random_inputs": "100",
@@ -25,25 +30,6 @@ DEFAULT_IR_EVAL_TEST_ARGS = {
 DEFAULT_BENCHMARK_IR_ARGS = {
     "delay_model": "unit",
 }
-
-ConvIRInfo = provider(
-    doc = "A provider containing IR conversion file information for the " +
-          "target. It is created and returned by the xls_dslx_ir rule.",
-    fields = {
-        "dslx_source_file": "File: The DSLX source file.",
-        "conv_ir_file": "File: The IR file converted from a DSLX source.",
-    },
-)
-
-OptIRInfo = provider(
-    doc = "A provider containing IR optimization file information for the " +
-          "target. It is created and returned by the xls_ir_opt_ir rule.",
-    fields = {
-        "input_ir_file": "File: The IR file input file.",
-        "opt_ir_file": "File: The IR optimized file.",
-        "opt_ir_args": "Dictionary: The arguments for the IR optimizer.",
-    },
-)
 
 def _add_entry_attr(
         ctx,

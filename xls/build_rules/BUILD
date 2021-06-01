@@ -39,11 +39,18 @@ bzl_library(
 )
 
 bzl_library(
+    name = "xls_providers_bzl",
+    srcs = ["xls_providers.bzl"],
+    visibility = ["//visibility:private"],
+)
+
+bzl_library(
     name = "xls_dslx_rules_bzl",
     srcs = ["xls_dslx_rules.bzl"],
     visibility = ["//visibility:private"],
     deps = [
         ":xls_common_rules_bzl",
+        ":xls_providers_bzl",
         "@bazel_skylib//lib:dicts",
     ],
 )
@@ -54,7 +61,7 @@ bzl_library(
     visibility = ["//visibility:private"],
     deps = [
         ":xls_common_rules_bzl",
-        ":xls_dslx_rules_bzl",
+        ":xls_providers_bzl",
         "@bazel_skylib//lib:dicts",
     ],
 )
@@ -65,6 +72,7 @@ bzl_library(
     visibility = ["//visibility:private"],
     deps = [
         ":xls_ir_rules_bzl",
+        ":xls_providers_bzl",
         "@bazel_skylib//lib:dicts",
     ],
 )
@@ -75,6 +83,7 @@ bzl_library(
     visibility = ["//visibility:private"],
     deps = [
         ":xls_ir_rules_bzl",
+        ":xls_providers_bzl",
         "@bazel_skylib//lib:dicts",
     ],
 )
@@ -87,6 +96,7 @@ bzl_library(
         ":xls_codegen_rules_bzl",
         ":xls_dslx_rules_bzl",
         ":xls_ir_rules_bzl",
+        ":xls_providers_bzl",
         "@bazel_skylib//lib:dicts",
     ],
 )

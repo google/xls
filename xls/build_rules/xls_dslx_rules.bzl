@@ -14,27 +14,13 @@
 
 """This module contains DSLX-related build rules for XLS."""
 
-load("//xls/build_rules:xls_common_rules.bzl", "get_args")
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load("//xls/build_rules:xls_common_rules.bzl", "get_args")
+load("//xls/build_rules:xls_providers.bzl", "DslxFilesInfo")
 
 DEFAULT_DSLX_TEST_ARGS = {
     "compare": "jit",
 }
-
-DslxFilesInfo = provider(
-    doc = "A provider containing DSLX file information for the target. It is " +
-          "created and returned by the xls_dslx_library rule.",
-    fields = {
-        "dslx_source_files": "Depset: A depset containing the DSLX source " +
-                             "(.x) files of the target and its dependencies.",
-        "dslx_dummy_files": "Depset: A depset containing the DSLX generated " +
-                            "dummy (.dummy) files of the target and its " +
-                            "dependencies. A DSLX dummy file is generated " +
-                            "when a DSLX file is successfully parsed and " +
-                            "type checked. It is used to create a dependency " +
-                            "between xls_dslx_library targets.",
-    },
-)
 
 def get_transitive_dslx_srcs_files_depset(srcs, deps):
     """Returns a depset representing the transitive DSLX source files.

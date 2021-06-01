@@ -17,17 +17,8 @@ This module contains codegen-related build rules for XLS.
 """
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load("//xls/build_rules:xls_providers.bzl", "CodegenInfo")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
-
-CodegenInfo = provider(
-    doc = "A provider containing Codegen file information for the target. It " +
-          "is created and returned by the xls_ir_verilog rule.",
-    fields = {
-        "verilog_file": "File: The Verilog file.",
-        "module_sig_file": "File: The module signature of the Verilog file.",
-        "schedule_file": "File: The schedule of the module.",
-    },
-)
 
 xls_ir_verilog_attrs = {
     "codegen_args": attr.string_dict(

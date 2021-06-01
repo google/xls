@@ -17,16 +17,8 @@ This module contains jit-wrapper-related build rules for XLS.
 """
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load("//xls/build_rules:xls_providers.bzl", "JitWrapperInfo")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
-
-JitWrapperInfo = provider(
-    doc = "A provider containing JIT Wrapper file information for the " +
-          "target. It is created and returned by the xls_ir_jit_wrapper rule.",
-    fields = {
-        "source_file": "File: The source file.",
-        "header_file": "File: The header file.",
-    },
-)
 
 _xls_ir_jit_wrapper_attrs = {
     "jit_wrapper_args": attr.string_dict(
