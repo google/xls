@@ -294,8 +294,21 @@ class FunctionConverter {
         ->GetInstantiationCalleeBindings(invocation, key);
   }
 
-  // Helper for HandleBinop().
+  // Helpers for HandleBinop().
   absl::Status HandleConcat(Binop* node, BValue lhs, BValue rhs);
+  absl::Status HandleEq(Binop* node, BValue lhs, BValue rhs);
+  absl::Status HandleNe(Binop* node, BValue lhs, BValue rhs);
+
+  using BuildTermFn =
+      std::function<xls::BValue(xls::BValue lhs, xls::BValue rhs)>;
+
+  // Helpers for HandleEq / HandleNe
+  absl::StatusOr<std::vector<BValue>> BuildTerms(
+      BValue lhs, BValue rhs, absl::optional<SourceLocation>& loc,
+      const BuildTermFn& build_term);
+  absl::StatusOr<BValue> BuildTest(BValue lhs, BValue rhs, Op op, Value base,
+                                   absl::optional<SourceLocation>& loc,
+                                   const BuildTermFn& build_term);
 
   // AstNode handlers.
   absl::Status HandleBinop(Binop* node);
@@ -904,6 +917,105 @@ absl::Status FunctionConverter::HandleConcat(Binop* node, BValue lhs,
     return function_builder_->ArrayConcat(pieces, loc);
   });
   return absl::OkStatus();
+}
+
+absl::StatusOr<std::vector<BValue>> FunctionConverter::BuildTerms(
+    BValue lhs, BValue rhs, absl::optional<SourceLocation>& loc,
+    const FunctionConverter::BuildTermFn& build_term) {
+  // Since we're building the expanded IR here, it is simpler to check that
+  // the types match once at the beginning rather incrementally at each
+  // expansion step.
+  XLS_RET_CHECK(lhs.GetType() == rhs.GetType()) << absl::StreamFormat(
+      "BuildTerms lhs %s and rhs %s types do not match in when building terms",
+      lhs.GetType()->ToString(), rhs.GetType()->ToString());
+
+  struct ToBuild {
+    xls::BValue lhs;
+    xls::BValue rhs;
+  };
+
+  std::vector<ToBuild> to_build = {ToBuild{lhs, rhs}};
+  std::vector<BValue> result;
+
+  while (!to_build.empty()) {
+    ToBuild next = to_build.back();
+    to_build.pop_back();
+
+    xls::Type* term_type = next.lhs.GetType();
+
+    switch (term_type->kind()) {
+      case TypeKind::kToken:
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Illegal token comparison lhs %s rhs %s",
+                            lhs.ToString(), rhs.ToString()));
+      case TypeKind::kBits:
+        result.push_back(build_term(next.lhs, next.rhs));
+        break;
+      case TypeKind::kArray: {
+        xls::ArrayType* array_type = term_type->AsArrayOrDie();
+        // Cast the array size to uint64_t because it will be used as an
+        // unsigned index in the generated IR.
+        uint64_t array_size = array_type->size();
+        for (uint64_t i = 0; i < array_size; i++) {
+          BValue i_val = function_builder_->Literal(Value(UBits(i, 64)));
+          BValue lhs_i = function_builder_->ArrayIndex(next.lhs, {i_val}, loc);
+          BValue rhs_i = function_builder_->ArrayIndex(next.rhs, {i_val}, loc);
+          to_build.push_back(ToBuild{lhs_i, rhs_i});
+        }
+        break;
+      }
+      case TypeKind::kTuple: {
+        xls::TupleType* tuple_type = term_type->AsTupleOrDie();
+        int64_t tuple_size = tuple_type->size();
+        for (int64_t i = 0; i < tuple_size; i++) {
+          BValue lhs_i = function_builder_->TupleIndex(next.lhs, i, loc);
+          BValue rhs_i = function_builder_->TupleIndex(next.rhs, i, loc);
+          to_build.push_back(ToBuild{lhs_i, rhs_i});
+        }
+        break;
+      }
+    }
+  }
+  return result;
+}
+
+absl::StatusOr<BValue> FunctionConverter::BuildTest(
+    BValue lhs, BValue rhs, Op op, Value base,
+    absl::optional<SourceLocation>& loc, const BuildTermFn& build_term) {
+  XLS_ASSIGN_OR_RETURN(std::vector<BValue> terms,
+                       BuildTerms(lhs, rhs, loc, build_term));
+  if (terms.empty()) {
+    return function_builder_->Literal(base);
+  }
+  if (terms.size() == 1) {
+    return terms.front();
+  } else {
+    return function_builder_->AddNaryOp(op, terms, loc);
+  }
+}
+
+absl::Status FunctionConverter::HandleEq(Binop* node, BValue lhs, BValue rhs) {
+  return DefWithStatus(
+             node,
+             [&](absl::optional<SourceLocation> loc) -> absl::StatusOr<BValue> {
+               return BuildTest(lhs, rhs, Op::kAnd, Value::Bool(true), loc,
+                                [this, loc](BValue l, BValue r) {
+                                  return function_builder_->Eq(l, r, loc);
+                                });
+             })
+      .status();
+}
+
+absl::Status FunctionConverter::HandleNe(Binop* node, BValue lhs, BValue rhs) {
+  return DefWithStatus(
+             node,
+             [&](absl::optional<SourceLocation> loc) -> absl::StatusOr<BValue> {
+               return BuildTest(lhs, rhs, Op::kOr, Value::Bool(false), loc,
+                                [this, loc](BValue l, BValue r) {
+                                  return function_builder_->Ne(l, r, loc);
+                                });
+             })
+      .status();
 }
 
 SymbolicBindings FunctionConverter::GetSymbolicBindingsTuple() const {
@@ -2181,6 +2293,12 @@ absl::Status FunctionConverter::HandleBinop(Binop* node) {
   std::function<BValue(absl::optional<SourceLocation>)> ir_func;
 
   switch (node->kind()) {
+    // Eq and Ne are handled out of line so that they can expand array and tuple
+    // comparisons.
+    case BinopKind::kEq:
+      return HandleEq(node, lhs, rhs);
+    case BinopKind::kNe:
+      return HandleNe(node, lhs, rhs);
     case BinopKind::kConcat:
       // Concat is handled out of line since it makes different IR ops for bits
       // and array kinds.
@@ -2212,17 +2330,7 @@ absl::Status FunctionConverter::HandleBinop(Binop* node) {
         return function_builder_->UDiv(lhs, rhs, loc);
       };
       break;
-    // Comparisons.
-    case BinopKind::kEq:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
-        return function_builder_->Eq(lhs, rhs, loc);
-      };
-      break;
-    case BinopKind::kNe:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
-        return function_builder_->Ne(lhs, rhs, loc);
-      };
-      break;
+    // Non-equality comparisons.
     case BinopKind::kGe:
       ir_func = [&](absl::optional<SourceLocation> loc) {
         if (signed_input) {

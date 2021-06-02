@@ -16,10 +16,9 @@
 // counterexample if the equality check is broken.
 type TestBlob = (s2[2], (u2, u1), bool);
 
-fn main() -> TestBlob {
-  // This test would be more meaningful if it used a compound equality,
-  // but that is currently blocked by https://github.com/google/xls/issues/421
-  ([s2:0,s2:3], (u2:1,u1:0), true)
+fn main() -> bool {
+  let x = ([s2:0,s2:3], (u2:1,u1:0), true);
+  x == x
  }
 
 // Manually expand a test blob into its leaf components to check equality.
