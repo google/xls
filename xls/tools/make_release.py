@@ -30,8 +30,8 @@ import sys
 XLS_ROOT = 'xls'
 
 # All paths are relative to XLS_ROOT
-BINARIES = ('dslx/interpreter/interpreter_main', 'dslx/ir_converter_main',
-            'tools/opt_main', 'tools/codegen_main', 'visualization/ir_viz/app')
+BINARIES = ('dslx/interpreter_main', 'dslx/ir_converter_main', 'tools/opt_main',
+            'tools/codegen_main', 'visualization/ir_viz/app')
 PACKAGE_UTIL = 'tools/package_bazel_build'
 
 # BUILD file to write into the release directory.
