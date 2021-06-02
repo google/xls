@@ -86,11 +86,13 @@ fn prop_consistent_neq(x: TestBlob[3], y: TestBlob[3]) -> bool {
 fn empty_eq_test() {
   let _ = assert_eq (() == (), true);
   let _ = assert_eq (() != (), false);
-// These tests crash because of https://github.com/google/xls/issues/439
-// TODO(amfv): 2021-05-25 Re-enable this code once it is fixed.
+// The following, more natural, definitions require unifying type inference.
+// TODO(amfv): 2021-05-26 Switch to them once have it.
 //  let a: u32[0] = [];
 //  let b: u32[0] = [];
-//  let _ = assert_eq (a == b, true);
-//  let _ = assert_eq (a != b, false);
+  let a = u32[0]:[];
+  let b = u32[0]:[];
+  let _ = assert_eq (a == b, true);
+  let _ = assert_eq (a != b, false);
   ()
 }

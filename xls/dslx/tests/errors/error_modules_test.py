@@ -176,6 +176,10 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'xls/dslx/tests/errors/let_destructure_same_name.x:17:11-17:12', stderr)
     self.assertIn("Name 'i' is defined twice in this pattern", stderr)
 
+  def test_empty_array_error(self):
+    stderr = self._run('xls/dslx/tests/errors/empty_array.x')
+    self.assertIn('Cannot deduce the type of an empty array.', stderr)
+
   def test_invalid_array_expression_type(self):
     stderr = self._run('xls/dslx/tests/errors/invalid_array_expression_type.x')
     self.assertIn(

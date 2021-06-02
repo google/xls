@@ -619,11 +619,20 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
   XLS_ASSIGN_OR_RETURN(
       auto dim,
       ConcreteTypeDim::Create(static_cast<int64_t>(member_types.size())));
-  auto inferred =
-      absl::make_unique<ArrayType>(member_types[0]->CloneToUnique(), dim);
+
+  std::unique_ptr<ArrayType> inferred;
+  if (!member_types.empty()) {
+    inferred =
+        absl::make_unique<ArrayType>(member_types[0]->CloneToUnique(), dim);
+  }
 
   if (node->type_annotation() == nullptr) {
-    return inferred;
+    if (inferred != nullptr) {
+      return inferred;
+    } else {
+      return TypeInferenceErrorStatus(
+          node->span(), nullptr, "Cannot deduce the type of an empty array.");
+    }
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated,
@@ -633,6 +642,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
     return TypeInferenceErrorStatus(
         node->span(), annotated.get(),
         "Array was not annotated with an array type.");
+  }
+
+  if (member_types.empty()) {
+    return annotated;
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved_element_type,
@@ -648,8 +661,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
     return annotated;
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      dim, ConcreteTypeDim::Create(static_cast<int64_t>(member_types.size())));
   if (array_type->size() != dim) {
     return XlsTypeErrorStatus(
         node->span(), *array_type, *inferred,
@@ -1667,16 +1678,16 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
   }
 
   // Now evaluate all the dimensions according to the values we've got.
-  return base_type.MapSize([&env](ConcreteTypeDim dim)
-                               -> absl::StatusOr<ConcreteTypeDim> {
-    if (absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(
-            dim.value())) {
-      auto& parametric =
-          absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
-      return ConcreteTypeDim::Create(parametric->Evaluate(env));
-    }
-    return dim;
-  });
+  return base_type.MapSize(
+      [&env](ConcreteTypeDim dim) -> absl::StatusOr<ConcreteTypeDim> {
+        if (absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(
+                dim.value())) {
+          auto& parametric =
+              absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
+          return ConcreteTypeDim::Create(parametric->Evaluate(env));
+        }
+        return dim;
+      });
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRefTypeAnnotation(
