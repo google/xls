@@ -15,6 +15,7 @@
 #ifndef XLS_DATA_STRUCTURES_GRAPH_CONTRACTION_H_
 #define XLS_DATA_STRUCTURES_GRAPH_CONTRACTION_H_
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/types/optional.h"
@@ -215,6 +216,78 @@ class GraphContraction {
       return edges.at(target);
     }
     return absl::nullopt;
+  }
+
+  // Returns a topological sort of the nodes in the graph if the graph is
+  // acyclic, otherwise returns absl::nullopt.
+  absl::optional<std::vector<V>> TopologicalSort() {
+    std::vector<V> result;
+
+    // Kahn's algorithm
+
+    std::vector<V> active;
+    absl::flat_hash_map<V, int64_t> edge_count;
+    for (const V& vertex : Vertices()) {
+      edge_count[vertex] = EdgesInto(vertex).size();
+      if (edge_count.at(vertex) == 0) {
+        active.push_back(vertex);
+      }
+    }
+
+    while (!active.empty()) {
+      V source = active.back();
+      active.pop_back();
+      result.push_back(source);
+      for (const auto& [target, weight] : EdgesOutOf(source)) {
+        edge_count.at(target)--;
+        if (edge_count.at(target) == 0) {
+          active.push_back(target);
+        }
+      }
+    }
+
+    if (result.size() != Vertices().size()) {
+      return absl::nullopt;
+    }
+
+    return result;
+  }
+
+  // All-pairs longest paths in an acyclic graph.
+  // The length of a path is measured by the total vertex weight encountered
+  // along that path, using `operator+` and `std::max` on `VW`.
+  // The outer map key is the source of the path and the inner map key is the
+  // sink of the path. Those keys only exist if a path exists from that source
+  // to that sink.
+  // Returns absl::nullopt if the graph contains a cycle.
+  absl::optional<absl::flat_hash_map<V, absl::flat_hash_map<V, VW>>>
+  LongestNodePaths() {
+    absl::flat_hash_map<V, absl::flat_hash_map<V, VW>> result;
+
+    for (V vertex : Vertices()) {
+      // The graph must be acyclic, so the longest path from any vertex to
+      // itself has weight equal to the weight of that vertex.
+      result[vertex] = {{vertex, WeightOf(vertex).value()}};
+    }
+
+    if (absl::optional<std::vector<V>> topo = TopologicalSort()) {
+      for (const V& vertex : *topo) {
+        for (auto& [source, targets] : result) {
+          for (const auto& [pred, edge_weight] : EdgesInto(vertex)) {
+            if (targets.contains(pred)) {
+              VW new_weight = targets[pred] + WeightOf(vertex).value();
+              targets[vertex] = targets.contains(vertex)
+                                    ? std::max(targets.at(vertex), new_weight)
+                                    : new_weight;
+            }
+          }
+        }
+      }
+    } else {
+      return absl::nullopt;
+    }
+
+    return result;
   }
 
  private:

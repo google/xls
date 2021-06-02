@@ -225,6 +225,100 @@ TEST(GraphContractionTest, QueryNonexistentVerticesAndEdges) {
   EXPECT_FALSE(gc.WeightOf('c', 'd').has_value());
 }
 
+TEST(GraphContractionTest, LongestNodePaths) {
+  // Test that `LongestNodePaths` works properly on this graph:
+  //
+  //           a 5
+  //          ╱ ╲
+  //      10 b   c 15
+  //         │ ╳ │
+  //      10 d   e 15
+  //          ╲ ╱
+  //           f 5
+
+  GraphContraction<char, int32_t, absl::monostate> gc;
+  gc.AddVertex('a', 5);
+  gc.AddVertex('b', 10);
+  gc.AddVertex('c', 15);
+  gc.AddVertex('d', 10);
+  gc.AddVertex('e', 15);
+  gc.AddVertex('f', 5);
+
+  gc.AddEdge('a', 'b', absl::monostate());
+  gc.AddEdge('a', 'c', absl::monostate());
+  gc.AddEdge('b', 'd', absl::monostate());
+  gc.AddEdge('b', 'e', absl::monostate());
+  gc.AddEdge('c', 'd', absl::monostate());
+  gc.AddEdge('c', 'e', absl::monostate());
+  gc.AddEdge('d', 'f', absl::monostate());
+  gc.AddEdge('e', 'f', absl::monostate());
+
+  auto longest_paths_maybe = gc.LongestNodePaths();
+  EXPECT_TRUE(longest_paths_maybe.has_value());
+  absl::flat_hash_map<char, absl::flat_hash_map<char, int32_t>> longest_paths =
+      longest_paths_maybe.value();
+
+  absl::flat_hash_map<char, absl::flat_hash_map<char, int32_t>> expected;
+  expected.insert_or_assign('a', {});
+  expected.insert_or_assign('b', {});
+  expected.insert_or_assign('c', {});
+  expected.insert_or_assign('d', {});
+  expected.insert_or_assign('e', {});
+
+  expected['a'].insert_or_assign('a', 5);
+  expected['a'].insert_or_assign('b', 15);
+  expected['a'].insert_or_assign('c', 20);
+  expected['a'].insert_or_assign('d', 30);
+  expected['a'].insert_or_assign('e', 35);
+  expected['a'].insert_or_assign('f', 40);
+
+  expected['b'].insert_or_assign('b', 10);
+  expected['b'].insert_or_assign('d', 20);
+  expected['b'].insert_or_assign('e', 25);
+  expected['b'].insert_or_assign('f', 30);
+
+  expected['c'].insert_or_assign('c', 15);
+  expected['c'].insert_or_assign('d', 25);
+  expected['c'].insert_or_assign('e', 30);
+  expected['c'].insert_or_assign('f', 35);
+
+  expected['d'].insert_or_assign('d', 10);
+  expected['d'].insert_or_assign('f', 15);
+
+  expected['e'].insert_or_assign('e', 15);
+  expected['e'].insert_or_assign('f', 20);
+
+  expected['f'].insert_or_assign('f', 5);
+
+  EXPECT_EQ(longest_paths, expected);
+}
+
+TEST(GraphContractionTest, LongestNodePathsCyclic) {
+  // Test that `LongestNodePaths` detects a cyclic graph properly.
+
+  GraphContraction<char, int32_t, absl::monostate> gc;
+  gc.AddVertex('a', 1);
+  gc.AddVertex('b', 1);
+  gc.AddVertex('c', 1);
+
+  gc.AddEdge('a', 'b', absl::monostate());
+  gc.AddEdge('b', 'c', absl::monostate());
+  gc.AddEdge('c', 'a', absl::monostate());
+
+  EXPECT_FALSE(gc.LongestNodePaths().has_value());
+}
+
+TEST(GraphContractionTest, LongestNodePathsSelfEdge) {
+  // Test that `LongestNodePaths` detects a self-edge properly.
+
+  GraphContraction<char, int32_t, absl::monostate> gc;
+  gc.AddVertex('a', 1);
+
+  gc.AddEdge('a', 'a', absl::monostate());
+
+  EXPECT_FALSE(gc.LongestNodePaths().has_value());
+}
+
 // TODO(taktoa): 2021-04-23 add a test that constructs a random graph and
 // identifies all the vertices together in some random order, which should
 // always result in a graph with a single vertex and possibly a self-edge

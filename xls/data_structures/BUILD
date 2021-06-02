@@ -46,6 +46,7 @@ cc_library(
     hdrs = ["graph_contraction.h"],
     deps = [
         ":union_find_map",
+        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/types:optional",
