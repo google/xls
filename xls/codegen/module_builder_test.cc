@@ -132,8 +132,7 @@ TEST_P(ModuleBuilderTest, RegisterWithSynchronousReset) {
       ModuleBuilder::Register b,
       mb.DeclareRegister("b", u32, y,
                          /*reset_value=*/file.Literal(UBits(0x42, 32))));
-  XLS_ASSERT_OK(mb.AssignRegisters({a, b},
-                                   /*load_enable=*/nullptr));
+  XLS_ASSERT_OK(mb.AssignRegisters({a, b}));
 
   XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref)));
 
@@ -163,8 +162,7 @@ TEST_P(ModuleBuilderTest, RegisterWithAsynchronousActiveLowReset) {
       ModuleBuilder::Register b,
       mb.DeclareRegister("b", u32, y,
                          /*reset_value=*/file.Literal(UBits(0x42, 32))));
-  XLS_ASSERT_OK(mb.AssignRegisters({a, b},
-                                   /*load_enable=*/nullptr));
+  XLS_ASSERT_OK(mb.AssignRegisters({a, b}));
 
   XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref)));
 
@@ -187,7 +185,9 @@ TEST_P(ModuleBuilderTest, RegisterWithLoadEnable) {
                            mb.DeclareRegister("a", u32, file.Add(x, y)));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleBuilder::Register b,
                            mb.DeclareRegister("b", u32, y));
-  XLS_ASSERT_OK(mb.AssignRegisters({a, b}, load_enable));
+  a.load_enable = load_enable;
+  b.load_enable = load_enable;
+  XLS_ASSERT_OK(mb.AssignRegisters({a, b}));
 
   XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref)));
 
@@ -218,7 +218,10 @@ TEST_P(ModuleBuilderTest, RegisterWithLoadEnableAndReset) {
       ModuleBuilder::Register b,
       mb.DeclareRegister("b", u32, y,
                          /*reset_value=*/file.Literal(UBits(0x42, 32))));
-  XLS_ASSERT_OK(mb.AssignRegisters({a, b}, load_enable));
+  a.load_enable = load_enable;
+  b.load_enable = load_enable;
+
+  XLS_ASSERT_OK(mb.AssignRegisters({a, b}));
 
   XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref)));
 

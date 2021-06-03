@@ -857,8 +857,11 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
                           file_->BitVectorType(type->GetFlatBitCount()),
                           /*init=*/nullptr, declaration_section());
   }
-  return Register{
-      .ref = reg, .next = next, .reset_value = reset_value, .xls_type = type};
+  return Register{.ref = reg,
+                  .next = next,
+                  .reset_value = reset_value,
+                  .load_enable = nullptr,
+                  .xls_type = type};
 }
 
 absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
@@ -877,11 +880,12 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
                       /*init=*/nullptr, declaration_section()),
                   .next = next,
                   .reset_value = reset_value,
+                  .load_enable = nullptr,
                   .xls_type = nullptr};
 }
 
 absl::Status ModuleBuilder::AssignRegisters(
-    absl::Span<const Register> registers, Expression* load_enable) {
+    absl::Span<const Register> registers) {
   XLS_RET_CHECK(clk_ != nullptr);
 
   // Construct an always_ff block.
@@ -939,9 +943,9 @@ absl::Status ModuleBuilder::AssignRegisters(
     XLS_RETURN_IF_ERROR(AddAssignment(
         reg.xls_type, reg.ref, reg.next, [&](Expression* lhs, Expression* rhs) {
           assignment_block->Add<NonblockingAssignment>(
-              lhs, load_enable == nullptr
+              lhs, reg.load_enable == nullptr
                        ? rhs
-                       : file_->Ternary(load_enable, rhs, lhs));
+                       : file_->Ternary(reg.load_enable, rhs, lhs));
         }));
   }
   return absl::OkStatus();

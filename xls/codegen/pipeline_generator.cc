@@ -506,11 +506,12 @@ class PipelineGenerator {
             ModuleBuilder::Register reg,
             mb_->DeclareRegister(PipelineSignalName(node, stage),
                                  node->GetType(), rhs));
+        reg.load_enable = load_enable;
         registers.push_back(reg);
         register_refs.push_back(registers.back().ref);
       }
     }
-    XLS_RETURN_IF_ERROR(mb_->AssignRegisters(registers, load_enable));
+    XLS_RETURN_IF_ERROR(mb_->AssignRegisters(registers));
 
     return register_refs;
   }
@@ -533,8 +534,7 @@ class PipelineGenerator {
         ModuleBuilder::Register valid_load_enable_register,
         mb_->DeclareRegister(absl::StrFormat("p%d_valid", stage),
                              /*bit_count=*/1, valid_load_enable, reset_value));
-    XLS_RETURN_IF_ERROR(mb_->AssignRegisters({valid_load_enable_register},
-                                             /*load_enable=*/nullptr));
+    XLS_RETURN_IF_ERROR(mb_->AssignRegisters({valid_load_enable_register}));
     return valid_load_enable_register.ref;
   }
 

@@ -372,9 +372,6 @@ cc_library(
     name = "proc_generator",
     srcs = ["proc_generator.cc"],
     hdrs = ["proc_generator.h"],
-    data = glob([
-        "testdata/proc_generator_test_*",
-    ]),
     deps = [
         ":codegen_options",
         ":flattening",
@@ -614,6 +611,9 @@ cc_test(
 cc_test(
     name = "proc_generator_test",
     srcs = ["proc_generator_test.cc"],
+    data = glob([
+        "testdata/proc_generator_test_*",
+    ]),
     deps = [
         ":proc_generator",
         ":signature_generator",

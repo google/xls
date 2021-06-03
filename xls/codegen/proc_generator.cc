@@ -360,7 +360,8 @@ absl::StatusOr<std::string> GenerateVerilog(const CodegenOptions& options,
                                       : reg.send->As<SendIf>()->data();
 
     reg.mb_register.next = absl::get<Expression*>(node_exprs.at(data));
-    XLS_RETURN_IF_ERROR(mb.AssignRegisters({reg.mb_register}, load_enable));
+    reg.mb_register.load_enable = load_enable;
+    XLS_RETURN_IF_ERROR(mb.AssignRegisters({reg.mb_register}));
   }
 
   // Add assert statements in a separate always_comb block.

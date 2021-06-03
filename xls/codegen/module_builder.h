@@ -129,6 +129,9 @@ class ModuleBuilder {
     // reset signal.
     Expression* reset_value;
 
+    // The load enable signal for the register. Can be null.
+    Expression* load_enable;
+
     // Optional XLS type of this register. Can be null.
     Type* xls_type;
   };
@@ -153,13 +156,8 @@ class ModuleBuilder {
                                            int64_t bit_count, Expression* next,
                                            Expression* reset_value = nullptr);
 
-  // Construct an always block to assign values to the registers. Arguments:
-  //   registers: Registers to assign within this block.
-  //   load_enable: Optional load enable signal. The register is loaded only if
-  //     this signal is asserted.
-  //   rst: Optional reset signal.
-  absl::Status AssignRegisters(absl::Span<const Register> registers,
-                               Expression* load_enable = nullptr);
+  // Construct an always block to assign values to the registers.
+  absl::Status AssignRegisters(absl::Span<const Register> registers);
 
   // For organization (not functionality) the module is divided into several
   // sections. The emitted module has the following structure:

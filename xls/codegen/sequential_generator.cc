@@ -180,19 +180,25 @@ absl::Status SequentialModuleBuilder::AddSequentialLogic() {
                              index_references.holds_max_inclusive_value,
                              last_pipeline_cycle));
 
-  auto make_register = [&](Expression* next, const PortProto* port_proto) {
-    return module_builder_->DeclareRegister(port_proto->name() + "_register",
-                                            port_proto->width(), next);
+  auto make_register = [&](Expression* next, const PortProto* port_proto,
+                           Expression* load_enable =
+                               nullptr) -> absl::StatusOr<Register> {
+    XLS_ASSIGN_OR_RETURN(Register reg, module_builder_->DeclareRegister(
+                                           port_proto->name() + "_register",
+                                           port_proto->width(), next));
+    reg.load_enable = load_enable;
+    return reg;
   };
   // Add accumulator register.
   XLS_RET_CHECK(port_references_.ready_in.has_value());
   XLS_ASSIGN_OR_RETURN(
       Register accumulator_register,
-      make_register(file_.Ternary(ready_in, port_references_.data_in.at(0),
-                                  pipeline_output),
-                    &module_signature_->data_outputs().at(0)));
-  XLS_RETURN_IF_ERROR(module_builder_->AssignRegisters(
-      {accumulator_register}, file_.BitwiseOr(ready_in, last_pipeline_cycle)));
+      make_register(
+          file_.Ternary(ready_in, port_references_.data_in.at(0),
+                        pipeline_output),
+          &module_signature_->data_outputs().at(0),
+          /*load_enable=*/file_.BitwiseOr(ready_in, last_pipeline_cycle)));
+  XLS_RETURN_IF_ERROR(module_builder_->AssignRegisters({accumulator_register}));
 
   // Add registers for invariants.
   int64_t num_inputs = port_references_.data_in.size();
@@ -203,9 +209,9 @@ absl::Status SequentialModuleBuilder::AddSequentialLogic() {
         invariant_registers.at(input_idx - 1),
         make_register(port_references_.data_in.at(input_idx),
                       &module_signature_->data_inputs().at(input_idx)));
+    invariant_registers.at(input_idx - 1).load_enable = ready_in;
   }
-  XLS_RETURN_IF_ERROR(
-      module_builder_->AssignRegisters(invariant_registers, ready_in));
+  XLS_RETURN_IF_ERROR(module_builder_->AssignRegisters(invariant_registers));
 
   // Add loop body pipeline.
   XLS_RETURN_IF_ERROR(
@@ -272,9 +278,8 @@ SequentialModuleBuilder::AddStaticStridedCounter(
   refs.value = counter_register.ref;
 
   // Add counter always-block.
-  Expression* load_enable = file_.BitwiseOr(refs.increment, refs.set_zero);
-  XLS_RETURN_IF_ERROR(
-      module_builder_->AssignRegisters({counter_register}, load_enable));
+  counter_register.load_enable = file_.BitwiseOr(refs.increment, refs.set_zero);
+  XLS_RETURN_IF_ERROR(module_builder_->AssignRegisters({counter_register}));
 
   // Compare counter value to maximum value.
   refs.holds_max_inclusive_value = DeclareVariableAndAssign(
