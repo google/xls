@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "xls/codegen/vast.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
@@ -91,12 +92,23 @@ absl::StatusOr<Proc*> FunctionToProc(Function* f, absl::string_view proc_name) {
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> input_tokens,
                        AddInputPorts(f, proc, &node_map));
 
-  // Clone in the nodes from the function into the proc.
+  // The Token/AfterAll created when in "implicit assert/cover" mode.
+  Node* implicit_afterall = nullptr;
   for (Node* node : TopoSort(f)) {
     if (node->Is<Param>()) {
       // Parameters become receive nodes in the proc and are added above.
       continue;
     }
+
+    // An argless AfterAll is a way of creating a token when not in a proc, for
+    // sequencing Assert and Cover nodes. When lowering to a proc, we need to
+    // replace implicit tokens with real ones.
+    if (node->Is<AfterAll>() && node->operand_count() == 0) {
+      node_map[node] = proc->TokenParam();
+      implicit_afterall = node;
+      continue;
+    }
+
     std::vector<Node*> new_operands;
     for (Node* operand : node->operands()) {
       new_operands.push_back(node_map.at(operand));
@@ -111,6 +123,38 @@ absl::StatusOr<Proc*> FunctionToProc(Function* f, absl::string_view proc_name) {
       proc->MakeNode<AfterAll>(/*loc=*/absl::nullopt, input_tokens));
   XLS_ASSIGN_OR_RETURN(Node * output_token,
                        AddOutputPort(f, proc, node_map, merged_input_token));
+
+  // Implicit tokens are strictly used for passing into invocations, so all
+  // that's necessary is to connect the token elements of their outputs to the
+  // sink.
+  if (implicit_afterall != nullptr) {
+    // The Token on an implicit token invocation is always the first tuple
+    // element.
+    std::vector<Node*> implicit_tokens;
+    implicit_tokens.push_back(output_token);
+    for (Node* user : implicit_afterall->users()) {
+      Node* proc_user = node_map[user];
+      Type* type = proc_user->GetType();
+
+      // Make sure there's a Token to extract before we try to extract it!
+      bool has_first_token = type->IsTuple() &&
+                             !type->AsTupleOrDie()->element_types().empty() &&
+                             type->AsTupleOrDie()->element_type(0)->IsToken();
+      if (!has_first_token) {
+        return absl::InvalidArgumentError(
+            absl::StrCat("Implicit-token-using functions must return tuples "
+                         "with a Token as the first element. Found bad node: ",
+                         proc_user->ToString()));
+      }
+      XLS_ASSIGN_OR_RETURN(
+          auto* token,
+          proc->MakeNode<TupleIndex>(/*loc=*/absl::nullopt, proc_user, 0));
+      implicit_tokens.push_back(token);
+    }
+    XLS_ASSIGN_OR_RETURN(
+        output_token,
+        proc->MakeNode<AfterAll>(/*loc=*/absl::nullopt, implicit_tokens));
+  }
 
   XLS_RETURN_IF_ERROR(proc->SetNextToken(output_token));
   XLS_RETURN_IF_ERROR(proc->SetNextState(proc->StateParam()));

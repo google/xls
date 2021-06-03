@@ -1996,7 +1996,7 @@ static absl::Status EmitImplicitTokenEntryWrapper(
   }
 
   // Invoke the function with the primordial "implicit token" values.
-  BValue token = fb.Literal(Value::Token());
+  BValue token = fb.AfterAll({});
   BValue activated = fb.Literal(Value::Bool(true));
   std::vector<BValue> args = {token, activated};
   args.insert(args.end(), params.begin(), params.end());

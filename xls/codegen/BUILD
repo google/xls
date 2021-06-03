@@ -397,6 +397,7 @@ cc_library(
     deps = [
         ":vast",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/ir",
         "//xls/ir:channel",
@@ -637,6 +638,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
+        "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
