@@ -223,4 +223,23 @@ int64_t GetArrayDimensionCount(Type* type) {
   return count;
 }
 
+// Returns true if the given type is a token type or has a token type as an
+// subelement.
+bool TypeHasToken(Type* type) {
+  if (type->IsToken()) {
+    return true;
+  }
+  if (type->IsArray()) {
+    return TypeHasToken(type->AsArrayOrDie()->element_type());
+  }
+  if (type->IsTuple()) {
+    for (Type* element_type : type->AsTupleOrDie()->element_types()) {
+      if (TypeHasToken(element_type)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 }  // namespace xls

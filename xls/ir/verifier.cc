@@ -30,6 +30,7 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/type.h"
 
 namespace xls {
 namespace {
@@ -1293,25 +1294,6 @@ absl::StatusOr<Channel*> GetSendOrReceiveChannel(Node* node) {
   }
   return absl::InternalError(absl::StrFormat(
       "Node is not a send or receive node: %s", node->ToString()));
-}
-
-// Returns true if the given type is a token type or has a token type as an
-// subelement.
-bool TypeHasToken(Type* type) {
-  if (type->IsToken()) {
-    return true;
-  }
-  if (type->IsArray()) {
-    return TypeHasToken(type->AsArrayOrDie()->element_type());
-  }
-  if (type->IsTuple()) {
-    for (Type* element_type : type->AsTupleOrDie()->element_types()) {
-      if (TypeHasToken(element_type)) {
-        return true;
-      }
-    }
-  }
-  return false;
 }
 
 // Verify that all tokens in the given FunctionBase are connected. All tokens

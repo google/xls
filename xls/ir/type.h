@@ -298,6 +298,10 @@ absl::StatusOr<Type*> GetIndexedElementType(Type* type_to_index,
 //   GetArrayDimensionCount((bits[8][10], token)[42]) => 1
 int64_t GetArrayDimensionCount(Type* type);
 
+// Returns true if the given type is a token type or has a token type as a
+// subelement.
+bool TypeHasToken(Type* type);
+
 }  // namespace xls
 
 #endif  // XLS_IR_TYPE_H_

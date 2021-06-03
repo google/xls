@@ -81,5 +81,24 @@ TEST_F(DeadCodeEliminationPassTest, RepeatedOperand) {
   EXPECT_EQ(f->node_count(), 3);
 }
 
+// Verifies that the DCE pass doesn't remove tokens.
+TEST_F(DeadCodeEliminationPassTest, AvoidsTokens) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn has_token(x: bits[32], y: bits[32]) -> bits[32] {
+      after_all.1: token = after_all()
+      add.2: bits[32] = add(x, y)
+      literal.3: bits[1] = literal(value=1)
+      cover.4: token = cover(after_all.1, literal.3, label="my_coverpoint")
+      ret sub.5: bits[32] = sub(x, y)
+    }
+  )",
+                                                       p.get()));
+
+  EXPECT_EQ(f->node_count(), 7);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_EQ(f->node_count(), 6);
+}
+
 }  // namespace
 }  // namespace xls
