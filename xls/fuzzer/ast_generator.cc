@@ -239,7 +239,7 @@ int64_t AstGenerator::GetTypeBitCount(TypeAnnotation* type) {
   return type_bit_counts_.at(type_str);
 }
 
-int64_t AstGenerator::GetArraySize(ArrayTypeAnnotation* type) {
+int64_t AstGenerator::GetArraySize(const ArrayTypeAnnotation* type) {
   Expr* dim = type->dim();
   if (auto* number = dynamic_cast<Number*>(dim)) {
     return number->GetAsUint64().value();

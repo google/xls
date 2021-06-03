@@ -425,7 +425,7 @@ class AstGenerator {
   // Note: uN[42] is an ArrayTypeAnnotation, and this function will return 42
   // for it, since it's just evaluating-to-int the value in the "dim" field of
   // the ArrayTypeAnnotation.
-  int64_t GetArraySize(ArrayTypeAnnotation* type);
+  int64_t GetArraySize(const ArrayTypeAnnotation* type);
 
   // Gets-or-creates a top level constant with the given value, using the
   // minimum number of bits required to make that constant.
