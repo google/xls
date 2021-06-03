@@ -31,10 +31,14 @@ std::string Block::DumpIr(bool recursive) const {
   std::string res = absl::StrFormat("block %s {\n", name());
 
   for (Register* reg : GetRegisters()) {
-    if (reg->reset_value().has_value()) {
-      absl::StrAppendFormat(&res, "  reg %s(%s, reset_value=%s)\n", reg->name(),
-                            reg->type()->ToString(),
-                            reg->reset_value().value().ToHumanString());
+    if (reg->reset().has_value()) {
+      absl::StrAppendFormat(
+          &res,
+          "  reg %s(%s, reset_value=%s, asynchronous=%s, active_low=%s)\n",
+          reg->name(), reg->type()->ToString(),
+          reg->reset().value().reset_value.ToHumanString(),
+          reg->reset().value().asynchronous ? "true" : "false",
+          reg->reset().value().active_low ? "true" : "false");
     } else {
       absl::StrAppendFormat(&res, "  reg %s(%s)\n", reg->name(),
                             reg->type()->ToString());
@@ -90,21 +94,21 @@ absl::StatusOr<OutputPort*> Block::AddOutputPort(
   return port;
 }
 
-absl::StatusOr<Register*> Block::AddRegister(
-    absl::string_view name, Type* type, absl::optional<Value> reset_value) {
+absl::StatusOr<Register*> Block::AddRegister(absl::string_view name, Type* type,
+                                             absl::optional<Reset> reset) {
   if (registers_.contains(name)) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Register already exists with name %s", name));
   }
-  if (reset_value.has_value()) {
-    if (type != package()->GetTypeForValue(reset_value.value())) {
+  if (reset.has_value()) {
+    if (type != package()->GetTypeForValue(reset.value().reset_value)) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Reset value %s for register %s is not of type %s",
-          reset_value.value().ToString(), name, type->ToString()));
+          reset.value().reset_value.ToString(), name, type->ToString()));
     }
   }
   registers_[name] =
-      absl::make_unique<Register>(std::string(name), type, reset_value, this);
+      absl::make_unique<Register>(std::string(name), type, reset, this);
   register_vec_.push_back(registers_[name].get());
   return register_vec_.back();
 }

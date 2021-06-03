@@ -1518,6 +1518,10 @@ absl::Status VerifyPackage(Package* package) {
     XLS_RETURN_IF_ERROR(VerifyProc(proc.get()));
   }
 
+  for (auto& block : package->blocks()) {
+    XLS_RETURN_IF_ERROR(VerifyBlock(block.get()));
+  }
+
   // Verify node IDs are unique within the package and uplinks point to this
   // package.
   absl::flat_hash_map<int64_t, absl::optional<SourceLocation>> ids;

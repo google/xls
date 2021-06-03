@@ -1222,7 +1222,7 @@ TEST(IrParserTest, ParseBlockWithRegisterWithResetValue) {
   const std::string input = R"(package test
 
 block my_block {
-  reg foo(bits[32], reset_value=42)
+  reg foo(bits[32], reset_value=42, asynchronous=true, active_low=false)
   in: bits[32] = input_port(name=in, id=1)
   foo_q: bits[32] = register_read(register=foo, id=3)
   foo_d: bits[32] = register_write(in, register=foo, id=2)
@@ -2358,8 +2358,8 @@ fn f(foo: bits[32]) -> bits[32] {
 TEST(IrParserTest, ParseBlockWithDuplicateRegisters) {
   const std::string input = R"(
 block my_block {
-  reg foo(bits[32], reset_value=42)
-  reg foo(bits[32], reset_value=42)
+  reg foo(bits[32])
+  reg foo(bits[32])
   in: bits[32] = input_port(name=in, id=1)
   foo_q: bits[32] = register_read(register=foo, id=3)
   foo_d: bits[32] = register_write(in, register=foo, id=2)
@@ -2370,6 +2370,22 @@ block my_block {
   EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Register already exists with name foo")));
+}
+
+TEST(IrParserTest, ParseBlockWithIncompleteResetDefinition) {
+  const std::string input = R"(
+block my_block {
+  reg foo(bits[32], reset_value=42)
+  in: bits[32] = input_port(name=in, id=1)
+  foo_q: bits[32] = register_read(register=foo, id=3)
+  foo_d: bits[32] = register_write(in, register=foo, id=2)
+  out: bits[32] = output_port(foo_q, name=out, id=4)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Register reset incompletely specified")));
 }
 
 }  // namespace xls

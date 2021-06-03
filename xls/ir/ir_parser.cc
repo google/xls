@@ -945,6 +945,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
           arg_parser.AddKeywordArg<IdentifierString>("register");
       std::optional<BValue>* load_enable =
           arg_parser.AddOptionalKeywordArg<BValue>("load_enable");
+      std::optional<BValue>* reset =
+          arg_parser.AddOptionalKeywordArg<BValue>("reset");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
       if (!block->HasRegisterWithName(register_name->value)) {
         return absl::InvalidArgumentError(
@@ -952,8 +954,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
       }
       XLS_ASSIGN_OR_RETURN(Register * reg,
                            block->GetRegister(register_name->value));
-      bvalue =
-          fb->RegisterWrite(reg, operands[0], *load_enable, *loc, node_name);
+      bvalue = fb->RegisterWrite(reg, operands[0], *load_enable, *reset, *loc,
+                                 node_name);
       break;
     }
     default:
@@ -1018,25 +1020,54 @@ absl::StatusOr<BValue> Parser::ParseNode(
 }
 
 absl::StatusOr<Register*> Parser::ParseRegister(Block* block) {
-  // A register declaration has the following form, for example:
+  // A register declaration has the following form, for example (without reset):
   //
   //   reg foo(bits[32])
+  //
+  // With reset:
+  //
+  //   reg foo(bits[32], reset_value=42, asynchronous=false, active_low=false)
   XLS_ASSIGN_OR_RETURN(
       Token reg_name,
       scanner_.PopTokenOrError(LexicalTokenType::kIdent, "register name"));
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
   XLS_ASSIGN_OR_RETURN(Type * reg_type, ParseType(block->package()));
-  // Parse optional reset value.
+  // Parse optional reset attributes.
   absl::optional<Value> reset_value;
-  if (scanner_.TryDropToken(LexicalTokenType::kComma)) {
-    XLS_ASSIGN_OR_RETURN(
-        Token key,
-        scanner_.PopTokenOrError(LexicalTokenType::kIdent, "reset value"));
-    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kEquals));
-    XLS_ASSIGN_OR_RETURN(reset_value, ParseValueInternal(reg_type));
+  absl::optional<bool> asynchronous;
+  absl::optional<bool> active_low;
+  while (true) {
+    if (!scanner_.TryDropToken(LexicalTokenType::kComma)) {
+      break;
+    }
+    XLS_ASSIGN_OR_RETURN(Token field_name,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    if (scanner_.TryDropToken(LexicalTokenType::kEquals)) {
+      if (field_name.value() == "reset_value") {
+        XLS_ASSIGN_OR_RETURN(reset_value, ParseValueInternal(reg_type));
+      } else if (field_name.value() == "asynchronous") {
+        XLS_ASSIGN_OR_RETURN(asynchronous, ParseBool());
+      } else if (field_name.value() == "active_low") {
+        XLS_ASSIGN_OR_RETURN(active_low, ParseBool());
+      }
+    }
   }
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
-  return block->AddRegister(reg_name.value(), reg_type, reset_value);
+  // Either all reset attributes must be specified or none must be specified.
+  absl::optional<Reset> reset;
+  if (reset_value.has_value() && asynchronous.has_value() &&
+      active_low.has_value()) {
+    reset = Reset{.reset_value = reset_value.value(),
+                  .asynchronous = asynchronous.value(),
+                  .active_low = active_low.value()};
+  } else if (reset_value.has_value() || asynchronous.has_value() ||
+             active_low.has_value()) {
+    return absl::InvalidArgumentError(
+        "Register reset incompletely specified, must include all reset "
+        "attributes (reset_value, asynchronous, active_low)");
+  }
+
+  return block->AddRegister(reg_name.value(), reg_type, reset);
 }
 
 absl::StatusOr<Parser::BodyResult> Parser::ParseBody(

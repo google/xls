@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/visitor.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 
@@ -112,9 +113,11 @@ TEST_F(BlockTest, MultiOutputBlock) {
 }
 
 TEST_F(BlockTest, ErrorConditions) {
-  auto p = CreatePackage();
-  BlockBuilder bb("my_block", p.get());
-  Type* u32 = p->GetBitsType(32);
+  // Don't use CreatePackage because that creates a package which verifies on
+  // test completion and the errors may leave the block in a invalid state.
+  Package p(TestName());
+  BlockBuilder bb("my_block", &p);
+  Type* u32 = p.GetBitsType(32);
   BValue a = bb.InputPort("a", u32);
   BValue b = bb.InputPort("b", u32);
   bb.OutputPort("out", bb.Add(a, b, /*loc=*/absl::nullopt, /*name=*/"foo"));
@@ -215,7 +218,10 @@ TEST_F(BlockTest, RegisterWithInvalidResetValue) {
   auto p = CreatePackage();
   Block* blk = p->AddBlock(absl::make_unique<Block>("block1", p.get()));
   EXPECT_THAT(
-      blk->AddRegister("my_reg", p->GetBitsType(32), Value(UBits(0, 8)))
+      blk->AddRegister("my_reg", p->GetBitsType(32),
+                       Reset{.reset_value = Value(UBits(0, 8)),
+                             .asynchronous = false,
+                             .active_low = false})
           .status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Reset value bits[8]:0 for register my_reg is not of "
@@ -223,20 +229,24 @@ TEST_F(BlockTest, RegisterWithInvalidResetValue) {
 }
 
 TEST_F(BlockTest, AddDuplicateRegisters) {
-  auto p = CreatePackage();
-  Block* blk = p->AddBlock(absl::make_unique<Block>("block1", p.get()));
-  XLS_ASSERT_OK(blk->AddRegister("my_reg", p->GetBitsType(32)).status());
-  EXPECT_THAT(blk->AddRegister("my_reg", p->GetBitsType(32)).status(),
+  // Don't use CreatePackage because that creates a package which verifies on
+  // test completion and the errors may leave the block in a invalid state.
+  Package p(TestName());
+  Block* blk = p.AddBlock(absl::make_unique<Block>("block1", &p));
+  XLS_ASSERT_OK(blk->AddRegister("my_reg", p.GetBitsType(32)).status());
+  EXPECT_THAT(blk->AddRegister("my_reg", p.GetBitsType(32)).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Register already exists with name my_reg")));
 }
 
 TEST_F(BlockTest, RemoveRegisterNotOwnedByBlock) {
-  auto p = CreatePackage();
-  Block* blk1 = p->AddBlock(absl::make_unique<Block>("block1", p.get()));
-  Block* blk2 = p->AddBlock(absl::make_unique<Block>("block2", p.get()));
+  // Don't use CreatePackage because that creates a package which verifies on
+  // test completion and the errors may leave the block in a invalid state.
+  Package p(TestName());
+  Block* blk1 = p.AddBlock(absl::make_unique<Block>("block1", &p));
+  Block* blk2 = p.AddBlock(absl::make_unique<Block>("block2", &p));
   XLS_ASSERT_OK_AND_ASSIGN(Register * reg,
-                           blk1->AddRegister("my_reg", p->GetBitsType(32)));
+                           blk1->AddRegister("my_reg", p.GetBitsType(32)));
 
   EXPECT_THAT(blk2->RemoveRegister(reg),
               StatusIs(absl::StatusCode::kInvalidArgument,

@@ -987,6 +987,7 @@ BValue BuilderBase::RegisterRead(Register* reg,
 
 BValue BuilderBase::RegisterWrite(Register* reg, BValue data,
                                   absl::optional<BValue> load_enable,
+                                  absl::optional<BValue> reset,
                                   absl::optional<SourceLocation> loc,
                                   absl::string_view name) {
   if (ErrorPending()) {
@@ -1444,6 +1445,7 @@ BValue BlockBuilder::RegisterRead(Register* reg,
 
 BValue BlockBuilder::RegisterWrite(Register* reg, BValue data,
                                    absl::optional<BValue> load_enable,
+                                   absl::optional<BValue> reset,
                                    absl::optional<SourceLocation> loc,
                                    absl::string_view name) {
   if (ErrorPending()) {
@@ -1456,6 +1458,7 @@ BValue BlockBuilder::RegisterWrite(Register* reg, BValue data,
       loc, data.node(),
       load_enable.has_value() ? absl::optional<Node*>(load_enable->node())
                               : absl::nullopt,
+      reset.has_value() ? absl::optional<Node*>(reset->node()) : absl::nullopt,
       reg->name(), name);
 }
 

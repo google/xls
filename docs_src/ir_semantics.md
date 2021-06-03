@@ -1247,7 +1247,7 @@ The register is defined on the block.
 **Syntax**
 
 ```
-result = register_read(register=<string>)
+result = register_read(register=<register_name>)
 ```
 
 **Types**
@@ -1258,26 +1258,47 @@ Value    | Type
 
 The type `T` of the result of the operation is the type of the register.
 
+**Keyword arguments**
+
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
+| Keyword    | Type     | Required | Default | Description                  |
+| ---------- | -------- | -------- | ------- | ---------------------------- |
+| `register` | `string` | yes      |         | Name of the register to read |
+
+<!-- mdformat on -->
+
 #### **`register_write`**
 
 Writes a value to a register.
 
 The write to the register may be conditioned upon an optional load-enable
-signal. The register is defined on the block.
+and/or reset signal. The register is defined on the block.
 
 **Syntax**
 
 ```
-result = register_write(data, load_enable=<load_enable>, register=<string>)
+result = register_write(data, load_enable=<load_enable>, reset=<reset>, register=<register_name>)
 ```
 
 **Types**
 
 Value         | Type
-------------- | ------------------
+------------- | --------------------
 `data`        | `T`
-`load_enable` | `bits[1]`
+`load_enable` | `bits[1]` (optional)
+`reset`       | `bits[1]` (optional)
 `result`      | `()` (empty tuple)
+
+**Keyword arguments**
+
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
+| Keyword    | Type     | Required | Default | Description                   |
+| ---------- | -------- | -------- | ------- | ----------------------------- |
+| `register` | `string` | yes      |         | Name of the register to write |
+
+<!-- mdformat on -->
 
 The type `T` of the data operand must be the same as the the type of the
 register.

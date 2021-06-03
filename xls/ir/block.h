@@ -17,6 +17,7 @@
 
 #include "absl/strings/string_view.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 
@@ -24,20 +25,24 @@ namespace xls {
 
 class Block;
 
+// Data structure describing the reset behavior of a register.
+struct Reset {
+  Value reset_value;
+  bool asynchronous;
+  bool active_low;
+};
+
 // Data structure representing a RTL-level register. These constructs are
 // contained in and owned by Blocks and lower to registers in Verilog.
 class Register {
  public:
-  Register(absl::string_view name, Type* type,
-           absl::optional<Value> reset_value, Block* block)
-      : name_(name),
-        type_(type),
-        reset_value_(std::move(reset_value)),
-        block_(block) {}
+  Register(absl::string_view name, Type* type, absl::optional<Reset> reset,
+           Block* block)
+      : name_(name), type_(type), reset_(std::move(reset)), block_(block) {}
 
   const std::string& name() const { return name_; }
   Type* type() const { return type_; }
-  const absl::optional<Value>& reset_value() const { return reset_value_; }
+  const absl::optional<Reset>& reset() const { return reset_; }
 
   // Returns the block which owns the register.
   Block* block() const { return block_; }
@@ -45,7 +50,7 @@ class Register {
  private:
   std::string name_;
   Type* type_;
-  absl::optional<Value> reset_value_;
+  absl::optional<Reset> reset_;
   Block* block_;
 };
 
@@ -99,7 +104,7 @@ class Block : public FunctionBase {
   // Adds a register to the block.
   absl::StatusOr<Register*> AddRegister(
       absl::string_view name, Type* type,
-      absl::optional<Value> reset_value = absl::nullopt);
+      absl::optional<Reset> reset = absl::nullopt);
 
   // Removes the given register from the block. If the register is not owned by
   // the block then an error is returned.

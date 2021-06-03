@@ -1037,6 +1037,7 @@ cc_test(
         ":ir",
         ":ir_matcher",
         ":ir_test_base",
+        "//xls/common:visitor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",

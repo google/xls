@@ -586,13 +586,19 @@ class BuilderBase {
   virtual BValue OutputPort(absl::string_view name, BValue operand,
                             absl::optional<SourceLocation> loc = absl::nullopt);
 
-  // Add register read/write. Only supported on blocks.
+  // Add a register read operation. The register argument comes from a
+  // Block::AddRegister. Only supported on blocks.
   virtual BValue RegisterRead(
       Register* reg, absl::optional<SourceLocation> loc = absl::nullopt,
       absl::string_view name = "");
+
+  // Add a register write operation. The register argument comes from a
+  // Block::AddRegister. If the register being writen has a reset value then
+  // `reset` must be specified. Only supported on blocks.
   virtual BValue RegisterWrite(
       Register* reg, BValue data,
       absl::optional<BValue> load_enable = absl::nullopt,
+      absl::optional<BValue> reset = absl::nullopt,
       absl::optional<SourceLocation> loc = absl::nullopt,
       absl::string_view name = "");
 
@@ -804,6 +810,7 @@ class BlockBuilder : public BuilderBase {
                       absl::string_view name = "") override;
   BValue RegisterWrite(Register* reg, BValue data,
                        absl::optional<BValue> load_enable = absl::nullopt,
+                       absl::optional<BValue> reset = absl::nullopt,
                        absl::optional<SourceLocation> loc = absl::nullopt,
                        absl::string_view name = "") override;
 };
