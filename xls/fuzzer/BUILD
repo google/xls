@@ -203,6 +203,11 @@ generate_crasher_regression_tests(
         "crashers/crasher_2021-04-05_32d7.x",
     ],
     prefix = package_name(),
+    tags = {
+        "crashers/crasher_2021-03-27_2259.x": [
+            "optonly",
+        ],
+    },
 )
 
 py_library(
