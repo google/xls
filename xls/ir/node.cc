@@ -520,6 +520,9 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
             absl::StrFormat("label=\"%s\"", As<Assert>()->label().value()));
       }
       break;
+    case Op::kCover:
+      args.push_back(absl::StrFormat("label=\"%s\"", As<Cover>()->label()));
+      break;
     case Op::kInputPort:
     case Op::kOutputPort:
       args.push_back(absl::StrFormat("name=%s", GetName()));

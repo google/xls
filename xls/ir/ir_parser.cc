@@ -889,6 +889,12 @@ absl::StatusOr<BValue> Parser::ParseNode(
                           label_string, *loc, node_name);
       break;
     }
+    case Op::kCover: {
+      QuotedString* label = arg_parser.AddKeywordArg<QuotedString>("label");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
+      bvalue = fb->Cover(operands[0], operands[1], label->value);
+      break;
+    }
     case Op::kBitSliceUpdate: {
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/3));
       bvalue = fb->BitSliceUpdate(operands[0], operands[1], operands[2], *loc,
