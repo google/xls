@@ -482,6 +482,10 @@ absl::StatusOr<Expression*> NodeToExpression(
       return file->OrReduce(inputs[0]);
     case Op::kParam:
       return unimplemented();
+    case Op::kRegisterRead:
+      return unimplemented();
+    case Op::kRegisterWrite:
+      return unimplemented();
     case Op::kReverse:
       return EmitReverse(node, inputs[0]->AsIndexableExpressionOrDie(), file);
     case Op::kSel: {

@@ -22,6 +22,33 @@
 
 namespace xls {
 
+class Block;
+
+// Data structure representing a RTL-level register. These constructs are
+// contained in and owned by Blocks and lower to registers in Verilog.
+class Register {
+ public:
+  Register(absl::string_view name, Type* type,
+           absl::optional<Value> reset_value, Block* block)
+      : name_(name),
+        type_(type),
+        reset_value_(std::move(reset_value)),
+        block_(block) {}
+
+  const std::string& name() const { return name_; }
+  Type* type() const { return type_; }
+  const absl::optional<Value>& reset_value() const { return reset_value_; }
+
+  // Returns the block which owns the register.
+  Block* block() const { return block_; }
+
+ private:
+  std::string name_;
+  Type* type_;
+  absl::optional<Value> reset_value_;
+  Block* block_;
+};
+
 // Abstraction representing a Verilog module used in code generation. Blocks are
 // function-level constructs similar to functions and procs. Like functions and
 // procs, blocks contain (and own) a data-flow graph of nodes. With a small
@@ -57,6 +84,27 @@ class Block : public FunctionBase {
       absl::string_view name, Node* operand,
       absl::optional<SourceLocation> loc = absl::nullopt);
 
+  // Returns all registers in the block in the order they were added.
+  absl::Span<Register* const> GetRegisters() const { return register_vec_; }
+
+  // Returns the register in the block with the given name. Returns an error if
+  // no such register exists.
+  absl::StatusOr<Register*> GetRegister(absl::string_view name) const;
+
+  // Returns true iff this block contains a register with the given name.
+  bool HasRegisterWithName(absl::string_view name) const {
+    return registers_.contains(name);
+  }
+
+  // Adds a register to the block.
+  absl::StatusOr<Register*> AddRegister(
+      absl::string_view name, Type* type,
+      absl::optional<Value> reset_value = absl::nullopt);
+
+  // Removes the given register from the block. If the register is not owned by
+  // the block then an error is returned.
+  absl::Status RemoveRegister(Register* reg);
+
   bool HasImplicitUse(Node* node) const override {
     return node->Is<OutputPort>();
   }
@@ -73,6 +121,16 @@ class Block : public FunctionBase {
   // All input/output ports in the order they appear in the Verilog module.
   std::vector<InputPort*> input_ports_;
   std::vector<OutputPort*> output_ports_;
+
+  // Registers within this block. Indexed by register name. Stored as
+  // std::unique_ptrs for pointer stability.
+  absl::flat_hash_map<std::string, std::unique_ptr<Register>> registers_;
+
+  // Vector of register pointers. Ordered by register creation time. Kept in
+  // sync with the registers_ map. Enables easy, stable iteration over
+  // registers. With this vector, deletion of a register is O(n) with the number
+  // of registers. If this is a problem, a linked list might be used instead.
+  std::vector<Register*> register_vec_;
 };
 
 }  // namespace xls

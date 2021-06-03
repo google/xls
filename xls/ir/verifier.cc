@@ -896,10 +896,14 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleOutputPort(OutputPort* output_port) override {
-    XLS_RETURN_IF_ERROR(ExpectSameType(output_port->operand(0),
-                                       output_port->operand(0)->GetType(),
-                                       output_port, output_port->GetType(),
-                                       "operand 0", "output_port operation"));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleRegisterRead(RegisterRead* reg_read) override {
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleRegisterWrite(RegisterWrite* reg_write) override {
     return absl::OkStatus();
   }
 
@@ -1657,6 +1661,47 @@ absl::Status VerifyBlock(Block* block) {
 
   // Blocks should have no parameters.
   XLS_RET_CHECK(block->params().empty());
+
+  // Verify all registers have exactly one read and write operation.
+  absl::flat_hash_map<Register*, RegisterRead*> reg_reads;
+  absl::flat_hash_map<Register*, RegisterWrite*> reg_writes;
+  for (Node* node : block->nodes()) {
+    if (node->Is<RegisterRead>()) {
+      RegisterRead* reg_read = node->As<RegisterRead>();
+      XLS_ASSIGN_OR_RETURN(Register * reg,
+                           block->GetRegister(reg_read->register_name()));
+      if (reg_reads.contains(reg)) {
+        return absl::InternalError(
+            StrFormat("Register %s has multiple reads", reg->name()));
+      }
+      XLS_RET_CHECK_EQ(reg->type(), node->GetType());
+      reg_reads[reg] = reg_read;
+    } else if (node->Is<RegisterWrite>()) {
+      RegisterWrite* reg_write = node->As<RegisterWrite>();
+      XLS_ASSIGN_OR_RETURN(Register * reg,
+                           block->GetRegister(reg_write->register_name()));
+      if (reg_writes.contains(reg)) {
+        return absl::InternalError(
+            StrFormat("Register %s has multiple writes", reg->name()));
+      }
+      XLS_RET_CHECK_EQ(reg->type(), reg_write->data()->GetType());
+      if (reg_write->load_enable().has_value()) {
+        XLS_RET_CHECK_EQ(reg_write->load_enable().value()->GetType(),
+                         block->package()->GetBitsType(1));
+      }
+      reg_writes[reg] = reg_write;
+    }
+  }
+  for (Register* reg : block->GetRegisters()) {
+    if (!reg_reads.contains(reg)) {
+      return absl::InternalError(
+          StrFormat("Register %s has no read", reg->name()));
+    }
+    if (!reg_writes.contains(reg)) {
+      return absl::InternalError(
+          StrFormat("Register %s has no write", reg->name()));
+    }
+  }
 
   return absl::OkStatus();
 }

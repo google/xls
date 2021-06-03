@@ -976,6 +976,25 @@ BValue BuilderBase::OutputPort(absl::string_view name, BValue operand,
   return SetError("Ports may only be added to blocks", loc);
 }
 
+BValue BuilderBase::RegisterRead(Register* reg,
+                                 absl::optional<SourceLocation> loc,
+                                 absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return SetError("Register read only supported in blocks", loc);
+}
+
+BValue BuilderBase::RegisterWrite(Register* reg, BValue data,
+                                  absl::optional<BValue> load_enable,
+                                  absl::optional<SourceLocation> loc,
+                                  absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return SetError("Register writes only supported in blocks", loc);
+}
+
 absl::StatusOr<Function*> FunctionBuilder::Build() {
   if (function_ == nullptr) {
     return absl::FailedPreconditionError(
@@ -1409,6 +1428,35 @@ BValue BlockBuilder::OutputPort(absl::string_view name, BValue operand,
                     loc);
   }
   return CreateBValue(port_status.value(), loc);
+}
+
+BValue BlockBuilder::RegisterRead(Register* reg,
+                                  absl::optional<SourceLocation> loc,
+                                  absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (reg->block() != block()) {
+    return SetError("Register is defined in different block", loc);
+  }
+  return AddNode<xls::RegisterRead>(loc, reg->name(), name);
+}
+
+BValue BlockBuilder::RegisterWrite(Register* reg, BValue data,
+                                   absl::optional<BValue> load_enable,
+                                   absl::optional<SourceLocation> loc,
+                                   absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (reg->block() != block()) {
+    return SetError("Register is defined in different block", loc);
+  }
+  return AddNode<xls::RegisterWrite>(
+      loc, data.node(),
+      load_enable.has_value() ? absl::optional<Node*>(load_enable->node())
+                              : absl::nullopt,
+      reg->name(), name);
 }
 
 absl::StatusOr<Block*> BlockBuilder::Build() {

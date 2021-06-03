@@ -165,6 +165,15 @@ absl::Status IrInterpreter::HandleReceive(Receive* receive) {
 absl::Status IrInterpreter::HandleReceiveIf(ReceiveIf* receive_if) {
   return absl::UnimplementedError("ReceiveIf not implemented in IrInterpreter");
 }
+absl::Status IrInterpreter::HandleRegisterRead(RegisterRead* reg_read) {
+  return absl::UnimplementedError(
+      "RegisterRead not implemented in IrInterpreter");
+}
+
+absl::Status IrInterpreter::HandleRegisterWrite(RegisterWrite* reg_write) {
+  return absl::UnimplementedError(
+      "RegisterWrite not implemented in IrInterpreter");
+}
 
 absl::Status IrInterpreter::HandleSend(Send* send) {
   return absl::UnimplementedError(

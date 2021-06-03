@@ -1198,7 +1198,50 @@ block my_block {
   a: bits[32] = input_port(name=a, id=2)
   b: bits[32] = input_port(name=b, id=3)
   add.4: bits[32] = add(a, b, id=4)
-  out: bits[32] = output_port(add.4, name=out, id=5)
+  out: () = output_port(add.4, name=out, id=5)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseBlockWithRegister) {
+  const std::string input = R"(package test
+
+block my_block {
+  reg foo(bits[32])
+  in: bits[32] = input_port(name=in, id=1)
+  foo_q: bits[32] = register_read(register=foo, id=3)
+  foo_d: bits[32] = register_write(in, register=foo, id=2)
+  out: () = output_port(foo_q, name=out, id=4)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseBlockWithRegisterWithResetValue) {
+  const std::string input = R"(package test
+
+block my_block {
+  reg foo(bits[32], reset_value=42)
+  in: bits[32] = input_port(name=in, id=1)
+  foo_q: bits[32] = register_read(register=foo, id=3)
+  foo_d: bits[32] = register_write(in, register=foo, id=2)
+  out: () = output_port(foo_q, name=out, id=4)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseBlockWithRegisterWithLoadEnable) {
+  const std::string input = R"(package test
+
+block my_block {
+  reg foo(bits[32])
+  in: bits[32] = input_port(name=in, id=1)
+  le: bits[1] = input_port(name=le, id=2)
+  foo_q: bits[32] = register_read(register=foo, id=3)
+  foo_d: bits[32] = register_write(in, register=foo, load_enable=le, id=4)
+  out: () = output_port(foo_q, name=out, id=5)
 }
 )";
   ParsePackageAndCheckDump(input);
@@ -2249,6 +2292,84 @@ block my_block {
   EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("ret keyword only supported in functions")));
+}
+
+TEST(IrParserTest, WriteOfNonexistentRegister) {
+  const std::string input = R"(
+block my_block {
+  reg foo(bits[32])
+  in: bits[32] = input_port(name=in, id=1)
+  foo_d: bits[32] = register_write(in, register=bar, id=2)
+  foo_q: bits[32] = register_read(register=foo, id=3)
+  out: () = output_port(foo_q, name=out, id=4)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("No such register named bar")));
+}
+
+TEST(IrParserTest, ReadOfNonexistentRegister) {
+  const std::string input = R"(
+block my_block {
+  reg foo(bits[32])
+  in: bits[32] = input_port(name=in, id=1)
+  foo_d: bits[32] = register_write(in, register=foo, id=2)
+  foo_q: bits[32] = register_read(register=bar, id=3)
+  out: () = output_port(foo_q, name=out, id=4)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("No such register named bar")));
+}
+
+TEST(IrParserTest, ParseBlockWithRegisterWithWrongResetValueType) {
+  const std::string input = R"(
+block my_block {
+  reg foo(bits[32], reset_value=(42, 43))
+  in: bits[32] = input_port(name=in, id=1)
+  foo_q: bits[32] = register_read(register=foo, id=3)
+  foo_d: bits[32] = register_write(in, register=foo, id=2)
+  out: () = output_port(foo_q, name=out, id=4)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected token of type \"literal\"")));
+}
+
+TEST(IrParserTest, RegisterInFunction) {
+  const std::string input = R"(package my_package
+
+fn f(foo: bits[32]) -> bits[32] {
+  reg bar(bits[32], reset_value=(42, 43))
+  ret result: bits[32] not(foo)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(input).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("reg keyword only supported in blocks")));
+}
+
+TEST(IrParserTest, ParseBlockWithDuplicateRegisters) {
+  const std::string input = R"(
+block my_block {
+  reg foo(bits[32], reset_value=42)
+  reg foo(bits[32], reset_value=42)
+  in: bits[32] = input_port(name=in, id=1)
+  foo_q: bits[32] = register_read(register=foo, id=3)
+  foo_d: bits[32] = register_write(in, register=foo, id=2)
+  out: () = output_port(foo_q, name=out, id=4)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Register already exists with name foo")));
 }
 
 }  // namespace xls

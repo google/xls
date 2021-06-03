@@ -148,6 +148,7 @@ class FunctionBase {
 
   Function* AsFunctionOrDie();
   Proc* AsProcOrDie();
+  Block* AsBlockOrDie();
 
   // Returns true if the given node has implicit uses in the function. Implicit
   // uses include return values of functions and the recurrent token/state in

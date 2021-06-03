@@ -545,7 +545,7 @@ block my_block {
   a: bits[32] = input_port(name=a)
   b: bits[32] = input_port(name=b)
   sum: bits[32] = add(a, b)
-  out: bits[32] = output_port(sum, name=out)
+  out: () = output_port(sum, name=out)
 }
 
 )";

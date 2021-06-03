@@ -30,6 +30,17 @@ std::string Block::DumpIr(bool recursive) const {
 
   std::string res = absl::StrFormat("block %s {\n", name());
 
+  for (Register* reg : GetRegisters()) {
+    if (reg->reset_value().has_value()) {
+      absl::StrAppendFormat(&res, "  reg %s(%s, reset_value=%s)\n", reg->name(),
+                            reg->type()->ToString(),
+                            reg->reset_value().value().ToHumanString());
+    } else {
+      absl::StrAppendFormat(&res, "  reg %s(%s)\n", reg->name(),
+                            reg->type()->ToString());
+    }
+  }
+
   for (Node* node : TopoSort(const_cast<Block*>(this))) {
     absl::StrAppend(&res, "  ", node->ToString(), "\n");
   }
@@ -77,6 +88,51 @@ absl::StatusOr<OutputPort*> Block::AddOutputPort(
   ports_.push_back(port);
   output_ports_.push_back(port);
   return port;
+}
+
+absl::StatusOr<Register*> Block::AddRegister(
+    absl::string_view name, Type* type, absl::optional<Value> reset_value) {
+  if (registers_.contains(name)) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Register already exists with name %s", name));
+  }
+  if (reset_value.has_value()) {
+    if (type != package()->GetTypeForValue(reset_value.value())) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Reset value %s for register %s is not of type %s",
+          reset_value.value().ToString(), name, type->ToString()));
+    }
+  }
+  registers_[name] =
+      absl::make_unique<Register>(std::string(name), type, reset_value, this);
+  register_vec_.push_back(registers_[name].get());
+  return register_vec_.back();
+}
+
+absl::Status Block::RemoveRegister(Register* reg) {
+  if (reg->block() != this) {
+    return absl::InvalidArgumentError("Register is not owned by block.");
+  }
+  if (!registers_.contains(reg->name())) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Block %s has no register named %s", name(), reg->name()));
+  }
+
+  XLS_RET_CHECK(registers_.at(reg->name()).get() == reg);
+
+  auto it = std::find(register_vec_.begin(), register_vec_.end(), reg);
+  XLS_RET_CHECK(it != register_vec_.end());
+  register_vec_.erase(it);
+  registers_.erase(reg->name());
+  return absl::OkStatus();
+}
+
+absl::StatusOr<Register*> Block::GetRegister(absl::string_view name) const {
+  if (!registers_.contains(name)) {
+    return absl::NotFoundError(absl::StrFormat(
+        "Block %s has no register named %s", this->name(), name));
+  }
+  return registers_.at(name).get();
 }
 
 }  // namespace xls

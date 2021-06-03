@@ -69,6 +69,8 @@ class DfsVisitor {
   virtual absl::Status HandleParam(Param* param) = 0;
   virtual absl::Status HandleReceive(Receive* receive) = 0;
   virtual absl::Status HandleReceiveIf(ReceiveIf* receive_if) = 0;
+  virtual absl::Status HandleRegisterRead(RegisterRead* reg_read) = 0;
+  virtual absl::Status HandleRegisterWrite(RegisterWrite* reg_write) = 0;
   virtual absl::Status HandleReverse(UnOp* reverse) = 0;
   virtual absl::Status HandleSDiv(BinOp* div) = 0;
   virtual absl::Status HandleSGe(CompareOp* ge) = 0;
@@ -178,6 +180,8 @@ class DfsVisitorWithDefault : public DfsVisitor {
   absl::Status HandleParam(Param* param) override;
   absl::Status HandleReceive(Receive* receive) override;
   absl::Status HandleReceiveIf(ReceiveIf* receive_if) override;
+  absl::Status HandleRegisterRead(RegisterRead* reg_read) override;
+  absl::Status HandleRegisterWrite(RegisterWrite* reg_write) override;
   absl::Status HandleReverse(UnOp* reverse) override;
   absl::Status HandleSDiv(BinOp* div) override;
   absl::Status HandleSGe(CompareOp* ge) override;

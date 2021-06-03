@@ -190,6 +190,15 @@ absl::Status DfsVisitorWithDefault::HandleParam(Param* param) {
   return DefaultHandler(param);
 }
 
+absl::Status DfsVisitorWithDefault::HandleRegisterRead(RegisterRead* reg_read) {
+  return DefaultHandler(reg_read);
+}
+
+absl::Status DfsVisitorWithDefault::HandleRegisterWrite(
+    RegisterWrite* reg_write) {
+  return DefaultHandler(reg_write);
+}
+
 absl::Status DfsVisitorWithDefault::HandleReverse(UnOp* reverse) {
   return DefaultHandler(reverse);
 }

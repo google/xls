@@ -51,20 +51,16 @@ class IrInterpreter : public DfsVisitor {
   absl::Status HandleAfterAll(AfterAll* after_all) override;
   absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce) override;
   absl::Status HandleArray(Array* array) override;
+  absl::Status HandleArrayConcat(ArrayConcat* concat) override;
   absl::Status HandleArrayIndex(ArrayIndex* index) override;
   absl::Status HandleArraySlice(ArraySlice* slice) override;
   absl::Status HandleArrayUpdate(ArrayUpdate* update) override;
-  absl::Status HandleArrayConcat(ArrayConcat* concat) override;
   absl::Status HandleAssert(Assert* assert_op) override;
   absl::Status HandleBitSlice(BitSlice* bit_slice) override;
   absl::Status HandleBitSliceUpdate(BitSliceUpdate* update) override;
-  absl::Status HandleCover(Cover* cover) override;
-  absl::Status HandleReceive(Receive* receive) override;
-  absl::Status HandleReceiveIf(ReceiveIf* receive_if) override;
-  absl::Status HandleSend(Send* send) override;
-  absl::Status HandleSendIf(SendIf* send_if) override;
   absl::Status HandleConcat(Concat* concat) override;
   absl::Status HandleCountedFor(CountedFor* counted_for) override;
+  absl::Status HandleCover(Cover* cover) override;
   absl::Status HandleDecode(Decode* decode) override;
   absl::Status HandleDynamicBitSlice(
       DynamicBitSlice* dynamic_bit_slice) override;
@@ -90,6 +86,10 @@ class IrInterpreter : public DfsVisitor {
   absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) override;
   absl::Status HandleOutputPort(OutputPort* output_port) override;
   absl::Status HandleParam(Param* param) override;
+  absl::Status HandleReceive(Receive* receive) override;
+  absl::Status HandleReceiveIf(ReceiveIf* receive_if) override;
+  absl::Status HandleRegisterRead(RegisterRead* reg_read) override;
+  absl::Status HandleRegisterWrite(RegisterWrite* reg_write) override;
   absl::Status HandleReverse(UnOp* reverse) override;
   absl::Status HandleSDiv(BinOp* div) override;
   absl::Status HandleSGe(CompareOp* ge) override;
@@ -99,6 +99,8 @@ class IrInterpreter : public DfsVisitor {
   absl::Status HandleSMod(BinOp* mod) override;
   absl::Status HandleSMul(ArithOp* mul) override;
   absl::Status HandleSel(Select* sel) override;
+  absl::Status HandleSend(Send* send) override;
+  absl::Status HandleSendIf(SendIf* send_if) override;
   absl::Status HandleShll(BinOp* shll) override;
   absl::Status HandleShra(BinOp* shra) override;
   absl::Status HandleShrl(BinOp* shrl) override;

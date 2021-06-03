@@ -224,6 +224,8 @@ bool ShouldEvaluate(Node* node) {
     case Op::kTupleIndex:
     case Op::kInputPort:
     case Op::kOutputPort:
+    case Op::kRegisterRead:
+    case Op::kRegisterWrite:
       return false;
 
     // Unsupported comparison operations.

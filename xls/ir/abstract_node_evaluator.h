@@ -164,6 +164,10 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       return default_handler(node);
     case Op::kParam:
       return default_handler(node);
+    case Op::kRegisterRead:
+      return default_handler(node);
+    case Op::kRegisterWrite:
+      return default_handler(node);
     case Op::kReverse: {
       XLS_RETURN_IF_ERROR(check_operand_count(1));
       Vector result(operands[0].begin(), operands[0].end());

@@ -82,6 +82,25 @@ has no correlate in hardware.
 
 `token`
 
+## Functions, procs, and blocks
+
+The XLS IR has three function-level abstractions each which hold a data-flow
+graph of XLS IR operations:
+
+*   *function* : Stateless abstraction with a single-output which is computed
+    from zero or more input parameters. May invoke other functions.
+
+*   *proc* : Stateful abstraction with an arbitrarily-typed recurrent state.
+    Procs can communicate with other procs via channels which (abstractly) are
+    infinite-depth FIFOs with flow control. Channel communication is handled via
+    send and receive IR operations. Procs may invoke functions.
+
+*   *block* : RTL-level abstraction used for code generation. Corresponds to a
+    single Verilog module. Includes explicit representations of RTL constructs:
+    registers, ports, logic, and module instantiations. Procs and functions are
+    converted to blocks as part of the code generation process. Blocks may
+    “invoke” other blocks via instantiation.x
+
 ## Operations
 
 Operations share a common syntax and have both positional and keyword arguments
@@ -1176,3 +1195,89 @@ Value       | Type
 Keyword | Type     | Required | Default | Description
 ------- | -------- | -------- | ------- | ---------------------------------
 `label` | `string` | yes      |         | Name associated with the counter.
+
+### RTL-level operations
+
+These IR operations correspond to RTL-level constructs in the emitted Verilog.
+These operations are added and used in the code generation process and may only
+appear in blocks (not procs or functions).
+
+#### **`input_port`**
+
+Corresponds to an input port on a Verilog module.
+
+**Syntax**
+
+```
+result = input_port()
+```
+
+**Types**
+
+Value    | Type
+-------- | ----
+`result` | `T`
+
+An input_port operation can be an arbitrary type.
+
+#### **`output_port`**
+
+Corresponds to an output port on a Verilog module. The value sent to the output
+port is the data operand.
+
+**Syntax**
+
+```
+result = output_port(data)
+```
+
+**Types**
+
+Value    | Type
+-------- | ----
+`data`   | `T`
+`result` | `T`
+
+#### **`register_read`**
+
+Reads a value from a register.
+
+The register is defined on the block.
+
+**Syntax**
+
+```
+result = register_read(register=<string>)
+```
+
+**Types**
+
+Value    | Type
+-------- | ----
+`result` | `T`
+
+The type `T` of the result of the operation is the type of the register.
+
+#### **`register_write`**
+
+Writes a value to a register.
+
+The write to the register may be conditioned upon an optional load-enable
+signal. The register is defined on the block.
+
+**Syntax**
+
+```
+result = register_write(data, load_enable=<load_enable>, register=<string>)
+```
+
+**Types**
+
+Value         | Type
+------------- | ------------------
+`data`        | `T`
+`load_enable` | `bits[1]`
+`result`      | `()` (empty tuple)
+
+The type `T` of the data operand must be the same as the the type of the
+register.

@@ -198,6 +198,9 @@ class Parser {
   absl::StatusOr<BValue> ParseNode(
       BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value);
 
+  // Parses a register declaration. Only supported in blocks.
+  absl::StatusOr<Register*> ParseRegister(Block* block);
+
   struct ProcNext {
     BValue next_token;
     BValue next_state;

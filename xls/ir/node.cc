@@ -200,6 +200,14 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
     case Op::kParam:
       XLS_RETURN_IF_ERROR(visitor->HandleParam(down_cast<Param*>(this)));
       break;
+    case Op::kRegisterRead:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleRegisterRead(down_cast<RegisterRead*>(this)));
+      break;
+    case Op::kRegisterWrite:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleRegisterWrite(down_cast<RegisterWrite*>(this)));
+      break;
     case Op::kReverse:
       XLS_RETURN_IF_ERROR(visitor->HandleReverse(down_cast<UnOp*>(this)));
       break;
@@ -527,6 +535,20 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
     case Op::kOutputPort:
       args.push_back(absl::StrFormat("name=%s", GetName()));
       break;
+    case Op::kRegisterRead:
+      args.push_back(
+          absl::StrFormat("register=%s", As<RegisterRead>()->register_name()));
+      break;
+    case Op::kRegisterWrite:
+      args = {operand(0)->GetName()};
+      args.push_back(
+          absl::StrFormat("register=%s", As<RegisterWrite>()->register_name()));
+      if (As<RegisterWrite>()->load_enable().has_value()) {
+        args.push_back(absl::StrFormat(
+            "load_enable=%s",
+            As<RegisterWrite>()->load_enable().value()->GetName()));
+      }
+      break;
     default:
       break;
   }
@@ -587,7 +609,7 @@ int64_t Node::OperandInstanceCount(const Node* target) const {
 void Node::SetId(int64_t id) {
   // The data structure (btree) containing the users of each node is sorted by
   // node id. To avoid violating invariants of the data structure, remove this
-  // node from all users lists, change id, then readd to users list.
+  // node from all users lists, change id, then read to users list.
   for (Node* operand : operands()) {
     operand->users_.erase(this);
   }
@@ -684,8 +706,7 @@ absl::StatusOr<bool> Node::ReplaceImplicitUsesWith(Node* replacement) {
       XLS_RETURN_IF_ERROR(function->set_return_value(replacement));
       changed = true;
     }
-  } else {
-    XLS_RET_CHECK(function_base()->IsProc());
+  } else if (function_base()->IsProc()) {
     Proc* proc = function_base()->AsProcOrDie();
     if (this == proc->NextToken()) {
       XLS_RETURN_IF_ERROR(proc->SetNextToken(replacement));
@@ -695,6 +716,9 @@ absl::StatusOr<bool> Node::ReplaceImplicitUsesWith(Node* replacement) {
       XLS_RETURN_IF_ERROR(proc->SetNextState(replacement));
       changed = true;
     }
+  } else {
+    XLS_RET_CHECK(function_base()->IsBlock());
+    // Blocks have no implicit uses.
   }
   return changed;
 }

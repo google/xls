@@ -64,7 +64,7 @@ class Token {
   static const absl::flat_hash_set<std::string>& GetKeywords() {
     static auto* keywords = new absl::flat_hash_set<std::string>{
         "fn",   "bits", "token", "ret",  "package",
-        "proc", "chan", "next",  "block"};
+        "proc", "chan", "reg",   "next", "block"};
     return *keywords;
   }
 

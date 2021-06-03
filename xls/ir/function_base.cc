@@ -124,6 +124,11 @@ Proc* FunctionBase::AsProcOrDie() {
   return down_cast<Proc*>(this);
 }
 
+Block* FunctionBase::AsBlockOrDie() {
+  XLS_CHECK(IsBlock());
+  return down_cast<Block*>(this);
+}
+
 std::ostream& operator<<(std::ostream& os, const FunctionBase& function) {
   os << function.DumpIr();
   return os;

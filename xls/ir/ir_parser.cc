@@ -915,6 +915,47 @@ absl::StatusOr<BValue> Parser::ParseNode(
       bvalue = fb->OutputPort(name->value, operands[0], *loc);
       break;
     }
+    case Op::kRegisterRead: {
+      if (!fb->function()->IsBlock()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "register_read operations only supported in blocks @ %s",
+            op_token.pos().ToHumanString()));
+      }
+      Block* block = fb->function()->AsBlockOrDie();
+      IdentifierString* register_name =
+          arg_parser.AddKeywordArg<IdentifierString>("register");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
+      if (!block->HasRegisterWithName(register_name->value)) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("No such register named %s", register_name->value));
+      }
+      XLS_ASSIGN_OR_RETURN(Register * reg,
+                           block->GetRegister(register_name->value));
+      bvalue = fb->RegisterRead(reg, *loc, node_name);
+      break;
+    }
+    case Op::kRegisterWrite: {
+      if (!fb->function()->IsBlock()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "register_write operations only supported in blocks @ %s",
+            op_token.pos().ToHumanString()));
+      }
+      Block* block = fb->function()->AsBlockOrDie();
+      IdentifierString* register_name =
+          arg_parser.AddKeywordArg<IdentifierString>("register");
+      std::optional<BValue>* load_enable =
+          arg_parser.AddOptionalKeywordArg<BValue>("load_enable");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
+      if (!block->HasRegisterWithName(register_name->value)) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("No such register named %s", register_name->value));
+      }
+      XLS_ASSIGN_OR_RETURN(Register * reg,
+                           block->GetRegister(register_name->value));
+      bvalue =
+          fb->RegisterWrite(reg, operands[0], *load_enable, *loc, node_name);
+      break;
+    }
     default:
       XLS_ASSIGN_OR_RETURN(
           bvalue, BuildBinaryOrUnaryOp(op, fb, loc, node_name, &arg_parser));
@@ -976,13 +1017,48 @@ absl::StatusOr<BValue> Parser::ParseNode(
   return bvalue;
 }
 
+absl::StatusOr<Register*> Parser::ParseRegister(Block* block) {
+  // A register declaration has the following form, for example:
+  //
+  //   reg foo(bits[32])
+  XLS_ASSIGN_OR_RETURN(
+      Token reg_name,
+      scanner_.PopTokenOrError(LexicalTokenType::kIdent, "register name"));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
+  XLS_ASSIGN_OR_RETURN(Type * reg_type, ParseType(block->package()));
+  // Parse optional reset value.
+  absl::optional<Value> reset_value;
+  if (scanner_.TryDropToken(LexicalTokenType::kComma)) {
+    XLS_ASSIGN_OR_RETURN(
+        Token key,
+        scanner_.PopTokenOrError(LexicalTokenType::kIdent, "reset value"));
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kEquals));
+    XLS_ASSIGN_OR_RETURN(reset_value, ParseValueInternal(reg_type));
+  }
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
+  return block->AddRegister(reg_name.value(), reg_type, reset_value);
+}
+
 absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
     BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value,
     Package* package) {
   absl::optional<BodyResult> result;
   while (!scanner_.PeekTokenIs(LexicalTokenType::kCurlClose)) {
-    // Handle "ret" or "next" depending on whether this is a Function or a Proc.
     XLS_ASSIGN_OR_RETURN(Token peek, scanner_.PeekToken());
+
+    // Handle "reg" which declares a registers (only supported in blocks).
+    if (scanner_.TryDropKeyword("reg")) {
+      if (!fb->function()->IsBlock()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("reg keyword only supported in blocks @ %s",
+                            peek.pos().ToHumanString()));
+      }
+      XLS_RETURN_IF_ERROR(
+          ParseRegister(fb->function()->AsBlockOrDie()).status());
+      continue;
+    }
+
+    // Handle "ret" or "next" depending on whether this is a Function or a Proc.
     bool saw_ret = scanner_.TryDropKeyword("ret");
     bool saw_next = !saw_ret && scanner_.TryDropKeyword("next");
     if ((saw_ret || saw_next) && result.has_value()) {

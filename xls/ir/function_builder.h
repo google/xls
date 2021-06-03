@@ -586,6 +586,16 @@ class BuilderBase {
   virtual BValue OutputPort(absl::string_view name, BValue operand,
                             absl::optional<SourceLocation> loc = absl::nullopt);
 
+  // Add register read/write. Only supported on blocks.
+  virtual BValue RegisterRead(
+      Register* reg, absl::optional<SourceLocation> loc = absl::nullopt,
+      absl::string_view name = "");
+  virtual BValue RegisterWrite(
+      Register* reg, BValue data,
+      absl::optional<BValue> load_enable = absl::nullopt,
+      absl::optional<SourceLocation> loc = absl::nullopt,
+      absl::string_view name = "");
+
   Package* package() const;
 
   // Returns the last node enqueued onto this builder -- when Build() is called
@@ -789,6 +799,13 @@ class BlockBuilder : public BuilderBase {
   BValue OutputPort(
       absl::string_view name, BValue operand,
       absl::optional<SourceLocation> loc = absl::nullopt) override;
+  BValue RegisterRead(Register* reg,
+                      absl::optional<SourceLocation> loc = absl::nullopt,
+                      absl::string_view name = "") override;
+  BValue RegisterWrite(Register* reg, BValue data,
+                       absl::optional<BValue> load_enable = absl::nullopt,
+                       absl::optional<SourceLocation> loc = absl::nullopt,
+                       absl::string_view name = "") override;
 };
 
 }  // namespace xls

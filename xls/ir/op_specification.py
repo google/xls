@@ -877,7 +877,7 @@ OpClass.kinds['OUTPUT_PORT'] = OpClass(
     name='OutputPort',
     op='Op::kOutputPort',
     operands=[Operand('operand')],
-    xls_type_expression='operand->GetType()',
+    xls_type_expression='function->package()->GetTupleType({})',
     extra_constructor_args=[ConstructorArgument(name='name',
                                                 cpp_type='absl::string_view',
                                                 clone_expression='name()')],
@@ -885,6 +885,32 @@ OpClass.kinds['OUTPUT_PORT'] = OpClass(
                           return_cpp_type='absl::string_view',
                           expression='name_')],
     # Ports are never equivalent to other nodes.
+    custom_equivalence_expression='false',
+)
+
+OpClass.kinds['REGISTER_READ'] = OpClass(
+    name='RegisterRead',
+    op='Op::kRegisterRead',
+    operands=[],
+    xls_type_expression='function->AsBlockOrDie()->GetRegister(register_name).value()->type()',
+    attributes=[StringAttribute('register_name')],
+    # Register reads are never equivalent to other nodes.
+    custom_equivalence_expression='false',
+)
+
+OpClass.kinds['REGISTER_WRITE'] = OpClass(
+    name='RegisterWrite',
+    op='Op::kRegisterWrite',
+    operands=[Operand('data'), OptionalOperand('load_enable')],
+    xls_type_expression='data->GetType()',
+    attributes=[StringAttribute('register_name')],
+    extra_methods=[Method(name='data',
+                          return_cpp_type='Node*',
+                          expression='operand(0)'),
+                   Method(name='load_enable',
+                          return_cpp_type='absl::optional<Node*>',
+                          expression='operand_count() == 2 ? absl::optional<Node*>(operand(1)) : absl::nullopt'),],
+    # Register writes are never equivalent to other nodes.
     custom_equivalence_expression='false',
 )
 
@@ -1139,6 +1165,18 @@ OPS = [
         enum_name='kParam',
         name='param',
         op_class=OpClass.kinds['PARAM'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kRegisterRead',
+        name='register_read',
+        op_class=OpClass.kinds['REGISTER_READ'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kRegisterWrite',
+        name='register_write',
+        op_class=OpClass.kinds['REGISTER_WRITE'],
         properties=[],
     ),
     Op(
