@@ -31,9 +31,13 @@ static void GatherValueLeaves(const Value& value, std::vector<Bits>* leaves) {
       leaves->push_back(value.bits());
       break;
     case ValueKind::kTuple:
-    case ValueKind::kArray:
       for (const Value& e : value.elements()) {
         GatherValueLeaves(e, leaves);
+      }
+      break;
+    case ValueKind::kArray:
+      for (int64_t i = value.size() - 1; i >= 0; --i) {
+        GatherValueLeaves(value.element(i), leaves);
       }
       break;
     default:
@@ -109,8 +113,7 @@ int64_t GetFlatBitIndexOfElement(const TupleType* tuple_type, int64_t index) {
 int64_t GetFlatBitIndexOfElement(const ArrayType* array_type, int64_t index) {
   XLS_CHECK_GE(index, 0);
   XLS_CHECK_LT(index, array_type->size());
-  return (array_type->size() - index - 1) *
-         array_type->element_type()->GetFlatBitCount();
+  return index * array_type->element_type()->GetFlatBitCount();
 }
 
 // Recursive helper for Unflatten functions.
@@ -155,7 +158,7 @@ verilog::Expression* FlattenArray(verilog::IndexableExpression* input,
                                   ArrayType* array_type,
                                   verilog::VerilogFile* file) {
   std::vector<verilog::Expression*> elements;
-  for (int64_t i = 0; i < array_type->size(); ++i) {
+  for (int64_t i = array_type->size() - 1; i >= 0; --i) {
     verilog::IndexableExpression* element = file->Index(input, i);
     if (array_type->element_type()->IsArray()) {
       elements.push_back(FlattenArray(

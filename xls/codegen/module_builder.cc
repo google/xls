@@ -68,8 +68,19 @@ absl::StatusOr<Expression*> FlattenValueToExpression(const Value& value,
     return file->Literal(value.bits());
   }
   // Compound types are represented as a concatenation of their elements.
+  std::vector<Value> value_elements;
+  if (value.IsArray()) {
+    for (int64_t i = value.size() - 1; i >= 0; --i) {
+      value_elements.push_back(value.element(i));
+    }
+  } else {
+    XLS_RET_CHECK(value.IsTuple());
+    for (const Value& element : value.elements()) {
+      value_elements.push_back(element);
+    }
+  }
   std::vector<Expression*> elements;
-  for (const Value& element : value.elements()) {
+  for (const Value& element : value_elements) {
     if (element.GetFlatBitCount() > 0) {
       XLS_ASSIGN_OR_RETURN(Expression * element_expr,
                            FlattenValueToExpression(element, file));

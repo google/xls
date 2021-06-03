@@ -5,12 +5,12 @@ module MultidimensionalArray(
   output wire [23:0] out
 );
   wire [7:0] a_unflattened[2][3];
-  assign a_unflattened[0][0] = a[47:40];
-  assign a_unflattened[0][1] = a[39:32];
-  assign a_unflattened[0][2] = a[31:24];
-  assign a_unflattened[1][0] = a[23:16];
-  assign a_unflattened[1][1] = a[15:8];
-  assign a_unflattened[1][2] = a[7:0];
+  assign a_unflattened[0][0] = a[7:0];
+  assign a_unflattened[0][1] = a[15:8];
+  assign a_unflattened[0][2] = a[23:16];
+  assign a_unflattened[1][0] = a[31:24];
+  assign a_unflattened[1][1] = a[39:32];
+  assign a_unflattened[1][2] = a[47:40];
 
   // ===== Pipe stage 0:
 
@@ -51,5 +51,5 @@ module MultidimensionalArray(
   always_ff @ (posedge clk) begin
     p3_array_index_3 <= p3_array_index_3_comb;
   end
-  assign out = {p3_array_index_3[0], p3_array_index_3[1], p3_array_index_3[2]};
+  assign out = {p3_array_index_3[2], p3_array_index_3[1], p3_array_index_3[0]};
 endmodule

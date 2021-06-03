@@ -4,8 +4,8 @@ module ArrayIndexSimpleArray(
   output wire [7:0] out
 );
   wire [7:0] a_unflattened[3];
-  assign a_unflattened[0] = a[23:16];
+  assign a_unflattened[0] = a[7:0];
   assign a_unflattened[1] = a[15:8];
-  assign a_unflattened[2] = a[7:0];
+  assign a_unflattened[2] = a[23:16];
   assign out = a_unflattened[idx > 16'h0002 ? 16'h0002 : idx];
 endmodule

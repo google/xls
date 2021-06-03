@@ -4,13 +4,13 @@ module ArrayIndex2DArrayIndexSubArray(
   output wire [23:0] out
 );
   wire [7:0] a_unflattened[2][3];
-  assign a_unflattened[0][0] = a[47:40];
-  assign a_unflattened[0][1] = a[39:32];
-  assign a_unflattened[0][2] = a[31:24];
-  assign a_unflattened[1][0] = a[23:16];
-  assign a_unflattened[1][1] = a[15:8];
-  assign a_unflattened[1][2] = a[7:0];
+  assign a_unflattened[0][0] = a[7:0];
+  assign a_unflattened[0][1] = a[15:8];
+  assign a_unflattened[0][2] = a[23:16];
+  assign a_unflattened[1][0] = a[31:24];
+  assign a_unflattened[1][1] = a[39:32];
+  assign a_unflattened[1][2] = a[47:40];
   wire [7:0] array_index_12[3];
   assign array_index_12 = a_unflattened[idx > 16'h0001 ? 16'h0001 : idx];
-  assign out = {array_index_12[0], array_index_12[1], array_index_12[2]};
+  assign out = {array_index_12[2], array_index_12[1], array_index_12[0]};
 endmodule

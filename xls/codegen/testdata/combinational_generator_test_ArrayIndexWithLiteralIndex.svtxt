@@ -3,9 +3,9 @@ module ArrayIndexWithLiteralIndex(
   output wire [7:0] out
 );
   wire [7:0] a_unflattened[4];
-  assign a_unflattened[0] = a[31:24];
-  assign a_unflattened[1] = a[23:16];
-  assign a_unflattened[2] = a[15:8];
-  assign a_unflattened[3] = a[7:0];
+  assign a_unflattened[0] = a[7:0];
+  assign a_unflattened[1] = a[15:8];
+  assign a_unflattened[2] = a[23:16];
+  assign a_unflattened[3] = a[31:24];
   assign out = a_unflattened[42'h000_0000_0003];
 endmodule

@@ -25,9 +25,9 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 
-class ValueFlatteningTest : public IrTestBase {};
+class FlatteningTest : public IrTestBase {};
 
-TEST_F(ValueFlatteningTest, FlatIndexing) {
+TEST_F(FlatteningTest, FlatIndexing) {
   Package p(TestName());
   Type* b0 = p.GetBitsType(0);
   Type* b42 = p.GetBitsType(42);
@@ -50,14 +50,14 @@ TEST_F(ValueFlatteningTest, FlatIndexing) {
 
   ArrayType* a_of_b5 = p.GetArrayType(32, b5);
   EXPECT_EQ(a_of_b5->GetFlatBitCount(), 160);
-  EXPECT_EQ(GetFlatBitIndexOfElement(a_of_b5, 0), 155);
-  EXPECT_EQ(GetFlatBitIndexOfElement(a_of_b5, 15), 80);
-  EXPECT_EQ(GetFlatBitIndexOfElement(a_of_b5, 31), 0);
+  EXPECT_EQ(GetFlatBitIndexOfElement(a_of_b5, 0), 0);
+  EXPECT_EQ(GetFlatBitIndexOfElement(a_of_b5, 15), 75);
+  EXPECT_EQ(GetFlatBitIndexOfElement(a_of_b5, 31), 155);
 
   ArrayType* array_2d = p.GetArrayType(4, a_of_b5);
   EXPECT_EQ(array_2d->GetFlatBitCount(), 640);
-  EXPECT_EQ(GetFlatBitIndexOfElement(array_2d, 0), 480);
-  EXPECT_EQ(GetFlatBitIndexOfElement(array_2d, 2), 160);
+  EXPECT_EQ(GetFlatBitIndexOfElement(array_2d, 0), 0);
+  EXPECT_EQ(GetFlatBitIndexOfElement(array_2d, 2), 320);
 
   // Nested tuple with a nested array.
   TupleType* t3 = p.GetTupleType({t2, b5, b42, array_2d});
@@ -67,7 +67,7 @@ TEST_F(ValueFlatteningTest, FlatIndexing) {
   EXPECT_EQ(GetFlatBitIndexOfElement(t3, 2), 640);
 }
 
-TEST_F(ValueFlatteningTest, FlattenValues) {
+TEST_F(FlatteningTest, FlattenValues) {
   Package p(TestName());
 
   Bits empty_bits;
@@ -94,12 +94,12 @@ TEST_F(ValueFlatteningTest, FlattenValues) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Value arr, Value::Array({Value(UBits(0x12, 8)), Value(UBits(0x34, 8))}));
-  EXPECT_EQ(UBits(0x1234, 16), FlattenValueToBits(arr));
-  EXPECT_THAT(UnflattenBitsToValue(UBits(0x1234, 16), p.GetTypeForValue(arr)),
+  EXPECT_EQ(UBits(0x3412, 16), FlattenValueToBits(arr));
+  EXPECT_THAT(UnflattenBitsToValue(UBits(0x3412, 16), p.GetTypeForValue(arr)),
               IsOkAndHolds(arr));
 
   // Two-element array of tuples.
-  Bits abc123 = UBits(0xabcdef123456ULL, 48);
+  Bits abc123 = UBits(0x123456abcdefULL, 48);
   Value tuple_123 = Value::Tuple(
       {Value(UBits(0x12, 8)), Value(UBits(0x3, 4)), Value(UBits(0x456, 12))});
   XLS_ASSERT_OK_AND_ASSIGN(Value abc_array,
@@ -109,7 +109,7 @@ TEST_F(ValueFlatteningTest, FlattenValues) {
               IsOkAndHolds(abc_array));
 }
 
-TEST_F(ValueFlatteningTest, ExpressionFlattening) {
+TEST_F(FlatteningTest, ExpressionFlattening) {
   Package p(TestName());
   Type* b5 = p.GetBitsType(5);
   ArrayType* a_of_b5 = p.GetArrayType(3, b5);
@@ -121,14 +121,14 @@ TEST_F(ValueFlatteningTest, ExpressionFlattening) {
   EXPECT_EQ(
       FlattenArray(m->AddReg("foo", f.UnpackedArrayType(5, {3})), a_of_b5, &f)
           ->Emit(),
-      "{foo[0], foo[1], foo[2]}");
+      "{foo[2], foo[1], foo[0]}");
   EXPECT_EQ(
       FlattenArray(m->AddReg("foo", f.UnpackedArrayType(5, {2})), array_2d, &f)
           ->Emit(),
-      "{{foo[0][0], foo[0][1], foo[0][2]}, {foo[1][0], foo[1][1], foo[1][2]}}");
+      "{{foo[1][2], foo[1][1], foo[1][0]}, {foo[0][2], foo[0][1], foo[0][0]}}");
 }
 
-TEST_F(ValueFlatteningTest, ExpressionUnflattening) {
+TEST_F(FlatteningTest, ExpressionUnflattening) {
   Package p(TestName());
   Type* b5 = p.GetBitsType(5);
   ArrayType* a_of_b5 = p.GetArrayType(3, b5);
@@ -139,23 +139,22 @@ TEST_F(ValueFlatteningTest, ExpressionUnflattening) {
 
   EXPECT_EQ(UnflattenArray(m->AddReg("foo", f.BitVectorType(15)), a_of_b5, &f)
                 ->Emit(),
-            "'{foo[14:10], foo[9:5], foo[4:0]}");
+            "'{foo[4:0], foo[9:5], foo[14:10]}");
   EXPECT_EQ(UnflattenArray(m->AddReg("foo", f.BitVectorType(30)), array_2d, &f)
                 ->Emit(),
-            "'{'{foo[29:25], foo[24:20], foo[19:15]}, '{foo[14:10], foo[9:5], "
-            "foo[4:0]}}");
+            "'{'{foo[4:0], foo[9:5], foo[14:10]}, '{foo[19:15], foo[24:20], "
+            "foo[29:25]}}");
 
   TupleType* tuple_type = p.GetTupleType({array_2d, b5, a_of_b5});
-  EXPECT_EQ(
-      UnflattenArrayShapedTupleElement(m->AddReg("foo", f.BitVectorType(50)),
-                                       tuple_type, 0, &f)
-          ->Emit(),
-      "'{'{foo[49:45], foo[44:40], foo[39:35]}, '{foo[34:30], foo[29:25], "
-      "foo[24:20]}}");
+  EXPECT_EQ(UnflattenArrayShapedTupleElement(
+                m->AddReg("foo", f.BitVectorType(50)), tuple_type, 0, &f)
+                ->Emit(),
+            "'{'{foo[24:20], foo[29:25], foo[34:30]}, '{foo[39:35], "
+            "foo[44:40], foo[49:45]}}");
   EXPECT_EQ(UnflattenArrayShapedTupleElement(
                 m->AddReg("foo", f.BitVectorType(50)), tuple_type, 2, &f)
                 ->Emit(),
-            "'{foo[14:10], foo[9:5], foo[4:0]}");
+            "'{foo[4:0], foo[9:5], foo[14:10]}");
 }
 
 }  // namespace

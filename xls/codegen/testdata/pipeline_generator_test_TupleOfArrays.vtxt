@@ -22,11 +22,11 @@ module TupleOfArrays(
   // ===== Pipe stage 2:
   wire [15:0] p2_tuple_index_2_comb[0:1];
   wire [7:0] p2_tuple_index_3_comb[0:2];
-  assign p2_tuple_index_2_comb[0] = p1_x[31:16];
-  assign p2_tuple_index_2_comb[1] = p1_x[15:0];
-  assign p2_tuple_index_3_comb[0] = p1_x[55:48];
+  assign p2_tuple_index_2_comb[0] = p1_x[15:0];
+  assign p2_tuple_index_2_comb[1] = p1_x[31:16];
+  assign p2_tuple_index_3_comb[0] = p1_x[39:32];
   assign p2_tuple_index_3_comb[1] = p1_x[47:40];
-  assign p2_tuple_index_3_comb[2] = p1_x[39:32];
+  assign p2_tuple_index_3_comb[2] = p1_x[55:48];
 
   // Registers for pipe stage 2:
   reg [15:0] p2_tuple_index_2[0:1];
@@ -41,7 +41,7 @@ module TupleOfArrays(
 
   // ===== Pipe stage 3:
   wire [55:0] p3_tuple_4_comb;
-  assign p3_tuple_4_comb = {{p2_tuple_index_2[0], p2_tuple_index_2[1]}, {p2_tuple_index_3[0], p2_tuple_index_3[1], p2_tuple_index_3[2]}};
+  assign p3_tuple_4_comb = {{p2_tuple_index_2[1], p2_tuple_index_2[0]}, {p2_tuple_index_3[2], p2_tuple_index_3[1], p2_tuple_index_3[0]}};
 
   // Registers for pipe stage 3:
   reg [55:0] p3_tuple_4;

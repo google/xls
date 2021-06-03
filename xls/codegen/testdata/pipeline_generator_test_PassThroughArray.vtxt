@@ -4,9 +4,9 @@ module PassThroughArray(
   output wire [23:0] out
 );
   wire [7:0] x_unflattened[0:2];
-  assign x_unflattened[0] = x[23:16];
+  assign x_unflattened[0] = x[7:0];
   assign x_unflattened[1] = x[15:8];
-  assign x_unflattened[2] = x[7:0];
+  assign x_unflattened[2] = x[23:16];
 
   // ===== Pipe stage 0:
 
@@ -47,5 +47,5 @@ module PassThroughArray(
     p3_x[1] <= p2_x[1];
     p3_x[2] <= p2_x[2];
   end
-  assign out = {p3_x[0], p3_x[1], p3_x[2]};
+  assign out = {p3_x[2], p3_x[1], p3_x[0]};
 endmodule

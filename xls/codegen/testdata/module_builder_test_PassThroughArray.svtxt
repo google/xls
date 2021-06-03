@@ -3,9 +3,9 @@ module PassThroughArray(
   output wire [51:0] out
 );
   wire [12:0] a_unflattened[4];
-  assign a_unflattened[0] = a[51:39];
-  assign a_unflattened[1] = a[38:26];
-  assign a_unflattened[2] = a[25:13];
-  assign a_unflattened[3] = a[12:0];
-  assign out = {a_unflattened[0], a_unflattened[1], a_unflattened[2], a_unflattened[3]};
+  assign a_unflattened[0] = a[12:0];
+  assign a_unflattened[1] = a[25:13];
+  assign a_unflattened[2] = a[38:26];
+  assign a_unflattened[3] = a[51:39];
+  assign out = {a_unflattened[3], a_unflattened[2], a_unflattened[1], a_unflattened[0]};
 endmodule

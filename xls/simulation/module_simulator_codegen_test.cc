@@ -516,6 +516,44 @@ TEST_P(ModuleSimulatorCodegenTest, Assert) {
   }
 }
 
+TEST_P(ModuleSimulatorCodegenTest, PassThroughArrayCombinationalModule) {
+  Package package(TestName());
+  FunctionBuilder fb(TestName(), &package);
+  BValue x = fb.Param("x", package.GetArrayType(3, package.GetBitsType(8)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.BuildWithReturnValue(x));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      GenerateCombinationalModule(func,
+                                  /*use_system_verilog=*/UseSystemVerilog()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  XLS_ASSERT_OK_AND_ASSIGN(Value input, Value::UBitsArray({1, 2, 3}, 8));
+  XLS_ASSERT_OK_AND_ASSIGN(Value output, simulator.Run({input}));
+
+  EXPECT_EQ(output, input);
+}
+
+TEST_P(ModuleSimulatorCodegenTest, ConstructArrayCombinationalModule) {
+  Package package(TestName());
+  FunctionBuilder fb(TestName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  fb.Array({fb.Param("x", u8), fb.Param("y", u8), fb.Param("z", u8)}, u8);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      GenerateCombinationalModule(func,
+                                  /*use_system_verilog=*/UseSystemVerilog()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value output, simulator.Run({Value(UBits(1, 8)), Value(UBits(2, 8)),
+                                   Value(UBits(3, 8))}));
+
+  EXPECT_EQ(output, Value::UBitsArray({1, 2, 3}, 8).value());
+}
+
 INSTANTIATE_TEST_SUITE_P(ModuleSimulatorCodegenTestInstantiation,
                          ModuleSimulatorCodegenTest,
                          testing::ValuesIn(kDefaultSimulationTargets),

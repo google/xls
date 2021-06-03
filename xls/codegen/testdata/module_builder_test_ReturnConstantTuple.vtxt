@@ -2,6 +2,6 @@ module ReturnConstantTuple(
   output wire [95:0] out
 );
   wire [95:0] t;
-  assign t = {8'h08, {24'h00_0003, 24'h00_0006, 24'h00_0009}, 16'h00ab};
+  assign t = {8'h08, {24'h00_0009, 24'h00_0006, 24'h00_0003}, 16'h00ab};
   assign out = t;
 endmodule

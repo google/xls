@@ -466,7 +466,7 @@ number of data elements supported by the channel.
 
 #### **`array`**
 
-Constructs a array of its operands.
+Constructs an array of its operands.
 
 ```
 result = array(operand_{0}, ..., operand_{N-1})
@@ -480,7 +480,7 @@ Value         | Type
 `result`      | `T[N]`
 
 Array can take an arbitrary number of operands including zero (which produces an
-empty array).
+empty array). The n-th operand becomes the n-th element of the array.
 
 #### **`array_index`**
 

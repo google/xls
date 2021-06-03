@@ -4,12 +4,12 @@ module ArrayUpdateLiteralIndex(
   output wire [23:0] out
 );
   wire [7:0] a_unflattened[3];
-  assign a_unflattened[0] = a[23:16];
+  assign a_unflattened[0] = a[7:0];
   assign a_unflattened[1] = a[15:8];
-  assign a_unflattened[2] = a[7:0];
+  assign a_unflattened[2] = a[23:16];
   wire [7:0] array_update_14[3];
   assign array_update_14[0] = a_unflattened[0];
   assign array_update_14[1] = value;
   assign array_update_14[2] = a_unflattened[2];
-  assign out = {array_update_14[0], array_update_14[1], array_update_14[2]};
+  assign out = {array_update_14[2], array_update_14[1], array_update_14[0]};
 endmodule

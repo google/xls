@@ -95,35 +95,6 @@ bool OperandMustBeNamedReference(Node* node, int64_t operand_no) {
 
 namespace {
 
-// Returns given Value as a VAST Literal created in the given file. must_flatten
-// indicates if the value must be emitted as a flat bit vector. This argument is
-// used when invoked recursively for when a tuple includes nested array
-// elements. In this case, the nested array elements must be flattened rather
-// than emitted as an unpacked array.
-Expression* ValueToVastLiteral(const Value& value, VerilogFile* file,
-                               bool must_flatten = false) {
-  if (value.IsBits()) {
-    return file->Literal(value.bits());
-  } else if (value.IsTuple()) {
-    std::vector<Expression*> elements;
-    for (const Value& element : value.elements()) {
-      elements.push_back(
-          ValueToVastLiteral(element, file, /*must_flatten=*/true));
-    }
-    return file->Concat(elements);
-  } else {
-    XLS_CHECK(value.IsArray());
-    std::vector<Expression*> elements;
-    for (const Value& element : value.elements()) {
-      elements.push_back(ValueToVastLiteral(element, file, must_flatten));
-    }
-    if (must_flatten) {
-      return file->Concat(elements);
-    }
-    return file->ArrayAssignmentPattern(elements);
-  }
-}
-
 absl::StatusOr<Expression*> EmitSel(Select* sel, Expression* selector,
                                     absl::Span<Expression* const> cases,
                                     int64_t caseno, VerilogFile* file) {
@@ -477,7 +448,10 @@ absl::StatusOr<Expression*> NodeToExpression(
     case Op::kDynamicCountedFor:
       return unimplemented();
     case Op::kLiteral:
-      return ValueToVastLiteral(node->As<xls::Literal>()->value(), file);
+      if (!node->GetType()->IsBits()) {
+        return unimplemented();
+      }
+      return file->Literal(node->As<xls::Literal>()->value().bits());
     case Op::kULe:
       return file->LessThanEquals(inputs[0], inputs[1]);
     case Op::kULt:

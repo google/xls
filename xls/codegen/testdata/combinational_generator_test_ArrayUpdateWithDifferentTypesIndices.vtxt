@@ -6,12 +6,12 @@ module ArrayUpdateWithDifferentTypesIndices(
   output wire [191:0] out
 );
   wire [31:0] a_unflattened[0:1][0:2];
-  assign a_unflattened[0][0] = a[191:160];
-  assign a_unflattened[0][1] = a[159:128];
-  assign a_unflattened[0][2] = a[127:96];
-  assign a_unflattened[1][0] = a[95:64];
-  assign a_unflattened[1][1] = a[63:32];
-  assign a_unflattened[1][2] = a[31:0];
+  assign a_unflattened[0][0] = a[31:0];
+  assign a_unflattened[0][1] = a[63:32];
+  assign a_unflattened[0][2] = a[95:64];
+  assign a_unflattened[1][0] = a[127:96];
+  assign a_unflattened[1][1] = a[159:128];
+  assign a_unflattened[1][2] = a[191:160];
   wire [31:0] array_update_20[0:1][0:2];
   assign array_update_20[0][0] = i1 == 5'h00 && i0 == 4'h0 ? value : a_unflattened[0][0];
   assign array_update_20[0][1] = i1 == 5'h01 && i0 == 4'h0 ? value : a_unflattened[0][1];
@@ -19,5 +19,5 @@ module ArrayUpdateWithDifferentTypesIndices(
   assign array_update_20[1][0] = i1 == 5'h00 && i0 == 4'h1 ? value : a_unflattened[1][0];
   assign array_update_20[1][1] = i1 == 5'h01 && i0 == 4'h1 ? value : a_unflattened[1][1];
   assign array_update_20[1][2] = i1 == 5'h02 && i0 == 4'h1 ? value : a_unflattened[1][2];
-  assign out = {{array_update_20[0][0], array_update_20[0][1], array_update_20[0][2]}, {array_update_20[1][0], array_update_20[1][1], array_update_20[1][2]}};
+  assign out = {{array_update_20[1][2], array_update_20[1][1], array_update_20[1][0]}, {array_update_20[0][2], array_update_20[0][1], array_update_20[0][0]}};
 endmodule

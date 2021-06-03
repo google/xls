@@ -8,5 +8,5 @@ module ReturnConstantArray(
   assign ar[1][0] = 7'h01;
   assign ar[1][1] = 7'h02;
   assign ar[1][2] = 7'h03;
-  assign out = {{ar[0][0], ar[0][1], ar[0][2]}, {ar[1][0], ar[1][1], ar[1][2]}};
+  assign out = {{ar[1][2], ar[1][1], ar[1][0]}, {ar[0][2], ar[0][1], ar[0][0]}};
 endmodule
