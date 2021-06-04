@@ -331,6 +331,12 @@ class AstGenerator {
   // Generates a comparison operation AST node.
   absl::StatusOr<TypedExpr> GenerateCompare(Env* env);
 
+  // Generates an Eq or Neq comparison on arrays.
+  absl::StatusOr<TypedExpr> GenerateCompareArray(Env* env);
+
+  // Generates an Eq or Neq comparison on tuples.
+  absl::StatusOr<TypedExpr> GenerateCompareTuple(Env* env);
+
   // Generates a shift operation AST node.
   absl::StatusOr<TypedExpr> GenerateShift(Env* env);
 

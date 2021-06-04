@@ -153,6 +153,22 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompare(Env* env) {
   return TypedExpr{binop, MakeTypeAnnotation(false, 1)};
 }
 
+absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareArray(Env* env) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueArray(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValue(env, lhs.type));
+  BinopKind op = RandomBool() ? BinopKind::kEq : BinopKind::kNe;
+  return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
+                   MakeTypeAnnotation(false, 1)};
+}
+
+absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Env* env) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueTuple(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValue(env, lhs.type));
+  BinopKind op = RandomBool() ? BinopKind::kEq : BinopKind::kNe;
+  return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
+                   MakeTypeAnnotation(false, 1)};
+}
+
 absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Env* env) {
   BinopKind op = RandomSetChoice<BinopKind>(GetBinopShifts());
   XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(env));
@@ -986,6 +1002,8 @@ enum OpChoice {
   kBitwiseReduction,
   kCastToBitsArray,
   kCompareOp,
+  kCompareArrayOp,
+  kCompareTupleOp,
   kConcat,
   kCountedFor,
   kLogical,
@@ -1024,6 +1042,10 @@ int OpProbability(OpChoice op) {
       return 1;
     case kCompareOp:
       return 3;
+    case kCompareArrayOp:
+      return 2;
+    case kCompareTupleOp:
+      return 2;
     case kConcat:
       return 5;
     case kCountedFor:
@@ -1107,6 +1129,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
         break;
       case kCompareOp:
         generated = GenerateCompare(env);
+        break;
+      case kCompareArrayOp:
+        generated = GenerateCompareArray(env);
+        break;
+      case kCompareTupleOp:
+        generated = GenerateCompareTuple(env);
         break;
       case kShiftOp:
         generated = GenerateShift(env);
