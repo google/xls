@@ -954,7 +954,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSliceUpdate(Env* env) {
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateArraySlice(Env* env) {
-  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueArray(env));
+  // JIT/codegen for array_slice don't currently support zero-sized types
+  auto is_not_zst = [this](ArrayTypeAnnotation* array_type) -> bool {
+    return this->GetTypeBitCount(array_type) != 0;
+  };
+
+  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueArray(env, is_not_zst));
 
   auto arg_type = dynamic_cast<ArrayTypeAnnotation*>(arg.type);
   XLS_CHECK_NE(arg_type, nullptr)

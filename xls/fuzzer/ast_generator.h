@@ -193,11 +193,11 @@ class AstGenerator {
   }
 
   absl::StatusOr<TypedExpr> ChooseEnvValueArray(
-      Env* env, std::function<bool(const ArrayTypeAnnotation*)> take =
+      Env* env, std::function<bool(ArrayTypeAnnotation*)> take =
                     [](auto _) { return true; }) {
     auto predicate = [&](const TypedExpr& e) -> bool {
       return IsArray(e.type) &&
-             take(dynamic_cast<const ArrayTypeAnnotation*>(e.type));
+             take(dynamic_cast<ArrayTypeAnnotation*>(e.type));
     };
     return ChooseEnvValue(env, predicate);
   }
