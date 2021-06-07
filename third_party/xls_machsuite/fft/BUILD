@@ -1,4 +1,8 @@
-load("//xls/build_rules:build_defs.bzl", "dslx_test")
+load(
+    "//xls/build_rules:xls_build_defs.bzl",
+    "xls_dslx_library",
+    "xls_dslx_test",
+)
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -27,14 +31,9 @@ cc_binary(
     ],
 )
 
-dslx_test(
-    name = "fft",
-    srcs = ["fft.x"],
-    # IR optimization uses too much memory.
-    # TODO(https://github.com/google/xls/issues/354): 2021-03-23 Fix this.
-    convert_ir = False,
-    tags = ["optonly"],
-    deps = [
+xls_dslx_library(
+    name = "fft_dslx",
+    srcs = [
         "test_data/dslx_test_data.x",
         "//xls/modules:apfloat_add_2.x",
         "//xls/modules:apfloat_mul_2.x",
@@ -43,4 +42,18 @@ dslx_test(
         "//xls/modules:fpmul_2x32.x",
         "//xls/modules:fpsub_2x32.x",
     ],
+    tags = ["optonly"],
+)
+
+# IR optimization uses too much memory.
+# TODO(https://github.com/google/xls/issues/354): 2021-03-23 Fix this. Add
+# xls_ir_equivalence_test, xls_eval_ir_test and xls_benchmark_ir.
+xls_dslx_test(
+    name = "fft",
+    src = "fft.x",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    tags = ["optonly"],
+    deps = ["fft_dslx"],
 )

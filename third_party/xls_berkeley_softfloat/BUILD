@@ -1,6 +1,11 @@
 # XLS (go/xls) libraries ported from Berkeley SoftFloat.
 
-load("//xls/build_rules:build_defs.bzl", "dslx_jit_wrapper", "dslx_test")
+load(
+    "//xls/build_rules:xls_build_defs.bzl",
+    "cc_xls_ir_jit_wrapper",
+    "xls_dslx_opt_ir",
+    "xls_dslx_test",
+)
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -10,22 +15,28 @@ licenses(["notice"])
 
 exports_files(["LICENSE"])
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "fpdiv_2x32",
-    srcs = ["fpdiv_2x32.x"],
-    # udiv not supported in delay model.
-    generate_benchmark = False,
-    # udiv not supported in equivalence checking.
-    prove_unopt_eq_opt = False,
+    src = "fpdiv_2x32.x",
+    ir_file = "fpdiv_2x32.opt.ir",
     tags = ["optonly"],
-    deps = [
-    ],
 )
 
-dslx_jit_wrapper(
+# TODO: Add xls_ir_equivalence_test, xls_eval_ir_test and xls_benchmark_ir.
+# udiv not supported in delay model.
+# udiv not supported in equivalence checking.
+xls_dslx_test(
+    name = "fpdiv_2x32_dslx_test",
+    dep = "fpdiv_2x32",
+    tags = ["optonly"],
+)
+
+cc_xls_ir_jit_wrapper(
     name = "fpdiv_2x32_jit_wrapper",
-    dslx_name = "fpdiv_2x32",
-    deps = [":fpdiv_2x32_opt_ir"],
+    src = ":fpdiv_2x32.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "fpdiv_2x32",
+    },
 )
 
 cc_test(

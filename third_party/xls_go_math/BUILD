@@ -1,6 +1,13 @@
 # XLS (go/xls) libraries ported from Go math library.
 
-load("//xls/build_rules:build_defs.bzl", "dslx_jit_wrapper", "dslx_test")
+load(
+    "//xls/build_rules:xls_build_defs.bzl",
+    "cc_xls_ir_jit_wrapper",
+    "xls_benchmark_ir",
+    "xls_dslx_library",
+    "xls_dslx_opt_ir",
+    "xls_eval_ir_test",
+)
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -10,12 +17,9 @@ licenses(["notice"])
 
 exports_files(["LICENSE"])
 
-dslx_test(
-    name = "fpexp_32",
-    srcs = ["fpexp_32.x"],
-    # 2021-03-08: Takes too long (> 15 minutes).
-    prove_unopt_eq_opt = False,
-    deps = [
+xls_dslx_library(
+    name = "modules_dslx",
+    srcs = [
         "//xls/modules:apfloat_add_2.x",
         "//xls/modules:apfloat_mul_2.x",
         "//xls/modules:apfloat_sub_2.x",
@@ -23,20 +27,49 @@ dslx_test(
         "//xls/modules:fpldexp_32.x",
         "//xls/modules:fpmul_2x32.x",
         "//xls/modules:fpsub_2x32.x",
-        "//third_party/xls_berkeley_softfloat:fpdiv_2x32.x",
     ],
 )
 
-dslx_jit_wrapper(
+xls_dslx_library(
+    name = "fpdiv_2x32_dslx",
+    srcs = ["//third_party/xls_berkeley_softfloat:fpdiv_2x32.x"],
+    deps = [":modules_dslx"],
+)
+
+xls_dslx_opt_ir(
+    name = "fpexp_32",
+    src = "fpexp_32.x",
+    ir_file = "fpexp_32.ir",
+    opt_ir_file = "fpexp_32.opt.ir",
+    deps = [":fpdiv_2x32_dslx"],
+)
+
+# TODO 2021-03-08: Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
+xls_eval_ir_test(
+    name = "fpexp_32_eval_ir_test",
+    src = ":fpexp_32.ir",
+)
+
+xls_benchmark_ir(
+    name = "fpexp_32_benchmark_ir",
+    src = ":fpexp_32.ir",
+)
+
+cc_xls_ir_jit_wrapper(
     name = "fpexp_32_jit_wrapper",
-    dslx_name = "fpexp_32",
-    deps = [":fpexp_32_opt_ir"],
+    src = ":fpexp_32.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "fpexp_32",
+    },
 )
 
 cc_test(
     name = "fpexp_32_test",
     srcs = ["fpexp_32_test.cc"],
-    data = [":fpexp_32_all_ir"],
+    data = [
+        ":fpexp_32.ir",
+        ":fpexp_32.opt.ir",
+    ],
     tags = ["optonly"],
     deps = [
         ":fpexp_32_jit_wrapper",
@@ -53,32 +86,47 @@ cc_test(
     ],
 )
 
-dslx_test(
-    name = "fp_sincos_32",
-    srcs = ["fp_sincos_32.x"],
-    # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes).
-    prove_unopt_eq_opt = False,
-    deps = [
-        "fp_trig_reduce.x",
-        "//xls/modules:apfloat_add_2.x",
-        "//xls/modules:apfloat_mul_2.x",
-        "//xls/modules:apfloat_sub_2.x",
-        "//xls/modules:fpadd_2x32.x",
-        "//xls/modules:fpmul_2x32.x",
-        "//xls/modules:fpsub_2x32.x",
-    ],
+xls_dslx_library(
+    name = "fp_trig_reduce_dslx",
+    srcs = ["fp_trig_reduce.x"],
+    deps = [":modules_dslx"],
 )
 
-dslx_jit_wrapper(
+xls_dslx_opt_ir(
+    name = "fp_sincos_32",
+    src = "fp_sincos_32.x",
+    ir_file = "fp_sincos_32.ir",
+    opt_ir_file = "fp_sincos_32.opt.ir",
+    deps = [":fp_trig_reduce_dslx"],
+)
+
+# TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
+# xls_ir_equivalence_test.
+xls_eval_ir_test(
+    name = "fp_sincos_32_eval_ir_test",
+    src = ":fp_sincos_32.ir",
+)
+
+xls_benchmark_ir(
+    name = "fp_sincos_32_benchmark_ir",
+    src = ":fp_sincos_32.ir",
+)
+
+cc_xls_ir_jit_wrapper(
     name = "fp_sincos_32_jit_wrapper",
-    dslx_name = "fp_sincos_32",
-    deps = [":fp_sincos_32_opt_ir"],
+    src = ":fp_sincos_32.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "fp_sincos_32",
+    },
 )
 
 cc_test(
     name = "fp_sincos_32_test",
     srcs = ["fp_sincos_32_test.cc"],
-    data = [":fp_sincos_32_all_ir"],
+    data = [
+        ":fp_sincos_32.ir",
+        ":fp_sincos_32.opt.ir",
+    ],
     tags = ["optonly"],
     deps = [
         ":fp_sincos_32_jit_wrapper",
@@ -94,31 +142,41 @@ cc_test(
     ],
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "fp_trig_reduce",
-    srcs = ["fp_trig_reduce.x"],
-    # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes).
-    prove_unopt_eq_opt = False,
-    deps = [
-        "//xls/modules:apfloat_add_2.x",
-        "//xls/modules:apfloat_mul_2.x",
-        "//xls/modules:apfloat_sub_2.x",
-        "//xls/modules:fpadd_2x64.x",
-        "//xls/modules:fpmul_2x64.x",
-        "//xls/modules:fpsub_2x64.x",
-    ],
+    src = "fp_trig_reduce.x",
+    ir_file = "fp_trig_reduce.ir",
+    opt_ir_file = "fp_trig_reduce.opt.ir",
+    deps = [":modules_dslx"],
 )
 
-dslx_jit_wrapper(
+# TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
+# xls_ir_equivalence_test.
+xls_eval_ir_test(
+    name = "fp_trig_reduce_eval_ir_test",
+    src = ":fp_trig_reduce.ir",
+)
+
+xls_benchmark_ir(
+    name = "fp_trig_reduce_benchmark_ir",
+    src = ":fp_trig_reduce.ir",
+)
+
+cc_xls_ir_jit_wrapper(
     name = "fp_trig_reduce_jit_wrapper",
-    dslx_name = "fp_trig_reduce",
-    deps = [":fp_trig_reduce_opt_ir"],
+    src = "fp_trig_reduce.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "fp_trig_reduce",
+    },
 )
 
 cc_test(
     name = "fp_trig_reduce_64_test",
     srcs = ["fp_trig_reduce_64_test.cc"],
-    data = [":fp_trig_reduce_all_ir"],
+    data = [
+        ":fp_trig_reduce.ir",
+        ":fp_trig_reduce.opt.ir",
+    ],
     tags = ["optonly"],
     deps = [
         ":fp_trig_reduce_jit_wrapper",
@@ -135,23 +193,39 @@ cc_test(
     ],
 )
 
-dslx_test(
+xls_dslx_opt_ir(
     name = "fpsqrt_32",
-    srcs = ["fpsqrt_32.x"],
-    # 2021-03-22 Takes too long.
-    prove_unopt_eq_opt = False,
+    src = "fpsqrt_32.x",
+    ir_file = "fpsqrt_32.ir",
+    opt_ir_file = "fpsqrt_32.opt.ir",
 )
 
-dslx_jit_wrapper(
+# TODO: 2021-03-22 Takes too long. Add xls_ir_equivalence_test.
+xls_eval_ir_test(
+    name = "fpsqrt_32_eval_ir_test",
+    src = ":fpsqrt_32.ir",
+)
+
+xls_benchmark_ir(
+    name = "fpsqrt_32_benchmark_ir",
+    src = ":fpsqrt_32.ir",
+)
+
+cc_xls_ir_jit_wrapper(
     name = "fpsqrt_32_jit_wrapper",
-    dslx_name = "fpsqrt_32",
-    deps = [":fpsqrt_32_opt_ir"],
+    src = "fpsqrt_32.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "fpsqrt_32",
+    },
 )
 
 cc_test(
     name = "fpsqrt_32_test",
     srcs = ["fpsqrt_32_test.cc"],
-    data = [":fpsqrt_32_all_ir"],
+    data = [
+        ":fpsqrt_32.ir",
+        ":fpsqrt_32.opt.ir",
+    ],
     tags = ["optonly"],
     deps = [
         ":fpsqrt_32_jit_wrapper",
