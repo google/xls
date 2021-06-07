@@ -15,8 +15,9 @@
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "get_mangled_ir_symbol",
+    "xls_benchmark_ir",
     "xls_dslx_opt_ir",
-    "xls_dslx_opt_ir_test",
+    "xls_eval_ir_test",
 )
 
 package(
@@ -27,6 +28,7 @@ package(
 xls_dslx_opt_ir(
     name = "idct_chen",
     src = "idct_chen.x",
+    ir_file = "idct_chen.ir",
     opt_ir_args = {
         "entry": get_mangled_ir_symbol("idct_chen", "idct"),
     },
@@ -34,11 +36,23 @@ xls_dslx_opt_ir(
     tags = ["optonly"],
 )
 
-xls_dslx_opt_ir_test(
-    name = "idct_chen_test",
-    dep = ":idct_chen",
-    # Note: times out.
-    prove_unopt_eq_opt = False,
+# TODO: 2021-05-28 Add xls_ir_equivalence_test. Note: times out.
+xls_eval_ir_test(
+    name = "idct_chen_eval_ir_test",
+    src = "idct_chen.ir",
+    ir_eval_args = {
+        "entry": get_mangled_ir_symbol("idct_chen", "idct"),
+    },
+    # Note: times out in fastbuild 2020-11-09.
+    tags = ["optonly"],
+)
+
+xls_benchmark_ir(
+    name = "idct_chen_benchmark_ir",
+    src = "idct_chen.ir",
+    benchmark_ir_args = {
+        "entry": get_mangled_ir_symbol("idct_chen", "idct"),
+    },
     # Note: times out in fastbuild 2020-11-09.
     tags = ["optonly"],
 )

@@ -160,9 +160,9 @@ def _xls_dslx_opt_ir_test_impl(ctx):
     Executes the commands in the order presented in the list for the following
     rules:
       1) xls_dslx_test
-      2) xls_ir_equivalence_test (if attribute prove_unopt_eq_opt is enabled)
-      3) xls_eval_ir_test (if attribute generate_benchmark is enabled)
-      4) xls_benchmark_ir (if attribute generate_benchmark is enabled)
+      2) xls_ir_equivalence_test
+      3) xls_eval_ir_test
+      4) xls_benchmark_ir
 
     Args:
       ctx: The current rule's context object.
@@ -214,9 +214,9 @@ def _xls_dslx_opt_ir_test_impl(ctx):
             "#!/bin/bash",
             "set -e",
             dslx_test_cmd,
-            ir_equivalence_test_cmd if ctx.attr.prove_unopt_eq_opt else "",
-            eval_ir_test_cmd if ctx.attr.generate_benchmark else "",
-            benchmark_ir_cmd if ctx.attr.generate_benchmark else "",
+            ir_equivalence_test_cmd,
+            eval_ir_test_cmd,
+            benchmark_ir_cmd,
             "exit 0",
         ]),
         is_executable = True,
@@ -237,16 +237,6 @@ _xls_dslx_opt_ir_test_impl_attrs = {
             ConvIRInfo,
             OptIRInfo,
         ],
-    ),
-    "prove_unopt_eq_opt": attr.bool(
-        doc = "Whether or not to generate a test to compare semantics of opt" +
-              "vs. non-opt IR.",
-        default = True,
-    ),
-    "generate_benchmark": attr.bool(
-        doc = "Whether or not to create a benchmark target (that analyses " +
-              "XLS scheduled critical path).",
-        default = True,
     ),
 }
 

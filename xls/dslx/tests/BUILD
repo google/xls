@@ -17,10 +17,12 @@
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "get_mangled_ir_symbol",
+    "xls_benchmark_ir",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_dslx_opt_ir_test",
     "xls_dslx_test",
+    "xls_eval_ir_test",
 )
 
 package(
@@ -41,12 +43,18 @@ xls_dslx_opt_ir_test(
 xls_dslx_opt_ir(
     name = "binops",
     src = "binops.x",
+    ir_file = "binops.ir",
 )
 
-xls_dslx_opt_ir_test(
-    name = "binops_test",
-    dep = ":binops",
-    prove_unopt_eq_opt = False,
+# TODO: 2021-05-28 Add xls_ir_equivalence_test.
+xls_eval_ir_test(
+    name = "binops_eval_ir_test",
+    src = "binops.ir",
+)
+
+xls_benchmark_ir(
+    name = "binops_benchmark_ir",
+    src = "binops.ir",
 )
 
 xls_dslx_opt_ir(
@@ -513,12 +521,18 @@ xls_dslx_test(
 xls_dslx_opt_ir(
     name = "reductions",
     src = "reductions.x",
+    ir_file = "reductions.ir",
 )
 
-xls_dslx_opt_ir_test(
-    name = "reductions_test",
-    dep = ":reductions",
-    prove_unopt_eq_opt = False,
+# TODO: 2021-05-28 Add xls_ir_equivalence_test.
+xls_eval_ir_test(
+    name = "reductions_eval_ir_test",
+    src = "reductions.ir",
+)
+
+xls_benchmark_ir(
+    name = "reductions_benchmark_ir",
+    src = "reductions.ir",
 )
 
 xls_dslx_opt_ir(
@@ -1471,12 +1485,18 @@ xls_dslx_opt_ir_test(
 xls_dslx_opt_ir(
     name = "let_match_tuple",
     src = "let_match_tuple.x",
+    ir_file = "let_match_tuple.ir",
 )
 
-xls_dslx_opt_ir_test(
-    name = "let_match_tuple_test",
-    dep = ":let_match_tuple",
-    # TODO(https://github.com/google/xls/issues/400): This produces a zero-bit
-    # concate which is currently not supported by Z3 translation.
-    prove_unopt_eq_opt = False,
+# TODO(https://github.com/google/xls/issues/400): This produces a zero-bit
+# concate which is currently not supported by Z3 translation. Add
+# xls_ir_equivalence_test.
+xls_eval_ir_test(
+    name = "let_match_tuple_eval_ir_test",
+    src = "let_match_tuple.ir",
+)
+
+xls_benchmark_ir(
+    name = "let_match_tuple_benchmark_ir",
+    src = "let_match_tuple.ir",
 )

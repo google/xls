@@ -17,10 +17,12 @@
 load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
+    "xls_benchmark_ir",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_dslx_opt_ir_test",
     "xls_dslx_test",
+    "xls_eval_ir_test",
     "xls_ir_jit_wrapper",
 )
 
@@ -51,11 +53,15 @@ xls_dslx_opt_ir(
     opt_ir_file = "adler32.opt.ir",
 )
 
-xls_dslx_opt_ir_test(
-    name = "adler32_test",
-    dep = ":adler32",
-    # TODO(rspringer): OOMs.
-    prove_unopt_eq_opt = False,
+# TODO(rspringer): OOMs. Add xls_ir_equivalence_test.
+xls_eval_ir_test(
+    name = "adler32_eval_ir_test",
+    src = "adler32.ir",
+)
+
+xls_benchmark_ir(
+    name = "adler32_benchmark_ir",
+    src = "adler32.ir",
 )
 
 cc_binary(
@@ -145,15 +151,15 @@ xls_dslx_opt_ir(
     src = "riscv_simple.x",
 )
 
-xls_dslx_opt_ir_test(
+# TODO: 2021-05-28 Add xls_ir_equivalence_test, xls_eval_ir_test and
+# xls_benchmark_ir.
+xls_dslx_test(
     name = "riscv_simple_test",
     dep = ":riscv_simple",
     dslx_test_args = {
         # TODO(hjmontero): run_instruction segfaults in the JIT.
         "compare": "interpreter",
     },
-    generate_benchmark = False,
-    prove_unopt_eq_opt = False,
 )
 
 xls_dslx_opt_ir(
@@ -164,11 +170,16 @@ xls_dslx_opt_ir(
     tags = ["optonly"],
 )
 
-xls_dslx_opt_ir_test(
-    name = "sha256_test",
-    dep = ":sha256",
-    # TODO(rspringer): OOMs on some machines.
-    prove_unopt_eq_opt = False,
+# TODO(rspringer): OOMs on some machines. Add xls_ir_equivalence_test.
+xls_eval_ir_test(
+    name = "sha256_eval_ir_test",
+    src = "sha256.ir",
+    tags = ["optonly"],
+)
+
+xls_benchmark_ir(
+    name = "sha256_benchmark_ir",
+    src = "sha256.ir",
     tags = ["optonly"],
 )
 
