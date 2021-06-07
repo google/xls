@@ -119,6 +119,16 @@ or other behaviors requiring explanation:
     `./xls/tools/testdata/proto_to_dslx_main.*` demonstrates this
     behavior.
 
+## [`repl`](https://github.com/google/xls/tree/main/xls/tools/repl.cc)
+
+Allows you to interactively run various parts of the compiler, including
+parsing/typechecking (`:reload`), lowering/optimization (`:ir`), Verilog
+codegen (`:verilog [identifier]`), and LLVM codegen (`:llvm`, not yet
+implemented). You can also inspect the IR types of identifiers with `:type`,
+and even imported identifiers can be accessed with `:type foo::bar`.
+
+![animated GIF](./repl.gif)
+
 ## [`simulate_module_main`](https://github.com/google/xls/tree/main/xls/tools/simulate_module_main.cc)
 
 Runs an Verilog block emitted by XLS through a Verilog simulator. Requires both
