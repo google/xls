@@ -16,7 +16,11 @@
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("//xls/build_rules:xls_common_rules.bzl", "get_args")
-load("//xls/build_rules:xls_providers.bzl", "DslxFilesInfo")
+load(
+    "//xls/build_rules:xls_providers.bzl",
+    "ConvIRInfo",
+    "DslxFilesInfo",
+)
 
 DEFAULT_DSLX_TEST_ARGS = {
     "compare": "jit",
@@ -141,12 +145,6 @@ def get_dslx_test_cmd(ctx, src):
     return runfiles, cmd
 
 # Common attributes for the xls_dslx_library and xls_dslx_test rules.
-_xls_dslx_common_attrs = {
-    "deps": attr.label_list(
-        doc = "Dependency targets for the rule.",
-        providers = [DslxFilesInfo],
-    ),
-}
 xls_dslx_exec_attrs = {
     "_dslx_std_lib": attr.label(
         doc = "The target containing the DSLX std library.",
@@ -168,15 +166,32 @@ _xls_dslx_library_attrs = {
         doc = "Source files for the rule. Files must have a '.x' extension.",
         allow_files = [".x"],
     ),
+    "deps": attr.label_list(
+        doc = "Dependency targets for the rule.",
+        providers = [DslxFilesInfo],
+    ),
 }
 
 # Attributes for the xls_dslx_test rule.
 _xls_dslx_test_attrs = {
     "src": attr.label(
         doc = "The DSLX source file for the rule. A single source file must " +
-              "be provided. The file must have a '.x' extension.",
-        mandatory = True,
+              "be provided. The file must have a '.x' extension. When " +
+              "assigned, the 'dep' attribute cannot be assigned. Otherwise, " +
+              "an error occurs.",
         allow_single_file = [".x"],
+    ),
+    "dep": attr.label(
+        doc = "A dependency target for the rule. The targets must emit a " +
+              "ConvIRInfo provider. When assigned, the 'src' and 'deps' " +
+              "attributes cannot be assigned. Otherwise, an error occurs.",
+        providers = [ConvIRInfo],
+    ),
+    "deps": attr.label_list(
+        doc = "Dependency targets for the rule. The targets must emit a " +
+              "DslxFilesInfo provider. When assigned, the 'dep' attribute " +
+              "cannot be assigned. Otherwise, an error occurs.",
+        providers = [DslxFilesInfo],
     ),
 }
 
@@ -284,7 +299,6 @@ xls_dslx_library = rule(
     """,
     implementation = _xls_dslx_library_impl,
     attrs = dicts.add(
-        _xls_dslx_common_attrs.items(),
         _xls_dslx_library_attrs.items(),
         xls_dslx_exec_attrs.items(),
     ),
@@ -301,13 +315,25 @@ def _xls_dslx_test_impl(ctx):
     Returns:
       DefaultInfo provider
     """
+    if ((ctx.attr.src and ctx.attr.dep) or
+        (not ctx.attr.src and not ctx.attr.dep)):
+        fail("Attribute 'src' or 'dep' must be specified.")
+    if ctx.attr.dep and len(ctx.attr.deps) != 0:
+        fail("Attribute 'deps' can only be specified with attribute 'src'.")
     src = ctx.file.src
+    if ctx.attr.dep:
+        src = ctx.attr.dep[ConvIRInfo].dslx_source_file
     runfiles, cmd = get_dslx_test_cmd(ctx, src)
 
     # The runfiles also require the source files from its transitive
     # dependencies.
-    for dep in ctx.attr.deps:
-        runfiles += dep[DslxFilesInfo].dslx_source_files.to_list()
+    if ctx.attr.src:
+        for dep in ctx.attr.deps:
+            runfiles += dep[DslxFilesInfo].dslx_source_files.to_list()
+    else:  # ctx.attr.dep is defined
+        runfiles += (
+            ctx.attr.dep[ConvIRInfo].dslx_files_info.dslx_source_files.to_list()
+        )
 
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
@@ -328,46 +354,45 @@ def _xls_dslx_test_impl(ctx):
         ),
     ]
 
-# TODO(vmirian) 05-22-2021 Add dep attribute on rule to read ConvIRInfo:
-# This feature would enable the following semantics:
-#
-# xls_dslx_ir(
-#     name = "d_ir",
-#     src = ":d.x",
-# )
-#
-# xls_dslx_test(
-#     name = "d_test",
-#     dep = ":d_ir",
-# )
-#
-# Note: Only dep or src can be provided, not both, but at least one (XOR).
-#
-# xls_dslx_test(
-#     name = "d_test",
-#     src = ":d.x",
-#     dep = ":d_ir",
-# )
-# produces an error.
 xls_dslx_test = rule(
     doc = """
         A dslx test executes the tests and quick checks of a DSLX source file.
 
-        Example:
+        Examples:
+
+        1) xls_dslx_test target using 'src' and 'deps' attribute.
+
         ```
-            # Assume a xls_dslx_library target c is present.
-            xls_dslx_test(
-                name = "d_test",
-                src = "d.x",
-                deps = [
-                    ":c",
-                ],
-            )
+        # Assume a xls_dslx_library target c is present.
+        xls_dslx_test(
+            name = "d_test",
+            src = "d.x",
+            deps = [
+                ":c",
+            ],
+        )
+        ```
+
+        2) xls_dslx_test target using 'dep' attribute.
+
+        ```
+        # Assume a xls_dslx_library target c is present.
+        xls_dslx_ir(
+            name = "d_ir",
+            dep = ":d.x",
+            deps = [
+                ":c",
+            ],
+        )
+
+        xls_dslx_test(
+            name = "d_test",
+            dep = ":d_ir",
+        )
         ```
     """,
     implementation = _xls_dslx_test_impl,
     attrs = dicts.add(
-        _xls_dslx_common_attrs.items(),
         _xls_dslx_test_attrs.items(),
         xls_dslx_test_common_attrs.items(),
         xls_dslx_exec_attrs.items(),

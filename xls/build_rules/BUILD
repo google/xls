@@ -61,6 +61,7 @@ bzl_library(
     visibility = ["//visibility:private"],
     deps = [
         ":xls_common_rules_bzl",
+        ":xls_dslx_rules_bzl",
         ":xls_providers_bzl",
         "@bazel_skylib//lib:dicts",
     ],

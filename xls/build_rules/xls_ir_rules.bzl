@@ -21,6 +21,11 @@ load(
     "DslxFilesInfo",
     "OptIRInfo",
 )
+load(
+    "//xls/build_rules:xls_dslx_rules.bzl",
+    "get_transitive_dslx_dummy_files_depset",
+    "get_transitive_dslx_srcs_files_depset",
+)
 
 DEFAULT_IR_EVAL_TEST_ARGS = {
     "random_inputs": "100",
@@ -348,6 +353,16 @@ def xls_dslx_ir_impl(ctx, src):
         ConvIRInfo(
             dslx_source_file = src,
             conv_ir_file = ir_file,
+            dslx_files_info = DslxFilesInfo(
+                dslx_source_files = get_transitive_dslx_srcs_files_depset(
+                    [src],
+                    ctx.attr.deps,
+                ),
+                dslx_dummy_files = get_transitive_dslx_dummy_files_depset(
+                    None,
+                    ctx.attr.deps,
+                ),
+            ),
         ),
         DefaultInfo(files = depset([ir_file])),
     ]

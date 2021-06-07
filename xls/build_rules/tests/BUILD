@@ -234,6 +234,36 @@ xls_benchmark_ir(
 )
 
 ################################################################################
+# An alternate form for xls_dslx_test in the simple example with rule chaining.
+#
+# Below is a diagram illustrating an alternate form for xls_dslx_test in the
+# simple example with rule chaining. The build flow is on the left and the test
+# flow is on the right. The flow is from top to down. The names of the rules
+# target names are displayed.
+#
+# Overview:
+# The 'chaining_example_ir' target is the input to a xls_dslx_test rule named
+# 'chaining_example_alternate_test'. Note for the xls_dslx_test rule, either the
+# 'src' or 'dep' attribute must be specified.
+#
+#           Build Flow
+#           ----------
+#        chaining_example_ir   (See the simple example with chaining the
+#               |                  rules above.)
+#               |
+#               |
+#               |                     Test Flow
+#               |                     ---------
+#               |
+#               |---------- chaining_example_alternate_test
+################################################################################
+
+xls_dslx_test(
+    name = "chaining_example_alternate_test",
+    dep = ":chaining_example_ir",
+)
+
+################################################################################
 # Extending the simple example with rule chaining.
 #
 # Below is a diagram illustrating an extension to the build flow of the rule
@@ -494,4 +524,14 @@ xls_dslx_opt_ir_test(
     ir_eval_args = {
         "entry": get_mangled_ir_symbol("simple_example_five", "five"),
     },
+)
+
+################################################################################
+# An example of xls_dslx_test using the 'dep' attribute on a target with a
+# transitive dependency on a xls_dslx_library.
+################################################################################
+
+xls_dslx_test(
+    name = "simple_example_5_one_stage_dslx_test",
+    dep = ":simple_example_5_one_stage",
 )

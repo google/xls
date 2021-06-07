@@ -35,6 +35,9 @@ ConvIRInfo = provider(
     fields = {
         "dslx_source_file": "File: The DSLX source file.",
         "conv_ir_file": "File: The IR file converted from a DSLX source.",
+        "dslx_files_info": "DslxFilesInfo provider: A DslxFilesInfo provider" +
+                           "used to produce the artifacts of the ConvIRInfo " +
+                           "instance.",
     },
 )
 
