@@ -40,7 +40,7 @@ flags.DEFINE_integer('seed', 0, 'Seed value for generation')
 flags.DEFINE_integer('sample_count', 1024, 'Number of samples to generate')
 flags.DEFINE_string('duration', None,
                     'Duration to run the sample generator for')
-flags.DEFINE_integer('calls_per_sample', 512,
+flags.DEFINE_integer('calls_per_sample', 128,
                      'Arguments to generate per sample')
 flags.DEFINE_string('crash_path', None, 'Path at which to place crash data')
 flags.DEFINE_string(
