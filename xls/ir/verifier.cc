@@ -1632,39 +1632,50 @@ absl::Status VerifyBlock(Block* block) {
   XLS_RETURN_IF_ERROR(VerifyFunctionBase(block));
 
   // Verify the nodes returned by Block::Get*Port methods are consistent.
-  absl::flat_hash_set<Node*> all_ports(block->GetPorts().begin(),
-                                       block->GetPorts().end());
-  absl::flat_hash_set<Node*> input_ports(block->GetInputPorts().begin(),
-                                         block->GetInputPorts().end());
-  absl::flat_hash_set<Node*> output_ports(block->GetOutputPorts().begin(),
-                                          block->GetOutputPorts().end());
+  absl::flat_hash_set<Node*> all_data_ports;
+  for (const Block::Port& port : block->GetPorts()) {
+    if (absl::holds_alternative<InputPort*>(port)) {
+      all_data_ports.insert(absl::get<InputPort*>(port));
+    } else if (absl::holds_alternative<OutputPort*>(port)) {
+      all_data_ports.insert(absl::get<OutputPort*>(port));
+    }
+  }
+  absl::flat_hash_set<Node*> input_data_ports(block->GetInputPorts().begin(),
+                                              block->GetInputPorts().end());
+  absl::flat_hash_set<Node*> output_data_ports(block->GetOutputPorts().begin(),
+                                               block->GetOutputPorts().end());
 
   // All the pointers returned by the GetPort methods should be unique.
-  XLS_RET_CHECK_EQ(block->GetPorts().size(), all_ports.size());
-  XLS_RET_CHECK_EQ(block->GetInputPorts().size(), input_ports.size());
-  XLS_RET_CHECK_EQ(block->GetOutputPorts().size(), output_ports.size());
+  XLS_RET_CHECK_EQ(block->GetInputPorts().size(), input_data_ports.size());
+  XLS_RET_CHECK_EQ(block->GetOutputPorts().size(), output_data_ports.size());
   XLS_RET_CHECK_EQ(
       block->GetInputPorts().size() + block->GetOutputPorts().size(),
-      all_ports.size());
+      all_data_ports.size());
 
   int64_t input_port_count = 0;
   int64_t output_port_count = 0;
   for (Node* node : block->nodes()) {
     if (node->Is<InputPort>()) {
-      XLS_RET_CHECK(all_ports.contains(node));
-      XLS_RET_CHECK(input_ports.contains(node));
+      XLS_RET_CHECK(all_data_ports.contains(node)) << node->GetName();
+      XLS_RET_CHECK(input_data_ports.contains(node)) << node->GetName();
       input_port_count++;
     } else if (node->Is<OutputPort>()) {
-      XLS_RET_CHECK(all_ports.contains(node));
-      XLS_RET_CHECK(output_ports.contains(node));
+      XLS_RET_CHECK(all_data_ports.contains(node)) << node->GetName();
+      XLS_RET_CHECK(output_data_ports.contains(node)) << node->GetName();
       output_port_count++;
     }
   }
-  XLS_RET_CHECK_EQ(input_port_count, input_ports.size());
-  XLS_RET_CHECK_EQ(output_port_count, output_ports.size());
+  XLS_RET_CHECK_EQ(input_port_count, input_data_ports.size());
+  XLS_RET_CHECK_EQ(output_port_count, output_data_ports.size());
 
   // Blocks should have no parameters.
   XLS_RET_CHECK(block->params().empty());
+
+  // The block must have a clock port if it has any registers.
+  if (!block->GetRegisters().empty() && !block->GetClockPort().has_value()) {
+    return absl::InternalError(
+        StrFormat("Block has registers but no clock port"));
+  }
 
   // Verify all registers have exactly one read and write operation.
   absl::flat_hash_map<Register*, RegisterRead*> reg_reads;

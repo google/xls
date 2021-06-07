@@ -1279,25 +1279,49 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   return std::move(builder);
 }
 
-absl::StatusOr<std::unique_ptr<BlockBuilder>> Parser::ParseBlockSignature(
+absl::StatusOr<Parser::BlockSignature> Parser::ParseBlockSignature(
     Package* package) {
-  // A Block definition is simply:
+  // A Block definition looks like:
   //
-  //   block foo {
+  //   block foo(clk: clock, a: bits[32], b: bits[32]) {
   //     ...
+  //
+  // The elements inside the parentheses are the ports and determine the order
+  // of the ports in the emitted Verilog. These ports must have a corresponding
+  // input_port or output_port node defined in the body of the block. A special
+  // type `clock` defines the optional clock for the block.
   //
   // The signature being parsed by this method starts at the block name and ends
   // with the open brace.
+  BlockSignature signature;
   XLS_ASSIGN_OR_RETURN(Token name, scanner_.PopTokenOrError(
                                        LexicalTokenType::kIdent, "block name"));
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen,
-                                                "start of proc body"));
+  signature.block_name = name.value();
 
-  // The parser does its own verification so pass should_verify=false. This
-  // enables the parser to parse and construct malformed IR for tests.
-  auto builder = absl::make_unique<BlockBuilder>(name.value(), package,
-                                                 /*should_verify=*/false);
-  return std::move(builder);
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen,
+                                                "'(' in block signature"));
+  bool must_end = false;
+  while (true) {
+    if (must_end || scanner_.PeekTokenIs(LexicalTokenType::kParenClose)) {
+      XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(
+          LexicalTokenType::kParenClose, "')' in block ports"));
+      break;
+    }
+    XLS_ASSIGN_OR_RETURN(Token port_name,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
+    Type* type = nullptr;
+    if (!scanner_.TryDropKeyword("clock")) {
+      XLS_ASSIGN_OR_RETURN(type, ParseType(package));
+    }
+    signature.ports.push_back(Port{port_name.value(), type});
+    must_end = !scanner_.TryDropToken(LexicalTokenType::kComma);
+  }
+
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen,
+                                                "start of block body"));
+
+  return std::move(signature);
 }
 
 absl::StatusOr<std::string> Parser::ParsePackageName() {
@@ -1365,16 +1389,60 @@ absl::StatusOr<Block*> Parser::ParseBlock(Package* package) {
   }
   XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("block"));
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BlockBuilder> pb,
-                       ParseBlockSignature(package));
+  XLS_ASSIGN_OR_RETURN(BlockSignature signature, ParseBlockSignature(package));
+
+  // The parser does its own verification so pass should_verify=false. This
+  // enables the parser to parse and construct malformed IR for tests.
+  auto bb = absl::make_unique<BlockBuilder>(signature.block_name, package,
+                                            /*should_verify=*/false);
 
   absl::flat_hash_map<std::string, BValue> name_to_value;
   XLS_ASSIGN_OR_RETURN(BodyResult body_result,
-                       ParseBody(pb.get(), &name_to_value, package));
-
+                       ParseBody(bb.get(), &name_to_value, package));
   XLS_RET_CHECK(absl::holds_alternative<BValue>(body_result));
 
-  return pb->Build();
+  XLS_ASSIGN_OR_RETURN(Block * block, bb->Build());
+
+  // Verify the ports in the signature match one-to-one to input_ports and
+  // output_ports.
+  absl::flat_hash_set<std::string> port_name_set;
+  std::vector<std::string> port_names;
+  for (const Port& port : signature.ports) {
+    if (port_name_set.contains(port.name)) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Duplicate port name \"%s\"", port.name));
+    }
+    port_name_set.insert(port.name);
+    port_names.push_back(port.name);
+  }
+  absl::flat_hash_map<std::string, Node*> port_nodes;
+  for (Node* node : block->nodes()) {
+    if (node->Is<InputPort>() || node->Is<OutputPort>()) {
+      if (!port_name_set.contains(node->GetName())) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Block signature does not contain port \"%s\"", node->GetName()));
+      }
+      port_nodes[node->GetName()] = node;
+    }
+  }
+
+  for (const Port& port : signature.ports) {
+    if (port.type == nullptr) {
+      if (block->GetClockPort().has_value()) {
+        return absl::InvalidArgumentError("Block has multiple clocks");
+      }
+      XLS_RETURN_IF_ERROR(block->AddClockPort(port.name));
+      continue;
+    }
+    if (!port_nodes.contains(port.name)) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Block port %s has no corresponding input_port or output_port node",
+          port.name));
+    }
+  }
+
+  XLS_RETURN_IF_ERROR(block->ReorderPorts(port_names));
+  return block;
 }
 
 absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {

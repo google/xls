@@ -63,8 +63,8 @@ class Token {
   // Returns the (singleton) set of keyword strings.
   static const absl::flat_hash_set<std::string>& GetKeywords() {
     static auto* keywords = new absl::flat_hash_set<std::string>{
-        "fn",   "bits", "token", "ret",  "package",
-        "proc", "chan", "reg",   "next", "block"};
+        "fn",   "bits", "token", "ret",   "package", "proc",
+        "chan", "reg",  "next",  "block", "clock"};
     return *keywords;
   }
 

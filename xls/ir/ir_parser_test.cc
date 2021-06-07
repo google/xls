@@ -1194,7 +1194,7 @@ proc my_proc(my_token: token, my_state: bits[32], init=42) {
 TEST(IrParserTest, ParseSimpleBlock) {
   const std::string input = R"(package test
 
-block my_block {
+block my_block(a: bits[32], b: bits[32], out: bits[32]) {
   a: bits[32] = input_port(name=a, id=2)
   b: bits[32] = input_port(name=b, id=3)
   add.4: bits[32] = add(a, b, id=4)
@@ -1207,7 +1207,7 @@ block my_block {
 TEST(IrParserTest, ParseBlockWithRegister) {
   const std::string input = R"(package test
 
-block my_block {
+block my_block(in: bits[32], clk: clock, out: bits[32]) {
   reg foo(bits[32])
   in: bits[32] = input_port(name=in, id=1)
   foo_q: bits[32] = register_read(register=foo, id=3)
@@ -1221,7 +1221,7 @@ block my_block {
 TEST(IrParserTest, ParseBlockWithRegisterWithResetValue) {
   const std::string input = R"(package test
 
-block my_block {
+block my_block(clk: clock, in: bits[32], out: bits[32]) {
   reg foo(bits[32], reset_value=42, asynchronous=true, active_low=false)
   in: bits[32] = input_port(name=in, id=1)
   foo_q: bits[32] = register_read(register=foo, id=3)
@@ -1235,7 +1235,7 @@ block my_block {
 TEST(IrParserTest, ParseBlockWithRegisterWithLoadEnable) {
   const std::string input = R"(package test
 
-block my_block {
+block my_block(clk: clock, in: bits[32], le: bits[1], out: bits[32]) {
   reg foo(bits[32])
   in: bits[32] = input_port(name=in, id=1)
   le: bits[1] = input_port(name=le, id=2)
@@ -2284,7 +2284,7 @@ fn foo(a: bits[32]) -> bits[32][3] {
 
 TEST(IrParserTest, BlockWithReturnValue) {
   const std::string input = R"(
-block my_block {
+block my_block(a: bits[32]) {
   ret a: bits[32] = input_port(name=a)
 }
 )";
@@ -2296,7 +2296,7 @@ block my_block {
 
 TEST(IrParserTest, WriteOfNonexistentRegister) {
   const std::string input = R"(
-block my_block {
+block my_block(clk: clock, in: bits[32], out: bits[32]) {
   reg foo(bits[32])
   in: bits[32] = input_port(name=in, id=1)
   foo_d: bits[32] = register_write(in, register=bar, id=2)
@@ -2312,7 +2312,7 @@ block my_block {
 
 TEST(IrParserTest, ReadOfNonexistentRegister) {
   const std::string input = R"(
-block my_block {
+block my_block(clk: clock, in: bits[32], out: bits[32]) {
   reg foo(bits[32])
   in: bits[32] = input_port(name=in, id=1)
   foo_d: bits[32] = register_write(in, register=foo, id=2)
@@ -2328,7 +2328,7 @@ block my_block {
 
 TEST(IrParserTest, ParseBlockWithRegisterWithWrongResetValueType) {
   const std::string input = R"(
-block my_block {
+block my_block(clk: clock, in: bits[32], out: bits[32]) {
   reg foo(bits[32], reset_value=(42, 43))
   in: bits[32] = input_port(name=in, id=1)
   foo_q: bits[32] = register_read(register=foo, id=3)
@@ -2357,7 +2357,7 @@ fn f(foo: bits[32]) -> bits[32] {
 
 TEST(IrParserTest, ParseBlockWithDuplicateRegisters) {
   const std::string input = R"(
-block my_block {
+block my_block(clk: clock, in: bits[32], out: bits[32]) {
   reg foo(bits[32])
   reg foo(bits[32])
   in: bits[32] = input_port(name=in, id=1)
@@ -2374,18 +2374,99 @@ block my_block {
 
 TEST(IrParserTest, ParseBlockWithIncompleteResetDefinition) {
   const std::string input = R"(
-block my_block {
+block my_block(clk: clock, in: bits[32], out: bits[32]) {
   reg foo(bits[32], reset_value=42)
   in: bits[32] = input_port(name=in, id=1)
   foo_q: bits[32] = register_read(register=foo, id=3)
   foo_d: bits[32] = register_write(in, register=foo, id=2)
-  out: bits[32] = output_port(foo_q, name=out, id=4)
+  out: () = output_port(foo_q, name=out, id=4)
 }
 )";
   Package p("my_package");
   EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Register reset incompletely specified")));
+}
+
+TEST(IrParserTest, BlockWithRegistersButNoClock) {
+  const std::string input = R"(
+block my_block(in: bits[32], out: bits[32]) {
+  reg foo(bits[32])
+  in: bits[32] = input_port(name=in, id=1)
+  foo_q: bits[32] = register_read(register=foo, id=3)
+  foo_d: bits[32] = register_write(in, register=foo, id=2)
+  out: () = output_port(foo_q, name=out, id=4)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Block has registers but no clock port")));
+}
+
+TEST(IrParserTest, BlockWithTwoClocks) {
+  const std::string input = R"(
+block my_block(clk1: clock, clk2: clock, in: bits[32], out: bits[32]) {
+  reg foo(bits[32])
+  in: bits[32] = input_port(name=in, id=1)
+  foo_q: bits[32] = register_read(register=foo, id=3)
+  foo_d: bits[32] = register_write(in, register=foo, id=2)
+  out: () = output_port(foo_q, name=out, id=4)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Block has multiple clocks")));
+}
+
+TEST(IrParserTest, BlockWithIncompletePortList) {
+  const std::string input = R"(
+block my_block(clk: clock, in: bits[32]) {
+  reg foo(bits[32])
+  in: bits[32] = input_port(name=in, id=1) foo_q: bits[32] = register_read(register=foo, id=3)
+  foo_d: bits[32] = register_write(in, register=foo, id=2)
+  out: () = output_port(foo_q, name=out, id=4)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(
+      Parser::ParseBlock(input, &p).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Block signature does not contain port \"out\"")));
+}
+
+TEST(IrParserTest, BlockWithExtraPort) {
+  const std::string input = R"(
+block my_block(clk: clock, in: bits[32], out: bits[32], bogus_port: bits[32]) {
+  reg foo(bits[32])
+  in: bits[32] = input_port(name=in, id=1)
+  foo_q: bits[32] = register_read(register=foo, id=3)
+  foo_d: bits[32] = register_write(in, register=foo, id=2)
+  out: () = output_port(foo_q, name=out, id=4)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Block port bogus_port has no corresponding "
+                                 "input_port or output_port node")));
+}
+
+TEST(IrParserTest, BlockWithDuplicatePort) {
+  const std::string input = R"(
+block my_block(clk: clock, in: bits[32], out: bits[32], out: bits[32]) {
+  reg foo(bits[32])
+  in: bits[32] = input_port(name=in, id=1)
+  foo_q: bits[32] = register_read(register=foo, id=3)
+  foo_d: bits[32] = register_write(in, register=foo, id=2)
+  out: () = output_port(foo_q, name=out, id=4)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Duplicate port name \"out\"")));
 }
 
 }  // namespace xls

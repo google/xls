@@ -69,10 +69,19 @@ class Block : public FunctionBase {
       : FunctionBase(name, package) {}
   virtual ~Block() = default;
 
+  // Abstraction describing the clock port.
+  struct ClockPort {
+    std::string name;
+  };
+
+  // Representation of a port of a block. Ports are the interface of the block
+  // and represent ports on a Verilog module.
+  using Port = absl::variant<InputPort*, OutputPort*, ClockPort*>;
+
   // Returns the ports in the block. The ports are returned in the order that
   // they will be emitted in the generated Verilog module. Input and output
   // ports may be arbitrarily ordered.
-  absl::Span<Node* const> GetPorts() const { return ports_; }
+  absl::Span<const Port> GetPorts() const { return ports_; }
 
   // Returns the input/output ports of the block. Ports are ordered by the
   // position in the generated Verilog module.
@@ -88,6 +97,14 @@ class Block : public FunctionBase {
   absl::StatusOr<OutputPort*> AddOutputPort(
       absl::string_view name, Node* operand,
       absl::optional<SourceLocation> loc = absl::nullopt);
+
+  absl::Status AddClockPort(absl::string_view name);
+  absl::optional<ClockPort> GetClockPort() const { return clock_port_; }
+
+  // Re-orders the ports of the block as determined by `port_order`. The order
+  // of the ports in a block determines their order in the emitted verilog
+  // module. `port_names` must include (exactly) the name of every port.
+  absl::Status ReorderPorts(absl::Span<const std::string> port_names);
 
   // Returns all registers in the block in the order they were added.
   absl::Span<Register* const> GetRegisters() const { return register_vec_; }
@@ -117,11 +134,13 @@ class Block : public FunctionBase {
   std::string DumpIr(bool recursive = false) const override;
 
  private:
+  static std::string PortName(const Port& port);
+
   // All ports in the block in the order they appear in the Verilog module.
-  std::vector<Node*> ports_;
+  std::vector<Port> ports_;
 
   // Ports indexed by name.
-  absl::flat_hash_map<std::string, Node*> ports_by_name_;
+  absl::flat_hash_map<std::string, Port> ports_by_name_;
 
   // All input/output ports in the order they appear in the Verilog module.
   std::vector<InputPort*> input_ports_;
@@ -136,6 +155,8 @@ class Block : public FunctionBase {
   // registers. With this vector, deletion of a register is O(n) with the number
   // of registers. If this is a problem, a linked list might be used instead.
   std::vector<Register*> register_vec_;
+
+  absl::optional<ClockPort> clock_port_;
 };
 
 }  // namespace xls

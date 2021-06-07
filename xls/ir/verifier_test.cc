@@ -541,7 +541,7 @@ TEST_F(VerifierTest, SimpleBlock) {
   std::string input = R"(
 package test_package
 
-block my_block {
+block my_block(a: bits[32], b: bits[32], out: bits[32]) {
   a: bits[32] = input_port(name=a)
   b: bits[32] = input_port(name=b)
   sum: bits[32] = add(a, b)

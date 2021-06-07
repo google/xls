@@ -213,23 +213,34 @@ class Parser {
       BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value,
       Package* package);
 
-  // Parses a full function (proc or block) signature, starting after the 'fn'
-  // ('proc' or 'block') keyword.
-  //
-  // Returns the newly created builder and the annotated return type (may be
-  // nullptr) after the opening brace has been popped.
-  //
-  // Note: The builder must be a unique_ptr because it is referred to by pointer
-  // in BValue types.
+  // Parses a function signature, starting after the 'fn' keyword up to and
+  // including the opening brace. Returns the newly created builder and the
+  // annotated return type (may be nullptr) after the opening brace has been
+  // popped.
   absl::StatusOr<std::pair<std::unique_ptr<FunctionBuilder>, Type*>>
   ParseFunctionSignature(
       absl::flat_hash_map<std::string, BValue>* name_to_value,
       Package* package);
+
+  // Parses a proc signature, starting after the 'proc' keyword up to and
+  // including the opening brace. Returns the newly created builder.
   absl::StatusOr<std::unique_ptr<ProcBuilder>> ParseProcSignature(
       absl::flat_hash_map<std::string, BValue>* name_to_value,
       Package* package);
-  absl::StatusOr<std::unique_ptr<BlockBuilder>> ParseBlockSignature(
-      Package* package);
+
+  // Parses a block signature, starting after the 'block' keyword up to and
+  // including the opening brace. Returns the newly created builder along with
+  // information about the ports. The order of the returned Ports corresponds to
+  // the order within the block.
+  struct Port {
+    std::string name;
+    Type* type;
+  };
+  struct BlockSignature {
+    std::string block_name;
+    std::vector<Port> ports;
+  };
+  absl::StatusOr<BlockSignature> ParseBlockSignature(Package* package);
 
   // Pops the package name out of the scanner, of the form:
   //

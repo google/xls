@@ -16,6 +16,7 @@
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
@@ -28,7 +29,23 @@ std::string Block::DumpIr(bool recursive) const {
   // level.
   XLS_CHECK(!recursive);
 
-  std::string res = absl::StrFormat("block %s {\n", name());
+  std::vector<std::string> port_strings;
+  for (const Port& port : GetPorts()) {
+    if (absl::holds_alternative<ClockPort*>(port)) {
+      port_strings.push_back(
+          absl::StrFormat("%s: clock", absl::get<ClockPort*>(port)->name));
+    } else if (absl::holds_alternative<InputPort*>(port)) {
+      port_strings.push_back(
+          absl::StrFormat("%s: %s", absl::get<InputPort*>(port)->GetName(),
+                          absl::get<InputPort*>(port)->GetType()->ToString()));
+    } else {
+      port_strings.push_back(absl::StrFormat(
+          "%s: %s", absl::get<OutputPort*>(port)->GetName(),
+          absl::get<OutputPort*>(port)->operand(0)->GetType()->ToString()));
+    }
+  }
+  std::string res = absl::StrFormat("block %s(%s) {\n", name(),
+                                    absl::StrJoin(port_strings, ", "));
 
   for (Register* reg : GetRegisters()) {
     if (reg->reset().has_value()) {
@@ -137,6 +154,48 @@ absl::StatusOr<Register*> Block::GetRegister(absl::string_view name) const {
         "Block %s has no register named %s", this->name(), name));
   }
   return registers_.at(name).get();
+}
+
+absl::Status Block::AddClockPort(absl::string_view name) {
+  if (clock_port_.has_value()) {
+    return absl::InternalError("Block already has clock");
+  }
+  if (ports_by_name_.contains(name)) {
+    return absl::InternalError(
+        absl::StrFormat("Block already has a port named %s", name));
+  }
+  clock_port_ = ClockPort{std::string(name)};
+  ports_.push_back(&clock_port_.value());
+  return absl::OkStatus();
+}
+
+absl::Status Block::ReorderPorts(absl::Span<const std::string> port_names) {
+  absl::flat_hash_map<std::string, int64_t> port_order;
+  for (int64_t i = 0; i < port_names.size(); ++i) {
+    port_order[port_names[i]] = i;
+  }
+  XLS_RET_CHECK_EQ(port_order.size(), port_names.size())
+      << "Port order has duplicate names";
+  for (const Port& port : GetPorts()) {
+    XLS_RET_CHECK(port_order.contains(PortName(port)))
+        << absl::StreamFormat("Port order missing port \"%s\"", PortName(port));
+  }
+  XLS_RET_CHECK_EQ(port_order.size(), GetPorts().size())
+      << "Port order includes invalid port names";
+  std::sort(ports_.begin(), ports_.end(), [&](const Port& a, const Port& b) {
+    return port_order.at(PortName(a)) < port_order.at(PortName(b));
+  });
+  return absl::OkStatus();
+}
+
+/*static*/ std::string Block::PortName(const Port& port) {
+  if (absl::holds_alternative<ClockPort*>(port)) {
+    return absl::get<ClockPort*>(port)->name;
+  } else if (absl::holds_alternative<InputPort*>(port)) {
+    return absl::get<InputPort*>(port)->GetName();
+  } else {
+    return absl::get<OutputPort*>(port)->GetName();
+  }
 }
 
 }  // namespace xls
