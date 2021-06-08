@@ -1384,6 +1384,48 @@ fn main(x: u32, y: u32) {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, PublicFnGetsTokenWrapper) {
+  const std::string kProgram = R"(
+fn callee_callee(x:u32) -> u32 {
+  let _ = fail!(x > u32:3);
+  x
+}
+
+pub fn main(x:u32) -> u32 {
+  callee_callee(x)
+}
+
+fn callee(x:u32) -> u32 {
+  main(x)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram, kFailNoPos));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, NonpublicFnDoesNotGetTokenWrapper) {
+  const std::string kProgram = R"(
+fn callee_callee(x:u32) -> u32 {
+  let _ = fail!(x > u32:3);
+  x
+}
+
+fn main(x:u32) -> u32 {
+  callee_callee(x)
+}
+
+fn callee(x:u32) -> u32 {
+  main(x)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram, kFailNoPos));
+  ExpectIr(converted, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx
 

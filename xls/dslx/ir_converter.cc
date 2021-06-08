@@ -45,6 +45,7 @@ namespace {
 struct PackageData {
   Package* package;
   absl::flat_hash_map<xls::Function*, dslx::Function*> ir_to_dslx;
+  absl::flat_hash_set<xls::Function*> wrappers;
 };
 
 // Returns a status that indicates an error in the IR conversion process.
@@ -1979,7 +1980,7 @@ absl::Status FunctionConverter::AddImplicitTokenParams() {
 // The wrapped function exposes the implicit token function as if it were a
 // normal function, so it can be called by the outside world in a typical
 // fashion as an entry point (e.g. the IR JIT, Verilog module signature, etc).
-static absl::Status EmitImplicitTokenEntryWrapper(
+static absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
     xls::Function* implicit_token_f, dslx::Function* dslx_function) {
   XLS_RET_CHECK_GE(implicit_token_f->params().size(), 2);
   XLS_ASSIGN_OR_RETURN(
@@ -2006,7 +2007,7 @@ static absl::Status EmitImplicitTokenEntryWrapper(
   BValue wrapped_result = fb.Invoke(args, implicit_token_f);
   XLS_RET_CHECK(wrapped_result.GetType()->IsTuple());
   BValue result = fb.TupleIndex(wrapped_result, 1);
-  return fb.BuildWithReturnValue(result).status();
+  return fb.BuildWithReturnValue(result);
 }
 
 // As a postprocessing step for converting a module to a package, we check and
@@ -2026,9 +2027,14 @@ static absl::Status WrapEntryIfImplicitToken(const PackageData& package_data,
   }
 
   xls::Function* entry = entry_or.value();
+  if (package_data.wrappers.contains(entry)) {
+    // Already created!
+    return absl::OkStatus();
+  }
+
   dslx::Function* dslx_entry = package_data.ir_to_dslx.at(entry);
   if (GetRequiresImplicitToken(dslx_entry, import_data, options)) {
-    return EmitImplicitTokenEntryWrapper(entry, dslx_entry);
+    return EmitImplicitTokenEntryWrapper(entry, dslx_entry).status();
   }
   return absl::OkStatus();
 }
@@ -2132,7 +2138,9 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
   // outside world, since they're driven and named by DSL instantiation, so we
   // forgo exposing them here.
   if (requires_implicit_token && node->is_public() && !node->IsParametric()) {
-    XLS_RETURN_IF_ERROR(EmitImplicitTokenEntryWrapper(f, node));
+    XLS_ASSIGN_OR_RETURN(xls::Function * wrapper,
+                         EmitImplicitTokenEntryWrapper(f, node));
+    package_data_.wrappers.insert(wrapper);
   }
 
   package_data_.ir_to_dslx[f] = node;
