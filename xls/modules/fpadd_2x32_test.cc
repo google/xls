@@ -27,6 +27,7 @@
 #include "xls/ir/value_view_helpers.h"
 #include "xls/modules/fpadd_2x32_jit_wrapper.h"
 #include "xls/tools/testbench.h"
+#include "xls/tools/testbench_builder.h"
 
 ABSL_FLAG(int, num_threads, 0,
           "Number of threads to use. Set to 0 to use all.");
@@ -37,20 +38,12 @@ namespace xls {
 
 using Float2x32 = std::tuple<float, float>;
 
-// Generates two floats with reasonably unformly random bit patterns.
-Float2x32 IndexToInput(uint64_t index) {
-  thread_local absl::BitGen bitgen;
-  uint32_t a = absl::Uniform(bitgen, 0u, std::numeric_limits<uint32_t>::max());
-  uint32_t b = absl::Uniform(bitgen, 0u, std::numeric_limits<uint32_t>::max());
-  return Float2x32(absl::bit_cast<float>(a), absl::bit_cast<float>(b));
-}
-
 // The DSLX implementation uses the "round to nearest (half to even)"
 // rounding mode, which is the default on most systems, hence we don't need
 // to call fesetround().
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
-float ComputeExpected(Float2x32 input) {
+float ComputeExpected(Fpadd2x32* jit_wrapper, Float2x32 input) {
   float x = FlushSubnormal(std::get<0>(input));
   float y = FlushSubnormal(std::get<1>(input));
   return x + y;
@@ -69,25 +62,16 @@ bool CompareResults(float a, float b) {
          (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
 }
 
-void LogMismatch(uint64_t index, Float2x32 input, float actual,
-                 float expected) {
-  XLS_LOG(ERROR) << absl::StrFormat(
-      "Value mismatch at index %d, input (%f, %f):\n"
-      "  Expected: 0x%x\n"
-      "  Actual  : 0x%x",
-      index, std::get<0>(input), std::get<1>(input),
-      absl::bit_cast<uint32_t>(expected), absl::bit_cast<uint32_t>(actual));
-}
+std::unique_ptr<Fpadd2x32> CreateJit() { return Fpadd2x32::Create().value(); }
 
 absl::Status RealMain(uint64_t num_samples, int num_threads) {
-  Testbench<Fpadd2x32, Float2x32, float> testbench(
-      0, num_samples,
-      /*max_failures=*/1, IndexToInput, ComputeExpected, ComputeActual,
-      CompareResults, LogMismatch);
+  TestbenchBuilder<Float2x32, float, Fpadd2x32> builder(
+      ComputeExpected, ComputeActual, CreateJit);
+  builder.SetCompareResultsFn(CompareResults).SetNumSamples(num_samples);
   if (num_threads != 0) {
-    XLS_RETURN_IF_ERROR(testbench.SetNumThreads(num_threads));
+    builder.SetNumThreads(num_threads);
   }
-  return testbench.Run();
+  return builder.Build().Run();
 }
 
 }  // namespace xls

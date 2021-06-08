@@ -961,6 +961,8 @@ cc_test(
         ":big_int",
         ":bits",
         "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/tools:testbench_builder",
         "@com_google_googletest//:gtest",
     ],
 )

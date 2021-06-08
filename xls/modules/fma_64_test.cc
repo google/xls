@@ -23,6 +23,7 @@
 #include "xls/common/math_util.h"
 #include "xls/modules/fma_64_jit_wrapper.h"
 #include "xls/tools/testbench.h"
+#include "xls/tools/testbench_builder.h"
 
 ABSL_FLAG(int, num_threads, 0,
           "Number of threads to use. Set to 0 to use all available.");
@@ -57,7 +58,7 @@ Float3x64 IndexToInput(uint64_t index) {
                    absl::bit_cast<double>(c));
 }
 
-double ComputeExpected(Float3x64 input) {
+double ComputeExpected(Fma64* jit_wrapper, Float3x64 input) {
   return fma(std::get<0>(input), std::get<1>(input), std::get<2>(input));
 }
 
@@ -74,35 +75,33 @@ bool CompareResults(double a, double b) {
          (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
 }
 
-void LogMismatch(uint64_t index, Float3x64 input, double expected,
-                 double actual) {
-  uint64_t a_int = absl::bit_cast<uint64_t>(std::get<0>(input));
-  uint64_t b_int = absl::bit_cast<uint64_t>(std::get<1>(input));
-  uint64_t c_int = absl::bit_cast<uint64_t>(std::get<2>(input));
-  uint64_t exp_int = absl::bit_cast<uint64_t>(expected);
-  uint64_t act_int = absl::bit_cast<uint64_t>(actual);
-  XLS_LOG(ERROR) << absl::StrFormat(
-      "Value mismatch at index %d, input: \n"
-      "  A       : 0x%016x (0x%01x, 0x%03x, 0x%013x)\n"
-      "  B       : 0x%016x (0x%01x, 0x%03x, 0x%013x)\n"
-      "  C       : 0x%016x (0x%01x, 0x%03x, 0x%013x)\n"
-      "  Expected: 0x%016x (0x%01x, 0x%03x, 0x%013x)\n"
-      "  Actual  : 0x%016x (0x%01x, 0x%03x, 0x%013x)",
-      index, a_int, fp_sign(a_int), fp_exp(a_int), fp_sfd(a_int), b_int,
-      fp_sign(b_int), fp_exp(b_int), fp_sfd(b_int), c_int, fp_sign(c_int),
-      fp_exp(c_int), fp_sfd(c_int), exp_int, fp_sign(exp_int), fp_exp(exp_int),
-      fp_sfd(exp_int), act_int, fp_sign(act_int), fp_exp(act_int),
-      fp_sfd(act_int));
+std::string PrintDouble(double a) {
+  uint64_t a_int = absl::bit_cast<uint64_t>(a);
+  return absl::StrFormat("0x%016x (0x%01x, 0x%03x, 0x%013x)", a_int,
+                         fp_sign(a_int), fp_exp(a_int), fp_sfd(a_int));
+}
+
+std::string PrintInput(const Float3x64& input) {
+  return absl::StrFormat(
+      "  A       : %s\n"
+      "  B       : %s\n"
+      "  C       : %s",
+      PrintDouble(std::get<0>(input)), PrintDouble(std::get<1>(input)),
+      PrintDouble(std::get<2>(input)));
 }
 
 absl::Status RealMain(int64_t num_samples, int num_threads) {
-  Testbench<Fma64, Float3x64, double> testbench(
-      0, num_samples, /*max_failures=*/1, IndexToInput, ComputeExpected,
-      ComputeActual, CompareResults, LogMismatch);
+  TestbenchBuilder<Float3x64, double, Fma64> builder(
+      ComputeExpected, ComputeActual, []() { return Fma64::Create().value(); });
+  builder.SetCompareResultsFn(CompareResults)
+      .SetIndexToInputFn(IndexToInput)
+      .SetPrintInputFn(PrintInput)
+      .SetPrintResultFn(PrintDouble)
+      .SetNumSamples(num_samples);
   if (num_threads != 0) {
-    XLS_RETURN_IF_ERROR(testbench.SetNumThreads(num_threads));
+    builder.SetNumThreads(num_threads);
   }
-  return testbench.Run();
+  return builder.Build().Run();
 }
 
 }  // namespace xls

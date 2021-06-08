@@ -82,7 +82,7 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/ir:value_helpers",
         "//xls/ir:value_view_helpers",
-        "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
     ],
 )
 
@@ -138,7 +138,7 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/ir:value_helpers",
         "//xls/ir:value_view_helpers",
-        "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
     ],
 )
 
@@ -189,7 +189,7 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/ir:value_helpers",
         "//xls/ir:value_view_helpers",
-        "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
     ],
 )
 
@@ -238,6 +238,6 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/ir:value_helpers",
         "//xls/ir:value_view_helpers",
-        "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
     ],
 )

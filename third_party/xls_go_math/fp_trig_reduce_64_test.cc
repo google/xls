@@ -17,7 +17,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/ir/value_view_helpers.h"
-#include "xls/tools/testbench.h"
+#include "xls/tools/testbench_builder.h"
 #include "third_party/xls_go_math/fp_trig_reduce_jit_wrapper.h"
 
 ABSL_FLAG(bool, use_opt_ir, true, "Use optimized IR.");
@@ -75,7 +75,7 @@ double IndexToInput(uint64_t index) {
   return a;
 }
 
-ResultT ComputeExpected(double x) {
+ResultT ComputeExpected(FpTrigReduce* jit_wrapper, double x) {
   // Bits of 4/Pi.
   constexpr uint64_t MPI4[] = {
       0x0000000000000001, 0x45f306dc9c882a53, 0xf84eafa3ea69bb81,
@@ -187,27 +187,18 @@ bool CompareResults(ResultT a, ResultT b) {
   return ((a.j & 7) == (b.j & 7)) && (a.fraction == b.fraction);
 }
 
-void LogMismatch(uint64_t index, double input, ResultT expected,
-                 ResultT actual) {
-  XLS_LOG(ERROR) << absl::StrFormat(
-      "Value mismatch at index %d, input (%#08x)==%lf:\n"
-      "  Actual: %d, %#08x\n"
-      "  Expected: %d, %#08x\n",
-      index, absl::bit_cast<uint64_t>(input), input, actual.j,
-      absl::bit_cast<uint64_t>(actual.fraction), expected.j,
-      absl::bit_cast<uint64_t>(expected.fraction));
-  std::stringstream str;
-}
-
 absl::Status RealMain(bool use_opt_ir, uint64_t num_samples, int num_threads) {
-  Testbench<FpTrigReduce, double, ResultT> testbench(
-      0, num_samples,
-      /*max_failures=*/1, IndexToInput, ComputeExpected, ComputeActual,
-      CompareResults, LogMismatch);
+  TestbenchBuilder<double, ResultT, FpTrigReduce> builder(
+      ComputeExpected, ComputeActual,
+      []() { return FpTrigReduce::Create().value(); });
+  builder.SetIndexToInputFn(IndexToInput).SetCompareResultsFn(CompareResults);
   if (num_threads != 0) {
-    XLS_RETURN_IF_ERROR(testbench.SetNumThreads(num_threads));
+    builder.SetNumThreads(num_threads);
   }
-  return testbench.Run();
+  if (num_samples != 0) {
+    builder.SetNumSamples(num_samples);
+  }
+  return builder.Build().Run();
 }
 
 }  // namespace xls

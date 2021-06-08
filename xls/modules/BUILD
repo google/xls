@@ -105,6 +105,7 @@ cc_test(
         "//xls/common:math_util",
         "//xls/common/logging",
         "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
     ],
 )
 
@@ -153,6 +154,7 @@ cc_test(
         "//xls/common:math_util",
         "//xls/common/logging",
         "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
     ],
 )
 
@@ -289,6 +291,7 @@ cc_test(
         "//xls/ir:value_helpers",
         "//xls/ir:value_view_helpers",
         "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
     ],
 )
 
@@ -331,6 +334,7 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":fpadd_2x64_jit_wrapper",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:init_xls",
@@ -341,6 +345,7 @@ cc_test(
         "//xls/ir:value_helpers",
         "//xls/ir:value_view_helpers",
         "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
     ],
 )
 
@@ -404,6 +409,7 @@ cc_test(
         "//xls/ir:value_helpers",
         "//xls/ir:value_view_helpers",
         "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
     ],
 )
 
@@ -457,6 +463,7 @@ cc_test(
         "//xls/ir:value_helpers",
         "//xls/ir:value_view_helpers",
         "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
     ],
 )
 
@@ -518,6 +525,7 @@ cc_test(
         "//xls/ir:value_helpers",
         "//xls/ir:value_view_helpers",
         "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
     ],
 )
 
@@ -581,6 +589,7 @@ cc_test(
         "//xls/ir:value_helpers",
         "//xls/ir:value_view_helpers",
         "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
     ],
 )
 

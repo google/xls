@@ -29,8 +29,7 @@
 
 namespace xls {
 
-template <typename JitWrapperT, typename InputT, typename ResultT,
-          typename ShardDataT>
+template <typename InputT, typename ResultT, typename ShardDataT>
 class TestbenchThreadBase;
 
 // TestbenchThread handles the work of _actually_ running tests.
@@ -41,10 +40,10 @@ class TestbenchThreadBase;
 // without per-shard data, and uses the same type of construct to expose an API
 // without dummy fields for the non-shard-data case. First, the with-shard-data
 // implementation:
-template <typename JitWrapperT, typename InputT, typename ResultT,
-          typename ShardDataT = void, typename Enable = void>
+template <typename InputT, typename ResultT, typename ShardDataT = void,
+          typename Enable = void>
 class TestbenchThread
-    : public TestbenchThreadBase<JitWrapperT, InputT, ResultT, ShardDataT> {
+    : public TestbenchThreadBase<InputT, ResultT, ShardDataT> {
  public:
   // All specified functions must be thread-safe.
   //  - wake_parent_mutex: A mutex that protects:
@@ -62,10 +61,10 @@ class TestbenchThread
       std::function<InputT(uint64_t)> index_to_input,
       std::function<std::unique_ptr<ShardDataT>()> create_shard,
       std::function<ResultT(ShardDataT*, InputT)> generate_expected,
-      std::function<ResultT(JitWrapperT*, ShardDataT*, InputT)> generate_actual,
+      std::function<ResultT(ShardDataT*, InputT)> generate_actual,
       std::function<bool(ResultT, ResultT)> compare_results,
       std::function<void(int64_t, InputT, ResultT, ResultT)> log_errors)
-      : TestbenchThreadBase<JitWrapperT, InputT, ResultT, ShardDataT>(
+      : TestbenchThreadBase<InputT, ResultT, ShardDataT>(
             wake_parent_mutex, wake_parent, start_index, end_index,
             max_failures, index_to_input, compare_results, log_errors),
         shard_data_(create_shard()),
@@ -76,34 +75,32 @@ class TestbenchThread
     };
 
     this->generate_actual_fn_ = [this](InputT& input) {
-      return generate_actual_(this->jit_wrapper_.get(), shard_data_.get(),
-                              input);
+      return generate_actual_(shard_data_.get(), input);
     };
   }
 
  private:
-  std::function<ResultT(ShardDataT*, InputT)> generate_expected_;
-  std::function<ResultT(JitWrapperT*, ShardDataT*, InputT)> generate_actual_;
   std::unique_ptr<ShardDataT> shard_data_;
+  std::function<ResultT(ShardDataT*, InputT)> generate_expected_;
+  std::function<ResultT(ShardDataT*, InputT)> generate_actual_;
 };
 
 // And the without-shard-data case.
-template <typename JitWrapperT, typename InputT, typename ResultT,
-          typename ShardDataT>
+template <typename InputT, typename ResultT, typename ShardDataT>
 class TestbenchThread<
-    JitWrapperT, InputT, ResultT, ShardDataT,
+    InputT, ResultT, ShardDataT,
     typename std::enable_if<std::is_void<ShardDataT>::value>::type>
-    : public TestbenchThreadBase<JitWrapperT, InputT, ResultT, ShardDataT> {
+    : public TestbenchThreadBase<InputT, ResultT, ShardDataT> {
  public:
   TestbenchThread(
       absl::Mutex* wake_parent_mutex, absl::CondVar* wake_parent,
       uint64_t start_index, uint64_t end_index, uint64_t max_failures,
       std::function<InputT(uint64_t)> index_to_input,
       std::function<ResultT(InputT)> generate_expected,
-      std::function<ResultT(JitWrapperT*, InputT)> generate_actual,
+      std::function<ResultT(InputT)> generate_actual,
       std::function<bool(ResultT, ResultT)> compare_results,
       std::function<void(int64_t, InputT, ResultT, ResultT)> log_errors)
-      : TestbenchThreadBase<JitWrapperT, InputT, ResultT, ShardDataT>(
+      : TestbenchThreadBase<InputT, ResultT, ShardDataT>(
             wake_parent_mutex, wake_parent, start_index, end_index,
             max_failures, index_to_input, compare_results, log_errors),
         generate_expected_(generate_expected),
@@ -113,19 +110,19 @@ class TestbenchThread<
     };
 
     this->generate_actual_fn_ = [this](InputT& input) {
-      return generate_actual_(this->jit_wrapper_.get(), input);
+      // return generate_actual_(this->jit_wrapper_.get(), input);
+      return generate_actual_(input);
     };
   }
 
  private:
   std::function<ResultT(InputT)> generate_expected_;
-  std::function<ResultT(JitWrapperT*, InputT)> generate_actual_;
+  std::function<ResultT(InputT)> generate_actual_;
 };
 
 // Common backing implementation for both TestbenchThread templates. All the
 // work is done here except for dispatching the result generation functions.
-template <typename JitWrapperT, typename InputT, typename ResultT,
-          typename ShardDataT>
+template <typename InputT, typename ResultT, typename ShardDataT>
 class TestbenchThreadBase {
  public:
   TestbenchThreadBase(
@@ -162,11 +159,6 @@ class TestbenchThreadBase {
     if (cancelled_.load()) {
       return;
     }
-
-    absl::StatusOr<std::unique_ptr<JitWrapperT>> status_or_wrapper =
-        JitWrapperT::Create();
-    XLS_CHECK_OK(status_or_wrapper.status());
-    jit_wrapper_ = std::move(status_or_wrapper.value());
 
     running_.store(true);
     for (uint64_t i = start_index_; i < end_index_; i++) {
@@ -256,7 +248,7 @@ class TestbenchThreadBase {
   std::string ir_text_;
   std::string entry_fn_;
   std::unique_ptr<Package> package_;
-  std::unique_ptr<JitWrapperT> jit_wrapper_;
+  // std::unique_ptr<JitWrapperT> jit_wrapper_;
 
   std::unique_ptr<Thread> thread_;
 };

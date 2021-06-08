@@ -27,8 +27,8 @@
 #include "xls/ir/value_view_helpers.h"
 #include "xls/modules/fpldexp_32_jit_wrapper.h"
 #include "xls/tools/testbench.h"
+#include "xls/tools/testbench_builder.h"
 
-ABSL_FLAG(bool, use_opt_ir, true, "Use optimized IR.");
 ABSL_FLAG(int, num_threads, 0,
           "Number of threads to use. Set to 0 to use all.");
 ABSL_FLAG(int64_t, num_samples, 1024 * 1024,
@@ -51,7 +51,7 @@ Float32xint IndexToInput(uint64_t index) {
 // to call fesetround().
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
-float ComputeExpected(Float32xint input) {
+float ComputeExpected(Fpldexp32* jit_wrapper, Float32xint input) {
   float fraction = FlushSubnormal(std::get<0>(input));
   int exp = std::get<1>(input);
   return FlushSubnormal(ldexpf(fraction, exp));
@@ -82,23 +82,22 @@ void LogMismatch(uint64_t index, Float32xint input, float expected,
       absl::bit_cast<uint32_t>(expected), absl::bit_cast<uint32_t>(actual));
 }
 
-absl::Status RealMain(bool use_opt_ir, uint64_t num_samples, int num_threads) {
-  Testbench<Fpldexp32, Float32xint, float> testbench(
-      0, num_samples,
-      /*max_failures=*/1, IndexToInput, ComputeExpected, ComputeActual,
-      CompareResults, LogMismatch);
+absl::Status RealMain(uint64_t num_samples, int num_threads) {
+  TestbenchBuilder<Float32xint, float, Fpldexp32> builder(
+      ComputeExpected, ComputeActual,
+      []() { return Fpldexp32::Create().value(); });
+  builder.SetCompareResultsFn(CompareResults).SetNumSamples(num_samples);
   if (num_threads != 0) {
-    XLS_RETURN_IF_ERROR(testbench.SetNumThreads(num_threads));
+    builder.SetNumThreads(num_threads);
   }
-  return testbench.Run();
+  return builder.Build().Run();
 }
 
 }  // namespace xls
 
 int main(int argc, char** argv) {
   xls::InitXls(argv[0], argc, argv);
-  XLS_QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_use_opt_ir),
-                              absl::GetFlag(FLAGS_num_samples),
+  XLS_QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_num_samples),
                               absl::GetFlag(FLAGS_num_threads)));
   return 0;
 }

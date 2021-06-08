@@ -42,8 +42,7 @@ namespace xls {
 
 namespace internal {
 // Forward decl of common Testbench base class.
-template <typename JitWrapperT, typename InputT, typename ResultT,
-          typename ShardDataT>
+template <typename InputT, typename ResultT, typename ShardDataT>
 class TestbenchBase;
 }  // namespace internal
 
@@ -52,10 +51,9 @@ class TestbenchBase;
 // the presence of the last "ShardDataT" template type parameter. The only real
 // difference is the signatures exposed - this implementation has an extra
 // ShardDataT parameter on its creation command.
-template <typename JitWrapperT, typename InputT, typename ResultT,
-          typename ShardDataT = void, typename EnableT = void>
-class Testbench
-    : public internal::TestbenchBase<JitWrapperT, InputT, ResultT, ShardDataT> {
+template <typename InputT, typename ResultT, typename ShardDataT = void,
+          typename EnableT = void>
+class Testbench : public internal::TestbenchBase<InputT, ResultT, ShardDataT> {
  public:
   // Args:
   //   start, end: The bounds of the space to evaluate, as [start, end).
@@ -67,29 +65,28 @@ class Testbench
   //     isn't directly used internally all - it's just a convenience to avoid
   //     the need to heap allocate on every iteration.
   //   compare_results: Should return true if both ResultTs (expected & actual)
-  //                     are considered equivalent.
+  //                    are considered equivalent.
   // These lambdas return pure InputTs and ResultTs instead of wrapping them in
   // StatusOrs so we don't pay that tax on every iteration. If our algorithms
   // die, we should fix that before evaluating for correctness (since any
   // changes might affect results).
   // All lambdas must be thread-safe.
-  Testbench(
-      uint64_t start, uint64_t end, uint64_t max_failures,
-      std::function<InputT(uint64_t)> index_to_input,
-      std::function<std::unique_ptr<ShardDataT>()> create_shard,
-      std::function<ResultT(ShardDataT*, InputT)> compute_expected,
-      std::function<ResultT(JitWrapperT*, ShardDataT*, InputT)> compute_actual,
-      std::function<bool(ResultT, ResultT)> compare_results,
-      std::function<void(int64_t, InputT, ResultT, ResultT)> log_errors)
-      : internal::TestbenchBase<JitWrapperT, InputT, ResultT, ShardDataT>(
-            start, end, max_failures, index_to_input, compare_results,
-            log_errors),
+  Testbench(uint64_t start, uint64_t end, int64_t num_threads,
+            uint64_t max_failures,
+            std::function<InputT(uint64_t)> index_to_input,
+            std::function<std::unique_ptr<ShardDataT>()> create_shard,
+            std::function<ResultT(ShardDataT*, InputT)> compute_expected,
+            std::function<ResultT(ShardDataT*, InputT)> compute_actual,
+            std::function<bool(ResultT, ResultT)> compare_results,
+            std::function<void(int64_t, InputT, ResultT, ResultT)> log_errors)
+      : internal::TestbenchBase<InputT, ResultT, ShardDataT>(
+            start, end, num_threads, max_failures, index_to_input,
+            compare_results, log_errors),
         create_shard_(create_shard),
         compute_expected_(compute_expected),
         compute_actual_(compute_actual) {
     this->thread_create_fn_ = [this](uint64_t start, uint64_t end) {
-      return std::make_unique<
-          TestbenchThread<JitWrapperT, InputT, ResultT, ShardDataT>>(
+      return std::make_unique<TestbenchThread<InputT, ResultT, ShardDataT>>(
           &this->mutex_, &this->wake_me_, start, end, this->max_failures_,
           this->index_to_input_, create_shard_, compute_expected_,
           compute_actual_, this->compare_results_, this->log_errors_);
@@ -99,30 +96,29 @@ class Testbench
  private:
   std::function<std::unique_ptr<ShardDataT>()> create_shard_;
   std::function<ResultT(ShardDataT*, InputT)> compute_expected_;
-  std::function<ResultT(JitWrapperT*, ShardDataT*, InputT)> compute_actual_;
+  std::function<ResultT(ShardDataT*, InputT)> compute_actual_;
 };
 
 // Shard-data-less implementation.
-template <typename JitWrapperT, typename InputT, typename ResultT,
-          typename ShardDataT>
-class Testbench<JitWrapperT, InputT, ResultT, ShardDataT,
+template <typename InputT, typename ResultT, typename ShardDataT>
+class Testbench<InputT, ResultT, ShardDataT,
                 typename std::enable_if<std::is_void<ShardDataT>::value>::type>
-    : public internal::TestbenchBase<JitWrapperT, InputT, ResultT, ShardDataT> {
+    : public internal::TestbenchBase<InputT, ResultT, ShardDataT> {
  public:
-  Testbench(uint64_t start, uint64_t end, uint64_t max_failures,
+  Testbench(uint64_t start, uint64_t end, int64_t num_threads,
+            uint64_t max_failures,
             std::function<InputT(uint64_t)> index_to_input,
             std::function<ResultT(InputT)> compute_expected,
-            std::function<ResultT(JitWrapperT*, InputT)> compute_actual,
+            std::function<ResultT(InputT)> compute_actual,
             std::function<bool(ResultT, ResultT)> compare_results,
             std::function<void(int64_t, InputT, ResultT, ResultT)> log_errors)
-      : internal::TestbenchBase<JitWrapperT, InputT, ResultT, ShardDataT>(
-            start, end, max_failures, index_to_input, compare_results,
-            log_errors),
+      : internal::TestbenchBase<InputT, ResultT, ShardDataT>(
+            start, end, num_threads, max_failures, index_to_input,
+            compare_results, log_errors),
         compute_expected_(compute_expected),
         compute_actual_(compute_actual) {
     this->thread_create_fn_ = [this](uint64_t start, uint64_t end) {
-      return std::make_unique<
-          TestbenchThread<JitWrapperT, InputT, ResultT, ShardDataT>>(
+      return std::make_unique<TestbenchThread<InputT, ResultT, ShardDataT>>(
           &this->mutex_, &this->wake_me_, start, end, this->max_failures_,
           this->index_to_input_, compute_expected_, compute_actual_,
           this->compare_results_, this->log_errors_);
@@ -131,7 +127,7 @@ class Testbench<JitWrapperT, InputT, ResultT, ShardDataT,
 
  private:
   std::function<ResultT(InputT)> compute_expected_;
-  std::function<ResultT(JitWrapperT*, InputT)> compute_actual_;
+  std::function<ResultT(InputT)> compute_actual_;
 };
 
 // INTERNAL IMPL ---------------------------------
@@ -139,17 +135,16 @@ namespace internal {
 
 // This common base class implements the _real_ logic: spawning runner threads
 // and monitoring the results.
-template <typename JitWrapperT, typename InputT, typename ResultT,
-          typename ShardDataT>
+template <typename InputT, typename ResultT, typename ShardDataT>
 class TestbenchBase {
  public:
   TestbenchBase(
-      uint64_t start, uint64_t end, uint64_t max_failures,
+      uint64_t start, uint64_t end, uint64_t num_threads, uint64_t max_failures,
       std::function<InputT(uint64_t)> index_to_input,
       std::function<bool(ResultT, ResultT)> compare_results,
       std::function<void(int64_t, InputT, ResultT, ResultT)> log_errors)
       : started_(false),
-        num_threads_(std::thread::hardware_concurrency()),
+        num_threads_(num_threads),
         start_(start),
         end_(end),
         max_failures_(max_failures),
@@ -312,7 +307,7 @@ class TestbenchBase {
   std::function<bool(ResultT, ResultT)> compare_results_;
   std::function<void(int64_t, InputT, ResultT, ResultT)> log_errors_;
 
-  using ThreadT = TestbenchThread<JitWrapperT, InputT, ResultT, ShardDataT>;
+  using ThreadT = TestbenchThread<InputT, ResultT, ShardDataT>;
   std::function<std::unique_ptr<ThreadT>(uint64_t, uint64_t)> thread_create_fn_;
   std::vector<std::unique_ptr<ThreadT>> threads_;
 

@@ -357,6 +357,29 @@ cc_library(
 )
 
 cc_library(
+    name = "testbench_builder",
+    hdrs = ["testbench_builder.h"],
+    deps = [
+        ":testbench",
+        ":testbench_builder_helpers",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_library(
+    name = "testbench_builder_helpers",
+    hdrs = ["testbench_builder_helpers.h"],
+    deps = [
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/random:distributions",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/logging",
+    ],
+)
+
+cc_library(
     name = "testbench_thread",
     hdrs = ["testbench_thread.h"],
     deps = [

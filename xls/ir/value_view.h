@@ -164,7 +164,7 @@ class TupleView {
 
   // ---- Element type access.
   // Metaprogramming horrors to get the type of the N'th element.
-  // Recursive case - keep drilling down until the element of interst.
+  // Recursive case - keep drilling down until the element of interest.
   template <int kElementIndex, typename FrontT, typename... Rest>
   struct element_accessor<kElementIndex, FrontT, Rest...>
       : element_accessor<kElementIndex - 1, Rest...> {};
