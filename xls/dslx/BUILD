@@ -54,6 +54,41 @@ py_test(
 )
 
 cc_library(
+    name = "cpp_transpiler",
+    srcs = ["cpp_transpiler.cc"],
+    hdrs = ["cpp_transpiler.h"],
+    deps = [
+        ":ast",
+        ":import_data",
+        ":interpreter",
+        ":type_info",
+        ":typecheck",
+        "//xls/common:case_converters",
+        "//xls/common:visitor",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "cpp_transpiler_test",
+    srcs = ["cpp_transpiler_test.cc"],
+    deps = [
+        ":ast",
+        ":cpp_transpiler",
+        ":import_data",
+        ":parse_and_typecheck",
+        ":type_info",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "symbolic_bindings",
     srcs = ["symbolic_bindings.cc"],
     hdrs = ["symbolic_bindings.h"],

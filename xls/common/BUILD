@@ -48,6 +48,15 @@ cc_test(
 )
 
 cc_library(
+    name = "case_converters",
+    srcs = ["case_converters.cc"],
+    hdrs = ["case_converters.h"],
+    deps = [
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "casts",
     hdrs = ["casts.h"],
 )

@@ -21,6 +21,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
+#include "xls/common/case_converters.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -47,18 +48,6 @@ ABSL_FLAG(std::string, genfiles_dir, "",
           "This prefix will be removed from the header guards.");
 
 namespace xls {
-namespace {
-
-std::string Camelize(absl::string_view input) {
-  std::vector<std::string> pieces =
-      absl::StrSplit(input, absl::ByAnyChar("-_"));
-  for (std::string& piece : pieces) {
-    piece[0] = toupper(piece[0]);
-  }
-  return absl::StrJoin(pieces, "");
-}
-
-}  // namespace
 
 absl::Status RealMain(const std::filesystem::path& ir_path,
                       const std::filesystem::path& output_path,
