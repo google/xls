@@ -344,6 +344,25 @@ class PackedArrayView {
  public:
   static constexpr int64_t kBitCount = ElementT::kBitCount * kNumElements;
 
+  // *Somewhat* magical converter, which will grab the guts of an array with an
+  // appropriate width integral type and turn it into this packed array view
+  // type. This allows us to pass std::arrays to APIs which take fixed size
+  // arrays of that bit count with more type safety than casting to a `void*`.
+  //
+  // For example:
+  //    absl::Status PopulateArray(std::array<int32_t, 64>* a) {
+  //      return populate_array_jit->Run(
+  //        PackedArrayView<PackedBitsView<32>, 64>(a));
+  //    }
+  template <typename ArrayElementT,
+            typename =
+                std::enable_if_t<std::is_integral<ArrayElementT>::value &&
+                                 std::numeric_limits<ArrayElementT>::digits +
+                                         std::is_signed<ArrayElementT>::value ==
+                                     ElementT::kBitCount>>
+  explicit PackedArrayView(std::array<ArrayElementT, kNumElements>* array)
+      : PackedArrayView(absl::bit_cast<uint8_t*>(array->data()), 0) {}
+
   PackedArrayView(uint8_t* buffer, int64_t buffer_offset)
       : buffer_(buffer), buffer_offset_(buffer_offset) {}
 
