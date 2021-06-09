@@ -1151,6 +1151,37 @@ TEST_P(PipelineGeneratorTest, SplitOutputsNotTupleTyped) {
   EXPECT_EQ(bits_map.at("out"), UBits(165, 8));
 }
 
+TEST_P(PipelineGeneratorTest, EmitsCoverpoints) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  auto x = fb.Param("x", package.GetBitsType(8));
+  auto y = fb.Param("y", package.GetBitsType(8));
+  auto sum = fb.Add(x, y);
+  auto val_128 = fb.Literal(UBits(128, 8));
+  auto gt_128 = fb.UGt(sum, val_128);
+  auto implicit_token = fb.AfterAll({});
+  auto cover = fb.Cover(implicit_token, gt_128, "my_coverpoint");
+  fb.AfterAll({cover});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.BuildWithReturnValue(sum));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(func, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(
+          schedule, func,
+          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+
+  EXPECT_EQ(result.signature.data_outputs().size(), 1);
+  EXPECT_EQ(result.signature.data_outputs()[0].name(), "out");
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
 TEST_P(PipelineGeneratorTest, ValidPipelineControlWithResetSimulation) {
   // Verify the valid signaling works as expected by driving the module with a
   // ModuleTestBench when a reset is present.

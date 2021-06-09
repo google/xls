@@ -21,6 +21,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
+#include "xls/ir/type.h"
 
 namespace xls {
 namespace verilog {
@@ -123,20 +124,30 @@ bool IsRepresentable(Type* type) {
 absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
     Node* node, ModuleBuilder* mb,
     const absl::flat_hash_map<Node*, NodeRepresentation>& node_exprs) {
-  if (node->Is<TupleIndex>() && node->operand(0)->Is<Receive>()) {
-    // A tuple-index into a receive node.
-    XLS_RET_CHECK(
-        absl::holds_alternative<ReceiveData>(node_exprs.at(node->operand(0))));
+  if (node->Is<TupleIndex>()) {
     TupleIndex* tuple_index = node->As<TupleIndex>();
-    const ReceiveData& receive_data =
-        absl::get<ReceiveData>(node_exprs.at(node->operand(0)));
-    if (tuple_index->index() == 0) {
-      return receive_data.first;
-    } else {
-      XLS_RET_CHECK_EQ(tuple_index->index(), 1);
-      return receive_data.second;
+    if (node->operand(0)->Is<Receive>()) {
+      // A tuple-index into a receive node.
+      XLS_RET_CHECK(absl::holds_alternative<ReceiveData>(
+          node_exprs.at(node->operand(0))));
+      const ReceiveData& receive_data =
+          absl::get<ReceiveData>(node_exprs.at(node->operand(0)));
+      if (tuple_index->index() == 0) {
+        return receive_data.first;
+      } else {
+        XLS_RET_CHECK_EQ(tuple_index->index(), 1);
+        return receive_data.second;
+      }
     }
-  } else if (node->Is<xls::Assert>()) {
+
+    Node* tuple = tuple_index->operand(0);
+    TupleType* tuple_type = tuple->GetType()->AsTupleOrDie();
+    if (tuple_type->element_type(tuple_index->index())->IsToken()) {
+      return absl::UnimplementedError(
+          "Cannot extract (TupleIndex) a token to Verilog.");
+    }
+    return node_exprs.at(tuple->operand(tuple_index->index()));
+  } else if (node->Is<xls::Assert>() && node->Is<xls::Cover>()) {
     // Asserts are statements, not expressions, and are emitted after all other
     // operations.
     return UnrepresentedSentinel();
@@ -364,7 +375,7 @@ absl::StatusOr<std::string> GenerateVerilog(const CodegenOptions& options,
     XLS_RETURN_IF_ERROR(mb.AssignRegisters({reg.mb_register}));
   }
 
-  // Add assert statements in a separate always_comb block.
+  // Emit all asserts together.
   for (Node* node : proc->nodes()) {
     if (node->Is<xls::Assert>()) {
       xls::Assert* asrt = node->As<xls::Assert>();
@@ -372,6 +383,16 @@ absl::StatusOr<std::string> GenerateVerilog(const CodegenOptions& options,
           absl::get<Expression*>(node_exprs.at(asrt->condition()));
       XLS_RETURN_IF_ERROR(
           mb.EmitAssert(asrt, condition, options.assert_format()));
+    }
+  }
+
+  // Same for covers.
+  for (Node* node : proc->nodes()) {
+    if (node->Is<xls::Cover>()) {
+      xls::Cover* cover = node->As<xls::Cover>();
+      Expression* condition =
+          absl::get<Expression*>(node_exprs.at(cover->condition()));
+      XLS_RETURN_IF_ERROR(mb.EmitCover(cover, condition));
     }
   }
 

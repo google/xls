@@ -58,6 +58,32 @@ class TestDelayEstimator : public DelayEstimator {
 
 class PipelineScheduleTest : public IrTestBase {};
 
+TEST_F(PipelineScheduleTest, SelectsEntry) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Param("x", p->GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  SchedulingOptions options(SchedulingStrategy::ASAP);
+  options.clock_period_ps(2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(f, TestDelayEstimator(), options));
+  EXPECT_EQ(schedule.length(), 1);
+  EXPECT_THAT(schedule.nodes_in_cycle(0), UnorderedElementsAre(m::Param()));
+
+  FunctionBuilder fb_2("other_fn", p.get());
+  fb_2.Literal(Value(UBits(16, 16)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f_2, fb_2.Build());
+
+  options.entry("other_fn");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      schedule, PipelineSchedule::Run(f_2, TestDelayEstimator(), options));
+  EXPECT_EQ(schedule.length(), 1);
+  EXPECT_THAT(schedule.nodes_in_cycle(0), UnorderedElementsAre(m::Literal()));
+}
+
 TEST_F(PipelineScheduleTest, AsapScheduleTrivial) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

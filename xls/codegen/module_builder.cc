@@ -19,6 +19,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
+#include "absl/strings/string_view.h"
 #include "xls/codegen/flattening.h"
 #include "xls/codegen/lint_annotate.h"
 #include "xls/codegen/node_expressions.h"
@@ -193,6 +194,7 @@ ModuleBuilder::ModuleBuilder(absl::string_view name, VerilogFile* file,
   input_section_ = module_->Add<ModuleSection>();
   declaration_and_assignment_section_ = module_->Add<ModuleSection>();
   assert_section_ = module_->Add<ModuleSection>();
+  cover_section_ = module_->Add<ModuleSection>();
   output_section_ = module_->Add<ModuleSection>();
 
   NewDeclarationAndAssignmentSections();
@@ -798,7 +800,7 @@ absl::Status ModuleBuilder::EmitAssert(
     // Asserts are a SystemVerilog only feature.
     // TODO(meheff): 2021/02/27 We should raise an error here or possibly emit a
     // construct like: if (!condition) $display("Assert failed ...");
-    XLS_LOG(WARNING) << "Asserts only supported in SystemVerilog.";
+    XLS_LOG(WARNING) << "Asserts are only supported in SystemVerilog.";
     return absl::OkStatus();
   }
   if (assert_always_comb_ == nullptr) {
@@ -820,6 +822,24 @@ absl::Status ModuleBuilder::EmitAssert(
                            "isunknown", std::vector<Expression*>({condition})),
                        condition),
       asrt->message());
+  return absl::OkStatus();
+}
+
+absl::Status ModuleBuilder::EmitCover(xls::Cover* cover,
+                                      Expression* condition) {
+  if (!use_system_verilog_) {
+    // Coverpoints are a SystemVerilog only feature.
+    XLS_LOG(WARNING) << "Coverpoints are only supported in SystemVerilog.";
+    return absl::OkStatus();
+  }
+  if (clk_ == nullptr) {
+    return absl::InvalidArgumentError(
+        "Coverpoints require a clock to be present in the module.");
+  }
+  if (cover_always_comb_ == nullptr) {
+    cover_always_comb_ = cover_section_->Add<AlwaysComb>();
+  }
+  cover_always_comb_->statements()->Add<Cover>(clk_, condition, cover->label());
   return absl::OkStatus();
 }
 

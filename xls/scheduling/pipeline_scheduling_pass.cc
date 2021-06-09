@@ -26,7 +26,14 @@ absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
   XLS_RET_CHECK(!unit->schedule.has_value())
       << "Package " << unit->name() << " already has a schedule.";
   XLS_RET_CHECK_NE(options.delay_estimator, nullptr);
-  XLS_ASSIGN_OR_RETURN(Function * entry, unit->package->EntryFunction());
+  Function* entry;
+  if (options.scheduling_options.entry().has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        entry,
+        unit->package->GetFunction(options.scheduling_options.entry().value()));
+  } else {
+    XLS_ASSIGN_OR_RETURN(entry, unit->package->EntryFunction());
+  }
   XLS_ASSIGN_OR_RETURN(unit->schedule,
                        PipelineSchedule::Run(entry, *options.delay_estimator,
                                              options.scheduling_options));

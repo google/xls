@@ -73,3 +73,4 @@ op_models { op: "kZeroExt" estimator { fixed: 1 } }
 # Always-free ops.
 op_models { op: "kAssert" estimator { fixed: 0 } }
 op_models { op: "kAfterAll" estimator { fixed: 0 } }
+op_models { op: "kCover" estimator { fixed: 0 } }

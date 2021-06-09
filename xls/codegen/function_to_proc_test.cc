@@ -205,7 +205,9 @@ fn __implicit_token__main() -> () {
   after_all.9: token = after_all(id=9)
   literal.10: bits[1] = literal(value=1, id=10)
   invoke.11: (token, ()) = invoke(after_all.9, literal.10, to_apply=__itok__implicit_token__main, id=11)
-  ret tuple_index.12: () = tuple_index(invoke.11, index=1, id=12)
+  tuple_index.12: token = tuple_index(invoke.11, index=0, id=12)
+  invoke.13: (token, ()) = invoke(tuple_index.12, literal.10, to_apply=__itok__implicit_token__main, id=13)
+  ret tuple_index.14: () = tuple_index(invoke.13, index=1, id=14)
 }
   )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, Parser::ParsePackage(kIrText));

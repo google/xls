@@ -1010,6 +1010,28 @@ class Assert : public Statement {
   std::string error_message_;
 };
 
+// Represents a SystemVerilog cover properly statement, such as
+//
+// ```
+//   cover property <name> (clk, <condition>)
+// ```
+//
+// Such a statement will cause the simulator to count the number of times that
+// the given condition is true, and associate that value with <name>.
+class Cover : public Statement {
+ public:
+  Cover(LogicRef* clk, Expression* condition, absl::string_view label,
+        VerilogFile* file)
+      : Statement(file), clk_(clk), condition_(condition), label_(label) {}
+
+  std::string Emit() const override;
+
+ private:
+  LogicRef* clk_;
+  Expression* condition_;
+  std::string label_;
+};
+
 // Places a comment in statement position (we can think of comments as
 // meaningless expression statements that do nothing).
 class Comment : public Statement {
@@ -1534,6 +1556,11 @@ class VerilogFile {
   DataType* UnpackedArrayType(int64_t element_bit_count,
                               absl::Span<const int64_t> dims,
                               bool is_signed = false);
+
+  verilog::Cover* Cover(LogicRef* clk, Expression* condition,
+                        absl::string_view label) {
+    return Make<verilog::Cover>(clk, condition, label);
+  }
 
   // Returns whether this is a SystemVerilog or Verilog file.
   bool use_system_verilog() const { return use_system_verilog_; }

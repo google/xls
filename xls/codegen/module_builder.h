@@ -99,6 +99,11 @@ class ModuleBuilder {
       xls::Assert* asrt, Expression* condition,
       absl::optional<absl::string_view> fmt_string = absl::nullopt);
 
+  // Emit an XLS cover statement as a SystemVerilog `cover property` statement.
+  // If SystemVerilog is not enabled, then this is a nop. Note that the emitted
+  // statement will have no effect unless a clock is present in the module.
+  absl::Status EmitCover(xls::Cover* cover, Expression* condition);
+
   // Declares a variable with the given name and XLS type. Returns a reference
   // to the variable.
   LogicRef* DeclareVariable(absl::string_view name, Type* type);
@@ -202,6 +207,7 @@ class ModuleBuilder {
   ModuleSection* constants_section() const { return constants_section_; }
   ModuleSection* input_section() const { return input_section_; }
   ModuleSection* assert_section() const { return assert_section_; }
+  ModuleSection* cover_section() const { return cover_section_; }
   ModuleSection* output_section() const { return output_section_; }
 
   // Return clock signal. Is null if the module does not have a clock.
@@ -322,7 +328,9 @@ class ModuleBuilder {
   std::vector<ModuleSection*> declaration_subsections_;
   std::vector<ModuleSection*> assignment_subsections_;
   ModuleSection* assert_section_;
+  ModuleSection* cover_section_;
   AlwaysComb* assert_always_comb_ = nullptr;
+  AlwaysComb* cover_always_comb_ = nullptr;
   ModuleSection* output_section_;
 
   // Verilog functions defined inside the module. Map is indexed by the function

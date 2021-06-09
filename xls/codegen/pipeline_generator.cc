@@ -310,6 +310,11 @@ class PipelineGenerator {
 
         std::vector<Expression*> inputs;
         for (Node* operand : node->operands()) {
+          // Procs aren't yet plumbed through this generator, so just drop token
+          // operands.
+          if (operand->GetType()->IsToken()) {
+            continue;
+          }
           inputs.push_back(node_expressions.at(operand));
         }
 
@@ -369,6 +374,14 @@ class PipelineGenerator {
       if (valid_load_enable != nullptr) {
         XLS_ASSIGN_OR_RETURN(valid_load_enable,
                              AddValidRegister(valid_load_enable, stage));
+      }
+
+      // Emit Cover statements separately.
+      for (Node* node : schedule_.nodes_in_cycle(schedule_cycle)) {
+        if (node->Is<xls::Cover>()) {
+          XLS_RETURN_IF_ERROR(mb_->EmitCover(
+              node->As<xls::Cover>(), node_expressions.at(node->operand(1))));
+        }
       }
 
       live_out_last_stage = std::move(live_out_nodes);

@@ -302,11 +302,9 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
             invocation->span(), "Verilog escaped strings are not supported.");
       }
 
-      // if identifier[0] == '\' -> We don't support escaped
-      // else make sure match [a-z_][a-z_]*
-      // Unescaped: begin w/letter or under, contains a-z0-9_$
-      // Escaped: begin w/backslash, end with shitespace
-      if (!RE2::FullMatch(identifier, "[a-zA-Z_][a-zA-Z_]*")) {
+      // We don't support Verilog "escaped strings", so we only have to worry
+      // about regular identifier matching.
+      if (!RE2::FullMatch(identifier, "[a-zA-Z_][a-zA-Z0-9$_]*")) {
         return InvalidIdentifierErrorStatus(
             invocation->span(),
             "A coverpoint identifer must start with a letter or underscore, "

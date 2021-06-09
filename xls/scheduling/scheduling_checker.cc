@@ -25,7 +25,14 @@ absl::Status SchedulingChecker::Run(SchedulingUnit* unit,
                                     SchedulingPassResults* results) const {
   XLS_RETURN_IF_ERROR(VerifyPackage(unit->package));
   if (unit->schedule.has_value()) {
-    XLS_ASSIGN_OR_RETURN(Function * entry, unit->package->EntryFunction());
+    Function* entry;
+    if (options.scheduling_options.entry().has_value()) {
+      XLS_ASSIGN_OR_RETURN(entry,
+                           unit->package->GetFunction(
+                               options.scheduling_options.entry().value()));
+    } else {
+      XLS_ASSIGN_OR_RETURN(entry, unit->package->EntryFunction());
+    }
     XLS_RET_CHECK_EQ(entry, unit->schedule->function());
     XLS_RETURN_IF_ERROR(unit->schedule->Verify());
     // TODO(meheff): Add check to ensure schedule matches the specified

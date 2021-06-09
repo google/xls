@@ -1,0 +1,27 @@
+module EmitsCoverpoints(
+  input wire clk,
+  input wire [7:0] x,
+  input wire [7:0] y,
+  output wire [7:0] out
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg [7:0] p0_x;
+  reg [7:0] p0_y;
+  always @ (posedge clk) begin
+    p0_x <= x;
+    p0_y <= y;
+  end
+
+  // ===== Pipe stage 1:
+  wire [7:0] p1_add_3_comb;
+  assign p1_add_3_comb = p0_x + p0_y;
+
+  // Registers for pipe stage 1:
+  reg [7:0] p1_add_3;
+  always @ (posedge clk) begin
+    p1_add_3 <= p1_add_3_comb;
+  end
+  assign out = p1_add_3;
+endmodule

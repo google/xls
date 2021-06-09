@@ -452,6 +452,13 @@ std::string Assert::Emit() const {
                              : absl::StrFormat(", \"%s\"", error_message_));
 }
 
+std::string Cover::Emit() const {
+  // Coverpoints don't work without clock sources. Don't emit them in that case.
+  return absl::StrFormat("%s: cover property (%s%s);", label_,
+                         absl::StrCat("@(posedge ", clk_->Emit(), ") "),
+                         condition_->Emit());
+}
+
 std::string SystemTaskCall::Emit() const {
   if (args_.has_value()) {
     return absl::StrFormat(

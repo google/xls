@@ -23,6 +23,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
@@ -118,43 +119,47 @@ absl::StatusOr<Proc*> FunctionToProc(Function* f, absl::string_view proc_name) {
     node_map[node] = proc_node;
   }
 
+  // If the function is using the "implicit token" calling convention, then
+  // there will be a zero-arg AfterAll checked above and set as
+  // "implicit_afterall". In that case, there'll also an AfterAll that
+  // collects the exit token(s) of the function (and that should be the only
+  // other one). We need to wire that one up as well. Just follow any user
+  // chain to find it.
+  if (implicit_afterall != nullptr) {
+    // Find the terminal node in the implicit-token-holding chain.
+    Node* terminal = *implicit_afterall->users().begin();
+    while (true) {
+      Node* new_terminal = nullptr;
+      for (Node* user : terminal->users()) {
+        if (TypeHasToken(user->GetType())) {
+          new_terminal = user;
+          break;
+        }
+      }
+      if (new_terminal == nullptr) {
+        break;
+      }
+      terminal = new_terminal;
+    }
+
+    XLS_RET_CHECK(terminal != nullptr && terminal->GetType()->IsTuple());
+    TupleType* terminal_type = terminal->GetType()->AsTupleOrDie();
+    XLS_RET_CHECK(terminal_type->size() > 0 &&
+                  terminal_type->element_type(0)->IsToken());
+
+    // Ok, now this node is the original implicit-token-wrapping return. Extract
+    // the leading Token from it.
+    XLS_ASSIGN_OR_RETURN(Node * token,
+                         proc->MakeNode<TupleIndex>(
+                             /*loc=*/absl::nullopt, node_map[terminal], 0));
+    input_tokens.push_back(token);
+  }
+
   XLS_ASSIGN_OR_RETURN(
       Node * merged_input_token,
       proc->MakeNode<AfterAll>(/*loc=*/absl::nullopt, input_tokens));
   XLS_ASSIGN_OR_RETURN(Node * output_token,
                        AddOutputPort(f, proc, node_map, merged_input_token));
-
-  // Implicit tokens are strictly used for passing into invocations, so all
-  // that's necessary is to connect the token elements of their outputs to the
-  // sink.
-  if (implicit_afterall != nullptr) {
-    // The Token on an implicit token invocation is always the first tuple
-    // element.
-    std::vector<Node*> implicit_tokens;
-    implicit_tokens.push_back(output_token);
-    for (Node* user : implicit_afterall->users()) {
-      Node* proc_user = node_map[user];
-      Type* type = proc_user->GetType();
-
-      // Make sure there's a Token to extract before we try to extract it!
-      bool has_first_token = type->IsTuple() &&
-                             !type->AsTupleOrDie()->element_types().empty() &&
-                             type->AsTupleOrDie()->element_type(0)->IsToken();
-      if (!has_first_token) {
-        return absl::InvalidArgumentError(
-            absl::StrCat("Implicit-token-using functions must return tuples "
-                         "with a Token as the first element. Found bad node: ",
-                         proc_user->ToString()));
-      }
-      XLS_ASSIGN_OR_RETURN(
-          auto* token,
-          proc->MakeNode<TupleIndex>(/*loc=*/absl::nullopt, proc_user, 0));
-      implicit_tokens.push_back(token);
-    }
-    XLS_ASSIGN_OR_RETURN(
-        output_token,
-        proc->MakeNode<AfterAll>(/*loc=*/absl::nullopt, implicit_tokens));
-  }
 
   XLS_RETURN_IF_ERROR(proc->SetNextToken(output_token));
   XLS_RETURN_IF_ERROR(proc->SetNextState(proc->StateParam()));

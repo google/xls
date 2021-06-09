@@ -129,6 +129,9 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
         << "Musts specify --pipeline_stages or --clock_period_ps (or both).";
 
     SchedulingPassOptions sched_options;
+    if (!absl::GetFlag(FLAGS_entry).empty()) {
+      sched_options.scheduling_options.entry(absl::GetFlag(FLAGS_entry));
+    }
     if (absl::GetFlag(FLAGS_pipeline_stages) != 0) {
       sched_options.scheduling_options.pipeline_stages(
           absl::GetFlag(FLAGS_pipeline_stages));

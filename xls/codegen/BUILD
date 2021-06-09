@@ -384,6 +384,7 @@ cc_library(
         "//xls/common/logging:log_lines",
         "//xls/ir",
         "//xls/ir:node_util",
+        "//xls/ir:type",
     ],
 )
 
