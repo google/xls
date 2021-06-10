@@ -20,6 +20,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/ast.h"
 #include "xls/dslx/interpreter.h"
 #include "xls/dslx/typecheck.h"
 
@@ -87,8 +88,98 @@ absl::StatusOr<std::string> TranspileEnumDef(const TranspileData& xpile_data,
                          absl::StrJoin(members, "\n"));
 }
 
-absl::StatusOr<std::string> TranspileTypeDef(const TypeDef* type_def) {
-  return absl::UnimplementedError("TranspileTypeDef not yet implemented.");
+absl::StatusOr<std::string> TypeAnnotationToString(
+    const TranspileData& xpile_data, const TypeAnnotation* annot);
+
+absl::StatusOr<std::string> BuiltinTypeAnnotationToString(
+    const TranspileData& xpile_data, const BuiltinTypeAnnotation* annot) {
+  int bit_count = annot->GetBitCount();
+  std::string prefix;
+  if (!annot->GetSignedness()) {
+    prefix = "u";
+  }
+  if (bit_count <= 8) {
+    return prefix + "int8_t";
+  } else if (bit_count <= 16) {
+    return prefix + "int16_t";
+  } else if (bit_count <= 32) {
+    return prefix + "int32_t";
+  } else if (bit_count <= 64) {
+    return prefix + "int64_t";
+  } else {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Only bit types up to 64b wide are currently supported: ",
+                     annot->ToString()));
+  }
+}
+
+absl::StatusOr<std::string> ArrayTypeAnnotationToString(
+    const TranspileData& xpile_data, const ArrayTypeAnnotation* annot) {
+  XLS_ASSIGN_OR_RETURN(
+      std::string element_type,
+      TypeAnnotationToString(xpile_data, annot->element_type()));
+
+  auto typecheck_fn = [&xpile_data](Module* module) {
+    return CheckModule(module, xpile_data.import_data,
+                       xpile_data.addl_search_paths);
+  };
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue dim_value,
+      Interpreter::InterpretExpr(xpile_data.module, xpile_data.type_info,
+                                 typecheck_fn, xpile_data.addl_search_paths,
+                                 xpile_data.import_data, {}, annot->dim()));
+  // TODO(rspringer): Handle multidimensional arrays.
+  if (!dim_value.IsBits()) {
+    return absl::UnimplementedError(
+        "Multidimensional arrays aren't yet supported.");
+  }
+
+  XLS_ASSIGN_OR_RETURN(uint64_t dim_int, dim_value.GetBitValueUint64());
+  return absl::StrCat(element_type, "[", dim_int, "]");
+}
+
+absl::StatusOr<std::string> TupleTypeAnnotationToString(
+    const TranspileData& xpile_data, const TupleTypeAnnotation* annot) {
+  std::vector<std::string> elements;
+  for (const auto& member : annot->members()) {
+    XLS_ASSIGN_OR_RETURN(std::string element,
+                         TypeAnnotationToString(xpile_data, member));
+    elements.push_back(element);
+  }
+  return absl::StrCat("std::tuple<", absl::StrJoin(elements, ", "), ">");
+}
+
+absl::StatusOr<std::string> TypeAnnotationToString(
+    const TranspileData& xpile_data, const TypeAnnotation* annot) {
+  if (const BuiltinTypeAnnotation* builtin =
+          dynamic_cast<const BuiltinTypeAnnotation*>(annot);
+      builtin != nullptr) {
+    return BuiltinTypeAnnotationToString(xpile_data, builtin);
+  } else if (const ArrayTypeAnnotation* array =
+                 dynamic_cast<const ArrayTypeAnnotation*>(annot);
+             array != nullptr) {
+    return ArrayTypeAnnotationToString(xpile_data, array);
+  } else if (const TupleTypeAnnotation* tuple =
+                 dynamic_cast<const TupleTypeAnnotation*>(annot);
+             tuple != nullptr) {
+    return TupleTypeAnnotationToString(xpile_data, tuple);
+  } else if (const TypeRefTypeAnnotation* type_ref =
+                 dynamic_cast<const TypeRefTypeAnnotation*>(annot);
+             type_ref != nullptr) {
+    return type_ref->ToString();
+  } else {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Unknown TypeAnnotation kind: ", annot->ToString()));
+  }
+}
+
+absl::StatusOr<std::string> TranspileTypeDef(const TranspileData& xpile_data,
+                                             const TypeDef* type_def) {
+  XLS_ASSIGN_OR_RETURN(
+      std::string annot_str,
+      TypeAnnotationToString(xpile_data, type_def->type_annotation()));
+  return absl::StrFormat("using %s = %s;", Camelize(type_def->identifier()),
+                         annot_str);
 }
 
 absl::StatusOr<std::string> TranspileStructDef(const StructDef* struct_def) {
@@ -97,8 +188,8 @@ absl::StatusOr<std::string> TranspileStructDef(const StructDef* struct_def) {
 
 absl::StatusOr<std::string> TranspileSingleToCpp(
     const TranspileData& xpile_data, const TypeDefinition& type_definition) {
-  return absl::visit(Visitor{[](const TypeDef* type_def) {
-                               return TranspileTypeDef(type_def);
+  return absl::visit(Visitor{[&](const TypeDef* type_def) {
+                               return TranspileTypeDef(xpile_data, type_def);
                              },
                              [](const StructDef* struct_def) {
                                return TranspileStructDef(struct_def);
@@ -123,6 +214,8 @@ absl::StatusOr<std::string> TranspileToCpp(
   struct TranspileData xpile_data {
     module, type_info, import_data, additional_search_paths
   };
+
+  // Don't need to worry aboot ordering, since constexpr eval does it for us.
   for (const TypeDefinition& def : module->GetTypeDefinitions()) {
     XLS_ASSIGN_OR_RETURN(std::string result,
                          TranspileSingleToCpp(xpile_data, def));

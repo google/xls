@@ -35,6 +35,13 @@ namespace xls::dslx {
 //
 // Note that the given Module must have been typechecked.
 //
+// The APIs emitted here are not guaranteed to be stable over time. For example,
+// we may define a C++ type "xls::u7" to represent a seven-bit quantity. That
+// being said, no such changes are planned (as of this writing) and any changes
+// should be infrequent, so users should feel comfortable using these
+// interfaces, but should also be aware of the potential for change in the
+// future.
+//
 // TODO(rspringer): 2021-06-09 Currently all outputs are placed in a single
 // file, the header, but this will likely be split up once structs are
 absl::StatusOr<std::string> TranspileToCpp(

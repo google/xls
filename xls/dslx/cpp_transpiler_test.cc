@@ -81,5 +81,39 @@ pub enum MyEnum : u32 {
   ASSERT_EQ(result, kExpected);
 }
 
+// Basic typedef support.
+TEST(CppTranspilerTest, BasicTypedefs) {
+  const std::string kModule = R"(
+const CONST_1 = u8:4;
+
+type MyType = u6;
+type MySignedType = s8;
+type MyThirdType = s9;
+
+type MyArrayType1 = u31[u32:8];
+type MyArrayType2 = u31[CONST_1];
+type MyArrayType3 = MySignedType[CONST_1];
+type MyArrayType4 = s8[CONST_1];
+
+type MyFirstTuple = (u7, s8, MyType, MySignedType, MyArrayType1, MyArrayType2);
+)";
+
+  const std::string kExpected = R"(using MyType = uint8_t;
+using MySignedType = int8_t;
+using MyThirdType = int16_t;
+using MyArrayType1 = uint32_t[8];
+using MyArrayType2 = uint32_t[4];
+using MyArrayType3 = MySignedType[4];
+using MyArrayType4 = int8_t[4];
+using MyFirstTuple = std::tuple<uint8_t, int8_t, MyType, MySignedType, MyArrayType1, MyArrayType2>;)";
+  ImportData import_data;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data, {}));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           TranspileToCpp(module.module, &import_data, {}));
+  ASSERT_EQ(result, kExpected);
+}
+
 }  // namespace
 }  // namespace xls::dslx
