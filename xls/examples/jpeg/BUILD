@@ -66,3 +66,37 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+# -- GRM
+
+cc_library(
+    name = "constants",
+    hdrs = ["constants.h"],
+)
+
+cc_library(
+    name = "streams",
+    srcs = ["streams.cc"],
+    hdrs = ["streams.h"],
+    deps = [
+        ":constants",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:optional",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "streams_test",
+    srcs = ["streams_test.cc"],
+    deps = [
+        ":constants",
+        ":streams",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
