@@ -30,6 +30,9 @@ xls_ir_verilog_attrs = {
     "module_sig_file": attr.output(
         doc = "The module signature of the generated Verilog file.",
     ),
+    "schedule_file": attr.output(
+        doc = "The schedule of the generated Verilog file.",
+    ),
     "_codegen_tool": attr.label(
         doc = "The target of the codegen executable.",
         default = Label("//xls/tools:codegen_main"),
@@ -79,6 +82,7 @@ def xls_ir_verilog_impl(ctx, src):
     verilog_file = None
     module_sig_file = None
     schedule_file = None
+    uses_combinational_generator = False
     for flag_name in codegen_args:
         if flag_name in CODEGEN_FLAGS:
             codegen_flags += (
@@ -88,17 +92,19 @@ def xls_ir_verilog_impl(ctx, src):
                 flag_name == "generator" and
                 codegen_args[flag_name] == "combinational"
             ):
-                # Pipeline generator produces a schedule artifact.
-                schedule_file = ctx.actions.declare_file(
-                    ctx.attr.name + ".schedule.textproto",
-                )
-                my_generated_files.append(schedule_file)
-                codegen_flags += (
-                    " --output_schedule_path={}".format(schedule_file.path)
-                )
+                uses_combinational_generator = True
         else:
             fail("Unrecognized argument: %s." % flag_name)
 
+    if not uses_combinational_generator:
+        # Pipeline generator produces a schedule artifact.
+        schedule_file = ctx.actions.declare_file(
+            ctx.attr.name + ".schedule.textproto",
+        )
+        my_generated_files.append(schedule_file)
+        codegen_flags += (
+            " --output_schedule_path={}".format(schedule_file.path)
+        )
     verilog_file = ctx.actions.declare_file(ctx.attr.name + ".v")
     module_sig_file = ctx.actions.declare_file(ctx.attr.name + ".sig.textproto")
     my_generated_files += [verilog_file, module_sig_file]
