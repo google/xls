@@ -13,11 +13,6 @@
 # limitations under the License.
 
 load(
-    "//xls/build_rules:build_defs.bzl",
-    "dslx_generated_rtl",
-    "dslx_test",
-)
-load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
     "get_mangled_ir_symbol",
@@ -50,31 +45,15 @@ genrule(
           "echo 'fn test_value() { assert_eq(VALUE, u32:42) }' >> $(OUTS)",
 )
 
-# Check that we can run the test inside of the generated file, convert it to
-# IR, etc.
-dslx_test(
-    name = "generated",
-    srcs = ["generated.x"],
-)
-
-# Check that we can use the generated file inside of a dslx_test rule (and that
-# all resulting test targets it creates pass soundly).
-dslx_test(
-    name = "importer",
-    srcs = ["importer.x"],
-    deps = [
-        "generated.x",
-    ],
-)
-
 # Check that we can generate a block a couple different ways.
-dslx_generated_rtl(
+xls_dslx_verilog(
     name = "add_one_pipeline_rtl",
-    srcs = ["add_one.x"],
-    codegen_params = {
-        "pipeline_stages": 2,
+    src = "add_one.x",
+    codegen_args = {
+        "pipeline_stages": "2",
         "delay_model": "unit",
     },
+    verilog_file = "add_one_pipeline_rtl.v",
 )
 
 sh_test(
@@ -84,12 +63,13 @@ sh_test(
     data = [":add_one_pipeline_rtl.v"],
 )
 
-dslx_generated_rtl(
+xls_dslx_verilog(
     name = "add_one_combinational_rtl",
-    srcs = ["add_one.x"],
-    codegen_params = {
+    src = "add_one.x",
+    codegen_args = {
         "generator": "combinational",
     },
+    verilog_file = "add_one_combinational_rtl.v",
 )
 
 sh_test(
