@@ -162,11 +162,14 @@ purpose, and correspond to the components in this XLS stack diagram:
     pipeline stage) in a clocked design.
   * [`simulation`](https://github.com/google/xls/tree/main/xls/simulation):
     Code that wraps Verilog simulators and generates Verilog testbenches for XLS
-    computations.
+    computations. [iverilog](https://github.com/steveicarus/iverilog) is
+    currently used to simulate as it supports non-synthesizable testbench
+    constructs.
   * [`solvers`](https://github.com/google/xls/tree/main/xls/solvers):
     Converters from XLS IR into SMT solver input, such that formal proofs can be
     run on XLS computations; e.g. Logical Equalence Checks between XLS IR and a
-    netlist description.
+    netlist description. [Z3](https://github.com/Z3Prover/z3) is used as the
+    solver engine.
   * [`synthesis`](https://github.com/google/xls/tree/main/xls/synthesis):
     Interface that wraps backend synthesis flows, such that tools can be
     retargeted e.g. between ASIC and FPGA flows.
