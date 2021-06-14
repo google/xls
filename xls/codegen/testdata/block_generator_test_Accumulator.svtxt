@@ -1,0 +1,18 @@
+module Accumulator(
+  input wire clk,
+  input wire rst_n,
+  input wire [31:0] in,
+  output wire [31:0] out
+);
+  reg [31:0] accum;
+  wire [31:0] add_4;
+  assign add_4 = in + accum;
+  always_ff @ (posedge clk) begin
+    if (!rst_n) begin
+      accum <= 32'h0000_000a;
+    end else begin
+      accum <= add_4;
+    end
+  end
+  assign out = accum;
+endmodule

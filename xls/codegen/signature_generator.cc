@@ -16,7 +16,10 @@
 
 #include "absl/strings/str_format.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/block.h"
+#include "xls/ir/function.h"
 #include "xls/ir/node_util.h"
+#include "xls/ir/proc.h"
 
 namespace xls::verilog {
 
@@ -45,9 +48,8 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
     }
     b.AddDataOutput("out", func->return_value()->GetType()->GetFlatBitCount());
     b.WithFunctionType(func->GetType());
-  } else {
+  } else if (Proc* proc = dynamic_cast<Proc*>(func_base)) {
     // Given func_base is a proc. Generate signature from input/output ports.
-    Proc* proc = down_cast<Proc*>(func_base);
     // Generate signature from inputs and outputs.
     std::vector<Type*> input_types;
     std::vector<Type*> output_types;
@@ -63,10 +65,33 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
                         port.channel->type()->GetFlatBitCount());
       }
     }
-
     if (output_types.size() == 1) {
       b.WithFunctionType(
           proc->package()->GetFunctionType(input_types, output_types.front()));
+    }
+  } else {
+    Block* block = down_cast<Block*>(func_base);
+    std::vector<Type*> input_types;
+    std::vector<Type*> output_types;
+    for (const Block::Port& port : block->GetPorts()) {
+      if (absl::holds_alternative<InputPort*>(port)) {
+        InputPort* input_port = absl::get<InputPort*>(port);
+        input_types.push_back(input_port->GetType());
+        b.AddDataInput(input_port->GetName(),
+                       input_port->GetType()->GetFlatBitCount());
+      } else if (absl::holds_alternative<OutputPort*>(port)) {
+        OutputPort* output_port = absl::get<OutputPort*>(port);
+        Type* type = output_port->operand(0)->GetType();
+        output_types.push_back(type);
+        b.AddDataOutput(output_port->GetName(), type->GetFlatBitCount());
+      } else {
+        // No need to do anything for the clock port.
+        XLS_RET_CHECK(absl::holds_alternative<Block::ClockPort*>(port));
+      }
+    }
+    if (output_types.size() == 1) {
+      b.WithFunctionType(
+          block->package()->GetFunctionType(input_types, output_types.front()));
     }
   }
 

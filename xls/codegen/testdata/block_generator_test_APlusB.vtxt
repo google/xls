@@ -1,0 +1,9 @@
+module APlusB(
+  input wire [31:0] a,
+  input wire [31:0] b,
+  output wire [31:0] sum
+);
+  wire [31:0] add_3;
+  assign add_3 = a + b;
+  assign sum = add_3;
+endmodule

@@ -924,78 +924,6 @@ BValue FunctionBuilder::Param(absl::string_view name, Type* type,
   return AddNode<xls::Param>(loc, name, type);
 }
 
-BValue BuilderBase::Receive(Channel* channel, BValue token,
-                            absl::optional<SourceLocation> loc,
-                            absl::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  return SetError("Receive operations are only supported in procs", loc);
-}
-
-BValue BuilderBase::ReceiveIf(Channel* channel, BValue token, BValue pred,
-                              absl::optional<SourceLocation> loc,
-                              absl::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  return SetError("ReceiveIf operations are only supported in procs", loc);
-}
-
-BValue BuilderBase::Send(Channel* channel, BValue token, BValue data,
-                         absl::optional<SourceLocation> loc,
-                         absl::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  return SetError("Send operations are only supported in procs", loc);
-}
-
-BValue BuilderBase::SendIf(Channel* channel, BValue token, BValue pred,
-                           BValue data, absl::optional<SourceLocation> loc,
-                           absl::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  return SetError("SendIf operations are only supported in procs", loc);
-}
-
-BValue BuilderBase::InputPort(absl::string_view name, Type* type,
-                              absl::optional<SourceLocation> loc) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  return SetError("Ports may only be added to blocks", loc);
-}
-
-BValue BuilderBase::OutputPort(absl::string_view name, BValue operand,
-                               absl::optional<SourceLocation> loc) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  return SetError("Ports may only be added to blocks", loc);
-}
-
-BValue BuilderBase::RegisterRead(Register* reg,
-                                 absl::optional<SourceLocation> loc,
-                                 absl::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  return SetError("Register read only supported in blocks", loc);
-}
-
-BValue BuilderBase::RegisterWrite(Register* reg, BValue data,
-                                  absl::optional<BValue> load_enable,
-                                  absl::optional<BValue> reset,
-                                  absl::optional<SourceLocation> loc,
-                                  absl::string_view name) {
-  if (ErrorPending()) {
-    return BValue();
-  }
-  return SetError("Register writes only supported in blocks", loc);
-}
-
 absl::StatusOr<Function*> FunctionBuilder::Build() {
   if (function_ == nullptr) {
     return absl::FailedPreconditionError(
@@ -1460,6 +1388,43 @@ BValue BlockBuilder::RegisterWrite(Register* reg, BValue data,
                               : absl::nullopt,
       reset.has_value() ? absl::optional<Node*>(reset->node()) : absl::nullopt,
       reg->name(), name);
+}
+
+BValue BlockBuilder::InsertRegister(absl::string_view name, BValue data,
+                                    absl::optional<BValue> load_enable,
+                                    absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  absl::StatusOr<Register*> reg_status =
+      block()->AddRegister(name, data.GetType());
+  if (!reg_status.ok()) {
+    return SetError(absl::StrFormat("Cannot add register: %s",
+                                    reg_status.status().message()),
+                    loc);
+  }
+  Register* reg = reg_status.value();
+  RegisterWrite(reg, data, load_enable, /*reset=*/absl::nullopt, loc);
+  return RegisterRead(reg, loc, reg->name());
+}
+
+BValue BlockBuilder::InsertRegister(absl::string_view name, BValue data,
+                                    BValue reset_signal, Reset reset,
+                                    absl::optional<BValue> load_enable,
+                                    absl::optional<SourceLocation> loc) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  absl::StatusOr<Register*> reg_status =
+      block()->AddRegister(name, data.GetType(), reset);
+  if (!reg_status.ok()) {
+    return SetError(absl::StrFormat("Cannot add register: %s",
+                                    reg_status.status().message()),
+                    loc);
+  }
+  Register* reg = reg_status.value();
+  RegisterWrite(reg, data, load_enable, reset_signal, loc);
+  return RegisterRead(reg, loc, reg->name());
 }
 
 absl::StatusOr<Block*> BlockBuilder::Build() {

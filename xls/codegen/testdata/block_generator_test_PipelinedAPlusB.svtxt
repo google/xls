@@ -1,0 +1,25 @@
+module PipelinedAPlusB(
+  input wire the_clock,
+  input wire the_reset,
+  input wire [31:0] a,
+  input wire [31:0] b,
+  output wire [31:0] sum
+);
+  reg [31:0] p0_a;
+  reg [31:0] p0_b;
+  reg [31:0] p1_sum;
+  wire [31:0] add_8;
+  assign add_8 = p0_a + p0_b;
+  always_ff @ (posedge the_clock) begin
+    if (the_reset) begin
+      p0_a <= 32'h0000_0000;
+      p0_b <= 32'h0000_0000;
+      p1_sum <= 32'h0000_0000;
+    end else begin
+      p0_a <= a;
+      p0_b <= b;
+      p1_sum <= add_8;
+    end
+  end
+  assign sum = p1_sum;
+endmodule

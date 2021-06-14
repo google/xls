@@ -2277,9 +2277,10 @@ fn foo(a: bits[32]) -> bits[32][3] {
 }
 )";
   Package p("my_package");
-  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Ports may only be added to blocks")));
+  EXPECT_THAT(
+      Parser::ParseFunction(input, &p).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("input_port operations only supported in blocks")));
 }
 
 TEST(IrParserTest, BlockWithReturnValue) {

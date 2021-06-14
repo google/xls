@@ -555,53 +555,6 @@ class BuilderBase {
                absl::optional<SourceLocation> loc = absl::nullopt,
                absl::string_view name = "");
 
-  // Add a receive operation. The type of the data value received is
-  // determined by the channel. Only supported on procs.
-  virtual BValue Receive(Channel* channel, BValue token,
-                         absl::optional<SourceLocation> loc = absl::nullopt,
-                         absl::string_view name = "");
-
-  // Add a receive_if operation. The receive executes conditionally on the value
-  // of the predicate "pred". The type of the data value received is
-  // determined by the channel. Only supported on procs.
-  virtual BValue ReceiveIf(Channel* channel, BValue token, BValue pred,
-                           absl::optional<SourceLocation> loc = absl::nullopt,
-                           absl::string_view name = "");
-
-  // Add a send operation. Only supported on procs.
-  virtual BValue Send(Channel* channel, BValue token, BValue data,
-                      absl::optional<SourceLocation> loc = absl::nullopt,
-                      absl::string_view name = "");
-
-  // Add a send_if operation. The send executes conditionally on the value of
-  // the predicate "pred". Only supported on procs.
-  virtual BValue SendIf(Channel* channel, BValue token, BValue pred,
-                        BValue data,
-                        absl::optional<SourceLocation> loc = absl::nullopt,
-                        absl::string_view name = "");
-
-  // Add an input/output port. Only supported on blocks.
-  virtual BValue InputPort(absl::string_view name, Type* type,
-                           absl::optional<SourceLocation> loc = absl::nullopt);
-  virtual BValue OutputPort(absl::string_view name, BValue operand,
-                            absl::optional<SourceLocation> loc = absl::nullopt);
-
-  // Add a register read operation. The register argument comes from a
-  // Block::AddRegister. Only supported on blocks.
-  virtual BValue RegisterRead(
-      Register* reg, absl::optional<SourceLocation> loc = absl::nullopt,
-      absl::string_view name = "");
-
-  // Add a register write operation. The register argument comes from a
-  // Block::AddRegister. If the register being writen has a reset value then
-  // `reset` must be specified. Only supported on blocks.
-  virtual BValue RegisterWrite(
-      Register* reg, BValue data,
-      absl::optional<BValue> load_enable = absl::nullopt,
-      absl::optional<BValue> reset = absl::nullopt,
-      absl::optional<SourceLocation> loc = absl::nullopt,
-      absl::string_view name = "");
-
   Package* package() const;
 
   // Returns the last node enqueued onto this builder -- when Build() is called
@@ -688,18 +641,30 @@ class ProcBuilder : public BuilderBase {
 
   BValue Param(absl::string_view name, Type* type,
                absl::optional<SourceLocation> loc = absl::nullopt) override;
+
+  // Add a receive operation. The type of the data value received is
+  // determined by the channel.
   BValue Receive(Channel* channel, BValue token,
                  absl::optional<SourceLocation> loc = absl::nullopt,
-                 absl::string_view name = "") override;
+                 absl::string_view name = "");
+
+  // Add a receive_if operation. The receive executes conditionally on the value
+  // of the predicate "pred". The type of the data value received is
+  // determined by the channel.
   BValue ReceiveIf(Channel* channel, BValue token, BValue pred,
                    absl::optional<SourceLocation> loc = absl::nullopt,
-                   absl::string_view name = "") override;
+                   absl::string_view name = "");
+
+  // Add a send operation.
   BValue Send(Channel* channel, BValue token, BValue data,
               absl::optional<SourceLocation> loc = absl::nullopt,
-              absl::string_view name = "") override;
+              absl::string_view name = "");
+
+  // Add a send_if operation. The send executes conditionally on the value of
+  // the predicate "pred".
   BValue SendIf(Channel* channel, BValue token, BValue pred, BValue data,
                 absl::optional<SourceLocation> loc = absl::nullopt,
-                absl::string_view name = "") override;
+                absl::string_view name = "");
 
  private:
   // The BValue of the token parameter (parameter 0).
@@ -800,19 +765,41 @@ class BlockBuilder : public BuilderBase {
   BValue Param(absl::string_view name, Type* type,
                absl::optional<SourceLocation> loc = absl::nullopt) override;
 
+  // Add an input/output port.
   BValue InputPort(absl::string_view name, Type* type,
-                   absl::optional<SourceLocation> loc = absl::nullopt) override;
-  BValue OutputPort(
-      absl::string_view name, BValue operand,
-      absl::optional<SourceLocation> loc = absl::nullopt) override;
+                   absl::optional<SourceLocation> loc = absl::nullopt);
+  BValue OutputPort(absl::string_view name, BValue operand,
+                    absl::optional<SourceLocation> loc = absl::nullopt);
+
+  // Add a register read operation. The register argument comes from a
+  // Block::AddRegister.
   BValue RegisterRead(Register* reg,
                       absl::optional<SourceLocation> loc = absl::nullopt,
-                      absl::string_view name = "") override;
+                      absl::string_view name = "");
+
+  // Add a register write operation. The register argument comes from a
+  // Block::AddRegister. If the register being writen has a reset value then
+  // `reset` must be specified.
   BValue RegisterWrite(Register* reg, BValue data,
                        absl::optional<BValue> load_enable = absl::nullopt,
                        absl::optional<BValue> reset = absl::nullopt,
                        absl::optional<SourceLocation> loc = absl::nullopt,
-                       absl::string_view name = "") override;
+                       absl::string_view name = "");
+
+  // Add a register named 'name' with an input of 'data'. Returns the output
+  // value of the register. Equivalent to creating a register with
+  // Block::AddRegister, adding a RegisterWrite operation with operand 'data'
+  // and adding a RegisterRead operation. Returned BValue is the RegisterRead
+  // operation.
+  BValue InsertRegister(absl::string_view name, BValue data,
+                        absl::optional<BValue> load_enable = absl::nullopt,
+                        absl::optional<SourceLocation> loc = absl::nullopt);
+
+  // As InsertRegister above but with a reset value.
+  BValue InsertRegister(absl::string_view name, BValue data,
+                        BValue reset_signal, Reset reset,
+                        absl::optional<BValue> load_enable = absl::nullopt,
+                        absl::optional<SourceLocation> loc = absl::nullopt);
 };
 
 }  // namespace xls

@@ -654,20 +654,6 @@ TEST(FunctionBuilderTest, DynamicCountedForTest) {
                   body, {m::Param("invariant_1"), m::Param("invariant_2")}));
 }
 
-TEST(FunctionBuilderTest, AddSendToFunction) {
-  Package p("p");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch0, p.CreateStreamingChannel("ch0", ChannelOps::kSendReceive,
-                                              p.GetBitsType(32)));
-
-  FunctionBuilder b("send_function", &p);
-  b.Send(ch0, b.AfterAll({}), b.Param("x", p.GetBitsType(32)));
-  EXPECT_THAT(
-      b.Build().status(),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Send operations are only supported in procs")));
-}
-
 TEST(FunctionBuilderTest, AddParamToProc) {
   Package p("p");
   ProcBuilder b("param_proc", Value(UBits(42, 32)),

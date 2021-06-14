@@ -501,6 +501,23 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "block_generator",
+    srcs = ["block_generator.cc"],
+    hdrs = ["block_generator.h"],
+    deps = [
+        ":codegen_options",
+        ":flattening",
+        ":module_builder",
+        ":vast",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging:log_lines",
+        "//xls/ir",
+        "//xls/ir:node_util",
+    ],
+)
+
 proto_library(
     name = "module_signature_proto",
     srcs = ["module_signature.proto"],
@@ -679,5 +696,27 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "block_generator_test",
+    srcs = ["block_generator_test.cc"],
+    data = glob([
+        "testdata/block_generator_test_*",
+    ]),
+    deps = [
+        ":block_generator",
+        ":signature_generator",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:channel_cc_proto",
+        "//xls/ir:function_builder",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "//xls/simulation:module_simulator",
+        "//xls/simulation:verilog_test_base",
     ],
 )

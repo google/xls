@@ -18,15 +18,15 @@
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
-#include "xls/ir/proc.h"
+#include "xls/ir/function_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
 
 // Generate a ModuleSignature corresponding to a Verilog module generated from
 // the given function/proc with the given options/schedule.
-// TODO(meheff) 2021/04/27 Replace FunctionBase with proc. This function should
-// be called only after conversion of a function into a proc.
+// TODO(meheff) 2021/04/27 Replace FunctionBase with block. This function should
+// be called only after conversion of a function/proc into a block.
 absl::StatusOr<ModuleSignature> GenerateSignature(
     const CodegenOptions& options, FunctionBase* func_base,
     absl::optional<PipelineSchedule> schedule = absl::nullopt);

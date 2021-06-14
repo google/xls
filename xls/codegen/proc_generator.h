@@ -27,6 +27,8 @@ namespace verilog {
 // the state type must be an empty tuple. Typically, the state should have
 // already been converted to a channel. Nodes in the proc (send/receive) must
 // only communicate over RegisterChannels and PortChannels.
+// TODO(https://github.com/google/xls/issues/410): 2021/05/19 Remove this and
+// replace with block generator.
 absl::StatusOr<std::string> GenerateVerilog(const CodegenOptions& options,
                                             Proc* proc);
 

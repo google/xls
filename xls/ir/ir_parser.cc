@@ -541,6 +541,24 @@ absl::optional<SplitName> SplitNodeName(absl::string_view name) {
   return SplitName{.op_name = absl::StrJoin(pieces, "."), .node_id = result};
 }
 
+absl::StatusOr<BlockBuilder*> CastToBlockBuilderOrError(
+    BuilderBase* base_builder, absl::string_view error_message, TokenPos pos) {
+  if (BlockBuilder* bb = dynamic_cast<BlockBuilder*>(base_builder)) {
+    return bb;
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("%s @ %s", error_message, pos.ToHumanString()));
+}
+
+absl::StatusOr<ProcBuilder*> CastToProcBuilderOrError(
+    BuilderBase* base_builder, absl::string_view error_message, TokenPos pos) {
+  if (ProcBuilder* pb = dynamic_cast<ProcBuilder*>(base_builder)) {
+    return pb;
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("%s @ %s", error_message, pos.ToHumanString()));
+}
+
 }  // namespace
 
 absl::StatusOr<BValue> Parser::ParseNode(
@@ -813,6 +831,10 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kReceive: {
+      XLS_ASSIGN_OR_RETURN(ProcBuilder * pb,
+                           CastToProcBuilderOrError(
+                               fb, "receive operations only supported in procs",
+                               op_token.pos()));
       int64_t* channel_id = arg_parser.AddKeywordArg<int64_t>("channel_id");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
       // Get the channel from the package.
@@ -828,10 +850,15 @@ absl::StatusOr<BValue> Parser::ParseNode(
             absl::StrFormat("Receive op type is type: %s. Expected: %s",
                             type->ToString(), expected_type->ToString()));
       }
-      bvalue = fb->Receive(channel, operands[0], *loc, node_name);
+      bvalue = pb->Receive(channel, operands[0], *loc, node_name);
       break;
     }
     case Op::kReceiveIf: {
+      XLS_ASSIGN_OR_RETURN(
+          ProcBuilder * pb,
+          CastToProcBuilderOrError(
+              fb, "receive_if operations only supported in procs",
+              op_token.pos()));
       int64_t* channel_id = arg_parser.AddKeywordArg<int64_t>("channel_id");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
       // Get the channel from the package.
@@ -848,10 +875,14 @@ absl::StatusOr<BValue> Parser::ParseNode(
                             type->ToString(), expected_type->ToString()));
       }
       bvalue =
-          fb->ReceiveIf(channel, operands[0], operands[1], *loc, node_name);
+          pb->ReceiveIf(channel, operands[0], operands[1], *loc, node_name);
       break;
     }
     case Op::kSend: {
+      XLS_ASSIGN_OR_RETURN(
+          ProcBuilder * pb,
+          CastToProcBuilderOrError(
+              fb, "send operations only supported in procs", op_token.pos()));
       int64_t* channel_id = arg_parser.AddKeywordArg<int64_t>("channel_id");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
       // Get the channel from the package.
@@ -860,10 +891,14 @@ absl::StatusOr<BValue> Parser::ParseNode(
             absl::StrFormat("No such channel with channel ID %d", *channel_id));
       }
       XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(*channel_id));
-      bvalue = fb->Send(channel, operands[0], operands[1], *loc, node_name);
+      bvalue = pb->Send(channel, operands[0], operands[1], *loc, node_name);
       break;
     }
     case Op::kSendIf: {
+      XLS_ASSIGN_OR_RETURN(ProcBuilder * pb,
+                           CastToProcBuilderOrError(
+                               fb, "send_if operations only supported in procs",
+                               op_token.pos()));
       int64_t* channel_id = arg_parser.AddKeywordArg<int64_t>("channel_id");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/3));
       // Get the channel from the package.
@@ -872,7 +907,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
             absl::StrFormat("No such channel with channel ID %d", *channel_id));
       }
       XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(*channel_id));
-      bvalue = fb->SendIf(channel, operands[0], operands[1], operands[2], *loc,
+      bvalue = pb->SendIf(channel, operands[0], operands[1], operands[2], *loc,
                           node_name);
       break;
     }
@@ -903,45 +938,53 @@ absl::StatusOr<BValue> Parser::ParseNode(
       break;
     }
     case Op::kInputPort: {
+      XLS_ASSIGN_OR_RETURN(
+          BlockBuilder * bb,
+          CastToBlockBuilderOrError(
+              fb, "input_port operations only supported in blocks",
+              op_token.pos()));
       IdentifierString* name =
           arg_parser.AddKeywordArg<IdentifierString>("name");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
-      bvalue = fb->InputPort(name->value, type, *loc);
+      bvalue = bb->InputPort(name->value, type, *loc);
       break;
     }
     case Op::kOutputPort: {
+      XLS_ASSIGN_OR_RETURN(
+          BlockBuilder * bb,
+          CastToBlockBuilderOrError(
+              fb, "output_port operations only supported in blocks",
+              op_token.pos()));
       IdentifierString* name =
           arg_parser.AddKeywordArg<IdentifierString>("name");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
-      bvalue = fb->OutputPort(name->value, operands[0], *loc);
+      bvalue = bb->OutputPort(name->value, operands[0], *loc);
       break;
     }
     case Op::kRegisterRead: {
-      if (!fb->function()->IsBlock()) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "register_read operations only supported in blocks @ %s",
-            op_token.pos().ToHumanString()));
-      }
-      Block* block = fb->function()->AsBlockOrDie();
+      XLS_ASSIGN_OR_RETURN(
+          BlockBuilder * bb,
+          CastToBlockBuilderOrError(
+              fb, "register_read operations only supported in blocks",
+              op_token.pos()));
       IdentifierString* register_name =
           arg_parser.AddKeywordArg<IdentifierString>("register");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
-      if (!block->HasRegisterWithName(register_name->value)) {
+      if (!bb->block()->HasRegisterWithName(register_name->value)) {
         return absl::InvalidArgumentError(
             absl::StrFormat("No such register named %s", register_name->value));
       }
       XLS_ASSIGN_OR_RETURN(Register * reg,
-                           block->GetRegister(register_name->value));
-      bvalue = fb->RegisterRead(reg, *loc, node_name);
+                           bb->block()->GetRegister(register_name->value));
+      bvalue = bb->RegisterRead(reg, *loc, node_name);
       break;
     }
     case Op::kRegisterWrite: {
-      if (!fb->function()->IsBlock()) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "register_write operations only supported in blocks @ %s",
-            op_token.pos().ToHumanString()));
-      }
-      Block* block = fb->function()->AsBlockOrDie();
+      XLS_ASSIGN_OR_RETURN(
+          BlockBuilder * bb,
+          CastToBlockBuilderOrError(
+              fb, "register_write operations only supported in blocks",
+              op_token.pos()));
       IdentifierString* register_name =
           arg_parser.AddKeywordArg<IdentifierString>("register");
       std::optional<BValue>* load_enable =
@@ -949,13 +992,13 @@ absl::StatusOr<BValue> Parser::ParseNode(
       std::optional<BValue>* reset =
           arg_parser.AddOptionalKeywordArg<BValue>("reset");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
-      if (!block->HasRegisterWithName(register_name->value)) {
+      if (!bb->block()->HasRegisterWithName(register_name->value)) {
         return absl::InvalidArgumentError(
             absl::StrFormat("No such register named %s", register_name->value));
       }
       XLS_ASSIGN_OR_RETURN(Register * reg,
-                           block->GetRegister(register_name->value));
-      bvalue = fb->RegisterWrite(reg, operands[0], *load_enable, *reset, *loc,
+                           bb->block()->GetRegister(register_name->value));
+      bvalue = bb->RegisterWrite(reg, operands[0], *load_enable, *reset, *loc,
                                  node_name);
       break;
     }
