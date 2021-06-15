@@ -1539,7 +1539,7 @@ absl::StatusOr<xls::Op> Translator::XLSOpcodeFromClang(
             std::string(result_type), LocString(loc)));
     }
   }
-  if (auto result_int_type = dynamic_cast<const CBoolType*>(&result_type)) {
+  if (dynamic_cast<const CBoolType*>(&result_type) != nullptr) {
     if (auto input_int_type = dynamic_cast<const CIntType*>(&left_type)) {
       switch (clang_op) {
         case clang::BinaryOperatorKind::BO_GT:
@@ -2699,7 +2699,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
                            ResolveTypeInstance(octype));
 
       // A struct/class is being constructed
-      if (auto stype = dynamic_cast<const CStructType*>(ctype.get())) {
+      if (dynamic_cast<const CStructType*>(ctype.get()) != nullptr) {
         XLS_ASSIGN_OR_RETURN(xls::BValue dv, CreateDefaultValue(octype, loc));
         std::vector<const clang::Expr*> args;
         args.reserve(cast->getNumArgs());
@@ -2903,7 +2903,7 @@ absl::StatusOr<xls::BValue> Translator::CreateDefaultValue(
     return context().fb->Literal(xls::UBits(0, it->width()), loc);
   } else if (auto it = dynamic_cast<const CBitsType*>(t.get())) {
     return context().fb->Literal(xls::UBits(0, it->GetBitWidth()), loc);
-  } else if (auto it = dynamic_cast<const CBoolType*>(t.get())) {
+  } else if (dynamic_cast<const CBoolType*>(t.get()) != nullptr) {
     return context().fb->Literal(xls::UBits(0, 1), loc);
   } else if (auto it = dynamic_cast<const CStructType*>(t.get())) {
     vector<xls::BValue> args;
@@ -2921,7 +2921,7 @@ absl::StatusOr<xls::BValue> Translator::CreateDefaultValue(
     XLS_ASSIGN_OR_RETURN(xls::Type * xls_elem_type,
                          TranslateTypeToXLS(it->GetElementType(), loc));
     return context().fb->Array(element_vals, xls_elem_type, loc);
-  } else if (auto it = dynamic_cast<const CInstantiableTypeAlias*>(t.get())) {
+  } else if (dynamic_cast<const CInstantiableTypeAlias*>(t.get()) != nullptr) {
     XLS_ASSIGN_OR_RETURN(auto resolved, ResolveTypeInstance(t));
     return CreateDefaultValue(resolved, loc);
   } else {
@@ -3619,9 +3619,9 @@ absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
     return context().package->GetBitsType(it->width());
   } else if (auto it = dynamic_cast<const CBitsType*>(t.get())) {
     return context().package->GetBitsType(it->GetBitWidth());
-  } else if (auto it = dynamic_cast<const CBoolType*>(t.get())) {
+  } else if (dynamic_cast<const CBoolType*>(t.get()) != nullptr) {
     return context().package->GetBitsType(1);
-  } else if (auto it = dynamic_cast<const CInstantiableTypeAlias*>(t.get())) {
+  } else if (dynamic_cast<const CInstantiableTypeAlias*>(t.get()) != nullptr) {
     XLS_ASSIGN_OR_RETURN(auto ctype, ResolveTypeInstance(t));
     return TranslateTypeToXLS(ctype, loc);
   } else if (auto it = dynamic_cast<const CStructType*>(t.get())) {
@@ -4070,7 +4070,7 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
     return in.value();
   } else if (dynamic_cast<const CBoolType*>(out_type.get())) {
     return GenBoolConvert(in, loc);
-  } else if (auto p_to_type = dynamic_cast<const CIntType*>(out_type.get())) {
+  } else if (dynamic_cast<const CIntType*>(out_type.get()) != nullptr) {
     if (!(dynamic_cast<const CBoolType*>(in.type().get()) != nullptr ||
           dynamic_cast<const CIntType*>(in.type().get()) != nullptr)) {
       return absl::UnimplementedError(
@@ -4095,8 +4095,8 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
       return context().fb->BitSlice(in.value(), 0, out_type->GetBitWidth(),
                                     loc);
     }
-  } else if (auto p_to_type =
-                 dynamic_cast<const CInstantiableTypeAlias*>(out_type.get())) {
+  } else if (dynamic_cast<const CInstantiableTypeAlias*>(out_type.get()) !=
+             nullptr) {
     XLS_ASSIGN_OR_RETURN(auto t, ResolveTypeInstance(out_type));
     return GenTypeConvert(in, t, loc);
   } else {
