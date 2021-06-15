@@ -52,4 +52,5 @@ xls_dslx_test(
 filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_users"],
 )
