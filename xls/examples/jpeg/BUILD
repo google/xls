@@ -17,6 +17,7 @@ load(
     "cc_xls_ir_jit_wrapper",
     "get_mangled_ir_symbol",
     "xls_dslx_opt_ir",
+    "xls_dslx_test",
     "xls_eval_ir_test",
 )
 
@@ -35,6 +36,11 @@ xls_dslx_opt_ir(
     opt_ir_file = "idct_chen.opt.ir",
     # Note: times out in fastbuild 2020-11-09.
     tags = ["optonly"],
+)
+
+xls_dslx_test(
+    name = "idct_chen_dslx_test",
+    dep = ":idct_chen",
 )
 
 # TODO: 2021-05-28 Add xls_ir_equivalence_test. Note: times out.

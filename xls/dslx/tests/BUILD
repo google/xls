@@ -46,6 +46,11 @@ xls_dslx_opt_ir(
     ir_file = "binops.ir",
 )
 
+xls_dslx_test(
+    name = "binops_dslx_test",
+    dep = ":binops",
+)
+
 # TODO: 2021-05-28 Add xls_ir_equivalence_test.
 xls_eval_ir_test(
     name = "binops_eval_ir_test",
@@ -522,6 +527,11 @@ xls_dslx_opt_ir(
     name = "reductions",
     src = "reductions.x",
     ir_file = "reductions.ir",
+)
+
+xls_dslx_test(
+    name = "reductions_dslx_test",
+    dep = ":reductions",
 )
 
 # TODO: 2021-05-28 Add xls_ir_equivalence_test.
@@ -1486,6 +1496,11 @@ xls_dslx_opt_ir(
     name = "let_match_tuple",
     src = "let_match_tuple.x",
     ir_file = "let_match_tuple.ir",
+)
+
+xls_dslx_test(
+    name = "let_match_tuple_dslx_test",
+    dep = ":let_match_tuple",
 )
 
 # TODO(https://github.com/google/xls/issues/400): This produces a zero-bit

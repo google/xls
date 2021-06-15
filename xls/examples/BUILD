@@ -53,6 +53,11 @@ xls_dslx_opt_ir(
     opt_ir_file = "adler32.opt.ir",
 )
 
+xls_dslx_test(
+    name = "adler32_dslx_test",
+    dep = ":adler32",
+)
+
 # TODO(rspringer): OOMs. Add xls_ir_equivalence_test.
 xls_eval_ir_test(
     name = "adler32_eval_ir_test",
@@ -168,6 +173,11 @@ xls_dslx_opt_ir(
     ir_file = "sha256.ir",
     opt_ir_file = "sha256.opt.ir",
     tags = ["optonly"],
+)
+
+xls_dslx_test(
+    name = "sha256_dslx_test",
+    dep = ":sha256",
 )
 
 # TODO(rspringer): OOMs on some machines. Add xls_ir_equivalence_test.

@@ -68,6 +68,11 @@ xls_dslx_opt_ir(
     deps = [":apfloat_fma_dslx"],
 )
 
+xls_dslx_test(
+    name = "fma_32_dslx_test",
+    dep = ":fma_32",
+)
+
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
 # xls_ir_equivalence_test.
 xls_eval_ir_test(
@@ -115,6 +120,11 @@ xls_dslx_opt_ir(
     ir_file = "fma_64.ir",
     opt_ir_file = "fma_64.opt.ir",
     deps = [":apfloat_fma_dslx"],
+)
+
+xls_dslx_test(
+    name = "fma_64_dslx_test",
+    dep = ":fma_64",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
@@ -178,6 +188,11 @@ xls_dslx_opt_ir(
     deps = [":apfloat_add_2_dslx"],
 )
 
+xls_dslx_test(
+    name = "fpadd_2x32_dslx_test",
+    dep = ":fpadd_2x32",
+)
+
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
 # xls_ir_equivalence_test.
 xls_eval_ir_test(
@@ -198,6 +213,11 @@ xls_dslx_opt_ir(
         ":apfloat_sub_2_dslx",
         ":fpadd_2x32_dslx",
     ],
+)
+
+xls_dslx_test(
+    name = "fpsub_2x32_dslx_test",
+    dep = ":fpsub_2x32",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
@@ -226,6 +246,11 @@ xls_dslx_opt_ir(
     src = "fpsub_2x64.x",
     ir_file = "fpsub_2x64.ir",
     deps = [":fpadd_2x64_dslx"],
+)
+
+xls_dslx_test(
+    name = "fpsub_2x64_dslx_test",
+    dep = ":fpsub_2x64",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
@@ -305,6 +330,11 @@ xls_dslx_opt_ir(
     ],
 )
 
+xls_dslx_test(
+    name = "fpadd_2x64_dslx_test",
+    dep = ":fpadd_2x64",
+)
+
 # TODO: 2021-03-08 Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
 xls_eval_ir_test(
     name = "fpadd_2x64_eval_ir_test",
@@ -356,6 +386,11 @@ xls_dslx_opt_ir(
     deps = [
         ":apfloat_add_2_dslx",
     ],
+)
+
+xls_dslx_test(
+    name = "fpadd_2xbf16_dslx_test",
+    dep = ":fpadd_2xbf16",
 )
 
 # TODO: 2021-03-08 Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
@@ -426,6 +461,11 @@ xls_dslx_opt_ir(
     deps = [":apfloat_mul_2_dslx"],
 )
 
+xls_dslx_test(
+    name = "fpmul_2x32_dslx_test",
+    dep = ":fpmul_2x32",
+)
+
 # TODO: 2021-03-08 Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
 xls_eval_ir_test(
     name = "fpmul_2x32_eval_ir_test",
@@ -488,6 +528,11 @@ xls_dslx_opt_ir(
     deps = [":apfloat_mul_2_dslx"],
 )
 
+xls_dslx_test(
+    name = "fpmul_2x64_dslx_test",
+    dep = ":fpmul_2x64",
+)
+
 # TODO(rspringer): Currently takes too long. Add xls_ir_equivalence_test.
 xls_eval_ir_test(
     name = "fpmul_2x64_eval_ir_test",
@@ -548,6 +593,11 @@ xls_dslx_opt_ir(
         ":fpadd_2x32_dslx",
         ":fpmul_2x32_dslx",
     ],
+)
+
+xls_dslx_test(
+    name = "fp_fast_rsqrt_32_dslx_test",
+    dep = ":fp_fast_rsqrt_32",
 )
 
 # TODO(rspringer): Currently takes too long. Add xls_ir_equivalence_test.
