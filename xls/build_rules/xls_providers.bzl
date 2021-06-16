@@ -29,6 +29,24 @@ DslxFilesInfo = provider(
     },
 )
 
+DslxModuleInfo = provider(
+    doc = "A provider containing DSLX file information for the target. It is " +
+          "created and returned by the xls_dslx_module_library rule.",
+    fields = {
+        "dslx_source_files": "List: A list containing the DSLX source " +
+                             "(.x) files of its dependencies.",
+        "dslx_dummy_files": "List: A list containing the DSLX generated " +
+                            "dummy (.dummy) files of its dependencies. See " +
+                            "DslxFilesInfo for details on a dummy file.",
+        "dslx_source_module_file": "File: A file containing the DSLX source " +
+                                   "(.x) files of the target.",
+        "dslx_dummy_module_file": "File: A file containing the DSLX " +
+                                  "generated dummy (.dummy) files of the " +
+                                  "target. See DslxFilesInfo for details on " +
+                                  "a dummy file.",
+    },
+)
+
 ConvIRInfo = provider(
     doc = "A provider containing IR conversion file information for the " +
           "target. It is created and returned by the xls_dslx_ir rule.",

@@ -19,6 +19,7 @@ load(
     "xls_benchmark_ir",
     "xls_dslx_ir",
     "xls_dslx_library",
+    "xls_dslx_module_library",
     "xls_dslx_opt_ir",
     "xls_dslx_opt_ir_test",
     "xls_dslx_test",
@@ -116,6 +117,15 @@ xls_dslx_library(
     ],
     deps = [
         ":a_dslx",
+    ],
+)
+
+# xls_dslx_module_library with a transitive dependency.
+xls_dslx_module_library(
+    name = "d_dslx_module",
+    src = "d.x",
+    deps = [
+        ":bc_dslx",
     ],
 )
 

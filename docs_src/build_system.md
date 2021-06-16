@@ -24,6 +24,20 @@ Examples using the rules are found at
 
 A build rule that parses and type checks DSLX source files.
 
+### `xls_dslx_module_library`
+
+A build rule that parses and type checks a DSLX source file. The rule is the
+gateway to other translation rules such as xls_dslx_ir and xls_dslx_verilog.
+
+Currently, the DSLX executables (interpreter and converter) require a
+'main source file' to perform evaluation and conversion. As a result, the
+xls_dslx_module_library was introduced that includes an entry to indicate the
+'main source file'.
+
+This rule is an interim solution. When the DSLX executables (interpreter and
+converter) are updated where the 'main source file' is not required, the
+xls_dslx_module_library can be removed.
+
 ### `xls_dslx_test`
 
 A test rule that executes the tests and quick checks of a DSLX source file.

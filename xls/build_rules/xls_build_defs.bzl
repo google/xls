@@ -22,6 +22,7 @@ exposed to the user. This module is created for convenience.
 load(
     "//xls/build_rules:xls_dslx_rules.bzl",
     _xls_dslx_library = "xls_dslx_library",
+    _xls_dslx_module_library = "xls_dslx_module_library",
     _xls_dslx_test = "xls_dslx_test",
 )
 load(
@@ -50,6 +51,7 @@ load(
 )
 
 xls_dslx_library = _xls_dslx_library
+xls_dslx_module_library = _xls_dslx_module_library
 xls_dslx_test = _xls_dslx_test
 
 xls_dslx_ir = _xls_dslx_ir
