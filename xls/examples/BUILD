@@ -19,6 +19,7 @@ load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
     "xls_dslx_library",
+    "xls_dslx_module_library",
     "xls_dslx_opt_ir",
     "xls_dslx_opt_ir_test",
     "xls_dslx_test",
@@ -46,27 +47,32 @@ filegroup(
     ],
 )
 
+xls_dslx_module_library(
+    name = "adler32_dslx_module",
+    src = "adler32.x",
+)
+
 xls_dslx_opt_ir(
     name = "adler32",
-    src = "adler32.x",
+    dep_dslx_module = ":adler32_dslx_module",
     ir_file = "adler32.ir",
     opt_ir_file = "adler32.opt.ir",
 )
 
 xls_dslx_test(
     name = "adler32_dslx_test",
-    dep = ":adler32",
+    dep_dslx_module = ":adler32_dslx_module",
 )
 
 # TODO(rspringer): OOMs. Add xls_ir_equivalence_test.
 xls_eval_ir_test(
     name = "adler32_eval_ir_test",
-    src = "adler32.ir",
+    src = ":adler32.ir",
 )
 
 xls_benchmark_ir(
     name = "adler32_benchmark_ir",
-    src = "adler32.ir",
+    src = ":adler32.ir",
 )
 
 cc_binary(
@@ -81,9 +87,14 @@ cc_binary(
     ],
 )
 
+xls_dslx_module_library(
+    name = "capitalize_dslx_module",
+    src = "capitalize.x",
+)
+
 xls_dslx_opt_ir(
     name = "capitalize",
-    src = "capitalize.x",
+    dep_dslx_module = ":capitalize_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -91,9 +102,14 @@ xls_dslx_opt_ir_test(
     dep = ":capitalize",
 )
 
+xls_dslx_module_library(
+    name = "crc32_dslx_module",
+    src = "crc32.x",
+)
+
 xls_dslx_opt_ir(
     name = "crc32",
-    src = "crc32.x",
+    dep_dslx_module = ":crc32_dslx_module",
     ir_file = "crc32.ir",
     opt_ir_file = "crc32.opt.ir",
 )
@@ -133,43 +149,63 @@ xls_dslx_library(
     ],
 )
 
-xls_dslx_test(
-    name = "dot_product",
+xls_dslx_module_library(
+    name = "dot_product_dslx_module",
     src = "dot_product.x",
-    dslx_test_args = {
-        "compare": "none",
-    },
     deps = ["module_libs"],
 )
 
 xls_dslx_test(
-    name = "fir_filter",
-    src = "fir_filter.x",
+    name = "dot_product_dslx_test",
+    dep_dslx_module = ":dot_product_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
+)
+
+xls_dslx_module_library(
+    name = "fir_filter_dslx_module",
+    src = "fir_filter.x",
     deps = ["module_libs"],
+)
+
+xls_dslx_test(
+    name = "fir_filter_dslx_test",
+    dep_dslx_module = ":fir_filter_dslx_module",
+    dslx_test_args = {
+        "compare": "none",
+    },
+)
+
+xls_dslx_module_library(
+    name = "riscv_simple_dslx_module",
+    src = "riscv_simple.x",
 )
 
 xls_dslx_opt_ir(
     name = "riscv_simple",
-    src = "riscv_simple.x",
+    dep_dslx_module = ":riscv_simple_dslx_module",
 )
 
 # TODO: 2021-05-28 Add xls_ir_equivalence_test, xls_eval_ir_test and
 # xls_benchmark_ir.
 xls_dslx_test(
-    name = "riscv_simple_test",
-    dep = ":riscv_simple",
+    name = "riscv_simple_dslx_test",
+    dep_dslx_module = ":riscv_simple_dslx_module",
     dslx_test_args = {
         # TODO(hjmontero): run_instruction segfaults in the JIT.
         "compare": "interpreter",
     },
 )
 
+xls_dslx_module_library(
+    name = "sha256_dslx_module",
+    src = "sha256.x",
+)
+
 xls_dslx_opt_ir(
     name = "sha256",
-    src = "sha256.x",
+    dep_dslx_module = ":sha256_dslx_module",
     ir_file = "sha256.ir",
     opt_ir_file = "sha256.opt.ir",
     tags = ["optonly"],
@@ -177,19 +213,19 @@ xls_dslx_opt_ir(
 
 xls_dslx_test(
     name = "sha256_dslx_test",
-    dep = ":sha256",
+    dep_dslx_module = ":sha256_dslx_module",
 )
 
 # TODO(rspringer): OOMs on some machines. Add xls_ir_equivalence_test.
 xls_eval_ir_test(
     name = "sha256_eval_ir_test",
-    src = "sha256.ir",
+    src = ":sha256.ir",
     tags = ["optonly"],
 )
 
 xls_benchmark_ir(
     name = "sha256_benchmark_ir",
-    src = "sha256.ir",
+    src = ":sha256.ir",
     tags = ["optonly"],
 )
 

@@ -17,6 +17,7 @@
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
+    "xls_dslx_module_library",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
 )
@@ -26,15 +27,20 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+xls_dslx_module_library(
+    name = "simple_dslx_module",
+    src = "simple.x",
+)
+
 xls_dslx_opt_ir(
     name = "simple",
-    src = "simple.x",
+    dep_dslx_module = ":simple_dslx_module",
     opt_ir_file = "simple.opt.ir",
 )
 
 xls_dslx_test(
-    name = "simple_test",
-    src = "simple.x",
+    name = "simple_dslx_test",
+    dep_dslx_module = ":simple_dslx_module",
 )
 
 cc_xls_ir_jit_wrapper(

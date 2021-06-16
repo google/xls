@@ -16,6 +16,7 @@ load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
     "get_mangled_ir_symbol",
+    "xls_dslx_module_library",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
     "xls_eval_ir_test",
@@ -26,9 +27,14 @@ package(
     licenses = ["notice"],
 )
 
+xls_dslx_module_library(
+    name = "idct_chen_dslx_module",
+    src = "idct_chen.x",
+)
+
 xls_dslx_opt_ir(
     name = "idct_chen",
-    src = "idct_chen.x",
+    dep_dslx_module = ":idct_chen_dslx_module",
     ir_file = "idct_chen.ir",
     opt_ir_args = {
         "entry": get_mangled_ir_symbol("idct_chen", "idct"),
@@ -40,13 +46,13 @@ xls_dslx_opt_ir(
 
 xls_dslx_test(
     name = "idct_chen_dslx_test",
-    dep = ":idct_chen",
+    dep_dslx_module = ":idct_chen_dslx_module",
 )
 
 # TODO: 2021-05-28 Add xls_ir_equivalence_test. Note: times out.
 xls_eval_ir_test(
     name = "idct_chen_eval_ir_test",
-    src = "idct_chen.ir",
+    src = ":idct_chen.ir",
     ir_eval_args = {
         "entry": get_mangled_ir_symbol("idct_chen", "idct"),
     },
@@ -56,7 +62,7 @@ xls_eval_ir_test(
 
 cc_xls_ir_jit_wrapper(
     name = "idct_chen_jit_wrapper",
-    src = "idct_chen.opt.ir",
+    src = ":idct_chen.opt.ir",
     jit_wrapper_args = {
         "class_name": "idct_chen",
     },

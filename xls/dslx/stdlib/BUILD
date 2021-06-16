@@ -12,41 +12,75 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_test")
+load(
+    "//xls/build_rules:xls_build_defs.bzl",
+    "xls_dslx_module_library",
+    "xls_dslx_test",
+)
 
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
 
-xls_dslx_test(
-    name = "std",
+xls_dslx_module_library(
+    name = "std_dslx_module",
     src = "std.x",
 )
 
 xls_dslx_test(
-    name = "acm_random",
+    name = "std_dslx_test",
+    dep_dslx_module = "std_dslx_module",
+)
+
+xls_dslx_module_library(
+    name = "acm_random_dslx_module",
     src = "acm_random.x",
 )
 
 xls_dslx_test(
-    name = "apfloat",
+    name = "acm_random_dslx_test",
+    dep_dslx_module = "acm_random_dslx_module",
+)
+
+xls_dslx_module_library(
+    name = "apfloat_dslx_module",
     src = "apfloat.x",
 )
 
 xls_dslx_test(
-    name = "bfloat16",
+    name = "apfloat_dslx_test",
+    dep_dslx_module = "apfloat_dslx_module",
+)
+
+xls_dslx_module_library(
+    name = "bfloat16_dslx_module",
     src = "bfloat16.x",
 )
 
 xls_dslx_test(
-    name = "float32",
+    name = "bfloat16_dslx_test",
+    dep_dslx_module = "bfloat16_dslx_module",
+)
+
+xls_dslx_module_library(
+    name = "float32_dslx_module",
     src = "float32.x",
 )
 
 xls_dslx_test(
-    name = "float64",
+    name = "float32_dslx_test",
+    dep_dslx_module = "float32_dslx_module",
+)
+
+xls_dslx_module_library(
+    name = "float64_dslx_module",
     src = "float64.x",
+)
+
+xls_dslx_test(
+    name = "float64_dslx_test",
+    dep_dslx_module = "float64_dslx_module",
 )
 
 filegroup(
