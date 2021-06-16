@@ -553,12 +553,14 @@ cc_xls_ir_jit_wrapper(
 )
 
 cc_test(
-    name = "fpmul_2x64_test_cc",
+    name = "fpmul_2x64_test",
     srcs = ["fpmul_2x64_test.cc"],
     data = [
         ":fpmul_2x64.ir",
         ":fpmul_2x64.opt.ir",
     ],
+    # Flakes in fastbuild seen on 2021-06-04.
+    tags = ["optonly"],
     deps = [
         ":fpmul_2x64_jit_wrapper",
         "@com_google_absl//absl/random",
