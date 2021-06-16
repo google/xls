@@ -339,6 +339,24 @@ xls_dslx_library = rule(
                 ":a_dslx",
             ],
         )
+        3) Dependency on xls_dslx_module_library targets.
+
+        ```
+        xls_dslx_module_library(
+            name = "a_dslx_module",
+            srcs = [
+                "a.x",
+            ],
+        )
+
+        # Depends on target a_dslx_module.
+        xls_dslx_library(
+            name = "b_dslx",
+            src = "b.x",
+            deps = [
+                ":a_dslx_module",
+            ],
+        )
         ```
     """,
     implementation = _xls_dslx_library_impl,
@@ -385,7 +403,10 @@ def _xls_dslx_module_library_impl(ctx):
     )
     dummy_files_list = dummy_files_depset.to_list()
     return [
-        #TODO(vmirian) 06-13-21 Add DslxFilesInfo for xls_dslx_library deps.
+        DslxInfo(
+            dslx_source_files = my_srcs_depset,
+            dslx_dummy_files = dummy_files_depset,
+        ),
         DslxModuleInfo(
             dslx_source_files = my_srcs_list,
             dslx_dummy_files = dummy_files_list,
@@ -427,6 +448,25 @@ xls_dslx_module_library = rule(
             src = "b.x",
             deps = [
                 ":a_dslx",
+            ],
+        )
+
+        3) Dependency on xls_dslx_module_library targets.
+
+        ```
+        xls_dslx_module_library(
+            name = "a_dslx_module",
+            srcs = [
+                "a.x",
+            ],
+        )
+
+        # Depends on target a_dslx_module.
+        xls_dslx_module_library(
+            name = "b_dslx_module",
+            src = "b.x",
+            deps = [
+                ":a_dslx_module",
             ],
         )
 

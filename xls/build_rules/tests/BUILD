@@ -150,6 +150,22 @@ xls_dslx_test(
     dep_dslx_module = ":d_dslx_module",
 )
 
+# xls_dslx_module_library with a transitive dependency on a
+# xls_dslx_module_library.
+xls_dslx_module_library(
+    name = "e_dslx_module",
+    src = "e.x",
+    deps = [
+        ":d_dslx_module",
+    ],
+)
+
+# xls_dslx_test on a xls_dslx_module_library with a transitive dependency.
+xls_dslx_test(
+    name = "e_dslx_test",
+    dep_dslx_module = ":e_dslx_module",
+)
+
 ################################################################################
 # Simple example with rule chaining.
 #
