@@ -20,7 +20,7 @@ load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load(
     "//xls/build_rules:xls_providers.bzl",
     "ConvIRInfo",
-    "DslxFilesInfo",
+    "DslxInfo",
     "DslxModuleInfo",
     "OptIRInfo",
 )
@@ -63,7 +63,7 @@ def _xls_dslx_opt_ir_impl(ctx, src, dep_src_list):
       dep_src_list: A list of source file dependencies.
     Returns:
       DslxModuleInfo provider.
-      DslxFilesInfo provider.
+      DslxInfo provider.
       ConvIRInfo provider.
       OptIRInfo provider.
       DefaultInfo provider.
@@ -79,7 +79,7 @@ def _xls_dslx_opt_ir_impl(ctx, src, dep_src_list):
         dslx_module_info,
         # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library,
         # remove the following code.
-        DslxFilesInfo(
+        DslxInfo(
             dslx_source_files = get_transitive_dslx_srcs_files_depset(
                 [src],
                 ctx.attr.deps,
@@ -127,7 +127,7 @@ def _xls_dslx_opt_ir_impl_wrapper(ctx):
     else:
         src = ctx.file.src
         for dep in ctx.attr.deps:
-            dep_src_list += dep[DslxFilesInfo].dslx_source_files.to_list()
+            dep_src_list += dep[DslxInfo].dslx_source_files.to_list()
     return _xls_dslx_opt_ir_impl(ctx, src, dep_src_list)
 
 xls_dslx_opt_ir = rule(
@@ -180,7 +180,7 @@ def _xls_dslx_opt_ir_test_impl(ctx):
         )
     else:
         dslx_test_file = ctx.attr.dep[ConvIRInfo].dslx_source_file
-        dslx_source_files = ctx.attr.dep[DslxFilesInfo].dslx_source_files.to_list()
+        dslx_source_files = ctx.attr.dep[DslxInfo].dslx_source_files.to_list()
     conv_ir_file = ctx.attr.dep[ConvIRInfo].conv_ir_file
     opt_ir_file = ctx.attr.dep[OptIRInfo].opt_ir_file
     opt_ir_args = ctx.attr.dep[OptIRInfo].opt_ir_args
@@ -242,7 +242,7 @@ _xls_dslx_opt_ir_test_impl_attrs = {
     "dep": attr.label(
         doc = "The xls_dslx_opt_ir target to test.",
         providers = [
-            DslxFilesInfo,
+            DslxInfo,
             DslxModuleInfo,
             ConvIRInfo,
             OptIRInfo,
@@ -294,7 +294,7 @@ def _xls_dslx_verilog_impl(ctx):
       ctx: The current rule's context object.
     Returns:
       DslxModuleInfo provider.
-      DslxFilesInfo provider.
+      DslxInfo provider.
       ConvIRInfo provider.
       OptIRInfo provider.
       CodegenInfo provider.
@@ -313,7 +313,7 @@ def _xls_dslx_verilog_impl(ctx):
     else:
         src = ctx.file.src
         for dep in ctx.attr.deps:
-            dep_src_list += dep[DslxFilesInfo].dslx_source_files.to_list()
+            dep_src_list += dep[DslxInfo].dslx_source_files.to_list()
     (
         dslx_module_info,
         dslx_files_info,

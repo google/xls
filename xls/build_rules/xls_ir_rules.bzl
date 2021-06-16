@@ -18,7 +18,7 @@ load("//xls/build_rules:xls_common_rules.bzl", "get_args")
 load(
     "//xls/build_rules:xls_providers.bzl",
     "ConvIRInfo",
-    "DslxFilesInfo",
+    "DslxInfo",
     "DslxModuleInfo",
     "OptIRInfo",
 )
@@ -366,7 +366,7 @@ def xls_dslx_ir_impl(ctx, src, dep_src_list):
             conv_ir_file = ir_file,
             # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library,
             # remove the following code.
-            dslx_files_info = DslxFilesInfo(
+            dslx_files_info = DslxInfo(
                 dslx_source_files = get_transitive_dslx_srcs_files_depset(
                     [src],
                     ctx.attr.deps,
@@ -413,7 +413,7 @@ xls_dslx_ir_attrs = dicts.add(
         ),
         "deps": attr.label_list(
             doc = "Dependency targets for the rule.",
-            providers = [DslxFilesInfo],
+            providers = [DslxInfo],
         ),
         "ir_conv_args": attr.string_dict(
             doc = "Arguments of the IR conversion tool.",
@@ -459,7 +459,7 @@ def _xls_dslx_ir_impl_wrapper(ctx):
     else:
         src = ctx.file.src
         for dep in ctx.attr.deps:
-            dep_src_list += dep[DslxFilesInfo].dslx_source_files.to_list()
+            dep_src_list += dep[DslxInfo].dslx_source_files.to_list()
     return xls_dslx_ir_impl(ctx, src, dep_src_list)
 
 xls_dslx_ir = rule(

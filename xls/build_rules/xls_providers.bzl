@@ -14,7 +14,7 @@
 
 """This module contains the providers for the XLS build rules."""
 
-DslxFilesInfo = provider(
+DslxInfo = provider(
     doc = "A provider containing DSLX file information for the target. It is " +
           "created and returned by the xls_dslx_library rule.",
     fields = {
@@ -37,13 +37,13 @@ DslxModuleInfo = provider(
                              "(.x) files of its dependencies.",
         "dslx_dummy_files": "List: A list containing the DSLX generated " +
                             "dummy (.dummy) files of its dependencies. See " +
-                            "DslxFilesInfo for details on a dummy file.",
+                            "DslxInfo for details on a dummy file.",
         "dslx_source_module_file": "File: A file containing the DSLX source " +
                                    "(.x) files of the target.",
         "dslx_dummy_module_file": "File: A file containing the DSLX " +
                                   "generated dummy (.dummy) files of the " +
-                                  "target. See DslxFilesInfo for details on " +
-                                  "a dummy file.",
+                                  "target. See DslxInfo for details on a " +
+                                  "dummy file.",
     },
 )
 
@@ -55,8 +55,8 @@ ConvIRInfo = provider(
         "conv_ir_file": "File: The IR file converted from a DSLX source.",
         # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library,
         # remove the following code.
-        "dslx_files_info": "DslxFilesInfo provider: A DslxFilesInfo provider" +
-                           "used to produce the artifacts of the ConvIRInfo " +
+        "dslx_files_info": "DslxInfo provider: A DslxInfo provider used to " +
+                           "produce the artifacts of the ConvIRInfo " +
                            "instance.",
     },
 )

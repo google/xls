@@ -19,7 +19,7 @@ load("//xls/build_rules:xls_common_rules.bzl", "get_args")
 load(
     "//xls/build_rules:xls_providers.bzl",
     "ConvIRInfo",
-    "DslxFilesInfo",
+    "DslxInfo",
     "DslxModuleInfo",
 )
 
@@ -43,7 +43,7 @@ def get_transitive_dslx_srcs_files_depset(srcs, deps):
     """
     return depset(
         srcs,
-        transitive = [dep[DslxFilesInfo].dslx_source_files for dep in deps],
+        transitive = [dep[DslxInfo].dslx_source_files for dep in deps],
     )
 
 def get_transitive_dslx_dummy_files_depset(srcs, deps):
@@ -62,7 +62,7 @@ def get_transitive_dslx_dummy_files_depset(srcs, deps):
     """
     return depset(
         srcs,
-        transitive = [dep[DslxFilesInfo].dslx_dummy_files for dep in deps],
+        transitive = [dep[DslxInfo].dslx_dummy_files for dep in deps],
     )
 
 #TODO(https://github.com/google/xls/issues/392) 04-14-21
@@ -157,8 +157,8 @@ def get_dslx_test_cmd(ctx, src):
 _xls_dslx_common_attrs = {
     "deps": attr.label_list(
         doc = "Dependency targets for the rule. The targets must emit a " +
-              "DslxFilesInfo provider.",
-        providers = [DslxFilesInfo],
+              "DslxInfo provider.",
+        providers = [DslxInfo],
     ),
 }
 
@@ -230,9 +230,9 @@ _xls_dslx_test_attrs = {
     ),
     "deps": attr.label_list(
         doc = "Dependency targets for the rule. The targets must emit a " +
-              "DslxFilesInfo provider. When assigned, the 'dep' attribute " +
-              "cannot be assigned. Otherwise, an error occurs.",
-        providers = [DslxFilesInfo],
+              "DslxInfo provider. When assigned, the 'dep' attribute cannot " +
+              "be assigned. Otherwise, an error occurs.",
+        providers = [DslxInfo],
     ),
 }
 
@@ -258,7 +258,7 @@ def _xls_dslx_library_impl(ctx):
       ctx: The current rule's context object.
 
     Returns:
-      DslxFilesInfo provider
+      DslxInfo provider
       DefaultInfo provider
     """
     my_srcs_list = ctx.files.srcs
@@ -282,7 +282,7 @@ def _xls_dslx_library_impl(ctx):
         ctx.attr.deps,
     )
     return [
-        DslxFilesInfo(
+        DslxInfo(
             dslx_source_files = my_srcs_depset,
             dslx_dummy_files = dummy_files_depset,
         ),
@@ -477,7 +477,7 @@ def _xls_dslx_test_impl(ctx):
         runfiles += ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_files
     elif ctx.attr.src:
         for dep in ctx.attr.deps:
-            runfiles += dep[DslxFilesInfo].dslx_source_files.to_list()
+            runfiles += dep[DslxInfo].dslx_source_files.to_list()
     else:  # ctx.attr.dep is defined
         runfiles += (
             ctx.attr.dep[ConvIRInfo].dslx_files_info.dslx_source_files.to_list()
