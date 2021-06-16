@@ -53,6 +53,8 @@ ConvIRInfo = provider(
     fields = {
         "dslx_source_file": "File: The DSLX source file.",
         "conv_ir_file": "File: The IR file converted from a DSLX source.",
+        # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library,
+        # remove the following code.
         "dslx_files_info": "DslxFilesInfo provider: A DslxFilesInfo provider" +
                            "used to produce the artifacts of the ConvIRInfo " +
                            "instance.",

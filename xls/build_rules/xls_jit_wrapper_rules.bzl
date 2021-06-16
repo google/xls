@@ -126,7 +126,7 @@ xls_ir_jit_wrapper = rule(
         ```
             xls_ir_opt_ir(
                 name = "a",
-                src = "a.x",
+                src = "a.ir",
             )
 
 

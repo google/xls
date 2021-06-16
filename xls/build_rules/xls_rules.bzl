@@ -21,6 +21,7 @@ load(
     "//xls/build_rules:xls_providers.bzl",
     "ConvIRInfo",
     "DslxFilesInfo",
+    "DslxModuleInfo",
     "OptIRInfo",
 )
 load(
@@ -51,7 +52,7 @@ load(
     "xls_ir_verilog_impl",
 )
 
-def _xls_dslx_opt_ir_impl(ctx, src):
+def _xls_dslx_opt_ir_impl(ctx, src, dep_src_list):
     """The implementation of the 'xls_dslx_opt_ir' rule.
 
     Converts a DSLX file to an IR and optimizes the IR.
@@ -59,18 +60,25 @@ def _xls_dslx_opt_ir_impl(ctx, src):
     Args:
       ctx: The current rule's context object.
       src: The source file.
+      dep_src_list: A list of source file dependencies.
     Returns:
+      DslxModuleInfo provider.
       DslxFilesInfo provider.
       ConvIRInfo provider.
       OptIRInfo provider.
       DefaultInfo provider.
     """
-    ir_conv_info, ir_conv_default_info = xls_dslx_ir_impl(ctx, src)
+    dslx_module_info, ir_conv_info, ir_conv_default_info = (
+        xls_dslx_ir_impl(ctx, src, dep_src_list)
+    )
     ir_opt_info, ir_opt_default_info = xls_ir_opt_ir_impl(
         ctx,
         ir_conv_info.conv_ir_file,
     )
     return [
+        dslx_module_info,
+        # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library,
+        # remove the following code.
         DslxFilesInfo(
             dslx_source_files = get_transitive_dslx_srcs_files_depset(
                 [src],
@@ -106,47 +114,38 @@ def _xls_dslx_opt_ir_impl_wrapper(ctx):
     Returns:
       See: _xls_dslx_opt_ir_impl.
     """
-    return _xls_dslx_opt_ir_impl(ctx, ctx.file.src)
+    src = None
+    dep_src_list = []
+
+    # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library, remove
+    # the following code.
+    if ctx.attr.dep_dslx_module:
+        src = ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_module_file
+        dep_src_list = (
+            ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_files
+        )
+    else:
+        src = ctx.file.src
+        for dep in ctx.attr.deps:
+            dep_src_list += dep[DslxFilesInfo].dslx_source_files.to_list()
+    return _xls_dslx_opt_ir_impl(ctx, src, dep_src_list)
 
 xls_dslx_opt_ir = rule(
     doc = """A build rule that generates an optimized IR file from a DSLX source file.
 
-        Examples:
+        Example:
 
-        1) Generate optimized IR from a DSLX source.
+        Generate optimized IR from a xls_dslx_module_library target.
 
         ```
-            xls_dslx_opt_ir(
-                name = "a_opt_ir",
+            xls_dslx_module_library(
+                name = "a_dslx_module",
                 src = "a.x",
             )
-        ```
-
-        2) Generate optimized IR with dependency on xls_dslx_library targets.
-
-        ```
-            xls_dslx_library(
-                name = "files_ab_dslx",
-                srcs = [
-                    "a.x",
-                    "b.x",
-                ],
-            )
-
-            xls_dslx_library(
-                name = "c_dslx",
-                srcs = [
-                    "c.x",
-                ],
-            )
 
             xls_dslx_opt_ir(
-                name = "d_opt_ir",
-                src = "d.x",
-                deps = [
-                    ":files_ab_dslx",
-                    ":c_dslx",
-                ],
+                name = "a_opt_ir",
+                dep_dslx_module = ":a_dslx_module",
             )
         ```
     """,
@@ -169,14 +168,24 @@ def _xls_dslx_opt_ir_test_impl(ctx):
     Returns:
       DefaultInfo provider
     """
-    dslx_source_files = ctx.attr.dep[DslxFilesInfo].dslx_source_files.to_list()
-    dslx_test_file = ctx.attr.dep[ConvIRInfo].dslx_source_file
+    dslx_test_file = None
+    dslx_source_files = []
+
+    # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library, remove
+    # the following code.
+    if hasattr(ctx.attr.dep[DslxModuleInfo], "dslx_dummy_module_file"):
+        dslx_test_file = ctx.attr.dep[DslxModuleInfo].dslx_source_module_file
+        dslx_source_files = (
+            ctx.attr.dep[DslxModuleInfo].dslx_source_files
+        )
+    else:
+        dslx_test_file = ctx.attr.dep[ConvIRInfo].dslx_source_file
+        dslx_source_files = ctx.attr.dep[DslxFilesInfo].dslx_source_files.to_list()
     conv_ir_file = ctx.attr.dep[ConvIRInfo].conv_ir_file
     opt_ir_file = ctx.attr.dep[OptIRInfo].opt_ir_file
     opt_ir_args = ctx.attr.dep[OptIRInfo].opt_ir_args
     entry = opt_ir_args.get("entry", None)
-
-    runfiles = dslx_source_files
+    runfiles = list(dslx_source_files)
 
     # xls_dslx_test
     my_runfiles, dslx_test_cmd = get_dslx_test_cmd(ctx, dslx_test_file)
@@ -234,6 +243,7 @@ _xls_dslx_opt_ir_test_impl_attrs = {
         doc = "The xls_dslx_opt_ir target to test.",
         providers = [
             DslxFilesInfo,
+            DslxModuleInfo,
             ConvIRInfo,
             OptIRInfo,
         ],
@@ -245,9 +255,14 @@ xls_dslx_opt_ir_test = rule(
 
         Example:
         ```
+            xls_dslx_module_library(
+                name = "a_dslx_module",
+                src = "a.x",
+            )
+
             xls_dslx_opt_ir(
                 name = "a_opt_ir",
-                src = "a.x",
+                dep_dslx_module = ":a_dslx_module",
             )
 
             xls_dslx_opt_ir_test(
@@ -278,22 +293,42 @@ def _xls_dslx_verilog_impl(ctx):
     Args:
       ctx: The current rule's context object.
     Returns:
+      DslxModuleInfo provider.
       DslxFilesInfo provider.
       ConvIRInfo provider.
       OptIRInfo provider.
       CodegenInfo provider.
       DefaultInfo provider.
     """
-    dslx_test_file = ctx.file.src
-    dslx_files_info, ir_conv_info, ir_opt_info, dslx_ir_default_info = _xls_dslx_opt_ir_impl(
-        ctx,
-        dslx_test_file,
-    )
+    src = None
+    dep_src_list = []
+
+    # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library, remove
+    # the following code.
+    if ctx.attr.dep_dslx_module:
+        src = ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_module_file
+        dep_src_list = (
+            ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_files
+        )
+    else:
+        src = ctx.file.src
+        for dep in ctx.attr.deps:
+            dep_src_list += dep[DslxFilesInfo].dslx_source_files.to_list()
+    (
+        dslx_module_info,
+        dslx_files_info,
+        ir_conv_info,
+        ir_opt_info,
+        dslx_ir_default_info,
+    ) = _xls_dslx_opt_ir_impl(ctx, src, dep_src_list)
     codegen_info, codegen_default_info = xls_ir_verilog_impl(
         ctx,
         ir_opt_info.opt_ir_file,
     )
     return [
+        dslx_module_info,
+        # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library,
+        # remove the following code.
         dslx_files_info,
         ir_conv_info,
         ir_opt_info,
@@ -317,46 +352,18 @@ xls_dslx_verilog = rule(
 
         Examples:
 
-        1) Generate Verilog from a DSLX source.
-
         ```
+            xls_dslx_module_library(
+                name = "a_dslx_module",
+                src = "a.x",
+            )
+
             xls_dslx_verilog(
                 name = "a_verilog",
-                src = "a.x",
                 codegen_args = {
                     "pipeline_stages": "1",
                 },
-            )
-        ```
-
-        2) Generate Verilog with dependency on xls_dslx_library targets.
-
-        ```
-            xls_dslx_library(
-                name = "files_ab_dslx",
-                srcs = [
-                    "a.x",
-                    "b.x",
-                ],
-            )
-
-            xls_dslx_library(
-                name = "c_dslx",
-                srcs = [
-                    "c.x",
-                ],
-            )
-
-            xls_dslx_verilog(
-                name = "d_verilog",
-                src = "d.x",
-                deps = [
-                    ":files_ab_dslx",
-                    ":c_dslx",
-                ],
-                codegen_args = {
-                    "pipeline_stages": "1",
-                },
+                dep_dslx_module = ":a_dslx_module",
             )
         ```
     """,

@@ -46,14 +46,19 @@ genrule(
           "echo 'fn test_value() { assert_eq(VALUE, u32:42) }' >> $(OUTS)",
 )
 
+xls_dslx_module_library(
+    name = "add_one_dslx_module",
+    src = "add_one.x",
+)
+
 # Check that we can generate a block a couple different ways.
 xls_dslx_verilog(
     name = "add_one_pipeline_rtl",
-    src = "add_one.x",
     codegen_args = {
         "pipeline_stages": "2",
         "delay_model": "unit",
     },
+    dep_dslx_module = ":add_one_dslx_module",
     verilog_file = "add_one_pipeline_rtl.v",
 )
 
@@ -66,10 +71,10 @@ sh_test(
 
 xls_dslx_verilog(
     name = "add_one_combinational_rtl",
-    src = "add_one.x",
     codegen_args = {
         "generator": "combinational",
     },
+    dep_dslx_module = ":add_one_dslx_module",
     verilog_file = "add_one_combinational_rtl.v",
 )
 
@@ -80,10 +85,15 @@ sh_test(
     data = [":add_one_combinational_rtl.v"],
 )
 
+xls_dslx_module_library(
+    name = "generated_dslx_module",
+    src = "generated.x",
+)
+
 # Run the test inside of the generated file.
 xls_dslx_test(
     name = "generated_file_as_input_test",
-    src = "generated.x",
+    dep_dslx_module = ":generated_dslx_module",
 )
 
 # Encapsulate the generated file as a library.
@@ -92,13 +102,18 @@ xls_dslx_library(
     srcs = ["generated.x"],
 )
 
-# Reference the library with the generated file inside of a xls_dslx_test rule.
-xls_dslx_test(
-    name = "dependent_on_library_with_generated_file_test",
+xls_dslx_module_library(
+    name = "importer_dslx_module",
     src = "importer.x",
     deps = [
         ":generated_dslx",
     ],
+)
+
+# Reference the library with the generated file inside of a xls_dslx_test rule.
+xls_dslx_test(
+    name = "dependent_on_library_with_generated_file_test",
+    dep_dslx_module = ":importer_dslx_module",
 )
 
 xls_dslx_library(
@@ -129,13 +144,10 @@ xls_dslx_module_library(
     ],
 )
 
-# xls_dslx_test with a transitive dependency.
+# xls_dslx_test on a xls_dslx_module_library with a transitive dependency.
 xls_dslx_test(
     name = "d_dslx_test",
-    src = "d.x",
-    deps = [
-        ":bc_dslx",
-    ],
+    dep_dslx_module = ":d_dslx_module",
 )
 
 ################################################################################
@@ -143,17 +155,22 @@ xls_dslx_test(
 #
 # Below is a diagram illustrating the rule chaining example. The build flow
 # is on the left and the test flow is on the right. The flow is from top to
-# down. The names of the rules target names are displayed.
+# down. The target names of the rules and the name of the input file are
+# displayed.
 #
 # Overview:
-# The 'chaining_example.x' file is the input to the build and test flow. In the
-# build flow, the file is the input to a xls_dslx_ir rule named
-# 'chaining_example_ir'. The output of the latter is the input to a
-# xls_ir_opt_ir rule named 'chaining_example_opt_ir'. The output of the latter
-# is the input to a xls_ir_verilog rule named chaining_example_verilog.
+# The 'chaining_example.x' file is the input to the xls_dslx_module_library rule
+# named 'chaining_example_dslx_module'. The rule is the input to the build and
+# test flow.
 #
-# In the test flow, the 'chaining_example.x' file is the input to a
-# xls_dslx_test rule named 'chaining_example_test'. The output of the
+# In the build flow, the 'chaining_example_dslx_module' target is a dependency
+# of a xls_dslx_ir rule named 'chaining_example_ir'. The output of the latter is
+# the input to a xls_ir_opt_ir rule named 'chaining_example_opt_ir'. The output
+# of the latter is the input to a xls_ir_verilog rule named
+# 'chaining_example_verilog'.
+#
+# In the test flow, the 'chaining_example_dslx_module' target is a dependency of
+# a xls_dslx_test rule named 'chaining_example_test'. The output of the
 # 'chaining_example_ir' rule is the input to a xls_eval_ir_test rule named
 # 'chaining_example_eval_ir_test', and the input to a xls_ir_equivalence_test
 # rule named chaining_example_ir_equivalence_test. The output of the
@@ -165,6 +182,8 @@ xls_dslx_test(
 #           ----------                  -------------------
 #
 #                     chaining_example.x
+#                             |
+#                chaining_example_dslx_module
 #                             |
 #               ---------------------------------
 #              |                                |
@@ -183,14 +202,19 @@ xls_dslx_test(
 #    chaining_example_verilog     |--> chaining_example_benchmark_ir
 ################################################################################
 
+xls_dslx_module_library(
+    name = "chaining_example_dslx_module",
+    src = "chaining_example.x",
+)
+
 xls_dslx_test(
     name = "chaining_example_test",
-    src = "chaining_example.x",
+    dep_dslx_module = ":chaining_example_dslx_module",
 )
 
 xls_dslx_ir(
     name = "chaining_example_ir",
-    src = "chaining_example.x",
+    dep_dslx_module = ":chaining_example_dslx_module",
 )
 
 xls_ir_opt_ir(
@@ -221,36 +245,6 @@ xls_ir_equivalence_test(
 xls_benchmark_ir(
     name = "chaining_example_benchmark_ir",
     src = ":chaining_example_opt_ir",
-)
-
-################################################################################
-# An alternate form for xls_dslx_test in the simple example with rule chaining.
-#
-# Below is a diagram illustrating an alternate form for xls_dslx_test in the
-# simple example with rule chaining. The build flow is on the left and the test
-# flow is on the right. The flow is from top to down. The names of the rules
-# target names are displayed.
-#
-# Overview:
-# The 'chaining_example_ir' target is the input to a xls_dslx_test rule named
-# 'chaining_example_alternate_test'. Note for the xls_dslx_test rule, either the
-# 'src' or 'dep' attribute must be specified.
-#
-#           Build Flow
-#           ----------
-#        chaining_example_ir   (See the simple example with chaining the
-#               |                  rules above.)
-#               |
-#               |
-#               |                     Test Flow
-#               |                     ---------
-#               |
-#               |---------- chaining_example_alternate_test
-################################################################################
-
-xls_dslx_test(
-    name = "chaining_example_alternate_test",
-    dep = ":chaining_example_ir",
 )
 
 ################################################################################
@@ -401,11 +395,16 @@ xls_dslx_library(
     ],
 )
 
+xls_dslx_module_library(
+    name = "simple_example_four_dslx_module",
+    src = "simple_example_four.x",
+    deps = [":simple_example_123_dslx"],
+)
+
 # Execute the DSLX interpreter.
 xls_dslx_test(
     name = "simple_example_four_test",
-    src = "simple_example_four.x",
-    deps = [":simple_example_123_dslx"],
+    dep_dslx_module = ":simple_example_four_dslx_module",
 )
 
 # xls_dslx_library target depends on xls_dslx_library target
@@ -416,17 +415,22 @@ xls_dslx_library(
     deps = [":simple_example_123_dslx"],
 )
 
+xls_dslx_module_library(
+    name = "simple_example_five_dslx_module",
+    src = "simple_example_five.x",
+    deps = [":simple_example_4_dslx"],
+)
+
 # Generate verilog from a dslx file.
 # The rule performs: DSLX -> IR -> Optimized IR -> Verilog.
 xls_dslx_verilog(
     name = "simple_example_5_one_stage",
-    src = "simple_example_five.x",
     codegen_args = {
         "pipeline_stages": "1",
     },
+    dep_dslx_module = ":simple_example_five_dslx_module",
     # Output the Optimized IR file to reference.
     opt_ir_file = "simple_example_5_one_stage.opt.ir",
-    deps = [":simple_example_4_dslx"],
 )
 
 # The xls_ir_jit_wrapper rule using an optimized IR file as input.
@@ -476,12 +480,10 @@ xls_dslx_opt_ir_test(
 # The rule performs: DSLX -> IR -> Optimized IR.
 xls_dslx_opt_ir(
     name = "simple_example_5_entry_five",
-    src = "simple_example_five.x",
+    dep_dslx_module = ":simple_example_five_dslx_module",
     ir_conv_args = {
         "entry": "five",
     },
-    # Output the Optimized IR file to reference.
-    deps = [":simple_example_4_dslx"],
 )
 
 # Universal entry example: The value is provided by the
@@ -514,14 +516,4 @@ xls_dslx_opt_ir_test(
     ir_eval_args = {
         "entry": get_mangled_ir_symbol("simple_example_five", "five"),
     },
-)
-
-################################################################################
-# An example of xls_dslx_test using the 'dep' attribute on a target with a
-# transitive dependency on a xls_dslx_library.
-################################################################################
-
-xls_dslx_test(
-    name = "simple_example_5_one_stage_dslx_test",
-    dep = ":simple_example_5_one_stage",
 )

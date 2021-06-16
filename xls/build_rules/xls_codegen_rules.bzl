@@ -164,12 +164,13 @@ xls_ir_verilog = rule(
 
         ```
             xls_ir_opt_ir(
-                name = "a",
+                name = "a_opt_ir",
                 src = "a.ir",
             )
+
             xls_ir_verilog(
                 name = "a_verilog",
-                src = ":a",
+                src = ":a_opt_ir",
             )
         ```
     """,

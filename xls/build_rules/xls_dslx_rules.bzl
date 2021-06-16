@@ -143,6 +143,14 @@ def get_dslx_test_cmd(ctx, src):
     # and the DSLX std library.
     runfiles = [src, ctx.executable._dslx_interpreter_tool]
     runfiles += ctx.files._dslx_std_lib
+
+    # The runfiles also require the source files from its transitive
+    # dependencies.
+    # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library, remove
+    # the following code.
+    if (ctx.attr.dep_dslx_module != None):
+        runfiles += ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_files
+
     return runfiles, cmd
 
 # Common attributes for the xls_dslx_library and xls_dslx_module_library rules.
@@ -187,8 +195,26 @@ _xls_dslx_module_library_attrs = {
     ),
 }
 
+# Attributes for rules depending on the xls_dslx_module_library rule.
+xls_dslx_module_library_as_input_attrs = {
+    # TODO(vmirian) 06-13-2021 When switch to xls_dslx_module_library,
+    # rename to dep.
+    # Currently, the attribute takes precedences over the attributes in
+    # _xls_dslx_test_attrs.
+    "dep_dslx_module": attr.label(
+        doc = "A dependency target for the rule. The target must emit a " +
+              "DslxModuleInfo provider.",
+        providers = [DslxModuleInfo],
+        # TODO: 06-13-2021 When switch to xls_dslx_module_library,
+        # make mandatory.
+        # mandatory = True,
+    ),
+}
+
 # Attributes for the xls_dslx_test rule.
 _xls_dslx_test_attrs = {
+    # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library, remove
+    # the following three attributes.
     "src": attr.label(
         doc = "The DSLX source file for the rule. A single source file must " +
               "be provided. The file must have a '.x' extension. When " +
@@ -211,11 +237,14 @@ _xls_dslx_test_attrs = {
 }
 
 # Common attributes for DSLX testing.
-xls_dslx_test_common_attrs = {
-    "dslx_test_args": attr.string_dict(
-        doc = "Arguments of the DSLX interpreter executable.",
-    ),
-}
+xls_dslx_test_common_attrs = dicts.add(
+    xls_dslx_module_library_as_input_attrs,
+    {
+        "dslx_test_args": attr.string_dict(
+            doc = "Arguments of the DSLX interpreter executable.",
+        ),
+    },
+)
 
 def _xls_dslx_library_impl(ctx):
     """The implementation of the 'xls_dslx_library' rule.
@@ -377,8 +406,8 @@ xls_dslx_module_library = rule(
 
         ```
         xls_dslx_module_library(
-            name = "files1_dslx_module",
-            src = "file_1.x",
+            name = "a_dslx_module",
+            src = "a.x",
         )
         ```
 
@@ -422,19 +451,31 @@ def _xls_dslx_test_impl(ctx):
     Returns:
       DefaultInfo provider
     """
-    if ((ctx.attr.src and ctx.attr.dep) or
-        (not ctx.attr.src and not ctx.attr.dep)):
-        fail("Attribute 'src' or 'dep' must be specified.")
-    if ctx.attr.dep and len(ctx.attr.deps) != 0:
-        fail("Attribute 'deps' can only be specified with attribute 'src'.")
-    src = ctx.file.src
-    if ctx.attr.dep:
-        src = ctx.attr.dep[ConvIRInfo].dslx_source_file
+    src = None
+
+    # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library, remove
+    # the following code.
+    if ctx.attr.dep_dslx_module:
+        src = ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_module_file
+    else:
+        if ((ctx.attr.src and ctx.attr.dep) or
+            (not ctx.attr.src and not ctx.attr.dep)):
+            fail("Attribute 'src' or 'dep' must be specified.")
+        if ctx.attr.dep and len(ctx.attr.deps) != 0:
+            fail("Attribute 'deps' can only be specified with attribute 'src'.")
+        src = ctx.file.src
+        if ctx.attr.dep:
+            src = ctx.attr.dep[ConvIRInfo].dslx_source_file
+
     runfiles, cmd = get_dslx_test_cmd(ctx, src)
 
     # The runfiles also require the source files from its transitive
     # dependencies.
-    if ctx.attr.src:
+    # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library, remove
+    # the following code.
+    if ctx.attr.dep_dslx_module:
+        runfiles += ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_files
+    elif ctx.attr.src:
         for dep in ctx.attr.deps:
             runfiles += dep[DslxFilesInfo].dslx_source_files.to_list()
     else:  # ctx.attr.dep is defined
@@ -465,36 +506,21 @@ xls_dslx_test = rule(
     doc = """
         A dslx test executes the tests and quick checks of a DSLX source file.
 
-        Examples:
-
-        1) xls_dslx_test target using 'src' and 'deps' attribute.
+        Example:
 
         ```
-        # Assume a xls_dslx_library target c is present.
-        xls_dslx_test(
-            name = "d_test",
-            src = "d.x",
+        # Assume a xls_dslx_library target a_dslx is present.
+        xls_dslx_module_library(
+            name = "b_dslx_module",
+            src = "b.x",
             deps = [
-                ":c",
-            ],
-        )
-        ```
-
-        2) xls_dslx_test target using 'dep' attribute.
-
-        ```
-        # Assume a xls_dslx_library target c is present.
-        xls_dslx_ir(
-            name = "d_ir",
-            dep = ":d.x",
-            deps = [
-                ":c",
+                ":a_dslx",
             ],
         )
 
         xls_dslx_test(
-            name = "d_test",
-            dep = ":d_ir",
+            name = "b_dslx_test",
+            dep_dslx_module = ":b_dslx_module",
         )
         ```
     """,
