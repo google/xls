@@ -24,7 +24,7 @@ namespace verilog {
 
 // Generates and returns a (System)Verilog module implementing the given block.
 absl::StatusOr<std::string> GenerateVerilog(Block* block,
-                                            bool use_system_verilog);
+                                            const CodegenOptions& options);
 
 }  // namespace verilog
 }  // namespace xls

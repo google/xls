@@ -181,10 +181,8 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
   XLS_RETURN_IF_ERROR(
       CreateCodegenPassPipeline()->Run(&unit, pass_options, &results).status());
   XLS_RET_CHECK(unit.signature.has_value());
-  XLS_ASSIGN_OR_RETURN(
-      std::string verilog,
-      GenerateVerilog(block,
-                      pass_options.codegen_options.use_system_verilog()));
+  XLS_ASSIGN_OR_RETURN(std::string verilog,
+                       GenerateVerilog(block, pass_options.codegen_options));
 
   return ModuleGeneratorResult{verilog, unit.signature.value()};
 }

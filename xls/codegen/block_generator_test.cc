@@ -16,6 +16,7 @@
 
 #include "xls/codegen/signature_generator.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/function_builder.h"
@@ -59,7 +60,7 @@ TEST_P(BlockGeneratorTest, APlusB) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(block, UseSystemVerilog()));
+                           GenerateVerilog(block, codegen_options()));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
                            GenerateSignature(codegen_options(), block));
@@ -109,7 +110,7 @@ TEST_P(BlockGeneratorTest, PipelinedAPlusB) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(block, UseSystemVerilog()));
+                           GenerateVerilog(block, codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleSignature sig,
       GenerateSignature(codegen_options("the_clock"), block));
@@ -156,7 +157,7 @@ TEST_P(BlockGeneratorTest, PipelinedAPlusBNoReset) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(block, UseSystemVerilog()));
+                           GenerateVerilog(block, codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleSignature sig,
       GenerateSignature(codegen_options("the_clock"), block));
@@ -198,7 +199,7 @@ TEST_P(BlockGeneratorTest, Accumulator) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(block, UseSystemVerilog()));
+                           GenerateVerilog(block, codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
                            GenerateSignature(codegen_options("clk"), block));
 
@@ -238,7 +239,7 @@ TEST_P(BlockGeneratorTest, RegisterWithoutClockPort) {
   XLS_ASSERT_OK(
       block->MakeNode<RegisterRead>(absl::nullopt, reg->name()).status());
 
-  EXPECT_THAT(GenerateVerilog(block, UseSystemVerilog()).status(),
+  EXPECT_THAT(GenerateVerilog(block, codegen_options()).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Block has registers but no clock port")));
 }
@@ -262,10 +263,132 @@ TEST_P(BlockGeneratorTest, RegisterWithDifferentResetBehavior) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   EXPECT_THAT(
-      GenerateVerilog(block, UseSystemVerilog()).status(),
+      GenerateVerilog(block, codegen_options()).status(),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           HasSubstr("Block has active low and active high reset signals")));
+}
+
+TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue rst = b.InputPort("my_rst", package.GetBitsType(1));
+  BValue a = b.InputPort("a", package.GetBitsType(32));
+  BValue a_d = b.InsertRegister(
+      "a_d", a, rst,
+      xls::Reset{/*reset_value=*/Value(UBits(123, 32)),
+                 /*asynchronous=*/false, /*active_low=*/false});
+  b.Assert(b.AfterAll({}), b.ULt(a_d, b.Literal(UBits(42, 32))),
+           "a is not greater than 42");
+  XLS_ASSERT_OK(b.block()->AddClockPort("my_clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  {
+    // No format string.
+    XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                             GenerateVerilog(block, codegen_options()));
+    if (UseSystemVerilog()) {
+      EXPECT_THAT(
+          verilog,
+          HasSubstr(
+              R"(assert ($isunknown(a_d < 32'h0000_002a) || a_d < 32'h0000_002a) else $fatal(0, "a is not greater than 42"))"));
+    } else {
+      EXPECT_THAT(verilog, Not(HasSubstr("assert")));
+    }
+  }
+
+  {
+    // With format string, no label.
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::string verilog,
+        GenerateVerilog(
+            block,
+            codegen_options().assert_format(
+                R"(`MY_ASSERT({condition}, "{message}", {clk}, {rst}))")));
+    if (UseSystemVerilog()) {
+      EXPECT_THAT(
+          verilog,
+          HasSubstr(
+              R"(`MY_ASSERT(a_d < 32'h0000_002a, "a is not greater than 42", my_clk, my_rst))"));
+    } else {
+      EXPECT_THAT(verilog, Not(HasSubstr("assert")));
+    }
+  }
+
+  // Format string with label but assert doesn't have label.
+  EXPECT_THAT(
+      GenerateVerilog(block,
+                      codegen_options().assert_format(R"({label} foobar)")),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Assert format string has '{label}' placeholder, "
+                         "but assert operation has no label")));
+
+  // Format string with invalid placeholder.
+  EXPECT_THAT(
+      GenerateVerilog(
+          block, codegen_options().assert_format(R"({foobar} blargfoobar)")),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Invalid placeholder '{foobar}' in assert format string. "
+                    "Supported placeholders: {clk}, {condition}, {label}, "
+                    "{message}, {rst}")));
+}
+
+TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue a = b.InputPort("a", package.GetBitsType(32));
+  b.Assert(b.AfterAll({}), b.ULt(a, b.Literal(UBits(42, 32))),
+           "a is not greater than 42", "the_label");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  {
+    // No format string.
+    XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                             GenerateVerilog(block, codegen_options()));
+    if (UseSystemVerilog()) {
+      EXPECT_THAT(
+          verilog,
+          HasSubstr(
+              R"(assert ($isunknown(a < 32'h0000_002a) || a < 32'h0000_002a) else $fatal(0, "a is not greater than 42"))"));
+    } else {
+      EXPECT_THAT(verilog, Not(HasSubstr("assert")));
+    }
+  }
+
+  {
+    // With format string.
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::string verilog,
+        GenerateVerilog(
+            block,
+            codegen_options().assert_format(
+                R"({label}: `MY_ASSERT({condition}, "{message}") // {label})")));
+    if (UseSystemVerilog()) {
+      EXPECT_THAT(
+          verilog,
+          HasSubstr(
+              R"(the_label: `MY_ASSERT(a < 32'h0000_002a, "a is not greater than 42") // the_label)"));
+    } else {
+      EXPECT_THAT(verilog, Not(HasSubstr("assert")));
+    }
+  }
+
+  // Format string with reset but block doesn't have reset.
+  EXPECT_THAT(
+      GenerateVerilog(block,
+                      codegen_options().assert_format(R"({rst} foobar)")),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Assert format string has '{rst}' placeholder, "
+                         "but block has no reset signal")));
+
+  // Format string with clock but block doesn't have clock.
+  EXPECT_THAT(
+      GenerateVerilog(block,
+                      codegen_options().assert_format(R"({clk} foobar)")),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Assert format string has '{clk}' placeholder, "
+                         "but block has no clock signal")));
 }
 
 TEST_P(BlockGeneratorTest, PortOrderTest) {
@@ -280,7 +403,7 @@ TEST_P(BlockGeneratorTest, PortOrderTest) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(block, UseSystemVerilog()));
+                           GenerateVerilog(block, codegen_options()));
   EXPECT_THAT(verilog,
               HasSubstr("input wire [31:0] a,\n  input wire [31:0] c,\n  "
                         "output wire [31:0] b,\n  output wire [31:0] d"));
@@ -321,7 +444,7 @@ TEST_P(BlockGeneratorTest, LoadEnables) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(block, UseSystemVerilog()));
+                           GenerateVerilog(block, codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
                            GenerateSignature(codegen_options("clk"), block));
   ModuleTestbench tb(verilog, sig, GetSimulator());

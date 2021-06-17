@@ -209,11 +209,11 @@ absl::StatusOr<absl::optional<ResetProto>> GetBlockResetProto(Block* block) {
 }  // namespace
 
 absl::StatusOr<std::string> GenerateVerilog(Block* block,
-                                            bool use_system_verilog) {
+                                            const CodegenOptions& options) {
   XLS_VLOG(2) << "Generating Verilog for block:";
   XLS_VLOG_LINES(2, block->DumpIr());
 
-  VerilogFile f(use_system_verilog);
+  VerilogFile f(options.use_system_verilog());
   absl::optional<std::string> clock_name;
   if (block->GetClockPort().has_value()) {
     clock_name = block->GetClockPort().value().name;
@@ -223,7 +223,7 @@ absl::StatusOr<std::string> GenerateVerilog(Block* block,
 
   XLS_ASSIGN_OR_RETURN(absl::optional<ResetProto> reset_proto,
                        GetBlockResetProto(block));
-  ModuleBuilder mb(block->name(), &f, use_system_verilog, clock_name,
+  ModuleBuilder mb(block->name(), &f, options.use_system_verilog(), clock_name,
                    reset_proto);
 
   // Map from Node* to the Verilog expression representing its value.
@@ -280,6 +280,27 @@ absl::StatusOr<std::string> GenerateVerilog(Block* block,
       register_vec.push_back(registers.at(reg->name()));
     }
     XLS_RETURN_IF_ERROR(mb.AssignRegisters(register_vec));
+  }
+
+  // Emit all asserts together.
+  for (Node* node : block->nodes()) {
+    if (node->Is<xls::Assert>()) {
+      xls::Assert* asrt = node->As<xls::Assert>();
+      Expression* condition =
+          absl::get<Expression*>(node_exprs.at(asrt->condition()));
+      XLS_RETURN_IF_ERROR(
+          mb.EmitAssert(asrt, condition, options.assert_format()));
+    }
+  }
+
+  // Same for covers.
+  for (Node* node : block->nodes()) {
+    if (node->Is<xls::Cover>()) {
+      xls::Cover* cover = node->As<xls::Cover>();
+      Expression* condition =
+          absl::get<Expression*>(node_exprs.at(cover->condition()));
+      XLS_RETURN_IF_ERROR(mb.EmitCover(cover, condition));
+    }
   }
 
   // Add the output ports.
