@@ -92,6 +92,31 @@ TEST_F(BlockTest, SimpleBlock) {
 )");
 }
 
+TEST_F(BlockTest, RemovePorts) {
+  auto p = CreatePackage();
+  BlockBuilder bb("my_block", p.get());
+  BValue a = bb.InputPort("a", p->GetBitsType(32));
+  BValue b = bb.InputPort("b", p->GetBitsType(32));
+  BValue out = bb.OutputPort("out", bb.Literal(Value(UBits(42, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  EXPECT_THAT(GetInputPortNames(block), ElementsAre("a", "b"));
+  EXPECT_THAT(GetOutputPortNames(block), ElementsAre("out"));
+  EXPECT_THAT(GetPortNames(block), ElementsAre("a", "b", "out"));
+
+  XLS_ASSERT_OK(block->RemoveNode(b.node()));
+  EXPECT_THAT(GetInputPortNames(block), ElementsAre("a"));
+  EXPECT_THAT(GetPortNames(block), ElementsAre("a", "out"));
+
+  XLS_ASSERT_OK(block->RemoveNode(a.node()));
+  EXPECT_THAT(GetInputPortNames(block), ElementsAre());
+  EXPECT_THAT(GetPortNames(block), ElementsAre("out"));
+
+  XLS_ASSERT_OK(block->RemoveNode(out.node()));
+  EXPECT_THAT(GetOutputPortNames(block), ElementsAre());
+  EXPECT_THAT(GetPortNames(block), ElementsAre());
+}
+
 TEST_F(BlockTest, PortOrder) {
   auto p = CreatePackage();
   BlockBuilder bb("my_block", p.get());

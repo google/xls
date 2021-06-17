@@ -169,6 +169,38 @@ absl::Status Block::AddClockPort(absl::string_view name) {
   return absl::OkStatus();
 }
 
+absl::Status Block::RemoveNode(Node* n) {
+  // Simliar to parameters in xls::Functions, input and output ports are also
+  // also stored separately as vectors for easy access and to indicate ordering.
+  // Fix up these vectors prior to removing the node.
+  if (n->Is<InputPort>() || n->Is<OutputPort>()) {
+    Port port;
+    if (n->Is<InputPort>()) {
+      port = n->As<InputPort>();
+      auto it = std::find(input_ports_.begin(), input_ports_.end(),
+                          n->As<InputPort>());
+      XLS_RET_CHECK(it != input_ports_.end()) << absl::StrFormat(
+          "input port node %s is not in the vector of input ports",
+          n->GetName());
+      input_ports_.erase(it);
+    } else if (n->Is<OutputPort>()) {
+      port = n->As<OutputPort>();
+      auto it = std::find(output_ports_.begin(), output_ports_.end(),
+                          n->As<OutputPort>());
+      XLS_RET_CHECK(it != output_ports_.end()) << absl::StrFormat(
+          "output port node %s is not in the vector of output ports",
+          n->GetName());
+      output_ports_.erase(it);
+    }
+    ports_by_name_.erase(n->GetName());
+    auto port_it = std::find(ports_.begin(), ports_.end(), port);
+    XLS_RET_CHECK(port_it != ports_.end()) << absl::StrFormat(
+        "port node %s is not in the vector of ports", n->GetName());
+    ports_.erase(port_it);
+  }
+  return FunctionBase::RemoveNode(n);
+}
+
 absl::Status Block::ReorderPorts(absl::Span<const std::string> port_names) {
   absl::flat_hash_map<std::string, int64_t> port_order;
   for (int64_t i = 0; i < port_names.size(); ++i) {

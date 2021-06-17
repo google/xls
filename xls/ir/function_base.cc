@@ -65,13 +65,9 @@ absl::StatusOr<Node*> FunctionBase::GetNode(
       absl::StrFormat("GetNode(%s) failed.", standard_node_name));
 }
 
-absl::Status FunctionBase::RemoveNode(Node* node, bool remove_param_ok) {
+absl::Status FunctionBase::RemoveNode(Node* node) {
   XLS_RET_CHECK(node->users().empty());
   XLS_RET_CHECK(!HasImplicitUse(node));
-  if (node->Is<Param>()) {
-    XLS_RET_CHECK(remove_param_ok)
-        << "Attempting to remove parameter when !remove_param_ok: " << *node;
-  }
   std::vector<Node*> unique_operands;
   for (Node* operand : node->operands()) {
     if (!absl::c_linear_search(unique_operands, operand)) {
@@ -81,15 +77,14 @@ absl::Status FunctionBase::RemoveNode(Node* node, bool remove_param_ok) {
   for (Node* operand : unique_operands) {
     operand->RemoveUser(node);
   }
+  if (node->Is<Param>()) {
+    params_.erase(std::remove(params_.begin(), params_.end(), node),
+                  params_.end());
+  }
   auto node_it = node_iterators_.find(node);
   XLS_RET_CHECK(node_it != node_iterators_.end());
   nodes_.erase(node_it->second);
   node_iterators_.erase(node_it);
-  if (remove_param_ok) {
-    params_.erase(std::remove(params_.begin(), params_.end(), node),
-                  params_.end());
-  }
-
   return absl::OkStatus();
 }
 

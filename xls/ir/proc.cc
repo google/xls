@@ -85,7 +85,7 @@ absl::Status Proc::ReplaceState(absl::string_view state_param_name,
   next_state_ = next_state;
 
   XLS_RET_CHECK(!HasImplicitUse(old_state_param));
-  XLS_RETURN_IF_ERROR(RemoveNode(old_state_param, /*remove_param_ok=*/true));
+  XLS_RETURN_IF_ERROR(RemoveNode(old_state_param));
   return absl::OkStatus();
 }
 

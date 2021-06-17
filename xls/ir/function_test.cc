@@ -164,9 +164,6 @@ fn id(x: bits[32], y: bits[32]) -> bits[32] {
 )",
                                                           p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Param * y, func->GetParamByName("y"));
-  EXPECT_THAT(func->RemoveNode(y, /*remove_param_ok=*/false),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Attempting to remove parameter")));
   Type* u32 = p->GetBitsType(32);
   FunctionType* orig = p->GetFunctionType({u32, u32}, u32);
   FunctionType* updated = p->GetFunctionType({u32}, u32);
@@ -174,7 +171,7 @@ fn id(x: bits[32], y: bits[32]) -> bits[32] {
   EXPECT_EQ(func->GetType(), orig);
   EXPECT_THAT(func->params(),
               ElementsAre(FindNode("x", func), FindNode("y", func)));
-  XLS_EXPECT_OK(func->RemoveNode(y, /*remove_param_ok=*/true));
+  XLS_EXPECT_OK(func->RemoveNode(y));
   EXPECT_THAT(func->params(), ElementsAre(FindNode("x", func)));
   EXPECT_EQ(func->GetType(), updated);
 }

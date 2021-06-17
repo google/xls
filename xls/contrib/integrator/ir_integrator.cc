@@ -489,8 +489,7 @@ absl::Status IntegrationFunction::DeUnifyIntegrationNodesWithPerMuxSelect(
   XLS_RET_CHECK(mux->users().empty());
   XLS_RETURN_IF_ERROR(function()->RemoveNode(mux));
   XLS_RET_CHECK(selector->users().empty());
-  XLS_RETURN_IF_ERROR(
-      function()->RemoveNode(selector, /*remove_param_ok=*/true));
+  XLS_RETURN_IF_ERROR(function()->RemoveNode(selector));
 
   return absl::OkStatus();
 }

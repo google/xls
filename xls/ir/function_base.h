@@ -121,14 +121,9 @@ class FunctionBase {
   absl::StatusOr<Node*> GetNode(absl::string_view standard_node_name);
 
   // Removes the node from the function. The node must have no users.
-  //
-  // If remove_param_ok is false and a parameter is given for removal, this
-  // method will return an error -- this is a soundness check against removing
-  // parameters and changing the type signature when that is not intended.
-  //
-  // Warning: if you remove a parameter node via this method (with
-  // remove_param_ok), you will change the function type signature.
-  absl::Status RemoveNode(Node* n, bool remove_param_ok = false);
+  // Warning: if you remove a parameter node via this method you will change the
+  // function type signature.
+  virtual absl::Status RemoveNode(Node* n);
 
   // Visit all nodes (including nodes not reachable from the root) in the
   // function using the given visitor.

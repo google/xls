@@ -98,8 +98,14 @@ class Block : public FunctionBase {
       absl::string_view name, Node* operand,
       absl::optional<SourceLocation> loc = absl::nullopt);
 
+  // Add/get a clock port to the block. The clock is not represented as a value
+  // within the IR (no input_port operation), but rather a Block::ClockPort
+  // object is added to the list of ports as a place-holder for the clock which
+  // records the port name and position.
   absl::Status AddClockPort(absl::string_view name);
   absl::optional<ClockPort> GetClockPort() const { return clock_port_; }
+
+  absl::Status RemoveNode(Node* n) override;
 
   // Re-orders the ports of the block as determined by `port_order`. The order
   // of the ports in a block determines their order in the emitted verilog
@@ -127,9 +133,7 @@ class Block : public FunctionBase {
   // the block then an error is returned.
   absl::Status RemoveRegister(Register* reg);
 
-  bool HasImplicitUse(Node* node) const override {
-    return node->Is<OutputPort>();
-  }
+  bool HasImplicitUse(Node* node) const override { return false; }
 
   std::string DumpIr(bool recursive = false) const override;
 

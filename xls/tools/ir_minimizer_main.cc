@@ -237,7 +237,7 @@ absl::StatusOr<bool> RemoveDeadParameters(Function* f) {
   std::vector<Param*> params(f->params().begin(), f->params().end());
   for (Param* p : params) {
     if (p->users().empty() && p != f->return_value()) {
-      XLS_RETURN_IF_ERROR(f->RemoveNode(p, /*remove_param_ok=*/true));
+      XLS_RETURN_IF_ERROR(f->RemoveNode(p));
     }
   }
   return params.size() != f->params().size();
