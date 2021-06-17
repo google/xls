@@ -73,3 +73,14 @@ def get_args(arguments, valid_arguments, default_arguments = {}):
         if flag_name not in arguments:
             my_args += " --%s=%s" % (flag_name, default_arguments[flag_name])
     return my_args
+
+def append_cmd_line_args_to(cmd):
+    """Appends the syntax for command line arguments ("$*") to the cmd
+
+    Args:
+      cmd: A string representing the command.
+
+    Returns:
+      'cmd' with the syntax for command line arguments ("$*") appended
+    """
+    return cmd + " $*"
