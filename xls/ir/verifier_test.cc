@@ -87,7 +87,23 @@ fn graph(a: bits[16]) -> bits[16] {
   EXPECT_THAT(
       VerifyPackage(p.get()),
       StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Function or proc with name graph is not unique")));
+               HasSubstr("Function/proc/block with name graph is not unique")));
+}
+
+TEST_F(VerifierTest, NonUniqueFunctionAndBlockName) {
+  std::string input = R"(
+package NonUniqueFunctionName
+
+fn graph(p: bits[42], q: bits[42]) -> bits[42] {
+  and.1: bits[42] = and(p, q)
+  add.2: bits[42] = add(and.1, q)
+  ret sub.3: bits[42] = sub(add.2, add.2)
+}
+
+block graph() {}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  XLS_ASSERT_OK(VerifyPackage(p.get()));
 }
 
 TEST_F(VerifierTest, BinOpOperandTypeMismatch) {

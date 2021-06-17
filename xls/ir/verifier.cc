@@ -1542,19 +1542,30 @@ absl::Status VerifyPackage(Package* package) {
   }
   XLS_RET_CHECK_GT(package->next_node_id(), max_id_seen);
 
-  // Verify function (proc) names are unique within the package.
-  absl::flat_hash_set<FunctionBase*> functions;
+  // Verify function, proc, block names are unique among functions/procs/blocks.
+  absl::flat_hash_set<FunctionBase*> function_bases;
   absl::flat_hash_set<std::string> function_names;
-  for (FunctionBase* function : package->GetFunctionBases()) {
-    XLS_RET_CHECK(!function_names.contains(function->name()))
-        << "Function or proc with name " << function->name()
+  absl::flat_hash_set<std::string> proc_names;
+  absl::flat_hash_set<std::string> block_names;
+  for (FunctionBase* function_base : package->GetFunctionBases()) {
+    absl::flat_hash_set<std::string>* name_set;
+    if (function_base->IsFunction()) {
+      name_set = &function_names;
+    } else if (function_base->IsProc()) {
+      name_set = &proc_names;
+    } else {
+      XLS_RET_CHECK(function_base->IsBlock());
+      name_set = &block_names;
+    }
+    XLS_RET_CHECK(!name_set->contains(function_base->name()))
+        << "Function/proc/block with name " << function_base->name()
         << " is not unique within package " << package->name();
-    function_names.insert(function->name());
+    name_set->insert(function_base->name());
 
-    XLS_RET_CHECK(!functions.contains(function))
-        << "Function or proc with name " << function->name()
+    XLS_RET_CHECK(!function_bases.contains(function_base))
+        << "Function or proc with name " << function_base->name()
         << " appears more than once in within package" << package->name();
-    functions.insert(function);
+    function_bases.insert(function_base);
   }
 
   XLS_RETURN_IF_ERROR(VerifyChannels(package));

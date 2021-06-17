@@ -101,6 +101,10 @@ graph of XLS IR operations:
     converted to blocks as part of the code generation process. Blocks may
     “invoke” other blocks via instantiation.x
 
+Names of function, procs and blocks must be unique among their respective
+abstractions (functions, procs, and blocks). For example, a block cannot share a
+name with another block but can share a name with a function.
+
 ## Operations
 
 Operations share a common syntax and have both positional and keyword arguments
