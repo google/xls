@@ -70,7 +70,8 @@ bool NodeMatcher::MatchAndExplain(
     return false;
   }
   if (node->op() != op_) {
-    *listener << " has incorrect op, expected: " << OpToString(op_);
+    *listener << " has incorrect op (" << OpToString(node->op())
+              << "), expected: " << OpToString(op_);
     return false;
   }
 
@@ -338,20 +339,90 @@ void ChannelNodeMatcher::DescribeTo(::std::ostream* os) const {
 
 bool InputPortMatcher::MatchAndExplain(
     const Node* node, ::testing::MatchResultListener* listener) const {
-  return matcher_.MatchAndExplain(node, listener);
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+  if (name_.has_value() && node->GetName() != *name_) {
+    *listener << " has incorrect name, expected: " << *name_;
+    return false;
+  }
+  return true;
 }
 
 void InputPortMatcher::DescribeTo(::std::ostream* os) const {
-  matcher_.DescribeTo(os);
+  if (name_.has_value()) {
+    DescribeToHelper(os, {absl::StrFormat("name=\"%s\"", name_.value())});
+  } else {
+    DescribeToHelper(os, {});
+  }
 }
 
 bool OutputPortMatcher::MatchAndExplain(
     const Node* node, ::testing::MatchResultListener* listener) const {
-  return matcher_.MatchAndExplain(node, listener);
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+  if (name_.has_value() && node->GetName() != *name_) {
+    *listener << " has incorrect name, expected: " << *name_;
+    return false;
+  }
+  return true;
 }
 
 void OutputPortMatcher::DescribeTo(::std::ostream* os) const {
-  matcher_.DescribeTo(os);
+  if (name_.has_value()) {
+    DescribeToHelper(os, {absl::StrFormat("name=\"%s\"", name_.value())});
+  } else {
+    DescribeToHelper(os, {});
+  }
+}
+
+bool RegisterReadMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+  if (register_name_.has_value() &&
+      node->As<xls::RegisterRead>()->register_name() != *register_name_) {
+    *listener << " has incorrect register ("
+              << node->As<xls::RegisterRead>()->register_name()
+              << "), expected: " << *register_name_;
+    return false;
+  }
+  return true;
+}
+
+void RegisterReadMatcher::DescribeTo(::std::ostream* os) const {
+  if (register_name_.has_value()) {
+    DescribeToHelper(
+        os, {absl::StrFormat("register=\"%s\"", register_name_.value())});
+  } else {
+    DescribeToHelper(os, {});
+  }
+}
+
+bool RegisterWriteMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+  if (register_name_.has_value() &&
+      node->As<xls::RegisterWrite>()->register_name() != *register_name_) {
+    *listener << " has incorrect register ("
+              << node->As<xls::RegisterWrite>()->register_name()
+              << "), expected: " << *register_name_;
+    return false;
+  }
+  return true;
+}
+
+void RegisterWriteMatcher::DescribeTo(::std::ostream* os) const {
+  if (register_name_.has_value()) {
+    DescribeToHelper(
+        os, {absl::StrFormat("register=\"%s\"", register_name_.value())});
+  } else {
+    DescribeToHelper(os, {});
+  }
 }
 
 bool RegisterMatcher::MatchAndExplain(
@@ -362,41 +433,23 @@ bool RegisterMatcher::MatchAndExplain(
     return false;
   }
   if (q_matcher_.has_value()) {
-    // If d_matching above was successful, then node must be a tuple-index of a
-    // receive node. Find matching send node in proc.
-    int64_t channel_id = node->As<::xls::TupleIndex>()
-                             ->operand(0)
-                             ->As<::xls::Receive>()
-                             ->channel_id();
-    // Find the send operation associated with the receive on the register
-    // channel.
-    // TODO(meheff): 2021/04/20 Find a better way of doing this.
-    ::xls::Send* send = nullptr;
+    const std::string& register_name =
+        node->As<::xls::RegisterRead>()->register_name();
+    xls::RegisterWrite* reg_write;
     for (Node* node : node->function_base()->nodes()) {
-      if (node->Is<::xls::Send>() &&
-          node->As<::xls::Send>()->channel_id() == channel_id) {
-        send = node->As<::xls::Send>();
+      if (node->Is<::xls::RegisterWrite>() &&
+          node->As<::xls::RegisterWrite>()->register_name() == register_name) {
+        reg_write = node->As<::xls::RegisterWrite>();
         break;
       }
     }
-    if (send == nullptr) {
-      *listener
-          << " has no associated register send operation. IR may be malformed.";
+    if (reg_write == nullptr) {
+      *listener << " has no associated register write operation. IR may be "
+                   "malformed.";
       return false;
     }
-    ::testing::StringMatchResultListener inner_listener;
-    if (!q_matcher_->MatchAndExplain(send->data(), &inner_listener)) {
-      if (listener->IsInterested()) {
-        *listener << absl::StreamFormat(
-            "\ndata (%s) of send operation (%s) assocated with receive "
-            "(%s):\n\t%s\ndoesn't match expected:\n\t",
-            send->data()->GetName(), send->GetName(),
-            node->operand(0)->GetName(), send->data()->ToString());
-        std::string explanation = inner_listener.str();
-        if (!inner_listener.str().empty()) {
-          *listener << inner_listener.str();
-        }
-      }
+
+    if (!q_matcher_->MatchAndExplain(reg_write, listener)) {
       return false;
     }
   }

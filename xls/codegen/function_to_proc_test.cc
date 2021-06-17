@@ -91,7 +91,8 @@ TEST_F(FunctionToProcTest, SimpleFunction) {
   EXPECT_EQ(y_ch->supported_ops(), ChannelOps::kReceiveOnly);
 
   EXPECT_THAT(GetOutputNode(proc),
-              m::OutputPort(m::Add(m::InputPort("x"), m::InputPort("y"))));
+              m::Send(m::AfterAll(), m::Add(m::TupleIndex(m::Receive()),
+                                            m::TupleIndex(m::Receive()))));
 }
 
 TEST_F(FunctionToProcTest, ZeroInputs) {
@@ -107,7 +108,7 @@ TEST_F(FunctionToProcTest, ZeroInputs) {
   EXPECT_TRUE(out_ch->IsPort());
   EXPECT_EQ(out_ch->supported_ops(), ChannelOps::kSendOnly);
 
-  EXPECT_THAT(GetOutputNode(proc), m::OutputPort(m::Literal(42)));
+  EXPECT_THAT(GetOutputNode(proc), m::Send(m::AfterAll(), m::Literal(42)));
 }
 
 TEST_F(FunctionToProcTest, ZeroWidthInputsAndOutput) {
@@ -146,9 +147,7 @@ TEST_F(FunctionToProcTest, SimplePipelinedFunction) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * proc, FunctionToPipelinedProc(schedule, f, "SimpleFunctionProc"));
 
-  EXPECT_THAT(GetOutputNode(proc),
-              m::OutputPort(m::Neg(m::Register(
-                  m::Not(m::Register(m::Add(m::Param("x"), m::Param("y"))))))));
+  EXPECT_THAT(GetOutputNode(proc), m::Send(m::AfterAll(), m::Neg(m::Not())));
 }
 
 TEST_F(FunctionToProcTest, TrivialPipelinedFunction) {
@@ -167,9 +166,7 @@ TEST_F(FunctionToProcTest, TrivialPipelinedFunction) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * proc, FunctionToPipelinedProc(schedule, f, "SimpleFunctionProc"));
 
-  EXPECT_THAT(GetOutputNode(proc),
-              m::OutputPort(m::Neg(m::Register(
-                  m::Not(m::Register(m::Add(m::Param("x"), m::Param("y"))))))));
+  EXPECT_THAT(GetOutputNode(proc), m::Send(m::AfterAll(), m::Neg(m::Not())));
 }
 
 TEST_F(FunctionToProcTest, ZeroWidthPipeline) {
