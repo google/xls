@@ -17,9 +17,10 @@
 import json
 import textwrap
 
-from xls.fuzzer.python import cpp_sample as sample
 from absl.testing import absltest
+from xls.dslx.python.interp_value import interp_value_from_ir_string
 from xls.dslx.python.interp_value import Value
+from xls.fuzzer.python import cpp_sample as sample
 
 
 class SampleTest(absltest.TestCase):
@@ -27,22 +28,27 @@ class SampleTest(absltest.TestCase):
   def test_parse_args(self):
     self.assertEqual(sample.parse_args(''), tuple())
     self.assertEqual(
-        sample.parse_args('bits[8]:42'), (Value.make_ubits(8, 42),))
+        sample.parse_args('bits[8]:42'),
+        (interp_value_from_ir_string('bits[8]:42'),))
     self.assertEqual(
         sample.parse_args('bits[8]:42; bits[16]:1234'),
-        (Value.make_ubits(8, 42), Value.make_ubits(16, 1234)))
+        (interp_value_from_ir_string('bits[8]:42'),
+         interp_value_from_ir_string('bits[16]:1234')))
     self.assertEqual(
         sample.parse_args(
             'bits[8]:42; (bits[8]:0x42, (bits[16]:0x33, bits[8]:0x44))'),
-        (Value.make_ubits(8, 42),
+        (interp_value_from_ir_string('bits[8]:42'),
          Value.make_tuple(
-             (Value.make_ubits(8, 0x42),
+             (interp_value_from_ir_string('bits[8]:0x42'),
               Value.make_tuple(
-                  (Value.make_ubits(16, 0x33), Value.make_ubits(8, 0x44)))))))
+                  (interp_value_from_ir_string('bits[16]:0x33'),
+                   interp_value_from_ir_string('bits[8]:0x44')))))))
     self.assertEqual(
         sample.parse_args('[bits[8]:0x42, bits[8]:0x43, bits[8]:0x44]'),
         (Value.make_array(
-            tuple(Value.make_ubits(8, v) for v in (0x42, 0x43, 0x44))),))
+            tuple(
+                interp_value_from_ir_string(f'bits[8]:{v}')
+                for v in (0x42, 0x43, 0x44))),))
 
   def test_options_to_json(self):
     json_str = sample.SampleOptions(

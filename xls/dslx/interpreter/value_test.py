@@ -26,7 +26,7 @@ class ValueTest(absltest.TestCase):
 
   def test_pickle(self):
     py_value = 1 << 65
-    v = interp_value.interp_value_from_string(f'bits[66]:{py_value:#b}')
+    v = interp_value.interp_value_from_ir_string(f'bits[66]:{py_value:#b}')
     dumped = pickle.dumps(v, 2)
     print(dumped)
     v_prime = pickle.loads(dumped)

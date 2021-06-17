@@ -19,8 +19,7 @@ from typing import Tuple, Text
 
 from xls.common import check_simulator
 from xls.common import test_base
-from xls.dslx.python.interp_value import interp_value_from_string
-from xls.dslx.python.interp_value import Value
+from xls.dslx.python.interp_value import interp_value_from_ir_string
 from xls.fuzzer import sample_runner
 from xls.fuzzer.python import cpp_sample as sample
 
@@ -50,9 +49,10 @@ class SampleRunnerTest(test_base.TestCase):
     runner = sample_runner.SampleRunner(sample_dir)
     dslx_text = 'fn main(x: u8, y: u8) -> u8 { x + y }'
     runner.run(
-        sample.Sample(dslx_text, sample.SampleOptions(convert_to_ir=False),
-                      [[Value.make_ubits(8, 42),
-                        Value.make_ubits(8, 100)]]))
+        sample.Sample(dslx_text, sample.SampleOptions(convert_to_ir=False), [[
+            interp_value_from_ir_string('bits[8]:42'),
+            interp_value_from_ir_string('bits[8]:100')
+        ]]))
     self.assertEqual(
         _read_file(sample_dir, 'sample.x.results').strip(), 'bits[8]:0x8e')
 
@@ -62,10 +62,14 @@ class SampleRunnerTest(test_base.TestCase):
     dslx_text = 'fn main(x: u8, y: u8) -> u8 { x + y }'
     runner.run(
         sample.Sample(dslx_text, sample.SampleOptions(convert_to_ir=False),
-                      [[Value.make_ubits(8, 42),
-                        Value.make_ubits(8, 100)],
-                       [Value.make_ubits(8, 222),
-                        Value.make_ubits(8, 240)]]))
+                      [[
+                          interp_value_from_ir_string('bits[8]:42'),
+                          interp_value_from_ir_string('bits[8]:100')
+                      ],
+                       [
+                           interp_value_from_ir_string('bits[8]:222'),
+                           interp_value_from_ir_string('bits[8]:240')
+                       ]]))
     self.assertSequenceEqual(
         _split_nonempty_lines(sample_dir, 'sample.x.results'),
         ['bits[8]:0x8e', 'bits[8]:0xce'])
@@ -76,9 +80,10 @@ class SampleRunnerTest(test_base.TestCase):
     dslx_text = 'syntaxerror!!! fn main(x: u8, y: u8) -> u8 { x + y }'
     with self.assertRaises(sample_runner.SampleError):
       runner.run(
-          sample.Sample(dslx_text, sample.SampleOptions(convert_to_ir=False),
-                        [[Value.make_ubits(8, 42),
-                          Value.make_ubits(8, 100)]]))
+          sample.Sample(dslx_text, sample.SampleOptions(convert_to_ir=False), [[
+              interp_value_from_ir_string('bits[8]:42'),
+              interp_value_from_ir_string('bits[8]:100')
+          ]]))
     # Verify the exception text is written out to file.
     self.assertIn('Expected start of top-level construct',
                   _read_file(sample_dir, 'exception.txt'))
@@ -97,10 +102,14 @@ class SampleRunnerTest(test_base.TestCase):
     dslx_text = 'fn main(x: u8, y: u8) -> u8 { x + y }'
     runner.run(
         sample.Sample(dslx_text, sample.SampleOptions(optimize_ir=False),
-                      [[Value.make_ubits(8, 42),
-                        Value.make_ubits(8, 100)],
-                       [Value.make_ubits(8, 222),
-                        Value.make_ubits(8, 240)]]))
+                      [[
+                          interp_value_from_ir_string('bits[8]:42'),
+                          interp_value_from_ir_string('bits[8]:100')
+                      ],
+                       [
+                           interp_value_from_ir_string('bits[8]:222'),
+                           interp_value_from_ir_string('bits[8]:240')
+                       ]]))
     self.assertSequenceEqual(
         _split_nonempty_lines(sample_dir, 'sample.x.results'),
         ['bits[8]:0x8e', 'bits[8]:0xce'])
@@ -116,12 +125,12 @@ class SampleRunnerTest(test_base.TestCase):
         sample.Sample(
             dslx_text, sample.SampleOptions(optimize_ir=False),
             [[
-                interp_value_from_string('bits[100]:{0:#x}'.format(10**30)),
-                interp_value_from_string('bits[100]:{0:#x}'.format(10**30)),
+                interp_value_from_ir_string('bits[100]:{0:#x}'.format(10**30)),
+                interp_value_from_ir_string('bits[100]:{0:#x}'.format(10**30)),
             ],
              [
-                 interp_value_from_string('bits[100]:{0:#x}'.format(2**80)),
-                 interp_value_from_string('bits[100]:{0:#x}'.format(2**81)),
+                 interp_value_from_ir_string('bits[100]:{0:#x}'.format(2**80)),
+                 interp_value_from_ir_string('bits[100]:{0:#x}'.format(2**81)),
              ]]))
     self.assertSequenceEqual(
         _split_nonempty_lines(sample_dir, 'sample.x.results'), [
@@ -139,9 +148,10 @@ class SampleRunnerTest(test_base.TestCase):
     runner = sample_runner.SampleRunner(sample_dir)
     dslx_text = 'fn main(x: u8, y: s8) -> s8 { (x as s8) + y }'
     runner.run(
-        sample.Sample(dslx_text, sample.SampleOptions(optimize_ir=False),
-                      [[Value.make_ubits(8, 42),
-                        Value.make_sbits(8, 100)]]))
+        sample.Sample(dslx_text, sample.SampleOptions(optimize_ir=False), [[
+            interp_value_from_ir_string('bits[8]:42'),
+            interp_value_from_ir_string('bits[8]:100').to_signed()
+        ]]))
     self.assertEqual(
         _read_file(sample_dir, 'sample.x.results').strip(), 'bits[8]:0x8e')
 
@@ -159,12 +169,14 @@ class SampleRunnerTest(test_base.TestCase):
     sample_dir = self._make_sample_dir()
     runner = sample_runner.SampleRunner(sample_dir)
     dslx_text = 'fn main(x: u8, y: u8) -> u8 { x + y }'
-    runner._evaluate_ir = lambda *args: (Value.make_ubits(8, 1),)
+    runner._evaluate_ir = lambda *args: (interp_value_from_ir_string('bits[8]:1'
+                                                                    ),)
     with self.assertRaises(sample_runner.SampleError) as e:
       runner.run(
-          sample.Sample(dslx_text, sample.SampleOptions(optimize_ir=False),
-                        [[Value.make_ubits(8, 42),
-                          Value.make_ubits(8, 100)]]))
+          sample.Sample(dslx_text, sample.SampleOptions(optimize_ir=False), [[
+              interp_value_from_ir_string('bits[8]:42'),
+              interp_value_from_ir_string('bits[8]:100')
+          ]]))
     self.assertIn(
         'Result miscompare for sample 0:\n'
         'args: bits[8]:0x2a; bits[8]:0x64\n'
@@ -179,15 +191,20 @@ class SampleRunnerTest(test_base.TestCase):
     sample_dir = self._make_sample_dir()
     runner = sample_runner.SampleRunner(sample_dir)
     dslx_text = 'fn main(x: u8, y: u8) -> u8 { x + y }'
-    results = (Value.make_ubits(8, 100), Value.make_ubits(8, 1))
+    results = (interp_value_from_ir_string('bits[8]:100'),
+               interp_value_from_ir_string('bits[8]:1'))
     runner._evaluate_ir = lambda *args: results
     with self.assertRaises(sample_runner.SampleError) as e:
       runner.run(
           sample.Sample(dslx_text, sample.SampleOptions(optimize_ir=False),
-                        [[Value.make_ubits(8, 40),
-                          Value.make_ubits(8, 60)],
-                         [Value.make_ubits(8, 2),
-                          Value.make_ubits(8, 1)]]))
+                        [[
+                            interp_value_from_ir_string('bits[8]:40'),
+                            interp_value_from_ir_string('bits[8]:60')
+                        ],
+                         [
+                             interp_value_from_ir_string('bits[8]:2'),
+                             interp_value_from_ir_string('bits[8]:1')
+                         ]]))
     self.assertIn('Result miscompare for sample 1', str(e.exception))
     self.assertIn('Result miscompare for sample 1',
                   _read_file(sample_dir, 'exception.txt'))
@@ -198,10 +215,12 @@ class SampleRunnerTest(test_base.TestCase):
     dslx_text = 'fn main(x: u8, y: u8) -> u8 { x + y }'
     # Give back two results instead of one.
     def fake_evaluate_ir(*_):
-      return (Value.make_ubits(8, 100), Value.make_ubits(8, 100))
+      return (interp_value_from_ir_string('bits[8]:100'),
+              interp_value_from_ir_string('bits[8]:100'))
 
     runner._evaluate_ir = fake_evaluate_ir
-    args_batch = [(Value.make_ubits(8, 42), Value.make_ubits(8, 64))]
+    args_batch = [(interp_value_from_ir_string('bits[8]:42'),
+                   interp_value_from_ir_string('bits[8]:64'))]
     with self.assertRaises(sample_runner.SampleError) as e:
       runner.run(
           sample.Sample(dslx_text, sample.SampleOptions(optimize_ir=False),
@@ -218,9 +237,10 @@ class SampleRunnerTest(test_base.TestCase):
     runner = sample_runner.SampleRunner(sample_dir)
     dslx_text = 'fn main(x: u8, y: u8) -> u8 { x + y }'
     runner.run(
-        sample.Sample(dslx_text, sample.SampleOptions(),
-                      [[Value.make_ubits(8, 42),
-                        Value.make_ubits(8, 100)]]))
+        sample.Sample(dslx_text, sample.SampleOptions(), [[
+            interp_value_from_ir_string('bits[8]:42'),
+            interp_value_from_ir_string('bits[8]:100')
+        ]]))
     self.assertIn('package sample', _read_file(sample_dir, 'sample.opt.ir'))
     self.assertSequenceEqual(
         _split_nonempty_lines(sample_dir, 'sample.opt.ir.results'),
@@ -231,10 +251,10 @@ class SampleRunnerTest(test_base.TestCase):
     runner = sample_runner.SampleRunner(sample_dir)
     dslx_text = 'fn main(x: u8, y: u8) -> u8 { x + y }'
     results = [
-        (Value.make_ubits(8, 100),),  # correct result
-        (Value.make_ubits(8, 100),),  # correct result
-        (Value.make_ubits(8, 0),),  # incorrect result
-        (Value.make_ubits(8, 100),),  # correct result
+        (interp_value_from_ir_string('bits[8]:100'),),  # correct result
+        (interp_value_from_ir_string('bits[8]:100'),),  # correct result
+        (interp_value_from_ir_string('bits[8]:0'),),  # incorrect result
+        (interp_value_from_ir_string('bits[8]:100'),),  # correct result
     ]
 
     def result_gen(*_):
@@ -243,9 +263,10 @@ class SampleRunnerTest(test_base.TestCase):
     runner._evaluate_ir = result_gen
     with self.assertRaises(sample_runner.SampleError) as e:
       runner.run(
-          sample.Sample(dslx_text, sample.SampleOptions(),
-                        [[Value.make_ubits(8, 40),
-                          Value.make_ubits(8, 60)]]))
+          sample.Sample(dslx_text, sample.SampleOptions(), [[
+              interp_value_from_ir_string('bits[8]:40'),
+              interp_value_from_ir_string('bits[8]:60')
+          ]]))
     self.assertIn('Result miscompare for sample 0', str(e.exception))
     self.assertIn('evaluated opt IR (JIT)', str(e.exception))
 
@@ -259,9 +280,10 @@ class SampleRunnerTest(test_base.TestCase):
             sample.SampleOptions(
                 codegen=True,
                 codegen_args=['--generator=combinational'],
-                simulate=True),
-            [[Value.make_ubits(8, 42),
-              Value.make_ubits(8, 100)]]))
+                simulate=True), [[
+                    interp_value_from_ir_string('bits[8]:42'),
+                    interp_value_from_ir_string('bits[8]:100')
+                ]]))
 
     self.assertIn('endmodule', _read_file(sample_dir, 'sample.v'))
     # A combinational block should not have a blocking assignment.
@@ -272,7 +294,7 @@ class SampleRunnerTest(test_base.TestCase):
   def test_codegen_combinational_wrong_results(self):
     sample_dir = self._make_sample_dir()
     runner = sample_runner.SampleRunner(sample_dir)
-    runner._simulate = lambda *args: (Value.make_ubits(8, 1),)
+    runner._simulate = lambda *args: (interp_value_from_ir_string('bits[8]:1'),)
     dslx_text = 'fn main(x: u8, y: u8) -> u8 { x + y }'
     with self.assertRaises(sample_runner.SampleError) as e:
       runner.run(
@@ -282,9 +304,10 @@ class SampleRunnerTest(test_base.TestCase):
                   codegen=True,
                   codegen_args=['--generator=combinational'],
                   simulate=True,
-                  simulator='iverilog'),
-              [[Value.make_ubits(8, 42),
-                Value.make_ubits(8, 100)]]))
+                  simulator='iverilog'), [[
+                      interp_value_from_ir_string('bits[8]:42'),
+                      interp_value_from_ir_string('bits[8]:100')
+                  ]]))
     self.assertIn('Result miscompare for sample 0', str(e.exception))
 
   @test_base.skipIf(not check_simulator.runs_system_verilog(),
@@ -300,9 +323,10 @@ class SampleRunnerTest(test_base.TestCase):
             sample.SampleOptions(
                 codegen=True,
                 codegen_args=('--generator=pipeline', '--pipeline_stages=2'),
-                simulate=True),
-            [[Value.make_ubits(8, 42),
-              Value.make_ubits(8, 100)]]))
+                simulate=True), [[
+                    interp_value_from_ir_string('bits[8]:42'),
+                    interp_value_from_ir_string('bits[8]:100')
+                ]]))
     # A pipelined block should have a blocking assignment.
     self.assertIn('<=', _read_file(sample_dir, 'sample.v'))
     self.assertSequenceEqual(
@@ -318,9 +342,10 @@ class SampleRunnerTest(test_base.TestCase):
     }
     """
     runner.run(
-        sample.Sample(ir_text, sample.SampleOptions(input_is_dslx=False),
-                      [[Value.make_ubits(8, 42),
-                        Value.make_ubits(8, 100)]]))
+        sample.Sample(ir_text, sample.SampleOptions(input_is_dslx=False), [[
+            interp_value_from_ir_string('bits[8]:42'),
+            interp_value_from_ir_string('bits[8]:100')
+        ]]))
     self.assertIn('package foo', _read_file(sample_dir, 'sample.ir'))
     self.assertIn('package foo', _read_file(sample_dir, 'sample.opt.ir'))
     self.assertSequenceEqual(

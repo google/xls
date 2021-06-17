@@ -114,8 +114,11 @@ class InterpValue {
   static InterpValue MakeU64(uint64_t value) {
     return MakeUBits(/*bit_count=*/64, value);
   }
-  static InterpValue MakeEnum(const Bits& bits, EnumDef* type) {
-    return InterpValue(InterpValueTag::kEnum, bits, type);
+  static InterpValue MakeEnum(Bits bits, EnumDef* type) {
+    return InterpValue(InterpValueTag::kEnum, std::move(bits), type);
+  }
+  static InterpValue MakeSigned(Bits bits) {
+    return InterpValue(InterpValueTag::kSBits, std::move(bits));
   }
   static InterpValue MakeTuple(std::vector<InterpValue> members);
   static absl::StatusOr<InterpValue> MakeArray(

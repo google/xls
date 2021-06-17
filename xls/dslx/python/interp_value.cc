@@ -69,13 +69,6 @@ PYBIND11_MODULE(interp_value, m) {
   // Required to be able to pickle IR `Bits` inside of `InterpValue`s.
   py::module::import("xls.ir.python.bits");
 
-  py::enum_<Builtin>(m, "Builtin").def("to_name", &BuiltinToString);
-
-  m.def("get_builtin",
-        [](absl::string_view name) { return BuiltinFromString(name); });
-
-  m.attr("Builtin").attr("get") = m.attr("get_builtin");
-
   py::class_<InterpValue>(m, "Value")
       .def(py::pickle(&InterpValuePickler::Pickle,
                       &InterpValuePickler::Unpickle))
@@ -95,20 +88,18 @@ PYBIND11_MODULE(interp_value, m) {
            })
       .def("is_true", &InterpValue::IsTrue)
       .def("is_false", &InterpValue::IsFalse)
-      // Factories.
-      .def_static("make_bool", &InterpValue::MakeBool, py::arg("value"))
-      .def_static("make_ubits", &InterpValue::MakeUBits, py::arg("bit_count"),
-                  py::arg("value"))
-      .def_static("make_sbits", &InterpValue::MakeSBits, py::arg("bit_count"),
-                  py::arg("value"))
-      .def_static("make_bits", &InterpValue::MakeBits, py::arg("tag"),
-                  py::arg("bits"))
-      .def_static("make_u32", &InterpValue::MakeU32, py::arg("value"))
-      .def_static("make_array", &InterpValue::MakeArray, py::arg("elements"))
+      .def("to_signed",
+           [](const InterpValue& v) -> absl::StatusOr<InterpValue> {
+             if (v.IsSigned()) {
+               return v;
+             }
+             XLS_ASSIGN_OR_RETURN(Bits b, v.GetBits());
+             return InterpValue::MakeSigned(std::move(b));
+           })
       .def_static("make_tuple", &InterpValue::MakeTuple, py::arg("elements"))
-      .def_static("make_nil", []() { return InterpValue::MakeTuple({}); });
+      .def_static("make_array", &InterpValue::MakeArray, py::arg("elements"));
 
-  m.def("interp_value_from_string",
+  m.def("interp_value_from_ir_string",
         [](absl::string_view s) -> absl::StatusOr<InterpValue> {
           XLS_ASSIGN_OR_RETURN(Value v, Parser::ParseTypedValue(s));
           return ValueToInterpValue(v);
