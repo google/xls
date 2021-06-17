@@ -19,6 +19,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/name_to_bit_count.h"
 #include "xls/codegen/vast.h"
@@ -33,7 +34,8 @@ namespace verilog {
 // otherwise it will be Verilog. This adds a proc to the package which
 // represents the combinational module. This proc is used for code generation.
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
-    Function* func, bool use_system_verilog = true);
+    Function* func, bool use_system_verilog = true,
+    absl::string_view module_name = "");
 
 enum class ProcPortType {
   kNull = 0,

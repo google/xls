@@ -24,7 +24,7 @@ std::string CodegenPassUnit::DumpIr() const {
   // Dump the Package and metadata. The metadata is commented out ('//') so the
   // output is parsable.
   std::string out =
-      absl::StrFormat("// Generating code for proc: %s\n\n", top->name());
+      absl::StrFormat("// Generating code for proc: %s\n\n", block->name());
   absl::StrAppend(&out, package->DumpIr());
   if (signature.has_value()) {
     absl::StrAppend(&out, "\n\n// Module signature:\n");

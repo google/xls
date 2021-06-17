@@ -27,9 +27,9 @@ absl::StatusOr<bool> SignatureGenerationPass::RunInternal(
   if (unit->signature.has_value()) {
     return absl::InvalidArgumentError("Signature already generated.");
   }
-  XLS_ASSIGN_OR_RETURN(
-      unit->signature,
-      GenerateSignature(options.codegen_options, unit->top, options.schedule));
+  XLS_ASSIGN_OR_RETURN(unit->signature,
+                       GenerateSignature(options.codegen_options, unit->block,
+                                         options.schedule));
   return true;
 }
 

@@ -36,16 +36,16 @@ cc_library(
     srcs = ["combinational_generator.cc"],
     hdrs = ["combinational_generator.h"],
     deps = [
+        ":block_conversion",
+        ":block_generator",
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
         ":flattening",
-        ":function_to_proc",
         ":module_builder",
         ":module_signature",
         ":name_to_bit_count",
         ":node_expressions",
-        ":proc_generator",
         ":signature_generator",
         ":vast",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -376,32 +376,13 @@ cc_library(
         ":codegen_options",
         ":flattening",
         ":module_builder",
-        ":module_signature",
         ":vast",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:proto_adaptor_utils",
         "//xls/common/logging:log_lines",
         "//xls/ir",
         "//xls/ir:node_util",
         "//xls/ir:type",
-    ],
-)
-
-cc_library(
-    name = "function_to_proc",
-    srcs = ["function_to_proc.cc"],
-    hdrs = ["function_to_proc.h"],
-    deps = [
-        ":vast",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "//xls/ir",
-        "//xls/ir:channel",
-        "//xls/ir:function_builder",
-        "//xls/ir:value_helpers",
-        "//xls/scheduling:pipeline_schedule",
     ],
 )
 
@@ -429,7 +410,6 @@ cc_library(
     deps = [
         ":codegen_options",
         ":module_signature",
-        ":module_signature_cc_proto",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "//xls/ir",
@@ -486,7 +466,8 @@ cc_library(
     deps = [
         ":codegen_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/ir:channel",
+        "//xls/common/logging",
+        "//xls/ir",
         "//xls/ir:value_helpers",
     ],
 )
@@ -662,23 +643,6 @@ cc_test(
         "//xls/ir:value",
         "//xls/simulation:module_simulator",
         "//xls/simulation:verilog_test_base",
-    ],
-)
-
-cc_test(
-    name = "function_to_proc_test",
-    srcs = ["function_to_proc_test.cc"],
-    deps = [
-        ":function_to_proc",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/delay_model:delay_estimator",
-        "//xls/ir",
-        "//xls/ir:function_builder",
-        "//xls/ir:ir_matcher",
-        "//xls/ir:ir_test_base",
-        "//xls/scheduling:pipeline_schedule",
-        "@com_google_googletest//:gtest",
     ],
 )
 

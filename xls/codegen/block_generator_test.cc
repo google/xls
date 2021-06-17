@@ -268,19 +268,6 @@ TEST_P(BlockGeneratorTest, RegisterWithDifferentResetBehavior) {
           HasSubstr("Block has active low and active high reset signals")));
 }
 
-TEST_P(BlockGeneratorTest, UnrepresentableType) {
-  Package package(TestBaseName());
-
-  BlockBuilder bb(TestBaseName(), &package);
-  // An empty tuple is unrepresentable in Verilog.
-  bb.Literal(Value::Tuple({}));
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
-
-  EXPECT_THAT(GenerateVerilog(block, UseSystemVerilog()).status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("is unrepresentable type")));
-}
-
 TEST_P(BlockGeneratorTest, PortOrderTest) {
   Package package(TestBaseName());
   Type* u32 = package.GetBitsType(32);

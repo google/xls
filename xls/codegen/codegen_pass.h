@@ -18,8 +18,8 @@
 #include "absl/types/optional.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/ir/block.h"
 #include "xls/ir/package.h"
-#include "xls/ir/proc.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
@@ -41,13 +41,13 @@ struct CodegenPassOptions : public PassOptions {
 // Data structure operated on by codegen passes. Contains the IR and associated
 // metadata which may be used and mutated by passes.
 struct CodegenPassUnit {
-  CodegenPassUnit(Package* p, Proc* proc) : package(p), top(proc) {}
+  CodegenPassUnit(Package* p, Block* b) : package(p), block(b) {}
 
   // The package containing IR to lower.
   Package* package;
 
-  // The top-level proc to generate a block for.
-  Proc* top;
+  // The top-level block to generate a Verilog module for.
+  Block* block;
 
   // The signature is generated (and potentially mutated) during the codegen
   // process.
@@ -59,7 +59,7 @@ struct CodegenPassUnit {
 
   // These methods are required by CompoundPassBase.
   std::string DumpIr() const;
-  std::string name() const { return top->name(); }
+  const std::string& name() const { return block->name(); }
 };
 
 using CodegenPass = PassBase<CodegenPassUnit, CodegenPassOptions, PassResults>;

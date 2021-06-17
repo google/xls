@@ -21,14 +21,14 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "xls/codegen/block_conversion.h"
+#include "xls/codegen/block_generator.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_pass_pipeline.h"
 #include "xls/codegen/flattening.h"
-#include "xls/codegen/function_to_proc.h"
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/node_expressions.h"
-#include "xls/codegen/proc_generator.h"
 #include "xls/codegen/signature_generator.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/log_lines.h"
@@ -167,22 +167,24 @@ absl::Status GenerateCombinationalLogic(
 }  // namespace
 
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
-    Function* func, bool use_system_verilog) {
+    Function* func, bool use_system_verilog, absl::string_view module_name) {
   XLS_ASSIGN_OR_RETURN(
-      Proc * proc,
-      FunctionToProc(func, absl::StrCat("__", func->name(), "_proc")));
-  std::string module_name = SanitizeIdentifier(func->name());
-  CodegenPassUnit unit(func->package(), proc);
+      Block * block,
+      FunctionToBlock(func, module_name.empty()
+                                ? SanitizeIdentifier(func->name())
+                                : module_name));
+  CodegenPassUnit unit(func->package(), block);
   CodegenPassOptions pass_options;
-  pass_options.codegen_options.entry(proc->name())
-      .module_name(module_name)
+  pass_options.codegen_options.entry(block->name())
       .use_system_verilog(use_system_verilog);
   PassResults results;
   XLS_RETURN_IF_ERROR(
       CreateCodegenPassPipeline()->Run(&unit, pass_options, &results).status());
   XLS_RET_CHECK(unit.signature.has_value());
-  XLS_ASSIGN_OR_RETURN(std::string verilog,
-                       GenerateVerilog(pass_options.codegen_options, proc));
+  XLS_ASSIGN_OR_RETURN(
+      std::string verilog,
+      GenerateVerilog(block,
+                      pass_options.codegen_options.use_system_verilog()));
 
   return ModuleGeneratorResult{verilog, unit.signature.value()};
 }

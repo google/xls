@@ -43,6 +43,37 @@ bool IsRepresentable(Type* type) {
   return !TypeHasToken(type) && type->GetFlatBitCount() > 0;
 }
 
+// Return the Verilog representation for the given node which has at least one
+// operand which is not represented by an Expression*.
+absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
+    Node* node, ModuleBuilder* mb,
+    const absl::flat_hash_map<Node*, NodeRepresentation>& node_exprs) {
+  if (node->Is<xls::Assert>() && node->Is<xls::Cover>()) {
+    // Asserts are statements, not expressions, and are emitted after all other
+    // operations.
+    return UnrepresentedSentinel();
+  } else if (node->Is<Tuple>()) {
+    // A tuple may have unrepresentable inputs such as empty tuples.  Walk
+    // through and gather non-zero-width inputs and flatten them.
+    std::vector<Expression*> nonempty_elements;
+    for (Node* operand : node->operands()) {
+      if (!absl::holds_alternative<Expression*>(node_exprs.at(operand))) {
+        if (operand->GetType()->GetFlatBitCount() != 0) {
+          return absl::UnimplementedError(absl::StrFormat(
+              "Unable to generate code for: %s", node->ToString()));
+        }
+        continue;
+      }
+      nonempty_elements.push_back(
+          absl::get<Expression*>(node_exprs.at(operand)));
+    }
+    return FlattenTuple(nonempty_elements, node->GetType()->AsTupleOrDie(),
+                        mb->file());
+  }
+  return absl::UnimplementedError(
+      absl::StrFormat("Unable to generate code for: %s", node->ToString()));
+}
+
 // Generates logic for the given nodes which must be in
 // topological sort order. The map node_exprs should contain the
 // representations for any nodes which occur before the given nodes (e.g.,
@@ -57,6 +88,23 @@ absl::Status GenerateLogic(
 
     // Ports are handled elsewhere for deterministic insertion of ports.
     if (node->Is<InputPort>() || node->Is<OutputPort>()) {
+      continue;
+    }
+
+    if (!IsRepresentable(node->GetType())) {
+      (*node_exprs)[node] = UnrepresentedSentinel();
+      continue;
+    }
+
+    // If any of the operands do not have an Expression* representation then
+    // handle the node specially.
+    if (std::any_of(
+            node->operands().begin(), node->operands().end(), [&](Node* n) {
+              return !absl::holds_alternative<Expression*>(node_exprs->at(n));
+            })) {
+      XLS_ASSIGN_OR_RETURN(
+          (*node_exprs)[node],
+          CodegenNodeWithUnrepresentedOperands(node, mb, *node_exprs));
       continue;
     }
 
@@ -76,12 +124,6 @@ absl::Status GenerateLogic(
       RegisterRead* reg_read = node->As<RegisterRead>();
       (*node_exprs)[node] = registers->at(reg_read->register_name()).ref;
       continue;
-    }
-
-    if (!IsRepresentable(node->GetType())) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Unable to generate code for node %s, is unrepresentable type: %s",
-          node->GetName(), node->GetType()->ToString()));
     }
 
     // Emit non-bits-typed literals as module-level constants because in
@@ -193,12 +235,14 @@ absl::StatusOr<std::string> GenerateVerilog(Block* block,
       InputPort* input_port = absl::get<InputPort*>(port);
       if (reset_proto.has_value() &&
           input_port->GetName() == reset_proto->name()) {
-        continue;
+        // The reset signal is implicitly added by ModuleBuilder.
+        node_exprs[input_port] = mb.reset().value().signal;
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            Expression * port_expr,
+            mb.AddInputPort(input_port->GetName(), input_port->GetType()));
+        node_exprs[input_port] = port_expr;
       }
-      XLS_ASSIGN_OR_RETURN(
-          Expression * port_expr,
-          mb.AddInputPort(input_port->GetName(), input_port->GetType()));
-      node_exprs[input_port] = port_expr;
     }
   }
 

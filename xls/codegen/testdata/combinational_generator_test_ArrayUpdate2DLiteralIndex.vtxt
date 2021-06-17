@@ -10,12 +10,12 @@ module ArrayUpdate2DLiteralIndex(
   assign a_unflattened[1][0] = a[31:24];
   assign a_unflattened[1][1] = a[39:32];
   assign a_unflattened[1][2] = a[47:40];
-  wire [7:0] array_update_16[0:1][0:2];
-  assign array_update_16[0][0] = a_unflattened[0][0];
-  assign array_update_16[0][1] = a_unflattened[0][1];
-  assign array_update_16[0][2] = value;
-  assign array_update_16[1][0] = a_unflattened[1][0];
-  assign array_update_16[1][1] = a_unflattened[1][1];
-  assign array_update_16[1][2] = a_unflattened[1][2];
-  assign out = {{array_update_16[1][2], array_update_16[1][1], array_update_16[1][0]}, {array_update_16[0][2], array_update_16[0][1], array_update_16[0][0]}};
+  wire [7:0] array_update_10[0:1][0:2];
+  assign array_update_10[0][0] = a_unflattened[0][0];
+  assign array_update_10[0][1] = a_unflattened[0][1];
+  assign array_update_10[0][2] = value;
+  assign array_update_10[1][0] = a_unflattened[1][0];
+  assign array_update_10[1][1] = a_unflattened[1][1];
+  assign array_update_10[1][2] = a_unflattened[1][2];
+  assign out = {{array_update_10[1][2], array_update_10[1][1], array_update_10[1][0]}, {array_update_10[0][2], array_update_10[0][1], array_update_10[0][0]}};
 endmodule

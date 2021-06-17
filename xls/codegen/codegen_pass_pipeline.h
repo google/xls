@@ -22,7 +22,7 @@ namespace xls::verilog {
 
 // Returns the the codegen pass pipeline which runs on a package and prepares
 // the IR for lowering to Verilog. After the pipeline is complete a signature is
-// generated and the Proc may be passed to proc_generator for generating
+// generated and the Block may be passed to block_generator for generating
 // Verilog.
 std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline();
 

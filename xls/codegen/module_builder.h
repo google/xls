@@ -92,7 +92,7 @@ class ModuleBuilder {
   // Emit an XLS assert operation as a SystemVerilog assert statement. If
   // SystemVerilog is not enabled then this is a nop. 'fmt_string' is the
   // format string used to generate the assert. Format string details
-  // described in proc_generator.h.
+  // described in codegen_options.h.
   // TODO(meheff): 2021/2/27 When format string is available at the user level,
   // put the codegen-related documentation in a common place.
   absl::Status EmitAssert(

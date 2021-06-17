@@ -3,9 +3,9 @@ module ExpressionWhichRequiresNamedIntermediate(
   input wire [7:0] b,
   output wire [3:0] out
 );
-  wire [7:0] add_13;
+  wire [7:0] add_7;
   wire [3:0] slice_n_dice;
-  assign add_13 = a + b;
-  assign slice_n_dice = add_13[6:3];
+  assign add_7 = a + b;
+  assign slice_n_dice = add_7[6:3];
   assign out = slice_n_dice;
 endmodule

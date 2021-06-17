@@ -14,71 +14,43 @@
 
 #include "xls/codegen/port_legalization_pass.h"
 
-#include "xls/ir/channel.h"
+#include "xls/common/logging/logging.h"
+#include "xls/ir/block.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls::verilog {
-
-// Renumbers the ports of the proc to be valid (consectively numbered from
-// zero). To be used after removing one or more ports. If ports are not numbered
-// then this function does nothing.
-static absl::Status RenumberPorts(Proc* proc) {
-  XLS_ASSIGN_OR_RETURN(std::vector<Proc::Port> ports, proc->GetPorts());
-  int64_t current_pos = 0;
-  for (const Proc::Port& port : ports) {
-    if (!port.channel->GetPosition().has_value()) {
-      // Ports are either all numbered or none of them are numbered (checked by
-      // the verifier).
-      return absl::OkStatus();
-    }
-    // GetPorts returns the ports in order by position.
-    XLS_RET_CHECK_LE(current_pos, port.channel->GetPosition().value());
-    port.channel->SetPosition(current_pos++);
-  }
-  return absl::OkStatus();
-}
 
 absl::StatusOr<bool> PortLegalizationPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     PassResults* results) const {
   bool changed = false;
-  Proc* proc = unit->top;
-  XLS_ASSIGN_OR_RETURN(std::vector<Proc::Port> ports, unit->top->GetPorts());
-
-  for (int64_t i = 0; i < ports.size(); ++i) {
-    const Proc::Port& port = ports[i];
-    // Remove zero-width ports.
-    if (port.channel->type()->GetFlatBitCount() == 0) {
-      if (port.direction == Proc::PortDirection::kOutput) {
-        // Output ports are sends over a port channel. Delete the send
-        // node. The send node produces a token value. Replace any uses of that
-        // token value with the token operand of the send.
-        XLS_RET_CHECK(port.node->Is<Send>());
-        XLS_RETURN_IF_ERROR(
-            port.node->ReplaceUsesWith(port.node->As<Send>()->token()));
-      } else {
-        // Input ports are receives over a port channel. Delete the receive
-        // node. The receive node produces a tuple containing (token,
-        // data). Replace with a tuple containing the operand token and a dummy
-        // literal value for the data.
-        XLS_RET_CHECK(port.node->Is<Receive>());
-        XLS_ASSIGN_OR_RETURN(
-            xls::Literal * dummy_value,
-            proc->MakeNode<xls::Literal>(port.node->loc(),
-                                         ZeroOfType(port.channel->type())));
-        std::vector<Node*> tuple_elements = {port.node->As<Receive>()->token(),
-                                             dummy_value};
-        XLS_RETURN_IF_ERROR(
-            port.node->ReplaceUsesWithNew<Tuple>(tuple_elements).status());
+  Block* block = unit->block;
+  std::vector<Block::Port> ports(block->GetPorts().begin(),
+                                 block->GetPorts().end());
+  for (const Block::Port& port : ports) {
+    // Remove zero-width input ports and output ports.
+    if (absl::holds_alternative<InputPort*>(port)) {
+      InputPort* input_port = absl::get<InputPort*>(port);
+      if (input_port->GetType()->GetFlatBitCount() == 0) {
+        XLS_VLOG(4) << "Removing zero-width input port " << input_port->name();
+        XLS_RETURN_IF_ERROR(input_port
+                                ->ReplaceUsesWithNew<xls::Literal>(
+                                    ZeroOfType(input_port->GetType()))
+                                .status());
+        XLS_RETURN_IF_ERROR(block->RemoveNode(input_port));
+        changed = true;
       }
-      XLS_RETURN_IF_ERROR(proc->RemoveNode(port.node));
-      XLS_RETURN_IF_ERROR(proc->package()->RemoveChannel(port.channel));
-      changed = true;
+    } else if (absl::holds_alternative<OutputPort*>(port)) {
+      OutputPort* output_port = absl::get<OutputPort*>(port);
+      if (output_port->operand(0)->GetType()->GetFlatBitCount() == 0) {
+        XLS_VLOG(4) << "Removing zero-width output port "
+                    << output_port->name();
+        XLS_RETURN_IF_ERROR(block->RemoveNode(output_port));
+        changed = true;
+      }
     }
   }
-  if (changed) {
-    XLS_RETURN_IF_ERROR(RenumberPorts(proc));
-  }
+
   return changed;
 }
 
