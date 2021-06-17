@@ -406,6 +406,23 @@ cc_library(
 )
 
 cc_library(
+    name = "block_conversion",
+    srcs = ["block_conversion.cc"],
+    hdrs = ["block_conversion.h"],
+    deps = [
+        ":vast",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:function_builder",
+        "//xls/ir:value_helpers",
+        "//xls/scheduling:pipeline_schedule",
+    ],
+)
+
+cc_library(
     name = "codegen_pass",
     srcs = ["codegen_pass.cc"],
     hdrs = ["codegen_pass.h"],
@@ -653,6 +670,23 @@ cc_test(
     srcs = ["function_to_proc_test.cc"],
     deps = [
         ":function_to_proc",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/delay_model:delay_estimator",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/scheduling:pipeline_schedule",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "block_conversion_test",
+    srcs = ["block_conversion_test.cc"],
+    deps = [
+        ":block_conversion",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
