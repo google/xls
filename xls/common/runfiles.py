@@ -32,5 +32,5 @@ def get_path(relpath: str) -> str:
 
 
 def get_contents_as_text(relpath: str) -> str:
-  with open(get_path(relpath), 'r') as f:
+  with open(get_path(relpath), 'r', encoding='utf-8') as f:
     return f.read()
