@@ -1,0 +1,45 @@
+# https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions
+# See also: https://github.com/marketplace/actions/bazel-action
+
+name: Nightly Ubuntu 18.04
+on:
+  schedule:
+    # Nightly at midnight -- uses UTC, so 7am.
+    - cron:  '0 7 * * *'
+  # This lets us trigger manually from the UI.
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Nightly Ubuntu 18.04
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+      # Note: not using bazel cache because we don't want to pollute it with
+      # 18.04 artifacts when our "common case" CI builds are currently 20.04.
+      - name: Install bazelisk
+        run: |
+          curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.1.0/bazelisk-linux-amd64"
+          mkdir -p "${GITHUB_WORKSPACE}/bin/"
+          mv bazelisk-linux-amd64 "${GITHUB_WORKSPACE}/bin/bazel"
+          chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
+      - name: Install dependencies via apt
+        run: sudo apt-get install python3 python3-distutils python3-dev libtinfo5
+      - name: Install more modern toolchain (GCC 10)
+        run: |
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y gcc-10 g++-10
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10
+      - name: Put Python binary in PATH for Bazel Python env
+        run: |
+          mkdir -p ~/opt/bin
+          ln -s $(which python3) ~/opt/bin/python
+          echo "~/opt/bin/" >> ${GITHUB_PATH}
+      # Note: xlscc is excluded because it builds Clang, and that pushes us
+      # over 6 hours of build time.
+      - name: Bazel Test All (opt)
+        run: |
+          "${GITHUB_WORKSPACE}/bin/bazel" test -c opt -- //xls/... -//xls/contrib/xlscc/...
