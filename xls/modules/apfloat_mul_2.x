@@ -127,13 +127,13 @@ pub fn apfloat_mul_2<
   //   whichever direction makes the result even. In other words,
   //   we round up if bit 25 is set.
   let is_half_way =
-      sfd[SFD_ROUNDING_BIT:SFD_SZ] &
-      (sfd[0:SFD_ROUNDING_BIT] == uN[SFD_ROUNDING_BIT]:0);
+      sfd[SFD_ROUNDING_BIT as s32 : SFD_SZ as s32] &
+      (sfd[0:SFD_ROUNDING_BIT as s32] == uN[SFD_ROUNDING_BIT]:0);
   let greater_than_half_way =
-      sfd[SFD_ROUNDING_BIT:SFD_SZ] &
-      (sfd[0:SFD_ROUNDING_BIT] != uN[SFD_ROUNDING_BIT]:0);
+      sfd[SFD_ROUNDING_BIT as s32 : SFD_SZ as s32] &
+      (sfd[0:SFD_ROUNDING_BIT as s32] != uN[SFD_ROUNDING_BIT]:0);
   let do_round_up =
-      greater_than_half_way || (is_half_way & sfd[SFD_SZ:STICKY_SFD]);
+      greater_than_half_way || (is_half_way & sfd[SFD_SZ as s32 : STICKY_SFD as s32]);
 
   // We're done with the extra precision bits now, so shift the
   // significand into its almost-final width, adding one extra

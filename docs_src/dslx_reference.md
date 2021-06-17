@@ -1425,18 +1425,21 @@ fn test_cast_to_array() {
 
 DSLX supports Python-style bit slicing over bits types. Note that bits are
 numbered 0..N starting "from the right (as you would write it on paper)" --
-least significant bit, AKA LSb -- for example:
+least significant bit, AKA LSb -- for example, for the value `u7:0b100_0111`:
 
 ```
     Bit    6 5 4 3 2 1 0
   Value    1 0 0 0 1 1 1
 ```
 
-A slice expression `[n:m]` means to get from bit `n` (inclusive) to bit 'm'
-exclusive. This can be confusing, because the `n` stands to the left of `m` in
-the expression, but bit `n` would be to the 'right' of `m` in the classical bit
-numbering (note: Not in the classical array visualization, where element 0 is
-usually drawn to the left).
+A slice expression `[N:M]` means to get from bit `N` (inclusive) to bit `M`
+exclusive. The start and limit in the slice expression must be signed integral
+values.
+
+Aside: This can be confusing, because the `N` stands to the left of `M` in the
+expression, but bit `N` would be to the 'right' of `M` in the classical bit
+numbering. Additionally, this is not the case in the classical array
+visualization, where element 0 is usually drawn on the left.
 
 For example, the expression `[0:2]` would yield:
 
@@ -1449,7 +1452,7 @@ For example, the expression `[0:2]` would yield:
   Result:  0b11
 ```
 
-Note that, as of now, the indices for this `[n:m]` form must be literal numbers
+Note that, as of now, the indices for this `[N:M]` form must be literal numbers
 (so the compiler can determine the width of the result). To perform a slice with
 a non-literal-number start position, see the `+:` form described below.
 
@@ -1458,26 +1461,46 @@ start or end. To visualize, one can think of `x[ : -1]` as the equivalent of
 `x[from the start : bitwidth - 1]`. Correspondingly, `x[-1 : ]` can be
 visualized as `[ bitwidth - 1 : to the end]`.
 
-For example, to get all bits, except the MSb (from the beginning, until the top
-element minus 1):
+For example, to get all bits, *except* the MSb (from the beginning, until the
+top element minus 1):
 
 ```dslx-snippet
 x[:-1]
 ```
 
-Or to get the left-most 2 bits (from bitwidth - 2, all the way to the end):
+Or to get the two most significant bits:
 
 ```dslx-snippet
 x[-2:]
 ```
 
-There is also a "counted" form `x[start +: bits[N]]` - starting from a specified
-bit, slice out the next `N` bits. This is equivalent to: `bits[N]:(x >> start)`.
-The type can be specified as either signed or unsigned; e.g. `[start +: s8]`
-will produce an 8-bit signed value starting at `start`, whereas `[start +: u4]`
-will produce a 4-bit unsigned number starting at `start`.
+This results in the nice property that a the original complete value can be
+sliced into complementary slices such as `:-2` (all but the two most significant
+bits) and `-2:` (the two most significant bits):
+
+```dslx
+#![test]
+fn slice_into_two_pieces() {
+  let x = u5:0b11000;
+  let (lo, hi): (u3, u2) = (x[:-2], x[-2:]);
+  let _ = assert_eq(hi, u2:0b11);
+  let _ = assert_eq(lo, u3:0b000);
+  ()
+}
+```
+
+#### Width Slice
+
+There is also a "width slice" form `x[start +: bits[N]]` - starting from a
+specified bit, slice out the next `N` bits. This is equivalent to:
+`bits[N]:(x >> start)`. The type can be specified as either signed or unsigned;
+e.g. `[start +: s8]` will produce an 8-bit signed value starting at `start`,
+whereas `[start +: u4]` will produce a 4-bit unsigned number starting at
+`start`.
 
 [Here are many more examples](https://github.com/google/xls/tree/main/xls/dslx/tests/bit_slice_syntax.x):
+
+#### Bit Slice Examples
 
 ```dslx
 // Identity function helper.

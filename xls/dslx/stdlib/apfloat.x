@@ -188,7 +188,7 @@ pub fn cast_from_fixed<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1,
   NUM_SRC_BITS:u32, EXTENDED_SFD_SZ:u32 = SFD_SZ + NUM_SRC_BITS>
   (to_cast: sN[NUM_SRC_BITS]) -> APFloat<EXP_SZ, SFD_SZ> {
   // Determine sign.
-  let sign = to_cast[NUM_SRC_BITS-u32:1 : NUM_SRC_BITS];
+  let sign = to_cast[(NUM_SRC_BITS-u32:1) as s32 : NUM_SRC_BITS as s32];
 
   // Determine exponent.
   let abs_magnitude = (to_cast if sign == u1:0 else -to_cast) as uN[NUM_SRC_BITS];
@@ -203,7 +203,7 @@ pub fn cast_from_fixed<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1,
   let extended_sfd = abs_magnitude ++ uN[SFD_SZ]:0;
   let sfd = extended_sfd >>
     ((num_trailing_nonzeros - uN[NUM_SRC_BITS]:1) as uN[EXTENDED_SFD_SZ]);
-  let sfd = sfd[0 : SFD_SZ];
+  let sfd = sfd[0 : SFD_SZ as s32];
 
   // Round significand (round to nearest, half to even).
   let lsb_idx = (num_trailing_nonzeros as uN[EXTENDED_SFD_SZ])
@@ -428,7 +428,7 @@ pub fn cast_to_fixed<NUM_DST_BITS:u32, EXP_SZ:u32, SFD_SZ:u32,
     ((SFD_SZ as uN[EXTENDED_FIXED_SZ])
     + (NUM_DST_BITS as uN[EXTENDED_FIXED_SZ])
     - (exp as uN[EXTENDED_FIXED_SZ]));
-  let result = result[0:NUM_DST_BITS] as sN[NUM_DST_BITS];
+  let result = result[0:NUM_DST_BITS as s32] as sN[NUM_DST_BITS];
   let result = -result if to_cast.sign else result;
 
   // NaN and too-large inputs --> MIN_FIXED_VALUE

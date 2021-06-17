@@ -1012,6 +1012,48 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
   return width_type;
 }
 
+// Attempts to resolve one of the bounds (start or limit) of slice into a
+// DSLX-compile-time constant.
+static absl::StatusOr<absl::optional<int64_t>> TryResolveBound(
+    Slice* slice, Expr* bound, absl::string_view bound_name, ConcreteType* s32,
+    const ConstexprEnv& env, DeduceCtx* ctx) {
+  if (bound == nullptr) {
+    return absl::nullopt;
+  }
+  absl::StatusOr<InterpValue> bound_or = Interpreter::InterpretExpr(
+      slice->owner(), ctx->type_info(), ctx->typecheck_module(),
+      ctx->additional_search_paths(), ctx->import_data(), env, bound,
+      /*fn_ctx=*/nullptr, s32);
+  if (!bound_or.ok()) {
+    const absl::Status& status = bound_or.status();
+    if (absl::StrContains(status.message(), "Could not find bindings entry")) {
+      return TypeInferenceErrorStatus(
+          bound->span(), nullptr,
+          absl::StrFormat(
+              "Unable to resolve slice %s to a compile-time constant.",
+              bound_name));
+    }
+  }
+  const InterpValue& value = bound_or.value();
+  if (value.tag() != InterpValueTag::kSBits) {  // Error if bound is not signed.
+    std::string error_suffix = ".";
+    if (value.tag() == InterpValueTag::kUBits) {
+      error_suffix = " -- consider casting to a signed value?";
+    }
+    return TypeInferenceErrorStatus(
+        bound->span(), nullptr,
+        absl::StrFormat(
+            "Slice %s must be a signed compile-time-constant value%s",
+            bound_name, error_suffix));
+  }
+
+  XLS_ASSIGN_OR_RETURN(int64_t as_64b, ConcreteTypeDim::GetAs64Bits(value));
+  XLS_VLOG(3) << absl::StreamFormat("Slice %s bound @ %s has value: %d",
+                                    bound_name, bound->span().ToString(),
+                                    as_64b);
+  return as_64b;
+}
+
 // Deduces the concrete type for an Index AST node with a slice spec.
 //
 // Precondition: node->rhs() is either a Slice or a WidthSlice.
@@ -1030,47 +1072,18 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     return DeduceWidthSliceType(node, *bits_type, *width_slice, ctx);
   }
 
-  auto env =
+  const ConstexprEnv env =
       MakeConstexprEnv(node, ctx->fn_stack().back().symbolic_bindings(), ctx);
 
   std::unique_ptr<ConcreteType> s32 = BitsType::MakeS32();
   auto* slice = absl::get<Slice*>(node->rhs());
-  absl::optional<int64_t> limit;
-  if (slice->limit() != nullptr) {
-    auto status_or_limit = Interpreter::InterpretExpr(
-        slice->owner(), ctx->type_info(), ctx->typecheck_module(),
-        ctx->additional_search_paths(), ctx->import_data(), env, slice->limit(),
-        /*fn_ctx=*/nullptr, s32.get());
-    if (!status_or_limit.ok()) {
-      absl::Status status = status_or_limit.status();
-      if (absl::StrContains(status.message(),
-                            "Could not find bindings entry")) {
-        return TypeInferenceErrorStatus(
-            slice->limit()->span(), nullptr,
-            "Unable to resolve slice limit to a compile-time constant.");
-      }
-    }
-    XLS_ASSIGN_OR_RETURN(limit,
-                         ConcreteTypeDim::GetAs64Bits(status_or_limit.value()));
-  }
-  absl::optional<int64_t> start;
-  if (slice->start() != nullptr) {
-    auto status_or_start = Interpreter::InterpretExpr(
-        slice->owner(), ctx->type_info(), ctx->typecheck_module(),
-        ctx->additional_search_paths(), ctx->import_data(), env, slice->start(),
-        /*fn_ctx=*/nullptr, s32.get());
-    if (!status_or_start.ok()) {
-      absl::Status status = status_or_start.status();
-      if (absl::StrContains(status.message(),
-                            "Could not find bindings entry")) {
-        return TypeInferenceErrorStatus(
-            slice->start()->span(), nullptr,
-            "Unable to resolve slice start to a compile-time constant.");
-      }
-    }
-    XLS_ASSIGN_OR_RETURN(start,
-                         ConcreteTypeDim::GetAs64Bits(status_or_start.value()));
-  }
+
+  XLS_ASSIGN_OR_RETURN(
+      absl::optional<int64_t> start,
+      TryResolveBound(slice, slice->start(), "start", s32.get(), env, ctx));
+  XLS_ASSIGN_OR_RETURN(
+      absl::optional<int64_t> limit,
+      TryResolveBound(slice, slice->limit(), "limit", s32.get(), env, ctx));
 
   const SymbolicBindings& fn_symbolic_bindings =
       ctx->fn_stack().back().symbolic_bindings();
@@ -2292,6 +2305,8 @@ ConstexprEnv MakeConstexprEnv(Expr* node,
       continue;
     }
 
+    XLS_VLOG(5) << "freevar env record: " << const_ref->identifier() << " => "
+                << value->ToString();
     env.insert({const_ref->identifier(), *value});
   }
 

@@ -85,7 +85,7 @@ fn fp_trig_reduce<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1>(x: APFlo
 
   // Clear hidden bit and shift mantissa.
   const SFD_INDEX_START = u32:128 - SFD_SZ;
-  let fraction_sfd = (raw_sfd_bits << (lz + u64:1))[SFD_INDEX_START:128];
+  let fraction_sfd = (raw_sfd_bits << (lz + u64:1))[SFD_INDEX_START as s32:128];
 
   // Construct fraction.
   let fraction = APFloat<EXP_SZ, SFD_SZ> {sign: u1:0,

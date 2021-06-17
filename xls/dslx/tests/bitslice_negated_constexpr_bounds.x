@@ -12,29 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const IDX = s32:5;
+// Ensures that we can be referentially transparent with negative index slices.
 
-fn p<N: s32>(a: u32) -> uN[N] {
-  a[:N]
-}
+const FIVE_U32 = u32:5;
+const FIVE_S32 = s32:5;
 
-fn p1<N: s32, M: s32 = N+s32:1>(a: u32) -> uN[M] {
-  a[:N+s32:1]
-}
-
-fn main() -> (u8, u16, u8, u4, u17) {
-  let a = u32:0xdeadbeef;
-  let x = u32:8;
-  let i: u8 = a[0:8];
-  let j: u16 = p<s32:16>(a);
-  let k: u8 = a[s32:1 + s32:8 : 17];
-  let l: u4 = a[1:IDX];
-  let m: u17 = p1<s32:16>(a);
-  (i, j, k, l, m)
-}
+fn f(x: u32) -> bits[5] { x[-5:] }
+fn g(x: u32) -> bits[5] { x[-FIVE_S32:] }
+fn h(x: u32) -> bits[5] { x[(-FIVE_U32) as s32:] }
 
 #![test]
-fn test_non_constexpr_slice() {
-  let t = main();
-  assert_eq(t, (u8:239, u16:48879, u8:223, u4:7, u17:114415))
+fn main_test() {
+  let x = u32:0xa000_0000;
+  let want = u5:0b1010_0;
+  let _ = assert_eq(f(x), g(x));
+  let _ = assert_eq(g(x), h(x));
+  let _ = assert_eq(f(x), want);
+  let _ = assert_eq(g(x), want);
+  let _ = assert_eq(h(x), want);
+  ()
 }

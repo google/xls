@@ -46,6 +46,8 @@ xls_dslx_opt_ir_test(
     dep = ":tuple_with_array_member",
 )
 
+# -- binops
+
 xls_dslx_module_library(
     name = "binops_dslx_module",
     src = "binops.x",
@@ -78,6 +80,8 @@ xls_dslx_module_library(
     src = "comparisons.x",
 )
 
+# -- comparisons
+
 xls_dslx_opt_ir(
     name = "comparisons",
     dep_dslx_module = ":comparisons_dslx_module",
@@ -92,6 +96,8 @@ xls_dslx_module_library(
     name = "constexpr_dslx_module",
     src = "constexpr.x",
 )
+
+# -- constexpr
 
 xls_dslx_opt_ir(
     name = "constexpr",
@@ -109,6 +115,8 @@ xls_dslx_module_library(
     deps = [":constexpr_dslx_module"],
 )
 
+# -- constexpr_attrs
+
 xls_dslx_opt_ir(
     name = "constexpr_attrs",
     dep_dslx_module = ":constexpr_attrs_dslx_module",
@@ -123,6 +131,8 @@ xls_dslx_module_library(
     name = "compound_eq_dslx_module",
     src = "compound_eq.x",
 )
+
+# -- compound_eq
 
 xls_dslx_opt_ir(
     name = "compound_eq",
@@ -1947,6 +1957,8 @@ xls_dslx_opt_ir_test(
     dep = ":function_called_in_derived_parametric_struct_simple",
 )
 
+# -- identifiers_with_ticks
+
 xls_dslx_module_library(
     name = "identifiers_with_ticks_dslx_module",
     src = "identifiers_with_ticks.x",
@@ -1962,12 +1974,42 @@ xls_dslx_opt_ir_test(
     dep = ":identifiers_with_ticks",
 )
 
-# TODO(https://github.com/google/xls/issues/246) Need const values to be
-# evaluated at typechecking time so they can interact with the type system.
-#dslx_test(
-#    name = "bitslice_with_constexpr_bounds",
-#    srcs = ["bitslice_with_constexpr_bounds.x"],
-#)
+# -- bitslice_with_constexpr_bounds
+
+xls_dslx_opt_ir(
+    name = "bitslice_with_constexpr_bounds",
+    src = "bitslice_with_constexpr_bounds.x",
+)
+
+xls_dslx_opt_ir_test(
+    name = "bitslice_with_constexpr_bounds_test",
+    dep = ":bitslice_with_constexpr_bounds",
+)
+
+# -- bitslice_negated_constexpr_bounds
+
+xls_dslx_opt_ir(
+    name = "bitslice_negated_constexpr_bounds",
+    src = "bitslice_negated_constexpr_bounds.x",
+    opt_ir_args = {
+        "entry": get_mangled_ir_symbol(
+            "bitslice_negated_constexpr_bounds",
+            "h",
+        ),
+    },
+)
+
+xls_dslx_opt_ir_test(
+    name = "bitslice_negated_constexpr_bounds_test",
+    dep = ":bitslice_negated_constexpr_bounds",
+)
+
+xls_dslx_test(
+    name = "bitslice_negated_constexpr_bounds_dslx_test",
+    src = "bitslice_negated_constexpr_bounds.x",
+)
+
+# -- enum_value_from_const
 
 xls_dslx_module_library(
     name = "enum_value_from_const_dslx_module",
@@ -1983,6 +2025,8 @@ xls_dslx_opt_ir_test(
     name = "enum_value_from_const_test",
     dep = ":enum_value_from_const",
 )
+
+# -- mod_imported_const_struct_dslx
 
 xls_dslx_library(
     name = "mod_imported_const_struct_dslx",
