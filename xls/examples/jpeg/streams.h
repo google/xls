@@ -19,7 +19,7 @@
 // of JPEG files.
 //
 // Once the metadata has been established the decoding enters the "scan data"
-// segment -- this is typically the trailing segment and contains huffman-coded
+// segment -- this is typically the trailing segment and contains Huffman-coded
 // variable-length pieces of data that must be unfurled (sequentially due to
 // variable length prefixes) and turned into their fixed forms (YCbCr color
 // space "minimum coded unit" 8x8 blocks of pixel data).
@@ -147,7 +147,7 @@ class ByteStream {
 
 // See file level comment for context -- the BitStream is a layer on top of an
 // underlying ByteStream that assists with processing variable-bit-length
-// huffman-encoded data.
+// Huffman-encoded data.
 class BitStream {
  public:
   explicit BitStream(ByteStream* byte_stream) : byte_stream_(byte_stream) {}

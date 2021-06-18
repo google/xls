@@ -112,3 +112,31 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "jpeg_grm",
+    srcs = ["jpeg_grm.cc"],
+    hdrs = ["jpeg_grm.h"],
+    deps = [
+        ":constants",
+        ":idct_chen_jit_wrapper",
+        ":streams",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "jpeg_grm_test",
+    srcs = ["jpeg_grm_test.cc"],
+    deps = [
+        ":jpeg_grm",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
