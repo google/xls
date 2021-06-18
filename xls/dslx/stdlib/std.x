@@ -383,3 +383,49 @@ fn test_scmps() {
   let _ = assert_eq(slt(u2:3, u2:1), true);
   ()
 }
+
+// Performs integer exponentiation as in Hacker's Delight, section 11-3.
+// Only nonnegative exponents are allowed, hence the uN parameter for spow.
+pub fn upow<N: u32>(x: uN[N], n: uN[N]) -> uN[N] {
+  let result = uN[N]:1;
+  let p = x;
+
+  let work = for (i, (n, p, result)) in range(u32:0, N) {
+    let result = result * p if (n & uN[N]:1) == uN[N]:1 else result;
+
+    (n >> 1, p * p, result)
+  }((n, p, result));
+  work[2]
+}
+
+pub fn spow<N: u32>(x: sN[N], n: uN[N]) -> sN[N] {
+  let result = sN[N]:1;
+  let p = x;
+
+  let work = for (i, (n, p, result)) : (u32, (uN[N], sN[N], sN[N])) in range(u32:0, N) {
+    let result = result * p if (n & uN[N]:1) == uN[N]:1 else result;
+
+    (n >> uN[N]:1, p * p, result)
+  }((n, p, result));
+  work[2]
+}
+
+#![test]
+fn test_upow() {
+  let _ = assert_eq(upow(u32:2, u32:2), u32:4);
+  let _ = assert_eq(upow(u32:2, u32:20), u32:0x100000);
+  let _ = assert_eq(upow(u32:3, u32:20), u32:0xcfd41b91);
+  let _ = assert_eq(upow(u32:1, u32:20), u32:0x1);
+  let _ = assert_eq(upow(u32:1, u32:20), u32:0x1);
+  ()
+}
+
+#![test]
+fn test_spow() {
+  let _ = assert_eq(spow(s32:2, u32:2), s32:4);
+  let _ = assert_eq(spow(s32:2, u32:20), s32:0x100000);
+  let _ = assert_eq(spow(s32:3, u32:20), s32:0xcfd41b91);
+  let _ = assert_eq(spow(s32:1, u32:20), s32:0x1);
+  let _ = assert_eq(spow(s32:1, u32:20), s32:0x1);
+  ()
+}

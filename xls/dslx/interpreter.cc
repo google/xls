@@ -413,8 +413,15 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
       callee_value, arg_values, expr->span(), expr, fn_symbolic_bindings);
   if (!result.ok()) {
     Invocation* invocation = dynamic_cast<Invocation*>(expr);
-    std::string function_name = absl::StrCat(invocation->owner()->name(),
-                                             "::", bindings->fn_ctx()->fn_name);
+
+    std::string invoking_fn_name;
+    if (bindings->fn_ctx().has_value()) {
+      invoking_fn_name = absl::StrCat("::", bindings->fn_ctx()->fn_name);
+    } else {
+      invoking_fn_name = " @ <top>";
+    }
+    std::string function_name =
+        absl::StrCat(invocation->owner()->name(), invoking_fn_name);
     return absl::Status(
         result.status().code(),
         absl::StrCat(result.status().message(), "\n  via ", function_name,
