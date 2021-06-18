@@ -5,7 +5,9 @@ load(
     "cc_xls_ir_jit_wrapper",
     "xls_benchmark_ir",
     "xls_dslx_library",
+    "xls_dslx_module_library",
     "xls_dslx_opt_ir",
+    "xls_dslx_test",
     "xls_eval_ir_test",
 )
 
@@ -36,12 +38,22 @@ xls_dslx_library(
     deps = [":modules_dslx"],
 )
 
+xls_dslx_module_library(
+    name = "fpexp_32_dslx_module",
+    src = "fpexp_32.x",
+    deps = [":fpdiv_2x32_dslx"],
+)
+
 xls_dslx_opt_ir(
     name = "fpexp_32",
-    src = "fpexp_32.x",
+    dep_dslx_module = ":fpexp_32_dslx_module",
     ir_file = "fpexp_32.ir",
     opt_ir_file = "fpexp_32.opt.ir",
-    deps = [":fpdiv_2x32_dslx"],
+)
+
+xls_dslx_test(
+    name = "fpexp_32_dslx_test",
+    dep_dslx_module = ":fpexp_32_dslx_module",
 )
 
 # TODO 2021-03-08: Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
@@ -92,12 +104,22 @@ xls_dslx_library(
     deps = [":modules_dslx"],
 )
 
+xls_dslx_module_library(
+    name = "fp_sincos_32_dslx_module",
+    src = "fp_sincos_32.x",
+    deps = [":fp_trig_reduce_dslx"],
+)
+
 xls_dslx_opt_ir(
     name = "fp_sincos_32",
-    src = "fp_sincos_32.x",
+    dep_dslx_module = ":fp_sincos_32_dslx_module",
     ir_file = "fp_sincos_32.ir",
     opt_ir_file = "fp_sincos_32.opt.ir",
-    deps = [":fp_trig_reduce_dslx"],
+)
+
+xls_dslx_test(
+    name = "fp_sincos_32_dslx_test",
+    dep_dslx_module = ":fp_sincos_32_dslx_module",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
@@ -142,12 +164,22 @@ cc_test(
     ],
 )
 
+xls_dslx_module_library(
+    name = "fp_trig_reduce_dslx_module",
+    src = "fp_trig_reduce.x",
+    deps = [":modules_dslx"],
+)
+
 xls_dslx_opt_ir(
     name = "fp_trig_reduce",
-    src = "fp_trig_reduce.x",
+    dep_dslx_module = ":fp_trig_reduce_dslx_module",
     ir_file = "fp_trig_reduce.ir",
     opt_ir_file = "fp_trig_reduce.opt.ir",
-    deps = [":modules_dslx"],
+)
+
+xls_dslx_test(
+    name = "fp_trig_reduce_dslx_test",
+    dep_dslx_module = ":fp_trig_reduce_dslx_module",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
@@ -164,7 +196,7 @@ xls_benchmark_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "fp_trig_reduce_jit_wrapper",
-    src = "fp_trig_reduce.opt.ir",
+    src = ":fp_trig_reduce.opt.ir",
     jit_wrapper_args = {
         "class_name": "fp_trig_reduce",
     },
@@ -193,11 +225,22 @@ cc_test(
     ],
 )
 
+xls_dslx_module_library(
+    name = "fpsqrt_32_dslx_module",
+    src = "fpsqrt_32.x",
+    deps = [":modules_dslx"],
+)
+
 xls_dslx_opt_ir(
     name = "fpsqrt_32",
-    src = "fpsqrt_32.x",
+    dep_dslx_module = ":fpsqrt_32_dslx_module",
     ir_file = "fpsqrt_32.ir",
     opt_ir_file = "fpsqrt_32.opt.ir",
+)
+
+xls_dslx_test(
+    name = "fpsqrt_32_dslx_test",
+    dep_dslx_module = ":fpsqrt_32_dslx_module",
 )
 
 # TODO: 2021-03-22 Takes too long. Add xls_ir_equivalence_test.
@@ -213,7 +256,7 @@ xls_benchmark_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "fpsqrt_32_jit_wrapper",
-    src = "fpsqrt_32.opt.ir",
+    src = ":fpsqrt_32.opt.ir",
     jit_wrapper_args = {
         "class_name": "fpsqrt_32",
     },
