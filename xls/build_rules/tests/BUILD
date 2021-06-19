@@ -58,7 +58,7 @@ xls_dslx_verilog(
         "pipeline_stages": "2",
         "delay_model": "unit",
     },
-    dep_dslx_module = ":add_one_dslx_module",
+    dep = ":add_one_dslx_module",
     verilog_file = "add_one_pipeline_rtl.v",
 )
 
@@ -74,7 +74,7 @@ xls_dslx_verilog(
     codegen_args = {
         "generator": "combinational",
     },
-    dep_dslx_module = ":add_one_dslx_module",
+    dep = ":add_one_dslx_module",
     verilog_file = "add_one_combinational_rtl.v",
 )
 
@@ -93,7 +93,7 @@ xls_dslx_module_library(
 # Run the test inside of the generated file.
 xls_dslx_test(
     name = "generated_file_as_input_test",
-    dep_dslx_module = ":generated_dslx_module",
+    dep = ":generated_dslx_module",
 )
 
 # Encapsulate the generated file as a library.
@@ -113,7 +113,7 @@ xls_dslx_module_library(
 # Reference the library with the generated file inside of a xls_dslx_test rule.
 xls_dslx_test(
     name = "dependent_on_library_with_generated_file_test",
-    dep_dslx_module = ":importer_dslx_module",
+    dep = ":importer_dslx_module",
 )
 
 xls_dslx_library(
@@ -147,7 +147,7 @@ xls_dslx_module_library(
 # xls_dslx_test on a xls_dslx_module_library with a transitive dependency.
 xls_dslx_test(
     name = "d_dslx_test",
-    dep_dslx_module = ":d_dslx_module",
+    dep = ":d_dslx_module",
 )
 
 # xls_dslx_module_library with a transitive dependency on a
@@ -163,7 +163,7 @@ xls_dslx_module_library(
 # xls_dslx_test on a xls_dslx_module_library with a transitive dependency.
 xls_dslx_test(
     name = "e_dslx_test",
-    dep_dslx_module = ":e_dslx_module",
+    dep = ":e_dslx_module",
 )
 
 ################################################################################
@@ -225,12 +225,12 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "chaining_example_test",
-    dep_dslx_module = ":chaining_example_dslx_module",
+    dep = ":chaining_example_dslx_module",
 )
 
 xls_dslx_ir(
     name = "chaining_example_ir",
-    dep_dslx_module = ":chaining_example_dslx_module",
+    dep = ":chaining_example_dslx_module",
 )
 
 xls_ir_opt_ir(
@@ -420,7 +420,7 @@ xls_dslx_module_library(
 # Execute the DSLX interpreter.
 xls_dslx_test(
     name = "simple_example_four_test",
-    dep_dslx_module = ":simple_example_four_dslx_module",
+    dep = ":simple_example_four_dslx_module",
 )
 
 # xls_dslx_library target depends on xls_dslx_library target
@@ -444,7 +444,7 @@ xls_dslx_verilog(
     codegen_args = {
         "pipeline_stages": "1",
     },
-    dep_dslx_module = ":simple_example_five_dslx_module",
+    dep = ":simple_example_five_dslx_module",
     # Output the Optimized IR file to reference.
     opt_ir_file = "simple_example_5_one_stage.opt.ir",
 )
@@ -496,7 +496,7 @@ xls_dslx_opt_ir_test(
 # The rule performs: DSLX -> IR -> Optimized IR.
 xls_dslx_opt_ir(
     name = "simple_example_5_entry_five",
-    dep_dslx_module = ":simple_example_five_dslx_module",
+    dep = ":simple_example_five_dslx_module",
     ir_conv_args = {
         "entry": "five",
     },

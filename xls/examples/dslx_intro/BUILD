@@ -35,7 +35,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "crc32_one_byte",
-    dep_dslx_module = ":crc32_one_byte_dslx_module",
+    dep = ":crc32_one_byte_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -50,7 +50,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "crc32_one_byte_inferred",
-    dep_dslx_module = ":crc32_one_byte_inferred_dslx_module",
+    dep = ":crc32_one_byte_inferred_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -66,7 +66,7 @@ xls_dslx_module_library(
 # TODO(leary): 2019-07-24 Missing conversion of 'for/enumerate'.
 xls_dslx_test(
     name = "prefix_scan_equality_dslx_test",
-    dep_dslx_module = ":prefix_scan_equality_dslx_module",
+    dep = ":prefix_scan_equality_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },

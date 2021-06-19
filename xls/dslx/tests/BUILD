@@ -38,7 +38,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "tuple_with_array_member",
-    dep_dslx_module = ":tuple_with_array_member_dslx_module",
+    dep = ":tuple_with_array_member_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -55,13 +55,13 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "binops",
-    dep_dslx_module = ":binops_dslx_module",
+    dep = ":binops_dslx_module",
     ir_file = "binops.ir",
 )
 
 xls_dslx_test(
     name = "binops_dslx_test",
-    dep_dslx_module = ":binops_dslx_module",
+    dep = ":binops_dslx_module",
 )
 
 # TODO: 2021-05-28 Add xls_ir_equivalence_test.
@@ -84,12 +84,12 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "comparisons",
-    dep_dslx_module = ":comparisons_dslx_module",
+    dep = ":comparisons_dslx_module",
 )
 
 xls_dslx_test(
     name = "comparisons_dslx_test",
-    dep_dslx_module = ":comparisons_dslx_module",
+    dep = ":comparisons_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -101,7 +101,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "constexpr",
-    dep_dslx_module = ":constexpr_dslx_module",
+    dep = ":constexpr_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -119,12 +119,12 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "constexpr_attrs",
-    dep_dslx_module = ":constexpr_attrs_dslx_module",
+    dep = ":constexpr_attrs_dslx_module",
 )
 
 xls_dslx_test(
     name = "constexpr_attrs_dslx_test",
-    dep_dslx_module = ":constexpr_attrs_dslx_module",
+    dep = ":constexpr_attrs_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -136,12 +136,12 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "compound_eq",
-    dep_dslx_module = ":compound_eq_dslx_module",
+    dep = ":compound_eq_dslx_module",
 )
 
 xls_dslx_test(
     name = "compound_eq_dslx_test",
-    dep_dslx_module = ":compound_eq_dslx_module",
+    dep = ":compound_eq_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -151,7 +151,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "constexpr_clog2",
-    dep_dslx_module = ":constexpr_clog2_dslx_module",
+    dep = ":constexpr_clog2_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -167,7 +167,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "constexpr_imported_clog2",
-    dep_dslx_module = ":constexpr_imported_clog2_dslx_module",
+    dep = ":constexpr_imported_clog2_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -182,7 +182,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "constexpr_types_via_invocations",
-    dep_dslx_module = ":constexpr_types_via_invocations_dslx_module",
+    dep = ":constexpr_types_via_invocations_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -197,7 +197,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "constexpr_types_via_invocations_inline",
-    dep_dslx_module = ":constexpr_types_via_invocations_inline_dslx_module",
+    dep = ":constexpr_types_via_invocations_inline_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -212,7 +212,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "constexpr_types_via_stdlib_invocation",
-    dep_dslx_module = ":constexpr_types_via_stdlib_invocation_dslx_module",
+    dep = ":constexpr_types_via_stdlib_invocation_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -227,12 +227,12 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "constexpr_slice",
-    dep_dslx_module = ":constexpr_slice_dslx_module",
+    dep = ":constexpr_slice_dslx_module",
 )
 
 xls_dslx_test(
     name = "constexpr_slice_dslx_test",
-    dep_dslx_module = ":constexpr_slice_dslx_module",
+    dep = ":constexpr_slice_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -242,12 +242,12 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "explicit_parametric",
-    dep_dslx_module = ":explicit_parametric_dslx_module",
+    dep = ":explicit_parametric_dslx_module",
 )
 
 xls_dslx_test(
     name = "explicit_parametric_dslx_test",
-    dep_dslx_module = ":explicit_parametric_dslx_module",
+    dep = ":explicit_parametric_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -257,12 +257,12 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "explicit_parametric_simple",
-    dep_dslx_module = ":explicit_parametric_simple_dslx_module",
+    dep = ":explicit_parametric_simple_dslx_module",
 )
 
 xls_dslx_test(
     name = "explicit_parametric_simple_dslx_test",
-    dep_dslx_module = ":explicit_parametric_simple_dslx_module",
+    dep = ":explicit_parametric_simple_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -272,12 +272,12 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "explicit_parametric_reduced",
-    dep_dslx_module = ":explicit_parametric_reduced_dslx_module",
+    dep = ":explicit_parametric_reduced_dslx_module",
 )
 
 xls_dslx_test(
     name = "explicit_parametric_reduced_dslx_test",
-    dep_dslx_module = ":explicit_parametric_reduced_dslx_module",
+    dep = ":explicit_parametric_reduced_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -287,7 +287,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "parametric_dot_product",
-    dep_dslx_module = ":parametric_dot_product_dslx_module",
+    dep = ":parametric_dot_product_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -302,7 +302,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "string_conversion",
-    dep_dslx_module = ":string_conversion_dslx_module",
+    dep = ":string_conversion_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -318,7 +318,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "import_constexpr",
-    dep_dslx_module = ":import_constexpr_dslx_module",
+    dep = ":import_constexpr_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -333,7 +333,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "map",
-    dep_dslx_module = ":map_dslx_module",
+    dep = ":map_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -348,7 +348,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "multiplies",
-    dep_dslx_module = ":multiplies_dslx_module",
+    dep = ":multiplies_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -363,7 +363,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "match_sample",
-    dep_dslx_module = ":match_sample_dslx_module",
+    dep = ":match_sample_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -378,7 +378,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "match_const",
-    dep_dslx_module = ":match_const_dslx_module",
+    dep = ":match_const_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -393,7 +393,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "match_multi",
-    dep_dslx_module = ":match_multi_dslx_module",
+    dep = ":match_multi_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -414,7 +414,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "number_of_imported_type",
-    dep_dslx_module = ":number_of_imported_type_dslx_module",
+    dep = ":number_of_imported_type_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -435,12 +435,12 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "type_aliasing_importer",
-    dep_dslx_module = ":type_aliasing_importer_dslx_module",
+    dep = ":type_aliasing_importer_dslx_module",
 )
 
 xls_dslx_test(
     name = "type_aliasing_importer_dslx_test",
-    dep_dslx_module = ":type_aliasing_importer_dslx_module",
+    dep = ":type_aliasing_importer_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -450,12 +450,12 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "parametric_call_parametric",
-    dep_dslx_module = ":parametric_call_parametric_dslx_module",
+    dep = ":parametric_call_parametric_dslx_module",
 )
 
 xls_dslx_test(
     name = "parametric_call_parametric_dslx_test",
-    dep_dslx_module = ":parametric_call_parametric_dslx_module",
+    dep = ":parametric_call_parametric_dslx_module",
 )
 
 xls_dslx_library(
@@ -471,12 +471,12 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "parametric_importer",
-    dep_dslx_module = ":parametric_importer_dslx_module",
+    dep = ":parametric_importer_dslx_module",
 )
 
 xls_dslx_test(
     name = "parametric_importer_dslx_test",
-    dep_dslx_module = ":parametric_importer_dslx_module",
+    dep = ":parametric_importer_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -486,12 +486,12 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "signed_comparisons",
-    dep_dslx_module = ":signed_comparisons_dslx_module",
+    dep = ":signed_comparisons_dslx_module",
 )
 
 xls_dslx_test(
     name = "signed_comparisons_dslx_test",
-    dep_dslx_module = ":signed_comparisons_dslx_module",
+    dep = ":signed_comparisons_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -501,7 +501,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "subtract_to_negative",
-    dep_dslx_module = ":subtract_to_negative_dslx_module",
+    dep = ":subtract_to_negative_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -516,7 +516,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "trace",
-    dep_dslx_module = ":trace_dslx_module",
+    dep = ":trace_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -531,7 +531,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "array_of_typedef_in_tuple",
-    dep_dslx_module = ":array_of_typedef_in_tuple_dslx_module",
+    dep = ":array_of_typedef_in_tuple_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -546,12 +546,12 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "array_of_tuple",
-    dep_dslx_module = ":array_of_tuple_dslx_module",
+    dep = ":array_of_tuple_dslx_module",
 )
 
 xls_dslx_test(
     name = "array_of_tuple_dslx_test",
-    dep_dslx_module = ":array_of_tuple_dslx_module",
+    dep = ":array_of_tuple_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -561,12 +561,12 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "array_slice",
-    dep_dslx_module = ":array_slice_dslx_module",
+    dep = ":array_slice_dslx_module",
 )
 
 xls_dslx_test(
     name = "array_slice_dslx_test",
-    dep_dslx_module = ":array_slice_dslx_module",
+    dep = ":array_slice_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -577,7 +577,7 @@ xls_dslx_module_library(
 # TODO(leary): 2019-07-24 Missing support for array of tuples eliding cast node.
 xls_dslx_test(
     name = "parametric_array_of_tuples_dslx_test",
-    dep_dslx_module = ":parametric_array_of_tuples_dslx_module",
+    dep = ":parametric_array_of_tuples_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -590,7 +590,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "parametric_functions_dslx_test",
-    dep_dslx_module = ":parametric_functions_dslx_module",
+    dep = ":parametric_functions_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -603,7 +603,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "parametric_value_as_nested_loop_bound",
-    dep_dslx_module = ":parametric_value_as_nested_loop_bound_dslx_module",
+    dep = ":parametric_value_as_nested_loop_bound_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -618,7 +618,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "derived_parametric_value_as_nested_loop_bound",
-    dep_dslx_module = ":derived_parametric_value_as_nested_loop_bound_dslx_module",
+    dep = ":derived_parametric_value_as_nested_loop_bound_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -634,7 +634,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "bit_slice_dslx_test",
-    dep_dslx_module = ":bit_slice_dslx_module",
+    dep = ":bit_slice_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -647,7 +647,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "bit_slice_update",
-    dep_dslx_module = ":bit_slice_update_dslx_module",
+    dep = ":bit_slice_update_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -662,7 +662,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "const_slice_limit",
-    dep_dslx_module = ":const_slice_limit_dslx_module",
+    dep = ":const_slice_limit_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -678,7 +678,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "bit_slice_syntax_dslx_test",
-    dep_dslx_module = ":bit_slice_syntax_dslx_module",
+    dep = ":bit_slice_syntax_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -692,7 +692,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "tuple_indexing_dslx_test",
-    dep_dslx_module = ":tuple_indexing_dslx_module",
+    dep = ":tuple_indexing_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -705,7 +705,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "clz",
-    dep_dslx_module = ":clz_dslx_module",
+    dep = ":clz_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -720,7 +720,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "ctz",
-    dep_dslx_module = ":ctz_dslx_module",
+    dep = ":ctz_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -736,7 +736,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "one_hot_dslx_test",
-    dep_dslx_module = ":one_hot_dslx_module",
+    dep = ":one_hot_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -750,7 +750,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "one_hot_sel",
-    dep_dslx_module = ":one_hot_sel_dslx_module",
+    dep = ":one_hot_sel_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -763,13 +763,13 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "reductions",
-    dep_dslx_module = ":reductions_dslx_module",
+    dep = ":reductions_dslx_module",
     ir_file = "reductions.ir",
 )
 
 xls_dslx_test(
     name = "reductions_dslx_test",
-    dep_dslx_module = ":one_hot_sel_dslx_module",
+    dep = ":one_hot_sel_dslx_module",
 )
 
 # TODO: 2021-05-28 Add xls_ir_equivalence_test.
@@ -790,7 +790,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "signed_number_type",
-    dep_dslx_module = ":signed_number_type_dslx_module",
+    dep = ":signed_number_type_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -806,7 +806,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "numerical_conversions_dslx_test",
-    dep_dslx_module = ":numerical_conversions_dslx_module",
+    dep = ":numerical_conversions_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -820,7 +820,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "numerical_conversions2_dslx_test",
-    dep_dslx_module = ":numerical_conversions2_dslx_module",
+    dep = ":numerical_conversions2_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -834,7 +834,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "signex_builtin_dslx_test",
-    dep_dslx_module = ":signex_builtin_dslx_module",
+    dep = ":signex_builtin_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -848,7 +848,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "enum_values_dslx_test",
-    dep_dslx_module = ":enum_values_dslx_module",
+    dep = ":enum_values_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -862,7 +862,7 @@ xls_dslx_module_library(
 # TODO(leary); 2019-10-24 Enable when we have ConcatArray op.
 xls_dslx_test(
     name = "casts_dslx_test",
-    dep_dslx_module = ":casts_dslx_module",
+    dep = ":casts_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -876,7 +876,7 @@ xls_dslx_module_library(
 # TODO(leary); 2019-10-24 Enable when we have ConcatArray op.
 xls_dslx_test(
     name = "cast_to_array_dslx_test",
-    dep_dslx_module = ":cast_to_array_dslx_module",
+    dep = ":cast_to_array_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -889,7 +889,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "parametric_with_comparison_dslx_test",
-    dep_dslx_module = ":parametric_with_comparison_dslx_module",
+    dep = ":parametric_with_comparison_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -903,7 +903,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "parametric_smul_dslx_test",
-    dep_dslx_module = ":parametric_smul_dslx_module",
+    dep = ":parametric_smul_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -916,7 +916,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "basic_struct",
-    dep_dslx_module = ":basic_struct_dslx_module",
+    dep = ":basic_struct_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -931,7 +931,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "basic_struct_parameter",
-    dep_dslx_module = ":basic_struct_parameter_dslx_module",
+    dep = ":basic_struct_parameter_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -946,7 +946,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "basic_struct_attr",
-    dep_dslx_module = ":basic_struct_attr_dslx_module",
+    dep = ":basic_struct_attr_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -962,7 +962,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "struct_equality_dslx_test",
-    dep_dslx_module = ":struct_equality_dslx_module",
+    dep = ":struct_equality_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -975,7 +975,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "basic_struct_update",
-    dep_dslx_module = ":basic_struct_update_dslx_module",
+    dep = ":basic_struct_update_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -990,7 +990,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "struct_splat_update",
-    dep_dslx_module = ":struct_splat_update_dslx_module",
+    dep = ":struct_splat_update_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1005,7 +1005,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "struct_splat_update_to_const",
-    dep_dslx_module = ":struct_splat_update_to_const_dslx_module",
+    dep = ":struct_splat_update_to_const_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1020,7 +1020,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "empty_struct_splat_update",
-    dep_dslx_module = ":empty_struct_splat_update_dslx_module",
+    dep = ":empty_struct_splat_update_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1035,7 +1035,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "basic_struct_array",
-    dep_dslx_module = ":basic_struct_array_dslx_module",
+    dep = ":basic_struct_array_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1050,7 +1050,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "basic_enum_array",
-    dep_dslx_module = ":basic_enum_array_dslx_module",
+    dep = ":basic_enum_array_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1065,7 +1065,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "basic_array",
-    dep_dslx_module = ":basic_array_dslx_module",
+    dep = ":basic_array_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1080,7 +1080,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "std_lsb",
-    dep_dslx_module = ":std_lsb_dslx_module",
+    dep = ":std_lsb_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1095,7 +1095,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "std_alias",
-    dep_dslx_module = ":std_alias_dslx_module",
+    dep = ":std_alias_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1121,7 +1121,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_importer",
-    dep_dslx_module = ":mod_importer_dslx_module",
+    dep = ":mod_importer_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1142,7 +1142,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_importer_typedef",
-    dep_dslx_module = ":mod_importer_typedef_dslx_module",
+    dep = ":mod_importer_typedef_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1163,7 +1163,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_importer_struct_of_enum",
-    dep_dslx_module = ":mod_importer_struct_of_enum_dslx_module",
+    dep = ":mod_importer_struct_of_enum_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1179,7 +1179,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_importer_simple",
-    dep_dslx_module = ":mod_importer_simple_dslx_module",
+    dep = ":mod_importer_simple_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1195,7 +1195,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_struct_importer",
-    dep_dslx_module = ":mod_struct_importer_dslx_module",
+    dep = ":mod_struct_importer_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1211,7 +1211,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_enum_importer",
-    dep_dslx_module = ":mod_enum_importer_dslx_module",
+    dep = ":mod_enum_importer_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1235,7 +1235,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_parametric_id_user",
-    dep_dslx_module = ":mod_parametric_id_user_dslx_module",
+    dep = ":mod_parametric_id_user_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1256,7 +1256,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "call_imported_fn_simple",
-    dep_dslx_module = ":call_imported_fn_simple_dslx_module",
+    dep = ":call_imported_fn_simple_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1277,7 +1277,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_typedef_importer",
-    dep_dslx_module = ":mod_typedef_importer_dslx_module",
+    dep = ":mod_typedef_importer_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1292,7 +1292,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "array_ellipsis",
-    dep_dslx_module = ":array_ellipsis_dslx_module",
+    dep = ":array_ellipsis_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1307,7 +1307,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "local_const_value",
-    dep_dslx_module = ":local_const_value_dslx_module",
+    dep = ":local_const_value_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1322,7 +1322,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "const_value_as_nested_loop_bound",
-    dep_dslx_module = ":const_value_as_nested_loop_bound_dslx_module",
+    dep = ":const_value_as_nested_loop_bound_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1337,7 +1337,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "local_const_value_in_parametric",
-    dep_dslx_module = ":local_const_value_in_parametric_dslx_module",
+    dep = ":local_const_value_in_parametric_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1352,7 +1352,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "constant_array_unannotated_type",
-    dep_dslx_module = ":constant_array_unannotated_type_dslx_module",
+    dep = ":constant_array_unannotated_type_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1367,7 +1367,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "reverse",
-    dep_dslx_module = ":reverse_dslx_module",
+    dep = ":reverse_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1382,7 +1382,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "typedef_multidim_array",
-    dep_dslx_module = ":typedef_multidim_array_dslx_module",
+    dep = ":typedef_multidim_array_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1397,7 +1397,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "parametric_multidim_array",
-    dep_dslx_module = ":parametric_multidim_array_dslx_module",
+    dep = ":parametric_multidim_array_dslx_module",
     opt_ir_args = {
         "entry": get_mangled_ir_symbol(
             "parametric_multidim_array",
@@ -1419,7 +1419,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "for_sans_type_annotation",
-    dep_dslx_module = ":for_sans_type_annotation_dslx_module",
+    dep = ":for_sans_type_annotation_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1434,7 +1434,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "derived_parametrics",
-    dep_dslx_module = ":derived_parametrics_dslx_module",
+    dep = ":derived_parametrics_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1449,7 +1449,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "parametric_struct",
-    dep_dslx_module = ":parametric_struct_dslx_module",
+    dep = ":parametric_struct_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1464,13 +1464,13 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "parametric_struct_simple",
-    dep_dslx_module = ":parametric_struct_simple_dslx_module",
+    dep = ":parametric_struct_simple_dslx_module",
 )
 
 # Only a parametric entry point, so no benchmark.
 xls_dslx_test(
     name = "parametric_struct_simple_dslx_test",
-    dep_dslx_module = ":parametric_struct_simple_dslx_module",
+    dep = ":parametric_struct_simple_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -1480,7 +1480,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "test_f_calls_parametric_f",
-    dep_dslx_module = ":test_f_calls_parametric_f_dslx_module",
+    dep = ":test_f_calls_parametric_f_dslx_module",
     opt_ir_args = {
         "entry": get_mangled_ir_symbol("test_f_calls_parametric_f", "f"),
     },
@@ -1498,7 +1498,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "array_concat",
-    dep_dslx_module = ":array_concat_dslx_module",
+    dep = ":array_concat_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1513,7 +1513,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "for_up_to_const",
-    dep_dslx_module = ":for_up_to_const_dslx_module",
+    dep = ":for_up_to_const_dslx_module",
     opt_ir_args = {
         "entry": get_mangled_ir_symbol("for_up_to_const", "f"),
     },
@@ -1531,7 +1531,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "for_up_to_const_local",
-    dep_dslx_module = ":for_up_to_const_local_dslx_module",
+    dep = ":for_up_to_const_local_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1546,7 +1546,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "map_of_stdlib_parametric",
-    dep_dslx_module = ":map_of_stdlib_parametric_dslx_module",
+    dep = ":map_of_stdlib_parametric_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1570,7 +1570,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "map_multi_module",
-    dep_dslx_module = ":map_multi_module_dslx_module",
+    dep = ":map_multi_module_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1585,13 +1585,13 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "parametric_const_ref",
-    dep_dslx_module = ":parametric_const_ref_dslx_module",
+    dep = ":parametric_const_ref_dslx_module",
 )
 
 # Only a parametric entry point, so no benchmark.
 xls_dslx_test(
     name = "parametric_const_ref_dslx_test",
-    dep_dslx_module = ":parametric_const_ref_dslx_module",
+    dep = ":parametric_const_ref_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -1601,7 +1601,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "array_with_binary_dim",
-    dep_dslx_module = ":array_with_binary_dim_dslx_module",
+    dep = ":array_with_binary_dim_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1622,7 +1622,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_simple_enum_importer",
-    dep_dslx_module = ":mod_simple_enum_importer_dslx_module",
+    dep = ":mod_simple_enum_importer_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1638,7 +1638,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_enum_use_in_for_match_importer",
-    dep_dslx_module = ":mod_enum_use_in_for_match_importer_dslx_module",
+    dep = ":mod_enum_use_in_for_match_importer_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1654,7 +1654,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_enum_fully_qualified_match_importer",
-    dep_dslx_module = ":mod_enum_fully_qualified_match_importer_dslx_module",
+    dep = ":mod_enum_fully_qualified_match_importer_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1675,7 +1675,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_const_importer",
-    dep_dslx_module = ":mod_const_importer_dslx_module",
+    dep = ":mod_const_importer_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1691,7 +1691,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "importer_const_in_range",
-    dep_dslx_module = ":importer_const_in_range_dslx_module",
+    dep = ":importer_const_in_range_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1707,7 +1707,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "importer_const_in_return_type",
-    dep_dslx_module = ":importer_const_in_return_type_dslx_module",
+    dep = ":importer_const_in_return_type_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1723,7 +1723,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_const_in_type_alias",
-    dep_dslx_module = ":mod_const_in_type_alias_dslx_module",
+    dep = ":mod_const_in_type_alias_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1739,7 +1739,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_const_in_type_alias_expr",
-    dep_dslx_module = ":mod_const_in_type_alias_expr_dslx_module",
+    dep = ":mod_const_in_type_alias_expr_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1760,7 +1760,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_const_enum_importer",
-    dep_dslx_module = ":mod_const_enum_importer_dslx_module",
+    dep = ":mod_const_enum_importer_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1776,7 +1776,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_simple_enum_alias_importer",
-    dep_dslx_module = ":mod_simple_enum_alias_importer_dslx_module",
+    dep = ":mod_simple_enum_alias_importer_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1797,7 +1797,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_const_array_of_enum_importer",
-    dep_dslx_module = ":mod_const_array_of_enum_importer_dslx_module",
+    dep = ":mod_const_array_of_enum_importer_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1812,7 +1812,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "simple_enum_usage",
-    dep_dslx_module = ":simple_enum_usage_dslx_module",
+    dep = ":simple_enum_usage_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1827,7 +1827,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "for_rotate",
-    dep_dslx_module = ":for_rotate_dslx_module",
+    dep = ":for_rotate_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1842,7 +1842,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "for_enum_ref",
-    dep_dslx_module = ":for_enum_ref_dslx_module",
+    dep = ":for_enum_ref_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1857,13 +1857,13 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "update_within_parametric",
-    dep_dslx_module = ":update_within_parametric_dslx_module",
+    dep = ":update_within_parametric_dslx_module",
 )
 
 # Only a parametric entry point, so no benchmark.
 xls_dslx_test(
     name = "update_within_parametric_dslx_test",
-    dep_dslx_module = ":update_within_parametric_dslx_module",
+    dep = ":update_within_parametric_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -1873,7 +1873,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "width_slice_to_parametric",
-    dep_dslx_module = ":width_slice_to_parametric_dslx_module",
+    dep = ":width_slice_to_parametric_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1888,7 +1888,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "array_size_all_bits_set_ellipsis",
-    dep_dslx_module = ":array_size_all_bits_set_ellipsis_dslx_module",
+    dep = ":array_size_all_bits_set_ellipsis_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1903,13 +1903,13 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mask_bits",
-    dep_dslx_module = ":mask_bits_dslx_module",
+    dep = ":mask_bits_dslx_module",
 )
 
 # Only a parametric entry point, so no benchmark.
 xls_dslx_test(
     name = "mask_bits_dslx_test",
-    dep_dslx_module = ":mask_bits_dslx_module",
+    dep = ":mask_bits_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -1919,7 +1919,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "function_called_in_derived_parametric_simple",
-    dep_dslx_module = ":function_called_in_derived_parametric_simple_dslx_module",
+    dep = ":function_called_in_derived_parametric_simple_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1934,7 +1934,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "non_parametric_called_solely_from_parametric",
-    dep_dslx_module = ":non_parametric_called_solely_from_parametric_dslx_module",
+    dep = ":non_parametric_called_solely_from_parametric_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1949,7 +1949,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "function_called_in_derived_parametric_struct_simple",
-    dep_dslx_module = ":function_called_in_derived_parametric_struct_simple_dslx_module",
+    dep = ":function_called_in_derived_parametric_struct_simple_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1966,7 +1966,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "identifiers_with_ticks",
-    dep_dslx_module = ":identifiers_with_ticks_dslx_module",
+    dep = ":identifiers_with_ticks_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1976,9 +1976,14 @@ xls_dslx_opt_ir_test(
 
 # -- bitslice_with_constexpr_bounds
 
+xls_dslx_module_library(
+    name = "bitslice_with_constexpr_bounds_dslx_module",
+    src = "bitslice_with_constexpr_bounds.x",
+)
+
 xls_dslx_opt_ir(
     name = "bitslice_with_constexpr_bounds",
-    src = "bitslice_with_constexpr_bounds.x",
+    dep = ":bitslice_with_constexpr_bounds_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -1988,9 +1993,14 @@ xls_dslx_opt_ir_test(
 
 # -- bitslice_negated_constexpr_bounds
 
+xls_dslx_module_library(
+    name = "bitslice_negated_constexpr_bounds_dslx_module",
+    src = "bitslice_negated_constexpr_bounds.x",
+)
+
 xls_dslx_opt_ir(
     name = "bitslice_negated_constexpr_bounds",
-    src = "bitslice_negated_constexpr_bounds.x",
+    dep = ":bitslice_negated_constexpr_bounds_dslx_module",
     opt_ir_args = {
         "entry": get_mangled_ir_symbol(
             "bitslice_negated_constexpr_bounds",
@@ -2004,11 +2014,6 @@ xls_dslx_opt_ir_test(
     dep = ":bitslice_negated_constexpr_bounds",
 )
 
-xls_dslx_test(
-    name = "bitslice_negated_constexpr_bounds_dslx_test",
-    src = "bitslice_negated_constexpr_bounds.x",
-)
-
 # -- enum_value_from_const
 
 xls_dslx_module_library(
@@ -2018,7 +2023,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "enum_value_from_const",
-    dep_dslx_module = ":enum_value_from_const_dslx_module",
+    dep = ":enum_value_from_const_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -2041,7 +2046,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_importer_access_const_struct",
-    dep_dslx_module = ":mod_importer_access_const_struct_dslx_module",
+    dep = ":mod_importer_access_const_struct_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -2063,7 +2068,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "mod_importer_access_const_struct_indirect",
-    dep_dslx_module = ":mod_importer_access_const_struct_indirect_dslx_module",
+    dep = ":mod_importer_access_const_struct_indirect_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -2078,7 +2083,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "nest_alias_const_array",
-    dep_dslx_module = ":nest_alias_const_array_dslx_module",
+    dep = ":nest_alias_const_array_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -2093,7 +2098,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "parametric_used_in_for",
-    dep_dslx_module = ":nparametric_used_in_for_dslx_module",
+    dep = ":nparametric_used_in_for_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -2108,7 +2113,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "parametric_to_value",
-    dep_dslx_module = ":parametric_to_value_dslx_module",
+    dep = ":parametric_to_value_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -2123,7 +2128,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "constexpr_with_typed_stuff_after",
-    dep_dslx_module = ":constexpr_with_typed_stuff_after_dslx_module",
+    dep = ":constexpr_with_typed_stuff_after_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -2138,7 +2143,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "for_up_to_constexpr_cast",
-    dep_dslx_module = ":for_up_to_constexpr_cast_dslx_module",
+    dep = ":for_up_to_constexpr_cast_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -2154,7 +2159,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "bits_concat_dslx_test",
-    dep_dslx_module = ":bits_concat_dslx_module",
+    dep = ":bits_concat_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -2167,7 +2172,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "local_const_value_in_parametric_match",
-    dep_dslx_module = ":local_const_value_in_parametric_match_dslx_module",
+    dep = ":local_const_value_in_parametric_match_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -2182,13 +2187,13 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "let_match_tuple",
-    dep_dslx_module = ":let_match_tuple_dslx_module",
+    dep = ":let_match_tuple_dslx_module",
     ir_file = "let_match_tuple.ir",
 )
 
 xls_dslx_test(
     name = "let_match_tuple_dslx_test",
-    dep_dslx_module = ":let_match_tuple_dslx_module",
+    dep = ":let_match_tuple_dslx_module",
 )
 
 # TODO(https://github.com/google/xls/issues/400): This produces a zero-bit

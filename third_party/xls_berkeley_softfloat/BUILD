@@ -23,7 +23,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "fpdiv_2x32",
-    dep_dslx_module = ":fpdiv_2x32_dslx_module",
+    dep = ":fpdiv_2x32_dslx_module",
     ir_file = "fpdiv_2x32.opt.ir",
     tags = ["optonly"],
 )
@@ -33,7 +33,7 @@ xls_dslx_opt_ir(
 # udiv not supported in equivalence checking.
 xls_dslx_test(
     name = "fpdiv_2x32_dslx_test",
-    dep_dslx_module = ":fpdiv_2x32_dslx_module",
+    dep = ":fpdiv_2x32_dslx_module",
     tags = ["optonly"],
 )
 

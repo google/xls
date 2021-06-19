@@ -46,14 +46,14 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "fpexp_32",
-    dep_dslx_module = ":fpexp_32_dslx_module",
+    dep = ":fpexp_32_dslx_module",
     ir_file = "fpexp_32.ir",
     opt_ir_file = "fpexp_32.opt.ir",
 )
 
 xls_dslx_test(
     name = "fpexp_32_dslx_test",
-    dep_dslx_module = ":fpexp_32_dslx_module",
+    dep = ":fpexp_32_dslx_module",
 )
 
 # TODO 2021-03-08: Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
@@ -112,14 +112,14 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "fp_sincos_32",
-    dep_dslx_module = ":fp_sincos_32_dslx_module",
+    dep = ":fp_sincos_32_dslx_module",
     ir_file = "fp_sincos_32.ir",
     opt_ir_file = "fp_sincos_32.opt.ir",
 )
 
 xls_dslx_test(
     name = "fp_sincos_32_dslx_test",
-    dep_dslx_module = ":fp_sincos_32_dslx_module",
+    dep = ":fp_sincos_32_dslx_module",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
@@ -172,14 +172,14 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "fp_trig_reduce",
-    dep_dslx_module = ":fp_trig_reduce_dslx_module",
+    dep = ":fp_trig_reduce_dslx_module",
     ir_file = "fp_trig_reduce.ir",
     opt_ir_file = "fp_trig_reduce.opt.ir",
 )
 
 xls_dslx_test(
     name = "fp_trig_reduce_dslx_test",
-    dep_dslx_module = ":fp_trig_reduce_dslx_module",
+    dep = ":fp_trig_reduce_dslx_module",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
@@ -233,14 +233,14 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "fpsqrt_32",
-    dep_dslx_module = ":fpsqrt_32_dslx_module",
+    dep = ":fpsqrt_32_dslx_module",
     ir_file = "fpsqrt_32.ir",
     opt_ir_file = "fpsqrt_32.opt.ir",
 )
 
 xls_dslx_test(
     name = "fpsqrt_32_dslx_test",
-    dep_dslx_module = ":fpsqrt_32_dslx_module",
+    dep = ":fpsqrt_32_dslx_module",
 )
 
 # TODO: 2021-03-22 Takes too long. Add xls_ir_equivalence_test.

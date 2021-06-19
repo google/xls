@@ -34,13 +34,13 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "simple",
-    dep_dslx_module = ":simple_dslx_module",
+    dep = ":simple_dslx_module",
     opt_ir_file = "simple.opt.ir",
 )
 
 xls_dslx_test(
     name = "simple_dslx_test",
-    dep_dslx_module = ":simple_dslx_module",
+    dep = ":simple_dslx_module",
 )
 
 cc_xls_ir_jit_wrapper(

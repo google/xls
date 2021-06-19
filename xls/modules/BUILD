@@ -43,7 +43,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "apfloat_sub_2",
-    dep_dslx_module = ":apfloat_sub_2_dslx_module",
+    dep = ":apfloat_sub_2_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -74,14 +74,14 @@ xls_dslx_module_library(
 # related rules. Consider also doing this for multiple widths (32, 64, bf16).
 xls_dslx_opt_ir(
     name = "fma_32",
-    dep_dslx_module = ":fma_32_dslx_module",
+    dep = ":fma_32_dslx_module",
     ir_file = "fma_32.ir",
     opt_ir_file = "fma_32.opt.ir",
 )
 
 xls_dslx_test(
     name = "fma_32_dslx_test",
-    dep_dslx_module = ":fma_32_dslx_module",
+    dep = ":fma_32_dslx_module",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
@@ -133,14 +133,14 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "fma_64",
-    dep_dslx_module = ":fma_64_dslx_module",
+    dep = ":fma_64_dslx_module",
     ir_file = "fma_64.ir",
     opt_ir_file = "fma_64.opt.ir",
 )
 
 xls_dslx_test(
     name = "fma_64_dslx_test",
-    dep_dslx_module = ":fma_64_dslx_module",
+    dep = ":fma_64_dslx_module",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
@@ -192,14 +192,14 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "fpadd_2x32",
-    dep_dslx_module = ":fpadd_2x32_dslx_module",
+    dep = ":fpadd_2x32_dslx_module",
     ir_file = "fpadd_2x32.ir",
     opt_ir_file = "fpadd_2x32.opt.ir",
 )
 
 xls_dslx_test(
     name = "fpadd_2x32_dslx_test",
-    dep_dslx_module = ":fpadd_2x32_dslx_module",
+    dep = ":fpadd_2x32_dslx_module",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
@@ -225,13 +225,13 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "fpsub_2x32",
-    dep_dslx_module = ":fpsub_2x32_dslx_module",
+    dep = ":fpsub_2x32_dslx_module",
     ir_file = "fpsub_2x32.ir",
 )
 
 xls_dslx_test(
     name = "fpsub_2x32_dslx_test",
-    dep_dslx_module = ":fpsub_2x32_dslx_module",
+    dep = ":fpsub_2x32_dslx_module",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
@@ -257,13 +257,13 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "fpsub_2x64",
-    dep_dslx_module = ":fpsub_2x64_dslx_module",
+    dep = ":fpsub_2x64_dslx_module",
     ir_file = "fpsub_2x64.ir",
 )
 
 xls_dslx_test(
     name = "fpsub_2x64_dslx_test",
-    dep_dslx_module = ":fpsub_2x64_dslx_module",
+    dep = ":fpsub_2x64_dslx_module",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
@@ -343,14 +343,14 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "fpadd_2x64",
-    dep_dslx_module = ":fpadd_2x64_dslx_module",
+    dep = ":fpadd_2x64_dslx_module",
     ir_file = "fpadd_2x64.ir",
     opt_ir_file = "fpadd_2x64.opt.ir",
 )
 
 xls_dslx_test(
     name = "fpadd_2x64_dslx_test",
-    dep_dslx_module = ":fpadd_2x64_dslx_module",
+    dep = ":fpadd_2x64_dslx_module",
 )
 
 # TODO: 2021-03-08 Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
@@ -407,13 +407,13 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "fpadd_2xbf16",
-    dep_dslx_module = ":fpadd_2xbf16_dslx_module",
+    dep = ":fpadd_2xbf16_dslx_module",
     ir_file = "fpadd_2xbf16.ir",
 )
 
 xls_dslx_test(
     name = "fpadd_2xbf16_dslx_test",
-    dep_dslx_module = ":fpadd_2xbf16_dslx_module",
+    dep = ":fpadd_2xbf16_dslx_module",
 )
 
 # TODO: 2021-03-08 Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
@@ -434,7 +434,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "fpldexp_32",
-    dep_dslx_module = ":fpldexp_32_dslx_module",
+    dep = ":fpldexp_32_dslx_module",
     ir_file = "fpldexp_32.ir",
     opt_ir_file = "fpldexp_32.opt.ir",
 )
@@ -489,14 +489,14 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "fpmul_2x32",
-    dep_dslx_module = ":fpmul_2x32_dslx_module",
+    dep = ":fpmul_2x32_dslx_module",
     ir_file = "fpmul_2x32.ir",
     opt_ir_file = "fpmul_2x32.opt.ir",
 )
 
 xls_dslx_test(
     name = "fpmul_2x32_dslx_test",
-    dep_dslx_module = ":fpmul_2x32_dslx_module",
+    dep = ":fpmul_2x32_dslx_module",
 )
 
 # TODO: 2021-03-08 Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
@@ -561,14 +561,14 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "fpmul_2x64",
-    dep_dslx_module = ":fpmul_2x64_dslx_module",
+    dep = ":fpmul_2x64_dslx_module",
     ir_file = "fpmul_2x64.ir",
     opt_ir_file = "fpmul_2x64.opt.ir",
 )
 
 xls_dslx_test(
     name = "fpmul_2x64_dslx_test",
-    dep_dslx_module = ":fpmul_2x64_dslx_module",
+    dep = ":fpmul_2x64_dslx_module",
 )
 
 # TODO(rspringer): Currently takes too long. Add xls_ir_equivalence_test.
@@ -635,14 +635,14 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "fp_fast_rsqrt_32",
-    dep_dslx_module = ":fp_fast_rsqrt_32_dslx_module",
+    dep = ":fp_fast_rsqrt_32_dslx_module",
     ir_file = "fp_fast_rsqrt_32.ir",
     opt_ir_file = "fp_fast_rsqrt_32.opt.ir",
 )
 
 xls_dslx_test(
     name = "fp_fast_rsqrt_32_dslx_test",
-    dep_dslx_module = ":fp_fast_rsqrt_32_dslx_module",
+    dep = ":fp_fast_rsqrt_32_dslx_module",
 )
 
 # TODO(rspringer): Currently takes too long. Add xls_ir_equivalence_test.

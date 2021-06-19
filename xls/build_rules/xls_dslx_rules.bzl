@@ -22,7 +22,6 @@ load(
 )
 load(
     "//xls/build_rules:xls_providers.bzl",
-    "ConvIRInfo",
     "DslxInfo",
     "DslxModuleInfo",
 )
@@ -158,10 +157,7 @@ def get_dslx_test_cmd(ctx, src, append_cmd_line_args = True):
 
     # The runfiles also require the source files from its transitive
     # dependencies.
-    # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library, remove
-    # the following code.
-    if (ctx.attr.dep_dslx_module != None):
-        runfiles += ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_files
+    runfiles += ctx.attr.dep[DslxModuleInfo].dslx_source_files
 
     return runfiles, cmd
 
@@ -209,42 +205,11 @@ _xls_dslx_module_library_attrs = {
 
 # Attributes for rules depending on the xls_dslx_module_library rule.
 xls_dslx_module_library_as_input_attrs = {
-    # TODO(vmirian) 06-13-2021 When switch to xls_dslx_module_library,
-    # rename to dep.
-    # Currently, the attribute takes precedences over the attributes in
-    # _xls_dslx_test_attrs.
-    "dep_dslx_module": attr.label(
+    "dep": attr.label(
         doc = "A dependency target for the rule. The target must emit a " +
               "DslxModuleInfo provider.",
         providers = [DslxModuleInfo],
-        # TODO: 06-13-2021 When switch to xls_dslx_module_library,
-        # make mandatory.
-        # mandatory = True,
-    ),
-}
-
-# Attributes for the xls_dslx_test rule.
-_xls_dslx_test_attrs = {
-    # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library, remove
-    # the following three attributes.
-    "src": attr.label(
-        doc = "The DSLX source file for the rule. A single source file must " +
-              "be provided. The file must have a '.x' extension. When " +
-              "assigned, the 'dep' attribute cannot be assigned. Otherwise, " +
-              "an error occurs.",
-        allow_single_file = [".x"],
-    ),
-    "dep": attr.label(
-        doc = "A dependency target for the rule. The targets must emit a " +
-              "ConvIRInfo provider. When assigned, the 'src' and 'deps' " +
-              "attributes cannot be assigned. Otherwise, an error occurs.",
-        providers = [ConvIRInfo],
-    ),
-    "deps": attr.label_list(
-        doc = "Dependency targets for the rule. The targets must emit a " +
-              "DslxInfo provider. When assigned, the 'dep' attribute cannot " +
-              "be assigned. Otherwise, an error occurs.",
-        providers = [DslxInfo],
+        mandatory = True,
     ),
 }
 
@@ -503,37 +468,13 @@ def _xls_dslx_test_impl(ctx):
     Returns:
       DefaultInfo provider
     """
-    src = None
-
-    # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library, remove
-    # the following code.
-    if ctx.attr.dep_dslx_module:
-        src = ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_module_file
-    else:
-        if ((ctx.attr.src and ctx.attr.dep) or
-            (not ctx.attr.src and not ctx.attr.dep)):
-            fail("Attribute 'src' or 'dep' must be specified.")
-        if ctx.attr.dep and len(ctx.attr.deps) != 0:
-            fail("Attribute 'deps' can only be specified with attribute 'src'.")
-        src = ctx.file.src
-        if ctx.attr.dep:
-            src = ctx.attr.dep[ConvIRInfo].dslx_source_file
+    src = ctx.attr.dep[DslxModuleInfo].dslx_source_module_file
 
     runfiles, cmd = get_dslx_test_cmd(ctx, src)
 
     # The runfiles also require the source files from its transitive
     # dependencies.
-    # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library, remove
-    # the following code.
-    if ctx.attr.dep_dslx_module:
-        runfiles += ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_files
-    elif ctx.attr.src:
-        for dep in ctx.attr.deps:
-            runfiles += dep[DslxInfo].dslx_source_files.to_list()
-    else:  # ctx.attr.dep is defined
-        runfiles += (
-            ctx.attr.dep[ConvIRInfo].dslx_files_info.dslx_source_files.to_list()
-        )
+    runfiles += ctx.attr.dep[DslxModuleInfo].dslx_source_files
 
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
@@ -572,15 +513,14 @@ xls_dslx_test = rule(
 
         xls_dslx_test(
             name = "b_dslx_test",
-            dep_dslx_module = ":b_dslx_module",
+            dep = ":b_dslx_module",
         )
         ```
     """,
     implementation = _xls_dslx_test_impl,
     attrs = dicts.add(
-        _xls_dslx_test_attrs.items(),
-        xls_dslx_test_common_attrs.items(),
-        xls_dslx_exec_attrs.items(),
+        xls_dslx_test_common_attrs,
+        xls_dslx_exec_attrs,
     ),
     test = True,
 )

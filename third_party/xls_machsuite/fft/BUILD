@@ -57,7 +57,7 @@ xls_dslx_module_library(
 # xls_ir_equivalence_test, xls_eval_ir_test and xls_benchmark_ir.
 xls_dslx_test(
     name = "fft",
-    dep_dslx_module = ":fft_dslx_module",
+    dep = ":fft_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },

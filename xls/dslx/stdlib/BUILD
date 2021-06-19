@@ -30,7 +30,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "std_dslx_test",
-    dep_dslx_module = "std_dslx_module",
+    dep = "std_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -40,7 +40,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "acm_random_dslx_test",
-    dep_dslx_module = "acm_random_dslx_module",
+    dep = "acm_random_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -50,7 +50,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "apfloat_dslx_test",
-    dep_dslx_module = "apfloat_dslx_module",
+    dep = "apfloat_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -60,7 +60,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "bfloat16_dslx_test",
-    dep_dslx_module = "bfloat16_dslx_module",
+    dep = "bfloat16_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -70,7 +70,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "float32_dslx_test",
-    dep_dslx_module = "float32_dslx_module",
+    dep = "float32_dslx_module",
 )
 
 xls_dslx_module_library(
@@ -80,7 +80,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "float64_dslx_test",
-    dep_dslx_module = "float64_dslx_module",
+    dep = "float64_dslx_module",
 )
 
 filegroup(

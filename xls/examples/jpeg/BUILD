@@ -34,7 +34,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "idct_chen",
-    dep_dslx_module = ":idct_chen_dslx_module",
+    dep = ":idct_chen_dslx_module",
     ir_file = "idct_chen.ir",
     opt_ir_args = {
         "entry": get_mangled_ir_symbol("idct_chen", "idct"),
@@ -46,7 +46,7 @@ xls_dslx_opt_ir(
 
 xls_dslx_test(
     name = "idct_chen_dslx_test",
-    dep_dslx_module = ":idct_chen_dslx_module",
+    dep = ":idct_chen_dslx_module",
 )
 
 # TODO: 2021-05-28 Add xls_ir_equivalence_test. Note: times out.

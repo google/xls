@@ -20,15 +20,12 @@ load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load(
     "//xls/build_rules:xls_providers.bzl",
     "ConvIRInfo",
-    "DslxInfo",
     "DslxModuleInfo",
     "OptIRInfo",
 )
 load(
     "//xls/build_rules:xls_dslx_rules.bzl",
     "get_dslx_test_cmd",
-    "get_transitive_dslx_dummy_files_depset",
-    "get_transitive_dslx_srcs_files_depset",
     "xls_dslx_exec_attrs",
     "xls_dslx_test_common_attrs",
 )
@@ -77,18 +74,6 @@ def _xls_dslx_opt_ir_impl(ctx, src, dep_src_list):
     )
     return [
         dslx_module_info,
-        # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library,
-        # remove the following code.
-        DslxInfo(
-            dslx_source_files = get_transitive_dslx_srcs_files_depset(
-                [src],
-                ctx.attr.deps,
-            ),
-            dslx_dummy_files = get_transitive_dslx_dummy_files_depset(
-                None,
-                ctx.attr.deps,
-            ),
-        ),
         ir_conv_info,
         ir_opt_info,
         DefaultInfo(
@@ -96,6 +81,7 @@ def _xls_dslx_opt_ir_impl(ctx, src, dep_src_list):
                 ir_conv_default_info.files.to_list() +
                 ir_opt_default_info.files.to_list(),
             ),
+            # TODO(vmirian) 06-18-2021 Add transitive files.
         ),
     ]
 
@@ -114,20 +100,8 @@ def _xls_dslx_opt_ir_impl_wrapper(ctx):
     Returns:
       See: _xls_dslx_opt_ir_impl.
     """
-    src = None
-    dep_src_list = []
-
-    # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library, remove
-    # the following code.
-    if ctx.attr.dep_dslx_module:
-        src = ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_module_file
-        dep_src_list = (
-            ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_files
-        )
-    else:
-        src = ctx.file.src
-        for dep in ctx.attr.deps:
-            dep_src_list += dep[DslxInfo].dslx_source_files.to_list()
+    src = ctx.attr.dep[DslxModuleInfo].dslx_source_module_file
+    dep_src_list = ctx.attr.dep[DslxModuleInfo].dslx_source_files
     return _xls_dslx_opt_ir_impl(ctx, src, dep_src_list)
 
 xls_dslx_opt_ir = rule(
@@ -145,7 +119,7 @@ xls_dslx_opt_ir = rule(
 
             xls_dslx_opt_ir(
                 name = "a_opt_ir",
-                dep_dslx_module = ":a_dslx_module",
+                dep = ":a_dslx_module",
             )
         ```
     """,
@@ -168,19 +142,8 @@ def _xls_dslx_opt_ir_test_impl(ctx):
     Returns:
       DefaultInfo provider
     """
-    dslx_test_file = None
-    dslx_source_files = []
-
-    # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library, remove
-    # the following code.
-    if hasattr(ctx.attr.dep[DslxModuleInfo], "dslx_dummy_module_file"):
-        dslx_test_file = ctx.attr.dep[DslxModuleInfo].dslx_source_module_file
-        dslx_source_files = (
-            ctx.attr.dep[DslxModuleInfo].dslx_source_files
-        )
-    else:
-        dslx_test_file = ctx.attr.dep[ConvIRInfo].dslx_source_file
-        dslx_source_files = ctx.attr.dep[DslxInfo].dslx_source_files.to_list()
+    dslx_test_file = ctx.attr.dep[DslxModuleInfo].dslx_source_module_file
+    dslx_source_files = ctx.attr.dep[DslxModuleInfo].dslx_source_files
     conv_ir_file = ctx.attr.dep[ConvIRInfo].conv_ir_file
     opt_ir_file = ctx.attr.dep[OptIRInfo].opt_ir_file
     opt_ir_args = ctx.attr.dep[OptIRInfo].opt_ir_args
@@ -242,7 +205,6 @@ _xls_dslx_opt_ir_test_impl_attrs = {
     "dep": attr.label(
         doc = "The xls_dslx_opt_ir target to test.",
         providers = [
-            DslxInfo,
             DslxModuleInfo,
             ConvIRInfo,
             OptIRInfo,
@@ -262,7 +224,7 @@ xls_dslx_opt_ir_test = rule(
 
             xls_dslx_opt_ir(
                 name = "a_opt_ir",
-                dep_dslx_module = ":a_dslx_module",
+                dep = ":a_dslx_module",
             )
 
             xls_dslx_opt_ir_test(
@@ -300,23 +262,10 @@ def _xls_dslx_verilog_impl(ctx):
       CodegenInfo provider.
       DefaultInfo provider.
     """
-    src = None
-    dep_src_list = []
-
-    # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library, remove
-    # the following code.
-    if ctx.attr.dep_dslx_module:
-        src = ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_module_file
-        dep_src_list = (
-            ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_files
-        )
-    else:
-        src = ctx.file.src
-        for dep in ctx.attr.deps:
-            dep_src_list += dep[DslxInfo].dslx_source_files.to_list()
+    src = ctx.attr.dep[DslxModuleInfo].dslx_source_module_file
+    dep_src_list = ctx.attr.dep[DslxModuleInfo].dslx_source_files
     (
         dslx_module_info,
-        dslx_files_info,
         ir_conv_info,
         ir_opt_info,
         dslx_ir_default_info,
@@ -327,9 +276,6 @@ def _xls_dslx_verilog_impl(ctx):
     )
     return [
         dslx_module_info,
-        # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library,
-        # remove the following code.
-        dslx_files_info,
         ir_conv_info,
         ir_opt_info,
         codegen_info,
@@ -338,6 +284,7 @@ def _xls_dslx_verilog_impl(ctx):
                 dslx_ir_default_info.files.to_list() +
                 codegen_default_info.files.to_list(),
             ),
+            # TODO(vmirian) 06-18-2021 Add transitive files.
         ),
     ]
 
@@ -363,7 +310,7 @@ xls_dslx_verilog = rule(
                 codegen_args = {
                     "pipeline_stages": "1",
                 },
-                dep_dslx_module = ":a_dslx_module",
+                dep = ":a_dslx_module",
             )
         ```
     """,

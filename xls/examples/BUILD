@@ -54,14 +54,14 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "adler32",
-    dep_dslx_module = ":adler32_dslx_module",
+    dep = ":adler32_dslx_module",
     ir_file = "adler32.ir",
     opt_ir_file = "adler32.opt.ir",
 )
 
 xls_dslx_test(
     name = "adler32_dslx_test",
-    dep_dslx_module = ":adler32_dslx_module",
+    dep = ":adler32_dslx_module",
 )
 
 # TODO(rspringer): OOMs. Add xls_ir_equivalence_test.
@@ -94,7 +94,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "capitalize",
-    dep_dslx_module = ":capitalize_dslx_module",
+    dep = ":capitalize_dslx_module",
 )
 
 xls_dslx_opt_ir_test(
@@ -109,7 +109,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "crc32",
-    dep_dslx_module = ":crc32_dslx_module",
+    dep = ":crc32_dslx_module",
     ir_file = "crc32.ir",
     opt_ir_file = "crc32.opt.ir",
 )
@@ -157,7 +157,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "dot_product_dslx_test",
-    dep_dslx_module = ":dot_product_dslx_module",
+    dep = ":dot_product_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -171,7 +171,7 @@ xls_dslx_module_library(
 
 xls_dslx_test(
     name = "fir_filter_dslx_test",
-    dep_dslx_module = ":fir_filter_dslx_module",
+    dep = ":fir_filter_dslx_module",
     dslx_test_args = {
         "compare": "none",
     },
@@ -184,14 +184,14 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "riscv_simple",
-    dep_dslx_module = ":riscv_simple_dslx_module",
+    dep = ":riscv_simple_dslx_module",
 )
 
 # TODO: 2021-05-28 Add xls_ir_equivalence_test, xls_eval_ir_test and
 # xls_benchmark_ir.
 xls_dslx_test(
     name = "riscv_simple_dslx_test",
-    dep_dslx_module = ":riscv_simple_dslx_module",
+    dep = ":riscv_simple_dslx_module",
     dslx_test_args = {
         # TODO(hjmontero): run_instruction segfaults in the JIT.
         "compare": "interpreter",
@@ -205,7 +205,7 @@ xls_dslx_module_library(
 
 xls_dslx_opt_ir(
     name = "sha256",
-    dep_dslx_module = ":sha256_dslx_module",
+    dep = ":sha256_dslx_module",
     ir_file = "sha256.ir",
     opt_ir_file = "sha256.opt.ir",
     tags = ["optonly"],
@@ -213,7 +213,7 @@ xls_dslx_opt_ir(
 
 xls_dslx_test(
     name = "sha256_dslx_test",
-    dep_dslx_module = ":sha256_dslx_module",
+    dep = ":sha256_dslx_module",
 )
 
 # TODO(rspringer): OOMs on some machines. Add xls_ir_equivalence_test.

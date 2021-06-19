@@ -22,14 +22,11 @@ load(
 load(
     "//xls/build_rules:xls_providers.bzl",
     "ConvIRInfo",
-    "DslxInfo",
     "DslxModuleInfo",
     "OptIRInfo",
 )
 load(
     "//xls/build_rules:xls_dslx_rules.bzl",
-    "get_transitive_dslx_dummy_files_depset",
-    "get_transitive_dslx_srcs_files_depset",
     "xls_dslx_module_library_as_input_attrs",
 )
 
@@ -385,30 +382,12 @@ def xls_dslx_ir_impl(ctx, src, dep_src_list):
       DefaultInfo provider
     """
     ir_file = _convert_to_ir(ctx, src, dep_src_list)
-
-    # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library,
-    # remove the following code.
-    dslx_module_info = DslxModuleInfo()
-    if ctx.attr.dep_dslx_module:
-        dslx_module_info = ctx.attr.dep_dslx_module[DslxModuleInfo]
-
+    dslx_module_info = ctx.attr.dep[DslxModuleInfo]
     return [
         dslx_module_info,
         ConvIRInfo(
             dslx_source_file = src,
             conv_ir_file = ir_file,
-            # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library,
-            # remove the following code.
-            dslx_files_info = DslxInfo(
-                dslx_source_files = get_transitive_dslx_srcs_files_depset(
-                    [src],
-                    ctx.attr.deps,
-                ),
-                dslx_dummy_files = get_transitive_dslx_dummy_files_depset(
-                    None,
-                    ctx.attr.deps,
-                ),
-            ),
         ),
         DefaultInfo(files = depset([ir_file])),
     ]
@@ -437,17 +416,6 @@ xls_ir_common_attrs = {
 xls_dslx_ir_attrs = dicts.add(
     xls_dslx_module_library_as_input_attrs,
     {
-        # TODO(vmirian) When switch to xls_dslx_module_library, remove the
-        # following two attributes.
-        "src": attr.label(
-            doc = "The DSLX source file for the rule. A single source file must " +
-                  "be provided. The file must have a '.x' extension.",
-            allow_single_file = [".x"],
-        ),
-        "deps": attr.label_list(
-            doc = "Dependency targets for the rule.",
-            providers = [DslxInfo],
-        ),
         "ir_conv_args": attr.string_dict(
             doc = "Arguments of the IR conversion tool.",
         ),
@@ -482,17 +450,10 @@ def _xls_dslx_ir_impl_wrapper(ctx):
     src = None
     dep_src_list = []
 
-    # TODO(vmirian) 06-13-2021  When switch to xls_dslx_module_library, remove
-    # the following code.
-    if ctx.attr.dep_dslx_module:
-        src = ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_module_file
-        dep_src_list = (
-            ctx.attr.dep_dslx_module[DslxModuleInfo].dslx_source_files
-        )
-    else:
-        src = ctx.file.src
-        for dep in ctx.attr.deps:
-            dep_src_list += dep[DslxInfo].dslx_source_files.to_list()
+    src = ctx.attr.dep[DslxModuleInfo].dslx_source_module_file
+    dep_src_list = (
+        ctx.attr.dep[DslxModuleInfo].dslx_source_files
+    )
     return xls_dslx_ir_impl(ctx, src, dep_src_list)
 
 xls_dslx_ir = rule(
@@ -511,7 +472,7 @@ xls_dslx_ir = rule(
 
             xls_dslx_ir(
                 name = "a_ir",
-                dep_dslx_module = ":a_dslx_module",
+                dep = ":a_dslx_module",
             )
         ```
 
@@ -525,7 +486,7 @@ xls_dslx_ir = rule(
 
             xls_dslx_ir(
                 name = "a_ir",
-                dep_dslx_module = ":a_dslx_module",
+                dep = ":a_dslx_module",
                 ir_conv_args = {
                     "entry" : "a",
                 },
@@ -611,7 +572,7 @@ xls_ir_opt_ir = rule(
         ```
             xls_dslx_ir(
                 name = "a_ir",
-                dep_dslx_module = ":a_dslx_module",
+                dep = ":a_dslx_module",
             )
 
             xls_ir_opt_ir(
@@ -709,7 +670,7 @@ xls_ir_equivalence_test = rule(
         ```
             xls_dslx_ir(
                 name = "b_ir",
-                dep_dslx_module = ":b_dslx_module",
+                dep = ":b_dslx_module",
             )
 
             xls_ir_equivalence_test(
