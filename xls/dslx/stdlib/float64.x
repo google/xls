@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // 64-bit floating point routines.
-import xls.dslx.stdlib.apfloat
+import apfloat
 
 // TODO(rspringer): Make u32:11 and u32:52 symbolic constants. Currently, such
 // constants don't propagate correctly and fail to resolve when in parametric

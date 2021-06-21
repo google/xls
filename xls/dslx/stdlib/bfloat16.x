@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // bfloat16 routines.
-import xls.dslx.stdlib.apfloat
+import apfloat
 
 pub type BF16 = apfloat::APFloat<u32:8, u32:7>;
 pub type FloatTag = apfloat::APFloatTag;

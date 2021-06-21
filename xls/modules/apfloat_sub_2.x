@@ -21,7 +21,7 @@
 // In all other cases, results should be identical to other
 // conforming implementations (modulo exact significand
 // values in the NaN case.
-import xls.dslx.stdlib.apfloat
+import apfloat
 import xls.modules.apfloat_add_2
 
 type APFloat = apfloat::APFloat;

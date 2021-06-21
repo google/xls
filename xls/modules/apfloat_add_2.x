@@ -25,8 +25,8 @@
 // The bit widths of different float components are given
 // in comments throughout this implementation, listed
 // relative to the widths of a standard float32.
+import apfloat
 import std
-import xls.dslx.stdlib.apfloat
 
 type APFloat = apfloat::APFloat;
 

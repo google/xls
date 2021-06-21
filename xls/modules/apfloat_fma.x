@@ -23,7 +23,7 @@
 // The fundamentals of the multiply and add are the same as those in the
 // standalone ops - the differences arise in the extra precision bits and the
 // handling thereof (e.g., 72 vs. 24 bits for the add, for binary32).
-import xls.dslx.stdlib.apfloat
+import apfloat
 import std
 
 type APFloat = apfloat::APFloat;

@@ -21,8 +21,8 @@
 // conforming implementations (modulo exact significand
 // values in the NaN case.
 
+import apfloat
 import std
-import xls.dslx.stdlib.apfloat
 
 type APFloat = apfloat::APFloat;
 

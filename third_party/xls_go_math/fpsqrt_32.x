@@ -91,7 +91,6 @@
 // respresentations as input).
 
 import float32
-import xls.dslx.stdlib.apfloat
 
 type F32 = float32::F32;
 

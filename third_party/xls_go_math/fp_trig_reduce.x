@@ -22,10 +22,10 @@
 // Note: This module will not give meaningful results for
 // x == infinity or x = NaN.
 
-import std
-import xls.dslx.stdlib.apfloat
+import apfloat
 import float32
 import float64
+import std
 
 import xls.modules.apfloat_add_2
 import xls.modules.apfloat_sub_2
