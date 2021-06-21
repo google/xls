@@ -30,6 +30,10 @@ DEFAULT_DSLX_TEST_ARGS = {
     "compare": "jit",
 }
 
+_DEFAULT_STDLIB_TARGET = "//xls/dslx/stdlib:x_files"
+
+_DEFAULT_INTERPRETER_TARGET = "//xls/dslx:interpreter_main"
+
 def get_transitive_dslx_srcs_files_depset(srcs, deps):
     """Returns a depset representing the transitive DSLX source files.
 
@@ -174,12 +178,12 @@ _xls_dslx_common_attrs = {
 xls_dslx_exec_attrs = {
     "_dslx_std_lib": attr.label(
         doc = "The target containing the DSLX std library.",
-        default = Label("//xls/dslx/stdlib:x_files"),
+        default = _DEFAULT_STDLIB_TARGET,
         cfg = "target",
     ),
     "_dslx_interpreter_tool": attr.label(
         doc = "The target of the DSLX interpreter executable.",
-        default = Label("//xls/dslx:interpreter_main"),
+        default = _DEFAULT_INTERPRETER_TARGET,
         allow_single_file = True,
         executable = True,
         cfg = "exec",

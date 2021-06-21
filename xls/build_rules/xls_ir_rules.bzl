@@ -39,6 +39,12 @@ DEFAULT_BENCHMARK_IR_ARGS = {
     "delay_model": "unit",
 }
 
+_DEFAULT_OPT_IR_TARGET = "//xls/tools:opt_main"
+
+_DEFAULT_STDLIB_TARGET = "//xls/dslx/stdlib:x_files"
+
+_DEFAULT_IR_CONVERTER_TARGET = "//xls/dslx:ir_converter_main"
+
 def _add_entry_attr(
         ctx,
         arguments,
@@ -424,12 +430,12 @@ xls_dslx_ir_attrs = dicts.add(
         ),
         "_dslx_std_lib": attr.label(
             doc = "The target containing the DSLX std library.",
-            default = Label("//xls/dslx/stdlib:x_files"),
+            default = _DEFAULT_STDLIB_TARGET,
             cfg = "target",
         ),
         "_ir_converter_tool": attr.label(
             doc = "The target of the IR converter executable.",
-            default = Label("//xls/dslx:ir_converter_main"),
+            default = _DEFAULT_IR_CONVERTER_TARGET,
             allow_single_file = True,
             executable = True,
             cfg = "exec",
@@ -530,7 +536,7 @@ xls_ir_opt_ir_attrs = {
     ),
     "_opt_ir_tool": attr.label(
         doc = "The target of the IR optimizer executable.",
-        default = Label("//xls/tools:opt_main"),
+        default = _DEFAULT_OPT_IR_TARGET,
         allow_single_file = True,
         executable = True,
         cfg = "exec",

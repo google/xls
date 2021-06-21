@@ -20,6 +20,8 @@ load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("//xls/build_rules:xls_providers.bzl", "CodegenInfo")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
 
+_DEFAULT_CODEGEN_TARGET = "//xls/tools:codegen_main"
+
 xls_ir_verilog_attrs = {
     "codegen_args": attr.string_dict(
         doc = "Arguments of the codegen tool.",
@@ -35,7 +37,7 @@ xls_ir_verilog_attrs = {
     ),
     "_codegen_tool": attr.label(
         doc = "The target of the codegen executable.",
-        default = Label("//xls/tools:codegen_main"),
+        default = Label(_DEFAULT_CODEGEN_TARGET),
         allow_single_file = True,
         executable = True,
         cfg = "exec",
