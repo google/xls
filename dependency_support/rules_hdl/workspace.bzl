@@ -22,9 +22,9 @@ def repo():
     maybe(
         http_archive,
         name = "rules_hdl",
-        sha256 = "3149a553a98c9b4bfe31eb00363dd535820b22abed568ba0c60957ff7ec63e2a",
-        strip_prefix = "bazel_rules_hdl-06705603bf3456bcabc28008d19ea5da22359fe5",
+        sha256 = "818026634fa14f00c020b679ea0b26066ed544a9b9a14a4a586d9f317a70e0e0",
+        strip_prefix = "bazel_rules_hdl-ce8d2c758d985de988aba430e6db599c28b245a7",
         urls = [
-            "https://github.com/per-gron/bazel_rules_hdl/archive/06705603bf3456bcabc28008d19ea5da22359fe5.tar.gz",  # 2021-04-14
+            "https://github.com/hdl/bazel_rules_hdl/archive/ce8d2c758d985de988aba430e6db599c28b245a7.tar.gz",  # 2021-06-22
         ],
     )
