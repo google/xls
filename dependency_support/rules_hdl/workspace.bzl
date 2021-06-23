@@ -19,12 +19,16 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 
 def repo():
+    # 2021-06-23
+    git_hash = "fd7607b73f08e68a0f46796978e33a01ef571a83"
+    git_sha256 = "dfe9d4616d828c84c9531e9fc38375ae4ba96432d27b2ef7d8db3782c462d05a"
+
     maybe(
         http_archive,
         name = "rules_hdl",
-        sha256 = "818026634fa14f00c020b679ea0b26066ed544a9b9a14a4a586d9f317a70e0e0",
-        strip_prefix = "bazel_rules_hdl-ce8d2c758d985de988aba430e6db599c28b245a7",
+        sha256 = git_sha256,
+        strip_prefix = "bazel_rules_hdl-%s" % git_hash,
         urls = [
-            "https://github.com/hdl/bazel_rules_hdl/archive/ce8d2c758d985de988aba430e6db599c28b245a7.tar.gz",  # 2021-06-22
+            "https://github.com/hdl/bazel_rules_hdl/archive/%s.tar.gz" % git_hash,  # 2021-06-23
         ],
     )
