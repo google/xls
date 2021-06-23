@@ -105,7 +105,7 @@ bzl_library(
 bzl_library(
     name = "xls_build_defs_bzl",
     srcs = ["xls_build_defs.bzl"],
-    visibility = ["//visibility:private"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":xls_codegen_rules_bzl",
         ":xls_dslx_rules_bzl",
