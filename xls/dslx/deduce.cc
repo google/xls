@@ -2030,14 +2030,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
             node->parametrics().size()));
   }
 
-  // Create new parametric bindings that reflect the constraints from the
-  // specified parametrics.
-  //
-  // TODO(leary): 2021-05-27 Here we're imbuing an expression from a caller
-  // (invocation) module into a parametric binding node from the callee
-  // (invoked) module by instantiating a new ParamtricBinding node -- there has
-  // to be a cleaner way to do this, by separating the exprs into a different
-  // array at least.
+  // Create "ParametricConstraint" records that reflect the parametrics
+  // specified by the caller invocation.
   std::vector<ParametricConstraint> parametric_constraints;
   parametric_constraints.reserve(callee_fn->parametric_bindings().size());
   for (int64_t i = 0; i < node->parametrics().size(); ++i) {
@@ -2057,9 +2051,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
                                 *value_type,
                                 "Explicit parametric type mismatch.");
     }
-    ParametricBinding* new_binding = binding->Clone(value);
     parametric_constraints.push_back(
-        ParametricConstraint{new_binding, std::move(binding_type)});
+        ParametricConstraint(*binding, std::move(binding_type), value));
   }
 
   // The bindings that were not explicitly filled by the caller are taken from
@@ -2075,7 +2068,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> binding_type,
                          ParametricBindingToType(remaining_binding, ctx));
     parametric_constraints.push_back(
-        ParametricConstraint{remaining_binding, std::move(binding_type)});
+        ParametricConstraint(*remaining_binding, std::move(binding_type)));
   }
 
   absl::flat_hash_map<std::string, InterpValue> caller_symbolic_bindings_map =
@@ -2085,12 +2078,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
   // symbols in the callee's.
   absl::flat_hash_map<std::string, InterpValue> explicit_bindings;
   for (const ParametricConstraint& constraint : parametric_constraints) {
-    const ParametricBinding* binding = constraint.binding;
-    if (auto* name_ref = dynamic_cast<NameRef*>(binding->expr());
+    if (auto* name_ref = dynamic_cast<NameRef*>(constraint.expr());
         name_ref != nullptr &&
         caller_symbolic_bindings_map.contains(name_ref->identifier())) {
       explicit_bindings.insert(
-          {binding->name_def()->identifier(),
+          {constraint.identifier(),
            caller_symbolic_bindings_map.at(name_ref->identifier())});
     }
   }
@@ -2337,7 +2329,7 @@ ParametricBindingsToConstraints(absl::Span<ParametricBinding* const> bindings,
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> binding_type,
                          ParametricBindingToType(binding, ctx));
     parametric_constraints.push_back(
-        ParametricConstraint{binding, std::move(binding_type)});
+        ParametricConstraint(*binding, std::move(binding_type)));
   }
   return parametric_constraints;
 }

@@ -38,9 +38,29 @@ struct InstantiateArg {
 // Decorates a parametric binding with its (deduced) ConcreteType.
 //
 // These are provided as inputs to parametric instantiation functions below.
-struct ParametricConstraint {
-  const ParametricBinding* binding;
-  std::unique_ptr<ConcreteType> type;
+class ParametricConstraint {
+ public:
+  // Decorates the given "binding" with the provided type information.
+  ParametricConstraint(const ParametricBinding& binding,
+                       std::unique_ptr<ConcreteType> type);
+
+  // Decorates the given "binding" with the type information as above, but
+  // exposes the (replacement) expression "expr".
+  ParametricConstraint(const ParametricBinding& binding,
+                       std::unique_ptr<ConcreteType> type, Expr* expr);
+
+  const std::string& identifier() const { return binding_->identifier(); }
+  const ConcreteType& type() const { return *type_; }
+  Expr* expr() const { return expr_; }
+
+ private:
+  const ParametricBinding* binding_;
+  std::unique_ptr<ConcreteType> type_;
+
+  // Expression that the parametric value should take on (e.g. when there are
+  // "derived parametrics" that are computed from other parametric values). Note
+  // that this may be null.
+  Expr* expr_;
 };
 
 // Instantiates a function invocation using the bindings derived from args'
@@ -186,7 +206,10 @@ class ParametricInstantiator {
   // Notes the iteration order in the original parametric bindings.
   std::vector<std::string> constraint_order_;
 
+  // Note: the expressions may be null (e.g. when the parametric binding has no
+  // "default" expression and must be provided by the user).
   absl::flat_hash_map<std::string, Expr*> constraints_;
+
   absl::flat_hash_map<std::string, int64_t> bit_widths_;
   absl::flat_hash_map<std::string, InterpValue> symbolic_bindings_;
 };

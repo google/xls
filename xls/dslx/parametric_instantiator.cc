@@ -34,12 +34,11 @@ ParametricInstantiator::ParametricInstantiator(
   if (parametric_constraints.has_value()) {
     for (const ParametricConstraint& constraint :
          parametric_constraints.value()) {
-      const ParametricBinding* binding = constraint.binding;
-      constraint_order_.push_back(binding->identifier());
-      ConcreteTypeDim bit_count = constraint.type->GetTotalBitCount().value();
-      bit_widths_[binding->identifier()] =
-          absl::get<int64_t>(bit_count.value());
-      constraints_[binding->identifier()] = binding->expr();
+      const std::string& identifier = constraint.identifier();
+      constraint_order_.push_back(identifier);
+      ConcreteTypeDim bit_count = constraint.type().GetTotalBitCount().value();
+      bit_widths_[identifier] = absl::get<int64_t>(bit_count.value());
+      constraints_[identifier] = constraint.expr();
     }
   }
 }
@@ -355,6 +354,15 @@ absl::StatusOr<TypeAndBindings> StructInstantiator::Instantiate() {
 }
 
 }  // namespace internal
+
+ParametricConstraint::ParametricConstraint(const ParametricBinding& binding,
+                                           std::unique_ptr<ConcreteType> type)
+    : ParametricConstraint(binding, std::move(type), binding.expr()) {}
+
+ParametricConstraint::ParametricConstraint(const ParametricBinding& binding,
+                                           std::unique_ptr<ConcreteType> type,
+                                           Expr* expr)
+    : binding_(&binding), type_(std::move(type)), expr_(expr) {}
 
 // Helper ToString()s for debug logging.
 static std::string ToTypesString(absl::Span<const InstantiateArg> ts) {

@@ -1110,14 +1110,6 @@ class ParametricBinding : public AstNode {
     return v->HandleParametricBinding(this);
   }
 
-  // Creates a cloned version of this `ParametricBinding` with the given
-  // `new_expr` replacing this' `expr_`. (The `owner()` of the returned
-  // `ParametricBinding` is the same, and used for allocation.)
-  //
-  // Note that the new_expr may not be from the same module as 'this', because
-  // it may be supplied by a caller.
-  ParametricBinding* Clone(Expr* new_expr) const;
-
   // TODO(leary): 2020-08-21 Fix this, the span is more than just the name def's
   // span, it must include the type/expr.
   const Span& span() const { return name_def_->span(); }

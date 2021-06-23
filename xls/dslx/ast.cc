@@ -321,11 +321,6 @@ std::vector<AstNode*> ParametricBinding::GetChildren(bool want_types) const {
   return results;
 }
 
-ParametricBinding* ParametricBinding::Clone(Expr* new_expr) const {
-  return owner()->Make<ParametricBinding>(name_def_, type_annotation_,
-                                          new_expr);
-}
-
 std::string MatchArm::ToString() const {
   std::string patterns_or = absl::StrJoin(
       patterns_, " | ", [](std::string* out, NameDefTree* name_def_tree) {
