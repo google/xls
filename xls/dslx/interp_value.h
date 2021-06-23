@@ -293,15 +293,9 @@ class InterpValue {
   static absl::StatusOr<std::vector<xls::Value>> ConvertValuesToIr(
       absl::Span<InterpValue const> values);
 
-  bool operator==(const InterpValue& rhs) const {
-    return Compare(
-               *this, rhs,
-               [](const Bits& lhs, const Bits& rhs) { return lhs == rhs; },
-               [](const Bits& lhs, const Bits& rhs) { return lhs == rhs; })
-        .value()
-        .IsTrue();
-  }
-
+  // Convenience wrappers around Eq()/Ne() so InterpValues can act as C++ value
+  // types; e.g. in testing assertions and such.
+  bool operator==(const InterpValue& rhs) const;
   bool operator!=(const InterpValue& rhs) const { return !(*this == rhs); }
 
   // Lt() only performs comparisons on bits-valued InterpValues, whereas this

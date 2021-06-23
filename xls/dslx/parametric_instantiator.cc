@@ -23,7 +23,8 @@ namespace internal {
 
 ParametricInstantiator::ParametricInstantiator(
     Span span, absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
-    absl::optional<absl::Span<ParametricBinding* const>> parametric_constraints,
+    absl::optional<absl::Span<const ParametricConstraint>>
+        parametric_constraints,
     const absl::flat_hash_map<std::string, InterpValue>* explicit_constraints)
     : span_(std::move(span)), args_(args), ctx_(ctx) {
   if (explicit_constraints != nullptr) {
@@ -31,14 +32,13 @@ ParametricInstantiator::ParametricInstantiator(
   }
 
   if (parametric_constraints.has_value()) {
-    for (ParametricBinding* binding : *parametric_constraints) {
+    for (const ParametricConstraint& constraint :
+         parametric_constraints.value()) {
+      const ParametricBinding* binding = constraint.binding;
       constraint_order_.push_back(binding->identifier());
-      TypeAnnotation* type_annotation = binding->type_annotation();
-      auto* bits_type = dynamic_cast<BuiltinTypeAnnotation*>(type_annotation);
-      // TODO(leary): 2020-12-11 This is a bug, we should be able to use uN[32]
-      // style annotations here.
-      XLS_CHECK(bits_type != nullptr);
-      bit_widths_[binding->identifier()] = bits_type->GetBitCount();
+      ConcreteTypeDim bit_count = constraint.type->GetTotalBitCount().value();
+      bit_widths_[binding->identifier()] =
+          absl::get<int64_t>(bit_count.value());
       constraints_[binding->identifier()] = binding->expr();
     }
   }
@@ -280,7 +280,8 @@ absl::Status ParametricInstantiator::SymbolicBind(
 /* static */ absl::StatusOr<FunctionInstantiator> FunctionInstantiator::Make(
     Span span, const FunctionType& function_type,
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
-    absl::optional<absl::Span<ParametricBinding* const>> parametric_constraints,
+    absl::optional<absl::Span<const ParametricConstraint>>
+        parametric_constraints,
     const absl::flat_hash_map<std::string, InterpValue>* explicit_constraints) {
   XLS_VLOG(5)
       << "Making FunctionInstantiator for " << function_type.ToString()
@@ -328,7 +329,8 @@ absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<ConcreteType> const> member_types,
     DeduceCtx* ctx,
-    absl::optional<absl::Span<ParametricBinding* const>> parametric_bindings) {
+    absl::optional<absl::Span<const ParametricConstraint>>
+        parametric_bindings) {
   XLS_RET_CHECK_EQ(args.size(), member_types.size());
   return StructInstantiator(std::move(span), struct_type, args, member_types,
                             ctx, parametric_bindings);
@@ -373,15 +375,6 @@ static std::string ToString(
   });
 }
 static std::string ToString(
-    absl::optional<absl::Span<ParametricBinding* const>> pbs) {
-  if (!pbs.has_value() || pbs->empty()) {
-    return "none";
-  }
-  return absl::StrJoin(*pbs, ", ", [](std::string* out, ParametricBinding* pb) {
-    absl::StrAppend(out, pb->ToString());
-  });
-}
-static std::string ToString(
     const absl::flat_hash_map<std::string, InterpValue>* map) {
   if (map == nullptr || map->empty()) {
     return "none";
@@ -396,13 +389,12 @@ static std::string ToString(
 absl::StatusOr<TypeAndBindings> InstantiateFunction(
     Span span, const FunctionType& function_type,
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
-    absl::optional<absl::Span<ParametricBinding* const>> parametric_constraints,
+    absl::optional<absl::Span<const ParametricConstraint>>
+        parametric_constraints,
     const absl::flat_hash_map<std::string, InterpValue>* explicit_constraints) {
   XLS_VLOG(5) << "Function instantiation @ " << span
               << " type: " << function_type.ToString();
   XLS_VLOG(5) << " arg types:              " << ToTypesString(args);
-  XLS_VLOG(5) << " parametric constraints: "
-              << ToString(parametric_constraints);
   XLS_VLOG(5) << " explicit constraints:   " << ToString(explicit_constraints);
   XLS_ASSIGN_OR_RETURN(auto instantiator,
                        internal::FunctionInstantiator::Make(
@@ -416,12 +408,12 @@ absl::StatusOr<TypeAndBindings> InstantiateStruct(
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<ConcreteType> const> member_types,
     DeduceCtx* ctx,
-    absl::optional<absl::Span<ParametricBinding* const>> parametric_bindings) {
+    absl::optional<absl::Span<const ParametricConstraint>>
+        parametric_bindings) {
   XLS_VLOG(5) << "Struct instantiation @ " << span
               << " type: " << struct_type.ToString();
   XLS_VLOG(5) << " arg types:           " << ToTypesString(args);
   XLS_VLOG(5) << " member types:        " << ToString(member_types);
-  XLS_VLOG(5) << " parametric bindings: " << ToString(parametric_bindings);
   XLS_ASSIGN_OR_RETURN(auto instantiator,
                        internal::StructInstantiator::Make(
                            std::move(span), struct_type, args, member_types,

@@ -19,7 +19,6 @@
 #include "absl/strings/match.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/interpreter.h"
-#include "xls/dslx/parametric_instantiator.h"
 #include "xls/dslx/scanner.h"
 
 namespace xls::dslx {
@@ -1347,6 +1346,17 @@ static absl::StatusOr<StructDef*> DerefToStruct(
   }
 }
 
+// Deduces the type for a ParametricBinding (via its type annotation).
+static absl::StatusOr<std::unique_ptr<ConcreteType>> ParametricBindingToType(
+    ParametricBinding* binding, DeduceCtx* ctx) {
+  Module* binding_module = binding->owner();
+  ImportData* import_data = ctx->import_data();
+  XLS_ASSIGN_OR_RETURN(TypeInfo * binding_type_info,
+                       import_data->GetRootTypeInfo(binding_module));
+  auto binding_ctx = ctx->MakeCtx(binding_type_info, binding_module);
+  return binding_ctx->Deduce(binding->type_annotation());
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
     StructInstance* node, DeduceCtx* ctx) {
   XLS_VLOG(5) << "Deducing type for struct instance: " << node->ToString();
@@ -1388,10 +1398,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
                     ToTypeDefinition(struct_ref), ctx->type_info()));
 
   XLS_ASSIGN_OR_RETURN(
+      std::vector<ParametricConstraint> parametric_constraints,
+      ParametricBindingsToConstraints(struct_def->parametric_bindings(), ctx));
+  XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
       InstantiateStruct(node->span(), *tuple_type, validated.args,
-                        validated.member_types, ctx,
-                        struct_def->parametric_bindings()));
+                        validated.member_types, ctx, parametric_constraints));
 
   return std::move(tab.type);
 }
@@ -1463,10 +1475,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
                     ToTypeDefinition(struct_ref), ctx->type_info()));
 
   XLS_ASSIGN_OR_RETURN(
+      std::vector<ParametricConstraint> parametric_constraints,
+      ParametricBindingsToConstraints(struct_def->parametric_bindings(), ctx));
+  XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
       InstantiateStruct(node->span(), *struct_type, validated.args,
-                        validated.member_types, ctx,
-                        struct_def->parametric_bindings()));
+                        validated.member_types, ctx, parametric_constraints));
 
   return std::move(tab.type);
 }
@@ -2024,7 +2038,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
   // (invoked) module by instantiating a new ParamtricBinding node -- there has
   // to be a cleaner way to do this, by separating the exprs into a different
   // array at least.
-  std::vector<ParametricBinding*> new_bindings;
+  std::vector<ParametricConstraint> parametric_constraints;
+  parametric_constraints.reserve(callee_fn->parametric_bindings().size());
   for (int64_t i = 0; i < node->parametrics().size(); ++i) {
     ParametricBinding* binding = callee_fn->parametric_bindings()[i];
     Expr* value = node->parametrics()[i];
@@ -2032,15 +2047,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
     XLS_VLOG(5) << "Populating callee parametric `" << binding->ToString()
                 << "` via invocation expression: " << value->ToString();
 
-    // Note the callee_fn and thus the binding may be in another module, and
-    // so have to resolve against different TypeInfo.
-    Module* binding_module = binding->owner();
-    TypeInfo* binding_type_info =
-        ctx->type_info()->GetImportedTypeInfo(binding_module).value();
-    auto binding_ctx = ctx->MakeCtx(binding_type_info, binding_module);
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> binding_type,
-                         binding_ctx->Deduce(binding->type_annotation()));
-
+                         ParametricBindingToType(binding, ctx));
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> value_type,
                          ctx->Deduce(value));
 
@@ -2050,7 +2058,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
                                 "Explicit parametric type mismatch.");
     }
     ParametricBinding* new_binding = binding->Clone(value);
-    new_bindings.push_back(new_binding);
+    parametric_constraints.push_back(
+        ParametricConstraint{new_binding, std::move(binding_type)});
   }
 
   // The bindings that were not explicitly filled by the caller are taken from
@@ -2063,7 +2072,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
   for (ParametricBinding* remaining_binding :
        absl::MakeSpan(callee_fn->parametric_bindings())
            .subspan(node->parametrics().size())) {
-    new_bindings.push_back(remaining_binding);
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> binding_type,
+                         ParametricBindingToType(remaining_binding, ctx));
+    parametric_constraints.push_back(
+        ParametricConstraint{remaining_binding, std::move(binding_type)});
   }
 
   absl::flat_hash_map<std::string, InterpValue> caller_symbolic_bindings_map =
@@ -2072,12 +2084,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
   // Map resolved parametrics from the caller's context onto the corresponding
   // symbols in the callee's.
   absl::flat_hash_map<std::string, InterpValue> explicit_bindings;
-  for (ParametricBinding* new_binding : new_bindings) {
-    if (auto* name_ref = dynamic_cast<NameRef*>(new_binding->expr());
+  for (const ParametricConstraint& constraint : parametric_constraints) {
+    const ParametricBinding* binding = constraint.binding;
+    if (auto* name_ref = dynamic_cast<NameRef*>(binding->expr());
         name_ref != nullptr &&
         caller_symbolic_bindings_map.contains(name_ref->identifier())) {
       explicit_bindings.insert(
-          {new_binding->name_def()->identifier(),
+          {binding->name_def()->identifier(),
            caller_symbolic_bindings_map.at(name_ref->identifier())});
     }
   }
@@ -2085,7 +2098,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
       InstantiateFunction(node->span(), *callee_type, args, ctx,
-                          /*parametric_constraints=*/new_bindings,
+                          /*parametric_constraints=*/parametric_constraints,
                           /*explicit_constraints=*/&explicit_bindings));
   const SymbolicBindings& callee_symbolic_bindings = tab.symbolic_bindings;
 
@@ -2311,6 +2324,22 @@ ConstexprEnv MakeConstexprEnv(Expr* node,
   }
 
   return env;
+}
+
+// Converts a sequence of ParametricBinding AST nodes into a sequence of
+// ParametricConstraints (which decorate the ParametricBinding nodes with their
+// deduced ConcreteTypes).
+absl::StatusOr<std::vector<ParametricConstraint>>
+ParametricBindingsToConstraints(absl::Span<ParametricBinding* const> bindings,
+                                DeduceCtx* ctx) {
+  std::vector<ParametricConstraint> parametric_constraints;
+  for (ParametricBinding* binding : bindings) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> binding_type,
+                         ParametricBindingToType(binding, ctx));
+    parametric_constraints.push_back(
+        ParametricConstraint{binding, std::move(binding_type)});
+  }
+  return parametric_constraints;
 }
 
 }  // namespace xls::dslx

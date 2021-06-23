@@ -1896,6 +1896,8 @@ xls_dslx_opt_ir_test(
     dep = ":array_size_all_bits_set_ellipsis",
 )
 
+# -- mask_bits
+
 xls_dslx_module_library(
     name = "mask_bits_dslx_module",
     src = "mask_bits.x",
@@ -1912,6 +1914,8 @@ xls_dslx_test(
     dep = ":mask_bits_dslx_module",
 )
 
+# -- function_called_in_derived_parametric_simple
+
 xls_dslx_module_library(
     name = "function_called_in_derived_parametric_simple_dslx_module",
     src = "function_called_in_derived_parametric_simple.x",
@@ -1926,6 +1930,25 @@ xls_dslx_opt_ir_test(
     name = "function_called_in_derived_parametric_simple_test",
     dep = ":function_called_in_derived_parametric_simple",
 )
+
+# -- parametric_enum_value
+
+xls_dslx_module_library(
+    name = "parametric_enum_value_dslx_module",
+    src = "parametric_enum_value.x",
+)
+
+xls_dslx_opt_ir(
+    name = "parametric_enum_value",
+    dep = ":parametric_enum_value_dslx_module",
+)
+
+xls_dslx_opt_ir_test(
+    name = "parametric_enum_value_test",
+    dep = ":parametric_enum_value",
+)
+
+# -- non_parametric_called_solely_from_parametric
 
 xls_dslx_module_library(
     name = "non_parametric_called_solely_from_parametric_dslx_module",

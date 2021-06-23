@@ -19,6 +19,7 @@
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interpreter.h"
+#include "xls/dslx/parametric_instantiator.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {
@@ -342,11 +343,17 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
     return value;
   };
 
+  absl::optional<std::vector<ParametricConstraint>> parametric_constraints;
+  if (higher_order_parametric_bindings.has_value()) {
+    XLS_ASSIGN_OR_RETURN(parametric_constraints,
+                         ParametricBindingsToConstraints(
+                             higher_order_parametric_bindings.value(), ctx));
+  }
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
       fsignature(
           SignatureData{arg_type_ptrs, arg_spans, builtin_name->identifier(),
-                        invocation->span(), higher_order_parametric_bindings,
+                        invocation->span(), std::move(parametric_constraints),
                         constexpr_eval},
           ctx));
   FunctionType* fn_type = dynamic_cast<FunctionType*>(tab.type.get());

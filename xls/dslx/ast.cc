@@ -281,6 +281,46 @@ Ternary::Ternary(Module* owner, Span span, Expr* test, Expr* consequent,
       consequent_(consequent),
       alternate_(alternate) {}
 
+// -- class ParametricBinding
+
+ParametricBinding::ParametricBinding(Module* owner, NameDef* name_def,
+                                     TypeAnnotation* type_annotation,
+                                     Expr* expr)
+    : AstNode(owner),
+      name_def_(name_def),
+      type_annotation_(type_annotation),
+      expr_(expr) {
+  XLS_CHECK_EQ(name_def_->owner(), owner);
+  XLS_CHECK_EQ(type_annotation_->owner(), owner);
+}
+
+std::string ParametricBinding::ToString() const {
+  std::string suffix;
+  if (expr_ != nullptr) {
+    suffix = absl::StrFormat(" = %s", expr_->ToString());
+  }
+  return absl::StrFormat("%s: %s%s", name_def_->ToString(),
+                         type_annotation_->ToString(), suffix);
+}
+
+std::string ParametricBinding::ToReprString() const {
+  return absl::StrFormat("ParametricBinding(name_def=%s, type=%s, expr=%s)",
+                         name_def_->ToReprString(),
+                         type_annotation_->ToString(),
+                         expr_ == nullptr ? "null" : expr_->ToString());
+}
+
+std::vector<AstNode*> ParametricBinding::GetChildren(bool want_types) const {
+  std::vector<AstNode*> results = {name_def_};
+  if (want_types) {
+    results.push_back(type_annotation_);
+  }
+  if (expr_ != nullptr) {
+    results.push_back(expr_);
+  }
+  return results;
+}
+
 ParametricBinding* ParametricBinding::Clone(Expr* new_expr) const {
   return owner()->Make<ParametricBinding>(name_def_, type_annotation_,
                                           new_expr);

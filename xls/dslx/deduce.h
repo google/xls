@@ -20,6 +20,7 @@
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
+#include "xls/dslx/parametric_instantiator.h"
 
 namespace xls::dslx {
 
@@ -64,6 +65,14 @@ using ConstexprEnv = absl::flat_hash_map<std::string, InterpValue>;
 ConstexprEnv MakeConstexprEnv(Expr* node,
                               const SymbolicBindings& symbolic_bindings,
                               DeduceCtx* ctx);
+
+// Decorates parametric binding AST nodes with their deduced types.
+//
+// This is used externally in things like parametric instantiation of DSLX
+// builtins like the higher order function "map".
+absl::StatusOr<std::vector<ParametricConstraint>>
+ParametricBindingsToConstraints(absl::Span<ParametricBinding* const> bindings,
+                                DeduceCtx* ctx);
 
 }  // namespace xls::dslx
 

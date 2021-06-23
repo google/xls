@@ -25,6 +25,7 @@
 #include "xls/dslx/ast.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/deduce_ctx.h"
+#include "xls/dslx/parametric_instantiator.h"
 #include "xls/dslx/type_and_bindings.h"
 
 namespace xls::dslx {
@@ -48,7 +49,7 @@ struct SignatureData {
   const Span& span;
   // Any "higher order" parametric bindings e.g. for the callee in the case of
   // map.
-  absl::optional<std::vector<ParametricBinding*>> parametric_bindings;
+  absl::optional<std::vector<ParametricConstraint>> parametric_bindings;
   // Callback that can be used to perform constexpr evaluation on one of the
   // function arguments; which is requested is given by argno.
   const std::function<absl::StatusOr<InterpValue>(int64_t argno)>&

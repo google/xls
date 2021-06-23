@@ -1091,8 +1091,8 @@ class Ternary : public Expr {
 //
 // That is, in:
 //
-//  fn [X: u32, Y: u32 = X+X] f(x: bits[X]) -> bits[Y] {
-//     ^~~~~~~~~~~~~~~~~~~~~^
+//  fn f<X: u32, Y: u32 = X+X>(x: bits[X]) -> bits[Y] {
+//      ^~~~~~~~~~~~~~~~~~~~~^
 //    x ++ x
 //  }
 //
@@ -1104,19 +1104,18 @@ class Ternary : public Expr {
 class ParametricBinding : public AstNode {
  public:
   ParametricBinding(Module* owner, NameDef* name_def,
-                    TypeAnnotation* type_annotation, Expr* expr)
-      : AstNode(owner),
-        name_def_(name_def),
-        type_annotation_(type_annotation),
-        expr_(expr) {}
+                    TypeAnnotation* type_annotation, Expr* expr);
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleParametricBinding(this);
   }
 
-  // Creates a cloned version of this ParametricBinding with the given new_expr
-  // replacing this' `expr_`. (The owner() is the same, and used for
-  // allocation.)
+  // Creates a cloned version of this `ParametricBinding` with the given
+  // `new_expr` replacing this' `expr_`. (The `owner()` of the returned
+  // `ParametricBinding` is the same, and used for allocation.)
+  //
+  // Note that the new_expr may not be from the same module as 'this', because
+  // it may be supplied by a caller.
   ParametricBinding* Clone(Expr* new_expr) const;
 
   // TODO(leary): 2020-08-21 Fix this, the span is more than just the name def's
@@ -1127,32 +1126,11 @@ class ParametricBinding : public AstNode {
   absl::string_view GetNodeTypeName() const override {
     return "ParametricBinding";
   }
-  std::string ToString() const override {
-    std::string suffix;
-    if (expr_ != nullptr) {
-      suffix = absl::StrFormat(" = %s", expr_->ToString());
-    }
-    return absl::StrFormat("%s: %s%s", name_def_->ToString(),
-                           type_annotation_->ToString(), suffix);
-  }
+  std::string ToString() const override;
 
-  std::string ToReprString() const {
-    return absl::StrFormat("ParametricBinding(name_def=%s, type=%s, expr=%s)",
-                           name_def_->ToReprString(),
-                           type_annotation_->ToString(),
-                           expr_ == nullptr ? "null" : expr_->ToString());
-  }
+  std::string ToReprString() const;
 
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    std::vector<AstNode*> results = {name_def_};
-    if (want_types) {
-      results.push_back(type_annotation_);
-    }
-    if (expr_ != nullptr) {
-      results.push_back(expr_);
-    }
-    return results;
-  }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   NameDef* name_def() const { return name_def_; }
   TypeAnnotation* type_annotation() const { return type_annotation_; }
@@ -1163,7 +1141,11 @@ class ParametricBinding : public AstNode {
  private:
   NameDef* name_def_;
   TypeAnnotation* type_annotation_;
-  Expr* expr_;  // May be null.
+
+  // The "default" parametric expression (e.g. the expression to use for this
+  // parametric name_def_ when there is no explicit binding provided by the
+  // caller). May be null.
+  Expr* expr_;
 };
 
 // Represents a function definition.

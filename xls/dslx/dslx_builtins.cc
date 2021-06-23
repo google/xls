@@ -15,7 +15,6 @@
 #include "xls/dslx/dslx_builtins.h"
 
 #include "xls/dslx/concrete_type.h"
-#include "xls/dslx/parametric_instantiator.h"
 
 namespace xls::dslx {
 namespace {
@@ -522,7 +521,7 @@ static void PopulateSignatureToLambdaMap(
     std::vector<InstantiateArg> mapped_fn_args = {
         InstantiateArg{t, data.arg_spans[0]}};
 
-    absl::optional<absl::Span<ParametricBinding* const>>
+    absl::optional<absl::Span<const ParametricConstraint>>
         mapped_parametric_bindings;
     if (data.parametric_bindings.has_value()) {
       mapped_parametric_bindings.emplace(data.parametric_bindings.value());

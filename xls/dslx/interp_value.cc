@@ -227,6 +227,8 @@ bool InterpValue::Eq(const InterpValue& other) const {
   XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
 }
 
+bool InterpValue::operator==(const InterpValue& rhs) const { return Eq(rhs); }
+
 /* static */ absl::StatusOr<InterpValue> InterpValue::Compare(
     const InterpValue& lhs, const InterpValue& rhs, CompareF ucmp,
     CompareF scmp) {
