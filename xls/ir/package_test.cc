@@ -313,7 +313,8 @@ TEST_F(PackageTest, CreateStreamingChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch42, p.CreateStreamingChannel(
                           "ch42", ChannelOps::kReceiveOnly, p.GetBitsType(44),
-                          /*initial_values=*/{}, ChannelMetadataProto(), 42));
+                          /*initial_values=*/{}, FlowControl::kReadyValid,
+                          ChannelMetadataProto(), 42));
   EXPECT_EQ(ch42->id(), 42);
   EXPECT_THAT(p.GetChannel(42), IsOkAndHolds(ch42));
 
@@ -324,9 +325,10 @@ TEST_F(PackageTest, CreateStreamingChannel) {
   EXPECT_EQ(ch43->id(), 43);
 
   // Creating a channel with a duplicate ID is an error.
-  EXPECT_THAT(p.CreateStreamingChannel("ch1_dup", ChannelOps::kReceiveOnly,
-                                       p.GetBitsType(44), /*initial_values=*/{},
-                                       ChannelMetadataProto(), 1)
+  EXPECT_THAT(p.CreateStreamingChannel(
+                   "ch1_dup", ChannelOps::kReceiveOnly, p.GetBitsType(44),
+                   /*initial_values=*/{}, FlowControl::kReadyValid,
+                   ChannelMetadataProto(), 1)
                   .status(),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Channel already exists with id 1")));

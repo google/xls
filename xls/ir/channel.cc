@@ -65,10 +65,6 @@ std::string Channel::ToString() const {
                                                           v.ToHumanString());
                                         }));
   }
-  absl::StrAppendFormat(&result, "id=%d, kind=%s, ops=%s, ", id(),
-                        ChannelKindToString(kind_),
-                        ChannelOpsToString(supported_ops()));
-
   if (const PortChannel* port_channel =
           dynamic_cast<const PortChannel*>(this)) {
     if (port_channel->GetPosition().has_value()) {
@@ -76,6 +72,17 @@ std::string Channel::ToString() const {
                             port_channel->GetPosition().value());
     }
   }
+  absl::StrAppendFormat(&result, "id=%d, kind=%s, ops=%s, ", id(),
+                        ChannelKindToString(kind_),
+                        ChannelOpsToString(supported_ops()));
+
+  if (IsStreaming()) {
+    absl::StrAppendFormat(
+        &result, "flow_control=%s, ",
+        FlowControlToString(
+            down_cast<const StreamingChannel*>(this)->flow_control()));
+  }
+
   absl::StrAppendFormat(&result, "metadata=\"\"\"%s\"\"\")",
                         metadata().ShortDebugString());
 
@@ -83,6 +90,31 @@ std::string Channel::ToString() const {
 }
 
 bool Channel::IsStreaming() const { return kind_ == ChannelKind::kStreaming; }
+
+std::string FlowControlToString(FlowControl fc) {
+  switch (fc) {
+    case FlowControl::kNone:
+      return "none";
+    case FlowControl::kReadyValid:
+      return "ready_valid";
+  }
+  XLS_LOG(FATAL) << "Invalid flow control value: " << static_cast<int64_t>(fc);
+}
+
+absl::StatusOr<FlowControl> StringToFlowControl(absl::string_view str) {
+  if (str == "none") {
+    return FlowControl::kNone;
+  } else if (str == "ready_valid") {
+    return FlowControl::kReadyValid;
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Invalid channel kind '%s'", str));
+}
+
+std::ostream& operator<<(std::ostream& os, FlowControl fc) {
+  os << FlowControlToString(fc);
+  return os;
+}
 
 bool Channel::IsRegister() const { return kind_ == ChannelKind::kRegister; }
 

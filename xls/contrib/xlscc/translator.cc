@@ -3693,12 +3693,14 @@ absl::StatusOr<xls::Channel*> Translator::CreateChannel(
 
   if (streaming) {
     XLS_ASSIGN_OR_RETURN(
-        channel, package->CreateStreamingChannel(
-                     hls_channel.name(),
-                     hls_channel.is_input() ? xls::ChannelOps::kReceiveOnly
-                                            : xls::ChannelOps::kSendOnly,
-                     data_type, /*initial_values=*/{}, metadata,
-                     /*id=*/port_order));
+        channel,
+        package->CreateStreamingChannel(
+            hls_channel.name(),
+            hls_channel.is_input() ? xls::ChannelOps::kReceiveOnly
+                                   : xls::ChannelOps::kSendOnly,
+            data_type,
+            /*initial_values=*/{}, xls::FlowControl::kReadyValid, metadata,
+            /*id=*/port_order));
   } else {
     XLS_ASSIGN_OR_RETURN(
         channel, package->CreatePortChannel(hls_channel.name(),

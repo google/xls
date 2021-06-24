@@ -236,8 +236,8 @@ TEST_F(ProcBuilderVisitorTest, CanCompileProcs) {
   const std::string kIrText = R"(
 package p
 
-chan c_i(bits[32], id=0, kind=streaming, ops=receive_only, metadata="")
-chan c_o(bits[32], id=1, kind=streaming, ops=send_only, metadata="")
+chan c_i(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, metadata="")
+chan c_o(bits[32], id=1, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
 proc the_proc(my_token: token, state: (), init=()) {
   literal.1: bits[32] = literal(value=3)
@@ -282,8 +282,8 @@ TEST_F(ProcBuilderVisitorTest, RecvIf) {
   const std::string kIrText = R"(
 package p
 
-chan c_i(bits[32], id=0, kind=streaming, ops=receive_only, metadata="")
-chan c_o(bits[32], id=1, kind=streaming, ops=send_only, metadata="")
+chan c_i(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, metadata="")
+chan c_o(bits[32], id=1, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
 proc the_proc(my_token: token, state: bits[1], init=0) {
   receive_if.2: (token, bits[32]) = receive_if(my_token, state, channel_id=0)
@@ -328,8 +328,8 @@ TEST_F(ProcBuilderVisitorTest, SendIf) {
   const std::string kIrText = R"(
 package p
 
-chan c_i(bits[32], id=0, kind=streaming, ops=receive_only, metadata="")
-chan c_o(bits[32], id=1, kind=streaming, ops=send_only, metadata="")
+chan c_i(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, metadata="")
+chan c_o(bits[32], id=1, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
 proc the_proc(my_token: token, state: bits[1], init=0) {
   receive.2: (token, bits[32]) = receive(my_token, channel_id=0)
@@ -392,8 +392,8 @@ TEST_F(ProcBuilderVisitorTest, GetsUserData) {
   const std::string kIrText = R"(
 package p
 
-chan c_i(bits[32], id=0, kind=streaming, ops=receive_only, metadata="")
-chan c_o(bits[32], id=1, kind=streaming, ops=send_only, metadata="")
+chan c_i(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, metadata="")
+chan c_o(bits[32], id=1, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
 proc the_proc(my_token: token, state: (), init=()) {
   literal.1: bits[32] = literal(value=3)

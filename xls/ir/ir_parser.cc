@@ -1506,6 +1506,7 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   bool must_end = false;
   absl::optional<ChannelKind> kind;
   absl::optional<int64_t> position;
+  absl::optional<FlowControl> flow_control;
   // Iterate through the comma-separated elements in the channel definition.
   // Examples:
   //
@@ -1588,6 +1589,18 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
         XLS_ASSIGN_OR_RETURN(Token pos_token, scanner_.PopTokenOrError(
                                                   LexicalTokenType::kLiteral));
         XLS_ASSIGN_OR_RETURN(position, pos_token.GetValueInt64());
+      } else if (field_name.value() == "flow_control") {
+        XLS_ASSIGN_OR_RETURN(
+            Token flow_control_token,
+            scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+        absl::StatusOr<FlowControl> flow_control_status =
+            StringToFlowControl(flow_control_token.value());
+        if (!flow_control_status.ok()) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Invalid flow control value \"%s\" @ %s",
+              flow_control_token.value(), field_name.pos().ToHumanString()));
+        }
+        flow_control = flow_control_status.value();
       } else {
         return absl::InvalidArgumentError(absl::StrFormat(
             "Invalid channel attribute \"%s\" @ %s", field_name.value(),
@@ -1616,12 +1629,18 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   if (position.has_value() && kind != ChannelKind::kPort) {
     return error("Only port channels can have positions");
   }
+  if (flow_control.has_value() && kind != ChannelKind::kStreaming) {
+    return error("Only streaming channels can have flow control");
+  }
 
   switch (kind.value()) {
     case ChannelKind::kStreaming:
-      return package->CreateStreamingChannel(channel_name.value(),
-                                             *supported_ops, type,
-                                             initial_values, *metadata, *id);
+      if (!flow_control.has_value()) {
+        return error("Streaming channels must have flow control");
+      }
+      return package->CreateStreamingChannel(
+          channel_name.value(), *supported_ops, type, initial_values,
+          flow_control.value(), *metadata, *id);
     case ChannelKind::kPort: {
       if (!initial_values.empty()) {
         return absl::InvalidArgumentError(

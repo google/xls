@@ -81,8 +81,8 @@ TEST_F(StateRemovalPassTest, InterpretAccumulatorProc) {
   std::string input = R"(
 package test
 
-chan in(bits[32], kind=streaming, id=0, ops=receive_only, metadata="")
-chan out(bits[32], kind=streaming, id=1, ops=send_only, metadata="")
+chan in(bits[32], kind=streaming, id=0, ops=receive_only, flow_control=ready_valid, metadata="")
+chan out(bits[32], kind=streaming, id=1, ops=send_only, flow_control=ready_valid, metadata="")
 
 proc accumulator(tkn: token, accum: bits[32], init=100) {
   input_recv: (token, bits[32]) = receive(tkn, channel_id=0)

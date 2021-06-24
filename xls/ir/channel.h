@@ -115,15 +115,40 @@ class Channel {
   ChannelMetadataProto metadata_;
 };
 
+// The flow control mechanism to use for streaming channels. This affects how
+// the channels are lowered to verilog.
+enum class FlowControl {
+  // The channel has no flow control. Some external mechanism ensures data is
+  // neither lost nor corrupted.
+  kNone,
+
+  // The channel uses a ready-valid handshake. A ready signal indicates the
+  // receiver is ready to accept data, and a valid signal indicates the data
+  // signal is valid. When both ready and valid are asserted a transaction
+  // occurs.
+  kReadyValid,
+};
+
+std::string FlowControlToString(FlowControl fc);
+absl::StatusOr<FlowControl> StringToFlowControl(absl::string_view str);
+std::ostream& operator<<(std::ostream& os, FlowControl fc);
+
 // A channel with FIFO semantics. Send operations add an data entry to the
 // channel; receives remove an element from the channel with FIFO ordering.
 class StreamingChannel : public Channel {
  public:
   StreamingChannel(absl::string_view name, int64_t id, ChannelOps supported_ops,
                    Type* type, absl::Span<const Value> initial_values,
+                   FlowControl flow_control,
                    const ChannelMetadataProto& metadata)
       : Channel(name, id, supported_ops, ChannelKind::kStreaming, type,
-                initial_values, metadata) {}
+                initial_values, metadata),
+        flow_control_(flow_control) {}
+
+  FlowControl flow_control() const { return flow_control_; }
+
+ public:
+  FlowControl flow_control_;
 };
 
 // A channel representing a port in a generated block. PortChannels do not

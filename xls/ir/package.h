@@ -26,6 +26,7 @@
 #include "absl/container/node_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/fileno.h"
@@ -190,6 +191,7 @@ class Package {
   absl::StatusOr<StreamingChannel*> CreateStreamingChannel(
       absl::string_view name, ChannelOps supported_ops, Type* type,
       absl::Span<const Value> initial_values = {},
+      FlowControl flow_control = FlowControl::kReadyValid,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
       absl::optional<int64_t> id = absl::nullopt);
   absl::StatusOr<PortChannel*> CreatePortChannel(

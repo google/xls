@@ -280,13 +280,15 @@ TEST(IrMatchersTest, ReductionOps) {
 TEST(IrMatchersTest, SendOps) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch42, p.CreateStreamingChannel(
-                          "ch42", ChannelOps ::kSendReceive, p.GetBitsType(32),
-                          {}, ChannelMetadataProto(), 42));
+      Channel * ch42,
+      p.CreateStreamingChannel("ch42", ChannelOps ::kSendReceive,
+                               p.GetBitsType(32), {}, FlowControl::kReadyValid,
+                               ChannelMetadataProto(), 42));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch123,
-      p.CreatePortChannel("ch123", ChannelOps::kSendReceive, p.GetBitsType(32),
-                          ChannelMetadataProto(), 123));
+      p.CreateStreamingChannel("ch123", ChannelOps::kSendReceive,
+                               p.GetBitsType(32), {}, FlowControl::kReadyValid,
+                               ChannelMetadataProto(), 123));
 
   ProcBuilder b("proc", Value(UBits(333, 32)), "my_token", "my_state", &p);
   auto send = b.Send(ch42, b.GetTokenParam(), {b.GetStateParam()});
@@ -310,13 +312,15 @@ TEST(IrMatchersTest, SendOps) {
 TEST(IrMatchersTest, ReceiveOps) {
   Package p("p");
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch42, p.CreateStreamingChannel(
-                          "ch42", ChannelOps ::kSendReceive, p.GetBitsType(32),
-                          {}, ChannelMetadataProto(), 42));
+      Channel * ch42,
+      p.CreateStreamingChannel("ch42", ChannelOps ::kSendReceive,
+                               p.GetBitsType(32), {}, FlowControl::kReadyValid,
+                               ChannelMetadataProto(), 42));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch123,
-      p.CreatePortChannel("ch123", ChannelOps::kSendReceive, p.GetBitsType(32),
-                          ChannelMetadataProto(), 123));
+      p.CreateStreamingChannel("ch123", ChannelOps::kSendReceive,
+                               p.GetBitsType(32), {}, FlowControl::kReadyValid,
+                               ChannelMetadataProto(), 123));
 
   ProcBuilder b("proc", Value(UBits(333, 32)), "my_token", "my_state", &p);
   auto receive = b.Receive(ch42, b.GetTokenParam());
@@ -338,7 +342,8 @@ TEST(IrMatchersTest, ReceiveOps) {
   EXPECT_THAT(receive_if.node(), m::ReceiveIf(m::Channel(123)));
   EXPECT_THAT(receive_if.node(), m::ReceiveIf(m::Name("my_token"), m::Literal(),
                                               m::Channel("ch123")));
-  EXPECT_THAT(receive_if.node(), m::ReceiveIf(m::Channel(ChannelKind::kPort)));
+  EXPECT_THAT(receive_if.node(),
+              m::ReceiveIf(m::Channel(ChannelKind::kStreaming)));
 
   // Mismatch conditions.
   EXPECT_THAT(Explain(receive.node(), m::Receive(m::Channel(444))),

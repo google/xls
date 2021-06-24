@@ -1145,7 +1145,7 @@ fn bar(to_update: bits[123], start: bits[8], value: bits[23]) -> bits[123] {
 TEST(IrParserTest, ParseSimpleProc) {
   const std::string input = R"(package test
 
-chan ch(bits[32], id=0, kind=streaming, ops=send_receive, metadata="""""")
+chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, metadata="""""")
 
 proc my_proc(my_token: token, my_state: bits[32], init=42) {
   send.1: token = send(my_token, my_state, channel_id=0, id=1)
@@ -1160,8 +1160,8 @@ proc my_proc(my_token: token, my_state: bits[32], init=42) {
 TEST(IrParserTest, ParsePortsWithPositions) {
   const std::string input = R"(package test
 
-chan ch0(bits[32], id=0, kind=port, ops=send_only, position=0, metadata="""""")
-chan ch1(bits[32], id=1, kind=port, ops=send_only, position=1, metadata="""""")
+chan ch0(bits[32], position=0, id=0, kind=port, ops=send_only, metadata="""""")
+chan ch1(bits[32], position=1, id=1, kind=port, ops=send_only, metadata="""""")
 
 proc my_proc(my_token: token, my_state: bits[32], init=42) {
   literal.1: bits[32] = literal(value=42, id=1)
@@ -1986,7 +1986,8 @@ TEST(IrParserTest, ParseSendReceiveChannelWithInitialValues) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch,
       Parser::ParseChannel(
-          R"(chan foo(bits[32], initial_values={2, 4, 5}, id=42, kind=streaming, ops=send_receive,
+          R"(chan foo(bits[32], initial_values={2, 4, 5}, id=42, kind=streaming,
+                         flow_control=none, ops=send_receive,
                          metadata="module_port { flopped: true }"))",
           &p));
   EXPECT_EQ(ch->name(), "foo");
@@ -2021,7 +2022,8 @@ TEST(IrParserTest, ParseSendReceiveChannelWithTupleType) {
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
                                              R"(chan foo((bits[32], bits[1]),
                       initial_values={(123, 1), (42, 0)},
-                      id=42, kind=streaming,  ops=send_receive,
+                      id=42, kind=streaming, flow_control=ready_valid,
+                      ops=send_receive,
                       metadata="module_port { flopped: true }"))",
                                              &p));
   EXPECT_EQ(ch->name(), "foo");
@@ -2158,9 +2160,9 @@ TEST(IrParserTest, PackageWithSingleDataElementChannels) {
   std::string program = R"(
 package test
 
-chan hbo(bits[32], id=0, kind=streaming, ops=receive_only,
+chan hbo(bits[32], id=0, kind=streaming, flow_control=none, ops=receive_only,
             metadata="module_port { flopped: true }")
-chan mtv(bits[32], id=1, kind=streaming, ops=send_only,
+chan mtv(bits[32], id=1, kind=streaming, flow_control=none, ops=send_only,
             metadata="module_port { flopped: true }")
 
 proc my_proc(my_token: token, my_state: bits[32], init=42) {

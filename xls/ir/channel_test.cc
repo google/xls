@@ -47,10 +47,9 @@ TEST(ChannelTest, ChannelOpsToString) {
 
 TEST(ChannelTest, ConstructStreamingChannel) {
   Package p("my_package");
-  ChannelMetadataProto metadata;
-  metadata.mutable_module_port()->set_flopped(true);
-  StreamingChannel ch("my_channel", 42, ChannelOps::kReceiveOnly,
-                      p.GetBitsType(32), /*initial_values=*/{}, metadata);
+  StreamingChannel ch(
+      "my_channel", 42, ChannelOps::kReceiveOnly, p.GetBitsType(32),
+      /*initial_values=*/{}, FlowControl::kReadyValid, ChannelMetadataProto());
 
   EXPECT_EQ(ch.name(), "my_channel");
   EXPECT_TRUE(ch.IsStreaming());
@@ -61,6 +60,7 @@ TEST(ChannelTest, ConstructStreamingChannel) {
   EXPECT_EQ(ch.supported_ops(), ChannelOps::kReceiveOnly);
   EXPECT_EQ(ch.type(), p.GetBitsType(32));
   EXPECT_TRUE(ch.initial_values().empty());
+  EXPECT_EQ(ch.flow_control(), FlowControl::kReadyValid);
 }
 
 TEST(ChannelTest, ConstructPortChannel) {
@@ -112,9 +112,10 @@ TEST(ChannelTest, ConstructLogicalChannel) {
 
 TEST(ChannelTest, StreamingChannelWithInitialValues) {
   Package p("my_package");
-  StreamingChannel ch(
-      "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32),
-      {Value(UBits(11, 32)), Value(UBits(22, 32))}, ChannelMetadataProto());
+  StreamingChannel ch("my_channel", 42, ChannelOps::kSendReceive,
+                      p.GetBitsType(32),
+                      {Value(UBits(11, 32)), Value(UBits(22, 32))},
+                      FlowControl::kNone, ChannelMetadataProto());
 
   EXPECT_EQ(ch.name(), "my_channel");
   EXPECT_EQ(ch.id(), 42);
@@ -122,6 +123,7 @@ TEST(ChannelTest, StreamingChannelWithInitialValues) {
   EXPECT_EQ(ch.type(), p.GetBitsType(32));
   EXPECT_THAT(ch.initial_values(),
               ElementsAre(Value(UBits(11, 32)), Value(UBits(22, 32))));
+  EXPECT_EQ(ch.flow_control(), FlowControl::kNone);
 }
 
 TEST(ChannelTest, StreamingToStringParses) {
@@ -131,12 +133,12 @@ TEST(ChannelTest, StreamingToStringParses) {
       Value::Tuple({Value(UBits(2222, 32)), Value(UBits(444, 23))})};
   StreamingChannel ch("my_channel", 42, ChannelOps::kReceiveOnly,
                       p.GetTypeForValue(initial_values.front()), initial_values,
-                      ChannelMetadataProto());
+                      FlowControl::kReadyValid, ChannelMetadataProto());
   std::string channel_str = ch.ToString();
   EXPECT_EQ(channel_str,
-            "chan my_channel((bits[32], bits[23]), "
-            "initial_values={(1234, 33), (2222, 444)}, id=42, kind=streaming, "
-            "ops=receive_only, metadata=\"\"\"\"\"\")");
+            "chan my_channel((bits[32], bits[23]), initial_values={(1234, 33), "
+            "(2222, 444)}, id=42, kind=streaming, ops=receive_only, "
+            "flow_control=ready_valid, metadata=\"\"\"\"\"\")");
 
   // Create another package and try to parse the channel into the other
   // package. We can't use the existing package because adding the channel will

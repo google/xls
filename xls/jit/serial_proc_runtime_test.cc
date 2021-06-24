@@ -47,9 +47,9 @@ TEST(SerialProcRuntimeTest, SimpleNetwork) {
   const std::string kIrText = R"(
 package p
 
-chan a_in(bits[32], id=0, kind=streaming, ops=receive_only, metadata="")
-chan a_to_b(bits[32], id=1, kind=streaming, ops=send_receive, metadata="")
-chan b_out(bits[32], id=2, kind=streaming, ops=send_only, metadata="")
+chan a_in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, metadata="")
+chan a_to_b(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=none, metadata="")
+chan b_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
 proc a(my_token: token, state: (), init=()) {
   literal.1: bits[32] = literal(value=2)
@@ -115,14 +115,14 @@ TEST(SerialProcRuntimeTest, XNetwork) {
   const std::string kIrText = R"(
 package p
 
-chan i_a(bits[32], id=0, kind=streaming, ops=receive_only, metadata="")
-chan i_b(bits[32], id=1, kind=streaming, ops=receive_only, metadata="")
-chan a_c(bits[32], id=2, kind=streaming, ops=send_receive, metadata="")
-chan b_c(bits[32], id=3, kind=streaming, ops=send_receive, metadata="")
-chan c_d(bits[32], id=4, kind=streaming, ops=send_receive, metadata="")
-chan c_e(bits[32], id=5, kind=streaming, ops=send_receive, metadata="")
-chan d_o(bits[32], id=6, kind=streaming, ops=send_only, metadata="")
-chan e_o(bits[32], id=7, kind=streaming, ops=send_only, metadata="")
+chan i_a(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, metadata="")
+chan i_b(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=none, metadata="")
+chan a_c(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=none, metadata="")
+chan b_c(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=none, metadata="")
+chan c_d(bits[32], id=4, kind=streaming, ops=send_receive, flow_control=none, metadata="")
+chan c_e(bits[32], id=5, kind=streaming, ops=send_receive, flow_control=none, metadata="")
+chan d_o(bits[32], id=6, kind=streaming, ops=send_only, flow_control=none, metadata="")
+chan e_o(bits[32], id=7, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
 proc a(my_token: token, state: (), init=()) {
   literal.1: bits[32] = literal(value=1)
@@ -215,9 +215,9 @@ TEST(SerialProcRuntimeTest, CarriesState) {
   const std::string kIrText = R"(
 package p
 
-chan a_in(bits[32], id=0, kind=streaming, ops=receive_only, metadata="")
-chan a_to_b(bits[32], id=1, kind=streaming, ops=send_receive, metadata="")
-chan b_out(bits[32], id=2, kind=streaming, ops=send_only, metadata="")
+chan a_in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, metadata="")
+chan a_to_b(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=none, metadata="")
+chan b_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
 proc a(my_token: token, state: (bits[32]), init=(1)) {
   tuple_index.1: bits[32] = tuple_index(state, index=0)
@@ -274,8 +274,8 @@ TEST(SerialProcRuntimeTest, DetectsDeadlock) {
   const std::string kIrText = R"(
 package p
 
-chan first(bits[32], id=1, kind=streaming, ops=send_receive, metadata="")
-chan second(bits[32], id=2, kind=streaming, ops=send_receive, metadata="")
+chan first(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=none, metadata="")
+chan second(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=none, metadata="")
 
 proc a(my_token: token, state: bits[1], init=0) {
   literal.1: bits[32] = literal(value=1)
@@ -304,9 +304,9 @@ TEST(SerialProcRuntimeTest, FinishesDelayedCycle) {
   const std::string kIrText = R"(
 package p
 
-chan input(bits[32], id=0, kind=streaming, ops=receive_only, metadata="")
-chan a_to_b(bits[32], id=1, kind=streaming, ops=send_receive, metadata="")
-chan output(bits[32], id=2, kind=streaming, ops=send_only, metadata="")
+chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, metadata="")
+chan a_to_b(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=none, metadata="")
+chan output(bits[32], id=2, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
 proc a(my_token: token, state: (), init=()) {
   receive.1: (token, bits[32]) = receive(my_token, channel_id=0)
@@ -349,8 +349,8 @@ TEST(SerialProcRuntimeTest, WideTypes) {
   const std::string kIrText = R"(
 package p
 
-chan in((bits[132], bits[217]), id=0, kind=streaming, ops=receive_only, metadata="")
-chan out((bits[132], bits[217]), id=1, kind=streaming, ops=send_only, metadata="")
+chan in((bits[132], bits[217]), id=0, kind=streaming, ops=receive_only, flow_control=none, metadata="")
+chan out((bits[132], bits[217]), id=1, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
 proc a(my_token: token, state: (), init=()) {
   rcv: (token, (bits[132], bits[217])) = receive(my_token, channel_id=0)

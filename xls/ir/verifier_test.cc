@@ -204,7 +204,7 @@ TEST_F(VerifierTest, ProcMissingReceive) {
   std::string input = R"(
 package test_package
 
-chan ch(bits[32], id=42, kind=streaming, ops=send_receive, metadata="""module_port { flopped: true }""")
+chan ch(bits[32], id=42, kind=streaming, ops=send_receive, flow_control=none, metadata="""module_port { flopped: true }""")
 
 proc my_proc(t: token, s: bits[42], init=45) {
   send.1: token = send(t, s, channel_id=42)
@@ -224,7 +224,7 @@ TEST_F(VerifierTest, MultipleSendNodes) {
   std::string input = R"(
 package test_package
 
-chan ch(bits[32], id=42, kind=streaming, ops=send_only, metadata="""module_port { flopped: true }""")
+chan ch(bits[32], id=42, kind=streaming, ops=send_only, flow_control=none, metadata="""module_port { flopped: true }""")
 
 proc my_proc(t: token, s: bits[42], init=45) {
   send.1: token = send(t, s, channel_id=42)
@@ -244,7 +244,7 @@ TEST_F(VerifierTest, DisconnectedSendNode) {
   std::string input = R"(
 package test_package
 
-chan ch(bits[32], id=42, kind=streaming, ops=send_only, metadata="""module_port { flopped: true }""")
+chan ch(bits[32], id=42, kind=streaming, ops=send_only, flow_control=none, metadata="""module_port { flopped: true }""")
 
 proc my_proc(t: token, s: bits[42], init=45) {
   after_all.1: token = after_all()
@@ -264,7 +264,7 @@ TEST_F(VerifierTest, DisconnectedReceiveNode) {
   std::string input = R"(
 package test_package
 
-chan ch(bits[32], id=42, kind=streaming, ops=receive_only, metadata="""module_port { flopped: true }""")
+chan ch(bits[32], id=42, kind=streaming, ops=receive_only, flow_control=none, metadata="""module_port { flopped: true }""")
 
 proc my_proc(t: token, s: bits[42], init=45) {
   receive.1: (token, bits[32]) = receive(t, channel_id=42)
@@ -300,7 +300,7 @@ TEST_F(VerifierTest, SendOnReceiveOnlyChannel) {
   std::string input = R"(
 package test_package
 
-chan ch(bits[32], id=42, kind=streaming, ops=receive_only, metadata="""module_port { flopped: true }""")
+chan ch(bits[32], id=42, kind=streaming, ops=receive_only, flow_control=none, metadata="""module_port { flopped: true }""")
 
 proc my_proc(t: token, s: bits[42], init=45) {
   send.1: token = send(t, s, channel_id=42)
