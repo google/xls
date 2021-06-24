@@ -85,6 +85,7 @@ rule executes the `xls_dslx_ir` and `xls_ir_opt_ir` rules in that order.
 
 A test rule that executes the commands in the order presented in the list for
 the following rules:
+
    1. xls_dslx_test
 
    2. xls_ir_equivalence_test
