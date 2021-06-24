@@ -238,6 +238,30 @@ xls_ir_jit_wrapper(
     },
 )
 
+xls_dslx_library(
+    name = "sobel_filter_module_libs",
+    srcs = [
+        "//xls/modules:apfloat_add_2.x",
+        "//xls/modules:apfloat_mul_2.x",
+        "//xls/modules:fpadd_2x32.x",
+        "//xls/modules:fpmul_2x32.x",
+        "//third_party/xls_go_math:fpsqrt_32.x",
+    ],
+)
+
+xls_dslx_module_library(
+    name = "sobel_filter_dslx_module",
+    src = "sobel_filter.x",
+    deps = [
+        ":sobel_filter_module_libs",
+    ],
+)
+
+xls_dslx_test(
+    name = "sobel_filter_test",
+    dep = ":dot_product_dslx_module",
+)
+
 list_filegroup_files(
     name = "ir_example_file_list",
     src = ":ir_examples",
