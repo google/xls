@@ -32,7 +32,7 @@ const Y_STENCIL = s32[3][3]:[s32[3]:[-1, -2, -1],
                              s32[3]:[ 0,  0,  0],
                              s32[3]:[ 1,  2,  1]];
 
-// TODO(jbaileyhanlde): Do we have a way to reshape multidimensional
+// TODO(jbaileyhandle): Do we have a way to reshape multidimensional
 // arrays or to apply map to multidemnsional arrays?
 fn convert_triplet(input: s32[3]) -> F32[3] {
   map(input, float32::cast_from_fixed)
@@ -153,6 +153,6 @@ fn sobel_filter_float32_test() {
   ()
 }
 
-// TODO(jbaileyhangle): Fixed-point version (Images are generally fixed point).
+// TODO(jbaileyhandle): Fixed-point version (Images are generally fixed point).
 // Note that sqrt is a floating-point op, so we would need to cast to float
 // internally and then cast the output.
