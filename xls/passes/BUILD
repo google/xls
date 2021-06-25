@@ -956,6 +956,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
+        "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],

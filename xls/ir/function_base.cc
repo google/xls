@@ -61,7 +61,7 @@ absl::StatusOr<Node*> FunctionBase::GetNode(
       return param;
     }
   }
-  return absl::InvalidArgumentError(
+  return absl::NotFoundError(
       absl::StrFormat("GetNode(%s) failed.", standard_node_name));
 }
 
