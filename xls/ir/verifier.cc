@@ -1444,12 +1444,12 @@ absl::Status VerifyChannels(Package* package) {
     }
 
     // Verify type-specific invariants of each channel.
-    if (channel->IsPort()) {
+    if (channel->kind() == ChannelKind::kPort) {
       // Ports cannot have initial values.
       XLS_RET_CHECK_EQ(channel->initial_values().size(), 0);
       // TODO(meheff): Port channels should not support SendIf and ReceiveIf.
       // Add check when such uses are removed.
-    } else if (channel->IsRegister()) {
+    } else if (channel->kind() == ChannelKind::kRegister) {
       // Registers have at most one initial value.
       XLS_RET_CHECK_LE(channel->initial_values().size(), 1);
       // Registers must be send/receive.
@@ -1463,6 +1463,14 @@ absl::Status VerifyChannels(Package* package) {
           << absl::StreamFormat(
                  "Register channels do not support ReceiveIf operations: %s",
                  channel->name());
+    }
+
+    // Verify type-specific invariants of each channel.
+    if (channel->kind() == ChannelKind::kSingleValue) {
+      // Single-value channels cannot have initial values.
+      XLS_RET_CHECK_EQ(channel->initial_values().size(), 0);
+      // TODO(meheff): 2021/06/24 Single-value channels should not support
+      // SendIf and ReceiveIf. Add check when such uses are removed.
     }
   }
 

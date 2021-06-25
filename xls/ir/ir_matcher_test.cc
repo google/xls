@@ -351,8 +351,9 @@ TEST(IrMatchersTest, ReceiveOps) {
   EXPECT_THAT(Explain(receive.node(), m::Receive(m::Channel("foobar"))),
               HasSubstr("has incorrect name (ch42), expected: foobar"));
   EXPECT_THAT(
-      Explain(receive.node(), m::Receive(m::Channel(ChannelKind::kRegister))),
-      HasSubstr(" has incorrect kind (streaming), expected: register"));
+      Explain(receive.node(),
+              m::Receive(m::Channel(ChannelKind::kSingleValue))),
+      HasSubstr(" has incorrect kind (streaming), expected: single_value"));
 }
 
 TEST(IrMatchersTest, PortMatcher) {

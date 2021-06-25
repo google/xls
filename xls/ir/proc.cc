@@ -99,7 +99,7 @@ absl::StatusOr<std::vector<Proc::Port>> Proc::GetPorts() const {
                                             : node->As<Receive>()->channel_id();
       XLS_ASSIGN_OR_RETURN(Channel * channel,
                            package()->GetChannel(channel_id));
-      if (channel->IsPort()) {
+      if (channel->kind() == ChannelKind::kPort) {
         ports.push_back(Port{down_cast<PortChannel*>(channel),
                              node->Is<Receive>() ? PortDirection::kInput
                                                  : PortDirection::kOutput,

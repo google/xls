@@ -38,11 +38,19 @@ enum class ChannelKind {
   kPort,
 
   // A channel corresponding to a hardware register in codegen.
+  // TODO(https://github.com/google/xls/issues/410): 2021/05/07 Remove when
+  // blocks are supported.
   kRegister,
 
   // An abstract channel gathering together a data port channel
   // with flow control ports (e.g., ready and valid).
-  kLogical
+  // TODO(meheff): 2021/06/24 Remove until there is a motivating use case.
+  kLogical,
+
+  // A channel which holds a single value. Values are written to the channel via
+  // send operations which overwrites the previously sent valuds. Receives
+  // nondestructively read the most-recently sent value.
+  kSingleValue,
 };
 
 std::string ChannelKindToString(ChannelKind kind);
@@ -97,11 +105,6 @@ class Channel {
   }
 
   ChannelKind kind() const { return kind_; }
-
-  bool IsStreaming() const;
-  bool IsPort() const;
-  bool IsRegister() const;
-  bool IsLogical() const;
 
   virtual std::string ToString() const;
 
@@ -218,6 +221,18 @@ class LogicalChannel : public Channel {
   PortChannel* ready_channel_;
   PortChannel* valid_channel_;
   PortChannel* data_channel_;
+};
+
+// A channel which holds a single value. Values are written to the channel via
+// send operations, and receives nondestructively read the most-recently sent
+// value. SingleValueChannels are stateless and do not support initial values.
+class SingleValueChannel : public Channel {
+ public:
+  SingleValueChannel(absl::string_view name, int64_t id,
+                     ChannelOps supported_ops, Type* type,
+                     const ChannelMetadataProto& metadata)
+      : Channel(name, id, supported_ops, ChannelKind::kSingleValue, type,
+                /*initial_values=*/{}, metadata) {}
 };
 
 }  // namespace xls

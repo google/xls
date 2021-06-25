@@ -31,6 +31,8 @@ std::string ChannelKindToString(ChannelKind kind) {
       return "register";
     case ChannelKind::kLogical:
       return "logical";
+    case ChannelKind::kSingleValue:
+      return "single_value";
   }
   XLS_LOG(FATAL) << "Invalid channel kind: " << static_cast<int64_t>(kind);
 }
@@ -44,6 +46,8 @@ absl::StatusOr<ChannelKind> StringToChannelKind(absl::string_view str) {
     return ChannelKind::kRegister;
   } else if (str == "logical") {
     return ChannelKind::kLogical;
+  } else if (str == "single_value") {
+    return ChannelKind::kSingleValue;
   }
   return absl::InvalidArgumentError(
       absl::StrFormat("Invalid channel kind '%s'", str));
@@ -76,7 +80,7 @@ std::string Channel::ToString() const {
                         ChannelKindToString(kind_),
                         ChannelOpsToString(supported_ops()));
 
-  if (IsStreaming()) {
+  if (kind() == ChannelKind::kStreaming) {
     absl::StrAppendFormat(
         &result, "flow_control=%s, ",
         FlowControlToString(
@@ -88,8 +92,6 @@ std::string Channel::ToString() const {
 
   return result;
 }
-
-bool Channel::IsStreaming() const { return kind_ == ChannelKind::kStreaming; }
 
 std::string FlowControlToString(FlowControl fc) {
   switch (fc) {
@@ -115,11 +117,5 @@ std::ostream& operator<<(std::ostream& os, FlowControl fc) {
   os << FlowControlToString(fc);
   return os;
 }
-
-bool Channel::IsRegister() const { return kind_ == ChannelKind::kRegister; }
-
-bool Channel::IsPort() const { return kind_ == ChannelKind::kPort; }
-
-bool Channel::IsLogical() const { return kind_ == ChannelKind::kLogical; }
 
 }  // namespace xls

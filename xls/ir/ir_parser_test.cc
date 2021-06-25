@@ -1966,14 +1966,14 @@ TEST(IrParserTest, ParseSendReceiveChannel) {
   Package p("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch,
                            Parser::ParseChannel(
-                               R"(chan foo(bits[32], id=42, kind=port,
+                               R"(chan foo(bits[32], id=42, kind=single_value,
                       ops=send_receive,
                       metadata="module_port { flopped: true }"))",
                                &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
   EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendReceive);
-  EXPECT_TRUE(ch->IsPort());
+  EXPECT_EQ(ch->kind(), ChannelKind::kSingleValue);
   EXPECT_EQ(ch->type(), p.GetBitsType(32));
   EXPECT_TRUE(ch->initial_values().empty());
   EXPECT_EQ(ch->metadata().channel_oneof_case(),
@@ -1993,7 +1993,7 @@ TEST(IrParserTest, ParseSendReceiveChannelWithInitialValues) {
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
   EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendReceive);
-  EXPECT_TRUE(ch->IsStreaming());
+  EXPECT_EQ(ch->kind(), ChannelKind::kStreaming);
   EXPECT_EQ(ch->type(), p.GetBitsType(32));
   EXPECT_THAT(ch->initial_values(),
               ElementsAre(Value(UBits(2, 32)), Value(UBits(4, 32)),
@@ -2013,7 +2013,6 @@ TEST(IrParserTest, ParseSendReceiveChannelWithEmptyInitialValues) {
                       metadata="module_port { flopped: true }"))",
           &p));
   EXPECT_EQ(ch->name(), "foo");
-  EXPECT_TRUE(ch->IsRegister());
   EXPECT_TRUE(ch->initial_values().empty());
 }
 
@@ -2037,7 +2036,7 @@ TEST(IrParserTest, ParseSendOnlyChannel) {
   Package p("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
                                              R"(chan bar((bits[32], bits[1]),
-                         id=7, kind=port, ops=send_only,
+                         id=7, kind=single_value, ops=send_only,
                          metadata="module_port { flopped: false }"))",
                                              &p));
   EXPECT_EQ(ch->name(), "bar");
@@ -2053,7 +2052,7 @@ TEST(IrParserTest, ParseReceiveOnlyChannel) {
   Package p("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
                                              R"(chan meh(bits[32][4], id=0,
-                         kind=port, ops=receive_only,
+                         kind=single_value, ops=receive_only,
                          metadata="module_port { flopped: true }"))",
                                              &p));
   EXPECT_EQ(ch->name(), "meh");
@@ -2068,7 +2067,7 @@ TEST(IrParserTest, ParseReceiveOnlyChannel) {
 TEST(IrParserTest, ChannelParsingErrors) {
   Package p("my_package");
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(bits[32][4], kind=port,
+                  R"(chan meh(bits[32][4], kind=single_value,
                          ops=receive_only,
                          metadata="module_port { flopped: true }"))",
                   &p)

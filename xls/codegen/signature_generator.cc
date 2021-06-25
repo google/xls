@@ -101,7 +101,7 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
   for (Node* node : func_base->nodes()) {
     if (IsChannelNode(node)) {
       XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(node));
-      if (!ch->IsPort()) {
+      if (ch->kind() != ChannelKind::kPort) {
         return b.WithUnknownInterface().Build();
       }
     }

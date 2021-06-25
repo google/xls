@@ -106,7 +106,7 @@ ChannelQueueManager::Create(
   // Verify that every receive-only channel has an receive-only queue and create
   // queues for the remaining non-receive-only channels.
   for (Channel* channel : package->channels()) {
-    if (!channel->IsStreaming()) {
+    if (channel->kind() != ChannelKind::kStreaming) {
       return absl::UnimplementedError("Only streaming channels are supported.");
     }
     if (channel->supported_ops() == ChannelOps::kReceiveOnly) {

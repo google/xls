@@ -524,6 +524,17 @@ absl::StatusOr<RegisterChannel*> Package::CreateRegisterChannel(
   return channel_ptr;
 }
 
+absl::StatusOr<SingleValueChannel*> Package::CreateSingleValueChannel(
+    absl::string_view name, ChannelOps supported_ops, Type* type,
+    const ChannelMetadataProto& metadata, absl::optional<int64_t> id) {
+  int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
+  auto channel = absl::make_unique<SingleValueChannel>(
+      name, actual_id, supported_ops, type, metadata);
+  SingleValueChannel* channel_ptr = channel.get();
+  XLS_RETURN_IF_ERROR(AddChannel(std::move(channel)));
+  return channel_ptr;
+}
+
 absl::Status Package::RemoveChannel(Channel* channel) {
   // First check that the channel is owned by this package.
   auto it = std::find(channel_vec_.begin(), channel_vec_.end(), channel);

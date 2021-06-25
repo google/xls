@@ -153,7 +153,7 @@ absl::Status SerialProcRuntime::Init() {
 
   // Enqueue initial values into channels.
   for (Channel* channel : package_->channels()) {
-    if (!channel->IsStreaming()) {
+    if (channel->kind() != ChannelKind::kStreaming) {
       return absl::UnimplementedError(
           "Only streaming channels are supported in serial proc runtime.");
     }

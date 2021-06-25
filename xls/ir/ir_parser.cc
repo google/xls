@@ -1516,9 +1516,6 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   //  // Initial values.
   //  chan my_channel(bits[32], initial_values={1, 2, 3}, id=42, ...)
   //
-  //  // Port channel with position.
-  //  chan my_channel(bits[32], kind=port, position=3, ...)
-  //
   // First parse type.
   XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
@@ -1672,6 +1669,15 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
     }
     case ChannelKind::kLogical:
       return absl::UnimplementedError("Logical channels not implemented.");
+    case ChannelKind::kSingleValue: {
+      if (!initial_values.empty()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Single value channel %s cannot have initial value(s)",
+            channel_name.value()));
+      }
+      return package->CreateSingleValueChannel(
+          channel_name.value(), *supported_ops, type, *metadata, *id);
+    }
   }
 }
 

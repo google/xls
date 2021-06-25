@@ -52,10 +52,7 @@ TEST(ChannelTest, ConstructStreamingChannel) {
       /*initial_values=*/{}, FlowControl::kReadyValid, ChannelMetadataProto());
 
   EXPECT_EQ(ch.name(), "my_channel");
-  EXPECT_TRUE(ch.IsStreaming());
-  EXPECT_FALSE(ch.IsPort());
-  EXPECT_FALSE(ch.IsRegister());
-  EXPECT_FALSE(ch.IsLogical());
+  EXPECT_EQ(ch.kind(), ChannelKind::kStreaming);
   EXPECT_EQ(ch.id(), 42);
   EXPECT_EQ(ch.supported_ops(), ChannelOps::kReceiveOnly);
   EXPECT_EQ(ch.type(), p.GetBitsType(32));
@@ -63,16 +60,13 @@ TEST(ChannelTest, ConstructStreamingChannel) {
   EXPECT_EQ(ch.flow_control(), FlowControl::kReadyValid);
 }
 
-TEST(ChannelTest, ConstructPortChannel) {
+TEST(ChannelTest, ConstructSingleValueChannel) {
   Package p("my_package");
-  PortChannel ch("foo", 42, ChannelOps::kSendOnly, p.GetBitsType(123),
-                 ChannelMetadataProto());
+  SingleValueChannel ch("foo", 42, ChannelOps::kSendOnly, p.GetBitsType(123),
+                        ChannelMetadataProto());
 
   EXPECT_EQ(ch.name(), "foo");
-  EXPECT_FALSE(ch.IsStreaming());
-  EXPECT_TRUE(ch.IsPort());
-  EXPECT_FALSE(ch.IsRegister());
-  EXPECT_FALSE(ch.IsLogical());
+  EXPECT_EQ(ch.kind(), ChannelKind::kSingleValue);
 }
 
 TEST(ChannelTest, ConstructRegisterChannel) {
@@ -81,10 +75,6 @@ TEST(ChannelTest, ConstructRegisterChannel) {
                      ChannelMetadataProto());
 
   EXPECT_EQ(ch.name(), "bar");
-  EXPECT_FALSE(ch.IsStreaming());
-  EXPECT_FALSE(ch.IsPort());
-  EXPECT_TRUE(ch.IsRegister());
-  EXPECT_FALSE(ch.IsLogical());
   EXPECT_EQ(ch.supported_ops(), ChannelOps::kSendReceive);
   EXPECT_EQ(ch.type(), p.GetBitsType(1));
   ASSERT_TRUE(ch.reset_value().has_value());
@@ -103,10 +93,6 @@ TEST(ChannelTest, ConstructLogicalChannel) {
                     ChannelMetadataProto());
 
   EXPECT_EQ(ch.name(), "my_channel");
-  EXPECT_FALSE(ch.IsStreaming());
-  EXPECT_FALSE(ch.IsPort());
-  EXPECT_FALSE(ch.IsRegister());
-  EXPECT_TRUE(ch.IsLogical());
   EXPECT_EQ(ch.type(), p.GetBitsType(123));
 }
 
@@ -150,14 +136,14 @@ TEST(ChannelTest, StreamingToStringParses) {
   EXPECT_EQ(parsed_ch->id(), 42);
 }
 
-TEST(ChannelTest, PortToStringParses) {
+TEST(ChannelTest, SingleValueToStringParses) {
   Package p("my_package");
-  PortChannel ch("my_channel", 42, ChannelOps::kReceiveOnly, p.GetBitsType(32),
-                 ChannelMetadataProto());
+  SingleValueChannel ch("my_channel", 42, ChannelOps::kReceiveOnly,
+                        p.GetBitsType(32), ChannelMetadataProto());
   std::string channel_str = ch.ToString();
   EXPECT_EQ(channel_str,
-            "chan my_channel(bits[32], id=42, kind=port, ops=receive_only, "
-            "metadata=\"\"\"\"\"\")");
+            "chan my_channel(bits[32], id=42, kind=single_value, "
+            "ops=receive_only, metadata=\"\"\"\"\"\")");
 
   // Create another package and try to parse the channel into the other
   // package. We can't use the existing package because adding the channel will

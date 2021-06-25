@@ -220,7 +220,7 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(
         node->Is<ReceiveIf>()) {
       XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
       XLS_CHECK(channel_gen_types.contains(channel));
-      if (!channel->IsPort()) {
+      if (channel->kind() != ChannelKind::kPort) {
         return absl::UnimplementedError(absl::StrFormat(
             "Only port channels supported: %s", channel->ToString()));
       }
