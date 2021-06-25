@@ -27,7 +27,7 @@
 
 namespace xls {
 
-// A queue (arbitrary depth-FIFO) backing a particular channel during
+// Abstract base class for queues which represent channels during IR
 // interpretation. During interpretation of a network of procs each channel is
 // backed by exactly one ChannelQueue. ChannelQueues are thread-compatible, but
 // not thread-safe.
@@ -41,7 +41,6 @@ class ChannelQueue {
   // copyable) and queues, and accidentally creating a copy of a queue could
   // produce a hard-to-debug problem.
   ChannelQueue(const ChannelQueue&) = delete;
-  ChannelQueue operator=(const ChannelQueue&) = delete;
 
   virtual ~ChannelQueue() = default;
 
@@ -49,13 +48,37 @@ class ChannelQueue {
   Channel* channel() const { return channel_; }
 
   // Returns the number of elements currently in the channel queue.
-  virtual int64_t size() const {
+  virtual int64_t size() const = 0;
+
+  // Returns whether the channel queue is empty.
+  virtual bool empty() const = 0;
+
+  // Enqueues the given value on to the channel.
+  virtual absl::Status Enqueue(const Value& value) = 0;
+
+  // Dequeues and returns a value from the channel. Returns an error if the
+  // channel is empty.
+  virtual absl::StatusOr<Value> Dequeue() = 0;
+
+ protected:
+  Channel* channel_;
+};
+
+// A queue representing an arbitrary-depth FIFO. This matches the abstract
+// semantics of streaming channels. FifoChannelQueues are thread--safe.
+class FifoChannelQueue : public ChannelQueue {
+ public:
+  FifoChannelQueue(Channel* channel) : ChannelQueue(channel) {}
+  virtual ~FifoChannelQueue() = default;
+
+  // Returns the number of elements currently in the channel queue.
+  int64_t size() const override {
     absl::MutexLock lock(&mutex_);
     return queue_.size();
   }
 
   // Returns whether the channel queue is empty.
-  virtual bool empty() const {
+  bool empty() const override {
     absl::MutexLock lock(&mutex_);
     return queue_.empty();
   }
@@ -67,9 +90,7 @@ class ChannelQueue {
   // channel is empty.
   virtual absl::StatusOr<Value> Dequeue();
 
- private:
-  Channel* channel_;
-
+ protected:
   // Values are enqueued to the back, and dequeued from the front.
   std::deque<Value> queue_ ABSL_GUARDED_BY(mutex_);
 
@@ -78,20 +99,20 @@ class ChannelQueue {
 
 // A queue backing a receive-only channel. Receive-only channels provide inputs
 // to a network of procs and are enqueued by components outside of XLS.
-class RxOnlyChannelQueue : public ChannelQueue {
+class GeneratedChannelQueue : public ChannelQueue {
  public:
   // generator_func is a function which returns the next value to enqueue on to
   // the channel. The generator_func may be called an arbitrary number of times
   // depending upon how many times the proc interpreter is ticked. The generator
   // function should return an error to terminate the interpreter session.
-  RxOnlyChannelQueue(Channel* channel, Package* package,
-                     std::function<absl::StatusOr<Value>()> generator_func)
-      : ChannelQueue(channel),
-        generator_func_(std::move(generator_func)) {}
-  virtual ~RxOnlyChannelQueue() = default;
+  GeneratedChannelQueue(Channel* channel, Package* package,
+                        std::function<absl::StatusOr<Value>()> generator_func)
+      : ChannelQueue(channel), generator_func_(std::move(generator_func)) {}
+  virtual ~GeneratedChannelQueue() = default;
 
-  // RxOnlyChannelQueue::Enqueue returns an error unconditionally. Values in the
-  // queue is generated from the generator function rather than being enqueued.
+  // GeneratedChannelQueue::Enqueue returns an error unconditionally. Values in
+  // the queue is generated from the generator function rather than being
+  // enqueued.
   absl::Status Enqueue(const Value& value) override;
 
   // Calls the generator function and returns the result.
@@ -102,30 +123,58 @@ class RxOnlyChannelQueue : public ChannelQueue {
   int64_t size() const override { return std::numeric_limits<int64_t>::max(); }
   bool empty() const override { return false; }
 
- private:
+ protected:
   std::function<absl::StatusOr<Value>()> generator_func_;
 };
 
 // An input channel queue which produces a fixed sequence of values. Once the
 // sequence is exhausted, any further calls to Dequeue return an errored.
-class FixedRxOnlyChannelQueue : public RxOnlyChannelQueue {
+class FixedChannelQueue : public GeneratedChannelQueue {
  public:
-  FixedRxOnlyChannelQueue(Channel* channel, Package* package,
-                          absl::Span<const Value> values)
-      : RxOnlyChannelQueue(
+  FixedChannelQueue(Channel* channel, Package* package,
+                    absl::Span<const Value> values)
+      : GeneratedChannelQueue(
             channel, package,
             [this]() -> absl::StatusOr<Value> { return GenerateValue(); }),
         values_(values.begin(), values.end()) {}
-  virtual ~FixedRxOnlyChannelQueue() = default;
+  virtual ~FixedChannelQueue() = default;
 
   int64_t size() const override { return values_.size(); }
   bool empty() const override { return values_.empty(); }
 
- private:
+ protected:
   // Pops and returns the next element out of the deque.
   absl::StatusOr<Value> GenerateValue();
 
   std::deque<Value> values_;
+};
+
+// A ChannelQueue with single-value channel semantics. The data structure holds
+// a single value which is written (or overwritten) via Enqueue. Dequeue
+// non-destructively returns the held value.
+class SingleValueChannelQueue : public ChannelQueue {
+ public:
+  SingleValueChannelQueue(Channel* channel, const Value& initial_value);
+  virtual ~SingleValueChannelQueue() = default;
+
+  absl::Status Enqueue(const Value& value) override {
+    absl::MutexLock lock(&mutex_);
+    value_ = value;
+    return absl::OkStatus();
+  }
+
+  absl::StatusOr<Value> Dequeue() override {
+    absl::MutexLock lock(&mutex_);
+    return value_;
+  }
+
+  int64_t size() const override { return std::numeric_limits<int64_t>::max(); }
+  bool empty() const override { return false; }
+
+ protected:
+  Value value_ ABSL_GUARDED_BY(mutex_);
+
+  mutable absl::Mutex mutex_;
 };
 
 // An abstraction holding a collection of channel queues for interpreting the
@@ -133,11 +182,13 @@ class FixedRxOnlyChannelQueue : public RxOnlyChannelQueue {
 // convenience methods.
 class ChannelQueueManager {
  public:
-  // Creates and returns a queue manager for the given package. rx_only_queues
-  // should contain exactly one receive-only queue per receive-only channel in
-  // the package.
+  // Creates and returns a queue manager for the given package.
+  // user_defined_queues can optionally contain user-constructed queues to use
+  // with some or all of the receive-only channels. This is useful for testing
+  // where the test may want to use a GeneratedChannelQueue or FixedChannelQueue
+  // to feed inputs to the test.
   static absl::StatusOr<std::unique_ptr<ChannelQueueManager>> Create(
-      std::vector<std::unique_ptr<RxOnlyChannelQueue>>&& rx_only_queues,
+      std::vector<std::unique_ptr<ChannelQueue>>&& user_defined_queues,
       Package* package);
 
   // Get the channel queue associated with the channel with the given id/name.
@@ -151,7 +202,7 @@ class ChannelQueueManager {
   absl::StatusOr<ChannelQueue*> GetQueueById(int64_t channel_id);
   absl::StatusOr<ChannelQueue*> GetQueueByName(absl::string_view name);
 
- private:
+ protected:
   explicit ChannelQueueManager(Package* package) : package_(package) {}
 
   Package* package_;

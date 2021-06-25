@@ -124,9 +124,9 @@ TEST_F(ProcNetworkInterpreterTest, ProcIota) {
                                channel, package.get())
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      ProcNetworkInterpreter::Create(package.get(), /*rx_only_queues*/ {}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           ProcNetworkInterpreter::Create(
+                               package.get(), /*user_defined_queues*/ {}));
 
   ChannelQueue& queue = interpreter->queue_manager().GetQueue(channel);
 
@@ -164,9 +164,9 @@ TEST_F(ProcNetworkInterpreterTest, IotaFeedingAccumulator) {
       CreateAccumProc("accum", iota_accum_channel, out_channel, package.get())
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      ProcNetworkInterpreter::Create(package.get(), /*rx_only_queues*/ {}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           ProcNetworkInterpreter::Create(
+                               package.get(), /*user_defined_queues*/ {}));
 
   ChannelQueue& queue = interpreter->queue_manager().GetQueue(out_channel);
 
@@ -193,9 +193,9 @@ TEST_F(ProcNetworkInterpreterTest, DegenerateProc) {
   ProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
                  /*token_name=*/"tok", /*state_name=*/"prev", package.get());
   XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), pb.GetStateParam()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      ProcNetworkInterpreter::Create(package.get(), /*rx_only_queues*/ {}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           ProcNetworkInterpreter::Create(
+                               package.get(), /*user_defined_queues*/ {}));
 
   // Ticking the proc has no observable effect, but it should not hang or crash.
   XLS_ASSERT_OK(interpreter->Tick());
@@ -241,14 +241,14 @@ TEST_F(ProcNetworkInterpreterTest, WrappedProc) {
                                 package.get())
                     .status());
 
-  std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_only_queues;
+  std::vector<std::unique_ptr<ChannelQueue>> queues;
   std::vector<Value> inputs = {
       {Value(UBits(10, 32))}, {Value(UBits(20, 32))}, {Value(UBits(30, 32))}};
-  rx_only_queues.push_back(absl::make_unique<FixedRxOnlyChannelQueue>(
-      in_channel, package.get(), inputs));
+  queues.push_back(
+      absl::make_unique<FixedChannelQueue>(in_channel, package.get(), inputs));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      ProcNetworkInterpreter::Create(package.get(), std::move(rx_only_queues)));
+      ProcNetworkInterpreter::Create(package.get(), std::move(queues)));
 
   XLS_ASSERT_OK(interpreter->Tick());
   XLS_ASSERT_OK(interpreter->Tick());
@@ -273,9 +273,9 @@ TEST_F(ProcNetworkInterpreterTest, DeadlockedProc) {
                                       /*out_channel=*/channel, package.get())
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      ProcNetworkInterpreter::Create(package.get(), /*rx_only_queues*/ {}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           ProcNetworkInterpreter::Create(
+                               package.get(), /*user_defined_queues*/ {}));
 
   // The interpreter can tick once without deadlocking because some instructions
   // can actually execute initially (e.g., the parameters). A subsequent call to
@@ -306,18 +306,18 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecoding) {
                                            output_channel, package.get())
                     .status());
 
-  std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_only_queues;
+  std::vector<std::unique_ptr<ChannelQueue>> queues;
   std::vector<Value> inputs = {
       Value::Tuple({Value(UBits(1, 32)), Value(UBits(42, 8))}),
       Value::Tuple({Value(UBits(3, 32)), Value(UBits(123, 8))}),
       Value::Tuple({Value(UBits(0, 32)), Value(UBits(55, 8))}),
       Value::Tuple({Value(UBits(0, 32)), Value(UBits(66, 8))}),
       Value::Tuple({Value(UBits(2, 32)), Value(UBits(20, 8))})};
-  rx_only_queues.push_back(absl::make_unique<FixedRxOnlyChannelQueue>(
-      input_channel, package.get(), inputs));
+  queues.push_back(absl::make_unique<FixedChannelQueue>(input_channel,
+                                                        package.get(), inputs));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      ProcNetworkInterpreter::Create(package.get(), std::move(rx_only_queues)));
+      ProcNetworkInterpreter::Create(package.get(), std::move(queues)));
 
   ChannelQueue& output_queue =
       interpreter->queue_manager().GetQueue(output_channel);
@@ -365,18 +365,18 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
   BValue send_if = pb.SendIf(output_channel, rx_token, rx_value_even, rx_value);
   XLS_ASSERT_OK(pb.Build(send_if, pb.GetStateParam()));
 
-  std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_only_queues;
+  std::vector<std::unique_ptr<ChannelQueue>> queues;
   std::vector<Value> inputs = {
       Value::Tuple({Value(UBits(1, 32)), Value(UBits(42, 8))}),
       Value::Tuple({Value(UBits(3, 32)), Value(UBits(123, 8))}),
       Value::Tuple({Value(UBits(0, 32)), Value(UBits(55, 8))}),
       Value::Tuple({Value(UBits(0, 32)), Value(UBits(66, 8))}),
       Value::Tuple({Value(UBits(2, 32)), Value(UBits(20, 8))})};
-  rx_only_queues.push_back(absl::make_unique<FixedRxOnlyChannelQueue>(
-      input_channel, package.get(), inputs));
+  queues.push_back(absl::make_unique<FixedChannelQueue>(input_channel,
+                                                        package.get(), inputs));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      ProcNetworkInterpreter::Create(package.get(), std::move(rx_only_queues)));
+      ProcNetworkInterpreter::Create(package.get(), std::move(queues)));
 
   ChannelQueue& output_queue =
       interpreter->queue_manager().GetQueue(output_channel);

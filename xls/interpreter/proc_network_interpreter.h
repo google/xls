@@ -31,11 +31,11 @@ namespace xls {
 class ProcNetworkInterpreter {
  public:
   // Creates and returns an proc network interpreter for the given
-  // package. rx_only_queues must contain a queue for each receive-only
+  // package. user_defined_queues must contain a queue for each receive-only
   // channel in the package.
   static absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>> Create(
       Package* package,
-      std::vector<std::unique_ptr<RxOnlyChannelQueue>>&& rx_only_queues);
+      std::vector<std::unique_ptr<ChannelQueue>>&& user_defined_queues);
 
   // Execute (up to) a single iteration of every proc in the package. In a
   // round-robin fashion each proc is executed until no further progress can be

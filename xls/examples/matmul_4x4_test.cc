@@ -63,18 +63,18 @@ TEST(Matmul4x4Test, Works) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
 
   // Four input queues: (0,0)x, (1,0)x, (2,0)x, (3,0)x
-  std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_queues;
+  std::vector<std::unique_ptr<ChannelQueue>> rx_queues;
   XLS_ASSERT_OK_AND_ASSIGN(Channel * channel, package->GetChannel("c_0_0_x"));
-  rx_queues.emplace_back(std::make_unique<RxOnlyChannelQueue>(
+  rx_queues.emplace_back(std::make_unique<GeneratedChannelQueue>(
       channel, package.get(), []() { return GetX0Value(); }));
   XLS_ASSERT_OK_AND_ASSIGN(channel, package->GetChannel("c_1_0_x"));
-  rx_queues.emplace_back(std::make_unique<RxOnlyChannelQueue>(
+  rx_queues.emplace_back(std::make_unique<GeneratedChannelQueue>(
       channel, package.get(), []() { return GetX1Value(); }));
   XLS_ASSERT_OK_AND_ASSIGN(channel, package->GetChannel("c_2_0_x"));
-  rx_queues.emplace_back(std::make_unique<RxOnlyChannelQueue>(
+  rx_queues.emplace_back(std::make_unique<GeneratedChannelQueue>(
       channel, package.get(), []() { return GetX2Value(); }));
   XLS_ASSERT_OK_AND_ASSIGN(channel, package->GetChannel("c_3_0_x"));
-  rx_queues.emplace_back(std::make_unique<RxOnlyChannelQueue>(
+  rx_queues.emplace_back(std::make_unique<GeneratedChannelQueue>(
       channel, package.get(), []() { return GetX3Value(); }));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto interpreter,

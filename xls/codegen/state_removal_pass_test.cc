@@ -103,12 +103,12 @@ proc accumulator(tkn: token, accum: bits[32], init=100) {
                                Value(UBits(30, 32))};
   {
     // Verify results before transformation.
-    std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_only_queues;
-    rx_only_queues.push_back(absl::make_unique<FixedRxOnlyChannelQueue>(
-        input_channel, p.get(), inputs));
+    std::vector<std::unique_ptr<ChannelQueue>> queues;
+    queues.push_back(
+        absl::make_unique<FixedChannelQueue>(input_channel, p.get(), inputs));
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<ProcNetworkInterpreter> interpreter,
-        ProcNetworkInterpreter::Create(p.get(), std::move(rx_only_queues)));
+        ProcNetworkInterpreter::Create(p.get(), std::move(queues)));
 
     XLS_ASSERT_OK(interpreter->Tick());
     XLS_ASSERT_OK(interpreter->Tick());
@@ -126,12 +126,12 @@ proc accumulator(tkn: token, accum: bits[32], init=100) {
 
   {
     // Verify results after transformation.
-    std::vector<std::unique_ptr<RxOnlyChannelQueue>> rx_only_queues;
-    rx_only_queues.push_back(absl::make_unique<FixedRxOnlyChannelQueue>(
-        input_channel, p.get(), inputs));
+    std::vector<std::unique_ptr<ChannelQueue>> queues;
+    queues.push_back(
+        absl::make_unique<FixedChannelQueue>(input_channel, p.get(), inputs));
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<ProcNetworkInterpreter> interpreter,
-        ProcNetworkInterpreter::Create(p.get(), std::move(rx_only_queues)));
+        ProcNetworkInterpreter::Create(p.get(), std::move(queues)));
 
     XLS_ASSERT_OK(interpreter->Tick());
     XLS_ASSERT_OK(interpreter->Tick());

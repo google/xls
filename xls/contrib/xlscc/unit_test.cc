@@ -172,18 +172,18 @@ void XlsccTestBase::ProcTest(
       translator_->GenerateIR_Block(&package, block_spec,
                                     xlscc::XLSChannelMode::kAllStreaming));
 
-  std::vector<std::unique_ptr<xls::RxOnlyChannelQueue>> rx_only_queues;
+  std::vector<std::unique_ptr<xls::ChannelQueue>> queues;
 
   for (auto [ch_name, values] : inputs_by_channel) {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * ch_dir,
                              package.GetChannel(ch_name));
-    rx_only_queues.push_back(absl::make_unique<xls::FixedRxOnlyChannelQueue>(
-        ch_dir, &package, values));
+    queues.push_back(
+        absl::make_unique<xls::FixedChannelQueue>(ch_dir, &package, values));
   }
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<xls::ChannelQueueManager> queue_manager,
-      xls::ChannelQueueManager::Create(std::move(rx_only_queues), &package));
+      xls::ChannelQueueManager::Create(std::move(queues), &package));
 
   xls::ProcInterpreter interpreter(proc, queue_manager.get());
   ASSERT_THAT(

@@ -48,7 +48,7 @@ enum class ChannelKind {
   kLogical,
 
   // A channel which holds a single value. Values are written to the channel via
-  // send operations which overwrites the previously sent valuds. Receives
+  // send operations which overwrites the previously sent values. Receives
   // nondestructively read the most-recently sent value.
   kSingleValue,
 };

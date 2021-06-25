@@ -23,12 +23,12 @@ namespace xls {
 absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>>
 ProcNetworkInterpreter::Create(
     Package* package,
-    std::vector<std::unique_ptr<RxOnlyChannelQueue>>&& rx_only_queues) {
+    std::vector<std::unique_ptr<ChannelQueue>>&& user_defined_queues) {
   // Create a queue manager for the queues. This factory verifies that there an
   // receive only queue for every receive only channel.
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(std::move(rx_only_queues), package));
+      ChannelQueueManager::Create(std::move(user_defined_queues), package));
 
   // Create a network interpreter.
   auto interpreter = absl::WrapUnique(

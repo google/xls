@@ -24,7 +24,7 @@
 
 namespace xls {
 
-absl::Status ChannelQueue::Enqueue(const Value& value) {
+absl::Status FifoChannelQueue::Enqueue(const Value& value) {
   XLS_VLOG(4) << absl::StreamFormat("Enqueuing value on channel %s: { %s }",
                                     channel_->name(), value.ToString());
   if (!ValueConformsToType(value, channel_->type())) {
@@ -39,7 +39,7 @@ absl::Status ChannelQueue::Enqueue(const Value& value) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<Value> ChannelQueue::Dequeue() {
+absl::StatusOr<Value> FifoChannelQueue::Dequeue() {
   if (empty()) {
     return absl::NotFoundError(
         absl::StrFormat("Attempting to dequeue data from empty channel %s (%d)",
@@ -54,20 +54,20 @@ absl::StatusOr<Value> ChannelQueue::Dequeue() {
   return std::move(value);
 }
 
-absl::Status RxOnlyChannelQueue::Enqueue(const Value& value) {
+absl::Status GeneratedChannelQueue::Enqueue(const Value& value) {
   return absl::UnimplementedError(
-      absl::StrFormat("Cannot enqueue to RxOnlyChannelQueue on channel %s.",
+      absl::StrFormat("Cannot enqueue to GeneratedChannelQueue on channel %s.",
                       channel()->name()));
 }
 
-absl::StatusOr<Value> RxOnlyChannelQueue::Dequeue() {
+absl::StatusOr<Value> GeneratedChannelQueue::Dequeue() {
   XLS_ASSIGN_OR_RETURN(Value value, generator_func_());
   XLS_VLOG(4) << absl::StreamFormat("Dequeuing data on channel %s: %s",
                                     channel()->name(), value.ToString());
   return std::move(value);
 }
 
-absl::StatusOr<Value> FixedRxOnlyChannelQueue::GenerateValue() {
+absl::StatusOr<Value> FixedChannelQueue::GenerateValue() {
   if (values_.empty()) {
     return absl::ResourceExhaustedError(
         absl::StrFormat("FixedInputChannel for channel %s (%d) is empty.",
@@ -78,46 +78,74 @@ absl::StatusOr<Value> FixedRxOnlyChannelQueue::GenerateValue() {
   return std::move(value);
 }
 
+SingleValueChannelQueue::SingleValueChannelQueue(Channel* channel,
+                                                 const Value& initial_value)
+    : ChannelQueue(channel), value_(initial_value) {
+  XLS_CHECK(ValueConformsToType(value_, channel_->type()));
+}
+
+static bool IsSingleValueChannelQueue(ChannelQueue* queue) {
+  return dynamic_cast<SingleValueChannelQueue*>(queue) != nullptr;
+}
+
 /* static */
 absl::StatusOr<std::unique_ptr<ChannelQueueManager>>
 ChannelQueueManager::Create(
-    std::vector<std::unique_ptr<RxOnlyChannelQueue>>&& rx_only_queues,
+    std::vector<std::unique_ptr<ChannelQueue>>&& user_defined_queues,
     Package* package) {
   auto manager = absl::WrapUnique(new ChannelQueueManager(package));
 
   // Verify there is an receive-only queue for every ReceiveOnly channel in the
   // package.
-  for (auto& rx_only_queue : rx_only_queues) {
-    if (rx_only_queue->channel()->supported_ops() != ChannelOps::kReceiveOnly) {
+  for (auto& queue : user_defined_queues) {
+    if (queue->channel()->supported_ops() != ChannelOps::kReceiveOnly) {
       return absl::InvalidArgumentError(absl::StrFormat(
-          "receive-only queues only can be used with receive_only "
+          "User-defined queues can only be used with receive_only "
           "channels, used with %s channel %s",
-          ChannelOpsToString(rx_only_queue->channel()->supported_ops()),
-          rx_only_queue->channel()->name()));
+          ChannelOpsToString(queue->channel()->supported_ops()),
+          queue->channel()->name()));
     }
-    if (manager->queues_.contains(rx_only_queue->channel())) {
+
+    if (manager->queues_.contains(queue->channel())) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "More than one receive-only queue given for channel %s",
-          rx_only_queue->channel()->name()));
+          queue->channel()->name()));
     }
-    manager->queues_[rx_only_queue->channel()] = std::move(rx_only_queue);
+
+    if (queue->channel()->kind() != ChannelKind::kSingleValue &&
+        IsSingleValueChannelQueue(queue.get())) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Single-value channel queue cannot be used for "
+                          "non-single-value channel %s",
+                          queue->channel()->name()));
+    }
+    if (queue->channel()->kind() == ChannelKind::kSingleValue &&
+        !IsSingleValueChannelQueue(queue.get())) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Non-single-value channel queue cannot be used for "
+                          "single-value channel %s",
+                          queue->channel()->name()));
+    }
+    manager->queues_[queue->channel()] = std::move(queue);
   }
 
   // Verify that every receive-only channel has an receive-only queue and create
   // queues for the remaining non-receive-only channels.
   for (Channel* channel : package->channels()) {
-    if (channel->kind() != ChannelKind::kStreaming) {
-      return absl::UnimplementedError("Only streaming channels are supported.");
+    if (channel->kind() != ChannelKind::kStreaming &&
+        channel->kind() != ChannelKind::kSingleValue) {
+      return absl::UnimplementedError(
+          "Only streaming and single-value channels are supported.");
     }
-    if (channel->supported_ops() == ChannelOps::kReceiveOnly) {
-      if (!manager->queues_.contains(channel)) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "No receive-only queue specified for receive_only channel %s (%d)",
-            channel->name(), channel->id()));
-      }
+    if (manager->queues_.contains(channel)) {
       continue;
     }
-    manager->queues_[channel] = absl::make_unique<ChannelQueue>(channel);
+    if (channel->kind() == ChannelKind::kSingleValue) {
+      manager->queues_[channel] = absl::make_unique<SingleValueChannelQueue>(
+          channel, /*initial_value=*/ZeroOfType(channel->type()));
+    } else {
+      manager->queues_[channel] = absl::make_unique<FifoChannelQueue>(channel);
+    }
   }
 
   // Create a sorted vector of channel queues in the manager for easy iteration
