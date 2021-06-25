@@ -601,15 +601,6 @@ inline bool IsSBits(const ConcreteType& c) {
 // type, is signed.
 absl::StatusOr<bool> IsSigned(const ConcreteType& c);
 
-// Parses the given string (that is expected to come from a
-// ConcreteType::ToString() invocation) back into a ConcreteType object.
-// Trailing text that is not part of the resulting parsed type is left in "s".
-//
-// Returns an error if the string cannot be parsed, and the state of s is not
-// defined (make a defensive copy if s will be used in the case of error).
-absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromString(
-    absl::string_view* s);
-
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_CONCRETE_TYPE_H_
