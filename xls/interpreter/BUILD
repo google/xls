@@ -30,6 +30,7 @@ cc_library(
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/common:string_interpolation",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",

@@ -78,7 +78,7 @@ TEST_F(IrInterpreterOnlyTest, AssertTest) {
   FunctionBuilder b(TestName(), p.get());
   auto p0 = b.Param("tkn", p->GetTokenType());
   auto p1 = b.Param("cond", p->GetBitsType(1));
-  b.Assert(p0, p1, "the assertion error message");
+  b.Assert(p0, p1, "the assertion error message", {});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
 
   EXPECT_THAT(IrInterpreter::Run(f, {Value::Token(), Value(UBits(1, 1))}),
@@ -86,6 +86,38 @@ TEST_F(IrInterpreterOnlyTest, AssertTest) {
   EXPECT_THAT(IrInterpreter::Run(f, {Value::Token(), Value(UBits(0, 1))}),
               StatusIs(absl::StatusCode::kAborted,
                        HasSubstr("the assertion error message")));
+}
+
+TEST_F(IrInterpreterOnlyTest, AssertTestWithData) {
+  auto p = CreatePackage();
+  FunctionBuilder b(TestName(), p.get());
+  auto p0 = b.Param("tkn", p->GetTokenType());
+  auto p1 = b.Param("cond", p->GetBitsType(1));
+  auto p2 = b.Param("value", p->GetBitsType(8));
+
+  b.Assert(p0, p1, "default: {}, hex: {:x}, bits: {:b}, decimal: {:d}",
+           {p2, p2, p2, p2});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  EXPECT_THAT(
+      IrInterpreter::Run(
+          f, {Value::Token(), Value(UBits(0, 1)), Value(UBits(67, 8))}),
+      StatusIs(absl::StatusCode::kAborted,
+               HasSubstr("default: bits[8]:67, hex: bits[8]:0x43, bits: "
+                         "bits[8]:0b100_0011, decimal: bits[8]:67")));
+}
+
+TEST_F(IrInterpreterOnlyTest, AssertTestNotEnoughOperands) {
+  auto p = CreatePackage();
+  FunctionBuilder b(TestName(), p.get());
+  auto p0 = b.Param("tkn", p->GetTokenType());
+  auto p1 = b.Param("cond", p->GetBitsType(1));
+
+  b.Assert(p0, p1, "{}", {});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  EXPECT_THAT(IrInterpreter::Run(f, {Value::Token(), Value(UBits(0, 1))}),
+              StatusIs(absl::StatusCode::kAborted, HasSubstr("{}")));
 }
 
 }  // namespace

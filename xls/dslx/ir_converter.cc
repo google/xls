@@ -1837,7 +1837,7 @@ absl::Status FunctionConverter::HandleFailBuiltin(Invocation* node,
                                           node->span().ToString());
     BValue assert_result_token = function_builder_->Assert(
         implicit_token_data_->entry_token,
-        function_builder_->Not(control_predicate), message);
+        function_builder_->Not(control_predicate), message, /*data_operands=*/{});
     implicit_token_data_->control_tokens.push_back(assert_result_token);
   }
   // The result of the failure call is the argument given; e.g. if we were to

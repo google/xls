@@ -204,6 +204,30 @@ cc_library(
 )
 
 cc_library(
+    name = "string_interpolation",
+    srcs = ["string_interpolation.cc"],
+    hdrs = ["string_interpolation.h"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "string_interpolation_test",
+    srcs = ["string_interpolation_test.cc"],
+    deps = [
+        ":string_interpolation",
+        ":xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "string_to_int",
     srcs = ["string_to_int.cc"],
     hdrs = ["string_to_int.h"],

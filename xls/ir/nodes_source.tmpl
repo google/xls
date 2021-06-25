@@ -203,6 +203,18 @@ absl::StatusOr<Node*> ArrayUpdate::CloneInNewFunction(
                                       name_);
 }
 
+absl::StatusOr<Node*> Assert::CloneInNewFunction(
+    absl::Span<Node* const> new_operands,
+    FunctionBase* new_function) const {
+  return new_function->MakeNodeWithName<Assert>(loc(),
+                                    new_operands[0],
+                                    new_operands[1],
+                                    new_operands.subspan(2),
+                                    message(),
+                                    label(),
+                                    name_);
+}
+
 bool Select::AllCases(std::function<bool(Node*)> p) const {
   for (Node* case_ : cases()) {
     if (!p(case_)) {

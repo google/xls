@@ -162,6 +162,9 @@ class IrInterpreter : public DfsVisitor {
   absl::StatusOr<Value> DeepOr(Type* input_type,
                                absl::Span<const Value* const> inputs);
 
+  std::string FormatString(absl::string_view message,
+                           absl::Span<Node* const> data_operands);
+
   // The arguments to the Function being evaluated indexed by parameter name.
   std::vector<Value> args_;
 

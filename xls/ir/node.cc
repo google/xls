@@ -521,8 +521,17 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       break;
     }
     case Op::kAssert:
+      args = {operand(0)->GetName(), operand(1)->GetName()};
       args.push_back(
           absl::StrFormat("message=\"%s\"", As<Assert>()->message()));
+      if (!As<Assert>()->data_operands().empty()) {
+        args.push_back(absl::StrFormat(
+            "data_operands=[%s]",
+            absl::StrJoin(As<Assert>()->data_operands(), ", ",
+                          [](std::string* out, const Node* node) {
+                            absl::StrAppend(out, node->GetName());
+                          })));
+      }
       if (As<Assert>()->label().has_value()) {
         args.push_back(
             absl::StrFormat("label=\"%s\"", As<Assert>()->label().value()));

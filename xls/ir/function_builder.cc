@@ -1137,6 +1137,7 @@ BValue BuilderBase::AddBitwiseReductionOp(Op op, BValue arg,
 
 BValue BuilderBase::Assert(BValue token, BValue condition,
                            absl::string_view message,
+                           absl::Span<const BValue> data_operands,
                            absl::optional<std::string> label,
                            absl::optional<SourceLocation> loc,
                            absl::string_view name) {
@@ -1157,8 +1158,12 @@ BValue BuilderBase::Assert(BValue token, BValue condition,
                         condition.GetType()->ToString()),
         loc);
   }
-  return AddNode<xls::Assert>(loc, token.node(), condition.node(), message,
-                              label, name);
+  std::vector<Node*> data_operand_nodes;
+  for (const BValue& operand : data_operands) {
+    data_operand_nodes.push_back(operand.node());
+  }
+  return AddNode<xls::Assert>(loc, token.node(), condition.node(),
+                              data_operand_nodes, message, label, name);
 }
 
 BValue BuilderBase::Cover(BValue token, BValue condition,
@@ -1304,11 +1309,12 @@ BValue TokenlessProcBuilder::SendIf(Channel* channel, BValue pred, BValue data,
 }
 
 BValue TokenlessProcBuilder::Assert(BValue condition, absl::string_view message,
+                                    absl::Span<const BValue> data_operands,
                                     absl::optional<std::string> label,
                                     absl::optional<SourceLocation> loc,
                                     absl::string_view name) {
-  BValue asrt = BuilderBase::Assert(GetTokenParam(), condition, message, label,
-                                    loc, name);
+  BValue asrt = BuilderBase::Assert(GetTokenParam(), condition, message,
+                                    data_operands, label, loc, name);
   tokens_.push_back(asrt);
   return asrt;
 }

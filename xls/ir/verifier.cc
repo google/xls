@@ -65,7 +65,7 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleAssert(Assert* assert_op) override {
-    XLS_RETURN_IF_ERROR(ExpectOperandCount(assert_op, 2));
+    XLS_RETURN_IF_ERROR(ExpectOperandCountGt(assert_op, 1));
     XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(assert_op, 0));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(assert_op, /*operand_no=*/1,
                                                  /*expected_bit_count=*/1));

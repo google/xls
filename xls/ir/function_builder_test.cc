@@ -702,7 +702,7 @@ TEST(FunctionBuilderTest, Assert) {
   Package p("p");
   FunctionBuilder b("f", &p);
   b.Assert(b.Param("tkn", p.GetTokenType()), b.Param("cond", p.GetBitsType(1)),
-           /*message=*/"It's about sending a message");
+           /*message=*/"It's about sending a message", /*data_operands=*/{});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
   EXPECT_THAT(f->return_value(), m::Assert(m::Param("tkn"), m::Param("cond")));
   EXPECT_EQ(f->return_value()->As<Assert>()->message(),
@@ -714,7 +714,8 @@ TEST(FunctionBuilderTest, AssertWrongTypeOperand0) {
   FunctionBuilder b("f", &p);
   b.Assert(b.Param("blah", p.GetBitsType(42)),
            b.Param("cond", p.GetBitsType(1)),
-           /*message=*/"It's about sending a message");
+           /*message=*/"It's about sending a message",
+           /*data_operands=*/{});
   EXPECT_THAT(
       b.Build().status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -725,7 +726,7 @@ TEST(FunctionBuilderTest, AssertWrongTypeOperand1) {
   Package p("p");
   FunctionBuilder b("f", &p);
   b.Assert(b.Param("blah", p.GetTokenType()), b.Param("cond", p.GetBitsType(2)),
-           /*message=*/"It's about sending a message");
+           /*message=*/"It's about sending a message", /*data_operands=*/{});
   EXPECT_THAT(
       b.Build().status(),
       StatusIs(

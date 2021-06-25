@@ -21,9 +21,11 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/string_interpolation.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
 #include "xls/ir/keyword_args.h"
 #include "xls/ir/node_iterator.h"
@@ -492,9 +494,49 @@ absl::Status IrInterpreter::HandleArrayConcat(ArrayConcat* concat) {
 
 absl::Status IrInterpreter::HandleAssert(Assert* assert_op) {
   if (!ResolveAsBool(assert_op->condition())) {
-    return absl::AbortedError(assert_op->message());
+    return absl::AbortedError(
+        FormatString(assert_op->message(), assert_op->data_operands()));
   }
   return SetValueResult(assert_op, Value::Token());
+}
+
+std::string IrInterpreter::FormatString(absl::string_view message,
+                                        absl::Span<Node* const> data_operands) {
+  auto formatted = InterpolateArgs(
+      message,
+      [this, &data_operands](absl::string_view format,
+                             int64_t index) -> absl::StatusOr<std::string> {
+        if (index >= data_operands.size())
+          return absl::InvalidArgumentError("not enough data operands");
+
+        if (!(format.empty() || (format.size() == 2 && format[0] == ':')))
+          return absl::InvalidArgumentError("invalid format specifier");
+
+        auto format_preference = FormatPreference::kDefault;
+        if (format.size() == 2) {
+          switch (format[1]) {
+            case 'b':
+              format_preference = FormatPreference::kBinary;
+              break;
+            case 'd':
+              format_preference = FormatPreference::kDecimal;
+              break;
+            case 'x':
+              format_preference = FormatPreference::kHex;
+              break;
+            default:
+              return absl::InvalidArgumentError("invalid format specifier");
+          }
+        }
+
+        return node_values_.at(data_operands[index])
+            .ToString(format_preference);
+      });
+
+  if (formatted.ok()) return *formatted;
+  // best effort - if there was an error formatting the string, just return the
+  // original string.
+  return std::string(message);
 }
 
 absl::Status IrInterpreter::HandleCover(Cover* cover) {
