@@ -36,6 +36,15 @@ absl::StatusOr<Block*> FunctionToPipelinedBlock(
     const PipelineSchedule& schedule, Function* f,
     absl::string_view block_name);
 
+// Converts the given proc to a combinational block. Proc must be stateless
+// (state type is an empty tuple). Streaming channels must have ready-valid flow
+// control (FlowControl::kReadyValid). Receives/sends of these streaming
+// channels become input/output ports with additional ready/valid ports for flow
+// control. Receives/sends of single-value channels become input/output ports in
+// the returned block.
+absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
+                                                absl::string_view block_name);
+
 }  // namespace verilog
 }  // namespace xls
 

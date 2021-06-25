@@ -16,8 +16,11 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+// #include "xls/codegen/block_generator.h"
+// #include "xls/codegen/codegen_options.h"
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/delay_estimator.h"
+#include "xls/interpreter/block_interpreter.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -29,6 +32,10 @@ namespace m = xls::op_matchers;
 namespace xls {
 namespace verilog {
 namespace {
+
+using status_testing::IsOkAndHolds;
+using testing::Pair;
+using testing::UnorderedElementsAre;
 
 class BlockConversionTest : public IrTestBase {
  protected:
@@ -196,6 +203,148 @@ fn __implicit_token__main() -> () {
   XLS_ASSERT_OK_AND_ASSIGN(auto block,
                            FunctionToBlock(f, "ImplicitTokenBlock"));
   XLS_ASSERT_OK(VerifyBlock(block));
+}
+
+TEST_F(BlockConversionTest, TwoToOneProc) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_dir,
+      package.CreateSingleValueChannel("dir", ChannelOps::kReceiveOnly,
+                                       package.GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_a,
+      package.CreateStreamingChannel("a", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_b,
+      package.CreateStreamingChannel("b", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
+                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  BValue dir = pb.Receive(ch_dir);
+  BValue a = pb.ReceiveIf(ch_a, dir);
+  BValue b = pb.ReceiveIf(ch_b, pb.Not(dir));
+  pb.Send(ch_out, pb.Select(dir, {b, a}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToCombinationalBlock(proc, "the_proc"));
+
+  // Input B selected, input valid and output ready asserted.
+  EXPECT_THAT(
+      BlockInterpreter::RunCombinational(block, {{"dir", 0},
+                                                 {"a", 123},
+                                                 {"b", 42},
+                                                 {"a_vld", 1},
+                                                 {"b_vld", 1},
+                                                 {"out_rdy", 1}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("out_vld", 1), Pair("b_rdy", 1),
+                                        Pair("out", 42), Pair("a_rdy", 0))));
+
+  // Input A selected, input valid and output ready asserted.
+  EXPECT_THAT(
+      BlockInterpreter::RunCombinational(block, {{"dir", 1},
+                                                 {"a", 123},
+                                                 {"b", 42},
+                                                 {"a_vld", 1},
+                                                 {"b_vld", 0},
+                                                 {"out_rdy", 1}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("out_vld", 1), Pair("b_rdy", 0),
+                                        Pair("out", 123), Pair("a_rdy", 1))));
+
+  // Input A selected, input valid asserted, and output ready *not*
+  // asserted. Input ready should be zero.
+  EXPECT_THAT(
+      BlockInterpreter::RunCombinational(block, {{"dir", 1},
+                                                 {"a", 123},
+                                                 {"b", 42},
+                                                 {"a_vld", 1},
+                                                 {"b_vld", 1},
+                                                 {"out_rdy", 0}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("out_vld", 1), Pair("b_rdy", 0),
+                                        Pair("out", 123), Pair("a_rdy", 0))));
+
+  // Input A selected, input valid *not* asserted, and output ready
+  // asserted. Output valid should be zero.
+  EXPECT_THAT(
+      BlockInterpreter::RunCombinational(block, {{"dir", 1},
+                                                 {"a", 123},
+                                                 {"b", 42},
+                                                 {"a_vld", 0},
+                                                 {"b_vld", 1},
+                                                 {"out_rdy", 1}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("out_vld", 0), Pair("b_rdy", 0),
+                                        Pair("out", 123), Pair("a_rdy", 1))));
+}
+
+TEST_F(BlockConversionTest, OneToTwoProc) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_dir,
+      package.CreateSingleValueChannel("dir", ChannelOps::kReceiveOnly,
+                                       package.GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_a,
+      package.CreateStreamingChannel("a", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_b,
+      package.CreateStreamingChannel("b", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
+                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  BValue dir = pb.Receive(ch_dir);
+  BValue in = pb.Receive(ch_in);
+  pb.SendIf(ch_a, dir, in);
+  pb.SendIf(ch_b, pb.Not(dir), in);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToCombinationalBlock(proc, "the_proc"));
+
+  // Output B selected. Input valid and output readies asserted.
+  EXPECT_THAT(
+      BlockInterpreter::RunCombinational(
+          block,
+          {{"dir", 0}, {"in", 123}, {"in_vld", 1}, {"a_rdy", 1}, {"b_rdy", 1}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("a", 123), Pair("b_vld", 1),
+                                        Pair("in_rdy", 1), Pair("a_vld", 0),
+                                        Pair("b", 123))));
+
+  // Output A selected. Input valid and output readies asserted.
+  EXPECT_THAT(
+      BlockInterpreter::RunCombinational(
+          block,
+          {{"dir", 1}, {"in", 123}, {"in_vld", 1}, {"a_rdy", 1}, {"b_rdy", 1}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("a", 123), Pair("b_vld", 0),
+                                        Pair("in_rdy", 1), Pair("a_vld", 1),
+                                        Pair("b", 123))));
+
+  // Output A selected. Input *not* valid and output readies asserted.
+  EXPECT_THAT(
+      BlockInterpreter::RunCombinational(
+          block,
+          {{"dir", 1}, {"in", 123}, {"in_vld", 0}, {"a_rdy", 1}, {"b_rdy", 1}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("a", 123), Pair("b_vld", 0),
+                                        Pair("in_rdy", 1), Pair("a_vld", 0),
+                                        Pair("b", 123))));
+
+  // Output A selected. Input valid and output ready *not* asserted.
+  EXPECT_THAT(
+      BlockInterpreter::RunCombinational(
+          block,
+          {{"dir", 1}, {"in", 123}, {"in_vld", 1}, {"a_rdy", 0}, {"b_rdy", 1}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("a", 123), Pair("b_vld", 0),
+                                        Pair("in_rdy", 0), Pair("a_vld", 1),
+                                        Pair("b", 123))));
 }
 
 }  // namespace
