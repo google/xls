@@ -81,8 +81,8 @@ TEST_F(DeadCodeEliminationPassTest, RepeatedOperand) {
   EXPECT_EQ(f->node_count(), 3);
 }
 
-// Verifies that the DCE pass doesn't remove tokens.
-TEST_F(DeadCodeEliminationPassTest, AvoidsTokens) {
+// Verifies that the DCE pass doesn't remove side-effecting ops.
+TEST_F(DeadCodeEliminationPassTest, AvoidsSideEffecting) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn has_token(x: bits[32], y: bits[32]) -> bits[32] {
@@ -90,14 +90,18 @@ TEST_F(DeadCodeEliminationPassTest, AvoidsTokens) {
       add.2: bits[32] = add(x, y)
       literal.3: bits[1] = literal(value=1)
       cover.4: token = cover(after_all.1, literal.3, label="my_coverpoint")
-      ret sub.5: bits[32] = sub(x, y)
+      tuple.5: (token, bits[32]) = tuple(cover.4, add.2)
+      tuple_index.6: token = tuple_index(tuple.5, index=0)
+      tuple_index.7: bits[32] = tuple_index(tuple.5, index=1)
+      sub.8: bits[32] = sub(x, y)
+      ret sub.9: bits[32] = sub(tuple_index.7, y)
     }
   )",
                                                        p.get()));
 
-  EXPECT_EQ(f->node_count(), 7);
+  EXPECT_EQ(f->node_count(), 11);
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_EQ(f->node_count(), 6);
+  EXPECT_EQ(f->node_count(), 9);
 }
 
 }  // namespace

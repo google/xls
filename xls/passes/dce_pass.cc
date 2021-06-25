@@ -19,6 +19,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/op.h"
 #include "xls/ir/type.h"
 
 namespace xls {
@@ -26,8 +27,8 @@ namespace xls {
 absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   auto is_deletable = [](Node* n) {
-    return !n->function_base()->HasImplicitUse(n) && !n->Is<Param>() &&
-           !TypeHasToken(n->GetType());
+    return !n->function_base()->HasImplicitUse(n) &&
+           !OpIsSideEffecting(n->op());
   };
 
   std::deque<Node*> worklist;

@@ -18,6 +18,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/op.h"
 
 namespace xls {
 
@@ -70,6 +71,10 @@ absl::StatusOr<bool> CsePass::RunOnFunctionBaseInternal(
   absl::flat_hash_map<int64_t, std::vector<Node*>> node_buckets;
   node_buckets.reserve(f->node_count());
   for (Node* node : TopoSort(f)) {
+    if (OpIsSideEffecting(node->op())) {
+      continue;
+    }
+
     int64_t hash = node_hash(node);
     if (!node_buckets.contains(hash)) {
       node_buckets[hash].push_back(node);

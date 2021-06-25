@@ -90,6 +90,15 @@ if (op == Op::{{ op.enum_name }}) return true;
   return false;
 }
 
+bool OpIsSideEffecting(Op op) {
+{% for op in spec.OPS -%}
+{%- if spec.Property.SIDE_EFFECTING in op.properties -%}
+if (op == Op::{{ op.enum_name }}) return true;
+{% endif -%}
+{% endfor -%}
+  return false;
+}
+
 {% for op_class in spec.OpClass.kinds.values() -%}
 template<>
 bool IsOpClass<{{op_class.name}}>(Op op) {

@@ -53,6 +53,9 @@ bool OpIsCommutative(Op op);
 // Returns whether the operation is a bitwise logical op, eg., kAnd or kOr.
 bool OpIsBitWise(Op op);
 
+// Returns whether the operation has side effects, eg., kAssert, kSend.
+bool OpIsSideEffecting(Op op);
+
 // Returns the delay of this operation in picoseconds.
 // TODO(meheff): This value should be plugable and be derived from other aspects
 // of Node, not just the op.

@@ -224,6 +224,7 @@ class Property(enum.Enum):
   ASSOCIATIVE = 2
   COMMUTATIVE = 3
   COMPARISON = 4
+  SIDE_EFFECTING = 5
 
 
 class Operand(object):
@@ -952,37 +953,37 @@ OPS = [
         enum_name='kAssert',
         name='assert',
         op_class=OpClass.kinds['ASSERT'],
-        properties=[],
+        properties=[Property.SIDE_EFFECTING],
     ),
     Op(
         enum_name='kCover',
         name='cover',
         op_class=OpClass.kinds['COVER'],
-        properties=[],
+        properties=[Property.SIDE_EFFECTING],
     ),
     Op(
         enum_name='kReceive',
         name='receive',
         op_class=OpClass.kinds['RECEIVE'],
-        properties=[],
+        properties=[Property.SIDE_EFFECTING],
     ),
     Op(
         enum_name='kReceiveIf',
         name='receive_if',
         op_class=OpClass.kinds['RECEIVE_IF'],
-        properties=[],
+        properties=[Property.SIDE_EFFECTING],
     ),
     Op(
         enum_name='kSend',
         name='send',
         op_class=OpClass.kinds['SEND'],
-        properties=[],
+        properties=[Property.SIDE_EFFECTING],
     ),
     Op(
         enum_name='kSendIf',
         name='send_if',
         op_class=OpClass.kinds['SEND_IF'],
-        properties=[],
+        properties=[Property.SIDE_EFFECTING],
     ),
     Op(
         enum_name='kNand',
@@ -1108,7 +1109,7 @@ OPS = [
         enum_name='kInputPort',
         name='input_port',
         op_class=OpClass.kinds['INPUT_PORT'],
-        properties=[],
+        properties=[Property.SIDE_EFFECTING],
     ),
     Op(
         enum_name='kLiteral',
@@ -1171,25 +1172,25 @@ OPS = [
         enum_name='kOutputPort',
         name='output_port',
         op_class=OpClass.kinds['OUTPUT_PORT'],
-        properties=[],
+        properties=[Property.SIDE_EFFECTING],
     ),
     Op(
         enum_name='kParam',
         name='param',
         op_class=OpClass.kinds['PARAM'],
-        properties=[],
+        properties=[Property.SIDE_EFFECTING],
     ),
     Op(
         enum_name='kRegisterRead',
         name='register_read',
         op_class=OpClass.kinds['REGISTER_READ'],
-        properties=[],
+        properties=[Property.SIDE_EFFECTING],
     ),
     Op(
         enum_name='kRegisterWrite',
         name='register_write',
         op_class=OpClass.kinds['REGISTER_WRITE'],
-        properties=[],
+        properties=[Property.SIDE_EFFECTING],
     ),
     Op(
         enum_name='kReverse',
