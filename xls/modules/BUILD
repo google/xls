@@ -35,6 +35,33 @@ xls_dslx_library(
     srcs = ["apfloat_add_2.x"],
 )
 
+xls_dslx_library(
+    name = "apfloat_sub_2_dslx",
+    srcs = ["apfloat_sub_2.x"],
+    deps = [":apfloat_add_2_dslx"],
+)
+
+xls_dslx_library(
+    name = "fpadd_2x32_dslx",
+    srcs = ["fpadd_2x32.x"],
+    deps = [":apfloat_add_2_dslx"],
+)
+
+xls_dslx_library(
+    name = "fpsub_2x32_dslx",
+    srcs = ["fpsub_2x32.x"],
+    deps = [
+        ":apfloat_add_2_dslx",
+        ":apfloat_sub_2_dslx",
+        ":fpadd_2x32_dslx",
+    ],
+)
+
+xls_dslx_library(
+    name = "fpldexp_32_dslx",
+    srcs = ["fpldexp_32.x"],
+)
+
 xls_dslx_module_library(
     name = "apfloat_sub_2_dslx_module",
     src = "apfloat_sub_2.x",
@@ -687,5 +714,3 @@ cc_test(
         "//xls/tools:testbench_builder",
     ],
 )
-
-exports_files(glob(["*.x"]))

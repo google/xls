@@ -140,19 +140,18 @@ cc_binary(
 )
 
 xls_dslx_library(
-    name = "module_libs",
-    srcs = [
-        "//xls/modules:apfloat_add_2.x",
-        "//xls/modules:apfloat_mul_2.x",
-        "//xls/modules:fpadd_2x32.x",
-        "//xls/modules:fpmul_2x32.x",
+    name = "dot_product_dslx",
+    srcs = ["dot_product.x"],
+    deps = [
+        "//xls/modules:fpadd_2x32_dslx",
+        "//xls/modules:fpmul_2x32_dslx",
     ],
 )
 
 xls_dslx_module_library(
     name = "dot_product_dslx_module",
     src = "dot_product.x",
-    deps = ["module_libs"],
+    deps = [":dot_product_dslx"],
 )
 
 xls_dslx_test(
@@ -163,10 +162,19 @@ xls_dslx_test(
     },
 )
 
+xls_dslx_library(
+    name = "fir_filter_dslx",
+    srcs = ["fir_filter.x"],
+    deps = [
+        "//xls/modules:fpadd_2x32_dslx",
+        "//xls/modules:fpmul_2x32_dslx",
+    ],
+)
+
 xls_dslx_module_library(
     name = "fir_filter_dslx_module",
     src = "fir_filter.x",
-    deps = ["module_libs"],
+    deps = [":fir_filter_dslx"],
 )
 
 xls_dslx_test(
@@ -239,22 +247,19 @@ xls_ir_jit_wrapper(
 )
 
 xls_dslx_library(
-    name = "sobel_filter_module_libs",
-    srcs = [
-        "//xls/modules:apfloat_add_2.x",
-        "//xls/modules:apfloat_mul_2.x",
-        "//xls/modules:fpadd_2x32.x",
-        "//xls/modules:fpmul_2x32.x",
-        "//third_party/xls_go_math:fpsqrt_32.x",
+    name = "sobel_filter_dslx",
+    srcs = ["sobel_filter.x"],
+    deps = [
+        "//xls/modules:fpadd_2x32_dslx",
+        "//xls/modules:fpmul_2x32_dslx",
+        "//third_party/xls_go_math:fpsqrt_32_dslx",
     ],
 )
 
 xls_dslx_module_library(
     name = "sobel_filter_dslx_module",
     src = "sobel_filter.x",
-    deps = [
-        ":sobel_filter_module_libs",
-    ],
+    deps = [":sobel_filter_dslx"],
 )
 
 xls_dslx_test(

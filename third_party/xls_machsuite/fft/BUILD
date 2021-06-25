@@ -36,20 +36,22 @@ xls_dslx_library(
     name = "fft_dslx",
     srcs = [
         "test_data/dslx_test_data.x",
-        "//xls/modules:apfloat_add_2.x",
-        "//xls/modules:apfloat_mul_2.x",
-        "//xls/modules:apfloat_sub_2.x",
-        "//xls/modules:fpadd_2x32.x",
-        "//xls/modules:fpmul_2x32.x",
-        "//xls/modules:fpsub_2x32.x",
     ],
     tags = ["optonly"],
+    deps = [
+        "//xls/modules:apfloat_add_2_dslx",
+        "//xls/modules:apfloat_mul_2_dslx",
+        "//xls/modules:apfloat_sub_2_dslx",
+        "//xls/modules:fpadd_2x32_dslx",
+        "//xls/modules:fpmul_2x32_dslx",
+        "//xls/modules:fpsub_2x32_dslx",
+    ],
 )
 
 xls_dslx_module_library(
     name = "fft_dslx_module",
     src = "fft.x",
-    deps = ["fft_dslx"],
+    deps = [":fft_dslx"],
 )
 
 # IR optimization uses too much memory.

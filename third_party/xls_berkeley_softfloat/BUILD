@@ -3,6 +3,7 @@
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
+    "xls_dslx_library",
     "xls_dslx_module_library",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
@@ -16,9 +17,15 @@ licenses(["notice"])
 
 exports_files(["LICENSE"])
 
+xls_dslx_library(
+    name = "fpdiv_2x32_dslx",
+    srcs = ["fpdiv_2x32.x"],
+)
+
 xls_dslx_module_library(
     name = "fpdiv_2x32_dslx_module",
     src = "fpdiv_2x32.x",
+    deps = [":fpdiv_2x32_dslx"],
 )
 
 xls_dslx_opt_ir(
@@ -63,5 +70,3 @@ cc_test(
         "//xls/tools:testbench_builder",
     ],
 )
-
-exports_files(["fpdiv_2x32.x"])

@@ -20,28 +20,21 @@ licenses(["notice"])
 exports_files(["LICENSE"])
 
 xls_dslx_library(
-    name = "modules_dslx",
-    srcs = [
-        "//xls/modules:apfloat_add_2.x",
-        "//xls/modules:apfloat_mul_2.x",
-        "//xls/modules:apfloat_sub_2.x",
-        "//xls/modules:fpadd_2x32.x",
-        "//xls/modules:fpldexp_32.x",
-        "//xls/modules:fpmul_2x32.x",
-        "//xls/modules:fpsub_2x32.x",
+    name = "fpexp_32_dslx",
+    srcs = ["fpexp_32.x"],
+    deps = [
+        "//xls/modules:fpadd_2x32_dslx",
+        "//xls/modules:fpldexp_32_dslx",
+        "//xls/modules:fpmul_2x32_dslx",
+        "//xls/modules:fpsub_2x32_dslx",
+        "//third_party/xls_berkeley_softfloat:fpdiv_2x32_dslx",
     ],
-)
-
-xls_dslx_library(
-    name = "fpdiv_2x32_dslx",
-    srcs = ["//third_party/xls_berkeley_softfloat:fpdiv_2x32.x"],
-    deps = [":modules_dslx"],
 )
 
 xls_dslx_module_library(
     name = "fpexp_32_dslx_module",
     src = "fpexp_32.x",
-    deps = [":fpdiv_2x32_dslx"],
+    deps = [":fpexp_32_dslx"],
 )
 
 xls_dslx_opt_ir(
@@ -101,13 +94,28 @@ cc_test(
 xls_dslx_library(
     name = "fp_trig_reduce_dslx",
     srcs = ["fp_trig_reduce.x"],
-    deps = [":modules_dslx"],
+    deps = [
+        "//xls/modules:apfloat_add_2_dslx",
+        "//xls/modules:apfloat_mul_2_dslx",
+        "//xls/modules:apfloat_sub_2_dslx",
+    ],
+)
+
+xls_dslx_library(
+    name = "fp_sincos_32_dslx",
+    srcs = ["fp_sincos_32.x"],
+    deps = [
+        ":fp_trig_reduce_dslx",
+        "//xls/modules:fpadd_2x32_dslx",
+        "//xls/modules:fpmul_2x32_dslx",
+        "//xls/modules:fpsub_2x32_dslx",
+    ],
 )
 
 xls_dslx_module_library(
     name = "fp_sincos_32_dslx_module",
     src = "fp_sincos_32.x",
-    deps = [":fp_trig_reduce_dslx"],
+    deps = [":fp_sincos_32_dslx"],
 )
 
 xls_dslx_opt_ir(
@@ -167,7 +175,9 @@ cc_test(
 xls_dslx_module_library(
     name = "fp_trig_reduce_dslx_module",
     src = "fp_trig_reduce.x",
-    deps = [":modules_dslx"],
+    deps = [
+        ":fp_trig_reduce_dslx",
+    ],
 )
 
 xls_dslx_opt_ir(
@@ -225,10 +235,17 @@ cc_test(
     ],
 )
 
+xls_dslx_library(
+    name = "fpsqrt_32_dslx",
+    srcs = ["fpsqrt_32.x"],
+)
+
 xls_dslx_module_library(
     name = "fpsqrt_32_dslx_module",
     src = "fpsqrt_32.x",
-    deps = [":modules_dslx"],
+    deps = [
+        ":fpsqrt_32_dslx",
+    ],
 )
 
 xls_dslx_opt_ir(
