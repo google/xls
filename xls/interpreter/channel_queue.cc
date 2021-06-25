@@ -78,10 +78,21 @@ absl::StatusOr<Value> FixedChannelQueue::GenerateValue() {
   return std::move(value);
 }
 
-SingleValueChannelQueue::SingleValueChannelQueue(Channel* channel,
-                                                 const Value& initial_value)
-    : ChannelQueue(channel), value_(initial_value) {
-  XLS_CHECK(ValueConformsToType(value_, channel_->type()));
+absl::Status SingleValueChannelQueue::Enqueue(const Value& value) {
+  absl::MutexLock lock(&mutex_);
+  XLS_CHECK(ValueConformsToType(value, channel_->type()));
+  value_ = value;
+  return absl::OkStatus();
+}
+
+absl::StatusOr<Value> SingleValueChannelQueue::Dequeue() {
+  absl::MutexLock lock(&mutex_);
+  if (!value_.has_value()) {
+    return absl::ResourceExhaustedError(absl::StrFormat(
+        "Value has not been written to single-value queue for channel %s",
+        channel()->name()));
+  }
+  return value_.value();
 }
 
 static bool IsSingleValueChannelQueue(ChannelQueue* queue) {
@@ -141,8 +152,8 @@ ChannelQueueManager::Create(
       continue;
     }
     if (channel->kind() == ChannelKind::kSingleValue) {
-      manager->queues_[channel] = absl::make_unique<SingleValueChannelQueue>(
-          channel, /*initial_value=*/ZeroOfType(channel->type()));
+      manager->queues_[channel] =
+          absl::make_unique<SingleValueChannelQueue>(channel);
     } else {
       manager->queues_[channel] = absl::make_unique<FifoChannelQueue>(channel);
     }

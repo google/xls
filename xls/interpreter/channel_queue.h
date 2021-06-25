@@ -154,25 +154,24 @@ class FixedChannelQueue : public GeneratedChannelQueue {
 // non-destructively returns the held value.
 class SingleValueChannelQueue : public ChannelQueue {
  public:
-  SingleValueChannelQueue(Channel* channel, const Value& initial_value);
+  explicit SingleValueChannelQueue(Channel* channel) : ChannelQueue(channel) {}
   virtual ~SingleValueChannelQueue() = default;
 
-  absl::Status Enqueue(const Value& value) override {
+  absl::Status Enqueue(const Value& value) override;
+  absl::StatusOr<Value> Dequeue() override;
+
+  int64_t size() const override {
     absl::MutexLock lock(&mutex_);
-    value_ = value;
-    return absl::OkStatus();
+    return value_.has_value() ? 1 : 0;
   }
 
-  absl::StatusOr<Value> Dequeue() override {
+  bool empty() const override {
     absl::MutexLock lock(&mutex_);
-    return value_;
+    return !value_.has_value();
   }
-
-  int64_t size() const override { return std::numeric_limits<int64_t>::max(); }
-  bool empty() const override { return false; }
 
  protected:
-  Value value_ ABSL_GUARDED_BY(mutex_);
+  absl::optional<Value> value_ ABSL_GUARDED_BY(mutex_);
 
   mutable absl::Mutex mutex_;
 };
