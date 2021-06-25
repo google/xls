@@ -585,13 +585,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(StructDef* node,
     ctx->type_info()->SetItem(parametric->name_def(), *parametric_binding_type);
   }
 
-  TupleType::NamedMembers members;
+  std::vector<StructType::NamedMember> members;
   for (auto [name_def, type] : node->members()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete,
                          DeduceAndResolve(type, ctx));
     members.push_back({name_def->identifier(), std::move(concrete)});
   }
-  auto result = absl::make_unique<TupleType>(std::move(members), node);
+  auto result = absl::make_unique<StructType>(std::move(members), node);
   ctx->type_info()->SetItem(node->name_def(), *result);
   XLS_VLOG(5) << absl::StreamFormat("Deduced type for struct %s => %s",
                                     node->ToString(), result->ToString());
@@ -673,31 +673,28 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAttr(Attr* node,
                                                          DeduceCtx* ctx) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> struct_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
                        ctx->Deduce(node->lhs()));
-  auto* tuple_type = dynamic_cast<TupleType*>(struct_type.get());
-  if (tuple_type == nullptr ||
-      // If the (concrete) tuple type is unnamed, then it's not a struct, it's a
-      // tuple.
-      !tuple_type->is_named()) {
-    return TypeInferenceErrorStatus(node->span(), struct_type.get(),
+  auto* struct_type = dynamic_cast<StructType*>(type.get());
+  if (struct_type == nullptr) {
+    return TypeInferenceErrorStatus(node->span(), type.get(),
                                     absl::StrFormat("Expected a struct for "
                                                     "attribute access; got %s",
-                                                    struct_type->ToString()));
+                                                    type->ToString()));
   }
 
   const std::string& attr_name = node->attr()->identifier();
-  if (!tuple_type->HasNamedMember(attr_name)) {
+  if (!struct_type->HasNamedMember(attr_name)) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Struct '%s' does not have a "
                         "member with name "
                         "'%s'",
-                        tuple_type->nominal_type()->identifier(), attr_name));
+                        struct_type->nominal_type().identifier(), attr_name));
   }
 
   absl::optional<const ConcreteType*> result =
-      tuple_type->GetMemberTypeByName(attr_name);
+      struct_type->GetMemberTypeByName(attr_name);
   XLS_RET_CHECK(result.has_value());  // We checked above we had named member.
   return result.value()->CloneToUnique();
 }
@@ -1243,7 +1240,7 @@ struct ValidatedStructMembers {
 //  * The ConcreteTypes of the corresponding struct member definition.
 static absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
     absl::Span<const std::pair<std::string, Expr*>> members,
-    const TupleType& struct_type, absl::string_view struct_text,
+    const StructType& struct_type, absl::string_view struct_text,
     DeduceCtx* ctx) {
   ValidatedStructMembers result;
   for (auto& [name, expr] : members) {
@@ -1361,19 +1358,19 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
     StructInstance* node, DeduceCtx* ctx) {
   XLS_VLOG(5) << "Deducing type for struct instance: " << node->ToString();
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> struct_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
                        ctx->Deduce(ToAstNode(node->struct_def())));
-  TupleType* tuple_type = dynamic_cast<TupleType*>(struct_type.get());
-  XLS_RET_CHECK(tuple_type != nullptr) << struct_type->ToString();
+  auto* struct_type = dynamic_cast<StructType*>(type.get());
+  XLS_RET_CHECK(struct_type != nullptr) << type->ToString();
 
   // Note what names we expect to be present.
   XLS_ASSIGN_OR_RETURN(std::vector<std::string> names,
-                       tuple_type->GetMemberNames());
+                       struct_type->GetMemberNames());
   absl::btree_set<std::string> expected_names(names.begin(), names.end());
 
   XLS_ASSIGN_OR_RETURN(
       ValidatedStructMembers validated,
-      ValidateStructMembersSubset(node->GetUnorderedMembers(), *tuple_type,
+      ValidateStructMembersSubset(node->GetUnorderedMembers(), *struct_type,
                                   StructRefToText(node->struct_def()), ctx));
   if (validated.seen_names != expected_names) {
     absl::btree_set<std::string> missing_set;
@@ -1402,7 +1399,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
       ParametricBindingsToConstraints(struct_def->parametric_bindings(), ctx));
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
-      InstantiateStruct(node->span(), *tuple_type, validated.args,
+      InstantiateStruct(node->span(), *struct_type, validated.args,
                         validated.member_types, ctx, parametric_constraints));
 
   return std::move(tab.type);
@@ -1418,20 +1415,21 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
   // The splatted type should be (nominally) equivalent to the struct type,
   // because that's where we're filling in the default values from (those values
   // that were not directly provided by the user).
-  TupleType* struct_type = dynamic_cast<TupleType*>(struct_type_ct.get());
-  TupleType* splatted_type = dynamic_cast<TupleType*>(splatted_type_ct.get());
+  auto* struct_type = dynamic_cast<StructType*>(struct_type_ct.get());
+  auto* splatted_type = dynamic_cast<StructType*>(splatted_type_ct.get());
 
   // TODO(leary): 2020-12-13 Create a test case that hits this assertion, this
-  // is a type error users can make.
+  // is a type error users can make; e.g. if they try to splat-instantiate a
+  // tuple type alias.
   XLS_RET_CHECK(struct_type != nullptr);
   XLS_RET_CHECK(splatted_type != nullptr);
-  if (struct_type->nominal_type() != splatted_type->nominal_type()) {
+  if (&struct_type->nominal_type() != &splatted_type->nominal_type()) {
     return XlsTypeErrorStatus(
         node->span(), *struct_type, *splatted_type,
         absl::StrFormat("Attempting to fill values in '%s' instantiation from "
                         "a value of type '%s'",
-                        struct_type->nominal_type()->identifier(),
-                        splatted_type->nominal_type()->identifier()));
+                        struct_type->nominal_type().identifier(),
+                        splatted_type->nominal_type().identifier()));
   }
 
   XLS_ASSIGN_OR_RETURN(

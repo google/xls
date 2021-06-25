@@ -195,8 +195,19 @@ absl::Status ParametricInstantiator::SymbolicBindTuple(
     const TupleType& param_type, const TupleType& arg_type) {
   XLS_RET_CHECK_EQ(param_type.size(), arg_type.size());
   for (int64_t i = 0; i < param_type.size(); ++i) {
-    const ConcreteType& param_member = param_type.GetUnnamedMember(i);
-    const ConcreteType& arg_member = arg_type.GetUnnamedMember(i);
+    const ConcreteType& param_member = param_type.GetMemberType(i);
+    const ConcreteType& arg_member = arg_type.GetMemberType(i);
+    XLS_RETURN_IF_ERROR(SymbolicBind(param_member, arg_member));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status ParametricInstantiator::SymbolicBindStruct(
+    const StructType& param_type, const StructType& arg_type) {
+  XLS_RET_CHECK_EQ(param_type.size(), arg_type.size());
+  for (int64_t i = 0; i < param_type.size(); ++i) {
+    const ConcreteType& param_member = param_type.GetMemberType(i);
+    const ConcreteType& arg_member = arg_type.GetMemberType(i);
     XLS_RETURN_IF_ERROR(SymbolicBind(param_member, arg_member));
   }
   return absl::OkStatus();
@@ -244,21 +255,19 @@ absl::Status ParametricInstantiator::SymbolicBind(
   }
   if (auto* param_tuple = dynamic_cast<const TupleType*>(&param_type)) {
     auto* arg_tuple = dynamic_cast<const TupleType*>(&arg_type);
-    StructDef* param_nominal = param_tuple->nominal_type();
-    StructDef* arg_nominal = arg_tuple->nominal_type();
-    XLS_VLOG(5) << "param nominal "
-                << (param_nominal == nullptr ? "none"
-                                             : param_nominal->ToString())
-                << " arg nominal "
-                << (arg_nominal == nullptr ? "none" : arg_nominal->ToString());
-    if (param_nominal != arg_nominal) {
-      std::string message = absl::StrFormat(
-          "parameter type name: '%s'; argument type name: '%s'",
-          param_nominal == nullptr ? "<none>" : param_nominal->identifier(),
-          arg_nominal == nullptr ? "<none>" : arg_nominal->identifier());
+    return SymbolicBindTuple(*param_tuple, *arg_tuple);
+  }
+  if (auto* param_struct = dynamic_cast<const StructType*>(&param_type)) {
+    auto* arg_struct = dynamic_cast<const StructType*>(&arg_type);
+    StructDef& param_nominal = param_struct->nominal_type();
+    StructDef& arg_nominal = arg_struct->nominal_type();
+    if (&param_nominal != &arg_nominal) {
+      std::string message =
+          absl::StrFormat("parameter type name: '%s'; argument type name: '%s'",
+                          param_nominal.identifier(), arg_nominal.identifier());
       return XlsTypeErrorStatus(span_, param_type, arg_type, message);
     }
-    return SymbolicBindTuple(*param_tuple, *arg_tuple);
+    return SymbolicBindStruct(*param_struct, *arg_struct);
   }
   if (auto* param_array = dynamic_cast<const ArrayType*>(&param_type)) {
     auto* arg_array = dynamic_cast<const ArrayType*>(&arg_type);
@@ -324,7 +333,7 @@ absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
 }
 
 /* static */ absl::StatusOr<StructInstantiator> StructInstantiator::Make(
-    Span span, const TupleType& struct_type,
+    Span span, const StructType& struct_type,
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<ConcreteType> const> member_types,
     DeduceCtx* ctx,
@@ -412,7 +421,7 @@ absl::StatusOr<TypeAndBindings> InstantiateFunction(
 }
 
 absl::StatusOr<TypeAndBindings> InstantiateStruct(
-    Span span, const TupleType& struct_type,
+    Span span, const StructType& struct_type,
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<ConcreteType> const> member_types,
     DeduceCtx* ctx,

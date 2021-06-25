@@ -986,15 +986,17 @@ TEST(TypecheckStructInstanceTest, DuplicateFieldY) {
 }
 
 TEST(TypecheckStructInstanceTest, StructIncompatibleWithTupleEquivalent) {
-  EXPECT_THAT(TypecheckStructInstance(R"(
+  EXPECT_THAT(
+      TypecheckStructInstance(R"(
 fn f(x: (s8, u32)) -> (s8, u32) { x }
 fn g() -> (s8, u32) {
   let p = Point { x: s8:255, y: u32:1024 };
   f(p)
 }
 )"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("argument type name: 'Point'")));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("argument types are different kinds (tuple vs struct)")));
 }
 
 TEST(TypecheckStructInstanceTest, SplatWithDuplicate) {

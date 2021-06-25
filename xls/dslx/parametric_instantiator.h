@@ -93,7 +93,7 @@ absl::StatusOr<TypeAndBindings> InstantiateFunction(
 //
 // See InstantiateFunction() above.
 absl::StatusOr<TypeAndBindings> InstantiateStruct(
-    Span span, const TupleType& struct_type,
+    Span span, const StructType& struct_type,
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<ConcreteType> const> member_types,
     DeduceCtx* ctx,
@@ -181,6 +181,8 @@ class ParametricInstantiator {
                                 const ConcreteType& arg_type);
   absl::Status SymbolicBindTuple(const TupleType& param_type,
                                  const TupleType& arg_type);
+  absl::Status SymbolicBindStruct(const StructType& param_type,
+                                  const StructType& arg_type);
   absl::Status SymbolicBindArray(const ArrayType& param_type,
                                  const ArrayType& arg_type);
   absl::Status SymbolicBindFunction(const FunctionType& param_type,
@@ -252,7 +254,7 @@ class FunctionInstantiator : public ParametricInstantiator {
 class StructInstantiator : public ParametricInstantiator {
  public:
   static absl::StatusOr<StructInstantiator> Make(
-      Span span, const TupleType& struct_type,
+      Span span, const StructType& struct_type,
       absl::Span<const InstantiateArg> args,
       absl::Span<std::unique_ptr<ConcreteType> const> member_types,
       DeduceCtx* ctx,
@@ -263,7 +265,7 @@ class StructInstantiator : public ParametricInstantiator {
 
  private:
   StructInstantiator(
-      Span span, const TupleType& struct_type,
+      Span span, const StructType& struct_type,
       absl::Span<const InstantiateArg> args,
       absl::Span<std::unique_ptr<ConcreteType> const> member_types,
       DeduceCtx* ctx,

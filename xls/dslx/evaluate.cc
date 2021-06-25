@@ -991,12 +991,12 @@ absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
   XLS_RET_CHECK(maybe_type.has_value())
       << "LHS of attr: " << expr << " should have type info in: " << type_info
       << " @ " << expr->lhs()->span();
-  auto* tuple_type = dynamic_cast<const TupleType*>(maybe_type.value());
-  XLS_RET_CHECK(tuple_type != nullptr) << (*maybe_type)->ToString();
+  auto* struct_type = dynamic_cast<const StructType*>(maybe_type.value());
+  XLS_RET_CHECK(struct_type != nullptr) << (*maybe_type)->ToString();
 
   absl::optional<int64_t> index;
-  for (int64_t i = 0; i < tuple_type->size(); ++i) {
-    absl::string_view name = tuple_type->GetMemberName(i);
+  for (int64_t i = 0; i < struct_type->size(); ++i) {
+    absl::string_view name = struct_type->GetMemberName(i);
     if (name == expr->attr()->identifier()) {
       index = i;
       break;

@@ -243,24 +243,86 @@ class TokenType : public ConcreteType {
   }
 };
 
-// Represents a tuple type.
-//
-// Tuples can have unnamed members or named members. In any case, you can
-// request `tuple_type.GetUnnamedMembers()`.
-//
-// When the members are named the `nominal_type` may refer to the struct
-// definition that led to those named members.
-class TupleType : public ConcreteType {
+// Represents a struct type -- these are similar in spirit to "tuples with named
+// fields", but they also identify the nominal struct that they correspond to --
+// things like type comparisons
+class StructType : public ConcreteType {
  public:
-  using UnnamedMembers = std::vector<std::unique_ptr<ConcreteType>>;
+  // TODO(leary): 2021-06-25 We should be able to use the name information from
+  // the underlying StructDef instead of duplicating it inline here.
   struct NamedMember {
     std::string name;
     std::unique_ptr<ConcreteType> type;
   };
   using NamedMembers = std::vector<NamedMember>;
-  using Members = std::variant<UnnamedMembers, NamedMembers>;
 
-  TupleType(Members members, StructDef* struct_def = nullptr);
+  StructType(NamedMembers members, StructDef* struct_def)
+      : members_(std::move(members)),
+        struct_def_(*XLS_DIE_IF_NULL(struct_def)) {}
+
+  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
+      const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
+      const override;
+
+  bool operator==(const ConcreteType& other) const override;
+  std::string ToString() const override;
+  std::vector<ConcreteTypeDim> GetAllDims() const override;
+  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override;
+  std::string GetDebugTypeName() const override { return "struct"; }
+
+  bool HasEnum() const override;
+
+  std::unique_ptr<ConcreteType> CloneToUnique() const override {
+    return absl::make_unique<StructType>(CloneMembers(), &struct_def_);
+  }
+
+  // For user-level error reporting, we also note the name of the struct
+  // definition if one is available.
+  std::string ToErrorString() const override;
+
+  // Returns an InvalidArgument error status if this TupleType does not have
+  // named members.
+  absl::StatusOr<std::vector<std::string>> GetMemberNames() const;
+
+  absl::string_view GetMemberName(int64_t i) const {
+    return members_.at(i).name;
+  }
+
+  const ConcreteType& GetMemberType(int64_t i) const {
+    return *members_.at(i).type;
+  }
+
+  // Returns the index of the member with name "name" -- returns a NotFound
+  // error if the member is not found (i.e. it is generally expected that the
+  // caller knows the name is present), and an InvalidArgument error status if
+  // this TupleType does not have named members.
+  absl::StatusOr<int64_t> GetMemberIndex(absl::string_view name) const;
+
+  absl::optional<const ConcreteType*> GetMemberTypeByName(
+      absl::string_view target) const;
+
+  StructDef& nominal_type() const { return struct_def_; }
+
+  bool HasNamedMember(absl::string_view target) const;
+
+  int64_t size() const { return members_.size(); }
+
+  const std::vector<NamedMember>& members() const { return members_; }
+
+ private:
+  static bool MembersEqual(absl::Span<const NamedMember> a,
+                           absl::Span<const NamedMember> b);
+
+  std::vector<NamedMember> CloneMembers() const;
+
+  NamedMembers members_;
+  StructDef& struct_def_;
+};
+
+// Represents a tuple type. Tuples have unnamed members.
+class TupleType : public ConcreteType {
+ public:
+  TupleType(std::vector<std::unique_ptr<ConcreteType>> members);
 
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
       const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
@@ -272,14 +334,10 @@ class TupleType : public ConcreteType {
   absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override;
   std::string GetDebugTypeName() const override { return "tuple"; }
 
-  // For user-level error reporting, we also note the name of the struct
-  // definition if one is available.
-  std::string ToErrorString() const override;
-
   bool HasEnum() const override;
 
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    return absl::make_unique<TupleType>(CloneMembers(), struct_def_);
+    return absl::make_unique<TupleType>(CloneMembers());
   }
 
   bool empty() const;
@@ -287,63 +345,19 @@ class TupleType : public ConcreteType {
 
   bool CompatibleWith(const TupleType& other) const;
 
-  bool is_named() const {
-    return absl::holds_alternative<NamedMembers>(members_);
+  ConcreteType& GetMemberType(int64_t i) { return *members_.at(i); }
+  const ConcreteType& GetMemberType(int64_t i) const { return *members_.at(i); }
+  const std::vector<std::unique_ptr<ConcreteType>>& members() const {
+    return members_;
   }
-  StructDef* nominal_type() const { return struct_def_; }
-
-  const Members& members() const { return members_; }
-
-  // Precondition: this TupleType must have named members and i must be <
-  // members().size().
-  const std::string& GetMemberName(int64_t i) const {
-    XLS_CHECK(absl::holds_alternative<NamedMembers>(members_));
-    return absl::get<NamedMembers>(members_).at(i).name;
-  }
-  ConcreteType& GetMemberType(int64_t i) {
-    if (absl::holds_alternative<NamedMembers>(members_)) {
-      return *absl::get<NamedMembers>(members_).at(i).type;
-    } else {
-      return *absl::get<UnnamedMembers>(members_).at(i);
-    }
-  }
-  const ConcreteType& GetMemberType(int64_t i) const {
-    return const_cast<TupleType*>(this)->GetMemberType(i);
-  }
-
-  // Returns an InvalidArgument error status if this TupleType does not have
-  // named members.
-  absl::StatusOr<std::vector<std::string>> GetMemberNames() const;
-
-  // Returns the index of the member with name "name" -- returns a NotFound
-  // error if the member is not found (i.e. it is generally expected that the
-  // caller knows the name is present), and an InvalidArgument error status if
-  // this TupleType does not have named members.
-  absl::StatusOr<int64_t> GetMemberIndex(absl::string_view name) const;
-
-  std::vector<const ConcreteType*> GetUnnamedMembers() const;
-  const ConcreteType& GetUnnamedMember(int64_t i) const {
-    const ConcreteType* result = GetUnnamedMembers()[i];
-    XLS_CHECK(result != nullptr);
-    return *result;
-  }
-
-  absl::optional<const ConcreteType*> GetMemberTypeByName(
-      absl::string_view target) const;
-
-  bool HasNamedMember(absl::string_view target) const;
 
  private:
-  static bool MembersEqual(const UnnamedMembers& a, const UnnamedMembers& b);
+  std::vector<std::unique_ptr<ConcreteType>> CloneMembers() const;
 
-  static bool MembersEqual(const NamedMembers& a, const NamedMembers& b);
+  static bool MembersEqual(absl::Span<const std::unique_ptr<ConcreteType>> a,
+                           absl::Span<const std::unique_ptr<ConcreteType>> b);
 
-  static bool MembersEqual(const Members& a, const Members& b);
-
-  Members CloneMembers() const;
-
-  Members members_;
-  StructDef* struct_def_;  // Note: may be null.
+  std::vector<std::unique_ptr<ConcreteType>> members_;
 };
 
 // Represents an array type, with an element type and size.
@@ -556,6 +570,9 @@ inline std::unique_ptr<BitsType> CloneToUnique(const BitsType& type) {
   return CloneToUniqueInternal(type);
 }
 inline std::unique_ptr<TupleType> CloneToUnique(const TupleType& type) {
+  return CloneToUniqueInternal(type);
+}
+inline std::unique_ptr<StructType> CloneToUnique(const StructType& type) {
   return CloneToUniqueInternal(type);
 }
 inline std::unique_ptr<FunctionType> CloneToUnique(const FunctionType& type) {

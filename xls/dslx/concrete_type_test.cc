@@ -22,42 +22,6 @@ namespace xls::dslx {
 namespace {
 
 // Vector of various types to use in table-based tests.
-std::vector<std::unique_ptr<ConcreteType>> GetConcreteTypesForTesting() {
-  std::vector<std::unique_ptr<ConcreteType>> results;
-  results.push_back(BitsType::MakeU1());
-  results.push_back(BitsType::MakeU8());
-  results.push_back(BitsType::MakeU32());
-  results.push_back(std::make_unique<BitsType>(true, 8));
-  results.push_back(std::make_unique<BitsType>(true, 32));
-  results.push_back(ConcreteType::MakeUnit());
-  {
-    // (u32,)
-    std::vector<std::unique_ptr<ConcreteType>> tuple_members;
-    tuple_members.push_back(BitsType::MakeU32());
-    results.push_back(absl::make_unique<TupleType>(std::move(tuple_members)));
-  }
-  {
-    // (u32, s8)
-    std::vector<std::unique_ptr<ConcreteType>> tuple_members;
-    tuple_members.push_back(BitsType::MakeU32());
-    tuple_members.push_back(std::make_unique<BitsType>(true, 8));
-    results.push_back(absl::make_unique<TupleType>(std::move(tuple_members)));
-  }
-  // u32[8]
-  results.push_back(std::make_unique<ArrayType>(
-      BitsType::MakeU32(), ConcreteTypeDim::Create(8).value()));
-  // (u32, u8)[7]
-  {
-    std::vector<std::unique_ptr<ConcreteType>> tuple_members;
-    tuple_members.push_back(BitsType::MakeU32());
-    tuple_members.push_back(std::make_unique<BitsType>(true, 8));
-    auto elem_type = absl::make_unique<TupleType>(std::move(tuple_members));
-    results.push_back(std::make_unique<ArrayType>(
-        std::move(elem_type), ConcreteTypeDim::Create(7).value()));
-  }
-  return results;
-}
-
 TEST(ConcreteTypeTest, TestU32) {
   BitsType t(false, 32);
   EXPECT_EQ("uN[32]", t.ToString());

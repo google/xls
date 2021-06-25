@@ -84,7 +84,7 @@ static absl::StatusOr<InterpValue> GenerateArgument(
     absl::Span<const InterpValue> prior) {
   if (auto* tuple_type = dynamic_cast<const TupleType*>(&arg_type)) {
     std::vector<InterpValue> members;
-    for (const ConcreteType* t : tuple_type->GetUnnamedMembers()) {
+    for (const std::unique_ptr<ConcreteType>& t : tuple_type->members()) {
       XLS_ASSIGN_OR_RETURN(InterpValue member,
                            GenerateArgument(*t, rng, prior));
       members.push_back(member);

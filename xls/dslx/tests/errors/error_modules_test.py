@@ -284,6 +284,11 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'uN[3] vs uN[32]: Mismatch between parameter and argument types',
         stderr)
 
+  def test_index_struct_value(self):
+    stderr = self._run('xls/dslx/tests/errors/index_struct_value.x')
+    self.assertIn('index_struct_value.x:23:4-23:7', stderr)
+    self.assertIn('Value to index is not an array', stderr)
+
 
 if __name__ == '__main__':
   test_base.main()
