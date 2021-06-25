@@ -165,6 +165,30 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "translator_verilog_test",
+    srcs = ["translator_verilog_test.cc"],
+    data = glob([
+        "testdata/translator_verilog_test_*",
+    ]),
+    deps = [
+        ":hls_block_cc_proto",
+        ":translator",
+        ":unit_test",
+        "//xls/codegen:combinational_generator",
+        "//xls/codegen:module_signature",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/simulation:module_simulator",
+        "//xls/simulation:verilog_simulators",
+        "//xls/simulation:verilog_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_binary(
     name = "xlscc",
     srcs = ["main.cc"],

@@ -1,0 +1,22 @@
+module foo_proc(
+  input wire [31:0] dir,
+  input wire [31:0] in,
+  input wire in_vld,
+  input wire out1_rdy,
+  input wire out2_rdy,
+  output wire in_rdy,
+  output wire [31:0] out1,
+  output wire out1_vld,
+  output wire [31:0] out2,
+  output wire out2_vld
+);
+  wire all_active_outputs_ready;
+  wire all_active_inputs_valid;
+  assign all_active_outputs_ready = &{~(dir == 32'h0000_0000) | out1_rdy, ~(dir != 32'h0000_0000) | out2_rdy};
+  assign all_active_inputs_valid = &{~1'h1 | in_vld};
+  assign in_rdy = 1'h1 & all_active_outputs_ready;
+  assign out1 = in;
+  assign out1_vld = dir == 32'h0000_0000 & all_active_inputs_valid;
+  assign out2 = in;
+  assign out2_vld = dir != 32'h0000_0000 & all_active_inputs_valid;
+endmodule

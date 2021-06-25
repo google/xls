@@ -31,19 +31,25 @@ void XlsccTestBase::Run(const absl::flat_hash_map<std::string, uint64_t>& args,
 
 absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
                                      std::vector<absl::string_view> argv) {
+  translator_ = absl::make_unique<xlscc::Translator>();
+
+  return ScanFile(cpp_src, argv, translator_.get());
+}
+
+/* static */ absl::Status XlsccTestBase::ScanFile(
+    absl::string_view cpp_src, std::vector<absl::string_view> argv,
+    xlscc::Translator* translator) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                        xls::TempFile::CreateWithContent(cpp_src, ".cc"));
 
   std::string ps = temp.path();
 
-  translator_ = absl::make_unique<xlscc::Translator>();
-
   absl::Status ret;
   argv.push_back("-Werror");
   argv.push_back("-Wall");
   argv.push_back("-Wno-unknown-pragmas");
-  XLS_RETURN_IF_ERROR(translator_->SelectTop("my_package"));
-  XLS_RETURN_IF_ERROR(translator_->ScanFile(
+  XLS_RETURN_IF_ERROR(translator->SelectTop("my_package"));
+  XLS_RETURN_IF_ERROR(translator->ScanFile(
       temp.path().c_str(), argv.empty()
                                ? absl::Span<absl::string_view>()
                                : absl::MakeSpan(&argv[0], argv.size())));

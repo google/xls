@@ -32,6 +32,13 @@
 
 namespace xls {
 namespace verilog {
+namespace {
+
+// Suffixes for ready/valid ports for streaming channels.
+char kReadySuffix[] = "_rdy";
+char kValidSuffix[] = "_vld";
+
+}  // namespace
 
 absl::StatusOr<Block*> FunctionToBlock(Function* f,
                                        absl::string_view block_name) {
@@ -172,6 +179,146 @@ struct StreamingOutput {
   absl::optional<Node*> predicate;
 };
 
+struct StreamingIo {
+  std::vector<StreamingInput> inputs;
+  std::vector<StreamingOutput> outputs;
+};
+
+// Clones every node in the given proc into the given block. Some nodes are
+// handled specially:
+//
+// * Proc token parameter becomes an operandless AfterAll operation in the
+//   block.
+// * Proc state parameter (which must be an empty tuple) becomes a Literal
+//   operation in theblock.
+// * Receive(If) operations become InputPorts.
+// * Send(If) operations become OutputPorts.
+//
+// Returns vectors containing the InputPorts and OutputPorts created from
+// Send/Receive operations of streaming channels.
+//
+// Example input proc:
+//
+//   chan x_ch(bits[32], kind=streaming, flow_control=single_value, id=0, ...)
+//   chan y_ch(bits[32], kind=streaming, flow_control=single_value, id=1, ...)
+//
+//   proc foo(tkn: token, st: (), init=42) {
+//     rcv_x: (token, bits[32]) = receive(tkn, channel_id=0)
+//     rcv_x_token: token = tuple_index(rcv_x, index=0)
+//     x: bits[32] = tuple_index(rcv_x, index=1)
+//     not_x: bits[32] = not(x)
+//     snd_y: token = send(rcv_x_token, not_x, channel_id=1)
+//     next (tkn, snd_y)
+//   }
+//
+// Resulting block:
+//
+//  block (x: bits[32], y: bits[32]) {
+//    x: bits[32] = input_port(name=x)
+//    not_x: bits[32] = not(x)
+//    y: bits[32] = output_port(not_x, name=x)
+//  }
+//
+// Ready/valid flow control including inputs ports and output ports are added
+// later.
+absl::StatusOr<StreamingIo> CloneProcNodesIntoBlock(Proc* proc, Block* block) {
+  // Gather the inputs and outputs from streaming channels.
+  StreamingIo result;
+
+  // A map from the nodes in `proc` to their corresponding node in the block.
+  absl::flat_hash_map<Node*, Node*> node_map;
+
+  for (Node* node : TopoSort(proc)) {
+    // Replace token parameter with zero operand AfterAll.
+    if (node == proc->TokenParam()) {
+      XLS_ASSIGN_OR_RETURN(
+          node_map[node],
+          block->MakeNode<AfterAll>(node->loc(), std::vector<Node*>()));
+      continue;
+    }
+
+    // Replace state parameter with Literal empty tuple.
+    if (node == proc->StateParam()) {
+      XLS_ASSIGN_OR_RETURN(node_map[node], block->MakeNode<xls::Literal>(
+                                               node->loc(), Value::Tuple({})));
+      continue;
+    }
+    XLS_RET_CHECK(!node->Is<Param>());
+
+    // Don't clone Receive(If) operations. Instead replace with a tuple
+    // containing the Receive(If)'s token operand and an InputPort operation.
+    if (node->Is<Receive>() || node->Is<ReceiveIf>()) {
+      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
+      XLS_ASSIGN_OR_RETURN(
+          InputPort * input_port,
+          block->AddInputPort(channel->name(), channel->type()));
+      XLS_ASSIGN_OR_RETURN(
+          node_map[node],
+          block->MakeNode<Tuple>(
+              node->loc(),
+              std::vector<Node*>({node_map.at(node->operand(0)), input_port})));
+      if (channel->kind() == ChannelKind::kSingleValue) {
+        continue;
+      }
+      XLS_RET_CHECK_EQ(channel->kind(), ChannelKind::kStreaming);
+      XLS_RET_CHECK_EQ(down_cast<StreamingChannel*>(channel)->flow_control(),
+                       FlowControl::kReadyValid);
+
+      StreamingInput streaming_input;
+      streaming_input.port = input_port;
+      if (node->Is<ReceiveIf>()) {
+        streaming_input.predicate =
+            node_map.at(node->As<ReceiveIf>()->predicate());
+      }
+      result.inputs.push_back(streaming_input);
+      continue;
+    }
+
+    // Don't clone Send(If) operations. Instead replace with  an OutputPort
+    // operation in the block.
+    if (node->Is<Send>() || node->Is<SendIf>()) {
+      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
+      Node* data = node->Is<Send>() ? node->As<Send>()->data()
+                                    : node->As<SendIf>()->data();
+      Node* token = node->Is<Send>() ? node->As<Send>()->token()
+                                     : node->As<SendIf>()->token();
+      XLS_ASSIGN_OR_RETURN(
+          OutputPort * output_port,
+          block->AddOutputPort(channel->name(), node_map.at(data)));
+      // Map the Send(If) node to the token operand of the Send(If) in the
+      // block.
+      node_map[node] = node_map.at(token);
+
+      if (channel->kind() == ChannelKind::kSingleValue) {
+        continue;
+      }
+
+      XLS_RET_CHECK_EQ(channel->kind(), ChannelKind::kStreaming);
+      XLS_RET_CHECK_EQ(down_cast<StreamingChannel*>(channel)->flow_control(),
+                       FlowControl::kReadyValid);
+
+      StreamingOutput streaming_output;
+      streaming_output.port = output_port;
+      if (node->Is<SendIf>()) {
+        streaming_output.predicate =
+            node_map.at(node->As<SendIf>()->predicate());
+      }
+      result.outputs.push_back(streaming_output);
+      continue;
+    }
+
+    // Clone the operation from the proc to the block as is.
+    std::vector<Node*> new_operands;
+    for (Node* operand : node->operands()) {
+      new_operands.push_back(node_map.at(operand));
+    }
+    XLS_ASSIGN_OR_RETURN(node_map[node],
+                         node->CloneInNewFunction(new_operands, block));
+  }
+
+  return result;
+}
+
 // Adds ready/valid ports for each of the given streaming inputs/outputs. Also,
 // adds logic which propagates ready and valid signals through the block.
 absl::Status AddFlowControl(absl::Span<const StreamingInput> streaming_inputs,
@@ -228,7 +375,7 @@ absl::Status AddFlowControl(absl::Span<const StreamingInput> streaming_inputs,
     XLS_ASSIGN_OR_RETURN(
         Node * valid,
         block->AddInputPort(
-            absl::StrFormat("%s_vld", streaming_input.port->name()),
+            absl::StrFormat("%s%s", streaming_input.port->name(), kValidSuffix),
             block->package()->GetBitsType(1)));
     if (streaming_input.predicate.has_value()) {
       // Logic for the active valid signal for a ReceiveIf operation with a
@@ -300,7 +447,8 @@ absl::Status AddFlowControl(absl::Span<const StreamingInput> streaming_inputs,
     XLS_RETURN_IF_ERROR(
         block
             ->AddOutputPort(
-                absl::StrFormat("%s_rdy", streaming_input.port->GetName()),
+                absl::StrFormat("%s%s", streaming_input.port->GetName(),
+                                kReadySuffix),
                 ready)
             .status());
   }
@@ -325,7 +473,6 @@ absl::Status RemoveDeadTokenNodes(Block* block) {
           .RunOnFunctionBase(block, PassOptions(), &pass_results)
           .status());
 
-  XLS_LOG(INFO) << block->DumpIr();
   for (Node* node : block->nodes()) {
     // Nodes like cover and assume have token types and will cause a failure
     // here. Ultimately these operations should *not*
@@ -356,104 +503,10 @@ absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
   Block* block = proc->package()->AddBlock(
       absl::make_unique<Block>(block_name, proc->package()));
 
-  // A map from the nodes in `proc` to their corresponding node in the block.
-  absl::flat_hash_map<Node*, Node*> node_map;
-
-  // Gather the inputs and outputs from streaming channels.
-  std::vector<StreamingInput> streaming_inputs;
-  std::vector<StreamingOutput> streaming_outputs;
-
-  // Clone everything into block. With the exception of parameters and
-  // send/receives, nodes are cloned directly into the block.
-  for (Node* node : TopoSort(proc)) {
-    // Replace token parameter with zero operand AfterAll.
-    if (node == proc->TokenParam()) {
-      XLS_ASSIGN_OR_RETURN(
-          node_map[node],
-          block->MakeNode<AfterAll>(node->loc(), std::vector<Node*>()));
-      continue;
-    }
-    if (node == proc->StateParam()) {
-      XLS_ASSIGN_OR_RETURN(node_map[node], block->MakeNode<xls::Literal>(
-                                               node->loc(), Value::Tuple({})));
-      continue;
-    }
-    XLS_RET_CHECK(!node->Is<Param>());
-
-    // Don't clone Receive(If) operations. Instead replace with a tuple
-    // containing the Receive(If)'s token operand and an InputPort operation.
-    if (node->Is<Receive>() || node->Is<ReceiveIf>()) {
-      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-      XLS_ASSIGN_OR_RETURN(
-          InputPort * input_port,
-          block->AddInputPort(channel->name(), channel->type()));
-      XLS_ASSIGN_OR_RETURN(
-          node_map[node],
-          block->MakeNode<Tuple>(
-              node->loc(),
-              std::vector<Node*>({node_map.at(node->operand(0)), input_port})));
-      if (channel->kind() == ChannelKind::kSingleValue) {
-        continue;
-      }
-      XLS_RET_CHECK_EQ(channel->kind(), ChannelKind::kStreaming);
-      XLS_RET_CHECK_EQ(down_cast<StreamingChannel*>(channel)->flow_control(),
-                       FlowControl::kReadyValid);
-
-      StreamingInput streaming_input;
-      streaming_input.port = input_port;
-      if (node->Is<ReceiveIf>()) {
-        streaming_input.predicate =
-            node_map.at(node->As<ReceiveIf>()->predicate());
-      }
-      streaming_inputs.push_back(streaming_input);
-      continue;
-    }
-
-    // Don't clone Send(If) operations. Instead replace with  an OutputPort
-    // operation in the block.
-    if (node->Is<Send>() || node->Is<SendIf>()) {
-      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-      Node* data = node->Is<Send>() ? node->As<Send>()->data()
-                                    : node->As<SendIf>()->data();
-      Node* token = node->Is<Send>() ? node->As<Send>()->token()
-                                     : node->As<SendIf>()->token();
-      XLS_ASSIGN_OR_RETURN(
-          OutputPort * output_port,
-          block->AddOutputPort(channel->name(), node_map.at(data)));
-      // Map the Send(If) node to the token operand of the Send(If) in the
-      // block.
-      node_map[node] = node_map.at(token);
-
-      if (channel->kind() == ChannelKind::kSingleValue) {
-        continue;
-      }
-
-      XLS_RET_CHECK_EQ(channel->kind(), ChannelKind::kStreaming);
-      XLS_RET_CHECK_EQ(down_cast<StreamingChannel*>(channel)->flow_control(),
-                       FlowControl::kReadyValid);
-
-      StreamingOutput streaming_output;
-      streaming_output.port = output_port;
-      if (node->Is<SendIf>()) {
-        streaming_output.predicate =
-            node_map.at(node->As<SendIf>()->predicate());
-      }
-      streaming_outputs.push_back(streaming_output);
-
-      continue;
-    }
-
-    // Clone the operation from the proc to the block as is.
-    std::vector<Node*> new_operands;
-    for (Node* operand : node->operands()) {
-      new_operands.push_back(node_map.at(operand));
-    }
-    XLS_ASSIGN_OR_RETURN(node_map[node],
-                         node->CloneInNewFunction(new_operands, block));
-  }
-
+  XLS_ASSIGN_OR_RETURN(StreamingIo streaming_io,
+                       CloneProcNodesIntoBlock(proc, block));
   XLS_RETURN_IF_ERROR(
-      AddFlowControl(streaming_inputs, streaming_outputs, block));
+      AddFlowControl(streaming_io.inputs, streaming_io.outputs, block));
 
   XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(block));
 
