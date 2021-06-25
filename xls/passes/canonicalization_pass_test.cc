@@ -18,7 +18,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/interpreter/ir_interpreter.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
@@ -197,7 +197,8 @@ TEST_F(CanonicalizePassTest, ExhaustiveClampTest) {
             for (int64_t x_value = 0; x_value < kMaxValue; ++x_value) {
               XLS_ASSERT_OK_AND_ASSIGN(
                   expected[x_value],
-                  IrInterpreter::Run(f, {Value(UBits(x_value, kBitWidth))}));
+                  FunctionInterpreter::Run(f,
+                                           {Value(UBits(x_value, kBitWidth))}));
             }
 
             XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p.get()));
@@ -207,8 +208,8 @@ TEST_F(CanonicalizePassTest, ExhaustiveClampTest) {
 
             for (int64_t x_value = 0; x_value < kMaxValue; ++x_value) {
               XLS_ASSERT_OK_AND_ASSIGN(
-                  Value actual,
-                  IrInterpreter::Run(f, {Value(UBits(x_value, kBitWidth))}));
+                  Value actual, FunctionInterpreter::Run(
+                                    f, {Value(UBits(x_value, kBitWidth))}));
               EXPECT_EQ(expected[x_value], actual)
                   << absl::StreamFormat("%s for x = %d", expr_str, x_value);
             }

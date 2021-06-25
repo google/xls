@@ -70,7 +70,7 @@ class Proc : public FunctionBase {
   // proc's next recurrent state with the given next_state. The existing state
   // param must have no uses.
   absl::Status ReplaceState(absl::string_view state_param_name,
-                            Node* next_state);
+                            Node* next_state, const Value& init_value);
 
   bool HasImplicitUse(Node* node) const override {
     return node == NextToken() || node == NextState();

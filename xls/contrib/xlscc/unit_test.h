@@ -30,7 +30,7 @@
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/unit_test.h"
 #include "xls/interpreter/channel_queue.h"
-#include "xls/interpreter/ir_interpreter.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/proc_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_test_base.h"

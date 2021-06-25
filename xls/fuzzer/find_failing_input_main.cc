@@ -23,7 +23,7 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
-#include "xls/interpreter/ir_interpreter.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
@@ -79,7 +79,8 @@ absl::Status RealMain(absl::string_view ir_path,
       XLS_ASSIGN_OR_RETURN(jit_result, Parser::ParseTypedValue(absl::GetFlag(
                                            FLAGS_test_only_inject_jit_result)));
     }
-    XLS_ASSIGN_OR_RETURN(Value interpreter_result, IrInterpreter::Run(f, args));
+    XLS_ASSIGN_OR_RETURN(Value interpreter_result,
+                         FunctionInterpreter::Run(f, args));
     if (jit_result != interpreter_result) {
       std::cout << absl::StrJoin(
           args, "; ", [](std::string* s, const Value& v) {

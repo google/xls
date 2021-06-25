@@ -26,7 +26,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/interpreter/ir_interpreter.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/random_value.h"
 #include "xls/jit/ir_jit.h"
@@ -150,7 +150,7 @@ absl::StatusOr<std::vector<Value>> Eval(
                                          FLAGS_test_only_inject_jit_result)));
       }
     } else {
-      XLS_ASSIGN_OR_RETURN(result, IrInterpreter::Run(f, arg_set.args));
+      XLS_ASSIGN_OR_RETURN(result, FunctionInterpreter::Run(f, arg_set.args));
     }
     std::cout << result.ToString(FormatPreference::kHex) << std::endl;
 

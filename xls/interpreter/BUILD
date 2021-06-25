@@ -19,8 +19,16 @@ package(
 
 cc_library(
     name = "ir_interpreter",
-    srcs = ["ir_interpreter.cc"],
-    hdrs = ["ir_interpreter.h"],
+    srcs = [
+        "block_interpreter.cc",
+        "function_interpreter.cc",
+        "ir_interpreter.cc",
+    ],
+    hdrs = [
+        "block_interpreter.h",
+        "function_interpreter.h",
+        "ir_interpreter.h",
+    ],
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
@@ -35,6 +43,8 @@ cc_library(
         "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:keyword_args",
+        "//xls/ir:value",
+        "//xls/ir:value_helpers",
     ],
 )
 
@@ -43,7 +53,7 @@ cc_test(
     size = "small",
     srcs = ["ir_interpreter_test.cc"],
     deps = [
-        ":ir_evaluator_test",
+        ":ir_evaluator_test_base",
         ":ir_interpreter",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -124,11 +134,24 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "block_interpreter_test",
+    srcs = ["block_interpreter_test.cc"],
+    deps = [
+        ":ir_interpreter",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_library(
-    name = "ir_evaluator_test",
+    name = "ir_evaluator_test_base",
     testonly = True,
-    srcs = ["ir_evaluator_test.cc"],
-    hdrs = ["ir_evaluator_test.h"],
+    srcs = ["ir_evaluator_test_base.cc"],
+    hdrs = ["ir_evaluator_test_base.h"],
     deps = [
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

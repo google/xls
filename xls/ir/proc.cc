@@ -20,6 +20,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/value_helpers.h"
 
 namespace xls {
 
@@ -69,12 +70,18 @@ absl::Status Proc::SetNextState(Node* next) {
 }
 
 absl::Status Proc::ReplaceState(absl::string_view state_param_name,
-                                Node* next_state) {
+                                Node* next_state, const Value& init_value) {
   Param* old_state_param = StateParam();
   if (!old_state_param->users().empty()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Existing state param \"%s\" still has uses",
                         old_state_param->GetName()));
+  }
+  if (!ValueConformsToType(init_value, next_state->GetType())) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "New initial value %s does not match type %s of next state %s",
+        init_value.ToString(), next_state->GetType()->ToString(),
+        next_state->GetName()));
   }
 
   // Add a new state param node.
@@ -83,6 +90,7 @@ absl::Status Proc::ReplaceState(absl::string_view state_param_name,
       MakeNodeWithName<Param>(/*loc=*/absl::nullopt, state_param_name,
                               next_state->GetType()));
   next_state_ = next_state;
+  init_value_ = init_value;
 
   XLS_RET_CHECK(!HasImplicitUse(old_state_param));
   XLS_RETURN_IF_ERROR(RemoveNode(old_state_param));

@@ -30,7 +30,7 @@ class ProcIrInterpreter : public IrInterpreter {
  public:
   // "state" is the value to use for the proc state during interpretation.
   ProcIrInterpreter(const Value& state, ChannelQueueManager* queue_manager)
-      : IrInterpreter({Value::Token(), state}), queue_manager_(queue_manager) {}
+      : IrInterpreter(), state_(state), queue_manager_(queue_manager) {}
 
   absl::Status HandleReceive(Receive* receive) override {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
@@ -75,7 +75,20 @@ class ProcIrInterpreter : public IrInterpreter {
     return SetValueResult(send_if, Value::Token());
   }
 
+  absl::Status HandleParam(Param* param) override {
+    XLS_ASSIGN_OR_RETURN(int64_t index,
+                         param->function_base()->GetParamIndex(param));
+    XLS_RET_CHECK(index == 0 || index == 1);
+    if (index == 0) {
+      return SetValueResult(param, Value::Token());
+    } else {
+      return SetValueResult(param, state_);
+    }
+  }
+
  private:
+  Value state_;
+
   ChannelQueueManager* queue_manager_;
 };
 

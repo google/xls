@@ -17,6 +17,7 @@
 #include "pybind11/pybind11.h"
 #include "xls/common/python/absl_casters.h"
 #include "xls/common/status/statusor_pybind_caster.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/python/wrapper_types.h"
 
 namespace py = pybind11;
@@ -29,9 +30,9 @@ PYBIND11_MODULE(ir_interpreter, m) {
   py::module::import("xls.ir.python.function");
   py::module::import("xls.ir.python.value");
 
-  m.def("run_function_kwargs", PyWrap(&IrInterpreter::RunKwargs), py::arg("f"),
-        py::arg("args"));
-  m.def("run_function", PyWrap(&IrInterpreter::Run), py::arg("f"),
+  m.def("run_function_kwargs", PyWrap(&FunctionInterpreter::RunKwargs),
+        py::arg("f"), py::arg("args"));
+  m.def("run_function", PyWrap(&FunctionInterpreter::Run), py::arg("f"),
         py::arg("args"));
 }
 

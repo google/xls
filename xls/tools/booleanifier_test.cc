@@ -21,7 +21,7 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
-#include "xls/interpreter/ir_interpreter.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/jit/ir_jit.h"
 
@@ -64,9 +64,9 @@ TEST_F(BooleanifierTest, Crc32) {
   for (int i = 0; i < 256; i++) {
     std::vector<Value> inputs({Value(UBits(i, 8))});
     XLS_ASSERT_OK_AND_ASSIGN(Value fancy_value,
-                             IrInterpreter::Run(fd.source, inputs));
+                             FunctionInterpreter::Run(fd.source, inputs));
     XLS_ASSERT_OK_AND_ASSIGN(Value basic_value,
-                             IrInterpreter::Run(fd.boolified, inputs));
+                             FunctionInterpreter::Run(fd.boolified, inputs));
     ASSERT_EQ(fancy_value, basic_value);
   }
 }

@@ -26,17 +26,7 @@ namespace xls {
 // A visitor for traversing and evaluating a Function.
 class IrInterpreter : public DfsVisitor {
  public:
-  IrInterpreter(absl::Span<const Value> args)
-      : args_(args.begin(), args.end()) {}
-
-  // Runs the interpreter on the given function. 'args' are the argument values
-  // indexed by parameter name.
-  static absl::StatusOr<Value> Run(Function* function,
-                                   absl::Span<const Value> args);
-
-  // Runs the interpreter on the function where the arguments are given by name.
-  static absl::StatusOr<Value> RunKwargs(
-      Function* function, const absl::flat_hash_map<std::string, Value>& args);
+  IrInterpreter() = default;
 
   // Evaluates the given node and returns the Value. Prerequisite: node must
   // have only literal operands.
@@ -161,9 +151,6 @@ class IrInterpreter : public DfsVisitor {
   // leaves are OR-ed.
   absl::StatusOr<Value> DeepOr(Type* input_type,
                                absl::Span<const Value* const> inputs);
-
-  // The arguments to the Function being evaluated indexed by parameter name.
-  std::vector<Value> args_;
 
   // The evaluated values for the nodes in the Function.
   absl::flat_hash_map<Node*, Value> node_values_;

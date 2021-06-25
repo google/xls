@@ -20,7 +20,7 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/examples/sample_packages.h"
-#include "xls/interpreter/ir_interpreter.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
@@ -100,7 +100,8 @@ TEST_F(BddFunctionTest, Parity) {
 
     for (int64_t i = 0; i < kNumSamples; ++i) {
       std::vector<Value> inputs = RandomFunctionArguments(f, &engine);
-      XLS_ASSERT_OK_AND_ASSIGN(Value expected, IrInterpreter::Run(f, inputs));
+      XLS_ASSERT_OK_AND_ASSIGN(Value expected,
+                               FunctionInterpreter::Run(f, inputs));
       XLS_ASSERT_OK_AND_ASSIGN(Value actual, bdd_function->Evaluate(inputs));
       EXPECT_EQ(expected, actual);
     }
@@ -123,7 +124,7 @@ TEST_F(BddFunctionTest, BenchmarkTest) {
       for (int64_t i = 0; i < kSampleCount; ++i) {
         std::vector<Value> inputs = RandomFunctionArguments(entry, &engine);
         XLS_ASSERT_OK_AND_ASSIGN(Value expected,
-                                 IrInterpreter::Run(entry, inputs));
+                                 FunctionInterpreter::Run(entry, inputs));
         XLS_ASSERT_OK_AND_ASSIGN(Value actual, bdd_function->Evaluate(inputs));
         EXPECT_EQ(expected, actual);
       }

@@ -21,7 +21,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/examples/sample_packages.h"
-#include "xls/interpreter/ir_interpreter.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
@@ -400,7 +400,7 @@ fn main(a: bits[32],
   std::minstd_rand engine;
   std::vector<Value> arguments = RandomFunctionArguments(entry, &engine);
   XLS_ASSERT_OK_AND_ASSIGN(Value expected,
-                           IrInterpreter::Run(entry, arguments));
+                           FunctionInterpreter::Run(entry, arguments));
   EXPECT_THAT(simulator.Run(arguments), IsOkAndHolds(expected));
 }
 

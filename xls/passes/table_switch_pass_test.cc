@@ -23,7 +23,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
-#include "xls/interpreter/ir_interpreter.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
@@ -54,8 +54,8 @@ class TableSwitchPassTest : public IrTestBase {
 
     std::vector<Value> data;
     for (int i = 0; i < max_index + kOverflow; i++) {
-      XLS_ASSIGN_OR_RETURN(Value value,
-                           IrInterpreter::Run(f, {Value(UBits(i, width))}));
+      XLS_ASSIGN_OR_RETURN(
+          Value value, FunctionInterpreter::Run(f, {Value(UBits(i, width))}));
       data.push_back(value);
     }
     return data;
@@ -68,7 +68,7 @@ class TableSwitchPassTest : public IrTestBase {
     for (int i = 0; i < before_data.size(); i++) {
       XLS_ASSIGN_OR_RETURN(
           Value value,
-          IrInterpreter::Run(
+          FunctionInterpreter::Run(
               f, {Value(UBits(i, before_data[0].GetFlatBitCount()))}));
       if (value != before_data[i]) {
         return absl::InternalError(

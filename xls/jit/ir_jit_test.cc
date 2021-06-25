@@ -25,7 +25,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
-#include "xls/interpreter/ir_evaluator_test.h"
+#include "xls/interpreter/ir_evaluator_test_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/random_value.h"
 #include "re2/re2.h"
@@ -38,7 +38,7 @@ using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 
 INSTANTIATE_TEST_SUITE_P(
-    IrJitTest, IrEvaluatorTest,
+    IrJitTest, IrEvaluatorTestBase,
     testing::Values(IrEvaluatorTestParam(
         [](Function* function,
            const std::vector<Value>& args) -> absl::StatusOr<Value> {

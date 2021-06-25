@@ -17,7 +17,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/interpreter/ir_interpreter.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/node_iterator.h"
 
 namespace xls {
@@ -33,7 +33,8 @@ absl::StatusOr<bool> ConstantFoldingPass::RunOnFunctionBaseInternal(
                     [](Node* o) { return o->Is<Literal>(); })) {
       XLS_VLOG(2) << "Folding: " << *node;
       XLS_ASSIGN_OR_RETURN(
-          Value result, IrInterpreter::EvaluateNodeWithLiteralOperands(node));
+          Value result,
+          FunctionInterpreter::EvaluateNodeWithLiteralOperands(node));
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Literal>(result).status());
       changed = true;
     }

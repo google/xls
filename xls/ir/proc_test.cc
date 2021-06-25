@@ -74,7 +74,8 @@ TEST_F(ProcTest, MutateProc) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * new_state,
       proc->MakeNode<Literal>(/*loc=*/absl::nullopt, Value(UBits(100, 100))));
-  XLS_ASSERT_OK(proc->ReplaceState("new_state", new_state));
+  XLS_ASSERT_OK(
+      proc->ReplaceState("new_state", new_state, Value(UBits(100, 100))));
 
   EXPECT_THAT(proc->NextState(), m::Literal(UBits(100, 100)));
   EXPECT_THAT(proc->StateParam(), m::Type("bits[100]"));
@@ -122,9 +123,27 @@ TEST_F(ProcTest, ReplaceStateThatStillHasUse) {
       Node * new_state,
       proc->MakeNode<Literal>(/*loc=*/absl::nullopt, Value(UBits(100, 100))));
   EXPECT_THAT(
-      proc->ReplaceState("new_state", new_state),
+      proc->ReplaceState("new_state", new_state, Value(UBits(100, 100))),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Existing state param \"st\" still has uses")));
+}
+
+TEST_F(ProcTest, ReplaceStateWithWrongInitValueType) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
+                 p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc,
+      pb.Build(pb.AfterAll({pb.GetTokenParam()}), pb.Literal(UBits(1, 32))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * new_state,
+      proc->MakeNode<Literal>(/*loc=*/absl::nullopt, Value(UBits(100, 100))));
+  EXPECT_THAT(proc->ReplaceState("new_state", new_state,
+                                 /*init_value=*/Value(UBits(0, 42))),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("New initial value bits[42]:0 does not match "
+                                 "type bits[100] of next state literal.5")));
 }
 
 TEST_F(ProcTest, TestPorts) {

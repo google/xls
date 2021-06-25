@@ -75,8 +75,8 @@ absl::StatusOr<bool> StateRemovalPass::RunOnProcInternal(
   XLS_ASSIGN_OR_RETURN(
       Node * nil_state,
       proc->MakeNode<Tuple>(/*loc=*/absl::nullopt, std::vector<Node*>()));
-  XLS_RETURN_IF_ERROR(
-      proc->ReplaceState(/*state_param_name=*/"nil_state", nil_state));
+  XLS_RETURN_IF_ERROR(proc->ReplaceState(/*state_param_name=*/"nil_state",
+                                         nil_state, Value::Tuple({})));
 
   return true;
 }

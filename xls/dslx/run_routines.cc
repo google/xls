@@ -23,7 +23,7 @@
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/typecheck.h"
-#include "xls/interpreter/ir_interpreter.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/random_value.h"
 
 namespace xls::dslx {
@@ -95,7 +95,8 @@ absl::Status RunComparator::RunComparison(
       break;
     }
     case CompareMode::kInterpreter: {
-      XLS_ASSIGN_OR_RETURN(ir_result, IrInterpreter::Run(ir_function, ir_args));
+      XLS_ASSIGN_OR_RETURN(ir_result,
+                           FunctionInterpreter::Run(ir_function, ir_args));
       mode_str = "interpreter";
       break;
     }

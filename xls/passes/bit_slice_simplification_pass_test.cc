@@ -22,7 +22,7 @@
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/interpreter/ir_interpreter.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_matcher.h"
@@ -123,14 +123,14 @@ fn main(x: bits[4], y: bits[1], z: bits[4]) -> bits[$1] {
       XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(gen_fn(start, width)));
       XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->EntryFunction());
       XLS_ASSERT_OK_AND_ASSIGN(Value expected,
-                               IrInterpreter::Run(entry, {x, y, z}));
+                               FunctionInterpreter::Run(entry, {x, y, z}));
 
       EXPECT_TRUE(entry->return_value()->Is<BitSlice>());
       EXPECT_THAT(Run(entry), IsOkAndHolds(true));
       EXPECT_TRUE(entry->return_value()->Is<Concat>());
 
       XLS_ASSERT_OK_AND_ASSIGN(Value actual,
-                               IrInterpreter::Run(entry, {x, y, z}));
+                               FunctionInterpreter::Run(entry, {x, y, z}));
       EXPECT_EQ(expected, actual);
     }
   }

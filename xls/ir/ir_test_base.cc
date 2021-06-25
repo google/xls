@@ -25,7 +25,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
-#include "xls/interpreter/ir_interpreter.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value_test_util.h"
 #include "xls/ir/verifier.h"
@@ -215,7 +215,7 @@ void IrTestBase::RunAndExpectEq(
   {
     XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
     XLS_ASSERT_OK_AND_ASSIGN(Value actual,
-                             IrInterpreter::RunKwargs(entry, args));
+                             FunctionInterpreter::RunKwargs(entry, args));
     ASSERT_TRUE(ValuesEqual(expected, actual))
         << "(interpreted unoptimized IR)";
   }
@@ -228,7 +228,7 @@ void IrTestBase::RunAndExpectEq(
     {
       XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
       XLS_ASSERT_OK_AND_ASSIGN(Value actual,
-                               IrInterpreter::RunKwargs(main, args));
+                               FunctionInterpreter::RunKwargs(main, args));
       ASSERT_TRUE(ValuesEqual(expected, actual))
           << "(interpreted optimized IR)";
     }

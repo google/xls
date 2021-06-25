@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/interpreter/ir_evaluator_test.h"
+#include "xls/interpreter/ir_evaluator_test_base.h"
 
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
@@ -31,7 +31,7 @@ using ::testing::HasSubstr;
 
 using ArgMap = absl::flat_hash_map<std::string, Value>;
 
-TEST_P(IrEvaluatorTest, InterpretLiteral) {
+TEST_P(IrEvaluatorTestBase, InterpretLiteral) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -45,7 +45,7 @@ TEST_P(IrEvaluatorTest, InterpretLiteral) {
               IsOkAndHolds(Value(UBits(42, 34))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretWideLiteral) {
+TEST_P(IrEvaluatorTestBase, InterpretWideLiteral) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -61,7 +61,7 @@ TEST_P(IrEvaluatorTest, InterpretWideLiteral) {
                                .value()));
 }
 
-TEST_P(IrEvaluatorTest, InterpretIdentity) {
+TEST_P(IrEvaluatorTestBase, InterpretIdentity) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -75,7 +75,7 @@ TEST_P(IrEvaluatorTest, InterpretIdentity) {
               IsOkAndHolds(Value(UBits(2, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretIdentityTuple) {
+TEST_P(IrEvaluatorTestBase, InterpretIdentityTuple) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -91,7 +91,7 @@ TEST_P(IrEvaluatorTest, InterpretIdentityTuple) {
   EXPECT_THAT(param.evaluator(function, {x}), IsOkAndHolds(x));
 }
 
-TEST_P(IrEvaluatorTest, InterpretIdentityArrayOfTuple) {
+TEST_P(IrEvaluatorTestBase, InterpretIdentityArrayOfTuple) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -106,7 +106,7 @@ TEST_P(IrEvaluatorTest, InterpretIdentityArrayOfTuple) {
   EXPECT_THAT(GetParam().evaluator(function, {a}), IsOkAndHolds(a));
 }
 
-TEST_P(IrEvaluatorTest, InterpretNegPositiveValue) {
+TEST_P(IrEvaluatorTestBase, InterpretNegPositiveValue) {
   // Positive values should become negative.
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, get_neg_function(&package));
@@ -115,7 +115,7 @@ TEST_P(IrEvaluatorTest, InterpretNegPositiveValue) {
               IsOkAndHolds(Value(SBits(-1, 4))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretNegNegativeValue) {
+TEST_P(IrEvaluatorTestBase, InterpretNegNegativeValue) {
   // Negative values should become positive.
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, get_neg_function(&package));
@@ -123,7 +123,7 @@ TEST_P(IrEvaluatorTest, InterpretNegNegativeValue) {
               IsOkAndHolds(Value(UBits(1, 4))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretNegZeroValue) {
+TEST_P(IrEvaluatorTestBase, InterpretNegZeroValue) {
   // Zero should stay zero.
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, get_neg_function(&package));
@@ -131,7 +131,7 @@ TEST_P(IrEvaluatorTest, InterpretNegZeroValue) {
               IsOkAndHolds(Value(UBits(0, 4))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretNegMaxPositiveValue) {
+TEST_P(IrEvaluatorTestBase, InterpretNegMaxPositiveValue) {
   // Test the maximum positive 2s-complement value that fits in four bits.
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, get_neg_function(&package));
@@ -139,7 +139,7 @@ TEST_P(IrEvaluatorTest, InterpretNegMaxPositiveValue) {
               IsOkAndHolds(Value(UBits(0b1001, 4))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretNegMaxMinValue) {
+TEST_P(IrEvaluatorTestBase, InterpretNegMaxMinValue) {
   // Max minimum 2s-complement value that fits in four bits.
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, get_neg_function(&package));
@@ -148,7 +148,7 @@ TEST_P(IrEvaluatorTest, InterpretNegMaxMinValue) {
   EXPECT_EQ(result, Value(UBits(0b1000, 4))) << "Actual: " << result;
 }
 
-TEST_P(IrEvaluatorTest, InterpretNot) {
+TEST_P(IrEvaluatorTestBase, InterpretNot) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -165,7 +165,7 @@ TEST_P(IrEvaluatorTest, InterpretNot) {
               IsOkAndHolds(Value(UBits(0b0101, 4))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretSixAndThree) {
+TEST_P(IrEvaluatorTestBase, InterpretSixAndThree) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -180,7 +180,7 @@ TEST_P(IrEvaluatorTest, InterpretSixAndThree) {
               IsOkAndHolds(Value(UBits(2, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretOr) {
+TEST_P(IrEvaluatorTestBase, InterpretOr) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -195,7 +195,7 @@ TEST_P(IrEvaluatorTest, InterpretOr) {
               IsOkAndHolds(Value(UBits(0b111, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretXor) {
+TEST_P(IrEvaluatorTestBase, InterpretXor) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -210,7 +210,7 @@ TEST_P(IrEvaluatorTest, InterpretXor) {
               IsOkAndHolds(Value(UBits(0b101, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretNaryXor) {
+TEST_P(IrEvaluatorTestBase, InterpretNaryXor) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -226,7 +226,7 @@ TEST_P(IrEvaluatorTest, InterpretNaryXor) {
               IsOkAndHolds(Value(UBits(0b100, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretNaryOr) {
+TEST_P(IrEvaluatorTestBase, InterpretNaryOr) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -242,7 +242,7 @@ TEST_P(IrEvaluatorTest, InterpretNaryOr) {
               IsOkAndHolds(Value(UBits(0b111, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretNaryNor) {
+TEST_P(IrEvaluatorTestBase, InterpretNaryNor) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -258,7 +258,7 @@ TEST_P(IrEvaluatorTest, InterpretNaryNor) {
               IsOkAndHolds(Value(UBits(0b11111001, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretNaryAnd) {
+TEST_P(IrEvaluatorTestBase, InterpretNaryAnd) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -274,7 +274,7 @@ TEST_P(IrEvaluatorTest, InterpretNaryAnd) {
               IsOkAndHolds(Value(UBits(0b010, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretNaryNand) {
+TEST_P(IrEvaluatorTestBase, InterpretNaryNand) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -311,7 +311,7 @@ absl::Status RunZeroExtendTest(const IrEvaluatorTestParam& param,
   return absl::OkStatus();
 }
 
-TEST_P(IrEvaluatorTest, InterpretZeroExtend) {
+TEST_P(IrEvaluatorTestBase, InterpretZeroExtend) {
   XLS_ASSERT_OK(RunZeroExtendTest(GetParam(), 3, 8));
   XLS_ASSERT_OK(RunZeroExtendTest(GetParam(), 3, 1024));
   XLS_ASSERT_OK(RunZeroExtendTest(GetParam(), 1024, 1025));
@@ -337,7 +337,7 @@ absl::Status RunSignExtendTest(const IrEvaluatorTestParam& param,
   return absl::OkStatus();
 }
 
-TEST_P(IrEvaluatorTest, InterpretSignExtend) {
+TEST_P(IrEvaluatorTestBase, InterpretSignExtend) {
   XLS_ASSERT_OK(RunSignExtendTest(GetParam(), UBits(0b11, 2), 8));
   XLS_ASSERT_OK(RunSignExtendTest(GetParam(), UBits(0b01, 2), 8));
   XLS_ASSERT_OK(RunSignExtendTest(GetParam(), UBits(0b11, 57), 1023));
@@ -345,7 +345,7 @@ TEST_P(IrEvaluatorTest, InterpretSignExtend) {
   XLS_ASSERT_OK(RunSignExtendTest(GetParam(), UBits(0b01, 64), 128));
 }
 
-TEST_P(IrEvaluatorTest, InterpretTwoAddTwo) {
+TEST_P(IrEvaluatorTestBase, InterpretTwoAddTwo) {
   Package package("my_package");
   // Big values to help debugging, again.
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
@@ -361,7 +361,7 @@ TEST_P(IrEvaluatorTest, InterpretTwoAddTwo) {
               IsOkAndHolds(Value(UBits(382, 32))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretMaxAddTwo) {
+TEST_P(IrEvaluatorTestBase, InterpretMaxAddTwo) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -376,7 +376,7 @@ TEST_P(IrEvaluatorTest, InterpretMaxAddTwo) {
               IsOkAndHolds(Value(UBits(1, 3))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretEq) {
+TEST_P(IrEvaluatorTestBase, InterpretEq) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -403,7 +403,7 @@ TEST_P(IrEvaluatorTest, InterpretEq) {
               IsOkAndHolds(Value(UBits(1, 1))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretULt) {
+TEST_P(IrEvaluatorTestBase, InterpretULt) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -430,7 +430,7 @@ TEST_P(IrEvaluatorTest, InterpretULt) {
               IsOkAndHolds(Value(UBits(0, 1))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretULe) {
+TEST_P(IrEvaluatorTestBase, InterpretULe) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -457,7 +457,7 @@ TEST_P(IrEvaluatorTest, InterpretULe) {
               IsOkAndHolds(Value(UBits(1, 1))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretUGt) {
+TEST_P(IrEvaluatorTestBase, InterpretUGt) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -484,7 +484,7 @@ TEST_P(IrEvaluatorTest, InterpretUGt) {
               IsOkAndHolds(Value(UBits(0, 1))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretUGe) {
+TEST_P(IrEvaluatorTestBase, InterpretUGe) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -511,7 +511,7 @@ TEST_P(IrEvaluatorTest, InterpretUGe) {
               IsOkAndHolds(Value(UBits(1, 1))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretSLt) {
+TEST_P(IrEvaluatorTestBase, InterpretSLt) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -538,7 +538,7 @@ TEST_P(IrEvaluatorTest, InterpretSLt) {
               IsOkAndHolds(Value(UBits(0, 1))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretSLe) {
+TEST_P(IrEvaluatorTestBase, InterpretSLe) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -565,7 +565,7 @@ TEST_P(IrEvaluatorTest, InterpretSLe) {
               IsOkAndHolds(Value(UBits(1, 1))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretSGt) {
+TEST_P(IrEvaluatorTestBase, InterpretSGt) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -592,7 +592,7 @@ TEST_P(IrEvaluatorTest, InterpretSGt) {
               IsOkAndHolds(Value(UBits(0, 1))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretSGe) {
+TEST_P(IrEvaluatorTestBase, InterpretSGe) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -619,7 +619,7 @@ TEST_P(IrEvaluatorTest, InterpretSGe) {
               IsOkAndHolds(Value(UBits(1, 1))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretTwoMulThree) {
+TEST_P(IrEvaluatorTestBase, InterpretTwoMulThree) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -634,7 +634,7 @@ TEST_P(IrEvaluatorTest, InterpretTwoMulThree) {
               IsOkAndHolds(Value(UBits(6, 32))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretMaxMulTwo) {
+TEST_P(IrEvaluatorTestBase, InterpretMaxMulTwo) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -649,7 +649,7 @@ TEST_P(IrEvaluatorTest, InterpretMaxMulTwo) {
               IsOkAndHolds(Value(UBits(6, 3))));
 }
 
-TEST_P(IrEvaluatorTest, MixedWidthMultiplication) {
+TEST_P(IrEvaluatorTestBase, MixedWidthMultiplication) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -663,7 +663,7 @@ TEST_P(IrEvaluatorTest, MixedWidthMultiplication) {
   EXPECT_THAT(Run(function, {3, 5}), IsOkAndHolds(15));
 }
 
-TEST_P(IrEvaluatorTest, MixedWidthMultiplicationExtraWideResult) {
+TEST_P(IrEvaluatorTestBase, MixedWidthMultiplicationExtraWideResult) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -677,7 +677,7 @@ TEST_P(IrEvaluatorTest, MixedWidthMultiplicationExtraWideResult) {
   EXPECT_THAT(Run(function, {11, 5}), IsOkAndHolds(55));
 }
 
-TEST_P(IrEvaluatorTest, MixedWidthMultiplicationExhaustive) {
+TEST_P(IrEvaluatorTestBase, MixedWidthMultiplicationExhaustive) {
   // Exhaustively check all bit width and value combinations of a mixed-width
   // unsigned multiply up to a small constant bit width.
   constexpr absl::string_view ir_text = R"(
@@ -719,7 +719,7 @@ TEST_P(IrEvaluatorTest, MixedWidthMultiplicationExhaustive) {
   }
 }
 
-TEST_P(IrEvaluatorTest, MixedWidthSignedMultiplication) {
+TEST_P(IrEvaluatorTestBase, MixedWidthSignedMultiplication) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -742,7 +742,7 @@ TEST_P(IrEvaluatorTest, MixedWidthSignedMultiplication) {
   EXPECT_EQ(actual, SBits(-28, 6));
 }
 
-TEST_P(IrEvaluatorTest, MixedWidthSignedMultiplicationExhaustive) {
+TEST_P(IrEvaluatorTestBase, MixedWidthSignedMultiplicationExhaustive) {
   // Exhaustively check all bit width and value combinations of a mixed-width
   // unsigned multiply up to a small constant bit width.
   constexpr absl::string_view ir_text = R"(
@@ -782,7 +782,7 @@ TEST_P(IrEvaluatorTest, MixedWidthSignedMultiplicationExhaustive) {
   }
 }
 
-TEST_P(IrEvaluatorTest, InterpretUDiv) {
+TEST_P(IrEvaluatorTestBase, InterpretUDiv) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -808,7 +808,7 @@ TEST_P(IrEvaluatorTest, InterpretUDiv) {
               IsOkAndHolds(Value(UBits(0xff, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretUMod) {
+TEST_P(IrEvaluatorTestBase, InterpretUMod) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -833,7 +833,7 @@ TEST_P(IrEvaluatorTest, InterpretUMod) {
               IsOkAndHolds(Value(UBits(0, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretSDiv) {
+TEST_P(IrEvaluatorTestBase, InterpretSDiv) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -865,7 +865,7 @@ TEST_P(IrEvaluatorTest, InterpretSDiv) {
               IsOkAndHolds(Value(SBits(-128, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretSMod) {
+TEST_P(IrEvaluatorTestBase, InterpretSMod) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -902,7 +902,7 @@ TEST_P(IrEvaluatorTest, InterpretSMod) {
               IsOkAndHolds(Value(SBits(0, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretShll) {
+TEST_P(IrEvaluatorTestBase, InterpretShll) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -936,7 +936,7 @@ TEST_P(IrEvaluatorTest, InterpretShll) {
               IsOkAndHolds(Value(UBits(0, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretShllNarrowShiftAmount) {
+TEST_P(IrEvaluatorTestBase, InterpretShllNarrowShiftAmount) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -962,7 +962,7 @@ TEST_P(IrEvaluatorTest, InterpretShllNarrowShiftAmount) {
               IsOkAndHolds(Value(UBits(0b10000000, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretShll64) {
+TEST_P(IrEvaluatorTestBase, InterpretShll64) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -978,7 +978,7 @@ TEST_P(IrEvaluatorTest, InterpretShll64) {
   EXPECT_EQ(result.bits(), UBits(0x8000000000000000, 64));
 }
 
-TEST_P(IrEvaluatorTest, InterpretShrl) {
+TEST_P(IrEvaluatorTestBase, InterpretShrl) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1012,7 +1012,7 @@ TEST_P(IrEvaluatorTest, InterpretShrl) {
               IsOkAndHolds(Value(UBits(0, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretShrlBits64) {
+TEST_P(IrEvaluatorTestBase, InterpretShrlBits64) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1029,7 +1029,7 @@ TEST_P(IrEvaluatorTest, InterpretShrlBits64) {
   EXPECT_EQ(result.bits(), UBits(1, 64));
 }
 
-TEST_P(IrEvaluatorTest, InterpretShra) {
+TEST_P(IrEvaluatorTestBase, InterpretShra) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1069,7 +1069,7 @@ TEST_P(IrEvaluatorTest, InterpretShra) {
               IsOkAndHolds(Value(UBits(0, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretShraNarrowShiftAmount) {
+TEST_P(IrEvaluatorTestBase, InterpretShraNarrowShiftAmount) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1101,7 +1101,7 @@ TEST_P(IrEvaluatorTest, InterpretShraNarrowShiftAmount) {
               IsOkAndHolds(Value(UBits(0b11111111, 8))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretShraBits64) {
+TEST_P(IrEvaluatorTestBase, InterpretShraBits64) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1123,7 +1123,7 @@ TEST_P(IrEvaluatorTest, InterpretShraBits64) {
   EXPECT_EQ(result.bits(), UBits(0xFF00000000000000ULL, 64));
 }
 
-TEST_P(IrEvaluatorTest, InterpretFourSubOne) {
+TEST_P(IrEvaluatorTestBase, InterpretFourSubOne) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1165,7 +1165,7 @@ absl::Status RunConcatTest(const IrEvaluatorTestParam& param,
   return absl::OkStatus();
 }
 
-TEST_P(IrEvaluatorTest, InterpretConcat) {
+TEST_P(IrEvaluatorTestBase, InterpretConcat) {
   ArgMap args = {{"a", Value(UBits(1, 8))}, {"b", Value(UBits(4, 8))}};
   XLS_ASSERT_OK(RunConcatTest(GetParam(), args));
 
@@ -1185,7 +1185,7 @@ TEST_P(IrEvaluatorTest, InterpretConcat) {
   XLS_ASSERT_OK(RunConcatTest(GetParam(), args));
 }
 
-TEST_P(IrEvaluatorTest, InterpretOneHot) {
+TEST_P(IrEvaluatorTestBase, InterpretOneHot) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1215,7 +1215,7 @@ TEST_P(IrEvaluatorTest, InterpretOneHot) {
   }
 }
 
-TEST_P(IrEvaluatorTest, InterpretOneHotMsbPrio) {
+TEST_P(IrEvaluatorTestBase, InterpretOneHotMsbPrio) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1245,7 +1245,7 @@ TEST_P(IrEvaluatorTest, InterpretOneHotMsbPrio) {
   }
 }
 
-TEST_P(IrEvaluatorTest, InterpretOneBitOneHot) {
+TEST_P(IrEvaluatorTestBase, InterpretOneBitOneHot) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1267,7 +1267,7 @@ TEST_P(IrEvaluatorTest, InterpretOneBitOneHot) {
   }
 }
 
-TEST_P(IrEvaluatorTest, InterpretOneHotSelect) {
+TEST_P(IrEvaluatorTestBase, InterpretOneHotSelect) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1306,7 +1306,7 @@ TEST_P(IrEvaluatorTest, InterpretOneHotSelect) {
   }
 }
 
-TEST_P(IrEvaluatorTest, InterpretOneHotSelectNestedTuple) {
+TEST_P(IrEvaluatorTestBase, InterpretOneHotSelectNestedTuple) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1332,7 +1332,7 @@ TEST_P(IrEvaluatorTest, InterpretOneHotSelectNestedTuple) {
               IsOkAndHolds(AsValue("(bits[3]:0b101, (bits[8]:0b11001111))")));
 }
 
-TEST_P(IrEvaluatorTest, InterpretOneHotSelectArray) {
+TEST_P(IrEvaluatorTestBase, InterpretOneHotSelectArray) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1362,7 +1362,7 @@ TEST_P(IrEvaluatorTest, InterpretOneHotSelectArray) {
                   AsValue("[bits[4]:0b1101, bits[4]:0b0111, bits[4]:0b1110]")));
 }
 
-TEST_P(IrEvaluatorTest, InterpretBinarySel) {
+TEST_P(IrEvaluatorTestBase, InterpretBinarySel) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1383,7 +1383,7 @@ TEST_P(IrEvaluatorTest, InterpretBinarySel) {
               IsOkAndHolds(Value(UBits(0xB, 8))));
 }
 
-TEST_P(IrEvaluatorTest, Interpret4WaySel) {
+TEST_P(IrEvaluatorTestBase, Interpret4WaySel) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1410,7 +1410,7 @@ TEST_P(IrEvaluatorTest, Interpret4WaySel) {
               IsOkAndHolds(u8(0xd)));
 }
 
-TEST_P(IrEvaluatorTest, InterpretManyWaySelWithDefault) {
+TEST_P(IrEvaluatorTestBase, InterpretManyWaySelWithDefault) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1444,7 +1444,7 @@ TEST_P(IrEvaluatorTest, InterpretManyWaySelWithDefault) {
               IsOkAndHolds(u32(0xdefa17)));
 }
 
-TEST_P(IrEvaluatorTest, InterpretMap) {
+TEST_P(IrEvaluatorTestBase, InterpretMap) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(R"(
   package SimpleMap
@@ -1470,7 +1470,7 @@ TEST_P(IrEvaluatorTest, InterpretMap) {
   EXPECT_EQ(result.elements().at(1), Value(UBits(0, 1)));
 }
 
-TEST_P(IrEvaluatorTest, InterpretTwoLevelInvoke) {
+TEST_P(IrEvaluatorTestBase, InterpretTwoLevelInvoke) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(R"(
   package SimpleMap
@@ -1541,7 +1541,7 @@ absl::Status RunReverseTest(const IrEvaluatorTestParam& param,
 
   return absl::OkStatus();
 }
-TEST_P(IrEvaluatorTest, InterpretReverse) {
+TEST_P(IrEvaluatorTestBase, InterpretReverse) {
   XLS_ASSERT_OK(RunReverseTest(GetParam(), UBits(0, 1)));
   XLS_ASSERT_OK(RunReverseTest(GetParam(), UBits(1, 1)));
   XLS_ASSERT_OK(RunReverseTest(GetParam(), UBits(0b10000000, 8)));
@@ -1552,7 +1552,7 @@ TEST_P(IrEvaluatorTest, InterpretReverse) {
   XLS_ASSERT_OK(RunReverseTest(GetParam(), UBits(0b011000101, 129)));
 }
 
-TEST_P(IrEvaluatorTest, InterpretCountedFor) {
+TEST_P(IrEvaluatorTestBase, InterpretCountedFor) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(R"(
   package test
@@ -1583,7 +1583,7 @@ TEST_P(IrEvaluatorTest, InterpretCountedFor) {
               IsOkAndHolds(Value(UBits(21, 11))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretCountedForStride2) {
+TEST_P(IrEvaluatorTestBase, InterpretCountedForStride2) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
@@ -1612,7 +1612,7 @@ TEST_P(IrEvaluatorTest, InterpretCountedForStride2) {
               IsOkAndHolds(Value(UBits(42, 11))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretCountedForStaticArgs) {
+TEST_P(IrEvaluatorTestBase, InterpretCountedForStaticArgs) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
 package test
 
@@ -1646,7 +1646,7 @@ fn main() -> bits[32] {
               IsOkAndHolds(Value(UBits(expected, 32))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretDynamicCountedFor) {
+TEST_P(IrEvaluatorTestBase, InterpretDynamicCountedFor) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(R"(
   package test
@@ -1678,7 +1678,7 @@ TEST_P(IrEvaluatorTest, InterpretDynamicCountedFor) {
               IsOkAndHolds(Value(SBits(10, 16))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretDynamicCountedForZeroTrip) {
+TEST_P(IrEvaluatorTestBase, InterpretDynamicCountedForZeroTrip) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(R"(
   package test
@@ -1706,7 +1706,7 @@ TEST_P(IrEvaluatorTest, InterpretDynamicCountedForZeroTrip) {
               IsOkAndHolds(Value(SBits(0, 16))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretDynamicCountedForMultiStride) {
+TEST_P(IrEvaluatorTestBase, InterpretDynamicCountedForMultiStride) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(R"(
   package test
@@ -1738,7 +1738,8 @@ TEST_P(IrEvaluatorTest, InterpretDynamicCountedForMultiStride) {
               IsOkAndHolds(Value(SBits(16, 16))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretDynamicCountedForMaxTripAndStrideBitsValues) {
+TEST_P(IrEvaluatorTestBase,
+       InterpretDynamicCountedForMaxTripAndStrideBitsValues) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(R"(
   package test
@@ -1769,7 +1770,7 @@ TEST_P(IrEvaluatorTest, InterpretDynamicCountedForMaxTripAndStrideBitsValues) {
               IsOkAndHolds(Value(SBits(12, 16))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretDynamicCountedForNegativeStride) {
+TEST_P(IrEvaluatorTestBase, InterpretDynamicCountedForNegativeStride) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(R"(
   package test
@@ -1801,7 +1802,7 @@ TEST_P(IrEvaluatorTest, InterpretDynamicCountedForNegativeStride) {
               IsOkAndHolds(Value(SBits(-8, 16))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretTuple) {
+TEST_P(IrEvaluatorTestBase, InterpretTuple) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1822,7 +1823,7 @@ TEST_P(IrEvaluatorTest, InterpretTuple) {
               })));
 }
 
-TEST_P(IrEvaluatorTest, InterpretTupleLiteral) {
+TEST_P(IrEvaluatorTestBase, InterpretTupleLiteral) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1843,7 +1844,7 @@ TEST_P(IrEvaluatorTest, InterpretTupleLiteral) {
               })));
 }
 
-TEST_P(IrEvaluatorTest, InterpretTupleIndexReturnsBits) {
+TEST_P(IrEvaluatorTestBase, InterpretTupleIndexReturnsBits) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1858,7 +1859,7 @@ TEST_P(IrEvaluatorTest, InterpretTupleIndexReturnsBits) {
       IsOkAndHolds(Value(UBits(22, 33))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretTupleIndexReturnsTuple) {
+TEST_P(IrEvaluatorTestBase, InterpretTupleIndexReturnsTuple) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1879,7 +1880,7 @@ TEST_P(IrEvaluatorTest, InterpretTupleIndexReturnsTuple) {
               })));
 }
 
-TEST_P(IrEvaluatorTest, InterpretTupleIndexOfLiteralReturnsTuple) {
+TEST_P(IrEvaluatorTestBase, InterpretTupleIndexOfLiteralReturnsTuple) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1897,7 +1898,7 @@ TEST_P(IrEvaluatorTest, InterpretTupleIndexOfLiteralReturnsTuple) {
               })));
 }
 
-TEST_P(IrEvaluatorTest, InterpretArrayLiteral) {
+TEST_P(IrEvaluatorTestBase, InterpretArrayLiteral) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1916,7 +1917,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayLiteral) {
               IsOkAndHolds(array_value));
 }
 
-TEST_P(IrEvaluatorTest, Interpret2DArrayLiteral) {
+TEST_P(IrEvaluatorTestBase, Interpret2DArrayLiteral) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1932,7 +1933,7 @@ TEST_P(IrEvaluatorTest, Interpret2DArrayLiteral) {
           Value::UBits2DArray({{11, 22, 33}, {55, 44, 77}}, 17).value()));
 }
 
-TEST_P(IrEvaluatorTest, InterpretArrayIndex) {
+TEST_P(IrEvaluatorTestBase, InterpretArrayIndex) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1948,7 +1949,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayIndex) {
   EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}),
               IsOkAndHolds(Value(UBits(123, 32))));
 }
-TEST_P(IrEvaluatorTest, InterpretArraySlice) {
+TEST_P(IrEvaluatorTestBase, InterpretArraySlice) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -1980,7 +1981,7 @@ TEST_P(IrEvaluatorTest, InterpretArraySlice) {
   }
 }
 
-TEST_P(IrEvaluatorTest, InterpretArraySliceWideStart) {
+TEST_P(IrEvaluatorTestBase, InterpretArraySliceWideStart) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -2009,7 +2010,7 @@ TEST_P(IrEvaluatorTest, InterpretArraySliceWideStart) {
   }
 }
 
-TEST_P(IrEvaluatorTest, InterpretArrayOfArrayIndex) {
+TEST_P(IrEvaluatorTestBase, InterpretArrayOfArrayIndex) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -2025,7 +2026,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayOfArrayIndex) {
               IsOkAndHolds(Value(UBits(4, 32))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretArrayUpdateInBounds) {
+TEST_P(IrEvaluatorTestBase, InterpretArrayUpdateInBounds) {
   auto make_array = [](absl::Span<const int64_t> values) {
     std::vector<Value> elements;
     for (auto v : values) {
@@ -2067,7 +2068,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateInBounds) {
               IsOkAndHolds(make_array({1, 2, 99})));
 }
 
-TEST_P(IrEvaluatorTest, InterpretArrayUpdateOutOfBounds) {
+TEST_P(IrEvaluatorTestBase, InterpretArrayUpdateOutOfBounds) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -2088,7 +2089,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateOutOfBounds) {
               IsOkAndHolds(array_value));
 }
 
-TEST_P(IrEvaluatorTest, InterpretArrayOfArraysUpdate) {
+TEST_P(IrEvaluatorTestBase, InterpretArrayOfArraysUpdate) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -2116,7 +2117,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayOfArraysUpdate) {
               IsOkAndHolds(array_value));
 }
 
-TEST_P(IrEvaluatorTest, InterpretArrayOfTuplesUpdate) {
+TEST_P(IrEvaluatorTestBase, InterpretArrayOfTuplesUpdate) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -2144,7 +2145,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayOfTuplesUpdate) {
               IsOkAndHolds(array_value));
 }
 
-TEST_P(IrEvaluatorTest, InterpretArrayUpdateOriginalNotMutated) {
+TEST_P(IrEvaluatorTestBase, InterpretArrayUpdateOriginalNotMutated) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -2172,7 +2173,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateOriginalNotMutated) {
       IsOkAndHolds(Value::Tuple({array_value_original, array_value_updated})));
 }
 
-TEST_P(IrEvaluatorTest, InterpretArrayUpdateIndex) {
+TEST_P(IrEvaluatorTestBase, InterpretArrayUpdateIndex) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -2189,7 +2190,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateIndex) {
               IsOkAndHolds(Value(UBits(99, 32))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretArrayUpdateUpdate) {
+TEST_P(IrEvaluatorTestBase, InterpretArrayUpdateUpdate) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -2212,7 +2213,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateUpdate) {
               IsOkAndHolds(array_value));
 }
 
-TEST_P(IrEvaluatorTest, InterpretArrayUpdateWideElements) {
+TEST_P(IrEvaluatorTestBase, InterpretArrayUpdateWideElements) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -2233,7 +2234,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateWideElements) {
               IsOkAndHolds(array_value));
 }
 
-TEST_P(IrEvaluatorTest, InterpretArrayUpdateWideIndexInbounds) {
+TEST_P(IrEvaluatorTestBase, InterpretArrayUpdateWideIndexInbounds) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -2255,7 +2256,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateWideIndexInbounds) {
               IsOkAndHolds(array_value));
 }
 
-TEST_P(IrEvaluatorTest, InterpretArrayUpdateWideIndexOutOfBounds) {
+TEST_P(IrEvaluatorTestBase, InterpretArrayUpdateWideIndexOutOfBounds) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -2277,7 +2278,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayUpdateWideIndexOutOfBounds) {
               IsOkAndHolds(array_value));
 }
 
-TEST_P(IrEvaluatorTest, InterpretArrayConcatArraysOfBits) {
+TEST_P(IrEvaluatorTestBase, InterpretArrayConcatArraysOfBits) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -2297,7 +2298,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayConcatArraysOfBits) {
               IsOkAndHolds(ret));
 }
 
-TEST_P(IrEvaluatorTest, InterpretArrayConcatArraysOfBitsMixedOperands) {
+TEST_P(IrEvaluatorTestBase, InterpretArrayConcatArraysOfBitsMixedOperands) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -2321,7 +2322,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayConcatArraysOfBitsMixedOperands) {
               IsOkAndHolds(ret));
 }
 
-TEST_P(IrEvaluatorTest, InterpretArrayConcatArraysOfArrays) {
+TEST_P(IrEvaluatorTestBase, InterpretArrayConcatArraysOfArrays) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
@@ -2339,7 +2340,7 @@ TEST_P(IrEvaluatorTest, InterpretArrayConcatArraysOfArrays) {
   EXPECT_THAT(GetParam().evaluator(function, /*args=*/{}), IsOkAndHolds(ret));
 }
 
-TEST_P(IrEvaluatorTest, InterpretInvokeZeroArgs) {
+TEST_P(IrEvaluatorTestBase, InterpretInvokeZeroArgs) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
 package test
 
@@ -2356,7 +2357,7 @@ fn main() -> bits[32] {
               IsOkAndHolds(Value(UBits(42, 32))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretInvokeMultipleArgs) {
+TEST_P(IrEvaluatorTestBase, InterpretInvokeMultipleArgs) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
 package test
 
@@ -2375,7 +2376,7 @@ fn main() -> bits[32] {
               IsOkAndHolds(Value(UBits(5, 32))));
 }
 
-TEST_P(IrEvaluatorTest, InterpretInvokeMultipleArgsDepth2) {
+TEST_P(IrEvaluatorTestBase, InterpretInvokeMultipleArgsDepth2) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
 package test
 
@@ -2398,7 +2399,7 @@ fn main() -> bits[32] {
               IsOkAndHolds(Value(UBits(5, 32))));
 }
 
-TEST_P(IrEvaluatorTest, WideAdd) {
+TEST_P(IrEvaluatorTestBase, WideAdd) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package wide_add
 
@@ -2414,7 +2415,7 @@ TEST_P(IrEvaluatorTest, WideAdd) {
               IsOkAndHolds(Value(UBits(165, 128))));
 }
 
-TEST_P(IrEvaluatorTest, WideNegate) {
+TEST_P(IrEvaluatorTestBase, WideNegate) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package wide_negate
 
@@ -2431,7 +2432,7 @@ TEST_P(IrEvaluatorTest, WideNegate) {
             "0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffbe");
 }
 
-TEST_P(IrEvaluatorTest, WideLogicOperator) {
+TEST_P(IrEvaluatorTestBase, WideLogicOperator) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package wide_add
 
@@ -2456,7 +2457,7 @@ TEST_P(IrEvaluatorTest, WideLogicOperator) {
             "0xd1a2_b1e0_0e1b_2a1d_b791_f3dd_dd3f_197b");
 }
 
-TEST_P(IrEvaluatorTest, OptimizedParamReturn) {
+TEST_P(IrEvaluatorTestBase, OptimizedParamReturn) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
@@ -2475,7 +2476,7 @@ TEST_P(IrEvaluatorTest, OptimizedParamReturn) {
   EXPECT_EQ(result.bits().ToString(FormatPreference::kBinary), "0b1");
 }
 
-TEST_P(IrEvaluatorTest, AfterAllWithOtherOps) {
+TEST_P(IrEvaluatorTestBase, AfterAllWithOtherOps) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
@@ -2495,7 +2496,7 @@ TEST_P(IrEvaluatorTest, AfterAllWithOtherOps) {
               IsOkAndHolds(Value(UBits(0b11111101, 8))));
 }
 
-TEST_P(IrEvaluatorTest, AfterAllReturnToken) {
+TEST_P(IrEvaluatorTestBase, AfterAllReturnToken) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
@@ -2508,7 +2509,7 @@ TEST_P(IrEvaluatorTest, AfterAllReturnToken) {
               IsOkAndHolds(Value::Token()));
 }
 
-TEST_P(IrEvaluatorTest, AfterAllTokenArgs) {
+TEST_P(IrEvaluatorTestBase, AfterAllTokenArgs) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
@@ -2523,7 +2524,7 @@ TEST_P(IrEvaluatorTest, AfterAllTokenArgs) {
       IsOkAndHolds(Value::Token()));
 }
 
-TEST_P(IrEvaluatorTest, ArrayOperation) {
+TEST_P(IrEvaluatorTestBase, ArrayOperation) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
@@ -2540,7 +2541,7 @@ TEST_P(IrEvaluatorTest, ArrayOperation) {
             Value::ArrayOrDie({Value(UBits(34, 16)), Value(UBits(56, 16))}));
 }
 
-TEST_P(IrEvaluatorTest, Decode) {
+TEST_P(IrEvaluatorTestBase, Decode) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
@@ -2559,7 +2560,7 @@ TEST_P(IrEvaluatorTest, Decode) {
   EXPECT_THAT(Run(function, {7}), IsOkAndHolds(128));
 }
 
-TEST_P(IrEvaluatorTest, NarrowedDecode) {
+TEST_P(IrEvaluatorTestBase, NarrowedDecode) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
@@ -2578,7 +2579,7 @@ TEST_P(IrEvaluatorTest, NarrowedDecode) {
   EXPECT_THAT(Run(function, {7}), IsOkAndHolds(0));
 }
 
-TEST_P(IrEvaluatorTest, Encode) {
+TEST_P(IrEvaluatorTestBase, Encode) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
@@ -2612,7 +2613,7 @@ TEST_P(IrEvaluatorTest, Encode) {
   }
 }
 
-TEST_P(IrEvaluatorTest, RunMismatchedType) {
+TEST_P(IrEvaluatorTestBase, RunMismatchedType) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
@@ -2660,7 +2661,7 @@ absl::Status RunBitSliceTest(const IrEvaluatorTestParam& param,
   return absl::OkStatus();
 }
 
-TEST_P(IrEvaluatorTest, BitSlice) {
+TEST_P(IrEvaluatorTestBase, BitSlice) {
   XLS_ASSERT_OK(RunBitSliceTest(GetParam(), 27, 9, 3));
   XLS_ASSERT_OK(RunBitSliceTest(GetParam(), 32, 9, 3));
   XLS_ASSERT_OK(RunBitSliceTest(GetParam(), 64, 15, 27));
@@ -2759,7 +2760,7 @@ absl::Status RunDynamicBitSliceTestLargeStart(const IrEvaluatorTestParam& param,
   return absl::OkStatus();
 }
 
-TEST_P(IrEvaluatorTest, DynamicBitSlice) {
+TEST_P(IrEvaluatorTestBase, DynamicBitSlice) {
   XLS_ASSERT_OK(RunDynamicBitSliceTestLargeStart(GetParam(), 64, 25));
   XLS_ASSERT_OK(RunDynamicBitSliceTestLargeStart(GetParam(), 200, 20));
   XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 16, 24, 8, 3));
@@ -2773,7 +2774,7 @@ TEST_P(IrEvaluatorTest, DynamicBitSlice) {
   XLS_ASSERT_OK(RunDynamicBitSliceTest(GetParam(), 65536, 8192, 200, 32768));
 }
 // Test driven by b/148608161.
-TEST_P(IrEvaluatorTest, FunnyShapedArrays) {
+TEST_P(IrEvaluatorTestBase, FunnyShapedArrays) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
@@ -2808,7 +2809,7 @@ absl::Status RunBitwiseReduceTest(
   return absl::OkStatus();
 }
 
-TEST_P(IrEvaluatorTest, InterpretAndReduce) {
+TEST_P(IrEvaluatorTestBase, InterpretAndReduce) {
   auto gen_expected = [](const Bits& bits) {
     return Value(bits_ops::AndReduce(bits));
   };
@@ -2824,7 +2825,7 @@ TEST_P(IrEvaluatorTest, InterpretAndReduce) {
   }
 }
 
-TEST_P(IrEvaluatorTest, InterpretOrReduce) {
+TEST_P(IrEvaluatorTestBase, InterpretOrReduce) {
   auto gen_expected = [](const Bits& bits) {
     return Value(bits_ops::OrReduce(bits));
   };
@@ -2840,7 +2841,7 @@ TEST_P(IrEvaluatorTest, InterpretOrReduce) {
   }
 }
 
-TEST_P(IrEvaluatorTest, InterpretXorReduce) {
+TEST_P(IrEvaluatorTestBase, InterpretXorReduce) {
   auto gen_expected = [](const Bits& bits) {
     return Value(bits_ops::XorReduce(bits));
   };
@@ -2856,7 +2857,7 @@ TEST_P(IrEvaluatorTest, InterpretXorReduce) {
   }
 }
 
-TEST_P(IrEvaluatorTest, ArrayIndex) {
+TEST_P(IrEvaluatorTestBase, ArrayIndex) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[13][3], idx: bits[3]) -> bits[13] {
@@ -2884,7 +2885,7 @@ TEST_P(IrEvaluatorTest, ArrayIndex) {
       IsOkAndHolds(Value(UBits(33, 13))));
 }
 
-TEST_P(IrEvaluatorTest, ArrayIndex2DArray) {
+TEST_P(IrEvaluatorTestBase, ArrayIndex2DArray) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[13][3][2], idx0: bits[3], idx1: bits[7]) -> bits[13] {
@@ -2922,7 +2923,7 @@ TEST_P(IrEvaluatorTest, ArrayIndex2DArray) {
               IsOkAndHolds(Value(UBits(66, 13))));
 }
 
-TEST_P(IrEvaluatorTest, ArrayIndex2DArrayReturnArray) {
+TEST_P(IrEvaluatorTestBase, ArrayIndex2DArrayReturnArray) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[13][3][2], idx: bits[3]) -> bits[13][3] {
@@ -2957,7 +2958,7 @@ TEST_P(IrEvaluatorTest, ArrayIndex2DArrayReturnArray) {
       IsOkAndHolds(Value::UBitsArray({11, 22, 33}, /*bit_count=*/13).value()));
 }
 
-TEST_P(IrEvaluatorTest, ArrayIndex2DArrayNilIndex) {
+TEST_P(IrEvaluatorTestBase, ArrayIndex2DArrayNilIndex) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[13][3][2]) -> bits[13][3][2] {
@@ -2973,7 +2974,7 @@ TEST_P(IrEvaluatorTest, ArrayIndex2DArrayNilIndex) {
   EXPECT_THAT(GetParam().evaluator(function, {array}), IsOkAndHolds(array));
 }
 
-TEST_P(IrEvaluatorTest, ArrayUpdate) {
+TEST_P(IrEvaluatorTestBase, ArrayUpdate) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[13][3], idx: bits[7], value: bits[13]) -> bits[13][3] {
@@ -3012,7 +3013,7 @@ TEST_P(IrEvaluatorTest, ArrayUpdate) {
                        .value()));
 }
 
-TEST_P(IrEvaluatorTest, ArrayUpdate2DArray) {
+TEST_P(IrEvaluatorTestBase, ArrayUpdate2DArray) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[13][3][2], idx0: bits[3], idx1: bits[7], value: bits[13]) -> bits[13][3][2] {
@@ -3061,7 +3062,7 @@ TEST_P(IrEvaluatorTest, ArrayUpdate2DArray) {
               .value()));
 }
 
-TEST_P(IrEvaluatorTest, ArrayUpdate2DArrayWithArray) {
+TEST_P(IrEvaluatorTestBase, ArrayUpdate2DArrayWithArray) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[13][3][2], idx: bits[3], value: bits[13][3]) -> bits[13][3][2] {
@@ -3095,7 +3096,7 @@ TEST_P(IrEvaluatorTest, ArrayUpdate2DArrayWithArray) {
               .value()));
 }
 
-TEST_P(IrEvaluatorTest, ArrayUpdate2DArrayNilIndex) {
+TEST_P(IrEvaluatorTestBase, ArrayUpdate2DArrayNilIndex) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[13][3][2], value: bits[13][3][2]) -> bits[13][3][2] {
@@ -3117,7 +3118,7 @@ TEST_P(IrEvaluatorTest, ArrayUpdate2DArrayNilIndex) {
               .value()));
 }
 
-TEST_P(IrEvaluatorTest, ArrayUpdateBitsValueNilIndex) {
+TEST_P(IrEvaluatorTestBase, ArrayUpdateBitsValueNilIndex) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[1234], value: bits[1234]) -> bits[1234] {
@@ -3132,7 +3133,7 @@ TEST_P(IrEvaluatorTest, ArrayUpdateBitsValueNilIndex) {
               IsOkAndHolds(Value(UBits(888, 1234))));
 }
 
-TEST_P(IrEvaluatorTest, BitSliceUpdate) {
+TEST_P(IrEvaluatorTestBase, BitSliceUpdate) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[32], start: bits[32], value: bits[8]) -> bits[32] {
@@ -3151,7 +3152,7 @@ TEST_P(IrEvaluatorTest, BitSliceUpdate) {
               IsOkAndHolds(0x1234abcd));
 }
 
-TEST_P(IrEvaluatorTest, BitSliceUpdateWideUpdateValue) {
+TEST_P(IrEvaluatorTestBase, BitSliceUpdateWideUpdateValue) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(a: bits[16], start: bits[32], value: bits[157]) -> bits[16] {
@@ -3166,7 +3167,7 @@ TEST_P(IrEvaluatorTest, BitSliceUpdateWideUpdateValue) {
   EXPECT_THAT(Run(function, {0x1234, 44, 0xabcdef}), IsOkAndHolds(0x1234));
 }
 
-TEST_P(IrEvaluatorTest, NestedEmptyTuple) {
+TEST_P(IrEvaluatorTestBase, NestedEmptyTuple) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(x: (())) -> () {
@@ -3180,7 +3181,7 @@ TEST_P(IrEvaluatorTest, NestedEmptyTuple) {
       IsOkAndHolds(Value::Tuple({})));
 }
 
-TEST_P(IrEvaluatorTest, NestedNestedEmptyTuple) {
+TEST_P(IrEvaluatorTestBase, NestedNestedEmptyTuple) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(x: ((()))) -> (()) {
@@ -3194,7 +3195,7 @@ TEST_P(IrEvaluatorTest, NestedNestedEmptyTuple) {
               IsOkAndHolds(Value::Tuple({Value::Tuple({})})));
 }
 
-TEST_P(IrEvaluatorTest, NestedEmptyTupleWithMultipleElements) {
+TEST_P(IrEvaluatorTestBase, NestedEmptyTupleWithMultipleElements) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(x: ((), ())) -> () {
@@ -3209,7 +3210,7 @@ TEST_P(IrEvaluatorTest, NestedEmptyTupleWithMultipleElements) {
       IsOkAndHolds(Value::Tuple({})));
 }
 
-TEST_P(IrEvaluatorTest, ReturnEmptyTupleEmptyTuple) {
+TEST_P(IrEvaluatorTestBase, ReturnEmptyTupleEmptyTuple) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(x: ()) -> ((), ()) {
@@ -3222,7 +3223,7 @@ TEST_P(IrEvaluatorTest, ReturnEmptyTupleEmptyTuple) {
               IsOkAndHolds(Value::Tuple({Value::Tuple({}), Value::Tuple({})})));
 }
 
-TEST_P(IrEvaluatorTest, ArrayOfEmptyTuples) {
+TEST_P(IrEvaluatorTestBase, ArrayOfEmptyTuples) {
   auto package = CreatePackage();
   std::string input = R"(
   fn main(x: ()[2]) -> () {
@@ -3236,6 +3237,21 @@ TEST_P(IrEvaluatorTest, ArrayOfEmptyTuples) {
                            Value::Array({Value::Tuple({}), Value::Tuple({})}));
   EXPECT_THAT(GetParam().evaluator(function, {arg}),
               IsOkAndHolds(Value::Tuple({})));
+}
+
+TEST_P(IrEvaluatorTestBase, AssertTest) {
+  auto p = CreatePackage();
+  FunctionBuilder b(TestName(), p.get());
+  auto p0 = b.Param("tkn", p->GetTokenType());
+  auto p1 = b.Param("cond", p->GetBitsType(1));
+  b.Assert(p0, p1, "the assertion error message");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  EXPECT_THAT(GetParam().evaluator(f, {Value::Token(), Value(UBits(1, 1))}),
+              IsOkAndHolds(Value::Token()));
+  EXPECT_THAT(GetParam().evaluator(f, {Value::Token(), Value(UBits(0, 1))}),
+              StatusIs(absl::StatusCode::kAborted,
+                       HasSubstr("the assertion error message")));
 }
 
 }  // namespace xls
