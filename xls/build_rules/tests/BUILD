@@ -24,6 +24,7 @@ load(
     "xls_dslx_opt_ir_test",
     "xls_dslx_test",
     "xls_dslx_verilog",
+    "xls_dslx_verilog_macro",
     "xls_eval_ir_test",
     "xls_ir_equivalence_test",
     "xls_ir_jit_wrapper",
@@ -542,4 +543,13 @@ xls_ir_verilog_macro(
     codegen_args = {
         "pipeline_stages": "1",
     },
+)
+
+# The target is the macro form of the 'simple_example_5_one_stage' target.
+xls_dslx_verilog_macro(
+    name = "simple_example_5_one_stage_macro",
+    codegen_args = {
+        "pipeline_stages": "1",
+    },
+    dep = ":simple_example_five_dslx_module",
 )

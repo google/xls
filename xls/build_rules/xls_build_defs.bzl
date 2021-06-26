@@ -58,10 +58,16 @@ load(
     "//xls/build_rules:xls_codegen_macros.bzl",
     _xls_ir_verilog_macro = "xls_ir_verilog_macro",
 )
+load(
+    "//xls/build_rules:xls_macros.bzl",
+    _xls_dslx_verilog_macro = "xls_dslx_verilog_macro",
+)
 
+# General Functions
 generated_file = _generated_file
 presubmit_generated_file = _presubmit_generated_file
 
+# XLS Rules
 xls_dslx_library = _xls_dslx_library
 xls_dslx_module_library = _xls_dslx_module_library
 xls_dslx_test = _xls_dslx_test
@@ -81,4 +87,6 @@ xls_dslx_verilog = _xls_dslx_verilog
 xls_dslx_opt_ir = _xls_dslx_opt_ir
 xls_dslx_opt_ir_test = _xls_dslx_opt_ir_test
 
+# XLS Macros
 xls_ir_verilog_macro = _xls_ir_verilog_macro
+xls_dslx_verilog_macro = _xls_dslx_verilog_macro

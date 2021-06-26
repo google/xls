@@ -134,6 +134,16 @@ bzl_library(
 )
 
 bzl_library(
+    name = "xls_macros_bzl",
+    srcs = ["xls_macros.bzl"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":xls_config_rules_bzl",
+        ":xls_rules_bzl",
+    ],
+)
+
+bzl_library(
     name = "xls_build_defs_bzl",
     srcs = ["xls_build_defs.bzl"],
     visibility = ["//xls:xls_users"],
@@ -144,6 +154,7 @@ bzl_library(
         ":xls_dslx_rules_bzl",
         ":xls_ir_rules_bzl",
         ":xls_jit_wrapper_rules_bzl",
+        ":xls_macros_bzl",
         ":xls_rules_bzl",
     ],
 )

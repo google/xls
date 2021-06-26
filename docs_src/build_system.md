@@ -119,6 +119,13 @@ The macro instantiates the 'xls_ir_verilog' rule and
 listed in the outs attribute of the rule. These generated files can be
 referenced in other rules.
 
+### `xls_dslx_verilog_macro`
+
+The macro instantiates the 'xls_dslx_verilog' rule and
+'enable_generated_file_wrapper' function. The generated files of the rule are
+listed in the outs attribute of the rule. These generated files can be
+referenced in other rules.
+
 ## Bazel queries
 
 Understanding the build tree for a new project can be difficult, but fortunately
