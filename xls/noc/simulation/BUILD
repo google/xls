@@ -361,3 +361,35 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "traffic_models",
+    srcs = ["traffic_models.cc"],
+    hdrs = ["traffic_models.h"],
+    deps = [
+        ":common",
+        ":packetizer",
+        ":random_number_interface",
+        ":units",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "traffic_models_test",
+    srcs = ["traffic_models_test.cc"],
+    deps = [
+        ":traffic_models",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/noc/config:network_config_cc_proto",
+        "//xls/noc/config:network_config_proto_builder",
+        "@com_google_googletest//:gtest",
+    ],
+)
