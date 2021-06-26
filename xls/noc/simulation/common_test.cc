@@ -82,6 +82,62 @@ TEST(SimCommonTest, PortId) {
   EXPECT_EQ(PortId::MaxIndex(), (1ul << 16) - 2);
 }
 
+TEST(SimCommonTest, TrafficFlowId) {
+  TrafficFlowId id(0);
+  EXPECT_EQ(id.id(), 0);
+  EXPECT_TRUE(id.IsValid());
+
+  id = TrafficFlowId::kInvalid;
+  EXPECT_EQ(id.id(), static_cast<int32_t>(kNullIdValue));
+  EXPECT_EQ(id.AsUInt64(), static_cast<int64_t>(id.id()));
+  EXPECT_FALSE(id.IsValid());
+
+  EXPECT_EQ(TrafficFlowId::MaxIndex(), (1l << 32) - 2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TrafficFlowId id0a,
+                           TrafficFlowId::ValidateAndReturnId(0));
+  EXPECT_EQ(id0a.id(), 0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TrafficFlowId id0b,
+                           TrafficFlowId::ValidateAndReturnId(0));
+  EXPECT_EQ(id0b.id(), 0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TrafficFlowId id1,
+                           TrafficFlowId::ValidateAndReturnId(1));
+  EXPECT_EQ(id1.id(), 1);
+
+  EXPECT_EQ(id0a, id0b);
+  EXPECT_NE(id0a, id1);
+}
+
+TEST(SimCommonTest, TrafficModeId) {
+  TrafficModeId id(0);
+  EXPECT_EQ(id.id(), 0);
+  EXPECT_TRUE(id.IsValid());
+
+  id = TrafficModeId::kInvalid;
+  EXPECT_EQ(id.id(), static_cast<int32_t>(kNullIdValue));
+  EXPECT_EQ(id.AsUInt64(), static_cast<int64_t>(id.id()));
+  EXPECT_FALSE(id.IsValid());
+
+  EXPECT_EQ(TrafficModeId::MaxIndex(), (1l << 32) - 2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TrafficModeId id0a,
+                           TrafficModeId::ValidateAndReturnId(0));
+  EXPECT_EQ(id0a.id(), 0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TrafficModeId id0b,
+                           TrafficModeId::ValidateAndReturnId(0));
+  EXPECT_EQ(id0b.id(), 0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TrafficModeId id1,
+                           TrafficModeId::ValidateAndReturnId(1));
+  EXPECT_EQ(id1.id(), 1);
+
+  EXPECT_EQ(id0a, id0b);
+  EXPECT_NE(id0a, id1);
+}
+
 }  // namespace
 }  // namespace noc
 }  // namespace xls

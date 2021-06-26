@@ -63,13 +63,14 @@ class NetworkId {
   // Represent this as a 64-bit integer (used for logging/debug).
   uint64_t AsUInt64() { return static_cast<uint64_t>(id_) << 48; }
 
-  // Returns maximum index that can be encoded.
+  // Validate id is within range and return id object given an unpacked id.
+  static absl::StatusOr<NetworkId> ValidateAndReturnId(int64_t id);
+
+  // TODO(tedhong): 2021-06-27 Possible to have this be kMaxIndex instead.
+  // Returns maximum id/index that can be encoded.
   static constexpr int64_t MaxIndex() {
     return std::numeric_limits<decltype(id_)>::max() - 1;
   }
-
-  // Validate and return id object given an unpacked id.
-  static absl::StatusOr<NetworkId> ValidateAndReturnId(int64_t id);
 
   // Hash.
   template <typename H>
@@ -121,7 +122,7 @@ class NetworkComponentId {
   constexpr NetworkComponentId(uint16_t network, uint32_t id)
       : network_(network), id_(id) {}
 
-  // Validate and return id object given an unpacked id.
+  // Validate id is within range and return id object given an unpacked id.
   static absl::StatusOr<NetworkComponentId> ValidateAndReturnId(int64_t network,
                                                                 int64_t id);
 
@@ -202,7 +203,7 @@ class ConnectionId {
   constexpr ConnectionId(uint16_t network, uint32_t id)
       : network_(network), id_(id) {}
 
-  // Validate and return id object given an unpacked id.
+  // Validate ids are within range and return id object given an unpacked id.
   static absl::StatusOr<ConnectionId> ValidateAndReturnId(int64_t network,
                                                           int64_t id);
 
@@ -285,7 +286,7 @@ struct PortId {
   // Returns true if id is not kInvalid.
   bool IsValid();
 
-  // Validate and return id object given an unpacked id.
+  // Validate ids are within range and return id object given an unpacked id.
   static absl::StatusOr<PortId> ValidateAndReturnId(int64_t network,
                                                     int64_t component,
                                                     int64_t id);
@@ -352,6 +353,124 @@ constexpr PortId PortId::kInvalid = PortId();
 // that way in terms of storage, an id is no worse than
 // a 64-bit pointer.
 static_assert(sizeof(PortId) <= 8 * sizeof(char));
+
+// Stores id of a single traffic flow.
+class TrafficFlowId {
+ public:
+  // Default constructor initializing this to an invalid id.
+  constexpr TrafficFlowId() : id_(kNullIdValue) {}
+
+  // Constructor given an expanded id.
+  constexpr explicit TrafficFlowId(uint32_t id) : id_(id) {}
+
+  // Returns true if id is not kInvalid.
+  bool IsValid() const;
+
+  // Returns the local id.
+  uint32_t id() const { return id_; }
+
+  // Represent this as a 64-bit integer (used for logging/debug).
+  uint64_t AsUInt64() const { return id_; }
+
+  // Validate id is within range and return id object given an unpacked id.
+  static absl::StatusOr<TrafficFlowId> ValidateAndReturnId(int64_t id);
+
+  // Returns maximum id/index that can be encoded.
+  static constexpr int64_t MaxIndex() {
+    return std::numeric_limits<decltype(id_)>::max() - 1;
+  }
+
+  // Hash.
+  template <typename H>
+  friend H AbslHashValue(H h, TrafficFlowId id) {
+    return H::combine(std::move(h), id.id_);
+  }
+
+  // Denotes an invalid network id.
+  static const TrafficFlowId kInvalid;
+
+ private:
+  uint32_t id_;
+};
+
+// TrafficFlowId equality.
+inline bool operator==(TrafficFlowId lhs, TrafficFlowId rhs) {
+  return lhs.id() == rhs.id();
+}
+
+// TrafficFlowId inequality.
+inline bool operator!=(TrafficFlowId lhs, TrafficFlowId rhs) {
+  return lhs.id() != rhs.id();
+}
+
+inline bool TrafficFlowId::IsValid() const { return *this != kInvalid; }
+
+// Default constructor is setup to initialize the id to invalid.
+constexpr TrafficFlowId TrafficFlowId::kInvalid = TrafficFlowId();
+
+// Asserts that ids can fit within a 64-bit integer
+// that way in terms of storage, an id is no worse than
+// a 64-bit pointer.
+static_assert(sizeof(TrafficFlowId) <= 8 * sizeof(char));
+
+// Stores id of a single traffic mode (group of flows).
+class TrafficModeId {
+ public:
+  // Default constructor initializing this to an invalid id.
+  constexpr TrafficModeId() : id_(kNullIdValue) {}
+
+  // Constructor given an expanded id.
+  constexpr explicit TrafficModeId(uint32_t id) : id_(id) {}
+
+  // Returns true if id is not kInvalid.
+  bool IsValid() const;
+
+  // Returns the local id.
+  uint32_t id() const { return id_; }
+
+  // Represent this as a 64-bit integer (used for logging/debug).
+  uint64_t AsUInt64() const { return id_; }
+
+  // Validate id is within range and return id object given an unpacked id.
+  static absl::StatusOr<TrafficModeId> ValidateAndReturnId(int64_t id);
+
+  // Returns maximum id/index that can be encoded.
+  static constexpr int64_t MaxIndex() {
+    return std::numeric_limits<decltype(id_)>::max() - 1;
+  }
+
+  // Hash.
+  template <typename H>
+  friend H AbslHashValue(H h, TrafficModeId id) {
+    return H::combine(std::move(h), id.id_);
+  }
+
+  // Denotes an invalid network id.
+  static const TrafficModeId kInvalid;
+
+ private:
+  uint32_t id_;
+};
+
+// TrafficModeId equality.
+inline bool operator==(TrafficModeId lhs, TrafficModeId rhs) {
+  return lhs.id() == rhs.id();
+}
+
+// TrafficModeId inequality.
+inline bool operator!=(TrafficModeId lhs, TrafficModeId rhs) {
+  return lhs.id() != rhs.id();
+}
+
+inline bool TrafficModeId::IsValid() const { return *this != kInvalid; }
+
+// Default constructor is setup to initialize the id to invalid.
+constexpr TrafficModeId TrafficModeId::kInvalid = TrafficModeId();
+
+// Asserts that ids can fit within a 64-bit integer
+// that way in terms of storage, an id is no worse than
+// a 64-bit pointer.
+static_assert(sizeof(TrafficModeId) <= 8 * sizeof(char));
 
 }  // namespace noc
 }  // namespace xls

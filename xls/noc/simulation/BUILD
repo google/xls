@@ -40,6 +40,27 @@ cc_test(
 )
 
 cc_library(
+    name = "units",
+    hdrs = ["units.h"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "units_test",
+    srcs = ["units_test.cc"],
+    deps = [
+        ":units",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "network_graph",
     srcs = ["network_graph.cc"],
     hdrs = ["network_graph.h"],
@@ -288,6 +309,35 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "traffic_description",
+    hdrs = ["traffic_description.h"],
+    deps = [
+        ":common",
+        ":units",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "traffic_description_test",
+    srcs = ["traffic_description_test.cc"],
+    deps = [
+        ":traffic_description",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/noc/config:network_config_cc_proto",
+        "//xls/noc/config:network_config_proto_builder",
         "@com_google_googletest//:gtest",
     ],
 )

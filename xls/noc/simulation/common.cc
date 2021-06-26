@@ -21,9 +21,10 @@ namespace xls {
 namespace noc {
 
 absl::StatusOr<NetworkId> NetworkId::ValidateAndReturnId(int64_t id) {
-  if (id > MaxIndex()) {
+  if (id > MaxIndex() || id < 0) {
     return absl::OutOfRangeError(absl::StrFormat(
-        "Cannot pack %d to a NetworkId, expected <= %d", id, MaxIndex()));
+        "Cannot pack %d to a NetworkId, expected <= %d || expected > 0", id,
+        MaxIndex()));
   }
 
   return NetworkId(static_cast<uint16_t>(id));
@@ -34,10 +35,10 @@ absl::StatusOr<NetworkComponentId> NetworkComponentId::ValidateAndReturnId(
   XLS_ASSIGN_OR_RETURN(NetworkId network_id,
                        NetworkId::ValidateAndReturnId(network));
 
-  if (id > MaxIndex()) {
-    return absl::OutOfRangeError(
-        absl::StrFormat("Cannot pack %d to a NetworkComonentId, expected <= %d",
-                        id, MaxIndex()));
+  if (id > MaxIndex() || id < 0) {
+    return absl::OutOfRangeError(absl::StrFormat(
+        "Cannot pack %d to a NetworkComonentId, expected <= %d || expected > 0",
+        id, MaxIndex()));
   }
 
   return NetworkComponentId(network_id.id(), static_cast<uint32_t>(id));
@@ -48,9 +49,10 @@ absl::StatusOr<ConnectionId> ConnectionId::ValidateAndReturnId(int64_t network,
   XLS_ASSIGN_OR_RETURN(NetworkId network_id,
                        NetworkId::ValidateAndReturnId(network));
 
-  if (id > MaxIndex()) {
+  if (id > MaxIndex() || id < 0) {
     return absl::OutOfRangeError(absl::StrFormat(
-        "Cannot pack %d to a ConnectionId, expected <= %d", id, MaxIndex()));
+        "Cannot pack %d to a ConnectionId, expected <= %d || expected > 0", id,
+        MaxIndex()));
   }
 
   return ConnectionId(network_id.id(), static_cast<uint32_t>(id));
@@ -63,13 +65,34 @@ absl::StatusOr<PortId> PortId::ValidateAndReturnId(int64_t network,
       NetworkComponentId component_id,
       NetworkComponentId::ValidateAndReturnId(network, component));
 
-  if (id > MaxIndex()) {
+  if (id > MaxIndex() || id < 0) {
     return absl::OutOfRangeError(absl::StrFormat(
-        "Cannot pack %d to a PortId, expected <= %d", id, MaxIndex()));
+        "Cannot pack %d to a PortId, expected <= %d || expected > 0", id,
+        MaxIndex()));
   }
 
   return PortId(component_id.GetNetworkId().id(), component_id.id(),
                 static_cast<uint16_t>(id));
+}
+
+absl::StatusOr<TrafficFlowId> TrafficFlowId::ValidateAndReturnId(int64_t id) {
+  if (id > MaxIndex() || id < 0) {
+    return absl::OutOfRangeError(absl::StrFormat(
+        "Cannot pack %d to a TrafficFlowId, expected <= %d || expected > 0", id,
+        MaxIndex()));
+  }
+
+  return TrafficFlowId(static_cast<uint32_t>(id));
+}
+
+absl::StatusOr<TrafficModeId> TrafficModeId::ValidateAndReturnId(int64_t id) {
+  if (id > MaxIndex() || id < 0) {
+    return absl::OutOfRangeError(absl::StrFormat(
+        "Cannot pack %d to a TrafficModeId, expected <= %d || expected > 0", id,
+        MaxIndex()));
+  }
+
+  return TrafficModeId(static_cast<uint32_t>(id));
 }
 
 }  // namespace noc
