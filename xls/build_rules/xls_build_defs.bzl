@@ -20,6 +20,11 @@ exposed to the user. This module is created for convenience.
 """
 
 load(
+    "//xls/build_rules:xls_config_rules.bzl",
+    _generated_file = "generated_file",
+    _presubmit_generated_file = "presubmit_generated_file",
+)
+load(
     "//xls/build_rules:xls_dslx_rules.bzl",
     _xls_dslx_library = "xls_dslx_library",
     _xls_dslx_module_library = "xls_dslx_module_library",
@@ -49,6 +54,9 @@ load(
     _xls_dslx_opt_ir_test = "xls_dslx_opt_ir_test",
     _xls_dslx_verilog = "xls_dslx_verilog",
 )
+
+generated_file = _generated_file
+presubmit_generated_file = _presubmit_generated_file
 
 xls_dslx_library = _xls_dslx_library
 xls_dslx_module_library = _xls_dslx_module_library

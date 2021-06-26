@@ -21,6 +21,10 @@ This module exposes the configuration parameters for the XLS build rules. It
 load(
     "//xls/build_rules:xls_oss_config_rules.bzl",
     _CONFIG = "CONFIG",
+    _generated_file = "generated_file",
+    _presubmit_generated_file = "presubmit_generated_file",
 )
 
 CONFIG = _CONFIG
+generated_file = _generated_file
+presubmit_generated_file = _presubmit_generated_file
