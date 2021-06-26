@@ -110,6 +110,16 @@ bzl_library(
 )
 
 bzl_library(
+    name = "xls_codegen_macros_bzl",
+    srcs = ["xls_codegen_macros.bzl"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":xls_codegen_rules_bzl",
+        ":xls_config_rules_bzl",
+    ],
+)
+
+bzl_library(
     name = "xls_rules_bzl",
     srcs = ["xls_rules.bzl"],
     visibility = ["//visibility:private"],
@@ -128,6 +138,7 @@ bzl_library(
     srcs = ["xls_build_defs.bzl"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":xls_codegen_macros_bzl",
         ":xls_codegen_rules_bzl",
         ":xls_config_rules_bzl",
         ":xls_dslx_rules_bzl",

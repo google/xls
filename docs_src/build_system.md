@@ -112,6 +112,13 @@ The macro generates sources files (.cc and .h) using the xls_ir_jit_wrapper
 rule. The source files are the input to a cc_library target with the same name
 as this macro.
 
+### `xls_ir_verilog_macro`
+
+The macro instantiates the 'xls_ir_verilog' rule and
+'enable_generated_file_wrapper' function. The generated files of the rule are
+listed in the outs attribute of the rule. These generated files can be
+referenced in other rules.
+
 ## Bazel queries
 
 Understanding the build tree for a new project can be difficult, but fortunately

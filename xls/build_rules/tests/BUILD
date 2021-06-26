@@ -29,6 +29,7 @@ load(
     "xls_ir_jit_wrapper",
     "xls_ir_opt_ir",
     "xls_ir_verilog",
+    "xls_ir_verilog_macro",
 )
 
 package(
@@ -531,5 +532,14 @@ xls_dslx_opt_ir_test(
     },
     ir_eval_args = {
         "entry": get_mangled_ir_symbol("simple_example_five", "five"),
+    },
+)
+
+# The target is the macro form of the 'chaining_example_verilog' target.
+xls_ir_verilog_macro(
+    name = "chaining_example_verilog_macro",
+    src = ":chaining_example_opt_ir",
+    codegen_args = {
+        "pipeline_stages": "1",
     },
 )
