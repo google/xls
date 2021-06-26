@@ -55,3 +55,22 @@ def presubmit_generated_file(
       testonly: Optional standard testonly attribute.
     """
     pass
+
+def enable_generated_file_wrapper(
+        wrapped_target = None,
+        tags = None,
+        testonly = None,
+        enable_generated_file = True,
+        enable_presubmit_generated_file = False):
+    """The function is a placeholder for enable_generated_file_wrapper.
+
+    The function is intended to be empty.
+
+    Args:
+      wrapped_target: The target to wrap.
+      tags: A non-empty list of string tags.
+      testonly: Optional standard testonly attribute.
+      enable_generated_file: Enable generated_file.
+      enable_presubmit_generated_file: Enable presubmit_generated_file.
+    """
+    pass

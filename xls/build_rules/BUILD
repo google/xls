@@ -89,6 +89,7 @@ bzl_library(
     srcs = ["xls_codegen_rules.bzl"],
     visibility = ["//visibility:private"],
     deps = [
+        ":xls_common_rules_bzl",
         ":xls_config_rules_bzl",
         ":xls_ir_rules_bzl",
         ":xls_providers_bzl",

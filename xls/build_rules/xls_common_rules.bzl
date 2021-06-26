@@ -52,7 +52,7 @@ def get_args(arguments, valid_arguments, default_arguments = {}):
             Unrecognized argument: argument2.
 
     Args:
-      arguments: The current rule's context object.
+      arguments: The list of arguments values.
       valid_arguments: The source file.
       default_arguments: A list of default argument values.
     Returns:
