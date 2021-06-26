@@ -341,3 +341,23 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "random_number_interface",
+    hdrs = ["random_number_interface.h"],
+    deps = [
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "random_number_interface_test",
+    srcs = ["random_number_interface_test.cc"],
+    deps = [
+        ":random_number_interface",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
