@@ -17,6 +17,7 @@ This module contains codegen-related build rules for XLS.
 """
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load("//xls/build_rules:xls_providers.bzl", "CodegenInfo")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
 
@@ -180,5 +181,6 @@ xls_ir_verilog = rule(
     attrs = dicts.add(
         xls_ir_common_attrs,
         xls_ir_verilog_attrs,
+        CONFIG["xls_outs_attrs"],
     ),
 )

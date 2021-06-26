@@ -17,6 +17,7 @@ This module contains build rules for XLS.
 """
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load(
     "//xls/build_rules:xls_providers.bzl",
     "ConvIRInfo",
@@ -88,6 +89,7 @@ def _xls_dslx_opt_ir_impl(ctx, src, dep_src_list):
 _xls_dslx_opt_ir_attrs = dicts.add(
     xls_dslx_ir_attrs,
     xls_ir_opt_ir_attrs,
+    CONFIG["xls_outs_attrs"],
 )
 
 def _xls_dslx_opt_ir_impl_wrapper(ctx):
@@ -288,10 +290,11 @@ def _xls_dslx_verilog_impl(ctx):
         ),
     ]
 
-_dslx_to_codegen_attrs = dicts.add(
+_dslx_verilog_attrs = dicts.add(
     xls_dslx_ir_attrs,
     xls_ir_opt_ir_attrs,
     xls_ir_verilog_attrs,
+    CONFIG["xls_outs_attrs"],
 )
 
 xls_dslx_verilog = rule(
@@ -315,7 +318,7 @@ xls_dslx_verilog = rule(
         ```
     """,
     implementation = _xls_dslx_verilog_impl,
-    attrs = _dslx_to_codegen_attrs,
+    attrs = _dslx_verilog_attrs,
 )
 
 # TODO(vmirian) 2021-05-20 When https://github.com/google/xls/issues/418 and

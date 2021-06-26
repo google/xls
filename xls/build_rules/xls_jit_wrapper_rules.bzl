@@ -17,6 +17,7 @@ This module contains jit-wrapper-related build rules for XLS.
 """
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load("//xls/build_rules:xls_providers.bzl", "JitWrapperInfo")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
 
@@ -140,6 +141,7 @@ xls_ir_jit_wrapper = rule(
     attrs = dicts.add(
         xls_ir_common_attrs,
         _xls_ir_jit_wrapper_attrs,
+        CONFIG["xls_outs_attrs"],
     ),
 )
 
@@ -157,7 +159,8 @@ def cc_xls_ir_jit_wrapper(
     Args:
       name: The name of the cc_library target.
       src: The path to the IR file.
-      jit_wrapper_args: Arguments of the JIT wrapper tool.
+      jit_wrapper_args: Arguments of the JIT wrapper tool. Note: argument
+                        'output_name' cannot be defined.
       **kwargs: Additional arguments.
     """
     if jit_wrapper_args != None and type(jit_wrapper_args) != type({}):
@@ -168,6 +171,9 @@ def cc_xls_ir_jit_wrapper(
         fail("The source must be a string.")
     _jit_wrapper_args = {"output_name": name}
     if jit_wrapper_args != None:
+        if "output_name" in (jit_wrapper_args):
+            fail("'output_name' cannot be defined as an argument in a " +
+                 "cc_xls_ir_jit_wrapper rule")
         _jit_wrapper_args = dict(
             jit_wrapper_args.items() + _jit_wrapper_args.items(),
         )
@@ -175,8 +181,10 @@ def cc_xls_ir_jit_wrapper(
         name = "__" + name + "_xls_ir_jit_wrapper",
         src = src,
         jit_wrapper_args = _jit_wrapper_args,
-        source_file = name + ".cc",
-        header_file = name + ".h",
+        outs = [
+            name + ".cc",
+            name + ".h",
+        ],
         **kwargs
     )
     native.cc_library(

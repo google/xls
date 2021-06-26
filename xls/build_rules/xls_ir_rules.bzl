@@ -19,6 +19,7 @@ load(
     "append_cmd_line_args_to",
     "get_args",
 )
+load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load(
     "//xls/build_rules:xls_providers.bzl",
     "ConvIRInfo",
@@ -30,12 +31,12 @@ load(
     "xls_dslx_module_library_as_input_attrs",
 )
 
-DEFAULT_IR_EVAL_TEST_ARGS = {
+_DEFAULT_IR_EVAL_TEST_ARGS = {
     "random_inputs": "100",
     "optimize_ir": "true",
 }
 
-DEFAULT_BENCHMARK_IR_ARGS = {
+_DEFAULT_BENCHMARK_IR_ARGS = {
     "delay_model": "unit",
 }
 
@@ -100,7 +101,8 @@ def _convert_to_ir(ctx, src, dep_src_list):
 
     ir_conv_args = dict(ctx.attr.ir_conv_args)
     ir_conv_args["dslx_path"] = (
-        ir_conv_args.get("dslx_path", "") + ":" + ctx.genfiles_dir.path
+        ir_conv_args.get("dslx_path", "") + ":" + ctx.genfiles_dir.path +
+        ":" + ctx.bin_dir.path
     )
 
     my_args = get_args(ir_conv_args, IR_CONV_FLAGS)
@@ -247,7 +249,7 @@ def get_eval_ir_test_cmd(ctx, src, entry = None, append_cmd_line_args = True):
       A tuple with two elements. The first element is a list of runfiles to
       execute the command. The second element is the command.
     """
-    ir_eval_default_args = DEFAULT_IR_EVAL_TEST_ARGS
+    ir_eval_default_args = _DEFAULT_IR_EVAL_TEST_ARGS
     IR_EVAL_FLAGS = (
         # Overrides global entry attribute.
         "entry",
@@ -324,7 +326,7 @@ def get_benchmark_ir_cmd(ctx, src, entry = None, append_cmd_line_args = True):
     my_args = get_args(
         benchmark_ir_args,
         BENCHMARK_IR_FLAGS,
-        DEFAULT_BENCHMARK_IR_ARGS,
+        _DEFAULT_BENCHMARK_IR_ARGS,
     )
 
     cmd = "{} {} {}".format(
@@ -500,7 +502,10 @@ xls_dslx_ir = rule(
         ```
     """,
     implementation = _xls_dslx_ir_impl_wrapper,
-    attrs = xls_dslx_ir_attrs,
+    attrs = dicts.add(
+        xls_dslx_ir_attrs,
+        CONFIG["xls_outs_attrs"],
+    ),
 )
 
 def xls_ir_opt_ir_impl(ctx, src):
@@ -591,6 +596,7 @@ xls_ir_opt_ir = rule(
     attrs = dicts.add(
         xls_ir_common_attrs,
         xls_ir_opt_ir_attrs,
+        CONFIG["xls_outs_attrs"],
     ),
 )
 
@@ -731,7 +737,7 @@ def _xls_eval_ir_test_impl(ctx):
 xls_eval_ir_test_attrs = {
     "ir_eval_args": attr.string_dict(
         doc = "Arguments of the IR interpreter.",
-        default = DEFAULT_IR_EVAL_TEST_ARGS,
+        default = _DEFAULT_IR_EVAL_TEST_ARGS,
     ),
     "_ir_eval_tool": attr.label(
         doc = "The target of the IR interpreter executable.",

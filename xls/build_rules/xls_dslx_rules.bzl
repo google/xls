@@ -20,13 +20,14 @@ load(
     "append_cmd_line_args_to",
     "get_args",
 )
+load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load(
     "//xls/build_rules:xls_providers.bzl",
     "DslxInfo",
     "DslxModuleInfo",
 )
 
-DEFAULT_DSLX_TEST_ARGS = {
+_DEFAULT_DSLX_TEST_ARGS = {
     "compare": "jit",
 }
 
@@ -131,7 +132,7 @@ def get_dslx_test_cmd(ctx, src, append_cmd_line_args = True):
       A tuple with two elements. The first element is a list of runfiles to
       execute the command. The second element is the command.
     """
-    dslx_test_default_args = DEFAULT_DSLX_TEST_ARGS
+    dslx_test_default_args = _DEFAULT_DSLX_TEST_ARGS
     _dslx_test_args = ctx.attr.dslx_test_args
     DSLX_TEST_FLAGS = (
         "compare",
@@ -140,7 +141,8 @@ def get_dslx_test_cmd(ctx, src, append_cmd_line_args = True):
 
     dslx_test_args = dict(_dslx_test_args)
     dslx_test_args["dslx_path"] = (
-        dslx_test_args.get("dslx_path", "") + ":" + ctx.genfiles_dir.path
+        dslx_test_args.get("dslx_path", "") + ":" + ctx.genfiles_dir.path +
+        ":" + ctx.bin_dir.path
     )
     my_args = get_args(dslx_test_args, DSLX_TEST_FLAGS, dslx_test_default_args)
 
@@ -458,6 +460,7 @@ xls_dslx_module_library = rule(
         _xls_dslx_module_library_attrs,
         _xls_dslx_common_attrs,
         xls_dslx_exec_attrs,
+        CONFIG["xls_outs_attrs"],
     ),
 )
 
