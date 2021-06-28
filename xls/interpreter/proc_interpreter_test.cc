@@ -26,9 +26,6 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
-using status_testing::StatusIs;
-using ::testing::ElementsAre;
-using ::testing::HasSubstr;
 
 class ProcInterpreterTest : public IrTestBase {};
 

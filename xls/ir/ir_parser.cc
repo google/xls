@@ -1505,7 +1505,6 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   std::vector<Value> initial_values;
   bool must_end = false;
   absl::optional<ChannelKind> kind;
-  absl::optional<int64_t> position;
   absl::optional<FlowControl> flow_control;
   // Iterate through the comma-separated elements in the channel definition.
   // Examples:
@@ -1582,10 +1581,6 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
                               metadata_token.pos().ToHumanString()));
         }
         metadata = proto;
-      } else if (field_name.value() == "position") {
-        XLS_ASSIGN_OR_RETURN(Token pos_token, scanner_.PopTokenOrError(
-                                                  LexicalTokenType::kLiteral));
-        XLS_ASSIGN_OR_RETURN(position, pos_token.GetValueInt64());
       } else if (field_name.value() == "flow_control") {
         XLS_ASSIGN_OR_RETURN(
             Token flow_control_token,
@@ -1623,9 +1618,6 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   if (!kind.has_value()) {
     return error("Missing channel kind");
   }
-  if (position.has_value() && kind != ChannelKind::kPort) {
-    return error("Only port channels can have positions");
-  }
   if (flow_control.has_value() && kind != ChannelKind::kStreaming) {
     return error("Only streaming channels can have flow control");
   }
@@ -1638,37 +1630,6 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
       return package->CreateStreamingChannel(
           channel_name.value(), *supported_ops, type, initial_values,
           flow_control.value(), *metadata, *id);
-    case ChannelKind::kPort: {
-      if (!initial_values.empty()) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Port channel %s cannot have initial value(s)",
-                            channel_name.value()));
-      }
-      XLS_ASSIGN_OR_RETURN(
-          PortChannel * channel,
-          package->CreatePortChannel(channel_name.value(), *supported_ops, type,
-                                     *metadata, *id));
-      if (position.has_value()) {
-        channel->SetPosition(position.value());
-      }
-      return channel;
-    }
-    case ChannelKind::kRegister: {
-      absl::optional<Value> reset_value;
-      if (initial_values.size() == 1) {
-        reset_value = initial_values.front();
-      } else if (initial_values.size() > 1) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Register channel %s can have at most one initial "
-                            "value (the reset value), has %d",
-                            channel_name.value(), initial_values.size()));
-      }
-
-      return package->CreateRegisterChannel(channel_name.value(), type,
-                                            reset_value, *metadata, *id);
-    }
-    case ChannelKind::kLogical:
-      return absl::UnimplementedError("Logical channels not implemented.");
     case ChannelKind::kSingleValue: {
       if (!initial_values.empty()) {
         return absl::InvalidArgumentError(absl::StrFormat(

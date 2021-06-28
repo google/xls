@@ -1,22 +1,26 @@
 module foo_proc(
   input wire [31:0] dir,
   input wire [31:0] in,
-  input wire in_vld,
   input wire out1_rdy,
   input wire out2_rdy,
-  output wire in_rdy,
+  input wire in_vld,
   output wire [31:0] out1,
-  output wire out1_vld,
   output wire [31:0] out2,
-  output wire out2_vld
+  output wire out1_vld,
+  output wire out2_vld,
+  output wire in_rdy
 );
-  wire all_active_outputs_ready;
-  wire all_active_inputs_valid;
-  assign all_active_outputs_ready = &{~(dir == 32'h0000_0000) | out1_rdy, ~(dir != 32'h0000_0000) | out2_rdy};
-  assign all_active_inputs_valid = &{~1'h1 | in_vld};
-  assign in_rdy = 1'h1 & all_active_outputs_ready;
+  wire in_pred;
+  wire out1_pred;
+  wire out2_pred;
+  wire and_86;
+  assign in_pred = 1'h1;
+  assign out1_pred = dir == 32'h0000_0000;
+  assign out2_pred = dir != 32'h0000_0000;
+  assign and_86 = ~in_pred | in_vld;
   assign out1 = in;
-  assign out1_vld = dir == 32'h0000_0000 & all_active_inputs_valid;
   assign out2 = in;
-  assign out2_vld = dir != 32'h0000_0000 & all_active_inputs_valid;
+  assign out1_vld = out1_pred & and_86;
+  assign out2_vld = out2_pred & and_86;
+  assign in_rdy = in_pred & ((~out1_pred | out1_rdy) & (~out2_pred | out2_rdy));
 endmodule

@@ -78,21 +78,6 @@ class Proc : public FunctionBase {
 
   std::string DumpIr(bool recursive = false) const override;
 
-  // Abstraction representing a port (send/receive operation using a port
-  // channel).
-  // TODO(https://github.com/google/xls/issues/410): 2021/05/07 Remove Port data
-  // structures when blocks are supported.
-  enum class PortDirection { kInput, kOutput };
-  struct Port {
-    PortChannel* channel;
-    PortDirection direction;
-    Node* node;
-  };
-
-  // Returns all ports of the proc where a port is a send or receive operation
-  // using a port channel. Returned ports are sorted by channel ID.
-  absl::StatusOr<std::vector<Port>> GetPorts() const;
-
  private:
   Value init_value_;
 

@@ -40,9 +40,7 @@ class Block;
 class Channel;
 class Function;
 class FunctionBase;
-class PortChannel;
 class Proc;
-class RegisterChannel;
 class SingleValueChannel;
 class StreamingChannel;
 
@@ -195,15 +193,7 @@ class Package {
       FlowControl flow_control = FlowControl::kReadyValid,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
       absl::optional<int64_t> id = absl::nullopt);
-  absl::StatusOr<PortChannel*> CreatePortChannel(
-      absl::string_view name, ChannelOps supported_ops, Type* type,
-      const ChannelMetadataProto& metadata = ChannelMetadataProto(),
-      absl::optional<int64_t> id = absl::nullopt);
-  absl::StatusOr<RegisterChannel*> CreateRegisterChannel(
-      absl::string_view name, Type* type,
-      absl::optional<Value> reset_value = absl::nullopt,
-      const ChannelMetadataProto& metadata = ChannelMetadataProto(),
-      absl::optional<int64_t> id = absl::nullopt);
+
   absl::StatusOr<SingleValueChannel*> CreateSingleValueChannel(
       absl::string_view name, ChannelOps supported_ops, Type* type,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),

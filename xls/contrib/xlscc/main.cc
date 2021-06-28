@@ -29,13 +29,15 @@
 #include "clang/include/clang/AST/DeclCXX.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/Stmt.h"
-#include "xls/codegen/combinational_generator.h"
+#include "xls/codegen/block_conversion.h"
+#include "xls/codegen/block_generator.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/ir/block.h"
 #include "xls/passes/standard_pipeline.h"
 
 const char kUsage[] = R"(
@@ -130,42 +132,22 @@ absl::Status Run(absl::string_view cpp_path) {
     // TODO(seanhaskell): Simplify IR
     std::cout << package.DumpIr() << std::endl;
   } else {
-    XLS_ASSIGN_OR_RETURN(
-        xls::Proc * proc,
-        translator.GenerateIR_Block(&package, block,
-                                    xlscc::XLSChannelMode::kAllSingleValue));
+    XLS_ASSIGN_OR_RETURN(xls::Proc * proc,
+                         translator.GenerateIR_Block(&package, block));
 
     XLS_RETURN_IF_ERROR(translator.InlineAllInvokes(&package));
 
-    absl::flat_hash_map<const xls::Channel*, xls::verilog::ProcPortType>
-        channel_gen_types;
-
-    for (const HLSChannel& channel : block.channels()) {
-      XLS_ASSIGN_OR_RETURN(xls::Channel * xls_channel,
-                           package.GetChannel(channel.name()));
-      xls::verilog::ProcPortType port_type = xls::verilog::ProcPortType::kNull;
-      switch (channel.type()) {
-        case ChannelType::DIRECT_IN:
-          port_type = xls::verilog::ProcPortType::kSimple;
-          break;
-        case ChannelType::FIFO:
-          port_type = xls::verilog::ProcPortType::kReadyValid;
-          break;
-        default:
-          return absl::UnimplementedError(
-              absl::StrFormat("Channel %s has unknown type %i", channel.name(),
-                              channel.type()));
-      }
-      channel_gen_types[xls_channel] = port_type;
-    }
-
+    XLS_ASSIGN_OR_RETURN(
+        xls::Block * xls_block,
+        xls::verilog::ProcToCombinationalBlock(proc, "foo_proc"));
     std::cerr << "Generating Verilog..." << std::endl;
     XLS_ASSIGN_OR_RETURN(
-        xls::verilog::ModuleGeneratorResult result,
-        xls::verilog::GenerateCombinationalModuleFromProc(
-            proc, channel_gen_types, false /*UseSystemVerilog*/));
+        std::string verilog,
+        xls::verilog::GenerateVerilog(
+            xls_block,
+            xls::verilog::CodegenOptions().use_system_verilog(false)));
 
-    std::cout << result.verilog_text << std::endl;
+    std::cout << verilog << std::endl;
   }
 
   const std::string metadata_out_path = absl::GetFlag(FLAGS_meta_out);

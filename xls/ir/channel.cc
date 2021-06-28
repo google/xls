@@ -25,12 +25,6 @@ std::string ChannelKindToString(ChannelKind kind) {
   switch (kind) {
     case ChannelKind::kStreaming:
       return "streaming";
-    case ChannelKind::kPort:
-      return "port";
-    case ChannelKind::kRegister:
-      return "register";
-    case ChannelKind::kLogical:
-      return "logical";
     case ChannelKind::kSingleValue:
       return "single_value";
   }
@@ -40,12 +34,6 @@ std::string ChannelKindToString(ChannelKind kind) {
 absl::StatusOr<ChannelKind> StringToChannelKind(absl::string_view str) {
   if (str == "streaming") {
     return ChannelKind::kStreaming;
-  } else if (str == "port") {
-    return ChannelKind::kPort;
-  } else if (str == "register") {
-    return ChannelKind::kRegister;
-  } else if (str == "logical") {
-    return ChannelKind::kLogical;
   } else if (str == "single_value") {
     return ChannelKind::kSingleValue;
   }
@@ -68,13 +56,6 @@ std::string Channel::ToString() const {
                                           absl::StrAppend(out,
                                                           v.ToHumanString());
                                         }));
-  }
-  if (const PortChannel* port_channel =
-          dynamic_cast<const PortChannel*>(this)) {
-    if (port_channel->GetPosition().has_value()) {
-      absl::StrAppendFormat(&result, "position=%d, ",
-                            port_channel->GetPosition().value());
-    }
   }
   absl::StrAppendFormat(&result, "id=%d, kind=%s, ops=%s, ", id(),
                         ChannelKindToString(kind_),

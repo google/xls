@@ -3681,41 +3681,26 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
 
 absl::StatusOr<xls::Channel*> Translator::CreateChannel(
     const HLSChannel& hls_channel, std::shared_ptr<CType> ctype,
-    xls::Package* package, int port_order, bool streaming,
-    const xls::SourceLocation& loc) {
+    xls::Package* package, int port_order, const xls::SourceLocation& loc) {
   XLS_ASSIGN_OR_RETURN(xls::Type * data_type, TranslateTypeToXLS(ctype, loc));
 
-  xls::ChannelMetadataProto metadata;
-  metadata.mutable_module_port()->set_flopped(streaming);
-  metadata.mutable_module_port()->set_port_order(port_order);
-
-  xls::Channel* channel;
-
-  if (streaming) {
-    XLS_ASSIGN_OR_RETURN(
-        channel,
-        package->CreateStreamingChannel(
-            hls_channel.name(),
-            hls_channel.is_input() ? xls::ChannelOps::kReceiveOnly
-                                   : xls::ChannelOps::kSendOnly,
-            data_type,
-            /*initial_values=*/{}, xls::FlowControl::kReadyValid, metadata,
-            /*id=*/port_order));
-  } else {
-    XLS_ASSIGN_OR_RETURN(
-        channel, package->CreatePortChannel(hls_channel.name(),
-                                            hls_channel.is_input()
-                                                ? xls::ChannelOps::kReceiveOnly
-                                                : xls::ChannelOps::kSendOnly,
-                                            data_type, metadata,
-                                            /*id=*/port_order));
+  if (hls_channel.type() == ChannelType::FIFO) {
+    return package->CreateStreamingChannel(
+        hls_channel.name(),
+        hls_channel.is_input() ? xls::ChannelOps::kReceiveOnly
+                               : xls::ChannelOps::kSendOnly,
+        data_type, /*initial_values=*/{}, xls::FlowControl::kReadyValid);
   }
-
-  return channel;
+  XLS_RET_CHECK_EQ(hls_channel.type(), ChannelType::DIRECT_IN);
+  return package->CreateSingleValueChannel(hls_channel.name(),
+                                           hls_channel.is_input()
+                                               ? xls::ChannelOps::kReceiveOnly
+                                               : xls::ChannelOps::kSendOnly,
+                                           data_type);
 }
 
-absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
-    xls::Package* package, const HLSBlock& block, XLSChannelMode channel_mode) {
+absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
+                                                        const HLSBlock& block) {
   if (!top_function_) {
     return absl::UnimplementedError("Not top function found");
   }
@@ -3743,8 +3728,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
   XLS_RETURN_IF_ERROR(
       GenerateIRBlockCheck(prepared, block, definition, body_loc));
 
-  XLS_RETURN_IF_ERROR(GenerateIRBlockPrepare(prepared, pb, block, channel_mode,
-                                             definition, package, body_loc));
+  XLS_RETURN_IF_ERROR(GenerateIRBlockPrepare(prepared, pb, block, definition,
+                                             package, body_loc));
 
   // The function is first invoked with defaults for any
   //  read() IO Ops.
@@ -3765,7 +3750,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
       XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
 
       xls::BValue condition =
-          pb.TupleIndex(last_ret_val, return_index, body_loc);
+          pb.TupleIndex(last_ret_val, return_index, body_loc,
+                        absl::StrFormat("%s_pred", xls_channel->name()));
 
       xls::BValue receive =
           pb.ReceiveIf(xls_channel, prepared.token, condition, body_loc);
@@ -3787,7 +3773,9 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
       xls::BValue send_tup =
           pb.TupleIndex(last_ret_val, return_index, body_loc);
       xls::BValue val = pb.TupleIndex(send_tup, 0, body_loc);
-      xls::BValue condition = pb.TupleIndex(send_tup, 1, body_loc);
+      xls::BValue condition =
+          pb.TupleIndex(send_tup, 1, body_loc,
+                        absl::StrFormat("%s_pred", xls_channel->name()));
 
       prepared.token =
           pb.SendIf(xls_channel, prepared.token, condition, {val}, body_loc);
@@ -3847,8 +3835,8 @@ absl::Status Translator::GenerateIRBlockCheck(
 
 absl::Status Translator::GenerateIRBlockPrepare(
     PreparedBlock& prepared, xls::ProcBuilder& pb, const HLSBlock& block,
-    XLSChannelMode channel_mode, const clang::FunctionDecl* definition,
-    xls::Package* package, const xls::SourceLocation& body_loc) {
+    const clang::FunctionDecl* definition, xls::Package* package,
+    const xls::SourceLocation& body_loc) {
   int next_return_index = 0;
 
   // For defaults, updates, invokes
@@ -3874,11 +3862,9 @@ absl::Status Translator::GenerateIRBlockPrepare(
       XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
                            TranslateTypeFromClang(stripped.base, body_loc));
 
-      bool streaming = channel_mode == XLSChannelMode::kAllStreaming;
-
-      XLS_ASSIGN_OR_RETURN(xls::Channel * channel,
-                           CreateChannel(hls_channel, ctype, package, pidx,
-                                         streaming, body_loc));
+      XLS_ASSIGN_OR_RETURN(
+          xls::Channel * channel,
+          CreateChannel(hls_channel, ctype, package, pidx, body_loc));
 
       xls::BValue receive = pb.Receive(channel, prepared.token);
       prepared.token = pb.TupleIndex(receive, 0);
@@ -3898,11 +3884,9 @@ absl::Status Translator::GenerateIRBlockPrepare(
     XLS_CHECK(prepared.xls_func->io_channels.contains(param));
     const IOChannel& io_channel = prepared.xls_func->io_channels[param];
 
-    bool streaming = channel_mode != XLSChannelMode::kAllSingleValue;
-
     XLS_ASSIGN_OR_RETURN(xls::Channel * channel,
                          CreateChannel(hls_channel, io_channel.item_type,
-                                       package, pidx, streaming, body_loc));
+                                       package, pidx, body_loc));
     prepared.fifo_by_param[param] = channel;
 
     if (io_channel.channel_op_type == OpType::kRecv) {

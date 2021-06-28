@@ -69,33 +69,6 @@ TEST(ChannelTest, ConstructSingleValueChannel) {
   EXPECT_EQ(ch.kind(), ChannelKind::kSingleValue);
 }
 
-TEST(ChannelTest, ConstructRegisterChannel) {
-  Package p("my_package");
-  RegisterChannel ch("bar", 42, p.GetBitsType(1), Value(UBits(1, 1)),
-                     ChannelMetadataProto());
-
-  EXPECT_EQ(ch.name(), "bar");
-  EXPECT_EQ(ch.supported_ops(), ChannelOps::kSendReceive);
-  EXPECT_EQ(ch.type(), p.GetBitsType(1));
-  ASSERT_TRUE(ch.reset_value().has_value());
-  EXPECT_EQ(ch.reset_value().value(), Value(UBits(1, 1)));
-}
-
-TEST(ChannelTest, ConstructLogicalChannel) {
-  Package p("my_package");
-  PortChannel rdy_ch("ready", 42, ChannelOps::kSendOnly, p.GetBitsType(1),
-                     ChannelMetadataProto());
-  PortChannel vld_ch("valid", 43, ChannelOps::kReceiveOnly, p.GetBitsType(1),
-                     ChannelMetadataProto());
-  PortChannel data_ch("data", 44, ChannelOps::kReceiveOnly, p.GetBitsType(123),
-                      ChannelMetadataProto());
-  LogicalChannel ch("my_channel", 45, &rdy_ch, &vld_ch, &data_ch,
-                    ChannelMetadataProto());
-
-  EXPECT_EQ(ch.name(), "my_channel");
-  EXPECT_EQ(ch.type(), p.GetBitsType(123));
-}
-
 TEST(ChannelTest, StreamingChannelWithInitialValues) {
   Package p("my_package");
   StreamingChannel ch("my_channel", 42, ChannelOps::kSendReceive,

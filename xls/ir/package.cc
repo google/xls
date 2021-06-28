@@ -499,31 +499,6 @@ absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
   return channel_ptr;
 }
 
-absl::StatusOr<PortChannel*> Package::CreatePortChannel(
-    absl::string_view name, ChannelOps supported_ops, Type* type,
-    const ChannelMetadataProto& metadata, absl::optional<int64_t> id) {
-  int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
-  auto channel = absl::make_unique<PortChannel>(name, actual_id, supported_ops,
-                                                type, metadata);
-  PortChannel* channel_ptr = channel.get();
-  XLS_RETURN_IF_ERROR(AddChannel(std::move(channel)));
-  return channel_ptr;
-}
-
-absl::StatusOr<RegisterChannel*> Package::CreateRegisterChannel(
-    absl::string_view name, Type* type, absl::optional<Value> reset_value,
-    const ChannelMetadataProto& metadata, absl::optional<int64_t> id) {
-  if (reset_value.has_value()) {
-    XLS_RETURN_IF_ERROR(VerifyValuesAreType({reset_value.value()}, type));
-  }
-  int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
-  auto channel = absl::make_unique<RegisterChannel>(name, actual_id, type,
-                                                    reset_value, metadata);
-  RegisterChannel* channel_ptr = channel.get();
-  XLS_RETURN_IF_ERROR(AddChannel(std::move(channel)));
-  return channel_ptr;
-}
-
 absl::StatusOr<SingleValueChannel*> Package::CreateSingleValueChannel(
     absl::string_view name, ChannelOps supported_ops, Type* type,
     const ChannelMetadataProto& metadata, absl::optional<int64_t> id) {

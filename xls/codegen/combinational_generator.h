@@ -37,20 +37,6 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
     Function* func, bool use_system_verilog = true,
     absl::string_view module_name = "");
 
-enum class ProcPortType {
-  kNull = 0,
-  kSimple = 1,
-  kReadyValid = 2,
-};
-
-// Emits the given proc as a combinational Verilog module. To ensure no
-// combinational loops, the proc can have no state (state type is empty
-// tuple). Also, all channels must be of the module port type and unflopped.
-absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModuleFromProc(
-    Proc* proc,
-    const absl::flat_hash_map<const Channel*, ProcPortType>& channel_gen_types,
-    bool use_system_verilog = true);
-
 }  // namespace verilog
 }  // namespace xls
 

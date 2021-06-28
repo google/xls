@@ -173,23 +173,23 @@ void XlsccTestBase::ProcTest(
   XLS_ASSERT_OK(ScanFile(content));
 
   xls::Package package("my_package");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      xls::Proc * proc,
-      translator_->GenerateIR_Block(&package, block_spec,
-                                    xlscc::XLSChannelMode::kAllStreaming));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc,
+                           translator_->GenerateIR_Block(&package, block_spec));
 
   std::vector<std::unique_ptr<xls::ChannelQueue>> queues;
 
-  for (auto [ch_name, values] : inputs_by_channel) {
-    XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * ch_dir,
-                             package.GetChannel(ch_name));
-    queues.push_back(
-        absl::make_unique<xls::FixedChannelQueue>(ch_dir, &package, values));
-  }
-
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<xls::ChannelQueueManager> queue_manager,
-      xls::ChannelQueueManager::Create(std::move(queues), &package));
+      xls::ChannelQueueManager::Create(/*user_defined_queues=*/{}, &package));
+
+  // Enqueue all inputs.
+  for (auto [ch_name, values] : inputs_by_channel) {
+    XLS_ASSERT_OK_AND_ASSIGN(xls::ChannelQueue * queue,
+                             queue_manager->GetQueueByName(ch_name));
+    for (const xls::Value& value : values) {
+      XLS_ASSERT_OK(queue->Enqueue(value));
+    }
+  }
 
   xls::ProcInterpreter interpreter(proc, queue_manager.get());
   ASSERT_THAT(

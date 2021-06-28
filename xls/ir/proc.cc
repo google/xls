@@ -97,33 +97,4 @@ absl::Status Proc::ReplaceState(absl::string_view state_param_name,
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::vector<Proc::Port>> Proc::GetPorts() const {
-  std::vector<Port> ports;
-  for (Node* node : nodes()) {
-    // Port channels should only have send/receive nodes, not
-    // send_if/receive_if.
-    if (node->Is<Receive>() || node->Is<Send>()) {
-      int64_t channel_id = node->Is<Send>() ? node->As<Send>()->channel_id()
-                                            : node->As<Receive>()->channel_id();
-      XLS_ASSIGN_OR_RETURN(Channel * channel,
-                           package()->GetChannel(channel_id));
-      if (channel->kind() == ChannelKind::kPort) {
-        ports.push_back(Port{down_cast<PortChannel*>(channel),
-                             node->Is<Receive>() ? PortDirection::kInput
-                                                 : PortDirection::kOutput,
-                             node});
-      }
-    }
-  }
-  std::sort(ports.begin(), ports.end(), [](const Port& a, const Port& b) {
-    // The IR verifier verifies that either no or all ports have positions.
-    if (a.channel->GetPosition().has_value() &&
-        b.channel->GetPosition().has_value()) {
-      return a.channel->GetPosition() < b.channel->GetPosition();
-    }
-    return a.channel->id() < b.channel->id();
-  });
-  return std::move(ports);
-}
-
 }  // namespace xls

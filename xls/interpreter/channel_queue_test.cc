@@ -181,20 +181,6 @@ TEST_F(ChannelQueueTest, ChannelQueueManagerNoChannels) {
   EXPECT_EQ(manager->queues().size(), 0);
 }
 
-TEST_F(ChannelQueueTest, ChannelQueueManagerPortChannel) {
-  Package package(TestName());
-  XLS_ASSERT_OK(package
-                    .CreatePortChannel("ch", ChannelOps::kSendReceive,
-                                       package.GetBitsType(32))
-                    .status());
-  EXPECT_THAT(
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, &package)
-          .status(),
-      StatusIs(absl::StatusCode::kUnimplemented,
-               HasSubstr(
-                   "Only streaming and single-value channels are supported.")));
-}
-
 TEST_F(ChannelQueueTest, ChannelQueueManagerErrorConditions) {
   Package package(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(

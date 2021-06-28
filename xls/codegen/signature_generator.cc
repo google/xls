@@ -48,28 +48,8 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
     }
     b.AddDataOutput("out", func->return_value()->GetType()->GetFlatBitCount());
     b.WithFunctionType(func->GetType());
-  } else if (Proc* proc = dynamic_cast<Proc*>(func_base)) {
-    // Given func_base is a proc. Generate signature from input/output ports.
-    // Generate signature from inputs and outputs.
-    std::vector<Type*> input_types;
-    std::vector<Type*> output_types;
-    XLS_ASSIGN_OR_RETURN(std::vector<Proc::Port> ports, proc->GetPorts());
-    for (const Proc::Port& port : ports) {
-      if (port.direction == Proc::PortDirection::kInput) {
-        input_types.push_back(port.channel->type());
-        b.AddDataInput(port.channel->name(),
-                       port.channel->type()->GetFlatBitCount());
-      } else {
-        output_types.push_back(port.channel->type());
-        b.AddDataOutput(port.channel->name(),
-                        port.channel->type()->GetFlatBitCount());
-      }
-    }
-    if (output_types.size() == 1) {
-      b.WithFunctionType(
-          proc->package()->GetFunctionType(input_types, output_types.front()));
-    }
   } else {
+    XLS_RET_CHECK(func_base->IsBlock());
     Block* block = down_cast<Block*>(func_base);
     std::vector<Type*> input_types;
     std::vector<Type*> output_types;
@@ -92,18 +72,6 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
     if (output_types.size() == 1) {
       b.WithFunctionType(
           block->package()->GetFunctionType(input_types, output_types.front()));
-    }
-  }
-
-  // If proc has a send/receive over any kind of channel except ports, then
-  // generate an unknown signature type.
-  // TODO(meheff): 2021/04/27 Add support for streaming channels.
-  for (Node* node : func_base->nodes()) {
-    if (IsChannelNode(node)) {
-      XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(node));
-      if (ch->kind() != ChannelKind::kPort) {
-        return b.WithUnknownInterface().Build();
-      }
     }
   }
 

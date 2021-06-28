@@ -16,8 +16,10 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "xls/codegen/combinational_generator.h"
-#include "xls/codegen/module_signature.h"
+#include "xls/codegen/block_conversion.h"
+#include "xls/codegen/block_generator.h"
+#include "xls/codegen/signature_generator.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"
@@ -39,7 +41,14 @@ using xls::status_testing::IsOkAndHolds;
 constexpr char kTestName[] = "translator_verilog_test";
 constexpr char kTestdataPath[] = "xls/contrib/xlscc/testdata";
 
-class TranslatorVerilogTest : public xls::verilog::VerilogTestBase {};
+class TranslatorVerilogTest : public xls::verilog::VerilogTestBase {
+ protected:
+  xls::verilog::CodegenOptions codegen_options() {
+    xls::verilog::CodegenOptions options;
+    options.use_system_verilog(UseSystemVerilog());
+    return options;
+  }
+};
 
 // What's being tested here is that the IR produced is generatable
 //  by the combinational generator. For example, it will fail without
@@ -94,40 +103,29 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
   XLS_ASSERT_OK(XlsccTestBase::ScanFile(content, {}, translator.get()));
 
   xls::Package package("my_package");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      xls::Proc * proc,
-      translator->GenerateIR_Block(&package, block_spec,
-                                   xlscc::XLSChannelMode::kAllSingleValue));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc,
+                           translator->GenerateIR_Block(&package, block_spec));
 
   XLS_VLOG(1) << "Simplifying IR..." << std::endl;
   XLS_ASSERT_OK(translator->InlineAllInvokes(&package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * dir_ch, package.GetChannel("dir"));
-  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * in_ch, package.GetChannel("in"));
-  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * out1_ch, package.GetChannel("out1"));
-  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * out2_ch, package.GetChannel("out2"));
-
   XLS_ASSERT_OK_AND_ASSIGN(
-      xls::verilog::ModuleGeneratorResult result,
-      xls::verilog::GenerateCombinationalModuleFromProc(
-          proc,
-          {
-              {dir_ch, xls::verilog::ProcPortType::kSimple},
-              {in_ch, xls::verilog::ProcPortType::kReadyValid},
-              {out1_ch, xls::verilog::ProcPortType::kReadyValid},
-              {out2_ch, xls::verilog::ProcPortType::kReadyValid},
-          },
-          false /*UseSystemVerilog*/));
+      xls::Block * block,
+      xls::verilog::ProcToCombinationalBlock(proc, "foo_proc"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog, xls::verilog::GenerateVerilog(
+                                                    block, codegen_options()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::verilog::ModuleSignature signature,
+      xls::verilog::GenerateSignature(codegen_options(), block));
 
   XLS_VLOG(1) << package.DumpIr() << std::endl;
 
-  XLS_VLOG(1) << result.verilog_text << std::endl;
+  XLS_VLOG(1) << verilog << std::endl;
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 result.verilog_text);
+                                 verilog);
 
-  xls::verilog::ModuleSimulator simulator(result.signature, result.verilog_text,
-                                          GetSimulator());
+  xls::verilog::ModuleSimulator simulator(signature, verilog, GetSimulator());
 
   // Output out1 selected, input valid and output ready asserted.
   EXPECT_THAT(
@@ -230,39 +228,30 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
   XLS_ASSERT_OK(XlsccTestBase::ScanFile(content, {}, translator.get()));
 
   xls::Package package("my_package");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      xls::Proc * proc,
-      translator->GenerateIR_Block(&package, block_spec,
-                                   xlscc::XLSChannelMode::kAllSingleValue));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc,
+                           translator->GenerateIR_Block(&package, block_spec));
 
   XLS_VLOG(1) << "Simplifying IR..." << std::endl;
   XLS_ASSERT_OK(translator->InlineAllInvokes(&package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * dir_ch, package.GetChannel("dir"));
-  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * in1_ch, package.GetChannel("in1"));
-  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * in2_ch, package.GetChannel("in2"));
-  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * out_ch, package.GetChannel("out"));
-
   XLS_ASSERT_OK_AND_ASSIGN(
-      xls::verilog::ModuleGeneratorResult result,
-      xls::verilog::GenerateCombinationalModuleFromProc(
-          proc,
-          {
-              {dir_ch, xls::verilog::ProcPortType::kSimple},
-              {in1_ch, xls::verilog::ProcPortType::kReadyValid},
-              {in2_ch, xls::verilog::ProcPortType::kReadyValid},
-              {out_ch, xls::verilog::ProcPortType::kReadyValid},
-          },
-          false /*UseSystemVerilog*/));
+      xls::Block * block,
+      xls::verilog::ProcToCombinationalBlock(proc, "foo_proc"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::verilog::ModuleSignature signature,
+      xls::verilog::GenerateSignature(codegen_options(), block));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog, xls::verilog::GenerateVerilog(
+                                                    block, codegen_options()));
 
   XLS_VLOG(1) << package.DumpIr() << std::endl;
 
-  XLS_VLOG(1) << result.verilog_text << std::endl;
-  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 result.verilog_text);
+  XLS_VLOG(1) << verilog << std::endl;
 
-  xls::verilog::ModuleSimulator simulator(result.signature, result.verilog_text,
-                                          GetSimulator());
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+
+  xls::verilog::ModuleSimulator simulator(signature, verilog, GetSimulator());
   // Input in1 selected, input valid and output ready asserted.
   EXPECT_THAT(
       simulator.Run({{"dir", xls::UBits(0, 32)},

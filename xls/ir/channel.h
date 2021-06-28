@@ -32,21 +32,6 @@ enum class ChannelKind {
   //  A channel with FIFO semantics.
   kStreaming,
 
-  // A channel corresponding to a port in code-generated block.
-  // TODO(https://github.com/google/xls/issues/410): 2021/05/07 Remove when
-  // blocks are supported.
-  kPort,
-
-  // A channel corresponding to a hardware register in codegen.
-  // TODO(https://github.com/google/xls/issues/410): 2021/05/07 Remove when
-  // blocks are supported.
-  kRegister,
-
-  // An abstract channel gathering together a data port channel
-  // with flow control ports (e.g., ready and valid).
-  // TODO(meheff): 2021/06/24 Remove until there is a motivating use case.
-  kLogical,
-
   // A channel which holds a single value. Values are written to the channel via
   // send operations which overwrites the previously sent values. Receives
   // nondestructively read the most-recently sent value.
@@ -152,75 +137,6 @@ class StreamingChannel : public Channel {
 
  public:
   FlowControl flow_control_;
-};
-
-// A channel representing a port in a generated block. PortChannels do not
-// support initial values.
-// TODO(https://github.com/google/xls/issues/410): 2021/05/07 Remove when
-// blocks are supported.
-class PortChannel : public Channel {
- public:
-  PortChannel(absl::string_view name, int64_t id, ChannelOps supported_ops,
-              Type* type, const ChannelMetadataProto& metadata)
-      : Channel(name, id, supported_ops, ChannelKind::kPort, type,
-                /*initial_values=*/{}, metadata) {}
-
-  // The ordinal position of the port among all ports in the module. The first
-  // port has position zero. If not specified, ports are ordered by channel ID.
-  void SetPosition(int64_t position) { position_ = position; }
-  absl::optional<int64_t> GetPosition() const { return position_; }
-
- private:
-  absl::optional<int64_t> position_;
-};
-
-// A channel representing a register within a block. All register channels are
-// send/receive (ChannelOps::kSendReceive) and may have at most one initial
-// value (the reset value).
-class RegisterChannel : public Channel {
- public:
-  RegisterChannel(absl::string_view name, int64_t id, Type* type,
-                  absl::optional<Value> reset_value,
-                  const ChannelMetadataProto& metadata)
-      : Channel(
-            name, id, ChannelOps::kSendReceive, ChannelKind::kRegister, type,
-            reset_value.has_value() ? std::vector<Value>({reset_value.value()})
-                                    : std::vector<Value>(),
-            metadata) {}
-
-  absl::optional<Value> reset_value() const {
-    if (initial_values().empty()) {
-      return absl::nullopt;
-    } else {
-      return initial_values().front();
-    }
-  }
-};
-
-// A channel representing a data port with ready/valid ports for flow control. A
-// logical channel is simply a logical grouping of these ports and does not have
-// directly associated send/receive nodes.
-class LogicalChannel : public Channel {
- public:
-  LogicalChannel(absl::string_view name, int64_t id, PortChannel* ready_channel,
-                 PortChannel* valid_channel, PortChannel* data_channel,
-                 const ChannelMetadataProto& metadata)
-      : Channel(name, id, data_channel->supported_ops(), ChannelKind::kLogical,
-                data_channel->type(), data_channel->initial_values(),
-                metadata) {}
-
-  PortChannel* ready_channel() const { return ready_channel_; }
-  PortChannel* valid_channel() const { return valid_channel_; }
-  PortChannel* data_channel() const { return data_channel_; }
-
-  std::string ToString() const override {
-    XLS_LOG(FATAL) << "LogicalChannel::ToString() not implemented.";
-  }
-
- private:
-  PortChannel* ready_channel_;
-  PortChannel* valid_channel_;
-  PortChannel* data_channel_;
 };
 
 // A channel which holds a single value. Values are written to the channel via

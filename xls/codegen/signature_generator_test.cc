@@ -155,45 +155,6 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
   }
 }
 
-TEST(SignatureGeneratorTest, Proc) {
-  Package package("test");
-
-  Type* u32 = package.GetBitsType(32);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * a_ch,
-      package.CreatePortChannel("a", ChannelOps::kReceiveOnly, u32));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * b_ch,
-      package.CreatePortChannel("b", ChannelOps::kReceiveOnly, u32));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * output_ch,
-      package.CreatePortChannel("sum", ChannelOps::kSendOnly, u32));
-
-  TokenlessProcBuilder pb("test", /*init_value=*/Value::Tuple({}),
-                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
-  BValue a = pb.Receive(a_ch);
-  BValue b = pb.Receive(b_ch);
-  pb.Send(output_ch, pb.Add(a, b));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(CodegenOptions(), proc));
-  ASSERT_EQ(sig.data_inputs().size(), 2);
-
-  EXPECT_EQ(sig.data_inputs()[0].direction(), DIRECTION_INPUT);
-  EXPECT_EQ(sig.data_inputs()[0].name(), "a");
-  EXPECT_EQ(sig.data_inputs()[0].width(), 32);
-
-  EXPECT_EQ(sig.data_inputs()[1].direction(), DIRECTION_INPUT);
-  EXPECT_EQ(sig.data_inputs()[1].name(), "b");
-  EXPECT_EQ(sig.data_inputs()[1].width(), 32);
-
-  ASSERT_EQ(sig.data_outputs().size(), 1);
-
-  EXPECT_EQ(sig.data_outputs()[0].direction(), DIRECTION_OUTPUT);
-  EXPECT_EQ(sig.data_outputs()[0].name(), "sum");
-  EXPECT_EQ(sig.data_outputs()[0].width(), 32);
-}
-
 }  // namespace
 }  // namespace verilog
 }  // namespace xls

@@ -1157,40 +1157,6 @@ proc my_proc(my_token: token, my_state: bits[32], init=42) {
   ParsePackageAndCheckDump(input);
 }
 
-TEST(IrParserTest, ParsePortsWithPositions) {
-  const std::string input = R"(package test
-
-chan ch0(bits[32], position=0, id=0, kind=port, ops=send_only, metadata="""""")
-chan ch1(bits[32], position=1, id=1, kind=port, ops=send_only, metadata="""""")
-
-proc my_proc(my_token: token, my_state: bits[32], init=42) {
-  literal.1: bits[32] = literal(value=42, id=1)
-  send.2: token = send(my_token, literal.1, channel_id=0, id=2)
-  send.3: token = send(my_token, literal.1, channel_id=1, id=3)
-  after_all.4: token = after_all(send.2, send.3, id=4)
-  next (after_all.4, my_state)
-}
-)";
-  ParsePackageAndCheckDump(input);
-}
-
-TEST(IrParserTest, ParsePortsWithOutPositions) {
-  const std::string input = R"(package test
-
-chan ch0(bits[32], id=0, kind=port, ops=send_only, metadata="""""")
-chan ch1(bits[32], id=1, kind=port, ops=send_only, metadata="""""")
-
-proc my_proc(my_token: token, my_state: bits[32], init=42) {
-  literal.1: bits[32] = literal(value=42, id=1)
-  send.2: token = send(my_token, literal.1, channel_id=0, id=2)
-  send.3: token = send(my_token, literal.1, channel_id=1, id=3)
-  after_all.4: token = after_all(send.2, send.3, id=4)
-  next (after_all.4, my_state)
-}
-)";
-  ParsePackageAndCheckDump(input);
-}
-
 TEST(IrParserTest, ParseSimpleBlock) {
   const std::string input = R"(package test
 
@@ -1872,23 +1838,6 @@ proc foo(my_token: token, my_state: bits[32], init=(1, 2, 3)) {
                        HasSubstr("Expected token of type \"literal\"")));
 }
 
-TEST(IrParserTest, ParseInvalidChannelsWithPosition) {
-  const std::string input = R"(package test
-
-chan ch(bits[32], id=0, kind=streaming, ops=send_receive, position=0, metadata="""""")
-
-proc my_proc(my_token: token, my_state: bits[32], init=42) {
-  send.1: token = send(my_token, my_state, channel_id=0, id=1)
-  receive.2: (token, bits[32]) = receive(send.1, channel_id=0, id=2)
-  tuple_index.3: token = tuple_index(receive.2, index=0, id=3)
-  next (tuple_index.3, my_state)
-}
-)";
-  EXPECT_THAT(Parser::ParsePackage(input).status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Only port channels can have positions")));
-}
-
 TEST(IrParserTest, ProcWrongReturnType) {
   std::string program = R"(
 package test
@@ -2001,19 +1950,6 @@ TEST(IrParserTest, ParseSendReceiveChannelWithInitialValues) {
   EXPECT_EQ(ch->metadata().channel_oneof_case(),
             ChannelMetadataProto::kModulePort);
   EXPECT_TRUE(ch->metadata().module_port().flopped());
-}
-
-TEST(IrParserTest, ParseSendReceiveChannelWithEmptyInitialValues) {
-  Package p("my_package");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch,
-      Parser::ParseChannel(
-          R"(chan foo(bits[32], initial_values={}, id=42, kind=register,
-                      ops=send_receive,
-                      metadata="module_port { flopped: true }"))",
-          &p));
-  EXPECT_EQ(ch->name(), "foo");
-  EXPECT_TRUE(ch->initial_values().empty());
 }
 
 TEST(IrParserTest, ParseSendReceiveChannelWithTupleType) {
