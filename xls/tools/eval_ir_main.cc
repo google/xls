@@ -26,7 +26,11 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/ir_converter.h"
+#include "xls/dslx/mangle.h"
+#include "xls/dslx/parse_and_typecheck.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/random_value.h"
 #include "xls/jit/ir_jit.h"
@@ -56,15 +60,22 @@ Evaluate IR with randomly generated inputs:
 
    eval_ir_main --random_inputs=100 IR_FILE
 
+Evaluate IR with randomly-generated inputs, guaranteed to be odd:
+
+   eval_ir_main --random_inputs=100 \
+       --input_validator="fn validator(x: u32) -> bool { (x & u32:1) as bool }"
+
 Evaluate IR before and after optimizations:
 
-    eval_ir_main --random_inputs=100 --optimize_ir IR_FILE
+   eval_ir_main --random_inputs=100 --optimize_ir IR_FILE
 
 Evaluate IR after every optimization pass:
-  eval_ir_main --random_inputs=100 --optimize_ir --eval_after_each_pass IR_FILE
+
+   eval_ir_main --random_inputs=100 --optimize_ir --eval_after_each_pass IR_FILE
 
 Evaluate IR using the JIT and with the interpreter and compare the results:
-  eval_ir_main --test_llvm_jit --random_inputs=100  IR_FILE
+
+   eval_ir_main --test_llvm_jit --random_inputs=100  IR_FILE
 )";
 
 ABSL_FLAG(std::string, entry, "", "Entry function name to evaluate.");
@@ -101,6 +112,14 @@ ABSL_FLAG(bool, test_llvm_jit, false,
 ABSL_FLAG(int64_t, llvm_opt_level, 3,
           "The optimization level of the LLVM JIT. Valid values are from 0 (no "
           "optimizations) to 3 (maximum optimizations).");
+ABSL_FLAG(std::string, input_validator, "",
+          "DSLX expression to validate randomly-generated inputs. "
+          "The expression can reference entry function input arguments "
+          "and should return true if the arguments are valud for the "
+          "function and false otherwise.");
+ABSL_FLAG(int64_t, input_validator_limit, 1024,
+          "Maximum number of tries to generate a valid random input before "
+          "giving up. Only used if \"input_validator\" is set.");
 
 ABSL_FLAG(
     std::string, test_only_inject_jit_result, "",
@@ -109,6 +128,9 @@ ABSL_FLAG(
 
 namespace xls {
 namespace {
+
+// Name of the dummy package created to hold the validator function, if any.
+constexpr absl::string_view kPackageName = "validator";
 
 // Excapsulates a set of arguments to pass to the function for evaluation and
 // the expected result.
@@ -266,6 +288,83 @@ absl::StatusOr<ArgSet> ArgSetFromString(absl::string_view args_string) {
   return arg_set;
 }
 
+// Converts the given DSLX validation function into IR.
+absl::StatusOr<std::unique_ptr<Package>> ConvertValidator(
+    Function* f, absl::string_view validator_dslx) {
+  dslx::ImportData import_data;
+  XLS_ASSIGN_OR_RETURN(dslx::TypecheckedModule module,
+                       dslx::ParseAndTypecheck(validator_dslx, "fake_path",
+                                               kPackageName, &import_data, {}));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Package> package,
+      dslx::ConvertModuleToPackage(module.module, &import_data, {}));
+  XLS_ASSIGN_OR_RETURN(std::string mangled_name,
+                       dslx::MangleDslxName(kPackageName, kPackageName,
+                                            dslx::CallingConvention::kTypical));
+
+  // Now verify that the validation function has the appropriate signature.
+  XLS_ASSIGN_OR_RETURN(Function * validator,
+                       package->GetFunction(mangled_name));
+  Type* return_type = validator->return_value()->GetType();
+  if (return_type->kind() != TypeKind::kBits ||
+      return_type->AsBitsOrDie()->GetFlatBitCount() != 1) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Validator must return bits[1]; got %s", return_type->ToString()));
+  }
+  if (f->params().size() != validator->params().size()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Validator has wrong number of params: %d vs. expected %d",
+        validator->params().size(), f->params().size()));
+  }
+  for (int i = 0; i < f->params().size(); i++) {
+    if (!f->param(i)->GetType()->IsEqualTo(validator->param(i)->GetType())) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Validator arg %d mismatch.\n\tExpected: %s\n\tActual: %s", i,
+          f->param(i)->GetType()->ToString(),
+          validator->param(i)->GetType()->ToString()));
+    }
+  }
+  return package;
+}
+
+// Runs the validator to confirm that the args set is compatible.
+absl::StatusOr<bool> ValidateInput(Function* validator, const ArgSet& arg_set) {
+  XLS_ASSIGN_OR_RETURN(Value result,
+                       FunctionInterpreter::Run(validator, arg_set.args));
+  XLS_ASSIGN_OR_RETURN(Bits bits, result.GetBitsWithStatus());
+  XLS_RET_CHECK_EQ(bits.bit_count(), 1);
+  return bits.IsOne();
+}
+
+absl::StatusOr<ArgSet> GenerateArgSet(Function* f, Function* validator,
+                                      std::minstd_rand* rng_engine) {
+  ArgSet arg_set;
+  if (validator == nullptr) {
+    for (Param* param : f->params()) {
+      arg_set.args.push_back(RandomValue(param->GetType(), rng_engine));
+    }
+    return arg_set;
+  }
+
+  int input_validator_limit = absl::GetFlag(FLAGS_input_validator_limit);
+  for (int i = 0; i < input_validator_limit; i++) {
+    arg_set.args.clear();
+    for (Param* param : f->params()) {
+      arg_set.args.push_back(RandomValue(param->GetType(), rng_engine));
+    }
+
+    XLS_ASSIGN_OR_RETURN(bool valid, ValidateInput(validator, arg_set));
+    if (valid) {
+      return arg_set;
+    }
+  }
+
+  return absl::ResourceExhaustedError(absl::StrCat(
+      "Unable to generate valid input after ", input_validator_limit,
+      "attempts. The validator may be difficult/impossible to satisfy "
+      "or -input_validator_limit should be increased."));
+}
+
 absl::Status RealMain(absl::string_view input_path) {
   if (input_path == "-") {
     input_path = "/dev/stdin";
@@ -312,10 +411,20 @@ absl::Status RealMain(absl::string_view input_path) {
         << "Must specify --input, --input_file, or --random_inputs.";
     arg_sets.resize(absl::GetFlag(FLAGS_random_inputs));
     std::minstd_rand rng_engine;
+    std::string validator_text = absl::GetFlag(FLAGS_input_validator);
+    std::unique_ptr<Package> validator_pkg;
+    Function* validator = nullptr;
+    if (!validator_text.empty()) {
+      XLS_ASSIGN_OR_RETURN(validator_pkg, ConvertValidator(f, validator_text));
+      XLS_ASSIGN_OR_RETURN(
+          std::string mangled_name,
+          dslx::MangleDslxName(kPackageName, kPackageName,
+                               dslx::CallingConvention::kTypical));
+      XLS_ASSIGN_OR_RETURN(validator, validator_pkg->GetFunction(mangled_name));
+    }
+
     for (ArgSet& arg_set : arg_sets) {
-      for (Param* param : f->params()) {
-        arg_set.args.push_back(RandomValue(param->GetType(), &rng_engine));
-      }
+      XLS_ASSIGN_OR_RETURN(arg_set, GenerateArgSet(f, validator, &rng_engine));
     }
   }
 

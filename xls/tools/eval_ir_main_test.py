@@ -18,6 +18,7 @@ import subprocess
 
 from xls.common import runfiles
 from xls.common import test_base
+from xls.ir.python import ir_parser
 from absl.testing import absltest
 
 EVAL_IR_MAIN_PATH = runfiles.get_path('xls/tools/eval_ir_main')
@@ -33,6 +34,12 @@ TUPLE_IR = """package foo
 
 fn foo(x: (bits[8], bits[32])) -> ((bits[8], bits[32])) {
   ret tuple.1: ((bits[8], bits[32])) = tuple(x)
+}
+"""
+
+FAIL_IR = """package foo
+fn foo(x: bits[32], y:bits[32]) -> bits[64] {
+  ret smul.1: bits[64] = smul(x, y)
 }
 """
 
@@ -216,6 +223,42 @@ class EvalMainTest(absltest.TestCase):
     self.assertNotEqual(comp.returncode, 0)
     self.assertIn('Miscompare for input "bits[32]:0x42; bits[32]:0x123"',
                   comp.stderr.decode('utf-8'))
+
+  def test_validator(self):
+    # We want to ensure that the output is negative and odd, so the inputs
+    # must have different signs and must both be odd.
+    input_validator = """fn validator(x: s32, y:s32) -> bool {
+  let same_sign = (x < s32:0 && y < s32:0) || (x > s32:0 && y > s32:0);
+  let x_odd = (x & s32:1) as bool;
+  let y_odd = (y & s32:1) as bool;
+  let both_odd = x_odd & y_odd;
+  !same_sign && both_odd
+}"""
+
+    ir_file = self.create_tempfile(content=FAIL_IR)
+    result = subprocess.check_output([
+        EVAL_IR_MAIN_PATH, '--input_validator={}'.format(input_validator),
+        '--random_inputs=1024', ir_file.full_path
+    ])
+    products = result.decode('utf-8').split()
+    for product in products:
+      value = ir_parser.Parser.parse_typed_value(product)
+      bits = value.get_bits()
+      self.assertEqual(bits.slice(0, 1).to_uint(), 1)
+      self.assertTrue(bits.get_msb())
+
+  def test_validator_fails(self):
+    input_validator = """fn validator(x: s32, y:s32) -> bool { false }"""
+
+    ir_file = self.create_tempfile(content=FAIL_IR)
+    comp = subprocess.run([
+        EVAL_IR_MAIN_PATH, '--input_validator={}'.format(input_validator),
+        '--random_inputs=1024', ir_file.full_path
+    ],
+                          stderr=subprocess.PIPE,
+                          check=False)
+    self.assertNotEqual(comp.returncode, 0)
+    self.assertIn('Unable to generate valid input', comp.stderr.decode('utf-8'))
 
 
 if __name__ == '__main__':

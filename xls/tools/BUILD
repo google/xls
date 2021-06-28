@@ -529,6 +529,9 @@ cc_binary(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx:ir_converter",
+        "//xls/dslx:mangle",
+        "//xls/dslx:parse_and_typecheck",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir:ir_parser",
         "//xls/ir:random_value",
@@ -933,6 +936,7 @@ py_test(
         "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:runfiles",
         "//xls/common:test_base",
+        "//xls/ir/python:ir_parser",
     ],
 )
 
