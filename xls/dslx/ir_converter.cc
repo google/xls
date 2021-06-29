@@ -218,8 +218,8 @@ class FunctionConverter {
   // expected int64_t.
   absl::StatusOr<int64_t> ResolveDimToInt(const ConcreteTypeDim& dim) {
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim resolved, ResolveDim(dim));
-    if (absl::holds_alternative<int64_t>(resolved.value())) {
-      return absl::get<int64_t>(resolved.value());
+    if (absl::holds_alternative<InterpValue>(resolved.value())) {
+      return absl::get<InterpValue>(resolved.value()).GetBitValueInt64();
     }
     return absl::InternalError(absl::StrFormat(
         "Expected resolved dimension of %s to be an integer, got: %s",
@@ -1037,7 +1037,8 @@ SymbolicBindings FunctionConverter::GetSymbolicBindingsTuple() const {
 absl::Status FunctionConverter::HandleNumber(Number* node) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type, ResolveType(node));
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim, type->GetTotalBitCount());
-  int64_t bit_count = absl::get<int64_t>(dim.value());
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count,
+                       absl::get<InterpValue>(dim.value()).GetBitValueInt64());
   XLS_ASSIGN_OR_RETURN(Bits bits, node->GetBits(bit_count));
   DefConst(node, Value(bits));
   return absl::OkStatus();
@@ -1167,10 +1168,14 @@ absl::Status FunctionConverter::HandleCast(Cast* node) {
   }
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_bit_count_ctd,
                        output_type->GetTotalBitCount());
-  int64_t new_bit_count = absl::get<int64_t>(new_bit_count_ctd.value());
+  XLS_ASSIGN_OR_RETURN(
+      int64_t new_bit_count,
+      absl::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueInt64());
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim input_bit_count_ctd,
                        input_type->GetTotalBitCount());
-  int64_t old_bit_count = absl::get<int64_t>(input_bit_count_ctd.value());
+  XLS_ASSIGN_OR_RETURN(
+      int64_t old_bit_count,
+      absl::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueInt64());
   if (new_bit_count < old_bit_count) {
     auto bvalue_status = DefWithStatus(
         node,
@@ -1725,7 +1730,7 @@ absl::Status FunctionConverter::HandleIndex(Index* node) {
                            ResolveType(node));
       XLS_ASSIGN_OR_RETURN(ConcreteTypeDim output_type_dim,
                            output_type->GetTotalBitCount());
-      int64_t width = absl::get<int64_t>(output_type_dim.value());
+      XLS_ASSIGN_OR_RETURN(int64_t width, output_type_dim.GetAsInt64());
       Def(node, [&](absl::optional<SourceLocation> loc) {
         return function_builder_->DynamicBitSlice(lhs, start, width, loc);
       });
@@ -1762,13 +1767,7 @@ absl::Status FunctionConverter::HandleArray(Array* node) {
 
   if (node->has_ellipsis()) {
     ConcreteTypeDim array_size_ctd = array_type->size();
-    int64_t array_size;
-    if (absl::holds_alternative<int64_t>(array_size_ctd.value())) {
-      array_size = absl::get<int64_t>(array_size_ctd.value());
-    } else {
-      XLS_ASSIGN_OR_RETURN(
-          array_size, ConcreteTypeDim::GetAs64Bits(array_size_ctd.value()));
-    }
+    XLS_ASSIGN_OR_RETURN(int64_t array_size, array_size_ctd.GetAsInt64());
     while (members.size() < array_size) {
       members.push_back(members.back());
     }
@@ -2085,7 +2084,7 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
                          ResolveType(parametric_binding->type_annotation()));
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim parametric_width_ctd,
                          parametric_type->GetTotalBitCount());
-    int64_t bit_count = absl::get<int64_t>(parametric_width_ctd.value());
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count, parametric_width_ctd.GetAsInt64());
     Value param_value;
     if (sb_value->IsSigned()) {
       XLS_ASSIGN_OR_RETURN(int64_t bit_value, sb_value->GetBitValueInt64());
@@ -2750,7 +2749,7 @@ absl::StatusOr<ConcreteTypeDim> FunctionConverter::ResolveDim(
         *absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
     ParametricExpression::Evaluated evaluated = original.Evaluate(
         ToParametricEnv(SymbolicBindings(symbolic_binding_map_)));
-    XLS_ASSIGN_OR_RETURN(dim, ConcreteTypeDim::Create(std::move(evaluated)));
+    dim = ConcreteTypeDim(std::move(evaluated));
   }
   return dim;
 }
@@ -2823,8 +2822,7 @@ absl::StatusOr<xls::Type*> FunctionConverter::TypeToIr(
     return package()->GetBitsType(bit_count);
   }
   if (auto* enum_type = dynamic_cast<const EnumType*>(&concrete_type)) {
-    XLS_RET_CHECK(absl::holds_alternative<int64_t>(enum_type->size().value()));
-    int64_t bit_count = absl::get<int64_t>(enum_type->size().value());
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count, enum_type->size().GetAsInt64());
     return package()->GetBitsType(bit_count);
   }
   if (dynamic_cast<const TokenType*>(&concrete_type)) {

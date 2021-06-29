@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn p<N: u8>(_: bits[N]) -> u8 {
-  N
+fn p<N: u32>(_: bits[N]) -> u8 {
+  N as u8
 }
 
 fn f() -> u8 {

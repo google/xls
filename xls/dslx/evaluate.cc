@@ -103,7 +103,9 @@ absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
       << "Type for number should be 'bits' kind.";
   InterpValueTag tag =
       bits_type->is_signed() ? InterpValueTag::kSBits : InterpValueTag::kUBits;
-  int64_t bit_count = absl::get<int64_t>(bits_type->size().value());
+  XLS_ASSIGN_OR_RETURN(
+      int64_t bit_count,
+      absl::get<InterpValue>(bits_type->size().value()).GetBitValueInt64());
   XLS_ASSIGN_OR_RETURN(Bits bits, expr->GetBits(bit_count));
   return InterpValue::MakeBits(tag, std::move(bits));
 }
@@ -218,8 +220,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromValue(
             element_type,
             ConcreteTypeFromValue(value.Index(Value::MakeU32(0)).value()));
       }
-      XLS_ASSIGN_OR_RETURN(auto dim,
-                           ConcreteTypeDim::Create(value.GetLength().value()));
+      auto dim = ConcreteTypeDim::CreateU32(value.GetLength().value());
       return std::make_unique<ArrayType>(std::move(element_type), dim);
     }
     case InterpValueTag::kTuple: {
@@ -239,6 +240,15 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromValue(
   }
   XLS_LOG(FATAL) << "Invalid value tag for ConcreteTypeFromValue: "
                  << static_cast<int64_t>(value.tag());
+}
+
+// Helper that returns whether the bit width of `value` matches `target`.
+//
+// Precondition: value is bits typed, target contains a bits-typed InterpValue.
+static bool BitCountMatches(const InterpValue& value,
+                            const ConcreteTypeDim& target) {
+  int64_t bit_count = value.GetBitCount().value();
+  return target.GetAsInt64().value() == bit_count;
 }
 
 absl::StatusOr<bool> ValueCompatibleWithType(const ConcreteType& type,
@@ -267,7 +277,9 @@ absl::StatusOr<bool> ValueCompatibleWithType(const ConcreteType& type,
     // type to determine compatibility.
     const ConcreteType& element_type = array_type->element_type();
     const auto& elements = value.GetValuesOrDie();
-    int64_t array_size = absl::get<int64_t>(array_type->size().value());
+    XLS_ASSIGN_OR_RETURN(
+        int64_t array_size,
+        absl::get<InterpValue>(array_type->size().value()).GetBitValueInt64());
     if (elements.size() != array_size) {
       return false;
     }
@@ -289,28 +301,27 @@ absl::StatusOr<bool> ValueCompatibleWithType(const ConcreteType& type,
 
   if (auto* bits_type = dynamic_cast<const BitsType*>(&type)) {
     if (!bits_type->is_signed() && value.tag() == InterpValueTag::kUBits) {
-      return value.GetBitCount().value() ==
-             absl::get<int64_t>(bits_type->size().value());
+      return BitCountMatches(value, bits_type->size());
     }
 
     if (bits_type->is_signed() && value.tag() == InterpValueTag::kSBits) {
-      return value.GetBitCount().value() ==
-             absl::get<int64_t>(bits_type->size().value());
+      return BitCountMatches(value, bits_type->size());
     }
 
     // Enum values can be converted to bits type if the signedness/bit counts
     // line up.
     if (value.tag() == InterpValueTag::kEnum) {
       return value.type()->signedness().value() == bits_type->is_signed() &&
-             value.GetBitCount().value() ==
-                 absl::get<int64_t>(bits_type->size().value());
+             BitCountMatches(value, bits_type->size());
     }
 
     // Arrays can be converted to unsigned bits types by flattening, but we must
     // check the flattened bit count is the same as the target bit type.
     if (!bits_type->is_signed() && value.tag() == InterpValueTag::kArray) {
       int64_t flat_bit_count = value.Flatten().value().GetBitCount().value();
-      return flat_bit_count == absl::get<int64_t>(bits_type->size().value());
+      return flat_bit_count == absl::get<InterpValue>(bits_type->size().value())
+                                   .GetBitValueInt64()
+                                   .value();
     }
   }
 
@@ -318,7 +329,7 @@ absl::StatusOr<bool> ValueCompatibleWithType(const ConcreteType& type,
       enum_type != nullptr && value.IsBits()) {
     return enum_type->signedness().value() ==
                (value.tag() == InterpValueTag::kSBits) &&
-           enum_type->GetTotalBitCount().value() == value.GetBitCount().value();
+           BitCountMatches(value, enum_type->GetTotalBitCount().value());
   }
 
   return absl::UnimplementedError(absl::StrFormat(
@@ -335,8 +346,7 @@ absl::StatusOr<bool> ConcreteTypeAcceptsValue(const ConcreteType& type,
         return false;
       }
       return !bits_type->is_signed() &&
-             value.GetBitCount().value() ==
-                 absl::get<int64_t>(bits_type->size().value());
+             BitCountMatches(value, bits_type->size());
     }
     case InterpValueTag::kSBits: {
       auto* bits_type = dynamic_cast<const BitsType*>(&type);
@@ -344,8 +354,7 @@ absl::StatusOr<bool> ConcreteTypeAcceptsValue(const ConcreteType& type,
         return false;
       }
       return bits_type->is_signed() &&
-             value.GetBitCount().value() ==
-                 absl::get<int64_t>(bits_type->size().value());
+             BitCountMatches(value, bits_type->size());
     }
     case InterpValueTag::kArray:
     case InterpValueTag::kTuple:
@@ -446,7 +455,8 @@ absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
       array_type != nullptr && value.IsUBits()) {
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim element_bit_count,
                          array_type->element_type().GetTotalBitCount());
-    int64_t bits_per_element = absl::get<int64_t>(element_bit_count.value());
+    XLS_ASSIGN_OR_RETURN(int64_t bits_per_element,
+                         element_bit_count.GetAsInt64());
     const Bits& bits = value.GetBitsOrDie();
 
     auto bit_slice_value_at_index = [&](int64_t i) -> InterpValue {
@@ -458,8 +468,8 @@ absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
     };
 
     std::vector<InterpValue> values;
-    for (int64_t i = 0; i < absl::get<int64_t>(array_type->size().value());
-         ++i) {
+    XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
+    for (int64_t i = 0; i < array_size; ++i) {
       values.push_back(bit_slice_value_at_index(i));
     }
 
@@ -469,8 +479,7 @@ absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
   // Converting bits-having-thing into an enum.
   if (auto* enum_type = dynamic_cast<const EnumType*>(&type);
       enum_type != nullptr && value.HasBits() &&
-      value.GetBitCount().value() ==
-          absl::get<int64_t>(type.GetTotalBitCount().value().value())) {
+      BitCountMatches(value, type.GetTotalBitCount().value())) {
     EnumDef* enum_def = enum_type->nominal_type();
     bool found = false;
     for (const InterpValue& enum_value : *enum_values) {
@@ -496,25 +505,25 @@ absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
     return InterpValue::MakeBits(tag, value.GetBitsOrDie());
   }
 
-  auto zero_ext = [&]() -> InterpValue {
+  auto zero_ext = [&]() -> absl::StatusOr<InterpValue> {
     auto* bits_type = dynamic_cast<const BitsType*>(&type);
     XLS_CHECK(bits_type != nullptr);
     InterpValueTag tag = bits_type->is_signed() ? InterpValueTag::kSBits
                                                 : InterpValueTag::kUBits;
-    int64_t bit_count = absl::get<int64_t>(bits_type->size().value());
-    return InterpValue::MakeBits(tag, value.ZeroExt(bit_count)->GetBitsOrDie())
-        .value();
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_type->size().GetAsInt64());
+    XLS_ASSIGN_OR_RETURN(Bits zext_bits, value.ZeroExt(bit_count)->GetBits());
+    return InterpValue::MakeBits(tag, zext_bits);
   };
 
-  auto sign_ext = [&]() -> InterpValue {
+  auto sign_ext = [&]() -> absl::StatusOr<InterpValue> {
     auto* bits_type = dynamic_cast<const BitsType*>(&type);
     XLS_CHECK(bits_type != nullptr);
     InterpValueTag tag = bits_type->is_signed() ? InterpValueTag::kSBits
                                                 : InterpValueTag::kUBits;
-    int64_t bit_count = absl::get<int64_t>(bits_type->size().value());
-    return InterpValue::MakeBits(
-               tag, value.SignExt(bit_count).value().GetBitsOrDie())
-        .value();
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_type->size().GetAsInt64());
+    XLS_ASSIGN_OR_RETURN(InterpValue sign_ext_value, value.SignExt(bit_count));
+    XLS_ASSIGN_OR_RETURN(Bits sign_ext_bits, sign_ext_value.GetBits());
+    return InterpValue::MakeBits(tag, std::move(sign_ext_bits));
   };
 
   if (value.IsUBits()) {
@@ -598,7 +607,9 @@ absl::StatusOr<InterpValue> EvaluateArray(Array* expr, InterpBindings* bindings,
   }
   if (expr->has_ellipsis()) {
     XLS_RET_CHECK(array_type != nullptr);
-    int64_t target_size = absl::get<int64_t>(array_type->size().value());
+    XLS_ASSIGN_OR_RETURN(
+        int64_t target_size,
+        absl::get<InterpValue>(array_type->size().value()).GetBitValueInt64());
     XLS_RET_CHECK_GE(target_size, 0);
     XLS_VLOG(5) << "Array has ellipsis @ " << expr->span()
                 << ": repeating to target size: " << target_size;
@@ -730,7 +741,7 @@ absl::StatusOr<InterpValue> EvaluateSplatStructInstance(
                          interp->Eval(field_expr, bindings));
     int64_t i = struct_def->GetMemberIndex(name).value();
     XLS_ASSIGN_OR_RETURN(
-        named_tuple, named_tuple.Update(InterpValue::MakeU64(i), new_value));
+        named_tuple, named_tuple.Update(InterpValue::MakeU32(i), new_value));
   }
 
   return named_tuple;
@@ -1041,7 +1052,9 @@ static absl::StatusOr<InterpValue> EvaluateIndexWidthSlice(
 
   auto* width_bits_type = dynamic_cast<BitsType*>(width_type.get());
   XLS_RET_CHECK(width_bits_type != nullptr);
-  int64_t width_value = absl::get<int64_t>(width_bits_type->size().value());
+  XLS_ASSIGN_OR_RETURN(int64_t width_value,
+                       absl::get<InterpValue>(width_bits_type->size().value())
+                           .GetBitValueInt64());
 
   // Make a value which corresponds to the slice being completely out of bounds.
   auto make_oob_value = [&]() {
@@ -1329,8 +1342,8 @@ absl::StatusOr<int64_t> ResolveDim(
 
   XLS_RET_CHECK(absl::holds_alternative<ConcreteTypeDim>(dim));
   ConcreteTypeDim ctdim = absl::get<ConcreteTypeDim>(dim);
-  if (const int64_t* value = absl::get_if<int64_t>(&ctdim.value())) {
-    return *value;
+  if (absl::holds_alternative<InterpValue>(ctdim.value())) {
+    return absl::get<InterpValue>(ctdim.value()).GetBitValueInt64();
   }
 
   const auto& parametric_expr =
@@ -1529,7 +1542,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
     }
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_elem_type,
                          ConcretizeType(elem_type, bindings, interp));
-    XLS_ASSIGN_OR_RETURN(auto concrete_dim, ConcreteTypeDim::Create(dim));
+    auto concrete_dim = ConcreteTypeDim::CreateU32(dim);
     return std::make_unique<ArrayType>(std::move(concrete_elem_type),
                                        concrete_dim);
   }

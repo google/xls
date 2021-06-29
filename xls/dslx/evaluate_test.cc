@@ -25,9 +25,9 @@ using status_testing::IsOkAndHolds;
 
 TEST(CppEvaluateTest, EmptyArrayCompatibility) {
   auto empty_array_of_nil = absl::make_unique<ArrayType>(
-      ConcreteType::MakeUnit(), ConcreteTypeDim::Create(0).value());
+      ConcreteType::MakeUnit(), ConcreteTypeDim::CreateU32(0));
   auto empty_array_of_u32 = absl::make_unique<ArrayType>(
-      BitsType::MakeU32(), ConcreteTypeDim::Create(0).value());
+      BitsType::MakeU32(), ConcreteTypeDim::CreateU32(0));
   auto empty_array_value = InterpValue::MakeArray(/*elements=*/{}).value();
 
   EXPECT_THAT(ValueCompatibleWithType(*empty_array_of_nil, empty_array_value),
@@ -38,7 +38,7 @@ TEST(CppEvaluateTest, EmptyArrayCompatibility) {
 
 TEST(CppEvaluateTest, DiffNumberOfElementsVs0Compatibility) {
   auto empty_array_of_nil = absl::make_unique<ArrayType>(
-      ConcreteType::MakeUnit(), ConcreteTypeDim::Create(0).value());
+      ConcreteType::MakeUnit(), ConcreteTypeDim::CreateU32(0));
   auto array_of_1_value =
       InterpValue::MakeArray(/*elements=*/{InterpValue::MakeU32(1)}).value();
 

@@ -245,8 +245,9 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
   def test_cast_struct_to_int(self):
     stderr = self._run('xls/dslx/tests/errors/cast_struct_to_int.x')
-    self.assertIn("Cannot cast from expression type struct 'S' to uN[32]",
-                  stderr)
+    self.assertIn(
+        "Cannot cast from expression type struct 'S' structure: S { member: uN[32] } to uN[32]",
+        stderr)
 
   def test_destructure_fallible(self):
     stderr = self._run('xls/dslx/tests/errors/destructure_fallible.x')

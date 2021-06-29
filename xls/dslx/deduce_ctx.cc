@@ -69,7 +69,7 @@ absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
                                 absl::string_view message) {
   return absl::InvalidArgumentError(
       absl::StrFormat("XlsTypeError: %s %s vs %s: %s", span.ToString(),
-                      lhs.ToString(), rhs.ToString(), message));
+                      lhs.ToErrorString(), rhs.ToErrorString(), message));
 }
 
 NodeAndUser ParseTypeMissingErrorMessage(absl::string_view s) {

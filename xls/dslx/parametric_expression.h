@@ -41,8 +41,8 @@ namespace xls::dslx {
 //     bits[10]
 class ParametricExpression {
  public:
-  using Evaluated = absl::variant<int64_t, InterpValue,
-                                  std::unique_ptr<ParametricExpression>>;
+  using Evaluated =
+      absl::variant<InterpValue, std::unique_ptr<ParametricExpression>>;
   using EnvValue = absl::variant<const ParametricExpression*, InterpValue>;
   using Env = absl::flat_hash_map<std::string, EnvValue>;
 

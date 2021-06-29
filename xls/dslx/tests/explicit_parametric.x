@@ -22,12 +22,12 @@ pub fn foo(a: bits[4]) -> Generic<u32:4, u32:8> {
   Generic<u32:4, u32:8>{ a: a, b: bits[8]:0 }
 }
 
-pub fn indirect_foo<X:u64, Y: u32 = (X * X) as u32>(a: bits[4]) -> Generic<{X as u32}, u32:8> {
+pub fn indirect_foo<X: u32, Y: u32 = (X * X) as u32>(a: bits[4]) -> Generic<{X as u32}, u32:8> {
   Generic<{X as u32}, u32:8>{ a: a as bits[X], b: bits[8]:32 }
 }
 
 pub fn instantiates_indirect_foo(a: bits[16]) -> Generic<u32:16, u32:8> {
-  indirect_foo<u64:16>(a as bits[4])
+  indirect_foo<u32:16>(a as bits[4])
 }
 
 pub fn parameterized_zero<C:u32, D:u32>(x: bits[C]) -> Generic<C, D> {

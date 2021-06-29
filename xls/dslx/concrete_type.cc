@@ -71,7 +71,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteType::FromInterpValue(
     }
     XLS_ASSIGN_OR_RETURN(auto element_type, FromInterpValue(elements->at(0)));
     XLS_ASSIGN_OR_RETURN(int64_t size, value.GetLength());
-    XLS_ASSIGN_OR_RETURN(auto dim, ConcreteTypeDim::Create(size));
+    auto dim = ConcreteTypeDim::CreateU32(size);
     return absl::make_unique<ArrayType>(std::move(element_type), dim);
   } else if (value.tag() == InterpValueTag::kTuple) {
     XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
@@ -94,12 +94,38 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteType::FromInterpValue(
   }
 }
 
+// -- class ConcreteTypeDim
+
+/* static */ absl::StatusOr<int64_t> ConcreteTypeDim::GetAs64Bits(
+    const absl::variant<InterpValue, OwnedParametric>& variant) {
+  if (absl::holds_alternative<InterpValue>(variant)) {
+    return absl::get<InterpValue>(variant).GetBitValueInt64();
+  }
+
+  return absl::InvalidArgumentError(
+      "Can't evaluate a ParametricExpression to an integer.");
+}
+
+/* static */ absl::StatusOr<int64_t> ConcreteTypeDim::GetAs64Bits(
+    const InputVariant& variant) {
+  if (absl::holds_alternative<InterpValue>(variant)) {
+    return absl::get<InterpValue>(variant).GetBitValueCheckSign();
+  }
+
+  if (absl::holds_alternative<int64_t>(variant)) {
+    return absl::get<int64_t>(variant);
+  }
+
+  return absl::InvalidArgumentError(
+      "Can't evaluate a ParametricExpression to an integer.");
+}
+
 ConcreteTypeDim::ConcreteTypeDim(const ConcreteTypeDim& other)
     : value_(std::move(other.Clone().value_)) {}
 
 ConcreteTypeDim ConcreteTypeDim::Clone() const {
-  if (absl::holds_alternative<int64_t>(value_)) {
-    return ConcreteTypeDim(absl::get<int64_t>(value_));
+  if (absl::holds_alternative<InterpValue>(value_)) {
+    return ConcreteTypeDim(absl::get<InterpValue>(value_));
   }
   if (absl::holds_alternative<std::unique_ptr<ParametricExpression>>(value_)) {
     return ConcreteTypeDim(
@@ -112,25 +138,25 @@ std::string ConcreteTypeDim::ToString() const {
   if (absl::holds_alternative<std::unique_ptr<ParametricExpression>>(value_)) {
     return absl::get<std::unique_ptr<ParametricExpression>>(value_)->ToString();
   }
-  return absl::StrCat(absl::get<int64_t>(value_));
-}
-
-std::string ConcreteTypeDim::ToRepr() const {
-  std::string guts;
-  if (absl::holds_alternative<int64_t>(value_)) {
-    guts = absl::StrCat(absl::get<int64_t>(value_));
-  } else {
-    guts = absl::get<OwnedParametric>(value_)->ToRepr();
-  }
-  return absl::StrFormat("ConcreteTypeDim(%s)", guts);
+  // Note: we don't print out the type/width of the InterpValue that serves as
+  // the dimension, because printing `uN[u32:42]` would appear odd vs just
+  // `uN[42]`.
+  //
+  // TODO(https://github.com/google/xls/issues/450) the best solution may to be
+  // to have a size type that all InterpValues present on real type dimensions
+  // must be. Things are trickier nowadays because we want to permit arbitrary
+  // InterpValues to be passed as parametrics, not just ones that become (used)
+  // dimension data -- we need to allow for e.g. signed types which may not end
+  // up in any particular dimension position.
+  return absl::get<InterpValue>(value_).GetBitsOrDie().ToString();
 }
 
 bool ConcreteTypeDim::operator==(
     const absl::variant<int64_t, InterpValue, const ParametricExpression*>&
         other) const {
-  if (absl::holds_alternative<int64_t>(other)) {
-    if (absl::holds_alternative<int64_t>(value_)) {
-      return absl::get<int64_t>(value_) == absl::get<int64_t>(other);
+  if (absl::holds_alternative<InterpValue>(other)) {
+    if (absl::holds_alternative<InterpValue>(value_)) {
+      return absl::get<InterpValue>(value_) == absl::get<InterpValue>(other);
     }
     return false;
   }
@@ -156,10 +182,16 @@ bool ConcreteTypeDim::operator==(const ConcreteTypeDim& other) const {
 
 absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::Mul(
     const ConcreteTypeDim& rhs) const {
-  if (absl::holds_alternative<int64_t>(value_) &&
-      absl::holds_alternative<int64_t>(rhs.value_)) {
-    return ConcreteTypeDim(absl::get<int64_t>(value_) *
-                           absl::get<int64_t>(rhs.value_));
+  if (absl::holds_alternative<InterpValue>(value_) &&
+      absl::holds_alternative<InterpValue>(rhs.value_)) {
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue result,
+        absl::get<InterpValue>(value_).Mul(absl::get<InterpValue>(rhs.value_)));
+    return ConcreteTypeDim(std::move(result));
+  }
+  if (IsParametric() && rhs.IsParametric()) {
+    return ConcreteTypeDim(absl::make_unique<ParametricMul>(
+        parametric().Clone(), rhs.parametric().Clone()));
   }
   return absl::InvalidArgumentError(absl::StrFormat(
       "Cannot multiply dimensions: %s * %s", ToString(), rhs.ToString()));
@@ -167,17 +199,28 @@ absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::Mul(
 
 absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::Add(
     const ConcreteTypeDim& rhs) const {
-  if (absl::holds_alternative<int64_t>(value_) &&
-      absl::holds_alternative<int64_t>(rhs.value_)) {
-    return ConcreteTypeDim(absl::get<int64_t>(value_) +
-                           absl::get<int64_t>(rhs.value_));
+  if (absl::holds_alternative<InterpValue>(value_) &&
+      absl::holds_alternative<InterpValue>(rhs.value_)) {
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue result,
+        absl::get<InterpValue>(value_).Add(absl::get<InterpValue>(rhs.value_)));
+    return ConcreteTypeDim(result);
   }
   if (IsParametric() && rhs.IsParametric()) {
     return ConcreteTypeDim(absl::make_unique<ParametricAdd>(
         parametric().Clone(), rhs.parametric().Clone()));
   }
-  return absl::InvalidArgumentError(
-      absl::StrFormat("Unhandled add: %s + %s", ToString(), rhs.ToString()));
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "Cannot add dimensions: %s + %s", ToString(), rhs.ToString()));
+}
+
+absl::StatusOr<int64_t> ConcreteTypeDim::GetAsInt64() const {
+  if (!absl::holds_alternative<InterpValue>(value_)) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Expected concrete type dimension to be integral; got: ",
+                     absl::get<OwnedParametric>(value_)->ToString()));
+  }
+  return absl::get<InterpValue>(value_).GetBitValueInt64();
 }
 
 // -- ConcreteType
@@ -243,6 +286,12 @@ std::unique_ptr<BitsType> BitsType::ToUBits() const {
 
 // -- StructType
 
+StructType::StructType(std::vector<std::unique_ptr<ConcreteType>> members,
+                       StructDef* struct_def)
+    : members_(std::move(members)), struct_def_(*XLS_DIE_IF_NULL(struct_def)) {
+  XLS_CHECK_EQ(members_.size(), struct_def_.members().size());
+}
+
 bool StructType::HasEnum() const {
   for (const std::unique_ptr<ConcreteType>& type : members_) {
     if (type->HasEnum()) {
@@ -253,7 +302,8 @@ bool StructType::HasEnum() const {
 }
 
 std::string StructType::ToErrorString() const {
-  return absl::StrFormat("struct '%s'", nominal_type().identifier());
+  return absl::StrFormat("struct '%s' structure: %s",
+                         nominal_type().identifier(), ToString());
 }
 
 std::string StructType::ToString() const {
@@ -265,7 +315,10 @@ std::string StructType::ToString() const {
     absl::StrAppendFormat(&guts, "%s: %s", GetMemberName(i),
                           GetMemberType(i).ToString());
   }
-  return absl::StrCat("(", guts, ")");
+  if (!guts.empty()) {
+    guts = absl::StrCat(" ", guts, " ");
+  }
+  return absl::StrCat(nominal_type().identifier(), " {", guts, "}");
 }
 
 absl::StatusOr<std::vector<std::string>> StructType::GetMemberNames() const {
@@ -310,7 +363,7 @@ std::vector<ConcreteTypeDim> StructType::GetAllDims() const {
 }
 
 absl::StatusOr<ConcreteTypeDim> StructType::GetTotalBitCount() const {
-  XLS_ASSIGN_OR_RETURN(auto sum, ConcreteTypeDim::Create(0));
+  auto sum = ConcreteTypeDim::CreateU32(0);
   for (const std::unique_ptr<ConcreteType>& t : members_) {
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim elem_bit_count, t->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(sum, sum.Add(elem_bit_count));
@@ -418,7 +471,7 @@ std::vector<ConcreteTypeDim> TupleType::GetAllDims() const {
 }
 
 absl::StatusOr<ConcreteTypeDim> TupleType::GetTotalBitCount() const {
-  XLS_ASSIGN_OR_RETURN(auto sum, ConcreteTypeDim::Create(0));
+  auto sum = ConcreteTypeDim::CreateU32(0);
   for (const std::unique_ptr<ConcreteType>& t : members_) {
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim elem_bit_count, t->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(sum, sum.Add(elem_bit_count));
@@ -537,7 +590,7 @@ std::vector<ConcreteTypeDim> FunctionType::GetAllDims() const {
 }
 
 absl::StatusOr<ConcreteTypeDim> FunctionType::GetTotalBitCount() const {
-  XLS_ASSIGN_OR_RETURN(auto sum, ConcreteTypeDim::Create(0));
+  auto sum = ConcreteTypeDim::CreateU32(0);
   for (const auto& param : params_) {
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim param_bits, param->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(sum, sum.Add(param_bits));

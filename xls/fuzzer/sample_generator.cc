@@ -74,7 +74,7 @@ static absl::StatusOr<InterpValue> GenerateBitValue(int64_t bit_count,
 // a history to help prevent repetition that could hide bugs.
 static absl::StatusOr<InterpValue> GenerateUnbiasedArgument(
     const BitsType& bits_type, RngState* rng) {
-  int64_t bit_count = absl::get<int64_t>(bits_type.size().value());
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_type.size().GetAsInt64());
   return GenerateBitValue(bit_count, rng, bits_type.is_signed());
 }
 
@@ -94,8 +94,8 @@ static absl::StatusOr<InterpValue> GenerateArgument(
   if (auto* array_type = dynamic_cast<const ArrayType*>(&arg_type)) {
     std::vector<InterpValue> elements;
     const ConcreteType& element_type = array_type->element_type();
-    for (int64_t i = 0; i < absl::get<int64_t>(array_type->size().value());
-         ++i) {
+    XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
+    for (int64_t i = 0; i < array_size; ++i) {
       XLS_ASSIGN_OR_RETURN(InterpValue element,
                            GenerateArgument(element_type, rng, prior));
       elements.push_back(element);
@@ -117,8 +117,8 @@ static absl::StatusOr<InterpValue> GenerateArgument(
 
   Bits to_mutate = prior[index].GetBitsOrDie();
 
-  const int64_t target_bit_count =
-      absl::get<int64_t>(bits_type->size().value());
+  XLS_ASSIGN_OR_RETURN(const int64_t target_bit_count,
+                       bits_type->size().GetAsInt64());
   if (target_bit_count > to_mutate.bit_count()) {
     XLS_ASSIGN_OR_RETURN(
         InterpValue addendum,

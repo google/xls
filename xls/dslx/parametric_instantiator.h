@@ -212,7 +212,7 @@ class ParametricInstantiator {
   // "default" expression and must be provided by the user).
   absl::flat_hash_map<std::string, Expr*> constraints_;
 
-  absl::flat_hash_map<std::string, int64_t> bit_widths_;
+  absl::flat_hash_map<std::string, InterpValue> bit_widths_;
   absl::flat_hash_map<std::string, InterpValue> symbolic_bindings_;
 };
 

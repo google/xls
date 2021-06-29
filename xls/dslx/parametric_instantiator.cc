@@ -37,7 +37,8 @@ ParametricInstantiator::ParametricInstantiator(
       const std::string& identifier = constraint.identifier();
       constraint_order_.push_back(identifier);
       ConcreteTypeDim bit_count = constraint.type().GetTotalBitCount().value();
-      bit_widths_[identifier] = absl::get<int64_t>(bit_count.value());
+      bit_widths_.emplace(identifier,
+                          absl::get<InterpValue>(bit_count.value()));
       constraints_[identifier] = constraint.expr();
     }
   }
@@ -60,7 +61,8 @@ ParametricInstantiator::InstantiateOneArg(int64_t i,
   XLS_RETURN_IF_ERROR(SymbolicBind(param_type, arg_type));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved,
                        Resolve(param_type));
-  XLS_VLOG(5) << "Resolved parameter type: " << resolved->ToString();
+  XLS_VLOG(5) << "Resolved parameter type from " << param_type.ToString()
+              << " to " << resolved->ToString();
   return resolved;
 }
 
@@ -68,8 +70,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ParametricInstantiator::Resolve(
     const ConcreteType& annotated) {
   XLS_RETURN_IF_ERROR(VerifyConstraints());
 
-  return annotated.MapSize(
-      [this](ConcreteTypeDim dim) -> absl::StatusOr<ConcreteTypeDim> {
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ConcreteType> resolved,
+      annotated.MapSize([this](ConcreteTypeDim dim)
+                            -> absl::StatusOr<ConcreteTypeDim> {
         if (!absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(
                 dim.value())) {
           return dim;
@@ -78,8 +82,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ParametricInstantiator::Resolve(
             absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
         ParametricExpression::Evaluated evaluated = parametric_expr->Evaluate(
             ToParametricEnv(SymbolicBindings(symbolic_bindings_)));
-        return ConcreteTypeDim::Create(std::move(evaluated));
-      });
+        return ConcreteTypeDim(std::move(evaluated));
+      }));
+  XLS_VLOG(5) << "Resolved " << annotated.ToString() << " to "
+              << resolved->ToString();
+  return resolved;
 }
 
 absl::Status ParametricInstantiator::VerifyConstraints() {
@@ -159,36 +166,42 @@ absl::Status ParametricInstantiator::SymbolicBindDims(const T& param_type,
                        ConcreteTypeDim::GetAs64Bits(arg_type.size().value()));
 
   const std::string& pdim_name = symbol->identifier();
-  if (symbolic_bindings_.contains(pdim_name) &&
-      symbolic_bindings_.at(pdim_name).GetBitValueInt64().value() != arg_dim) {
-    InterpValue seen = symbolic_bindings_.at(pdim_name);
-    int64_t seen_value = seen.GetBitValueInt64().value();
-    // We see a conflict between something we previously observed and something
-    // we are now observing.
-    if (Expr* expr = constraints_[pdim_name]) {
-      // Error is violated constraint.
-      std::string message = absl::StrFormat(
-          "Parametric constraint violated, saw %s = %d; then %s = %s = %d",
-          pdim_name, seen_value, pdim_name, expr->ToString(), arg_dim);
-      auto saw_type =
-          absl::make_unique<BitsType>(/*signed=*/false, /*size=*/seen_value);
-      return XlsTypeErrorStatus(span_, *saw_type, arg_type, message);
-    } else {
-      // Error is conflicting argument types.
-      std::string message = absl::StrFormat(
-          "Parametric value %s was bound to different values at different "
-          "places in invocation; saw: %d; then: %d",
-          pdim_name, seen_value, arg_dim);
-      return XlsTypeErrorStatus(span_, param_type, arg_type, message);
-    }
+  if (!symbolic_bindings_.contains(pdim_name)) {
+    XLS_RET_CHECK(bit_widths_.contains(pdim_name))
+        << "Cannot bind " << pdim_name << " : it has no associated bit width.";
+    XLS_VLOG(5) << "Binding " << pdim_name << " to " << arg_dim;
+    XLS_ASSIGN_OR_RETURN(int64_t width,
+                         bit_widths_.at(pdim_name).GetBitValueInt64());
+    symbolic_bindings_.emplace(
+        pdim_name,
+        InterpValue::MakeUBits(/*bit_count=*/width, /*value=*/arg_dim));
+    return absl::OkStatus();
   }
 
-  XLS_RET_CHECK(bit_widths_.contains(pdim_name))
-      << "Cannot bind " << pdim_name << " : it has no associated bit width.";
-  XLS_VLOG(5) << "Binding " << pdim_name << " to " << arg_dim;
-  symbolic_bindings_.insert(
-      {pdim_name, InterpValue::MakeUBits(bit_widths_[pdim_name], arg_dim)});
-  return absl::OkStatus();
+  const InterpValue& seen = symbolic_bindings_.at(pdim_name);
+  int64_t seen_value = seen.GetBitValueInt64().value();
+  if (seen_value == arg_dim) {
+    return absl::OkStatus();  // No contradiction.
+  }
+
+  // We see a conflict between something we previously observed and something
+  // we are now observing.
+  if (Expr* expr = constraints_[pdim_name]) {
+    // Error is violated constraint.
+    std::string message = absl::StrFormat(
+        "Parametric constraint violated, saw %s = %d; then %s = %s = %d",
+        pdim_name, seen_value, pdim_name, expr->ToString(), arg_dim);
+    auto saw_type =
+        absl::make_unique<BitsType>(/*signed=*/false, /*size=*/seen_value);
+    return XlsTypeErrorStatus(span_, *saw_type, arg_type, message);
+  } else {
+    // Error is conflicting argument types.
+    std::string message = absl::StrFormat(
+        "Parametric value %s was bound to different values at different "
+        "places in invocation; saw: %d; then: %d",
+        pdim_name, seen_value, arg_dim);
+    return XlsTypeErrorStatus(span_, param_type, arg_type, message);
+  }
 }
 
 absl::Status ParametricInstantiator::SymbolicBindTuple(
@@ -317,7 +330,11 @@ absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> instantiated_param_type,
                          InstantiateOneArg(i, param_type, arg_type));
     if (*instantiated_param_type != arg_type) {
-      return XlsTypeErrorStatus(args()[i].span, param_type, arg_type,
+      // Although it's not the *original* parameter (which could be a little
+      // confusing to the user) we want to show what the mismatch was directly,
+      // so we use the instantiated_param_type here.
+      return XlsTypeErrorStatus(args()[i].span, *instantiated_param_type,
+                                arg_type,
                                 "Mismatch between parameter and argument types "
                                 "(after instantiation).");
     }

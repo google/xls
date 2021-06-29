@@ -111,9 +111,6 @@ class InterpValue {
   static InterpValue MakeU32(uint32_t value) {
     return MakeUBits(/*bit_count=*/32, value);
   }
-  static InterpValue MakeU64(uint64_t value) {
-    return MakeUBits(/*bit_count=*/64, value);
-  }
   static InterpValue MakeEnum(Bits bits, EnumDef* type) {
     return InterpValue(InterpValueTag::kEnum, std::move(bits), type);
   }

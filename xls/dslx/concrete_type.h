@@ -39,11 +39,14 @@ namespace xls::dslx {
 class BitsType;
 class TupleType;
 
-// See comment on ConcreteType below.
-// TODO(rspringer): 2020-03-25: Some users of ConcreteTypeDim use it to
-// represent signed values (think array slicing with a negative index). Type
-// dimensions, though, don't make sense as negative values, so we need to find
-// all such uses and convert them to another abstraction.
+// Represents a parametric binding in a ConcreteType, which is either a) a
+// parametric expression or b) evaluated to an InterpValue. When type
+// annotations from the AST are evaluated in type inference, some of the
+// "concrete types" that result from deduction may still be parametric. When the
+// parametric code is instantiated, the concrete types then have concrete
+// `InterpValues` as their dimensions.
+//
+// See comment on `ConcreteType` below for more details.
 class ConcreteTypeDim {
  public:
   using OwnedParametric = std::unique_ptr<ParametricExpression>;
@@ -51,52 +54,20 @@ class ConcreteTypeDim {
   // integral or ParametricExpression variants (a "Variant").
   // An accepted InterpValue input variant must be convertable to a uint64_t.
   using InputVariant = absl::variant<int64_t, InterpValue, OwnedParametric>;
-  using Variant = absl::variant<int64_t, OwnedParametric>;
 
   // Evaluates the given value to a 64-bit quantity.
-  // TODO(rspringer): 2021-03-25: Eliminate the InputVariant...variant. Once
-  // done, consider eliminating the Variant alias.
-  static absl::StatusOr<int64_t> GetAs64Bits(const Variant& variant) {
-    if (absl::holds_alternative<int64_t>(variant)) {
-      return absl::get<int64_t>(variant);
-    }
+  static absl::StatusOr<int64_t> GetAs64Bits(
+      const absl::variant<InterpValue, OwnedParametric>& variant);
+  static absl::StatusOr<int64_t> GetAs64Bits(const InputVariant& variant);
 
-    return absl::InvalidArgumentError(
-        "Can't evaluate a ParametricExpression to an integer.");
+  // Creates a u32 `InterpValue`-based ConcreteTypeDim with the given "value".
+  static ConcreteTypeDim CreateU32(uint32_t value) {
+    return ConcreteTypeDim(InterpValue::MakeU32(value));
   }
 
-  static absl::StatusOr<int64_t> GetAs64Bits(const InputVariant& variant) {
-    if (absl::holds_alternative<InterpValue>(variant)) {
-      return absl::get<InterpValue>(variant).GetBitValueCheckSign();
-    }
+  explicit ConcreteTypeDim(absl::variant<InterpValue, OwnedParametric> value)
+      : value_(std::move(value)) {}
 
-    if (absl::holds_alternative<int64_t>(variant)) {
-      return absl::get<int64_t>(variant);
-    }
-
-    return absl::InvalidArgumentError(
-        "Can't evaluate a ParametricExpression to an integer.");
-  }
-
-  static absl::StatusOr<ConcreteTypeDim> Create(InputVariant variant) {
-    if (absl::holds_alternative<InterpValue>(variant)) {
-      XLS_ASSIGN_OR_RETURN(
-          int64_t int_value,
-          absl::get<InterpValue>(variant).GetBitValueCheckSign());
-      return ConcreteTypeDim(int_value);
-    }
-
-    if (auto ptr = absl::get_if<int64_t>(&variant)) {
-      return ConcreteTypeDim(*ptr);
-    }
-
-    OwnedParametric op = std::move(absl::get<OwnedParametric>(variant));
-    return ConcreteTypeDim(std::move(op));
-  }
-
-  explicit ConcreteTypeDim(int64_t value) : value_(value) {}
-  explicit ConcreteTypeDim(const ParametricExpression& value)
-      : value_(value.Clone()) {}
   ConcreteTypeDim(const ConcreteTypeDim& other);
   ConcreteTypeDim& operator=(ConcreteTypeDim&& other) {
     value_ = std::move(other.value_);
@@ -105,16 +76,13 @@ class ConcreteTypeDim {
 
   ConcreteTypeDim Clone() const;
 
+  // Arithmetic operators used in e.g. calculating total bit counts.
   absl::StatusOr<ConcreteTypeDim> Mul(const ConcreteTypeDim& rhs) const;
   absl::StatusOr<ConcreteTypeDim> Add(const ConcreteTypeDim& rhs) const;
 
   // Returns a string representation of this dimension, which is either the
   // integral string or the parametric expression string conversion.
   std::string ToString() const;
-
-  // Returns a Python-style "representation" string that shows the construction
-  // of this value; e.g. "ConcreteTypeDim(42)".
-  std::string ToRepr() const;
 
   bool operator==(const ConcreteTypeDim& other) const;
   bool operator==(
@@ -124,7 +92,9 @@ class ConcreteTypeDim {
     return !(*this == other);
   }
 
-  const Variant& value() const { return value_; }
+  const absl::variant<InterpValue, OwnedParametric>& value() const {
+    return value_;
+  }
 
   bool IsParametric() const {
     return absl::holds_alternative<OwnedParametric>(value_);
@@ -133,9 +103,11 @@ class ConcreteTypeDim {
     return *absl::get<OwnedParametric>(value_);
   }
 
+  // Retrieves the bit value of the underlying InterpValue as an int64_t.
+  absl::StatusOr<int64_t> GetAsInt64() const;
+
  private:
-  explicit ConcreteTypeDim(Variant value) : value_(std::move(value)) {}
-  Variant value_;
+  absl::variant<InterpValue, OwnedParametric> value_;
 };
 
 // Represents a 'concrete' (evaluated) type, as determined by evaluating a
@@ -148,9 +120,9 @@ class ConcreteTypeDim {
 // resolved result.
 //
 // Note: During typechecking the dimension members may be either symbols (like
-// the 'N' in bits[N,3]) or integers. Once parametric symbols are instantiated
-// the symbols (such as 'N') will have resolved into ints, and we will only be
-// dealing with ConcreteTypeDims that hold ints.
+// the 'N' in `bits[N][3]`) or integers. Once parametric symbols are
+// instantiated the symbols (such as 'N') will have resolved into ints, and we
+// will only be dealing with ConcreteTypeDims that hold ints.
 class ConcreteType {
  public:
   // Creates a "unit" tuple type (a tuple type with no members).
@@ -166,7 +138,6 @@ class ConcreteType {
   bool operator!=(const ConcreteType& other) const { return !(*this == other); }
 
   virtual std::string ToString() const = 0;
-  virtual std::string ToRepr() const { return ToString(); }
 
   // Variation on `ToString()` to be used in user-facing error reporting.
   virtual std::string ToErrorString() const { return ToString(); }
@@ -234,7 +205,7 @@ class TokenType : public ConcreteType {
   std::string ToString() const override { return "token"; }
   std::vector<ConcreteTypeDim> GetAllDims() const override { return {}; }
   absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override {
-    return ConcreteTypeDim::Create(0);
+    return ConcreteTypeDim(InterpValue::MakeU32(0));
   }
   std::string GetDebugTypeName() const override { return "token"; }
 
@@ -255,12 +226,10 @@ class TokenType : public ConcreteType {
 // things like type comparisons
 class StructType : public ConcreteType {
  public:
+  // Note: members must correspond to struct_def's members (same length and
+  // order).
   StructType(std::vector<std::unique_ptr<ConcreteType>> members,
-             StructDef* struct_def)
-      : members_(std::move(members)),
-        struct_def_(*XLS_DIE_IF_NULL(struct_def)) {
-    XLS_CHECK_EQ(members_.size(), struct_def_.members().size());
-  }
+             StructDef* struct_def);
 
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
       const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
@@ -446,7 +415,7 @@ class BitsType : public ConcreteType {
   }
 
   BitsType(bool is_signed, int64_t size)
-      : BitsType(is_signed, ConcreteTypeDim::Create(size).value()) {}
+      : BitsType(is_signed, ConcreteTypeDim(InterpValue::MakeU32(size))) {}
   BitsType(bool is_signed, ConcreteTypeDim size)
       : is_signed_(is_signed), size_(std::move(size)) {}
   ~BitsType() override = default;
@@ -462,10 +431,6 @@ class BitsType : public ConcreteType {
     return false;
   }
   std::string ToString() const override;
-  std::string ToRepr() const override {
-    return absl::StrFormat("BitsType(is_signed=%s, size=%s)",
-                           is_signed_ ? "true" : "false", size_.ToRepr());
-  }
   std::string GetDebugTypeName() const override;
   bool HasEnum() const override { return false; }
 

@@ -74,19 +74,24 @@ TEST(TypecheckTest, Unit) {
 }
 
 TEST(TypecheckTest, Arithmetic) {
+  // Simple add.
   XLS_EXPECT_OK(Typecheck("fn f(x: u32, y: u32) -> u32 { x + y }"));
+  // Wrong return type (implicitly unit).
   EXPECT_THAT(
       Typecheck("fn f(x: u32, y: u32) { x + y }"),
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("uN[32] vs ()")));
+  // Wrong return type (implicitly unit).
   EXPECT_THAT(
       Typecheck(R"(
       fn f<N: u32>(x: bits[N], y: bits[N]) { x + y }
-      fn g() -> u64 { f(u64: 5, u64: 5) }
+      fn g() -> u64 { f(u64:5, u64:5) }
       )"),
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("uN[64] vs ()")));
+  // Mixing widths not permitted.
   EXPECT_THAT(Typecheck("fn f(x: u32, y: bits[4]) { x + y }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("uN[32] vs uN[4]")));
+  // Parametric same-width is ok!
   XLS_EXPECT_OK(
       Typecheck("fn f<N: u32>(x: bits[N], y: bits[N]) -> bits[N] { x + y }"));
 }
@@ -1064,8 +1069,11 @@ TEST(TypecheckParametricStructInstanceTest, BadReturnType) {
   EXPECT_THAT(
       TypecheckParametricStructInstance(
           "fn f() -> Point<5, 10> { Point { x: u32:5, y: u64:255 } }"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("(x: uN[32], y: uN[64]) vs (x: uN[5], y: uN[10])")));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "struct 'Point' structure: Point { x: uN[32], y: uN[64] } vs "
+              "struct 'Point' structure: Point { x: uN[5], y: uN[10] }")));
 }
 
 // Bad struct type-parametric instantiation in parametric function.

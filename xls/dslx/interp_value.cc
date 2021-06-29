@@ -675,7 +675,7 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
   }
 
   for (int i = 0; i < lhs_length; i++) {
-    InterpValue index = MakeU64(i);
+    InterpValue index = MakeU32(i);
     InterpValue lhs_element = Index(index).value();
     InterpValue rhs_element = rhs.Index(index).value();
     if (lhs_element < rhs_element) {

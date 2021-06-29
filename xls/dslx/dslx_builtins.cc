@@ -147,12 +147,7 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    auto status_or_target = ConcreteTypeDim::Create(target);
-    if (status_or_target.ok()) {
-      status_ = status_or_target.status();
-      return *this;
-    }
-    if (t.size() != ConcreteTypeDim(status_or_target.value())) {
+    if (t.size() != ConcreteTypeDim::CreateU32(target)) {
       status_ = TypeInferenceErrorStatus(span_, &t, make_msg());
     }
     return *this;
@@ -163,7 +158,7 @@ class Checker {
     }
     const ConcreteType& t = *arg_types_[argno];
     if (auto* bits = dynamic_cast<const BitsType*>(&t);
-        bits == nullptr || bits->size() != ConcreteTypeDim::Create(1).value()) {
+        bits == nullptr || bits->size() != ConcreteTypeDim::CreateU32(1)) {
       status_ = TypeInferenceErrorStatus(
           span_, &t,
           absl::StrFormat("Expected argument %d to '%s' to be a u1; got %s",
@@ -309,7 +304,9 @@ static void PopulateSignatureToLambdaMap(
       return absl::StrFormat("Want arg 1 element type to be bits; got %s",
                              return_type.ToString());
     });
-    int64_t target = absl::get<int64_t>(b->size().value());
+    XLS_ASSIGN_OR_RETURN(
+        int64_t target,
+        absl::get<InterpValue>(b->size().value()).GetBitValueUint64());
     checker.CheckIsLen(*a, target, [&] {
       return absl::StrFormat("Bit width %d must match %s array size %s", target,
                              a->ToString(), a->size().ToString());
@@ -356,9 +353,8 @@ static void PopulateSignatureToLambdaMap(
                           "start: %s, limit: %s",
                           data.name, start.ToString(), limit.ToString()));
     }
-    auto return_type =
-        absl::make_unique<ArrayType>(data.arg_types[0]->CloneToUnique(),
-                                     ConcreteTypeDim::Create(length).value());
+    auto return_type = absl::make_unique<ArrayType>(
+        data.arg_types[0]->CloneToUnique(), ConcreteTypeDim::CreateU32(length));
     return TypeAndBindings{absl::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
@@ -481,7 +477,7 @@ static void PopulateSignatureToLambdaMap(
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim n,
                          data.arg_types[0]->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim np1,
-                         n.Add(ConcreteTypeDim::Create(1).value()));
+                         n.Add(ConcreteTypeDim::CreateU32(1)));
     auto return_type =
         absl::make_unique<BitsType>(/*signed=*/false, /*size=*/np1);
     return TypeAndBindings{absl::make_unique<FunctionType>(

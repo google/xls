@@ -79,9 +79,9 @@ TEST(SampleGeneratorTest, GenerateEmptyArguments) {
 TEST(SampleGeneratorTest, GenerateSingleBitsArgument) {
   xls::RngState rng(std::mt19937{});
   std::vector<std::unique_ptr<dslx::ConcreteType>> param_types;
-  param_types.push_back(
-      absl::make_unique<dslx::BitsType>(/*signed=*/false,
-                                        /*size=*/dslx::ConcreteTypeDim(42)));
+  param_types.push_back(absl::make_unique<dslx::BitsType>(
+      /*signed=*/false,
+      /*size=*/dslx::ConcreteTypeDim::CreateU32(42)));
 
   std::vector<const dslx::ConcreteType*> param_type_ptrs;
   for (auto& t : param_types) {
@@ -97,12 +97,12 @@ TEST(SampleGeneratorTest, GenerateSingleBitsArgument) {
 TEST(SampleGeneratorTest, GenerateMixedBitsArguments) {
   xls::RngState rng(std::mt19937{});
   std::vector<std::unique_ptr<dslx::ConcreteType>> param_types;
-  param_types.push_back(
-      absl::make_unique<dslx::BitsType>(/*signed=*/false,
-                                        /*size=*/dslx::ConcreteTypeDim(123)));
-  param_types.push_back(
-      absl::make_unique<dslx::BitsType>(/*signed=*/true,
-                                        /*size=*/dslx::ConcreteTypeDim(22)));
+  param_types.push_back(absl::make_unique<dslx::BitsType>(
+      /*signed=*/false,
+      /*size=*/dslx::ConcreteTypeDim::CreateU32(123)));
+  param_types.push_back(absl::make_unique<dslx::BitsType>(
+      /*signed=*/true,
+      /*size=*/dslx::ConcreteTypeDim::CreateU32(22)));
 
   std::vector<const dslx::ConcreteType*> param_type_ptrs;
   for (auto& t : param_types) {
@@ -145,9 +145,10 @@ TEST(SampleGeneratorTest, GenerateArrayArgument) {
   xls::RngState rng(std::mt19937{});
   std::vector<std::unique_ptr<dslx::ConcreteType>> param_types;
   param_types.push_back(absl::make_unique<dslx::ArrayType>(
-      absl::make_unique<dslx::BitsType>(/*signed=*/true,
-                                        /*size=*/dslx::ConcreteTypeDim(4)),
-      dslx::ConcreteTypeDim(24)));
+      absl::make_unique<dslx::BitsType>(
+          /*signed=*/true,
+          /*size=*/dslx::ConcreteTypeDim::CreateU32(4)),
+      dslx::ConcreteTypeDim::CreateU32(24)));
 
   std::vector<const dslx::ConcreteType*> param_type_ptrs;
   for (auto& t : param_types) {
