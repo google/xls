@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_CPP_POS_H_
-#define XLS_DSLX_CPP_POS_H_
+#ifndef XLS_DSLX_POS_H_
+#define XLS_DSLX_POS_H_
 
 #include <cstdint>
 #include <string>
@@ -137,4 +137,4 @@ inline std::string SpanToString(const absl::optional<Span>& span) {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_CPP_POS_H_
+#endif  // XLS_DSLX_POS_H_

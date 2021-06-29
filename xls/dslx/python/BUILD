@@ -67,17 +67,6 @@ xls_pybind_extension(
 )
 
 xls_pybind_extension(
-    name = "cpp_pos",
-    srcs = ["cpp_pos.cc"],
-    deps = [
-        "@com_google_absl//absl/base",
-        "//xls/common/status:status_macros",
-        "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:pos",
-    ],
-)
-
-xls_pybind_extension(
     name = "cpp_parametric_expression",
     srcs = ["cpp_parametric_expression.cc"],
     deps = [

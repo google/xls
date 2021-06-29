@@ -47,7 +47,6 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        "//xls/dslx/python:cpp_pos",
         "//xls/dslx/python:scanner",
         "@com_google_absl_py//absl/testing:absltest",
     ],

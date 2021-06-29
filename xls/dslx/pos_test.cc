@@ -21,13 +21,20 @@
 namespace xls::dslx {
 namespace {
 
-TEST(CppPosTest, PosStringRoundTrip) {
+TEST(PosTest, PosStringRoundTrip) {
   std::string text = "/my/foo.x:1:2";
   XLS_ASSERT_OK_AND_ASSIGN(Pos p, Pos::FromString(text));
   EXPECT_EQ(p.lineno(), 0);
   EXPECT_EQ(p.colno(), 1);
   EXPECT_EQ(p.filename(), "/my/foo.x");
   EXPECT_EQ(text, p.ToString());
+}
+
+TEST(PosTest, PosLt) {
+  const char* kFakeFile = "<fake>";
+  EXPECT_LT(Pos(kFakeFile, 0, 0), Pos(kFakeFile, 0, 1));
+  EXPECT_LT(Pos(kFakeFile, 0, 0), Pos(kFakeFile, 1, 0));
+  EXPECT_GE(Pos(kFakeFile, 0, 0), Pos(kFakeFile, 0, 0));
 }
 
 }  // namespace

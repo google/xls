@@ -77,22 +77,12 @@ PYBIND11_MODULE(scanner, m) {
       py::object& e_type = parse_exc;
       py::object instance = e_type();
       instance.attr("message") = e.what();
-      instance.attr("span") = e.span();
       PyErr_SetObject(parse_exc.ptr(), instance.ptr());
     }
   });
 
   py::class_<Token>(m, "Token")
-      .def(py::init([](TokenKind kind, Span span,
-                       absl::optional<std::string> value) {
-             return Token(kind, span, value);
-           }),
-           py::arg("kind"), py::arg("span"), py::arg("value"))
-      .def(py::init(
-               [](Span span, Keyword keyword) { return Token(span, keyword); }),
-           py::arg("span"), py::arg("value"))
       .def_property_readonly("kind", &Token::kind)
-      .def_property_readonly("span", &Token::span)
       .def_property_readonly("value", &Token::GetPayload)
       .def("to_error_str", &Token::ToErrorString)
       .def("is_keyword", &Token::IsKeyword)

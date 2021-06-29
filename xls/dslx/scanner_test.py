@@ -20,7 +20,6 @@ import random
 from typing import Text, Sequence, Any
 
 from absl.testing import absltest
-from xls.dslx.python import cpp_pos
 from xls.dslx.python import scanner
 from xls.dslx.python.scanner import TokenKind
 from xls.dslx.python.scanner import TokenKindFromString
@@ -133,12 +132,6 @@ class ScannerTest(absltest.TestCase):
     tokens = s.pop_all()
     self.assertLen(tokens, 1)
     self.assertTrue(tokens[0].is_number('0b11_1100'), msg=str(tokens))
-
-  def test_pos_lt(self):
-    self.assertLess(cpp_pos.Pos('<fake>', 0, 0), cpp_pos.Pos('<fake>', 0, 1))
-    self.assertLess(cpp_pos.Pos('<fake>', 0, 0), cpp_pos.Pos('<fake>', 1, 0))
-    self.assertGreaterEqual(
-        cpp_pos.Pos('<fake>', 0, 0), cpp_pos.Pos('<fake>', 0, 0))
 
   def test_scan_incomplete_hex(self):
     with self.assertRaises(scanner.ScanError) as cm:
