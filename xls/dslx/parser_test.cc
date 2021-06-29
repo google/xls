@@ -626,6 +626,26 @@ TEST_F(ParserTest, LogicalEqualityPrecedence) {
   EXPECT_EQ(unop->kind(), UnopKind::kInvert);
 }
 
+TEST_F(ParserTest, CastVsComparatorPrecedence) {
+  Expr* e;
+  RoundTripExpr("x >= y as u32", {"x", "y"}, "(x) >= (((y) as u32))", &e);
+  auto* binop = dynamic_cast<Binop*>(e);
+  EXPECT_EQ(binop->kind(), BinopKind::kGe);
+  auto* cast = dynamic_cast<Cast*>(binop->rhs());
+  ASSERT_NE(cast, nullptr);
+  auto* casted_name_ref = dynamic_cast<NameRef*>(cast->expr());
+  ASSERT_NE(casted_name_ref, nullptr);
+  EXPECT_EQ(casted_name_ref->identifier(), "y");
+}
+
+TEST_F(ParserTest, CastVsUnaryPrecedence) {
+  Expr* e;
+  RoundTripExpr("-x as s32", {"x", "y"}, "((-(x)) as s32)", &e);
+  auto* cast = dynamic_cast<Cast*>(e);
+  ASSERT_NE(cast, nullptr);
+  EXPECT_EQ(cast->type_annotation()->ToString(), "s32");
+}
+
 TEST_F(ParserTest, NameDefTree) {
   RoundTripExpr(R"(let (a, (b, (c, d), e), f) = x;
 a)",
