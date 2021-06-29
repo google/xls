@@ -585,11 +585,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(StructDef* node,
     ctx->type_info()->SetItem(parametric->name_def(), *parametric_binding_type);
   }
 
-  std::vector<StructType::NamedMember> members;
+  std::vector<std::unique_ptr<ConcreteType>> members;
   for (auto [name_def, type] : node->members()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete,
                          DeduceAndResolve(type, ctx));
-    members.push_back({name_def->identifier(), std::move(concrete)});
+    members.push_back(std::move(concrete));
   }
   auto result = absl::make_unique<StructType>(std::move(members), node);
   ctx->type_info()->SetItem(node->name_def(), *result);

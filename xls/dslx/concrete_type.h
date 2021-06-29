@@ -201,6 +201,13 @@ class ConcreteType {
 
   bool IsUnit() const;
   bool IsToken() const;
+
+ protected:
+  static std::vector<std::unique_ptr<ConcreteType>> Clone(
+      absl::Span<const std::unique_ptr<ConcreteType>> ts);
+
+  static bool Equal(absl::Span<const std::unique_ptr<ConcreteType>> a,
+                    absl::Span<const std::unique_ptr<ConcreteType>> b);
 };
 
 inline std::ostream& operator<<(std::ostream& os, const ConcreteType& t) {
@@ -248,17 +255,12 @@ class TokenType : public ConcreteType {
 // things like type comparisons
 class StructType : public ConcreteType {
  public:
-  // TODO(leary): 2021-06-25 We should be able to use the name information from
-  // the underlying StructDef instead of duplicating it inline here.
-  struct NamedMember {
-    std::string name;
-    std::unique_ptr<ConcreteType> type;
-  };
-  using NamedMembers = std::vector<NamedMember>;
-
-  StructType(NamedMembers members, StructDef* struct_def)
+  StructType(std::vector<std::unique_ptr<ConcreteType>> members,
+             StructDef* struct_def)
       : members_(std::move(members)),
-        struct_def_(*XLS_DIE_IF_NULL(struct_def)) {}
+        struct_def_(*XLS_DIE_IF_NULL(struct_def)) {
+    XLS_CHECK_EQ(members_.size(), struct_def_.members().size());
+  }
 
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
       const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
@@ -273,7 +275,7 @@ class StructType : public ConcreteType {
   bool HasEnum() const override;
 
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    return absl::make_unique<StructType>(CloneMembers(), &struct_def_);
+    return absl::make_unique<StructType>(Clone(members_), &struct_def_);
   }
 
   // For user-level error reporting, we also note the name of the struct
@@ -285,12 +287,10 @@ class StructType : public ConcreteType {
   absl::StatusOr<std::vector<std::string>> GetMemberNames() const;
 
   absl::string_view GetMemberName(int64_t i) const {
-    return members_.at(i).name;
+    return struct_def_.GetMemberName(i);
   }
 
-  const ConcreteType& GetMemberType(int64_t i) const {
-    return *members_.at(i).type;
-  }
+  const ConcreteType& GetMemberType(int64_t i) const { return *members_.at(i); }
 
   // Returns the index of the member with name "name" -- returns a NotFound
   // error if the member is not found (i.e. it is generally expected that the
@@ -307,15 +307,12 @@ class StructType : public ConcreteType {
 
   int64_t size() const { return members_.size(); }
 
-  const std::vector<NamedMember>& members() const { return members_; }
+  const std::vector<std::unique_ptr<ConcreteType>>& members() const {
+    return members_;
+  }
 
  private:
-  static bool MembersEqual(absl::Span<const NamedMember> a,
-                           absl::Span<const NamedMember> b);
-
-  std::vector<NamedMember> CloneMembers() const;
-
-  NamedMembers members_;
+  std::vector<std::unique_ptr<ConcreteType>> members_;
   StructDef& struct_def_;
 };
 
@@ -337,7 +334,7 @@ class TupleType : public ConcreteType {
   bool HasEnum() const override;
 
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    return absl::make_unique<TupleType>(CloneMembers());
+    return absl::make_unique<TupleType>(Clone(members_));
   }
 
   bool empty() const;
@@ -352,11 +349,6 @@ class TupleType : public ConcreteType {
   }
 
  private:
-  std::vector<std::unique_ptr<ConcreteType>> CloneMembers() const;
-
-  static bool MembersEqual(absl::Span<const std::unique_ptr<ConcreteType>> a,
-                           absl::Span<const std::unique_ptr<ConcreteType>> b);
-
   std::vector<std::unique_ptr<ConcreteType>> members_;
 };
 

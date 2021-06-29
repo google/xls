@@ -2832,8 +2832,8 @@ absl::StatusOr<xls::Type*> FunctionConverter::TypeToIr(
   }
   std::vector<xls::Type*> members;
   if (auto* struct_type = dynamic_cast<const StructType*>(&concrete_type)) {
-    for (const StructType::NamedMember& m : struct_type->members()) {
-      XLS_ASSIGN_OR_RETURN(xls::Type * type, TypeToIr(*m.type));
+    for (const std::unique_ptr<ConcreteType>& m : struct_type->members()) {
+      XLS_ASSIGN_OR_RETURN(xls::Type * type, TypeToIr(*m));
       members.push_back(type);
     }
     return package()->GetTupleType(std::move(members));
