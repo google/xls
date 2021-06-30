@@ -40,18 +40,6 @@ py_test(
     ],
 )
 
-py_test(
-    name = "py_scanner_test",
-    srcs = ["scanner_test.py"],
-    main = "scanner_test.py",
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//xls/dslx/python:scanner",
-        "@com_google_absl_py//absl/testing:absltest",
-    ],
-)
-
 cc_library(
     name = "cpp_transpiler",
     srcs = ["cpp_transpiler.cc"],
@@ -278,6 +266,7 @@ cc_test(
         ":scanner",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/random",
         "@com_google_googletest//:gtest",
     ],
 )

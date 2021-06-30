@@ -51,22 +51,6 @@ xls_pybind_extension(
 )
 
 xls_pybind_extension(
-    name = "scanner",
-    srcs = ["scanner.cc"],
-    deps = [
-        ":errors",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "//xls/common/status:status_macros",
-        "//xls/common/status:statusor_pybind_caster",
-        "//xls/dslx:ast_builtin_types",
-        "//xls/dslx:pos",
-        "//xls/dslx:scanner",
-    ],
-)
-
-xls_pybind_extension(
     name = "cpp_parametric_expression",
     srcs = ["cpp_parametric_expression.cc"],
     deps = [
@@ -119,7 +103,6 @@ xls_pybind_extension(
         "//xls/dslx:ir_converter",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:parser",
-        "//xls/dslx:scanner",
         "//xls/dslx:symbolic_bindings",
         "//xls/dslx:typecheck",
         "//xls/ir:ir_parser",

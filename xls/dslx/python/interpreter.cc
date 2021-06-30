@@ -26,7 +26,6 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/parser.h"
 #include "xls/dslx/python/errors.h"
-#include "xls/dslx/scanner.h"
 #include "xls/dslx/symbolic_bindings.h"
 #include "xls/dslx/typecheck.h"
 #include "xls/ir/ir_parser.h"
