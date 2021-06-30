@@ -659,7 +659,8 @@ absl::StatusOr<xls::BValue> Translator::StructUpdate(
 
   // No tuple update, so we need to rebuild the tuple
   std::vector<xls::BValue> bvals;
-  for (const std::shared_ptr<CField>& fp : stype.fields()) {
+  for (auto it = stype.fields().rbegin(); it != stype.fields().rend(); it++) {
+    std::shared_ptr<CField> fp = *it;
     xls::BValue bval;
     if (fp->index() != cfield.index()) {
       bval = GetStructFieldXLS(struct_before, fp->index(), stype, loc);
@@ -686,7 +687,9 @@ xls::BValue Translator::GetStructFieldXLS(xls::BValue val, int index,
                                           const CStructType& type,
                                           const xls::SourceLocation& loc) {
   XLS_CHECK_LT(index, type.fields().size());
-  return type.no_tuple_flag() ? val : context().fb->TupleIndex(val, index, loc);
+  return type.no_tuple_flag() ? val
+                              : context().fb->TupleIndex(
+                                    val, type.fields().size() - 1 - index, loc);
 }
 
 absl::StatusOr<xls::Type*> Translator::GetStructXLSType(
@@ -1332,7 +1335,9 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     }
 
     std::vector<xls::BValue> bvals;
-    for (const std::shared_ptr<CField>& field : struct_type->fields()) {
+    for (auto it = struct_type->fields().rbegin();
+         it != struct_type->fields().rend(); it++) {
+      std::shared_ptr<CField> field = *it;
       auto found = indices_to_update.find(field->index());
       xls::BValue bval;
       if (found != indices_to_update.end()) {
@@ -2907,7 +2912,8 @@ absl::StatusOr<xls::BValue> Translator::CreateDefaultValue(
     return context().fb->Literal(xls::UBits(0, 1), loc);
   } else if (auto it = dynamic_cast<const CStructType*>(t.get())) {
     vector<xls::BValue> args;
-    for (const std::shared_ptr<CField>& field : it->fields()) {
+    for (auto it2 = it->fields().rbegin(); it2 != it->fields().rend(); it2++) {
+      std::shared_ptr<CField> field = *it2;
       XLS_ASSIGN_OR_RETURN(xls::BValue fval,
                            CreateDefaultValue(field->type(), loc));
       args.push_back(fval);
@@ -3626,7 +3632,9 @@ absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
     return TranslateTypeToXLS(ctype, loc);
   } else if (auto it = dynamic_cast<const CStructType*>(t.get())) {
     std::vector<xls::Type*> members;
-    for (const std::shared_ptr<CField>& field : it->fields()) {
+    for (auto it2 = it->fields().rbegin();
+         it2 != it->fields().rend(); it2++) {
+      std::shared_ptr<CField> field = *it2;
       XLS_ASSIGN_OR_RETURN(xls::Type * ft,
                            TranslateTypeToXLS(field->type(), loc));
       members.push_back(ft);

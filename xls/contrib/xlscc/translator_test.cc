@@ -1547,6 +1547,30 @@ TEST_F(TranslatorTest, NoTupleMultiFieldBlockComment) {
   Run({{"a", 311}}, 311, content);
 }
 
+TEST_F(TranslatorTest, StructMemberOrder) {
+  const std::string content = R"(
+       struct Test {
+         int x;
+         int y;
+       };
+       Test my_package(int a, int b) {
+         Test s;
+         s.x=a;
+         s.y=b;
+         return s;
+       })";
+
+  xls::Value tuple_values[2] = {xls::Value(xls::SBits(50, 32)),
+                                xls::Value(xls::SBits(311, 32))};
+  xls::Value expected = xls::Value::Tuple(tuple_values);
+
+  absl::flat_hash_map<std::string, xls::Value> args = {
+      {"a", xls::Value(xls::SBits(311, 32))},
+      {"b", xls::Value(xls::SBits(50, 32))}};
+
+  Run(args, expected, content);
+}
+
 TEST_F(TranslatorTest, ImplicitConversion) {
   const std::string content = R"(
        struct Test {

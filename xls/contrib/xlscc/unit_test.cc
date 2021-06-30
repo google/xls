@@ -29,6 +29,16 @@ void XlsccTestBase::Run(const absl::flat_hash_map<std::string, uint64_t>& args,
   RunAndExpectEq(args, expected, ir, false, false, loc);
 }
 
+void XlsccTestBase::Run(
+    const absl::flat_hash_map<std::string, xls::Value>& args,
+    xls::Value expected, absl::string_view cpp_source,
+    xabsl::SourceLocation loc, std::vector<absl::string_view> clang_argv) {
+  testing::ScopedTrace trace(loc.file_name(), loc.line(), "Run failed");
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir,
+                           SourceToIr(cpp_source, nullptr, clang_argv));
+  RunAndExpectEq(args, expected, ir, false, false, loc);
+}
+
 absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
                                      std::vector<absl::string_view> argv) {
   translator_ = absl::make_unique<xlscc::Translator>();

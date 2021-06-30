@@ -46,6 +46,11 @@ class XlsccTestBase : public xls::IrTestBase {
            xabsl::SourceLocation loc = xabsl::SourceLocation::current(),
            std::vector<absl::string_view> clang_argv = {});
 
+  void Run(const absl::flat_hash_map<std::string, xls::Value>& args,
+           xls::Value expected, absl::string_view cpp_source,
+           xabsl::SourceLocation loc = xabsl::SourceLocation::current(),
+           std::vector<absl::string_view> clang_argv = {});
+
   absl::Status ScanFile(absl::string_view cpp_src,
                         std::vector<absl::string_view> argv = {});
 
