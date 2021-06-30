@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "codegen": false, "simulate": false, "simulator": null}
-// args: bits[64]:0x1234
+// Shows that we (currently) cannot mix parametric bindings and global bindings
+// in a type definition.
 
-type x3 = ();
-fn main(x0: u64) -> x3[11] {
-  let x4: x3[1] = [()];
-  let x7: x3[11] = slice(x4, x0, x3[11]:[(x4)[u64:0], ...]);
-  x7
+const GLOBAL = u32:42;
+
+fn p<P: u32>() -> u32[P+GLOBAL] {
+  u32[P+GLOBAL]:[0, ...]
+}
+
+fn main() -> u32[44] {
+  p<u32:2>()
 }

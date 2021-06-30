@@ -979,12 +979,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArraySlice(Env* env) {
   slice_width = std::min(int64_t{1000}, slice_width);
 
   std::vector<Expr*> width_array_elements = {module_->Make<Index>(
-      fake_span_, arg.expr, MakeNumber(0, MakeTypeAnnotation(false, 64)))};
+      fake_span_, arg.expr, MakeNumber(0, MakeTypeAnnotation(false, 32)))};
   Array* width_expr = module_->Make<Array>(fake_span_, width_array_elements,
                                            /*has_ellipsis=*/true);
   TypeAnnotation* width_type = module_->Make<ArrayTypeAnnotation>(
-      fake_span_, arg_type->element_type(),
-      MakeNumber(slice_width, MakeTypeAnnotation(false, 64)));
+      fake_span_, arg_type->element_type(), MakeNumber(slice_width));
   width_expr->set_type_annotation(width_type);
 
   TypedExpr width{width_expr, width_type};

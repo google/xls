@@ -34,35 +34,6 @@ absl::StatusOr<Function*> ResolveColonRefToFn(ColonRef* ref, DeduceCtx* ctx) {
   return imported_info.value()->module->GetFunctionOrError(ref->attr());
 }
 
-// Resolve "ref" to an AST ConstantDef's expression.
-absl::StatusOr<Expr*> ResolveColonRefToConstantExpr(ColonRef* ref,
-                                                    DeduceCtx* ctx) {
-  absl::optional<Import*> import = ref->ResolveImportSubject();
-  XLS_RET_CHECK(import.has_value())
-      << "ColonRef did not refer to an import: " << ref->ToString();
-  absl::optional<const ImportedInfo*> imported_info =
-      ctx->type_info()->GetImported(*import);
-  Module* module = imported_info.value()->module;
-  absl::optional<ModuleMember*> member =
-      module->FindMemberWithName(ref->attr());
-  if (!member.has_value()) {
-    return TypeInferenceErrorStatus(
-        ref->span(), nullptr,
-        absl::StrFormat(
-            "Referred to attribute '%s' of module '%s' which does not exist.",
-            ref->attr(), module->name()));
-  }
-  if (!absl::holds_alternative<ConstantDef*>(**member)) {
-    return TypeInferenceErrorStatus(
-        ref->span(), nullptr,
-        absl::StrFormat("Referred to attribute '%s' of module '%s' which was "
-                        "not a constant definition.",
-                        ref->attr(), module->name()));
-  }
-  auto* constant_def = absl::get<ConstantDef*>(**member);
-  return constant_def->value();
-}
-
 absl::Status CheckBitwidth(const Number& number, const ConcreteType& type) {
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bits_dim, type.GetTotalBitCount());
   XLS_RET_CHECK(absl::holds_alternative<InterpValue>(bits_dim.value()))
@@ -1499,88 +1470,65 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleTypeAnnotation(
   return absl::make_unique<TupleType>(std::move(members));
 }
 
-static absl::StatusOr<std::unique_ptr<ParametricExpression>> DimToParametric(
-    TypeAnnotation* node, Expr* dim_expr) {
-  if (auto* name_ref = dynamic_cast<NameRef*>(dim_expr)) {
-    return absl::make_unique<ParametricSymbol>(name_ref->identifier(),
-                                               dim_expr->span());
-  }
-  return TypeInferenceErrorStatus(
-      node->span(), nullptr,
-      absl::StrFormat("Could not concretize type with dimension: %s",
-                      dim_expr->ToString()));
-}
-
+// Converts an AST expression in "dimension position" (e.g. in an array type
+// annotation's size) and converts it into a ConcreteTypeDim value that can be
+// used in a ConcreteStruct. The result is either a constexpr-evaluated value or
+// a ParametricSymbol (for a parametric binding that has not yet been defined).
+//
+// Note: this is not capable of expressing more complex ASTs -- it assumes
+// something is either fully constexpr-evaluatable, or symbolic.
 static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
                                                      Expr* dim_expr,
                                                      DeduceCtx* ctx) {
+  // We allow numbers in dimension position to go without type annotations -- we
+  // implicitly make the type of the dimension u32, as we generally do with
+  // dimension values.
   if (auto* number = dynamic_cast<Number*>(dim_expr)) {
+    if (number->type_annotation() != nullptr) {
+      return TypeInferenceErrorStatus(number->type_annotation()->span(),
+                                      nullptr,
+                                      "Please do not annotate a type on "
+                                      "dimensions (they are implicitly u32).");
+    }
     ctx->type_info()->SetItem(number, *BitsType::MakeU32());
     XLS_ASSIGN_OR_RETURN(int64_t value, number->GetAsUint64());
     return ConcreteTypeDim::CreateU32(value);
   }
 
-  // TODO(rspringer): 2021/03/04 Can we unify all these cases into:
-  //   Evaluate(); GetBitValueUint64();
-  // Practically, dims are 64 bits, but conceptually, dims could be considered
-  // "unsized". 64 bits _should_ be large enough for any uses, but should this
-  // somehow prove inadequate, it can always be extended.
-  if (auto* const_ref = dynamic_cast<ConstRef*>(dim_expr)) {
-    absl::optional<Expr*> const_expr =
-        ctx->type_info()->GetConstant(const_ref->name_def()).value();
-    XLS_RET_CHECK(const_expr.has_value());
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue value,
-        Interpreter::InterpretExpr(
-            (*const_expr)->owner(), ctx->type_info(), ctx->typecheck_module(),
-            ctx->additional_search_paths(), ctx->import_data(),
-            /*env=*/{}, *const_expr));
-    XLS_ASSIGN_OR_RETURN(uint64_t int_value, value.GetBitValueUint64());
-    return ConcreteTypeDim::CreateU32(int_value);
+  // If it's a name reference (and not a const reference), make it symbolic.
+  //
+  // TODO(leary): 2021-06-21 this is not a reasonable thing to assume. We need
+  // to make something like a "ParametricRef" to reflect the fact there are
+  // values that are constant when instantiated, but not fully constant (i.e.
+  // before instantiation) and not runtime values. Right now if we refer to a
+  // parameter in an array dimension it becomes a parametric symbol, which is no
+  // good.
+  //
+  //    fn main(x: u32) -> () { u32[x]:[0, ...] }
+  //                                ^-- becomes parametric symbol "x"
+  if (auto* name_ref = dynamic_cast<NameRef*>(dim_expr);
+      name_ref != nullptr && dynamic_cast<ConstRef*>(dim_expr) == nullptr) {
+    return ConcreteTypeDim(absl::make_unique<ParametricSymbol>(
+        name_ref->identifier(), dim_expr->span()));
   }
-  if (auto* colon_ref = dynamic_cast<ColonRef*>(dim_expr)) {
-    XLS_ASSIGN_OR_RETURN(Expr * const_expr,
-                         ResolveColonRefToConstantExpr(colon_ref, ctx));
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue value,
-        Interpreter::InterpretExpr(
-            const_expr->owner(),
-            ctx->import_data()->GetRootTypeInfoForNode(const_expr).value(),
-            ctx->typecheck_module(), ctx->additional_search_paths(),
-            ctx->import_data(),
-            /*env=*/{}, const_expr));
-    XLS_ASSIGN_OR_RETURN(uint64_t int_value, value.GetBitValueUint64());
-    return ConcreteTypeDim::CreateU32(int_value);
-  }
-  if (auto* attr = dynamic_cast<Attr*>(dim_expr)) {
-    XLS_RET_CHECK(ctx->Deduce(attr->lhs()).ok());
 
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue value,
-        Interpreter::InterpretExpr(
-            attr->owner(),
-            ctx->import_data()->GetRootTypeInfoForNode(attr).value(),
-            ctx->typecheck_module(), ctx->additional_search_paths(),
-            ctx->import_data(),
-            /*env=*/{}, attr));
-    XLS_ASSIGN_OR_RETURN(uint64_t int_value, value.GetBitValueUint64());
-    return ConcreteTypeDim::CreateU32(int_value);
+  ConstexprEnv env = MakeConstexprEnv(
+      dim_expr, ctx->fn_stack().back().symbolic_bindings(), ctx);
+  XLS_RETURN_IF_ERROR(ctx->Deduce(dim_expr).status());
+  absl::StatusOr<InterpValue> value_or = Interpreter::InterpretExpr(
+      dim_expr->owner(),
+      ctx->import_data()->GetRootTypeInfoForNode(dim_expr).value(),
+      ctx->typecheck_module(), ctx->additional_search_paths(),
+      ctx->import_data(), env, dim_expr);
+  if (!value_or.ok()) {
+    return TypeInferenceErrorStatus(
+        dim_expr->span(), nullptr,
+        absl::StrCat(
+            "Could not evaluate dimension expression to a constant value: ",
+            value_or.status().message()));
   }
-  if (auto* invocation = dynamic_cast<Invocation*>(dim_expr)) {
-    XLS_RETURN_IF_ERROR(ctx->Deduce(invocation).status());
-
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue value,
-        Interpreter::InterpretExpr(invocation->owner(), ctx->type_info(),
-                                   ctx->typecheck_module(),
-                                   ctx->additional_search_paths(),
-                                   ctx->import_data(), {}, invocation));
-    XLS_ASSIGN_OR_RETURN(uint64_t int_value, value.GetBitValueUint64());
-    return ConcreteTypeDim::CreateU32(int_value);
-  }
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ParametricExpression> e,
-                       DimToParametric(node, dim_expr));
-  return ConcreteTypeDim(std::move(e));
+  XLS_ASSIGN_OR_RETURN(uint64_t int_value, value_or->GetBitValueUint64());
+  return ConcreteTypeDim::CreateU32(int_value);
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArrayTypeAnnotation(

@@ -90,7 +90,7 @@ type MyType = u6;
 type MySignedType = s8;
 type MyThirdType = s9;
 
-type MyArrayType1 = u31[u32:8];
+type MyArrayType1 = u31[8];
 type MyArrayType2 = u31[CONST_1];
 type MyArrayType3 = MySignedType[CONST_1];
 type MyArrayType4 = s8[CONST_1];

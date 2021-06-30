@@ -119,22 +119,26 @@ absl::StatusOr<std::string> ArrayTypeAnnotationToString(
       std::string element_type,
       TypeAnnotationToString(xpile_data, annot->element_type()));
 
-  auto typecheck_fn = [&xpile_data](Module* module) {
-    return CheckModule(module, xpile_data.import_data,
-                       xpile_data.addl_search_paths);
-  };
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue dim_value,
-      Interpreter::InterpretExpr(xpile_data.module, xpile_data.type_info,
-                                 typecheck_fn, xpile_data.addl_search_paths,
-                                 xpile_data.import_data, {}, annot->dim()));
-  // TODO(rspringer): Handle multidimensional arrays.
-  if (!dim_value.IsBits()) {
-    return absl::UnimplementedError(
-        "Multidimensional arrays aren't yet supported.");
+  uint64_t dim_int;
+  if (auto* number = dynamic_cast<Number*>(annot->dim())) {
+    XLS_ASSIGN_OR_RETURN(dim_int, number->GetAsUint64());
+  } else {
+    auto typecheck_fn = [&xpile_data](Module* module) {
+      return CheckModule(module, xpile_data.import_data,
+                         xpile_data.addl_search_paths);
+    };
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue dim_value,
+        Interpreter::InterpretExpr(xpile_data.module, xpile_data.type_info,
+                                   typecheck_fn, xpile_data.addl_search_paths,
+                                   xpile_data.import_data, {}, annot->dim()));
+    // TODO(rspringer): Handle multidimensional arrays.
+    if (!dim_value.IsBits()) {
+      return absl::UnimplementedError(
+          "Multidimensional arrays aren't yet supported.");
+    }
+    XLS_ASSIGN_OR_RETURN(dim_int, dim_value.GetBitValueUint64());
   }
-
-  XLS_ASSIGN_OR_RETURN(uint64_t dim_int, dim_value.GetBitValueUint64());
   return absl::StrCat(element_type, "[", dim_int, "]");
 }
 

@@ -290,6 +290,27 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('index_struct_value.x:23:4-23:7', stderr)
     self.assertIn('Value to index is not an array', stderr)
 
+  def test_non_const_array_type_dimension(self):
+    stderr = self._run('xls/dslx/tests/errors/non_const_array_type_dimension.x')
+    # TODO(leary): 2021-06-21 This error should become something like "can only
+    # refer to constant or parametric values in dimensions".
+    self.assertIn('non_const_array_type_dimension.x:16:10-16:18', stderr)
+    self.assertIn('uN[32][x] vs ()', stderr)
+
+  def test_array_type_dimension_with_width_annotated(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/array_type_dimension_with_width_annotated.x')
+    self.assertIn('array_type_dimension_with_width_annotated.x:15:24-15:26',
+                  stderr)
+    self.assertIn('Please do not annotate a type on dimensions', stderr)
+
+  def test_parametric_plus_global_as_local_const(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/parametric_plus_global_as_dimension.x')
+    self.assertIn('parametric_plus_global_as_dimension.x:20:24-20:25', stderr)
+    self.assertIn('Could not evaluate dimension expression to a constant value',
+                  stderr)
+
 
 if __name__ == '__main__':
   test_base.main()
