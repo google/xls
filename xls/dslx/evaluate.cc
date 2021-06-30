@@ -1307,37 +1307,9 @@ absl::StatusOr<int64_t> ResolveDim(
     Expr* expr = absl::get<Expr*>(dim);
     XLS_VLOG(5) << "Resolving dim @ " << expr->span()
                 << " :: " << expr->ToString();
-    if (Number* number = dynamic_cast<Number*>(expr)) {
-      return number->GetAsUint64();
-    }
-    // TODO(rspringer): 2021/03/04 Can we unify these cases into a single:
-    //   Evaluate(); GetBitValueUint64();
-    if (NameRef* name_ref = dynamic_cast<NameRef*>(expr)) {
-      const std::string& identifier = name_ref->identifier();
-      XLS_ASSIGN_OR_RETURN(
-          InterpValue value,
-          bindings->ResolveValueFromIdentifier(identifier, &name_ref->span()));
-      XLS_ASSIGN_OR_RETURN(int64_t result, value.GetBitValueUint64());
-      XLS_RET_CHECK_GE(result, 0);
-      return result;
-    }
-    if (ColonRef* colon_ref = dynamic_cast<ColonRef*>(expr)) {
-      XLS_ASSIGN_OR_RETURN(InterpValue v,
-                           EvaluateColonRef(colon_ref, bindings,
-                                            /*type_context=*/nullptr, interp));
-      XLS_ASSIGN_OR_RETURN(uint64_t x, v.GetBitValueUint64());
-      return x;
-    }
-    if (Attr* attr = dynamic_cast<Attr*>(expr)) {
-      XLS_ASSIGN_OR_RETURN(InterpValue v,
-                           EvaluateAttr(attr, bindings,
-                                        /*type_context=*/nullptr, interp));
-      XLS_ASSIGN_OR_RETURN(uint64_t x, v.GetBitValueUint64());
-      return x;
-    }
-    return absl::UnimplementedError(
-        "Resolve dim expression: " + expr->ToString() + " @ " +
-        expr->span().ToString());
+    XLS_ASSIGN_OR_RETURN(InterpValue result,
+                         interp->Eval(expr, bindings, BitsType::MakeU32()));
+    return result.GetBitValueUint64();
   }
 
   XLS_RET_CHECK(absl::holds_alternative<ConcreteTypeDim>(dim));
@@ -1356,7 +1328,8 @@ absl::StatusOr<int64_t> ResolveDim(
     return value.GetBitValueInt64();
   }
 
-  return absl::UnimplementedError("Resolve dim");
+  XLS_LOG(FATAL) << "Unhandled variant for ConcreteTypeDim: "
+                 << ctdim.ToString();
 }
 
 absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
