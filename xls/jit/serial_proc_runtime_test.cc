@@ -280,8 +280,8 @@ chan second(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=none,
 proc a(my_token: token, state: bits[1], init=0) {
   literal.1: bits[32] = literal(value=1)
   send.3: token = send(my_token, literal.1, channel_id=1)
-  send_if.4: token = send_if(send.3, state, literal.1, channel_id=2)
-  next (send_if.4, state)
+  send.4: token = send(send.3, literal.1, predicate=state, channel_id=2)
+  next (send.4, state)
 }
 
 proc b(my_token: token, state: (), init=()) {

@@ -302,11 +302,11 @@ TEST(IrMatchersTest, SendOps) {
   EXPECT_THAT(send.node(), m::Send(m::Name("my_token"), {m::Name("my_state")},
                                    m::Channel(42)));
 
-  EXPECT_THAT(send_if.node(), m::SendIf());
-  EXPECT_THAT(send_if.node(), m::SendIf(m::Channel(123)));
+  EXPECT_THAT(send_if.node(), m::Send());
+  EXPECT_THAT(send_if.node(), m::Send(m::Channel(123)));
   EXPECT_THAT(send_if.node(),
-              m::SendIf(m::Name("my_token"), m::Literal(),
-                        {m::Name("my_state")}, m::Channel(123)));
+              m::Send(m::Name("my_token"), {m::Name("my_state")}, m::Literal(),
+                      m::Channel(123)));
 }
 
 TEST(IrMatchersTest, ReceiveOps) {
@@ -338,12 +338,12 @@ TEST(IrMatchersTest, ReceiveOps) {
   EXPECT_THAT(receive.node(), m::Receive(m::Name("my_token"),
                                          m::Channel(ChannelKind::kStreaming)));
 
-  EXPECT_THAT(receive_if.node(), m::ReceiveIf());
-  EXPECT_THAT(receive_if.node(), m::ReceiveIf(m::Channel(123)));
-  EXPECT_THAT(receive_if.node(), m::ReceiveIf(m::Name("my_token"), m::Literal(),
-                                              m::Channel("ch123")));
+  EXPECT_THAT(receive_if.node(), m::Receive());
+  EXPECT_THAT(receive_if.node(), m::Receive(m::Channel(123)));
+  EXPECT_THAT(receive_if.node(), m::Receive(m::Name("my_token"), m::Literal(),
+                                            m::Channel("ch123")));
   EXPECT_THAT(receive_if.node(),
-              m::ReceiveIf(m::Channel(ChannelKind::kStreaming)));
+              m::Receive(m::Channel(ChannelKind::kStreaming)));
 
   // Mismatch conditions.
   EXPECT_THAT(Explain(receive.node(), m::Receive(m::Channel(444))),

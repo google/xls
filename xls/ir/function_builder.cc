@@ -1201,7 +1201,8 @@ BValue ProcBuilder::Receive(Channel* channel, BValue token,
             token.GetType()->ToString()),
         loc);
   }
-  return AddNode<xls::Receive>(loc, token.node(), channel->id(), name);
+  return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/absl::nullopt,
+                               channel->id(), name);
 }
 
 BValue ProcBuilder::ReceiveIf(Channel* channel, BValue token, BValue pred,
@@ -1225,8 +1226,8 @@ BValue ProcBuilder::ReceiveIf(Channel* channel, BValue token, BValue pred,
                         pred.GetType()->ToString()),
         loc);
   }
-  return AddNode<xls::ReceiveIf>(loc, token.node(), pred.node(), channel->id(),
-                                 name);
+  return AddNode<xls::Receive>(loc, token.node(), pred.node(), channel->id(),
+                               name);
 }
 
 BValue ProcBuilder::Send(Channel* channel, BValue token, BValue data,
@@ -1241,8 +1242,8 @@ BValue ProcBuilder::Send(Channel* channel, BValue token, BValue data,
                         token.GetType()->ToString()),
         loc);
   }
-  return AddNode<xls::Send>(loc, token.node(), data.node(), channel->id(),
-                            name);
+  return AddNode<xls::Send>(loc, token.node(), data.node(),
+                            /*predicate=*/absl::nullopt, channel->id(), name);
 }
 
 BValue ProcBuilder::SendIf(Channel* channel, BValue token, BValue pred,
@@ -1259,14 +1260,13 @@ BValue ProcBuilder::SendIf(Channel* channel, BValue token, BValue pred,
   }
   if (!pred.GetType()->IsBits() ||
       pred.GetType()->AsBitsOrDie()->bit_count() != 1) {
-    return SetError(
-        absl::StrFormat("Predicate operand of send_if must be of bits "
-                        "type of width 1; is: %s",
-                        pred.GetType()->ToString()),
-        loc);
+    return SetError(absl::StrFormat("Predicate operand of send must be of bits "
+                                    "type of width 1; is: %s",
+                                    pred.GetType()->ToString()),
+                    loc);
   }
-  return AddNode<xls::SendIf>(loc, token.node(), pred.node(), data.node(),
-                              channel->id(), name);
+  return AddNode<xls::Send>(loc, token.node(), data.node(), pred.node(),
+                            channel->id(), name);
 }
 
 BValue TokenlessProcBuilder::Receive(Channel* channel,

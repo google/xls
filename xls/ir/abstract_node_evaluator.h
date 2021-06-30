@@ -89,11 +89,7 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       return evaluator->BitSliceUpdate(operands[0], operands[1], operands[2]);
     case Op::kReceive:
       return default_handler(node);
-    case Op::kReceiveIf:
-      return default_handler(node);
     case Op::kSend:
-      return default_handler(node);
-    case Op::kSendIf:
       return default_handler(node);
     case Op::kConcat:
       return evaluator->Concat(operands);

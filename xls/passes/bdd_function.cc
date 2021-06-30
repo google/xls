@@ -212,9 +212,7 @@ bool ShouldEvaluate(Node* node) {
     case Op::kAssert:
     case Op::kCover:
     case Op::kReceive:
-    case Op::kReceiveIf:
     case Op::kSend:
-    case Op::kSendIf:
     case Op::kCountedFor:
     case Op::kDynamicCountedFor:
     case Op::kInvoke:

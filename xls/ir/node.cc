@@ -93,15 +93,8 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
     case Op::kReceive:
       XLS_RETURN_IF_ERROR(visitor->HandleReceive(down_cast<Receive*>(this)));
       break;
-    case Op::kReceiveIf:
-      XLS_RETURN_IF_ERROR(
-          visitor->HandleReceiveIf(down_cast<ReceiveIf*>(this)));
-      break;
     case Op::kSend:
       XLS_RETURN_IF_ERROR(visitor->HandleSend(down_cast<Send*>(this)));
-      break;
-    case Op::kSendIf:
-      XLS_RETURN_IF_ERROR(visitor->HandleSendIf(down_cast<SendIf*>(this)));
       break;
     case Op::kNand:
       XLS_RETURN_IF_ERROR(visitor->HandleNaryNand(down_cast<NaryOp*>(this)));
@@ -460,23 +453,22 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
     }
     case Op::kSend: {
       const Send* send = As<Send>();
+      if (send->predicate().has_value()) {
+        args = {operand(0)->GetName(), operand(1)->GetName()};
+        args.push_back(absl::StrFormat("predicate=%s",
+                                       send->predicate().value()->GetName()));
+      }
       args.push_back(absl::StrFormat("channel_id=%d", send->channel_id()));
-      break;
-    }
-    case Op::kSendIf: {
-      const SendIf* send_if = As<SendIf>();
-      args.push_back(absl::StrFormat("channel_id=%d", send_if->channel_id()));
       break;
     }
     case Op::kReceive: {
       const Receive* receive = As<Receive>();
+      if (receive->predicate().has_value()) {
+        args = {operand(0)->GetName()};
+        args.push_back(absl::StrFormat(
+            "predicate=%s", receive->predicate().value()->GetName()));
+      }
       args.push_back(absl::StrFormat("channel_id=%d", receive->channel_id()));
-      break;
-    }
-    case Op::kReceiveIf: {
-      const ReceiveIf* receive_if = As<ReceiveIf>();
-      args.push_back(
-          absl::StrFormat("channel_id=%d", receive_if->channel_id()));
       break;
     }
     case Op::kSignExt:

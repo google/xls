@@ -648,8 +648,8 @@ class ProcBuilder : public BuilderBase {
                  absl::optional<SourceLocation> loc = absl::nullopt,
                  absl::string_view name = "");
 
-  // Add a receive_if operation. The receive executes conditionally on the value
-  // of the predicate "pred". The type of the data value received is
+  // Add a conditional receive operation. The receive executes conditionally on
+  // the value of the predicate "pred". The type of the data value received is
   // determined by the channel.
   BValue ReceiveIf(Channel* channel, BValue token, BValue pred,
                    absl::optional<SourceLocation> loc = absl::nullopt,
@@ -660,8 +660,8 @@ class ProcBuilder : public BuilderBase {
               absl::optional<SourceLocation> loc = absl::nullopt,
               absl::string_view name = "");
 
-  // Add a send_if operation. The send executes conditionally on the value of
-  // the predicate "pred".
+  // Add a conditional send operation. The send executes conditionally on the
+  // value of the predicate "pred".
   BValue SendIf(Channel* channel, BValue token, BValue pred, BValue data,
                 absl::optional<SourceLocation> loc = absl::nullopt,
                 absl::string_view name = "");
@@ -711,11 +711,11 @@ class TokenlessProcBuilder : public ProcBuilder {
                  absl::optional<SourceLocation> loc = absl::nullopt,
                  absl::string_view name = "");
 
-  // Add a receive_if operation. The receive executes conditionally on the value
-  // of the predicate "pred". The type of the data value received is determined
-  // by the channel.  The returned BValue is the received data itself (*not* the
-  // receiveif operation itself which produces a tuple containing a token and
-  // the data).
+  // Add a conditinal receive operation. The receive executes conditionally on
+  // the value of the predicate "pred". The type of the data value received is
+  // determined by the channel.  The returned BValue is the received data itself
+  // (*not* the receiveif operation itself which produces a tuple containing a
+  // token and the data).
   using ProcBuilder::ReceiveIf;
   BValue ReceiveIf(Channel* channel, BValue pred,
                    absl::optional<SourceLocation> loc = absl::nullopt,
@@ -727,8 +727,9 @@ class TokenlessProcBuilder : public ProcBuilder {
               absl::optional<SourceLocation> loc = absl::nullopt,
               absl::string_view name = "");
 
-  // Add a send_if operation. The send executes conditionally on the value of
-  // the predicate "pred". Returns the token-typed BValue of the send_if node.
+  // Add a conditional send operation. The send executes conditionally on the
+  // value of the predicate "pred". Returns the token-typed BValue of the send
+  // node.
   using ProcBuilder::SendIf;
   BValue SendIf(Channel* channel, BValue pred, BValue data,
                 absl::optional<SourceLocation> loc = absl::nullopt,

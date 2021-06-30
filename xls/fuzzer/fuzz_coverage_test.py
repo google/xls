@@ -163,8 +163,8 @@ class FuzzCoverageTest(test_base.TestCase):
 
     # These ops are not yet supported by the fuzzer.
     expect_not_seen = ('after_all assert decode identity '
-                       'dynamic_counted_for invoke nand nor receive receive_if '
-                       'sdiv send send_if smod udiv umod').split()
+                       'dynamic_counted_for invoke nand nor receive '
+                       'sdiv send smod udiv umod').split()
     for op in expect_not_seen:
       self.assertEqual(
           summary.get_op_count(op),

@@ -104,8 +104,12 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleReceive(Receive* receive) override {
-    XLS_RETURN_IF_ERROR(ExpectOperandCountGt(receive, 0));
+    XLS_RETURN_IF_ERROR(ExpectOperandCountRange(receive, 1, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(receive, /*operand_no=*/0));
+    if (receive->predicate().has_value()) {
+      XLS_RETURN_IF_ERROR(
+          ExpectOperandHasBitsType(receive, 1, /*expected_bit_count=*/1));
+    }
     if (!receive->package()->HasChannelWithId(receive->channel_id())) {
       return absl::InternalError(
           StrFormat("%s refers to channel ID %d which does not exist",
@@ -128,40 +132,15 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleReceiveIf(ReceiveIf* receive_if) override {
-    XLS_RETURN_IF_ERROR(ExpectOperandCountGt(receive_if, 1));
-    XLS_RETURN_IF_ERROR(
-        ExpectOperandHasTokenType(receive_if, /*operand_no=*/0));
-    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(receive_if, /*operand_no=*/1,
-                                                 /*expected_bit_count=*/1));
-    if (!receive_if->package()->HasChannelWithId(receive_if->channel_id())) {
-      return absl::InternalError(
-          StrFormat("%s refers to channel ID %d which does not exist",
-                    receive_if->GetName(), receive_if->channel_id()));
-    }
-    XLS_ASSIGN_OR_RETURN(Channel * channel, receive_if->package()->GetChannel(
-                                                receive_if->channel_id()));
-    Type* expected_type = receive_if->package()->GetTupleType(
-        {receive_if->package()->GetTokenType(), channel->type()});
-    if (receive_if->GetType() != expected_type) {
-      return absl::InternalError(StrFormat(
-          "Expected %s to have type %s, has type %s", receive_if->GetName(),
-          expected_type->ToString(), receive_if->GetType()->ToString()));
-    }
-    if (!channel->CanReceive()) {
-      return absl::InternalError(StrFormat(
-          "Cannot receive over channel %s (%d), receive_if operation: %s",
-          channel->name(), channel->id(), receive_if->GetName()));
-    }
-    return absl::OkStatus();
-  }
-
   absl::Status HandleSend(Send* send) override {
     XLS_RETURN_IF_ERROR(ExpectHasTokenType(send));
-    XLS_RETURN_IF_ERROR(ExpectOperandCountGt(send, 1));
+    XLS_RETURN_IF_ERROR(ExpectOperandCountRange(send, 2, 3));
     XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(send, /*operand_no=*/0));
-    // TODO(meheff): Verify types of data operands 1...n match the channel data
-    // types.
+    if (send->predicate().has_value()) {
+      XLS_RETURN_IF_ERROR(
+          ExpectOperandHasBitsType(send, 2, /*expected_bit_count=*/1));
+    }
+
     if (!send->package()->HasChannelWithId(send->channel_id())) {
       return absl::InternalError(
           StrFormat("%s refers to channel ID %d which does not exist",
@@ -174,29 +153,7 @@ class NodeChecker : public DfsVisitor {
           StrFormat("Cannot send over channel %s (%d), send operation: %s",
                     channel->name(), channel->id(), send->GetName()));
     }
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleSendIf(SendIf* send_if) override {
-    XLS_RETURN_IF_ERROR(ExpectHasTokenType(send_if));
-    XLS_RETURN_IF_ERROR(ExpectOperandCountGt(send_if, 2));
-    XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(send_if, /*operand_no=*/0));
-    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(send_if, /*operand_no=*/1,
-                                                 /*expected_bit_count=*/1));
-    // TODO(meheff): Verify types of data operands 2...n match the channel data
-    // types.
-    if (!send_if->package()->HasChannelWithId(send_if->channel_id())) {
-      return absl::InternalError(
-          StrFormat("%s refers to channel ID %d which does not exist",
-                    send_if->GetName(), send_if->channel_id()));
-    }
-    XLS_ASSIGN_OR_RETURN(Channel * channel,
-                         send_if->package()->GetChannel(send_if->channel_id()));
-    if (!channel->CanSend()) {
-      return absl::InternalError(
-          StrFormat("Cannot send over channel %s (%d), send_if operation: %s",
-                    channel->name(), channel->id(), send_if->GetName()));
-    }
+    XLS_RETURN_IF_ERROR(ExpectOperandHasType(send, 1, channel->type()));
     return absl::OkStatus();
   }
 
@@ -942,6 +899,19 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
+  // Verifies that the given node has a number of operands between the two
+  // limits (inclusive).
+  absl::Status ExpectOperandCountRange(Node* node, int64_t lower_limit,
+                                       int64_t upper_limit) {
+    if (node->operand_count() < lower_limit ||
+        node->operand_count() > upper_limit) {
+      return absl::InternalError(StrFormat(
+          "Expected %s to have between %d and %d operands, has %d",
+          node->GetName(), lower_limit, upper_limit, node->operand_count()));
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status ExpectOperandCountGt(Node* node, int64_t expected) {
     if (node->operand_count() <= expected) {
       return absl::InternalError(
@@ -1274,27 +1244,14 @@ absl::Status VerifyFunctionBase(FunctionBase* function) {
   return absl::OkStatus();
 }
 
-// Returns true if the given node is a send/receive node or the conditional
-// variant (send_if or receive_if).
-bool IsSendOrReceive(Node* node) {
-  return node->Is<Send>() || node->Is<SendIf>() || node->Is<Receive>() ||
-         node->Is<ReceiveIf>();
-}
-
 // Returns the channel used by the given send or receive node. Returns an error
-// if the given node is not a send, send_if, receive, or receive_if.
+// if the given node is not a send or receive.
 absl::StatusOr<Channel*> GetSendOrReceiveChannel(Node* node) {
   if (node->Is<Send>()) {
     return node->package()->GetChannel(node->As<Send>()->channel_id());
   }
-  if (node->Is<SendIf>()) {
-    return node->package()->GetChannel(node->As<SendIf>()->channel_id());
-  }
   if (node->Is<Receive>()) {
     return node->package()->GetChannel(node->As<Receive>()->channel_id());
-  }
-  if (node->Is<ReceiveIf>()) {
-    return node->package()->GetChannel(node->As<ReceiveIf>()->channel_id());
   }
   return absl::InternalError(absl::StrFormat(
       "Node is not a send or receive node: %s", node->ToString()));
@@ -1399,7 +1356,7 @@ absl::Status VerifyChannels(Package* package) {
   absl::flat_hash_map<Channel*, Node*> receive_nodes;
   for (auto& proc : package->procs()) {
     for (Node* node : proc->nodes()) {
-      if (node->Is<Send>() || node->Is<SendIf>()) {
+      if (node->Is<Send>()) {
         XLS_ASSIGN_OR_RETURN(Channel * channel, GetSendOrReceiveChannel(node));
         XLS_RET_CHECK(!send_nodes.contains(channel)) << absl::StreamFormat(
             "Multiple send nodes associated with channel '%s': %s and %s (at "
@@ -1408,12 +1365,11 @@ absl::Status VerifyChannels(Package* package) {
             send_nodes.at(channel)->GetName());
         send_nodes[channel] = node;
       }
-      if (node->Is<Receive>() || node->Is<ReceiveIf>()) {
+      if (node->Is<Receive>()) {
         XLS_ASSIGN_OR_RETURN(Channel * channel, GetSendOrReceiveChannel(node));
         XLS_RET_CHECK(!receive_nodes.contains(channel)) << absl::StreamFormat(
             "Multiple receive nodes associated with channel '%s': %s and %s "
-            "(at "
-            "least).",
+            "(at least).",
             channel->name(), node->GetName(),
             receive_nodes.at(channel)->GetName());
         receive_nodes[channel] = node;
@@ -1448,7 +1404,7 @@ absl::Status VerifyChannels(Package* package) {
       // Single-value channels cannot have initial values.
       XLS_RET_CHECK_EQ(channel->initial_values().size(), 0);
       // TODO(meheff): 2021/06/24 Single-value channels should not support
-      // SendIf and ReceiveIf. Add check when such uses are removed.
+      // Send and Receive with predicates. Add check when such uses are removed.
     }
   }
 
@@ -1536,7 +1492,7 @@ absl::Status VerifyFunction(Function* function) {
   XLS_RETURN_IF_ERROR(VerifyFunctionBase(function));
 
   for (Node* node : function->nodes()) {
-    if (IsSendOrReceive(node)) {
+    if (node->Is<Send>() || node->Is<Receive>()) {
       return absl::InternalError(absl::StrFormat(
           "Send and receive nodes can only be in procs, not functions (%s)",
           node->GetName()));

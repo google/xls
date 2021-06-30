@@ -39,14 +39,14 @@ class ProcNetworkInterpreter {
 
   // Execute (up to) a single iteration of every proc in the package. In a
   // round-robin fashion each proc is executed until no further progress can be
-  // made. If no conditional send/receive nodes (send_if or receive_if) exist in
-  // the package then calling Tick will execute exactly one iteration for all
-  // procs in the package. If conditional send/receive nodes do exist, then some
-  // procs may be blocked in a state where the iteration is partially
-  // complete. In this case, the call to Tick() will not execute a complete
-  // iteration of the proc. Calling Tick() again will resume these procs from
-  // their partially executed state. Returns an error if no progress can be made
-  // due to a deadlock.
+  // made. If no conditional send/receive nodes exist in the package then
+  // calling Tick will execute exactly one iteration for all procs in the
+  // package. If conditional send/receive nodes do exist, then some procs may be
+  // blocked in a state where the iteration is partially complete. In this case,
+  // the call to Tick() will not execute a complete iteration of the
+  // proc. Calling Tick() again will resume these procs from their partially
+  // executed state. Returns an error if no progress can be made due to a
+  // deadlock.
   absl::Status Tick();
 
   ChannelQueueManager& queue_manager() { return *queue_manager_; }

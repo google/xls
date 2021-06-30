@@ -1149,9 +1149,10 @@ chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, met
 
 proc my_proc(my_token: token, my_state: bits[32], init=42) {
   send.1: token = send(my_token, my_state, channel_id=0, id=1)
-  receive.2: (token, bits[32]) = receive(send.1, channel_id=0, id=2)
-  tuple_index.3: token = tuple_index(receive.2, index=0, id=3)
-  next (tuple_index.3, my_state)
+  literal.2: bits[1] = literal(value=1, id=2)
+  receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel_id=0, id=3)
+  tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
+  next (tuple_index.4, my_state)
 }
 )";
   ParsePackageAndCheckDump(input);

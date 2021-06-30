@@ -835,6 +835,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
                            CastToProcBuilderOrError(
                                fb, "receive operations only supported in procs",
                                op_token.pos()));
+      absl::optional<BValue>* predicate =
+          arg_parser.AddOptionalKeywordArg<BValue>("predicate");
       int64_t* channel_id = arg_parser.AddKeywordArg<int64_t>("channel_id");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
       // Get the channel from the package.
@@ -850,32 +852,12 @@ absl::StatusOr<BValue> Parser::ParseNode(
             absl::StrFormat("Receive op type is type: %s. Expected: %s",
                             type->ToString(), expected_type->ToString()));
       }
-      bvalue = pb->Receive(channel, operands[0], *loc, node_name);
-      break;
-    }
-    case Op::kReceiveIf: {
-      XLS_ASSIGN_OR_RETURN(
-          ProcBuilder * pb,
-          CastToProcBuilderOrError(
-              fb, "receive_if operations only supported in procs",
-              op_token.pos()));
-      int64_t* channel_id = arg_parser.AddKeywordArg<int64_t>("channel_id");
-      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
-      // Get the channel from the package.
-      if (!package->HasChannelWithId(*channel_id)) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("No such channel with channel ID %d", *channel_id));
+      if (predicate->has_value()) {
+        bvalue = pb->ReceiveIf(channel, operands[0], predicate->value(), *loc,
+                               node_name);
+      } else {
+        bvalue = pb->Receive(channel, operands[0], *loc, node_name);
       }
-      XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(*channel_id));
-      Type* expected_type =
-          package->GetTupleType({package->GetTokenType(), channel->type()});
-      if (expected_type != type) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Receive_if op type is type: %s. Expected: %s",
-                            type->ToString(), expected_type->ToString()));
-      }
-      bvalue =
-          pb->ReceiveIf(channel, operands[0], operands[1], *loc, node_name);
       break;
     }
     case Op::kSend: {
@@ -883,6 +865,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
           ProcBuilder * pb,
           CastToProcBuilderOrError(
               fb, "send operations only supported in procs", op_token.pos()));
+      absl::optional<BValue>* predicate =
+          arg_parser.AddOptionalKeywordArg<BValue>("predicate");
       int64_t* channel_id = arg_parser.AddKeywordArg<int64_t>("channel_id");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
       // Get the channel from the package.
@@ -891,24 +875,12 @@ absl::StatusOr<BValue> Parser::ParseNode(
             absl::StrFormat("No such channel with channel ID %d", *channel_id));
       }
       XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(*channel_id));
-      bvalue = pb->Send(channel, operands[0], operands[1], *loc, node_name);
-      break;
-    }
-    case Op::kSendIf: {
-      XLS_ASSIGN_OR_RETURN(ProcBuilder * pb,
-                           CastToProcBuilderOrError(
-                               fb, "send_if operations only supported in procs",
-                               op_token.pos()));
-      int64_t* channel_id = arg_parser.AddKeywordArg<int64_t>("channel_id");
-      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/3));
-      // Get the channel from the package.
-      if (!package->HasChannelWithId(*channel_id)) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("No such channel with channel ID %d", *channel_id));
+      if (predicate->has_value()) {
+        bvalue = pb->SendIf(channel, operands[0], predicate->value(),
+                            operands[1], *loc, node_name);
+      } else {
+        bvalue = pb->Send(channel, operands[0], operands[1], *loc, node_name);
       }
-      XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(*channel_id));
-      bvalue = pb->SendIf(channel, operands[0], operands[1], operands[2], *loc,
-                          node_name);
       break;
     }
     case Op::kAssert: {

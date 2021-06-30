@@ -90,11 +90,11 @@ class SerialProcRuntime {
   absl::Status Init();
   static void ThreadFn(ThreadData* thread_data);
 
-  // Proc Receive/ReceiveIf handler function.
+  // Proc Receive handler function.
   static void RecvFn(JitChannelQueue* queue, Receive* recv, uint8_t* data,
                      int64_t data_bytes, void* user_data);
 
-  // Proc Send/SendIf handler function.
+  // Proc Send handler function.
   static void SendFn(JitChannelQueue* queue, Send* send, uint8_t* data,
                      int64_t data_bytes, void* user_data);
   // Blocks the running thread until the given ThreadData is in one of the

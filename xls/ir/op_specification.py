@@ -522,57 +522,34 @@ OpClass.kinds['BITWISE_REDUCTION_OP'] = OpClass(
 OpClass.kinds['RECEIVE'] = OpClass(
     name='Receive',
     op='Op::kReceive',
-    operands=[Operand('token')],
-    xls_type_expression='function->package()->GetTupleType({function->package()->GetTokenType(),function->package()->GetChannel(channel_id).value()->type()})',
-    extra_methods=[Method(name='token',
-                          return_cpp_type='Node*',
-                          expression='operand(0)')],
-    attributes=[Int64Attribute('channel_id')]
-)
-
-OpClass.kinds['RECEIVE_IF'] = OpClass(
-    name='ReceiveIf',
-    op='Op::kReceiveIf',
-    operands=[Operand('token'), Operand('pred')],
+    operands=[Operand('token'), OptionalOperand('predicate')],
     xls_type_expression='function->package()->GetTupleType({function->package()->GetTokenType(),function->package()->GetChannel(channel_id).value()->type()})',
     extra_methods=[Method(name='token',
                           return_cpp_type='Node*',
                           expression='operand(0)'),
                    Method(name='predicate',
-                          return_cpp_type='Node*',
-                          expression='operand(1)')],
+                          return_cpp_type='absl::optional<Node*>',
+                          expression='operand_count() > 1 ? absl::optional<Node*>(operand(1)) : absl::nullopt'),
+                   ],
     attributes=[Int64Attribute('channel_id')]
 )
 
 OpClass.kinds['SEND'] = OpClass(
     name='Send',
     op='Op::kSend',
-    operands=[Operand('token'), Operand('data')],
+    operands=[Operand('token'), Operand('data'), OptionalOperand('predicate')],
     xls_type_expression='function->package()->GetTokenType()',
     attributes=[Int64Attribute('channel_id')],
     extra_methods=[Method(name='token',
                           return_cpp_type='Node*',
                           expression='operand(0)'),
                    Method(name='data',
-                          return_cpp_type='Node*',
-                          expression='operand(1)'),],
-)
-
-OpClass.kinds['SEND_IF'] = OpClass(
-    name='SendIf',
-    op='Op::kSendIf',
-    operands=[Operand('token'), Operand('pred'), Operand('data')],
-    xls_type_expression='function->package()->GetTokenType()',
-    attributes=[Int64Attribute('channel_id')],
-    extra_methods=[Method(name='token',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='predicate',
                           return_cpp_type='Node*',
                           expression='operand(1)'),
-                   Method(name='data',
-                          return_cpp_type='Node*',
-                          expression='operand(2)'),],
+                   Method(name='predicate',
+                          return_cpp_type='absl::optional<Node*>',
+                          expression='operand_count() > 2 ? absl::optional<Node*>(operand(2)) : absl::nullopt'),
+                   ],
 )
 
 OpClass.kinds['NARY_OP'] = OpClass(
@@ -968,21 +945,9 @@ OPS = [
         properties=[Property.SIDE_EFFECTING],
     ),
     Op(
-        enum_name='kReceiveIf',
-        name='receive_if',
-        op_class=OpClass.kinds['RECEIVE_IF'],
-        properties=[Property.SIDE_EFFECTING],
-    ),
-    Op(
         enum_name='kSend',
         name='send',
         op_class=OpClass.kinds['SEND'],
-        properties=[Property.SIDE_EFFECTING],
-    ),
-    Op(
-        enum_name='kSendIf',
-        name='send_if',
-        op_class=OpClass.kinds['SEND_IF'],
         properties=[Property.SIDE_EFFECTING],
     ),
     Op(

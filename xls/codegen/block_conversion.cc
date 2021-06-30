@@ -191,8 +191,8 @@ struct StreamingIo {
 //   block.
 // * Proc state parameter (which must be an empty tuple) becomes a Literal
 //   operation in theblock.
-// * Receive(If) operations become InputPorts.
-// * Send(If) operations become OutputPorts.
+// * Receive operations become InputPorts.
+// * Send operations become OutputPorts.
 //
 // Returns vectors containing the InputPorts and OutputPorts created from
 // Send/Receive operations of streaming channels.
@@ -245,9 +245,10 @@ absl::StatusOr<StreamingIo> CloneProcNodesIntoBlock(Proc* proc, Block* block) {
     }
     XLS_RET_CHECK(!node->Is<Param>());
 
-    // Don't clone Receive(If) operations. Instead replace with a tuple
-    // containing the Receive(If)'s token operand and an InputPort operation.
-    if (node->Is<Receive>() || node->Is<ReceiveIf>()) {
+    // Don't clone Receive operations. Instead replace with a tuple
+    // containing the Receive's token operand and an InputPort operation.
+    if (node->Is<Receive>()) {
+      Receive* receive = node->As<Receive>();
       XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
       XLS_ASSIGN_OR_RETURN(
           InputPort * input_port,
@@ -266,28 +267,25 @@ absl::StatusOr<StreamingIo> CloneProcNodesIntoBlock(Proc* proc, Block* block) {
 
       StreamingInput streaming_input;
       streaming_input.port = input_port;
-      if (node->Is<ReceiveIf>()) {
-        streaming_input.predicate =
-            node_map.at(node->As<ReceiveIf>()->predicate());
+      if (receive->predicate().has_value()) {
+        streaming_input.predicate = node_map.at(receive->predicate().value());
       }
       result.inputs.push_back(streaming_input);
       continue;
     }
 
-    // Don't clone Send(If) operations. Instead replace with  an OutputPort
+    // Don't clone Send operations. Instead replace with  an OutputPort
     // operation in the block.
-    if (node->Is<Send>() || node->Is<SendIf>()) {
+    if (node->Is<Send>()) {
       XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-      Node* data = node->Is<Send>() ? node->As<Send>()->data()
-                                    : node->As<SendIf>()->data();
-      Node* token = node->Is<Send>() ? node->As<Send>()->token()
-                                     : node->As<SendIf>()->token();
+      Send* send = node->As<Send>();
+
       XLS_ASSIGN_OR_RETURN(
           OutputPort * output_port,
-          block->AddOutputPort(channel->name(), node_map.at(data)));
-      // Map the Send(If) node to the token operand of the Send(If) in the
+          block->AddOutputPort(channel->name(), node_map.at(send->data())));
+      // Map the Send node to the token operand of the Send in the
       // block.
-      node_map[node] = node_map.at(token);
+      node_map[node] = node_map.at(send->token());
 
       if (channel->kind() == ChannelKind::kSingleValue) {
         continue;
@@ -299,9 +297,8 @@ absl::StatusOr<StreamingIo> CloneProcNodesIntoBlock(Proc* proc, Block* block) {
 
       StreamingOutput streaming_output;
       streaming_output.port = output_port;
-      if (node->Is<SendIf>()) {
-        streaming_output.predicate =
-            node_map.at(node->As<SendIf>()->predicate());
+      if (send->predicate().has_value()) {
+        streaming_output.predicate = node_map.at(send->predicate().value());
       }
       result.outputs.push_back(streaming_output);
       continue;
@@ -325,8 +322,8 @@ absl::Status AddFlowControl(absl::Span<const StreamingInput> streaming_inputs,
                             absl::Span<const StreamingOutput> streaming_outputs,
                             Block* block) {
   // Add a ready input port for each streaming output. Gather the ready signals
-  // into a vector. Ready signals from streaming outputs generated from SendIf
-  // operations are conditioned upon the predicate value.
+  // into a vector. Ready signals from streaming outputs generated from Send
+  // operations are conditioned upon the optional predicate value.
   std::vector<Node*> active_readys;
   for (const StreamingOutput& streaming_output : streaming_outputs) {
     XLS_ASSIGN_OR_RETURN(
@@ -335,7 +332,7 @@ absl::Status AddFlowControl(absl::Span<const StreamingInput> streaming_inputs,
             absl::StrFormat("%s_rdy", streaming_output.port->GetName()),
             block->package()->GetBitsType(1)));
     if (streaming_output.predicate.has_value()) {
-      // Logic for the active ready signal for a SendIf operation with a
+      // Logic for the active ready signal for a Send operation with a
       // predicate `pred`.
       //
       //   active = !pred | pred && ready
@@ -368,8 +365,8 @@ absl::Status AddFlowControl(absl::Span<const StreamingInput> streaming_inputs,
   }
 
   // Add a valid input port for each streaming input. Gather the valid signals
-  // into a vector. Valid signals from streaming inputs generated from ReceiveIf
-  // operations are conditioned upon the predicate value.
+  // into a vector. Valid signals from streaming inputs generated from Receive
+  // operations are conditioned upon the optional predicate value.
   std::vector<Node*> active_valids;
   for (const StreamingInput& streaming_input : streaming_inputs) {
     XLS_ASSIGN_OR_RETURN(
@@ -378,7 +375,7 @@ absl::Status AddFlowControl(absl::Span<const StreamingInput> streaming_inputs,
             absl::StrFormat("%s%s", streaming_input.port->name(), kValidSuffix),
             block->package()->GetBitsType(1)));
     if (streaming_input.predicate.has_value()) {
-      // Logic for the active valid signal for a ReceiveIf operation with a
+      // Logic for the active valid signal for a Receive operation with a
       // predicate `pred`.
       //
       //   active = !pred | pred && valid

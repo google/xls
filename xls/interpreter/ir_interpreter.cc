@@ -123,9 +123,6 @@ absl::Status IrInterpreter::HandleReceive(Receive* receive) {
   return absl::UnimplementedError("Receive not implemented in IrInterpreter");
 }
 
-absl::Status IrInterpreter::HandleReceiveIf(ReceiveIf* receive_if) {
-  return absl::UnimplementedError("ReceiveIf not implemented in IrInterpreter");
-}
 absl::Status IrInterpreter::HandleRegisterRead(RegisterRead* reg_read) {
   return absl::UnimplementedError(
       "RegisterRead not implemented in IrInterpreter");
@@ -139,11 +136,6 @@ absl::Status IrInterpreter::HandleRegisterWrite(RegisterWrite* reg_write) {
 absl::Status IrInterpreter::HandleSend(Send* send) {
   return absl::UnimplementedError(
       "Channel send not implemented in IrInterpreter");
-}
-
-absl::Status IrInterpreter::HandleSendIf(SendIf* send_if) {
-  return absl::UnimplementedError(
-      "Channel send_if not implemented in IrInterpreter");
 }
 
 absl::Status IrInterpreter::HandleArray(Array* array) {
@@ -719,9 +711,9 @@ absl::Status IrInterpreter::SetValueResult(Node* node, Value result) {
           "  operand %d (%s): %s", i, node->operand(i)->GetName(),
           ResolveAsValue(node->operand(i)).ToString());
     }
-    XLS_VLOG(3) << absl::StreamFormat("Result of %s: %s", node->ToString(),
-                                      result.ToString());
   }
+  XLS_VLOG(3) << absl::StreamFormat("Result of %s: %s", node->ToString(),
+                                    result.ToString());
 
   XLS_RET_CHECK(!node_values_.contains(node));
   if (!ValueConformsToType(result, node->GetType())) {

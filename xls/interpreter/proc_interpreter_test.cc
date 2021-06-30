@@ -169,12 +169,12 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
   EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 32))));
 }
 
-TEST_F(ProcInterpreterTest, ReceiveIfProc) {
+TEST_F(ProcInterpreterTest, ConditionalReceiveProc) {
   // Create a proc which has a receive_if which fires every other
   // iteration. Receive_if value is unconditionally sent over a different
   // channel.
   Package package(TestName());
-  ProcBuilder pb("send_if", /*init_value=*/Value(UBits(1, 1)),
+  ProcBuilder pb("conditional_send", /*init_value=*/Value(UBits(1, 1)),
                  /*token_name=*/"tok", /*state_name=*/"st", &package);
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_in, package.CreateStreamingChannel(
                                                 "in", ChannelOps::kSendReceive,
@@ -216,9 +216,9 @@ TEST_F(ProcInterpreterTest, ReceiveIfProc) {
                                               .blocked_channels = {}}));
   EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 32))));
 
-  // The second iteration should not dequeue anything as the receive_if
-  // predicate is now false. The data value of the receive_if (which is sent
-  // over the output channel) should be zeros.
+  // The second iteration should not dequeue anything as the receive predicate
+  // is now false. The data value of the receive (which is sent over the output
+  // channel) should be zeros.
   ASSERT_TRUE(input_queue.empty());
   ASSERT_THAT(
       interpreter.RunIterationUntilCompleteOrBlocked(),
@@ -237,9 +237,9 @@ TEST_F(ProcInterpreterTest, ReceiveIfProc) {
   EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(123, 32))));
 }
 
-TEST_F(ProcInterpreterTest, SendIfProc) {
+TEST_F(ProcInterpreterTest, ConditionalSendProc) {
   // Create an output-only proc with a by-one-counter which sends only
-  // even values over a send_if.
+  // even values over a conditional send.
   Package package(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * channel,

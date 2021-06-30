@@ -522,12 +522,8 @@ absl::Status Package::RemoveChannel(Channel* channel) {
     for (Node* node : proc->nodes()) {
       if ((node->Is<Send>() &&
            node->As<Send>()->channel_id() == channel->id()) ||
-          (node->Is<SendIf>() &&
-           node->As<SendIf>()->channel_id() == channel->id()) ||
           (node->Is<Receive>() &&
-           node->As<Receive>()->channel_id() == channel->id()) ||
-          (node->Is<ReceiveIf>() &&
-           node->As<ReceiveIf>()->channel_id() == channel->id())) {
+           node->As<Receive>()->channel_id() == channel->id())) {
         return absl::InternalError(absl::StrFormat(
             "Channel %s (%d) cannot be removed because it is used by node %s",
             channel->name(), channel->id(), node->GetName()));

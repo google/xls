@@ -46,6 +46,7 @@ absl::StatusOr<bool> StateRemovalPass::RunOnProcInternal(
   XLS_ASSIGN_OR_RETURN(
       Receive * state_receive,
       proc->MakeNode<Receive>(proc->StateParam()->loc(), proc->TokenParam(),
+                              /*predicate=*/absl::nullopt,
                               /*channel_id=*/state_channel->id()));
   XLS_RETURN_IF_ERROR(
       proc->StateParam()
@@ -61,6 +62,7 @@ absl::StatusOr<bool> StateRemovalPass::RunOnProcInternal(
       Send * state_send,
       proc->MakeNode<Send>(/*loc=*/absl::nullopt, receive_token,
                            /*data=*/proc->NextState(),
+                           /*predicate=*/absl::nullopt,
                            /*channel_id=*/state_channel->id()));
 
   // Join the token from the send with the existing next token value.

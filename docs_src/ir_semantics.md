@@ -371,37 +371,11 @@ in a single transaction.
 #### **`receive`**
 
 Receives data values from a specified channel. The number of data values `N` and
-their type is determined by the channel.
+their type is determined by the channel. An optional predicate value
+conditionally enables the receive operation.
 
 ```
-result = receive(tkn, channel_id=<ch>)
-```
-
-**Types**
-
-Value    | Type
--------- | -------------------------------
-`tkn`    | `token`
-`result` | `(token, T_{0}, ... , T_{N-1})`
-
-**Keyword arguments**
-
-<!-- mdformat off(multiline table cells not supported in mkdocs) -->
-
-| Keyword      | Type    | Required | Default | Description              |
-| ------------ | ------- | -------- | ------- | ------------------------ |
-| `channel_id` | `int64_t` | yes      |         | The ID of the channel to receive data from |
-
-<!-- mdformat on -->
-
-#### **`receive_if`**
-
-Receives data values from a specified channel if and only if the predicate
-operand is true. The number of data values `N` and their type is determined by
-the channel.
-
-```
-result = receive_if(tkn, pred, channel_id=<ch>)
+result = receive(tkn, predicate=<pred>, channel_id=<ch>)
 ```
 
 **Types**
@@ -416,8 +390,9 @@ Value    | Type
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword      | Type    | Required | Default | Description              |
-| ------------ | ------- | -------- | ------- | ------------------------ |
+| Keyword      | Type      | Required | Default | Description              |
+| ------------ | --------- | -------- | ------- | ------------------------ |
+| `predicate`  | `bits[1]` | no       |         | A value is received iff `predicate` is true |
 | `channel_id` | `int64_t` | yes      |         | The ID of the channel to receive data from |
 
 <!-- mdformat on -->
@@ -427,40 +402,11 @@ If the predicate is false the data values in the result are zero-filled.
 #### **`send`**
 
 Sends data values to a specified channel. The number of data values `N` and
-their type is determined by the channel.
+their type is determined by the channel. An optional predicate value
+conditionally enables the receive operation.
 
 ```
-result = send(tkn, data_{0}, ..., data_{N-1}, channel_id=<ch>)
-```
-
-**Types**
-
-Value      | Type
----------- | -------
-`tkn`      | `token`
-`data_{i}` | `T_{i}`
-`result`   | `token`
-
-The types of operands `data_{i}` and the number `N` must match the types and
-number of data elements supported by the channel.
-
-**Keyword arguments**
-
-<!-- mdformat off(multiline table cells not supported in mkdocs) -->
-
-| Keyword      | Type    | Required | Default | Description                   |
-| ------------ | ------- | -------- | ------- | ----------------------------- |
-| `channel_id` | `int64_t` | yes      |         | The ID of the channel to send data to. |
-
-<!-- mdformat on -->
-
-#### **`send_if`**
-
-Sends data values to a specified channel if and only if the predicate operand is
-true. The number and type of data values is determined by the channel.
-
-```
-result = send_if(tkn, pred, data_{0}, ..., data_{N-1}, channel_id=<ch>)
+result = send(tkn, data_{0}, ..., data_{N-1}, predicate=<pred>, channel_id=<ch>)
 ```
 
 **Types**
@@ -468,8 +414,8 @@ result = send_if(tkn, pred, data_{0}, ..., data_{N-1}, channel_id=<ch>)
 Value      | Type
 ---------- | ---------
 `tkn`      | `token`
-`pred`     | `bits[1]`
 `data_{i}` | `T_{i}`
+`pred`     | `bits[1]`
 `result`   | `token`
 
 The types of operands `data_{i}` and the number `N` must match the types and
@@ -481,6 +427,7 @@ number of data elements supported by the channel.
 
 | Keyword      | Type    | Required | Default | Description                   |
 | ------------ | ------- | -------- | ------- | ----------------------------- |
+| `predicate`  | `bits[1]` | no       |         | A value is sent iff `predicate` is true |
 | `channel_id` | `int64_t` | yes      |         | The ID of the channel to send data to. |
 
 <!-- mdformat on -->

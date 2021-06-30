@@ -40,7 +40,7 @@ ProcBuilderVisitor::ProcBuilderVisitor(
       send_fn_(send_fn) {}
 
 absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
-    llvm::IRBuilder<>* builder, JitChannelQueue* queue, Node* node) {
+    llvm::IRBuilder<>* builder, JitChannelQueue* queue, Receive* receive) {
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
   llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
   llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
@@ -63,21 +63,17 @@ absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
 
-  llvm::Type* recv_type = type_converter()->ConvertToLlvmType(node->GetType());
-  int64_t recv_bytes = type_converter()->GetTypeByteSize(node->GetType());
+  llvm::Type* recv_type =
+      type_converter()->ConvertToLlvmType(receive->GetType());
+  int64_t recv_bytes = type_converter()->GetTypeByteSize(receive->GetType());
   llvm::AllocaInst* alloca = builder->CreateAlloca(recv_type);
 
   //  2) create the argument list to pass to the function. We use opaque
   //     pointers to our data elements, to avoid recursively defining every
   //     type used by every type and so on.
-  static_assert(sizeof(Receive) == sizeof(ReceiveIf));
   std::vector<llvm::Value*> args = {
       llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(queue)),
-      // This is sinful, I know, but ReceiveIf and Receive are
-      // layout-compatible..._for now_ (hence the static_assert above).
-      // TODO(meheff) : Make Receive & ReceiveIf share a common base
-      // class (also Send & SendIf).
-      llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(node)),
+      llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(receive)),
       builder->CreatePointerCast(alloca, int8_ptr_type),
       llvm::ConstantInt::get(int64_type, recv_bytes),
       GetUserDataPtr(),
@@ -97,61 +93,59 @@ absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
 absl::Status ProcBuilderVisitor::HandleReceive(Receive* recv) {
   XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
                        queue_mgr_->GetQueueById(recv->channel_id()));
-  XLS_ASSIGN_OR_RETURN(llvm::Value * invoke,
-                       InvokeRecvCallback(builder(), queue, recv));
-  llvm::Value* result =
-      builder()->CreateInsertValue(invoke, type_converter()->GetToken(), {0});
+  llvm::Value* result;
+  if (recv->predicate().has_value()) {
+    // First, declare the join block (so the case blocks can refer to it).
+    llvm::BasicBlock* join_block = llvm::BasicBlock::Create(
+        ctx(), absl::StrCat(recv->GetName(), "_join"), llvm_fn());
+
+    // Create a block/branch for the true predicate case.
+    llvm::BasicBlock* true_block = llvm::BasicBlock::Create(
+        ctx(), absl::StrCat(recv->GetName(), "_true"), llvm_fn(), join_block);
+    llvm::IRBuilder<> true_builder(true_block);
+    XLS_ASSIGN_OR_RETURN(llvm::Value * true_result,
+                         InvokeRecvCallback(&true_builder, queue, recv));
+    true_builder.CreateBr(join_block);
+
+    // And the same for a false predicate - this will return an empty/zero
+    // value. Creating an empty struct emits ops, so it needs a builder.
+    llvm::BasicBlock* false_block = llvm::BasicBlock::Create(
+        ctx(), absl::StrCat(recv->GetName(), "_false"), llvm_fn(), join_block);
+    llvm::IRBuilder<> false_builder(false_block);
+    llvm::Type* result_type =
+        type_converter()->ConvertToLlvmType(recv->GetType());
+    llvm::Value* false_result = CreateTypedZeroValue(result_type);
+    false_builder.CreateBr(join_block);
+
+    // Next, create a branch op w/the original builder,
+    builder()->CreateCondBr(node_map().at(recv->predicate().value()),
+                            true_block, false_block);
+
+    // then join the two branches back together.
+    auto join_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
+
+    llvm::PHINode* phi =
+        join_builder->CreatePHI(result_type, /*NumReservedValues=*/2);
+    phi->addIncoming(true_result, true_block);
+    phi->addIncoming(false_result, false_block);
+    result =
+        join_builder->CreateInsertValue(phi, type_converter()->GetToken(), {0});
+
+    // Finally, set this's IRBuilder to be the output block's (since that's
+    // where the Function continues).
+    set_builder(std::move(join_builder));
+  } else {
+    XLS_ASSIGN_OR_RETURN(llvm::Value * invoke,
+                         InvokeRecvCallback(builder(), queue, recv));
+    result =
+        builder()->CreateInsertValue(invoke, type_converter()->GetToken(), {0});
+  }
   return StoreResult(recv, result);
-}
-
-absl::Status ProcBuilderVisitor::HandleReceiveIf(ReceiveIf* recv_if) {
-  // First, declare the join block (so the case blocks can refer to it).
-  llvm::BasicBlock* join_block = llvm::BasicBlock::Create(
-      ctx(), absl::StrCat(recv_if->GetName(), "_join"), llvm_fn());
-
-  // Create a block/branch for the true predicate case.
-  llvm::BasicBlock* true_block = llvm::BasicBlock::Create(
-      ctx(), absl::StrCat(recv_if->GetName(), "_true"), llvm_fn(), join_block);
-  llvm::IRBuilder<> true_builder(true_block);
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
-                       queue_mgr_->GetQueueById(recv_if->channel_id()));
-  XLS_ASSIGN_OR_RETURN(llvm::Value * true_result,
-                       InvokeRecvCallback(&true_builder, queue, recv_if));
-  true_builder.CreateBr(join_block);
-
-  // And the same for a false predicate - this will return an empty/zero value.
-  // Creating an empty struct emits ops, so it needs a builder.
-  llvm::BasicBlock* false_block = llvm::BasicBlock::Create(
-      ctx(), absl::StrCat(recv_if->GetName(), "_false"), llvm_fn(), join_block);
-  llvm::IRBuilder<> false_builder(false_block);
-  llvm::Type* result_type =
-      type_converter()->ConvertToLlvmType(recv_if->GetType());
-  llvm::Value* false_result = CreateTypedZeroValue(result_type);
-  false_builder.CreateBr(join_block);
-
-  // Next, create a branch op w/the original builder,
-  builder()->CreateCondBr(node_map().at(recv_if->predicate()), true_block,
-                          false_block);
-
-  // then join the two branches back together.
-  auto join_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
-
-  llvm::PHINode* phi =
-      join_builder->CreatePHI(result_type, /*NumReservedValues=*/2);
-  phi->addIncoming(true_result, true_block);
-  phi->addIncoming(false_result, false_block);
-  llvm::Value* result =
-      join_builder->CreateInsertValue(phi, type_converter()->GetToken(), {0});
-
-  // Finally, set this's IRBuilder to be the output block's (since that's where
-  // the Function continues).
-  set_builder(std::move(join_builder));
-  return StoreResult(recv_if, result);
 }
 
 absl::Status ProcBuilderVisitor::InvokeSendCallback(llvm::IRBuilder<>* builder,
                                                     JitChannelQueue* queue,
-                                                    Node* node, Node* data) {
+                                                    Send* send, Node* data) {
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
   llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
   llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
@@ -185,7 +179,7 @@ absl::Status ProcBuilderVisitor::InvokeSendCallback(llvm::IRBuilder<>* builder,
 
   std::vector<llvm::Value*> args = {
       llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(queue)),
-      llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(node)),
+      llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(send)),
       builder->CreatePointerCast(alloca, int8_ptr_type),
       llvm::ConstantInt::get(int64_type, send_type_size),
       GetUserDataPtr(),
@@ -202,36 +196,35 @@ absl::Status ProcBuilderVisitor::InvokeSendCallback(llvm::IRBuilder<>* builder,
 absl::Status ProcBuilderVisitor::HandleSend(Send* send) {
   XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
                        queue_mgr_->GetQueueById(send->channel_id()));
-  XLS_RETURN_IF_ERROR(InvokeSendCallback(builder(), queue, send, send->data()));
+  if (send->predicate().has_value()) {
+    // First, declare the join block (so the case blocks can refer to it).
+    llvm::BasicBlock* join_block = llvm::BasicBlock::Create(
+        ctx(), absl::StrCat(send->GetName(), "_join"), llvm_fn());
+
+    llvm::BasicBlock* true_block = llvm::BasicBlock::Create(
+        ctx(), absl::StrCat(send->GetName(), "_true"), llvm_fn(), join_block);
+    llvm::IRBuilder<> true_builder(true_block);
+    XLS_RETURN_IF_ERROR(
+        InvokeSendCallback(&true_builder, queue, send, send->data()));
+    true_builder.CreateBr(join_block);
+
+    llvm::BasicBlock* false_block = llvm::BasicBlock::Create(
+        ctx(), absl::StrCat(send->GetName(), "_false"), llvm_fn(), join_block);
+    llvm::IRBuilder<> false_builder(false_block);
+    false_builder.CreateBr(join_block);
+
+    builder()->CreateCondBr(node_map().at(send->predicate().value()),
+                            true_block, false_block);
+
+    auto join_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
+
+    set_builder(std::move(join_builder));
+
+  } else {
+    XLS_RETURN_IF_ERROR(
+        InvokeSendCallback(builder(), queue, send, send->data()));
+  }
   return StoreResult(send, type_converter()->GetToken());
-}
-
-absl::Status ProcBuilderVisitor::HandleSendIf(SendIf* send_if) {
-  // First, declare the join block (so the case blocks can refer to it).
-  llvm::BasicBlock* join_block = llvm::BasicBlock::Create(
-      ctx(), absl::StrCat(send_if->GetName(), "_join"), llvm_fn());
-
-  llvm::BasicBlock* true_block = llvm::BasicBlock::Create(
-      ctx(), absl::StrCat(send_if->GetName(), "_true"), llvm_fn(), join_block);
-  llvm::IRBuilder<> true_builder(true_block);
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
-                       queue_mgr_->GetQueueById(send_if->channel_id()));
-  XLS_RETURN_IF_ERROR(
-      InvokeSendCallback(&true_builder, queue, send_if, send_if->data()));
-  true_builder.CreateBr(join_block);
-
-  llvm::BasicBlock* false_block = llvm::BasicBlock::Create(
-      ctx(), absl::StrCat(send_if->GetName(), "_false"), llvm_fn(), join_block);
-  llvm::IRBuilder<> false_builder(false_block);
-  false_builder.CreateBr(join_block);
-
-  builder()->CreateCondBr(node_map().at(send_if->predicate()), true_block,
-                          false_block);
-
-  auto join_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
-
-  set_builder(std::move(join_builder));
-  return StoreResult(send_if, type_converter()->GetToken());
 }
 
 }  // namespace xls

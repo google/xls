@@ -617,6 +617,9 @@ class ChannelNodeMatcher : public NodeMatcher {
 //   EXPECT_THAT(foo, m::Send(m::Channel(42)));
 //   EXPECT_THAT(foo, m::Send(/*token=*/m::Param(), /*data=*/m::Param(),
 //                            m::Channel(42)));
+//   EXPECT_THAT(foo, m::Send(/*token=*/m::Param(), /*data=*/m::Param(),
+//                            /*predicate=*/m::Param(),
+//                            m::Channel(42)));
 class SendMatcher : public ChannelNodeMatcher {
  public:
   explicit SendMatcher(
@@ -627,6 +630,13 @@ class SendMatcher : public ChannelNodeMatcher {
       ::testing::Matcher<const Node*> data,
       absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
       : ChannelNodeMatcher(Op::kSend, {token, data}, channel_matcher) {}
+  explicit SendMatcher(
+      ::testing::Matcher<const Node*> token,
+      ::testing::Matcher<const Node*> data,
+      ::testing::Matcher<const Node*> predicate,
+      absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
+      : ChannelNodeMatcher(Op::kSend, {token, data, predicate},
+                           channel_matcher) {}
 };
 
 inline ::testing::Matcher<const ::xls::Node*> Send(
@@ -645,39 +655,14 @@ inline ::testing::Matcher<const ::xls::Node*> Send(
       new ::xls::op_matchers::SendMatcher(token, data, channel_matcher));
 }
 
-// SendIf matcher. Supported forms:
-//
-//   EXPECT_THAT(foo, m::SendIf());
-//   EXPECT_THAT(foo, m::SendIf(m::Channel(...)));
-//   EXPECT_THAT(foo, m::SendIf(/*token=*/m::Param(), /*pred=*/m::Param(),
-//                              /*data=*/m::Param(), m::Channel(...)));
-class SendIfMatcher : public ChannelNodeMatcher {
- public:
-  explicit SendIfMatcher(
-      absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
-      : ChannelNodeMatcher(Op::kSendIf, {}, channel_matcher) {}
-  explicit SendIfMatcher(
-      ::testing::Matcher<const Node*> token,
-      ::testing::Matcher<const Node*> pred,
-      ::testing::Matcher<const Node*> data,
-      absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
-      : ChannelNodeMatcher(Op::kSendIf, {token, pred, data}, channel_matcher) {}
-};
-
-inline ::testing::Matcher<const ::xls::Node*> SendIf(
+inline ::testing::Matcher<const ::xls::Node*> Send(
+    ::testing::Matcher<const ::xls::Node*> token,
+    ::testing::Matcher<const Node*> data,
+    ::testing::Matcher<const Node*> predicate,
     absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
         absl::nullopt) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::SendIfMatcher(channel_matcher));
-}
-
-inline ::testing::Matcher<const ::xls::Node*> SendIf(
-    ::testing::Matcher<const ::xls::Node*> token,
-    ::testing::Matcher<const ::xls::Node*> pred,
-    ::testing::Matcher<const Node*> data,
-    absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::SendIfMatcher(
-      token, pred, data, channel_matcher));
+  return ::testing::MakeMatcher(new ::xls::op_matchers::SendMatcher(
+      token, data, predicate, channel_matcher));
 }
 
 // Receive matcher. Supported forms:
@@ -685,6 +670,8 @@ inline ::testing::Matcher<const ::xls::Node*> SendIf(
 //   EXPECT_THAT(foo, m::Receive());
 //   EXPECT_THAT(foo, m::Receive(m::Channel(...))
 //   EXPECT_THAT(foo, m::Receive(/*token=*/m::Param(), m::Channel(...)))
+//   EXPECT_THAT(foo, m::Receive(/*token=*/m::Param(), /*predicate=*/m::Param(),
+//                               m::Channel(...)))
 class ReceiveMatcher : public ChannelNodeMatcher {
  public:
   explicit ReceiveMatcher(
@@ -694,6 +681,11 @@ class ReceiveMatcher : public ChannelNodeMatcher {
       ::testing::Matcher<const Node*> token,
       absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
       : ChannelNodeMatcher(Op::kReceive, {token}, channel_matcher) {}
+  explicit ReceiveMatcher(
+      ::testing::Matcher<const Node*> token,
+      ::testing::Matcher<const Node*> predicate,
+      absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
+      : ChannelNodeMatcher(Op::kReceive, {token, predicate}, channel_matcher) {}
 };
 
 inline ::testing::Matcher<const ::xls::Node*> Receive(
@@ -710,38 +702,12 @@ inline ::testing::Matcher<const ::xls::Node*> Receive(
       new ::xls::op_matchers::ReceiveMatcher(token, channel_matcher));
 }
 
-// ReceiveIf matcher. Supported forms:
-//
-//   EXPECT_THAT(foo, m::ReceiveIf());
-//   EXPECT_THAT(foo, m::ReceiveIf(m::Channel(...)));
-//   EXPECT_THAT(foo, m::ReceiveIf(/*token=*/m::Param(),
-//                                 /*pred=*/m::Param(), m::Channel(...)));
-class ReceiveIfMatcher : public ChannelNodeMatcher {
- public:
-  explicit ReceiveIfMatcher(
-      absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
-      : ChannelNodeMatcher(Op::kReceiveIf, {}, channel_matcher) {}
-  explicit ReceiveIfMatcher(
-      ::testing::Matcher<const Node*> token,
-      ::testing::Matcher<const Node*> pred,
-      absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
-      : ChannelNodeMatcher(Op::kReceiveIf, {token, pred}, channel_matcher) {}
-};
-
-inline ::testing::Matcher<const ::xls::Node*> ReceiveIf(
-    absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
-        absl::nullopt) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::ReceiveIfMatcher(channel_matcher));
-}
-
-inline ::testing::Matcher<const ::xls::Node*> ReceiveIf(
-    ::testing::Matcher<const ::xls::Node*> token,
-    ::testing::Matcher<const ::xls::Node*> pred,
-    absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
-        absl::nullopt) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::ReceiveIfMatcher(token, pred, channel_matcher));
+inline ::testing::Matcher<const ::xls::Node*> Receive(
+    ::testing::Matcher<const Node*> token,
+    ::testing::Matcher<const Node*> predicate,
+    ::testing::Matcher<const ::xls::Channel*> channel_matcher) {
+  return ::testing::MakeMatcher(new ::xls::op_matchers::ReceiveMatcher(
+      token, predicate, channel_matcher));
 }
 
 // ArrayIndex matcher. Supported forms:

@@ -35,44 +35,32 @@ class ProcIrInterpreter : public IrInterpreter {
   absl::Status HandleReceive(Receive* receive) override {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
                          queue_manager_->GetQueueById(receive->channel_id()));
+    if (receive->predicate().has_value()) {
+      const Bits& pred = ResolveAsBits(receive->predicate().value());
+      if (pred.IsZero()) {
+        // If the predicate is false, nothing is dequeued from the channel.
+        // Rather the result of the receive is the zero values of the
+        // respective type.
+        return SetValueResult(receive, ZeroOfType(receive->GetType()));
+      }
+    }
     XLS_ASSIGN_OR_RETURN(Value value, queue->Dequeue());
     return SetValueResult(receive, Value::Tuple({Value::Token(), value}));
-  }
-
-  absl::Status HandleReceiveIf(ReceiveIf* receive_if) override {
-    const Bits& pred = ResolveAsBits(receive_if->predicate());
-    if (pred.IsZero()) {
-      // If the predicate is false, nothing is dequeued from the channel. Rather
-      // the result of the receive_if is the zero values of the respective
-      // type.
-      return SetValueResult(receive_if, ZeroOfType(receive_if->GetType()));
-    }
-
-    XLS_ASSIGN_OR_RETURN(ChannelQueue * queue, queue_manager_->GetQueueById(
-                                                   receive_if->channel_id()));
-    XLS_ASSIGN_OR_RETURN(Value value, queue->Dequeue());
-    return SetValueResult(receive_if, Value::Tuple({Value::Token(), value}));
   }
 
   absl::Status HandleSend(Send* send) override {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
                          queue_manager_->GetQueueById(send->channel_id()));
+    if (send->predicate().has_value()) {
+      const Bits& pred = ResolveAsBits(send->predicate().value());
+      if (pred.IsZero()) {
+        return SetValueResult(send, Value::Token());
+      }
+    }
     XLS_RETURN_IF_ERROR(queue->Enqueue(ResolveAsValue(send->data())));
 
     // The result of a send is simply a token.
     return SetValueResult(send, Value::Token());
-  }
-
-  absl::Status HandleSendIf(SendIf* send_if) override {
-    const Bits& pred = ResolveAsBits(send_if->predicate());
-    if (pred.IsOne()) {
-      XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
-                           queue_manager_->GetQueueById(send_if->channel_id()));
-      XLS_RETURN_IF_ERROR(queue->Enqueue(ResolveAsValue(send_if->data())));
-    }
-
-    // The result of a send_if is simply a token.
-    return SetValueResult(send_if, Value::Token());
   }
 
   absl::Status HandleParam(Param* param) override {
@@ -137,7 +125,6 @@ ProcInterpreter::RunIterationUntilCompleteOrBlocked() {
       const Value& next_state = visitor_->ResolveAsValue(proc_->NextState());
       visitor_ =
           absl::make_unique<ProcIrInterpreter>(next_state, queue_manager_);
-      ++current_iteration_;
     }
   }
 
@@ -158,10 +145,15 @@ ProcInterpreter::RunIterationUntilCompleteOrBlocked() {
                     executed_this_iteration)) {
       // Check to see if this is a receive node which is blocked.
       if (node->Is<Receive>()) {
+        Receive* receive = node->As<Receive>();
+        bool predicate = !receive->predicate().has_value() ||
+                         visitor_->ResolveAsValue(receive->predicate().value())
+                             .bits()
+                             .IsOne();
         XLS_ASSIGN_OR_RETURN(
             ChannelQueue * queue,
             queue_manager_->GetQueueById(node->As<Receive>()->channel_id()));
-        if (queue->empty()) {
+        if (predicate && queue->empty()) {
           // Queue is empty, receive is blocked.
           XLS_VLOG(4) << absl::StreamFormat(
               "Receive node %s blocked on channel with ID %d", node->GetName(),
@@ -189,6 +181,9 @@ ProcInterpreter::RunIterationUntilCompleteOrBlocked() {
 
   XLS_VLOG(3) << absl::StreamFormat("Proc %s run result: %s", proc_->name(),
                                     result.ToString());
+  if (result.iteration_complete) {
+    ++current_iteration_;
+  }
   return result;
 }
 

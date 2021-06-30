@@ -206,7 +206,7 @@ package test_package
 
 chan ch(bits[32], id=42, kind=streaming, ops=send_receive, flow_control=none, metadata="""module_port { flopped: true }""")
 
-proc my_proc(t: token, s: bits[42], init=45) {
+proc my_proc(t: token, s: bits[32], init=45) {
   send.1: token = send(t, s, channel_id=42)
   next (send.1, s)
 }
@@ -226,7 +226,7 @@ package test_package
 
 chan ch(bits[32], id=42, kind=streaming, ops=send_only, flow_control=none, metadata="""module_port { flopped: true }""")
 
-proc my_proc(t: token, s: bits[42], init=45) {
+proc my_proc(t: token, s: bits[32], init=45) {
   send.1: token = send(t, s, channel_id=42)
   send.2: token = send(send.1, s, channel_id=42)
   next (send.2, s)
@@ -246,7 +246,7 @@ package test_package
 
 chan ch(bits[32], id=42, kind=streaming, ops=send_only, flow_control=none, metadata="""module_port { flopped: true }""")
 
-proc my_proc(t: token, s: bits[42], init=45) {
+proc my_proc(t: token, s: bits[32], init=45) {
   after_all.1: token = after_all()
   send.2: token = send(after_all.1, s, channel_id=42)
   next (send.2, s)

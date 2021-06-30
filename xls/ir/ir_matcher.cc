@@ -304,12 +304,8 @@ static int64_t GetChannelId(const Node* node) {
   switch (node->op()) {
     case Op::kReceive:
       return node->As<::xls::Receive>()->channel_id();
-    case Op::kReceiveIf:
-      return node->As<::xls::ReceiveIf>()->channel_id();
     case Op::kSend:
       return node->As<::xls::Send>()->channel_id();
-    case Op::kSendIf:
-      return node->As<::xls::SendIf>()->channel_id();
     default:
       XLS_LOG(FATAL) << "Node is not a channel node: " << node->ToString();
   }

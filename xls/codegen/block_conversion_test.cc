@@ -285,8 +285,8 @@ proc my_proc(tkn: token, st: (), init=()) {
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   literal.21: bits[1] = literal(value=1, id=21, pos=1,8,3)
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
-  send_if.20: token = send_if(tuple_index.14, literal.21, tuple_index.15, channel_id=1, id=20, pos=1,5,1)
-  next (send_if.20, st)
+  send.20: token = send(tuple_index.14, tuple_index.15, predicate=literal.21, channel_id=1, id=20, pos=1,5,1)
+  next (send.20, st)
 }
 
 )";
@@ -310,10 +310,10 @@ ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
 
 proc my_proc(tkn: token, st: (), init=()) {
   literal.21: bits[1] = literal(value=1, id=21, pos=1,8,3)
-  receive_if.13: (token, bits[32]) = receive_if(tkn, literal.21,
-  channel_id=0, id=13) tuple_index.14: token = tuple_index(receive_if.13,
-  index=0, id=14) tuple_index.15: bits[32] = tuple_index(receive_if.13,
-  index=1, id=15) send.20: token = send(tuple_index.14, tuple_index.15,
+  receive.13: (token, bits[32]) = receive(tkn, predicate=literal.21, channel_id=0, id=13)
+  tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
+  tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
+  send.20: token = send(tuple_index.14, tuple_index.15,
   channel_id=1, id=20, pos=1,5,1) next (send.20, st)
 }
 )";
