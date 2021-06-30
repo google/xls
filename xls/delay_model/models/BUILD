@@ -28,6 +28,7 @@ cc_library(
     srcs = [],
     deps = [
         ":model_unit",  # build_cleaner: keep
+        ":model_ecp5",  # build_cleaner: keep
     ],
 )
 
@@ -35,5 +36,12 @@ delay_model(
     name = "model_unit",
     srcs = ["unit.textproto"],
     model_name = "unit",
+    precedence = "kLow",
+)
+
+delay_model(
+    name = "model_ecp5",
+    srcs = ["ecp5.textproto"],
+    model_name = "ecp5",
     precedence = "kLow",
 )

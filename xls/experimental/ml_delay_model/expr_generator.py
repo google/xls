@@ -35,6 +35,8 @@ import numpy as np
 NUMOPS = 8
 MAXLEN = 8
 NUM_PROCESSES = 16
+BITWIDTH = 4
+XLS_DIRECTORY = "/usr/local/google/home/brjiang/Documents/xls-1"
 
 
 class Op(enum.Enum):
@@ -82,11 +84,20 @@ module my_module(
 endmodule
 """
 
+DSLX_TEMPLATE = """
+fn func(x1: u4, x2: u4) -> u4 {{
+  {}
+}}
+"""
+
 binary_ops = [Op.ADD2, Op.XOR2, Op.MUL2, Op.AND2, Op.OR2]
 
 
 def gen() -> Tuple[Type[Op], Type[str]]:
-  """Returns random sequence of ops in RPN & corresponding Verilog."""
+  """
+  Generates a random sequence of operations in Reverse Polish Notation,
+  corresponding verilog, and XLS IR.
+  """
   oplist = list(Op)
   while True:
     ops = [Op.PARAM1, Op.PARAM2]
@@ -95,6 +106,7 @@ def gen() -> Tuple[Type[Op], Type[str]]:
     length = np.random.choice(np.arange(1, MAXLEN+1),
                               p=[(1 << i) / ((1 << MAXLEN) - 1) \
                                  for i in range(MAXLEN)])
+
     while len(ops) < length:
       op = random.choice([op for op in oplist[3:]])
       # Append random operands
@@ -126,8 +138,8 @@ def parse_log(filename: str) -> str:
     delay_statement = 'Max delay <async> -> <async>: '
     locs = [m.start() for m in re.finditer(delay_statement, info)]
     # If there is no delay statement, we know it has been optimized
-    # to a constant.
-    if not locs:
+    # to a constant value, which has no delay.
+    if len(locs) == 0:
       return '0.0'
     # Want to extract the final delay
     idx = locs[-1] + len(delay_statement)
@@ -161,6 +173,43 @@ def yosys_and_nextpnr(expr: str) -> float:
   return delay
 
 
+def parse_benchmark_output(filename: str) -> float:
+  with open(filename, "r") as out_file:
+    info = out_file.read()
+    delay_statement = "Return value delay: "
+    idx = info.find(delay_statement)
+    if idx == -1:
+      print("No delay")
+    else:
+      idx += len(delay_statement)
+      end = idx
+      while info[end].isdigit():
+        end += 1
+      # Delay is actually returned in ps, so we need to convert it
+      return float(info[idx:end]) / 1000
+
+def get_curr_estimate(expr: str) -> float:
+  """
+  Use current XLS model to get delay estimate. Must first build
+  corresponding XLS targets first.
+  """
+  with tempfile.TemporaryDirectory() as tempdir:
+    with open("{}/sample.x".format(tempdir), "w+") as dslx_file, \
+        open("{}/sample.out".format(tempdir), "w+") as out_file:
+      # Bitwise negation is ! in DSLX but ~ in Verilog
+      dslx_file.write(DSLX_TEMPLATE.format(expr).replace('~', '!'))
+      #print(dslx_file.read())
+    with open("{}/sample.ir".format(tempdir), "w+") as ir_file:
+      s = subprocess.run(["{}/bazel-bin/xls/dslx/ir_converter_main".format(XLS_DIRECTORY),
+                      dslx_file.name], capture_output=True)
+      print(s.stdout.decode("utf-8"), file=ir_file)
+    with open("{}/sample.out".format(tempdir), "w+") as out_file:
+      s = subprocess.run(["{}/bazel-bin/xls/tools/benchmark_main".format(XLS_DIRECTORY),
+                          ir_file.name], capture_output=True)
+      print(s.stdout.decode("utf-8"), file=out_file)
+    return parse_benchmark_output(out_file.name)
+
+
 def gen_csv(num_samples: int, name: str):
   with open(name, 'w+') as f:
     writer = csv.writer(f, delimiter=',')
@@ -168,7 +217,20 @@ def gen_csv(num_samples: int, name: str):
       ops, expr = gen()
       codevec = [str(op.value) for op in ops]
       codevec.append(str(yosys_and_nextpnr(expr)))
+      codevec.append(get_curr_estimate(expr))
       writer.writerow(codevec)
+
+
+bitwidths = [2**i for i in range(11)]
+def collect_data():
+  expr = ""
+  for op in list(Op)[3:]:
+    if consumed_stack_slots[op] == 1:
+      expr = "{}x1".format(to_str[op])
+    elif consumed_stack_slots[op] == 2:
+      expr = "x1{}x2".format(to_str[op])
+    delay = yosys_and_nextpnr(expr)
+    print(to_str[op], delay)
 
 
 def main(num_samples):

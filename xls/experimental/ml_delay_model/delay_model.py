@@ -74,8 +74,8 @@ def train(data):
   random.shuffle(idxs)
   train_loss = 0
   for i in idxs:
-    x = data[i][:-1]
-    y = data[i][-1]
+    x = data[i][:-2]
+    y = data[i][-2]
     x_onehot = [[1 if x[a] == j + 1 else 0
                  for j in range(NUM_OPCODES)]
                 for a in range(len(x))]
@@ -97,12 +97,16 @@ def test(data, log_misses=False):
   model.eval()
   total = 0
   ep = [0 for i in range(NUM_EPS)]
+  improve_cnt = 0
+  total_improvement = 0
+  percent_improvement = []
   with open('./data/data_{}_{}.log'.format(NUM_OPCODES, MAX_OP_COUNT), 'w+') \
       as logfile:
     errors = []
     for i in range(len(data)):
-      x = data[i][:-1]
-      y = data[i][-1]
+      x = data[i][:-2]
+      y = data[i][-2]
+      orig_pred = torch.FloatTensor([data[i][-1]])
       x_onehot = [[1 if x[a] == j + 1 else 0
                    for j in range(NUM_OPCODES)]
                   for a in range(len(x))]
@@ -112,20 +116,31 @@ def test(data, log_misses=False):
 
       loss = criterion(y_pred, y_tensor)
       abs_error = l1(y_pred, y_tensor)
+      orig_error = l1(orig_pred, y_tensor)
+      # Collect improvement metrics
+      if orig_error > abs_error:
+        improve_cnt += 1
+      total_improvement += (orig_error - abs_error)
+      percent_improvement.append((orig_error - abs_error) / orig_error)
+      # Measure accuracy within some number of EPSILONs
       for j in range(NUM_EPS):
         if abs_error < EPSILON * (j + 1):
           ep[j] += 1
       total += loss
       if log_misses:
-        errors.append((data[i][:-1], data[i][-1], y_pred, abs_error))
+        errors.append((data[i], y_pred, abs_error))
     if log_misses:
-      errors.sort(key=lambda x: x[3], reverse=True)
+      errors.sort(key=lambda x: x[2], reverse=True)
       for entry in errors:
         print(entry, file=logfile)
     mse = total / len(data)
     accuracy = [x / len(data) for x in ep]
     print('Validation MSE Loss: {}'.format(mse))
     print('Accuracy:', accuracy)
+    print('Improved on {} of test cases'.format(improve_cnt / len(data)))
+    print('Average improvement: {}'.format(improvement / len(data)))
+    print('Median percentage improvement: {}'
+          .format(sorted(percent_improvement)[len(data)//2]))
   return mse
 
 
@@ -160,5 +175,8 @@ def main(log_misses):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument('log_misses', type=bool)
+  parser.add_argument('--save_model', action='store_true')
   args = parser.parse_args()
   main(args.log_misses)
+  if args.save_model:
+    torch.save(model.state_dict(), './data/model_{}_{}.csv'.format(NUM_OPCODES, MAX_OP_COUNT))
