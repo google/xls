@@ -43,8 +43,10 @@ absl::StatusOr<Runfiles*> GetRunfiles(
 
     std::string error;
     runfiles = Runfiles::Create(path.string(), &error);
-    XLS_RET_CHECK(runfiles != nullptr)
-        << "Failed to initialize Runfiles: " << error;
+    if (runfiles == nullptr) {
+      return absl::UnknownError(
+          absl::StrCat("Failed to initialize Runfiles: ", error));
+    }
   }
 
   return runfiles;
@@ -54,7 +56,7 @@ absl::StatusOr<Runfiles*> GetRunfiles(
 
 absl::StatusOr<std::filesystem::path> GetXlsRunfilePath(
     const std::filesystem::path& path) {
-  Runfiles* runfiles = GetRunfiles().value();
+  XLS_ASSIGN_OR_RETURN(Runfiles * runfiles, GetRunfiles());
   return runfiles->Rlocation("com_google_xls" / path);
 }
 
