@@ -1347,6 +1347,83 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateWithNarrowIndex) {
                                  result.verilog_text);
 }
 
+TEST_P(CombinationalGeneratorTest, ArraySliceWithNarrowStart) {
+  VerilogFile file(UseSystemVerilog());
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u32 = package.GetBitsType(32);
+  BValue a = fb.Param("a", package.GetArrayType(5, u32));
+  BValue start = fb.Param("start", package.GetBitsType(1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.ArraySlice(
+                                             a, start, /*width=*/3)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  XLS_ASSERT_OK_AND_ASSIGN(Value a_value,
+                           Value::UBitsArray({1, 2, 3, 4, 5}, 32));
+  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(0, 1))}}),
+              IsOkAndHolds(Value::UBitsArray({1, 2, 3}, 32).value()));
+  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(1, 1))}}),
+              IsOkAndHolds(Value::UBitsArray({2, 3, 4}, 32).value()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
+TEST_P(CombinationalGeneratorTest, ArraySliceWithWideStart) {
+  VerilogFile file(UseSystemVerilog());
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u32 = package.GetBitsType(32);
+  BValue a = fb.Param("a", package.GetArrayType(5, u32));
+  BValue start = fb.Param("start", package.GetBitsType(100));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.ArraySlice(
+                                             a, start, /*width=*/3)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  XLS_ASSERT_OK_AND_ASSIGN(Value a_value,
+                           Value::UBitsArray({1, 2, 3, 4, 5}, 32));
+  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(1, 100))}}),
+              IsOkAndHolds(Value::UBitsArray({2, 3, 4}, 32).value()));
+  EXPECT_THAT(
+      simulator.Run({{"a", a_value}, {"start", Value(Bits::AllOnes(100))}}),
+      IsOkAndHolds(Value::UBitsArray({5, 5, 5}, 32).value()));
+}
+
+TEST_P(CombinationalGeneratorTest, ArraySliceWiderThanInputArray) {
+  VerilogFile file(UseSystemVerilog());
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u32 = package.GetBitsType(32);
+  BValue a = fb.Param("a", package.GetArrayType(3, u32));
+  BValue start = fb.Param("start", package.GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.ArraySlice(
+                                             a, start, /*width=*/5)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, UseSystemVerilog()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  XLS_ASSERT_OK_AND_ASSIGN(Value a_value, Value::UBitsArray({1, 2, 3}, 32));
+  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(0, 32))}}),
+              IsOkAndHolds(Value::UBitsArray({1, 2, 3, 3, 3}, 32).value()));
+  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(1, 32))}}),
+              IsOkAndHolds(Value::UBitsArray({2, 3, 3, 3, 3}, 32).value()));
+  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(2, 32))}}),
+              IsOkAndHolds(Value::UBitsArray({3, 3, 3, 3, 3}, 32).value()));
+  EXPECT_THAT(
+      simulator.Run({{"a", a_value}, {"start", Value(UBits(123456, 32))}}),
+      IsOkAndHolds(Value::UBitsArray({3, 3, 3, 3, 3}, 32).value()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
 INSTANTIATE_TEST_SUITE_P(CombinationalGeneratorTestInstantiation,
                          CombinationalGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),

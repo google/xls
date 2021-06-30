@@ -566,17 +566,56 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
         break;
       }
       case Op::kArraySlice: {
-        IndexableExpression* array = inputs[0]->AsIndexableExpressionOrDie();
-        int64_t input_size =
-            node->As<ArraySlice>()->array()->GetType()->AsArrayOrDie()->size();
+        ArraySlice* slice = node->As<ArraySlice>();
+        IndexableExpression* input_array =
+            inputs[0]->AsIndexableExpressionOrDie();
+        int64_t input_array_size =
+            slice->array()->GetType()->AsArrayOrDie()->size();
+
+        // If the start value is too narrow to hold the maximum index value of
+        // the input array, zero-extend it to avoid overflows in the necessary
+        // comparison and arithmetic operations below.
+        int64_t min_index_width =
+            Bits::MinBitCountUnsigned(input_array_size - 1);
+
+        Expression* start_expr = inputs[1];
+        int64_t start_width = slice->start()->BitCountOrDie();
+        if (start_width < min_index_width) {
+          // Zero-extend start to `min_index_width` bits.
+          start_expr = file_->Concat(
+              {file_->Literal(0, min_index_width - start_width), start_expr});
+          start_width = min_index_width;
+        }
+
+        Expression* max_index_expr =
+            file_->Literal(input_array_size - 1, start_width);
         for (int64_t i = 0; i < array_type->size(); i++) {
-          Expression* normal = file_->Add(inputs[1], file_->PlainLiteral(i));
-          Expression* overflow = file_->PlainLiteral(input_size - 1);
+          // The index for iteration `i` is out of bounds if the following
+          // condition is true:
+          //   start + i > $INPUT_ARRAY_SIZE - 1
+          // However, the expression `start + i` might overflow so instead
+          // equivalently compute as:
+          //   start > $INPUT_ARRAY_SIZE - 1 - i
+          // Check that `$INPUT_ARRAY_SIZE - 1 - i` is non-negative to avoid
+          // underflow. This is possible if the input array is narrower than the
+          // output array (slice is wider than its input)
+          Expression* element;
+          if (input_array_size - 1 - i < 0) {
+            // Index is definitely out of bounds.
+            element = file_->Index(input_array, max_index_expr);
+          } else {
+            // Index might be out of bounds.
+            Expression* oob_condition = file_->GreaterThan(
+                start_expr,
+                file_->Literal(input_array_size - 1 - i, start_width));
+            element = file_->Index(
+                input_array,
+                file_->Ternary(
+                    oob_condition, max_index_expr,
+                    file_->Add(start_expr, file_->Literal(i, start_width))));
+          }
           assignment_section()->Add<ContinuousAssignment>(
-              file_->Index(ref, file_->PlainLiteral(i)),
-              file_->Index(array,
-                           file_->Ternary(file_->GreaterThan(normal, overflow),
-                                          overflow, normal)));
+              file_->Index(ref, file_->PlainLiteral(i)), element);
         }
         break;
       }

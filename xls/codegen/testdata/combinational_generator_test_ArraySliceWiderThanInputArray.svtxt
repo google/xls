@@ -1,0 +1,17 @@
+module ArraySliceWiderThanInputArray(
+  input wire [95:0] a,
+  input wire [31:0] start,
+  output wire [159:0] out
+);
+  wire [31:0] a_unflattened[3];
+  assign a_unflattened[0] = a[31:0];
+  assign a_unflattened[1] = a[63:32];
+  assign a_unflattened[2] = a[95:64];
+  wire [31:0] array_slice_6[5];
+  assign array_slice_6[0] = a_unflattened[start > 32'h0000_0002 ? 32'h0000_0002 : start + 32'h0000_0000];
+  assign array_slice_6[1] = a_unflattened[start > 32'h0000_0001 ? 32'h0000_0002 : start + 32'h0000_0001];
+  assign array_slice_6[2] = a_unflattened[start > 32'h0000_0000 ? 32'h0000_0002 : start + 32'h0000_0002];
+  assign array_slice_6[3] = a_unflattened[32'h0000_0002];
+  assign array_slice_6[4] = a_unflattened[32'h0000_0002];
+  assign out = {array_slice_6[4], array_slice_6[3], array_slice_6[2], array_slice_6[1], array_slice_6[0]};
+endmodule
