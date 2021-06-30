@@ -27,8 +27,6 @@ std::vector<absl::string_view> InitXls(absl::string_view usage, int argc,
   std::vector<char*> remaining = absl::ParseCommandLine(argc, argv);
   XLS_CHECK_GE(argc, 1);
 
-  XLS_CHECK_OK(InitRunfilesDir(argv[0]));
-
   return std::vector<absl::string_view>(remaining.begin() + 1, remaining.end());
 }
 
