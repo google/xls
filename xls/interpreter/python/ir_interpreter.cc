@@ -30,9 +30,9 @@ PYBIND11_MODULE(ir_interpreter, m) {
   py::module::import("xls.ir.python.function");
   py::module::import("xls.ir.python.value");
 
-  m.def("run_function_kwargs", PyWrap(&FunctionInterpreter::RunKwargs),
-        py::arg("f"), py::arg("args"));
-  m.def("run_function", PyWrap(&FunctionInterpreter::Run), py::arg("f"),
+  m.def("run_function_kwargs", PyWrap(&InterpretFunctionKwargs), py::arg("f"),
+        py::arg("args"));
+  m.def("run_function", PyWrap(&InterpretFunction), py::arg("f"),
         py::arg("args"));
 }
 

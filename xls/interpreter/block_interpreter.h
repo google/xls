@@ -25,30 +25,17 @@
 
 namespace xls {
 
-// An interpreter for XLS blocks.
-class BlockInterpreter : public IrInterpreter {
- public:
-  BlockInterpreter(const absl::flat_hash_map<std::string, Value>& inputs)
-      : IrInterpreter(/*args=*/{}), inputs_(inputs) {}
+// Runs the interpreter on a combinational block. `inputs` must contain a
+// value for each input port in the block. The returned map contains a value
+// for each output port of the block.
+absl::StatusOr<absl::flat_hash_map<std::string, Value>>
+InterpretCombinationalBlock(
+    Block* block, const absl::flat_hash_map<std::string, Value>& inputs);
 
-  // Runs the interpreter on a combinational block. `inputs` must contain a
-  // value for each input port in the block. The returned map contains a value
-  // for each output port of the block.
-  static absl::StatusOr<absl::flat_hash_map<std::string, Value>>
-  RunCombinational(Block* block,
-                   const absl::flat_hash_map<std::string, Value>& inputs);
-
-  // Overload which accepts and returns uint64_t values instead of xls::Values.
-  static absl::StatusOr<absl::flat_hash_map<std::string, uint64_t>>
-  RunCombinational(Block* block,
-                   const absl::flat_hash_map<std::string, uint64_t>& inputs);
-
-  absl::Status HandleInputPort(InputPort* input_port) override;
-  absl::Status HandleOutputPort(OutputPort* output_port) override;
-
- private:
-  absl::flat_hash_map<std::string, Value> inputs_;
-};
+// Overload which accepts and returns uint64_t values instead of xls::Values.
+absl::StatusOr<absl::flat_hash_map<std::string, uint64_t>>
+InterpretCombinationalBlock(
+    Block* block, const absl::flat_hash_map<std::string, uint64_t>& inputs);
 
 }  // namespace xls
 

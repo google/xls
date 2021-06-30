@@ -36,7 +36,7 @@ TEST_F(BlockInterpreterTest, EmptyBlock) {
   BlockBuilder b(TestName(), package.get());
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
-  EXPECT_THAT(BlockInterpreter::RunCombinational(
+  EXPECT_THAT(InterpretCombinationalBlock(
                   block, absl::flat_hash_map<std::string, Value>()),
               IsOkAndHolds(UnorderedElementsAre()));
 }
@@ -48,11 +48,11 @@ TEST_F(BlockInterpreterTest, OutputOnlyBlock) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
   EXPECT_THAT(
-      BlockInterpreter::RunCombinational(
-          block, absl::flat_hash_map<std::string, Value>()),
+      InterpretCombinationalBlock(block,
+                                  absl::flat_hash_map<std::string, Value>()),
       IsOkAndHolds(UnorderedElementsAre(Pair("out", Value(UBits(123, 32))))));
 
-  EXPECT_THAT(BlockInterpreter::RunCombinational(
+  EXPECT_THAT(InterpretCombinationalBlock(
                   block, absl::flat_hash_map<std::string, uint64_t>()),
               IsOkAndHolds(UnorderedElementsAre(Pair("out", 123))));
 }
@@ -67,13 +67,13 @@ TEST_F(BlockInterpreterTest, SumAndDifferenceBlock) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
   EXPECT_THAT(
-      BlockInterpreter::RunCombinational(
+      InterpretCombinationalBlock(
           block, {{"x", Value(UBits(42, 32))}, {"y", Value(UBits(10, 32))}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("sum", Value(UBits(52, 32))),
                                         Pair("diff", Value(UBits(32, 32))))));
 
   EXPECT_THAT(
-      BlockInterpreter::RunCombinational(block, {{"x", 42}, {"y", 10}}),
+      InterpretCombinationalBlock(block, {{"x", 42}, {"y", 10}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("sum", 52), Pair("diff", 32))));
 }
 
@@ -84,20 +84,18 @@ TEST_F(BlockInterpreterTest, InputErrors) {
   b.InputPort("y", package->GetTupleType({}));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
-  EXPECT_THAT(
-      BlockInterpreter::RunCombinational(block, {{"a", Value(UBits(42, 32))},
-                                                 {"x", Value(UBits(42, 32))},
-                                                 {"y", Value::Tuple({})}}),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Block has no input port 'a'")));
+  EXPECT_THAT(InterpretCombinationalBlock(block, {{"a", Value(UBits(42, 32))},
+                                                  {"x", Value(UBits(42, 32))},
+                                                  {"y", Value::Tuple({})}}),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Block has no input port 'a'")));
+
+  EXPECT_THAT(InterpretCombinationalBlock(block, {{"x", Value(UBits(10, 32))}}),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Missing input for port 'y'")));
 
   EXPECT_THAT(
-      BlockInterpreter::RunCombinational(block, {{"x", Value(UBits(10, 32))}}),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Missing input for port 'y'")));
-
-  EXPECT_THAT(
-      BlockInterpreter::RunCombinational(block, {{"x", 3}, {"y", 42}}),
+      InterpretCombinationalBlock(block, {{"x", 3}, {"y", 42}}),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           HasSubstr("Block has non-Bits-typed input port 'y' of type: ()")));
@@ -110,13 +108,13 @@ TEST_F(BlockInterpreterTest, RunWithUInt64Errors) {
   b.OutputPort("out", b.Literal(Value(Bits::AllOnes(100))));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
-  EXPECT_THAT(BlockInterpreter::RunCombinational(block, {{"in", 500}}),
+  EXPECT_THAT(InterpretCombinationalBlock(block, {{"in", 500}}),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Input value 500 for input port 'in' does not "
                                  "fit in type: bits[8]")));
 
   EXPECT_THAT(
-      BlockInterpreter::RunCombinational(block, {{"in", 10}}),
+      InterpretCombinationalBlock(block, {{"in", 10}}),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Output value 'out' does not fit in a uint64_t: "
                          "bits[100]:0xf_ffff_ffff_ffff_ffff_ffff_ffff")));

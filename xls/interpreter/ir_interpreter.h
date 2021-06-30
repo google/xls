@@ -23,19 +23,29 @@
 
 namespace xls {
 
+// Evaluates the given node using the given operand values and returns the
+// result.
+absl::StatusOr<Value> InterpretNode(Node* node,
+                                    absl::Span<const Value> operand_values);
+
 // A visitor for traversing and evaluating a Function.
 class IrInterpreter : public DfsVisitor {
  public:
   IrInterpreter() = default;
 
-  // Evaluates the given node and returns the Value. Prerequisite: node must
-  // have only literal operands.
-  static absl::StatusOr<Value> EvaluateNodeWithLiteralOperands(Node* node);
+  // Sets the evaluated value for 'node' to the given Value. 'value' must be
+  // passed in by value (ha!) because a use case is passing in a previously
+  // evaluated value and inserting a into flat_hash_map (done below) invalidates
+  // all references to Values in the map.
+  absl::Status SetValueResult(Node* node, Value result);
 
-  // Evaluates the given node using the given operand values and returns the
-  // result.
-  static absl::StatusOr<Value> EvaluateNode(
-      Node* node, absl::Span<const Value* const> operand_values);
+  // Returns the previously evaluated value of 'node' as a Value.
+  const Value& ResolveAsValue(Node* node) const {
+    return node_values_.at(node);
+  }
+
+  // Returns true if a value has been set for the result of the given node.
+  bool HasResult(Node* node) const { return node_values_.contains(node); }
 
   absl::Status HandleAdd(BinOp* add) override;
   absl::Status HandleAfterAll(AfterAll* after_all) override;
@@ -108,9 +118,6 @@ class IrInterpreter : public DfsVisitor {
   absl::Status HandleXorReduce(BitwiseReductionOp* xor_reduce) override;
   absl::Status HandleZeroExtend(ExtendOp* zero_ext) override;
 
-  // Returns the previously evaluated value of 'node' as a Value.
-  const Value& ResolveAsValue(Node* node) { return node_values_.at(node); }
-
  protected:
   // Returns an error if the given node or any of its operands are not Bits
   // types.
@@ -139,12 +146,6 @@ class IrInterpreter : public DfsVisitor {
   // Sets the evaluated value for 'node' to the given bits value. Returns an
   // error if 'node' is not a bits type.
   absl::Status SetBitsResult(Node* node, const Bits& result);
-
-  // Sets the evaluated value for 'node' to the given Value. 'value' must be
-  // passed in by value (ha!) because a use case is passing in a previously
-  // evaluated value and inserting a into flat_hash_map (done below) invalidates
-  // all references to Values in the map.
-  absl::Status SetValueResult(Node* node, Value result);
 
   // Performs a logical OR of the given inputs. If 'inputs' is a not a Bits type
   // (ie, tuple or array) the element a recursively traversed and the Bits-typed

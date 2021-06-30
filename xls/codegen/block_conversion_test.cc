@@ -388,47 +388,47 @@ TEST_F(BlockConversionTest, TwoToOneProc) {
 
   // Input B selected, input valid and output ready asserted.
   EXPECT_THAT(
-      BlockInterpreter::RunCombinational(block, {{"dir", 0},
-                                                 {"a", 123},
-                                                 {"b", 42},
-                                                 {"a_vld", 1},
-                                                 {"b_vld", 1},
-                                                 {"out_rdy", 1}}),
+      InterpretCombinationalBlock(block, {{"dir", 0},
+                                          {"a", 123},
+                                          {"b", 42},
+                                          {"a_vld", 1},
+                                          {"b_vld", 1},
+                                          {"out_rdy", 1}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("out_vld", 1), Pair("b_rdy", 1),
                                         Pair("out", 42), Pair("a_rdy", 0))));
 
   // Input A selected, input valid and output ready asserted.
   EXPECT_THAT(
-      BlockInterpreter::RunCombinational(block, {{"dir", 1},
-                                                 {"a", 123},
-                                                 {"b", 42},
-                                                 {"a_vld", 1},
-                                                 {"b_vld", 0},
-                                                 {"out_rdy", 1}}),
+      InterpretCombinationalBlock(block, {{"dir", 1},
+                                          {"a", 123},
+                                          {"b", 42},
+                                          {"a_vld", 1},
+                                          {"b_vld", 0},
+                                          {"out_rdy", 1}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("out_vld", 1), Pair("b_rdy", 0),
                                         Pair("out", 123), Pair("a_rdy", 1))));
 
   // Input A selected, input valid asserted, and output ready *not*
   // asserted. Input ready should be zero.
   EXPECT_THAT(
-      BlockInterpreter::RunCombinational(block, {{"dir", 1},
-                                                 {"a", 123},
-                                                 {"b", 42},
-                                                 {"a_vld", 1},
-                                                 {"b_vld", 1},
-                                                 {"out_rdy", 0}}),
+      InterpretCombinationalBlock(block, {{"dir", 1},
+                                          {"a", 123},
+                                          {"b", 42},
+                                          {"a_vld", 1},
+                                          {"b_vld", 1},
+                                          {"out_rdy", 0}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("out_vld", 1), Pair("b_rdy", 0),
                                         Pair("out", 123), Pair("a_rdy", 0))));
 
   // Input A selected, input valid *not* asserted, and output ready
   // asserted. Output valid should be zero.
   EXPECT_THAT(
-      BlockInterpreter::RunCombinational(block, {{"dir", 1},
-                                                 {"a", 123},
-                                                 {"b", 42},
-                                                 {"a_vld", 0},
-                                                 {"b_vld", 1},
-                                                 {"out_rdy", 1}}),
+      InterpretCombinationalBlock(block, {{"dir", 1},
+                                          {"a", 123},
+                                          {"b", 42},
+                                          {"a_vld", 0},
+                                          {"b_vld", 1},
+                                          {"out_rdy", 1}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("out_vld", 0), Pair("b_rdy", 0),
                                         Pair("out", 123), Pair("a_rdy", 1))));
 }
@@ -464,7 +464,7 @@ TEST_F(BlockConversionTest, OneToTwoProc) {
 
   // Output B selected. Input valid and output readies asserted.
   EXPECT_THAT(
-      BlockInterpreter::RunCombinational(
+      InterpretCombinationalBlock(
           block,
           {{"dir", 0}, {"in", 123}, {"in_vld", 1}, {"a_rdy", 1}, {"b_rdy", 1}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("a", 123), Pair("b_vld", 1),
@@ -473,7 +473,7 @@ TEST_F(BlockConversionTest, OneToTwoProc) {
 
   // Output A selected. Input valid and output readies asserted.
   EXPECT_THAT(
-      BlockInterpreter::RunCombinational(
+      InterpretCombinationalBlock(
           block,
           {{"dir", 1}, {"in", 123}, {"in_vld", 1}, {"a_rdy", 1}, {"b_rdy", 1}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("a", 123), Pair("b_vld", 0),
@@ -482,7 +482,7 @@ TEST_F(BlockConversionTest, OneToTwoProc) {
 
   // Output A selected. Input *not* valid and output readies asserted.
   EXPECT_THAT(
-      BlockInterpreter::RunCombinational(
+      InterpretCombinationalBlock(
           block,
           {{"dir", 1}, {"in", 123}, {"in_vld", 0}, {"a_rdy", 1}, {"b_rdy", 1}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("a", 123), Pair("b_vld", 0),
@@ -491,7 +491,7 @@ TEST_F(BlockConversionTest, OneToTwoProc) {
 
   // Output A selected. Input valid and output ready *not* asserted.
   EXPECT_THAT(
-      BlockInterpreter::RunCombinational(
+      InterpretCombinationalBlock(
           block,
           {{"dir", 1}, {"in", 123}, {"in_vld", 1}, {"a_rdy", 0}, {"b_rdy", 1}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("a", 123), Pair("b_vld", 0),

@@ -223,7 +223,7 @@ TEST_F(TranslatorTest, ArrayParam) {
   args["arr"] = in_arr;
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry, package->EntryFunction());
 
-  auto x = xls::FunctionInterpreter::RunKwargs(
+  auto x = xls::InterpretFunctionKwargs(
       entry, {{"arr", xls::Value::UBitsArray({55, 20}, 64).value()}});
 
   ASSERT_THAT(x, IsOkAndHolds(xls::Value(xls::UBits(75, 64))));
@@ -1332,7 +1332,7 @@ TEST_F(TranslatorTest, CapitalizeFirstLetter) {
     args["st"] = state;
     args["c"] = xls::Value(xls::UBits(inc, 8));
     XLS_ASSERT_OK_AND_ASSIGN(xls::Value actual,
-                             xls::FunctionInterpreter::RunKwargs(entry, args));
+                             xls::InterpretFunctionKwargs(entry, args));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> returns,
                              actual.GetElements());
     ASSERT_EQ(returns.size(), 2);

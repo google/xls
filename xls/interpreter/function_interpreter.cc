@@ -19,20 +19,34 @@
 #include "xls/ir/keyword_args.h"
 
 namespace xls {
+namespace {
 
-absl::Status FunctionInterpreter::HandleParam(Param* param) {
-  XLS_ASSIGN_OR_RETURN(int64_t index,
-                       param->function_base()->GetParamIndex(param));
-  if (index >= args_.size()) {
-    return absl::InternalError(absl::StrFormat(
-        "Parameter %s at index %d does not exist in args (of length %d)",
-        param->ToString(), index, args_.size()));
+// An interpreter for XLS functions.
+class FunctionInterpreter : public IrInterpreter {
+ public:
+  explicit FunctionInterpreter(absl::Span<const Value> args)
+      : args_(args.begin(), args.end()) {}
+
+  absl::Status HandleParam(Param* param) override {
+    XLS_ASSIGN_OR_RETURN(int64_t index,
+                         param->function_base()->GetParamIndex(param));
+    if (index >= args_.size()) {
+      return absl::InternalError(absl::StrFormat(
+          "Parameter %s at index %d does not exist in args (of length %d)",
+          param->ToString(), index, args_.size()));
+    }
+    return SetValueResult(param, args_[index]);
   }
-  return SetValueResult(param, args_[index]);
-}
 
-/* static */ absl::StatusOr<Value> FunctionInterpreter::Run(
-    Function* function, absl::Span<const Value> args) {
+ private:
+  // The arguments to the Function being evaluated indexed by parameter name.
+  std::vector<Value> args_;
+};
+
+}  // namespace
+
+absl::StatusOr<Value> InterpretFunction(Function* function,
+                                        absl::Span<const Value> args) {
   XLS_VLOG(3) << "Interpreting function " << function->name();
   if (args.size() != function->params().size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -58,13 +72,13 @@ absl::Status FunctionInterpreter::HandleParam(Param* param) {
 }
 
 /* static */
-absl::StatusOr<Value> FunctionInterpreter::RunKwargs(
+absl::StatusOr<Value> InterpretFunctionKwargs(
     Function* function, const absl::flat_hash_map<std::string, Value>& args) {
   XLS_VLOG(2) << "Interpreting function " << function->name()
               << " with arguments:";
   XLS_ASSIGN_OR_RETURN(std::vector<Value> positional_args,
                        KeywordArgsToPositional(*function, args));
-  return Run(function, positional_args);
+  return InterpretFunction(function, positional_args);
 }
 
 }  // namespace xls

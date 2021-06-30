@@ -64,9 +64,9 @@ TEST_F(BooleanifierTest, Crc32) {
   for (int i = 0; i < 256; i++) {
     std::vector<Value> inputs({Value(UBits(i, 8))});
     XLS_ASSERT_OK_AND_ASSIGN(Value fancy_value,
-                             FunctionInterpreter::Run(fd.source, inputs));
+                             InterpretFunction(fd.source, inputs));
     XLS_ASSERT_OK_AND_ASSIGN(Value basic_value,
-                             FunctionInterpreter::Run(fd.boolified, inputs));
+                             InterpretFunction(fd.boolified, inputs));
     ASSERT_EQ(fancy_value, basic_value);
   }
 }

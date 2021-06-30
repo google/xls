@@ -47,21 +47,17 @@ uint64_t BitsToBoundedUint64(const Bits& bits, uint64_t upper_limit) {
 
 }  // namespace
 
-/* static */ absl::StatusOr<Value>
-IrInterpreter::EvaluateNodeWithLiteralOperands(Node* node) {
-  XLS_RET_CHECK(std::all_of(node->operands().begin(), node->operands().end(),
-                            [](Node* n) { return n->Is<Literal>(); }));
-  IrInterpreter visitor({});
-  XLS_RETURN_IF_ERROR(node->Accept(&visitor));
-  return visitor.ResolveAsValue(node);
-}
-
-/* static */ absl::StatusOr<Value> IrInterpreter::EvaluateNode(
-    Node* node, absl::Span<const Value* const> operand_values) {
+absl::StatusOr<Value> InterpretNode(Node* node,
+                                    absl::Span<const Value> operand_values) {
   XLS_RET_CHECK_EQ(node->operand_count(), operand_values.size());
-  IrInterpreter visitor({});
+  IrInterpreter visitor;
   for (int64_t i = 0; i < operand_values.size(); ++i) {
-    visitor.node_values_[node->operand(i)] = *operand_values[i];
+    // Operands may be duplicated so check to see if the operand value has
+    // already been set.
+    if (!visitor.HasResult(node->operand(i))) {
+      XLS_RETURN_IF_ERROR(
+          visitor.SetValueResult(node->operand(i), operand_values[i]));
+    }
   }
   XLS_RETURN_IF_ERROR(node->VisitSingleNode(&visitor));
   return visitor.ResolveAsValue(node);
@@ -238,8 +234,7 @@ absl::Status IrInterpreter::HandleCountedFor(CountedFor* counted_for) {
     for (const auto& value : invariant_args) {
       args_for_body.push_back(value);
     }
-    XLS_ASSIGN_OR_RETURN(loop_state,
-                         FunctionInterpreter::Run(body, args_for_body));
+    XLS_ASSIGN_OR_RETURN(loop_state, InterpretFunction(body, args_for_body));
   }
   return SetValueResult(counted_for, loop_state);
 }
@@ -289,8 +284,7 @@ absl::Status IrInterpreter::HandleDynamicCountedFor(
     for (const auto& value : invariant_args) {
       args_for_body.push_back(value);
     }
-    XLS_ASSIGN_OR_RETURN(loop_state,
-                         FunctionInterpreter::Run(body, args_for_body));
+    XLS_ASSIGN_OR_RETURN(loop_state, InterpretFunction(body, args_for_body));
 
     index = bits_ops::Add(index, extended_stride);
   }
@@ -475,7 +469,7 @@ absl::Status IrInterpreter::HandleInvoke(Invoke* invoke) {
   for (int64_t i = 0; i < to_apply->params().size(); ++i) {
     args.push_back(ResolveAsValue(invoke->operand(i)));
   }
-  XLS_ASSIGN_OR_RETURN(Value result, FunctionInterpreter::Run(to_apply, args));
+  XLS_ASSIGN_OR_RETURN(Value result, InterpretFunction(to_apply, args));
   return SetValueResult(invoke, result);
 }
 
@@ -513,7 +507,7 @@ absl::Status IrInterpreter::HandleMap(Map* map) {
   for (const Value& operand_element :
        ResolveAsValue(map->operand(0)).elements()) {
     XLS_ASSIGN_OR_RETURN(Value result,
-                         FunctionInterpreter::Run(to_apply, {operand_element}));
+                         InterpretFunction(to_apply, {operand_element}));
     results.push_back(result);
   }
   XLS_ASSIGN_OR_RETURN(Value result_array, Value::Array(results));
@@ -716,14 +710,19 @@ absl::Status IrInterpreter::SetBitsResult(Node* node, const Bits& result) {
 }
 
 absl::Status IrInterpreter::SetValueResult(Node* node, Value result) {
-  XLS_VLOG(4) << absl::StreamFormat("%s operands:", node->GetName());
-  for (int64_t i = 0; i < node->operand_count(); ++i) {
-    XLS_VLOG(4) << absl::StreamFormat(
-        "  operand %d (%s): %s", i, node->operand(i)->GetName(),
-        ResolveAsValue(node->operand(i)).ToString());
+  if (XLS_VLOG_IS_ON(4) &&
+      std::all_of(node->operands().begin(), node->operands().end(),
+                  [this](Node* o) { return node_values_.contains(o); })) {
+    XLS_VLOG(4) << absl::StreamFormat("%s operands:", node->GetName());
+    for (int64_t i = 0; i < node->operand_count(); ++i) {
+      XLS_VLOG(4) << absl::StreamFormat(
+          "  operand %d (%s): %s", i, node->operand(i)->GetName(),
+          ResolveAsValue(node->operand(i)).ToString());
+    }
+    XLS_VLOG(3) << absl::StreamFormat("Result of %s: %s", node->ToString(),
+                                      result.ToString());
   }
-  XLS_VLOG(3) << absl::StreamFormat("Result of %s: %s", node->ToString(),
-                                    result.ToString());
+
   XLS_RET_CHECK(!node_values_.contains(node));
   if (!ValueConformsToType(result, node->GetType())) {
     return absl::InternalError(absl::StrFormat(

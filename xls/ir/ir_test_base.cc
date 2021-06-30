@@ -215,7 +215,7 @@ void IrTestBase::RunAndExpectEq(
   {
     XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
     XLS_ASSERT_OK_AND_ASSIGN(Value actual,
-                             FunctionInterpreter::RunKwargs(entry, args));
+                             InterpretFunctionKwargs(entry, args));
     ASSERT_TRUE(ValuesEqual(expected, actual))
         << "(interpreted unoptimized IR)";
   }
@@ -228,7 +228,7 @@ void IrTestBase::RunAndExpectEq(
     {
       XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
       XLS_ASSERT_OK_AND_ASSIGN(Value actual,
-                               FunctionInterpreter::RunKwargs(main, args));
+                               InterpretFunctionKwargs(main, args));
       ASSERT_TRUE(ValuesEqual(expected, actual))
           << "(interpreted optimized IR)";
     }

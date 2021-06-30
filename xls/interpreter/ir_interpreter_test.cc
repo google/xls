@@ -34,11 +34,11 @@ INSTANTIATE_TEST_SUITE_P(
     IrInterpreterTest, IrEvaluatorTestBase,
     testing::Values(IrEvaluatorTestParam(
         [](Function* function, const std::vector<Value>& args) {
-          return FunctionInterpreter::Run(function, args);
+          return InterpretFunction(function, args);
         },
         [](Function* function,
            const absl::flat_hash_map<std::string, Value>& kwargs) {
-          return FunctionInterpreter::RunKwargs(function, kwargs);
+          return InterpretFunctionKwargs(function, kwargs);
         })));
 
 // Fixture for IrInterpreter-only tests (i.e., those that aren't common to all
@@ -59,14 +59,13 @@ TEST_F(IrInterpreterOnlyTest, EvaluateNode) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(fn_text, &package));
 
-  Value a = Value(UBits(0b0011, 4));
-  Value b = Value(UBits(0b1010, 4));
-  EXPECT_THAT(
-      IrInterpreter::EvaluateNode(FindNode("and.3", function), {&a, &b}),
-      IsOkAndHolds(Value(UBits(0b0010, 4))));
-  EXPECT_THAT(IrInterpreter::EvaluateNode(FindNode("or.4", function), {&a, &b}),
+  EXPECT_THAT(InterpretNode(FindNode("and.3", function),
+                            {Value(UBits(0b0011, 4)), Value(UBits(0b1010, 4))}),
+              IsOkAndHolds(Value(UBits(0b0010, 4))));
+  EXPECT_THAT(InterpretNode(FindNode("or.4", function),
+                            {Value(UBits(0b0011, 4)), Value(UBits(0b1010, 4))}),
               IsOkAndHolds(Value(UBits(0b1011, 4))));
-  EXPECT_THAT(IrInterpreter::EvaluateNode(FindNode("literal.1", function), {}),
+  EXPECT_THAT(InterpretNode(FindNode("literal.1", function), {}),
               IsOkAndHolds(Value(UBits(6, 4))));
 }
 

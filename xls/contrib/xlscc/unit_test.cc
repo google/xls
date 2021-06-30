@@ -123,7 +123,7 @@ void XlsccTestBase::IOTest(std::string content, std::list<IOOpTest> inputs,
   }
 
   XLS_ASSERT_OK_AND_ASSIGN(xls::Value actual,
-                           xls::FunctionInterpreter::RunKwargs(entry, args));
+                           xls::InterpretFunctionKwargs(entry, args));
   ASSERT_TRUE(actual.IsTuple());
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> returns,
                            actual.GetElements());

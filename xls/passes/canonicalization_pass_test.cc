@@ -197,8 +197,7 @@ TEST_F(CanonicalizePassTest, ExhaustiveClampTest) {
             for (int64_t x_value = 0; x_value < kMaxValue; ++x_value) {
               XLS_ASSERT_OK_AND_ASSIGN(
                   expected[x_value],
-                  FunctionInterpreter::Run(f,
-                                           {Value(UBits(x_value, kBitWidth))}));
+                  InterpretFunction(f, {Value(UBits(x_value, kBitWidth))}));
             }
 
             XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p.get()));
@@ -208,8 +207,8 @@ TEST_F(CanonicalizePassTest, ExhaustiveClampTest) {
 
             for (int64_t x_value = 0; x_value < kMaxValue; ++x_value) {
               XLS_ASSERT_OK_AND_ASSIGN(
-                  Value actual, FunctionInterpreter::Run(
-                                    f, {Value(UBits(x_value, kBitWidth))}));
+                  Value actual,
+                  InterpretFunction(f, {Value(UBits(x_value, kBitWidth))}));
               EXPECT_EQ(expected[x_value], actual)
                   << absl::StreamFormat("%s for x = %d", expr_str, x_value);
             }

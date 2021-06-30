@@ -346,12 +346,11 @@ absl::StatusOr<Value> BddFunction::Evaluate(
       result = args.at(param_index);
     } else if (!node->GetType()->IsBits() ||
                saturated_expressions_.contains(node)) {
-      std::vector<const Value*> operand_values;
+      std::vector<Value> operand_values;
       for (Node* operand : node->operands()) {
-        operand_values.push_back(&values.at(operand));
+        operand_values.push_back(values.at(operand));
       }
-      XLS_ASSIGN_OR_RETURN(result,
-                           IrInterpreter::EvaluateNode(node, operand_values));
+      XLS_ASSIGN_OR_RETURN(result, InterpretNode(node, operand_values));
     } else {
       const BddNodeVector& bdd_vector = node_map_.at(node);
       absl::InlinedVector<bool, 64> bits;

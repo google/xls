@@ -185,7 +185,7 @@ absl::StatusOr<bool> StillFailsHelper(
                                          FLAGS_test_only_inject_jit_result)));
   }
   XLS_ASSIGN_OR_RETURN(Value interpreter_result,
-                       FunctionInterpreter::Run(main, *inputs));
+                       InterpretFunction(main, *inputs));
   return jit_result != interpreter_result;
 }
 

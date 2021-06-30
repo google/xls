@@ -79,8 +79,7 @@ absl::Status RealMain(absl::string_view ir_path,
       XLS_ASSIGN_OR_RETURN(jit_result, Parser::ParseTypedValue(absl::GetFlag(
                                            FLAGS_test_only_inject_jit_result)));
     }
-    XLS_ASSIGN_OR_RETURN(Value interpreter_result,
-                         FunctionInterpreter::Run(f, args));
+    XLS_ASSIGN_OR_RETURN(Value interpreter_result, InterpretFunction(f, args));
     if (jit_result != interpreter_result) {
       std::cout << absl::StrJoin(
           args, "; ", [](std::string* s, const Value& v) {

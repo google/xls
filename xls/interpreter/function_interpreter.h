@@ -25,27 +25,14 @@
 
 namespace xls {
 
-// An interpreter for XLS functions.
-class FunctionInterpreter : public IrInterpreter {
- public:
-  explicit FunctionInterpreter(absl::Span<const Value> args)
-      : args_(args.begin(), args.end()) {}
+// Runs the interpreter on the given function. 'args' are the argument values
+// indexed by parameter name.
+absl::StatusOr<Value> InterpretFunction(Function* function,
+                                        absl::Span<const Value> args);
 
-  // Runs the interpreter on the given function. 'args' are the argument values
-  // indexed by parameter name.
-  static absl::StatusOr<Value> Run(Function* function,
-                                   absl::Span<const Value> args);
-
-  // Runs the interpreter on the function where the arguments are given by name.
-  static absl::StatusOr<Value> RunKwargs(
-      Function* function, const absl::flat_hash_map<std::string, Value>& args);
-
-  absl::Status HandleParam(Param* param) override;
-
- private:
-  // The arguments to the Function being evaluated indexed by parameter name.
-  std::vector<Value> args_;
-};
+// Runs the interpreter on the function where the arguments are given by name.
+absl::StatusOr<Value> InterpretFunctionKwargs(
+    Function* function, const absl::flat_hash_map<std::string, Value>& args);
 
 }  // namespace xls
 

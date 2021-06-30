@@ -172,7 +172,7 @@ absl::StatusOr<std::vector<Value>> Eval(
                                          FLAGS_test_only_inject_jit_result)));
       }
     } else {
-      XLS_ASSIGN_OR_RETURN(result, FunctionInterpreter::Run(f, arg_set.args));
+      XLS_ASSIGN_OR_RETURN(result, InterpretFunction(f, arg_set.args));
     }
     std::cout << result.ToString(FormatPreference::kHex) << std::endl;
 
@@ -330,7 +330,7 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertValidator(
 // Runs the validator to confirm that the args set is compatible.
 absl::StatusOr<bool> ValidateInput(Function* validator, const ArgSet& arg_set) {
   XLS_ASSIGN_OR_RETURN(Value result,
-                       FunctionInterpreter::Run(validator, arg_set.args));
+                       InterpretFunction(validator, arg_set.args));
   XLS_ASSIGN_OR_RETURN(Bits bits, result.GetBitsWithStatus());
   XLS_RET_CHECK_EQ(bits.bit_count(), 1);
   return bits.IsOne();

@@ -18,23 +18,36 @@
 #include "xls/ir/bits.h"
 
 namespace xls {
+namespace {
 
-absl::Status BlockInterpreter::HandleInputPort(InputPort* input_port) {
-  if (!inputs_.contains(input_port->GetName())) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Missing input for port '%s'", input_port->GetName()));
+// An interpreter for XLS blocks.
+class BlockInterpreter : public IrInterpreter {
+ public:
+  BlockInterpreter(const absl::flat_hash_map<std::string, Value>& inputs)
+      : IrInterpreter(/*args=*/{}), inputs_(inputs) {}
+
+  absl::Status HandleInputPort(InputPort* input_port) override {
+    if (!inputs_.contains(input_port->GetName())) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Missing input for port '%s'", input_port->GetName()));
+    }
+
+    return SetValueResult(input_port, inputs_.at(input_port->GetName()));
   }
 
-  return SetValueResult(input_port, inputs_.at(input_port->GetName()));
-}
+  absl::Status HandleOutputPort(OutputPort* output_port) override {
+    // Output ports have empty tuple types.
+    return SetValueResult(output_port, Value::Tuple({}));
+  }
 
-absl::Status BlockInterpreter::HandleOutputPort(OutputPort* output_port) {
-  // Output ports have empty tuple types.
-  return SetValueResult(output_port, Value::Tuple({}));
-}
+ private:
+  absl::flat_hash_map<std::string, Value> inputs_;
+};
 
-/* static */ absl::StatusOr<absl::flat_hash_map<std::string, Value>>
-BlockInterpreter::RunCombinational(
+}  // namespace
+
+absl::StatusOr<absl::flat_hash_map<std::string, Value>>
+InterpretCombinationalBlock(
     Block* block, const absl::flat_hash_map<std::string, Value>& inputs) {
   absl::flat_hash_set<std::string> input_port_names;
   for (InputPort* port : block->GetInputPorts()) {
@@ -50,16 +63,14 @@ BlockInterpreter::RunCombinational(
   absl::flat_hash_map<std::string, Value> outputs;
   BlockInterpreter visitor(inputs);
   XLS_RETURN_IF_ERROR(block->Accept(&visitor));
-  for (Node* node : block->nodes()) {
-    if (node->Is<OutputPort>()) {
-      outputs[node->GetName()] = visitor.ResolveAsValue(node->operand(0));
-    }
+  for (Node* port : block->GetOutputPorts()) {
+    outputs[port->GetName()] = visitor.ResolveAsValue(port->operand(0));
   }
   return outputs;
 }
 
-/* static */ absl::StatusOr<absl::flat_hash_map<std::string, uint64_t>>
-BlockInterpreter::RunCombinational(
+absl::StatusOr<absl::flat_hash_map<std::string, uint64_t>>
+InterpretCombinationalBlock(
     Block* block, const absl::flat_hash_map<std::string, uint64_t>& inputs) {
   absl::flat_hash_map<std::string, Value> input_values;
   // Convert uint64_t inputs to Value inputs and validate that each input port
@@ -87,7 +98,8 @@ BlockInterpreter::RunCombinational(
 
   absl::flat_hash_map<std::string, uint64_t> outputs;
   absl::flat_hash_map<std::string, Value> output_values;
-  XLS_ASSIGN_OR_RETURN(output_values, RunCombinational(block, input_values));
+  XLS_ASSIGN_OR_RETURN(output_values,
+                       InterpretCombinationalBlock(block, input_values));
 
   for (OutputPort* port : block->GetOutputPorts()) {
     Node* data = port->operand(0);

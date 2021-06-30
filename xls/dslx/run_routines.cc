@@ -95,8 +95,7 @@ absl::Status RunComparator::RunComparison(
       break;
     }
     case CompareMode::kInterpreter: {
-      XLS_ASSIGN_OR_RETURN(ir_result,
-                           FunctionInterpreter::Run(ir_function, ir_args));
+      XLS_ASSIGN_OR_RETURN(ir_result, InterpretFunction(ir_function, ir_args));
       mode_str = "interpreter";
       break;
     }
