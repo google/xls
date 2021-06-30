@@ -20,6 +20,7 @@ load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load("//xls/build_rules:xls_providers.bzl", "JitWrapperInfo")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
+load("//xls/build_rules:xls_toolchains.bzl", "TOOLCHAIN_TYPE")
 
 _xls_ir_jit_wrapper_attrs = {
     "jit_wrapper_args": attr.string_dict(
@@ -143,6 +144,7 @@ xls_ir_jit_wrapper = rule(
         _xls_ir_jit_wrapper_attrs,
         CONFIG["xls_outs_attrs"],
     ),
+    toolchains = [TOOLCHAIN_TYPE],
 )
 
 def cc_xls_ir_jit_wrapper(

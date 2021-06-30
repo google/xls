@@ -30,6 +30,7 @@ load(
     "//xls/build_rules:xls_dslx_rules.bzl",
     "xls_dslx_module_library_as_input_attrs",
 )
+load("//xls/build_rules:xls_toolchains.bzl", "TOOLCHAIN_TYPE")
 
 _DEFAULT_IR_EVAL_TEST_ARGS = {
     "random_inputs": "100",
@@ -534,6 +535,7 @@ xls_dslx_ir = rule(
         xls_dslx_ir_attrs,
         CONFIG["xls_outs_attrs"],
     ),
+    toolchains = [TOOLCHAIN_TYPE],
 )
 
 def xls_ir_opt_ir_impl(ctx, src):
@@ -626,6 +628,7 @@ xls_ir_opt_ir = rule(
         xls_ir_opt_ir_attrs,
         CONFIG["xls_outs_attrs"],
     ),
+    toolchains = [TOOLCHAIN_TYPE],
 )
 
 def _xls_ir_equivalence_test_impl(ctx):
@@ -728,6 +731,7 @@ xls_ir_equivalence_test = rule(
         xls_entry_attrs,
     ),
     test = True,
+    toolchains = [TOOLCHAIN_TYPE],
 )
 
 def _xls_eval_ir_test_impl(ctx):
@@ -812,6 +816,7 @@ xls_eval_ir_test = rule(
         xls_entry_attrs,
     ),
     test = True,
+    toolchains = [TOOLCHAIN_TYPE],
 )
 
 def _xls_benchmark_ir_impl(ctx):
@@ -895,4 +900,5 @@ xls_benchmark_ir = rule(
         xls_entry_attrs,
     ),
     executable = True,
+    toolchains = [TOOLCHAIN_TYPE],
 )

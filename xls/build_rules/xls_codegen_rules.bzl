@@ -21,6 +21,7 @@ load("//xls/build_rules:xls_common_rules.bzl", "get_args")
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load("//xls/build_rules:xls_providers.bzl", "CodegenInfo")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
+load("//xls/build_rules:xls_toolchains.bzl", "TOOLCHAIN_TYPE")
 
 _DEFAULT_CODEGEN_TARGET = "//xls/tools:codegen_main"
 
@@ -210,4 +211,5 @@ xls_ir_verilog = rule(
         xls_ir_verilog_attrs,
         CONFIG["xls_outs_attrs"],
     ),
+    toolchains = [TOOLCHAIN_TYPE],
 )

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load(":xls_toolchains.bzl", "xls_toolchain")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -21,13 +22,19 @@ package(
 
 exports_files(
     [
+        "xls_codegen_macros.bzl",
         "xls_codegen_rules.bzl",
         "xls_common_rules.bzl",
+        "xls_config_rules.bzl",
         "xls_codegen_rules.bzl",
         "xls_dslx_rules.bzl",
         "xls_ir_rules.bzl",
         "xls_jit_wrapper_rules.bzl",
+        "xls_macros.bzl",
+        "xls_oss_config.bzl",
+        "xls_providers.bzl",
         "xls_rules.bzl",
+        "xls_toolchains.bzl",
     ],
     visibility = ["//visibility:private"],
 )
@@ -67,6 +74,7 @@ bzl_library(
         ":xls_common_rules_bzl",
         ":xls_config_rules_bzl",
         ":xls_providers_bzl",
+        ":xls_toolchains_bzl",
         "@bazel_skylib//lib:dicts",
     ],
 )
@@ -80,6 +88,7 @@ bzl_library(
         ":xls_config_rules_bzl",
         ":xls_dslx_rules_bzl",
         ":xls_providers_bzl",
+        ":xls_toolchains_bzl",
         "@bazel_skylib//lib:dicts",
     ],
 )
@@ -93,6 +102,7 @@ bzl_library(
         ":xls_config_rules_bzl",
         ":xls_ir_rules_bzl",
         ":xls_providers_bzl",
+        ":xls_toolchains_bzl",
         "@bazel_skylib//lib:dicts",
     ],
 )
@@ -105,6 +115,7 @@ bzl_library(
         ":xls_config_rules_bzl",
         ":xls_ir_rules_bzl",
         ":xls_providers_bzl",
+        ":xls_toolchains_bzl",
         "@bazel_skylib//lib:dicts",
     ],
 )
@@ -129,6 +140,7 @@ bzl_library(
         ":xls_dslx_rules_bzl",
         ":xls_ir_rules_bzl",
         ":xls_providers_bzl",
+        ":xls_toolchains_bzl",
         "@bazel_skylib//lib:dicts",
     ],
 )
@@ -157,4 +169,22 @@ bzl_library(
         ":xls_macros_bzl",
         ":xls_rules_bzl",
     ],
+)
+
+bzl_library(
+    name = "xls_toolchains_bzl",
+    srcs = ["xls_toolchains.bzl"],
+    visibility = ["//visibility:private"],
+)
+
+toolchain_type(name = "toolchain_type")
+
+xls_toolchain(
+    name = "default_xls_toolchain",
+)
+
+toolchain(
+    name = "default_xls_toolchain_all_platforms",
+    toolchain = ":default_xls_toolchain",
+    toolchain_type = ":toolchain_type",
 )
