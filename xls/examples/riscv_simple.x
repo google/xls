@@ -114,12 +114,7 @@ const JAL = u3:0;   // determined by opcode itself.
 // Get the opcode for an instruction, which is the first step
 // needed to determine the instruction format.
 fn decode_opcode(ins: u32) -> u7 {
-   ins as u7
-}
-
-// Converts a byte address to an IMEM word address.
-fn waddr(x: u32) -> u32 {
-  (x & u32:0xff) >> u32:2
+   ins[0 +: u7]
 }
 
 // Decoding a 32-bit R-type instruction word into:
@@ -132,19 +127,19 @@ fn waddr(x: u32) -> u32 {
 //                       ---- -          rd
 //                             -------   opcode
 fn decode_r_instruction(ins: u32) -> (u7, u5, u5, u3, u5, u7) {
-   let funct7 = (ins >> u32:25);
-   let rs2 = (ins >> u32:20) & u32:0x1F;
-   let rs1 = (ins >> u32:15) & u32:0x1F;
-   let funct3 = (ins >> u32:12) & u32:0x07;
-   let rd = (ins >> u32:7) & u32:0x1F;
-   let opcode = ins & u32:0x7F;
-   (funct7 as u7, rs2 as u5, rs1 as u5, funct3 as u3, rd as u5, opcode as u7)
+   let funct7 = ins[25 +: u7];
+   let rs2 =    ins[20 +: u5];
+   let rs1 =    ins[15 +: u5];
+   let funct3 = ins[12 +: u3];
+   let rd =     ins[ 7 +: u5];
+   let opcode = ins[ 0 +: u7];
+   (funct7, rs2, rs1, funct3, rd, opcode)
 }
 
 #![test]
 fn decode_r_test_lsb_test() {
    let (funct7, rs2, rs1, funct3, rd, opcode) = decode_r_instruction(
-        u32:0b00000010000100001001000010000001);
+        u32:0b0000001_00001_00001_001_00001_0000001);
    let _ = assert_eq(funct7, u7:1);
    let _ = assert_eq(rs2, u5:1);
    let _ = assert_eq(rs1, u5:1);
@@ -157,7 +152,7 @@ fn decode_r_test_lsb_test() {
 #![test]
 fn decode_r_test_msb_test() {
    let (funct7, rs2, rs1, funct3, rd, opcode) = decode_r_instruction(
-        u32:0b10000001000010000100100001000000);
+        u32:0b_1000000_10000_10000_100_10000_1000000);
    let _ = assert_eq(funct7, u7:0b1000000);
    let _ = assert_eq(rs2, u5:0b10000);
    let _ = assert_eq(rs1, u5:0b10000);
@@ -176,18 +171,18 @@ fn decode_r_test_msb_test() {
 //                       ---- -          rd
 //                             -------   opcode
 fn decode_i_instruction(ins: u32) -> (u12, u5, u3, u5, u7) {
-   let imm_11_0 = (ins >> u32:20);
-   let rs1 = (ins >> u32:15) & u32:0x1F;
-   let funct3 = (ins >> u32:12) & u32:0x07;
-   let rd = (ins >> u32:7) & u32:0x1F;
-   let opcode = ins & u32:0x7F;
-   (imm_11_0 as u12, rs1 as u5, funct3 as u3, rd as u5, opcode as u7)
+   let imm_11_0 = ins[20 +: u12];
+   let rs1 =      ins[15 +:  u5];
+   let funct3 =   ins[12 +:  u3];
+   let rd =       ins[ 7 +:  u5];
+   let opcode =   ins[ 0 +:  u7];
+   (imm_11_0, rs1, funct3, rd, opcode)
 }
 
 #![test]
 fn decode_i_test_lsb_test() {
    let (imm12, rs1, funct3, rd, opcode) = decode_i_instruction(
-        u32:0b00000010000100001001000010000001);
+        u32:0b000000100001_00001_001_00001_0000001);
    let _ = assert_eq(imm12, u12:0x21);  //0b0000 0010 0001
    let _ = assert_eq(rs1, u5:1);
    let _ = assert_eq(funct3, u3:1);
@@ -199,7 +194,7 @@ fn decode_i_test_lsb_test() {
 #![test]
 fn decode_i_test_msb_test() {
    let (imm12, rs1, funct3, rd, opcode) = decode_i_instruction(
-        u32:0b10000001000010000100100001000000);
+        u32:0b100000010000_10000_100_10000_1000000);
    let _ = assert_eq(imm12, u12:0x810);  // 0b1000 0001 0000
    let _ = assert_eq(rs1, u5:0b10000);
    let _ = assert_eq(funct3, u3:0b100);
@@ -218,19 +213,19 @@ fn decode_i_test_msb_test() {
 //                       ---- -          rd
 //                             -------   opcode
 fn decode_s_instruction(ins: u32) -> (u12, u5, u5, u3, u7) {
-   let imm_11_5 = (ins >> u32:25);
-   let rs2 = (ins >> u32:20) & u32:0x1F;
-   let rs1 = (ins >> u32:15) & u32:0x1F;
-   let funct3 = (ins >> u32:12) & u32:0x07;
-   let imm_4_0 = (ins >> u32:7) & u32:0x1F;
-   let opcode = ins & u32:0x7F;
-   (((imm_11_5 as u7) ++ (imm_4_0 as u5)) as u12, rs2 as u5, rs1 as u5, funct3 as u3, opcode as u7)
+   let imm_11_5 = ins[25 +: u7];
+   let rs2 =      ins[20 +: u5];
+   let rs1 =      ins[15 +: u5];
+   let funct3 =   ins[12 +: u3];
+   let imm_4_0 =  ins[ 7 +: u5];
+   let opcode =   ins[ 0 +: u7];
+   (imm_11_5 ++ imm_4_0, rs2, rs1, funct3, opcode)
 }
 
 #![test]
 fn decode_s_test_lsb_test() {
    let (imm12, rs2, rs1, funct3, opcode) = decode_s_instruction(
-        u32:0b00000010000100001001000010000001);
+        u32:0b0000001_00001_00001_001_00001_0000001);
    let _ = assert_eq(imm12, u12:0x21);  //0b0000 0010 0001
    let _ = assert_eq(rs2, u5:1);
    let _ = assert_eq(rs1, u5:1);
@@ -242,7 +237,7 @@ fn decode_s_test_lsb_test() {
 #![test]
 fn decode_s_test_msb_test() {
    let (imm12, rs2, rs1, funct3, opcode) = decode_s_instruction(
-        u32:0b10000001000010000100100001000000);
+        u32:0b1000000_10000_10000_100_10000_1000000);
    let _ = assert_eq(imm12, u12:0x810);  // 0b1000 0001 0000
    let _ = assert_eq(rs2, u5:0b10000);
    let _ = assert_eq(rs1, u5:0b10000);
@@ -259,16 +254,16 @@ fn decode_s_test_msb_test() {
 //                       ---- -          rd
 //                             -------   opcode
 fn decode_u_instruction(ins: u32) -> (u20, u5, u7) {
-   let imm_31_12 = (ins >> u32:12);
-   let rd = (ins >> u32:7) & u32:0x1F;
-   let opcode = ins & u32:0x7F;
-   (imm_31_12 as u20, rd as u5, opcode as u7)
+   let imm_31_12 = ins[12 +: u20];
+   let rd =        ins[ 7 +:  u5];
+   let opcode =    ins[ 0 +:  u7];
+   (imm_31_12, rd, opcode)
 }
 
 #![test]
 fn decode_u_test_lsb_test() {
    let (imm20, rd, opcode) = decode_u_instruction(
-        u32:0b00000000000000000001000010000001);
+        u32:0b00000000000000000001_00001_0000001);
    let _ = assert_eq(imm20, u20:0x1);
    let _ = assert_eq(rd, u5:1);
    let _ = assert_eq(opcode, u7:1);
@@ -278,7 +273,7 @@ fn decode_u_test_lsb_test() {
 #![test]
 fn decode_u_test_msb_test() {
    let (imm20, rd, opcode) = decode_u_instruction(
-        u32:0b10000000000000000000100001000000);
+        u32:0b10000000000000000000_10000_1000000);
    let _ = assert_eq(imm20, u20:0x80000);
    let _ = assert_eq(rd, u5:0b10000);
    let _ = assert_eq(opcode, u7:0b1000000);
@@ -298,22 +293,22 @@ fn decode_u_test_msb_test() {
 //                            -          imm_11
 //                             -------   opcode
 fn decode_b_instruction(ins: u32) -> (u12, u5, u5, u3, u7) {
-   let imm_12 = (ins >> u32:31);
-   let imm_10_5 = (ins >> u32:25) & u32:0x3F;
-   let rs2 = (ins >> u32:20) & u32:0x1F;
-   let rs1 = (ins >> u32:15) & u32:0x1F;
-   let funct3 = (ins >> u32:12) & u32:0x07;
-   let imm_4_1 = (ins >> u32:8) & u32:0xF;
-   let imm_11 = (ins >> u32:7) & u32:0x1;
-   let opcode = ins & u32:0x7F;
-   (((imm_12 as u1) ++ (imm_11 as u1) ++ (imm_10_5 as u6) ++ (imm_4_1 as u4)) as u12,
-    rs2 as u5, rs1 as u5, funct3 as u3, opcode as u7)
+   let imm_12 =   ins[31 +: u1];
+   let imm_10_5 = ins[25 +: u6];
+   let rs2 =      ins[20 +: u5];
+   let rs1 =      ins[15 +: u5];
+   let funct3 =   ins[12 +: u3];
+   let imm_4_1 =  ins[ 8 +: u4];
+   let imm_11 =   ins[ 7 +: u1];
+   let opcode =   ins[ 0 +: u7];
+   (imm_12 ++ imm_11 ++ imm_10_5 ++ imm_4_1,
+    rs2, rs1, funct3, opcode)
 }
 
 #![test]
 fn decode_b_test() {
    let (imm12, rs2, rs1, funct3, opcode) = decode_b_instruction(
-        u32:0b10000010000100001001000110000001);
+        u32:0b1_000001_00001_00001_001_0001_1_0000001);
    let _ = assert_eq(imm12, (u1:1 ++ u1:1 ++ u6:1 ++ u4:1) as u12);
    let _ = assert_eq(rs2, u5:1);
    let _ = assert_eq(rs1, u5:1);
@@ -333,21 +328,21 @@ fn decode_b_test() {
 //                       ---- -          rd
 //                             -------   opcode
 fn decode_j_instruction(ins: u32) -> (u20, u5, u7) {
-   let imm_20 = (ins >> u32:31);
-   let imm_10_1 = (ins >> u32:21) & u32:0x3FF;
-   let imm_11 = (ins >> u32:20) & u32:0x1;
-   let imm_19_12 = (ins >> u32:12) & u32:0xFF;
-   let rd = (ins >> u32:7) & u32:0x1F;
-   let opcode = ins & u32:0x7F;
-   (((imm_20 as u1) ++ (imm_19_12 as u8) ++ (imm_11 as u1) ++ (imm_10_1 as u11)) as u20,
-         rd as u5, opcode as u7)
+   let imm_20 =    ins[31 +:  u1];
+   let imm_10_1 =  ins[21 +: u10];
+   let imm_11 =    ins[20 +:  u1];
+   let imm_19_12 = ins[12 +:  u8];
+   let rd =        ins[ 7 +:  u5];
+   let opcode =    ins[ 0 +:  u7];
+   (imm_20 ++ imm_19_12 ++ imm_11 ++ imm_10_1,
+    rd, opcode)
 }
 
 #![test]
 fn decode_j_test() {
    let (imm20, rd, opcode) = decode_j_instruction(
-        u32:0b10000000001100000001000010000001);
-   let _ = assert_eq(imm20, (u1:1 ++ u8:1 ++ u1:1 ++ u11:1) as u20);
+        u32:0b1_0000000001_1_00000001_00001_0000001);
+   let _ = assert_eq(imm20, (u1:1 ++ u8:1 ++ u1:1 ++ u10:1) as u20);
    let _ = assert_eq(rd, u5:1);
    let _ = assert_eq(opcode, u7:1);
    _
