@@ -15,7 +15,8 @@
 // Regression sample given in https://github.com/google/xls/issues/207
 
 const SIZE_BITS = s32:1000;
-type LotsOfBits = uN[SIZE_BITS];
+const SIZE_BITS_U32 = SIZE_BITS as u32;
+type LotsOfBits = uN[SIZE_BITS_U32];
 
 fn main(x: u32, lotsabits: LotsOfBits) -> LotsOfBits {
   lotsabits[:10] ++ x ++ lotsabits[42:SIZE_BITS]

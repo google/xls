@@ -29,6 +29,7 @@ from absl.testing import absltest
 TestCase = absltest.TestCase
 TempFileCleanup = absltest.TempFileCleanup
 skipIf = absltest.unittest.skipIf
+skip = absltest.unittest.skip
 
 
 def create_named_output_text_file(name: str) -> str:

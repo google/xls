@@ -141,8 +141,8 @@
 // args: bits[26]:0x40_0000
 // args: bits[26]:0x800
 // args: bits[26]:0x24e_956a
-const W1_V1 = u1:0x1;
-const W2_V3 = u2:0x3;
+const W32_V1 = u32:0x1;
+const W32_V3 = u32:0x3;
 type x8 = u1;
 type x19 = u3;
 type x21 = u9;
@@ -154,7 +154,7 @@ fn main(x0: s26) -> (u2, u3, u3, u3, x21[0x3]) {
   let x4: u3 = (x3)[x1+:u3];
   let x5: u3 = !(x3);
   let x6: u7 = (x2)[0x5+:u7];
-  let x7: x8[W2_V3] = ((x4) as x8[W2_V3]);
+  let x7: x8[W32_V3] = ((x4) as x8[W32_V3]);
   let x9: s37 = s37:0x800;
   let x10: u24 = u24:0x200000;
   let x11: u27 = rev(x2);
@@ -169,7 +169,7 @@ fn main(x0: s26) -> (u2, u3, u3, u3, x21[0x3]) {
   let x22: u2 = (x16)[:];
   let x23: u37 = ((x6) ++ (x13)) ++ (x11);
   let x24: u3 = (x14)[0x0+:u3];
-  let x25: x26[W1_V1] = ((x3) as x26[W1_V1]);
+  let x25: x26[W32_V1] = ((x3) as x26[W32_V1]);
   let x27: u3 = (x14)[0x0+:u3];
   (x22, x12, x4, x12, x20)
 }

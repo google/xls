@@ -150,12 +150,12 @@
 // args: bits[46]:0x1555_5555_5555; [bits[35]:0x7_ffff_ffff, bits[35]:0x0, bits[35]:0x5_5555_5555, bits[35]:0x0, bits[35]:0x1_5554_57bb, bits[35]:0x4747_cd75, bits[35]:0x3_ffff_ffff, bits[35]:0x3_ffff_ffff, bits[35]:0x2_aaaa_aaaa]; [(bits[10]:0x3ff, bits[2]:0x0, bits[3]:0x7), (bits[10]:0x155, bits[2]:0x1, bits[3]:0x5), (bits[10]:0x2aa, bits[2]:0x3, bits[3]:0x1), (bits[10]:0x155, bits[2]:0x1, bits[3]:0x3), (bits[10]:0x0, bits[2]:0x1, bits[3]:0x5), (bits[10]:0x2aa, bits[2]:0x2, bits[3]:0x3), (bits[10]:0x254, bits[2]:0x1, bits[3]:0x7), (bits[10]:0x369, bits[2]:0x0, bits[3]:0x3)]; bits[37]:0x0; bits[62]:0x0; bits[8]:0x51; bits[59]:0x0; bits[26]:0x1ff_ffff; bits[5]:0x2; bits[42]:0x1ff_ffff_ffff
 // args: bits[46]:0x3fff_ffff_ffff; [bits[35]:0x5_5555_5555, bits[35]:0x2_63ff_da7d, bits[35]:0x5_5555_5555, bits[35]:0x6_5c2f_af7d, bits[35]:0x7_ffdf_ffff, bits[35]:0x0, bits[35]:0x7_fbfe_ffff, bits[35]:0x3_ffb7_7fff, bits[35]:0x7_feff_fdff]; [(bits[10]:0x0, bits[2]:0x1, bits[3]:0x0), (bits[10]:0x79, bits[2]:0x0, bits[3]:0x5), (bits[10]:0x0, bits[2]:0x0, bits[3]:0x2), (bits[10]:0x27b, bits[2]:0x3, bits[3]:0x7), (bits[10]:0x155, bits[2]:0x3, bits[3]:0x4), (bits[10]:0x37e, bits[2]:0x1, bits[3]:0x6), (bits[10]:0x1ff, bits[2]:0x2, bits[3]:0x1), (bits[10]:0x155, bits[2]:0x1, bits[3]:0x7)]; bits[37]:0x400; bits[62]:0x3fff_ffff_ffff_ffff; bits[8]:0x20; bits[59]:0x7ff_ffff_ffff_ffff; bits[26]:0x155_5555; bits[5]:0x1f; bits[42]:0x3ff_ffff_ffff
 // args: bits[46]:0x2aaa_aaaa_aaaa; [bits[35]:0x2_aaaa_aaaa, bits[35]:0x0, bits[35]:0x1000, bits[35]:0x2_92e3_da82, bits[35]:0x3_ffff_ffff, bits[35]:0x3_2b92_31ae, bits[35]:0x1_a8a8_729c, bits[35]:0x7_aa2a_abaa, bits[35]:0x5_5555_5555]; [(bits[10]:0x3ff, bits[2]:0x2, bits[3]:0x3), (bits[10]:0x2aa, bits[2]:0x3, bits[3]:0x2), (bits[10]:0x3ff, bits[2]:0x2, bits[3]:0x0), (bits[10]:0xba, bits[2]:0x0, bits[3]:0x7), (bits[10]:0x0, bits[2]:0x3, bits[3]:0x0), (bits[10]:0xef, bits[2]:0x3, bits[3]:0x2), (bits[10]:0x2aa, bits[2]:0x1, bits[3]:0x3), (bits[10]:0x2aa, bits[2]:0x1, bits[3]:0x2)]; bits[37]:0x0; bits[62]:0x1555_5555_5555_5555; bits[8]:0xff; bits[59]:0x4_0000_0000; bits[26]:0x208_9a9a; bits[5]:0x12; bits[42]:0x10_0000_0000
-const W4_V8 = u4:8;
-const W4_V9 = u4:9;
+const W32_V8 = u32:8;
+const W32_V9 = u32:9;
 type x2 = s35;
 type x4 = (s10, u2, u3);
 type x33 = u46;
-fn main(x0: u46, x1: x2[W4_V9], x3: x4[W4_V8], x5: s37, x6: s62, x7: s8, x8: u59, x9: u26, x10: s5, x11: u42) -> (bool, u59, x4[3], x33[2]) {
+fn main(x0: u46, x1: x2[W32_V9], x3: x4[W32_V8], x5: s37, x6: s62, x7: s8, x8: u59, x9: u26, x10: s5, x11: u42) -> (bool, u59, x4[3], x33[2]) {
   let x12: bool = (x3) == (x3);
   let x13: u2 = (x10)[x0+:u2];
   let x14: u2 = (((x5) as u2)) & (x13);

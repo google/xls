@@ -84,7 +84,7 @@ pub enum MyEnum : u32 {
 // Basic typedef support.
 TEST(CppTranspilerTest, BasicTypedefs) {
   const std::string kModule = R"(
-const CONST_1 = u8:4;
+const CONST_1 = u32:4;
 
 type MyType = u6;
 type MySignedType = s8;

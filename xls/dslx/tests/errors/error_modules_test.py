@@ -311,6 +311,17 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('Could not evaluate dimension expression to a constant value',
                   stderr)
 
+  def test_signed_array_size(self):
+    stderr = self._run('xls/dslx/tests/errors/signed_array_size.x')
+    self.assertIn('signed_array_size.x:17:18-17:22', stderr)
+    self.assertIn('Dimension SIZE must be a `u32`', stderr)
+
+  # TODO(leary): 2021-06-30 We currently don't flag when an array dimension
+  # value resolves to signed *after* parametric instantiation.
+  @test_base.skip('Currently not flagging this as an error')
+  def test_signed_parametric_in_array_size(self):
+    self._run('xls/dslx/tests/errors/signed_parametric_in_array_size.x')
+
 
 if __name__ == '__main__':
   test_base.main()

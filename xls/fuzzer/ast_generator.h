@@ -435,7 +435,8 @@ class AstGenerator {
 
   // Gets-or-creates a top level constant with the given value, using the
   // minimum number of bits required to make that constant.
-  ConstRef* GetOrCreateConstRef(int64_t value);
+  ConstRef* GetOrCreateConstRef(
+      int64_t value, absl::optional<int64_t> want_width = absl::nullopt);
 
   template <typename T>
   T RandomSetChoice(const absl::btree_set<T>& choices) {

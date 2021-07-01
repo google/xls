@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2021 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,16 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Note that the size is all-bits-set, the DSL should interpret it as an
-// unsigned value.
-const SIZE_3 = u2:0b11;
-const SIZE_2 = u2:0b10;
+fn p<N: s32>() -> u32[N] { u32[N]:[0, ...] }
 
-fn main() -> (u32[SIZE_3], u32[SIZE_2]) {
-  (u32[SIZE_3]:[0, ...], u32[SIZE_2]:[0, ...])
-}
-
-#![test]
-fn test_main() {
-  assert_eq(main(), (u32[3]:[0, 0, 0], u32[2]:[0, 0]))
+fn main() -> u32[1] {
+  p<s32:1>()
 }

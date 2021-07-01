@@ -141,7 +141,7 @@
 // args: bits[52]:0x80; bits[16]:0x1aa0; bits[62]:0x8_0000_0000; bits[6]:0x0
 // args: bits[52]:0x400; bits[16]:0x8; bits[62]:0x2000_0000_0000_0000; bits[6]:0x4
 // args: bits[52]:0x8000_0000; bits[16]:0x2c; bits[62]:0x100_0000_0000_0000; bits[6]:0x2
-const W1_V1 = u1:0x1;
+const W32_V1 = u32:0x1;
 type x19 = (s40, (s40,), s40, s40, s40, s40, (s40, s40), s40, s40, s40, (s40, s40), s40);
 type x29 = u8;
 type x32 = u31;
@@ -199,7 +199,7 @@ fn main(x0: s52, x1: s16, x2: u62, x3: u6) -> (u14, x48[0x4]) {
   let x42: u14 = u14:0x2aaa;
   let x43: s19 = s19:0x80;
   let x44: s64 = (((x26) as s64)) | (x24);
-  let x45: x46[W1_V1] = ((x30) as x46[W1_V1]);
+  let x45: x46[W32_V1] = ((x30) as x46[W32_V1]);
   let x47: x48[0x4] = ((x36) as x48[0x4]);
   let x49: u6 = ctz(x40);
   (x42, x47)

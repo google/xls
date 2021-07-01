@@ -1866,6 +1866,8 @@ xls_dslx_test(
     dep = ":update_within_parametric_dslx_module",
 )
 
+# -- width_slice_to_parametric
+
 xls_dslx_module_library(
     name = "width_slice_to_parametric_dslx_module",
     src = "width_slice_to_parametric.x",
@@ -1879,21 +1881,6 @@ xls_dslx_opt_ir(
 xls_dslx_opt_ir_test(
     name = "width_slice_to_parametric_test",
     dep = ":width_slice_to_parametric",
-)
-
-xls_dslx_module_library(
-    name = "array_size_all_bits_set_ellipsis_dslx_module",
-    src = "array_size_all_bits_set_ellipsis.x",
-)
-
-xls_dslx_opt_ir(
-    name = "array_size_all_bits_set_ellipsis",
-    dep = ":array_size_all_bits_set_ellipsis_dslx_module",
-)
-
-xls_dslx_opt_ir_test(
-    name = "array_size_all_bits_set_ellipsis_test",
-    dep = ":array_size_all_bits_set_ellipsis",
 )
 
 # -- mask_bits

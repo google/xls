@@ -12,15 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const START = s8:1;
-const LIMIT = s8:9;
-const WIDTH = (LIMIT-START) as u32;
+const SIZE = s32:42;
 
-fn main(x: u32) -> bits[WIDTH] {
-  x[START:LIMIT]
-}
-
-#![test]
-fn main_test() {
-  assert_eq(main(u32:0b1010_1010_1), u8:0b1010_1010)
+fn main() -> u32[SIZE] {
+  u32[SIZE]:[0, ...]
 }

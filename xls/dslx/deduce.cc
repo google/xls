@@ -1512,9 +1512,20 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
         name_ref->identifier(), dim_expr->span()));
   }
 
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> dim_type,
+                       ctx->Deduce(dim_expr));
+  auto u32_type = BitsType::MakeU32();
+  if (*dim_type != *u32_type) {
+    return XlsTypeErrorStatus(
+        dim_expr->span(), *dim_type, *u32_type,
+        absl::StrFormat(
+            "Dimension %s must be a `u32` (soon to be `usize`, see "
+            "https://github.com/google/xls/issues/450 for details).",
+            dim_expr->ToString()));
+  }
+
   ConstexprEnv env = MakeConstexprEnv(
       dim_expr, ctx->fn_stack().back().symbolic_bindings(), ctx);
-  XLS_RETURN_IF_ERROR(ctx->Deduce(dim_expr).status());
   absl::StatusOr<InterpValue> value_or = Interpreter::InterpretExpr(
       dim_expr->owner(),
       ctx->import_data()->GetRootTypeInfoForNode(dim_expr).value(),

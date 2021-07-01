@@ -141,7 +141,7 @@
 // args: bits[53]:0x40_0000
 // args: bits[53]:0x2
 // args: bits[53]:0x400
-const W1_V1 = u1:0x1;
+const W32_V1 = u32:0x1;
 type x19 = u1;
 fn main(x0: s53) -> (bool, s53, (s53, s53), u1, s53, s53, u1, s53, u1, (s53, s53)) {
   let x1: u1 = (x0) == (x0);
@@ -165,7 +165,7 @@ fn main(x0: s53) -> (bool, s53, (s53, s53), u1, s53, s53, u1, s53, u1, (s53, s53
   let x15: s53 = one_hot_sel(x6, [x12]);
   let x16: s53 = (x11)[0x1];
   let x17: s53 = -(x15);
-  let x18: x19[W1_V1] = ((x10) as x19[W1_V1]);
+  let x18: x19[W32_V1] = ((x10) as x19[W32_V1]);
   let x20: bool = (x5) >> ((bool:false) if ((((x8) as bool)) >= (bool:false)) else (((x8) as bool)));
   let x21: u1 = (x14)[:];
   (x5, x17, x2, x3, x0, x0, x10, x0, x4, x2)

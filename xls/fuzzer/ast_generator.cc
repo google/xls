@@ -267,11 +267,17 @@ int64_t AstGenerator::GetArraySize(const ArrayTypeAnnotation* type) {
   return number->GetAsUint64().value();
 }
 
-ConstRef* AstGenerator::GetOrCreateConstRef(int64_t value) {
+ConstRef* AstGenerator::GetOrCreateConstRef(
+    int64_t value, absl::optional<int64_t> want_width) {
   // We use a canonical naming scheme so we can detect duplicate requests for
   // the same value.
-  int64_t width = std::max(
-      int64_t{1}, static_cast<int64_t>(std::ceil(std::log2(value + 1))));
+  int64_t width;
+  if (want_width.has_value()) {
+    width = want_width.value();
+  } else {
+    width = std::max(int64_t{1},
+                     static_cast<int64_t>(std::ceil(std::log2(value + 1))));
+  }
   std::string identifier = absl::StrFormat("W%d_V%d", width, value);
   ConstantDef* constant_def;
   if (auto it = constants_.find(identifier); it != constants_.end()) {
@@ -297,7 +303,7 @@ ArrayTypeAnnotation* AstGenerator::MakeArrayType(TypeAnnotation* element_type,
   Expr* dim;
   if (RandomBool()) {
     // Get-or-create a module level constant for the array size.
-    dim = GetOrCreateConstRef(array_size);
+    dim = GetOrCreateConstRef(array_size, /*want_width=*/32);
   } else {
     dim = MakeNumber(array_size);
   }
