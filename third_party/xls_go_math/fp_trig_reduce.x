@@ -52,7 +52,7 @@ const PI_DIV_4_FP32 = float32::unflatten(u32:0x3f490fdb);
 // x falls in and z gives the radian offset into
 // this sector (note that this offset can be a
 // negative offset into the previous sector).
-fn fp_trig_reduce<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1>(x: APFloat<EXP_SZ, SFD_SZ>, pi_div_4: APFloat<EXP_SZ, SFD_SZ>) -> (u3, APFloat<EXP_SZ, SFD_SZ>) {
+pub fn fp_trig_reduce<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1>(x: APFloat<EXP_SZ, SFD_SZ>, pi_div_4: APFloat<EXP_SZ, SFD_SZ>) -> (u3, APFloat<EXP_SZ, SFD_SZ>) {
   // Check if reduction is necessary.
   let reduction_needed = apfloat::gte_2(x, pi_div_4);
 
@@ -136,6 +136,6 @@ fn fp_trig_reduce_64_test() {
 }
 
 // Main / entry function that's only used for JIT.
-fn main(x: F64) -> (u3, F64) {
+pub fn main(x: F64) -> (u3, F64) {
   fp_trig_reduce_64(x)
 }

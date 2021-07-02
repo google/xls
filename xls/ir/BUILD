@@ -922,17 +922,6 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "random_value",
-    srcs = ["random_value.cc"],
-    hdrs = ["random_value.h"],
-    deps = [
-        ":ir",
-        ":type",
-        ":value",
-    ],
-)
-
 cc_test(
     name = "value_view_test",
     srcs = ["value_view_test.cc"],

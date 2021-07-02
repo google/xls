@@ -242,7 +242,7 @@ fn idct_cols(f: s32[COEFF_PER_MCU]) -> s32[COEFF_PER_MCU] {
   }(s32[COEFF_PER_MCU]:[0, ...])
 }
 
-fn idct(f: s32[COEFF_PER_MCU]) -> s32[COEFF_PER_MCU] {
+pub fn idct(f: s32[COEFF_PER_MCU]) -> s32[COEFF_PER_MCU] {
   let f = idct_rows(f);
   let f = idct_cols(f);
   f

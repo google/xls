@@ -36,9 +36,6 @@ struct ConvertOptions {
   // Stripping positions can be useful for less fragile string matching in
   // development, e.g. tests.
   bool emit_positions = true;
-
-  // Whether to emit fail!() operations as predicated assertion IR nodes.
-  bool emit_fail_as_assert = false;
 };
 
 // Converts the contents of a module to IR form.

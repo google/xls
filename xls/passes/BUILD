@@ -977,18 +977,23 @@ cc_test(
 
 cc_test(
     name = "bdd_function_test",
-    srcs = ["bdd_function_test.cc"],
+    srcs = [
+        "bdd_function_test.cc",
+        "bdd_function_test.inc",
+    ],
     tags = ["optonly"],
     deps = [
         ":bdd_function",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/dslx:ir_converter",
+        "//xls/dslx:parse_and_typecheck",
         "//xls/examples:sample_packages",
         "//xls/interpreter:ir_interpreter",
+        "//xls/interpreter:random_value",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "//xls/ir:random_value",
         "@com_google_googletest//:gtest",
     ],
 )

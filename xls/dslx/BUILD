@@ -774,8 +774,8 @@ cc_library(
         ":symbolic_bindings",
         ":typecheck",
         "//xls/interpreter:ir_interpreter",
+        "//xls/interpreter:random_value",
         "//xls/ir",
-        "//xls/ir:random_value",
         "//xls/jit:ir_jit",
     ],
 )
