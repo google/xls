@@ -42,6 +42,16 @@ Evaluates an XLS IR file with user-specified or random inputs. Includes
 features for evaluating the IR before and after optimizations which makes this
 tool very useful for identifying optimization bugs.
 
+This tool accepts two [mutually exclusive] optional args,
+`--input_validator_expr` and `--input_validator_path`, which allow the user to
+specify an expression to "filter" potential input values to discard invalid
+ones. For both, the filter must be a function, named `validator`, and must take
+params of the same layout as the function under test. This function should
+return true if the inputs are valid for the function and false otherwise.
+`--input_validator_expr` lists the function as an inline command-line argument,
+whereas `--input_validator_path` holds the path to a .x file containing the
+validation function.
+
 ## [`ir_minimizer_main`](https://github.com/google/xls/tree/main/xls/tools/ir_minimizer_main.cc)
 
 Tool for reducing IR to a minimal test case based on an external test.

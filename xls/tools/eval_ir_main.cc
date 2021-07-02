@@ -65,6 +65,11 @@ Evaluate IR with randomly-generated inputs, guaranteed to be odd:
    eval_ir_main --random_inputs=100 \
        --input_validator="fn validator(x: u32) -> bool { (x & u32:1) as bool }"
 
+Evaluate IR with randomly-generated inputs, whose constraints are specified
+in foo.x (with a function named "validator"):
+
+   eval_ir_main --random_inputs=100 --input_validator_path=foo.x
+
 Evaluate IR before and after optimizations:
 
    eval_ir_main --random_inputs=100 --optimize_ir IR_FILE
@@ -112,11 +117,14 @@ ABSL_FLAG(bool, test_llvm_jit, false,
 ABSL_FLAG(int64_t, llvm_opt_level, 3,
           "The optimization level of the LLVM JIT. Valid values are from 0 (no "
           "optimizations) to 3 (maximum optimizations).");
-ABSL_FLAG(std::string, input_validator, "",
+ABSL_FLAG(std::string, input_validator_expr, "",
           "DSLX expression to validate randomly-generated inputs. "
           "The expression can reference entry function input arguments "
           "and should return true if the arguments are valud for the "
           "function and false otherwise.");
+ABSL_FLAG(std::string, input_validator_path, "",
+          "Path to a file containing DSLX for an input validator as with "
+          "the `--input_validator` flag.");
 ABSL_FLAG(int64_t, input_validator_limit, 1024,
           "Maximum number of tries to generate a valid random input before "
           "giving up. Only used if \"input_validator\" is set.");
@@ -411,7 +419,12 @@ absl::Status RealMain(absl::string_view input_path) {
         << "Must specify --input, --input_file, or --random_inputs.";
     arg_sets.resize(absl::GetFlag(FLAGS_random_inputs));
     std::minstd_rand rng_engine;
-    std::string validator_text = absl::GetFlag(FLAGS_input_validator);
+    std::string validator_text = absl::GetFlag(FLAGS_input_validator_expr);
+    std::filesystem::path validator_path =
+        absl::GetFlag(FLAGS_input_validator_path);
+    if (!validator_path.empty()) {
+      XLS_ASSIGN_OR_RETURN(validator_text, GetFileContents(validator_path));
+    }
     std::unique_ptr<Package> validator_pkg;
     Function* validator = nullptr;
     if (!validator_text.empty()) {
@@ -474,5 +487,9 @@ int main(int argc, char** argv) {
     XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <ir-path>",
                                           argv[0]);
   }
+  XLS_QCHECK(absl::GetFlag(FLAGS_input_validator_expr).empty() ||
+             absl::GetFlag(FLAGS_input_validator_path).empty())
+      << "At most one one of 'input_validator' or 'input_validator_path' may "
+         "be specified.";
   XLS_QCHECK_OK(xls::RealMain(positional_arguments[0]));
 }

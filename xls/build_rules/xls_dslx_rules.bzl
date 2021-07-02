@@ -36,7 +36,7 @@ _DEFAULT_STDLIB_TARGET = "//xls/dslx/stdlib:x_files"
 
 _DEFAULT_INTERPRETER_TARGET = "//xls/dslx:interpreter_main"
 
-def get_transitive_dslx_srcs_files_depset(srcs, deps):
+def get_transitive_dslx_srcs_files_depset(srcs, deps, stdlib):
     """Returns a depset representing the transitive DSLX source files.
 
     The macro is used to collect the transitive DSLX source files of a target.
@@ -44,6 +44,8 @@ def get_transitive_dslx_srcs_files_depset(srcs, deps):
     Args:
       srcs: a list of DSLX source files (.x)
       deps: a list of targets
+      stdlib: Target (as in Bazel Target object) containing the DSLX stdlib
+          files.
 
     Returns:
       A depset collection where the files from 'srcs' are placed in the 'direct'
@@ -52,7 +54,7 @@ def get_transitive_dslx_srcs_files_depset(srcs, deps):
     """
     return depset(
         srcs,
-        transitive = [dep[DslxInfo].dslx_source_files for dep in deps],
+        transitive = [dep[DslxInfo].dslx_source_files for dep in deps] + [stdlib.files],
     )
 
 def get_transitive_dslx_dummy_files_depset(srcs, deps):
@@ -250,6 +252,7 @@ def _xls_dslx_library_impl(ctx):
     my_srcs_depset = get_transitive_dslx_srcs_files_depset(
         ctx.files.srcs,
         ctx.attr.deps,
+        ctx.attr._dslx_std_lib,
     )
 
     # The required files are the source files from the current target, the
@@ -265,12 +268,19 @@ def _xls_dslx_library_impl(ctx):
         my_dummy_files,
         ctx.attr.deps,
     )
+
+    runfiles = ctx.runfiles(files = ctx.files.srcs, transitive_files = ctx.attr._dslx_std_lib.files)
+    for dep in ctx.attr.deps:
+        runfiles = runfiles.merge(dep.default_runfiles)
     return [
         DslxInfo(
             dslx_source_files = my_srcs_depset,
             dslx_dummy_files = dummy_files_depset,
         ),
-        DefaultInfo(files = dummy_files_depset),
+        DefaultInfo(
+            files = dummy_files_depset,
+            runfiles = runfiles,
+        ),
     ]
 
 xls_dslx_library = rule(
@@ -371,6 +381,7 @@ def _xls_dslx_module_library_impl(ctx):
     my_srcs_depset = get_transitive_dslx_srcs_files_depset(
         [src],
         ctx.attr.deps,
+        ctx.attr._dslx_std_lib,
     )
     my_srcs_list = my_srcs_depset.to_list()
 
@@ -387,6 +398,11 @@ def _xls_dslx_module_library_impl(ctx):
         ctx.attr.deps,
     )
     dummy_files_list = dummy_files_depset.to_list()
+
+    runfiles = ctx.runfiles(files = ctx.files.src, transitive_files = ctx.attr._dslx_std_lib.files)
+    for dep in ctx.attr.deps:
+        runfiles = runfiles.merge(dep.default_runfiles)
+
     return [
         DslxInfo(
             dslx_source_files = my_srcs_depset,
@@ -398,7 +414,10 @@ def _xls_dslx_module_library_impl(ctx):
             dslx_source_module_file = src,
             dslx_dummy_module_file = my_dummy_file,
         ),
-        DefaultInfo(files = dummy_files_depset),
+        DefaultInfo(
+            files = dummy_files_depset,
+            runfiles = runfiles,
+        ),
     ]
 
 # TODO(vmirian) 06-16-21 https://github.com/google/xls/issues/447

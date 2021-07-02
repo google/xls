@@ -293,12 +293,23 @@ def get_eval_ir_test_cmd(ctx, src, entry = None, append_cmd_line_args = True):
         "test_llvm_jit",
         "llvm_opt_level",
         "test_only_inject_jit_result",
+        "input_validator_expr",
+        "input_validator_path",
     )
 
     ir_eval_args = dict(ctx.attr.ir_eval_args)
 
     # If "entry" not defined in arguments, use global "entry" attribute.
     ir_eval_args = _add_entry_attr(ctx, ir_eval_args, "entry", entry)
+
+    runfiles = []
+    if ctx.attr.input_validator:
+        validator_info = ctx.attr.input_validator[DslxModuleInfo]
+        ir_eval_args["input_validator_path"] = validator_info.dslx_source_module_file.short_path
+        runfiles.append(validator_info.dslx_source_module_file)
+        runfiles = runfiles + validator_info.dslx_source_files
+    elif ctx.attr.input_validator_expr:
+        ir_eval_args["input_validator_expr"] = "\"" + ctx.attr.input_validator_expr + "\""
 
     my_args = get_args(ir_eval_args, IR_EVAL_FLAGS, ir_eval_default_args)
 
@@ -314,7 +325,7 @@ def get_eval_ir_test_cmd(ctx, src, entry = None, append_cmd_line_args = True):
 
     # The required runfiles are the source file and the IR interpreter tool
     # executable.
-    runfiles = [src, ctx.executable._ir_eval_tool]
+    runfiles = runfiles + [src, ctx.executable._ir_eval_tool]
     return runfiles, cmd
 
 def get_benchmark_ir_cmd(ctx, src, entry = None, append_cmd_line_args = True):
@@ -744,6 +755,9 @@ def _xls_eval_ir_test_impl(ctx):
     Returns:
       DefaultInfo provider
     """
+    if ctx.attr.input_validator and ctx.attr.input_validator_expr:
+        fail(msg = "Only one of \"input_validator\" or \"input_validator_expr\" " +
+                   "may be specified for a single \"xls_eval_ir_test\" rule.")
     src = ctx.file.src
     runfiles, cmd = get_eval_ir_test_cmd(ctx, src)
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
@@ -767,6 +781,16 @@ def _xls_eval_ir_test_impl(ctx):
     ]
 
 xls_eval_ir_test_attrs = {
+    "input_validator": attr.label(
+        doc = "The target defining the input validator for this test. " +
+              "Mutually exclusive with \"input_validator_expr\".",
+        providers = [DslxModuleInfo],
+        allow_files = True,
+    ),
+    "input_validator_expr": attr.string(
+        doc = "The expression to validate an input for the test function. " +
+              "Mutually exclusive with \"input_validator\".",
+    ),
     "ir_eval_args": attr.string_dict(
         doc = "Arguments of the IR interpreter.",
         default = _DEFAULT_IR_EVAL_TEST_ARGS,
@@ -777,6 +801,14 @@ xls_eval_ir_test_attrs = {
         allow_single_file = True,
         executable = True,
         cfg = "exec",
+    ),
+    # TODO(rspringer): 2021-06-30 Remove this attribute when we can - we'd
+    # expect the stdlib to be automatically part of the runfiles for a DSLX
+    # lib target.
+    "_dslx_std_lib": attr.label(
+        doc = "The target containing the DSLX std library.",
+        default = _DEFAULT_STDLIB_TARGET,
+        cfg = "target",
     ),
 }
 

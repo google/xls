@@ -237,7 +237,7 @@ class EvalMainTest(absltest.TestCase):
 
     ir_file = self.create_tempfile(content=FAIL_IR)
     result = subprocess.check_output([
-        EVAL_IR_MAIN_PATH, '--input_validator={}'.format(input_validator),
+        EVAL_IR_MAIN_PATH, '--input_validator_expr={}'.format(input_validator),
         '--random_inputs=1024', ir_file.full_path
     ])
     products = result.decode('utf-8').split()
@@ -252,7 +252,7 @@ class EvalMainTest(absltest.TestCase):
 
     ir_file = self.create_tempfile(content=FAIL_IR)
     comp = subprocess.run([
-        EVAL_IR_MAIN_PATH, '--input_validator={}'.format(input_validator),
+        EVAL_IR_MAIN_PATH, '--input_validator_expr={}'.format(input_validator),
         '--random_inputs=1024', ir_file.full_path
     ],
                           stderr=subprocess.PIPE,

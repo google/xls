@@ -553,3 +553,37 @@ xls_dslx_verilog_macro(
     },
     dep = ":simple_example_five_dslx_module",
 )
+
+################################################################################
+# Tests of eval_ir input validators.
+################################################################################
+xls_dslx_module_library(
+    name = "die_if_odd_module",
+    src = "die_if_odd.x",
+)
+
+xls_dslx_module_library(
+    name = "die_if_odd_validator_module",
+    src = "die_if_odd_validator.x",
+)
+
+xls_dslx_opt_ir(
+    name = "die_if_odd",
+    dep = ":die_if_odd_module",
+    ir_file = "die_if_odd.ir",
+    opt_ir_file = "die_if_odd.opt.ir",
+)
+
+# Check that 'input_validator_expr' works right.
+xls_eval_ir_test(
+    name = "die_if_odd_eval_ir_test_inline_validator",
+    src = ":die_if_odd.ir",
+    input_validator_expr = "fn validator(x: u32) -> bool { !((x & u32:1) as bool) }",
+)
+
+# Check that 'input_validator' works right.
+xls_eval_ir_test(
+    name = "die_if_odd_eval_ir_test_file_validator",
+    src = ":die_if_odd.ir",
+    input_validator = ":die_if_odd_validator_module",
+)
