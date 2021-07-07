@@ -23,7 +23,7 @@ XLSCC_MAIN_PATH = runfiles.get_path("xls/contrib/xlscc/xlscc")
 
 FUNC_CPP_SRC = """
 #pragma hls_top
-int foo(int a, int b){
+int my_function(int a, int b){
 	return a+b;
 }
 """
@@ -32,10 +32,10 @@ BLOCK_CPP_SRC = """
 #include "/xls_builtin.h"
 
 #pragma hls_top
-void foo(int& dir,
-          __xls_channel<int>& in,
-          __xls_channel<int>& out1,
-          __xls_channel<int>& out2) {
+void my_function(int& dir,
+                 __xls_channel<int>& in,
+                 __xls_channel<int>& out1,
+                 __xls_channel<int>& out2) {
 
 
   int x = in.read();
@@ -53,8 +53,8 @@ BLOCK_CPP_SRC2 = """
 #include "/xls_builtin.h"
 
 #pragma hls_top
-void foo(int& dir,
-          __xls_channel<int>& out) {
+void my_function(int& dir,
+                 __xls_channel<int>& out) {
 
   out.write(dir);
 
@@ -78,7 +78,7 @@ class XlsccMainTest(absltest.TestCase):
     cpp_file = self.create_tempfile(file_path="src.cc", content=BLOCK_CPP_SRC)
 
     block_out = hls_block_pb2.HLSBlock()
-    block_out.name = "foo"
+    block_out.name = "my_function"
 
     channel = hls_block_pb2.HLSChannel()
     channel.name = "dir"
@@ -118,7 +118,7 @@ class XlsccMainTest(absltest.TestCase):
     cpp_file = self.create_tempfile(file_path="src.cc", content=BLOCK_CPP_SRC2)
 
     block_out = hls_block_pb2.HLSBlock()
-    block_out.name = "foo"
+    block_out.name = "my_function"
 
     channel = hls_block_pb2.HLSChannel()
     channel.name = "dir"
@@ -137,10 +137,14 @@ class XlsccMainTest(absltest.TestCase):
     with open(block_pb_file.full_path, "wb") as f:
       f.write(block_out.SerializeToString())
 
-    subprocess.check_call([
+    verilog = subprocess.check_output([
         XLSCC_MAIN_PATH, cpp_file.full_path, "--block_pb",
         block_pb_file.full_path
-    ])
+    ]).decode("utf-8")
+
+    # Do some simple checking of the verilog output.
+    self.assertIn("module my_function_proc(", verilog)
+    self.assertIn("output wire [31:0] out", verilog)
 
 
 if __name__ == "__main__":

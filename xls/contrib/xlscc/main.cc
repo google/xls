@@ -139,7 +139,7 @@ absl::Status Run(absl::string_view cpp_path) {
 
     XLS_ASSIGN_OR_RETURN(
         xls::Block * xls_block,
-        xls::verilog::ProcToCombinationalBlock(proc, "foo_proc"));
+        xls::verilog::ProcToCombinationalBlock(proc, proc->name()));
     std::cerr << "Generating Verilog..." << std::endl;
     XLS_ASSIGN_OR_RETURN(
         std::string verilog,
