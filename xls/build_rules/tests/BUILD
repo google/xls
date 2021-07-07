@@ -536,6 +536,9 @@ xls_dslx_opt_ir_test(
     },
 )
 
+################################################################################
+# Test for macros
+################################################################################
 # The target is the macro form of the 'chaining_example_verilog' target.
 xls_ir_verilog_macro(
     name = "chaining_example_verilog_macro",
