@@ -14,21 +14,17 @@
 
 #include "xls/passes/bdd_function.h"
 
-#include <memory>
 #include <random>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/ir_converter.h"
-#include "xls/dslx/parse_and_typecheck.h"
 #include "xls/examples/sample_packages.h"
 #include "xls/interpreter/function_interpreter.h"
-#include "xls/interpreter/random_value.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
-#include "xls/passes/bdd_function_test.inc"
+#include "xls/ir/random_value.h"
 
 namespace xls {
 namespace {
@@ -125,10 +121,7 @@ TEST_F(BddFunctionTest, BenchmarkTest) {
       XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BddFunction> bdd_function,
                                BddFunction::Run(entry, path_limit));
       for (int64_t i = 0; i < kSampleCount; ++i) {
-        XLS_ASSERT_OK_AND_ASSIGN(
-            std::vector<Value> inputs,
-            GenerateFunctionArguments(entry, &engine, benchmark));
-
+        std::vector<Value> inputs = RandomFunctionArguments(entry, &engine);
         XLS_ASSERT_OK_AND_ASSIGN(Value expected,
                                  InterpretFunction(entry, inputs));
         XLS_ASSERT_OK_AND_ASSIGN(Value actual, bdd_function->Evaluate(inputs));

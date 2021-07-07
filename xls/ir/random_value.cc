@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/interpreter/random_value.h"
-
-#include "absl/status/status.h"
-#include "xls/interpreter/function_interpreter.h"
+#include "xls/ir/random_value.h"
 
 namespace xls {
 
@@ -55,42 +52,6 @@ std::vector<Value> RandomFunctionArguments(Function* f,
     inputs.push_back(RandomValue(param->GetType(), engine));
   }
   return inputs;
-}
-
-absl::StatusOr<std::vector<Value>> RandomFunctionArguments(
-    Function* f, std::minstd_rand* engine, Function* validator,
-    int64_t max_attempts) {
-  if (validator == nullptr) {
-    return absl::InvalidArgumentError(
-        "Function argument validator can not be null.");
-  }
-
-  Type* validator_return = validator->GetType()->return_type();
-  if (!validator_return->IsBits() || validator_return->GetFlatBitCount() != 1) {
-    XLS_LOG(INFO) << "VR: " << validator_return->ToString();
-    return absl::InvalidArgumentError(
-        "Function argument validator must return a single bit value.");
-  }
-
-  // Accept or reject candidates based on the result of evaluating against the
-  // validator function.
-  int64_t num_attempts = 0;
-  while (num_attempts++ < max_attempts) {
-    std::vector<Value> inputs;
-    for (Param* param : f->params()) {
-      inputs.push_back(RandomValue(param->GetType(), engine));
-    }
-
-    XLS_ASSIGN_OR_RETURN(Value result, InterpretFunction(validator, inputs));
-    if (result.bits().IsOne()) {
-      return inputs;
-    }
-  }
-
-  return absl::ResourceExhaustedError(absl::StrCat(
-      "Unable to generate valid input after ", max_attempts,
-      "attempts. The validator may be difficult/impossible to satisfy "
-      "or the limit should be increased."));
 }
 
 }  // namespace xls

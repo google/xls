@@ -24,7 +24,7 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/typecheck.h"
 #include "xls/interpreter/function_interpreter.h"
-#include "xls/interpreter/random_value.h"
+#include "xls/ir/random_value.h"
 
 namespace xls::dslx {
 namespace {
@@ -318,9 +318,11 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
               .value()
               ->GetRequiresImplicitToken(f);
       XLS_RET_CHECK(requires_implicit_token.has_value());
-      return options.run_comparator->RunComparison(
-          ir_package.get(), *requires_implicit_token, f, args,
-          symbolic_bindings, got);
+      bool use_implicit_token = options.convert_options.emit_fail_as_assert &&
+                                *requires_implicit_token;
+      return options.run_comparator->RunComparison(ir_package.get(),
+                                                   use_implicit_token, f, args,
+                                                   symbolic_bindings, got);
     };
   }
 

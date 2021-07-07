@@ -64,6 +64,7 @@
 #include "xls/ir/format_preference.h"
 #include "xls/ir/keyword_args.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/random_value.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"

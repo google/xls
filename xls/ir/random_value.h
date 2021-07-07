@@ -12,16 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/import_data.h"
-#include "xls/dslx/ir_converter.h"
-#include "xls/dslx/parse_and_typecheck.h"
-#include "xls/interpreter/random_value.h"
+#ifndef XLS_IR_RANDOM_VALUE_H_
+#define XLS_IR_RANDOM_VALUE_H_
+
+#include <random>
+#include <vector>
+
+#include "xls/ir/function.h"
+#include "xls/ir/type.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 
-absl::StatusOr<std::vector<Value>> GenerateFunctionArguments(
-    Function* f, std::minstd_rand* engine, absl::string_view benchmark) {
-  return RandomFunctionArguments(f, engine);
-}
+// Returns a Value with random uniformly distributed bits using the given
+// engine.
+Value RandomValue(Type* type, std::minstd_rand* engine);
+
+// Returns a set of argument values for the given function with random uniformly
+// distributed bits using the given engine.
+std::vector<Value> RandomFunctionArguments(Function* f,
+                                           std::minstd_rand* engine);
 
 }  // namespace xls
+
+#endif  // XLS_IR_RANDOM_VALUE_H_

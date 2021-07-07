@@ -1655,24 +1655,11 @@ xls_dslx_module_library(
 xls_dslx_opt_ir(
     name = "mod_enum_fully_qualified_match_importer",
     dep = ":mod_enum_fully_qualified_match_importer_dslx_module",
-    ir_file = "mod_enum_fully_qualified_match_importer.ir",
 )
 
-# TODO(rspringer): 2021-06-29 We can't lower fail!/assert to Z3, so we can't do
-# opt/unopt equivalence testing yet.
-xls_dslx_test(
-    name = "mod_enum_fully_qualified_match_importer_dslx_test",
-    dep = ":mod_enum_fully_qualified_match_importer_dslx_module",
-)
-
-xls_eval_ir_test(
-    name = "mod_enum_fully_qualified_match_importer_eval_ir_test",
-    src = ":mod_enum_fully_qualified_match_importer.ir",
-)
-
-xls_benchmark_ir(
-    name = "mod_enum_fully_qualified_match_importer_benchmark_ir",
-    src = ":mod_enum_fully_qualified_match_importer.ir",
+xls_dslx_opt_ir_test(
+    name = "mod_enum_fully_qualified_match_importer_test",
+    dep = ":mod_enum_fully_qualified_match_importer",
 )
 
 xls_dslx_library(

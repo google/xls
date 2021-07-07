@@ -79,8 +79,14 @@ struct ImplicitTokenData {
 
 // Wrapper around the type information query for whether DSL function "f"
 // requires an implicit token calling convention.
+//
+// This query is not necessary when emit_fail_as_assert is off, then we never
+// use the "implicit token" calling convention.
 static bool GetRequiresImplicitToken(dslx::Function* f, ImportData* import_data,
                                      const ConvertOptions& options) {
+  if (!options.emit_fail_as_assert) {
+    return false;
+  }
   absl::optional<bool> requires_opt = import_data->GetRootTypeInfo(f->owner())
                                           .value()
                                           ->GetRequiresImplicitToken(f);
@@ -1818,20 +1824,21 @@ absl::Status FunctionConverter::HandleUdfInvocation(Invocation* node,
 
 absl::Status FunctionConverter::HandleFailBuiltin(Invocation* node,
                                                   BValue arg) {
-  // For a fail node we both create a predicate that corresponds to the
-  // "control" leading to this DSL program point.
-  XLS_RET_CHECK(implicit_token_data_.has_value())
-      << "Invoking fail!(), but no implicit token is present for caller @ "
-      << node->span();
-  XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
-  BValue control_predicate = implicit_token_data_->create_control_predicate();
-  std::string message = absl::StrFormat("Assertion failure via fail! @ %s",
-                                        node->span().ToString());
-  BValue assert_result_token = function_builder_->Assert(
-      implicit_token_data_->entry_token,
-      function_builder_->Not(control_predicate), message);
-  implicit_token_data_->control_tokens.push_back(assert_result_token);
-
+  if (options_.emit_fail_as_assert) {
+    // For a fail node we both create a predicate that corresponds to the
+    // "control" leading to this DSL program point.
+    XLS_RET_CHECK(implicit_token_data_.has_value())
+        << "Invoking fail!(), but no implicit token is present for caller @ "
+        << node->span();
+    XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
+    BValue control_predicate = implicit_token_data_->create_control_predicate();
+    std::string message = absl::StrFormat("Assertion failure via fail! @ %s",
+                                          node->span().ToString());
+    BValue assert_result_token = function_builder_->Assert(
+        implicit_token_data_->entry_token,
+        function_builder_->Not(control_predicate), message);
+    implicit_token_data_->control_tokens.push_back(assert_result_token);
+  }
   // The result of the failure call is the argument given; e.g. if we were to
   // remove assertions this is the value that would flow in the case that the
   // assertion was hit.
@@ -1843,20 +1850,25 @@ absl::Status FunctionConverter::HandleFailBuiltin(Invocation* node,
 
 absl::Status FunctionConverter::HandleCoverBuiltin(Invocation* node,
                                                    BValue condition) {
-  // For a cover node we both create a predicate that corresponds to the
-  // "control" leading to this DSL program point.
-  XLS_RET_CHECK(implicit_token_data_.has_value())
-      << "Invoking cover!(), but no implicit token is present for caller @ "
-      << node->span();
-  XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
-  XLS_RET_CHECK_EQ(node->args().size(), 2);
-  String* label = dynamic_cast<String*>(node->args()[0]);
-  XLS_RET_CHECK(label != nullptr)
-      << "cover!() argument 0 must be a literal string "
-      << "(should have been typechecked?).";
-  BValue cover_result_token = function_builder_->Cover(
-      implicit_token_data_->entry_token, condition, label->text());
-  implicit_token_data_->control_tokens.push_back(cover_result_token);
+  // TODO(https://github.com/google/xls/issues/232): 2021-05-21: Control cover!
+  // emission with the same flag as fail!, since they share a good amount of
+  // infra and conceptually are related in how they lower to Verilog.
+  if (options_.emit_fail_as_assert) {
+    // For a cover node we both create a predicate that corresponds to the
+    // "control" leading to this DSL program point.
+    XLS_RET_CHECK(implicit_token_data_.has_value())
+        << "Invoking cover!(), but no implicit token is present for caller @ "
+        << node->span();
+    XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
+    XLS_RET_CHECK_EQ(node->args().size(), 2);
+    String* label = dynamic_cast<String*>(node->args()[0]);
+    XLS_RET_CHECK(label != nullptr)
+        << "cover!() argument 0 must be a literal string "
+        << "(should have been typechecked?).";
+    BValue cover_result_token = function_builder_->Cover(
+        implicit_token_data_->entry_token, condition, label->text());
+    implicit_token_data_->control_tokens.push_back(cover_result_token);
+  }
 
   // The result of the cover call is the argument given; e.g. if we were to
   // turn off coverpoints, this is the value that would be used.

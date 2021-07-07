@@ -17,7 +17,7 @@ import xls.modules.apfloat_add_2
 import bfloat16
 
 type BF16 = bfloat16::BF16;
-
-pub fn fpadd_2xbf16(x: BF16, y: BF16) -> BF16 {
+fn fpadd_2xbf16(x: BF16, y: BF16) -> BF16 {
   apfloat_add_2::add<u32:8, u32:7>(x, y)
 }
+

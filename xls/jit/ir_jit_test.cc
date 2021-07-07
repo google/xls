@@ -26,8 +26,8 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/ir_evaluator_test_base.h"
-#include "xls/interpreter/random_value.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/random_value.h"
 #include "re2/re2.h"
 
 namespace xls {

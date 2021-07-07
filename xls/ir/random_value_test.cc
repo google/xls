@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/interpreter/random_value.h"
+#include "xls/ir/random_value.h"
 
 #include <random>
 
