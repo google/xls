@@ -127,8 +127,8 @@ def _convert_to_ir(ctx, src, dep_src_list):
 
     ir_conv_args = dict(ctx.attr.ir_conv_args)
     ir_conv_args["dslx_path"] = (
-        ir_conv_args.get("dslx_path", "") + ":" + ctx.genfiles_dir.path +
-        ":" + ctx.bin_dir.path
+        ir_conv_args.get("dslx_path", "") + ":${PWD}:" +
+        ctx.genfiles_dir.path + ":" + ctx.bin_dir.path
     )
 
     my_args = get_args(ir_conv_args, IR_CONV_FLAGS)

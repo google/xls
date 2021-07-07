@@ -106,7 +106,7 @@ def parse_and_type_check(ctx, src, required_files):
             "{} {} --compare=none --execute=false --dslx_path={}".format(
                 ctx.executable._dslx_interpreter_tool.path,
                 src.path,
-                ctx.genfiles_dir.path,
+                ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path,
             ),
             "if [ $? -ne 0 ]; then",
             "exit -1",
@@ -144,8 +144,8 @@ def get_dslx_test_cmd(ctx, src, append_cmd_line_args = True):
 
     dslx_test_args = dict(_dslx_test_args)
     dslx_test_args["dslx_path"] = (
-        dslx_test_args.get("dslx_path", "") + ":" + ctx.genfiles_dir.path +
-        ":" + ctx.bin_dir.path
+        dslx_test_args.get("dslx_path", "") + ":${PWD}:" +
+        ctx.genfiles_dir.path + ":" + ctx.bin_dir.path
     )
     my_args = get_args(dslx_test_args, DSLX_TEST_FLAGS, dslx_test_default_args)
 

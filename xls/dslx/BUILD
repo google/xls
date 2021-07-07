@@ -521,10 +521,10 @@ cc_library(
     deps = [
         ":ast",
         ":import_data",
-        ":interp_bindings",
         ":parser",
         ":scanner",
         ":type_info",
+        "//xls/common/config:xls_config",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:ret_check",
