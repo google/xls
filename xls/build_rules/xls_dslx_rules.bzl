@@ -26,7 +26,7 @@ load(
     "DslxInfo",
     "DslxModuleInfo",
 )
-load("//xls/build_rules:xls_toolchains.bzl", "TOOLCHAIN_TYPE")
+load("//xls/build_rules:xls_toolchains.bzl", "xls_toolchain_attr")
 
 _DEFAULT_DSLX_TEST_ARGS = {
     "compare": "jit",
@@ -358,8 +358,8 @@ xls_dslx_library = rule(
         _xls_dslx_library_attrs,
         _xls_dslx_common_attrs,
         xls_dslx_exec_attrs,
+        xls_toolchain_attr,
     ),
-    toolchains = [TOOLCHAIN_TYPE],
 )
 
 def _xls_dslx_module_library_impl(ctx):
@@ -482,8 +482,8 @@ xls_dslx_module_library = rule(
         _xls_dslx_common_attrs,
         xls_dslx_exec_attrs,
         CONFIG["xls_outs_attrs"],
+        xls_toolchain_attr,
     ),
-    toolchains = [TOOLCHAIN_TYPE],
 )
 
 def _xls_dslx_test_impl(ctx):
@@ -550,7 +550,7 @@ xls_dslx_test = rule(
     attrs = dicts.add(
         xls_dslx_test_common_attrs,
         xls_dslx_exec_attrs,
+        xls_toolchain_attr,
     ),
     test = True,
-    toolchains = [TOOLCHAIN_TYPE],
 )

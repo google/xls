@@ -50,6 +50,3 @@ initialize_external_repositories()
 load("@com_github_grpc_grpc//bazel:grpc_extra_deps.bzl", "grpc_extra_deps")
 
 grpc_extra_deps()
-
-# Load toolchains for XLS
-register_toolchains("//xls/build_rules:all")

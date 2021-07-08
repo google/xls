@@ -177,14 +177,6 @@ bzl_library(
     visibility = ["//visibility:private"],
 )
 
-toolchain_type(name = "toolchain_type")
-
 xls_toolchain(
     name = "default_xls_toolchain",
-)
-
-toolchain(
-    name = "default_xls_toolchain_all_platforms",
-    toolchain = ":default_xls_toolchain",
-    toolchain_type = ":toolchain_type",
 )

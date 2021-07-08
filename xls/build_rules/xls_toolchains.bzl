@@ -34,11 +34,20 @@ _DEFAULT_CODEGEN_TARGET = "//xls/tools:codegen_main"
 
 _DEFAULT_JIT_WRAPPER_TARGET = "//xls/jit:jit_wrapper_generator_main"
 
+_DEFAULT_XLS_TOOLCHAIN_TARGET = "//xls/build_rules:default_xls_toolchain"
+
+def get_xls_toolchain_info(ctx):
+    return ctx.attr.toolchain[XlsToolchainInfo]
+
 XlsToolchainInfo = provider(
     doc = "A provider containing toolchain information.",
     fields = {
-        "dslx_std_lib": "List: The list of files composing the DSLX std " +
-                        "library.",
+        # Create a list and target instance for the standard library since
+        # converting a depset to a list is costly. The conversion will be
+        # performed once.
+        "dslx_std_lib_list": "List: The list of files composing the DSLX std " +
+                             "library.",
+        "dslx_std_lib_target": "Target: The target of the DSLX std library.",
         "dslx_interpreter_tool": "File: The DSLX interpreter executable.",
         "ir_converter_tool": "File: The IR converter executable.",
         "opt_ir_tool": "File: The IR optimizer executable.",
@@ -50,32 +59,26 @@ XlsToolchainInfo = provider(
     },
 )
 
-def get_xls_toolchain_info(ctx):
-    return ctx.toolchains[TOOLCHAIN_TYPE].xls_toolchain_info
-
 def _xls_toolchain_impl(ctx):
-    toolchain_info = platform_common.ToolchainInfo(
-        xls_toolchain_info = XlsToolchainInfo(
-            dslx_std_lib = ctx.attr.dslx_std_lib.files.to_list(),
-            dslx_interpreter_tool = (
-                ctx.attr.dslx_interpreter_tool.files.to_list()[0]
-            ),
-            ir_converter_tool = ctx.attr.ir_converter_tool.files.to_list()[0],
-            opt_ir_tool = ctx.attr.opt_ir_tool.files.to_list()[0],
-            ir_equivalence_tool = (
-                ctx.attr.ir_equivalence_tool.files.to_list()[0]
-            ),
-            ir_eval_tool = ctx.attr.ir_eval_tool.files.to_list()[0],
-            benchmark_ir_tool = ctx.attr.benchmark_ir_tool.files.to_list()[0],
-            codegen_tool = ctx.attr.codegen_tool.files.to_list()[0],
-            jit_wrapper_tool = ctx.attr.jit_wrapper_tool.files.to_list()[0],
+    xls_toolchain_info = XlsToolchainInfo(
+        dslx_std_lib_list = ctx.attr.dslx_std_lib.files.to_list(),
+        dslx_std_lib_target = ctx.attr.dslx_std_lib,
+        dslx_interpreter_tool = (
+            ctx.attr.dslx_interpreter_tool.files.to_list()[0]
         ),
+        ir_converter_tool = ctx.attr.ir_converter_tool.files.to_list()[0],
+        opt_ir_tool = ctx.attr.opt_ir_tool.files.to_list()[0],
+        ir_equivalence_tool = ctx.attr.ir_equivalence_tool.files.to_list()[0],
+        ir_eval_tool = ctx.attr.ir_eval_tool.files.to_list()[0],
+        benchmark_ir_tool = ctx.attr.benchmark_ir_tool.files.to_list()[0],
+        codegen_tool = ctx.attr.codegen_tool.files.to_list()[0],
+        jit_wrapper_tool = ctx.attr.jit_wrapper_tool.files.to_list()[0],
     )
-    return [toolchain_info]
+    return [xls_toolchain_info]
 
 xls_toolchain = rule(
     implementation = _xls_toolchain_impl,
-    provides = [platform_common.ToolchainInfo],
+    provides = [XlsToolchainInfo],
     attrs = {
         "dslx_std_lib": attr.label(
             doc = "The target containing the DSLX std library.",
@@ -141,4 +144,10 @@ xls_toolchain = rule(
     },
 )
 
-TOOLCHAIN_TYPE = "//xls/build_rules:toolchain_type"
+xls_toolchain_attr = {
+    "toolchain": attr.label(
+        doc = "The toolchain target.",
+        providers = [XlsToolchainInfo],
+        default = Label(_DEFAULT_XLS_TOOLCHAIN_TARGET),
+    ),
+}
