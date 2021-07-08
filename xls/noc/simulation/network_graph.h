@@ -79,23 +79,38 @@ class NetworkManager {
   // Get Network object given an id.
   Network& GetNetwork(NetworkId id);
 
+  // Get Network object given an id.
+  const Network& GetNetwork(NetworkId id) const;
+
   // Get NetworkComponent object given an id.
   NetworkComponent& GetNetworkComponent(NetworkComponentId id);
+
+  // Get NetworkComponent object given an id.
+  const NetworkComponent& GetNetworkComponent(NetworkComponentId id) const;
 
   // Get Connection object given an id.
   Connection& GetConnection(ConnectionId id);
 
+  // Get Connection object given an id.
+  const Connection& GetConnection(ConnectionId id) const;
+
   // Get Port object given an id.
   Port& GetPort(PortId id);
 
+  // Get Port object given an id.
+  const Port& GetPort(PortId id) const;
+
   // Get the id of the i-th network.
-  NetworkId GetNetworkIdByIndex(int64_t i) { return NetworkId(i); }
+  NetworkId GetNetworkIdByIndex(int64_t i) const { return NetworkId(i); }
 
   // Get the object of the i-th network.
   Network& GetNetworkByIndex(int64_t i) { return networks_[i]; }
 
+  // Get the object of the i-th network.
+  const Network& GetNetworkByIndex(int64_t i) const { return networks_[i]; }
+
   // Returns a vector of all managed network ids.
-  std::vector<NetworkId> GetNetworkIds() {
+  std::vector<NetworkId> GetNetworkIds() const {
     std::vector<NetworkId> ret(networks_.size());
     for (int64_t i = 0; i < networks_.size(); ++i) {
       ret[i] = NetworkId(i);
@@ -106,11 +121,16 @@ class NetworkManager {
   // Returns a span of all network objects.
   absl::Span<Network> GetNetworks() { return absl::MakeSpan(networks_); }
 
+  // Returns a span of all network objects.
+  absl::Span<const Network> GetNetworks() const {
+    return absl::MakeSpan(networks_);
+  }
+
   // Count of networks managed by this object.
-  int64_t GetNetworkCount() { return networks_.size(); }
+  int64_t GetNetworkCount() const { return networks_.size(); }
 
   // Print to stdout information about the network graph.
-  void Dump(int indent_level = 0);
+  void Dump(int indent_level = 0) const;
 
  private:
   std::vector<Network> networks_;
@@ -148,17 +168,26 @@ class Network {
   // Get NetworkComponent object given an id.
   NetworkComponent& GetNetworkComponent(NetworkComponentId id);
 
+  // Get NetworkComponent object given an id.
+  const NetworkComponent& GetNetworkComponent(NetworkComponentId id) const;
+
   // Get Connection object given an id.
   Connection& GetConnection(ConnectionId id);
+
+  // Get Connection object given an id.
+  const Connection& GetConnection(ConnectionId id) const;
 
   // Get Port object given an id.
   Port& GetPort(PortId id);
 
+  // Get Port object given an id.
+  const Port& GetPort(PortId id) const;
+
   // Returns id of this Network.
-  NetworkId id() { return id_; }
+  NetworkId id() const { return id_; }
 
   // Get the id of the i-th NetworkComponent.
-  NetworkComponentId GetNetworkComponentIdByIndex(int64_t i) {
+  NetworkComponentId GetNetworkComponentIdByIndex(int64_t i) const {
     return NetworkComponentId(id_.id(), i);
   }
 
@@ -167,8 +196,13 @@ class Network {
     return components_[i];
   }
 
+  // Get the object of the i-th NetworkComponent.
+  const NetworkComponent& GetNetworkComponentByIndex(int64_t i) const {
+    return components_[i];
+  }
+
   // Return a vector of all managed NetworkComponent ids.
-  std::vector<NetworkComponentId> GetNetworkComponentIds() {
+  std::vector<NetworkComponentId> GetNetworkComponentIds() const {
     std::vector<NetworkComponentId> ret(components_.size());
     for (int64_t i = 0; i < components_.size(); ++i) {
       ret[i] = NetworkComponentId(id_.id(), i);
@@ -181,16 +215,26 @@ class Network {
     return absl::MakeSpan(components_);
   }
 
+  // Return a span of all NetworkComponents.
+  absl::Span<const NetworkComponent> GetNetworkComponents() const {
+    return absl::MakeSpan(components_);
+  }
+
   // Get the id of the i-th Connection.
-  ConnectionId GetConnectionIdByIndex(int64_t i) {
+  ConnectionId GetConnectionIdByIndex(int64_t i) const {
     return ConnectionId(id_.id(), i);
   }
 
   // Get the object of the i-th Connection.
   Connection& GetConnectionByIndex(int64_t i) { return connections_[i]; }
 
+  // Get the object of the i-th Connection.
+  const Connection& GetConnectionByIndex(int64_t i) const {
+    return connections_[i];
+  }
+
   // Return a vector of all managed Connection ids.
-  std::vector<ConnectionId> GetConnectionIds() {
+  std::vector<ConnectionId> GetConnectionIds() const {
     std::vector<ConnectionId> ret(components_.size());
     for (int64_t i = 0; i < components_.size(); ++i) {
       ret[i] = ConnectionId(id_.id(), i);
@@ -203,14 +247,19 @@ class Network {
     return absl::MakeSpan(connections_);
   }
 
+  // Return a span of all Connections.
+  absl::Span<const Connection> GetConnections() const {
+    return absl::MakeSpan(connections_);
+  }
+
   // Count of networks components managed by this object.
-  int64_t GetNetworkComponentCount() { return components_.size(); }
+  int64_t GetNetworkComponentCount() const { return components_.size(); }
 
   // Count of connections managed by this object.
-  int64_t GetConnectionCount() { return connections_.size(); }
+  int64_t GetConnectionCount() const { return connections_.size(); }
 
   // Print to stdout information about this object.
-  void Dump(int indent_level = 0);
+  void Dump(int indent_level = 0) const;
 
  private:
   NetworkManager* mgr_;
@@ -233,14 +282,17 @@ class NetworkComponent {
   // Get Port object given an id.
   Port& GetPort(PortId id);
 
+  // Get Port object given an id.
+  const Port& GetPort(PortId id) const;
+
   // Returns id of this NetworkComponent.
-  NetworkComponentId id() { return id_; }
+  NetworkComponentId id() const { return id_; }
 
   // Returns kind (switch, link, etc...) of this NetworkCompnent.
-  NetworkComponentKind kind() { return kind_; }
+  NetworkComponentKind kind() const { return kind_; }
 
   // Get the id of the i-th Port.
-  PortId GetPortIdByIndex(int64_t i) {
+  PortId GetPortIdByIndex(int64_t i) const {
     return PortId(id_.GetNetworkId().id(),  // network
                   id_.id(),                 // component
                   i);
@@ -249,23 +301,29 @@ class NetworkComponent {
   // Get the object of the i-th Port.
   Port& GetPortByIndex(int64_t i) { return ports_[i]; }
 
+  // Get the object of the i-th Port.
+  const Port& GetPortByIndex(int64_t i) const { return ports_[i]; }
+
   // Returns a vector of all managed port ids.
-  std::vector<PortId> GetPortIds();
+  std::vector<PortId> GetPortIds() const;
 
   // Returns a vector of all managed output port ids.
-  std::vector<PortId> GetOutputPortIds();
+  std::vector<PortId> GetOutputPortIds() const;
 
   // Returns a vector of all managed output port ids.
-  std::vector<PortId> GetInputPortIds();
+  std::vector<PortId> GetInputPortIds() const;
 
   // Returns a span of all Port objects.
   absl::Span<Port> GetPorts() { return absl::MakeSpan(ports_); }
 
+  // Returns a span of all Port objects.
+  absl::Span<const Port> GetPorts() const { return absl::MakeSpan(ports_); }
+
   // Count of ports.
-  int64_t GetPortCount() { return ports_.size(); }
+  int64_t GetPortCount() const { return ports_.size(); }
 
   // Print to stdout information about this object.
-  void Dump(int indent_level = 0);
+  void Dump(int indent_level = 0) const;
 
  private:
   NetworkComponentId id_;
@@ -281,16 +339,16 @@ class Port {
   Port(PortId id, PortDirection dir) : id_(id), dir_(dir) {}
 
   // Returns id of this Port.
-  PortId id() { return id_; }
+  PortId id() const { return id_; }
 
   // Returns id of the connection attached to this Port.
-  ConnectionId connection() { return connection_; }
+  ConnectionId connection() const { return connection_; }
 
   // Returns direction of this Port.
-  PortDirection direction() { return dir_; }
+  PortDirection direction() const { return dir_; }
 
   // Print to stdout information about this object.
-  void Dump(int indent_level = 0);
+  void Dump(int indent_level = 0) const;
 
   // Set connection of this Port.
   //  - used by Connection::Attach()
@@ -315,13 +373,13 @@ class Connection {
   Connection(NetworkManager* mgr, ConnectionId id) : mgr_(mgr), id_(id) {}
 
   // Returns id of this Connection.
-  ConnectionId id() { return id_; }
+  ConnectionId id() const { return id_; }
 
   // Returns src port id.
-  PortId src() { return src_; }
+  PortId src() const { return src_; }
 
   // Returns sink port id.
-  PortId sink() { return sink_; }
+  PortId sink() const { return sink_; }
 
   // Detaches this connection from its src port.
   void DetachSrc();
@@ -334,7 +392,7 @@ class Connection {
   PortId Attach(PortId port);
 
   // Print to stdout information about this object.
-  void Dump(int indent_level = 0);
+  void Dump(int indent_level = 0) const;
 
  private:
   NetworkManager* mgr_;

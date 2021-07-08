@@ -55,13 +55,13 @@ class NetworkId {
   constexpr explicit NetworkId(uint16_t id) : id_(id) {}
 
   // Returns true if id is not kInvalid.
-  bool IsValid();
+  bool IsValid() const;
 
   // Returns the local id.
-  uint16_t id() { return id_; }
+  uint16_t id() const { return id_; }
 
   // Represent this as a 64-bit integer (used for logging/debug).
-  uint64_t AsUInt64() { return static_cast<uint64_t>(id_) << 48; }
+  uint64_t AsUInt64() const { return static_cast<uint64_t>(id_) << 48; }
 
   // Validate id is within range and return id object given an unpacked id.
   static absl::StatusOr<NetworkId> ValidateAndReturnId(int64_t id);
@@ -95,7 +95,7 @@ inline bool operator!=(NetworkId lhs, NetworkId rhs) {
   return lhs.id() != rhs.id();
 }
 
-inline bool NetworkId::IsValid() { return *this != kInvalid; }
+inline bool NetworkId::IsValid() const { return *this != kInvalid; }
 
 // Default constructor is setup to initialize the id to invalid.
 constexpr NetworkId NetworkId::kInvalid = NetworkId();
@@ -127,19 +127,19 @@ class NetworkComponentId {
                                                                 int64_t id);
 
   // Returns true if id is not kInvalid.
-  bool IsValid();
+  bool IsValid() const;
 
   // Returns the local id.
-  uint32_t id() { return id_; }
+  uint32_t id() const { return id_; }
 
   // Returns the local network id.
-  uint16_t network() { return network_; }
+  uint16_t network() const { return network_; }
 
   // Returns the NetworkId of this component.
-  NetworkId GetNetworkId() { return NetworkId(network_); }
+  NetworkId GetNetworkId() const { return NetworkId(network_); }
 
   // Represent this as a 64-bit integer (used for logging/debug).
-  uint64_t AsUInt64() {
+  uint64_t AsUInt64() const {
     return (static_cast<uint64_t>(network_) << 48) |
            (static_cast<uint64_t>(id_) << 16);
   }
@@ -175,7 +175,7 @@ inline bool operator!=(NetworkComponentId lhs, NetworkComponentId rhs) {
   return !(lhs == rhs);
 }
 
-inline bool NetworkComponentId::IsValid() { return *this != kInvalid; }
+inline bool NetworkComponentId::IsValid() const { return *this != kInvalid; }
 
 // Default constructor is setup to initialize the id to invalid.
 constexpr NetworkComponentId NetworkComponentId::kInvalid =
@@ -208,19 +208,19 @@ class ConnectionId {
                                                           int64_t id);
 
   // Returns true if id is not kInvalid.
-  bool IsValid();
+  bool IsValid() const;
 
   // Returns the local id.
-  uint32_t id() { return id_; }
+  uint32_t id() const { return id_; }
 
   // Returns the local network id.
-  uint16_t network() { return network_; }
+  uint16_t network() const { return network_; }
 
   // Returns the NetworkId of this component.
-  NetworkId GetNetworkId() { return NetworkId(network_); }
+  NetworkId GetNetworkId() const { return NetworkId(network_); }
 
   // Represent this as a 64-bit integer (used for logging/debug).
-  uint64_t AsUInt64() {
+  uint64_t AsUInt64() const {
     return (static_cast<uint64_t>(network_) << 48) |
            (static_cast<uint64_t>(id_) << 16);
   }
@@ -254,7 +254,7 @@ inline bool operator!=(ConnectionId lhs, ConnectionId rhs) {
   return !(lhs == rhs);
 }
 
-inline bool ConnectionId::IsValid() { return *this != kInvalid; }
+inline bool ConnectionId::IsValid() const { return *this != kInvalid; }
 
 // Default constructor is setup to initialize the id to invalid.
 constexpr ConnectionId ConnectionId::kInvalid = ConnectionId();
@@ -284,7 +284,7 @@ struct PortId {
       : id_(id), network_(network), component_(component) {}
 
   // Returns true if id is not kInvalid.
-  bool IsValid();
+  bool IsValid() const;
 
   // Validate ids are within range and return id object given an unpacked id.
   static absl::StatusOr<PortId> ValidateAndReturnId(int64_t network,
@@ -292,24 +292,24 @@ struct PortId {
                                                     int64_t id);
 
   // Returns the local id.
-  uint16_t id() { return id_; }
+  uint16_t id() const { return id_; }
 
   // Returns the local network id.
-  uint16_t network() { return network_; }
+  uint16_t network() const { return network_; }
 
   // Returns the local component id.
-  uint32_t component() { return component_; }
+  uint32_t component() const { return component_; }
 
   // Returns the NetworkId of this port.
-  NetworkId GetNetworkId() { return NetworkId(network_); }
+  NetworkId GetNetworkId() const { return NetworkId(network_); }
 
   // Returns the NetworkComponentId of this port.
-  NetworkComponentId GetNetworkComponentId() {
+  NetworkComponentId GetNetworkComponentId() const {
     return NetworkComponentId(network_, component_);
   }
 
   // Represent this as a 64-bit integer (used for logging/debug).
-  uint64_t AsUInt64() {
+  uint64_t AsUInt64() const {
     return (static_cast<uint64_t>(network_) << 48) |
            (static_cast<uint64_t>(component_) << 16) |
            (static_cast<uint64_t>(id_));
@@ -344,7 +344,7 @@ inline bool operator==(PortId lhs, PortId rhs) {
 // PortId inequality.
 inline bool operator!=(PortId lhs, PortId rhs) { return !(lhs == rhs); }
 
-inline bool PortId::IsValid() { return *this != kInvalid; }
+inline bool PortId::IsValid() const { return *this != kInvalid; }
 
 // Default constructor is setup to initialize the id to invalid.
 constexpr PortId PortId::kInvalid = PortId();

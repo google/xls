@@ -79,7 +79,16 @@ Network& NetworkManager::GetNetwork(NetworkId id) {
   return networks_.at(id.id());
 }
 
+const Network& NetworkManager::GetNetwork(NetworkId id) const {
+  return networks_.at(id.id());
+}
+
 NetworkComponent& NetworkManager::GetNetworkComponent(NetworkComponentId id) {
+  return networks_.at(id.GetNetworkId().id()).GetNetworkComponent(id);
+}
+
+const NetworkComponent& NetworkManager::GetNetworkComponent(
+    NetworkComponentId id) const {
   return networks_.at(id.GetNetworkId().id()).GetNetworkComponent(id);
 }
 
@@ -87,11 +96,19 @@ Connection& NetworkManager::GetConnection(ConnectionId id) {
   return networks_.at(id.GetNetworkId().id()).GetConnection(id);
 }
 
+const Connection& NetworkManager::GetConnection(ConnectionId id) const {
+  return networks_.at(id.GetNetworkId().id()).GetConnection(id);
+}
+
 Port& NetworkManager::GetPort(PortId id) {
   return networks_.at(id.GetNetworkId().id()).GetPort(id);
 }
 
-void NetworkManager::Dump(int indent_level) {
+const Port& NetworkManager::GetPort(PortId id) const {
+  return networks_.at(id.GetNetworkId().id()).GetPort(id);
+}
+
+void NetworkManager::Dump(int indent_level) const {
   XLS_VLOG(1) << IndentLevel(indent_level) << "Network Manager:";
 
   int64_t i = 0;
@@ -177,7 +194,16 @@ NetworkComponent& Network::GetNetworkComponent(NetworkComponentId id) {
   return components_.at(id.id());
 }
 
+const NetworkComponent& Network::GetNetworkComponent(
+    NetworkComponentId id) const {
+  return components_.at(id.id());
+}
+
 Connection& Network::GetConnection(ConnectionId id) {
+  return connections_.at(id.id());
+}
+
+const Connection& Network::GetConnection(ConnectionId id) const {
   return connections_.at(id.id());
 }
 
@@ -185,7 +211,11 @@ Port& Network::GetPort(PortId id) {
   return components_.at(id.GetNetworkComponentId().id()).GetPort(id);
 }
 
-void Network::Dump(int indent_level) {
+const Port& Network::GetPort(PortId id) const {
+  return components_.at(id.GetNetworkComponentId().id()).GetPort(id);
+}
+
+void Network::Dump(int indent_level) const {
   XLS_VLOG(1) << IndentLevel(indent_level)
               << absl::StreamFormat("Network id %x", id_.AsUInt64());
 
@@ -219,8 +249,11 @@ absl::StatusOr<PortId> NetworkComponent::CreatePort(PortDirection dir) {
 }
 
 Port& NetworkComponent::GetPort(PortId id) { return ports_.at(id.id()); }
+const Port& NetworkComponent::GetPort(PortId id) const {
+  return ports_.at(id.id());
+}
 
-std::vector<PortId> NetworkComponent::GetPortIds() {
+std::vector<PortId> NetworkComponent::GetPortIds() const {
   std::vector<PortId> ret(ports_.size());
   for (int64_t i = 0; i < ports_.size(); ++i) {
     ret[i] = GetPortIdByIndex(i);
@@ -228,7 +261,7 @@ std::vector<PortId> NetworkComponent::GetPortIds() {
   return ret;
 }
 
-std::vector<PortId> NetworkComponent::GetOutputPortIds() {
+std::vector<PortId> NetworkComponent::GetOutputPortIds() const {
   std::vector<PortId> ret;
   ret.reserve(ports_.size());
 
@@ -240,7 +273,7 @@ std::vector<PortId> NetworkComponent::GetOutputPortIds() {
   return ret;
 }
 
-std::vector<PortId> NetworkComponent::GetInputPortIds() {
+std::vector<PortId> NetworkComponent::GetInputPortIds() const {
   std::vector<PortId> ret;
   ret.reserve(ports_.size());
 
@@ -252,7 +285,7 @@ std::vector<PortId> NetworkComponent::GetInputPortIds() {
   return ret;
 }
 
-void NetworkComponent::Dump(int indent_level) {
+void NetworkComponent::Dump(int indent_level) const {
   XLS_VLOG(1) << IndentLevel(indent_level)
               << absl::StreamFormat("NetworkComponent id %x kind %d",
                                     id_.AsUInt64(), kind_);
@@ -266,7 +299,7 @@ void NetworkComponent::Dump(int indent_level) {
 }
 
 // - Port
-void Port::Dump(int indent_level) {
+void Port::Dump(int indent_level) const {
   XLS_VLOG(1) << IndentLevel(indent_level)
               << absl::StreamFormat("Port id %x Dir %d Connection %x",
                                     id_.AsUInt64(), dir_,
@@ -319,7 +352,7 @@ PortId Connection::Attach(PortId port) {
   return PortId::kInvalid;
 }
 
-void Connection::Dump(int indent_level) {
+void Connection::Dump(int indent_level) const {
   XLS_VLOG(1) << IndentLevel(indent_level)
               << absl::StreamFormat("Connection id %x src %x sink %x",
                                     id_.AsUInt64(), src_.AsUInt64(),
