@@ -204,6 +204,7 @@ fn ceil_div_test() {
   _
 }
 
+// Returns `x` rounded up to the nearest multiple of `y`.
 pub fn round_up_to_nearest(x: u32, y: u32) -> u32 {
   (ceil_div(x, y) * y) as u32
 }
@@ -215,6 +216,7 @@ fn round_up_to_nearest_test() {
   _
 }
 
+// Rotate `x` right by `y` bits.
 pub fn rrot<N: u32>(x: bits[N], y: bits[N]) -> bits[N] {
   (x >> y) | (x << ((N as bits[N]) - y))
 }
