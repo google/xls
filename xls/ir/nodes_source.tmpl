@@ -87,13 +87,6 @@ bool {{ op_class.name }}::IsDefinitelyEqualTo(const Node* other) const {
 
   return {{ op_class.equal_to_expr() }};
 }
-{% elif op_class.custom_equivalence_expression %}
-bool {{ op_class.name }}::IsDefinitelyEqualTo(const Node* other) const {
-  if (this == other) {
-    return true;
-  }
-  return {{ op_class.custom_equivalence_expression }};
-}
 {% endif %}
 
 

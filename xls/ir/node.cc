@@ -316,9 +316,13 @@ bool Node::IsDefinitelyEqualTo(const Node* other) const {
   if (this == other) {
     return true;
   }
+  if (OpIsSideEffecting(op())) {
+    return false;
+  }
   if (op() != other->op()) {
     return false;
   }
+
   auto same_type = [&](const Node* a, const Node* b) {
     return a->GetType()->IsEqualTo(b->GetType());
   };

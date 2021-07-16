@@ -33,7 +33,7 @@ class {{ op_class.name }} : public Node {
 {% for method in op_class.methods() -%}
 {{ method.return_cpp_type }} {{ method.name }}({{ method.params }}) const{% if method.expression %} { return {{ method.expression }}; }{% else %};{% endif %}
 {% endfor -%}
-{%- if op_class.data_members() or op_class.custom_equivalence_expression %}
+{%- if op_class.data_members() %}
   bool IsDefinitelyEqualTo(const Node* other) const override;
 
  private:

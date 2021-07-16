@@ -265,8 +265,7 @@ class OpClass(object):
                extra_constructor_args=(),
                extra_data_members=(),
                extra_methods: List[Method] = (),
-               custom_clone_method: bool = False,
-               custom_equivalence_expression: Optional[str] = None):
+               custom_clone_method: bool = False):
     """Initializes an OpClass.
 
     Args:
@@ -282,10 +281,6 @@ class OpClass(object):
       extra_methods: List of additional class methods.
       custom_clone_method: Whether this class has a custom clone method. If true
         the method should be defined directly in nodes_source.tmpl.
-      custom_equivalence_expression: A C++ expression which indicates whether
-        the node is equivalent to another node. The variable name of the
-        other node is always 'other'. Used in construction of
-        IsDefinitelyEquivalent method.
     """
     self.name = name
     self.op = op
@@ -296,7 +291,6 @@ class OpClass(object):
     self.extra_data_members = extra_data_members
     self.extra_methods = extra_methods
     self.custom_clone_method = custom_clone_method
-    self.custom_equivalence_expression = custom_equivalence_expression
 
   def constructor_args_str(self) -> str:
     """The constructor arguments list as a single string."""
@@ -356,9 +350,6 @@ class OpClass(object):
 
   def equal_to_expr(self) -> str:
     """Returns expression used in IsDefinitelyEqualTo to compare expression."""
-
-    if self.custom_equivalence_expression:
-      return self.custom_equivalence_expression
 
     def data_member_equal(m):
       lhs = m.name
@@ -744,8 +735,6 @@ OpClass.kinds['PARAM'] = OpClass(
     extra_methods=[Method(name='name',
                           return_cpp_type='absl::string_view',
                           expression='name_')],
-    # Params are never equivalent to other nodes.
-    custom_equivalence_expression='false',
     custom_clone_method=True
 )
 
@@ -847,8 +836,6 @@ OpClass.kinds['INPUT_PORT'] = OpClass(
     extra_methods=[Method(name='name',
                           return_cpp_type='absl::string_view',
                           expression='name_')],
-    # Ports are never equivalent to other nodes.
-    custom_equivalence_expression='false',
 )
 
 OpClass.kinds['OUTPUT_PORT'] = OpClass(
@@ -862,8 +849,6 @@ OpClass.kinds['OUTPUT_PORT'] = OpClass(
     extra_methods=[Method(name='name',
                           return_cpp_type='absl::string_view',
                           expression='name_')],
-    # Ports are never equivalent to other nodes.
-    custom_equivalence_expression='false',
 )
 
 OpClass.kinds['REGISTER_READ'] = OpClass(
@@ -872,8 +857,6 @@ OpClass.kinds['REGISTER_READ'] = OpClass(
     operands=[],
     xls_type_expression='function->AsBlockOrDie()->GetRegister(register_name).value()->type()',
     attributes=[StringAttribute('register_name')],
-    # Register reads are never equivalent to other nodes.
-    custom_equivalence_expression='false',
 )
 
 OpClass.kinds['REGISTER_WRITE'] = OpClass(
@@ -900,8 +883,6 @@ OpClass.kinds['REGISTER_WRITE'] = OpClass(
                    Method(name='reset',
                           return_cpp_type='absl::optional<Node*>',
                           expression='has_reset_ ? absl::optional<Node*>(operand(has_load_enable_ ? 2 : 1)) : absl::nullopt'),],
-    # Register writes are never equivalent to other nodes.
-    custom_equivalence_expression='false',
 )
 
 OPS = [
