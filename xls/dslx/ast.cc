@@ -1123,12 +1123,20 @@ std::string Function::Format(bool include_body) const {
                          parametric_str, params_str, return_type_str, body_str);
 }
 
+// -- class MatchArm
+
 MatchArm::MatchArm(Module* owner, Span span, std::vector<NameDefTree*> patterns,
                    Expr* expr)
     : AstNode(owner),
       span_(std::move(span)),
       patterns_(std::move(patterns)),
-      expr_(expr) {}
+      expr_(expr) {
+  XLS_CHECK(!patterns_.empty());
+}
+
+Span MatchArm::GetPatternSpan() const {
+  return Span(patterns_[0]->span().start(), patterns_.back()->span().limit());
+}
 
 Match::Match(Module* owner, Span span, Expr* matched,
              std::vector<MatchArm*> arms)

@@ -322,6 +322,13 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
   def test_signed_parametric_in_array_size(self):
     self._run('xls/dslx/tests/errors/signed_parametric_in_array_size.x')
 
+  def test_duplicate_match_arm(self):
+    stderr = self._run('xls/dslx/tests/errors/duplicate_match_arm.x')
+    self.assertIn('duplicate_match_arm.x:22:5-22:8', stderr)
+    self.assertIn(
+        'Exact-duplicate pattern match detected `FOO` -- only the first could possibly match',
+        stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

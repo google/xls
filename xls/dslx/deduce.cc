@@ -1151,12 +1151,33 @@ static absl::Status Unify(NameDefTree* name_def_tree, const ConcreteType& other,
   return absl::OkStatus();
 }
 
+static std::string PatternsToString(MatchArm* arm) {
+  return absl::StrJoin(arm->patterns(), " | ",
+                       [](std::string* out, NameDefTree* ndt) {
+                         absl::StrAppend(out, ndt->ToString());
+                       });
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatch(Match* node,
                                                           DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> matched,
                        ctx->Deduce(node->matched()));
 
+  absl::flat_hash_set<std::string> seen_patterns;
   for (MatchArm* arm : node->arms()) {
+    // We opportunistically identify syntactically identical match arms -- this
+    // is a user error since the first should always match, the latter is
+    // totally redundant.
+    std::string patterns_string = PatternsToString(arm);
+    if (auto [it, inserted] = seen_patterns.insert(patterns_string);
+        !inserted) {
+      return TypeInferenceErrorStatus(
+          arm->GetPatternSpan(), nullptr,
+          absl::StrFormat("Exact-duplicate pattern match detected `%s` -- only "
+                          "the first could possibly match",
+                          patterns_string));
+    }
+
     for (NameDefTree* pattern : arm->patterns()) {
       XLS_RETURN_IF_ERROR(Unify(pattern, *matched, ctx));
     }

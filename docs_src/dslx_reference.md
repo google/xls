@@ -1160,6 +1160,38 @@ fn f(t: (u8, (u16, u32))) -> u32 {
 Here we use a "catch all" wildcard pattern in the last match arm to ensure the
 match expression always matches the input somehow.
 
+#### Redundant Patterns
+
+`match` will flag an error if a _syntactically identical_ pattern is typed
+twice; e.g.
+
+```dslx-bad
+const FOO = u32:42;
+fn f(x: u32) -> u2 {
+  match x {
+    FOO => u2:0,
+    FOO => u2:1,  // Identical pattern!
+    _ => u2:2,
+  }
+}
+```
+
+Only the first pattern will ever match, so it is fully redundant (and therefore
+likely a user error they'd like to be informed of). Note that _equivalent_ but
+not _syntactically identical_ patterns will not be flagged in this way.
+
+```dslx
+const FOO = u32:42;
+const BAR = u32:42;  // Compares `==` to `FOO`.
+fn f(x: u32) -> u2 {
+  match x {
+    FOO => u2:0,
+    BAR => u2:1,  // _Equivalent_ pattern, but not syntactically identical.
+    _ => u2:2,
+  }
+}
+```
+
 ### `let` Expression
 
 let expressions work the same way as let expressions in other functional

@@ -1215,9 +1215,13 @@ class MatchArm : public AstNode {
   const Span& span() const { return span_; }
   absl::optional<Span> GetSpan() const override { return span_; }
 
+  // Returns the span from the start of the (first) pattern to the limit of the
+  // (last) pattern.
+  Span GetPatternSpan() const;
+
  private:
   Span span_;
-  std::vector<NameDefTree*> patterns_;
+  std::vector<NameDefTree*> patterns_;  // Note: never empty.
   Expr* expr_;  // Expression that is executed if one of the patterns matches.
 };
 
