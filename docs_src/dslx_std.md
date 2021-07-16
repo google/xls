@@ -1,12 +1,5 @@
 # Standard Library
 
-go/dslx-std
-
-<!--*
-# Document freshness: For more information, see go/fresh-source.
-freshness: { owner: 'sameeragarwal' reviewed: '2021-07-15' }
-*-->
-
 This page documents the DSLX standard library.
 
 # `std.x`
