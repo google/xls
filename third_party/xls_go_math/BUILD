@@ -1,4 +1,4 @@
-# XLS (go/xls) libraries ported from Go math library.
+# XLS libraries ported from Go math library.
 
 load(
     "//xls/build_rules:xls_build_defs.bzl",

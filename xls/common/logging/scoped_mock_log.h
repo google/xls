@@ -32,7 +32,6 @@ namespace testing {
 // lifespan.  Using this together with gMock, it's very easy to test
 // how a piece of code calls LOG().  The typical usage, noting the distinction
 // between "uninteresting" and "unexpected"
-// go/gmockcook#uninteresting-vs-unexpected:
 //
 //   using ::testing::_;
 //   using ::testing::AnyNumber;

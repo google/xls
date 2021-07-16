@@ -1,4 +1,4 @@
-# XLS (go/xls) libraries ported from Berkeley SoftFloat.
+# XLS libraries ported from Berkeley SoftFloat.
 
 load(
     "//xls/build_rules:xls_build_defs.bzl",

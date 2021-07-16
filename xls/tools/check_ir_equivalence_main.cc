@@ -88,7 +88,8 @@ absl::Status RealMain(const std::vector<absl::string_view>& ir_paths,
 
   // Z3 doesn't handle directly-specified (as AST nodes) subroutines - there is
   // some support for recursive functions (with bodies), but it hasn't behaved
-  // like we've expected - see go/xls-solvers#subroutines for more.
+  // like we've expected.
+  //
   // To work around this, we have to inline such calls.
   // Fortunately, inlining is pretty simple and unlikely to change semantics.
   // TODO(b/154025625): Replace this with a new InliningPass.
