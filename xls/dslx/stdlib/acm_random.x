@@ -54,10 +54,12 @@ pub fn rng_next64(s: State) -> (State, u64) {
   (s, result as u64)
 }
 
+// Returns a fixed seed for use in the random number generator.
 pub fn rng_deterministic_seed() -> u32 {
   u32:301
 }
 
+// Create the state for a new random number generator using the given seed.
 fn rng_sanitize_seed(seed: u32) -> u32 {
   let seed = seed & u32:0x7fffffff;
   match seed {

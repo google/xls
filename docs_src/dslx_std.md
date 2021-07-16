@@ -194,3 +194,53 @@ pub fn rrot<N: u32>(x: bits[N], y: bits[N]) -> bits[N]
 ```
 
 Rotate `x` right by `y` bits.
+
+# `acm_random.x`
+
+Port of
+[ACM random](https://github.com/google/or-tools/blob/66b8d230798f9b8a3c98c26a997daf04974400b8/ortools/base/random.cc#L35)
+number generator to DSLX.
+
+DO NOT use `acm_random.x` for any application where security -- unpredictability
+of subsequent output and previous output -- is needed. ACMRandom is in *NO*
+*WAY* a cryptographically secure pseudorandom number generator, and using it
+where recipients of its output may wish to guess earlier/later output values
+would be very bad.
+
+## `acm_random::rng_deterministic_seed`
+
+```dslx-snippet
+pub fn rng_deterministic_seed() -> u32
+```
+
+Returns a fixed seed for use in the random number generator.
+
+## `acm_random::rng_new`
+
+```dslx-snippet
+pub fn rng_new(seed: u32) -> State
+```
+
+Create the state for a new random number generator using the given seed.
+
+## `acm_random::rng_next`
+
+```dslx-snippet
+pub fn rng_next(s: State) -> (State, u32)
+```
+
+Returns a pseudo-random number in the range `[1, 2^31-2]`.
+
+Note that this is one number short on both ends of the full range of
+non-negative 32-bit integers, which range from `0` to `2^31-1`.
+
+## `acm_random::rng_next64`
+
+```dslx-snippet
+pub fn rng_next(s: State) -> (State, u64)
+```
+
+Returns a pseudo random number in the range `[1, (2^31-2)^2]`.
+
+Note that this does not cover all non-negative values of int64, which range from
+`0` to `2^63-1`. **The top two bits are ALWAYS ZERO**.
