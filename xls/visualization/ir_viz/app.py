@@ -137,19 +137,29 @@ def get_third_party_js():
 
 
 @functools.lru_cache(None)
-def optimize_ir(ir: str, opt_level: int) -> str:
+def optimize_ir(ir: str, opt_level: str) -> str:
   """Runs the given IR through opt_main at the given optimization level."""
   tmp_ir = tempfile.NamedTemporaryFile(
       mode='w', encoding='utf-8', prefix='ir_viz.', suffix='.ir')
   tmp_ir.write(ir)
   tmp_ir.seek(0)
-  print('optimizing at level {} = {} '.format(opt_level, ir))
-  r = subprocess.check_output(
-      [OPT_MAIN_PATH, '--opt_level={}'.format(opt_level), tmp_ir.name],
-      stdin=None,
-      stderr=subprocess.PIPE,
-      encoding='utf-8')
-  print('output = ' + r)
+  print('optimizing at level {}:\n{} '.format(opt_level, ir))
+  if opt_level.isnumeric():
+    r = subprocess.check_output(
+        [OPT_MAIN_PATH, '--opt_level={}'.format(opt_level), tmp_ir.name],
+        stdin=None,
+        stderr=subprocess.PIPE,
+        encoding='utf-8')
+  elif opt_level == 'inline-only':
+    r = subprocess.check_output(
+        [OPT_MAIN_PATH, '--run_only_passes=inlining,dfe,cse,dce', tmp_ir.name],
+        stdin=None,
+        stderr=subprocess.PIPE,
+        encoding='utf-8')
+  else:
+    raise ValueError(f'Invalid opt_level: {opt_level}')
+
+  print('After optimizations:\n' + r)
   return r
 
 
@@ -202,14 +212,14 @@ def static_handler(filename):
 
 
 @webapp.route('/examples/<path:filename>')
-def example_handler(filename):
+def example_handler(filename: str):
   """Reads and returns example IR files."""
   try:
     for name, content in examples:
       if filename == name:
-        opt_level = int(flask.request.args.get('opt_level', 0))
+        opt_level: str = flask.request.args.get('opt_level', '0')
         ir = content
-        if opt_level != 0:
+        if opt_level != '0':
           ir = optimize_ir(ir, opt_level)
         return flask.Response(response=ir, content_type='text/plain')
   except IOError:

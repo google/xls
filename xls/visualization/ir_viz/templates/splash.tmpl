@@ -107,6 +107,7 @@
                         onClick="selectBenchmarkOptLevel(this.value)">
                   <option>Opt level...</option>
                   <option>0</option>
+                  <option>inline-only</option>
                   <option>1</option>
                   <option>2</option>
                   <option>3</option>
@@ -195,7 +196,7 @@
       if (selectedExample != undefined) {
         enable(document.getElementById('load-example-btn'));
       }
-      selectedOptLevel = parseInt(level);
+      selectedOptLevel = level;
     }
 
     function selectBenchmark(example) {
