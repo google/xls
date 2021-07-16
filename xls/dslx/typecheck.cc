@@ -331,8 +331,8 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
   auto constexpr_eval = [&](int64_t argno) -> absl::StatusOr<InterpValue> {
     Expr* arg = invocation->args()[argno];
 
-    auto env =
-        MakeConstexprEnv(arg, ctx->fn_stack().back().symbolic_bindings(), ctx);
+    auto env = MakeConstexprEnv(arg, ctx->fn_stack().back().symbolic_bindings(),
+                                ctx->type_info());
 
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,

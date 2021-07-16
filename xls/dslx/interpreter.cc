@@ -201,6 +201,9 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
     ImportData* import_data,
     const absl::flat_hash_map<std::string, InterpValue>& env, Expr* expr,
     const FnCtx* fn_ctx, ConcreteType* type_context) {
+  XLS_RET_CHECK_EQ(entry_module, type_info->module());
+  XLS_RET_CHECK_EQ(expr->owner(), entry_module);
+
   auto env_formatter = [](std::string* out,
                           const std::pair<std::string, InterpValue>& p) {
     out->append(absl::StrCat(p.first, ":", p.second.ToString()));

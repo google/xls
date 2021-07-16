@@ -39,10 +39,14 @@ absl::StatusOr<TypeInfo*> TypeInfoOwner::New(Module* module, TypeInfo* parent) {
     // Check we only have a single nullptr-parent TypeInfo for a given module.
     XLS_RET_CHECK(!module_to_root_.contains(module))
         << "module " << module->name() << " already has a root TypeInfo";
+    XLS_VLOG(5) << "Making root type info for module: " << module->name()
+                << " @ " << result;
     module_to_root_[module] = result;
   } else {
     // Check that we don't have parent links that traverse modules.
     XLS_RET_CHECK_EQ(parent->module(), module);
+    XLS_VLOG(5) << "Making derived type info for module: " << module->name()
+                << " parent: " << parent << " @ " << result;
   }
   return result;
 }

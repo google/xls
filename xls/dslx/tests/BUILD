@@ -1244,6 +1244,29 @@ xls_dslx_opt_ir_test(
 )
 
 xls_dslx_library(
+    name = "mod_parametric_id_with_default",
+    srcs = ["mod_parametric_id_with_default.x"],
+)
+
+xls_dslx_module_library(
+    name = "parametric_id_with_default_user",
+    src = "parametric_id_with_default_user.x",
+    deps = [
+        ":mod_parametric_id_with_default",
+    ],
+)
+
+xls_dslx_test(
+    name = "parametric_id_with_default_user_test",
+    dep = ":parametric_id_with_default_user",
+)
+
+xls_dslx_opt_ir(
+    name = "parametric_id_with_default_user_opt_ir",
+    dep = ":parametric_id_with_default_user",
+)
+
+xls_dslx_library(
     name = "mod_imported_lsb_dslx",
     srcs = ["mod_imported_lsb.x"],
 )

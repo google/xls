@@ -53,6 +53,8 @@ class ParametricConstraint {
   const ConcreteType& type() const { return *type_; }
   Expr* expr() const { return expr_; }
 
+  std::string ToString() const;
+
  private:
   const ParametricBinding* binding_;
   std::unique_ptr<ConcreteType> type_;

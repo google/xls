@@ -53,19 +53,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(AstNode* node,
                                                                DeduceCtx* ctx);
 
-// See MakeConstexprEnv() below.
-using ConstexprEnv = absl::flat_hash_map<std::string, InterpValue>;
-
-// Makes a constexpr environment suitable for passing to
-// Interpreter::InterpExprToInt(). This will be populated with symbolic bindings
-// as well as a constexpr freevars of "node", which is useful when there are
-// local const bindings closed over e.g. in function scope.
-//
-// Returns (env, bit_widths) as Interpreter::InterpExprToInt() requires.
-ConstexprEnv MakeConstexprEnv(Expr* node,
-                              const SymbolicBindings& symbolic_bindings,
-                              DeduceCtx* ctx);
-
 // Decorates parametric binding AST nodes with their deduced types.
 //
 // This is used externally in things like parametric instantiation of DSLX

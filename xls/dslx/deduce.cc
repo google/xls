@@ -34,11 +34,15 @@ absl::StatusOr<Function*> ResolveColonRefToFn(ColonRef* ref, DeduceCtx* ctx) {
   return imported_info.value()->module->GetFunctionOrError(ref->attr());
 }
 
-absl::Status CheckBitwidth(const Number& number, const ConcreteType& type) {
+// If the width is known for "type", checks that "number" fits in that type.
+absl::Status TryEnsureFitsInType(const Number& number,
+                                 const ConcreteType& type) {
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bits_dim, type.GetTotalBitCount());
-  XLS_RET_CHECK(absl::holds_alternative<InterpValue>(bits_dim.value()))
-      << bits_dim.ToString() << " within " << number.ToString() << " @ "
-      << number.span();
+  if (!absl::holds_alternative<InterpValue>(bits_dim.value())) {
+    // We have to wait for the dimension to be fully resolved before we can
+    // check that the number is compliant.
+    return absl::OkStatus();
+  }
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_dim.GetAsInt64());
   absl::StatusOr<Bits> bits = number.GetBits(bit_count);
   if (!bits.ok()) {
@@ -63,13 +67,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceParam(Param* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
     ConstantDef* node, DeduceCtx* ctx) {
+  XLS_VLOG(5) << "Noting constant: " << node->ToString();
   ctx->type_info()->NoteConstant(node->name_def(), node);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> result,
                        ctx->Deduce(node->value()));
   // Right now we only know how to do integral expressions as constexpr values.
   if (dynamic_cast<BitsType*>(result.get()) != nullptr) {
-    auto env = MakeConstexprEnv(
-        node->value(), ctx->fn_stack().back().symbolic_bindings(), ctx);
+    absl::flat_hash_map<std::string, InterpValue> env = MakeConstexprEnv(
+        node->value(), ctx->fn_stack().back().symbolic_bindings(),
+        ctx->type_info());
     const FnStackEntry& peek_entry = ctx->fn_stack().back();
     absl::optional<FnCtx> fn_ctx;
     if (peek_entry.function() != nullptr) {
@@ -82,6 +88,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
         ctx->additional_search_paths(), ctx->import_data(), env, node->value(),
         fn_ctx ? &*fn_ctx : nullptr);
     if (constexpr_value.ok()) {
+      XLS_VLOG(5) << "Noting constexpr: " << node->value() << " in "
+                  << ctx->type_info();
       ctx->type_info()->NoteConstExpr(node->value(), constexpr_value.value());
     }
   }
@@ -136,7 +144,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
         node->span(), concrete_type.get(),
         "Non-bits type used to define a numeric literal.");
   }
-  XLS_RETURN_IF_ERROR(CheckBitwidth(*node, *concrete_type));
+  XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*node, *concrete_type));
   return concrete_type;
 }
 
@@ -691,7 +699,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
     if (Number* number = dynamic_cast<Number*>(member);
         number != nullptr && number->type_annotation() == nullptr) {
       ctx->type_info()->SetItem(member, element_type);
-      XLS_RETURN_IF_ERROR(CheckBitwidth(*number, element_type));
+      XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*number, element_type));
     }
   }
 
@@ -937,7 +945,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
     }
   }
 
-  // Check the start is unsigned.
+  // Validate that the start is unsigned.
   if (start_type->is_signed()) {
     return TypeInferenceErrorStatus(
         node->span(), start_type,
@@ -964,8 +972,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
     }
   }
 
-  // Check the width type is bits-based (e.g. no enums, since sliced value
-  // could be out of range of the valid enum values).
+  // Validate that the width type is bits-based (e.g. no enums, since sliced
+  // value could be out of range of the valid enum values).
   if (dynamic_cast<BitsType*>(width_type.get()) == nullptr) {
     return TypeInferenceErrorStatus(
         node->span(), width_type.get(),
@@ -980,7 +988,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
 // DSLX-compile-time constant.
 static absl::StatusOr<absl::optional<int64_t>> TryResolveBound(
     Slice* slice, Expr* bound, absl::string_view bound_name, ConcreteType* s32,
-    const ConstexprEnv& env, DeduceCtx* ctx) {
+    const absl::flat_hash_map<std::string, InterpValue>& env, DeduceCtx* ctx) {
   if (bound == nullptr) {
     return absl::nullopt;
   }
@@ -1036,8 +1044,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     return DeduceWidthSliceType(node, *bits_type, *width_slice, ctx);
   }
 
-  const ConstexprEnv env =
-      MakeConstexprEnv(node, ctx->fn_stack().back().symbolic_bindings(), ctx);
+  const absl::flat_hash_map<std::string, InterpValue> env = MakeConstexprEnv(
+      node, ctx->fn_stack().back().symbolic_bindings(), ctx->type_info());
 
   std::unique_ptr<ConcreteType> s32 = BitsType::MakeS32();
   auto* slice = absl::get<Slice*>(node->rhs());
@@ -1524,8 +1532,9 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
             dim_expr->ToString()));
   }
 
-  ConstexprEnv env = MakeConstexprEnv(
-      dim_expr, ctx->fn_stack().back().symbolic_bindings(), ctx);
+  absl::flat_hash_map<std::string, InterpValue> env = MakeConstexprEnv(
+      dim_expr, ctx->fn_stack().back().symbolic_bindings(), ctx->type_info());
+  XLS_RETURN_IF_ERROR(ctx->Deduce(dim_expr).status());
   absl::StatusOr<InterpValue> value_or = Interpreter::InterpretExpr(
       dim_expr->owner(),
       ctx->import_data()->GetRootTypeInfoForNode(dim_expr).value(),
@@ -1721,7 +1730,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCarry(Carry* node,
   return ctx->Deduce(node->loop()->init());
 }
 
-// Checks the parametric function body using the invocation's symbolic bindings.
+// Validates the parametric function body using the invocation's symbolic
+// bindings.
 //
 // Args:
 //  parametric_fn: The function being instantiated.
@@ -1729,11 +1739,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCarry(Carry* node,
 //  symbolic_bindings: The caller's symbolic bindings (the caller being the
 //    entity containing the invocation).
 //  ctx: Deduction context.
-static absl::Status CheckParametricInvocation(
+static absl::Status ValidateParametricInvocation(
     Function* parametric_fn, Invocation* invocation,
     const SymbolicBindings& symbolic_bindings, DeduceCtx* ctx) {
   XLS_RET_CHECK(parametric_fn->IsParametric());
-  XLS_VLOG(5) << "CheckParametricInvocation; parametric_fn: "
+  XLS_VLOG(5) << "ValidateParametricInvocation; parametric_fn: "
               << parametric_fn->ToString()
               << "; invocation: " << invocation->ToString();
   if (auto* colon_ref = dynamic_cast<ColonRef*>(invocation->callee())) {
@@ -2060,7 +2070,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
 
     // Now that we have callee_symbolic_bindings, let's use them to typecheck
     // the body of callee_fn to make sure these values actually work.
-    XLS_RETURN_IF_ERROR(CheckParametricInvocation(
+    XLS_RETURN_IF_ERROR(ValidateParametricInvocation(
         callee_fn, node, callee_symbolic_bindings, ctx));
   }
 
@@ -2225,50 +2235,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(AstNode* node,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> deduced,
                        ctx->Deduce(node));
   return Resolve(*deduced, ctx);
-}
-
-ConstexprEnv MakeConstexprEnv(Expr* node,
-                              const SymbolicBindings& symbolic_bindings,
-                              DeduceCtx* ctx) {
-  XLS_VLOG(5) << "Creating constexpr environment for node: "
-              << node->ToString();
-  absl::flat_hash_map<std::string, InterpValue> env;
-  absl::flat_hash_map<std::string, InterpValue> values;
-
-  for (auto [id, value] : symbolic_bindings.ToMap()) {
-    env.insert({id, value});
-  }
-
-  // Collect all the freevars that are constexpr.
-  //
-  // TODO(https://github.com/google/xls/issues/333): 2020-03-11 We'll want the
-  // expression to also be able to constexpr evaluate local non-integral values,
-  // like constant tuple definitions and such. We'll need to extend the
-  // constexpr ability to full InterpValues to accomplish this.
-  //
-  // E.g. fn main(x: u32) -> ... { const B = u32:20; x[:B] }
-  FreeVariables freevars = node->GetFreeVariables();
-  XLS_VLOG(5) << "freevars for " << node->ToString() << ": "
-              << freevars.GetFreeVariableCount();
-  for (ConstRef* const_ref : freevars.GetConstRefs()) {
-    XLS_VLOG(5) << "analyzing constant reference: " << const_ref->ToString();
-    ConstantDef* constant_def = const_ref->GetConstantDef();
-    absl::optional<InterpValue> value =
-        ctx->type_info()->GetConstExpr(constant_def->value());
-    if (!value) {
-      // Could be a tuple or similar, not part of the (currently integral-only)
-      // constexpr environment.
-      XLS_VLOG(5) << "Could not find constexpr value for constant def: `"
-                  << constant_def->ToString() << "`";
-      continue;
-    }
-
-    XLS_VLOG(5) << "freevar env record: " << const_ref->identifier() << " => "
-                << value->ToString();
-    env.insert({const_ref->identifier(), *value});
-  }
-
-  return env;
 }
 
 // Converts a sequence of ParametricBinding AST nodes into a sequence of

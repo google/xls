@@ -101,10 +101,16 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
     const FnStackEntry& entry = ctx_->fn_stack().back();
     FnCtx fn_ctx{ctx_->module()->name(), entry.name(),
                  entry.symbolic_bindings()};
+    Module* expr_module = expr->owner();
+    XLS_ASSIGN_OR_RETURN(TypeInfo * expr_type_info,
+                         ctx_->import_data()->GetRootTypeInfo(expr_module));
+    absl::flat_hash_map<std::string, InterpValue> constexpr_env =
+        MakeConstexprEnv(expr, SymbolicBindings(symbolic_bindings_),
+                         expr_type_info);
     absl::StatusOr<InterpValue> result = Interpreter::InterpretExpr(
-        ctx_->module(), ctx_->type_info(), ctx_->typecheck_module(),
-        ctx_->additional_search_paths(), ctx_->import_data(),
-        symbolic_bindings_, expr, &fn_ctx);
+        expr_module, expr_type_info, ctx_->typecheck_module(),
+        ctx_->additional_search_paths(), ctx_->import_data(), constexpr_env,
+        expr, &fn_ctx);
     XLS_VLOG(5) << "Interpreted expr: " << expr->ToString() << " @ "
                 << expr->span() << " to status: " << result.status();
     if (!result.ok() && result.status().code() == absl::StatusCode::kNotFound &&
@@ -390,6 +396,14 @@ ParametricConstraint::ParametricConstraint(const ParametricBinding& binding,
                                            Expr* expr)
     : binding_(&binding), type_(std::move(type)), expr_(expr) {}
 
+std::string ParametricConstraint::ToString() const {
+  if (expr_ == nullptr) {
+    return absl::StrFormat("%s: %s", identifier(), type().ToString());
+  }
+  return absl::StrFormat("%s: %s = %s", identifier(), type().ToString(),
+                         expr()->ToString());
+}
+
 // Helper ToString()s for debug logging.
 static std::string ToTypesString(absl::Span<const InstantiateArg> ts) {
   if (ts.empty()) {
@@ -410,14 +424,32 @@ static std::string ToString(
 }
 static std::string ToString(
     const absl::flat_hash_map<std::string, InterpValue>* map) {
-  if (map == nullptr || map->empty()) {
+  if (map == nullptr) {
     return "none";
+  }
+  if (map->empty()) {
+    return "{}";
   }
   return absl::StrJoin(
       *map, ", ",
       [](std::string* out, const std::pair<std::string, InterpValue>& p) {
         out->append(absl::StrCat(p.first, ":", p.second.ToString()));
       });
+}
+
+static std::string ToString(
+    const absl::optional<absl::Span<const ParametricConstraint>>&
+        parametric_constraints) {
+  if (parametric_constraints.has_value()) {
+    return "none";
+  }
+  if (parametric_constraints.value().empty()) {
+    return "[]";
+  }
+  return absl::StrJoin(parametric_constraints.value(), ", ",
+                       [](std::string* out, const ParametricConstraint& c) {
+                         absl::StrAppend(out, c.ToString());
+                       });
 }
 
 absl::StatusOr<TypeAndBindings> InstantiateFunction(
@@ -428,6 +460,8 @@ absl::StatusOr<TypeAndBindings> InstantiateFunction(
     const absl::flat_hash_map<std::string, InterpValue>* explicit_constraints) {
   XLS_VLOG(5) << "Function instantiation @ " << span
               << " type: " << function_type.ToString();
+  XLS_VLOG(5) << " parametric constraints: "
+              << ToString(parametric_constraints);
   XLS_VLOG(5) << " arg types:              " << ToTypesString(args);
   XLS_VLOG(5) << " explicit constraints:   " << ToString(explicit_constraints);
   XLS_ASSIGN_OR_RETURN(auto instantiator,
