@@ -383,18 +383,30 @@
           
 
 
+  <li class="md-nav__item">
+    <a href="../dslx_std/" title="Standard Library" class="md-nav__link">
+      Standard Library
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2">
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-3-3" type="checkbox" id="nav-3-3">
     
-    <label class="md-nav__link" for="nav-3-2">
+    <label class="md-nav__link" for="nav-3-3">
       Examples
       <span class="md-nav__icon md-icon">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8.59 16.58L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.42z"/></svg>
       </span>
     </label>
     <nav class="md-nav" aria-label="Examples" data-md-level="2">
-      <label class="md-nav__title" for="nav-3-2">
+      <label class="md-nav__title" for="nav-3-3">
         <span class="md-nav__icon md-icon">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
         </span>
@@ -598,6 +610,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#xls_dslx_module_library" class="md-nav__link">
+    xls_dslx_module_library
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#xls_dslx_test" class="md-nav__link">
     xls_dslx_test
   </a>
@@ -697,6 +716,20 @@
           <li class="md-nav__item">
   <a href="#cc_xls_ir_jit_wrapper" class="md-nav__link">
     cc_xls_ir_jit_wrapper
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#xls_ir_verilog_macro" class="md-nav__link">
+    xls_ir_verilog_macro
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#xls_dslx_verilog_macro" class="md-nav__link">
+    xls_dslx_verilog_macro
   </a>
   
 </li>
@@ -1044,6 +1077,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#xls_dslx_module_library" class="md-nav__link">
+    xls_dslx_module_library
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#xls_dslx_test" class="md-nav__link">
     xls_dslx_test
   </a>
@@ -1147,6 +1187,20 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#xls_ir_verilog_macro" class="md-nav__link">
+    xls_ir_verilog_macro
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#xls_dslx_verilog_macro" class="md-nav__link">
+    xls_dslx_verilog_macro
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1214,6 +1268,7 @@ a build flow.</p>
 <li><a href="#build-system">Build system</a><ul>
 <li><a href="#rules">Rules</a><ul>
 <li><a href="#xls_dslx_library">xls_dslx_library</a></li>
+<li><a href="#xls_dslx_module_library">xls_dslx_module_library</a></li>
 <li><a href="#xls_dslx_test">xls_dslx_test</a></li>
 <li><a href="#xls_dslx_ir">xls_dslx_ir</a></li>
 <li><a href="#xls_benchmark_ir">xls_benchmark_ir</a></li>
@@ -1230,6 +1285,8 @@ a build flow.</p>
 <li><a href="#macros">Macros</a><ul>
 <li><a href="#get_mangled_ir_symbol">get_mangled_ir_symbol</a></li>
 <li><a href="#cc_xls_ir_jit_wrapper">cc_xls_ir_jit_wrapper</a></li>
+<li><a href="#xls_ir_verilog_macro">xls_ir_verilog_macro</a></li>
+<li><a href="#xls_dslx_verilog_macro">xls_dslx_verilog_macro</a></li>
 </ul>
 </li>
 <li><a href="#bazel-queries">Bazel queries</a><ul>
@@ -1249,6 +1306,16 @@ Examples using the rules are found at
 <a href="https://github.com/google/xls/tree/main/xls/build_rules/tests/BUILD">xls/build_rules/tests/BUILD</a>.</p>
 <h3 id="xls_dslx_library"><code>xls_dslx_library</code></h3>
 <p>A build rule that parses and type checks DSLX source files.</p>
+<h3 id="xls_dslx_module_library"><code>xls_dslx_module_library</code></h3>
+<p>A build rule that parses and type checks a DSLX source file. The rule is the
+gateway to other translation rules such as xls_dslx_ir and xls_dslx_verilog.</p>
+<p>Currently, the DSLX executables (interpreter and converter) require a
+'main source file' to perform evaluation and conversion. As a result, the
+xls_dslx_module_library was introduced that includes an entry to indicate the
+'main source file'.</p>
+<p>This rule is an interim solution. When the DSLX executables (interpreter and
+converter) are updated where the 'main source file' is not required, the
+xls_dslx_module_library can be removed.</p>
 <h3 id="xls_dslx_test"><code>xls_dslx_test</code></h3>
 <p>A test rule that executes the tests and quick checks of a DSLX source file.</p>
 <h3 id="xls_dslx_ir"><code>xls_dslx_ir</code></h3>
@@ -1274,11 +1341,11 @@ order.</p>
 rule executes the <code>xls_dslx_ir</code> and <code>xls_ir_opt_ir</code> rules in that order.</p>
 <h3 id="xls_dslx_opt_ir_test"><code>xls_dslx_opt_ir_test</code></h3>
 <p>A test rule that executes the commands in the order presented in the list for
-the following rules:
-   1. xls_dslx_test
-   1. xls_ir_equivalence_test (if attribute prove_unopt_eq_opt is enabled)
-   1. xls_eval_ir_test (if attribute generate_benchmark is enabled)
-   1. xls_benchmark_ir (if attribute generate_benchmark is enabled)</p>
+the following rules:</p>
+<p>1. xls_dslx_test</p>
+<p>2. xls_ir_equivalence_test</p>
+<p>3. xls_eval_ir_test</p>
+<p>4. xls_benchmark_ir</p>
 <h2 id="macros">Macros</h2>
 <p>Below is a brief summary of the public macros. An extensive description of the
 macros is available at
@@ -1291,6 +1358,16 @@ Examples using the macros are found at
 <p>The macro generates sources files (.cc and .h) using the xls_ir_jit_wrapper
 rule. The source files are the input to a cc_library target with the same name
 as this macro.</p>
+<h3 id="xls_ir_verilog_macro"><code>xls_ir_verilog_macro</code></h3>
+<p>The macro instantiates the 'xls_ir_verilog' rule and
+'enable_generated_file_wrapper' function. The generated files of the rule are
+listed in the outs attribute of the rule. These generated files can be
+referenced in other rules.</p>
+<h3 id="xls_dslx_verilog_macro"><code>xls_dslx_verilog_macro</code></h3>
+<p>The macro instantiates the 'xls_dslx_verilog' rule and
+'enable_generated_file_wrapper' function. The generated files of the rule are
+listed in the outs attribute of the rule. These generated files can be
+referenced in other rules.</p>
 <h2 id="bazel-queries">Bazel queries</h2>
 <p>Understanding the build tree for a new project can be difficult, but fortunately
 Bazel provides a

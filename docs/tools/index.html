@@ -383,18 +383,30 @@
           
 
 
+  <li class="md-nav__item">
+    <a href="../dslx_std/" title="Standard Library" class="md-nav__link">
+      Standard Library
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2">
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-3-3" type="checkbox" id="nav-3-3">
     
-    <label class="md-nav__link" for="nav-3-2">
+    <label class="md-nav__link" for="nav-3-3">
       Examples
       <span class="md-nav__icon md-icon">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8.59 16.58L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.42z"/></svg>
       </span>
     </label>
     <nav class="md-nav" aria-label="Examples" data-md-level="2">
-      <label class="md-nav__title" for="nav-3-2">
+      <label class="md-nav__title" for="nav-3-3">
         <span class="md-nav__icon md-icon">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
         </span>
@@ -1165,6 +1177,15 @@ information and critical-path.</p>
 <p>Evaluates an XLS IR file with user-specified or random inputs. Includes
 features for evaluating the IR before and after optimizations which makes this
 tool very useful for identifying optimization bugs.</p>
+<p>This tool accepts two [mutually exclusive] optional args,
+<code>--input_validator_expr</code> and <code>--input_validator_path</code>, which allow the user to
+specify an expression to "filter" potential input values to discard invalid
+ones. For both, the filter must be a function, named <code>validator</code>, and must take
+params of the same layout as the function under test. This function should
+return true if the inputs are valid for the function and false otherwise.
+<code>--input_validator_expr</code> lists the function as an inline command-line argument,
+whereas <code>--input_validator_path</code> holds the path to a .x file containing the
+validation function.</p>
 <h2 id="ir_minimizer_main"><a href="https://github.com/google/xls/tree/main/xls/tools/ir_minimizer_main.cc"><code>ir_minimizer_main</code></a></h2>
 <p>Tool for reducing IR to a minimal test case based on an external test.</p>
 <h2 id="ir_stats_main"><a href="https://github.com/google/xls/tree/main/xls/tools/ir_stats_main.cc"><code>ir_stats_main</code></a></h2>

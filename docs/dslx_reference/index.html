@@ -789,6 +789,26 @@
     Bit Slice Expressions
   </a>
   
+    <nav class="md-nav" aria-label="Bit Slice Expressions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#width-slice" class="md-nav__link">
+    Width Slice
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bit-slice-examples" class="md-nav__link">
+    Bit Slice Examples
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -967,18 +987,30 @@
           
 
 
+  <li class="md-nav__item">
+    <a href="../dslx_std/" title="Standard Library" class="md-nav__link">
+      Standard Library
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2">
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-3-3" type="checkbox" id="nav-3-3">
     
-    <label class="md-nav__link" for="nav-3-2">
+    <label class="md-nav__link" for="nav-3-3">
       Examples
       <span class="md-nav__icon md-icon">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8.59 16.58L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.42z"/></svg>
       </span>
     </label>
     <nav class="md-nav" aria-label="Examples" data-md-level="2">
-      <label class="md-nav__title" for="nav-3-2">
+      <label class="md-nav__title" for="nav-3-3">
         <span class="md-nav__icon md-icon">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
         </span>
@@ -1804,6 +1836,26 @@
   <a href="#bit-slice-expressions" class="md-nav__link">
     Bit Slice Expressions
   </a>
+  
+    <nav class="md-nav" aria-label="Bit Slice Expressions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#width-slice" class="md-nav__link">
+    Width Slice
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bit-slice-examples" class="md-nav__link">
+    Bit Slice Examples
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -3178,16 +3230,18 @@ the MSbs of the resulting value.</p>
 <h3 id="bit-slice-expressions">Bit Slice Expressions</h3>
 <p>DSLX supports Python-style bit slicing over bits types. Note that bits are
 numbered 0..N starting "from the right (as you would write it on paper)" --
-least significant bit, AKA LSb -- for example:</p>
+least significant bit, AKA LSb -- for example, for the value <code>u7:0b100_0111</code>:</p>
 <div class="highlight"><pre><span></span><code>    Bit    6 5 4 3 2 1 0
   Value    1 0 0 0 1 1 1
 </code></pre></div>
 
-<p>A slice expression <code>[n:m]</code> means to get from bit <code>n</code> (inclusive) to bit 'm'
-exclusive. This can be confusing, because the <code>n</code> stands to the left of <code>m</code> in
-the expression, but bit <code>n</code> would be to the 'right' of <code>m</code> in the classical bit
-numbering (note: Not in the classical array visualization, where element 0 is
-usually drawn to the left).</p>
+<p>A slice expression <code>[N:M]</code> means to get from bit <code>N</code> (inclusive) to bit <code>M</code>
+exclusive. The start and limit in the slice expression must be signed integral
+values.</p>
+<p>Aside: This can be confusing, because the <code>N</code> stands to the left of <code>M</code> in the
+expression, but bit <code>N</code> would be to the 'right' of <code>M</code> in the classical bit
+numbering. Additionally, this is not the case in the classical array
+visualization, where element 0 is usually drawn on the left.</p>
 <p>For example, the expression <code>[0:2]</code> would yield:</p>
 <div class="highlight"><pre><span></span><code>    Bit    6 5 4 3 2 1 0
   Value    1 0 0 0 1 1 1
@@ -3197,28 +3251,44 @@ usually drawn to the left).</p>
   Result:  0b11
 </code></pre></div>
 
-<p>Note that, as of now, the indices for this <code>[n:m]</code> form must be literal numbers
+<p>Note that, as of now, the indices for this <code>[N:M]</code> form must be literal numbers
 (so the compiler can determine the width of the result). To perform a slice with
 a non-literal-number start position, see the <code>+:</code> form described below.</p>
 <p>The slicing operation also support the python style slices with offsets from
 start or end. To visualize, one can think of <code>x[ : -1]</code> as the equivalent of
 <code>x[from the start : bitwidth - 1]</code>. Correspondingly, <code>x[-1 : ]</code> can be
 visualized as <code>[ bitwidth - 1 : to the end]</code>.</p>
-<p>For example, to get all bits, except the MSb (from the beginning, until the top
-element minus 1):</p>
+<p>For example, to get all bits, <em>except</em> the MSb (from the beginning, until the
+top element minus 1):</p>
 <div class="highlight"><pre><span></span><code><span class="n">x</span><span class="p">[</span>:<span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="w"></span>
 </code></pre></div>
 
-<p>Or to get the left-most 2 bits (from bitwidth - 2, all the way to the end):</p>
+<p>Or to get the two most significant bits:</p>
 <div class="highlight"><pre><span></span><code><span class="n">x</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span>:<span class="p">]</span><span class="w"></span>
 </code></pre></div>
 
-<p>There is also a "counted" form <code>x[start +: bits[N]]</code> - starting from a specified
-bit, slice out the next <code>N</code> bits. This is equivalent to: <code>bits[N]:(x &gt;&gt; start)</code>.
-The type can be specified as either signed or unsigned; e.g. <code>[start +: s8]</code>
-will produce an 8-bit signed value starting at <code>start</code>, whereas <code>[start +: u4]</code>
-will produce a 4-bit unsigned number starting at <code>start</code>.</p>
+<p>This results in the nice property that a the original complete value can be
+sliced into complementary slices such as <code>:-2</code> (all but the two most significant
+bits) and <code>-2:</code> (the two most significant bits):</p>
+<div class="highlight"><pre><span></span><code><span class="cp">#![test]</span><span class="w"></span>
+<span class="k">fn</span> <span class="nf">slice_into_two_pieces</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">u5</span>:<span class="mb">0b11000</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">lo</span><span class="p">,</span><span class="w"> </span><span class="n">hi</span><span class="p">)</span>: <span class="p">(</span><span class="n">u3</span><span class="p">,</span><span class="w"> </span><span class="n">u2</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="p">[</span>:<span class="o">-</span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="n">x</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span>:<span class="p">]);</span><span class="w"></span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">hi</span><span class="p">,</span><span class="w"> </span><span class="n">u2</span>:<span class="mb">0b11</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">lo</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mb">0b000</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="p">()</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<h4 id="width-slice">Width Slice</h4>
+<p>There is also a "width slice" form <code>x[start +: bits[N]]</code> - starting from a
+specified bit, slice out the next <code>N</code> bits. This is equivalent to:
+<code>bits[N]:(x &gt;&gt; start)</code>. The type can be specified as either signed or unsigned;
+e.g. <code>[start +: s8]</code> will produce an 8-bit signed value starting at <code>start</code>,
+whereas <code>[start +: u4]</code> will produce a 4-bit unsigned number starting at
+<code>start</code>.</p>
 <p><a href="https://github.com/google/xls/tree/main/xls/dslx/tests/bit_slice_syntax.x">Here are many more examples</a>:</p>
+<h4 id="bit-slice-examples">Bit Slice Examples</h4>
 <div class="highlight"><pre><span></span><code><span class="c1">// Identity function helper.</span>
 <span class="k">fn</span> <span class="nf">id</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 
@@ -3760,13 +3830,13 @@ production can be found in the execution log.</p>
           </a>
         
         
-          <a href="../dslx_intro_example1/" title="CRC32" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../dslx_std/" title="Standard Library" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-footer-nav__title">
               <div class="md-ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                CRC32
+                Standard Library
               </div>
             </div>
             <div class="md-footer-nav__button md-icon">

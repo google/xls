@@ -9,7 +9,7 @@
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
       
-        <link rel="canonical" href="https://google.github.io/xls/data_layout/">
+        <link rel="canonical" href="https://google.github.io/xls/dslx_std/">
       
       
       <link rel="shortcut icon" href="../assets/images/favicon.png">
@@ -17,7 +17,7 @@
     
     
       
-        <title>Data Layout - XLS: Accelerated HW Synthesis</title>
+        <title>Standard Library - XLS: Accelerated HW Synthesis</title>
       
     
     
@@ -51,7 +51,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#data-layout" class="md-skip">
+        <a href="#standard-library" class="md-skip">
           Skip to content
         </a>
       
@@ -79,7 +79,7 @@
           </span>
           <span class="md-header-nav__topic md-ellipsis">
             
-              Data Layout
+              Standard Library
             
           </span>
         </div>
@@ -159,12 +159,10 @@
       
       
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2" checked>
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
     
     <label class="md-nav__link" for="nav-2">
       IR
@@ -276,12 +274,10 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-2-5" type="checkbox" id="nav-2-5" checked>
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-2-5" type="checkbox" id="nav-2-5">
     
     <label class="md-nav__link" for="nav-2-5">
       Native JIT
@@ -315,87 +311,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-    
-      
-    
-    
-      <label class="md-nav__link md-nav__link--active" for="__toc">
-        Data Layout
-        <span class="md-nav__icon md-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 9h14V7H3v2m0 4h14v-2H3v2m0 4h14v-2H3v2m16 0h2v-2h-2v2m0-10v2h2V7h-2m0 6h2v-2h-2v2z"/></svg>
-        </span>
-      </label>
-    
-    <a href="./" title="Data Layout" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../data_layout/" title="Data Layout" class="md-nav__link">
       Data Layout
     </a>
-    
-      
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
-      </span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#xls-data-layout" class="md-nav__link">
-    XLS data layout
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#host-data-layout" class="md-nav__link">
-    Host data layout
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#jit-data-layout" class="md-nav__link">
-    JIT data layout
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#packed-views" class="md-nav__link">
-    Packed views
-  </a>
-  
-    <nav class="md-nav" aria-label="Packed views">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#tuple-types" class="md-nav__link">
-    Tuple types
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-    
   </li>
 
         
@@ -425,10 +345,12 @@
       
       
 
+  
 
-  <li class="md-nav__item md-nav__item--nested">
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3">
+      <input class="md-nav__toggle md-toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3" checked>
     
     <label class="md-nav__link" for="nav-3">
       DSLX
@@ -462,11 +384,20 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="../dslx_std/" title="Standard Library" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+    <a href="./" title="Standard Library" class="md-nav__link md-nav__link--active">
       Standard Library
     </a>
+    
   </li>
 
         
@@ -924,57 +855,6 @@
     
   
   
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
-      </span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#xls-data-layout" class="md-nav__link">
-    XLS data layout
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#host-data-layout" class="md-nav__link">
-    Host data layout
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#jit-data-layout" class="md-nav__link">
-    JIT data layout
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#packed-views" class="md-nav__link">
-    Packed views
-  </a>
-  
-    <nav class="md-nav" aria-label="Packed views">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#tuple-types" class="md-nav__link">
-    Tuple types
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
 </nav>
                   </div>
                 </div>
@@ -985,7 +865,7 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/google/xls/tree/main/docs_src/data_layout.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/google/xls/tree/main/docs_src/dslx_std.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
@@ -993,94 +873,136 @@
                   
                 
                 
-                <h1 id="data-layout">Data layout</h1>
-<p>For many uses, XLS types exist within their own conceptual space or domain, so
-"portability" concerns don't exist. When interacting with the JIT, however, XLS
-and host-native types must interact, so the data layouts of both must be
-understood and possibly reconciled.</p>
-<div class="toc">
-<ul>
-<li><a href="#data-layout">Data layout</a><ul>
-<li><a href="#xls-data-layout">XLS data layout</a></li>
-<li><a href="#host-data-layout">Host data layout</a></li>
-<li><a href="#jit-data-layout">JIT data layout</a></li>
-<li><a href="#packed-views">Packed views</a><ul>
-<li><a href="#tuple-types">Tuple types</a></li>
-</ul>
-</li>
-</ul>
-</li>
-</ul>
-</div>
-<h2 id="xls-data-layout">XLS data layout</h2>
-<p>The concrete XLS <a href="https://github.com/google/xls/tree/main/xls/ir/bits.h"><code>Bits</code></a> type is
-the ultimate container of actual data for any XLS IR type: tuples and arrays may
-be contain any number of tuple, array, or bits types, but whatever the layout of
-the type tree, all leaf nodes are Bits. When accessing the underlying storage of
-a <code>Bits</code> via the <code>ToBytes()</code> member function, the results are returned in a
-big-endian layout, i.e, with the most-significant data elements stored in the
-lowest addressible location. For example, the 32-bit value 12,345,678
-(0xBC614E), would be returned as:</p>
-<div class="highlight"><pre><span></span><code>High  &lt;--  Low
-0x 4E 61 BC 00
+                <h1 id="standard-library">Standard Library</h1>
+<p>go/dslx-std</p>
+<!--*
+# Document freshness: For more information, see go/fresh-source.
+freshness: { owner: 'sameeragarwal' reviewed: '2021-07-15' }
+*-->
+
+<p>This page documents the DSLX standard library.</p>
+<h1 id="stdx"><code>std.x</code></h1>
+<h2 id="stdbounded_minus_1"><code>std::bounded_minus_1</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">bounded_minus_1</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"></span>
 </code></pre></div>
 
-<h2 id="host-data-layout">Host data layout</h2>
-<p>Different architectures can use different native layouts. For example, x86 (and
-descendants) use little-endian (i.e., <code>0x00 BC 61 4E</code>), and modern ARM can be
-configurable as either. (There are actually other layouts, but they're best left
-to the dustbin of history).</p>
-<h2 id="jit-data-layout">JIT data layout</h2>
-<p>From the above, we can see that XLS' native layout differs from that of most
-modern hosts. When compiling XLS code, the [LLVM] JIT understandably uses the
-host's native layout. What this means is that any data fed into the JIT from XLS
-will need to be byte-swapped before ingestion.</p>
-<p>For Value or unpacked view input, this swapping is handled automatically, in
-<code>LlvmIrRuntime::PackArgs()</code> (via <code>LlvmIrRuntime::BlitValueToBuffer()</code>) - and the
-__un__swapping is also automatically performed in <code>LlvmIrRuntime::UnpackBuffer()</code>.
-Thus, for these uses, no special action is required of the user.</p>
-<h2 id="packed-views">Packed views</h2>
-<p><em>However</em>, this is not the case for use of packed views. The motivating use case
-for packed views is to allow users to map native types directly into JIT-usable
-values - for example, to use an IEEE float32 (e.g., a C <code>float</code>) <em>directly</em>,
-without needing to be exploded into a <code>bits[1]</code> for the sign, a <code>bits[8]</code> for
-the exponent, and a <code>bits[23]</code> for the significand.</p>
-<p>When creating a packed view from a C <code>float</code>, no special action is needed - that
-<code>float</code> is in native host layout, which is the layout used by the JIT. If,
-however, data is coming from XLS (perhaps a <code>float</code> converted into a Value,
-manipulated in some way, then passed into the JIT), then the <em>user</em> must un-swap
-the bits back to native layout. This is because the JIT has no way of knowing
-the provenance of that data (if it's from a native type or XLS), so it's up to
-the provider of that data to ensure proper layout.</p>
-<p>Distilled into a simple rule of thumb: if packed view data is coming from XLS,
-it needs to be byte swapped before being passed into the JIT.</p>
-<h3 id="tuple-types">Tuple types</h3>
-<p>Another wrinkle is the usage of packed tuple views. When XLS emits a tuple type
-in Verilog, the first element in the tuple declaration is placed in the most
-significant bits, and so on, with the last-declared element placed in the least
-significant bits. To match this layout, PackedTupleView elements must be also
-declared from most significant to least significant element. This way, when
-running on a host, the in-memory layout of input data matches that expected by
-XLS tools. That means, using the usual float32 example, that the packed view
-declaration is:</p>
-<div class="highlight"><pre><span></span><code>PackedTupleView&lt;PackedBitsView&lt;1&gt;, PackedBitsView&lt;8&gt;, PackedBitsView&lt;23&gt;&gt;
+<p>Returns the value of <code>x - 1</code> with saturation at <code>0</code>.</p>
+<h2 id="stdabs"><code>std::abs</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">abs</span><span class="o">&lt;</span><span class="n">BITS</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">sN</span><span class="p">[</span><span class="n">BITS</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">sN</span><span class="p">[</span><span class="n">BITS</span><span class="p">]</span><span class="w"></span>
 </code></pre></div>
 
-<p>(The non-packed-View tuple declaration is much the same, but matters less, as it
-doesn't directly correspond to in-memory data layout.)</p>
-<p>Be aware of this layout when accessing elements in a PackedTupleView. In the
-float32 above, accessing element 0 yields the sign bit (the most significant bit
-in memory), and accessing element 2 yields the significand (the least
-significant 23 bits in memory), as one would expect given the tuple type
-declaration order.</p>
-<p>While this may initially seem confusing, it suffices to remember that
-PackedTupleView element declaration order is the "reverse" of the in-memory
-order; refer to
-<a href="https://github.com/google/xls/tree/main/xls/ir/value_view_test.cc">value_view_test.cc</a>
-and <a href="https://github.com/google/xls/tree/main/xls/jit/ir_jit_test.cc">ir_jit_test.cc</a> for
-test examples, or the [generated] fpadd_2x32_jit_wrapper.h/cc and
-<a href="https://github.com/google/xls/tree/main/xls/modules/fpadd_2x32_test.cc">fpadd_2x32_test.cc</a>
-for practical usage.</p>
+<p>Returns the absolute value of <code>x</code> as a signed number.</p>
+<h2 id="stdis_pow2"><code>std::is_pow2</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">is_pow2</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="kt">bool</span>
+</code></pre></div>
+
+<p>Returns true when x is a non-zero power-of-two.</p>
+<h2 id="stdmul"><code>std::?mul</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">umul</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">M</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">R</span>: <span class="kt">u32</span> <span class="o">=</span><span class="w"> </span><span class="n">N</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">M</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">],</span><span class="w"> </span><span class="n">y</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">M</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">uN</span><span class="p">[</span><span class="n">R</span><span class="p">]</span><span class="w"></span>
+<span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">smul</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">M</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">R</span>: <span class="kt">u32</span> <span class="o">=</span><span class="w"> </span><span class="n">N</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">M</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">sN</span><span class="p">[</span><span class="n">N</span><span class="p">],</span><span class="w"> </span><span class="n">y</span>: <span class="nc">sN</span><span class="p">[</span><span class="n">M</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">sN</span><span class="p">[</span><span class="n">R</span><span class="p">]</span><span class="w"></span>
+</code></pre></div>
+
+<p>Returns product of <code>x</code> (<code>N</code> bits) and <code>y</code> (<code>M</code> bits) as an <code>N+M</code> bit value.</p>
+<h2 id="stditerative_div"><code>std::iterative_div</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">iterative_div</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">DN</span>: <span class="kt">u32</span> <span class="o">=</span><span class="w"> </span><span class="n">N</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">2</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">],</span><span class="w"> </span><span class="n">y</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"></span>
+</code></pre></div>
+
+<p>Calculate <code>x / y</code> one bit at a time. This is an alternative to using the
+division operator '/' which may not synthesize nicely.</p>
+<h2 id="stddiv_pow2"><code>std::div_pow2</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">div_pow2</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">],</span><span class="w"> </span><span class="n">y</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"></span>
+</code></pre></div>
+
+<p>Returns <code>x / y</code> where <code>y</code> must be a non-zero power-of-two.</p>
+<h2 id="stdmod_pow2"><code>std::mod_pow2</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">mod_pow2</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">],</span><span class="w"> </span><span class="n">y</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"></span>
+</code></pre></div>
+
+<p>Returns <code>x % y</code> where <code>y</code> must be a non-zero power-of-two.</p>
+<h2 id="stdceil_div"><code>std::ceil_div</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">ceil_div</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">],</span><span class="w"> </span><span class="n">y</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"></span>
+</code></pre></div>
+
+<p>Returns the ceiling of (x divided by y).</p>
+<h2 id="stdround_up_to_nearest"><code>std::round_up_to_nearest</code></h2>
+<div class="highlight"><pre><span></span><code>pub fn round_up_to_nearest(x: u32, y: u32) -&gt; u32
+</code></pre></div>
+
+<p>Returns <code>x</code> rounded up to the nearest multiple of <code>y</code>.</p>
+<h2 id="stdpow"><code>std::?pow</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">upow</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">],</span><span class="w"> </span><span class="n">n</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"></span>
+<span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">spow</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">sN</span><span class="p">[</span><span class="n">N</span><span class="p">],</span><span class="w"> </span><span class="n">n</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">sN</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"></span>
+</code></pre></div>
+
+<p>Performs integer exponentiation as in Hacker's Delight, Section 11-3. Only
+nonnegative exponents are allowed, hence the uN parameter for spow.</p>
+<h2 id="stdclog2"><code>std::clog2</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">clog2</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"></span>
+</code></pre></div>
+
+<p>Returns <code>ceiling(log2(x))</code>, with one exception: When <code>x = 0</code>, this function
+differs from the true mathematical function: <code>clog2(0) = 0</code> where as
+<code>ceil(log2(0)) = -infinity</code></p>
+<p>This function is frequently used to calculate the number of bits required to
+represent <code>x</code> possibilities. With this interpretation, it is sensible to define
+<code>clog2(0) = 0</code>.</p>
+<p>Example: <code>clog2(7) = 3</code>.</p>
+<h2 id="stdmax"><code>std::?max</code></h2>
+<div class="highlight"><pre><span></span><code>pub fn smax&lt;N: u32&gt;(x: sN[N], y: sN[N]) -&gt; sN[N]
+pub fn umax&lt;N: u32&gt;(x: uN[N], y: uN[N]) -&gt; uN[N]
+</code></pre></div>
+
+<p>Returns the maximum of two integers.</p>
+<h2 id="stdumin"><code>std::umin</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">umin</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">],</span><span class="w"> </span><span class="n">y</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"></span>
+</code></pre></div>
+
+<p>Returns the minimum of two unsigned integers.</p>
+<h2 id="signed-comparison"><code>Signed comparison</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">sge</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">],</span><span class="w"> </span><span class="n">y</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="kt">bool</span>
+<span class="nc">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">sgt</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">],</span><span class="w"> </span><span class="n">y</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="kt">bool</span>
+<span class="nc">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">sle</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">],</span><span class="w"> </span><span class="n">y</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="kt">bool</span>
+<span class="nc">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">slt</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">],</span><span class="w"> </span><span class="n">y</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="kt">bool</span>
+</code></pre></div>
+
+<p><strong>Explicit signed comparison</strong> helpers for working with unsigned values, can be
+a bit more convenient and a bit more explicit intent than doing casting of left
+hand side and right hand side.</p>
+<h2 id="stdfind_index"><code>std::find_index</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">find_index</span><span class="o">&lt;</span><span class="n">BITS</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">ELEMS</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="w"> </span><span class="n">array</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">BITS</span><span class="p">][</span><span class="n">ELEMS</span><span class="p">],</span><span class="w"> </span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">BITS</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="p">(</span><span class="kt">bool</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"></span>
+</code></pre></div>
+
+<p>Returns (<code>found</code>, <code>index</code>) given array and the element to find within the array.</p>
+<p>Note that when <code>found</code> is false, the <code>index</code> is <code>0</code> -- <code>0</code> is provided instead
+of a value like <code>-1</code> to prevent out-of-bounds accesses from occurring if the
+index is used in a match expression (which will eagerly evaluate all of its
+arms), to prevent it from creating an error at simulation time if the value is
+ultimately discarded from the unselected match arm.</p>
+<h2 id="stdlsb"><code>std::lsb</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">lsb</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">u1</span><span class="w"></span>
+</code></pre></div>
+
+<p>Extracts the LSB (Least Significant Bit) from the value <code>x</code> and returns it.</p>
+<h2 id="stdconvert_to_bits"><code>std::convert_to_bits</code></h2>
+<div class="highlight"><pre><span></span><code>pub fn convert_to_bits&lt;N: u32&gt;(x: bool[N]) -&gt; uN[N]
+</code></pre></div>
+
+<p>Converts an array of <code>N</code> bools to a <code>bits[N]</code> value.</p>
+<h2 id="stdmask_bits"><code>std::mask_bits</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">mask_bits</span><span class="o">&lt;</span><span class="n">X</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">X</span><span class="p">]</span><span class="w"></span>
+</code></pre></div>
+
+<p>Returns a value with X bits set (of type bits[X]).</p>
+<h2 id="stdconcat3"><code>std::concat3</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">concat3</span><span class="o">&lt;</span><span class="n">X</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">Y</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">Z</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">R</span>: <span class="kt">u32</span> <span class="o">=</span><span class="w"> </span><span class="n">X</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Y</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">Z</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">X</span><span class="p">],</span><span class="w"> </span><span class="n">y</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">Y</span><span class="p">],</span><span class="w"> </span><span class="n">z</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">Z</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">R</span><span class="p">]</span><span class="w"></span>
+</code></pre></div>
+
+<p>Concatenates 3 values of arbitrary bitwidths to a single value.</p>
+<h2 id="stdrrot"><code>std::rrot</code></h2>
+<div class="highlight"><pre><span></span><code>pub fn rrot&lt;N: u32&gt;(x: bits[N], y: bits[N]) -&gt; bits[N]
+</code></pre></div>
+
+<p>Rotate <code>x</code> right by <code>y</code> bits.</p>
                 
               
               
@@ -1099,7 +1021,7 @@ for practical usage.</p>
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid" aria-label="Footer">
         
-          <a href="../ir_jit/" title="Overview" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../dslx_reference/" title="Reference" class="md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-footer-nav__button md-icon">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
             </div>
@@ -1108,19 +1030,19 @@ for practical usage.</p>
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Overview
+                Reference
               </div>
             </div>
           </a>
         
         
-          <a href="../solvers/" title="Formal" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../dslx_intro_example1/" title="CRC32" class="md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-footer-nav__title">
               <div class="md-ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Formal
+                CRC32
               </div>
             </div>
             <div class="md-footer-nav__button md-icon">
