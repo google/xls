@@ -555,6 +555,12 @@ class BuilderBase {
                absl::optional<SourceLocation> loc = absl::nullopt,
                absl::string_view name = "");
 
+  // Adds a gate operation. The output of the operation is `data` if `cond` is
+  // true and zero-valued otherwise. Gates are side-effecting.
+  BValue Gate(BValue condition, BValue data,
+              absl::optional<SourceLocation> loc = absl::nullopt,
+              absl::string_view name = "");
+
   Package* package() const;
 
   // Returns the last node enqueued onto this builder -- when Build() is called

@@ -885,6 +885,19 @@ OpClass.kinds['REGISTER_WRITE'] = OpClass(
                           expression='has_reset_ ? absl::optional<Node*>(operand(has_load_enable_ ? 2 : 1)) : absl::nullopt'),],
 )
 
+OpClass.kinds['GATE'] = OpClass(
+    name='Gate',
+    op='Op::kGate',
+    operands=[Operand('condition'), Operand('data')],
+    xls_type_expression='data->GetType()',
+    extra_methods=[Method(name='condition',
+                          return_cpp_type='Node*',
+                          expression='operand(0)'),
+                   Method(name='data',
+                          return_cpp_type='Node*',
+                          expression='operand(1)')]
+)
+
 OPS = [
     Op(
         enum_name='kAdd',
@@ -1297,6 +1310,12 @@ OPS = [
         name='zero_ext',
         op_class=OpClass.kinds['EXTEND_OP'],
         properties=[],
+    ),
+    Op(
+        enum_name='kGate',
+        name='gate',
+        op_class=OpClass.kinds['GATE'],
+        properties=[Property.SIDE_EFFECTING],
     ),
 ]
 # pyformat: enable

@@ -135,6 +135,10 @@ absl::Status DfsVisitorWithDefault::HandleEq(CompareOp* eq) {
   return DefaultHandler(eq);
 }
 
+absl::Status DfsVisitorWithDefault::HandleGate(Gate* gate) {
+  return DefaultHandler(gate);
+}
+
 absl::Status DfsVisitorWithDefault::HandleIdentity(UnOp* identity) {
   return DefaultHandler(identity);
 }

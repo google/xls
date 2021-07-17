@@ -974,6 +974,11 @@ absl::StatusOr<BValue> Parser::ParseNode(
                                  node_name);
       break;
     }
+    case Op::kGate: {
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
+      bvalue = fb->Gate(operands[0], operands[1], *loc);
+      break;
+    }
     default:
       XLS_ASSIGN_OR_RETURN(
           bvalue, BuildBinaryOrUnaryOp(op, fb, loc, node_name, &arg_parser));

@@ -566,6 +566,7 @@ absl::StatusOr<Expression*> NodeToExpression(
     }
     case Op::kInputPort:
     case Op::kOutputPort:
+    case Op::kGate:
       return unimplemented();
   }
   XLS_LOG(FATAL) << "Invalid op: " << static_cast<int64_t>(node->op());

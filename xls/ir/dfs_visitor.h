@@ -46,6 +46,7 @@ class DfsVisitor {
       DynamicCountedFor* dynamic_counted_for) = 0;
   virtual absl::Status HandleEncode(Encode* encode) = 0;
   virtual absl::Status HandleEq(CompareOp* eq) = 0;
+  virtual absl::Status HandleGate(Gate* gate) = 0;
   virtual absl::Status HandleIdentity(UnOp* identity) = 0;
   virtual absl::Status HandleInputPort(InputPort* input_port) = 0;
   virtual absl::Status HandleInvoke(Invoke* invoke) = 0;
@@ -155,6 +156,7 @@ class DfsVisitorWithDefault : public DfsVisitor {
       DynamicCountedFor* dynamic_counted_for) override;
   absl::Status HandleEncode(Encode* encode) override;
   absl::Status HandleEq(CompareOp* eq) override;
+  absl::Status HandleGate(Gate* gate) override;
   absl::Status HandleIdentity(UnOp* identity) override;
   absl::Status HandleInputPort(InputPort* input_port) override;
   absl::Status HandleInvoke(Invoke* invoke) override;

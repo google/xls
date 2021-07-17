@@ -205,25 +205,26 @@ bool ShouldEvaluate(Node* node) {
     // Weirdo ops.
     case Op::kAfterAll:
     case Op::kArray:
-    case Op::kArrayIndex:
-    case Op::kArrayUpdate:
     case Op::kArrayConcat:
+    case Op::kArrayIndex:
     case Op::kArraySlice:
+    case Op::kArrayUpdate:
     case Op::kAssert:
-    case Op::kCover:
-    case Op::kReceive:
-    case Op::kSend:
     case Op::kCountedFor:
+    case Op::kCover:
     case Op::kDynamicCountedFor:
+    case Op::kGate:
+    case Op::kInputPort:
     case Op::kInvoke:
     case Op::kMap:
-    case Op::kParam:
-    case Op::kTuple:
-    case Op::kTupleIndex:
-    case Op::kInputPort:
     case Op::kOutputPort:
+    case Op::kParam:
+    case Op::kReceive:
     case Op::kRegisterRead:
     case Op::kRegisterWrite:
+    case Op::kSend:
+    case Op::kTuple:
+    case Op::kTupleIndex:
       return false;
 
     // Unsupported comparison operations.

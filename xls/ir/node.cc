@@ -291,6 +291,9 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
       XLS_RETURN_IF_ERROR(
           visitor->HandleOutputPort(down_cast<OutputPort*>(this)));
       break;
+    case Op::kGate:
+      XLS_RETURN_IF_ERROR(visitor->HandleGate(down_cast<Gate*>(this)));
+      break;
   }
   return absl::OkStatus();
 }

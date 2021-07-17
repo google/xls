@@ -108,6 +108,8 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     case Op::kEq:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return Vector({evaluator->Equals(operands[0], operands[1])});
+    case Op::kGate:
+      return default_handler(node);
     case Op::kIdentity:
       XLS_RETURN_IF_ERROR(check_operand_count(1));
       return operands[0];

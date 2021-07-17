@@ -1634,6 +1634,15 @@ fn foo(x: bits[16]) -> bits[4] {
   ParseFunctionAndCheckDump(input);
 }
 
+TEST(IrParserTest, Gate) {
+  const std::string input = R"(
+fn foo(cond: bits[1], x: bits[16]) -> bits[16] {
+  ret gate.1: bits[16] = gate(cond, x, id=1)
+}
+)";
+  ParseFunctionAndCheckDump(input);
+}
+
 TEST(IrParserTest, ArrayIndexOfTuple) {
   const std::string input = R"(
 fn foo(x: (bits[8])) -> bits[32] {

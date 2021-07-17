@@ -156,6 +156,10 @@ absl::Status IrInterpreter::HandleOutputPort(OutputPort* output_port) {
       "OutputPort not implemented in IrInterpreter");
 }
 
+absl::Status IrInterpreter::HandleGate(Gate* gate) {
+  return absl::UnimplementedError("Gate not implemented in IrInterpreter");
+}
+
 absl::Status IrInterpreter::HandleBitSlice(BitSlice* bit_slice) {
   return SetBitsResult(bit_slice,
                        ResolveAsBits(bit_slice->operand(0))

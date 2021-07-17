@@ -864,6 +864,14 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleGate(Gate* gate) override {
+    XLS_RETURN_IF_ERROR(ExpectOperandCount(gate, 2));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(gate, /*operand_no=*/0,
+                                                 /*expected_bit_count=*/1));
+
+    return ExpectOperandHasType(gate, 1, gate->GetType());
+  }
+
  private:
   absl::Status HandleShiftOp(Node* shift) {
     // A shift-amount operand can have arbitrary width, but the shifted operand

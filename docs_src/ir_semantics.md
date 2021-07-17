@@ -1068,9 +1068,7 @@ Some operations in XLS IR are sensitive to sequence order, similar to
 [channel operations](#channel-operations), but are not themselves
 channel-related. Tokens are used to determine the possible sequencing of these
 effects, and `after_all` can be used to join together tokens as a sequencing
-"merge point" for concurrent threads of execution described by different tokens.
-`assert` is a side-effecting operation that is tied into the XLS IR's dataflow
-graph by way of token sequencing.
+merge point for concurrent threads of execution described by different tokens.
 
 #### **`after_all`**
 
@@ -1089,6 +1087,11 @@ Value         | Type
 
 `after_all` can consume an arbitrary number of token operands including zero.
 
+### Other side-effecting operations
+
+Aside from channels operations such as `send` and `receive` several other
+operations have side-effects. Care must be taken when adding, removing, or
+transforming these operations, e.g., in the optimizer.
 
 #### **`assert`**
 
@@ -1146,6 +1149,33 @@ Value       | Type
 Keyword | Type     | Required | Default | Description
 ------- | -------- | -------- | ------- | ---------------------------------
 `label` | `string` | yes      |         | Name associated with the counter.
+
+#### **`gate`**
+
+Gates an arbitrarily-typed value based on a condition.
+
+The result of the operation is the data operand if the condition is true,
+otherwise the result is a zero value of the type of the data operand. This
+operation can reduce switching and may be used in power optimizations.  This is
+intended for use in operand gating for power reduction, and the compiler may
+ultimately use it to perform register-level load-enable gating.
+
+The operation is considered side-effecting to prevent removal of the operation
+when the gated result (condition is false) is not observable. In this case the
+gate operation is still desirable because of the operations' effects on power
+consumption.
+
+```
+result = gate(condition, data)
+```
+
+**Types**
+
+Value       | Type
+----------- | ---------
+`condition` | `bits[1]`
+`data`      | `T`
+`result`    | `T`
 
 ### RTL-level operations
 

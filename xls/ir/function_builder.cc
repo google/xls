@@ -1188,6 +1188,23 @@ BValue BuilderBase::Cover(BValue token, BValue condition,
   return AddNode<xls::Cover>(loc, token.node(), condition.node(), label, name);
 }
 
+BValue BuilderBase::Gate(BValue condition, BValue data,
+                         absl::optional<SourceLocation> loc,
+                         absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!condition.GetType()->IsBits() ||
+      condition.GetType()->AsBitsOrDie()->bit_count() != 1) {
+    return SetError(
+        absl::StrFormat(
+            "Condition operand of gate must be of bits type of width 1; is: %s",
+            condition.GetType()->ToString()),
+        loc);
+  }
+  return AddNode<xls::Gate>(loc, condition.node(), data.node(), name);
+}
+
 BValue ProcBuilder::Receive(Channel* channel, BValue token,
                             absl::optional<SourceLocation> loc,
                             absl::string_view name) {
