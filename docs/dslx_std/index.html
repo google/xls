@@ -874,12 +874,6 @@
                 
                 
                 <h1 id="standard-library">Standard Library</h1>
-<p>go/dslx-std</p>
-<!--*
-# Document freshness: For more information, see go/fresh-source.
-freshness: { owner: 'sameeragarwal' reviewed: '2021-07-15' }
-*-->
-
 <p>This page documents the DSLX standard library.</p>
 <h1 id="stdx"><code>std.x</code></h1>
 <h2 id="stdbounded_minus_1"><code>std::bounded_minus_1</code></h2>
@@ -1003,6 +997,39 @@ ultimately discarded from the unselected match arm.</p>
 </code></pre></div>
 
 <p>Rotate <code>x</code> right by <code>y</code> bits.</p>
+<h1 id="acm_randomx"><code>acm_random.x</code></h1>
+<p>Port of
+<a href="https://github.com/google/or-tools/blob/66b8d230798f9b8a3c98c26a997daf04974400b8/ortools/base/random.cc#L35">ACM random</a>
+number generator to DSLX.</p>
+<p>DO NOT use <code>acm_random.x</code> for any application where security -- unpredictability
+of subsequent output and previous output -- is needed. ACMRandom is in <em>NO</em>
+<em>WAY</em> a cryptographically secure pseudorandom number generator, and using it
+where recipients of its output may wish to guess earlier/later output values
+would be very bad.</p>
+<h2 id="acm_randomrng_deterministic_seed"><code>acm_random::rng_deterministic_seed</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">rng_deterministic_seed</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="kt">u32</span>
+</code></pre></div>
+
+<p>Returns a fixed seed for use in the random number generator.</p>
+<h2 id="acm_randomrng_new"><code>acm_random::rng_new</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">rng_new</span><span class="p">(</span><span class="n">seed</span>: <span class="kt">u32</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">State</span><span class="w"></span>
+</code></pre></div>
+
+<p>Create the state for a new random number generator using the given seed.</p>
+<h2 id="acm_randomrng_next"><code>acm_random::rng_next</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">rng_next</span><span class="p">(</span><span class="n">s</span>: <span class="nc">State</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="p">(</span><span class="n">State</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"></span>
+</code></pre></div>
+
+<p>Returns a pseudo-random number in the range <code>[1, 2^31-2]</code>.</p>
+<p>Note that this is one number short on both ends of the full range of
+non-negative 32-bit integers, which range from <code>0</code> to <code>2^31-1</code>.</p>
+<h2 id="acm_randomrng_next64"><code>acm_random::rng_next64</code></h2>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">rng_next</span><span class="p">(</span><span class="n">s</span>: <span class="nc">State</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="p">(</span><span class="n">State</span><span class="p">,</span><span class="w"> </span><span class="kt">u64</span><span class="p">)</span><span class="w"></span>
+</code></pre></div>
+
+<p>Returns a pseudo random number in the range <code>[1, (2^31-2)^2]</code>.</p>
+<p>Note that this does not cover all non-negative values of int64, which range from
+<code>0</code> to <code>2^63-1</code>. <strong>The top two bits are ALWAYS ZERO</strong>.</p>
                 
               
               

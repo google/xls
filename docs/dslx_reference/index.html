@@ -720,6 +720,19 @@
     Match Expression
   </a>
   
+    <nav class="md-nav" aria-label="Match Expression">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#redundant-patterns" class="md-nav__link">
+    Redundant Patterns
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -1767,6 +1780,19 @@
   <a href="#match-expression" class="md-nav__link">
     Match Expression
   </a>
+  
+    <nav class="md-nav" aria-label="Match Expression">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#redundant-patterns" class="md-nav__link">
+    Redundant Patterns
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -3014,6 +3040,33 @@ constants; For example, consider this variation on the above:</p>
 
 <p>Here we use a "catch all" wildcard pattern in the last match arm to ensure the
 match expression always matches the input somehow.</p>
+<h4 id="redundant-patterns">Redundant Patterns</h4>
+<p><code>match</code> will flag an error if a <em>syntactically identical</em> pattern is typed
+twice; e.g.</p>
+<div class="highlight"><pre><span></span><code><span class="k">const</span><span class="w"> </span><span class="n">FOO</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">;</span><span class="w"></span>
+<span class="k">fn</span> <span class="nf">f</span><span class="p">(</span><span class="n">x</span>: <span class="kt">u32</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">u2</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">match</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">FOO</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">u2</span>:<span class="mi">0</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="n">FOO</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">u2</span>:<span class="mi">1</span><span class="p">,</span><span class="w">  </span><span class="c1">// Identical pattern!</span>
+<span class="w">    </span><span class="n">_</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">u2</span>:<span class="mi">2</span><span class="p">,</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<p>Only the first pattern will ever match, so it is fully redundant (and therefore
+likely a user error they'd like to be informed of). Note that <em>equivalent</em> but
+not <em>syntactically identical</em> patterns will not be flagged in this way.</p>
+<div class="highlight"><pre><span></span><code><span class="k">const</span><span class="w"> </span><span class="n">FOO</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">;</span><span class="w"></span>
+<span class="k">const</span><span class="w"> </span><span class="n">BAR</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">;</span><span class="w">  </span><span class="c1">// Compares `==` to `FOO`.</span>
+<span class="k">fn</span> <span class="nf">f</span><span class="p">(</span><span class="n">x</span>: <span class="kt">u32</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">u2</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">match</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">FOO</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">u2</span>:<span class="mi">0</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="n">BAR</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">u2</span>:<span class="mi">1</span><span class="p">,</span><span class="w">  </span><span class="c1">// _Equivalent_ pattern, but not syntactically identical.</span>
+<span class="w">    </span><span class="n">_</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">u2</span>:<span class="mi">2</span><span class="p">,</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
 <h3 id="let-expression"><code>let</code> Expression</h3>
 <p>let expressions work the same way as let expressions in other functional
 languages (such as the ML family languages). let expressions provide a nested,
