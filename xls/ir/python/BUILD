@@ -62,14 +62,6 @@ py_test(
 )
 
 xls_pybind_extension(
-    name = "format_preference",
-    srcs = ["format_preference.cc"],
-    deps = [
-        "//xls/ir:format_preference",
-    ],
-)
-
-xls_pybind_extension(
     name = "function",
     srcs = ["function.cc"],
     py_deps = [
@@ -138,7 +130,6 @@ py_test(
     srcs = ["ir_parser_test.py"],
     python_version = "PY3",
     deps = [
-        ":format_preference",
         ":ir_parser",
         ":package",
         "@com_google_absl_py//absl/testing:absltest",
@@ -166,29 +157,6 @@ xls_pybind_extension(
     srcs = ["lsb_or_msb.cc"],
     deps = [
         "//xls/ir",
-    ],
-)
-
-xls_pybind_extension(
-    name = "number_parser",
-    srcs = ["number_parser.cc"],
-    py_deps = [
-        ":bits",  # build_cleaner: keep
-        ":format_preference",  # build_cleaner: keep
-    ],
-    deps = [
-        "//xls/common/status:statusor_pybind_caster",
-        "//xls/ir:number_parser",
-    ],
-)
-
-py_test(
-    name = "number_parser_test",
-    srcs = ["number_parser_test.py"],
-    python_version = "PY3",
-    deps = [
-        ":number_parser",
-        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -279,7 +247,6 @@ xls_pybind_extension(
     srcs = ["value.cc"],
     py_deps = [
         ":bits",  # build_cleaner: keep
-        ":format_preference",  # build_cleaner: keep
     ],
     deps = [
         "//xls/common/python:absl_casters",

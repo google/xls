@@ -25,7 +25,6 @@ namespace xls {
 PYBIND11_MODULE(value, m) {
   ImportStatusModule();
   py::module::import("xls.ir.python.bits");
-  py::module::import("xls.ir.python.format_preference");
 
   py::class_<Value>(m, "Value")
       .def(py::init<Bits>(), py::arg("bits"))
@@ -39,9 +38,8 @@ PYBIND11_MODULE(value, m) {
 
       .def("get_elements", &Value::GetElements)
 
-      .def("__str__", &Value::ToHumanString,
-           py::arg("preference") = FormatPreference::kDefault)
-      .def("to_str", &Value::ToString, py::arg("preference"))
+      .def("__str__", [](const Value& v) { return v.ToHumanString(); })
+      .def("to_str", [](const Value& v) { return v.ToString(); })
 
       .def_static("make_array", &Value::Array, py::arg("elements"))
       .def_static("make_tuple", &Value::Tuple, py::arg("elements"));

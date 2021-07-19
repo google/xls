@@ -18,7 +18,6 @@
 
 from xls.ir.python import ir_parser
 from xls.ir.python import package as package_mod
-from xls.ir.python.format_preference import FormatPreference
 from absl.testing import absltest
 
 
@@ -34,8 +33,8 @@ class IrParserTest(absltest.TestCase):
     self.assertEqual(s, str(v))
 
     v = ir_parser.Parser.parse_value('(0xdeadbeef, 0xcd)', t)
-    self.assertEqual('(bits[32]:0xdead_beef, bits[8]:0xcd)',
-                     v.to_str(FormatPreference.HEX))
+    self.assertEqual('(bits[32]:{}, bits[8]:{})'.format(0xdeadbeef, 0xcd),
+                     v.to_str())
 
   def test_parse_typed_value(self):
     s = 'bits[32]:0x42'
