@@ -43,7 +43,17 @@ information on using pull requests.
 We ask contributors to squash all the commits in the PR into a single one, in
 order to have a cleaner revision history.
 
-Generally, this can be accomplished by:
+Specifically, when you initially send a PR, please ensure it has a single
+commit. **If** you'd like to address review comments by *adding*
+commits,[^why-add] please be sure to squash them into one again once the PR is
+approved (though squashing continuously is also acceptable).
+
+[^why-add]: Adding commits preserves the GitHub code review history and makes it
+  easier to review incremental changes, but causes an additional "round trip"
+  with the reviewer for the final squash after approval, so there is a small
+  procedural tradeoff.
+
+Generally, squashing to a single commit can be accomplished by:
 
 ```console
 proj/xls$ # Here we assume origin points to google/xls.

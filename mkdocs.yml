@@ -65,6 +65,7 @@ markdown_extensions:
           lang: rust
   - pymdownx.arithmatex:
         generic: true
+  - footnotes
 extra_javascript:
   - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
