@@ -790,12 +790,32 @@ understanding, as they they will be checked by DSLX.
 
 ### Type Inference Details
 
+#### Type Inference Background
+
+All expressions in the language's expression grammar have a deductive type
+inference rule. The types must be known for inputs to an
+operator/function[^usebeforedef] and every expression has a way to determine its
+type from its operand expressions.
+
+[^usebeforedef]: Otherwise there'd be a use-before-definition error.
+
 DSLX uses deductive type inference to check the types present in the program.
 Deductive type inference is a set of (typically straight-forward) deduction
 rules: Hindley-Milner style deductive type inference determines the result type
 of a function with a rule that only observes the input types to that function.
 (Note that operators like '+' are just slightly special functions in that they
 have pre-defined special-syntax-rule names.)
+
+#### Bindings and Environment
+
+In DSLX code, the "environment" where names are bound (sometimes also referred
+to as a symbol table) is called the
+[`Bindings`](https://github.com/google/xls/tree/main/xls/dslx/bindings.h) -- it maps
+identifiers to the AST node that defines the name (`{string: AstNode}`), which
+can be combined with a mapping from AST node to its deduced type (`{AstNode:
+ConcreteType}`) to resolve the type of an identifier in the program. `Let` is
+one of the key nodes that populates these `Bindings`, but anything that creates
+a bound name does as well (e.g. parameters, for loop induction variables, etc.).
 
 #### Operator Example
 
@@ -857,43 +877,32 @@ which is flagged at this point in the program.
 
 #### Let Bindings, Names, and the Environment
 
-All expressions in the language's expression grammar have a deductive type
-inference rule. The types must be known for inputs to an operator/function
-(otherwise there'd be a use-before-definition error) and every expression has a
-way to determine its type from its operand expressions.
+In the DSL, `let` is an expression. It may not seem obvious at a glance, but it
+is! As a primer see the [type inference background](#type-inference-background)
+and how [names are resolved in an environment](#bindings-and-environment).
 
-A more interesting deduction rule comes into view with "let" expressions, which
-are of the form:
+"let" expressions are of the (Rust-inspired) form:
 
-`let $name: $annotated_type = $expr in $subexpr`
+`let $name: $annotated_type = $expr; $subexpr`
 
-An example of this is:
+`$name` gets "bound" to a value of type `$annotated_type`. The `let` typecheck
+rule must **both** check that `$expr` is of type `$annotated_type`, as well as
+determine the type of `$subexpr`, which is the type of the overall "let
+expression".
 
-`let x: u32 = u32:2 in x`
+In this example, the result of the `let` expression is the return value --
+`$subexpr` (`x+x`) can use the `$name` (`x`) which was "bound":
 
-That's an expression which evaluates to the value '2' of type `u32`.
+```dslx
+fn main(y: u32) -> u64 {
+  let x: u64 = y as u64;
+  x+x
+}
+```
 
-In a let expression like this, we say `$name` gets "bound" to a value of type
-`$annotated_type`. The let typecheck must both check that `$expr` is of type
-`$annotated_type`, as well as determine the type of `$subexpr`, which is the
-type of the overall "let expression".
-
-This leads to the deduction rule that "let just returns the type of `$subexpr`".
-But, in this example, the subexpr needs some information from the outer `let`
-expression, because if asked "what's the type of some symbol `y`" one
-immediately asks "well what comes before that in the program text?"
-
-Let bindings lead to the introduction of the notion of an *environment* that is
-passed to type inference rules. The deduction rule says, "put the bindings that
-`$name` is of type `$annotated_type` in the environment, then deduce the type of
-`$subexpr`. Then we can simply say that the type of some identifier
-`$identifier` is the type that we find looking up `$identifier` up in that
-environment.
-
-In the DSLX prototype code this environment is called the `Bindings`, and it
-maps identifiers to the AST node that defines the name (`{Text: AstNode}`),
-which can be combined with a mapping from AST node to its deduced type
-(`{AstNode: ConcreteType}`) to resolve the type of an identifier.
+If we invoke `main(u32:2)` we will the evaluate `let` expression -- it creates a
+binding of `x` to the value `u64:2`, and then evaluates the expression `x+x` in
+that environment, so the result of the `let` expression's `$subexpr` is `u64:4`.
 
 ## Statements
 
