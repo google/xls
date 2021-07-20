@@ -29,6 +29,11 @@ TEST(TrafficModelsTest, GeneralizedGeometricModelTest) {
   RandomNumberInterface rnd;
   GeneralizedGeometricTrafficModel model(lambda, burst_prob, packet_size_bits,
                                          rnd);
+
+  EXPECT_EQ(model.GetPacketSizeInBits(), packet_size_bits);
+  EXPECT_DOUBLE_EQ(model.GetLambda(), lambda);
+  EXPECT_DOUBLE_EQ(model.GetBurstProb(), 0.1);
+
   TrafficModelMonitor monitor;
 
   int64_t cycle = 0;
@@ -54,9 +59,12 @@ TEST(TrafficModelsTest, GeneralizedGeometricModelTest) {
   XLS_VLOG(1) << "Expected Traffic " << expected_traffic << "\n";
   XLS_VLOG(1) << "Measured Traffic " << measured_traffic << std::endl;
 
+  EXPECT_EQ(num_packets, monitor.MeasuredPacketCount());
   EXPECT_EQ(num_packets / 1000, static_cast<int64_t>(lambda * cycle) / 1000);
   EXPECT_EQ(static_cast<int64_t>(expected_traffic / 100),
             static_cast<int64_t>(measured_traffic / 100));
+  EXPECT_DOUBLE_EQ(expected_traffic,
+                   lambda * 128.0 / 500.0e-12 / 1024.0 / 1024.0 / 8.0);
 }
 
 }  // namespace

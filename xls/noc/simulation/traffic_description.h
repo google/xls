@@ -73,12 +73,27 @@ class TrafficFlow {
                            kUnitSecBytes);
   }
 
+  // Traffic in MebiBytes / sec.
+  double GetTrafficRateInMiBps() const {
+    return GetTrafficRateInBytesPerSec() / 1024.0 / 1024.0;
+  }
+
   // Packet size in bits.
-  double GetPacketSizeInBits() const { return packet_size_bits_; }
+  int64_t GetPacketSizeInBits() const { return packet_size_in_bits_; }
 
   // Packet size in bytes.
   double GetPacketSizeInBytes() const {
-    return ConvertDataVolume(packet_size_bits_, kUnitPsBits, kUnitSecBytes);
+    return ConvertDataVolume(packet_size_in_bits_, kUnitPsBits, kUnitSecBytes);
+  }
+
+  // Get Burst Percent.
+  double GetBurstPercent() const {
+    return static_cast<double>(burst_percent_in_mils_) / 1000.0;
+  }
+
+  // Get Burst Probability.
+  double GetBurstProb() const {
+    return static_cast<double>(burst_percent_in_mils_) / 100'000.0;
   }
 
   TrafficFlow& SetName(absl::string_view s) {
@@ -108,7 +123,7 @@ class TrafficFlow {
   }
 
   TrafficFlow& SetPacketSizeInBits(int64_t bits) {
-    packet_size_bits_ = bits;
+    packet_size_in_bits_ = bits;
     return *this;
   }
 
@@ -132,6 +147,19 @@ class TrafficFlow {
     return *this;
   }
 
+  // Set burst percentage in multiples of 0.001.
+  //   1% probability of burst is 1000 x 0.001.
+  TrafficFlow& SetBurstPercentInMils(int64_t burst_percent_in_mils) {
+    burst_percent_in_mils_ = burst_percent_in_mils;
+    return *this;
+  }
+
+  // Set burst percentage in multiples of 0.001.
+  //   1% probability of burst is 1000 x 0.001.
+  TrafficFlow& SetBurstProbInMils(int64_t burst_prob_in_mils) {
+    return SetBurstPercentInMils(burst_prob_in_mils * 100);
+  }
+
  private:
   TrafficFlowId id_;
 
@@ -141,7 +169,10 @@ class TrafficFlow {
 
   int64_t bandwidth_bits_ = 0;
   int64_t bandwidth_per_n_ps_ = 1;
-  int64_t packet_size_bits_ = 1;
+  int64_t packet_size_in_bits_ = 1;
+
+  // Burst peercent in multiples of 0.001.
+  int64_t burst_percent_in_mils_ = 0;
 };
 
 class NocTrafficManager;
@@ -214,6 +245,11 @@ class NocTrafficManager {
     return traffic_flows_.at(id.id());
   }
 
+  // Retrieves reference to a TrafficFlow object given an id.
+  const TrafficFlow& GetTrafficFlow(TrafficFlowId id) const {
+    return traffic_flows_.at(id.id());
+  }
+
   // Allocates and returns id of a new TrafficMode.
   absl::StatusOr<TrafficModeId> CreateTrafficMode() {
     int64_t n_flows = traffic_modes_.size();
@@ -224,9 +260,23 @@ class NocTrafficManager {
     return next_id;
   }
 
-  // Retreives reference to a TrafficMode object given an id.
+  // Retrieves reference to a TrafficMode object given an id.
   TrafficMode& GetTrafficMode(TrafficModeId id) {
     return traffic_modes_.at(id.id());
+  }
+
+  // Retrieves reference to a TrafficMode object given an id.
+  const TrafficMode& GetTrafficMode(TrafficModeId id) const {
+    return traffic_modes_.at(id.id());
+  }
+
+  // Retrieves all traffic flow ids.
+  std::vector<TrafficFlowId> GetTrafficFlowIds() const {
+    std::vector<TrafficFlowId> flows;
+    for (const TrafficFlow& f : traffic_flows_) {
+      flows.push_back(f.id());
+    }
+    return flows;
   }
 
  private:

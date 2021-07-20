@@ -178,6 +178,11 @@ class NetworkComponentIndexMap {
   absl::Status Add(
       const absl::flat_hash_map<NetworkComponentId, int64_t>& nc_index);
 
+  // Retrieve list of all network components.
+  absl::Span<const NetworkComponentId> GetNetworkComponents() const {
+    return absl::MakeSpan(ordered_components_);
+  }
+
  private:
   absl::flat_hash_map<NetworkComponentId, int64_t> component_index_;
   std::vector<NetworkComponentId> ordered_components_;

@@ -59,12 +59,18 @@ class GeneralizedGeometricTrafficModel {
   //
   // Note - actual traffic rate will be close, but not exact due to
   //      - statistical variation.
-  double ExpectedTrafficRateInMiBps(int64_t cycle_time_ps) {
+  double ExpectedTrafficRateInMiBps(int64_t cycle_time_ps) const {
     double num_cycles = 1.0e12 / static_cast<double>(cycle_time_ps);
     double num_packets = lambda_ * num_cycles;
     double bits_per_sec = static_cast<double>(packet_size_bits_) * num_packets;
-    return bits_per_sec / 1024.0 / 1024.0;
+    return bits_per_sec / 1024.0 / 1024.0 / 8.0;
   }
+
+  int64_t GetPacketSizeInBits() const { return packet_size_bits_; }
+
+  double GetLambda() const { return lambda_; }
+
+  double GetBurstProb() const { return burst_prob_; }
 
  private:
   DataPacket next_packet_;
@@ -89,21 +95,27 @@ class TrafficModelMonitor {
 
     for (DataPacket& p : packets) {
       num_bits_sent_ += p.data.bit_count();
+      ++packets_sent_count_;
     }
   }
 
+  // Returns observed count of packets sent in all previous calls to
+  // AcceptNewPackets().
+  int64_t MeasuredPacketCount() const { return packets_sent_count_; }
+
   // Returns observed rate of traffic in MebiBytes Per Second seen in all
   // previous calls to AcceptNewPackets().
-  double MeasuredTrafficRateInMiBps(int64_t cycle_time_ps) {
+  double MeasuredTrafficRateInMiBps(int64_t cycle_time_ps) const {
     double total_sec = static_cast<double>(max_cycle_ + 1) *
                        static_cast<double>(cycle_time_ps) * 1.0e-12;
     double bits_per_sec = static_cast<double>(num_bits_sent_) / total_sec;
-    return bits_per_sec / 1024.0 / 1024.0;
+    return bits_per_sec / 1024.0 / 1024.0 / 8.0;
   }
 
  private:
   int64_t max_cycle_ = 0;
   int64_t num_bits_sent_ = 0;
+  int64_t packets_sent_count_ = 0;
 };
 
 }  // namespace xls::noc

@@ -65,6 +65,22 @@ absl::Status BuildNetworkGraphTree000(NetworkConfigProto* nc_proto,
                                       NetworkManager* graph,
                                       NocParameters* params);
 
+// Builds Sample Tree Network 001
+//
+//   SendPort0     SendPort1
+//     \           /
+//      \         /
+//     Ain0     Ain1
+//      [ RouterA ]
+//     Aout0    Aout1
+//       |        \
+//       |         \
+//       |          \
+//   RecvPort0     RecvPort1
+absl::Status BuildNetworkGraphTree001(NetworkConfigProto* nc_proto,
+                                      NetworkManager* graph,
+                                      NocParameters* params);
+
 }  // namespace xls::noc
 
 #endif  // XLS_NOC_SIMULATION_SAMPLE_NETWORK_GRAPHS_H_

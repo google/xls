@@ -59,6 +59,9 @@ TEST(PacketizerTest, SendSingleFlit) {
 
   XLS_ASSERT_OK(depacketizer.AcceptNewPacket(packet));
   EXPECT_FALSE(depacketizer.IsIdle());
+  EXPECT_EQ(depacketizer.GetFlitPayloadBitCount(), 16);
+  EXPECT_EQ(depacketizer.GetSourceIndexBitCount(), 3);
+  EXPECT_EQ(depacketizer.GetMaxPacketBitCount(), 16);
 
   XLS_ASSERT_OK_AND_ASSIGN(DataFlit flit0, depacketizer.ComputeNextFlit());
   EXPECT_TRUE(depacketizer.IsIdle());
@@ -103,6 +106,10 @@ TEST(PacketizerTest, SendMultiplePhit) {
   DePacketizer depacketizer(16, 3, 128);
 
   EXPECT_TRUE(depacketizer.IsIdle());
+  EXPECT_EQ(depacketizer.GetFlitPayloadBitCount(), 16);
+  EXPECT_EQ(depacketizer.GetSourceIndexBitCount(), 3);
+  EXPECT_EQ(depacketizer.GetMaxPacketBitCount(), 128);
+
   XLS_ASSERT_OK(depacketizer.AcceptNewPacket(packet));
   EXPECT_FALSE(depacketizer.IsIdle());
 

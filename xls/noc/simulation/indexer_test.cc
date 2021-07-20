@@ -194,6 +194,7 @@ TEST(SimIndexerTest, NetworkComponentIndexerTest0) {
   XLS_ASSERT_OK_AND_ASSIGN(NetworkComponentIndexMap index,
                            index_builder.BuildNetworkComponentIndex());
   XLS_EXPECT_OK_AND_EQ(index.GetNetworkComponentByIndex(0), nc0);
+  EXPECT_EQ(index.GetNetworkComponents().at(0), nc0);
 }
 
 TEST(SimIndexerTest, NetworkComponentIndexerTest1) {
@@ -226,6 +227,12 @@ TEST(SimIndexerTest, NetworkComponentIndexerTest1) {
   XLS_EXPECT_OK_AND_EQ(index.GetNetworkComponentByIndex(1), nc3);
   XLS_EXPECT_OK_AND_EQ(index.GetNetworkComponentByIndex(2), nc1);
   XLS_EXPECT_OK_AND_EQ(index.GetNetworkComponentByIndex(3), nc0);
+
+  ASSERT_EQ(index.GetNetworkComponents().size(), 4);
+  EXPECT_EQ(index.GetNetworkComponents().at(0), nc2);
+  EXPECT_EQ(index.GetNetworkComponents().at(1), nc3);
+  EXPECT_EQ(index.GetNetworkComponents().at(2), nc1);
+  EXPECT_EQ(index.GetNetworkComponents().at(3), nc0);
 }
 
 }  // namespace

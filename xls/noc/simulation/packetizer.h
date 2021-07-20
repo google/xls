@@ -185,6 +185,12 @@ class DePacketizer {
     return next_flit.BuildFlit();
   }
 
+  int64_t GetFlitPayloadBitCount() const { return flit_payload_bit_count_; }
+
+  int64_t GetSourceIndexBitCount() const { return source_index_bit_count_; }
+
+  int64_t GetMaxPacketBitCount() const { return max_packet_bit_count_; }
+
  private:
   // Returns the amount of flit payload used for packetization.
   //

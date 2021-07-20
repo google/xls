@@ -42,10 +42,12 @@ absl::Status BuildNetworkGraphLinear000(NetworkConfigProto* nc_proto,
   builder.WithLink("Link0A")
       .WithSourcePort("SendPort0")
       .WithSinkPort("Ain0")
+      .WithPhitBitWidth(64)
       .WithSourceSinkPipelineStage(2);
   builder.WithLink("LinkA0")
       .WithSourcePort("Aout0")
       .WithSinkPort("RecvPort0")
+      .WithPhitBitWidth(64)
       .WithSourceSinkPipelineStage(2);
 
   XLS_ASSIGN_OR_RETURN(*nc_proto, builder.Build());
@@ -132,6 +134,73 @@ absl::Status BuildNetworkGraphTree000(NetworkConfigProto* nc_proto,
       .WithSourceSinkPipelineStage(2);
   builder.WithLink("LinkB2").WithSourcePort("Bout1").WithSinkPort("RecvPort2");
   builder.WithLink("LinkB3").WithSourcePort("Bout2").WithSinkPort("RecvPort3");
+
+  XLS_ASSIGN_OR_RETURN(*nc_proto, builder.Build());
+  XLS_LOG(INFO) << nc_proto->DebugString();
+  XLS_LOG(INFO) << "Done ...";
+
+  // Build and assign simulation objects
+  XLS_RETURN_IF_ERROR(BuildNetworkGraphFromProto(*nc_proto, graph, params));
+  graph->Dump();
+  XLS_LOG(INFO) << "Network Graph Complete ...";
+
+  return absl::OkStatus();
+}
+
+absl::Status BuildNetworkGraphTree001(NetworkConfigProto* nc_proto,
+                                      NetworkManager* graph,
+                                      NocParameters* params) {
+  XLS_LOG(INFO) << "Setting up network ...";
+  NetworkConfigProtoBuilder builder("Test");
+
+  builder.WithVirtualChannel("VC0").WithDepth(3);
+  builder.WithVirtualChannel("VC1").WithDepth(3);
+
+  builder.WithPort("SendPort0")
+      .AsInputDirection()
+      .WithVirtualChannel("VC0")
+      .WithVirtualChannel("VC1");
+  builder.WithPort("SendPort1")
+      .AsInputDirection()
+      .WithVirtualChannel("VC0")
+      .WithVirtualChannel("VC1");
+
+  builder.WithPort("RecvPort0")
+      .AsOutputDirection()
+      .WithVirtualChannel("VC0")
+      .WithVirtualChannel("VC1");
+  builder.WithPort("RecvPort1")
+      .AsOutputDirection()
+      .WithVirtualChannel("VC0")
+      .WithVirtualChannel("VC1");
+
+  auto routera = builder.WithRouter("RouterA");
+  routera.WithInputPort("Ain0").WithVirtualChannel("VC0").WithVirtualChannel(
+      "VC1");
+  routera.WithInputPort("Ain1").WithVirtualChannel("VC0").WithVirtualChannel(
+      "VC1");
+  routera.WithOutputPort("Aout0").WithVirtualChannel("VC0").WithVirtualChannel(
+      "VC1");
+  routera.WithOutputPort("Aout1").WithVirtualChannel("VC0").WithVirtualChannel(
+      "VC1");
+
+  builder.WithLink("Link0A")
+      .WithSourcePort("SendPort0")
+      .WithSinkPort("Ain0")
+      .WithPhitBitWidth(128);
+  builder.WithLink("Link1A")
+      .WithSourcePort("SendPort1")
+      .WithSinkPort("Ain1")
+      .WithPhitBitWidth(128);
+
+  builder.WithLink("LinkA0")
+      .WithSourcePort("Aout0")
+      .WithSinkPort("RecvPort0")
+      .WithPhitBitWidth(128);
+  builder.WithLink("LinkA1")
+      .WithSourcePort("Aout1")
+      .WithSinkPort("RecvPort1")
+      .WithPhitBitWidth(128);
 
   XLS_ASSIGN_OR_RETURN(*nc_proto, builder.Build());
   XLS_LOG(INFO) << nc_proto->DebugString();
