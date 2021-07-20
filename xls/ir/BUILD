@@ -558,6 +558,17 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "format_preference_test",
+    srcs = ["format_preference_test.cc"],
+    deps = [
+        ":format_preference",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "value_test_util",
     testonly = True,

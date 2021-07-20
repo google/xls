@@ -40,12 +40,12 @@ absl::StatusOr<FormatPreference> FormatPreferenceFromString(
   } else if (s == "binary") {
     return FormatPreference::kBinary;
   } else if (s == "hex") {
-    return FormatPreference::kBinary;
+    return FormatPreference::kHex;
   } else if (s == "decimal") {
     return FormatPreference::kDecimal;
   }
   return absl::InvalidArgumentError(
-      absl::StrFormat("Invalid trace format preference: \"%s\"", s));
+      absl::StrFormat("Invalid format preference: \"%s\"", s));
 }
 
 }  // namespace xls
