@@ -242,6 +242,17 @@ cc_library(
 )
 
 cc_test(
+    name = "check_ops_test",
+    srcs = ["check_ops_test.cc"],
+    deps = [
+        ":logging",
+        "//xls/common:casts",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "logging_test",
     srcs = ["logging_test.cc"],
     deps = [
