@@ -81,7 +81,7 @@ class AbstractInterpreter {
   // AbstractInterpreter to a new value within a given lifetime.
   class ScopedTypeInfoSwap {
    public:
-    ScopedTypeInfoSwap(AbstractInterpreter* interp, TypeInfo* updated);
+    ScopedTypeInfoSwap(AbstractInterpreter* interp, TypeInfo& updated);
 
     // Helper overload that uses the root TypeInfo associated with "module".
     //
@@ -105,7 +105,7 @@ class AbstractInterpreter {
 
   // Sets the current type info on the interpreter -- only intended for user use
   // via ScopedTypeInfoSwap so kept protected with ScopedTypeInfoSwap friended.
-  virtual void SetCurrentTypeInfo(TypeInfo* current_type_info) = 0;
+  virtual void SetCurrentTypeInfo(TypeInfo& current_type_info) = 0;
 };
 
 }  // namespace xls::dslx

@@ -105,8 +105,8 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
   TypeInfo* GetCurrentTypeInfo() override {
     return interp_->current_type_info_;
   }
-  void SetCurrentTypeInfo(TypeInfo* updated) override {
-    interp_->current_type_info_ = updated;
+  void SetCurrentTypeInfo(TypeInfo& updated) override {
+    interp_->current_type_info_ = &updated;
   }
   ImportData* GetImportData() override { return interp_->import_data_; }
   absl::Span<const std::filesystem::path> GetAdditionalSearchPaths() override {
@@ -180,6 +180,7 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateLiteral(Expr* expr) {
 absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
                                                   InterpBindings* bindings,
                                                   ConcreteType* type_context) {
+  XLS_RET_CHECK(current_type_info_ != nullptr);
   XLS_RET_CHECK_EQ(expr->owner(), current_type_info_->module())
       << expr->span() << " vs " << current_type_info_->module()->name();
   Evaluator evaluator(this, bindings, type_context, abstract_adapter_.get());
@@ -297,13 +298,16 @@ absl::StatusOr<InterpValue> Interpreter::RunBuiltin(
 absl::StatusOr<InterpValue> Interpreter::CallFnValue(
     const InterpValue& fv, absl::Span<InterpValue const> args, const Span& span,
     Invocation* invocation, const SymbolicBindings* symbolic_bindings) {
+  XLS_RET_CHECK(current_type_info_ != nullptr);
   if (fv.IsBuiltinFunction()) {
     auto builtin = absl::get<Builtin>(fv.GetFunctionOrDie());
     return RunBuiltin(builtin, args, span, invocation, symbolic_bindings);
   }
   const auto& fn_data =
       absl::get<InterpValue::UserFnData>(fv.GetFunctionOrDie());
-  XLS_RET_CHECK_EQ(fn_data.function->owner(), current_type_info_->module());
+  XLS_RET_CHECK_EQ(fn_data.function->owner(), current_type_info_->module())
+      << fn_data.function->owner()->name() << " vs "
+      << current_type_info_->module()->name();
   return EvaluateAndCompareInternal(fn_data.function, args, span, invocation,
                                     symbolic_bindings);
 }
@@ -411,7 +415,10 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
       invocation_type_info = current_type_info_;
     }
   }
-  TypeInfoSwap tis(this, invocation_type_info);
+  absl::optional<TypeInfoSwap> tis;
+  if (invocation_type_info != nullptr) {  // Builtins have no type info.
+    tis.emplace(this, invocation_type_info);
+  }
   absl::StatusOr<InterpValue> result = CallFnValue(
       callee_value, arg_values, expr->span(), expr, fn_symbolic_bindings);
   if (!result.ok()) {

@@ -2241,3 +2241,15 @@ xls_benchmark_ir(
     name = "let_match_tuple_benchmark_ir",
     src = ":let_match_tuple.ir",
 )
+
+# -- map_parametric_with_default
+
+xls_dslx_module_library(
+    name = "map_parametric_with_default_dslx_module",
+    src = "map_parametric_with_default.x",
+)
+
+xls_dslx_test(
+    name = "map_parametric_with_default_dslx_test",
+    dep = ":map_parametric_with_default_dslx_module",
+)

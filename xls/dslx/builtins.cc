@@ -148,19 +148,37 @@ absl::StatusOr<InterpValue> BuiltinMap(
     const SymbolicBindings* symbolic_bindings, AbstractInterpreter* interp) {
   XLS_RETURN_IF_ERROR(ArgChecker("map", args).size(2).status());
   const InterpValue& inputs = args[0];
+
+  // Note: this `mapped_fn` may not be from the current module (where the `expr`
+  // -- i.e. the map invocation -- lives).
   const InterpValue& mapped_fn = args[1];
 
-  // Establish type information for the callee (e.g. it could live in another
-  // module).
-  TypeInfo* mapped_type_info = interp->GetCurrentTypeInfo();
+  XLS_VLOG(5) << "mapping; inputs: " << inputs.ToString()
+              << "; mapped_fn: " << mapped_fn.ToString() << " @ " << span
+              << "; current type info module: "
+              << interp->GetCurrentTypeInfo()->module()->name();
+
+  // On entry to BuiltinMap, EvaluateInvocation has set up the type information
+  // if we're invoking a parametric. If it's not a parametric, but a plain
+  // function in another module, we still need to set up the appropriate type
+  // info here.
+  //
+  // TODO(leary): 2021-07-20 It'd be better to store the type info that should
+  // be established for any given invocation in the TypeInfo map, but we treat
+  // maps specially since they're currently our only higher order function.
+  // Introduction of reduce (google/xls#331) will provide impetus to clean this
+  // up more.
+  absl::optional<AbstractInterpreter::ScopedTypeInfoSwap> stis;
   absl::optional<Module*> mapped_module = GetFunctionValueOwner(mapped_fn);
-  if (mapped_module.has_value()) {
-    XLS_ASSIGN_OR_RETURN(mapped_type_info,
+  if (mapped_module.has_value() &&
+      mapped_module.value() != interp->GetCurrentTypeInfo()->module()) {
+    XLS_ASSIGN_OR_RETURN(TypeInfo * mapped_type_info,
                          interp->GetRootTypeInfo(*mapped_module));
+    XLS_RET_CHECK(mapped_type_info != nullptr);
+    stis.emplace(interp, *mapped_type_info);
   }
 
-  AbstractInterpreter::ScopedTypeInfoSwap stis(interp, mapped_type_info);
-
+  // Call "mapped_fn" on each of the input elements.
   std::vector<InterpValue> outputs;
   for (const InterpValue& v : inputs.GetValuesOrDie()) {
     std::vector<InterpValue> args = {v};

@@ -2247,7 +2247,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(AstNode* node,
                        DeduceInternal(node, ctx));
   ctx->type_info()->SetItem(node, *type);
   XLS_VLOG(5) << "Deduced type of " << node->ToString() << " => "
-              << type->ToString();
+              << type->ToString() << " in " << ctx->type_info();
   return type;
 }
 

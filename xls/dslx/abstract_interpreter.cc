@@ -17,21 +17,22 @@
 namespace xls::dslx {
 
 AbstractInterpreter::ScopedTypeInfoSwap::ScopedTypeInfoSwap(
-    AbstractInterpreter* interp, TypeInfo* updated)
-    : interp(interp), original(interp->GetCurrentTypeInfo()) {
+    AbstractInterpreter* interp, TypeInfo& updated)
+    : interp(interp), original(XLS_DIE_IF_NULL(interp->GetCurrentTypeInfo())) {
   interp->SetCurrentTypeInfo(updated);
 }
 
 AbstractInterpreter::ScopedTypeInfoSwap::ScopedTypeInfoSwap(
     AbstractInterpreter* interp, Module* module)
-    : ScopedTypeInfoSwap(interp, interp->GetRootTypeInfo(module).value()) {}
+    : ScopedTypeInfoSwap(interp, *interp->GetRootTypeInfo(module).value()) {}
 
 AbstractInterpreter::ScopedTypeInfoSwap::ScopedTypeInfoSwap(
     AbstractInterpreter* interp, AstNode* node)
     : ScopedTypeInfoSwap(interp, node->owner()) {}
 
 AbstractInterpreter::ScopedTypeInfoSwap::~ScopedTypeInfoSwap() {
-  interp->SetCurrentTypeInfo(original);
+  XLS_CHECK(original != nullptr);
+  interp->SetCurrentTypeInfo(*original);
 }
 
 }  // namespace xls::dslx

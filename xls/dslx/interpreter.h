@@ -132,8 +132,10 @@ class Interpreter {
 
   struct TypeInfoSwap {
     TypeInfoSwap(Interpreter* parent, absl::optional<TypeInfo*> new_type_info)
-        : parent_(parent), old_type_info_(parent->current_type_info_) {
+        : parent_(parent),
+          old_type_info_(XLS_DIE_IF_NULL(parent->current_type_info_)) {
       if (new_type_info.has_value()) {
+        XLS_CHECK(new_type_info.value() != nullptr);
         parent->current_type_info_ = new_type_info.value();
       }
     }

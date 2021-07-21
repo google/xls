@@ -158,7 +158,8 @@ void TypeInfo::NoteRequiresImplicitToken(Function* f, bool is_required) {
 
 absl::optional<TypeInfo*> TypeInfo::GetInstantiationTypeInfo(
     Invocation* invocation, const SymbolicBindings& caller) const {
-  XLS_CHECK_EQ(invocation->owner(), module_);
+  XLS_CHECK_EQ(invocation->owner(), module_)
+      << invocation->owner()->name() << " vs " << module_->name();
   const TypeInfo* top = GetRoot();
   auto it = top->instantiations_.find(invocation);
   if (it == top->instantiations_.end()) {
