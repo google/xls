@@ -166,6 +166,7 @@ cc_library(
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "//xls/ir:keyword_args",
+        "//xls/ir:value_helpers",
         "@com_google_googletest//:gtest",
     ],
 )

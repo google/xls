@@ -33,7 +33,7 @@ using status_testing::IsOkAndHolds;
 INSTANTIATE_TEST_SUITE_P(
     IrInterpreterTest, IrEvaluatorTestBase,
     testing::Values(IrEvaluatorTestParam(
-        [](Function* function, const std::vector<Value>& args) {
+        [](Function* function, absl::Span<const Value> args) {
           return InterpretFunction(function, args);
         },
         [](Function* function,

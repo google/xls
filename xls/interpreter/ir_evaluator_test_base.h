@@ -36,7 +36,7 @@ struct IrEvaluatorTestParam {
   // Function to perform evaluation of the specified program with the given
   // [positional] args.
   using EvaluatorFnT = std::function<absl::StatusOr<Value>(
-      Function* function, const std::vector<Value>& args)>;
+      Function* function, absl::Span<const Value> args)>;
 
   // Function to perform evaluation of the specified program with the given
   // keyword args.
@@ -83,9 +83,16 @@ class IrEvaluatorTestBase
   )");
   }
 
+  // Runs the given function with Values as input.
+  absl::StatusOr<Value> RunWithValues(Function* f,
+                                      absl::Span<const Value> args) {
+    return GetParam().evaluator(f, args);
+  }
+
   // Runs the given function with uint64s as input. Converts to/from Values
   // under the hood. All arguments and result must be bits-typed.
-  absl::StatusOr<uint64_t> Run(Function* f, absl::Span<const uint64_t> args) {
+  absl::StatusOr<uint64_t> RunWithUint64s(Function* f,
+                                          absl::Span<const uint64_t> args) {
     std::vector<Value> value_args;
     for (int64_t i = 0; i < args.size(); ++i) {
       XLS_RET_CHECK(f->param(i)->GetType()->IsBits());
@@ -99,7 +106,7 @@ class IrEvaluatorTestBase
 
   // Runs the given function with Bits as input. Converts to/from Values under
   // the hood. All arguments and result must be bits-typed.
-  absl::StatusOr<Bits> RunBits(Function* f, absl::Span<const Bits> args) {
+  absl::StatusOr<Bits> RunWithBits(Function* f, absl::Span<const Bits> args) {
     std::vector<Value> value_args;
     for (int64_t i = 0; i < args.size(); ++i) {
       value_args.push_back(Value(args[i]));

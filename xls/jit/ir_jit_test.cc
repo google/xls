@@ -41,7 +41,7 @@ INSTANTIATE_TEST_SUITE_P(
     IrJitTest, IrEvaluatorTestBase,
     testing::Values(IrEvaluatorTestParam(
         [](Function* function,
-           const std::vector<Value>& args) -> absl::StatusOr<Value> {
+           absl::Span<const Value> args) -> absl::StatusOr<Value> {
           XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
           return jit->Run(args);
         },
