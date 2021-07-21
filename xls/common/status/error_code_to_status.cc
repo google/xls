@@ -135,6 +135,8 @@ absl::StatusCode ErrorCodeToStatusCode(const std::error_code& ec) {
       return absl::StatusCode::kFailedPrecondition;
     case std::errc::not_enough_memory:  // ENOMEM
       return absl::StatusCode::kResourceExhausted;
+    // Note: this case has the same value as not_supported.
+    // case std::errc::operation_not_supported:  // EOPNOTSUPP
     case std::errc::not_supported:  // ENOTSUP
       return absl::StatusCode::kUnimplemented;
     case std::errc::operation_canceled:  // ECANCELED
@@ -155,6 +157,8 @@ absl::StatusCode ErrorCodeToStatusCode(const std::error_code& ec) {
       return absl::StatusCode::kPermissionDenied;
     case std::errc::resource_deadlock_would_occur:  // EDEADLK
       return absl::StatusCode::kAborted;
+    // Note: this case has the same value as resource_unavailable_try_again.
+    // case std::errc::operation_would_block:  // EWOULDBLOCK
     case std::errc::resource_unavailable_try_again:  // EAGAIN
       return absl::StatusCode::kUnavailable;
     case std::errc::result_out_of_range:  // ERANGE
