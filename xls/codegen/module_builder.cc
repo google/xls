@@ -343,6 +343,12 @@ bool ModuleBuilder::CanEmitAsInlineExpression(
     return false;
   }
 
+  if (node->Is<Gate>()) {
+    // Gate instructions may be emitted using a format string and should not be
+    // emitted inline in a larger expression.
+    return false;
+  }
+
   std::vector<Node*> users_vec;
   absl::Span<Node* const> users;
   if (users_of_expression.has_value()) {
@@ -773,65 +779,99 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
   return ref;
 }
 
-absl::StatusOr<std::string> ModuleBuilder::GenerateAssertString(
-    absl::string_view fmt_string, xls::Assert* asrt, Expression* condition) {
-  RE2 re(R"(({\w+}))");
+// Returns a string generated from instantiating the given format string with
+// placeholder substrings (e.g., "{condition}") replaced with the given
+// placeholder values. Arguments:
+//
+//   fmt_string: The format template string with optional "{foo}" style
+//       placeholder substrings to substitute.
+//   supported_placeholders: A map from placeholder string (e.g., "condition")
+//       to the value to replace it.
+//   unsupported_placeholders: A map holding placeholder strings which are valid
+//       generally, but may not be valid for this particular instance and a more
+//       specific error message may be desired. For example, "{clk}" maybe a
+//       valid placeholder but may be unsupported if the block does not have a
+//       clock. In this case, an error like "{clk} in format string, but block
+//       has no clock" is much better than "{clk} is not a valid placeholder".
+//       `unsupported_placeholder` is a map from placeholder string to error
+//       message to emit if the placeholder is found in `fmt_string`.
+static absl::StatusOr<std::string> GenerateFormatString(
+    absl::string_view fmt_string,
+    const absl::flat_hash_map<std::string, std::string>& supported_placeholders,
+    const absl::flat_hash_map<std::string, std::string>&
+        unsupported_placeholders) {
+  RE2 re(R"({(\w+)})");
   std::string placeholder;
   absl::string_view piece(fmt_string);
-  // Using std::set for ordered emission of strings in error message.
-  const std::set<std::string> kSupportedPlaceholders = {
-      "{message}", "{condition}", "{label}", "{clk}", "{rst}"};
+
+  // Verify that all placeholder substrings are supported.
   while (RE2::FindAndConsume(&piece, re, &placeholder)) {
-    if (kSupportedPlaceholders.find(placeholder) ==
-        kSupportedPlaceholders.end()) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Invalid placeholder '%s' in assert format string. "
-          "Supported placeholders: %s",
-          placeholder,
-          absl::StrJoin(std::vector<std::string>(kSupportedPlaceholders.begin(),
-                                                 kSupportedPlaceholders.end()),
-                        ", ")));
+    if (unsupported_placeholders.contains(placeholder)) {
+      // Placeholder is one of the explicitly unsupported ones. Return the
+      // error specific to that placeholder.
+      return absl::InvalidArgumentError(
+          unsupported_placeholders.at(placeholder));
+    }
+
+    if (!supported_placeholders.contains(placeholder)) {
+      // Placeholder is not a supported string. Emit an error message with a
+      // sorted list of all valid placeholders.
+      std::vector<std::string> all_placeholders;
+      for (auto [name, value] : supported_placeholders) {
+        all_placeholders.push_back(absl::StrCat("{", name, "}"));
+      }
+      for (auto [name, value] : unsupported_placeholders) {
+        all_placeholders.push_back(absl::StrCat("{", name, "}"));
+      }
+      std::sort(all_placeholders.begin(), all_placeholders.end());
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid placeholder {%s} in format string. "
+                          "Valid placeholders: %s",
+                          placeholder, absl::StrJoin(all_placeholders, ", ")));
     }
   }
 
-  std::string assert_str(fmt_string);
-  absl::StrReplaceAll({{"{message}", asrt->message()}}, &assert_str);
-  absl::StrReplaceAll({{"{condition}", condition->Emit()}}, &assert_str);
-  if (absl::StrContains(assert_str, "{label}")) {
-    if (!asrt->label().has_value()) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Assert format string has '{label}' placeholder, "
-                          "but assert operation has no label."));
-    }
-    absl::StrReplaceAll({{"{label}", asrt->label().value()}}, &assert_str);
+  std::string str(fmt_string);
+  for (auto [name, value] : supported_placeholders) {
+    absl::StrReplaceAll({{absl::StrCat("{", name, "}"), value}}, &str);
   }
-  if (absl::StrContains(assert_str, "{clk}")) {
-    if (clk_ == nullptr) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Assert format string has '{clk}' placeholder, "
-                          "but block has no clock signal."));
-    }
-    absl::StrReplaceAll({{"{clk}", clk_->GetName()}}, &assert_str);
-  }
-  if (absl::StrContains(assert_str, "{rst}")) {
-    if (!rst_.has_value()) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Assert format string has '{rst}' placeholder, "
-                          "but block has no reset signal."));
-    }
-    absl::StrReplaceAll({{"{rst}", rst_->signal->GetName()}}, &assert_str);
-  }
-  return assert_str;
+  return str;
 }
 
 absl::Status ModuleBuilder::EmitAssert(
     xls::Assert* asrt, Expression* condition,
     absl::optional<absl::string_view> fmt_string) {
   if (fmt_string.has_value()) {
+    absl::flat_hash_map<std::string, std::string> supported_placeholders;
+    absl::flat_hash_map<std::string, std::string> unsupported_placeholders;
+    supported_placeholders["message"] = asrt->message();
+    supported_placeholders["condition"] = condition->Emit();
+    if (asrt->label().has_value()) {
+      supported_placeholders["label"] = asrt->label().value();
+    } else {
+      unsupported_placeholders["label"] =
+          "Assert format string has {label} placeholder, but assert operation "
+          "has no label.";
+    }
+    if (clk_ != nullptr) {
+      supported_placeholders["clk"] = clk_->GetName();
+    } else {
+      unsupported_placeholders["clk"] =
+          "Assert format string has {clk} placeholder, but block has no clock "
+          "signal.";
+    }
+    if (rst_.has_value()) {
+      supported_placeholders["rst"] = rst_->signal->GetName();
+    } else {
+      unsupported_placeholders["rst"] =
+          "Assert format string has {rst} placeholder, but block has no reset "
+          "signal.";
+    }
     XLS_ASSIGN_OR_RETURN(
         std::string assert_str,
-        GenerateAssertString(fmt_string.value(), asrt, condition));
-    assert_section_->Add<RawStatement>(assert_str + ";");
+        GenerateFormatString(fmt_string.value(), supported_placeholders,
+                             unsupported_placeholders));
+    assert_section_->Add<InlineVerilogStatement>(assert_str + ";");
     return absl::OkStatus();
   }
 
@@ -862,6 +902,53 @@ absl::Status ModuleBuilder::EmitAssert(
                        condition),
       asrt->message());
   return absl::OkStatus();
+}
+
+absl::StatusOr<IndexableExpression*> ModuleBuilder::EmitGate(
+    xls::Gate* gate, Expression* condition, Expression* data,
+    absl::optional<absl::string_view> fmt_string) {
+  // Only bits-typed or tuple-typed data supported.
+  // TODO(https://github.com/google/xls/issues/463) 2021/07/20 Add support for
+  // array types.
+  if (!gate->GetType()->IsBits() && !gate->GetType()->IsTuple()) {
+    return absl::UnimplementedError(absl::StrFormat(
+        "Gate operation only supported for bits and tuple types, has type: %s",
+        gate->GetType()->ToString()));
+  }
+
+  if (fmt_string.has_value()) {
+    absl::flat_hash_map<std::string, std::string> placeholders;
+    placeholders["condition"] = condition->Emit();
+    placeholders["input"] = data->Emit();
+    placeholders["output"] = gate->GetName();
+    placeholders["width"] = absl::StrCat(gate->GetType()->GetFlatBitCount());
+    XLS_ASSIGN_OR_RETURN(std::string gate_str,
+                         GenerateFormatString(fmt_string.value(), placeholders,
+                                              /*unsupported_placeholders=*/{}));
+    InlineVerilogStatement* raw_statement =
+        assignment_section()->Add<InlineVerilogStatement>(gate_str + ";");
+    return file_->Make<InlineVerilogRef>(gate->GetName(), raw_statement);
+  }
+
+  // Emit the gate as an AND of the (potentially replicated) condition and the
+  // data. For example:
+  //
+  //   wire gated_data [31:0];
+  //   assign gated_data = {32{condition}} & data;
+  //
+  Expression* gate_expr;
+  if (gate->GetType()->GetFlatBitCount() == 1) {
+    // Data is a single bit. Just AND with the condition.
+    gate_expr = file_->BitwiseAnd(condition, data);
+  } else {
+    // Data is wider than a single bit. Replicate the condition to match the
+    // width of the data.
+    gate_expr = file_->BitwiseAnd(
+        file_->Concat(gate->GetType()->GetFlatBitCount(), {condition}), data);
+  }
+  LogicRef* ref = DeclareVariable(gate->GetName(), gate->GetType());
+  XLS_RETURN_IF_ERROR(Assign(ref, gate_expr, gate->GetType()));
+  return ref;
 }
 
 absl::Status ModuleBuilder::EmitCover(xls::Cover* cover,

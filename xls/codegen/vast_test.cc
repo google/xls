@@ -837,7 +837,7 @@ TEST_P(VastTest, ModuleSections) {
   module->Add<Comment>("random comment at end");
   s1->Add<Comment>("more stuff in section 1");
   s0->Add<Comment>("more stuff in section 0");
-  s0->Add<RawStatement>("`SOME_MACRO(42);");
+  s0->Add<InlineVerilogStatement>("`SOME_MACRO(42);");
   module->AddReg("section_0_reg", f.BitVectorType(42), /*init=*/nullptr,
                  /*section=*/s0);
   EXPECT_EQ(module->Emit(),

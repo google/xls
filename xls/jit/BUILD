@@ -34,6 +34,7 @@ cc_library(
         "//xls/common/logging:log_lines",
         "//xls/ir",
         "//xls/ir:bits_ops",
+        "//xls/ir:value_helpers",
         "@llvm-project//llvm:Core",
     ],
 )

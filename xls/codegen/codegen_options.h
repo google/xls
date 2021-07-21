@@ -63,8 +63,9 @@ struct CodegenOptions {
   CodegenOptions& flop_outputs(bool value);
   bool flop_outputs() const { return flop_outputs_; }
 
-  // Format string to use when emitting assert operations in the generated
-  // Verilog. Supports the following placeholders:
+  // Format string to use when emitting assert operations in Verilog. Supports
+  // the following placeholders:
+  //
   //  {message}   : Message of the assert operation.
   //  {condition} : Condition of the assert.
   //  {label}     : Label of the assert operation. Returns error if the
@@ -86,6 +87,39 @@ struct CodegenOptions {
     return assert_format_;
   }
 
+  // Format string to use when emitting gate operations in Verilog. Supports the
+  // following placeholders:
+  //
+  //  {condition} : Identifier (or expression) of the condition of the assert.
+  //  {input}     : The identifier (or expression) for the data input of the
+  //                gate operation.
+  //  {output}    : The identifier of the gate operation.
+  //  {width}     : The bit width of the gate operation.
+  //
+  // For example, consider a format string which instantiates a particular
+  // custom AND gate for gating:
+  //
+  //    'my_and {output} [{width}-1:0] = my_and({condition}, {input})'
+  //
+  // And the IR gate operations is:
+  //
+  //    the_result: bits[32] = gate(the_cond, the_data)
+  //
+  // This results in the following emitted Verilog:
+  //
+  //    my_and the_result [32-1:0] = my_and(the cond, the_data);
+  //
+  // To ensure valid Verilog, the instantiated template must declare a value
+  // named {output} (e.g., `the_result` in the example).
+  //
+  // If no format value is given, then a logical AND with the condition value is
+  // generated. For example:
+  //
+  //   wire the_result [31:0];
+  //   assign the_result = {32{the_cond}} & the_data;
+  CodegenOptions& gate_format(absl::string_view value);
+  absl::optional<absl::string_view> gate_format() const { return gate_format_; }
+
  private:
   absl::optional<std::string> entry_;
   absl::optional<std::string> module_name_;
@@ -95,6 +129,7 @@ struct CodegenOptions {
   bool flop_inputs_ = false;
   bool flop_outputs_ = false;
   absl::optional<std::string> assert_format_;
+  absl::optional<std::string> gate_format_;
 };
 
 }  // namespace xls::verilog

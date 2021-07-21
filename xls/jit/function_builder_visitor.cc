@@ -17,6 +17,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/value_helpers.h"
 
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
 #include <sanitizer/msan_interface.h>
@@ -813,6 +814,15 @@ absl::Status FunctionBuilderVisitor::HandleEq(CompareOp* eq) {
   }
 
   return StoreResult(eq, result);
+}
+
+absl::Status FunctionBuilderVisitor::HandleGate(Gate* gate) {
+  XLS_ASSIGN_OR_RETURN(llvm::Constant * zero,
+                       type_converter_->ToLlvmConstant(
+                           gate->GetType(), ZeroOfType(gate->GetType())));
+  llvm::Value* result = builder_->CreateSelect(
+      node_map_.at(gate->condition()), zero, node_map_.at(gate->data()));
+  return StoreResult(gate, result);
 }
 
 absl::Status FunctionBuilderVisitor::HandleIdentity(UnOp* identity) {

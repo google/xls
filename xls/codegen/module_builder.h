@@ -104,6 +104,13 @@ class ModuleBuilder {
   // statement will have no effect unless a clock is present in the module.
   absl::Status EmitCover(xls::Cover* cover, Expression* condition);
 
+  // Emit a gate operation. 'fmt_string' is the optional format string used to
+  // generate the Verilog text. Format string details described in
+  // codegen_options.h.
+  absl::StatusOr<IndexableExpression*> EmitGate(
+      xls::Gate* gate, Expression* condition, Expression* data,
+      absl::optional<absl::string_view> fmt_string = absl::nullopt);
+
   // Declares a variable with the given name and XLS type. Returns a reference
   // to the variable.
   LogicRef* DeclareVariable(absl::string_view name, Type* type);
@@ -292,20 +299,6 @@ class ModuleBuilder {
   // Defines a function which implements the given node. If a function already
   // exists which implements this node then the existing function is returned.
   absl::StatusOr<VerilogFunction*> DefineFunction(Node* node);
-
-  // Returns the assert string generated from the given format string. Replace
-  // the following placeholder values in the format string:
-  //  {message}   : Message of the assert operation.
-  //  {condition} : Condition of the assert.
-  //  {label}     : Label of the assert operation. Returns error if the
-  //                operation has no label.
-  //  {clk}       : Name of the clock signal. Returns error if no clock is
-  //                specified.
-  //  {rst}       : Name of the reset signal. Returns error if no reset is
-  //                specified.
-  absl::StatusOr<std::string> GenerateAssertString(absl::string_view fmt_string,
-                                                   xls::Assert* asrt,
-                                                   Expression* condition);
 
   std::string module_name_;
   VerilogFile* file_;

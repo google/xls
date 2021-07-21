@@ -82,7 +82,8 @@ absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
 absl::Status GenerateLogic(
     Block* block, ModuleBuilder* mb,
     absl::flat_hash_map<Node*, NodeRepresentation>* node_exprs,
-    absl::flat_hash_map<std::string, ModuleBuilder::Register>* registers) {
+    absl::flat_hash_map<std::string, ModuleBuilder::Register>* registers,
+    const CodegenOptions& options) {
   for (Node* node : TopoSort(block)) {
     XLS_VLOG(1) << "Generating expression for: " << node->GetName();
 
@@ -149,6 +150,15 @@ absl::Status GenerateLogic(
     std::vector<Expression*> inputs;
     for (Node* operand : node->operands()) {
       inputs.push_back(absl::get<Expression*>(node_exprs->at(operand)));
+    }
+
+    // Gate operations are emitted specially as they may have a custom
+    // user-specified format string.
+    if (node->Is<Gate>()) {
+      XLS_ASSIGN_OR_RETURN((*node_exprs)[node],
+                           mb->EmitGate(node->As<Gate>(), inputs[0], inputs[1],
+                                        options.gate_format()));
+      continue;
     }
 
     // If the node has an assigned name then don't emit as an inline
@@ -272,7 +282,8 @@ absl::StatusOr<std::string> GenerateVerilog(Block* block,
                            /*next=*/nullptr, reset_expr));
   }
 
-  XLS_RETURN_IF_ERROR(GenerateLogic(block, &mb, &node_exprs, &registers));
+  XLS_RETURN_IF_ERROR(
+      GenerateLogic(block, &mb, &node_exprs, &registers, options));
 
   if (!registers.empty()) {
     std::vector<ModuleBuilder::Register> register_vec;

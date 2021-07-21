@@ -320,18 +320,17 @@ TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
       GenerateVerilog(block,
                       codegen_options().assert_format(R"({label} foobar)")),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Assert format string has '{label}' placeholder, "
+               HasSubstr("Assert format string has {label} placeholder, "
                          "but assert operation has no label")));
 
   // Format string with invalid placeholder.
   EXPECT_THAT(
       GenerateVerilog(
           block, codegen_options().assert_format(R"({foobar} blargfoobar)")),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("Invalid placeholder '{foobar}' in assert format string. "
-                    "Supported placeholders: {clk}, {condition}, {label}, "
-                    "{message}, {rst}")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Invalid placeholder {foobar} in format string. "
+                         "Valid placeholders: {clk}, {condition}, {label}, "
+                         "{message}, {rst}")));
 }
 
 TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
@@ -375,20 +374,18 @@ TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
   }
 
   // Format string with reset but block doesn't have reset.
-  EXPECT_THAT(
-      GenerateVerilog(block,
-                      codegen_options().assert_format(R"({rst} foobar)")),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Assert format string has '{rst}' placeholder, "
-                         "but block has no reset signal")));
+  EXPECT_THAT(GenerateVerilog(
+                  block, codegen_options().assert_format(R"({rst} foobar)")),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Assert format string has {rst} placeholder, "
+                                 "but block has no reset signal")));
 
   // Format string with clock but block doesn't have clock.
-  EXPECT_THAT(
-      GenerateVerilog(block,
-                      codegen_options().assert_format(R"({clk} foobar)")),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Assert format string has '{clk}' placeholder, "
-                         "but block has no clock signal")));
+  EXPECT_THAT(GenerateVerilog(
+                  block, codegen_options().assert_format(R"({clk} foobar)")),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Assert format string has {clk} placeholder, "
+                                 "but block has no clock signal")));
 }
 
 TEST_P(BlockGeneratorTest, PortOrderTest) {
@@ -480,6 +477,79 @@ TEST_P(BlockGeneratorTest, LoadEnables) {
   tb.ExpectEq("a_out", 101).ExpectEq("b_out", 201);
 
   XLS_ASSERT_OK(tb.Run());
+}
+
+TEST_P(BlockGeneratorTest, GatedBitsType) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue cond = b.InputPort("cond", package.GetBitsType(1));
+  BValue x = b.InputPort("x", package.GetBitsType(32));
+  BValue y = b.InputPort("y", package.GetBitsType(32));
+  b.Add(b.Gate(cond, x, /*loc=*/absl::nullopt, "gated_x"), y);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  {
+    // No format string.
+    XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                             GenerateVerilog(block, codegen_options()));
+    EXPECT_THAT(verilog, HasSubstr(R"(wire [31:0] gated_x;)"));
+    EXPECT_THAT(verilog, HasSubstr(R"(assign gated_x = {32{cond}} & x;)"));
+  }
+
+  {
+    // With format string.
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::string verilog,
+        GenerateVerilog(
+            block,
+            codegen_options().gate_format(
+                R"(my_and {output} [{width}-1:0] = my_and({condition}, {input}))")));
+    EXPECT_THAT(verilog, Not(HasSubstr(R"(wire gated_x [31:0];)")));
+    EXPECT_THAT(verilog,
+                HasSubstr(R"(my_and gated_x [32-1:0] = my_and(cond, x);)"));
+  }
+}
+
+TEST_P(BlockGeneratorTest, GatedSingleBitType) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue cond = b.InputPort("cond", package.GetBitsType(1));
+  BValue x = b.InputPort("x", package.GetBitsType(1));
+  b.Gate(cond, x, /*loc=*/absl::nullopt, "gated_x");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, codegen_options()));
+  EXPECT_THAT(verilog, HasSubstr(R"(assign gated_x = cond & x;)"));
+}
+
+TEST_P(BlockGeneratorTest, GatedTupleType) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue cond = b.InputPort("cond", package.GetBitsType(1));
+  BValue x = b.InputPort("x", package.GetTupleType({package.GetBitsType(32),
+                                                    package.GetBitsType(8)}));
+  b.Gate(cond, x, /*loc=*/absl::nullopt, "gated_x");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, codegen_options()));
+  EXPECT_THAT(verilog, HasSubstr(R"(wire [39:0] gated_x;)"));
+  EXPECT_THAT(verilog, HasSubstr(R"(assign gated_x = {40{cond}} & x;)"));
+}
+
+TEST_P(BlockGeneratorTest, GatedArrayType) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue cond = b.InputPort("cond", package.GetBitsType(1));
+  BValue x = b.InputPort("x", package.GetArrayType(7, package.GetBitsType(32)));
+  b.Gate(cond, x, /*loc=*/absl::nullopt, "gated_x");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  EXPECT_THAT(GenerateVerilog(block, codegen_options()),
+              StatusIs(absl::StatusCode::kUnimplemented,
+                       HasSubstr("Gate operation only supported for bits and "
+                                 "tuple types, has type: bits[32][7]")));
 }
 
 INSTANTIATE_TEST_SUITE_P(BlockGeneratorTestInstantiation, BlockGeneratorTest,

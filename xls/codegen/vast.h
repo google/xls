@@ -1046,15 +1046,31 @@ class Comment : public Statement {
 };
 
 // A string which is emitted verbatim in the position of a statement.
-class RawStatement : public Statement {
+class InlineVerilogStatement : public Statement {
  public:
-  RawStatement(absl::string_view text, VerilogFile* file)
+  InlineVerilogStatement(absl::string_view text, VerilogFile* file)
       : Statement(file), text_(text) {}
 
   std::string Emit() const override;
 
  private:
   std::string text_;
+};
+
+// A reference to a definition defined within a InlineVerilogStatement. Can be
+// used where a VAST node Ref is needed to refer to a value (wire, reg, etc)
+// defined in a InlineVerilogStatement.
+class InlineVerilogRef : public IndexableExpression {
+ public:
+  InlineVerilogRef(absl::string_view name,
+                   InlineVerilogStatement* raw_statement, VerilogFile* file)
+      : IndexableExpression(file), name_(name), raw_statement_(raw_statement) {}
+
+  std::string Emit() const override;
+
+ private:
+  std::string name_;
+  InlineVerilogStatement* raw_statement_;
 };
 
 // Represents call of a system task such as $display.
@@ -1207,19 +1223,19 @@ class ModuleSection;
 
 // Represents a member of a module.
 using ModuleMember =
-    absl::variant<Def*,                   // Logic definition.
-                  LocalParam*,            // Module-local parameter.
-                  Parameter*,             // Module parameter.
-                  Instantiation*,         // module instantiaion.
-                  ContinuousAssignment*,  // Continuous assignment.
-                  StructuredProcedure*,   // Initial or always comb block.
-                  AlwaysComb*,            // An always_comb block.
-                  AlwaysFf*,              // An always_ff block.
-                  AlwaysFlop*,            // "Flip-Flop" block.
-                  Comment*,               // Comment text.
-                  BlankLine*,             // Blank line.
-                  RawStatement*,          // Raw string statement.
-                  VerilogFunction*,       // Function definition
+    absl::variant<Def*,                     // Logic definition.
+                  LocalParam*,              // Module-local parameter.
+                  Parameter*,               // Module parameter.
+                  Instantiation*,           // module instantiaion.
+                  ContinuousAssignment*,    // Continuous assignment.
+                  StructuredProcedure*,     // Initial or always comb block.
+                  AlwaysComb*,              // An always_comb block.
+                  AlwaysFf*,                // An always_ff block.
+                  AlwaysFlop*,              // "Flip-Flop" block.
+                  Comment*,                 // Comment text.
+                  BlankLine*,               // Blank line.
+                  InlineVerilogStatement*,  // InlineVerilog string statement.
+                  VerilogFunction*,         // Function definition
                   ModuleSection*>;
 
 // A ModuleSection is a container of ModuleMembers used to organize the contents

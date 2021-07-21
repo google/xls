@@ -388,21 +388,22 @@ namespace {
 
 // "Match" statement for emitting a ModuleMember.
 std::string EmitModuleMember(const ModuleMember& member) {
-  return absl::visit(Visitor{[](Def* d) { return d->Emit(); },
-                             [](LocalParam* p) { return p->Emit(); },
-                             [](Parameter* p) { return p->Emit(); },
-                             [](Instantiation* i) { return i->Emit(); },
-                             [](ContinuousAssignment* c) { return c->Emit(); },
-                             [](Comment* c) { return c->Emit(); },
-                             [](BlankLine* b) { return b->Emit(); },
-                             [](RawStatement* s) { return s->Emit(); },
-                             [](StructuredProcedure* sp) { return sp->Emit(); },
-                             [](AlwaysComb* ac) { return ac->Emit(); },
-                             [](AlwaysFf* af) { return af->Emit(); },
-                             [](AlwaysFlop* af) { return af->Emit(); },
-                             [](VerilogFunction* f) { return f->Emit(); },
-                             [](ModuleSection* s) { return s->Emit(); }},
-                     member);
+  return absl::visit(
+      Visitor{[](Def* d) { return d->Emit(); },
+              [](LocalParam* p) { return p->Emit(); },
+              [](Parameter* p) { return p->Emit(); },
+              [](Instantiation* i) { return i->Emit(); },
+              [](ContinuousAssignment* c) { return c->Emit(); },
+              [](Comment* c) { return c->Emit(); },
+              [](BlankLine* b) { return b->Emit(); },
+              [](InlineVerilogStatement* s) { return s->Emit(); },
+              [](StructuredProcedure* sp) { return sp->Emit(); },
+              [](AlwaysComb* ac) { return ac->Emit(); },
+              [](AlwaysFf* af) { return af->Emit(); },
+              [](AlwaysFlop* af) { return af->Emit(); },
+              [](VerilogFunction* f) { return f->Emit(); },
+              [](ModuleSection* s) { return s->Emit(); }},
+      member);
 }
 
 }  // namespace
@@ -438,7 +439,9 @@ std::string Comment::Emit() const {
   return absl::StrCat("// ", absl::StrReplaceAll(text_, {{"\n", "\n// "}}));
 }
 
-std::string RawStatement::Emit() const { return text_; }
+std::string InlineVerilogStatement::Emit() const { return text_; }
+
+std::string InlineVerilogRef::Emit() const { return name_; }
 
 std::string Assert::Emit() const {
   // The $fatal statement takes finish_number as the first argument which is a

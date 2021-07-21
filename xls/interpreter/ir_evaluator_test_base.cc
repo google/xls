@@ -3270,4 +3270,33 @@ TEST_P(IrEvaluatorTestBase, AssertTest) {
                        HasSubstr("the assertion error message")));
 }
 
+TEST_P(IrEvaluatorTestBase, GateBitsTypeTest) {
+  auto p = CreatePackage();
+  FunctionBuilder b(TestName(), p.get());
+  auto cond = b.Param("cond", p->GetBitsType(1));
+  auto data = b.Param("data", p->GetBitsType(32));
+  b.Gate(cond, data);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  EXPECT_THAT(RunWithUint64s(f, {0, 42}), 42);
+  EXPECT_THAT(RunWithUint64s(f, {1, 42}), 0);
+}
+
+TEST_P(IrEvaluatorTestBase, GateCompoundTypeTest) {
+  auto p = CreatePackage();
+  FunctionBuilder b(TestName(), p.get());
+  auto cond = b.Param("cond", p->GetBitsType(1));
+  auto data = b.Param(
+      "data", p->GetArrayType(2, p->GetTupleType({p->GetBitsType(32)})));
+  b.Gate(cond, data);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value a, Value::Array({Value::Tuple({Value(UBits(42, 32))}),
+                             Value::Tuple({Value(UBits(123, 32))})}));
+
+  EXPECT_THAT(RunWithValues(f, {Value(UBits(0, 1)), a}), a);
+  EXPECT_THAT(RunWithValues(f, {Value(UBits(1, 1)), a}),
+              ZeroOfType(data.node()->GetType()));
+}
+
 }  // namespace xls

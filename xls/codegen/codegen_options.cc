@@ -62,4 +62,9 @@ CodegenOptions& CodegenOptions::assert_format(absl::string_view value) {
   return *this;
 }
 
+CodegenOptions& CodegenOptions::gate_format(absl::string_view value) {
+  gate_format_ = std::string{value};
+  return *this;
+}
+
 }  // namespace xls::verilog

@@ -157,7 +157,12 @@ absl::Status IrInterpreter::HandleOutputPort(OutputPort* output_port) {
 }
 
 absl::Status IrInterpreter::HandleGate(Gate* gate) {
-  return absl::UnimplementedError("Gate not implemented in IrInterpreter");
+  const Bits& condition = ResolveAsBits(gate->condition());
+  if (condition.IsOne()) {
+    // Data is gated. Result is zero.
+    return SetValueResult(gate, ZeroOfType(gate->GetType()));
+  }
+  return SetValueResult(gate, ResolveAsValue(gate->data()));
 }
 
 absl::Status IrInterpreter::HandleBitSlice(BitSlice* bit_slice) {
