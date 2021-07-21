@@ -72,3 +72,4 @@ extra_javascript:
 plugins:
   - exclude:
       glob: BUILD
+  - search
