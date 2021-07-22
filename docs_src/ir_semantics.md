@@ -99,7 +99,7 @@ graph of XLS IR operations:
     single Verilog module. Includes explicit representations of RTL constructs:
     registers, ports, logic, and module instantiations. Procs and functions are
     converted to blocks as part of the code generation process. Blocks may
-    “invoke” other blocks via instantiation.x
+    “invoke” other blocks via instantiation.
 
 Names of function, procs and blocks must be unique among their respective
 abstractions (functions, procs, and blocks). For example, a block cannot share a
@@ -215,8 +215,10 @@ result = add(lhs, rhs)
 result = smul(lhs, rhs)
 result = umul(lhs, rhs)
 result = sdiv(lhs, rhs)
+result = smod(lhs, rhs)
 result = sub(lhs, rhs)
 result = udiv(lhs, rhs)
+result = umod(lhs, rhs)
 ```
 
 **Types**
