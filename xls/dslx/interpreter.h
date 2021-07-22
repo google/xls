@@ -57,7 +57,6 @@ class Interpreter {
   // C++, or at least consolidate the env/bit_widths maps.
   static absl::StatusOr<InterpValue> InterpretExpr(
       Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
-      absl::Span<std::filesystem::path const> additional_search_paths,
       ImportData* import_data,
       const absl::flat_hash_map<std::string, InterpValue>& env, Expr* expr,
       const FnCtx* fn_ctx = nullptr, ConcreteType* type_context = nullptr);
@@ -65,7 +64,6 @@ class Interpreter {
   // The same as above, but ensures the returned value is Bits-typed.
   static absl::StatusOr<Bits> InterpretExprToBits(
       Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
-      absl::Span<std::filesystem::path const> additional_search_paths,
       ImportData* import_data,
       const absl::flat_hash_map<std::string, InterpValue>& env, Expr* expr,
       const FnCtx* fn_ctx = nullptr, ConcreteType* type_context = nullptr);
@@ -83,7 +81,6 @@ class Interpreter {
   //  type_info: Type information associated with the given module -- evaluation
   //    of some AST nodes relies on this type information.
   //  typecheck: Optional, callback used to check modules on import.
-  //  additional_search_paths: Additional paths to search for imported modules.
   //  import_data: Optional, cache for imported modules.
   //  trace_all: Whether to trace "all" (really most "non-noisy") expressions in
   //    the interpreter evaluation.
@@ -93,7 +90,6 @@ class Interpreter {
   //    PostFnEvalHook above.
   Interpreter(
       Module* entry_module, TypecheckFn typecheck,
-      absl::Span<std::filesystem::path const> additional_search_paths,
       ImportData* import_data, bool trace_all = false,
       FormatPreference trace_format_preference = FormatPreference::kDefault,
       PostFnEvalHook post_fn_eval = nullptr);
@@ -248,7 +244,6 @@ class Interpreter {
 
   PostFnEvalHook post_fn_eval_hook_;
   TypecheckFn typecheck_;
-  std::vector<std::filesystem::path> additional_search_paths_;
   ImportData* import_data_;
   bool trace_all_;
   FormatPreference trace_format_preference_;

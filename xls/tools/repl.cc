@@ -318,9 +318,8 @@ absl::Status CommandReload() {
     return absl::OkStatus();
   }
 
-  XLS_ASSIGN_OR_RETURN(globals->type_info,
-                       CheckModule(globals->module.get(), &globals->import_data,
-                                   /*dslx_paths=*/{}));
+  XLS_ASSIGN_OR_RETURN(globals->type_info, CheckModule(globals->module.get(),
+                                                       &globals->import_data));
 
   PopulateIdentifierTrie();
 

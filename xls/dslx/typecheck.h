@@ -35,13 +35,10 @@ absl::Status CheckTopNodeInModule(
 //   module: The module to type check functions for.
 //   import_cache: Import cache to use if an import is encountered in the
 //      module, and that owns the type information determined for this module.
-//  additional_search_paths: Additional paths to search for modules on import.
 //
 // Returns type information mapping from AST nodes in the module to their
 // deduced/checked type. The owner for the type info is within the import_cache.
-absl::StatusOr<TypeInfo*> CheckModule(
-    Module* module, ImportData* import_data,
-    absl::Span<const std::filesystem::path> additional_search_paths);
+absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data);
 
 }  // namespace xls::dslx
 

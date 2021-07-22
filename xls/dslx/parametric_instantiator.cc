@@ -109,8 +109,7 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
                          expr_type_info);
     absl::StatusOr<InterpValue> result = Interpreter::InterpretExpr(
         expr_module, expr_type_info, ctx_->typecheck_module(),
-        ctx_->additional_search_paths(), ctx_->import_data(), constexpr_env,
-        expr, &fn_ctx);
+        ctx_->import_data(), constexpr_env, expr, &fn_ctx);
     XLS_VLOG(5) << "Interpreted expr: " << expr->ToString() << " @ "
                 << expr->span() << " to status: " << result.status();
     if (!result.ok() && result.status().code() == absl::StatusCode::kNotFound &&

@@ -44,9 +44,9 @@ pub enum MyEnum : u32 {
   ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data, {}));
+      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           TranspileToCpp(module.module, &import_data, {}));
+                           TranspileToCpp(module.module, &import_data));
   ASSERT_EQ(result, kExpected);
 }
 
@@ -75,9 +75,9 @@ pub enum MyEnum : u32 {
   ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data, {}));
+      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           TranspileToCpp(module.module, &import_data, {}));
+                           TranspileToCpp(module.module, &import_data));
   ASSERT_EQ(result, kExpected);
 }
 
@@ -109,9 +109,9 @@ using MyFirstTuple = std::tuple<uint8_t, int8_t, MyType, MySignedType, MyArrayTy
   ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
-      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data, {}));
+      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           TranspileToCpp(module.module, &import_data, {}));
+                           TranspileToCpp(module.module, &import_data));
   ASSERT_EQ(result, kExpected);
 }
 

@@ -123,7 +123,6 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
 
 absl::StatusOr<const ModuleInfo*> DoImport(
     const TypecheckFn& ftypecheck, const ImportTokens& subject,
-    absl::Span<const std::filesystem::path> additional_search_paths,
     ImportData* import_data, const Span& import_span) {
   XLS_RET_CHECK(import_data != nullptr);
   if (import_data->Contains(subject)) {
@@ -134,7 +133,8 @@ absl::StatusOr<const ModuleInfo*> DoImport(
 
   XLS_ASSIGN_OR_RETURN(
       std::filesystem::path found_path,
-      FindExistingPath(subject, additional_search_paths, import_span));
+      FindExistingPath(subject, import_data->additional_search_paths(),
+                       import_span));
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(found_path));
 
   absl::Span<std::string const> pieces = subject.pieces();

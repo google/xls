@@ -194,8 +194,7 @@ static absl::StatusOr<std::unique_ptr<FunctionType>> GetFunctionType(
   ImportData import_data;
   XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
                        ParseAndTypecheck(dslx_text, "get_function_type.x",
-                                         "get_function_type", &import_data,
-                                         /*additional_search_paths=*/{}));
+                                         "get_function_type", &import_data));
   XLS_ASSIGN_OR_RETURN(dslx::Function * f,
                        tm.module->GetFunctionOrError(fn_name));
   XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,

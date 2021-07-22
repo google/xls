@@ -69,8 +69,7 @@ absl::StatusOr<std::string> ConvertOneFunctionForTest(
   XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
                        ParseAndTypecheck(program, /*path=*/"test_module.x",
                                          /*module_name=*/"test_module",
-                                         /*import_data=*/&import_data,
-                                         /*additional_search_paths=*/{}));
+                                         /*import_data=*/&import_data));
   return ConvertOneFunction(tm.module, /*entry_function_name=*/fn_name,
                             /*import_data=*/&import_data,
                             /*symbolic_bindings=*/nullptr, options);
@@ -93,8 +92,7 @@ absl::StatusOr<std::string> ConvertModuleForTest(
   }
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test_module.x", "test_module", import_data,
-                        /*additional_search_paths=*/{}));
+      ParseAndTypecheck(program, "test_module.x", "test_module", import_data));
   XLS_ASSIGN_OR_RETURN(std::string converted,
                        ConvertModule(tm.module, import_data, options));
   return converted;
@@ -1227,8 +1225,7 @@ pub fn constexpr_fn(arg: u32) -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
-                        "fake.imported.stuff", &import_data,
-                        /*additional_search_paths=*/{}));
+                        "fake.imported.stuff", &import_data));
   const char* importer_program = R"(
 import fake.imported.stuff
 
@@ -1263,8 +1260,7 @@ pub fn constexpr_fn<N:u32>(arg: bits[N]) -> bits[N] {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
-                        "fake.imported.stuff", &import_data,
-                        /*additional_search_paths=*/{}));
+                        "fake.imported.stuff", &import_data));
   const char* importer_program = R"(
 import fake.imported.stuff
 
@@ -1321,8 +1317,7 @@ pub enum ImportEnum : u16 {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kImportModule, "fake/imported/stuff.x",
-                        "fake.imported.stuff", &import_data,
-                        /*additional_search_paths=*/{}));
+                        "fake.imported.stuff", &import_data));
   (void)tm;  // Already placed in import cache.
 
   const std::string kImporterModule = R"(
@@ -1352,9 +1347,8 @@ pub fn a() -> u32 {
   u32:42
 }
 )";
-  XLS_ASSERT_OK(ParseAndTypecheck(kImportModule, "a.x", "a", &import_data,
-                                  /*additional_search_paths=*/{})
-                    .status());
+  XLS_ASSERT_OK(
+      ParseAndTypecheck(kImportModule, "a.x", "a", &import_data).status());
 
   const std::string kImporterModule = R"(
 import a

@@ -91,9 +91,9 @@ absl::Status RealMain(absl::string_view path,
                        ParseText(text, module_name, /*print_on_error=*/true,
                                  /*filename=*/path, printed_error));
 
-  ImportData import_data;
+  ImportData import_data(dslx_paths);
   absl::StatusOr<TypeInfo*> type_info_or =
-      CheckModule(module.get(), &import_data, dslx_paths);
+      CheckModule(module.get(), &import_data);
   if (!type_info_or.ok()) {
     *printed_error = TryPrintError(type_info_or.status());
     return type_info_or.status();

@@ -44,7 +44,6 @@ TEST(InterpreterTest, RunIdentityFn) {
   XLS_ASSERT_OK(import_data.type_info_owner().New(module.get()).status());
 
   Interpreter interp(module.get(), /*typecheck=*/nullptr,
-                     /*additional_search_paths=*/{},
                      /*import_data=*/&import_data);
   InterpValue mol = InterpValue::MakeU32(42);
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue result, interp.RunFunction("id", {mol}));
@@ -56,10 +55,8 @@ TEST(InterpreterTest, RunTokenIdentityFn) {
   ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_data,
-                        /*additional_search_paths=*/{}));
+      ParseAndTypecheck(program, "test.x", "test", &import_data));
   Interpreter interp(tm.module, /*typecheck=*/nullptr,
-                     /*additional_search_paths=*/{},
                      /*import_data=*/&import_data);
   InterpValue tok = InterpValue::MakeToken();
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue result, interp.RunFunction("id", {tok}));
@@ -91,10 +88,8 @@ fn top(x: u32) -> u32 {
   ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data,
-                        /*additional_search_paths=*/{}));
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   Interpreter interp(tm.module, /*typecheck=*/nullptr,
-                     /*additional_search_paths=*/{},
                      /*import_data=*/&import_data);
   InterpValue x = InterpValue::MakeU32(7);
   absl::StatusOr<InterpValue> result = interp.RunFunction("top", {x});

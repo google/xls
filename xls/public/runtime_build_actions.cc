@@ -30,11 +30,10 @@ absl::StatusOr<std::string> ConvertDslxToIr(
     absl::string_view dslx, absl::string_view path,
     absl::string_view module_name,
     absl::Span<const std::filesystem::path> additional_search_paths) {
-  dslx::ImportData import_data;
+  dslx::ImportData import_data(additional_search_paths);
   XLS_ASSIGN_OR_RETURN(
       dslx::TypecheckedModule typechecked,
-      dslx::ParseAndTypecheck(dslx, path, module_name, &import_data,
-                              additional_search_paths));
+      dslx::ParseAndTypecheck(dslx, path, module_name, &import_data));
   return dslx::ConvertModule(typechecked.module, &import_data,
                              dslx::ConvertOptions{});
 }

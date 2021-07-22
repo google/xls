@@ -32,7 +32,6 @@ struct TranspileData {
   Module* module;
   TypeInfo* type_info;
   ImportData* import_data;
-  absl::Span<const std::filesystem::path> addl_search_paths;
 };
 
 absl::StatusOr<std::string> TranspileSingleToCpp(
@@ -51,16 +50,15 @@ absl::StatusOr<std::string> TranspileEnumDef(const TranspileData& xpile_data,
   std::vector<std::string> members;
   for (const EnumMember& member : enum_def->values()) {
     auto typecheck_fn = [&xpile_data](Module* module) {
-      return CheckModule(module, xpile_data.import_data,
-                         xpile_data.addl_search_paths);
+      return CheckModule(module, xpile_data.import_data);
     };
 
     // TODO(rspringer): 2021-06-09 Support parametric values.
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
         Interpreter::InterpretExpr(xpile_data.module, xpile_data.type_info,
-                                   typecheck_fn, xpile_data.addl_search_paths,
-                                   xpile_data.import_data, {}, member.value));
+                                   typecheck_fn, xpile_data.import_data, {},
+                                   member.value));
     XLS_ASSIGN_OR_RETURN(int64_t bit_count, value.GetBitCount());
     if (bit_count > 64) {
       return absl::InvalidArgumentError(absl::StrFormat(
@@ -124,14 +122,13 @@ absl::StatusOr<std::string> ArrayTypeAnnotationToString(
     XLS_ASSIGN_OR_RETURN(dim_int, number->GetAsUint64());
   } else {
     auto typecheck_fn = [&xpile_data](Module* module) {
-      return CheckModule(module, xpile_data.import_data,
-                         xpile_data.addl_search_paths);
+      return CheckModule(module, xpile_data.import_data);
     };
     XLS_ASSIGN_OR_RETURN(
         InterpValue dim_value,
         Interpreter::InterpretExpr(xpile_data.module, xpile_data.type_info,
-                                   typecheck_fn, xpile_data.addl_search_paths,
-                                   xpile_data.import_data, {}, annot->dim()));
+                                   typecheck_fn, xpile_data.import_data, {},
+                                   annot->dim()));
     // TODO(rspringer): Handle multidimensional arrays.
     if (!dim_value.IsBits()) {
       return absl::UnimplementedError(
@@ -209,14 +206,13 @@ absl::StatusOr<std::string> TranspileSingleToCpp(
 
 }  // namespace
 
-absl::StatusOr<std::string> TranspileToCpp(
-    Module* module, ImportData* import_data,
-    absl::Span<const std::filesystem::path> additional_search_paths) {
+absl::StatusOr<std::string> TranspileToCpp(Module* module,
+                                           ImportData* import_data) {
   std::vector<std::string> results;
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data->GetRootTypeInfo(module));
   struct TranspileData xpile_data {
-    module, type_info, import_data, additional_search_paths
+    module, type_info, import_data
   };
 
   // Don't need to worry aboot ordering, since constexpr eval does it for us.

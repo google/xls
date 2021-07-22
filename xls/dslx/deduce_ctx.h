@@ -82,7 +82,6 @@ class DeduceCtx {
   DeduceCtx(TypeInfo* type_info, Module* module, DeduceFn deduce_function,
             TypecheckFunctionFn typecheck_function,
             TypecheckFn typecheck_module,
-            absl::Span<const std::filesystem::path> additional_search_paths,
             ImportData* import_data);
 
   // Creates a new DeduceCtx reflecting the given type info and module.
@@ -91,9 +90,9 @@ class DeduceCtx {
   // Note that the resulting DeduceCtx has an empty fn_stack.
   std::unique_ptr<DeduceCtx> MakeCtx(TypeInfo* new_type_info,
                                      Module* new_module) const {
-    return absl::make_unique<DeduceCtx>(
-        new_type_info, new_module, deduce_function_, typecheck_function_,
-        typecheck_module_, additional_search_paths_, import_data_);
+    return absl::make_unique<DeduceCtx>(new_type_info, new_module,
+                                        deduce_function_, typecheck_function_,
+                                        typecheck_module_, import_data_);
   }
 
   // Helper that calls back to the top-level deduce procedure for the given
@@ -143,9 +142,6 @@ class DeduceCtx {
     return typecheck_function_;
   }
 
-  absl::Span<std::filesystem::path const> additional_search_paths() const {
-    return additional_search_paths_;
-  }
   ImportData* import_data() const { return import_data_; }
   TypeInfoOwner& type_info_owner() const {
     return import_data_->type_info_owner();
@@ -168,9 +164,6 @@ class DeduceCtx {
 
   // Callback used to typecheck a module and get its type info (e.g. on import).
   TypecheckFn typecheck_module_;
-
-  // Additional paths to search on import.
-  std::vector<std::filesystem::path> additional_search_paths_;
 
   // Cache used for imported modules, may be nullptr.
   ImportData* import_data_;

@@ -85,8 +85,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
     }
     absl::StatusOr<InterpValue> constexpr_value = Interpreter::InterpretExpr(
         node->owner(), ctx->type_info(), ctx->typecheck_module(),
-        ctx->additional_search_paths(), ctx->import_data(), env, node->value(),
-        fn_ctx ? &*fn_ctx : nullptr);
+        ctx->import_data(), env, node->value(), fn_ctx ? &*fn_ctx : nullptr);
     if (constexpr_value.ok()) {
       XLS_VLOG(5) << "Noting constexpr: " << node->value() << " in "
                   << ctx->type_info();
@@ -994,7 +993,7 @@ static absl::StatusOr<absl::optional<int64_t>> TryResolveBound(
   }
   absl::StatusOr<InterpValue> bound_or = Interpreter::InterpretExpr(
       slice->owner(), ctx->type_info(), ctx->typecheck_module(),
-      ctx->additional_search_paths(), ctx->import_data(), env, bound,
+      ctx->import_data(), env, bound,
       /*fn_ctx=*/nullptr, s32);
   if (!bound_or.ok()) {
     const absl::Status& status = bound_or.status();
@@ -1559,8 +1558,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
   absl::StatusOr<InterpValue> value_or = Interpreter::InterpretExpr(
       dim_expr->owner(),
       ctx->import_data()->GetRootTypeInfoForNode(dim_expr).value(),
-      ctx->typecheck_module(), ctx->additional_search_paths(),
-      ctx->import_data(), env, dim_expr);
+      ctx->typecheck_module(), ctx->import_data(), env, dim_expr);
   if (!value_or.ok()) {
     return TypeInferenceErrorStatus(
         dim_expr->span(), nullptr,

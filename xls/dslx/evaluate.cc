@@ -1269,8 +1269,7 @@ absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
       XLS_ASSIGN_OR_RETURN(
           const ModuleInfo* imported,
           DoImport(interp->GetTypecheckFn(), ImportTokens(import->subject()),
-                   interp->GetAdditionalSearchPaths(), interp->GetImportData(),
-                   import->span()));
+                   interp->GetImportData(), import->span()));
       XLS_VLOG(3) << "GetOrCreateTopLevelBindings adding import "
                   << import->ToString() << " as \"" << import->identifier()
                   << "\"";

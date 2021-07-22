@@ -109,9 +109,6 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
     interp_->current_type_info_ = &updated;
   }
   ImportData* GetImportData() override { return interp_->import_data_; }
-  absl::Span<const std::filesystem::path> GetAdditionalSearchPaths() override {
-    return interp_->additional_search_paths_;
-  }
   FormatPreference GetTraceFormatPreference() const override {
     return interp_->trace_format_preference();
   }
@@ -122,15 +119,12 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
 
 Interpreter::Interpreter(
     Module* entry_module, TypecheckFn typecheck,
-    absl::Span<const std::filesystem::path> additional_search_paths,
     ImportData* import_data, bool trace_all,
     FormatPreference trace_format_preference, PostFnEvalHook post_fn_eval_hook)
     : entry_module_(entry_module),
       current_type_info_(import_data->GetRootTypeInfo(entry_module).value()),
       post_fn_eval_hook_(std::move(post_fn_eval_hook)),
       typecheck_(std::move(typecheck)),
-      additional_search_paths_(additional_search_paths.begin(),
-                               additional_search_paths.end()),
       import_data_(import_data),
       trace_all_(trace_all),
       trace_format_preference_(trace_format_preference),
@@ -198,7 +192,6 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
 
 /* static */ absl::StatusOr<InterpValue> Interpreter::InterpretExpr(
     Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
-    absl::Span<const std::filesystem::path> additional_search_paths,
     ImportData* import_data,
     const absl::flat_hash_map<std::string, InterpValue>& env, Expr* expr,
     const FnCtx* fn_ctx, ConcreteType* type_context) {
@@ -212,8 +205,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
   XLS_VLOG(3) << "InterpretExpr: " << expr->ToString() << " env: {"
               << absl::StrJoin(env, ", ", env_formatter) << "}";
 
-  Interpreter interp(entry_module, typecheck, additional_search_paths,
-                     import_data);
+  Interpreter interp(entry_module, typecheck, import_data);
   XLS_ASSIGN_OR_RETURN(const InterpBindings* top_level_bindings,
                        GetOrCreateTopLevelBindings(
                            entry_module, interp.abstract_adapter_.get()));
@@ -235,14 +227,13 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
 
 /* static */ absl::StatusOr<Bits> Interpreter::InterpretExprToBits(
     Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
-    absl::Span<const std::filesystem::path> additional_search_paths,
     ImportData* import_data,
     const absl::flat_hash_map<std::string, InterpValue>& env, Expr* expr,
     const FnCtx* fn_ctx, ConcreteType* type_context) {
   XLS_ASSIGN_OR_RETURN(
       InterpValue value,
-      InterpretExpr(entry_module, type_info, typecheck, additional_search_paths,
-                    import_data, env, expr, fn_ctx, type_context));
+      InterpretExpr(entry_module, type_info, typecheck, import_data, env, expr,
+                    fn_ctx, type_context));
   switch (value.tag()) {
     case InterpValueTag::kUBits:
     case InterpValueTag::kSBits:

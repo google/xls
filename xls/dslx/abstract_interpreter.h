@@ -73,10 +73,6 @@ class AbstractInterpreter {
     return GetImportData()->GetRootTypeInfo(module);
   }
 
-  // Returns the additional search paths to use on import.
-  virtual absl::Span<const std::filesystem::path>
-  GetAdditionalSearchPaths() = 0;
-
   // RAII type that can be use to swap the type information on an
   // AbstractInterpreter to a new value within a given lifetime.
   class ScopedTypeInfoSwap {

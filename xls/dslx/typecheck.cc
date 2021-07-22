@@ -334,11 +334,10 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
     auto env = MakeConstexprEnv(arg, ctx->fn_stack().back().symbolic_bindings(),
                                 ctx->type_info());
 
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue value,
-        Interpreter::InterpretExpr(
-            arg->owner(), ctx->type_info(), ctx->typecheck_module(),
-            ctx->additional_search_paths(), ctx->import_data(), env, arg));
+    XLS_ASSIGN_OR_RETURN(InterpValue value, Interpreter::InterpretExpr(
+                                                arg->owner(), ctx->type_info(),
+                                                ctx->typecheck_module(),
+                                                ctx->import_data(), env, arg));
     ctx->type_info()->NoteConstExpr(arg, value);
     return value;
   };
@@ -694,7 +693,7 @@ static absl::Status CheckModuleMember(ModuleMember member, Module* module,
     XLS_ASSIGN_OR_RETURN(
         const ModuleInfo* imported,
         DoImport(ctx->typecheck_module(), ImportTokens(import->subject()),
-                 ctx->additional_search_paths(), import_data, import->span()));
+                 import_data, import->span()));
     ctx->type_info()->AddImport(import, imported->module.get(),
                                 imported->type_info);
   } else if (absl::holds_alternative<ConstantDef*>(member) ||
@@ -803,23 +802,18 @@ static absl::Status CheckModuleMember(ModuleMember member, Module* module,
   return absl::OkStatus();
 }
 
-absl::StatusOr<TypeInfo*> CheckModule(
-    Module* module, ImportData* import_data,
-    absl::Span<const std::filesystem::path> additional_search_paths) {
+absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data) {
   // Create a deduction context to use for checking this module.
-  std::vector<std::filesystem::path> additional_search_paths_copy(
-      additional_search_paths.begin(), additional_search_paths.end());
+  // // Do we really need this?
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data->type_info_owner().New(module));
-  auto ftypecheck = [import_data, additional_search_paths_copy](
-                        Module* module) -> absl::StatusOr<TypeInfo*> {
-    return CheckModule(module, import_data, additional_search_paths_copy);
+  auto ftypecheck = [import_data](Module* module) -> absl::StatusOr<TypeInfo*> {
+    return CheckModule(module, import_data);
   };
   DeduceCtx deduce_ctx(type_info, module,
                        /*deduce_function=*/&Deduce,
                        /*typecheck_function=*/&CheckTopNodeInModule,
-                       /*typecheck_module=*/ftypecheck, additional_search_paths,
-                       import_data);
+                       /*typecheck_module=*/ftypecheck, import_data);
   DeduceCtx* ctx = &deduce_ctx;
 
   // First, populate type info with constants, enums, resolved imports, and

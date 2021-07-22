@@ -31,8 +31,7 @@ fn main() -> u32 { f() }
   ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_data,
-                        /*additional_search_paths=*/{}));
+      ParseAndTypecheck(program, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(3, order.size());
@@ -49,8 +48,7 @@ fn main() -> u32 { f(u2:0) }
   ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_data,
-                        /*additional_search_paths=*/{}));
+      ParseAndTypecheck(program, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(2, order.size());
@@ -71,8 +69,7 @@ fn main() -> u32 { f(u2:0) }
   ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_data,
-                        /*additional_search_paths=*/{}));
+      ParseAndTypecheck(program, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(3, order.size());
@@ -95,8 +92,7 @@ fn main() -> u32 { fail!(u32:0) }
   ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_data,
-                        /*additional_search_paths=*/{}));
+      ParseAndTypecheck(program, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(1, order.size());
@@ -113,8 +109,7 @@ fn main() -> u32 { f() }
   ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_data,
-                        /*additional_search_paths=*/{}));
+      ParseAndTypecheck(program, "test.x", "test", &import_data));
   EXPECT_TRUE(tm.module->GetFunction("main").has_value());
   std::vector<ConversionRecord> order;
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -143,8 +138,7 @@ fn entry() -> u32 { MY_VALUE }
   ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_data,
-                        /*additional_search_paths=*/{}));
+      ParseAndTypecheck(program, "test.x", "test", &import_data));
   EXPECT_TRUE(tm.module->GetFunction("entry").has_value());
   std::vector<ConversionRecord> order;
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -162,8 +156,7 @@ fn main() -> u32 { u32:42 }
   ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_data,
-                        /*additional_search_paths=*/{}));
+      ParseAndTypecheck(program, "test.x", "test", &import_data));
   EXPECT_TRUE(tm.module->GetFunction("main").has_value());
   std::vector<ConversionRecord> order;
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -184,8 +177,7 @@ fn main() -> u32 { f() }
   ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_data,
-                        /*additional_search_paths=*/{}));
+      ParseAndTypecheck(program, "test.x", "test", &import_data));
   EXPECT_TRUE(tm.module->GetFunction("main").has_value());
   std::vector<ConversionRecord> order;
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -209,8 +201,7 @@ fn main() -> u32 { f() }
   ImportData import_data;
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_data,
-                        /*additional_search_paths=*/{}));
+      ParseAndTypecheck(program, "test.x", "test", &import_data));
   EXPECT_TRUE(tm.module->GetFunction("main").has_value());
   std::vector<ConversionRecord> order;
   XLS_ASSERT_OK_AND_ASSIGN(

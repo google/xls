@@ -31,15 +31,12 @@ bool FnStackEntry::Matches(const Function* f) const { return f == function_; }
 DeduceCtx::DeduceCtx(
     TypeInfo* type_info, Module* module, DeduceFn deduce_function,
     TypecheckFunctionFn typecheck_function, TypecheckFn typecheck_module,
-    absl::Span<const std::filesystem::path> additional_search_paths,
     ImportData* import_data)
     : type_info_(type_info),
       module_(module),
       deduce_function_(std::move(XLS_DIE_IF_NULL(deduce_function))),
       typecheck_function_(std::move(typecheck_function)),
       typecheck_module_(std::move(typecheck_module)),
-      additional_search_paths_(additional_search_paths.begin(),
-                               additional_search_paths.end()),
       import_data_(import_data) {}
 
 // Helper that converts the symbolic bindings to a parametric expression

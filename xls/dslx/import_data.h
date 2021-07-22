@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_IMPORT_DATA_H_
 #define XLS_DSLX_IMPORT_DATA_H_
 
+#include <filesystem>
 #include <memory>
 
 #include "xls/dslx/ast.h"
@@ -76,6 +77,10 @@ class ImportTokens {
 // into.
 class ImportData {
  public:
+  ImportData() {}
+  ImportData(absl::Span<const std::filesystem::path> additional_search_paths)
+      : additional_search_paths_(additional_search_paths) {}
+
   bool Contains(const ImportTokens& target) const {
     return cache_.find(target) != cache_.end();
   }
@@ -131,6 +136,10 @@ class ImportData {
     top_level_bindings_done_.insert(module);
   }
 
+  absl::Span<const std::filesystem::path> additional_search_paths() {
+    return additional_search_paths_;
+  }
+
  private:
   absl::flat_hash_map<ImportTokens, ModuleInfo> cache_;
   absl::flat_hash_map<Module*, std::unique_ptr<InterpBindings>>
@@ -138,6 +147,7 @@ class ImportData {
   absl::flat_hash_set<Module*> top_level_bindings_done_;
   absl::flat_hash_map<Module*, AstNode*> typecheck_wip_;
   TypeInfoOwner type_info_owner_;
+  absl::Span<const std::filesystem::path> additional_search_paths_;
 };
 
 }  // namespace xls::dslx

@@ -50,8 +50,7 @@ PYBIND11_MODULE(interpreter, m) {
           XLS_ASSIGN_OR_RETURN(
               TypecheckedModule tm,
               ParseAndTypecheck(text, "get_function_type.x",
-                                "get_function_type", &import_data,
-                                /*additional_search_paths=*/{}));
+                                "get_function_type", &import_data));
           XLS_ASSIGN_OR_RETURN(Function * f,
                                tm.module->GetFunctionOrError(function_name));
           XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
@@ -72,8 +71,7 @@ PYBIND11_MODULE(interpreter, m) {
         ImportData import_data;
         XLS_ASSIGN_OR_RETURN(
             TypecheckedModule tm,
-            ParseAndTypecheck(text, "batched.x", "batched", &import_data,
-                              /*additional_search_paths=*/{}));
+            ParseAndTypecheck(text, "batched.x", "batched", &import_data));
         XLS_ASSIGN_OR_RETURN(Function * f,
                              tm.module->GetFunctionOrError(function_name));
         XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
@@ -81,7 +79,6 @@ PYBIND11_MODULE(interpreter, m) {
 
         Interpreter interpreter(
             tm.module, /*typecheck=*/nullptr,
-            /*additional_search_paths=*/{},
             /*import_data=*/&import_data,
             /*trace_all=*/false,
             /*trace_format_preference=*/FormatPreference::kDefault,

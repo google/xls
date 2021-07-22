@@ -302,7 +302,7 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertValidator(
   dslx::ImportData import_data;
   XLS_ASSIGN_OR_RETURN(dslx::TypecheckedModule module,
                        dslx::ParseAndTypecheck(validator_dslx, "fake_path",
-                                               kPackageName, &import_data, {}));
+                                               kPackageName, &import_data));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Package> package,
       dslx::ConvertModuleToPackage(module.module, &import_data, {}));

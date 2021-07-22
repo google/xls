@@ -39,7 +39,6 @@ using TypecheckFn = std::function<absl::StatusOr<TypeInfo*>(Module*)>;
 //  subject: Tokens that globally uniquely identify the module to import; e.g.
 //      something built-in like ('std',) for the standard library or something
 //      fully qualified like ('xls', 'lib', 'math').
-//  additional_search_paths: Paths to search in addition to the default ones.
 //  cache: Cache that we resolve against so we don't waste resources
 //      re-importing things in the import DAG.
 //
@@ -47,7 +46,6 @@ using TypecheckFn = std::function<absl::StatusOr<TypeInfo*>(Module*)>;
 //  The imported module information.
 absl::StatusOr<const ModuleInfo*> DoImport(
     const TypecheckFn& ftypecheck, const ImportTokens& subject,
-    absl::Span<const std::filesystem::path> additional_search_paths,
     ImportData* import_data, const Span& import_span);
 
 }  // namespace xls::dslx

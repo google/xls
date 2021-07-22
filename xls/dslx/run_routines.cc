@@ -276,9 +276,9 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
     failed += 1;
   };
 
-  ImportData import_data;
-  absl::StatusOr<TypecheckedModule> tm_or = ParseAndTypecheck(
-      program, filename, module_name, &import_data, options.dslx_paths);
+  ImportData import_data(options.dslx_paths);
+  absl::StatusOr<TypecheckedModule> tm_or =
+      ParseAndTypecheck(program, filename, module_name, &import_data);
   if (!tm_or.ok()) {
     if (TryPrintError(tm_or.status())) {
       return TestResult::kSomeFailed;
@@ -326,13 +326,13 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
     };
   }
 
-  auto typecheck_callback = [&import_data, &options](Module* module) {
-    return CheckModule(module, &import_data, options.dslx_paths);
+  auto typecheck_callback = [&import_data](Module* module) {
+    return CheckModule(module, &import_data);
   };
 
-  Interpreter interpreter(entry_module, typecheck_callback, options.dslx_paths,
-                          &import_data, options.trace_all,
-                          options.trace_format_preference, post_fn_eval_hook);
+  Interpreter interpreter(entry_module, typecheck_callback, &import_data,
+                          options.trace_all, options.trace_format_preference,
+                          post_fn_eval_hook);
 
   // Run unit tests.
   for (const std::string& test_name : entry_module->GetTestNames()) {
