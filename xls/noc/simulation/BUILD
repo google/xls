@@ -243,12 +243,12 @@ cc_library(
         ":global_routing_table",
         ":network_graph",
         ":parameters",
+        ":simulator_shims",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:ret_check",
         "//xls/ir:bits",
-        "//xls/ir:bits_ops",
         "//xls/noc/config:network_config_cc_proto",
     ],
 )
@@ -319,12 +319,8 @@ cc_library(
     deps = [
         ":common",
         ":units",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:variant",
-        "//xls/common/logging",
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
     ],
 )
@@ -336,8 +332,6 @@ cc_test(
         ":traffic_description",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/noc/config:network_config_cc_proto",
-        "//xls/noc/config:network_config_proto_builder",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -371,12 +365,8 @@ cc_library(
         ":packetizer",
         ":random_number_interface",
         ":units",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:variant",
-        "//xls/common/logging",
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
     ],
 )
@@ -388,8 +378,55 @@ cc_test(
         ":traffic_models",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/noc/config:network_config_cc_proto",
-        "//xls/noc/config:network_config_proto_builder",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "simulator_shims",
+    hdrs = ["simulator_shims.h"],
+    deps = [
+        ":common",
+        ":flit",
+    ],
+)
+
+cc_library(
+    name = "noc_traffic_injector",
+    srcs = ["noc_traffic_injector.cc"],
+    hdrs = ["noc_traffic_injector.h"],
+    deps = [
+        ":common",
+        ":flit",
+        ":indexer",
+        ":network_graph",
+        ":packetizer",
+        ":random_number_interface",
+        ":simulator_shims",
+        ":traffic_description",
+        ":traffic_models",
+        ":units",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "noc_traffic_injector_test",
+    srcs = ["noc_traffic_injector_test.cc"],
+    deps = [
+        ":noc_traffic_injector",
+        ":packetizer",
+        ":sample_network_graphs",
+        ":sim_objects",
+        ":traffic_description",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
 )
