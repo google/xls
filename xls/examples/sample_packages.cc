@@ -214,7 +214,7 @@ absl::StatusOr<std::unique_ptr<Package>> GetBenchmark(absl::string_view name,
   std::filesystem::path filename =
       optimized ? absl::StrCat(name, ".opt.ir") : absl::StrCat(name, ".ir");
   XLS_ASSIGN_OR_RETURN(std::filesystem::path runfile_path,
-                       GetXlsRunfilePath("xls/examples" / filename));
+                       GetXlsRunfilePath("xls" / filename));
   absl::StatusOr<std::string> ir_status = GetFileContents(runfile_path);
   if (!ir_status.ok()) {
     return absl::Status(ir_status.status().code(),
@@ -243,7 +243,7 @@ absl::StatusOr<std::vector<std::string>> GetBenchmarkNames() {
       XLS_ASSIGN_OR_RETURN(
           std::filesystem::path path_relative_to_example_directory,
           RelativizePath(example_path_view,
-                         example_file_list_path.parent_path()));
+                         example_file_list_path.parent_path().parent_path()));
 
       names.push_back(path_relative_to_example_directory);
     }

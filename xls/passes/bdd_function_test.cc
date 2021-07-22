@@ -109,7 +109,14 @@ TEST_F(BddFunctionTest, Parity) {
 
 TEST_F(BddFunctionTest, BenchmarkTest) {
   // Run samples through various bechmarks and verify against the interpreter.
-  for (std::string benchmark : {"crc32", "sha256"}) {
+  //
+  // TODO(leary): 2021-07-20 Temporary workaround for copybara rewrite -- want
+  // to get this into a .inc file.
+  // clang-format off
+  std::vector<std::string> benchmarks = {
+    "examples/crc32", "examples/sha256"};
+  // clang-format on
+  for (std::string benchmark : benchmarks) {
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<Package> p,
         sample_packages::GetBenchmark(benchmark, /*optimized=*/true));

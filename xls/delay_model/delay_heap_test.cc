@@ -163,7 +163,7 @@ TEST_F(DelayHeapTest, BenchmarkTest) {
   // at each step.
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Package> p,
-      sample_packages::GetBenchmark("sha256", /*optimized=*/true));
+      sample_packages::GetBenchmark("examples/sha256", /*optimized=*/true));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->EntryFunction());
   // Run test in both directions.
   for (Direction direction :
