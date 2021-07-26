@@ -44,8 +44,12 @@ namespace xls::dslx {
 //
 // TODO(rspringer): 2021-06-09 Currently all outputs are placed in a single
 // file, the header, but this will likely be split up once structs are
-absl::StatusOr<std::string> TranspileToCpp(Module* module,
-                                           ImportData* import_data);
+struct Sources {
+  std::string header;
+  std::string body;
+};
+
+absl::StatusOr<Sources> TranspileToCpp(Module* module, ImportData* import_data);
 
 }  // namespace xls::dslx
 

@@ -47,7 +47,7 @@ pub enum MyEnum : u32 {
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            TranspileToCpp(module.module, &import_data));
-  ASSERT_EQ(result, kExpected);
+  ASSERT_EQ(result.header, kExpected);
 }
 
 // Verifies we can use a constexpr evaluated constant in our enum.
@@ -78,7 +78,7 @@ pub enum MyEnum : u32 {
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            TranspileToCpp(module.module, &import_data));
-  ASSERT_EQ(result, kExpected);
+  ASSERT_EQ(result.header, kExpected);
 }
 
 // Basic typedef support.
@@ -112,7 +112,79 @@ using MyFirstTuple = std::tuple<uint8_t, int8_t, MyType, MySignedType, MyArrayTy
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            TranspileToCpp(module.module, &import_data));
-  ASSERT_EQ(result, kExpected);
+  ASSERT_EQ(result.header, kExpected);
+}
+
+TEST(CppTranspilerTest, BasicStruct) {
+  const std::string kModule = R"(
+struct MyStruct {
+  x: u32,
+  y: u15,
+  z: u8,
+  w: s63,
+}
+)";
+
+  const std::string kExpectedHeader = R"(struct MyStruct {
+  static absl::StatusOr<MyStruct> FromValue(const Value& value) {
+    absl::Span<const xls::Value> elements = value.elements();
+    if (elements.size() != 4) {
+      return absl::InvalidArgumentError(
+          "MyStruct::FromValue input must be a 4-tuple.");
+    }
+
+    MyStruct result;
+    result.x = elements[0].ToBits().ToUint64().value();
+    result.y = elements[1].ToBits().ToUint64().value();
+    result.z = elements[2].ToBits().ToUint64().value();
+    result.w = elements[3].ToBits().ToUint64().value();
+    return result;
+  }
+
+  Value ToValue() const {
+    std::vector<Value> elements;
+    Value x_value(UBits(x, /*bit_count=*/32));
+    elements.push_back(x_value);
+    Value y_value(UBits(y, /*bit_count=*/15));
+    elements.push_back(y_value);
+    Value z_value(UBits(z, /*bit_count=*/8));
+    elements.push_back(z_value);
+    Value w_value(SBits(w, /*bit_count=*/63));
+    elements.push_back(w_value);
+    return Value::Tuple(elements);
+  }
+
+  friend std::ostream& operator<<(std::ostream& os,
+                                  const MyStruct& data);
+
+  uint32_t x;
+  uint16_t y;
+  uint8_t z;
+  int64_t w;
+};
+)";
+
+  constexpr absl::string_view kExpectedBody =
+      R"(std::ostream& operator<<(std::ostream& os, const MyStruct& data) {
+  xls::Value value = data.ToValue();
+  absl::Span<const xls::Value> elements = value.elements();
+  os << "(\n";
+  os << "  x: " << elements[0].ToString() << "\n";
+  os << "  y: " << elements[1].ToString() << "\n";
+  os << "  z: " << elements[2].ToString() << "\n";
+  os << "  w: " << elements[3].ToString() << "\n";
+  os << ")\n";
+  return os;
+})";
+
+  ImportData import_data;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           TranspileToCpp(module.module, &import_data));
+  ASSERT_EQ(result.header, kExpectedHeader);
+  ASSERT_EQ(result.body, kExpectedBody);
 }
 
 }  // namespace

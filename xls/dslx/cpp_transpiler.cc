@@ -15,6 +15,8 @@
 #include "xls/dslx/cpp_transpiler.h"
 
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/optional.h"
 #include "xls/common/case_converters.h"
 #include "xls/common/status/ret_check.h"
@@ -34,16 +36,16 @@ struct TranspileData {
   ImportData* import_data;
 };
 
-absl::StatusOr<std::string> TranspileSingleToCpp(
+absl::StatusOr<Sources> TranspileSingleToCpp(
     const TranspileData& xpile_data, const TypeDefinition& type_definition);
 
-absl::StatusOr<std::string> TranspileColonRef(const TranspileData& xpile_data,
-                                              const ColonRef* colon_ref) {
+absl::StatusOr<Sources> TranspileColonRef(const TranspileData& xpile_data,
+                                          const ColonRef* colon_ref) {
   return absl::UnimplementedError("TranspileColonRef not yet implemented.");
 }
 
-absl::StatusOr<std::string> TranspileEnumDef(const TranspileData& xpile_data,
-                                             const EnumDef* enum_def) {
+absl::StatusOr<Sources> TranspileEnumDef(const TranspileData& xpile_data,
+                                         const EnumDef* enum_def) {
   constexpr absl::string_view kTemplate = "enum class %s {\n%s\n};";
   constexpr absl::string_view kMemberTemplate = "  %s = %s,";
 
@@ -82,8 +84,9 @@ absl::StatusOr<std::string> TranspileEnumDef(const TranspileData& xpile_data,
     members.push_back(absl::StrFormat(kMemberTemplate, identifier, val_str));
   }
 
-  return absl::StrFormat(kTemplate, enum_def->identifier(),
-                         absl::StrJoin(members, "\n"));
+  return Sources{absl::StrFormat(kTemplate, enum_def->identifier(),
+                                 absl::StrJoin(members, "\n")),
+                 ""};
 }
 
 absl::StatusOr<std::string> TypeAnnotationToString(
@@ -174,26 +177,173 @@ absl::StatusOr<std::string> TypeAnnotationToString(
   }
 }
 
-absl::StatusOr<std::string> TranspileTypeDef(const TranspileData& xpile_data,
-                                             const TypeDef* type_def) {
+absl::StatusOr<Sources> TranspileTypeDef(const TranspileData& xpile_data,
+                                         const TypeDef* type_def) {
   XLS_ASSIGN_OR_RETURN(
       std::string annot_str,
       TypeAnnotationToString(xpile_data, type_def->type_annotation()));
-  return absl::StrFormat("using %s = %s;", Camelize(type_def->identifier()),
-                         annot_str);
+  return Sources{absl::StrFormat("using %s = %s;",
+                                 Camelize(type_def->identifier()), annot_str),
+                 ""};
 }
 
-absl::StatusOr<std::string> TranspileStructDef(const StructDef* struct_def) {
-  return absl::UnimplementedError("TranspileStructDef not yet implemented.");
+absl::StatusOr<std::string> SetStructMember(const TranspileData& xpile_data,
+                                            absl::string_view object_name,
+                                            absl::string_view field_name,
+                                            int element_index,
+                                            TypeAnnotation* type) {
+  if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
+    return absl::StrFormat(
+        "    %s.%s = elements[%d].ToBits().ToUint64().value();", object_name,
+        field_name, element_index);
+  } else if (auto* array_type = dynamic_cast<ArrayTypeAnnotation*>(type)) {
+    TypeAnnotation* element_type = array_type->element_type();
+    // If the array size/dim is a scalar < 64b, then the element is really an
+    // integral type.
+    auto typecheck_fn = [&xpile_data](Module* module) {
+      return CheckModule(module, xpile_data.import_data);
+    };
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue value,
+        Interpreter::InterpretExpr(xpile_data.module, xpile_data.type_info,
+                                   typecheck_fn, xpile_data.import_data, {},
+                                   array_type->dim()));
+    auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(element_type);
+    if (builtin_type != nullptr && value.IsBits() &&
+        value.GetBitValueUint64().value() < 64) {
+      return absl::StrFormat(
+          "    %s.%s = elements[%d].ToBits().ToUint64().value();", object_name,
+          field_name, element_index);
+    }
+
+    return absl::UnimplementedError("Proper arrays not yet supported.");
+  }
+
+  return absl::UnimplementedError(
+      "Only builtin types are currently supported.");
 }
 
-absl::StatusOr<std::string> TranspileSingleToCpp(
+absl::StatusOr<std::string> StructMemberToValue(const TranspileData& xpile_data,
+                                                absl::string_view member_name,
+                                                TypeAnnotation* type) {
+  // Because the input DSLX must be in decl order, the translators for any types
+  // we encounter here must have already been defined, so we can reference them
+  // without worry.
+  constexpr absl::string_view kToValueTemplate = R"(    %s;
+    elements.push_back(%s_value);)";
+
+  std::string setter;
+  if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
+    setter =
+        absl::StrFormat("Value %s_value(%cBits(%s, /*bit_count=*/%d))",
+                        member_name, builtin_type->GetSignedness() ? 'S' : 'U',
+                        member_name, builtin_type->GetBitCount());
+  } else {
+    return absl::UnimplementedError(
+        "Only builtin types are currently supported.");
+  }
+
+  return absl::StrFormat(kToValueTemplate, setter, member_name);
+}
+
+std::string GenerateOutputOperator(const TranspileData& xpile_data,
+                                   const StructDef* struct_def) {
+  constexpr absl::string_view kOutputOperatorTemplate =
+      R"(std::ostream& operator<<(std::ostream& os, const $0& data) {
+  xls::Value value = data.ToValue();
+  absl::Span<const xls::Value> elements = value.elements();
+  os << "(\n";
+$1
+  os << ")\n";
+  return os;
+})";
+  std::vector<std::string> members;
+  for (int i = 0; i < struct_def->members().size(); i++) {
+    members.push_back(absl::StrFormat(
+        R"(  os << "  %s: " << elements[%d].ToString() << "\n";)",
+        struct_def->members()[i].first->identifier(), i));
+  }
+
+  return absl::Substitute(kOutputOperatorTemplate, struct_def->identifier(),
+                          absl::StrJoin(members, "\n"));
+}
+
+// Should performance become an issue, optimizing struct layouts by reordering
+// (packing?) struct members could be considered.
+absl::StatusOr<Sources> TranspileStructDef(const TranspileData& xpile_data,
+                                           const StructDef* struct_def) {
+  // Move impl to .cc
+  // $0: name.
+  // $1: element count.
+  // $2: FromValue element setters.
+  // $3: ToValue element setters.
+  // $4: Member vars decls.
+  constexpr absl::string_view kStructTemplate = R"(struct $0 {
+  static absl::StatusOr<$0> FromValue(const Value& value) {
+    absl::Span<const xls::Value> elements = value.elements();
+    if (elements.size() != $1) {
+      return absl::InvalidArgumentError(
+          "$0::FromValue input must be a $1-tuple.");
+    }
+
+    $0 result;
+$2
+    return result;
+  }
+
+  Value ToValue() const {
+    std::vector<Value> elements;
+$3
+    return Value::Tuple(elements);
+  }
+
+  friend std::ostream& operator<<(std::ostream& os,
+                                  const $0& data);
+
+$4
+};
+)";
+
+  std::string struct_body;
+  std::vector<std::string> setters;
+  std::vector<std::string> to_values;
+  std::vector<std::string> member_decls;
+  for (int i = 0; i < struct_def->members().size(); i++) {
+    std::string member_name = struct_def->members()[i].first->identifier();
+    TypeAnnotation* type = struct_def->members()[i].second;
+
+    XLS_ASSIGN_OR_RETURN(
+        std::string setter,
+        SetStructMember(xpile_data, "result", member_name, i, type));
+    setters.push_back(setter);
+
+    XLS_ASSIGN_OR_RETURN(std::string to_value,
+                         StructMemberToValue(xpile_data, member_name, type));
+    to_values.push_back(to_value);
+
+    XLS_ASSIGN_OR_RETURN(std::string type_str,
+                         TypeAnnotationToString(xpile_data, type));
+    member_decls.push_back(absl::StrFormat("  %s %s;", type_str, member_name));
+  }
+
+  // for each elem, collect decl, ToValue, FromValue, operator<< decl,
+  // and operator<< impl.
+  std::string header = absl::Substitute(
+      kStructTemplate, struct_def->identifier(), struct_def->members().size(),
+      absl::StrJoin(setters, "\n"), absl::StrJoin(to_values, "\n"),
+      absl::StrJoin(member_decls, "\n"));
+  std::string body = GenerateOutputOperator(xpile_data, struct_def);
+  return Sources{header, body};
+}
+
+absl::StatusOr<Sources> TranspileSingleToCpp(
     const TranspileData& xpile_data, const TypeDefinition& type_definition) {
   return absl::visit(Visitor{[&](const TypeDef* type_def) {
                                return TranspileTypeDef(xpile_data, type_def);
                              },
-                             [](const StructDef* struct_def) {
-                               return TranspileStructDef(struct_def);
+                             [&](const StructDef* struct_def) {
+                               return TranspileStructDef(xpile_data,
+                                                         struct_def);
                              },
                              [&](const EnumDef* enum_def) {
                                return TranspileEnumDef(xpile_data, enum_def);
@@ -206,23 +356,23 @@ absl::StatusOr<std::string> TranspileSingleToCpp(
 
 }  // namespace
 
-absl::StatusOr<std::string> TranspileToCpp(Module* module,
-                                           ImportData* import_data) {
-  std::vector<std::string> results;
+absl::StatusOr<Sources> TranspileToCpp(Module* module,
+                                       ImportData* import_data) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data->GetRootTypeInfo(module));
   struct TranspileData xpile_data {
     module, type_info, import_data
   };
 
-  // Don't need to worry aboot ordering, since constexpr eval does it for us.
+  std::vector<std::string> header;
+  std::vector<std::string> body;
   for (const TypeDefinition& def : module->GetTypeDefinitions()) {
-    XLS_ASSIGN_OR_RETURN(std::string result,
-                         TranspileSingleToCpp(xpile_data, def));
-    results.push_back(result);
+    XLS_ASSIGN_OR_RETURN(Sources result, TranspileSingleToCpp(xpile_data, def));
+    header.push_back(result.header);
+    body.push_back(result.body);
   }
 
-  return absl::StrJoin(results, "\n");
+  return Sources{absl::StrJoin(header, "\n"), absl::StrJoin(body, "\n")};
 }
 
 }  // namespace xls::dslx
