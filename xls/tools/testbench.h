@@ -56,21 +56,28 @@ template <typename InputT, typename ResultT, typename ShardDataT = void,
 class Testbench : public internal::TestbenchBase<InputT, ResultT, ShardDataT> {
  public:
   // Args:
-  //   start, end: The bounds of the space to evaluate, as [start, end).
-  //   max_failures: The maximum number of result mismatches to allow (per
-  //                  worker thread) before cancelling execution.
-  //   compute_actual: The function to call to calculate the XLS result.
-  //     "result_buffer" is a convenience buffer provided as temporary storage
-  //     to hold result data if using view types in the calculation. This buffer
-  //     isn't directly used internally all - it's just a convenience to avoid
-  //     the need to heap allocate on every iteration.
-  //   compare_results: Should return true if both ResultTs (expected & actual)
-  //                    are considered equivalent.
-  // These lambdas return pure InputTs and ResultTs instead of wrapping them in
-  // StatusOrs so we don't pay that tax on every iteration. If our algorithms
-  // die, we should fix that before evaluating for correctness (since any
-  // changes might affect results).
+  //   start, end      : The bounds of the space to evaluate, as [start, end).
+  //   max_failures    : The maximum number of result mismatches to allow (per
+  //                     worker thread) before cancelling execution.
+  //   index_to_input  : The function to call to convert an index (uint64_t) to
+  //                     an input (InputT).
+  //   compute_expected: The function to calculate the expected result.
+  //   compute_actual  : The function to call to calculate the XLS result.
+  //                     "result_buffer" is a convenience buffer provided as
+  //                     isn't directly used internally all - it's just a
+  //                     convenience to avoid the need to heap allocate on every
+  //                     iteration.
+  //   compare_results : Should return true if both ResultTs (expected & actual)
+  //                     are considered equivalent.
+  //   log_errors      : The function to log errors when compare_results returns
+  //                     false.
+  //
   // All lambdas must be thread-safe.
+  //
+  // "compute_expected" and "compute_actual" return pure InputTs and ResultTs
+  // instead of wrapping them in StatusOrs so we don't pay that tax on every
+  // iteration. If our algorithms die, we should fix that before evaluating for
+  // correctness (since any changes might affect results).
   Testbench(uint64_t start, uint64_t end, int64_t num_threads,
             uint64_t max_failures,
             std::function<InputT(uint64_t)> index_to_input,
