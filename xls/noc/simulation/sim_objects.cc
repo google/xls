@@ -223,6 +223,10 @@ absl::Status NocSimulator::RunCycle(int64_t max_ticks) {
   XLS_LOG(INFO) << "";
   XLS_LOG(INFO) << absl::StreamFormat("*** Simul Cycle %d", cycle_);
 
+  for (NocSimulatorServiceShim* svc : pre_cycle_services_) {
+    XLS_RET_CHECK_OK(svc->RunCycle());
+  }
+
   bool converged = false;
   int64_t nticks = 0;
   while (!converged) {
@@ -248,6 +252,10 @@ absl::Status NocSimulator::RunCycle(int64_t max_ticks) {
           "Simulator unable to converge after %d ticks for cycle %d", nticks,
           cycle_));
     }
+  }
+
+  for (NocSimulatorServiceShim* svc : post_cycle_services_) {
+    XLS_RET_CHECK_OK(svc->RunCycle());
   }
 
   return absl::OkStatus();

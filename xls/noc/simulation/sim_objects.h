@@ -24,6 +24,7 @@
 #include "xls/noc/simulation/flit.h"
 #include "xls/noc/simulation/global_routing_table.h"
 #include "xls/noc/simulation/parameters.h"
+#include "xls/noc/simulation/simulator_shims.h"
 
 // This file contains classes used to store, access, and define simulation
 // objects.  Each network object (defined network_graph.h) is associated
@@ -206,6 +207,25 @@ class SimNetworkInterfaceSink : public SimNetworkComponentBase {
   // of the simulation.
   absl::Span<const TimedDataFlit> GetReceivedTraffic() {
     return received_traffic_;
+  }
+
+  // Returns the observed rate of traffic in MebiBytes Per Second from the
+  // beginning of simulation to the last flit processed by this sink.
+  double MeasuredTrafficRateInMiBps(int64_t cycle_time_ps) {
+    // TODO(tedhong): 2021-07-01 Factor this logic out into common library.
+    int64_t num_bits = 0;
+    int64_t max_cycle = 0;
+    for (TimedDataFlit& f : received_traffic_) {
+      num_bits += f.flit.data_bit_count;
+      if (max_cycle < f.cycle) {
+        max_cycle = f.cycle;
+      }
+    }
+
+    double total_sec = static_cast<double>(max_cycle + 1) *
+                       static_cast<double>(cycle_time_ps) * 1.0e-12;
+    double bits_per_sec = static_cast<double>(num_bits) / total_sec;
+    return bits_per_sec / 1024.0 / 1024.0 / 8.0;
   }
 
  private:
@@ -400,6 +420,18 @@ class NocSimulator {
   // Runs a single tick of the simulator.
   bool Tick();
 
+  // Register a service to run once at the beginning of each cycle.
+  // TODO(tedhong): 2021-07-27 Add a scheme to provide a total order
+  //                of services.
+  void RegisterPreCycleService(NocSimulatorServiceShim& svc) {
+    pre_cycle_services_.push_back(&svc);
+  }
+
+  // Register a service to run once at the end of each cycle.
+  void RegisterPosteCycleService(NocSimulatorServiceShim& svc) {
+    post_cycle_services_.push_back(&svc);
+  }
+
   // Returns corresponding simulation object for a src network component.
   absl::StatusOr<SimNetworkInterfaceSrc*> GetSimNetworkInterfaceSrc(
       NetworkComponentId src);
@@ -452,6 +484,12 @@ class NocSimulator {
   std::vector<SimNetworkInterfaceSrc> network_interface_sources_;
   std::vector<SimNetworkInterfaceSink> network_interface_sinks_;
   std::vector<SimInputBufferedVCRouter> routers_;
+
+  // Shims to services to run at the beginning of each cycle.
+  std::vector<NocSimulatorServiceShim*> pre_cycle_services_;
+
+  // Shims to services to run at the end of each cycle.
+  std::vector<NocSimulatorServiceShim*> post_cycle_services_;
 };
 
 }  // namespace noc

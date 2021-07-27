@@ -392,6 +392,16 @@ cc_library(
 )
 
 cc_library(
+    name = "simulator_to_traffic_injector_shim",
+    hdrs = ["simulator_to_traffic_injector_shim.h"],
+    deps = [
+        ":common",
+        ":noc_traffic_injector",
+        ":sim_objects",
+    ],
+)
+
+cc_library(
     name = "noc_traffic_injector",
     srcs = ["noc_traffic_injector.cc"],
     hdrs = ["noc_traffic_injector.h"],
@@ -422,6 +432,23 @@ cc_test(
         ":packetizer",
         ":sample_network_graphs",
         ":sim_objects",
+        ":traffic_description",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "sim_traffic_test",
+    srcs = ["sim_traffic_test.cc"],
+    deps = [
+        ":noc_traffic_injector",
+        ":sample_network_graphs",
+        ":sim_objects",
+        ":simulator_to_traffic_injector_shim",
         ":traffic_description",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit_main",

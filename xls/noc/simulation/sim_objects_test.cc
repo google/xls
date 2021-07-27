@@ -258,6 +258,15 @@ TEST(SimObjectsTest, TreeNework0) {
   EXPECT_EQ(traffic_recv_port_3[0].flit.data, UBits(1001, 64));
   EXPECT_EQ(traffic_recv_port_3[1].cycle, 3);
   EXPECT_EQ(traffic_recv_port_3[1].flit.data, UBits(2002, 64));
+
+  EXPECT_DOUBLE_EQ(sim_recv_port_0->MeasuredTrafficRateInMiBps(100), 0.0);
+  EXPECT_DOUBLE_EQ(sim_recv_port_2->MeasuredTrafficRateInMiBps(100), 0.0);
+  EXPECT_EQ(
+      static_cast<int64_t>(sim_recv_port_1->MeasuredTrafficRateInMiBps(100)),
+      19073);
+  EXPECT_EQ(
+      static_cast<int64_t>(sim_recv_port_3->MeasuredTrafficRateInMiBps(100)),
+      38146);
 }
 
 }  // namespace
