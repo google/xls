@@ -164,6 +164,8 @@ absl::Status IrJit::Compile(VisitFn visit_fn) {
 
 IrJit::IrJit(FunctionBase* xls_function, int64_t opt_level)
     : context_(std::make_unique<llvm::LLVMContext>()),
+      execution_session_(
+          std::make_unique<llvm::orc::UnsupportedExecutorProcessControl>()),
       object_layer_(
           execution_session_,
           []() { return std::make_unique<llvm::SectionMemoryManager>(); }),
