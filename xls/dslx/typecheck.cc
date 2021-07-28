@@ -828,4 +828,46 @@ absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data) {
   return type_info;
 }
 
+absl::StatusOr<absl::optional<BuiltinType>> GetAsBuiltinType(
+    Module* module, TypeInfo* type_info, ImportData* import_data,
+    const TypeAnnotation* type) {
+  if (auto* builtin_type = dynamic_cast<const BuiltinTypeAnnotation*>(type)) {
+    return builtin_type->builtin_type();
+  }
+
+  if (auto* array_type = dynamic_cast<const ArrayTypeAnnotation*>(type)) {
+    TypeAnnotation* element_type = array_type->element_type();
+    auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(element_type);
+    if (builtin_type == nullptr) {
+      return absl::nullopt;
+    }
+
+    // If the array size/dim is a scalar < 64b, then the element is really an
+    // integral type.
+    auto typecheck_fn = [import_data](Module* module) {
+      return CheckModule(module, import_data);
+    };
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue array_dim_value,
+        Interpreter::InterpretExpr(
+            module, type_info, typecheck_fn, import_data, {}, array_type->dim(),
+            nullptr, type_info->GetItem(array_type->dim()).value()));
+
+    if (builtin_type->builtin_type() != BuiltinType::kBits &&
+        builtin_type->builtin_type() != BuiltinType::kUN &&
+        builtin_type->builtin_type() != BuiltinType::kSN) {
+      return absl::nullopt;
+    }
+
+    XLS_ASSIGN_OR_RETURN(uint64_t array_dim,
+                         array_dim_value.GetBitValueUint64());
+    if (array_dim_value.IsBits() && array_dim > 0 && array_dim <= 64) {
+      return GetBuiltinType(builtin_type->builtin_type() == BuiltinType::kSN,
+                            array_dim);
+    }
+  }
+
+  return absl::nullopt;
+}
+
 }  // namespace xls::dslx

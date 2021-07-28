@@ -74,5 +74,55 @@ TEST(CppAst, GetNumberAsInt64) {
                        HasSubstr("Could not convert 0b to a number")));
 }
 
+TEST(AstTest, GetBuiltinTypeSignedness) {
+  XLS_ASSERT_OK_AND_ASSIGN(bool is_signed,
+                           GetBuiltinTypeSignedness(BuiltinType::kBool));
+  EXPECT_FALSE(is_signed);
+  XLS_ASSERT_OK_AND_ASSIGN(is_signed,
+                           GetBuiltinTypeSignedness(BuiltinType::kS1));
+  EXPECT_TRUE(is_signed);
+  XLS_ASSERT_OK_AND_ASSIGN(is_signed,
+                           GetBuiltinTypeSignedness(BuiltinType::kU1));
+  EXPECT_FALSE(is_signed);
+  XLS_ASSERT_OK_AND_ASSIGN(is_signed,
+                           GetBuiltinTypeSignedness(BuiltinType::kSN));
+  EXPECT_TRUE(is_signed);
+  XLS_ASSERT_OK_AND_ASSIGN(is_signed,
+                           GetBuiltinTypeSignedness(BuiltinType::kUN));
+  EXPECT_FALSE(is_signed);
+  XLS_ASSERT_OK_AND_ASSIGN(is_signed,
+                           GetBuiltinTypeSignedness(BuiltinType::kBits));
+  EXPECT_FALSE(is_signed);
+  XLS_ASSERT_OK_AND_ASSIGN(is_signed,
+                           GetBuiltinTypeSignedness(BuiltinType::kToken));
+  EXPECT_FALSE(is_signed);
+}
+
+TEST(AstTest, GetBuiltinTypeBitCount) {
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_count,
+                           GetBuiltinTypeBitCount(BuiltinType::kBool));
+  EXPECT_EQ(bit_count, 1);
+  XLS_ASSERT_OK_AND_ASSIGN(bit_count, GetBuiltinTypeBitCount(BuiltinType::kS1));
+  EXPECT_EQ(bit_count, 1);
+  XLS_ASSERT_OK_AND_ASSIGN(bit_count,
+                           GetBuiltinTypeBitCount(BuiltinType::kS64));
+  EXPECT_EQ(bit_count, 64);
+  XLS_ASSERT_OK_AND_ASSIGN(bit_count, GetBuiltinTypeBitCount(BuiltinType::kU1));
+  EXPECT_EQ(bit_count, 1);
+  XLS_ASSERT_OK_AND_ASSIGN(bit_count,
+                           GetBuiltinTypeBitCount(BuiltinType::kU64));
+  EXPECT_EQ(bit_count, 64);
+  XLS_ASSERT_OK_AND_ASSIGN(bit_count, GetBuiltinTypeBitCount(BuiltinType::kSN));
+  EXPECT_EQ(bit_count, 0);
+  XLS_ASSERT_OK_AND_ASSIGN(bit_count, GetBuiltinTypeBitCount(BuiltinType::kUN));
+  EXPECT_EQ(bit_count, 0);
+  XLS_ASSERT_OK_AND_ASSIGN(bit_count,
+                           GetBuiltinTypeBitCount(BuiltinType::kBits));
+  EXPECT_EQ(bit_count, 0);
+  XLS_ASSERT_OK_AND_ASSIGN(bit_count,
+                           GetBuiltinTypeBitCount(BuiltinType::kToken));
+  EXPECT_EQ(bit_count, 0);
+}
+
 }  // namespace
 }  // namespace xls::dslx

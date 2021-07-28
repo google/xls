@@ -40,6 +40,17 @@ absl::Status CheckTopNodeInModule(
 // deduced/checked type. The owner for the type info is within the import_cache.
 absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data);
 
+// Determines if the given type is best represented as a DSLX BuiltinType with
+// fixed width, e.g., u7 or s64 vs bits, uN, or sN. If so, then this function
+// returns that BuiltinType.
+// Certain non-fixed width types, e.g., bits[17] or sN[63], while technically
+// array types (ArrayTypeAnnotations), they're more easily represented
+// in C++ as int64_t, as opposed to arrays of bool or "packed" int8_ts.
+// These types, up to 64 bits wide, we interpret as scalar integral values.
+absl::StatusOr<absl::optional<BuiltinType>> GetAsBuiltinType(
+    Module* module, TypeInfo* type_info, ImportData* import_data,
+    const TypeAnnotation* type);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPECHECK_H_

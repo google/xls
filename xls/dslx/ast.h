@@ -290,6 +290,8 @@ std::string BuiltinTypeToString(BuiltinType t);
 absl::StatusOr<BuiltinType> BuiltinTypeFromString(absl::string_view s);
 
 absl::StatusOr<BuiltinType> GetBuiltinType(bool is_signed, int64_t width);
+absl::StatusOr<bool> GetBuiltinTypeSignedness(BuiltinType type);
+absl::StatusOr<int64_t> GetBuiltinTypeBitCount(BuiltinType type);
 
 // Represents a built-in type annotation; e.g. `u32`, `bits`, etc.
 class BuiltinTypeAnnotation : public TypeAnnotation {

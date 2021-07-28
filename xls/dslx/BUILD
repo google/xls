@@ -58,6 +58,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 
@@ -658,6 +659,7 @@ cc_test(
     srcs = ["typecheck_test.cc"],
     deps = [
         ":parse_and_typecheck",
+        ":typecheck",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",

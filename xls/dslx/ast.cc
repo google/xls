@@ -145,6 +145,30 @@ absl::StatusOr<BuiltinType> GetBuiltinType(bool is_signed, int64_t width) {
                       is_signed, width));
 }
 
+absl::StatusOr<bool> GetBuiltinTypeSignedness(BuiltinType type) {
+  switch (type) {
+#define CASE(__enum, _unused1, _unused2, __signedness, _unused3) \
+  case BuiltinType::__enum:                                      \
+    return __signedness;
+    XLS_DSLX_BUILTIN_TYPE_EACH(CASE)
+#undef CASE
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Unknown builtin type: ", static_cast<int64_t>(type)));
+}
+
+absl::StatusOr<int64_t> GetBuiltinTypeBitCount(BuiltinType type) {
+  switch (type) {
+#define CASE(__enum, _unused1, _unused2, _unused3, __width) \
+  case BuiltinType::__enum:                                 \
+    return __width;
+    XLS_DSLX_BUILTIN_TYPE_EACH(CASE)
+#undef CASE
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Unknown builtin type: ", static_cast<int64_t>(type)));
+}
+
 absl::StatusOr<BuiltinType> BuiltinTypeFromString(absl::string_view s) {
 #define CASE(__enum, __unused, __str, ...) \
   if (s == __str) {                        \
@@ -1185,25 +1209,11 @@ BuiltinTypeAnnotation::BuiltinTypeAnnotation(Module* owner, Span span,
     : TypeAnnotation(owner, std::move(span)), builtin_type_(builtin_type) {}
 
 int64_t BuiltinTypeAnnotation::GetBitCount() const {
-  switch (builtin_type_) {
-#define CASE(__enum, _unused1, _unused2, _unused3, __bit_count) \
-  case BuiltinType::__enum:                                     \
-    return __bit_count;
-    XLS_DSLX_BUILTIN_TYPE_EACH(CASE)
-#undef CASE
-  }
-  XLS_LOG(FATAL) << "Invalid builtin type: " << static_cast<int>(builtin_type_);
+  return GetBuiltinTypeBitCount(builtin_type_).value();
 }
 
 bool BuiltinTypeAnnotation::GetSignedness() const {
-  switch (builtin_type_) {
-#define CASE(__enum, _unused1, _unused2, __signedness, ...) \
-  case BuiltinType::__enum:                                 \
-    return __signedness;
-    XLS_DSLX_BUILTIN_TYPE_EACH(CASE)
-#undef CASE
-  }
-  XLS_LOG(FATAL) << "Invalid builtin type: " << static_cast<int>(builtin_type_);
+  return GetBuiltinTypeSignedness(builtin_type_).value();
 }
 
 TupleTypeAnnotation::TupleTypeAnnotation(Module* owner, Span span,
