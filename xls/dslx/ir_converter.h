@@ -56,6 +56,14 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
     Module* module, ImportData* import_data, const ConvertOptions& options,
     bool traverse_tests = false);
 
+// As above, but the package is provided explicitly (instead of being created).
+//
+// Package must outlive this function call -- functions from "module" are placed
+// inside of it, it may not be nullptr.
+absl::Status ConvertModuleIntoPackage(Module* module, ImportData* import_data,
+                                      const ConvertOptions& options,
+                                      bool traverse_tests, Package* package);
+
 // Wrapper around ConvertModuleToPackage that converts to IR text.
 absl::StatusOr<std::string> ConvertModule(Module* module,
                                           ImportData* import_data,
@@ -85,6 +93,15 @@ absl::StatusOr<std::string> ConvertOneFunction(
     Module* module, absl::string_view entry_function_name,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
     const ConvertOptions& options);
+
+// As above, but the package is provided explicitly.
+//
+// Package must outlive this function call -- functions from "module" are placed
+// inside of it, it may not be nullptr.
+absl::Status ConvertOneFunctionIntoPackage(
+    Module* module, absl::string_view entry_function_name,
+    ImportData* import_data, const SymbolicBindings* symbolic_bindings,
+    const ConvertOptions& options, Package* package);
 
 // Converts an interpreter value to an IR value.
 absl::StatusOr<Value> InterpValueToValue(const InterpValue& v);

@@ -31,6 +31,10 @@ ABSL_FLAG(std::string, entry, "",
           "are converted.");
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
+ABSL_FLAG(
+    std::string, package_name, "",
+    "Package name to use for output (required when multiple input .x files "
+    "are given).");
 
 // TODO(https://github.com/google/xls/issues/232): 2021-04-28 Make "true" the
 // default, requires us to wrap up entry points so they don't need the "implicit
@@ -80,17 +84,27 @@ absl::StatusOr<std::string> PathToName(absl::string_view path) {
   return std::string(dot_pieces[0]);
 }
 
-absl::Status RealMain(absl::string_view path,
-                      absl::optional<absl::string_view> entry,
-                      absl::Span<const std::filesystem::path> dslx_paths,
-                      bool emit_fail_as_assert, bool* printed_error) {
+// Adds IR-converted symbols from the module specified by "path" to the given
+// "package".
+static absl::Status AddPathToPackage(
+    absl::string_view path, absl::optional<absl::string_view> entry,
+    const ConvertOptions& convert_options,
+    absl::Span<const std::filesystem::path> dslx_paths, Package* package,
+    bool* printed_error) {
+  // Read the `.x` contents.
   XLS_ASSIGN_OR_RETURN(std::string text, GetFileContents(path));
-
+  // Figure out what we name this module.
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path));
+  // Parse the module text.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
                        ParseText(text, module_name, /*print_on_error=*/true,
                                  /*filename=*/path, printed_error));
 
+  // TODO(leary): 2021-07-21 We should be able to reuse the type checking if
+  // there are overlapping nodes in the module DAG between files to process. For
+  // now we throw it away for each file and re-derive it (we need to refactor to
+  // make the modules outlive any given AddPathToPackage() if we want to
+  // appropriately reuse things in ImportData).
   ImportData import_data(dslx_paths);
   absl::StatusOr<TypeInfo*> type_info_or =
       CheckModule(module.get(), &import_data);
@@ -99,22 +113,53 @@ absl::Status RealMain(absl::string_view path,
     return type_info_or.status();
   }
 
+  if (entry.has_value()) {
+    XLS_RETURN_IF_ERROR(ConvertOneFunctionIntoPackage(
+        module.get(), entry.value(),
+        /*import_data=*/&import_data,
+        /*symbolic_bindings=*/nullptr, convert_options, package));
+  } else {
+    XLS_RETURN_IF_ERROR(
+        ConvertModuleIntoPackage(module.get(), &import_data, convert_options,
+                                 /*traverse_tests=*/false, package));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status RealMain(absl::Span<const absl::string_view> paths,
+                      absl::optional<absl::string_view> entry,
+                      absl::optional<absl::string_view> package_name,
+                      absl::Span<const std::filesystem::path> dslx_paths,
+                      bool emit_fail_as_assert, bool* printed_error) {
+  absl::optional<xls::Package> package;
+  if (package_name.has_value()) {
+    package.emplace(package_name.value());
+  } else {
+    XLS_QCHECK_EQ(paths.size(), 1)
+        << "-package_name *must* be given when multiple input paths are "
+           "supplied";
+    // Get it from the one module name (if package name was unspecified and we
+    // just have one path).
+    XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(paths[0]));
+    package.emplace(module_name);
+  }
+
+  if (paths.size() > 1) {
+    XLS_QCHECK(!entry.has_value())
+        << "-entry cannot be supplied with multiple input paths (need a single "
+           "input path to know where to resolve the entry function)";
+  }
+
   const ConvertOptions convert_options = {
       .emit_positions = true,
       .emit_fail_as_assert = emit_fail_as_assert,
   };
-  std::string converted;
-  if (entry.has_value()) {
-    XLS_ASSIGN_OR_RETURN(
-        converted,
-        ConvertOneFunction(module.get(), entry.value(),
-                           /*import_data=*/&import_data,
-                           /*symbolic_bindings=*/nullptr, convert_options));
-  } else {
-    XLS_ASSIGN_OR_RETURN(
-        converted, ConvertModule(module.get(), &import_data, convert_options));
+  for (absl::string_view path : paths) {
+    XLS_RETURN_IF_ERROR(AddPathToPackage(path, entry, convert_options,
+                                         dslx_paths, &package.value(),
+                                         printed_error));
   }
-  std::cout << converted;
+  std::cout << package->DumpIr();
 
   return absl::OkStatus();
 }
@@ -143,10 +188,17 @@ int main(int argc, char* argv[]) {
   if (!absl::GetFlag(FLAGS_entry).empty()) {
     entry = absl::GetFlag(FLAGS_entry);
   }
+
+  absl::optional<std::string> package_name;
+  if (!absl::GetFlag(FLAGS_package_name).empty()) {
+    package_name = absl::GetFlag(FLAGS_package_name);
+  }
+
   bool emit_fail_as_assert = absl::GetFlag(FLAGS_emit_fail_as_assert);
   bool printed_error = false;
-  absl::Status status = xls::dslx::RealMain(
-      args[0], entry, dslx_paths, emit_fail_as_assert, &printed_error);
+  absl::Status status =
+      xls::dslx::RealMain(args, entry, package_name, dslx_paths,
+                          emit_fail_as_assert, &printed_error);
   if (printed_error) {
     return EXIT_FAILURE;
   }

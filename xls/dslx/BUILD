@@ -832,6 +832,18 @@ cc_binary(
     ],
 )
 
+py_test(
+    name = "ir_converter_main_test",
+    srcs = ["ir_converter_main_test.py"],
+    data = [":ir_converter_main"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+    ],
+)
+
 cc_binary(
     name = "interpreter_main",
     srcs = ["interpreter_main.cc"],
