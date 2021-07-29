@@ -66,7 +66,7 @@ cc_library(
 cc_binary(
     name = "cpp_transpiler_main",
     srcs = ["cpp_transpiler_main.cc"],
-    visibility = ["//xls:xls_users"],
+    visibility = ["//xls:xls_public"],
     deps = [
         ":cpp_transpiler",
         ":import_data",

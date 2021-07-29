@@ -25,6 +25,19 @@ package_group(
     ],
 )
 
+# The group of known users of XLS.
+# The targets listed with this visibility comprise the intended "public API" of
+# XLS, and are be supported and are "reasonably" stable, i.e., significant
+# changes are expected to be rare and coordinated.
+# Ultimately, this is where all non-XLS-internal users should be listed, once
+# the transition described in the TODOs below are complete.
+package_group(
+    name = "xls_public",
+    # Everything the public can see is also visible internally.
+    includes = [":xls_internal"],
+    packages = ["//..."],
+)
+
 # TODO(leary): 2020-06-29 This structure is a work-around to publically expose
 # XLS APIs. Once the public XLS API is determined, those packages should be
 # explicitly marked with 'xls_public' visibility, and this should be changed so

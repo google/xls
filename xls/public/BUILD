@@ -15,7 +15,7 @@
 # Public (exported) XLS APIs.
 
 package(
-    default_visibility = ["//xls:xls_users"],
+    default_visibility = ["//xls:xls_public"],
     licenses = ["notice"],  # Apache 2.0
 )
 
