@@ -36,6 +36,7 @@ TEST(SimTrafficTest, BackToBackNetwork0) {
   flow0.SetName("flow0")
       .SetSource("SendPort0")
       .SetDestination("RecvPort0")
+      .SetVC("VC0")
       .SetTrafficRateInMiBps(3 * 1024)
       .SetPacketSizeInBits(128)
       .SetBurstProbInMils(7);
@@ -65,8 +66,11 @@ TEST(SimTrafficTest, BackToBackNetwork0) {
       NocTrafficInjector traffic_injector,
       NocTrafficInjectorBuilder().Build(
           cycle_time_in_ps, mode0_id,
-          routing_table.GetSourceIndices().GetNetworkComponents(), traffic_mgr,
-          graph, params, rnd));
+          routing_table.GetSourceIndices().GetNetworkComponents(),
+          routing_table.GetSinkIndices().GetNetworkComponents(),
+          params.GetNetworkParam(graph.GetNetworkIds()[0])
+              ->GetVirtualChannels(),
+          traffic_mgr, graph, params, rnd));
 
   // Build simulator objects.
   NocSimulator simulator;
@@ -93,7 +97,7 @@ TEST(SimTrafficTest, BackToBackNetwork0) {
                            simulator.GetSimNetworkInterfaceSink(recv_port_0));
 
   double measured_traffic_sent =
-      traffic_injector.MeasuredTraficRateInMiBps(cycle_time_in_ps, 0);
+      traffic_injector.MeasuredTrafficRateInMiBps(cycle_time_in_ps, 0);
   double measured_traffic_recv =
       sim_recv_port_0->MeasuredTrafficRateInMiBps(cycle_time_in_ps);
 

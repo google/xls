@@ -211,12 +211,22 @@ class SimNetworkInterfaceSink : public SimNetworkComponentBase {
 
   // Returns the observed rate of traffic in MebiBytes Per Second from the
   // beginning of simulation to the last flit processed by this sink.
-  double MeasuredTrafficRateInMiBps(int64_t cycle_time_ps) {
+  //
+  // VC is used to filter out the traffic as received on a specific vc index.
+  // Negative VC is used to match any vc.
+  double MeasuredTrafficRateInMiBps(int64_t cycle_time_ps, int64_t vc = -1) {
     // TODO(tedhong): 2021-07-01 Factor this logic out into common library.
     int64_t num_bits = 0;
     int64_t max_cycle = 0;
     for (TimedDataFlit& f : received_traffic_) {
-      num_bits += f.flit.data_bit_count;
+      if (vc < 0) {
+        num_bits += f.flit.data_bit_count;
+      } else {
+        if (f.flit.vc == vc) {
+          num_bits += f.flit.data_bit_count;
+        }
+      }
+
       if (max_cycle < f.cycle) {
         max_cycle = f.cycle;
       }

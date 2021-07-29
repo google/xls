@@ -81,14 +81,24 @@ class NocTrafficInjector {
     return traffic_models_;
   }
 
+  // List of all traffic flows.
+  absl::Span<const TrafficFlowId> GetTrafficFlows() const {
+    return traffic_flows_;
+  }
+
   // Get measured traffic rate injected during simulation for a single flow.
   //
   // Note: This is before any contention in the network so the rate should be
   //       close to the flow's specified rate.
-  double MeasuredTraficRateInMiBps(int64_t cycle_time_in_ps,
-                                   int64_t flow_index) const {
+  double MeasuredTrafficRateInMiBps(int64_t cycle_time_in_ps,
+                                    int64_t flow_index) const {
     return traffic_model_monitor_[flow_index].MeasuredTrafficRateInMiBps(
         cycle_time_in_ps);
+  }
+
+  // Get measured bits injected during simulation for a single flow.
+  int64_t MeasuredBitsSent(int64_t flow_index) const {
+    return traffic_model_monitor_[flow_index].MeasuredBitsSent();
   }
 
  private:
@@ -103,23 +113,34 @@ class NocTrafficInjector {
   // Cycle that we've generated flits for.
   int64_t cycle_of_latest_flit_ = -1;
 
+  // Below vectors are all sized identically to a size equal
+  // to that of the number of source network interfaces.
+
   // Ids of all network interfaces used.
-  //  size() == network_interface_count
   std::vector<NetworkComponentId> source_network_interfaces_;
+
+  // Converts packets to a stream of flits to be injected.
+  std::vector<DePacketizer> depacketizers_;
+
+  // Below vectors are all sized identically to a size equal
+  // to that of the number of network flows used.
+
+  // Ids of all network flows used.
+  std::vector<TrafficFlowId> traffic_flows_;
 
   // Associate each flow with a specific NetworkComponentId in network_sources.
   //
   // More than one flow may be mapped to the same network interface.
-  //  size() == flow_count
   std::vector<int64_t> flows_index_to_sources_index_map_;
 
-  // Converts packets to a stream of flits to be injected.
-  //  size() == network_interface_count
-  std::vector<DePacketizer> depacketizers_;
+  // Associate each flow with a specific destination index.
+  std::vector<int64_t> flows_index_to_sinks_index_map_;
+
+  // Associate each flow with a specific vc.
+  std::vector<int64_t> flows_index_to_vc_index_map_;
 
   // TrafficModel, one per flow, responsible for defining when
   // each packet is injected and how big each packet is.
-  //  size() == flow_count
   std::vector<GeneralizedGeometricTrafficModel> traffic_models_;
 
   // Measure injected traffic rate.
@@ -134,6 +155,8 @@ class NocTrafficInjectorBuilder {
   absl::StatusOr<NocTrafficInjector> Build(
       int64_t cycle_time_ps, TrafficModeId traffic_mode,
       absl::Span<const NetworkComponentId> network_sources,
+      absl::Span<const NetworkComponentId> network_sinks,
+      absl::Span<const VirtualChannelParam> network_vcs,
       const NocTrafficManager& traffic_manager,
       const NetworkManager& network_manager,
       const NocParameters& noc_parameters,
@@ -149,6 +172,12 @@ class NocTrafficInjectorBuilder {
     XLS_RET_CHECK_OK(AssociateFlowsToNetworkSources(
         traffic_flows, network_sources, traffic_manager, noc_parameters,
         traffic_injector));
+    XLS_RET_CHECK_OK(AssociateFlowsToNetworkSinks(
+        traffic_flows, network_sinks, traffic_manager, noc_parameters,
+        traffic_injector));
+    XLS_RET_CHECK_OK(AssociateFlowsToVCs(traffic_flows, network_vcs,
+                                         traffic_manager, noc_parameters,
+                                         traffic_injector));
     XLS_RET_CHECK_OK(
         BuildPerFlowTrafficModels(cycle_time_ps, traffic_flows, traffic_manager,
                                   random_number_interface, traffic_injector));
@@ -176,6 +205,30 @@ class NocTrafficInjectorBuilder {
   absl::Status AssociateFlowsToNetworkSources(
       absl::Span<const TrafficFlowId> traffic_flows,
       absl::Span<const NetworkComponentId> network_sources,
+      const NocTrafficManager& traffic_manager,
+      const NocParameters& noc_parameters, NocTrafficInjector& injector);
+
+  // Setup flows_index_to_sinks_index_map_ which maps flows in traffic_flows_
+  // to network sinks in network_sinks by matching the flow's destination
+  // and the port name that the network sink connects to.
+  //
+  // If X = traffic_flows[i], and Y = network_sinks[j] are associated, then
+  //   injector.flows_index_to_sinks_index_map[i] = j
+  absl::Status AssociateFlowsToNetworkSinks(
+      absl::Span<const TrafficFlowId> traffic_flows,
+      absl::Span<const NetworkComponentId> network_sinks,
+      const NocTrafficManager& traffic_manager,
+      const NocParameters& noc_parameters, NocTrafficInjector& injector);
+
+  // Setup flows_index_to_vc_index_map_ which maps flows in traffic_flows_
+  // to vcs in network_vcs by matching the flow's vc name to the
+  // network vc with the same name.
+  //
+  // If X = traffic_flows[i], and Y = network_vcs[j] are associated, then
+  //   injector.flows_index_to_vc_index_map[i] = j
+  absl::Status AssociateFlowsToVCs(
+      absl::Span<const TrafficFlowId> traffic_flows,
+      absl::Span<const VirtualChannelParam> network_vcs,
       const NocTrafficManager& traffic_manager,
       const NocParameters& noc_parameters, NocTrafficInjector& injector);
 

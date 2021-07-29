@@ -112,6 +112,10 @@ class VirtualChannelIndexMap {
   absl::StatusOr<int64_t> GetVirtualChannelIndex(PortId port_id,
                                                  VirtualChannelParam vc) const;
 
+  // Returns corresponding index of virtual channel name.
+  absl::StatusOr<int64_t> GetVirtualChannelIndexByName(
+      PortId port_id, absl::string_view vc_name) const;
+
   // Retrieve virtual channel based off of their index.
   // Note - must be called after FinalizeVirtualChannelOrder();
   absl::StatusOr<VirtualChannelParam> GetVirtualChannelByIndex(

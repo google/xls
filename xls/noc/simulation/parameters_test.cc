@@ -26,6 +26,11 @@ namespace {
 
 TEST(SimParametersTest, NetworkAndLinkParam) {
   NetworkConfigProtoBuilder builder("Test");
+
+  builder.WithVirtualChannel("VCA").WithFlitBitWidth(128).WithDepth(13);
+  builder.WithVirtualChannel("VCB").WithFlitBitWidth(256).WithDepth(34);
+  builder.WithVirtualChannel("VCC").WithFlitBitWidth(64).WithDepth(5);
+
   LinkConfigProtoBuilder link = builder.WithLink("Link0");
 
   link.WithPhitBitWidth(10);
@@ -39,6 +44,15 @@ TEST(SimParametersTest, NetworkAndLinkParam) {
 
   EXPECT_EQ(network_param.GetName(), "Test");
   EXPECT_EQ(&network_param.GetNetworkProto(), &nc_proto);
+  EXPECT_EQ(network_param.VirtualChannelCount(), 3);
+  EXPECT_EQ(network_param.GetVirtualChannels().at(0).GetDepth(), 13);
+  EXPECT_EQ(network_param.GetVirtualChannels().at(1).GetDepth(), 34);
+  EXPECT_EQ(network_param.GetVirtualChannels().at(2).GetDepth(), 5);
+  EXPECT_EQ(network_param.GetVirtualChannels().at(0).GetFlitDataBitWidth(),
+            128);
+  EXPECT_EQ(network_param.GetVirtualChannels().at(1).GetFlitDataBitWidth(),
+            256);
+  EXPECT_EQ(network_param.GetVirtualChannels().at(2).GetFlitDataBitWidth(), 64);
 
   LinkParam link_param(nc_proto, link_proto);
 

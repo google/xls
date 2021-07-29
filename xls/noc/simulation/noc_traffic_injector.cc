@@ -186,19 +186,89 @@ absl::Status NocTrafficInjectorBuilder::AssociateFlowsToNetworkSources(
   return absl::OkStatus();
 }
 
+absl::Status NocTrafficInjectorBuilder::AssociateFlowsToNetworkSinks(
+    absl::Span<const TrafficFlowId> traffic_flows,
+    absl::Span<const NetworkComponentId> network_sinks,
+    const NocTrafficManager& traffic_manager,
+    const NocParameters& noc_parameters, NocTrafficInjector& injector) {
+  int64_t flow_count = traffic_flows.size();
+  injector.flows_index_to_sinks_index_map_.resize(flow_count);
+
+  XLS_RET_CHECK_OK(MatchFlowToSourceAndRunAction<NetworkInterfaceSinkParam>(
+      traffic_flows, network_sinks, traffic_manager, noc_parameters,
+      [&injector](int64_t flow_index, int64_t sink_index) -> void {
+        injector.flows_index_to_sinks_index_map_[flow_index] = sink_index;
+      },
+      [](const TrafficFlow& flow) -> absl::string_view {
+        return flow.GetDestination();
+      }));
+
+  return absl::OkStatus();
+}
+
+absl::Status NocTrafficInjectorBuilder::AssociateFlowsToVCs(
+    absl::Span<const TrafficFlowId> traffic_flows,
+    absl::Span<const VirtualChannelParam> network_vcs,
+    const NocTrafficManager& traffic_manager,
+    const NocParameters& noc_parameters, NocTrafficInjector& injector) {
+  // TODO(tedhong): 2021-07-15.  Factor out and combine this functionality
+  // with similar functionality in the indexer.h classes.
+
+  int64_t flow_count = traffic_flows.size();
+  injector.flows_index_to_vc_index_map_.resize(flow_count);
+
+  for (int64_t i = 0; i < flow_count; ++i) {
+    TrafficFlowId flow_id = traffic_flows[i];
+    XLS_RET_CHECK(flow_id.IsValid());
+
+    const TrafficFlow& flow = traffic_manager.GetTrafficFlow(flow_id);
+    absl::string_view flow_vc = flow.GetVC();
+
+    // If there are no VCs in use, always map to 0.
+    int64_t vc_index = 0;
+
+    if (!network_vcs.empty()) {
+      absl::Span<const VirtualChannelParam>::iterator iter =
+          std::find_if(network_vcs.begin(), network_vcs.end(),
+                       [&flow_vc](const VirtualChannelParam& param) -> bool {
+                         return param.GetName() == flow_vc;
+                       });
+
+      if (iter == network_vcs.end()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Unable to find matching vc %s for flow %s",
+                            flow.GetVC(), flow.GetName()));
+      } else {
+        vc_index = iter - network_vcs.begin();
+      }
+    }
+
+    injector.flows_index_to_vc_index_map_[i] = vc_index;
+    XLS_VLOG(1) << absl::StrFormat("Mapped flow %s vc %s to vc index %d\n",
+                                   flow.GetName(), flow_vc, vc_index);
+  }
+
+  return absl::OkStatus();
+}
+
 // Setup traffic models for each flow.
 absl::Status NocTrafficInjectorBuilder::BuildPerFlowTrafficModels(
     int64_t cycle_time_ps, absl::Span<const TrafficFlowId> traffic_flows,
     const NocTrafficManager& traffic_manager,
     RandomNumberInterface& random_number_interface,
     NocTrafficInjector& injector) {
-  for (TrafficFlowId flow_id : traffic_flows) {
+  for (int64_t i = 0; i < traffic_flows.size(); ++i) {
+    TrafficFlowId flow_id = traffic_flows[i];
     const TrafficFlow& flow = traffic_manager.GetTrafficFlow(flow_id);
 
     double burst_prob = flow.GetBurstProb();
     double bits_per_cycle = flow.GetTrafficPerNumPsInBits(cycle_time_ps);
     double bits_per_packet = flow.GetPacketSizeInBits();
     double lambda = bits_per_cycle / bits_per_packet;
+
+    int64_t source_index = injector.flows_index_to_sources_index_map_.at(i);
+    int64_t sink_index = injector.flows_index_to_sinks_index_map_.at(i);
+    int64_t vc_index = injector.flows_index_to_vc_index_map_.at(i);
 
     if (lambda > 1.0) {
       return absl::InvalidArgumentError(
@@ -210,8 +280,13 @@ absl::Status NocTrafficInjectorBuilder::BuildPerFlowTrafficModels(
                           cycle_time_ps, flow.GetPacketSizeInBits(), lambda));
     }
 
-    injector.traffic_models_.push_back(GeneralizedGeometricTrafficModel(
-        lambda, burst_prob, bits_per_packet, random_number_interface));
+    injector.traffic_models_.push_back(
+        GeneralizedGeometricTrafficModel(lambda, burst_prob, bits_per_packet,
+                                         random_number_interface)
+            .SetVCIndex(vc_index)
+            .SetSourceIndex(source_index)
+            .SetDestinationIndex(sink_index));
+    injector.traffic_flows_.push_back(flow_id);
   }
 
   return absl::OkStatus();

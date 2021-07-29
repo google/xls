@@ -61,6 +61,9 @@ class TrafficFlow {
   // String representation of the egress port of the this flow.
   absl::string_view GetDestination() const { return destination_; }
 
+  // String representation of the vc of the this flow.
+  absl::string_view GetVC() const { return vc_; }
+
   // Average bit count moved by this flow in N ps.
   double GetTrafficPerNumPsInBits(int64_t num) const {
     return (static_cast<double>(bandwidth_bits_) * static_cast<double>(num)) /
@@ -108,6 +111,11 @@ class TrafficFlow {
 
   TrafficFlow& SetDestination(absl::string_view d) {
     destination_ = d;
+    return *this;
+  }
+
+  TrafficFlow& SetVC(absl::string_view vc) {
+    vc_ = vc;
     return *this;
   }
 
@@ -166,6 +174,8 @@ class TrafficFlow {
   std::string name_;
   std::string source_;
   std::string destination_;
+
+  std::string vc_;
 
   int64_t bandwidth_bits_ = 0;
   int64_t bandwidth_per_n_ps_ = 1;
@@ -277,6 +287,32 @@ class NocTrafficManager {
       flows.push_back(f.id());
     }
     return flows;
+  }
+
+  // Retrieves traffic flow id by name.
+  absl::StatusOr<TrafficFlowId> GetTrafficFlowIdByName(
+      absl::string_view name) const {
+    for (const TrafficFlow& f : traffic_flows_) {
+      if (f.GetName() == name) {
+        return f.id();
+      }
+    }
+
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Unable to find flow %s", name));
+  }
+
+  // Retrieves mode id by name.
+  absl::StatusOr<TrafficModeId> GetTrafficModeIdByName(
+      absl::string_view name) const {
+    for (const TrafficMode& m : traffic_modes_) {
+      if (m.GetName() == name) {
+        return m.id();
+      }
+    }
+
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Unable to find mode %s", name));
   }
 
  private:

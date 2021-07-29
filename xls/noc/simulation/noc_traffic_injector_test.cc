@@ -37,6 +37,7 @@ TEST(NocTrafficInjectorTest, SingleSource) {
   flow0.SetName("flow0")
       .SetSource("SendPort0")
       .SetDestination("RecvPort0")
+      .SetVC("VC0")
       .SetTrafficRateInMiBps(4 * 1024)
       .SetPacketSizeInBits(128)
       .SetBurstProbInMils(7);
@@ -66,8 +67,11 @@ TEST(NocTrafficInjectorTest, SingleSource) {
       NocTrafficInjector traffic_injector,
       NocTrafficInjectorBuilder().Build(
           cycle_time_in_ps, mode0_id,
-          routing_table.GetSourceIndices().GetNetworkComponents(), traffic_mgr,
-          graph, params, rnd));
+          routing_table.GetSourceIndices().GetNetworkComponents(),
+          routing_table.GetSinkIndices().GetNetworkComponents(),
+          params.GetNetworkParam(graph.GetNetworkIds()[0])
+              ->GetVirtualChannels(),
+          traffic_mgr, graph, params, rnd));
 
   EXPECT_EQ(traffic_injector.FlowCount(), 1);
   EXPECT_EQ(traffic_injector.SourceNetworkInterfaceCount(), 1);
@@ -76,6 +80,8 @@ TEST(NocTrafficInjectorTest, SingleSource) {
   ASSERT_EQ(traffic_injector.GetSourceNetworkInterfaces().size(), 1);
   ASSERT_EQ(traffic_injector.GetFlowsIndexToSourcesIndexMap().size(), 1);
   ASSERT_EQ(traffic_injector.GetTrafficModels().size(), 1);
+  ASSERT_EQ(traffic_injector.GetTrafficFlows().size(), 1);
+  ASSERT_EQ(traffic_injector.GetTrafficFlows().at(0), flow0_id);
 
   EXPECT_EQ(traffic_injector.GetDePacketizers().at(0).GetSourceIndexBitCount(),
             0);
@@ -110,6 +116,7 @@ TEST(NocTrafficInjectorTest, SingleSourceTwoFlows) {
       .SetName("flow0")
       .SetSource("SendPort0")
       .SetDestination("RecvPort0")
+      .SetVC("VC0")
       .SetTrafficRateInMiBps(4 * 1024)
       .SetPacketSizeInBits(128)
       .SetBurstProbInMils(7);
@@ -120,6 +127,7 @@ TEST(NocTrafficInjectorTest, SingleSourceTwoFlows) {
       .SetName("flow1")
       .SetSource("SendPort0")
       .SetDestination("RecvPort0")
+      .SetVC("VC0")
       .SetTrafficRateInMiBps(18 * 1024)
       .SetPacketSizeInBits(256)
       .SetBurstProbInMils(0);
@@ -151,8 +159,11 @@ TEST(NocTrafficInjectorTest, SingleSourceTwoFlows) {
       NocTrafficInjector traffic_injector,
       NocTrafficInjectorBuilder().Build(
           cycle_time_in_ps, mode0_id,
-          routing_table.GetSourceIndices().GetNetworkComponents(), traffic_mgr,
-          graph, params, rnd));
+          routing_table.GetSourceIndices().GetNetworkComponents(),
+          routing_table.GetSinkIndices().GetNetworkComponents(),
+          params.GetNetworkParam(graph.GetNetworkIds()[0])
+              ->GetVirtualChannels(),
+          traffic_mgr, graph, params, rnd));
 
   EXPECT_EQ(traffic_injector.FlowCount(), 2);
   EXPECT_EQ(traffic_injector.SourceNetworkInterfaceCount(), 1);
@@ -205,6 +216,7 @@ TEST(NocTrafficInjectorTest, TwoSourcesThreeFlows) {
       .SetName("flow0")
       .SetSource("SendPort0")
       .SetDestination("RecvPort0")
+      .SetVC("VC0")
       .SetTrafficRateInMiBps(4 * 1024)
       .SetPacketSizeInBits(128)
       .SetBurstProbInMils(7);
@@ -215,6 +227,7 @@ TEST(NocTrafficInjectorTest, TwoSourcesThreeFlows) {
       .SetName("flow1")
       .SetSource("SendPort1")
       .SetDestination("RecvPort0")
+      .SetVC("VC0")
       .SetTrafficRateInMiBps(18 * 1024)
       .SetPacketSizeInBits(256)
       .SetBurstProbInMils(1);
@@ -225,6 +238,7 @@ TEST(NocTrafficInjectorTest, TwoSourcesThreeFlows) {
       .SetName("flow2")
       .SetSource("SendPort0")
       .SetDestination("RecvPort1")
+      .SetVC("VC0")
       .SetTrafficRateInMiBps(2 * 1024)
       .SetPacketSizeInBits(64)
       .SetBurstProbInMils(2);
@@ -257,8 +271,11 @@ TEST(NocTrafficInjectorTest, TwoSourcesThreeFlows) {
       NocTrafficInjector traffic_injector,
       NocTrafficInjectorBuilder().Build(
           cycle_time_in_ps, mode0_id,
-          routing_table.GetSourceIndices().GetNetworkComponents(), traffic_mgr,
-          graph, params, rnd));
+          routing_table.GetSourceIndices().GetNetworkComponents(),
+          routing_table.GetSinkIndices().GetNetworkComponents(),
+          params.GetNetworkParam(graph.GetNetworkIds()[0])
+              ->GetVirtualChannels(),
+          traffic_mgr, graph, params, rnd));
 
   EXPECT_EQ(traffic_injector.FlowCount(), 3);
   EXPECT_EQ(traffic_injector.SourceNetworkInterfaceCount(), 2);
@@ -333,6 +350,7 @@ TEST(NocTrafficInjectorTest, MeasureTrafficInjectionRate) {
       .SetName("flow0")
       .SetSource("SendPort0")
       .SetDestination("RecvPort0")
+      .SetVC("VC0")
       .SetTrafficRateInMiBps(8 * 1024)
       .SetPacketSizeInBits(128)
       .SetBurstProbInMils(7);
@@ -343,6 +361,7 @@ TEST(NocTrafficInjectorTest, MeasureTrafficInjectionRate) {
       .SetName("flow1")
       .SetSource("SendPort1")
       .SetDestination("RecvPort0")
+      .SetVC("VC1")
       .SetTrafficRateInMiBps(18 * 1024)
       .SetPacketSizeInBits(256)
       .SetBurstProbInMils(1);
@@ -353,6 +372,7 @@ TEST(NocTrafficInjectorTest, MeasureTrafficInjectionRate) {
       .SetName("flow2")
       .SetSource("SendPort0")
       .SetDestination("RecvPort1")
+      .SetVC("VC0")
       .SetTrafficRateInMiBps(4 * 1024)
       .SetPacketSizeInBits(64)
       .SetBurstProbInMils(2);
@@ -385,8 +405,11 @@ TEST(NocTrafficInjectorTest, MeasureTrafficInjectionRate) {
       NocTrafficInjector traffic_injector,
       NocTrafficInjectorBuilder().Build(
           cycle_time_in_ps, mode0_id,
-          routing_table.GetSourceIndices().GetNetworkComponents(), traffic_mgr,
-          graph, params, rnd));
+          routing_table.GetSourceIndices().GetNetworkComponents(),
+          routing_table.GetSinkIndices().GetNetworkComponents(),
+          params.GetNetworkParam(graph.GetNetworkIds()[0])
+              ->GetVirtualChannels(),
+          traffic_mgr, graph, params, rnd));
 
   // Accepts flits and measures traffic from each source.
   class NocTrafficInjectorSink : public NocSimulatorTrafficServiceShim {
@@ -402,6 +425,11 @@ TEST(NocTrafficInjectorTest, MeasureTrafficInjectionRate) {
       }
 
       bits_sent_[source] += flit.flit.data_bit_count;
+      bits_sent_per_vc_[source][flit.flit.vc] += flit.flit.data_bit_count;
+      bits_sent_per_source_index_[source][flit.flit.source_index] +=
+          flit.flit.data_bit_count;
+      bits_sent_per_destination_index_[source][flit.flit.destination_index] +=
+          flit.flit.data_bit_count;
 
       XLS_VLOG(1) << absl::StrFormat(
           "  - Source %x Measured %d bits Now %d\n", source.AsUInt64(),
@@ -421,8 +449,36 @@ TEST(NocTrafficInjectorTest, MeasureTrafficInjectionRate) {
       return bits_per_sec / 1024.0 / 1024.0 / 8.0;
     }
 
+    // Returns total number of bits sent per vc.
+    int64_t MeasuredBitsSentPerVc(NetworkComponentId source, int64_t vc) {
+      return bits_sent_per_vc_[source][vc];
+    }
+
+    // Returns total number of bits sent per source_index.
+    int64_t MeasuredBitsSentPerSourceIndex(NetworkComponentId source,
+                                           int64_t source_index) {
+      return bits_sent_per_source_index_[source][source_index];
+    }
+
+    // Returns total number of bits sent per destination_index.
+    int64_t MeasuredBitsSentPerDestinationIndex(NetworkComponentId source,
+                                                int64_t destination_index) {
+      return bits_sent_per_destination_index_[source][destination_index];
+    }
+
    private:
     absl::flat_hash_map<NetworkComponentId, int64_t> bits_sent_;
+
+    absl::flat_hash_map<NetworkComponentId,
+                        absl::flat_hash_map<int64_t, int64_t>>
+        bits_sent_per_vc_;
+    absl::flat_hash_map<NetworkComponentId,
+                        absl::flat_hash_map<int64_t, int64_t>>
+        bits_sent_per_source_index_;
+    absl::flat_hash_map<NetworkComponentId,
+                        absl::flat_hash_map<int64_t, int64_t>>
+        bits_sent_per_destination_index_;
+
     int64_t max_cycle_ = 0;
   };
 
@@ -441,6 +497,25 @@ TEST(NocTrafficInjectorTest, MeasureTrafficInjectionRate) {
   XLS_ASSERT_OK_AND_ASSIGN(
       NetworkComponentId send_port_1,
       FindNetworkComponentByName("SendPort1", graph, params));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NetworkComponentId recv_port_0,
+      FindNetworkComponentByName("RecvPort0", graph, params));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NetworkComponentId recv_port_1,
+      FindNetworkComponentByName("RecvPort1", graph, params));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      int64_t send_port_0_index,
+      routing_table.GetSourceIndices().GetNetworkComponentIndex(send_port_0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      int64_t send_port_1_index,
+      routing_table.GetSourceIndices().GetNetworkComponentIndex(send_port_1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      int64_t recv_port_0_index,
+      routing_table.GetSinkIndices().GetNetworkComponentIndex(recv_port_0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      int64_t recv_port_1_index,
+      routing_table.GetSinkIndices().GetNetworkComponentIndex(recv_port_1));
 
   EXPECT_EQ(static_cast<int64_t>(sink.MeasuredTrafficRateInMiBps(
                 cycle_time_in_ps, send_port_0)) /
@@ -452,12 +527,44 @@ TEST(NocTrafficInjectorTest, MeasureTrafficInjectionRate) {
             18 * 1024 / 100);
 
   EXPECT_DOUBLE_EQ(
-      traffic_injector.MeasuredTraficRateInMiBps(cycle_time_in_ps, 0) +
-          traffic_injector.MeasuredTraficRateInMiBps(cycle_time_in_ps, 2),
+      traffic_injector.MeasuredTrafficRateInMiBps(cycle_time_in_ps, 0) +
+          traffic_injector.MeasuredTrafficRateInMiBps(cycle_time_in_ps, 2),
       sink.MeasuredTrafficRateInMiBps(cycle_time_in_ps, send_port_0));
+
   EXPECT_DOUBLE_EQ(
-      traffic_injector.MeasuredTraficRateInMiBps(cycle_time_in_ps, 1),
+      traffic_injector.MeasuredTrafficRateInMiBps(cycle_time_in_ps, 1),
       sink.MeasuredTrafficRateInMiBps(cycle_time_in_ps, send_port_1));
+
+  EXPECT_EQ(sink.MeasuredBitsSentPerVc(send_port_0, 0),
+            traffic_injector.MeasuredBitsSent(0) +
+                traffic_injector.MeasuredBitsSent(2));
+  EXPECT_EQ(sink.MeasuredBitsSentPerVc(send_port_0, 1), 0);
+  EXPECT_EQ(sink.MeasuredBitsSentPerVc(send_port_1, 0), 0);
+  EXPECT_EQ(sink.MeasuredBitsSentPerVc(send_port_1, 1),
+            traffic_injector.MeasuredBitsSent(1));
+
+  EXPECT_EQ(
+      sink.MeasuredBitsSentPerDestinationIndex(send_port_0, recv_port_0_index),
+      traffic_injector.MeasuredBitsSent(0));
+  EXPECT_EQ(
+      sink.MeasuredBitsSentPerDestinationIndex(send_port_0, recv_port_1_index),
+      traffic_injector.MeasuredBitsSent(2));
+  EXPECT_EQ(
+      sink.MeasuredBitsSentPerDestinationIndex(send_port_1, recv_port_0_index),
+      traffic_injector.MeasuredBitsSent(1));
+  EXPECT_EQ(
+      sink.MeasuredBitsSentPerDestinationIndex(send_port_1, recv_port_1_index),
+      0);
+
+  EXPECT_EQ(sink.MeasuredBitsSentPerSourceIndex(send_port_0, send_port_0_index),
+            traffic_injector.MeasuredBitsSent(0) +
+                traffic_injector.MeasuredBitsSent(2));
+  EXPECT_EQ(sink.MeasuredBitsSentPerSourceIndex(send_port_0, send_port_1_index),
+            0);
+  EXPECT_EQ(sink.MeasuredBitsSentPerSourceIndex(send_port_1, send_port_0_index),
+            0);
+  EXPECT_EQ(sink.MeasuredBitsSentPerSourceIndex(send_port_1, send_port_1_index),
+            traffic_injector.MeasuredBitsSent(1));
 }
 
 }  // namespace

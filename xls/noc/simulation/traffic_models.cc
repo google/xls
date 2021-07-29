@@ -43,7 +43,13 @@ std::vector<DataPacket> GeneralizedGeometricTrafficModel::GetNewCyclePackets(
     // New burst packet.  Rest of the packet fields other than size
     // will be filled later.
     absl::StatusOr<DataPacket> burst_packet =
-        DataPacketBuilder().Valid(true).ZeroedData(packet_size_bits_).Build();
+        DataPacketBuilder()
+            .Valid(true)
+            .ZeroedData(packet_size_bits_)
+            .VirtualChannel(vc_)
+            .SourceIndex(source_index_)
+            .DestinationIndex(destination_index_)
+            .Build();
     XLS_CHECK(burst_packet.ok());
     packets.push_back(burst_packet.value());
 
@@ -52,7 +58,13 @@ std::vector<DataPacket> GeneralizedGeometricTrafficModel::GetNewCyclePackets(
   }
 
   absl::StatusOr<DataPacket> future_packet =
-      DataPacketBuilder().Valid(true).ZeroedData(packet_size_bits_).Build();
+      DataPacketBuilder()
+          .Valid(true)
+          .ZeroedData(packet_size_bits_)
+          .VirtualChannel(vc_)
+          .SourceIndex(source_index_)
+          .DestinationIndex(destination_index_)
+          .Build();
   XLS_CHECK(future_packet.ok());
   next_packet_ = future_packet.value();
   next_packet_cycle_ += next_packet_delta;

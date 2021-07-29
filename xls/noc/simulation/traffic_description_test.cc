@@ -31,6 +31,8 @@ TEST(TrafficDescriptionTest, TrafficFlow) {
   EXPECT_EQ(flow0.id().AsUInt64(), 0);
   EXPECT_EQ(flow0.GetSource(), "");
   EXPECT_EQ(flow0.GetDestination(), "");
+  EXPECT_EQ(flow0.GetVC(), "");
+  EXPECT_EQ(flow0.GetName(), "");
   EXPECT_DOUBLE_EQ(flow0.GetTrafficRateInBytesPerSec(), 0);
   EXPECT_DOUBLE_EQ(flow0.GetTrafficPerNumPsInBits(100), 0);
   EXPECT_DOUBLE_EQ(flow0.GetBurstPercent(), 0);
@@ -39,11 +41,15 @@ TEST(TrafficDescriptionTest, TrafficFlow) {
   EXPECT_EQ(flow0.GetBandwidthPerNumPs(), 1);
   EXPECT_EQ(flow0.GetPacketSizeInBits(), 1);
 
+  flow0.SetName("Flow 0");
+
   XLS_ASSERT_OK_AND_ASSIGN(TrafficFlowId flow1_id,
                            traffic_mgr.CreateTrafficFlow());
   TrafficFlow& flow1 = traffic_mgr.GetTrafficFlow(flow1_id)
                            .SetSource("source")
                            .SetDestination("destination")
+                           .SetVC("VC0")
+                           .SetName("Flow 1")
                            .SetTrafficRateInBitsPerPS(64, 500)
                            .SetPacketSizeInBits(100)
                            .SetBurstPercentInMils(100);
@@ -51,6 +57,7 @@ TEST(TrafficDescriptionTest, TrafficFlow) {
   EXPECT_EQ(flow1.id().AsUInt64(), 1);
   EXPECT_EQ(flow1.GetSource(), "source");
   EXPECT_EQ(flow1.GetDestination(), "destination");
+  EXPECT_EQ(flow1.GetVC(), "VC0");
   EXPECT_DOUBLE_EQ(flow1.GetTrafficRateInBytesPerSec(), 8.0 / 500e-12);
   EXPECT_DOUBLE_EQ(flow1.GetTrafficPerNumPsInBits(100), 64.0 / 5.0);
   EXPECT_DOUBLE_EQ(flow1.GetBurstPercent(), 0.1);
@@ -58,6 +65,13 @@ TEST(TrafficDescriptionTest, TrafficFlow) {
   EXPECT_EQ(flow1.GetBandwidthBits(), 64);
   EXPECT_EQ(flow1.GetBandwidthPerNumPs(), 500);
   EXPECT_EQ(flow1.GetPacketSizeInBits(), 100);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TrafficFlowId flow0_id_by_name,
+                           traffic_mgr.GetTrafficFlowIdByName("Flow 0"));
+  XLS_ASSERT_OK_AND_ASSIGN(TrafficFlowId flow1_id_by_name,
+                           traffic_mgr.GetTrafficFlowIdByName("Flow 1"));
+  EXPECT_EQ(flow0_id_by_name, flow0_id);
+  EXPECT_EQ(flow1_id_by_name, flow1_id);
 
   flow1.SetTrafficRateInMiBps(300);
   EXPECT_DOUBLE_EQ(flow1.GetTrafficRateInBytesPerSec(), 300.0 * 1024 * 1024);
@@ -122,6 +136,13 @@ TEST(TrafficDescriptionTest, TrafficMode) {
 
   EXPECT_EQ(&mode0.GetNocTrafficManager(), &traffic_mgr);
   EXPECT_EQ(&mode1.GetNocTrafficManager(), &traffic_mgr);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TrafficModeId mode0_id_by_name,
+                           traffic_mgr.GetTrafficModeIdByName("Mode 0"));
+  XLS_ASSERT_OK_AND_ASSIGN(TrafficModeId mode1_id_by_name,
+                           traffic_mgr.GetTrafficModeIdByName("Mode 1"));
+  EXPECT_EQ(mode0_id_by_name, mode0_id);
+  EXPECT_EQ(mode1_id_by_name, mode1_id);
 
   const NocTrafficManager& const_traffic_mgr = traffic_mgr;
   EXPECT_EQ(&const_traffic_mgr.GetTrafficMode(mode0_id),

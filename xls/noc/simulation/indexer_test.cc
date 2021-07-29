@@ -128,6 +128,8 @@ TEST(SimIndexerTest, PortVirtualChannelIndexerTest) {
                            index_builder.BuildVirtualChannelIndex());
   EXPECT_EQ(index1.GetVirtualChannelByIndex(out0_id, 0)->GetName(), "VC1");
   EXPECT_EQ(index1.GetVirtualChannelByIndex(out0_id, 1)->GetName(), "VC0");
+  XLS_EXPECT_OK_AND_EQ(index1.GetVirtualChannelIndexByName(out0_id, "VC1"), 0);
+  XLS_EXPECT_OK_AND_EQ(index1.GetVirtualChannelIndexByName(out0_id, "VC0"), 1);
   XLS_EXPECT_OK_AND_EQ(index1.GetVirtualChannelIndex(out0_id, vc0_param), 1);
   XLS_EXPECT_OK_AND_EQ(index1.GetVirtualChannelIndex(out0_id, vc1_param), 0);
   EXPECT_THAT(
@@ -156,6 +158,7 @@ TEST(SimIndexerTest, PortVirtualChannelIndexerTest) {
                        0);
   XLS_EXPECT_OK_AND_EQ(index_builder.GetVirtualChannelIndex(out1_id, vc3_param),
                        0);
+
   XLS_ASSERT_OK(
       index_builder.SetVirtualChannelIndex(out1_id, out1_param, 3, 2));
 
@@ -165,6 +168,10 @@ TEST(SimIndexerTest, PortVirtualChannelIndexerTest) {
   XLS_EXPECT_OK_AND_EQ(index2.GetVirtualChannelIndex(out1_id, vc1_param), 1);
   XLS_EXPECT_OK_AND_EQ(index2.GetVirtualChannelIndex(out1_id, vc2_param), 0);
   XLS_EXPECT_OK_AND_EQ(index2.GetVirtualChannelIndex(out1_id, vc3_param), 2);
+  XLS_EXPECT_OK_AND_EQ(index2.GetVirtualChannelIndexByName(out1_id, "VC0"), 3);
+  XLS_EXPECT_OK_AND_EQ(index2.GetVirtualChannelIndexByName(out1_id, "VC1"), 1);
+  XLS_EXPECT_OK_AND_EQ(index2.GetVirtualChannelIndexByName(out1_id, "VC2"), 0);
+  XLS_EXPECT_OK_AND_EQ(index2.GetVirtualChannelIndexByName(out1_id, "VC3"), 2);
   EXPECT_EQ(index2.GetVirtualChannelByIndex(out1_id, 0)->GetName(), "VC2");
   EXPECT_EQ(index2.GetVirtualChannelByIndex(out1_id, 1)->GetName(), "VC1");
   EXPECT_EQ(index2.GetVirtualChannelByIndex(out1_id, 2)->GetName(), "VC3");

@@ -39,7 +39,8 @@ class GeneralizedGeometricTrafficModel {
   GeneralizedGeometricTrafficModel(double lambda, double burst_prob,
                                    int64_t packet_size_bits,
                                    RandomNumberInterface& rnd)
-      : next_packet_cycle_(-1),
+      : vc_(0),
+        next_packet_cycle_(-1),
         packet_size_bits_(packet_size_bits),
         lambda_(lambda),
         burst_prob_(burst_prob),
@@ -49,7 +50,7 @@ class GeneralizedGeometricTrafficModel {
   //
   // Note: A call to this function advances the model's internal state, so
   //       a call to GetNewCyclePackets(N) should not be called multiple times.
-  // Note: The simulator will successivly call GetNewCyclePackets(0),
+  // Note: The simulator will successively call GetNewCyclePackets(0),
   //       GetNewCyclePackets(1), GetNewCyclePackets(2), ...
   //
   // TODO(tedhong): 2021-06-27 Add an interface to support fast-forwarding.
@@ -66,6 +67,24 @@ class GeneralizedGeometricTrafficModel {
     return bits_per_sec / 1024.0 / 1024.0 / 8.0;
   }
 
+  GeneralizedGeometricTrafficModel& SetVCIndex(int64_t vc) {
+    vc_ = vc;
+    return *this;
+  }
+  int64_t GetVCIndex() const { return vc_; }
+
+  GeneralizedGeometricTrafficModel& SetSourceIndex(int64_t src) {
+    source_index_ = src;
+    return *this;
+  }
+  int64_t GetSourceIndex() const { return source_index_; }
+
+  GeneralizedGeometricTrafficModel& SetDestinationIndex(int64_t dest) {
+    destination_index_ = dest;
+    return *this;
+  }
+  int64_t GetDestinationIndex() const { return destination_index_; }
+
   int64_t GetPacketSizeInBits() const { return packet_size_bits_; }
 
   double GetLambda() const { return lambda_; }
@@ -74,6 +93,11 @@ class GeneralizedGeometricTrafficModel {
 
  private:
   DataPacket next_packet_;
+
+  int64_t vc_;                 // VC index to send packets on.
+  int64_t source_index_;       // Source index to send packets on.
+  int64_t destination_index_;  // Destination index that packets will arrive on.
+
   int64_t next_packet_cycle_;
 
   int64_t packet_size_bits_;  // All packets are sent with uniform size
@@ -111,6 +135,8 @@ class TrafficModelMonitor {
     double bits_per_sec = static_cast<double>(num_bits_sent_) / total_sec;
     return bits_per_sec / 1024.0 / 1024.0 / 8.0;
   }
+
+  int64_t MeasuredBitsSent() const { return num_bits_sent_; }
 
  private:
   int64_t max_cycle_ = 0;

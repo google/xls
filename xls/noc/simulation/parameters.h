@@ -42,19 +42,6 @@ namespace noc {
 // TODO(tedhong): 2020-12-23 - Add a third abstraction that maps proto names
 //                             to network graph ids.
 
-// Interface to protos describing a network.
-class NetworkParam {
- public:
-  NetworkParam(const NetworkConfigProto& network) : network_proto_(&network) {}
-
-  absl::string_view GetName() const { return network_proto_->name(); }
-
-  // Get source proto for the network this link is in.
-  const NetworkConfigProto& GetNetworkProto() const { return *network_proto_; }
-
- private:
-  const NetworkConfigProto* network_proto_;
-};
 
 // Interface to protos describing a virtual channel
 struct VirtualChannelParam {
@@ -87,6 +74,39 @@ struct VirtualChannelParam {
  private:
   const NetworkConfigProto* network_proto_;
   const VirtualChannelConfigProto* vc_proto_;
+};
+
+// Interface to protos describing a network.
+class NetworkParam {
+ public:
+  NetworkParam(const NetworkConfigProto& network) : network_proto_(&network) {}
+
+  absl::string_view GetName() const { return network_proto_->name(); }
+
+  // Get source proto for the network this link is in.
+  const NetworkConfigProto& GetNetworkProto() const { return *network_proto_; }
+
+  // Count of VCs associated with this port.
+  //  Could be 0 if no VCs sare used.
+  int64_t VirtualChannelCount() const {
+    return network_proto_->virtual_channels_size();
+  }
+
+  // Get the virtual channels used in the network.
+  std::vector<VirtualChannelParam> GetVirtualChannels() const {
+    std::vector<VirtualChannelParam> ret;
+
+    for (int64_t i = 0; i < VirtualChannelCount(); ++i) {
+      const VirtualChannelConfigProto& vc_proto =
+          network_proto_->virtual_channels().at(i);
+      ret.emplace_back(*network_proto_, vc_proto);
+    }
+
+    return ret;
+  }
+
+ private:
+  const NetworkConfigProto* network_proto_;
 };
 
 // Interface to protos describing a port.

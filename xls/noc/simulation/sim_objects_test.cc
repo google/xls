@@ -259,6 +259,7 @@ TEST(SimObjectsTest, TreeNework0) {
   EXPECT_EQ(traffic_recv_port_3[1].cycle, 3);
   EXPECT_EQ(traffic_recv_port_3[1].flit.data, UBits(2002, 64));
 
+  // Measure traffic received on all VCs.
   EXPECT_DOUBLE_EQ(sim_recv_port_0->MeasuredTrafficRateInMiBps(100), 0.0);
   EXPECT_DOUBLE_EQ(sim_recv_port_2->MeasuredTrafficRateInMiBps(100), 0.0);
   EXPECT_EQ(
@@ -266,6 +267,22 @@ TEST(SimObjectsTest, TreeNework0) {
       19073);
   EXPECT_EQ(
       static_cast<int64_t>(sim_recv_port_3->MeasuredTrafficRateInMiBps(100)),
+      38146);
+
+  // Measure traffic received on VC 0.
+  EXPECT_DOUBLE_EQ(sim_recv_port_0->MeasuredTrafficRateInMiBps(100, 0), 0.0);
+  EXPECT_DOUBLE_EQ(sim_recv_port_2->MeasuredTrafficRateInMiBps(100, 0), 0.0);
+  EXPECT_EQ(
+      static_cast<int64_t>(sim_recv_port_1->MeasuredTrafficRateInMiBps(100, 0)),
+      19073);
+  EXPECT_DOUBLE_EQ(sim_recv_port_3->MeasuredTrafficRateInMiBps(100, 0), 0.0);
+
+  // Measure traffic received on VC 1.
+  EXPECT_DOUBLE_EQ(sim_recv_port_0->MeasuredTrafficRateInMiBps(100, 1), 0.0);
+  EXPECT_DOUBLE_EQ(sim_recv_port_2->MeasuredTrafficRateInMiBps(100, 1), 0.0);
+  EXPECT_DOUBLE_EQ(sim_recv_port_1->MeasuredTrafficRateInMiBps(100, 1), 0.0);
+  EXPECT_EQ(
+      static_cast<int64_t>(sim_recv_port_3->MeasuredTrafficRateInMiBps(100, 1)),
       38146);
 }
 

@@ -277,6 +277,11 @@ absl::StatusOr<int64_t> VirtualChannelIndexMapBuilder::GetVirtualChannelIndex(
 
 absl::StatusOr<int64_t> VirtualChannelIndexMap::GetVirtualChannelIndex(
     PortId port_id, VirtualChannelParam vc) const {
+  return GetVirtualChannelIndexByName(port_id, vc.GetName());
+}
+
+absl::StatusOr<int64_t> VirtualChannelIndexMap::GetVirtualChannelIndexByName(
+    PortId port_id, absl::string_view vc_name) const {
   if (!port_to_vcs_.contains(port_id)) {
     return absl::OutOfRangeError(
         absl::StrFormat("Port %d has not been indexed", port_id.AsUInt64()));
@@ -285,13 +290,13 @@ absl::StatusOr<int64_t> VirtualChannelIndexMap::GetVirtualChannelIndex(
   const std::vector<VirtualChannelParam>& virtual_channel_index =
       port_to_vcs_.at(port_id);
   for (int64_t i = 0; i < virtual_channel_index.size(); ++i) {
-    if (virtual_channel_index[i].GetName() == vc.GetName()) {
+    if (virtual_channel_index[i].GetName() == vc_name) {
       return i;
     }
   }
 
   return absl::OutOfRangeError(absl::StrFormat(
-      "Unable to find virtual channel %s associated with port %d", vc.GetName(),
+      "Unable to find virtual channel %s associated with port %d", vc_name,
       port_id.AsUInt64()));
 }
 
