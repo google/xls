@@ -22,6 +22,7 @@ package_group(
         "//third_party/xls_berkeley_softfloat/...",
         "//third_party/xls_go_math/...",
         "//third_party/xls_machsuite/...",
+        "//third_party/xls_colors/...",
     ],
 )
 
