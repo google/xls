@@ -386,24 +386,9 @@ class FunctionConverter {
   absl::Status HandleBuiltinOneHotSel(Invocation* node);
   absl::Status HandleBuiltinOrReduce(Invocation* node);
   absl::Status HandleBuiltinRev(Invocation* node);
-  absl::Status HandleBuiltinScmp(SignedCmp cmp, Invocation* node);
   absl::Status HandleBuiltinSignex(Invocation* node);
   absl::Status HandleBuiltinUpdate(Invocation* node);
   absl::Status HandleBuiltinXorReduce(Invocation* node);
-
-  // Signed comparisons.
-  absl::Status HandleBuiltinSLt(Invocation* node) {
-    return HandleBuiltinScmp(SignedCmp::kLt, node);
-  }
-  absl::Status HandleBuiltinSLe(Invocation* node) {
-    return HandleBuiltinScmp(SignedCmp::kLe, node);
-  }
-  absl::Status HandleBuiltinSGe(Invocation* node) {
-    return HandleBuiltinScmp(SignedCmp::kGe, node);
-  }
-  absl::Status HandleBuiltinSGt(Invocation* node) {
-    return HandleBuiltinScmp(SignedCmp::kGt, node);
-  }
 
   // Derefences the type definition to a struct definition.
   absl::StatusOr<StructDef*> DerefStruct(TypeDefinition node);
@@ -1927,10 +1912,6 @@ absl::Status FunctionConverter::HandleInvocation(Invocation* node) {
       map = {
           {"clz", &FunctionConverter::HandleBuiltinClz},
           {"ctz", &FunctionConverter::HandleBuiltinCtz},
-          {"sgt", &FunctionConverter::HandleBuiltinSGt},
-          {"sge", &FunctionConverter::HandleBuiltinSGe},
-          {"slt", &FunctionConverter::HandleBuiltinSLt},
-          {"sle", &FunctionConverter::HandleBuiltinSLe},
           {"signex", &FunctionConverter::HandleBuiltinSignex},
           {"one_hot", &FunctionConverter::HandleBuiltinOneHot},
           {"one_hot_sel", &FunctionConverter::HandleBuiltinOneHotSel},
@@ -2627,27 +2608,6 @@ absl::Status FunctionConverter::HandleBuiltinXorReduce(Invocation* node) {
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   Def(node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->XorReduce(arg, loc);
-  });
-  return absl::OkStatus();
-}
-
-absl::Status FunctionConverter::HandleBuiltinScmp(SignedCmp cmp,
-                                                  Invocation* node) {
-  XLS_RET_CHECK_EQ(node->args().size(), 2);
-  XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->args()[0]));
-  XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->args()[1]));
-  Def(node, [&](absl::optional<SourceLocation> loc) {
-    switch (cmp) {
-      case SignedCmp::kLt:
-        return function_builder_->SLt(lhs, rhs, loc);
-      case SignedCmp::kGt:
-        return function_builder_->SGt(lhs, rhs, loc);
-      case SignedCmp::kLe:
-        return function_builder_->SLe(lhs, rhs, loc);
-      case SignedCmp::kGe:
-        return function_builder_->SGe(lhs, rhs, loc);
-    }
-    XLS_LOG(FATAL) << "Invalid signed comparison: " << cmp;
   });
   return absl::OkStatus();
 }

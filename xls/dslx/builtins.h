@@ -26,16 +26,6 @@
 
 namespace xls::dslx {
 
-// Enumerates signed comparisons available via builtin functionality.
-enum SignedCmp {
-  kLt,
-  kLe,
-  kGe,
-  kGt,
-};
-
-std::string SignedCmpToString(SignedCmp cmp);
-
 // Traces the given expression/result to stderr if it meets the bar for "not too
 // noisy an AST node" (and is not itself a trace).
 void OptionalTrace(Expr* expr, const InterpValue& result,
