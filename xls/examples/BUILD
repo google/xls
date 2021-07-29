@@ -321,3 +321,13 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+xls_dslx_module_library(
+    name = "hack_cpu_dslx_module",
+    src = "hack_cpu.x",
+)
+
+xls_dslx_test(
+    name = "hack_cpu_dslx_test",
+    dep = ":hack_cpu_dslx_module",
+)
