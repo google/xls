@@ -15,11 +15,13 @@
 #include "xls/dslx/cpp_transpiler.h"
 
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "xls/common/case_converters.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -37,6 +39,31 @@ struct TranspileData {
   ImportData* import_data;
 };
 
+// Camelizes the input string, unless it's a builtin like "int8_t" or a
+// std::tuple (whose elements have already been Camelized as appropriate.
+std::string CheckedCamelize(absl::string_view input) {
+  if (absl::StartsWith(input, "std::tuple")) {
+    return std::string(input);
+  }
+
+  int pos = input.find_first_of('[');
+  std::string suffix;
+  if (pos != input.npos) {
+    suffix = input.substr(pos);
+    input = input.substr(0, pos);
+  }
+
+  // If this check grows much more complicated, it might make sense to RE2-ify
+  // it.
+  if (input == "int8_t" || input == "uint8_t" || input == "int16_t" ||
+      input == "uint16_t" || input == "int32_t" || input == "uint32_t" ||
+      input == "int64_t" || input == "uint64_t") {
+    return std::string(input) + suffix;
+  }
+
+  return Camelize(input) + suffix;
+}
+
 absl::StatusOr<Sources> TranspileSingleToCpp(
     const TranspileData& xpile_data, const TypeDefinition& type_definition);
 
@@ -47,8 +74,6 @@ absl::StatusOr<Sources> TranspileColonRef(const TranspileData& xpile_data,
 
 absl::StatusOr<Sources> TranspileEnumDef(const TranspileData& xpile_data,
                                          const EnumDef* enum_def) {
-  // TODO(rspringer): Handle TypeRef to TypeDef to TypeDef to ... to
-  // EnumDef.
   constexpr absl::string_view kTemplate = "enum class %s {\n%s\n};";
   constexpr absl::string_view kMemberTemplate = "  %s = %s,";
 
@@ -73,8 +98,8 @@ absl::StatusOr<Sources> TranspileEnumDef(const TranspileData& xpile_data,
           enum_def->identifier(), member.name_def->identifier(), bit_count));
     }
 
-    std::string identifier =
-        std::string(1, 'k') + Camelize(member.name_def->identifier());
+    std::string identifier = absl::StrCat(
+        std::string(1, 'k'), CheckedCamelize(member.name_def->identifier()));
 
     std::string val_str;
     if (value.IsSigned()) {
@@ -87,9 +112,10 @@ absl::StatusOr<Sources> TranspileEnumDef(const TranspileData& xpile_data,
     members.push_back(absl::StrFormat(kMemberTemplate, identifier, val_str));
   }
 
-  return Sources{absl::StrFormat(kTemplate, enum_def->identifier(),
-                                 absl::StrJoin(members, "\n")),
-                 ""};
+  return Sources{
+      absl::StrFormat(kTemplate, CheckedCamelize(enum_def->identifier()),
+                      absl::StrJoin(members, "\n")),
+      ""};
 }
 
 absl::StatusOr<std::string> TypeAnnotationToString(
@@ -119,6 +145,15 @@ absl::StatusOr<std::string> BuiltinTypeAnnotationToString(
 
 absl::StatusOr<std::string> ArrayTypeAnnotationToString(
     const TranspileData& xpile_data, const ArrayTypeAnnotation* annot) {
+  XLS_ASSIGN_OR_RETURN(absl::optional<BuiltinType> as_builtin_type,
+                       GetAsBuiltinType(xpile_data.module, xpile_data.type_info,
+                                        xpile_data.import_data, annot));
+  if (as_builtin_type.has_value()) {
+    XLS_ASSIGN_OR_RETURN(bool is_signed,
+                         GetBuiltinTypeSignedness(as_builtin_type.value()));
+    // Just make 'em 64b. Works and is easy.
+    return absl::StrFormat("%sint64_t", is_signed ? "" : "u");
+  }
   XLS_ASSIGN_OR_RETURN(
       std::string element_type,
       TypeAnnotationToString(xpile_data, annot->element_type()));
@@ -185,25 +220,41 @@ absl::StatusOr<Sources> TranspileTypeDef(const TranspileData& xpile_data,
   XLS_ASSIGN_OR_RETURN(
       std::string annot_str,
       TypeAnnotationToString(xpile_data, type_def->type_annotation()));
-  return Sources{absl::StrFormat("using %s = %s;",
-                                 Camelize(type_def->identifier()), annot_str),
-                 ""};
+  return Sources{
+      absl::StrFormat("using %s = %s;", CheckedCamelize(type_def->identifier()),
+                      CheckedCamelize(annot_str)),
+      ""};
 }
 
 absl::StatusOr<std::string> GenerateScalarFromValue(
     absl::string_view src_element, absl::string_view dst_element,
     BuiltinType builtin_type, int indent_level) {
   XLS_ASSIGN_OR_RETURN(bool is_signed, GetBuiltinTypeSignedness(builtin_type));
-  return absl::StrFormat("%s%s = %s.ToBits().To%snt64().value();",
+  return absl::StrFormat("%s%s = %s.bits().To%snt64().value();",
                          std::string(indent_level * 2, ' '), dst_element,
                          src_element, is_signed ? "I" : "Ui");
 }
 
-absl::StatusOr<std::string> SetArrayFromValue(const TranspileData& xpile_data,
-                                              ArrayTypeAnnotation* array_type,
-                                              absl::string_view src_element,
-                                              absl::string_view dst_element,
-                                              int indent_level) {
+absl::StatusOr<std::string> GenerateEnumFromValue(
+    const TranspileData& xpile_data, absl::string_view src_element,
+    absl::string_view dst_element, absl::string_view enum_name,
+    TypeAnnotation* type, int indent_level) {
+  XLS_ASSIGN_OR_RETURN(std::optional<BuiltinType> as_builtin_type,
+                       GetAsBuiltinType(xpile_data.module, xpile_data.type_info,
+                                        xpile_data.import_data, type));
+  XLS_CHECK(as_builtin_type.has_value());
+  XLS_ASSIGN_OR_RETURN(bool is_signed,
+                       GetBuiltinTypeSignedness(as_builtin_type.value()));
+  return absl::StrFormat(
+      "%s%s = static_cast<%s>(%s.bits().To%snt64().value());",
+      std::string(indent_level * 2, ' '), dst_element,
+      CheckedCamelize(enum_name), src_element, is_signed ? "I" : "Ui");
+}
+
+absl::StatusOr<std::string> GenerateArrayFromValue(
+    const TranspileData& xpile_data, ArrayTypeAnnotation* array_type,
+    absl::string_view src_element, absl::string_view dst_element,
+    int indent_level) {
   constexpr absl::string_view kTemplate =
       R"(%sfor (int i = 0; i < %d; i++) {
 %s
@@ -259,14 +310,29 @@ absl::StatusOr<std::string> SetStructMemberFromValue(
         indent_level);
   } else if (auto* array_type = dynamic_cast<ArrayTypeAnnotation*>(type)) {
     // GetAsBuiltinType covers the integral case above.
-    return SetArrayFromValue(
+    return GenerateArrayFromValue(
         xpile_data, array_type, absl::StrCat("elements[", element_index, "]"),
         absl::StrCat(object_name, ".", field_name), indent_level);
-  } else if (auto* struct_type = dynamic_cast<TypeRefTypeAnnotation*>(type)) {
-    return absl::StrFormat(
-        "%sXLS_ASSIGN_OR_RETURN(%s.%s, %s::FromValue(elements[%d]));",
-        std::string(indent_level * 2, ' '), object_name, field_name,
-        type->ToString(), element_index);
+  } else if (auto* typeref_type = dynamic_cast<TypeRefTypeAnnotation*>(type)) {
+    TypeDefinition type_definition =
+        typeref_type->type_ref()->type_definition();
+    if (absl::holds_alternative<TypeDef*>(type_definition)) {
+      return SetStructMemberFromValue(
+          xpile_data, object_name, field_name, element_index,
+          absl::get<TypeDef*>(type_definition)->type_annotation(),
+          indent_level);
+    } else if (absl::holds_alternative<EnumDef*>(type_definition)) {
+      EnumDef* enum_def = absl::get<EnumDef*>(type_definition);
+      return GenerateEnumFromValue(
+          xpile_data, absl::StrCat("elements[", element_index, "]"),
+          absl::StrCat(object_name, ".", field_name), enum_def->identifier(),
+          enum_def->type_annotation(), indent_level);
+    } else if (absl::holds_alternative<StructDef*>(type_definition)) {
+      return absl::StrFormat(
+          "%sXLS_ASSIGN_OR_RETURN(%s.%s, %s::FromValue(elements[%d]));",
+          std::string(indent_level * 2, ' '), object_name, field_name,
+          CheckedCamelize(type->ToString()), element_index);
+    }
   }
 
   return absl::UnimplementedError(absl::StrFormat(
@@ -279,9 +345,23 @@ absl::StatusOr<std::string> GenerateScalarToValue(
     absl::string_view dst_element, BuiltinType builtin_type, int indent_level) {
   XLS_ASSIGN_OR_RETURN(bool is_signed, GetBuiltinTypeSignedness(builtin_type));
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, GetBuiltinTypeBitCount(builtin_type));
-  return absl::StrFormat("%sValue %s(%cBits(%s, /*bit_count=*/%d));",
+  return absl::StrFormat("%sxls::Value %s(xls::%cBits(%s, /*bit_count=*/%d));",
                          std::string(indent_level * 2, ' '), dst_element,
                          is_signed ? 'S' : 'U', src_element, bit_count);
+}
+
+absl::StatusOr<std::string> GenerateEnumToValue(const TranspileData& xpile_data,
+                                                absl::string_view src_element,
+                                                absl::string_view dst_element,
+                                                BuiltinType builtin_type,
+                                                int indent_level) {
+  XLS_ASSIGN_OR_RETURN(bool is_signed, GetBuiltinTypeSignedness(builtin_type));
+  XLS_ASSIGN_OR_RETURN(int bit_count, GetBuiltinTypeBitCount(builtin_type));
+  return absl::StrFormat(
+      "%sxls::Value %s(xls::%cBits(static_cast<%sint64_t>(%s), "
+      "/*bit_count=*/%d));",
+      std::string(indent_level * 2, ' '), dst_element, is_signed ? 'S' : 'U',
+      is_signed ? "" : "u", src_element, bit_count);
 }
 
 // Generates code for ToValue() logic for a struct array member.
@@ -292,12 +372,12 @@ absl::StatusOr<std::string> GenerateArrayToValue(
   // $1: The generated setter logic
   // $2: Indentation/padding.
   constexpr absl::string_view kSetterTemplate =
-      R"($2std::vector<Value> $0_elements;
+      R"($2std::vector<xls::Value> $0_elements;
 $2for (int i = 0; i < ABSL_ARRAYSIZE($0); i++) {
 $1
 $2  $0_elements.push_back($0_element);
 $2}
-$2Value $0_value = Value::ArrayOrDie($0_elements);)";
+$2xls::Value $0_value = xls::Value::ArrayOrDie($0_elements);)";
 
   TypeAnnotation* element_type = array_type->element_type();
 
@@ -306,6 +386,7 @@ $2Value $0_value = Value::ArrayOrDie($0_elements);)";
                        GetAsBuiltinType(xpile_data.module, xpile_data.type_info,
                                         xpile_data.import_data, element_type));
   if (as_builtin_type.has_value()) {
+    // TODO(rspringer): What if we have an array of enums?
     XLS_ASSIGN_OR_RETURN(
         setter,
         GenerateScalarToValue(xpile_data, absl::StrCat(src_element, "[i]"),
@@ -334,27 +415,48 @@ absl::StatusOr<std::string> StructMemberToValue(const TranspileData& xpile_data,
 $0elements.push_back($2_value);)";
 
   std::string setter;
-  if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
+  XLS_ASSIGN_OR_RETURN(absl::optional<BuiltinType> as_builtin_type,
+                       GetAsBuiltinType(xpile_data.module, xpile_data.type_info,
+                                        xpile_data.import_data, type));
+  if (as_builtin_type.has_value()) {
     XLS_ASSIGN_OR_RETURN(
-        setter,
-        GenerateScalarToValue(xpile_data, member_name,
-                              absl::StrCat(member_name, "_value"),
-                              builtin_type->builtin_type(), indent_level));
+        setter, GenerateScalarToValue(xpile_data, member_name,
+                                      absl::StrCat(member_name, "_value"),
+                                      as_builtin_type.value(), indent_level));
   } else if (auto* array_type = dynamic_cast<ArrayTypeAnnotation*>(type)) {
     XLS_ASSIGN_OR_RETURN(
         setter, GenerateArrayToValue(xpile_data, member_name, array_type,
                                      indent_level));
-  } else if (auto* struct_type = dynamic_cast<TypeRefTypeAnnotation*>(type)) {
-    TypeRef* type_ref = struct_type->type_ref();
-    // TODO(rspringer): Handle TypeRef to TypeDef to TypeDef to ... to
-    // StructDef.
-    if (!absl::holds_alternative<StructDef*>(type_ref->type_definition())) {
-      return absl::UnimplementedError(
-          "Only direct struct type references are currently supported.");
+  } else if (auto* typeref_type = dynamic_cast<TypeRefTypeAnnotation*>(type)) {
+    TypeRef* type_ref = typeref_type->type_ref();
+    TypeDefinition type_definition = type_ref->type_definition();
+    if (absl::holds_alternative<TypeDef*>(type_definition)) {
+      return StructMemberToValue(
+          xpile_data, member_name,
+          absl::get<TypeDef*>(type_definition)->type_annotation(),
+          indent_level);
+    } else if (absl::holds_alternative<EnumDef*>(type_definition)) {
+      EnumDef* enum_def = absl::get<EnumDef*>(type_definition);
+      XLS_ASSIGN_OR_RETURN(
+          absl::optional<BuiltinType> enum_as_builtin_type,
+          GetAsBuiltinType(xpile_data.module, xpile_data.type_info,
+                           xpile_data.import_data,
+                           enum_def->type_annotation()));
+      XLS_CHECK(enum_as_builtin_type.has_value());
+      XLS_ASSIGN_OR_RETURN(
+          setter,
+          GenerateEnumToValue(xpile_data, member_name,
+                              absl::StrCat(member_name, "_value"),
+                              enum_as_builtin_type.value(), indent_level));
+    } else if (absl::holds_alternative<StructDef*>(type_definition)) {
+      return absl::StrFormat("%selements.push_back(%s.ToValue());",
+                             std::string(indent_level * 2, ' '), member_name);
+    } else {
+      return absl::UnimplementedError(absl::StrCat(
+          "Only direct struct type references are currently supported. ",
+          "Failing reference @ ", type_ref->span().ToString(), " : ",
+          type_ref->ToString()));
     }
-
-    return absl::StrFormat("%selements.push_back(%s.ToValue());",
-                           std::string(indent_level * 2, ' '), member_name);
   } else {
     return absl::UnimplementedError(absl::StrFormat(
         "Unsupported type for transpilation: %s.", type->ToString()));
@@ -383,7 +485,8 @@ $1
         struct_def->members()[i].first->identifier(), i));
   }
 
-  return absl::Substitute(kOutputOperatorTemplate, struct_def->identifier(),
+  return absl::Substitute(kOutputOperatorTemplate,
+                          CheckedCamelize(struct_def->identifier()),
                           absl::StrJoin(members, "\n"));
 }
 
@@ -392,15 +495,14 @@ $1
 absl::StatusOr<std::string> TranspileStructDefHeader(
     const TranspileData& xpile_data, const StructDef* struct_def) {
   constexpr absl::string_view kStructTemplate = R"(struct $0 {
-  static absl::StatusOr<$0> FromValue(const Value& value);
+  static absl::StatusOr<$0> FromValue(const xls::Value& value);
 
-  Value ToValue() const;
+  xls::Value ToValue() const;
 
   friend std::ostream& operator<<(std::ostream& os, const $0& data);
 
 $1
-};
-)";
+};)";
 
   std::string struct_body;
   std::vector<std::string> member_decls;
@@ -417,10 +519,12 @@ $1
       member_name.append(type_str.substr(first_bracket));
       type_str = type_str.substr(0, first_bracket);
     }
-    member_decls.push_back(absl::StrFormat("  %s %s;", type_str, member_name));
+    member_decls.push_back(
+        absl::StrFormat("  %s %s;", CheckedCamelize(type_str), member_name));
   }
 
-  return absl::Substitute(kStructTemplate, struct_def->identifier(),
+  return absl::Substitute(kStructTemplate,
+                          CheckedCamelize(struct_def->identifier()),
                           absl::StrJoin(member_decls, "\n"));
 }
 
@@ -432,7 +536,7 @@ absl::StatusOr<std::string> TranspileStructDefBody(
   // $3: ToValue element setters.
   // $4: Stream output operator.
   constexpr absl::string_view kStructTemplate =
-      R"(absl::StatusOr<$0> $0::FromValue(const Value& value) {
+      R"(absl::StatusOr<$0> $0::FromValue(const xls::Value& value) {
   absl::Span<const xls::Value> elements = value.elements();
   if (elements.size() != $1) {
     return absl::InvalidArgumentError(
@@ -444,10 +548,10 @@ $2
   return result;
 }
 
-Value $0::ToValue() const {
-  std::vector<Value> elements;
+xls::Value $0::ToValue() const {
+  std::vector<xls::Value> elements;
 $3
-  return Value::Tuple(elements);
+  return xls::Value::Tuple(elements);
 }
 
 $4)";
@@ -475,8 +579,9 @@ $4)";
   }
 
   std::string body = absl::Substitute(
-      kStructTemplate, struct_def->identifier(), struct_def->members().size(),
-      absl::StrJoin(setters, "\n"), absl::StrJoin(to_values, "\n"),
+      kStructTemplate, CheckedCamelize(struct_def->identifier()),
+      struct_def->members().size(), absl::StrJoin(setters, "\n"),
+      absl::StrJoin(to_values, "\n"),
       GenerateOutputOperator(xpile_data, struct_def));
   return body;
 }
@@ -507,8 +612,38 @@ absl::StatusOr<Sources> TranspileSingleToCpp(
 
 }  // namespace
 
-absl::StatusOr<Sources> TranspileToCpp(Module* module,
-                                       ImportData* import_data) {
+// Need namespaces
+// Need paths
+absl::StatusOr<Sources> TranspileToCpp(Module* module, ImportData* import_data,
+                                       absl::string_view output_header_path,
+                                       std::string namespaces) {
+  constexpr absl::string_view kHeaderTemplate =
+      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+#ifndef $0
+#define $0
+#include <cstdint>
+#include <ostream>
+
+#include "absl/status/statusor.h"
+#include "xls/public/value.h"
+
+$2$1$3
+
+#endif  // $0
+)";
+
+  constexpr absl::string_view kSourceTemplate =
+      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+#include <vector>
+
+#include "%s"
+#include "absl/base/macros.h"
+#include "absl/status/status.h"
+#include "absl/types/span.h"
+#include "xls/common/status/status_macros.h"
+
+%s
+)";
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data->GetRootTypeInfo(module));
   struct TranspileData xpile_data {
@@ -523,7 +658,28 @@ absl::StatusOr<Sources> TranspileToCpp(Module* module,
     body.push_back(result.body);
   }
 
-  return Sources{absl::StrJoin(header, "\n"), absl::StrJoin(body, "\n\n")};
+  std::string header_guard;
+  std::filesystem::path current_path = output_header_path;
+  while (!current_path.empty()) {
+    std::string chunk =
+        absl::AsciiStrToUpper(std::string(current_path.filename()));
+    chunk = absl::StrReplaceAll(chunk, {{".", "_"}});
+    header_guard = chunk + "_" + header_guard;
+    current_path = current_path.parent_path();
+  }
+
+  std::string namespace_begin;
+  std::string namespace_end;
+  if (!namespaces.empty()) {
+    namespace_begin = absl::StrCat("namespace ", namespaces, " {\n\n");
+    namespace_end = absl::StrCat("\n\n}  // namespace ", namespaces);
+  }
+
+  return Sources{absl::Substitute(kHeaderTemplate, header_guard,
+                                  absl::StrJoin(header, "\n\n"),
+                                  namespace_begin, namespace_end),
+                 absl::StrFormat(kSourceTemplate, output_header_path,
+                                 absl::StrJoin(body, "\n\n"))};
 }
 
 }  // namespace xls::dslx

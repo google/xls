@@ -51,6 +51,7 @@ cc_library(
         ":type_info",
         ":typecheck",
         "//xls/common:case_converters",
+        "//xls/common:math_util",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -59,6 +60,22 @@ cc_library(
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_binary(
+    name = "cpp_transpiler_main",
+    srcs = ["cpp_transpiler_main.cc"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":cpp_transpiler",
+        ":import_data",
+        ":parse_and_typecheck",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
     ],
 )
 
