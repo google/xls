@@ -101,6 +101,11 @@ class TestbenchBuilder {
     return *this;
   }
 
+  TestbenchBuilder& SetLogErrorsFn(const LogErrorsFnT& fn) {
+    log_errors_ = fn;
+    return *this;
+  }
+
   Testbench<InputT, ResultT, ShardDataT, EnableT> Build();
 
  private:
@@ -114,6 +119,7 @@ class TestbenchBuilder {
   absl::optional<IndexToInputFnT> index_to_input_;
   absl::optional<PrintInputFnT> print_input_;
   absl::optional<PrintResultFnT> print_result_;
+  absl::optional<LogErrorsFnT> log_errors_;
 };
 
 // Builder for Testbenches without ShardData.
@@ -167,6 +173,11 @@ class TestbenchBuilder<
     return *this;
   }
 
+  TestbenchBuilder& SetLogErrorsFn(const LogErrorsFnT& fn) {
+    log_errors_ = fn;
+    return *this;
+  }
+
   Testbench<InputT, ResultT> Build();
 
  private:
@@ -179,6 +190,7 @@ class TestbenchBuilder<
   absl::optional<IndexToInputFnT> index_to_input_;
   absl::optional<PrintInputFnT> print_input_;
   absl::optional<PrintResultFnT> print_result_;
+  absl::optional<LogErrorsFnT> log_errors_;
 };
 
 // Shard-data-containing Build() implementation.
@@ -206,12 +218,15 @@ TestbenchBuilder<InputT, ResultT, ShardDataT, EnableT>::Build() {
                           : [](const ResultT& result) {
                               return internal::DefaultPrintValue(result);
                             };
-  auto log_errors = [print_input, print_result](
-                        int64_t index, const InputT& input,
-                        const ResultT& expected, const ResultT& actual) {
-    internal::DefaultLogError<InputT, ResultT>(index, input, expected, actual,
-                                               print_input, print_result);
-  };
+  auto log_errors =
+      this->log_errors_.has_value()
+          ? this->log_errors_.value()
+          : [print_input, print_result](int64_t index, const InputT& input,
+                                        const ResultT& expected,
+                                        const ResultT& actual) {
+              internal::DefaultLogError<InputT, ResultT>(
+                  index, input, expected, actual, print_input, print_result);
+            };
   return Testbench<InputT, ResultT, ShardDataT>(
       /*start=*/0, this->num_samples_, this->num_threads_, this->max_failures_,
       index_to_input, create_shard_data_, this->compute_expected_,
@@ -243,12 +258,15 @@ Testbench<InputT, ResultT> TestbenchBuilder<
                           : [](const ResultT& result) {
                               return internal::DefaultPrintValue(result);
                             };
-  auto log_errors = [print_input, print_result](
-                        int64_t index, const InputT& input,
-                        const ResultT& expected, const ResultT& actual) {
-    internal::DefaultLogError<InputT, ResultT>(index, input, expected, actual,
-                                               print_input, print_result);
-  };
+  auto log_errors =
+      this->log_errors_.has_value()
+          ? this->log_errors_.value()
+          : [print_input, print_result](int64_t index, const InputT& input,
+                                        const ResultT& expected,
+                                        const ResultT& actual) {
+              internal::DefaultLogError<InputT, ResultT>(
+                  index, input, expected, actual, print_input, print_result);
+            };
   return Testbench<InputT, ResultT, ShardDataT>(
       /*start=*/0, this->num_samples_, this->num_threads_, this->max_failures_,
       index_to_input, this->compute_expected_, this->compute_actual_,
