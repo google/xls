@@ -30,10 +30,10 @@ pub fn qnan() -> F64 {
 pub fn zero(sign: u1) -> F64 { apfloat::zero<u32:11, u32:52>(sign) }
 pub fn one(sign: u1) -> F64 { apfloat::one<u32:11, u32:52>(sign) }
 pub fn inf(sign: u1) -> F64 { apfloat::inf<u32:11, u32:52>(sign) }
-pub fn unbiased_exponent(f: F64) -> u12 {
+pub fn unbiased_exponent(f: F64) -> s11 {
   apfloat::unbiased_exponent<u32:11, u32:52>(f)
 }
-pub fn bias(unbiased_exponent_in: u12) -> u11 {
+pub fn bias(unbiased_exponent_in: s11) -> u11 {
   apfloat::bias<u32:11, u32:52>(unbiased_exponent_in)
 }
 pub fn flatten(f: F64) -> u64 { apfloat::flatten<u32:11, u32:52>(f) }

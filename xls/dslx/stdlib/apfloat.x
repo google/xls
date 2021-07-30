@@ -138,31 +138,83 @@ fn inf_test() {
   ()
 }
 
-// Accessor helpers for the F32 typedef.
-pub fn unbiased_exponent<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1, MASK_SZ:u32 = EXP_SZ - u32:1>(
-    f: APFloat<EXP_SZ, SFD_SZ>)
-    -> bits[UEXP_SZ] {
-  (f.bexp as bits[UEXP_SZ]) - (std::mask_bits<MASK_SZ>() as bits[UEXP_SZ])
+// Returns the unbiased exponent.
+// For normal numbers this is bexp - 127 and for subnormal numbers this is -126.
+//
+// More generally, for normal numbers it is bexp - 2^EXP_SZ + 1 and for
+// subnormals it is, 2 - 2^EXP_SZ.
+//
+// For infinity and nan, there are no guarantees, as the unbiased exponent has
+// no meaning in that case.
+pub fn unbiased_exponent<EXP_SZ:u32,
+                         SFD_SZ:u32,
+                         UEXP_SZ:u32 = EXP_SZ + u32:1,
+                         MASK_SZ:u32 = EXP_SZ - u32:1>
+                         (f: APFloat<EXP_SZ, SFD_SZ>) -> sN[EXP_SZ] {
+  let bias = std::mask_bits<MASK_SZ>() as sN[UEXP_SZ];
+  let subnormal_exp = (sN[UEXP_SZ]:1 - bias) as sN[EXP_SZ];
+  let bexp = f.bexp as sN[UEXP_SZ];
+  let uexp = (bexp - bias) as sN[EXP_SZ];
+  subnormal_exp if f.bexp == bits[EXP_SZ]:0 else uexp
 }
 
 #![test]
-fn unbiased_exponent_test() {
-  let expected = u9:0x0;
+fn unbiased_exponent_zero_test() {
+  let expected = s8:0;
   let actual = unbiased_exponent<u32:8, u32:23>(
-      APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:0x7f, sfd: u23:0 });
+      APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:127, sfd: u23:0 });
   let _ = assert_eq(actual, expected);
   ()
 }
 
-pub fn bias<EXP_SZ: u32, SFD_SZ: u32, UEXP_SZ: u32 = EXP_SZ + u32:1,
-    MASK_SZ: u32 = EXP_SZ - u32:1>(unbiased_exponent: bits[UEXP_SZ]) -> bits[EXP_SZ] {
-  (unbiased_exponent + (std::mask_bits<MASK_SZ>() as bits[UEXP_SZ])) as bits[EXP_SZ]
+#![test]
+fn unbiased_exponent_positive_test() {
+  let expected = s8:1;
+  let actual = unbiased_exponent<u32:8, u32:23>(
+      APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:128, sfd: u23:0 });
+  let _ = assert_eq(actual, expected);
+  ()
+}
+
+#![test]
+fn unbiased_exponent_negative_test() {
+  let expected = s8:-1;
+  let actual = unbiased_exponent<u32:8, u32:23>(
+      APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:126, sfd: u23:0 });
+  let _ = assert_eq(actual, expected);
+  ()
+}
+
+#![test]
+fn unbiased_exponent_subnormal_test() {
+  let expected = s8:-126;
+  let actual = unbiased_exponent<u32:8, u32:23>(
+      APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:0, sfd: u23:0 });
+  let _ = assert_eq(actual, expected);
+  ()
+}
+
+// Returns the biased exponent.
+//
+// Since the function only takes as input the unbiased exponent, it cannot
+// distinguish between normal and subnormal numbers, as a result it assumes that
+// the input is the exponent for a normal number.
+//
+// As a result the answer is just unbiased_exponent + 2^EXP_SZ - 1
+pub fn bias<EXP_SZ: u32,
+            SFD_SZ: u32,
+            UEXP_SZ: u32 = EXP_SZ + u32:1,
+            MASK_SZ: u32 = EXP_SZ - u32:1>
+            (unbiased_exponent: sN[EXP_SZ]) -> bits[EXP_SZ] {
+  let bias = std::mask_bits<MASK_SZ>() as sN[UEXP_SZ];
+  let extended_unbiased_exp = unbiased_exponent as sN[UEXP_SZ];
+  (extended_unbiased_exp + bias) as bits[EXP_SZ]
 }
 
 #![test]
 fn bias_test() {
   let expected = u8:127;
-  let actual = bias<u32:8, u32:23>(u9:0);
+  let actual = bias<u32:8, u32:23>(s8:0);
   let _ = assert_eq(expected, actual);
   ()
 }
@@ -197,7 +249,7 @@ pub fn cast_from_fixed<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1,
   let exp = (num_trailing_nonzeros as uN[UEXP_SZ]) - uN[UEXP_SZ]:1;
   let max_exp_exclusive = uN[UEXP_SZ]:1 << ((EXP_SZ as uN[UEXP_SZ]) - uN[UEXP_SZ]:1);
   let is_inf = exp >= max_exp_exclusive;
-  let bexp = bias<EXP_SZ, SFD_SZ>(exp);
+  let bexp = bias<EXP_SZ, SFD_SZ>(exp as sN[EXP_SZ]);
 
   // Determine significand (pre-rounding).
   let extended_sfd = abs_magnitude ++ uN[SFD_SZ]:0;
@@ -437,7 +489,7 @@ pub fn cast_to_fixed<NUM_DST_BITS:u32, EXP_SZ:u32, SFD_SZ:u32,
                                else result;
   // Underflow / to_cast < 1 --> 0
   let result = sN[NUM_DST_BITS]:0
-    if to_cast.bexp < bias<EXP_SZ, SFD_SZ>(uN[UEXP_SZ]:0)
+    if to_cast.bexp < bias<EXP_SZ, SFD_SZ>(sN[EXP_SZ]:0)
     else result;
 
   result
@@ -888,7 +940,7 @@ fn test_fp_lt_2() {
 pub fn round_towards_zero<EXP_SZ:u32, SFD_SZ:u32,
     EXTENDED_SFD_SZ:u32 = SFD_SZ + u32:1>(
     x: APFloat<EXP_SZ, SFD_SZ>) -> APFloat<EXP_SZ, SFD_SZ> {
-  let exp = signex(unbiased_exponent(x), s32:0);
+  let exp = unbiased_exponent(x) as s32;
   let mask = !((u32:1 << ((SFD_SZ as u32) - (exp as u32)))
                 - u32:1);
   let trunc_sfd = x.sfd & (mask as uN[SFD_SZ]);
@@ -903,6 +955,7 @@ pub fn round_towards_zero<EXP_SZ:u32, SFD_SZ:u32,
                             else result;
   let result = qnan<EXP_SZ, SFD_SZ>() if is_nan<EXP_SZ, SFD_SZ>(x)
                                       else result;
+  let result = x if (x.bexp == (bits[EXP_SZ]:255)) else result;
 
   result
 }

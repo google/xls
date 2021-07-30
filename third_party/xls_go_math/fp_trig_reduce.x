@@ -60,13 +60,13 @@ fn fp_trig_reduce<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1>(x: APFlo
   let fixed_x = uN[UEXP_SZ]:1 ++ x.sfd;
   // Extract out the integer and exponent such that,
   // x = fixed_x * 2^exp
-  let exp = apfloat::unbiased_exponent<EXP_SZ, SFD_SZ>(x) - (SFD_SZ as uN[UEXP_SZ]);
+  let exp = apfloat::unbiased_exponent<EXP_SZ, SFD_SZ>(x) - (SFD_SZ as sN[EXP_SZ]);
 
   // Grab 4/Pi bits.
   // Using the exponent of x to grab the appropriate set of
   // bits from FOUR_DIV_PI_BITS to multiply by s.t. the product
   // has exponent -61.
-  let exp_sum = exp + uN[UEXP_SZ]:61;
+  let exp_sum = (exp + sN[EXP_SZ]:61) as uN[EXP_SZ];
   let pd4_bits = (FOUR_DIV_PI_BITS << exp_sum)[1088:1280];
 
   // Multiply x mantisssa by extracted FOUR_DIV_PI bits.
@@ -81,7 +81,7 @@ fn fp_trig_reduce<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1>(x: APFlo
   let raw_sfd_bits = prod[61:189];
   let hi = raw_sfd_bits[64:128];
   let lz = clz(hi);
-  let fraction_bexp = apfloat::bias<EXP_SZ, SFD_SZ>(-(uN[UEXP_SZ]:1 + (lz as uN[UEXP_SZ])));
+  let fraction_bexp = apfloat::bias<EXP_SZ, SFD_SZ>(-(sN[EXP_SZ]:1 + (lz as sN[EXP_SZ])));
 
   // Clear hidden bit and shift mantissa.
   const SFD_INDEX_START = u32:128 - SFD_SZ;

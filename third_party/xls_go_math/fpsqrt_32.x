@@ -143,7 +143,7 @@ pub fn fpsqrt_32(x: F32) -> F32 {
   // Final rounding.
   let sqrt_in_progress = sqrt_in_progress + (u31:0 ++ sqrt_in_progress[0:1]) if scaled_fixed_point_x != u32:0 else sqrt_in_progress;
   let scaled_fixed_point_x = (sqrt_in_progress >> u32:1) +
-           ((float32::bias(exp - u9:1)) as u32 << u32:23);
+           ((float32::bias(exp - s8:1)) as u32 << u32:23);
   let result = float32::unflatten(scaled_fixed_point_x);
 
   // I don't *think* it is possible to underflow / have a subnormal result
@@ -192,26 +192,26 @@ fn sqrt_test() {
     fpsqrt_32(float32::one(u1:0)));
   // sqrt(4).
   let four = F32 {sign: u1:0, bexp:
-                  float32::bias(u9:2),
+                  float32::bias(s8:2),
                   sfd: u23:0};
   let two = F32 {sign: u1:0, bexp:
-                  float32::bias(u9:1),
+                  float32::bias(s8:1),
                   sfd: u23:0};
   let _ = assert_eq(fpsqrt_32(four), two);
   // sqrt(9).
   let nine = F32 {sign: u1:0, bexp:
-                  float32::bias(u9:3),
+                  float32::bias(s8:3),
                   sfd: u2:0 ++ u1:1 ++ u20:0};
   let three = F32 {sign: u1:0, bexp:
-                  float32::bias(u9:1),
+                  float32::bias(s8:1),
                   sfd: u1:1 ++ u22:0};
   let _ = assert_eq(fpsqrt_32(nine), three);
   // sqrt(25).
   let twenty_five = F32 {sign: u1:0, bexp:
-                  float32::bias(u9:4),
+                  float32::bias(s8:4),
                   sfd: u4:0x9 ++ u19:0};
   let five = F32 {sign: u1:0, bexp:
-                  float32::bias(u9:2),
+                  float32::bias(s8:2),
                   sfd: u2:1 ++ u21:0};
   let _ = assert_eq(fpsqrt_32(twenty_five), five);
   ()

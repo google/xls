@@ -22,10 +22,10 @@ pub fn qnan() -> BF16 { apfloat::qnan<u32:8, u32:7>() }
 pub fn zero(sign: u1) -> BF16 { apfloat::zero<u32:8, u32:7>(sign) }
 pub fn one(sign: u1) -> BF16 { apfloat::one<u32:8, u32:7>(sign) }
 pub fn inf(sign: u1) -> BF16 { apfloat::inf<u32:8, u32:7>(sign) }
-pub fn unbiased_exponent(f: BF16) -> u9 {
+pub fn unbiased_exponent(f: BF16) -> s8 {
   apfloat::unbiased_exponent<u32:8, u32:7>(f)
 }
-pub fn bias(unbiased_exponent_in: u9) -> u8 {
+pub fn bias(unbiased_exponent_in: s8) -> u8 {
   apfloat::bias<u32:8, u32:7>(unbiased_exponent_in)
 }
 pub fn flatten(f: BF16) -> u16 { apfloat::flatten<u32:8, u32:7>(f) }

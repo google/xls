@@ -27,10 +27,12 @@ pub fn qnan() -> F32 { apfloat::qnan<u32:8, u32:23>() }
 pub fn zero(sign: u1) -> F32 { apfloat::zero<u32:8, u32:23>(sign) }
 pub fn one(sign: u1) -> F32 { apfloat::one<u32:8, u32:23>(sign) }
 pub fn inf(sign: u1) -> F32 { apfloat::inf<u32:8, u32:23>(sign) }
-pub fn unbiased_exponent(f: F32) -> u9 {
+
+
+pub fn unbiased_exponent(f: F32) -> s8 {
   apfloat::unbiased_exponent<u32:8, u32:23>(f)
 }
-pub fn bias(unbiased_exponent_in: u9) -> u8 {
+pub fn bias(unbiased_exponent_in: s8) -> u8 {
   apfloat::bias<u32:8, u32:23>(unbiased_exponent_in)
 }
 pub fn flatten(f: F32) -> u32 { apfloat::flatten<u32:8, u32:23>(f) }
@@ -155,9 +157,9 @@ fn tag_test() {
 
 pub fn fixed_fraction(input_float: F32) -> u23 {
   let input_significand_magnitude: u25 = u2:0b01 ++ input_float.sfd;
-  let unbiased_input_float_exponent: u9 = unbiased_exponent(input_float);
+  let unbiased_input_float_exponent: s8 = unbiased_exponent(input_float);
 
-  let input_fixed_magnitude: u25 = match unbiased_input_float_exponent as s9 > s9:0 {
+  let input_fixed_magnitude: u25 = match unbiased_input_float_exponent as s8 > s8:0 {
     true =>
       let significand_left_shift = unbiased_input_float_exponent as u3;
       input_significand_magnitude << (significand_left_shift as u25),

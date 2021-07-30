@@ -32,8 +32,8 @@ type F32 = float32::F32;
 pub fn fpldexp_32(fraction: F32, exp: s32) -> F32 {
   // TODO(jbaileyhandle):  Remove after testing.
 
-  const max_exponent = float32::bias(u9:0) as s33;
-  const min_exponent = s33:1 - (float32::bias(u9:0) as s33);
+  const max_exponent = float32::bias(s8:0) as s33;
+  const min_exponent = s33:1 - (float32::bias(s8:0) as s33);
 
   // Flush subnormal input.
   let fraction = float32::subnormals_to_zero(fraction);
@@ -41,10 +41,10 @@ pub fn fpldexp_32(fraction: F32, exp: s32) -> F32 {
   // Increase the exponent of fraction by 'exp'.
   // If this was not a DAZ module, we'd have to deal
   // with denormal 'fraction' here.
-  let exp = signex(exp, s33:0) 
+  let exp = signex(exp, s33:0)
               + signex(float32::unbiased_exponent(fraction), s33:0);
   let result = F32 {sign: fraction.sign,
-                    bexp: float32::bias(exp as u9),
+                    bexp: float32::bias(exp as s8),
                     sfd: fraction.sfd };
 
   // Handle overflow.
