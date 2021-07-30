@@ -223,6 +223,7 @@ project, see our
 *   [Remy Goldschmidt](https://github.com/taktoa)
 *   [Robert Hundt](https://github.com/rhundt)
 *   [Rob Springer](https://github.com/RobSpringer)
+*   [Sameer Agarwal](https://github.com/sandwichmaker)
 *   [Sean Purser-Haskell](https://github.com/spurserh)
 *   [Ted Hong](https://github.com/hongted)
 *   [Ted Xie](https://github.com/ted-xie)
