@@ -201,3 +201,16 @@ cc_library(
         "//xls/ir",
     ],
 )
+
+cc_library(
+    name = "random_value",
+    srcs = ["random_value.cc"],
+    hdrs = ["random_value.h"],
+    deps = [
+        ":ir_interpreter",
+        "@com_google_absl//absl/status",
+        "//xls/ir",
+        "//xls/ir:type",
+        "//xls/ir:value",
+    ],
+)

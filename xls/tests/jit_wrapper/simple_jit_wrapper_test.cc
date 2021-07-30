@@ -23,7 +23,9 @@
 namespace xls {
 namespace {
 
-using xls::status_testing::IsOkAndHolds;
+using status_testing::IsOkAndHolds;
+using status_testing::StatusIs;
+using ::testing::HasSubstr;
 
 TEST(SimpleJitWrapperTest, InvokeIdentity) {
   constexpr float kInput = 1.0;
@@ -57,11 +59,11 @@ TEST(SimpleJitWrapperTest, FailOn42) {
   EXPECT_THAT(f->Run(1), IsOkAndHolds(1));
   EXPECT_THAT(f->Run(Value(UBits(1, 32))), IsOkAndHolds(Value(UBits(1, 32))));
 
-  // TODO(https://github.com/google/xls/issues/232): 2021-04-21 When DSL
-  // translates `fail!()` to IR as an assert op this will become an error
-  // status.
-  EXPECT_THAT(f->Run(42), IsOkAndHolds(42));
-  EXPECT_THAT(f->Run(Value(UBits(42, 32))), IsOkAndHolds(Value(UBits(42, 32))));
+  EXPECT_THAT(f->Run(42), StatusIs(absl::StatusCode::kAborted,
+                                   HasSubstr("Assertion failure via fail!")));
+  EXPECT_THAT(f->Run(Value(UBits(42, 32))),
+              StatusIs(absl::StatusCode::kAborted,
+                       HasSubstr("Assertion failure via fail!")));
 }
 
 }  // namespace

@@ -40,7 +40,6 @@ namespace {
 
 constexpr ConvertOptions kFailNoPos = {
     .emit_positions = false,
-    .emit_fail_as_assert = true,
 };
 
 void ExpectIr(absl::string_view got, absl::string_view test_name) {

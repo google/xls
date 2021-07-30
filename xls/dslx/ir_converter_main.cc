@@ -36,10 +36,7 @@ ABSL_FLAG(
     "Package name to use for output (required when multiple input .x files "
     "are given).");
 
-// TODO(https://github.com/google/xls/issues/232): 2021-04-28 Make "true" the
-// default, requires us to wrap up entry points so they don't need the "implicit
-// token" calling convention.
-ABSL_FLAG(bool, emit_fail_as_assert, false,
+ABSL_FLAG(bool, emit_fail_as_assert, true,
           "Feature flag for emitting fail!() in the DSL as an assert IR op.");
 
 namespace xls::dslx {
