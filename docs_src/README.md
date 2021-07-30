@@ -211,6 +211,7 @@ project, see our
 *   [Eric Astor](https://github.com/ericastor)
 *   [Felix Zhu](https://github.com/felixzhuologist)
 *   [Hans Montero](https://github.com/hmontero1205)
+*   [Johan Euphrosine](https://github.com/proppy)
 *   [Jonathan Bailey](https://github.com/jbaileyhandle)
 *   [Julian Viera](https://github.com/julianviera99)
 *   [Kevin Harlley](https://github.com/kevineharlley)
