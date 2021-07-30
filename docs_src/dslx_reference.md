@@ -397,9 +397,9 @@ fn test_tuple_access() {
 }
 ```
 
-Tuples can be "destructured", similarly to how pattern matching works in
-`match` expressions, which provides a convenient syntax to name elements of a
-tuple for subsequent use. See `a` and `b` in the following:
+Tuples can be "destructured", similarly to how pattern matching works in `match`
+expressions, which provides a convenient syntax to name elements of a tuple for
+subsequent use. See `a` and `b` in the following:
 
 ```dslx-snippet
 #![test]
@@ -1043,6 +1043,51 @@ fn test_match_nested() {
 ```
 
 ## Expressions
+
+### Literals
+
+DSLX supports construction of literals using the syntax `Type:Value`. For
+example `u16:1` is a 16-wide bit array with its least significant bit set to
+one. Similarly `s8:12` is an 8-wide bit array with its least significant four
+bits set to `1100`.
+
+DSLX supports initializing using binary, hex or decimal syntax. So
+
+```dslx
+#![test]
+fn test_literal_initialization() {
+  let _ = assert_eq(u8:12, u8:0b00001100);
+  let _ = assert_eq(u8:12, u8:0x0c);
+  ()
+}
+```
+
+When constructing literals DSLX will trigger an error if the constant will not
+fit in a bit array of the annotated sized, so for example trying to construct
+the literal `u8:256` will trigger an error of the form:
+
+`TypeInferenceError: uN[8] Value '256' does not fit in the bitwidth of a uN[8]
+(8)`
+
+But what about `s8:128` ? This is a valid literal, even though a signed 8-bit
+integer cannot represent it. The following code offers a clue.
+
+```dslx
+#![test]
+fn test_signed_literal_initialization() {
+  let _ = assert_eq(s8:128, s8:-128);
+  let _ = assert_eq(s8:128, s8:0b10000000);
+  ()
+}
+```
+
+What is happening here is that, 128 is being used as a bit pattern rather than
+as the number 128 to initialize the literal. It is only when the bit pattern
+cannot fit in the width of the iteral that an error is triggered.
+
+**Note that behaviour is different from Rust, where it will trigger an error,
+and the fact that DSLX considers this valid may change in the
+[future](https://github.com/google/xls/issues/471).**
 
 ### Unary Expressions
 
@@ -1711,7 +1756,6 @@ name of the function must be referred to directly.
 
 Note: Novel higher order functions (e.g. if a user wanted to write their own
 `map`) cannot currently be written in user-level DSL code.
-
 
 ### `clz`, `ctz`
 
