@@ -2253,3 +2253,15 @@ xls_dslx_test(
     name = "map_parametric_with_default_dslx_test",
     dep = ":map_parametric_with_default_dslx_module",
 )
+
+# -- gate
+
+xls_dslx_module_library(
+    name = "gate_dslx_module",
+    src = "gate.x",
+)
+
+xls_dslx_test(
+    name = "gate_dslx_test",
+    dep = ":gate_dslx_module",
+)

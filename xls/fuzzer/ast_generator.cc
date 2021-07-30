@@ -524,6 +524,16 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayUpdate(Env* env) {
       array.type};
 }
 
+absl::StatusOr<TypedExpr> AstGenerator::GenerateGate(Env* env) {
+  XLS_RET_CHECK(env != nullptr);
+  XLS_ASSIGN_OR_RETURN(TypedExpr p, GenerateCompare(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr value, ChooseEnvValueBits(env));
+  return TypedExpr{
+      module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("gate!"),
+                                std::vector<Expr*>{p.expr, value.expr}),
+      value.type};
+}
+
 absl::StatusOr<TypedExpr> AstGenerator::GenerateConcat(Env* env) {
   XLS_RET_CHECK(env != nullptr);
   if (EnvContainsArray(*env) && RandomBool()) {
@@ -1017,6 +1027,7 @@ enum OpChoice {
   kConcat,
   kCountedFor,
   kLogical,
+  kGate,
   kMap,
   kNumber,
   kOneHotSelectBuiltin,
@@ -1059,6 +1070,8 @@ int OpProbability(OpChoice op) {
     case kConcat:
       return 5;
     case kCountedFor:
+      return 1;
+    case kGate:
       return 1;
     case kLogical:
       return 3;
@@ -1151,6 +1164,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
         break;
       case kLogical:
         generated = GenerateLogicalOp(env);
+        break;
+      case kGate:
+        if (!options_.emit_gate) {
+          continue;
+        }
+        generated = GenerateGate(env);
         break;
       case kMap:
         generated = GenerateMap(call_depth, env);

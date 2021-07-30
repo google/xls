@@ -64,6 +64,16 @@ class ArgChecker {
     return *this;
   }
 
+  ArgChecker& ubits(int64_t argno, int64_t bit_count) {
+    const InterpValue& arg = args_[argno];
+    if (!arg.IsUBits() || arg.GetBitCount().value() != bit_count) {
+      status_.Update(absl::InvalidArgumentError(absl::StrFormat(
+          "Expect argument %d to %s to be uN[%d]; got: %s", argno, name_,
+          bit_count, TagToString(args_[argno].tag()))));
+    }
+    return *this;
+  }
+
   const absl::Status& status() const { return status_; }
 
  private:
@@ -200,8 +210,21 @@ absl::StatusOr<InterpValue> BuiltinFail(
 absl::StatusOr<InterpValue> BuiltinCover(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
     const SymbolicBindings* symbolic_bindings) {
-  XLS_RETURN_IF_ERROR(ArgChecker("cover!", args).size(2).status());
+  XLS_RETURN_IF_ERROR(ArgChecker("cover!", args).size(2).array(0).status());
   return InterpValue::MakeUnit();
+}
+
+absl::StatusOr<InterpValue> BuiltinGate(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings) {
+  XLS_RETURN_IF_ERROR(
+      ArgChecker("gate!", args).size(2).ubits(0, 1).bits(1).status());
+  const InterpValue& p = args[0];
+  const InterpValue& value = args[1];
+  if (p.IsFalse()) {
+    return value;
+  }
+  return InterpValue::MakeBits(value.tag(), Bits(value.GetBitCount().value()));
 }
 
 absl::StatusOr<InterpValue> BuiltinUpdate(

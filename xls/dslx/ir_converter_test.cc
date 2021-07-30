@@ -1378,6 +1378,18 @@ fn main(x: u32, y: u32) {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, ConvertGateOp) {
+  const std::string kProgram = R"(
+fn main(p: bool, x: u32) -> u32 {
+  gate!(p, x)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram, kFailNoPos));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, PublicFnGetsTokenWrapper) {
   const std::string kProgram = R"(
 fn callee_callee(x:u32) -> u32 {

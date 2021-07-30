@@ -26,16 +26,28 @@ class RunFuzzSmokeTest(absltest.TestCase):
   KWARGS = {
       'calls_per_sample': 4,
       'save_temps': False,
-      'sample_count': 8,
-      'codegen': True
+      'sample_count': 32,
   }
 
-  def _get_options(self) -> ast_generator.AstGeneratorOptions:
-    return ast_generator.AstGeneratorOptions(disallow_divide=True)
+  def _get_options(self, codegen: bool) -> ast_generator.AstGeneratorOptions:
+    # TODO(https://github.com/google/xls/issues/469) Can't emit gate operation
+    # with the current fuzzer codegen strategy.
+    return ast_generator.AstGeneratorOptions(
+        disallow_divide=True, emit_gate=not codegen)
 
-  def test_a_few_samples(self):
+  def test_codegen(self):
+    kwargs = dict(self.KWARGS)
+    kwargs['codegen'] = True
     run_fuzz.run_fuzz(
-        ast_generator.RngState(0), self._get_options(), **self.KWARGS)
+        ast_generator.RngState(0), self._get_options(kwargs['codegen']),
+        **kwargs)
+
+  def test_no_codegen(self):
+    kwargs = dict(self.KWARGS)
+    kwargs['codegen'] = False
+    run_fuzz.run_fuzz(
+        ast_generator.RngState(0), self._get_options(kwargs['codegen']),
+        **kwargs)
 
 
 if __name__ == '__main__':

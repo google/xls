@@ -62,6 +62,11 @@ absl::StatusOr<InterpValue> BuiltinCover(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
     const SymbolicBindings* symbolic_bindings);
 
+// Implements 'gate!' builtin function.
+absl::StatusOr<InterpValue> BuiltinGate(
+    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
+    const SymbolicBindings* symbolic_bindings);
+
 // Implements 'update' builtin function.
 absl::StatusOr<InterpValue> BuiltinUpdate(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,

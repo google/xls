@@ -2019,12 +2019,12 @@ not insert fatal-error-indicating hardware.
 
 ### cover!
 
-NOTE: This section describes work-in-progress functionality. Currently, `cover!`
-has no effect. Progress is being tracked in
-[#436](https://github.com/google/xls/issues/436).
+NOTE: Currently, `cover!` has no effect in RTL simulators supported in XLS open
+source (i.e. iverilog). See
+[google/xls#436](https://github.com/google/xls/issues/436).
 
-The `cover!` builtin tracks how often some condition is satisfied. Its signature
-is:
+The `cover!` builtin tracks how often some condition is satisfied. It desugars
+into SystemVerilog cover points. Its signature is:
 
 ```
 cover!(<name>, <condition>);
@@ -2037,6 +2037,29 @@ Coverpoints can be used to give an indication of code "coverage", i.e. to see
 what paths of a design are exercised in practice. The name of the coverpoint
 must begin with either a letter or underscore, and its remainder must consist of
 letters, digits, underscores, or dollar signs.
+
+### gate!
+
+NOTE: Currently, `gate!` is work-in-progress and does not yet support code
+generation to Verilog (via `codegen_main`); see:
+[google/xls#469](https://github.com/google/xls/issues/469).
+
+The `gate!` builtin is used for operand gating, of the form:
+
+```
+let gated_value = gate!(<should_gate>, <value>);
+```
+
+This will generally use a special Verilog macro to avoid the underlying
+synthesis tool doing boolean optimization, and will turn `gated_value` to `0`
+when the predicate `should_gate` is `true`. This can be used in attempts to
+manually avoid toggles based on the gating predicate.
+
+It is expected that XLS will grow facilities to inserting gating ops
+automatically, but manual user insertion is a practical step in this direction.
+Additionally, it is expected that if, in the resulting Verilog, gating occurs on
+a value that originates from a flip flop, the operand gating may be promoted to
+register-based load-enable gating.
 
 ## Testing and Debugging
 

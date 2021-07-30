@@ -1890,6 +1890,7 @@ static const absl::flat_hash_set<std::string>& GetParametricBuiltinNames() {
       "ctz",
       "concat",
       "fail!",
+      "gate!",
       "map",
       "one_hot",
       "one_hot_sel",

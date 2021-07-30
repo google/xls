@@ -144,7 +144,8 @@ def main(argv):
       emit_loops=FLAGS.emit_loops,
       short_samples=FLAGS.short_samples,
       max_width_bits_types=FLAGS.max_width_bits_types,
-      max_width_aggregate_types=FLAGS.max_width_aggregate_types)
+      max_width_aggregate_types=FLAGS.max_width_aggregate_types,
+      emit_gate=not FLAGS.codegen)
 
   default_sample_options = sample.SampleOptions(
       convert_to_ir=True,

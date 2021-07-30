@@ -262,6 +262,7 @@ absl::StatusOr<InterpValue> Interpreter::RunBuiltin(
     CASE(Ctz);
     CASE(Enumerate);
     CASE(Fail);
+    CASE(Gate);
     CASE(OneHot);
     CASE(OneHotSel);
     CASE(Range);

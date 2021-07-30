@@ -347,6 +347,10 @@ class FunctionConverter {
   // Handles the cover!() builtin invocation.
   absl::Status HandleCoverBuiltin(Invocation* node, BValue condition);
 
+  // Handles the gate!() builtin invocation.
+  absl::Status HandleGateBuiltin(Invocation* node, BValue condition,
+                                 BValue value);
+
   // Handles an arm of a match expression.
   absl::StatusOr<BValue> HandleMatcher(NameDefTree* matcher,
                                        absl::Span<const int64_t> index,
@@ -382,6 +386,7 @@ class FunctionConverter {
   absl::Status HandleBuiltinBitSliceUpdate(Invocation* node);
   absl::Status HandleBuiltinClz(Invocation* node);
   absl::Status HandleBuiltinCtz(Invocation* node);
+  absl::Status HandleBuiltinGate(Invocation* node);
   absl::Status HandleBuiltinOneHot(Invocation* node);
   absl::Status HandleBuiltinOneHotSel(Invocation* node);
   absl::Status HandleBuiltinOrReduce(Invocation* node);
@@ -1912,6 +1917,7 @@ absl::Status FunctionConverter::HandleInvocation(Invocation* node) {
       map = {
           {"clz", &FunctionConverter::HandleBuiltinClz},
           {"ctz", &FunctionConverter::HandleBuiltinCtz},
+          {"gate!", &FunctionConverter::HandleBuiltinGate},
           {"signex", &FunctionConverter::HandleBuiltinSignex},
           {"one_hot", &FunctionConverter::HandleBuiltinOneHot},
           {"one_hot_sel", &FunctionConverter::HandleBuiltinOneHotSel},
@@ -2519,6 +2525,16 @@ absl::Status FunctionConverter::HandleBuiltinCtz(Invocation* node) {
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   Def(node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->Ctz(arg, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinGate(Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 2);
+  XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(BValue value, Use(node->args()[1]));
+  Def(node, [&](absl::optional<SourceLocation> loc) {
+    return function_builder_->Gate(predicate, value, loc);
   });
   return absl::OkStatus();
 }

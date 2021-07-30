@@ -67,6 +67,9 @@ struct AstGeneratorOptions {
   // TODO(https://github.com/google/xls/issues/346): 2021-03-19 Remove this
   // option when pipeline generator handles empty tuples properly.
   bool generate_empty_tuples = true;
+
+  // Whether to emit `gate!()` builtin calls.
+  bool emit_gate = true;
 };
 
 // Type that generates a random module for use in fuzz testing; i.e.
@@ -279,6 +282,9 @@ class AstGenerator {
 
   // Returns an array update operation using values in "env".
   absl::StatusOr<TypedExpr> GenerateArrayUpdate(Env* env);
+
+  // Return a `gate!()` invocation using values in "env".
+  absl::StatusOr<TypedExpr> GenerateGate(Env* env);
 
   // Returns a (potentially vacuous) concatenate operation of values in "env".
   absl::StatusOr<TypedExpr> GenerateConcat(Env* env);

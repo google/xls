@@ -976,7 +976,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
     }
     case Op::kGate: {
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
-      bvalue = fb->Gate(operands[0], operands[1], *loc);
+      bvalue = fb->Gate(operands[0], operands[1], *loc, node_name);
       break;
     }
     default:
@@ -1030,7 +1030,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
       // Otherwise, the output_name is a non-generated name. Verify a name
       // was assigned to the op. OK to XLS_RET_CHECK as a mismatch here is an
       // error in the parser not in the input file.
-      XLS_RET_CHECK(node->HasAssignedName());
+      XLS_RET_CHECK(node->HasAssignedName()) << node->ToString();
       // Also set the ID to the attribute ID (if given).
       if (id_attribute->has_value()) {
         node->SetId(id_attribute->value());

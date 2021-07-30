@@ -19,6 +19,7 @@ import os
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 from typing import Tuple, Text, Optional
@@ -248,8 +249,8 @@ def run_fuzz(
     if return_samples:
       samples.append(smp)
 
-    termcolor.cprint('=== Sample {}'.format(i), color='yellow')
-    print(smp.input_text)
+    termcolor.cprint('=== Sample {}'.format(i), color='yellow', file=sys.stderr)
+    print(smp.to_crasher('<sample {}>'.format(i)), file=sys.stderr)
 
     sample_dir = tempfile.mkdtemp('run_fuzz_')
     run_sample(smp, sample_dir)

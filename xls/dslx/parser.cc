@@ -34,6 +34,7 @@ const std::vector<absl::string_view>& GetParametricBuiltinNames() {
                                               "ctz",
                                               "concat",
                                               "fail!",
+                                              "gate!",
                                               "map",
                                               "one_hot",
                                               "one_hot_sel",

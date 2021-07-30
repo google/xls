@@ -215,7 +215,7 @@ class SampleRunner:
       self._write_file('exception.txt', msg)
       raise SampleError(msg)
 
-  def _run_command(self, desc: Text, args: Sequence[Text]):
+  def _run_command(self, desc: Text, args: Sequence[Text]) -> str:
     """Runs the given commands.
 
     Args:

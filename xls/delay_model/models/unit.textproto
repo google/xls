@@ -29,6 +29,7 @@ op_models { op: "kDecode" estimator { fixed: 1 } }
 op_models { op: "kDynamicBitSlice" estimator { fixed: 1 } }
 op_models { op: "kEncode" estimator { fixed: 1 } }
 op_models { op: "kEq" estimator { fixed: 1 } }
+op_models { op: "kGate" estimator { fixed: 1 } }
 op_models { op: "kIdentity" estimator { fixed: 1 } }
 op_models { op: "kLiteral" estimator { fixed: 1 } }
 op_models { op: "kArrayIndex" estimator { fixed: 1 } }

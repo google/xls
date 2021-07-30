@@ -213,6 +213,7 @@ const absl::flat_hash_map<std::string, std::string>& GetParametricBuiltins() {
       {"concat", "(uN[M], uN[N]) -> uN[M+N]"},
       {"cover!", "(u8[N], u1) -> ()"},
       {"fail!", "(T) -> T"},
+      {"gate!", "(u1, T) -> T"},
       {"map", "(T[N], (T) -> U) -> U[N]"},
       {"one_hot", "(uN[N], u1) -> uN[N+1]"},
       {"one_hot_sel", "(xN[N], xN[M][N]) -> xN[M]"},
@@ -454,6 +455,13 @@ static void PopulateSignatureToLambdaMap(
         Checker(data.arg_types, data.name, data.span).Len(1).IsUN(0).status());
     return TypeAndBindings{absl::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), BitsType::MakeU1())};
+  };
+  map["(u1, T) -> T"] = [](const SignatureData& data,
+                           DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(
+        Checker(data.arg_types, data.name, data.span).Len(2).IsU1(0).status());
+    return TypeAndBindings{absl::make_unique<FunctionType>(
+        CloneToUnique(data.arg_types), data.arg_types[1]->CloneToUnique())};
   };
   map["(u1, T, T) -> T"] =
       [](const SignatureData& data,

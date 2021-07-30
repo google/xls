@@ -48,9 +48,9 @@ PARSE_IR = runfiles.get_path('xls/tools/parse_ir')
 class RunFuzzTest(parameterized.TestCase):
 
   KWARGS = {
-      'calls_per_sample': 4,
+      'calls_per_sample': 8,
       'save_temps': False,
-      'sample_count': 128,
+      'sample_count': 96,
       'return_samples': True,
       'codegen': True
   }
@@ -60,7 +60,8 @@ class RunFuzzTest(parameterized.TestCase):
     self.KWARGS['codegen'] = FLAGS.codegen
 
   def _get_ast_options(self) -> ast_generator.AstGeneratorOptions:
-    return ast_generator.AstGeneratorOptions(disallow_divide=True)
+    return ast_generator.AstGeneratorOptions(
+        disallow_divide=True, emit_gate=not FLAGS.codegen)
 
   def test_repeatable_within_process(self):
     samples0 = run_fuzz.run_fuzz(
