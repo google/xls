@@ -50,6 +50,7 @@ enum class MyEnum {
   kC = 42,
   kE = 4294967295,
 };
+constexpr int64_t kMyEnumNumElements = 4;
 
 #endif  // FAKE_PATH_H_
 )";
@@ -93,6 +94,7 @@ enum class MyEnum {
   kB = 17,
   kC = 289,
 };
+constexpr int64_t kMyEnumNumElements = 3;
 
 #endif  // FAKE_PATH_H_
 )";
@@ -194,6 +196,11 @@ struct MyStruct {
   uint16_t y;
   uint8_t z;
   int64_t w;
+
+  static constexpr int64_t kXWidth = 32;
+  static constexpr int64_t kYWidth = 15;
+  static constexpr int64_t kZWidth = 8;
+  static constexpr int64_t kWWidth = 63;
 };
 
 #endif  // FAKE_PATH_H_
@@ -401,6 +408,9 @@ struct InnerStruct {
 
   uint32_t x;
   uint16_t y;
+
+  static constexpr int64_t kXWidth = 32;
+  static constexpr int64_t kYWidth = 16;
 };
 
 struct OuterStruct {
@@ -413,6 +423,8 @@ struct OuterStruct {
   uint32_t x;
   InnerStruct a;
   InnerStruct b;
+
+  static constexpr int64_t kXWidth = 32;
 };
 
 #endif  // FAKE_PATH_H_
@@ -556,6 +568,9 @@ struct InnerStruct {
 
   uint32_t x;
   uint16_t y;
+
+  static constexpr int64_t kXWidth = 32;
+  static constexpr int64_t kYWidth = 16;
 };
 
 struct MiddleStruct {
@@ -567,6 +582,8 @@ struct MiddleStruct {
 
   uint64_t z;
   InnerStruct a;
+
+  static constexpr int64_t kZWidth = 48;
 };
 
 struct OtherMiddleStruct {
@@ -578,6 +595,8 @@ struct OtherMiddleStruct {
 
   InnerStruct b;
   uint64_t w;
+
+  static constexpr int64_t kWWidth = 64;
 };
 
 struct OuterStruct {
@@ -591,6 +610,8 @@ struct OuterStruct {
   MiddleStruct b;
   OtherMiddleStruct c;
   uint8_t v;
+
+  static constexpr int64_t kVWidth = 8;
 };
 
 #endif  // FAKE_PATH_H_

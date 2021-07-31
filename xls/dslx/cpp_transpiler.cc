@@ -74,7 +74,8 @@ absl::StatusOr<Sources> TranspileColonRef(const TranspileData& xpile_data,
 
 absl::StatusOr<Sources> TranspileEnumDef(const TranspileData& xpile_data,
                                          const EnumDef* enum_def) {
-  constexpr absl::string_view kTemplate = "enum class %s {\n%s\n};";
+  constexpr absl::string_view kTemplate =
+      "enum class %s {\n%s\n};\nconstexpr int64_t k%sNumElements = %d;";
   constexpr absl::string_view kMemberTemplate = "  %s = %s,";
 
   std::vector<std::string> members;
@@ -98,8 +99,13 @@ absl::StatusOr<Sources> TranspileEnumDef(const TranspileData& xpile_data,
           enum_def->identifier(), member.name_def->identifier(), bit_count));
     }
 
-    std::string identifier = absl::StrCat(
-        std::string(1, 'k'), CheckedCamelize(member.name_def->identifier()));
+    std::string identifier;
+    if (member.name_def->identifier()[0] != 'k') {
+      identifier = absl::StrCat(std::string(1, 'k'),
+                                CheckedCamelize(member.name_def->identifier()));
+    } else {
+      identifier = member.name_def->identifier();
+    }
 
     std::string val_str;
     if (value.IsSigned()) {
@@ -112,9 +118,10 @@ absl::StatusOr<Sources> TranspileEnumDef(const TranspileData& xpile_data,
     members.push_back(absl::StrFormat(kMemberTemplate, identifier, val_str));
   }
 
+  std::string camelized_id = CheckedCamelize(enum_def->identifier());
   return Sources{
-      absl::StrFormat(kTemplate, CheckedCamelize(enum_def->identifier()),
-                      absl::StrJoin(members, "\n")),
+      absl::StrFormat(kTemplate, camelized_id, absl::StrJoin(members, "\n"),
+                      camelized_id, members.size()),
       ""};
 }
 
@@ -494,6 +501,29 @@ $1
                           absl::StrJoin(members, "\n"));
 }
 
+absl::StatusOr<absl::optional<int64_t>> GetFieldWidth(
+    const TranspileData& xpile_data, const TypeAnnotation* type) {
+  XLS_ASSIGN_OR_RETURN(absl::optional<BuiltinType> as_builtin_type,
+                       GetAsBuiltinType(xpile_data.module, xpile_data.type_info,
+                                        xpile_data.import_data, type));
+  if (as_builtin_type.has_value()) {
+    return GetBuiltinTypeBitCount(as_builtin_type.value());
+  } else if (auto* typeref_type =
+                 dynamic_cast<const TypeRefTypeAnnotation*>(type)) {
+    TypeDefinition type_definition =
+        typeref_type->type_ref()->type_definition();
+    if (absl::holds_alternative<TypeDef*>(type_definition)) {
+      return GetFieldWidth(
+          xpile_data, absl::get<TypeDef*>(type_definition)->type_annotation());
+    } else if (absl::holds_alternative<EnumDef*>(type_definition)) {
+      EnumDef* enum_def = absl::get<EnumDef*>(type_definition);
+      return GetFieldWidth(xpile_data, enum_def->type_annotation());
+    }
+  }
+
+  return absl::nullopt;
+}
+
 // Should performance become an issue, optimizing struct layouts by reordering
 // (packing?) struct members could be considered.
 absl::StatusOr<std::string> TranspileStructDefHeader(
@@ -505,11 +535,12 @@ absl::StatusOr<std::string> TranspileStructDefHeader(
 
   friend std::ostream& operator<<(std::ostream& os, const $0& data);
 
-$1
+$1$2
 };)";
 
   std::string struct_body;
   std::vector<std::string> member_decls;
+  std::vector<std::string> scalar_widths;
   for (int i = 0; i < struct_def->members().size(); i++) {
     std::string member_name = struct_def->members()[i].first->identifier();
     TypeAnnotation* type = struct_def->members()[i].second;
@@ -525,11 +556,23 @@ $1
     }
     member_decls.push_back(
         absl::StrFormat("  %s %s;", CheckedCamelize(type_str), member_name));
+
+    XLS_ASSIGN_OR_RETURN(absl::optional<int64_t> width,
+                         GetFieldWidth(xpile_data, type));
+    if (width.has_value()) {
+      scalar_widths.push_back(
+          absl::StrFormat("  static constexpr int64_t k%sWidth = %d;",
+                          CheckedCamelize(member_name), width.value()));
+    }
   }
 
+  std::string width_block = absl::StrJoin(scalar_widths, "\n");
+  if (!width_block.empty()) {
+    width_block = "\n\n" + width_block;
+  }
   return absl::Substitute(kStructTemplate,
                           CheckedCamelize(struct_def->identifier()),
-                          absl::StrJoin(member_decls, "\n"));
+                          absl::StrJoin(member_decls, "\n"), width_block);
 }
 
 absl::StatusOr<std::string> TranspileStructDefBody(
