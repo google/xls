@@ -328,10 +328,14 @@ absl::StatusOr<std::string> SetStructMemberFromValue(
           absl::StrCat(object_name, ".", field_name), enum_def->identifier(),
           enum_def->type_annotation(), indent_level);
     } else if (absl::holds_alternative<StructDef*>(type_definition)) {
-      return absl::StrFormat(
-          "%sXLS_ASSIGN_OR_RETURN(%s.%s, %s::FromValue(elements[%d]));",
-          std::string(indent_level * 2, ' '), object_name, field_name,
-          CheckedCamelize(type->ToString()), element_index);
+      return absl::Substitute(
+          "$0auto $1_or = $2::FromValue(elements[$3]);\n"
+          "$0if (!$1_or.ok()) {\n"
+          "$0  return $1_or.status();\n"
+          "$0}\n"
+          "$0$4.$1 = $1_or.value();\n",
+          std::string(indent_level * 2, ' '), field_name,
+          CheckedCamelize(type->ToString()), element_index, object_name);
     }
   }
 
@@ -640,7 +644,6 @@ $2$1$3
 #include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
-#include "xls/common/status/status_macros.h"
 
 %s
 )";
@@ -663,7 +666,7 @@ $2$1$3
   while (!current_path.empty()) {
     std::string chunk =
         absl::AsciiStrToUpper(std::string(current_path.filename()));
-    chunk = absl::StrReplaceAll(chunk, {{".", "_"}});
+    chunk = absl::StrReplaceAll(chunk, {{".", "_"}, {"-", "_"}});
     header_guard = chunk + "_" + header_guard;
     current_path = current_path.parent_path();
   }

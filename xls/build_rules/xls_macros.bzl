@@ -91,3 +91,44 @@ def xls_dslx_verilog_macro(
         enable_generated_file = enable_generated_file,
         enable_presubmit_generated_file = enable_presubmit_generated_file,
     )
+
+def xls_dslx_cpp_type_library(
+        name,
+        src):
+    """Creates a cc_library target for transpiled DSLX types.
+
+    This macros invokes the DSLX-to-C++ transpiler and compiles the result as
+    a cc_library.
+
+    Args:
+      name: The name of the eventual cc_library.
+      src: The DSLX file whose types to compile as C++.
+    """
+    native.genrule(
+        name = name + "_generate_sources",
+        srcs = [src],
+        outs = [
+            name + ".h",
+            name + ".cc",
+        ],
+        tools = [
+            "//xls/dslx:cpp_transpiler_main",
+        ],
+        cmd = "$(location //xls/dslx:cpp_transpiler_main) " +
+              "--output_header_path=$(@D)/{}.h ".format(name) +
+              "--output_source_path=$(@D)/{}.cc ".format(name) +
+              "$(location {})".format(src),
+    )
+
+    native.cc_library(
+        name = name,
+        srcs = [":" + name + ".cc"],
+        hdrs = [":" + name + ".h"],
+        deps = [
+            "@com_google_absl//absl/base:core_headers",
+            "@com_google_absl//absl/status:status",
+            "@com_google_absl//absl/status:statusor",
+            "@com_google_absl//absl/types:span",
+            "//xls/public:value",
+        ],
+    )

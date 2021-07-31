@@ -207,7 +207,6 @@ struct MyStruct {
 #include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
-#include "xls/common/status/status_macros.h"
 
 absl::StatusOr<MyStruct> MyStruct::FromValue(const xls::Value& value) {
   absl::Span<const xls::Value> elements = value.elements();
@@ -301,7 +300,6 @@ struct MyStruct {
 #include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
-#include "xls/common/status/status_macros.h"
 
 absl::StatusOr<MyStruct> MyStruct::FromValue(const xls::Value& value) {
   absl::Span<const xls::Value> elements = value.elements();
@@ -427,7 +425,6 @@ struct OuterStruct {
 #include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
-#include "xls/common/status/status_macros.h"
 
 absl::StatusOr<InnerStruct> InnerStruct::FromValue(const xls::Value& value) {
   absl::Span<const xls::Value> elements = value.elements();
@@ -470,8 +467,18 @@ absl::StatusOr<OuterStruct> OuterStruct::FromValue(const xls::Value& value) {
 
   OuterStruct result;
   result.x = elements[0].bits().ToUint64().value();
-  XLS_ASSIGN_OR_RETURN(result.a, InnerStruct::FromValue(elements[1]));
-  XLS_ASSIGN_OR_RETURN(result.b, InnerStruct::FromValue(elements[2]));
+  auto a_or = InnerStruct::FromValue(elements[1]);
+  if (!a_or.ok()) {
+    return a_or.status();
+  }
+  result.a = a_or.value();
+
+  auto b_or = InnerStruct::FromValue(elements[2]);
+  if (!b_or.ok()) {
+    return b_or.status();
+  }
+  result.b = b_or.value();
+
   return result;
 }
 
@@ -597,7 +604,6 @@ struct OuterStruct {
 #include "absl/base/macros.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
-#include "xls/common/status/status_macros.h"
 
 absl::StatusOr<InnerStruct> InnerStruct::FromValue(const xls::Value& value) {
   absl::Span<const xls::Value> elements = value.elements();
@@ -640,7 +646,12 @@ absl::StatusOr<MiddleStruct> MiddleStruct::FromValue(const xls::Value& value) {
 
   MiddleStruct result;
   result.z = elements[0].bits().ToUint64().value();
-  XLS_ASSIGN_OR_RETURN(result.a, InnerStruct::FromValue(elements[1]));
+  auto a_or = InnerStruct::FromValue(elements[1]);
+  if (!a_or.ok()) {
+    return a_or.status();
+  }
+  result.a = a_or.value();
+
   return result;
 }
 
@@ -670,7 +681,12 @@ absl::StatusOr<OtherMiddleStruct> OtherMiddleStruct::FromValue(const xls::Value&
   }
 
   OtherMiddleStruct result;
-  XLS_ASSIGN_OR_RETURN(result.b, InnerStruct::FromValue(elements[0]));
+  auto b_or = InnerStruct::FromValue(elements[0]);
+  if (!b_or.ok()) {
+    return b_or.status();
+  }
+  result.b = b_or.value();
+
   result.w = elements[1].bits().ToUint64().value();
   return result;
 }
@@ -701,9 +717,24 @@ absl::StatusOr<OuterStruct> OuterStruct::FromValue(const xls::Value& value) {
   }
 
   OuterStruct result;
-  XLS_ASSIGN_OR_RETURN(result.a, InnerStruct::FromValue(elements[0]));
-  XLS_ASSIGN_OR_RETURN(result.b, MiddleStruct::FromValue(elements[1]));
-  XLS_ASSIGN_OR_RETURN(result.c, OtherMiddleStruct::FromValue(elements[2]));
+  auto a_or = InnerStruct::FromValue(elements[0]);
+  if (!a_or.ok()) {
+    return a_or.status();
+  }
+  result.a = a_or.value();
+
+  auto b_or = MiddleStruct::FromValue(elements[1]);
+  if (!b_or.ok()) {
+    return b_or.status();
+  }
+  result.b = b_or.value();
+
+  auto c_or = OtherMiddleStruct::FromValue(elements[2]);
+  if (!c_or.ok()) {
+    return c_or.status();
+  }
+  result.c = c_or.value();
+
   result.v = elements[3].bits().ToUint64().value();
   return result;
 }

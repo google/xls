@@ -60,6 +60,7 @@ load(
 )
 load(
     "//xls/build_rules:xls_macros.bzl",
+    _xls_dslx_cpp_type_library = "xls_dslx_cpp_type_library",
     _xls_dslx_verilog_macro = "xls_dslx_verilog_macro",
 )
 
@@ -90,3 +91,4 @@ xls_dslx_opt_ir_test = _xls_dslx_opt_ir_test
 # XLS Macros
 xls_ir_verilog_macro = _xls_ir_verilog_macro
 xls_dslx_verilog_macro = _xls_dslx_verilog_macro
+xls_dslx_cpp_type_library = _xls_dslx_cpp_type_library

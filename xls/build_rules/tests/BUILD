@@ -17,6 +17,7 @@ load(
     "cc_xls_ir_jit_wrapper",
     "get_mangled_ir_symbol",
     "xls_benchmark_ir",
+    "xls_dslx_cpp_type_library",
     "xls_dslx_ir",
     "xls_dslx_library",
     "xls_dslx_module_library",
@@ -555,6 +556,12 @@ xls_dslx_verilog_macro(
         "pipeline_stages": "1",
     },
     dep = ":simple_example_five_dslx_module",
+)
+
+# Verifies that xls_dslx_cpp_type_library macros work to (some) extent.
+xls_dslx_cpp_type_library(
+    name = "type_definitions_types_cpp",
+    src = "type_definitions.x",
 )
 
 ################################################################################
