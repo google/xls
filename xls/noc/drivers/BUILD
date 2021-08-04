@@ -69,3 +69,36 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "sample_experiments",
+    srcs = ["sample_experiments.cc"],
+    hdrs = ["sample_experiments.h"],
+    deps = [
+        ":experiment",
+        ":experiment_factory",
+        "@com_google_absl//absl/status",
+        "//xls/noc/config:network_config_cc_proto",
+        "//xls/noc/config:network_config_proto_builder",
+        "//xls/noc/drivers/samples:simple_vc_experiment",
+        "//xls/noc/simulation:common",
+        "//xls/noc/simulation:network_graph",
+        "//xls/noc/simulation:network_graph_builder",
+        "//xls/noc/simulation:parameters",
+    ],
+)
+
+cc_test(
+    name = "sample_experiments_test",
+    srcs = ["sample_experiments_test.cc"],
+    deps = [
+        ":experiment",
+        ":experiment_factory",
+        ":sample_experiments",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
