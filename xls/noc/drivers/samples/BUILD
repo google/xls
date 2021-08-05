@@ -34,3 +34,21 @@ cc_library(
         "//xls/noc/simulation:parameters",
     ],
 )
+
+cc_library(
+    name = "aggregate_tree_experiment",
+    srcs = ["aggregate_tree_experiment.cc"],
+    hdrs = ["aggregate_tree_experiment.h"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/noc/config:network_config_cc_proto",
+        "//xls/noc/config:network_config_proto_builder",
+        "//xls/noc/drivers:experiment",
+        "//xls/noc/drivers:experiment_factory",
+        "//xls/noc/simulation:common",
+        "//xls/noc/simulation:network_graph",
+        "//xls/noc/simulation:network_graph_builder",
+        "//xls/noc/simulation:parameters",
+    ],
+)

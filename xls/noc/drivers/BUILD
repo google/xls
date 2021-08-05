@@ -80,6 +80,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/config:network_config_proto_builder",
+        "//xls/noc/drivers/samples:aggregate_tree_experiment",
         "//xls/noc/drivers/samples:simple_vc_experiment",
         "//xls/noc/simulation:common",
         "//xls/noc/simulation:network_graph",

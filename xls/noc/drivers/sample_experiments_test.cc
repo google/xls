@@ -28,8 +28,8 @@ TEST(SampleExperimentsTest, SimpleVCExperiment) {
   ExperimentFactory experiment_factory;
   XLS_ASSERT_OK(RegisterSampleExperiments(experiment_factory));
 
-  EXPECT_EQ(experiment_factory.ListExperimentTags().size(), 1);
-  EXPECT_EQ(experiment_factory.ListExperimentTags().at(0),
+  EXPECT_EQ(experiment_factory.ListExperimentTags().size(), 2);
+  EXPECT_EQ(experiment_factory.ListExperimentTags().at(1),
             "SimpleVCExperiment");
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -58,7 +58,7 @@ TEST(SampleExperimentsTest, SimpleVCExperiment) {
 
   std::vector<ExperimentMetrics> metrics(4);
   for (int64_t i = 0; i < experiment.GetSweeps().GetStepCount(); ++i) {
-    XLS_LOG(INFO) << absl::StreamFormat("Experiment Step %d", i) << std::endl;
+    XLS_LOG(INFO) << absl::StreamFormat("Experiment Step %d", i);
     XLS_ASSERT_OK_AND_ASSIGN(metrics.at(i), experiment.RunStep(i));
     XLS_EXPECT_OK(metrics.at(i).DebugDump());
   }
@@ -123,6 +123,60 @@ TEST(SampleExperimentsTest, SimpleVCExperiment) {
       metrics.at(3).GetFloatMetric("Sink:RecvPort0:VC:1:TrafficRateInMiBps"));
   EXPECT_EQ(static_cast<int64_t>(ex3_vc0_traffic_rate) / 100, 30);
   EXPECT_EQ(static_cast<int64_t>(ex3_vc1_traffic_rate) / 100, 7);
+}
+
+TEST(SampleExperimentsTest, AggregateTreeTest) {
+  ExperimentFactory experiment_factory;
+  XLS_ASSERT_OK(RegisterSampleExperiments(experiment_factory));
+
+  EXPECT_EQ(experiment_factory.ListExperimentTags().size(), 2);
+  EXPECT_EQ(experiment_factory.ListExperimentTags().at(0),
+            "AggregateTreeExperiment");
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Experiment experiment,
+      experiment_factory.BuildExperiment("AggregateTreeExperiment"));
+
+  TrafficFlowId flow0_id =
+      experiment.GetBaseConfig().GetTrafficConfig().GetTrafficFlowIds().at(0);
+  EXPECT_EQ(experiment.GetBaseConfig()
+                .GetTrafficConfig()
+                .GetTrafficFlow(flow0_id)
+                .GetBandwidthBits(),
+            8l * 1024 * 1024 * 1024);
+
+  int64_t step_count = experiment.GetSweeps().GetStepCount();
+
+  std::vector<ExperimentMetrics> metrics(step_count);
+  for (int64_t i = 0; i < step_count; ++i) {
+    XLS_LOG(INFO) << absl::StreamFormat("Experiment Step %d", i);
+    XLS_ASSERT_OK_AND_ASSIGN(metrics.at(i), experiment.RunStep(i));
+    XLS_EXPECT_OK(metrics.at(i).DebugDump());
+  }
+
+  // Max rate used is 16 flows each at 1GBps.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      double step0_traffic_rate,
+      metrics.at(0).GetFloatMetric("Sink:RecvPort0:VC:0:TrafficRateInMiBps"));
+  EXPECT_EQ(static_cast<int64_t>(step0_traffic_rate) / 1000, 16);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      double step0_flow0_traffic_rate,
+      metrics.at(0).GetFloatMetric("Flow:flow_0:TrafficRateInMiBps"));
+  EXPECT_EQ(static_cast<int64_t>(step0_flow0_traffic_rate) / 100, 10);
+
+  // As we go in the steps, phit width decreases so traffic rate
+  // will either stay the same or decrease
+  int64_t prior_traffic_rate = static_cast<int64_t>(step0_traffic_rate) / 100;
+  for (int64_t i = 1; i < step_count; ++i) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        double traffic_rate,
+        metrics.at(i).GetFloatMetric("Sink:RecvPort0:VC:0:TrafficRateInMiBps"));
+    int64_t next_traffic_rate = static_cast<int64_t>(traffic_rate) / 100;
+
+    EXPECT_GE(prior_traffic_rate, next_traffic_rate);
+    prior_traffic_rate = next_traffic_rate;
+  }
 }
 
 }  // namespace
