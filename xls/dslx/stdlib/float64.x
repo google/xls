@@ -74,8 +74,8 @@ pub fn lte_2(x: F64, y: F64) -> u1 {
   apfloat::lte_2<u32:11, u32:52>(x, y)
 }
 
-pub fn normalize(sign:u1, exp: u11, sfd_with_hidden: u53) -> F64 {
-  apfloat::normalize<u32:11, u32:52>(sign, exp, sfd_with_hidden)
+pub fn normalize(sign:u1, exp: u11, fraction_with_hidden: u53) -> F64 {
+  apfloat::normalize<u32:11, u32:52>(sign, exp, fraction_with_hidden)
 }
 
 pub fn tag(f: F64) -> FloatTag {
@@ -85,22 +85,22 @@ pub fn tag(f: F64) -> FloatTag {
 #![test]
 fn normalize_test() {
   let expected = F64 {
-      sign: u1:0, bexp: u11:0x2, sfd: u52:0xf_fffe_dcba_0000 };
+      sign: u1:0, bexp: u11:0x2, fraction: u52:0xf_fffe_dcba_0000 };
   let actual = normalize(u1:0, u11:0x12, u53:0x1f_fffe_dcba);
   let _ = assert_eq(expected, actual);
 
   let expected = F64 {
-      sign: u1:0, bexp: u11:0x0, sfd: u52:0x0 };
+      sign: u1:0, bexp: u11:0x0, fraction: u52:0x0 };
   let actual = normalize(u1:0, u11:0x1, u53:0x0);
   let _ = assert_eq(expected, actual);
 
   let expected = F64 {
-      sign: u1:0, bexp: u11:0x0, sfd: u52:0x0 };
+      sign: u1:0, bexp: u11:0x0, fraction: u52:0x0 };
   let actual = normalize(u1:0, u11:0xfe, u53:0x0);
   let _ = assert_eq(expected, actual);
 
   let expected = F64 {
-      sign: u1:1, bexp: u11:0x4d, sfd: u52:0x0 };
+      sign: u1:1, bexp: u11:0x4d, fraction: u52:0x0 };
   let actual = normalize(u1:1, u11:0x81, u53:1);
   let _ = assert_eq(expected, actual);
   ()
@@ -108,27 +108,27 @@ fn normalize_test() {
 
 #![test]
 fn tag_test() {
-  let _ = assert_eq(tag(F64 { sign: u1:0, bexp: u11:0, sfd: u52:0 }), FloatTag::ZERO);
-  let _ = assert_eq(tag(F64 { sign: u1:1, bexp: u11:0, sfd: u52:0 }), FloatTag::ZERO);
+  let _ = assert_eq(tag(F64 { sign: u1:0, bexp: u11:0, fraction: u52:0 }), FloatTag::ZERO);
+  let _ = assert_eq(tag(F64 { sign: u1:1, bexp: u11:0, fraction: u52:0 }), FloatTag::ZERO);
   let _ = assert_eq(tag(zero(u1:0)), FloatTag::ZERO);
   let _ = assert_eq(tag(zero(u1:1)), FloatTag::ZERO);
 
-  let _ = assert_eq(tag(F64 { sign: u1:0, bexp: u11:0, sfd: u52:1 }), FloatTag::SUBNORMAL);
-  let _ = assert_eq(tag(F64 { sign: u1:0, bexp: u11:0, sfd: u52:0x7f_ffff }), FloatTag::SUBNORMAL);
+  let _ = assert_eq(tag(F64 { sign: u1:0, bexp: u11:0, fraction: u52:1 }), FloatTag::SUBNORMAL);
+  let _ = assert_eq(tag(F64 { sign: u1:0, bexp: u11:0, fraction: u52:0x7f_ffff }), FloatTag::SUBNORMAL);
 
-  let _ = assert_eq(tag(F64 { sign: u1:0, bexp: u11:12, sfd: u52:0 }), FloatTag::NORMAL);
-  let _ = assert_eq(tag(F64 { sign: u1:1, bexp: u11:u11:0x7fe, sfd: u52:0x7f_ffff }), FloatTag::NORMAL);
-  let _ = assert_eq(tag(F64 { sign: u1:1, bexp: u11:1, sfd: u52:1 }), FloatTag::NORMAL);
+  let _ = assert_eq(tag(F64 { sign: u1:0, bexp: u11:12, fraction: u52:0 }), FloatTag::NORMAL);
+  let _ = assert_eq(tag(F64 { sign: u1:1, bexp: u11:u11:0x7fe, fraction: u52:0x7f_ffff }), FloatTag::NORMAL);
+  let _ = assert_eq(tag(F64 { sign: u1:1, bexp: u11:1, fraction: u52:1 }), FloatTag::NORMAL);
 
-  let _ = assert_eq(tag(F64 { sign: u1:0, bexp: u11:0x7ff, sfd: u52:0 }), FloatTag::INFINITY);
-  let _ = assert_eq(tag(F64 { sign: u1:1, bexp: u11:0x7ff, sfd: u52:0 }), FloatTag::INFINITY);
+  let _ = assert_eq(tag(F64 { sign: u1:0, bexp: u11:0x7ff, fraction: u52:0 }), FloatTag::INFINITY);
+  let _ = assert_eq(tag(F64 { sign: u1:1, bexp: u11:0x7ff, fraction: u52:0 }), FloatTag::INFINITY);
   let foo = inf(u1:0);
   let _ = trace!(foo);
   let _ = assert_eq(tag(inf(u1:0)), FloatTag::INFINITY);
   let _ = assert_eq(tag(inf(u1:1)), FloatTag::INFINITY);
 
-  let _ = assert_eq(tag(F64 { sign: u1:0, bexp: u11:0x7ff, sfd: u52:1 }), FloatTag::NAN);
-  let _ = assert_eq(tag(F64 { sign: u1:1, bexp: u11:0x7ff, sfd: u52:0x7f_ffff }), FloatTag::NAN);
+  let _ = assert_eq(tag(F64 { sign: u1:0, bexp: u11:0x7ff, fraction: u52:1 }), FloatTag::NAN);
+  let _ = assert_eq(tag(F64 { sign: u1:1, bexp: u11:0x7ff, fraction: u52:0x7f_ffff }), FloatTag::NAN);
   let _ = assert_eq(tag(qnan()), FloatTag::NAN);
   ()
 }

@@ -66,57 +66,57 @@ pub fn lte_2(x: BF16, y: BF16) -> u1 {
   apfloat::lte_2<u32:8, u32:7>(x, y)
 }
 
-pub fn normalize(sign:u1, exp: u8, sfd_with_hidden: u8) -> BF16 {
-  apfloat::normalize<u32:8, u32:7>(sign, exp, sfd_with_hidden)
+pub fn normalize(sign:u1, exp: u8, fraction_with_hidden: u8) -> BF16 {
+  apfloat::normalize<u32:8, u32:7>(sign, exp, fraction_with_hidden)
 }
 
 pub fn tag(f: BF16) -> FloatTag {
   apfloat::tag(f)
 }
 
-// Increments the significand of the input BF16 by one and returns the
+// Increments the fraction of the input BF16 by one and returns the
 // normalized result. Input must be a normal *non-zero* number.
-pub fn increment_sfd(input: BF16) -> BF16 {
-  // Add the hidden bit and one (the increment amount) to the significand. If it
-  // overflows 8 bits the number must be normalized.
-  let new_sfd = u9:0x80 + (input.sfd as u9) + u9:1;
-  let new_sfd_msb = new_sfd[8 +: u1];
-  match (new_sfd_msb, input.bexp >= u8:0xfe) {
+pub fn increment_fraction(input: BF16) -> BF16 {
+  // Add the hidden bit and one (the increment amount) to the fractional part.
+  // If it overflows 8 bits the number must be normalized.
+  let new_fraction = u9:0x80 + (input.fraction as u9) + u9:1;
+  let new_fraction_msb = new_fraction[8 +: u1];
+  match (new_fraction_msb, input.bexp >= u8:0xfe) {
     // Overflow to infinity.
     (true, true) => inf(input.sign),
     // Significand overflowed, normalize.
     (true, false) => BF16 { sign: input.sign,
                             bexp: input.bexp + u8:1,
-                            sfd: new_sfd[1 +: u7] },
+                            fraction: new_fraction[1 +: u7] },
     // No normalization required.
     (_, _) => BF16 { sign: input.sign,
                      bexp: input.bexp,
-                     sfd: new_sfd[:7] },
+                     fraction: new_fraction[:7] },
   }
 }
 
 #![test]
-fn increment_sfd_bf16_test() {
+fn increment_fraction_bf16_test() {
   // No normalization required.
-  let _ = assert_eq(increment_sfd(BF16 { sign: u1:0, bexp: u8:42, sfd: u7:0 }),
-                    BF16 { sign: u1:0, bexp: u8:42, sfd: u7:1 });
-  let _ = assert_eq(increment_sfd(BF16 { sign: u1:1, bexp: u8:42, sfd: u7:0 }),
-                    BF16 { sign: u1:1, bexp: u8:42, sfd: u7:1 });
-  let _ = assert_eq(increment_sfd(BF16 { sign: u1:0, bexp: u8:42, sfd: u7:12 }),
-                    BF16 { sign: u1:0, bexp: u8:42, sfd: u7:13 });
-  let _ = assert_eq(increment_sfd(BF16 { sign: u1:0, bexp: u8:254, sfd: u7:0x3f }),
-                    BF16 { sign: u1:0, bexp: u8:254, sfd: u7:0x40 });
+  let _ = assert_eq(increment_fraction(BF16 { sign: u1:0, bexp: u8:42, fraction: u7:0 }),
+                    BF16 { sign: u1:0, bexp: u8:42, fraction: u7:1 });
+  let _ = assert_eq(increment_fraction(BF16 { sign: u1:1, bexp: u8:42, fraction: u7:0 }),
+                    BF16 { sign: u1:1, bexp: u8:42, fraction: u7:1 });
+  let _ = assert_eq(increment_fraction(BF16 { sign: u1:0, bexp: u8:42, fraction: u7:12 }),
+                    BF16 { sign: u1:0, bexp: u8:42, fraction: u7:13 });
+  let _ = assert_eq(increment_fraction(BF16 { sign: u1:0, bexp: u8:254, fraction: u7:0x3f }),
+                    BF16 { sign: u1:0, bexp: u8:254, fraction: u7:0x40 });
 
   // Normalization required.
-  let _ = assert_eq(increment_sfd(BF16 { sign: u1:1, bexp: u8:1, sfd: u7:0x7f }),
-                    BF16 { sign: u1:1, bexp: u8:2, sfd: u7:0 });
-  let _ = assert_eq(increment_sfd(BF16 { sign: u1:0, bexp: u8:123, sfd: u7:0x7f }),
-                    BF16 { sign: u1:0, bexp: u8:124, sfd: u7:0 });
+  let _ = assert_eq(increment_fraction(BF16 { sign: u1:1, bexp: u8:1, fraction: u7:0x7f }),
+                    BF16 { sign: u1:1, bexp: u8:2, fraction: u7:0 });
+  let _ = assert_eq(increment_fraction(BF16 { sign: u1:0, bexp: u8:123, fraction: u7:0x7f }),
+                    BF16 { sign: u1:0, bexp: u8:124, fraction: u7:0 });
 
   // Overflow to infinity.
-  let _ = assert_eq(increment_sfd(BF16 { sign: u1:0, bexp: u8:254, sfd: u7:0x7f }),
+  let _ = assert_eq(increment_fraction(BF16 { sign: u1:0, bexp: u8:254, fraction: u7:0x7f }),
                     inf(u1:0));
-  let _ = assert_eq(increment_sfd(BF16 { sign: u1:1, bexp: u8:254, sfd: u7:0x7f }),
+  let _ = assert_eq(increment_fraction(BF16 { sign: u1:1, bexp: u8:254, fraction: u7:0x7f }),
                     inf(u1:1));
   ()
 }

@@ -48,7 +48,7 @@ Thus, for these uses, no special action is required of the user.
 for packed views is to allow users to map native types directly into JIT-usable
 values - for example, to use an IEEE float32 (e.g., a C `float`) _directly_,
 without needing to be exploded into a `bits[1]` for the sign, a `bits[8]` for
-the exponent, and a `bits[23]` for the significand.
+the exponent, and a `bits[23]` for the fractional part.
 
 When creating a packed view from a C `float`, no special action is needed - that
 `float` is in native host layout, which is the layout used by the JIT. If,
@@ -81,7 +81,7 @@ doesn't directly correspond to in-memory data layout.)
 
 Be aware of this layout when accessing elements in a PackedTupleView. In the
 float32 above, accessing element 0 yields the sign bit (the most significant bit
-in memory), and accessing element 2 yields the significand (the least
+in memory), and accessing element 2 yields the fractional part (the least
 significant 23 bits in memory), as one would expect given the tuple type
 declaration order.
 

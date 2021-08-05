@@ -119,7 +119,7 @@ fn expmulti(hi: F32, lo: F32, k: s32) -> F32 {
   const ONE = float32::one(u1:0);
   const TWO = F32{ sign: u1:0,
                    bexp: float32::bias(s8:1),
-                   sfd: u23:0
+                   fraction: u23:0
                   };
 
   let range = fpsub_2x32::fpsub_2x32(hi, lo);
@@ -158,7 +158,7 @@ pub fn fpexp_32(x: F32) -> F32 {
   let scaled_x = fpmul_2x32::fpmul_2x32(LOG2E, x);
   let signed_half = F32{ sign: x.sign,
                          bexp: float32::bias(s8:-1),
-                         sfd:  u23:0
+                         fraction:  u23:0
                         };
   let fp_k = fpadd_2x32::fpadd_2x32(scaled_x, signed_half);
   let k = float32::cast_to_fixed<u32:32>(fp_k);

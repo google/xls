@@ -85,7 +85,7 @@
 //  - Only round-to-nearest mode is supported.
 //  - No exception flags are raised/reported.
 // In all other cases, results should be identical to other
-// conforming implementations, modulo exact significand
+// conforming implementations, modulo exact fraction
 // values in the NaN case (we emit a single, canonical
 // representation for NaN (qnan) but accept all NaN
 // respresentations as input).
@@ -100,7 +100,7 @@ pub fn fpsqrt_32(x: F32) -> F32 {
 
   let exp = float32::unbiased_exponent(x);
 
-  let scaled_fixed_point_x = u1:0 ++ u8:1 ++ x.sfd;
+  let scaled_fixed_point_x = u1:0 ++ u8:1 ++ x.fraction;
   // If odd exp, double x to make it even.
   let scaled_fixed_point_x = scaled_fixed_point_x << u32:1 if exp[0:1] else scaled_fixed_point_x;
   // exp = exp / 2, exponent of square root
@@ -179,10 +179,10 @@ fn sqrt_test() {
     float32::qnan());
   let _ = assert_eq(fpsqrt_32(float32::one(u1:1)),
     float32::qnan());
-  let pos_denormal = F32{sign: u1:0, bexp: u8:0, sfd: u23:99};
+  let pos_denormal = F32{sign: u1:0, bexp: u8:0, fraction: u23:99};
   let _ = assert_eq(fpsqrt_32(pos_denormal),
     float32::zero(u1:0));
-  let neg_denormal = F32{sign: u1:1, bexp: u8:0, sfd: u23:99};
+  let neg_denormal = F32{sign: u1:1, bexp: u8:0, fraction: u23:99};
   let _ = assert_eq(fpsqrt_32(neg_denormal),
     float32::zero(u1:1));
 
@@ -193,26 +193,26 @@ fn sqrt_test() {
   // sqrt(4).
   let four = F32 {sign: u1:0, bexp:
                   float32::bias(s8:2),
-                  sfd: u23:0};
+                  fraction: u23:0};
   let two = F32 {sign: u1:0, bexp:
                   float32::bias(s8:1),
-                  sfd: u23:0};
+                  fraction: u23:0};
   let _ = assert_eq(fpsqrt_32(four), two);
   // sqrt(9).
   let nine = F32 {sign: u1:0, bexp:
                   float32::bias(s8:3),
-                  sfd: u2:0 ++ u1:1 ++ u20:0};
+                  fraction: u2:0 ++ u1:1 ++ u20:0};
   let three = F32 {sign: u1:0, bexp:
                   float32::bias(s8:1),
-                  sfd: u1:1 ++ u22:0};
+                  fraction: u1:1 ++ u22:0};
   let _ = assert_eq(fpsqrt_32(nine), three);
   // sqrt(25).
   let twenty_five = F32 {sign: u1:0, bexp:
                   float32::bias(s8:4),
-                  sfd: u4:0x9 ++ u19:0};
+                  fraction: u4:0x9 ++ u19:0};
   let five = F32 {sign: u1:0, bexp:
                   float32::bias(s8:2),
-                  sfd: u2:1 ++ u21:0};
+                  fraction: u2:1 ++ u21:0};
   let _ = assert_eq(fpsqrt_32(twenty_five), five);
   ()
 }

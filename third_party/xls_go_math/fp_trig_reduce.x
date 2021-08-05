@@ -57,7 +57,7 @@ pub fn fp_trig_reduce<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1>(x: A
   let reduction_needed = apfloat::gte_2(x, pi_div_4);
 
   // Decompose floating point.
-  let fixed_x = uN[UEXP_SZ]:1 ++ x.sfd;
+  let fixed_x = uN[UEXP_SZ]:1 ++ x.fraction;
   // Extract out the integer and exponent such that,
   // x = fixed_x * 2^exp
   let exp = apfloat::unbiased_exponent<EXP_SZ, SFD_SZ>(x) - (SFD_SZ as sN[EXP_SZ]);
@@ -78,19 +78,19 @@ pub fn fp_trig_reduce<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1>(x: A
   let j = prod[189:192];
 
   // Extract the fraction and find its magnitude.
-  let raw_sfd_bits = prod[61:189];
-  let hi = raw_sfd_bits[64:128];
+  let raw_fraction_bits = prod[61:189];
+  let hi = raw_fraction_bits[64:128];
   let lz = clz(hi);
   let fraction_bexp = apfloat::bias<EXP_SZ, SFD_SZ>(-(sN[EXP_SZ]:1 + (lz as sN[EXP_SZ])));
 
   // Clear hidden bit and shift mantissa.
   const SFD_INDEX_START = u32:128 - SFD_SZ;
-  let fraction_sfd = (raw_sfd_bits << (lz + u64:1))[SFD_INDEX_START as s32:128];
+  let fraction_fraction = (raw_fraction_bits << (lz + u64:1))[SFD_INDEX_START as s32:128];
 
   // Construct fraction.
   let fraction = APFloat<EXP_SZ, SFD_SZ> {sign: u1:0,
                                           bexp: fraction_bexp,
-                                          sfd: fraction_sfd};
+                                          fraction: fraction_fraction};
 
   // Map zeros to origin (comment from reference go code... very cryptic).
   let (j, fraction) =

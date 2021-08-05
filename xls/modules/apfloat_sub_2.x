@@ -19,8 +19,7 @@
 //  - Only round-to-nearest mode is supported.
 //  - No exception flags are raised/reported.
 // In all other cases, results should be identical to other
-// conforming implementations (modulo exact significand
-// values in the NaN case.
+// conforming implementations (modulo exact fraction values in the NaN case).
 import apfloat
 import xls.modules.apfloat_add_2
 
@@ -28,14 +27,12 @@ type APFloat = apfloat::APFloat;
 
 // Usage:
 //  - EXP_SZ: The number of bits in the exponent.
-//  - SFD_SZ: The number of bits in the significand (see
-//        https://en.wikipedia.org/wiki/Significand for "significand"
-//        vs "mantissa" naming).
+//  - FRACTION_SZ: The number of bits in the fractional part of the FP number.
 //  - x, y: The two floating-point numbers to subract.
-pub fn apfloat_sub_2<EXP_SZ: u32, SFD_SZ: u32>(
-    x: APFloat<EXP_SZ, SFD_SZ>,
-    y: APFloat<EXP_SZ, SFD_SZ>) -> APFloat<EXP_SZ, SFD_SZ> {
-  let y = APFloat<EXP_SZ, SFD_SZ>{sign: !y.sign, bexp: y.bexp, sfd: y.sfd};
+pub fn apfloat_sub_2<EXP_SZ: u32, FRACTION_SZ: u32>(
+    x: APFloat<EXP_SZ, FRACTION_SZ>,
+    y: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
+  let y = APFloat<EXP_SZ, FRACTION_SZ>{sign: !y.sign, bexp: y.bexp, fraction: y.fraction};
   apfloat_add_2::add(x, y)
 }
 

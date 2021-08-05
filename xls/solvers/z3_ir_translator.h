@@ -99,7 +99,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   // Flushes the given floating-point value to 0 if it's a subnormal value.
   absl::StatusOr<Z3_ast> FloatFlushSubnormal(Z3_ast value);
 
-  // Converts three AST nodes (u1:sign, u8:bexp, u23:sfd) to a Z3-internal
+  // Converts three AST nodes (u1:sign, u8:bexp, u23:fraction) to a Z3-internal
   // floating-point number.
   absl::StatusOr<Z3_ast> ToFloat32(absl::Span<const Z3_ast> nodes);
 

@@ -56,11 +56,11 @@ float IndexToInput(uint32_t index) {
   // Loss of accuracy is expected as numbers grow larger than 2^30.
   uint32_t bexp = absl::Uniform(absl::IntervalClosed, bitgen, uint32_t(0),
                                 uint32_t(127 + 30));
-  uint32_t sfd = absl::Uniform(absl::IntervalClosed, bitgen, uint32_t(0),
+  uint32_t fraction = absl::Uniform(absl::IntervalClosed, bitgen, uint32_t(0),
                                (uint32_t(1) << 23) - uint32_t(1));
   uint32_t sign =
       absl::Uniform(absl::IntervalClosed, bitgen, uint32_t(0), uint32_t(1));
-  uint32_t val = (sign << 31) | (bexp << 23) | sfd;
+  uint32_t val = (sign << 31) | (bexp << 23) | fraction;
   return absl::bit_cast<float>(val);
 }
 

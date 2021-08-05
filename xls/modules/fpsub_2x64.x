@@ -18,8 +18,7 @@
 //  - Only round-to-nearest mode is supported.
 //  - No exception flags are raised/reported.
 // In all other cases, results should be identical to other
-// conforming implementations (modulo exact significand
-// values in the NaN case.
+// conforming implementations (modulo exact fraction values in the NaN case).
 import xls.modules.apfloat_sub_2
 import xls.modules.fpadd_2x64
 import float64

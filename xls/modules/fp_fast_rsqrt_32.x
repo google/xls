@@ -41,10 +41,10 @@ type F32 = float32::F32;
 pub fn fp_fast_rsqrt_32_config_refinements<NUM_REFINEMENTS: u32 = u32:1>(x: F32) -> F32 {
   const zero_point_five = F32 {sign: u1:0,
                                bexp: u8:0x7e,
-                               sfd:  u23:0};
+                               fraction:  u23:0};
   const one_point_five  = F32 {sign: u1:0,
                                bexp: u8:0x7f,
-                               sfd:  u1:1 ++ u22:0};
+                               fraction:  u1:1 ++ u22:0};
   const magic_number = u32:0x5f3759df;
 
   // Flush subnormal input.
@@ -58,7 +58,7 @@ pub fn fp_fast_rsqrt_32_config_refinements<NUM_REFINEMENTS: u32 = u32:1>(x: F32)
   let result = for (idx, approx): (u32, F32) in range (u32:0, NUM_REFINEMENTS) {
     let prod = fpmul_2x32::fpmul_2x32(half_x, approx);
     let prod = fpmul_2x32::fpmul_2x32(prod, approx);
-    let nprod = F32{sign: !prod.sign, bexp: prod.bexp, sfd: prod.sfd};
+    let nprod = F32{sign: !prod.sign, bexp: prod.bexp, fraction: prod.fraction};
     let diff = fpadd_2x32::fpadd_2x32(one_point_five, nprod);
     fpmul_2x32::fpmul_2x32(approx, diff)
   } (approx);
@@ -100,10 +100,10 @@ fn fast_sqrt_test() {
     float32::qnan());
   let _ = assert_eq(fp_fast_rsqrt_32(float32::one(u1:1)),
     float32::qnan());
-  let pos_denormal = F32{sign: u1:0, bexp: u8:0, sfd: u23:99};
+  let pos_denormal = F32{sign: u1:0, bexp: u8:0, fraction: u23:99};
   let _ = assert_eq(fp_fast_rsqrt_32(pos_denormal),
     float32::inf(u1:0));
-  let neg_denormal = F32{sign: u1:1, bexp: u8:0, sfd: u23:99};
+  let neg_denormal = F32{sign: u1:1, bexp: u8:0, fraction: u23:99};
   let _ = assert_eq(fp_fast_rsqrt_32(neg_denormal),
     float32::inf(u1:1));
   ()

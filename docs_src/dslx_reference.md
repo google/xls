@@ -1297,7 +1297,7 @@ the following:
 
 ```
 [...]
-let result_sfd = result_sfd if wide_exponent < u9:255 else u23:0;
+let result_fraction = result_fraction if wide_exponent < u9:255 else u23:0;
 let result_exponent = wide_exponent as u8 if wide_exponent < u9:255 else u8:255;
 ```
 

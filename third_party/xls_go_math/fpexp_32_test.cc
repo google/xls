@@ -33,10 +33,10 @@ float IndexToInput(uint64_t index) {
   // (Although I found + fixed an underflow bug by expanding the range here).
   uint32_t bexp = absl::Uniform(absl::IntervalClosed, bitgen, uint32_t(127 - 6),
                                 uint64_t(127 + 6));
-  uint64_t sfd = absl::Uniform(bitgen, uint32_t(0), (uint32_t(1) << 23));
+  uint64_t fraction = absl::Uniform(bitgen, uint32_t(0), (uint32_t(1) << 23));
   uint64_t sign =
       absl::Uniform(absl::IntervalClosed, bitgen, uint32_t(0), uint32_t(1));
-  uint32_t val = (sign << 31) | (bexp << 23) | sfd;
+  uint32_t val = (sign << 31) | (bexp << 23) | fraction;
   float fp_val = absl::bit_cast<float>(val);
 
   // Avoid testing inputs very close to the overlfow / max input.

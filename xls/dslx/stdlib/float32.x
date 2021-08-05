@@ -73,8 +73,8 @@ pub fn lte_2(x: F32, y: F32) -> u1 {
   apfloat::lte_2<u32:8, u32:23>(x, y)
 }
 
-pub fn normalize(sign:u1, exp: u8, sfd_with_hidden: u24) -> F32 {
-  apfloat::normalize<u32:8, u32:23>(sign, exp, sfd_with_hidden)
+pub fn normalize(sign:u1, exp: u8, fraction_with_hidden: u24) -> F32 {
+  apfloat::normalize<u32:8, u32:23>(sign, exp, fraction_with_hidden)
 }
 
 pub const F32_ONE_FLAT = u32:0x3f800000;
@@ -86,33 +86,33 @@ pub fn tag(f: F32) -> FloatTag {
 #![test]
 fn normalize_test() {
   let expected = F32 {
-      sign: u1:0, bexp: u8:0x12, sfd: u23:0x7e_dcba };
+      sign: u1:0, bexp: u8:0x12, fraction: u23:0x7e_dcba };
   let actual = normalize(u1:0, u8:0x12, u24:0xfe_dcba);
   let _ = assert_eq(expected, actual);
 
   let expected = F32 {
-      sign: u1:0, bexp: u8:0x0, sfd: u23:0x0 };
+      sign: u1:0, bexp: u8:0x0, fraction: u23:0x0 };
   let actual = normalize(u1:0, u8:0x1, u24:0x0);
   let _ = assert_eq(expected, actual);
 
   let expected = F32 {
-      sign: u1:0, bexp: u8:0x0, sfd: u23:0x0 };
+      sign: u1:0, bexp: u8:0x0, fraction: u23:0x0 };
   let actual = normalize(u1:0, u8:0xfe, u24:0x0);
   let _ = assert_eq(expected, actual);
 
   let expected = F32 {
-      sign: u1:1, bexp: u8:77, sfd: u23:0x0 };
+      sign: u1:1, bexp: u8:77, fraction: u23:0x0 };
   let actual = normalize(u1:1, u8:100, u24:1);
   let _ = assert_eq(expected, actual);
 
   let expected = F32 {
-      sign: u1:1, bexp: u8:2, sfd: u23:0b000_1111_0000_0101_0000_0000 };
+      sign: u1:1, bexp: u8:2, fraction: u23:0b000_1111_0000_0101_0000_0000 };
   let actual = normalize(
       u1:1, u8:10, u24:0b0000_0000_1000_1111_0000_0101);
   let _ = assert_eq(expected, actual);
 
   let expected = F32 {
-      sign: u1:1, bexp: u8:10, sfd: u23:0b000_0000_1000_1111_0000_0101};
+      sign: u1:1, bexp: u8:10, fraction: u23:0b000_0000_1000_1111_0000_0101};
   let actual = normalize(
       u1:1, u8:10, u24:0b1000_0000_1000_1111_0000_0101);
   let _ = assert_eq(expected, actual);
@@ -132,40 +132,40 @@ fn normalize_test() {
 
 #![test]
 fn tag_test() {
-  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, sfd: u23:0 }), FloatTag::ZERO);
-  let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:0, sfd: u23:0 }), FloatTag::ZERO);
+  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, fraction: u23:0 }), FloatTag::ZERO);
+  let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:0, fraction: u23:0 }), FloatTag::ZERO);
   let _ = assert_eq(tag(zero(u1:0)), FloatTag::ZERO);
   let _ = assert_eq(tag(zero(u1:1)), FloatTag::ZERO);
 
-  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, sfd: u23:1 }), FloatTag::SUBNORMAL);
-  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, sfd: u23:0x7f_ffff }), FloatTag::SUBNORMAL);
+  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, fraction: u23:1 }), FloatTag::SUBNORMAL);
+  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, fraction: u23:0x7f_ffff }), FloatTag::SUBNORMAL);
 
-  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:12, sfd: u23:0 }), FloatTag::NORMAL);
-  let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:254, sfd: u23:0x7f_ffff }), FloatTag::NORMAL);
-  let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:1, sfd: u23:1 }), FloatTag::NORMAL);
+  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:12, fraction: u23:0 }), FloatTag::NORMAL);
+  let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:254, fraction: u23:0x7f_ffff }), FloatTag::NORMAL);
+  let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:1, fraction: u23:1 }), FloatTag::NORMAL);
 
-  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:255, sfd: u23:0 }), FloatTag::INFINITY);
-  let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:255, sfd: u23:0 }), FloatTag::INFINITY);
+  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:255, fraction: u23:0 }), FloatTag::INFINITY);
+  let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:255, fraction: u23:0 }), FloatTag::INFINITY);
   let _ = assert_eq(tag(inf(u1:0)), FloatTag::INFINITY);
   let _ = assert_eq(tag(inf(u1:1)), FloatTag::INFINITY);
 
-  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:255, sfd: u23:1 }), FloatTag::NAN);
-  let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:255, sfd: u23:0x7f_ffff }), FloatTag::NAN);
+  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:255, fraction: u23:1 }), FloatTag::NAN);
+  let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:255, fraction: u23:0x7f_ffff }), FloatTag::NAN);
   let _ = assert_eq(tag(qnan()), FloatTag::NAN);
   ()
 }
 
 pub fn fixed_fraction(input_float: F32) -> u23 {
-  let input_significand_magnitude: u25 = u2:0b01 ++ input_float.sfd;
+  let input_fraction_magnitude: u25 = u2:0b01 ++ input_float.fraction;
   let unbiased_input_float_exponent: s8 = unbiased_exponent(input_float);
 
   let input_fixed_magnitude: u25 = match unbiased_input_float_exponent as s8 > s8:0 {
     true =>
-      let significand_left_shift = unbiased_input_float_exponent as u3;
-      input_significand_magnitude << (significand_left_shift as u25),
+      let fraction_left_shift = unbiased_input_float_exponent as u3;
+      input_fraction_magnitude << (fraction_left_shift as u25),
     _ =>
-      let significand_right_shift = (-unbiased_input_float_exponent) as u5;
-      input_significand_magnitude >> (significand_right_shift as u25)
+      let fraction_right_shift = (-unbiased_input_float_exponent) as u5;
+      input_fraction_magnitude >> (fraction_right_shift as u25)
   };
 
   let input_fraction_part_magnitude: u24 = input_fixed_magnitude as u23 as u24;

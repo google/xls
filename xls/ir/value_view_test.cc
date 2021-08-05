@@ -241,8 +241,8 @@ TEST(PackedTupleViewTest, ExtractsSimpleUnaligned) {
 
   using SignT = PackedBitsView<1>;
   using ExpT = PackedBitsView<8>;
-  using SfdT = PackedBitsView<23>;
-  using TupleT = PackedTupleView<SignT, ExpT, SfdT>;
+  using FractionT = PackedBitsView<23>;
+  using TupleT = PackedTupleView<SignT, ExpT, FractionT>;
   BitsRope rope(TupleT::kBitCount + kBitOffset);
 
   for (int i = 0; i < kBitOffset; i++) {
@@ -270,9 +270,9 @@ TEST(PackedTupleViewTest, ExtractsSimpleUnaligned) {
   tuple_view.Get<1>().Get(&exp_data);
   EXPECT_EQ(exp_data, value.element(1).bits().ToUint64().value());
 
-  uint32_t sfd_data = 0;
-  tuple_view.Get<2>().Get(reinterpret_cast<uint8_t*>(&sfd_data));
-  EXPECT_EQ(sfd_data, value.element(2).bits().ToUint64().value());
+  uint32_t fraction_data = 0;
+  tuple_view.Get<2>().Get(reinterpret_cast<uint8_t*>(&fraction_data));
+  EXPECT_EQ(fraction_data, value.element(2).bits().ToUint64().value());
 }
 
 }  // namespace

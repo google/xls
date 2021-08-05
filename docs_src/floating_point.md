@@ -9,7 +9,7 @@ floating-point operations in general.
 Here are listed the routines so far implemented in XLS, and the precisions of
 such. Precisions will be listed either by their IEEE-754-defined names, or
 "APFloat", for arbitrary-precision floating-point. This indicates that the
-operation is supported for any combination of exponent and significand width
+operation is supported for any combination of exponent and fractional part width
 (within reason, e.g., no 0-bit exponents). Full details on APFloat support are
 below.
 
@@ -46,9 +46,9 @@ individual ops, and thus that B) an FMA requires significantly more internal
 precision bits than naively expected.
 
 For binary32 inputs, to acheive the standard-specified precision, the initial
-mul requires the usual 48 ((23 significand + 1 "hidden") * 2) significand bits.
+mul requires the usual 48 ((23 fraction + 1 "hidden") * 2) fraction bits.
 When performing the subsequent add step, though, it is necessary to maintain
-*72* significand bits ((23 significand + 1 "hidden") * 3). Fortunately, this sum
+*72* fraction bits ((23 fraction + 1 "hidden") * 3). Fortunately, this sum
 includes the guard, round, and sticky bits (so we don't need 75). The
 mathematical derivation of the exact amount will not be given here (as I've not
 done it), but the same calculated size would apply for other data types (i.e.,

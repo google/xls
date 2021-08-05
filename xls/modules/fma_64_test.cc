@@ -38,7 +38,7 @@ uint64_t fp_sign(uint64_t f) { return f >> 63; }
 
 uint64_t fp_exp(uint64_t f) { return (f >> 52) & 0x7ff; }
 
-uint64_t fp_sfd(uint64_t f) { return f & 0xfffffffffffffull; }
+uint64_t fp_fraction(uint64_t f) { return f & 0xfffffffffffffull; }
 
 Float3x64 IndexToInput(uint64_t index) {
   // Skip subnormal inputs - we currently don't handle them.
@@ -78,7 +78,7 @@ bool CompareResults(double a, double b) {
 std::string PrintDouble(double a) {
   uint64_t a_int = absl::bit_cast<uint64_t>(a);
   return absl::StrFormat("0x%016x (0x%01x, 0x%03x, 0x%013x)", a_int,
-                         fp_sign(a_int), fp_exp(a_int), fp_sfd(a_int));
+                         fp_sign(a_int), fp_exp(a_int), fp_fraction(a_int));
 }
 
 std::string PrintInput(const Float3x64& input) {

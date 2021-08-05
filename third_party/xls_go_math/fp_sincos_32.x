@@ -261,7 +261,7 @@ pub fn fp_sincos_32(x: F32) -> (F32, F32) {
 fn test_fp_sincos_32() {
   let non_canonical_nan = float32::unflatten(
     float32::flatten(float32::qnan()) | u32:1);
-  let denormal = F32{sign: u1:0, bexp: u8:0, sfd: u23:1};
+  let denormal = F32{sign: u1:0, bexp: u8:0, fraction: u23:1};
 
   // Inf.
   let _ = assert_eq(fp_sincos_32(float32::inf(u1:0)),

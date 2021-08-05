@@ -87,7 +87,7 @@ absl::StatusOr<Z3_ast> CreateReferenceComparisonFunction(
   // The params to and result from fpadd_2x32 are FP32s, which are tuples of:
   //  - u1: sign
   //  - u8: exponent
-  //  - u23: significand
+  //  - u23: fractional part
   // Which are trivially converted to Z3 floating-point types.
   XLS_ASSIGN_OR_RETURN(Z3_ast xls_result, translator->ToFloat32(result));
   *actual = xls_result;
@@ -113,7 +113,7 @@ absl::StatusOr<Z3_ast> CreateReferenceComparisonFunction(
   }
   *expected = z3_result;
 
-  // Format NaNs like we expect (with 0x400000 in the significand).
+  // Format NaNs like we expect (with 0x400000 in the fraction).
   Z3_ast is_nan = Z3_mk_fpa_is_nan(ctx, z3_result);
   Z3_ast positive_nan = Z3_mk_fpa_numeral_int_uint(ctx, false, 0xFF, 0x400000,
                                                    Z3_mk_fpa_sort_32(ctx));

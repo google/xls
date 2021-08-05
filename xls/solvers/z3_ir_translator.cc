@@ -326,9 +326,9 @@ absl::StatusOr<Z3_ast> IrTranslator::ToFloat32(absl::Span<const Z3_ast> nodes) {
 
   XLS_ASSIGN_OR_RETURN(Z3_ast sign, get_fp_component(0, 1));
   XLS_ASSIGN_OR_RETURN(Z3_ast exponent, get_fp_component(1, 8));
-  XLS_ASSIGN_OR_RETURN(Z3_ast significand, get_fp_component(2, 23));
+  XLS_ASSIGN_OR_RETURN(Z3_ast fraction, get_fp_component(2, 23));
 
-  return Z3_mk_fpa_fp(ctx_, sign, exponent, significand);
+  return Z3_mk_fpa_fp(ctx_, sign, exponent, fraction);
 }
 
 absl::StatusOr<Z3_ast> IrTranslator::ToFloat32(Z3_ast tuple) {

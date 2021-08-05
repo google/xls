@@ -45,7 +45,7 @@ pub fn fpldexp_32(fraction: F32, exp: s32) -> F32 {
               + signex(float32::unbiased_exponent(fraction), s33:0);
   let result = F32 {sign: fraction.sign,
                     bexp: float32::bias(exp as s8),
-                    sfd: fraction.sfd };
+                    fraction: fraction.fraction };
 
   // Handle overflow.
   let result = float32::inf(fraction.sign) if exp > max_exponent
@@ -55,8 +55,8 @@ pub fn fpldexp_32(fraction: F32, exp: s32) -> F32 {
   // rounds back up to a normal number.
   // If this was not a DAZ module, we'd have to deal
   // with denormal 'result' here.
-  let underflow_result = F32{sign: fraction.sign, bexp: u8:1, sfd: u23:0}
-    if (exp == (min_exponent - s33:1)) && (fraction.sfd == std::mask_bits<u32:23>())
+  let underflow_result = F32{sign: fraction.sign, bexp: u8:1, fraction: u23:0}
+    if (exp == (min_exponent - s33:1)) && (fraction.fraction == std::mask_bits<u32:23>())
     else float32::zero(fraction.sign);
   let result = underflow_result if exp < min_exponent
                                           else result;
@@ -87,51 +87,51 @@ fn fpldexp_32_test() {
     float32::qnan());
 
   // Subnormal input.
-  let pos_denormal = F32{sign: u1:0, bexp: u8:0, sfd: u23:99};
+  let pos_denormal = F32{sign: u1:0, bexp: u8:0, fraction: u23:99};
   let _ = assert_eq(fpldexp_32(pos_denormal, s32:1),
     float32::zero(u1:0));
-  let neg_denormal = F32{sign: u1:1, bexp: u8:0, sfd: u23:99};
+  let neg_denormal = F32{sign: u1:1, bexp: u8:0, fraction: u23:99};
   let _ = assert_eq(fpldexp_32(neg_denormal, s32:1),
     float32::zero(u1:1));
 
   // Output subnormal, flush to zero.
-  let almost_denormal = F32{sign: u1:0, bexp: u8:1, sfd: u23:99};
+  let almost_denormal = F32{sign: u1:0, bexp: u8:1, fraction: u23:99};
   let _ = assert_eq(fpldexp_32(pos_denormal, s32:-1),
     float32::zero(u1:0));
 
   // Subnormal result rounds up to normal number.
-  let frac = F32{sign: u1:0, bexp: u8:10, sfd: u23:0x7fffff};
-  let expected = F32{sign: u1:0, bexp: u8:1, sfd: u23:0};
+  let frac = F32{sign: u1:0, bexp: u8:10, fraction: u23:0x7fffff};
+  let expected = F32{sign: u1:0, bexp: u8:1, fraction: u23:0};
   let _ = assert_eq(fpldexp_32(frac, s32:-10), expected);
-  let frac = F32{sign: u1:1, bexp: u8:10, sfd: u23:0x7fffff};
-  let expected = F32{sign: u1:1, bexp: u8:1, sfd: u23:0};
+  let frac = F32{sign: u1:1, bexp: u8:10, fraction: u23:0x7fffff};
+  let expected = F32{sign: u1:1, bexp: u8:1, fraction: u23:0};
   let _ = assert_eq(fpldexp_32(frac, s32:-10), expected);
 
   // Large positive input exponents.
-  let frac = F32{sign: u1:0, bexp: u8:128, sfd: u23:0x0};
+  let frac = F32{sign: u1:0, bexp: u8:128, fraction: u23:0x0};
   let expected = float32::inf(u1:0);
   let _ = assert_eq(fpldexp_32(frac, s32:0x7FFFFFFF - s32:1), expected);
-  let frac = F32{sign: u1:0, bexp: u8:128, sfd: u23:0x0};
+  let frac = F32{sign: u1:0, bexp: u8:128, fraction: u23:0x0};
   let expected = float32::inf(u1:0);
   let _ = assert_eq(fpldexp_32(frac, s32:0x7FFFFFFF), expected);
-  let frac = F32{sign: u1:1, bexp: u8:128, sfd: u23:0x0};
+  let frac = F32{sign: u1:1, bexp: u8:128, fraction: u23:0x0};
   let expected = float32::inf(u1:1);
   let _ = assert_eq(fpldexp_32(frac, s32:0x7FFFFFFF - s32:1), expected);
-  let frac = F32{sign: u1:1, bexp: u8:128, sfd: u23:0x0};
+  let frac = F32{sign: u1:1, bexp: u8:128, fraction: u23:0x0};
   let expected = float32::inf(u1:1);
   let _ = assert_eq(fpldexp_32(frac, s32:0x7FFFFFFF), expected);
 
   // Large negative input exponents.
-  let frac = F32{sign: u1:0, bexp: u8:126, sfd: u23:0x0};
+  let frac = F32{sign: u1:0, bexp: u8:126, fraction: u23:0x0};
   let expected = float32::zero(u1:0);
   let _ = assert_eq(fpldexp_32(frac, s32:0x80000000 + s32:0x1), expected);
-  let frac = F32{sign: u1:0, bexp: u8:126, sfd: u23:0x0};
+  let frac = F32{sign: u1:0, bexp: u8:126, fraction: u23:0x0};
   let expected = float32::zero(u1:0);
   let _ = assert_eq(fpldexp_32(frac, s32:0x80000000), expected);
-  let frac = F32{sign: u1:1, bexp: u8:126, sfd: u23:0x0};
+  let frac = F32{sign: u1:1, bexp: u8:126, fraction: u23:0x0};
   let expected = float32::zero(u1:1);
   let _ = assert_eq(fpldexp_32(frac, s32:0x80000000 + s32:0x1), expected);
-  let frac = F32{sign: u1:1, bexp: u8:126, sfd: u23:0x0};
+  let frac = F32{sign: u1:1, bexp: u8:126, fraction: u23:0x0};
   let expected = float32::zero(u1:1);
   let _ = assert_eq(fpldexp_32(frac, s32:0x80000000), expected);
 
