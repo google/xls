@@ -176,14 +176,14 @@ purpose, and correspond to the components in this XLS stack diagram:
   * [`tests`](https://github.com/google/xls/tree/main/xls/tests):
     Integration tests that span various top-level components of the XLS project.
   * [`tools`](https://github.com/google/xls/tree/main/xls/tools):
-    [Many tools](tools.md) that work with the XLS system and its libraries in a
-    decomposed way via command line interfaces.
+    [Many tools](https://google.github.io/xls/tools/) that work with the XLS
+    system and its libraries in a decomposed way via command line interfaces.
   * [`uncore_rtl`](https://github.com/google/xls/tree/main/xls/uncore_rtl):
     Helper RTL that interfaces XLS-generated blocks with device top-level for e.g.
     FPGA experiments.
   * [`visualization`](https://github.com/google/xls/tree/main/xls/visualzation):
     Visualization tools to inspect the XLS compiler/system interactively. See
-    [IR visualization](ir_visualization.md).
+    [IR visualization](https://google.github.io/xls/ir_visualization/).
 
 ## Community
 
