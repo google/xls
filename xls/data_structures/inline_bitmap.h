@@ -133,6 +133,11 @@ class InlineBitmap {
 
   int64_t byte_count() const { return CeilOfRatio(bit_count_, int64_t{8}); }
 
+  template <typename H>
+  friend H AbslHashValue(H h, const InlineBitmap& ib) {
+    return H::combine(std::move(h), ib.bit_count_, ib.data_);
+  }
+
  private:
   static constexpr int64_t kWordBits = 64;
   static constexpr int64_t kWordBytes = 8;

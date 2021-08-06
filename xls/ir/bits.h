@@ -251,6 +251,11 @@ class Bits {
 
   const InlineBitmap& bitmap() const { return bitmap_; }
 
+  template <typename H>
+  friend H AbslHashValue(H h, const Bits& bits) {
+    return H::combine(std::move(h), bits.bitmap_);
+  }
+
  private:
   friend class BitsRope;
   friend absl::StatusOr<Bits> UBitsWithStatus(uint64_t, int64_t);

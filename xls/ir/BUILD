@@ -65,6 +65,35 @@ cc_library(
 )
 
 cc_library(
+    name = "interval",
+    srcs = ["interval.cc"],
+    hdrs = ["interval.h"],
+    deps = [
+        ":bits",
+        ":bits_ops",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:optional",
+    ],
+)
+
+cc_test(
+    name = "interval_test",
+    size = "small",
+    srcs = [
+        "interval_test.cc",
+    ],
+    deps = [
+        ":interval",
+        "//xls/common:math_util",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "ternary",
     srcs = ["ternary.cc"],
     hdrs = ["ternary.h"],
