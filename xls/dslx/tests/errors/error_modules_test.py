@@ -285,6 +285,13 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'uN[3] vs uN[32]: Mismatch between parameter and argument types',
         stderr)
 
+  def test_num_args_type_mismatch(self):
+    stderr = self._run('xls/dslx/tests/errors/num_args_type_mismatch.x')
+    self.assertIn('num_args_type_mismatch.x:18:4-18:16', stderr)
+    self.assertIn('ArgCountMismatchError', stderr)
+    self.assertIn('Expected 3', stderr)
+    self.assertIn('got 2', stderr)
+
   def test_index_struct_value(self):
     stderr = self._run('xls/dslx/tests/errors/index_struct_value.x')
     self.assertIn('index_struct_value.x:23:4-23:7', stderr)
