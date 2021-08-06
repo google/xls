@@ -599,6 +599,28 @@ cc_test(
 )
 
 cc_library(
+    name = "format_strings",
+    srcs = ["format_strings.cc"],
+    hdrs = ["format_strings.h"],
+    deps = [
+        "//xls/ir:format_preference",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_test(
+    name = "format_strings_test",
+    srcs = ["format_strings_test.cc"],
+    deps = [
+        ":format_strings",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "value_test_util",
     testonly = True,
     srcs = ["value_test_util.cc"],
