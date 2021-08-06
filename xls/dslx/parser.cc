@@ -1082,7 +1082,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
                               "Zero-length strings are not supported.");
     }
     txn.CommitAndCancelCleanup(&cleanup);
-    return module_->Make<String>(span, text);
+    return module_->Make<String>(Span(start_pos, GetPos()), text);
   } else if (peek->IsKindIn({TokenKind::kBang, TokenKind::kMinus})) {
     Token tok = PopTokenOrDie();
     XLS_ASSIGN_OR_RETURN(Expr * arg, ParseTerm(txn.bindings()));
