@@ -23,3 +23,31 @@ xls_dslx_test(
     name = "hsv2rgb_dslx_test",
     dep = ":hsv2rgb_dslx_module",
 )
+
+cc_test(
+    name = "hsv2rgb_verilog_test",
+    srcs = ["test.cc"],
+    deps = [
+        "//xls/codegen:combinational_generator",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:matchers",
+        "//xls/dslx:ir_converter",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+        ":fast_hsv2rgb",
+    ],
+    data = [
+        ":hsv2rgb_dslx_module",
+    ]
+)
+
+cc_library(
+    name = "fast_hsv2rgb",
+    srcs = ["fast_hsv2rgb_32bit.c"],
+    hdrs = ["fast_hsv2rgb.h"],
+)
