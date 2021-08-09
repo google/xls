@@ -111,6 +111,9 @@ namespace {
 absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
                       absl::string_view signature_path,
                       absl::string_view schedule_path) {
+  if (ir_path == "-") {
+    ir_path = "/dev/stdin";
+  }
   XLS_ASSIGN_OR_RETURN(std::string ir_contents, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> p,
                        Parser::ParsePackage(ir_contents, ir_path));
