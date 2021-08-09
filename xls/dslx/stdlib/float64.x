@@ -82,6 +82,14 @@ pub fn tag(f: F64) -> FloatTag {
   apfloat::tag<u32:11, u32:52>(f)
 }
 
+pub fn to_int<RESULT_SZ: u32>(x: F64) -> sN[RESULT_SZ] {
+  apfloat::to_int<u32:11, u32:52, RESULT_SZ>(x)
+}
+
+pub fn to_int64(x: F64) -> s64 {
+  apfloat::to_int<u32:11, u32:52, u32:64>(x)
+}
+
 #![test]
 fn normalize_test() {
   let expected = F64 {

@@ -14,7 +14,10 @@
 
 load(
     "//xls/build_rules:xls_build_defs.bzl",
+    "cc_xls_ir_jit_wrapper",
+    "get_mangled_ir_symbol",
     "xls_dslx_module_library",
+    "xls_dslx_opt_ir",
     "xls_dslx_test",
 )
 
@@ -81,6 +84,33 @@ xls_dslx_module_library(
 xls_dslx_test(
     name = "float64_dslx_test",
     dep = "float64_dslx_module",
+)
+
+xls_dslx_opt_ir(
+    name = "float32",
+    dep = ":float32_dslx_module",
+    ir_file = "float32.ir",
+    opt_ir_file = "float32.opt.ir",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "float32_to_int32_wrapper",
+    src = ":float32.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "Float32ToInt32",
+        "function": get_mangled_ir_symbol("float32", "to_int32"),
+    },
+)
+
+cc_test(
+    name = "float32_test",
+    srcs = ["float32_test.cc"],
+    deps = [
+        ":float32_to_int32_wrapper",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
 )
 
 filegroup(

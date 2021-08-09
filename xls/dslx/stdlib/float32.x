@@ -77,6 +77,15 @@ pub fn normalize(sign:u1, exp: u8, fraction_with_hidden: u24) -> F32 {
   apfloat::normalize<u32:8, u32:23>(sign, exp, fraction_with_hidden)
 }
 
+pub fn to_int<RESULT_SZ: u32>(x: F32) -> sN[RESULT_SZ] {
+  apfloat::to_int<u32:8, u32:23, RESULT_SZ>(x)
+}
+
+// Just a convenience for the most common case.
+pub fn to_int32(x: F32) -> s32 {
+  apfloat::to_int<u32:8, u32:23, u32:32>(x)
+}
+
 pub const F32_ONE_FLAT = u32:0x3f800000;
 
 pub fn tag(f: F32) -> FloatTag {

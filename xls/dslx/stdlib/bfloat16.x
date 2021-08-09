@@ -70,6 +70,14 @@ pub fn normalize(sign:u1, exp: u8, fraction_with_hidden: u8) -> BF16 {
   apfloat::normalize<u32:8, u32:7>(sign, exp, fraction_with_hidden)
 }
 
+pub fn to_int<RESULT_SZ: u32>(x: BF16) -> sN[RESULT_SZ] {
+  apfloat::to_int<u32:8, u32:7, RESULT_SZ>(x)
+}
+
+pub fn to_int16(x: BF16) -> s16 {
+  apfloat::to_int<u32:8, u32:7, u32:16>(x)
+}
+
 pub fn tag(f: BF16) -> FloatTag {
   apfloat::tag(f)
 }
