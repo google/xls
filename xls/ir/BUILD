@@ -94,6 +94,40 @@ cc_test(
 )
 
 cc_library(
+    name = "interval_set",
+    srcs = ["interval_set.cc"],
+    hdrs = ["interval_set.h"],
+    deps = [
+        ":bits",
+        ":bits_ops",
+        ":interval",
+        "//xls/common/logging",
+        "//xls/common/logging:log_message",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "interval_set_test",
+    size = "small",
+    srcs = [
+        "interval_set_test.cc",
+    ],
+    deps = [
+        ":interval_set",
+        "//xls/common:math_util",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "ternary",
     srcs = ["ternary.cc"],
     hdrs = ["ternary.h"],
