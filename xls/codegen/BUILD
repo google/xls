@@ -229,6 +229,7 @@ cc_library(
     srcs = ["pipeline_generator.cc"],
     hdrs = ["pipeline_generator.h"],
     deps = [
+        ":codegen_options",
         ":finite_state_machine",
         ":flattening",
         ":module_builder",

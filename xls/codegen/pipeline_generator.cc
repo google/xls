@@ -46,63 +46,6 @@ std::string PipelineSignalName(Node* node, int64_t stage) {
 
 }  // namespace
 
-PipelineOptions& PipelineOptions::manual_control(absl::string_view input_name) {
-  if (!pipeline_control_.has_value()) {
-    pipeline_control_ = PipelineControl();
-  }
-  pipeline_control_->mutable_manual()->set_input_name(
-      ToProtoString(input_name));
-  return *this;
-}
-
-absl::optional<ManualPipelineControl> PipelineOptions::manual_control() const {
-  if (!pipeline_control_.has_value() || !pipeline_control_->has_manual()) {
-    return absl::nullopt;
-  }
-  return pipeline_control_->manual();
-}
-
-PipelineOptions& PipelineOptions::valid_control(
-    absl::string_view input_name,
-    absl::optional<absl::string_view> output_name) {
-  if (!pipeline_control_.has_value()) {
-    pipeline_control_ = PipelineControl();
-  }
-  ValidProto* valid = pipeline_control_->mutable_valid();
-  valid->set_input_name(ToProtoString(input_name));
-  if (output_name.has_value()) {
-    valid->set_output_name(ToProtoString(*output_name));
-  }
-  return *this;
-}
-
-absl::optional<ValidProto> PipelineOptions::valid_control() const {
-  if (!pipeline_control_.has_value() || !pipeline_control_->has_valid()) {
-    return absl::nullopt;
-  }
-  return pipeline_control_->valid();
-}
-
-PipelineOptions& PipelineOptions::use_system_verilog(bool value) {
-  use_system_verilog_ = value;
-  return *this;
-}
-
-PipelineOptions& PipelineOptions::flop_inputs(bool value) {
-  flop_inputs_ = value;
-  return *this;
-}
-
-PipelineOptions& PipelineOptions::flop_outputs(bool value) {
-  flop_outputs_ = value;
-  return *this;
-}
-
-PipelineOptions& PipelineOptions::split_outputs(bool value) {
-  split_outputs_ = value;
-  return *this;
-}
-
 namespace {
 
 // Class for constructing a pipeline. An abstraction containing the various
@@ -110,7 +53,7 @@ namespace {
 class PipelineGenerator {
  public:
   PipelineGenerator(Function* func, const PipelineSchedule& schedule,
-                    const PipelineOptions& options, VerilogFile* file)
+                    const CodegenOptions& options, VerilogFile* file)
       : func_(func), schedule_(schedule), options_(options), file_(file) {}
 
   absl::StatusOr<ModuleGeneratorResult> Run() {
@@ -319,10 +262,17 @@ class PipelineGenerator {
         }
 
         if (named_temps.contains(node)) {
-          XLS_ASSIGN_OR_RETURN(
-              node_expressions[node],
-              mb_->EmitAsAssignment(PipelineSignalName(node, stage) + "_comb",
-                                    node, inputs));
+          if (node->Is<Gate>()) {
+            XLS_ASSIGN_OR_RETURN(
+                node_expressions[node],
+                mb_->EmitGate(node->As<Gate>(), inputs[0], inputs[1],
+                              options_.gate_format()));
+          } else {
+            XLS_ASSIGN_OR_RETURN(
+                node_expressions[node],
+                mb_->EmitAsAssignment(PipelineSignalName(node, stage) + "_comb",
+                                      node, inputs));
+          }
         } else {
           XLS_ASSIGN_OR_RETURN(node_expressions[node],
                                mb_->EmitAsInlineExpression(node, inputs));
@@ -554,7 +504,7 @@ class PipelineGenerator {
  private:
   Function* func_;
   const PipelineSchedule& schedule_;
-  const PipelineOptions& options_;
+  const CodegenOptions& options_;
   VerilogFile* file_;
 
   std::unique_ptr<ModuleBuilder> mb_;
@@ -564,7 +514,7 @@ class PipelineGenerator {
 
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, Function* func,
-    const PipelineOptions& options) {
+    const CodegenOptions& options) {
   XLS_VLOG(2) << "Generating pipelined module for function:";
   XLS_VLOG_LINES(2, func->DumpIr());
   XLS_VLOG_LINES(2, schedule.ToString());

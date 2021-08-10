@@ -41,8 +41,22 @@ struct CodegenOptions {
   // Reset signal to use for any registers with initial values. Required if the
   // proc contains any registers with initial values.
   CodegenOptions& reset(absl::string_view name, bool asynchronous,
-                        bool active_low);
+                        bool active_low, bool reset_data_path);
   const absl::optional<ResetProto>& reset() const { return reset_proto_; }
+
+  // Specifies manual pipeline register load-enable control.
+  CodegenOptions& manual_control(absl::string_view input_name);
+  absl::optional<ManualPipelineControl> manual_control() const;
+
+  // Specifies pipeline register load-enable controlled by a valid signal.
+  CodegenOptions& valid_control(absl::string_view input_name,
+                                absl::optional<absl::string_view> output_name);
+  absl::optional<ValidProto> valid_control() const;
+
+  // Returns the proto describing the pipeline control scheme.
+  const absl::optional<PipelineControl>& control() const {
+    return pipeline_control_;
+  }
 
   // Name of the clock signal. Required if the proc has any registers.
   CodegenOptions& clock_name(absl::string_view clock_name);
@@ -62,6 +76,11 @@ struct CodegenOptions {
   // true, adds a single cycle to the latency of the pipline.
   CodegenOptions& flop_outputs(bool value);
   bool flop_outputs() const { return flop_outputs_; }
+
+  // If the output is tuple-typed, generate an output port for each element of
+  // the output tuple.
+  CodegenOptions& split_outputs(bool value);
+  bool split_outputs() const { return split_outputs_; }
 
   // Format string to use when emitting assert operations in Verilog. Supports
   // the following placeholders:
@@ -124,10 +143,12 @@ struct CodegenOptions {
   absl::optional<std::string> entry_;
   absl::optional<std::string> module_name_;
   absl::optional<ResetProto> reset_proto_;
+  absl::optional<PipelineControl> pipeline_control_;
   absl::optional<std::string> clock_name_;
   bool use_system_verilog_ = true;
   bool flop_inputs_ = false;
   bool flop_outputs_ = false;
+  bool split_outputs_ = false;
   absl::optional<std::string> assert_format_;
   absl::optional<std::string> gate_format_;
 };

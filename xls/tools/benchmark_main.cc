@@ -255,9 +255,9 @@ absl::Status PrintCodegenInfo(Function* f, const PipelineSchedule& schedule,
                               const DelayEstimator& delay_estimator,
                               absl::optional<int64_t> clock_period_ps) {
   absl::Time start = absl::Now();
-  XLS_ASSIGN_OR_RETURN(
-      verilog::ModuleGeneratorResult codegen_result,
-      verilog::ToPipelineModuleText(schedule, f, verilog::PipelineOptions()));
+  XLS_ASSIGN_OR_RETURN(verilog::ModuleGeneratorResult codegen_result,
+                       verilog::ToPipelineModuleText(
+                           schedule, f, verilog::BuildPipelineOptions()));
   absl::Duration total_time = absl::Now() - start;
   std::cout << absl::StreamFormat("Codegen time: %dms\n",
                                   total_time / absl::Milliseconds(1));

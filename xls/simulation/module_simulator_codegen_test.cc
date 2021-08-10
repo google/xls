@@ -72,7 +72,7 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughPipeline) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
   ASSERT_EQ(result.signature.proto().pipeline().latency(), 2);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
@@ -102,7 +102,7 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughPipelineBatched) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
   ASSERT_EQ(result.signature.proto().pipeline().latency(), 2);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
@@ -143,7 +143,7 @@ TEST_P(ModuleSimulatorCodegenTest, SingleNegatePipeline) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
   ASSERT_EQ(result.signature.proto().pipeline().latency(), 2);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
@@ -174,7 +174,7 @@ TEST_P(ModuleSimulatorCodegenTest, TripleNegatePipelineBatched) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
   ASSERT_EQ(result.signature.proto().pipeline().latency(), 4);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
@@ -220,7 +220,7 @@ TEST_P(ModuleSimulatorCodegenTest, AddsWithSharedResource) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -257,7 +257,7 @@ TEST_P(ModuleSimulatorCodegenTest, PipelinedAdds) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -293,7 +293,7 @@ TEST_P(ModuleSimulatorCodegenTest, PipelinedAddWithValid) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(schedule, func,
-                           PipelineOptions()
+                           BuildPipelineOptions()
                                .valid_control("valid_in", "valid_out")
                                .use_system_verilog(UseSystemVerilog())));
 
@@ -331,7 +331,7 @@ TEST_P(ModuleSimulatorCodegenTest, PipelinedAddWithManualPipelineControl) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(schedule, func,
-                           PipelineOptions()
+                           BuildPipelineOptions()
                                .manual_control("pipeline_le")
                                .use_system_verilog(UseSystemVerilog())));
 
@@ -368,7 +368,7 @@ TEST_P(ModuleSimulatorCodegenTest, AddTwoTupleElements) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());

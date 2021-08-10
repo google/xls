@@ -71,7 +71,7 @@ TEST_P(PipelineGeneratorTest, TrivialFunction) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -95,7 +95,7 @@ TEST_P(PipelineGeneratorTest, ReturnLiteral) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   EXPECT_EQ(result.signature.proto().pipeline().initiation_interval(), 1);
   EXPECT_EQ(result.signature.proto().pipeline().latency(), 5);
@@ -124,7 +124,7 @@ TEST_P(PipelineGeneratorTest, ReturnTupleLiteral) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -151,7 +151,7 @@ TEST_P(PipelineGeneratorTest, ReturnEmptyTuple) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -174,7 +174,7 @@ TEST_P(PipelineGeneratorTest, NestedEmptyTuple) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -200,7 +200,7 @@ TEST_P(PipelineGeneratorTest, TakesEmptyTuple) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, f,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -224,7 +224,7 @@ TEST_P(PipelineGeneratorTest, PassesEmptyTuple) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, f,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -247,7 +247,7 @@ TEST_P(PipelineGeneratorTest, ReturnArrayLiteral) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -276,7 +276,7 @@ TEST_P(PipelineGeneratorTest, SingleNegate) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -297,7 +297,7 @@ TEST_P(PipelineGeneratorTest, PassThroughArray) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -329,7 +329,7 @@ TEST_P(PipelineGeneratorTest, TupleOfArrays) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -361,7 +361,7 @@ TEST_P(PipelineGeneratorTest, MultidimensionalArray) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -405,7 +405,7 @@ TEST_P(PipelineGeneratorTest, TreeOfAdds) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -445,7 +445,7 @@ TEST_P(PipelineGeneratorTest, BigExpressionInOneStage) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -472,7 +472,7 @@ TEST_P(PipelineGeneratorTest, IdentityOfMul) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -500,7 +500,7 @@ TEST_P(PipelineGeneratorTest, RequiredNamedIntermediates) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -529,7 +529,7 @@ TEST_P(PipelineGeneratorTest, BinarySelect) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -557,7 +557,7 @@ TEST_P(PipelineGeneratorTest, TwoBitSelector) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -586,7 +586,7 @@ TEST_P(PipelineGeneratorTest, TwoBitSelectorAllCasesPopulated) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -614,7 +614,7 @@ TEST_P(PipelineGeneratorTest, ValidSignal) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(schedule, func,
-                           PipelineOptions()
+                           BuildPipelineOptions()
                                .valid_control("in_valid", "out_valid")
                                .use_system_verilog(UseSystemVerilog())));
 
@@ -643,7 +643,7 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithSimulation) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(schedule, func,
-                           PipelineOptions()
+                           BuildPipelineOptions()
                                .valid_control("in_valid", "out_valid")
                                .use_system_verilog(UseSystemVerilog())));
 
@@ -711,11 +711,13 @@ TEST_P(PipelineGeneratorTest, ValidSignalWithReset) {
     reset.set_reset_data_path(false);
     XLS_ASSERT_OK_AND_ASSIGN(
         ModuleGeneratorResult result,
-        ToPipelineModuleText(schedule, func,
-                             PipelineOptions()
-                                 .valid_control("in_valid", "out_valid")
-                                 .use_system_verilog(UseSystemVerilog())
-                                 .reset(reset)));
+        ToPipelineModuleText(
+            schedule, func,
+            BuildPipelineOptions()
+                .valid_control("in_valid", "out_valid")
+                .use_system_verilog(UseSystemVerilog())
+                .reset(reset.name(), reset.asynchronous(), reset.active_low(),
+                       reset.reset_data_path())));
     // The reset signal is synchronous so the edge sensitivity ("posedge foo" or
     // "negedge foo" should only contain the clock, i.e. "posedge clk").
     EXPECT_THAT(result.verilog_text, ContainsRegex(R"(edge\s+clk)"));
@@ -791,7 +793,7 @@ TEST_P(PipelineGeneratorTest, ManualPipelineControlWithSimulation) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(schedule, func,
-                           PipelineOptions()
+                           BuildPipelineOptions()
                                .manual_control("pipeline_le")
                                .use_system_verilog(UseSystemVerilog())));
 
@@ -858,7 +860,7 @@ TEST_P(PipelineGeneratorTest, ManualPipelineControl) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(schedule, func,
-                           PipelineOptions()
+                           BuildPipelineOptions()
                                .manual_control("load_enable")
                                .use_system_verilog(UseSystemVerilog())));
 
@@ -888,7 +890,7 @@ TEST_P(PipelineGeneratorTest, ManualPipelineControlNoInputFlops) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(schedule, func,
-                           PipelineOptions()
+                           BuildPipelineOptions()
                                .manual_control("load_enable")
                                .use_system_verilog(UseSystemVerilog())
                                .flop_inputs(false)
@@ -913,7 +915,7 @@ TEST_P(PipelineGeneratorTest, CustomModuleName) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().module_name("foobar").use_system_verilog(
+          BuildPipelineOptions().module_name("foobar").use_system_verilog(
               UseSystemVerilog())));
 
   EXPECT_THAT(result.verilog_text, HasSubstr("module foobar("));
@@ -935,7 +937,7 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopInputsAndOutputs) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(schedule, func,
-                           PipelineOptions()
+                           BuildPipelineOptions()
                                .use_system_verilog(UseSystemVerilog())
                                .flop_inputs(true)
                                .flop_outputs(true)));
@@ -967,7 +969,7 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopInputsNotOutputs) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(schedule, func,
-                           PipelineOptions()
+                           BuildPipelineOptions()
                                .use_system_verilog(UseSystemVerilog())
                                .flop_inputs(true)
                                .flop_outputs(false)));
@@ -999,7 +1001,7 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopOutputsNotInputs) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(schedule, func,
-                           PipelineOptions()
+                           BuildPipelineOptions()
                                .use_system_verilog(UseSystemVerilog())
                                .flop_inputs(false)
                                .flop_outputs(true)));
@@ -1031,7 +1033,7 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopNeitherInputsNorOutputs) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(schedule, func,
-                           PipelineOptions()
+                           BuildPipelineOptions()
                                .use_system_verilog(UseSystemVerilog())
                                .flop_inputs(false)
                                .flop_outputs(false)));
@@ -1063,7 +1065,7 @@ TEST_P(PipelineGeneratorTest, SplitOutputs) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(schedule, func,
-                           PipelineOptions()
+                           BuildPipelineOptions()
                                .use_system_verilog(UseSystemVerilog())
                                .split_outputs(true)));
 
@@ -1101,7 +1103,7 @@ TEST_P(PipelineGeneratorTest, SplitTupleParamOutputs) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(schedule, func,
-                           PipelineOptions()
+                           BuildPipelineOptions()
                                .use_system_verilog(UseSystemVerilog())
                                .split_outputs(true)));
 
@@ -1135,7 +1137,7 @@ TEST_P(PipelineGeneratorTest, SplitOutputsNotTupleTyped) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(schedule, func,
-                           PipelineOptions()
+                           BuildPipelineOptions()
                                .use_system_verilog(UseSystemVerilog())
                                .split_outputs(true)));
 
@@ -1173,7 +1175,7 @@ TEST_P(PipelineGeneratorTest, EmitsCoverpoints) {
       ModuleGeneratorResult result,
       ToPipelineModuleText(
           schedule, func,
-          PipelineOptions().use_system_verilog(UseSystemVerilog())));
+          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   EXPECT_EQ(result.signature.data_outputs().size(), 1);
   EXPECT_EQ(result.signature.data_outputs()[0].name(), "out");
@@ -1207,11 +1209,13 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithResetSimulation) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
-      ToPipelineModuleText(schedule, func,
-                           PipelineOptions()
-                               .valid_control("in_valid", "out_valid")
-                               .reset(reset_proto)
-                               .use_system_verilog(UseSystemVerilog())));
+      ToPipelineModuleText(
+          schedule, func,
+          BuildPipelineOptions()
+              .valid_control("in_valid", "out_valid")
+              .reset(reset_proto.name(), reset_proto.asynchronous(),
+                     reset_proto.active_low(), reset_proto.reset_data_path())
+              .use_system_verilog(UseSystemVerilog())));
 
   ModuleTestbench tb(result.verilog_text, result.signature, GetSimulator());
   tb.Set("in_valid", 0).Set("rst", 1).NextCycle();

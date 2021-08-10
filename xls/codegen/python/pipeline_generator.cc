@@ -39,7 +39,7 @@ absl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithNStages(
       PipelineSchedule schedule,
       PipelineSchedule::Run(f, GetStandardDelayEstimator(),
                             SchedulingOptions().pipeline_stages(stages)));
-  PipelineOptions options;
+  CodegenOptions options = BuildPipelineOptions();
   options.module_name(module_name);
   options.use_system_verilog(false);
   return ToPipelineModuleText(schedule, f, options);
@@ -54,7 +54,7 @@ absl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithClockPeriod(
       PipelineSchedule::Run(
           f, GetStandardDelayEstimator(),
           SchedulingOptions().clock_period_ps(clock_period_ps)));
-  PipelineOptions options;
+  CodegenOptions options = BuildPipelineOptions();
   options.module_name(module_name);
   options.use_system_verilog(false);
   return ToPipelineModuleText(schedule, f, options);

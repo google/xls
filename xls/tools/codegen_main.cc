@@ -172,7 +172,7 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
     }
     XLS_RET_CHECK(scheduling_unit.schedule.has_value());
 
-    verilog::PipelineOptions pipeline_options;
+    verilog::CodegenOptions pipeline_options = verilog::BuildPipelineOptions();
     if (!absl::GetFlag(FLAGS_module_name).empty()) {
       pipeline_options.module_name(absl::GetFlag(FLAGS_module_name));
     }
@@ -189,11 +189,10 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
     pipeline_options.flop_outputs(absl::GetFlag(FLAGS_flop_outputs));
 
     if (!absl::GetFlag(FLAGS_reset).empty()) {
-      verilog::ResetProto reset_proto;
-      reset_proto.set_name(absl::GetFlag(FLAGS_reset));
-      reset_proto.set_asynchronous(absl::GetFlag(FLAGS_reset_asynchronous));
-      reset_proto.set_active_low(absl::GetFlag(FLAGS_reset_active_low));
-      pipeline_options.reset(reset_proto);
+      pipeline_options.reset(absl::GetFlag(FLAGS_reset),
+                             absl::GetFlag(FLAGS_reset_asynchronous),
+                             absl::GetFlag(FLAGS_reset_active_low),
+                             /*reset_data_path=*/false);
     }
 
     XLS_ASSIGN_OR_RETURN(

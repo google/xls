@@ -376,11 +376,14 @@ SequentialModuleBuilder::GenerateModuleSignature() {
 absl::StatusOr<std::unique_ptr<ModuleGeneratorResult>>
 SequentialModuleBuilder::GenerateLoopBodyPipeline() {
   // Set pipeline options.
-  PipelineOptions pipeline_options;
+  CodegenOptions pipeline_options;
   pipeline_options.flop_inputs(false).flop_outputs(false).use_system_verilog(
       sequential_options_.use_system_verilog());
   if (sequential_options_.reset().has_value()) {
-    pipeline_options.reset(sequential_options_.reset().value());
+    const ResetProto& reset_options = sequential_options_.reset().value();
+    pipeline_options.reset(reset_options.name(), reset_options.asynchronous(),
+                           reset_options.active_low(),
+                           reset_options.reset_data_path());
   }
 
   // Get schedule.

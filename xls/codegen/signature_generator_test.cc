@@ -87,7 +87,8 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
         GenerateSignature(
             CodegenOptions()
                 .module_name("foobar")
-                .reset("rst_n", /*asynchronous=*/false, /*active_low=*/true)
+                .reset("rst_n", /*asynchronous=*/false, /*active_low=*/true,
+                       /*reset_data_path=*/false)
                 .clock_name("the_clock"),
             f, schedule));
 
