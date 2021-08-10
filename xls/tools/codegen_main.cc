@@ -104,6 +104,7 @@ ABSL_FLAG(bool, reset_asynchronous, false,
           "Whether the reset signal is asynchronous.");
 ABSL_FLAG(bool, use_system_verilog, true,
           "If true, emit SystemVerilog otherwise emit Verilog.");
+ABSL_FLAG(std::string, gate_format, "", "Format string to use for gate! ops.");
 
 namespace xls {
 namespace {
@@ -195,6 +196,10 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
                              /*reset_data_path=*/false);
     }
 
+    if (!absl::GetFlag(FLAGS_gate_format).empty()) {
+      pipeline_options.gate_format(absl::GetFlag(FLAGS_gate_format));
+    }
+
     XLS_ASSIGN_OR_RETURN(
         result, verilog::ToPipelineModuleText(*scheduling_unit.schedule, main,
                                               pipeline_options));
@@ -205,7 +210,9 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
   } else if (absl::GetFlag(FLAGS_generator) == "combinational") {
     XLS_ASSIGN_OR_RETURN(result,
                          verilog::GenerateCombinationalModule(
-                             main, absl::GetFlag(FLAGS_use_system_verilog)));
+                             main, absl::GetFlag(FLAGS_use_system_verilog),
+                             absl::GetFlag(FLAGS_module_name),
+                             absl::GetFlag(FLAGS_gate_format)));
   } else {
     XLS_LOG(QFATAL) << absl::StreamFormat(
         "Invalid value for --generator: %s. Expected 'pipeline' or "

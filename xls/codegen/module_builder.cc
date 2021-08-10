@@ -916,18 +916,20 @@ absl::StatusOr<IndexableExpression*> ModuleBuilder::EmitGate(
         gate->GetType()->ToString()));
   }
 
+  LogicRef* ref = DeclareVariable(gate->GetName(), gate->GetType());
+
   if (fmt_string.has_value()) {
     absl::flat_hash_map<std::string, std::string> placeholders;
     placeholders["condition"] = condition->Emit();
     placeholders["input"] = data->Emit();
-    placeholders["output"] = gate->GetName();
+    placeholders["output"] = ref->GetName();
     placeholders["width"] = absl::StrCat(gate->GetType()->GetFlatBitCount());
     XLS_ASSIGN_OR_RETURN(std::string gate_str,
                          GenerateFormatString(fmt_string.value(), placeholders,
                                               /*unsupported_placeholders=*/{}));
     InlineVerilogStatement* raw_statement =
         assignment_section()->Add<InlineVerilogStatement>(gate_str + ";");
-    return file_->Make<InlineVerilogRef>(gate->GetName(), raw_statement);
+    return file_->Make<InlineVerilogRef>(ref->GetName(), raw_statement);
   }
 
   // Emit the gate as an AND of the (potentially replicated) condition and the
@@ -946,7 +948,6 @@ absl::StatusOr<IndexableExpression*> ModuleBuilder::EmitGate(
     gate_expr = file_->BitwiseAnd(
         file_->Concat(gate->GetType()->GetFlatBitCount(), {condition}), data);
   }
-  LogicRef* ref = DeclareVariable(gate->GetName(), gate->GetType());
   XLS_RETURN_IF_ERROR(Assign(ref, gate_expr, gate->GetType()));
   return ref;
 }

@@ -105,6 +105,8 @@ namespace {
   };
   switch (node->op()) {
     // TODO(leary): 2019-09-24 Collect real numbers for these.
+    case Op::kGate:
+      return get_logical_effort(netlist::CellKind::kNand, /*invert=*/true);
     case Op::kAnd:
       return get_logical_effort(netlist::CellKind::kNand, /*invert=*/true);
     case Op::kNand:

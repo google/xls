@@ -35,7 +35,7 @@ namespace verilog {
 // represents the combinational module. This proc is used for code generation.
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
     Function* func, bool use_system_verilog = true,
-    absl::string_view module_name = "");
+    absl::string_view module_name = "", absl::string_view gate_format = "");
 
 }  // namespace verilog
 }  // namespace xls

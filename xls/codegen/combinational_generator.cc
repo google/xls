@@ -48,7 +48,8 @@ namespace xls {
 namespace verilog {
 
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
-    Function* func, bool use_system_verilog, absl::string_view module_name) {
+    Function* func, bool use_system_verilog, absl::string_view module_name,
+    absl::string_view gate_format) {
   XLS_ASSIGN_OR_RETURN(
       Block * block,
       FunctionToBlock(func, module_name.empty()
@@ -58,6 +59,9 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
   CodegenPassOptions pass_options;
   pass_options.codegen_options.entry(block->name())
       .use_system_verilog(use_system_verilog);
+  if (!gate_format.empty()) {
+    pass_options.codegen_options.gate_format(gate_format);
+  }
   PassResults results;
   XLS_RETURN_IF_ERROR(
       CreateCodegenPassPipeline()->Run(&unit, pass_options, &results).status());

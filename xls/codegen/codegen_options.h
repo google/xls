@@ -118,7 +118,8 @@ struct CodegenOptions {
   // For example, consider a format string which instantiates a particular
   // custom AND gate for gating:
   //
-  //    'my_and {output} [{width}-1:0] = my_and({condition}, {input})'
+  //    'my_and gated_{output} [{width}-1:0] (.Z({output}), .A({condition}),
+  //    .B({input}))'
   //
   // And the IR gate operations is:
   //
@@ -126,7 +127,8 @@ struct CodegenOptions {
   //
   // This results in the following emitted Verilog:
   //
-  //    my_and the_result [32-1:0] = my_and(the cond, the_data);
+  //    my_and gated_the_result [32-1:0] (.Z(the_result), .A(the cond),
+  //    .B(the_data));
   //
   // To ensure valid Verilog, the instantiated template must declare a value
   // named {output} (e.g., `the_result` in the example).

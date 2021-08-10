@@ -2084,19 +2084,16 @@ letters, digits, underscores, or dollar signs.
 
 ### gate!
 
-NOTE: Currently, `gate!` is work-in-progress and does not yet support code
-generation to Verilog (via `codegen_main`); see:
-[google/xls#469](https://github.com/google/xls/issues/469).
 
 The `gate!` builtin is used for operand gating, of the form:
 
 ```
-let gated_value = gate!(<should_gate>, <value>);
+let gated_value = gate!(<pass_value>, <value>);
 ```
 
 This will generally use a special Verilog macro to avoid the underlying
 synthesis tool doing boolean optimization, and will turn `gated_value` to `0`
-when the predicate `should_gate` is `true`. This can be used in attempts to
+when the predicate `pass_value` is `false`. This can be used in attempts to
 manually avoid toggles based on the gating predicate.
 
 It is expected that XLS will grow facilities to inserting gating ops
