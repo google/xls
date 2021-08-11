@@ -6,7 +6,7 @@ function `foo` to work on both u16 and u32 data types, and anywhere in between.
 
 It's recommended that you're familiar with the concepts in the previous
 tutorial,
-"[float-to-int conversion"](./tutorials/float_to_int.md)
+"[float-to-int conversion"](../tutorials/float_to_int.md)
 before following this tutorial.
 
 ## Simple parametrics
@@ -14,8 +14,8 @@ before following this tutorial.
 Consider the simple example of the `umax` function
 [in the DSLX standard library](https://github.com/google/xls/tree/main/xls/dslx/stdlib/std.x):
 
-```rust
-pub fun umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
+```dslx
+pub fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
   x if x > y else y
 }
 ```
@@ -39,7 +39,7 @@ infer them:
 
 Explicit specification:
 
-```rust
+```dslx
 import std
 
 fn foo(a: u32, b: u16) -> u64 {
@@ -52,7 +52,7 @@ are.
 
 Parametric inference:
 
-```rust
+```dslx
 import std
 
 fn foo(a: u32, b: u16) -> u64 {
@@ -65,11 +65,11 @@ matches the types of the arguments to `umax`, and since both arg types agree.
 There may be times where inference isn't possible - for example, when there
 exist parametrics that aren't referenced in the argument list:
 
-```rust
+```dslx
 fn my_parametric_sum<N: u32>(a: u32, b: u32) -> uN[N] {
   let a_mod = a as uN[N];
   let b_mod = a as uN[N];
-  a_mod + b_mod;
+  a_mod + b_mod
 }
 ```
 
@@ -85,7 +85,7 @@ to the additional sign bit. In this situation, if `EXP_SZ` was 8, then it'd be
 handy to also have a `SIGNED_EXP_SZ` symbol that was equal to 9. This can be
 done as follows:
 
-```rust
+```dslx-snippet
 fn unbias_exponent<EXP_SZ: u32, SIGNED_EXP_SZ: u32 = EXP_SZ + u32:1>(
     exp: uN[EXP_SZ]) -> sN[SIGNED_EXP_SZ] {
   exp as sN[SIGNED_EXP_SZ] - sN[SIGNED_EXP_SZ]:???
@@ -96,7 +96,7 @@ Oh no! Specifying parametrics in this way has revealed a problem! If we
 parameterize types, then in some situations, we'll need to also parameterize
 *values*!
 
-Of course, we'd not be writing this codelab if that wasn't possible. DSLX
+Of course, we'd not be writing this tutorial if that wasn't possible. DSLX
 supports "constexpr"-style evaluation, whereby constant expressions can be
 evaluated at interpretation or compilation time. In this case, we just need an
 expression that can calculate the correct bias adjustment: `(sN[SIGNED_EXP_SZ]:1
@@ -104,7 +104,7 @@ expression that can calculate the correct bias adjustment: `(sN[SIGNED_EXP_SZ]:1
 
 This is a bit unwieldy in practice, so we can wrap it in a function:
 
-```rust
+```dslx
 fn bias_scaler<N: u32, WIDE_N: u32 = N + u32:1>() -> sN[WIDE_N] {
   (sN[WIDE_N]:1 << (N - u32:1)) - sN[WIDE_N]:1
 }
@@ -128,11 +128,15 @@ such conversions - even to floating-point formats we haven't considered!
 The first step in such a parameterization is to have a working single-typed
 example, which we take from the previous codelab:
 
-```rust
+```dslx
 pub struct float32 {
   sign: u1,
   bexp: u8,
   fraction: u23,
+}
+
+fn unbias_exponent(exp: u8) -> s9 {
+  exp as s9 - s9:127
 }
 
 pub fn float_to_int(x: float32) -> s32 {
@@ -150,7 +154,7 @@ pub fn float_to_int(x: float32) -> s32 {
   // Shift the result to the left if the exponent is greater than 23.
   let fraction =
       fraction << ((exp as u8) - u8:23) if (exp as u8) > u8:23
-      else raction;
+      else fraction;
 
   let result = fraction as s32;
   let result = -result if x.sign else result;
@@ -167,7 +171,7 @@ types flow from that base definition:
 
 Thus, the struct declaration and function signature will be:
 
-```
+```dslx-snippet
 pub struct float<EXP_SZ: u32, FRACTION_SZ: u32> {
   sign: u1,
   bexp: uN[EXP_SZ],
@@ -183,7 +187,22 @@ pub fn float_to_int<EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ: u32>(
 From there, the rest of the function can be populated by replacing the types in
 the original implementation with the parameterized ones in the signature:
 
-```
+```dslx
+pub struct float<EXP_SZ: u32, FRACTION_SZ: u32> {
+  sign: u1,
+  bexp: uN[EXP_SZ],
+  fraction: uN[FRACTION_SZ],
+}
+
+fn bias_scaler<N: u32, WIDE_N: u32 = N + u32:1>() -> sN[WIDE_N] {
+  (sN[WIDE_N]:1 << (N - u32:1)) - sN[WIDE_N]:1
+}
+
+fn unbias_exponent<EXP_SZ: u32, SIGNED_EXP_SZ: u32 = EXP_SZ + u32:1>(
+    exp: uN[EXP_SZ]) -> sN[SIGNED_EXP_SZ] {
+  exp as sN[SIGNED_EXP_SZ] - bias_scaler<EXP_SZ>()
+}
+
 pub fn float_to_int<
     EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ: u32,
     WIDE_EXP_SZ: u32 = EXP_SZ + u32:1,
@@ -210,8 +229,8 @@ pub fn float_to_int<
 
 Note that `unbias_exponent()` didn't need type specification, since the type
 could be inferred from the argument! (Also note that this implementation doesn't
-contain the fixes from the missing cases from the previous tutorial. No
-cheating!)
+contain the fixes from the missing cases from the previous tutorial. Exercise to
+the reader: apply those fixes here, too!)
 
 This technique underlies all of XLS' floating-point libraries. Common operations
 are defined in common files, such as
@@ -224,7 +243,7 @@ multiply-add). Specializations of the above are then available in, e.g.,
 [float32.x](https://github.com/google/xls/tree/main/xls/stdlib/float32.x),
 [fpadd_2x32.x](https://github.com/google/xls/tree/main/xls/modules/fpadd_2x32.x), and
 [fma_32.x](https://github.com/google/xls/tree/main/xls/modules/fma_32.x), respectively, to
-hide internal implementation details from end-users.
+hide internal implementation details from end users.
 
 With this technique, you can write single implementations of functionality that
 can be applicable across all sorts of hardware configurations for minimal

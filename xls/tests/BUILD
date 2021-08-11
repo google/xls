@@ -74,6 +74,7 @@ py_test(
     srcs = ["documentation_test.py"],
     data = [
         "//docs_src:dslx_reference",
+        "//docs_src/tutorials:all_files",
         "//xls/dslx:interpreter_main",
         "//xls/dslx/tests:mod_imported_file",
     ],

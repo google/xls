@@ -2,6 +2,8 @@
 
 This page documents the DSLX standard library.
 
+[TOC]
+
 # `std.x`
 
 ## `std::bounded_minus_1`
@@ -140,7 +142,8 @@ hand side and right hand side.
 pub fn find_index<BITS: u32, ELEMS: u32>( array: uN[BITS][ELEMS], x: uN[BITS]) -> (bool, u32)
 ```
 
-Returns (`found`, `index`) given array and the element to find within the array.
+Returns (`found`, `index`) given an array and the element to find within the
+array.
 
 Note that when `found` is false, the `index` is `0` -- `0` is provided instead
 of a value like `-1` to prevent out-of-bounds accesses from occurring if the

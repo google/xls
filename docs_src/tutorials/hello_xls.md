@@ -17,14 +17,14 @@ Github:
 git clone https://github.com/google/xls.git xls
 ```
 
-Next, build the project tree. XLS includes several depenencies that can take a
+Next, build the project tree. XLS includes several dependencies that can take a
 while to build, so the first build may take a while; subsequent builds will be
 much shorter.
 
-NOTE: If you don't have Bazel installed, install it: check the Bazel website for
-instructions. The other prerequisites are a C++20-compliant compiler toolchain
-and a Python3 interpreter; check with your distribution for installation
-instructions for both.
+> **NOTE**: If you don't have Bazel installed, install it: check the Bazel
+> website for instructions. The other prerequisites are a C++20-compliant
+> compiler toolchain and a Python3 interpreter; check with your distribution for
+> installation instructions for both.
 
 Start the XLS build by running:
 
@@ -42,7 +42,7 @@ With your toolchain built, let's get to coding! Open up an editor and create a
 file called `hello_xls.x` in your XLS checkout root directory. Populate it with
 the following:
 
-```
+```dslx
 fn hello_xls(hello_string: u8[11]) {
   let _ = trace!(hello_string);
   ()
@@ -68,7 +68,7 @@ Let's run (and test) our code!
 First thing, though, we should make sure our module parses and passes
 typechecking. The fastest way to do that is via the DSLX
 "[repl](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop)",
-conveniently called `[repl](https://github.com/google/xls/tree/main/xls/tools/repl.cc)`.
+conveniently called [`repl`](https://github.com/google/xls/tree/main/xls/tools/repl.cc).
 You can run it against the above example with the command:
 
 ```
@@ -87,7 +87,7 @@ the
 First, though, we need a test case for it to execute. Add the following to the
 end of your `hello_xls.x` file:
 
-```
+```dslx-snippet
 #![test]
 fn hello_test() {
   hello_xls("Hello, XLS!")
@@ -129,4 +129,4 @@ numeric than string data, which is why they're represented numerically here.
 Congrats! You've written your first piece of hardware in DSLX! It might be more
 satisfying, though, if your hardware _actually did anything_. For that, see the
 next tutorial,
-[float-to-int conversion](./tutorials/float_to_int.md).
+[float-to-int conversion](../tutorials/float_to_int.md).

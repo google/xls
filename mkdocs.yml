@@ -23,7 +23,7 @@ nav:
     - Tutorials:
       - Hello, XLS!: 'tutorials/hello_xls.md'
       - Float-to-int conversion: 'tutorials/float_to_int.md'
-      - Parameterics: 'tutorials/parametrics.md'
+      - Parameterics: 'tutorials/parametric_functions.md'
     - Reference: 'dslx_reference.md'
     - Standard Library : 'dslx_std.md'
     - Examples:

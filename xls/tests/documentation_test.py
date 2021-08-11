@@ -28,15 +28,25 @@ _DSLX_RE = re.compile('^```dslx$(.*?)^```$', re.MULTILINE | re.DOTALL)
 
 _INTERP_PATH = runfiles.get_path('xls/dslx/interpreter_main')
 
+_INPUT_FILES = [
+    'docs_src/dslx_reference.md',
+    'docs_src/tutorials/hello_xls.md',
+    'docs_src/tutorials/float_to_int.md',
+    'docs_src/tutorials/parametric_functions.md',
+]
+
 
 def get_examples() -> List[Dict[str, Union[int, str]]]:
   """Returns DSLX blocks in the reference Markdown as dictionary records."""
-  contents = runfiles.get_contents_as_text('docs_src/dslx_reference.md')
   examples = []
-  for i, m in enumerate(_DSLX_RE.finditer(contents)):
-    dslx_block = m.group(1)
-    examples.append(
-        dict(testcase_name=f'dslx_block_{i}', i=i, dslx_block=dslx_block))
+  for input_file in _INPUT_FILES:
+    contents = runfiles.get_contents_as_text(input_file)
+    f = input_file.replace('/', '_').replace('.', '_')
+    for i, m in enumerate(_DSLX_RE.finditer(contents)):
+      dslx_block = m.group(1)
+      examples.append(
+          dict(testcase_name=f'dslx_block_{f}_{i}', i=i, dslx_block=dslx_block))
+
   return examples
 
 
