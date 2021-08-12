@@ -857,6 +857,7 @@ cc_test(
         "//xls/common:math_util",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/container:inlined_vector",
         "@com_google_googletest//:gtest",
     ],
 )

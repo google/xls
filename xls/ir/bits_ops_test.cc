@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/inlined_vector.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/number_parser.h"
@@ -792,6 +793,39 @@ TEST(BitsOpsTest, BitSliceUpdate) {
       }
     }
   }
+}
+
+TEST(BitsOpsTest, LongestCommonPrefixLSBTypical) {
+  // Simple typical example
+  Bits x(absl::InlinedVector<bool, 1>{1, 1, 0, 1, 1});
+  Bits y(absl::InlinedVector<bool, 1>{1, 1, 0, 0, 1});
+  Bits expected(absl::InlinedVector<bool, 1>{1, 1, 0});
+  EXPECT_EQ(bits_ops::LongestCommonPrefixLSB({x, y}), expected);
+}
+
+TEST(BitsOpsTest, LongestCommonPrefixLSBEmptyResult) {
+  // Differ in the first bit => common prefix is the empty bitstring
+  Bits x(absl::InlinedVector<bool, 1>{0, 1, 0, 1, 1});
+  Bits y(absl::InlinedVector<bool, 1>{1, 1, 0, 0, 1});
+  Bits expected(0);
+  EXPECT_EQ(bits_ops::LongestCommonPrefixLSB({x, y}), expected);
+}
+
+TEST(BitsOpsTest, LongestCommonPrefixLSBSame) {
+  // Everything the same => common prefix is the entire bitstring
+  Bits x(absl::InlinedVector<bool, 1>{1, 1, 0, 0, 1});
+  Bits y(absl::InlinedVector<bool, 1>{1, 1, 0, 0, 1});
+  Bits expected(absl::InlinedVector<bool, 1>{1, 1, 0, 0, 1});
+  EXPECT_EQ(bits_ops::LongestCommonPrefixLSB({x, y}), expected);
+}
+
+TEST(BitsOpsTest, LongestCommonPrefixLSBMoreThan2) {
+  // Example with more than 2 bitstrings
+  Bits x(absl::InlinedVector<bool, 1>{0, 1, 1, 1, 1});
+  Bits y(absl::InlinedVector<bool, 1>{0, 1, 1, 0, 1});
+  Bits z(absl::InlinedVector<bool, 1>{0, 1, 1, 1, 0});
+  Bits expected(absl::InlinedVector<bool, 1>{0, 1, 1});
+  EXPECT_EQ(bits_ops::LongestCommonPrefixLSB({x, y, z}), expected);
 }
 
 }  // namespace

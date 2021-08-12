@@ -147,6 +147,11 @@ Bits DropLeadingZeroes(const Bits& bits);
 Bits BitSliceUpdate(const Bits& to_update, int64_t start,
                     const Bits& update_value);
 
+// Computes the longest common prefix of any number of `Bits`s, starting at the
+// least-significant end of each bit string.
+// CHECK fails if the `Bits`s don't all have the same bit width.
+Bits LongestCommonPrefixLSB(absl::Span<const Bits> bits_span);
+
 }  // namespace bits_ops
 
 // Returns the identity value of the given width for the given logical Op (e.g.,

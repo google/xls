@@ -519,6 +519,30 @@ Bits BitSliceUpdate(const Bits& to_update, int64_t start,
   return Concat({msb_slice, update_slice, lsb_slice});
 }
 
+Bits LongestCommonPrefixLSB(absl::Span<const Bits> bits_span) {
+  if (bits_span.empty()) {
+    return Bits();
+  }
+
+  int64_t input_size = bits_span[0].bit_count();
+  for (const Bits& bits : bits_span) {
+    XLS_CHECK_EQ(bits.bit_count(), input_size);
+  }
+
+  absl::InlinedVector<bool, 1> result_vector;
+  result_vector.reserve(input_size);
+  for (int32_t i = 0; i < input_size; ++i) {
+    bool expected_bit = bits_span[0].Get(i);
+    for (const Bits& bits : bits_span) {
+      if (bits.Get(i) != expected_bit) {
+        return Bits(result_vector);
+      }
+    }
+    result_vector.push_back(expected_bit);
+  }
+  return Bits(result_vector);
+}
+
 }  // namespace bits_ops
 
 Bits LogicalOpIdentity(Op op, int64_t width) {
