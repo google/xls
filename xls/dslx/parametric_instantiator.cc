@@ -124,17 +124,16 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
     if (auto it = symbolic_bindings_.find(name);
         it != symbolic_bindings_.end()) {
       InterpValue seen = it->second;
-      int64_t result_value = result.value().GetBitValueInt64().value();
-      int64_t seen_value = seen.GetBitValueInt64().value();
       if (result.value() != seen) {
         XLS_ASSIGN_OR_RETURN(auto lhs_type,
-                             ConcreteType::FromInterpValue(result.value()));
+                             ConcreteType::FromInterpValue(seen));
         XLS_ASSIGN_OR_RETURN(auto rhs_type,
                              ConcreteType::FromInterpValue(result.value()));
         std::string message = absl::StrFormat(
-            "Parametric constraint violated, first saw %s = %d; then saw %s = "
-            "%s = %d",
-            name, seen_value, name, expr->ToString(), result_value);
+            "Parametric constraint violated, first saw %s = %s; then saw %s = "
+            "%s = %s",
+            name, seen.ToString(), name, expr->ToString(),
+            result.value().ToString());
         return XlsTypeErrorStatus(span_, *rhs_type, *lhs_type,
                                   std::move(message));
       }

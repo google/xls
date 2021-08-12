@@ -118,6 +118,11 @@ class InterpValue {
   static InterpValue MakeSigned(Bits bits) {
     return InterpValue(InterpValueTag::kSBits, std::move(bits));
   }
+  static InterpValue MakeBits(bool is_signed, Bits bits) {
+    return InterpValue(
+        is_signed ? InterpValueTag::kSBits : InterpValueTag::kUBits,
+        std::move(bits));
+  }
   static InterpValue MakeTuple(std::vector<InterpValue> members);
   static absl::StatusOr<InterpValue> MakeArray(
       std::vector<InterpValue> elements);
@@ -237,8 +242,15 @@ class InterpValue {
   absl::StatusOr<InterpValue> SCmp(const InterpValue& other,
                                    absl::string_view method);
 
-  // "humanize" indicates whether bits-based values /within containers/ should
-  // not have their leading widths printed -- this can obscure readability.
+  // Converts this value into a string for display.
+  //
+  // Args:
+  //  humanize: Whether to maximize readability of the value for human
+  //    consumption -- e.g. indicates whether bits-based values should have
+  //    leading types. When binary formatting is requested, the types are always
+  //    given, however (because it's hard to intuit leading zeros without a
+  //    displayed width).
+  //  format: What radix to use for converting the value to string.
   std::string ToString(
       bool humanize = false,
       FormatPreference format = FormatPreference::kDefault) const;

@@ -886,9 +886,10 @@ absl::StatusOr<InterpValue> EvaluateShift(Binop* expr, InterpBindings* bindings,
                                           AbstractInterpreter* interp) {
   XLS_VLOG(6) << "EvaluateShift: " << expr->ToString() << " @ " << expr->span();
   XLS_ASSIGN_OR_RETURN(InterpValue lhs, interp->Eval(expr->lhs(), bindings));
-  std::unique_ptr<ConcreteType> rhs_type = nullptr;
+
   // Retrieve a type context for the right hand side as an un-type-annotated
   // literal number is permitted.
+  std::unique_ptr<ConcreteType> rhs_type = nullptr;
   absl::optional<ConcreteType*> rhs_item =
       interp->GetCurrentTypeInfo()->GetItem(expr->rhs());
   if (rhs_item.has_value()) {

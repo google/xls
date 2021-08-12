@@ -125,6 +125,32 @@ std::vector<Param*> AstGenerator::GenerateParams(int64_t count) {
   return params;
 }
 
+std::vector<ParametricBinding*> AstGenerator::GenerateParametricBindings(
+    int64_t count) {
+  std::vector<ParametricBinding*> pbs;
+  for (int64_t i = 0; i < count; ++i) {
+    std::string identifier = GenSym();
+    NameDef* name_def =
+        module_->Make<NameDef>(fake_span_, std::move(identifier),
+                               /*definer=*/nullptr);
+    // TODO(google/xls#460): Currently we only support non-negative values as
+    // parametrics -- when that restriction is lifted we should be able to do
+    // arbitrary GenerateNumber() calls.
+    //
+    // TODO(google/xls#461): We only support 64-bit values being mangled into
+    // identifier since Bits conversion to decimal only supports that.
+    //
+    // Starting from 1 is to ensure that we don't get a 0-bit value.
+    int64_t bit_count = RandRange(1, 65);
+    TypedExpr number = GenerateNumber(BitsAndSignedness{bit_count, false});
+    ParametricBinding* pb =
+        module_->Make<ParametricBinding>(name_def, number.type, number.expr);
+    name_def->set_definer(pb);
+    pbs.push_back(pb);
+  }
+  return pbs;
+}
+
 TypeAnnotation* AstGenerator::MakeTypeAnnotation(bool is_signed,
                                                  int64_t width) {
   XLS_CHECK_GT(width, 0);
@@ -390,8 +416,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(Env* env) {
     // If there's no natural environment value to use as the LHS, make up a
     // number and number of bits.
     int64_t bits = RandRange(1, kMaxBitCount);
-    XLS_ASSIGN_OR_RETURN(lhs,
-                         GenerateNumber(env, BitsAndSignedness{bits, false}));
+    lhs = GenerateNumber(BitsAndSignedness{bits, false});
   }
 
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(env));
@@ -570,8 +595,7 @@ BuiltinTypeAnnotation* AstGenerator::GeneratePrimitiveType() {
   return module_->Make<BuiltinTypeAnnotation>(fake_span_, type);
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateNumber(
-    Env* env, absl::optional<BitsAndSignedness> bas) {
+TypedExpr AstGenerator::GenerateNumber(absl::optional<BitsAndSignedness> bas) {
   TypeAnnotation* type;
   if (bas.has_value()) {
     type = MakeTypeAnnotation(bas->signedness, bas->bits);
@@ -1184,7 +1208,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
         generated = GenerateOneHotSelectBuiltin(env);
         break;
       case kNumber:
-        generated = GenerateNumber(env);
+        generated = GenerateNumber();
         break;
       case kBitwiseReduction:
         generated = GenerateBitwiseReduction(env);
@@ -1291,28 +1315,60 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Env* env) {
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(
-    int64_t call_depth, absl::Span<Param* const> params) {
-  Env env;
-  for (Param* param : params) {
-    env[param->identifier()] =
-        TypedExpr{MakeNameRef(param->name_def()), param->type_annotation()};
-  }
-  return GenerateExpr(/*expr_size=*/0, call_depth, &env);
+    int64_t call_depth, absl::Span<Param* const> params, Env* env) {
+  // We need to be able to draw references from the environment, so we never
+  // want it to be empty.
+  XLS_RET_CHECK(!env->empty());
+  return GenerateExpr(/*expr_size=*/0, call_depth, env);
 }
 
 absl::StatusOr<Function*> AstGenerator::GenerateFunction(
     std::string name, int64_t call_depth,
     absl::optional<absl::Span<TypeAnnotation* const>> param_types) {
+  Env env;
+
+  std::vector<ParametricBinding*> parametric_bindings;
   std::vector<Param*> params;
   if (param_types.has_value()) {
     for (TypeAnnotation* param_type : param_types.value()) {
       params.push_back(GenerateParam(param_type));
     }
   } else {
-    // Always have at least one parameter.
-    params = GenerateParams(RandomIntWithExpectedValue(4, /*lower_limit=*/1));
+    // If we're the main function we have to have at least one parameter,
+    // because some Generate* methods expect to be able to draw from a non-empty
+    // env.
+    //
+    // TODO(https://github.com/google/xls/issues/475): Cleanup to make
+    // productions that are ok with empty env separate from those which require
+    // a populated env.
+    //
+    // When we're a nested call, 90% of the time make sure we have at least one
+    // parameter.  Sometimes it's ok to try out what happens with 0 parameters.
+    //
+    // (Note we still pick a number of params with an expected value of 4 even
+    // when 0 is permitted.)
+    int64_t lower_limit = (call_depth == 0 || RandomFloat() >= 0.10) ? 1 : 0;
+    params = GenerateParams(RandomIntWithExpectedValue(4, lower_limit));
   }
-  XLS_ASSIGN_OR_RETURN(TypedExpr retval, GenerateBody(call_depth, params));
+
+  // When we're not the main function, 10% of the time put some parametrics on
+  // the function.
+  if (call_depth != 0 && RandomFloat() >= 0.90) {
+    parametric_bindings = GenerateParametricBindings(
+        RandomIntWithExpectedValue(2, /*lower_limit=*/1));
+  }
+
+  for (Param* param : params) {
+    env[param->identifier()] =
+        TypedExpr{MakeNameRef(param->name_def()), param->type_annotation()};
+  }
+  for (ParametricBinding* pb : parametric_bindings) {
+    env[pb->identifier()] =
+        TypedExpr{MakeNameRef(pb->name_def()), pb->type_annotation()};
+  }
+
+  XLS_ASSIGN_OR_RETURN(TypedExpr retval,
+                       GenerateBody(call_depth, params, &env));
   if (!options_.generate_empty_tuples) {
     XLS_RET_CHECK(!IsNil(retval.type));
   }
@@ -1320,7 +1376,7 @@ absl::StatusOr<Function*> AstGenerator::GenerateFunction(
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
   Function* f = module_->Make<Function>(
       fake_span_, name_def,
-      /*parametric_bindings=*/std::vector<ParametricBinding*>{},
+      /*parametric_bindings=*/parametric_bindings,
       /*params=*/params,
       /*return_type=*/retval.type, /*body=*/retval.expr, /*is_public=*/false);
   name_def->set_definer(f);

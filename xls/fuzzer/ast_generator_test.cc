@@ -25,6 +25,8 @@
 namespace xls::dslx {
 namespace {
 
+using ::testing::MatchesRegex;
+
 // Parses and typechecks the given text to ensure it's valid -- prints errors to
 // the screen in a useful way for debugging if they fail parsing / typechecking.
 absl::Status ParseAndTypecheck(absl::string_view text,
@@ -48,6 +50,8 @@ absl::Status ParseAndTypecheck(absl::string_view text,
   return absl::OkStatus();
 }
 
+}  // namespace
+
 // Simply tests that we generate a bunch of valid functions using seed 0 (that
 // parse and typecheck).
 TEST(AstGeneratorTest, GeneratesValidFunctions) {
@@ -64,6 +68,17 @@ TEST(AstGeneratorTest, GeneratesValidFunctions) {
     // Parses/typechecks as well, which is primarily what we're testing here.
     XLS_ASSERT_OK(ParseAndTypecheck(text, module_name));
   }
+}
+
+TEST(AstGeneratorTest, GeneratesParametricBindings) {
+  std::mt19937 rng(0);
+  AstGenerator g(AstGeneratorOptions(), &rng);
+  g.module_ = absl::make_unique<Module>("my_mod");
+  std::vector<ParametricBinding*> pbs = g.GenerateParametricBindings(2);
+  EXPECT_EQ(pbs.size(), 2);
+  constexpr std::string_view kWantPattern = R"(x\d+: u\d+ = u\d+:0x[0-9a-f])";
+  EXPECT_THAT(pbs[0]->ToString(), MatchesRegex(kWantPattern));
+  EXPECT_THAT(pbs[1]->ToString(), MatchesRegex(kWantPattern));
 }
 
 // Helper function that is used in a TEST_P so we can shard the work.
@@ -207,5 +222,4 @@ INSTANTIATE_TEST_SUITE_P(AstGeneratorRepeatableTestInstance,
                          AstGeneratorRepeatableTest,
                          testing::Range(int64_t{0}, int64_t{1024}));
 
-}  // namespace
 }  // namespace xls::dslx

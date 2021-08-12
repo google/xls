@@ -422,8 +422,8 @@ class InterpreterTest(test_base.TestCase):
     # Note: no support for `while` in IR conversion.
     cmd = [_INTERP_PATH, '--compare=none', program_file.full_path]
     result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
-    self.assertIn('4:15-4:30: u32:1', result.stderr)
-    self.assertIn('4:15-4:30: u32:2', result.stderr)
+    self.assertIn('4:15-4:30: 1', result.stderr)
+    self.assertIn('4:15-4:30: 2', result.stderr)
 
   def test_bitslice_syntax(self):
     program = """

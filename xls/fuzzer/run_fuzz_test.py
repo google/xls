@@ -18,6 +18,7 @@
 
 import os
 import subprocess
+import sys
 
 from absl import flags
 
@@ -75,6 +76,7 @@ class RunFuzzTest(parameterized.TestCase):
   def test_first_n_seeds(self, seed):
     run_fuzz.run_fuzz(
         ast_generator.RngState(seed), self._get_ast_options(), **self.KWARGS)
+    sys.stdout.flush()
 
   def test_minimize_ir_minimization_possible(self):
     # Add an invalid codegen flag to inject an error into the running of the

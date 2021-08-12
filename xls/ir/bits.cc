@@ -283,7 +283,8 @@ std::string Bits::ToRawDigits(FormatPreference preference,
     // clean correspondence between decimal digits and binary digits.
     XLS_CHECK(!emit_leading_zeros)
         << "emit_leading_zeros not supported for decimal format.";
-    // TODO(meheff): 2019/4/3 Add support for arbitrary width decimal emission.
+    // TODO(google/xls#461): 2019-04-03 Add support for arbitrary width decimal
+    // emission.
     XLS_CHECK(FitsInUint64())
         << "Decimal output not supported for values which do "
            "not fit in a uint64_t";

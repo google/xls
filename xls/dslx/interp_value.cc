@@ -89,7 +89,7 @@ std::string TagToString(InterpValueTag tag) {
 // Converts an interp value (precondition: `v.IsBits()`) to a string, given a
 // format preference.
 static std::string BitsToString(const InterpValue& v, FormatPreference format,
-                                bool include_type = true) {
+                                bool include_type_prefix = true) {
   const Bits& bits = v.GetBitsOrDie();
   const int64_t bit_count = v.GetBitCount().value();
 
@@ -106,7 +106,7 @@ static std::string BitsToString(const InterpValue& v, FormatPreference format,
   switch (v.tag()) {
     case InterpValueTag::kUBits: {
       std::string value_str = bits.ToString(format);
-      if (!include_type) {
+      if (!include_type_prefix) {
         return value_str;
       }
       std::string type_str = bits_type_str();
@@ -121,7 +121,7 @@ static std::string BitsToString(const InterpValue& v, FormatPreference format,
         // bit pattern that has the leading negative sign.
         value_str = absl::StrCat("-", bits_ops::Negate(bits).ToString(format));
       }
-      if (!include_type) {
+      if (!include_type_prefix) {
         return value_str;
       }
       std::string type_str = bits_type_str();
@@ -140,8 +140,9 @@ std::string InterpValue::ToString(bool humanize,
         GetValuesOrDie(), ", ",
         [humanize, format](std::string* out, const InterpValue& v) {
           if (humanize && v.IsBits()) {
-            absl::StrAppend(out,
-                            BitsToString(v, format, /*include_type=*/false));
+            absl::StrAppend(
+                out,
+                BitsToString(v, format, /*include_type_prefix=*/!humanize));
             return;
           }
           absl::StrAppend(out, v.ToString(humanize, format));
@@ -151,7 +152,9 @@ std::string InterpValue::ToString(bool humanize,
   switch (tag_) {
     case InterpValueTag::kUBits:
     case InterpValueTag::kSBits:
-      return BitsToString(*this, format);
+      return BitsToString(*this, format,
+                          /*include_type_prefix=*/!humanize ||
+                              format == FormatPreference::kBinary);
     case InterpValueTag::kArray:
       return absl::StrFormat("[%s]", make_guts());
     case InterpValueTag::kTuple:

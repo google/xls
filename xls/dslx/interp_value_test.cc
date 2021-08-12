@@ -26,17 +26,19 @@ using status_testing::IsOkAndHolds;
 TEST(InterpValueTest, FormatU8) {
   auto ff = InterpValue::MakeUBits(/*bit_count=*/8, /*value=*/0xff);
   EXPECT_EQ(ff.ToString(), "u8:255");
-  EXPECT_EQ(ff.ToString(true, FormatPreference::kHex), "u8:0xff");
-  EXPECT_EQ(ff.ToString(true, FormatPreference::kDecimal), "u8:255");
-  EXPECT_EQ(ff.ToString(true, FormatPreference::kBinary), "u8:0b1111_1111");
+  EXPECT_EQ(ff.ToString(/*humanize=*/true, FormatPreference::kHex), "0xff");
+  EXPECT_EQ(ff.ToString(/*humanize=*/true, FormatPreference::kDecimal), "255");
+  EXPECT_EQ(ff.ToString(/*humanize=*/true, FormatPreference::kBinary),
+            "u8:0b1111_1111");
 }
 
 TEST(InterpValueTest, FormatS8) {
   auto ff = InterpValue::MakeSBits(/*bit_count=*/8, /*value=*/0xff);
   EXPECT_EQ(ff.ToString(), "s8:-1");
-  EXPECT_EQ(ff.ToString(true, FormatPreference::kHex), "s8:0xff");
-  EXPECT_EQ(ff.ToString(true, FormatPreference::kDecimal), "s8:-1");
-  EXPECT_EQ(ff.ToString(true, FormatPreference::kBinary), "s8:0b1111_1111");
+  EXPECT_EQ(ff.ToString(/*humanize=*/true, FormatPreference::kHex), "0xff");
+  EXPECT_EQ(ff.ToString(/*humanize=*/true, FormatPreference::kDecimal), "-1");
+  EXPECT_EQ(ff.ToString(/*humanize=*/true, FormatPreference::kBinary),
+            "s8:0b1111_1111");
 }
 
 TEST(InterpValueTest, BitsEquivalence) {

@@ -250,10 +250,17 @@ def run_fuzz(
       samples.append(smp)
 
     termcolor.cprint('=== Sample {}'.format(i), color='yellow', file=sys.stderr)
+    for lineno, line in enumerate(smp.input_text.splitlines(), 1):
+      print('{:03d}: {}'.format(lineno, line))
     print(smp.to_crasher('<sample {}>'.format(i)), file=sys.stderr)
 
     sample_dir = tempfile.mkdtemp('run_fuzz_')
-    run_sample(smp, sample_dir)
+    try:
+      run_sample(smp, sample_dir)
+    except Exception as e:
+      print(smp.to_crasher(str(e)), file=sys.stderr)
+      raise
+
     if not save_temps:
       shutil.rmtree(sample_dir)
 

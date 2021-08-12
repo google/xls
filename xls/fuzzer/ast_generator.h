@@ -135,6 +135,8 @@ class AstGenerator {
   }
 
  private:
+  friend class AstGeneratorTest_GeneratesParametricBindings_Test;
+
   static bool IsBits(TypeAnnotation* t);
   static bool IsUBits(TypeAnnotation* t);
   static bool IsArray(TypeAnnotation* t);
@@ -224,7 +226,8 @@ class AstGenerator {
   // parameters. call_depth is the depth of the call stack (via map or other
   // function-calling operation) for the function being generated.
   absl::StatusOr<TypedExpr> GenerateBody(int64_t call_depth,
-                                         absl::Span<Param* const> params);
+                                         absl::Span<Param* const> params,
+                                         Env* env);
 
   absl::StatusOr<TypedExpr> GenerateUnop(Env* env);
 
@@ -312,8 +315,8 @@ class AstGenerator {
   BuiltinTypeAnnotation* GeneratePrimitiveType();
 
   // Generates a number AST node with its associated type.
-  absl::StatusOr<TypedExpr> GenerateNumber(
-      Env* env, absl::optional<BitsAndSignedness> bas = absl::nullopt);
+  TypedExpr GenerateNumber(
+      absl::optional<BitsAndSignedness> bas = absl::nullopt);
 
   // Generates an invocation of the map builtin.
   absl::StatusOr<TypedExpr> GenerateMap(int64_t call_depth, Env* env);
@@ -327,6 +330,10 @@ class AstGenerator {
 
   // Generates the given number of parameters of random types.
   std::vector<Param*> GenerateParams(int64_t count);
+
+  // Generates "count" ParametricBinding nodes for use in a function definition.
+  // Currently, the all bindings have a number expression as their default.
+  std::vector<ParametricBinding*> GenerateParametricBindings(int64_t count);
 
   TypeAnnotation* MakeTypeAnnotation(bool is_signed, int64_t width);
 

@@ -24,16 +24,25 @@ absl::StatusOr<std::string> MangleDslxName(
     CallingConvention convention, const absl::btree_set<std::string>& free_keys,
     const SymbolicBindings* symbolic_bindings) {
   absl::btree_set<std::string> symbolic_bindings_keys;
-  // TODO(rspringer): 2021-03-25 This can't yet be InterpValue'd, since we'd
-  // have to be able to mangle array/tuple types, which is NYI.
-  std::vector<int64_t> symbolic_bindings_values;
+  std::vector<std::string> symbolic_bindings_values;
   if (symbolic_bindings != nullptr) {
     for (const SymbolicBinding& item : symbolic_bindings->bindings()) {
       symbolic_bindings_keys.insert(item.identifier);
-      int64_t value = item.value.IsSigned()
-                          ? item.value.GetBitValueInt64().value()
-                          : item.value.GetBitValueUint64().value();
-      symbolic_bindings_values.push_back(value);
+      const InterpValue& value = item.value;
+      // TODO(google/xls#460): Non-integral InterpValues can't be mangled yet.
+      if (!value.IsBits() && !value.IsEnum()) {
+        return absl::UnimplementedError(
+            absl::StrFormat("Cannot mangle parametric values of kind: %s",
+                            TagToString(value.tag())));
+      }
+      auto bits_value = InterpValue::MakeBits(/*is_signed=*/value.IsSigned(),
+                                              value.GetBitsOrDie());
+      std::string s =
+          bits_value.ToString(/*humanize=*/true, FormatPreference::kDecimal);
+      // Negatives are not valid characters in IR symbols so replace leading '-'
+      // with 'm'.
+      s = absl::StrReplaceAll(s, {{"-", "m"}});
+      symbolic_bindings_values.push_back(s);
     }
   }
   absl::btree_set<std::string> difference;
