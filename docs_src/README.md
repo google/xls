@@ -36,7 +36,8 @@ allow pipelines to communicate with each other and induct over time.
 
 XLS is still experimental, undergoing rapid development, and not an officially
 supported Google product. Expect bugs and sharp edges. Please help by trying it
-out, [reporting bugs](https://github.com/google/xls/issues), and letting us know
+out, running through [some tutorials](https://google.github.io/xls/tutorials/),
+[reporting bugs](https://github.com/google/xls/issues), and letting us know
 what you think!
 
 ## Building From Source
