@@ -76,7 +76,11 @@ TEST(AstGeneratorTest, GeneratesParametricBindings) {
   g.module_ = absl::make_unique<Module>("my_mod");
   std::vector<ParametricBinding*> pbs = g.GenerateParametricBindings(2);
   EXPECT_EQ(pbs.size(), 2);
-  constexpr std::string_view kWantPattern = R"(x\d+: u\d+ = u\d+:0x[0-9a-f])";
+  // TODO(https://github.com/google/googletest/issues/3084): 2021-08-12
+  // googletest cannot currently seem to use \d in regexp patterns, which is
+  // quite surprising.
+  constexpr const char* kWantPattern =
+      R"(x[0-9]+: u[0-9]+ = u[0-9]+:0x[0-9a-f_]+)";
   EXPECT_THAT(pbs[0]->ToString(), MatchesRegex(kWantPattern));
   EXPECT_THAT(pbs[1]->ToString(), MatchesRegex(kWantPattern));
 }
