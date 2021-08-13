@@ -425,6 +425,28 @@ class InterpreterTest(test_base.TestCase):
     self.assertIn('4:15-4:30: 1', result.stderr)
     self.assertIn('4:15-4:30: 2', result.stderr)
 
+  def test_trace_fmt_hello(self):
+    program = """
+    fn main() {
+      ()
+    }
+
+    #![test]
+    fn hello_test() {
+      let x = u8:0xF0;
+      let _ = trace_fmt!("Hello world!\n");
+      let _ = trace_fmt!("x is {}, {:#x} in hex and {:#b} in binary", x, x, x);
+      ()
+    }
+    """
+    program_file = self.create_tempfile(content=program)
+    # Note: no support for `trace_fmt!` in IR.
+    cmd = [_INTERP_PATH, '--compare=none', program_file.full_path]
+    result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
+    self.assertIn('Hello world!', result.stderr)
+    self.assertIn('x is 240, 0xf0 in hex and 0b1111_0000 in binary',
+                  result.stderr)
+
   def test_bitslice_syntax(self):
     program = """
     #![test]

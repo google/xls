@@ -30,6 +30,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/pos.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
 
@@ -70,6 +71,7 @@ bool IsOneOf(ObjT* obj) {
   X(String)                        \
   X(StructInstance)                \
   X(Ternary)                       \
+  X(FormatMacro)                   \
   X(Unop)                          \
   X(While)                         \
   X(XlsTuple)
@@ -516,6 +518,7 @@ class ExprVisitor {
   virtual void HandleConstRef(ConstRef* expr) = 0;
   virtual void HandleColonRef(ColonRef* expr) = 0;
   virtual void HandleFor(For* expr) = 0;
+  virtual void HandleFormatMacro(FormatMacro* expr) = 0;
   virtual void HandleIndex(Index* expr) = 0;
   virtual void HandleInvocation(Invocation* expr) = 0;
   virtual void HandleLet(Let* expr) = 0;
@@ -1329,6 +1332,37 @@ class Invocation : public Expr {
   std::vector<Expr*> args_;
   std::vector<Expr*> parametrics_;
   std::vector<std::pair<std::string, int64_t>> symbolic_bindings_;
+};
+
+// Represents a call to a variable-argument formatting macro; e.g. trace_fmt!("x
+// is {}", x)
+class FormatMacro : public Expr {
+ public:
+  FormatMacro(Module* owner, Span span, std::string macro,
+              std::vector<FormatStep> format, std::vector<Expr*> args);
+
+  absl::Status Accept(AstNodeVisitor* v) override {
+    return v->HandleFormatMacro(this);
+  }
+  void AcceptExpr(ExprVisitor* v) override { v->HandleFormatMacro(this); }
+
+  absl::string_view GetNodeTypeName() const override { return "FormatMacro"; }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+
+  std::string FormatArgs() const;
+
+  std::string ToString() const override {
+    return absl::StrFormat("%s(%s)", macro_, FormatArgs());
+  }
+
+  const std::string macro() const { return macro_; }
+  const absl::Span<Expr* const> args() const { return args_; }
+  const std::vector<FormatStep> format() const { return format_; }
+
+ private:
+  std::string macro_;
+  std::vector<FormatStep> format_;
+  std::vector<Expr*> args_;
 };
 
 // Represents a slice in the AST.

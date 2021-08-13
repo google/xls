@@ -905,6 +905,30 @@ std::string Invocation::FormatParametrics() const {
                       ">");
 }
 
+// -- class FormatMacro
+
+FormatMacro::FormatMacro(Module* owner, Span span, std::string macro,
+                         std::vector<FormatStep> format,
+                         std::vector<Expr*> args)
+    : Expr(owner, std::move(span)),
+      macro_(macro),
+      format_(format),
+      args_(std::move(args)) {}
+
+std::vector<AstNode*> FormatMacro::GetChildren(bool want_types) const {
+  std::vector<AstNode*> results;
+  for (Expr* arg : args_) {
+    results.push_back(arg);
+  }
+  return results;
+}
+
+std::string FormatMacro::FormatArgs() const {
+  return absl::StrJoin(args_, ", ", [](std::string* out, Expr* e) {
+    absl::StrAppend(out, e->ToString());
+  });
+}
+
 // -- class StructDef
 
 StructDef::StructDef(Module* owner, Span span, NameDef* name_def,

@@ -556,6 +556,8 @@ inline std::vector<std::unique_ptr<ConcreteType>> CloneToUnique(
   return result;
 }
 
+// TODO(https://github.com/google/xls/issues/480) replace these dynamic casts
+// with uses of a ConcreteTypeVisitor.
 // Returns whether the given concrete type is a unsigned/signed BitsType (for
 // IsUBits/IsSBits respectively).
 inline bool IsUBits(const ConcreteType& c) {
@@ -569,6 +571,9 @@ inline bool IsSBits(const ConcreteType& c) {
     return b->is_signed();
   }
   return false;
+}
+inline bool IsBits(const ConcreteType& c) {
+  return dynamic_cast<const BitsType*>(&c) != nullptr;
 }
 
 // Returns whether the given type, which should be either a bits or an enum

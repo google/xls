@@ -336,6 +336,35 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'Exact-duplicate pattern match detected `FOO` -- only the first could possibly match',
         stderr)
 
+  def test_trace_fmt_empty_err(self):
+    stderr = self._run('xls/dslx/tests/errors/trace_fmt_empty.x')
+    self.assertIn('trace_fmt_empty.x:16:13-16:15', stderr)
+    self.assertIn('trace_fmt! macro must have at least one argument', stderr)
+
+  def test_trace_fmt_not_string(self):
+    stderr = self._run('xls/dslx/tests/errors/trace_fmt_not_string.x')
+    self.assertIn('trace_fmt_not_string.x:16:13-16:16', stderr)
+    self.assertIn(
+        'The first argument of the trace_fmt! macro must be a literal string',
+        stderr)
+
+  def test_trace_fmt_bad_string(self):
+    stderr = self._run('xls/dslx/tests/errors/trace_fmt_bad_string.x')
+    self.assertIn('trace_fmt_bad_string.x:16:14-16:22', stderr)
+    self.assertIn('{ without matching }', stderr)
+
+  def test_trace_fmt_no_parametrics(self):
+    stderr = self._run('xls/dslx/tests/errors/trace_fmt_no_parametrics.x')
+    self.assertIn('trace_fmt_no_parametrics.x:16:13-16:44', stderr)
+    self.assertIn('does not take parametric arguments', stderr)
+
+  def test_trace_fmt_arg_mismatch(self):
+    stderr = self._run('xls/dslx/tests/errors/trace_fmt_arg_mismatch.x')
+    self.assertIn('trace_fmt_arg_mismatch.x:16:13-16:32', stderr)
+    self.assertIn('ArgCountMismatchError', stderr)
+    self.assertIn('expects 1 argument(s) from format but has 0 argument(s)',
+                  stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

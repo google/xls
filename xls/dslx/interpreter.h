@@ -161,6 +161,11 @@ class Interpreter {
   absl::StatusOr<InterpValue> Evaluate(Expr* expr, InterpBindings* bindings,
                                        ConcreteType* type_context);
 
+  // Evaluates a format macro expression; e.g. `trace_fmt!("x is {}", x)`
+  absl::StatusOr<InterpValue> EvaluateFormatMacro(FormatMacro* expr,
+                                                  InterpBindings* bindings,
+                                                  ConcreteType* type_context);
+
   // Evaluates an Invocation AST node to a value.
   absl::StatusOr<InterpValue> EvaluateInvocation(Invocation* expr,
                                                  InterpBindings* bindings,

@@ -117,6 +117,48 @@ static void PerformTrace(absl::string_view text, const Span& span,
             << std::endl;
 }
 
+constexpr absl::string_view kTraceFmtErrorTemplate = R"(
+trace_fmt! error: %s
+Expression: %s @ %s
+Actual arguments: (%s))";
+
+static absl::Status PerformTraceFmt(FormatMacro* expr,
+                                    absl::Span<const InterpValue> arg_values) {
+  auto arg_value = arg_values.begin();
+  auto make_error = [expr, &arg_values](std::string msg) -> absl::Status {
+    std::string args_str = absl::StrJoin(
+        arg_values, ", ", [](std::string* out, const InterpValue& v) {
+          absl::StrAppend(out,
+                          v.ToString(/*humanize=*/true,
+                                     /*format=*/FormatPreference::kDefault));
+        });
+    return absl::InternalError(
+        absl::StrFormat(kTraceFmtErrorTemplate, msg, expr->ToString(),
+                        expr->span().ToString(), args_str));
+  };
+
+  for (auto step : expr->format()) {
+    if (absl::holds_alternative<FormatPreference>(step)) {
+      if (arg_value != arg_values.end()) {
+        // Print via IR so that formatted traces will have the same output in
+        // both interpreted and JIT execution.
+        XLS_ASSIGN_OR_RETURN(Value ir_value, arg_value->ConvertToIr());
+        std::cerr << ir_value.ToHumanString(absl::get<FormatPreference>(step));
+        arg_value++;
+      } else {
+        return make_error("Not enough arguments for format string");
+      }
+    } else {
+      std::cerr << absl::get<std::string>(step);
+    }
+  }
+
+  if (arg_value != arg_values.end()) {
+    return make_error("Too many arguments for format string");
+  }
+  return absl::OkStatus();
+}
+
 void OptionalTrace(Expr* expr, const InterpValue& result,
                    AbstractInterpreter* interp) {
   // Implementation note: We don't need to trace the 'trace' invocation, or Let
@@ -151,6 +193,12 @@ absl::StatusOr<InterpValue> BuiltinTrace(
   XLS_RETURN_IF_ERROR(ArgChecker("trace!", args).size(1).status());
   PerformTrace(expr->FormatArgs(), span, args[0], interp);
   return args[0];
+}
+
+absl::StatusOr<InterpValue> BuiltinTraceFmt(absl::Span<const InterpValue> args,
+                                            FormatMacro* expr) {
+  XLS_RETURN_IF_ERROR(PerformTraceFmt(expr, args));
+  return InterpValue::MakeToken();
 }
 
 absl::StatusOr<InterpValue> BuiltinMap(

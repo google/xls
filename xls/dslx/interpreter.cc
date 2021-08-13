@@ -58,6 +58,9 @@ class Evaluator : public ExprVisitor {
 
 #undef DISPATCH
 
+  void HandleFormatMacro(FormatMacro* expr) override {
+    value_ = parent_->EvaluateFormatMacro(expr, bindings_, type_context_);
+  }
   void HandleInvocation(Invocation* expr) override {
     value_ = parent_->EvaluateInvocation(expr, bindings_, type_context_);
   }
@@ -320,6 +323,28 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateAndCompareInternal(
   }
 
   return interpreter_value;
+}
+
+absl::StatusOr<InterpValue> Interpreter::EvaluateFormatMacro(
+    FormatMacro* expr, InterpBindings* bindings, ConcreteType* type_context) {
+  XLS_VLOG(3) << absl::StreamFormat("EvaluateFormatMacro: `%s` @ %s",
+                                    expr->ToString(), expr->span().ToString());
+
+  // Evaluate all the arguments we want to pass to the macro.
+  std::vector<InterpValue> arg_values;
+  for (Expr* arg : expr->args()) {
+    XLS_ASSIGN_OR_RETURN(InterpValue arg_value,
+                         Evaluate(arg, bindings, /*type_context=*/nullptr));
+    arg_values.push_back(std::move(arg_value));
+  }
+
+  if (expr->macro() == "trace_fmt!") {
+    return BuiltinTraceFmt(arg_values, expr);
+  } else {
+    return absl::UnimplementedError(
+        absl::StrFormat("Unimplemented format macro %s at %s", expr->macro(),
+                        expr->span().ToString()));
+  }
 }
 
 absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(

@@ -331,6 +331,7 @@ class FunctionConverter {
   absl::Status HandleFor(For* node);
   absl::Status HandleIndex(Index* node);
   absl::Status HandleInvocation(Invocation* node);
+  absl::Status HandleFormatMacro(FormatMacro* node);
   absl::Status HandleLet(Let* node);
   absl::Status HandleMatch(Match* node);
   absl::Status HandleSplatStructInstance(SplatStructInstance* node);
@@ -683,6 +684,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(For)
   NO_TRAVERSE_DISPATCH_VISIT(Index)
   NO_TRAVERSE_DISPATCH_VISIT(Invocation)
+  NO_TRAVERSE_DISPATCH_VISIT(FormatMacro)
   NO_TRAVERSE_DISPATCH_VISIT(Let)
   NO_TRAVERSE_DISPATCH_VISIT(Match)
   NO_TRAVERSE_DISPATCH_VISIT(SplatStructInstance)
@@ -1835,6 +1837,12 @@ absl::Status FunctionConverter::HandleFailBuiltin(Invocation* node,
   Def(node, [&](absl::optional<SourceLocation> loc) {
     return function_builder_->Identity(arg);
   });
+  return absl::OkStatus();
+}
+
+// TODO(amfv): 2021-07-01 Stop dropping trace_fmt! when converting to IR
+absl::Status FunctionConverter::HandleFormatMacro(FormatMacro* node) {
+  DefConst(node, Value::Token());
   return absl::OkStatus();
 }
 

@@ -46,6 +46,7 @@ const std::vector<absl::string_view>& GetParametricBuiltinNames() {
                                               "signex",
                                               "slice",
                                               "trace!",
+                                              "trace_fmt!",
                                               "update",
                                               "enumerate",
                                               "range"};
@@ -1203,8 +1204,9 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
             std::vector<Expr*> args,
             ParseCommaSeq(BindFront(&Parser::ParseExpression, txn.bindings()),
                           TokenKind::kCParen));
-        lhs = module_->Make<Invocation>(Span(new_pos, GetPos()), lhs,
-                                        std::move(args));
+        XLS_ASSIGN_OR_RETURN(
+            lhs, BuildMacroOrInvocation(Span(new_pos, GetPos()), lhs,
+                                        std::move(args)));
         break;
       }
       case TokenKind::kDot: {
@@ -1267,9 +1269,10 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
                              ParseCommaSeq(BindFront(&Parser::ParseExpression,
                                                      sub_txn.bindings()),
                                            TokenKind::kCParen));
-        lhs = module_->Make<Invocation>(Span(new_pos, GetPos()), lhs,
+        XLS_ASSIGN_OR_RETURN(
+            lhs, BuildMacroOrInvocation(Span(new_pos, GetPos()), lhs,
                                         std::move(args),
-                                        status_or_parametrics.value());
+                                        status_or_parametrics.value()));
         sub_txn.CommitAndCancelCleanup(&sub_cleanup);
         break;
       }
@@ -1287,6 +1290,49 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
 done:
   txn.CommitAndCancelCleanup(&cleanup);
   return lhs;
+}
+
+absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
+    Span span, Expr* callee, std::vector<Expr*> args,
+    std::vector<Expr*> parametrics) {
+  if (auto* name_ref = dynamic_cast<NameRef*>(callee)) {
+    if (auto* builtin = TryGet<BuiltinNameDef*>(name_ref->name_def())) {
+      std::string name = builtin->identifier();
+      if (name == "trace_fmt!") {
+        if (!parametrics.empty()) {
+          return ParseErrorStatus(
+              span, absl::StrFormat(
+                        "%s macro does not take parametric arguments", name));
+        }
+        if (args.empty()) {
+          return ParseErrorStatus(
+              span, absl::StrFormat("%s macro must have at least one argument",
+                                    name));
+        }
+
+        Expr* format_arg = args[0];
+        if (String* format_string = dynamic_cast<String*>(format_arg)) {
+          const std::string& format_text = format_string->text();
+          absl::StatusOr<std::vector<FormatStep>> format_result =
+              ParseFormatString(format_text);
+          if (!format_result.ok())
+            return ParseErrorStatus(format_string->span(),
+                                    format_result.status().message());
+          // Remove the format string argument before building the macro call.
+          args.erase(args.begin());
+          return module_->Make<FormatMacro>(span, name, format_result.value(),
+                                            args);
+        } else {
+          return ParseErrorStatus(
+              span, absl::StrFormat("The first argument of the %s macro must "
+                                    "be a literal string.",
+                                    name));
+        }
+      }
+    }
+  }
+  return module_->Make<Invocation>(span, callee, std::move(args),
+                                   std::move(parametrics));
 }
 
 absl::StatusOr<Index*> Parser::ParseBitSlice(const Pos& start_pos, Expr* lhs,

@@ -233,6 +233,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:format_strings",
         "//xls/ir:number_parser",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",

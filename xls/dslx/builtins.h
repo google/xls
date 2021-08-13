@@ -52,6 +52,10 @@ absl::StatusOr<InterpValue> BuiltinTrace(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
     const SymbolicBindings* symbolic_bindings, AbstractInterpreter* interp);
 
+// Implements 'trace_fmt!' builtin macro.
+absl::StatusOr<InterpValue> BuiltinTraceFmt(absl::Span<const InterpValue> args,
+                                            FormatMacro* expr);
+
 // Implements 'fail!' builtin function.
 absl::StatusOr<InterpValue> BuiltinFail(
     absl::Span<const InterpValue> args, const Span& span, Invocation* expr,

@@ -2111,6 +2111,37 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
   return std::move(tab.type);
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFormatMacro(
+    FormatMacro* node, DeduceCtx* ctx) {
+  size_t arg_count = 0;
+  for (const auto& step : node->format()) {
+    if (absl::holds_alternative<FormatPreference>(step)) {
+      arg_count = arg_count + 1;
+    }
+  }
+
+  if (arg_count != node->args().size()) {
+    return ArgCountMismatchErrorStatus(
+        node->span(),
+        absl::StrFormat("%s macro expects %d argument(s) from format but has "
+                        "%d argument(s)",
+                        node->macro(), arg_count, node->args().size()));
+  }
+
+  for (Expr* arg : node->args()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> arg_type,
+                         DeduceAndResolve(arg, ctx));
+    if (!IsBits(*arg_type)) {
+      return TypeInferenceErrorStatus(
+          arg->span(), arg_type.get(),
+          absl::StrFormat("%s macro only supports printing simple bits values",
+                          node->macro()));
+    }
+  }
+
+  return absl::make_unique<TokenType>();
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNameRef(NameRef* node,
                                                             DeduceCtx* ctx) {
   AstNode* name_def = ToAstNode(node->name_def());
@@ -2168,6 +2199,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(While)
   DEDUCE_DISPATCH(Carry)
   DEDUCE_DISPATCH(Invocation)
+  DEDUCE_DISPATCH(FormatMacro)
   DEDUCE_DISPATCH(ConstRef)
   DEDUCE_DISPATCH(NameRef)
 

@@ -489,6 +489,12 @@ class Parser : public TokenParser {
 
   std::unique_ptr<Module> module_;
 
+  // Helper function that chooses between building a FormatMacro or an
+  // Invocation based on the callee.
+  absl::StatusOr<Expr*> BuildMacroOrInvocation(
+      Span span, Expr* callee, std::vector<Expr*> args,
+      std::vector<Expr*> parametrics = std::vector<Expr*>({}));
+
   // Stack of loops being parsed -- this is primarily kept so that 'carry' nodes
   // can keep a back-reference to which while node they're retrieving carry data
   // for.
