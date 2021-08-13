@@ -2278,3 +2278,15 @@ xls_dslx_test(
     name = "gate_dslx_test",
     dep = ":gate_dslx_module",
 )
+
+# -- local_const_value_non_bitstype
+
+xls_dslx_module_library(
+    name = "local_const_value_non_bitstype_dslx_module",
+    src = "local_const_value_non_bitstype.x",
+)
+
+xls_dslx_test(
+    name = "local_const_value_non_bitstype_dslx_test",
+    dep = ":local_const_value_non_bitstype_dslx_module",
+)

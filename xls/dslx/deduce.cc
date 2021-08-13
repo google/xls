@@ -71,26 +71,23 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
   ctx->type_info()->NoteConstant(node->name_def(), node);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> result,
                        ctx->Deduce(node->value()));
-  // Right now we only know how to do integral expressions as constexpr values.
-  if (dynamic_cast<BitsType*>(result.get()) != nullptr) {
-    absl::flat_hash_map<std::string, InterpValue> env = MakeConstexprEnv(
-        node->value(), ctx->fn_stack().back().symbolic_bindings(),
-        ctx->type_info());
-    const FnStackEntry& peek_entry = ctx->fn_stack().back();
-    absl::optional<FnCtx> fn_ctx;
-    if (peek_entry.function() != nullptr) {
-      fn_ctx.emplace(FnCtx{peek_entry.module()->name(),
-                           peek_entry.function()->identifier(),
-                           peek_entry.symbolic_bindings()});
-    }
-    absl::StatusOr<InterpValue> constexpr_value = Interpreter::InterpretExpr(
-        node->owner(), ctx->type_info(), ctx->typecheck_module(),
-        ctx->import_data(), env, node->value(), fn_ctx ? &*fn_ctx : nullptr);
-    if (constexpr_value.ok()) {
-      XLS_VLOG(5) << "Noting constexpr: " << node->value() << " in "
-                  << ctx->type_info();
-      ctx->type_info()->NoteConstExpr(node->value(), constexpr_value.value());
-    }
+  absl::flat_hash_map<std::string, InterpValue> env = MakeConstexprEnv(
+      node->value(), ctx->fn_stack().back().symbolic_bindings(),
+      ctx->type_info());
+  const FnStackEntry& peek_entry = ctx->fn_stack().back();
+  absl::optional<FnCtx> fn_ctx;
+  if (peek_entry.function() != nullptr) {
+    fn_ctx.emplace(FnCtx{peek_entry.module()->name(),
+                         peek_entry.function()->identifier(),
+                         peek_entry.symbolic_bindings()});
+  }
+  absl::StatusOr<InterpValue> constexpr_value = Interpreter::InterpretExpr(
+      node->owner(), ctx->type_info(), ctx->typecheck_module(),
+      ctx->import_data(), env, node->value(), fn_ctx ? &*fn_ctx : nullptr);
+  if (constexpr_value.ok()) {
+    XLS_VLOG(5) << "Noting constexpr: " << node->value() << " in "
+                << ctx->type_info();
+    ctx->type_info()->NoteConstExpr(node->value(), constexpr_value.value());
   }
   ctx->type_info()->SetItem(node->name_def(), *result);
   return result;
