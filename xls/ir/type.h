@@ -203,7 +203,7 @@ class TokenType : public Type {
 
   // Tokens contain no bits.
   int64_t GetFlatBitCount() const override { return 0; }
-  int64_t leaf_count() const override { return 0; }
+  int64_t leaf_count() const override { return 1; }
 };
 
 // Represents a type that is a function with parameters and return type.

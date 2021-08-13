@@ -108,7 +108,7 @@ TEST(TypeTest, TestVariousTypes) {
   EXPECT_EQ(t_of_a1.leaf_count(), 21);
   EXPECT_EQ(t_of_a3.leaf_count(), 17);
 
-  // Tuple types.
+  // Token types.
   TokenType token_0;
   TokenType token_1;
 
@@ -116,7 +116,7 @@ TEST(TypeTest, TestVariousTypes) {
   EXPECT_TRUE(token_0.IsEqualTo(&token_1));
   EXPECT_FALSE(token_0.IsEqualTo(&b42_2));
 
-  EXPECT_EQ(token_0.leaf_count(), 0);
+  EXPECT_EQ(token_0.leaf_count(), 1);
 
   // Function types.
   FunctionType f_type1({&b42, &a1}, &b42);

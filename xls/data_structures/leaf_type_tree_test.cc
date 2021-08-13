@@ -193,5 +193,14 @@ TEST_F(LeafTypeTreeTest, EmptyTuple) {
   EXPECT_TRUE(tree.leaf_types().empty());
 }
 
+TEST_F(LeafTypeTreeTest, Token) {
+  LeafTypeTree<int64_t> tree(AsType("token"));
+  EXPECT_EQ(tree.size(), 1);
+  // Elements should be value-initialized to zero.
+  EXPECT_EQ(tree.Get({}), 0);
+  EXPECT_THAT(AsStrings(tree.leaf_types()), ElementsAre("token"));
+  EXPECT_THAT(tree.elements(), ElementsAre(0));
+}
+
 }  // namespace
 }  // namespace xls

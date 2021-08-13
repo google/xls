@@ -66,7 +66,7 @@ class LeafTypeTree {
     MakeLeafTypes(type);
   }
 
-  // Constructor for tuples/arrays where members are provided as a span..
+  // Constructor for tuples/arrays where members are provided as a span.
   LeafTypeTree(Type* type, absl::Span<LeafTypeTree<T> const> init_values)
       : type_(type) {
     // Validate types of given values.
@@ -111,8 +111,8 @@ class LeafTypeTree {
   T& Get(absl::Span<int64_t const> index) {
     std::pair<Type*, int64_t> type_offset =
         GetSubtypeAndOffset(type_, index, /*offset=*/0);
-    // The index must refer to a leaf node (bits type).
-    XLS_CHECK(type_offset.first->IsBits());
+    // The index must refer to a leaf node (bits or token type).
+    XLS_CHECK(IsLeafType(type_offset.first));
     return elements_[type_offset.second];
   }
   const T& Get(absl::Span<int64_t const> index) const {
@@ -123,8 +123,8 @@ class LeafTypeTree {
   void Set(absl::Span<int64_t const> index, const T& value) {
     std::pair<Type*, int64_t> type_offset =
         GetSubtypeAndOffset(type_, index, /*offset=*/0);
-    // The index must refer to a leaf node (bits type).
-    XLS_CHECK(type_offset.first->IsBits());
+    // The index must refer to a leaf node (bits or token type).
+    XLS_CHECK(IsLeafType(type_offset.first));
     elements_[type_offset.second] = value;
   }
 
@@ -136,7 +136,7 @@ class LeafTypeTree {
 
   // Returns the types of each leaf in the XLS type of this object. The order of
   // these types corresponds to the order of elements().
-  absl::Span<BitsType* const> leaf_types() const { return leaf_types_; }
+  absl::Span<Type* const> leaf_types() const { return leaf_types_; }
 
   // Copies and returns the subtree rooted at the given type index as a
   // LeafTypeTree.
@@ -171,10 +171,12 @@ class LeafTypeTree {
   }
 
  private:
+  static bool IsLeafType(Type* t) { return t->IsBits() || t->IsToken(); }
+
   // Creates the vector of leaf types.
   void MakeLeafTypes(Type* t) {
-    if (t->IsBits()) {
-      leaf_types_.push_back(t->AsBitsOrDie());
+    if (IsLeafType(t)) {
+      leaf_types_.push_back(t);
       return;
     }
     if (t->IsArray()) {
@@ -218,7 +220,7 @@ class LeafTypeTree {
 
   Type* type_;
   std::vector<T> elements_;
-  std::vector<BitsType*> leaf_types_;
+  std::vector<Type*> leaf_types_;
 };
 
 }  // namespace xls
