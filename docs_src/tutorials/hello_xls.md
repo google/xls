@@ -53,12 +53,12 @@ Let's go over this, line-by-line:
 
 1.  This first line declares a fn (`fn`) named "`hello_xls`". This function
     accepts an array of eight characters (u8) called `hello_string`, and returns
-    no value (the return type would be listed after the argument list's closing
-    parenthesis and the function-opening curly brace, if the function returned a
-    value).
+    no value (the return type would be specified after the argument list's
+    closing parenthesis and before the function-opening curly brace, if the
+    function returned a value).
 2.  This second line invokes the built-in `trace!` directive, passing it the
-    function's input string, and throws away the result (assignment to `_`);
-3.  This final line terminates the function, exiting with the empty return value
+    function's input string, and throws away the result (assignment to `_`).
+3.  The final line terminates the function, exiting with the empty return value
     `()`, representing an empty tuple.
 
 ## 3. Say hello, XLS!
@@ -124,7 +124,7 @@ trace of hello_string @ hello.x:4:17-4:31: [72, 101, 108, 108, 111, 44, 32, 88, 
 Perfect! While this may not be what you initially expected, examine the output
 elements carefully: they correspond to the ASCII codes of the characters in
 "Hello, XLS!" When designing and debugging hardware, signals are more often
-numeric than string data, which is why they're represented numerically here.
+numbers than strings, which is why they're represented as numbers here.
 
 Congrats! You've written your first piece of hardware in DSLX! It might be more
 satisfying, though, if your hardware _actually did anything_. For that, see the

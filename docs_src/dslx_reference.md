@@ -35,16 +35,10 @@ or semantically important syntactic conventions. The language is still
 experimental and likely to change, but it is already useful for experimentation
 and exploration.
 
-This document provides a reference for DSLX, mostly by example. After perusing
-it and learning about the language features, we recommend exploring the
-following, detailed examples to learn how the language features are put to
-action:
-
-1.  [CRC32](./dslx_intro_example1.md)
-
-2.  [Floating-point addition](./fpadd_example.md)
-
-3.  [Prefix Sum Computation](./dslx_intro_example3.md)
+This document provides a reference for DSLX, mostly by example. Before perusing
+it in detail, we recommend you first read the
+[DSLX tutorials](./tutorials/index.md)
+to understand the broad strokes of the language.
 
 In this document we use the function to compute a CRC32 checksum to describe
 language features. The full code is in

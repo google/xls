@@ -1,4 +1,4 @@
-# DSLX Example: Prefix Scan Computation
+# DSLX Tutorial: `enumerate` and `match` expressions
 
 In this document we explain in detail the implementation of a 8 byte prefix scan
 computation. In order to understand the implementation, it is useful to
@@ -11,13 +11,13 @@ resets to 0 if a new value is found.
 
 For example, for this input:
 
-```
+```dslx-snippet
   let input = bits[8,32]:[0, 0, 0, 0, 0, 0, 0, 0]
 ```
 
 the code should produce this output:
 
-```
+```dslx-snippet
   bits[8,3]:[0, 1, 2, 3, 4, 5, 6, 7])
 ```
 
@@ -31,13 +31,13 @@ duplicate) and therefore adds a 1 to the counter from index 1. And so on.
 
 Correspondingly, for this input:
 
-```
+```dslx-snippet
   let input = bits[8,32]:[0, 0, 1, 1, 2, 2, 3, 3]
 ```
 
 it should produce:
 
-```
+```dslx-snippet
   assert_eq(result, bits[8,3]:[0, 1, 0, 1, 0, 1, 0, 1])
 ```
 
@@ -51,7 +51,7 @@ The function prototype is straigt-forward. Input is an array of 8 values of type
 `u32`. Output is an array of size 8 holding 3-bit values (the maximum resulting
 count can only be 7, which fits in 3 bits).
 
-```
+```dslx-snippet
 fn prefix_scan_eq(x: u32[8]) -> bits[8,3] {
 ```
 
@@ -59,7 +59,7 @@ The first let expression produces a tuple of 3 values. It only cares about the
 last value `result`, so it stubs out the other two elements via the 'ignore'
 placeholder `_`.
 
-```
+```dslx-snippet
   let (_, _, result) =
 ```
 
@@ -72,7 +72,7 @@ above let needs to be of the same type.
 Using tuples as the accumulator is a convenient way to model multiple
 loop-carried values:
 
-```
+```dslx-snippet
     for ((i, elem), (prior, count, result)): ((u32, u32), (u32, u3, bits[8,3]))
           in enumerate(x) {
 ```
@@ -99,7 +99,7 @@ The next expression is an interesting `match` expression. The let expression
 binds the tuple `(to_place, new_count): (u3, u3)` to the result of the following
 match expression:
 
-```
+```dslx-snippet
 let (to_place, new_count): (u3, u3) = match (i == u32:0, prior == elem) {
 ```
 
@@ -114,7 +114,7 @@ The `match` expression evaluates two conditions in parallel:
 Two tests mean there are four possible cases, which are all handled in the
 following four cases:
 
-```
+```dslx-snippet
       // i == 0 (no matter whether prior == elem or not):
       //    we set position 0 to 0 and update the new_counter to 1
       (true, true) => (u3:0, u3:1),
@@ -136,14 +136,14 @@ To update the result, we set index `i` in the `result` array to the value
 `to_place` via the built-in `update` function, which produces a new value
 `new_result`):
 
-```
+```dslx-snippet
     let new_result: bits[8,3] = update(result, i, to_place);
 ```
 
 Finally the updated accumulator value is constructed, it is the last expression
 in the loop:
 
-```
+```dslx-snippet
     (elem, new_count, new_result)
 ```
 
@@ -154,13 +154,13 @@ accumulator in the following way.
 *   set element `count` to 0.
 *   set element `result` to 8 0's of size `u3`
 
-```
+```dslx-snippet
 }((u32:-1, u3:0, bits[8,3]:[u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0]));
 ```
 
 And, finally, the function simply returns `result`:
 
-```
+```dslx-snippet
   result
 }
 ```
@@ -170,7 +170,7 @@ And, finally, the function simply returns `result`:
 To test the two cases we've described above, we add the following two test cases
 right to this implementation file:
 
-```
+```dslx-snippet
 #![test]
 fn test_prefix_scan_eq_all_zero() {
   let input = bits[8,32]:[0, 0, 0, 0, 0, 0, 0, 0];

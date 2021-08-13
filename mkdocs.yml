@@ -12,8 +12,10 @@ nav:
     - Overview: 'tutorials/index.md'
     - DSLX:
       - Hello, XLS!: 'tutorials/hello_xls.md'
-      - Float-to-int conversion: 'tutorials/float_to_int.md'
+      - Basic logic: 'tutorials/float_to_int.md'
       - Intro to parameterics: 'tutorials/intro_to_parametrics.md'
+      - For expressions: 'tutorials/crc32.md'
+      - Enumerate and match: 'tutorials/prefix_scan.md'
   - IR:
     - Semantics: 'ir_semantics.md'
     - Optimizations: 'optimizations.md'
@@ -28,10 +30,6 @@ nav:
   - DSLX:
     - Reference: 'dslx_reference.md'
     - Standard Library : 'dslx_std.md'
-    - Examples:
-      - CRC32: 'dslx_intro_example1.md'
-      - FP adder: 'fpadd_example.md'
-      - Prefix Scan: 'dslx_intro_example3.md'
     - Floating Point: 'floating_point.md'
     - Fuzzer: 'fuzzer.md'
   - Code Generation:

@@ -1,4 +1,4 @@
-# Tutorial: float-to-int conversion
+# Tutorial: basic logic
 
 This tutorial demonstrates how to use XLS to create a simple combinational
 module, in this case one that performs floating-point-to-integer conversion.
@@ -7,7 +7,7 @@ The first task is to define the full semantics of the module. We wish for the
 module to accept a
 [IEEE-754 floating-point number](https://en.wikipedia.org/wiki/IEEE_754) and to
 output the integer representing the same. All fractional elements will be
-discarded and overflow, NaN, and infinities will be clamped to the maximum or
+discarded. Overflow, NaN, and infinite values will be clamped to the maximum or
 minimum representable integer value with the sign of the input number.
 
 [TOC]
@@ -40,26 +40,32 @@ line-by-line:
     `x`, whose type follows its name. In this case, it's a _`tuple`_: a grouping
     of potentially disparate elements into a single quantity. A tuple is
     specified by listing a set of types in parentheses, as here. Our tuple has a
-    single-bit element for the sign, an eight-bit element for the biased
+    1-bit element for the sign, an 8-bit element for the biased
     exponent, and a 23-bit element for the fractional part. In what is the
     complete opposite of a coincidence, these fields match those of an IEEE
     float32 number. If a function takes more than one argument, they'll be
     comma-separated.
+    -   u1, u8, and u23 are all shortcuts for the type uN[1], uN[8], and uN[23].
+        The uN[X] construct declares an X-bit wide unsigned type. There is also
+        sN[X], which declares an X-bit wide _signed_ type.
+    -   Other type shortcuts exist such as bits[X](alias for uN[X]), bool (alias
+        for uN[1]), and u[1-64] and s[1-64], being aliases for uN[1] through
+        uN[64] and sN[1] through sN[64].
 3.  Function return type. This function returns a signed 32-bit type, matching
     the intentions of float-to-int conversion (since floats are signed).
 4.  Finally, the last line: the final statement in a function is its return
-    value. Here, we're returning a signed 32-bit number with the value `48879`
-    is unconditionally returned from the function. This is only temporary to
+    value. Here, we're unconditionally returning a signed 32-bit number with
+    the value `48879`. This is only temporary to
     make the function syntatically valid - we're still learning the basics!
     Gimme a second!
 
-If you plan on making use of DSLX, it's a good idea to keep a bookmark to the
+As an aside, it's a good idea to keep a bookmark to the
 [DSLX language reference](../dslx_reference.md)
 handy. It has the full details on language features and syntax and even we XLS
 devs frequently reference it.
 
 Anyway...the tuple representation of our input is a bit cumbersome, so let's
-define our floating-point number as a struct:
+define our floating-point number as a struct instead:
 
 ```dslx
 pub struct float32 {
@@ -173,7 +179,7 @@ pub fn float_to_int(x: float32) -> s32 {
 ```
 
 If we run this function with our original test case, it still works! Of course,
-one should run additional test cases to see what happens with other test cases,
+one should run additional test cases to see what happens with other inputs,
 particularly because this implementation will fail for some important values.
 
 Try adding tests on your own to find these cases - and to fix them! If you're

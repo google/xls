@@ -13,3 +13,8 @@ design techniques. Here they are, grouped by topic:
 *   [Intro to parametrics](intro_to_parametrics.md) : A demonstration on how
     functions and types can be parameterized to allow a single implementation to
     apply to many different data layouts.
+*   [`for` expressions](crc32.md) : Explains how to understand and write looping
+    constructs in DSLX.
+*   [`enumerate` and `match` expressions](prefix_scan.md) : Explains how to use
+    `enumerate()` expressions to control loop iteration and how to use the
+    `match` pattern-matching expression for selecting between alternatives.
