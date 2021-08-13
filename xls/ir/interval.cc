@@ -17,8 +17,8 @@
 namespace xls {
 
 void Interval::EnsureValid() const {
+  XLS_CHECK(is_valid_);
   XLS_CHECK_EQ(lower_bound_.bit_count(), upper_bound_.bit_count());
-  XLS_CHECK_GT(lower_bound_.bit_count(), 0);
 }
 
 int64_t Interval::BitCount() const {
@@ -27,7 +27,6 @@ int64_t Interval::BitCount() const {
 }
 
 Interval Interval::Maximal(int64_t bit_width) {
-  XLS_CHECK_GT(bit_width, 0);
   return Interval(UBits(0, bit_width), Bits::AllOnes(bit_width));
 }
 
@@ -35,6 +34,10 @@ bool Interval::Overlaps(const Interval& lhs, const Interval& rhs) {
   XLS_CHECK_EQ(lhs.BitCount(), rhs.BitCount());
   XLS_CHECK(!lhs.IsImproper());
   XLS_CHECK(!rhs.IsImproper());
+  if (lhs.BitCount() == 0) {
+    // The unique zero-width interval overlaps with itself.
+    return true;
+  }
   if (rhs < lhs) {
     return Overlaps(rhs, lhs);
   }
@@ -49,6 +52,10 @@ bool Interval::Abuts(const Interval& lhs, const Interval& rhs) {
   XLS_CHECK_EQ(lhs.BitCount(), rhs.BitCount());
   XLS_CHECK(!lhs.IsImproper());
   XLS_CHECK(!rhs.IsImproper());
+  if (lhs.BitCount() == 0) {
+    // The unique zero-width interval does not abut itself.
+    return false;
+  }
   if (rhs < lhs) {
     return Abuts(rhs, lhs);
   }
@@ -68,12 +75,15 @@ Interval Interval::ConvexHull(const Interval& lhs, const Interval& rhs) {
   XLS_CHECK_EQ(lhs.BitCount(), rhs.BitCount());
   XLS_CHECK(!lhs.IsImproper());
   XLS_CHECK(!rhs.IsImproper());
-  Interval result;
-  result.lower_bound_ = lhs.lower_bound_;
+  if (lhs.BitCount() == 0) {
+    // The convex hull of any set of zero-width intervals is of course the
+    // unique zero-width interval.
+    return Interval(Bits(), Bits());
+  }
+  Interval result = lhs;
   if (bits_ops::ULessThan(rhs.lower_bound_, result.lower_bound_)) {
     result.lower_bound_ = rhs.lower_bound_;
   }
-  result.upper_bound_ = lhs.upper_bound_;
   if (bits_ops::UGreaterThan(rhs.upper_bound_, result.upper_bound_)) {
     result.upper_bound_ = rhs.upper_bound_;
   }
@@ -124,6 +134,7 @@ std::vector<Bits> Interval::Elements() const {
 
 Bits Interval::SizeBits() const {
   EnsureValid();
+
   if (bits_ops::UGreaterThan(lower_bound_, upper_bound_)) {
     Bits zero = UBits(0, BitCount());
     Bits max = Bits::AllOnes(BitCount());
@@ -152,16 +163,25 @@ absl::optional<int64_t> Interval::Size() const {
 
 bool Interval::IsImproper() const {
   EnsureValid();
+  if (BitCount() == 0) {
+    return false;
+  }
   return bits_ops::ULessThan(upper_bound_, lower_bound_);
 }
 
 bool Interval::IsPrecise() const {
   EnsureValid();
+  if (BitCount() == 0) {
+    return true;
+  }
   return lower_bound_ == upper_bound_;
 }
 
 bool Interval::IsMaximal() const {
   EnsureValid();
+  if (BitCount() == 0) {
+    return true;
+  }
   // This works because `bits_ops::Add` overflows, and correctly handles
   // improper intervals.
   Bits upper_plus_one = bits_ops::Add(upper_bound_, UBits(1, BitCount()));
@@ -171,6 +191,9 @@ bool Interval::IsMaximal() const {
 bool Interval::Covers(const Bits& point) const {
   EnsureValid();
   XLS_CHECK_EQ(BitCount(), point.bit_count());
+  if (BitCount() == 0) {
+    return true;
+  }
   if (IsImproper()) {
     return bits_ops::ULessThanOrEqual(lower_bound_, point) ||
            bits_ops::ULessThanOrEqual(point, upper_bound_);
@@ -182,7 +205,9 @@ bool Interval::Covers(const Bits& point) const {
 
 bool Interval::CoversZero() const { return Covers(UBits(0, BitCount())); }
 
-bool Interval::CoversOne() const { return Covers(UBits(1, BitCount())); }
+bool Interval::CoversOne() const {
+  return (BitCount() > 0) && Covers(UBits(1, BitCount()));
+}
 
 bool Interval::CoversMax() const { return Covers(Bits::AllOnes(BitCount())); }
 

@@ -27,25 +27,23 @@ namespace xls {
 // bit width. It allows improper intervals (i.e.: ones where the lower bound
 // is greater than the upper bound, so the interval wraps around the end),
 // though some methods do not support them (and check to ensure that they are
-// not called on them). Intervals of bit width 0 are disallowed, and are used
-// as a sentinel to check for accidentally calling methods on default
-// constructed intervals.
+// not called on them).
 class Interval {
  public:
   // No argument constructor for `Interval`. This returns the interval from a
-  // zero-bit 0 to another zero-bit 0. All methods in this class have XLS_CHECK
-  // calls that ensure that they are not called on an interval of bitwidth 0.
-  Interval() {}
+  // zero-bit 0 to another zero-bit 0. However, the interval contains metadata
+  // stating that it is an invalid interval, to prevent accidental use of
+  // default-constructed intervals. If you want the zero-bit interval, use the
+  // other `Interval` constructor.
+  Interval() : is_valid_(false) {}
 
   // Create an `Interval`. The `bit_count()` of the lower bound must be equal to
-  // that of the upper bound. The `bit_count()` of both bounds must be greater
-  // than zero.
+  // that of the upper bound.
   //
   // The upper/lower bound are both considered inclusive.
   Interval(const Bits& lower_bound, const Bits& upper_bound)
-      : lower_bound_(lower_bound), upper_bound_(upper_bound) {
+      : is_valid_(true), lower_bound_(lower_bound), upper_bound_(upper_bound) {
     XLS_CHECK_EQ(lower_bound_.bit_count(), upper_bound_.bit_count());
-    XLS_CHECK_GT(lower_bound_.bit_count(), 0);
   }
 
   // The inclusive lower bound of the interval.
@@ -105,14 +103,17 @@ class Interval {
   // Returns `true` if this is an improper interval, `false` otherwise.
   // An improper interval is one where the upper bound is strictly less than
   // the lower bound.
+  // The zero-width interval is not considered improper.
   bool IsImproper() const;
 
   // Returns `true` if this is a precise interval, `false` otherwise.
   // A precise interval is one that covers exactly one point.
+  // The zero-width interval is considered precise.
   bool IsPrecise() const;
 
   // Returns `true` if this is a maximal interval, `false` otherwise.
   // A maximal interval is one that covers every point of a given bitwidth.
+  // The zero-width interval is considered maximal.
   bool IsMaximal() const;
 
   // Returns `true` if this interval covers the given point, `false` otherwise.
@@ -153,6 +154,7 @@ class Interval {
  private:
   void EnsureValid() const;
 
+  bool is_valid_;
   Bits lower_bound_;
   Bits upper_bound_;
 };

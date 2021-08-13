@@ -34,6 +34,8 @@ Bits SumOf(absl::Span<Bits const> vec) {
 }
 
 TEST(IntervalTest, BitCount) {
+  Interval size_zero(Bits(0), Bits(0));
+  EXPECT_EQ(size_zero.BitCount(), 0);
   Interval size_one(Bits(1), Bits(1));
   EXPECT_EQ(size_one.BitCount(), 1);
   Interval size_twenty(Bits(20), Bits(20));
@@ -60,6 +62,12 @@ TEST(IntervalTest, OverlapsAndDisjoint) {
   EXPECT_FALSE(Interval::Disjoint(y, x));
   EXPECT_FALSE(Interval::Disjoint(z, y));
   EXPECT_TRUE(Interval::Disjoint(z, x));
+
+  // The zero-width interval overlaps with itself
+  EXPECT_TRUE(
+      Interval::Overlaps(Interval(Bits(), Bits()), Interval(Bits(), Bits())));
+  EXPECT_FALSE(
+      Interval::Disjoint(Interval(Bits(), Bits()), Interval(Bits(), Bits())));
 }
 
 TEST(IntervalTest, Abuts) {
@@ -79,6 +87,10 @@ TEST(IntervalTest, Abuts) {
   EXPECT_FALSE(Interval::Abuts(fifty_three_point, everything));
   EXPECT_FALSE(Interval::Abuts(fifty_four_point, everything));
   EXPECT_FALSE(Interval::Abuts(everything, everything));
+
+  // The zero-width interval does not abut itself
+  EXPECT_FALSE(
+      Interval::Abuts(Interval(Bits(), Bits()), Interval(Bits(), Bits())));
 }
 
 TEST(IntervalTest, ConvexHull) {
@@ -90,6 +102,9 @@ TEST(IntervalTest, ConvexHull) {
   EXPECT_EQ(Interval::ConvexHull(Interval(fifty_three, fifty_three),
                                  Interval(sixteen, sixteen)),
             Interval(sixteen, fifty_three));
+  EXPECT_EQ(
+      Interval::ConvexHull(Interval(Bits(), Bits()), Interval(Bits(), Bits())),
+      Interval(Bits(), Bits()));
 }
 
 TEST(IntervalTest, Elements) {
@@ -101,6 +116,10 @@ TEST(IntervalTest, Elements) {
   std::vector<Bits> simple_result{UBits(4, 6), UBits(5, 6), UBits(6, 6),
                                   UBits(7, 6), UBits(8, 6)};
   EXPECT_EQ(simple, simple_result);
+
+  std::vector<Bits> zero_width = Interval(Bits(), Bits()).Elements();
+  std::vector<Bits> zero_width_result{Bits()};
+  EXPECT_EQ(zero_width, zero_width_result);
 
   std::vector<Bits> improper = Interval(UBits(62, 6), four).Elements();
   std::vector<Bits> improper_result{UBits(62, 6), UBits(63, 6), UBits(0, 6),
@@ -134,6 +153,7 @@ TEST(IntervalTest, Size) {
   Bits two_to_the_64 = Bits::PowerOfTwo(64, 160);
   Bits two_to_the_65 = Bits::PowerOfTwo(65, 160);
 
+  EXPECT_EQ(Interval(Bits(), Bits()).Size(), 1);
   EXPECT_EQ(Interval(four, four).Size(), 1);
   EXPECT_EQ(Interval(eight, eight).Size(), 1);
   EXPECT_EQ(Interval(two_to_the_64, two_to_the_64).Size(), 1);
@@ -152,6 +172,7 @@ TEST(IntervalTest, Size) {
 }
 
 TEST(IntervalTest, IsImproper) {
+  EXPECT_FALSE(Interval(Bits(), Bits()).IsImproper());
   EXPECT_FALSE(
       Interval(Bits::PowerOfTwo(2, 6), Bits::PowerOfTwo(3, 6)).IsImproper());
   EXPECT_TRUE(
@@ -159,6 +180,7 @@ TEST(IntervalTest, IsImproper) {
 }
 
 TEST(IntervalTest, IsPrecise) {
+  EXPECT_TRUE(Interval(Bits(), Bits()).IsPrecise());
   EXPECT_TRUE(
       Interval(Bits::PowerOfTwo(2, 6), Bits::PowerOfTwo(2, 6)).IsPrecise());
   EXPECT_FALSE(
@@ -168,6 +190,7 @@ TEST(IntervalTest, IsPrecise) {
 }
 
 TEST(IntervalTest, IsMaximal) {
+  EXPECT_TRUE(Interval(Bits(), Bits()).IsMaximal());
   EXPECT_FALSE(
       Interval(Bits::PowerOfTwo(2, 6), Bits::PowerOfTwo(2, 6)).IsMaximal());
   EXPECT_FALSE(
@@ -211,11 +234,13 @@ TEST(IntervalTest, Covers) {
   for (const Bits& element : noncovered_elements) {
     EXPECT_FALSE(interval.Covers(element));
   }
+
+  EXPECT_TRUE(Interval(Bits(), Bits()).Covers(Bits()));
 }
 
 TEST(IntervalTest, ToString) {
-  EXPECT_EQ(Interval(Bits::PowerOfTwo(2, 6), Bits::PowerOfTwo(4, 6)).ToString(),
-            "[4, 16]");
+  EXPECT_EQ(Interval(UBits(4, 6), UBits(16, 6)).ToString(), "[4, 16]");
+  EXPECT_EQ(Interval(Bits(), Bits()).ToString(), "[0, 0]");
 }
 
 }  // namespace
