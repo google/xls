@@ -9,21 +9,21 @@
       
       
       
-        <link rel="canonical" href="https://google.github.io/xls/dslx_intro_example3/">
+        <link rel="canonical" href="https://google.github.io/xls/tutorials/prefix_scan/">
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.2.2, mkdocs-material-7.2.3">
     
     
       
-        <title>Prefix Scan - XLS: Accelerated HW Synthesis</title>
+        <title>Enumerate and match - XLS: Accelerated HW Synthesis</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.f7f47774.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.f7f47774.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.3f5d1f46.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.3f5d1f46.min.css">
         
       
     
@@ -55,7 +55,7 @@
     <body dir="ltr" data-md-color-scheme="" data-md-color-primary="none" data-md-color-accent="none">
   
     
-    <script>function __prefix(e){return new URL("..",location).pathname+"."+e}function __get(e,t=localStorage){return JSON.parse(t.getItem(__prefix(e)))}</script>
+    <script>function __prefix(e){return new URL("../..",location).pathname+"."+e}function __get(e,t=localStorage){return JSON.parse(t.getItem(__prefix(e)))}</script>
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
@@ -63,7 +63,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#dslx-example-prefix-scan-computation" class="md-skip">
+        <a href="#dslx-tutorial-enumerate-and-match-expressions" class="md-skip">
           Skip to content
         </a>
       
@@ -74,7 +74,7 @@
     
       <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-header__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+    <a href="../.." title="XLS: Accelerated HW Synthesis" class="md-header__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54z"/></svg>
@@ -93,7 +93,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Prefix Scan
+              Enumerate and match
             
           </span>
         </div>
@@ -171,7 +171,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+    <a href="../.." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54z"/></svg>
@@ -203,7 +203,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         Overview
       </a>
     </li>
@@ -216,12 +216,14 @@
 
   
   
+    
+  
   
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" >
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" checked>
       
       <label class="md-nav__link" for="__nav_2">
         Tutorials
@@ -239,7 +241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -249,12 +251,14 @@
             
   
   
+    
+  
   
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2_2" type="checkbox" id="__nav_2_2" >
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2_2" type="checkbox" id="__nav_2_2" checked>
       
       <label class="md-nav__link" for="__nav_2_2">
         DSLX
@@ -272,7 +276,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/hello_xls/" class="md-nav__link">
+      <a href="../hello_xls/" class="md-nav__link">
         Hello, XLS!
       </a>
     </li>
@@ -284,8 +288,8 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/float_to_int/" class="md-nav__link">
-        Float-to-int conversion
+      <a href="../float_to_int/" class="md-nav__link">
+        Basic logic
       </a>
     </li>
   
@@ -296,297 +300,20 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/intro_to_parametrics/" class="md-nav__link">
+      <a href="../intro_to_parametrics/" class="md-nav__link">
         Intro to parameterics
       </a>
     </li>
   
 
           
-        </ul>
-      </nav>
-    </li>
-  
-
-          
-        </ul>
-      </nav>
-    </li>
-  
-
-    
-      
-      
-      
-
-  
-  
-  
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-      
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" type="checkbox" id="__nav_3" >
-      
-      <label class="md-nav__link" for="__nav_3">
-        IR
-        <span class="md-nav__icon md-icon"></span>
-      </label>
-      <nav class="md-nav" aria-label="IR" data-md-level="1">
-        <label class="md-nav__title" for="__nav_3">
-          <span class="md-nav__icon md-icon"></span>
-          IR
-        </label>
-        <ul class="md-nav__list" data-md-scrollfix>
-          
             
   
   
   
     <li class="md-nav__item">
-      <a href="../ir_semantics/" class="md-nav__link">
-        Semantics
-      </a>
-    </li>
-  
-
-          
-            
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../optimizations/" class="md-nav__link">
-        Optimizations
-      </a>
-    </li>
-  
-
-          
-            
-  
-  
-  
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-      
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_3" type="checkbox" id="__nav_3_3" >
-      
-      <label class="md-nav__link" for="__nav_3_3">
-        Scheduling
-        <span class="md-nav__icon md-icon"></span>
-      </label>
-      <nav class="md-nav" aria-label="Scheduling" data-md-level="2">
-        <label class="md-nav__title" for="__nav_3_3">
-          <span class="md-nav__icon md-icon"></span>
-          Scheduling
-        </label>
-        <ul class="md-nav__list" data-md-scrollfix>
-          
-            
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../scheduling/" class="md-nav__link">
-        Overview
-      </a>
-    </li>
-  
-
-          
-            
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../delay_estimation/" class="md-nav__link">
-        Delay Estimation
-      </a>
-    </li>
-  
-
-          
-        </ul>
-      </nav>
-    </li>
-  
-
-          
-            
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../ir_visualization/" class="md-nav__link">
-        Visualizer
-      </a>
-    </li>
-  
-
-          
-            
-  
-  
-  
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-      
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_5" type="checkbox" id="__nav_3_5" >
-      
-      <label class="md-nav__link" for="__nav_3_5">
-        Native JIT
-        <span class="md-nav__icon md-icon"></span>
-      </label>
-      <nav class="md-nav" aria-label="Native JIT" data-md-level="2">
-        <label class="md-nav__title" for="__nav_3_5">
-          <span class="md-nav__icon md-icon"></span>
-          Native JIT
-        </label>
-        <ul class="md-nav__list" data-md-scrollfix>
-          
-            
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../ir_jit/" class="md-nav__link">
-        Overview
-      </a>
-    </li>
-  
-
-          
-            
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../data_layout/" class="md-nav__link">
-        Data Layout
-      </a>
-    </li>
-  
-
-          
-        </ul>
-      </nav>
-    </li>
-  
-
-          
-            
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../solvers/" class="md-nav__link">
-        Formal
-      </a>
-    </li>
-  
-
-          
-        </ul>
-      </nav>
-    </li>
-  
-
-    
-      
-      
-      
-
-  
-  
-    
-  
-  
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
-      
-      
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" type="checkbox" id="__nav_4" checked>
-      
-      <label class="md-nav__link" for="__nav_4">
-        DSLX
-        <span class="md-nav__icon md-icon"></span>
-      </label>
-      <nav class="md-nav" aria-label="DSLX" data-md-level="1">
-        <label class="md-nav__title" for="__nav_4">
-          <span class="md-nav__icon md-icon"></span>
-          DSLX
-        </label>
-        <ul class="md-nav__list" data-md-scrollfix>
-          
-            
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../dslx_reference/" class="md-nav__link">
-        Reference
-      </a>
-    </li>
-  
-
-          
-            
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../dslx_std/" class="md-nav__link">
-        Standard Library
-      </a>
-    </li>
-  
-
-          
-            
-  
-  
-    
-  
-  
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
-      
-      
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4_3" type="checkbox" id="__nav_4_3" checked>
-      
-      <label class="md-nav__link" for="__nav_4_3">
-        Examples
-        <span class="md-nav__icon md-icon"></span>
-      </label>
-      <nav class="md-nav" aria-label="Examples" data-md-level="2">
-        <label class="md-nav__title" for="__nav_4_3">
-          <span class="md-nav__icon md-icon"></span>
-          Examples
-        </label>
-        <ul class="md-nav__list" data-md-scrollfix>
-          
-            
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../dslx_intro_example1/" class="md-nav__link">
-        CRC32
-      </a>
-    </li>
-  
-
-          
-            
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../fpadd_example/" class="md-nav__link">
-        FP adder
+      <a href="../crc32/" class="md-nav__link">
+        For expressions
       </a>
     </li>
   
@@ -607,12 +334,12 @@
       
       
         <label class="md-nav__link md-nav__link--active" for="__toc">
-          Prefix Scan
+          Enumerate and match
           <span class="md-nav__icon md-icon"></span>
         </label>
       
       <a href="./" class="md-nav__link md-nav__link--active">
-        Prefix Scan
+        Enumerate and match
       </a>
       
         
@@ -677,12 +404,246 @@
   
 
           
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" type="checkbox" id="__nav_3" >
+      
+      <label class="md-nav__link" for="__nav_3">
+        IR
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="IR" data-md-level="1">
+        <label class="md-nav__title" for="__nav_3">
+          <span class="md-nav__icon md-icon"></span>
+          IR
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
             
   
   
   
     <li class="md-nav__item">
-      <a href="../floating_point/" class="md-nav__link">
+      <a href="../../ir_semantics/" class="md-nav__link">
+        Semantics
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../optimizations/" class="md-nav__link">
+        Optimizations
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_3" type="checkbox" id="__nav_3_3" >
+      
+      <label class="md-nav__link" for="__nav_3_3">
+        Scheduling
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Scheduling" data-md-level="2">
+        <label class="md-nav__title" for="__nav_3_3">
+          <span class="md-nav__icon md-icon"></span>
+          Scheduling
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../scheduling/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../delay_estimation/" class="md-nav__link">
+        Delay Estimation
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ir_visualization/" class="md-nav__link">
+        Visualizer
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_5" type="checkbox" id="__nav_3_5" >
+      
+      <label class="md-nav__link" for="__nav_3_5">
+        Native JIT
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Native JIT" data-md-level="2">
+        <label class="md-nav__title" for="__nav_3_5">
+          <span class="md-nav__icon md-icon"></span>
+          Native JIT
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ir_jit/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data_layout/" class="md-nav__link">
+        Data Layout
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../solvers/" class="md-nav__link">
+        Formal
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" type="checkbox" id="__nav_4" >
+      
+      <label class="md-nav__link" for="__nav_4">
+        DSLX
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="DSLX" data-md-level="1">
+        <label class="md-nav__title" for="__nav_4">
+          <span class="md-nav__icon md-icon"></span>
+          DSLX
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../dslx_reference/" class="md-nav__link">
+        Reference
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../dslx_std/" class="md-nav__link">
+        Standard Library
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../floating_point/" class="md-nav__link">
         Floating Point
       </a>
     </li>
@@ -694,7 +655,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../fuzzer/" class="md-nav__link">
+      <a href="../../fuzzer/" class="md-nav__link">
         Fuzzer
       </a>
     </li>
@@ -736,7 +697,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../vast/" class="md-nav__link">
+      <a href="../../vast/" class="md-nav__link">
         VAST
       </a>
     </li>
@@ -778,7 +739,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../build_system/" class="md-nav__link">
+      <a href="../../build_system/" class="md-nav__link">
         Build System
       </a>
     </li>
@@ -790,7 +751,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tools_quick_start/" class="md-nav__link">
+      <a href="../../tools_quick_start/" class="md-nav__link">
         Quick Start
       </a>
     </li>
@@ -802,7 +763,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tools/" class="md-nav__link">
+      <a href="../../tools/" class="md-nav__link">
         Listing
       </a>
     </li>
@@ -814,7 +775,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../interpreters/" class="md-nav__link">
+      <a href="../../interpreters/" class="md-nav__link">
         Interpreters
       </a>
     </li>
@@ -856,7 +817,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../contributing/" class="md-nav__link">
+      <a href="../../contributing/" class="md-nav__link">
         Contributing
       </a>
     </li>
@@ -868,7 +829,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_style/" class="md-nav__link">
+      <a href="../../xls_style/" class="md-nav__link">
         Style Guide
       </a>
     </li>
@@ -880,7 +841,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adding_ir_operation/" class="md-nav__link">
+      <a href="../../adding_ir_operation/" class="md-nav__link">
         Adding a new IR operation
       </a>
     </li>
@@ -922,7 +883,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_readme/" class="md-nav__link">
+      <a href="../../xls_noc_readme/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -955,7 +916,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_topologies/" class="md-nav__link">
+      <a href="../../xls_noc_topologies/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -967,7 +928,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_dimension_order_topology/" class="md-nav__link">
+      <a href="../../xls_noc_dimension_order_topology/" class="md-nav__link">
         Dimension Order
       </a>
     </li>
@@ -979,7 +940,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_tree_topology/" class="md-nav__link">
+      <a href="../../xls_noc_tree_topology/" class="md-nav__link">
         Tree
       </a>
     </li>
@@ -991,7 +952,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_butterfly_topology/" class="md-nav__link">
+      <a href="../../xls_noc_butterfly_topology/" class="md-nav__link">
         k-ary n-fly Butterfly
       </a>
     </li>
@@ -1003,7 +964,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_fully_connected_topology/" class="md-nav__link">
+      <a href="../../xls_noc_fully_connected_topology/" class="md-nav__link">
         Fully Connected
       </a>
     </li>
@@ -1015,7 +976,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_star_topology/" class="md-nav__link">
+      <a href="../../xls_noc_star_topology/" class="md-nav__link">
         Star
       </a>
     </li>
@@ -1033,7 +994,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_glossary/" class="md-nav__link">
+      <a href="../../xls_noc_glossary/" class="md-nav__link">
         Glossary
       </a>
     </li>
@@ -1117,12 +1078,12 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/google/xls/tree/main/docs_src/dslx_intro_example3.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/google/xls/tree/main/docs_src/tutorials/prefix_scan.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
                 
-                <h1 id="dslx-example-prefix-scan-computation">DSLX Example: Prefix Scan Computation</h1>
+                <h1 id="dslx-tutorial-enumerate-and-match-expressions">DSLX Tutorial: <code>enumerate</code> and <code>match</code> expressions</h1>
 <p>In this document we explain in detail the implementation of a 8 byte prefix scan
 computation. In order to understand the implementation, it is useful to
 understand the intended functionality first.</p>
@@ -1131,10 +1092,10 @@ input and produces an output of the same size. Each element in the output
 contains the count of duplicate values seen so far in the input. The counter
 resets to 0 if a new value is found.</p>
 <p>For example, for this input:</p>
-<div class="highlight"><pre><span></span><code>  let input = bits[8,32]:[0, 0, 0, 0, 0, 0, 0, 0]
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="mi">8</span><span class="p">,</span><span class="mi">32</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">]</span><span class="w"></span>
 </code></pre></div>
 <p>the code should produce this output:</p>
-<div class="highlight"><pre><span></span><code>  bits[8,3]:[0, 1, 2, 3, 4, 5, 6, 7])
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="n">bits</span><span class="p">[</span><span class="mi">8</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="p">])</span><span class="w"></span>
 </code></pre></div>
 <p>At index 0 it has not yet found any value, so it assigns a counter value of <code>0</code>.</p>
 <p>At index 1 it finds the second occurrence of the value '0' (which is the 1st
@@ -1142,10 +1103,10 @@ duplicate) and therefore adds a 1 to the counter from index 0.</p>
 <p>At index 2 it finds the third occurrence of the value '0' (which is the 2nd
 duplicate) and therefore adds a 1 to the counter from index 1. And so on.</p>
 <p>Correspondingly, for this input:</p>
-<div class="highlight"><pre><span></span><code>  let input = bits[8,32]:[0, 0, 1, 1, 2, 2, 3, 3]
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="mi">8</span><span class="p">,</span><span class="mi">32</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">]</span><span class="w"></span>
 </code></pre></div>
 <p>it should produce:</p>
-<div class="highlight"><pre><span></span><code>  assert_eq(result, bits[8,3]:[0, 1, 0, 1, 0, 1, 0, 1])
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="mi">8</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">])</span><span class="w"></span>
 </code></pre></div>
 <p>The full listing is in <code>examples/dslx_intro/prefix_scan_equality.x</code>.</p>
 <h3 id="function-prefix_scan_eq">Function prefix_scan_eq</h3>
@@ -1153,12 +1114,12 @@ duplicate) and therefore adds a 1 to the counter from index 1. And so on.</p>
 <p>The function prototype is straigt-forward. Input is an array of 8 values of type
 <code>u32</code>. Output is an array of size 8 holding 3-bit values (the maximum resulting
 count can only be 7, which fits in 3 bits).</p>
-<div class="highlight"><pre><span></span><code>fn prefix_scan_eq(x: u32[8]) -&gt; bits[8,3] {
+<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">prefix_scan_eq</span><span class="p">(</span><span class="n">x</span>: <span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="mi">8</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 </code></pre></div>
 <p>The first let expression produces a tuple of 3 values. It only cares about the
 last value <code>result</code>, so it stubs out the other two elements via the 'ignore'
 placeholder <code>_</code>.</p>
-<div class="highlight"><pre><span></span><code>  let (_, _, result) =
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">_</span><span class="p">,</span><span class="w"> </span><span class="n">_</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
 </code></pre></div>
 <p>Why a 3-Tuple? Because he following loop has tuple of three values as the
 accumulator. The return type of the loop is the type of the accumulator, so
@@ -1166,8 +1127,8 @@ above let needs to be of the same type.</p>
 <h4 id="enumerated-loop">Enumerated Loop</h4>
 <p>Using tuples as the accumulator is a convenient way to model multiple
 loop-carried values:</p>
-<div class="highlight"><pre><span></span><code>    for ((i, elem), (prior, count, result)): ((u32, u32), (u32, u3, bits[8,3]))
-          in enumerate(x) {
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">((</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">elem</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="n">prior</span><span class="p">,</span><span class="w"> </span><span class="n">count</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">))</span>: <span class="p">((</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">,</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="mi">8</span><span class="p">,</span><span class="mi">3</span><span class="p">]))</span><span class="w"></span>
+<span class="w">          </span><span class="k">in</span><span class="w"> </span><span class="n">enumerate</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 </code></pre></div>
 <p>The iterable of this loop is <code>enumerate(x)</code>. On each iteration, this construct
 delivers a tuple consisting of current index and current element. This is
@@ -1185,7 +1146,7 @@ members of the tuple and will only return the <code>result</code> part.</p>
 <p>The next expression is an interesting <code>match</code> expression. The let expression
 binds the tuple <code>(to_place, new_count): (u3, u3)</code> to the result of the following
 match expression:</p>
-<div class="highlight"><pre><span></span><code>let (to_place, new_count): (u3, u3) = match (i == u32:0, prior == elem) {
+<div class="highlight"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">to_place</span><span class="p">,</span><span class="w"> </span><span class="n">new_count</span><span class="p">)</span>: <span class="p">(</span><span class="n">u3</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">prior</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">elem</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 </code></pre></div>
 <p><code>to_place</code> will hold the value that is to be written at a given index.
 <code>new_count</code> will contain the updated counter value.</p>
@@ -1196,30 +1157,30 @@ match expression:</p>
 </ul>
 <p>Two tests mean there are four possible cases, which are all handled in the
 following four cases:</p>
-<div class="highlight"><pre><span></span><code>      // i == 0 (no matter whether prior == elem or not):
-      //    we set position 0 to 0 and update the new_counter to 1
-      (true, true) =&gt; (u3:0, u3:1),
-      (true, false) =&gt; (u3:0, u3:1),
+<div class="highlight"><pre><span></span><code><span class="w">      </span><span class="c1">// i == 0 (no matter whether prior == elem or not):</span>
+<span class="w">      </span><span class="c1">//    we set position 0 to 0 and update the new_counter to 1</span>
+<span class="w">      </span><span class="p">(</span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">1</span><span class="p">),</span><span class="w"></span>
+<span class="w">      </span><span class="p">(</span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">1</span><span class="p">),</span><span class="w"></span>
 
-      // if i != 0 - if the current element is the same as pior,
-      //    set to_place to the value of the current count
-      //    update new_counter with the increased counter value
-      (false, true) =&gt; (count, count + u3:1),
+<span class="w">      </span><span class="c1">// if i != 0 - if the current element is the same as pior,</span>
+<span class="w">      </span><span class="c1">//    set to_place to the value of the current count</span>
+<span class="w">      </span><span class="c1">//    update new_counter with the increased counter value</span>
+<span class="w">      </span><span class="p">(</span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">count</span><span class="p">,</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">1</span><span class="p">),</span><span class="w"></span>
 
-      // if i != 0 - if current element is different from prior,
-      //     set to_place back to 0
-      //     set new_counter back to 1
-      (false, false) =&gt; (u3:0, u3:1),
-    };
+<span class="w">      </span><span class="c1">// if i != 0 - if current element is different from prior,</span>
+<span class="w">      </span><span class="c1">//     set to_place back to 0</span>
+<span class="w">      </span><span class="c1">//     set new_counter back to 1</span>
+<span class="w">      </span><span class="p">(</span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">1</span><span class="p">),</span><span class="w"></span>
+<span class="w">    </span><span class="p">};</span><span class="w"></span>
 </code></pre></div>
 <p>To update the result, we set index <code>i</code> in the <code>result</code> array to the value
 <code>to_place</code> via the built-in <code>update</code> function, which produces a new value
 <code>new_result</code>):</p>
-<div class="highlight"><pre><span></span><code>    let new_result: bits[8,3] = update(result, i, to_place);
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">new_result</span>: <span class="nc">bits</span><span class="p">[</span><span class="mi">8</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">update</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">to_place</span><span class="p">);</span><span class="w"></span>
 </code></pre></div>
 <p>Finally the updated accumulator value is constructed, it is the last expression
 in the loop:</p>
-<div class="highlight"><pre><span></span><code>    (elem, new_count, new_result)
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="p">(</span><span class="n">elem</span><span class="p">,</span><span class="w"> </span><span class="n">new_count</span><span class="p">,</span><span class="w"> </span><span class="n">new_result</span><span class="p">)</span><span class="w"></span>
 </code></pre></div>
 <p>Following the loop body, as an argument to the loop, we initialize the
 accumulator in the following way.</p>
@@ -1228,28 +1189,28 @@ accumulator in the following way.</p>
 <li>set element <code>count</code> to 0.</li>
 <li>set element <code>result</code> to 8 0's of size <code>u3</code></li>
 </ul>
-<div class="highlight"><pre><span></span><code>}((u32:-1, u3:0, bits[8,3]:[u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0]));
+<div class="highlight"><pre><span></span><code><span class="p">}((</span><span class="kt">u32</span>:<span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="mi">8</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span>:<span class="p">[</span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">]));</span><span class="w"></span>
 </code></pre></div>
 <p>And, finally, the function simply returns <code>result</code>:</p>
-<div class="highlight"><pre><span></span><code>  result
-}
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="n">result</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
 </code></pre></div>
 <h3 id="testing">Testing</h3>
 <p>To test the two cases we've described above, we add the following two test cases
 right to this implementation file:</p>
-<div class="highlight"><pre><span></span><code>#![test]
-fn test_prefix_scan_eq_all_zero() {
-  let input = bits[8,32]:[0, 0, 0, 0, 0, 0, 0, 0];
-  let result = prefix_scan_eq(input);
-  assert_eq(result, bits[8,3]:[0, 1, 2, 3, 4, 5, 6, 7])
-}
+<div class="highlight"><pre><span></span><code><span class="cp">#![test]</span><span class="w"></span>
+<span class="k">fn</span> <span class="nf">test_prefix_scan_eq_all_zero</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="mi">8</span><span class="p">,</span><span class="mi">32</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">];</span><span class="w"></span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prefix_scan_eq</span><span class="p">(</span><span class="n">input</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="mi">8</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="p">])</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
 
-#![test]
-fn test_prefix_scan_eq_doubles() {
-  let input = bits[8,32]:[0, 0, 1, 1, 2, 2, 3, 3];
-  let result = prefix_scan_eq(input);
-  assert_eq(result, bits[8,3]:[0, 1, 0, 1, 0, 1, 0, 1])
-}
+<span class="cp">#![test]</span><span class="w"></span>
+<span class="k">fn</span> <span class="nf">test_prefix_scan_eq_doubles</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="mi">8</span><span class="p">,</span><span class="mi">32</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">];</span><span class="w"></span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prefix_scan_eq</span><span class="p">(</span><span class="n">input</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="mi">8</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">])</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
 </code></pre></div>
                 
               
@@ -1270,7 +1231,7 @@ fn test_prefix_scan_eq_doubles() {
     <nav class="md-footer__inner md-grid" aria-label="Footer">
       
         
-        <a href="../fpadd_example/" class="md-footer__link md-footer__link--prev" aria-label="Previous: FP adder" rel="prev">
+        <a href="../crc32/" class="md-footer__link md-footer__link--prev" aria-label="Previous: For expressions" rel="prev">
           <div class="md-footer__button md-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
           </div>
@@ -1279,20 +1240,20 @@ fn test_prefix_scan_eq_doubles() {
               <span class="md-footer__direction">
                 Previous
               </span>
-              FP adder
+              For expressions
             </div>
           </div>
         </a>
       
       
         
-        <a href="../floating_point/" class="md-footer__link md-footer__link--next" aria-label="Next: Floating Point" rel="next">
+        <a href="../../ir_semantics/" class="md-footer__link md-footer__link--next" aria-label="Next: Semantics" rel="next">
           <div class="md-footer__title">
             <div class="md-ellipsis">
               <span class="md-footer__direction">
                 Next
               </span>
-              Floating Point
+              Semantics
             </div>
           </div>
           <div class="md-footer__button md-icon">
@@ -1321,10 +1282,10 @@ fn test_prefix_scan_eq_doubles() {
     <div class="md-dialog" data-md-component="dialog">
       <div class="md-dialog__inner md-typeset"></div>
     </div>
-    <script id="__config" type="application/json">{"base": "..", "features": [], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "../assets/javascripts/workers/search.709b4209.min.js", "version": null}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": [], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "../../assets/javascripts/workers/search.709b4209.min.js", "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.29db7785.min.js"></script>
+      <script src="../../assets/javascripts/bundle.29db7785.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

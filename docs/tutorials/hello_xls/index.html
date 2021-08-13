@@ -343,7 +343,7 @@
   
     <li class="md-nav__item">
       <a href="../float_to_int/" class="md-nav__link">
-        Float-to-int conversion
+        Basic logic
       </a>
     </li>
   
@@ -356,6 +356,30 @@
     <li class="md-nav__item">
       <a href="../intro_to_parametrics/" class="md-nav__link">
         Intro to parameterics
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crc32/" class="md-nav__link">
+        For expressions
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prefix_scan/" class="md-nav__link">
+        Enumerate and match
       </a>
     </li>
   
@@ -597,69 +621,6 @@
       <a href="../../dslx_std/" class="md-nav__link">
         Standard Library
       </a>
-    </li>
-  
-
-          
-            
-  
-  
-  
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-      
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4_3" type="checkbox" id="__nav_4_3" >
-      
-      <label class="md-nav__link" for="__nav_4_3">
-        Examples
-        <span class="md-nav__icon md-icon"></span>
-      </label>
-      <nav class="md-nav" aria-label="Examples" data-md-level="2">
-        <label class="md-nav__title" for="__nav_4_3">
-          <span class="md-nav__icon md-icon"></span>
-          Examples
-        </label>
-        <ul class="md-nav__list" data-md-scrollfix>
-          
-            
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../dslx_intro_example1/" class="md-nav__link">
-        CRC32
-      </a>
-    </li>
-  
-
-          
-            
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../fpadd_example/" class="md-nav__link">
-        FP adder
-      </a>
-    </li>
-  
-
-          
-            
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../dslx_intro_example3/" class="md-nav__link">
-        Prefix Scan
-      </a>
-    </li>
-  
-
-          
-        </ul>
-      </nav>
     </li>
   
 
@@ -1136,12 +1097,12 @@ the following:</p>
 <ol>
 <li>This first line declares a fn (<code>fn</code>) named "<code>hello_xls</code>". This function
     accepts an array of eight characters (u8) called <code>hello_string</code>, and returns
-    no value (the return type would be listed after the argument list's closing
-    parenthesis and the function-opening curly brace, if the function returned a
-    value).</li>
+    no value (the return type would be specified after the argument list's
+    closing parenthesis and before the function-opening curly brace, if the
+    function returned a value).</li>
 <li>This second line invokes the built-in <code>trace!</code> directive, passing it the
-    function's input string, and throws away the result (assignment to <code>_</code>);</li>
-<li>This final line terminates the function, exiting with the empty return value
+    function's input string, and throws away the result (assignment to <code>_</code>).</li>
+<li>The final line terminates the function, exiting with the empty return value
     <code>()</code>, representing an empty tuple.</li>
 </ol>
 <h2 id="3-say-hello-xls">3. Say hello, XLS!</h2>
@@ -1192,7 +1153,7 @@ trace of hello_string @ hello.x:4:17-4:31: [72, 101, 108, 108, 111, 44, 32, 88, 
 <p>Perfect! While this may not be what you initially expected, examine the output
 elements carefully: they correspond to the ASCII codes of the characters in
 "Hello, XLS!" When designing and debugging hardware, signals are more often
-numeric than string data, which is why they're represented numerically here.</p>
+numbers than strings, which is why they're represented as numbers here.</p>
 <p>Congrats! You've written your first piece of hardware in DSLX! It might be more
 satisfying, though, if your hardware <em>actually did anything</em>. For that, see the
 next tutorial,
@@ -1232,13 +1193,13 @@ next tutorial,
       
       
         
-        <a href="../float_to_int/" class="md-footer__link md-footer__link--next" aria-label="Next: Float-to-int conversion" rel="next">
+        <a href="../float_to_int/" class="md-footer__link md-footer__link--next" aria-label="Next: Basic logic" rel="next">
           <div class="md-footer__title">
             <div class="md-ellipsis">
               <span class="md-footer__direction">
                 Next
               </span>
-              Float-to-int conversion
+              Basic logic
             </div>
           </div>
           <div class="md-footer__button md-icon">

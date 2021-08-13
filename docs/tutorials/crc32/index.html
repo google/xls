@@ -9,21 +9,21 @@
       
       
       
-        <link rel="canonical" href="https://google.github.io/xls/dslx_intro_example1/">
+        <link rel="canonical" href="https://google.github.io/xls/tutorials/crc32/">
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.2.2, mkdocs-material-7.2.3">
     
     
       
-        <title>CRC32 - XLS: Accelerated HW Synthesis</title>
+        <title>For expressions - XLS: Accelerated HW Synthesis</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.f7f47774.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.f7f47774.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.3f5d1f46.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.3f5d1f46.min.css">
         
       
     
@@ -55,7 +55,7 @@
     <body dir="ltr" data-md-color-scheme="" data-md-color-primary="none" data-md-color-accent="none">
   
     
-    <script>function __prefix(e){return new URL("..",location).pathname+"."+e}function __get(e,t=localStorage){return JSON.parse(t.getItem(__prefix(e)))}</script>
+    <script>function __prefix(e){return new URL("../..",location).pathname+"."+e}function __get(e,t=localStorage){return JSON.parse(t.getItem(__prefix(e)))}</script>
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
@@ -63,7 +63,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#dslx-example-compute-crc32-checksum" class="md-skip">
+        <a href="#tutorial-for-expressions" class="md-skip">
           Skip to content
         </a>
       
@@ -74,7 +74,7 @@
     
       <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-header__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+    <a href="../.." title="XLS: Accelerated HW Synthesis" class="md-header__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54z"/></svg>
@@ -93,7 +93,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              CRC32
+              For expressions
             
           </span>
         </div>
@@ -171,7 +171,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+    <a href="../.." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54z"/></svg>
@@ -203,7 +203,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         Overview
       </a>
     </li>
@@ -216,12 +216,14 @@
 
   
   
+    
+  
   
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" >
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" checked>
       
       <label class="md-nav__link" for="__nav_2">
         Tutorials
@@ -239,7 +241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -249,12 +251,14 @@
             
   
   
+    
+  
   
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2_2" type="checkbox" id="__nav_2_2" >
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2_2" type="checkbox" id="__nav_2_2" checked>
       
       <label class="md-nav__link" for="__nav_2_2">
         DSLX
@@ -272,7 +276,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/hello_xls/" class="md-nav__link">
+      <a href="../hello_xls/" class="md-nav__link">
         Hello, XLS!
       </a>
     </li>
@@ -284,8 +288,8 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/float_to_int/" class="md-nav__link">
-        Float-to-int conversion
+      <a href="../float_to_int/" class="md-nav__link">
+        Basic logic
       </a>
     </li>
   
@@ -296,8 +300,72 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/intro_to_parametrics/" class="md-nav__link">
+      <a href="../intro_to_parametrics/" class="md-nav__link">
         Intro to parameterics
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          For expressions
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        For expressions
+      </a>
+      
+        
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#function-prototype" class="md-nav__link">
+    Function Prototype
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prefix_scan/" class="md-nav__link">
+        Enumerate and match
       </a>
     </li>
   
@@ -344,7 +412,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_semantics/" class="md-nav__link">
+      <a href="../../ir_semantics/" class="md-nav__link">
         Semantics
       </a>
     </li>
@@ -356,7 +424,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../optimizations/" class="md-nav__link">
+      <a href="../../optimizations/" class="md-nav__link">
         Optimizations
       </a>
     </li>
@@ -389,7 +457,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../scheduling/" class="md-nav__link">
+      <a href="../../scheduling/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -401,7 +469,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../delay_estimation/" class="md-nav__link">
+      <a href="../../delay_estimation/" class="md-nav__link">
         Delay Estimation
       </a>
     </li>
@@ -419,7 +487,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_visualization/" class="md-nav__link">
+      <a href="../../ir_visualization/" class="md-nav__link">
         Visualizer
       </a>
     </li>
@@ -452,7 +520,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_jit/" class="md-nav__link">
+      <a href="../../ir_jit/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -464,7 +532,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../data_layout/" class="md-nav__link">
+      <a href="../../data_layout/" class="md-nav__link">
         Data Layout
       </a>
     </li>
@@ -482,7 +550,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../solvers/" class="md-nav__link">
+      <a href="../../solvers/" class="md-nav__link">
         Formal
       </a>
     </li>
@@ -501,14 +569,12 @@
 
   
   
-    
-  
   
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" type="checkbox" id="__nav_4" >
       
       <label class="md-nav__link" for="__nav_4">
         DSLX
@@ -526,7 +592,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dslx_reference/" class="md-nav__link">
+      <a href="../../dslx_reference/" class="md-nav__link">
         Reference
       </a>
     </li>
@@ -538,7 +604,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dslx_std/" class="md-nav__link">
+      <a href="../../dslx_std/" class="md-nav__link">
         Standard Library
       </a>
     </li>
@@ -548,114 +614,9 @@
             
   
   
-    
-  
-  
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
-      
-      
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4_3" type="checkbox" id="__nav_4_3" checked>
-      
-      <label class="md-nav__link" for="__nav_4_3">
-        Examples
-        <span class="md-nav__icon md-icon"></span>
-      </label>
-      <nav class="md-nav" aria-label="Examples" data-md-level="2">
-        <label class="md-nav__title" for="__nav_4_3">
-          <span class="md-nav__icon md-icon"></span>
-          Examples
-        </label>
-        <ul class="md-nav__list" data-md-scrollfix>
-          
-            
-  
-  
-    
-  
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          CRC32
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
-        CRC32
-      </a>
-      
-        
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#function-prototype" class="md-nav__link">
-    Function Prototype
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
-    </li>
-  
-
-          
-            
-  
-  
   
     <li class="md-nav__item">
-      <a href="../fpadd_example/" class="md-nav__link">
-        FP adder
-      </a>
-    </li>
-  
-
-          
-            
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../dslx_intro_example3/" class="md-nav__link">
-        Prefix Scan
-      </a>
-    </li>
-  
-
-          
-        </ul>
-      </nav>
-    </li>
-  
-
-          
-            
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../floating_point/" class="md-nav__link">
+      <a href="../../floating_point/" class="md-nav__link">
         Floating Point
       </a>
     </li>
@@ -667,7 +628,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../fuzzer/" class="md-nav__link">
+      <a href="../../fuzzer/" class="md-nav__link">
         Fuzzer
       </a>
     </li>
@@ -709,7 +670,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../vast/" class="md-nav__link">
+      <a href="../../vast/" class="md-nav__link">
         VAST
       </a>
     </li>
@@ -751,7 +712,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../build_system/" class="md-nav__link">
+      <a href="../../build_system/" class="md-nav__link">
         Build System
       </a>
     </li>
@@ -763,7 +724,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tools_quick_start/" class="md-nav__link">
+      <a href="../../tools_quick_start/" class="md-nav__link">
         Quick Start
       </a>
     </li>
@@ -775,7 +736,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tools/" class="md-nav__link">
+      <a href="../../tools/" class="md-nav__link">
         Listing
       </a>
     </li>
@@ -787,7 +748,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../interpreters/" class="md-nav__link">
+      <a href="../../interpreters/" class="md-nav__link">
         Interpreters
       </a>
     </li>
@@ -829,7 +790,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../contributing/" class="md-nav__link">
+      <a href="../../contributing/" class="md-nav__link">
         Contributing
       </a>
     </li>
@@ -841,7 +802,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_style/" class="md-nav__link">
+      <a href="../../xls_style/" class="md-nav__link">
         Style Guide
       </a>
     </li>
@@ -853,7 +814,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adding_ir_operation/" class="md-nav__link">
+      <a href="../../adding_ir_operation/" class="md-nav__link">
         Adding a new IR operation
       </a>
     </li>
@@ -895,7 +856,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_readme/" class="md-nav__link">
+      <a href="../../xls_noc_readme/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -928,7 +889,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_topologies/" class="md-nav__link">
+      <a href="../../xls_noc_topologies/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -940,7 +901,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_dimension_order_topology/" class="md-nav__link">
+      <a href="../../xls_noc_dimension_order_topology/" class="md-nav__link">
         Dimension Order
       </a>
     </li>
@@ -952,7 +913,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_tree_topology/" class="md-nav__link">
+      <a href="../../xls_noc_tree_topology/" class="md-nav__link">
         Tree
       </a>
     </li>
@@ -964,7 +925,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_butterfly_topology/" class="md-nav__link">
+      <a href="../../xls_noc_butterfly_topology/" class="md-nav__link">
         k-ary n-fly Butterfly
       </a>
     </li>
@@ -976,7 +937,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_fully_connected_topology/" class="md-nav__link">
+      <a href="../../xls_noc_fully_connected_topology/" class="md-nav__link">
         Fully Connected
       </a>
     </li>
@@ -988,7 +949,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_star_topology/" class="md-nav__link">
+      <a href="../../xls_noc_star_topology/" class="md-nav__link">
         Star
       </a>
     </li>
@@ -1006,7 +967,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_glossary/" class="md-nav__link">
+      <a href="../../xls_noc_glossary/" class="md-nav__link">
         Glossary
       </a>
     </li>
@@ -1063,43 +1024,42 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/google/xls/tree/main/docs_src/dslx_intro_example1.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/google/xls/tree/main/docs_src/tutorials/crc32.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
                 
-                <h1 id="dslx-example-compute-crc32-checksum">DSLX Example: Compute CRC32 Checksum</h1>
+                <h1 id="tutorial-for-expressions">Tutorial: <code>for</code> expressions</h1>
 <p>In this document we explain in detail the implementation of routine to compute a
 CRC32 checksum on a single 8-bit input. We don't discuss the algorithm here,
 only the language features necessary to implement the algorithm.</p>
-<p>Refer to the full implementation, in <code>examples/dslx_intro/crc32_one_byte.x</code>,
+<p>Refer to the
+<a href="https://github.com/google/xls/tree/main/xls/examples/dslx_intro/crc32_one_byte.x">full implementation</a>
 while following this document.</p>
 <h3 id="function-prototype">Function Prototype</h3>
-<p>Let's explain how the function is being defined:</p>
-<div class="highlight"><pre><span></span><code>fn crc32_one_byte(byte: u8, polynomial: u32, crc: u32) -&gt; u32 {
-</code></pre></div>
-<p>Functions are defined starting with the keyword <code>fn</code>, followed by the function's
-name, <code>crc32_one_byte</code> in this case. Then comes the list of parameters, followed
-by the declaration of the return type.</p>
-<p>This function accepts 3 parameters:</p>
+<p>The signature and first line of this function should look familiar enough now,
+but the <code>for</code> construct is new: DSLX provides a means of iterating <strong>a fixed
+number of times</strong> within a function.</p>
+<p>A DSLX <code>for</code> loop has the following structure:</p>
 <ol>
-<li><code>byte</code>, which is of type <code>u8</code>. <code>u8</code> is a shortcut for <code>bits[8]</code></li>
-<li><code>polynomial</code>, which is of type <code>u32</code>, a 32-bit type.</li>
-<li><code>crc</code>, which is also of type <code>u32</code></li>
+<li>The loop signature: this consists of three elements:
+    1.  An (index, <accumulator vars>) tuple. The index holds the current
+        iteration number, and the accumulator vars are user-specified data
+        carried into the current iteration.
+    2.  The type specification for the index/accumulators tuple. Note that the
+        index type can be controlled by the user (i.e., doesn't have to be u32,
+        but it should be able to hold all possible loop index values).
+    3.  An
+        <a href="../../dslx_reference/">iterable</a>,
+        either the <code>range()</code> or <code>enumerate()</code> expressions, either of which
+        dictates the number of iterations of the loop to complete.</li>
+<li>The loop body: this has the same general form as a DSLX function.
+    Particularly noteworthy is that the loop body ends by stating the "return"
+    value. In a <code>for</code> loop, this "return" value is either used as the input to
+    the next iteration of the loop (for non-terminal iterations) or as the
+    result of the entire expression (for the terminal iteration).</li>
 </ol>
-<p>The return type, which is declared after the <code>-&gt;</code>, is also a <code>u32</code>.</p>
-<p>The first line of the function's body is quite curious:</p>
-<div class="highlight"><pre><span></span><code>let crc: u32 = crc ^ u32:byte;
-</code></pre></div>
-<p>The expression to the right side of the <code>=</code> is easy to understand, it computes
-the <code>xor</code> operation between the incoming parameters <code>crc</code> and <code>byte</code>, which has
-been cast to a <code>u32</code>.</p>
-<p>The <code>let</code> expression re-binds <code>crc</code> to the expression on the right. This looks
-like a classic variable assignment. However, since these expressions are all
-scoped by the <code>let</code> expression, the newly assigned <code>crc</code> values are different
-and distinguishable from their previous values. In other words, the original
-value of <code>crc</code> is not visible to anybody else after the re-binding.</p>
-<p>The next line specifies a <code>for</code> loop. Index variable and accumulator are <code>i</code> and
+<p>For this specific foor loop, the ndex variable and accumulator are <code>i</code> and
 <code>crc</code>, both of type <code>u32</code>. The iterable range expression specifies that the loop
 should execute 8 times.</p>
 <div class="highlight"><pre><span></span><code>  // 8 rounds of updates.
@@ -1117,6 +1077,10 @@ languages, where the init value typically is provided at or near the top of a
 loop.</p>
 <div class="highlight"><pre><span></span><code>}(crc)
 </code></pre></div>
+<p>Since the <code>for</code> loop is the last expression in the function, it's also the
+function's return value, but in other contexts, it could be assigned to a
+variable and used elsewhere. In general, the result of a <code>for</code> expression can be
+used in the same manner as any other expression's result.</p>
                 
               
               
@@ -1136,7 +1100,7 @@ loop.</p>
     <nav class="md-footer__inner md-grid" aria-label="Footer">
       
         
-        <a href="../dslx_std/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Standard Library" rel="prev">
+        <a href="../intro_to_parametrics/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Intro to parameterics" rel="prev">
           <div class="md-footer__button md-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
           </div>
@@ -1145,20 +1109,20 @@ loop.</p>
               <span class="md-footer__direction">
                 Previous
               </span>
-              Standard Library
+              Intro to parameterics
             </div>
           </div>
         </a>
       
       
         
-        <a href="../fpadd_example/" class="md-footer__link md-footer__link--next" aria-label="Next: FP adder" rel="next">
+        <a href="../prefix_scan/" class="md-footer__link md-footer__link--next" aria-label="Next: Enumerate and match" rel="next">
           <div class="md-footer__title">
             <div class="md-ellipsis">
               <span class="md-footer__direction">
                 Next
               </span>
-              FP adder
+              Enumerate and match
             </div>
           </div>
           <div class="md-footer__button md-icon">
@@ -1187,10 +1151,10 @@ loop.</p>
     <div class="md-dialog" data-md-component="dialog">
       <div class="md-dialog__inner md-typeset"></div>
     </div>
-    <script id="__config" type="application/json">{"base": "..", "features": [], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "../assets/javascripts/workers/search.709b4209.min.js", "version": null}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": [], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "../../assets/javascripts/workers/search.709b4209.min.js", "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.29db7785.min.js"></script>
+      <script src="../../assets/javascripts/bundle.29db7785.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       
