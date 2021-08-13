@@ -151,6 +151,25 @@ class LeafTypeTree {
     return subtree;
   }
 
+  // Use the given function to combine each corresponding leaf element in the
+  // two given `LeafTypeTree`s. CHECK fails if the given `LeafTypeTree`s are not
+  // generated from the same type.
+  template <typename A, typename B>
+  static LeafTypeTree<T> Zip(std::function<T(const A&, const B&)> function,
+                             const LeafTypeTree<A>& lhs,
+                             const LeafTypeTree<B>& rhs) {
+    XLS_CHECK(lhs.type()->IsEqualTo(rhs.type()));
+    XLS_CHECK_EQ(lhs.size(), rhs.size());
+
+    std::vector<T> new_elements;
+    new_elements.reserve(lhs.size());
+    for (int32_t i = 0; i < lhs.size(); ++i) {
+      new_elements.push_back(function(lhs.elements()[i], rhs.elements()[i]));
+    }
+
+    return LeafTypeTree<T>(lhs.type(), new_elements);
+  }
+
  private:
   // Creates the vector of leaf types.
   void MakeLeafTypes(Type* t) {

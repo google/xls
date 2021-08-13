@@ -153,6 +153,13 @@ TEST_F(LeafTypeTreeTest, NestedTupleType) {
 
   EXPECT_THAT(tree.elements(), ElementsAre(0, 0, 3, 0, 42, 0, 0, 77));
 
+  LeafTypeTree<int64_t> other_tree(tree.type());
+  other_tree.Set({0, 1}, 5);
+  other_tree.Set({1, 1, 1, 0}, 12);
+  LeafTypeTree<int64_t> zipped = LeafTypeTree<int64_t>::Zip<int64_t, int64_t>(
+      [](int64_t x, int64_t y) { return std::max(x, y); }, tree, other_tree);
+  EXPECT_THAT(zipped.elements(), ElementsAre(0, 5, 3, 0, 42, 12, 0, 77));
+
   LeafTypeTree<int64_t> subtree = tree.CopySubtree({1, 1});
   EXPECT_EQ(subtree.type()->ToString(), "(bits[1], bits[1][2])");
   EXPECT_THAT(subtree.elements(), ElementsAre(42, 0, 0));
