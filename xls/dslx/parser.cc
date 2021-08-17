@@ -1059,13 +1059,10 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   const Pos start_pos = peek->span().start();
 
-  // Holds popped tokens for rewinding the scanner in case of bad productions.
-  Transaction txn(this, outer_bindings);
-  auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
   Expr* lhs = nullptr;
   if (peek->IsKindIn({TokenKind::kNumber, TokenKind::kCharacter}) ||
       peek->IsKeywordIn({Keyword::kTrue, Keyword::kFalse})) {
-    XLS_ASSIGN_OR_RETURN(lhs, ParseNumber(txn.bindings()));
+    XLS_ASSIGN_OR_RETURN(lhs, ParseNumber(outer_bindings));
   } else if (peek->IsKeyword(Keyword::kCarry)) {
     Token tok = PopTokenOrDie();
     if (loop_stack_.empty()) {
@@ -1082,11 +1079,10 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
       return ParseErrorStatus(peek->span(),
                               "Zero-length strings are not supported.");
     }
-    txn.CommitAndCancelCleanup(&cleanup);
     return module_->Make<String>(Span(start_pos, GetPos()), text);
   } else if (peek->IsKindIn({TokenKind::kBang, TokenKind::kMinus})) {
     Token tok = PopTokenOrDie();
-    XLS_ASSIGN_OR_RETURN(Expr * arg, ParseTerm(txn.bindings()));
+    XLS_ASSIGN_OR_RETURN(Expr * arg, ParseTerm(outer_bindings));
     UnopKind unop_kind;
     switch (tok.kind()) {
       // clang-format off
@@ -1100,22 +1096,22 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     lhs = module_->Make<Unop>(span, unop_kind, arg);
   } else if (peek->IsTypeKeyword() ||
              (peek->kind() == TokenKind::kIdentifier &&
-              txn.bindings()->ResolveNodeIsTypeDefinition(*peek->GetValue()))) {
+              outer_bindings->ResolveNodeIsTypeDefinition(*peek->GetValue()))) {
     XLS_ASSIGN_OR_RETURN(lhs,
-                         ParseCastOrEnumRefOrStructInstance(txn.bindings()));
+                         ParseCastOrEnumRefOrStructInstance(outer_bindings));
   } else if (peek->IsKeyword(Keyword::kNext)) {
     Token next = PopTokenOrDie();
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     XLS_ASSIGN_OR_RETURN(
         std::vector<Expr*> args,
-        ParseCommaSeq(BindFront(&Parser::ParseExpression, txn.bindings()),
+        ParseCommaSeq(BindFront(&Parser::ParseExpression, outer_bindings),
                       TokenKind::kCParen));
     lhs = module_->Make<Next>(next.span());
     lhs = module_->Make<Invocation>(Span(next.span().start(), GetPos()), lhs,
                                     std::move(args));
   } else if (peek->kind() == TokenKind::kIdentifier) {
     std::string lhs_str = *peek->GetValue();
-    XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(txn.bindings()));
+    XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(outer_bindings));
     if (absl::holds_alternative<ColonRef*>(nocr)) {
       XLS_ASSIGN_OR_RETURN(bool peek_is_obrace,
                            PeekTokenIs(TokenKind::kOBrace));
@@ -1126,11 +1122,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
         XLS_ASSIGN_OR_RETURN(
             TypeAnnotation * type,
             MakeTypeRefTypeAnnotation(colon_ref->span(), type_ref, {}, {}));
-        auto status_or_struct = ParseStructInstance(txn.bindings(), type);
-        if (status_or_struct.ok()) {
-          txn.CommitAndCancelCleanup(&cleanup);
-        }
-        return status_or_struct;
+        return ParseStructInstance(outer_bindings, type);
       }
     }
     lhs = ToExprNode(nocr);
@@ -1139,7 +1131,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     // tuple _type_annotation_. We disambiguate the two by discounting the
     // latter result if not followed by a colon.
     {
-      Transaction inner_txn(this, txn.bindings());
+      Transaction inner_txn(this, outer_bindings);
       auto cleanup =
           absl::MakeCleanup([&inner_txn]() { inner_txn.Rollback(); });
       auto status_or_annot = ParseTypeAnnotation(inner_txn.bindings());
@@ -1158,20 +1150,20 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
       Span span(start_pos, GetPos());
       lhs = module_->Make<XlsTuple>(span, std::vector<Expr*>{});
     } else {
-      XLS_ASSIGN_OR_RETURN(lhs, ParseExpression(txn.bindings()));
+      XLS_ASSIGN_OR_RETURN(lhs, ParseExpression(outer_bindings));
       XLS_ASSIGN_OR_RETURN(bool peek_is_comma, PeekTokenIs(TokenKind::kComma));
       if (peek_is_comma) {  // Singleton tuple.
         XLS_ASSIGN_OR_RETURN(lhs, ParseTupleRemainder(oparen.span().start(),
-                                                      lhs, txn.bindings()));
+                                                      lhs, outer_bindings));
       } else {
         XLS_RETURN_IF_ERROR(
             DropTokenOrError(TokenKind::kCParen, /*start=*/&oparen));
       }
     }
   } else if (peek->IsKeyword(Keyword::kMatch)) {  // Match expression.
-    XLS_ASSIGN_OR_RETURN(lhs, ParseMatch(txn.bindings()));
+    XLS_ASSIGN_OR_RETURN(lhs, ParseMatch(outer_bindings));
   } else if (peek->kind() == TokenKind::kOBrack) {  // Array expression.
-    XLS_ASSIGN_OR_RETURN(lhs, ParseArray(txn.bindings()));
+    XLS_ASSIGN_OR_RETURN(lhs, ParseArray(outer_bindings));
   } else {
     return ParseErrorStatus(
         peek->span(),
@@ -1195,14 +1187,14 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
                                                 ToTypeDefinition(lhs).value());
         auto* type_annot = module_->Make<TypeRefTypeAnnotation>(
             span, type_ref, std::vector<Expr*>());
-        XLS_ASSIGN_OR_RETURN(lhs, ParseCast(txn.bindings(), type_annot));
+        XLS_ASSIGN_OR_RETURN(lhs, ParseCast(outer_bindings, type_annot));
         break;
       }
       case TokenKind::kOParen: {  // Invocation.
         DropTokenOrDie();
         XLS_ASSIGN_OR_RETURN(
             std::vector<Expr*> args,
-            ParseCommaSeq(BindFront(&Parser::ParseExpression, txn.bindings()),
+            ParseCommaSeq(BindFront(&Parser::ParseExpression, outer_bindings),
                           TokenKind::kCParen));
         XLS_ASSIGN_OR_RETURN(
             lhs, BuildMacroOrInvocation(Span(new_pos, GetPos()), lhs,
@@ -1223,18 +1215,18 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
         XLS_ASSIGN_OR_RETURN(bool dropped_colon,
                              TryDropToken(TokenKind::kColon));
         if (dropped_colon) {  // Slice-from-beginning.
-          XLS_ASSIGN_OR_RETURN(lhs, ParseBitSlice(new_pos, lhs, txn.bindings(),
+          XLS_ASSIGN_OR_RETURN(lhs, ParseBitSlice(new_pos, lhs, outer_bindings,
                                                   /*start=*/nullptr));
           break;
         }
-        XLS_ASSIGN_OR_RETURN(Expr * index, ParseExpression(txn.bindings()));
+        XLS_ASSIGN_OR_RETURN(Expr * index, ParseExpression(outer_bindings));
         XLS_ASSIGN_OR_RETURN(peek, PeekToken());
         switch (peek->kind()) {
           case TokenKind::kPlusColon: {  // Explicit width slice.
             DropTokenOrDie();
             Expr* start = index;
             XLS_ASSIGN_OR_RETURN(TypeAnnotation * width,
-                                 ParseTypeAnnotation(txn.bindings()));
+                                 ParseTypeAnnotation(outer_bindings));
             Span span(new_pos, GetPos());
             auto* width_slice = module_->Make<WidthSlice>(span, start, width);
             lhs = module_->Make<Index>(span, lhs, width_slice);
@@ -1244,7 +1236,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
           case TokenKind::kColon: {  // Slice to end.
             DropTokenOrDie();
             XLS_ASSIGN_OR_RETURN(
-                lhs, ParseBitSlice(new_pos, lhs, txn.bindings(), index));
+                lhs, ParseBitSlice(new_pos, lhs, outer_bindings, index));
             break;
           }
           default:
@@ -1255,7 +1247,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
       }
       case TokenKind::kOAngle: {
         // Comparison op or parametric function invocation.
-        Transaction sub_txn(this, txn.bindings());
+        Transaction sub_txn(this, outer_bindings);
         auto sub_cleanup =
             absl::MakeCleanup([&sub_txn]() { sub_txn.Rollback(); });
 
@@ -1288,7 +1280,6 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
   }
 
 done:
-  txn.CommitAndCancelCleanup(&cleanup);
   return lhs;
 }
 
