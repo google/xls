@@ -472,8 +472,8 @@ class IrVisualizer {
           this.selectNode(nodeId, !this.graph_.isNodeSelected(nodeId));
         }
       } else {
-	// Clicking on the graph outside of a node (nodeId == null) clears the
-	// selection state.
+        // Clicking on the graph outside of a node (nodeId == null) clears the
+        // selection state.
         this.applyChange_(this.graph_.selectOnlyNodes([]));
       }
     });
