@@ -118,24 +118,40 @@ std::vector<FunctionBase*> Package::GetFunctionBases() const {
   return result;
 }
 
-void Package::DeleteDeadFunctions(absl::Span<Function* const> dead_funcs) {
-  std::vector<std::unique_ptr<Function>> to_unlink;
-  for (std::unique_ptr<Function>& f : functions_) {
-    if (std::find(dead_funcs.begin(), dead_funcs.end(), f.get()) !=
-        dead_funcs.end()) {
-      XLS_VLOG(1) << "Function is dead: " << f->name();
-      to_unlink.push_back(std::move(f));
-      f = nullptr;
-    }
+absl::Status Package::RemoveFunction(Function* function) {
+  auto it = std::remove_if(
+      functions_.begin(), functions_.end(),
+      [&](const std::unique_ptr<Function>& f) { return f.get() == function; });
+  if (it == functions_.end()) {
+    return absl::NotFoundError(absl::StrFormat(
+        "`%s` is not a function in package `%s`", function->name(), name()));
   }
+  functions_.erase(it, functions_.end());
+  return absl::OkStatus();
+}
 
-  // Destruct all the functions here instead of when they go out of scope,
-  // just in  case there's meaningful logging in the destructor.
-  to_unlink.clear();
+absl::Status Package::RemoveProc(Proc* proc) {
+  auto it = std::remove_if(
+      procs_.begin(), procs_.end(),
+      [&](const std::unique_ptr<Proc>& f) { return f.get() == proc; });
+  if (it == procs_.end()) {
+    return absl::NotFoundError(absl::StrFormat(
+        "`%s` is not a proc in package `%s`", proc->name(), name()));
+  }
+  procs_.erase(it, procs_.end());
+  return absl::OkStatus();
+}
 
-  // Get rid of nullptrs we made in the functions vector.
-  functions_.erase(std::remove(functions_.begin(), functions_.end(), nullptr),
-                   functions_.end());
+absl::Status Package::RemoveBlock(Block* block) {
+  auto it = std::remove_if(
+      blocks_.begin(), blocks_.end(),
+      [&](const std::unique_ptr<Block>& f) { return f.get() == block; });
+  if (it == blocks_.end()) {
+    return absl::NotFoundError(absl::StrFormat(
+        "`%s` is not a block in package `%s`", block->name(), name()));
+  }
+  blocks_.erase(it, blocks_.end());
+  return absl::OkStatus();
 }
 
 absl::StatusOr<Function*> Package::EntryFunction() {

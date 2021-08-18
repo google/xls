@@ -22,6 +22,9 @@ namespace {
 
 void MarkReachedFunctions(Function* func,
                           absl::flat_hash_set<Function*>* reached) {
+  if (reached->contains(func)) {
+    return;
+  }
   reached->insert(func);
   // Iterate over statements and find invocations or references.
   for (Node* node : func->nodes()) {
@@ -39,7 +42,7 @@ void MarkReachedFunctions(Function* func,
         break;
     }
   }
-  }
+}
 
 }  // namespace
 
@@ -66,8 +69,8 @@ absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
       to_unlink.push_back(f.get());
     }
   }
-  if (!to_unlink.empty()) {
-    p->DeleteDeadFunctions(to_unlink);
+  for (Function* function : to_unlink) {
+    XLS_RETURN_IF_ERROR(p->RemoveFunction(function));
   }
   return !to_unlink.empty();
 }
