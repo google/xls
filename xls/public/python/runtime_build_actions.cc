@@ -91,6 +91,19 @@ Args:
    make in the output text.)",
         py::arg("proto_def"), py::arg("message_name"), py::arg("text_proto"),
         py::arg("binding_name"));
+
+  m.def("convert_ir_to_combinational_verilog", &ConvertIrToCombinationalVerilog, R"(Converts the specified XLS IR text into a combinational Verilog module.
+ Args:
+  ir: Text for the XLS IR package.
+  path: Path to use for source location information for the given text.
+    Since text may be generated, an empty string or a pseudo path like
+    "<generated>" is acceptable.
+  entry: Entry function for the XLS IR package,
+    if empty entry function of the package is used.
+  module_name: Name of the Verilog module,
+    if empty use the mangled IR function name.)",
+        py::arg("ir"), py::arg("path"), py::arg("entry"),
+        py::arg("module_name"));
 }
 
 }  // namespace xls

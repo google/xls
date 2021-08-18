@@ -18,18 +18,11 @@
 import sys
 import tempfile
 
-from absl.testing import absltest
-from xls.common.python import init_xls
+from xls.common import test_base
 from xls.public.python import runtime_build_actions
 
 
-def setUpModule():
-  # This is required so that module initializers are called including those
-  # which register delay models.
-  init_xls.init_xls(sys.argv)
-
-
-class RuntimeBuildActionsTest(absltest.TestCase):
+class RuntimeBuildActionsTest(test_base.TestCase):
 
   def test_convert_dslx_to_ir(self):
     dslx_text = 'pub fn foo(v:u8) -> u8{ v+u8:1 }'
@@ -90,6 +83,11 @@ messages: {
     self.assertIn('test_field', dslx_text)
     self.assertIn(binding_name, dslx_text)
 
-
-if __name__ == '__main__':
-  absltest.main()
+  def test_convert_ir_to_combinational_verilog(self):
+    dslx_text = 'pub fn foo(v:u8) -> u8{ v+u8:1 }'
+    ir_text = runtime_build_actions.convert_dslx_to_ir(
+      dslx_text, '', 'foo', [])
+    verilog_text = runtime_build_actions.convert_ir_to_combinational_verilog(
+        ir_text, '', '', '')
+    self.assertIn('module __foo__foo', verilog_text)
+    self.assertIn('+', verilog_text)

@@ -37,7 +37,7 @@ py_test(
     python_version = "PY3",
     deps = [
         ":runtime_build_actions",
-        "@com_google_absl_py//absl/testing:absltest",
+        "//xls/common:test_base",
         "//xls/common/python:init_xls",
     ],
 )
