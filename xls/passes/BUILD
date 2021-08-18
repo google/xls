@@ -486,6 +486,21 @@ cc_library(
 )
 
 cc_library(
+    name = "union_query_engine",
+    srcs = ["union_query_engine.cc"],
+    hdrs = ["union_query_engine.h"],
+    deps = [
+        ":query_engine",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:optional",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+    ],
+)
+
+cc_library(
     name = "select_simplification_pass",
     srcs = ["select_simplification_pass.cc"],
     hdrs = ["select_simplification_pass.h"],
@@ -1034,6 +1049,32 @@ cc_test(
         "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "union_query_engine_test",
+    srcs = ["union_query_engine_test.cc"],
+    deps = [
+        ":query_engine",
+        ":union_query_engine",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/logging:log_message",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:type",
         "@com_google_googletest//:gtest",
     ],
 )

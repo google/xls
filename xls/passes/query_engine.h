@@ -29,6 +29,15 @@ struct BitLocation {
 
   Node* node;
   int64_t bit_index;
+
+  friend bool operator==(const BitLocation& x, const BitLocation& y) {
+    return (x.node == y.node) && (x.bit_index == y.bit_index);
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const BitLocation& bl) {
+    return H::combine(std::move(h), bl.node, bl.bit_index);
+  }
 };
 
 // An abstract base class providing an interface for answering queries about the
