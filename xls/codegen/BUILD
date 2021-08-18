@@ -440,9 +440,12 @@ cc_library(
     deps = [
         ":codegen_checker",
         ":codegen_pass",
+        ":codegen_wrapper_pass",
         ":port_legalization_pass",
+        ":register_legalization_pass",
         ":signature_generation_pass",
         "@com_google_absl//absl/status:statusor",
+        "//xls/passes:dce_pass",
     ],
 )
 
@@ -500,6 +503,30 @@ cc_library(
         "//xls/common/logging:log_lines",
         "//xls/ir",
         "//xls/ir:node_util",
+    ],
+)
+
+cc_library(
+    name = "register_legalization_pass",
+    srcs = ["register_legalization_pass.cc"],
+    hdrs = ["register_legalization_pass.h"],
+    deps = [
+        ":codegen_pass",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
+        "//xls/ir",
+        "//xls/ir:value_helpers",
+    ],
+)
+
+cc_library(
+    name = "codegen_wrapper_pass",
+    srcs = ["codegen_wrapper_pass.cc"],
+    hdrs = ["codegen_wrapper_pass.h"],
+    deps = [
+        ":codegen_pass",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/passes",
     ],
 )
 
@@ -682,5 +709,36 @@ cc_test(
         "//xls/ir:value",
         "//xls/simulation:module_simulator",
         "//xls/simulation:verilog_test_base",
+    ],
+)
+
+cc_test(
+    name = "register_legalization_pass_test",
+    srcs = ["register_legalization_pass_test.cc"],
+    deps = [
+        ":codegen_pass",
+        ":register_legalization_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:channel",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "codegen_wrapper_pass_test",
+    srcs = ["codegen_wrapper_pass_test.cc"],
+    deps = [
+        ":codegen_pass",
+        ":codegen_wrapper_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/passes:dce_pass",
+        "@com_google_googletest//:gtest",
     ],
 )

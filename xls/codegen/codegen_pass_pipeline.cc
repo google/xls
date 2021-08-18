@@ -18,8 +18,11 @@
 #include "xls/codegen/codegen_pass_pipeline.h"
 
 #include "xls/codegen/codegen_checker.h"
+#include "xls/codegen/codegen_wrapper_pass.h"
 #include "xls/codegen/port_legalization_pass.h"
+#include "xls/codegen/register_legalization_pass.h"
 #include "xls/codegen/signature_generation_pass.h"
+#include "xls/passes/dce_pass.h"
 
 namespace xls::verilog {
 
@@ -41,6 +44,13 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
   // Remove zero-width input/output ports.
   // TODO(meheff): 2021/04/29 Also flatten ports with types here.
   top->Add<PortLegalizationPass>();
+
+  // Remove zero-width registers.
+  top->Add<RegisterLegalizationPass>();
+
+  // Final dead-code elimination pass to remove cruft left from earlier passes.
+  top->Add<CodegenWrapperPass>(absl::make_unique<DeadCodeEliminationPass>());
+
   return top;
 }
 
