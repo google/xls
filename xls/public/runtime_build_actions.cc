@@ -16,10 +16,12 @@
 
 #include <filesystem>
 
+#include "xls/codegen/combinational_generator.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/passes/passes.h"
 #include "xls/tools/opt.h"
 #include "xls/tools/proto_to_dslx.h"
@@ -81,6 +83,24 @@ absl::StatusOr<std::string> ProtoToDslx(absl::string_view proto_def,
       std::unique_ptr<dslx::Module> module,
       ProtoToDslxViaText(proto_def, message_name, text_proto, binding_name));
   return module->ToString();
+}
+
+absl::StatusOr<std::string> ConvertIrToCombinationalVerilog(absl::string_view ir, absl::string_view path, absl::string_view entry, absl::string_view module_name) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> p, Parser::ParsePackage(ir, path));
+  Function* main;
+  if (entry.empty()) {
+    XLS_ASSIGN_OR_RETURN(main, p->EntryFunction());
+  } else {
+    XLS_ASSIGN_OR_RETURN(main, p->GetFunction(entry));
+  }
+  bool use_system_verilog = false; // use standard verilog.
+  std::string gate_format = ""; // no custom gate.
+  XLS_ASSIGN_OR_RETURN(verilog::ModuleGeneratorResult result,
+                       verilog::GenerateCombinationalModule(
+                           main, use_system_verilog,
+                           module_name,
+                           gate_format));
+  return result.verilog_text;
 }
 
 }  // namespace xls

@@ -30,10 +30,12 @@ cc_library(
     deps = [
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "//xls/codegen:combinational_generator",
         "//xls/dslx:import_data",
         "//xls/dslx:ir_converter",
         "//xls/dslx:mangle",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/ir:ir_parser",
         "//xls/passes",
         "//xls/tools:opt",
         "//xls/tools:proto_to_dslx",

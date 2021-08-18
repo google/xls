@@ -86,6 +86,20 @@ absl::StatusOr<std::string> ProtoToDslx(absl::string_view proto_def,
                                         absl::string_view text_proto,
                                         absl::string_view binding_name);
 
+
+// Converts the specified XLS IR text into a combinational Verilog module.
+//
+// Args:
+//  ir: Text for the XLS IR package.
+//  path: Path to use for source location information for the given text.
+//    Since text may be generated, an empty string or a pseudo path like
+//    "<generated>" is acceptable.
+//  entry: Entry function for the XLS IR package,
+//    if empty entry function of the package is used.
+//  module_name: Name of the Verilog module,
+//    if empty use the mangled IR function name.
+absl::StatusOr<std::string> ConvertIrToCombinationalVerilog(absl::string_view ir, absl::string_view path, absl::string_view entry, absl::string_view module_name);
+
 }  // namespace xls
 
 #endif  // XLS_PUBLIC_RUNTIME_BUILD_ACTIONS_H_
