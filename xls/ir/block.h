@@ -133,12 +133,42 @@ class Block : public FunctionBase {
   // the block then an error is returned.
   absl::Status RemoveRegister(Register* reg);
 
+  // Data structure collecting a register with the write and read nodes
+  // which operate on the register.
+  struct RegisterNodes {
+    Register* reg;
+    RegisterWrite* reg_write;
+    RegisterRead* reg_read;
+  };
+
+  // Returns a map containing the RegisterRead and RegisterWrite operations for
+  // every register in the block, indexed by register name.
+  // TODO(meheff): 2021/09/18 Try to automatically associate RegisterRead and
+  // RegisterWrite values with Registers as these nodes are added or removed.
+  absl::StatusOr<absl::flat_hash_map<std::string, RegisterNodes>>
+  GetRegisterNodes() const;
+
   bool HasImplicitUse(Node* node) const override { return false; }
 
   std::string DumpIr(bool recursive = false) const override;
 
  private:
   static std::string PortName(const Port& port);
+
+  // Sets the name of the given port node (InputPort or OutputPort) to the given
+  // name. Unlike xls::Node::SetName which may name the node `name` with an
+  // added suffix to ensure name uniqueness, SetNamePortExactly ensures the
+  // given node is assigned the given name. This is useful for ports because the
+  // port name is part of the interface of the generated Verilog module.  To
+  // avoid name collisions, if another *non-port* node already exists with the
+  // name in the block, then that is node given an alternative name. If another
+  // *port* node already exists with the name an error is returned.
+  //
+  // Fundamentally, port nodes have hard constraints on their name while naming
+  // of interior nodes is best-effort. The problem this function solves is if a
+  // node in the best-effort-naming category captures a name which is required
+  // by a node in the hard-constraint-naming category.
+  absl::Status SetPortNameExactly(absl::string_view name, Node* port_node);
 
   // All ports in the block in the order they appear in the Verilog module.
   std::vector<Port> ports_;

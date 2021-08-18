@@ -194,9 +194,18 @@ TEST_F(BlockTest, ErrorConditions) {
       block->AddOutputPort("b", b.node()),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Block my_block already contains a port named b")));
-  EXPECT_THAT(block->AddInputPort("foo", u32),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("A node already exists with name foo")));
+
+  // It should be ok to add a port named `foo` even though there is a non-port
+  // node already named `foo`. The non-port node will be renamed.
+  Node* orig_foo = FindNode("foo", block);
+  EXPECT_EQ(orig_foo->GetName(), "foo");
+  XLS_ASSERT_OK(block->AddInputPort("foo", u32));
+
+  // The node named `foo` should now be an input port and the node previously
+  // known as `foo` should have a different name.
+  EXPECT_TRUE(FindNode("foo", block)->Is<InputPort>());
+  EXPECT_NE(orig_foo->GetName(), "foo");
+  EXPECT_THAT(orig_foo->GetName(), testing::StartsWith("foo_"));
 }
 
 TEST_F(BlockTest, TrivialBlock) {
@@ -322,6 +331,41 @@ TEST_F(BlockTest, RemoveRegisterNotOwnedByBlock) {
   EXPECT_THAT(blk2->RemoveRegister(reg),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Register is not owned by block")));
+}
+
+TEST_F(BlockTest, BlockRegisterNodes) {
+  auto p = CreatePackage();
+  BlockBuilder bb("my_block", p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = bb.InputPort("a", u32);
+  BValue b = bb.InputPort("b", u32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Register * a_reg,
+                           bb.block()->AddRegister("a_reg", u32));
+  BValue a_write = bb.RegisterWrite(a_reg, a);
+  BValue a_read = bb.RegisterRead(a_reg);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Register * b_reg,
+                           bb.block()->AddRegister("b_reg", u32));
+  BValue b_write = bb.RegisterWrite(b_reg, b);
+  BValue b_read = bb.RegisterRead(b_reg);
+
+  bb.OutputPort("out", bb.Add(a_read, b_read));
+
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  absl::flat_hash_map<std::string, Block::RegisterNodes> reg_nodes;
+  XLS_ASSERT_OK_AND_ASSIGN(reg_nodes, block->GetRegisterNodes());
+  EXPECT_EQ(reg_nodes.size(), 2);
+  ASSERT_TRUE(reg_nodes.contains("a_reg"));
+  EXPECT_TRUE(reg_nodes.at("a_reg").reg == block->GetRegister("a_reg").value());
+  EXPECT_TRUE(reg_nodes.at("a_reg").reg_write == a_write.node());
+  EXPECT_TRUE(reg_nodes.at("a_reg").reg_read == a_read.node());
+
+  EXPECT_TRUE(reg_nodes.at("b_reg").reg == block->GetRegister("b_reg").value());
+  EXPECT_TRUE(reg_nodes.at("b_reg").reg_write == b_write.node());
+  EXPECT_TRUE(reg_nodes.at("b_reg").reg_read == b_read.node());
 }
 
 }  // namespace

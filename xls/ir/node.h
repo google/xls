@@ -244,9 +244,12 @@ class Node {
       FunctionBase* new_function) const = 0;
 
  protected:
-  // Function needs to be a friend to access RemoveUser for deleting nodes from
-  // the graph.
+  // FunctionBase needs to be a friend to access RemoveUser for deleting nodes
+  // from the graph.
   friend class FunctionBase;
+  // Block needs to be a friend to strongly name ports (guarantee name has no
+  // uniquifying prefix).
+  friend class Block;
 
   Node(Op op, Type* type, absl::optional<SourceLocation> loc,
        absl::string_view name, FunctionBase* function);

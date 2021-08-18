@@ -69,6 +69,37 @@ std::string Block::DumpIr(bool recursive) const {
   return res;
 }
 
+absl::Status Block::SetPortNameExactly(absl::string_view name, Node* node) {
+  // TODO(https://github.com/google/xls/issues/477): If this name is an invalid
+  // Verilog identifier then an error should be returned.
+  XLS_RET_CHECK(node->Is<InputPort>() || node->Is<OutputPort>());
+
+  if (node->GetName() == name) {
+    return absl::OkStatus();
+  }
+
+  XLS_RET_CHECK(node->function_base() == this);
+  for (Node* n : nodes()) {
+    if (n->GetName() == name) {
+      if (n->Is<InputPort>() || n->Is<OutputPort>()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Cannot name port `%s` because a port "
+                            "already exists with this name",
+                            name));
+      }
+      // Pick a new name for n.
+      n->name_ = UniquifyNodeName(name);
+      XLS_RET_CHECK_NE(n->GetName(), name);
+      node->name_ = name;
+      return absl::OkStatus();
+    }
+  }
+  // Ensure the name is known by the uniquer.
+  UniquifyNodeName(name);
+  node->name_ = name;
+  return absl::OkStatus();
+}
+
 absl::StatusOr<InputPort*> Block::AddInputPort(
     absl::string_view name, Type* type, absl::optional<SourceLocation> loc) {
   if (ports_by_name_.contains(name)) {
@@ -79,9 +110,10 @@ absl::StatusOr<InputPort*> Block::AddInputPort(
       AddNode(absl::make_unique<InputPort>(loc, name, type, this));
   if (name != port->GetName()) {
     // The name uniquer changed the given name of the input port to preserve
-    // name uniqueness so a node with this name must already exist.
-    return absl::InvalidArgumentError(
-        absl::StrFormat("A node already exists with name %s", name));
+    // name uniqueness which means another node with this name may already
+    // exist.  Force the `port` to have this name potentially be renaming the
+    // colliding node.
+    XLS_RETURN_IF_ERROR(SetPortNameExactly(name, port));
   }
 
   ports_by_name_[name] = port;
@@ -100,10 +132,11 @@ absl::StatusOr<OutputPort*> Block::AddOutputPort(
       AddNode(absl::make_unique<OutputPort>(loc, operand, name, this));
 
   if (name != port->GetName()) {
-    // The name uniquer changed the given name of the input port to preserve
-    // name uniqueness so a node with this name must already exist.
-    return absl::InvalidArgumentError(
-        absl::StrFormat("A node already exists with name %s", name));
+    // The name uniquer changed the given name of the output port to preserve
+    // name uniqueness which means another node with this name may already
+    // exist.  Force the `port` to have this name potentially be renaming the
+    // colliding node.
+    XLS_RETURN_IF_ERROR(SetPortNameExactly(name, port));
   }
   ports_by_name_[name] = port;
   ports_.push_back(port);
@@ -154,6 +187,34 @@ absl::StatusOr<Register*> Block::GetRegister(absl::string_view name) const {
         "Block %s has no register named %s", this->name(), name));
   }
   return registers_.at(name).get();
+}
+
+absl::StatusOr<absl::flat_hash_map<std::string, Block::RegisterNodes>>
+Block::GetRegisterNodes() const {
+  absl::flat_hash_map<std::string, RegisterNodes> reg_nodes;
+  for (Register* reg : GetRegisters()) {
+    XLS_RET_CHECK(!reg_nodes.contains(reg->name()));
+    reg_nodes[reg->name()] = RegisterNodes{reg, nullptr, nullptr};
+  }
+  for (Node* node : nodes()) {
+    if (node->Is<RegisterWrite>()) {
+      RegisterWrite* reg_write = node->As<RegisterWrite>();
+      RegisterNodes& reg_info = reg_nodes.at(reg_write->register_name());
+      XLS_RET_CHECK(reg_info.reg_write == nullptr);
+      reg_info.reg_write = reg_write;
+    } else if (node->Is<RegisterRead>()) {
+      RegisterRead* reg_read = node->As<RegisterRead>();
+      RegisterNodes& reg_info = reg_nodes.at(reg_read->register_name());
+      XLS_RET_CHECK(reg_info.reg_read == nullptr);
+      reg_info.reg_read = reg_read;
+    }
+  }
+  // Verify every register has a read and write node.
+  for (Register* reg : GetRegisters()) {
+    XLS_RET_CHECK(reg_nodes.at(reg->name()).reg_write != nullptr);
+    XLS_RET_CHECK(reg_nodes.at(reg->name()).reg_read != nullptr);
+  }
+  return std::move(reg_nodes);
 }
 
 absl::Status Block::AddClockPort(absl::string_view name) {
