@@ -29,6 +29,7 @@
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/tuple_simplification_pass.h"
+#include "re2/re2.h"
 
 namespace xls {
 namespace verilog {
@@ -39,6 +40,15 @@ char kReadySuffix[] = "_rdy";
 char kValidSuffix[] = "_vld";
 
 }  // namespace
+
+std::string PipelineSignalName(absl::string_view root, int64_t stage) {
+  std::string base;
+  // Strip any existing pipeline prefix from the name.
+  if (!RE2::PartialMatch(root, R"(^p\d+_(.+))", &base)) {
+    base = root;
+  }
+  return absl::StrFormat("p%d_%s", stage, SanitizeIdentifier(base));
+}
 
 absl::StatusOr<Block*> FunctionToBlock(Function* f,
                                        absl::string_view block_name) {
@@ -77,26 +87,70 @@ absl::StatusOr<Block*> FunctionToBlock(Function* f,
   return block;
 }
 
-// Returns pipeline-stage prefixed signal name for the given node. For
-// example: p3_foo.
-static std::string PipelineSignalName(Node* node, int64_t stage) {
-  return absl::StrFormat("p%d_%s", stage, SanitizeIdentifier(node->GetName()));
+// Return a schedule based on the given schedule that adjusts the cycles of the
+// nodes to introduce pipeline registers immediately after input ports or
+// immediately before output ports based on the `flop_inputs` and `flop_outputs`
+// options in CodegenOptions.
+static absl::StatusOr<PipelineSchedule> MaybeAddInputOutputFlopsToSchedule(
+    const PipelineSchedule& schedule, const CodegenOptions& options) {
+  // All params must be scheduled in cycle 0.
+  ScheduleCycleMap cycle_map;
+  for (Param* param : schedule.function()->params()) {
+    XLS_RET_CHECK_EQ(schedule.cycle(param), 0);
+    cycle_map[param] = 0;
+  }
+
+  // If `flop_inputs` is true, adjust the cycle of all remaining nodes by one.
+  int64_t cycle_offset = 0;
+  if (options.flop_inputs()) {
+    ++cycle_offset;
+  }
+  for (int64_t cycle = 0; cycle < schedule.length(); ++cycle) {
+    for (Node* node : schedule.nodes_in_cycle(cycle)) {
+      if (node->Is<Param>()) {
+        continue;
+      }
+      cycle_map[node] = cycle + cycle_offset;
+    }
+  }
+
+  // Add one more cycle to the schedule if `flop_outputs` is true. This only
+  // changes the length of the schedule not the cycle that any node is placed
+  // in. The final cycle is empty which effectly puts a pipeline register
+  // between the nodes of the function and the output ports.
+  if (options.flop_outputs()) {
+    ++cycle_offset;
+  }
+  PipelineSchedule result(schedule.function(), cycle_map,
+                          schedule.length() + cycle_offset);
+  return std::move(result);
 }
 
-absl::StatusOr<Block*> FunctionToPipelinedBlock(
-    const PipelineSchedule& schedule, Function* f,
-    absl::string_view block_name) {
-  Block* block = f->package()->AddBlock(
-      absl::make_unique<Block>(block_name, f->package()));
+// A data structure representing a pipeline register for a single XLS IR value.
+struct PipelineRegister {
+  Register* reg;
+  RegisterWrite* reg_write;
+  RegisterRead* reg_read;
+};
 
-  XLS_RETURN_IF_ERROR(block->AddClockPort("clk"));
+// The collection of pipeline registers for a single stage.
+using PipelineStageRegisters = std::vector<PipelineRegister>;
 
-  // A map from the nodes in 'f' to their corresponding node in the block.
+// Adds the nodes in the given schedule to the block. Pipeline registers are
+// inserted between stages and returned as a vector indexed by cycle. The block
+// should be empty prior to calling this function.
+static absl::StatusOr<std::vector<PipelineStageRegisters>> CreatePipeline(
+    const PipelineSchedule& schedule, Block* block) {
+  // A map from the nodes in the function (which the schedule refers to) to the
+  // corresponding node in the block.
   absl::flat_hash_map<Node*, Node*> node_map;
+
+  std::vector<PipelineStageRegisters> pipeline_registers(schedule.length() - 1);
 
   // Emit the parameters first to ensure the their order is preserved in the
   // block.
-  for (Param* param : f->params()) {
+  for (Param* param : schedule.function()->params()) {
+    XLS_RET_CHECK_EQ(schedule.cycle(param), 0);
     XLS_ASSIGN_OR_RETURN(
         node_map[param],
         block->AddInputPort(param->GetName(), param->GetType(), param->loc()));
@@ -118,7 +172,7 @@ absl::StatusOr<Block*> FunctionToPipelinedBlock(
 
     // Add pipeline registers. A register is needed for each node which is
     // scheduled at or before this cycle and has a use after this cycle.
-    for (Node* function_node : f->nodes()) {
+    for (Node* function_node : schedule.function()->nodes()) {
       if (schedule.cycle(function_node) > stage) {
         continue;
       }
@@ -126,7 +180,7 @@ absl::StatusOr<Block*> FunctionToPipelinedBlock(
         if (stage == schedule.length() - 1) {
           return false;
         }
-        if (n == f->return_value()) {
+        if (n == schedule.function()->return_value()) {
           return true;
         }
         for (Node* user : n->users()) {
@@ -139,19 +193,22 @@ absl::StatusOr<Block*> FunctionToPipelinedBlock(
 
       Node* node = node_map.at(function_node);
       if (is_live_out_of_stage(function_node)) {
-        XLS_ASSIGN_OR_RETURN(Register * reg,
-                             block->AddRegister(PipelineSignalName(node, stage),
-                                                node->GetType()));
-        XLS_RETURN_IF_ERROR(
-            block
-                ->MakeNode<RegisterWrite>(node->loc(), node,
-                                          /*load_enable=*/absl::nullopt,
-                                          /*reset=*/absl::nullopt, reg->name())
-                .status());
-
         XLS_ASSIGN_OR_RETURN(
-            node_map[function_node],
-            block->MakeNode<RegisterRead>(node->loc(), reg->name()));
+            Register * reg,
+            block->AddRegister(PipelineSignalName(node->GetName(), stage),
+                               node->GetType()));
+        XLS_ASSIGN_OR_RETURN(RegisterWrite * reg_write,
+                             block->MakeNode<RegisterWrite>(
+                                 node->loc(), node,
+                                 /*load_enable=*/absl::nullopt,
+                                 /*reset=*/absl::nullopt, reg->name()));
+        XLS_ASSIGN_OR_RETURN(RegisterRead * reg_read,
+                             block->MakeNodeWithName<RegisterRead>(
+                                 node->loc(), /*register_name=*/reg->name(),
+                                 /*name=*/reg->name()));
+        node_map[function_node] = reg_read;
+        pipeline_registers.at(stage).push_back(
+            PipelineRegister{reg, reg_write, reg_read});
       }
     }
   }
@@ -159,7 +216,160 @@ absl::StatusOr<Block*> FunctionToPipelinedBlock(
   // TODO(https://github.com/google/xls/issues/448): 2021-03-01 Allow port names
   // other than "out".
   XLS_RETURN_IF_ERROR(
-      block->AddOutputPort("out", node_map.at(f->return_value())).status());
+      block
+          ->AddOutputPort("out",
+                          node_map.at(schedule.function()->return_value()))
+          .status());
+
+  return pipeline_registers;
+}
+
+// Plumbs a valid signal through the block. This includes:
+// (1) Add an input port for a single-bit valid signal.
+// (2) Add a pipeline register for the valid signal at each pipeline stage.
+// (3) Add an output port for the valid signal from the final stage of the
+//     pipeline.
+// (4) Use the (pipelined) valid signal as the load enable signal for other
+//     pipeline registers in each stage. This is a power optimization
+//     which reduces switching in the data path when the valid signal is
+//     deasserted.
+// TODO(meheff): 2021/08/21 This might be better performed as a codegen pass.
+static absl::Status AddValidSignal(
+    const absl::Span<const PipelineStageRegisters>& pipeline_registers,
+    const CodegenOptions& options, absl::optional<InputPort*> reset_input_port,
+    Block* block) {
+  absl::optional<xls::Reset> reset;
+  if (reset_input_port.has_value()) {
+    XLS_RET_CHECK(options.reset().has_value());
+    reset = xls::Reset();
+    reset->reset_value = Value(UBits(0, 1));
+    reset->asynchronous = options.reset()->asynchronous();
+    reset->active_low = options.reset()->active_low();
+  }
+  // Add valid input port.
+  XLS_RET_CHECK(options.valid_control().has_value());
+  if (options.valid_control()->input_name().empty()) {
+    return absl::InvalidArgumentError(
+        "Must specify input name of valid signal.");
+  }
+  Type* u1 = block->package()->GetBitsType(1);
+  XLS_ASSIGN_OR_RETURN(
+      Node * valid_input_port,
+      block->AddInputPort(options.valid_control()->input_name(), u1));
+
+  // Plumb valid signal through the pipeline stages. Gather the pipelined valid
+  // signal in a vector where the zero-th element is the input port and
+  // subsequent elements are the pipelined valid signal from each stage.
+  std::vector<Node*> pipelined_valids(pipeline_registers.size() + 1);
+  pipelined_valids[0] = valid_input_port;
+  for (int64_t stage = 0; stage < pipeline_registers.size(); ++stage) {
+    // Add valid register to each pipeline stage.
+    XLS_ASSIGN_OR_RETURN(
+        Register * valid_reg,
+        block->AddRegister(PipelineSignalName("valid", stage), u1, reset));
+    XLS_RETURN_IF_ERROR(block
+                            ->MakeNode<RegisterWrite>(
+                                /*loc=*/absl::nullopt, pipelined_valids[stage],
+                                /*load_enable=*/absl::nullopt,
+                                /*reset=*/reset_input_port, valid_reg->name())
+                            .status());
+    XLS_ASSIGN_OR_RETURN(pipelined_valids[stage + 1],
+                         block->MakeNode<RegisterRead>(
+                             /*loc=*/absl::nullopt, valid_reg->name()));
+  }
+
+  // Use the pipelined valid signal as load enable each datapath  pipeline
+  // register in each stage as a power optimization.
+  for (int64_t stage = 0; stage < pipeline_registers.size(); ++stage) {
+    // For each (non-valid-signal) pipeline register add `valid` or `valid ||
+    // reset` (if reset exists) as a load enable. The `reset` term ensures the
+    // pipeline flushes when reset is enabled.
+    for (const PipelineRegister& pipeline_reg : pipeline_registers.at(stage)) {
+      Node* load_enable = pipelined_valids[stage];
+      if (reset_input_port.has_value()) {
+        Node* reset_node = reset_input_port.value();
+        if (reset->active_low) {
+          XLS_ASSIGN_OR_RETURN(reset_node,
+                               block->MakeNode<UnOp>(/*loc=*/absl::nullopt,
+                                                     reset_node, Op::kNot));
+        }
+        XLS_ASSIGN_OR_RETURN(
+            load_enable,
+            block->MakeNode<NaryOp>(
+                /*loc=*/absl::nullopt,
+                std::vector<Node*>({load_enable, reset_node}), Op::kOr));
+      }
+
+      XLS_RETURN_IF_ERROR(
+          block
+              ->MakeNode<RegisterWrite>(
+                  /*loc=*/absl::nullopt, pipeline_reg.reg_write->data(),
+                  /*load_enable=*/load_enable,
+                  /*reset=*/absl::nullopt, pipeline_reg.reg->name())
+              .status());
+      XLS_RETURN_IF_ERROR(block->RemoveNode(pipeline_reg.reg_write));
+    }
+  }
+
+  // Add valid output port.
+  if (options.valid_control()->output_name().empty()) {
+    return absl::InvalidArgumentError(
+        "Must specify output name of valid signal.");
+  }
+  XLS_RETURN_IF_ERROR(
+      block
+          ->AddOutputPort(options.valid_control()->output_name(),
+                          pipelined_valids.back())
+          .status());
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<Block*> FunctionToPipelinedBlock(
+    const PipelineSchedule& schedule, const CodegenOptions& options,
+    Function* f) {
+  if (options.manual_control().has_value()) {
+    return absl::UnimplementedError("Manual pipeline control not implemented");
+  }
+  if (options.split_outputs()) {
+    return absl::UnimplementedError("Splitting outputs not supported.");
+  }
+  if (options.reset().has_value() && options.reset()->reset_data_path()) {
+    return absl::UnimplementedError("Data path reset not supported");
+  }
+  if (options.manual_control().has_value()) {
+    return absl::UnimplementedError("Manual pipeline control not implemented");
+  }
+
+  std::string block_name = options.module_name().has_value()
+                               ? std::string{options.module_name().value()}
+                               : SanitizeIdentifier(f->name());
+  Block* block = f->package()->AddBlock(
+      absl::make_unique<Block>(block_name, f->package()));
+
+  XLS_RETURN_IF_ERROR(block->AddClockPort("clk"));
+
+  // Flopping inputs and outputs can be handled as a transformation to the
+  // schedule. This makes the later code for creation of the pipeline simpler.
+  // TODO(meheff): 2021/7/21 Add input/output flopping as an option to the
+  // scheduler.
+  XLS_ASSIGN_OR_RETURN(PipelineSchedule transformed_schedule,
+                       MaybeAddInputOutputFlopsToSchedule(schedule, options));
+
+  XLS_ASSIGN_OR_RETURN(std::vector<PipelineStageRegisters> pipeline_registers,
+                       CreatePipeline(transformed_schedule, block));
+
+  absl::optional<InputPort*> reset_port;
+  if (options.reset().has_value()) {
+    XLS_ASSIGN_OR_RETURN(reset_port,
+                         block->AddInputPort(options.reset()->name(),
+                                             block->package()->GetBitsType(1)));
+  }
+
+  if (options.valid_control().has_value()) {
+    XLS_RETURN_IF_ERROR(
+        AddValidSignal(pipeline_registers, options, reset_port, block));
+  }
 
   return block;
 }

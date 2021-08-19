@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/interpreter/block_interpreter.h"
@@ -126,7 +127,9 @@ TEST_F(BlockConversionTest, SimplePipelinedFunction) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Block * block,
-      FunctionToPipelinedBlock(schedule, f, "SimpleFunctionBlock"));
+      FunctionToPipelinedBlock(
+          schedule, CodegenOptions().flop_inputs(false).flop_outputs(false),
+          f));
 
   EXPECT_THAT(GetOutputPort(block),
               m::OutputPort(m::Neg(m::Register(m::Not(m::Register(
@@ -145,14 +148,60 @@ TEST_F(BlockConversionTest, TrivialPipelinedFunction) {
       PipelineSchedule schedule,
       PipelineSchedule::Run(f, TestDelayEstimator(),
                             SchedulingOptions().pipeline_stages(3)));
+  {
+    // No flopping inputs or outputs.
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Block * block,
+        FunctionToPipelinedBlock(
+            schedule, CodegenOptions().flop_inputs(false).flop_outputs(false),
+            f));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Block * block,
-      FunctionToPipelinedBlock(schedule, f, "SimpleFunctionBlock"));
+    EXPECT_THAT(GetOutputPort(block),
+                m::OutputPort(m::Neg(m::Register(m::Not(m::Register(
+                    m::Add(m::InputPort("x"), m::InputPort("y"))))))));
+    XLS_ASSERT_OK(p->RemoveBlock(block));
+  }
+  {
+    // Flop inputs.
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Block * block,
+        FunctionToPipelinedBlock(
+            schedule, CodegenOptions().flop_inputs(true).flop_outputs(false),
+            f));
 
-  EXPECT_THAT(GetOutputPort(block),
-              m::OutputPort(m::Neg(m::Register(m::Not(m::Register(
-                  m::Add(m::InputPort("x"), m::InputPort("y"))))))));
+    EXPECT_THAT(GetOutputPort(block),
+                m::OutputPort(m::Neg(m::Register(m::Not(
+                    m::Register(m::Add(m::Register(m::InputPort("x")),
+                                       m::Register(m::InputPort("y")))))))));
+    XLS_ASSERT_OK(p->RemoveBlock(block));
+  }
+  {
+    // Flop outputs.
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Block * block,
+        FunctionToPipelinedBlock(
+            schedule, CodegenOptions().flop_inputs(false).flop_outputs(true),
+            f));
+
+    EXPECT_THAT(GetOutputPort(block),
+                m::OutputPort(m::Register(m::Neg(m::Register(m::Not(m::Register(
+                    m::Add(m::InputPort("x"), m::InputPort("y")))))))));
+    XLS_ASSERT_OK(p->RemoveBlock(block));
+  }
+  {
+    // Flop inputs and outputs.
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Block * block,
+        FunctionToPipelinedBlock(
+            schedule, CodegenOptions().flop_inputs(true).flop_outputs(true),
+            f));
+
+    EXPECT_THAT(GetOutputPort(block),
+                m::OutputPort(m::Register(m::Neg(m::Register(m::Not(
+                    m::Register(m::Add(m::Register(m::InputPort("x")),
+                                       m::Register(m::InputPort("y"))))))))));
+    XLS_ASSERT_OK(p->RemoveBlock(block));
+  }
 }
 
 TEST_F(BlockConversionTest, ZeroWidthPipeline) {
@@ -168,7 +217,9 @@ TEST_F(BlockConversionTest, ZeroWidthPipeline) {
                             SchedulingOptions().pipeline_stages(3)));
   XLS_ASSERT_OK_AND_ASSIGN(
       Block * block,
-      FunctionToPipelinedBlock(schedule, f, "ZeroWidthPipelineBlock"));
+      FunctionToPipelinedBlock(
+          schedule, CodegenOptions().flop_inputs(false).flop_outputs(false),
+          f));
 
   EXPECT_EQ(block->GetRegisters().size(), 4);
 }

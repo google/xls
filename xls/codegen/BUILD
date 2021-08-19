@@ -374,6 +374,7 @@ cc_library(
     srcs = ["block_conversion.cc"],
     hdrs = ["block_conversion.h"],
     deps = [
+        ":codegen_options",
         ":vast",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
@@ -387,6 +388,7 @@ cc_library(
         "//xls/passes:dce_pass",
         "//xls/passes:tuple_simplification_pass",
         "//xls/scheduling:pipeline_schedule",
+        "@com_github_google_re2//:re2",
     ],
 )
 
@@ -643,6 +645,7 @@ cc_test(
     srcs = ["block_conversion_test.cc"],
     deps = [
         ":block_conversion",
+        ":codegen_options",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
