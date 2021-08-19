@@ -27,7 +27,6 @@ load(
 load(
     "//xls/build_rules:xls_dslx_rules.bzl",
     "get_dslx_test_cmd",
-    "xls_dslx_exec_attrs",
     "xls_dslx_test_common_attrs",
 )
 load(
@@ -257,7 +256,6 @@ xls_dslx_opt_ir_test = rule(
     implementation = _xls_dslx_opt_ir_test_impl,
     attrs = dicts.add(
         _xls_dslx_opt_ir_test_impl_attrs,
-        xls_dslx_exec_attrs,
         xls_dslx_test_common_attrs,
         xls_ir_equivalence_test_attrs,
         xls_eval_ir_test_attrs,

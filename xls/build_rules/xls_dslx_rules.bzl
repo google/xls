@@ -26,15 +26,15 @@ load(
     "DslxInfo",
     "DslxModuleInfo",
 )
-load("//xls/build_rules:xls_toolchains.bzl", "xls_toolchain_attr")
+load(
+    "//xls/build_rules:xls_toolchains.bzl",
+    "get_xls_toolchain_info",
+    "xls_toolchain_attr",
+)
 
 _DEFAULT_DSLX_TEST_ARGS = {
     "compare": "jit",
 }
-
-_DEFAULT_STDLIB_TARGET = "//xls/dslx/stdlib:x_files"
-
-_DEFAULT_INTERPRETER_TARGET = "//xls/dslx:interpreter_main"
 
 def get_transitive_dslx_srcs_files_depset(srcs, deps, stdlib):
     """Returns a depset representing the transitive DSLX source files.
@@ -54,7 +54,8 @@ def get_transitive_dslx_srcs_files_depset(srcs, deps, stdlib):
     """
     return depset(
         srcs,
-        transitive = [dep[DslxInfo].dslx_source_files for dep in deps] + [stdlib.files],
+        transitive = [dep[DslxInfo].dslx_source_files for dep in deps] +
+                     [stdlib.files],
     )
 
 def get_transitive_dslx_dummy_files_depset(srcs, deps):
@@ -92,19 +93,20 @@ def parse_and_type_check(ctx, src, required_files):
     Returns:
       A File referencing the dummy file.
     """
+    dslx_interpreter_tool = get_xls_toolchain_info(ctx).dslx_interpreter_tool
     file = ctx.actions.declare_file(src.basename + ".dummy")
     ctx.actions.run_shell(
         outputs = [file],
         # The DSLX interpreter executable is a tool needed by the action.
-        tools = [ctx.executable._dslx_interpreter_tool],
+        tools = [dslx_interpreter_tool],
         # The files required for parsing and type checking also requires the
         # DSLX interpreter executable.
-        inputs = required_files + [ctx.executable._dslx_interpreter_tool],
+        inputs = required_files + [dslx_interpreter_tool],
         # Generate a dummy file for the DSLX source file when the source file is
         # successfully parsed and type checked.
         command = "\n".join([
             "{} {} --compare=none --execute=false --dslx_path={}".format(
-                ctx.executable._dslx_interpreter_tool.path,
+                dslx_interpreter_tool.path,
                 src.path,
                 ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path,
             ),
@@ -135,6 +137,7 @@ def get_dslx_test_cmd(ctx, src, append_cmd_line_args = True):
       A tuple with two elements. The first element is a list of runfiles to
       execute the command. The second element is the command.
     """
+    dslx_interpreter_tool = get_xls_toolchain_info(ctx).dslx_interpreter_tool
     dslx_test_default_args = _DEFAULT_DSLX_TEST_ARGS
     _dslx_test_args = ctx.attr.dslx_test_args
     DSLX_TEST_FLAGS = (
@@ -150,7 +153,7 @@ def get_dslx_test_cmd(ctx, src, append_cmd_line_args = True):
     my_args = get_args(dslx_test_args, DSLX_TEST_FLAGS, dslx_test_default_args)
 
     cmd = "{} {} {}".format(
-        ctx.executable._dslx_interpreter_tool.short_path,
+        dslx_interpreter_tool.short_path,
         src.short_path,
         my_args,
     )
@@ -161,8 +164,8 @@ def get_dslx_test_cmd(ctx, src, append_cmd_line_args = True):
 
     # The required runfiles are the source file, the DSLX interpreter executable
     # and the DSLX std library.
-    runfiles = [src, ctx.executable._dslx_interpreter_tool]
-    runfiles += ctx.files._dslx_std_lib
+    runfiles = [src, dslx_interpreter_tool]
+    runfiles += get_xls_toolchain_info(ctx).dslx_std_lib_list
 
     # The runfiles also require the source files from its transitive
     # dependencies.
@@ -176,22 +179,6 @@ _xls_dslx_common_attrs = {
         doc = "Dependency targets for the rule. The targets must emit a " +
               "DslxInfo provider.",
         providers = [DslxInfo],
-    ),
-}
-
-# Common attributes for executing the DSLX tools.
-xls_dslx_exec_attrs = {
-    "_dslx_std_lib": attr.label(
-        doc = "The target containing the DSLX std library.",
-        default = _DEFAULT_STDLIB_TARGET,
-        cfg = "target",
-    ),
-    "_dslx_interpreter_tool": attr.label(
-        doc = "The target of the DSLX interpreter executable.",
-        default = _DEFAULT_INTERPRETER_TARGET,
-        allow_single_file = True,
-        executable = True,
-        cfg = "exec",
     ),
 }
 
@@ -252,12 +239,13 @@ def _xls_dslx_library_impl(ctx):
     my_srcs_depset = get_transitive_dslx_srcs_files_depset(
         ctx.files.srcs,
         ctx.attr.deps,
-        ctx.attr._dslx_std_lib,
+        get_xls_toolchain_info(ctx).dslx_std_lib_target,
     )
 
     # The required files are the source files from the current target, the
     # standard library files, and its transitive dependencies.
-    required_files = my_srcs_depset.to_list() + ctx.files._dslx_std_lib
+    required_files = my_srcs_depset.to_list()
+    required_files += get_xls_toolchain_info(ctx).dslx_std_lib_list
 
     # Parse and type check each source file.
     for src in my_srcs_list:
@@ -269,7 +257,10 @@ def _xls_dslx_library_impl(ctx):
         ctx.attr.deps,
     )
 
-    runfiles = ctx.runfiles(files = ctx.files.srcs, transitive_files = ctx.attr._dslx_std_lib.files)
+    runfiles = ctx.runfiles(
+        files = ctx.files.srcs,
+        transitive_files = get_xls_toolchain_info(ctx).dslx_std_lib_target.files,
+    )
     for dep in ctx.attr.deps:
         runfiles = runfiles.merge(dep.default_runfiles)
     return [
@@ -357,7 +348,6 @@ xls_dslx_library = rule(
     attrs = dicts.add(
         _xls_dslx_library_attrs,
         _xls_dslx_common_attrs,
-        xls_dslx_exec_attrs,
         xls_toolchain_attr,
     ),
 )
@@ -381,13 +371,14 @@ def _xls_dslx_module_library_impl(ctx):
     my_srcs_depset = get_transitive_dslx_srcs_files_depset(
         [src],
         ctx.attr.deps,
-        ctx.attr._dslx_std_lib,
+        get_xls_toolchain_info(ctx).dslx_std_lib_target,
     )
     my_srcs_list = my_srcs_depset.to_list()
 
     # The required files are the source file from the current target, the
     # standard library files, and its transitive dependencies.
-    required_files = my_srcs_list + ctx.files._dslx_std_lib
+    required_files = my_srcs_list
+    required_files += get_xls_toolchain_info(ctx).dslx_std_lib_list
 
     # Parse and type check the source file.
     file = parse_and_type_check(ctx, src, required_files)
@@ -399,7 +390,10 @@ def _xls_dslx_module_library_impl(ctx):
     )
     dummy_files_list = dummy_files_depset.to_list()
 
-    runfiles = ctx.runfiles(files = ctx.files.src, transitive_files = ctx.attr._dslx_std_lib.files)
+    runfiles = ctx.runfiles(
+        files = ctx.files.src,
+        transitive_files = get_xls_toolchain_info(ctx).dslx_std_lib_target.files,
+    )
     for dep in ctx.attr.deps:
         runfiles = runfiles.merge(dep.default_runfiles)
 
@@ -480,7 +474,6 @@ xls_dslx_module_library = rule(
     attrs = dicts.add(
         _xls_dslx_module_library_attrs,
         _xls_dslx_common_attrs,
-        xls_dslx_exec_attrs,
         CONFIG["xls_outs_attrs"],
         xls_toolchain_attr,
     ),
@@ -549,7 +542,6 @@ xls_dslx_test = rule(
     implementation = _xls_dslx_test_impl,
     attrs = dicts.add(
         xls_dslx_test_common_attrs,
-        xls_dslx_exec_attrs,
         xls_toolchain_attr,
     ),
     test = True,

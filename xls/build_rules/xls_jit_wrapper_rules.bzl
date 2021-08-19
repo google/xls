@@ -20,7 +20,11 @@ load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load("//xls/build_rules:xls_providers.bzl", "JitWrapperInfo")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
-load("//xls/build_rules:xls_toolchains.bzl", "xls_toolchain_attr")
+load(
+    "//xls/build_rules:xls_toolchains.bzl",
+    "get_xls_toolchain_info",
+    "xls_toolchain_attr",
+)
 
 _xls_ir_jit_wrapper_attrs = {
     "jit_wrapper_args": attr.string_dict(
@@ -31,13 +35,6 @@ _xls_ir_jit_wrapper_attrs = {
     ),
     "header_file": attr.output(
         doc = "The generated header file.",
-    ),
-    "_jit_wrapper_tool": attr.label(
-        doc = "The target of the JIT wrapper executable.",
-        default = Label("//xls/jit:jit_wrapper_generator_main"),
-        allow_single_file = True,
-        executable = True,
-        cfg = "exec",
     ),
 }
 
@@ -53,6 +50,7 @@ def _xls_ir_jit_wrapper_impl(ctx):
       JitWrapperInfo provider
       DefaultInfo provider
     """
+    jit_wrapper_tool = get_xls_toolchain_info(ctx).jit_wrapper_tool
 
     # default arguments
     jit_wrapper_args = ctx.attr.jit_wrapper_args
@@ -91,10 +89,10 @@ def _xls_ir_jit_wrapper_impl(ctx):
     my_generated_files = [cc_file, h_file]
     ctx.actions.run(
         outputs = my_generated_files,
-        tools = [ctx.executable._jit_wrapper_tool],
-        inputs = [src, ctx.executable._jit_wrapper_tool],
+        tools = [jit_wrapper_tool],
+        inputs = [src, jit_wrapper_tool],
         arguments = [jit_wrapper_flags],
-        executable = ctx.executable._jit_wrapper_tool.path,
+        executable = jit_wrapper_tool.path,
         mnemonic = "IRJITWrapper",
         progress_message = "Building JIT wrapper for source file: %s" % (src.path),
     )

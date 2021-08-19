@@ -21,9 +21,11 @@ load("//xls/build_rules:xls_common_rules.bzl", "get_args")
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load("//xls/build_rules:xls_providers.bzl", "CodegenInfo")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
-load("//xls/build_rules:xls_toolchains.bzl", "xls_toolchain_attr")
-
-_DEFAULT_CODEGEN_TARGET = "//xls/tools:codegen_main"
+load(
+    "//xls/build_rules:xls_toolchains.bzl",
+    "get_xls_toolchain_info",
+    "xls_toolchain_attr",
+)
 
 _DEFAULT_CODEGEN_ARGS = {
     "delay_model": "unit",
@@ -45,13 +47,6 @@ xls_ir_verilog_attrs = {
     ),
     "schedule_file": attr.output(
         doc = "The schedule of the generated Verilog file.",
-    ),
-    "_codegen_tool": attr.label(
-        doc = "The target of the codegen executable.",
-        default = Label(_DEFAULT_CODEGEN_TARGET),
-        allow_single_file = True,
-        executable = True,
-        cfg = "exec",
     ),
 }
 
@@ -95,6 +90,7 @@ def xls_ir_verilog_impl(ctx, src):
       CodegenInfo provider
       DefaultInfo provider
     """
+    codegen_tool = get_xls_toolchain_info(ctx).codegen_tool
     my_generated_files = []
 
     # default arguments
@@ -144,10 +140,10 @@ def xls_ir_verilog_impl(ctx, src):
 
     ctx.actions.run_shell(
         outputs = my_generated_files,
-        tools = [ctx.executable._codegen_tool],
-        inputs = [src, ctx.executable._codegen_tool],
+        tools = [codegen_tool],
+        inputs = [src, codegen_tool],
         command = "{} {} {}".format(
-            ctx.executable._codegen_tool.path,
+            codegen_tool.path,
             src.path,
             my_args,
         ),

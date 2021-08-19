@@ -30,7 +30,11 @@ load(
     "//xls/build_rules:xls_dslx_rules.bzl",
     "xls_dslx_module_library_as_input_attrs",
 )
-load("//xls/build_rules:xls_toolchains.bzl", "xls_toolchain_attr")
+load(
+    "//xls/build_rules:xls_toolchains.bzl",
+    "get_xls_toolchain_info",
+    "xls_toolchain_attr",
+)
 
 _DEFAULT_IR_EVAL_TEST_ARGS = {
     "random_inputs": "100",
@@ -40,12 +44,6 @@ _DEFAULT_IR_EVAL_TEST_ARGS = {
 _DEFAULT_BENCHMARK_IR_ARGS = {
     "delay_model": "unit",
 }
-
-_DEFAULT_OPT_IR_TARGET = "//xls/tools:opt_main"
-
-_DEFAULT_STDLIB_TARGET = "//xls/dslx/stdlib:x_files"
-
-_DEFAULT_IR_CONVERTER_TARGET = "//xls/dslx:ir_converter_main"
 
 _IR_FILE_EXTENSION = ".ir"
 
@@ -120,6 +118,7 @@ def _convert_to_ir(ctx, src, dep_src_list):
     Returns:
       A File referencing the IR file.
     """
+    ir_converter_tool = get_xls_toolchain_info(ctx).ir_converter_tool
     IR_CONV_FLAGS = (
         "entry",
         "dslx_path",
@@ -134,17 +133,18 @@ def _convert_to_ir(ctx, src, dep_src_list):
 
     my_args = get_args(ir_conv_args, IR_CONV_FLAGS)
 
-    required_files = ctx.files._dslx_std_lib + [src] + dep_src_list
+    required_files = [src] + dep_src_list
+    required_files += get_xls_toolchain_info(ctx).dslx_std_lib_list
 
     ir_file = ctx.actions.declare_file(ctx.attr.name + _IR_FILE_EXTENSION)
     ctx.actions.run_shell(
         outputs = [ir_file],
         # The IR converter executable is a tool needed by the action.
-        tools = [ctx.executable._ir_converter_tool],
+        tools = [ir_converter_tool],
         # The files required for converting the DSLX source file.
-        inputs = required_files + [ctx.executable._ir_converter_tool],
+        inputs = required_files + [ir_converter_tool],
         command = "{} {} {} > {}".format(
-            ctx.executable._ir_converter_tool.path,
+            ir_converter_tool.path,
             my_args,
             src.path,
             ir_file.path,
@@ -166,6 +166,7 @@ def _optimize_ir(ctx, src):
     Returns:
       A File referencing the optimized IR file.
     """
+    opt_ir_tool = get_xls_toolchain_info(ctx).opt_ir_tool
     opt_ir_args = ctx.attr.opt_ir_args
     IR_OPT_FLAGS = (
         "entry",
@@ -183,11 +184,11 @@ def _optimize_ir(ctx, src):
     ctx.actions.run_shell(
         outputs = [opt_ir_file],
         # The IR optimization executable is a tool needed by the action.
-        tools = [ctx.executable._opt_ir_tool],
+        tools = [opt_ir_tool],
         # The files required for optimizing the IR file.
-        inputs = [src, ctx.executable._opt_ir_tool],
+        inputs = [src, opt_ir_tool],
         command = "{} {} {} > {}".format(
-            ctx.executable._opt_ir_tool.path,
+            opt_ir_tool.path,
             src.path,
             my_args,
             opt_ir_file.path,
@@ -224,6 +225,7 @@ def get_ir_equivalence_test_cmd(
       A tuple with two elements. The first element is a list of runfiles to
       execute the command. The second element is the command.
     """
+    ir_equivalence_tool = get_xls_toolchain_info(ctx).ir_equivalence_tool
     IR_EQUIVALENCE_FLAGS = (
         # Overrides global entry attribute.
         "function",
@@ -243,7 +245,7 @@ def get_ir_equivalence_test_cmd(
     my_args = get_args(ir_equivalence_args, IR_EQUIVALENCE_FLAGS)
 
     cmd = "{} {} {} {}\n".format(
-        ctx.executable._ir_equivalence_tool.short_path,
+        ir_equivalence_tool.short_path,
         src_0.short_path,
         src_1.short_path,
         my_args,
@@ -255,7 +257,7 @@ def get_ir_equivalence_test_cmd(
 
     # The required runfiles are the source files and the IR equivalence tool
     # executable.
-    runfiles = [src_0, src_1, ctx.executable._ir_equivalence_tool]
+    runfiles = [src_0, src_1, ir_equivalence_tool]
     return runfiles, cmd
 
 def get_eval_ir_test_cmd(ctx, src, entry = None, append_cmd_line_args = True):
@@ -278,6 +280,7 @@ def get_eval_ir_test_cmd(ctx, src, entry = None, append_cmd_line_args = True):
       A tuple with two elements. The first element is a list of runfiles to
       execute the command. The second element is the command.
     """
+    ir_eval_tool = get_xls_toolchain_info(ctx).ir_eval_tool
     ir_eval_default_args = _DEFAULT_IR_EVAL_TEST_ARGS
     IR_EVAL_FLAGS = (
         # Overrides global entry attribute.
@@ -314,7 +317,7 @@ def get_eval_ir_test_cmd(ctx, src, entry = None, append_cmd_line_args = True):
     my_args = get_args(ir_eval_args, IR_EVAL_FLAGS, ir_eval_default_args)
 
     cmd = "{} {} {}".format(
-        ctx.executable._ir_eval_tool.short_path,
+        ir_eval_tool.short_path,
         src.short_path,
         my_args,
     )
@@ -325,7 +328,7 @@ def get_eval_ir_test_cmd(ctx, src, entry = None, append_cmd_line_args = True):
 
     # The required runfiles are the source file and the IR interpreter tool
     # executable.
-    runfiles = runfiles + [src, ctx.executable._ir_eval_tool]
+    runfiles = runfiles + [src, ir_eval_tool]
     return runfiles, cmd
 
 def get_benchmark_ir_cmd(ctx, src, entry = None, append_cmd_line_args = True):
@@ -348,6 +351,7 @@ def get_benchmark_ir_cmd(ctx, src, entry = None, append_cmd_line_args = True):
       A tuple with two elements. The first element is a list of runfiles to
       execute the command. The second element is the command.
     """
+    benchmark_ir_tool = get_xls_toolchain_info(ctx).benchmark_ir_tool
     BENCHMARK_IR_FLAGS = (
         "clock_period_ps",
         "pipeline_stages",
@@ -370,7 +374,7 @@ def get_benchmark_ir_cmd(ctx, src, entry = None, append_cmd_line_args = True):
     )
 
     cmd = "{} {} {}".format(
-        ctx.executable._benchmark_ir_tool.short_path,
+        benchmark_ir_tool.short_path,
         src.short_path,
         my_args,
     )
@@ -381,7 +385,7 @@ def get_benchmark_ir_cmd(ctx, src, entry = None, append_cmd_line_args = True):
 
     # The required runfiles are the source files and the IR benchmark tool
     # executable.
-    runfiles = [src, ctx.executable._benchmark_ir_tool]
+    runfiles = [src, benchmark_ir_tool]
     return runfiles, cmd
 
 def get_mangled_ir_symbol(module_name, function_name, parametric_values = None):
@@ -469,18 +473,6 @@ xls_dslx_ir_attrs = dicts.add(
         ),
         "ir_file": attr.output(
             doc = "The IR file generated.",
-        ),
-        "_dslx_std_lib": attr.label(
-            doc = "The target containing the DSLX std library.",
-            default = _DEFAULT_STDLIB_TARGET,
-            cfg = "target",
-        ),
-        "_ir_converter_tool": attr.label(
-            doc = "The target of the IR converter executable.",
-            default = _DEFAULT_IR_CONVERTER_TARGET,
-            allow_single_file = True,
-            executable = True,
-            cfg = "exec",
         ),
     },
 )
@@ -579,13 +571,6 @@ xls_ir_opt_ir_attrs = {
     ),
     "opt_ir_file": attr.output(
         doc = "The optimized IR file generated.",
-    ),
-    "_opt_ir_tool": attr.label(
-        doc = "The target of the IR optimizer executable.",
-        default = _DEFAULT_OPT_IR_TARGET,
-        allow_single_file = True,
-        executable = True,
-        cfg = "exec",
     ),
 }
 
@@ -695,13 +680,6 @@ xls_ir_equivalence_test_attrs = {
     "ir_equivalence_args": attr.string_dict(
         doc = "Arguments of the IR equivalence tool.",
     ),
-    "_ir_equivalence_tool": attr.label(
-        doc = "The target of the IR equivalence executable.",
-        default = Label("//xls/tools:check_ir_equivalence_main"),
-        allow_single_file = True,
-        executable = True,
-        cfg = "exec",
-    ),
 }
 
 xls_ir_equivalence_test = rule(
@@ -795,21 +773,6 @@ xls_eval_ir_test_attrs = {
         doc = "Arguments of the IR interpreter.",
         default = _DEFAULT_IR_EVAL_TEST_ARGS,
     ),
-    "_ir_eval_tool": attr.label(
-        doc = "The target of the IR interpreter executable.",
-        default = Label("//xls/tools:eval_ir_main"),
-        allow_single_file = True,
-        executable = True,
-        cfg = "exec",
-    ),
-    # TODO(rspringer): 2021-06-30 Remove this attribute when we can - we'd
-    # expect the stdlib to be automatically part of the runfiles for a DSLX
-    # lib target.
-    "_dslx_std_lib": attr.label(
-        doc = "The target containing the DSLX std library.",
-        default = _DEFAULT_STDLIB_TARGET,
-        cfg = "target",
-    ),
 }
 
 xls_eval_ir_test = rule(
@@ -886,13 +849,6 @@ def _xls_benchmark_ir_impl(ctx):
 xls_benchmark_ir_attrs = {
     "benchmark_ir_args": attr.string_dict(
         doc = "Arguments of the benchmark IR tool.",
-    ),
-    "_benchmark_ir_tool": attr.label(
-        doc = "The target of the benchmark IR executable.",
-        default = Label("//xls/tools:benchmark_main"),
-        allow_single_file = True,
-        executable = True,
-        cfg = "exec",
     ),
 }
 
