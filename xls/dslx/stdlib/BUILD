@@ -105,6 +105,7 @@ cc_xls_ir_jit_wrapper(
 cc_test(
     name = "float32_test",
     srcs = ["float32_test.cc"],
+    tags = ["optonly"],
     deps = [
         ":float32_to_int32_wrapper",
         "//xls/common:xls_gunit_main",
