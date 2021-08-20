@@ -60,9 +60,19 @@ absl::StatusOr<std::vector<FormatStep>> ParseFormatString(
       steps.push_back(FormatPreference::kDecimal);
       continue;
     }
+    if (consume_substr("{:x}")) {
+      push_fragment();
+      steps.push_back(FormatPreference::kPlainHex);
+      continue;
+    }
     if (consume_substr("{:#x}")) {
       push_fragment();
       steps.push_back(FormatPreference::kHex);
+      continue;
+    }
+    if (consume_substr("{:b}")) {
+      push_fragment();
+      steps.push_back(FormatPreference::kPlainBinary);
       continue;
     }
     if (consume_substr("{:#b}")) {

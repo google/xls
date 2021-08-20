@@ -31,6 +31,9 @@ enum class FormatPreference {
   kBinary,
   kDecimal,
   kHex,
+  kPlainBinary,  // No 0b prefix and no separators as in Rust {:b} and Verilog
+                 // %b
+  kPlainHex  // No 0x prefix and no separators as in Rust {:x} and Verilog %h
 };
 
 absl::string_view FormatPreferenceToString(FormatPreference preference);

@@ -294,16 +294,28 @@ std::string Bits::ToRawDigits(FormatPreference preference,
     return "0";
   }
 
-  XLS_CHECK((preference == FormatPreference::kBinary) ||
-            (preference == FormatPreference::kHex));
-  const int64_t kSeparatorPeriod = 4;
-  const int64_t digit_width = preference == FormatPreference::kBinary ? 1 : 4;
+  const bool binary_format = (preference == FormatPreference::kBinary) ||
+                             (preference == FormatPreference::kPlainBinary);
+  const bool hex_format = (preference == FormatPreference::kHex) ||
+                          (preference == FormatPreference::kPlainHex);
+  const bool plain_format = (preference == FormatPreference::kPlainBinary) ||
+                            (preference == FormatPreference::kPlainHex);
+
+  XLS_CHECK(binary_format || hex_format);
+
+  const int64_t digit_width = binary_format ? 1 : 4;
   const int64_t digit_count = CeilOfRatio(bit_count(), digit_width);
+  // Include separators every 4 digits (to break up binary and hex numbers),
+  // unless we are printing in a plain format.
+  const bool include_separators = !plain_format;
+  const int64_t kSeparatorPeriod = 4;
+
   std::string result;
   bool eliding_leading_zeros = !emit_leading_zeros;
   for (int64_t digit_no = digit_count - 1; digit_no >= 0; --digit_no) {
-    // Add a '_' every kSeparatorPeriod digits.
-    if (((digit_no + 1) % kSeparatorPeriod == 0) && !result.empty()) {
+    // If including separators, add one every kSeparatorPeriod digits.
+    if (include_separators && ((digit_no + 1) % kSeparatorPeriod == 0) &&
+        !result.empty()) {
       absl::StrAppend(&result, "_");
     }
     // Slice out a Bits which contains 1 digit.

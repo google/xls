@@ -54,6 +54,13 @@ TEST(FormatStringsTest, ParseFormats) {
 
   EXPECT_THAT(ParseFormatString(complex_format_string),
               IsOkAndHolds(complex_format));
+
+  std::string plain_formats_string = "{:x}{:b}";
+  std::vector<FormatStep> plain_formats = {FormatPreference::kPlainHex,
+                                           FormatPreference::kPlainBinary};
+
+  EXPECT_THAT(ParseFormatString(plain_formats_string),
+              IsOkAndHolds(plain_formats));
 }
 
 TEST(FormatStringsTest, ErrorTests) {

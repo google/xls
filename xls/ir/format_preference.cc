@@ -28,6 +28,10 @@ absl::string_view FormatPreferenceToString(FormatPreference preference) {
       return "decimal";
     case FormatPreference::kHex:
       return "hex";
+    case FormatPreference::kPlainBinary:
+      return "plain_binary";
+    case FormatPreference::kPlainHex:
+      return "plain_hex";
     default:
       return "<invalid format preference>";
   }
@@ -43,6 +47,10 @@ absl::StatusOr<FormatPreference> FormatPreferenceFromString(
     return FormatPreference::kHex;
   } else if (s == "decimal") {
     return FormatPreference::kDecimal;
+  } else if (s == "plain_binary") {
+    return FormatPreference::kPlainBinary;
+  } else if (s == "plain_hex") {
+    return FormatPreference::kPlainHex;
   }
   return absl::InvalidArgumentError(
       absl::StrFormat("Invalid format preference: \"%s\"", s));
