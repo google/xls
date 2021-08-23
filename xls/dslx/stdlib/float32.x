@@ -185,3 +185,99 @@ pub fn fixed_fraction(input_float: F32) -> u23 {
   fixed_fraction as u23
 }
 
+// Converts the given signed integer, into a floating-point number, rounding
+// the resulting fraction with the usual guard, round, sticky bits according to
+// the usual "round to nearest, half to even" rounding mode.
+pub fn from_int32(x: s32) -> F32 {
+  let sign = (x >> 31) as u1;
+  let fraction = -x as u31 if sign else x as u31;
+  let lz = clz(fraction) as u8;
+
+  // Shift the fraction to be max width, normalize it, and drop the
+  // leading/implicit one.
+  let fraction = (fraction as u34 << (lz + u8:3)) as u33;
+
+  let exp = u8:30 - lz;
+  let bexp = exp + u8:127;
+
+  // Rounding! Add the sticky bits back in to the shifted fraction.
+  let sticky = (fraction & u33:0x7f != u33:0) as u31;
+  let fraction = (fraction >> 7) as u26 | sticky as u26;
+
+  let normal_chunk = fraction[0:3];
+  let half_way_chunk = fraction[2:4];
+  let do_round_up =
+      u1:1 if (normal_chunk > u3:0x4) | (half_way_chunk == u2:0x3)
+      else u1:0;
+  let fraction = fraction as u27 + u27:0x8 if do_round_up else fraction as u27;
+
+  // See if rounding caused overflow, and if so, update the exponent.
+  let overflow = fraction & (u27:1 << 26) != u27:0;
+  let bexp = bexp + u8:1 if overflow else bexp;
+  let fraction = (fraction >> 3) as u23;
+
+  let result = F32 { sign: sign, bexp: bexp, fraction: fraction };
+
+  let zero = F32 { sign: u1:0, bexp: u8:0, fraction: u23:0 };
+  let result =
+      zero if bexp <= u8:126 && fraction == u23:0 else result;
+
+  // -INT_MAX is a special case; making it positive can drop its value.
+  let is_neg_int_max = x == s32:-2147483648;
+  let neg_int_max = F32 { sign: u1:1, bexp: u8:158, fraction: u23:0 };
+  let result =
+      neg_int_max if is_neg_int_max else result;
+  result
+}
+
+#![test]
+fn from_int32_test() {
+  let expected = F32 { sign: u1:0, bexp: u8:0, fraction: u23:0 };
+  let actual = from_int32(s32:0);
+  let _ = assert_eq(expected, actual);
+
+  let expected = F32 { sign: u1:0, bexp: u8:0, fraction: u23:0 };
+  let actual = from_int32(s32:0);
+  let _ = assert_eq(expected, actual);
+
+  let expected = F32 { sign: u1:0, bexp: u8:127, fraction: u23:0 };
+  let actual = from_int32(s32:1);
+  let _ = assert_eq(expected, actual);
+
+  let expected = F32 { sign: u1:1, bexp: u8:127, fraction: u23:0 };
+  let actual = from_int32(s32:-1);
+  let _ = assert_eq(expected, actual);
+
+  let expected = F32 { sign: u1:0, bexp: u8:128, fraction: u23:0 };
+  let actual = from_int32(s32:2);
+  let _ = assert_eq(expected, actual);
+
+  let expected = F32 { sign: u1:1, bexp: u8:128, fraction: u23:0 };
+  let actual = from_int32(s32:-2);
+  let _ = assert_eq(expected, actual);
+
+  let expected = F32 { sign: u1:0, bexp: u8:156, fraction: u23:0x7fffff };
+  let actual = from_int32(s32:1073741760);
+  let _ = assert_eq(expected, actual);
+
+  let expected = F32 { sign: u1:0, bexp: u8:156, fraction: u23:0x3fffff };
+  let actual = from_int32(s32:805306304);
+  let _ = assert_eq(expected, actual);
+
+  let expected = F32 { sign: u1:0, bexp: u8:157, fraction: u23:0x7fffff };
+  let actual = from_int32(s32:2147483583);
+  let _ = assert_eq(expected, actual);
+
+  let expected = F32 { sign: u1:0, bexp: u8:158, fraction: u23:0x0 };
+  let actual = from_int32(s32:2147483647);
+  let _ = assert_eq(expected, actual);
+
+  let expected = F32 { sign: u1:1, bexp: u8:158, fraction: u23:0x0 };
+  let actual = from_int32(s32:-2147483647);
+  let _ = assert_eq(expected, actual);
+
+  let expected = F32 { sign: u1:1, bexp: u8:158, fraction: u23:0x0 };
+  let actual = from_int32(s32:-2147483648);
+  let _ = assert_eq(expected, actual);
+  ()
+}

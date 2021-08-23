@@ -1045,7 +1045,7 @@ fn round_towards_zero_test() {
   ()
 }
 
-// Converts the given floating-point number into an insigned integer, truncating
+// Converts the given floating-point number into an unsigned integer, truncating
 // any fractional bits if necessary.
 // TODO(rspringer): 2021-08-06: We seem to be unable to call std::umax in
 // template specification. Why?

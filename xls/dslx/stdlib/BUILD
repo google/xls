@@ -102,12 +102,24 @@ cc_xls_ir_jit_wrapper(
     },
 )
 
+cc_xls_ir_jit_wrapper(
+    name = "float32_from_int32_wrapper",
+    src = ":float32.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "Float32FromInt32",
+        "function": get_mangled_ir_symbol("float32", "from_int32"),
+    },
+)
+
 cc_test(
     name = "float32_test",
     srcs = ["float32_test.cc"],
     tags = ["optonly"],
     deps = [
+        ":float32_from_int32_wrapper",
         ":float32_to_int32_wrapper",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
