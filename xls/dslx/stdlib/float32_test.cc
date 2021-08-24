@@ -40,7 +40,7 @@ TEST(Float32Test, ToInt32) {
   bool exhaustive = absl::GetFlag(FLAGS_exhaustive);
   uint64_t num_iters =
       exhaustive ? std::numeric_limits<uint32_t>::max() : 1024 * 1024;
-  for (uint64 i = 0; i < num_iters; i++) {
+  for (uint64_t i = 0; i < num_iters; i++) {
     float input = absl::bit_cast<float>(static_cast<uint32_t>(i));
     if (!exhaustive) {
       input = absl::Uniform<float>(absl::IntervalClosedClosed, bitgen,
