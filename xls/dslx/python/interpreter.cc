@@ -43,21 +43,6 @@ absl::flat_hash_map<K, V> ToAbsl(const std::unordered_map<K, V>& m) {
 PYBIND11_MODULE(interpreter, m) {
   ImportStatusModule();
 
-  m.def("get_function_type",
-        [](absl::string_view text, absl::string_view function_name)
-            -> absl::StatusOr<std::unique_ptr<ConcreteType>> {
-          ImportData import_data;
-          XLS_ASSIGN_OR_RETURN(
-              TypecheckedModule tm,
-              ParseAndTypecheck(text, "get_function_type.x",
-                                "get_function_type", &import_data));
-          XLS_ASSIGN_OR_RETURN(Function * f,
-                               tm.module->GetFunctionOrError(function_name));
-          XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
-                               tm.type_info->GetItemAs<FunctionType>(f));
-          return fn_type->CloneToUnique();
-        });
-
   m.def("ir_value_text_to_interp_value",
         [](absl::string_view text) -> absl::StatusOr<InterpValue> {
           XLS_ASSIGN_OR_RETURN(Value v, xls::Parser::ParseTypedValue(text));
