@@ -279,9 +279,10 @@ absl::Status CStructType::GetMetadata(xlscc_metadata::Type* output) const {
       int, std::pair<const clang::NamedDecl*, std::shared_ptr<CField>>>
       fields_by_index;
 
+  auto size = fields_by_name_.size();
   for (std::pair<const clang::NamedDecl*, std::shared_ptr<CField>> field :
        fields_by_name_) {
-    fields_by_index[field.second->index()] = field;
+    fields_by_index[size - 1 - field.second->index()] = field;
   }
 
   for (int i = 0; i < fields_by_name_.size(); ++i) {

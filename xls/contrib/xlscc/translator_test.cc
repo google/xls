@@ -3388,15 +3388,6 @@ TEST_F(TranslatorTest, MetadataNamespaceNestedStruct) {
           }
         }
         fields {
-          name: "aa"
-          type {
-            as_int {
-              width: 32
-              is_signed: true
-            }
-          }
-        }
-        fields {
           name: "s"
           type {
             as_inst {
@@ -3405,6 +3396,15 @@ TEST_F(TranslatorTest, MetadataNamespaceNestedStruct) {
                 fully_qualified_name: "foo::Blah::Something"
                 id: 0
               }
+            }
+          }
+        }
+        fields {
+          name: "aa"
+          type {
+            as_int {
+              width: 32
+              is_signed: true
             }
           }
         }
@@ -3504,8 +3504,10 @@ TEST_F(TranslatorTest, MetadataNamespaceNestedStruct) {
   ASSERT_EQ(meta.top_func_proto().params(0).type().as_inst().name().id(),
             meta.structs(topsidx).as_struct().name().as_inst().name().id());
 
+  // Struct order gets reversed when emitting IR per commit
+  // de1b6acdfbd9989c5b20b8a93a4d01b7853f2c09.
   ASSERT_EQ(
-      meta.structs(topsidx).as_struct().fields(1).type().as_inst().name().id(),
+      meta.structs(topsidx).as_struct().fields(0).type().as_inst().name().id(),
       meta.structs(subsidx).as_struct().name().as_inst().name().id());
 
   meta.mutable_top_func_proto()
@@ -3522,7 +3524,7 @@ TEST_F(TranslatorTest, MetadataNamespaceNestedStruct) {
       ->set_id(0);
   meta.mutable_structs(topsidx)
       ->mutable_as_struct()
-      ->mutable_fields(1)
+      ->mutable_fields(0)
       ->mutable_type()
       ->mutable_as_inst()
       ->mutable_name()
@@ -3537,10 +3539,11 @@ TEST_F(TranslatorTest, MetadataNamespaceNestedStruct) {
   bool did_equal = google::protobuf::util::MessageDifferencer::Equals(meta, ref_meta);
 
   if (!did_equal) {
-    fprintf(stderr, "%s\n", meta.DebugString().c_str());
+    fprintf(stderr, "meta: %s\n", meta.DebugString().c_str());
+    fprintf(stderr, "ref: %s\n", ref_meta.DebugString().c_str());
   }
 
-  ASSERT_TRUE(google::protobuf::util::MessageDifferencer::Equals(meta, ref_meta));
+  ASSERT_TRUE(did_equal);
 }
 
 TEST_F(TranslatorTest, MetadataRefConstParams) {
