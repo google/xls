@@ -19,6 +19,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/type.h"
 
 namespace xls {
 
@@ -26,10 +27,12 @@ absl::StatusOr<bool> ConstantFoldingPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   bool changed = false;
   for (Node* node : TopoSort(f)) {
+    // Fold any non-side-effecting op with constant paramters. Avoid any types
+    // with tokens because literal tokens are not allowed.
     // TODO(meheff): 2019/6/26 Consider not folding loops with large trip counts
     // to avoid hanging at compile time.
-    if (node->operand_count() > 0 &&
-        node->op() != Op::kGate &&  // Never fold gate ops.
+    if (!node->Is<Literal>() && !TypeHasToken(node->GetType()) &&
+        !OpIsSideEffecting(node->op()) &&
         std::all_of(node->operands().begin(), node->operands().end(),
                     [](Node* o) { return o->Is<Literal>(); })) {
       XLS_VLOG(2) << "Folding: " << *node;

@@ -274,6 +274,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
+        "//xls/ir:type",
     ],
 )
 
@@ -804,6 +805,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "@com_google_googletest//:gtest",

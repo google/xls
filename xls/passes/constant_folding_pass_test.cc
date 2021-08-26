@@ -20,10 +20,13 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
+
+namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
@@ -112,6 +115,34 @@ fn main() -> bits[11] {
   ASSERT_TRUE(entry->return_value()->Is<Literal>());
   EXPECT_EQ(entry->return_value()->As<Literal>()->value(),
             Value(UBits(21, 11)));
+}
+
+TEST_F(ConstantFoldingPassTest, EmptyTuple) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn empty_tuple() -> () {
+        ret result: () = tuple()
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::Tuple());
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(Value::Tuple({})));
+}
+
+TEST_F(ConstantFoldingPassTest, GateOp) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn gate_op() -> bits[32] {
+        cond: bits[1] = literal(value=1)
+        data: bits[32] = literal(value=42)
+        ret result: bits[32] = gate(cond, data)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(f->return_value(), m::Gate(m::Literal(), m::Literal()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::Gate(m::Literal(), m::Literal()));
 }
 
 }  // namespace
