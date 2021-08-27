@@ -24,13 +24,13 @@ module TwoBitSelectorAllCasesPopulated(
   end
 
   // ===== Pipe stage 1:
-  wire [7:0] p1_sel_6_comb;
-  assign p1_sel_6_comb = p0_s == 2'h0 ? p0_x : (p0_s == 2'h1 ? p0_y : (p0_s == 2'h2 ? p0_z : p0_a));
+  wire [7:0] sel_22;
+  assign sel_22 = p0_s == 2'h0 ? p0_x : (p0_s == 2'h1 ? p0_y : (p0_s == 2'h2 ? p0_z : p0_a));
 
   // Registers for pipe stage 1:
-  reg [7:0] p1_sel_6;
+  reg [7:0] p1_sel_22;
   always_ff @ (posedge clk) begin
-    p1_sel_6 <= p1_sel_6_comb;
+    p1_sel_22 <= sel_22;
   end
-  assign out = p1_sel_6;
+  assign out = p1_sel_22;
 endmodule

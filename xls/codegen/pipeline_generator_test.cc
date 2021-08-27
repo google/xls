@@ -93,12 +93,14 @@ TEST_P(PipelineGeneratorTest, ReturnLiteral) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
-      ToPipelineModuleText(
-          schedule, func,
-          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
+      ToPipelineModuleText(schedule, func,
+                           BuildPipelineOptions()
+                               .flop_inputs(false)
+                               .flop_outputs(false)
+                               .use_system_verilog(UseSystemVerilog())));
 
   EXPECT_EQ(result.signature.proto().pipeline().initiation_interval(), 1);
-  EXPECT_EQ(result.signature.proto().pipeline().latency(), 5);
+  EXPECT_EQ(result.signature.proto().pipeline().latency(), 4);
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -122,9 +124,11 @@ TEST_P(PipelineGeneratorTest, ReturnTupleLiteral) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
-      ToPipelineModuleText(
-          schedule, func,
-          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
+      ToPipelineModuleText(schedule, func,
+                           BuildPipelineOptions()
+                               .flop_inputs(false)
+                               .flop_outputs(false)
+                               .use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -245,9 +249,11 @@ TEST_P(PipelineGeneratorTest, ReturnArrayLiteral) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
-      ToPipelineModuleText(
-          schedule, func,
-          BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
+      ToPipelineModuleText(schedule, func,
+                           BuildPipelineOptions()
+                               .flop_inputs(false)
+                               .flop_outputs(false)
+                               .use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -681,25 +687,25 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithSimulation) {
 }
 
 TEST_P(PipelineGeneratorTest, ValidSignalWithReset) {
-  Package package(TestBaseName());
-  FunctionBuilder fb(TestBaseName(), &package);
-  auto x = fb.Param("x", package.GetBitsType(64));
-  auto y = fb.Param("y", package.GetBitsType(64));
-  auto z = fb.Param("z", package.GetBitsType(64));
-  auto a = fb.UMul(x, y);
-  fb.UMul(a, z);
-
-  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
-
-  // Choose a large clock period such that all nodes are scheduled in the same
-  // stage.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(400)));
-
   // Test with both active low and active high signals.
   for (bool active_low : {false, true}) {
+    Package package(TestBaseName());
+    FunctionBuilder fb(TestBaseName(), &package);
+    auto x = fb.Param("x", package.GetBitsType(64));
+    auto y = fb.Param("y", package.GetBitsType(64));
+    auto z = fb.Param("z", package.GetBitsType(64));
+    auto a = fb.UMul(x, y);
+    fb.UMul(a, z);
+
+    XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+    // Choose a large clock period such that all nodes are scheduled in the same
+    // stage.
+    XLS_ASSERT_OK_AND_ASSIGN(
+        PipelineSchedule schedule,
+        PipelineSchedule::Run(func, TestDelayEstimator(),
+                              SchedulingOptions().clock_period_ps(400)));
+
     const int64_t kAssertReset = active_low ? 0 : 1;
     const int64_t kDeassertReset = active_low ? 1 : 0;
     const std::string kResetSignal = active_low ? "the_rst_n" : "the_rst";
@@ -773,131 +779,6 @@ TEST_P(PipelineGeneratorTest, ValidSignalWithReset) {
 
     XLS_ASSERT_OK(tb.Run());
   }
-}
-
-TEST_P(PipelineGeneratorTest, ManualPipelineControlWithSimulation) {
-  // Verify the manual pipeline control signaling works as expected by driving
-  // the module with a ModuleTestBench.
-  Package package(TestBaseName());
-  FunctionBuilder fb(TestBaseName(), &package);
-  // Module simplies passes through the input.
-  fb.Param("in", package.GetBitsType(16));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
-
-  // Create a three stage pipeline.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(3)));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
-      ToPipelineModuleText(schedule, func,
-                           BuildPipelineOptions()
-                               .manual_control("pipeline_le")
-                               .use_system_verilog(UseSystemVerilog())));
-
-  ModuleTestbench tb(result.verilog_text, result.signature, GetSimulator());
-  // Drive data input and disable all load-enables.
-  tb.Set("in", 0xabcd).Set("pipeline_le", UBits(0, 4));
-
-  // The output should remain at X while the load enables are disabled.
-  tb.NextCycle().ExpectX("out");
-  tb.AdvanceNCycles(42).ExpectX("out");
-
-  // After asserting the load enables, the output should appear after the
-  // pipeline latency.
-  tb.Set("pipeline_le", UBits(0xf, 4));
-  tb.NextCycle().ExpectX("out");
-  tb.NextCycle().ExpectX("out");
-  tb.NextCycle().ExpectX("out");
-  tb.NextCycle().ExpectEq("out", 0xabcd);
-
-  // Send increasing values through the pipeline. After filling the pipeline,
-  // stall the first and second stages of the pipeline by clearing the two lsb
-  // of the load-enable.
-  tb.Set("in", 0).NextCycle();
-  tb.Set("in", 1).NextCycle();
-  tb.Set("in", 2).NextCycle();
-  tb.Set("in", 3).NextCycle();
-  tb.Set("in", 4).Set("pipeline_le", 0xc).ExpectEq("out", 0).NextCycle();
-  tb.SetX("in").ExpectEq("out", 1).NextCycle();
-  tb.ExpectEq("out", 2).NextCycle();
-  tb.ExpectEq("out", 2).NextCycle();
-  tb.ExpectEq("out", 2).NextCycle();
-
-  // Now unstall the first stage. After a couple cycles, the 3 should finally
-  // pop out the end. 4 will never appear because it was never latched in to the
-  // first stage.
-  tb.Set("pipeline_le", 0xf).NextCycle();
-  tb.ExpectEq("out", 2).NextCycle();
-  tb.ExpectEq("out", 2).NextCycle();
-  tb.ExpectEq("out", 3).NextCycle();
-  tb.ExpectX("out");
-
-  XLS_ASSERT_OK(tb.Run());
-}
-
-TEST_P(PipelineGeneratorTest, ManualPipelineControl) {
-  Package package(TestBaseName());
-  FunctionBuilder fb(TestBaseName(), &package);
-  auto s = fb.Param("s", package.GetBitsType(2));
-  auto x = fb.Param("x", package.GetBitsType(8));
-  auto y = fb.Param("y", package.GetBitsType(8));
-  auto z = fb.Param("z", package.GetBitsType(8));
-  auto a = fb.Param("a", package.GetBitsType(8));
-  fb.Select(s, {x, y, z, a}, /*default_value=*/absl::nullopt);
-
-  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
-
-  // Choose a large clock period such that all nodes are scheduled in the same
-  // stage.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(4)));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
-      ToPipelineModuleText(schedule, func,
-                           BuildPipelineOptions()
-                               .manual_control("load_enable")
-                               .use_system_verilog(UseSystemVerilog())));
-
-  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 result.verilog_text);
-}
-
-TEST_P(PipelineGeneratorTest, ManualPipelineControlNoInputFlops) {
-  Package package(TestBaseName());
-  FunctionBuilder fb(TestBaseName(), &package);
-  auto s = fb.Param("s", package.GetBitsType(2));
-  auto x = fb.Param("x", package.GetBitsType(8));
-  auto y = fb.Param("y", package.GetBitsType(8));
-  auto z = fb.Param("z", package.GetBitsType(8));
-  auto a = fb.Param("a", package.GetBitsType(8));
-  fb.Select(s, {x, y, z, a}, /*default_value=*/absl::nullopt);
-
-  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
-
-  // Choose a large clock period such that all nodes are scheduled in the same
-  // stage.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(4)));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
-      ToPipelineModuleText(schedule, func,
-                           BuildPipelineOptions()
-                               .manual_control("load_enable")
-                               .use_system_verilog(UseSystemVerilog())
-                               .flop_inputs(false)
-                               .flop_outputs(true)));
-
-  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 result.verilog_text);
 }
 
 TEST_P(PipelineGeneratorTest, CustomModuleName) {
@@ -1047,110 +928,6 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopNeitherInputsNorOutputs) {
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
                   {{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}),
               IsOkAndHolds(UBits(91, 8)));
-}
-
-TEST_P(PipelineGeneratorTest, SplitOutputs) {
-  Package package(TestBaseName());
-  FunctionBuilder fb(TestBaseName(), &package);
-  auto x = fb.Param("x", package.GetBitsType(8));
-  auto y = fb.Param("y", package.GetBitsType(8));
-  fb.Tuple({x, y, fb.Add(x, y)});
-  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(2)));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
-      ToPipelineModuleText(schedule, func,
-                           BuildPipelineOptions()
-                               .use_system_verilog(UseSystemVerilog())
-                               .split_outputs(true)));
-
-  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 result.verilog_text);
-  EXPECT_EQ(result.signature.proto().pipeline().latency(), 3);
-  EXPECT_EQ(result.signature.data_outputs().size(), 3);
-  EXPECT_EQ(result.signature.data_outputs()[0].name(), "out_0");
-  EXPECT_EQ(result.signature.data_outputs()[1].name(), "out_1");
-  EXPECT_EQ(result.signature.data_outputs()[2].name(), "out_2");
-
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleSimulator::BitsMap bits_map,
-      simulator.Run({{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}));
-  EXPECT_EQ(bits_map.size(), 3);
-  EXPECT_EQ(bits_map.at("out_0"), UBits(123, 8));
-  EXPECT_EQ(bits_map.at("out_1"), UBits(42, 8));
-  EXPECT_EQ(bits_map.at("out_2"), UBits(165, 8));
-}
-
-TEST_P(PipelineGeneratorTest, SplitTupleParamOutputs) {
-  Package package(TestBaseName());
-  FunctionBuilder fb(TestBaseName(), &package);
-  fb.Param("x", package.GetTupleType(
-      {package.GetBitsType(8), package.GetBitsType(8)}));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(2)));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
-      ToPipelineModuleText(schedule, func,
-                           BuildPipelineOptions()
-                               .use_system_verilog(UseSystemVerilog())
-                               .split_outputs(true)));
-
-  EXPECT_EQ(result.signature.data_outputs().size(), 2);
-  EXPECT_EQ(result.signature.data_outputs()[0].name(), "out_0");
-  EXPECT_EQ(result.signature.data_outputs()[1].name(), "out_1");
-
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
-  Value input = Value::Tuple({Value(UBits(123, 8)), Value(UBits(42, 8))});
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleSimulator::BitsMap bits_map,
-                           simulator.Run({{"x", FlattenValueToBits(input)}}));
-  EXPECT_EQ(bits_map.size(), 2);
-  EXPECT_EQ(bits_map.at("out_0"), UBits(123, 8));
-  EXPECT_EQ(bits_map.at("out_1"), UBits(42, 8));
-}
-
-TEST_P(PipelineGeneratorTest, SplitOutputsNotTupleTyped) {
-  Package package(TestBaseName());
-  FunctionBuilder fb(TestBaseName(), &package);
-  auto x = fb.Param("x", package.GetBitsType(8));
-  auto y = fb.Param("y", package.GetBitsType(8));
-  fb.Add(x, y);
-  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(2)));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
-      ToPipelineModuleText(schedule, func,
-                           BuildPipelineOptions()
-                               .use_system_verilog(UseSystemVerilog())
-                               .split_outputs(true)));
-
-  EXPECT_EQ(result.signature.data_outputs().size(), 1);
-  EXPECT_EQ(result.signature.data_outputs()[0].name(), "out");
-
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleSimulator::BitsMap bits_map,
-      simulator.Run({{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}));
-  EXPECT_EQ(bits_map.size(), 1);
-  EXPECT_EQ(bits_map.at("out"), UBits(165, 8));
 }
 
 TEST_P(PipelineGeneratorTest, EmitsCoverpoints) {

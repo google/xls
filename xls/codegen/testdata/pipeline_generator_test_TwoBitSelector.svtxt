@@ -21,13 +21,13 @@ module TwoBitSelector(
   end
 
   // ===== Pipe stage 1:
-  wire [7:0] p1_sel_5_comb;
-  assign p1_sel_5_comb = p0_s == 2'h0 ? p0_x : (p0_s == 2'h1 ? p0_y : p0_z);
+  wire [7:0] sel_18;
+  assign sel_18 = p0_s == 2'h0 ? p0_x : (p0_s == 2'h1 ? p0_y : p0_z);
 
   // Registers for pipe stage 1:
-  reg [7:0] p1_sel_5;
+  reg [7:0] p1_sel_18;
   always_ff @ (posedge clk) begin
-    p1_sel_5 <= p1_sel_5_comb;
+    p1_sel_18 <= sel_18;
   end
-  assign out = p1_sel_5;
+  assign out = p1_sel_18;
 endmodule

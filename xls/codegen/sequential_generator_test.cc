@@ -1591,18 +1591,18 @@ fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
   ret counted_for.6: bits[32] = counted_for(init_acc, trip_count=4, stride=1, body=____SequentialModuleSimple__main_counted_for_0_body, pos=0,1,5)
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
-                           Parser::ParsePackage(text));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
-
-  // Grab loop node.
-  XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.6"));
-  CountedFor* loop = node_loop->As<CountedFor>();
-
   // Would be better to do this as a parameterized test, but this
   // conflicts with paramterizing based on the simulation target
   // defined by VerilogTestBase.
   for (int64_t latency = 0; latency < 3; ++latency) {
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                             Parser::ParsePackage(text));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+
+    // Grab loop node.
+    XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.6"));
+    CountedFor* loop = node_loop->As<CountedFor>();
+
     // Build the builder.
     ResetProto reset;
     reset.set_name("reset");
@@ -1639,18 +1639,18 @@ fn __SequentialModuleInvariants__main(init_acc: bits[32], invara: bits[32], inva
   ret counted_for.12: bits[32] = counted_for(init_acc, trip_count=4, stride=1, body=____SequentialModuleInvariants__main_counted_for_0_body, invariant_args=[invara, invarb], pos=0,1,5)
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
-                           Parser::ParsePackage(text));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
-
-  // Grab loop node.
-  XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.12"));
-  CountedFor* loop = node_loop->As<CountedFor>();
-
   // Would be better to do this as a parameterized test, but this
   // conflicts with paramterizing based on the simulation target
   // defined by VerilogTestBase.
   for (int64_t latency = 0; latency < 3; ++latency) {
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                             Parser::ParsePackage(text));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+
+    // Grab loop node.
+    XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.12"));
+    CountedFor* loop = node_loop->As<CountedFor>();
+
     // Build the builder.
     ResetProto reset;
     reset.set_name("reset");
@@ -1687,18 +1687,18 @@ fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
   ret counted_for.6: bits[32] = counted_for(init_acc, trip_count=4, stride=1, body=____SequentialModuleSimple__main_counted_for_0_body, pos=0,1,5)
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
-                           Parser::ParsePackage(text));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
-
-  // Grab loop node.
-  XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.6"));
-  CountedFor* loop = node_loop->As<CountedFor>();
-
   // Would be better to do this as a parameterized test, but this
   // conflicts with paramterizing based on the simulation target
   // defined by VerilogTestBase.
   for (int64_t latency = 0; latency < 3; ++latency) {
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                             Parser::ParsePackage(text));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+
+    // Grab loop node.
+    XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.6"));
+    CountedFor* loop = node_loop->As<CountedFor>();
+
     // Build the builder.
     ResetProto reset;
     reset.set_name("reset");
@@ -1798,18 +1798,18 @@ fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
   ret counted_for.6: bits[32] = counted_for(init_acc, trip_count=4, stride=1, body=____SequentialModuleSimple__main_counted_for_0_body, pos=0,1,5)
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
-                           Parser::ParsePackage(text));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
-
-  // Grab loop node.
-  XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.6"));
-  CountedFor* loop = node_loop->As<CountedFor>();
-
   // Would be better to do this as a parameterized test, but this
   // conflicts with paramterizing based on the simulation target
   // defined by VerilogTestBase.
   for (int64_t latency = 0; latency < 3; ++latency) {
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                             Parser::ParsePackage(text));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+
+    // Grab loop node.
+    XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.6"));
+    CountedFor* loop = node_loop->As<CountedFor>();
+
     // Build the builder.
     ResetProto reset;
     reset.set_name("reset");
