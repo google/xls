@@ -254,7 +254,7 @@ TEST_F(BlockTest, BlockWithRegisters) {
   b: bits[32] = input_port(name=b, id=2)
   add.3: bits[32] = add(a, b, id=3)
   register_read.5: bits[32] = register_read(register=my_reg, id=5)
-  register_write.4: bits[32] = register_write(add.3, register=my_reg, id=4)
+  register_write.4: () = register_write(add.3, register=my_reg, id=4)
   out: () = output_port(register_read.5, name=out, id=6)
 }
 )");

@@ -357,23 +357,6 @@ class BlockGenerator {
         continue;
       }
 
-      if (!IsRepresentable(node->GetType())) {
-        node_exprs_[node] = UnrepresentedSentinel();
-        continue;
-      }
-
-      // If any of the operands do not have an Expression* representation then
-      // handle the node specially.
-      if (std::any_of(
-              node->operands().begin(), node->operands().end(), [&](Node* n) {
-                return !absl::holds_alternative<Expression*>(node_exprs_.at(n));
-              })) {
-        XLS_ASSIGN_OR_RETURN(
-            node_exprs_[node],
-            CodegenNodeWithUnrepresentedOperands(node, &mb_, node_exprs_));
-        continue;
-      }
-
       // RegisterWrite and RegisterRead don't directly generate any VAST ast,
       // but some bookkeeping is necessary for associating an expression with
       // each register and setting the next and (optional) load-enable
@@ -393,6 +376,23 @@ class BlockGenerator {
       if (node->Is<RegisterRead>()) {
         RegisterRead* reg_read = node->As<RegisterRead>();
         node_exprs_[node] = mb_registers_.at(reg_read->GetRegister()).ref;
+        continue;
+      }
+
+      if (!IsRepresentable(node->GetType())) {
+        node_exprs_[node] = UnrepresentedSentinel();
+        continue;
+      }
+
+      // If any of the operands do not have an Expression* representation then
+      // handle the node specially.
+      if (std::any_of(
+              node->operands().begin(), node->operands().end(), [&](Node* n) {
+                return !absl::holds_alternative<Expression*>(node_exprs_.at(n));
+              })) {
+        XLS_ASSIGN_OR_RETURN(
+            node_exprs_[node],
+            CodegenNodeWithUnrepresentedOperands(node, &mb_, node_exprs_));
         continue;
       }
 

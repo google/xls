@@ -877,7 +877,7 @@ OpClass.kinds['REGISTER_WRITE'] = OpClass(
     operands=[Operand('data'),
               OptionalOperand('load_enable'),
               OptionalOperand('reset')],
-    xls_type_expression='reg->type()',
+    xls_type_expression='function->package()->GetTupleType({})',
     # `register` is a C++ keyword so an attribute of name register can't be
     # defined. Use `reg` for the data member and constructor arg, and
     # GetRegister for the accessor method.
