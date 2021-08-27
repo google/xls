@@ -158,7 +158,7 @@ absl::StatusOr<Register*> Block::AddRegister(absl::string_view name, Type* type,
     }
   }
   registers_[name] =
-      absl::make_unique<Register>(std::string(name), type, reset, this);
+      absl::make_unique<Register>(std::string(name), type, reset);
   register_vec_.push_back(registers_[name].get());
   Register* reg = register_vec_.back();
   register_reads_[reg] = {};
@@ -168,15 +168,9 @@ absl::StatusOr<Register*> Block::AddRegister(absl::string_view name, Type* type,
 }
 
 absl::Status Block::RemoveRegister(Register* reg) {
-  if (reg->block() != this) {
+  if (!IsOwned(reg)) {
     return absl::InvalidArgumentError("Register is not owned by block.");
   }
-  if (!registers_.contains(reg->name())) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Block %s has no register named %s", name(), reg->name()));
-  }
-
-  XLS_RET_CHECK(registers_.at(reg->name()).get() == reg);
 
   if (!register_reads_.at(reg).empty() || !register_writes_.at(reg).empty()) {
     return absl::InvalidArgumentError(
@@ -245,11 +239,11 @@ static absl::Status AddToMapOfNodeVectors(
 Node* Block::AddNodeInternal(std::unique_ptr<Node> node) {
   Node* ptr = FunctionBase::AddNodeInternal(std::move(node));
   if (RegisterRead* reg_read = dynamic_cast<RegisterRead*>(ptr)) {
-    Register* reg = GetRegister(reg_read->register_name()).value();
-    XLS_CHECK_OK(AddToMapOfNodeVectors(reg, reg_read, &register_reads_));
+    XLS_CHECK_OK(AddToMapOfNodeVectors(reg_read->GetRegister(), reg_read,
+                                       &register_reads_));
   } else if (RegisterWrite* reg_write = dynamic_cast<RegisterWrite*>(ptr)) {
-    Register* reg = GetRegister(reg_write->register_name()).value();
-    XLS_CHECK_OK(AddToMapOfNodeVectors(reg, reg_write, &register_writes_));
+    XLS_CHECK_OK(AddToMapOfNodeVectors(reg_write->GetRegister(), reg_write,
+                                       &register_writes_));
   }
   return ptr;
 }
@@ -283,15 +277,11 @@ absl::Status Block::RemoveNode(Node* n) {
         "port node %s is not in the vector of ports", n->GetName());
     ports_.erase(port_it);
   } else if (RegisterRead* reg_read = dynamic_cast<RegisterRead*>(n)) {
-    XLS_ASSIGN_OR_RETURN(Register * reg,
-                         GetRegister(reg_read->register_name()));
-    XLS_RETURN_IF_ERROR(
-        RemoveFromMapOfNodeVectors(reg, reg_read, &register_reads_));
+    XLS_RETURN_IF_ERROR(RemoveFromMapOfNodeVectors(reg_read->GetRegister(),
+                                                   reg_read, &register_reads_));
   } else if (RegisterWrite* reg_write = dynamic_cast<RegisterWrite*>(n)) {
-    XLS_ASSIGN_OR_RETURN(Register * reg,
-                         GetRegister(reg_write->register_name()));
-    XLS_RETURN_IF_ERROR(
-        RemoveFromMapOfNodeVectors(reg, reg_write, &register_writes_));
+    XLS_RETURN_IF_ERROR(RemoveFromMapOfNodeVectors(
+        reg_write->GetRegister(), reg_write, &register_writes_));
   }
 
   return FunctionBase::RemoveNode(n);

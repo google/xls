@@ -1382,10 +1382,10 @@ BValue BlockBuilder::RegisterRead(Register* reg,
   if (ErrorPending()) {
     return BValue();
   }
-  if (reg->block() != block()) {
+  if (!block()->IsOwned(reg)) {
     return SetError("Register is defined in different block", loc);
   }
-  return AddNode<xls::RegisterRead>(loc, reg->name(), name);
+  return AddNode<xls::RegisterRead>(loc, reg, name);
 }
 
 BValue BlockBuilder::RegisterWrite(Register* reg, BValue data,
@@ -1396,7 +1396,7 @@ BValue BlockBuilder::RegisterWrite(Register* reg, BValue data,
   if (ErrorPending()) {
     return BValue();
   }
-  if (reg->block() != block()) {
+  if (!block()->IsOwned(reg)) {
     return SetError("Register is defined in different block", loc);
   }
   return AddNode<xls::RegisterWrite>(
@@ -1404,7 +1404,7 @@ BValue BlockBuilder::RegisterWrite(Register* reg, BValue data,
       load_enable.has_value() ? absl::optional<Node*>(load_enable->node())
                               : absl::nullopt,
       reset.has_value() ? absl::optional<Node*>(reset->node()) : absl::nullopt,
-      reg->name(), name);
+      reg, name);
 }
 
 BValue BlockBuilder::InsertRegister(absl::string_view name, BValue data,

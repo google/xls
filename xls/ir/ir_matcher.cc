@@ -379,9 +379,9 @@ bool RegisterReadMatcher::MatchAndExplain(
     return false;
   }
   if (register_name_.has_value() &&
-      node->As<xls::RegisterRead>()->register_name() != *register_name_) {
+      node->As<xls::RegisterRead>()->GetRegister()->name() != *register_name_) {
     *listener << " has incorrect register ("
-              << node->As<xls::RegisterRead>()->register_name()
+              << node->As<xls::RegisterRead>()->GetRegister()->name()
               << "), expected: " << *register_name_;
     return false;
   }
@@ -403,9 +403,10 @@ bool RegisterWriteMatcher::MatchAndExplain(
     return false;
   }
   if (register_name_.has_value() &&
-      node->As<xls::RegisterWrite>()->register_name() != *register_name_) {
+      node->As<xls::RegisterWrite>()->GetRegister()->name() !=
+          *register_name_) {
     *listener << " has incorrect register ("
-              << node->As<xls::RegisterWrite>()->register_name()
+              << node->As<xls::RegisterWrite>()->GetRegister()->name()
               << "), expected: " << *register_name_;
     return false;
   }
@@ -430,11 +431,12 @@ bool RegisterMatcher::MatchAndExplain(
   }
   if (q_matcher_.has_value()) {
     const std::string& register_name =
-        node->As<::xls::RegisterRead>()->register_name();
+        node->As<::xls::RegisterRead>()->GetRegister()->name();
     xls::RegisterWrite* reg_write;
     for (Node* node : node->function_base()->nodes()) {
       if (node->Is<::xls::RegisterWrite>() &&
-          node->As<::xls::RegisterWrite>()->register_name() == register_name) {
+          node->As<::xls::RegisterWrite>()->GetRegister()->name() ==
+              register_name) {
         reg_write = node->As<::xls::RegisterWrite>();
         break;
       }

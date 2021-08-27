@@ -89,8 +89,7 @@ absl::StatusOr<absl::optional<ResetProto>> GetBlockResetProto(Block* block) {
         continue;
       }
       Node* reset_signal = reg_write->reset().value();
-      XLS_ASSIGN_OR_RETURN(Register * reg,
-                           block->GetRegister(reg_write->register_name()));
+      Register* reg = reg_write->GetRegister();
       XLS_RET_CHECK(reg->reset().has_value());
       if (reset_proto.has_value()) {
         if (reset_proto->name() != reset_signal->GetName()) {
@@ -173,10 +172,8 @@ absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(Block* block) {
 
     if (node->Is<RegisterWrite>()) {
       RegisterWrite* reg_write = node->As<RegisterWrite>();
-      XLS_ASSIGN_OR_RETURN(Register * reg,
-                           block->GetRegister(reg_write->register_name()));
       XLS_ASSIGN_OR_RETURN(RegisterRead * reg_read,
-                           block->GetRegisterRead(reg));
+                           block->GetRegisterRead(reg_write->GetRegister()));
 
       // A node register read must be must exactly one stage after the register
       // write. Express this as a distance of one from the RegisterWrite to the
@@ -224,10 +221,8 @@ absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(Block* block) {
   for (Node* node : block->nodes()) {
     if (node->Is<RegisterWrite>()) {
       RegisterWrite* reg_write = node->As<RegisterWrite>();
-      XLS_ASSIGN_OR_RETURN(Register * reg,
-                           block->GetRegister(reg_write->register_name()));
       XLS_ASSIGN_OR_RETURN(RegisterRead * reg_read,
-                           block->GetRegisterRead(reg));
+                           block->GetRegisterRead(reg_write->GetRegister()));
       XLS_RET_CHECK_EQ(node_stage[reg_write] + 1, node_stage[reg_read]);
       XLS_RET_CHECK_EQ(node_stage[reg_write], node_stage[reg_write->data()]);
     }
@@ -243,10 +238,7 @@ absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(Block* block) {
     Stage& stage = stages[node_stage[node]];
     if (node->Is<RegisterWrite>()) {
       stage.reg_writes.push_back(node->As<RegisterWrite>());
-      XLS_ASSIGN_OR_RETURN(
-          Register * reg,
-          block->GetRegister(node->As<RegisterWrite>()->register_name()));
-      stage.registers.push_back(reg);
+      stage.registers.push_back(node->As<RegisterWrite>()->GetRegister());
     } else if (node->Is<RegisterRead>()) {
       stage.reg_reads.push_back(node->As<RegisterRead>());
     } else {
@@ -388,10 +380,10 @@ class BlockGenerator {
       // expressions.
       if (node->Is<RegisterWrite>()) {
         RegisterWrite* reg_write = node->As<RegisterWrite>();
-        mb_registers_.at(reg_write->register_name()).next =
+        mb_registers_.at(reg_write->GetRegister()).next =
             absl::get<Expression*>(node_exprs_.at(reg_write->data()));
         if (reg_write->load_enable().has_value()) {
-          mb_registers_.at(reg_write->register_name()).load_enable =
+          mb_registers_.at(reg_write->GetRegister()).load_enable =
               absl::get<Expression*>(
                   node_exprs_.at(reg_write->load_enable().value()));
         }
@@ -400,7 +392,7 @@ class BlockGenerator {
       }
       if (node->Is<RegisterRead>()) {
         RegisterRead* reg_read = node->As<RegisterRead>();
-        node_exprs_[node] = mb_registers_.at(reg_read->register_name()).ref;
+        node_exprs_[node] = mb_registers_.at(reg_read->GetRegister()).ref;
         continue;
       }
 
@@ -489,7 +481,7 @@ class BlockGenerator {
         }
       }
       XLS_ASSIGN_OR_RETURN(
-          mb_registers_[reg->name()],
+          mb_registers_[reg],
           mb_.DeclareRegister(absl::StrCat(reg->name()), reg->type(),
                               /*next=*/nullptr, reset_expr));
     }
@@ -505,9 +497,9 @@ class BlockGenerator {
     std::vector<ModuleBuilder::Register> registers_with_reset;
     std::vector<ModuleBuilder::Register> registers_without_reset;
     for (Register* reg : registers) {
-      XLS_RET_CHECK(mb_registers_.contains(reg->name())) << absl::StreamFormat(
+      XLS_RET_CHECK(mb_registers_.contains(reg)) << absl::StreamFormat(
           "Register `%s` was not previously declared", reg->name());
-      ModuleBuilder::Register mb_reg = mb_registers_.at(reg->name());
+      ModuleBuilder::Register mb_reg = mb_registers_.at(reg);
       if (reg->reset().has_value()) {
         registers_with_reset.push_back(mb_reg);
       } else {
@@ -567,9 +559,9 @@ class BlockGenerator {
   // Map from Node* to the Verilog expression representing its value.
   absl::flat_hash_map<Node*, NodeRepresentation> node_exprs_;
 
-  // Map from register name to the ModuleBuilder register abstraction
+  // Map from xls::Register* to the ModuleBuilder register abstraction
   // representing the underlying Verilog register.
-  absl::flat_hash_map<std::string, ModuleBuilder::Register> mb_registers_;
+  absl::flat_hash_map<xls::Register*, ModuleBuilder::Register> mb_registers_;
 };
 
 }  // namespace

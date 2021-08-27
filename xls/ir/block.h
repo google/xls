@@ -19,40 +19,10 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/register.h"
 #include "xls/ir/type.h"
 
 namespace xls {
-
-class Block;
-
-// Data structure describing the reset behavior of a register.
-struct Reset {
-  Value reset_value;
-  bool asynchronous;
-  bool active_low;
-};
-
-// Data structure representing a RTL-level register. These constructs are
-// contained in and owned by Blocks and lower to registers in Verilog.
-class Register {
- public:
-  Register(absl::string_view name, Type* type, absl::optional<Reset> reset,
-           Block* block)
-      : name_(name), type_(type), reset_(std::move(reset)), block_(block) {}
-
-  const std::string& name() const { return name_; }
-  Type* type() const { return type_; }
-  const absl::optional<Reset>& reset() const { return reset_; }
-
-  // Returns the block which owns the register.
-  Block* block() const { return block_; }
-
- private:
-  std::string name_;
-  Type* type_;
-  absl::optional<Reset> reset_;
-  Block* block_;
-};
 
 // Abstraction representing a Verilog module used in code generation. Blocks are
 // function-level constructs similar to functions and procs. Like functions and
@@ -119,9 +89,10 @@ class Block : public FunctionBase {
   // no such register exists.
   absl::StatusOr<Register*> GetRegister(absl::string_view name) const;
 
-  // Returns true iff this block contains a register with the given name.
-  bool HasRegisterWithName(absl::string_view name) const {
-    return registers_.contains(name);
+  // Returns true if the given register is owned by this block.
+  bool IsOwned(Register* reg) {
+    return registers_.contains(reg->name()) &&
+           registers_.at(reg->name()).get() == reg;
   }
 
   // Adds a register to the block.

@@ -535,13 +535,13 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       args.push_back(absl::StrFormat("name=%s", GetName()));
       break;
     case Op::kRegisterRead:
-      args.push_back(
-          absl::StrFormat("register=%s", As<RegisterRead>()->register_name()));
+      args.push_back(absl::StrFormat(
+          "register=%s", As<RegisterRead>()->GetRegister()->name()));
       break;
     case Op::kRegisterWrite:
       args = {operand(0)->GetName()};
-      args.push_back(
-          absl::StrFormat("register=%s", As<RegisterWrite>()->register_name()));
+      args.push_back(absl::StrFormat(
+          "register=%s", As<RegisterWrite>()->GetRegister()->name()));
       if (As<RegisterWrite>()->load_enable().has_value()) {
         args.push_back(absl::StrFormat(
             "load_enable=%s",

@@ -1608,8 +1608,7 @@ absl::Status VerifyBlock(Block* block) {
   for (Node* node : block->nodes()) {
     if (node->Is<RegisterRead>()) {
       RegisterRead* reg_read = node->As<RegisterRead>();
-      XLS_ASSIGN_OR_RETURN(Register * reg,
-                           block->GetRegister(reg_read->register_name()));
+      Register* reg = reg_read->GetRegister();
       if (reg_reads.contains(reg)) {
         return absl::InternalError(
             StrFormat("Register %s has multiple reads", reg->name()));
@@ -1618,8 +1617,7 @@ absl::Status VerifyBlock(Block* block) {
       reg_reads[reg] = reg_read;
     } else if (node->Is<RegisterWrite>()) {
       RegisterWrite* reg_write = node->As<RegisterWrite>();
-      XLS_ASSIGN_OR_RETURN(Register * reg,
-                           block->GetRegister(reg_write->register_name()));
+      Register* reg = reg_write->GetRegister();
       if (reg_writes.contains(reg)) {
         return absl::InternalError(
             StrFormat("Register %s has multiple writes", reg->name()));

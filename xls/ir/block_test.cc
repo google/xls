@@ -325,10 +325,17 @@ TEST_F(BlockTest, RemoveRegisterNotOwnedByBlock) {
   XLS_ASSERT_OK(blk1->AddClockPort("clk"));
   Block* blk2 = p.AddBlock(absl::make_unique<Block>("block2", &p));
   XLS_ASSERT_OK(blk2->AddClockPort("clk"));
-  XLS_ASSERT_OK_AND_ASSIGN(Register * reg,
-                           blk1->AddRegister("my_reg", p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Register * reg1,
+                           blk1->AddRegister("reg", p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Register * reg2,
+                           blk2->AddRegister("reg", p.GetBitsType(32)));
 
-  EXPECT_THAT(blk2->RemoveRegister(reg),
+  EXPECT_TRUE(blk1->IsOwned(reg1));
+  EXPECT_FALSE(blk2->IsOwned(reg1));
+  EXPECT_FALSE(blk1->IsOwned(reg2));
+  EXPECT_TRUE(blk2->IsOwned(reg2));
+
+  EXPECT_THAT(blk2->RemoveRegister(reg1),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Register is not owned by block")));
 }
@@ -386,7 +393,7 @@ TEST_F(BlockTest, GetRegisterReadWrite) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       RegisterRead * reg_read,
-      block->MakeNode<RegisterRead>(/*loc=*/absl::nullopt, reg->name()));
+      block->MakeNode<RegisterRead>(/*loc=*/absl::nullopt, reg));
 
   EXPECT_THAT(block->GetRegisterRead(reg), IsOkAndHolds(reg_read));
   EXPECT_THAT(
@@ -400,19 +407,19 @@ TEST_F(BlockTest, GetRegisterReadWrite) {
       RegisterWrite * reg_write,
       block->MakeNode<RegisterWrite>(
           /*loc=*/absl::nullopt, a.node(), /*load_enable=*/absl::nullopt,
-          /*reset=*/absl::nullopt, reg->name()));
+          /*reset=*/absl::nullopt, reg));
 
   EXPECT_THAT(block->GetRegisterRead(reg), IsOkAndHolds(reg_read));
   EXPECT_THAT(block->GetRegisterWrite(reg), IsOkAndHolds(reg_write));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       RegisterRead * dup_reg_read,
-      block->MakeNode<RegisterRead>(/*loc=*/absl::nullopt, reg->name()));
+      block->MakeNode<RegisterRead>(/*loc=*/absl::nullopt, reg));
   XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * dup_reg_write,
                            block->MakeNode<RegisterWrite>(
                                /*loc=*/absl::nullopt, a.node(),
                                /*load_enable=*/absl::nullopt,
-                               /*reset=*/absl::nullopt, reg->name()));
+                               /*reset=*/absl::nullopt, reg));
 
   EXPECT_THAT(block->GetRegisterRead(reg),
               StatusIs(absl::StatusCode::kInvalidArgument,

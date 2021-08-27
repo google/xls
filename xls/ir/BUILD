@@ -230,6 +230,7 @@ cc_library(
         "nodes.h",
         "package.h",
         "proc.h",
+        "register.h",
         "verifier.h",
     ],
     visibility = ["//xls:xls_best_effort_users"],

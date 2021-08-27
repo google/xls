@@ -855,8 +855,20 @@ OpClass.kinds['REGISTER_READ'] = OpClass(
     name='RegisterRead',
     op='Op::kRegisterRead',
     operands=[],
-    xls_type_expression='function->AsBlockOrDie()->GetRegister(register_name).value()->type()',
-    attributes=[StringAttribute('register_name')],
+    xls_type_expression='reg->type()',
+    # `register` is a C++ keyword so an attribute of name register can't be
+    # defined. Use `reg` for the data member and constructor arg, and
+    # GetRegister for the accessor method.
+    extra_constructor_args=[ConstructorArgument(name='reg',
+                                                cpp_type='Register*',
+                                                clone_expression='GetRegister()')],
+    extra_data_members=[
+        DataMember(name='reg_',
+                   cpp_type='Register*',
+                   init='reg')],
+    extra_methods=[Method(name='GetRegister',
+                          return_cpp_type='Register*',
+                          expression='reg_')],
 )
 
 OpClass.kinds['REGISTER_WRITE'] = OpClass(
@@ -865,9 +877,17 @@ OpClass.kinds['REGISTER_WRITE'] = OpClass(
     operands=[Operand('data'),
               OptionalOperand('load_enable'),
               OptionalOperand('reset')],
-    xls_type_expression='data->GetType()',
-    attributes=[StringAttribute('register_name')],
+    xls_type_expression='reg->type()',
+    # `register` is a C++ keyword so an attribute of name register can't be
+    # defined. Use `reg` for the data member and constructor arg, and
+    # GetRegister for the accessor method.
+    extra_constructor_args=[ConstructorArgument(name='reg',
+                                                cpp_type='Register*',
+                                                clone_expression='GetRegister()')],
     extra_data_members=[
+        DataMember(name='reg_',
+                   cpp_type='Register*',
+                   init='reg'),
         DataMember(name='has_load_enable_',
                    cpp_type='bool',
                    init='load_enable.has_value()'),
@@ -882,7 +902,10 @@ OpClass.kinds['REGISTER_WRITE'] = OpClass(
                           expression='has_load_enable_ ? absl::optional<Node*>(operand(1)) : absl::nullopt'),
                    Method(name='reset',
                           return_cpp_type='absl::optional<Node*>',
-                          expression='has_reset_ ? absl::optional<Node*>(operand(has_load_enable_ ? 2 : 1)) : absl::nullopt'),],
+                          expression='has_reset_ ? absl::optional<Node*>(operand(has_load_enable_ ? 2 : 1)) : absl::nullopt'),
+                   Method(name='GetRegister',
+                          return_cpp_type='Register*',
+                          expression='reg_')],
 )
 
 OpClass.kinds['GATE'] = OpClass(

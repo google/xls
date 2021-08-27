@@ -197,15 +197,15 @@ static absl::StatusOr<std::vector<PipelineStageRegisters>> CreatePipeline(
             Register * reg,
             block->AddRegister(PipelineSignalName(node->GetName(), stage),
                                node->GetType()));
-        XLS_ASSIGN_OR_RETURN(RegisterWrite * reg_write,
-                             block->MakeNode<RegisterWrite>(
-                                 node->loc(), node,
-                                 /*load_enable=*/absl::nullopt,
-                                 /*reset=*/absl::nullopt, reg->name()));
-        XLS_ASSIGN_OR_RETURN(RegisterRead * reg_read,
-                             block->MakeNodeWithName<RegisterRead>(
-                                 node->loc(), /*register_name=*/reg->name(),
-                                 /*name=*/reg->name()));
+        XLS_ASSIGN_OR_RETURN(
+            RegisterWrite * reg_write,
+            block->MakeNode<RegisterWrite>(node->loc(), node,
+                                           /*load_enable=*/absl::nullopt,
+                                           /*reset=*/absl::nullopt, reg));
+        XLS_ASSIGN_OR_RETURN(
+            RegisterRead * reg_read,
+            block->MakeNodeWithName<RegisterRead>(node->loc(), reg,
+                                                  /*name=*/reg->name()));
         node_map[function_node] = reg_read;
         pipeline_registers.at(stage).push_back(
             PipelineRegister{reg, reg_write, reg_read});
@@ -271,11 +271,11 @@ static absl::Status AddValidSignal(
                             ->MakeNode<RegisterWrite>(
                                 /*loc=*/absl::nullopt, pipelined_valids[stage],
                                 /*load_enable=*/absl::nullopt,
-                                /*reset=*/reset_input_port, valid_reg->name())
+                                /*reset=*/reset_input_port, valid_reg)
                             .status());
     XLS_ASSIGN_OR_RETURN(pipelined_valids[stage + 1],
                          block->MakeNode<RegisterRead>(
-                             /*loc=*/absl::nullopt, valid_reg->name()));
+                             /*loc=*/absl::nullopt, valid_reg));
   }
 
   // Use the pipelined valid signal as load enable each datapath  pipeline
@@ -300,13 +300,13 @@ static absl::Status AddValidSignal(
                 std::vector<Node*>({load_enable, reset_node}), Op::kOr));
       }
 
-      XLS_RETURN_IF_ERROR(
-          block
-              ->MakeNode<RegisterWrite>(
-                  /*loc=*/absl::nullopt, pipeline_reg.reg_write->data(),
-                  /*load_enable=*/load_enable,
-                  /*reset=*/absl::nullopt, pipeline_reg.reg->name())
-              .status());
+      XLS_RETURN_IF_ERROR(block
+                              ->MakeNode<RegisterWrite>(
+                                  /*loc=*/absl::nullopt,
+                                  pipeline_reg.reg_write->data(),
+                                  /*load_enable=*/load_enable,
+                                  /*reset=*/absl::nullopt, pipeline_reg.reg)
+                              .status());
       XLS_RETURN_IF_ERROR(block->RemoveNode(pipeline_reg.reg_write));
     }
   }

@@ -234,11 +234,9 @@ TEST_P(BlockGeneratorTest, RegisterWithoutClockPort) {
   XLS_ASSERT_OK(block
                     ->MakeNode<RegisterWrite>(absl::nullopt, a.node(),
                                               /*load_enable=*/absl::nullopt,
-                                              /*reset=*/absl::nullopt,
-                                              reg->name())
+                                              /*reset=*/absl::nullopt, reg)
                     .status());
-  XLS_ASSERT_OK(
-      block->MakeNode<RegisterRead>(absl::nullopt, reg->name()).status());
+  XLS_ASSERT_OK(block->MakeNode<RegisterRead>(absl::nullopt, reg).status());
 
   EXPECT_THAT(GenerateVerilog(block, codegen_options()).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,

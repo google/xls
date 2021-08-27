@@ -942,13 +942,13 @@ absl::StatusOr<BValue> Parser::ParseNode(
       IdentifierString* register_name =
           arg_parser.AddKeywordArg<IdentifierString>("register");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
-      if (!bb->block()->HasRegisterWithName(register_name->value)) {
+      absl::StatusOr<Register*> register_status =
+          bb->block()->GetRegister(register_name->value);
+      if (!register_status.ok()) {
         return absl::InvalidArgumentError(
             absl::StrFormat("No such register named %s", register_name->value));
       }
-      XLS_ASSIGN_OR_RETURN(Register * reg,
-                           bb->block()->GetRegister(register_name->value));
-      bvalue = bb->RegisterRead(reg, *loc, node_name);
+      bvalue = bb->RegisterRead(register_status.value(), *loc, node_name);
       break;
     }
     case Op::kRegisterWrite: {
@@ -964,14 +964,14 @@ absl::StatusOr<BValue> Parser::ParseNode(
       std::optional<BValue>* reset =
           arg_parser.AddOptionalKeywordArg<BValue>("reset");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
-      if (!bb->block()->HasRegisterWithName(register_name->value)) {
+      absl::StatusOr<Register*> register_status =
+          bb->block()->GetRegister(register_name->value);
+      if (!register_status.ok()) {
         return absl::InvalidArgumentError(
             absl::StrFormat("No such register named %s", register_name->value));
       }
-      XLS_ASSIGN_OR_RETURN(Register * reg,
-                           bb->block()->GetRegister(register_name->value));
-      bvalue = bb->RegisterWrite(reg, operands[0], *load_enable, *reset, *loc,
-                                 node_name);
+      bvalue = bb->RegisterWrite(register_status.value(), operands[0],
+                                 *load_enable, *reset, *loc, node_name);
       break;
     }
     case Op::kGate: {
