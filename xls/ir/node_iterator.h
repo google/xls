@@ -43,6 +43,8 @@ class NodeIterator {
   std::vector<Node*>::iterator begin() { return ordered_->begin(); }
   std::vector<Node*>::iterator end() { return ordered_->end(); }
 
+  const std::vector<Node*>& AsVector() const { return *ordered_; }
+
  private:
   explicit NodeIterator(FunctionBase* f) : f_(f) {}
 

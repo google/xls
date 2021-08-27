@@ -109,5 +109,9 @@ CodegenOptions& CodegenOptions::gate_format(absl::string_view value) {
   gate_format_ = std::string{value};
   return *this;
 }
+CodegenOptions& CodegenOptions::emit_as_pipeline(bool value) {
+  emit_as_pipeline_ = value;
+  return *this;
+}
 
 }  // namespace xls::verilog

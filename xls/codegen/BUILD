@@ -502,6 +502,7 @@ cc_library(
         ":vast",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/ir",
         "//xls/ir:node_util",

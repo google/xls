@@ -141,6 +141,14 @@ struct CodegenOptions {
   CodegenOptions& gate_format(absl::string_view value);
   absl::optional<absl::string_view> gate_format() const { return gate_format_; }
 
+  // Emit the signal declarations and logic in the Verilog as a sequence of
+  // pipeline stages separated by per-stage comment headers. The option does not
+  // functionally change the generated Verilog but rather affects its layout.
+  // The registers must be strictly layered or an error is returned during code
+  // generation.
+  CodegenOptions& emit_as_pipeline(bool value);
+  bool emit_as_pipeline() const { return emit_as_pipeline_; }
+
  private:
   absl::optional<std::string> entry_;
   absl::optional<std::string> module_name_;
@@ -153,6 +161,7 @@ struct CodegenOptions {
   bool split_outputs_ = false;
   absl::optional<std::string> assert_format_;
   absl::optional<std::string> gate_format_;
+  bool emit_as_pipeline_ = false;
 };
 
 }  // namespace xls::verilog

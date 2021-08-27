@@ -14,11 +14,14 @@
 
 #include "xls/codegen/block_generator.h"
 
+#include <deque>
+
 #include "absl/status/status.h"
 #include "xls/codegen/flattening.h"
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/log_lines.h"
+#include "xls/common/logging/logging.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 
@@ -48,7 +51,7 @@ bool IsRepresentable(Type* type) {
 absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
     Node* node, ModuleBuilder* mb,
     const absl::flat_hash_map<Node*, NodeRepresentation>& node_exprs) {
-  if (node->Is<xls::Assert>() && node->Is<xls::Cover>()) {
+  if (node->Is<xls::Assert>() || node->Is<xls::Cover>()) {
     // Asserts are statements, not expressions, and are emitted after all other
     // operations.
     return UnrepresentedSentinel();
@@ -72,108 +75,6 @@ absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
   }
   return absl::UnimplementedError(
       absl::StrFormat("Unable to generate code for: %s", node->ToString()));
-}
-
-// Generates logic for the given nodes which must be in
-// topological sort order. The map node_exprs should contain the
-// representations for any nodes which occur before the given nodes (e.g.,
-// receive nodes or parameters). The Verilog representations (e.g.,
-// Expression*) for each of the nodes is added to the map.
-absl::Status GenerateLogic(
-    Block* block, ModuleBuilder* mb,
-    absl::flat_hash_map<Node*, NodeRepresentation>* node_exprs,
-    absl::flat_hash_map<std::string, ModuleBuilder::Register>* registers,
-    const CodegenOptions& options) {
-  for (Node* node : TopoSort(block)) {
-    XLS_VLOG(1) << "Generating expression for: " << node->GetName();
-
-    // Ports are handled elsewhere for deterministic insertion of ports.
-    if (node->Is<InputPort>() || node->Is<OutputPort>()) {
-      continue;
-    }
-
-    if (!IsRepresentable(node->GetType())) {
-      (*node_exprs)[node] = UnrepresentedSentinel();
-      continue;
-    }
-
-    // If any of the operands do not have an Expression* representation then
-    // handle the node specially.
-    if (std::any_of(
-            node->operands().begin(), node->operands().end(), [&](Node* n) {
-              return !absl::holds_alternative<Expression*>(node_exprs->at(n));
-            })) {
-      XLS_ASSIGN_OR_RETURN(
-          (*node_exprs)[node],
-          CodegenNodeWithUnrepresentedOperands(node, mb, *node_exprs));
-      continue;
-    }
-
-    if (node->Is<RegisterWrite>()) {
-      RegisterWrite* reg_write = node->As<RegisterWrite>();
-      registers->at(reg_write->register_name()).next =
-          absl::get<Expression*>(node_exprs->at(reg_write->data()));
-      if (reg_write->load_enable().has_value()) {
-        registers->at(reg_write->register_name()).load_enable =
-            absl::get<Expression*>(
-                node_exprs->at(reg_write->load_enable().value()));
-      }
-      (*node_exprs)[node] = UnrepresentedSentinel();
-      continue;
-    }
-    if (node->Is<RegisterRead>()) {
-      RegisterRead* reg_read = node->As<RegisterRead>();
-      (*node_exprs)[node] = registers->at(reg_read->register_name()).ref;
-      continue;
-    }
-
-    // Emit non-bits-typed literals as module-level constants because in
-    // general these complicated types cannot be handled inline, and
-    // constructing them in Verilog may require a sequence of assignments.
-    if (node->Is<xls::Literal>() && !node->GetType()->IsBits()) {
-      XLS_ASSIGN_OR_RETURN(
-          (*node_exprs)[node],
-          mb->DeclareModuleConstant(node->GetName(),
-                                    node->As<xls::Literal>()->value()));
-      continue;
-    }
-
-    if (std::any_of(
-            node->operands().begin(), node->operands().end(), [&](Node* n) {
-              return !absl::holds_alternative<Expression*>(node_exprs->at(n));
-            })) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Unable to generate code for node %s, has unrepresentable operand",
-          node->GetName()));
-    }
-
-    std::vector<Expression*> inputs;
-    for (Node* operand : node->operands()) {
-      inputs.push_back(absl::get<Expression*>(node_exprs->at(operand)));
-    }
-
-    // Gate operations are emitted specially as they may have a custom
-    // user-specified format string.
-    if (node->Is<Gate>()) {
-      XLS_ASSIGN_OR_RETURN((*node_exprs)[node],
-                           mb->EmitGate(node->As<Gate>(), inputs[0], inputs[1],
-                                        options.gate_format()));
-      continue;
-    }
-
-    // If the node has an assigned name then don't emit as an inline
-    // expression. This ensures the name appears in the generated Verilog.
-    if (node->HasAssignedName() || node->users().size() > 1 ||
-        node->function_base()->HasImplicitUse(node) ||
-        !mb->CanEmitAsInlineExpression(node)) {
-      XLS_ASSIGN_OR_RETURN((*node_exprs)[node],
-                           mb->EmitAsAssignment(node->GetName(), node, inputs));
-    } else {
-      XLS_ASSIGN_OR_RETURN((*node_exprs)[node],
-                           mb->EmitAsInlineExpression(node, inputs));
-    }
-  }
-  return absl::OkStatus();
 }
 
 // Return a ResetProto representing the reset signal of the block. Requires that
@@ -216,6 +117,459 @@ absl::StatusOr<absl::optional<ResetProto>> GetBlockResetProto(Block* block) {
   return reset_proto;
 }
 
+// A data structure representing a stage within a feed-forward pipeline.
+struct Stage {
+  // The register-reads at the beginning of the stage.
+  std::vector<Node*> reg_reads;
+
+  // The combinational logic within the stage in a topological sort order.
+  std::vector<Node*> combinational_nodes;
+
+  // The register-writes at the end of the stage.
+  std::vector<Node*> reg_writes;
+
+  // The registers written at the end of the pipeline stage.
+  std::vector<Register*> registers;
+
+  bool is_trivial = true;
+};
+
+// Partitions the nodes of the block into sequential sets of pipeline stages.
+// Stages have the following properties:
+//
+//   (1) A node is in the same stage (or later) as its operands.
+//
+//   (2) If a RegisterWrite node for register R is in stage N the RegisterRead
+//       node for R is in stage N+1.
+//
+// The stages are returned as a vector with stage N at index N of the
+// vector.
+//
+// Returns an error if partitioning the nodes in this manner is impossible. This
+// is the case if the block's dependency graph is cyclic (counting paths through
+// registers), or if there exists two paths from a node A to a node B (again
+// counting paths through registers) which have a different number of registers.
+//
+// TODO(meheff): 2021/08/27 Replace this pipeline reconstruction with tags on
+// the pipeline registers which indicate the stage. These markers then are used
+// to structure the Verilog.
+absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(Block* block) {
+  absl::flat_hash_map<std::string, Block::RegisterNodes> reg_nodes;
+  XLS_ASSIGN_OR_RETURN(reg_nodes, block->GetRegisterNodes());
+
+  // Construct a graph as an edge list which indicates the minimum distance in
+  // stages between nodes in the block.
+  struct Edge {
+    Node* node;
+    int64_t distance;
+  };
+  absl::flat_hash_map<Node*, std::vector<Edge>> stage_graph;
+  for (Node* node : block->nodes()) {
+    // Create the node in the graph if it does not exist.
+    stage_graph.insert({node, {}});
+
+    for (Node* operand : node->operands()) {
+      // A node must be in the same stage or later than its operand (distance
+      // 0). This is condition (1) above.
+      stage_graph[operand].push_back(Edge{node, 0});
+    }
+
+    if (node->Is<RegisterWrite>()) {
+      RegisterWrite* reg_write = node->As<RegisterWrite>();
+      RegisterRead* reg_read =
+          reg_nodes.at(reg_write->register_name()).reg_read;
+      // A node register read must be must exactly one stage after the register
+      // write. Express this as a distance of one from the RegisterWrite to the
+      // RegisterRead, and a distance of -1 from the RegisterRead to the
+      // RegisterWrite.
+      stage_graph[reg_write].push_back(Edge{reg_read, 1});
+      stage_graph[reg_read].push_back(Edge{reg_write, -1});
+    }
+  }
+
+  // Starting at all nodes in stage 0, incrementally increment the stages of
+  // nodes to satisfy the above conditions (1) and (2) as indicated in the stage
+  // graph constructed above.
+  std::deque<Node*> worklist;
+  absl::flat_hash_map<Node*, int64_t> node_stage;
+  for (Node* node : block->nodes()) {
+    node_stage[node] = 0;
+    worklist.push_back(node);
+  }
+
+  int64_t max_stage = 0;
+  while (!worklist.empty()) {
+    Node* source = worklist.front();
+    worklist.pop_front();
+
+    // The number of stages should never exceed the number of nodes. In this
+    // case, there is an impossible-to-pipeline graph.
+    XLS_RET_CHECK_LT(node_stage.at(source), block->node_count())
+        << "Block is not a pipeline. May contain a (register) backedge or "
+           "registers are not layered";
+
+    for (const Edge& edge : stage_graph.at(source)) {
+      Node* target = edge.node;
+      // `min_stage` is the earliest stage `target` may appear in.
+      int64_t min_stage = node_stage.at(source) + edge.distance;
+      if (node_stage.at(target) < min_stage) {
+        node_stage[target] = min_stage;
+        max_stage = std::max(max_stage, min_stage);
+        worklist.push_back(target);
+      }
+    }
+  }
+
+  // Verify all minimum distances are satisfied in the stage assignment.
+  for (Node* node : block->nodes()) {
+    if (node->Is<RegisterWrite>()) {
+      RegisterWrite* reg_write = node->As<RegisterWrite>();
+      RegisterRead* reg_read =
+          reg_nodes.at(reg_write->register_name()).reg_read;
+      XLS_RET_CHECK_EQ(node_stage[reg_write] + 1, node_stage[reg_read]);
+      XLS_RET_CHECK_EQ(node_stage[reg_write], node_stage[reg_write->data()]);
+    }
+  }
+
+  // Gather the nodes in a vector of stages.
+  std::vector<Stage> stages(max_stage + 1);
+  for (Node* node : TopoSort(block)) {
+    if (node->Is<InputPort>() || node->Is<OutputPort>()) {
+      continue;
+    }
+
+    Stage& stage = stages[node_stage[node]];
+    if (node->Is<RegisterWrite>()) {
+      stage.reg_writes.push_back(node->As<RegisterWrite>());
+      XLS_ASSIGN_OR_RETURN(
+          Register * reg,
+          block->GetRegister(node->As<RegisterWrite>()->register_name()));
+      stage.registers.push_back(reg);
+    } else if (node->Is<RegisterRead>()) {
+      stage.reg_reads.push_back(node->As<RegisterRead>());
+    } else {
+      stage.combinational_nodes.push_back(node);
+    }
+  }
+  return stages;
+}
+
+// Abstraction encapsulating the necessary information to generate
+// (System)Verilog for an IR block.
+class BlockGenerator {
+ public:
+  // Generates (System)Verilog from the given block using the given options.
+  static absl::StatusOr<std::string> Generate(Block* block,
+                                              const CodegenOptions& options) {
+    XLS_ASSIGN_OR_RETURN(absl::optional<ResetProto> reset_proto,
+                         GetBlockResetProto(block));
+    absl::optional<std::string> clock_name;
+    if (block->GetClockPort().has_value()) {
+      clock_name = block->GetClockPort()->name;
+    } else if (!block->GetRegisters().empty()) {
+      return absl::InvalidArgumentError(
+          "Block has registers but no clock port");
+    }
+
+    BlockGenerator generator(block, options, clock_name, reset_proto);
+    return generator.Emit();
+  }
+
+ private:
+  BlockGenerator(Block* block, const CodegenOptions& options,
+                 absl::optional<std::string> clock_name,
+                 absl::optional<ResetProto> reset_proto)
+      : block_(block),
+        options_(options),
+        reset_proto_(reset_proto),
+        file_(options.use_system_verilog()),
+        mb_(block->name(), &file_, options.use_system_verilog(), clock_name,
+            reset_proto) {}
+
+  // Generates and returns the Verilog text for the underlying block.
+  absl::StatusOr<std::string> Emit() {
+    XLS_RETURN_IF_ERROR(EmitInputPorts());
+    if (options_.emit_as_pipeline()) {
+      // Emits the block as a sequence of pipeline stages. First reconstruct the
+      // stages and emit the stages one-by-one. Emitting as a pipeline is purely
+      // cosmentic relative to the emit_as_pipeline=false option as the Verilog
+      // generated each way is functionally identical.
+      XLS_ASSIGN_OR_RETURN(std::vector<Stage> stages,
+                           SplitBlockIntoStages(block_));
+      for (int64_t stage_num = 0; stage_num < stages.size(); ++stage_num) {
+        XLS_VLOG(2) << "Emitting stage: " << stage_num;
+        const Stage& stage = stages.at(stage_num);
+        mb_.NewDeclarationAndAssignmentSections();
+        XLS_RETURN_IF_ERROR(EmitLogic(stage.reg_reads));
+        if (!stage.registers.empty() || !stage.combinational_nodes.empty()) {
+          mb_.declaration_section()->Add<BlankLine>();
+          mb_.declaration_section()->Add<Comment>(
+              absl::StrFormat("===== Pipe stage %d:", stage_num));
+          XLS_RETURN_IF_ERROR(EmitLogic(stage.combinational_nodes));
+
+          if (!stage.registers.empty()) {
+            mb_.NewDeclarationAndAssignmentSections();
+            mb_.declaration_section()->Add<BlankLine>();
+            mb_.declaration_section()->Add<Comment>(
+                absl::StrFormat("Registers for pipe stage %d:", stage_num));
+            XLS_RETURN_IF_ERROR(DeclareRegisters(stage.registers));
+            XLS_RETURN_IF_ERROR(EmitLogic(stage.reg_writes));
+            XLS_RETURN_IF_ERROR(AssignRegisters(stage.registers));
+          }
+        }
+      }
+    } else {
+      XLS_RETURN_IF_ERROR(DeclareRegisters(block_->GetRegisters()));
+      XLS_RETURN_IF_ERROR(EmitLogic(TopoSort(block_).AsVector()));
+      XLS_RETURN_IF_ERROR(AssignRegisters(block_->GetRegisters()));
+    }
+
+    // Emit asserts and coverpoints separately at the end of the Verilog module.
+    XLS_RETURN_IF_ERROR(EmitAsserts());
+    XLS_RETURN_IF_ERROR(EmitCovers());
+
+    XLS_RETURN_IF_ERROR(EmitOutputPorts());
+
+    return mb_.file()->Emit();
+  }
+
+  absl::Status EmitInputPorts() {
+    for (const Block::Port& port : block_->GetPorts()) {
+      if (absl::holds_alternative<InputPort*>(port)) {
+        InputPort* input_port = absl::get<InputPort*>(port);
+        if (reset_proto_.has_value() &&
+            input_port->GetName() == reset_proto_->name()) {
+          // The reset signal is implicitly added by ModuleBuilder.
+          node_exprs_[input_port] = mb_.reset().value().signal;
+        } else {
+          XLS_ASSIGN_OR_RETURN(
+              Expression * port_expr,
+              mb_.AddInputPort(input_port->GetName(), input_port->GetType()));
+          node_exprs_[input_port] = port_expr;
+        }
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  // Emits the logic for the given nodes. This includes declaring and wires/regs
+  // defined by the nodes.
+  absl::Status EmitLogic(absl::Span<Node* const> nodes) {
+    for (Node* node : nodes) {
+      XLS_VLOG(3) << "Emitting logic for: " << node->GetName();
+
+      // Ports are handled elsewhere for proper ordering of ports.
+      if (node->Is<InputPort>() || node->Is<OutputPort>()) {
+        continue;
+      }
+
+      if (!IsRepresentable(node->GetType())) {
+        node_exprs_[node] = UnrepresentedSentinel();
+        continue;
+      }
+
+      // If any of the operands do not have an Expression* representation then
+      // handle the node specially.
+      if (std::any_of(
+              node->operands().begin(), node->operands().end(), [&](Node* n) {
+                return !absl::holds_alternative<Expression*>(node_exprs_.at(n));
+              })) {
+        XLS_ASSIGN_OR_RETURN(
+            node_exprs_[node],
+            CodegenNodeWithUnrepresentedOperands(node, &mb_, node_exprs_));
+        continue;
+      }
+
+      // RegisterWrite and RegisterRead don't directly generate any VAST ast,
+      // but some bookkeeping is necessary for associating an expression with
+      // each register and setting the next and (optional) load-enable
+      // expressions.
+      if (node->Is<RegisterWrite>()) {
+        RegisterWrite* reg_write = node->As<RegisterWrite>();
+        mb_registers_.at(reg_write->register_name()).next =
+            absl::get<Expression*>(node_exprs_.at(reg_write->data()));
+        if (reg_write->load_enable().has_value()) {
+          mb_registers_.at(reg_write->register_name()).load_enable =
+              absl::get<Expression*>(
+                  node_exprs_.at(reg_write->load_enable().value()));
+        }
+        node_exprs_[node] = UnrepresentedSentinel();
+        continue;
+      }
+      if (node->Is<RegisterRead>()) {
+        RegisterRead* reg_read = node->As<RegisterRead>();
+        node_exprs_[node] = mb_registers_.at(reg_read->register_name()).ref;
+        continue;
+      }
+
+      // Emit non-bits-typed literals as module-level constants because in
+      // general these complicated types cannot be handled inline, and
+      // constructing them in Verilog may require a sequence of assignments.
+      if (node->Is<xls::Literal>() && !node->GetType()->IsBits()) {
+        XLS_ASSIGN_OR_RETURN(
+            node_exprs_[node],
+            mb_.DeclareModuleConstant(node->GetName(),
+                                      node->As<xls::Literal>()->value()));
+        continue;
+      }
+
+      if (std::any_of(
+              node->operands().begin(), node->operands().end(), [&](Node* n) {
+                return !absl::holds_alternative<Expression*>(node_exprs_.at(n));
+              })) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Unable to generate code for node %s, has unrepresentable operand",
+            node->GetName()));
+      }
+
+      std::vector<Expression*> inputs;
+      for (Node* operand : node->operands()) {
+        inputs.push_back(absl::get<Expression*>(node_exprs_.at(operand)));
+      }
+
+      // Gate operations are emitted specially as they may have a custom
+      // user-specified format string.
+      if (node->Is<Gate>()) {
+        XLS_ASSIGN_OR_RETURN(node_exprs_[node],
+                             mb_.EmitGate(node->As<Gate>(), inputs[0],
+                                          inputs[1], options_.gate_format()));
+        continue;
+      }
+
+      // If the node has an assigned name then don't emit as an inline
+      // expression. This ensures the name appears in the generated Verilog.
+      auto emit_as_assignment = [this](Node* n) {
+        if (n->HasAssignedName() || n->users().size() > 1 ||
+            n->function_base()->HasImplicitUse(n) ||
+            !mb_.CanEmitAsInlineExpression(n)) {
+          return true;
+        }
+        // Emit operands of RegisterWrite's as assignments rather than inline
+        // to avoid having logic in the always_ff blocks.
+        for (Node* user : n->users()) {
+          if (user->Is<RegisterWrite>()) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      if (emit_as_assignment(node)) {
+        XLS_ASSIGN_OR_RETURN(
+            node_exprs_[node],
+            mb_.EmitAsAssignment(node->GetName(), node, inputs));
+      } else {
+        XLS_ASSIGN_OR_RETURN(node_exprs_[node],
+                             mb_.EmitAsInlineExpression(node, inputs));
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  // Declares the given registers using `reg` declarations.
+  absl::Status DeclareRegisters(absl::Span<Register* const> registers) {
+    const absl::optional<verilog::Reset>& reset = mb_.reset();
+    for (Register* reg : registers) {
+      XLS_VLOG(3) << "Declaring register " << reg->name();
+      Expression* reset_expr = nullptr;
+      if (reg->reset().has_value()) {
+        XLS_RET_CHECK(reset.has_value());
+        const Value& reset_value = reg->reset()->reset_value;
+
+        // If the value is a bits type it can be emitted inline. Otherwise emit
+        // as a module constant.
+        if (reset_value.IsBits()) {
+          reset_expr = mb_.file()->Literal(reset_value.bits());
+        } else {
+          XLS_ASSIGN_OR_RETURN(
+              reset_expr, mb_.DeclareModuleConstant(
+                              absl::StrCat(reg->name(), "_init"), reset_value));
+        }
+      }
+      XLS_ASSIGN_OR_RETURN(
+          mb_registers_[reg->name()],
+          mb_.DeclareRegister(absl::StrCat(reg->name()), reg->type(),
+                              /*next=*/nullptr, reset_expr));
+    }
+    return absl::OkStatus();
+  }
+
+  // Adds an always_ff (or Verilog equivalent) and use it to assign the next
+  // cycle value for each of the given registers. Registers must have been
+  // declared previously with DeclareRegisters.
+  absl::Status AssignRegisters(absl::Span<Register* const> registers) {
+    // Group registers with/without reset signal and call
+    // ModuleBuilder::AssignRegisters for each.
+    std::vector<ModuleBuilder::Register> registers_with_reset;
+    std::vector<ModuleBuilder::Register> registers_without_reset;
+    for (Register* reg : registers) {
+      XLS_RET_CHECK(mb_registers_.contains(reg->name())) << absl::StreamFormat(
+          "Register `%s` was not previously declared", reg->name());
+      ModuleBuilder::Register mb_reg = mb_registers_.at(reg->name());
+      if (reg->reset().has_value()) {
+        registers_with_reset.push_back(mb_reg);
+      } else {
+        registers_without_reset.push_back(mb_reg);
+      }
+    }
+    if (!registers_without_reset.empty()) {
+      XLS_RETURN_IF_ERROR(mb_.AssignRegisters(registers_without_reset));
+    }
+    if (!registers_with_reset.empty()) {
+      XLS_RETURN_IF_ERROR(mb_.AssignRegisters(registers_with_reset));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status EmitOutputPorts() {
+    for (OutputPort* output_port : block_->GetOutputPorts()) {
+      XLS_RETURN_IF_ERROR(mb_.AddOutputPort(
+          output_port->GetName(), output_port->operand(0)->GetType(),
+          absl::get<Expression*>(node_exprs_.at(output_port->operand(0)))));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status EmitAsserts() {
+    for (Node* node : block_->nodes()) {
+      if (node->Is<xls::Assert>()) {
+        xls::Assert* asrt = node->As<xls::Assert>();
+        Expression* condition =
+            absl::get<Expression*>(node_exprs_.at(asrt->condition()));
+        XLS_RETURN_IF_ERROR(
+            mb_.EmitAssert(asrt, condition, options_.assert_format()));
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status EmitCovers() {
+    for (Node* node : block_->nodes()) {
+      if (node->Is<xls::Cover>()) {
+        xls::Cover* cover = node->As<xls::Cover>();
+        Expression* condition =
+            absl::get<Expression*>(node_exprs_.at(cover->condition()));
+        XLS_RETURN_IF_ERROR(mb_.EmitCover(cover, condition));
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  Block* block_;
+  const CodegenOptions& options_;
+  absl::optional<ResetProto> reset_proto_;
+
+  VerilogFile file_;
+  ModuleBuilder mb_;
+
+  // Map from Node* to the Verilog expression representing its value.
+  absl::flat_hash_map<Node*, NodeRepresentation> node_exprs_;
+
+  // Map from register name to the ModuleBuilder register abstraction
+  // representing the underlying Verilog register.
+  absl::flat_hash_map<std::string, ModuleBuilder::Register> mb_registers_;
+};
+
 }  // namespace
 
 absl::StatusOr<std::string> GenerateVerilog(Block* block,
@@ -223,105 +577,8 @@ absl::StatusOr<std::string> GenerateVerilog(Block* block,
   XLS_VLOG(2) << "Generating Verilog for block:";
   XLS_VLOG_LINES(2, block->DumpIr());
 
-  VerilogFile f(options.use_system_verilog());
-  absl::optional<std::string> clock_name;
-  if (block->GetClockPort().has_value()) {
-    clock_name = block->GetClockPort().value().name;
-  } else if (!block->GetRegisters().empty()) {
-    return absl::InvalidArgumentError("Block has registers but no clock port");
-  }
-
-  XLS_ASSIGN_OR_RETURN(absl::optional<ResetProto> reset_proto,
-                       GetBlockResetProto(block));
-  ModuleBuilder mb(block->name(), &f, options.use_system_verilog(), clock_name,
-                   reset_proto);
-
-  // Map from Node* to the Verilog expression representing its value.
-  absl::flat_hash_map<Node*, NodeRepresentation> node_exprs;
-
-  // Add input ports.
-  for (const Block::Port& port : block->GetPorts()) {
-    if (absl::holds_alternative<InputPort*>(port)) {
-      InputPort* input_port = absl::get<InputPort*>(port);
-      if (reset_proto.has_value() &&
-          input_port->GetName() == reset_proto->name()) {
-        // The reset signal is implicitly added by ModuleBuilder.
-        node_exprs[input_port] = mb.reset().value().signal;
-      } else {
-        XLS_ASSIGN_OR_RETURN(
-            Expression * port_expr,
-            mb.AddInputPort(input_port->GetName(), input_port->GetType()));
-        node_exprs[input_port] = port_expr;
-      }
-    }
-  }
-
-  // Declare the registers.
-  const absl::optional<verilog::Reset>& reset = mb.reset();
-  absl::flat_hash_map<std::string, ModuleBuilder::Register> registers;
-  for (Register* reg : block->GetRegisters()) {
-    XLS_VLOG(3) << "Declaring register " << reg->name();
-    Expression* reset_expr = nullptr;
-    if (reg->reset().has_value()) {
-      XLS_RET_CHECK(reset.has_value());
-      const Value& reset_value = reg->reset()->reset_value;
-
-      // If the value is a bits type it can be emitted inline. Otherwise emit
-      // as a module constant.
-      if (reset_value.IsBits()) {
-        reset_expr = f.Literal(reset_value.bits());
-      } else {
-        XLS_ASSIGN_OR_RETURN(
-            reset_expr, mb.DeclareModuleConstant(
-                            absl::StrCat(reg->name(), "_init"), reset_value));
-      }
-    }
-    XLS_ASSIGN_OR_RETURN(
-        registers[reg->name()],
-        mb.DeclareRegister(absl::StrCat(reg->name()), reg->type(),
-                           /*next=*/nullptr, reset_expr));
-  }
-
-  XLS_RETURN_IF_ERROR(
-      GenerateLogic(block, &mb, &node_exprs, &registers, options));
-
-  if (!registers.empty()) {
-    std::vector<ModuleBuilder::Register> register_vec;
-    for (Register* reg : block->GetRegisters()) {
-      register_vec.push_back(registers.at(reg->name()));
-    }
-    XLS_RETURN_IF_ERROR(mb.AssignRegisters(register_vec));
-  }
-
-  // Emit all asserts together.
-  for (Node* node : block->nodes()) {
-    if (node->Is<xls::Assert>()) {
-      xls::Assert* asrt = node->As<xls::Assert>();
-      Expression* condition =
-          absl::get<Expression*>(node_exprs.at(asrt->condition()));
-      XLS_RETURN_IF_ERROR(
-          mb.EmitAssert(asrt, condition, options.assert_format()));
-    }
-  }
-
-  // Same for covers.
-  for (Node* node : block->nodes()) {
-    if (node->Is<xls::Cover>()) {
-      xls::Cover* cover = node->As<xls::Cover>();
-      Expression* condition =
-          absl::get<Expression*>(node_exprs.at(cover->condition()));
-      XLS_RETURN_IF_ERROR(mb.EmitCover(cover, condition));
-    }
-  }
-
-  // Add the output ports.
-  for (OutputPort* output_port : block->GetOutputPorts()) {
-    XLS_RETURN_IF_ERROR(mb.AddOutputPort(
-        output_port->GetName(), output_port->operand(0)->GetType(),
-        absl::get<Expression*>(node_exprs.at(output_port->operand(0)))));
-  }
-
-  std::string text = f.Emit();
+  XLS_ASSIGN_OR_RETURN(std::string text,
+                       BlockGenerator::Generate(block, options));
 
   XLS_VLOG(2) << "Verilog output:";
   XLS_VLOG_LINES(2, text);

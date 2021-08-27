@@ -1,4 +1,4 @@
-module PipelinedAPlusBNoReset(
+module PipelinedAandBNoReset(
   input wire the_clock,
   input wire [31:0] a,
   input wire [31:0] b,
@@ -7,12 +7,12 @@ module PipelinedAPlusBNoReset(
   reg [31:0] p0_a;
   reg [31:0] p0_b;
   reg [31:0] p1_sum;
-  wire [31:0] add_7;
-  assign add_7 = p0_a + p0_b;
-  always @ (posedge the_clock) begin
+  wire [31:0] and_7;
+  assign and_7 = p0_a & p0_b;
+  always_ff @ (posedge the_clock) begin
     p0_a <= a;
     p0_b <= b;
-    p1_sum <= add_7;
+    p1_sum <= and_7;
   end
   assign sum = p1_sum;
 endmodule

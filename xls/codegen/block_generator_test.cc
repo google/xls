@@ -49,14 +49,14 @@ class BlockGeneratorTest : public VerilogTestBase {
   }
 };
 
-TEST_P(BlockGeneratorTest, APlusB) {
+TEST_P(BlockGeneratorTest, AandB) {
   Package package(TestBaseName());
 
   Type* u32 = package.GetBitsType(32);
   BlockBuilder bb(TestBaseName(), &package);
   BValue a = bb.InputPort("a", u32);
   BValue b = bb.InputPort("b", u32);
-  bb.OutputPort("sum", bb.Add(a, b));
+  bb.OutputPort("sum", bb.And(a, b));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
@@ -74,12 +74,12 @@ TEST_P(BlockGeneratorTest, APlusB) {
   // The combinational module doesn't a connected clock, but the clock can still
   // be used to sequence events in time.
   tb.NextCycle().Set("a", 0).Set("b", 0).ExpectEq("sum", 0);
-  tb.NextCycle().Set("a", 100).Set("b", 42).ExpectEq("sum", 142);
+  tb.NextCycle().Set("a", 0x11ff).Set("b", 0x77bb).ExpectEq("sum", 0x11bb);
 
   XLS_ASSERT_OK(tb.Run());
 }
 
-TEST_P(BlockGeneratorTest, PipelinedAPlusB) {
+TEST_P(BlockGeneratorTest, PipelinedAandB) {
   Package package(TestBaseName());
 
   Type* u32 = package.GetBitsType(32);
@@ -100,7 +100,7 @@ TEST_P(BlockGeneratorTest, PipelinedAPlusB) {
 
   // Pipeline register 1.
   BValue p1_sum =
-      bb.InsertRegister("p1_sum", bb.Add(p0_a, p0_b), rst,
+      bb.InsertRegister("p1_sum", bb.And(p0_a, p0_b), rst,
                         xls::Reset{.reset_value = Value(UBits(0, 32)),
                                    .asynchronous = false,
                                    .active_low = false});
@@ -109,8 +109,9 @@ TEST_P(BlockGeneratorTest, PipelinedAPlusB) {
   XLS_ASSERT_OK(bb.block()->AddClockPort("the_clock"));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(block, codegen_options()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string verilog,
+      GenerateVerilog(block, codegen_options().emit_as_pipeline(true)));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleSignature sig,
       GenerateSignature(codegen_options("the_clock"), block));
@@ -124,20 +125,20 @@ TEST_P(BlockGeneratorTest, PipelinedAPlusB) {
   tb.Set("a", 0).Set("b", 0);
   tb.AdvanceNCycles(2).ExpectEq("sum", 0);
 
-  tb.Set("a", 100).Set("b", 42);
-  tb.AdvanceNCycles(2).ExpectEq("sum", 142);
+  tb.Set("a", 0x11ff).Set("b", 0x77bb);
+  tb.AdvanceNCycles(2).ExpectEq("sum", 0x11bb);
 
   tb.Set("the_reset", 1).NextCycle();
   tb.ExpectEq("sum", 0);
 
   tb.Set("the_reset", 0).NextCycle();
   tb.ExpectEq("sum", 0).NextCycle();
-  tb.ExpectEq("sum", 142);
+  tb.ExpectEq("sum", 0x11bb);
 
   XLS_ASSERT_OK(tb.Run());
 }
 
-TEST_P(BlockGeneratorTest, PipelinedAPlusBNoReset) {
+TEST_P(BlockGeneratorTest, PipelinedAandBNoReset) {
   Package package(TestBaseName());
 
   Type* u32 = package.GetBitsType(32);
@@ -150,7 +151,7 @@ TEST_P(BlockGeneratorTest, PipelinedAPlusBNoReset) {
   BValue p0_b = bb.InsertRegister("p0_b", b);
 
   // Pipeline register 1.
-  BValue p1_sum = bb.InsertRegister("p1_sum", bb.Add(p0_a, p0_b));
+  BValue p1_sum = bb.InsertRegister("p1_sum", bb.And(p0_a, p0_b));
 
   bb.OutputPort("sum", p1_sum);
   XLS_ASSERT_OK(bb.block()->AddClockPort("the_clock"));
@@ -171,8 +172,8 @@ TEST_P(BlockGeneratorTest, PipelinedAPlusBNoReset) {
   tb.Set("a", 0).Set("b", 0);
   tb.AdvanceNCycles(2).ExpectEq("sum", 0);
 
-  tb.Set("a", 100).Set("b", 42);
-  tb.AdvanceNCycles(2).ExpectEq("sum", 142);
+  tb.Set("a", 0x11ff).Set("b", 0x77bb);
+  tb.AdvanceNCycles(2).ExpectEq("sum", 0x11bb);
 
   XLS_ASSERT_OK(tb.Run());
 }
