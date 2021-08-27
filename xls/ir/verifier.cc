@@ -1600,7 +1600,9 @@ absl::Status VerifyBlock(Block* block) {
         StrFormat("Block has registers but no clock port"));
   }
 
-  // Verify all registers have exactly one read and write operation.
+  // Verify all registers have exactly one read and write operation and that
+  // operation is the one returned by GetRegisterRead and GetRegisterWrite
+  // respectively.
   absl::flat_hash_map<Register*, RegisterRead*> reg_reads;
   absl::flat_hash_map<Register*, RegisterWrite*> reg_writes;
   for (Node* node : block->nodes()) {
@@ -1635,10 +1637,15 @@ absl::Status VerifyBlock(Block* block) {
       return absl::InternalError(
           StrFormat("Register %s has no read", reg->name()));
     }
+    XLS_ASSIGN_OR_RETURN(RegisterRead * reg_read, block->GetRegisterRead(reg));
+    XLS_RET_CHECK_EQ(reg_read, reg_reads.at(reg));
     if (!reg_writes.contains(reg)) {
       return absl::InternalError(
           StrFormat("Register %s has no write", reg->name()));
     }
+    XLS_ASSIGN_OR_RETURN(RegisterWrite * reg_write,
+                         block->GetRegisterWrite(reg));
+    XLS_RET_CHECK_EQ(reg_write, reg_writes.at(reg));
   }
 
   return absl::OkStatus();

@@ -26,9 +26,6 @@ absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
   bool changed = false;
   Block* block = unit->block;
 
-  absl::flat_hash_map<std::string, Block::RegisterNodes> reg_nodes;
-  XLS_ASSIGN_OR_RETURN(reg_nodes, block->GetRegisterNodes());
-
   std::vector<Register*> registers(block->GetRegisters().begin(),
                                    block->GetRegisters().end());
   for (Register* reg : registers) {
@@ -36,15 +33,15 @@ absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
       // Replace the uses of RegisterRead of a zero-width register with a
       // zero-valued literal and delete the register, RegisterRead, and
       // RegisterWrite.
+      XLS_ASSIGN_OR_RETURN(RegisterRead * reg_read,
+                           block->GetRegisterRead(reg));
+      XLS_ASSIGN_OR_RETURN(RegisterWrite * reg_write,
+                           block->GetRegisterWrite(reg));
       XLS_RETURN_IF_ERROR(
-          reg_nodes.at(reg->name())
-              .reg_read
-              ->ReplaceUsesWithNew<xls::Literal>(ZeroOfType(reg->type()))
+          reg_read->ReplaceUsesWithNew<xls::Literal>(ZeroOfType(reg->type()))
               .status());
-      XLS_RETURN_IF_ERROR(
-          block->RemoveNode(reg_nodes.at(reg->name()).reg_read));
-      XLS_RETURN_IF_ERROR(
-          block->RemoveNode(reg_nodes.at(reg->name()).reg_write));
+      XLS_RETURN_IF_ERROR(block->RemoveNode(reg_read));
+      XLS_RETURN_IF_ERROR(block->RemoveNode(reg_write));
       XLS_RETURN_IF_ERROR(block->RemoveRegister(reg));
       changed = true;
     }

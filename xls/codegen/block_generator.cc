@@ -154,9 +154,6 @@ struct Stage {
 // the pipeline registers which indicate the stage. These markers then are used
 // to structure the Verilog.
 absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(Block* block) {
-  absl::flat_hash_map<std::string, Block::RegisterNodes> reg_nodes;
-  XLS_ASSIGN_OR_RETURN(reg_nodes, block->GetRegisterNodes());
-
   // Construct a graph as an edge list which indicates the minimum distance in
   // stages between nodes in the block.
   struct Edge {
@@ -176,8 +173,11 @@ absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(Block* block) {
 
     if (node->Is<RegisterWrite>()) {
       RegisterWrite* reg_write = node->As<RegisterWrite>();
-      RegisterRead* reg_read =
-          reg_nodes.at(reg_write->register_name()).reg_read;
+      XLS_ASSIGN_OR_RETURN(Register * reg,
+                           block->GetRegister(reg_write->register_name()));
+      XLS_ASSIGN_OR_RETURN(RegisterRead * reg_read,
+                           block->GetRegisterRead(reg));
+
       // A node register read must be must exactly one stage after the register
       // write. Express this as a distance of one from the RegisterWrite to the
       // RegisterRead, and a distance of -1 from the RegisterRead to the
@@ -224,8 +224,10 @@ absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(Block* block) {
   for (Node* node : block->nodes()) {
     if (node->Is<RegisterWrite>()) {
       RegisterWrite* reg_write = node->As<RegisterWrite>();
-      RegisterRead* reg_read =
-          reg_nodes.at(reg_write->register_name()).reg_read;
+      XLS_ASSIGN_OR_RETURN(Register * reg,
+                           block->GetRegister(reg_write->register_name()));
+      XLS_ASSIGN_OR_RETURN(RegisterRead * reg_read,
+                           block->GetRegisterRead(reg));
       XLS_RET_CHECK_EQ(node_stage[reg_write] + 1, node_stage[reg_read]);
       XLS_RET_CHECK_EQ(node_stage[reg_write], node_stage[reg_write->data()]);
     }

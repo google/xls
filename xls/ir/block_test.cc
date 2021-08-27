@@ -355,17 +355,86 @@ TEST_F(BlockTest, BlockRegisterNodes) {
   XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
-  absl::flat_hash_map<std::string, Block::RegisterNodes> reg_nodes;
-  XLS_ASSERT_OK_AND_ASSIGN(reg_nodes, block->GetRegisterNodes());
-  EXPECT_EQ(reg_nodes.size(), 2);
-  ASSERT_TRUE(reg_nodes.contains("a_reg"));
-  EXPECT_TRUE(reg_nodes.at("a_reg").reg == block->GetRegister("a_reg").value());
-  EXPECT_TRUE(reg_nodes.at("a_reg").reg_write == a_write.node());
-  EXPECT_TRUE(reg_nodes.at("a_reg").reg_read == a_read.node());
+  EXPECT_THAT(block->GetRegisterRead(a_reg), IsOkAndHolds(a_read.node()));
+  EXPECT_THAT(block->GetRegisterWrite(a_reg), IsOkAndHolds(a_write.node()));
 
-  EXPECT_TRUE(reg_nodes.at("b_reg").reg == block->GetRegister("b_reg").value());
-  EXPECT_TRUE(reg_nodes.at("b_reg").reg_write == b_write.node());
-  EXPECT_TRUE(reg_nodes.at("b_reg").reg_read == b_read.node());
+  EXPECT_THAT(block->GetRegisterRead(b_reg), IsOkAndHolds(b_read.node()));
+  EXPECT_THAT(block->GetRegisterWrite(b_reg), IsOkAndHolds(b_write.node()));
+}
+
+TEST_F(BlockTest, GetRegisterReadWrite) {
+  auto p = CreatePackage();
+  BlockBuilder bb("my_block", p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = bb.InputPort("a", u32);
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Register * reg, block->AddRegister("a_reg", u32));
+
+  EXPECT_THAT(
+      block->GetRegisterRead(reg),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(
+                   "Block my_block has no read operation for register a_reg")));
+  EXPECT_THAT(
+      block->GetRegisterWrite(reg),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Block my_block has no write operation for register a_reg")));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      RegisterRead * reg_read,
+      block->MakeNode<RegisterRead>(/*loc=*/absl::nullopt, reg->name()));
+
+  EXPECT_THAT(block->GetRegisterRead(reg), IsOkAndHolds(reg_read));
+  EXPECT_THAT(
+      block->GetRegisterWrite(reg),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Block my_block has no write operation for register a_reg")));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      RegisterWrite * reg_write,
+      block->MakeNode<RegisterWrite>(
+          /*loc=*/absl::nullopt, a.node(), /*load_enable=*/absl::nullopt,
+          /*reset=*/absl::nullopt, reg->name()));
+
+  EXPECT_THAT(block->GetRegisterRead(reg), IsOkAndHolds(reg_read));
+  EXPECT_THAT(block->GetRegisterWrite(reg), IsOkAndHolds(reg_write));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      RegisterRead * dup_reg_read,
+      block->MakeNode<RegisterRead>(/*loc=*/absl::nullopt, reg->name()));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * dup_reg_write,
+                           block->MakeNode<RegisterWrite>(
+                               /*loc=*/absl::nullopt, a.node(),
+                               /*load_enable=*/absl::nullopt,
+                               /*reset=*/absl::nullopt, reg->name()));
+
+  EXPECT_THAT(block->GetRegisterRead(reg),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Block my_block has multiple read operation "
+                                 "for register a_reg")));
+  EXPECT_THAT(block->GetRegisterWrite(reg),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Block my_block has multiple write operation "
+                                 "for register a_reg")));
+
+  // Remove duplicate register operations to avoid test failure when the block
+  // is verified on destruction of the VerifiedPackage containing the block.
+  XLS_ASSERT_OK(block->RemoveNode(dup_reg_read));
+  XLS_ASSERT_OK(block->RemoveNode(dup_reg_write));
+
+  // Removing register should fail because of existing reads and writes.
+  EXPECT_THAT(
+      block->RemoveRegister(reg),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Register a_reg can't be removed because a register read "
+                    "or write operation for this register still exists")));
 }
 
 }  // namespace

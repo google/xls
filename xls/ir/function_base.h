@@ -88,11 +88,8 @@ class FunctionBase {
   // Adds a node to the set owned by this function.
   template <typename T>
   T* AddNode(std::unique_ptr<T> n) {
-    if (n->template Is<Param>()) {
-      params_.push_back(n->template As<Param>());
-    }
     T* ptr = n.get();
-    node_iterators_[ptr] = nodes_.insert(nodes_.end(), std::move(n));
+    AddNodeInternal(std::move(n));
     return ptr;
   }
 
@@ -153,6 +150,10 @@ class FunctionBase {
  protected:
   FunctionBase(const FunctionBase& other) = delete;
   void operator=(const FunctionBase& other) = delete;
+
+  // Internal virtual helper for adding a node. Returns a pointer to the newly
+  // added node.
+  virtual Node* AddNodeInternal(std::unique_ptr<Node> node);
 
   std::string name_;
   std::string qualified_name_;

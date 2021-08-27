@@ -124,6 +124,15 @@ Block* FunctionBase::AsBlockOrDie() {
   return down_cast<Block*>(this);
 }
 
+Node* FunctionBase::AddNodeInternal(std::unique_ptr<Node> node) {
+  if (node->Is<Param>()) {
+    params_.push_back(node->As<Param>());
+  }
+  Node* ptr = node.get();
+  node_iterators_[ptr] = nodes_.insert(nodes_.end(), std::move(node));
+  return ptr;
+}
+
 std::ostream& operator<<(std::ostream& os, const FunctionBase& function) {
   os << function.DumpIr();
   return os;

@@ -133,20 +133,15 @@ class Block : public FunctionBase {
   // the block then an error is returned.
   absl::Status RemoveRegister(Register* reg);
 
-  // Data structure collecting a register with the write and read nodes
-  // which operate on the register.
-  struct RegisterNodes {
-    Register* reg;
-    RegisterWrite* reg_write;
-    RegisterRead* reg_read;
-  };
-
-  // Returns a map containing the RegisterRead and RegisterWrite operations for
-  // every register in the block, indexed by register name.
-  // TODO(meheff): 2021/09/18 Try to automatically associate RegisterRead and
-  // RegisterWrite values with Registers as these nodes are added or removed.
-  absl::StatusOr<absl::flat_hash_map<std::string, RegisterNodes>>
-  GetRegisterNodes() const;
+  // Returns the unique register read or write operation associated with the
+  // given register. Returns an error if the register is not owned by the block
+  // or if no or more than one such read/write operation exists. A block with a
+  // register without both a read and write operation is malformed but may exist
+  // temporarily after the creation of the register and before adding the read
+  // and write operations, or when replacing a register read/write operation
+  // where two such operations may briefly exist simultaneously.
+  absl::StatusOr<RegisterRead*> GetRegisterRead(Register* reg) const;
+  absl::StatusOr<RegisterWrite*> GetRegisterWrite(Register* reg) const;
 
   bool HasImplicitUse(Node* node) const override { return false; }
 
@@ -170,6 +165,8 @@ class Block : public FunctionBase {
   // by a node in the hard-constraint-naming category.
   absl::Status SetPortNameExactly(absl::string_view name, Node* port_node);
 
+  Node* AddNodeInternal(std::unique_ptr<Node> node) override;
+
   // All ports in the block in the order they appear in the Verilog module.
   std::vector<Port> ports_;
 
@@ -183,6 +180,10 @@ class Block : public FunctionBase {
   // Registers within this block. Indexed by register name. Stored as
   // std::unique_ptrs for pointer stability.
   absl::flat_hash_map<std::string, std::unique_ptr<Register>> registers_;
+
+  // Register read and write operations associated with each register.
+  absl::flat_hash_map<Register*, std::vector<RegisterRead*>> register_reads_;
+  absl::flat_hash_map<Register*, std::vector<RegisterWrite*>> register_writes_;
 
   // Vector of register pointers. Ordered by register creation time. Kept in
   // sync with the registers_ map. Enables easy, stable iteration over

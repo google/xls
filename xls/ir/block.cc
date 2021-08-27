@@ -160,6 +160,10 @@ absl::StatusOr<Register*> Block::AddRegister(absl::string_view name, Type* type,
   registers_[name] =
       absl::make_unique<Register>(std::string(name), type, reset, this);
   register_vec_.push_back(registers_[name].get());
+  Register* reg = register_vec_.back();
+  register_reads_[reg] = {};
+  register_writes_[reg] = {};
+
   return register_vec_.back();
 }
 
@@ -173,6 +177,15 @@ absl::Status Block::RemoveRegister(Register* reg) {
   }
 
   XLS_RET_CHECK(registers_.at(reg->name()).get() == reg);
+
+  if (!register_reads_.at(reg).empty() || !register_writes_.at(reg).empty()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Register %s can't be removed because a register read "
+                        "or write operation for this register still exists",
+                        reg->name()));
+  }
+  register_reads_.erase(reg);
+  register_writes_.erase(reg);
 
   auto it = std::find(register_vec_.begin(), register_vec_.end(), reg);
   XLS_RET_CHECK(it != register_vec_.end());
@@ -189,34 +202,6 @@ absl::StatusOr<Register*> Block::GetRegister(absl::string_view name) const {
   return registers_.at(name).get();
 }
 
-absl::StatusOr<absl::flat_hash_map<std::string, Block::RegisterNodes>>
-Block::GetRegisterNodes() const {
-  absl::flat_hash_map<std::string, RegisterNodes> reg_nodes;
-  for (Register* reg : GetRegisters()) {
-    XLS_RET_CHECK(!reg_nodes.contains(reg->name()));
-    reg_nodes[reg->name()] = RegisterNodes{reg, nullptr, nullptr};
-  }
-  for (Node* node : nodes()) {
-    if (node->Is<RegisterWrite>()) {
-      RegisterWrite* reg_write = node->As<RegisterWrite>();
-      RegisterNodes& reg_info = reg_nodes.at(reg_write->register_name());
-      XLS_RET_CHECK(reg_info.reg_write == nullptr);
-      reg_info.reg_write = reg_write;
-    } else if (node->Is<RegisterRead>()) {
-      RegisterRead* reg_read = node->As<RegisterRead>();
-      RegisterNodes& reg_info = reg_nodes.at(reg_read->register_name());
-      XLS_RET_CHECK(reg_info.reg_read == nullptr);
-      reg_info.reg_read = reg_read;
-    }
-  }
-  // Verify every register has a read and write node.
-  for (Register* reg : GetRegisters()) {
-    XLS_RET_CHECK(reg_nodes.at(reg->name()).reg_write != nullptr);
-    XLS_RET_CHECK(reg_nodes.at(reg->name()).reg_read != nullptr);
-  }
-  return std::move(reg_nodes);
-}
-
 absl::Status Block::AddClockPort(absl::string_view name) {
   if (clock_port_.has_value()) {
     return absl::InternalError("Block already has clock");
@@ -228,6 +213,45 @@ absl::Status Block::AddClockPort(absl::string_view name) {
   clock_port_ = ClockPort{std::string(name)};
   ports_.push_back(&clock_port_.value());
   return absl::OkStatus();
+}
+
+// Removes the element `node` from the vector element in the given map at the
+// given key. Used for updated register_read_ and register_write_ data members
+// of Block.
+template <typename KeyT, typename NodeT>
+static absl::Status RemoveFromMapOfNodeVectors(
+    KeyT key, NodeT* node,
+    absl::flat_hash_map<KeyT, std::vector<NodeT*>>* map) {
+  XLS_RET_CHECK(map->contains(key)) << node->GetName();
+  std::vector<NodeT*>& vector = map->at(key);
+  auto it = std::find(vector.begin(), vector.end(), node);
+  XLS_RET_CHECK(it != vector.end()) << node->GetName();
+  vector.erase(it);
+  return absl::OkStatus();
+}
+
+// Adds the element `node` to the vector element in the given map at the given
+// key. Used for updated register_read_ and register_write_ data members of
+// Block.
+template <typename KeyT, typename NodeT>
+static absl::Status AddToMapOfNodeVectors(
+    KeyT key, NodeT* node,
+    absl::flat_hash_map<KeyT, std::vector<NodeT*>>* map) {
+  XLS_RET_CHECK(map->contains(key)) << node->GetName();
+  map->at(key).push_back(node);
+  return absl::OkStatus();
+}
+
+Node* Block::AddNodeInternal(std::unique_ptr<Node> node) {
+  Node* ptr = FunctionBase::AddNodeInternal(std::move(node));
+  if (RegisterRead* reg_read = dynamic_cast<RegisterRead*>(ptr)) {
+    Register* reg = GetRegister(reg_read->register_name()).value();
+    XLS_CHECK_OK(AddToMapOfNodeVectors(reg, reg_read, &register_reads_));
+  } else if (RegisterWrite* reg_write = dynamic_cast<RegisterWrite*>(ptr)) {
+    Register* reg = GetRegister(reg_write->register_name()).value();
+    XLS_CHECK_OK(AddToMapOfNodeVectors(reg, reg_write, &register_writes_));
+  }
+  return ptr;
 }
 
 absl::Status Block::RemoveNode(Node* n) {
@@ -258,8 +282,52 @@ absl::Status Block::RemoveNode(Node* n) {
     XLS_RET_CHECK(port_it != ports_.end()) << absl::StrFormat(
         "port node %s is not in the vector of ports", n->GetName());
     ports_.erase(port_it);
+  } else if (RegisterRead* reg_read = dynamic_cast<RegisterRead*>(n)) {
+    XLS_ASSIGN_OR_RETURN(Register * reg,
+                         GetRegister(reg_read->register_name()));
+    XLS_RETURN_IF_ERROR(
+        RemoveFromMapOfNodeVectors(reg, reg_read, &register_reads_));
+  } else if (RegisterWrite* reg_write = dynamic_cast<RegisterWrite*>(n)) {
+    XLS_ASSIGN_OR_RETURN(Register * reg,
+                         GetRegister(reg_write->register_name()));
+    XLS_RETURN_IF_ERROR(
+        RemoveFromMapOfNodeVectors(reg, reg_write, &register_writes_));
   }
+
   return FunctionBase::RemoveNode(n);
+}
+
+absl::StatusOr<RegisterRead*> Block::GetRegisterRead(Register* reg) const {
+  XLS_RET_CHECK(register_reads_.contains(reg)) << absl::StreamFormat(
+      "Block %s does not have register %s (%p)", name(), reg->name(), reg);
+  const std::vector<RegisterRead*>& reads = register_reads_.at(reg);
+  if (reads.size() == 1) {
+    return reads.front();
+  }
+  if (reads.empty()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Block %s has no read operation for register %s", name(), reg->name()));
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Block %s has multiple read operation for register %s",
+                      name(), reg->name()));
+}
+
+absl::StatusOr<RegisterWrite*> Block::GetRegisterWrite(Register* reg) const {
+  XLS_RET_CHECK(register_writes_.contains(reg)) << absl::StreamFormat(
+      "Block %s does not have register %s (%p)", name(), reg->name(), reg);
+  const std::vector<RegisterWrite*>& writes = register_writes_.at(reg);
+  if (writes.size() == 1) {
+    return writes.front();
+  }
+  if (writes.empty()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Block %s has no write operation for register %s",
+                        name(), reg->name()));
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Block %s has multiple write operation for register %s",
+                      name(), reg->name()));
 }
 
 absl::Status Block::ReorderPorts(absl::Span<const std::string> port_names) {
