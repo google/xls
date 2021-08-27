@@ -20,33 +20,33 @@ module TupleOfArrays(
   end
 
   // ===== Pipe stage 2:
-  wire [15:0] tuple_index_10[0:1];
-  wire [7:0] tuple_index_11[0:2];
-  assign tuple_index_10[0] = p1_x[15:0];
-  assign tuple_index_10[1] = p1_x[31:16];
-  assign tuple_index_11[0] = p1_x[39:32];
-  assign tuple_index_11[1] = p1_x[47:40];
-  assign tuple_index_11[2] = p1_x[55:48];
+  wire [15:0] p2_tuple_index_2_comb[0:1];
+  wire [7:0] p2_tuple_index_3_comb[0:2];
+  assign p2_tuple_index_2_comb[0] = p1_x[15:0];
+  assign p2_tuple_index_2_comb[1] = p1_x[31:16];
+  assign p2_tuple_index_3_comb[0] = p1_x[39:32];
+  assign p2_tuple_index_3_comb[1] = p1_x[47:40];
+  assign p2_tuple_index_3_comb[2] = p1_x[55:48];
 
   // Registers for pipe stage 2:
-  reg [15:0] p2_tuple_index_10[0:1];
-  reg [7:0] p2_tuple_index_11[0:2];
+  reg [15:0] p2_tuple_index_2[0:1];
+  reg [7:0] p2_tuple_index_3[0:2];
   always @ (posedge clk) begin
-    p2_tuple_index_10[0] <= tuple_index_10[0];
-    p2_tuple_index_10[1] <= tuple_index_10[1];
-    p2_tuple_index_11[0] <= tuple_index_11[0];
-    p2_tuple_index_11[1] <= tuple_index_11[1];
-    p2_tuple_index_11[2] <= tuple_index_11[2];
+    p2_tuple_index_2[0] <= p2_tuple_index_2_comb[0];
+    p2_tuple_index_2[1] <= p2_tuple_index_2_comb[1];
+    p2_tuple_index_3[0] <= p2_tuple_index_3_comb[0];
+    p2_tuple_index_3[1] <= p2_tuple_index_3_comb[1];
+    p2_tuple_index_3[2] <= p2_tuple_index_3_comb[2];
   end
 
   // ===== Pipe stage 3:
-  wire [55:0] tuple_16;
-  assign tuple_16 = {{p2_tuple_index_10[1], p2_tuple_index_10[0]}, {p2_tuple_index_11[2], p2_tuple_index_11[1], p2_tuple_index_11[0]}};
+  wire [55:0] p3_tuple_4_comb;
+  assign p3_tuple_4_comb = {{p2_tuple_index_2[1], p2_tuple_index_2[0]}, {p2_tuple_index_3[2], p2_tuple_index_3[1], p2_tuple_index_3[0]}};
 
   // Registers for pipe stage 3:
-  reg [55:0] p3_tuple_16;
+  reg [55:0] p3_tuple_4;
   always @ (posedge clk) begin
-    p3_tuple_16 <= tuple_16;
+    p3_tuple_4 <= p3_tuple_4_comb;
   end
-  assign out = p3_tuple_16;
+  assign out = p3_tuple_4;
 endmodule

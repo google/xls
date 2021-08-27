@@ -23,15 +23,15 @@ module identity_of_mul(
   end
 
   // ===== Pipe stage 1:
-  wire [7:0] umul_11;
-  wire [7:0] identity_12;
-  assign umul_11 = umul8b_8b_x_8b(p0_x, p0_y);
-  assign identity_12 = umul_11;
+  wire [7:0] p1_umul_3_comb;
+  wire [7:0] p1_identity_4_comb;
+  assign p1_umul_3_comb = umul8b_8b_x_8b(p0_x, p0_y);
+  assign p1_identity_4_comb = p1_umul_3_comb;
 
   // Registers for pipe stage 1:
-  reg [7:0] p1_identity_12;
+  reg [7:0] p1_identity_4;
   always_ff @ (posedge clk) begin
-    p1_identity_12 <= identity_12;
+    p1_identity_4 <= p1_identity_4_comb;
   end
-  assign out = p1_identity_12;
+  assign out = p1_identity_4;
 endmodule

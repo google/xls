@@ -312,6 +312,44 @@ TEST_P(ModuleSimulatorCodegenTest, PipelinedAddWithValid) {
   EXPECT_EQ(outputs.at("out"), UBits(210, 32));
 }
 
+TEST_P(ModuleSimulatorCodegenTest, PipelinedAddWithManualPipelineControl) {
+  Package package(TestName());
+  FunctionBuilder fb("x_plus_y_plus_z_plus_x", &package);
+  Type* u32 = package.GetBitsType(32);
+  auto x = fb.Param("x", u32);
+  auto y = fb.Param("y", u32);
+  auto z = fb.Param("z", u32);
+  auto out = x + y + z + x;
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.BuildWithReturnValue(out));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(func, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(5)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(schedule, func,
+                           BuildPipelineOptions()
+                               .manual_control("pipeline_le")
+                               .use_system_verilog(UseSystemVerilog())));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+
+  absl::flat_hash_map<std::string, Bits> inputs;
+  inputs["x"] = UBits(42, 32);
+  inputs["y"] = UBits(123, 32);
+  inputs["z"] = UBits(3, 32);
+  absl::flat_hash_map<std::string, Bits> outputs;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.Run(inputs));
+
+  EXPECT_EQ(outputs.size(), 1);
+  ASSERT_TRUE(outputs.contains("out"));
+  EXPECT_EQ(outputs.at("out"), UBits(210, 32));
+}
+
 TEST_P(ModuleSimulatorCodegenTest, AddTwoTupleElements) {
   Package package(TestName());
   FunctionBuilder fb(TestName(), &package);

@@ -41,7 +41,7 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
   }
 
   if (Function* func = dynamic_cast<Function*>(func_base)) {
-    // Function given, use function params and output type to generate
+    // Function given, use to function params and output type to generate
     // type signature.
     for (Param* param : func->params()) {
       b.AddDataInput(param->name(), param->GetType()->GetFlatBitCount());
@@ -53,36 +53,14 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
     Block* block = down_cast<Block*>(func_base);
     std::vector<Type*> input_types;
     std::vector<Type*> output_types;
-
-    // Returns true if the given node is a data port (reset and valid in/out are
-    // not considered data ports).
-    auto is_data_port = [&](Node* node) {
-      if (options.reset().has_value() &&
-          node->GetName() == options.reset()->name()) {
-        return false;
-      }
-      if (options.valid_control().has_value() &&
-          (node->GetName() == options.valid_control()->input_name() ||
-           node->GetName() == options.valid_control()->output_name())) {
-        return false;
-      }
-      return true;
-    };
-
     for (const Block::Port& port : block->GetPorts()) {
       if (absl::holds_alternative<InputPort*>(port)) {
         InputPort* input_port = absl::get<InputPort*>(port);
-        if (!is_data_port(input_port)) {
-          continue;
-        }
         input_types.push_back(input_port->GetType());
         b.AddDataInput(input_port->GetName(),
                        input_port->GetType()->GetFlatBitCount());
       } else if (absl::holds_alternative<OutputPort*>(port)) {
         OutputPort* output_port = absl::get<OutputPort*>(port);
-        if (!is_data_port(output_port)) {
-          continue;
-        }
         Type* type = output_port->operand(0)->GetType();
         output_types.push_back(type);
         b.AddDataOutput(output_port->GetName(), type->GetFlatBitCount());
@@ -107,19 +85,13 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
   if (schedule.has_value()) {
     register_levels += schedule.value().length() - 1;
   }
-  if (register_levels == 0 && !options.emit_as_pipeline()) {
+  if (register_levels == 0) {
     // Block has no registers. The block is combinational.
     b.WithCombinationalInterface();
   } else {
-    absl::optional<PipelineControl> pipeline_control;
-    if (options.valid_control().has_value()) {
-      pipeline_control = PipelineControl();
-      *(pipeline_control->mutable_valid()) = options.valid_control().value();
-    }
     // We assume initiation-interval of one because that is all we generate at
     // the moment.
-    b.WithPipelineInterface(register_levels, /*initiation_interval=*/1,
-                            pipeline_control);
+    b.WithPipelineInterface(register_levels, /*initiation_interval=*/1);
   }
 
   return b.Build();

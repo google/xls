@@ -15,15 +15,15 @@ module RequiredNamedIntermediates(
   end
 
   // ===== Pipe stage 1:
-  wire [7:0] add_11;
-  wire [4:0] bit_slice_12;
-  assign add_11 = p0_x + p0_y;
-  assign bit_slice_12 = add_11[4:0];
+  wire [7:0] p1_add_3_comb;
+  wire [4:0] p1_bit_slice_4_comb;
+  assign p1_add_3_comb = p0_x + p0_y;
+  assign p1_bit_slice_4_comb = p1_add_3_comb[4:0];
 
   // Registers for pipe stage 1:
-  reg [4:0] p1_bit_slice_12;
+  reg [4:0] p1_bit_slice_4;
   always @ (posedge clk) begin
-    p1_bit_slice_12 <= bit_slice_12;
+    p1_bit_slice_4 <= p1_bit_slice_4_comb;
   end
-  assign out = p1_bit_slice_12;
+  assign out = p1_bit_slice_4;
 endmodule

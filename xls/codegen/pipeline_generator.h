@@ -32,11 +32,10 @@ namespace verilog {
 
 // Class setting up default options passed to the pipeline generator.
 inline CodegenOptions BuildPipelineOptions() {
-  return CodegenOptions()
-      .flop_inputs(true)
-      .flop_outputs(true)
-      .clock_name("clk")
-      .emit_as_pipeline(true);
+  CodegenOptions options;
+  options.flop_inputs(true);
+  options.flop_outputs(true);
+  return options;
 }
 
 // Emits the given function as a verilog module which follows the given

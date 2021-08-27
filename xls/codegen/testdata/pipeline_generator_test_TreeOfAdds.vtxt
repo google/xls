@@ -24,31 +24,31 @@ module x_plus_y_plus_z(
   end
 
   // ===== Pipe stage 1:
-  wire [31:0] add_25;
-  wire [31:0] add_26;
-  assign add_25 = p0_a + p0_b;
-  assign add_26 = add_25 + p0_c;
+  wire [31:0] p1_add_6_comb;
+  wire [31:0] p1_add_7_comb;
+  assign p1_add_6_comb = p0_a + p0_b;
+  assign p1_add_7_comb = p1_add_6_comb + p0_c;
 
   // Registers for pipe stage 1:
+  reg [31:0] p1_add_7;
   reg [31:0] p1_d;
   reg [31:0] p1_e;
-  reg [31:0] p1_add_26;
   always @ (posedge clk) begin
+    p1_add_7 <= p1_add_7_comb;
     p1_d <= p0_d;
     p1_e <= p0_e;
-    p1_add_26 <= add_26;
   end
 
   // ===== Pipe stage 2:
-  wire [31:0] add_33;
-  wire [31:0] add_34;
-  assign add_33 = p1_add_26 + p1_d;
-  assign add_34 = add_33 + p1_e;
+  wire [31:0] p2_add_8_comb;
+  wire [31:0] p2_add_9_comb;
+  assign p2_add_8_comb = p1_add_7 + p1_d;
+  assign p2_add_9_comb = p2_add_8_comb + p1_e;
 
   // Registers for pipe stage 2:
-  reg [31:0] p2_add_34;
+  reg [31:0] p2_add_9;
   always @ (posedge clk) begin
-    p2_add_34 <= add_34;
+    p2_add_9 <= p2_add_9_comb;
   end
-  assign out = p2_add_34;
+  assign out = p2_add_9;
 endmodule

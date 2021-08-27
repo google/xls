@@ -43,13 +43,13 @@ module MultidimensionalArray(
   end
 
   // ===== Pipe stage 3:
-  wire [7:0] array_index_18[3];
-  assign array_index_18 = p2_a[p2_index > 16'h0001 ? 16'h0001 : p2_index];
+  wire [7:0] p3_array_index_3_comb[3];
+  assign p3_array_index_3_comb = p2_a[p2_index > 16'h0001 ? 16'h0001 : p2_index];
 
   // Registers for pipe stage 3:
-  reg [7:0] p3_array_index_18[3];
+  reg [7:0] p3_array_index_3[3];
   always_ff @ (posedge clk) begin
-    p3_array_index_18 <= array_index_18;
+    p3_array_index_3 <= p3_array_index_3_comb;
   end
-  assign out = {p3_array_index_18[2], p3_array_index_18[1], p3_array_index_18[0]};
+  assign out = {p3_array_index_3[2], p3_array_index_3[1], p3_array_index_3[0]};
 endmodule

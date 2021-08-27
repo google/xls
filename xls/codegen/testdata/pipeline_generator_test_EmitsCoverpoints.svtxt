@@ -15,16 +15,16 @@ module EmitsCoverpoints(
   end
 
   // ===== Pipe stage 1:
-  wire [7:0] add_15;
-  assign add_15 = p0_x + p0_y;
+  wire [7:0] p1_add_3_comb;
+  assign p1_add_3_comb = p0_x + p0_y;
 
   // Registers for pipe stage 1:
-  reg [7:0] p1_add_15;
+  reg [7:0] p1_add_3;
   always_ff @ (posedge clk) begin
-    p1_add_15 <= add_15;
+    p1_add_3 <= p1_add_3_comb;
   end
   always_comb begin
-    my_coverpoint: cover property (@(posedge clk) add_15 > 8'h80);
+    my_coverpoint: cover property (@(posedge clk) p1_add_3_comb > 8'h80);
   end
-  assign out = p1_add_15;
+  assign out = p1_add_3;
 endmodule
