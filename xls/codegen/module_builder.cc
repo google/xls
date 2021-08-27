@@ -1035,6 +1035,39 @@ absl::Status ModuleBuilder::AssignRegisters(
     absl::Span<const Register> registers) {
   XLS_RET_CHECK(clk_ != nullptr);
 
+  if (registers.empty()) {
+    return absl::OkStatus();
+  }
+
+  // All registers must either all have reset values or none have reset values,
+  // or incorrect Verilog may be generated. The condition resulting in incorrect
+  // Verilog requires that the not-reset register uses the reset signal as a
+  // logic input. For example (`a` is a register with a reset, `b` uses the
+  // reset signal as a logic input):
+  //
+  // always_ff @(psoedge clk) begin
+  //   if (rst) begin
+  //     a <= ...;
+  //   end else begin
+  //     a <= ...;
+  //     b <= rst || ...;
+  // end
+  //
+  // In this case, b will not be assigned the correct value if `rst` is enabled
+  // because of the guarding if. This check avoids the potential issue.
+  for (const Register& reg : registers) {
+    if ((reg.reset_value == nullptr) !=
+        (registers.front().reset_value == nullptr)) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "All registers passed to AssignRegisters must either have a reset or "
+          "none have a reset. Registers %s (%s) and %s (%s) differ.",
+          reg.ref->GetName(),
+          reg.reset_value == nullptr ? "no reset" : "has reset",
+          registers.front().ref->GetName(),
+          registers.front().reset_value == nullptr ? "no reset" : "has reset"));
+    }
+  }
+
   // Construct an always_ff block.
   std::vector<SensitivityListElement> sensitivity_list;
   sensitivity_list.push_back(file_->Make<PosEdge>(clk_));

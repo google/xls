@@ -29,6 +29,9 @@ namespace xls {
 namespace verilog {
 namespace {
 
+using status_testing::StatusIs;
+using ::testing::HasSubstr;
+
 constexpr char kTestName[] = "module_builder_test";
 constexpr char kTestdataPath[] = "xls/codegen/testdata";
 
@@ -108,6 +111,33 @@ TEST_P(ModuleBuilderTest, Registers) {
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  file.Emit());
+}
+
+TEST_P(ModuleBuilderTest, DifferentResetPassedToAssignRegisters) {
+  VerilogFile file(UseSystemVerilog());
+  Package p(TestBaseName());
+  Type* u32 = p.GetBitsType(32);
+  ResetProto reset;
+  reset.set_name("rst");
+  reset.set_asynchronous(false);
+  reset.set_active_low(false);
+  ModuleBuilder mb(TestBaseName(), &file,
+                   /*use_system_verilog=*/UseSystemVerilog(),
+                   /*clk_name=*/"clk", reset);
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleBuilder::Register has_reset,
+      mb.DeclareRegister("has_reset_reg", u32, x, file.Literal(UBits(0, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleBuilder::Register no_reset,
+                           mb.DeclareRegister("no_reset_reg", u32, x));
+  EXPECT_THAT(
+      mb.AssignRegisters({has_reset, no_reset}),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("All registers passed to AssignRegisters must either have "
+                    "a reset or none have a reset. Registers no_reset_reg (no "
+                    "reset) and has_reset_reg (has reset) differ.")));
 }
 
 TEST_P(ModuleBuilderTest, RegisterWithSynchronousReset) {
