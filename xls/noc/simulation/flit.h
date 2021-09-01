@@ -28,7 +28,7 @@ namespace xls::noc {
 // Universal encoding of Flit types.
 enum class FlitType { kInvalid = 0x0, kHead = 0x2, kBody = 0x1, kTail = 0x3 };
 
-std::string FlitTypeToString(FlitType type) {
+inline std::string FlitTypeToString(FlitType type) {
   switch (type) {
     case FlitType::kInvalid:
       return "kInvalid";

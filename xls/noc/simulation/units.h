@@ -61,7 +61,7 @@ constexpr Unit kUnitSecBytes = Unit{0, 0, 8};
 //  ConvertTime( time = 10, from = Unit { .time_unit=-12 },
 //                            to = Unit { .time_unit=0 })
 //  which will return 10.0e-12 seconds as a double.
-double ConvertTime(int64_t time, Unit from, Unit to) {
+inline double ConvertTime(int64_t time, Unit from, Unit to) {
   // TODO(tedhong) : 2021-06-01 Create fast/slow paths to
   //                 improve precision and performance.
   int64_t exponent = from.time_unit - to.time_unit;
@@ -79,7 +79,7 @@ double ConvertTime(int64_t time, Unit from, Unit to) {
 //                     from = Unit { .data_volume_unit=6, .data_volume_base=8 },
 //                     to = Unit { .data_volume_unit=0, .data_volume_base=0 })
 //  which will return 80.0e6 bits.
-double ConvertDataVolume(int64_t space, Unit from, Unit to) {
+inline double ConvertDataVolume(int64_t space, Unit from, Unit to) {
   int64_t exponent = from.data_volume_unit - to.data_volume_unit;
 
   double significand = (static_cast<double>(space) *
@@ -91,7 +91,7 @@ double ConvertDataVolume(int64_t space, Unit from, Unit to) {
 }
 
 // Convert a data rate (ex. bits/sec) from one unit to the next.
-double ConvertDataRate(int64_t space, int64_t time, Unit from, Unit to) {
+inline double ConvertDataRate(int64_t space, int64_t time, Unit from, Unit to) {
   // TODO(tedhong): 2021-06-27 Don't rely on ConvertDataVolume and
   //  ConvertTime to improve precision.
   double space_converted = ConvertDataVolume(space, from, to);
