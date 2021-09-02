@@ -19,6 +19,7 @@
 #include "absl/status/status.h"
 #include "xls/codegen/flattening.h"
 #include "xls/codegen/module_builder.h"
+#include "xls/codegen/node_expressions.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
@@ -433,7 +434,9 @@ class BlockGenerator {
       // If the node has an assigned name then don't emit as an inline
       // expression. This ensures the name appears in the generated Verilog.
       auto emit_as_assignment = [this](Node* n) {
-        if (n->HasAssignedName() || n->users().size() > 1 ||
+        if (n->HasAssignedName() ||
+            (n->users().size() > 1 &&
+             !ShouldInlineExpressionIntoMultipleUses(n)) ||
             n->function_base()->HasImplicitUse(n) ||
             !mb_.CanEmitAsInlineExpression(n)) {
           return true;
