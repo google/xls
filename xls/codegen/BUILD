@@ -496,6 +496,7 @@ cc_library(
     srcs = ["block_generator.cc"],
     hdrs = ["block_generator.h"],
     deps = [
+        ":block_conversion",
         ":codegen_options",
         ":flattening",
         ":module_builder",

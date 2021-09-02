@@ -17,6 +17,7 @@
 #include <deque>
 
 #include "absl/status/status.h"
+#include "xls/codegen/block_conversion.h"
 #include "xls/codegen/flattening.h"
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/node_expressions.h"
@@ -218,6 +219,21 @@ absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(Block* block) {
     }
   }
 
+  // Move non-register nodes to the latest possible stage given their user
+  // constraints. This is primarily to push nodes such as literals into the
+  // stage of their user rather than all being placed in stage 0.
+  for (Node* node : ReverseTopoSort(block)) {
+    if (node->users().empty() || node->Is<RegisterRead>() ||
+        node->Is<RegisterWrite>()) {
+      continue;
+    }
+    int64_t stage = node_stage.at(*(node->users().begin()));
+    for (Node* user : node->users()) {
+      stage = std::min(stage, node_stage.at(user));
+    }
+    node_stage[node] = stage;
+  }
+
   // Verify all minimum distances are satisfied in the stage assignment.
   for (Node* node : block->nodes()) {
     if (node->Is<RegisterWrite>()) {
@@ -295,12 +311,12 @@ class BlockGenerator {
         XLS_VLOG(2) << "Emitting stage: " << stage_num;
         const Stage& stage = stages.at(stage_num);
         mb_.NewDeclarationAndAssignmentSections();
-        XLS_RETURN_IF_ERROR(EmitLogic(stage.reg_reads));
+        XLS_RETURN_IF_ERROR(EmitLogic(stage.reg_reads, stage_num));
         if (!stage.registers.empty() || !stage.combinational_nodes.empty()) {
           mb_.declaration_section()->Add<BlankLine>();
           mb_.declaration_section()->Add<Comment>(
               absl::StrFormat("===== Pipe stage %d:", stage_num));
-          XLS_RETURN_IF_ERROR(EmitLogic(stage.combinational_nodes));
+          XLS_RETURN_IF_ERROR(EmitLogic(stage.combinational_nodes, stage_num));
 
           if (!stage.registers.empty()) {
             mb_.NewDeclarationAndAssignmentSections();
@@ -308,7 +324,7 @@ class BlockGenerator {
             mb_.declaration_section()->Add<Comment>(
                 absl::StrFormat("Registers for pipe stage %d:", stage_num));
             XLS_RETURN_IF_ERROR(DeclareRegisters(stage.registers));
-            XLS_RETURN_IF_ERROR(EmitLogic(stage.reg_writes));
+            XLS_RETURN_IF_ERROR(EmitLogic(stage.reg_writes, stage_num));
             XLS_RETURN_IF_ERROR(AssignRegisters(stage.registers));
           }
         }
@@ -349,7 +365,8 @@ class BlockGenerator {
 
   // Emits the logic for the given nodes. This includes declaring and wires/regs
   // defined by the nodes.
-  absl::Status EmitLogic(absl::Span<Node* const> nodes) {
+  absl::Status EmitLogic(absl::Span<Node* const> nodes,
+                         absl::optional<int64_t> stage = absl::nullopt) {
     for (Node* node : nodes) {
       XLS_VLOG(3) << "Emitting logic for: " << node->GetName();
 
@@ -452,9 +469,13 @@ class BlockGenerator {
       };
 
       if (emit_as_assignment(node)) {
-        XLS_ASSIGN_OR_RETURN(
-            node_exprs_[node],
-            mb_.EmitAsAssignment(node->GetName(), node, inputs));
+        std::string name =
+            stage.has_value() ? absl::StrCat(PipelineSignalName(node->GetName(),
+                                                                stage.value()),
+                                             "_comb")
+                              : node->GetName();
+        XLS_ASSIGN_OR_RETURN(node_exprs_[node],
+                             mb_.EmitAsAssignment(name, node, inputs));
       } else {
         XLS_ASSIGN_OR_RETURN(node_exprs_[node],
                              mb_.EmitAsInlineExpression(node, inputs));

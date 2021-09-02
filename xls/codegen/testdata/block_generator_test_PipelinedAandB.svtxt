@@ -21,8 +21,8 @@ module PipelinedAandB(
   end
 
   // ===== Pipe stage 1:
-  wire [31:0] and_8;
-  assign and_8 = p0_a & p0_b;
+  wire [31:0] p1_and_8_comb;
+  assign p1_and_8_comb = p0_a & p0_b;
 
   // Registers for pipe stage 1:
   reg [31:0] p1_sum;
@@ -30,7 +30,7 @@ module PipelinedAandB(
     if (the_reset) begin
       p1_sum <= 32'h0000_0000;
     end else begin
-      p1_sum <= and_8;
+      p1_sum <= p1_and_8_comb;
     end
   end
   assign sum = p1_sum;
