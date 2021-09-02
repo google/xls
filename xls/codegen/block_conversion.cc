@@ -284,7 +284,7 @@ static absl::Status AddValidSignal(
     // For each (non-valid-signal) pipeline register add `valid` or `valid ||
     // reset` (if reset exists) as a load enable. The `reset` term ensures the
     // pipeline flushes when reset is enabled.
-    for (const PipelineRegister& pipeline_reg : pipeline_registers.at(stage)) {
+    if (!pipeline_registers.at(stage).empty()) {
       Node* load_enable = pipelined_valids[stage];
       if (reset_input_port.has_value()) {
         Node* reset_node = reset_input_port.value();
@@ -294,20 +294,22 @@ static absl::Status AddValidSignal(
                                                      reset_node, Op::kNot));
         }
         XLS_ASSIGN_OR_RETURN(
-            load_enable,
-            block->MakeNode<NaryOp>(
-                /*loc=*/absl::nullopt,
-                std::vector<Node*>({load_enable, reset_node}), Op::kOr));
+            load_enable, block->MakeNodeWithName<NaryOp>(
+                             /*loc=*/absl::nullopt,
+                             std::vector<Node*>({load_enable, reset_node}),
+                             Op::kOr, PipelineSignalName("load_en", stage)));
       }
-
-      XLS_RETURN_IF_ERROR(block
-                              ->MakeNode<RegisterWrite>(
-                                  /*loc=*/absl::nullopt,
-                                  pipeline_reg.reg_write->data(),
-                                  /*load_enable=*/load_enable,
-                                  /*reset=*/absl::nullopt, pipeline_reg.reg)
-                              .status());
-      XLS_RETURN_IF_ERROR(block->RemoveNode(pipeline_reg.reg_write));
+      for (const PipelineRegister& pipeline_reg :
+           pipeline_registers.at(stage)) {
+        XLS_RETURN_IF_ERROR(block
+                                ->MakeNode<RegisterWrite>(
+                                    /*loc=*/absl::nullopt,
+                                    pipeline_reg.reg_write->data(),
+                                    /*load_enable=*/load_enable,
+                                    /*reset=*/absl::nullopt, pipeline_reg.reg)
+                                .status());
+        XLS_RETURN_IF_ERROR(block->RemoveNode(pipeline_reg.reg_write));
+      }
     }
   }
 
