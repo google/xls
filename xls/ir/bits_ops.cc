@@ -543,6 +543,15 @@ Bits LongestCommonPrefixLSB(absl::Span<const Bits> bits_span) {
   return Bits(result_vector);
 }
 
+Bits LongestCommonPrefixMSB(absl::Span<const Bits> bits_span) {
+  std::vector<Bits> reversed;
+  reversed.reserve(bits_span.size());
+  for (const Bits& bits : bits_span) {
+    reversed.push_back(bits_ops::Reverse(bits));
+  }
+  return bits_ops::Reverse(bits_ops::LongestCommonPrefixLSB(reversed));
+}
+
 }  // namespace bits_ops
 
 Bits LogicalOpIdentity(Op op, int64_t width) {

@@ -47,6 +47,12 @@ class IntervalSet {
   explicit IntervalSet(int64_t bit_count)
       : is_normalized_(true), bit_count_(bit_count), intervals_() {}
 
+  // Returns the number of intervals in the set.
+  // Does not check for normalization, as this function can be used to check if
+  // normalization is required (e.g.: to prevent blowup in memory usage while
+  // building a large set of intervals).
+  int64_t NumberOfIntervals() const { return intervals_.size(); }
+
   // Get all the intervals contained within this interval set.
   // The set must be normalized prior to calling this.
   absl::Span<const Interval> Intervals() const {
@@ -135,6 +141,15 @@ class IntervalSet {
 
   // Print this set of intervals as a string.
   std::string ToString() const;
+
+  friend bool operator==(IntervalSet lhs, IntervalSet rhs) {
+    lhs.Normalize();
+    rhs.Normalize();
+    if (lhs.bit_count_ != rhs.bit_count_) {
+      return false;
+    }
+    return lhs.intervals_ == rhs.intervals_;
+  }
 
  private:
   bool is_normalized_;

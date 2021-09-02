@@ -467,6 +467,30 @@ cc_library(
 )
 
 cc_library(
+    name = "range_query_engine",
+    srcs = ["range_query_engine.cc"],
+    hdrs = ["range_query_engine.h"],
+    deps = [
+        ":query_engine",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:optional",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:abstract_node_evaluator",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:interval",
+        "//xls/ir:interval_set",
+    ],
+)
+
+cc_library(
     name = "ternary_query_engine",
     srcs = ["ternary_query_engine.cc"],
     hdrs = ["ternary_query_engine.h"],
@@ -662,7 +686,9 @@ cc_library(
     deps = [
         ":passes",
         ":query_engine",
+        ":range_query_engine",
         ":ternary_query_engine",
+        ":union_query_engine",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
@@ -1150,6 +1176,32 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "range_query_engine_test",
+    srcs = ["range_query_engine_test.cc"],
+    deps = [
+        ":query_engine",
+        ":range_query_engine",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/logging:log_message",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:type",
         "@com_google_googletest//:gtest",
     ],
 )

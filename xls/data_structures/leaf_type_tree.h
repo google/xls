@@ -170,6 +170,18 @@ class LeafTypeTree {
     return LeafTypeTree<T>(lhs.type(), new_elements);
   }
 
+  friend bool operator==(const LeafTypeTree<T>& lhs,
+                         const LeafTypeTree<T>& rhs) {
+    if (!lhs.type_->IsEqualTo(rhs.type_)) {
+      return false;
+    }
+    XLS_CHECK_EQ(lhs.leaf_types_.size(), rhs.leaf_types_.size());
+    for (int64_t i = 0; i < lhs.leaf_types_.size(); ++i) {
+      XLS_CHECK(lhs.leaf_types_[i]->IsEqualTo(rhs.leaf_types_[i]));
+    }
+    return lhs.elements_ == rhs.elements_;
+  }
+
  private:
   static bool IsLeafType(Type* t) { return t->IsBits() || t->IsToken(); }
 

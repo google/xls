@@ -22,7 +22,9 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
 #include "xls/passes/query_engine.h"
+#include "xls/passes/range_query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
+#include "xls/passes/union_query_engine.h"
 
 namespace xls {
 
@@ -441,8 +443,15 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
 
 absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> query_engine,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> ternary_query_engine,
                        TernaryQueryEngine::Run(f));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<RangeQueryEngine> range_query_engine,
+                       RangeQueryEngine::Run(f));
+  std::vector<std::unique_ptr<QueryEngine>> engines;
+  engines.push_back(std::move(ternary_query_engine));
+  engines.push_back(std::move(range_query_engine));
+  XLS_ASSIGN_OR_RETURN(auto query_engine,
+                       UnionQueryEngine::Run(std::move(engines)));
 
   bool modified = false;
   for (Node* node : TopoSort(f)) {
