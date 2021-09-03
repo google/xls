@@ -600,12 +600,29 @@ absl::Status RangeQueryVisitor::HandleAndReduce(
 
 absl::Status RangeQueryVisitor::HandleArray(Array* array) {
   engine_->InitializeNode(array);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  std::vector<LeafTypeTree<IntervalSet>> children;
+  for (Node* element : array->operands()) {
+    children.push_back(engine_->GetIntervalSetTree(element));
+  }
+  engine_->SetIntervalSetTree(
+      array, LeafTypeTree<IntervalSet>(array->GetType(), children));
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleArrayConcat(ArrayConcat* array_concat) {
   engine_->InitializeNode(array_concat);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  std::vector<LeafTypeTree<IntervalSet>> elements;
+  for (Node* element : array_concat->operands()) {
+    LeafTypeTree<IntervalSet> concatee = engine_->GetIntervalSetTree(element);
+    const int64_t arr_size = element->GetType()->AsArrayOrDie()->size();
+    for (int32_t i = 0; i < arr_size; ++i) {
+      elements.push_back(concatee.CopySubtree({i}));
+    }
+  }
+  engine_->SetIntervalSetTree(
+      array_concat,
+      LeafTypeTree<IntervalSet>(array_concat->GetType(), elements));
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleAssert(Assert* assert_op) {

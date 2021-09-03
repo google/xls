@@ -146,6 +146,68 @@ TEST_F(RangeQueryEngineTest, Add) {
   EXPECT_EQ(UBits(0, 20), engine.GetKnownBitsValues(expr.node()));
 }
 
+TEST_F(RangeQueryEngineTest, Array) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", fb.package()->GetBitsType(10));
+  BValue y = fb.Param("y", fb.package()->GetBitsType(10));
+  BValue expr = fb.Array({x, y}, fb.package()->GetBitsType(10));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), {Interval(UBits(100, 10), UBits(150, 10))});
+  IntervalSetTree y_ist =
+      BitsLTT(y.node(), {Interval(UBits(200, 10), UBits(250, 10))});
+
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(x_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({0}));
+  EXPECT_EQ(y_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({1}));
+}
+
+TEST_F(RangeQueryEngineTest, ArrayConcat) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", fb.package()->GetBitsType(10));
+  BValue y = fb.Param("y", fb.package()->GetBitsType(10));
+  BValue z = fb.Param("z", fb.package()->GetBitsType(10));
+  BValue w = fb.Param("w", fb.package()->GetBitsType(10));
+  BValue array1 = fb.Array({x, y}, fb.package()->GetBitsType(10));
+  BValue array2 = fb.Array({z, w}, fb.package()->GetBitsType(10));
+  BValue expr = fb.ArrayConcat({array1, array2, array1});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), {Interval(UBits(100, 10), UBits(150, 10))});
+  IntervalSetTree y_ist =
+      BitsLTT(y.node(), {Interval(UBits(200, 10), UBits(250, 10))});
+  IntervalSetTree z_ist =
+      BitsLTT(z.node(), {Interval(UBits(300, 10), UBits(350, 10))});
+  IntervalSetTree w_ist =
+      BitsLTT(w.node(), {Interval(UBits(400, 10), UBits(450, 10))});
+
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  engine.SetIntervalSetTree(w.node(), w_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(x_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({0}));
+  EXPECT_EQ(y_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({1}));
+  EXPECT_EQ(z_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({2}));
+  EXPECT_EQ(w_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({3}));
+  EXPECT_EQ(x_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({4}));
+  EXPECT_EQ(y_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({5}));
+}
+
 TEST_F(RangeQueryEngineTest, AndReduce) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
