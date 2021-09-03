@@ -88,6 +88,32 @@ class RangeQueryVisitor : public DfsVisitor {
       std::function<absl::optional<Bits>(const Bits&, const Bits&)> impl,
       Node* op);
 
+  // Analyze whether elements of the two given interval sets must be equal, must
+  // not be equal, or may be either.
+  //
+  // If the given interval sets are precise and identical, returns `true`.
+  // If the given interval sets are disjoint, returns `false`.
+  // In all other cases, returns `absl::nullopt`.
+  static absl::optional<bool> AnalyzeEq(const IntervalSet& lhs,
+                                        const IntervalSet& rhs);
+
+  // Analyze whether elements of the two given interval sets must be less than,
+  // must not be less than, or may be either.
+  //
+  // If `lhs` is disjoint from `rhs` and `lhs.ConvexHull() < rhs.ConvexHull()`,
+  // returns `true`.
+  // If `lhs` is disjoint from `rhs` and `rhs.ConvexHull() < lhs.ConvexHull()`,
+  // returns `false`.
+  // In all other cases, returns `absl::nullopt`.
+  static absl::optional<bool> AnalyzeLt(const IntervalSet& lhs,
+                                        const IntervalSet& rhs);
+
+  // An interval set covering exactly the binary representation of `false`.
+  static IntervalSet FalseIntervalSet();
+
+  // An interval set covering exactly the binary representation of `true`.
+  static IntervalSet TrueIntervalSet();
+
   absl::Status HandleAdd(BinOp* add) override;
   absl::Status HandleAfterAll(AfterAll* after_all) override;
   absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce) override;
@@ -468,6 +494,62 @@ absl::Status RangeQueryVisitor::HandleMonotoneAntitoneBinOp(
   return absl::OkStatus();
 }
 
+absl::optional<bool> RangeQueryVisitor::AnalyzeEq(const IntervalSet& lhs,
+                                                  const IntervalSet& rhs) {
+  XLS_CHECK(lhs.IsNormalized());
+  XLS_CHECK(rhs.IsNormalized());
+
+  bool is_precise = lhs.IsPrecise() && rhs.IsPrecise();
+
+  // TODO(taktoa): This way of checking disjointness is efficient but
+  // unfortunately fails when there are abutting intervals; it shouldn't be too
+  // hard to make a Disjoint static method on IntervalSet that doesn't have this
+  // issue. Luckily this only results in a loss of precision, not incorrectness.
+
+  IntervalSet combined = IntervalSet::Combine(lhs, rhs);
+  bool is_disjoint = (lhs.Intervals().size() + rhs.Intervals().size()) ==
+                     combined.Intervals().size();
+
+  if (is_precise && (lhs.Intervals() == rhs.Intervals())) {
+    return true;
+  }
+  if (is_disjoint) {
+    return false;
+  }
+  return absl::nullopt;
+}
+
+absl::optional<bool> RangeQueryVisitor::AnalyzeLt(const IntervalSet& lhs,
+                                                  const IntervalSet& rhs) {
+  if (absl::optional<Interval> lhs_hull = lhs.ConvexHull()) {
+    if (absl::optional<Interval> rhs_hull = rhs.ConvexHull()) {
+      if (Interval::Disjoint(*lhs_hull, *rhs_hull)) {
+        if (*lhs_hull < *rhs_hull) {
+          return true;
+        }
+        if (*rhs_hull < *lhs_hull) {
+          return false;
+        }
+      }
+    }
+  }
+  return absl::nullopt;
+}
+
+IntervalSet RangeQueryVisitor::FalseIntervalSet() {
+  IntervalSet result(1);
+  result.AddInterval(Interval(UBits(0, 1), UBits(0, 1)));
+  result.Normalize();
+  return result;
+}
+
+IntervalSet RangeQueryVisitor::TrueIntervalSet() {
+  IntervalSet result(1);
+  result.AddInterval(Interval(UBits(1, 1), UBits(1, 1)));
+  result.Normalize();
+  return result;
+}
+
 absl::Status RangeQueryVisitor::HandleAdd(BinOp* add) {
   engine_->InitializeNode(add);
   return HandleMonotoneMonotoneBinOp(
@@ -563,7 +645,22 @@ absl::Status RangeQueryVisitor::HandleEncode(Encode* encode) {
 
 absl::Status RangeQueryVisitor::HandleEq(CompareOp* eq) {
   engine_->InitializeNode(eq);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  IntervalSet lhs_intervals =
+      engine_->GetIntervalSetTree(eq->operand(0)).Get({});
+  IntervalSet rhs_intervals =
+      engine_->GetIntervalSetTree(eq->operand(1)).Get({});
+
+  absl::optional<bool> analysis = AnalyzeEq(lhs_intervals, rhs_intervals);
+  if (analysis.has_value()) {
+    LeafTypeTree<IntervalSet> result(eq->GetType());
+    if (analysis == absl::optional<bool>(true)) {
+      result.Set({}, TrueIntervalSet());
+    } else if (analysis == absl::optional<bool>(false)) {
+      result.Set({}, FalseIntervalSet());
+    }
+    engine_->SetIntervalSetTree(eq, result);
+  }
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleGate(Gate* gate) {
@@ -652,7 +749,22 @@ absl::Status RangeQueryVisitor::HandleNaryXor(NaryOp* xor_op) {
 
 absl::Status RangeQueryVisitor::HandleNe(CompareOp* ne) {
   engine_->InitializeNode(ne);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  IntervalSet lhs_intervals =
+      engine_->GetIntervalSetTree(ne->operand(0)).Get({});
+  IntervalSet rhs_intervals =
+      engine_->GetIntervalSetTree(ne->operand(1)).Get({});
+
+  absl::optional<bool> analysis = AnalyzeEq(lhs_intervals, rhs_intervals);
+  if (analysis.has_value()) {
+    LeafTypeTree<IntervalSet> result(ne->GetType());
+    if (analysis == absl::optional<bool>(false)) {
+      result.Set({}, TrueIntervalSet());
+    } else if (analysis == absl::optional<bool>(true)) {
+      result.Set({}, FalseIntervalSet());
+    }
+    engine_->SetIntervalSetTree(ne, result);
+  }
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleNeg(UnOp* neg) {
@@ -815,22 +927,88 @@ absl::Status RangeQueryVisitor::HandleUDiv(BinOp* div) {
 
 absl::Status RangeQueryVisitor::HandleUGe(CompareOp* ge) {
   engine_->InitializeNode(ge);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  IntervalSet lhs_intervals =
+      engine_->GetIntervalSetTree(ge->operand(0)).Get({});
+  IntervalSet rhs_intervals =
+      engine_->GetIntervalSetTree(ge->operand(1)).Get({});
+
+  absl::optional<bool> analysis = AnalyzeLt(rhs_intervals, lhs_intervals);
+  if (AnalyzeEq(lhs_intervals, rhs_intervals) == absl::optional<bool>(true)) {
+    analysis = true;
+  }
+  if (analysis.has_value()) {
+    LeafTypeTree<IntervalSet> result(ge->GetType());
+    if (analysis == absl::optional<bool>(true)) {
+      result.Set({}, TrueIntervalSet());
+    } else if (analysis == absl::optional<bool>(false)) {
+      result.Set({}, FalseIntervalSet());
+    }
+    engine_->SetIntervalSetTree(ge, result);
+  }
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleUGt(CompareOp* gt) {
   engine_->InitializeNode(gt);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  IntervalSet lhs_intervals =
+      engine_->GetIntervalSetTree(gt->operand(0)).Get({});
+  IntervalSet rhs_intervals =
+      engine_->GetIntervalSetTree(gt->operand(1)).Get({});
+
+  absl::optional<bool> analysis = AnalyzeLt(rhs_intervals, lhs_intervals);
+  if (analysis.has_value()) {
+    LeafTypeTree<IntervalSet> result(gt->GetType());
+    if (analysis == absl::optional<bool>(true)) {
+      result.Set({}, TrueIntervalSet());
+    } else if (analysis == absl::optional<bool>(false)) {
+      result.Set({}, FalseIntervalSet());
+    }
+    engine_->SetIntervalSetTree(gt, result);
+  }
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleULe(CompareOp* le) {
   engine_->InitializeNode(le);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  IntervalSet lhs_intervals =
+      engine_->GetIntervalSetTree(le->operand(0)).Get({});
+  IntervalSet rhs_intervals =
+      engine_->GetIntervalSetTree(le->operand(1)).Get({});
+
+  absl::optional<bool> analysis = AnalyzeLt(lhs_intervals, rhs_intervals);
+  if (AnalyzeEq(lhs_intervals, rhs_intervals) == absl::optional<bool>(true)) {
+    analysis = true;
+  }
+  if (analysis.has_value()) {
+    LeafTypeTree<IntervalSet> result(le->GetType());
+    if (analysis == absl::optional<bool>(true)) {
+      result.Set({}, TrueIntervalSet());
+    } else if (analysis == absl::optional<bool>(false)) {
+      result.Set({}, FalseIntervalSet());
+    }
+    engine_->SetIntervalSetTree(le, result);
+  }
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleULt(CompareOp* lt) {
   engine_->InitializeNode(lt);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  IntervalSet lhs_intervals =
+      engine_->GetIntervalSetTree(lt->operand(0)).Get({});
+  IntervalSet rhs_intervals =
+      engine_->GetIntervalSetTree(lt->operand(1)).Get({});
+
+  absl::optional<bool> analysis = AnalyzeLt(lhs_intervals, rhs_intervals);
+  if (analysis.has_value()) {
+    LeafTypeTree<IntervalSet> result(lt->GetType());
+    if (analysis == absl::optional<bool>(true)) {
+      result.Set({}, TrueIntervalSet());
+    } else if (analysis == absl::optional<bool>(false)) {
+      result.Set({}, FalseIntervalSet());
+    }
+    engine_->SetIntervalSetTree(lt, result);
+  }
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleUMod(BinOp* mod) {
