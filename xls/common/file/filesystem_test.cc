@@ -15,6 +15,7 @@
 #include "xls/common/file/filesystem.h"
 
 #include <filesystem>
+#include <fstream>
 #include <system_error>  // NOLINT(build/c++11)
 
 #include "gmock/gmock.h"
@@ -412,6 +413,20 @@ TEST(FilesystemTest, GetRealPath) {
   XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path real_path,
                            GetRealPath(link_path));
   ASSERT_EQ(link_path, real_path);
+}
+
+TEST(FilesystemTest, ParseProtobinFile) {
+  absl::StatusOr<TempDirectory> temp_dir = TempDirectory::Create();
+  const std::filesystem::path& temp_file = temp_dir->path() / "a.txt";
+  FilesystemTest content_golden;
+  content_golden.set_field("hi");
+  std::fstream output_file(temp_file.string(),
+                           std::ios::out | std::ios::trunc | std::ios::binary);
+  EXPECT_TRUE(content_golden.SerializeToOstream(&output_file));
+  output_file.close();
+  FilesystemTest content;
+  XLS_ASSERT_OK(ParseProtobinFile(temp_dir->path() / "a.txt", &content));
+  EXPECT_EQ(content.field(), "hi");
 }
 
 }  // namespace

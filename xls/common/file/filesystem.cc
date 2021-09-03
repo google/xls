@@ -203,6 +203,20 @@ absl::Status ParseTextProtoFile(const std::filesystem::path& file_name,
   return collector.status();
 }
 
+absl::Status ParseProtobinFile(const std::filesystem::path& file_name,
+                               google::protobuf::Message* proto) {
+  if (proto == nullptr) {
+    return absl::FailedPreconditionError("Invalid pointer value.");
+  }
+  XLS_ASSIGN_OR_RETURN(std::string content, GetFileContents(file_name));
+  std::stringstream content_ss(content);
+  if (!proto->ParseFromIstream(&content_ss)) {
+    return absl::FailedPreconditionError("Error with parsing file: " +
+                                         file_name.string());
+  }
+  return absl::OkStatus();
+}
+
 absl::Status SetTextProtoFile(const std::filesystem::path& file_name,
                               const google::protobuf::Message& proto) {
   std::string text_proto;

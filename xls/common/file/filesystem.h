@@ -143,6 +143,25 @@ inline absl::StatusOr<T> ParseTextProtoFile(
   return v_or;
 }
 
+// Reads a file containing a single protobuf in binary format.
+//
+// REQUIRES: `file_name` can be opened for reading.
+// REQUIRES: The content of `file_name` is a single protobuf in binary format.
+// REQUIRES: The proto must point to a valid object.
+// Typical return codes (not guaranteed to be exhaustive):
+//  * StatusCode::kOk
+//  * StatusCode::kPermissionDenied (file not readable)
+//  * StatusCode::kNotFound (no such file)
+//  * StatusCode::kFailedPrecondition (the file contents couldn't be parsed as
+//    a protobuf binary)
+//  * StatusCode::kFailedPrecondition (the proto pointer is invalid)
+//
+// *proto will hold the result of parsing the file as protobuf in binary
+// format only if OK is returned.  Regardless of success, the contents of that
+// protobuf may be modified.
+absl::Status ParseProtobinFile(const std::filesystem::path& file_name,
+                               google::protobuf::Message* proto);
+
 // Writes the protobuf provided to the file `filename` in a protobuf text
 // format, overwriting any existing content in the file.
 //
