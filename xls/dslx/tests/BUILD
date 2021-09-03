@@ -525,6 +525,20 @@ xls_dslx_opt_ir_test(
 )
 
 xls_dslx_module_library(
+    name = "trace_fmt_hello_module",
+    src = "trace_fmt_hello.x",
+)
+
+# Note: This test is enough to keep the example code compiling,
+# but does not currently check the output.
+# TODO(https://github.com/google/xls/issues/489): 2021-09-02
+# Check the trace output of this test
+xls_dslx_test(
+    name = "trace_fmt_hello_test",
+    dep = ":trace_fmt_hello_module",
+)
+
+xls_dslx_module_library(
     name = "array_of_typedef_in_tuple_dslx_module",
     src = "array_of_typedef_in_tuple.x",
 )

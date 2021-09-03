@@ -12,12 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main() {
-  ()
-}
-
-#![test]
-fn hello_test() {
+fn hello() {
   let x = u8:0xF0;
   let _ = trace_fmt!("Hello world!\n");
   let _ = trace_fmt!("x is {}, {:#x} in hex and {:#b} in binary\n", x, x, x);
@@ -25,3 +20,10 @@ fn hello_test() {
   let _ = trace_fmt!("y is 32'd{:d}, 32'h{:x} and 32'b{:b}\n", y, y, y);
   ()
 }
+
+fn main() {
+  hello()
+}
+
+#![test]
+fn hello_test() { hello() }
