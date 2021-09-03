@@ -412,6 +412,9 @@ class Parser : public TokenParser {
   // Parses a while expression.
   absl::StatusOr<While*> ParseWhile(Bindings* bindings);
 
+  // Parses a channel declaration.
+  absl::StatusOr<ChannelDecl*> ParseChannelDecl(Bindings* bindings);
+
   // Parses a for loop construct; e.g.
   //
   //  for (i, accum) in range(3) {
@@ -487,7 +490,8 @@ class Parser : public TokenParser {
   ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                  Bindings* bindings);
 
-  std::unique_ptr<Module> module_;
+  // Parses a "spawn" statement, which creates & initializes a proc.
+  absl::StatusOr<Spawn*> ParseSpawn(Bindings* bindings);
 
   // Helper function that chooses between building a FormatMacro or an
   // Invocation based on the callee.
@@ -499,6 +503,8 @@ class Parser : public TokenParser {
   // can keep a back-reference to which while node they're retrieving carry data
   // for.
   std::vector<While*> loop_stack_;
+
+  std::unique_ptr<Module> module_;
 };
 
 const Span& GetSpan(const absl::variant<NameDef*, WildcardPattern*>& v);

@@ -28,11 +28,15 @@
   X(kIf, IF, "if")             \
   X(kImport, IMPORT, "import") \
   X(kIn, IN, "in")             \
+  X(kOut, OUT, "out")          \
   X(kLet, LET, "let")          \
   X(kMatch, MATCH, "match")    \
   X(kNext, NEXT, "next")       \
   X(kPub, PUB, "pub")          \
   X(kProc, PROC, "proc")       \
+  X(kRecv, RECV, "recv")       \
+  X(kSend, SEND, "send")       \
+  X(kSpawn, SPAWN, "spawn")    \
   X(kStruct, STRUCT, "struct") \
   X(kTrue, TRUE, "true")       \
   X(kType, TYPE, "type")       \
@@ -43,6 +47,7 @@
   X(kUN, UN, "uN")             \
   X(kSN, SN, "sN")             \
   X(kBool, BOOL, "bool")       \
+  X(kChannel, CHANNEL, "chan") \
   /* unsigned */               \
   X(kU1, U1, "u1")             \
   X(kU2, U2, "u2")             \
@@ -182,6 +187,7 @@
   X(kUN, UN, "uN")                \
   X(kSN, SN, "sN")                \
   X(kBool, BOOL, "bool")          \
+  X(kChannel, CHANNEL, "chan")    \
   /* unsigned */                  \
   X(kU1, U1, "u1")                \
   X(kU2, U2, "u2")                \

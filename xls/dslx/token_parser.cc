@@ -15,6 +15,7 @@
 #include "xls/dslx/token_parser.h"
 
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/scanner.h"
 
 namespace xls::dslx {
 
@@ -61,6 +62,7 @@ absl::StatusOr<Token> TokenParser::PopTokenOrError(TokenKind target,
   if (tok->kind() == target) {
     return PopToken();
   }
+
   std::string msg;
   if (start == nullptr) {
     msg = absl::StrFormat("Expected '%s', got '%s'", TokenKindToString(target),

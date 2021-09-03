@@ -199,25 +199,25 @@ fn alu(x: u16, y:u16, c:u6) -> (u16, u1, u1) {
   let y'' = n_bit(ny, y');
   let sum: u16 = (x'' + y'');
   let and: u16 = x'' & y'';
-  let out: u16 = sum if f else and;
-  let out': u16 = !out if no else out;
-  let zr = (out' == u16:0);
-  let ng = (out' as s16 < s16:0);
-  (out', zr, ng)
+  let output: u16 = sum if f else and;
+  let output': u16 = !output if no else output;
+  let zr = (output' == u16:0);
+  let ng = (output' as s16 < s16:0);
+  (output', zr, ng)
 }
 
 #![test]
 fn alu_test() {
-  let (out, zr, ng) = alu(u16:2, u16:8, COMP_D_PLUS_1[0:6]);
-  let _ = assert_eq(out, u16:3);
+  let (output, zr, ng) = alu(u16:2, u16:8, COMP_D_PLUS_1[0:6]);
+  let _ = assert_eq(output, u16:3);
   let _ = assert_eq(zr, u1:0);
   let _ = assert_eq(ng, u1:0);
-  let (out, zr, ng) = alu(u16:2, u16:8, COMP_D_AND_A[0:6]);
-  let _ = assert_eq(out, u16:0);
+  let (output, zr, ng) = alu(u16:2, u16:8, COMP_D_AND_A[0:6]);
+  let _ = assert_eq(output, u16:0);
   let _ = assert_eq(zr, u1:1);
   let _ = assert_eq(ng, u1:0);
-  let (out, zr, ng) = alu(u16:8, u16:2, COMP_A_MINUS_D[0:6]);
-  let _ = assert_eq(out, s16:-6 as u16);
+  let (output, zr, ng) = alu(u16:8, u16:2, COMP_A_MINUS_D[0:6]);
+  let _ = assert_eq(output, s16:-6 as u16);
   let _ = assert_eq(zr, u1:0);
   let _ = assert_eq(ng, u1:1);
   _
@@ -228,10 +228,10 @@ fn run_c_instruction(pc: u16, ins: u16, rd: u16, ra: u16, rm: u16) -> (u16, u16,
   let x = rd;
   let a = comp[6+:u1];
   let y = rm if a else ra;
-  let (out, zr, ng) = alu(x, y, comp[0+:u6]);
-  let rd' = out if (dest & DEST_D) == DEST_D else rd;
-  let ra' = out if (dest & DEST_A) == DEST_A else ra;
-  let (rm', wm) = (out, u1:1) if (dest & DEST_M) == DEST_M else (rm, u1:0);
+  let (output, zr, ng) = alu(x, y, comp[0+:u6]);
+  let rd' = output if (dest & DEST_D) == DEST_D else rd;
+  let ra' = output if (dest & DEST_A) == DEST_A else ra;
+  let (rm', wm) = (output, u1:1) if (dest & DEST_M) == DEST_M else (rm, u1:0);
   let flags: u3 = ng ++ zr ++ !ng;
   let pc' = ra' if (jump & flags) != u3:0 else pc + u16:1;
   (pc', rd', ra', rm', wm)

@@ -58,6 +58,10 @@ class Evaluator : public ExprVisitor {
 
 #undef DISPATCH
 
+  void HandleChannelDecl(ChannelDecl* expr) override {
+    value_ = absl::UnimplementedError(absl::StrFormat(
+        "ChannelDecl expression is unhandled @ %s", expr->span().ToString()));
+  }
   void HandleFormatMacro(FormatMacro* expr) override {
     value_ = parent_->EvaluateFormatMacro(expr, bindings_, type_context_);
   }
@@ -67,6 +71,18 @@ class Evaluator : public ExprVisitor {
   void HandleNext(Next* expr) override {
     value_ = absl::UnimplementedError(absl::StrFormat(
         "Next expression is unhandled @ %s", expr->span().ToString()));
+  }
+  void HandleRecv(Recv* expr) override {
+    value_ = absl::UnimplementedError(absl::StrFormat(
+        "Recv expression is unhandled @ %s", expr->span().ToString()));
+  }
+  void HandleSend(Send* expr) override {
+    value_ = absl::UnimplementedError(absl::StrFormat(
+        "Send expression is unhandled @ %s", expr->span().ToString()));
+  }
+  void HandleSpawn(Spawn* expr) override {
+    value_ = absl::UnimplementedError(absl::StrFormat(
+        "Spawn expression is unhandled @ %s", expr->span().ToString()));
   }
 
   absl::StatusOr<InterpValue>& value() { return value_; }

@@ -336,8 +336,10 @@ cc_library(
     deps = [
         ":ast",
         ":bindings",
+        ":scanner",
         ":token_parser",
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

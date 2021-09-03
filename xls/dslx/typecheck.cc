@@ -733,6 +733,11 @@ static absl::Status CheckModuleMember(ModuleMember member, Module* module,
     XLS_RETURN_IF_ERROR(CheckTopNodeInModule(f, ctx));
     scoped.Finish();
     XLS_VLOG(2) << "Finished typechecking function: " << f->ToString();
+  } else if (absl::holds_alternative<Proc*>(member)) {
+    Proc* p = absl::get<Proc*>(member);
+    XLS_VLOG(2) << "Typechecking proc: " << p->ToString();
+    XLS_LOG(WARNING) << "Proc typechecking NYI; skipping node.";
+    XLS_VLOG(2) << "Finished typechecking proc: " << p->ToString();
   } else if (absl::holds_alternative<StructDef*>(member)) {
     StructDef* struct_def = absl::get<StructDef*>(member);
     XLS_VLOG(2) << "Typechecking struct: " << struct_def->ToString();

@@ -1484,6 +1484,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBuiltinTypeAnnotation(
                                      node->GetBitCount());
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceChannelTypeAnnotation(
+    ChannelTypeAnnotation* node, DeduceCtx* ctx) {
+  return absl::UnimplementedError("Channels can not yet be type-deduced.");
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleTypeAnnotation(
     TupleTypeAnnotation* node, DeduceCtx* ctx) {
   std::vector<std::unique_ptr<ConcreteType>> members;
@@ -2192,6 +2197,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(StructInstance)
   DEDUCE_DISPATCH(SplatStructInstance)
   DEDUCE_DISPATCH(BuiltinTypeAnnotation)
+  DEDUCE_DISPATCH(ChannelTypeAnnotation)
   DEDUCE_DISPATCH(ArrayTypeAnnotation)
   DEDUCE_DISPATCH(TupleTypeAnnotation)
   DEDUCE_DISPATCH(TypeRefTypeAnnotation)
@@ -2206,9 +2212,13 @@ class DeduceVisitor : public AstNodeVisitor {
   // Unhandled nodes for deduction, either they are custom visited or not
   // visited "automatically" in the traversal process (e.g. top level module
   // members).
+  absl::Status HandleChannelDecl(ChannelDecl* n) override { return Fatal(n); }
   absl::Status HandleNext(Next* n) override { return Fatal(n); }
   absl::Status HandleProc(Proc* n) override { return Fatal(n); }
+  absl::Status HandleRecv(Recv* n) override { return Fatal(n); }
+  absl::Status HandleSend(Send* n) override { return Fatal(n); }
   absl::Status HandleSlice(Slice* n) override { return Fatal(n); }
+  absl::Status HandleSpawn(Spawn* n) override { return Fatal(n); }
   absl::Status HandleImport(Import* n) override { return Fatal(n); }
   absl::Status HandleFunction(Function* n) override { return Fatal(n); }
   absl::Status HandleQuickCheck(QuickCheck* n) override { return Fatal(n); }
@@ -2231,6 +2241,7 @@ class DeduceVisitor : public AstNodeVisitor {
 
  private:
   absl::Status Fatal(AstNode* n) {
+    XLS_LOG(INFO) << n->GetNodeTypeName();
     XLS_LOG(FATAL) << "Got unhandled AST node for deduction: " << n->ToString();
   }
 

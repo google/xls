@@ -708,6 +708,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(TypeRef)
   INVALID(ArrayTypeAnnotation)
   INVALID(BuiltinTypeAnnotation)
+  INVALID(ChannelTypeAnnotation)
   INVALID(TupleTypeAnnotation)
   INVALID(TypeRefTypeAnnotation)
   INVALID(TestFunction)
@@ -722,6 +723,12 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(Module)
   INVALID(QuickCheck)
   INVALID(StructDef)
+
+  // Not yet implemented.
+  INVALID(ChannelDecl)
+  INVALID(Recv)
+  INVALID(Send)
+  INVALID(Spawn)
 
   // Unsupported for IR emission.
   INVALID(While)

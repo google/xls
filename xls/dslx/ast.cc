@@ -552,6 +552,10 @@ absl::optional<ModuleMember*> Module::FindMemberWithName(
       if (absl::get<Function*>(member)->identifier() == target) {
         return &member;
       }
+    } else if (absl::holds_alternative<Proc*>(member)) {
+      if (absl::get<Proc*>(member)->identifier() == target) {
+        return &member;
+      }
     } else if (absl::holds_alternative<TestFunction*>(member)) {
       if (absl::get<TestFunction*>(member)->identifier() == target) {
         return &member;
@@ -905,6 +909,56 @@ std::string Invocation::FormatParametrics() const {
                       ">");
 }
 
+// -- class Spawn
+Spawn::Spawn(Module* owner, Span span, NameRef* spawnee,
+             std::vector<Expr*> proc_args, std::vector<Expr*> iter_args,
+             std::vector<Expr*> parametrics, Expr* body)
+    : Expr(owner, std::move(span)),
+      spawnee_(spawnee),
+      proc_args_(proc_args),
+      iter_args_(iter_args),
+      parametrics_(parametrics),
+      body_(body) {}
+
+std::vector<AstNode*> Spawn::GetChildren(bool want_types) const {
+  std::vector<AstNode*> results = {spawnee_};
+  for (Expr* arg : proc_args_) {
+    results.push_back(arg);
+  }
+  for (Expr* arg : iter_args_) {
+    results.push_back(arg);
+  }
+  return results;
+}
+
+std::string Spawn::ToString() const {
+  std::string parametrics;
+  if (!parametrics_.empty()) {
+    parametrics =
+        absl::StrCat("<",
+                     absl::StrJoin(parametrics_, ", ",
+                                   [](std::string* out, Expr* e) {
+                                     absl::StrAppend(out, e->ToString());
+                                   }),
+                     ">");
+  }
+
+  std::string proc_args = absl::StrJoin(
+      proc_args_, ", ",
+      [](std::string* out, Expr* e) { absl::StrAppend(out, e->ToString()); });
+
+  std::string iter_args = absl::StrJoin(
+      iter_args_, ", ",
+      [](std::string* out, Expr* e) { absl::StrAppend(out, e->ToString()); });
+
+  std::string body_str;
+  if (body_ != nullptr) {
+    body_str = absl::StrCat("\n", body_->ToString());
+  }
+  return absl::StrFormat("spawn %s%s(%s)(%s)%s", spawnee_->identifier(),
+                         parametrics, proc_args, iter_args, body_str);
+}
+
 // -- class FormatMacro
 
 FormatMacro::FormatMacro(Module* owner, Span span, std::string macro,
@@ -1145,7 +1199,7 @@ std::vector<std::string> Function::GetFreeParametricKeys() const {
   return results;
 }
 
-std::string Function::Format(bool include_body) const {
+std::string Function::ToString() const {
   std::string parametric_str;
   if (!parametric_bindings_.empty()) {
     parametric_str = absl::StrFormat(
@@ -1190,14 +1244,24 @@ Match::Match(Module* owner, Span span, Expr* matched,
              std::vector<MatchArm*> arms)
     : Expr(owner, std::move(span)), matched_(matched), arms_(std::move(arms)) {}
 
+// -- class Next
+Next::Next(Module* owner, Span span, Expr* next_value)
+    : Expr(owner, span), next_value_(next_value) {}
+
+std::string Next::ToString() const {
+  return absl::StrCat("next(", next_value_->ToString(), ")");
+}
+
 // -- class Proc
 
 Proc::Proc(Module* owner, Span span, NameDef* name_def,
+           std::vector<ParametricBinding*> parametric_bindings,
            std::vector<Param*> proc_params, std::vector<Param*> iter_params,
            Expr* iter_body, bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
+      parametric_bindings_(parametric_bindings),
       proc_params_(std::move(proc_params)),
       iter_params_(std::move(iter_params)),
       iter_body_(iter_body),
@@ -1217,15 +1281,44 @@ std::vector<AstNode*> Proc::GetChildren(bool want_types) const {
 
 std::string Proc::ToString() const {
   std::string pub_str = is_public_ ? "pub " : "";
+  std::string parametric_str = "";
+  if (!parametric_bindings_.empty()) {
+    parametric_str = absl::StrFormat(
+        "<%s>",
+        absl::StrJoin(
+            parametric_bindings_, ", ",
+            [](std::string* out, ParametricBinding* parametric_binding) {
+              absl::StrAppend(out, parametric_binding->ToString());
+            }));
+  }
   auto param_append = [](std::string* out, const Param* param) {
     absl::StrAppend(out, param->ToString());
   };
   std::string proc_params_str = absl::StrJoin(proc_params_, ", ", param_append);
   std::string iter_params_str = absl::StrJoin(iter_params_, ", ", param_append);
-  return absl::StrFormat("%sproc %s(%s) {\n  next(%s) {\n%s\n  }\n}", pub_str,
-                         name_def_->identifier(), proc_params_str,
-                         iter_params_str,
-                         Indent(iter_body_->ToString(), /*spaces=*/4));
+  return absl::StrFormat("%sproc %s%s(%s)(%s) {\n%s\n}", pub_str,
+                         name_def_->identifier(), parametric_str,
+                         proc_params_str, iter_params_str,
+                         Indent(iter_body_->ToString()));
+}
+
+Recv::Recv(Module* owner, Span span, NameRef* channel)
+    : Expr(owner, std::move(span)), channel_(channel) {}
+
+std::string Recv::ToString() const {
+  return absl::StrFormat("recv(%s)", channel_->identifier());
+}
+
+Send::Send(Module* owner, Span span, NameRef* channel, Expr* payload,
+           Expr* body)
+    : Expr(owner, std::move(span)),
+      channel_(channel),
+      payload_(payload),
+      body_(body) {}
+
+std::string Send::ToString() const {
+  return absl::StrFormat("send(%s, %s);\n%s", channel_->identifier(),
+                         payload_->ToString(), body_->ToString());
 }
 
 BuiltinTypeAnnotation::BuiltinTypeAnnotation(Module* owner, Span span,
@@ -1238,6 +1331,19 @@ int64_t BuiltinTypeAnnotation::GetBitCount() const {
 
 bool BuiltinTypeAnnotation::GetSignedness() const {
   return GetBuiltinTypeSignedness(builtin_type_).value();
+}
+
+ChannelTypeAnnotation::ChannelTypeAnnotation(Module* owner, Span span,
+                                             Direction direction,
+                                             TypeAnnotation* payload)
+    : TypeAnnotation(owner, std::move(span)),
+      direction_(direction),
+      payload_(payload) {}
+
+std::string ChannelTypeAnnotation::ToString() const {
+  return absl::StrFormat("chan %s %s",
+                         direction_ == Direction::kIn ? "in" : "out",
+                         payload_->ToString());
 }
 
 TupleTypeAnnotation::TupleTypeAnnotation(Module* owner, Span span,

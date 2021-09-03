@@ -175,10 +175,8 @@ TEST_F(ParserTest, ParseIdentityFunction) {
 }
 
 TEST_F(ParserTest, ParseSimpleProc) {
-  const char* text = R"(proc simple(addend: u32) {
-  next(x: u32) {
-    next((x) + (addend))
-  }
+  const char* text = R"(proc simple(x: u32)(addend: u32) {
+  next((x) + (addend))
 })";
 
   Scanner s{"test.x", std::string{text}};
@@ -188,6 +186,31 @@ TEST_F(ParserTest, ParseSimpleProc) {
       Proc * p,
       parser.ParseProc(/*is_public=*/false, /*outer_bindings=*/&bindings));
   EXPECT_EQ(p->ToString(), text);
+}
+
+// Parses the "iota" example.
+TEST_F(ParserTest, ParseProcNetwork) {
+  const char* text = R"(proc producer(limit: u32, c: chan out u32)(i: u32) {
+  send(c, i);
+  let new_i = (i) + (1);
+  next(new_i)
+}
+proc consumer<N: u32>(a: u32[N], c: chan in u32)(i: u32) {
+  let e = recv(c);
+  let new_i = (i) + (1);
+  next(new_i)
+}
+fn main() {
+  let (p, c) = chan u32;
+  spawn producer(u32:10, p)(0)
+  spawn consumer(range(10), c)(0)
+})";
+
+  Scanner s{"test.x", std::string{text}};
+  Parser parser{"test", &s};
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
+  EXPECT_EQ(m->ToString(), text);
 }
 
 TEST_F(ParserTest, ParseStructSplat) {

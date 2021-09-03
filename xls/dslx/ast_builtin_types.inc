@@ -154,6 +154,9 @@
   X(kToken, TOKEN, "token", false, 0)              \
   X(kUN, UN, "uN", false, 0)                       \
   X(kSN, SN, "sN", true, 0)                        \
-  /* done */
+  /* other */                                      \
+  X(kChannelIn, CHANNEL_IN, "chan in", false, 0)   \
+  X(kChannelOut, CHANNEL_OUT, "chan out", false, 0)
+/* done */
 
 #endif  // XLS_DSLX_CPP_AST_BUILTIN_TYPES_INC_

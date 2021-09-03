@@ -82,6 +82,7 @@ bool IsOneOf(ObjT* obj) {
 // XLS_DSLX_EXPR_NODE_EACH).
 #define XLS_DSLX_AST_NODE_EACH(X) \
   X(BuiltinNameDef)               \
+  X(ChannelDecl)                  \
   X(ConstantDef)                  \
   X(EnumDef)                      \
   X(Function)                     \
@@ -94,7 +95,10 @@ bool IsOneOf(ObjT* obj) {
   X(ParametricBinding)            \
   X(Proc)                         \
   X(QuickCheck)                   \
+  X(Recv)                         \
+  X(Send)                         \
   X(Slice)                        \
+  X(Spawn)                        \
   X(StructDef)                    \
   X(TestFunction)                 \
   X(TypeDef)                      \
@@ -104,6 +108,7 @@ bool IsOneOf(ObjT* obj) {
   /* type annotations */          \
   X(ArrayTypeAnnotation)          \
   X(BuiltinTypeAnnotation)        \
+  X(ChannelTypeAnnotation)        \
   X(TupleTypeAnnotation)          \
   X(TypeRefTypeAnnotation)        \
   XLS_DSLX_EXPR_NODE_EACH(X)
@@ -326,6 +331,38 @@ class BuiltinTypeAnnotation : public TypeAnnotation {
   BuiltinType builtin_type_;
 };
 
+class ChannelTypeAnnotation : public TypeAnnotation {
+ public:
+  enum Direction {
+    kIn,
+    kOut,
+  };
+
+  absl::Status Accept(AstNodeVisitor* v) override {
+    return v->HandleChannelTypeAnnotation(this);
+  }
+
+  absl::string_view GetNodeTypeName() const override {
+    return "ChannelTypeAnnotation";
+  }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {ToAstNode(payload_)};
+  }
+
+  ChannelTypeAnnotation(Module* owner, Span span, Direction direction,
+                        TypeAnnotation* payload);
+
+  std::string ToString() const override;
+
+  Direction direction() const { return direction_; }
+  TypeAnnotation* payload() const { return payload_; }
+
+ private:
+  Direction direction_;
+  TypeAnnotation* payload_;
+};
+
 // Represents a tuple type annotation; e.g. `(u32, s42)`.
 class TupleTypeAnnotation : public TypeAnnotation {
  public:
@@ -515,6 +552,7 @@ class ExprVisitor {
   virtual void HandleBinop(Binop* expr) = 0;
   virtual void HandleCarry(Carry* expr) = 0;
   virtual void HandleCast(Cast* expr) = 0;
+  virtual void HandleChannelDecl(ChannelDecl* expr) = 0;
   virtual void HandleConstRef(ConstRef* expr) = 0;
   virtual void HandleColonRef(ColonRef* expr) = 0;
   virtual void HandleFor(For* expr) = 0;
@@ -526,6 +564,9 @@ class ExprVisitor {
   virtual void HandleNameRef(NameRef* expr) = 0;
   virtual void HandleNext(Next* expr) = 0;
   virtual void HandleNumber(Number* expr) = 0;
+  virtual void HandleRecv(Recv* expr) = 0;
+  virtual void HandleSend(Send* expr) = 0;
+  virtual void HandleSpawn(Spawn* expr) = 0;
   virtual void HandleString(String* expr) = 0;
   virtual void HandleStructInstance(StructInstance* expr) = 0;
   virtual void HandleSplatStructInstance(SplatStructInstance* expr) = 0;
@@ -1159,11 +1200,7 @@ class Function : public AstNode {
   absl::string_view GetNodeTypeName() const override { return "Function"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  std::string Format(bool include_body = true) const;
-
-  std::string ToString() const override {
-    return Format(/*include_body=*/false);
-  }
+  std::string ToString() const override;
 
   NameDef* name_def() const { return name_def_; }
   Expr* body() const { return body_; }
@@ -1332,6 +1369,31 @@ class Invocation : public Expr {
   std::vector<Expr*> args_;
   std::vector<Expr*> parametrics_;
   std::vector<std::pair<std::string, int64_t>> symbolic_bindings_;
+};
+
+// Represents a call to spawn a proc, e.g.,
+//   spawn foo(a, b)(c)
+class Spawn : public Expr {
+ public:
+  Spawn(Module* owner, Span span, NameRef* spawnee,
+        std::vector<Expr*> proc_args, std::vector<Expr*> iter_args,
+        std::vector<Expr*> parametrics, Expr* body);
+
+  absl::Status Accept(AstNodeVisitor* v) override {
+    return v->HandleSpawn(this);
+  }
+  void AcceptExpr(ExprVisitor* v) override { v->HandleSpawn(this); }
+
+  absl::string_view GetNodeTypeName() const override { return "Spawn"; }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+  std::string ToString() const override;
+
+ private:
+  NameRef* spawnee_;
+  std::vector<Expr*> proc_args_;
+  std::vector<Expr*> iter_args_;
+  std::vector<Expr*> parametrics_;
+  Expr* body_;
 };
 
 // Represents a call to a variable-argument formatting macro; e.g. trace_fmt!("x
@@ -1675,6 +1737,7 @@ class Index : public Expr {
 class Proc : public AstNode {
  public:
   Proc(Module* owner, Span span, NameDef* name_def,
+       std::vector<ParametricBinding*> parametric_bindings,
        std::vector<Param*> proc_params, std::vector<Param*> iter_params,
        Expr* iter_body, bool is_public);
 
@@ -1690,13 +1753,70 @@ class Proc : public AstNode {
   bool is_public() const { return is_public_; }
   absl::optional<Span> GetSpan() const override { return span_; }
 
+  std::string identifier() { return name_def_->identifier(); }
+
  private:
   Span span_;
   NameDef* name_def_;
+  std::vector<ParametricBinding*> parametric_bindings_;
   std::vector<Param*> proc_params_;
   std::vector<Param*> iter_params_;
   Expr* iter_body_;
   bool is_public_;
+};
+
+// Represents a recv node: the mechanism by which a proc gets info from another
+// proc.
+class Recv : public Expr {
+ public:
+  Recv(Module* owner, Span span, NameRef* channel);
+
+  absl::Status Accept(AstNodeVisitor* v) override {
+    return v->HandleRecv(this);
+  }
+  void AcceptExpr(ExprVisitor* v) override { v->HandleRecv(this); }
+
+  absl::string_view GetNodeTypeName() const override { return "Recv"; }
+  std::string ToString() const override;
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {ToAstNode(channel_)};
+  }
+
+ private:
+  NameRef* channel_;
+};
+
+// Represents a send node: the mechanism by which a proc sends info to another
+// proc.
+// Sends are really _statements_, vs. expressions, but the language doesn't
+// really make that distinction.
+// The "body" attribute serves the same purpose as that in "Let" nodes; it
+// contains the rest of the containing block's (Function, Proc) body.
+class Send : public Expr {
+ public:
+  Send(Module* owner, Span span, NameRef* channel, Expr* payload, Expr* body);
+
+  absl::Status Accept(AstNodeVisitor* v) override {
+    return v->HandleSend(this);
+  }
+  void AcceptExpr(ExprVisitor* v) override { v->HandleSend(this); }
+
+  absl::string_view GetNodeTypeName() const override { return "Send"; }
+  std::string ToString() const override;
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {ToAstNode(channel_), ToAstNode(payload_), ToAstNode(body_)};
+  }
+
+  NameRef* channel() { return channel_; }
+  Expr* payload() { return payload_; }
+  Expr* body() { return body_; }
+
+ private:
+  NameRef* channel_;
+  Expr* payload_;
+  Expr* body_;
 };
 
 // Represents a unit test construct.
@@ -1910,7 +2030,7 @@ class Cast : public Expr {
 // Represents `next` keyword, refers to the implicit loop-carry call in `Proc`.
 class Next : public Expr {
  public:
-  using Expr::Expr;
+  Next(Module* owner, Span span, Expr* next_value);
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleNext(this);
@@ -1918,11 +2038,14 @@ class Next : public Expr {
   void AcceptExpr(ExprVisitor* v) override { v->HandleNext(this); }
 
   absl::string_view GetNodeTypeName() const override { return "Next"; }
-  std::string ToString() const override { return "next"; }
+  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {};
+    return {ToAstNode(next_value_)};
   }
+
+ private:
+  Expr* next_value_;
 };
 
 // Represents `carry` keyword, refers to the implicit loop-carry data in
@@ -2136,9 +2259,33 @@ class Let : public Expr {
   ConstantDef* constant_def_;
 };
 
+// A channel declaration, e.g., let (p, c) = chan u32.
+//                                           ^^^^^^^^ this part.
+class ChannelDecl : public Expr {
+ public:
+  ChannelDecl(Module* owner, Span span, TypeAnnotation* type)
+      : Expr(owner, span), type_(type) {}
+  void AcceptExpr(ExprVisitor* v) override { v->HandleChannelDecl(this); }
+  absl::Status Accept(AstNodeVisitor* v) override {
+    return v->HandleChannelDecl(this);
+  }
+
+  absl::string_view GetNodeTypeName() const override { return "ChannelDecl"; }
+  std::string ToString() const override {
+    return absl::StrCat("chan ", type_->ToString());
+  }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {ToAstNode(type_)};
+  }
+
+ private:
+  TypeAnnotation* type_;
+};
+
 using ModuleMember =
     absl::variant<Function*, TestFunction*, QuickCheck*, TypeDef*, StructDef*,
-                  ConstantDef*, EnumDef*, Import*>;
+                  ConstantDef*, EnumDef*, Import*, Proc*>;
 
 absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
 
