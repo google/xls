@@ -35,6 +35,7 @@ TEST(FormatStringsTest, ParseFormats) {
   std::vector<FormatStep> simple_format = {"x is ", FormatPreference::kDefault,
                                            "."};
   EXPECT_THAT(ParseFormatString("x is {}."), IsOkAndHolds(simple_format));
+  EXPECT_EQ(OperandsExpectedByFormat(simple_format), 1);
 
   std::string complex_format_string =
       R"(x in different formats
@@ -55,12 +56,15 @@ TEST(FormatStringsTest, ParseFormats) {
   EXPECT_THAT(ParseFormatString(complex_format_string),
               IsOkAndHolds(complex_format));
 
+  EXPECT_EQ(OperandsExpectedByFormat(complex_format), 4);
+
   std::string plain_formats_string = "{:x}{:b}";
   std::vector<FormatStep> plain_formats = {FormatPreference::kPlainHex,
                                            FormatPreference::kPlainBinary};
 
   EXPECT_THAT(ParseFormatString(plain_formats_string),
               IsOkAndHolds(plain_formats));
+  EXPECT_EQ(OperandsExpectedByFormat(plain_formats), 2);
 }
 
 TEST(FormatStringsTest, ErrorTests) {

@@ -31,6 +31,12 @@ using FormatStep = absl::variant<std::string, FormatPreference>;
 absl::StatusOr<std::vector<FormatStep>> ParseFormatString(
     absl::string_view format_string);
 
+// Count the number of data operands expected by parsed format.
+// Example: As above, "x is {} in the default format." parses into
+// {"x is ", FormatPreference::kDefault, " in the default format."}
+// This expects one data operand.
+int64_t OperandsExpectedByFormat(absl::Span<const FormatStep> format);
+
 }  // namespace xls
 
 #endif  // XLS_IR_FORMAT_STRINGS_H_

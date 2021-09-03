@@ -107,4 +107,10 @@ absl::StatusOr<std::vector<FormatStep>> ParseFormatString(
   return steps;
 }
 
+int64_t OperandsExpectedByFormat(absl::Span<const FormatStep> format) {
+  return std::count_if(format.begin(), format.end(),
+                       [](const FormatStep& step) {
+                         return absl::holds_alternative<FormatPreference>(step);
+                       });
+}
 }  // namespace xls

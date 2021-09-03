@@ -2118,12 +2118,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFormatMacro(
     FormatMacro* node, DeduceCtx* ctx) {
-  size_t arg_count = 0;
-  for (const auto& step : node->format()) {
-    if (absl::holds_alternative<FormatPreference>(step)) {
-      arg_count = arg_count + 1;
-    }
-  }
+  int64_t arg_count = OperandsExpectedByFormat(node->format());
 
   if (arg_count != node->args().size()) {
     return ArgCountMismatchErrorStatus(
