@@ -40,6 +40,8 @@ TEST(TrafficDescriptionTest, TrafficFlow) {
   EXPECT_EQ(flow0.GetBandwidthBits(), 0);
   EXPECT_EQ(flow0.GetBandwidthPerNumPs(), 1);
   EXPECT_EQ(flow0.GetPacketSizeInBits(), 1);
+  EXPECT_EQ(flow0.GetClockCycleTimes().size(), 0);
+  EXPECT_FALSE(flow0.IsReplay());
 
   flow0.SetName("Flow 0");
 
@@ -91,6 +93,20 @@ TEST(TrafficDescriptionTest, TrafficFlow) {
             &traffic_mgr.GetTrafficFlow(flow0_id));
   EXPECT_EQ(&const_traffic_mgr.GetTrafficFlow(flow1_id),
             &traffic_mgr.GetTrafficFlow(flow1_id));
+}
+
+TEST(TrafficDescriptionTest, ReplayType) {
+  NocTrafficManager traffic_mgr;
+
+  XLS_ASSERT_OK_AND_ASSIGN(TrafficFlowId flow0_id,
+                           traffic_mgr.CreateTrafficFlow());
+
+  TrafficFlow& flow0 = traffic_mgr.GetTrafficFlow(flow0_id).SetClockCycleTimes(
+      {0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
+
+  EXPECT_EQ(flow0.GetClockCycleTimes(),
+            std::vector<int64_t>({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}));
+  EXPECT_TRUE(flow0.IsReplay());
 }
 
 TEST(TrafficDescriptionTest, TrafficMode) {

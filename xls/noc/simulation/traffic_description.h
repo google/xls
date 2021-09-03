@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_SIMULATION_TRAFFIC_DESCRIPTION_H_
 #define XLS_NOC_SIMULATION_TRAFFIC_DESCRIPTION_H_
 
+#include <algorithm>
 #include <queue>
 #include <vector>
 
@@ -145,6 +146,9 @@ class TrafficFlow {
   // Get denominator of bandwidth rate (bits / ps ) in ps.
   int64_t GetBandwidthPerNumPs() const { return bandwidth_per_n_ps_; }
 
+  // Get clock cycle times.
+  absl::Span<const int64_t> GetClockCycleTimes() const { return cycle_times_; }
+
   TrafficFlow& SetBandwidthBits(int64_t bits) {
     bandwidth_bits_ = bits;
     return *this;
@@ -168,6 +172,17 @@ class TrafficFlow {
     return SetBurstPercentInMils(burst_prob_in_mils * 100);
   }
 
+  // Set the clock cycle times for replay and sorts the lists.
+  TrafficFlow& SetClockCycleTimes(absl::Span<const int64_t> cycle_times) {
+    cycle_times_.clear();
+    cycle_times_.insert(cycle_times_.begin(), cycle_times.begin(),
+                        cycle_times.end());
+    std::sort(cycle_times_.begin(), cycle_times_.end());
+    return *this;
+  }
+
+  bool IsReplay() const { return !cycle_times_.empty(); }
+
  private:
   TrafficFlowId id_;
 
@@ -183,6 +198,11 @@ class TrafficFlow {
 
   // Burst peercent in multiples of 0.001.
   int64_t burst_percent_in_mils_ = 0;
+
+  // Replay clock cycles. The clock cycle times is a sequence of clock cycle
+  // instances where the source sends a packet to the destination.
+  // TODO(vmirian) Add support for clock cycle interval: 09-02-2021.
+  std::vector<int64_t> cycle_times_;
 };
 
 class NocTrafficManager;
