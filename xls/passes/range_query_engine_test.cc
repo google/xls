@@ -146,6 +146,36 @@ TEST_F(RangeQueryEngineTest, Add) {
   EXPECT_EQ(UBits(0, 20), engine.GetKnownBitsValues(expr.node()));
 }
 
+TEST_F(RangeQueryEngineTest, Concat) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", fb.package()->GetBitsType(6));
+  BValue y = fb.Param("y", fb.package()->GetBitsType(5));
+  BValue expr = fb.Concat({x, y});
+
+  IntervalSet x_intervals = RandomIntervalSet(802103005, 6);
+  IntervalSet y_intervals = RandomIntervalSet(802103006, 5);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  engine.SetIntervalSetTree(x.node(),
+                            BitsLTT(x.node(), x_intervals.Intervals()));
+  engine.SetIntervalSetTree(y.node(),
+                            BitsLTT(y.node(), y_intervals.Intervals()));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  x_intervals.ForEachElement([&](const Bits& bits_x) -> bool {
+    y_intervals.ForEachElement([&](const Bits& bits_y) -> bool {
+      Bits concatenated = bits_ops::Concat({bits_x, bits_y});
+      EXPECT_TRUE(
+          engine.GetIntervalSetTree(expr.node()).Get({}).Covers(concatenated));
+      return false;
+    });
+    return false;
+  });
+}
+
 TEST_F(RangeQueryEngineTest, Eq) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
