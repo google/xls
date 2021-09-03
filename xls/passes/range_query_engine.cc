@@ -313,21 +313,15 @@ IntervalSetTree RangeQueryEngine::GetIntervalSetTree(Node* node) const {
     int64_t i = 0;
     for (Type* type : result.leaf_types()) {
       int64_t size = type->GetFlatBitCount();
-      IntervalSet interval_set(size);
-      interval_set.AddInterval(Interval::Maximal(size));
-      interval_set.Normalize();
-      result.elements()[i] = interval_set;
+      result.elements()[i] = IntervalSet::Maximal(size);
       ++i;
     }
     return result;
   }
 
   int64_t size = node->GetType()->GetFlatBitCount();
-  IntervalSet interval_set(size);
-  interval_set.AddInterval(Interval::Maximal(size));
-  interval_set.Normalize();
   IntervalSetTree result(node->GetType());
-  result.Set({}, interval_set);
+  result.Set({}, IntervalSet::Maximal(size));
   return result;
 }
 
@@ -576,7 +570,32 @@ absl::Status RangeQueryVisitor::HandleAfterAll(AfterAll* after_all) {
 absl::Status RangeQueryVisitor::HandleAndReduce(
     BitwiseReductionOp* and_reduce) {
   engine_->InitializeNode(and_reduce);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  IntervalSet intervals =
+      engine_->GetIntervalSetTree(and_reduce->operand(0)).Get({});
+
+  LeafTypeTree<IntervalSet> result(and_reduce->GetType());
+  bool result_valid = false;
+
+  // Unless the intervals cover max, the and_reduce of the input must be 0.
+  if (!intervals.CoversMax()) {
+    result.Set({}, FalseIntervalSet());
+    result_valid = true;
+  }
+
+  // If the intervals are known to only cover max, then the result must be 1.
+  if (absl::optional<Interval> hull = intervals.ConvexHull()) {
+    Bits max = Bits::AllOnes(intervals.BitCount());
+    if (hull.value() == Interval(max, max)) {
+      result.Set({}, TrueIntervalSet());
+      result_valid = true;
+    }
+  }
+
+  if (result_valid) {
+    engine_->SetIntervalSetTree(and_reduce, result);
+  }
+
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleArray(Array* array) {
@@ -797,7 +816,32 @@ absl::Status RangeQueryVisitor::HandleOneHotSel(OneHotSelect* sel) {
 
 absl::Status RangeQueryVisitor::HandleOrReduce(BitwiseReductionOp* or_reduce) {
   engine_->InitializeNode(or_reduce);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  IntervalSet intervals =
+      engine_->GetIntervalSetTree(or_reduce->operand(0)).Get({});
+
+  LeafTypeTree<IntervalSet> result(or_reduce->GetType());
+  bool result_valid = false;
+
+  // Unless the intervals cover 0, the or_reduce of the input must be 1.
+  if (!intervals.CoversZero()) {
+    result.Set({}, TrueIntervalSet());
+    result_valid = true;
+  }
+
+  // If the intervals are known to only cover 0, then the result must be 0.
+  if (absl::optional<Interval> hull = intervals.ConvexHull()) {
+    Bits zero = Bits(1);
+    if (hull.value() == Interval(zero, zero)) {
+      result.Set({}, FalseIntervalSet());
+      result_valid = true;
+    }
+  }
+
+  if (result_valid) {
+    engine_->SetIntervalSetTree(or_reduce, result);
+  }
+
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleOutputPort(OutputPort* output_port) {
@@ -1045,7 +1089,35 @@ absl::Status RangeQueryVisitor::HandleUMul(ArithOp* mul) {
 absl::Status RangeQueryVisitor::HandleXorReduce(
     BitwiseReductionOp* xor_reduce) {
   engine_->InitializeNode(xor_reduce);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  // XorReduce determines the parity of the number of 1s in a bitstring.
+  // Incrementing a bitstring always outputs in a bitstring with a different
+  // parity of 1s (since even + 1 = odd and odd + 1 = even). Therefore, this
+  // analysis cannot return anything but unknown when an interval is imprecise.
+  // When the given set of intervals only contains precise intervals, we can
+  // check whether they all have the same parity of 1s, and return 1 or 0 if
+  // they are all the same, or unknown otherwise.
+  IntervalSet input_intervals =
+      engine_->GetIntervalSetTree(xor_reduce->operand(0)).Get({});
+  absl::optional<Bits> output;
+  for (const Interval& interval : input_intervals.Intervals()) {
+    if (!interval.IsPrecise()) {
+      return absl::OkStatus();
+    }
+    Bits value = interval.LowerBound();  // guaranteed to be same as upper bound
+    Bits reduced = bits_ops::XorReduce(value);
+    if (output.has_value()) {
+      if (output.value() != reduced) {
+        return absl::OkStatus();
+      }
+    }
+    output = reduced;
+  }
+  if (output.has_value()) {
+    LeafTypeTree<IntervalSet> result(xor_reduce->GetType());
+    result.Set({}, IntervalSet::Precise(output.value()));
+    engine_->SetIntervalSetTree(xor_reduce, result);
+  }
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleZeroExtend(ExtendOp* zero_ext) {

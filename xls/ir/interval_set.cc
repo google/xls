@@ -32,6 +32,20 @@
 
 namespace xls {
 
+IntervalSet IntervalSet::Maximal(int64_t bit_count) {
+  IntervalSet result(bit_count);
+  result.AddInterval(Interval::Maximal(bit_count));
+  result.Normalize();
+  return result;
+}
+
+IntervalSet IntervalSet::Precise(const Bits& bits) {
+  IntervalSet result(bits.bit_count());
+  result.AddInterval(Interval::Precise(bits));
+  result.Normalize();
+  return result;
+}
+
 void IntervalSet::SetIntervals(absl::Span<const Interval> intervals) {
   is_normalized_ = false;
   intervals_.clear();

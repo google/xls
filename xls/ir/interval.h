@@ -58,6 +58,9 @@ class Interval {
   // Returns an `Interval` that covers every bit pattern of a given width.
   static Interval Maximal(int64_t bit_width);
 
+  // Returns an `Interval` that covers precisely the given bit pattern.
+  static Interval Precise(const Bits& bits);
+
   // Given two `Interval`s, return whether they overlap.
   // Does not accept improper intervals.
   static bool Overlaps(const Interval& lhs, const Interval& rhs);

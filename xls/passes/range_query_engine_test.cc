@@ -146,6 +146,45 @@ TEST_F(RangeQueryEngineTest, Add) {
   EXPECT_EQ(UBits(0, 20), engine.GetKnownBitsValues(expr.node()));
 }
 
+TEST_F(RangeQueryEngineTest, AndReduce) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
+  BValue expr = fb.AndReduce(x);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval(UBits(0, 20), UBits(48, 20))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Interval does not cover 2^20 - 1, so the result is known to be 0.
+  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBits(expr.node()));
+  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBitsValues(expr.node()));
+
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(),
+      BitsLTT(x.node(), {Interval(UBits(500, 20), Bits::AllOnes(20))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Interval does cover 2^20 - 1, so we don't know the value.
+  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBits(expr.node()));
+  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBitsValues(expr.node()));
+
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(),
+      BitsLTT(x.node(), {Interval(Bits::AllOnes(20), Bits::AllOnes(20))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Interval only covers 2^20 - 1, so the result is known to be 1.
+  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBits(expr.node()));
+  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBitsValues(expr.node()));
+}
+
 TEST_F(RangeQueryEngineTest, Concat) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -343,6 +382,43 @@ TEST_F(RangeQueryEngineTest, Neg) {
   // Negation is antitone.
   EXPECT_EQ(engine.GetIntervalSetTree(expr.node()),
             BitsLTT(x.node(), {Interval(SBits(-700, 20), SBits(-600, 20))}));
+}
+
+TEST_F(RangeQueryEngineTest, OrReduce) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
+  BValue expr = fb.OrReduce(x);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval(UBits(1, 20), UBits(48, 20))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Interval does not cover 0, so the result is known to be 1.
+  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBits(expr.node()));
+  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBitsValues(expr.node()));
+
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval(UBits(0, 20), UBits(48, 20))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Interval does cover 0, so we don't know the value.
+  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBits(expr.node()));
+  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBitsValues(expr.node()));
+
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval(UBits(0, 20), UBits(0, 20))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Interval only covers 0, so the result is known to be 0.
+  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBits(expr.node()));
+  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBitsValues(expr.node()));
 }
 
 TEST_F(RangeQueryEngineTest, Param) {
@@ -713,6 +789,57 @@ TEST_F(RangeQueryEngineTest, UMul) {
   // If the multiplication can overflow, the maximal range is inferred
   EXPECT_EQ(engine.GetIntervalSetTree(overflow.node()),
             BitsLTT(overflow.node(), {Interval::Maximal(12)}));
+}
+
+TEST_F(RangeQueryEngineTest, XorReduce) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
+  BValue expr = fb.XorReduce(x);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  engine.SetIntervalSetTree(
+      x.node(),
+      BitsLTT(x.node(), {Interval(UBits(0b1, 20), UBits(0b1, 20)),
+                         Interval(UBits(0b1110, 20), UBits(0b1110, 20))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Interval set covers only numbers with an odd number of 1s, so result is 1.
+  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBits(expr.node()));
+  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBitsValues(expr.node()));
+
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval(UBits(0, 20), UBits(48, 20))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Interval is not precise, so result is unknown.
+  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBits(expr.node()));
+  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBitsValues(expr.node()));
+
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(),
+      BitsLTT(x.node(), {Interval(UBits(0b1110, 20), UBits(0b1110, 20)),
+                         Interval(UBits(0b1001, 20), UBits(0b1001, 20))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Intervals are precise, but don't match parity of 1s, so result is unknown.
+  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBits(expr.node()));
+  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBitsValues(expr.node()));
+
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(),
+      BitsLTT(x.node(), {Interval(UBits(0b11, 20), UBits(0b11, 20))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Interval only covers numbers with an even number of 1s, so result is 0.
+  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBits(expr.node()));
+  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBitsValues(expr.node()));
 }
 
 TEST_F(RangeQueryEngineTest, ZeroExtend) {

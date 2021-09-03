@@ -43,9 +43,15 @@ class IntervalSet {
   // on it.
   IntervalSet() : is_normalized_(true), bit_count_(-1), intervals_() {}
 
-  // Create an empyt `IntervalSet` with the given bit count.
+  // Create an empty `IntervalSet` with the given bit count.
   explicit IntervalSet(int64_t bit_count)
       : is_normalized_(true), bit_count_(bit_count), intervals_() {}
+
+  // Returns an interval set that covers every bit pattern with the given width.
+  static IntervalSet Maximal(int64_t bit_count);
+
+  // Returns an interval set that covers exactly the given bit pattern.
+  static IntervalSet Precise(const Bits& bits);
 
   // Returns the number of intervals in the set.
   // Does not check for normalization, as this function can be used to check if
