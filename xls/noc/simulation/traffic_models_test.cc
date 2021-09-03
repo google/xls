@@ -82,5 +82,27 @@ TEST(TrafficModelsTest, GeneralizedGeometricModelTest) {
                    lambda * 128.0 / 500.0e-12 / 1024.0 / 1024.0 / 8.0);
 }
 
+TEST(TrafficModelsTest, GeneralizedGeometricModelBuilderTest) {
+  double lambda = 0.2;
+  double burst_prob = 0.1;
+  int64_t packet_size_bits = 128;
+
+  RandomNumberInterface rnd;
+  GeneralizedGeometricTrafficModelBuilder builder(lambda, burst_prob,
+                                                  packet_size_bits, rnd);
+
+  builder.SetVCIndex(1).SetSourceIndex(10).SetDestinationIndex(3);
+
+  GeneralizedGeometricTrafficModel model = builder.Build();
+
+  EXPECT_EQ(lambda, model.GetLambda());
+  EXPECT_EQ(burst_prob, model.GetBurstProb());
+  EXPECT_EQ(packet_size_bits, model.GetPacketSizeInBits());
+  EXPECT_EQ(&rnd, model.GetRandomNumberInterface());
+  EXPECT_EQ(model.GetVCIndex(), 1);
+  EXPECT_EQ(model.GetSourceIndex(), 10);
+  EXPECT_EQ(model.GetDestinationIndex(), 3);
+}
+
 }  // namespace
 }  // namespace xls::noc

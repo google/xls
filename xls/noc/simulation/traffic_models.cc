@@ -72,4 +72,21 @@ std::vector<DataPacket> GeneralizedGeometricTrafficModel::GetNewCyclePackets(
   return packets;
 }
 
+GeneralizedGeometricTrafficModelBuilder::
+    GeneralizedGeometricTrafficModelBuilder(double lambda, double burst_prob,
+                                            int64_t packet_size_bits,
+                                            RandomNumberInterface& rnd)
+    : lambda_(lambda), burst_prob_(burst_prob), random_interface_(&rnd) {
+  SetPacketSizeBits(packet_size_bits);
+}
+
+GeneralizedGeometricTrafficModel
+GeneralizedGeometricTrafficModelBuilder::Build() const {
+  GeneralizedGeometricTrafficModel model = TrafficModelBuilder::Build();
+  model.SetLambda(lambda_);
+  model.SetBurstProb(burst_prob_);
+  model.SetRandomNumberInterface(*random_interface_);
+  return model;
+}
+
 }  // namespace xls::noc

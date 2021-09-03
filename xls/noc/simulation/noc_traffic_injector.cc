@@ -281,11 +281,12 @@ absl::Status NocTrafficInjectorBuilder::BuildPerFlowTrafficModels(
     }
 
     injector.traffic_models_.push_back(
-        GeneralizedGeometricTrafficModel(lambda, burst_prob, bits_per_packet,
-                                         random_number_interface)
+        GeneralizedGeometricTrafficModelBuilder(
+            lambda, burst_prob, bits_per_packet, random_number_interface)
             .SetVCIndex(vc_index)
             .SetSourceIndex(source_index)
-            .SetDestinationIndex(sink_index));
+            .SetDestinationIndex(sink_index)
+            .Build());
     injector.traffic_flows_.push_back(flow_id);
   }
 
