@@ -207,6 +207,11 @@ ModuleTestbench& ModuleTestbench::ExpectX(absl::string_view output_port,
   return *this;
 }
 
+ModuleTestbench& ModuleTestbench::ExpectTrace(absl::string_view trace_message) {
+  expected_traces_.push_back(std::string(trace_message));
+  return *this;
+}
+
 ModuleTestbench& ModuleTestbench::Capture(absl::string_view output_port,
                                           Bits* value) {
   CheckIsOutput(output_port);
@@ -326,6 +331,18 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
             absl::get<Bits>(parsed_values.at(cycle_port)).ToString()));
       }
     }
+  }
+
+  // Look for the expected trace messages in the simulation output.
+  size_t search_pos = 0;
+  for (const std::string& message : expected_traces_) {
+    size_t found_pos = stdout_str.find(message, search_pos);
+    if (found_pos == absl::string_view::npos) {
+      return absl::NotFoundError(absl::StrFormat(
+          "Expected trace \"%s\" not found in Verilog simulator output.",
+          message));
+    }
+    search_pos = found_pos + message.length();
   }
 
   return absl::OkStatus();

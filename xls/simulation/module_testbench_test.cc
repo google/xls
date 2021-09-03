@@ -50,6 +50,17 @@ class ModuleTestbenchTest : public VerilogTestBase {
     m->Add<ContinuousAssignment>(out, p1);
     return m;
   }
+  // Creates and returns a module which simply prints two messages.
+  Module* MakeTwoMessageModule(VerilogFile* f) {
+    Module* m = f->AddModule("test_module");
+    m->AddInput("clk", f->ScalarType());
+    Initial* initial = m->Add<Initial>();
+    initial->statements()->Add<Display>(std::vector<Expression*>{
+        f->Make<QuotedString>("This is the first message.")});
+    initial->statements()->Add<Display>(std::vector<Expression*>{
+        f->Make<QuotedString>("This is the second message.")});
+    return m;
+  }
 };
 
 TEST_P(ModuleTestbenchTest, TwoStagePipeline) {
@@ -187,6 +198,43 @@ TEST_P(ModuleTestbenchTest, TestTimeout) {
   EXPECT_THAT(tb.Run(),
               StatusIs(absl::StatusCode::kDeadlineExceeded,
                        HasSubstr("Simulation exceeded maximum length")));
+}
+
+TEST_P(ModuleTestbenchTest, TracesFound) {
+  VerilogFile f(UseSystemVerilog());
+  Module* m = MakeTwoMessageModule(&f);
+
+  ModuleTestbench tb(m, GetSimulator(), "clk");
+  tb.ExpectTrace("This is the first message.");
+  tb.ExpectTrace("This is the second message.");
+  tb.NextCycle();
+
+  XLS_ASSERT_OK(tb.Run());
+}
+
+TEST_P(ModuleTestbenchTest, TracesNotFound) {
+  VerilogFile f(UseSystemVerilog());
+  Module* m = MakeTwoMessageModule(&f);
+
+  ModuleTestbench tb(m, GetSimulator(), "clk");
+  tb.ExpectTrace("This is the missing message.");
+  tb.NextCycle();
+
+  EXPECT_THAT(tb.Run(), StatusIs(absl::StatusCode::kNotFound,
+                                 HasSubstr("This is the missing message.")));
+}
+
+TEST_P(ModuleTestbenchTest, TracesOutOfOrder) {
+  VerilogFile f(UseSystemVerilog());
+  Module* m = MakeTwoMessageModule(&f);
+
+  ModuleTestbench tb(m, GetSimulator(), "clk");
+  tb.ExpectTrace("This is the second message.");
+  tb.ExpectTrace("This is the first message.");
+  tb.NextCycle();
+
+  EXPECT_THAT(tb.Run(), StatusIs(absl::StatusCode::kNotFound,
+                                 HasSubstr("This is the first message.")));
 }
 
 INSTANTIATE_TEST_SUITE_P(ModuleTestbenchTestInstantiation, ModuleTestbenchTest,
