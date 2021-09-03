@@ -929,7 +929,51 @@ absl::Status RangeQueryVisitor::HandleSMul(ArithOp* mul) {
 
 absl::Status RangeQueryVisitor::HandleSel(Select* sel) {
   engine_->InitializeNode(sel);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  IntervalSet selector_intervals =
+      engine_->GetIntervalSetTree(sel->selector()).Get({});
+  bool default_possible = false;
+  absl::btree_set<uint64_t> selector_values;
+  for (const Interval& interval : selector_intervals.Intervals()) {
+    uint64_t num_cases = sel->cases().size();
+    interval.ForEachElement([&](const Bits& bits) -> bool {
+      uint64_t value = *bits.ToUint64();
+      // If part of the interval is outside of the valid selector range, then
+      // we assume that the remainder of the interval is also out of range.
+      if (value >= num_cases) {
+        default_possible = true;
+        return true;
+      }
+      selector_values.insert(value);
+      return false;
+    });
+  }
+  // TODO(taktoa): check if sel->cases().size() is greater than the number of
+  // representable values in the type of the selector, and set default_possible
+  // false in that case.
+  LeafTypeTree<IntervalSet> result(sel->GetType());
+  for (int64_t i = 0; i < result.elements().size(); ++i) {
+    // Initialize all interval sets to empty
+    result.elements()[i] =
+        IntervalSet(result.leaf_types()[i]->GetFlatBitCount());
+  }
+  auto combine = [&](Node* node) {
+    LeafTypeTree<IntervalSet> tree = engine_->GetIntervalSetTree(node);
+    result = LeafTypeTree<IntervalSet>::Zip<IntervalSet, IntervalSet>(
+        IntervalSet::Combine, result, tree);
+  };
+  for (int64_t i = 0; i < sel->cases().size(); ++i) {
+    if (selector_values.contains(i)) {
+      combine(sel->cases()[i]);
+    }
+  }
+  if (default_possible && sel->default_value().has_value()) {
+    combine(sel->default_value().value());
+  }
+  for (IntervalSet& intervals : result.elements()) {
+    intervals = MinimizeIntervals(intervals);
+  }
+  engine_->SetIntervalSetTree(sel, result);
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleSend(Send* send) {

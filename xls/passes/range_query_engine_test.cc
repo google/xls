@@ -499,6 +499,57 @@ TEST_F(RangeQueryEngineTest, Param) {
             BitsLTT(x.node(), {Interval(Bits(20), Bits::AllOnes(20))}));
 }
 
+TEST_F(RangeQueryEngineTest, Sel) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue selector = fb.Param("selector", fb.package()->GetBitsType(10));
+  BValue x = fb.Param("x", fb.package()->GetBitsType(10));
+  BValue y = fb.Param("y", fb.package()->GetBitsType(10));
+  BValue z = fb.Param("z", fb.package()->GetBitsType(10));
+  BValue def = fb.Param("def", fb.package()->GetBitsType(10));
+  BValue expr = fb.Select(selector, {x, y, z}, def);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), {Interval(UBits(100, 10), UBits(150, 10))});
+  IntervalSetTree y_ist =
+      BitsLTT(y.node(), {Interval(UBits(200, 10), UBits(250, 10))});
+  IntervalSetTree z_ist =
+      BitsLTT(y.node(), {Interval(UBits(300, 10), UBits(350, 10))});
+  IntervalSetTree def_ist =
+      BitsLTT(y.node(), {Interval(UBits(1023, 10), UBits(1023, 10))});
+
+  engine.SetIntervalSetTree(
+      selector.node(),
+      BitsLTT(selector.node(), {Interval(UBits(0, 10), UBits(1, 10))}));
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  engine.SetIntervalSetTree(def.node(), def_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Usual test case where only part of the valid inputs are covered.
+  EXPECT_EQ(IntervalSet::Combine(x_ist.Get({}), y_ist.Get({})),
+            engine.GetIntervalSetTree(expr.node()).Get({}));
+
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      selector.node(),
+      BitsLTT(selector.node(), {Interval(UBits(2, 10), UBits(10, 10))}));
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  engine.SetIntervalSetTree(def.node(), def_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Test case where default is covered.
+  EXPECT_EQ(IntervalSet::Combine(z_ist.Get({}), def_ist.Get({})),
+            engine.GetIntervalSetTree(expr.node()).Get({}));
+}
+
 TEST_F(RangeQueryEngineTest, SignExtend) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
