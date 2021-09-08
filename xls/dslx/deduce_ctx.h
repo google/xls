@@ -17,6 +17,7 @@
 
 #include <filesystem>
 
+#include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/import_routines.h"
@@ -24,42 +25,45 @@
 
 namespace xls::dslx {
 
-// An entry on the "stack of functions currently being deduced".
+// An entry on the "stack of functions/procs currently being deduced".
 class FnStackEntry {
  public:
   // Creates an entry for type inference of function 'f' with the given symbolic
   // bindings.
-  static FnStackEntry Make(Function* f, SymbolicBindings symbolic_bindings) {
-    return FnStackEntry(f, std::move(symbolic_bindings));
+  static FnStackEntry Make(FunctionBase* f,
+                           SymbolicBindings symbolic_bindings) {
+    return FnStackEntry(f, f->identifier(), f->owner(),
+                        std::move(symbolic_bindings));
   }
+
   // Creates an entry for type inference of the top level of module 'module'.
   static FnStackEntry MakeTop(Module* module) { return FnStackEntry(module); }
 
   // Represents a "representation" string for use in debugging, as in Python.
   std::string ToReprString() const;
 
-  // Returns true if this entry describes the given function.
-  bool Matches(const Function* f) const;
-
   const std::string& name() const { return name_; }
-  Function* function() const { return function_; }
+  FunctionBase* fb() const { return fb_; }
   const Module* module() const { return module_; }
   const SymbolicBindings& symbolic_bindings() const {
     return symbolic_bindings_;
   }
 
+  bool operator!=(nullptr_t) const { return fb_ != nullptr; }
+
  private:
-  FnStackEntry(Function* f, SymbolicBindings symbolic_bindings)
-      : function_(f),
-        name_(f->identifier()),
-        module_(f->owner()),
+  FnStackEntry(FunctionBase* fb, std::string name, Module* module,
+               SymbolicBindings symbolic_bindings)
+      : fb_(fb),
+        name_(name),
+        module_(module),
         symbolic_bindings_(symbolic_bindings) {}
 
   // Constructor overload for a module-level inference entry.
   explicit FnStackEntry(Module* module)
-      : function_(nullptr), name_("<top>"), module_(module) {}
+      : fb_(static_cast<Function*>(nullptr)), name_("<top>"), module_(module) {}
 
-  Function* function_;
+  FunctionBase* fb_;
   std::string name_;
   const Module* module_;
   SymbolicBindings symbolic_bindings_;
@@ -73,7 +77,8 @@ using DeduceFn = std::function<absl::StatusOr<std::unique_ptr<ConcreteType>>(
 
 // Signature used for typechecking a single function within a module (this is
 // generally used for typechecking parametric instantiations).
-using TypecheckFunctionFn = std::function<absl::Status(Function*, DeduceCtx*)>;
+using TypecheckFunctionFn =
+    std::function<absl::Status(FunctionBase*, DeduceCtx*)>;
 
 // A single object that contains all the state/callbacks used in the
 // typechecking process.

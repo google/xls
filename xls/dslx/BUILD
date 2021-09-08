@@ -506,6 +506,7 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
@@ -620,6 +621,7 @@ cc_library(
         "//xls/common:string_to_int",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 
@@ -636,6 +638,7 @@ cc_library(
         ":interpreter",
         ":parametric_instantiator",
         ":scanner",
+        ":type_and_bindings",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/status",
@@ -671,6 +674,7 @@ cc_library(
         ":parametric_instantiator",
         "@com_github_google_re2//:re2",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 

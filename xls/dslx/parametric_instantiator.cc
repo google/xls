@@ -330,7 +330,7 @@ absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
   // Walk through all the params/args to collect symbolic bindings.
   for (int64_t i = 0; i < args().size(); ++i) {
     const ConcreteType& param_type = *param_types_[i];
-    const ConcreteType& arg_type = args()[i].type;
+    const ConcreteType& arg_type = *args()[i].type;
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> instantiated_param_type,
                          InstantiateOneArg(i, param_type, arg_type));
     if (*instantiated_param_type != arg_type) {
@@ -368,7 +368,7 @@ absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
 absl::StatusOr<TypeAndBindings> StructInstantiator::Instantiate() {
   for (int64_t i = 0; i < member_types_.size(); ++i) {
     const ConcreteType& member_type = *member_types_[i];
-    const ConcreteType& arg_type = args()[i].type;
+    const ConcreteType& arg_type = *args()[i].type;
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> instantiated_member_type,
                          InstantiateOneArg(i, member_type, arg_type));
     if (*instantiated_member_type != arg_type) {
@@ -408,7 +408,7 @@ static std::string ToTypesString(absl::Span<const InstantiateArg> ts) {
     return "none";
   }
   return absl::StrJoin(ts, ", ", [](std::string* out, const auto& t) {
-    absl::StrAppend(out, t.type.ToString());
+    absl::StrAppend(out, t.type->ToString());
   });
 }
 static std::string ToString(

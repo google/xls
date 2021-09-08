@@ -31,7 +31,7 @@ namespace xls::dslx {
 // filling in the (possibly parametric) slots of the formal (declared) types --
 // the formal types may be parametric.
 struct InstantiateArg {
-  const ConcreteType& type;
+  std::unique_ptr<ConcreteType> type;
   const dslx::Span span;
 };
 

@@ -24,10 +24,11 @@
 
 namespace xls::dslx {
 
+using TopNode =
+    absl::variant<FunctionBase*, TestFunction*, StructDef*, TypeDef*>;
+
 // Type-checks function f in the given module.
-absl::Status CheckTopNodeInModule(
-    absl::variant<Function*, TestFunction*, StructDef*, TypeDef*> f,
-    DeduceCtx* ctx);
+absl::Status CheckTopNodeInModule(TopNode f, DeduceCtx* ctx);
 
 // Validates type annotations on all functions within "module".
 //

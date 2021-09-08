@@ -2847,15 +2847,6 @@ absl::Status ConvertOneFunctionInternal(
         ConversionRecord::ValidateParametrics(function, *symbolic_bindings));
   }
 
-  absl::flat_hash_map<std::string, Function*> function_by_name =
-      module->GetFunctionByName();
-  absl::flat_hash_map<std::string, ConstantDef*> constant_by_name =
-      module->GetConstantByName();
-  absl::flat_hash_map<std::string, TypeDefinition> type_definition_by_name =
-      module->GetTypeDefinitionByName();
-  absl::flat_hash_map<std::string, Import*> import_by_name =
-      module->GetImportByName();
-
   FunctionConverter converter(package_data, module, import_data, options);
 
   XLS_ASSIGN_OR_RETURN(auto constant_deps,

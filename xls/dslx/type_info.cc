@@ -100,22 +100,49 @@ absl::optional<ConcreteType*> TypeInfo::GetItem(AstNode* key) const {
   return absl::nullopt;
 }
 
-void TypeInfo::AddInstantiationCallBindings(Invocation* invocation,
-                                            SymbolicBindings caller,
-                                            SymbolicBindings callee) {
-  XLS_CHECK_EQ(invocation->owner(), module_);
+// Utility struct to hold the data from Invocations/Spawns needed for
+// instantiation type info.
+struct CallData {
+  Module* owner;
+  Span span;
+  std::string repr;
+};
+
+// Populates and returns a CallData.
+CallData GetCallData(absl::variant<Invocation*, Spawn*> call) {
+  CallData call_data;
+  if (absl::holds_alternative<Invocation*>(call)) {
+    Invocation* invocation = absl::get<Invocation*>(call);
+    call_data.span = invocation->span();
+    call_data.owner = invocation->owner();
+    call_data.repr = invocation->ToString();
+  } else {
+    Spawn* spawn = absl::get<Spawn*>(call);
+    call_data.span = spawn->span();
+    call_data.owner = spawn->owner();
+    call_data.repr = spawn->ToString();
+  }
+  return call_data;
+}
+
+void TypeInfo::AddInstantiationCallBindings(
+    absl::variant<Invocation*, Spawn*> call, SymbolicBindings caller,
+    SymbolicBindings callee) {
+  CallData call_data = GetCallData(call);
+
+  XLS_CHECK_EQ(call_data.owner, module_);
   TypeInfo* top = GetRoot();
   XLS_VLOG(3) << "Type info " << top
               << " adding instantiation call bindings for invocation: "
-              << invocation << " " << invocation->ToString() << " @ "
-              << invocation->span() << " caller: " << caller.ToString()
+              << call_data.repr << " @ " << call_data.span
+              << " caller: " << caller.ToString()
               << " callee: " << callee.ToString();
-  auto it = top->instantiations_.find(invocation);
+  auto it = top->instantiations_.find(call);
   if (it == top->instantiations_.end()) {
     absl::flat_hash_map<SymbolicBindings, SymbolicBindings> symbind_map;
     symbind_map.emplace(std::move(caller), std::move(callee));
-    top->instantiations_[invocation] =
-        InstantiationData{invocation, std::move(symbind_map)};
+    top->instantiations_[call] =
+        InstantiationData{call, std::move(symbind_map)};
     return;
   }
   XLS_VLOG(3) << "Adding to existing invocation data.";
@@ -123,19 +150,20 @@ void TypeInfo::AddInstantiationCallBindings(Invocation* invocation,
   data.symbolic_bindings_map.emplace(std::move(caller), std::move(callee));
 }
 
-bool TypeInfo::HasInstantiation(Invocation* invocation,
+bool TypeInfo::HasInstantiation(absl::variant<Invocation*, Spawn*> call,
                                 const SymbolicBindings& caller) const {
-  XLS_CHECK_EQ(invocation->owner(), module_)
-      << invocation->owner()->name() << " vs " << module_->name() << " @ "
-      << invocation->span();
-  return GetInstantiationTypeInfo(invocation, caller).has_value();
+  CallData call_data = GetCallData(call);
+  XLS_CHECK_EQ(call_data.owner, module_)
+      << call_data.owner->name() << " vs " << module_->name() << " @ "
+      << call_data.span;
+  return GetInstantiationTypeInfo(call, caller).has_value();
 }
 
-absl::optional<bool> TypeInfo::GetRequiresImplicitToken(Function* f) const {
+absl::optional<bool> TypeInfo::GetRequiresImplicitToken(FunctionBase* f) const {
   XLS_CHECK_EQ(f->owner(), module_) << "function owner: " << f->owner()->name()
                                     << " module: " << module_->name();
   const TypeInfo* root = GetRoot();
-  const absl::flat_hash_map<Function*, bool>& map =
+  const absl::flat_hash_map<FunctionBase*, bool>& map =
       root->requires_implicit_token_;
   auto it = map.find(f);
   if (it == map.end()) {
@@ -148,7 +176,7 @@ absl::optional<bool> TypeInfo::GetRequiresImplicitToken(Function* f) const {
   return result;
 }
 
-void TypeInfo::NoteRequiresImplicitToken(Function* f, bool is_required) {
+void TypeInfo::NoteRequiresImplicitToken(FunctionBase* f, bool is_required) {
   TypeInfo* root = GetRoot();
   XLS_VLOG(6) << absl::StreamFormat(
       "NoteRequiresImplicitToken %p: %s::%s => %s", root, f->owner()->name(),
@@ -157,18 +185,20 @@ void TypeInfo::NoteRequiresImplicitToken(Function* f, bool is_required) {
 }
 
 absl::optional<TypeInfo*> TypeInfo::GetInstantiationTypeInfo(
-    Invocation* invocation, const SymbolicBindings& caller) const {
-  XLS_CHECK_EQ(invocation->owner(), module_)
-      << invocation->owner()->name() << " vs " << module_->name();
+    absl::variant<Invocation*, Spawn*> call,
+    const SymbolicBindings& caller) const {
+  CallData call_data = GetCallData(call);
+  XLS_CHECK_EQ(call_data.owner, module_)
+      << call_data.owner->name() << " vs " << module_->name();
   const TypeInfo* top = GetRoot();
-  auto it = top->instantiations_.find(invocation);
+  auto it = top->instantiations_.find(call);
   if (it == top->instantiations_.end()) {
     XLS_VLOG(5) << "Could not find instantiation for invocation: "
-                << invocation->ToString();
+                << call_data.repr;
     return absl::nullopt;
   }
   const InstantiationData& data = it->second;
-  XLS_VLOG(5) << "Invocation " << invocation->ToString()
+  XLS_VLOG(5) << "Invocation " << call_data.repr
               << " caller bindings: " << caller
               << " invocation data: " << data.ToString();
   auto it2 = data.instantiations.find(caller);
@@ -178,12 +208,13 @@ absl::optional<TypeInfo*> TypeInfo::GetInstantiationTypeInfo(
   return it2->second;
 }
 
-void TypeInfo::SetInstantiationTypeInfo(Invocation* invocation,
+void TypeInfo::SetInstantiationTypeInfo(absl::variant<Invocation*, Spawn*> call,
                                         SymbolicBindings caller,
                                         TypeInfo* type_info) {
-  XLS_CHECK_EQ(invocation->owner(), module_);
+  CallData call_data = GetCallData(call);
+  XLS_CHECK_EQ(call_data.owner, module_);
   TypeInfo* top = GetRoot();
-  InstantiationData& data = top->instantiations_[invocation];
+  InstantiationData& data = top->instantiations_[call];
   data.instantiations[caller] = type_info;
 }
 

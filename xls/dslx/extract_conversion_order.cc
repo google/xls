@@ -454,14 +454,21 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
 
       XLS_RETURN_IF_ERROR(
           AddToReady(function, module, type_info, SymbolicBindings(), &ready));
-    } else if (absl::holds_alternative<Function*>(member)) {
-      auto* function = absl::get<Function*>(member);
-      if (function->IsParametric()) {
+    } else if (absl::holds_alternative<FunctionBase*>(member)) {
+      auto* fb = absl::get<FunctionBase*>(member);
+      if (fb->IsParametric()) {
+        continue;
+      }
+
+      Function* f = dynamic_cast<Function*>(fb);
+      if (f == nullptr) {
+        XLS_LOG(INFO) << "Proc conversion not yet supported; skipping "
+                      << fb->identifier();
         continue;
       }
 
       XLS_RETURN_IF_ERROR(
-          AddToReady(function, module, type_info, SymbolicBindings(), &ready));
+          AddToReady(f, module, type_info, SymbolicBindings(), &ready));
     } else if (absl::holds_alternative<ConstantDef*>(member)) {
       auto* constant_def = absl::get<ConstantDef*>(member);
       XLS_ASSIGN_OR_RETURN(

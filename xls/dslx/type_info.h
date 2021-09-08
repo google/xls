@@ -45,10 +45,11 @@ struct SliceData {
   absl::flat_hash_map<SymbolicBindings, StartAndWidth> bindings_to_start_width;
 };
 
-// Parametric instantiation information related to an invocation AST node.
+// Parametric instantiation information related to an invocation or spawn AST
+// node.
 struct InstantiationData {
-  // Invocation AST node.
-  Invocation* node;
+  // Invocation/Spawn AST node.
+  absl::variant<Invocation*, Spawn*> node;
   // Map from symbolic bindings in the caller to the corresponding symbolic
   // bindings in the callee for this invocation.
   absl::flat_hash_map<SymbolicBindings, SymbolicBindings> symbolic_bindings_map;
@@ -100,7 +101,7 @@ class TypeInfo {
   TypeInfo* parent() const { return parent_; }
 
   // Returns if there's type info at 'invocation' with given caller bindings.
-  bool HasInstantiation(Invocation* invocation,
+  bool HasInstantiation(absl::variant<Invocation*, Spawn*> call,
                         const SymbolicBindings& caller) const;
 
   // Notes start/width for a slice operation found during type inference.
@@ -122,7 +123,7 @@ class TypeInfo {
   //     instantiation.
   //   caller: The caller's symbolic bindings at the point of invocation.
   //   callee: The callee's computed symbolic bindings for the invocation.
-  void AddInstantiationCallBindings(Invocation* invocation,
+  void AddInstantiationCallBindings(absl::variant<Invocation*, Spawn*> call,
                                     SymbolicBindings caller,
                                     SymbolicBindings callee);
 
@@ -143,14 +144,15 @@ class TypeInfo {
   //
   // Note that the type_info may be nullptr in special cases, like when mapping
   // a callee which is not parametric.
-  void SetInstantiationTypeInfo(Invocation* invocation, SymbolicBindings caller,
-                                TypeInfo* type_info);
+  void SetInstantiationTypeInfo(absl::variant<Invocation*, Spawn*> call,
+                                SymbolicBindings caller, TypeInfo* type_info);
 
   // Attempts to retrieve "instantiation" type information -- that is, when
   // there's an invocation with parametrics in a caller, it may map to
   // particular type-information for the callee.
   absl::optional<TypeInfo*> GetInstantiationTypeInfo(
-      Invocation* invocation, const SymbolicBindings& caller) const;
+      absl::variant<Invocation*, Spawn*> call,
+      const SymbolicBindings& caller) const;
 
   // Sets the type associated with the given AST node.
   void SetItem(AstNode* key, const ConcreteType& value) {
@@ -189,8 +191,8 @@ class TypeInfo {
 
   // Returns whether function "f" requires an implicit token parameter; i.e. it
   // contains a `fail!()` or `cover!()` as determined during type inferencing.
-  absl::optional<bool> GetRequiresImplicitToken(Function* f) const;
-  void NoteRequiresImplicitToken(Function* f, bool is_required);
+  absl::optional<bool> GetRequiresImplicitToken(FunctionBase* fb) const;
+  void NoteRequiresImplicitToken(FunctionBase* fb, bool is_required);
 
   // Attempts to retrieve the callee's parametric values in an "instantiation".
   // That is, in the case of:
@@ -261,10 +263,11 @@ class TypeInfo {
   absl::flat_hash_map<AstNode*, std::unique_ptr<ConcreteType>> dict_;
   absl::flat_hash_map<Import*, ImportedInfo> imports_;
   absl::flat_hash_map<NameDef*, ConstantDef*> name_to_const_;
-  absl::flat_hash_map<Invocation*, InstantiationData> instantiations_;
+  absl::flat_hash_map<absl::variant<Invocation*, Spawn*>, InstantiationData>
+      instantiations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
   absl::flat_hash_map<Expr*, InterpValue> const_exprs_;
-  absl::flat_hash_map<Function*, bool> requires_implicit_token_;
+  absl::flat_hash_map<FunctionBase*, bool> requires_implicit_token_;
   TypeInfo* parent_;  // Note: may be nullptr.
 };
 

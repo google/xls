@@ -522,8 +522,9 @@ static void PopulateSignatureToLambdaMap(
                             .status());
 
     const ConcreteType& t = a->element_type();
-    std::vector<InstantiateArg> mapped_fn_args = {
-        InstantiateArg{t, data.arg_spans[0]}};
+    std::vector<InstantiateArg> mapped_fn_args;
+    mapped_fn_args.push_back(
+        InstantiateArg{t.CloneToUnique(), data.arg_spans[0]});
 
     absl::optional<absl::Span<const ParametricConstraint>>
         mapped_parametric_bindings;

@@ -14,6 +14,7 @@
 
 #include "xls/dslx/evaluate.h"
 
+#include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/interp_value.h"
@@ -848,8 +849,13 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
   absl::optional<ModuleMember*> member =
       module->FindMemberWithName(expr->attr());
   XLS_RET_CHECK(member.has_value());
-  if (absl::holds_alternative<Function*>(*member.value())) {
-    auto* f = absl::get<Function*>(*member.value());
+  if (absl::holds_alternative<FunctionBase*>(*member.value())) {
+    auto* fb = absl::get<FunctionBase*>(*member.value());
+    Function* f = dynamic_cast<Function*>(fb);
+    if (f == nullptr) {
+      return absl::UnimplementedError(
+          "Evaluate() does not yet work with procs.");
+    }
     return InterpValue::MakeFunction(InterpValue::UserFnData{f->owner(), f});
   }
   if (absl::holds_alternative<ConstantDef*>(*member.value())) {
@@ -1213,9 +1219,13 @@ absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
   }
 
   // Add all the functions in the top level scope for the module.
-  for (Function* f : module->GetFunctions()) {
-    b.AddFn(f->identifier(),
-            InterpValue::MakeFunction(InterpValue::UserFnData{module, f}));
+  for (FunctionBase* fb : module->GetFunctionBases()) {
+    Function* f = dynamic_cast<Function*>(fb);
+    // Don't evaluate procs for now.
+    if (f != nullptr) {
+      b.AddFn(f->identifier(),
+              InterpValue::MakeFunction(InterpValue::UserFnData{module, f}));
+    }
   }
 
   // Add all the type definitions in the top level scope for the module to the

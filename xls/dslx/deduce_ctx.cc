@@ -17,6 +17,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
+#include "absl/types/variant.h"
 #include "xls/common/string_to_int.h"
 
 namespace xls::dslx {
@@ -26,12 +27,10 @@ std::string FnStackEntry::ToReprString() const {
                          symbolic_bindings_.ToString());
 }
 
-bool FnStackEntry::Matches(const Function* f) const { return f == function_; }
-
-DeduceCtx::DeduceCtx(
-    TypeInfo* type_info, Module* module, DeduceFn deduce_function,
-    TypecheckFunctionFn typecheck_function, TypecheckFn typecheck_module,
-    ImportData* import_data)
+DeduceCtx::DeduceCtx(TypeInfo* type_info, Module* module,
+                     DeduceFn deduce_function,
+                     TypecheckFunctionFn typecheck_function,
+                     TypecheckFn typecheck_module, ImportData* import_data)
     : type_info_(type_info),
       module_(module),
       deduce_function_(std::move(XLS_DIE_IF_NULL(deduce_function))),

@@ -14,6 +14,7 @@
 
 #include "xls/dslx/typecheck.h"
 
+#include "absl/types/variant.h"
 #include "xls/dslx/deduce.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/dslx_builtins.h"
@@ -24,14 +25,10 @@
 
 namespace xls::dslx {
 
-// TODO(leary): 2021-03-29 The name here should be more like "Checkable" --
-// these are the AST node variants we keep in a stacked order for typechecking.
-using TopNode = absl::variant<Function*, TestFunction*, StructDef*, TypeDef*>;
-
 // Checks the function's parametrics' and arguments' types.
 static absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
-CheckFunctionParams(Function* f, DeduceCtx* ctx) {
-  for (ParametricBinding* parametric : f->parametric_bindings()) {
+CheckFunctionParams(FunctionBase* fb, DeduceCtx* ctx) {
+  for (ParametricBinding* parametric : fb->parametric_bindings()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_binding_type,
                          ctx->Deduce(parametric->type_annotation()));
     if (parametric->expr() != nullptr) {
@@ -50,11 +47,31 @@ CheckFunctionParams(Function* f, DeduceCtx* ctx) {
   }
 
   std::vector<std::unique_ptr<ConcreteType>> param_types;
-  for (Param* param : f->params()) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> param_type,
-                         ctx->Deduce(param));
-    ctx->type_info()->SetItem(param->name_def(), *param_type);
-    param_types.push_back(std::move(param_type));
+  Proc* p = dynamic_cast<Proc*>(fb);
+  if (p != nullptr) {
+    // Just throw Proc params at the front of the param list.
+    for (Param* param : p->proc_params()) {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> param_type,
+                           ctx->Deduce(param));
+      ctx->type_info()->SetItem(param->name_def(), *param_type);
+      param_types.push_back(std::move(param_type));
+    }
+
+    for (Param* param : p->iter_params()) {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> param_type,
+                           ctx->Deduce(param));
+      ctx->type_info()->SetItem(param->name_def(), *param_type);
+      param_types.push_back(std::move(param_type));
+    }
+  } else {
+    Function* f = dynamic_cast<Function*>(fb);
+    XLS_CHECK_NE(f, nullptr);
+    for (Param* param : f->params()) {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> param_type,
+                           ctx->Deduce(param));
+      ctx->type_info()->SetItem(param->name_def(), *param_type);
+      param_types.push_back(std::move(param_type));
+    }
   }
 
   return param_types;
@@ -64,59 +81,61 @@ CheckFunctionParams(Function* f, DeduceCtx* ctx) {
 //
 // Returns a XlsTypeErrorStatus when the return type deduced is inconsistent
 // with the return type annotation on `f`.
-static absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
+static absl::Status CheckFunctionBase(FunctionBase* fb, DeduceCtx* ctx) {
   const FnStackEntry& entry = ctx->fn_stack().back();
 
   std::vector<std::unique_ptr<ConcreteType>> param_types;
   std::unique_ptr<ConcreteType> annotated_return_type;
 
   // First, get the types of the function's parametrics, args, and return type.
-  if (f->IsParametric() && entry.Matches(f)) {
+  if (fb->IsParametric() && entry.fb() == fb) {
     // Parametric functions are evaluated per invocation. If we're currently
     // inside of this function, it just means that we already have the type
     // signature, and now we just need to evaluate the body.
-    absl::optional<ConcreteType*> f_type = ctx->type_info()->GetItem(f);
-    XLS_RET_CHECK(f_type.has_value());
-    auto* function_type = dynamic_cast<FunctionType*>(f_type.value());
+    absl::optional<ConcreteType*> fb_type =
+        ctx->type_info()->GetItem(ToAstNode(fb));
+    XLS_RET_CHECK(fb_type.has_value());
+    auto* function_type = dynamic_cast<FunctionType*>(fb_type.value());
     XLS_RET_CHECK(function_type != nullptr);
     annotated_return_type = function_type->return_type().CloneToUnique();
     param_types = CloneToUnique(absl::MakeSpan(function_type->params()));
   } else {
-    XLS_VLOG(1) << "Type-checking signature for function: " << f->identifier();
-    XLS_ASSIGN_OR_RETURN(param_types, CheckFunctionParams(f, ctx));
+    XLS_VLOG(1) << "Type-checking signature for function: " << fb->identifier();
+    XLS_ASSIGN_OR_RETURN(param_types, CheckFunctionParams(fb, ctx));
 
-    if (f->IsParametric()) {
+    if (fb->IsParametric()) {
       // We just needed the type signature so that we can instantiate this
       // invocation. Let's return this for now, and typecheck the body once we
       // have symbolic bindings.
-      if (f->return_type() == nullptr) {
+      if (fb->GetOutputType() == nullptr) {
         annotated_return_type = TupleType::MakeUnit();
       } else {
         XLS_ASSIGN_OR_RETURN(annotated_return_type,
-                             ctx->Deduce(f->return_type()));
+                             ctx->Deduce(fb->GetOutputType()));
       }
       FunctionType function_type(std::move(param_types),
                                  std::move(annotated_return_type));
-      ctx->type_info()->SetItem(f->name_def(), function_type);
-      ctx->type_info()->SetItem(f, function_type);
+      ctx->type_info()->SetItem(fb->name_def(), function_type);
+      ctx->type_info()->SetItem(ToAstNode(fb), function_type);
       return absl::OkStatus();
     }
   }
 
-  XLS_VLOG(1) << "Type-checking body for function: " << f->identifier();
+  XLS_VLOG(1) << "Type-checking body for function: " << fb->identifier();
 
   // Second, typecheck the return type of the function.
   // Note: if there is no annotated return type, we assume nil.
   std::unique_ptr<ConcreteType> return_type;
-  if (f->return_type() == nullptr) {
+  if (fb->GetOutputType() == nullptr) {
     return_type = TupleType::MakeUnit();
   } else {
-    XLS_ASSIGN_OR_RETURN(return_type, DeduceAndResolve(f->return_type(), ctx));
+    XLS_ASSIGN_OR_RETURN(return_type,
+                         DeduceAndResolve(fb->GetOutputType(), ctx));
   }
 
   // Third, typecheck the body of the function.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_return_type,
-                       DeduceAndResolve(f->body(), ctx));
+                       DeduceAndResolve(fb->body(), ctx));
 
   // Finally, assert type consistency between body and annotated return type.
   XLS_VLOG(3) << absl::StrFormat(
@@ -127,26 +146,31 @@ static absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
       body_return_type->ToString());
   if (*return_type != *body_return_type) {
     return XlsTypeErrorStatus(
-        f->body()->span(), *body_return_type, *return_type,
+        fb->body()->span(), *body_return_type, *return_type,
         absl::StrFormat("Return type of function body for '%s' did not match "
                         "the annotated return type.",
-                        f->identifier()));
+                        fb->identifier()));
   }
 
-  // Implementation note: though we could have all functions have
-  // NoteRequiresImplicitToken() be false unless otherwise noted, this helps
-  // guarantee we did consider and make a note for every function -- the code is
-  // generally complex enough it's nice to have this soundness check.
-  if (absl::optional<bool> requires =
-          ctx->type_info()->GetRequiresImplicitToken(f);
-      !requires.has_value()) {
-    ctx->type_info()->NoteRequiresImplicitToken(f, false);
+  // TODO(rspringer): 2021-09-07: Figure out the token story for Procs. Don't
+  // forget to make sure trace_fmt! and fail! are hooked in correctly.
+  Function* f = dynamic_cast<Function*>(fb);
+  if (f != nullptr) {
+    // Implementation note: though we could have all functions have
+    // NoteRequiresImplicitToken() be false unless otherwise noted, this helps
+    // guarantee we did consider and make a note for every function -- the code
+    // is generally complex enough it's nice to have this soundness check.
+    if (absl::optional<bool> requires =
+            ctx->type_info()->GetRequiresImplicitToken(f);
+        !requires.has_value()) {
+      ctx->type_info()->NoteRequiresImplicitToken(f, false);
+    }
   }
 
   FunctionType function_type(std::move(param_types),
                              std::move(body_return_type));
-  ctx->type_info()->SetItem(f->name_def(), function_type);
-  ctx->type_info()->SetItem(f, function_type);
+  ctx->type_info()->SetItem(fb->name_def(), function_type);
+  ctx->type_info()->SetItem(ToAstNode(fb), function_type);
   return absl::OkStatus();
 }
 
@@ -275,8 +299,8 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
     }
   } else if (builtin_name->identifier() == "fail!" ||
              builtin_name->identifier() == "cover!") {
-    if (f != nullptr && absl::holds_alternative<Function*>(*f)) {
-      ctx->type_info()->NoteRequiresImplicitToken(absl::get<Function*>(*f),
+    if (f != nullptr && absl::holds_alternative<FunctionBase*>(*f)) {
+      ctx->type_info()->NoteRequiresImplicitToken(absl::get<FunctionBase*>(*f),
                                                   true);
     } else {
       return TypeInferenceErrorStatus(
@@ -416,23 +440,23 @@ struct TypecheckStackRecord {
 //
 // Note: This may end up in a TypeMissingError() that gets handled in the outer
 // loop.
-static absl::Status ProcessTopNode(TopNode f, DeduceCtx* ctx) {
-  if (absl::holds_alternative<Function*>(f)) {
-    XLS_RETURN_IF_ERROR(CheckFunction(absl::get<Function*>(f), ctx));
-  } else if (absl::holds_alternative<TestFunction*>(f)) {
-    XLS_RETURN_IF_ERROR(CheckTest(absl::get<TestFunction*>(f), ctx));
+static absl::Status ProcessTopNode(TopNode node, DeduceCtx* ctx) {
+  if (absl::holds_alternative<FunctionBase*>(node)) {
+    XLS_RETURN_IF_ERROR(CheckFunctionBase(absl::get<FunctionBase*>(node), ctx));
+  } else if (absl::holds_alternative<TestFunction*>(node)) {
+    XLS_RETURN_IF_ERROR(CheckTest(absl::get<TestFunction*>(node), ctx));
   } else {
     // Nothing special to do for these other variants, we just want to be able
     // to catch any TypeMissingErrors and try to resolve them.
-    XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(f)).status());
+    XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(node)).status());
   }
   return absl::OkStatus();
 }
 
 // Returns the identifier for the top level node.
 static const std::string& Identifier(const TopNode& f) {
-  if (absl::holds_alternative<Function*>(f)) {
-    return absl::get<Function*>(f)->identifier();
+  if (absl::holds_alternative<FunctionBase*>(f)) {
+    return absl::get<FunctionBase*>(f)->identifier();
   } else if (absl::holds_alternative<TestFunction*>(f)) {
     return absl::get<TestFunction*>(f)->identifier();
   } else if (absl::holds_alternative<StructDef*>(f)) {
@@ -498,7 +522,7 @@ static void VLogSeen(
 //    error and its user node that discovered the type was missing.
 static absl::Status HandleMissingType(
     const TopNode* f, const absl::Status& status,
-    const absl::flat_hash_map<std::string, Function*>& function_map,
+    const absl::flat_hash_map<std::string, FunctionBase*>& fb_map,
     absl::flat_hash_map<std::pair<std::string, std::string>, WipRecord>& seen,
     std::vector<TypecheckStackRecord>& stack, DeduceCtx* ctx) {
   NodeAndUser e = ParseTypeMissingErrorMessage(status.message());
@@ -510,12 +534,13 @@ static absl::Status HandleMissingType(
         (e.user == nullptr ? "none" : e.user->ToString()),
         (e.user == nullptr ? "none" : e.user->GetNodeTypeName()));
 
-    // Referring to a function name in the same module.
+    // Referring to a function/proc name in the same module.
     if (auto* name_def = dynamic_cast<NameDef*>(e.node);
-        name_def != nullptr && function_map.contains(name_def->identifier())) {
+        name_def != nullptr && fb_map.contains(name_def->identifier())) {
       // If the callee is seen-and-not-done, we're recursing.
-      const std::pair<std::string, std::string> seen_key{name_def->identifier(),
-                                                         "Function"};
+      const std::pair<std::string, std::string> seen_key{
+          name_def->identifier(),
+          fb_map.at(name_def->identifier())->GetNodeTypeName()};
       auto it = seen.find(seen_key);
       if (it != seen.end() && it->second.wip) {
         return TypeInferenceErrorStatus(
@@ -527,7 +552,7 @@ static absl::Status HandleMissingType(
       // determining their concrete type signature until invocation time), but
       // they can *also* be concrete functions that are only invoked via these
       // "lazily checked" parametrics.
-      Function* callee = function_map.at(name_def->identifier());
+      FunctionBase* callee = fb_map.at(name_def->identifier());
       seen[seen_key] = WipRecord{callee, /*wip=*/true};
       stack.push_back(TypecheckStackRecord{
           callee->identifier(),
@@ -579,7 +604,7 @@ static std::pair<std::string, std::string> ToSeenKey(const TopNode& top_node) {
 }
 
 static absl::Status CheckTopNodeInModuleInternal(
-    const absl::flat_hash_map<std::string, Function*>& function_map,
+    const absl::flat_hash_map<std::string, FunctionBase*>& function_map,
     absl::flat_hash_map<std::pair<std::string, std::string>, WipRecord>& seen,
     std::vector<TypecheckStackRecord>& stack, DeduceCtx* ctx) {
   while (!stack.empty()) {
@@ -636,9 +661,9 @@ absl::Status CheckTopNodeInModule(TopNode f, DeduceCtx* ctx) {
   std::vector<TypecheckStackRecord> stack = {TypecheckStackRecord{
       Identifier(f), std::string(ToAstNode(f)->GetNodeTypeName())}};
 
-  const absl::flat_hash_map<std::string, Function*>& function_map =
-      ctx->module()->GetFunctionByName();
-  return CheckTopNodeInModuleInternal(function_map, seen, stack, ctx);
+  const absl::flat_hash_map<std::string, FunctionBase*>& fb_map =
+      ctx->module()->GetFunctionBaseByName();
+  return CheckTopNodeInModuleInternal(fb_map, seen, stack, ctx);
 }
 
 // Helper type to place on the stack when we intend to pop off a FnStackEntry
@@ -656,11 +681,19 @@ class ScopedFnStackEntry {
     ctx->fn_stack().push_back(FnStackEntry::MakeTop(module));
   }
 
-  ScopedFnStackEntry(Function* f, DeduceCtx* ctx, bool expect_popped = false)
+  ScopedFnStackEntry(FunctionBase* fb, DeduceCtx* ctx,
+                     bool expect_popped = false)
       : ctx_(ctx),
         depth_before_(ctx->fn_stack().size()),
         expect_popped_(expect_popped) {
-    ctx->fn_stack().push_back(FnStackEntry::Make(f, SymbolicBindings()));
+    ctx->fn_stack().push_back(FnStackEntry::Make(fb, SymbolicBindings()));
+  }
+
+  ScopedFnStackEntry(Proc* p, DeduceCtx* ctx, bool expect_popped = false)
+      : ctx_(ctx),
+        depth_before_(ctx->fn_stack().size()),
+        expect_popped_(expect_popped) {
+    ctx->fn_stack().push_back(FnStackEntry::Make(p, SymbolicBindings()));
   }
 
   // Called when we close out a scope. We can't use this object as a scope
@@ -708,8 +741,8 @@ static absl::Status CheckModuleMember(ModuleMember member, Module* module,
       //
       // TODO(leary): 2021-03-29 We can probably cut down on the boilerplate
       // here with some refactoring TLC.
-      const absl::flat_hash_map<std::string, Function*>& function_map =
-          ctx->module()->GetFunctionByName();
+      const absl::flat_hash_map<std::string, FunctionBase*>& function_map =
+          ctx->module()->GetFunctionBaseByName();
       absl::flat_hash_map<std::pair<std::string, std::string>, WipRecord> seen;
       std::vector<TypecheckStackRecord> stack;
       XLS_RETURN_IF_ERROR(HandleMissingType(/*f=*/nullptr, status, function_map,
@@ -720,24 +753,19 @@ static absl::Status CheckModuleMember(ModuleMember member, Module* module,
     }
     XLS_RETURN_IF_ERROR(status);
     scoped.Finish();
-  } else if (absl::holds_alternative<Function*>(member)) {
-    Function* f = absl::get<Function*>(member);
-    if (f->IsParametric()) {
+  } else if (absl::holds_alternative<FunctionBase*>(member)) {
+    FunctionBase* fb = absl::get<FunctionBase*>(member);
+    if (fb->IsParametric()) {
       // Typechecking of parametric functions is driven by invocation sites.
       return absl::OkStatus();
     }
 
-    XLS_VLOG(2) << "Typechecking function: " << f->ToString();
-    ScopedFnStackEntry scoped(f, ctx,
+    XLS_VLOG(2) << "Typechecking function: " << fb->ToString();
+    ScopedFnStackEntry scoped(fb, ctx,
                               /*expect_popped=*/true);
-    XLS_RETURN_IF_ERROR(CheckTopNodeInModule(f, ctx));
+    XLS_RETURN_IF_ERROR(CheckTopNodeInModule(fb, ctx));
     scoped.Finish();
-    XLS_VLOG(2) << "Finished typechecking function: " << f->ToString();
-  } else if (absl::holds_alternative<Proc*>(member)) {
-    Proc* p = absl::get<Proc*>(member);
-    XLS_VLOG(2) << "Typechecking proc: " << p->ToString();
-    XLS_LOG(WARNING) << "Proc typechecking NYI; skipping node.";
-    XLS_VLOG(2) << "Finished typechecking proc: " << p->ToString();
+    XLS_VLOG(2) << "Finished typechecking function: " << fb->ToString();
   } else if (absl::holds_alternative<StructDef*>(member)) {
     StructDef* struct_def = absl::get<StructDef*>(member);
     XLS_VLOG(2) << "Typechecking struct: " << struct_def->ToString();

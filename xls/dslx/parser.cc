@@ -450,7 +450,7 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
     if (tok.GetKeyword() == Keyword::kChannel) {
       XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
       if (peek->GetKeyword() == Keyword::kIn) {
-        // Now get the type of the channela.
+        // Now get the type of the channels.
         XLS_RETURN_IF_ERROR(DropToken());
         XLS_ASSIGN_OR_RETURN(TypeAnnotation * payload,
                              ParseTypeAnnotation(bindings));
@@ -1155,7 +1155,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     XLS_ASSIGN_OR_RETURN(Expr * expr, ParseTernaryExpression(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
-    lhs = module_->Make<Next>(next.span(), expr);
+    return module_->Make<Next>(next.span(), expr);
   } else if (peek->IsKeyword(Keyword::kRecv)) {
     Token recv = PopTokenOrDie();
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
@@ -1169,8 +1169,8 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
     XLS_ASSIGN_OR_RETURN(Expr * payload, ParseExpression(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
     Pos end = GetPos();
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
     XLS_ASSIGN_OR_RETURN(Expr * body, ParseExpression(outer_bindings));
     return module_->Make<Send>(Span(send.span().start(), end), channel, payload,
                                body);
