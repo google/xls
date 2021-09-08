@@ -887,30 +887,13 @@ std::string EnumDef::ToString() const {
   return result;
 }
 
-// -- class Invocation
+// -- class Instantiation
 
-Invocation::Invocation(Module* owner, Span span, Expr* callee,
-                       std::vector<Expr*> args, std::vector<Expr*> parametrics)
-    : Expr(owner, std::move(span)),
-      callee_(callee),
-      args_(std::move(args)),
-      parametrics_(std::move(parametrics)) {}
+Instantiation::Instantiation(Module* owner, Span span, Expr* callee,
+                             const std::vector<Expr*>& parametrics)
+    : Expr(owner, span), callee_(callee), parametrics_(parametrics) {}
 
-std::vector<AstNode*> Invocation::GetChildren(bool want_types) const {
-  std::vector<AstNode*> results = {callee_};
-  for (Expr* arg : args_) {
-    results.push_back(arg);
-  }
-  return results;
-}
-
-std::string Invocation::FormatArgs() const {
-  return absl::StrJoin(args_, ", ", [](std::string* out, Expr* e) {
-    absl::StrAppend(out, e->ToString());
-  });
-}
-
-std::string Invocation::FormatParametrics() const {
+std::string Instantiation::FormatParametrics() const {
   if (parametrics_.empty()) {
     return "";
   }
@@ -923,19 +906,38 @@ std::string Invocation::FormatParametrics() const {
                       ">");
 }
 
+// -- class Invocation
+
+Invocation::Invocation(Module* owner, Span span, Expr* callee,
+                       std::vector<Expr*> args, std::vector<Expr*> parametrics)
+    : Instantiation(owner, std::move(span), callee, parametrics),
+      args_(std::move(args)) {}
+
+std::vector<AstNode*> Invocation::GetChildren(bool want_types) const {
+  std::vector<AstNode*> results = {callee()};
+  for (Expr* arg : args_) {
+    results.push_back(arg);
+  }
+  return results;
+}
+
+std::string Invocation::FormatArgs() const {
+  return absl::StrJoin(args_, ", ", [](std::string* out, Expr* e) {
+    absl::StrAppend(out, e->ToString());
+  });
+}
+
 // -- class Spawn
 Spawn::Spawn(Module* owner, Span span, Expr* callee,
              std::vector<Expr*> proc_args, std::vector<Expr*> iter_args,
              std::vector<Expr*> parametrics, Expr* body)
-    : Expr(owner, std::move(span)),
-      callee_(callee),
+    : Instantiation(owner, std::move(span), callee, parametrics),
       proc_args_(proc_args),
       iter_args_(iter_args),
-      parametrics_(parametrics),
       body_(body) {}
 
 std::vector<AstNode*> Spawn::GetChildren(bool want_types) const {
-  std::vector<AstNode*> results = {callee_};
+  std::vector<AstNode*> results = {callee()};
   for (Expr* arg : proc_args_) {
     results.push_back(arg);
   }
@@ -949,15 +951,9 @@ std::vector<AstNode*> Spawn::GetChildren(bool want_types) const {
 }
 
 std::string Spawn::ToString() const {
-  std::string parametrics;
-  if (!parametrics_.empty()) {
-    parametrics =
-        absl::StrCat("<",
-                     absl::StrJoin(parametrics_, ", ",
-                                   [](std::string* out, Expr* e) {
-                                     absl::StrAppend(out, e->ToString());
-                                   }),
-                     ">");
+  std::string param_str;
+  if (!parametrics().empty()) {
+    param_str = FormatParametrics();
   }
 
   std::string proc_args = absl::StrJoin(
@@ -972,8 +968,8 @@ std::string Spawn::ToString() const {
   if (body_ != nullptr) {
     body_str = absl::StrCat("\n", body_->ToString());
   }
-  return absl::StrFormat("spawn %s%s(%s)(%s)%s", callee_->ToString(),
-                         parametrics, proc_args, iter_args, body_str);
+  return absl::StrFormat("spawn %s%s(%s)(%s)%s", callee()->ToString(),
+                         param_str, proc_args, iter_args, body_str);
 }
 
 // -- class FormatMacro

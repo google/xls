@@ -141,102 +141,11 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
   };
 
   absl::Status HandleInvocation(Invocation* node) override {
-    absl::optional<CalleeInfo> callee_info;
-    if (auto* colon_ref = dynamic_cast<ColonRef*>(node->callee())) {
-      XLS_ASSIGN_OR_RETURN(callee_info, HandleColonRefInvocation(colon_ref));
-    } else if (auto* name_ref = dynamic_cast<NameRef*>(node->callee())) {
-      XLS_ASSIGN_OR_RETURN(callee_info,
-                           HandleNameRefInvocation(name_ref, node));
-    } else {
-      return absl::UnimplementedError(
-          "Only calls to named functions are currently supported "
-          "for IR conversion; callee: " +
-          node->callee()->ToString());
-    }
-
-    if (!callee_info.has_value()) {
-      // Happens for example when we're invoking a builtin, there's nothing to
-      // convert.
-      return absl::OkStatus();
-    }
-
-    // See if there are parametric bindings to use in the callee for this
-    // invocation.
-    XLS_VLOG(5) << "Getting callee bindings for invocation: "
-                << node->ToString() << " @ " << node->span()
-                << " caller bindings: " << bindings_.ToString();
-    absl::optional<const SymbolicBindings*> callee_bindings =
-        type_info_->GetInstantiationCalleeBindings(node, bindings_);
-    if (callee_bindings.has_value()) {
-      XLS_RET_CHECK(*callee_bindings != nullptr);
-      XLS_VLOG(5) << "Found callee bindings: " << **callee_bindings
-                  << " for node: " << node->ToString();
-      absl::optional<TypeInfo*> instantiation_type_info =
-          type_info_->GetInstantiationTypeInfo(node, **callee_bindings);
-      XLS_RET_CHECK(instantiation_type_info.has_value())
-          << "Could not find instantiation for `" << node->ToString() << "`"
-          << " via bindings: " << **callee_bindings;
-      // Note: when mapping a function that is non-parametric, the instantiated
-      // type info can be nullptr (no associated type info, as the callee didn't
-      // have to be instantiated).
-      if (*instantiation_type_info != nullptr) {
-        callee_info->type_info = *instantiation_type_info;
-      }
-    }
-
-    XLS_ASSIGN_OR_RETURN(
-        auto callee,
-        Callee::Make(callee_info->callee, callee_info->module,
-                     callee_info->type_info,
-                     callee_bindings ? **callee_bindings : SymbolicBindings()));
-    callees_.push_back(std::move(callee));
-    return absl::OkStatus();
+    return HandleInstantiation(node);
   }
 
   absl::Status HandleSpawn(Spawn* node) override {
-    absl::optional<CalleeInfo> callee_info;
-    if (auto* colon_ref = dynamic_cast<ColonRef*>(node->callee())) {
-      XLS_ASSIGN_OR_RETURN(callee_info, HandleColonRefInvocation(colon_ref));
-    } else if (auto* name_ref = dynamic_cast<NameRef*>(node->callee())) {
-      XLS_ASSIGN_OR_RETURN(callee_info, HandleNameRefSpawn(name_ref));
-    } else {
-      return absl::UnimplementedError(
-          "Only calls to named functions are currently supported "
-          "for IR conversion; callee: " +
-          node->callee()->ToString());
-    }
-
-    // See if there are parametric bindings to use in the callee for this
-    // invocation.
-    XLS_VLOG(5) << "Getting callee bindings for spawn: " << node->ToString()
-                << " @ " << node->span()
-                << " caller bindings: " << bindings_.ToString();
-    absl::optional<const SymbolicBindings*> callee_bindings =
-        type_info_->GetInstantiationCalleeBindings(node, bindings_);
-    if (callee_bindings.has_value()) {
-      XLS_RET_CHECK(*callee_bindings != nullptr);
-      XLS_VLOG(5) << "Found callee bindings: " << **callee_bindings
-                  << " for node: " << node->ToString();
-      absl::optional<TypeInfo*> instantiation_type_info =
-          type_info_->GetInstantiationTypeInfo(node, **callee_bindings);
-      XLS_RET_CHECK(instantiation_type_info.has_value())
-          << "Could not find instantiation for `" << node->ToString() << "`"
-          << " via bindings: " << **callee_bindings;
-      // Note: when mapping a function that is non-parametric, the instantiated
-      // type info can be nullptr (no associated type info, as the callee didn't
-      // have to be instantiated).
-      if (*instantiation_type_info != nullptr) {
-        callee_info->type_info = *instantiation_type_info;
-      }
-    }
-
-    XLS_ASSIGN_OR_RETURN(
-        auto callee,
-        Callee::Make(callee_info->callee, callee_info->module,
-                     callee_info->type_info,
-                     callee_bindings ? **callee_bindings : SymbolicBindings()));
-    callees_.push_back(std::move(callee));
-    return absl::OkStatus();
+    return HandleInstantiation(node);
   }
 
   absl::Status HandleColonRef(ColonRef* node) override {
@@ -323,8 +232,63 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
   std::vector<Callee>& callees() { return callees_; }
 
  private:
+  absl::Status HandleInstantiation(Instantiation* node) {
+    absl::optional<CalleeInfo> callee_info;
+    if (auto* colon_ref = dynamic_cast<ColonRef*>(node->callee())) {
+      XLS_ASSIGN_OR_RETURN(callee_info, HandleColonRefInstantiation(colon_ref));
+    } else if (auto* name_ref = dynamic_cast<NameRef*>(node->callee())) {
+      if (Invocation* i = dynamic_cast<Invocation*>(node)) {
+        XLS_ASSIGN_OR_RETURN(callee_info, HandleNameRefInvocation(name_ref, i));
+      } else {
+        XLS_ASSIGN_OR_RETURN(callee_info, HandleNameRefSpawn(name_ref));
+      }
+    } else {
+      return absl::UnimplementedError(
+          "Only calls to named functions are currently supported "
+          "for IR conversion; callee: " +
+          node->callee()->ToString());
+    }
+
+    if (!callee_info.has_value()) {
+      // Happens for example when we're invoking a builtin, there's nothing to
+      // convert.
+      return absl::OkStatus();
+    }
+
+    // See if there are parametric bindings to use in the callee for this
+    // invocation.
+    XLS_VLOG(5) << "Getting callee bindings for invocation: "
+                << node->ToString() << " @ " << node->span()
+                << " caller bindings: " << bindings_.ToString();
+    absl::optional<const SymbolicBindings*> callee_bindings =
+        type_info_->GetInstantiationCalleeBindings(node, bindings_);
+    if (callee_bindings.has_value()) {
+      XLS_RET_CHECK(*callee_bindings != nullptr);
+      XLS_VLOG(5) << "Found callee bindings: " << **callee_bindings
+                  << " for node: " << node->ToString();
+      absl::optional<TypeInfo*> instantiation_type_info =
+          type_info_->GetInstantiationTypeInfo(node, **callee_bindings);
+      XLS_RET_CHECK(instantiation_type_info.has_value())
+          << "Could not find instantiation for `" << node->ToString() << "`"
+          << " via bindings: " << **callee_bindings;
+      // Note: when mapping a function that is non-parametric, the instantiated
+      // type info can be nullptr (no associated type info, as the callee didn't
+      // have to be instantiated).
+      if (*instantiation_type_info != nullptr) {
+        callee_info->type_info = *instantiation_type_info;
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        auto callee,
+        Callee::Make(callee_info->callee, callee_info->module,
+                     callee_info->type_info,
+                     callee_bindings ? **callee_bindings : SymbolicBindings()));
+    callees_.push_back(std::move(callee));
+    return absl::OkStatus();
+  }
   // Helper for invocations of ColonRef callees.
-  absl::StatusOr<CalleeInfo> HandleColonRefInvocation(ColonRef* colon_ref) {
+  absl::StatusOr<CalleeInfo> HandleColonRefInstantiation(ColonRef* colon_ref) {
     absl::optional<Import*> import = colon_ref->ResolveImportSubject();
     XLS_RET_CHECK(import.has_value());
     absl::optional<const ImportedInfo*> info = type_info_->GetImported(*import);

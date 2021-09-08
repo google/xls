@@ -128,25 +128,24 @@ absl::StatusOr<Proc*> ResolveColonRefToProc(ColonRef* ref, DeduceCtx* ctx) {
 //
 // Args:
 //  parametric_block: The Function or Proc being instantiated.
-//  call: The Invocation or Spawn causing the instantiation.
+//  instantiation: The Invocation or Spawn causing the instantiation.
 //  symbolic_bindings: The caller's symbolic bindings (the caller being the
 //    entity containing the invocation).
 //  typecheck_fn: The function to call to typecheck the given block.
 //  ctx: Deduction context.
-template <typename InvocationT>
 static absl::Status ValidateParametricInvocation(
-    FunctionBase* parametric_block, InvocationT* call,
+    FunctionBase* parametric_block, Instantiation* instantiation,
     const SymbolicBindings& symbolic_bindings,
     std::function<absl::Status(FunctionBase*, DeduceCtx*)> typecheck_fn,
     DeduceCtx* ctx) {
   XLS_RET_CHECK(parametric_block->IsParametric());
   XLS_VLOG(5) << "ValidateParametricInvocation; parametric_fn: "
               << parametric_block->ToString()
-              << "; invocation: " << call->ToString();
-  if (auto* colon_ref = dynamic_cast<ColonRef*>(call->callee())) {
+              << "; invocation: " << instantiation->ToString();
+  if (auto* colon_ref = dynamic_cast<ColonRef*>(instantiation->callee())) {
     // We need to typecheck this function with respect to its own module.
 
-    if (ctx->type_info()->HasInstantiation(call, symbolic_bindings)) {
+    if (ctx->type_info()->HasInstantiation(instantiation, symbolic_bindings)) {
       return absl::OkStatus();
     }
 
@@ -181,16 +180,16 @@ static absl::Status ValidateParametricInvocation(
     XLS_RETURN_IF_ERROR(typecheck_fn(parametric_block, imported_ctx.get()));
 
     XLS_VLOG(5) << "TypeInfo::SetInstantiationTypeInfo; invocation: "
-                << call->ToString()
+                << instantiation->ToString()
                 << " symbolic_bindings: " << symbolic_bindings;
     ctx->type_info()->SetInstantiationTypeInfo(
-        call, /*caller=*/symbolic_bindings,
+        instantiation, /*caller=*/symbolic_bindings,
         /*type_info=*/invocation_imported_type_info);
     return absl::OkStatus();
   }
 
-  auto* name_ref = dynamic_cast<NameRef*>(call->callee());
-  if (ctx->type_info()->HasInstantiation(call, symbolic_bindings)) {
+  auto* name_ref = dynamic_cast<NameRef*>(instantiation->callee());
+  if (ctx->type_info()->HasInstantiation(instantiation, symbolic_bindings)) {
     // If we've already typechecked the parametric function with the current
     // symbolic bindings, no need to do it again.
     return absl::OkStatus();
@@ -216,11 +215,11 @@ static absl::Status ValidateParametricInvocation(
   // parametric function. Let's store the results.
   XLS_VLOG(5) << "TypeInfo::SetInstantiationTypeInfo; "
               << ctx->type_info()->parent()
-              << "; invocation: " << call->ToString()
+              << "; invocation: " << instantiation->ToString()
               << "; symbolic_bindings: " << symbolic_bindings
               << "; instantiated: " << ctx->type_info();
-  ctx->type_info()->parent()->SetInstantiationTypeInfo(call, symbolic_bindings,
-                                                       ctx->type_info());
+  ctx->type_info()->parent()->SetInstantiationTypeInfo(
+      instantiation, symbolic_bindings, ctx->type_info());
   XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo());
   return absl::OkStatus();
 }
@@ -2005,21 +2004,21 @@ absl::Status InstantiateParametricArgs(
 // Invocation or Spawn node.
 // A CallT of Invocation matches a Function, while a CallT of Spawn matches a
 // Proc.
-template <typename CallT>
 absl::StatusOr<TypeAndBindings> DeduceParametricCall(
-    CallT* call, const std::vector<InstantiateArg>& args,
-    std::function<absl::StatusOr<FunctionBase*>(CallT*, DeduceCtx*)> resolve_fb,
+    Instantiation* instantiation, const std::vector<InstantiateArg>& args,
+    std::function<absl::StatusOr<FunctionBase*>(Instantiation*, DeduceCtx*)>
+        resolve_fb,
     std::function<absl::Status(FunctionBase*, DeduceCtx*)> typecheck_fb,
     DeduceCtx* ctx) {
   // This will get us the type signature of the function. If the function is
   // parametric, we won't check its body until after we have symbolic bindings
   // for it.
   absl::StatusOr<std::unique_ptr<ConcreteType>> callee_type_or =
-      ctx->Deduce(call->callee());
+      ctx->Deduce(instantiation->callee());
   if (IsTypeMissingErrorStatus(callee_type_or.status())) {
     XLS_VLOG(5) << "TypeMissingError status: " << callee_type_or.status();
-    return TypeMissingErrorStatusUpdateUser(callee_type_or.status(),
-                                            call->span(), call);
+    return TypeMissingErrorStatusUpdateUser(
+        callee_type_or.status(), instantiation->span(), instantiation);
   }
   XLS_RETURN_IF_ERROR(callee_type_or.status());
 
@@ -2028,35 +2027,38 @@ absl::StatusOr<TypeAndBindings> DeduceParametricCall(
   FunctionType* callee_type =
       dynamic_cast<FunctionType*>(callee_type_or.value().get());
   if (callee_type == nullptr) {
-    return TypeInferenceErrorStatus(call->callee()->span(), callee_type,
+    return TypeInferenceErrorStatus(instantiation->callee()->span(),
+                                    callee_type,
                                     "Callee does not have a function type.");
   }
 
   // We need to deduce the type of all Invocation parametrics (the expressions
   // in the instantiation brackets <>) so they're in the type cache.
-  for (Expr* parametric : call->parametrics()) {
+  for (Expr* parametric : instantiation->parametrics()) {
     XLS_RETURN_IF_ERROR(ctx->Deduce(parametric).status());
   }
 
-  XLS_ASSIGN_OR_RETURN(FunctionBase * block, resolve_fb(call, ctx));
+  XLS_ASSIGN_OR_RETURN(FunctionBase * block, resolve_fb(instantiation, ctx));
 
   // The number of given parametric expressions always has to be <= the
   // parametric bindings count.
-  if (call->parametrics().size() > block->parametric_bindings().size()) {
+  if (instantiation->parametrics().size() >
+      block->parametric_bindings().size()) {
     return ArgCountMismatchErrorStatus(
-        call->span(),
+        instantiation->span(),
         absl::StrFormat(
             "Too many parametric values supplied; limit: %d given: %d",
-            block->parametric_bindings().size(), call->parametrics().size()));
+            block->parametric_bindings().size(),
+            instantiation->parametrics().size()));
   }
 
   // Create "ParametricConstraint" records that reflect the parametrics
   // specified by the caller invocation/spawn.
   std::vector<ParametricConstraint> parametric_constraints;
   parametric_constraints.reserve(block->parametric_bindings().size());
-  for (int64_t i = 0; i < call->parametrics().size(); ++i) {
+  for (int64_t i = 0; i < instantiation->parametrics().size(); ++i) {
     ParametricBinding* binding = block->parametric_bindings()[i];
-    Expr* value = call->parametrics()[i];
+    Expr* value = instantiation->parametrics()[i];
 
     XLS_VLOG(5) << "Populating callee parametric `" << binding->ToString()
                 << "` via invocation expression: " << value->ToString();
@@ -2067,7 +2069,7 @@ absl::StatusOr<TypeAndBindings> DeduceParametricCall(
                          ctx->Deduce(value));
 
     if (*binding_type != *value_type) {
-      return XlsTypeErrorStatus(call->callee()->span(), *binding_type,
+      return XlsTypeErrorStatus(instantiation->callee()->span(), *binding_type,
                                 *value_type,
                                 "Explicit parametric type mismatch.");
     }
@@ -2084,7 +2086,7 @@ absl::StatusOr<TypeAndBindings> DeduceParametricCall(
   // and thus needs the `N: u32 = 5` to be filled here.
   for (ParametricBinding* remaining_binding :
        absl::MakeSpan(block->parametric_bindings())
-           .subspan(call->parametrics().size())) {
+           .subspan(instantiation->parametrics().size())) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> binding_type,
                          ParametricBindingToType(remaining_binding, ctx));
     parametric_constraints.push_back(
@@ -2111,7 +2113,7 @@ absl::StatusOr<TypeAndBindings> DeduceParametricCall(
 
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
-      InstantiateFunction(call->span(), *callee_type, args, ctx,
+      InstantiateFunction(instantiation->span(), *callee_type, args, ctx,
                           /*parametric_constraints=*/parametric_constraints,
                           /*explicit_constraints=*/&explicit_bindings));
   const SymbolicBindings& callee_symbolic_bindings = tab.symbolic_bindings;
@@ -2120,17 +2122,17 @@ absl::StatusOr<TypeAndBindings> DeduceParametricCall(
     // Make a note that this node transitions us from these caller to
     // these callee invocation bindings.
     XLS_VLOG(5) << "TypeInfo::AddInstantiationCallBindings; type_info: "
-                << ctx->type_info() << "; node: `" << call->ToString()
+                << ctx->type_info() << "; node: `" << instantiation->ToString()
                 << "`; caller: " << caller_symbolic_bindings
                 << "; callee: " << callee_symbolic_bindings;
     ctx->type_info()->AddInstantiationCallBindings(
-        call, /*caller=*/caller_symbolic_bindings,
+        instantiation, /*caller=*/caller_symbolic_bindings,
         /*callee=*/callee_symbolic_bindings);
 
     // Now that we have callee_symbolic_bindings, let's use them to typecheck
     // the body of callee_fn to make sure these values actually work.
-    XLS_RETURN_IF_ERROR((ValidateParametricInvocation<CallT>(
-        block, call, callee_symbolic_bindings, typecheck_fb, ctx)));
+    XLS_RETURN_IF_ERROR((ValidateParametricInvocation(
+        block, instantiation, callee_symbolic_bindings, typecheck_fb, ctx)));
   }
 
   return tab;
@@ -2154,7 +2156,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(Spawn* node,
   // Find the callee as a DSLX Proc from the expression. We can't call this
   // before DeduceParametricCall(), as it'll fail if the callee is a parametric
   // builtin.
-  auto resolve_proc = [](Spawn* node, DeduceCtx* ctx) -> absl::StatusOr<Proc*> {
+  auto resolve_proc = [](Instantiation* node,
+                         DeduceCtx* ctx) -> absl::StatusOr<Proc*> {
     Expr* callee = node->callee();
     Proc* proc;
     if (auto* colon_ref = dynamic_cast<ColonRef*>(callee)) {
@@ -2172,9 +2175,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(Spawn* node,
     return ctx->typecheck_function()(fb, ctx);
   };
 
-  XLS_ASSIGN_OR_RETURN(TypeAndBindings tab,
-                       (DeduceParametricCall<Spawn>(node, args, resolve_proc,
-                                                    typecheck_proc, ctx)));
+  XLS_ASSIGN_OR_RETURN(
+      TypeAndBindings tab,
+      (DeduceParametricCall(node, args, resolve_proc, typecheck_proc, ctx)));
 
   // TODO(rspringer): 2021-09-02 : How to handle fail! in procs?
 
@@ -2231,7 +2234,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
                                                 node->args(), ctx, &args));
 
   // Find the callee as a DSLX Function from the expression.
-  auto resolve_fn = [](Invocation* node,
+  auto resolve_fn = [](Instantiation* node,
                        DeduceCtx* ctx) -> absl::StatusOr<Function*> {
     Expr* callee = node->callee();
     Function* fn;
@@ -2253,9 +2256,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
   // We can't resolve the function before calling DeduceParametricCall, or we
   // might fail due to a failure to lookup a parametric builtin!
 
-  XLS_ASSIGN_OR_RETURN(TypeAndBindings tab,
-                       (DeduceParametricCall<Invocation>(node, args, resolve_fn,
-                                                         typecheck_fn, ctx)));
+  XLS_ASSIGN_OR_RETURN(
+      TypeAndBindings tab,
+      DeduceParametricCall(node, args, resolve_fn, typecheck_fn, ctx));
 
   // If the callee function needs an implicit token type (e.g. because it has a
   // fail!() or cover!() operation transitively) then so do we.

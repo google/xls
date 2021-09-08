@@ -100,41 +100,14 @@ absl::optional<ConcreteType*> TypeInfo::GetItem(AstNode* key) const {
   return absl::nullopt;
 }
 
-// Utility struct to hold the data from Invocations/Spawns needed for
-// instantiation type info.
-struct CallData {
-  Module* owner;
-  Span span;
-  std::string repr;
-};
-
-// Populates and returns a CallData.
-CallData GetCallData(absl::variant<Invocation*, Spawn*> call) {
-  CallData call_data;
-  if (absl::holds_alternative<Invocation*>(call)) {
-    Invocation* invocation = absl::get<Invocation*>(call);
-    call_data.span = invocation->span();
-    call_data.owner = invocation->owner();
-    call_data.repr = invocation->ToString();
-  } else {
-    Spawn* spawn = absl::get<Spawn*>(call);
-    call_data.span = spawn->span();
-    call_data.owner = spawn->owner();
-    call_data.repr = spawn->ToString();
-  }
-  return call_data;
-}
-
-void TypeInfo::AddInstantiationCallBindings(
-    absl::variant<Invocation*, Spawn*> call, SymbolicBindings caller,
-    SymbolicBindings callee) {
-  CallData call_data = GetCallData(call);
-
-  XLS_CHECK_EQ(call_data.owner, module_);
+void TypeInfo::AddInstantiationCallBindings(Instantiation* call,
+                                            SymbolicBindings caller,
+                                            SymbolicBindings callee) {
+  XLS_CHECK_EQ(call->owner(), module_);
   TypeInfo* top = GetRoot();
   XLS_VLOG(3) << "Type info " << top
               << " adding instantiation call bindings for invocation: "
-              << call_data.repr << " @ " << call_data.span
+              << call->ToString() << " @ " << call->span()
               << " caller: " << caller.ToString()
               << " callee: " << callee.ToString();
   auto it = top->instantiations_.find(call);
@@ -150,13 +123,12 @@ void TypeInfo::AddInstantiationCallBindings(
   data.symbolic_bindings_map.emplace(std::move(caller), std::move(callee));
 }
 
-bool TypeInfo::HasInstantiation(absl::variant<Invocation*, Spawn*> call,
+bool TypeInfo::HasInstantiation(Instantiation* instantiation,
                                 const SymbolicBindings& caller) const {
-  CallData call_data = GetCallData(call);
-  XLS_CHECK_EQ(call_data.owner, module_)
-      << call_data.owner->name() << " vs " << module_->name() << " @ "
-      << call_data.span;
-  return GetInstantiationTypeInfo(call, caller).has_value();
+  XLS_CHECK_EQ(instantiation->owner(), module_)
+      << instantiation->owner()->name() << " vs " << module_->name() << " @ "
+      << instantiation->span();
+  return GetInstantiationTypeInfo(instantiation, caller).has_value();
 }
 
 absl::optional<bool> TypeInfo::GetRequiresImplicitToken(FunctionBase* f) const {
@@ -185,20 +157,18 @@ void TypeInfo::NoteRequiresImplicitToken(FunctionBase* f, bool is_required) {
 }
 
 absl::optional<TypeInfo*> TypeInfo::GetInstantiationTypeInfo(
-    absl::variant<Invocation*, Spawn*> call,
-    const SymbolicBindings& caller) const {
-  CallData call_data = GetCallData(call);
-  XLS_CHECK_EQ(call_data.owner, module_)
-      << call_data.owner->name() << " vs " << module_->name();
+    Instantiation* instantiation, const SymbolicBindings& caller) const {
+  XLS_CHECK_EQ(instantiation->owner(), module_)
+      << instantiation->owner()->name() << " vs " << module_->name();
   const TypeInfo* top = GetRoot();
-  auto it = top->instantiations_.find(call);
+  auto it = top->instantiations_.find(instantiation);
   if (it == top->instantiations_.end()) {
     XLS_VLOG(5) << "Could not find instantiation for invocation: "
-                << call_data.repr;
+                << instantiation->ToString();
     return absl::nullopt;
   }
   const InstantiationData& data = it->second;
-  XLS_VLOG(5) << "Invocation " << call_data.repr
+  XLS_VLOG(5) << "Invocation " << instantiation->ToString()
               << " caller bindings: " << caller
               << " invocation data: " << data.ToString();
   auto it2 = data.instantiations.find(caller);
@@ -208,22 +178,21 @@ absl::optional<TypeInfo*> TypeInfo::GetInstantiationTypeInfo(
   return it2->second;
 }
 
-void TypeInfo::SetInstantiationTypeInfo(absl::variant<Invocation*, Spawn*> call,
+void TypeInfo::SetInstantiationTypeInfo(Instantiation* instantiation,
                                         SymbolicBindings caller,
                                         TypeInfo* type_info) {
-  CallData call_data = GetCallData(call);
-  XLS_CHECK_EQ(call_data.owner, module_);
+  XLS_CHECK_EQ(instantiation->owner(), module_);
   TypeInfo* top = GetRoot();
-  InstantiationData& data = top->instantiations_[call];
+  InstantiationData& data = top->instantiations_[instantiation];
   data.instantiations[caller] = type_info;
 }
 
-template <typename InstantiationT>
-absl::optional<const SymbolicBindings*> GetInstantiationCalleeBindingsInternal(
-    InstantiationT instantiation, Module* module,
-    const SymbolicBindings& caller, const TypeInfo* top) {
-  XLS_CHECK_EQ(instantiation->owner(), module)
-      << instantiation->owner()->name() << " vs " << module->name();
+absl::optional<const SymbolicBindings*>
+TypeInfo::GetInstantiationCalleeBindings(Instantiation* instantiation,
+                                         const SymbolicBindings& caller) const {
+  XLS_CHECK_EQ(instantiation->owner(), module_)
+      << instantiation->owner()->name() << " vs " << module_->name();
+  const TypeInfo* top = GetRoot();
   XLS_VLOG(3) << absl::StreamFormat(
       "TypeInfo %p getting instantiation symbolic bindings: %p %s @ %s %s", top,
       instantiation, instantiation->ToString(),
@@ -247,20 +216,6 @@ absl::optional<const SymbolicBindings*> GetInstantiationCalleeBindingsInternal(
   XLS_VLOG(3) << "Resolved instantiation symbolic bindings for "
               << instantiation->ToString() << ": " << result->ToString();
   return result;
-}
-
-absl::optional<const SymbolicBindings*>
-TypeInfo::GetInstantiationCalleeBindings(Invocation* invocation,
-                                         const SymbolicBindings& caller) const {
-  return GetInstantiationCalleeBindingsInternal(invocation, module_, caller,
-                                                GetRoot());
-}
-
-absl::optional<const SymbolicBindings*>
-TypeInfo::GetInstantiationCalleeBindings(Spawn* spawn,
-                                         const SymbolicBindings& caller) const {
-  return GetInstantiationCalleeBindingsInternal(spawn, module_, caller,
-                                                GetRoot());
 }
 
 void TypeInfo::AddSliceStartAndWidth(Slice* node,

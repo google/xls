@@ -1366,8 +1366,30 @@ class Attr : public Expr {
   NameDef* attr_;
 };
 
+class Instantiation : public Expr {
+ public:
+  Instantiation(Module* owner, Span span, Expr* callee,
+                const std::vector<Expr*>& parametrics);
+
+  Expr* callee() const { return callee_; }
+
+  // Any parametric expressions given in this invocation; e.g. in:
+  //
+  //    f<a, b, c>()
+  //
+  // The expressions a, b, c would be in this sequence.
+  const std::vector<Expr*>& parametrics() const { return parametrics_; }
+
+ protected:
+  std::string FormatParametrics() const;
+
+ private:
+  Expr* callee_;
+  std::vector<Expr*> parametrics_;
+};
+
 // Represents an invocation expression; e.g. `f(a, b, c)`
-class Invocation : public Expr {
+class Invocation : public Instantiation {
  public:
   Invocation(Module* owner, Span span, Expr* callee, std::vector<Expr*> args,
              std::vector<Expr*> parametrics = std::vector<Expr*>({}));
@@ -1382,36 +1404,20 @@ class Invocation : public Expr {
 
   std::string FormatArgs() const;
 
-  std::string FormatParametrics() const;
-
   std::string ToString() const override {
-    return absl::StrFormat("%s%s(%s)", callee_->ToString(), FormatParametrics(),
-                           FormatArgs());
+    return absl::StrFormat("%s%s(%s)", callee()->ToString(),
+                           FormatParametrics(), FormatArgs());
   };
 
   const absl::Span<Expr* const> args() const { return args_; }
-  Expr* callee() const { return callee_; }
-  const std::vector<std::pair<std::string, int64_t>> symbolic_bindings() const {
-    return symbolic_bindings_;
-  }
-
-  // Any parametric expressions given in this invocation; e.g. in:
-  //
-  //    f<a, b, c>()
-  //
-  // The expressions a, b, c would be in this sequence.
-  const std::vector<Expr*>& parametrics() const { return parametrics_; }
 
  private:
-  Expr* callee_;
   std::vector<Expr*> args_;
-  std::vector<Expr*> parametrics_;
-  std::vector<std::pair<std::string, int64_t>> symbolic_bindings_;
 };
 
 // Represents a call to spawn a proc, e.g.,
 //   spawn foo(a, b)(c)
-class Spawn : public Expr {
+class Spawn : public Instantiation {
  public:
   Spawn(Module* owner, Span span, Expr* callee, std::vector<Expr*> proc_args,
         std::vector<Expr*> iter_args, std::vector<Expr*> parametrics,
@@ -1426,18 +1432,14 @@ class Spawn : public Expr {
   std::vector<AstNode*> GetChildren(bool want_types) const override;
   std::string ToString() const override;
 
-  Expr* callee() { return callee_; }
   const std::vector<Expr*> proc_args() { return proc_args_; }
   const std::vector<Expr*> iter_args() { return iter_args_; }
-  bool IsParametric() { return !parametrics_.empty(); }
-  const std::vector<Expr*> parametrics() { return parametrics_; }
+  bool IsParametric() { return !parametrics().empty(); }
   Expr* body() { return body_; }
 
  private:
-  Expr* callee_;
   std::vector<Expr*> proc_args_;
   std::vector<Expr*> iter_args_;
-  std::vector<Expr*> parametrics_;
   Expr* body_;
 };
 
