@@ -218,19 +218,19 @@ void TypeInfo::SetInstantiationTypeInfo(absl::variant<Invocation*, Spawn*> call,
   data.instantiations[caller] = type_info;
 }
 
-absl::optional<const SymbolicBindings*>
-TypeInfo::GetInstantiationCalleeBindings(Invocation* invocation,
-                                         const SymbolicBindings& caller) const {
-  XLS_CHECK_EQ(invocation->owner(), module_)
-      << invocation->owner()->name() << " vs " << module_->name();
-  const TypeInfo* top = GetRoot();
+template <typename InstantiationT>
+absl::optional<const SymbolicBindings*> GetInstantiationCalleeBindingsInternal(
+    InstantiationT instantiation, Module* module,
+    const SymbolicBindings& caller, const TypeInfo* top) {
+  XLS_CHECK_EQ(instantiation->owner(), module)
+      << instantiation->owner()->name() << " vs " << module->name();
   XLS_VLOG(3) << absl::StreamFormat(
-      "TypeInfo %p getting invocation symbolic bindings: %p %s @ %s %s", top,
-      invocation, invocation->ToString(), invocation->span().ToString(),
-      caller.ToString());
-  auto it = top->instantiations_.find(invocation);
-  if (it == top->instantiations_.end()) {
-    XLS_VLOG(3) << "Could not find invocation " << invocation
+      "TypeInfo %p getting instantiation symbolic bindings: %p %s @ %s %s", top,
+      instantiation, instantiation->ToString(),
+      instantiation->span().ToString(), caller.ToString());
+  auto it = top->instantiations().find(instantiation);
+  if (it == top->instantiations().end()) {
+    XLS_VLOG(3) << "Could not find instantiation " << instantiation
                 << " in top-level type info: " << top;
     return absl::nullopt;
   }
@@ -238,15 +238,29 @@ TypeInfo::GetInstantiationCalleeBindings(Invocation* invocation,
   auto it2 = data.symbolic_bindings_map.find(caller);
   if (it2 == data.symbolic_bindings_map.end()) {
     XLS_VLOG(3)
-        << "Could not find caller symbolic bindings in invocation data: "
-        << caller.ToString() << " " << invocation->ToString() << " @ "
-        << invocation->span();
+        << "Could not find caller symbolic bindings in instantiation data: "
+        << caller.ToString() << " " << instantiation->ToString() << " @ "
+        << instantiation->span();
     return absl::nullopt;
   }
   const SymbolicBindings* result = &it2->second;
-  XLS_VLOG(3) << "Resolved invocation symbolic bindings for "
-              << invocation->ToString() << ": " << result->ToString();
+  XLS_VLOG(3) << "Resolved instantiation symbolic bindings for "
+              << instantiation->ToString() << ": " << result->ToString();
   return result;
+}
+
+absl::optional<const SymbolicBindings*>
+TypeInfo::GetInstantiationCalleeBindings(Invocation* invocation,
+                                         const SymbolicBindings& caller) const {
+  return GetInstantiationCalleeBindingsInternal(invocation, module_, caller,
+                                                GetRoot());
+}
+
+absl::optional<const SymbolicBindings*>
+TypeInfo::GetInstantiationCalleeBindings(Spawn* spawn,
+                                         const SymbolicBindings& caller) const {
+  return GetInstantiationCalleeBindingsInternal(spawn, module_, caller,
+                                                GetRoot());
 }
 
 void TypeInfo::AddSliceStartAndWidth(Slice* node,

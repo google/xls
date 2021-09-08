@@ -2885,9 +2885,13 @@ static absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
               << "]";
   for (const ConversionRecord& record : order) {
     XLS_VLOG(3) << "Converting to IR: " << record.ToString();
+    if (dynamic_cast<Proc*>(record.fb()) != nullptr) {
+      XLS_LOG(INFO) << "Skipping " << record.fb()->identifier() << " : "
+                    << "Procs are not yet supported for IR conversion.";
+    }
     XLS_RETURN_IF_ERROR(ConvertOneFunctionInternal(
-        package_data, record.module(), record.f(), record.type_info(),
-        import_data, &record.symbolic_bindings(), options));
+        package_data, record.module(), dynamic_cast<Function*>(record.fb()),
+        record.type_info(), import_data, &record.symbolic_bindings(), options));
   }
 
   XLS_VLOG(3) << "Verifying converted package";

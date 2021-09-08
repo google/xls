@@ -743,6 +743,7 @@ cc_library(
         "//xls/common:symbolized_stacktrace",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 

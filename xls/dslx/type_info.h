@@ -206,6 +206,8 @@ class TypeInfo {
   // When calling a non-parametric callee, the record will be absent.
   absl::optional<const SymbolicBindings*> GetInstantiationCalleeBindings(
       Invocation* invocation, const SymbolicBindings& caller) const;
+  absl::optional<const SymbolicBindings*> GetInstantiationCalleeBindings(
+      Spawn* spawn, const SymbolicBindings& caller) const;
 
   Module* module() const { return module_; }
 
@@ -232,6 +234,12 @@ class TypeInfo {
   // Retrieves a string that shows the module associated with this type info and
   // which imported modules are present, suitable for debugging.
   std::string GetImportsDebugString() const;
+
+  const absl::flat_hash_map<absl::variant<Invocation*, Spawn*>,
+                            InstantiationData>&
+  instantiations() const {
+    return instantiations_;
+  }
 
  private:
   friend class TypeInfoOwner;

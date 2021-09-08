@@ -942,6 +942,9 @@ std::vector<AstNode*> Spawn::GetChildren(bool want_types) const {
   for (Expr* arg : iter_args_) {
     results.push_back(arg);
   }
+  if (body_ != nullptr) {
+    results.push_back(body_);
+  }
   return results;
 }
 
