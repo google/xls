@@ -35,7 +35,7 @@ namespace xls::noc {
 class TrafficModel {
  public:
   explicit TrafficModel(int64_t packet_size_bits)
-      : vc_(0), next_packet_cycle_(-1), packet_size_bits_(packet_size_bits) {}
+      : vc_(0), packet_size_bits_(packet_size_bits) {}
 
   // Retrieves packets sent in the next cycle.
   //
@@ -65,13 +65,9 @@ class TrafficModel {
   virtual ~TrafficModel() = default;
 
  protected:
-  DataPacket next_packet_;
-
   int64_t vc_;                 // VC index to send packets on.
   int64_t source_index_;       // Source index to send packets on.
   int64_t destination_index_;  // Destination index that packets will arrive on.
-
-  int64_t next_packet_cycle_;
 
   int64_t packet_size_bits_;  // All packets are sent with uniform size
 };
@@ -108,7 +104,7 @@ class TrafficModelBuilder {
     return static_cast<TrafficModelBuilderType&>(*this);
   }
 
-  TrafficModelType Build() const {
+  absl::StatusOr<TrafficModelType> Build() const {
     TrafficModelType model(packet_size_bits_);
     model.SetVCIndex(vc_);
     model.SetSourceIndex(source_index_);
@@ -133,13 +129,14 @@ class TrafficModelBuilder {
 class GeneralizedGeometricTrafficModel : public TrafficModel {
  public:
   explicit GeneralizedGeometricTrafficModel(int64_t packet_size_bits)
-      : TrafficModel(packet_size_bits) {}
+      : TrafficModel(packet_size_bits), next_packet_cycle_(-1) {}
   GeneralizedGeometricTrafficModel(double lambda, double burst_prob,
                                    int64_t packet_size_bits,
                                    RandomNumberInterface& rnd)
       : TrafficModel(packet_size_bits),
         lambda_(lambda),
         burst_prob_(burst_prob),
+        next_packet_cycle_(-1),
         random_interface_(&rnd) {}
 
   std::vector<DataPacket> GetNewCyclePackets(int64_t cycle);
@@ -165,8 +162,12 @@ class GeneralizedGeometricTrafficModel : public TrafficModel {
   }
 
  private:
+  DataPacket next_packet_;
+
   double lambda_;      // Lambda of the distribution (unit 1/cycle)
   double burst_prob_;  // Probability of a burst
+
+  int64_t next_packet_cycle_;
 
   RandomNumberInterface* random_interface_;
 };
@@ -179,13 +180,54 @@ class GeneralizedGeometricTrafficModelBuilder
                                           int64_t packet_size_bits,
                                           RandomNumberInterface& rnd);
 
-  GeneralizedGeometricTrafficModel Build() const;
+  absl::StatusOr<GeneralizedGeometricTrafficModel> Build() const;
 
  private:
   double lambda_;      // Lambda of the distribution (unit 1/cycle)
   double burst_prob_;  // Probability of a burst
 
   RandomNumberInterface* random_interface_;
+};
+
+// Models the traffic injected into a single source according at specified
+// cycle times.
+class ReplayTrafficModel : public TrafficModel {
+ public:
+  explicit ReplayTrafficModel(int64_t packet_size_bits)
+      : TrafficModel(packet_size_bits),
+        clock_cycle_iter_{clock_cycles_.cend()} {}
+  // Assumes element in clock_cycles are valid.
+  ReplayTrafficModel(int64_t packet_size_bits,
+                     absl::Span<const int64_t> clock_cycles);
+
+  std::vector<DataPacket> GetNewCyclePackets(int64_t cycle);
+
+  double ExpectedTrafficRateInMiBps(int64_t cycle_time_ps) const;
+
+  // Sets clock cycles to list and sorts the complete list of clock cycle.
+  void SetClockCycles(absl::Span<const int64_t> clock_cycles);
+  absl::Span<const int64_t> GetClockCycles() const;
+
+ private:
+  // cycle count
+  int64_t cycle_count_ = 0;
+  // clock cycles to inject a packet.
+  std::vector<int64_t> clock_cycles_;
+  // Iterator to next clock cycle.
+  std::vector<int64_t>::const_iterator clock_cycle_iter_;
+};
+
+class ReplayTrafficModelBuilder
+    : public TrafficModelBuilder<ReplayTrafficModelBuilder,
+                                 ReplayTrafficModel> {
+ public:
+  ReplayTrafficModelBuilder(int64_t packet_size_bits,
+                            absl::Span<const int64_t> clock_cycles);
+
+  absl::StatusOr<ReplayTrafficModel> Build() const;
+
+ private:
+  std::vector<int64_t> clock_cycles_;
 };
 
 // Measures the traffic injected and computes aggregate statistics.

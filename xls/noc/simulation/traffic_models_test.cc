@@ -48,7 +48,7 @@ TEST(TrafficModelsTest, GeneralizedGeometricModelTest) {
   int64_t bits_sent = 0;
 
   for (cycle = 0; cycle < 10'000'000; ++cycle) {
-    XLS_VLOG(2) << "Cycle " << cycle << ":\n";
+    XLS_VLOG(2) << "Cycle " << cycle << ":";
 
     std::vector<DataPacket> packets = model.GetNewCyclePackets(cycle);
 
@@ -56,7 +56,7 @@ TEST(TrafficModelsTest, GeneralizedGeometricModelTest) {
       EXPECT_EQ(p.vc, 1);
       EXPECT_EQ(p.source_index, 10);
       EXPECT_EQ(p.destination_index, 3);
-      XLS_VLOG(2) << "  -  " << p.ToString() << "\n";
+      XLS_VLOG(2) << "  -  " << p.ToString();
 
       bits_sent += p.data.bit_count();
     }
@@ -68,16 +68,15 @@ TEST(TrafficModelsTest, GeneralizedGeometricModelTest) {
   double expected_traffic = model.ExpectedTrafficRateInMiBps(500);
   double measured_traffic = monitor.MeasuredTrafficRateInMiBps(500);
 
-  XLS_VLOG(1) << "Packet " << num_packets << "\n";
-  XLS_VLOG(1) << "Cycles " << cycle << "\n";
-  XLS_VLOG(1) << "Expected Traffic " << expected_traffic << "\n";
-  XLS_VLOG(1) << "Measured Traffic " << measured_traffic << std::endl;
+  XLS_VLOG(1) << "Packet " << num_packets;
+  XLS_VLOG(1) << "Cycles " << cycle;
+  XLS_VLOG(1) << "Expected Traffic " << expected_traffic;
+  XLS_VLOG(1) << "Measured Traffic " << measured_traffic;
 
   EXPECT_EQ(bits_sent, monitor.MeasuredBitsSent());
   EXPECT_EQ(num_packets, monitor.MeasuredPacketCount());
   EXPECT_EQ(num_packets / 1000, static_cast<int64_t>(lambda * cycle) / 1000);
-  EXPECT_EQ(static_cast<int64_t>(expected_traffic / 100),
-            static_cast<int64_t>(measured_traffic / 100));
+  EXPECT_NEAR(measured_traffic, expected_traffic, 1e1);
   EXPECT_DOUBLE_EQ(expected_traffic,
                    lambda * 128.0 / 500.0e-12 / 1024.0 / 1024.0 / 8.0);
 }
@@ -93,7 +92,8 @@ TEST(TrafficModelsTest, GeneralizedGeometricModelBuilderTest) {
 
   builder.SetVCIndex(1).SetSourceIndex(10).SetDestinationIndex(3);
 
-  GeneralizedGeometricTrafficModel model = builder.Build();
+  XLS_ASSERT_OK_AND_ASSIGN(GeneralizedGeometricTrafficModel model,
+                           builder.Build());
 
   EXPECT_EQ(lambda, model.GetLambda());
   EXPECT_EQ(burst_prob, model.GetBurstProb());
@@ -102,6 +102,87 @@ TEST(TrafficModelsTest, GeneralizedGeometricModelBuilderTest) {
   EXPECT_EQ(model.GetVCIndex(), 1);
   EXPECT_EQ(model.GetSourceIndex(), 10);
   EXPECT_EQ(model.GetDestinationIndex(), 3);
+}
+
+TEST(TrafficModelsTest, ReplayModelTest) {
+  int64_t packet_size_bits = 128;
+
+  ReplayTrafficModel model(packet_size_bits, {0, 1, 2, 3, 4});
+
+  model.SetVCIndex(1);
+  model.SetSourceIndex(10);
+  model.SetDestinationIndex(3);
+
+  EXPECT_EQ(model.GetVCIndex(), 1);
+  EXPECT_EQ(model.GetSourceIndex(), 10);
+  EXPECT_EQ(model.GetDestinationIndex(), 3);
+  EXPECT_EQ(model.GetPacketSizeInBits(), packet_size_bits);
+
+  TrafficModelMonitor monitor;
+
+  int64_t cycle = 0;
+  int64_t num_packets = 0;
+  int64_t bits_sent = 0;
+
+  for (cycle = 0; cycle < 5; ++cycle) {
+    XLS_VLOG(2) << "Cycle " << cycle << ":";
+
+    std::vector<DataPacket> packets = model.GetNewCyclePackets(cycle);
+
+    for (DataPacket& p : packets) {
+      EXPECT_EQ(p.vc, 1);
+      EXPECT_EQ(p.source_index, 10);
+      EXPECT_EQ(p.destination_index, 3);
+      XLS_VLOG(2) << "  -  " << p.ToString();
+
+      bits_sent += p.data.bit_count();
+    }
+
+    num_packets += packets.size();
+    monitor.AcceptNewPackets(absl::MakeSpan(packets), cycle);
+  }
+
+  double expected_traffic = model.ExpectedTrafficRateInMiBps(500);
+  double measured_traffic = monitor.MeasuredTrafficRateInMiBps(500);
+
+  XLS_VLOG(1) << "Packet " << num_packets;
+  XLS_VLOG(1) << "Cycles " << cycle;
+  XLS_VLOG(1) << "Expected Traffic " << expected_traffic;
+  XLS_VLOG(1) << "Measured Traffic " << measured_traffic;
+
+  EXPECT_EQ(bits_sent, monitor.MeasuredBitsSent());
+  EXPECT_EQ(num_packets, monitor.MeasuredPacketCount());
+  EXPECT_DOUBLE_EQ(measured_traffic, expected_traffic);
+}
+
+TEST(TrafficModelsTest, ReplayModelBuilderTest) {
+  int64_t packet_size_bits = 128;
+
+  ReplayTrafficModelBuilder builder(packet_size_bits, {0, 1, 2, 3, 4});
+
+  builder.SetVCIndex(1).SetSourceIndex(10).SetDestinationIndex(3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(ReplayTrafficModel model, builder.Build());
+
+  EXPECT_EQ(packet_size_bits, model.GetPacketSizeInBits());
+  EXPECT_EQ(model.GetVCIndex(), 1);
+  EXPECT_EQ(model.GetSourceIndex(), 10);
+  EXPECT_EQ(model.GetDestinationIndex(), 3);
+}
+
+TEST(TrafficModelsTest, ReplayModelClockCycleSortTest) {
+  ReplayTrafficModel model(128);
+  model.SetClockCycles({5, 4, 3, 2, 1, 0});
+
+  EXPECT_EQ(model.GetClockCycles(), std::vector<int64_t>({0, 1, 2, 3, 4, 5}));
+}
+
+TEST(TrafficModelsTest, ReplayModelClockCycleClearTest) {
+  ReplayTrafficModel model(128);
+  model.SetClockCycles({5, 4, 3, 2, 1, 0});
+  model.SetClockCycles({6, 7, 8, 9, 10});
+
+  EXPECT_EQ(model.GetClockCycles(), std::vector<int64_t>({6, 7, 8, 9, 10}));
 }
 
 }  // namespace

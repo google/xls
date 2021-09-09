@@ -80,13 +80,84 @@ GeneralizedGeometricTrafficModelBuilder::
   SetPacketSizeBits(packet_size_bits);
 }
 
-GeneralizedGeometricTrafficModel
+absl::StatusOr<GeneralizedGeometricTrafficModel>
 GeneralizedGeometricTrafficModelBuilder::Build() const {
-  GeneralizedGeometricTrafficModel model = TrafficModelBuilder::Build();
+  XLS_ASSIGN_OR_RETURN(GeneralizedGeometricTrafficModel model,
+                       TrafficModelBuilder::Build());
   model.SetLambda(lambda_);
   model.SetBurstProb(burst_prob_);
   model.SetRandomNumberInterface(*random_interface_);
   return model;
+}
+
+ReplayTrafficModelBuilder::ReplayTrafficModelBuilder(
+    int64_t packet_size_bits, absl::Span<const int64_t> clock_cycles) {
+  SetPacketSizeBits(packet_size_bits);
+  clock_cycles_.insert(clock_cycles_.end(), clock_cycles.begin(),
+                       clock_cycles.end());
+}
+
+absl::StatusOr<ReplayTrafficModel> ReplayTrafficModelBuilder::Build() const {
+  XLS_ASSIGN_OR_RETURN(ReplayTrafficModel model, TrafficModelBuilder::Build());
+  model.SetClockCycles(clock_cycles_);
+  return model;
+}
+
+ReplayTrafficModel::ReplayTrafficModel(int64_t packet_size_bits,
+                                       absl::Span<const int64_t> clock_cycles)
+    : TrafficModel(packet_size_bits) {
+  SetClockCycles(clock_cycles);
+  clock_cycle_iter_ = clock_cycles_.cbegin();
+}
+
+std::vector<DataPacket> ReplayTrafficModel::GetNewCyclePackets(int64_t cycle) {
+  if (cycle > cycle_count_) {
+    cycle_count_ = cycle;
+  }
+
+  if ((clock_cycle_iter_ == clock_cycles_.end()) ||
+      (*clock_cycle_iter_ != cycle)) {
+    // No packets to be sent until next_packet_cycle_.
+    return std::vector<DataPacket>();
+  }
+
+  std::vector<DataPacket> packets;
+
+  XLS_CHECK_EQ(cycle, *clock_cycle_iter_);
+
+  absl::StatusOr<DataPacket> packet = DataPacketBuilder()
+                                          .Valid(true)
+                                          .ZeroedData(packet_size_bits_)
+                                          .VirtualChannel(vc_)
+                                          .SourceIndex(source_index_)
+                                          .DestinationIndex(destination_index_)
+                                          .Build();
+  XLS_CHECK(packet.ok());
+  packets.push_back(packet.value());
+  clock_cycle_iter_++;
+  return packets;
+}
+
+double ReplayTrafficModel::ExpectedTrafficRateInMiBps(
+    int64_t cycle_time_ps) const {
+  double total_sec = static_cast<double>(cycle_count_ + 1) *
+                     static_cast<double>(cycle_time_ps) * 1.0e-12;
+  int64_t num_packets = std::distance(clock_cycles_.begin(), clock_cycle_iter_);
+  double bits_per_sec = static_cast<double>(packet_size_bits_) * num_packets;
+  bits_per_sec = bits_per_sec / 1024.0 / 1024.0 / 8.0;
+  return bits_per_sec / total_sec;
+}
+
+void ReplayTrafficModel::SetClockCycles(
+    absl::Span<const int64_t> clock_cycles) {
+  clock_cycles_ =
+      std::vector<int64_t>(clock_cycles.begin(), clock_cycles.end());
+  std::sort(clock_cycles_.begin(), clock_cycles_.end());
+  clock_cycle_iter_ = clock_cycles_.cbegin();
+}
+
+absl::Span<const int64_t> ReplayTrafficModel::GetClockCycles() const {
+  return clock_cycles_;
 }
 
 }  // namespace xls::noc
