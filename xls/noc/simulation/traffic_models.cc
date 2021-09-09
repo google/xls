@@ -80,13 +80,13 @@ GeneralizedGeometricTrafficModelBuilder::
   SetPacketSizeBits(packet_size_bits);
 }
 
-absl::StatusOr<GeneralizedGeometricTrafficModel>
+absl::StatusOr<std::unique_ptr<GeneralizedGeometricTrafficModel>>
 GeneralizedGeometricTrafficModelBuilder::Build() const {
-  XLS_ASSIGN_OR_RETURN(GeneralizedGeometricTrafficModel model,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<GeneralizedGeometricTrafficModel> model,
                        TrafficModelBuilder::Build());
-  model.SetLambda(lambda_);
-  model.SetBurstProb(burst_prob_);
-  model.SetRandomNumberInterface(*random_interface_);
+  model->SetLambda(lambda_);
+  model->SetBurstProb(burst_prob_);
+  model->SetRandomNumberInterface(*random_interface_);
   return model;
 }
 
@@ -97,9 +97,11 @@ ReplayTrafficModelBuilder::ReplayTrafficModelBuilder(
                        clock_cycles.end());
 }
 
-absl::StatusOr<ReplayTrafficModel> ReplayTrafficModelBuilder::Build() const {
-  XLS_ASSIGN_OR_RETURN(ReplayTrafficModel model, TrafficModelBuilder::Build());
-  model.SetClockCycles(clock_cycles_);
+absl::StatusOr<std::unique_ptr<ReplayTrafficModel>>
+ReplayTrafficModelBuilder::Build() const {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ReplayTrafficModel> model,
+                       TrafficModelBuilder::Build());
+  model->SetClockCycles(clock_cycles_);
   return model;
 }
 

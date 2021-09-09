@@ -77,7 +77,7 @@ class NocTrafficInjector {
   }
 
   // List of all traffic models.
-  absl::Span<const GeneralizedGeometricTrafficModel> GetTrafficModels() const {
+  absl::Span<const std::unique_ptr<TrafficModel>> GetTrafficModels() const {
     return traffic_models_;
   }
 
@@ -141,7 +141,7 @@ class NocTrafficInjector {
 
   // TrafficModel, one per flow, responsible for defining when
   // each packet is injected and how big each packet is.
-  std::vector<GeneralizedGeometricTrafficModel> traffic_models_;
+  std::vector<std::unique_ptr<TrafficModel>> traffic_models_;
 
   // Measure injected traffic rate.
   std::vector<TrafficModelMonitor> traffic_model_monitor_;

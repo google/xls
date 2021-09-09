@@ -34,7 +34,7 @@ absl::Status NocTrafficInjector::RunCycle() {
   for (int64_t i = 0; i < traffic_models_.size(); ++i) {
     // Retrieve packets.
     std::vector<DataPacket> packets =
-        traffic_models_[i].GetNewCyclePackets(cycle_);
+        traffic_models_[i]->GetNewCyclePackets(cycle_);
 
     this->traffic_model_monitor_[i].AcceptNewPackets(absl::MakeSpan(packets),
                                                      cycle_);
@@ -281,14 +281,14 @@ absl::Status NocTrafficInjectorBuilder::BuildPerFlowTrafficModels(
     }
 
     XLS_ASSIGN_OR_RETURN(
-        GeneralizedGeometricTrafficModel model,
+        std::unique_ptr<GeneralizedGeometricTrafficModel> model,
         GeneralizedGeometricTrafficModelBuilder(
             lambda, burst_prob, bits_per_packet, random_number_interface)
             .SetVCIndex(vc_index)
             .SetSourceIndex(source_index)
             .SetDestinationIndex(sink_index)
             .Build());
-    injector.traffic_models_.push_back(model);
+    injector.traffic_models_.push_back(std::move(model));
     injector.traffic_flows_.push_back(flow_id);
   }
 

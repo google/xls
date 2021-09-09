@@ -92,16 +92,16 @@ TEST(TrafficModelsTest, GeneralizedGeometricModelBuilderTest) {
 
   builder.SetVCIndex(1).SetSourceIndex(10).SetDestinationIndex(3);
 
-  XLS_ASSERT_OK_AND_ASSIGN(GeneralizedGeometricTrafficModel model,
-                           builder.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<GeneralizedGeometricTrafficModel> model, builder.Build());
 
-  EXPECT_EQ(lambda, model.GetLambda());
-  EXPECT_EQ(burst_prob, model.GetBurstProb());
-  EXPECT_EQ(packet_size_bits, model.GetPacketSizeInBits());
-  EXPECT_EQ(&rnd, model.GetRandomNumberInterface());
-  EXPECT_EQ(model.GetVCIndex(), 1);
-  EXPECT_EQ(model.GetSourceIndex(), 10);
-  EXPECT_EQ(model.GetDestinationIndex(), 3);
+  EXPECT_EQ(lambda, model->GetLambda());
+  EXPECT_EQ(burst_prob, model->GetBurstProb());
+  EXPECT_EQ(packet_size_bits, model->GetPacketSizeInBits());
+  EXPECT_EQ(&rnd, model->GetRandomNumberInterface());
+  EXPECT_EQ(model->GetVCIndex(), 1);
+  EXPECT_EQ(model->GetSourceIndex(), 10);
+  EXPECT_EQ(model->GetDestinationIndex(), 3);
 }
 
 TEST(TrafficModelsTest, ReplayModelTest) {
@@ -162,12 +162,13 @@ TEST(TrafficModelsTest, ReplayModelBuilderTest) {
 
   builder.SetVCIndex(1).SetSourceIndex(10).SetDestinationIndex(3);
 
-  XLS_ASSERT_OK_AND_ASSIGN(ReplayTrafficModel model, builder.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ReplayTrafficModel> model,
+                           builder.Build());
 
-  EXPECT_EQ(packet_size_bits, model.GetPacketSizeInBits());
-  EXPECT_EQ(model.GetVCIndex(), 1);
-  EXPECT_EQ(model.GetSourceIndex(), 10);
-  EXPECT_EQ(model.GetDestinationIndex(), 3);
+  EXPECT_EQ(packet_size_bits, model->GetPacketSizeInBits());
+  EXPECT_EQ(model->GetVCIndex(), 1);
+  EXPECT_EQ(model->GetSourceIndex(), 10);
+  EXPECT_EQ(model->GetDestinationIndex(), 3);
 }
 
 TEST(TrafficModelsTest, ReplayModelClockCycleSortTest) {

@@ -96,14 +96,14 @@ TEST(NocTrafficInjectorTest, SingleSource) {
   EXPECT_EQ(traffic_injector.GetSourceNetworkInterfaces().at(0), send_port_0);
   EXPECT_EQ(traffic_injector.GetFlowsIndexToSourcesIndexMap().at(0), 0);
 
-  EXPECT_DOUBLE_EQ(
-      traffic_injector.GetTrafficModels().at(0).GetPacketSizeInBits(), 128);
-  EXPECT_DOUBLE_EQ(traffic_injector.GetTrafficModels().at(0).GetBurstProb(),
-                   0.007);
-  EXPECT_DOUBLE_EQ(
-      traffic_injector.GetTrafficModels().at(0).ExpectedTrafficRateInMiBps(
-          cycle_time_in_ps),
-      4.0 * 1024.0);
+  GeneralizedGeometricTrafficModel* geo_model =
+      dynamic_cast<GeneralizedGeometricTrafficModel*>(
+          traffic_injector.GetTrafficModels().at(0).get());
+  ASSERT_NE(geo_model, nullptr);
+  EXPECT_EQ(geo_model->GetPacketSizeInBits(), 128);
+  EXPECT_DOUBLE_EQ(geo_model->GetBurstProb(), 0.007);
+  EXPECT_DOUBLE_EQ(geo_model->ExpectedTrafficRateInMiBps(cycle_time_in_ps),
+                   4.0 * 1024.0);
 }
 
 TEST(NocTrafficInjectorTest, SingleSourceTwoFlows) {
@@ -187,23 +187,23 @@ TEST(NocTrafficInjectorTest, SingleSourceTwoFlows) {
   EXPECT_EQ(traffic_injector.GetFlowsIndexToSourcesIndexMap().at(0), 0);
   EXPECT_EQ(traffic_injector.GetFlowsIndexToSourcesIndexMap().at(1), 0);
 
-  EXPECT_DOUBLE_EQ(
-      traffic_injector.GetTrafficModels().at(0).GetPacketSizeInBits(), 128);
-  EXPECT_DOUBLE_EQ(traffic_injector.GetTrafficModels().at(0).GetBurstProb(),
-                   0.007);
-  EXPECT_DOUBLE_EQ(
-      traffic_injector.GetTrafficModels().at(0).ExpectedTrafficRateInMiBps(
-          cycle_time_in_ps),
-      4.0 * 1024.0);
+  GeneralizedGeometricTrafficModel* geo_model;
 
-  EXPECT_DOUBLE_EQ(
-      traffic_injector.GetTrafficModels().at(1).GetPacketSizeInBits(), 256);
-  EXPECT_DOUBLE_EQ(traffic_injector.GetTrafficModels().at(1).GetBurstProb(),
-                   0.000);
-  EXPECT_DOUBLE_EQ(
-      traffic_injector.GetTrafficModels().at(1).ExpectedTrafficRateInMiBps(
-          cycle_time_in_ps),
-      18.0 * 1024.0);
+  geo_model = dynamic_cast<GeneralizedGeometricTrafficModel*>(
+      traffic_injector.GetTrafficModels().at(0).get());
+  ASSERT_NE(geo_model, nullptr);
+  EXPECT_EQ(geo_model->GetPacketSizeInBits(), 128);
+  EXPECT_DOUBLE_EQ(geo_model->GetBurstProb(), 0.007);
+  EXPECT_DOUBLE_EQ(geo_model->ExpectedTrafficRateInMiBps(cycle_time_in_ps),
+                   4.0 * 1024.0);
+
+  geo_model = dynamic_cast<GeneralizedGeometricTrafficModel*>(
+      traffic_injector.GetTrafficModels().at(1).get());
+  ASSERT_NE(geo_model, nullptr);
+  EXPECT_EQ(geo_model->GetPacketSizeInBits(), 256);
+  EXPECT_DOUBLE_EQ(geo_model->GetBurstProb(), 0.000);
+  EXPECT_DOUBLE_EQ(geo_model->ExpectedTrafficRateInMiBps(cycle_time_in_ps),
+                   18.0 * 1024.0);
 }
 
 TEST(NocTrafficInjectorTest, TwoSourcesThreeFlows) {
@@ -312,32 +312,31 @@ TEST(NocTrafficInjectorTest, TwoSourcesThreeFlows) {
   EXPECT_EQ(traffic_injector.GetFlowsIndexToSourcesIndexMap().at(1), 1);
   EXPECT_EQ(traffic_injector.GetFlowsIndexToSourcesIndexMap().at(2), 0);
 
-  EXPECT_DOUBLE_EQ(
-      traffic_injector.GetTrafficModels().at(0).GetPacketSizeInBits(), 128);
-  EXPECT_DOUBLE_EQ(traffic_injector.GetTrafficModels().at(0).GetBurstProb(),
-                   0.007);
-  EXPECT_DOUBLE_EQ(
-      traffic_injector.GetTrafficModels().at(0).ExpectedTrafficRateInMiBps(
-          cycle_time_in_ps),
-      4.0 * 1024.0);
+  GeneralizedGeometricTrafficModel* geo_model;
 
-  EXPECT_DOUBLE_EQ(
-      traffic_injector.GetTrafficModels().at(1).GetPacketSizeInBits(), 256);
-  EXPECT_DOUBLE_EQ(traffic_injector.GetTrafficModels().at(1).GetBurstProb(),
-                   0.001);
-  EXPECT_DOUBLE_EQ(
-      traffic_injector.GetTrafficModels().at(1).ExpectedTrafficRateInMiBps(
-          cycle_time_in_ps),
-      18.0 * 1024.0);
+  geo_model = dynamic_cast<GeneralizedGeometricTrafficModel*>(
+      traffic_injector.GetTrafficModels().at(0).get());
+  ASSERT_NE(geo_model, nullptr);
+  EXPECT_EQ(geo_model->GetPacketSizeInBits(), 128);
+  EXPECT_DOUBLE_EQ(geo_model->GetBurstProb(), 0.007);
+  EXPECT_DOUBLE_EQ(geo_model->ExpectedTrafficRateInMiBps(cycle_time_in_ps),
+                   4.0 * 1024.0);
 
-  EXPECT_DOUBLE_EQ(
-      traffic_injector.GetTrafficModels().at(2).GetPacketSizeInBits(), 64);
-  EXPECT_DOUBLE_EQ(traffic_injector.GetTrafficModels().at(2).GetBurstProb(),
-                   0.002);
-  EXPECT_DOUBLE_EQ(
-      traffic_injector.GetTrafficModels().at(2).ExpectedTrafficRateInMiBps(
-          cycle_time_in_ps),
-      2.0 * 1024.0);
+  geo_model = dynamic_cast<GeneralizedGeometricTrafficModel*>(
+      traffic_injector.GetTrafficModels().at(1).get());
+  ASSERT_NE(geo_model, nullptr);
+  EXPECT_EQ(geo_model->GetPacketSizeInBits(), 256);
+  EXPECT_DOUBLE_EQ(geo_model->GetBurstProb(), 0.001);
+  EXPECT_DOUBLE_EQ(geo_model->ExpectedTrafficRateInMiBps(cycle_time_in_ps),
+                   18.0 * 1024.0);
+
+  geo_model = dynamic_cast<GeneralizedGeometricTrafficModel*>(
+      traffic_injector.GetTrafficModels().at(2).get());
+  ASSERT_NE(geo_model, nullptr);
+  EXPECT_EQ(geo_model->GetPacketSizeInBits(), 64);
+  EXPECT_DOUBLE_EQ(geo_model->GetBurstProb(), 0.002);
+  EXPECT_DOUBLE_EQ(geo_model->ExpectedTrafficRateInMiBps(cycle_time_in_ps),
+                   2.0 * 1024.0);
 }
 
 TEST(NocTrafficInjectorTest, MeasureTrafficInjectionRate) {

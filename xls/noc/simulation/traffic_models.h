@@ -16,6 +16,7 @@
 #define XLS_NOC_SIMULATION_TRAFFIC_MODELS_H_
 
 #include <algorithm>
+#include <memory>
 #include <queue>
 #include <vector>
 
@@ -104,11 +105,12 @@ class TrafficModelBuilder {
     return static_cast<TrafficModelBuilderType&>(*this);
   }
 
-  absl::StatusOr<TrafficModelType> Build() const {
-    TrafficModelType model(packet_size_bits_);
-    model.SetVCIndex(vc_);
-    model.SetSourceIndex(source_index_);
-    model.SetDestinationIndex(destination_index_);
+  absl::StatusOr<std::unique_ptr<TrafficModelType>> Build() const {
+    auto model = absl::make_unique<TrafficModelType>(
+        TrafficModelType(packet_size_bits_));
+    model->SetVCIndex(vc_);
+    model->SetSourceIndex(source_index_);
+    model->SetDestinationIndex(destination_index_);
     return model;
   }
 
@@ -180,7 +182,8 @@ class GeneralizedGeometricTrafficModelBuilder
                                           int64_t packet_size_bits,
                                           RandomNumberInterface& rnd);
 
-  absl::StatusOr<GeneralizedGeometricTrafficModel> Build() const;
+  absl::StatusOr<std::unique_ptr<GeneralizedGeometricTrafficModel>> Build()
+      const;
 
  private:
   double lambda_;      // Lambda of the distribution (unit 1/cycle)
@@ -224,7 +227,7 @@ class ReplayTrafficModelBuilder
   ReplayTrafficModelBuilder(int64_t packet_size_bits,
                             absl::Span<const int64_t> clock_cycles);
 
-  absl::StatusOr<ReplayTrafficModel> Build() const;
+  absl::StatusOr<std::unique_ptr<ReplayTrafficModel>> Build() const;
 
  private:
   std::vector<int64_t> clock_cycles_;
