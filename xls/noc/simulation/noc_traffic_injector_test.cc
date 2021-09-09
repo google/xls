@@ -566,5 +566,81 @@ TEST(NocTrafficInjectorTest, MeasureTrafficInjectionRate) {
             traffic_injector.MeasuredBitsSent(1));
 }
 
+TEST(NocTrafficInjectorTest, ReplaySource) {
+  // Construct traffic flows
+  NocTrafficManager traffic_mgr;
+
+  XLS_ASSERT_OK_AND_ASSIGN(TrafficFlowId flow0_id,
+                           traffic_mgr.CreateTrafficFlow());
+  TrafficFlow& flow0 = traffic_mgr.GetTrafficFlow(flow0_id);
+  flow0.SetName("flow0")
+      .SetSource("SendPort0")
+      .SetDestination("RecvPort0")
+      .SetVC("VC0")
+      .SetPacketSizeInBits(128)
+      .SetClockCycleTimes({0, 1, 2, 3, 4});
+
+  XLS_ASSERT_OK_AND_ASSIGN(TrafficModeId mode0_id,
+                           traffic_mgr.CreateTrafficMode());
+  TrafficMode& mode0 = traffic_mgr.GetTrafficMode(mode0_id);
+  mode0.SetName("Mode 0").RegisterTrafficFlow(flow0_id);
+
+  // Build and assign simulation objects
+  NetworkConfigProto proto;
+  NetworkManager graph;
+  NocParameters params;
+  XLS_ASSERT_OK(BuildNetworkGraphLinear000(&proto, &graph, &params));
+
+  // Create global routing table.
+  DistributedRoutingTableBuilderForTrees route_builder;
+  XLS_ASSERT_OK_AND_ASSIGN(DistributedRoutingTable routing_table,
+                           route_builder.BuildNetworkRoutingTables(
+                               graph.GetNetworkIds()[0], graph, params));
+
+  // Build input traffic model
+  RandomNumberInterface rnd;
+  int64_t cycle_time_in_ps = 400;
+  rnd.SetSeed(1000);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NocTrafficInjector traffic_injector,
+      NocTrafficInjectorBuilder().Build(
+          cycle_time_in_ps, mode0_id,
+          routing_table.GetSourceIndices().GetNetworkComponents(),
+          routing_table.GetSinkIndices().GetNetworkComponents(),
+          params.GetNetworkParam(graph.GetNetworkIds()[0])
+              ->GetVirtualChannels(),
+          traffic_mgr, graph, params, rnd));
+
+  EXPECT_EQ(traffic_injector.FlowCount(), 1);
+  EXPECT_EQ(traffic_injector.SourceNetworkInterfaceCount(), 1);
+
+  ASSERT_EQ(traffic_injector.GetDePacketizers().size(), 1);
+  ASSERT_EQ(traffic_injector.GetSourceNetworkInterfaces().size(), 1);
+  ASSERT_EQ(traffic_injector.GetFlowsIndexToSourcesIndexMap().size(), 1);
+  ASSERT_EQ(traffic_injector.GetTrafficModels().size(), 1);
+  ASSERT_EQ(traffic_injector.GetTrafficFlows().size(), 1);
+  ASSERT_EQ(traffic_injector.GetTrafficFlows().at(0), flow0_id);
+
+  EXPECT_EQ(traffic_injector.GetDePacketizers().at(0).GetSourceIndexBitCount(),
+            0);
+  EXPECT_EQ(traffic_injector.GetDePacketizers().at(0).GetFlitPayloadBitCount(),
+            64);
+  EXPECT_EQ(traffic_injector.GetDePacketizers().at(0).GetMaxPacketBitCount(),
+            128);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NetworkComponentId send_port_0,
+      FindNetworkComponentByName("SendPort0", graph, params));
+  EXPECT_EQ(traffic_injector.GetSourceNetworkInterfaces().at(0), send_port_0);
+  EXPECT_EQ(traffic_injector.GetFlowsIndexToSourcesIndexMap().at(0), 0);
+
+  ReplayTrafficModel* replay_model = dynamic_cast<ReplayTrafficModel*>(
+      traffic_injector.GetTrafficModels().at(0).get());
+  ASSERT_NE(replay_model, nullptr);
+  EXPECT_EQ(replay_model->GetClockCycles(),
+            std::vector<int64_t>({0, 1, 2, 3, 4}));
+  EXPECT_DOUBLE_EQ(replay_model->GetPacketSizeInBits(), 128);
+}
+
 }  // namespace
 }  // namespace xls::noc

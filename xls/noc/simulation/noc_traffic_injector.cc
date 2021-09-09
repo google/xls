@@ -261,34 +261,45 @@ absl::Status NocTrafficInjectorBuilder::BuildPerFlowTrafficModels(
     TrafficFlowId flow_id = traffic_flows[i];
     const TrafficFlow& flow = traffic_manager.GetTrafficFlow(flow_id);
 
-    double burst_prob = flow.GetBurstProb();
-    double bits_per_cycle = flow.GetTrafficPerNumPsInBits(cycle_time_ps);
     double bits_per_packet = flow.GetPacketSizeInBits();
-    double lambda = bits_per_cycle / bits_per_packet;
-
     int64_t source_index = injector.flows_index_to_sources_index_map_.at(i);
     int64_t sink_index = injector.flows_index_to_sinks_index_map_.at(i);
     int64_t vc_index = injector.flows_index_to_vc_index_map_.at(i);
 
-    if (lambda > 1.0) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Unable to build traffic model for flow %s "
-                          "rate %g MiBps "
-                          "at cycle time %d ps %d bits per packet "
-                          "requires sending %g > 1 packet per cycle.",
-                          flow.GetName(), flow.GetTrafficRateInMiBps(),
-                          cycle_time_ps, flow.GetPacketSizeInBits(), lambda));
-    }
+    if (flow.IsReplay()) {
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<ReplayTrafficModel> model,
+          ReplayTrafficModelBuilder(bits_per_packet, flow.GetClockCycleTimes())
+              .SetVCIndex(vc_index)
+              .SetSourceIndex(source_index)
+              .SetDestinationIndex(sink_index)
+              .Build());
+      injector.traffic_models_.push_back(std::move(model));
+    } else {
+      double burst_prob = flow.GetBurstProb();
+      double bits_per_cycle = flow.GetTrafficPerNumPsInBits(cycle_time_ps);
+      double lambda = bits_per_cycle / bits_per_packet;
 
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<GeneralizedGeometricTrafficModel> model,
-        GeneralizedGeometricTrafficModelBuilder(
-            lambda, burst_prob, bits_per_packet, random_number_interface)
-            .SetVCIndex(vc_index)
-            .SetSourceIndex(source_index)
-            .SetDestinationIndex(sink_index)
-            .Build());
-    injector.traffic_models_.push_back(std::move(model));
+      if (lambda > 1.0) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Unable to build traffic model for flow %s "
+                            "rate %g MiBps "
+                            "at cycle time %d ps %d bits per packet "
+                            "requires sending %g > 1 packet per cycle.",
+                            flow.GetName(), flow.GetTrafficRateInMiBps(),
+                            cycle_time_ps, flow.GetPacketSizeInBits(), lambda));
+      }
+
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<GeneralizedGeometricTrafficModel> model,
+          GeneralizedGeometricTrafficModelBuilder(
+              lambda, burst_prob, bits_per_packet, random_number_interface)
+              .SetVCIndex(vc_index)
+              .SetSourceIndex(source_index)
+              .SetDestinationIndex(sink_index)
+              .Build());
+      injector.traffic_models_.push_back(std::move(model));
+    }
     injector.traffic_flows_.push_back(flow_id);
   }
 
