@@ -39,6 +39,9 @@ struct ConvertOptions {
 
   // Whether to emit fail!() operations as predicated assertion IR nodes.
   bool emit_fail_as_assert = true;
+
+  // Should the generated IR be verified?
+  bool verify_ir = true;
 };
 
 // Converts the contents of a module to IR form.

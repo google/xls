@@ -26,6 +26,7 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/str_replace.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/variant.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/deduce_ctx.h"
@@ -166,8 +167,9 @@ class FunctionConverter {
   };
 
   // Every AST node has an "IR value" that is either a function builder value
-  // (BValue) or its IR-conversion-time-constant-decorated cousin (CValue).
-  using IrValue = absl::variant<BValue, CValue>;
+  // (BValue) or its IR-conversion-time-constant-decorated cousin (CValue), or
+  // an inter-proc Channel.
+  using IrValue = absl::variant<BValue, CValue, Channel*>;
 
   // Helper for converting an IR value to its BValue pointer for use in
   // debugging.
@@ -325,6 +327,7 @@ class FunctionConverter {
   absl::Status HandleArray(Array* node);
   absl::Status HandleAttr(Attr* node);
   absl::Status HandleCast(Cast* node);
+  absl::Status HandleChannelDecl(ChannelDecl* node);
   absl::Status HandleColonRef(ColonRef* node);
   absl::Status HandleConstantArray(ConstantArray* node);
   absl::Status HandleConstantDef(ConstantDef* node);
@@ -333,6 +336,7 @@ class FunctionConverter {
   absl::Status HandleInvocation(Invocation* node);
   absl::Status HandleFormatMacro(FormatMacro* node);
   absl::Status HandleLet(Let* node);
+  absl::Status HandleLetChannelDecl(Let* let, ChannelDecl* channel_decl);
   absl::Status HandleMatch(Match* node);
   absl::Status HandleSplatStructInstance(SplatStructInstance* node);
   absl::Status HandleStructInstance(StructInstance* node);
@@ -679,6 +683,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(Array)
   NO_TRAVERSE_DISPATCH_VISIT(ConstantArray)
   NO_TRAVERSE_DISPATCH_VISIT(Cast)
+  NO_TRAVERSE_DISPATCH_VISIT(ChannelDecl)
   NO_TRAVERSE_DISPATCH_VISIT(ColonRef)
   NO_TRAVERSE_DISPATCH_VISIT(ConstantDef)
   NO_TRAVERSE_DISPATCH_VISIT(For)
@@ -725,7 +730,6 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(StructDef)
 
   // Not yet implemented.
-  INVALID(ChannelDecl)
   INVALID(Recv)
   INVALID(Send)
   INVALID(Spawn)
@@ -805,10 +809,13 @@ absl::StatusOr<BValue> FunctionConverter::DefAlias(AstNode* from, AstNode* to) {
     if (absl::holds_alternative<BValue>(node_to_ir_.at(from))) {
       BValue ir_node = absl::get<BValue>(node_to_ir_.at(from));
       ir_node.SetName(name_def->identifier());
-    } else {
+    } else if (absl::holds_alternative<CValue>(node_to_ir_.at(from))) {
       BValue ir_node = absl::get<CValue>(node_to_ir_.at(from)).value;
       ir_node.SetName(name_def->identifier());
     }
+    // Do nothing for channels; they have no BValue-type representation (they
+    // exist as _global_ entities, not nodes in a Proc's IR), so they can't
+    // be [re]named.
   }
   return Use(to);
 }
@@ -1092,8 +1099,61 @@ absl::Status FunctionConverter::HandleConstantDef(ConstantDef* node) {
   return DefAlias(node->value(), /*to=*/node->name_def()).status();
 }
 
+absl::Status FunctionConverter::HandleLetChannelDecl(
+    Let* let, ChannelDecl* channel_decl) {
+  // Alias both the send and receive nodes to the channel.
+  absl::optional<IrValue> decl_ir = GetNodeToIr(channel_decl);
+  if (!decl_ir.has_value()) {
+    return absl::InternalError(
+        "ChannelDecl encountered before being processed?");
+  }
+
+  if (!absl::holds_alternative<Channel*>(decl_ir.value())) {
+    return absl::InternalError("Expected ChannelDecl, got BValue or CValue.");
+  }
+  Channel* channel = absl::get<Channel*>(decl_ir.value());
+
+  if (let->name_def_tree()->is_leaf()) {
+    return absl::InvalidArgumentError(
+        "LHS of a ChannelDecl must be a pair of names.");
+  }
+  std::vector<NameDefTree::Leaf> leaves = let->name_def_tree()->Flatten();
+  if (leaves.size() != 2) {
+    return absl::InvalidArgumentError(
+        "Channel decl must assign two elements on the LHS.");
+  }
+  if (!absl::holds_alternative<NameDef*>(leaves[0]) ||
+      !absl::holds_alternative<NameDef*>(leaves[1])) {
+    return absl::InvalidArgumentError(
+        "Both names on the LHS of a channel decl must be name defs.");
+  }
+
+  // Destructure LHS into p/c pair.
+  // TODO(rspringer): Do we need to store directionality with the channel?
+  node_to_ir_[absl::get<NameDef*>(leaves[0])] = channel;
+  node_to_ir_[absl::get<NameDef*>(leaves[1])] = channel;
+  XLS_RETURN_IF_ERROR(Visit(let->body()));
+  XLS_RETURN_IF_ERROR(DefAlias(let->body(), let).status());
+  if (let->type_annotation() != nullptr) {
+    XLS_ASSIGN_OR_RETURN(xls::Type * annotated_type,
+                         ResolveTypeToIr(let->type_annotation()));
+    XLS_ASSIGN_OR_RETURN(xls::Type * channel_type,
+                         ResolveTypeToIr(channel_decl->type()));
+    XLS_RET_CHECK_EQ(annotated_type, channel_type);
+  }
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleLet(Let* node) {
   XLS_RETURN_IF_ERROR(Visit(node->rhs()));
+
+  // Channels are a special case in that they don't correspond to BValues, so we
+  // handle them separately.
+  ChannelDecl* channel_decl = dynamic_cast<ChannelDecl*>(node->rhs());
+  if (channel_decl != nullptr) {
+    return HandleLetChannelDecl(node, channel_decl);
+  }
+
   XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->rhs()));
 
   // Verify that the RHS conforms to the annotation (if present).
@@ -2148,6 +2208,18 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
   return f;
 }
 
+absl::Status FunctionConverter::HandleChannelDecl(ChannelDecl* node) {
+  std::string name = absl::StrCat("channel_decl_", node->span().ToString());
+  name = absl::StrReplaceAll(
+      name, {{":", "_"}, {".", "_"}, {"-", "_"}, {"/", "_"}, {"\\", "_"}});
+  XLS_ASSIGN_OR_RETURN(xls::Type * type, ResolveTypeToIr(node->type()));
+  XLS_ASSIGN_OR_RETURN(
+      StreamingChannel * channel,
+      package()->CreateStreamingChannel(name, ChannelOps::kSendReceive, type));
+  SetNodeToIr(node, channel);
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleColonRef(ColonRef* node) {
   // Implementation note: ColonRef "invocations" are handled in Invocation (by
   // resolving the mangled callee name, which should have been IR converted in
@@ -2888,6 +2960,7 @@ static absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
     if (dynamic_cast<Proc*>(record.fb()) != nullptr) {
       XLS_LOG(INFO) << "Skipping " << record.fb()->identifier() << " : "
                     << "Procs are not yet supported for IR conversion.";
+      continue;
     }
     XLS_RETURN_IF_ERROR(ConvertOneFunctionInternal(
         package_data, record.module(), dynamic_cast<Function*>(record.fb()),
@@ -2895,7 +2968,9 @@ static absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
   }
 
   XLS_VLOG(3) << "Verifying converted package";
-  XLS_RETURN_IF_ERROR(VerifyPackage(package_data.package));
+  if (options.verify_ir) {
+    XLS_RETURN_IF_ERROR(VerifyPackage(package_data.package));
+  }
   return absl::OkStatus();
 }
 

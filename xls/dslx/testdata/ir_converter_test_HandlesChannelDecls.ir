@@ -1,0 +1,10 @@
+package test_module
+
+chan channel_decl_test_module_x_3_18_3_26(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="""""")
+chan channel_decl_test_module_x_4_18_4_26(bits[64], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="""""")
+chan channel_decl_test_module_x_5_18_5_42((bits[64], (bits[64], (bits[64]))), id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="""""")
+chan channel_decl_test_module_x_6_18_6_43((bits[64], (bits[64], bits[64][4])), id=3, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="""""")
+
+fn __test_module__main(x: bits[32]) -> () {
+  ret tuple.2: () = tuple(id=2)
+}

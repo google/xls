@@ -1431,6 +1431,27 @@ fn callee(x:u32) -> u32 {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, HandlesChannelDecls) {
+  const std::string kProgram = R"(
+fn main(x:u32) -> () {
+  let (p0, c0) = chan u32;
+  let (p1, c1) = chan u64;
+  let (p2, c2) = chan (u64, (u64, (u64)));
+  let (p3, c3) = chan (u64, (u64, u64[4]));
+  ()
+}
+
+)";
+
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram, options));
+  ExpectIr(converted, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx
 
