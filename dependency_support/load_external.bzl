@@ -66,17 +66,17 @@ def load_external_repositories():
 
     http_archive(
         name = "pybind11_bazel",
-        strip_prefix = "pybind11_bazel-34206c29f891dbd5f6f5face7b91664c2ff7185c",
-        urls = ["https://github.com/pybind/pybind11_bazel/archive/34206c29f891dbd5f6f5face7b91664c2ff7185c.zip"],
-        sha256 = "8d0b776ea5b67891f8585989d54aa34869fc12f14bf33f1dc7459458dd222e95",
+        strip_prefix = "pybind11_bazel-26973c0ff320cb4b39e45bc3e4297b82bc3a6c09",
+        urls = ["https://github.com/pybind/pybind11_bazel/archive/26973c0ff320cb4b39e45bc3e4297b82bc3a6c09.tar.gz"],
+        sha256 = "8f546c03bdd55d0e88cb491ddfbabe5aeb087f87de2fbf441391d70483affe39",
     )
 
     http_archive(
         name = "pybind11",
         build_file = "@pybind11_bazel//:pybind11.BUILD",
-        strip_prefix = "pybind11-59a2ac2745d8a57ac94c6accced73620d59fb844",
-        urls = ["https://github.com/pybind/pybind11/archive/59a2ac2745d8a57ac94c6accced73620d59fb844.tar.gz"],
-        sha256 = "3276f79ae507ae578501ffc2833f8e9082092eb99e59763a77d08c3fdea35bec",
+        strip_prefix = "pybind11-30eb39ed79d1e2eeff15219ac00773034300a5e6",
+        urls = ["https://github.com/pybind/pybind11/archive/30eb39ed79d1e2eeff15219ac00773034300a5e6.tar.gz"],
+        sha256 = "2e748579ea1903d55b8abe9d314fd5c3cf9f4e5734c525444e4d2aed146efc9e",
     )
 
     http_archive(

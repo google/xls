@@ -20,7 +20,11 @@ load(
     "xls_dslx_opt_ir",
     "xls_dslx_test",
     "xls_eval_ir_test",
+    "xls_ir_verilog",
 )
+
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -42,6 +46,33 @@ xls_dslx_opt_ir(
     opt_ir_file = "idct_chen.opt.ir",
     # Note: times out in fastbuild 2020-11-09.
     tags = ["optonly"],
+)
+
+xls_ir_verilog(
+    name = "idct_chen_5000ps_model_unit",
+    src = ":idct_chen.opt.ir",
+    codegen_args = {
+        "delay_model": "unit",
+        "clock_period_ps": "5000",
+        "module_name": "idct_chen",
+        "use_system_verilog": "false",
+    },
+    verilog_file = "idct_chen_5000ps_model_unit.v",
+)
+
+verilog_library(
+  name = "idct_chen_5000ps_model_unit_verilog",
+  srcs = [
+      ":idct_chen_5000ps_model_unit.v"
+  ]
+)
+
+synthesize_rtl(
+  name = "idct_chen_5000ps_model_unit_verilog_synth",
+  top_module = "idct_chen",
+  deps = [
+      ":idct_chen_5000ps_model_unit_verilog"
+  ]
 )
 
 xls_dslx_test(
