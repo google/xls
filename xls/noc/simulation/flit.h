@@ -80,13 +80,26 @@ struct DataFlit {
   }
 };
 
+// Information associated with to a xls::noc::TimedDataFlit
+// TODO(vmirian) This can be expanded to have 'metadata' objects hooked onto the
+// flit. Discussion is required to evaluate the performance tradeoff.
+struct TimedDataFlitInfo {
+  int64_t injection_cycle_time;  // the cycle iteration the flit was injected by
+  // the simulator into the network
+  std::string ToString() const {
+    return absl::StrFormat("{injection_cycle_time: %d}", injection_cycle_time);
+  }
+};
+
 // Associates a flit with a time (cycle).
 struct TimedDataFlit {
   int64_t cycle;
   DataFlit flit;
+  TimedDataFlitInfo metadata;
 
   std::string ToString() const {
-    return absl::StrFormat("{cycle: %d, flit: %s}", cycle, flit);
+    return absl::StrFormat("{cycle: %d, flit: %s, metadata: %s}", cycle, flit,
+                           metadata.ToString());
   }
   // String converter to support absl::StrFormat() and related functions.
   friend absl::FormatConvertResult<absl::FormatConversionCharSet::kString>
@@ -119,10 +132,16 @@ struct MetadataFlit {
   }
 };
 
+// Information associated with to a xls::noc::TimedMetadataFlit
+// Currently empty to match TimedDtaFlit and for use in
+// ::xls::noc::SimplePipelineImpl.
+struct TimedMetadataFlitInfo {};
+
 // Associates a metadata flit with a time (cycle).
 struct TimedMetadataFlit {
   int64_t cycle;
   MetadataFlit flit;
+  TimedMetadataFlitInfo metadata;
 
   std::string ToString() const {
     return absl::StrFormat("{cycle: %d, flit: %s}", cycle, flit);

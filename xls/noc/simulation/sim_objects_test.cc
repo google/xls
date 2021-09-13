@@ -69,6 +69,10 @@ TEST(SimObjectsTest, BackToBackNetwork0) {
       NetworkComponentId recv_port_0,
       FindNetworkComponentByName("RecvPort0", graph, params));
 
+  // Retrieve routers
+  EXPECT_EQ(simulator.GetRouters().size(), 1);
+  EXPECT_EQ(simulator.GetRouters()[0].GetUtilizationCycleCount(), 0);
+
   // phit0 traverses a link of latency 4 so will arrive on cycle 5.
   XLS_ASSERT_OK_AND_ASSIGN(
       int64_t dest_index_0,
@@ -112,7 +116,7 @@ TEST(SimObjectsTest, BackToBackNetwork0) {
   EXPECT_EQ(traffic_recv_port_0[4].flit.data, UBits(707, 64));
 }
 
-TEST(SimObjectsTest, TreeNework0) {
+TEST(SimObjectsTest, TreeNetwork0) {
   // Build and assign simulation objects
   NetworkConfigProto proto;
   NetworkManager graph;
@@ -181,6 +185,11 @@ TEST(SimObjectsTest, TreeNework0) {
       int64_t dest_index_3,
       simulator.GetRoutingTable()->GetSinkIndices().GetNetworkComponentIndex(
           recv_port_3));
+
+  // Retrieve routers
+  EXPECT_EQ(simulator.GetRouters().size(), 2);
+  EXPECT_EQ(simulator.GetRouters()[0].GetUtilizationCycleCount(), 0);
+  EXPECT_EQ(simulator.GetRouters()[1].GetUtilizationCycleCount(), 0);
 
   // phit0 traverses a link of latency 2 so will arrive on cycle 3.
   XLS_ASSERT_OK_AND_ASSIGN(TimedDataFlit flit0,

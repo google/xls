@@ -48,9 +48,14 @@ struct CreditState {
   int64_t credit;
 };
 
+struct DataFlitQueueElement {
+  DataFlit flit;
+  TimedDataFlitInfo metadata;
+};
+
 // Represents a fifo/buffer used to store phits.
 struct DataFlitQueue {
-  std::queue<DataFlit> queue;
+  std::queue<DataFlitQueueElement> queue;
   int64_t max_queue_size;
 };
 
@@ -77,7 +82,7 @@ class SimNetworkComponentBase {
   bool Tick(NocSimulator& simulator);
 
   // Returns the associated NetworkComponentId.
-  NetworkComponentId GetId() { return id_; }
+  NetworkComponentId GetId() const { return id_; }
 
   virtual ~SimNetworkComponentBase() = default;
 
@@ -162,9 +167,9 @@ class SimLink : public SimNetworkComponentBase {
   int64_t src_connection_index_;
   int64_t sink_connection_index_;
 
-  std::queue<DataFlit> forward_data_stages_;
+  std::queue<TimedDataFlit> forward_data_stages_;
 
-  std::vector<std::queue<MetadataFlit>> reverse_credit_stages_;
+  std::vector<std::queue<TimedMetadataFlit>> reverse_credit_stages_;
 };
 
 // Source - injects traffic into the network.
@@ -250,11 +255,11 @@ class SimNetworkInterfaceSink : public SimNetworkComponentBase {
   std::vector<TimedDataFlit> received_traffic_;
 };
 
-// Represents a input-buffered, fixed priority, credit-based, virtual-channel
+// Represents an input-buffered, fixed priority, credit-based, virtual-channel
 // router.
 //
-// This router implements a spcific type of router used by the simulator.
-// Additional routers are implemented ether as a separate class or
+// This router implements a specific type of router used by the simulator.
+// Additional routers are implemented either as a separate class or
 // by configuring this class.
 //
 // Specific features include
@@ -266,12 +271,12 @@ class SimNetworkInterfaceSink : public SimNetworkComponentBase {
 //               from when the credit is received and the credit count
 //               updated.
 //             - the router likewise sends credit updates upstream.
-//   - Dedicated credit channels - Each vc is associated with an indepenendent
+//   - Dedicated credit channels - Each vc is associated with an independent
 //                                 channel for credit updates.
 //   - Output bufferless - once a flit is arbitrated for, the flit is
-//                         immediately transfered downstream.
+//                         immediately transferred downstream.
 //   - Fixed priority - a fixed priority scheme is implemented.
-// TODO(tedhong): 2021-01-31 - Add support for alternative prority scheme.
+// TODO(tedhong): 2021-01-31 - Add support for alternative priority scheme.
 class SimInputBufferedVCRouter : public SimNetworkComponentBase {
  public:
   static absl::StatusOr<SimInputBufferedVCRouter> Create(
@@ -280,6 +285,8 @@ class SimInputBufferedVCRouter : public SimNetworkComponentBase {
     XLS_RETURN_IF_ERROR(ret.Initialize(nc_id, simulator));
     return ret;
   }
+
+  int64_t GetUtilizationCycleCount() const;
 
  private:
   SimInputBufferedVCRouter() = default;
@@ -343,6 +350,9 @@ class SimInputBufferedVCRouter : public SimNetworkComponentBase {
   // Used by forward propagation to store the number of phits that left
   // the input buffers and hence credits that can be sent back upstream.
   std::vector<std::vector<int64_t>> input_credit_to_send_;
+
+  // The number of cycles that a transfer from input to output occurred.
+  int64_t utilization_cycle_count_;
 };
 
 // Main simulator class that drives the simulation and stores simulation
@@ -438,7 +448,7 @@ class NocSimulator {
   }
 
   // Register a service to run once at the end of each cycle.
-  void RegisterPosteCycleService(NocSimulatorServiceShim& svc) {
+  void RegisterPostCycleService(NocSimulatorServiceShim& svc) {
     post_cycle_services_.push_back(&svc);
   }
 
@@ -449,6 +459,9 @@ class NocSimulator {
   // Returns corresponding simulation object for a sink network component.
   absl::StatusOr<SimNetworkInterfaceSink*> GetSimNetworkInterfaceSink(
       NetworkComponentId sink);
+
+  // Returns the routers of the simulator.
+  absl::Span<const SimInputBufferedVCRouter> GetRouters() const;
 
  private:
   absl::Status CreateSimulationObjects(NetworkId network);

@@ -60,7 +60,10 @@ absl::Status NocTrafficInjector::RunCycle() {
 
       while (!depacketizer.IsIdle()) {
         XLS_ASSIGN_OR_RETURN(DataFlit flit, depacketizer.ComputeNextFlit());
-        TimedDataFlit timed_data_flit{cycle_, flit};
+        // Add information defining the cycle iteration the flit is injected
+        // into the network.
+        TimedDataFlitInfo info{cycle_};
+        TimedDataFlit timed_data_flit{cycle_, flit, info};
         XLS_RET_CHECK_OK(simulator_->SendFlitAtTime(timed_data_flit, source));
       }
     }

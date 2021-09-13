@@ -36,12 +36,12 @@ namespace {
 // Template parameters are used to switch between the different types of
 // flits we support -- either data (TimedDataFlit) or
 // metadata (TimedMetadataFlit).
-template <typename DataTimePhitT,
-          typename DataPhitT = decltype(DataTimePhitT::flit)>
+template <typename DataTimePhitT>
 class SimplePipelineImpl {
  public:
   SimplePipelineImpl(int64_t stage_count, DataTimePhitT& from_channel,
-                     DataTimePhitT& to_channel, std::queue<DataPhitT>& state)
+                     DataTimePhitT& to_channel,
+                     std::queue<DataTimePhitT>& state)
       : stage_count_(stage_count),
         from_(from_channel),
         to_(to_channel),
@@ -53,11 +53,12 @@ class SimplePipelineImpl {
   int64_t stage_count_;
   DataTimePhitT& from_;
   DataTimePhitT& to_;
-  std::queue<DataPhitT>& state_;
+  // TODO(vmirian) 09-07-21 Optimize to select flit data and its metadata
+  std::queue<DataTimePhitT>& state_;
 };
 
-template <typename DataTimePhitT, typename DataPhitT>
-bool SimplePipelineImpl<DataTimePhitT, DataPhitT>::TryPropagation(
+template <typename DataTimePhitT>
+bool SimplePipelineImpl<DataTimePhitT>::TryPropagation(
     NocSimulator& simulator) {
   int64_t current_cycle = simulator.GetCurrentCycle();
 
@@ -66,15 +67,15 @@ bool SimplePipelineImpl<DataTimePhitT, DataPhitT>::TryPropagation(
       return true;
     }
 
-    state_.push(from_.flit);
+    state_.push(from_);
 
     XLS_VLOG(2) << absl::StreamFormat("... link received data %s type %d",
                                       from_.flit.data.ToString(),
                                       from_.flit.type);
-
     if (state_.size() > stage_count_) {
-      to_.flit = state_.front();
+      to_.flit = state_.front().flit;
       to_.cycle = current_cycle;
+      to_.metadata = state_.front().metadata;
       state_.pop();
     } else {
       to_.flit.type = FlitType::kInvalid;
@@ -426,6 +427,9 @@ absl::Status SimNetworkInterfaceSink::InitializeImpl(NocSimulator& simulator) {
   return absl::OkStatus();
 }
 
+int64_t SimInputBufferedVCRouter::GetUtilizationCycleCount() const {
+  return utilization_cycle_count_;
+}
 absl::Status SimInputBufferedVCRouter::InitializeImpl(NocSimulator& simulator) {
   NetworkManager* network_manager = simulator.GetNetworkManager();
   NetworkComponent& nc = network_manager->GetNetworkComponent(id_);
@@ -491,6 +495,7 @@ absl::Status SimInputBufferedVCRouter::InitializeImpl(NocSimulator& simulator) {
   }
 
   internal_propagated_cycle_ = simulator.GetCurrentCycle();
+  utilization_cycle_count_ = 0;
 
   return absl::OkStatus();
 }
@@ -566,7 +571,7 @@ bool SimNetworkInterfaceSrc::TryForwardPropagation(NocSimulator& simulator) {
   }
 
   // Send data.
-  bool did_send_flit = false;
+  bool flit_sent = false;
 
   for (int64_t vc = 0; vc < data_to_send_.size(); ++vc) {
     std::queue<TimedDataFlit>& send_queue = data_to_send_[vc];
@@ -575,11 +580,12 @@ bool SimNetworkInterfaceSrc::TryForwardPropagation(NocSimulator& simulator) {
         sink.forward_channels.flit = send_queue.front().flit;
         sink.forward_channels.flit.vc = vc;
         sink.forward_channels.cycle = current_cycle;
+        sink.forward_channels.metadata = send_queue.front().metadata;
 
         --credit_[vc];
 
         send_queue.pop();
-        did_send_flit = true;
+        flit_sent = true;
 
         XLS_VLOG(2) << absl::StreamFormat(
             "... ni-src sending data %s vc %d credit now %d",
@@ -593,7 +599,7 @@ bool SimNetworkInterfaceSrc::TryForwardPropagation(NocSimulator& simulator) {
     }
   }
 
-  if (!did_send_flit) {
+  if (!flit_sent) {
     sink.forward_channels.flit =
         DataFlitBuilder().Invalid().BuildFlit().value();
     sink.forward_channels.cycle = current_cycle;
@@ -730,7 +736,8 @@ bool SimInputBufferedVCRouter::TryForwardPropagation(NocSimulator& simulator) {
     }
   }
 
-  // This router supports bypass so an flit arriving at the
+  bool flit_sent = false;
+  // This router supports bypass so a flit arriving at the
   // input can be routed to the output immediately.
   for (int64_t i = 0; i < input_connection_count_; ++i) {
     SimConnectionState& input =
@@ -738,7 +745,8 @@ bool SimInputBufferedVCRouter::TryForwardPropagation(NocSimulator& simulator) {
 
     if (input.forward_channels.flit.type != FlitType::kInvalid) {
       int64_t vc = input.forward_channels.flit.vc;
-      input_buffers_[i][vc].queue.push(input.forward_channels.flit);
+      input_buffers_[i][vc].queue.push(
+          {input.forward_channels.flit, input.forward_channels.metadata});
 
       XLS_VLOG(2) << absl::StrFormat(
           "... router %x from %x received data %s port %d vc %d",
@@ -760,7 +768,8 @@ bool SimInputBufferedVCRouter::TryForwardPropagation(NocSimulator& simulator) {
         continue;
       }
 
-      DataFlit flit = input_buffers_[i][vc].queue.front();
+      DataFlit flit = input_buffers_[i][vc].queue.front().flit;
+      TimedDataFlitInfo metadata = input_buffers_[i][vc].queue.front().metadata;
       int64_t destination_index = flit.destination_index;
 
       PortIndexAndVCIndex input{i, vc};
@@ -792,6 +801,7 @@ bool SimInputBufferedVCRouter::TryForwardPropagation(NocSimulator& simulator) {
       output_state.forward_channels.flit = flit;
       output_state.forward_channels.flit.vc = output.vc_index;
       output_state.forward_channels.cycle = current_cycle;
+      output_state.forward_channels.metadata = metadata;
 
       // Update credit on output.
       --credit_.at(output.port_index).at(output.vc_index);
@@ -799,6 +809,8 @@ bool SimInputBufferedVCRouter::TryForwardPropagation(NocSimulator& simulator) {
       // Update credit to send back to input.
       ++input_credit_to_send_[i][vc];
       input_buffers_[i][vc].queue.pop();
+
+      flit_sent = true;
 
       XLS_VLOG(2) << absl::StreamFormat(
           "... router sending data %s vc %d credit now %d"
@@ -819,6 +831,11 @@ bool SimInputBufferedVCRouter::TryForwardPropagation(NocSimulator& simulator) {
           DataFlitBuilder().Invalid().BuildFlit().value();
       output.forward_channels.cycle = current_cycle;
     }
+  }
+
+  // Collect some statistics
+  if (flit_sent) {
+    utilization_cycle_count_++;
   }
 
   forward_propagated_cycle_ = current_cycle;
@@ -938,6 +955,7 @@ bool SimNetworkInterfaceSink::TryForwardPropagation(NocSimulator& simulator) {
     TimedDataFlit received_flit;
     received_flit.cycle = current_cycle;
     received_flit.flit = src.forward_channels.flit;
+    received_flit.metadata = src.forward_channels.metadata;
     received_traffic_.push_back(received_flit);
 
     // Send one credit back
@@ -1001,6 +1019,10 @@ NocSimulator::GetSimNetworkInterfaceSink(NetworkComponentId sink) {
   }
 
   return &network_interface_sinks_[iter->second];
+}
+
+absl::Span<const SimInputBufferedVCRouter> NocSimulator::GetRouters() const {
+  return routers_;
 }
 
 }  // namespace noc
