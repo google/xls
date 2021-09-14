@@ -25,6 +25,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/simulation/common.h"
+#include "xls/noc/simulation/flit.h"
 #include "xls/noc/simulation/traffic_description.h"
 
 // This file contains classes used to construct different
@@ -258,6 +259,39 @@ class ExperimentBuilderBase {
   virtual absl::StatusOr<ExperimentSweeps> BuildExperimentSweeps() = 0;
   virtual absl::StatusOr<ExperimentRunner> BuildExperimentRunner() = 0;
 };
+
+namespace internal {
+
+struct PacketInfo {
+  int64_t injection_clock_cycle_time;
+  int64_t arrival_clock_cycle_time;
+};
+
+struct Stats {
+  int64_t min_injection_cycle_time = std::numeric_limits<int64_t>::max();
+  int64_t max_injection_cycle_time = std::numeric_limits<int64_t>::min();
+  int64_t min_arrival_cycle_time = std::numeric_limits<int64_t>::max();
+  int64_t max_arrival_cycle_time = std::numeric_limits<int64_t>::min();
+  int64_t min_latency = std::numeric_limits<int64_t>::max();
+  int64_t max_latency = std::numeric_limits<int64_t>::min();
+  double average_latency = 0.0;
+};
+
+// Get latency from source to sink for each packet.
+// flits: a list from flits from the sink.
+// vc_index: the vc_index to filter the flits. Only considers the flits
+// corresponding to the vc_index. Packets composed of multiple flits retrieves
+// the injection time from the HEAD flit and the arrival time from the TAIL
+// flit. Packets composed of a single flit retrieves the injection time and the
+// arrival time from the TAIL flit.
+std::vector<PacketInfo> GetPacketInfo(absl::Span<const TimedDataFlit> flits,
+                                      int64_t vc_index);
+
+// Calculate the Stats entries from a list of PacketInfo.
+// If list is empty, returns xls::noc::Stats.
+Stats GetStats(absl::Span<const PacketInfo> packets);
+
+}  // namespace internal
 
 }  // namespace xls::noc
 

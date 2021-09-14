@@ -23,7 +23,6 @@ cc_library(
     hdrs = ["experiment.h"],
     deps = [
         "@com_google_absl//absl/container:btree",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
@@ -31,6 +30,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/simulation:common",
+        "//xls/noc/simulation:flit",
         "//xls/noc/simulation:network_graph",
         "//xls/noc/simulation:network_graph_builder",
         "//xls/noc/simulation:noc_traffic_injector",

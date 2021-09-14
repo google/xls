@@ -186,4 +186,62 @@ TEST(ExperimentsTest, ExperimentMetrics) {
 }
 
 }  // namespace
+
+namespace internal {
+namespace {
+
+// Returns the TimedDataFlits of two packets.
+std::vector<TimedDataFlit> GetPacketsForTest() {
+  return std::vector<TimedDataFlit>{
+      // packet 0
+      {.cycle = 10,
+       .flit = DataFlit{.type = FlitType::kHead, .vc = 0},
+       .metadata = {.injection_cycle_time = 0}},
+      {.cycle = 11,
+       .flit = DataFlit{.type = FlitType::kTail, .vc = 0},
+       .metadata = {.injection_cycle_time = 1}},
+      // packet 1
+      {.cycle = 12,
+       .flit = DataFlit{.type = FlitType::kTail, .vc = 0},
+       .metadata = {.injection_cycle_time = 2}},
+      // invalid packet
+      {.cycle = 13,
+       .flit = DataFlit{.type = FlitType::kInvalid, .vc = 0},
+       .metadata = {.injection_cycle_time = 3}},
+  };
+}
+
+TEST(ExperimentsTest, GetPacketInfoTest) {
+  std::vector<PacketInfo> packet_info =
+      GetPacketInfo(GetPacketsForTest(), /*vc_index=*/0);
+  // only two packets
+  EXPECT_EQ(packet_info.size(), 2);
+  EXPECT_EQ(packet_info[0].injection_clock_cycle_time, 0);
+  EXPECT_EQ(packet_info[0].arrival_clock_cycle_time, 11);
+  EXPECT_EQ(packet_info[1].injection_clock_cycle_time, 2);
+  EXPECT_EQ(packet_info[1].arrival_clock_cycle_time, 12);
+}
+
+TEST(ExperimentsTest, GetStatsTest) {
+  std::vector<TimedDataFlit> packets = GetPacketsForTest();
+  std::vector<PacketInfo> packet_info = GetPacketInfo(packets, /*vc_index=*/0);
+  Stats result = GetStats(packet_info);
+  // packet 0 sent at cycle 0
+  EXPECT_EQ(result.min_injection_cycle_time, 0);
+  // packet 1 sent at cycle 2
+  EXPECT_EQ(result.max_injection_cycle_time, 2);
+  // packet 0 arrives at cycle 11
+  EXPECT_EQ(result.min_arrival_cycle_time, 11);
+  // packet 1 arrives at cycle 12
+  EXPECT_EQ(result.max_arrival_cycle_time, 12);
+  // packet 1 took 10 cycles
+  EXPECT_EQ(result.min_latency, 10);
+  // packet 0 took 11 cycles
+  EXPECT_EQ(result.max_latency, 11);
+  EXPECT_DOUBLE_EQ(result.average_latency, 10.5);
+}
+
+}  // namespace
+}  // namespace internal
+
 }  // namespace xls::noc
