@@ -30,6 +30,7 @@ cc_library(
     deps = [
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:import_data",
         "//xls/dslx:ir_converter",
         "//xls/dslx:mangle",
@@ -47,6 +48,7 @@ cc_test(
         ":runtime_build_actions",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/dslx:default_dslx_stdlib_path",
         "@com_google_googletest//:gtest",
     ],
 )

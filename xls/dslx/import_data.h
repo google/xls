@@ -19,6 +19,7 @@
 #include <memory>
 
 #include "xls/dslx/ast.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/type_info.h"
 
@@ -77,9 +78,16 @@ class ImportTokens {
 // into.
 class ImportData {
  public:
-  ImportData() {}
-  ImportData(absl::Span<const std::filesystem::path> additional_search_paths)
-      : additional_search_paths_(additional_search_paths) {}
+  static ImportData CreateForTest() {
+    return ImportData(xls::kDefaultDslxStdlibPath,
+                      /*additional_search_paths=*/{});
+  }
+
+  ImportData() = delete;
+  ImportData(std::string stdlib_path,
+             absl::Span<const std::filesystem::path> additional_search_paths)
+      : stdlib_path_(std::move(stdlib_path)),
+        additional_search_paths_(additional_search_paths) {}
 
   bool Contains(const ImportTokens& target) const {
     return cache_.find(target) != cache_.end();
@@ -136,6 +144,7 @@ class ImportData {
     top_level_bindings_done_.insert(module);
   }
 
+  const std::string& stdlib_path() const { return stdlib_path_; }
   absl::Span<const std::filesystem::path> additional_search_paths() {
     return additional_search_paths_;
   }
@@ -147,6 +156,7 @@ class ImportData {
   absl::flat_hash_set<Module*> top_level_bindings_done_;
   absl::flat_hash_map<Module*, AstNode*> typecheck_wip_;
   TypeInfoOwner type_info_owner_;
+  std::string stdlib_path_;
   absl::Span<const std::filesystem::path> additional_search_paths_;
 };
 

@@ -168,7 +168,7 @@ py_library(
         "//xls/dslx/python:interp_value",
         "//xls/dslx/python:interpreter",
         "//xls/fuzzer/python:cpp_sample",
-        "//xls/ir/python:ir_parser",
+        "//xls/public/python:runtime_build_actions",
         "@com_google_absl_py//absl/logging",
     ],
 )

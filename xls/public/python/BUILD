@@ -27,6 +27,7 @@ xls_pybind_extension(
     srcs = ["runtime_build_actions.cc"],
     deps = [
         "//xls/common/status:statusor_pybind_caster",
+        "//xls/dslx:default_dslx_stdlib_path",
         "//xls/public:runtime_build_actions",
     ],
 )

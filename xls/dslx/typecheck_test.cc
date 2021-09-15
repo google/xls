@@ -27,7 +27,7 @@ using testing::HasSubstr;
 
 // Helper for parsing/typechecking a snippet of DSLX text.
 absl::Status Typecheck(absl::string_view text) {
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
   return ParseAndTypecheck(text, "fake.x", "fake", &import_data).status();
 }
 
@@ -944,7 +944,7 @@ struct Foo {
 }
 )";
 
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kProgram, "fake_path", "MyModule", &import_data));

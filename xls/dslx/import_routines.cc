@@ -26,7 +26,7 @@
 namespace xls::dslx {
 
 static absl::StatusOr<std::filesystem::path> FindExistingPath(
-    const ImportTokens& subject,
+    const ImportTokens& subject, absl::string_view stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths,
     const Span& import_span) {
   absl::Span<std::string const> pieces = subject.pieces();
@@ -37,8 +37,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
 
   // Initialize subject and parent subject path.
   if (pieces.size() == 1 && builtins.contains(pieces[0])) {
-    subject_path =
-        absl::StrCat(absl::StrFormat("xls/dslx/stdlib/%s.x", pieces[0]));
+    subject_path = absl::StrCat(stdlib_path, "/", pieces[0], ".x");
   } else {
     subject_path = absl::StrJoin(pieces, "/") + ".x";
     subject_parent_path = absl::StrJoin(pieces.subspan(1), "/") + ".x";
@@ -116,9 +115,9 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
   return absl::NotFoundError(
       absl::StrFormat("ImportError: %s Could not find DSLX file for import; "
                       "attempted: [ %s ]; working "
-                      "directory: %s",
+                      "directory: \"%s\"; stdlib directory: \"%s\"",
                       import_span.ToString(), absl::StrJoin(attempted, " :: "),
-                      GetCurrentDirectory().value()));
+                      GetCurrentDirectory().value(), stdlib_path));
 }
 
 absl::StatusOr<const ModuleInfo*> DoImport(
@@ -133,8 +132,8 @@ absl::StatusOr<const ModuleInfo*> DoImport(
 
   XLS_ASSIGN_OR_RETURN(
       std::filesystem::path found_path,
-      FindExistingPath(subject, import_data->additional_search_paths(),
-                       import_span));
+      FindExistingPath(subject, import_data->stdlib_path(),
+                       import_data->additional_search_paths(), import_span));
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(found_path));
 
   absl::Span<std::string const> pieces = subject.pieces();

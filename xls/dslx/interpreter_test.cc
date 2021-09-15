@@ -38,7 +38,7 @@ TEST(InterpreterTest, RunIdentityFn) {
 
   module->AddTop(function);
 
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
 
   // Populate a type information entity so we can resolve it.
   XLS_ASSERT_OK(import_data.type_info_owner().New(module.get()).status());
@@ -52,7 +52,7 @@ TEST(InterpreterTest, RunIdentityFn) {
 
 TEST(InterpreterTest, RunTokenIdentityFn) {
   absl::string_view program = "fn id(t: token) -> token { t }";
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_data));
@@ -85,7 +85,7 @@ fn top(x: u32) -> u32 {
 }
 )";
 
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));

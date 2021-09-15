@@ -276,7 +276,7 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
     failed += 1;
   };
 
-  ImportData import_data(options.dslx_paths);
+  ImportData import_data(options.stdlib_path, options.dslx_paths);
   absl::StatusOr<TypecheckedModule> tm_or =
       ParseAndTypecheck(program, filename, module_name, &import_data);
   if (!tm_or.ok()) {

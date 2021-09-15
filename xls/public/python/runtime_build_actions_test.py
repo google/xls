@@ -31,10 +31,13 @@ def setUpModule():
 
 class RuntimeBuildActionsTest(absltest.TestCase):
 
+  dslx_stdlib_path = runtime_build_actions.get_default_dslx_stdlib_path()
+
   def test_convert_dslx_to_ir(self):
     dslx_text = 'pub fn foo(v:u8) -> u8{ v+u8:1 }'
     ir_text = runtime_build_actions.convert_dslx_to_ir(dslx_text,
                                                        '/path/to/foo', 'foo',
+                                                       self.dslx_stdlib_path,
                                                        [])
     self.assertIn('package foo', ir_text)
     self.assertIn('bits[8]', ir_text)
@@ -45,7 +48,8 @@ class RuntimeBuildActionsTest(absltest.TestCase):
     with tempfile.NamedTemporaryFile(prefix='foo', suffix='.x') as f:
       f.write(b'pub fn foo(v:u8) -> u8{ v+u8:1 }')
       f.flush()
-      ir_text = runtime_build_actions.convert_dslx_path_to_ir(f.name, [])
+      ir_text = runtime_build_actions.convert_dslx_path_to_ir(
+          f.name, self.dslx_stdlib_path, [])
     self.assertIn('package foo', ir_text)
     self.assertIn('bits[8]', ir_text)
     self.assertIn('add', ir_text)
@@ -55,6 +59,7 @@ class RuntimeBuildActionsTest(absltest.TestCase):
     dslx_text = 'pub fn foo(v:u8) -> u8{ v+u8:2-u8:1 }'
     ir_text = runtime_build_actions.convert_dslx_to_ir(dslx_text,
                                                        '/path/to/foo', 'foo',
+                                                       self.dslx_stdlib_path,
                                                        [])
     opt_ir_text = runtime_build_actions.optimize_ir(ir_text, '__foo__foo')
     self.assertNotEqual(ir_text, opt_ir_text)

@@ -32,6 +32,7 @@ from xls.dslx.python import interpreter
 from xls.dslx.python.interp_value import Value
 from xls.fuzzer import sample_summary_pb2
 from xls.fuzzer.python import cpp_sample as sample
+from xls.public.python import runtime_build_actions
 
 IR_CONVERTER_MAIN_PATH = runfiles.get_path('xls/dslx/ir_converter_main')
 EVAL_IR_MAIN_PATH = runfiles.get_path('xls/tools/eval_ir_main')
@@ -336,7 +337,9 @@ class SampleRunner:
   def _interpret_dslx(self, text: str, function_name: str,
                       args_batch: ArgsBatch) -> Tuple[Value, ...]:
     """Interprets the DSLX module returns the result Values."""
-    dslx_results = interpreter.run_batched(text, function_name, args_batch)
+    dslx_results = interpreter.run_batched(
+        text, function_name, args_batch,
+        runtime_build_actions.get_default_dslx_stdlib_path())
     self._write_file('sample.x.results',
                      '\n'.join(r.to_ir_str() for r in dslx_results))
     return tuple(dslx_results)

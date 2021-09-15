@@ -20,6 +20,7 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/dslx/command_line_utils.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/parser.h"
@@ -29,6 +30,8 @@
 ABSL_FLAG(std::string, entry, "",
           "Entry function name for conversion; when not given, all functions "
           "are converted.");
+ABSL_FLAG(std::string, stdlib_path, xls::kDefaultDslxStdlibPath,
+          "Path to DSLX standard library files.");
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
 ABSL_FLAG(
@@ -85,7 +88,7 @@ absl::StatusOr<std::string> PathToName(absl::string_view path) {
 // "package".
 static absl::Status AddPathToPackage(
     absl::string_view path, absl::optional<absl::string_view> entry,
-    const ConvertOptions& convert_options,
+    const ConvertOptions& convert_options, std::string stdlib_path,
     absl::Span<const std::filesystem::path> dslx_paths, Package* package,
     bool* printed_error) {
   // Read the `.x` contents.
@@ -102,7 +105,7 @@ static absl::Status AddPathToPackage(
   // now we throw it away for each file and re-derive it (we need to refactor to
   // make the modules outlive any given AddPathToPackage() if we want to
   // appropriately reuse things in ImportData).
-  ImportData import_data(dslx_paths);
+  ImportData import_data(std::move(stdlib_path), dslx_paths);
   absl::StatusOr<TypeInfo*> type_info_or =
       CheckModule(module.get(), &import_data);
   if (!type_info_or.ok()) {
@@ -126,6 +129,7 @@ static absl::Status AddPathToPackage(
 absl::Status RealMain(absl::Span<const absl::string_view> paths,
                       absl::optional<absl::string_view> entry,
                       absl::optional<absl::string_view> package_name,
+                      const std::string& stdlib_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
                       bool emit_fail_as_assert, bool* printed_error) {
   absl::optional<xls::Package> package;
@@ -153,8 +157,8 @@ absl::Status RealMain(absl::Span<const absl::string_view> paths,
   };
   for (absl::string_view path : paths) {
     XLS_RETURN_IF_ERROR(AddPathToPackage(path, entry, convert_options,
-                                         dslx_paths, &package.value(),
-                                         printed_error));
+                                         stdlib_path, dslx_paths,
+                                         &package.value(), printed_error));
   }
   std::cout << package->DumpIr();
 
@@ -172,6 +176,7 @@ int main(int argc, char* argv[]) {
                     << args.size() << ": `" << absl::StrJoin(args, " ")
                     << "`; want " << argv[0] << " <input-file>";
   }
+  std::string stdlib_path = absl::GetFlag(FLAGS_stdlib_path);
   std::string dslx_path = absl::GetFlag(FLAGS_dslx_path);
   std::vector<std::string> dslx_path_strs = absl::StrSplit(dslx_path, ':');
 
@@ -194,7 +199,7 @@ int main(int argc, char* argv[]) {
   bool emit_fail_as_assert = absl::GetFlag(FLAGS_emit_fail_as_assert);
   bool printed_error = false;
   absl::Status status =
-      xls::dslx::RealMain(args, entry, package_name, dslx_paths,
+      xls::dslx::RealMain(args, entry, package_name, stdlib_path, dslx_paths,
                           emit_fail_as_assert, &printed_error);
   if (printed_error) {
     return EXIT_FAILURE;

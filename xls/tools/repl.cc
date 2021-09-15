@@ -173,7 +173,7 @@ struct Globals {
   absl::string_view dslx_path;
   std::unique_ptr<dslx::Scanner> scanner;
   std::unique_ptr<dslx::Parser> parser;
-  dslx::ImportData import_data;
+  std::unique_ptr<dslx::ImportData> import_data;
   std::unique_ptr<dslx::Module> module;
   dslx::TypeInfo* type_info;
   std::unique_ptr<Package> ir_package;
@@ -266,7 +266,7 @@ absl::Status UpdateIr() {
   Globals* globals = GetSingletonGlobals();
   XLS_ASSIGN_OR_RETURN(
       globals->ir_package,
-      ConvertModuleToPackage(globals->module.get(), &globals->import_data,
+      ConvertModuleToPackage(globals->module.get(), globals->import_data.get(),
                              dslx::ConvertOptions{},
                              /*traverse_tests=*/true));
   XLS_RETURN_IF_ERROR(
@@ -307,6 +307,9 @@ absl::Status CommandReload() {
       std::string(globals->dslx_path), dslx_contents);
   globals->parser =
       absl::make_unique<dslx::Parser>("main", globals->scanner.get());
+  globals->import_data = absl::make_unique<dslx::ImportData>(
+      /*dslx_stdlib_path=*/"",
+      /*additional_search_paths=*/std::vector<std::filesystem::path>{});
 
   // TODO(taktoa): 2021-03-10 allow other kinds of failures to be recoverable
   absl::StatusOr<std::unique_ptr<dslx::Module>> maybe_module =
@@ -318,8 +321,9 @@ absl::Status CommandReload() {
     return absl::OkStatus();
   }
 
-  XLS_ASSIGN_OR_RETURN(globals->type_info, CheckModule(globals->module.get(),
-                                                       &globals->import_data));
+  XLS_ASSIGN_OR_RETURN(
+      globals->type_info,
+      CheckModule(globals->module.get(), globals->import_data.get()));
 
   PopulateIdentifierTrie();
 

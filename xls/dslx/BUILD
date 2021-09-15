@@ -69,6 +69,7 @@ cc_binary(
     visibility = ["//xls:xls_public"],
     deps = [
         ":cpp_transpiler",
+        ":default_dslx_stdlib_path",
         ":import_data",
         ":parse_and_typecheck",
         "//xls/common:init_xls",
@@ -529,6 +530,7 @@ cc_library(
     hdrs = ["import_data.h"],
     deps = [
         ":ast",
+        ":default_dslx_stdlib_path",
         ":interp_bindings",
         ":type_info",
         "//xls/common/status:ret_check",
@@ -793,6 +795,7 @@ cc_library(
     deps = [
         ":bindings",
         ":command_line_utils",
+        ":default_dslx_stdlib_path",
         ":error_printer",
         ":interp_value",
         ":interpreter",
@@ -846,6 +849,7 @@ cc_binary(
     visibility = ["//xls:xls_users"],
     deps = [
         ":command_line_utils",
+        ":default_dslx_stdlib_path",
         ":error_printer",
         ":ir_converter",
         ":parser",
@@ -908,4 +912,10 @@ cc_library(
         ":type_info",
         ":typecheck",
     ],
+)
+
+cc_library(
+    name = "default_dslx_stdlib_path",
+    srcs = ["default_dslx_stdlib_path.cc"],
+    hdrs = ["default_dslx_stdlib_path.h"],
 )

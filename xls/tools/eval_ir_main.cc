@@ -26,6 +26,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -125,6 +126,8 @@ ABSL_FLAG(std::string, input_validator_expr, "",
 ABSL_FLAG(std::string, input_validator_path, "",
           "Path to a file containing DSLX for an input validator as with "
           "the `--input_validator` flag.");
+ABSL_FLAG(std::string, dslx_stdlib_path, xls::kDefaultDslxStdlibPath,
+          "Path to DSLX standard library");
 ABSL_FLAG(int64_t, input_validator_limit, 1024,
           "Maximum number of tries to generate a valid random input before "
           "giving up. Only used if \"input_validator\" is set.");
@@ -298,8 +301,10 @@ absl::StatusOr<ArgSet> ArgSetFromString(absl::string_view args_string) {
 
 // Converts the given DSLX validation function into IR.
 absl::StatusOr<std::unique_ptr<Package>> ConvertValidator(
-    Function* f, absl::string_view validator_dslx) {
-  dslx::ImportData import_data;
+    Function* f, absl::string_view dslx_stdlib_path,
+    absl::string_view validator_dslx) {
+  dslx::ImportData import_data(std::string(dslx_stdlib_path),
+                               absl::Span<const std::filesystem::path>{});
   XLS_ASSIGN_OR_RETURN(dslx::TypecheckedModule module,
                        dslx::ParseAndTypecheck(validator_dslx, "fake_path",
                                                kPackageName, &import_data));
@@ -373,7 +378,8 @@ absl::StatusOr<ArgSet> GenerateArgSet(Function* f, Function* validator,
       "or -input_validator_limit should be increased."));
 }
 
-absl::Status RealMain(absl::string_view input_path) {
+absl::Status RealMain(absl::string_view input_path,
+                      absl::string_view dslx_stdlib_path) {
   if (input_path == "-") {
     input_path = "/dev/stdin";
   }
@@ -428,7 +434,8 @@ absl::Status RealMain(absl::string_view input_path) {
     std::unique_ptr<Package> validator_pkg;
     Function* validator = nullptr;
     if (!validator_text.empty()) {
-      XLS_ASSIGN_OR_RETURN(validator_pkg, ConvertValidator(f, validator_text));
+      XLS_ASSIGN_OR_RETURN(
+          validator_pkg, ConvertValidator(f, dslx_stdlib_path, validator_text));
       XLS_ASSIGN_OR_RETURN(
           std::string mangled_name,
           dslx::MangleDslxName(kPackageName, kPackageName,
@@ -491,5 +498,6 @@ int main(int argc, char** argv) {
              absl::GetFlag(FLAGS_input_validator_path).empty())
       << "At most one one of 'input_validator' or 'input_validator_path' may "
          "be specified.";
-  XLS_QCHECK_OK(xls::RealMain(positional_arguments[0]));
+  std::string dslx_stdlib_path = absl::GetFlag(FLAGS_dslx_stdlib_path);
+  XLS_QCHECK_OK(xls::RealMain(positional_arguments[0], dslx_stdlib_path));
 }

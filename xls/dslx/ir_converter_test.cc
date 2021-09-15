@@ -77,7 +77,7 @@ absl::StatusOr<std::string> ConvertOneFunctionForTest(
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
     absl::string_view program, absl::string_view fn_name,
     const ConvertOptions& options = ConvertOptions{}) {
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
   return ConvertOneFunctionForTest(program, fn_name, import_data, options);
 }
 
@@ -86,7 +86,7 @@ absl::StatusOr<std::string> ConvertModuleForTest(
     ImportData* import_data = nullptr) {
   absl::optional<ImportData> import_data_value;
   if (import_data == nullptr) {
-    import_data_value.emplace();
+    import_data_value.emplace(ImportData::CreateForTest());
     import_data = &*import_data_value;
   }
   XLS_ASSIGN_OR_RETURN(
@@ -1210,7 +1210,7 @@ fn f() -> u32 {
 
 TEST(IrConverterTest, ConstexprImport) {
   // Place the *imported* module into the import cache.
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
   const char* imported_program = R"(
 import std
 
@@ -1247,7 +1247,7 @@ fn f() -> u32 {
 // Tests that a parametric constexpr function can be imported.
 TEST(IrConverterTest, ParametricConstexprImport) {
   // Place the *imported* module into the import cache.
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
   const char* imported_program = R"(
 pub const MY_CONST = bits[32]:5;
 
@@ -1301,7 +1301,7 @@ TEST(IrConverterTest, TokenIdentityFunction) {
 }
 
 TEST(IrConverterTest, ImportEnumValue) {
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
 
   const std::string kImportModule = R"(
 import std
@@ -1340,7 +1340,7 @@ fn main(x: u32) -> u32 {
 }
 
 TEST(IrConverterTest, ConvertOneFunctionWithImport) {
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
   const std::string kImportModule = R"(
 pub fn a() -> u32 {
   u32:42

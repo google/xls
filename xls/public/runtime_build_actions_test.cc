@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
 
 namespace xls {
 namespace {
@@ -57,6 +58,10 @@ pub struct TestRepeatedMessage {
   messages_count: u32,
 }
 pub const MY_TEST_MESSAGE = TestRepeatedMessage { messages: [TestMessage { test_field: sN[32]:42 }, TestMessage { test_field: sN[32]:64 }], messages_count: u32:2 };)");
+}
+
+TEST(RuntimeBuildActionsTest, DefaultDslxPath) {
+  EXPECT_EQ(GetDefaultDslxStdlibPath(), kDefaultDslxStdlibPath);
 }
 
 }  // namespace

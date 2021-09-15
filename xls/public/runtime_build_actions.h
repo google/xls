@@ -36,6 +36,15 @@
 
 namespace xls {
 
+// Returns the *default* DSLX standard library directory path. This generally
+// reflects the stdlib directory path for XLS HEAD.
+//
+// NOTE: in an environment where XLS is released to release directories, the
+// code that uses this API needs to know how to configure itself to point at XLS
+// release directories instead via command line configuration; e.g. by taking a
+// command line flag option that indicates what DSL stdlib path to use instead.
+std::string_view GetDefaultDslxStdlibPath();
+
 // Converts the specified DSLX text into XLS IR text.
 //
 // Args:
@@ -45,17 +54,18 @@ namespace xls {
 //    "<generated>" is acceptable.
 //  module_name: Name of the DSL module, will be used in the name of the
 //    converted IR package text.
+//  dslx_stdlib_path: Path to the DSLX standard library.
 //  additional_search_paths: Additional filesystem paths to search for imported
 //    modules.
 absl::StatusOr<std::string> ConvertDslxToIr(
     absl::string_view dslx, absl::string_view path,
-    absl::string_view module_name,
+    absl::string_view module_name, absl::string_view dslx_stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths);
 
 // As above, but uses a filesystem path to retrieve the DSLX module contents.
 // "path" should end with ".x" suffix, the path will determine the module name.
 absl::StatusOr<std::string> ConvertDslxPathToIr(
-    std::filesystem::path path,
+    std::filesystem::path path, absl::string_view dslx_stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths);
 
 // Optimizes the generated XLS IR with the given entry point (which should be a

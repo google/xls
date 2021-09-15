@@ -18,6 +18,7 @@
 #ifndef XLS_DSLX_RUN_ROUTINES_H_
 #define XLS_DSLX_RUN_ROUTINES_H_
 
+#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interpreter.h"
 #include "xls/dslx/ir_converter.h"
@@ -82,6 +83,7 @@ class RunComparator {
 //   convert_options: Options used in IR conversion, see `ConvertOptions` for
 //    details.
 struct ParseAndTestOptions {
+  std::string stdlib_path = xls::kDefaultDslxStdlibPath;
   absl::Span<const std::filesystem::path> dslx_paths = {};
   absl::optional<absl::string_view> test_filter = absl::nullopt;
   bool trace_all = false;

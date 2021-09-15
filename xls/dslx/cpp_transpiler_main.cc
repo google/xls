@@ -21,6 +21,7 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/dslx/cpp_transpiler.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
@@ -32,6 +33,8 @@ ABSL_FLAG(std::string, namespaces, "",
           "Double-colon-delimited namespaces with which to wrap the "
           "generated code, e.g., \"my::namespace\" or "
           "\"::my::explicitly::top::level::namespace\".");
+ABSL_FLAG(std::string, dslx_stdlib_path, xls::kDefaultDslxStdlibPath,
+          "Path to DSLX standard library");
 
 namespace xls {
 namespace dslx {
@@ -46,12 +49,13 @@ modules).
 )";
 
 absl::Status RealMain(const std::filesystem::path& module_path,
+                      const std::filesystem::path& dslx_stdlib_path,
                       absl::string_view output_header_path,
                       absl::string_view output_source_path,
                       absl::string_view namespaces) {
   XLS_ASSIGN_OR_RETURN(std::string module_text, GetFileContents(module_path));
 
-  ImportData import_data;
+  ImportData import_data(dslx_stdlib_path, /*additional_search_paths=*/{});
   XLS_ASSIGN_OR_RETURN(TypecheckedModule module,
                        ParseAndTypecheck(module_text, std::string(module_path),
                                          "source", &import_data));
@@ -80,9 +84,9 @@ int main(int argc, char* argv[]) {
   std::string output_source_path = absl::GetFlag(FLAGS_output_source_path);
   XLS_QCHECK(!output_source_path.empty())
       << "--output_source_path must be specified.";
-  XLS_QCHECK_OK(xls::dslx::RealMain(args[0], output_header_path,
-                                    output_source_path,
-                                    absl::GetFlag(FLAGS_namespaces)));
+  XLS_QCHECK_OK(xls::dslx::RealMain(
+      args[0], absl::GetFlag(FLAGS_dslx_stdlib_path), output_header_path,
+      output_source_path, absl::GetFlag(FLAGS_namespaces)));
 
   return 0;
 }

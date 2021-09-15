@@ -16,6 +16,7 @@
 
 #include <filesystem>
 
+#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/mangle.h"
@@ -26,11 +27,16 @@
 
 namespace xls {
 
+std::string_view GetDefaultDslxStdlibPath() { return kDefaultDslxStdlibPath; }
+
 absl::StatusOr<std::string> ConvertDslxToIr(
     absl::string_view dslx, absl::string_view path,
-    absl::string_view module_name,
+    absl::string_view module_name, absl::string_view dslx_stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths) {
-  dslx::ImportData import_data(additional_search_paths);
+  XLS_VLOG(5) << "path: " << path << " module name: " << module_name
+              << " stdlib_path: " << dslx_stdlib_path;
+  dslx::ImportData import_data(std::string(dslx_stdlib_path),
+                               additional_search_paths);
   XLS_ASSIGN_OR_RETURN(
       dslx::TypecheckedModule typechecked,
       dslx::ParseAndTypecheck(dslx, path, module_name, &import_data));
@@ -48,11 +54,11 @@ static absl::StatusOr<std::string> ExtractModuleName(
 }
 
 absl::StatusOr<std::string> ConvertDslxPathToIr(
-    std::filesystem::path path,
+    std::filesystem::path path, absl::string_view dslx_stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths) {
   XLS_ASSIGN_OR_RETURN(std::string dslx, GetFileContents(path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, ExtractModuleName(path));
-  return ConvertDslxToIr(dslx, std::string(path), module_name,
+  return ConvertDslxToIr(dslx, std::string(path), module_name, dslx_stdlib_path,
                          additional_search_paths);
 }
 

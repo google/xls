@@ -17,6 +17,7 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 #include "xls/common/status/statusor_pybind_caster.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
 
 namespace py = pybind11;
 
@@ -28,11 +29,11 @@ PYBIND11_MODULE(runtime_build_actions, m) {
   m.def(
       "convert_dslx_to_ir",
       [](absl::string_view dslx, absl::string_view path,
-         absl::string_view package,
+         absl::string_view package, absl::string_view dslx_stdlib_path,
          const std::vector<absl::string_view>& additional_search_paths)
           -> absl::StatusOr<std::string> {
         return ConvertDslxToIr(
-            dslx, path, package,
+            dslx, path, package, dslx_stdlib_path,
             std::vector<std::filesystem::path>(additional_search_paths.begin(),
                                                additional_search_paths.end()));
       },
@@ -48,20 +49,25 @@ Args:
  additional_search_paths: Additional filesystem paths to search for imported
    modules.)",
       py::arg("dslx"), py::arg("path"), py::arg("package"),
-      py::arg("additional_search_paths"));
+      py::arg("dslx_stdlib_path"), py::arg("additional_search_paths"));
 
+  m.def("get_default_dslx_stdlib_path", []() -> std::string {
+    return std::string(GetDefaultDslxStdlibPath());
+  });
   m.def(
       "convert_dslx_path_to_ir",
-      [](absl::string_view path,
+      [](absl::string_view path, absl::string_view dslx_stdlib_path,
          const std::vector<absl::string_view>& additional_search_paths)
           -> absl::StatusOr<std::string> {
-        return ConvertDslxPathToIr(path, std::vector<std::filesystem::path>(
-                                             additional_search_paths.begin(),
-                                             additional_search_paths.end()));
+        return ConvertDslxPathToIr(
+            path, dslx_stdlib_path,
+            std::vector<std::filesystem::path>(additional_search_paths.begin(),
+                                               additional_search_paths.end()));
       },
       R"(As convert_dslx_to_ir, but uses a filesystem path to retrieve the DSLX module contents.
 "path" should end with ".x" suffix, the path will determine the module name.)",
-      py::arg("path"), py::arg("additional_search_paths"));
+      py::arg("path"), py::arg("dslx_stdlib_path"),
+      py::arg("additional_search_paths"));
 
   m.def(
       "optimize_ir", &OptimizeIr,

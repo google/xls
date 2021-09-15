@@ -55,7 +55,7 @@ constexpr int64_t kMyEnumNumElements = 4;
 #endif  // FAKE_PATH_H_
 )";
 
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
@@ -99,7 +99,7 @@ constexpr int64_t kMyEnumNumElements = 3;
 #endif  // FAKE_PATH_H_
 )";
 
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
@@ -156,7 +156,7 @@ using MyFirstTuple = std::tuple<uint8_t, int8_t, MyType, MySignedType, MyArrayTy
 
 #endif  // FAKE_PATH_H_
 )";
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
@@ -256,7 +256,7 @@ std::ostream& operator<<(std::ostream& os, const MyStruct& data) {
 }
 )";
 
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
@@ -366,7 +366,7 @@ std::ostream& operator<<(std::ostream& os, const MyStruct& data) {
 }
 )";
 
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
@@ -515,7 +515,7 @@ std::ostream& operator<<(std::ostream& os, const OuterStruct& data) {
 }
 )";
 
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
@@ -783,7 +783,7 @@ std::ostream& operator<<(std::ostream& os, const OuterStruct& data) {
 }
 )";
 
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));

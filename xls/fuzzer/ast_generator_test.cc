@@ -41,7 +41,7 @@ absl::Status ParseAndTypecheck(absl::string_view text,
     return std::string(text);
   };
 
-  ImportData import_data;
+  auto import_data = ImportData::CreateForTest();
   absl::StatusOr<TypecheckedModule> parsed_or = ParseAndTypecheck(
       text, /*path=*/filename, /*module_name=*/module_name, &import_data);
   TryPrintError(parsed_or.status(), get_file_contents);
