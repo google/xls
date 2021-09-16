@@ -26,22 +26,31 @@ namespace xls::dslx {
 // ConversionRecord::callees).
 class Callee {
  public:
-  static absl::StatusOr<Callee> Make(FunctionBase* fb, Module* m,
+  static absl::StatusOr<Callee> Make(FunctionBase* fb,
+                                     Instantiation* instantiation, Module* m,
                                      TypeInfo* type_info,
                                      SymbolicBindings sym_bindings);
 
   bool IsFunction() const;
   FunctionBase* fb() const { return fb_; }
+  Instantiation* instantiation() const { return instantiation_; }
   Module* m() const { return m_; }
   TypeInfo* type_info() const { return type_info_; }
   const SymbolicBindings& sym_bindings() const { return sym_bindings_; }
   std::string ToString() const;
 
  private:
-  Callee(FunctionBase* fb, Module* m, TypeInfo* type_info,
-         SymbolicBindings sym_bindings);
+  Callee(FunctionBase* fb, Instantiation* instantiation, Module* m,
+         TypeInfo* type_info, SymbolicBindings sym_bindings);
 
   FunctionBase* fb_;
+  // Proc definitions can't be directly translated into IR: they're always
+  // instantiated based on a Spawn. This field holds the details of that Spawn
+  // so that we can refer to the values specified therein during IR translation.
+  // This is conceptually similar to the instantiation of parametric functions,
+  // except that even non-parametric Procs need instantiation details to be
+  // converted to IR.
+  Instantiation* instantiation_;
   Module* m_;
   TypeInfo* type_info_;
   SymbolicBindings sym_bindings_;
@@ -65,8 +74,9 @@ class ConversionRecord {
  public:
   // Note: performs ValidateParametrics() to potentially return an error status.
   static absl::StatusOr<ConversionRecord> Make(
-      FunctionBase* fb, Module* module, TypeInfo* type_info,
-      SymbolicBindings symbolic_bindings, std::vector<Callee> callees);
+      FunctionBase* fb, Instantiation* instantiation, Module* module,
+      TypeInfo* type_info, SymbolicBindings symbolic_bindings,
+      std::vector<Callee> callees);
 
   // Integrity-checks that the symbolic_bindings provided are sufficient to
   // instantiate f (i.e. if it is parametric). Returns an internal error status
@@ -75,6 +85,7 @@ class ConversionRecord {
       FunctionBase* fb, const SymbolicBindings& symbolic_bindings);
 
   FunctionBase* fb() const { return fb_; }
+  Instantiation* instantiation() const { return instantiation_; }
   Module* module() const { return module_; }
   TypeInfo* type_info() const { return type_info_; }
   const SymbolicBindings& symbolic_bindings() const {
@@ -85,16 +96,19 @@ class ConversionRecord {
   std::string ToString() const;
 
  private:
-  ConversionRecord(FunctionBase* fb, Module* module, TypeInfo* type_info,
+  ConversionRecord(FunctionBase* fb, Instantiation* instantiation,
+                   Module* module, TypeInfo* type_info,
                    SymbolicBindings symbolic_bindings,
                    std::vector<Callee> callees)
       : fb_(fb),
+        instantiation_(instantiation),
         module_(module),
         type_info_(type_info),
         symbolic_bindings_(std::move(symbolic_bindings)),
         callees_(std::move(callees)) {}
 
   FunctionBase* fb_;
+  Instantiation* instantiation_;
   Module* module_;
   TypeInfo* type_info_;
   SymbolicBindings symbolic_bindings_;

@@ -263,8 +263,8 @@ proc p2()(i: u32) {
 }
 
 fn main() {
-  spawn p0()(u32:0)
-  spawn p1()(u32:0)
+  spawn p0()(u32:0);
+  spawn p1()(u32:0);
   spawn p2()(u32:0)
 }
 )";
@@ -302,12 +302,12 @@ proc p2()(i: u32) {
 }
 
 proc p1()(i: u32) {
-  spawn p2()(i)
+  spawn p2()(i);
   next(i)
 }
 
 proc p0()(i: u32) {
-  spawn p1()(i)
+  spawn p1()(i);
   next(f1() + i)
 }
 

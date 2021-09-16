@@ -966,7 +966,7 @@ std::string Spawn::ToString() const {
 
   std::string body_str;
   if (body_ != nullptr) {
-    body_str = absl::StrCat("\n", body_->ToString());
+    body_str = absl::StrCat(";\n", body_->ToString());
   }
   return absl::StrFormat("spawn %s%s(%s)(%s)%s", callee()->ToString(),
                          param_str, proc_args, iter_args, body_str);

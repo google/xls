@@ -41,6 +41,8 @@ ABSL_FLAG(
 
 ABSL_FLAG(bool, emit_fail_as_assert, true,
           "Feature flag for emitting fail!() in the DSL as an assert IR op.");
+ABSL_FLAG(bool, verify, true,
+          "If true, verifies the generated IR for correctness.");
 
 namespace xls::dslx {
 namespace {
@@ -131,7 +133,8 @@ absl::Status RealMain(absl::Span<const absl::string_view> paths,
                       absl::optional<absl::string_view> package_name,
                       const std::string& stdlib_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
-                      bool emit_fail_as_assert, bool* printed_error) {
+                      bool emit_fail_as_assert, bool verify_ir,
+                      bool* printed_error) {
   absl::optional<xls::Package> package;
   if (package_name.has_value()) {
     package.emplace(package_name.value());
@@ -154,6 +157,7 @@ absl::Status RealMain(absl::Span<const absl::string_view> paths,
   const ConvertOptions convert_options = {
       .emit_positions = true,
       .emit_fail_as_assert = emit_fail_as_assert,
+      .verify_ir = verify_ir,
   };
   for (absl::string_view path : paths) {
     XLS_RETURN_IF_ERROR(AddPathToPackage(path, entry, convert_options,
@@ -197,10 +201,11 @@ int main(int argc, char* argv[]) {
   }
 
   bool emit_fail_as_assert = absl::GetFlag(FLAGS_emit_fail_as_assert);
+  bool verify_ir = absl::GetFlag(FLAGS_verify);
   bool printed_error = false;
   absl::Status status =
       xls::dslx::RealMain(args, entry, package_name, stdlib_path, dslx_paths,
-                          emit_fail_as_assert, &printed_error);
+                          emit_fail_as_assert, verify_ir, &printed_error);
   if (printed_error) {
     return EXIT_FAILURE;
   }

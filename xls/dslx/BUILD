@@ -723,6 +723,7 @@ cc_library(
         ":interpreter",
         ":mangle",
         ":type_info",
+        ":typecheck",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",

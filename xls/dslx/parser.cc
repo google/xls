@@ -1415,13 +1415,15 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings* bindings) {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
   XLS_ASSIGN_OR_RETURN(std::vector<Expr*> iter_args,
                        ParseCommaSeq<Expr*>(parse_args, TokenKind::kCParen));
+
   Pos end = GetPos();
 
   // Spawn can be the last item in a proc.
   Expr* body = nullptr;
-  auto body_or = ParseExpression(bindings);
-  if (body_or.ok()) {
-    body = body_or.value();
+  XLS_ASSIGN_OR_RETURN(bool peek_is_semi, PeekTokenIs(TokenKind::kSemi));
+  if (peek_is_semi) {
+    DropTokenOrDie();
+    XLS_ASSIGN_OR_RETURN(body, ParseExpression(bindings));
   }
 
   return module_->Make<Spawn>(Span(spawn.span().start(), end), spawnee,
@@ -1502,6 +1504,14 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
   }
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> proc_params, ParseParams(&bindings));
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> iter_params, ParseParams(&bindings));
+  for (const auto& param : iter_params) {
+    if (dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation()) !=
+        nullptr) {
+      return ParseErrorStatus(
+          name_def->span(),
+          absl::StrFormat("Channels cannot be Proc iter params."));
+    }
+  }
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
   XLS_ASSIGN_OR_RETURN(Expr * body, ParseExpression(&bindings));
   XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));

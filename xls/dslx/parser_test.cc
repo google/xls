@@ -202,7 +202,7 @@ proc consumer<N: u32>(a: u32[N], c: chan in u32)(i: u32) {
 }
 fn main() {
   let (p, c) = chan u32;
-  spawn producer(u32:10, p)(0)
+  spawn producer(u32:10, p)(0);
   spawn consumer(range(10), c)(0)
 })";
 
@@ -211,6 +211,22 @@ fn main() {
   Bindings bindings;
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
   EXPECT_EQ(m->ToString(), text);
+}
+
+TEST_F(ParserTest, ChannelsNotAsIterArgs) {
+  const char* text = R"(proc producer(limit: u32)(c: chan out u32, i: u32) {
+  send(c, i);
+  let new_i = (i) + (1);
+  next(new_i)
+})";
+
+  Scanner s{"test.x", std::string{text}};
+  Parser parser{"test", &s};
+  Bindings bindings;
+  auto status_or_module = parser.ParseModule();
+  EXPECT_THAT(status_or_module,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Channels cannot be Proc iter params.")));
 }
 
 TEST_F(ParserTest, ParseStructSplat) {
