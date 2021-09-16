@@ -589,6 +589,59 @@ TEST_F(RangeQueryEngineTest, Sub) {
             BitsLTT(expr.node(), {Interval(UBits(100, 20), UBits(1000, 20))}));
 }
 
+TEST_F(RangeQueryEngineTest, Tuple) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", fb.package()->GetBitsType(10));
+  BValue y = fb.Param("y", fb.package()->GetBitsType(20));
+  BValue expr = fb.Tuple({x, y, y});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), {Interval(UBits(100, 10), UBits(150, 10))});
+  IntervalSetTree y_ist =
+      BitsLTT(y.node(), {Interval(UBits(20000, 20), UBits(25000, 20))});
+
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(x_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({0}));
+  EXPECT_EQ(y_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({1}));
+  EXPECT_EQ(y_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({2}));
+}
+
+TEST_F(RangeQueryEngineTest, TupleIndex) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", fb.package()->GetBitsType(10));
+  BValue y = fb.Param("y", fb.package()->GetBitsType(20));
+  BValue tuple = fb.Tuple({x, y, y});
+  BValue index0 = fb.TupleIndex(tuple, 0);
+  BValue index1 = fb.TupleIndex(tuple, 1);
+  BValue index2 = fb.TupleIndex(tuple, 2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), {Interval(UBits(100, 10), UBits(150, 10))});
+  IntervalSetTree y_ist =
+      BitsLTT(y.node(), {Interval(UBits(20000, 20), UBits(25000, 20))});
+
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(x_ist, engine.GetIntervalSetTree(index0.node()));
+  EXPECT_EQ(y_ist, engine.GetIntervalSetTree(index1.node()));
+  EXPECT_EQ(y_ist, engine.GetIntervalSetTree(index2.node()));
+}
+
 TEST_F(RangeQueryEngineTest, UDiv) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

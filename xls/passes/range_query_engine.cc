@@ -1019,12 +1019,21 @@ absl::Status RangeQueryVisitor::HandleSub(BinOp* sub) {
 
 absl::Status RangeQueryVisitor::HandleTuple(Tuple* tuple) {
   engine_->InitializeNode(tuple);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  std::vector<LeafTypeTree<IntervalSet>> children;
+  for (Node* element : tuple->operands()) {
+    children.push_back(engine_->GetIntervalSetTree(element));
+  }
+  engine_->SetIntervalSetTree(
+      tuple, LeafTypeTree<IntervalSet>(tuple->GetType(), children));
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleTupleIndex(TupleIndex* index) {
   engine_->InitializeNode(index);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  LeafTypeTree<IntervalSet> arg =
+      engine_->GetIntervalSetTree(index->operand(0));
+  engine_->SetIntervalSetTree(index, arg.CopySubtree({index->index()}));
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleUDiv(BinOp* div) {
