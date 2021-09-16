@@ -25,7 +25,7 @@
 #include "xls/dslx/stdlib/float32_to_int32_wrapper.h"
 
 ABSL_FLAG(bool, exhaustive, false,
-          "Run exaustively over the [32-bit] input space.");
+          "Run exhaustively over the [32-bit] input space.");
 
 namespace xls::dslx {
 namespace {
