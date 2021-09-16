@@ -93,4 +93,13 @@ absl::Status ProcNetworkInterpreter::Tick() {
   return absl::OkStatus();
 }
 
+absl::flat_hash_map<Proc*, Value> ProcNetworkInterpreter::ResolveState() {
+  absl::flat_hash_map<Proc*, Value> states;
+  for (const auto& interpreter : proc_interpreters_) {
+    states[interpreter->proc()] = interpreter->ResolveState();
+  }
+
+  return states;
+}
+
 }  // namespace xls

@@ -555,6 +555,8 @@ cc_binary(
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
+        "//xls/interpreter:channel_queue",
+        "//xls/interpreter:proc_network_interpreter",
         "//xls/ir:ir_parser",
         "//xls/jit:serial_proc_runtime",
     ],

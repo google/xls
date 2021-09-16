@@ -47,7 +47,7 @@ class ProcInterpreter {
   // called prior to calling RunIterationUntilCompleteOrBlocked() for the first
   // time. An error is returned if the the interpreter has not completed the
   // previous iteration.
-  //  absl::Status NextIteration();
+  // absl::Status NextIteration();
 
   // Data structure holding the result of a single call to
   // RunIterationUntilCompleteOrBlocked.
@@ -80,9 +80,11 @@ class ProcInterpreter {
   // was true).
   bool IsIterationComplete() const;
 
+  Proc* proc() { return proc_; }
+  Value ResolveState() { return visitor_->ResolveAsValue(proc_->NextState()); }
+
  private:
   Proc* proc_;
-  Value state_;
   ChannelQueueManager* queue_manager_;
 
   // A topological sort of the nodes of the proc.
