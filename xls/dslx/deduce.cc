@@ -1968,9 +1968,6 @@ void UseImplicitToken(DeduceCtx* ctx) {
   // Note: caller_fb could be nullptr; e.g. when we're calling a function that
   // can fail!() from the top level of a module; e.g. in a module-level const
   // expression.
-  // TODO(amfv): 2021-09-16 Mutation testing claims this check is unnecessary,
-  // so we should add a test that exercises it (e.g. computing a top-level
-  // constant that with a function that could fail).
   if (caller_fb != nullptr) {
     ctx->type_info()->NoteRequiresImplicitToken(caller_fb, true);
   }

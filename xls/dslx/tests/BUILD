@@ -127,12 +127,24 @@ xls_dslx_test(
     dep = ":constexpr_attrs_dslx_module",
 )
 
+# -- fallible_constexpr
+
+xls_dslx_module_library(
+    name = "fallible_constexpr_dslx_module",
+    src = "fallible_constexpr.x",
+)
+
+xls_dslx_test(
+    name = "fallible_constexpr_dslx_test",
+    dep = ":fallible_constexpr_dslx_module",
+)
+
+# -- compound_eq
+
 xls_dslx_module_library(
     name = "compound_eq_dslx_module",
     src = "compound_eq.x",
 )
-
-# -- compound_eq
 
 xls_dslx_opt_ir(
     name = "compound_eq",
