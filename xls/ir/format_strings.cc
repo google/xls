@@ -15,6 +15,7 @@
 #include "xls/ir/format_strings.h"
 
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 
 namespace xls {
 
@@ -113,4 +114,17 @@ int64_t OperandsExpectedByFormat(absl::Span<const FormatStep> format) {
                          return absl::holds_alternative<FormatPreference>(step);
                        });
 }
+
+std::string StepsToXlsFormatString(absl::Span<const FormatStep> format) {
+  return absl::StrJoin(
+      format, "", [](std::string* out, const FormatStep& step) {
+        if (absl::holds_alternative<FormatPreference>(step)) {
+          absl::StrAppend(out, FormatPreferenceToXlsSpecifier(
+                                   absl::get<FormatPreference>(step)));
+        } else {
+          absl::StrAppend(out, absl::get<std::string>(step));
+        }
+      });
+}
+
 }  // namespace xls

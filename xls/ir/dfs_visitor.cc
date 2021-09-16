@@ -84,6 +84,10 @@ absl::Status DfsVisitorWithDefault::HandleAssert(Assert* assert_op) {
   return DefaultHandler(assert_op);
 }
 
+absl::Status DfsVisitorWithDefault::HandleTrace(Trace* trace_op) {
+  return DefaultHandler(trace_op);
+}
+
 absl::Status DfsVisitorWithDefault::HandleBitSlice(BitSlice* bit_slice) {
   return DefaultHandler(bit_slice);
 }

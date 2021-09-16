@@ -735,6 +735,84 @@ TEST(FunctionBuilderTest, AssertWrongTypeOperand1) {
               "Condition operand of assert must be of bits type of width 1")));
 }
 
+TEST(FunctionBuilderTest, Trace) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+
+  std::vector<FormatStep> format = {"x is ", FormatPreference::kPlainHex,
+                                    " in hex"};
+  auto x = b.Param("x", p.GetBitsType(17));
+
+  b.Trace(b.Param("tkn", p.GetTokenType()), b.Param("cond", p.GetBitsType(1)),
+          {x}, "x is {:x} in hex");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  // TODO(amfv): 2021-08-02 Implement Trace matcher and add more tests of the
+  // return value.
+  EXPECT_EQ(OperandsExpectedByFormat(f->return_value()->As<Trace>()->format()),
+            1);
+  EXPECT_EQ(f->return_value()->As<Trace>()->format(), format);
+}
+
+TEST(FunctionBuilderTest, TraceWrongTypeOperand0) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+
+  auto x = b.Param("x", p.GetBitsType(17));
+
+  b.Trace(b.Param("tkn", p.GetBitsType(23)), b.Param("cond", p.GetBitsType(1)),
+          {x}, "x is {}");
+
+  EXPECT_THAT(
+      b.Build().status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("First operand of trace must be of token type")));
+}
+
+TEST(FunctionBuilderTest, TraceWrongTypeOperand1) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+
+  auto x = b.Param("x", p.GetBitsType(17));
+
+  b.Trace(b.Param("tkn", p.GetTokenType()), x, {x}, "x is {}");
+
+  EXPECT_THAT(
+      b.Build().status(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Condition operand of trace must be of bits type of width 1")));
+}
+
+TEST(FunctionBuilderTest, TraceWrongTypeTraceArg) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+
+  auto tkn = b.Param("tkn", p.GetTokenType());
+
+  b.Trace(tkn, b.Param("cond", p.GetBitsType(1)), {tkn}, "x is {}");
+
+  EXPECT_THAT(b.Build().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Trace arguments must be of bits type")));
+}
+
+TEST(FunctionBuilderTest, TraceWrongNumberOfArgs) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+
+  auto x = b.Param("x", p.GetBitsType(17));
+
+  b.Trace(b.Param("tkn", p.GetTokenType()), b.Param("cond", p.GetBitsType(1)),
+          {x, x}, "x is {}");
+
+  EXPECT_THAT(
+      b.Build().status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(
+                   "Trace node expects 1 data operands, but 2 were supplied")));
+}
+
 TEST(FunctionBuilderTest, NaryBitwiseXor) {
   Package p("p");
   BitsType* u1 = p.GetBitsType(1);

@@ -239,6 +239,7 @@ cc_library(
         ":channel",
         ":channel_cc_proto",
         ":channel_ops",
+        ":format_strings",
         ":name_uniquer",
         ":op",
         ":source_location",
@@ -640,6 +641,7 @@ cc_library(
     hdrs = ["format_strings.h"],
     deps = [
         "//xls/ir:format_preference",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
     ],

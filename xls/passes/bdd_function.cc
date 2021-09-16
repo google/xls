@@ -223,6 +223,7 @@ bool ShouldEvaluate(Node* node) {
     case Op::kRegisterRead:
     case Op::kRegisterWrite:
     case Op::kSend:
+    case Op::kTrace:
     case Op::kTuple:
     case Op::kTupleIndex:
       return false;

@@ -105,6 +105,7 @@ class IrInterpreter : public DfsVisitor {
   absl::Status HandleShrl(BinOp* shrl) override;
   absl::Status HandleSignExtend(ExtendOp* sign_ext) override;
   absl::Status HandleSub(BinOp* sub) override;
+  absl::Status HandleTrace(Trace* trace_op) override;
   absl::Status HandleTuple(Tuple* tuple) override;
   absl::Status HandleTupleIndex(TupleIndex* index) override;
   absl::Status HandleUDiv(BinOp* div) override;

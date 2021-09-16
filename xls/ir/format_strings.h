@@ -37,6 +37,11 @@ absl::StatusOr<std::vector<FormatStep>> ParseFormatString(
 // This expects one data operand.
 int64_t OperandsExpectedByFormat(absl::Span<const FormatStep> format);
 
+// Convert a sequence of format steps into a format string that can be used
+// in DSLX source or printed XLS IR.
+// This is the inverse of the ParseFormatString function above.
+std::string StepsToXlsFormatString(absl::Span<const FormatStep> format);
+
 }  // namespace xls
 
 #endif  // XLS_IR_FORMAT_STRINGS_H_

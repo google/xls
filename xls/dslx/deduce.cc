@@ -1961,6 +1961,23 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecv(Recv* node,
   return Deduce(node->channel(), ctx);
 }
 
+// Record that the current function being checked has a side effect and will
+// require an implicit token when converted to IR.
+void UseImplicitToken(DeduceCtx* ctx) {
+  FunctionBase* caller_fb = ctx->fn_stack().back().fb();
+  // Note: caller_fb could be nullptr; e.g. when we're calling a function that
+  // can fail!() from the top level of a module; e.g. in a module-level const
+  // expression.
+  // TODO(amfv): 2021-09-16 Mutation testing claims this check is unnecessary,
+  // so we should add a test that exercises it (e.g. computing a top-level
+  // constant that with a function that could fail).
+  if (caller_fb != nullptr) {
+    ctx->type_info()->NoteRequiresImplicitToken(caller_fb, true);
+  }
+
+  // TODO(rspringer): 2021-09-01: How to fail! from inside a proc?
+}
+
 // Deduces the concrete types of the arguments to a parametric function or
 // proc and returns them to the caller.
 absl::Status InstantiateParametricArgs(
@@ -2268,15 +2285,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
                                             .value()
                                             ->GetRequiresImplicitToken(fn);
       callee_opt.value()) {
-    FunctionBase* caller_fb = ctx->fn_stack().back().fb();
-    // Note: caller_fn could be nullptr; e.g. when we're calling a function that
-    // can fail!() from the top level of a module; e.g. in a module-level const
-    // expression.
-    if (caller_fb != nullptr) {
-      ctx->type_info()->NoteRequiresImplicitToken(caller_fb, true);
-    }
-
-    // TODO(rspringer): 2021-09-01: How to fail! from inside a proc?
+    UseImplicitToken(ctx);
   }
 
   return std::move(tab.type);
@@ -2304,6 +2313,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFormatMacro(
                           node->macro()));
     }
   }
+
+  // trace_fmt! (and future friends) require threading implicit tokens for
+  // control just like cover! and fail! do.
+  UseImplicitToken(ctx);
 
   return absl::make_unique<TokenType>();
 }

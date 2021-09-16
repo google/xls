@@ -86,6 +86,7 @@ class DfsVisitor {
   virtual absl::Status HandleShrl(BinOp* shrl) = 0;
   virtual absl::Status HandleSignExtend(ExtendOp* sign_ext) = 0;
   virtual absl::Status HandleSub(BinOp* sub) = 0;
+  virtual absl::Status HandleTrace(Trace* trace_op) = 0;
   virtual absl::Status HandleTuple(Tuple* tuple) = 0;
   virtual absl::Status HandleTupleIndex(TupleIndex* index) = 0;
   virtual absl::Status HandleUDiv(BinOp* div) = 0;
@@ -196,6 +197,7 @@ class DfsVisitorWithDefault : public DfsVisitor {
   absl::Status HandleShrl(BinOp* shrl) override;
   absl::Status HandleSignExtend(ExtendOp* sign_ext) override;
   absl::Status HandleSub(BinOp* sub) override;
+  absl::Status HandleTrace(Trace* trace_op) override;
   absl::Status HandleTuple(Tuple* tuple) override;
   absl::Status HandleTupleIndex(TupleIndex* index) override;
   absl::Status HandleUDiv(BinOp* div) override;

@@ -38,6 +38,10 @@ enum class FormatPreference {
 
 absl::string_view FormatPreferenceToString(FormatPreference preference);
 
+// Converts a format preference into a Rust/DSLX-style format specifier that can
+// be used in DSLX source or printed XLS IR.
+absl::string_view FormatPreferenceToXlsSpecifier(FormatPreference preference);
+
 absl::StatusOr<FormatPreference> FormatPreferenceFromString(
     absl::string_view s);
 

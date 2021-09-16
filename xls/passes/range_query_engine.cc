@@ -172,6 +172,7 @@ class RangeQueryVisitor : public DfsVisitor {
   absl::Status HandleShrl(BinOp* shrl) override;
   absl::Status HandleSignExtend(ExtendOp* sign_ext) override;
   absl::Status HandleSub(BinOp* sub) override;
+  absl::Status HandleTrace(Trace* trace_op) override;
   absl::Status HandleTuple(Tuple* tuple) override;
   absl::Status HandleTupleIndex(TupleIndex* index) override;
   absl::Status HandleUDiv(BinOp* div) override;
@@ -1015,6 +1016,12 @@ absl::Status RangeQueryVisitor::HandleSub(BinOp* sub) {
         return absl::nullopt;
       },
       sub);
+}
+
+absl::Status RangeQueryVisitor::HandleTrace(Trace* trace_op) {
+  engine_->InitializeNode(trace_op);
+  // Produces a token, so maximal range is okay.
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleTuple(Tuple* tuple) {

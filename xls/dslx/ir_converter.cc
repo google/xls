@@ -1909,7 +1909,27 @@ absl::Status FunctionConverter::HandleFailBuiltin(Invocation* node,
 
 // TODO(amfv): 2021-07-01 Stop dropping trace_fmt! when converting to IR
 absl::Status FunctionConverter::HandleFormatMacro(FormatMacro* node) {
-  DefConst(node, Value::Token());
+  XLS_RET_CHECK(implicit_token_data_.has_value())
+      << "Invoking trace_fmt!(), but no implicit token is present for caller @ "
+      << node->span();
+  XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
+  BValue control_predicate = implicit_token_data_->create_control_predicate();
+
+  std::vector<BValue> ir_args = {};
+  for (auto* arg : node->args()) {
+    XLS_RETURN_IF_ERROR(Visit(arg));
+    XLS_ASSIGN_OR_RETURN(BValue ir_arg, Use(arg));
+    ir_args.push_back(ir_arg);
+  }
+
+  BValue trace_result_token =
+      function_builder_->Trace(implicit_token_data_->entry_token,
+                               control_predicate, ir_args, node->format());
+  implicit_token_data_->control_tokens.push_back(trace_result_token);
+
+  // The result of the trace is the output token, so pass it along.
+  Def(node,
+      [&](absl::optional<SourceLocation> loc) { return trace_result_token; });
   return absl::OkStatus();
 }
 

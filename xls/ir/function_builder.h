@@ -549,6 +549,20 @@ class BuilderBase {
                 absl::optional<SourceLocation> loc = absl::nullopt,
                 absl::string_view name = "");
 
+  // Adds a trace op to the function. In simulation, when the condition is true
+  // the traced data will be printed.
+  BValue Trace(BValue token, BValue condition, absl::Span<const BValue> args,
+               absl::Span<const FormatStep> format,
+               absl::optional<SourceLocation> loc = absl::nullopt,
+               absl::string_view name = "");
+
+  // Overloaded version of Trace that parses a format string argument instead of
+  // directly requiring the parsed form.
+  BValue Trace(BValue token, BValue condition, absl::Span<const BValue> args,
+               absl::string_view format_string,
+               absl::optional<SourceLocation> loc = absl::nullopt,
+               absl::string_view name = "");
+
   // Adds a coverpoint to the function that records every time the associated
   // condition evaluates to true.
   BValue Cover(BValue token, BValue condition, absl::string_view label,

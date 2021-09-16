@@ -529,6 +529,16 @@ xls_dslx_module_library(
     src = "trace_fmt_hello.x",
 )
 
+xls_dslx_opt_ir(
+    name = "trace_fmt_hello_opt_ir",
+    dep = ":trace_dslx_module",
+)
+
+xls_dslx_opt_ir_test(
+    name = "trace_fmt_hello_opt_ir_test",
+    dep = ":trace_fmt_hello_opt_ir",
+)
+
 # Note: This test is enough to keep the example code compiling,
 # but does not currently check the output.
 # TODO(https://github.com/google/xls/issues/489): 2021-09-02
@@ -536,6 +546,7 @@ xls_dslx_module_library(
 xls_dslx_test(
     name = "trace_fmt_hello_test",
     dep = ":trace_fmt_hello_module",
+    dslx_test_args = {"compare": "interpreter"},
 )
 
 xls_dslx_module_library(

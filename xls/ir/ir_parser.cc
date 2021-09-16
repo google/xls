@@ -896,6 +896,18 @@ absl::StatusOr<BValue> Parser::ParseNode(
                           label_string, *loc, node_name);
       break;
     }
+    case Op::kTrace: {
+      QuotedString* format_string =
+          arg_parser.AddKeywordArg<QuotedString>("format");
+      std::vector<BValue>* data_operands =
+          arg_parser.AddKeywordArg<std::vector<BValue>>("data_operands");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
+      XLS_ASSIGN_OR_RETURN(std::vector<FormatStep> format,
+                           ParseFormatString(format_string->value));
+      bvalue = fb->Trace(operands[0], operands[1], *data_operands, format, *loc,
+                         node_name);
+      break;
+    }
     case Op::kCover: {
       QuotedString* label = arg_parser.AddKeywordArg<QuotedString>("label");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));

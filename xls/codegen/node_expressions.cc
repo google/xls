@@ -360,6 +360,8 @@ absl::StatusOr<Expression*> NodeToExpression(
       return file->AndReduce(inputs[0]);
     case Op::kAssert:
       return unimplemented();
+    case Op::kTrace:
+      return unimplemented();
     case Op::kCover:
       return unimplemented();
     case Op::kNand:

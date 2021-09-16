@@ -196,6 +196,18 @@ absl::StatusOr<Node*> ArrayUpdate::CloneInNewFunction(
                                       name_);
 }
 
+absl::StatusOr<Node*> Trace::CloneInNewFunction(
+    absl::Span<Node* const> new_operands,
+    FunctionBase* new_function) const {
+  // TODO(amfv): Choose an appropriate name for the cloned node.
+  return new_function->MakeNodeWithName<Trace>(loc(),
+                                      new_operands[0],
+                                      new_operands[1],
+                                      new_operands.subspan(2),
+                                      format(),
+                                      name_);
+}
+
 bool Select::AllCases(std::function<bool(Node*)> p) const {
   for (Node* case_ : cases()) {
     if (!p(case_)) {

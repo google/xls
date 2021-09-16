@@ -215,6 +215,17 @@ class TypeVectorAttribute(Attribute):
         init_args=(f'{name}.begin()', f'{name}.end()'))
 
 
+class FormatStepsAttribute(Attribute):
+
+  def __init__(self, name):
+    super(FormatStepsAttribute, self).__init__(
+        name,
+        cpp_type='std::vector<FormatStep>',
+        return_cpp_type='absl::Span<FormatStep const>',
+        arg_cpp_type='absl::Span<FormatStep const>',
+        init_args=(f'{name}.begin()', f'{name}.end()'))
+
+
 class Property(enum.Enum):
   """Enumeration of properties of Ops.
 
@@ -483,6 +494,24 @@ OpClass.kinds['ASSERT'] = OpClass(
                           expression='operand(1)'),
                    ],
     attributes=[StringAttribute('message'), OptionalStringAttribute('label')]
+)
+
+OpClass.kinds['TRACE'] = OpClass(
+    name='Trace',
+    op='Op::kTrace',
+    operands=[Operand('token'), Operand('condition'), OperandSpan('args')],
+    xls_type_expression='function->package()->GetTokenType()',
+    extra_methods=[Method(name='token',
+                          return_cpp_type='Node*',
+                          expression='operand(0)'),
+                   Method(name='condition',
+                          return_cpp_type='Node*',
+                          expression='operand(1)'),
+                   Method(name='args',
+                          return_cpp_type='absl::Span<Node* const>',
+                          expression='operands().subspan(2)')],
+    attributes=[FormatStepsAttribute('format')],
+    custom_clone_method=True,
 )
 
 OpClass.kinds['COVER'] = OpClass(
@@ -1340,5 +1369,12 @@ OPS = [
         op_class=OpClass.kinds['GATE'],
         properties=[Property.SIDE_EFFECTING],
     ),
+    Op(
+        enum_name='kTrace',
+        name='trace',
+        op_class=OpClass.kinds['TRACE'],
+        properties=[Property.SIDE_EFFECTING],
+    ),
+
 ]
 # pyformat: enable

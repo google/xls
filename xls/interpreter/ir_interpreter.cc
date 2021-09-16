@@ -459,6 +459,52 @@ absl::Status IrInterpreter::HandleAssert(Assert* assert_op) {
   return SetValueResult(assert_op, Value::Token());
 }
 
+absl::Status IrInterpreter::HandleTrace(Trace* trace_op) {
+  if (ResolveAsBool(trace_op->condition())) {
+    absl::Span<Node* const> arg_nodes = trace_op->args();
+    auto arg_node = arg_nodes.begin();
+
+    // TODO(amfv): 2021-09-14 Remove the duplication with the PerformTraceFmt
+    // printing code in dslx/builtins.cc by making a common utility function
+    // that takes make_error as an argument.
+    auto make_error = [trace_op](std::string msg) -> absl::Status {
+      return absl::InternalError(absl::StrFormat(
+          "%s for format %s in trace node %s", msg,
+          StepsToXlsFormatString(trace_op->format()), trace_op->ToString()));
+    };
+
+    std::string trace_output;
+
+    for (auto step : trace_op->format()) {
+      if (absl::holds_alternative<std::string>(step)) {
+        absl::StrAppend(&trace_output, absl::get<std::string>(step));
+      }
+
+      if (absl::holds_alternative<FormatPreference>(step)) {
+        if (arg_node == arg_nodes.end()) {
+          return make_error("Not enough operands");
+        }
+        auto arg_format = absl::get<FormatPreference>(step);
+        absl::StrAppend(&trace_output,
+                        ResolveAsValue(*arg_node).ToHumanString(arg_format));
+        arg_node++;
+      }
+    }
+
+    if (arg_node != arg_nodes.end()) {
+      return make_error("Too many operands");
+    }
+
+    // TODO(amfv): 2021-09-14 Replace the INFO log here and the std::cerr trace
+    // output in the DSLX interpreter with providing a collection of traced
+    // strings to the caller of the interpreter. This will decouple the
+    // interpreters from trace consumption and make it easier to test trace
+    // implementations looking at the collected traced strings.
+    XLS_LOG(INFO) << "Trace output: " << trace_output;
+  }
+  return SetValueResult(trace_op, Value::Token());
+}
+
 absl::Status IrInterpreter::HandleCover(Cover* cover) {
   // TODO(rspringer): 2021-05-25: Implement.
   return absl::OkStatus();

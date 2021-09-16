@@ -16,6 +16,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -89,6 +90,9 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
       break;
     case Op::kCover:
       XLS_RETURN_IF_ERROR(visitor->HandleCover(down_cast<Cover*>(this)));
+      break;
+    case Op::kTrace:
+      XLS_RETURN_IF_ERROR(visitor->HandleTrace(down_cast<Trace*>(this)));
       break;
     case Op::kReceive:
       XLS_RETURN_IF_ERROR(visitor->HandleReceive(down_cast<Receive*>(this)));
@@ -527,6 +531,20 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
             absl::StrFormat("label=\"%s\"", As<Assert>()->label().value()));
       }
       break;
+    case Op::kTrace: {
+      const Trace* trace = As<Trace>();
+      args = {trace->token()->GetName(), trace->condition()->GetName()};
+      args.push_back(absl::StrFormat(
+          "format=\"%s\"",
+          absl::CEscape(StepsToXlsFormatString(trace->format()))));
+      args.push_back(
+          absl::StrFormat("data_operands=[%s]",
+                          absl::StrJoin(trace->args(), ", ",
+                                        [](std::string* out, const Node* node) {
+                                          absl::StrAppend(out, node->GetName());
+                                        })));
+      break;
+    }
     case Op::kCover:
       args.push_back(absl::StrFormat("label=\"%s\"", As<Cover>()->label()));
       break;

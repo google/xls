@@ -1161,6 +1161,67 @@ BValue BuilderBase::Assert(BValue token, BValue condition,
                               label, name);
 }
 
+BValue BuilderBase::Trace(BValue token, BValue condition,
+                          absl::Span<const BValue> args,
+                          absl::Span<const FormatStep> format,
+                          absl::optional<SourceLocation> loc,
+                          absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        absl::StrFormat("First operand of trace must be of token type; is: %s",
+                        token.GetType()->ToString()),
+        loc);
+  }
+  if (!condition.GetType()->IsBits() ||
+      condition.GetType()->AsBitsOrDie()->bit_count() != 1) {
+    return SetError(
+        absl::StrFormat("Condition operand of trace must be of bits "
+                        "type of width 1; is: %s",
+                        condition.GetType()->ToString()),
+        loc);
+  }
+
+  int64_t expected_operands = OperandsExpectedByFormat(format);
+  if (args.size() != expected_operands) {
+    return SetError(
+        absl::StrFormat(
+            "Trace node expects %d data operands, but %d were supplied",
+            expected_operands, args.size()),
+        loc);
+  }
+
+  std::vector<Node*> arg_nodes;
+  for (const BValue& arg : args) {
+    if (!arg.GetType()->IsBits()) {
+      return SetError(
+          absl::StrFormat("Trace arguments must be of bits type; is: %s",
+                          arg.GetType()->ToString()),
+          loc);
+    }
+    arg_nodes.push_back(arg.node());
+  }
+
+  return AddNode<xls::Trace>(loc, token.node(), condition.node(), arg_nodes,
+                             format, name);
+}
+
+BValue BuilderBase::Trace(BValue token, BValue condition,
+                          absl::Span<const BValue> args,
+                          absl::string_view format_string,
+                          absl::optional<SourceLocation> loc,
+                          absl::string_view name) {
+  auto parse_status = ParseFormatString(format_string);
+
+  if (!parse_status.ok()) {
+    return SetError(parse_status.status().message(), loc);
+  }
+
+  return Trace(token, condition, args, parse_status.value(), loc, name);
+}
+
 BValue BuilderBase::Cover(BValue token, BValue condition,
                           absl::string_view label,
                           absl::optional<SourceLocation> loc,

@@ -37,6 +37,23 @@ absl::string_view FormatPreferenceToString(FormatPreference preference) {
   }
 }
 
+absl::string_view FormatPreferenceToXlsSpecifier(FormatPreference preference) {
+  switch (preference) {
+    case FormatPreference::kDefault:
+      return "{}";
+    case FormatPreference::kBinary:
+      return "{:#b}";
+    case FormatPreference::kDecimal:
+      return "{:d}";
+    case FormatPreference::kHex:
+      return "{:#x}";
+    case FormatPreference::kPlainBinary:
+      return "{:b}";
+    case FormatPreference::kPlainHex:
+      return "{:x}";
+  }
+}
+
 absl::StatusOr<FormatPreference> FormatPreferenceFromString(
     absl::string_view s) {
   if (s == "default") {

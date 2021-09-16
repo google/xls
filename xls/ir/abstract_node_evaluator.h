@@ -74,6 +74,8 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       return default_handler(node);
     case Op::kAssert:
       return default_handler(node);
+    case Op::kTrace:
+      return default_handler(node);
     case Op::kCover:
       return default_handler(node);
     case Op::kBitSlice: {
