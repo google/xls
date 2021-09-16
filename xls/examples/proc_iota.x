@@ -17,13 +17,13 @@
 // converter supports them.
 
 proc producer(limit: u32, c: chan out u32)(i: u32) {
-  // send(c, i);
+  send(c, i);
   let new_i = i + u32:1;
   next(new_i)
 }
 
 proc consumer<N: u32>(a: u32[N], c: chan in u32)(i: u32) {
-  // let e = recv(c);
+  let e = recv(c);
   // let _ = assert_eq(a[i], e);
   let new_i = i + u32:1;
   next(new_i)

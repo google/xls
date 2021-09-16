@@ -96,6 +96,10 @@ static bool GetRequiresImplicitToken(dslx::Function* f, ImportData* import_data,
   return requires_opt.value();
 }
 
+// Maps an argument index to a channel, and a spawn to a set of such.
+using ArgToChannel = absl::flat_hash_map<int64_t, Channel*>;
+using SpawnToChannels = absl::flat_hash_map<Spawn*, ArgToChannel>;
+
 // Helper type that creates XLS IR for a function -- this is done within a
 // Package, given a DSLX AST, its type information, and an entry point function.
 //
@@ -117,7 +121,8 @@ static bool GetRequiresImplicitToken(dslx::Function* f, ImportData* import_data,
 class FunctionConverter {
  public:
   FunctionConverter(PackageData& package_data, Module* module,
-                    ImportData* import_data, ConvertOptions options);
+                    ImportData* import_data, ConvertOptions options,
+                    SpawnToChannels* spawn_to_channels);
 
   // Main entry point to request conversion of the DSLX function "f" to an IR
   // function.
@@ -201,7 +206,7 @@ class FunctionConverter {
   // whatever 'from' has as an IR value.
   //
   // Returns the aliased IR BValue both AST nodes now map to.
-  absl::StatusOr<BValue> DefAlias(AstNode* from, AstNode* to);
+  absl::Status DefAlias(AstNode* from, AstNode* to);
 
   // Returns the BValue previously noted as corresponding to "node" (via a
   // Def/DefAlias).
@@ -344,6 +349,8 @@ class FunctionConverter {
   absl::Status HandleLetChannelDecl(Let* let, ChannelDecl* channel_decl);
   absl::Status HandleMatch(Match* node);
   absl::Status HandleNext(Next* node);
+  absl::Status HandleRecv(Recv* node);
+  absl::Status HandleSend(Send* node);
   absl::Status HandleSplatStructInstance(SplatStructInstance* node);
   absl::Status HandleSpawn(Spawn* node);
   absl::Status HandleStructInstance(StructInstance* node);
@@ -541,6 +548,8 @@ class FunctionConverter {
 
   // Number of "counted for" nodes we've observed in this function.
   int64_t counted_for_count_ = 0;
+
+  SpawnToChannels* spawn_to_channels_;
 };
 
 // RAII helper that establishes a control predicate for a lexical scope that
@@ -703,6 +712,8 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(Let)
   NO_TRAVERSE_DISPATCH_VISIT(Match)
   NO_TRAVERSE_DISPATCH_VISIT(Next)
+  NO_TRAVERSE_DISPATCH_VISIT(Recv)
+  NO_TRAVERSE_DISPATCH_VISIT(Send)
   NO_TRAVERSE_DISPATCH_VISIT(Spawn)
   NO_TRAVERSE_DISPATCH_VISIT(SplatStructInstance)
   NO_TRAVERSE_DISPATCH_VISIT(StructInstance)
@@ -741,10 +752,6 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(QuickCheck)
   INVALID(StructDef)
 
-  // Not yet implemented.
-  INVALID(Recv)
-  INVALID(Send)
-
   // Unsupported for IR emission.
   INVALID(While)
   INVALID(Carry)
@@ -775,14 +782,16 @@ absl::Status FunctionConverter::Visit(AstNode* node) {
 
 FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
                                      ImportData* import_data,
-                                     ConvertOptions options)
+                                     ConvertOptions options,
+                                     SpawnToChannels* spawn_to_channels)
     : package_data_(package_data),
       module_(module),
       import_data_(import_data),
       options_(std::move(options)),
       // TODO(leary): 2019-07-19 Create a way to get the file path from the
       // module.
-      fileno_(package_data.package->GetOrCreateFileno("fake_file.x")) {
+      fileno_(package_data.package->GetOrCreateFileno("fake_file.x")),
+      spawn_to_channels_(spawn_to_channels) {
   XLS_VLOG(5) << "Constructed IR converter: " << this;
 }
 
@@ -797,14 +806,13 @@ void FunctionConverter::AddConstantDep(ConstantDef* constant_def) {
   constant_deps_.push_back(constant_def);
 }
 
-absl::StatusOr<BValue> FunctionConverter::DefAlias(AstNode* from, AstNode* to) {
+absl::Status FunctionConverter::DefAlias(AstNode* from, AstNode* to) {
   XLS_RET_CHECK_NE(from, to);
   auto it = node_to_ir_.find(from);
   if (it == node_to_ir_.end()) {
     return absl::InternalError(absl::StrFormat(
         "TypeAliasError: %s internal error during IR conversion: could not "
-        "find AST node for "
-        "aliasing: %s (%s) to: %s (%s)",
+        "find AST node for aliasing: %s (%s) to: %s (%s)",
         SpanToString(from->GetSpan()), from->ToString(),
         from->GetNodeTypeName(), to->ToString(), to->GetNodeTypeName()));
   }
@@ -827,7 +835,7 @@ absl::StatusOr<BValue> FunctionConverter::DefAlias(AstNode* from, AstNode* to) {
     // exist as _global_ entities, not nodes in a Proc's IR), so they can't
     // be [re]named.
   }
-  return Use(to);
+  return absl::OkStatus();
 }
 
 absl::StatusOr<BValue> FunctionConverter::DefWithStatus(
@@ -1093,12 +1101,12 @@ absl::Status FunctionConverter::HandleParam(Param* node) {
 }
 
 absl::Status FunctionConverter::HandleConstRef(ConstRef* node) {
-  return DefAlias(node->name_def(), /*to=*/node).status();
+  return DefAlias(node->name_def(), /*to=*/node);
 }
 
 absl::Status FunctionConverter::HandleNameRef(NameRef* node) {
   AstNode* from = ToAstNode(node->name_def());
-  return DefAlias(from, /*to=*/node).status();
+  return DefAlias(from, /*to=*/node);
 }
 
 absl::Status FunctionConverter::HandleConstantDef(ConstantDef* node) {
@@ -1106,7 +1114,7 @@ absl::Status FunctionConverter::HandleConstantDef(ConstantDef* node) {
   XLS_RETURN_IF_ERROR(Visit(node->value()));
   XLS_VLOG(5) << "Aliasing NameDef for constant: "
               << node->name_def()->ToString();
-  return DefAlias(node->value(), /*to=*/node->name_def()).status();
+  return DefAlias(node->value(), /*to=*/node->name_def());
 }
 
 absl::Status FunctionConverter::HandleLetChannelDecl(
@@ -1146,7 +1154,7 @@ absl::Status FunctionConverter::HandleLetChannelDecl(
   node_to_ir_[absl::get<NameDef*>(leaves[0])] = channel;
   node_to_ir_[absl::get<NameDef*>(leaves[1])] = channel;
   XLS_RETURN_IF_ERROR(Visit(let->body()));
-  XLS_RETURN_IF_ERROR(DefAlias(let->body(), let).status());
+  XLS_RETURN_IF_ERROR(DefAlias(let->body(), let));
   if (let->type_annotation() != nullptr) {
     XLS_ASSIGN_OR_RETURN(xls::Type * annotated_type,
                          ResolveTypeToIr(let->type_annotation()));
@@ -1179,10 +1187,9 @@ absl::Status FunctionConverter::HandleLet(Let* node) {
 
   if (node->name_def_tree()->is_leaf()) {
     XLS_RETURN_IF_ERROR(
-        DefAlias(node->rhs(), /*to=*/ToAstNode(node->name_def_tree()->leaf()))
-            .status());
+        DefAlias(node->rhs(), /*to=*/ToAstNode(node->name_def_tree()->leaf())));
     XLS_RETURN_IF_ERROR(Visit(node->body()));
-    XLS_RETURN_IF_ERROR(DefAlias(node->body(), node).status());
+    XLS_RETURN_IF_ERROR(DefAlias(node->body(), node));
   } else {
     // Walk the tree of names we're trying to bind, performing tuple_index
     // operations on the RHS to get to the values we want to bind to those
@@ -1213,14 +1220,14 @@ absl::Status FunctionConverter::HandleLet(Let* node) {
         return function_builder_->TupleIndex(tuple, index, loc);
       }));
       if (x->is_leaf()) {
-        XLS_RETURN_IF_ERROR(DefAlias(x, ToAstNode(x->leaf())).status());
+        XLS_RETURN_IF_ERROR(DefAlias(x, ToAstNode(x->leaf())));
       }
       return absl::OkStatus();
     };
 
     XLS_RETURN_IF_ERROR(node->name_def_tree()->DoPreorder(walk));
     XLS_RETURN_IF_ERROR(Visit(node->body()));
-    XLS_RETURN_IF_ERROR(DefAlias(node->body(), /*to=*/node).status());
+    XLS_RETURN_IF_ERROR(DefAlias(node->body(), /*to=*/node));
   }
 
   return absl::OkStatus();
@@ -1455,7 +1462,7 @@ absl::Status FunctionConverter::HandleFor(For* node) {
 
   XLS_VLOG(5) << "Converting for-loop @ " << node->span();
   FunctionConverter body_converter(package_data_, module_, import_data_,
-                                   options_);
+                                   options_, spawn_to_channels_);
   body_converter.set_symbolic_binding_map(symbolic_binding_map_);
 
   // The body conversion uses the same types that we use in the caller.
@@ -1669,7 +1676,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
       BValue result = Def(matcher, [&](absl::optional<SourceLocation> loc) {
         return function_builder_->Eq(to_match, matched_value);
       });
-      XLS_RETURN_IF_ERROR(DefAlias(name_def, name_ref).status());
+      XLS_RETURN_IF_ERROR(DefAlias(name_def, name_ref));
       return result;
     } else {
       XLS_RET_CHECK(absl::holds_alternative<NameDef*>(leaf));
@@ -2058,9 +2065,73 @@ absl::Status FunctionConverter::HandleInvocation(Invocation* node) {
 absl::Status FunctionConverter::HandleSpawn(Spawn* node) {
   // Spawns instantiate Procs. Since that process is driven by walking the graph
   // of FunctionBase invocations, that instantiation actually happens in
-  // ConvertCallGraph. Thus, Spawn nodes really have nothing to do!
+  // ConvertCallGraph. Thus, Spawn nodes really have nothing to do except to
+  // record which of their arguments are channels so we can do that mapping when
+  // instantiating the associated proc.
+  for (int i = 0; i < node->proc_args().size(); i++) {
+    Expr* arg = node->proc_args()[i];
+    XLS_RETURN_IF_ERROR(Visit(arg));
+    XLS_RET_CHECK(node_to_ir_.contains(arg));
+    if (absl::holds_alternative<Channel*>(node_to_ir_.at(arg))) {
+      Channel* channel = absl::get<Channel*>(node_to_ir_.at(arg));
+      (*spawn_to_channels_)[node][i] = channel;
+    }
+  }
+
   XLS_RETURN_IF_ERROR(Visit(node->body()));
+  XLS_RETURN_IF_ERROR(DefAlias(node->body(), node));
   node_to_ir_[node] = node_to_ir_.at(node->body());
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleSend(Send* node) {
+  TokenlessProcBuilder* builder_ptr =
+      dynamic_cast<TokenlessProcBuilder*>(function_builder_.get());
+  if (builder_ptr == nullptr) {
+    return absl::InternalError(
+        "Send nodes should only be encountered during Proc conversion; "
+        "we seem to be in function conversion.");
+  }
+
+  XLS_RETURN_IF_ERROR(Visit(node->channel()));
+  XLS_RETURN_IF_ERROR(Visit(node->payload()));
+  if (!node_to_ir_.contains(node->channel())) {
+    return absl::InternalError("Send channel not found!");
+  }
+  IrValue ir_value = node_to_ir_[node->channel()];
+  if (!absl::holds_alternative<Channel*>(ir_value)) {
+    return absl::InvalidArgumentError(
+        "Expected channel, got BValue or CValue.");
+  }
+  XLS_ASSIGN_OR_RETURN(BValue data, Use(node->payload()));
+  builder_ptr->Send(absl::get<Channel*>(ir_value), data);
+
+  XLS_RETURN_IF_ERROR(Visit(node->body()));
+  XLS_RETURN_IF_ERROR(DefAlias(node->body(), node));
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleRecv(Recv* node) {
+  TokenlessProcBuilder* builder_ptr =
+      dynamic_cast<TokenlessProcBuilder*>(function_builder_.get());
+  if (builder_ptr == nullptr) {
+    return absl::InternalError(
+        "Recv nodes should only be encountered during Proc conversion; "
+        "we seem to be in function conversion.");
+  }
+
+  XLS_RETURN_IF_ERROR(Visit(node->channel()));
+  if (!node_to_ir_.contains(node->channel())) {
+    return absl::InternalError("Send channel not found!");
+  }
+  IrValue ir_value = node_to_ir_[node->channel()];
+  if (!absl::holds_alternative<Channel*>(ir_value)) {
+    return absl::InvalidArgumentError(
+        "Expected channel, got BValue or CValue.");
+  }
+
+  BValue value = builder_ptr->Receive(absl::get<Channel*>(ir_value));
+  node_to_ir_[node] = value;
   return absl::OkStatus();
 }
 
@@ -2076,6 +2147,7 @@ absl::Status FunctionConverter::AddImplicitTokenParams() {
     // is whether this function has been activated at all.
     return implicit_token_data_->activated;
   };
+
   return absl::OkStatus();
 }
 
@@ -2206,8 +2278,7 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
     }
     DefConst(parametric_binding, param_value);
     XLS_RETURN_IF_ERROR(
-        DefAlias(parametric_binding, /*to=*/parametric_binding->name_def())
-            .status());
+        DefAlias(parametric_binding, /*to=*/parametric_binding->name_def()));
   }
 
   XLS_VLOG(3) << "Function has " << constant_deps_.size() << " constant deps";
@@ -2332,13 +2403,27 @@ absl::StatusOr<xls::Proc*> FunctionConverter::HandleProc(
   SetFunctionBuilder(std::move(builder));
 
   // Now bind all iter args to their elements in the recurrent state.
+  int proc_param_count = initial_values.size() - spawn->iter_args().size();
   BValue state = builder_ptr->GetStateParam();
+  for (int i = 0; i < spawn->proc_args().size(); i++) {
+    auto* param = node->proc_params()[i];
+    auto* type = param->type_annotation();
+    if (dynamic_cast<ChannelTypeAnnotation*>(type) != nullptr) {
+      SetNodeToIr(param->name_def(), spawn_to_channels_->at(spawn).at(i));
+    } else {
+      BValue element =
+          builder_ptr->TupleIndex(state, proc_param_count + i, absl::nullopt,
+                                  node->iter_params()[i]->identifier());
+      SetNodeToIr(node->iter_params()[i]->name_def(), element);
+    }
+  }
+
   for (int i = 0; i < spawn->iter_args().size(); i++) {
     // Since we store proc and iter params in the same recurrent state
     // structure, we need to step past the number of proc params to find actual
     // state params.
     BValue element =
-        builder_ptr->TupleIndex(state, initial_values.size() + i, absl::nullopt,
+        builder_ptr->TupleIndex(state, proc_param_count + i, absl::nullopt,
                                 node->iter_params()[i]->identifier());
     SetNodeToIr(node->iter_params()[i]->name_def(), element);
   }
@@ -2365,8 +2450,7 @@ absl::StatusOr<xls::Proc*> FunctionConverter::HandleProc(
     }
     DefConst(parametric_binding, param_value);
     XLS_RETURN_IF_ERROR(
-        DefAlias(parametric_binding, /*to=*/parametric_binding->name_def())
-            .status());
+        DefAlias(parametric_binding, /*to=*/parametric_binding->name_def()));
   }
 
   XLS_VLOG(3) << "Proc has " << constant_deps_.size() << " constant deps";
@@ -2387,7 +2471,8 @@ absl::StatusOr<xls::Proc*> FunctionConverter::HandleProc(
   // TODO(rspringer): 2021-09-13: Constant state params should be...constants,
   // not part of the state param.
   for (int i = 0; i < node->proc_params().size(); i++) {
-    TypeAnnotation* type = node->proc_params()[i]->type_annotation();
+    Param* param = node->proc_params()[i];
+    TypeAnnotation* type = param->type_annotation();
     if (dynamic_cast<ChannelTypeAnnotation*>(type) != nullptr) {
       continue;
     }
@@ -2398,8 +2483,7 @@ absl::StatusOr<xls::Proc*> FunctionConverter::HandleProc(
   BValue next_value = builder_ptr->Tuple(next_elements);
   XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder_ptr->Build(next_value));
   XLS_VLOG(5) << "Built proc: " << p->name();
-  // TODO(rspringer): 2021-09-10: Enable this call once Send/Recv are supported.
-  // XLS_RETURN_IF_ERROR(VerifyFunction(p));
+  XLS_RETURN_IF_ERROR(VerifyProc(p));
 
   package_data_.ir_to_dslx[p] = node;
   return p;
@@ -2448,7 +2532,7 @@ absl::Status FunctionConverter::HandleColonRef(ColonRef* node) {
       XLS_RETURN_IF_ERROR(Visit(dep));
     }
     XLS_RETURN_IF_ERROR(HandleConstantDef(constant_def));
-    return DefAlias(constant_def->name_def(), /*to=*/node).status();
+    return DefAlias(constant_def->name_def(), /*to=*/node);
   }
 
   EnumDef* enum_def;
@@ -2472,7 +2556,7 @@ absl::Status FunctionConverter::HandleColonRef(ColonRef* node) {
   }
 
   XLS_RETURN_IF_ERROR(Visit(value));
-  return DefAlias(/*from=*/value, /*to=*/node).status();
+  return DefAlias(/*from=*/value, /*to=*/node);
 }
 
 absl::Status FunctionConverter::HandleSplatStructInstance(
@@ -3118,6 +3202,7 @@ absl::StatusOr<xls::Type*> FunctionConverter::TypeToIr(
 absl::Status ConvertOneFunctionInternal(PackageData& package_data,
                                         const ConversionRecord& record,
                                         ImportData* import_data,
+                                        SpawnToChannels* spawn_to_channels,
                                         const ConvertOptions& options) {
   // Validate the requested conversion looks sound in terms of provided
   // parametrics.
@@ -3125,7 +3210,7 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
       record.fb(), record.symbolic_bindings()));
 
   FunctionConverter converter(package_data, record.module(), import_data,
-                              options);
+                              options, spawn_to_channels);
 
   XLS_ASSIGN_OR_RETURN(auto constant_deps,
                        GetConstantDepFreevars(record.fb()->body()));
@@ -3167,10 +3252,24 @@ static absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
                        absl::StrAppend(out, record.ToString());
                      })
               << "]";
+  // We need to convert Functions before procs: Channels are declared inside
+  // Functions, but exist as "global" entities in the IR. By processing
+  // Functions first, we can collect the declarations of these global data so we
+  // can resolve them when processing Procs.
+  SpawnToChannels spawn_to_channels;
   for (const ConversionRecord& record : order) {
-    XLS_VLOG(3) << "Converting to IR: " << record.ToString();
-    XLS_RETURN_IF_ERROR(
-        ConvertOneFunctionInternal(package_data, record, import_data, options));
+    if (dynamic_cast<Function*>(record.fb()) != nullptr) {
+      XLS_VLOG(3) << "Converting to IR: " << record.ToString();
+      XLS_RETURN_IF_ERROR(ConvertOneFunctionInternal(
+          package_data, record, import_data, &spawn_to_channels, options));
+    }
+  }
+  for (const ConversionRecord& record : order) {
+    if (dynamic_cast<Proc*>(record.fb()) != nullptr) {
+      XLS_VLOG(3) << "Converting to IR: " << record.ToString();
+      XLS_RETURN_IF_ERROR(ConvertOneFunctionInternal(
+          package_data, record, import_data, &spawn_to_channels, options));
+    }
   }
 
   XLS_VLOG(3) << "Verifying converted package";
