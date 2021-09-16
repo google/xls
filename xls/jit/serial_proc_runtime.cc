@@ -252,4 +252,25 @@ absl::StatusOr<Value> SerialProcRuntime::DequeueValueFromChannel(
   return jit->runtime()->UnpackBuffer(buffer.get(), type);
 }
 
+int64_t SerialProcRuntime::NumProcs() const { return threads_.size(); }
+
+absl::StatusOr<Proc*> SerialProcRuntime::proc(int64_t index) const {
+  if (index > threads_.size()) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Valid indices are 0 - ", threads_.size(), "."));
+  }
+  return dynamic_cast<Proc*>(threads_[index]->jit->function());
+}
+
+absl::StatusOr<Value> SerialProcRuntime::ProcState(int64_t index) const {
+  if (index > threads_.size()) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Valid indices are 0 - ", threads_.size(), "."));
+  }
+
+  XLS_ASSIGN_OR_RETURN(Proc * p, proc(index));
+  return threads_[index]->jit->runtime()->UnpackBuffer(
+      threads_[index]->proc_state.get(), p->StateType());
+}
+
 }  // namespace xls

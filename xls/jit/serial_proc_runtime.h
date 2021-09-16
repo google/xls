@@ -57,6 +57,15 @@ class SerialProcRuntime {
   // channel.
   absl::StatusOr<Value> DequeueValueFromChannel(Channel* channel);
 
+  // Returns the current number of procs in this runtime.
+  int64_t NumProcs() const;
+
+  // Returns the n'th Proc being executed.
+  absl::StatusOr<Proc*> proc(int64_t proc_index) const;
+
+  // Returns the current state value in the given proc.
+  absl::StatusOr<Value> ProcState(int64_t proc_index) const;
+
  private:
   // Utility structure to hold state needed by each proc thread.
   struct ThreadData {

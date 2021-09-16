@@ -542,6 +542,24 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "eval_proc_main",
+    srcs = ["eval_proc_main.cc"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir:ir_parser",
+        "//xls/jit:serial_proc_runtime",
+    ],
+)
+
 cc_library(
     name = "device_rpc_strategy",
     hdrs = ["device_rpc_strategy.h"],
