@@ -1409,7 +1409,7 @@ let result: u4[8] = for (i, array) in range(u32:0, u32:8) {
 }(u4[8]:[0, ...]);
 ```
 
-### Numerical Conversions {#numerical-conversions}
+### Numerical Conversions
 
 DSLX adopts the
 [Rust rules](https://doc.rust-lang.org/1.30.0/book/first-edition/casting-between-types.html)
@@ -1417,6 +1417,8 @@ for semantics of numeric casts:
 
 *   Casting from larger bit-widths to smaller bit-widths will truncate (to the
     LSbs).
+    *   This means that truncating signed values does not preserve the previous
+        value of the sign bit.
 *   Casting from a smaller bit-width to a larger bit-width will zero-extend if
     the source is unsigned, sign-extend if the source is signed.
 *   Casting from a bit-width to its own bit-width, between signed/unsigned, is a
