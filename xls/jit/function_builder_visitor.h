@@ -64,6 +64,11 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
       DynamicBitSlice* dynamic_bit_slice) override;
   absl::Status HandleConcat(Concat* concat) override;
   absl::Status HandleCountedFor(CountedFor* counted_for) override;
+  absl::Status HandleCover(Cover* cover) override {
+    // TODO(rspringer): 2021-09-17: Add coverpoint support to the JIT.
+    // GitHub issue #499.
+    return absl::OkStatus();
+  }
   absl::Status HandleDecode(Decode* decode) override;
   absl::Status HandleDynamicCountedFor(
       DynamicCountedFor* dynamic_counted_for) override;
