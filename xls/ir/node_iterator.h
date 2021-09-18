@@ -30,13 +30,13 @@ class NodeIterator {
   static NodeIterator Create(FunctionBase* f) {
     NodeIterator it(f);
     it.Initialize();
+    std::reverse(it.ordered_->begin(), it.ordered_->end());
     return it;
   }
 
   static NodeIterator CreateReverse(FunctionBase* f) {
     NodeIterator it(f);
     it.Initialize();
-    std::reverse(it.ordered_->begin(), it.ordered_->end());
     return it;
   }
 

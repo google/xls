@@ -36,6 +36,9 @@ void NodeIterator::Initialize() {
   // the "pending_to_remaining_users" mapping if it is not yet present -- this
   // keeps track of how many more users must be seen (before that node is ready
   // to place into the ordering).
+  //
+  // NOTE: Initialize sorts reverse-topologically.  To sort topologically,
+  // reverse the this->ordered_
   absl::flat_hash_map<Node*, int64_t> pending_to_remaining_users;
   pending_to_remaining_users.reserve(f_->node_count());
   std::deque<Node*> ready;
@@ -130,8 +133,6 @@ void NodeIterator::Initialize() {
     XLS_CHECK_LT(item.second, 0) << item.first;
   }
 #endif
-
-  absl::c_reverse(*ordered_);
 }
 
 }  // namespace xls
