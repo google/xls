@@ -45,7 +45,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertEqual(lines[3], '[        FAILED ] second_failing')
     self.assertEqual(lines[4],
                      '[===============] 2 test(s) ran; 2 failed; 0 skipped.')
-    self.assertRegexpMatches(lines[5], r'\[ SEED [\d ]{16} \]')
+    self.assertRegex(lines[5], r'\[ SEED [\d ]{16} \]')
     self.assertEqual(lines[6],
                      '[ RUN QUICKCHECK        ] always_false count: 1000')
     self.assertEqual(lines[7], '[                FAILED ] always_false')
