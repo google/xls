@@ -155,7 +155,7 @@ pub fn unbiased_exponent<EXP_SZ:u32,
   let subnormal_exp = (sN[UEXP_SZ]:1 - bias) as sN[EXP_SZ];
   let bexp = f.bexp as sN[UEXP_SZ];
   let uexp = (bexp - bias) as sN[EXP_SZ];
-  subnormal_exp if f.bexp == bits[EXP_SZ]:0 else uexp
+  if f.bexp == bits[EXP_SZ]:0 { subnormal_exp } else { uexp }
 }
 
 #![test]
@@ -243,7 +243,7 @@ pub fn cast_from_fixed<EXP_SZ:u32, FRACTION_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1
   let sign = to_cast[(NUM_SRC_BITS-u32:1) as s32 : NUM_SRC_BITS as s32];
 
   // Determine exponent.
-  let abs_magnitude = (to_cast if sign == u1:0 else -to_cast) as uN[NUM_SRC_BITS];
+  let abs_magnitude = (if sign == u1:0 { to_cast } else { -to_cast }) as uN[NUM_SRC_BITS];
   let lz = clz(abs_magnitude);
   let num_trailing_nonzeros = (NUM_SRC_BITS as uN[NUM_SRC_BITS]) - lz;
   let exp = (num_trailing_nonzeros as uN[UEXP_SZ]) - uN[UEXP_SZ]:1;
@@ -269,11 +269,11 @@ pub fn cast_from_fixed<EXP_SZ:u32, FRACTION_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1
   let fraction_is_odd = fraction[0:1] == u1:1;
   let round_to_even = trunc_bits_are_halfway && fraction_is_odd;
   let round_up = trunc_bits_gt_half || round_to_even;
-  let fraction = fraction + uN[FRACTION_SZ]:1 if round_up else fraction;
+  let fraction = if round_up { fraction + uN[FRACTION_SZ]:1 } else { fraction };
 
   // Check if rounding up causes an exponent increment.
   let overflow = round_up && (fraction == uN[FRACTION_SZ]:0);
-  let bexp = (bexp + uN[EXP_SZ]:1) if overflow else bexp;
+  let bexp = if overflow { (bexp + uN[EXP_SZ]:1) } else { bexp };
 
   // Check if rounding up caused us to overflow to infinity.
   let is_inf = is_inf || bexp == std::mask_bits<EXP_SZ>();
@@ -286,8 +286,8 @@ pub fn cast_from_fixed<EXP_SZ:u32, FRACTION_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1
   };
 
   let is_zero = abs_magnitude == uN[NUM_SRC_BITS]:0;
-  let result = inf<EXP_SZ, FRACTION_SZ>(sign) if is_inf else result;
-  let result = zero<EXP_SZ, FRACTION_SZ>(sign) if is_zero else result;
+  let result = if is_inf { inf<EXP_SZ, FRACTION_SZ>(sign) } else { result };
+  let result = if is_zero { zero<EXP_SZ, FRACTION_SZ>(sign) } else { result };
   result
 }
 
@@ -414,7 +414,7 @@ fn cast_from_fixed_test() {
 
 pub fn subnormals_to_zero<EXP_SZ:u32, FRACTION_SZ:u32>(
     x: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
-  zero<EXP_SZ, FRACTION_SZ>(x.sign) if x.bexp == bits[EXP_SZ]:0 else x
+  if x.bexp == bits[EXP_SZ]:0 { zero<EXP_SZ, FRACTION_SZ>(x.sign) } else { x }
 }
 
 // Returns a normalized APFloat with the given components. 'fraction_with_hidden' is the
@@ -480,16 +480,16 @@ pub fn cast_to_fixed<NUM_DST_BITS:u32, EXP_SZ:u32, FRACTION_SZ:u32,
     + (NUM_DST_BITS as uN[EXTENDED_FIXED_SZ])
     - (exp as uN[EXTENDED_FIXED_SZ]));
   let result = result[0:NUM_DST_BITS as s32] as sN[NUM_DST_BITS];
-  let result = -result if to_cast.sign else result;
+  let result = if to_cast.sign { -result } else { result };
 
   // NaN and too-large inputs --> MIN_FIXED_VALUE
   let overflow = (exp as u32) >= MAX_EXPONENT;
-  let result = MIN_FIXED_VALUE if overflow || is_nan(to_cast)
-                               else result;
+  let result = if overflow || is_nan(to_cast) { MIN_FIXED_VALUE }
+               else { result };
   // Underflow / to_cast < 1 --> 0
-  let result = sN[NUM_DST_BITS]:0
-    if to_cast.bexp < bias<EXP_SZ, FRACTION_SZ>(sN[EXP_SZ]:0)
-    else result;
+  let result =
+    if to_cast.bexp < bias<EXP_SZ, FRACTION_SZ>(sN[EXP_SZ]:0) { sN[NUM_DST_BITS]:0 }
+    else { result };
 
   result
 }
@@ -596,10 +596,12 @@ fn cast_to_fixed_test() {
 pub fn eq_2<EXP_SZ: u32, FRACTION_SZ: u32>(
     x: APFloat<EXP_SZ, FRACTION_SZ>,
     y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
-  ((flatten(x) == flatten(y))
-        || (is_zero_or_subnormal(x) && is_zero_or_subnormal(y)))
-    if !(is_nan(x) || is_nan(y))
-    else u1:0
+  if !(is_nan(x) || is_nan(y)) {
+    ((flatten(x) == flatten(y))
+          || (is_zero_or_subnormal(x) && is_zero_or_subnormal(y)))
+  } else {
+    u1:0
+  }
 }
 
 #![test]
@@ -677,8 +679,8 @@ pub fn gt_2<EXP_SZ: u32, FRACTION_SZ: u32>(
   };
 
 
-  result if !(is_nan(x) || is_nan(y))
-             else u1:0
+  if !(is_nan(x) || is_nan(y)) { result }
+  else { u1:0 }
 }
 
 #![test]
@@ -808,8 +810,8 @@ fn test_fp_gte_2() {
 pub fn lte_2<EXP_SZ: u32, FRACTION_SZ: u32>(
     x: APFloat<EXP_SZ, FRACTION_SZ>,
     y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
-  !gt_2(x,y) if !(is_nan(x) || is_nan(y))
-             else u1:0
+  if !(is_nan(x) || is_nan(y)) { !gt_2(x,y) }
+  else { u1:0 }
 }
 
 #![test]
@@ -874,8 +876,8 @@ fn test_fp_lte_2() {
 pub fn lt_2<EXP_SZ: u32, FRACTION_SZ: u32>(
     x: APFloat<EXP_SZ, FRACTION_SZ>,
     y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
-  !gte_2(x,y) if !(is_nan(x) || is_nan(y))
-             else u1:0
+  if !(is_nan(x) || is_nan(y)) { !gte_2(x,y) }
+  else { u1:0 }
 }
 
 #![test]
@@ -947,14 +949,12 @@ pub fn round_towards_zero<EXP_SZ:u32, FRACTION_SZ:u32,
                 bexp: x.bexp,
                 fraction:  trunc_fraction};
 
-  let result = x if (exp >= (FRACTION_SZ as s32))
-                            else result;
-  let result = zero<EXP_SZ, FRACTION_SZ>(x.sign) if (exp < s32:0)
-                            else result;
-  let result = qnan<EXP_SZ, FRACTION_SZ>() if is_nan<EXP_SZ, FRACTION_SZ>(x)
-                                      else result;
-  let result = x if (x.bexp == (bits[EXP_SZ]:255)) else result;
-
+  let result = if (exp >= (FRACTION_SZ as s32)) { x } else { result };
+  let result = if (exp < s32:0) { zero<EXP_SZ, FRACTION_SZ>(x.sign) }
+               else { result };
+  let result = if is_nan<EXP_SZ, FRACTION_SZ>(x) { qnan<EXP_SZ, FRACTION_SZ>() }
+               else { result };
+  let result = if (x.bexp == (bits[EXP_SZ]:255)) { x } else { result };
   result
 }
 
@@ -1051,7 +1051,7 @@ fn round_towards_zero_test() {
 // template specification. Why?
 pub fn to_int<EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ:u32,
             WIDE_FRACTION: u32 = FRACTION_SZ + u32:1,
-            MAX_FRACTION_SZ: u32 = RESULT_SZ if RESULT_SZ > WIDE_FRACTION else WIDE_FRACTION>(
+            MAX_FRACTION_SZ: u32 = if RESULT_SZ > WIDE_FRACTION { RESULT_SZ } else { WIDE_FRACTION }>(
     x: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[RESULT_SZ] {
   let exp = unbiased_exponent(x);
 
@@ -1068,27 +1068,26 @@ pub fn to_int<EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ:u32,
     _ => fraction,
   };
 
-  let result = uN[MAX_FRACTION_SZ]:0 if exp < sN[EXP_SZ]:0 else result;
+  let result = if exp < sN[EXP_SZ]:0 { uN[MAX_FRACTION_SZ]:0 } else { result };
   // For most cases, we need to either shift the "ones" place from
   // FRACTION_SZ + 1 bits down closer to 0 (if exp < FRACTION_SZ) else we
   // need to move it away from 0 if the exponent is bigger.
   let result =
-      (fraction >> (FRACTION_SZ - (exp as u32)))
-      if exp as u32 < FRACTION_SZ
-          else result;
+      if exp as u32 < FRACTION_SZ { (fraction >> (FRACTION_SZ - (exp as u32))) }
+      else { result };
   let result =
-      (fraction << ((exp as u32) - FRACTION_SZ))
-      if exp as u32 > FRACTION_SZ
-      else result;
+      if exp as u32 > FRACTION_SZ { (fraction << ((exp as u32) - FRACTION_SZ)) }
+      else { result };
 
   // Clamp high if out of bounds, infinite, or NaN.
   let exp_oob = exp as s32 >= (RESULT_SZ as s32 - s32:1);
-  let result = (uN[MAX_FRACTION_SZ]:1 << (RESULT_SZ - u32:1))
-      if exp_oob || is_inf(x) || is_nan(x) else result;
+  let result =
+      if exp_oob || is_inf(x) || is_nan(x) { (uN[MAX_FRACTION_SZ]:1 << (RESULT_SZ - u32:1)) }
+      else { result };
 
   // Reduce to the target size, preserving signedness.
   let result = result as sN[MAX_FRACTION_SZ];
-  let result = result if !x.sign else -result;
+  let result = if !x.sign { result } else { -result };
   result as sN[RESULT_SZ]
 }
 

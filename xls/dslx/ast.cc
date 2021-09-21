@@ -305,6 +305,22 @@ Ternary::Ternary(Module* owner, Span span, Expr* test, Expr* consequent,
       consequent_(consequent),
       alternate_(alternate) {}
 
+std::string Ternary::ToString() const {
+  std::string inline_str =
+      absl::StrFormat(R"(if %s { %s } else { %s })", test_->ToString(),
+                      consequent_->ToString(), alternate_->ToString());
+  if (inline_str.size() <= 80) {
+    return inline_str;
+  }
+  return absl::StrFormat(R"(if %s {
+  %s
+} else {
+  %s
+})",
+                         test_->ToString(), consequent_->ToString(),
+                         alternate_->ToString());
+}
+
 // -- class ParametricBinding
 
 ParametricBinding::ParametricBinding(Module* owner, NameDef* name_def,

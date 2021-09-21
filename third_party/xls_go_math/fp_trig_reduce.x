@@ -94,16 +94,18 @@ pub fn fp_trig_reduce<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1>(x: A
 
   // Map zeros to origin (comment from reference go code... very cryptic).
   let (j, fraction) =
-    (j + u3:1,
-     apfloat_sub_2::apfloat_sub_2(fraction, apfloat::one<EXP_SZ, SFD_SZ>(u1:0)))
-    if j[0:1]
-    else (j, fraction);
+    if j[0:1] {
+      (j + u3:1,
+       apfloat_sub_2::apfloat_sub_2(fraction, apfloat::one<EXP_SZ, SFD_SZ>(u1:0)))
+    } else {
+      (j, fraction)
+    };
 
   // Multiply fractional part by PI/4
   let fraction = apfloat_mul_2::apfloat_mul_2(fraction, pi_div_4);
 
-  (j, fraction) if reduction_needed
-                else (u3:0, x)
+  if reduction_needed { (j, fraction) }
+  else { (u3:0, x) }
 }
 
 pub fn fp_trig_reduce_64(x: F64) -> (u3, F64) {

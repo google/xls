@@ -67,6 +67,11 @@ absl::StatusOr<Token> TokenParser::PopTokenOrError(TokenKind target,
   if (start == nullptr) {
     msg = absl::StrFormat("Expected '%s', got '%s'", TokenKindToString(target),
                           tok->ToErrorString());
+    if (tok->IsKeyword(Keyword::kIf)) {
+      msg +=
+          " :: note that conditional syntax is `if test_expr { then_expr } "
+          "else { else_expr }`";
+    }
   } else {
     msg = absl::StrFormat(
         "Expected '%s' for construct starting with '%s' @ %s, got '%s'",

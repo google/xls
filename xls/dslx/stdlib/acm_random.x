@@ -38,7 +38,7 @@ pub fn rng_next(s: State) -> (State, u32) {
   const A = u64:16807;
   let product = (s.seed as u64) * A;
   let new_seed = ((product >> u64:31) + (product & (M as u64))) as u32;
-  let new_seed = new_seed - M if std::sgt(new_seed, M) else new_seed;
+  let new_seed = if std::sgt(new_seed, M) { new_seed - M } else { new_seed };
   (State{seed: new_seed}, new_seed)
 }
 

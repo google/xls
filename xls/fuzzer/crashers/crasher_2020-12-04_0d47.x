@@ -153,7 +153,7 @@ fn main(x0: u1) -> (u1, u1, x21[0x4]) {
   let x3: u1 = (x1) >> (x0);
   let x4: u1 = ((x1) != (u1:0x0)) && ((x3) != (u1:0x0));
   let x5: u1 = -(x1);
-  let x6: u1 = (x5) << ((u1:0x0) if ((((x2) as u1)) >= (u1:0x0)) else (((x2) as u1)));
+  let x6: u1 = (x5) << (if ((((x2) as u1)) >= (u1:0x0)) { (u1:0x0) } else { (((x2) as u1)) });
   let x7: u3 = ((x2) ++ (x3)) ++ (x6);
   let x8: x9[0x1] = ((x7) as x9[0x1]);
   let x10: u3 = clz(x7);

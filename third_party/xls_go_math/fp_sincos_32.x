@@ -211,22 +211,17 @@ pub fn fp_sincos_32(x: F32) -> (F32, F32) {
   let (j, z) = fp_trig_reduce::fp_trig_reduce_32(x);
 
   // Reflect across x axis.
-  let (j,
-       sin_sign,
-       cos_sign) =
-           (j - u3:4,
-            !sin_sign,
-            !cos_sign)
-       if (j > u3:3)
-       else
-            (j,
-             sin_sign,
-             cos_sign);
+  let (j, sin_sign, cos_sign) =
+       if j > u3:3 {
+         (j - u3:4, !sin_sign, !cos_sign)
+       } else {
+         (j, sin_sign, cos_sign)
+       };
 
   // Adjust cos sign across y axis.
-  let cos_sign = !cos_sign
-              if (j > u3:1)
-              else cos_sign;
+  let cos_sign =
+              if (j > u3:1) { !cos_sign }
+              else { cos_sign };
 
   let z_sq = fpmul_2x32::fpmul_2x32(z, z);
   let cos = cos_taylor(z_sq);
@@ -234,26 +229,26 @@ pub fn fp_sincos_32(x: F32) -> (F32, F32) {
   // Swap sin and cos if, after trig reduction and
   // reflection across the x-axis, x is in the range
   // [PI/4, 3*PI/4).
-  let (sin, cos) = (cos, sin)
-                 if (j == u3:1 || j == u3:2)
-                 else (sin, cos);
+  let (sin, cos) =
+                 if (j == u3:1 || j == u3:2) { (cos, sin) }
+                 else { (sin, cos) };
 
-  let cos = F32{sign: !cos.sign, ..cos} if cos_sign
-                                        else cos;
+  let cos = if cos_sign { F32{sign: !cos.sign, ..cos} }
+            else { cos };
 
-  let sin = F32{sign: !sin.sign, ..sin} if sin_sign
-                                        else sin;
+  let sin =  if sin_sign { F32{sign: !sin.sign, ..sin} }
+             else { sin };
   let result = (sin, cos);
 
   // Special cases.
   // x == +/-inf, NaN --> NaN
-  let result = (float32::qnan(), float32::qnan())
-            if (float32::is_nan(x) || float32::is_inf(x))
-            else result;
+  let result =
+            if (float32::is_nan(x) || float32::is_inf(x)) { (float32::qnan(), float32::qnan()) }
+            else { result };
   // x == 0
-  let result = (x_in_w_flush, float32::one(u1:0))
-            if (float32::is_zero_or_subnormal(x))
-            else result;
+  let result =
+            if (float32::is_zero_or_subnormal(x)) { (x_in_w_flush, float32::one(u1:0)) }
+            else { result };
   result
 }
 

@@ -155,10 +155,10 @@ fn main(x0: x1[W4_V9], x2: u5, x3: s18, x4: u51, x5: u30, x6: u58) -> (bool, x16
   let x8: u62 = (((x3) as u62)) + (x7);
   let x9: bool = (x7)[x8+:bool];
   let x10: bool = (x9)[0:];
-  let x11: bool = (x9) << ((u58:18) if ((x6) >= (u58:18)) else (x6));
+  let x11: bool = (x9) << (if ((x6) >= (u58:18)) { (u58:18) } else { (x6) });
   let x13: x12[1] = [x10];
   let x14: u5 = rev(x2);
-  let x15: x12 = (x13)[(u30:0) if ((x5) >= (u30:0)) else (x5)];
+  let x15: x12 = (x13)[if ((x5) >= (u30:0)) { (u30:0) } else { (x5) }];
   let x17: x16[4] = [x4, x4, x4, x4];
   let x18: bool = (x4) != (((x6) as u51));
   let x19: bool = and_reduce(x5);

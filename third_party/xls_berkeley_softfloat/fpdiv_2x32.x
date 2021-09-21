@@ -51,8 +51,8 @@ pub fn fpdiv_2x32(x: F32, y: F32) -> F32 {
   let y_fraction = (y.fraction as u64) | u64:0x80_0000;
 
   // 1a. Flush subnorms to 0.
-  let x_fraction = u64:0 if x.bexp == u8:0 else x_fraction;
-  let y_fraction = u64:0 if y.bexp == u8:0 else y_fraction;
+  let x_fraction = if x.bexp == u8:0 { u64:0 } else { x_fraction };
+  let y_fraction = if y.bexp == u8:0 { u64:0 } else { y_fraction };
 
   // 2. Subtract non-biased exponents.
   //  - Remove the bias from the exponents, subtract them, then restore the bias.
@@ -63,8 +63,8 @@ pub fn fpdiv_2x32(x: F32, y: F32) -> F32 {
   let exp = (x.bexp as s10) - (y.bexp as s10) + s10:0x7f;
 
   // 3. Shift numerator and adjust exponent.
-  let exp = exp - s10:1 if x_fraction < y_fraction else exp;
-  let x_fraction = x_fraction << u64:31 if x_fraction < y_fraction else x_fraction << u64:30;
+  let exp = if x_fraction < y_fraction { exp - s10:1 } else { exp };
+  let x_fraction = if x_fraction < y_fraction { x_fraction << u64:31 } else { x_fraction << u64:30 };
 
   // 4. Divide integer mantissas.
   let fraction = std::iterative_div(x_fraction, y_fraction) as u32;
@@ -73,7 +73,7 @@ pub fn fpdiv_2x32(x: F32, y: F32) -> F32 {
   let fraction_has_bit_in_six_lsbs = fraction[0:6] != u6:0;
   let remainder_detected = (y_fraction * fraction as u64) != x_fraction;
   let set_fraction_lsb = !fraction_has_bit_in_six_lsbs && remainder_detected;
-  let fraction = fraction | u32:1 if set_fraction_lsb else fraction;
+  let fraction = if set_fraction_lsb { fraction | u32:1 } else { fraction };
 
   // 6. Check rounding conditions.
   // We use nearest, half to even rounding.
@@ -91,11 +91,11 @@ pub fn fpdiv_2x32(x: F32, y: F32) -> F32 {
   let fraction = (fraction >> u32:7) as u23;
   let fraction = fraction as u24;
   let do_round_up = greater_than_half_way || (is_half_way & fraction[0:1]);
-  let fraction = fraction + u24:1 if do_round_up else fraction;
+  let fraction = if do_round_up { fraction + u24:1 } else { fraction };
 
   // Adjust the exponent if we overflowed during rounding.
   // After checking for subnormals, we don't need the sign bit anymore.
-  let exp = exp + s10:1 if fraction[-1:] else exp;
+  let exp = if fraction[-1:] { exp + s10:1 } else { exp };
   let is_subnormal = exp <= s10:0;
 
   // We're done - except for special cases...
@@ -105,28 +105,28 @@ pub fn fpdiv_2x32(x: F32, y: F32) -> F32 {
 
   // 6. Special cases!
   // - Subnormals: flush to 0.
-  let result_exp = u9:0 if is_subnormal else result_exp;
-  let result_fraction = u23:0 if is_subnormal else result_fraction;
+  let result_exp = if is_subnormal { u9:0 } else { result_exp };
+  let result_fraction = if is_subnormal { u23:0 } else { result_fraction };
 
   // - Overflow infinites. Exp to 255, clear fraction.
-  let result_fraction = result_fraction if result_exp < u9:0xff else u23:0;
-  let result_exp = result_exp as u8 if result_exp < u9:0xff else u8:0xff;
+  let result_fraction = if result_exp < u9:0xff { result_fraction } else { u23:0} ;
+  let result_exp = if result_exp < u9:0xff { result_exp as u8 } else { u8:0xff };
 
   // - If the denominator is 0 or the numerator is infinity,
   // the result is infinity.
   let divide_by_zero = is_zero(y);
   let divide_inf = float32::is_inf(x);
   let is_result_inf = divide_by_zero || divide_inf;
-  let result_exp = u8:0xff if is_result_inf else result_exp;
-  let result_fraction = u23:0 if is_result_inf else result_fraction;
+  let result_exp = if is_result_inf { u8:0xff } else { result_exp };
+  let result_fraction = if is_result_inf { u23:0 } else { result_fraction };
 
   // - If the numerator is 0 or the denominator is infinity,
   // the result is 0.
   let divide_by_inf = float32::is_inf(y);
   let divide_zero = is_zero(x);
   let is_result_zero = divide_by_inf || divide_zero;
-  let result_exp = u8:0 if is_result_zero else result_exp;
-  let result_fraction = u23:0 if is_result_zero else result_fraction;
+  let result_exp = if is_result_zero { u8:0 } else { result_exp };
+  let result_fraction = if is_result_zero { u23:0 } else { result_fraction };
 
   // Preliminary result until we check for NaN output.
   let result = F32 { sign: result_sign, bexp: result_exp, fraction: result_fraction };
@@ -138,7 +138,7 @@ pub fn fpdiv_2x32(x: F32, y: F32) -> F32 {
   let zero_divides_zero = is_zero(x) && is_zero(y);
   let inf_divides_inf = float32::is_inf(x) && float32::is_inf(y);
   let is_result_nan = has_nan_arg || zero_divides_zero || inf_divides_inf;
-  let result = float32::qnan() if is_result_nan else result;
+  let result = if is_result_nan { float32::qnan() } else { result };
 
   result
 }

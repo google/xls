@@ -177,7 +177,7 @@ fn x40(x41: x10) -> (x10, (x10,)) {
 }
 fn main(x0: s34, x1: x2[W3_V6], x3: u40, x4: (s3,), x5: s17) -> ((s3,), u41, u40, u41, x2) {
   let x6: u40 = bit_slice_update(x3, x3, x3);
-  let x7: x2 = (x1)[(u40:1) if ((x3) >= (u40:1)) else (x3)];
+  let x7: x2 = (x1)[if ((x3) >= (u40:1)) { (u40:1) } else { (x3) }];
   let x8: s17 = -(x5);
   let x9: bool = (x8) <= (x5);
   let x11: x10[2] = [x5, x8];
@@ -185,20 +185,20 @@ fn main(x0: s34, x1: x2[W3_V6], x3: u40, x4: (s3,), x5: s17) -> ((s3,), u41, u40
   let x13: x2 = for (i, x): (u4, x2) in range(u4:0, u4:5) {
     x
   }(x7);
-  let x14: x2[W3_V6] = update(x1, (u40:5) if ((x3) >= (u40:5)) else (x3), x7);
+  let x14: x2[W3_V6] = update(x1, if ((x3) >= (u40:5)) { (u40:5) } else { (x3) }, x7);
   let x15: u41 = u41:0xff_ffff_ffff;
   let x16: u40 = x6;
   let x17: u41 = one_hot(x16, bool:true);
   let x18: u40 = (x6) & (x3);
   let x19: u40 = rev(x16);
   let x28: x27[6] = map(x1, x20);
-  let x29: x2[W3_V6] = update(x14, (u40:4) if ((x18) >= (u40:4)) else (x18), x7);
+  let x29: x2[W3_V6] = update(x14, if ((x18) >= (u40:4)) { (u40:4) } else {(x18)}, x7);
   let x30: u41 = rev(x15);
   let x31: u41 = (x15) + (((x8) as u41));
   let x32: s17 = (x5) | (x8);
   let x33: u40 = !(x3);
   let x34: (s17, x2[W3_V6], u40, s17) = (x5, x1, x18, x8);
-  let x35: x2 = (x1)[(u41:2) if ((x30) >= (u41:2)) else (x30)];
+  let x35: x2 = (x1)[if ((x30) >= (u41:2)) { (u41:2) } else { (x30) }];
   let x36: u41 = (x31) & (((x19) as u41));
   let x37: u41 = (x36) ^ (((x32) as u41));
   let x39: x38[1] = [x19];

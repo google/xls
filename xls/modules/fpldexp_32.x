@@ -48,27 +48,29 @@ pub fn fpldexp_32(fraction: F32, exp: s32) -> F32 {
                     fraction: fraction.fraction };
 
   // Handle overflow.
-  let result = float32::inf(fraction.sign) if exp > max_exponent
-                                         else result;
+  let result = if exp > max_exponent { float32::inf(fraction.sign) }
+               else { result };
 
   // Hanlde underflow, taking into account the case that underflow
   // rounds back up to a normal number.
   // If this was not a DAZ module, we'd have to deal
   // with denormal 'result' here.
-  let underflow_result = F32{sign: fraction.sign, bexp: u8:1, fraction: u23:0}
-    if (exp == (min_exponent - s33:1)) && (fraction.fraction == std::mask_bits<u32:23>())
-    else float32::zero(fraction.sign);
-  let result = underflow_result if exp < min_exponent
-                                          else result;
+  let underflow_result =
+    if exp == (min_exponent - s33:1) && fraction.fraction == std::mask_bits<u32:23>() {
+      F32{sign: fraction.sign, bexp: u8:1, fraction: u23:0}
+    } else {
+      float32::zero(fraction.sign)
+    };
+  let result = if exp < min_exponent { underflow_result }
+               else { result };
   // Flush subnormal output.
   let result = float32::subnormals_to_zero(result);
 
   // Handle special cases.
-  let result = fraction if ( float32::is_zero_or_subnormal(fraction)
-                         || float32::is_inf(fraction) )
-                    else result;
-  let result = float32::qnan() if float32::is_nan(fraction)
-                               else result;
+  let result = if float32::is_zero_or_subnormal(fraction) || float32::is_inf(fraction) { fraction }
+               else { result };
+  let result = if float32::is_nan(fraction) { float32::qnan() }
+               else { result };
   result
 }
 
@@ -151,4 +153,3 @@ fn fpldexp_32_test() {
 
   ()
 }
-

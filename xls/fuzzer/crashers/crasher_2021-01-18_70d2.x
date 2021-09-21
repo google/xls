@@ -166,7 +166,7 @@ fn main(x0: s53) -> (bool, s53, (s53, s53), u1, s53, s53, u1, s53, u1, (s53, s53
   let x16: s53 = (x11)[0x1];
   let x17: s53 = -(x15);
   let x18: x19[W32_V1] = ((x10) as x19[W32_V1]);
-  let x20: bool = (x5) >> ((bool:false) if ((((x8) as bool)) >= (bool:false)) else (((x8) as bool)));
+  let x20: bool = (x5) >> (if ((((x8) as bool)) >= (bool:false)) { (bool:false) } else { (((x8) as bool)) });
   let x21: u1 = (x14)[:];
   (x5, x17, x2, x3, x0, x0, x10, x0, x4, x2)
 }

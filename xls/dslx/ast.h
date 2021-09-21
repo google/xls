@@ -1114,10 +1114,7 @@ class Ternary : public Expr {
   void AcceptExpr(ExprVisitor* v) override { v->HandleTernary(this); }
 
   absl::string_view GetNodeTypeName() const override { return "Ternary"; }
-  std::string ToString() const override {
-    return absl::StrFormat("(%s) if (%s) else (%s)", consequent_->ToString(),
-                           test_->ToString(), alternate_->ToString());
-  }
+  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {test_, consequent_, alternate_};

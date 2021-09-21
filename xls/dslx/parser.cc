@@ -317,17 +317,23 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings* bindings) {
 }
 
 absl::StatusOr<Expr*> Parser::ParseTernaryExpression(Bindings* bindings) {
-  XLS_ASSIGN_OR_RETURN(Expr * lhs, ParseLogicalOrExpression(bindings));
   XLS_ASSIGN_OR_RETURN(absl::optional<Token> if_, TryPopKeyword(Keyword::kIf));
   if (if_.has_value()) {  // Ternary
-    Expr* consequent = lhs;
     XLS_ASSIGN_OR_RETURN(Expr * test, ParseExpression(bindings));
+    XLS_VLOG(5) << "test: " << test->ToString();
+    XLS_RETURN_IF_ERROR(
+        DropTokenOrError(TokenKind::kOBrace, /*start=*/nullptr,
+                         "Opening brace for 'if' (ternary) expression."));
+    XLS_ASSIGN_OR_RETURN(Expr * consequent, ParseExpression(bindings));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
     XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kElse));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
     XLS_ASSIGN_OR_RETURN(Expr * alternate, ParseExpression(bindings));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
     return module_->Make<Ternary>(Span(if_->span().start(), GetPos()), test,
                                   consequent, alternate);
   }
-  return lhs;
+  return ParseLogicalOrExpression(bindings);
 }
 
 absl::StatusOr<TypeDef*> Parser::ParseTypeDefinition(bool is_public,
@@ -615,6 +621,7 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstance(
 
 absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings* bindings,
                                                   TypeAnnotation* type) {
+  XLS_VLOG(5) << "Parsing struct instance";
   if (type == nullptr) {
     XLS_ASSIGN_OR_RETURN(type, ParseTypeAnnotation(bindings));
   }
@@ -836,6 +843,7 @@ absl::StatusOr<Expr*> Parser::ParseBinopChain(
         target_tokens) {
   XLS_ASSIGN_OR_RETURN(Expr * lhs, sub_production());
   while (true) {
+    XLS_VLOG(5) << "Binop chain lhs: " << lhs->ToString();
     bool peek_in_targets;
     if (absl::holds_alternative<absl::Span<TokenKind const>>(target_tokens)) {
       XLS_ASSIGN_OR_RETURN(
@@ -856,14 +864,19 @@ absl::StatusOr<Expr*> Parser::ParseBinopChain(
       break;
     }
   }
+  XLS_VLOG(5) << "Binop chain result: " << lhs->ToString();
   return lhs;
 }
 
 absl::StatusOr<Expr*> Parser::ParseComparisonExpression(Bindings* bindings) {
+  XLS_VLOG(5) << "ParseComparisonExpression; start";
   XLS_ASSIGN_OR_RETURN(Expr * lhs, ParseOrExpression(bindings));
   while (true) {
+    XLS_VLOG(5) << "ParseComparisonExpression; lhs: " << lhs->ToString()
+                << " peek: " << PeekToken().value()->ToString();
     XLS_ASSIGN_OR_RETURN(bool peek_in_targets, PeekTokenIn(kComparisonKinds));
     if (!peek_in_targets) {
+      XLS_VLOG(5) << "Peek is not in comparison kinds.";
       break;
     }
 
@@ -871,6 +884,7 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(Bindings* bindings) {
     auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
     Token op = PopTokenOrDie();
     auto status_or_rhs = ParseOrExpression(txn.bindings());
+    XLS_VLOG(5) << "rhs status: " << status_or_rhs.status();
     if (status_or_rhs.ok()) {
       XLS_ASSIGN_OR_RETURN(BinopKind kind,
                            BinopKindFromString(TokenKindToString(op.kind())));
@@ -880,6 +894,7 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(Bindings* bindings) {
       break;
     }
   }
+  XLS_VLOG(5) << "ParseComparisonExpression; result: " << lhs->ToString();
   return lhs;
 }
 
@@ -1193,7 +1208,18 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
         XLS_ASSIGN_OR_RETURN(
             TypeAnnotation * type,
             MakeTypeRefTypeAnnotation(colon_ref->span(), type_ref, {}, {}));
-        return ParseStructInstance(outer_bindings, type);
+        Transaction inner_txn(this, outer_bindings);
+        auto cleanup =
+            absl::MakeCleanup([&inner_txn]() { inner_txn.Rollback(); });
+        // We see a brace after our colon-ref, and that could be a struct
+        // identifier to instantiate -- see if we can parse a struct instance
+        // here. If not, we fall back to just the colon-ref.
+        auto statusor = ParseStructInstance(outer_bindings, type);
+        if (statusor.ok()) {
+          inner_txn.CommitAndCancelCleanup(&cleanup);
+          return statusor.value();
+        }
+        return colon_ref;
       }
     }
     lhs = ToExprNode(nocr);
@@ -1235,6 +1261,8 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     XLS_ASSIGN_OR_RETURN(lhs, ParseMatch(outer_bindings));
   } else if (peek->kind() == TokenKind::kOBrack) {  // Array expression.
     XLS_ASSIGN_OR_RETURN(lhs, ParseArray(outer_bindings));
+  } else if (peek->IsKeyword(Keyword::kIf)) {  // Ternary expression.
+    XLS_ASSIGN_OR_RETURN(lhs, ParseTernaryExpression(outer_bindings));
   } else {
     return ParseErrorStatus(
         peek->span(),

@@ -629,8 +629,44 @@ TEST_F(ParserTest, ForFreevars) {
 }
 
 TEST_F(ParserTest, Ternary) {
-  RoundTripExpr("u32:42 if true else u32:24", {},
-                "(u32:42) if (true) else (u32:24)");
+  RoundTripExpr("if true { u32:42 } else { u32:24 }", {});
+
+  RoundTripExpr(R"(if really_long_identifier_so_that_this_is_too_many_chars {
+  u32:42
+} else {
+  u32:24
+})",
+                {"really_long_identifier_so_that_this_is_too_many_chars"});
+}
+
+TEST_F(ParserTest, TernaryWithComparisonTest) {
+  RoundTripExpr("if a <= b { u32:42 } else { u32:24 }", {"a", "b"},
+                "if (a) <= (b) { u32:42 } else { u32:24 }");
+}
+
+TEST_F(ParserTest, TernaryWithComparisonToColonRefTest) {
+  RoundTripExpr("if a <= m::b { u32:42 } else { u32:24 }", {"a", "m"},
+                "if (a) <= (m::b) { u32:42 } else { u32:24 }");
+}
+
+TEST_F(ParserTest, TernaryWithOrExpressionTest) {
+  RoundTripExpr("if a || b { u32:42 } else { u32:24 }", {"a", "b"},
+                "if (a) || (b) { u32:42 } else { u32:24 }");
+}
+
+TEST_F(ParserTest, TernaryWithComparisonStructInstanceTest) {
+  RoundTrip(R"(struct MyStruct {
+  x: u32
+}
+fn f(a: MyStruct) -> u32 {
+  if a.x <= MyStruct { x: u32:42 }.x { u32:42 } else { u32:24 }
+})",
+            /*target=*/R"(struct MyStruct {
+  x: u32,
+}
+fn f(a: MyStruct) -> u32 {
+  if (a.x) <= (MyStruct { x: u32:42 }.x) { u32:42 } else { u32:24 }
+})");
 }
 
 TEST_F(ParserTest, ConstantArray) {

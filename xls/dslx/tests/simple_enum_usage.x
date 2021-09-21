@@ -18,7 +18,7 @@ enum Foo : u32 {
 }
 
 fn f(x: Foo) -> Foo {
-  Foo::B if x == Foo::A else Foo::A
+  if x == Foo::A { Foo::B } else { Foo::A }
 }
 
 #![test]

@@ -63,8 +63,8 @@ pub fn apfloat_mul_2<
   let y_fraction = (y.fraction as uN[WIDE_FRACTION]) | (uN[WIDE_FRACTION]:1 << (FRACTION_SZ as uN[WIDE_FRACTION]));
 
   // 1a. Flush subnorms to 0.
-  let x_fraction = uN[WIDE_FRACTION]:0 if x.bexp == uN[EXP_SZ]:0 else x_fraction;
-  let y_fraction = uN[WIDE_FRACTION]:0 if y.bexp == uN[EXP_SZ]:0 else y_fraction;
+  let x_fraction = if x.bexp == uN[EXP_SZ]:0 { uN[WIDE_FRACTION]:0 } else { x_fraction };
+  let y_fraction = if y.bexp == uN[EXP_SZ]:0 { uN[WIDE_FRACTION]:0 } else { y_fraction };
 
   // 2. Multiply integer mantissas.
   let fraction = x_fraction * y_fraction;
@@ -85,7 +85,7 @@ pub fn apfloat_mul_2<
   // to capture that "extra" exponent.
   // Since we just flush subnormals, we don't have to do any of that.
   // Instead, if we're multiplying by 0, the result is 0.
-  let exp = sN[SIGNED_EXP]:0 if is_zero(x) || is_zero(y) else exp;
+  let exp = if is_zero(x) || is_zero(y) { sN[SIGNED_EXP]:0 } else { exp };
 
   // 4. Normalize. Adjust the fraction until our leading 1 is
   // bit 47 (the first past the 46 bits of actual fraction).
@@ -112,7 +112,7 @@ pub fn apfloat_mul_2<
   // above, but it's easier to understand (and comment) if separated, and the
   // optimizer will clean it up anyway.
   let sticky = fraction[0:1] as uN[WIDE_FRACTION];
-  let fraction = fraction >> uN[WIDE_FRACTION]:1 if exp <= sN[SIGNED_EXP]:0 else fraction;
+  let fraction = if exp <= sN[SIGNED_EXP]:0 { fraction >> uN[WIDE_FRACTION]:1 } else { fraction };
   let fraction = fraction | sticky;
 
   // 5. Round - we use nearest, half to even rounding.
@@ -137,11 +137,11 @@ pub fn apfloat_mul_2<
   // bit for potential rounding overflow.
   let fraction = (fraction >> (FRACTION_SZ as uN[WIDE_FRACTION])) as uN[FRACTION_SZ];
   let fraction = fraction as uN[ROUNDING_FRACTION];
-  let fraction = fraction + uN[ROUNDING_FRACTION]:1 if do_round_up else fraction;
+  let fraction = if do_round_up { fraction + uN[ROUNDING_FRACTION]:1 } else { fraction };
 
   // Adjust the exponent if we overflowed during rounding.
   // After checking for subnormals, we don't need the sign bit anymore.
-  let exp = exp + sN[SIGNED_EXP]:1 if fraction[-1:] else exp;
+  let exp = if fraction[-1:] { exp + sN[SIGNED_EXP]:1 } else { exp };
   let is_subnormal = exp <= sN[SIGNED_EXP]:0;
 
   // We're done - except for special cases...
@@ -151,19 +151,19 @@ pub fn apfloat_mul_2<
 
   // 6. Special cases!
   // - Subnormals: flush to 0.
-  let result_exp = uN[WIDE_EXP]:0 if is_subnormal else result_exp;
-  let result_fraction = uN[FRACTION_SZ]:0 if is_subnormal else result_fraction;
+  let result_exp = if is_subnormal { uN[WIDE_EXP]:0 } else { result_exp };
+  let result_fraction = if is_subnormal { uN[FRACTION_SZ]:0 } else { result_fraction };
 
   // - Overflow infinites - saturate exp, clear fraction.
   let high_exp = std::mask_bits<EXP_SZ>();
-  let result_fraction = result_fraction if result_exp < (high_exp as uN[WIDE_EXP]) else uN[FRACTION_SZ]:0;
-  let result_exp = result_exp as uN[EXP_SZ] if result_exp < (high_exp as uN[WIDE_EXP]) else high_exp;
+  let result_fraction = if result_exp < (high_exp as uN[WIDE_EXP]) { result_fraction } else { uN[FRACTION_SZ]:0 };
+  let result_exp = if result_exp < (high_exp as uN[WIDE_EXP]) { result_exp as uN[EXP_SZ] } else { high_exp };
 
   // - Arg infinites. Any arg is infinite == result is infinite.
   let is_operand_inf = apfloat::is_inf<EXP_SZ, FRACTION_SZ>(x) ||
       apfloat::is_inf<EXP_SZ, FRACTION_SZ>(y);
-  let result_exp = high_exp if is_operand_inf else result_exp;
-  let result_fraction = uN[FRACTION_SZ]:0 if is_operand_inf else result_fraction;
+  let result_exp = if is_operand_inf { high_exp } else { result_exp };
+  let result_fraction = if is_operand_inf { uN[FRACTION_SZ]:0 } else { result_fraction };
 
   // - NaNs. NaN trumps infinities, so we handle it last.
   //   inf * 0 = NaN, i.e.,
@@ -173,10 +173,10 @@ pub fn apfloat_mul_2<
   let has_inf_arg = apfloat::is_inf<EXP_SZ, FRACTION_SZ>(x) ||
       apfloat::is_inf<EXP_SZ, FRACTION_SZ>(y);
   let is_result_nan = has_nan_arg || (has_0_arg && has_inf_arg);
-  let result_exp = high_exp if is_result_nan else result_exp;
+  let result_exp = if is_result_nan { high_exp } else { result_exp };
   let nan_fraction = uN[FRACTION_SZ]:1 << (FRACTION_SZ as uN[FRACTION_SZ] - uN[FRACTION_SZ]:1);
-  let result_fraction = nan_fraction if is_result_nan else result_fraction;
-  let result_sign = u1:0 if is_result_nan else result_sign;
+  let result_fraction = if is_result_nan { nan_fraction } else { result_fraction };
+  let result_sign = if is_result_nan { u1:0 } else { result_sign };
 
   APFloat<EXP_SZ, FRACTION_SZ>{
       sign: result_sign, bexp: result_exp, fraction: result_fraction }

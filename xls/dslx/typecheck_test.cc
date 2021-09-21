@@ -612,7 +612,7 @@ TEST(TypecheckTest, TernaryNonBoolean) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u32) -> u32 {
-  u32:42 if x else u32:64
+  if x { u32:42 } else { u32:64 }
 }
 )"),
       StatusIs(

@@ -502,12 +502,12 @@ fn run_b_instruction(pc: u32,
   let pc4 = pc + u32:4;
   let pc_imm = pc + signex(imm12 ++ u1:0, u32:0);
   let new_pc = match funct3 {
-     BEQ  => pc_imm if (regs[rs1] as s32) == (regs[rs2] as s32) else pc4,
-     BNE  => pc_imm if (regs[rs1] as s32) != (regs[rs2] as s32) else pc4,
-     BLT  => pc_imm if (regs[rs1] as s32) <  (regs[rs2] as s32) else pc4,
-     BGE  => pc_imm if (regs[rs1] as s32) >= (regs[rs2] as s32) else pc4,
-     BLTU => pc_imm if regs[rs1] < regs[rs2] else pc4,
-     BGEU => pc_imm if regs[rs1] >= regs[rs2] else pc4,
+     BEQ  => if (regs[rs1] as s32) == (regs[rs2] as s32) { pc_imm } else { pc4 },
+     BNE  => if (regs[rs1] as s32) != (regs[rs2] as s32) { pc_imm } else { pc4 },
+     BLT  => if (regs[rs1] as s32) <  (regs[rs2] as s32) { pc_imm } else { pc4 },
+     BGE  => if (regs[rs1] as s32) >= (regs[rs2] as s32) { pc_imm } else { pc4 },
+     BLTU => if regs[rs1] < regs[rs2] { pc_imm } else { pc4 },
+     BGEU => if regs[rs1] >= regs[rs2] { pc_imm } else { pc4 },
      _    => fail!(u32:0)
   };
   (new_pc, regs, dmem)

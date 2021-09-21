@@ -174,30 +174,26 @@ pub fn fpexp_32(x: F32) -> F32 {
   let result = expmulti(hi, lo, k);
 
   // Handle underflow.
-  let result = float32::zero(u1:0)
-               if ((float32::is_nan(result)
-                      || float32::is_inf(result))
-                   && x.sign)
-               else result;
+  let result =
+    if ((float32::is_nan(result) || float32::is_inf(result)) && x.sign) {
+      float32::zero(u1:0)
+    } else {
+      result
+    };
   // Handle overflow.
-  let result = float32::inf(u1:0)
-               if (float32::is_nan(result)
-                   && !x.sign)
-               else result;
+  let result = if (float32::is_nan(result) && !x.sign) { float32::inf(u1:0) }
+               else { result };
 
   // Special cases.
   // exp(NaN) -> NaN
-  let result = float32::qnan()
-              if float32::is_nan(x)
-              else result;
+  let result = if float32::is_nan(x) { float32::qnan() }
+               else { result };
   // exp(Inf) -> Inf
-  let result = x
-              if (float32::is_inf(x) && x.sign == u1:0)
-              else result;
+  let result = if (float32::is_inf(x) && x.sign == u1:0) { x }
+               else { result };
   // exp(-Inf) -> 0
-  let result = ZERO
-              if (float32::is_inf(x) && x.sign == u1:1)
-              else result;
+  let result = if (float32::is_inf(x) && x.sign == u1:1) { ZERO }
+               else { result };
   result
 }
 

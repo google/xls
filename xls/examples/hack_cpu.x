@@ -166,7 +166,7 @@ fn run_a_test() {
 }
 
 fn z_bit(z: u1, v: u16) -> u16 {
-  u16:0 if z else v
+  if z { u16:0 } else { v }
 }
 
 #![test]
@@ -179,7 +179,7 @@ fn z_bit_test() {
 }
 
 fn n_bit(n: u1, v: u16) -> u16 {
-  !v if n else v
+  if n { !v } else { v }
 }
 
 #![test]
@@ -199,8 +199,8 @@ fn alu(x: u16, y:u16, c:u6) -> (u16, u1, u1) {
   let y'' = n_bit(ny, y');
   let sum: u16 = (x'' + y'');
   let and: u16 = x'' & y'';
-  let output: u16 = sum if f else and;
-  let output': u16 = !output if no else output;
+  let output: u16 = if f { sum } else { and };
+  let output': u16 = if no { !output } else { output };
   let zr = (output' == u16:0);
   let ng = (output' as s16 < s16:0);
   (output', zr, ng)
@@ -227,13 +227,13 @@ fn run_c_instruction(pc: u16, ins: u16, rd: u16, ra: u16, rm: u16) -> (u16, u16,
   let (comp, dest, jump) = decode_c_instruction(ins);
   let x = rd;
   let a = comp[6+:u1];
-  let y = rm if a else ra;
+  let y = if a { rm } else { ra };
   let (output, zr, ng) = alu(x, y, comp[0+:u6]);
-  let rd' = output if (dest & DEST_D) == DEST_D else rd;
-  let ra' = output if (dest & DEST_A) == DEST_A else ra;
-  let (rm', wm) = (output, u1:1) if (dest & DEST_M) == DEST_M else (rm, u1:0);
+  let rd' = if (dest & DEST_D) == DEST_D { output } else { rd };
+  let ra' = if (dest & DEST_A) == DEST_A { output } else { ra };
+  let (rm', wm) = if (dest & DEST_M) == DEST_M { (output, u1:1) } else { (rm, u1:0) };
   let flags: u3 = ng ++ zr ++ !ng;
-  let pc' = ra' if (jump & flags) != u3:0 else pc + u16:1;
+  let pc' = if (jump & flags) != u3:0 { ra' } else { pc + u16:1 };
   (pc', rd', ra', rm', wm)
 }
 
@@ -269,7 +269,7 @@ fn cpu(pc: u16, rd: u16, ra: u16, ram: u16[32], rom: u16[32]) -> (u16, u16, u16,
     u1:1 => run_c_instruction(pc, ins, rd, ra, rm),
     _ => fail!((pc, rd, ra, rm, u1:0)),
   };
-  (pc', rd', ra', update(ram, ra', rm') if wm else ram)
+  (pc', rd', ra', if wm { update(ram, ra', rm') } else { ram })
 }
 
 #![test]

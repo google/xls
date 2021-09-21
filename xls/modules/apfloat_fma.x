@@ -66,20 +66,24 @@ fn mul_no_round<EXP_SZ: u32, FRACTION_SZ: u32,
   let b_fraction = (b.fraction as uN[WIDE_FRACTION]) | (uN[WIDE_FRACTION]:1 << FRACTION_SZ);
 
   // Flush subnorms.
-  let a_fraction = uN[WIDE_FRACTION]:0 if a.bexp == uN[EXP_SZ]:0 else a_fraction;
-  let b_fraction = uN[WIDE_FRACTION]:0 if b.bexp == uN[EXP_SZ]:0 else b_fraction;
+  let a_fraction = if a.bexp == uN[EXP_SZ]:0 { uN[WIDE_FRACTION]:0 } else { a_fraction };
+  let b_fraction = if b.bexp == uN[EXP_SZ]:0 { uN[WIDE_FRACTION]:0 } else { b_fraction };
   let fraction = a_fraction * b_fraction;
 
   // Normalize - shift left one place if the top bit is 0.
   let fraction_shift = fraction[-1:] as uN[WIDE_FRACTION];
-  let fraction = fraction << 1 if fraction_shift == uN[WIDE_FRACTION]:0 else fraction;
+  let fraction = if fraction_shift == uN[WIDE_FRACTION]:0 { fraction << 1 } else { fraction };
 
   // e.g., for floats, 0xff -> 0x7f, A.K.A. 127, the exponent bias.
   let bias = std::mask_bits<EXP_SZ>() as sN[EXP_SIGN_CARRY] >> 1;
   let bexp = (a.bexp as sN[EXP_SIGN_CARRY]) + (b.bexp as sN[EXP_SIGN_CARRY]) -
       bias + (fraction_shift as sN[EXP_SIGN_CARRY]);
-  let bexp = sN[EXP_SIGN_CARRY]:0
-      if a.bexp == bits[EXP_SZ]:0 || b.bexp == bits[EXP_SZ]:0 else bexp;
+  let bexp =
+      if a.bexp == bits[EXP_SZ]:0 || b.bexp == bits[EXP_SZ]:0 {
+        sN[EXP_SIGN_CARRY]:0
+      } else {
+        bexp
+      };
 
   // Note that we usually flush subnormals. Here, we preserve what we can for
   // compatability with reference implementations.
@@ -87,19 +91,23 @@ fn mul_no_round<EXP_SZ: u32, FRACTION_SZ: u32,
   // subnormal values (we flush them to 0).
   let is_subnormal = bexp <= sN[EXP_SIGN_CARRY]:0;
   let result_exp =
-      uN[EXP_CARRY]:0 if is_subnormal else bexp as uN[EXP_CARRY];
+      if is_subnormal { uN[EXP_CARRY]:0 } else { bexp as uN[EXP_CARRY] };
   let sub_exp = std::abs(bexp) as uN[EXP_CARRY];
-  let result_fraction = fraction >> sub_exp if is_subnormal else fraction;
+  let result_fraction = if is_subnormal { fraction >> sub_exp } else { fraction };
 
   // - Overflow infinites - saturate exp, clear fraction.
   let high_exp = std::mask_bits<EXP_CARRY>();
-  let result_fraction = result_fraction if result_exp < high_exp else uN[WIDE_FRACTION]:0;
-  let result_exp = result_exp as uN[EXP_CARRY] if result_exp < high_exp else high_exp;
+  let result_fraction = if result_exp < high_exp { result_fraction } else { uN[WIDE_FRACTION]:0 };
+  let result_exp = if result_exp < high_exp { result_exp as uN[EXP_CARRY] } else { high_exp };
 
   // - Arg infinites. Any arg is infinite == result is infinite.
   let is_operand_inf = apfloat::is_inf(a) || apfloat::is_inf(b);
-  let result_exp = high_exp if is_operand_inf else result_exp;
-  let result_fraction = uN[WIDE_FRACTION]:0 if is_operand_inf else result_fraction as uN[WIDE_FRACTION];
+  let result_exp = if is_operand_inf { high_exp } else { result_exp };
+  let result_fraction = if is_operand_inf {
+    uN[WIDE_FRACTION]:0
+  } else {
+    result_fraction as uN[WIDE_FRACTION]
+  };
 
   // - NaNs. NaN trumps infinities, so we handle it last.
   //   inf * 0 = NaN, i.e.,
@@ -107,12 +115,12 @@ fn mul_no_round<EXP_SZ: u32, FRACTION_SZ: u32,
   let has_nan_arg = apfloat::is_nan(a) || apfloat::is_nan(b);
   let has_inf_arg = apfloat::is_inf(a) || apfloat::is_inf(b);
   let is_result_nan = has_nan_arg || (has_0_arg && has_inf_arg);
-  let result_exp = high_exp if is_result_nan else result_exp;
+  let result_exp = if is_result_nan { high_exp } else { result_exp };
   let nan_fraction = uN[WIDE_FRACTION]:1 << (uN[WIDE_FRACTION]:1 - uN[WIDE_FRACTION]:1);
-  let result_fraction = nan_fraction if is_result_nan else result_fraction;
+  let result_fraction = if is_result_nan { nan_fraction } else { result_fraction };
 
   let result_sign = a.sign != b.sign;
-  let result_sign = u1:0 if is_result_nan else result_sign;
+  let result_sign = if is_result_nan { u1:0 } else { result_sign };
 
   Product { sign: result_sign, bexp: result_exp, fraction: result_fraction }
 }
@@ -145,14 +153,14 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32,
         c: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
   let ab = mul_no_round<EXP_SZ, FRACTION_SZ>(a, b);
 
-  let greater_exp = ab.bexp if ab.bexp > c.bexp as uN[EXP_CARRY] else
-      c.bexp as uN[EXP_CARRY];
-  let greater_sign = ab.sign if ab.bexp > c.bexp as uN[EXP_CARRY] else c.sign;
+  let greater_exp = if ab.bexp > c.bexp as uN[EXP_CARRY] { ab.bexp }
+                    else { c.bexp as uN[EXP_CARRY] };
+  let greater_sign = if ab.bexp > c.bexp as uN[EXP_CARRY] { ab.sign } else { c.sign };
 
   // Make the implicit '1' explicit and flush subnormal "c" to 0 (already
   // done for ab inside mul_no_round()).
   let wide_c = c.fraction as uN[WIDE_FRACTION] | (uN[WIDE_FRACTION]:1 << FRACTION_SZ);
-  let wide_c = uN[WIDE_FRACTION]:0 if c.bexp == uN[EXP_SZ]:0 else wide_c;
+  let wide_c = if c.bexp == uN[EXP_SZ]:0 { uN[WIDE_FRACTION]:0 } else { wide_c };
 
   // Align AB and C so that the implicit '1' is in the MSB.
   // For binary32: so shift by 73-48 for AB, and 73-24 for C.
@@ -172,7 +180,7 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32,
   let dropped_c =
       wide_c << ((WIDE_FRACTION as uN[EXP_CARRY] - rshift_c) as uN[WIDE_FRACTION]);
   let dropped_c =
-      wide_c if rshift_c >= (WIDE_FRACTION as uN[EXP_CARRY]) else dropped_c;
+      if rshift_c >= (WIDE_FRACTION as uN[EXP_CARRY]) { wide_c } else { dropped_c };
   let sticky_ab = (dropped_ab != uN[WIDE_FRACTION]:0) as uN[WIDE_FRACTION];
   let sticky_c = (dropped_c != uN[WIDE_FRACTION]:0) as uN[WIDE_FRACTION];
 
@@ -181,8 +189,8 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32,
   let shifted_c = (shifted_c | sticky_c) as sN[WIDE_FRACTION_SIGN_CARRY];
 
   // Set the operands' signs.
-  let shifted_ab = -shifted_ab if ab.sign != greater_sign else shifted_ab;
-  let shifted_c = -shifted_c if c.sign != greater_sign else shifted_c;
+  let shifted_ab = if ab.sign != greater_sign { -shifted_ab } else { shifted_ab };
+  let shifted_c = if c.sign != greater_sign { -shifted_c } else { shifted_c };
 
   // Addition!
   let sum_fraction = shifted_ab + shifted_c;
@@ -195,7 +203,8 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32,
 
   // Chop off the sign bit (after applying it, if necessary).
   let abs_fraction =
-      (-sum_fraction if sum_fraction < sN[WIDE_FRACTION_SIGN_CARRY]:0 else sum_fraction)
+      (if sum_fraction < sN[WIDE_FRACTION_SIGN_CARRY]:0 { -sum_fraction }
+       else { sum_fraction })
       as uN[WIDE_FRACTION_CARRY];
 
   // Normalize.
@@ -226,13 +235,15 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32,
   let half_of_extra =
       uN[WIDE_FRACTION_TOP_ROUNDING]:1 << (WIDE_FRACTION_LOW_BIT - u32:2);
   let do_round_up =
-      u1:1 if (normal_chunk > half_of_extra) | (half_way_chunk == u2:0x3)
-      else u1:0;
+      if (normal_chunk > half_of_extra) | (half_way_chunk == u2:0x3) { u1:1 }
+      else { u1:0 };
   let rounded_fraction =
-      shifted_fraction as uN[WIDE_FRACTION_CARRY] +
-          (uN[WIDE_FRACTION_CARRY]:1 << (WIDE_FRACTION_LOW_BIT - u32:1))
-      if do_round_up else
-        shifted_fraction as uN[WIDE_FRACTION_CARRY];
+      if do_round_up {
+        shifted_fraction as uN[WIDE_FRACTION_CARRY] +
+            (uN[WIDE_FRACTION_CARRY]:1 << (WIDE_FRACTION_LOW_BIT - u32:1))
+      } else {
+        shifted_fraction as uN[WIDE_FRACTION_CARRY]
+      };
 
   let rounding_carry = rounded_fraction[-1:];
   let result_fraction =
@@ -243,31 +254,31 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32,
       greater_exp as sN[EXP_SIGN_CARRY] +
       rounding_carry as sN[EXP_SIGN_CARRY] + sN[EXP_SIGN_CARRY]:1 -
       leading_zeroes as sN[EXP_SIGN_CARRY];
-  let bexp = sN[EXP_SIGN_CARRY]:0 if fraction_is_zero else bexp;
+  let bexp = if fraction_is_zero { sN[EXP_SIGN_CARRY]:0 } else { bexp };
   let bexp =
-      uN[EXP_CARRY]:0
-      if bexp < sN[EXP_SIGN_CARRY]:0 else
-          (bexp as uN[EXP_CARRY]);
+      if bexp < sN[EXP_SIGN_CARRY]:0 { uN[EXP_CARRY]:0 }
+      else { (bexp as uN[EXP_CARRY]) };
 
   // Standard special case handling follows.
 
   // If the exponent underflowed, don't bother with denormals. Just flush to 0.
-  let result_fraction = uN[FRACTION_SZ]:0 if bexp == uN[EXP_CARRY]:0 else result_fraction;
+  let result_fraction = if bexp == uN[EXP_CARRY]:0 { uN[FRACTION_SZ]:0 }
+                        else { result_fraction };
 
   // Handle exponent overflow infinities.
   let saturated_exp = std::mask_bits<EXP_SZ>() as uN[EXP_CARRY];
   let max_exp = std::mask_bits<EXP_SZ>();
-  let result_fraction = result_fraction if bexp < saturated_exp else uN[FRACTION_SZ]:0;
-  let result_exp = bexp as uN[EXP_SZ] if bexp < saturated_exp else max_exp;
+  let result_fraction = if bexp < saturated_exp { result_fraction } else { uN[FRACTION_SZ]:0 };
+  let result_exp = if bexp < saturated_exp { bexp as uN[EXP_SZ] } else { max_exp };
 
   // Handle arg infinities.
   let is_operand_inf = is_inf(ab) | apfloat::is_inf(c);
-  let result_exp = max_exp if is_operand_inf else result_exp;
-  let result_fraction = uN[FRACTION_SZ]:0 if is_operand_inf else result_fraction;
+  let result_exp = if is_operand_inf { max_exp } else { result_exp };
+  let result_fraction = if is_operand_inf { uN[FRACTION_SZ]:0 } else { result_fraction };
   // Result infinity is negative iff all infinite operands are neg.
   let has_pos_inf = (is_inf(ab) & (ab.sign == u1:0)) |
                     (apfloat::is_inf(c) & (c.sign == u1:0));
-  let result_sign = !has_pos_inf if is_operand_inf else result_sign;
+  let result_sign = if is_operand_inf { !has_pos_inf } else { result_sign };
 
   // Handle NaN; NaN trumps infinities, so we handle it last.
   // -inf + inf = NaN, i.e., if we have both positive and negative inf.
@@ -276,10 +287,14 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32,
       (apfloat::is_inf(c) & (c.sign == u1:1));
   let is_result_nan = is_nan(ab) |
       apfloat::is_nan(c) | (has_pos_inf & has_neg_inf);
-  let result_exp = max_exp if is_result_nan else result_exp;
+  let result_exp = if is_result_nan { max_exp } else { result_exp };
   let result_fraction =
-      uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:4) if is_result_nan else result_fraction;
-  let result_sign = u1:0 if is_result_nan else result_sign;
+      if is_result_nan {
+        uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:4)
+      } else {
+        result_fraction
+      };
+  let result_sign = if is_result_nan { u1:0 } else { result_sign };
   let is_result_inf = has_pos_inf | has_neg_inf;
 
   APFloat<EXP_SZ, FRACTION_SZ>{ sign: result_sign, bexp: result_exp as uN[EXP_SZ],

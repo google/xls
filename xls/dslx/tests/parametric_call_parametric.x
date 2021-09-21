@@ -16,7 +16,11 @@
 // function from a parametric function.
 // #1: Test invoking a local parametric.
 fn local_clog2<N: u32>(x: bits[N]) -> bits[N] {
-  (N as bits[N]) - clz(x-bits[N]:1) if x >= bits[N]:1 else bits[N]:0
+  if x >= bits[N]:1 {
+    (N as bits[N]) - clz(x-bits[N]:1)
+  } else {
+    bits[N]:0
+  }
 }
 
 fn dot_product_local<BITCOUNT: u32, LENGTH: u32,

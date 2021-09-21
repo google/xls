@@ -526,13 +526,13 @@
 // args: bits[1]:0x0; bits[1]:0x0; bits[20]:0xc3b6; bits[16]:0xf5e3
 // args: bits[1]:0x1; bits[1]:0x0; bits[20]:0x6d540; bits[16]:0x2f9c
 fn main(x1337: bool, x1338: u1, x1339: u20, x1340: u16) -> (bool, bool, u16, u16, u20, u1, bool, bool, u20, u20, u20) {
-    let x1341: u16 = (x1340) >> (((u16:0x8)) if ((x1340) >= ((u16:0x8))) else (x1340));
+    let x1341: u16 = (x1340) >> (if ((x1340) >= ((u16:0x8))) { ((u16:0x8)) } else { (x1340) });
     let x1342: u1 = !(x1338);
     let x1343: bool = -(x1337);
-    let x1344: bool = ((x1338 as bool)) >> (((bool:0x0)) if ((x1343) >= ((bool:0x0))) else (x1343));
+    let x1344: bool = ((x1338 as bool)) >> (if ((x1343) >= ((bool:0x0))){ ((bool:0x0)) } else {(x1343)});
     let x1345: u20 = -(x1339);
     let x1346: u20 = !(x1339);
-    let x1347: bool = (x1337) >> (((bool:0x0)) if (((x1346 as bool)) >= ((bool:0x0))) else ((x1346 as bool)));
+    let x1347: bool = (x1337) >> (if (((x1346 as bool)) >= ((bool:0x0))) { ((bool:0x0)) } else { ((x1346 as bool)) });
     (x1347, x1347, x1340, x1340, x1346, x1342, x1337, x1344, x1345, x1346, x1339)
 }
 

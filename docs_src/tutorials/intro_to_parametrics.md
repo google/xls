@@ -16,7 +16,7 @@ Consider the simple example of the `umax` function
 
 ```dslx
 pub fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
-  x if x > y else y
+  if x > y { x } else { y }
 }
 ```
 
@@ -148,16 +148,16 @@ pub fn float_to_int(x: float32) -> s32 {
 
   // Shift the result to the right if the exponent is less than 23.
   let fraction =
-      fraction >> (u8:23 - (exp as u8)) if (exp as u8) < u8:23
-      else fraction;
+      if (exp as u8) < u8:23 { fraction >> (u8:23 - (exp as u8)) }
+      else { fraction };
 
   // Shift the result to the left if the exponent is greater than 23.
   let fraction =
-      fraction << ((exp as u8) - u8:23) if (exp as u8) > u8:23
-      else fraction;
+      if (exp as u8) > u8:23 { fraction << ((exp as u8) - u8:23) }
+      else { fraction };
 
   let result = fraction as s32;
-  let result = -result if x.sign else result;
+  let result = if x.sign { -result } else { result };
   result
 }
 ```
@@ -214,15 +214,15 @@ pub fn float_to_int<
       (x.fraction as uN[WIDE_FRACTION_SZ]);
 
   let fraction =
-      fraction >> (FRACTION_SZ - (exp as u32)) if (exp as u32) < FRACTION_SZ
-      else fraction;
+      if (exp as u32) < FRACTION_SZ { fraction >> (FRACTION_SZ - (exp as u32)) }
+      else { fraction };
 
   let fraction =
-      fraction << ((exp as u32) - FRACTION_SZ) if (exp as u32) > FRACTION_SZ
-      else fraction;
+      if (exp as u32) > FRACTION_SZ { fraction << ((exp as u32) - FRACTION_SZ) }
+      else { fraction };
 
   let result = fraction as sN[RESULT_SZ];
-  let result = -result if x.sign else result;
+  let result = if x.sign { -result } else { result };
   result
 }
 ```

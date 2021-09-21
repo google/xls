@@ -415,7 +415,7 @@ enum Foo : u32 {
   OTHER = 1,
 }
 fn f(x: Foo) -> Foo {
-  Foo::OTHER if x == Foo::THING else Foo::THING
+  if x == Foo::THING { Foo::OTHER } else { Foo::THING }
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -485,7 +485,7 @@ TEST(IrConverterTest, BoolLiterals) {
   const char* program =
       R"(
 fn f(x: u8) -> bool {
-  true if x == u8:42 else false
+  if x == u8:42 { true } else { false }
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -513,7 +513,7 @@ fn f(x: u8) -> u2 {
 TEST(IrConverterTest, Ternary) {
   const char* program =
       R"(fn main(x: bool) -> u8 {
-  u8:42 if x else u8:24
+  if x { u8:42 } else { u8:24 }
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
@@ -998,7 +998,7 @@ fn main() -> u32 {
 TEST(IrConverterTest, FailInTernaryConsequent) {
   const char* program = R"(
 fn main(x: u32) -> u32 {
-  fail!(x) if x == u32:0 else x
+  if x == u32:0 { fail!(x) } else { x }
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
@@ -1009,7 +1009,7 @@ fn main(x: u32) -> u32 {
 TEST(IrConverterTest, FailInTernaryAlternate) {
   const char* program = R"(
 fn main(x: u32) -> u32 {
-  x if x == u32:0 else fail!(x)
+  if x == u32:0 { x } else { fail!(x) }
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,

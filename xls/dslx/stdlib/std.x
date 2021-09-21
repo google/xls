@@ -54,10 +54,11 @@ pub fn iterative_div<N: u32, DN: u32 = N * u32:2>(x: uN[N], y: uN[N]) -> uN[N] {
     // if the prodcut running_result * y < x.
     let inc_running_result = running_result | shifted_index_bit;
     let inc_running_product = running_product + shifted_y;
-    let (running_result, running_product) =
-            (inc_running_result, inc_running_product)
-        if (inc_running_product <= x)
-        else (running_result, running_product);
+    let (running_result, running_product) = if inc_running_product <= x {
+      (inc_running_result, inc_running_product)
+    } else {
+      (running_result, running_product)
+    };
 
     // Shift to next (lower) power of 2.
     let shifted_y = shifted_y >> uN[N]:1;
@@ -99,7 +100,7 @@ fn iterative_div_test () {
 
 // Returns the value of x-1 with saturation at 0.
 pub fn bounded_minus_1<N: u32>(x: uN[N]) -> uN[N] {
-  x if x == uN[N]:0 else x-uN[N]:1
+  if x == uN[N]:0 { x } else { x-uN[N]:1 }
 }
 
 // Extracts the LSb (least significant bit) from the value `x` and returns it.
@@ -118,7 +119,7 @@ fn lsb_test() {
 
 // Returns the absolute value of x as a signed number.
 pub fn abs<BITS: u32>(x: sN[BITS]) -> sN[BITS] {
-  -x if x < sN[BITS]:0 else x
+  if x < sN[BITS]:0 { -x } else { x }
 }
 
 // Converts an array of N bools to a bits[N] value.
@@ -152,7 +153,7 @@ pub fn find_index<BITS: u32, ELEMS: u32>(
   let x: uN[ELEMS] = convert_to_bits(bools);
   let index = clz(x);
   let found: bool = or_reduce(x);
-  (found, index as u32 if found else u32:0)
+  (found, if found { index as u32 } else { u32:0 })
 }
 
 #![test]
@@ -180,7 +181,7 @@ fn concat3_test() {
 // Returns the ceiling of (x divided by y).
 pub fn ceil_div<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
   let usual = (x - uN[N]:1) / y + uN[N]:1;
-  usual if x > uN[N]:0 else uN[N]:0
+  if x > uN[N]:0 { usual } else { uN[N]:0 }
 }
 
 #![test]
@@ -230,7 +231,7 @@ fn rrot_test() {
 
 // Returns the maximum of two signed integers.
 pub fn smax<N: u32>(x: sN[N], y: sN[N]) -> sN[N] {
-  x if x > y else y
+  if x > y { x } else { y }
 }
 
 #![test]
@@ -243,7 +244,7 @@ fn smax_test() {
 
 // Returns the maximum of two unsigned integers.
 pub fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
-  x if x > y else y
+  if x > y { x } else { y }
 }
 
 #![test]
@@ -256,7 +257,7 @@ fn umax_test() {
 
 // Returns the minimum of two unsigned integers.
 pub fn umin<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
-  x if x < y else y
+  if x < y { x } else { y }
 }
 
 #![test]
@@ -279,7 +280,11 @@ fn umin_test() {
 //
 // Example: clog2(7) = 3
 pub fn clog2<N: u32>(x: bits[N]) -> bits[N] {
-  (N as bits[N]) - clz(x-bits[N]:1) if x >= bits[N]:1 else bits[N]:0
+  if x >= bits[N]:1 {
+    (N as bits[N]) - clz(x-bits[N]:1)
+  } else {
+    bits[N]:0
+  }
 }
 
 #![test]
@@ -393,7 +398,7 @@ pub fn upow<N: u32>(x: uN[N], n: uN[N]) -> uN[N] {
   let p = x;
 
   let work = for (i, (n, p, result)) in range(u32:0, N) {
-    let result = result * p if (n & uN[N]:1) == uN[N]:1 else result;
+    let result = if (n & uN[N]:1) == uN[N]:1 { result * p } else { result };
 
     (n >> 1, p * p, result)
   }((n, p, result));
@@ -405,7 +410,7 @@ pub fn spow<N: u32>(x: sN[N], n: uN[N]) -> sN[N] {
   let p = x;
 
   let work = for (i, (n, p, result)) : (u32, (uN[N], sN[N], sN[N])) in range(u32:0, N) {
-    let result = result * p if (n & uN[N]:1) == uN[N]:1 else result;
+    let result = if (n & uN[N]:1) == uN[N]:1 { result * p } else { result };
 
     (n >> uN[N]:1, p * p, result)
   }((n, p, result));

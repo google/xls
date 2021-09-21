@@ -1272,27 +1272,30 @@ other type of scoping in DSLX.
 Note: ternary expression syntax is expected to change to mimic Rust's, see
 [#318](https://github.com/google/xls/issues/318).
 
-DSLX offers a ternary `if` expression, which is very similar to the Python
-ternary `if`. Blueprint:
+DSLX offers a ternary `if` expression, which is very similar to the Rust ternary
+`if` expression. Blueprint:
 
 ```
-consequent if condition else alternate
+if condition { consequent } else { alternate }
 ```
 
-This corresponds to the C/C++ ternary `?:` operator, but with the order of the
-operands changed:
+This corresponds to the C/C++ ternary `?:` operator:
 
 ```
 condition ? consequent : alternate
 ```
+
+Note: both the `if` and `else` are *required* to be present, as with the `?:`
+operator, unlike a C++ `if` statement. This is because it is an *expression*
+that *produces* a result value, not a *statement* that causes a mutating effect.
 
 For example, in the FP adder module (modules/fpadd_2x32.x), there is code like
 the following:
 
 ```
 [...]
-let result_fraction = result_fraction if wide_exponent < u9:255 else u23:0;
-let result_exponent = wide_exponent as u8 if wide_exponent < u9:255 else u8:255;
+let result_fraction = if wide_exponent < u9:255 { result_fraction } else { u23:0 };
+let result_exponent = if wide_exponent < u9:255 { wide_exponent as u8 } else { u8:255 };
 ```
 
 ### Iterable Expression
@@ -1405,7 +1408,7 @@ conditionally update an array every other iteration:
 ```dslx-snippet
 let result: u4[8] = for (i, array) in range(u32:0, u32:8) {
   // Update every other cell with the square of the index.
-  update(array, i, i*i) if i % 2 == 0 else array
+  if i % 2 == 0 { update(array, i, i*i) } else { array }
 }(u4[8]:[0, ...]);
 ```
 

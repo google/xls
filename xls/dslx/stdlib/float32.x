@@ -178,9 +178,12 @@ pub fn fixed_fraction(input_float: F32) -> u23 {
   };
 
   let input_fraction_part_magnitude: u24 = input_fixed_magnitude as u23 as u24;
-  let fixed_fraction: u24 = (u24:1<<u24:23) - input_fraction_part_magnitude
-    if input_float.sign && input_fraction_part_magnitude != u24:0
-    else input_fraction_part_magnitude
+  let fixed_fraction: u24 =
+    if input_float.sign && input_fraction_part_magnitude != u24:0 {
+      (u24:1<<u24:23) - input_fraction_part_magnitude
+    } else {
+      input_fraction_part_magnitude
+    }
  ;
   fixed_fraction as u23
 }
@@ -190,7 +193,7 @@ pub fn fixed_fraction(input_float: F32) -> u23 {
 // the usual "round to nearest, half to even" rounding mode.
 pub fn from_int32(x: s32) -> F32 {
   let sign = (x >> 31) as u1;
-  let fraction = -x as u31 if sign else x as u31;
+  let fraction = if sign { -x as u31 } else { x as u31 };
   let lz = clz(fraction) as u8;
 
   // Shift the fraction to be max width, normalize it, and drop the
@@ -207,26 +210,27 @@ pub fn from_int32(x: s32) -> F32 {
   let normal_chunk = fraction[0:3];
   let half_way_chunk = fraction[2:4];
   let do_round_up =
-      u1:1 if (normal_chunk > u3:0x4) | (half_way_chunk == u2:0x3)
-      else u1:0;
-  let fraction = fraction as u27 + u27:0x8 if do_round_up else fraction as u27;
+      if (normal_chunk > u3:0x4) | (half_way_chunk == u2:0x3) { u1:1 }
+      else { u1:0 };
+  let fraction = if do_round_up { fraction as u27 + u27:0x8 }
+                 else { fraction as u27 };
 
   // See if rounding caused overflow, and if so, update the exponent.
   let overflow = fraction & (u27:1 << 26) != u27:0;
-  let bexp = bexp + u8:1 if overflow else bexp;
+  let bexp = if overflow { bexp + u8:1 } else { bexp };
   let fraction = (fraction >> 3) as u23;
 
   let result = F32 { sign: sign, bexp: bexp, fraction: fraction };
 
   let zero = F32 { sign: u1:0, bexp: u8:0, fraction: u23:0 };
   let result =
-      zero if bexp <= u8:126 && fraction == u23:0 else result;
+      if bexp <= u8:126 && fraction == u23:0 { zero } else { result };
 
   // -INT_MAX is a special case; making it positive can drop its value.
   let is_neg_int_max = x == s32:-2147483648;
   let neg_int_max = F32 { sign: u1:1, bexp: u8:158, fraction: u23:0 };
   let result =
-      neg_int_max if is_neg_int_max else result;
+      if is_neg_int_max { neg_int_max } else { result };
   result
 }
 

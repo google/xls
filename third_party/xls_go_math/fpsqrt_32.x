@@ -102,7 +102,8 @@ pub fn fpsqrt_32(x: F32) -> F32 {
 
   let scaled_fixed_point_x = u1:0 ++ u8:1 ++ x.fraction;
   // If odd exp, double x to make it even.
-  let scaled_fixed_point_x = scaled_fixed_point_x << u32:1 if exp[0:1] else scaled_fixed_point_x;
+  let scaled_fixed_point_x = if exp[0:1] { scaled_fixed_point_x << u32:1 }
+                             else { scaled_fixed_point_x };
   // exp = exp / 2, exponent of square root
   let exp = exp >> u8:1;
 
@@ -124,10 +125,12 @@ pub fn fpsqrt_32(x: F32) -> F32 {
     // Would be nice to have dslx if-blocks that can desugar
     // down to something like this automatically...
     let (sqrt_in_progress, scaled_fixed_point_x) =
+    if temp <= scaled_fixed_point_x {
       (sqrt_in_progress | shifting_bit_mask,
       scaled_fixed_point_x - temp)
-    if temp <= scaled_fixed_point_x else
-      (sqrt_in_progress, scaled_fixed_point_x);
+    } else {
+      (sqrt_in_progress, scaled_fixed_point_x)
+    };
 
     let scaled_fixed_point_x = scaled_fixed_point_x << u32:1;
     let shifting_bit_mask = shifting_bit_mask >> u32:1;
@@ -141,7 +144,11 @@ pub fn fpsqrt_32(x: F32) -> F32 {
       u32:1 << u32:23 + u32:1)); // shifting_bit_mask
 
   // Final rounding.
-  let sqrt_in_progress = sqrt_in_progress + (u31:0 ++ sqrt_in_progress[0:1]) if scaled_fixed_point_x != u32:0 else sqrt_in_progress;
+  let sqrt_in_progress = if scaled_fixed_point_x != u32:0 {
+    sqrt_in_progress + (u31:0 ++ sqrt_in_progress[0:1])
+  } else {
+    sqrt_in_progress
+  };
   let scaled_fixed_point_x = (sqrt_in_progress >> u32:1) +
            ((float32::bias(exp - s8:1)) as u32 << u32:23);
   let result = float32::unflatten(scaled_fixed_point_x);
@@ -154,13 +161,13 @@ pub fn fpsqrt_32(x: F32) -> F32 {
   // Special cases.
   // sqrt(inf) -> inf, sqrt(-inf) -> NaN (handled below along
   // with other negative numbers).
-  let result = x if float32::is_inf(x) else result;
+  let result = if float32::is_inf(x) { x } else { result };
   // sqrt(x < 0) -> NaN
-  let result = float32::qnan() if x.sign == u1:1 else result;
+  let result = if x.sign == u1:1 { float32::qnan() } else { result };
   // sqrt(NaN) -> NaN.
-  let result = float32::qnan() if float32::is_nan(x) else result;
+  let result = if float32::is_nan(x) { float32::qnan() } else { result };
   // x == -0 returns x rather than NaN.
-  let result = x if float32::is_zero_or_subnormal(x) else result;
+  let result = if float32::is_zero_or_subnormal(x) { x } else { result };
   result
 }
 

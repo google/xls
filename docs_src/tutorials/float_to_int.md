@@ -164,16 +164,16 @@ pub fn float_to_int(x: float32) -> s32 {
 
   // Shift the result to the right if the exponent is less than 23.
   let fraction =
-      fraction >> (u8:23 - (exp as u8)) if (exp as u8) < u8:23
-      else fraction;
+      if (exp as u8) < u8:23 { fraction >> (u8:23 - (exp as u8)) }
+      else { fraction };
 
   // Shift the result to the left if the exponent is greater than 23.
   let fraction =
-      fraction << ((exp as u8) - u8:23) if (exp as u8) > u8:23
-      else fraction;
+      if (exp as u8) > u8:23 { fraction << ((exp as u8) - u8:23) }
+      else { fraction };
 
   let result = fraction as s32;
-  let result = -result if x.sign else result;
+  let result = if x.sign { -result } else { result };
   result
 }
 ```

@@ -15,7 +15,11 @@
 // Example given for regression in https://github.com/google/xls/issues/305
 
 fn clog2<N: u32>(x: bits[N]) -> bits[N] {
-  (N as bits[N]) - clz(x-bits[N]:1) if x >= bits[N]:1 else bits[N]:0
+  if x >= bits[N]:1 {
+    (N as bits[N]) - clz(x-bits[N]:1)
+  } else {
+    bits[N]:0
+  }
 }
 
 fn func(a: u32) -> u32 {

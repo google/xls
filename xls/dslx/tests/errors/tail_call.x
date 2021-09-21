@@ -13,5 +13,5 @@
 // limitations under the License.
 
 fn f(x: u32) -> u32 {
-  u32:0 if x == u32:0 else f(x-u32:1)
+  if x == u32:0 { u32:0 } else { f(x-u32:1) }
 }

@@ -170,16 +170,16 @@ fn main(x0: u49, x1: s25, x2: u23, x3: u43, x4: s10) -> (s26, u32) {
   let x21: u3 = one_hot(x19, bool:true);
   let x22: uN[335] = -(x18);
   let x23: u2 = (((x5) as u2)) | (x19);
-  let x24: x16 = (x17)[(u10:0) if ((x6) >= (u10:0)) else (x6)];
+  let x24: x16 = (x17)[if ((x6) >= (u10:0)) { (u10:0) } else { (x6) }];
   let x25: u11 = (x10)[17:28];
-  let x26: uN[138] = (x11) << ((u3:0) if ((x21) >= (u3:0)) else (x21));
+  let x26: uN[138] = (x11) << (if ((x21) >= (u3:0)) { (u3:0) } else { (x21) });
   let x27: u32 = one_hot_sel(x21, [x15, x10, x8]);
   let x28: u19 = (x11)[119+:u19];
   let x29: s26 = one_hot_sel(x19, [x12, x12]);
   let x30: uN[72] = !(x7);
   let x31: x16[4] = (x17) ++ (x17);
   let x32: s27 = s27:0x7ff_ffff;
-  let x33: x16[2] = update(x17, (u3:0) if ((x21) >= (u3:0)) else (x21), x24);
+  let x33: x16[2] = update(x17, if ((x21) >= (u3:0)) { (u3:0) } else { (x21) }, x24);
   let x34: uN[103] = (x11)[x23+:uN[103]];
   (x12, x27)
 }

@@ -70,14 +70,14 @@ pub fn fp_fast_rsqrt_32_config_refinements<NUM_REFINEMENTS: u32 = u32:1>(x: F32)
   // Special cases.
   // 1/sqrt(inf) -> 0, 1/sqrt(-inf) -> NaN (handled below along
   // with other negative numbers).
-  let result = float32::zero(x.sign) if float32::is_inf(x) else result;
+  let result = if float32::is_inf(x) { float32::zero(x.sign) } else { result };
   // 1/sqrt(x < 0) -> NaN
-  let result = float32::qnan() if x.sign == u1:1 else result;
+  let result = if x.sign == u1:1 { float32::qnan() } else { result };
   // 1/sqrt(NaN) -> NaN.
-  let result = x if float32::is_nan(x) else result;
+  let result = if float32::is_nan(x) { x } else { result };
   // 1/sqrt(0) -> inf, 1/sqrt(-0) -> -inf
-  let result = float32::inf(x.sign) if float32::is_zero_or_subnormal(x)
-                                    else result;
+  let result = if float32::is_zero_or_subnormal(x) { float32::inf(x.sign) }
+               else { result };
   result
 }
 

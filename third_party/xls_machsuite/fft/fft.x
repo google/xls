@@ -86,8 +86,11 @@ fn fft_inner_loop_body(log: u32, odd: u32, span: u32, real: F32[FFT_SIZE],
   let img = update(img, even, img_sum);
 
   let root_index = (even << log) & (FFT_SIZE - u32:1);
-  fft_root_twiddle(root_index, odd, even, real, img, real_twid, img_twid)
-    if root_index != u32:0 else (real, img)
+  if root_index != u32:0 {
+    fft_root_twiddle(root_index, odd, even, real, img, real_twid, img_twid)
+  } else {
+    (real, img)
+  }
 }
 
 // FFT_SIZE-input fast fourier transform, where inputs
@@ -119,9 +122,11 @@ fn fft(real: F32[FFT_SIZE], img: F32[FFT_SIZE], real_twid: F32[FFT_HALF_SIZE],
       // iterations should be removed.  However, if we try to reuse the
       // same hardware for each iteration, the module may be idle
       // over half of the time...
-      fft_inner_loop_body(log, odd, span, real, img, real_twid, img_twid)
-        if odd >= span && ((odd & span) != u32:0)
-        else (real, img)
+      if odd >= span && ((odd & span) != u32:0) {
+        fft_inner_loop_body(log, odd, span, real, img, real_twid, img_twid)
+      } else {
+        (real, img)
+      }
 
     } ((real, img))
   } ((real, img))

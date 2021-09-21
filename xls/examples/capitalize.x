@@ -23,9 +23,11 @@ fn capitalize<N: u32>(input: u8[N]) -> u8[N] {
 
   let result = for (i, result) : (u32, u8[N]) in range (u32:0, N) {
     let element =
-        input[i] - cap_distance
-        if input[i] >= LOWERCASE_A && input[i] <= LOWERCASE_Z
-            else input[i];
+        if input[i] >= LOWERCASE_A && input[i] <= LOWERCASE_Z {
+          input[i] - cap_distance
+        } else {
+          input[i]
+        };
 
     let result = update(result, i, element);
     result
@@ -48,13 +50,14 @@ fn sponge_capitalize<N: u32>(input: u8[N]) -> u8[N] {
     let lower = input[i] + cap_distance;
 
     let element =
-        capital
-        if do_cap && input_is_lower
-        else lower
-             if !do_cap && input_is_cap
-             else input[i];
+        if do_cap && input_is_lower { 
+          capital
+        } else {
+          if !do_cap && input_is_cap { lower }
+          else { input[i] }
+        };
     let do_cap =
-        !do_cap if input_is_lower || input_is_cap else do_cap;
+        if input_is_lower || input_is_cap { !do_cap } else { do_cap };
 
     let result = update(result, i, element);
     (result, do_cap)
