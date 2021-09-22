@@ -94,37 +94,6 @@ inline TernaryValue Or(const TernaryValue& a, const TernaryValue& b) {
   return TernaryValue::kUnknown;
 }
 
-// Returns whether a is (definitely) equal to b.
-//
-// Note that this also operates as the "meet" operator as in a lattice, where
-// "bottom" is represented by "X".
-inline TernaryValue Equals(const TernaryValue& a, const TernaryValue& b) {
-  // Truth table:
-  //              rhs
-  //      | |  0   1   X
-  //      --+------------
-  // lhs  0 |  0   X   X
-  //      1 |  X   1   X
-  //      X |  X   X   X
-  if (IsKnown(a) && IsKnown(b) && a == b) {
-    return a;
-  }
-  return TernaryValue::kUnknown;
-}
-
-// Returns the "equals" operator above for all bits in same-sized ternary
-// vectors.
-inline TernaryVector Equals(const TernaryVector& lhs,
-                            const TernaryVector& rhs) {
-  XLS_CHECK_EQ(lhs.size(), rhs.size());
-  TernaryVector result;
-  result.resize(lhs.size());
-  for (int64_t i = 0; i < lhs.size(); ++i) {
-    result[i] = Equals(lhs[i], rhs[i]);
-  }
-  return result;
-}
-
 inline TernaryVector BitsToTernary(const Bits& bits) {
   TernaryVector result;
   result.resize(bits.bit_count());
