@@ -144,6 +144,16 @@ TEST_F(TranslatorTest, UnsignedChar) {
   Run({{"a", 100}}, 105, content);
 }
 
+TEST_F(TranslatorTest, SignedChar) {
+  const std::string content = R"(
+      bool my_package(signed char a) {
+        return a < 1;
+      })";
+
+  Run({{"a", 0xff}}, true, content);
+  Run({{"a", 2}}, false, content);
+}
+
 TEST_F(TranslatorTest, Bool) {
   const std::string content = R"(
       int my_package(long long a) {

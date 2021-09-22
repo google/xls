@@ -3536,8 +3536,9 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
       case clang::BuiltinType::Kind::Bool:
         return shared_ptr<CType>(new CBoolType());
       case clang::BuiltinType::Kind::Char_S:  // These depend on the target
-      case clang::BuiltinType::Kind::Char_U:
+      case clang::BuiltinType::Kind::SChar:
         return shared_ptr<CType>(new CIntType(8, true));
+      case clang::BuiltinType::Kind::Char_U:
       case clang::BuiltinType::Kind::UChar:
         return shared_ptr<CType>(new CIntType(8, false));
       default:
