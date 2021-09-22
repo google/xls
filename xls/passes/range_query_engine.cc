@@ -28,6 +28,8 @@
 
 namespace xls {
 
+enum class Tonicity { Monotone, Antitone, Unknown };
+
 class RangeQueryVisitor : public DfsVisitor {
  public:
   explicit RangeQueryVisitor(RangeQueryEngine* engine) : engine_(engine) {}
@@ -39,23 +41,44 @@ class RangeQueryVisitor : public DfsVisitor {
   // precision of the analysis.
   static constexpr int64_t kMaxResIntervalSetSize = 64;
 
+  // Handles an operation that is variadic and has an implementation given by
+  // the given function which has the given tonicities for each argument.
+  //
+  // The function may return `absl::nullopt` to indicate that some
+  // exception has occurred, like an integer overflow, which invalidates the
+  // analysis. When that happens, this function will return without any side
+  // effects having occurred.
+  //
+  // `Tonicity::Unknown` is not currently supported.
+  //
+  // CHECK fails if `op->operands().size()` is not equal to `tonicities.size()`.
+  absl::Status HandleVariadicOp(
+      std::function<absl::optional<Bits>(absl::Span<const Bits>)> impl,
+      absl::Span<const Tonicity> tonicities, Node* op);
+
   // Handles an operation that is monotone, unary (and whose argument is given
   // by `op->operand(0)`), and has an implementation given by the given
-  // function.
+  // function. The function may return `absl::nullopt` to indicate that some
+  // exception has occurred, like an integer overflow, which invalidates the
+  // analysis. When that happens, this function will return without any side
+  // effects having occurred.
   //
   // An operation is monotone iff `bits_ops::ULessThanOrEqual(x, y)`
   // implies `bits_ops::ULessThanOrEqual(impl(x), impl(y))`.
-  absl::Status HandleMonotoneUnaryOp(std::function<Bits(const Bits&)> impl,
-                                     Node* op);
+  absl::Status HandleMonotoneUnaryOp(
+      std::function<absl::optional<Bits>(const Bits&)> impl, Node* op);
 
   // Handles an operation that is antitone, unary (and whose argument is given
   // by `op->operand(0)`), and has an implementation given by the given
-  // function.
+  // function. The function may return `absl::nullopt` to indicate that some
+  // exception has occurred, like an integer overflow, which invalidates the
+  // analysis. When that happens, this function will return without any side
+  // effects having occurred.
   //
   // An operation is antitone iff `bits_ops::ULessThanOrEqual(x, y)`
   // implies `bits_ops::ULessThanOrEqual(impl(y), impl(x))`.
-  absl::Status HandleAntitoneUnaryOp(std::function<Bits(const Bits&)> impl,
-                                     Node* op);
+  absl::Status HandleAntitoneUnaryOp(
+      std::function<absl::optional<Bits>(const Bits&)> impl, Node* op);
 
   // Handles an operation that is binary (and whose arguments are given by
   // `op->operand(0)` and `op->operand(1)`), monotone in both arguments, and
@@ -351,142 +374,149 @@ void RangeQueryEngine::InitializeNode(Node* node) {
   }
 }
 
-absl::Status RangeQueryVisitor::HandleMonotoneUnaryOp(
-    std::function<Bits(const Bits&)> impl, Node* op) {
-  IntervalSet input_intervals =
-      engine_->GetIntervalSetTree(op->operand(0)).Get({});
-  IntervalSet result_intervals(op->BitCountOrDie());
-  for (const Interval& input_interval : input_intervals.Intervals()) {
-    // The essential property of a unary monotone function `f` is that the
-    // codomain of `f` applied to `[x, y]` is `[f(x), f(y)]`. For example,
-    // the cubing function applied to `[5, 8]` gives a codomain of `[125, 512]`.
-    result_intervals.AddInterval(
-        {impl(input_interval.LowerBound()), impl(input_interval.UpperBound())});
+absl::Status RangeQueryVisitor::HandleVariadicOp(
+    std::function<absl::optional<Bits>(absl::Span<const Bits>)> impl,
+    absl::Span<const Tonicity> tonicities, Node* op) {
+  XLS_CHECK_EQ(op->operands().size(), tonicities.size());
+
+  std::vector<IntervalSet> operands;
+  operands.reserve(op->operands().size());
+
+  {
+    int64_t i = 0;
+    for (Node* operand : op->operands()) {
+      IntervalSet interval_set = engine_->GetIntervalSetTree(operand).Get({});
+
+      // TODO(taktoa): we could choose the minimized interval sets more
+      // carefully, since `MinimizeIntervals` is minimizing optimally for each
+      // interval set without the knowledge that other interval sets exist.
+      // For example, we could call `ConvexHull` greedily on the sets
+      // that have the smallest difference between convex hull size and size.
+
+      // Limit exponential growth after 12 parameters. 5^12 = 244 million
+      interval_set = MinimizeIntervals(interval_set, (i < 12) ? 5 : 1);
+      operands.push_back(interval_set);
+      ++i;
+    }
   }
 
+  std::vector<int64_t> indexes;
+  indexes.resize(operands.size(), 0);
+
+  // Treating `indexes` as a mixed-radix number, where each element `i` of the
+  // vector is a digit with radix equal to `operands[i].NumberOfIntervals()`,
+  // increment it by 1. Returns `true` if there was an overflow or `false`
+  // otherwise.
+  //
+  // For example, if the number of intervals for each operand is `[5, 3, 7, 1]`
+  // and `indexes` is `[5, 3, 0, 0]` then calling `increment_indexes` will
+  // update it to `[0, 0, 1, 0]` (note that the convention is little-endian).
+  auto increment_indexes = [&indexes, &operands]() -> bool {
+    int64_t i = 0;
+    while ((i < indexes.size()) &&
+           ((indexes[i] + 1) >= operands[i].NumberOfIntervals())) {
+      indexes[i] = 0;
+      ++i;
+    }
+    if (i < indexes.size()) {
+      ++indexes[i];
+      return false;
+    }
+    return true;
+  };
+
+  IntervalSet result_intervals(op->BitCountOrDie());
+
+  // Each iteration of this do-while loop explores a different choice of
+  // intervals from each interval set associated with a parameter.
+  do {
+    std::vector<Bits> lower_bounds;
+    lower_bounds.reserve(indexes.size());
+    std::vector<Bits> upper_bounds;
+    upper_bounds.reserve(indexes.size());
+    for (int64_t i = 0; i < indexes.size(); ++i) {
+      Interval interval = operands[i].Intervals()[indexes[i]];
+      switch (tonicities[i]) {
+        case Tonicity::Monotone: {
+          // The essential property of a unary monotone function `f` is that the
+          // codomain of `f` applied to `[x, y]` is `[f(x), f(y)]`. For example,
+          // the cubing function applied to `[5, 8]` gives a codomain of
+          // `[125, 512]`.
+          lower_bounds.push_back(interval.LowerBound());
+          upper_bounds.push_back(interval.UpperBound());
+          break;
+        }
+        case Tonicity::Antitone: {
+          // The essential property of a unary antitone function `f` is that the
+          // codomain of `f` applied to `[x, y]` is `[f(y), f(x)]`. For example,
+          // the negation function applied to `[10, 20]` gives an codomain of
+          // `[-20, -10]`.
+          lower_bounds.push_back(interval.UpperBound());
+          upper_bounds.push_back(interval.LowerBound());
+          break;
+        }
+        case Tonicity::Unknown: {
+          return absl::InternalError("Tonicity::Unknown not yet supported");
+          break;
+        }
+      }
+    }
+    absl::optional<Bits> lower = impl(lower_bounds);
+    absl::optional<Bits> upper = impl(upper_bounds);
+    if (!lower.has_value() || !upper.has_value()) {
+      return absl::OkStatus();
+    }
+    result_intervals.AddInterval(Interval(lower.value(), upper.value()));
+  } while (!increment_indexes());
   result_intervals = MinimizeIntervals(result_intervals);
 
-  IntervalSetTree result(op->GetType());
+  LeafTypeTree<IntervalSet> result(op->GetType());
   result.Set({}, result_intervals);
   engine_->SetIntervalSetTree(op, result);
+
   return absl::OkStatus();
 }
 
+absl::Status RangeQueryVisitor::HandleMonotoneUnaryOp(
+    std::function<absl::optional<Bits>(const Bits&)> impl, Node* op) {
+  return HandleVariadicOp(
+      [impl](absl::Span<const Bits> bits) -> absl::optional<Bits> {
+        XLS_CHECK_EQ(bits.size(), 1);
+        return impl(bits[0]);
+      },
+      std::vector<Tonicity>(1, Tonicity::Monotone), op);
+}
+
 absl::Status RangeQueryVisitor::HandleAntitoneUnaryOp(
-    std::function<Bits(const Bits&)> impl, Node* op) {
-  IntervalSet input_intervals =
-      engine_->GetIntervalSetTree(op->operand(0)).Get({});
-  IntervalSet result_intervals(op->BitCountOrDie());
-  for (const Interval& input_interval : input_intervals.Intervals()) {
-    // The essential property of a unary antitone function `f` is that the
-    // codomain of `f` applied to `[x, y]` is `[f(y), f(x)]`. For example,
-    // the negation function applied to `[10, 20]` gives an codomain of
-    // `[-20, -10]`.
-    result_intervals.AddInterval(
-        {impl(input_interval.UpperBound()), impl(input_interval.LowerBound())});
-  }
-
-  result_intervals = MinimizeIntervals(result_intervals);
-
-  IntervalSetTree result(op->GetType());
-  result.Set({}, result_intervals);
-  engine_->SetIntervalSetTree(op, result);
-  return absl::OkStatus();
+    std::function<absl::optional<Bits>(const Bits&)> impl, Node* op) {
+  return HandleVariadicOp(
+      [impl](absl::Span<const Bits> bits) -> absl::optional<Bits> {
+        XLS_CHECK_EQ(bits.size(), 1);
+        return impl(bits[0]);
+      },
+      std::vector<Tonicity>(1, Tonicity::Antitone), op);
 }
 
 absl::Status RangeQueryVisitor::HandleMonotoneMonotoneBinOp(
     std::function<absl::optional<Bits>(const Bits&, const Bits&)> impl,
     Node* op) {
-  IntervalSet lhs_intervals =
-      engine_->GetIntervalSetTree(op->operand(0)).Get({});
-  IntervalSet rhs_intervals =
-      engine_->GetIntervalSetTree(op->operand(1)).Get({});
-  IntervalSet result_intervals(op->BitCountOrDie());
-  for (const Interval& lhs_interval : lhs_intervals.Intervals()) {
-    for (const Interval& rhs_interval : rhs_intervals.Intervals()) {
-      // The essential property of a binary function `f` that is monotone in
-      // both arguments is that if the first argument has range `[xₗ, xᵤ]` and
-      // the second argument has range `[yₗ, yᵤ]`, then the image is contained
-      // in `[f(xₗ, yₗ), f(xᵤ, yᵤ)]`. For example, the addition function applied
-      // to `[20, 30]` and `[5, 10]` gives an image of `[25, 40]`.
-      absl::optional<Bits> lower =
-          impl(lhs_interval.LowerBound(), rhs_interval.LowerBound());
-      absl::optional<Bits> upper =
-          impl(lhs_interval.UpperBound(), rhs_interval.UpperBound());
-      if (!lower.has_value() || !upper.has_value()) {
-        return absl::OkStatus();
-      }
-      result_intervals.AddInterval({lower.value(), upper.value()});
-      if (result_intervals.NumberOfIntervals() > kMaxResIntervalSetSize) {
-        result_intervals = MinimizeIntervals(result_intervals);
-      }
-    }
-  }
-
-  result_intervals = MinimizeIntervals(result_intervals);
-
-  IntervalSetTree result(op->GetType());
-  result.Set({}, result_intervals);
-  engine_->SetIntervalSetTree(op, result);
-  return absl::OkStatus();
+  return HandleVariadicOp(
+      [impl](absl::Span<const Bits> bits) -> absl::optional<Bits> {
+        XLS_CHECK_EQ(bits.size(), 2);
+        return impl(bits[0], bits[1]);
+      },
+      {Tonicity::Monotone, Tonicity::Monotone}, op);
 }
 
 absl::Status RangeQueryVisitor::HandleMonotoneAntitoneBinOp(
     std::function<absl::optional<Bits>(const Bits&, const Bits&)> impl,
     Node* op) {
-  IntervalSet lhs_intervals =
-      engine_->GetIntervalSetTree(op->operand(0)).Get({});
-  IntervalSet rhs_intervals =
-      engine_->GetIntervalSetTree(op->operand(1)).Get({});
-  IntervalSet result_intervals(op->BitCountOrDie());
-  for (const Interval& lhs_interval : lhs_intervals.Intervals()) {
-    for (const Interval& rhs_interval : rhs_intervals.Intervals()) {
-      // The essential property of a binary function `f` that is monotone in
-      // the first argument and antitone in the second is that if the first
-      // argument has range `[xₗ, xᵤ]` and the second argument has range
-      // `[yₗ, yᵤ]`, then the image is contained in `[f(xₗ, yᵤ), f(xᵤ, yₗ)]`.
-      // For example, the subtraction function applied to `[20, 30]` and
-      // `[5, 10]` gives an image of `[10, 25]`.
-      //
-      // The proof goes as follows:
-      // 1. Assume we have arbitrary x ∈ [xₗ, xᵤ], y ∈ [yₗ, yᵤ], and try to show
-      //   that `f(x, y) ∈ [f(xₗ, yᵤ), f(xᵤ, yₗ)]`
-      // 2. The definition of monotonicity in the first argument gives
-      //    ∀ k. (p ≤ q) ⇒ (f(p, k) ≤ f(q, k))
-      // 3. Instantiating that at `p = xₗ` and `q = x` and using `xₗ ≤ x` gives
-      //    ∀ k. f(xₗ, k) ≤ f(x, k)
-      // 4. Instantiating that at `p = x` and `q = xᵤ` and using `x ≤ xᵤ` gives
-      //    ∀ k. f(x, k) ≤ f(xᵤ, k)
-      // 5. Together, these imply that ∀ k. f(x, k) ∈ [f(xₗ, k), f(xᵤ, k)]
-      // 6. The definition of antitonicity in the second argument gives
-      //    ∀ m. (p ≤ q) ⇒ (f(m, q) ≤ f(m, p))
-      // 7. Instantiating that at `p = yₗ` and `q = y` and using `yₗ ≤ y` gives
-      //    ∀ m. f(m, y) ≤ f(m, yₗ)
-      // 8. Instantiating that at `p = y` and `q = yᵤ` and using `y ≤ yᵤ` gives
-      //    ∀ m. f(m, yᵤ) ≤ f(m, y)
-      // 9. Together, these imply that ∀ m. f(m, y) ∈ [f(m, yᵤ), f(m, yₗ)]
-      // 10. Between (5) and (9) we can conclude that
-      //     f(x, y) ∈ [f(xₗ, yᵤ), f(xᵤ, yₗ)]
-      absl::optional<Bits> lower =
-          impl(lhs_interval.LowerBound(), rhs_interval.UpperBound());
-      absl::optional<Bits> upper =
-          impl(lhs_interval.UpperBound(), rhs_interval.LowerBound());
-      if (!lower.has_value() || !upper.has_value()) {
-        return absl::OkStatus();
-      }
-      result_intervals.AddInterval({lower.value(), upper.value()});
-      if (result_intervals.NumberOfIntervals() > kMaxResIntervalSetSize) {
-        result_intervals = MinimizeIntervals(result_intervals);
-      }
-    }
-  }
-
-  result_intervals = MinimizeIntervals(result_intervals);
-
-  IntervalSetTree result(op->GetType());
-  result.Set({}, result_intervals);
-  engine_->SetIntervalSetTree(op, result);
-  return absl::OkStatus();
+  return HandleVariadicOp(
+      [impl](absl::Span<const Bits> bits) -> absl::optional<Bits> {
+        XLS_CHECK_EQ(bits.size(), 2);
+        return impl(bits[0], bits[1]);
+      },
+      {Tonicity::Monotone, Tonicity::Antitone}, op);
 }
 
 absl::optional<bool> RangeQueryVisitor::AnalyzeEq(const IntervalSet& lhs,
