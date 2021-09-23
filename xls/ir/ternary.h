@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2021 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,6 +52,24 @@ inline std::ostream& operator<<(std::ostream& os, TernaryVector vector) {
 }
 
 namespace ternary_ops {
+
+inline TernaryVector FromKnownBits(const Bits& known_bits,
+                                   const Bits& known_bits_values) {
+  XLS_CHECK_EQ(known_bits.bit_count(), known_bits_values.bit_count());
+  TernaryVector result;
+  result.reserve(known_bits.bit_count());
+
+  for (int64_t i = 0; i < known_bits.bit_count(); ++i) {
+    if (known_bits.Get(i)) {
+      result.push_back(known_bits_values.Get(i) ? TernaryValue::kKnownOne
+                                                : TernaryValue::kKnownZero);
+    } else {
+      result.push_back(TernaryValue::kUnknown);
+    }
+  }
+
+  return result;
+}
 
 inline bool IsKnown(TernaryValue t) { return t != TernaryValue::kUnknown; }
 inline bool IsUnknown(TernaryValue t) { return t == TernaryValue::kUnknown; }
