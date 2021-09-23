@@ -674,15 +674,10 @@ absl::Status RangeQueryVisitor::HandleBitSliceUpdate(BitSliceUpdate* update) {
 
 absl::Status RangeQueryVisitor::HandleConcat(Concat* concat) {
   engine_->InitializeNode(concat);
-  // TODO(taktoa): handle variadic concat
-  if (concat->operands().size() == 2) {
-    return HandleMonotoneMonotoneBinOp(
-        [](const Bits& lhs, const Bits& rhs) -> absl::optional<Bits> {
-          return bits_ops::Concat({lhs, rhs});
-        },
-        concat);
-  }
-  return absl::OkStatus();
+  return HandleVariadicOp(
+      bits_ops::Concat,
+      std::vector<Tonicity>(concat->operands().size(), Tonicity::Monotone),
+      concat);
 }
 
 absl::Status RangeQueryVisitor::HandleCountedFor(CountedFor* counted_for) {
