@@ -33,7 +33,7 @@ absl::Status SchedulingChecker::Run(SchedulingUnit* unit,
     } else {
       XLS_ASSIGN_OR_RETURN(entry, unit->package->EntryFunction());
     }
-    XLS_RET_CHECK_EQ(entry, unit->schedule->function());
+    XLS_RET_CHECK_EQ(entry, unit->schedule->function_base());
     XLS_RETURN_IF_ERROR(unit->schedule->Verify());
     // TODO(meheff): Add check to ensure schedule matches the specified
     // SchedulingOptions. For example, number pipeline_stages, clock_period,

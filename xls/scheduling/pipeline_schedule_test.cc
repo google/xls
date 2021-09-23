@@ -42,10 +42,14 @@ class TestDelayEstimator : public DelayEstimator {
  public:
   absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
     switch (node->op()) {
-      case Op::kParam:
-      case Op::kLiteral:
+      case Op::kAfterAll:
       case Op::kBitSlice:
       case Op::kConcat:
+      case Op::kLiteral:
+      case Op::kParam:
+      case Op::kReceive:
+      case Op::kSend:
+      case Op::kTupleIndex:
         return 0;
       case Op::kUDiv:
       case Op::kSDiv:
@@ -119,7 +123,7 @@ TEST_F(PipelineScheduleTest, OutrightInfeasibleSchedule) {
       StatusIs(
           absl::StatusCode::kResourceExhausted,
           HasSubstr(
-              "Cannot be scheduled in 2 stages. Computed lower bound is 3.")));
+              "Cannot be scheduled in 2 stages. Computed lower bound is 4.")));
 }
 
 TEST_F(PipelineScheduleTest, InfeasiableScheduleWithBinPacking) {
@@ -132,14 +136,41 @@ TEST_F(PipelineScheduleTest, InfeasiableScheduleWithBinPacking) {
   fb.Not(fb.UDiv(fb.Not(x), fb.Not(x)));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  ASSERT_THAT(PipelineSchedule::Run(
-                  f, TestDelayEstimator(),
-                  SchedulingOptions(SchedulingStrategy::MINIMIZE_REGISTERS)
-                      .clock_period_ps(2)
-                      .pipeline_stages(2))
-                  .status(),
-              StatusIs(absl::StatusCode::kResourceExhausted,
-                       HasSubstr("Unable to tighten the ")));
+  ASSERT_THAT(
+      PipelineSchedule::Run(
+          f, TestDelayEstimator(),
+          SchedulingOptions(SchedulingStrategy::MINIMIZE_REGISTERS)
+              .clock_period_ps(2)
+              .pipeline_stages(2))
+          .status(),
+      StatusIs(
+          absl::StatusCode::kResourceExhausted,
+          HasSubstr(
+              "Cannot be scheduled in 2 stages. Computed lower bound is 3.")));
+}
+
+TEST_F(PipelineScheduleTest, InfeasiableScheduleWithReturnValueUsers) {
+  // Create function which has users of the return value node such that the
+  // return value cannot be scheduled in the final cycle.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue ret_value = fb.Not(x, absl::nullopt, "ret_value");
+  fb.Negate(ret_value);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret_value));
+
+  ASSERT_THAT(
+      PipelineSchedule::Run(
+          f, TestDelayEstimator(),
+          SchedulingOptions(SchedulingStrategy::MINIMIZE_REGISTERS)
+              .clock_period_ps(1)
+              .pipeline_stages(2))
+          .status(),
+      StatusIs(
+          absl::StatusCode::kResourceExhausted,
+          HasSubstr(
+              "the following node(s) must be scheduled in the final cycle but "
+              "that is impossible due to users of these node(s): ret_value")));
 }
 
 TEST_F(PipelineScheduleTest, AsapScheduleNoParameters) {
@@ -498,6 +529,90 @@ TEST_F(PipelineScheduleTest, SerializeAndDeserialize) {
   for (const Node* node : func->nodes()) {
     EXPECT_EQ(schedule.cycle(node), clone.cycle(node));
   }
+}
+
+TEST_F(PipelineScheduleTest, ProcSchedule) {
+  Package p("p");
+  Type* u16 = p.GetBitsType(16);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_ch,
+      p.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u16));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
+  TokenlessProcBuilder pb("the_proc", Value(UBits(42, 16)), "tkn", "st", &p);
+  BValue rcv = pb.Receive(in_ch);
+  BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
+  BValue send = pb.Send(out_ch, out);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, TestDelayEstimator(),
+                            SchedulingOptions().clock_period_ps(1)));
+
+  EXPECT_EQ(schedule.length(), 3);
+
+  EXPECT_EQ(schedule.cycle(rcv.node()), 0);
+  EXPECT_EQ(schedule.cycle(send.node()), 2);
+}
+
+TEST_F(PipelineScheduleTest, ProcWithConditionalReceive) {
+  // Test a proc with a conditional receive. The receive condition must be
+  // scheduled in cycle 0 along with the receive.
+  Package p("p");
+  Type* u16 = p.GetBitsType(16);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_ch,
+      p.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u16));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
+  TokenlessProcBuilder pb("the_proc", Value(UBits(42, 16)), "tkn", "st", &p);
+  BValue cond = pb.Literal(UBits(0, 1));
+  BValue rcv = pb.ReceiveIf(in_ch, cond);
+  BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
+  BValue send = pb.Send(out_ch, out);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, TestDelayEstimator(),
+                            SchedulingOptions().clock_period_ps(1)));
+
+  EXPECT_EQ(schedule.length(), 3);
+
+  EXPECT_EQ(schedule.cycle(rcv.node()), 0);
+  EXPECT_EQ(schedule.cycle(cond.node()), 0);
+  EXPECT_EQ(schedule.cycle(send.node()), 2);
+}
+
+TEST_F(PipelineScheduleTest, ProcWithConditionalReceiveError) {
+  // Test a proc with a conditional receive. The receive condition takes too
+  // long to compute which prevents the receive from being scheduled in the
+  // first cycle which results in an error.
+  Package p("p");
+  Type* u16 = p.GetBitsType(16);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_ch,
+      p.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u16));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
+  TokenlessProcBuilder pb("the_proc", Value(UBits(42, 16)), "tkn", "st", &p);
+  BValue cond = pb.Not(pb.Not(pb.Literal(UBits(0, 1))));
+  BValue rcv = pb.ReceiveIf(in_ch, cond, absl::nullopt, "rcv");
+  BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
+  pb.Send(out_ch, out);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+
+  ASSERT_THAT(
+      PipelineSchedule::Run(proc, TestDelayEstimator(),
+                            SchedulingOptions().clock_period_ps(1))
+          .status(),
+      StatusIs(absl::StatusCode::kResourceExhausted,
+               HasSubstr("node `rcv` must be scheduled in the first cycle but "
+                         "that is impossible due to the node's operand(s)")));
 }
 
 }  // namespace

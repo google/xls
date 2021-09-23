@@ -96,7 +96,7 @@ static absl::StatusOr<PipelineSchedule> MaybeAddInputOutputFlopsToSchedule(
     const PipelineSchedule& schedule, const CodegenOptions& options) {
   // All params must be scheduled in cycle 0.
   ScheduleCycleMap cycle_map;
-  for (Param* param : schedule.function()->params()) {
+  for (Param* param : schedule.function_base()->params()) {
     XLS_RET_CHECK_EQ(schedule.cycle(param), 0);
     cycle_map[param] = 0;
   }
@@ -122,7 +122,7 @@ static absl::StatusOr<PipelineSchedule> MaybeAddInputOutputFlopsToSchedule(
   if (options.flop_outputs()) {
     ++cycle_offset;
   }
-  PipelineSchedule result(schedule.function(), cycle_map,
+  PipelineSchedule result(schedule.function_base(), cycle_map,
                           schedule.length() + cycle_offset);
   return std::move(result);
 }
@@ -142,6 +142,10 @@ using PipelineStageRegisters = std::vector<PipelineRegister>;
 // should be empty prior to calling this function.
 static absl::StatusOr<std::vector<PipelineStageRegisters>> CreatePipeline(
     const PipelineSchedule& schedule, Block* block) {
+  Function* function = dynamic_cast<Function*>(schedule.function_base());
+  XLS_RET_CHECK(function != nullptr)
+      << "CreatePipeline can only be run on a function";
+
   // A map from the nodes in the function (which the schedule refers to) to the
   // corresponding node in the block.
   absl::flat_hash_map<Node*, Node*> node_map;
@@ -150,7 +154,7 @@ static absl::StatusOr<std::vector<PipelineStageRegisters>> CreatePipeline(
 
   // Emit the parameters first to ensure the their order is preserved in the
   // block.
-  for (Param* param : schedule.function()->params()) {
+  for (Param* param : function->params()) {
     XLS_RET_CHECK_EQ(schedule.cycle(param), 0);
     XLS_ASSIGN_OR_RETURN(
         node_map[param],
@@ -173,7 +177,7 @@ static absl::StatusOr<std::vector<PipelineStageRegisters>> CreatePipeline(
 
     // Add pipeline registers. A register is needed for each node which is
     // scheduled at or before this cycle and has a use after this cycle.
-    for (Node* function_node : schedule.function()->nodes()) {
+    for (Node* function_node : function->nodes()) {
       if (schedule.cycle(function_node) > stage) {
         continue;
       }
@@ -181,7 +185,7 @@ static absl::StatusOr<std::vector<PipelineStageRegisters>> CreatePipeline(
         if (stage == schedule.length() - 1) {
           return false;
         }
-        if (n == schedule.function()->return_value()) {
+        if (n == function->return_value()) {
           return true;
         }
         for (Node* user : n->users()) {
@@ -214,11 +218,10 @@ static absl::StatusOr<std::vector<PipelineStageRegisters>> CreatePipeline(
     }
   }
 
-  XLS_RETURN_IF_ERROR(
-      block
-          ->AddOutputPort(kOutputPortName,
-                          node_map.at(schedule.function()->return_value()))
-          .status());
+  XLS_RETURN_IF_ERROR(block
+                          ->AddOutputPort(kOutputPortName,
+                                          node_map.at(function->return_value()))
+                          .status());
 
   return pipeline_registers;
 }

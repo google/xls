@@ -24,7 +24,7 @@
 namespace xls {
 namespace sched {
 
-ScheduleBounds::ScheduleBounds(Function* f, int64_t clock_period_ps,
+ScheduleBounds::ScheduleBounds(FunctionBase* f, int64_t clock_period_ps,
                                const DelayEstimator& delay_estimator)
     : clock_period_ps_(clock_period_ps), delay_estimator_(&delay_estimator) {
   auto topo_sort_it = TopoSort(f);
@@ -32,7 +32,7 @@ ScheduleBounds::ScheduleBounds(Function* f, int64_t clock_period_ps,
   Reset();
 }
 
-ScheduleBounds::ScheduleBounds(Function* f, std::vector<Node*> topo_sort,
+ScheduleBounds::ScheduleBounds(FunctionBase* f, std::vector<Node*> topo_sort,
                                int64_t clock_period_ps,
                                const DelayEstimator& delay_estimator)
     : topo_sort_(std::move(topo_sort)),
@@ -45,14 +45,9 @@ void ScheduleBounds::Reset() {
   max_lower_bound_ = 0;
   min_upper_bound_ = 0;
   for (Node* node : topo_sort_) {
-    if (node->Is<Param>()) {
-      // Always schedule parameters in cycle zero.
-      bounds_[node] = {0, 0};
-    } else {
-      bounds_[node] = {0, std::numeric_limits<int64_t>::max()};
-      max_lower_bound_ = 0;
-      min_upper_bound_ = std::numeric_limits<int64_t>::max();
-    }
+    bounds_[node] = {0, std::numeric_limits<int64_t>::max()};
+    max_lower_bound_ = 0;
+    min_upper_bound_ = std::numeric_limits<int64_t>::max();
   }
 }
 
@@ -160,7 +155,7 @@ absl::Status ScheduleBounds::PropagateUpperBounds() {
 
 /* static */
 absl::StatusOr<ScheduleBounds> ScheduleBounds::ComputeAsapAndAlapBounds(
-    Function* f, int64_t clock_period_ps,
+    FunctionBase* f, int64_t clock_period_ps,
     const DelayEstimator& delay_estimator) {
   XLS_VLOG(4) << "ComputeAsapAndAlapBounds()";
   ScheduleBounds bounds(f, clock_period_ps, delay_estimator);

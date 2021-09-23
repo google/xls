@@ -25,7 +25,7 @@ namespace xls {
 namespace sched {
 
 std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
-    Function* f, absl::Span<Node* const> partitionable_nodes) {
+    FunctionBase* f, absl::Span<Node* const> partitionable_nodes) {
   if (XLS_VLOG_IS_ON(4)) {
     XLS_VLOG(4) << "Computing min-cut of function " << f->name()
                 << ", partitionable nodes:";
@@ -73,12 +73,6 @@ std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
       // Add a maximum weight edge from the artificial source node to each
       // parameter node. This forces the cut to be below the parameter nodes.
       add_edge(source, node_id, kMaxWeight);
-    }
-    if (!node->Is<Param>() && node == f->return_value()) {
-      // Add a maximum weight edge from the function return value to the
-      // artificial sink node. This forces the cut to be above the return value
-      // node.
-      add_edge(node_id, sink, kMaxWeight);
     }
 
     // Add a node in the mincut graph for each operand of a node in the

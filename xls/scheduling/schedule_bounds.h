@@ -43,17 +43,17 @@ class ScheduleBounds {
   // The upper bounds of nodes with no uses (leaf nodes) are set to the maximum
   // lower bound of any node.
   static absl::StatusOr<ScheduleBounds> ComputeAsapAndAlapBounds(
-      Function* f, int64_t clock_period_ps,
+      FunctionBase* f, int64_t clock_period_ps,
       const DelayEstimator& delay_estimator);
 
   // Upon construction all parameters have lower and upper bounds of 0. All
   // other nodes have a lower bound of 1 and an upper bound of INT64_MAX.
-  ScheduleBounds(Function* f, int64_t clock_period_ps,
+  ScheduleBounds(FunctionBase* f, int64_t clock_period_ps,
                  const DelayEstimator& delay_estimator);
 
   // Constructor which uses an existing topological sort to avoid having to
   // recompute it.
-  ScheduleBounds(Function* f, std::vector<Node*> topo_sort,
+  ScheduleBounds(FunctionBase* f, std::vector<Node*> topo_sort,
                  int64_t clock_period_ps,
                  const DelayEstimator& delay_estimator);
 

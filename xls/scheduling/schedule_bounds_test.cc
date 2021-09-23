@@ -121,8 +121,8 @@ TEST_F(ScheduleBoundsTest, SimpleExpressionTightenBounds) {
 
   // Upper bounds should still be all at their limit.
   const int64_t kMax = std::numeric_limits<int64_t>::max();
-  EXPECT_EQ(bounds.ub(x.node()), 0);
-  EXPECT_EQ(bounds.ub(y.node()), 0);
+  EXPECT_EQ(bounds.ub(x.node()), kMax);
+  EXPECT_EQ(bounds.ub(y.node()), kMax);
   EXPECT_EQ(bounds.ub(not_x.node()), kMax);
   EXPECT_EQ(bounds.ub(x_plus_y.node()), kMax);
   EXPECT_EQ(bounds.ub(not_x_plus_y.node()), kMax);

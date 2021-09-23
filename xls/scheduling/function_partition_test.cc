@@ -99,16 +99,20 @@ TEST_F(FunctionPartitionTest, LinearGraphCut) {
   //  bit-slice
   //      |
   //   zero-extend
+  //      |
+  //    negate
   //
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   auto x = fb.Param("x", p->GetBitsType(32));
   auto bit_slice = fb.BitSlice(x, /*start=*/0, /*width=*/16);
   auto zext = fb.ZeroExtend(bit_slice, /*new_bit_count=*/128);
+  fb.Negate(zext);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   {
-    auto partition = MinCostFunctionPartition(f, AllNodes(f));
+    auto partition =
+        MinCostFunctionPartition(f, {x.node(), bit_slice.node(), zext.node()});
     EXPECT_THAT(partition.first,
                 UnorderedElementsAre(x.node(), bit_slice.node()));
     EXPECT_THAT(partition.second, UnorderedElementsAre(zext.node()));
@@ -145,20 +149,6 @@ TEST_F(FunctionPartitionTest, DisconnectedGraph) {
   EXPECT_THAT(partition.first, UnorderedElementsAre(x.node(), not_x.node()));
   EXPECT_THAT(partition.second,
               UnorderedElementsAre(literal.node(), not_literal.node()));
-}
-
-TEST_F(FunctionPartitionTest, BitSliceReturnValue) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  auto x = fb.Param("x", p->GetBitsType(32));
-  auto bit_slice = fb.BitSlice(x, /*start=*/0, /*width=*/16);
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-
-  auto partition = MinCostFunctionPartition(f, {x.node(), bit_slice.node()});
-  EXPECT_THAT(partition.first, UnorderedElementsAre(x.node()));
-  // Return value should always go in the second partition even if cutting below
-  // the return value is lower weight.
-  EXPECT_THAT(partition.second, UnorderedElementsAre(bit_slice.node()));
 }
 
 TEST_F(FunctionPartitionTest, BenchmarkTest) {

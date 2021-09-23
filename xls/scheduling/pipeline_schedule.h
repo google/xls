@@ -20,6 +20,8 @@
 #include "absl/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/proc.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 
 namespace xls {
@@ -117,7 +119,7 @@ class PipelineSchedule {
   // Produces a feed-forward pipeline schedule using the given delay model and
   // scheduling options.
   static absl::StatusOr<PipelineSchedule> Run(
-      Function* f, const DelayEstimator& delay_estimator,
+      FunctionBase* f, const DelayEstimator& delay_estimator,
       const SchedulingOptions& options);
 
   // Reconstructs a PipelineSchedule object from a proto representation.
@@ -127,10 +129,10 @@ class PipelineSchedule {
   // Constructs a schedule for the given function with the given cycle map. If
   // length is not given, then the length equal to the largest cycle in cycle
   // map minus one.
-  PipelineSchedule(Function* function, ScheduleCycleMap cycle_map,
+  PipelineSchedule(FunctionBase* function_base, ScheduleCycleMap cycle_map,
                    absl::optional<int64_t> length = absl::nullopt);
 
-  Function* function() const { return function_; }
+  FunctionBase* function_base() const { return function_base_; }
 
   // Returns whether the given node is contained in this schedule.
   bool IsScheduled(Node* node) const { return cycle_map_.contains(node); }
@@ -170,7 +172,7 @@ class PipelineSchedule {
   PipelineScheduleProto ToProto();
 
  private:
-  Function* function_;
+  FunctionBase* function_base_;
 
   // Map from node to the cycle in which it is scheduled.
   ScheduleCycleMap cycle_map_;
