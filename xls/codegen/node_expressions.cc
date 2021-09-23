@@ -95,6 +95,14 @@ bool OperandMustBeNamedReference(Node* node, int64_t operand_no) {
 
 namespace {
 
+// Emit select as a chain of ternary expressions. For example:
+//
+//   foo = sel(s, cases={a, b, c, d})
+//
+// becomes (parentheses added for clarity)
+//
+//   foo = s == 0 ? a : (s == 1 ? b : (s == 2 ? c : d))
+//
 absl::StatusOr<Expression*> EmitSel(Select* sel, Expression* selector,
                                     absl::Span<Expression* const> cases,
                                     int64_t caseno, VerilogFile* file) {
@@ -103,6 +111,18 @@ absl::StatusOr<Expression*> EmitSel(Select* sel, Expression* selector,
   }
   XLS_ASSIGN_OR_RETURN(Expression * rhs,
                        EmitSel(sel, selector, cases, caseno + 1, file));
+  // If the selector is a single bit value then instead of emitting:
+  //
+  //   selector == 0 ? case_i : rhs
+  //
+  // emit:
+  //
+  //   selector ? rhs : case_i
+  //
+  if (sel->selector()->BitCountOrDie() == 1) {
+    return file->Ternary(selector, rhs, cases[caseno]);
+  }
+
   return file->Ternary(
       file->Equals(
           selector,
