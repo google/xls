@@ -15,17 +15,15 @@ module AddNegateFlopInputsNotOutputs(
   end
 
   // ===== Pipe stage 1:
-  wire [7:0] p1_add_3_comb;
-  assign p1_add_3_comb = p0_x + p0_y;
+  wire [7:0] p1_add_11_comb;
+  assign p1_add_11_comb = p0_x + p0_y;
 
   // Registers for pipe stage 1:
-  reg [7:0] p1_add_3;
+  reg [7:0] p1_add_11;
   always_ff @ (posedge clk) begin
-    p1_add_3 <= p1_add_3_comb;
+    p1_add_11 <= p1_add_11_comb;
   end
 
   // ===== Pipe stage 2:
-  wire [7:0] p2_neg_4_comb;
-  assign p2_neg_4_comb = -p1_add_3;
-  assign out = p2_neg_4_comb;
+  assign out = -p1_add_11;
 endmodule

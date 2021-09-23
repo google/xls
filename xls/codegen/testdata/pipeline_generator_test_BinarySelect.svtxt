@@ -18,13 +18,13 @@ module BinarySelect(
   end
 
   // ===== Pipe stage 1:
-  wire [7:0] p1_sel_4_comb;
-  assign p1_sel_4_comb = p0_s ? p0_x : p0_y;
+  wire [7:0] p1_sel_14_comb;
+  assign p1_sel_14_comb = p0_s ? p0_x : p0_y;
 
   // Registers for pipe stage 1:
-  reg [7:0] p1_sel_4;
+  reg [7:0] p1_sel_14;
   always_ff @ (posedge clk) begin
-    p1_sel_4 <= p1_sel_4_comb;
+    p1_sel_14 <= p1_sel_14_comb;
   end
-  assign out = p1_sel_4;
+  assign out = p1_sel_14;
 endmodule

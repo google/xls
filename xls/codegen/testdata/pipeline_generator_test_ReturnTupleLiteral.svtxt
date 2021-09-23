@@ -2,17 +2,9 @@ module ReturnTupleLiteral(
   input wire clk,
   output wire [32:0] out
 );
-  wire [32:0] literal_1;
-  assign literal_1 = {1'h0, 32'h0000_007b};
+  wire [32:0] literal_2;
+  assign literal_2 = {1'h0, 32'h0000_007b};
 
   // ===== Pipe stage 0:
-
-  // ===== Pipe stage 1:
-
-  // ===== Pipe stage 2:
-
-  // ===== Pipe stage 3:
-
-  // ===== Pipe stage 4:
-  assign out = literal_1;
+  assign out = literal_2;
 endmodule

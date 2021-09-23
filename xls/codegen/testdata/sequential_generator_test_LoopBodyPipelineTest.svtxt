@@ -5,27 +5,27 @@ module ____LoopBodyPipelineTest__main_counted_for_0_body(
   output wire [31:0] out
 );
   // ===== Pipe stage 0:
-  wire [31:0] p0_add_5_comb;
-  assign p0_add_5_comb = acc + index;
+  wire [31:0] p0_add_15_comb;
+  assign p0_add_15_comb = acc + index;
 
   // Registers for pipe stage 0:
-  reg [31:0] p0_add_5;
+  reg [31:0] p0_add_15;
   always_ff @ (posedge clk) begin
-    p0_add_5 <= p0_add_5_comb;
+    p0_add_15 <= p0_add_15_comb;
   end
 
   // ===== Pipe stage 1:
-  wire [31:0] p1_add_7_comb;
-  assign p1_add_7_comb = p0_add_5 + 32'h0000_0003;
+  wire [31:0] p1_add_19_comb;
+  assign p1_add_19_comb = p0_add_15 + 32'h0000_0003;
 
   // Registers for pipe stage 1:
-  reg [31:0] p1_add_7;
+  reg [31:0] p1_add_19;
   always_ff @ (posedge clk) begin
-    p1_add_7 <= p1_add_7_comb;
+    p1_add_19 <= p1_add_19_comb;
   end
 
   // ===== Pipe stage 2:
-  wire [31:0] p2_add_9_comb;
-  assign p2_add_9_comb = p1_add_7 + 32'h0000_0004;
-  assign out = p2_add_9_comb;
+  wire [31:0] p2_add_23_comb;
+  assign p2_add_23_comb = p1_add_19 + 32'h0000_0004;
+  assign out = p2_add_23_comb;
 endmodule
