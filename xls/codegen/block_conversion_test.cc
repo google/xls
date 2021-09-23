@@ -128,7 +128,9 @@ TEST_F(BlockConversionTest, SimplePipelinedFunction) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Block * block,
       FunctionToPipelinedBlock(
-          schedule, CodegenOptions().flop_inputs(false).flop_outputs(false),
+          schedule,
+          CodegenOptions().flop_inputs(false).flop_outputs(false).clock_name(
+              "clk"),
           f));
 
   EXPECT_THAT(GetOutputPort(block),
@@ -153,7 +155,9 @@ TEST_F(BlockConversionTest, TrivialPipelinedFunction) {
     XLS_ASSERT_OK_AND_ASSIGN(
         Block * block,
         FunctionToPipelinedBlock(
-            schedule, CodegenOptions().flop_inputs(false).flop_outputs(false),
+            schedule,
+            CodegenOptions().flop_inputs(false).flop_outputs(false).clock_name(
+                "clk"),
             f));
 
     EXPECT_THAT(GetOutputPort(block),
@@ -166,7 +170,9 @@ TEST_F(BlockConversionTest, TrivialPipelinedFunction) {
     XLS_ASSERT_OK_AND_ASSIGN(
         Block * block,
         FunctionToPipelinedBlock(
-            schedule, CodegenOptions().flop_inputs(true).flop_outputs(false),
+            schedule,
+            CodegenOptions().flop_inputs(true).flop_outputs(false).clock_name(
+                "clk"),
             f));
 
     EXPECT_THAT(GetOutputPort(block),
@@ -180,7 +186,9 @@ TEST_F(BlockConversionTest, TrivialPipelinedFunction) {
     XLS_ASSERT_OK_AND_ASSIGN(
         Block * block,
         FunctionToPipelinedBlock(
-            schedule, CodegenOptions().flop_inputs(false).flop_outputs(true),
+            schedule,
+            CodegenOptions().flop_inputs(false).flop_outputs(true).clock_name(
+                "clk"),
             f));
 
     EXPECT_THAT(GetOutputPort(block),
@@ -193,7 +201,9 @@ TEST_F(BlockConversionTest, TrivialPipelinedFunction) {
     XLS_ASSERT_OK_AND_ASSIGN(
         Block * block,
         FunctionToPipelinedBlock(
-            schedule, CodegenOptions().flop_inputs(true).flop_outputs(true),
+            schedule,
+            CodegenOptions().flop_inputs(true).flop_outputs(true).clock_name(
+                "clk"),
             f));
 
     EXPECT_THAT(GetOutputPort(block),
@@ -218,7 +228,9 @@ TEST_F(BlockConversionTest, ZeroWidthPipeline) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Block * block,
       FunctionToPipelinedBlock(
-          schedule, CodegenOptions().flop_inputs(false).flop_outputs(false),
+          schedule,
+          CodegenOptions().flop_inputs(false).flop_outputs(false).clock_name(
+              "clk"),
           f));
 
   EXPECT_EQ(block->GetRegisters().size(), 4);

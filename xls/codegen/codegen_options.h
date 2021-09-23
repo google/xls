@@ -58,7 +58,7 @@ struct CodegenOptions {
     return pipeline_control_;
   }
 
-  // Name of the clock signal. Required if the proc has any registers.
+  // Name of the clock signal. Required if the block has any registers.
   CodegenOptions& clock_name(absl::string_view clock_name);
   absl::optional<absl::string_view> clock_name() const { return clock_name_; }
 

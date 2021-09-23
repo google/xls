@@ -540,10 +540,16 @@ class BlockGenerator {
   }
 
   absl::Status EmitOutputPorts() {
-    for (OutputPort* output_port : block_->GetOutputPorts()) {
-      XLS_RETURN_IF_ERROR(mb_.AddOutputPort(
-          output_port->GetName(), output_port->operand(0)->GetType(),
-          absl::get<Expression*>(node_exprs_.at(output_port->operand(0)))));
+    // Iterate through GetPorts and pick out the output ports because GetPorts
+    // contains the desired port ordering.
+    for (const Block::Port& port : block_->GetPorts()) {
+      if (absl::holds_alternative<OutputPort*>(port)) {
+        OutputPort* output_port = absl::get<OutputPort*>(port);
+        XLS_RETURN_IF_ERROR(mb_.AddOutputPort(
+            output_port->GetName(), output_port->operand(0)->GetType(),
+            absl::get<Expression*>(node_exprs_.at(output_port->operand(0)))));
+        node_exprs_[output_port] = UnrepresentedSentinel();
+      }
     }
     return absl::OkStatus();
   }
