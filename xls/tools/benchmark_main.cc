@@ -223,31 +223,26 @@ absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
     absl::optional<int64_t> clock_period_ps,
     absl::optional<int64_t> pipeline_stages,
     absl::optional<int64_t> clock_margin_percent) {
-  SchedulingPassOptions options;
-  options.delay_estimator = &delay_estimator;
+  SchedulingOptions options;
   if (clock_period_ps.has_value()) {
-    options.scheduling_options.clock_period_ps(*clock_period_ps);
+    options.clock_period_ps(*clock_period_ps);
   }
   if (pipeline_stages.has_value()) {
-    options.scheduling_options.pipeline_stages(*pipeline_stages);
+    options.pipeline_stages(*pipeline_stages);
   }
   if (clock_margin_percent.has_value()) {
-    options.scheduling_options.clock_margin_percent(*clock_margin_percent);
+    options.clock_margin_percent(*clock_margin_percent);
   }
 
-  std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
-      CreateStandardSchedulingPassPipeline();
-  SchedulingPassResults results;
-  SchedulingUnit scheduling_unit = {package, /*schedule=*/absl::nullopt};
-
+  XLS_ASSIGN_OR_RETURN(Function * entry, package->EntryFunction());
   absl::Time start = absl::Now();
-  XLS_RETURN_IF_ERROR(
-      scheduling_pipeline->Run(&scheduling_unit, options, &results).status());
+  XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
+                       PipelineSchedule::Run(entry, delay_estimator, options));
   absl::Duration total_time = absl::Now() - start;
   std::cout << absl::StreamFormat("Scheduling time: %dms\n",
                                   total_time / absl::Milliseconds(1));
 
-  return std::move(*scheduling_unit.schedule);
+  return std::move(schedule);
 }
 
 absl::Status PrintCodegenInfo(Function* f, const PipelineSchedule& schedule,

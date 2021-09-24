@@ -42,8 +42,6 @@
 #include "xls/passes/tuple_simplification_pass.h"
 #include "xls/passes/unroll_pass.h"
 #include "xls/passes/verifier_checker.h"
-#include "xls/scheduling/pipeline_scheduling_pass.h"
-#include "xls/scheduling/scheduling_checker.h"
 
 namespace xls {
 
@@ -120,14 +118,6 @@ absl::StatusOr<bool> RunStandardPassPipeline(Package* package,
   std::unique_ptr<CompoundPass> pipeline = CreateStandardPassPipeline();
   PassResults results;
   return pipeline->Run(package, PassOptions(), &results);
-}
-
-std::unique_ptr<SchedulingCompoundPass> CreateStandardSchedulingPassPipeline() {
-  auto top = absl::make_unique<SchedulingCompoundPass>(
-      "sched", "Top level scheduling pass pipeline");
-  top->AddInvariantChecker<SchedulingChecker>();
-  top->Add<PipelineSchedulingPass>();
-  return top;
 }
 
 }  // namespace xls

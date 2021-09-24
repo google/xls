@@ -29,7 +29,6 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/passes/standard_pipeline.h"
 #include "xls/scheduling/pipeline_schedule.h"
-#include "xls/scheduling/scheduling_pass.h"
 
 const char kUsage[] = R"(
 Generates Verilog RTL from a given IR file. Writes a Verilog file and a module
@@ -132,49 +131,39 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
                absl::GetFlag(FLAGS_clock_period_ps) != 0)
         << "Musts specify --pipeline_stages or --clock_period_ps (or both).";
 
-    SchedulingPassOptions sched_options;
-    if (!absl::GetFlag(FLAGS_entry).empty()) {
-      sched_options.scheduling_options.entry(absl::GetFlag(FLAGS_entry));
-    }
+    SchedulingOptions scheduling_options;
     if (absl::GetFlag(FLAGS_pipeline_stages) != 0) {
-      sched_options.scheduling_options.pipeline_stages(
-          absl::GetFlag(FLAGS_pipeline_stages));
+      scheduling_options.pipeline_stages(absl::GetFlag(FLAGS_pipeline_stages));
     }
     if (absl::GetFlag(FLAGS_clock_period_ps) != 0) {
-      sched_options.scheduling_options.clock_period_ps(
-          absl::GetFlag(FLAGS_clock_period_ps));
+      scheduling_options.clock_period_ps(absl::GetFlag(FLAGS_clock_period_ps));
     }
     if (absl::GetFlag(FLAGS_clock_margin_percent) != 0) {
-      sched_options.scheduling_options.clock_margin_percent(
+      scheduling_options.clock_margin_percent(
           absl::GetFlag(FLAGS_clock_margin_percent));
     }
-    XLS_ASSIGN_OR_RETURN(sched_options.delay_estimator,
+    XLS_ASSIGN_OR_RETURN(const DelayEstimator* delay_estimator,
                          GetDelayEstimator(absl::GetFlag(FLAGS_delay_model)));
-    std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
-        CreateStandardSchedulingPassPipeline();
-    SchedulingPassResults results;
-    SchedulingUnit scheduling_unit = {p.get(),
-                                      /*schedule=*/absl::nullopt};
-    absl::Status scheduling_status =
-        scheduling_pipeline->Run(&scheduling_unit, sched_options, &results)
-            .status();
-    if (!scheduling_status.ok()) {
-      if (absl::IsResourceExhausted(scheduling_status)) {
+
+    absl::StatusOr<PipelineSchedule> schedule_status =
+        PipelineSchedule::Run(main, *delay_estimator, scheduling_options);
+    if (!schedule_status.ok()) {
+      if (absl::IsResourceExhausted(schedule_status.status())) {
         // Resource exhausted error indicates that the schedule was
         // infeasible. Emit a meaningful error in this case.
-        if (sched_options.scheduling_options.pipeline_stages().has_value() &&
-            sched_options.scheduling_options.clock_period_ps().has_value()) {
+        if (scheduling_options.pipeline_stages().has_value() &&
+            scheduling_options.clock_period_ps().has_value()) {
           // TODO(meheff): Add link to documentation with more information and
           // guidance.
           XLS_LOG(QFATAL) << absl::StreamFormat(
               "Design cannot be scheduled in %d stages with a %dps clock.",
-              sched_options.scheduling_options.pipeline_stages().value(),
-              sched_options.scheduling_options.clock_period_ps().value());
+              scheduling_options.pipeline_stages().value(),
+              scheduling_options.clock_period_ps().value());
         }
       }
-      return scheduling_status;
+      return schedule_status.status();
     }
-    XLS_RET_CHECK(scheduling_unit.schedule.has_value());
+    const PipelineSchedule& schedule = schedule_status.value();
 
     verilog::CodegenOptions pipeline_options = verilog::BuildPipelineOptions();
     if (!absl::GetFlag(FLAGS_module_name).empty()) {
@@ -203,12 +192,10 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
       pipeline_options.gate_format(absl::GetFlag(FLAGS_gate_format));
     }
 
-    XLS_ASSIGN_OR_RETURN(
-        result, verilog::ToPipelineModuleText(*scheduling_unit.schedule, main,
-                                              pipeline_options));
+    XLS_ASSIGN_OR_RETURN(result, verilog::ToPipelineModuleText(
+                                     schedule, main, pipeline_options));
     if (!schedule_path.empty()) {
-      XLS_RETURN_IF_ERROR(
-          SetTextProtoFile(schedule_path, scheduling_unit.schedule->ToProto()));
+      XLS_RETURN_IF_ERROR(SetTextProtoFile(schedule_path, schedule.ToProto()));
     }
   } else if (absl::GetFlag(FLAGS_generator) == "combinational") {
     XLS_ASSIGN_OR_RETURN(result,

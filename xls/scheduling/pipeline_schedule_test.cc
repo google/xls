@@ -81,7 +81,6 @@ TEST_F(PipelineScheduleTest, SelectsEntry) {
   fb_2.Literal(Value(UBits(16, 16)));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f_2, fb_2.Build());
 
-  options.entry("other_fn");
   XLS_ASSERT_OK_AND_ASSIGN(
       schedule, PipelineSchedule::Run(f_2, TestDelayEstimator(), options));
   EXPECT_EQ(schedule.length(), 1);

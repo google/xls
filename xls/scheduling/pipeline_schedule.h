@@ -71,12 +71,6 @@ class SchedulingOptions {
   // Returns the scheduling strategy.
   SchedulingStrategy strategy() const { return strategy_; }
 
-  SchedulingOptions& entry(absl::optional<std::string> value) {
-    entry_ = value;
-    return *this;
-  }
-  absl::optional<std::string> entry() const { return entry_; }
-
   // Sets/gets the target clock period in picoseconds.
   SchedulingOptions& clock_period_ps(int64_t value) {
     clock_period_ps_ = value;
@@ -104,7 +98,6 @@ class SchedulingOptions {
 
  private:
   SchedulingStrategy strategy_;
-  absl::optional<std::string> entry_;
   absl::optional<int64_t> clock_period_ps_;
   absl::optional<int64_t> pipeline_stages_;
   absl::optional<int64_t> clock_margin_percent_;
@@ -169,7 +162,7 @@ class PipelineSchedule {
                             const DelayEstimator& delay_estimator) const;
 
   // Returns a protobuf holding this object's scheduling info.
-  PipelineScheduleProto ToProto();
+  PipelineScheduleProto ToProto() const;
 
  private:
   FunctionBase* function_base_;

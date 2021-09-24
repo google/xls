@@ -17,7 +17,6 @@
 
 #include "absl/status/statusor.h"
 #include "xls/passes/passes.h"
-#include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
 
@@ -30,9 +29,6 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(
 // options.
 absl::StatusOr<bool> RunStandardPassPipeline(Package* package,
                                              int64_t opt_level = kMaxOptLevel);
-
-// Creates a pipeline for constructing a schedule for a feedforward pipeline.
-std::unique_ptr<SchedulingCompoundPass> CreateStandardSchedulingPassPipeline();
 
 }  // namespace xls
 

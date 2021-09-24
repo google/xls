@@ -593,7 +593,7 @@ absl::Status PipelineSchedule::VerifyTiming(
   return absl::OkStatus();
 }
 
-PipelineScheduleProto PipelineSchedule::ToProto() {
+PipelineScheduleProto PipelineSchedule::ToProto() const {
   PipelineScheduleProto proto;
   proto.set_function(function_base_->name());
   for (int i = 0; i < cycle_to_nodes_.size(); i++) {

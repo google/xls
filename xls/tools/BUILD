@@ -825,7 +825,6 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/passes:standard_pipeline",
         "//xls/scheduling:pipeline_schedule",
-        "//xls/scheduling:scheduling_pass",
     ],
 )
 
@@ -1051,7 +1050,6 @@ cc_binary(
         "//xls/ir",
         "//xls/passes:standard_pipeline",
         "//xls/scheduling:pipeline_schedule",
-        "//xls/scheduling:scheduling_pass",
         "@linenoise",
     ],
 )

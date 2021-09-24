@@ -50,9 +50,6 @@ cc_library(
         ":unroll_pass",
         ":verifier_checker",
         "@com_google_absl//absl/status:statusor",
-        "//xls/scheduling:pipeline_scheduling_pass",
-        "//xls/scheduling:scheduling_checker",
-        "//xls/scheduling:scheduling_pass",
     ],
 )
 
