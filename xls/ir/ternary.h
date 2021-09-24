@@ -71,6 +71,44 @@ inline TernaryVector FromKnownBits(const Bits& known_bits,
   return result;
 }
 
+// Returns a vector with known positions for each bit known in `lhs` that isn't
+// known in `rhs`. If `lhs` and `rhs` conflict, returns `absl::nullopt`.
+// CHECK fails if `lhs` and `rhs` have different lengths.
+inline absl::optional<TernaryVector> Difference(const TernaryVector& lhs,
+                                                const TernaryVector& rhs) {
+  XLS_CHECK_EQ(lhs.size(), rhs.size());
+  int64_t size = lhs.size();
+
+  TernaryVector result;
+  for (int64_t i = 0; i < size; ++i) {
+    if (lhs[i] != TernaryValue::kUnknown) {
+      if (rhs[i] == TernaryValue::kUnknown) {
+        result.push_back(lhs[i]);
+      } else {
+        if (lhs[i] != rhs[i]) {
+          return absl::nullopt;
+        }
+        result.push_back(TernaryValue::kUnknown);
+      }
+    } else {
+      result.push_back(TernaryValue::kUnknown);
+    }
+  }
+
+  return result;
+}
+
+// Returns the number of known bits in the given `TernaryVector`.
+inline int64_t NumberOfKnownBits(const TernaryVector& vec) {
+  int64_t result = 0;
+  for (TernaryValue value : vec) {
+    if (value != TernaryValue::kUnknown) {
+      ++result;
+    }
+  }
+  return result;
+}
+
 inline bool IsKnown(TernaryValue t) { return t != TernaryValue::kUnknown; }
 inline bool IsUnknown(TernaryValue t) { return t == TernaryValue::kUnknown; }
 

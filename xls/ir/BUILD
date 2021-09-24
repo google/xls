@@ -140,6 +140,19 @@ cc_library(
 )
 
 cc_test(
+    name = "ternary_test",
+    size = "small",
+    srcs = [
+        "ternary_test.cc",
+    ],
+    deps = [
+        ":ternary",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "bits_test",
     size = "small",
     srcs = [
