@@ -132,7 +132,7 @@ class ConcreteType {
   static absl::StatusOr<std::unique_ptr<ConcreteType>> FromInterpValue(
       const InterpValue& value);
 
-  virtual ~ConcreteType() = default;
+  virtual ~ConcreteType();
 
   virtual bool operator==(const ConcreteType& other) const = 0;
   bool operator!=(const ConcreteType& other) const { return !(*this == other); }
