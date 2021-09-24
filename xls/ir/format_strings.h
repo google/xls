@@ -42,6 +42,10 @@ int64_t OperandsExpectedByFormat(absl::Span<const FormatStep> format);
 // This is the inverse of the ParseFormatString function above.
 std::string StepsToXlsFormatString(absl::Span<const FormatStep> format);
 
+// Convert a sequence of format steps into a format string that can be used
+// in generated Verilog.
+std::string StepsToVerilogFormatString(absl::Span<const FormatStep> format);
+
 }  // namespace xls
 
 #endif  // XLS_IR_FORMAT_STRINGS_H_

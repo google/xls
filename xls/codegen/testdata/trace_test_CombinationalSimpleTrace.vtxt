@@ -1,0 +1,9 @@
+module main(
+  input wire cond
+);
+  always @ (*) begin
+    if (cond) begin
+      $display("This is a simple trace.");
+    end
+  end
+endmodule

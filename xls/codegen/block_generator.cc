@@ -335,9 +335,11 @@ class BlockGenerator {
       XLS_RETURN_IF_ERROR(AssignRegisters(block_->GetRegisters()));
     }
 
-    // Emit asserts and coverpoints separately at the end of the Verilog module.
+    // Emit asserts, coverpoints and traces separately at the end of the Verilog
+    // module.
     XLS_RETURN_IF_ERROR(EmitAsserts());
     XLS_RETURN_IF_ERROR(EmitCovers());
+    XLS_RETURN_IF_ERROR(EmitTraces());
 
     XLS_RETURN_IF_ERROR(EmitOutputPorts());
 
@@ -574,6 +576,23 @@ class BlockGenerator {
         Expression* condition =
             absl::get<Expression*>(node_exprs_.at(cover->condition()));
         XLS_RETURN_IF_ERROR(mb_.EmitCover(cover, condition));
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status EmitTraces() {
+    for (Node* node : block_->nodes()) {
+      if (node->Is<xls::Trace>()) {
+        xls::Trace* trace = node->As<xls::Trace>();
+        Expression* condition =
+            absl::get<Expression*>(node_exprs_.at(trace->condition()));
+
+        std::vector<Expression*> trace_args;
+        for (Node* arg : trace->args()) {
+          trace_args.push_back(absl::get<Expression*>(node_exprs_.at(arg)));
+        }
+        XLS_RETURN_IF_ERROR(mb_.EmitTrace(trace, condition, trace_args));
       }
     }
     return absl::OkStatus();

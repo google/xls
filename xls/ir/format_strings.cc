@@ -127,4 +127,16 @@ std::string StepsToXlsFormatString(absl::Span<const FormatStep> format) {
       });
 }
 
+std::string StepsToVerilogFormatString(absl::Span<const FormatStep> format) {
+  return absl::StrJoin(
+      format, "", [](std::string* out, const FormatStep& step) {
+        if (absl::holds_alternative<FormatPreference>(step)) {
+          absl::StrAppend(out, FormatPreferenceToVerilogSpecifier(
+                                   absl::get<FormatPreference>(step)));
+        } else {
+          absl::StrAppend(out, absl::get<std::string>(step));
+        }
+      });
+}
+
 }  // namespace xls

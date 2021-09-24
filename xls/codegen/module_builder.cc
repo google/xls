@@ -196,6 +196,7 @@ ModuleBuilder::ModuleBuilder(absl::string_view name, VerilogFile* file,
   assert_section_ = module_->Add<ModuleSection>();
   cover_section_ = module_->Add<ModuleSection>();
   output_section_ = module_->Add<ModuleSection>();
+  trace_section_ = module_->Add<ModuleSection>();
 
   NewDeclarationAndAssignmentSections();
 
@@ -901,6 +902,45 @@ absl::Status ModuleBuilder::EmitAssert(
                            "isunknown", std::vector<Expression*>({condition})),
                        condition),
       asrt->message());
+  return absl::OkStatus();
+}
+
+absl::Status ModuleBuilder::EmitTrace(
+    xls::Trace* trace, Expression* condition,
+    absl::Span<Expression* const> trace_args) {
+  StructuredProcedure* trace_always;
+  if (clk_ == nullptr) {
+    // Make a fresh always_comb or always @* block for combinational traces
+    // so that each trace only fires when its own inputs change.
+    if (use_system_verilog_) {
+      trace_always = trace_section_->Add<AlwaysComb>();
+    } else {
+      std::vector<SensitivityListElement> sensitivity_list = {
+          ImplicitEventExpression{}};
+      trace_always = trace_section_->Add<Always>(sensitivity_list);
+    }
+  } else {
+    // Trigger the trace at every clock if we have one.
+    std::vector<SensitivityListElement> sensitivity_list = {
+        file_->Make<PosEdge>(clk_)};
+    // Use an ordinary always block instead of always_ff when targeting
+    // SystemVerilog because this is behavioral (not synthesizable) code.
+    trace_always = trace_section_->Add<Always>(sensitivity_list);
+  }
+
+  Conditional* trace_if =
+      trace_always->statements()->Add<Conditional>(condition);
+
+  Expression* format_arg =
+      file_->Make<QuotedString>(StepsToVerilogFormatString(trace->format()));
+
+  std::vector<Expression*> display_args = {format_arg};
+  for (Expression* arg : trace_args) {
+    display_args.push_back(arg);
+  }
+
+  trace_if->consequent()->Add<Display>(display_args);
+
   return absl::OkStatus();
 }
 

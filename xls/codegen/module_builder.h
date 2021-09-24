@@ -99,6 +99,10 @@ class ModuleBuilder {
       xls::Assert* asrt, Expression* condition,
       absl::optional<absl::string_view> fmt_string = absl::nullopt);
 
+  // Emit an IR trace operation as a Verilog $display statement.
+  absl::Status EmitTrace(xls::Trace* trace, Expression* condition,
+                         absl::Span<Expression* const> trace_args);
+
   // Emit an XLS cover statement as a SystemVerilog `cover property` statement.
   // If SystemVerilog is not enabled, then this is a nop. Note that the emitted
   // statement will have no effect unless a clock is present in the module.
@@ -216,6 +220,7 @@ class ModuleBuilder {
   ModuleSection* assert_section() const { return assert_section_; }
   ModuleSection* cover_section() const { return cover_section_; }
   ModuleSection* output_section() const { return output_section_; }
+  ModuleSection* trace_section() const { return trace_section_; }
 
   // Return clock signal. Is null if the module does not have a clock.
   LogicRef* clock() const { return clk_; }
@@ -324,6 +329,7 @@ class ModuleBuilder {
   ModuleSection* cover_section_;
   AlwaysComb* assert_always_comb_ = nullptr;
   AlwaysComb* cover_always_comb_ = nullptr;
+  ModuleSection* trace_section_;
   ModuleSection* output_section_;
 
   // Verilog functions defined inside the module. Map is indexed by the function

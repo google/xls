@@ -91,6 +91,32 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "trace_test",
+    srcs = ["trace_test.cc"],
+    data = glob([
+        "testdata/trace_test_*",
+    ]),
+    deps = [
+        ":combinational_generator",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/examples:sample_packages",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/interpreter:random_value",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_parser",
+        "//xls/simulation:module_simulator",
+        "//xls/simulation:module_testbench",
+        "//xls/simulation:verilog_simulators",
+        "//xls/simulation:verilog_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "sequential_generator",
     srcs = ["sequential_generator.cc"],

@@ -42,6 +42,11 @@ absl::string_view FormatPreferenceToString(FormatPreference preference);
 // be used in DSLX source or printed XLS IR.
 absl::string_view FormatPreferenceToXlsSpecifier(FormatPreference preference);
 
+// Converts a format preference into a Verilog-style format specifier that can
+// be used in generated Verilog output.
+absl::string_view FormatPreferenceToVerilogSpecifier(
+    FormatPreference preference);
+
 absl::StatusOr<FormatPreference> FormatPreferenceFromString(
     absl::string_view s);
 

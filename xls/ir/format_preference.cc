@@ -54,6 +54,33 @@ absl::string_view FormatPreferenceToXlsSpecifier(FormatPreference preference) {
   }
 }
 
+absl::string_view FormatPreferenceToVerilogSpecifier(
+    FormatPreference preference) {
+  switch (preference) {
+    case FormatPreference::kDefault:
+      // This is probably wrong, but it isn't clear what to do. Alternatives:
+      // - bake in a format at IR conversion time
+      // - add a "default format" argument to Verilog code generation
+      // - decide that the default format (or at least the format associated
+      // with {}) is decimal after all (matches Rust)
+      return "%d";
+    case FormatPreference::kDecimal:
+      return "%d";
+    // Technically, the binary and hex format specifications are slightly wrong
+    // because Verilog simulators don't break up long values with underscores as
+    // XLS does. Practically speaking, though, it isn't worth doing a complex,
+    // fragmented rendering just for getting that.
+    case FormatPreference::kBinary:
+      return "0b%b";
+    case FormatPreference::kHex:
+      return "0x%h";
+    case FormatPreference::kPlainBinary:
+      return "%b";
+    case FormatPreference::kPlainHex:
+      return "%h";
+  }
+}
+
 absl::StatusOr<FormatPreference> FormatPreferenceFromString(
     absl::string_view s) {
   if (s == "default") {
