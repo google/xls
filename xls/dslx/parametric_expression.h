@@ -256,6 +256,7 @@ class ParametricSymbol : public ParametricExpression {
   }
 
   const std::string& identifier() const { return identifier_; }
+  const Span& span() const { return span_; }
 
  private:
   std::string identifier_;  // Text identifier for the parametric symbol.

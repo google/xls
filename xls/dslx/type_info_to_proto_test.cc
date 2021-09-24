@@ -24,15 +24,25 @@
 namespace xls::dslx {
 namespace {
 
-TEST(TypeInfoToProtoTest, IdentityFunction) {
+void DoRun(std::string_view program, absl::Span<const std::string> want) {
   auto import_data = ImportData::CreateForTest();
-  std::string program = R"(fn id(x: u32) -> u32 { x })";
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "fake.x", "fake", &import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto tip, TypeInfoToProto(*tm.type_info));
-  const std::vector<std::string> kWant = {
+  ASSERT_THAT(want, ::testing::SizeIs(tip.nodes_size()));
+  std::vector<std::string> got;
+  for (int64_t i = 0; i < tip.nodes_size(); ++i) {
+    XLS_ASSERT_OK_AND_ASSIGN(std::string node_str,
+                             ToHumanString(tip.nodes(i), *tm.module));
+    EXPECT_EQ(node_str, want[i]) << "at index: " << i;
+  }
+}
+
+TEST(TypeInfoToProtoTest, IdentityFunction) {
+  std::string program = R"(fn id(x: u32) -> u32 { x })";
+  std::vector<std::string> want = {
       /*0=*/
       "0:0-0:26: FUNCTION :: `fn id(x: u32) -> u32 {\n  x\n}` :: (uN[32]) -> "
       "uN[32]",
@@ -43,13 +53,40 @@ TEST(TypeInfoToProtoTest, IdentityFunction) {
       /*5=*/"0:17-0:20: TYPE_ANNOTATION :: `u32` :: uN[32]",
       /*6=*/"0:23-0:24: NAME_REF :: `x` :: uN[32]",
   };
-  ASSERT_EQ(kWant.size(), tip.nodes_size());
-  std::vector<std::string> got;
-  for (int64_t i = 0; i < tip.nodes_size(); ++i) {
-    XLS_ASSERT_OK_AND_ASSIGN(std::string node_str,
-                             ToHumanString(tip.nodes(i), *tm.module));
-    EXPECT_EQ(node_str, kWant[i]) << "at index: " << i;
-  }
+  DoRun(program, want);
+}
+
+TEST(TypeInfoToProtoTest, ParametricIdentityFunction) {
+  std::string program = R"(
+fn pid<N: u32>(x: bits[N]) -> bits[N] { x }
+fn id(x: u32) -> u32 { pid<u32:32>(x) }
+)";
+  std::vector<std::string> want = {
+      /*0=*/
+      "1:0-1:43: FUNCTION :: `fn pid<N: u32>(x: bits[N]) -> bits[N] {\n  x\n}` "
+      ":: (uN[N]) -> uN[N]",
+      /*1=*/"1:3-1:6: NAME_DEF :: `pid` :: (uN[N]) -> uN[N]",
+      /*2=*/"1:7-1:8: NAME_DEF :: `N` :: uN[32]",
+      /*3=*/"1:10-1:13: TYPE_ANNOTATION :: `u32` :: uN[32]",
+      /*4=*/"1:15-1:16: NAME_DEF :: `x` :: uN[N]",
+      /*5=*/"1:15-1:25: PARAM :: `x: bits[N]` :: uN[N]",
+      /*6=*/"1:18-1:25: TYPE_ANNOTATION :: `bits` :: uN[N]",
+      /*7=*/"1:30-1:37: TYPE_ANNOTATION :: `bits` :: uN[N]",
+      /*8=*/
+      "2:0-2:39: FUNCTION :: `fn id(x: u32) -> u32 {\n  pid<u32:32>(x)\n}` :: "
+      "(uN[32]) -> uN[32]",
+      /*9=*/"2:3-2:5: NAME_DEF :: `id` :: (uN[32]) -> uN[32]",
+      /*10=*/"2:6-2:7: NAME_DEF :: `x` :: uN[32]",
+      /*11=*/"2:6-2:12: PARAM :: `x: u32` :: uN[32]",
+      /*12=*/"2:9-2:12: TYPE_ANNOTATION :: `u32` :: uN[32]",
+      /*13=*/"2:17-2:20: TYPE_ANNOTATION :: `u32` :: uN[32]",
+      /*14=*/"2:23-2:26: NAME_REF :: `pid` :: (uN[N]) -> uN[N]",
+      /*15=*/"2:26-2:37: INVOCATION :: `pid<u32:32>(x)` :: uN[32]",
+      /*16=*/"2:27-2:30: TYPE_ANNOTATION :: `u32` :: uN[32]",
+      /*17=*/"2:31-2:33: NUMBER :: `u32:32` :: uN[32]",
+      /*18=*/"2:35-2:36: NAME_REF :: `x` :: uN[32]",
+  };
+  DoRun(program, want);
 }
 
 }  // namespace

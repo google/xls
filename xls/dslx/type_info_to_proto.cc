@@ -158,14 +158,27 @@ absl::StatusOr<InterpValueProto> ToProto(const InterpValue& v) {
   return proto;
 }
 
+absl::StatusOr<ParametricExpressionProto> ToProto(
+    const ParametricExpression& e) {
+  ParametricExpressionProto proto;
+  if (const auto* s = dynamic_cast<const ParametricSymbol*>(&e)) {
+    ParametricSymbolProto* psproto = proto.mutable_symbol();
+    psproto->set_identifier(s->identifier());
+    *psproto->mutable_span() = ToProto(s->span());
+    return proto;
+  }
+  return absl::UnimplementedError("Convert ParametricExpression to proto: " +
+                                  e.ToString());
+}
+
 absl::StatusOr<ConcreteTypeDimProto> ToProto(const ConcreteTypeDim& ctd) {
   ConcreteTypeDimProto proto;
   if (absl::holds_alternative<InterpValue>(ctd.value())) {
     XLS_ASSIGN_OR_RETURN(*proto.mutable_interp_value(),
                          ToProto(absl::get<InterpValue>(ctd.value())));
   } else {
-    return absl::UnimplementedError("Convert ConcreteTypeDim to proto: " +
-                                    ctd.ToString());
+    auto& p = absl::get<ConcreteTypeDim::OwnedParametric>(ctd.value());
+    XLS_ASSIGN_OR_RETURN(*proto.mutable_parametric(), ToProto(*p));
   }
   return proto;
 }
@@ -226,6 +239,14 @@ std::string ToHumanString(AstNodeKindProto kind) {
       std::string_view("AST_NODE_KIND_").size());
 }
 
+Pos FromProto(const PosProto& p) {
+  return Pos(p.filename(), p.lineno(), p.colno());
+}
+
+Span FromProto(const SpanProto& p) {
+  return Span(FromProto(p.start()), FromProto(p.limit()));
+}
+
 absl::Span<const uint8_t> ToU8Span(const std::string& s) {
   return absl::Span<const uint8_t>(reinterpret_cast<const uint8_t*>(s.data()),
                                    s.size());
@@ -247,11 +268,37 @@ absl::StatusOr<InterpValue> FromProto(const InterpValueProto& ivp) {
       ivp.ShortDebugString());
 }
 
+std::unique_ptr<ParametricSymbol> FromProto(
+    const ParametricSymbolProto& proto) {
+  return std::make_unique<ParametricSymbol>(proto.identifier(),
+                                            FromProto(proto.span()));
+}
+
+absl::StatusOr<std::unique_ptr<ParametricExpression>> FromProto(
+    const ParametricExpressionProto& proto) {
+  switch (proto.expr_oneof_case()) {
+    case ParametricExpressionProto::ExprOneofCase::kSymbol: {
+      return FromProto(proto.symbol());
+    }
+    default:
+      break;
+  }
+  return absl::UnimplementedError(
+      "Not yet implemented for ParametricExpressionProto->ParametricExpression "
+      "conversion: " +
+      proto.ShortDebugString());
+}
+
 absl::StatusOr<ConcreteTypeDim> FromProto(const ConcreteTypeDimProto& ctdp) {
   switch (ctdp.dim_oneof_case()) {
     case ConcreteTypeDimProto::DimOneofCase::kInterpValue: {
       XLS_ASSIGN_OR_RETURN(InterpValue iv, FromProto(ctdp.interp_value()));
       return ConcreteTypeDim(std::move(iv));
+    }
+    case ConcreteTypeDimProto::DimOneofCase::kParametric: {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ParametricExpression> p,
+                           FromProto(ctdp.parametric()));
+      return ConcreteTypeDim(std::move(p));
     }
     default:
       return absl::UnimplementedError(
@@ -291,14 +338,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FromProto(
 absl::StatusOr<std::string> ToHumanString(const ConcreteTypeProto& ctp) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> ct, FromProto(ctp));
   return ct->ToString();
-}
-
-Pos FromProto(const PosProto& p) {
-  return Pos(p.filename(), p.lineno(), p.colno());
-}
-
-Span FromProto(const SpanProto& p) {
-  return Span(FromProto(p.start()), FromProto(p.limit()));
 }
 
 absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {

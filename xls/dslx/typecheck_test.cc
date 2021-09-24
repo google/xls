@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_info_to_proto.h"
 
 namespace xls::dslx {
 namespace {
@@ -28,7 +29,14 @@ using testing::HasSubstr;
 // Helper for parsing/typechecking a snippet of DSLX text.
 absl::Status Typecheck(absl::string_view text) {
   auto import_data = ImportData::CreateForTest();
-  return ParseAndTypecheck(text, "fake.x", "fake", &import_data).status();
+  XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
+                       ParseAndTypecheck(text, "fake.x", "fake", &import_data));
+  // TODO(leary): 2021-09-24 Enable this as TypeInfoToProto can handle all
+  // constructs.
+  // XLS_ASSIGN_OR_RETURN(TypeInfoProto tip, TypeInfoToProto(*tm.type_info));
+  // (void)tip;
+  (void)tm;
+  return absl::Status();
 }
 
 TEST(TypecheckTest, ParametricWrongArgCount) {

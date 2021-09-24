@@ -99,12 +99,21 @@ message InterpValueProto {
   }
 }
 
+// See xls::dslx::ParametricSymbol.
+message ParametricSymbolProto {
+  optional string identifier = 1;
+  optional SpanProto span = 2;
+}
+
 // Parametric expressions can be held in ConcreteTypeDims (i.e. the "dimension"
 // slots within types). This represents a parametric expression a la
 // xls::dslx::ParametricExpression.
 message ParametricExpressionProto {
   // TODO(leary): 2021-09-24 Add support for converting parametric
   // ConcreteTypeDims to protobuf form.
+  oneof expr_oneof {
+    ParametricSymbolProto symbol = 1;
+  }
 }
 
 message ConcreteTypeDimProto {

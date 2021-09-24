@@ -686,6 +686,7 @@ cc_test(
     srcs = ["typecheck_test.cc"],
     deps = [
         ":parse_and_typecheck",
+        ":type_info_to_proto",
         ":typecheck",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
