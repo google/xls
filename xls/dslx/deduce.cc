@@ -308,7 +308,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(XlsTuple* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
                                                            DeduceCtx* ctx) {
   if (node->type_annotation() == nullptr) {
-    switch (node->kind()) {
+    switch (node->number_kind()) {
       case NumberKind::kBool:
         return BitsType::MakeU1();
       case NumberKind::kCharacter:
@@ -496,11 +496,11 @@ static const absl::flat_hash_set<BinopKind>& GetEnumOkKinds() {
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(Binop* node,
                                                           DeduceCtx* ctx) {
-  if (node->kind() == BinopKind::kConcat) {
+  if (node->binop_kind() == BinopKind::kConcat) {
     return DeduceConcat(node, ctx);
   }
 
-  if (GetBinopShifts().contains(node->kind())) {
+  if (GetBinopShifts().contains(node->binop_kind())) {
     return DeduceShift(node, ctx);
   }
 
@@ -510,22 +510,23 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(Binop* node,
                        DeduceAndResolve(node->rhs(), ctx));
 
   if (*lhs != *rhs) {
-    return XlsTypeErrorStatus(node->span(), *lhs, *rhs,
-                              absl::StrFormat("Could not deduce type for "
-                                              "binary operation '%s'",
-                                              BinopKindFormat(node->kind())));
+    return XlsTypeErrorStatus(
+        node->span(), *lhs, *rhs,
+        absl::StrFormat("Could not deduce type for "
+                        "binary operation '%s'",
+                        BinopKindFormat(node->binop_kind())));
   }
 
   if (auto* enum_type = dynamic_cast<EnumType*>(lhs.get());
-      enum_type != nullptr && !GetEnumOkKinds().contains(node->kind())) {
+      enum_type != nullptr && !GetEnumOkKinds().contains(node->binop_kind())) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Cannot use '%s' on values with enum type %s.",
-                        BinopKindFormat(node->kind()),
+                        BinopKindFormat(node->binop_kind()),
                         enum_type->nominal_type()->identifier()));
   }
 
-  if (GetBinopComparisonKinds().contains(node->kind())) {
+  if (GetBinopComparisonKinds().contains(node->binop_kind())) {
     return BitsType::MakeU1();
   }
 

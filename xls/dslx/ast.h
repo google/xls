@@ -192,11 +192,68 @@ class FreeVariables {
   absl::flat_hash_map<std::string, std::vector<NameRef*>> values_;
 };
 
+// Enum with an entry for each leaf type in the AST class hierarchy -- this is
+// primarily for convenience in tasks like serialization, for most purposes
+// visitors should be used (e.g. AstNodeVisitor, ExprVisitor).
+enum class AstNodeKind {
+  kTypeAnnotation,
+  kModule,
+  kNameDef,
+  kBuiltinNameDef,
+  kTernary,
+  kTypeDef,
+  kNumber,
+  kTypeRef,
+  kImport,
+  kUnop,
+  kBinop,
+  kColonRef,
+  kParam,
+  kFunction,
+  kProc,
+  kNameRef,
+  kConstRef,
+  kArray,
+  kString,
+  kStructInstance,
+  kSplatStructInstance,
+  kNameDefTree,
+  kIndex,
+  kRecv,
+  kSend,
+  kTestFunction,
+  kWidthSlice,
+  kWildcardPattern,
+  kMatchArm,
+  kMatch,
+  kAttr,
+  kInstantiation,
+  kInvocation,
+  kSpawn,
+  kFormatMacro,
+  kSlice,
+  kEnumDef,
+  kStructDef,
+  kQuickCheck,
+  kXlsTuple,
+  kFor,
+  kWhile,
+  kCast,
+  kNext,
+  kCarry,
+  kConstantDef,
+  kLet,
+  kChannelDecl,
+  kParametricBinding,
+};
+
 // Abstract base class for AST nodes.
 class AstNode {
  public:
   explicit AstNode(Module* owner) : owner_(owner) {}
   virtual ~AstNode() = default;
+
+  virtual AstNodeKind kind() const = 0;
 
   // Retrieves the name of the leafmost-derived class, suitable for debugging;
   // e.g. "NameDef", "BuiltinTypeAnnotation", etc.
@@ -271,6 +328,7 @@ class TypeAnnotation : public AstNode {
   TypeAnnotation(Module* owner, Span span)
       : AstNode(owner), span_(std::move(span)) {}
 
+  AstNodeKind kind() const override { return AstNodeKind::kTypeAnnotation; }
   const Span& span() const { return span_; }
   absl::optional<Span> GetSpan() const override { return span_; }
 
@@ -461,6 +519,8 @@ class BuiltinNameDef : public AstNode {
   BuiltinNameDef(Module* owner, std::string identifier)
       : AstNode(owner), identifier_(std::move(identifier)) {}
 
+  AstNodeKind kind() const override { return AstNodeKind::kBuiltinNameDef; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleBuiltinNameDef(this);
   }
@@ -487,6 +547,8 @@ class WildcardPattern : public AstNode {
   WildcardPattern(Module* owner, Span span)
       : AstNode(owner), span_(std::move(span)) {}
 
+  AstNodeKind kind() const override { return AstNodeKind::kWildcardPattern; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleWildcardPattern(this);
   }
@@ -511,6 +573,8 @@ class WildcardPattern : public AstNode {
 class NameDef : public AstNode {
  public:
   NameDef(Module* owner, Span span, std::string identifier, AstNode* definer);
+
+  AstNodeKind kind() const override { return AstNodeKind::kNameDef; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleNameDef(this);
@@ -601,6 +665,8 @@ class NameRef : public Expr {
         name_def_(name_def),
         identifier_(std::move(identifier)) {}
 
+  AstNodeKind kind() const override { return AstNodeKind::kNameRef; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleNameRef(this);
   }
@@ -645,6 +711,8 @@ class ConstRef : public NameRef {
  public:
   using NameRef::NameRef;
 
+  AstNodeKind kind() const override { return AstNodeKind::kConstRef; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleConstRef(this);
   }
@@ -675,6 +743,8 @@ class Number : public Expr {
  public:
   Number(Module* owner, Span span, std::string text, NumberKind kind,
          TypeAnnotation* type);
+
+  AstNodeKind kind() const override { return AstNodeKind::kNumber; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleNumber(this);
@@ -713,11 +783,11 @@ class Number : public Expr {
     return bits.ToUint64();
   }
 
-  NumberKind kind() const { return kind_; }
+  NumberKind number_kind() const { return number_kind_; }
 
  private:
   std::string text_;  // Will never be empty.
-  NumberKind kind_;
+  NumberKind number_kind_;
   TypeAnnotation* type_annotation_;  // May be null.
 };
 
@@ -727,6 +797,8 @@ class String : public Expr {
  public:
   String(Module* owner, Span span, absl::string_view text)
       : Expr(owner, span), text_(text) {}
+
+  AstNodeKind kind() const override { return AstNodeKind::kString; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleString(this);
@@ -757,6 +829,8 @@ class TypeDef : public AstNode {
  public:
   TypeDef(Module* owner, Span span, NameDef* name_def, TypeAnnotation* type,
           bool is_public);
+
+  AstNodeKind kind() const override { return AstNodeKind::kTypeDef; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleTypeDef(this);
@@ -791,6 +865,8 @@ class Array : public Expr {
  public:
   Array(Module* owner, Span span, std::vector<Expr*> members,
         bool has_ellipsis);
+
+  AstNodeKind kind() const override { return AstNodeKind::kArray; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleArray(this);
@@ -849,6 +925,8 @@ class TypeRef : public AstNode {
   TypeRef(Module* owner, Span span, std::string text,
           TypeDefinition type_definition);
 
+  AstNodeKind kind() const override { return AstNodeKind::kTypeRef; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleTypeRef(this);
   }
@@ -877,6 +955,8 @@ class Import : public AstNode {
  public:
   Import(Module* owner, Span span, std::vector<std::string> subject,
          NameDef* name_def, absl::optional<std::string> alias);
+
+  AstNodeKind kind() const override { return AstNodeKind::kImport; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleImport(this);
@@ -919,6 +999,8 @@ class ColonRef : public Expr {
 
   ColonRef(Module* owner, Span span, Subject subject, std::string attr);
 
+  AstNodeKind kind() const override { return AstNodeKind::kColonRef; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleColonRef(this);
   }
@@ -954,6 +1036,8 @@ absl::StatusOr<ColonRef::Subject> ToColonRefSubject(Expr* e);
 class Param : public AstNode {
  public:
   Param(Module* owner, NameDef* name_def, TypeAnnotation* type);
+
+  AstNodeKind kind() const override { return AstNodeKind::kParam; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleParam(this);
@@ -992,8 +1076,12 @@ std::string UnopKindToString(UnopKind k);
 // Represents a unary operation expression; e.g. `!x`.
 class Unop : public Expr {
  public:
-  Unop(Module* owner, Span span, UnopKind kind, Expr* operand)
-      : Expr(owner, std::move(span)), kind_(kind), operand_(operand) {}
+  Unop(Module* owner, Span span, UnopKind unop_kind, Expr* operand)
+      : Expr(owner, std::move(span)),
+        unop_kind_(unop_kind),
+        operand_(operand) {}
+
+  AstNodeKind kind() const override { return AstNodeKind::kUnop; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleUnop(this);
@@ -1002,7 +1090,7 @@ class Unop : public Expr {
 
   absl::string_view GetNodeTypeName() const override { return "Unop"; }
   std::string ToString() const override {
-    return absl::StrFormat("%s(%s)", UnopKindToString(kind_),
+    return absl::StrFormat("%s(%s)", UnopKindToString(unop_kind_),
                            operand_->ToString());
   }
 
@@ -1010,11 +1098,11 @@ class Unop : public Expr {
     return {operand_};
   }
 
-  UnopKind kind() const { return kind_; }
+  UnopKind unop_kind() const { return unop_kind_; }
   Expr* operand() const { return operand_; }
 
  private:
-  UnopKind kind_;
+  UnopKind unop_kind_;
   Expr* operand_;
 };
 
@@ -1075,6 +1163,8 @@ class Binop : public Expr {
  public:
   Binop(Module* owner, Span span, BinopKind kind, Expr* lhs, Expr* rhs);
 
+  AstNodeKind kind() const override { return AstNodeKind::kBinop; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleBinop(this);
   }
@@ -1087,15 +1177,15 @@ class Binop : public Expr {
 
   std::string ToString() const override {
     return absl::StrFormat("(%s) %s (%s)", lhs_->ToString(),
-                           BinopKindFormat(kind_), rhs_->ToString());
+                           BinopKindFormat(binop_kind_), rhs_->ToString());
   }
 
-  BinopKind kind() const { return kind_; }
+  BinopKind binop_kind() const { return binop_kind_; }
   Expr* lhs() const { return lhs_; }
   Expr* rhs() const { return rhs_; }
 
  private:
-  BinopKind kind_;
+  BinopKind binop_kind_;
   Expr* lhs_;
   Expr* rhs_;
 };
@@ -1107,6 +1197,8 @@ class Ternary : public Expr {
  public:
   Ternary(Module* owner, Span span, Expr* test, Expr* consequent,
           Expr* alternate);
+
+  AstNodeKind kind() const override { return AstNodeKind::kTernary; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleTernary(this);
@@ -1149,6 +1241,8 @@ class ParametricBinding : public AstNode {
   ParametricBinding(Module* owner, NameDef* name_def,
                     TypeAnnotation* type_annotation, Expr* expr);
 
+  AstNodeKind kind() const override { return AstNodeKind::kParametricBinding; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleParametricBinding(this);
   }
@@ -1188,6 +1282,7 @@ class FunctionBase : public AstNode {
   FunctionBase(Module* owner, Span span, NameDef* name_def,
                std::vector<ParametricBinding*> parametric_bindings, Expr* body,
                bool is_public);
+
   // Returns the type "output" from this FunctionBase: either the return type
   // for a Function, or the iteration type for a Proc.
   virtual TypeAnnotation* GetOutputType() const = 0;
@@ -1227,6 +1322,8 @@ class Function : public FunctionBase {
            std::vector<Param*> params, TypeAnnotation* return_type, Expr* body,
            bool is_public);
 
+  AstNodeKind kind() const override { return AstNodeKind::kFunction; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleFunction(this);
   }
@@ -1250,6 +1347,8 @@ class Proc : public FunctionBase {
        std::vector<ParametricBinding*> parametric_bindings,
        std::vector<Param*> proc_params, std::vector<Param*> iter_params,
        Expr* body, bool is_public);
+
+  AstNodeKind kind() const override { return AstNodeKind::kProc; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleProc(this);
@@ -1278,6 +1377,8 @@ class MatchArm : public AstNode {
  public:
   MatchArm(Module* owner, Span span, std::vector<NameDefTree*> patterns,
            Expr* expr);
+
+  AstNodeKind kind() const override { return AstNodeKind::kMatchArm; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleMatchArm(this);
@@ -1312,6 +1413,8 @@ class Match : public Expr {
  public:
   Match(Module* owner, Span span, Expr* matched, std::vector<MatchArm*> arms);
 
+  AstNodeKind kind() const override { return AstNodeKind::kMatch; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleMatch(this);
   }
@@ -1337,6 +1440,8 @@ class Attr : public Expr {
  public:
   Attr(Module* owner, Span span, Expr* lhs, NameDef* attr)
       : Expr(owner, std::move(span)), lhs_(lhs), attr_(attr) {}
+
+  AstNodeKind kind() const override { return AstNodeKind::kAttr; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleAttr(this);
@@ -1368,6 +1473,8 @@ class Instantiation : public Expr {
   Instantiation(Module* owner, Span span, Expr* callee,
                 const std::vector<Expr*>& parametrics);
 
+  AstNodeKind kind() const override { return AstNodeKind::kInstantiation; }
+
   Expr* callee() const { return callee_; }
 
   // Any parametric expressions given in this invocation; e.g. in:
@@ -1390,6 +1497,8 @@ class Invocation : public Instantiation {
  public:
   Invocation(Module* owner, Span span, Expr* callee, std::vector<Expr*> args,
              std::vector<Expr*> parametrics = std::vector<Expr*>({}));
+
+  AstNodeKind kind() const override { return AstNodeKind::kInvocation; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleInvocation(this);
@@ -1420,6 +1529,8 @@ class Spawn : public Instantiation {
         std::vector<Expr*> iter_args, std::vector<Expr*> parametrics,
         Expr* body);
 
+  AstNodeKind kind() const override { return AstNodeKind::kSpawn; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleSpawn(this);
   }
@@ -1446,6 +1557,8 @@ class FormatMacro : public Expr {
  public:
   FormatMacro(Module* owner, Span span, std::string macro,
               std::vector<FormatStep> format, std::vector<Expr*> args);
+
+  AstNodeKind kind() const override { return AstNodeKind::kFormatMacro; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleFormatMacro(this);
@@ -1479,6 +1592,8 @@ class Slice : public AstNode {
  public:
   Slice(Module* owner, Span span, Expr* start, Expr* limit)
       : AstNode(owner), span_(std::move(span)), start_(start), limit_(limit) {}
+
+  AstNodeKind kind() const override { return AstNodeKind::kSlice; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleSlice(this);
@@ -1517,6 +1632,8 @@ class EnumDef : public AstNode {
  public:
   EnumDef(Module* owner, Span span, NameDef* name_def, TypeAnnotation* type,
           std::vector<EnumMember> values, bool is_public);
+
+  AstNodeKind kind() const override { return AstNodeKind::kEnumDef; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleEnumDef(this);
@@ -1574,6 +1691,8 @@ class StructDef : public AstNode {
             std::vector<ParametricBinding*> parametric_bindings,
             std::vector<std::pair<NameDef*, TypeAnnotation*>> members,
             bool is_public);
+
+  AstNodeKind kind() const override { return AstNodeKind::kStructDef; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleStructDef(this);
@@ -1634,6 +1753,8 @@ class StructInstance : public Expr {
   StructInstance(Module* owner, Span span, StructRef struct_ref,
                  std::vector<std::pair<std::string, Expr*>> members);
 
+  AstNodeKind kind() const override { return AstNodeKind::kStructInstance; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleStructInstance(this);
   }
@@ -1678,6 +1799,10 @@ class SplatStructInstance : public Expr {
                       std::vector<std::pair<std::string, Expr*>> members,
                       Expr* splatted);
 
+  AstNodeKind kind() const override {
+    return AstNodeKind::kSplatStructInstance;
+  }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleSplatStructInstance(this);
   }
@@ -1717,6 +1842,8 @@ class WidthSlice : public AstNode {
   WidthSlice(Module* owner, Span span, Expr* start, TypeAnnotation* width)
       : AstNode(owner), span_(std::move(span)), start_(start), width_(width) {}
 
+  AstNodeKind kind() const override { return AstNodeKind::kWidthSlice; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleWidthSlice(this);
   }
@@ -1755,6 +1882,8 @@ class Index : public Expr {
   Index(Module* owner, Span span, Expr* lhs, IndexRhs rhs)
       : Expr(owner, std::move(span)), lhs_(lhs), rhs_(rhs) {}
 
+  AstNodeKind kind() const { return AstNodeKind::kIndex; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleIndex(this);
   }
@@ -1783,6 +1912,8 @@ class Recv : public Expr {
  public:
   Recv(Module* owner, Span span, NameRef* channel);
 
+  AstNodeKind kind() const { return AstNodeKind::kRecv; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleRecv(this);
   }
@@ -1810,6 +1941,8 @@ class Recv : public Expr {
 class Send : public Expr {
  public:
   Send(Module* owner, Span span, NameRef* channel, Expr* payload, Expr* body);
+
+  AstNodeKind kind() const { return AstNodeKind::kSend; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleSend(this);
@@ -1846,6 +1979,8 @@ class TestFunction : public AstNode {
   explicit TestFunction(Module* owner, Function* fn)
       : AstNode(owner), name_def_(fn->name_def()), body_(fn->body()), fn_(fn) {}
 
+  AstNodeKind kind() const { return AstNodeKind::kTestFunction; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleTestFunction(this);
   }
@@ -1880,6 +2015,8 @@ class QuickCheck : public AstNode {
   QuickCheck(Module* owner, Span span, Function* f,
              absl::optional<int64_t> test_count = absl::nullopt);
 
+  AstNodeKind kind() const { return AstNodeKind::kQuickCheck; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleQuickCheck(this);
   }
@@ -1911,6 +2048,8 @@ class XlsTuple : public Expr {
   XlsTuple(Module* owner, Span span, std::vector<Expr*> members)
       : Expr(owner, std::move(span)), members_(members) {}
 
+  AstNodeKind kind() const { return AstNodeKind::kXlsTuple; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleXlsTuple(this);
   }
@@ -1936,6 +2075,8 @@ class For : public Expr {
  public:
   For(Module* owner, Span span, NameDefTree* names, TypeAnnotation* type,
       Expr* iterable, Expr* body, Expr* init);
+
+  AstNodeKind kind() const { return AstNodeKind::kFor; }
 
   absl::Status Accept(AstNodeVisitor* v) override { return v->HandleFor(this); }
   void AcceptExpr(ExprVisitor* v) override { v->HandleFor(this); }
@@ -1972,6 +2113,8 @@ class For : public Expr {
 class While : public Expr {
  public:
   While(Module* owner, Span span) : Expr(owner, std::move(span)) {}
+
+  AstNodeKind kind() const { return AstNodeKind::kWhile; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleWhile(this);
@@ -2015,6 +2158,8 @@ class Cast : public Expr {
         expr_(expr),
         type_annotation_(type_annotation) {}
 
+  AstNodeKind kind() const { return AstNodeKind::kCast; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleCast(this);
   }
@@ -2046,6 +2191,8 @@ class Next : public Expr {
  public:
   Next(Module* owner, Span span, Expr* next_value);
 
+  AstNodeKind kind() const { return AstNodeKind::kNext; }
+
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleNext(this);
   }
@@ -2069,6 +2216,8 @@ class Carry : public Expr {
  public:
   Carry(Module* owner, Span span, While* loop)
       : Expr(owner, std::move(span)), loop_(loop) {}
+
+  AstNodeKind kind() const { return AstNodeKind::kCarry; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleCarry(this);
@@ -2099,6 +2248,8 @@ class ConstantDef : public AstNode {
  public:
   ConstantDef(Module* owner, Span span, NameDef* name_def, Expr* value,
               bool is_public, bool is_local);
+
+  AstNodeKind kind() const { return AstNodeKind::kConstantDef; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleConstantDef(this);
@@ -2160,6 +2311,8 @@ class NameDefTree : public AstNode {
 
   NameDefTree(Module* owner, Span span, absl::variant<Nodes, Leaf> tree)
       : AstNode(owner), span_(std::move(span)), tree_(tree) {}
+
+  AstNodeKind kind() const override { return AstNodeKind::kNameDefTree; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleNameDefTree(this);
@@ -2237,6 +2390,8 @@ class Let : public Expr {
   Let(Module* owner, Span span, NameDefTree* name_def_tree,
       TypeAnnotation* type, Expr* rhs, Expr* body, ConstantDef* const_def);
 
+  AstNodeKind kind() const { return AstNodeKind::kLet; }
+
   void AcceptExpr(ExprVisitor* v) override { v->HandleLet(this); }
   absl::Status Accept(AstNodeVisitor* v) override { return v->HandleLet(this); }
 
@@ -2280,6 +2435,9 @@ class ChannelDecl : public Expr {
  public:
   ChannelDecl(Module* owner, Span span, TypeAnnotation* type)
       : Expr(owner, span), type_(type) {}
+
+  AstNodeKind kind() const { return AstNodeKind::kChannelDecl; }
+
   void AcceptExpr(ExprVisitor* v) override { v->HandleChannelDecl(this); }
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleChannelDecl(this);
@@ -2325,6 +2483,8 @@ class Module : public AstNode {
   ~Module() {
     XLS_VLOG(3) << "Destroying module \"" << name_ << "\" @ " << this;
   }
+
+  AstNodeKind kind() const override { return AstNodeKind::kModule; }
 
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleModule(this);
@@ -2424,6 +2584,16 @@ class Module : public AstNode {
   std::vector<std::string> GetTestNames() const;
 
   const std::string& name() const { return name_; }
+
+  const AstNode* FindNode(AstNodeKind kind, const Span& span) const {
+    for (const auto& node : nodes_) {
+      if (node->kind() == kind && node->GetSpan().has_value() &&
+          node->GetSpan().value() == span) {
+        return node.get();
+      }
+    }
+    return nullptr;
+  }
 
  private:
   // Returns all of the elements of top_ that have the given variant type T.

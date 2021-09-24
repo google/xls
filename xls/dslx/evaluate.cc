@@ -74,14 +74,15 @@ absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
   XLS_VLOG(4) << "Evaluating number: " << expr->ToString() << " @ "
               << expr->span();
   std::unique_ptr<ConcreteType> type_context_value;
-  if (type_context == nullptr && expr->kind() == NumberKind::kCharacter) {
+  if (type_context == nullptr &&
+      expr->number_kind() == NumberKind::kCharacter) {
     type_context_value = BitsType::MakeU8();
     type_context = type_context_value.get();
   }
   // Note that if there an explicit type annotation on a boolean value; e.g.
   // `s1:true` we skip providing the type context as u1 and pick up the
   // evaluation of the s1 below.
-  if (type_context == nullptr && expr->kind() == NumberKind::kBool &&
+  if (type_context == nullptr && expr->number_kind() == NumberKind::kBool &&
       expr->type_annotation() == nullptr) {
     type_context_value = BitsType::MakeU1();
     type_context = type_context_value.get();
@@ -877,7 +878,7 @@ absl::StatusOr<InterpValue> EvaluateUnop(Unop* expr, InterpBindings* bindings,
                                          AbstractInterpreter* interp) {
   XLS_ASSIGN_OR_RETURN(InterpValue arg,
                        interp->Eval(expr->operand(), bindings));
-  switch (expr->kind()) {
+  switch (expr->unop_kind()) {
     case UnopKind::kInvert:
       return arg.BitwiseNegate();
     case UnopKind::kNegate:
@@ -904,7 +905,7 @@ absl::StatusOr<InterpValue> EvaluateShift(Binop* expr, InterpBindings* bindings,
   XLS_ASSIGN_OR_RETURN(InterpValue rhs, interp->Eval(expr->rhs(), bindings,
                                                      std::move(rhs_type)));
 
-  switch (expr->kind()) {
+  switch (expr->binop_kind()) {
     case BinopKind::kShl:
       return lhs.Shl(rhs);
     case BinopKind::kShr:
@@ -923,7 +924,7 @@ absl::StatusOr<InterpValue> EvaluateShift(Binop* expr, InterpBindings* bindings,
 absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           AbstractInterpreter* interp) {
-  if (GetBinopShifts().contains(expr->kind())) {
+  if (GetBinopShifts().contains(expr->binop_kind())) {
     return EvaluateShift(expr, bindings, type_context, interp);
   }
 
@@ -934,7 +935,7 @@ absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
   // Check some preconditions; e.g. all logical operands are guaranteed to have
   // single-bit inputs by type checking so we can share the implementation with
   // bitwise or/and.
-  switch (expr->kind()) {
+  switch (expr->binop_kind()) {
     case BinopKind::kLogicalOr:
     case BinopKind::kLogicalAnd:
       XLS_RET_CHECK_EQ(lhs.GetBitCount().value(), 1);
@@ -944,7 +945,7 @@ absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
       break;
   }
 
-  switch (expr->kind()) {
+  switch (expr->binop_kind()) {
     case BinopKind::kAdd:
       return lhs.Add(rhs);
     case BinopKind::kSub:

@@ -237,6 +237,13 @@ class TypeInfo {
     return instantiations_;
   }
 
+  // Returns a reference to the underlying mapping that associates an AST node
+  // with its deduced type.
+  const absl::flat_hash_map<AstNode*, std::unique_ptr<ConcreteType>>& dict()
+      const {
+    return dict_;
+  }
+
  private:
   friend class TypeInfoOwner;
 

@@ -15,6 +15,7 @@
 # Frontend syntax.
 
 # pytype test and library
+# cc_proto_library is used in this file
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
@@ -919,4 +920,38 @@ cc_library(
     name = "default_dslx_stdlib_path",
     srcs = ["default_dslx_stdlib_path.cc"],
     hdrs = ["default_dslx_stdlib_path.h"],
+)
+
+proto_library(
+    name = "type_info_proto",
+    srcs = ["type_info.proto"],
+)
+
+cc_proto_library(
+    name = "type_info_cc_proto",
+    deps = [":type_info_proto"],
+)
+
+cc_library(
+    name = "type_info_to_proto",
+    srcs = ["type_info_to_proto.cc"],
+    hdrs = ["type_info_to_proto.h"],
+    deps = [
+        ":type_info",
+        ":type_info_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "type_info_to_proto_test",
+    srcs = ["type_info_to_proto_test.cc"],
+    deps = [
+        ":import_data",
+        ":parse_and_typecheck",
+        ":type_info_to_proto",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_googletest//:gtest",
+    ],
 )

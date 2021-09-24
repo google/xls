@@ -905,7 +905,7 @@ absl::optional<FunctionConverter::IrValue> FunctionConverter::GetNodeToIr(
 
 absl::Status FunctionConverter::HandleUnop(Unop* node) {
   XLS_ASSIGN_OR_RETURN(BValue operand, Use(node->operand()));
-  switch (node->kind()) {
+  switch (node->unop_kind()) {
     case UnopKind::kNegate: {
       Def(node, [&](absl::optional<SourceLocation> loc) {
         return function_builder_->AddUnOp(xls::Op::kNeg, operand, loc);
@@ -2664,7 +2664,7 @@ absl::Status FunctionConverter::HandleBinop(Binop* node) {
   XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->rhs()));
   std::function<BValue(absl::optional<SourceLocation>)> ir_func;
 
-  switch (node->kind()) {
+  switch (node->binop_kind()) {
     // Eq and Ne are handled out of line so that they can expand array and tuple
     // comparisons.
     case BinopKind::kEq:

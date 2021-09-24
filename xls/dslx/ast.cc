@@ -1145,8 +1145,9 @@ absl::StatusOr<BinopKind> BinopKindFromString(absl::string_view s) {
       absl::StrFormat("Invalid BinopKind string: \"%s\"", s));
 }
 
-Binop::Binop(Module* owner, Span span, BinopKind kind, Expr* lhs, Expr* rhs)
-    : Expr(owner, span), kind_(kind), lhs_(lhs), rhs_(rhs) {}
+Binop::Binop(Module* owner, Span span, BinopKind binop_kind, Expr* lhs,
+             Expr* rhs)
+    : Expr(owner, span), binop_kind_(binop_kind), lhs_(lhs), rhs_(rhs) {}
 
 absl::StatusOr<UnopKind> UnopKindFromString(absl::string_view s) {
   if (s == "!") {
@@ -1535,11 +1536,11 @@ std::string Let::ToString() const {
 
 // -- class Number
 
-Number::Number(Module* owner, Span span, std::string text, NumberKind kind,
-               TypeAnnotation* type_annotation)
+Number::Number(Module* owner, Span span, std::string text,
+               NumberKind number_kind, TypeAnnotation* type_annotation)
     : Expr(owner, std::move(span)),
       text_(std::move(text)),
-      kind_(kind),
+      number_kind_(number_kind),
       type_annotation_(type_annotation) {}
 
 std::vector<AstNode*> Number::GetChildren(bool want_types) const {
@@ -1559,7 +1560,7 @@ std::string Number::ToString() const {
 std::string Number::ToStringNoType() const { return text_; }
 
 absl::StatusOr<Bits> Number::GetBits(int64_t bit_count) const {
-  switch (kind_) {
+  switch (number_kind_) {
     case NumberKind::kBool: {
       Bits result(bit_count);
       return result.UpdateWithSet(0, text_ == "true");
@@ -1586,8 +1587,8 @@ absl::StatusOr<Bits> Number::GetBits(int64_t bit_count) const {
       return bits;
     }
   }
-  return absl::InternalError(
-      absl::StrFormat("Invalid NumberKind: %d", static_cast<int64_t>(kind_)));
+  return absl::InternalError(absl::StrFormat(
+      "Invalid NumberKind: %d", static_cast<int64_t>(number_kind_)));
 }
 
 TypeDef::TypeDef(Module* owner, Span span, NameDef* name_def,

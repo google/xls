@@ -264,7 +264,7 @@ TEST_F(ParserTest, ConcatFunction) {
   EXPECT_EQ(f->params().size(), 2);
   Binop* body = dynamic_cast<Binop*>(f->body());
   ASSERT_TRUE(body != nullptr);
-  EXPECT_EQ(body->kind(), BinopKind::kConcat);
+  EXPECT_EQ(body->binop_kind(), BinopKind::kConcat);
   NameRef* lhs = dynamic_cast<NameRef*>(body->lhs());
   ASSERT_TRUE(lhs != nullptr);
   EXPECT_EQ(lhs->identifier(), "x");
@@ -682,11 +682,11 @@ TEST_F(ParserTest, LogicalOperatorPrecedence) {
   RoundTripExpr("!a || !b && c", {"a", "b", "c"}, "(!(a)) || ((!(b)) && (c))",
                 &e);
   auto* binop = dynamic_cast<Binop*>(e);
-  EXPECT_EQ(binop->kind(), BinopKind::kLogicalOr);
+  EXPECT_EQ(binop->binop_kind(), BinopKind::kLogicalOr);
   auto* binop_rhs = dynamic_cast<Binop*>(binop->rhs());
-  EXPECT_EQ(binop_rhs->kind(), BinopKind::kLogicalAnd);
+  EXPECT_EQ(binop_rhs->binop_kind(), BinopKind::kLogicalAnd);
   auto* unop = dynamic_cast<Unop*>(binop_rhs->lhs());
-  EXPECT_EQ(unop->kind(), UnopKind::kInvert);
+  EXPECT_EQ(unop->unop_kind(), UnopKind::kInvert);
 }
 
 TEST_F(ParserTest, LogicalEqualityPrecedence) {
@@ -694,18 +694,18 @@ TEST_F(ParserTest, LogicalEqualityPrecedence) {
   RoundTripExpr("a ^ !b == f()", {"a", "b", "f"}, "((a) ^ (!(b))) == (f())",
                 &e);
   auto* binop = dynamic_cast<Binop*>(e);
-  EXPECT_EQ(binop->kind(), BinopKind::kEq);
+  EXPECT_EQ(binop->binop_kind(), BinopKind::kEq);
   auto* binop_lhs = dynamic_cast<Binop*>(binop->lhs());
-  EXPECT_EQ(binop_lhs->kind(), BinopKind::kXor);
+  EXPECT_EQ(binop_lhs->binop_kind(), BinopKind::kXor);
   auto* unop = dynamic_cast<Unop*>(binop_lhs->rhs());
-  EXPECT_EQ(unop->kind(), UnopKind::kInvert);
+  EXPECT_EQ(unop->unop_kind(), UnopKind::kInvert);
 }
 
 TEST_F(ParserTest, CastVsComparatorPrecedence) {
   Expr* e;
   RoundTripExpr("x >= y as u32", {"x", "y"}, "(x) >= (((y) as u32))", &e);
   auto* binop = dynamic_cast<Binop*>(e);
-  EXPECT_EQ(binop->kind(), BinopKind::kGe);
+  EXPECT_EQ(binop->binop_kind(), BinopKind::kGe);
   auto* cast = dynamic_cast<Cast*>(binop->rhs());
   ASSERT_NE(cast, nullptr);
   auto* casted_name_ref = dynamic_cast<NameRef*>(cast->expr());
