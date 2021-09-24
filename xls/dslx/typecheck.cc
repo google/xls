@@ -225,7 +225,7 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametricMap(
                                    /*parent=*/(*import_info)->type_info));
     std::shared_ptr<DeduceCtx> imported_ctx =
         ctx->MakeCtx(invocation_imported_type_info, (*import_info)->module);
-    imported_ctx->fn_stack().push_back(
+    imported_ctx->AddFnStackEntry(
         FnStackEntry::Make(map_fn, tab.symbolic_bindings));
     // We need to typecheck this imported function with respect to its module.
     XLS_RETURN_IF_ERROR(ctx->typecheck_function()(map_fn, imported_ctx.get()));
@@ -240,7 +240,7 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametricMap(
 
   // If the higher-order parametric fn is in this module, let's push it onto the
   // typechecking stack.
-  ctx->fn_stack().push_back(FnStackEntry::Make(map_fn, tab.symbolic_bindings));
+  ctx->AddFnStackEntry(FnStackEntry::Make(map_fn, tab.symbolic_bindings));
 
   // Create a "derived" type info (a child type info with the current type
   // info as a parent), and note that it exists for an instantiation (in the
@@ -646,7 +646,7 @@ static absl::Status CheckTopNodeInModuleInternal(
       // parent type_info until deduce._check_parametric_invocation() to avoid
       // entering an infinite loop. See the try-catch in that function for more
       // details.
-      ctx->fn_stack().pop_back();
+      ctx->PopFnStackEntry();
     }
   }
   return absl::OkStatus();
@@ -678,7 +678,7 @@ class ScopedFnStackEntry {
       : ctx_(ctx),
         depth_before_(ctx->fn_stack().size()),
         expect_popped_(expect_popped) {
-    ctx->fn_stack().push_back(FnStackEntry::MakeTop(module));
+    ctx->AddFnStackEntry(FnStackEntry::MakeTop(module));
   }
 
   ScopedFnStackEntry(FunctionBase* fb, DeduceCtx* ctx,
@@ -686,14 +686,14 @@ class ScopedFnStackEntry {
       : ctx_(ctx),
         depth_before_(ctx->fn_stack().size()),
         expect_popped_(expect_popped) {
-    ctx->fn_stack().push_back(FnStackEntry::Make(fb, SymbolicBindings()));
+    ctx->AddFnStackEntry(FnStackEntry::Make(fb, SymbolicBindings()));
   }
 
   ScopedFnStackEntry(Proc* p, DeduceCtx* ctx, bool expect_popped = false)
       : ctx_(ctx),
         depth_before_(ctx->fn_stack().size()),
         expect_popped_(expect_popped) {
-    ctx->fn_stack().push_back(FnStackEntry::Make(p, SymbolicBindings()));
+    ctx->AddFnStackEntry(FnStackEntry::Make(p, SymbolicBindings()));
   }
 
   // Called when we close out a scope. We can't use this object as a scope
@@ -706,7 +706,7 @@ class ScopedFnStackEntry {
     } else {
       int64_t depth_after_push = depth_before_ + 1;
       XLS_CHECK_EQ(ctx_->fn_stack().size(), depth_after_push);
-      ctx_->fn_stack().pop_back();
+      ctx_->PopFnStackEntry();
     }
   }
 

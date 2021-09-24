@@ -121,7 +121,8 @@ an integer if its exponent is < 30, that is to say, if its value is between
 [-2^31, 2^31).
 
 To get that exponent, we need to _unbias_ it. In its binary representation, a
-floating-point number's exponent is a value from 0 to 254, being an 8-bit value.
+valid floating-point number's exponent is a value from 0 to 254, being an
+8-bit value (an exponent of 255 indicates either NaN or an infinity).
 The range of a floating-point number's exponent is from -128 to 127, though, so
 we need to subtract 127 from that value to get the actual exponent. Let's write
 a function to do just that:

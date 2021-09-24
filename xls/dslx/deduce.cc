@@ -168,7 +168,7 @@ static absl::Status ValidateParametricInvocation(
                                    /*parent=*/(*imported)->type_info));
     std::unique_ptr<DeduceCtx> imported_ctx =
         ctx->MakeCtx(invocation_imported_type_info, (*imported)->module);
-    imported_ctx->fn_stack().push_back(
+    imported_ctx->AddFnStackEntry(
         FnStackEntry::Make(parametric_block, symbolic_bindings));
 
     XLS_VLOG(5) << "Typechecking parametric function: "
@@ -199,7 +199,7 @@ static absl::Status ValidateParametricInvocation(
     // Typecheck this parametric function using the symbolic bindings we just
     // derived to make sure they check out ok.
     AstNode* type_missing_error_node = ToAstNode(name_ref->name_def());
-    ctx->fn_stack().push_back(
+    ctx->AddFnStackEntry(
         FnStackEntry::Make(parametric_block, symbolic_bindings));
     ctx->AddDerivedTypeInfo();
     XLS_VLOG(5) << "Throwing to typecheck parametric function: "
@@ -962,7 +962,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefImport(
       std::unique_ptr<DeduceCtx> imported_ctx =
           ctx->MakeCtx(imported_type_info, imported_module);
       const FnStackEntry& peek_entry = ctx->fn_stack().back();
-      imported_ctx->fn_stack().push_back(peek_entry);
+      imported_ctx->AddFnStackEntry(peek_entry);
       XLS_RETURN_IF_ERROR(ctx->typecheck_function()(fb, imported_ctx.get()));
       imported_type_info = imported_ctx->type_info();
     }
