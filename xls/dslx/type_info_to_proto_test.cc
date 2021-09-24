@@ -89,5 +89,16 @@ fn id(x: u32) -> u32 { pid<u32:32>(x) }
   DoRun(program, want);
 }
 
+TEST(TypeInfoToProtoTest, UnitFunction) {
+  std::string program = R"(fn f() -> () { () })";
+  std::vector<std::string> want = {
+      "0:0-0:19: FUNCTION :: `fn f() -> () {\n  ()\n}` :: () -> ()",
+      "0:3-0:4: NAME_DEF :: `f` :: () -> ()",
+      "0:10-0:12: TYPE_ANNOTATION :: `()` :: ()",
+      "0:15-0:18: XLS_TUPLE :: `()` :: ()",
+  };
+  DoRun(program, want);
+}
+
 }  // namespace
 }  // namespace xls::dslx

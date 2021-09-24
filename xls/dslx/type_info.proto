@@ -133,10 +133,15 @@ message FunctionTypeProto {
   optional ConcreteTypeProto return_type = 2;
 }
 
+message TupleTypeProto {
+  repeated ConcreteTypeProto members = 1;
+}
+
 message ConcreteTypeProto {
   oneof concrete_type_oneof {
     BitsTypeProto bits = 1;
     FunctionTypeProto fn = 2;
+    TupleTypeProto tuple = 3;
   }
 }
 
