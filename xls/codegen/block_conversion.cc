@@ -152,26 +152,27 @@ static absl::StatusOr<std::vector<PipelineStageRegisters>> CreatePipeline(
 
   std::vector<PipelineStageRegisters> pipeline_registers(schedule.length() - 1);
 
-  // Emit the parameters first to ensure the their order is preserved in the
-  // block.
-  for (Param* param : function->params()) {
-    XLS_RET_CHECK_EQ(schedule.cycle(param), 0);
-    XLS_ASSIGN_OR_RETURN(
-        node_map[param],
-        block->AddInputPort(param->GetName(), param->GetType(), param->loc()));
-  }
-
   for (int64_t stage = 0; stage < schedule.length(); ++stage) {
     for (Node* function_node : schedule.nodes_in_cycle(stage)) {
+      Node* node;
+
       if (function_node->Is<Param>()) {
-        continue;
+        Param* param = function_node->As<Param>();
+
+        XLS_RET_CHECK_EQ(schedule.cycle(param), 0);
+        XLS_ASSIGN_OR_RETURN(
+            node, block->AddInputPort(param->GetName(), param->GetType(),
+                                      param->loc()));
+      } else {
+        std::vector<Node*> new_operands;
+        for (Node* operand : function_node->operands()) {
+          new_operands.push_back(node_map.at(operand));
+        }
+
+        XLS_ASSIGN_OR_RETURN(
+            node, function_node->CloneInNewFunction(new_operands, block));
       }
-      std::vector<Node*> new_operands;
-      for (Node* operand : function_node->operands()) {
-        new_operands.push_back(node_map.at(operand));
-      }
-      XLS_ASSIGN_OR_RETURN(
-          Node * node, function_node->CloneInNewFunction(new_operands, block));
+
       node_map[function_node] = node;
     }
 
