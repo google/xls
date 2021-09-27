@@ -41,6 +41,10 @@ class RangeQueryVisitor : public DfsVisitor {
   // precision of the analysis.
   static constexpr int64_t kMaxResIntervalSetSize = 64;
 
+  // The maximum number of points covered by an interval set that can be
+  // iterated over in an analysis.
+  static constexpr int64_t kMaxIterationSize = 1024;
+
   // Handles an operation that is variadic and has an implementation given by
   // the given function which has the given tonicities for each argument.
   //
@@ -777,9 +781,45 @@ absl::Status RangeQueryVisitor::HandleMap(Map* map) {
   return absl::OkStatus();  // TODO(taktoa): implement
 }
 
-absl::Status RangeQueryVisitor::HandleArrayIndex(ArrayIndex* index) {
-  engine_->InitializeNode(index);
-  return absl::OkStatus();  // TODO(taktoa): implement
+absl::Status RangeQueryVisitor::HandleArrayIndex(ArrayIndex* array_index) {
+  engine_->InitializeNode(array_index);
+  LeafTypeTree<IntervalSet> result(array_index->GetType());
+  for (int64_t i = 0; i < result.elements().size(); ++i) {
+    // Initialize all interval sets to empty
+    result.elements()[i] =
+        IntervalSet(result.leaf_types()[i]->GetFlatBitCount());
+  }
+  if (array_index->indices().size() != 1) {
+    return absl::OkStatus();  // TODO(taktoa): support multidimensional indexing
+  }
+  LeafTypeTree<IntervalSet> argument =
+      engine_->GetIntervalSetTree(array_index->operand(0));
+  IntervalSet index_intervals =
+      engine_->GetIntervalSetTree(array_index->indices()[0]).Get({});
+  absl::optional<int64_t> size = index_intervals.Size();
+  if (!size.has_value() || (size.value() > kMaxIterationSize)) {
+    return absl::OkStatus();
+  }
+  int64_t array_size =
+      array_index->operand(0)->GetType()->AsArrayOrDie()->size();
+  if (array_size <= 0) {
+    return absl::OkStatus();
+  }
+  bool early = index_intervals.ForEachElement([&](const Bits& index) -> bool {
+    if (!index.FitsInUint64()) {
+      return true;
+    }
+    int64_t i =
+        std::min(*(index.ToUint64()), static_cast<uint64_t>(array_size - 1));
+    result = LeafTypeTree<IntervalSet>::Zip<IntervalSet, IntervalSet>(
+        IntervalSet::Combine, result, argument.CopySubtree({i}));
+    return false;
+  });
+  if (early) {
+    return absl::OkStatus();
+  }
+  engine_->SetIntervalSetTree(array_index, result);
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleArraySlice(ArraySlice* slice) {
