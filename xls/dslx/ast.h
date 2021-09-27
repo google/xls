@@ -2527,7 +2527,6 @@ class Module : public AstNode {
   absl::StatusOr<TestFunction*> GetTest(absl::string_view target_name);
 
   absl::Span<ModuleMember const> top() const { return top_; }
-  std::vector<ModuleMember>* mutable_top() { return &top_; }
 
   // Finds the first top-level member in top() with the given "target" name as
   // an identifier.

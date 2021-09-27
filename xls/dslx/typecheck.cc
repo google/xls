@@ -851,7 +851,7 @@ absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data) {
 
   // First, populate type info with constants, enums, resolved imports, and
   // non-parametric functions.
-  for (ModuleMember& member : *module->mutable_top()) {
+  for (const ModuleMember& member : module->top()) {
     import_data->SetTypecheckWorkInProgress(module, ToAstNode(member));
     XLS_RETURN_IF_ERROR(CheckModuleMember(member, module, import_data, ctx));
   }
