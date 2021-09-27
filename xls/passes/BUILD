@@ -693,6 +693,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:node_util",
         "//xls/ir:op",
+        "//xls/ir:ternary",
     ],
 )
 

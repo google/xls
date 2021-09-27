@@ -21,6 +21,7 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
+#include "xls/ir/ternary.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/range_query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
@@ -441,12 +442,98 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
 
 }  // namespace
 
+void RangeAnalysisLog(FunctionBase* f,
+                      const TernaryQueryEngine& ternary_query_engine,
+                      const RangeQueryEngine& range_query_engine) {
+  int64_t bits_saved = 0;
+  absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> parents_map;
+
+  for (Node* node : f->nodes()) {
+    for (Node* operand : node->operands()) {
+      parents_map[operand].insert(node);
+    }
+  }
+
+  for (Node* node : f->nodes()) {
+    if (node->GetType()->IsBits()) {
+      IntervalSet intervals =
+          range_query_engine.GetIntervalSetTree(node).Get({});
+      int64_t current_size = node->BitCountOrDie();
+      Bits compressed_total(current_size + 1);
+      for (const Interval& interval : intervals.Intervals()) {
+        compressed_total = bits_ops::Add(compressed_total, interval.SizeBits());
+      }
+      int64_t compressed_size =
+          bits_ops::DropLeadingZeroes(compressed_total).bit_count();
+      int64_t hull_size =
+          bits_ops::DropLeadingZeroes(intervals.ConvexHull().value().SizeBits())
+              .bit_count();
+      if (node->Is<Literal>() && (compressed_size < current_size)) {
+        std::vector<std::string> parents;
+        for (Node* parent : parents_map[node]) {
+          parents.push_back(parent->ToString());
+        }
+        XLS_VLOG(3) << "narrowing_pass: " << OpToString(node->op())
+                    << " shrinkable: "
+                    << "current size = " << current_size << "; "
+                    << "compressed size = " << compressed_size << "; "
+                    << "convex hull size = " << hull_size << "; "
+                    << "parents = [" << absl::StrJoin(parents, ", ") << "]\n";
+      }
+
+      bool inputs_all_maximal = true;
+      for (Node* operand : node->operands()) {
+        if (!operand->GetType()->IsBits()) {
+          break;
+        }
+        IntervalSet intervals =
+            range_query_engine.GetIntervalSetTree(operand).Get({});
+        intervals.Normalize();
+        if (!intervals.IsMaximal()) {
+          inputs_all_maximal = false;
+          break;
+        }
+      }
+      if (!inputs_all_maximal &&
+          range_query_engine.GetIntervalSetTree(node).Get({}).IsMaximal()) {
+        XLS_VLOG(3) << "narrowing_pass: range analysis lost precision for "
+                    << node << "\n";
+      }
+    }
+
+    if (ternary_query_engine.IsTracked(node) &&
+        range_query_engine.IsTracked(node)) {
+      TernaryVector ternary_result = ternary_ops::FromKnownBits(
+          ternary_query_engine.GetKnownBits(node),
+          ternary_query_engine.GetKnownBitsValues(node));
+      TernaryVector range_result = ternary_ops::FromKnownBits(
+          range_query_engine.GetKnownBits(node),
+          range_query_engine.GetKnownBitsValues(node));
+      absl::optional<TernaryVector> difference =
+          ternary_ops::Difference(range_result, ternary_result);
+      XLS_CHECK(difference.has_value())
+          << "Inconsistency detected in node: " << node->GetName();
+      bits_saved += ternary_ops::NumberOfKnownBits(difference.value());
+    }
+  }
+
+  if (bits_saved != 0) {
+    XLS_VLOG(3) << "narrowing_pass: range analysis saved " << bits_saved
+                << " bits in " << f << "\n";
+  }
+}
+
 absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> ternary_query_engine,
                        TernaryQueryEngine::Run(f));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<RangeQueryEngine> range_query_engine,
                        RangeQueryEngine::Run(f));
+
+  if (XLS_VLOG_IS_ON(3)) {
+    RangeAnalysisLog(f, *ternary_query_engine, *range_query_engine);
+  }
+
   std::vector<std::unique_ptr<QueryEngine>> engines;
   engines.push_back(std::move(ternary_query_engine));
   engines.push_back(std::move(range_query_engine));
