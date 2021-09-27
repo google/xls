@@ -24,12 +24,7 @@
 
 namespace xls {
 
-std::string Proc::DumpIr(bool recursive) const {
-  // TODO(meheff): Remove recursive argument. Recursively dumping multiple
-  // functions should be a method at the Package level, not the function/proc
-  // level.
-  XLS_CHECK(!recursive);
-
+std::string Proc::DumpIr() const {
   std::string res = absl::StrFormat(
       "proc %s(%s: %s, %s: %s, init=%s) {\n", name(), TokenParam()->GetName(),
       TokenParam()->GetType()->ToString(), StateParam()->GetName(),

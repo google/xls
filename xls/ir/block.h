@@ -116,7 +116,7 @@ class Block : public FunctionBase {
 
   bool HasImplicitUse(Node* node) const override { return false; }
 
-  std::string DumpIr(bool recursive = false) const override;
+  std::string DumpIr() const override;
 
  private:
   static std::string PortName(const Port& port);

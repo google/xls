@@ -35,8 +35,7 @@ FunctionType* Function::GetType() {
   return package_->GetFunctionType(arg_types, return_value()->GetType());
 }
 
-std::string Function::DumpIr(bool recursive) const {
-  std::string nested_funcs = "";
+std::string Function::DumpIr() const {
   std::string res = "fn " + name() + "(";
   std::vector<std::string> param_strings;
   for (Param* param : params_) {
@@ -61,21 +60,12 @@ std::string Function::DumpIr(bool recursive) const {
     if (node->op() == Op::kParam) {
       continue;  // Already accounted for in the signature.
     }
-    if (recursive && (node->op() == Op::kCountedFor)) {
-      nested_funcs += node->As<CountedFor>()->body()->DumpIr() + "\n";
-    }
-    if (recursive && (node->op() == Op::kMap)) {
-      nested_funcs += node->As<Map>()->to_apply()->DumpIr() + "\n";
-    }
-    if (recursive && (node->op() == Op::kInvoke)) {
-      nested_funcs += node->As<Invoke>()->to_apply()->DumpIr() + "\n";
-    }
     absl::StrAppend(&res, "  ", node == return_value() ? "ret " : "",
                     node->ToString(), "\n");
   }
 
   absl::StrAppend(&res, "}\n");
-  return nested_funcs + res;
+  return res;
 }
 
 absl::StatusOr<Function*> Function::Clone(

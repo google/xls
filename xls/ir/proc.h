@@ -76,7 +76,7 @@ class Proc : public FunctionBase {
     return node == NextToken() || node == NextState();
   }
 
-  std::string DumpIr(bool recursive = false) const override;
+  std::string DumpIr() const override;
 
  private:
   Value init_value_;

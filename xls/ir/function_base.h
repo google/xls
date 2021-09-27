@@ -55,10 +55,7 @@ class FunctionBase {
   const std::string qualified_name() const { return qualified_name_; }
 
   // DumpIr emits the IR in a parsable, hierarchical text format.
-  // Parameter:
-  //   'recursive' if true, will dump counted-for body functions as well.
-  //   This is only useful when dumping individual functions, and not packages.
-  virtual std::string DumpIr(bool recursive = false) const = 0;
+  virtual std::string DumpIr() const = 0;
 
   // Return Span of parameters.
   absl::Span<Param* const> params() const { return params_; }

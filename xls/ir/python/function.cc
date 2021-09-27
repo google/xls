@@ -35,12 +35,11 @@ PYBIND11_MODULE(function, m) {
   py::module::import("xls.ir.python.type");
 
   py::class_<FunctionBaseHolder>(m, "FunctionBase")
-      .def("dump_ir", PyWrap(&FunctionBase::DumpIr),
-           py::arg("recursive") = false)
+      .def("dump_ir", PyWrap(&FunctionBase::DumpIr))
       .def_property_readonly("name", PyWrap(&Function::name));
 
   py::class_<FunctionHolder>(m, "Function")
-      .def("dump_ir", PyWrap(&Function::DumpIr), py::arg("recursive") = false)
+      .def("dump_ir", PyWrap(&Function::DumpIr))
       // TODO(meheff): Figure out how to add a get_type method on Function.
       // Attempts to do so fail with "unable to convert to python type" errors.
       .def("get_param_count", PyWrap(&GetParamCount))

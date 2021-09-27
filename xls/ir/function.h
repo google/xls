@@ -63,7 +63,7 @@ class Function : public FunctionBase {
   // Parameter:
   //   'recursive' if true, will dump counted-for body functions as well.
   //   This is only useful when dumping individual functions, and not packages.
-  std::string DumpIr(bool recursive = false) const override;
+  std::string DumpIr() const override;
 
   // Creates a clone of the function with the new name 'new_name'. Function is
   // owned by targt_package.  call_remapping specifies any function
