@@ -24,7 +24,8 @@
 namespace xls::dslx {
 namespace {
 
-void DoRun(std::string_view program, absl::Span<const std::string> want) {
+void DoRun(std::string_view program, absl::Span<const std::string> want,
+           TypeInfoProto* proto_out = nullptr) {
   auto import_data = ImportData::CreateForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
@@ -37,6 +38,9 @@ void DoRun(std::string_view program, absl::Span<const std::string> want) {
     XLS_ASSERT_OK_AND_ASSIGN(std::string node_str,
                              ToHumanString(tip.nodes(i), *tm.module));
     EXPECT_EQ(node_str, want[i]) << "at index: " << i;
+  }
+  if (proto_out) {
+    *proto_out = tip;
   }
 }
 
@@ -120,6 +124,51 @@ TEST(TypeInfoToProtoTest, ArrayFunction) {
       /*12=*/"0:34-0:35: NUMBER :: `u8:2` :: uN[8]",
   };
   DoRun(program, want);
+}
+
+TEST(TypeInfoToProtoTest, TokenFunction) {
+  std::string program = R"(fn f(x: token) -> token { x })";
+  std::vector<std::string> want = {
+      /*0=*/
+      "0:0-0:29: FUNCTION :: `fn f(x: token) -> token {\n  x\n}` :: (token) -> "
+      "token",
+      /*1=*/"0:3-0:4: NAME_DEF :: `f` :: (token) -> token",
+      /*2=*/"0:5-0:6: NAME_DEF :: `x` :: token",
+      /*3=*/"0:5-0:13: PARAM :: `x: token` :: token",
+      /*4=*/"0:8-0:13: TYPE_ANNOTATION :: `token` :: token",
+      /*5=*/"0:18-0:23: TYPE_ANNOTATION :: `token` :: token",
+      /*6=*/"0:26-0:27: NAME_REF :: `x` :: token",
+  };
+  DoRun(program, want);
+}
+
+TEST(TypeInfoToProtoTest, MakeStructInstanceFunction) {
+  std::string program = R"(
+struct S { x: u32 }
+fn f() -> S { S { x: u32:42 } }
+)";
+  std::vector<std::string> want = {
+      /*0=*/
+      "1:0-1:19: STRUCT_DEF :: `struct S {\n  x: u32,\n}` :: S { x: uN[32] }",
+      /*1=*/"1:7-1:8: NAME_DEF :: `S` :: S { x: uN[32] }",
+      /*2=*/"1:14-1:17: TYPE_ANNOTATION :: `u32` :: uN[32]",
+      /*3=*/
+      "2:0-2:31: FUNCTION :: `fn f() -> S {\n  S { x: u32:42 }\n}` :: () -> S "
+      "{ x: uN[32] }",
+      /*4=*/"2:3-2:4: NAME_DEF :: `f` :: () -> S { x: uN[32] }",
+      /*5=*/"2:10-2:11: TYPE_REF :: `S` :: S { x: uN[32] }",
+      /*6=*/"2:10-2:12: TYPE_ANNOTATION :: `S` :: S { x: uN[32] }",
+      /*7=*/
+      "2:16-2:29: STRUCT_INSTANCE :: `S { x: u32:42 }` :: S { x: uN[32] }",
+      /*8=*/"2:21-2:24: TYPE_ANNOTATION :: `u32` :: uN[32]",
+      /*9=*/"2:25-2:27: NUMBER :: `u32:42` :: uN[32]",
+  };
+  TypeInfoProto tip;
+  DoRun(program, want, &tip);
+  EXPECT_THAT(
+      tip.ShortDebugString(),
+      ::testing::ContainsRegex(
+          R"(struct_def \{ span \{ .*? \} identifier: "S" member_names: "x" is_public: false \})"));
 }
 
 }  // namespace

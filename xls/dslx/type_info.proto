@@ -142,12 +142,34 @@ message ArrayTypeProto {
   optional ConcreteTypeDimProto size = 2;
 }
 
+// Serialized data for a struct definition referenced in a struct type -- see
+// `xls::dslx::StructDef`.
+message StructDefProto {
+  optional SpanProto span = 1;
+  optional string identifier = 2;
+  repeated string member_names = 3;
+  optional bool is_public = 4;
+}
+
+// Struct type (that has a nominal struct definition associated with it) -- see
+// `xls::dslx::StructType`.
+message StructTypeProto {
+  repeated ConcreteTypeProto members = 1;
+  optional StructDefProto struct_def = 2;
+}
+
+message TokenTypeProto {
+  // Empty.
+}
+
 message ConcreteTypeProto {
   oneof concrete_type_oneof {
     BitsTypeProto bits = 1;
     FunctionTypeProto fn = 2;
     TupleTypeProto tuple = 3;
     ArrayTypeProto array = 4;
+    StructTypeProto structure = 5;
+    TokenTypeProto token = 6;
   }
 }
 

@@ -940,6 +940,7 @@ cc_library(
     deps = [
         ":type_info",
         ":type_info_cc_proto",
+        "//xls/common:proto_adaptor_utils",
     ],
 )
 

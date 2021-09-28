@@ -755,7 +755,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(StructDef* node,
                          DeduceAndResolve(type, ctx));
     members.push_back(std::move(concrete));
   }
-  auto result = absl::make_unique<StructType>(std::move(members), node);
+  auto result = absl::make_unique<StructType>(std::move(members), *node);
   ctx->type_info()->SetItem(node->name_def(), *result);
   XLS_VLOG(5) << absl::StreamFormat("Deduced type for struct %s => %s",
                                     node->ToString(), result->ToString());

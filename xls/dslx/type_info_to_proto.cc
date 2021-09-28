@@ -14,6 +14,8 @@
 
 #include "xls/dslx/type_info_to_proto.h"
 
+#include "xls/common/proto_adaptor_utils.h"
+
 namespace xls::dslx {
 namespace {
 
@@ -220,6 +222,27 @@ absl::StatusOr<ArrayTypeProto> ToProto(const ArrayType& array_type) {
   return proto;
 }
 
+absl::StatusOr<StructDefProto> ToProto(const StructDef& struct_def) {
+  StructDefProto proto;
+  *proto.mutable_span() = ToProto(struct_def.span());
+  proto.set_identifier(struct_def.identifier());
+  proto.set_is_public(struct_def.is_public());
+  for (int64_t i = 0; i < struct_def.size(); ++i) {
+    proto.add_member_names(ToProtoString(struct_def.GetMemberName(i)));
+  }
+  return proto;
+}
+
+absl::StatusOr<StructTypeProto> ToProto(const StructType& struct_type) {
+  StructTypeProto proto;
+  for (const std::unique_ptr<ConcreteType>& member : struct_type.members()) {
+    XLS_ASSIGN_OR_RETURN(*proto.add_members(), ToProto(*member));
+  }
+  XLS_ASSIGN_OR_RETURN(*proto.mutable_struct_def(),
+                       ToProto(struct_type.nominal_type()));
+  return proto;
+}
+
 absl::StatusOr<ConcreteTypeProto> ToProto(const ConcreteType& concrete_type) {
   ConcreteTypeProto proto;
   if (const auto* bits = dynamic_cast<const BitsType*>(&concrete_type)) {
@@ -233,6 +256,12 @@ absl::StatusOr<ConcreteTypeProto> ToProto(const ConcreteType& concrete_type) {
   } else if (const auto* array =
                  dynamic_cast<const ArrayType*>(&concrete_type)) {
     XLS_ASSIGN_OR_RETURN(*proto.mutable_array(), ToProto(*array));
+  } else if (const auto* struct_type =
+                 dynamic_cast<const StructType*>(&concrete_type)) {
+    XLS_ASSIGN_OR_RETURN(*proto.mutable_structure(), ToProto(*struct_type));
+  } else if (const auto* token_type =
+                 dynamic_cast<const TokenType*>(&concrete_type)) {
+    proto.mutable_token();
   } else {
     return absl::UnimplementedError("Convert ConcreteType to proto: " +
                                     concrete_type.ToString());
@@ -331,7 +360,7 @@ absl::StatusOr<ConcreteTypeDim> FromProto(const ConcreteTypeDimProto& ctdp) {
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> FromProto(
-    const ConcreteTypeProto& ctp) {
+    const ConcreteTypeProto& ctp, const Module& m) {
   switch (ctp.concrete_type_oneof_case()) {
     case ConcreteTypeProto::ConcreteTypeOneofCase::kBits: {
       XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim, FromProto(ctp.bits().dim()));
@@ -341,14 +370,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FromProto(
       std::vector<std::unique_ptr<ConcreteType>> members;
       for (const ConcreteTypeProto& member : ctp.tuple().members()) {
         XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> ct,
-                             FromProto(member));
+                             FromProto(member, m));
         members.push_back(std::move(ct));
       }
       return std::make_unique<TupleType>(std::move(members));
     }
     case ConcreteTypeProto::ConcreteTypeOneofCase::kArray: {
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> element_type,
-                           FromProto(ctp.array().element_type()));
+                           FromProto(ctp.array().element_type(), m));
       XLS_ASSIGN_OR_RETURN(ConcreteTypeDim size, FromProto(ctp.array().size()));
       return std::make_unique<ArrayType>(std::move(element_type),
                                          std::move(size));
@@ -358,12 +387,33 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FromProto(
       std::vector<std::unique_ptr<ConcreteType>> params;
       for (const ConcreteTypeProto& param : ftp.params()) {
         XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> ct,
-                             FromProto(param));
+                             FromProto(param, m));
         params.push_back(std::move(ct));
       }
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> rt,
-                           FromProto(ftp.return_type()));
+                           FromProto(ftp.return_type(), m));
       return std::make_unique<FunctionType>(std::move(params), std::move(rt));
+    }
+    case ConcreteTypeProto::ConcreteTypeOneofCase::kToken: {
+      return std::make_unique<TokenType>();
+    }
+    case ConcreteTypeProto::ConcreteTypeOneofCase::kStructure: {
+      const StructTypeProto& stp = ctp.structure();
+      const StructDefProto& struct_def_proto = stp.struct_def();
+      const StructDef* struct_def =
+          m.FindStructDef(FromProto(struct_def_proto.span()));
+      if (struct_def == nullptr) {
+        return absl::NotFoundError(
+            absl::StrFormat("Structure definition not found in module %s: %s",
+                            m.name(), struct_def_proto.identifier()));
+      }
+      std::vector<std::unique_ptr<ConcreteType>> members;
+      for (const ConcreteTypeProto& member_proto : stp.members()) {
+        XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> member,
+                             FromProto(member_proto, m));
+        members.push_back(std::move(member));
+      }
+      return std::make_unique<StructType>(std::move(members), *struct_def);
     }
     default:
       return absl::UnimplementedError(
@@ -373,8 +423,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FromProto(
   }
 }
 
-absl::StatusOr<std::string> ToHumanString(const ConcreteTypeProto& ctp) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> ct, FromProto(ctp));
+absl::StatusOr<std::string> ToHumanString(const ConcreteTypeProto& ctp,
+                                          const Module& m) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> ct, FromProto(ctp, m));
   return ct->ToString();
 }
 
@@ -489,7 +540,7 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
 
 absl::StatusOr<std::string> ToHumanString(const AstNodeTypeInfoProto& antip,
                                           const Module& m) {
-  XLS_ASSIGN_OR_RETURN(std::string type_str, ToHumanString(antip.type()));
+  XLS_ASSIGN_OR_RETURN(std::string type_str, ToHumanString(antip.type(), m));
   XLS_ASSIGN_OR_RETURN(AstNodeKind kind, FromProto(antip.kind()));
   const AstNode* n = m.FindNode(kind, FromProto(antip.span()));
   std::string node_str = n == nullptr ? std::string("") : n->ToString();

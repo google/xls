@@ -579,6 +579,10 @@ std::vector<std::string> Module::GetFunctionNames() const {
   return result;
 }
 
+const StructDef* Module::FindStructDef(const Span& span) const {
+  return down_cast<const StructDef*>(FindNode(AstNodeKind::kStructDef, span));
+}
+
 absl::optional<ModuleMember*> Module::FindMemberWithName(
     absl::string_view target) {
   for (ModuleMember& member : top_) {

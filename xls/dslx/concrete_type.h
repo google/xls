@@ -229,7 +229,7 @@ class StructType : public ConcreteType {
   // Note: members must correspond to struct_def's members (same length and
   // order).
   StructType(std::vector<std::unique_ptr<ConcreteType>> members,
-             StructDef* struct_def);
+             const StructDef& struct_def);
 
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
       const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
@@ -244,7 +244,7 @@ class StructType : public ConcreteType {
   bool HasEnum() const override;
 
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    return absl::make_unique<StructType>(Clone(members_), &struct_def_);
+    return absl::make_unique<StructType>(Clone(members_), struct_def_);
   }
 
   // For user-level error reporting, we also note the name of the struct
@@ -270,7 +270,7 @@ class StructType : public ConcreteType {
   absl::optional<const ConcreteType*> GetMemberTypeByName(
       absl::string_view target) const;
 
-  StructDef& nominal_type() const { return struct_def_; }
+  const StructDef& nominal_type() const { return struct_def_; }
 
   bool HasNamedMember(absl::string_view target) const;
 
@@ -282,7 +282,7 @@ class StructType : public ConcreteType {
 
  private:
   std::vector<std::unique_ptr<ConcreteType>> members_;
-  StructDef& struct_def_;
+  const StructDef& struct_def_;
 };
 
 // Represents a tuple type. Tuples have unnamed members.

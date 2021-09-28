@@ -276,8 +276,8 @@ absl::Status ParametricInstantiator::SymbolicBind(
   }
   if (auto* param_struct = dynamic_cast<const StructType*>(&param_type)) {
     auto* arg_struct = dynamic_cast<const StructType*>(&arg_type);
-    StructDef& param_nominal = param_struct->nominal_type();
-    StructDef& arg_nominal = arg_struct->nominal_type();
+    const StructDef& param_nominal = param_struct->nominal_type();
+    const StructDef& arg_nominal = arg_struct->nominal_type();
     if (&param_nominal != &arg_nominal) {
       std::string message =
           absl::StrFormat("parameter type name: '%s'; argument type name: '%s'",

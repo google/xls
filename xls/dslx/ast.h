@@ -1726,6 +1726,8 @@ class StructDef : public AstNode {
   // Returns the index at which the member name is "name".
   absl::optional<int64_t> GetMemberIndex(absl::string_view name) const;
 
+  int64_t size() const { return members_.size(); }
+
  private:
   Span span_;
   NameDef* name_def_;
@@ -2531,6 +2533,8 @@ class Module : public AstNode {
   // Finds the first top-level member in top() with the given "target" name as
   // an identifier.
   absl::optional<ModuleMember*> FindMemberWithName(absl::string_view target);
+
+  const StructDef* FindStructDef(const Span& span) const;
 
   // Obtains all the type definition nodes in the module:
   //    TypeDef, Struct, Enum

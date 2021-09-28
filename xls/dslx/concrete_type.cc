@@ -289,8 +289,8 @@ std::unique_ptr<BitsType> BitsType::ToUBits() const {
 // -- StructType
 
 StructType::StructType(std::vector<std::unique_ptr<ConcreteType>> members,
-                       StructDef* struct_def)
-    : members_(std::move(members)), struct_def_(*XLS_DIE_IF_NULL(struct_def)) {
+                       const StructDef& struct_def)
+    : members_(std::move(members)), struct_def_(struct_def) {
   XLS_CHECK_EQ(members_.size(), struct_def_.members().size());
 }
 
@@ -383,7 +383,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> StructType::MapSize(
                          member->MapSize(f));
     new_members.push_back(std::move(mapped));
   }
-  return absl::make_unique<StructType>(std::move(new_members), &struct_def_);
+  return absl::make_unique<StructType>(std::move(new_members), struct_def_);
 }
 
 bool StructType::HasNamedMember(absl::string_view target) const {
