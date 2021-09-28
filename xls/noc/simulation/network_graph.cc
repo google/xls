@@ -112,7 +112,7 @@ void NetworkManager::Dump(int indent_level) const {
   XLS_VLOG(1) << IndentLevel(indent_level) << "Network Manager:";
 
   int64_t i = 0;
-  for (auto network : networks_) {
+  for (const auto& network : networks_) {
     XLS_VLOG(1) << IndentLevel(indent_level) << "- #" << i << " Network:";
 
     network.Dump(indent_level + 1);
@@ -220,7 +220,7 @@ void Network::Dump(int indent_level) const {
               << absl::StreamFormat("Network id %x", id_.AsUInt64());
 
   int64_t i = 0;
-  for (auto component : components_) {
+  for (const auto& component : components_) {
     XLS_VLOG(1) << IndentLevel(indent_level) << "- #" << i << " Component:";
     component.Dump(indent_level + 1);
     ++i;

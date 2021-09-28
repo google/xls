@@ -332,7 +332,6 @@ cc_library(
         ":log_entry",
         ":logging",
         "@com_google_absl//absl/base:log_severity",
-        "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
 )

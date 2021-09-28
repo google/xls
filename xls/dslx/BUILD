@@ -85,11 +85,9 @@ cc_test(
     name = "cpp_transpiler_test",
     srcs = ["cpp_transpiler_test.cc"],
     deps = [
-        ":ast",
         ":cpp_transpiler",
         ":import_data",
         ":parse_and_typecheck",
-        ":type_info",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
@@ -377,7 +375,6 @@ cc_test(
     deps = [
         ":parametric_expression",
         "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -485,7 +482,6 @@ cc_library(
     hdrs = ["abstract_interpreter.h"],
     deps = [
         ":ast",
-        ":concrete_type",
         ":import_routines",
         ":interp_bindings",
         ":interp_value",
@@ -596,7 +592,6 @@ cc_library(
         ":mangle",
         ":type_info",
         "//xls/common/status:ret_check",
-        "//xls/ir",
     ],
 )
 
@@ -702,7 +697,6 @@ cc_library(
         ":ast",
         ":concrete_type",
         ":deduce_ctx",
-        ":interp_value",
         ":parametric_instantiator",
         ":type_and_bindings",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -883,20 +877,11 @@ cc_binary(
     srcs = ["interpreter_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
-        ":builtins",
         ":command_line_utils",
         ":error_printer",
-        ":interpreter",
-        ":ir_converter",
-        ":mangle",
-        ":parse_and_typecheck",
-        ":parser",
         ":run_routines",
-        ":scanner",
-        ":typecheck",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
-        "//xls/jit:ir_jit",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",

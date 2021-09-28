@@ -45,7 +45,6 @@ cc_library(
     deps = [
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -264,8 +263,6 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
-        "//xls/ir:bits",
-        "//xls/ir:bits_ops",
         "//xls/noc/config:network_config_cc_proto",
         "@com_google_googletest//:gtest",
     ],
@@ -340,8 +337,6 @@ cc_library(
     name = "random_number_interface",
     hdrs = ["random_number_interface.h"],
     deps = [
-        "//xls/common/logging",
-        "//xls/common/status:status_macros",
     ],
 )
 

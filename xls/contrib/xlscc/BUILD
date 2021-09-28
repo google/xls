@@ -77,7 +77,6 @@ cc_library(
     deps = [
         ":translator",
         "//xls/codegen:combinational_generator",
-        "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",

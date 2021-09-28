@@ -114,7 +114,6 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/ir",
         "//xls/netlist",
         "//xls/netlist:cell_library",
         "//xls/netlist:function_parser",
