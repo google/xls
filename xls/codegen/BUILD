@@ -99,6 +99,7 @@ cc_test(
     ]),
     deps = [
         ":combinational_generator",
+        ":pipeline_generator",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -109,6 +110,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
+        "//xls/scheduling:pipeline_schedule",
         "//xls/simulation:module_simulator",
         "//xls/simulation:module_testbench",
         "//xls/simulation:verilog_simulators",

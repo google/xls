@@ -1,0 +1,19 @@
+module main(
+  input wire clk,
+  input wire cond
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg p0_cond;
+  always @ (posedge clk) begin
+    p0_cond <= cond;
+  end
+
+  // ===== Pipe stage 1:
+  always @ (posedge clk) begin
+    if (p0_cond) begin
+      $display("This is a simple trace.");
+    end
+  end
+endmodule
