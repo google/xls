@@ -70,8 +70,8 @@ fn id(x: u32) -> u32 { pid<u32:32>(x) }
       /*3=*/"1:10-1:13: TYPE_ANNOTATION :: `u32` :: uN[32]",
       /*4=*/"1:15-1:16: NAME_DEF :: `x` :: uN[N]",
       /*5=*/"1:15-1:25: PARAM :: `x: bits[N]` :: uN[N]",
-      /*6=*/"1:18-1:25: TYPE_ANNOTATION :: `bits` :: uN[N]",
-      /*7=*/"1:30-1:37: TYPE_ANNOTATION :: `bits` :: uN[N]",
+      /*6=*/"1:18-1:25: TYPE_ANNOTATION :: `bits[N]` :: uN[N]",
+      /*7=*/"1:30-1:37: TYPE_ANNOTATION :: `bits[N]` :: uN[N]",
       /*8=*/
       "2:0-2:39: FUNCTION :: `fn id(x: u32) -> u32 {\n  pid<u32:32>(x)\n}` :: "
       "(uN[32]) -> uN[32]",
@@ -96,6 +96,28 @@ TEST(TypeInfoToProtoTest, UnitFunction) {
       "0:3-0:4: NAME_DEF :: `f` :: () -> ()",
       "0:10-0:12: TYPE_ANNOTATION :: `()` :: ()",
       "0:15-0:18: XLS_TUPLE :: `()` :: ()",
+  };
+  DoRun(program, want);
+}
+
+TEST(TypeInfoToProtoTest, ArrayFunction) {
+  std::string program = R"(fn f() -> u8[2] { u8[2]:[u8:1, u8:2] })";
+  std::vector<std::string> want = {
+      /*0=*/
+      "0:0-0:38: FUNCTION :: `fn f() -> u8[2] {\n  u8[2]:[u8:1, u8:2]\n}` :: "
+      "() -> uN[8][2]",
+      /*1=*/"0:3-0:4: NAME_DEF :: `f` :: () -> uN[8][2]",
+      /*2=*/"0:10-0:12: TYPE_ANNOTATION :: `u8` :: uN[8]",
+      /*3=*/"0:10-0:15: TYPE_ANNOTATION :: `u8[2]` :: uN[8][2]",
+      /*4=*/"0:13-0:14: NUMBER :: `2` :: uN[32]",
+      /*5=*/"0:18-0:20: TYPE_ANNOTATION :: `u8` :: uN[8]",
+      /*6=*/"0:18-0:23: TYPE_ANNOTATION :: `u8[2]` :: uN[8][2]",
+      /*7=*/"0:21-0:22: NUMBER :: `2` :: uN[32]",
+      /*8=*/"0:24-0:36: ARRAY :: `u8[2]:[u8:1, u8:2]` :: uN[8][2]",
+      /*9=*/"0:25-0:27: TYPE_ANNOTATION :: `u8` :: uN[8]",
+      /*10=*/"0:28-0:29: NUMBER :: `u8:1` :: uN[8]",
+      /*11=*/"0:31-0:33: TYPE_ANNOTATION :: `u8` :: uN[8]",
+      /*12=*/"0:34-0:35: NUMBER :: `u8:2` :: uN[8]",
   };
   DoRun(program, want);
 }

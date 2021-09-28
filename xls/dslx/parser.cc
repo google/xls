@@ -1745,7 +1745,7 @@ absl::StatusOr<TypeAnnotation*> Parser::MakeBuiltinTypeAnnotation(
     const Span& span, const Token& tok, absl::Span<Expr* const> dims) {
   XLS_ASSIGN_OR_RETURN(BuiltinType builtin_type, TokenToBuiltinType(tok));
   TypeAnnotation* elem_type =
-      module_->Make<BuiltinTypeAnnotation>(span, builtin_type);
+      module_->Make<BuiltinTypeAnnotation>(tok.span(), builtin_type);
   for (Expr* dim : dims) {
     elem_type = module_->Make<ArrayTypeAnnotation>(span, elem_type, dim);
   }

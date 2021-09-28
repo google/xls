@@ -24,13 +24,13 @@ using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using testing::HasSubstr;
 
+static const char kFilename[] = "test.x";
+
 class ParserTest : public ::testing::Test {
  public:
-  static constexpr absl::string_view kFilename = "test.x";
-
   void RoundTrip(std::string program,
                  absl::optional<absl::string_view> target = absl::nullopt) {
-    scanner_.emplace(std::string(kFilename), program);
+    scanner_.emplace(kFilename, program);
     parser_.emplace("test", &*scanner_);
     XLS_ASSERT_OK_AND_ASSIGN(auto module, parser_->ParseModule());
     if (target.has_value()) {
@@ -45,7 +45,7 @@ class ParserTest : public ::testing::Test {
   // builtins are).
   absl::StatusOr<Expr*> ParseExpr(
       std::string expr_text, absl::Span<const std::string> predefine = {}) {
-    scanner_.emplace(std::string(kFilename), expr_text);
+    scanner_.emplace(kFilename, expr_text);
     parser_.emplace("test", &*scanner_);
     Bindings b;
     for (const std::string& s : predefine) {
@@ -68,6 +68,13 @@ class ParserTest : public ::testing::Test {
     if (parsed != nullptr) {
       *parsed = e;
     }
+  }
+
+  // Allows the private ParseTypeAnnotation method to be used by subtypes (test
+  // instances).
+  absl::StatusOr<TypeAnnotation*> ParseTypeAnnotation(Parser& p,
+                                                      Bindings* bindings) {
+    return p.ParseTypeAnnotation(bindings);
   }
 
   absl::optional<Scanner> scanner_;
@@ -442,6 +449,23 @@ fn f(x: u32) {
 })");
 }
 
+TEST_F(ParserTest, ArrayTypeAnnotation) {
+  std::string s = "u8[2]";
+  scanner_.emplace(kFilename, s);
+  parser_.emplace("test", &*scanner_);
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(TypeAnnotation * ta,
+                           ParseTypeAnnotation(parser_.value(), &bindings));
+
+  auto* array_type = dynamic_cast<ArrayTypeAnnotation*>(ta);
+  EXPECT_EQ(array_type->span(),
+            Span(Pos(kFilename, 0, 0), Pos(kFilename, 0, 5)));
+  EXPECT_EQ(array_type->ToString(), "u8[2]");
+  EXPECT_EQ(array_type->element_type()->span(),
+            Span(Pos(kFilename, 0, 0), Pos(kFilename, 0, 2)));
+  EXPECT_EQ(array_type->element_type()->ToString(), "u8");
+}
+
 TEST_F(ParserTest, TupleArrayAndInt) {
   Expr* e;
   RoundTripExpr("(u8[4]:[1, 2, 3, 4], 7)", {}, absl::nullopt, &e);
@@ -762,8 +786,7 @@ TEST_F(ParserTest, NumberSpan) {
   ASSERT_NE(number, nullptr);
   // TODO(https://github.com/google/xls/issues/438): 2021-05-24 Fix the
   // parsing/reporting of number spans so that the span starts at 0,0.
-  EXPECT_EQ(number->span(), Span(Pos(std::string(kFilename), 0, 4),
-                                 Pos(std::string(kFilename), 0, 6)));
+  EXPECT_EQ(number->span(), Span(Pos(kFilename, 0, 4), Pos(kFilename, 0, 6)));
 }
 
 }  // namespace xls::dslx

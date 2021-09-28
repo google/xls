@@ -212,6 +212,14 @@ absl::StatusOr<TupleTypeProto> ToProto(const TupleType& tuple_type) {
   return proto;
 }
 
+absl::StatusOr<ArrayTypeProto> ToProto(const ArrayType& array_type) {
+  ArrayTypeProto proto;
+  XLS_ASSIGN_OR_RETURN(*proto.mutable_size(), ToProto(array_type.size()));
+  XLS_ASSIGN_OR_RETURN(*proto.mutable_element_type(),
+                       ToProto(array_type.element_type()));
+  return proto;
+}
+
 absl::StatusOr<ConcreteTypeProto> ToProto(const ConcreteType& concrete_type) {
   ConcreteTypeProto proto;
   if (const auto* bits = dynamic_cast<const BitsType*>(&concrete_type)) {
@@ -222,6 +230,9 @@ absl::StatusOr<ConcreteTypeProto> ToProto(const ConcreteType& concrete_type) {
   } else if (const auto* tuple =
                  dynamic_cast<const TupleType*>(&concrete_type)) {
     XLS_ASSIGN_OR_RETURN(*proto.mutable_tuple(), ToProto(*tuple));
+  } else if (const auto* array =
+                 dynamic_cast<const ArrayType*>(&concrete_type)) {
+    XLS_ASSIGN_OR_RETURN(*proto.mutable_array(), ToProto(*array));
   } else {
     return absl::UnimplementedError("Convert ConcreteType to proto: " +
                                     concrete_type.ToString());
@@ -334,6 +345,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FromProto(
         members.push_back(std::move(ct));
       }
       return std::make_unique<TupleType>(std::move(members));
+    }
+    case ConcreteTypeProto::ConcreteTypeOneofCase::kArray: {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> element_type,
+                           FromProto(ctp.array().element_type()));
+      XLS_ASSIGN_OR_RETURN(ConcreteTypeDim size, FromProto(ctp.array().size()));
+      return std::make_unique<ArrayType>(std::move(element_type),
+                                         std::move(size));
     }
     case ConcreteTypeProto::ConcreteTypeOneofCase::kFn: {
       const FunctionTypeProto& ftp = ctp.fn();
