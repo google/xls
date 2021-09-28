@@ -245,7 +245,7 @@ TEST_F(ProcNetworkInterpreterTest, WrappedProc) {
   std::vector<Value> inputs = {
       {Value(UBits(10, 32))}, {Value(UBits(20, 32))}, {Value(UBits(30, 32))}};
   queues.push_back(
-      absl::make_unique<FixedChannelQueue>(in_channel, package.get(), inputs));
+      std::make_unique<FixedChannelQueue>(in_channel, package.get(), inputs));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ProcNetworkInterpreter> interpreter,
       ProcNetworkInterpreter::Create(package.get(), std::move(queues)));
@@ -313,8 +313,8 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecoding) {
       Value::Tuple({Value(UBits(0, 32)), Value(UBits(55, 8))}),
       Value::Tuple({Value(UBits(0, 32)), Value(UBits(66, 8))}),
       Value::Tuple({Value(UBits(2, 32)), Value(UBits(20, 8))})};
-  queues.push_back(absl::make_unique<FixedChannelQueue>(input_channel,
-                                                        package.get(), inputs));
+  queues.push_back(std::make_unique<FixedChannelQueue>(input_channel,
+                                                       package.get(), inputs));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ProcNetworkInterpreter> interpreter,
       ProcNetworkInterpreter::Create(package.get(), std::move(queues)));
@@ -372,8 +372,8 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
       Value::Tuple({Value(UBits(0, 32)), Value(UBits(55, 8))}),
       Value::Tuple({Value(UBits(0, 32)), Value(UBits(66, 8))}),
       Value::Tuple({Value(UBits(2, 32)), Value(UBits(20, 8))})};
-  queues.push_back(absl::make_unique<FixedChannelQueue>(input_channel,
-                                                        package.get(), inputs));
+  queues.push_back(std::make_unique<FixedChannelQueue>(input_channel,
+                                                       package.get(), inputs));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ProcNetworkInterpreter> interpreter,
       ProcNetworkInterpreter::Create(package.get(), std::move(queues)));

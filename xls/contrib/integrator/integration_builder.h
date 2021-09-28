@@ -62,7 +62,7 @@ class IntegrationBuilder {
         original_package_source_functions_.end(), input_functions.begin(),
         input_functions.end());
     // TODO(jbaileyhandle): Make package name an optional argument.
-    package_ = absl::make_unique<Package>("IntegrationPackage");
+    package_ = std::make_unique<Package>("IntegrationPackage");
   }
 
   // Copy the source functions into a common package.

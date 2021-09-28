@@ -77,7 +77,7 @@ absl::StatusOr<Function*> Function::Clone(
     target_package = package();
   }
   Function* cloned_function = target_package->AddFunction(
-      absl::make_unique<Function>(new_name, target_package));
+      std::make_unique<Function>(new_name, target_package));
   for (Node* node : TopoSort(const_cast<Function*>(this))) {
     std::vector<Node*> cloned_operands;
     for (Node* operand : node->operands()) {

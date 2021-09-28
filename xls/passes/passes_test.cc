@@ -65,7 +65,7 @@ class DummyPass : public Pass {
 //    param(x)
 //
 std::pair<std::unique_ptr<Package>, Function*> BuildShift0() {
-  auto m = absl::make_unique<Package>("m");
+  auto m = std::make_unique<Package>("m");
   FunctionBuilder b("simple_arith", m.get());
   Type* bits_32 = m->GetBitsType(32);
   auto x = b.Param("x", bits_32);
@@ -141,7 +141,7 @@ fn foo(x:bits[8]) -> bits[8] {
 
 // Makes and returns a nesting of compound passes.
 std::unique_ptr<CompoundPass> MakeNestedPasses() {
-  auto top = absl::make_unique<CompoundPass>("top", "Top level pass manager");
+  auto top = std::make_unique<CompoundPass>("top", "Top level pass manager");
   auto comp_pass = top->Add<CompoundPass>("comp_pass", "compound pass");
   auto nested_comp_pass =
       comp_pass->Add<CompoundPass>("nested_comp_pass", "nested pass");
@@ -196,7 +196,7 @@ TEST(PassesTest, RunWithFailingInvariantChecker) {
 TEST(PassesTest, RunWithFailingNestedInvariantChecker) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
                            Parser::ParsePackage(kInvariantTesterPackage));
-  auto top = absl::make_unique<CompoundPass>("top", "Top level pass manager");
+  auto top = std::make_unique<CompoundPass>("top", "Top level pass manager");
   top->AddInvariantChecker<PackageNameChecker>("bar");
   auto nested_pass = top->Add<CompoundPass>("comp_pass", "nested pass");
   nested_pass->AddInvariantChecker<PackageNameChecker>("foo");
@@ -415,7 +415,7 @@ class NaiveDcePass : public FunctionBasePass {
 };
 
 TEST(PassesTest, TestTransformNodesToFixedPointWhileRemovingNodes) {
-  auto m = absl::make_unique<Package>("m");
+  auto m = std::make_unique<Package>("m");
   FunctionBuilder fb("test", m.get());
   BValue x = fb.Param("x", m->GetBitsType(32));
   BValue a = fb.Not(fb.Add(x, x));

@@ -79,7 +79,7 @@ bool FsmBlockBase::HasAssignmentToOutput(const FsmOutput& output) const {
 ConditionalFsmBlock& ConditionalFsmBlock::ElseOnCondition(
     Expression* condition) {
   XLS_CHECK(next_alternate_ == nullptr && final_alternate_ == nullptr);
-  next_alternate_ = absl::make_unique<ConditionalFsmBlock>(
+  next_alternate_ = std::make_unique<ConditionalFsmBlock>(
       absl::StrFormat("%s else (%s)", debug_name_, condition->Emit()), file_,
       condition);
   return *next_alternate_;
@@ -87,7 +87,7 @@ ConditionalFsmBlock& ConditionalFsmBlock::ElseOnCondition(
 
 UnconditionalFsmBlock& ConditionalFsmBlock::Else() {
   XLS_CHECK(next_alternate_ == nullptr && final_alternate_ == nullptr);
-  final_alternate_ = absl::make_unique<UnconditionalFsmBlock>(
+  final_alternate_ = std::make_unique<UnconditionalFsmBlock>(
       absl::StrFormat("%s else", debug_name_), file_);
   return *final_alternate_;
 }

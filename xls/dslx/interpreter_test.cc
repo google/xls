@@ -24,7 +24,7 @@ namespace xls::dslx {
 namespace {
 
 TEST(InterpreterTest, RunIdentityFn) {
-  auto module = absl::make_unique<Module>("test");
+  auto module = std::make_unique<Module>("test");
   Pos fake_pos("<fake>", 0, 0);
   Span fake_span(fake_pos, fake_pos);
   auto* u32 = module->Make<BuiltinTypeAnnotation>(fake_span, BuiltinType::kU32);

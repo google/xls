@@ -45,7 +45,7 @@ TEST(ConcreteTypeTest, TestUnit) {
 }
 
 TEST(ConcreteTypeTest, TestArrayOfU32) {
-  ArrayType t(absl::make_unique<BitsType>(false, 32),
+  ArrayType t(std::make_unique<BitsType>(false, 32),
               ConcreteTypeDim::CreateU32(1));
   EXPECT_EQ("uN[32][1]", t.ToString());
   EXPECT_EQ("array", t.GetDebugTypeName());
@@ -74,8 +74,8 @@ TEST(ConcreteTypeTest, TestEnum) {
 
 TEST(ConcreteTypeTest, FunctionTypeU32ToS32) {
   std::vector<std::unique_ptr<ConcreteType>> params;
-  params.push_back(absl::make_unique<BitsType>(false, 32));
-  FunctionType t(std::move(params), absl::make_unique<BitsType>(true, 32));
+  params.push_back(std::make_unique<BitsType>(false, 32));
+  FunctionType t(std::move(params), std::make_unique<BitsType>(true, 32));
   EXPECT_EQ(1, t.GetParams().size());
   EXPECT_EQ("uN[32]", t.GetParams()[0]->ToString());
   EXPECT_EQ("sN[32]", t.return_type().ToString());
@@ -91,16 +91,16 @@ TEST(ConcreteTypeDimTest, TestArithmetic) {
 
   const Pos fake_pos;
   const Span fake_span(fake_pos, fake_pos);
-  ConcreteTypeDim m(absl::make_unique<ParametricSymbol>("M", fake_span));
-  ConcreteTypeDim n(absl::make_unique<ParametricSymbol>("N", fake_span));
+  ConcreteTypeDim m(std::make_unique<ParametricSymbol>("M", fake_span));
+  ConcreteTypeDim n(std::make_unique<ParametricSymbol>("N", fake_span));
 
   // M+N
-  ConcreteTypeDim mpn(absl::make_unique<ParametricAdd>(m.parametric().Clone(),
-                                                       n.parametric().Clone()));
+  ConcreteTypeDim mpn(std::make_unique<ParametricAdd>(m.parametric().Clone(),
+                                                      n.parametric().Clone()));
 
   // M*N
-  ConcreteTypeDim mtn(absl::make_unique<ParametricMul>(m.parametric().Clone(),
-                                                       n.parametric().Clone()));
+  ConcreteTypeDim mtn(std::make_unique<ParametricMul>(m.parametric().Clone(),
+                                                      n.parametric().Clone()));
 
   EXPECT_THAT(m.Add(n), IsOkAndHolds(mpn));
   EXPECT_THAT(m.Mul(n), IsOkAndHolds(mtn));

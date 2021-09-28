@@ -136,10 +136,10 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
   Interpreter* interp_;
 };
 
-Interpreter::Interpreter(
-    Module* entry_module, TypecheckFn typecheck,
-    ImportData* import_data, bool trace_all,
-    FormatPreference trace_format_preference, PostFnEvalHook post_fn_eval_hook)
+Interpreter::Interpreter(Module* entry_module, TypecheckFn typecheck,
+                         ImportData* import_data, bool trace_all,
+                         FormatPreference trace_format_preference,
+                         PostFnEvalHook post_fn_eval_hook)
     : entry_module_(entry_module),
       current_type_info_(import_data->GetRootTypeInfo(entry_module).value()),
       post_fn_eval_hook_(std::move(post_fn_eval_hook)),
@@ -147,7 +147,7 @@ Interpreter::Interpreter(
       import_data_(import_data),
       trace_all_(trace_all),
       trace_format_preference_(trace_format_preference),
-      abstract_adapter_(absl::make_unique<AbstractInterpreterAdapter>(this)) {}
+      abstract_adapter_(std::make_unique<AbstractInterpreterAdapter>(this)) {}
 
 absl::StatusOr<InterpValue> Interpreter::RunFunction(
     absl::string_view name, absl::Span<const InterpValue> args,

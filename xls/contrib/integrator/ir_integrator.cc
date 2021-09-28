@@ -30,7 +30,7 @@ IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
 
   // Create ir function.
   integration_function->function_ =
-      absl::make_unique<Function>(function_name, package);
+      std::make_unique<Function>(function_name, package);
 
   // Package source function parameters as tuple parameters to integration
   // function.

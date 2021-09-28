@@ -115,7 +115,7 @@ class ParametricConstant : public ParametricExpression {
   }
 
   std::unique_ptr<ParametricExpression> Clone() const override {
-    return absl::make_unique<ParametricConstant>(value_);
+    return std::make_unique<ParametricConstant>(value_);
   }
 
   InterpValue value() const { return value_; }
@@ -162,7 +162,7 @@ class ParametricAdd : public ParametricExpression {
   }
 
   std::unique_ptr<ParametricExpression> Clone() const override {
-    return absl::make_unique<ParametricAdd>(lhs_->Clone(), rhs_->Clone());
+    return std::make_unique<ParametricAdd>(lhs_->Clone(), rhs_->Clone());
   }
 
  private:
@@ -193,7 +193,7 @@ class ParametricMul : public ParametricExpression {
   }
 
   std::unique_ptr<ParametricExpression> Clone() const override {
-    return absl::make_unique<ParametricMul>(lhs_->Clone(), rhs_->Clone());
+    return std::make_unique<ParametricMul>(lhs_->Clone(), rhs_->Clone());
   }
 
   bool operator==(const ParametricExpression& other) const override {
@@ -252,7 +252,7 @@ class ParametricSymbol : public ParametricExpression {
   }
 
   std::unique_ptr<ParametricExpression> Clone() const override {
-    return absl::make_unique<ParametricSymbol>(identifier_, span_);
+    return std::make_unique<ParametricSymbol>(identifier_, span_);
   }
 
   const std::string& identifier() const { return identifier_; }

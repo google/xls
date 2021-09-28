@@ -46,7 +46,7 @@ class DeadFunctionEliminationPassTest : public IrTestBase {
 };
 
 TEST_F(DeadFunctionEliminationPassTest, NoDeadFunctions) {
-  auto p = absl::make_unique<Package>(TestName(), /*entry=*/"the_entry");
+  auto p = std::make_unique<Package>(TestName(), /*entry=*/"the_entry");
   XLS_ASSERT_OK_AND_ASSIGN(Function * a, MakeFunction("a", p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Function * b, MakeFunction("b", p.get()));
   FunctionBuilder fb("the_entry", p.get());
@@ -60,7 +60,7 @@ TEST_F(DeadFunctionEliminationPassTest, NoDeadFunctions) {
 }
 
 TEST_F(DeadFunctionEliminationPassTest, OneDeadFunction) {
-  auto p = absl::make_unique<Package>(TestName(), /*entry=*/"the_entry");
+  auto p = std::make_unique<Package>(TestName(), /*entry=*/"the_entry");
   XLS_ASSERT_OK_AND_ASSIGN(Function * a, MakeFunction("a", p.get()));
   XLS_ASSERT_OK(MakeFunction("dead", p.get()).status());
   FunctionBuilder fb("the_entry", p.get());
@@ -76,7 +76,7 @@ TEST_F(DeadFunctionEliminationPassTest, OneDeadFunction) {
 TEST_F(DeadFunctionEliminationPassTest, OneDeadFunctionButNoEntry) {
   // If no entry function is specified, then DFS cannot happen as all functions
   // are live.
-  auto p = absl::make_unique<Package>(TestName());
+  auto p = std::make_unique<Package>(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(Function * a, MakeFunction("a", p.get()));
   XLS_ASSERT_OK(MakeFunction("dead", p.get()).status());
   FunctionBuilder fb("blah", p.get());
@@ -92,7 +92,7 @@ TEST_F(DeadFunctionEliminationPassTest, OneDeadFunctionButNoEntry) {
 TEST_F(DeadFunctionEliminationPassTest, MapAndCountedFor) {
   // If no entry function is specified, then DFS cannot happen as all functions
   // are live.
-  auto p = absl::make_unique<Package>(TestName(), /*entry=*/"the_entry");
+  auto p = std::make_unique<Package>(TestName(), /*entry=*/"the_entry");
   XLS_ASSERT_OK_AND_ASSIGN(Function * a, MakeFunction("a", p.get()));
   Function* body;
   {

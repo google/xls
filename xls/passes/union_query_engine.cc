@@ -22,7 +22,7 @@ absl::StatusOr<std::unique_ptr<UnionQueryEngine>> UnionQueryEngine::Run(
     std::vector<std::unique_ptr<QueryEngine>> engines) {
   UnionQueryEngine result;
   result.engines_ = std::move(engines);
-  return absl::make_unique<UnionQueryEngine>(std::move(result));
+  return std::make_unique<UnionQueryEngine>(std::move(result));
 }
 
 bool UnionQueryEngine::IsTracked(Node* node) const {

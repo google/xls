@@ -604,10 +604,10 @@ struct MoveOnlyAdaptor {
 
 TEST(StatusBuilderTest, WithMoveOnlyAdaptor) {
   StatusBuilder sb(absl::AbortedError("zomg"), xabsl::SourceLocation());
-  EXPECT_THAT(sb.With(MoveOnlyAdaptor{absl::make_unique<int>(100)}),
+  EXPECT_THAT(sb.With(MoveOnlyAdaptor{std::make_unique<int>(100)}),
               Pointee(100));
   EXPECT_THAT(StatusBuilder(absl::AbortedError("zomg"), xabsl::SourceLocation())
-                  .With(MoveOnlyAdaptor{absl::make_unique<int>(100)}),
+                  .With(MoveOnlyAdaptor{std::make_unique<int>(100)}),
               Pointee(100));
 }
 

@@ -33,9 +33,9 @@ class Proc : public FunctionBase {
        Package* package)
       : FunctionBase(name, package),
         init_value_(init_value),
-        token_param_(AddNode(absl::make_unique<Param>(
+        token_param_(AddNode(std::make_unique<Param>(
             absl::nullopt, token_param_name, package->GetTokenType(), this))),
-        state_param_(AddNode(absl::make_unique<Param>(
+        state_param_(AddNode(std::make_unique<Param>(
             absl::nullopt, state_param_name,
             package->GetTypeForValue(init_value_), this))),
         next_token_(token_param_),

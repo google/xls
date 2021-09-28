@@ -41,7 +41,7 @@ void XlsccTestBase::Run(
 
 absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
                                      std::vector<absl::string_view> argv) {
-  translator_ = absl::make_unique<xlscc::Translator>();
+  translator_ = std::make_unique<xlscc::Translator>();
 
   return ScanFile(cpp_src, argv, translator_.get());
 }

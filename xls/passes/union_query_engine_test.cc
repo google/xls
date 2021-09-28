@@ -222,8 +222,8 @@ TEST_F(UnionQueryEngineTest, Simple) {
       UBits(0b10011000, 8));
   query_engine_b.AddImplication(BitLocation(node, 7), BitLocation(node, 3));
   std::vector<std::unique_ptr<QueryEngine>> engines;
-  engines.push_back(absl::make_unique<FakeQueryEngine>(query_engine_a));
-  engines.push_back(absl::make_unique<FakeQueryEngine>(query_engine_b));
+  engines.push_back(std::make_unique<FakeQueryEngine>(query_engine_a));
+  engines.push_back(std::make_unique<FakeQueryEngine>(query_engine_b));
   XLS_ASSERT_OK_AND_ASSIGN(auto union_query_engine,
                            UnionQueryEngine::Run(std::move(engines)));
 

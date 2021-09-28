@@ -89,7 +89,7 @@ absl::StatusOr<Cell*> Module::AddCell(Cell cell) {
         absl::StrCat("Module already has a cell with name: ", cell.name()));
   }
 
-  cells_.push_back(absl::make_unique<Cell>(cell));
+  cells_.push_back(std::make_unique<Cell>(cell));
   return cells_.back().get();
 }
 
@@ -100,7 +100,7 @@ absl::Status Module::AddNetDecl(NetDeclKind kind, absl::string_view name) {
         absl::StrCat("Module already has a net/wire decl with name: ", name));
   }
 
-  nets_.emplace_back(absl::make_unique<NetDef>(name));
+  nets_.emplace_back(std::make_unique<NetDef>(name));
   NetRef ref = nets_.back().get();
   switch (kind) {
     case NetDeclKind::kInput:

@@ -189,7 +189,7 @@ absl::StatusOr<InterpValue> EvaluateXlsTuple(XlsTuple* expr,
 static std::unique_ptr<ConcreteType> StrengthReduceEnum(EnumDef* enum_def,
                                                         int64_t bit_count) {
   bool is_signed = enum_def->signedness().value();
-  return absl::make_unique<BitsType>(is_signed, bit_count);
+  return std::make_unique<BitsType>(is_signed, bit_count);
 }
 
 // Returns the concrete type of 'value'.
@@ -208,8 +208,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromValue(
     case InterpValueTag::kUBits:
     case InterpValueTag::kSBits: {
       bool signedness = value.tag() == InterpValueTag::kSBits;
-      return absl::make_unique<BitsType>(signedness,
-                                         value.GetBitCount().value());
+      return std::make_unique<BitsType>(signedness,
+                                        value.GetBitCount().value());
     }
     case InterpValueTag::kArray: {
       std::unique_ptr<ConcreteType> element_type;
@@ -231,7 +231,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromValue(
         XLS_ASSIGN_OR_RETURN(auto dim, ConcreteTypeFromValue(m));
         members.push_back(std::move(dim));
       }
-      return absl::make_unique<TupleType>(std::move(members));
+      return std::make_unique<TupleType>(std::move(members));
     }
     case InterpValueTag::kEnum:
       return StrengthReduceEnum(value.type(), value.GetBitCount().value());
@@ -1453,7 +1453,7 @@ ConcretizeTypeRefTypeAnnotation(TypeRefTypeAnnotation* type_ref,
         ConcretizeType(enum_def->type_annotation(), bindings, interp));
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bit_count,
                          underlying_type->GetTotalBitCount());
-    return absl::make_unique<EnumType>(enum_def, bit_count);
+    return std::make_unique<EnumType>(enum_def, bit_count);
   }
 
   // Start with the parametrics that are given in the type reference, and then
@@ -1510,7 +1510,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
                            ConcretizeType(member, bindings, interp));
       members.push_back(std::move(concrete_member));
     }
-    return absl::make_unique<TupleType>(std::move(members));
+    return std::make_unique<TupleType>(std::move(members));
   }
 
   // class ArrayTypeAnnotation
@@ -1535,7 +1535,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeTypeAnnotation(
   if (auto* builtin = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
     bool signedness = builtin->GetSignedness();
     int64_t bit_count = builtin->GetBitCount();
-    return absl::make_unique<BitsType>(signedness, bit_count);
+    return std::make_unique<BitsType>(signedness, bit_count);
   }
 
   return absl::UnimplementedError("Cannot concretize type annotation: " +
@@ -1561,7 +1561,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeType(
           ConcretizeTypeAnnotation(type_annotation, bindings, interp));
       members.push_back(std::move(concretized));
     }
-    return absl::make_unique<TupleType>(std::move(members));
+    return std::make_unique<TupleType>(std::move(members));
   }
   // class TypeAnnotation
   return ConcretizeTypeAnnotation(absl::get<TypeAnnotation*>(type), bindings,

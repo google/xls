@@ -440,7 +440,7 @@ absl::Status CellLibrary::AddEntry(CellLibraryEntry entry) {
         "Attempting to register a cell library entry with a duplicate name: " +
         entry.name());
   }
-  entries_.insert({entry.name(), absl::make_unique<CellLibraryEntry>(entry)});
+  entries_.insert({entry.name(), std::make_unique<CellLibraryEntry>(entry)});
   return absl::OkStatus();
 }
 

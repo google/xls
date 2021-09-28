@@ -293,7 +293,7 @@ TEST_F(BlockTest, RemoveRegisters) {
 
 TEST_F(BlockTest, RegisterWithInvalidResetValue) {
   auto p = CreatePackage();
-  Block* blk = p->AddBlock(absl::make_unique<Block>("block1", p.get()));
+  Block* blk = p->AddBlock(std::make_unique<Block>("block1", p.get()));
   EXPECT_THAT(
       blk->AddRegister("my_reg", p->GetBitsType(32),
                        Reset{.reset_value = Value(UBits(0, 8)),
@@ -309,7 +309,7 @@ TEST_F(BlockTest, AddDuplicateRegisters) {
   // Don't use CreatePackage because that creates a package which verifies on
   // test completion and the errors may leave the block in a invalid state.
   Package p(TestName());
-  Block* blk = p.AddBlock(absl::make_unique<Block>("block1", &p));
+  Block* blk = p.AddBlock(std::make_unique<Block>("block1", &p));
   XLS_ASSERT_OK(blk->AddClockPort("clk"));
   XLS_ASSERT_OK(blk->AddRegister("my_reg", p.GetBitsType(32)).status());
   EXPECT_THAT(blk->AddRegister("my_reg", p.GetBitsType(32)).status(),
@@ -321,9 +321,9 @@ TEST_F(BlockTest, RemoveRegisterNotOwnedByBlock) {
   // Don't use CreatePackage because that creates a package which verifies on
   // test completion and the errors may leave the block in a invalid state.
   Package p(TestName());
-  Block* blk1 = p.AddBlock(absl::make_unique<Block>("block1", &p));
+  Block* blk1 = p.AddBlock(std::make_unique<Block>("block1", &p));
   XLS_ASSERT_OK(blk1->AddClockPort("clk"));
-  Block* blk2 = p.AddBlock(absl::make_unique<Block>("block2", &p));
+  Block* blk2 = p.AddBlock(std::make_unique<Block>("block2", &p));
   XLS_ASSERT_OK(blk2->AddClockPort("clk"));
   XLS_ASSERT_OK_AND_ASSIGN(Register * reg1,
                            blk1->AddRegister("reg", p.GetBitsType(32)));

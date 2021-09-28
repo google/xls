@@ -53,8 +53,8 @@ std::string PipelineSignalName(absl::string_view root, int64_t stage) {
 
 absl::StatusOr<Block*> FunctionToBlock(Function* f,
                                        absl::string_view block_name) {
-  Block* block = f->package()->AddBlock(
-      absl::make_unique<Block>(block_name, f->package()));
+  Block* block =
+      f->package()->AddBlock(std::make_unique<Block>(block_name, f->package()));
 
   // A map from the nodes in 'f' to their corresponding node in the block.
   absl::flat_hash_map<Node*, Node*> node_map;
@@ -352,8 +352,8 @@ absl::StatusOr<Block*> FunctionToPipelinedBlock(
   std::string block_name = options.module_name().has_value()
                                ? std::string{options.module_name().value()}
                                : SanitizeIdentifier(f->name());
-  Block* block = f->package()->AddBlock(
-      absl::make_unique<Block>(block_name, f->package()));
+  Block* block =
+      f->package()->AddBlock(std::make_unique<Block>(block_name, f->package()));
 
   if (!options.clock_name().has_value()) {
     return absl::InvalidArgumentError(
@@ -744,7 +744,7 @@ absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
   }
 
   Block* block = proc->package()->AddBlock(
-      absl::make_unique<Block>(block_name, proc->package()));
+      std::make_unique<Block>(block_name, proc->package()));
 
   XLS_ASSIGN_OR_RETURN(StreamingIo streaming_io,
                        CloneProcNodesIntoBlock(proc, block));

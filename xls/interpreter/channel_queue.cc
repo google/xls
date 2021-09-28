@@ -153,9 +153,9 @@ ChannelQueueManager::Create(
     }
     if (channel->kind() == ChannelKind::kSingleValue) {
       manager->queues_[channel] =
-          absl::make_unique<SingleValueChannelQueue>(channel);
+          std::make_unique<SingleValueChannelQueue>(channel);
     } else {
-      manager->queues_[channel] = absl::make_unique<FifoChannelQueue>(channel);
+      manager->queues_[channel] = std::make_unique<FifoChannelQueue>(channel);
     }
   }
 

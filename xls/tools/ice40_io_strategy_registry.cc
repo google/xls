@@ -19,6 +19,6 @@
 XLS_REGISTER_MODULE_INITIALIZER(xls_tools_ice40_strategy_registry, {
   xls::verilog::IoStrategyFactory::GetSingleton()->Add(
       "ice40", [](xls::verilog::VerilogFile* f) {
-        return absl::make_unique<xls::verilog::Ice40IoStrategy>(f);
+        return std::make_unique<xls::verilog::Ice40IoStrategy>(f);
       });
 });

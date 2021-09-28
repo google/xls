@@ -338,7 +338,7 @@ absl::StatusOr<absl::InlinedVector<std::string, 4>> Parser::ParseValues(
 
 absl::StatusOr<std::unique_ptr<Block>> Parser::ParseBlock(
     std::string identifier) {
-  auto block = absl::make_unique<Block>();
+  auto block = std::make_unique<Block>();
   block->kind = std::move(identifier);
 
   // Once we've seen the block kind we know whether it's in the allowlist or

@@ -394,7 +394,7 @@ proc a(my_token: token, state: (), init=()) {
 // TODO(meheff): This test is a duplicate of one in
 // proc_network_interpreter_test. Unify the set of tests in one location.
 TEST(SerialProcRuntimeTest, ChannelInitValues) {
-  auto p = absl::make_unique<Package>("init_value");
+  auto p = std::make_unique<Package>("init_value");
   // Create an iota proc which uses a channel to convey the state rather than
   // using the explicit proc state. However, the state channel has multiple
   // initial values which results in interleaving of difference sequences of

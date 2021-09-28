@@ -153,7 +153,7 @@ fn graph(p: bits[42], q: bits[42]) -> bits[42] {
 }
 )";
   // We don't want a VerifiedPackage because we are introducing a cycle.
-  auto p = absl::make_unique<Package>(TestName());
+  auto p = std::make_unique<Package>(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(input, p.get()));
 
   // Introduce a cycle in the graph.

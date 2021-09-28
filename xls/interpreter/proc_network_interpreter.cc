@@ -35,9 +35,8 @@ ProcNetworkInterpreter::Create(
       new ProcNetworkInterpreter(std::move(queue_manager)));
 
   for (auto& proc : package->procs()) {
-    interpreter->proc_interpreters_.push_back(
-        absl::make_unique<ProcInterpreter>(proc.get(),
-                                           &interpreter->queue_manager()));
+    interpreter->proc_interpreters_.push_back(std::make_unique<ProcInterpreter>(
+        proc.get(), &interpreter->queue_manager()));
   }
 
   // Inject initial values into channels.

@@ -24,9 +24,9 @@ namespace {
 using status_testing::IsOkAndHolds;
 
 TEST(CppEvaluateTest, EmptyArrayCompatibility) {
-  auto empty_array_of_nil = absl::make_unique<ArrayType>(
+  auto empty_array_of_nil = std::make_unique<ArrayType>(
       ConcreteType::MakeUnit(), ConcreteTypeDim::CreateU32(0));
-  auto empty_array_of_u32 = absl::make_unique<ArrayType>(
+  auto empty_array_of_u32 = std::make_unique<ArrayType>(
       BitsType::MakeU32(), ConcreteTypeDim::CreateU32(0));
   auto empty_array_value = InterpValue::MakeArray(/*elements=*/{}).value();
 
@@ -37,7 +37,7 @@ TEST(CppEvaluateTest, EmptyArrayCompatibility) {
 }
 
 TEST(CppEvaluateTest, DiffNumberOfElementsVs0Compatibility) {
-  auto empty_array_of_nil = absl::make_unique<ArrayType>(
+  auto empty_array_of_nil = std::make_unique<ArrayType>(
       ConcreteType::MakeUnit(), ConcreteTypeDim::CreateU32(0));
   auto array_of_1_value =
       InterpValue::MakeArray(/*elements=*/{InterpValue::MakeU32(1)}).value();
@@ -58,7 +58,7 @@ TEST(CppEvaluateTest, TupleSizeIncompatibilityVsUnit) {
 TEST(CppEvaluateTest, TupleSizeIncompatibilityUnitVs1Element) {
   std::vector<std::unique_ptr<ConcreteType>> members;
   members.push_back(BitsType::MakeU32());
-  auto tuple_of_u32_type = absl::make_unique<TupleType>(std::move(members));
+  auto tuple_of_u32_type = std::make_unique<TupleType>(std::move(members));
   auto nil_tuple_value = InterpValue::MakeTuple(/*members=*/{});
 
   EXPECT_THAT(ValueCompatibleWithType(*tuple_of_u32_type, nil_tuple_value),
@@ -66,7 +66,7 @@ TEST(CppEvaluateTest, TupleSizeIncompatibilityUnitVs1Element) {
 }
 
 TEST(CppEvaluateTest, BitsValueSignednessAcceptance) {
-  auto s1_type = absl::make_unique<BitsType>(true, 1);
+  auto s1_type = std::make_unique<BitsType>(true, 1);
   auto u1_type = BitsType::MakeU1();
   auto u1_value = InterpValue::MakeUBits(1, 0);
   auto s1_value = InterpValue::MakeSBits(1, 0);

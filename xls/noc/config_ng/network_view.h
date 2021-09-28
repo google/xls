@@ -40,7 +40,7 @@ class NetworkView {
   Type& AddComponent() {
     static_assert(std::is_base_of<NetworkComponent, Type>::value,
                   "Type is not a Network Component subclass");
-    components_.emplace_back(absl::make_unique<Type>(this));
+    components_.emplace_back(std::make_unique<Type>(this));
     return static_cast<Type&>(*components_.back());
   }
 

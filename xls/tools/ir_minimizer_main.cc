@@ -340,15 +340,15 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
     Function* f, std::mt19937* rng, std::string* which_transform) {
   // All these passes have trivial construction costs.
   std::vector<std::unique_ptr<Pass>> passes;
-  passes.push_back(absl::make_unique<ArithSimplificationPass>());
-  passes.push_back(absl::make_unique<ArraySimplificationPass>());
-  passes.push_back(absl::make_unique<BitSliceSimplificationPass>());
-  passes.push_back(absl::make_unique<ConcatSimplificationPass>());
-  passes.push_back(absl::make_unique<ConstantFoldingPass>());
-  passes.push_back(absl::make_unique<CsePass>());
-  passes.push_back(absl::make_unique<TupleSimplificationPass>());
-  passes.push_back(absl::make_unique<UnrollPass>());
-  passes.push_back(absl::make_unique<InliningPass>());
+  passes.push_back(std::make_unique<ArithSimplificationPass>());
+  passes.push_back(std::make_unique<ArraySimplificationPass>());
+  passes.push_back(std::make_unique<BitSliceSimplificationPass>());
+  passes.push_back(std::make_unique<ConcatSimplificationPass>());
+  passes.push_back(std::make_unique<ConstantFoldingPass>());
+  passes.push_back(std::make_unique<CsePass>());
+  passes.push_back(std::make_unique<TupleSimplificationPass>());
+  passes.push_back(std::make_unique<UnrollPass>());
+  passes.push_back(std::make_unique<InliningPass>());
 
   int64_t pass_no = absl::Uniform<int64_t>(*rng, 0, passes.size());
   PassResults results;

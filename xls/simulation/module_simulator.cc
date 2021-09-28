@@ -142,7 +142,7 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
   auto capture_outputs = [&](int64_t index) {
     OutputMap& outputs = stable_outputs[index];
     for (const PortProto& output : signature_.data_outputs()) {
-      outputs[output.name()] = absl::make_unique<Bits>();
+      outputs[output.name()] = std::make_unique<Bits>();
       tb.Capture(output.name(), outputs.at(output.name()).get());
     }
   };

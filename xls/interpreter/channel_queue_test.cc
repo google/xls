@@ -148,13 +148,13 @@ TEST_F(ChannelQueueTest, SimpleChannelQueueManager) {
                                      package.GetBitsType(32)));
 
   std::vector<std::unique_ptr<ChannelQueue>> queues;
-  queues.push_back(absl::make_unique<GeneratedChannelQueue>(
+  queues.push_back(std::make_unique<GeneratedChannelQueue>(
       channel_a, &package,
       []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
   std::vector<Value> fixed_input = {Value(UBits(1, 32)), Value(UBits(2, 32)),
                                     Value(UBits(3, 32))};
   queues.push_back(
-      absl::make_unique<FixedChannelQueue>(channel_b, &package, fixed_input));
+      std::make_unique<FixedChannelQueue>(channel_b, &package, fixed_input));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ChannelQueueManager> manager,
@@ -212,13 +212,13 @@ TEST_F(ChannelQueueTest, ChannelQueueManagerErrorConditions) {
 
   {
     std::vector<std::unique_ptr<ChannelQueue>> queues;
-    queues.push_back(absl::make_unique<GeneratedChannelQueue>(
+    queues.push_back(std::make_unique<GeneratedChannelQueue>(
         channel_a, &package,
         []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
-    queues.push_back(absl::make_unique<GeneratedChannelQueue>(
+    queues.push_back(std::make_unique<GeneratedChannelQueue>(
         channel_a, &package,
         []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
-    queues.push_back(absl::make_unique<GeneratedChannelQueue>(
+    queues.push_back(std::make_unique<GeneratedChannelQueue>(
         channel_b, &package,
         []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
     EXPECT_THAT(
@@ -230,13 +230,13 @@ TEST_F(ChannelQueueTest, ChannelQueueManagerErrorConditions) {
 
   {
     std::vector<std::unique_ptr<ChannelQueue>> queues;
-    queues.push_back(absl::make_unique<GeneratedChannelQueue>(
+    queues.push_back(std::make_unique<GeneratedChannelQueue>(
         channel_a, &package,
         []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
-    queues.push_back(absl::make_unique<GeneratedChannelQueue>(
+    queues.push_back(std::make_unique<GeneratedChannelQueue>(
         channel_b, &package,
         []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
-    queues.push_back(absl::make_unique<GeneratedChannelQueue>(
+    queues.push_back(std::make_unique<GeneratedChannelQueue>(
         channel_c, &package,
         []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
     EXPECT_THAT(
@@ -260,20 +260,20 @@ TEST_F(ChannelQueueTest, ChannelKindMatching) {
 
   {
     std::vector<std::unique_ptr<ChannelQueue>> queues;
-    queues.push_back(absl::make_unique<GeneratedChannelQueue>(
+    queues.push_back(std::make_unique<GeneratedChannelQueue>(
         channel_a, &package,
         []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
-    queues.push_back(absl::make_unique<SingleValueChannelQueue>(channel_b));
+    queues.push_back(std::make_unique<SingleValueChannelQueue>(channel_b));
     XLS_EXPECT_OK(
         ChannelQueueManager::Create(std::move(queues), &package).status());
   }
 
   {
     std::vector<std::unique_ptr<ChannelQueue>> queues;
-    queues.push_back(absl::make_unique<GeneratedChannelQueue>(
+    queues.push_back(std::make_unique<GeneratedChannelQueue>(
         channel_a, &package,
         []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
-    queues.push_back(absl::make_unique<GeneratedChannelQueue>(
+    queues.push_back(std::make_unique<GeneratedChannelQueue>(
         channel_b, &package,
         []() -> absl::StatusOr<Value> { return Value(UBits(42, 32)); }));
     EXPECT_THAT(
@@ -285,8 +285,8 @@ TEST_F(ChannelQueueTest, ChannelKindMatching) {
 
   {
     std::vector<std::unique_ptr<ChannelQueue>> queues;
-    queues.push_back(absl::make_unique<SingleValueChannelQueue>(channel_a));
-    queues.push_back(absl::make_unique<SingleValueChannelQueue>(channel_b));
+    queues.push_back(std::make_unique<SingleValueChannelQueue>(channel_a));
+    queues.push_back(std::make_unique<SingleValueChannelQueue>(channel_b));
     EXPECT_THAT(
         ChannelQueueManager::Create(std::move(queues), &package).status(),
         StatusIs(absl::StatusCode::kInvalidArgument,

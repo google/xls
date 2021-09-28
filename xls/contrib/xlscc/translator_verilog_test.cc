@@ -99,7 +99,7 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
     ch_out2->set_type(FIFO);
   }
 
-  auto translator = absl::make_unique<xlscc::Translator>();
+  auto translator = std::make_unique<xlscc::Translator>();
   XLS_ASSERT_OK(XlsccTestBase::ScanFile(content, {}, translator.get()));
 
   xls::Package package("my_package");
@@ -224,7 +224,7 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
     ch_out1->set_type(FIFO);
   }
 
-  auto translator = absl::make_unique<xlscc::Translator>();
+  auto translator = std::make_unique<xlscc::Translator>();
   XLS_ASSERT_OK(XlsccTestBase::ScanFile(content, {}, translator.get()));
 
   xls::Package package("my_package");

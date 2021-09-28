@@ -151,7 +151,7 @@ class TestbenchThreadBase {
     if (thread_) {
       return;
     }
-    thread_ = absl::make_unique<Thread>([this]() { RunInternal(); });
+    thread_ = std::make_unique<Thread>([this]() { RunInternal(); });
   }
 
   void RunInternal() {

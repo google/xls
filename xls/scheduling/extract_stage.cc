@@ -45,8 +45,8 @@ absl::StatusOr<Function*> ExtractStage(Function* src,
           new_operands.push_back(node_map.at(operand));
         } else {
           Node* new_param = new_f->AddNode(
-              absl::make_unique<Param>(operand->loc(), operand->GetName(),
-                                       operand->GetType(), new_f.get()));
+              std::make_unique<Param>(operand->loc(), operand->GetName(),
+                                      operand->GetType(), new_f.get()));
           node_map[operand] = new_param;
           new_operands.push_back(new_param);
         }

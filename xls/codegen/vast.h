@@ -1370,7 +1370,7 @@ class VerilogFile {
   template <typename T, typename... Args>
   T* Make(Args&&... args) {
     std::unique_ptr<T> value =
-        absl::make_unique<T>(std::forward<Args>(args)..., this);
+        std::make_unique<T>(std::forward<Args>(args)..., this);
     T* ptr = value.get();
     nodes_.push_back(std::move(value));
     return ptr;

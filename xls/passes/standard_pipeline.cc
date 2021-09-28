@@ -82,7 +82,7 @@ class SimplificationPass : public FixedPointCompoundPass {
 };
 
 std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
-  auto top = absl::make_unique<CompoundPass>("ir", "Top level pass pipeline");
+  auto top = std::make_unique<CompoundPass>("ir", "Top level pass pipeline");
   top->AddInvariantChecker<VerifierChecker>();
 
   top->Add<DeadFunctionEliminationPass>();

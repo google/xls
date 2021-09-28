@@ -35,7 +35,7 @@ class CodegenWrapperPassTest : public IrTestBase {
   absl::StatusOr<bool> Run(Block* block) {
     PassResults results;
     CodegenPassUnit unit(block->package(), block);
-    return CodegenWrapperPass(absl::make_unique<DeadCodeEliminationPass>())
+    return CodegenWrapperPass(std::make_unique<DeadCodeEliminationPass>())
         .Run(&unit, CodegenPassOptions(), &results);
   }
 };

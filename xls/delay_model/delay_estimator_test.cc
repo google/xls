@@ -50,10 +50,10 @@ TEST_F(DelayEstimatorTest, DelayEstimatorManager) {
   EXPECT_THAT(manager.estimator_names(), ElementsAre());
 
   XLS_ASSERT_OK(manager.RegisterDelayEstimator(
-      "forty_two", absl::make_unique<TestDelayEstimator>(42),
+      "forty_two", std::make_unique<TestDelayEstimator>(42),
       DelayEstimatorPrecedence::kLow));
   XLS_ASSERT_OK(manager.RegisterDelayEstimator(
-      "one", absl::make_unique<TestDelayEstimator>(1),
+      "one", std::make_unique<TestDelayEstimator>(1),
       DelayEstimatorPrecedence::kLow));
 
   EXPECT_THAT(manager.estimator_names(), ElementsAre("forty_two", "one"));

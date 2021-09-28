@@ -140,7 +140,7 @@ class ArgParser {
   T* AddKeywordArg(std::string key) {
     mandatory_keywords_.insert(key);
     auto pair = keywords_.emplace(
-        key, absl::make_unique<KeywordVariant>(KeywordValue<T>()));
+        key, std::make_unique<KeywordVariant>(KeywordValue<T>()));
     XLS_CHECK(pair.second);
     auto& keyword_value = absl::get<KeywordValue<T>>(*pair.first->second);
     keyword_value.is_optional = false;
@@ -155,7 +155,7 @@ class ArgParser {
   template <typename T>
   absl::optional<T>* AddOptionalKeywordArg(absl::string_view key) {
     auto pair = keywords_.emplace(
-        key, absl::make_unique<KeywordVariant>(KeywordValue<T>()));
+        key, std::make_unique<KeywordVariant>(KeywordValue<T>()));
     XLS_CHECK(pair.second);
     auto& keyword_value = absl::get<KeywordValue<T>>(*keywords_.at(key));
     keyword_value.is_optional = true;
@@ -167,7 +167,7 @@ class ArgParser {
   template <typename T>
   T* AddOptionalKeywordArg(absl::string_view key, T default_value) {
     auto pair = keywords_.emplace(
-        key, absl::make_unique<KeywordVariant>(KeywordValue<T>()));
+        key, std::make_unique<KeywordVariant>(KeywordValue<T>()));
     XLS_CHECK(pair.second);
     auto& keyword_value = absl::get<KeywordValue<T>>(*keywords_.at(key));
     keyword_value.optional_value = default_value;
@@ -1219,8 +1219,8 @@ Parser::ParseFunctionSignature(
       scanner_.PopTokenOrError(LexicalTokenType::kIdent, "function name"));
   // The parser does its own verification so pass should_verify=false. This
   // enables the parser to parse and construct malformed IR for tests.
-  auto fb = absl::make_unique<FunctionBuilder>(name.value(), package,
-                                               /*should_verify=*/false);
+  auto fb = std::make_unique<FunctionBuilder>(name.value(), package,
+                                              /*should_verify=*/false);
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen,
                                                 "'(' in function parameters"));
 
@@ -1303,7 +1303,7 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
 
   // The parser does its own verification so pass should_verify=false. This
   // enables the parser to parse and construct malformed IR for tests.
-  auto builder = absl::make_unique<ProcBuilder>(
+  auto builder = std::make_unique<ProcBuilder>(
       name.value(), init_value, token_name.value(), state_name.value(), package,
       /*should_verify=*/false);
   (*name_to_value)[token_name.value()] = builder->GetTokenParam();
@@ -1426,8 +1426,8 @@ absl::StatusOr<Block*> Parser::ParseBlock(Package* package) {
 
   // The parser does its own verification so pass should_verify=false. This
   // enables the parser to parse and construct malformed IR for tests.
-  auto bb = absl::make_unique<BlockBuilder>(signature.block_name, package,
-                                            /*should_verify=*/false);
+  auto bb = std::make_unique<BlockBuilder>(signature.block_name, package,
+                                           /*should_verify=*/false);
 
   absl::flat_hash_map<std::string, BValue> name_to_value;
   XLS_ASSIGN_OR_RETURN(BodyResult body_result,

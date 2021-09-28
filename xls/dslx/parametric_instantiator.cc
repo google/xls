@@ -196,7 +196,7 @@ absl::Status ParametricInstantiator::SymbolicBindDims(const T& param_type,
         "Parametric constraint violated, saw %s = %d; then %s = %s = %d",
         pdim_name, seen_value, pdim_name, expr->ToString(), arg_dim);
     auto saw_type =
-        absl::make_unique<BitsType>(/*signed=*/false, /*size=*/seen_value);
+        std::make_unique<BitsType>(/*signed=*/false, /*size=*/seen_value);
     return XlsTypeErrorStatus(span_, *saw_type, arg_type, message);
   } else {
     // Error is conflicting argument types.

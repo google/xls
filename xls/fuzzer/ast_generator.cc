@@ -1386,7 +1386,7 @@ absl::StatusOr<Function*> AstGenerator::GenerateFunction(
 absl::StatusOr<std::pair<Function*, std::unique_ptr<Module>>>
 AstGenerator::GenerateFunctionInModule(std::string fn_name,
                                        std::string module_name) {
-  module_ = absl::make_unique<Module>(module_name);
+  module_ = std::make_unique<Module>(module_name);
   XLS_ASSIGN_OR_RETURN(Function * f, GenerateFunction(fn_name));
   for (auto& item : constants_) {
     module_->AddTop(item.second);

@@ -73,7 +73,7 @@ TEST(AstGeneratorTest, GeneratesValidFunctions) {
 TEST(AstGeneratorTest, GeneratesParametricBindings) {
   std::mt19937 rng(0);
   AstGenerator g(AstGeneratorOptions(), &rng);
-  g.module_ = absl::make_unique<Module>("my_mod");
+  g.module_ = std::make_unique<Module>("my_mod");
   std::vector<ParametricBinding*> pbs = g.GenerateParametricBindings(2);
   EXPECT_EQ(pbs.size(), 2);
   // TODO(https://github.com/google/googletest/issues/3084): 2021-08-12

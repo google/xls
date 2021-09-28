@@ -27,7 +27,7 @@
 namespace xls::verilog {
 
 std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
-  auto top = absl::make_unique<CodegenCompoundPass>(
+  auto top = std::make_unique<CodegenCompoundPass>(
       "codegen", "Top level codegen pass pipeline");
   top->AddInvariantChecker<CodegenChecker>();
 
@@ -49,7 +49,7 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
   top->Add<RegisterLegalizationPass>();
 
   // Final dead-code elimination pass to remove cruft left from earlier passes.
-  top->Add<CodegenWrapperPass>(absl::make_unique<DeadCodeEliminationPass>());
+  top->Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
 
   return top;
 }

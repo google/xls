@@ -550,8 +550,8 @@ absl::Status Translator::ScanFile(
   libtool_thread_ = absl::WrapUnique(
       new LibToolThread(source_filename, command_line_args, *this));
 
-  libtool_wait_for_parse_ = absl::make_unique<absl::BlockingCounter>(1);
-  libtool_wait_for_destruct_ = absl::make_unique<absl::BlockingCounter>(1);
+  libtool_wait_for_parse_ = std::make_unique<absl::BlockingCounter>(1);
+  libtool_wait_for_destruct_ = std::make_unique<absl::BlockingCounter>(1);
   libtool_visit_status_ = absl::OkStatus();
   libtool_thread_->Start();
   libtool_wait_for_parse_->Wait();
@@ -1173,7 +1173,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
 
   auto signature = absl::implicit_cast<const clang::NamedDecl*>(funcdecl);
 
-  inst_functions_[signature] = absl::make_unique<GeneratedFunction>();
+  inst_functions_[signature] = std::make_unique<GeneratedFunction>();
   GeneratedFunction& sf = *inst_functions_[signature];
 
   // Functions need a clean context

@@ -91,7 +91,7 @@ absl::StatusOr<std::unique_ptr<TernaryQueryEngine>> TernaryQueryEngine::Run(
                          /*default_handler=*/create_unknown_vector));
   }
 
-  auto engine = absl::make_unique<TernaryQueryEngine>();
+  auto engine = std::make_unique<TernaryQueryEngine>();
   for (Node* node : f->nodes()) {
     // TODO(meheff): Handle types other than bits.
     if (node->GetType()->IsBits()) {

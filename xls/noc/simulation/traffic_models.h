@@ -106,8 +106,8 @@ class TrafficModelBuilder {
   }
 
   absl::StatusOr<std::unique_ptr<TrafficModelType>> Build() const {
-    auto model = absl::make_unique<TrafficModelType>(
-        TrafficModelType(packet_size_bits_));
+    auto model =
+        std::make_unique<TrafficModelType>(TrafficModelType(packet_size_bits_));
     model->SetVCIndex(vc_);
     model->SetSourceIndex(source_index_);
     model->SetDestinationIndex(destination_index_);

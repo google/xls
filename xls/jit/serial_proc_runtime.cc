@@ -226,7 +226,7 @@ absl::Status SerialProcRuntime::EnqueueValueToChannel(Channel* channel,
   XLS_RET_CHECK(!threads_.empty());
   IrJit* jit = threads_.front()->jit.get();
   int64_t size = jit->type_converter()->GetTypeByteSize(type);
-  auto buffer = absl::make_unique<uint8_t[]>(size);
+  auto buffer = std::make_unique<uint8_t[]>(size);
   jit->runtime()->BlitValueToBuffer(value, type,
                                     absl::MakeSpan(buffer.get(), size));
 
@@ -243,7 +243,7 @@ absl::StatusOr<Value> SerialProcRuntime::DequeueValueFromChannel(
   XLS_RET_CHECK(!threads_.empty());
   IrJit* jit = threads_.front()->jit.get();
   int64_t size = jit->type_converter()->GetTypeByteSize(type);
-  auto buffer = absl::make_unique<uint8_t[]>(size);
+  auto buffer = std::make_unique<uint8_t[]>(size);
 
   XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
                        queue_mgr()->GetQueueById(channel->id()));

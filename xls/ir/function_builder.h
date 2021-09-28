@@ -774,7 +774,7 @@ class BlockBuilder : public BuilderBase {
   // be set to false in tests that wish to build malformed IR.
   BlockBuilder(absl::string_view name, Package* package,
                bool should_verify = true)
-      : BuilderBase(absl::make_unique<Block>(name, package), should_verify) {}
+      : BuilderBase(std::make_unique<Block>(name, package), should_verify) {}
   virtual ~BlockBuilder() = default;
 
   // Returns the Block being constructed.

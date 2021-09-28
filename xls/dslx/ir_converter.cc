@@ -1479,7 +1479,7 @@ absl::Status FunctionConverter::HandleFor(For* node) {
       absl::StrFormat("__%s_counted_for_%d_body", function_builder_->name(),
                       GetAndBumpCountedForCount());
   auto body_builder =
-      absl::make_unique<FunctionBuilder>(body_fn_name, package());
+      std::make_unique<FunctionBuilder>(body_fn_name, package());
   auto* body_builder_ptr = body_builder.get();
   body_converter.SetFunctionBuilder(std::move(body_builder));
 
@@ -2240,7 +2240,7 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
                      requires_implicit_token ? CallingConvention::kImplicitToken
                                              : CallingConvention::kTypical,
                      node->GetFreeParametricKeySet(), symbolic_bindings));
-  auto builder = absl::make_unique<FunctionBuilder>(mangled_name, package());
+  auto builder = std::make_unique<FunctionBuilder>(mangled_name, package());
   auto* builder_ptr = builder.get();
   SetFunctionBuilder(std::move(builder));
 
@@ -2396,7 +2396,7 @@ absl::StatusOr<xls::Proc*> FunctionConverter::HandleProc(
   XLS_ASSIGN_OR_RETURN(std::vector<Value> initial_values,
                        GetProcInitialValues(module_, node, spawn, type_info,
                                             import_data, symbolic_bindings));
-  auto builder = absl::make_unique<TokenlessProcBuilder>(
+  auto builder = std::make_unique<TokenlessProcBuilder>(
       mangled_name, Value::Tuple(initial_values), token_name, state_name,
       package());
   auto builder_ptr = builder.get();
@@ -3299,7 +3299,7 @@ absl::Status ConvertModuleIntoPackage(Module* module, ImportData* import_data,
 absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
     Module* module, ImportData* import_data, const ConvertOptions& options,
     bool traverse_tests) {
-  auto package = absl::make_unique<Package>(module->name());
+  auto package = std::make_unique<Package>(module->name());
   XLS_RETURN_IF_ERROR(ConvertModuleIntoPackage(module, import_data, options,
                                                traverse_tests, package.get()));
   return package;

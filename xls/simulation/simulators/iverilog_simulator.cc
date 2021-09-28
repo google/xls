@@ -86,7 +86,7 @@ class IcarusVerilogSimulator : public VerilogSimulator {
 
 XLS_REGISTER_MODULE_INITIALIZER(iverilog_simulator, {
   XLS_CHECK_OK(GetVerilogSimulatorManagerSingleton().RegisterVerilogSimulator(
-      "iverilog", absl::make_unique<IcarusVerilogSimulator>()));
+      "iverilog", std::make_unique<IcarusVerilogSimulator>()));
 });
 
 }  // namespace

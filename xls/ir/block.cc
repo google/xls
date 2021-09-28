@@ -101,8 +101,7 @@ absl::StatusOr<InputPort*> Block::AddInputPort(
     return absl::InvalidArgumentError(absl::StrFormat(
         "Block %s already contains a port named %s", this->name(), name));
   }
-  InputPort* port =
-      AddNode(absl::make_unique<InputPort>(loc, name, type, this));
+  InputPort* port = AddNode(std::make_unique<InputPort>(loc, name, type, this));
   if (name != port->GetName()) {
     // The name uniquer changed the given name of the input port to preserve
     // name uniqueness which means another node with this name may already
@@ -124,7 +123,7 @@ absl::StatusOr<OutputPort*> Block::AddOutputPort(
         "Block %s already contains a port named %s", this->name(), name));
   }
   OutputPort* port =
-      AddNode(absl::make_unique<OutputPort>(loc, operand, name, this));
+      AddNode(std::make_unique<OutputPort>(loc, operand, name, this));
 
   if (name != port->GetName()) {
     // The name uniquer changed the given name of the output port to preserve
@@ -152,8 +151,7 @@ absl::StatusOr<Register*> Block::AddRegister(absl::string_view name, Type* type,
           reset.value().reset_value.ToString(), name, type->ToString()));
     }
   }
-  registers_[name] =
-      absl::make_unique<Register>(std::string(name), type, reset);
+  registers_[name] = std::make_unique<Register>(std::string(name), type, reset);
   register_vec_.push_back(registers_[name].get());
   Register* reg = register_vec_.back();
   register_reads_[reg] = {};

@@ -31,10 +31,10 @@ TEST(ParametricExpressionTest, SampleEvaluation) {
   auto param_6 = InterpValue::MakeUBits(32, 6);
   auto param_12 = InterpValue::MakeUBits(32, 12);
   auto e = std::make_unique<ParametricMul>(
-      absl::make_unique<ParametricConstant>(param_3),
-      absl::make_unique<ParametricAdd>(
-          absl::make_unique<ParametricSymbol>("M", kFakeSpan),
-          absl::make_unique<ParametricSymbol>("N", kFakeSpan)));
+      std::make_unique<ParametricConstant>(param_3),
+      std::make_unique<ParametricAdd>(
+          std::make_unique<ParametricSymbol>("M", kFakeSpan),
+          std::make_unique<ParametricSymbol>("N", kFakeSpan)));
   EXPECT_EQ(*e, *e);
   EXPECT_EQ(e->ToString(), "(u32:3*(M+N))");
   EXPECT_EQ(param_6, absl::get<InterpValue>(
@@ -46,11 +46,11 @@ TEST(ParametricExpressionTest, SampleEvaluation) {
 }
 
 TEST(ParametricExpressionTest, TestNonIdentityEquality) {
-  auto s0 = absl::make_unique<ParametricSymbol>("s", kFakeSpan);
-  auto s1 = absl::make_unique<ParametricSymbol>("s", kFakeSpan);
+  auto s0 = std::make_unique<ParametricSymbol>("s", kFakeSpan);
+  auto s1 = std::make_unique<ParametricSymbol>("s", kFakeSpan);
   EXPECT_EQ(*s0, *s1);
   EXPECT_EQ(s0->ToRepr(), "ParametricSymbol(\"s\")");
-  auto add = absl::make_unique<ParametricAdd>(std::move(s0), std::move(s1));
+  auto add = std::make_unique<ParametricAdd>(std::move(s0), std::move(s1));
   EXPECT_EQ(add->ToRepr(),
             "ParametricAdd(ParametricSymbol(\"s\"), ParametricSymbol(\"s\"))");
 }

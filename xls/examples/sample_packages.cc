@@ -35,7 +35,7 @@ namespace xls {
 namespace sample_packages {
 
 std::pair<std::unique_ptr<Package>, Function*> BuildRrot32() {
-  auto p = absl::make_unique<Package>("Rrot32");
+  auto p = std::make_unique<Package>("Rrot32");
   FunctionBuilder b("rrot", p.get());
   Type* bits_32 = p->GetBitsType(32);
   auto x = b.Param("x", bits_32);
@@ -52,7 +52,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildRrot32() {
 }
 
 std::pair<std::unique_ptr<Package>, Function*> BuildRrot8Fixed() {
-  auto p = absl::make_unique<Package>("Rrot8fixed");
+  auto p = std::make_unique<Package>("Rrot8fixed");
   std::string input = R"(
      fn rrot3(x: bits[8]) -> bits[8] {
         three: bits[8] = literal(value=3)
@@ -68,7 +68,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildRrot8Fixed() {
 }
 
 std::pair<std::unique_ptr<Package>, Function*> BuildAbs32() {
-  auto p = absl::make_unique<Package>("Abs32");
+  auto p = std::make_unique<Package>("Abs32");
   FunctionBuilder b("abs", p.get());
   Type* bits_32 = p->GetBitsType(32);
   auto x = b.Param("x", bits_32);
@@ -82,7 +82,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildAbs32() {
 }
 
 std::pair<std::unique_ptr<Package>, Function*> BuildConcatWith1() {
-  auto p = absl::make_unique<Package>("ConcatWith1");
+  auto p = std::make_unique<Package>("ConcatWith1");
   FunctionBuilder b("concat_with_1", p.get());
   Type* bits_31 = p->GetBitsType(31);
   auto x = b.Param("x", bits_31);
@@ -95,7 +95,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildConcatWith1() {
 }
 
 std::pair<std::unique_ptr<Package>, Function*> BuildSignExtendTo32() {
-  auto p = absl::make_unique<Package>("SignExtendTo32");
+  auto p = std::make_unique<Package>("SignExtendTo32");
   FunctionBuilder b("sign_extend_to_32", p.get());
   Type* bits_2 = p->GetBitsType(2);
   auto x = b.Param("x", bits_2);
@@ -107,7 +107,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildSignExtendTo32() {
 }
 
 std::pair<std::unique_ptr<Package>, Function*> BuildZeroExtendTo32() {
-  auto p = absl::make_unique<Package>("ZeroExtendTo32");
+  auto p = std::make_unique<Package>("ZeroExtendTo32");
   FunctionBuilder b("zero_extend_to_32", p.get());
   Type* bits_2 = p->GetBitsType(2);
   auto x = b.Param("x", bits_2);
@@ -120,7 +120,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildZeroExtendTo32() {
 
 std::pair<std::unique_ptr<Package>, Function*> BuildAccumulateIvar(
     int64_t trip_count, int64_t bit_count) {
-  auto p = absl::make_unique<Package>("AccumulateIvar");
+  auto p = std::make_unique<Package>("AccumulateIvar");
   Function* body = nullptr;
   {
     FunctionBuilder fb("body", p.get());
@@ -147,7 +147,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildTwoLoops(
   int64_t trip_cnt1 = 8;
   int64_t trip_cnt2 = same_trip_count ? trip_cnt1 : trip_cnt1 * 2;
 
-  auto p = absl::make_unique<Package>("TwoLoops");
+  auto p = std::make_unique<Package>("TwoLoops");
   FunctionBuilder fb("main", p.get());
   auto param = fb.Param("param", p->GetBitsType(bit_count));
 
@@ -185,7 +185,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildTwoLoops(
 
 std::pair<std::unique_ptr<Package>, Function*> BuildSimpleMap(
     int element_count) {
-  auto p = absl::make_unique<Package>("SimpleMap");
+  auto p = std::make_unique<Package>("SimpleMap");
   BitsType* element_type = p->GetBitsType(42);
   ArrayType* array_type = p->GetArrayType(element_count, element_type);
   Function* to_apply;

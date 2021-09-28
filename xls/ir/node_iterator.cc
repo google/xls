@@ -43,7 +43,7 @@ void NodeIterator::Initialize() {
   pending_to_remaining_users.reserve(f_->node_count());
   std::deque<Node*> ready;
 
-  ordered_ = absl::make_unique<std::vector<Node*>>();
+  ordered_ = std::make_unique<std::vector<Node*>>();
   ordered_->reserve(f_->node_count());
 
   auto is_scheduled = [&](Node* n) {

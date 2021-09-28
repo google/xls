@@ -328,7 +328,7 @@ absl::StatusOr<std::unique_ptr<RangeQueryEngine>> RangeQueryEngine::Run(
     FunctionBase* f) {
   RangeQueryEngine result;
   XLS_RETURN_IF_ERROR(result.Populate(f));
-  return absl::make_unique<RangeQueryEngine>(std::move(result));
+  return std::make_unique<RangeQueryEngine>(std::move(result));
 }
 
 IntervalSetTree RangeQueryEngine::GetIntervalSetTree(Node* node) const {

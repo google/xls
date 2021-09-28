@@ -507,7 +507,7 @@ absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
     const ChannelMetadataProto& metadata, absl::optional<int64_t> id) {
   XLS_RETURN_IF_ERROR(VerifyValuesAreType(initial_values, type));
   int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
-  auto channel = absl::make_unique<StreamingChannel>(
+  auto channel = std::make_unique<StreamingChannel>(
       name, actual_id, supported_ops, type, initial_values, flow_control,
       metadata);
   StreamingChannel* channel_ptr = channel.get();
@@ -519,7 +519,7 @@ absl::StatusOr<SingleValueChannel*> Package::CreateSingleValueChannel(
     absl::string_view name, ChannelOps supported_ops, Type* type,
     const ChannelMetadataProto& metadata, absl::optional<int64_t> id) {
   int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
-  auto channel = absl::make_unique<SingleValueChannel>(
+  auto channel = std::make_unique<SingleValueChannel>(
       name, actual_id, supported_ops, type, metadata);
   SingleValueChannel* channel_ptr = channel.get();
   XLS_RETURN_IF_ERROR(AddChannel(std::move(channel)));

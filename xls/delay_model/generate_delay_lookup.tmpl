@@ -47,7 +47,7 @@ XLS_REGISTER_MODULE_INITIALIZER(model_{{name}}, {
   XLS_CHECK_OK(
         GetDelayEstimatorManagerSingleton().RegisterDelayEstimator(
           "{{name}}",
-          absl::make_unique<DelayEstimatorModel{{camel_case_name}}>(),
+          std::make_unique<DelayEstimatorModel{{camel_case_name}}>(),
           DelayEstimatorPrecedence::{{precedence}})
   );
 });

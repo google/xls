@@ -2510,7 +2510,7 @@ class Module : public AstNode {
   template <typename T, typename... Args>
   T* Make(Args&&... args) {
     std::unique_ptr<T> node =
-        absl::make_unique<T>(this, std::forward<Args>(args)...);
+        std::make_unique<T>(this, std::forward<Args>(args)...);
     T* ptr = node.get();
     nodes_.push_back(std::move(node));
     return ptr;

@@ -145,7 +145,7 @@ LogMessage::LogMessageData::LogMessageData(const char* file, int line,
 
 LogMessage::LogMessage(const char* file, int line, absl::LogSeverity severity)
     : data_(
-          absl::make_unique<LogMessageData>(file, line, severity, absl::Now())),
+          std::make_unique<LogMessageData>(file, line, severity, absl::Now())),
       stream_(&data_->streambuf) {
   bool first_fatal = false;
   if (severity == absl::LogSeverity::kFatal) {

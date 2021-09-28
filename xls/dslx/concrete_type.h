@@ -212,12 +212,12 @@ class TokenType : public ConcreteType {
   bool HasEnum() const override { return false; }
 
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    return absl::make_unique<TokenType>();
+    return std::make_unique<TokenType>();
   }
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
       const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
       const override {
-    return absl::make_unique<TokenType>();
+    return std::make_unique<TokenType>();
   }
 };
 
@@ -244,7 +244,7 @@ class StructType : public ConcreteType {
   bool HasEnum() const override;
 
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    return absl::make_unique<StructType>(Clone(members_), struct_def_);
+    return std::make_unique<StructType>(Clone(members_), struct_def_);
   }
 
   // For user-level error reporting, we also note the name of the struct
@@ -303,7 +303,7 @@ class TupleType : public ConcreteType {
   bool HasEnum() const override;
 
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    return absl::make_unique<TupleType>(Clone(members_));
+    return std::make_unique<TupleType>(Clone(members_));
   }
 
   bool empty() const;
@@ -345,8 +345,8 @@ class ArrayType : public ConcreteType {
   }
   std::string GetDebugTypeName() const override { return "array"; }
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    return absl::make_unique<ArrayType>(element_type_->CloneToUnique(),
-                                        size_.Clone());
+    return std::make_unique<ArrayType>(element_type_->CloneToUnique(),
+                                       size_.Clone());
   }
 
   const ConcreteType& element_type() const { return *element_type_; }
@@ -381,7 +381,7 @@ class EnumType : public ConcreteType {
     return false;
   }
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    return absl::make_unique<EnumType>(enum_def_, size_.Clone());
+    return std::make_unique<EnumType>(enum_def_, size_.Clone());
   }
 
   EnumDef* nominal_type() const { return enum_def_; }
@@ -402,16 +402,16 @@ class EnumType : public ConcreteType {
 class BitsType : public ConcreteType {
  public:
   static std::unique_ptr<BitsType> MakeU32() {
-    return absl::make_unique<BitsType>(false, 32);
+    return std::make_unique<BitsType>(false, 32);
   }
   static std::unique_ptr<BitsType> MakeS32() {
-    return absl::make_unique<BitsType>(true, 32);
+    return std::make_unique<BitsType>(true, 32);
   }
   static std::unique_ptr<BitsType> MakeU8() {
-    return absl::make_unique<BitsType>(false, 8);
+    return std::make_unique<BitsType>(false, 8);
   }
   static std::unique_ptr<BitsType> MakeU1() {
-    return absl::make_unique<BitsType>(false, 1);
+    return std::make_unique<BitsType>(false, 1);
   }
 
   BitsType(bool is_signed, int64_t size)
@@ -451,7 +451,7 @@ class BitsType : public ConcreteType {
     return size_.Clone();
   }
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    return absl::make_unique<BitsType>(is_signed_, size_.Clone());
+    return std::make_unique<BitsType>(is_signed_, size_.Clone());
   }
 
  private:
@@ -503,8 +503,8 @@ class FunctionType : public ConcreteType {
     for (const auto& item : params_) {
       params.push_back(item->CloneToUnique());
     }
-    return absl::make_unique<FunctionType>(std::move(params),
-                                           return_type_->CloneToUnique());
+    return std::make_unique<FunctionType>(std::move(params),
+                                          return_type_->CloneToUnique());
   }
 
  private:

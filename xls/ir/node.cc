@@ -642,7 +642,7 @@ bool Node::ReplaceOperand(Node* old_operand, Node* new_operand) {
   // during IR manipulation. Assume we want to replace a node 'sub' with
   // another node 'neg' that has as an operand the node sub. With function
   // builder, this would be:
-  //    Node *neg = f->AddNode(absl::make_unique<UnOp>(
+  //    Node *neg = f->AddNode(std::make_unique<UnOp>(
   //      Op::kNeg, n->loc(), n, n->package()));
   //    f->ReplaceSingleNode(n, neg);
   // At the time of ReplaceSingleNode, neg is a user of n, and so replacing it

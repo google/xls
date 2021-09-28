@@ -65,7 +65,7 @@ absl::StatusOr<std::tuple<Args...>> ReturnStatusOrTupleError(
 }
 
 absl::StatusOr<std::unique_ptr<int>> ReturnStatusOrPtrValue(int v) {
-  return absl::make_unique<int>(v);
+  return std::make_unique<int>(v);
 }
 
 TEST(AssignOrReturn, Works) {

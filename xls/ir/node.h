@@ -105,7 +105,7 @@ class Node {
   // node. Returns a pointer to the newly constructed node.
   template <typename NodeT, typename... Args>
   absl::StatusOr<NodeT*> ReplaceUsesWithNew(Args&&... args) {
-    std::unique_ptr<NodeT> new_node = absl::make_unique<NodeT>(
+    std::unique_ptr<NodeT> new_node = std::make_unique<NodeT>(
         loc(), std::forward<Args>(args)..., /*name=*/"", function_base());
     NodeT* ptr = new_node.get();
     XLS_RETURN_IF_ERROR(AddNodeToFunctionAndReplace(std::move(new_node)));

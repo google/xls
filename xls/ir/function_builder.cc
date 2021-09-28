@@ -84,7 +84,7 @@ BValue BuilderBase::CreateBValue(Node* node,
 template <typename NodeT, typename... Args>
 BValue BuilderBase::AddNode(absl::optional<SourceLocation> loc,
                             Args&&... args) {
-  last_node_ = function_->AddNode<NodeT>(absl::make_unique<NodeT>(
+  last_node_ = function_->AddNode<NodeT>(std::make_unique<NodeT>(
       loc, std::forward<Args>(args)..., function_.get()));
   return CreateBValue(last_node_, loc);
 }
@@ -907,7 +907,7 @@ BValue BuilderBase::Concat(absl::Span<const BValue> operands,
 
 FunctionBuilder::FunctionBuilder(absl::string_view name, Package* package,
                                  bool should_verify)
-    : BuilderBase(absl::make_unique<Function>(std::string(name), package),
+    : BuilderBase(std::make_unique<Function>(std::string(name), package),
                   should_verify) {}
 
 BValue FunctionBuilder::Param(absl::string_view name, Type* type,
@@ -965,8 +965,8 @@ ProcBuilder::ProcBuilder(absl::string_view name, const Value& init_value,
                          absl::string_view token_name,
                          absl::string_view state_name, Package* package,
                          bool should_verify)
-    : BuilderBase(absl::make_unique<Proc>(name, init_value, token_name,
-                                          state_name, package),
+    : BuilderBase(std::make_unique<Proc>(name, init_value, token_name,
+                                         state_name, package),
                   should_verify),
       // The parameter nodes are added at construction time. Create a BValue
       // for each param node so they may be used in construction of

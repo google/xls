@@ -264,7 +264,7 @@ absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
 
   XLS_ASSIGN_OR_RETURN(std::string package_name, parser.ParsePackageName());
 
-  auto package = absl::make_unique<PackageT>(package_name, entry);
+  auto package = std::make_unique<PackageT>(package_name, entry);
   std::string filename_str =
       (filename.has_value() ? std::string(filename.value()) : "<unknown file>");
   while (!parser.AtEof()) {

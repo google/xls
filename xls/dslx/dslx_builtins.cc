@@ -251,7 +251,7 @@ static void PopulateSignatureToLambdaMap(
                        DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     XLS_RETURN_IF_ERROR(
         Checker(data.arg_types, data.name, data.span).Len(1).status());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
   map["(uN[T], uN[T]) -> (u1, uN[T])"] =
@@ -265,8 +265,8 @@ static void PopulateSignatureToLambdaMap(
     std::vector<std::unique_ptr<ConcreteType>> elements;
     elements.push_back(BitsType::MakeU1());
     elements.push_back(data.arg_types[0]->CloneToUnique());
-    auto return_type = absl::make_unique<TupleType>(std::move(elements));
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    auto return_type = std::make_unique<TupleType>(std::move(elements));
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
   map["(T[M], uN[N], T[P]) -> T[P]"] =
@@ -287,7 +287,7 @@ static void PopulateSignatureToLambdaMap(
           a0->ToString(), a2->ToString());
     });
     XLS_RETURN_IF_ERROR(checker.status());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[2]->CloneToUnique())};
   };
   map["(xN[N], xN[M][N]) -> xN[M]"] =
@@ -313,7 +313,7 @@ static void PopulateSignatureToLambdaMap(
                              a->ToString(), a->size().ToString());
     });
     XLS_RETURN_IF_ERROR(checker.status());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), return_type.CloneToUnique())};
   };
   map["(T, T) -> T"] = [](const SignatureData& data,
@@ -322,7 +322,7 @@ static void PopulateSignatureToLambdaMap(
                             .Len(2)
                             .ArgsSameType(0, 1)
                             .status());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
   map["(T, T) -> ()"] = [](const SignatureData& data,
@@ -331,7 +331,7 @@ static void PopulateSignatureToLambdaMap(
                             .Len(2)
                             .ArgsSameType(0, 1)
                             .status());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
   };
   map["(const uN[N], const uN[N]) -> uN[N][R]"] =
@@ -354,9 +354,9 @@ static void PopulateSignatureToLambdaMap(
                           "start: %s, limit: %s",
                           data.name, start.ToString(), limit.ToString()));
     }
-    auto return_type = absl::make_unique<ArrayType>(
+    auto return_type = std::make_unique<ArrayType>(
         data.arg_types[0]->CloneToUnique(), ConcreteTypeDim::CreateU32(length));
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
   map["(T[N], uN[M], T) -> T[N]"] =
@@ -374,7 +374,7 @@ static void PopulateSignatureToLambdaMap(
           a->element_type().ToString(), data.arg_types[2]->ToString());
     });
     XLS_RETURN_IF_ERROR(checker.status());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
   map["(xN[M], xN[N]) -> xN[N]"] =
@@ -385,7 +385,7 @@ static void PopulateSignatureToLambdaMap(
                             .IsBits(0)
                             .IsBits(1)
                             .status());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[1]->CloneToUnique())};
   };
   map["(uN[M], uN[N]) -> ()"] =
@@ -396,7 +396,7 @@ static void PopulateSignatureToLambdaMap(
                             .IsUN(0)
                             .IsUN(1)
                             .status());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
   };
   map["(uN[M], uN[N]) -> uN[M+N]"] =
@@ -413,8 +413,8 @@ static void PopulateSignatureToLambdaMap(
                          data.arg_types[1]->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim sum, m.Add(n));
     auto return_type =
-        absl::make_unique<BitsType>(/*is_signed=*/false, /*size=*/sum);
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+        std::make_unique<BitsType>(/*is_signed=*/false, /*size=*/sum);
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
   map["(uN[N], uN[U], uN[V]) -> uN[V]"] =
@@ -426,7 +426,7 @@ static void PopulateSignatureToLambdaMap(
                             .IsUN(1)
                             .IsUN(2)
                             .status());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[2]->CloneToUnique())};
   };
   map["(uN[N], uN[U], uN[V]) -> uN[N]"] =
@@ -438,7 +438,7 @@ static void PopulateSignatureToLambdaMap(
                             .IsUN(1)
                             .IsUN(2)
                             .status());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
   map["(uN[N]) -> uN[N]"] =
@@ -446,21 +446,21 @@ static void PopulateSignatureToLambdaMap(
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     XLS_RETURN_IF_ERROR(
         Checker(data.arg_types, data.name, data.span).Len(1).IsUN(0).status());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
   map["(uN[N]) -> u1"] = [](const SignatureData& data,
                             DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     XLS_RETURN_IF_ERROR(
         Checker(data.arg_types, data.name, data.span).Len(1).IsUN(0).status());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), BitsType::MakeU1())};
   };
   map["(u1, T) -> T"] = [](const SignatureData& data,
                            DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     XLS_RETURN_IF_ERROR(
         Checker(data.arg_types, data.name, data.span).Len(2).IsU1(0).status());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[1]->CloneToUnique())};
   };
   map["(u1, T, T) -> T"] =
@@ -471,7 +471,7 @@ static void PopulateSignatureToLambdaMap(
                             .IsU1(0)
                             .ArgsSameType(1, 2)
                             .status());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[1]->CloneToUnique())};
   };
   map["(uN[N], u1) -> uN[N+1]"] =
@@ -487,8 +487,8 @@ static void PopulateSignatureToLambdaMap(
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim np1,
                          n.Add(ConcreteTypeDim::CreateU32(1)));
     auto return_type =
-        absl::make_unique<BitsType>(/*signed=*/false, /*size=*/np1);
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+        std::make_unique<BitsType>(/*signed=*/false, /*size=*/np1);
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
   map["(T[N]) -> (u32, T)[N]"] =
@@ -503,9 +503,9 @@ static void PopulateSignatureToLambdaMap(
     std::vector<std::unique_ptr<ConcreteType>> element_types;
     element_types.push_back(BitsType::MakeU32());
     element_types.push_back(t.CloneToUnique());
-    auto e = absl::make_unique<TupleType>(std::move(element_types));
-    auto return_type = absl::make_unique<ArrayType>(std::move(e), a->size());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    auto e = std::make_unique<TupleType>(std::move(element_types));
+    auto return_type = std::make_unique<ArrayType>(std::move(e), a->size());
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
   // Note: for map's signature we instantiate the (possibly parametric) function
@@ -541,10 +541,10 @@ static void PopulateSignatureToLambdaMap(
             data.span, *f, mapped_fn_args, ctx,
             /*parametric_constraints=*/mapped_parametric_bindings));
     auto return_type =
-        absl::make_unique<ArrayType>(std::move(tab.type), a->size());
+        std::make_unique<ArrayType>(std::move(tab.type), a->size());
     return TypeAndBindings{
-        absl::make_unique<FunctionType>(CloneToUnique(data.arg_types),
-                                        std::move(return_type)),
+        std::make_unique<FunctionType>(CloneToUnique(data.arg_types),
+                                       std::move(return_type)),
         tab.symbolic_bindings};
   };
   map["(u8[N], u1) -> ()"] =
@@ -560,7 +560,7 @@ static void PopulateSignatureToLambdaMap(
                              array_type->ToString());
     });
     XLS_RETURN_IF_ERROR(checker.status());
-    return TypeAndBindings{absl::make_unique<FunctionType>(
+    return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
   };
 }

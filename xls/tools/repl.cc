@@ -302,11 +302,11 @@ absl::Status CommandReload() {
   XLS_ASSIGN_OR_RETURN(std::string dslx_contents,
                        GetFileContents(globals->dslx_path));
 
-  globals->scanner = absl::make_unique<dslx::Scanner>(
+  globals->scanner = std::make_unique<dslx::Scanner>(
       std::string(globals->dslx_path), dslx_contents);
   globals->parser =
-      absl::make_unique<dslx::Parser>("main", globals->scanner.get());
-  globals->import_data = absl::make_unique<dslx::ImportData>(
+      std::make_unique<dslx::Parser>("main", globals->scanner.get());
+  globals->import_data = std::make_unique<dslx::ImportData>(
       /*dslx_stdlib_path=*/"",
       /*additional_search_paths=*/std::vector<std::filesystem::path>{});
 

@@ -302,7 +302,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(XlsTuple* node,
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> m, ctx->Deduce(e));
     members.push_back(std::move(m));
   }
-  return absl::make_unique<TupleType>(std::move(members));
+  return std::make_unique<TupleType>(std::move(members));
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
@@ -337,7 +337,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceString(String* string,
                                                            DeduceCtx* ctx) {
   auto dim =
       ConcreteTypeDim::CreateU32(static_cast<int64_t>(string->text().size()));
-  return absl::make_unique<ArrayType>(BitsType::MakeU8(), std::move(dim));
+  return std::make_unique<ArrayType>(BitsType::MakeU8(), std::move(dim));
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTernary(Ternary* node,
@@ -395,7 +395,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConcat(
   if (lhs_is_array) {
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_size,
                          lhs_array->size().Add(rhs_array->size()));
-    return absl::make_unique<ArrayType>(
+    return std::make_unique<ArrayType>(
         lhs_array->element_type().CloneToUnique(), new_size);
   }
 
@@ -403,7 +403,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConcat(
   auto* rhs_bits = dynamic_cast<BitsType*>(rhs.get());
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_size,
                        lhs_bits->size().Add(rhs_bits->size()));
-  return absl::make_unique<BitsType>(/*signed=*/false, /*size=*/new_size);
+  return std::make_unique<BitsType>(/*signed=*/false, /*size=*/new_size);
 }
 
 // Shift operations are binary operations that require bits types as their
@@ -554,7 +554,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(EnumDef* node,
   const ConcreteTypeDim& bit_count = bits_type->size();
   node->set_signedness(bits_type->is_signed());
 
-  auto result = absl::make_unique<EnumType>(node, bit_count);
+  auto result = std::make_unique<EnumType>(node, bit_count);
   for (const EnumMember& member : node->values()) {
     // Note: the parser places the type from the enum on the value when it is a
     // number, so this deduction flags inappropriate numbers.
@@ -660,7 +660,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(For* node,
   target_annotated_type_elems.push_back(iterable_element_type.CloneToUnique());
   target_annotated_type_elems.push_back(init_type->CloneToUnique());
   auto target_annotated_type =
-      absl::make_unique<TupleType>(std::move(target_annotated_type_elems));
+      std::make_unique<TupleType>(std::move(target_annotated_type_elems));
 
   // If there was an explicitly annotated type, ensure it matches our inferred
   // one.
@@ -755,7 +755,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(StructDef* node,
                          DeduceAndResolve(type, ctx));
     members.push_back(std::move(concrete));
   }
-  auto result = absl::make_unique<StructType>(std::move(members), *node);
+  auto result = std::make_unique<StructType>(std::move(members), *node);
   ctx->type_info()->SetItem(node->name_def(), *result);
   XLS_VLOG(5) << absl::StreamFormat("Deduced type for struct %s => %s",
                                     node->ToString(), result->ToString());
@@ -784,7 +784,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
   std::unique_ptr<ArrayType> inferred;
   if (!member_types.empty()) {
     inferred =
-        absl::make_unique<ArrayType>(member_types[0]->CloneToUnique(), dim);
+        std::make_unique<ArrayType>(member_types[0]->CloneToUnique(), dim);
   }
 
   if (node->type_annotation() == nullptr) {
@@ -1262,7 +1262,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
   XLS_ASSIGN_OR_RETURN(StartAndWidth saw,
                        ResolveBitSliceIndices(bit_count, start, limit));
   ctx->type_info()->AddSliceStartAndWidth(slice, fn_symbolic_bindings, saw);
-  return absl::make_unique<BitsType>(/*signed=*/false, saw.width);
+  return std::make_unique<BitsType>(/*signed=*/false, saw.width);
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceIndex(Index* node,
@@ -1661,10 +1661,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBuiltinTypeAnnotation(
     BuiltinTypeAnnotation* node, DeduceCtx* ctx) {
   if (node->builtin_type() == BuiltinType::kToken) {
-    return absl::make_unique<TokenType>();
+    return std::make_unique<TokenType>();
   }
-  return absl::make_unique<BitsType>(node->GetSignedness(),
-                                     node->GetBitCount());
+  return std::make_unique<BitsType>(node->GetSignedness(), node->GetBitCount());
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceChannelTypeAnnotation(
@@ -1680,7 +1679,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleTypeAnnotation(
                          ctx->Deduce(member));
     members.push_back(std::move(type));
   }
-  return absl::make_unique<TupleType>(std::move(members));
+  return std::make_unique<TupleType>(std::move(members));
 }
 
 // Converts an AST expression in "dimension position" (e.g. in an array type
@@ -1721,7 +1720,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
   //                                ^-- becomes parametric symbol "x"
   if (auto* name_ref = dynamic_cast<NameRef*>(dim_expr);
       name_ref != nullptr && dynamic_cast<ConstRef*>(dim_expr) == nullptr) {
-    return ConcreteTypeDim(absl::make_unique<ParametricSymbol>(
+    return ConcreteTypeDim(std::make_unique<ParametricSymbol>(
         name_ref->identifier(), dim_expr->span()));
   }
 
@@ -1763,15 +1762,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArrayTypeAnnotation(
   if (auto* element_type =
           dynamic_cast<BuiltinTypeAnnotation*>(node->element_type());
       element_type != nullptr && element_type->GetBitCount() == 0) {
-    return absl::make_unique<BitsType>(element_type->GetSignedness(),
-                                       std::move(dim));
+    return std::make_unique<BitsType>(element_type->GetSignedness(),
+                                      std::move(dim));
   }
   XLS_VLOG(5) << "DeduceArrayTypeAnnotation; element_type: "
               << node->element_type()->ToString();
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> element_type,
                        ctx->Deduce(node->element_type()));
   auto result =
-      absl::make_unique<ArrayType>(std::move(element_type), std::move(dim));
+      std::make_unique<ArrayType>(std::move(element_type), std::move(dim));
   XLS_VLOG(4) << absl::StreamFormat("Array type annotation: %s => %s",
                                     node->ToString(), result->ToString());
   return result;
@@ -1825,8 +1824,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
         auto* name_ref = dynamic_cast<NameRef*>(expr);
         XLS_RET_CHECK(name_ref != nullptr);
         defined_to_annotated[defined_parametric->identifier()] =
-            absl::make_unique<ParametricSymbol>(name_ref->identifier(),
-                                                name_ref->span());
+            std::make_unique<ParametricSymbol>(name_ref->identifier(),
+                                               name_ref->span());
       }
     } else if (auto* number = dynamic_cast<Number*>(annotated_parametric)) {
       XLS_ASSIGN_OR_RETURN(int value, number->GetAsUint64());
@@ -1835,8 +1834,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
       auto* name_ref = dynamic_cast<NameRef*>(annotated_parametric);
       XLS_RET_CHECK(name_ref != nullptr);
       defined_to_annotated[defined_parametric->identifier()] =
-          absl::make_unique<ParametricSymbol>(name_ref->identifier(),
-                                              name_ref->span());
+          std::make_unique<ParametricSymbol>(name_ref->identifier(),
+                                             name_ref->span());
     }
   }
 
@@ -2316,7 +2315,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFormatMacro(
   // control just like cover! and fail! do.
   UseImplicitToken(ctx);
 
-  return absl::make_unique<TokenType>();
+  return std::make_unique<TokenType>();
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNameRef(NameRef* node,

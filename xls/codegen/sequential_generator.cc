@@ -372,7 +372,7 @@ SequentialModuleBuilder::GenerateModuleSignature() {
 
   // Build signature.
   std::unique_ptr<ModuleSignature> signature =
-      absl::make_unique<ModuleSignature>();
+      std::make_unique<ModuleSignature>();
   XLS_ASSIGN_OR_RETURN(*signature, sig_builder.Build());
   return std::move(signature);
 }
@@ -399,7 +399,7 @@ SequentialModuleBuilder::GenerateLoopBodyPipeline() {
   XLS_RETURN_IF_ERROR(schedule.Verify());
 
   std::unique_ptr<ModuleGeneratorResult> result =
-      absl::make_unique<ModuleGeneratorResult>();
+      std::make_unique<ModuleGeneratorResult>();
   XLS_ASSIGN_OR_RETURN(
       *result, ToPipelineModuleText(schedule, loop_body_function, options));
   return std::move(result);
@@ -409,7 +409,7 @@ absl::Status SequentialModuleBuilder::InitializeModuleBuilder(
     const ModuleSignature& signature) {
   // Make builder.
   XLS_RET_CHECK(signature.proto().has_module_name());
-  module_builder_ = absl::make_unique<ModuleBuilder>(
+  module_builder_ = std::make_unique<ModuleBuilder>(
       signature.proto().module_name(), &file_,
       sequential_options_.use_system_verilog(),
       /*clk_name=*/"clk",

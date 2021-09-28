@@ -35,7 +35,7 @@ namespace xls::dslx {
 std::unique_ptr<ParametricExpression> ParametricExpression::ToOwned(
     const std::variant<const ParametricExpression*, InterpValue>& operand) {
   if (absl::holds_alternative<InterpValue>(operand)) {
-    return absl::make_unique<ParametricConstant>(
+    return std::make_unique<ParametricConstant>(
         absl::get<InterpValue>(operand));
   }
   return absl::get<const ParametricExpression*>(operand)->Clone();
@@ -45,19 +45,19 @@ std::unique_ptr<ParametricExpression> ParametricExpression::Add(
     const EnvValue& lhs, const EnvValue& rhs) {
   if (absl::holds_alternative<InterpValue>(lhs) &&
       absl::holds_alternative<InterpValue>(rhs)) {
-    return absl::make_unique<ParametricConstant>(
+    return std::make_unique<ParametricConstant>(
         absl::get<InterpValue>(lhs).Add(absl::get<InterpValue>(rhs)).value());
   }
-  return absl::make_unique<ParametricAdd>(ToOwned(lhs), ToOwned(rhs));
+  return std::make_unique<ParametricAdd>(ToOwned(lhs), ToOwned(rhs));
 }
 std::unique_ptr<ParametricExpression> ParametricExpression::Mul(
     const EnvValue& lhs, const EnvValue& rhs) {
   if (absl::holds_alternative<InterpValue>(lhs) &&
       absl::holds_alternative<InterpValue>(rhs)) {
-    return absl::make_unique<ParametricConstant>(
+    return std::make_unique<ParametricConstant>(
         absl::get<InterpValue>(lhs).Mul(absl::get<InterpValue>(rhs)).value());
   }
-  return absl::make_unique<ParametricMul>(ToOwned(lhs), ToOwned(rhs));
+  return std::make_unique<ParametricMul>(ToOwned(lhs), ToOwned(rhs));
 }
 ParametricExpression::Evaluated ParametricExpression::TryUnwrapConstant(
     std::unique_ptr<ParametricExpression> e) {

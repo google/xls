@@ -95,9 +95,9 @@ class DeduceCtx {
   // Note that the resulting DeduceCtx has an empty fn_stack.
   std::unique_ptr<DeduceCtx> MakeCtx(TypeInfo* new_type_info,
                                      Module* new_module) const {
-    return absl::make_unique<DeduceCtx>(new_type_info, new_module,
-                                        deduce_function_, typecheck_function_,
-                                        typecheck_module_, import_data_);
+    return std::make_unique<DeduceCtx>(new_type_info, new_module,
+                                       deduce_function_, typecheck_function_,
+                                       typecheck_module_, import_data_);
   }
 
   // Helper that calls back to the top-level deduce procedure for the given

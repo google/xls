@@ -50,7 +50,7 @@ class IrTestBase : public ::testing::Test {
 
   // Creates an empty package with a name equal to TestName().
   static std::unique_ptr<VerifiedPackage> CreatePackage() {
-    return absl::make_unique<VerifiedPackage>(TestName(), absl::nullopt);
+    return std::make_unique<VerifiedPackage>(TestName(), absl::nullopt);
   }
 
   // Parses the given text as a package and replaces the owned packaged with the
