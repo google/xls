@@ -41,11 +41,13 @@ class SimplePipelineImpl {
  public:
   SimplePipelineImpl(int64_t stage_count, DataTimePhitT& from_channel,
                      DataTimePhitT& to_channel,
-                     std::queue<DataTimePhitT>& state)
+                     std::queue<DataTimePhitT>& state,
+                     int64_t& internal_propagated_cycle)
       : stage_count_(stage_count),
         from_(from_channel),
         to_(to_channel),
-        state_(state) {}
+        state_(state),
+        internal_propagated_cycle_(internal_propagated_cycle) {}
 
   bool TryPropagation(NocSimulator& simulator);
 
@@ -55,6 +57,7 @@ class SimplePipelineImpl {
   DataTimePhitT& to_;
   // TODO(vmirian) 09-07-21 Optimize to select flit data and its metadata
   std::queue<DataTimePhitT>& state_;
+  int64_t& internal_propagated_cycle_;
 };
 
 template <typename DataTimePhitT>
@@ -62,33 +65,61 @@ bool SimplePipelineImpl<DataTimePhitT>::TryPropagation(
     NocSimulator& simulator) {
   int64_t current_cycle = simulator.GetCurrentCycle();
 
-  if (from_.cycle == current_cycle) {
-    if (to_.cycle == current_cycle) {
-      return true;
-    }
-
-    state_.push(from_);
-
-    XLS_VLOG(2) << absl::StreamFormat("... link received data %s type %d",
-                                      from_.flit.data.ToString(),
-                                      from_.flit.type);
-    if (state_.size() > stage_count_) {
-      to_.flit = state_.front().flit;
-      to_.cycle = current_cycle;
-      to_.metadata = state_.front().metadata;
-      state_.pop();
-    } else {
-      to_.flit.type = FlitType::kInvalid;
-      to_.flit.data = Bits(32);
-      to_.cycle = current_cycle;
-    }
-
-    XLS_VLOG(2) << absl::StreamFormat(
-        "... link sending data %s type %d connection", to_.flit.data.ToString(),
-        to_.flit.type);
+  if (internal_propagated_cycle_ == current_cycle) {
+    return true;
   }
 
-  return false;
+  if (stage_count_ == 0) {
+    // No pipeline stages, so output is updated when input is ready.
+    if (from_.cycle == current_cycle) {
+      XLS_VLOG(2) << absl::StreamFormat("... link received data %s type %d",
+                                        from_.flit.data.ToString(),
+                                        from_.flit.type);
+
+      to_.flit = from_.flit;
+      to_.cycle = current_cycle;
+      to_.metadata = from_.metadata;
+
+      XLS_VLOG(2) << absl::StreamFormat(
+          "... link sending data %s type %d connection",
+          to_.flit.data.ToString(), to_.flit.type);
+
+      internal_propagated_cycle_ = current_cycle;
+    }
+  } else {
+    // There is one pipeline stage so output can be updated
+    // immediately.
+    if (to_.cycle != current_cycle) {
+      if (state_.size() >= stage_count_) {
+        to_.flit = state_.front().flit;
+        to_.cycle = current_cycle;
+        to_.metadata = state_.front().metadata;
+        state_.pop();
+      } else {
+        to_.flit.type = FlitType::kInvalid;
+        to_.flit.data = Bits(32);
+        to_.cycle = current_cycle;
+      }
+
+      XLS_VLOG(2) << absl::StreamFormat(
+          "... link sending data %s type %d connection",
+          to_.flit.data.ToString(), to_.flit.type);
+    }
+
+    if (from_.cycle == current_cycle) {
+      state_.push(from_);
+      XLS_VLOG(2) << absl::StreamFormat("... link received data %s type %d",
+                                        from_.flit.data.ToString(),
+                                        from_.flit.type);
+
+      internal_propagated_cycle_ = current_cycle;
+    }
+  }
+
+  // Finished propagation if internal cycle has been updated.
+  // The output port is either updated at the same time or was previously
+  // updated.
+  return internal_propagated_cycle_ == current_cycle;
 }
 
 }  // namespace
@@ -268,6 +299,7 @@ bool NocSimulator::Tick() {
 
   bool converged = true;
 
+  XLS_VLOG(2) << " Network Interfaces";
   for (SimNetworkInterfaceSrc& nc : network_interface_sources_) {
     NetworkComponentId id = nc.GetId();
     bool this_converged = nc.Tick(*this);
@@ -276,6 +308,7 @@ bool NocSimulator::Tick() {
                                       this_converged);
   }
 
+  XLS_VLOG(2) << " Links";
   for (SimLink& nc : links_) {
     NetworkComponentId id = nc.GetId();
     bool this_converged = nc.Tick(*this);
@@ -284,6 +317,7 @@ bool NocSimulator::Tick() {
                                       this_converged);
   }
 
+  XLS_VLOG(2) << " Routers";
   for (SimInputBufferedVCRouter& nc : routers_) {
     NetworkComponentId id = nc.GetId();
     bool this_converged = nc.Tick(*this);
@@ -292,6 +326,7 @@ bool NocSimulator::Tick() {
                                       this_converged);
   }
 
+  XLS_VLOG(2) << " Sinks";
   for (SimNetworkInterfaceSink& nc : network_interface_sinks_) {
     NetworkComponentId id = nc.GetId();
     bool this_converged = nc.Tick(*this);
@@ -354,11 +389,16 @@ absl::Status SimLink::InitializeImpl(NocSimulator& simulator) {
 
   src_connection_index_ = simulator.GetConnectionIndex(src_connection);
   sink_connection_index_ = simulator.GetConnectionIndex(sink_connection);
+  internal_forward_propagated_cycle_ = simulator.GetCurrentCycle();
 
   // Create a reverse pipeline stage for each vc.
   SimConnectionState& sink =
       simulator.GetSimConnectionByIndex(sink_connection_index_);
-  reverse_credit_stages_.resize(sink.reverse_channels.size());
+
+  int64_t reverse_channel_count = sink.reverse_channels.size();
+  reverse_credit_stages_.resize(reverse_channel_count);
+  internal_reverse_propagated_cycle_ =
+      std::vector(reverse_channel_count, simulator.GetCurrentCycle());
 
   return absl::OkStatus();
 }
@@ -506,10 +546,11 @@ bool SimLink::TryForwardPropagation(NocSimulator& simulator) {
   SimConnectionState& sink =
       simulator.GetSimConnectionByIndex(sink_connection_index_);
 
-  bool did_propagate = SimplePipelineImpl<TimedDataFlit>(
-                           forward_pipeline_stages_, src.forward_channels,
-                           sink.forward_channels, forward_data_stages_)
-                           .TryPropagation(simulator);
+  bool did_propagate =
+      SimplePipelineImpl<TimedDataFlit>(
+          forward_pipeline_stages_, src.forward_channels, sink.forward_channels,
+          forward_data_stages_, internal_forward_propagated_cycle_)
+          .TryPropagation(simulator);
 
   if (did_propagate) {
     XLS_VLOG(2) << absl::StreamFormat(
@@ -532,7 +573,8 @@ bool SimLink::TryReversePropagation(NocSimulator& simulator) {
   for (int64_t vc = 0; vc < vc_count; ++vc) {
     if (SimplePipelineImpl<TimedMetadataFlit>(
             reverse_pipeline_stages_, sink.reverse_channels.at(vc),
-            src.reverse_channels.at(vc), reverse_credit_stages_.at(vc))
+            src.reverse_channels.at(vc), reverse_credit_stages_.at(vc),
+            internal_reverse_propagated_cycle_.at(vc))
             .TryPropagation(simulator)) {
       ++num_propagated;
       XLS_VLOG(2) << absl::StreamFormat(

@@ -168,8 +168,10 @@ class SimLink : public SimNetworkComponentBase {
   int64_t sink_connection_index_;
 
   std::queue<TimedDataFlit> forward_data_stages_;
+  int64_t internal_forward_propagated_cycle_;
 
   std::vector<std::queue<TimedMetadataFlit>> reverse_credit_stages_;
+  std::vector<int64_t> internal_reverse_propagated_cycle_;
 };
 
 // Source - injects traffic into the network.
