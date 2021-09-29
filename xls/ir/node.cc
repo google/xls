@@ -565,6 +565,10 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
             "load_enable=%s",
             As<RegisterWrite>()->load_enable().value()->GetName()));
       }
+      if (As<RegisterWrite>()->reset().has_value()) {
+        args.push_back(absl::StrFormat(
+            "reset=%s", As<RegisterWrite>()->reset().value()->GetName()));
+      }
       break;
     default:
       break;

@@ -852,4 +852,43 @@ TEST(FunctionBuilderTest, NaryBitwiseAnd) {
               m::And(m::Param("a"), m::Param("b"), m::Param("c")));
 }
 
+TEST(FunctionBuilderTest, Registers) {
+  Package p("p");
+  BlockBuilder b("b", &p);
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+
+  BValue x = b.InputPort("x", p.GetBitsType(32));
+  BValue rst = b.InputPort("rst", p.GetBitsType(1));
+  BValue le = b.InputPort("le", p.GetBitsType(1));
+
+  BValue x_1 = b.InsertRegister("x_1", x);
+  BValue x_2 =
+      b.InsertRegister("x_2", x, rst,
+                       Reset{Value(UBits(42, 32)), /*asynchronous=*/false,
+                             /*active_low=*/false});
+  BValue x_3 =
+      b.InsertRegister("x_3", x, rst,
+                       Reset{Value(UBits(123, 32)), /*asynchronous=*/false,
+                             /*active_low=*/true},
+                       le);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  auto get_reg_write = [&](BValue reg_read) {
+    return block
+        ->GetRegisterWrite(reg_read.node()->As<RegisterRead>()->GetRegister())
+        .value();
+  };
+  EXPECT_FALSE(get_reg_write(x_1)->reset().has_value());
+  EXPECT_FALSE(get_reg_write(x_1)->load_enable().has_value());
+
+  EXPECT_TRUE(get_reg_write(x_2)->reset().has_value());
+  EXPECT_THAT(get_reg_write(x_2)->reset().value(), m::InputPort("rst"));
+  EXPECT_FALSE(get_reg_write(x_2)->load_enable().has_value());
+
+  EXPECT_TRUE(get_reg_write(x_3)->reset().has_value());
+  EXPECT_THAT(get_reg_write(x_3)->reset().value(), m::InputPort("rst"));
+  EXPECT_THAT(get_reg_write(x_3)->load_enable().value(), m::InputPort("le"));
+}
+
 }  // namespace xls

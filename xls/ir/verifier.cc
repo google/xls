@@ -875,10 +875,46 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleRegisterRead(RegisterRead* reg_read) override {
+    XLS_RETURN_IF_ERROR(
+        ExpectHasType(reg_read, reg_read->GetRegister()->type()));
     return absl::OkStatus();
   }
 
   absl::Status HandleRegisterWrite(RegisterWrite* reg_write) override {
+    XLS_RETURN_IF_ERROR(
+        ExpectOperandHasType(reg_write, 0, reg_write->GetRegister()->type()));
+    if (reg_write->GetRegister()->reset().has_value() &&
+        !reg_write->reset().has_value()) {
+      return absl::InternalError(absl::StrFormat(
+          "Register %s has a reset value but corresponding register write "
+          "operation %s has no reset operand",
+          reg_write->GetRegister()->name(), reg_write->GetName()));
+    }
+    if (!reg_write->GetRegister()->reset().has_value() &&
+        reg_write->reset().has_value()) {
+      return absl::InternalError(absl::StrFormat(
+          "Register %s has a no reset value but corresponding register write "
+          "operation %s has a reset operand",
+          reg_write->GetRegister()->name(), reg_write->GetName()));
+    }
+    if (reg_write->reset().has_value() &&
+        reg_write->reset().value()->GetType() !=
+            reg_write->package()->GetBitsType(1)) {
+      return absl::InternalError(absl::StrFormat(
+          "Expected reset operand of register write operation %s to have "
+          "bits[1] type, is %s",
+          reg_write->GetName(),
+          reg_write->reset().value()->GetType()->ToString()));
+    }
+    if (reg_write->load_enable().has_value() &&
+        reg_write->load_enable().value()->GetType() !=
+            reg_write->package()->GetBitsType(1)) {
+      return absl::InternalError(absl::StrFormat(
+          "Expected load enable operand of register write operation %s to "
+          "have bits[1] type, is %s",
+          reg_write->GetName(),
+          reg_write->load_enable().value()->GetType()->ToString()));
+    }
     return absl::OkStatus();
   }
 
@@ -1053,6 +1089,15 @@ class NodeChecker : public DfsVisitor {
                     "has type %s: %s",
                     operand_no, node->GetName(), operand->GetType()->ToString(),
                     node->ToString()));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status ExpectHasType(Node* node, Type* type) const {
+    if (node->GetType() != type) {
+      return absl::InternalError(
+          StrFormat("Expected %s to have type %s, has type %s", node->GetName(),
+                    type->ToString(), node->GetType()->ToString()));
     }
     return absl::OkStatus();
   }

@@ -37,6 +37,21 @@ absl::StatusOr<absl::flat_hash_map<std::string, uint64_t>>
 InterpretCombinationalBlock(
     Block* block, const absl::flat_hash_map<std::string, uint64_t>& inputs);
 
+// Runs the interpreter on a block feeding a sequence of values to input ports
+// and returning the resulting sequence of values from the output
+// ports. Registers are clocked between each set of inputs fed to the block.
+// Initial register state is zero for all registers.
+absl::StatusOr<std::vector<absl::flat_hash_map<std::string, Value>>>
+InterpretSequentialBlock(
+    Block* block,
+    absl::Span<const absl::flat_hash_map<std::string, Value>> inputs);
+
+// Overload which accepts and returns uint64_t values instead of xls::Values.
+absl::StatusOr<std::vector<absl::flat_hash_map<std::string, uint64_t>>>
+InterpretSequentialBlock(
+    Block* block,
+    absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs);
+
 }  // namespace xls
 
 #endif  // XLS_INTERPRETER_BLOCK_INTERPRETER_H_

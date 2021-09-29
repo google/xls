@@ -120,5 +120,171 @@ TEST_F(BlockInterpreterTest, RunWithUInt64Errors) {
                          "bits[100]:0xf_ffff_ffff_ffff_ffff_ffff_ffff")));
 }
 
+TEST_F(BlockInterpreterTest, PipelinedAdder) {
+  auto package = CreatePackage();
+  BlockBuilder b(TestName(), package.get());
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+
+  BValue x = b.InputPort("x", package->GetBitsType(32));
+  BValue y = b.InputPort("y", package->GetBitsType(32));
+
+  BValue x_d = b.InsertRegister("x_d", x);
+  BValue y_d = b.InsertRegister("y_d", y);
+
+  BValue x_plus_y = b.Add(x_d, y_d);
+
+  BValue x_plus_y_d = b.InsertRegister("x_plus_y_d", x_plus_y);
+
+  b.OutputPort("out", x_plus_y_d);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs = {
+      {{"x", 1}, {"y", 2}},
+      {{"x", 42}, {"y", 100}},
+      {{"x", 0}, {"y", 0}},
+      {{"x", 0}, {"y", 0}},
+      {{"x", 0}, {"y", 0}}};
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, InterpretSequentialBlock(block, inputs));
+
+  ASSERT_EQ(outputs.size(), 5);
+  EXPECT_THAT(outputs.at(0), UnorderedElementsAre(Pair("out", 0)));
+  EXPECT_THAT(outputs.at(1), UnorderedElementsAre(Pair("out", 0)));
+  EXPECT_THAT(outputs.at(2), UnorderedElementsAre(Pair("out", 3)));
+  EXPECT_THAT(outputs.at(3), UnorderedElementsAre(Pair("out", 142)));
+  EXPECT_THAT(outputs.at(4), UnorderedElementsAre(Pair("out", 0)));
+}
+
+TEST_F(BlockInterpreterTest, RegisterWithReset) {
+  auto package = CreatePackage();
+  BlockBuilder b(TestName(), package.get());
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+
+  BValue x = b.InputPort("x", package->GetBitsType(32));
+  BValue rst = b.InputPort("rst", package->GetBitsType(1));
+
+  BValue x_d =
+      b.InsertRegister("x_d", x, rst,
+                       Reset{Value(UBits(42, 32)), /*asynchronous=*/false,
+                             /*active_low=*/false});
+
+  b.OutputPort("out", x_d);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs = {
+      {{"rst", 0}, {"x", 1}},
+      {{"rst", 1}, {"x", 2}},
+      {{"rst", 1}, {"x", 3}},
+      {{"rst", 0}, {"x", 4}},
+      {{"rst", 0}, {"x", 5}}};
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, InterpretSequentialBlock(block, inputs));
+
+  ASSERT_EQ(outputs.size(), 5);
+  EXPECT_THAT(outputs.at(0), UnorderedElementsAre(Pair("out", 0)));
+  EXPECT_THAT(outputs.at(1), UnorderedElementsAre(Pair("out", 1)));
+  EXPECT_THAT(outputs.at(2), UnorderedElementsAre(Pair("out", 42)));
+  EXPECT_THAT(outputs.at(3), UnorderedElementsAre(Pair("out", 42)));
+  EXPECT_THAT(outputs.at(4), UnorderedElementsAre(Pair("out", 4)));
+}
+
+TEST_F(BlockInterpreterTest, RegisterWithLoadEnable) {
+  auto package = CreatePackage();
+  BlockBuilder b(TestName(), package.get());
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+
+  BValue x = b.InputPort("x", package->GetBitsType(32));
+  BValue le = b.InputPort("le", package->GetBitsType(1));
+
+  BValue x_d = b.InsertRegister("x_d", x, le);
+
+  b.OutputPort("out", x_d);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs = {
+      {{"le", 0}, {"x", 1}},
+      {{"le", 1}, {"x", 2}},
+      {{"le", 1}, {"x", 3}},
+      {{"le", 0}, {"x", 4}},
+      {{"le", 0}, {"x", 5}}};
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, InterpretSequentialBlock(block, inputs));
+
+  ASSERT_EQ(outputs.size(), 5);
+  EXPECT_THAT(outputs.at(0), UnorderedElementsAre(Pair("out", 0)));
+  EXPECT_THAT(outputs.at(1), UnorderedElementsAre(Pair("out", 0)));
+  EXPECT_THAT(outputs.at(2), UnorderedElementsAre(Pair("out", 2)));
+  EXPECT_THAT(outputs.at(3), UnorderedElementsAre(Pair("out", 3)));
+  EXPECT_THAT(outputs.at(4), UnorderedElementsAre(Pair("out", 3)));
+}
+
+TEST_F(BlockInterpreterTest, RegisterWithResetAndLoadEnable) {
+  auto package = CreatePackage();
+  BlockBuilder b(TestName(), package.get());
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+
+  BValue x = b.InputPort("x", package->GetBitsType(32));
+  BValue rst_n = b.InputPort("rst_n", package->GetBitsType(1));
+  BValue le = b.InputPort("le", package->GetBitsType(1));
+
+  BValue x_d =
+      b.InsertRegister("x_d", x, rst_n,
+                       Reset{Value(UBits(42, 32)), /*asynchronous=*/false,
+                             /*active_low=*/true},
+                       le);
+
+  b.OutputPort("out", x_d);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs = {
+      {{"rst_n", 1}, {"le", 0}, {"x", 1}},
+      {{"rst_n", 0}, {"le", 0}, {"x", 2}},
+      {{"rst_n", 0}, {"le", 1}, {"x", 3}},
+      {{"rst_n", 1}, {"le", 1}, {"x", 4}},
+      {{"rst_n", 1}, {"le", 0}, {"x", 5}}};
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, InterpretSequentialBlock(block, inputs));
+
+  ASSERT_EQ(outputs.size(), 5);
+  EXPECT_THAT(outputs.at(0), UnorderedElementsAre(Pair("out", 0)));
+  EXPECT_THAT(outputs.at(1), UnorderedElementsAre(Pair("out", 0)));
+  EXPECT_THAT(outputs.at(2), UnorderedElementsAre(Pair("out", 42)));
+  EXPECT_THAT(outputs.at(3), UnorderedElementsAre(Pair("out", 42)));
+  EXPECT_THAT(outputs.at(4), UnorderedElementsAre(Pair("out", 4)));
+}
+
+TEST_F(BlockInterpreterTest, AccumulatorRegister) {
+  auto package = CreatePackage();
+  BlockBuilder b(TestName(), package.get());
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Register * reg,
+      b.block()->AddRegister("accum", package->GetBitsType(32)));
+
+  BValue x = b.InputPort("x", package->GetBitsType(32));
+  BValue accum = b.RegisterRead(reg);
+  BValue next_accum = b.Add(x, accum);
+  b.RegisterWrite(reg, next_accum);
+  b.OutputPort("out", next_accum);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs = {
+      {{"x", 1}}, {{"x", 2}}, {{"x", 3}}, {{"x", 4}}, {{"x", 5}}};
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, InterpretSequentialBlock(block, inputs));
+
+  ASSERT_EQ(outputs.size(), 5);
+  EXPECT_THAT(outputs.at(0), UnorderedElementsAre(Pair("out", 1)));
+  EXPECT_THAT(outputs.at(1), UnorderedElementsAre(Pair("out", 3)));
+  EXPECT_THAT(outputs.at(2), UnorderedElementsAre(Pair("out", 6)));
+  EXPECT_THAT(outputs.at(3), UnorderedElementsAre(Pair("out", 10)));
+  EXPECT_THAT(outputs.at(4), UnorderedElementsAre(Pair("out", 15)));
+}
+
 }  // namespace
 }  // namespace xls

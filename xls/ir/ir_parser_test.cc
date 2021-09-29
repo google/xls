@@ -1212,12 +1212,13 @@ block my_block(in: bits[32], clk: clock, out: bits[32]) {
 TEST(IrParserTest, ParseBlockWithRegisterWithResetValue) {
   const std::string input = R"(package test
 
-block my_block(clk: clock, in: bits[32], out: bits[32]) {
+block my_block(clk: clock, rst: bits[1], in: bits[32], out: bits[32]) {
   reg foo(bits[32], reset_value=42, asynchronous=true, active_low=false)
-  in: bits[32] = input_port(name=in, id=1)
+  in: bits[32] = input_port(name=in, id=2)
+  rst: bits[1] = input_port(name=rst, id=1)
   foo_q: bits[32] = register_read(register=foo, id=3)
-  foo_d: () = register_write(in, register=foo, id=2)
-  out: () = output_port(foo_q, name=out, id=4)
+  foo_d: () = register_write(in, register=foo, reset=rst, id=4)
+  out: () = output_port(foo_q, name=out, id=5)
 }
 )";
   ParsePackageAndCheckDump(input);
