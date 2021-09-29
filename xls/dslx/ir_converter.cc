@@ -1931,7 +1931,6 @@ absl::Status FunctionConverter::HandleFailBuiltin(Invocation* node,
   return absl::OkStatus();
 }
 
-// TODO(amfv): 2021-07-01 Stop dropping trace_fmt! when converting to IR
 absl::Status FunctionConverter::HandleFormatMacro(FormatMacro* node) {
   XLS_RET_CHECK(implicit_token_data_.has_value())
       << "Invoking trace_fmt!(), but no implicit token is present for caller @ "
