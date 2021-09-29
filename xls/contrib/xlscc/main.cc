@@ -69,6 +69,9 @@ ABSL_FLAG(std::string, clang_args_file, "",
 ABSL_FLAG(std::string, meta_out, "",
           "Path at which to output metadata protobuf");
 
+ABSL_FLAG(bool, dump_ir_only, false,
+          "Output proc IR and do not continue to block/verilog generation");
+
 namespace xlscc {
 
 absl::Status Run(absl::string_view cpp_path) {
@@ -137,17 +140,22 @@ absl::Status Run(absl::string_view cpp_path) {
 
     XLS_RETURN_IF_ERROR(translator.InlineAllInvokes(&package));
 
-    XLS_ASSIGN_OR_RETURN(
-        xls::Block * xls_block,
-        xls::verilog::ProcToCombinationalBlock(proc, proc->name()));
-    std::cerr << "Generating Verilog..." << std::endl;
-    XLS_ASSIGN_OR_RETURN(
-        std::string verilog,
-        xls::verilog::GenerateVerilog(
-            xls_block,
-            xls::verilog::CodegenOptions().use_system_verilog(false)));
+    if (absl::GetFlag(FLAGS_dump_ir_only)) {
+      std::cerr << "Saving Package IR..." << std::endl;
+      std::cout << package.DumpIr() << std::endl;
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          xls::Block * xls_block,
+          xls::verilog::ProcToCombinationalBlock(proc, proc->name()));
+      std::cerr << "Generating Verilog..." << std::endl;
+      XLS_ASSIGN_OR_RETURN(
+          std::string verilog,
+          xls::verilog::GenerateVerilog(
+              xls_block,
+              xls::verilog::CodegenOptions().use_system_verilog(false)));
 
-    std::cout << verilog << std::endl;
+      std::cout << verilog << std::endl;
+    }
   }
 
   const std::string metadata_out_path = absl::GetFlag(FLAGS_meta_out);

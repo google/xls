@@ -137,6 +137,17 @@ class XlsccMainTest(absltest.TestCase):
     with open(block_pb_file.full_path, "wb") as f:
       f.write(block_out.SerializeToString())
 
+    package_ir = subprocess.check_output([
+        XLSCC_MAIN_PATH, cpp_file.full_path, "--block_pb",
+        block_pb_file.full_path, "--dump_ir_only"
+    ]).decode("utf-8")
+
+    # Do some simple checking of the ir output.
+    self.assertNotIn("module my_function_proc(", package_ir)
+    self.assertNotIn("output wire [31:0] out", package_ir)
+    self.assertIn("fn my_function(", package_ir)
+    self.assertIn("receive(tkn, channel_id=0", package_ir)
+
     verilog = subprocess.check_output([
         XLSCC_MAIN_PATH, cpp_file.full_path, "--block_pb",
         block_pb_file.full_path
