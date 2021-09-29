@@ -74,7 +74,7 @@ def get_xls_ir_verilog_generated_files(basename, arguments):
         basename + _VERILOG_FILE_EXTENSION,
         basename + _SIGNATURE_TEXTPROTO_FILE_EXTENSION,
     ]
-    if _is_combinational_generator(arguments):
+    if not _is_combinational_generator(arguments):
         generated_files.append(basename + _SCHEDULE_TEXTPROTO_FILE_EXTENSION)
     return generated_files
 
