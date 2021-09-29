@@ -49,6 +49,14 @@ uint64_t BitsToBoundedUint64(const Bits& bits, uint64_t upper_limit) {
 
 absl::StatusOr<Value> InterpretNode(Node* node,
                                     absl::Span<const Value> operand_values) {
+  // Gate nodes do not require side effects when interpreted.
+  if (OpIsSideEffecting(node->op()) && node->op() != Op::kGate) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Cannot interpret side-effecting op %s in node %s "
+                        "outside of an interpreter.",
+                        OpToString(node->op()), node->ToString()));
+  }
+
   XLS_RET_CHECK_EQ(node->operand_count(), operand_values.size());
   IrInterpreter visitor;
   for (int64_t i = 0; i < operand_values.size(); ++i) {

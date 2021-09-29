@@ -29,6 +29,8 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
+using status_testing::StatusIs;
+using testing::HasSubstr;
 
 INSTANTIATE_TEST_SUITE_P(
     IrInterpreterTest, IrEvaluatorTestBase,
@@ -67,6 +69,34 @@ TEST_F(IrInterpreterOnlyTest, EvaluateNode) {
               IsOkAndHolds(Value(UBits(0b1011, 4))));
   EXPECT_THAT(InterpretNode(FindNode("literal.1", function), {}),
               IsOkAndHolds(Value(UBits(6, 4))));
+}
+
+TEST_F(IrInterpreterOnlyTest, SideEffectingNodes) {
+  Package package("my_package");
+  const std::string fn_text = R"(
+    fn bar(tkn: token, cond: bits[1], x: bits[5]) -> bits[5] {
+      trace.1: token = trace(tkn, cond, format="x is {}", data_operands=[x], id=1)
+      umul.2 : bits[5] = umul(x, x, id=2)
+      ret gate.3: bits[5] = gate(cond, umul.2, id=3)
+    }
+    )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(fn_text, &package));
+
+  EXPECT_THAT(
+      InterpretNode(FindNode("trace.1", function),
+                    {Value::Token(), Value::Bool(true), Value(UBits(17, 5))}),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Cannot interpret side-effecting op")));
+
+  Node* gate_node = FindNode("gate.3", function);
+  EXPECT_THAT(
+      InterpretNode(gate_node, {Value::Bool(true), Value(UBits(17, 5))}),
+      IsOkAndHolds(Value(UBits(0, 5))));
+  EXPECT_THAT(
+      InterpretNode(gate_node, {Value::Bool(false), Value(UBits(17, 5))}),
+      IsOkAndHolds(Value(UBits(17, 5))));
 }
 
 }  // namespace

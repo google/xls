@@ -344,6 +344,11 @@ absl::StatusOr<Value> BddFunction::Evaluate(
       XLS_ASSIGN_OR_RETURN(int64_t param_index,
                            function->GetParamIndex(node->As<Param>()));
       result = args.at(param_index);
+    } else if (OpIsSideEffecting(node->op()) && node->GetType()->IsToken()) {
+      // Don't evaluate side-effecting ops that return tokens (e.g. assert,
+      // trace, cover), but conjure a placeholder token so that values.at(node)
+      // doesn't have to deal with missing nodes.
+      result = Value::Token();
     } else if (!node->GetType()->IsBits() ||
                saturated_expressions_.contains(node)) {
       std::vector<Value> operand_values;
