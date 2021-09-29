@@ -22,6 +22,12 @@ namespace xls::dslx {
 namespace {
 
 using status_testing::IsOkAndHolds;
+using status_testing::StatusIs;
+using testing::ElementsAre;
+using testing::HasSubstr;
+
+const Pos kFakePos("<fake>", 0, 0);
+const Span kFakeSpan(kFakePos, kFakePos);
 
 TEST(ConcreteTypeTest, TestU32) {
   BitsType t(false, 32);
@@ -81,6 +87,90 @@ TEST(ConcreteTypeTest, FunctionTypeU32ToS32) {
   EXPECT_EQ("sN[32]", t.return_type().ToString());
 }
 
+TEST(ConcreteTypeTest, FromInterpValueSbits) {
+  auto s8_m1 = InterpValue::MakeSBits(8, -1);
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ConcreteType> ct,
+                           ConcreteType::FromInterpValue(s8_m1));
+  EXPECT_EQ(ct->ToString(), "sN[8]");
+}
+
+TEST(ConcreteTypeTest, FromInterpValueArrayU2) {
+  auto v = InterpValue::MakeArray({
+                                      InterpValue::MakeUBits(2, 0b10),
+                                      InterpValue::MakeUBits(2, 0b01),
+                                      InterpValue::MakeUBits(2, 0b11),
+                                  })
+               .value();
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ConcreteType> ct,
+                           ConcreteType::FromInterpValue(v));
+  EXPECT_EQ(ct->ToString(), "uN[2][3]");
+  EXPECT_THAT(ct->GetTotalBitCount(),
+              IsOkAndHolds(ConcreteTypeDim::CreateU32(6)));
+}
+
+TEST(ConcreteTypeTest, FromInterpValueTupleEmpty) {
+  auto v = InterpValue::MakeTuple({});
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ConcreteType> ct,
+                           ConcreteType::FromInterpValue(v));
+  EXPECT_EQ(ct->ToString(), "()");
+  EXPECT_TRUE(ct->IsUnit());
+  EXPECT_THAT(ct->GetTotalBitCount(),
+              IsOkAndHolds(ConcreteTypeDim::CreateU32(0)));
+}
+
+TEST(ConcreteTypeTest, FromInterpValueTupleOfTwoNumbers) {
+  auto v = InterpValue::MakeTuple({
+      InterpValue::MakeUBits(2, 0b10),
+      InterpValue::MakeSBits(3, -1),
+  });
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ConcreteType> ct,
+                           ConcreteType::FromInterpValue(v));
+  EXPECT_EQ(ct->ToString(), "(uN[2], sN[3])");
+  EXPECT_FALSE(ct->IsUnit());
+  EXPECT_THAT(ct->GetTotalBitCount(),
+              IsOkAndHolds(ConcreteTypeDim::CreateU32(5)));
+}
+
+TEST(ConcreteTypeTest, StructTypeGetTotalBitCount) {
+  Module module("test");
+  std::vector<std::pair<NameDef*, TypeAnnotation*>> ast_members;
+  ast_members.emplace_back(
+      module.Make<NameDef>(kFakeSpan, "x", nullptr),
+      module.Make<BuiltinTypeAnnotation>(kFakeSpan, BuiltinType::kU8));
+  ast_members.emplace_back(
+      module.Make<NameDef>(kFakeSpan, "y", nullptr),
+      module.Make<BuiltinTypeAnnotation>(kFakeSpan, BuiltinType::kU1));
+  auto* struct_def = module.Make<StructDef>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, "S", nullptr),
+      std::vector<ParametricBinding*>{}, ast_members, /*is_public=*/false);
+  std::vector<std::unique_ptr<ConcreteType>> members;
+  members.push_back(BitsType::MakeU8());
+  members.push_back(BitsType::MakeU1());
+  StructType s(std::move(members), *struct_def);
+  EXPECT_THAT(s.GetTotalBitCount(),
+              IsOkAndHolds(ConcreteTypeDim::CreateU32(9)));
+  EXPECT_THAT(s.GetAllDims(), ElementsAre(ConcreteTypeDim::CreateU32(8),
+                                          ConcreteTypeDim::CreateU32(1)));
+  EXPECT_FALSE(s.HasEnum());
+}
+
+TEST(ConcreteTypeTest, EmptyStructTypeIsNotUnit) {
+  Module module("test");
+  std::vector<std::pair<NameDef*, TypeAnnotation*>> ast_members;
+  auto* struct_def = module.Make<StructDef>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, "S", nullptr),
+      std::vector<ParametricBinding*>{}, ast_members, /*is_public=*/false);
+  std::vector<std::unique_ptr<ConcreteType>> members;
+  StructType s(std::move(members), *struct_def);
+  EXPECT_THAT(s.GetTotalBitCount(),
+              IsOkAndHolds(ConcreteTypeDim::CreateU32(0)));
+  EXPECT_TRUE(s.GetAllDims().empty());
+  EXPECT_FALSE(s.HasEnum());
+  EXPECT_FALSE(s.IsUnit());
+}
+
+// -- ConcreteTypeDimTest
+
 TEST(ConcreteTypeDimTest, TestArithmetic) {
   auto two = ConcreteTypeDim::CreateU32(2);
   auto three = ConcreteTypeDim::CreateU32(3);
@@ -104,6 +194,35 @@ TEST(ConcreteTypeDimTest, TestArithmetic) {
 
   EXPECT_THAT(m.Add(n), IsOkAndHolds(mpn));
   EXPECT_THAT(m.Mul(n), IsOkAndHolds(mtn));
+}
+
+TEST(ConcreteTypeDimTest, TestGetAs64BitsU64) {
+  absl::variant<InterpValue, std::unique_ptr<ParametricExpression>> variant =
+      InterpValue::MakeUBits(/*bit_count=*/64, static_cast<uint64_t>(-1));
+  EXPECT_THAT(ConcreteTypeDim::GetAs64Bits(variant), IsOkAndHolds(int64_t{-1}));
+}
+
+TEST(ConcreteTypeDimTest, TestGetAs64BitsU128) {
+  absl::variant<InterpValue, std::unique_ptr<ParametricExpression>> variant =
+      InterpValue::MakeBits(/*is_signed=*/false, Bits::AllOnes(128));
+  EXPECT_THAT(
+      ConcreteTypeDim::GetAs64Bits(variant),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("cannot be represented as an unsigned 64-bit value")));
+}
+
+TEST(ConcreteTypeDimTest, TestGetAs64BitsS128) {
+  absl::variant<InterpValue, std::unique_ptr<ParametricExpression>> variant =
+      InterpValue::MakeBits(/*is_signed=*/true, Bits::AllOnes(128));
+  EXPECT_THAT(ConcreteTypeDim::GetAs64Bits(variant), IsOkAndHolds(-1));
+}
+
+TEST(ConcreteTypeDimTest, TestGetAs64BitsParametricSymbol) {
+  absl::variant<InterpValue, std::unique_ptr<ParametricExpression>> variant =
+      std::make_unique<ParametricSymbol>("N", kFakeSpan);
+  EXPECT_THAT(ConcreteTypeDim::GetAs64Bits(variant),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Can't evaluate a ParametricExpression")));
 }
 
 }  // namespace

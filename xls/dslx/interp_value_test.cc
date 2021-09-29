@@ -33,7 +33,7 @@ TEST(InterpValueTest, FormatU8) {
 }
 
 TEST(InterpValueTest, FormatS8) {
-  auto ff = InterpValue::MakeSBits(/*bit_count=*/8, /*value=*/0xff);
+  auto ff = InterpValue::MakeSBits(/*bit_count=*/8, /*value=*/-1);
   EXPECT_EQ(ff.ToString(), "s8:-1");
   EXPECT_EQ(ff.ToString(/*humanize=*/true, FormatPreference::kHex), "0xff");
   EXPECT_EQ(ff.ToString(/*humanize=*/true, FormatPreference::kDecimal), "-1");
@@ -84,7 +84,7 @@ TEST(InterpValueTest, BitwiseNegateHighBitUnset) {
 
 TEST(InterpValueTest, LessThan) {
   auto uf = InterpValue::MakeUBits(/*bit_count=*/4, 0xf);
-  auto sf = InterpValue::MakeSBits(/*bit_count=*/4, 0xf);
+  auto sf = InterpValue::MakeSBits(/*bit_count=*/4, -1);
 
   auto uzero = InterpValue::MakeUBits(4, 0);
   auto szero = InterpValue::MakeSBits(4, 0);

@@ -78,10 +78,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteType::FromInterpValue(
   } else if (value.tag() == InterpValueTag::kTuple) {
     XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
                          value.GetValues());
-    if (elements->empty()) {
-      return std::make_unique<TupleType>(
-          std::vector<std::unique_ptr<ConcreteType>>());
-    }
     std::vector<std::unique_ptr<ConcreteType>> members;
     members.reserve(elements->size());
     for (const auto& element : *elements) {
@@ -101,21 +97,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteType::FromInterpValue(
 /* static */ absl::StatusOr<int64_t> ConcreteTypeDim::GetAs64Bits(
     const absl::variant<InterpValue, OwnedParametric>& variant) {
   if (absl::holds_alternative<InterpValue>(variant)) {
-    return absl::get<InterpValue>(variant).GetBitValueInt64();
-  }
-
-  return absl::InvalidArgumentError(
-      "Can't evaluate a ParametricExpression to an integer.");
-}
-
-/* static */ absl::StatusOr<int64_t> ConcreteTypeDim::GetAs64Bits(
-    const InputVariant& variant) {
-  if (absl::holds_alternative<InterpValue>(variant)) {
     return absl::get<InterpValue>(variant).GetBitValueCheckSign();
-  }
-
-  if (absl::holds_alternative<int64_t>(variant)) {
-    return absl::get<int64_t>(variant);
   }
 
   return absl::InvalidArgumentError(

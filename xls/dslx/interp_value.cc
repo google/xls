@@ -83,7 +83,7 @@ std::string TagToString(InterpValueTag tag) {
 /* static */ InterpValue InterpValue::MakeSBits(int64_t bit_count,
                                                 int64_t value) {
   return InterpValue{InterpValueTag::kSBits,
-                     UBits(value, /*bit_count=*/bit_count)};
+                     SBits(value, /*bit_count=*/bit_count)};
 }
 
 // Converts an interp value (precondition: `v.IsBits()`) to a string, given a

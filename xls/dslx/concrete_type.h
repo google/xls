@@ -50,15 +50,10 @@ class TupleType;
 class ConcreteTypeDim {
  public:
   using OwnedParametric = std::unique_ptr<ParametricExpression>;
-  // This class _accepts_ an InputVariant, but only stores either the
-  // integral or ParametricExpression variants (a "Variant").
-  // An accepted InterpValue input variant must be convertable to a uint64_t.
-  using InputVariant = absl::variant<int64_t, InterpValue, OwnedParametric>;
 
   // Evaluates the given value to a 64-bit quantity.
   static absl::StatusOr<int64_t> GetAs64Bits(
       const absl::variant<InterpValue, OwnedParametric>& variant);
-  static absl::StatusOr<int64_t> GetAs64Bits(const InputVariant& variant);
 
   // Creates a u32 `InterpValue`-based ConcreteTypeDim with the given "value".
   static ConcreteTypeDim CreateU32(uint32_t value) {
