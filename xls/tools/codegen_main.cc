@@ -61,7 +61,12 @@ ABSL_FLAG(
     std::string, output_signature_path, "",
     "Specific output path for the module signature. If not specified then "
     "no module signature is generated.");
-ABSL_FLAG(std::string, entry, "", "Entry function for the package.");
+ABSL_FLAG(std::string, entry, "",
+          "Entry function for the package.  Mutually-exclusive with "
+          "--top_level_proc.");
+ABSL_FLAG(std::string, top_level_proc, "",
+          "Entry (top-level) proc for the package, mutually-exclusive with "
+          "--entry.");
 ABSL_FLAG(std::string, generator, "pipeline",
           "The generator to use when emitting the device function. Valid "
           "values: pipeline, combinational.");
@@ -108,107 +113,160 @@ ABSL_FLAG(std::string, gate_format, "", "Format string to use for gate! ops.");
 namespace xls {
 namespace {
 
+absl::StatusOr<FunctionBase*> FindEntry(Package* p) {
+  std::string entry_function = absl::GetFlag(FLAGS_entry);
+  std::string top_level_proc = absl::GetFlag(FLAGS_top_level_proc);
+
+  if (!entry_function.empty() && !top_level_proc.empty()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Cannot provide both --entry and --top_level_proc"));
+  }
+
+  if (!entry_function.empty()) {
+    return p->GetFunction(entry_function);
+  } else if (!top_level_proc.empty()) {
+    return p->GetProc(top_level_proc);
+  }
+
+  // Default to the the entry function if nothing is specified.
+  return p->EntryFunction();
+}
+
+absl::StatusOr<SchedulingOptions> SetupSchedulingOptions() {
+  if (absl::GetFlag(FLAGS_generator) != "pipeline") {
+    return absl::InternalError("Scheduling only supported in pipeline mode.");
+  }
+
+  SchedulingOptions scheduling_options;
+
+  if (absl::GetFlag(FLAGS_pipeline_stages) != 0) {
+    scheduling_options.pipeline_stages(absl::GetFlag(FLAGS_pipeline_stages));
+  }
+  if (absl::GetFlag(FLAGS_clock_period_ps) != 0) {
+    scheduling_options.clock_period_ps(absl::GetFlag(FLAGS_clock_period_ps));
+  }
+  if (absl::GetFlag(FLAGS_clock_margin_percent) != 0) {
+    scheduling_options.clock_margin_percent(
+        absl::GetFlag(FLAGS_clock_margin_percent));
+  }
+
+  return scheduling_options;
+}
+
+absl::StatusOr<DelayEstimator*> SetupDelayEstimator() {
+  if (absl::GetFlag(FLAGS_generator) != "pipeline") {
+    return absl::InternalError("DelayEstimation only supported pipeline mode.");
+  }
+
+  return GetDelayEstimator(absl::GetFlag(FLAGS_delay_model));
+}
+
+absl::StatusOr<verilog::CodegenOptions> GetCodegenOptions() {
+  verilog::CodegenOptions options;
+
+  if (absl::GetFlag(FLAGS_generator) == "pipeline") {
+    options = verilog::BuildPipelineOptions();
+
+    if (!absl::GetFlag(FLAGS_input_valid_signal).empty()) {
+      options.valid_control(absl::GetFlag(FLAGS_input_valid_signal),
+                            absl::GetFlag(FLAGS_output_valid_signal));
+    } else if (!absl::GetFlag(FLAGS_manual_load_enable_signal).empty()) {
+      options.manual_control(absl::GetFlag(FLAGS_manual_load_enable_signal));
+    }
+    options.flop_inputs(absl::GetFlag(FLAGS_flop_inputs));
+    options.flop_outputs(absl::GetFlag(FLAGS_flop_outputs));
+
+    if (!absl::GetFlag(FLAGS_reset).empty()) {
+      options.reset(absl::GetFlag(FLAGS_reset),
+                    absl::GetFlag(FLAGS_reset_asynchronous),
+                    absl::GetFlag(FLAGS_reset_active_low),
+                    /*reset_data_path=*/false);
+    }
+  }
+
+  if (!absl::GetFlag(FLAGS_module_name).empty()) {
+    options.module_name(absl::GetFlag(FLAGS_module_name));
+  }
+
+  options.use_system_verilog(absl::GetFlag(FLAGS_use_system_verilog));
+
+  if (!absl::GetFlag(FLAGS_gate_format).empty()) {
+    options.gate_format(absl::GetFlag(FLAGS_gate_format));
+  }
+
+  return options;
+}
+
+absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
+    FunctionBase* main, const SchedulingOptions& scheduling_options,
+    const DelayEstimator* delay_estimator) {
+  absl::StatusOr<PipelineSchedule> schedule_status =
+      PipelineSchedule::Run(main, *delay_estimator, scheduling_options);
+
+  if (!schedule_status.ok()) {
+    if (absl::IsResourceExhausted(schedule_status.status())) {
+      // Resource exhausted error indicates that the schedule was
+      // infeasible. Emit a meaningful error in this case.
+      if (scheduling_options.pipeline_stages().has_value() &&
+          scheduling_options.clock_period_ps().has_value()) {
+        // TODO(meheff): Add link to documentation with more information and
+        // guidance.
+        XLS_LOG(QFATAL) << absl::StreamFormat(
+            "Design cannot be scheduled in %d stages with a %dps clock.",
+            scheduling_options.pipeline_stages().value(),
+            scheduling_options.clock_period_ps().value());
+      }
+    }
+  }
+
+  return schedule_status;
+}
+
 absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
                       absl::string_view signature_path,
                       absl::string_view schedule_path) {
   if (ir_path == "-") {
     ir_path = "/dev/stdin";
   }
+
   XLS_ASSIGN_OR_RETURN(std::string ir_contents, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> p,
                        Parser::ParsePackage(ir_contents, ir_path));
-
-  Function* main;
-  if (absl::GetFlag(FLAGS_entry).empty()) {
-    XLS_ASSIGN_OR_RETURN(main, p->EntryFunction());
-  } else {
-    XLS_ASSIGN_OR_RETURN(main, p->GetFunction(absl::GetFlag(FLAGS_entry)));
-  }
-
   verilog::ModuleGeneratorResult result;
+
+  XLS_ASSIGN_OR_RETURN(FunctionBase * main, FindEntry(p.get()));
+  XLS_ASSIGN_OR_RETURN(verilog::CodegenOptions codegen_options,
+                       GetCodegenOptions());
+
   if (absl::GetFlag(FLAGS_generator) == "pipeline") {
     XLS_QCHECK(absl::GetFlag(FLAGS_pipeline_stages) != 0 ||
                absl::GetFlag(FLAGS_clock_period_ps) != 0)
         << "Musts specify --pipeline_stages or --clock_period_ps (or both).";
 
-    SchedulingOptions scheduling_options;
-    if (absl::GetFlag(FLAGS_pipeline_stages) != 0) {
-      scheduling_options.pipeline_stages(absl::GetFlag(FLAGS_pipeline_stages));
-    }
-    if (absl::GetFlag(FLAGS_clock_period_ps) != 0) {
-      scheduling_options.clock_period_ps(absl::GetFlag(FLAGS_clock_period_ps));
-    }
-    if (absl::GetFlag(FLAGS_clock_margin_percent) != 0) {
-      scheduling_options.clock_margin_percent(
-          absl::GetFlag(FLAGS_clock_margin_percent));
-    }
+    XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
+                         SetupSchedulingOptions());
     XLS_ASSIGN_OR_RETURN(const DelayEstimator* delay_estimator,
-                         GetDelayEstimator(absl::GetFlag(FLAGS_delay_model)));
+                         SetupDelayEstimator());
+    XLS_ASSIGN_OR_RETURN(
+        PipelineSchedule schedule,
+        RunSchedulingPipeline(main, scheduling_options, delay_estimator));
 
-    absl::StatusOr<PipelineSchedule> schedule_status =
-        PipelineSchedule::Run(main, *delay_estimator, scheduling_options);
-    if (!schedule_status.ok()) {
-      if (absl::IsResourceExhausted(schedule_status.status())) {
-        // Resource exhausted error indicates that the schedule was
-        // infeasible. Emit a meaningful error in this case.
-        if (scheduling_options.pipeline_stages().has_value() &&
-            scheduling_options.clock_period_ps().has_value()) {
-          // TODO(meheff): Add link to documentation with more information and
-          // guidance.
-          XLS_LOG(QFATAL) << absl::StreamFormat(
-              "Design cannot be scheduled in %d stages with a %dps clock.",
-              scheduling_options.pipeline_stages().value(),
-              scheduling_options.clock_period_ps().value());
-        }
-      }
-      return schedule_status.status();
-    }
-    const PipelineSchedule& schedule = schedule_status.value();
+    XLS_ASSIGN_OR_RETURN(
+        result, verilog::ToPipelineModuleText(schedule, main, codegen_options));
 
-    verilog::CodegenOptions pipeline_options = verilog::BuildPipelineOptions();
-    if (!absl::GetFlag(FLAGS_module_name).empty()) {
-      pipeline_options.module_name(absl::GetFlag(FLAGS_module_name));
-    }
-    pipeline_options.use_system_verilog(
-        absl::GetFlag(FLAGS_use_system_verilog));
-    if (!absl::GetFlag(FLAGS_input_valid_signal).empty()) {
-      pipeline_options.valid_control(absl::GetFlag(FLAGS_input_valid_signal),
-                                     absl::GetFlag(FLAGS_output_valid_signal));
-    } else if (!absl::GetFlag(FLAGS_manual_load_enable_signal).empty()) {
-      pipeline_options.manual_control(
-          absl::GetFlag(FLAGS_manual_load_enable_signal));
-    }
-    pipeline_options.flop_inputs(absl::GetFlag(FLAGS_flop_inputs));
-    pipeline_options.flop_outputs(absl::GetFlag(FLAGS_flop_outputs));
-
-    if (!absl::GetFlag(FLAGS_reset).empty()) {
-      pipeline_options.reset(absl::GetFlag(FLAGS_reset),
-                             absl::GetFlag(FLAGS_reset_asynchronous),
-                             absl::GetFlag(FLAGS_reset_active_low),
-                             /*reset_data_path=*/false);
-    }
-
-    if (!absl::GetFlag(FLAGS_gate_format).empty()) {
-      pipeline_options.gate_format(absl::GetFlag(FLAGS_gate_format));
-    }
-
-    XLS_ASSIGN_OR_RETURN(result, verilog::ToPipelineModuleText(
-                                     schedule, main, pipeline_options));
     if (!schedule_path.empty()) {
       XLS_RETURN_IF_ERROR(SetTextProtoFile(schedule_path, schedule.ToProto()));
     }
   } else if (absl::GetFlag(FLAGS_generator) == "combinational") {
-    XLS_ASSIGN_OR_RETURN(result,
-                         verilog::GenerateCombinationalModule(
-                             main, absl::GetFlag(FLAGS_use_system_verilog),
-                             absl::GetFlag(FLAGS_module_name),
-                             absl::GetFlag(FLAGS_gate_format)));
+    XLS_ASSIGN_OR_RETURN(
+        result, verilog::GenerateCombinationalModule(main, codegen_options));
   } else {
     XLS_LOG(QFATAL) << absl::StreamFormat(
         "Invalid value for --generator: %s. Expected 'pipeline' or "
         "'combinational'",
         absl::GetFlag(FLAGS_generator));
   }
+
   if (!signature_path.empty()) {
     XLS_RETURN_IF_ERROR(
         SetTextProtoFile(signature_path, result.signature.proto()));

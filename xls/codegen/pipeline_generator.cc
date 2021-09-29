@@ -32,14 +32,30 @@ namespace verilog {
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, Function* func,
     const CodegenOptions& options) {
-  XLS_VLOG(2) << "Generating pipelined module for function:";
-  XLS_VLOG_LINES(2, func->DumpIr());
+  return ToPipelineModuleText(schedule, static_cast<FunctionBase*>(func),
+                              options);
+}
+
+absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
+    const PipelineSchedule& schedule, FunctionBase* module,
+    const CodegenOptions& options) {
+  XLS_VLOG(2) << "Generating pipelined module for module:";
+  XLS_VLOG_LINES(2, module->DumpIr());
   XLS_VLOG_LINES(2, schedule.ToString());
 
-  XLS_ASSIGN_OR_RETURN(Block * block,
-                       FunctionToPipelinedBlock(schedule, options, func));
+  Block* block;
 
-  CodegenPassUnit unit(func->package(), block);
+  XLS_RET_CHECK(module->IsProc() || module->IsFunction());
+
+  if (module->IsFunction()) {
+    Function* func = module->AsFunctionOrDie();
+    XLS_ASSIGN_OR_RETURN(block,
+                         FunctionToPipelinedBlock(schedule, options, func));
+  } else {
+    return absl::UnimplementedError("Proc Pipeline Generator not implemented");
+  }
+
+  CodegenPassUnit unit(module->package(), block);
   CodegenPassOptions pass_options;
   pass_options.codegen_options = options;
   pass_options.schedule = schedule;

@@ -50,24 +50,42 @@ namespace verilog {
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
     Function* func, bool use_system_verilog, absl::string_view module_name,
     absl::string_view gate_format) {
-  XLS_ASSIGN_OR_RETURN(
-      Block * block,
-      FunctionToBlock(func, module_name.empty()
-                                ? SanitizeIdentifier(func->name())
-                                : module_name));
-  CodegenPassUnit unit(func->package(), block);
-  CodegenPassOptions pass_options;
-  pass_options.codegen_options.entry(block->name())
-      .use_system_verilog(use_system_verilog);
+  CodegenOptions codegen_options;
+  codegen_options.use_system_verilog(use_system_verilog);
   if (!gate_format.empty()) {
-    pass_options.codegen_options.gate_format(gate_format);
+    codegen_options.gate_format(gate_format);
   }
+
+  return GenerateCombinationalModule(func, codegen_options);
+}
+
+absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
+    FunctionBase* module, const CodegenOptions& options) {
+  std::string module_name(
+      options.module_name().value_or(SanitizeIdentifier(module->name())));
+
+  Block* block = nullptr;
+
+  XLS_RET_CHECK(module->IsProc() || module->IsFunction());
+  if (module->IsFunction()) {
+    XLS_ASSIGN_OR_RETURN(
+        block, FunctionToBlock(dynamic_cast<Function*>(module), module_name));
+  } else {
+    XLS_ASSIGN_OR_RETURN(block, ProcToCombinationalBlock(
+                                    dynamic_cast<Proc*>(module), module_name));
+  }
+
+  CodegenPassUnit unit(module->package(), block);
+
+  CodegenPassOptions codegen_pass_options;
+  codegen_pass_options.codegen_options = options;
+
   PassResults results;
-  XLS_RETURN_IF_ERROR(
-      CreateCodegenPassPipeline()->Run(&unit, pass_options, &results).status());
+  XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline()
+                          ->Run(&unit, codegen_pass_options, &results)
+                          .status());
   XLS_RET_CHECK(unit.signature.has_value());
-  XLS_ASSIGN_OR_RETURN(std::string verilog,
-                       GenerateVerilog(block, pass_options.codegen_options));
+  XLS_ASSIGN_OR_RETURN(std::string verilog, GenerateVerilog(block, options));
 
   return ModuleGeneratorResult{verilog, unit.signature.value()};
 }
