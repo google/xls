@@ -14,6 +14,7 @@
 
 #include "xls/dslx/extract_conversion_order.h"
 
+#include "absl/status/status.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/symbolized_stacktrace.h"
@@ -45,15 +46,15 @@ static std::string ConversionRecordsToString(
 // -- class Callee
 
 /* static */ absl::StatusOr<Callee> Callee::Make(
-    FunctionBase* fb, Instantiation* instantiation, Module* module,
+    Function* f, Instantiation* instantiation, Module* module,
     TypeInfo* type_info, SymbolicBindings sym_bindings) {
-  XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(fb, sym_bindings));
-  return Callee(fb, instantiation, module, type_info, std::move(sym_bindings));
+  XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(f, sym_bindings));
+  return Callee(f, instantiation, module, type_info, std::move(sym_bindings));
 }
 
-Callee::Callee(FunctionBase* fb, Instantiation* instantiation, Module* m,
+Callee::Callee(Function* f, Instantiation* instantiation, Module* m,
                TypeInfo* type_info, SymbolicBindings sym_bindings)
-    : fb_(fb),
+    : f_(f),
       instantiation_(instantiation),
       m_(m),
       type_info_(type_info),
@@ -66,16 +67,15 @@ Callee::Callee(FunctionBase* fb, Instantiation* instantiation, Module* m,
 std::string Callee::ToString() const {
   std::string identifier;
   return absl::StrFormat(
-      "Callee{m=%s, fb=%s, i=%s, bindings=%s}", m_->name(), fb_->identifier(),
+      "Callee{m=%s, f=%s, i=%s, bindings=%s}", m_->name(), f_->identifier(),
       instantiation_ == nullptr ? "<top level>" : instantiation_->ToString(),
       sym_bindings_.ToString());
 }
 
 // -- class ConversionRecord
 /* static */ absl::Status ValidateParametricsInternal(
-    FunctionBase* fb, const SymbolicBindings& symbolic_bindings) {
-  absl::btree_set<std::string> f_parametric_keys =
-      fb->GetFreeParametricKeySet();
+    Function* f, const SymbolicBindings& symbolic_bindings) {
+  absl::btree_set<std::string> f_parametric_keys = f->GetFreeParametricKeySet();
   absl::btree_set<std::string> symbolic_binding_keys =
       symbolic_bindings.GetKeySet();
 
@@ -97,32 +97,32 @@ std::string Callee::ToString() const {
   if (is_superset(f_parametric_keys, symbolic_binding_keys)) {
     return absl::InternalError(absl::StrFormat(
         "Not enough symbolic bindings to convert function: %s; need %s got %s",
-        fb->identifier(), set_to_string(f_parametric_keys),
+        f->identifier(), set_to_string(f_parametric_keys),
         set_to_string(symbolic_binding_keys)));
   }
   return absl::OkStatus();
 }
 
 /* static */ absl::Status ConversionRecord::ValidateParametrics(
-    FunctionBase* fb, const SymbolicBindings& symbolic_bindings) {
-  return ValidateParametricsInternal(fb, symbolic_bindings);
+    Function* f, const SymbolicBindings& symbolic_bindings) {
+  return ValidateParametricsInternal(f, symbolic_bindings);
 }
 
 /* static */ absl::StatusOr<ConversionRecord> ConversionRecord::Make(
-    FunctionBase* fb, Instantiation* instantiation, Module* module,
+    Function* f, Instantiation* instantiation, Module* module,
     TypeInfo* type_info, SymbolicBindings symbolic_bindings,
     std::vector<Callee> callees) {
   XLS_RETURN_IF_ERROR(
-      ConversionRecord::ValidateParametrics(fb, symbolic_bindings));
+      ConversionRecord::ValidateParametrics(f, symbolic_bindings));
 
-  return ConversionRecord(fb, instantiation, module, type_info,
+  return ConversionRecord(f, instantiation, module, type_info,
                           std::move(symbolic_bindings), std::move(callees));
 }
 
 std::string ConversionRecord::ToString() const {
   return absl::StrFormat(
       "ConversionRecord{m=%s, fb=%s, symbolic_bindings=%s, callees=%s}",
-      module_->name(), fb_->identifier(), symbolic_bindings_.ToString(),
+      module_->name(), f_->identifier(), symbolic_bindings_.ToString(),
       CalleesToString(callees_));
 }
 
@@ -140,7 +140,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
   // invocations.
   struct CalleeInfo {
     Module* module = nullptr;
-    FunctionBase* callee = nullptr;
+    Function* callee = nullptr;
     TypeInfo* type_info = nullptr;
   };
 
@@ -298,8 +298,9 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     absl::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
     XLS_RET_CHECK(info.has_value());
     Module* module = (*info)->module;
-    return CalleeInfo{module, module->GetFunction(colon_ref->attr()).value(),
-                      (*info)->type_info};
+    XLS_ASSIGN_OR_RETURN(Function * f,
+                         module->GetFunctionOrError(colon_ref->attr()));
+    return CalleeInfo{module, f, (*info)->type_info};
   }
 
   // Helper for invocations of NameRef callees.
@@ -337,8 +338,9 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     }
 
     Function* f = nullptr;
-    absl::optional<Function*> maybe_f = this_m->GetFunction(fn_identifier);
-    if (maybe_f.has_value()) {
+    absl::StatusOr<Function*> maybe_f =
+        this_m->GetFunctionOrError(fn_identifier);
+    if (maybe_f.ok()) {
       f = maybe_f.value();
     } else {
       if (GetParametricBuiltins().contains(name_ref->identifier())) {
@@ -353,12 +355,9 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
 
   absl::StatusOr<absl::optional<CalleeInfo>> HandleNameRefSpawn(
       NameRef* name_ref) {
-    Module* this_m = module_;
-    TypeInfo* callee_type_info = type_info_;
-
-    XLS_ASSIGN_OR_RETURN(Proc * p,
-                         this_m->GetProcOrError(name_ref->identifier()));
-    return CalleeInfo{this_m, p, callee_type_info};
+    // TODO(rspringer): 2021-09-25: This is obviously wrong, but will be fixed
+    // up as part of the new-style proc implementation.
+    return absl::UnimplementedError("Spawns are currently not handled.");
   }
 
   Module* module_;
@@ -393,7 +392,7 @@ static absl::StatusOr<std::vector<Callee>> GetCallees(
   return std::move(visitor.callees());
 }
 
-static bool IsReady(absl::variant<FunctionBase*, TestFunction*> f, Module* m,
+static bool IsReady(absl::variant<Function*, TestFunction*> f, Module* m,
                     const SymbolicBindings& bindings,
                     const std::vector<ConversionRecord>* ready) {
   // Test functions are always the root and non-parametric, so they're always
@@ -403,8 +402,8 @@ static bool IsReady(absl::variant<FunctionBase*, TestFunction*> f, Module* m,
   }
 
   for (const ConversionRecord& cr : *ready) {
-    FunctionBase* func = absl::get<FunctionBase*>(f);
-    if (cr.fb() == func && cr.module() == m &&
+    Function* func = absl::get<Function*>(f);
+    if (cr.f() == func && cr.module() == m &&
         cr.symbolic_bindings() == bindings) {
       return true;
     }
@@ -413,7 +412,7 @@ static bool IsReady(absl::variant<FunctionBase*, TestFunction*> f, Module* m,
 }
 
 // Forward decl.
-static absl::Status AddToReady(absl::variant<FunctionBase*, TestFunction*> f,
+static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
                                Instantiation* instantiation, Module* m,
                                TypeInfo* type_info,
                                const SymbolicBindings& bindings,
@@ -425,7 +424,7 @@ static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
   std::vector<Callee> non_ready;
   {
     for (const Callee& callee : orig_callees) {
-      if (!IsReady(callee.fb(), callee.m(), callee.sym_bindings(), ready)) {
+      if (!IsReady(callee.f(), callee.m(), callee.sym_bindings(), ready)) {
         non_ready.push_back(callee);
       }
     }
@@ -434,7 +433,7 @@ static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
   // For all the remaining callees (that were not ready), add them to the list
   // before us, since we depend upon them.
   for (const Callee& callee : non_ready) {
-    XLS_RETURN_IF_ERROR(AddToReady(callee.fb(), callee.instantiation(),
+    XLS_RETURN_IF_ERROR(AddToReady(callee.f(), callee.instantiation(),
                                    callee.m(), callee.type_info(),
                                    callee.sym_bindings(), ready));
   }
@@ -443,7 +442,7 @@ static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
 }
 
 // Adds (f, bindings) to conversion order after deps have been added.
-static absl::Status AddToReady(absl::variant<FunctionBase*, TestFunction*> f,
+static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
                                Instantiation* instantiation, Module* m,
                                TypeInfo* type_info,
                                const SymbolicBindings& bindings,
@@ -455,16 +454,15 @@ static absl::Status AddToReady(absl::variant<FunctionBase*, TestFunction*> f,
 
   XLS_ASSIGN_OR_RETURN(const std::vector<Callee> orig_callees,
                        GetCallees(ToAstNode(f), m, type_info, bindings));
-  XLS_VLOG(5) << "Original callees of "
-              << absl::get<FunctionBase*>(f)->identifier() << ": "
-              << CalleesToString(orig_callees);
+  XLS_VLOG(5) << "Original callees of " << absl::get<Function*>(f)->identifier()
+              << ": " << CalleesToString(orig_callees);
   XLS_RETURN_IF_ERROR(ProcessCallees(orig_callees, ready));
 
   XLS_RET_CHECK(!IsReady(f, m, bindings, ready));
 
   // We don't convert the bodies of test constructs of IR.
-  if (absl::holds_alternative<FunctionBase*>(f)) {
-    auto* fb = absl::get<FunctionBase*>(f);
+  if (absl::holds_alternative<Function*>(f)) {
+    auto* fb = absl::get<Function*>(f);
     XLS_VLOG(3) << "Adding to ready sequence: " << fb->identifier();
     XLS_ASSIGN_OR_RETURN(ConversionRecord cr,
                          ConversionRecord::Make(fb, instantiation, m, type_info,
@@ -489,16 +487,16 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
       XLS_RETURN_IF_ERROR(AddToReady(function, /*instantiation=*/nullptr,
                                      module, type_info, SymbolicBindings(),
                                      &ready));
-    } else if (absl::holds_alternative<FunctionBase*>(member)) {
-      auto* fb = absl::get<FunctionBase*>(member);
+    } else if (absl::holds_alternative<Function*>(member)) {
+      auto* f = absl::get<Function*>(member);
       // Proc creation is driven by Spawn instantiations - the required constant
       // args are only specified there, so we can't convert Procs as encountered
       // at top level.
-      if (fb->IsParametric() || dynamic_cast<Proc*>(fb) != nullptr) {
+      if (f->IsParametric() || dynamic_cast<Proc*>(f) != nullptr) {
         continue;
       }
 
-      XLS_RETURN_IF_ERROR(AddToReady(fb, /*instantiation=*/nullptr, module,
+      XLS_RETURN_IF_ERROR(AddToReady(f, /*instantiation=*/nullptr, module,
                                      type_info, SymbolicBindings(), &ready));
     } else if (absl::holds_alternative<ConstantDef*>(member)) {
       auto* constant_def = absl::get<ConstantDef*>(member);

@@ -13,25 +13,40 @@
 // limitations under the License.
 
 // Basic example showing how a proc network can be created and connected.
-// TODO(rspringer): 2021-09-10: send/recv expressions are disabled until the IR
-// converter supports them.
 
-proc producer(limit: u32, c: chan out u32)(i: u32) {
-  send(c, i);
-  let new_i = i + u32:1;
-  next(new_i)
+proc producer {
+  config(input_c: chan out u32) {
+    let c = input_c;
+    ()
+  }
+  next(i: u32) {
+    let foo = i + u32:1;
+    send(c, foo);
+    foo
+  }
+
+  c: chan out u32;
 }
 
-proc consumer<N: u32>(a: u32[N], c: chan in u32)(i: u32) {
-  let e = recv(c);
-  // let _ = assert_eq(a[i], e);
-  let new_i = i + u32:1;
-  next(new_i)
+proc consumer<N:u32> {
+  config(input_c: chan in u32) {
+    let c = input_c;
+    ()
+  }
+  next(i: u32) {
+    let e = recv(c);
+    i + e + N
+  }
+  c: chan in u32;
 }
 
-fn main() {
-  let (p, c) = chan u32;
-  spawn producer(u32:10, p)(u32:0);
-  spawn consumer([u32:0, u32:1, u32:2, u32:3, u32:4], c)(u32:0);
-  ()
+proc main {
+  config() {
+    let (p, c) = chan u32;
+    spawn producer(p)(u32:0);
+    spawn consumer<u32:2>(c)(u32:0)
+  }
+  next() {
+    ()
+  }
 }

@@ -26,13 +26,12 @@ namespace xls::dslx {
 // ConversionRecord::callees).
 class Callee {
  public:
-  static absl::StatusOr<Callee> Make(FunctionBase* fb,
-                                     Instantiation* instantiation, Module* m,
-                                     TypeInfo* type_info,
+  static absl::StatusOr<Callee> Make(Function* f, Instantiation* instantiation,
+                                     Module* m, TypeInfo* type_info,
                                      SymbolicBindings sym_bindings);
 
   bool IsFunction() const;
-  FunctionBase* fb() const { return fb_; }
+  Function* f() const { return f_; }
   Instantiation* instantiation() const { return instantiation_; }
   Module* m() const { return m_; }
   TypeInfo* type_info() const { return type_info_; }
@@ -40,10 +39,10 @@ class Callee {
   std::string ToString() const;
 
  private:
-  Callee(FunctionBase* fb, Instantiation* instantiation, Module* m,
+  Callee(Function* f, Instantiation* instantiation, Module* m,
          TypeInfo* type_info, SymbolicBindings sym_bindings);
 
-  FunctionBase* fb_;
+  Function* f_;
   // Proc definitions can't be directly translated into IR: they're always
   // instantiated based on a Spawn. This field holds the details of that Spawn
   // so that we can refer to the values specified therein during IR translation.
@@ -74,7 +73,7 @@ class ConversionRecord {
  public:
   // Note: performs ValidateParametrics() to potentially return an error status.
   static absl::StatusOr<ConversionRecord> Make(
-      FunctionBase* fb, Instantiation* instantiation, Module* module,
+      Function* f, Instantiation* instantiation, Module* module,
       TypeInfo* type_info, SymbolicBindings symbolic_bindings,
       std::vector<Callee> callees);
 
@@ -82,9 +81,9 @@ class ConversionRecord {
   // instantiate f (i.e. if it is parametric). Returns an internal error status
   // if they are not sufficient.
   static absl::Status ValidateParametrics(
-      FunctionBase* fb, const SymbolicBindings& symbolic_bindings);
+      Function* f, const SymbolicBindings& symbolic_bindings);
 
-  FunctionBase* fb() const { return fb_; }
+  Function* f() const { return f_; }
   Instantiation* instantiation() const { return instantiation_; }
   Module* module() const { return module_; }
   TypeInfo* type_info() const { return type_info_; }
@@ -96,18 +95,17 @@ class ConversionRecord {
   std::string ToString() const;
 
  private:
-  ConversionRecord(FunctionBase* fb, Instantiation* instantiation,
-                   Module* module, TypeInfo* type_info,
-                   SymbolicBindings symbolic_bindings,
+  ConversionRecord(Function* f, Instantiation* instantiation, Module* module,
+                   TypeInfo* type_info, SymbolicBindings symbolic_bindings,
                    std::vector<Callee> callees)
-      : fb_(fb),
+      : f_(f),
         instantiation_(instantiation),
         module_(module),
         type_info_(type_info),
         symbolic_bindings_(std::move(symbolic_bindings)),
         callees_(std::move(callees)) {}
 
-  FunctionBase* fb_;
+  Function* f_;
   Instantiation* instantiation_;
   Module* module_;
   TypeInfo* type_info_;

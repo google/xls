@@ -331,15 +331,3 @@ xls_dslx_test(
     name = "hack_cpu_dslx_test",
     dep = ":hack_cpu_dslx_module",
 )
-
-xls_dslx_module_library(
-    name = "proc_iota_dslx_module",
-    src = "proc_iota.x",
-)
-
-xls_dslx_opt_ir(
-    name = "proc_iota",
-    dep = ":proc_iota_dslx_module",
-    ir_file = "proc_iota.ir",
-    opt_ir_file = "proc_iota.opt.ir",
-)

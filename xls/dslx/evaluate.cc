@@ -850,9 +850,8 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
   absl::optional<ModuleMember*> member =
       module->FindMemberWithName(expr->attr());
   XLS_RET_CHECK(member.has_value());
-  if (absl::holds_alternative<FunctionBase*>(*member.value())) {
-    auto* fb = absl::get<FunctionBase*>(*member.value());
-    Function* f = dynamic_cast<Function*>(fb);
+  if (absl::holds_alternative<Function*>(*member.value())) {
+    Function* f = absl::get<Function*>(*member.value());
     if (f == nullptr) {
       return absl::UnimplementedError(
           "Evaluate() does not yet work with procs.");
@@ -1220,8 +1219,7 @@ absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
   }
 
   // Add all the functions in the top level scope for the module.
-  for (FunctionBase* fb : module->GetFunctionBases()) {
-    Function* f = dynamic_cast<Function*>(fb);
+  for (Function* f : module->GetFunctions()) {
     // Don't evaluate procs for now.
     if (f != nullptr) {
       b.AddFn(f->identifier(),

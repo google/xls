@@ -24,8 +24,7 @@
 
 namespace xls::dslx {
 
-using TopNode =
-    absl::variant<FunctionBase*, TestFunction*, StructDef*, TypeDef*>;
+using TopNode = absl::variant<Function*, TestFunction*, StructDef*, TypeDef*>;
 
 // Type-checks function f in the given module.
 absl::Status CheckTopNodeInModule(TopNode f, DeduceCtx* ctx);

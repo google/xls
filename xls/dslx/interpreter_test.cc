@@ -33,8 +33,9 @@ TEST(InterpreterTest, RunIdentityFn) {
   auto* x_ref = module->Make<NameRef>(fake_span, "x", x);
   std::vector<Param*> params = {module->Make<Param>(x, u32)};
   std::vector<ParametricBinding*> parametrics;
-  auto* function = module->Make<Function>(fake_span, id, parametrics, params,
-                                          u32, x_ref, /*is_public=*/false);
+  auto* function =
+      module->Make<Function>(fake_span, id, parametrics, params, u32, x_ref,
+                             Function::Tag::kNormal, /*is_public=*/false);
 
   module->AddTop(function);
 

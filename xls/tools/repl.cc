@@ -411,10 +411,10 @@ absl::Status CommandLlvm() {
 absl::Status CommandType(absl::string_view ident) {
   Globals* globals = GetSingletonGlobals();
   std::vector<std::string> split = absl::StrSplit(ident, absl::ByString("::"));
-  absl::flat_hash_map<std::string, dslx::FunctionBase*> function_map;
+  absl::flat_hash_map<std::string, dslx::Function*> function_map;
   dslx::TypeInfo* type_info;
   if (split.size() == 1) {
-    function_map = globals->module->GetFunctionBaseByName();
+    function_map = globals->module->GetFunctionByName();
     type_info = globals->type_info;
   } else if (split.size() == 2) {
     std::string import_name = split[0];
@@ -432,7 +432,7 @@ absl::Status CommandType(absl::string_view ident) {
       return absl::OkStatus();
     }
     const dslx::ImportedInfo* imported_info = *maybe_imported_info;
-    function_map = imported_info->module->GetFunctionBaseByName();
+    function_map = imported_info->module->GetFunctionByName();
     type_info = imported_info->type_info;
     ident = split[1];
   } else {

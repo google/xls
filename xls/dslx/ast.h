@@ -1277,18 +1277,89 @@ class ParametricBinding : public AstNode {
   Expr* expr_;
 };
 
-class FunctionBase : public AstNode {
- public:
-  FunctionBase(Module* owner, Span span, NameDef* name_def,
-               std::vector<ParametricBinding*> parametric_bindings, Expr* body,
-               bool is_public);
+class Proc;
 
-  // Returns the type "output" from this FunctionBase: either the return type
-  // for a Function, or the iteration type for a Proc.
-  virtual TypeAnnotation* GetOutputType() const = 0;
+class Function : public AstNode {
+ public:
+  // Indicates if a function is normal or is part of a proc instantiation.
+  enum class Tag {
+    kNormal,
+    kProcConfig,
+    kProcNext,
+  };
+
+  Function(Module* owner, Span span, NameDef* name_def,
+           std::vector<ParametricBinding*> parametric_bindings,
+           std::vector<Param*> params, TypeAnnotation* return_type, Expr* body,
+           Tag tag, bool is_public);
+  AstNodeKind kind() const override { return AstNodeKind::kFunction; }
+  absl::optional<Span> GetSpan() const override { return span_; }
+  Span span() const { return span_; }
+  absl::Status Accept(AstNodeVisitor* v) override {
+    return v->HandleFunction(this);
+  }
+  absl::string_view GetNodeTypeName() const override { return "Function"; }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+  std::string ToString() const override;
+  // Returns a string representation of this function with the given identifier
+  // and without parametrics. Used for printing Proc compnent functions, i.e.,
+  // config and next.
+  std::string ToUndecoratedString(absl::string_view identifier) const;
+
+  const std::string& identifier() const { return name_def_->identifier(); }
+  const std::vector<ParametricBinding*>& parametric_bindings() const {
+    return parametric_bindings_;
+  }
+  const std::vector<Param*> params() const { return params_; }
+  Expr* body() const { return body_; }
+
+  bool IsParametric() const { return !parametric_bindings_.empty(); }
+  bool is_public() const { return is_public_; }
+  std::vector<std::string> GetFreeParametricKeys() const;
+  absl::btree_set<std::string> GetFreeParametricKeySet() const {
+    std::vector<std::string> keys = GetFreeParametricKeys();
+    return absl::btree_set<std::string>(keys.begin(), keys.end());
+  }
+  NameDef* name_def() const { return name_def_; }
+  TypeAnnotation* return_type() const { return return_type_; }
+
+  Tag tag() const { return tag_; }
+  absl::optional<Proc*> proc() const { return proc_; }
+  void set_proc(Proc* proc) { proc_ = proc; }
+
+ private:
+  Span span_;
+  NameDef* name_def_;
+  std::vector<ParametricBinding*> parametric_bindings_;
+  std::vector<Param*> params_;
+  TypeAnnotation* return_type_;  // May be null.
+  Expr* body_;
+  Tag tag_;
+  absl::optional<Proc*> proc_;
+
+  bool is_public_;
+};
+
+// Represents a parsed 'process' specification in the DSL.
+class Proc : public AstNode {
+ public:
+  Proc(Module* owner, Span span, NameDef* name_def, NameDef* config_name_def,
+       NameDef* next_name_def,
+       const std::vector<ParametricBinding*>& parametric_bindings,
+       const std::vector<Param*>& members, Function* config, Function* next,
+       bool is_public);
+  AstNodeKind kind() const override { return AstNodeKind::kProc; }
+
+  absl::Status Accept(AstNodeVisitor* v) override {
+    return v->HandleProc(this);
+  }
+  absl::string_view GetNodeTypeName() const override { return "Proc"; }
+  std::string ToString() const override;
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   NameDef* name_def() const { return name_def_; }
-  Expr* body() const { return body_; }
+  NameDef* config_name_def() const { return config_name_def_; }
+  NameDef* next_name_def() const { return next_name_def_; }
   const Span& span() const { return span_; }
   absl::optional<Span> GetSpan() const override { return span_; }
 
@@ -1305,66 +1376,21 @@ class FunctionBase : public AstNode {
     return absl::btree_set<std::string>(keys.begin(), keys.end());
   }
 
+  Function* config() { return config_; }
+  Function* next() const { return next_; }
+  const std::vector<Param*>& members() const { return members_; }
+
  private:
   Span span_;
   NameDef* name_def_;
+  NameDef* config_name_def_;
+  NameDef* next_name_def_;
   std::vector<ParametricBinding*> parametric_bindings_;
 
-  Expr* body_;
+  Function* config_;
+  Function* next_;
+  std::vector<Param*> members_;
   bool is_public_;
-};
-
-// Represents a function definition.
-class Function : public FunctionBase {
- public:
-  Function(Module* owner, Span span, NameDef* name_def,
-           std::vector<ParametricBinding*> parametric_bindings,
-           std::vector<Param*> params, TypeAnnotation* return_type, Expr* body,
-           bool is_public);
-
-  AstNodeKind kind() const override { return AstNodeKind::kFunction; }
-
-  absl::Status Accept(AstNodeVisitor* v) override {
-    return v->HandleFunction(this);
-  }
-  absl::string_view GetNodeTypeName() const override { return "Function"; }
-  std::vector<AstNode*> GetChildren(bool want_types) const override;
-  std::string ToString() const override;
-  TypeAnnotation* GetOutputType() const override { return return_type_; }
-
-  const std::vector<Param*>& params() const { return params_; }
-  TypeAnnotation* return_type() const { return return_type_; }
-
- private:
-  std::vector<Param*> params_;
-  TypeAnnotation* return_type_;  // May be null.
-};
-
-// Represents a parsed 'process' specification in the DSL.
-class Proc : public FunctionBase {
- public:
-  Proc(Module* owner, Span span, NameDef* name_def,
-       std::vector<ParametricBinding*> parametric_bindings,
-       std::vector<Param*> proc_params, std::vector<Param*> iter_params,
-       Expr* body, bool is_public);
-
-  AstNodeKind kind() const override { return AstNodeKind::kProc; }
-
-  absl::Status Accept(AstNodeVisitor* v) override {
-    return v->HandleProc(this);
-  }
-  absl::string_view GetNodeTypeName() const override { return "Proc"; }
-  std::string ToString() const override;
-  std::vector<AstNode*> GetChildren(bool want_types) const override;
-  TypeAnnotation* GetOutputType() const override { return body_type_; }
-
-  const std::vector<Param*>& proc_params() const { return proc_params_; }
-  const std::vector<Param*>& iter_params() const { return iter_params_; }
-
- private:
-  std::vector<Param*> proc_params_;
-  std::vector<Param*> iter_params_;
-  TypeAnnotation* body_type_;
 };
 
 // Represents a single arm in a match expression.
@@ -1492,7 +1518,8 @@ class Instantiation : public Expr {
   std::vector<Expr*> parametrics_;
 };
 
-// Represents an invocation expression; e.g. `f(a, b, c)`
+// Represents an invocation expression; e.g. `f(a, b, c)` or an implicit
+// invocation for the config & next members of a spawned Proc.
 class Invocation : public Instantiation {
  public:
   Invocation(Module* owner, Span span, Expr* callee, std::vector<Expr*> args,
@@ -1523,11 +1550,12 @@ class Invocation : public Instantiation {
 
 // Represents a call to spawn a proc, e.g.,
 //   spawn foo(a, b)(c)
+// TODO(rspringer): 2021-09-25: Post-new-proc-implementation, determine if
+// Spawns need to still be Instantiation subclasses.
 class Spawn : public Instantiation {
  public:
-  Spawn(Module* owner, Span span, Expr* callee, std::vector<Expr*> proc_args,
-        std::vector<Expr*> iter_args, std::vector<Expr*> parametrics,
-        Expr* body);
+  Spawn(Module* owner, Span span, Expr* callee, Invocation* config,
+        Invocation* next, std::vector<Expr*> parametrics, Expr* body);
 
   AstNodeKind kind() const override { return AstNodeKind::kSpawn; }
 
@@ -1540,14 +1568,14 @@ class Spawn : public Instantiation {
   std::vector<AstNode*> GetChildren(bool want_types) const override;
   std::string ToString() const override;
 
-  const std::vector<Expr*> proc_args() { return proc_args_; }
-  const std::vector<Expr*> iter_args() { return iter_args_; }
+  Invocation* config() { return config_; }
+  Invocation* next() { return next_; }
   bool IsParametric() { return !parametrics().empty(); }
   Expr* body() { return body_; }
 
  private:
-  std::vector<Expr*> proc_args_;
-  std::vector<Expr*> iter_args_;
+  Invocation* config_;
+  Invocation* next_;
   Expr* body_;
 };
 
@@ -2461,7 +2489,7 @@ class ChannelDecl : public Expr {
 };
 
 using ModuleMember =
-    absl::variant<FunctionBase*, TestFunction*, QuickCheck*, TypeDef*,
+    absl::variant<Function*, Proc*, TestFunction*, QuickCheck*, TypeDef*,
                   StructDef*, ConstantDef*, EnumDef*, Import*>;
 
 absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
@@ -2497,7 +2525,17 @@ class Module : public AstNode {
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   std::string ToString() const override {
-    return absl::StrJoin(top_, "\n",
+    // Don't print Proc functions, as they'll be printed as part of the procs
+    // themselves.
+    std::vector<ModuleMember> print_top;
+    for (const auto& member : top_) {
+      if (absl::holds_alternative<Function*>(member) &&
+          absl::get<Function*>(member)->proc().has_value()) {
+        continue;
+      }
+      print_top.push_back(member);
+    }
+    return absl::StrJoin(print_top, "\n",
                          [](std::string* out, const ModuleMember& member) {
                            absl::StrAppend(out, ToAstNode(member)->ToString());
                          });
@@ -2520,9 +2558,10 @@ class Module : public AstNode {
 
   // Gets a function in this module with the given "target_name", or returns a
   // NotFoundError.
-  absl::optional<Function*> GetFunction(absl::string_view target_name);
+  // TODO(rspringer): 2021-09-25: Once all "new-style" Proc changes land,
+  // determine if we need all these or not.
   absl::StatusOr<Function*> GetFunctionOrError(absl::string_view target_name);
-  absl::StatusOr<Proc*> GetProcOrError(absl::string_view target_name);
+  absl::StatusOr<Proc*> GetProcOrError(absl::string_view target_name) const;
 
   // Gets a test construct in this module with the given "target_name", or
   // returns a NotFoundError.
@@ -2557,9 +2596,11 @@ class Module : public AstNode {
   absl::flat_hash_map<std::string, Import*> GetImportByName() const {
     return GetTopWithTByName<Import>();
   }
-  absl::flat_hash_map<std::string, FunctionBase*> GetFunctionBaseByName()
-      const {
-    return GetTopWithTByName<FunctionBase>();
+  absl::flat_hash_map<std::string, Function*> GetFunctionByName() const {
+    return GetTopWithTByName<Function>();
+  }
+  absl::flat_hash_map<std::string, Proc*> GetProcByName() const {
+    return GetTopWithTByName<Proc>();
   }
   std::vector<TypeDef*> GetTypeDefs() const { return GetTopWithT<TypeDef>(); }
   std::vector<QuickCheck*> GetQuickChecks() const {
@@ -2568,8 +2609,8 @@ class Module : public AstNode {
   std::vector<StructDef*> GetStructDefs() const {
     return GetTopWithT<StructDef>();
   }
-  std::vector<FunctionBase*> GetFunctionBases() const {
-    return GetTopWithT<FunctionBase>();
+  std::vector<Function*> GetFunctions() const {
+    return GetTopWithT<Function>();
   }
   std::vector<TestFunction*> GetTests() const {
     return GetTopWithT<TestFunction>();

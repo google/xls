@@ -39,7 +39,7 @@ class Parser : public TokenParser {
       bool is_public, Bindings* bindings,
       absl::flat_hash_map<std::string, Function*>* name_to_fn = nullptr);
 
-  absl::StatusOr<Proc*> ParseProc(bool is_public, Bindings* outer_bindings);
+  absl::StatusOr<Proc*> ParseProc(bool is_public, Bindings* bindings);
 
   absl::StatusOr<std::unique_ptr<Module>> ParseModule(
       Bindings* bindings = nullptr);
@@ -498,6 +498,14 @@ class Parser : public TokenParser {
   absl::StatusOr<Expr*> BuildMacroOrInvocation(
       Span span, Expr* callee, std::vector<Expr*> args,
       std::vector<Expr*> parametrics = std::vector<Expr*>({}));
+
+  // Traverses a Proc declaration to collect all the member data elements
+  // present therein - in other words, it collects everything but the "config"
+  // and "next" elements.
+  absl::StatusOr<std::vector<Param*>> CollectProcMembers(Bindings* bindings);
+
+  // Consume tokens until a non-nested closing brace is locaated.
+  absl::Status EatBlock();
 
   // Stack of loops being parsed -- this is primarily kept so that 'carry' nodes
   // can keep a back-reference to which while node they're retrieving carry data

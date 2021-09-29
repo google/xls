@@ -190,8 +190,8 @@ class TypeInfo {
 
   // Returns whether function "f" requires an implicit token parameter; i.e. it
   // contains a `fail!()` or `cover!()` as determined during type inferencing.
-  absl::optional<bool> GetRequiresImplicitToken(FunctionBase* fb) const;
-  void NoteRequiresImplicitToken(FunctionBase* fb, bool is_required);
+  absl::optional<bool> GetRequiresImplicitToken(Function* f) const;
+  void NoteRequiresImplicitToken(Function* f, bool is_required);
 
   // Attempts to retrieve the callee's parametric values in an "instantiation".
   // That is, in the case of:
@@ -277,7 +277,7 @@ class TypeInfo {
   absl::flat_hash_map<Instantiation*, InstantiationData> instantiations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
   absl::flat_hash_map<Expr*, InterpValue> const_exprs_;
-  absl::flat_hash_map<FunctionBase*, bool> requires_implicit_token_;
+  absl::flat_hash_map<Function*, bool> requires_implicit_token_;
   TypeInfo* parent_;  // Note: may be nullptr.
 };
 

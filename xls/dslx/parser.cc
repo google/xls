@@ -15,6 +15,7 @@
 #include "xls/dslx/parser.h"
 
 #include "absl/cleanup/cleanup.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
 #include "xls/common/status/ret_check.h"
@@ -1064,9 +1065,9 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
       Token end_brace,
       PopTokenOrError(TokenKind::kCBrace, nullptr,
                       "Expected '}' at end of function body."));
-  return module_->Make<Function>(Span(start_pos, end_brace.span().limit()),
-                                 name_def, parametric_bindings, params,
-                                 return_type, body, is_public);
+  return module_->Make<Function>(
+      Span(start_pos, end_brace.span().limit()), name_def, parametric_bindings,
+      params, return_type, body, Function::Tag::kNormal, is_public);
 }
 
 absl::StatusOr<QuickCheck*> Parser::ParseQuickCheck(
@@ -1437,14 +1438,16 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings* bindings) {
 
   auto parse_args = [this, bindings] { return ParseExpression(bindings); };
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
-  XLS_ASSIGN_OR_RETURN(std::vector<Expr*> proc_args,
+  Pos config_start = GetPos();
+  XLS_ASSIGN_OR_RETURN(std::vector<Expr*> config_args,
                        ParseCommaSeq<Expr*>(parse_args, TokenKind::kCParen));
+  Pos config_limit = GetPos();
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
-  XLS_ASSIGN_OR_RETURN(std::vector<Expr*> iter_args,
+  Pos next_start = GetPos();
+  XLS_ASSIGN_OR_RETURN(std::vector<Expr*> next_args,
                        ParseCommaSeq<Expr*>(parse_args, TokenKind::kCParen));
-
-  Pos end = GetPos();
+  Pos next_limit = GetPos();
 
   // Spawn can be the last item in a proc.
   Expr* body = nullptr;
@@ -1454,8 +1457,34 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings* bindings) {
     XLS_ASSIGN_OR_RETURN(body, ParseExpression(bindings));
   }
 
-  return module_->Make<Spawn>(Span(spawn.span().start(), end), spawnee,
-                              proc_args, iter_args, parametrics, body);
+  std::string config_name = absl::StrCat(spawnee->identifier(), "_config");
+  XLS_ASSIGN_OR_RETURN(
+      AnyNameDef config_def,
+      bindings->ResolveNameOrError(config_name, spawnee->span()));
+  if (!absl::holds_alternative<NameDef*>(config_def)) {
+    return absl::InternalError("Proc config should be named \"_config\"");
+  }
+
+  auto* name_ref = module_->Make<NameRef>(Span(config_start, config_limit),
+                                          config_name, config_def);
+  auto* config_invoc = module_->Make<Invocation>(
+      Span(config_start, config_limit), name_ref, config_args, parametrics);
+
+  // TODO(rspringer): 2021-09-27: How to avoid name collisions?
+  std::string next_name = absl::StrCat(spawnee->identifier(), "_next");
+  XLS_ASSIGN_OR_RETURN(AnyNameDef next_def, bindings->ResolveNameOrError(
+                                                next_name, spawnee->span()));
+  if (!absl::holds_alternative<NameDef*>(next_def)) {
+    return absl::InternalError("Proc next should be named \"_next\"");
+  }
+
+  name_ref =
+      module_->Make<NameRef>(Span(next_start, next_limit), next_name, next_def);
+  auto* next_invoc = module_->Make<Invocation>(
+      Span(next_start, next_limit), name_ref, next_args, parametrics);
+
+  return module_->Make<Spawn>(Span(spawn.span().start(), next_limit), spawnee,
+                              config_invoc, next_invoc, parametrics, body);
 }
 
 absl::StatusOr<Index*> Parser::ParseBitSlice(const Pos& start_pos, Expr* lhs,
@@ -1516,13 +1545,59 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(bool is_public,
   return result;
 }
 
+absl::Status Parser::EatBlock() {
+  XLS_ASSIGN_OR_RETURN(Token token, PopToken());
+  while (token.kind() != TokenKind::kOBrace) {
+    XLS_ASSIGN_OR_RETURN(token, PopToken());
+  }
+
+  int close_count = 1;
+  while (close_count > 0) {
+    XLS_ASSIGN_OR_RETURN(Token token, PopToken());
+    if (token.kind() == TokenKind::kOBrace) {
+      close_count++;
+    } else if (token.kind() == TokenKind::kCBrace) {
+      close_count--;
+    }
+  }
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::vector<Param*>> Parser::CollectProcMembers(
+    Bindings* bindings) {
+  std::vector<Param*> members;
+  Transaction txn(this, bindings);
+  auto cleanup = absl::MakeCleanup([&txn] { txn.Rollback(); });
+
+  XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+  while (peek->kind() != TokenKind::kCBrace) {
+    if (peek->IsKeyword(Keyword::kConfig) || peek->IsKeyword(Keyword::kNext)) {
+      XLS_RETURN_IF_ERROR(EatBlock());
+    } else {
+      XLS_ASSIGN_OR_RETURN(Param * param, ParseParam(bindings));
+      members.push_back(param);
+      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
+    }
+    XLS_ASSIGN_OR_RETURN(peek, PeekToken());
+  }
+
+  for (const auto* member : members) {
+    bindings->Add(member->identifier(), member->name_def());
+  }
+
+  return members;
+}
+
 absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
                                         Bindings* outer_bindings) {
-  XLS_ASSIGN_OR_RETURN(Token proc, PopKeywordOrError(Keyword::kProc));
-
+  XLS_ASSIGN_OR_RETURN(Token proc_token, PopKeywordOrError(Keyword::kProc));
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(outer_bindings));
   Bindings bindings(outer_bindings);
   bindings.Add(name_def->identifier(), name_def);
+
+  NameDef* config_name_def;
+  NameDef* next_name_def;
 
   XLS_ASSIGN_OR_RETURN(bool dropped_oangle, TryDropToken(TokenKind::kOAngle));
   std::vector<ParametricBinding*> parametric_bindings;
@@ -1530,22 +1605,99 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
     XLS_ASSIGN_OR_RETURN(parametric_bindings,
                          ParseParametricBindings(&bindings));
   }
-  XLS_ASSIGN_OR_RETURN(std::vector<Param*> proc_params, ParseParams(&bindings));
-  XLS_ASSIGN_OR_RETURN(std::vector<Param*> iter_params, ParseParams(&bindings));
-  for (const auto& param : iter_params) {
-    if (dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation()) !=
-        nullptr) {
-      return ParseErrorStatus(
-          name_def->span(),
-          absl::StrFormat("Channels cannot be Proc iter params."));
-    }
-  }
+
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-  XLS_ASSIGN_OR_RETURN(Expr * body, ParseExpression(&bindings));
+  std::vector<Param*> params;
+  std::vector<Param*> config_params;
+  std::vector<Param*> next_params;
+  Function* config = nullptr;
+  Function* next = nullptr;
+  auto parse_param = [this, &bindings]() -> absl::StatusOr<Param*> {
+    return ParseParam(&bindings);
+  };
+
+  XLS_ASSIGN_OR_RETURN(std::vector<Param*> proc_members,
+                       CollectProcMembers(&bindings));
+
+  XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+  while (peek->kind() != TokenKind::kCBrace) {
+    if (peek->IsKeyword(Keyword::kConfig)) {
+      if (config != nullptr) {
+        return ParseErrorStatus(
+            peek->span(), "Encountered \"config\" more than once in a proc.");
+      }
+
+      XLS_RETURN_IF_ERROR(DropToken());
+      XLS_ASSIGN_OR_RETURN(Token oparen, PopTokenOrError(TokenKind::kOParen));
+      XLS_ASSIGN_OR_RETURN(config_params, ParseCommaSeq<Param*>(
+                                              parse_param, TokenKind::kCParen));
+      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
+      XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(&bindings));
+      XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
+
+      Span span(oparen.span().start(), cbrace.span().limit());
+      config_name_def = module_->Make<NameDef>(
+          span, absl::StrCat(name_def->identifier(), "_config"), nullptr);
+      outer_bindings->Add(config_name_def->identifier(), config_name_def);
+      auto return_type = module_->Make<TupleTypeAnnotation>(
+          span, std::vector<TypeAnnotation*>{});
+      // TODO(rspringer): 2021-09-27: Enable public procs.
+      config = module_->Make<Function>(
+          span, config_name_def, parametric_bindings, config_params,
+          return_type, expr, Function::Tag::kProcConfig, /*is_public=*/false);
+      module_->AddTop(config);
+      config_name_def->set_definer(config);
+    } else if (peek->IsKeyword(Keyword::kNext)) {
+      if (next != nullptr) {
+        return ParseErrorStatus(
+            peek->span(), "Encountered \"next\" more than once in a proc.");
+      }
+      XLS_RETURN_IF_ERROR(DropToken());
+      XLS_ASSIGN_OR_RETURN(Token oparen, PopTokenOrError(TokenKind::kOParen));
+      XLS_ASSIGN_OR_RETURN(
+          next_params, ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
+      std::vector<TypeAnnotation*> return_elements;
+      for (const auto& param : next_params) {
+        if (dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation()) !=
+            nullptr) {
+          return absl::InvalidArgumentError(
+              "Channels cannot be Proc next params.");
+        }
+        return_elements.push_back(param->type_annotation());
+      }
+      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
+      XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(&bindings));
+      XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
+      Span span(oparen.span().start(), cbrace.span().limit());
+      auto* return_type =
+          module_->Make<TupleTypeAnnotation>(span, return_elements);
+      next_name_def = module_->Make<NameDef>(
+          span, absl::StrCat(name_def->identifier(), "_next"), nullptr);
+      outer_bindings->Add(next_name_def->identifier(), next_name_def);
+      next = module_->Make<Function>(
+          Span(oparen.span().start(), cbrace.span().limit()), next_name_def,
+          parametric_bindings, next_params, return_type, expr,
+          Function::Tag::kProcNext,
+          /*is_public=*/false);
+      module_->AddTop(next);
+      next_name_def->set_definer(next);
+    } else {
+      XLS_RETURN_IF_ERROR(DropToken());
+      // We've already collected our members. :)
+    }
+
+    XLS_ASSIGN_OR_RETURN(peek, PeekToken());
+  }
+
   XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
-  Span span(proc.span().start(), cbrace.span().limit());
-  return module_->Make<Proc>(span, name_def, parametric_bindings, proc_params,
-                             iter_params, body, is_public);
+  Span span(proc_token.span().start(), cbrace.span().limit());
+  auto proc = module_->Make<Proc>(span, name_def, config_name_def,
+                                  next_name_def, parametric_bindings,
+                                  proc_members, config, next, is_public);
+  name_def->set_definer(proc);
+  config->set_proc(proc);
+  next->set_proc(proc);
+  return proc;
 }
 
 absl::StatusOr<While*> Parser::ParseWhile(Bindings* bindings) {

@@ -19,6 +19,7 @@
 #define XLS_DSLX_KEYWORDS(X)   \
   X(kAs, AS, "as")             \
   X(kCarry, CARRY, "carry")    \
+  X(kConfig, CONFIG, "config") \
   X(kConst, CONST, "const")    \
   X(kElse, ELSE, "else")       \
   X(kEnum, ENUM, "enum")       \

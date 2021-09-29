@@ -1378,7 +1378,8 @@ absl::StatusOr<Function*> AstGenerator::GenerateFunction(
       fake_span_, name_def,
       /*parametric_bindings=*/parametric_bindings,
       /*params=*/params,
-      /*return_type=*/retval.type, /*body=*/retval.expr, /*is_public=*/false);
+      /*return_type=*/retval.type, /*body=*/retval.expr, Function::Tag::kNormal,
+      /*is_public=*/false);
   name_def->set_definer(f);
   return f;
 }

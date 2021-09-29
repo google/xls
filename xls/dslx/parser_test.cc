@@ -182,8 +182,14 @@ TEST_F(ParserTest, ParseIdentityFunction) {
 }
 
 TEST_F(ParserTest, ParseSimpleProc) {
-  const char* text = R"(proc simple(x: u32)(addend: u32) {
-  next((x) + (addend))
+  const char* text = R"(proc simple {
+  config() {
+    ()
+  }
+  next(addend: u32) {
+    (x) + (addend)
+  }
+  x: u32;
 })";
 
   Scanner s{"test.x", std::string{text}};
@@ -197,20 +203,38 @@ TEST_F(ParserTest, ParseSimpleProc) {
 
 // Parses the "iota" example.
 TEST_F(ParserTest, ParseProcNetwork) {
-  const char* text = R"(proc producer(limit: u32, c: chan out u32)(i: u32) {
-  send(c, i);
-  let new_i = (i) + (1);
-  next(new_i)
+  const char* text = R"(proc producer {
+  config(limit: u32, c: chan out u32) {
+    let c_ = c;
+    let limit_ = limit;
+    ()
+  }
+  next(i: u32) {
+    (i) + (1)
+  }
+  c_: chan out u32;
+  limit_: u32;
 }
-proc consumer<N: u32>(a: u32[N], c: chan in u32)(i: u32) {
-  let e = recv(c);
-  let new_i = (i) + (1);
-  next(new_i)
+proc consumer<N: u32> {
+  config(c: chan in u32) {
+    let c_ = c;
+    ()
+  }
+  next(i: u32) {
+    let e = recv(c_);
+    (i) + (1)
+  }
+  c_: chan in u32;
 }
-fn main() {
-  let (p, c) = chan u32;
-  spawn producer(u32:10, p)(0);
-  spawn consumer(range(10), c)(0)
+proc main {
+  config() {
+    let (p, c) = chan u32;
+    spawn producer(u32:10, p)(0);
+    spawn consumer(range(10), c)(0)
+  }
+  next() {
+    ()
+  }
 })";
 
   Scanner s{"test.x", std::string{text}};
@@ -221,10 +245,16 @@ fn main() {
 }
 
 TEST_F(ParserTest, ChannelsNotAsIterArgs) {
-  const char* text = R"(proc producer(limit: u32)(c: chan out u32, i: u32) {
-  send(c, i);
-  let new_i = (i) + (1);
-  next(new_i)
+  const char* text = R"(proc producer {
+  config(c: chan out u32) {
+    let c_ = (c);
+    ()
+  }
+  next(c: chan out u32, i: u32) {
+    send((c), (i));
+    (i) + (i)
+  }
+  c_: chan out u32;
 })";
 
   Scanner s{"test.x", std::string{text}};
@@ -233,7 +263,7 @@ TEST_F(ParserTest, ChannelsNotAsIterArgs) {
   auto status_or_module = parser.ParseModule();
   EXPECT_THAT(status_or_module,
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Channels cannot be Proc iter params.")));
+                       HasSubstr("Channels cannot be Proc next params.")));
 }
 
 TEST_F(ParserTest, ParseStructSplat) {

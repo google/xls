@@ -505,40 +505,32 @@ Param::Param(Module* owner, NameDef* name_def, TypeAnnotation* type_annotation)
 
 // -- class Module
 
-absl::optional<Function*> Module::GetFunction(absl::string_view target_name) {
+absl::StatusOr<Function*> Module::GetFunctionOrError(
+    absl::string_view target_name) {
   for (ModuleMember& member : top_) {
-    if (absl::holds_alternative<FunctionBase*>(member)) {
-      FunctionBase* fb = absl::get<FunctionBase*>(member);
-      Function* f = dynamic_cast<Function*>(fb);
-      if (f != nullptr && f->identifier() == target_name) {
+    if (absl::holds_alternative<Function*>(member)) {
+      Function* f = absl::get<Function*>(member);
+      if (f->identifier() == target_name) {
         return f;
       }
     }
   }
-  return absl::nullopt;
-}
-
-absl::StatusOr<Function*> Module::GetFunctionOrError(
-    absl::string_view target_name) {
-  if (absl::optional<Function*> f = GetFunction(target_name)) {
-    return f.value();
-  }
   return absl::NotFoundError(absl::StrFormat(
-      "No function in module %s with name \"%s\"", name_, target_name));
+      "No Function in module %s with name \"%s\"", name_, target_name));
 }
 
-absl::StatusOr<Proc*> Module::GetProcOrError(absl::string_view target_name) {
-  for (ModuleMember& member : top_) {
-    if (absl::holds_alternative<FunctionBase*>(member)) {
-      FunctionBase* fb = absl::get<FunctionBase*>(member);
-      Proc* p = dynamic_cast<Proc*>(fb);
-      if (p != nullptr && p->identifier() == target_name) {
+absl::StatusOr<Proc*> Module::GetProcOrError(
+    absl::string_view target_name) const {
+  for (const ModuleMember& member : top_) {
+    if (absl::holds_alternative<Proc*>(member)) {
+      Proc* p = absl::get<Proc*>(member);
+      if (p->identifier() == target_name) {
         return p;
       }
     }
   }
   return absl::NotFoundError(absl::StrFormat(
-      "No proc in module %s with name \"%s\"", name_, target_name));
+      "No Proc in module %s with name \"%s\"", name_, target_name));
 }
 
 absl::StatusOr<TestFunction*> Module::GetTest(absl::string_view target_name) {
@@ -568,12 +560,8 @@ std::vector<std::string> Module::GetTestNames() const {
 std::vector<std::string> Module::GetFunctionNames() const {
   std::vector<std::string> result;
   for (auto& member : top_) {
-    if (absl::holds_alternative<FunctionBase*>(member)) {
-      FunctionBase* fb = absl::get<FunctionBase*>(member);
-      Function* f = dynamic_cast<Function*>(fb);
-      if (f != nullptr) {
-        result.push_back(f->identifier());
-      }
+    if (absl::holds_alternative<Function*>(member)) {
+      result.push_back(absl::get<Function*>(member)->identifier());
     }
   }
   return result;
@@ -586,8 +574,12 @@ const StructDef* Module::FindStructDef(const Span& span) const {
 absl::optional<ModuleMember*> Module::FindMemberWithName(
     absl::string_view target) {
   for (ModuleMember& member : top_) {
-    if (absl::holds_alternative<FunctionBase*>(member)) {
-      if (absl::get<FunctionBase*>(member)->identifier() == target) {
+    if (absl::holds_alternative<Function*>(member)) {
+      if (absl::get<Function*>(member)->identifier() == target) {
+        return &member;
+      }
+    } else if (absl::holds_alternative<Proc*>(member)) {
+      if (absl::get<Proc*>(member)->identifier() == target) {
         return &member;
       }
     } else if (absl::holds_alternative<TestFunction*>(member)) {
@@ -948,22 +940,15 @@ std::string Invocation::FormatArgs() const {
 }
 
 // -- class Spawn
-Spawn::Spawn(Module* owner, Span span, Expr* callee,
-             std::vector<Expr*> proc_args, std::vector<Expr*> iter_args,
-             std::vector<Expr*> parametrics, Expr* body)
+Spawn::Spawn(Module* owner, Span span, Expr* callee, Invocation* config,
+             Invocation* next, std::vector<Expr*> parametrics, Expr* body)
     : Instantiation(owner, std::move(span), callee, parametrics),
-      proc_args_(proc_args),
-      iter_args_(iter_args),
+      config_(config),
+      next_(next),
       body_(body) {}
 
 std::vector<AstNode*> Spawn::GetChildren(bool want_types) const {
-  std::vector<AstNode*> results = {callee()};
-  for (Expr* arg : proc_args_) {
-    results.push_back(arg);
-  }
-  for (Expr* arg : iter_args_) {
-    results.push_back(arg);
-  }
+  std::vector<AstNode*> results = {config_, next_};
   if (body_ != nullptr) {
     results.push_back(body_);
   }
@@ -976,12 +961,12 @@ std::string Spawn::ToString() const {
     param_str = FormatParametrics();
   }
 
-  std::string proc_args = absl::StrJoin(
-      proc_args_, ", ",
+  std::string config_args = absl::StrJoin(
+      config_->args(), ", ",
       [](std::string* out, Expr* e) { absl::StrAppend(out, e->ToString()); });
 
-  std::string iter_args = absl::StrJoin(
-      iter_args_, ", ",
+  std::string next_args = absl::StrJoin(
+      next_->args(), ", ",
       [](std::string* out, Expr* e) { absl::StrAppend(out, e->ToString()); });
 
   std::string body_str;
@@ -989,7 +974,7 @@ std::string Spawn::ToString() const {
     body_str = absl::StrCat(";\n", body_->ToString());
   }
   return absl::StrFormat("spawn %s%s(%s)(%s)%s", callee()->ToString(),
-                         param_str, proc_args, iter_args, body_str);
+                         param_str, config_args, next_args, body_str);
 }
 
 // -- class FormatMacro
@@ -1197,33 +1182,19 @@ std::vector<AstNode*> For::GetChildren(bool want_types) const {
   return results;
 }
 
-FunctionBase::FunctionBase(Module* owner, Span span, NameDef* name_def,
-                           std::vector<ParametricBinding*> parametric_bindings,
-                           Expr* body, bool is_public)
+Function::Function(Module* owner, Span span, NameDef* name_def,
+                   std::vector<ParametricBinding*> parametric_bindings,
+                   std::vector<Param*> params, TypeAnnotation* return_type,
+                   Expr* body, Tag tag, bool is_public)
     : AstNode(owner),
       span_(span),
       name_def_(name_def),
       parametric_bindings_(parametric_bindings),
-      body_(XLS_DIE_IF_NULL(body)),
+      params_(params),
+      return_type_(return_type),
+      body_(body),
+      tag_(tag),
       is_public_(is_public) {}
-
-std::vector<std::string> FunctionBase::GetFreeParametricKeys() const {
-  std::vector<std::string> results;
-  for (ParametricBinding* b : parametric_bindings_) {
-    if (b->expr() == nullptr) {
-      results.push_back(b->name_def()->identifier());
-    }
-  }
-  return results;
-}
-
-Function::Function(Module* owner, Span span, NameDef* name_def,
-                   std::vector<ParametricBinding*> parametric_bindings,
-                   std::vector<Param*> params, TypeAnnotation* return_type,
-                   Expr* body, bool is_public)
-    : FunctionBase(owner, span, name_def, parametric_bindings, body, is_public),
-      params_(std::move(params)),
-      return_type_(return_type) {}
 
 std::vector<AstNode*> Function::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
@@ -1250,7 +1221,7 @@ std::string Function::ToString() const {
             }));
   }
   std::string params_str =
-      absl::StrJoin(params_, ", ", [](std::string* out, Param* param) {
+      absl::StrJoin(params(), ", ", [](std::string* out, Param* param) {
         absl::StrAppend(out, param->ToString());
       });
   std::string return_type_str = " ";
@@ -1258,43 +1229,56 @@ std::string Function::ToString() const {
     return_type_str = " -> " + return_type_->ToString() + " ";
   }
   std::string pub_str = is_public() ? "pub " : "";
-  std::string name_str = name_def()->ToString();
   std::string body_str = Indent(body()->ToString());
-  return absl::StrFormat("%sfn %s%s(%s)%s{\n%s\n}", pub_str, name_str,
-                         parametric_str, params_str, return_type_str, body_str);
+  return absl::StrFormat("%sfn %s%s(%s)%s{\n%s\n}", pub_str,
+                         name_def_->ToString(), parametric_str, params_str,
+                         return_type_str, body_str);
+}
+
+std::string Function::ToUndecoratedString(absl::string_view identifier) const {
+  std::string params_str =
+      absl::StrJoin(params(), ", ", [](std::string* out, Param* param) {
+        absl::StrAppend(out, param->ToString());
+      });
+  std::string body_str = Indent(body()->ToString());
+  return absl::StrFormat("%s(%s) {\n%s\n}", identifier, params_str, body_str);
+}
+
+std::vector<std::string> Function::GetFreeParametricKeys() const {
+  std::vector<std::string> results;
+  for (ParametricBinding* b : parametric_bindings_) {
+    if (b->expr() == nullptr) {
+      results.push_back(b->name_def()->identifier());
+    }
+  }
+  return results;
 }
 
 // -- class Proc
 
 Proc::Proc(Module* owner, Span span, NameDef* name_def,
-           std::vector<ParametricBinding*> parametric_bindings,
-           std::vector<Param*> proc_params, std::vector<Param*> iter_params,
-           Expr* body, bool is_public)
-    : FunctionBase(owner, span, name_def, parametric_bindings, body, is_public),
-      proc_params_(std::move(proc_params)),
-      iter_params_(std::move(iter_params)) {
-  // A Proc's body takes in and outputs the same type - the type of its inputs,
-  // possibly tuple-wrapped if necessary.
-  if (iter_params_.size() == 1) {
-    body_type_ = iter_params_[0]->type_annotation();
-  } else {
-    std::vector<TypeAnnotation*> element_types;
-    for (const auto& iter_param : iter_params_) {
-      element_types.push_back(iter_param->type_annotation());
-    }
-    body_type_ = owner->Make<TupleTypeAnnotation>(span, element_types);
-  }
-}
+           NameDef* config_name_def, NameDef* next_name_def,
+           const std::vector<ParametricBinding*>& parametric_bindings,
+           const std::vector<Param*>& members, Function* config, Function* next,
+           bool is_public)
+    : AstNode(owner),
+      span_(span),
+      name_def_(name_def),
+      config_name_def_(config_name_def),
+      next_name_def_(next_name_def),
+      parametric_bindings_(parametric_bindings),
+      config_(config),
+      next_(next),
+      members_(members),
+      is_public_(is_public) {}
 
 std::vector<AstNode*> Proc::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {name_def()};
-  for (Param* p : proc_params_) {
+  for (Param* p : members_) {
     results.push_back(p);
   }
-  for (Param* p : iter_params_) {
-    results.push_back(p);
-  }
-  results.push_back(body());
+  results.push_back(config_);
+  results.push_back(next_);
   return results;
 }
 
@@ -1311,14 +1295,35 @@ std::string Proc::ToString() const {
             }));
   }
   auto param_append = [](std::string* out, const Param* param) {
-    absl::StrAppend(out, param->ToString());
+    out->append(absl::StrCat(param->ToString(), ";"));
   };
-  std::string proc_params_str = absl::StrJoin(proc_params_, ", ", param_append);
-  std::string iter_params_str = absl::StrJoin(iter_params_, ", ", param_append);
-  return absl::StrFormat("%sproc %s%s(%s)(%s) {\n%s\n}", pub_str,
-                         name_def()->identifier(), parametric_str,
-                         proc_params_str, iter_params_str,
-                         Indent(body()->ToString()));
+  std::string config_params_str =
+      absl::StrJoin(config_->params(), ", ", param_append);
+  std::string state_params_str =
+      absl::StrJoin(next_->params(), ", ", param_append);
+  std::string members_str = absl::StrJoin(members_, "\n", param_append);
+  if (!members_str.empty()) {
+    members_str.append("\n");
+  }
+  constexpr absl::string_view kTemplate = R"(%sproc %s%s {
+%s
+%s
+%s})";
+  return absl::StrFormat(
+      kTemplate, pub_str, name_def()->identifier(), parametric_str,
+      Indent(config_->ToUndecoratedString("config")),
+      Indent(next_->ToUndecoratedString("next")), Indent(members_str));
+}
+
+std::vector<std::string> Proc::GetFreeParametricKeys() const {
+  // TODO(rspringer): 2021-09-29: Mutants found holes in test coverage here.
+  std::vector<std::string> results;
+  for (ParametricBinding* b : parametric_bindings_) {
+    if (b->expr() == nullptr) {
+      results.push_back(b->name_def()->identifier());
+    }
+  }
+  return results;
 }
 
 // -- class MatchArm

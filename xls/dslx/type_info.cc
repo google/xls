@@ -131,11 +131,11 @@ bool TypeInfo::HasInstantiation(Instantiation* instantiation,
   return GetInstantiationTypeInfo(instantiation, caller).has_value();
 }
 
-absl::optional<bool> TypeInfo::GetRequiresImplicitToken(FunctionBase* f) const {
+absl::optional<bool> TypeInfo::GetRequiresImplicitToken(Function* f) const {
   XLS_CHECK_EQ(f->owner(), module_) << "function owner: " << f->owner()->name()
                                     << " module: " << module_->name();
   const TypeInfo* root = GetRoot();
-  const absl::flat_hash_map<FunctionBase*, bool>& map =
+  const absl::flat_hash_map<Function*, bool>& map =
       root->requires_implicit_token_;
   auto it = map.find(f);
   if (it == map.end()) {
@@ -148,7 +148,7 @@ absl::optional<bool> TypeInfo::GetRequiresImplicitToken(FunctionBase* f) const {
   return result;
 }
 
-void TypeInfo::NoteRequiresImplicitToken(FunctionBase* f, bool is_required) {
+void TypeInfo::NoteRequiresImplicitToken(Function* f, bool is_required) {
   TypeInfo* root = GetRoot();
   XLS_VLOG(6) << absl::StreamFormat(
       "NoteRequiresImplicitToken %p: %s::%s => %s", root, f->owner()->name(),
