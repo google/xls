@@ -194,6 +194,22 @@ cc_test(
     ],
 )
 
+filegroup(
+    name = "synth_only_headers",
+    srcs = [
+        "synth_only/assert.h",
+        "synth_only/iostream",
+        "synth_only/limits",
+        "synth_only/math.h",
+        "synth_only/ostream",
+        "synth_only/stdarg.h",
+        "synth_only/stddef.h",
+        "synth_only/string",
+        "synth_only/type_traits",
+        "synth_only/xls_int.h",
+    ],
+)
+
 cc_binary(
     name = "xlscc",
     srcs = ["main.cc"],

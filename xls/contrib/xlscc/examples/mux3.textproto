@@ -1,0 +1,29 @@
+# proto-file: xls/contrib/xlscc/hls_block.proto
+# proto-message: xlscc.HLSBlock
+
+channels {
+  name: "csrs"
+  is_input: true
+  type: DIRECT_IN
+}
+channels {
+  name: "mux_in0"
+  is_input: true
+  type: FIFO
+}
+channels {
+  name: "mux_in1"
+  is_input: true
+  type: FIFO
+}
+channels {
+  name: "mux_in2"
+  is_input: true
+  type: FIFO
+}
+channels {
+  name: "mux_out"
+  is_input: false
+  type: FIFO
+}
+name: "Mux3"

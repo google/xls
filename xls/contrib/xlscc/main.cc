@@ -66,6 +66,12 @@ ABSL_FLAG(std::string, package, "", "Package name to generate");
 ABSL_FLAG(std::string, clang_args_file, "",
           "File containing on each line one command line argument for clang");
 
+ABSL_FLAG(std::vector<std::string>, defines, std::vector<std::string>(),
+          "Comma separated list of defines to pass to clang");
+
+ABSL_FLAG(std::vector<std::string>, include_dirs, std::vector<std::string>(),
+          "Comma separated list of include directories to pass to clang");
+
 ABSL_FLAG(std::string, meta_out, "",
           "Path at which to output metadata protobuf");
 
@@ -104,6 +110,14 @@ absl::Status Run(absl::string_view cpp_path) {
          absl::StrSplit(clang_args_content, '\n', absl::SkipWhitespace())) {
       clang_argvs.push_back(std::string(absl::StripAsciiWhitespace(arg)));
     }
+  }
+
+  for (std::string& def : absl::GetFlag(FLAGS_defines)) {
+    clang_argvs.push_back(absl::StrCat("-D", def));
+  }
+
+  for (std::string& dir : absl::GetFlag(FLAGS_include_dirs)) {
+    clang_argvs.push_back(absl::StrCat("-I", dir));
   }
 
   std::vector<absl::string_view> clang_argv;
