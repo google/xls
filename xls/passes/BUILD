@@ -48,6 +48,7 @@ cc_library(
         ":table_switch_pass",
         ":tuple_simplification_pass",
         ":unroll_pass",
+        ":useless_assert_removal_pass",
         ":verifier_checker",
         "@com_google_absl//absl/status:statusor",
     ],
@@ -254,6 +255,7 @@ cc_library(
         ":passes",
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:op",
@@ -770,6 +772,21 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "useless_assert_removal_pass",
+    srcs = ["useless_assert_removal_pass.cc"],
+    hdrs = ["useless_assert_removal_pass.h"],
+    deps = [
+        ":passes",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+    ],
+)
+
 cc_test(
     name = "inlining_pass_test",
     srcs = ["inlining_pass_test.cc"],
@@ -1253,6 +1270,25 @@ cc_test(
         "//xls/ir",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "useless_assert_removal_pass_test",
+    srcs = ["useless_assert_removal_pass_test.cc"],
+    deps = [
+        ":dce_pass",
+        ":useless_assert_removal_pass",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_scanner",
         "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],

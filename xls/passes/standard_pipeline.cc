@@ -20,6 +20,7 @@
 #include "absl/status/statusor.h"
 #include "xls/passes/arith_simplification_pass.h"
 #include "xls/passes/array_simplification_pass.h"
+#include "xls/passes/useless_assert_removal_pass.h"
 #include "xls/passes/bdd_cse_pass.h"
 #include "xls/passes/bdd_simplification_pass.h"
 #include "xls/passes/bit_slice_simplification_pass.h"
@@ -76,6 +77,8 @@ class SimplificationPass : public FixedPointCompoundPass {
     Add<NarrowingPass>(opt_level);
     Add<DeadCodeEliminationPass>();
     Add<BooleanSimplificationPass>();
+    Add<DeadCodeEliminationPass>();
+    Add<UselessAssertRemovalPass>();
     Add<DeadCodeEliminationPass>();
     Add<CsePass>();
   }
