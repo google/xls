@@ -22,37 +22,79 @@
 
 namespace xls::dslx {
 
+// ProcId is used to represent a unique instantiation of a Proc, that is, to
+// differentiate the instance of Proc Foo spawned from Proc Bar from the one
+// spawned from Proc Baz. Each instance can have different member data:
+// different constants or channels, so we need to be able to identify each
+// separately.
+struct ProcId {
+  // Contains the "spawn chain": the series of Procs through which this Proc was
+  // spawned, with the oldest/"root" proc as element 0.  Contains the current
+  // proc, as well.
+  std::vector<Proc*> proc_stack;
+
+  // The index of this Proc in the proc stack. If a Proc is spawned > 1 inside
+  // the same Proc config function, this index differentiates the spawnees.
+  // Each unique proc stack will have its count start at 0 - in other words,
+  // the sequence:
+  // spawn foo()(c0)
+  // spawn bar()(c1)
+  // spawn foo()(c2)
+  // Would result in IDs of:
+  // foo:0, bar:0, and foo:1, respectively.
+  int instance;
+
+  std::string ToString() const {
+    return absl::StrCat(absl::StrJoin(proc_stack, "->",
+                                      [](std::string* out, const Proc* p) {
+                                        out->append(p->identifier());
+                                      }),
+                        ":", instance);
+    return "";
+  }
+
+  template <typename H>
+  H AbslHashValue(H h, const ProcId& pid) {
+    return H::combine(std::move(h), pid.proc_stack, pid.instance);
+  }
+};
+
 // Describes a callee function in the conversion order (see
 // ConversionRecord::callees).
 class Callee {
  public:
-  static absl::StatusOr<Callee> Make(Function* f, Instantiation* instantiation,
-                                     Module* m, TypeInfo* type_info,
-                                     SymbolicBindings sym_bindings);
-
-  bool IsFunction() const;
-  Function* f() const { return f_; }
-  Instantiation* instantiation() const { return instantiation_; }
-  Module* m() const { return m_; }
-  TypeInfo* type_info() const { return type_info_; }
-  const SymbolicBindings& sym_bindings() const { return sym_bindings_; }
-  std::string ToString() const;
-
- private:
-  Callee(Function* f, Instantiation* instantiation, Module* m,
-         TypeInfo* type_info, SymbolicBindings sym_bindings);
-
-  Function* f_;
   // Proc definitions can't be directly translated into IR: they're always
-  // instantiated based on a Spawn. This field holds the details of that Spawn
-  // so that we can refer to the values specified therein during IR translation.
+  // instantiated based on a Spawn or series thereof.
+  // "proc_stack" holds the series of spawned procs leading up to this callee.
+  //
   // This is conceptually similar to the instantiation of parametric functions,
   // except that even non-parametric Procs need instantiation details to be
   // converted to IR.
-  Instantiation* instantiation_;
+  static absl::StatusOr<Callee> Make(Function* f, Invocation* invocation,
+                                     Module* m, TypeInfo* type_info,
+                                     SymbolicBindings sym_bindings,
+                                     absl::optional<ProcId> proc_id);
+
+  bool IsFunction() const;
+  Function* f() const { return f_; }
+  Invocation* invocation() const { return invocation_; }
+  Module* m() const { return m_; }
+  TypeInfo* type_info() const { return type_info_; }
+  const SymbolicBindings& sym_bindings() const { return sym_bindings_; }
+  // If nullopt is returned, that means that this isn't a proc function.
+  const absl::optional<ProcId>& proc_id() const { return proc_id_; }
+  std::string ToString() const;
+
+ private:
+  Callee(Function* f, Invocation* invocation, Module* m, TypeInfo* type_info,
+         SymbolicBindings sym_bindings, absl::optional<ProcId> proc_id);
+
+  Function* f_;
+  Invocation* invocation_;
   Module* m_;
   TypeInfo* type_info_;
   SymbolicBindings sym_bindings_;
+  absl::optional<ProcId> proc_id_;
 };
 
 // Record used in sequence, noting order functions should be converted in.
@@ -73,9 +115,9 @@ class ConversionRecord {
  public:
   // Note: performs ValidateParametrics() to potentially return an error status.
   static absl::StatusOr<ConversionRecord> Make(
-      Function* f, Instantiation* instantiation, Module* module,
-      TypeInfo* type_info, SymbolicBindings symbolic_bindings,
-      std::vector<Callee> callees);
+      Function* f, Invocation* invocation, Module* module, TypeInfo* type_info,
+      SymbolicBindings symbolic_bindings, std::vector<Callee> callees,
+      absl::optional<ProcId> proc_id);
 
   // Integrity-checks that the symbolic_bindings provided are sufficient to
   // instantiate f (i.e. if it is parametric). Returns an internal error status
@@ -84,33 +126,36 @@ class ConversionRecord {
       Function* f, const SymbolicBindings& symbolic_bindings);
 
   Function* f() const { return f_; }
-  Instantiation* instantiation() const { return instantiation_; }
+  Invocation* invocation() const { return invocation_; }
   Module* module() const { return module_; }
   TypeInfo* type_info() const { return type_info_; }
   const SymbolicBindings& symbolic_bindings() const {
     return symbolic_bindings_;
   }
   const std::vector<Callee>& callees() const { return callees_; }
+  absl::optional<ProcId> proc_id() const { return proc_id_; }
 
   std::string ToString() const;
 
  private:
-  ConversionRecord(Function* f, Instantiation* instantiation, Module* module,
+  ConversionRecord(Function* f, Invocation* invocation, Module* module,
                    TypeInfo* type_info, SymbolicBindings symbolic_bindings,
-                   std::vector<Callee> callees)
+                   std::vector<Callee> callees, absl::optional<ProcId> proc_id)
       : f_(f),
-        instantiation_(instantiation),
+        invocation_(invocation),
         module_(module),
         type_info_(type_info),
         symbolic_bindings_(std::move(symbolic_bindings)),
-        callees_(std::move(callees)) {}
+        callees_(std::move(callees)),
+        proc_id_(proc_id) {}
 
   Function* f_;
-  Instantiation* instantiation_;
+  Invocation* invocation_;
   Module* module_;
   TypeInfo* type_info_;
   SymbolicBindings symbolic_bindings_;
   std::vector<Callee> callees_;
+  absl::optional<ProcId> proc_id_;
 };
 
 // Returns (topological) order for functions to be converted to IR.
@@ -137,7 +182,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(
 //  f: The top level function.
 //  type_info: Mapping from node to type.
 absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
-    Function* f, TypeInfo* type_info);
+    absl::variant<Function*, Proc*> entry, TypeInfo* type_info);
 
 }  // namespace xls::dslx
 

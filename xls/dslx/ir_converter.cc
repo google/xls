@@ -3038,7 +3038,7 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
                                     record.f()->ToString());
   if (Proc* p = dynamic_cast<Proc*>(record.f()); p != nullptr) {
     return converter
-        .HandleProc(p, record.instantiation(), record.type_info(),
+        .HandleProc(p, record.invocation(), record.type_info(),
                     &record.symbolic_bindings(), import_data)
         .status();
   }
