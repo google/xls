@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/container/btree_map.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -115,11 +116,32 @@ class ExperimentMetrics {
     return float_metrics_.at(metric);
   }
 
+  // Sets/overrides the integer metric.
+  void SetIntegerIntegerMapMetric(
+      absl::string_view metric,
+      const absl::flat_hash_map<int64_t, int64_t>&& value) {
+    integer_integer_map_metrics_[metric] = std::move(value);
+  }
+  void SetIntegerIntegerMapMetric(
+      absl::string_view metric,
+      const absl::flat_hash_map<int64_t, int64_t>& value) {
+    integer_integer_map_metrics_[metric] = value;
+  }
+
+  // Retrieve the value of said integer point metric.
+  absl::StatusOr<absl::flat_hash_map<int64_t, int64_t>>
+  GetIntegerIntegerMapMetric(absl::string_view metric) const {
+    XLS_RET_CHECK(integer_integer_map_metrics_.contains(metric));
+    return integer_integer_map_metrics_.at(metric);
+  }
+
   // Prints out the metrics and values stored.
   absl::Status DebugDump() const;
 
  private:
   absl::btree_map<std::string, double> float_metrics_;
+  absl::btree_map<std::string, absl::flat_hash_map<int64_t, int64_t>>
+      integer_integer_map_metrics_;
   absl::btree_map<std::string, int64_t> integer_metrics_;
 };
 
@@ -275,6 +297,9 @@ struct Stats {
   int64_t min_latency = std::numeric_limits<int64_t>::max();
   int64_t max_latency = std::numeric_limits<int64_t>::min();
   double average_latency = 0.0;
+
+  // The key represents the latency, the value represents the packet count.
+  absl::flat_hash_map<int64_t, int64_t> latency_histogram;
 };
 
 // Get latency from source to sink for each packet.

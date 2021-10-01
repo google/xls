@@ -14,6 +14,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -182,6 +183,26 @@ TEST(ExperimentsTest, ExperimentMetrics) {
   EXPECT_DOUBLE_EQ(m0p10, 0.10);
   EXPECT_DOUBLE_EQ(mm7p1, -7.1);
 
+  metrics.SetIntegerIntegerMapMetric("metric int_int_map_rvalue",
+                                     {{1, 1}, {2, 2}, {3, 3}});
+
+  absl::flat_hash_map<int64_t, int64_t> int_int_map_rvalue;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      int_int_map_rvalue,
+      metrics.GetIntegerIntegerMapMetric("metric int_int_map_rvalue"));
+
+  const absl::flat_hash_map<int64_t, int64_t> int_int_map_expected = {
+      {1, 1}, {2, 2}, {3, 3}};
+  EXPECT_THAT(int_int_map_rvalue, ::testing::UnorderedPointwise(
+                                      ::testing::Eq(), int_int_map_expected));
+
+  const absl::flat_hash_map<int64_t, int64_t> int_int_map_lvalue = {
+      {1, 1}, {2, 2}, {3, 3}};
+  metrics.SetIntegerIntegerMapMetric("metric int_int_map_lvalue",
+                                     int_int_map_lvalue);
+  EXPECT_THAT(int_int_map_lvalue, ::testing::UnorderedPointwise(
+                                      ::testing::Eq(), int_int_map_expected));
+
   XLS_EXPECT_OK(metrics.DebugDump());
 }
 
@@ -238,6 +259,10 @@ TEST(ExperimentsTest, GetStatsTest) {
   EXPECT_EQ(result.min_latency, 10);
   // packet 0 took 11 cycles
   EXPECT_EQ(result.max_latency, 11);
+  // latency histogram
+  EXPECT_EQ(result.latency_histogram[10], 1);
+  EXPECT_EQ(result.latency_histogram[11], 1);
+  // average latency
   EXPECT_DOUBLE_EQ(result.average_latency, 10.5);
 }
 

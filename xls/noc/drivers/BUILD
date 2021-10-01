@@ -23,6 +23,7 @@ cc_library(
     hdrs = ["experiment.h"],
     deps = [
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
@@ -59,6 +60,7 @@ cc_test(
     deps = [
         ":experiment",
         ":experiment_factory",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",

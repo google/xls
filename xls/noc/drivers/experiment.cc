@@ -74,6 +74,8 @@ Stats GetStats(absl::Span<const PacketInfo> packets) {
   int64_t& max_injection_cycle_time = result.max_injection_cycle_time;
   int64_t& min_arrival_cycle_time = result.min_arrival_cycle_time;
   int64_t& max_arrival_cycle_time = result.max_arrival_cycle_time;
+  absl::flat_hash_map<int64_t, int64_t>& latency_histogram =
+      result.latency_histogram;
   for (const PacketInfo& packet : packets) {
     // injection_clock_cycle_time
     const int64_t& injection_clock_cycle_time =
@@ -90,6 +92,7 @@ Stats GetStats(absl::Span<const PacketInfo> packets) {
         std::max(max_arrival_cycle_time, arrival_clock_cycle_time);
     // latency
     int64_t latency = arrival_clock_cycle_time - injection_clock_cycle_time;
+    latency_histogram[latency]++;
     min_latency = std::min(min_latency, latency);
     max_latency = std::max(max_latency, latency);
     sum += latency;
@@ -109,6 +112,13 @@ absl::Status ExperimentMetrics::DebugDump() const {
 
   for (auto& [name, val] : integer_metrics_) {
     XLS_LOG(INFO) << absl::StreamFormat("%s : %g", name, val);
+  }
+
+  for (auto& [name, val] : integer_integer_map_metrics_) {
+    XLS_LOG(INFO) << absl::StreamFormat("%s :", name);
+    for (auto& [key, value] : val) {
+      XLS_LOG(INFO) << absl::StreamFormat("%g , %g", key, value);
+    }
   }
 
   return absl::OkStatus();
@@ -206,6 +216,7 @@ absl::StatusOr<ExperimentMetrics> ExperimentRunner::RunExperiment(
     metrics.SetIntegerMetric(metric_name, sink->GetReceivedTraffic().size());
 
     // Latency stats
+    // TODO(vmirian) move into VC metrics area
     const internal::Stats stats =
         GetStats(internal::GetPacketInfo(sink->GetReceivedTraffic(), 0));
     metric_name = absl::StrFormat("Sink:%s:MinimumInjectionTime", nc_name);
@@ -222,6 +233,9 @@ absl::StatusOr<ExperimentMetrics> ExperimentRunner::RunExperiment(
     metrics.SetIntegerMetric(metric_name, stats.max_latency);
     metric_name = absl::StrFormat("Sink:%s:AverageLatency", nc_name);
     metrics.SetFloatMetric(metric_name, stats.average_latency);
+    metric_name = absl::StrFormat("Sink:%s:LatencyHistogram", nc_name);
+    metrics.SetIntegerIntegerMapMetric(metric_name,
+                                       std::move(stats.latency_histogram));
 
     // Per VC Metrics
     int64_t vc_count =
