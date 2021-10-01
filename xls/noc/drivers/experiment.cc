@@ -215,28 +215,6 @@ absl::StatusOr<ExperimentMetrics> ExperimentRunner::RunExperiment(
     metric_name = absl::StrFormat("Sink:%s:FlitCount", nc_name);
     metrics.SetIntegerMetric(metric_name, sink->GetReceivedTraffic().size());
 
-    // Latency stats
-    // TODO(vmirian) move into VC metrics area
-    const internal::Stats stats =
-        GetStats(internal::GetPacketInfo(sink->GetReceivedTraffic(), 0));
-    metric_name = absl::StrFormat("Sink:%s:MinimumInjectionTime", nc_name);
-    metrics.SetIntegerMetric(metric_name, stats.min_injection_cycle_time);
-    metric_name = absl::StrFormat("Sink:%s:MaximumInjectionTime", nc_name);
-    metrics.SetIntegerMetric(metric_name, stats.max_injection_cycle_time);
-    metric_name = absl::StrFormat("Sink:%s:MinimumArrivalTime", nc_name);
-    metrics.SetIntegerMetric(metric_name, stats.min_arrival_cycle_time);
-    metric_name = absl::StrFormat("Sink:%s:MaximumArrivalTime", nc_name);
-    metrics.SetIntegerMetric(metric_name, stats.max_arrival_cycle_time);
-    metric_name = absl::StrFormat("Sink:%s:MinimumLatency", nc_name);
-    metrics.SetIntegerMetric(metric_name, stats.min_latency);
-    metric_name = absl::StrFormat("Sink:%s:MaximumLatency", nc_name);
-    metrics.SetIntegerMetric(metric_name, stats.max_latency);
-    metric_name = absl::StrFormat("Sink:%s:AverageLatency", nc_name);
-    metrics.SetFloatMetric(metric_name, stats.average_latency);
-    metric_name = absl::StrFormat("Sink:%s:LatencyHistogram", nc_name);
-    metrics.SetIntegerIntegerMapMetric(metric_name,
-                                       std::move(stats.latency_histogram));
-
     // Per VC Metrics
     int64_t vc_count =
         params.GetNetworkParam(graph.GetNetworkIds()[0])->VirtualChannelCount();
@@ -245,6 +223,34 @@ absl::StatusOr<ExperimentMetrics> ExperimentRunner::RunExperiment(
           absl::StrFormat("Sink:%s:VC:%d:TrafficRateInMiBps", nc_name, vc);
       traffic_rate = sink->MeasuredTrafficRateInMiBps(cycle_time_in_ps_, vc);
       metrics.SetFloatMetric(metric_name, traffic_rate);
+      // Latency stats
+      const internal::Stats stats =
+          GetStats(internal::GetPacketInfo(sink->GetReceivedTraffic(), 0));
+      metric_name =
+          absl::StrFormat("Sink:%s:VC:%d:MinimumInjectionTime", nc_name, vc);
+      metrics.SetIntegerMetric(metric_name, stats.min_injection_cycle_time);
+      metric_name =
+          absl::StrFormat("Sink:%s:VC:%d:MaximumInjectionTime", nc_name, vc);
+      metrics.SetIntegerMetric(metric_name, stats.max_injection_cycle_time);
+      metric_name =
+          absl::StrFormat("Sink:%s:VC:%d:MinimumArrivalTime", nc_name, vc);
+      metrics.SetIntegerMetric(metric_name, stats.min_arrival_cycle_time);
+      metric_name =
+          absl::StrFormat("Sink:%s:VC:%d:MaximumArrivalTime", nc_name, vc);
+      metrics.SetIntegerMetric(metric_name, stats.max_arrival_cycle_time);
+      metric_name =
+          absl::StrFormat("Sink:%s:VC:%d:MinimumLatency", nc_name, vc);
+      metrics.SetIntegerMetric(metric_name, stats.min_latency);
+      metric_name =
+          absl::StrFormat("Sink:%s:VC:%d:MaximumLatency", nc_name, vc);
+      metrics.SetIntegerMetric(metric_name, stats.max_latency);
+      metric_name =
+          absl::StrFormat("Sink:%s:VC:%d:AverageLatency", nc_name, vc);
+      metrics.SetFloatMetric(metric_name, stats.average_latency);
+      metric_name =
+          absl::StrFormat("Sink:%s:VC:%d:LatencyHistogram", nc_name, vc);
+      metrics.SetIntegerIntegerMapMetric(metric_name,
+                                         std::move(stats.latency_histogram));
     }
   }
 
