@@ -1166,12 +1166,6 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
               outer_bindings->ResolveNodeIsTypeDefinition(*peek->GetValue()))) {
     XLS_ASSIGN_OR_RETURN(lhs,
                          ParseCastOrEnumRefOrStructInstance(outer_bindings));
-  } else if (peek->IsKeyword(Keyword::kNext)) {
-    Token next = PopTokenOrDie();
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
-    XLS_ASSIGN_OR_RETURN(Expr * expr, ParseTernaryExpression(outer_bindings));
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
-    return module_->Make<Next>(next.span(), expr);
   } else if (peek->IsKeyword(Keyword::kRecv)) {
     Token recv = PopTokenOrDie();
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
@@ -1669,8 +1663,13 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
       XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(&bindings));
       XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
       Span span(oparen.span().start(), cbrace.span().limit());
-      auto* return_type =
-          module_->Make<TupleTypeAnnotation>(span, return_elements);
+      // Wrap the return elements in a tuple unless there's a single one.
+      TypeAnnotation* return_type;
+      if (return_elements.size() == 1) {
+        return_type = return_elements[0];
+      } else {
+        return_type = module_->Make<TupleTypeAnnotation>(span, return_elements);
+      }
       next_name_def = module_->Make<NameDef>(
           span, absl::StrCat(name_def->identifier(), "_next"), nullptr);
       outer_bindings->Add(next_name_def->identifier(), next_name_def);

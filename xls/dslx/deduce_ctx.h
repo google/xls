@@ -84,8 +84,7 @@ class DeduceCtx {
  public:
   DeduceCtx(TypeInfo* type_info, Module* module, DeduceFn deduce_function,
             TypecheckFunctionFn typecheck_function,
-            TypecheckFn typecheck_module,
-            ImportData* import_data);
+            TypecheckFn typecheck_module, ImportData* import_data);
 
   // Creates a new DeduceCtx reflecting the given type info and module.
   // Uses the same callbacks as this current context.

@@ -1345,13 +1345,7 @@ Match::Match(Module* owner, Span span, Expr* matched,
              std::vector<MatchArm*> arms)
     : Expr(owner, std::move(span)), matched_(matched), arms_(std::move(arms)) {}
 
-// -- class Next
-Next::Next(Module* owner, Span span, Expr* next_value)
-    : Expr(owner, span), next_value_(next_value) {}
-
-std::string Next::ToString() const {
-  return absl::StrCat("next(", next_value_->ToString(), ")");
-}
+// -- class Recv
 
 Recv::Recv(Module* owner, Span span, NameRef* channel)
     : Expr(owner, std::move(span)), channel_(channel) {}
@@ -1359,6 +1353,8 @@ Recv::Recv(Module* owner, Span span, NameRef* channel)
 std::string Recv::ToString() const {
   return absl::StrFormat("recv(%s)", channel_->identifier());
 }
+
+// -- class Send
 
 Send::Send(Module* owner, Span span, NameRef* channel, Expr* payload,
            Expr* body)

@@ -15,6 +15,8 @@
 #include "xls/dslx/typecheck.h"
 
 #include "absl/types/variant.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/dslx/ast.h"
 #include "xls/dslx/deduce.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/dslx_builtins.h"
@@ -27,8 +29,8 @@ namespace xls::dslx {
 
 // Checks the function's parametrics' and arguments' types.
 static absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
-CheckFunctionParams(Function* fn, DeduceCtx* ctx) {
-  for (ParametricBinding* parametric : fn->parametric_bindings()) {
+CheckFunctionParams(Function* f, DeduceCtx* ctx) {
+  for (ParametricBinding* parametric : f->parametric_bindings()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_binding_type,
                          ctx->Deduce(parametric->type_annotation()));
     if (parametric->expr() != nullptr) {
@@ -47,8 +49,7 @@ CheckFunctionParams(Function* fn, DeduceCtx* ctx) {
   }
 
   std::vector<std::unique_ptr<ConcreteType>> param_types;
-  // TODO(rspringer): 2021-09-25: Skip Procs for now; they'll not show up yet.
-  for (Param* param : fn->params()) {
+  for (Param* param : f->params()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> param_type,
                          ctx->Deduce(param));
     ctx->type_info()->SetItem(param->name_def(), *param_type);
@@ -113,6 +114,16 @@ static absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
     XLS_ASSIGN_OR_RETURN(return_type, DeduceAndResolve(f->return_type(), ctx));
   }
 
+  // Add proc members to the environment before typechecking the fn body.
+  if (f->proc().has_value()) {
+    Proc* p = f->proc().value();
+    for (auto* param : p->members()) {
+      XLS_ASSIGN_OR_RETURN(auto type, DeduceAndResolve(param, ctx));
+      ctx->type_info()->SetItem(param, *type);
+      ctx->type_info()->SetItem(param->name_def(), *type);
+    }
+  }
+
   // Third, typecheck the body of the function.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_return_type,
                        DeduceAndResolve(f->body(), ctx));
@@ -134,6 +145,7 @@ static absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
 
   // TODO(rspringer): 2021-09-07: Figure out the token story for Procs. Don't
   // forget to make sure trace_fmt! and fail! are hooked in correctly.
+
   // Implementation note: though we could have all functions have
   // NoteRequiresImplicitToken() be false unless otherwise noted, this helps
   // guarantee we did consider and make a note for every function -- the code
@@ -420,6 +432,9 @@ struct TypecheckStackRecord {
 static absl::Status ProcessTopNode(TopNode node, DeduceCtx* ctx) {
   if (absl::holds_alternative<Function*>(node)) {
     XLS_RETURN_IF_ERROR(CheckFunction(absl::get<Function*>(node), ctx));
+  } else if (absl::holds_alternative<Proc*>(node)) {
+    XLS_RETURN_IF_ERROR(CheckFunction(absl::get<Proc*>(node)->config(), ctx));
+    XLS_RETURN_IF_ERROR(CheckFunction(absl::get<Proc*>(node)->next(), ctx));
   } else if (absl::holds_alternative<TestFunction*>(node)) {
     XLS_RETURN_IF_ERROR(CheckTest(absl::get<TestFunction*>(node), ctx));
   } else {
@@ -434,6 +449,8 @@ static absl::Status ProcessTopNode(TopNode node, DeduceCtx* ctx) {
 static const std::string& Identifier(const TopNode& f) {
   if (absl::holds_alternative<Function*>(f)) {
     return absl::get<Function*>(f)->identifier();
+  } else if (absl::holds_alternative<Proc*>(f)) {
+    return absl::get<Proc*>(f)->identifier();
   } else if (absl::holds_alternative<TestFunction*>(f)) {
     return absl::get<TestFunction*>(f)->identifier();
   } else if (absl::holds_alternative<StructDef*>(f)) {
@@ -638,9 +655,9 @@ absl::Status CheckTopNodeInModule(TopNode f, DeduceCtx* ctx) {
   std::vector<TypecheckStackRecord> stack = {TypecheckStackRecord{
       Identifier(f), std::string(ToAstNode(f)->GetNodeTypeName())}};
 
-  const absl::flat_hash_map<std::string, Function*>& fb_map =
+  const absl::flat_hash_map<std::string, Function*>& fn_map =
       ctx->module()->GetFunctionByName();
-  return CheckTopNodeInModuleInternal(fb_map, seen, stack, ctx);
+  return CheckTopNodeInModuleInternal(fn_map, seen, stack, ctx);
 }
 
 // Helper type to place on the stack when we intend to pop off a FnStackEntry
@@ -723,18 +740,32 @@ static absl::Status CheckModuleMember(ModuleMember member, Module* module,
     XLS_RETURN_IF_ERROR(status);
     scoped.Finish();
   } else if (absl::holds_alternative<Function*>(member)) {
-    Function* fn = absl::get<Function*>(member);
-    if (fn->IsParametric()) {
+    Function* f = absl::get<Function*>(member);
+    if (f->IsParametric()) {
       // Typechecking of parametric functions is driven by invocation sites.
       return absl::OkStatus();
     }
 
-    XLS_VLOG(2) << "Typechecking function: " << fn->ToString();
-    ScopedFnStackEntry scoped(fn, ctx,
+    // We can typecheck any proc that has no config params. In
+    // practice, this must be the entry proc; otherwise the proc would be
+    // effectively dead to the world (since it'd have no channels).
+    auto maybe_proc = f->proc();
+    if (maybe_proc.has_value()) {
+      Proc* p = maybe_proc.value();
+      if (!p->config()->params().empty() || !p->next()->params().empty()) {
+        return absl::OkStatus();
+      }
+    }
+
+    XLS_VLOG(2) << "Typechecking function: " << f->ToString();
+    ScopedFnStackEntry scoped(f, ctx,
                               /*expect_popped=*/true);
-    XLS_RETURN_IF_ERROR(CheckTopNodeInModule(fn, ctx));
+    XLS_RETURN_IF_ERROR(CheckTopNodeInModule(f, ctx));
     scoped.Finish();
-    XLS_VLOG(2) << "Finished typechecking function: " << fn->ToString();
+    XLS_VLOG(2) << "Finished typechecking function: " << f->ToString();
+  } else if (absl::holds_alternative<Proc*>(member)) {
+    // Just skip procs, as we typecheck their config & next functions.
+    return absl::OkStatus();
   } else if (absl::holds_alternative<StructDef*>(member)) {
     StructDef* struct_def = absl::get<StructDef*>(member);
     XLS_VLOG(2) << "Typechecking struct: " << struct_def->ToString();

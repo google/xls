@@ -68,10 +68,6 @@ class Evaluator : public ExprVisitor {
   void HandleInvocation(Invocation* expr) override {
     value_ = parent_->EvaluateInvocation(expr, bindings_, type_context_);
   }
-  void HandleNext(Next* expr) override {
-    value_ = absl::UnimplementedError(absl::StrFormat(
-        "Next expression is unhandled @ %s", expr->span().ToString()));
-  }
   void HandleRecv(Recv* expr) override {
     value_ = absl::UnimplementedError(absl::StrFormat(
         "Recv expression is unhandled @ %s", expr->span().ToString()));

@@ -108,8 +108,6 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_WHILE;
     case AstNodeKind::kCast:
       return AST_NODE_KIND_CAST;
-    case AstNodeKind::kNext:
-      return AST_NODE_KIND_NEXT;
     case AstNodeKind::kCarry:
       return AST_NODE_KIND_CARRY;
     case AstNodeKind::kConstantDef:
@@ -517,8 +515,6 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kWhile;
     case AST_NODE_KIND_CAST:
       return AstNodeKind::kCast;
-    case AST_NODE_KIND_NEXT:
-      return AstNodeKind::kNext;
     case AST_NODE_KIND_CARRY:
       return AstNodeKind::kCarry;
     case AST_NODE_KIND_CONSTANT_DEF:

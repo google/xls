@@ -348,7 +348,6 @@ class FunctionConverter {
   absl::Status HandleLet(Let* node);
   absl::Status HandleLetChannelDecl(Let* let, ChannelDecl* channel_decl);
   absl::Status HandleMatch(Match* node);
-  absl::Status HandleNext(Next* node);
   absl::Status HandleRecv(Recv* node);
   absl::Status HandleSend(Send* node);
   absl::Status HandleSplatStructInstance(SplatStructInstance* node);
@@ -711,7 +710,6 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(FormatMacro)
   NO_TRAVERSE_DISPATCH_VISIT(Let)
   NO_TRAVERSE_DISPATCH_VISIT(Match)
-  NO_TRAVERSE_DISPATCH_VISIT(Next)
   NO_TRAVERSE_DISPATCH_VISIT(Recv)
   NO_TRAVERSE_DISPATCH_VISIT(Send)
   NO_TRAVERSE_DISPATCH_VISIT(Spawn)
@@ -2325,16 +2323,6 @@ absl::Status FunctionConverter::HandleChannelDecl(ChannelDecl* node) {
       StreamingChannel * channel,
       package()->CreateStreamingChannel(name, ChannelOps::kSendReceive, type));
   SetNodeToIr(node, channel);
-  return absl::OkStatus();
-}
-
-absl::Status FunctionConverter::HandleNext(Next* node) {
-  // Next nodes don't really _do_ anything except for identify the finalized
-  // recurrent state.
-  XLS_RETURN_IF_ERROR(Visit(node->value()));
-  IrValue next_value = node_to_ir_.at(node->value());
-  next_value_ = absl::get<BValue>(next_value);
-  SetNodeToIr(node, next_value_);
   return absl::OkStatus();
 }
 

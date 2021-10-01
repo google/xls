@@ -65,7 +65,6 @@ bool IsOneOf(ObjT* obj) {
   X(Let)                           \
   X(Match)                         \
   X(NameRef)                       \
-  X(Next)                          \
   X(Number)                        \
   X(SplatStructInstance)           \
   X(String)                        \
@@ -239,7 +238,6 @@ enum class AstNodeKind {
   kFor,
   kWhile,
   kCast,
-  kNext,
   kCarry,
   kConstantDef,
   kLet,
@@ -626,7 +624,6 @@ class ExprVisitor {
   virtual void HandleLet(Let* expr) = 0;
   virtual void HandleMatch(Match* expr) = 0;
   virtual void HandleNameRef(NameRef* expr) = 0;
-  virtual void HandleNext(Next* expr) = 0;
   virtual void HandleNumber(Number* expr) = 0;
   virtual void HandleRecv(Recv* expr) = 0;
   virtual void HandleSend(Send* expr) = 0;
@@ -1302,7 +1299,7 @@ class Function : public AstNode {
   std::vector<AstNode*> GetChildren(bool want_types) const override;
   std::string ToString() const override;
   // Returns a string representation of this function with the given identifier
-  // and without parametrics. Used for printing Proc compnent functions, i.e.,
+  // and without parametrics. Used for printing Proc component functions, i.e.,
   // config and next.
   std::string ToUndecoratedString(absl::string_view identifier) const;
 
@@ -2214,30 +2211,6 @@ class Cast : public Expr {
  private:
   Expr* expr_;
   TypeAnnotation* type_annotation_;
-};
-
-// Represents `next` keyword, refers to the implicit loop-carry call in `Proc`.
-class Next : public Expr {
- public:
-  Next(Module* owner, Span span, Expr* next_value);
-
-  AstNodeKind kind() const { return AstNodeKind::kNext; }
-
-  absl::Status Accept(AstNodeVisitor* v) override {
-    return v->HandleNext(this);
-  }
-  void AcceptExpr(ExprVisitor* v) override { v->HandleNext(this); }
-
-  absl::string_view GetNodeTypeName() const override { return "Next"; }
-  std::string ToString() const override;
-
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {ToAstNode(next_value_)};
-  }
-  Expr* value() { return next_value_; }
-
- private:
-  Expr* next_value_;
 };
 
 // Represents `carry` keyword, refers to the implicit loop-carry data in
