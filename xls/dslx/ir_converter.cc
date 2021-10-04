@@ -33,6 +33,7 @@
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/extract_conversion_order.h"
 #include "xls/dslx/interpreter.h"
+#include "xls/dslx/ir_conversion_utils.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/typecheck.h"
 #include "xls/ir/bits.h"
@@ -221,22 +222,6 @@ class FunctionConverter {
 
   // As above, but also checks it is a constant Bits value.
   absl::StatusOr<Bits> GetConstBits(AstNode* node) const;
-
-  // Resolves "dim" (from a possible parametric) against the
-  // symbolic_binding_map_.
-  absl::StatusOr<ConcreteTypeDim> ResolveDim(ConcreteTypeDim dim);
-
-  // As above, does ResolveDim() but then accesses the dimension value as an
-  // expected int64_t.
-  absl::StatusOr<int64_t> ResolveDimToInt(const ConcreteTypeDim& dim) {
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim resolved, ResolveDim(dim));
-    if (absl::holds_alternative<InterpValue>(resolved.value())) {
-      return absl::get<InterpValue>(resolved.value()).GetBitValueInt64();
-    }
-    return absl::InternalError(absl::StrFormat(
-        "Expected resolved dimension of %s to be an integer, got: %s",
-        dim.ToString(), resolved.ToString()));
-  }
 
   // Resolves node's type and resolves all of its dimensions via `ResolveDim()`.
   absl::StatusOr<std::unique_ptr<ConcreteType>> ResolveType(AstNode* node);
@@ -456,9 +441,6 @@ class FunctionConverter {
   // definition.
   using DerefVariant = absl::variant<StructDef*, EnumDef*>;
   absl::StatusOr<DerefVariant> DerefStructOrEnum(TypeDefinition node);
-
-  // Converts a concrete type to its corresponding IR representation.
-  absl::StatusOr<xls::Type*> TypeToIr(const ConcreteType& concrete_type);
 
   absl::optional<SourceLocation> ToSourceLocation(
       const absl::optional<Span>& span) {
@@ -1520,7 +1502,9 @@ absl::Status FunctionConverter::HandleFor(For* node) {
     NameDefTree* accum = absl::get<NameDefTree*>(flat[1]);
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> carry_type,
                          ResolveType(accum));
-    XLS_ASSIGN_OR_RETURN(xls::Type * carry_ir_type, TypeToIr(*carry_type));
+    XLS_ASSIGN_OR_RETURN(xls::Type * carry_ir_type,
+                         TypeToIr(package_data_.package, *carry_type,
+                                  SymbolicBindings(symbolic_binding_map_)));
     BValue carry;
     if (implicit_token_data_.has_value()) {
       carry = body_converter.AddTokenWrappedParam(carry_ir_type);
@@ -1580,7 +1564,9 @@ absl::Status FunctionConverter::HandleFor(For* node) {
       // Otherwise, pass in the variable to the loop body function as
       // a parameter.
       relevant_name_defs.push_back(name_def);
-      XLS_ASSIGN_OR_RETURN(xls::Type * name_def_type, TypeToIr(**type));
+      XLS_ASSIGN_OR_RETURN(xls::Type * name_def_type,
+                           TypeToIr(package_data_.package, **type,
+                                    SymbolicBindings(symbolic_binding_map_)));
       body_converter.SetNodeToIr(name_def,
                                  body_converter.function_builder_->Param(
                                      name_def->identifier(), name_def_type));
@@ -2911,19 +2897,6 @@ absl::StatusOr<EnumDef*> FunctionConverter::DerefEnum(TypeDefinition node) {
   return absl::get<EnumDef*>(v);
 }
 
-absl::StatusOr<ConcreteTypeDim> FunctionConverter::ResolveDim(
-    ConcreteTypeDim dim) {
-  while (
-      absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
-    ParametricExpression& original =
-        *absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
-    ParametricExpression::Evaluated evaluated = original.Evaluate(
-        ToParametricEnv(SymbolicBindings(symbolic_binding_map_)));
-    dim = ConcreteTypeDim(std::move(evaluated));
-  }
-  return dim;
-}
-
 absl::StatusOr<std::unique_ptr<ConcreteType>> FunctionConverter::ResolveType(
     AstNode* node) {
   XLS_RET_CHECK(current_type_info_ != nullptr);
@@ -2936,8 +2909,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FunctionConverter::ResolveType(
             node->ToString()));
   }
 
-  return t.value()->MapSize(
-      [this](ConcreteTypeDim dim) { return ResolveDim(dim); });
+  return t.value()->MapSize([this](ConcreteTypeDim dim) {
+    return ResolveDim(dim, SymbolicBindings(symbolic_binding_map_));
+  });
 }
 
 absl::StatusOr<Value> FunctionConverter::GetConstValue(AstNode* node) const {
@@ -2970,49 +2944,8 @@ absl::Status FunctionConverter::HandleConstantArray(ConstantArray* node) {
 absl::StatusOr<xls::Type*> FunctionConverter::ResolveTypeToIr(AstNode* node) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_type,
                        ResolveType(node));
-  return TypeToIr(*concrete_type);
-}
-
-absl::StatusOr<xls::Type*> FunctionConverter::TypeToIr(
-    const ConcreteType& concrete_type) {
-  XLS_VLOG(5) << "Converting concrete type to IR: " << concrete_type;
-  if (auto* array_type = dynamic_cast<const ArrayType*>(&concrete_type)) {
-    XLS_ASSIGN_OR_RETURN(xls::Type * element_type,
-                         TypeToIr(array_type->element_type()));
-    XLS_ASSIGN_OR_RETURN(int64_t element_count,
-                         ResolveDimToInt(array_type->size()));
-    xls::Type* result = package()->GetArrayType(element_count, element_type);
-    XLS_VLOG(5) << "Converted type to IR; concrete type: " << concrete_type
-                << " ir: " << result->ToString()
-                << " element_count: " << element_count;
-    return result;
-  }
-  if (auto* bits_type = dynamic_cast<const BitsType*>(&concrete_type)) {
-    XLS_ASSIGN_OR_RETURN(int64_t bit_count, ResolveDimToInt(bits_type->size()));
-    return package()->GetBitsType(bit_count);
-  }
-  if (auto* enum_type = dynamic_cast<const EnumType*>(&concrete_type)) {
-    XLS_ASSIGN_OR_RETURN(int64_t bit_count, enum_type->size().GetAsInt64());
-    return package()->GetBitsType(bit_count);
-  }
-  if (dynamic_cast<const TokenType*>(&concrete_type)) {
-    return package()->GetTokenType();
-  }
-  std::vector<xls::Type*> members;
-  if (auto* struct_type = dynamic_cast<const StructType*>(&concrete_type)) {
-    for (const std::unique_ptr<ConcreteType>& m : struct_type->members()) {
-      XLS_ASSIGN_OR_RETURN(xls::Type * type, TypeToIr(*m));
-      members.push_back(type);
-    }
-    return package()->GetTupleType(std::move(members));
-  }
-  auto* tuple_type = dynamic_cast<const TupleType*>(&concrete_type);
-  XLS_RET_CHECK(tuple_type != nullptr) << concrete_type;
-  for (const std::unique_ptr<ConcreteType>& m : tuple_type->members()) {
-    XLS_ASSIGN_OR_RETURN(xls::Type * type, TypeToIr(*m));
-    members.push_back(type);
-  }
-  return package()->GetTupleType(std::move(members));
+  return TypeToIr(package_data_.package, *concrete_type,
+                  SymbolicBindings(symbolic_binding_map_));
 }
 
 absl::Status ConvertOneFunctionInternal(PackageData& package_data,

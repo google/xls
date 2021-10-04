@@ -95,6 +95,35 @@ cc_test(
 )
 
 cc_library(
+    name = "ir_conversion_utils",
+    srcs = ["ir_conversion_utils.cc"],
+    hdrs = ["ir_conversion_utils.h"],
+    deps = [
+        ":concrete_type",
+        ":deduce_ctx",
+        ":symbolic_bindings",
+        "//xls/ir",
+        "//xls/ir:type",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "ir_conversion_utils_test",
+    srcs = ["ir_conversion_utils_test.cc"],
+    deps = [
+        ":concrete_type",
+        ":interp_value",
+        ":ir_conversion_utils",
+        ":parametric_expression",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "symbolic_bindings",
     srcs = ["symbolic_bindings.cc"],
     hdrs = ["symbolic_bindings.h"],
@@ -720,6 +749,7 @@ cc_library(
         ":import_routines",
         ":interp_value",
         ":interpreter",
+        ":ir_conversion_utils",
         ":mangle",
         ":type_info",
         ":typecheck",
