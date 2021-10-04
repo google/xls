@@ -24,12 +24,15 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 
+// TODO(meheff): 2021-10-04 Remove this header.
+#include "xls/passes/passes.h"
+
 namespace xls::tools {
 
 // Various optimizer options (that generally funnel from the `opt_main` tool to
 // this consolidated library).
 struct OptOptions {
-  int64_t opt_level;
+  int64_t opt_level = xls::kMaxOptLevel;
   absl::string_view entry;
   absl::string_view ir_dump_path = "";
   absl::optional<absl::string_view> ir_path = absl::nullopt;

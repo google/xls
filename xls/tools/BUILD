@@ -619,6 +619,7 @@ cc_library(
     name = "opt",
     srcs = ["opt.cc"],
     hdrs = ["opt.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
