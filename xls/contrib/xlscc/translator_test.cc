@@ -3619,6 +3619,19 @@ TEST_F(TranslatorTest, MetadataRefConstParams) {
   ASSERT_TRUE(did_equal);
 }
 
+TEST_F(TranslatorTest, ParenType) {
+  const std::string content = R"(
+    int thing(const int (&arr)[2]) {
+      return arr[0] + arr[1];
+    }
+    int my_package(int a) {
+      int arr[2] = {a, 1+a};
+      return thing(arr);
+    })";
+
+  Run({{"a", 10}}, 21, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc

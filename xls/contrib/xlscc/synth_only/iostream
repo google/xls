@@ -23,6 +23,8 @@ class iostream {
 
 };
 
+const int endl = 1;
+
 }  // namespace std
 
 #endif//__IOSRTREAM__

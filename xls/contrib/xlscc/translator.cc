@@ -3605,6 +3605,9 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
     // No pointer support
     auto lval = clang_down_cast<const clang::LValueReferenceType*>(type);
     return TranslateTypeFromClang(lval->getPointeeType(), loc);
+  } else if (type->getTypeClass() == clang::Type::TypeClass::Paren) {
+    auto lval = clang_down_cast<const clang::ParenType*>(type);
+    return TranslateTypeFromClang(lval->desugar(), loc);
   } else if (type->getTypeClass() == clang::Type::TypeClass::Pointer) {
     auto lval = clang_down_cast<const clang::PointerType*>(type);
     if (context().ignore_pointers) {
