@@ -265,7 +265,7 @@ absl::Status ParametricInstantiator::SymbolicBind(
   if (auto* param_enum = dynamic_cast<const EnumType*>(&param_type)) {
     auto* arg_enum = dynamic_cast<const EnumType*>(&arg_type);
     XLS_RET_CHECK(arg_enum != nullptr);
-    XLS_RET_CHECK_EQ(param_enum->nominal_type(), arg_enum->nominal_type());
+    XLS_RET_CHECK_EQ(&param_enum->nominal_type(), &arg_enum->nominal_type());
     // If the enums are the same, we do the same thing as we do with bits
     // (ignore the primitive and symbolic bind the dims).
     return SymbolicBindBits(*param_enum, *arg_enum);

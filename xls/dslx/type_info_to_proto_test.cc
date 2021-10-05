@@ -171,5 +171,26 @@ fn f() -> S { S { x: u32:42 } }
           R"(struct_def \{ span \{ .*? \} identifier: "S" member_names: "x" is_public: false \})"));
 }
 
+TEST(TypeInfoToProtoTest, MakeEnumFunction) {
+  std::string program = R"(
+enum E : u32 { A = 42 }
+fn f() -> E { E::A }
+)";
+  std::vector<std::string> want = {
+      /*0=*/"1:0-1:4: ENUM_DEF :: `enum E : u32 {\n  A = 42,\n}` :: E",
+      /*1=*/"1:5-1:6: NAME_DEF :: `E` :: E",
+      /*2=*/"1:9-1:12: TYPE_ANNOTATION :: `u32` :: uN[32]",
+      /*3=*/"1:15-1:16: NAME_DEF :: `A` :: E",
+      /*4=*/"1:19-1:21: NUMBER :: `u32:42` :: E",
+      /*5=*/"2:0-2:20: FUNCTION :: `fn f() -> E {\n  E::A\n}` :: () -> E",
+      /*6=*/"2:3-2:4: NAME_DEF :: `f` :: () -> E",
+      /*7=*/"2:10-2:11: TYPE_REF :: `E` :: E",
+      /*8=*/"2:10-2:12: TYPE_ANNOTATION :: `E` :: E",
+      /*9=*/"2:14-2:15: NAME_REF :: `E` :: E",
+      /*10=*/"2:15-2:18: COLON_REF :: `E::A` :: E",
+  };
+  DoRun(program, want);
+}
+
 }  // namespace
 }  // namespace xls::dslx

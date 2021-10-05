@@ -571,6 +571,10 @@ const StructDef* Module::FindStructDef(const Span& span) const {
   return down_cast<const StructDef*>(FindNode(AstNodeKind::kStructDef, span));
 }
 
+const EnumDef* Module::FindEnumDef(const Span& span) const {
+  return down_cast<const EnumDef*>(FindNode(AstNodeKind::kEnumDef, span));
+}
+
 absl::optional<ModuleMember*> Module::FindMemberWithName(
     absl::string_view target) {
   for (ModuleMember& member : top_) {

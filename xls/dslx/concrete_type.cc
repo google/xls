@@ -505,7 +505,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> EnumType::MapSize(
   return std::make_unique<EnumType>(enum_def_, std::move(new_size));
 }
 
-std::string EnumType::ToString() const { return enum_def_->identifier(); }
+std::string EnumType::ToString() const { return enum_def_.identifier(); }
 
 std::vector<ConcreteTypeDim> EnumType::GetAllDims() const {
   std::vector<ConcreteTypeDim> result;

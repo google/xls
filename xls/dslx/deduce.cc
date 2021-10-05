@@ -522,7 +522,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(Binop* node,
         node->span(), nullptr,
         absl::StrFormat("Cannot use '%s' on values with enum type %s.",
                         BinopKindFormat(node->binop_kind()),
-                        enum_type->nominal_type()->identifier()));
+                        enum_type->nominal_type().identifier()));
   }
 
   if (GetBinopComparisonKinds().contains(node->binop_kind())) {
@@ -553,7 +553,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(EnumDef* node,
   const ConcreteTypeDim& bit_count = bits_type->size();
   node->set_signedness(bits_type->is_signed());
 
-  auto result = std::make_unique<EnumType>(node, bit_count);
+  auto result = std::make_unique<EnumType>(*node, bit_count);
   for (const EnumMember& member : node->values()) {
     // Note: the parser places the type from the enum on the value when it is a
     // number, so this deduction flags inappropriate numbers.
@@ -1006,12 +1006,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRef(ColonRef* node,
         absl::StrFormat("Cannot use '::' on '%s', it is not an enum or module",
                         ToAstNode(node->subject())->ToString()));
   }
-  EnumDef* enum_def = enum_type->nominal_type();
-  if (!enum_def->HasValue(node->attr())) {
+  const EnumDef& enum_def = enum_type->nominal_type();
+  if (!enum_def.HasValue(node->attr())) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Name '%s' is not defined by the enum %s.",
-                        node->attr(), enum_def->identifier()));
+                        node->attr(), enum_def.identifier()));
   }
   return subject_type;
 }

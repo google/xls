@@ -1694,6 +1694,10 @@ class EnumDef : public AstNode {
   TypeAnnotation* type_annotation() const { return type_annotation_; }
   bool is_public() const { return is_public_; }
 
+  const std::string& GetMemberName(int64_t i) const {
+    return values_.at(i).name_def->identifier();
+  }
+
   // The signedness of the enum is populated in the type inference phase, it is
   // not known at parse time (hence absl::optional<bool> / set_signedness).
 
@@ -1703,9 +1707,22 @@ class EnumDef : public AstNode {
  private:
   Span span_;
   NameDef* name_def_;
+
+  // Underlying type that defines the width of this enum.
   TypeAnnotation* type_annotation_;
+
+  // name / expr pairs that define the enumerated values offered.
   std::vector<EnumMember> values_;
+
+  // Populated by typechecking as a memoized note on whether this enum type was
+  // found to be signed when the underlying type_annotation_ was resoled to a
+  // concrete type.
+  //
+  // TODO(leary): 2021-09-29 We should keep this in a supplemental data
+  // structure instead of mutating AST nodes.
   absl::optional<bool> is_signed_;
+
+  // Whether or not this enum definition was marked as public.
   bool is_public_;
 };
 
@@ -2547,6 +2564,8 @@ class Module : public AstNode {
   absl::optional<ModuleMember*> FindMemberWithName(absl::string_view target);
 
   const StructDef* FindStructDef(const Span& span) const;
+
+  const EnumDef* FindEnumDef(const Span& span) const;
 
   // Obtains all the type definition nodes in the module:
   //    TypeDef, Struct, Enum

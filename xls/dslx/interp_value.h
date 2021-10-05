@@ -112,7 +112,7 @@ class InterpValue {
   static InterpValue MakeU32(uint32_t value) {
     return MakeUBits(/*bit_count=*/32, value);
   }
-  static InterpValue MakeEnum(Bits bits, EnumDef* type) {
+  static InterpValue MakeEnum(Bits bits, const EnumDef* type) {
     return InterpValue(InterpValueTag::kEnum, std::move(bits), type);
   }
   static InterpValue MakeSigned(Bits bits) {
@@ -279,7 +279,7 @@ class InterpValue {
 
   // For enum values, the enum that the bit pattern is interpreted by is
   // referred to by the interpreter value.
-  EnumDef* type() const { return type_; }
+  const EnumDef* type() const { return type_; }
 
   // Note: different from IsBits() which is checking whether the tag is sbits or
   // ubits; this is checking whether there are bits in the payload, which would
@@ -324,7 +324,8 @@ class InterpValue {
   using Payload = absl::variant<Bits, std::vector<InterpValue>, FnData,
                                 std::shared_ptr<TokenData>>;
 
-  InterpValue(InterpValueTag tag, Payload payload, EnumDef* type = nullptr)
+  InterpValue(InterpValueTag tag, Payload payload,
+              const EnumDef* type = nullptr)
       : tag_(tag), payload_(std::move(payload)), type_(type) {}
 
   using CompareF = bool (*)(const Bits& lhs, const Bits& rhs);
@@ -343,7 +344,7 @@ class InterpValue {
   // holding the enum AST node alive via the shared_ptr. When the DSL is fully
   // migrated to C++ we can use lifetime assumptions as is more typical in C++
   // land, this is done for Python interop.
-  EnumDef* type_ = nullptr;
+  const EnumDef* type_ = nullptr;
 };
 
 // Retrieves the module associated with the function_value if it is user

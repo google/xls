@@ -31,11 +31,10 @@ absl::Status Typecheck(absl::string_view text) {
   auto import_data = ImportData::CreateForTest();
   XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
                        ParseAndTypecheck(text, "fake.x", "fake", &import_data));
-  // TODO(leary): 2021-09-24 Enable this as TypeInfoToProto can handle all
-  // constructs.
-  // XLS_ASSIGN_OR_RETURN(TypeInfoProto tip, TypeInfoToProto(*tm.type_info));
-  // (void)tip;
-  (void)tm;
+  // Ensure that we can convert all the type information in the unit tests into
+  // its protobuf form.
+  XLS_ASSIGN_OR_RETURN(TypeInfoProto tip, TypeInfoToProto(*tm.type_info));
+  (void)tip;
   return absl::Status();
 }
 
@@ -730,6 +729,16 @@ fn f() -> u4 {
   let my_array = [a];
   a
 }
+)"));
+}
+
+TEST(TypecheckTest, EnumIdentity) {
+  XLS_EXPECT_OK(Typecheck(R"(
+enum MyEnum : u1 {
+  A = false,
+  B = true,
+}
+fn f(x: MyEnum) -> MyEnum { x }
 )"));
 }
 

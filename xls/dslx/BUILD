@@ -701,6 +701,7 @@ cc_library(
         ":import_routines",
         ":interpreter",
         ":parametric_instantiator",
+        ":type_info_to_proto",
         "//xls/common/status:status_macros",
         "@com_github_google_re2//:re2",
         "@com_google_absl//absl/status:statusor",

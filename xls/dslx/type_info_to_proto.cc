@@ -241,25 +241,46 @@ absl::StatusOr<StructTypeProto> ToProto(const StructType& struct_type) {
   return proto;
 }
 
+absl::StatusOr<EnumDefProto> ToProto(const EnumDef& enum_def) {
+  EnumDefProto proto;
+  *proto.mutable_span() = ToProto(enum_def.span());
+  proto.set_identifier(enum_def.identifier());
+  proto.set_is_public(enum_def.is_public());
+  for (int64_t i = 0; i < enum_def.values().size(); ++i) {
+    proto.add_member_names(ToProtoString(enum_def.GetMemberName(i)));
+  }
+  return proto;
+}
+
+absl::StatusOr<EnumTypeProto> ToProto(const EnumType& enum_type) {
+  EnumTypeProto proto;
+  XLS_ASSIGN_OR_RETURN(*proto.mutable_enum_def(),
+                       ToProto(enum_type.nominal_type()));
+  XLS_ASSIGN_OR_RETURN(*proto.mutable_size(), ToProto(enum_type.size()));
+  return proto;
+}
+
 absl::StatusOr<ConcreteTypeProto> ToProto(const ConcreteType& concrete_type) {
   ConcreteTypeProto proto;
   if (const auto* bits = dynamic_cast<const BitsType*>(&concrete_type)) {
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_bits(), ToProto(*bits));
+    XLS_ASSIGN_OR_RETURN(*proto.mutable_bits_type(), ToProto(*bits));
   } else if (const auto* fn =
                  dynamic_cast<const FunctionType*>(&concrete_type)) {
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_fn(), ToProto(*fn));
+    XLS_ASSIGN_OR_RETURN(*proto.mutable_fn_type(), ToProto(*fn));
   } else if (const auto* tuple =
                  dynamic_cast<const TupleType*>(&concrete_type)) {
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_tuple(), ToProto(*tuple));
+    XLS_ASSIGN_OR_RETURN(*proto.mutable_tuple_type(), ToProto(*tuple));
   } else if (const auto* array =
                  dynamic_cast<const ArrayType*>(&concrete_type)) {
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_array(), ToProto(*array));
+    XLS_ASSIGN_OR_RETURN(*proto.mutable_array_type(), ToProto(*array));
   } else if (const auto* struct_type =
                  dynamic_cast<const StructType*>(&concrete_type)) {
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_structure(), ToProto(*struct_type));
-  } else if (const auto* token_type =
-                 dynamic_cast<const TokenType*>(&concrete_type)) {
-    proto.mutable_token();
+    XLS_ASSIGN_OR_RETURN(*proto.mutable_struct_type(), ToProto(*struct_type));
+  } else if (const auto* enum_type =
+                 dynamic_cast<const EnumType*>(&concrete_type)) {
+    XLS_ASSIGN_OR_RETURN(*proto.mutable_enum_type(), ToProto(*enum_type));
+  } else if (dynamic_cast<const TokenType*>(&concrete_type) != nullptr) {
+    proto.mutable_token_type();
   } else {
     return absl::UnimplementedError("Convert ConcreteType to proto: " +
                                     concrete_type.ToString());
@@ -360,28 +381,44 @@ absl::StatusOr<ConcreteTypeDim> FromProto(const ConcreteTypeDimProto& ctdp) {
 absl::StatusOr<std::unique_ptr<ConcreteType>> FromProto(
     const ConcreteTypeProto& ctp, const Module& m) {
   switch (ctp.concrete_type_oneof_case()) {
-    case ConcreteTypeProto::ConcreteTypeOneofCase::kBits: {
-      XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim, FromProto(ctp.bits().dim()));
-      return std::make_unique<BitsType>(ctp.bits().is_signed(), std::move(dim));
+    case ConcreteTypeProto::ConcreteTypeOneofCase::kBitsType: {
+      XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim,
+                           FromProto(ctp.bits_type().dim()));
+      return std::make_unique<BitsType>(ctp.bits_type().is_signed(),
+                                        std::move(dim));
     }
-    case ConcreteTypeProto::ConcreteTypeOneofCase::kTuple: {
+    case ConcreteTypeProto::ConcreteTypeOneofCase::kTupleType: {
       std::vector<std::unique_ptr<ConcreteType>> members;
-      for (const ConcreteTypeProto& member : ctp.tuple().members()) {
+      for (const ConcreteTypeProto& member : ctp.tuple_type().members()) {
         XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> ct,
                              FromProto(member, m));
         members.push_back(std::move(ct));
       }
       return std::make_unique<TupleType>(std::move(members));
     }
-    case ConcreteTypeProto::ConcreteTypeOneofCase::kArray: {
+    case ConcreteTypeProto::ConcreteTypeOneofCase::kArrayType: {
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> element_type,
-                           FromProto(ctp.array().element_type(), m));
-      XLS_ASSIGN_OR_RETURN(ConcreteTypeDim size, FromProto(ctp.array().size()));
+                           FromProto(ctp.array_type().element_type(), m));
+      XLS_ASSIGN_OR_RETURN(ConcreteTypeDim size,
+                           FromProto(ctp.array_type().size()));
       return std::make_unique<ArrayType>(std::move(element_type),
                                          std::move(size));
     }
-    case ConcreteTypeProto::ConcreteTypeOneofCase::kFn: {
-      const FunctionTypeProto& ftp = ctp.fn();
+    case ConcreteTypeProto::ConcreteTypeOneofCase::kEnumType: {
+      const EnumTypeProto& etp = ctp.enum_type();
+      const EnumDefProto& enum_def_proto = etp.enum_def();
+      XLS_ASSIGN_OR_RETURN(ConcreteTypeDim size,
+                           FromProto(ctp.enum_type().size()));
+      const EnumDef* enum_def = m.FindEnumDef(FromProto(enum_def_proto.span()));
+      if (enum_def == nullptr) {
+        return absl::NotFoundError(
+            absl::StrFormat("Enum definition not found in module %s: %s",
+                            m.name(), enum_def_proto.identifier()));
+      }
+      return std::make_unique<EnumType>(*enum_def, std::move(size));
+    }
+    case ConcreteTypeProto::ConcreteTypeOneofCase::kFnType: {
+      const FunctionTypeProto& ftp = ctp.fn_type();
       std::vector<std::unique_ptr<ConcreteType>> params;
       for (const ConcreteTypeProto& param : ftp.params()) {
         XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> ct,
@@ -392,11 +429,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FromProto(
                            FromProto(ftp.return_type(), m));
       return std::make_unique<FunctionType>(std::move(params), std::move(rt));
     }
-    case ConcreteTypeProto::ConcreteTypeOneofCase::kToken: {
+    case ConcreteTypeProto::ConcreteTypeOneofCase::kTokenType: {
       return std::make_unique<TokenType>();
     }
-    case ConcreteTypeProto::ConcreteTypeOneofCase::kStructure: {
-      const StructTypeProto& stp = ctp.structure();
+    case ConcreteTypeProto::ConcreteTypeOneofCase::kStructType: {
+      const StructTypeProto& stp = ctp.struct_type();
       const StructDefProto& struct_def_proto = stp.struct_def();
       const StructDef* struct_def =
           m.FindStructDef(FromProto(struct_def_proto.span()));

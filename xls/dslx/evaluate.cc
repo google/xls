@@ -22,12 +22,6 @@
 #include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
-namespace {
-
-using Value = InterpValue;
-using Tag = InterpValueTag;
-
-}  // namespace
 
 absl::StatusOr<InterpValue> EvaluateNameRef(NameRef* expr,
                                             InterpBindings* bindings,
@@ -186,9 +180,9 @@ absl::StatusOr<InterpValue> EvaluateXlsTuple(XlsTuple* expr,
 //  enum_def: AST node (enum definition) to convert.
 //  bit_count: The bit count of the underlying bits type for the enum
 //    definition, as determined by type inference or interpretation.
-static std::unique_ptr<ConcreteType> StrengthReduceEnum(EnumDef* enum_def,
+static std::unique_ptr<ConcreteType> StrengthReduceEnum(const EnumDef& enum_def,
                                                         int64_t bit_count) {
-  bool is_signed = enum_def->signedness().value();
+  bool is_signed = enum_def.signedness().value();
   return std::make_unique<BitsType>(is_signed, bit_count);
 }
 
@@ -218,9 +212,9 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromValue(
         // just use nil.
         element_type = ConcreteType::MakeUnit();
       } else {
-        XLS_ASSIGN_OR_RETURN(
-            element_type,
-            ConcreteTypeFromValue(value.Index(Value::MakeU32(0)).value()));
+        XLS_ASSIGN_OR_RETURN(element_type,
+                             ConcreteTypeFromValue(
+                                 value.Index(InterpValue::MakeU32(0)).value()));
       }
       auto dim = ConcreteTypeDim::CreateU32(value.GetLength().value());
       return std::make_unique<ArrayType>(std::move(element_type), dim);
@@ -234,7 +228,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromValue(
       return std::make_unique<TupleType>(std::move(members));
     }
     case InterpValueTag::kEnum:
-      return StrengthReduceEnum(value.type(), value.GetBitCount().value());
+      return StrengthReduceEnum(*value.type(), value.GetBitCount().value());
     case InterpValueTag::kFunction:
       break;
     case InterpValueTag::kToken:
@@ -298,7 +292,7 @@ absl::StatusOr<bool> ValueCompatibleWithType(const ConcreteType& type,
   // they're identical.
   if (auto* enum_type = dynamic_cast<const EnumType*>(&type);
       enum_type != nullptr && value.tag() == InterpValueTag::kEnum) {
-    return enum_type->nominal_type() == value.type();
+    return &enum_type->nominal_type() == value.type();
   }
 
   if (auto* bits_type = dynamic_cast<const BitsType*>(&type)) {
@@ -475,14 +469,14 @@ absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
       values.push_back(bit_slice_value_at_index(i));
     }
 
-    return Value::MakeArray(values);
+    return InterpValue::MakeArray(values);
   }
 
   // Converting bits-having-thing into an enum.
   if (auto* enum_type = dynamic_cast<const EnumType*>(&type);
       enum_type != nullptr && value.HasBits() &&
       BitCountMatches(value, type.GetTotalBitCount().value())) {
-    EnumDef* enum_def = enum_type->nominal_type();
+    const EnumDef& enum_def = enum_type->nominal_type();
     bool found = false;
     for (const InterpValue& enum_value : *enum_values) {
       if (value.GetBitsOrDie() == enum_value.GetBitsOrDie()) {
@@ -493,9 +487,9 @@ absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
     if (!found) {
       return absl::InternalError(absl::StrFormat(
           "FailureError: %s Value is not valid for enum %s: %s",
-          span.ToString(), enum_def->identifier(), value.ToString()));
+          span.ToString(), enum_def.identifier(), value.ToString()));
     }
-    return Value::MakeEnum(value.GetBitsOrDie(), enum_def);
+    return InterpValue::MakeEnum(value.GetBitsOrDie(), &enum_def);
   }
 
   // Converting enum value to bits.
@@ -565,9 +559,9 @@ static absl::StatusOr<absl::optional<std::vector<InterpValue>>> GetEnumValues(
     return absl::nullopt;
   }
 
-  EnumDef* enum_def = enum_type->nominal_type();
+  const EnumDef& enum_def = enum_type->nominal_type();
   std::vector<InterpValue> result;
-  for (const EnumMember& member : enum_def->values()) {
+  for (const EnumMember& member : enum_def.values()) {
     XLS_ASSIGN_OR_RETURN(InterpValue value,
                          interp->Eval(member.value, bindings));
     result.push_back(std::move(value));
@@ -750,12 +744,12 @@ absl::StatusOr<InterpValue> EvaluateSplatStructInstance(
 }
 
 static absl::StatusOr<InterpValue> EvaluateEnumRefHelper(
-    Expr* expr, EnumDef* enum_def, absl::string_view attr,
+    Expr* expr, const EnumDef& enum_def, absl::string_view attr,
     AbstractInterpreter* interp) {
-  XLS_ASSIGN_OR_RETURN(auto value_node, enum_def->GetValue(attr));
+  XLS_ASSIGN_OR_RETURN(auto value_node, enum_def.GetValue(attr));
   // Note: we have grab bindings from the underlying type (not from the expr,
   // which may have been in a different module from the enum_def).
-  TypeAnnotation* underlying_type = enum_def->type_annotation();
+  TypeAnnotation* underlying_type = enum_def.type_annotation();
   XLS_ASSIGN_OR_RETURN(
       const InterpBindings* top_bindings,
       GetOrCreateTopLevelBindings(underlying_type->owner(), interp));
@@ -769,7 +763,7 @@ static absl::StatusOr<InterpValue> EvaluateEnumRefHelper(
   AbstractInterpreter::ScopedTypeInfoSwap stis_value(interp, value_node);
   XLS_ASSIGN_OR_RETURN(InterpValue raw_value,
                        interp->Eval(value_node, &fresh_bindings));
-  return InterpValue::MakeEnum(raw_value.GetBitsOrDie(), enum_def);
+  return InterpValue::MakeEnum(raw_value.GetBitsOrDie(), &enum_def);
 }
 
 // This resolves the "LHS" entity for this colon ref -- following resolving the
@@ -843,7 +837,7 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
               << " attr: " << expr->attr();
   if (absl::holds_alternative<EnumDef*>(subject)) {
     auto* enum_def = absl::get<EnumDef*>(subject);
-    return EvaluateEnumRefHelper(expr, enum_def, expr->attr(), interp);
+    return EvaluateEnumRefHelper(expr, *enum_def, expr->attr(), interp);
   }
 
   auto* module = absl::get<Module*>(subject);
@@ -964,9 +958,9 @@ absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
     case BinopKind::kXor:
       return lhs.BitwiseXor(rhs);
     case BinopKind::kEq:
-      return Value::MakeBool(lhs.Eq(rhs));
+      return InterpValue::MakeBool(lhs.Eq(rhs));
     case BinopKind::kNe:
-      return Value::MakeBool(lhs.Ne(rhs));
+      return InterpValue::MakeBool(lhs.Ne(rhs));
     case BinopKind::kGt:
       return lhs.Gt(rhs);
     case BinopKind::kLt:
@@ -1041,7 +1035,8 @@ static absl::StatusOr<InterpValue> EvaluateIndexBitSlice(
   XLS_RET_CHECK(maybe_saw.has_value())
       << "Slice start/width missing for slice @ " << expr->span();
   const auto& saw = maybe_saw.value();
-  return Value::MakeBits(Tag::kUBits, bits.Slice(saw.start, saw.width));
+  return InterpValue::MakeBits(InterpValueTag::kUBits,
+                               bits.Slice(saw.start, saw.width));
 }
 
 static absl::StatusOr<InterpValue> EvaluateIndexWidthSlice(
@@ -1065,7 +1060,7 @@ static absl::StatusOr<InterpValue> EvaluateIndexWidthSlice(
 
   // Make a value which corresponds to the slice being completely out of bounds.
   auto make_oob_value = [&]() {
-    return Value::MakeUBits(/*bit_count=*/width_value, /*value=*/0);
+    return InterpValue::MakeUBits(/*bit_count=*/width_value, /*value=*/0);
   };
 
   if (!start.FitsInUint64()) {
@@ -1451,7 +1446,7 @@ ConcretizeTypeRefTypeAnnotation(TypeRefTypeAnnotation* type_ref,
         ConcretizeType(enum_def->type_annotation(), bindings, interp));
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bit_count,
                          underlying_type->GetTotalBitCount());
-    return std::make_unique<EnumType>(enum_def, bit_count);
+    return std::make_unique<EnumType>(*enum_def, bit_count);
   }
 
   // Start with the parametrics that are given in the type reference, and then

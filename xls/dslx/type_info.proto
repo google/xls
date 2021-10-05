@@ -157,18 +157,33 @@ message StructTypeProto {
   optional StructDefProto struct_def = 2;
 }
 
+// Serialized data for an enum definition referenced in an enum type -- see
+// `xls::dslx::EnumDef`.
+message EnumDefProto {
+  optional SpanProto span = 1;
+  optional string identifier = 2;
+  repeated string member_names = 3;
+  optional bool is_public = 4;
+}
+
+message EnumTypeProto {
+  optional ConcreteTypeDimProto size = 1;
+  optional EnumDefProto enum_def = 2;
+}
+
 message TokenTypeProto {
   // Empty.
 }
 
 message ConcreteTypeProto {
   oneof concrete_type_oneof {
-    BitsTypeProto bits = 1;
-    FunctionTypeProto fn = 2;
-    TupleTypeProto tuple = 3;
-    ArrayTypeProto array = 4;
-    StructTypeProto structure = 5;
-    TokenTypeProto token = 6;
+    BitsTypeProto bits_type = 1;
+    FunctionTypeProto fn_type = 2;
+    TupleTypeProto tuple_type = 3;
+    ArrayTypeProto array_type = 4;
+    StructTypeProto struct_type = 5;
+    TokenTypeProto token_type = 6;
+    EnumTypeProto enum_type = 7;
   }
 }
 
