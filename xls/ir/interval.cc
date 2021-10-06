@@ -92,6 +92,56 @@ Interval Interval::ConvexHull(const Interval& lhs, const Interval& rhs) {
   return result;
 }
 
+absl::optional<Interval> Interval::Intersect(const Interval& lhs,
+                                             const Interval& rhs) {
+  XLS_CHECK_EQ(lhs.BitCount(), rhs.BitCount());
+  XLS_CHECK(!lhs.IsImproper());
+  XLS_CHECK(!rhs.IsImproper());
+  if (!Interval::Overlaps(lhs, rhs)) {
+    return absl::nullopt;
+  }
+  Bits lower = lhs.LowerBound();
+  if (bits_ops::UGreaterThan(rhs.LowerBound(), lower)) {
+    lower = rhs.LowerBound();
+  }
+  Bits upper = lhs.UpperBound();
+  if (bits_ops::ULessThan(rhs.UpperBound(), upper)) {
+    upper = rhs.UpperBound();
+  }
+  return Interval(lower, upper);
+}
+
+std::vector<Interval> Interval::Difference(const Interval& lhs,
+                                           const Interval& rhs) {
+  XLS_CHECK_EQ(lhs.BitCount(), rhs.BitCount());
+  XLS_CHECK(!lhs.IsImproper());
+  XLS_CHECK(!rhs.IsImproper());
+  if (!Interval::Overlaps(lhs, rhs)) {
+    // X - Y = X when X ∩ Y = ø
+    return {lhs};
+  }
+  std::vector<Interval> result;
+  if (bits_ops::ULessThan(lhs.LowerBound(), rhs.LowerBound())) {
+    result.push_back(
+        Interval(lhs.LowerBound(),
+                 bits_ops::Sub(rhs.LowerBound(), UBits(1, rhs.BitCount()))));
+  }
+  if (bits_ops::ULessThan(rhs.UpperBound(), lhs.UpperBound())) {
+    result.push_back(
+        Interval(bits_ops::Add(rhs.UpperBound(), UBits(1, rhs.BitCount())),
+                 lhs.UpperBound()));
+  }
+  return result;
+}
+
+bool Interval::IsSubsetOf(const Interval& lhs, const Interval& rhs) {
+  XLS_CHECK_EQ(lhs.BitCount(), rhs.BitCount());
+  XLS_CHECK(!lhs.IsImproper());
+  XLS_CHECK(!rhs.IsImproper());
+  return bits_ops::ULessThanOrEqual(rhs.LowerBound(), lhs.LowerBound()) &&
+         bits_ops::UGreaterThanOrEqual(rhs.UpperBound(), lhs.UpperBound());
+}
+
 bool Interval::ForEachElement(std::function<bool(const Bits&)> callback) const {
   EnsureValid();
   if (bits_ops::UEqual(lower_bound_, upper_bound_)) {

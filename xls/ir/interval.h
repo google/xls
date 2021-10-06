@@ -80,6 +80,23 @@ class Interval {
   // Does not accept improper intervals.
   static Interval ConvexHull(const Interval& lhs, const Interval& rhs);
 
+  // Given two `Interval`s, return an `Interval` representing their
+  // intersection, if one exists. Otherwise, returns `absl::nullopt`.
+  // Does not accept improper intervals.
+  static absl::optional<Interval> Intersect(const Interval& lhs,
+                                            const Interval& rhs);
+
+  // Given two `Interval`s, return a set of `Interval`s representing their
+  // set difference.
+  // Does not accept improper intervals.
+  static std::vector<Interval> Difference(const Interval& lhs,
+                                          const Interval& rhs);
+
+  // Given two `Interval`s, return a boolean that is true iff `lhs` is a subset
+  // of `rhs`. If the same interval is given twice, returns true (i.e.: improper
+  // subsets are allowed). Does not accept improper intervals.
+  static bool IsSubsetOf(const Interval& lhs, const Interval& rhs);
+
   // Iterate over every point in the interval, calling the given callback for
   // each point. If the callback returns `true`, terminate the iteration early
   // and return `true`. Otherwise, continue the iteration until all points have

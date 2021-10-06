@@ -33,6 +33,10 @@ Bits SumOf(absl::Span<Bits const> vec) {
   return result;
 }
 
+Interval SimpleInterval(uint32_t lower, uint32_t upper) {
+  return Interval(UBits(lower, 32), UBits(upper, 32));
+}
+
 TEST(IntervalTest, BitCount) {
   Interval size_zero(Bits(0), Bits(0));
   EXPECT_EQ(size_zero.BitCount(), 0);
@@ -105,6 +109,54 @@ TEST(IntervalTest, ConvexHull) {
   EXPECT_EQ(
       Interval::ConvexHull(Interval(Bits(), Bits()), Interval(Bits(), Bits())),
       Interval(Bits(), Bits()));
+}
+
+TEST(IntervalSet, Intersect) {
+  EXPECT_EQ(Interval::Intersect(SimpleInterval(20, 30), SimpleInterval(40, 50)),
+            absl::nullopt);
+  EXPECT_EQ(Interval::Intersect(SimpleInterval(20, 30), SimpleInterval(30, 40)),
+            SimpleInterval(30, 30));
+  EXPECT_EQ(Interval::Intersect(SimpleInterval(20, 30), SimpleInterval(25, 40)),
+            SimpleInterval(25, 30));
+  EXPECT_EQ(Interval::Intersect(SimpleInterval(25, 30), SimpleInterval(20, 40)),
+            SimpleInterval(25, 30));
+  EXPECT_EQ(Interval::Intersect(SimpleInterval(40, 50), SimpleInterval(20, 30)),
+            absl::nullopt);
+  EXPECT_EQ(Interval::Intersect(SimpleInterval(30, 40), SimpleInterval(20, 30)),
+            SimpleInterval(30, 30));
+  EXPECT_EQ(Interval::Intersect(SimpleInterval(25, 40), SimpleInterval(20, 30)),
+            SimpleInterval(25, 30));
+  EXPECT_EQ(Interval::Intersect(SimpleInterval(20, 40), SimpleInterval(25, 30)),
+            SimpleInterval(25, 30));
+}
+
+TEST(IntervalSet, Difference) {
+  EXPECT_EQ(
+      Interval::Difference(SimpleInterval(20, 30), SimpleInterval(40, 50)),
+      std::vector<Interval>{SimpleInterval(20, 30)});
+  EXPECT_EQ(
+      Interval::Difference(SimpleInterval(20, 30), SimpleInterval(20, 30)),
+      std::vector<Interval>{});
+  EXPECT_EQ(
+      Interval::Difference(SimpleInterval(20, 30), SimpleInterval(25, 35)),
+      std::vector<Interval>{SimpleInterval(20, 24)});
+  EXPECT_EQ(
+      Interval::Difference(SimpleInterval(20, 30), SimpleInterval(15, 25)),
+      std::vector<Interval>{SimpleInterval(26, 30)});
+  EXPECT_EQ(
+      Interval::Difference(SimpleInterval(20, 30), SimpleInterval(24, 26)),
+      (std::vector<Interval>{SimpleInterval(20, 23), SimpleInterval(27, 30)}));
+}
+
+TEST(IntervalSet, IsSubsetOf) {
+  EXPECT_FALSE(
+      Interval::IsSubsetOf(SimpleInterval(20, 30), SimpleInterval(40, 50)));
+  EXPECT_FALSE(
+      Interval::IsSubsetOf(SimpleInterval(20, 30), SimpleInterval(25, 50)));
+  EXPECT_FALSE(
+      Interval::IsSubsetOf(SimpleInterval(20, 50), SimpleInterval(30, 40)));
+  EXPECT_TRUE(
+      Interval::IsSubsetOf(SimpleInterval(20, 30), SimpleInterval(15, 50)));
 }
 
 TEST(IntervalTest, Elements) {
