@@ -17,6 +17,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_replace.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node_iterator.h"
 
@@ -61,9 +62,20 @@ absl::optional<std::string> GetInlinedNodeName(Node* node, Invoke* invoke) {
   return derived_name;
 }
 
+// Inlining can cause coverpoints to be duplicated, which will then conflict, as
+// a Verilog cover property must have a unique name. To handle this, we prepend
+// the original node ID to an inlined coverpoint. Post-processing will be needed
+// to re-aggregate coverpoints disaggregated in this method.
+std::string GetPrefixedLabel(Invoke* invoke, absl::string_view label,
+                             int inline_count) {
+  FunctionBase* caller = invoke->function_base();
+  return absl::StrCat(caller->name(), "_", inline_count, "_",
+                      invoke->to_apply()->name(), "_", label);
+}
+
 // Inlines the node "invoke" by replacing it with the contents of the called
 // function.
-absl::Status InlineInvoke(Invoke* invoke) {
+absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
   Function* invoked = invoke->to_apply();
   absl::flat_hash_map<Node*, Node*> invoked_node_to_replacement;
   for (int64_t i = 0; i < invoked->params().size(); ++i) {
@@ -89,7 +101,7 @@ absl::Status InlineInvoke(Invoke* invoke) {
     invoked_node_to_replacement[node] = new_node;
   }
 
-  // Generate meaningful names for each of the newly inlined nodes. For example,
+  // Update names for each of the newly inlined nodes. For example,
   // if the callsite looks like:
   //
   //   invoke.1: invoke(foo, to_apply=f)
@@ -103,7 +115,9 @@ absl::Status InlineInvoke(Invoke* invoke) {
   //   }
   //
   // Then 'x_negated' when inlined at the invoke callsite will have the name
-  // 'foo_negated'.
+  // 'foo_negated'. Coverpoint and assert names are also updated to include the
+  // call stack to differentiate in case inlining would otherwise result in
+  // multiple statements with the same labels.
   for (Node* node : invoked->nodes()) {
     if (node->Is<Param>()) {
       continue;
@@ -118,6 +132,34 @@ absl::Status InlineInvoke(Invoke* invoke) {
     absl::optional<std::string> new_name = GetInlinedNodeName(node, invoke);
     if (new_name.has_value()) {
       invoked_node_to_replacement.at(node)->SetName(new_name.value());
+    }
+
+    if (node->Is<Cover>()) {
+      std::string new_label =
+          GetPrefixedLabel(invoke, node->As<Cover>()->label(), inline_count);
+      Cover* cover = invoked_node_to_replacement.at(node)->As<Cover>();
+      Node* token = cover->token();
+      Node* condition = cover->condition();
+      XLS_ASSIGN_OR_RETURN(
+          auto new_cover,
+          cover->function_base()->MakeNodeWithName<Cover>(
+              cover->loc(), token, condition, new_label, cover->GetName()));
+      XLS_RETURN_IF_ERROR(cover->ReplaceUsesWith(new_cover));
+      XLS_RETURN_IF_ERROR(cover->function_base()->RemoveNode(cover));
+      invoked_node_to_replacement.at(node) = new_cover;
+    } else if (node->Is<Assert>() && node->As<Assert>()->label().has_value()) {
+      std::string new_label = GetPrefixedLabel(
+          invoke, node->As<Assert>()->label().value(), inline_count);
+      Assert* asrt = invoked_node_to_replacement.at(node)->As<Assert>();
+      Node* token = asrt->token();
+      Node* condition = asrt->condition();
+      XLS_ASSIGN_OR_RETURN(auto new_assert,
+                           asrt->function_base()->MakeNodeWithName<Assert>(
+                               asrt->loc(), token, condition, asrt->message(),
+                               new_label, asrt->GetName()));
+      XLS_RETURN_IF_ERROR(asrt->ReplaceUsesWith(new_assert));
+      XLS_RETURN_IF_ERROR(asrt->function_base()->RemoveNode(asrt));
+      invoked_node_to_replacement.at(node) = new_assert;
     }
   }
 
@@ -194,13 +236,14 @@ absl::StatusOr<bool> InliningPass::RunInternal(Package* p,
   // post order of the call graph (leaves first). This ensures that when a
   // function Foo is inlined into its callsites, no invokes remain in Foo. This
   // avoid duplicate work.
+  int inline_count = 0;
   for (FunctionBase* f : FunctionsInPostOrder(p)) {
     // Create copy of nodes() because we will be adding and removing nodes
     // during inlining.
     std::vector<Node*> nodes(f->nodes().begin(), f->nodes().end());
     for (Node* node : nodes) {
       if (node->Is<Invoke>()) {
-        XLS_RETURN_IF_ERROR(InlineInvoke(node->As<Invoke>()));
+        XLS_RETURN_IF_ERROR(InlineInvoke(node->As<Invoke>(), inline_count++));
         changed = true;
       }
     }

@@ -366,7 +366,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
       EXPECT_THAT(
           verilog,
           HasSubstr(
-              R"(the_label_5: `MY_ASSERT(a < 32'h0000_002a, "a is not greater than 42") // the_label_5)"));
+              R"(the_label: `MY_ASSERT(a < 32'h0000_002a, "a is not greater than 42") // the_label)"));
     } else {
       EXPECT_THAT(verilog, Not(HasSubstr("assert")));
     }

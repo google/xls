@@ -848,10 +848,7 @@ absl::Status ModuleBuilder::EmitAssert(
     supported_placeholders["message"] = asrt->message();
     supported_placeholders["condition"] = condition->Emit();
     if (asrt->label().has_value()) {
-      // Add the ID to ensure global label uniqueness, e.g., in cases where
-      // asserts have been "duplicated" due to inlining.
-      supported_placeholders["label"] =
-          absl::StrCat(asrt->label().value(), "_", asrt->id());
+      supported_placeholders["label"] = asrt->label().value();
     } else {
       unsupported_placeholders["label"] =
           "Assert format string has {label} placeholder, but assert operation "
@@ -1009,10 +1006,7 @@ absl::Status ModuleBuilder::EmitCover(xls::Cover* cover,
   if (cover_always_comb_ == nullptr) {
     cover_always_comb_ = cover_section_->Add<AlwaysComb>();
   }
-  // Add the ID to ensure global label uniqueness, e.g., in cases where
-  // coverpoints have been "duplicated" due to inlining.
-  std::string label = absl::StrCat(cover->label(), "_", cover->id());
-  cover_always_comb_->statements()->Add<Cover>(clk_, condition, label);
+  cover_always_comb_->statements()->Add<Cover>(clk_, condition, cover->label());
   return absl::OkStatus();
 }
 

@@ -29,6 +29,8 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
+using testing::AnyOf;
+using testing::Eq;
 
 class InliningPassTest : public IrTestBase {
  protected:
@@ -155,6 +157,45 @@ fn f(foobar: bits[32]) -> bits[32] {
   ASSERT_THAT(Inline(package.get()), IsOkAndHolds(true));
   EXPECT_THAT(FindFunction("f", package.get())->return_value(),
               m::Name("foobar"));
+}
+
+// Verifies that Cover and Assert ops have their labels differentiated when
+// "duplicated" via function inlining.
+TEST_F(InliningPassTest, CoversAndAssertsDeduplicated) {
+  const std::string kProgram = R"(
+package some_package
+
+fn callee(the_token: token, x: bits[32]) -> (token, bits[32]) {
+  literal.10: bits[32] = literal(value=666)
+  eq.20: bits[1] = eq(x, literal.10)
+  ne.30: bits[1] = ne(x, literal.10)
+  cover.40: token = cover(the_token, ne.30, label="cover_label")
+  assert.50: token = assert(cover.40, eq.20, label="assert_label", message="derp")
+  ret tuple.60: (token, bits[32]) = tuple(assert.50, x)
+}
+
+fn caller(the_token: token, x: bits[32]) -> (token, bits[32]) {
+  invoke.110: (token, bits[32]) = invoke(the_token, x, to_apply=callee)
+  tuple_index.120: token = tuple_index(invoke.110, index=0)
+  tuple_index.130: bits[32] = tuple_index(invoke.110, index=1)
+  ret invoke.140: (token, bits[32]) = invoke(tuple_index.120, tuple_index.130, to_apply=callee)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(kProgram));
+  ASSERT_THAT(Inline(package.get()), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("caller"));
+  for (const auto* node : f->nodes()) {
+    if (node->Is<Cover>()) {
+      const Cover* cover = node->As<Cover>();
+      EXPECT_THAT(cover->label(), AnyOf(Eq("caller_0_callee_cover_label"),
+                                        Eq("caller_1_callee_cover_label")));
+    } else if (node->Is<Assert>()) {
+      const Assert* asrt = node->As<Assert>();
+      EXPECT_THAT(asrt->label(), AnyOf(Eq("caller_0_callee_assert_label"),
+                                       Eq("caller_1_callee_assert_label")));
+    }
+  }
 }
 
 }  // namespace

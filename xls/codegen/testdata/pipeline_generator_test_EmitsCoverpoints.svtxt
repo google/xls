@@ -24,7 +24,7 @@ module EmitsCoverpoints(
     p1_add_15 <= p1_add_15_comb;
   end
   always_comb begin
-    my_coverpoint_19: cover property (@(posedge clk) p1_add_15_comb > 8'h80);
+    my_coverpoint: cover property (@(posedge clk) p1_add_15_comb > 8'h80);
   end
   assign out = p1_add_15;
 endmodule
