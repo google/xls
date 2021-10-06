@@ -265,6 +265,11 @@ absl::Status NocSimulator::RunCycle(int64_t max_ticks) {
     XLS_VLOG(2) << absl::StreamFormat("Tick %d", nticks);
     converged = Tick();
     ++nticks;
+    if (nticks >= max_ticks) {
+      return absl::InternalError(absl::StrFormat(
+          "Simulator unable to converge after %d ticks for cycle %d", nticks,
+          cycle_));
+    }
   }
 
   for (int64_t i = 0; i < connections_.size(); ++i) {
@@ -277,12 +282,6 @@ absl::Status NocSimulator::RunCycle(int64_t max_ticks) {
     for (int64_t vc = 0; vc < connections_[i].reverse_channels.size(); ++vc) {
       XLS_VLOG(2) << absl::StreamFormat("    REV %d %s", vc,
                                         connections_[i].reverse_channels[vc]);
-    }
-
-    if (nticks >= max_ticks) {
-      return absl::InternalError(absl::StrFormat(
-          "Simulator unable to converge after %d ticks for cycle %d", nticks,
-          cycle_));
     }
   }
 
