@@ -302,8 +302,9 @@ absl::Status DistributedRoutingTableBuilderForTrees::BuildRoutingTable(
   for (int64_t i = 0; i < sink_indices.NetworkComponentCount(); ++i) {
     XLS_ASSIGN_OR_RETURN(NetworkComponentId sink_id,
                          sink_indices.GetNetworkComponentByIndex(i));
-
-    XLS_RET_CHECK_OK(AddRoutes(i, sink_id, PortId::kInvalid, routing_table));
+    absl::flat_hash_set<NetworkComponentId> visited_components;
+    XLS_RET_CHECK_OK(AddRoutes(i, sink_id, PortId::kInvalid, routing_table,
+                               visited_components));
   }
 
   return absl::OkStatus();
@@ -311,11 +312,16 @@ absl::Status DistributedRoutingTableBuilderForTrees::BuildRoutingTable(
 
 absl::Status DistributedRoutingTableBuilderForTrees::AddRoutes(
     int64_t destination_index, NetworkComponentId nc_id, PortId via_port,
-    DistributedRoutingTable* routing_table) {
+    DistributedRoutingTable* routing_table,
+    absl::flat_hash_set<NetworkComponentId>& visited_components) {
   NetworkManager* network_manager = routing_table->network_manager_;
   NocParameters* network_parameters = routing_table->network_parameters_;
 
   NetworkComponent& nc = network_manager->GetNetworkComponent(nc_id);
+
+  if (!visited_components.insert(nc_id).second) {
+    return absl::OkStatus();
+  }
 
   if (nc.kind() == NetworkComponentKind::kRouter) {
     // Size routing table appropriately.
@@ -352,10 +358,10 @@ absl::Status DistributedRoutingTableBuilderForTrees::AddRoutes(
               destination_index, PortAndVCIndex{via_port, default_vc});
         } else {
           // VCs are mapped in-order,
-          // ie traffic is rouded from the vc at index 0 to the
+          // ie traffic is rounded from the vc at index 0 to the
           //    vc at index 0 of the next port.
           // TODO(tedhong): 2020-01-15 Update this to use global virtual
-          //                           channels to allow for more flexiblity.
+          //                           channels to allow for more flexibility.
           table.routes[from_port.id()].resize(from_port_vc_count);
           for (int64_t i = 0; i < from_port_vc_count; ++i) {
             table.routes[from_port.id()][i].emplace_back(
@@ -379,7 +385,8 @@ absl::Status DistributedRoutingTableBuilderForTrees::AddRoutes(
         //  prior_port.AsUInt64(), prior_component.AsUInt64()) << std::endl;
 
         XLS_RET_CHECK_OK(AddRoutes(destination_index, prior_component,
-                                   prior_port, routing_table));
+                                   prior_port, routing_table,
+                                   visited_components));
       }
     }
   }

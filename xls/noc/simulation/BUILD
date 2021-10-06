@@ -199,6 +199,7 @@ cc_library(
         ":network_graph",
         ":parameters",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:ret_check",
@@ -212,6 +213,7 @@ cc_test(
     deps = [
         ":global_routing_table",
         ":network_graph_builder",
+        ":sample_network_graphs",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",

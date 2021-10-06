@@ -21,6 +21,7 @@
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/config/network_config_proto_builder.h"
 #include "xls/noc/simulation/network_graph_builder.h"
+#include "xls/noc/simulation/sample_network_graphs.h"
 
 namespace xls {
 namespace noc {
@@ -211,6 +212,105 @@ TEST(GlobalRoutingTableTest, Index) {
   EXPECT_EQ(route00[0], sendport0);
   EXPECT_EQ(route00[2], routera_nc);
   EXPECT_EQ(route00[4], recvport0);
+}
+
+TEST(GlobalRoutingTableTest, RouterLoop) {
+  // Build and assign simulation objects
+  NetworkConfigProto proto;
+  NetworkManager graph;
+  NocParameters params;
+  XLS_ASSERT_OK(BuildNetworkGraphLoop000(&proto, &graph, &params));
+  graph.Dump();
+
+  // Validate network
+  ASSERT_EQ(graph.GetNetworkIds().size(), 1);
+  EXPECT_EQ(params.GetNetworkParam(graph.GetNetworkIds()[0])->GetName(),
+            "Test");
+  XLS_LOG(INFO) << "Network Graph Complete ...";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NetworkComponentId routera_id,
+      FindNetworkComponentByName("RouterA", graph, params));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NetworkComponentId routerb_id,
+      FindNetworkComponentByName("RouterB", graph, params));
+
+  XLS_ASSERT_OK_AND_ASSIGN(PortId ain0, FindPortByName("Ain0", graph, params));
+  XLS_ASSERT_OK_AND_ASSIGN(PortId bin1, FindPortByName("Bin1", graph, params));
+
+  EXPECT_EQ(ain0, graph.GetNetworkComponent(routera_id).GetPortIdByIndex(0));
+  EXPECT_EQ(bin1, graph.GetNetworkComponent(routerb_id).GetPortIdByIndex(1));
+
+  // Create global routing table.
+  DistributedRoutingTableBuilderForTrees route_builder;
+  XLS_ASSERT_OK_AND_ASSIGN(DistributedRoutingTable routing_table,
+                           route_builder.BuildNetworkRoutingTables(
+                               graph.GetNetworkIds()[0], graph, params));
+
+  EXPECT_EQ(routing_table.GetSourceIndices().NetworkComponentCount(), 2);
+  EXPECT_EQ(routing_table.GetSinkIndices().NetworkComponentCount(), 2);
+
+  NetworkComponentId sendport0 =
+      *routing_table.GetSourceIndices().GetNetworkComponentByIndex(0);
+  NetworkComponentId sendport1 =
+      *routing_table.GetSourceIndices().GetNetworkComponentByIndex(1);
+  NetworkComponentId recvport0 =
+      *routing_table.GetSinkIndices().GetNetworkComponentByIndex(0);
+  NetworkComponentId recvport1 =
+      *routing_table.GetSinkIndices().GetNetworkComponentByIndex(1);
+
+  EXPECT_EQ(absl::get<NetworkInterfaceSrcParam>(
+                *params.GetNetworkComponentParam(sendport0))
+                .GetName(),
+            "SendPort0");
+  EXPECT_EQ(absl::get<NetworkInterfaceSrcParam>(
+                *params.GetNetworkComponentParam(sendport1))
+                .GetName(),
+            "SendPort1");
+  EXPECT_EQ(absl::get<NetworkInterfaceSinkParam>(
+                *params.GetNetworkComponentParam(recvport0))
+                .GetName(),
+            "RecvPort0");
+  EXPECT_EQ(absl::get<NetworkInterfaceSinkParam>(
+                *params.GetNetworkComponentParam(recvport1))
+                .GetName(),
+            "RecvPort1");
+
+  // Test route.
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<NetworkComponentId> route00,
+                           routing_table.ComputeRoute(sendport0, recvport0));
+
+  XLS_LOG(INFO) << "Route 00 is ...";
+  for (int64_t i = 0; i < route00.size(); ++i) {
+    XLS_LOG(INFO) << absl::StrFormat(
+        "%d : %s %x", i,
+        absl::visit([](auto nc) { return nc.GetName(); },
+                    *params.GetNetworkComponentParam(route00[i])),
+        route00[i].AsUInt64());
+  }
+
+  EXPECT_EQ(route00.size(), 5);
+  EXPECT_EQ(route00[0], sendport0);
+  EXPECT_EQ(route00[2], routera_id);
+  EXPECT_EQ(route00[4], recvport0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<NetworkComponentId> route01,
+                           routing_table.ComputeRoute(sendport0, recvport1));
+
+  XLS_LOG(INFO) << "Route 01 is ...";
+  for (int64_t i = 0; i < route01.size(); ++i) {
+    XLS_LOG(INFO) << absl::StrFormat(
+        "%d : %s %x", i,
+        absl::visit([](auto nc) { return nc.GetName(); },
+                    *params.GetNetworkComponentParam(route01[i])),
+        route01[i].AsUInt64());
+  }
+
+  EXPECT_EQ(route01.size(), 7);
+  EXPECT_EQ(route01[0], sendport0);
+  EXPECT_EQ(route01[2], routera_id);
+  EXPECT_EQ(route01[4], routerb_id);
+  EXPECT_EQ(route01[6], recvport1);
 }
 
 }  // namespace

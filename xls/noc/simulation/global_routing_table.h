@@ -19,6 +19,7 @@
 #ifndef XLS_NOC_SIMULATION_GLOBAL_ROUTING_TABLE_H_
 #define XLS_NOC_SIMULATION_GLOBAL_ROUTING_TABLE_H_
 
+#include "absl/container/flat_hash_set.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/indexer.h"
 #include "xls/noc/simulation/parameters.h"
@@ -173,9 +174,10 @@ class DistributedRoutingTableBuilderForTrees {
                                  DistributedRoutingTable* routing_table);
 
   // Updates routing table of nc for routes that travel to destination via_port.
-  absl::Status AddRoutes(int64_t destination_index, NetworkComponentId nc,
-                         PortId via_port,
-                         DistributedRoutingTable* routing_table);
+  absl::Status AddRoutes(
+      int64_t destination_index, NetworkComponentId nc, PortId via_port,
+      DistributedRoutingTable* routing_table,
+      absl::flat_hash_set<NetworkComponentId>& visited_components);
 };
 
 }  // namespace noc
