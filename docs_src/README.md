@@ -217,6 +217,7 @@ project, see our
 *   [Julian Viera](https://github.com/julianviera99)
 *   [Kevin Harlley](https://github.com/kevineharlley)
 *   [Leonardo Romor](https://github.com/lromor)
+*   [Manav Kohli](https://github.com/manav-kohli)
 *   [Mark Heffernan](https://github.com/meheff)
 *   [Paul Rigge](https://github.com/grebe)
 *   [Per Grön](https://github.com/per-gron)
