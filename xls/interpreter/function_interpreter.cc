@@ -65,7 +65,7 @@ absl::StatusOr<Value> InterpretFunction(Function* function,
     }
   }
   FunctionInterpreter visitor(args);
-  XLS_RETURN_IF_ERROR(function->return_value()->Accept(&visitor));
+  XLS_RETURN_IF_ERROR(function->Accept(&visitor));
   Value result = visitor.ResolveAsValue(function->return_value());
   XLS_VLOG(2) << "Result = " << result;
   return std::move(result);

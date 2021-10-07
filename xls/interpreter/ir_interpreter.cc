@@ -461,6 +461,8 @@ absl::Status IrInterpreter::HandleArrayConcat(ArrayConcat* concat) {
 }
 
 absl::Status IrInterpreter::HandleAssert(Assert* assert_op) {
+  XLS_VLOG(2) << "Checking assert " << assert_op->ToString();
+  XLS_VLOG(2) << "Condition is " << ResolveAsBool(assert_op->condition());
   if (!ResolveAsBool(assert_op->condition())) {
     return absl::AbortedError(assert_op->message());
   }

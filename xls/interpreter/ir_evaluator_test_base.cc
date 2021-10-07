@@ -3299,4 +3299,98 @@ TEST_P(IrEvaluatorTestBase, GateCompoundTypeTest) {
               ZeroOfType(data.node()->GetType()));
 }
 
+TEST_P(IrEvaluatorTestBase, Assert) {
+  Package p("assert_test");
+  FunctionBuilder b("fun", &p);
+  auto p0 = b.Param("tkn", p.GetTokenType());
+  auto p1 = b.Param("cond", p.GetBitsType(1));
+  b.Assert(p0, p1, "the assertion error message");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  std::vector<Value> ok_args = {Value::Token(), Value(UBits(1, 1))};
+  EXPECT_THAT(RunWithValues(f, ok_args), IsOkAndHolds(Value::Token()));
+
+  std::vector<Value> fail_args = {Value::Token(), Value(UBits(0, 1))};
+  EXPECT_THAT(RunWithValues(f, fail_args),
+              StatusIs(absl::StatusCode::kAborted,
+                       testing::HasSubstr("the assertion error message")));
+}
+
+TEST_P(IrEvaluatorTestBase, FunAssert) {
+  Package p("fun_assert_test");
+
+  FunctionBuilder fun_builder("fun", &p);
+  auto x = fun_builder.Param("x", p.GetBitsType(5));
+
+  auto seven = fun_builder.Literal(Value(UBits(7, 5)));
+  auto test = fun_builder.ULe(x, seven);
+
+  auto token = fun_builder.Literal(Value::Token());
+  fun_builder.Assert(token, test, "x is more than 7");
+
+  auto one = fun_builder.Literal(Value(UBits(1, 5)));
+  fun_builder.Add(x, one);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fun, fun_builder.Build());
+
+  FunctionBuilder top_builder("top", &p);
+  auto y = top_builder.Param("y", p.GetBitsType(5));
+
+  std::vector<BValue> args = {y};
+  top_builder.Invoke(args, fun);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * top, top_builder.Build());
+
+  XLS_VLOG(3) << "FunAssert ok";
+  std::vector<Value> ok_args = {Value(UBits(6, 5))};
+  EXPECT_THAT(RunWithValues(top, ok_args), IsOkAndHolds(Value(UBits(7, 5))));
+
+  XLS_VLOG(3) << "FunAssert fail";
+  std::vector<Value> fail_args = {Value(UBits(8, 5))};
+  EXPECT_THAT(RunWithValues(top, fail_args),
+              StatusIs(absl::StatusCode::kAborted,
+                       testing::HasSubstr("x is more than 7")));
+}
+
+TEST_P(IrEvaluatorTestBase, TwoAssert) {
+  Package p("assert_test");
+  FunctionBuilder b("fun", &p);
+  auto p0 = b.Param("tkn", p.GetTokenType());
+  auto p1 = b.Param("cond1", p.GetBitsType(1));
+  auto p2 = b.Param("cond2", p.GetBitsType(1));
+
+  BValue token1 = b.Assert(p0, p1, "first assertion error message");
+  b.Assert(token1, p2, "second assertion error message");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  std::vector<Value> ok_args = {Value::Token(), Value(UBits(1, 1)),
+                                Value(UBits(1, 1))};
+
+  EXPECT_THAT(RunWithValues(f, ok_args), IsOkAndHolds(Value::Token()));
+
+  std::vector<Value> fail1_args = {Value::Token(), Value(UBits(0, 1)),
+                                   Value(UBits(1, 1))};
+
+  EXPECT_THAT(RunWithValues(f, fail1_args),
+              StatusIs(absl::StatusCode::kAborted,
+                       testing::HasSubstr("first assertion error message")));
+
+  std::vector<Value> fail2_args = {Value::Token(), Value(UBits(1, 1)),
+                                   Value(UBits(0, 1))};
+
+  EXPECT_THAT(RunWithValues(f, fail2_args),
+              StatusIs(absl::StatusCode::kAborted,
+                       testing::HasSubstr("second assertion error message")));
+
+  std::vector<Value> failboth_args = {Value::Token(), Value(UBits(0, 1)),
+                                      Value(UBits(0, 1))};
+
+  // The token-plumbing ensures that the first assertion is checked first,
+  // so test that it is reported properly.
+  EXPECT_THAT(RunWithValues(f, failboth_args),
+              StatusIs(absl::StatusCode::kAborted,
+                       testing::HasSubstr("first assertion error message")));
+}
+
 }  // namespace xls

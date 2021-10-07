@@ -434,6 +434,10 @@ TEST(IrJitTest, ArrayConcatArrayOfArrays) {
   EXPECT_THAT(jit->Run(args), IsOkAndHolds(ret));
 }
 
+// The assert tests below are duplicates of the ones in
+// xls/interpereter/ir_evaluator_test_base.cc because those recompile
+// the test function each time they run it. These tests check that
+// reusing the test function also works.
 TEST(IrJitTest, Assert) {
   Package p("assert_test");
   FunctionBuilder b("fun", &p);
