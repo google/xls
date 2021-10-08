@@ -152,6 +152,10 @@ class Interval {
   // Prints the interval as a string.
   std::string ToString() const;
 
+  // Generate a random proper interval with the given seed and bit count.
+  // This is useful for tests.
+  static Interval Random(uint32_t seed, int64_t bit_count);
+
   // Lexicographic ordering of intervals.
   friend bool operator<(const Interval& lhs, const Interval& rhs) {
     if (bits_ops::ULessThan(lhs.lower_bound_, rhs.lower_bound_)) {

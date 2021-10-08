@@ -14,6 +14,8 @@
 
 #include "xls/ir/interval.h"
 
+#include <random>
+
 namespace xls {
 
 void Interval::EnsureValid() const {
@@ -267,6 +269,22 @@ std::string Interval::ToString() const {
   FormatPreference pref = FormatPreference::kDefault;
   return absl::StrFormat("[%s, %s]", lower_bound_.ToString(pref, false),
                          upper_bound_.ToString(pref, false));
+}
+
+Interval Interval::Random(uint32_t seed, int64_t bit_count) {
+  std::mt19937 gen(seed);
+  std::uniform_int_distribution<uint8_t> distrib(0, 255);
+  int64_t num_bytes = (bit_count / 8) + ((bit_count % 8 == 0) ? 0 : 1);
+  std::vector<uint8_t> start_bytes(num_bytes);
+  for (int64_t i = 0; i < num_bytes; ++i) {
+    start_bytes[i] = distrib(gen);
+  }
+  std::vector<uint8_t> end_bytes(num_bytes);
+  for (int64_t i = 0; i < num_bytes; ++i) {
+    end_bytes[i] = distrib(gen);
+  }
+  return Interval(Bits::FromBytes(start_bytes, bit_count),
+                  Bits::FromBytes(end_bytes, bit_count));
 }
 
 }  // namespace xls

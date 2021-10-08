@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -200,6 +201,19 @@ std::string IntervalSet::ToString() const {
     strings.push_back(interval.ToString());
   }
   return absl::StrFormat("[%s]", absl::StrJoin(strings, ", "));
+}
+
+IntervalSet IntervalSet::Random(uint32_t seed, int64_t bit_count,
+                                int64_t max_intervals) {
+  std::mt19937 gen(seed);
+  std::uniform_int_distribution<int64_t> distrib(0, max_intervals);
+  int64_t num_intervals = distrib(gen);
+  IntervalSet result(bit_count);
+  for (int64_t i = 0; i < num_intervals; ++i) {
+    result.AddInterval(Interval::Random(gen(), bit_count));
+  }
+  result.Normalize();
+  return result;
 }
 
 }  // namespace xls

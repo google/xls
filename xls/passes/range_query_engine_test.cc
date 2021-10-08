@@ -17,7 +17,6 @@
 #include <stdint.h>
 
 #include <memory>
-#include <random>
 #include <string>
 #include <vector>
 
@@ -49,32 +48,8 @@ class RangeQueryEngineTest : public IrTestBase {};
 // TODO(taktoa): replace this with a proper property-based testing library
 // once we have such a thing in XLS
 
-Interval RandomInterval(uint32_t seed, int64_t bit_count) {
-  std::mt19937 gen(seed);
-  std::uniform_int_distribution<uint8_t> distrib(0, 255);
-  int64_t num_bytes = (bit_count / 8) + ((bit_count % 8 == 0) ? 0 : 1);
-  std::vector<uint8_t> start_bytes(num_bytes);
-  for (int64_t i = 0; i < num_bytes; ++i) {
-    start_bytes[i] = distrib(gen);
-  }
-  std::vector<uint8_t> end_bytes(num_bytes);
-  for (int64_t i = 0; i < num_bytes; ++i) {
-    end_bytes[i] = distrib(gen);
-  }
-  return Interval(Bits::FromBytes(start_bytes, bit_count),
-                  Bits::FromBytes(end_bytes, bit_count));
-}
-
 IntervalSet RandomIntervalSet(uint32_t seed, int64_t bit_count) {
-  std::mt19937 gen(seed);
-  std::uniform_int_distribution<int64_t> distrib(0, 30);
-  int64_t num_intervals = distrib(gen);
-  IntervalSet result(bit_count);
-  for (int64_t i = 0; i < num_intervals; ++i) {
-    result.AddInterval(RandomInterval(gen(), bit_count));
-  }
-  result.Normalize();
-  return result;
+  return IntervalSet::Random(seed, bit_count, 30);
 }
 
 LeafTypeTree<IntervalSet> BitsLTT(Node* node,
