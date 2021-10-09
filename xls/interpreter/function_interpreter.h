@@ -25,12 +25,6 @@
 
 namespace xls {
 
-
-struct FunctionInterpreterResult {
-  Value value;
-  InterpreterEvents events;
-};
-
 // TODO(https://github.com/google/xls/issues/506) 2021-10-08
 // Remove the extra interpreter entry point once there is a standard
 // side-channel mechanism to use.
@@ -38,7 +32,7 @@ struct FunctionInterpreterResult {
 // Runs the interpreter on the given function. 'args' are the argument values
 // indexed by parameter name. Returns both the value and any events that
 // happened while running.
-absl::StatusOr<FunctionInterpreterResult> InterpretFunctionWithEvents(
+absl::StatusOr<InterpreterResult<Value>> InterpretFunctionWithEvents(
     Function* function, absl::Span<const Value> args);
 
 // Runs the interpreter on the given function. 'args' are the argument values

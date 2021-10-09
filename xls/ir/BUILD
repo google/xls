@@ -222,6 +222,7 @@ cc_library(
     srcs = [
         "block.cc",
         "dfs_visitor.cc",
+        "events.cc",
         "function.cc",
         "function_base.cc",
         "node.cc",

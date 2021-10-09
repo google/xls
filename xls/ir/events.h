@@ -15,8 +15,8 @@
 #ifndef XLS_IR_EVENTS_H_
 #define XLS_IR_EVENTS_H_
 
-#include <string>
-#include <vector>
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 
 namespace xls {
 
@@ -24,7 +24,28 @@ namespace xls {
 // (DSLX, IR, JIT, etc.)
 struct InterpreterEvents {
   std::vector<std::string> trace_msgs;
+  std::vector<std::string> assert_msgs;
 };
+// Convert an InterpreterEvents structure into a result status, returning
+// a failure when an assertion has been raised.
+absl::Status InterpreterEventsToStatus(const InterpreterEvents& events);
+template <typename ValueT>
+struct InterpreterResult {
+  ValueT value;
+  InterpreterEvents events;
+};
+
+template <typename ValueT>
+absl::StatusOr<ValueT> InterpreterResultToStatusOrValue(
+    InterpreterResult<ValueT> result) {
+  absl::Status status = InterpreterEventsToStatus(result.events);
+
+  if (!status.ok()) {
+    return status;
+  }
+
+  return result.value;
+}
 
 }  // namespace xls
 
