@@ -234,6 +234,7 @@ cc_library(
     hdrs = [
         "block.h",
         "dfs_visitor.h",
+        "events.h",
         "function.h",
         "function_base.h",
         "lsb_or_msb.h",

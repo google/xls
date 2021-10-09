@@ -99,5 +99,84 @@ TEST_F(IrInterpreterOnlyTest, SideEffectingNodes) {
       IsOkAndHolds(Value(UBits(17, 5))));
 }
 
+// This is a smoke test of the trace plumbing.
+// TODO(amfv): 2021-10-05 Move these to the common IR evaluator tests and make
+// them more comprehensive once the JIT supports generating events.
+TEST_F(IrInterpreterOnlyTest, Traces) {
+  const std::string pkg_text = R"(
+package trace_test
+
+fn a (tkn:token, cond: bits[1]) -> (token, bits[8]) {
+  trace.1 : token = trace(tkn, cond, format = "trace a", data_operands=[])
+  literal.2: bits[8] = literal(value=17)
+  ret tuple.3: (token, bits[8]) = tuple(trace.1, literal.2)
+}
+
+fn b (tkn:token, cond: bits[1]) -> (token, bits[8]) {
+  trace.4: token = trace(tkn, cond, format = "trace b", data_operands=[])
+  literal.5: bits[8] = literal(value=23)
+  ret tuple.6: (token, bits[8]) = tuple(trace.4, literal.5)
+}
+
+fn ab (in_token:token, a_cond: bits[1], b_cond: bits[1]) -> bits[8] {
+  a_result: (token, bits[8]) = invoke(in_token, a_cond, to_apply=a)
+  a_token: token = tuple_index(a_result, index=0)
+  a_value: bits[8] = tuple_index(a_result, index=1)
+  b_result: (token, bits[8]) = invoke(a_token, b_cond, to_apply=b)
+  b_value: bits[8] = tuple_index(b_result, index=1)
+  ret sum: bits[8] = add(a_value, b_value)
+}
+
+fn ba (in_token:token, a_cond: bits[1], b_cond: bits[1]) -> bits[8] {
+  b_result: (token, bits[8]) = invoke(in_token, b_cond, to_apply=b)
+  b_token: token = tuple_index(b_result, index=0)
+  b_value: bits[8] = tuple_index(b_result, index=1)
+  a_result: (token, bits[8]) = invoke(b_token, a_cond, to_apply=a)
+  a_value: bits[8] = tuple_index(a_result, index=1)
+  ret sum: bits[8] = add(a_value, b_value)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(pkg_text));
+
+  Function* a = FindFunction("a", package.get());
+  Function* b = FindFunction("b", package.get());
+  Function* ab = FindFunction("ab", package.get());
+  Function* ba = FindFunction("ba", package.get());
+
+  auto run_for_traces = [](Function* f, absl::Span<const Value> args)
+      -> absl::StatusOr<std::vector<std::string>> {
+    XLS_ASSIGN_OR_RETURN(auto result, InterpretFunctionWithEvents(f, args));
+    return result.events.trace_msgs;
+  };
+
+  std::vector<std::string> no_traces = {};
+  std::vector<std::string> trace_a = {"trace a"};
+  std::vector<std::string> trace_b = {"trace b"};
+  std::vector<std::string> trace_ab = {"trace a", "trace b"};
+  std::vector<std::string> trace_ba = {"trace b", "trace a"};
+
+  EXPECT_THAT(run_for_traces(a, {Value::Token(), Value(UBits(1, 1))}),
+              IsOkAndHolds(trace_a));
+
+  EXPECT_THAT(run_for_traces(b, {Value::Token(), Value(UBits(0, 1))}),
+              IsOkAndHolds(no_traces));
+
+  EXPECT_THAT(run_for_traces(
+                  ab, {Value::Token(), Value(UBits(1, 1)), Value(UBits(1, 1))}),
+              IsOkAndHolds(trace_ab));
+
+  EXPECT_THAT(run_for_traces(
+                  ab, {Value::Token(), Value(UBits(0, 1)), Value(UBits(1, 1))}),
+              IsOkAndHolds(trace_b));
+
+  EXPECT_THAT(run_for_traces(
+                  ba, {Value::Token(), Value(UBits(1, 1)), Value(UBits(1, 1))}),
+              IsOkAndHolds(trace_ba));
+
+  EXPECT_THAT(run_for_traces(
+                  ba, {Value::Token(), Value(UBits(0, 1)), Value(UBits(0, 1))}),
+              IsOkAndHolds(no_traces));
+}
 }  // namespace
 }  // namespace xls

@@ -71,6 +71,15 @@ absl::StatusOr<Value> InterpretNode(Node* node,
   return visitor.ResolveAsValue(node);
 }
 
+absl::Status IrInterpreter::AddInterpreterEvents(
+    const InterpreterEvents& events) {
+  for (const std::string& trace_msg : events.trace_msgs) {
+    events_.trace_msgs.push_back(trace_msg);
+  }
+
+  return absl::OkStatus();
+}
+
 absl::Status IrInterpreter::HandleAdd(BinOp* add) {
   return SetBitsResult(add, bits_ops::Add(ResolveAsBits(add->operand(0)),
                                           ResolveAsBits(add->operand(1))));
@@ -505,12 +514,9 @@ absl::Status IrInterpreter::HandleTrace(Trace* trace_op) {
       return make_error("Too many operands");
     }
 
-    // TODO(amfv): 2021-09-14 Replace the INFO log here and the std::cerr trace
-    // output in the DSLX interpreter with providing a collection of traced
-    // strings to the caller of the interpreter. This will decouple the
-    // interpreters from trace consumption and make it easier to test trace
-    // implementations looking at the collected traced strings.
-    XLS_LOG(INFO) << "Trace output: " << trace_output;
+    XLS_VLOG(3) << "Trace output: " << trace_output;
+
+    events_.trace_msgs.push_back(trace_output);
   }
   return SetValueResult(trace_op, Value::Token());
 }
@@ -526,8 +532,10 @@ absl::Status IrInterpreter::HandleInvoke(Invoke* invoke) {
   for (int64_t i = 0; i < to_apply->params().size(); ++i) {
     args.push_back(ResolveAsValue(invoke->operand(i)));
   }
-  XLS_ASSIGN_OR_RETURN(Value result, InterpretFunction(to_apply, args));
-  return SetValueResult(invoke, result);
+  XLS_ASSIGN_OR_RETURN(FunctionInterpreterResult result,
+                       InterpretFunctionWithEvents(to_apply, args));
+  XLS_RETURN_IF_ERROR(AddInterpreterEvents(result.events));
+  return SetValueResult(invoke, result.value);
 }
 
 absl::Status IrInterpreter::HandleLiteral(Literal* literal) {

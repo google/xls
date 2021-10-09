@@ -18,6 +18,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 
@@ -43,6 +44,10 @@ class IrInterpreter : public DfsVisitor {
   const Value& ResolveAsValue(Node* node) const {
     return node_values_.at(node);
   }
+
+  const InterpreterEvents& GetInterpreterEvents() const { return events_; }
+
+  absl::Status AddInterpreterEvents(const InterpreterEvents& events);
 
   // Returns true if a value has been set for the result of the given node.
   bool HasResult(Node* node) const { return node_values_.contains(node); }
@@ -155,6 +160,9 @@ class IrInterpreter : public DfsVisitor {
 
   // The evaluated values for the nodes in the Function.
   absl::flat_hash_map<Node*, Value> node_values_;
+
+  // Events observed while interpreting (currently only trace messages).
+  InterpreterEvents events_;
 };
 
 }  // namespace xls
