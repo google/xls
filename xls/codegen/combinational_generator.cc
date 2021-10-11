@@ -52,6 +52,9 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
     absl::string_view gate_format) {
   CodegenOptions codegen_options;
   codegen_options.use_system_verilog(use_system_verilog);
+  if (!module_name.empty()) {
+    codegen_options.module_name(module_name);
+  }
   if (!gate_format.empty()) {
     codegen_options.gate_format(gate_format);
   }
@@ -69,7 +72,8 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
   XLS_RET_CHECK(module->IsProc() || module->IsFunction());
   if (module->IsFunction()) {
     XLS_ASSIGN_OR_RETURN(
-        block, FunctionToBlock(dynamic_cast<Function*>(module), module_name));
+        block, FunctionToCombinationalBlock(dynamic_cast<Function*>(module),
+                                            module_name));
   } else {
     XLS_ASSIGN_OR_RETURN(block, ProcToCombinationalBlock(
                                     dynamic_cast<Proc*>(module), module_name));

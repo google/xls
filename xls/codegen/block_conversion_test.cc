@@ -32,6 +32,9 @@ namespace xls {
 namespace verilog {
 namespace {
 
+// TODO(tedhong): 2021-09-27 - Add unit tests for proc to pipelined block
+// conversion.
+
 using status_testing::IsOkAndHolds;
 using testing::Pair;
 using testing::UnorderedElementsAre;
@@ -75,8 +78,8 @@ TEST_F(BlockConversionTest, SimpleFunction) {
   BValue x = fb.Param("x", p->GetBitsType(32));
   BValue y = fb.Param("y", p->GetBitsType(32));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.Add(x, y)));
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
-                           FunctionToBlock(f, "SimpleFunctionBlock"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block, FunctionToCombinationalBlock(f, "SimpleFunctionBlock"));
 
   EXPECT_EQ(block->name(), "SimpleFunctionBlock");
   EXPECT_EQ(block->GetPorts().size(), 3);
@@ -91,7 +94,7 @@ TEST_F(BlockConversionTest, ZeroInputs) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            fb.BuildWithReturnValue(fb.Literal(UBits(42, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block,
-                           FunctionToBlock(f, "ZeroInputsBlock"));
+                           FunctionToCombinationalBlock(f, "ZeroInputsBlock"));
 
   EXPECT_EQ(block->GetPorts().size(), 1);
 
@@ -106,8 +109,8 @@ TEST_F(BlockConversionTest, ZeroWidthInputsAndOutput) {
   fb.Param("z", p->GetBitsType(1234));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            fb.BuildWithReturnValue(fb.Tuple({x, y})));
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
-                           FunctionToBlock(f, "SimpleFunctionBlock"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block, FunctionToCombinationalBlock(f, "SimpleFunctionBlock"));
 
   EXPECT_EQ(block->GetPorts().size(), 4);
 }
@@ -261,8 +264,8 @@ fn __implicit_token__main() -> () {
   )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, Parser::ParsePackage(kIrText));
   XLS_ASSERT_OK_AND_ASSIGN(auto f, p->GetFunction("__implicit_token__main"));
-  XLS_ASSERT_OK_AND_ASSIGN(auto block,
-                           FunctionToBlock(f, "ImplicitTokenBlock"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto block, FunctionToCombinationalBlock(f, "ImplicitTokenBlock"));
   XLS_ASSERT_OK(VerifyBlock(block));
 }
 

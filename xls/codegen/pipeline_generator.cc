@@ -25,6 +25,8 @@
 #include "xls/codegen/codegen_pass_pipeline.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 
 namespace xls {
 namespace verilog {
@@ -45,20 +47,27 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
 
   Block* block;
 
-  XLS_RET_CHECK(module->IsProc() || module->IsFunction());
+  CodegenPassOptions pass_options;
+  pass_options.codegen_options = options;
+  pass_options.schedule = schedule;
 
+  XLS_RET_CHECK(module->IsProc() || module->IsFunction());
+  // Convert to block and add in pipe stages according to schedule.
   if (module->IsFunction()) {
     Function* func = module->AsFunctionOrDie();
     XLS_ASSIGN_OR_RETURN(block,
                          FunctionToPipelinedBlock(schedule, options, func));
   } else {
-    return absl::UnimplementedError("Proc Pipeline Generator not implemented");
+    Proc* proc = module->AsProcOrDie();
+    XLS_ASSIGN_OR_RETURN(block, ProcToPipelinedBlock(schedule, options, proc));
+
+    // Force using non-pretty printed codegen when generating procs.
+    // TODO(tedhong): 2021-09-25 - Update pretty-printer to support
+    //  blocks with flow control.
+    pass_options.codegen_options.emit_as_pipeline(false);
   }
 
   CodegenPassUnit unit(module->package(), block);
-  CodegenPassOptions pass_options;
-  pass_options.codegen_options = options;
-  pass_options.schedule = schedule;
   PassResults results;
   XLS_RETURN_IF_ERROR(
       CreateCodegenPassPipeline()->Run(&unit, pass_options, &results).status());

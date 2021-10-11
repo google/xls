@@ -814,6 +814,7 @@ cc_binary(
         "//xls/delay_model:delay_estimators",
         "//xls/ir:ir_parser",
         "//xls/passes:standard_pipeline",
+        "//xls/passes:tuple_simplification_pass",
         "//xls/scheduling:pipeline_schedule",
     ],
 )

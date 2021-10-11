@@ -30,16 +30,7 @@ namespace {
 
 using ::testing::HasSubstr;
 
-constexpr const char kVerPath[] = "xls/contrib/xlscc/examples/mux3_comb_v.v";
-
-TEST(Mux3VerilogTest, BasicSignaturePresent) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path ir_path,
-                           xls::GetXlsRunfilePath(kVerPath));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog_text,
-                           xls::GetFileContents(ir_path));
-  XLS_LOG_LINES(INFO, verilog_text);
-
-  EXPECT_THAT(verilog_text, HasSubstr("module mux3_comb("));
+void IoSignalsPresent(absl::string_view verilog_text) {
   EXPECT_THAT(verilog_text, HasSubstr("input wire [1:0] csrs"));
 
   EXPECT_THAT(verilog_text, HasSubstr("input wire [7:0] mux_in0"));
@@ -57,6 +48,53 @@ TEST(Mux3VerilogTest, BasicSignaturePresent) {
   EXPECT_THAT(verilog_text, HasSubstr("output wire [7:0] mux_out"));
   EXPECT_THAT(verilog_text, HasSubstr("output wire mux_out_vld"));
   EXPECT_THAT(verilog_text, HasSubstr("input wire mux_out_rdy"));
+}
+
+TEST(Mux3VerilogTest, BasicCombSignaturePresent) {
+  constexpr const char kVerPath[] = "xls/contrib/xlscc/examples/mux3_comb_v.v";
+
+  {
+    SCOPED_TRACE("BasicCombSignaturePresent");
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path ir_path,
+                             xls::GetXlsRunfilePath(kVerPath));
+    XLS_ASSERT_OK_AND_ASSIGN(std::string verilog_text,
+                             xls::GetFileContents(ir_path));
+    XLS_VLOG_LINES(2, verilog_text);
+
+    IoSignalsPresent(verilog_text);
+    EXPECT_THAT(verilog_text, HasSubstr("module mux3_comb("));
+  }
+}
+
+TEST(Mux3VerilogTest, BasicPipelineSignaturePresent) {
+  constexpr const char kVerPath[] =
+      "xls/contrib/xlscc/examples/mux3_stages_5_v.v";
+
+  {
+    SCOPED_TRACE("BasicPipelineSignaturePresent");
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path ir_path,
+                             xls::GetXlsRunfilePath(kVerPath));
+    XLS_ASSERT_OK_AND_ASSIGN(std::string verilog_text,
+                             xls::GetFileContents(ir_path));
+    XLS_VLOG_LINES(2, verilog_text);
+
+    IoSignalsPresent(verilog_text);
+
+    EXPECT_THAT(verilog_text, HasSubstr("module mux3_stages_5("));
+    EXPECT_THAT(verilog_text, HasSubstr("input wire clk"));
+    EXPECT_THAT(verilog_text, HasSubstr("input wire rst"));
+    EXPECT_THAT(verilog_text, HasSubstr("always_ff @ (posedge clk)"));
+
+    // Has 5 pipeline stages
+    //  x | p0 | p1 | p2 | p3
+    EXPECT_THAT(verilog_text, HasSubstr("p0_valid"));
+    EXPECT_THAT(verilog_text, HasSubstr("p1_valid"));
+    EXPECT_THAT(verilog_text, HasSubstr("p2_valid"));
+    EXPECT_THAT(verilog_text, HasSubstr("p3_valid"));
+    EXPECT_THAT(verilog_text, Not(HasSubstr("p4_valid")));
+  }
 }
 
 }  // namespace

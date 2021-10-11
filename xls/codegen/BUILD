@@ -271,6 +271,8 @@ cc_library(
         "@com_google_absl//absl/types:optional",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/scheduling:pipeline_schedule",
     ],
@@ -397,6 +399,8 @@ cc_library(
     hdrs = ["block_conversion.h"],
     deps = [
         ":codegen_options",
+        ":codegen_pass",
+        ":register_legalization_pass",
         ":vast",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
