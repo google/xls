@@ -848,6 +848,8 @@ class Translator {
   absl::StatusOr<xls::BValue> GenBoolConvert(CValue const& in,
                                              const xls::SourceLocation& loc);
 
+  absl::StatusOr<xls::Value> CreateDefaultRawValue(
+      std::shared_ptr<CType> t, const xls::SourceLocation& loc);
   absl::StatusOr<xls::BValue> CreateDefaultValue(
       std::shared_ptr<CType> t, const xls::SourceLocation& loc);
   absl::StatusOr<xls::BValue> CreateInitValue(
@@ -934,6 +936,10 @@ class Translator {
   xls::BValue MakeStructXLS(const std::vector<xls::BValue>& bvals,
                             const CStructType& stype,
                             const xls::SourceLocation& loc);
+  // Creates a Value for a struct of type stype from field BValues given in
+  //  order within bvals.
+  xls::Value MakeStructXLS(const std::vector<xls::Value>& vals,
+                           const CStructType& stype);
   // Returns the BValue for the field with index "index" from a BValue for a
   //  struct of type "type"
   xls::BValue GetStructFieldXLS(xls::BValue val, int index,

@@ -684,6 +684,14 @@ xls::BValue Translator::MakeStructXLS(const std::vector<xls::BValue>& bvals,
       stype.no_tuple_flag() ? bvals[0] : context().fb->Tuple(bvals, loc);
   return ret;
 }
+
+xls::Value Translator::MakeStructXLS(const std::vector<xls::Value>& vals,
+                                     const CStructType& stype) {
+  XLS_CHECK_EQ(vals.size(), stype.fields().size());
+  xls::Value ret = stype.no_tuple_flag() ? vals[0] : xls::Value::Tuple(vals);
+  return ret;
+}
+
 xls::BValue Translator::GetStructFieldXLS(xls::BValue val, int index,
                                           const CStructType& type,
                                           const xls::SourceLocation& loc) {
@@ -2905,32 +2913,36 @@ absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
 
 absl::StatusOr<xls::BValue> Translator::CreateDefaultValue(
     std::shared_ptr<CType> t, const xls::SourceLocation& loc) {
+  XLS_ASSIGN_OR_RETURN(xls::Value value, CreateDefaultRawValue(t, loc));
+  return context().fb->Literal(value, loc);
+}
+
+absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
+    std::shared_ptr<CType> t, const xls::SourceLocation& loc) {
   if (auto it = dynamic_cast<const CIntType*>(t.get())) {
-    return context().fb->Literal(xls::UBits(0, it->width()), loc);
+    return xls::Value(xls::UBits(0, it->width()));
   } else if (auto it = dynamic_cast<const CBitsType*>(t.get())) {
-    return context().fb->Literal(xls::UBits(0, it->GetBitWidth()), loc);
+    return xls::Value(xls::UBits(0, it->GetBitWidth()));
   } else if (dynamic_cast<const CBoolType*>(t.get()) != nullptr) {
-    return context().fb->Literal(xls::UBits(0, 1), loc);
+    return xls::Value(xls::UBits(0, 1));
+  } else if (auto it = dynamic_cast<const CArrayType*>(t.get())) {
+    std::vector<xls::Value> element_vals;
+    XLS_ASSIGN_OR_RETURN(xls::Value default_elem_val,
+                         CreateDefaultRawValue(it->GetElementType(), loc));
+    element_vals.resize(it->GetSize(), default_elem_val);
+    return xls::Value::ArrayOrDie(element_vals);
   } else if (auto it = dynamic_cast<const CStructType*>(t.get())) {
-    vector<xls::BValue> args;
+    vector<xls::Value> args;
     for (auto it2 = it->fields().rbegin(); it2 != it->fields().rend(); it2++) {
       std::shared_ptr<CField> field = *it2;
-      XLS_ASSIGN_OR_RETURN(xls::BValue fval,
-                           CreateDefaultValue(field->type(), loc));
+      XLS_ASSIGN_OR_RETURN(xls::Value fval,
+                           CreateDefaultRawValue(field->type(), loc));
       args.push_back(fval);
     }
-    return MakeStructXLS(args, *it, loc);
-  } else if (auto it = dynamic_cast<const CArrayType*>(t.get())) {
-    std::vector<xls::BValue> element_vals;
-    XLS_ASSIGN_OR_RETURN(xls::BValue default_elem_val,
-                         CreateDefaultValue(it->GetElementType(), loc));
-    element_vals.resize(it->GetSize(), default_elem_val);
-    XLS_ASSIGN_OR_RETURN(xls::Type * xls_elem_type,
-                         TranslateTypeToXLS(it->GetElementType(), loc));
-    return context().fb->Array(element_vals, xls_elem_type, loc);
+    return MakeStructXLS(args, *it);
   } else if (dynamic_cast<const CInstantiableTypeAlias*>(t.get()) != nullptr) {
     XLS_ASSIGN_OR_RETURN(auto resolved, ResolveTypeInstance(t));
-    return CreateDefaultValue(resolved, loc);
+    return CreateDefaultRawValue(resolved, loc);
   } else {
     return absl::UnimplementedError(
         absl::StrFormat("Don't know how to make default for type %s at %s",
