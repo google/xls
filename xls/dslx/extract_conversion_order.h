@@ -53,8 +53,12 @@ struct ProcId {
     return "";
   }
 
+  bool operator==(const ProcId& other) const {
+    return proc_stack == other.proc_stack && instance == other.instance;
+  }
+
   template <typename H>
-  H AbslHashValue(H h, const ProcId& pid) {
+  friend H AbslHashValue(H h, const ProcId& pid) {
     return H::combine(std::move(h), pid.proc_stack, pid.instance);
   }
 };

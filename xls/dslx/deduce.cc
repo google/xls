@@ -329,6 +329,16 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
         "Non-bits type used to define a numeric literal.");
   }
   XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*node, *concrete_type));
+
+  // TODO(rspringer): 2021-10-12: This is expensive to do for every number in
+  // the world. Move this to the constexpr evaluator, and only do it for items
+  // in a config block.
+  absl::flat_hash_map<std::string, InterpValue> env = MakeConstexprEnv(
+      node, ctx->fn_stack().back().symbolic_bindings(), ctx->type_info());
+  absl::StatusOr<InterpValue> value_or = Interpreter::InterpretExpr(
+      node->owner(), ctx->import_data()->GetRootTypeInfoForNode(node).value(),
+      ctx->typecheck_module(), ctx->import_data(), env, node);
+  ctx->type_info()->NoteConstExpr(node, value_or.value());
   return concrete_type;
 }
 

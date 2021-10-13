@@ -29,7 +29,8 @@
 
 ABSL_FLAG(std::string, entry, "",
           "Entry function name for conversion; when not given, all functions "
-          "are converted.");
+          "are converted. For procs, this must be present and must indicate "
+          "the \"root\" proc in the network.");
 ABSL_FLAG(std::string, stdlib_path, xls::kDefaultDslxStdlibPath,
           "Path to DSLX standard library files.");
 ABSL_FLAG(std::string, dslx_path, "",

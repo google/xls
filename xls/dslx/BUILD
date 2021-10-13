@@ -124,6 +124,47 @@ cc_test(
 )
 
 cc_library(
+    name = "proc_config_ir_converter",
+    srcs = ["proc_config_ir_converter.cc"],
+    hdrs = ["proc_config_ir_converter.h"],
+    deps = [
+        ":ast",
+        ":concrete_type",
+        ":deduce_ctx",
+        ":extract_conversion_order",
+        ":import_data",
+        ":interp_value",
+        ":ir_conversion_utils",
+        ":symbolic_bindings",
+        ":type_info",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_test(
+    name = "proc_config_ir_converter_test",
+    srcs = ["proc_config_ir_converter_test.cc"],
+    deps = [
+        ":ast",
+        ":import_data",
+        ":parse_and_typecheck",
+        ":pos",
+        ":proc_config_ir_converter",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "symbolic_bindings",
     srcs = ["symbolic_bindings.cc"],
     hdrs = ["symbolic_bindings.h"],
@@ -713,6 +754,7 @@ cc_test(
     name = "typecheck_test",
     srcs = ["typecheck_test.cc"],
     deps = [
+        ":ast",
         ":parse_and_typecheck",
         ":type_info_to_proto",
         ":typecheck",
@@ -752,6 +794,8 @@ cc_library(
         ":interpreter",
         ":ir_conversion_utils",
         ":mangle",
+        ":proc_config_ir_converter",
+        ":symbolic_bindings",
         ":type_info",
         ":typecheck",
         "//xls/ir",

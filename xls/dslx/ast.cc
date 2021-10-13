@@ -533,6 +533,30 @@ absl::StatusOr<Proc*> Module::GetProcOrError(
       "No Proc in module %s with name \"%s\"", name_, target_name));
 }
 
+absl::optional<Function*> Module::GetFunction(absl::string_view target_name) {
+  for (ModuleMember& member : top_) {
+    if (absl::holds_alternative<Function*>(member)) {
+      Function* f = absl::get<Function*>(member);
+      if (f->identifier() == target_name) {
+        return f;
+      }
+    }
+  }
+  return absl::nullopt;
+}
+
+absl::optional<Proc*> Module::GetProc(absl::string_view target_name) {
+  for (ModuleMember& member : top_) {
+    if (absl::holds_alternative<Proc*>(member)) {
+      Proc* p = absl::get<Proc*>(member);
+      if (p->identifier() == target_name) {
+        return p;
+      }
+    }
+  }
+  return absl::nullopt;
+}
+
 absl::StatusOr<TestFunction*> Module::GetTest(absl::string_view target_name) {
   for (ModuleMember& member : top_) {
     if (absl::holds_alternative<TestFunction*>(member)) {

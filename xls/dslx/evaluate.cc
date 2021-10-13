@@ -845,12 +845,11 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
       module->FindMemberWithName(expr->attr());
   XLS_RET_CHECK(member.has_value());
   if (absl::holds_alternative<Function*>(*member.value())) {
-    Function* f = absl::get<Function*>(*member.value());
-    if (f == nullptr) {
-      return absl::UnimplementedError(
-          "Evaluate() does not yet work with procs.");
-    }
+    auto* f = absl::get<Function*>(*member.value());
     return InterpValue::MakeFunction(InterpValue::UserFnData{f->owner(), f});
+  }
+  if (absl::holds_alternative<Proc*>(*member.value())) {
+    return absl::UnimplementedError("Evaluate() does not yet work with procs.");
   }
   if (absl::holds_alternative<ConstantDef*>(*member.value())) {
     auto* cd = absl::get<ConstantDef*>(*member.value());
@@ -1215,11 +1214,8 @@ absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
 
   // Add all the functions in the top level scope for the module.
   for (Function* f : module->GetFunctions()) {
-    // Don't evaluate procs for now.
-    if (f != nullptr) {
-      b.AddFn(f->identifier(),
-              InterpValue::MakeFunction(InterpValue::UserFnData{module, f}));
-    }
+    b.AddFn(f->identifier(),
+            InterpValue::MakeFunction(InterpValue::UserFnData{module, f}));
   }
 
   // Add all the type definitions in the top level scope for the module to the
@@ -1271,14 +1267,18 @@ absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
       auto* import = absl::get<Import*>(member);
       XLS_VLOG(3) << "GetOrCreateTopLevelBindings importing: "
                   << import->ToString();
-      XLS_ASSIGN_OR_RETURN(
-          const ModuleInfo* imported,
-          DoImport(interp->GetTypecheckFn(), ImportTokens(import->subject()),
-                   interp->GetImportData(), import->span()));
-      XLS_VLOG(3) << "GetOrCreateTopLevelBindings adding import "
-                  << import->ToString() << " as \"" << import->identifier()
-                  << "\"";
-      b.AddModule(import->identifier(), imported->module.get());
+      absl::optional<InterpBindings::Entry> entry =
+          b.ResolveEntry(import->identifier());
+      if (!entry.has_value()) {
+        XLS_ASSIGN_OR_RETURN(
+            const ModuleInfo* imported,
+            DoImport(interp->GetTypecheckFn(), ImportTokens(import->subject()),
+                     interp->GetImportData(), import->span()));
+        XLS_VLOG(3) << "GetOrCreateTopLevelBindings adding import "
+                    << import->ToString() << " as \"" << import->identifier()
+                    << "\"";
+        b.AddModule(import->identifier(), imported->module.get());
+      }
       continue;
     }
   }

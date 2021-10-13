@@ -976,7 +976,7 @@ class Import : public AstNode {
   // Span of the import in the text.
   Span span_;
   // Name of the module being imported ("original" name before aliasing); e.g.
-  // "std". Only present if the import is aliased.
+  // "std".
   std::vector<std::string> subject_;
   // The name definition we bind the import to.
   NameDef* name_def_;
@@ -2552,6 +2552,8 @@ class Module : public AstNode {
   // determine if we need all these or not.
   absl::StatusOr<Function*> GetFunctionOrError(absl::string_view target_name);
   absl::StatusOr<Proc*> GetProcOrError(absl::string_view target_name) const;
+  absl::optional<Function*> GetFunction(absl::string_view target_name);
+  absl::optional<Proc*> GetProc(absl::string_view target_name);
 
   // Gets a test construct in this module with the given "target_name", or
   // returns a NotFoundError.

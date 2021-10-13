@@ -54,7 +54,6 @@ void ExpectIr(absl::string_view got, absl::string_view test_name) {
   XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path runfile,
                            GetXlsRunfilePath(absl::StrCat("xls/", suffix)));
   XLS_ASSERT_OK_AND_ASSIGN(std::string want, GetFileContents(runfile));
-  XLS_LOG_LINES(INFO, got);
   EXPECT_EQ(got, want);
 }
 
@@ -1433,22 +1432,78 @@ fn callee(x:u32) -> u32 {
 
 TEST(IrConverterTest, HandlesChannelDecls) {
   const std::string kProgram = R"(
-fn main(x:u32) -> () {
-  let (p0, c0) = chan u32;
-  let (p1, c1) = chan u64;
-  let (p2, c2) = chan (u64, (u64, (u64)));
-  let (p3, c3) = chan (u64, (u64, u64[4]));
-  ()
-}
+proc main {
+  config() {
+    let (p0, c0) : (chan out u32, chan in u32) = chan u32;
+    let (p1, c1) : (chan out u64, chan in u64) = chan u64;
+    let (p2, c2) : (chan out (u64, (u64, (u64))), chan in (u64, (u64, (u64)))) = chan (u64, (u64, (u64)));
+    let (p3, c3) = chan (u64, (u64, u64[4]));
+    ()
+  }
 
+  next() {
+    ()
+  }
+}
 )";
 
   ConvertOptions options;
   options.emit_fail_as_assert = false;
   options.emit_positions = false;
   options.verify_ir = false;
-  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
-                           ConvertModuleForTest(kProgram, options));
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, HandlesBasicProc) {
+  const std::string kProgram = R"(
+proc producer {
+  config(input_c: chan out u32) {
+    let c = input_c;
+    ()
+  }
+  next(i:u32) {
+    send(c, i);
+    i + u32:1
+  }
+
+  c: chan out u32;
+}
+
+proc consumer {
+  config(input_c: chan in u32) {
+    let c = input_c;
+    ()
+  }
+  next(i: u32) {
+    let i = recv(c);
+    i + i
+  }
+
+  c: chan in u32;
+}
+
+proc main {
+  config() {
+    let (p, c) = chan u32;
+    spawn producer(p)(u32:0);
+    spawn consumer(c)(u32:0)
+  }
+  next() { () }
+}
+)";
+
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
   ExpectIr(converted, TestName());
 }
 

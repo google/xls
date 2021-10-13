@@ -35,6 +35,8 @@
 #include "xls/dslx/interpreter.h"
 #include "xls/dslx/ir_conversion_utils.h"
 #include "xls/dslx/mangle.h"
+#include "xls/dslx/proc_config_ir_converter.h"
+#include "xls/dslx/symbolic_bindings.h"
 #include "xls/dslx/typecheck.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
@@ -97,10 +99,6 @@ static bool GetRequiresImplicitToken(dslx::Function* f, ImportData* import_data,
   return requires_opt.value();
 }
 
-// Maps an argument index to a channel, and a spawn to a set of such.
-using ArgToChannel = absl::flat_hash_map<int64_t, Channel*>;
-using SpawnToChannels = absl::flat_hash_map<Spawn*, ArgToChannel>;
-
 // Helper type that creates XLS IR for a function -- this is done within a
 // Package, given a DSLX AST, its type information, and an entry point function.
 //
@@ -121,9 +119,10 @@ using SpawnToChannels = absl::flat_hash_map<Spawn*, ArgToChannel>;
 // DSLX function.
 class FunctionConverter {
  public:
-  FunctionConverter(PackageData& package_data, Module* module,
-                    ImportData* import_data, ConvertOptions options,
-                    SpawnToChannels* spawn_to_channels);
+  FunctionConverter(
+      PackageData& package_data, Module* module, ImportData* import_data,
+      ConvertOptions options,
+      absl::flat_hash_map<ProcId, MemberNameToValue>* proc_id_to_members);
 
   // Main entry point to request conversion of the DSLX function "f" to an IR
   // function.
@@ -131,9 +130,11 @@ class FunctionConverter {
       Function* node, TypeInfo* type_info,
       const SymbolicBindings* symbolic_bindings);
 
-  absl::StatusOr<xls::Proc*> HandleProc(
-      Proc* node, Instantiation* instantiation, TypeInfo* type_info,
-      const SymbolicBindings* symbolic_bindings, ImportData* import_data);
+  absl::Status HandleProcNextFunction(Function* pf, Invocation* invocation,
+                                      TypeInfo* type_info,
+                                      ImportData* import_data,
+                                      const SymbolicBindings* symbolic_bindings,
+                                      const ProcId& proc_id);
 
   // Notes a constant-definition dependency for the function (so it can
   // participate in the IR conversion).
@@ -283,13 +284,14 @@ class FunctionConverter {
   //  invocation: Invocation that the bindings are being retrieved for.
   //
   // Returns:
-  //  The symbolic bindings for the given invocation.
+  //  The symbolic bindings for the given instantiation (function call or proc
+  //  spawn).
   absl::optional<const SymbolicBindings*> GetInstantiationCalleeBindings(
-      Invocation* invocation) const {
+      Instantiation* instantiation) const {
     SymbolicBindings key = GetSymbolicBindingsTuple();
-    return import_data_->GetRootTypeInfo(invocation->owner())
+    return import_data_->GetRootTypeInfo(instantiation->owner())
         .value()
-        ->GetInstantiationCalleeBindings(invocation, key);
+        ->GetInstantiationCalleeBindings(instantiation, key);
   }
 
   // Helpers for HandleBinop().
@@ -322,7 +324,6 @@ class FunctionConverter {
   absl::Status HandleArray(Array* node);
   absl::Status HandleAttr(Attr* node);
   absl::Status HandleCast(Cast* node);
-  absl::Status HandleChannelDecl(ChannelDecl* node);
   absl::Status HandleColonRef(ColonRef* node);
   absl::Status HandleConstantArray(ConstantArray* node);
   absl::Status HandleConstantDef(ConstantDef* node);
@@ -331,12 +332,10 @@ class FunctionConverter {
   absl::Status HandleInvocation(Invocation* node);
   absl::Status HandleFormatMacro(FormatMacro* node);
   absl::Status HandleLet(Let* node);
-  absl::Status HandleLetChannelDecl(Let* let, ChannelDecl* channel_decl);
   absl::Status HandleMatch(Match* node);
   absl::Status HandleRecv(Recv* node);
   absl::Status HandleSend(Send* node);
   absl::Status HandleSplatStructInstance(SplatStructInstance* node);
-  absl::Status HandleSpawn(Spawn* node);
   absl::Status HandleStructInstance(StructInstance* node);
   absl::Status HandleTernary(Ternary* node);
 
@@ -530,7 +529,16 @@ class FunctionConverter {
   // Number of "counted for" nodes we've observed in this function.
   int64_t counted_for_count_ = 0;
 
-  SpawnToChannels* spawn_to_channels_;
+  // Maps a proc ID to its [constant] member values, "indexed" by name.
+  absl::flat_hash_map<ProcId, MemberNameToValue>* proc_id_to_members_;
+
+  // The last token encountered during translation. At the end of the function,
+  // this will be the "exit" token for the proc.
+  BValue last_token_;
+
+  // The ID of the unique Proc instance currently being converted. Only valid if
+  // a Proc is being converted.
+  ProcId proc_id_;
 };
 
 // RAII helper that establishes a control predicate for a lexical scope that
@@ -683,7 +691,6 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(Array)
   NO_TRAVERSE_DISPATCH_VISIT(ConstantArray)
   NO_TRAVERSE_DISPATCH_VISIT(Cast)
-  NO_TRAVERSE_DISPATCH_VISIT(ChannelDecl)
   NO_TRAVERSE_DISPATCH_VISIT(ColonRef)
   NO_TRAVERSE_DISPATCH_VISIT(ConstantDef)
   NO_TRAVERSE_DISPATCH_VISIT(For)
@@ -694,7 +701,6 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(Match)
   NO_TRAVERSE_DISPATCH_VISIT(Recv)
   NO_TRAVERSE_DISPATCH_VISIT(Send)
-  NO_TRAVERSE_DISPATCH_VISIT(Spawn)
   NO_TRAVERSE_DISPATCH_VISIT(SplatStructInstance)
   NO_TRAVERSE_DISPATCH_VISIT(StructInstance)
   NO_TRAVERSE_DISPATCH_VISIT(Ternary)
@@ -723,6 +729,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
   // The visitor operates within a function, so none of these should be visible.
   INVALID(BuiltinNameDef)
+  INVALID(ChannelDecl)
   INVALID(EnumDef)
   INVALID(Import)
   INVALID(Function)
@@ -730,6 +737,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(Proc)
   INVALID(Module)
   INVALID(QuickCheck)
+  INVALID(Spawn)
   INVALID(StructDef)
 
   // Unsupported for IR emission.
@@ -760,10 +768,10 @@ absl::Status FunctionConverter::Visit(AstNode* node) {
   return absl::StrFormat("%p", absl::get<CValue>(value).value.node());
 }
 
-FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
-                                     ImportData* import_data,
-                                     ConvertOptions options,
-                                     SpawnToChannels* spawn_to_channels)
+FunctionConverter::FunctionConverter(
+    PackageData& package_data, Module* module, ImportData* import_data,
+    ConvertOptions options,
+    absl::flat_hash_map<ProcId, MemberNameToValue>* proc_id_to_members)
     : package_data_(package_data),
       module_(module),
       import_data_(import_data),
@@ -771,7 +779,7 @@ FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
       // TODO(leary): 2019-07-19 Create a way to get the file path from the
       // module.
       fileno_(package_data.package->GetOrCreateFileno("fake_file.x")),
-      spawn_to_channels_(spawn_to_channels) {
+      proc_id_to_members_(proc_id_to_members) {
   XLS_VLOG(5) << "Constructed IR converter: " << this;
 }
 
@@ -1086,6 +1094,24 @@ absl::Status FunctionConverter::HandleConstRef(ConstRef* node) {
 
 absl::Status FunctionConverter::HandleNameRef(NameRef* node) {
   AstNode* from = ToAstNode(node->name_def());
+
+  if (!node_to_ir_.contains(from)) {
+    for (const auto& [k, v] : proc_id_to_members_->at(proc_id_)) {
+      if (k == node->identifier()) {
+        if (absl::holds_alternative<Value>(v)) {
+          // TODO(rspringer): 2021-09-29: Handle non-channel assignments.
+          XLS_VLOG(4) << "Reference to Proc member: " << k
+                      << " : Value : " << absl::get<Value>(v).ToString();
+        } else {
+          XLS_VLOG(4) << "Reference to Proc member: " << k
+                      << " : Chan  : " << absl::get<Channel*>(v)->ToString();
+
+          SetNodeToIr(from, absl::get<Channel*>(v));
+        }
+      }
+    }
+  }
+
   return DefAlias(from, /*to=*/node);
 }
 
@@ -1097,63 +1123,8 @@ absl::Status FunctionConverter::HandleConstantDef(ConstantDef* node) {
   return DefAlias(node->value(), /*to=*/node->name_def());
 }
 
-absl::Status FunctionConverter::HandleLetChannelDecl(
-    Let* let, ChannelDecl* channel_decl) {
-  // Alias both the send and receive nodes to the channel.
-  absl::optional<IrValue> decl_ir = GetNodeToIr(channel_decl);
-  if (!decl_ir.has_value()) {
-    return absl::InternalError(
-        "ChannelDecl encountered before being processed?");
-  }
-
-  if (!absl::holds_alternative<Channel*>(decl_ir.value())) {
-    return absl::InternalError("Expected ChannelDecl, got BValue or CValue.");
-  }
-  Channel* channel = absl::get<Channel*>(decl_ir.value());
-
-  if (let->name_def_tree()->is_leaf()) {
-    return absl::InvalidArgumentError(
-        "LHS of a ChannelDecl must be a pair of names.");
-  }
-  std::vector<NameDefTree::Leaf> leaves = let->name_def_tree()->Flatten();
-  if (leaves.size() != 2) {
-    return absl::InvalidArgumentError(
-        "Channel decl must assign two elements on the LHS.");
-  }
-  if (!absl::holds_alternative<NameDef*>(leaves[0]) ||
-      !absl::holds_alternative<NameDef*>(leaves[1])) {
-    return absl::InvalidArgumentError(
-        "Both names on the LHS of a channel decl must be name defs.");
-  }
-
-  // TODO(rspringer): 2021-09-10: I think we need to store directionality with
-  // channel, i.e., make sure that we only receive if the channel is declared
-  // as `chan in` and only send if it's `chan out`. Probably belongs in
-  // typechecking, though.
-  // Destructure LHS into producer/consumer pair.
-  node_to_ir_[absl::get<NameDef*>(leaves[0])] = channel;
-  node_to_ir_[absl::get<NameDef*>(leaves[1])] = channel;
-  XLS_RETURN_IF_ERROR(Visit(let->body()));
-  XLS_RETURN_IF_ERROR(DefAlias(let->body(), let));
-  if (let->type_annotation() != nullptr) {
-    XLS_ASSIGN_OR_RETURN(xls::Type * annotated_type,
-                         ResolveTypeToIr(let->type_annotation()));
-    XLS_ASSIGN_OR_RETURN(xls::Type * channel_type,
-                         ResolveTypeToIr(channel_decl->type()));
-    XLS_RET_CHECK_EQ(annotated_type, channel_type);
-  }
-  return absl::OkStatus();
-}
-
 absl::Status FunctionConverter::HandleLet(Let* node) {
   XLS_RETURN_IF_ERROR(Visit(node->rhs()));
-
-  // Channels are a special case in that they don't correspond to BValues, so we
-  // handle them separately.
-  ChannelDecl* channel_decl = dynamic_cast<ChannelDecl*>(node->rhs());
-  if (channel_decl != nullptr) {
-    return HandleLetChannelDecl(node, channel_decl);
-  }
 
   XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->rhs()));
 
@@ -1442,7 +1413,7 @@ absl::Status FunctionConverter::HandleFor(For* node) {
 
   XLS_VLOG(5) << "Converting for-loop @ " << node->span();
   FunctionConverter body_converter(package_data_, module_, import_data_,
-                                   options_, spawn_to_channels_);
+                                   options_, proc_id_to_members_);
   body_converter.set_symbolic_binding_map(symbolic_binding_map_);
 
   // The body conversion uses the same types that we use in the caller.
@@ -2046,13 +2017,9 @@ absl::Status FunctionConverter::HandleInvocation(Invocation* node) {
   return (this->*f)(node);
 }
 
-absl::Status FunctionConverter::HandleSpawn(Spawn* node) {
-  return absl::UnimplementedError("Spawn not yet handled.");
-}
-
 absl::Status FunctionConverter::HandleSend(Send* node) {
-  TokenlessProcBuilder* builder_ptr =
-      dynamic_cast<TokenlessProcBuilder*>(function_builder_.get());
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
   if (builder_ptr == nullptr) {
     return absl::InternalError(
         "Send nodes should only be encountered during Proc conversion; "
@@ -2070,7 +2037,8 @@ absl::Status FunctionConverter::HandleSend(Send* node) {
         "Expected channel, got BValue or CValue.");
   }
   XLS_ASSIGN_OR_RETURN(BValue data, Use(node->payload()));
-  builder_ptr->Send(absl::get<Channel*>(ir_value), data);
+  last_token_ =
+      builder_ptr->Send(absl::get<Channel*>(ir_value), last_token_, data);
 
   XLS_RETURN_IF_ERROR(Visit(node->body()));
   XLS_RETURN_IF_ERROR(DefAlias(node->body(), node));
@@ -2078,8 +2046,8 @@ absl::Status FunctionConverter::HandleSend(Send* node) {
 }
 
 absl::Status FunctionConverter::HandleRecv(Recv* node) {
-  TokenlessProcBuilder* builder_ptr =
-      dynamic_cast<TokenlessProcBuilder*>(function_builder_.get());
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
   if (builder_ptr == nullptr) {
     return absl::InternalError(
         "Recv nodes should only be encountered during Proc conversion; "
@@ -2096,8 +2064,10 @@ absl::Status FunctionConverter::HandleRecv(Recv* node) {
         "Expected channel, got BValue or CValue.");
   }
 
-  BValue value = builder_ptr->Receive(absl::get<Channel*>(ir_value));
-  node_to_ir_[node] = value;
+  BValue value =
+      builder_ptr->Receive(absl::get<Channel*>(ir_value), last_token_);
+  node_to_ir_[node] = builder_ptr->TupleIndex(value, 1);
+  last_token_ = builder_ptr->TupleIndex(value, 0);
   return absl::OkStatus();
 }
 
@@ -2294,21 +2264,119 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
   return f;
 }
 
-absl::StatusOr<xls::Proc*> FunctionConverter::HandleProc(
-    Proc* node, Instantiation* instantiation, TypeInfo* type_info,
-    const SymbolicBindings* symbolic_bindings, ImportData* import_data) {
-  return absl::UnimplementedError("Procs not yet handled.");
+// We need to evaluate all proc and iter args to constants, as they're
+// needed to define the initial state of the Proc (and are thus part of the
+// creation interface for the ProcBuilder).
+absl::StatusOr<std::vector<Value>> GetProcInitialValues(
+    Module* module, Proc* node, Invocation* invocation, TypeInfo* type_info,
+    ImportData* import_data, const SymbolicBindings* bindings) {
+  std::vector<Value> elements;
+  if (invocation == nullptr) {
+    return elements;
+  }
+
+  for (Expr* arg : invocation->args()) {
+    // There should be no channels in iter args (enforced by the Parser), so
+    // we don't need to skip them here.
+    auto maybe_interp_value = type_info->GetConstExpr(arg);
+    if (!maybe_interp_value.has_value()) {
+      return absl::InternalError(absl::StrCat(
+          "Missing [constexpr] arg for proc conversion: ", arg->ToString()));
+    }
+    XLS_ASSIGN_OR_RETURN(Value value,
+                         InterpValueToValue(maybe_interp_value.value()));
+    elements.push_back(value);
+  }
+
+  return elements;
 }
 
-absl::Status FunctionConverter::HandleChannelDecl(ChannelDecl* node) {
-  std::string name = absl::StrCat("channel_decl_", node->span().ToString());
-  name = absl::StrReplaceAll(
-      name, {{":", "_"}, {".", "_"}, {"-", "_"}, {"/", "_"}, {"\\", "_"}});
-  XLS_ASSIGN_OR_RETURN(xls::Type * type, ResolveTypeToIr(node->type()));
+absl::Status FunctionConverter::HandleProcNextFunction(
+    Function* f, Invocation* invocation, TypeInfo* type_info,
+    ImportData* import_data, const SymbolicBindings* symbolic_bindings,
+    const ProcId& proc_id) {
+  Proc* proc = f->proc().value();
+  XLS_RET_CHECK(type_info != nullptr);
+  XLS_VLOG(5) << "HandleProcNextFunction: " << f->ToString();
+
+  if (symbolic_bindings != nullptr) {
+    SetSymbolicBindings(symbolic_bindings);
+  }
+
+  ScopedTypeInfoSwap stis(this, type_info);
+
   XLS_ASSIGN_OR_RETURN(
-      StreamingChannel * channel,
-      package()->CreateStreamingChannel(name, ChannelOps::kSendReceive, type));
-  SetNodeToIr(node, channel);
+      std::string mangled_name,
+      MangleDslxName(module_->name(), f->identifier(),
+                     CallingConvention::kTypical, f->GetFreeParametricKeySet(),
+                     symbolic_bindings));
+  std::string token_name = "__token";
+  std::string state_name = "__state";
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<Value> initial_elements,
+      GetProcInitialValues(module_, f->proc().value(), invocation, type_info,
+                           import_data, symbolic_bindings));
+  Value initial_value;
+  auto builder = std::make_unique<ProcBuilder>(
+      mangled_name, Value::Tuple(initial_elements), token_name, state_name,
+      package());
+  last_token_ = builder->GetTokenParam();
+  auto* builder_ptr = builder.get();
+  SetFunctionBuilder(std::move(builder));
+
+  // Now bind all iter args to their elements in the recurrent state.
+  BValue state = builder_ptr->GetStateParam();
+  for (int i = 0; i < f->params().size(); i++) {
+    auto* param = f->params()[i];
+    BValue element =
+        builder_ptr->TupleIndex(state, i, absl::nullopt, param->identifier());
+    SetNodeToIr(param->name_def(), element);
+  }
+
+  proc_id_ = proc_id;
+
+  for (ParametricBinding* parametric_binding : f->parametric_bindings()) {
+    XLS_VLOG(5) << "Resolving parametric binding: "
+                << parametric_binding->ToString();
+
+    absl::optional<InterpValue> sb_value =
+        get_symbolic_binding(parametric_binding->identifier());
+    XLS_RET_CHECK(sb_value.has_value());
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_type,
+                         ResolveType(parametric_binding->type_annotation()));
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim parametric_width_ctd,
+                         parametric_type->GetTotalBitCount());
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count, parametric_width_ctd.GetAsInt64());
+    Value param_value;
+    if (sb_value->IsSigned()) {
+      XLS_ASSIGN_OR_RETURN(int64_t bit_value, sb_value->GetBitValueInt64());
+      param_value = Value(SBits(bit_value, bit_count));
+    } else {
+      XLS_ASSIGN_OR_RETURN(uint64_t bit_value, sb_value->GetBitValueUint64());
+      param_value = Value(UBits(bit_value, bit_count));
+    }
+    DefConst(parametric_binding, param_value);
+    XLS_RETURN_IF_ERROR(
+        DefAlias(parametric_binding, /*to=*/parametric_binding->name_def()));
+  }
+
+  XLS_VLOG(3) << "Proc has " << constant_deps_.size() << " constant deps";
+  for (ConstantDef* dep : constant_deps_) {
+    XLS_VLOG(5) << "Visiting constant dep: " << dep->ToString();
+    XLS_RETURN_IF_ERROR(Visit(dep));
+  }
+
+  XLS_RETURN_IF_ERROR(Visit(f->body()));
+
+  // If the result is single-element, then wrap in a tuple: we create the
+  // ProcBuilder with initial state always as a tuple, so we need to do that
+  // here to mirror it.
+  BValue result = absl::get<BValue>(node_to_ir_[f->body()]);
+  if (proc->next()->params().size() == 1) {
+    result = builder_ptr->Tuple({result});
+  }
+  XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder_ptr->Build(last_token_, result));
+  package_data_.ir_to_dslx[p] = f;
   return absl::OkStatus();
 }
 
@@ -2427,8 +2495,8 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
     return absl::InternalError("Invalid callee: " + callee->ToString());
   }
 
-  absl::StatusOr<dslx::Function*> maybe_f = m->GetFunctionOrError(callee_name);
-  if (!maybe_f.ok()) {
+  absl::optional<Function*> maybe_f = m->GetFunction(callee_name);
+  if (!maybe_f.has_value()) {
     // For e.g. builtins that are not in the module we just provide the name
     // directly.
     return callee_name;
@@ -2948,36 +3016,41 @@ absl::StatusOr<xls::Type*> FunctionConverter::ResolveTypeToIr(AstNode* node) {
                   SymbolicBindings(symbolic_binding_map_));
 }
 
-absl::Status ConvertOneFunctionInternal(PackageData& package_data,
-                                        const ConversionRecord& record,
-                                        ImportData* import_data,
-                                        SpawnToChannels* spawn_to_channels,
-                                        const ConvertOptions& options) {
+absl::Status ConvertOneFunctionInternal(
+    PackageData& package_data, const ConversionRecord& record,
+    ImportData* import_data,
+    absl::flat_hash_map<ProcId, std::vector<ProcConfigValue>>* proc_id_to_args,
+    absl::flat_hash_map<ProcId, MemberNameToValue>* proc_id_to_members,
+    const ConvertOptions& options) {
   // Validate the requested conversion looks sound in terms of provided
   // parametrics.
   XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(
       record.f(), record.symbolic_bindings()));
 
   FunctionConverter converter(package_data, record.module(), import_data,
-                              options, spawn_to_channels);
-
+                              options, proc_id_to_members);
   XLS_ASSIGN_OR_RETURN(auto constant_deps,
                        GetConstantDepFreevars(record.f()->body()));
   for (const auto& dep : constant_deps) {
     converter.AddConstantDep(dep);
   }
 
-  XLS_VLOG(3) << absl::StreamFormat("Converting function: %s",
-                                    record.f()->ToString());
-  if (Proc* p = dynamic_cast<Proc*>(record.f()); p != nullptr) {
-    return converter
-        .HandleProc(p, record.invocation(), record.type_info(),
-                    &record.symbolic_bindings(), import_data)
-        .status();
+  Function* f = record.f();
+  if (f->tag() == Function::Tag::kProcConfig) {
+    // TODO(rspringer): 2021-09-29: Probably need to pass constants in here.
+    ProcConfigIrConverter converter(
+        package_data.package, f, record.type_info(), import_data,
+        proc_id_to_args, proc_id_to_members, record.symbolic_bindings(),
+        record.proc_id().value());
+    return f->Accept(&converter);
+  } else if (f->tag() == Function::Tag::kProcNext) {
+    return converter.HandleProcNextFunction(
+        f, record.invocation(), record.type_info(), import_data,
+        &record.symbolic_bindings(), record.proc_id().value());
   }
+
   return converter
-      .HandleFunction(dynamic_cast<Function*>(record.f()), record.type_info(),
-                      &record.symbolic_bindings())
+      .HandleFunction(f, record.type_info(), &record.symbolic_bindings())
       .status();
 }
 
@@ -3004,21 +3077,18 @@ static absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
   // We need to convert Functions before procs: Channels are declared inside
   // Functions, but exist as "global" entities in the IR. By processing
   // Functions first, we can collect the declarations of these global data so we
-  // can resolve them when processing Procs.
-  SpawnToChannels spawn_to_channels;
+  // can resolve them when processing Procs. GetOrder() (in
+  // extract_conversion_order.h) handles evaluation ordering. In addition, for
+  // procs, the config block must be evaluated before the next block, as config
+  // sets channels and constants needed by next. This is handled inside
+  // ConvertOneFunctionInternal().
+  absl::flat_hash_map<ProcId, std::vector<ProcConfigValue>> proc_id_to_args;
+  absl::flat_hash_map<ProcId, MemberNameToValue> proc_id_to_members;
   for (const ConversionRecord& record : order) {
-    if (dynamic_cast<Function*>(record.f()) != nullptr) {
-      XLS_VLOG(3) << "Converting to IR: " << record.ToString();
-      XLS_RETURN_IF_ERROR(ConvertOneFunctionInternal(
-          package_data, record, import_data, &spawn_to_channels, options));
-    }
-  }
-  for (const ConversionRecord& record : order) {
-    if (dynamic_cast<Proc*>(record.f()) != nullptr) {
-      XLS_VLOG(3) << "Converting to IR: " << record.ToString();
-      XLS_RETURN_IF_ERROR(ConvertOneFunctionInternal(
-          package_data, record, import_data, &spawn_to_channels, options));
-    }
+    XLS_VLOG(3) << "Converting to IR: " << record.ToString();
+    XLS_RETURN_IF_ERROR(ConvertOneFunctionInternal(
+        package_data, record, import_data, &proc_id_to_args,
+        &proc_id_to_members, options));
   }
 
   XLS_VLOG(3) << "Verifying converted package";
@@ -3062,20 +3132,43 @@ absl::StatusOr<std::string> ConvertModule(Module* module,
   return package->DumpIr();
 }
 
-absl::Status ConvertOneFunctionIntoPackage(
-    Module* module, absl::string_view entry_function_name,
-    ImportData* import_data, const SymbolicBindings* symbolic_bindings,
-    const ConvertOptions& options, Package* package) {
-  XLS_ASSIGN_OR_RETURN(Function * f,
-                       module->GetFunctionOrError(entry_function_name));
+template <typename BlockT>
+absl::Status ConvertOneFunctionIntoPackageInternal(
+    Module* module, BlockT* block, ImportData* import_data,
+    const SymbolicBindings* symbolic_bindings, const ConvertOptions& options,
+    Package* package) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * func_type_info,
-                       import_data->GetRootTypeInfoForNode(f));
+                       import_data->GetRootTypeInfoForNode(block));
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
-                       GetOrderForEntry(f, func_type_info));
+                       GetOrderForEntry(block, func_type_info));
   PackageData package_data{package};
   XLS_RETURN_IF_ERROR(
       ConvertCallGraph(order, import_data, options, package_data));
   return absl::OkStatus();
+}
+
+absl::Status ConvertOneFunctionIntoPackage(
+    Module* module, absl::string_view entry_function_name,
+    ImportData* import_data, const SymbolicBindings* symbolic_bindings,
+    const ConvertOptions& options, Package* package) {
+  absl::optional<Function*> fn_or = module->GetFunction(entry_function_name);
+  if (fn_or.has_value()) {
+    return ConvertOneFunctionIntoPackageInternal(module, fn_or.value(),
+                                                 import_data, symbolic_bindings,
+                                                 options, package);
+  }
+
+  auto proc_or = module->GetProcOrError(entry_function_name);
+  if (proc_or.ok()) {
+    return ConvertOneFunctionIntoPackageInternal(module, proc_or.value(),
+                                                 import_data, symbolic_bindings,
+                                                 options, package);
+  }
+
+  return absl::InvalidArgumentError(
+      absl::StrCat("Entry \"", entry_function_name,
+                   "\" is not present in "
+                   "the module as a Function or a Proc."));
 }
 
 absl::StatusOr<std::string> ConvertOneFunction(

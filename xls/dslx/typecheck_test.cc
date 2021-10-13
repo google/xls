@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/ast.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_info_to_proto.h"
 
@@ -1015,6 +1016,56 @@ struct Foo {
         FAIL();
     }
   }
+}
+
+TEST(TypecheckTest, NumbersAreConstexpr) {
+  // Visitor to check all nodes in the below program to determine if all numbers
+  // are indeed constexpr.
+  class IsConstVisitor : public AstNodeVisitorWithDefault {
+   public:
+    IsConstVisitor(TypeInfo* type_info) : type_info_(type_info) {}
+
+    absl::Status HandleFunction(Function* node) {
+      XLS_RETURN_IF_ERROR(node->body()->Accept(this));
+      return absl::OkStatus();
+    }
+
+    absl::Status HandleLet(Let* node) {
+      XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
+      XLS_RETURN_IF_ERROR(node->body()->Accept(this));
+      return absl::OkStatus();
+    }
+
+    absl::Status HandleNumber(Number* node) {
+      if (!type_info_->GetConstExpr(node).has_value()) {
+        all_numbers_constexpr_ = false;
+      }
+      return absl::OkStatus();
+    }
+
+    bool all_numbers_constexpr() { return all_numbers_constexpr_; }
+
+   private:
+    bool all_numbers_constexpr_ = true;
+    TypeInfo* type_info_;
+  };
+
+  constexpr absl::string_view kProgram = R"(
+fn main() {
+  let foo = u32:0;
+  let foo = u64:0x666;
+  ()
+}
+)";
+
+  ImportData import_data(ImportData::CreateForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "fake.x", "fake", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  IsConstVisitor visitor(tm.type_info);
+  XLS_ASSERT_OK(f->Accept(&visitor));
+  EXPECT_TRUE(visitor.all_numbers_constexpr());
 }
 
 // Helper for struct instance based tests.
