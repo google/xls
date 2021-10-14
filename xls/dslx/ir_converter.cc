@@ -561,9 +561,10 @@ class ScopedControlPredicate {
         parent_->implicit_token_data_->create_control_predicate;
     // Curry "make_predicate" with the control-predicate-creating function we
     // had before -- this lets us build our "chain" of control predication.
-    parent_->implicit_token_data_->create_control_predicate = [&] {
-      return make_predicate(orig_control_predicate_);
-    };
+    parent_->implicit_token_data_->create_control_predicate =
+        [this, make_predicate = std::move(make_predicate)] {
+          return make_predicate(orig_control_predicate_);
+        };
   }
 
   ~ScopedControlPredicate() {
