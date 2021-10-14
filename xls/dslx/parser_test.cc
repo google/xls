@@ -183,13 +183,13 @@ TEST_F(ParserTest, ParseIdentityFunction) {
 
 TEST_F(ParserTest, ParseSimpleProc) {
   const char* text = R"(proc simple {
+  x: u32;
   config() {
     ()
   }
   next(addend: u32) {
     (x) + (addend)
   }
-  x: u32;
 })";
 
   Scanner s{"test.x", std::string{text}};
@@ -204,33 +204,31 @@ TEST_F(ParserTest, ParseSimpleProc) {
 // Parses the "iota" example.
 TEST_F(ParserTest, ParseProcNetwork) {
   const char* text = R"(proc producer {
+  c_: chan out u32;
+  limit_: u32;
   config(limit: u32, c: chan out u32) {
-    let c_ = c;
-    let limit_ = limit;
-    ()
+    (c, limit)
   }
   next(i: u32) {
     (i) + (1)
   }
-  c_: chan out u32;
-  limit_: u32;
 }
 proc consumer<N: u32> {
+  c_: chan in u32;
   config(c: chan in u32) {
-    let c_ = c;
-    ()
+    (c,)
   }
   next(i: u32) {
     let e = recv(c_);
     (i) + (1)
   }
-  c_: chan in u32;
 }
 proc main {
   config() {
     let (p, c) = chan u32;
     spawn producer(u32:10, p)(0);
-    spawn consumer(range(10), c)(0)
+    spawn consumer(range(10), c)(0);
+    ()
   }
   next() {
     ()
@@ -246,6 +244,7 @@ proc main {
 
 TEST_F(ParserTest, ChannelsNotAsIterArgs) {
   const char* text = R"(proc producer {
+  c_: chan out u32;
   config(c: chan out u32) {
     let c_ = (c);
     ()
@@ -254,7 +253,6 @@ TEST_F(ParserTest, ChannelsNotAsIterArgs) {
     send((c), (i));
     (i) + (i)
   }
-  c_: chan out u32;
 })";
 
   Scanner s{"test.x", std::string{text}};

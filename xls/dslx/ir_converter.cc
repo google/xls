@@ -1106,7 +1106,6 @@ absl::Status FunctionConverter::HandleNameRef(NameRef* node) {
         } else {
           XLS_VLOG(4) << "Reference to Proc member: " << k
                       << " : Chan  : " << absl::get<Channel*>(v)->ToString();
-
           SetNodeToIr(from, absl::get<Channel*>(v));
         }
       }
@@ -3043,7 +3042,9 @@ absl::Status ConvertOneFunctionInternal(
         package_data.package, f, record.type_info(), import_data,
         proc_id_to_args, proc_id_to_members, record.symbolic_bindings(),
         record.proc_id().value());
-    return f->Accept(&converter);
+    XLS_RETURN_IF_ERROR(f->Accept(&converter));
+    XLS_RETURN_IF_ERROR(converter.Finalize());
+    return absl::OkStatus();
   } else if (f->tag() == Function::Tag::kProcNext) {
     return converter.HandleProcNextFunction(
         f, record.invocation(), record.type_info(), import_data,

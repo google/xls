@@ -96,29 +96,25 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
 TEST(ProcConfigIrConverterTest, BasicConversion) {
   constexpr absl::string_view kModule = R"(
 proc test_proc {
-  config(c_input: chan in u32) {
-    let c = c_input;
-    ()
+  c: chan in u32;
+  config(c: chan in u32) {
+    (c,)
   }
   next() {
     ()
   }
-
-  c: chan in u32;
 }
 
 proc main {
+  c: chan out u32;
   config() {
     let (p, c) = chan u32;
     spawn test_proc(c)();
-    let c = p;
-    ()
+    (p,)
   }
   next() {
     ()
   }
-
-  c: chan out u32;
 }
 )";
 
@@ -153,29 +149,25 @@ proc main {
 TEST(ProcConfigIrConverterTest, CatchesMissingArgMap) {
   constexpr absl::string_view kModule = R"(
 proc test_proc {
-  config(c_input: chan in u32) {
-    let c = c_input;
-    ()
+  c: chan in u32;
+  config(c: chan in u32) {
+    (c,)
   }
   next() {
     ()
   }
-
-  c: chan in u32;
 }
 
 proc main {
+  c: chan out u32;
   config() {
     let (p, c) = chan u32;
     spawn test_proc(c)();
-    let c = p;
-    ()
+    (p,)
   }
   next() {
     ()
   }
-
-  c: chan out u32;
 }
 )";
 

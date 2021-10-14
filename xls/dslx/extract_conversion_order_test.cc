@@ -214,7 +214,8 @@ proc foo {
 
 proc main {
   config() {
-    spawn foo()()
+    spawn foo()();
+    ()
   }
   next() { () }
 }
@@ -261,7 +262,8 @@ proc p2 {
 
 proc p1 {
   config() {
-    spawn p2()(u32:0)
+    spawn p2()(u32:0);
+    ()
   }
   next(i: u32) {
     i
@@ -271,7 +273,8 @@ proc p1 {
 proc p0 {
   config() {
     spawn p2()(u32:1);
-    spawn p1()(u32:2)
+    spawn p1()(u32:2);
+    ()
   }
   next(i: u32) {
     let j = f1();
@@ -283,7 +286,8 @@ proc main {
   config() {
     spawn p0()(u32:3);
     spawn p1()(u32:4);
-    spawn p2()(u32:5)
+    spawn p2()(u32:5);
+    ()
   }
   next() { () }
 }

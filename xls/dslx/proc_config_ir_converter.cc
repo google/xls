@@ -67,7 +67,28 @@ ProcConfigIrConverter::ProcConfigIrConverter(
       proc_id_to_args_(proc_id_to_args),
       proc_id_to_members_(proc_id_to_members),
       bindings_(bindings),
-      proc_id_(proc_id) {}
+      proc_id_(proc_id),
+      final_tuple_(nullptr) {
+  (*proc_id_to_members_)[proc_id_] = {};
+}
+
+absl::Status ProcConfigIrConverter::Finalize() {
+  XLS_RET_CHECK(f_->proc().has_value());
+  Proc* p = f_->proc().value();
+  if (final_tuple_ == nullptr) {
+    XLS_RET_CHECK(p->members().empty());
+    return absl::OkStatus();
+  }
+
+  XLS_RET_CHECK_EQ(p->members().size(), final_tuple_->members().size());
+  for (int i = 0; i < p->members().size(); i++) {
+    Param* member = p->members()[i];
+    proc_id_to_members_->at(proc_id_)[member->identifier()] =
+        node_to_ir_.at(final_tuple_->members()[i]);
+  }
+
+  return absl::OkStatus();
+}
 
 absl::Status ProcConfigIrConverter::HandleChannelDecl(ChannelDecl* node) {
   XLS_VLOG(4) << "ProcConfigIrConverter::HandlesChannelDecl: "
@@ -92,25 +113,12 @@ absl::Status ProcConfigIrConverter::HandleLet(Let* node) {
   XLS_VLOG(4) << "ProcConfigIrConverter::HandleLet : " << node->ToString();
   XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
 
-  (*proc_id_to_members_)[proc_id_] = {};
-  auto set_member = [this, node](NameDef* name_def) {
-    Proc* p = f_->proc().value();
-    for (const auto* member : p->members()) {
-      if (member->identifier() == name_def->identifier()) {
-        (*proc_id_to_members_)[proc_id_][member->identifier()] =
-            node_to_ir_[node->rhs()];
-      }
-    }
-  };
-
   if (ChannelDecl* decl = dynamic_cast<ChannelDecl*>(node->rhs());
       decl != nullptr) {
     Channel* channel = absl::get<Channel*>(node_to_ir_.at(decl));
     std::vector<NameDefTree::Leaf> leaves = node->name_def_tree()->Flatten();
     node_to_ir_[absl::get<NameDef*>(leaves[0])] = channel;
     node_to_ir_[absl::get<NameDef*>(leaves[1])] = channel;
-    set_member(absl::get<NameDef*>(leaves[0]));
-    set_member(absl::get<NameDef*>(leaves[1]));
 
   } else {
     if (!node->name_def_tree()->is_leaf()) {
@@ -122,7 +130,6 @@ absl::Status ProcConfigIrConverter::HandleLet(Let* node) {
     NameDef* def = absl::get<NameDef*>(node->name_def_tree()->leaf());
     auto value = node_to_ir_[node->rhs()];
     node_to_ir_[def] = value;
-    set_member(absl::get<NameDef*>(node->name_def_tree()->leaf()));
   }
 
   XLS_RETURN_IF_ERROR(node->body()->Accept(this));
@@ -185,6 +192,14 @@ absl::Status ProcConfigIrConverter::HandleSpawn(Spawn* node) {
     return node->body()->Accept(this);
   }
 
+  return absl::OkStatus();
+}
+
+absl::Status ProcConfigIrConverter::HandleXlsTuple(XlsTuple* node) {
+  for (const auto& element : node->members()) {
+    XLS_RETURN_IF_ERROR(element->Accept(this));
+  }
+  final_tuple_ = node;
   return absl::OkStatus();
 }
 

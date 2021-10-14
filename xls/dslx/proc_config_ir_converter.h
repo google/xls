@@ -47,6 +47,11 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
   absl::Status HandleParam(Param* node);
   absl::Status HandleFunction(Function* node);
   absl::Status HandleSpawn(Spawn* node);
+  absl::Status HandleXlsTuple(XlsTuple* node);
+
+  // Sets the mapping from the elements in the config-ending tuple to the
+  // corresponding Proc members.
+  absl::Status Finalize();
 
  private:
   Package* package_;
@@ -62,6 +67,10 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
   ProcId proc_id_;
 
   absl::flat_hash_map<AstNode*, ProcConfigValue> node_to_ir_;
+
+  // Stores the last tuple created in this Function. Used to destructure any
+  // output to match with Proc members.
+  XlsTuple* final_tuple_;
 };
 
 // Utility functions exposed for testing.

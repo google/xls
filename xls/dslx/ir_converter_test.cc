@@ -1461,36 +1461,33 @@ proc main {
 TEST(IrConverterTest, HandlesBasicProc) {
   const std::string kProgram = R"(
 proc producer {
+  c: chan out u32;
   config(input_c: chan out u32) {
-    let c = input_c;
-    ()
+    (input_c, )
   }
   next(i:u32) {
     send(c, i);
     i + u32:1
   }
-
-  c: chan out u32;
 }
 
 proc consumer {
+  c: chan in u32;
   config(input_c: chan in u32) {
-    let c = input_c;
-    ()
+    (input_c, )
   }
   next(i: u32) {
     let i = recv(c);
     i + i
   }
-
-  c: chan in u32;
 }
 
 proc main {
   config() {
     let (p, c) = chan u32;
     spawn producer(p)(u32:0);
-    spawn consumer(c)(u32:0)
+    spawn consumer(c)(u32:0);
+    ()
   }
   next() { () }
 }

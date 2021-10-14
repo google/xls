@@ -22,6 +22,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins_metadata.h"
+#include "xls/dslx/bindings.h"
 #include "xls/dslx/scanner.h"
 
 namespace xls::dslx {
@@ -1508,25 +1509,6 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(bool is_public,
   return result;
 }
 
-absl::Status Parser::EatBlock() {
-  XLS_ASSIGN_OR_RETURN(Token token, PopToken());
-  while (token.kind() != TokenKind::kOBrace) {
-    XLS_ASSIGN_OR_RETURN(token, PopToken());
-  }
-
-  int close_count = 1;
-  while (close_count > 0) {
-    XLS_ASSIGN_OR_RETURN(Token token, PopToken());
-    if (token.kind() == TokenKind::kOBrace) {
-      close_count++;
-    } else if (token.kind() == TokenKind::kCBrace) {
-      close_count--;
-    }
-  }
-
-  return absl::OkStatus();
-}
-
 absl::StatusOr<std::vector<Param*>> Parser::CollectProcMembers(
     Bindings* bindings) {
   std::vector<Param*> members;
@@ -1534,14 +1516,10 @@ absl::StatusOr<std::vector<Param*>> Parser::CollectProcMembers(
   auto cleanup = absl::MakeCleanup([&txn] { txn.Rollback(); });
 
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-  while (peek->kind() != TokenKind::kCBrace) {
-    if (peek->IsKeyword(Keyword::kConfig) || peek->IsKeyword(Keyword::kNext)) {
-      XLS_RETURN_IF_ERROR(EatBlock());
-    } else {
-      XLS_ASSIGN_OR_RETURN(Param * param, ParseParam(bindings));
-      members.push_back(param);
-      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
-    }
+  while (!peek->IsKeyword(Keyword::kConfig)) {
+    XLS_ASSIGN_OR_RETURN(Param * param, ParseParam(bindings));
+    members.push_back(param);
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
     XLS_ASSIGN_OR_RETURN(peek, PeekToken());
   }
 
@@ -1549,7 +1527,122 @@ absl::StatusOr<std::vector<Param*>> Parser::CollectProcMembers(
     bindings->Add(member->identifier(), member->name_def());
   }
 
+  txn.CommitAndCancelCleanup(&cleanup);
   return members;
+}
+
+absl::StatusOr<Function*> Parser::ParseProcConfig(
+    Bindings* bindings,
+    const std::vector<ParametricBinding*>& parametric_bindings,
+    const std::vector<Param*>& proc_members, absl::string_view proc_name) {
+  XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+  if (!peek->IsKeyword(Keyword::kConfig)) {
+    return ParseErrorStatus(
+        peek->span(),
+        absl::StrCat("Expected 'config', got ", peek->GetStringValue()));
+  }
+
+  XLS_RETURN_IF_ERROR(DropToken());
+  XLS_ASSIGN_OR_RETURN(Token oparen, PopTokenOrError(TokenKind::kOParen));
+
+  auto parse_param = [this, bindings]() -> absl::StatusOr<Param*> {
+    return ParseParam(bindings);
+  };
+  XLS_ASSIGN_OR_RETURN(std::vector<Param*> config_params,
+                       ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
+  XLS_ASSIGN_OR_RETURN(Expr * body, ParseExpression(bindings));
+
+  // TODO(rspringer): 2021-10-13: Rework this when issue #507 is
+  // resolved - when let expressions can be processed sequentially instead
+  // of recursively.
+  Expr* final_expr = body;
+  auto as_let = dynamic_cast<Let*>(final_expr);
+  auto as_spawn = dynamic_cast<Spawn*>(final_expr);
+  while (as_let != nullptr || as_spawn != nullptr) {
+    if (as_let != nullptr) {
+      final_expr = as_let->body();
+      as_spawn = dynamic_cast<Spawn*>(as_let->body());
+      as_let = dynamic_cast<Let*>(as_let->body());
+    } else {
+      final_expr = as_spawn->body();
+      as_let = dynamic_cast<Let*>(as_spawn->body());
+      as_spawn = dynamic_cast<Spawn*>(as_spawn->body());
+    }
+  }
+
+  if (dynamic_cast<XlsTuple*>(final_expr) == nullptr) {
+    return ParseErrorStatus(
+        body->span(),
+        "The final expression in a Proc config must be a tuple with one "
+        "element for each Proc data member.");
+  }
+  XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
+
+  Span span(oparen.span().start(), cbrace.span().limit());
+  NameDef* name_def =
+      module_->Make<NameDef>(span, absl::StrCat(proc_name, "_config"), nullptr);
+  std::vector<TypeAnnotation*> return_elements;
+  return_elements.reserve(proc_members.size());
+  for (const auto* member : proc_members) {
+    return_elements.push_back(member->type_annotation());
+  }
+  TypeAnnotation* return_type =
+      module_->Make<TupleTypeAnnotation>(span, return_elements);
+  Function* config = module_->Make<Function>(
+      span, name_def, parametric_bindings, config_params, return_type, body,
+      Function::Tag::kProcConfig, /*is_public=*/false);
+  name_def->set_definer(config);
+
+  return config;
+}
+
+absl::StatusOr<Function*> Parser::ParseProcNext(
+    Bindings* bindings,
+    const std::vector<ParametricBinding*>& parametric_bindings,
+    absl::string_view proc_name) {
+  XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+  if (!peek->IsKeyword(Keyword::kNext)) {
+    return ParseErrorStatus(peek->span(), absl::StrCat("Expected 'next', got ",
+                                                       peek->GetStringValue()));
+  }
+  XLS_RETURN_IF_ERROR(DropToken());
+  XLS_ASSIGN_OR_RETURN(Token oparen, PopTokenOrError(TokenKind::kOParen));
+
+  auto parse_param = [this, bindings]() -> absl::StatusOr<Param*> {
+    return ParseParam(bindings);
+  };
+  XLS_ASSIGN_OR_RETURN(std::vector<Param*> next_params,
+                       ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
+  std::vector<TypeAnnotation*> return_elements;
+  for (const auto& param : next_params) {
+    if (dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation()) !=
+        nullptr) {
+      return absl::InvalidArgumentError("Channels cannot be Proc next params.");
+    }
+    return_elements.push_back(param->type_annotation());
+  }
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
+  XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(bindings));
+  XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
+  Span span(oparen.span().start(), cbrace.span().limit());
+  // Wrap the return elements in a tuple unless there's a single one.
+  TypeAnnotation* return_type;
+  if (return_elements.size() == 1) {
+    return_type = return_elements[0];
+  } else {
+    return_type = module_->Make<TupleTypeAnnotation>(span, return_elements);
+  }
+  NameDef* name_def =
+      module_->Make<NameDef>(span, absl::StrCat(proc_name, "_next"), nullptr);
+  Function* next = module_->Make<Function>(
+      Span(oparen.span().start(), cbrace.span().limit()), name_def,
+      parametric_bindings, next_params, return_type, expr,
+      Function::Tag::kProcNext,
+      /*is_public=*/false);
+  name_def->set_definer(next);
+
+  return next;
 }
 
 absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
@@ -1558,9 +1651,6 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(outer_bindings));
   Bindings bindings(outer_bindings);
   bindings.Add(name_def->identifier(), name_def);
-
-  NameDef* config_name_def;
-  NameDef* next_name_def;
 
   XLS_ASSIGN_OR_RETURN(bool dropped_oangle, TryDropToken(TokenKind::kOAngle));
   std::vector<ParametricBinding*> parametric_bindings;
@@ -1571,96 +1661,25 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
   std::vector<Param*> params;
-  std::vector<Param*> config_params;
-  std::vector<Param*> next_params;
-  Function* config = nullptr;
-  Function* next = nullptr;
-  auto parse_param = [this, &bindings]() -> absl::StatusOr<Param*> {
-    return ParseParam(&bindings);
-  };
 
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> proc_members,
                        CollectProcMembers(&bindings));
+  XLS_ASSIGN_OR_RETURN(Function * config,
+                       ParseProcConfig(&bindings, parametric_bindings,
+                                       proc_members, name_def->identifier()));
+  module_->AddTop(config);
+  outer_bindings->Add(config->name_def()->identifier(), config->name_def());
 
-  XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-  while (peek->kind() != TokenKind::kCBrace) {
-    if (peek->IsKeyword(Keyword::kConfig)) {
-      if (config != nullptr) {
-        return ParseErrorStatus(
-            peek->span(), "Encountered \"config\" more than once in a proc.");
-      }
-
-      XLS_RETURN_IF_ERROR(DropToken());
-      XLS_ASSIGN_OR_RETURN(Token oparen, PopTokenOrError(TokenKind::kOParen));
-      XLS_ASSIGN_OR_RETURN(config_params, ParseCommaSeq<Param*>(
-                                              parse_param, TokenKind::kCParen));
-      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-      XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(&bindings));
-      XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
-
-      Span span(oparen.span().start(), cbrace.span().limit());
-      config_name_def = module_->Make<NameDef>(
-          span, absl::StrCat(name_def->identifier(), "_config"), nullptr);
-      outer_bindings->Add(config_name_def->identifier(), config_name_def);
-      auto return_type = module_->Make<TupleTypeAnnotation>(
-          span, std::vector<TypeAnnotation*>{});
-      // TODO(rspringer): 2021-09-27: Enable public procs.
-      config = module_->Make<Function>(
-          span, config_name_def, parametric_bindings, config_params,
-          return_type, expr, Function::Tag::kProcConfig, /*is_public=*/false);
-      module_->AddTop(config);
-      config_name_def->set_definer(config);
-    } else if (peek->IsKeyword(Keyword::kNext)) {
-      if (next != nullptr) {
-        return ParseErrorStatus(
-            peek->span(), "Encountered \"next\" more than once in a proc.");
-      }
-      XLS_RETURN_IF_ERROR(DropToken());
-      XLS_ASSIGN_OR_RETURN(Token oparen, PopTokenOrError(TokenKind::kOParen));
-      XLS_ASSIGN_OR_RETURN(
-          next_params, ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
-      std::vector<TypeAnnotation*> return_elements;
-      for (const auto& param : next_params) {
-        if (dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation()) !=
-            nullptr) {
-          return absl::InvalidArgumentError(
-              "Channels cannot be Proc next params.");
-        }
-        return_elements.push_back(param->type_annotation());
-      }
-      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-      XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(&bindings));
-      XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
-      Span span(oparen.span().start(), cbrace.span().limit());
-      // Wrap the return elements in a tuple unless there's a single one.
-      TypeAnnotation* return_type;
-      if (return_elements.size() == 1) {
-        return_type = return_elements[0];
-      } else {
-        return_type = module_->Make<TupleTypeAnnotation>(span, return_elements);
-      }
-      next_name_def = module_->Make<NameDef>(
-          span, absl::StrCat(name_def->identifier(), "_next"), nullptr);
-      outer_bindings->Add(next_name_def->identifier(), next_name_def);
-      next = module_->Make<Function>(
-          Span(oparen.span().start(), cbrace.span().limit()), next_name_def,
-          parametric_bindings, next_params, return_type, expr,
-          Function::Tag::kProcNext,
-          /*is_public=*/false);
-      module_->AddTop(next);
-      next_name_def->set_definer(next);
-    } else {
-      XLS_RETURN_IF_ERROR(DropToken());
-      // We've already collected our members. :)
-    }
-
-    XLS_ASSIGN_OR_RETURN(peek, PeekToken());
-  }
+  XLS_ASSIGN_OR_RETURN(
+      Function * next,
+      ParseProcNext(&bindings, parametric_bindings, name_def->identifier()));
+  module_->AddTop(next);
+  outer_bindings->Add(next->name_def()->identifier(), next->name_def());
 
   XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
   Span span(proc_token.span().start(), cbrace.span().limit());
-  auto proc = module_->Make<Proc>(span, name_def, config_name_def,
-                                  next_name_def, parametric_bindings,
+  auto proc = module_->Make<Proc>(span, name_def, config->name_def(),
+                                  next->name_def(), parametric_bindings,
                                   proc_members, config, next, is_public);
   name_def->set_definer(proc);
   config->set_proc(proc);

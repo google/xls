@@ -1334,13 +1334,13 @@ std::string Proc::ToString() const {
     members_str.append("\n");
   }
   constexpr absl::string_view kTemplate = R"(%sproc %s%s {
+%s%s
 %s
-%s
-%s})";
-  return absl::StrFormat(
-      kTemplate, pub_str, name_def()->identifier(), parametric_str,
-      Indent(config_->ToUndecoratedString("config")),
-      Indent(next_->ToUndecoratedString("next")), Indent(members_str));
+})";
+  return absl::StrFormat(kTemplate, pub_str, name_def()->identifier(),
+                         parametric_str, Indent(members_str),
+                         Indent(config_->ToUndecoratedString("config")),
+                         Indent(next_->ToUndecoratedString("next")));
 }
 
 std::vector<std::string> Proc::GetFreeParametricKeys() const {
