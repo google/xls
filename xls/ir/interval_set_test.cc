@@ -112,6 +112,86 @@ TEST(IntervalTest, Combine) {
                                    MakeInterval(25, 35, 32)}));
 }
 
+TEST(IntervalTest, Intersect) {
+  // Manually tested with 1,000 random seeds;
+  int32_t seed = 815303902;
+  for (int32_t i = 0; i < 30; ++i) {
+    IntervalSet lhs = IntervalSet::Random(seed, 12, 5);
+    IntervalSet rhs = IntervalSet::Random(seed + 1, 12, 5);
+    seed = seed + 2;
+    absl::flat_hash_set<Bits> intersection_set;
+
+    {
+      absl::flat_hash_set<Bits> lhs_set;
+      lhs.ForEachElement([&](const Bits& bits) -> bool {
+        lhs_set.insert(bits);
+        return false;
+      });
+      rhs.ForEachElement([&](const Bits& bits) -> bool {
+        if (lhs_set.contains(bits)) {
+          intersection_set.insert(bits);
+        }
+        return false;
+      });
+    }
+
+    // If A ⊆ B and |A| = |B| then A = B
+    IntervalSet intersection = IntervalSet::Intersect(lhs, rhs);
+    EXPECT_EQ(intersection_set.size(), intersection.Size().value());
+    intersection.ForEachElement([&](const Bits& bits) -> bool {
+      EXPECT_TRUE(intersection_set.contains(bits));
+      return false;
+    });
+  }
+
+  {
+    IntervalSet empty(0);
+    EXPECT_EQ(IntervalSet::Intersect(empty, empty).ToString(), "[]");
+  }
+
+  {
+    IntervalSet lhs(32);
+    lhs.AddInterval(MakeInterval(100, 200, 32));
+    lhs.AddInterval(MakeInterval(500, 600, 32));
+    lhs.AddInterval(MakeInterval(800, 1000, 32));
+    lhs.Normalize();
+
+    IntervalSet rhs(32);
+    rhs.AddInterval(MakeInterval(100, 200, 32));
+    rhs.AddInterval(MakeInterval(450, 600, 32));
+    rhs.AddInterval(MakeInterval(900, 950, 32));
+    rhs.Normalize();
+
+    EXPECT_EQ(IntervalSet::Intersect(lhs, rhs).ToString(),
+              "[[100, 200], [500, 600], [900, 950]]");
+  }
+
+  {
+    IntervalSet singleton_lhs(32);
+    singleton_lhs.AddInterval(MakeInterval(100, 200, 32));
+    singleton_lhs.Normalize();
+
+    IntervalSet singleton_rhs(32);
+    singleton_rhs.AddInterval(MakeInterval(150, 300, 32));
+    singleton_rhs.Normalize();
+
+    IntervalSet disjoint(32);
+    disjoint.AddInterval(MakeInterval(1000, 2000, 32));
+    disjoint.Normalize();
+
+    EXPECT_EQ(IntervalSet::Intersect(singleton_lhs, singleton_lhs).ToString(),
+              "[[100, 200]]");
+    EXPECT_EQ(IntervalSet::Intersect(singleton_rhs, singleton_rhs).ToString(),
+              "[[150, 300]]");
+    EXPECT_EQ(IntervalSet::Intersect(singleton_lhs, singleton_rhs).ToString(),
+              "[[150, 200]]");
+    EXPECT_EQ(IntervalSet::Intersect(singleton_lhs, disjoint).ToString(), "[]");
+    EXPECT_EQ(IntervalSet::Intersect(singleton_rhs, disjoint).ToString(), "[]");
+    EXPECT_EQ(IntervalSet::Intersect(disjoint, singleton_lhs).ToString(), "[]");
+    EXPECT_EQ(IntervalSet::Intersect(disjoint, singleton_rhs).ToString(), "[]");
+  }
+}
+
 TEST(IntervalTest, Size) {
   IntervalSet example(32);
   example.AddInterval(MakeInterval(5, 10, 32));

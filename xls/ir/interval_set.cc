@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <list>
 #include <random>
 #include <string>
 #include <vector>
@@ -141,6 +142,64 @@ IntervalSet IntervalSet::Combine(const IntervalSet& lhs,
   }
   combined.Normalize();
   return combined;
+}
+
+IntervalSet IntervalSet::Intersect(const IntervalSet& lhs,
+                                   const IntervalSet& rhs) {
+  XLS_CHECK_EQ(lhs.BitCount(), rhs.BitCount());
+  XLS_CHECK(lhs.is_normalized_);
+  XLS_CHECK(rhs.is_normalized_);
+  IntervalSet result(lhs.BitCount());
+  std::list<Interval> lhs_intervals(lhs.Intervals().begin(),
+                                    lhs.Intervals().end());
+  std::list<Interval> rhs_intervals(rhs.Intervals().begin(),
+                                    rhs.Intervals().end());
+  auto left = lhs_intervals.begin();
+  auto right = rhs_intervals.begin();
+  // lhs/rhs_intervals should be sorted in increasing lexicographic order
+  // (i.e.: compare on lower bound, then upper bound if lower bounds are equal)
+  // at this point, since we CHECK that they are normalized.
+  while ((left != lhs_intervals.end()) && (right != rhs_intervals.end())) {
+    if (bits_ops::ULessThan(left->UpperBound(), right->UpperBound())) {
+      if (absl::optional<Interval> intersection =
+              Interval::Intersect(*left, *right)) {
+        result.AddInterval(*intersection);
+        // The difference should only ever contain 0 or 1 interval.
+        std::vector<Interval> difference = Interval::Difference(*right, *left);
+        std::reverse(difference.begin(), difference.end());
+        for (const Interval& remainder : difference) {
+          right = rhs_intervals.insert(right, remainder);
+        }
+      }
+      ++left;
+      continue;
+    }
+    if (bits_ops::ULessThan(right->UpperBound(), left->UpperBound())) {
+      if (absl::optional<Interval> intersection =
+              Interval::Intersect(*left, *right)) {
+        result.AddInterval(*intersection);
+        // The difference should only ever contain 0 or 1 interval.
+        std::vector<Interval> difference = Interval::Difference(*left, *right);
+        std::reverse(difference.begin(), difference.end());
+        for (const Interval& remainder : difference) {
+          left = lhs_intervals.insert(left, remainder);
+        }
+      }
+      ++right;
+      continue;
+    }
+    if (bits_ops::UEqual(left->UpperBound(), right->UpperBound())) {
+      if (absl::optional<Interval> intersection =
+              Interval::Intersect(*left, *right)) {
+        result.AddInterval(*intersection);
+      }
+      ++left;
+      ++right;
+      continue;
+    }
+  }
+  result.Normalize();
+  return result;
 }
 
 absl::optional<int64_t> IntervalSet::Size() const {

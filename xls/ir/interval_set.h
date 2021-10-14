@@ -118,6 +118,10 @@ class IntervalSet {
   // interval sets.
   static IntervalSet Combine(const IntervalSet& lhs, const IntervalSet& rhs);
 
+  // Returns a normalized set of intervals comprising the intersection of the
+  // two given interval sets.
+  static IntervalSet Intersect(const IntervalSet& lhs, const IntervalSet& rhs);
+
   // Returns the number of points covered by the intervals in this interval set,
   // if that is expressible as an `int64_t`. Otherwise, returns `absl::nullopt`.
   // CHECK fails if the interval set is not normalized.
