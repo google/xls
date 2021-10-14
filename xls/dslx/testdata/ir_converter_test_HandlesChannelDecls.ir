@@ -5,7 +5,7 @@ chan main_chandecl_test_module_x_5_50_5_58(bits[64], id=1, kind=streaming, ops=s
 chan main_chandecl_test_module_x_6_82_6_106((bits[64], (bits[64], (bits[64]))), id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="""""")
 chan main_chandecl_test_module_x_7_20_7_45((bits[64], (bits[64], bits[64][4])), id=3, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="""""")
 
-proc __test_module__main_next(__token: token, __state: (), init=()) {
+proc __test_module__main_0_next(__token: token, __state: (), init=()) {
   tuple.3: () = tuple(id=3)
   next (__token, tuple.3)
 }

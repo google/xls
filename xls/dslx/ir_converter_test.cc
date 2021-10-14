@@ -1463,22 +1463,22 @@ TEST(IrConverterTest, HandlesBasicProc) {
 proc producer {
   c: chan out u32;
   config(input_c: chan out u32) {
-    (input_c, )
+    (input_c,)
   }
-  next(i:u32) {
+  next(i: u32) {
     send(c, i);
-    i + u32:1
+    (i + u32:1,)
   }
 }
 
 proc consumer {
   c: chan in u32;
   config(input_c: chan in u32) {
-    (input_c, )
+    (input_c,)
   }
   next(i: u32) {
     let i = recv(c);
-    i + i
+    (i + i,)
   }
 }
 

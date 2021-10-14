@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2021 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -97,11 +97,13 @@ TEST(ProcConfigIrConverterTest, BasicConversion) {
   constexpr absl::string_view kModule = R"(
 proc test_proc {
   c: chan in u32;
-  config(c: chan in u32) {
-    (c,)
+  x: u32;
+  config(c: chan in u32, ham_sandwich: u32) {
+    (c, ham_sandwich)
   }
-  next() {
-    ()
+  next(y: u32) {
+    let y = y + x;
+    (y,)
   }
 }
 
@@ -109,7 +111,7 @@ proc main {
   c: chan out u32;
   config() {
     let (p, c) = chan u32;
-    spawn test_proc(c)();
+    spawn test_proc(c, u32:7)(u32:8);
     (p,)
   }
   next() {
@@ -138,7 +140,8 @@ proc main {
                            package.GetBitsType(32), {}, FlowControl::kNone,
                            metadata);
 
-  proc_id_to_args[proc_id] = {&channel};
+  proc_id_to_args[proc_id].push_back(&channel);
+  proc_id_to_args[proc_id].push_back(Value(UBits(8, 32)));
 
   ProcConfigIrConverter converter(&package, f, tm.type_info, &import_data,
                                   &proc_id_to_args, &proc_id_to_members,

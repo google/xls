@@ -145,6 +145,17 @@ absl::Status ProcConfigIrConverter::HandleNameRef(NameRef* node) {
   return absl::OkStatus();
 }
 
+absl::Status ProcConfigIrConverter::HandleNumber(Number* node) {
+  absl::optional<InterpValue> const_value = type_info_->GetConstExpr(node);
+  if (!const_value.has_value()) {
+    return absl::InternalError(
+        "Number should have been converted to const expr during typechecking.");
+  }
+  XLS_ASSIGN_OR_RETURN(auto ir_value, const_value.value().ConvertToIr());
+  node_to_ir_[node] = ir_value;
+  return absl::OkStatus();
+}
+
 absl::Status ProcConfigIrConverter::HandleParam(Param* node) {
   // Matches a param AST node to the actual arg for this Proc instance.
   XLS_VLOG(4) << "ProcConfigIrConverter::HandleParam: " << node->ToString();
@@ -161,6 +172,7 @@ absl::Status ProcConfigIrConverter::HandleParam(Param* node) {
     return absl::InternalError(absl::StrCat(
         "Proc ID \"", proc_id_.ToString(), "\" was not found in arg mapping."));
   }
+
   node_to_ir_[node] = proc_id_to_args_->at(proc_id_)[param_index];
   node_to_ir_[node->name_def()] = proc_id_to_args_->at(proc_id_)[param_index];
   return absl::OkStatus();

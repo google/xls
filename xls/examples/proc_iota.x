@@ -24,7 +24,7 @@ proc producer {
   next(i: u32) {
     let foo = i + u32:1;
     send(c, foo);
-    foo
+    (foo,)
   }
 }
 
@@ -37,7 +37,7 @@ proc consumer<N:u32> {
 
   next(i: u32) {
     let e = recv(c);
-    i + e + N
+    (i + e + N,)
   }
 }
 

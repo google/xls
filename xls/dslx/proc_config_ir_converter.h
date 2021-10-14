@@ -42,10 +42,11 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
       const SymbolicBindings& bindings, const ProcId& proc_id);
 
   absl::Status HandleChannelDecl(ChannelDecl* node);
+  absl::Status HandleFunction(Function* node);
   absl::Status HandleLet(Let* node);
   absl::Status HandleNameRef(NameRef* node);
+  absl::Status HandleNumber(Number* node);
   absl::Status HandleParam(Param* node);
-  absl::Status HandleFunction(Function* node);
   absl::Status HandleSpawn(Spawn* node);
   absl::Status HandleXlsTuple(XlsTuple* node);
 

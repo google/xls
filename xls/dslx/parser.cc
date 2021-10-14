@@ -1626,13 +1626,8 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
   XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(bindings));
   XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
   Span span(oparen.span().start(), cbrace.span().limit());
-  // Wrap the return elements in a tuple unless there's a single one.
-  TypeAnnotation* return_type;
-  if (return_elements.size() == 1) {
-    return_type = return_elements[0];
-  } else {
-    return_type = module_->Make<TupleTypeAnnotation>(span, return_elements);
-  }
+  TypeAnnotation* return_type =
+      module_->Make<TupleTypeAnnotation>(span, return_elements);
   NameDef* name_def =
       module_->Make<NameDef>(span, absl::StrCat(proc_name, "_next"), nullptr);
   Function* next = module_->Make<Function>(

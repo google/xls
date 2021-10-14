@@ -1100,9 +1100,12 @@ absl::Status FunctionConverter::HandleNameRef(NameRef* node) {
     for (const auto& [k, v] : proc_id_to_members_->at(proc_id_)) {
       if (k == node->identifier()) {
         if (absl::holds_alternative<Value>(v)) {
-          // TODO(rspringer): 2021-09-29: Handle non-channel assignments.
           XLS_VLOG(4) << "Reference to Proc member: " << k
                       << " : Value : " << absl::get<Value>(v).ToString();
+          CValue cvalue;
+          cvalue.ir_value = absl::get<Value>(v);
+          cvalue.value = function_builder_->Literal(cvalue.ir_value);
+          SetNodeToIr(from, cvalue);
         } else {
           XLS_VLOG(4) << "Reference to Proc member: " << k
                       << " : Chan  : " << absl::get<Channel*>(v)->ToString();
@@ -2295,7 +2298,6 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     Function* f, Invocation* invocation, TypeInfo* type_info,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
     const ProcId& proc_id) {
-  Proc* proc = f->proc().value();
   XLS_RET_CHECK(type_info != nullptr);
   XLS_VLOG(5) << "HandleProcNextFunction: " << f->ToString();
 
@@ -2307,9 +2309,11 @@ absl::Status FunctionConverter::HandleProcNextFunction(
 
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
-      MangleDslxName(module_->name(), f->identifier(),
+      MangleDslxName(module_->name(), proc_id.ToString(),
                      CallingConvention::kTypical, f->GetFreeParametricKeySet(),
                      symbolic_bindings));
+  mangled_name = absl::StrCat(
+      absl::StrReplaceAll(mangled_name, {{":", "_"}, {"->", "__"}}), "_next");
   std::string token_name = "__token";
   std::string state_name = "__state";
   XLS_ASSIGN_OR_RETURN(
@@ -2368,13 +2372,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
 
   XLS_RETURN_IF_ERROR(Visit(f->body()));
 
-  // If the result is single-element, then wrap in a tuple: we create the
-  // ProcBuilder with initial state always as a tuple, so we need to do that
-  // here to mirror it.
   BValue result = absl::get<BValue>(node_to_ir_[f->body()]);
-  if (proc->next()->params().size() == 1) {
-    result = builder_ptr->Tuple({result});
-  }
   XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder_ptr->Build(last_token_, result));
   package_data_.ir_to_dslx[p] = f;
   return absl::OkStatus();
