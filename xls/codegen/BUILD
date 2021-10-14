@@ -675,7 +675,9 @@ cc_test(
     deps = [
         ":block_conversion",
         ":codegen_options",
+        "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit_main",
+        "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
         "//xls/interpreter:ir_interpreter",
