@@ -2537,9 +2537,10 @@ TEST_F(TranslatorTest, IOUnrolled) {
          }
        })";
 
-  IOTest(content, {},
-         {/*inputs=*/IOOpTest("out", 0, true), IOOpTest("out", 1, true),
-          /*outputs=*/IOOpTest("out", 2, true), IOOpTest("out", 3, true)});
+  IOTest(content, /*inputs=*/{},
+         /*outputs=*/
+         {IOOpTest("out", 0, true), IOOpTest("out", 1, true),
+          IOOpTest("out", 2, true), IOOpTest("out", 3, true)});
 }
 
 TEST_F(TranslatorTest, IOUnrolledUnsequenced) {
@@ -2978,6 +2979,47 @@ TEST_F(TranslatorTest, StaticMember) {
   ASSERT_THAT(SourceToIr(content).status(),
               xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
                                             testing::HasSubstr("static")));
+}
+
+TEST_F(TranslatorTest, StaticProc) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void st(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      static int count = 1;
+      const int ctrl = in.read();
+      out.write(ctrl + count);
+      count += 2;
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("st");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::vector<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(55, 32)),
+                  xls::Value(xls::SBits(60, 32)),
+                  xls::Value(xls::SBits(100, 32))};
+
+  absl::flat_hash_map<std::string, std::vector<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(56, 32)),
+                    xls::Value(xls::SBits(63, 32)),
+                    xls::Value(xls::SBits(105, 32))};
+
+  ProcTest(content, block_spec, inputs, outputs, /*n_runs*/ 3);
 }
 
 std::string NativeOperatorTestIr(std::string op) {

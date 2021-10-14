@@ -182,9 +182,16 @@ void XlsccTestBase::IOTest(std::string content, std::list<IOOpTest> inputs,
 
   XLS_ASSERT_OK_AND_ASSIGN(xls::Value actual,
                            xls::InterpretFunctionKwargs(entry, args));
-  ASSERT_TRUE(actual.IsTuple());
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> returns,
-                           actual.GetElements());
+
+  std::vector<xls::Value> returns;
+
+  if (total_test_ops > 1) {
+    ASSERT_TRUE(actual.IsTuple());
+    XLS_ASSERT_OK_AND_ASSIGN(returns, actual.GetElements());
+  } else {
+    returns.push_back(actual);
+  }
+
   ASSERT_EQ(returns.size(), total_test_ops);
 
   inputs = input_ops_orig;
@@ -237,7 +244,8 @@ void XlsccTestBase::ProcTest(
     const absl::flat_hash_map<std::string, std::vector<xls::Value>>&
         inputs_by_channel,
     const absl::flat_hash_map<std::string, std::vector<xls::Value>>&
-        outputs_by_channel) {
+        outputs_by_channel,
+    const int n_runs) {
   XLS_ASSERT_OK(ScanFile(content));
 
   xls::Package package("my_package");
@@ -254,24 +262,28 @@ void XlsccTestBase::ProcTest(
   for (auto [ch_name, values] : inputs_by_channel) {
     XLS_ASSERT_OK_AND_ASSIGN(xls::ChannelQueue * queue,
                              queue_manager->GetQueueByName(ch_name));
+
     for (const xls::Value& value : values) {
       XLS_ASSERT_OK(queue->Enqueue(value));
     }
   }
 
   xls::ProcInterpreter interpreter(proc, queue_manager.get());
-  ASSERT_THAT(
-      interpreter.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(xls::ProcInterpreter::RunResult{.iteration_complete = true,
-                                                   .progress_made = true,
-                                                   .blocked_channels = {}}));
+
+  for (int i = 0; i < n_runs; ++i) {
+    ASSERT_THAT(
+        interpreter.RunIterationUntilCompleteOrBlocked(),
+        IsOkAndHolds(xls::ProcInterpreter::RunResult{.iteration_complete = true,
+                                                     .progress_made = true,
+                                                     .blocked_channels = {}}));
+  }
 
   for (auto [ch_name, values] : outputs_by_channel) {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * ch_out,
                              package.GetChannel(ch_name));
     xls::ChannelQueue& ch_out_queue = queue_manager->GetQueue(ch_out);
 
-    EXPECT_THAT(values.size(), ch_out_queue.size());
+    ASSERT_EQ(values.size(), ch_out_queue.size());
 
     for (const xls::Value& value : values) {
       EXPECT_THAT(ch_out_queue.Dequeue(), IsOkAndHolds(value));

@@ -3868,10 +3868,6 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
   top_function_->getBody(definition);
   xls::SourceLocation body_loc = GetLoc(*definition);
 
-  xls::ProcBuilder pb(block.name() + "_proc",
-                      /*init_value=*/xls::Value::Tuple({}),
-                      /*token_name=*/"tkn", /*state_name=*/"st", package);
-
   PreparedBlock prepared;
 
   // Generate function without FIFO channel parameters
@@ -3881,6 +3877,15 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
   // TODO(seanhaskell): Handle block class members
   XLS_ASSIGN_OR_RETURN(prepared.xls_func,
                        GenerateIR_Top_Function(package, true));
+
+  std::vector<xls::Value> static_init_values;
+  for (const auto& [namedecl, initval] : prepared.xls_func->static_values) {
+    static_init_values.push_back(initval.value());
+  }
+
+  xls::ProcBuilder pb(block.name() + "_proc",
+                      /*init_value=*/xls::Value::Tuple(static_init_values),
+                      /*token_name=*/"tkn", /*state_name=*/"st", package);
 
   prepared.token = pb.GetTokenParam();
 
@@ -3941,7 +3946,17 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
     }
   }
 
-  return pb.Build(prepared.token, pb.GetStateParam());
+  // Create next state value
+  std::vector<xls::BValue> static_next_values;
+  int static_idx = 0;
+  for (auto [namedecl, initval] : prepared.xls_func->static_values) {
+    static_next_values.push_back(pb.TupleIndex(
+        last_ret_val, prepared.return_index_for_static[namedecl], body_loc));
+    ++static_idx;
+  }
+  const xls::BValue next_state = pb.Tuple(static_next_values);
+
+  return pb.Build(prepared.token, next_state);
 }
 
 absl::Status Translator::GenerateIRBlockCheck(
@@ -4000,6 +4015,18 @@ absl::Status Translator::GenerateIRBlockPrepare(
 
   // For defaults, updates, invokes
   context().fb = dynamic_cast<xls::BuilderBase*>(&pb);
+
+  // Add parameters for static locals
+  {
+    int static_idx = 0;
+    for (auto [namedecl, initval] : prepared.xls_func->static_values) {
+      prepared.args.push_back(
+          pb.TupleIndex(pb.GetStateParam(), static_idx, body_loc));
+      prepared.return_index_for_static[namedecl] = static_idx;
+      ++static_idx;
+      ++next_return_index;
+    }
+  }
 
   // Initialize parameters to defaults, handle direct-ins, create channels
   // Add channels in order of function prototype
