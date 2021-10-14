@@ -29,8 +29,8 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/variant.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/deduce_ctx.h"
-#include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/extract_conversion_order.h"
 #include "xls/dslx/interpreter.h"
 #include "xls/dslx/ir_conversion_utils.h"
@@ -1710,7 +1710,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(Invocation* node) {
   Module* lookup_module = nullptr;
   if (auto* name_ref = dynamic_cast<NameRef*>(fn_node)) {
     map_fn_name = name_ref->identifier();
-    if (GetParametricBuiltins().contains(map_fn_name)) {
+    if (IsNameParametricBuiltin(map_fn_name)) {
       XLS_VLOG(5) << "Map of parametric builtin: " << map_fn_name;
       return DefMapWithBuiltin(node, name_ref, node->args()[0],
                                *node_sym_bindings.value());

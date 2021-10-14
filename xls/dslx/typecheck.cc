@@ -17,6 +17,7 @@
 #include "absl/types/variant.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/deduce.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/dslx_builtins.h"
@@ -183,8 +184,7 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametricMap(
     const TypeAndBindings& tab, absl::string_view map_fn_name, Function* map_fn,
     Invocation* invocation, DeduceCtx* ctx) {
   Expr* map_fn_ref = invocation->args()[1];
-  if (GetParametricBuiltins().contains(map_fn_name) ||
-      !map_fn->IsParametric()) {
+  if (IsNameParametricBuiltin(map_fn_name) || !map_fn->IsParametric()) {
     // A builtin higher-order parametric fn would've been typechecked when we
     // were going through the arguments of this invocation. If the function
     // wasn't parametric, then we're good to go.
@@ -281,7 +281,7 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
     } else {
       auto* name_ref = dynamic_cast<NameRef*>(map_fn_ref);
       map_fn_name = name_ref->identifier();
-      if (!GetParametricBuiltins().contains(*map_fn_name)) {
+      if (!IsNameParametricBuiltin(*map_fn_name)) {
         XLS_ASSIGN_OR_RETURN(map_fn,
                              ctx->module()->GetFunctionOrError(*map_fn_name));
         higher_order_parametric_bindings = (*map_fn)->parametric_bindings();
@@ -560,7 +560,7 @@ static absl::Status HandleMissingType(
     // Referring to a parametric builtin.
     if (auto* builtin_name_def = dynamic_cast<BuiltinNameDef*>(e.node);
         builtin_name_def != nullptr &&
-        GetParametricBuiltins().contains(builtin_name_def->identifier())) {
+        IsNameParametricBuiltin(builtin_name_def->identifier())) {
       XLS_VLOG(5) << absl::StreamFormat(
           "node: %s; identifier %s; exception user: %s",
           e.node == nullptr ? "none" : e.node->ToString(),

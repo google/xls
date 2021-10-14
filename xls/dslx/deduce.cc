@@ -18,6 +18,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/interpreter.h"
 #include "xls/dslx/scanner.h"
@@ -25,42 +26,6 @@
 
 namespace xls::dslx {
 namespace {
-
-// Returns the names of all the builtin functions that are parametric (as a
-// singleton set).
-static const absl::flat_hash_set<std::string>& GetParametricBuiltinNames() {
-  static const auto* set = new absl::flat_hash_set<std::string>{
-      "add_with_carry",
-      "assert_eq",
-      "assert_lt",
-      "bit_slice",
-      "bit_slice_update",
-      "clz",
-      "cover!",
-      "ctz",
-      "concat",
-      "fail!",
-      "gate!",
-      "map",
-      "one_hot",
-      "one_hot_sel",
-      "rev",
-      "select",
-      // Bitwise reduction ops.
-      "and_reduce",
-      "or_reduce",
-      "xor_reduce",
-      // Use a dummy value to determine size.
-      "signex",
-      "slice",
-      "trace!",
-      "update",
-      "enumerate",
-      // Require-const-argument.
-      "range",
-  };
-  return *set;
-}
 
 // Updates the "user" field of the given TypeMissingError status, and returns
 // the new (updated) status.
@@ -2007,7 +1972,7 @@ absl::Status InstantiateParametricArgs(
       bool arg_is_builtin_parametric =
           arg_name_ref != nullptr &&
           absl::holds_alternative<BuiltinNameDef*>(arg_name_ref->name_def()) &&
-          GetParametricBuiltinNames().contains(arg_name_ref->identifier());
+          IsNameParametricBuiltin(arg_name_ref->identifier());
       if (callee_is_map && arg_is_builtin_parametric) {
         Invocation* invocation = CreateElementInvocation(
             ctx->module(), node_span, arg_name_ref, args[0]);

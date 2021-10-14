@@ -232,7 +232,7 @@ cc_binary(
     name = "highlight_main",
     srcs = ["highlight_main.cc"],
     deps = [
-        ":dslx_builtins",
+        ":builtins_metadata",
         ":scanner",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -406,6 +406,7 @@ cc_library(
     deps = [
         ":ast",
         ":bindings",
+        ":builtins_metadata",
         ":scanner",
         ":token_parser",
         "//xls/common/status:ret_check",
@@ -700,6 +701,7 @@ cc_library(
     hdrs = ["deduce.h"],
     deps = [
         ":ast",
+        ":builtins_metadata",
         ":concrete_type",
         ":deduce_ctx",
         ":import_routines",
@@ -736,6 +738,7 @@ cc_library(
     hdrs = ["typecheck.h"],
     deps = [
         ":ast",
+        ":builtins_metadata",
         ":deduce",
         ":deduce_ctx",
         ":dslx_builtins",
@@ -770,6 +773,7 @@ cc_library(
     hdrs = ["dslx_builtins.h"],
     deps = [
         ":ast",
+        ":builtins_metadata",
         ":concrete_type",
         ":deduce_ctx",
         ":parametric_instantiator",
@@ -786,8 +790,8 @@ cc_library(
     deps = [
         ":ast",
         ":builtins",
+        ":builtins_metadata",
         ":deduce_ctx",
-        ":dslx_builtins",
         ":extract_conversion_order",
         ":import_routines",
         ":interp_value",
@@ -814,7 +818,7 @@ cc_library(
     hdrs = ["extract_conversion_order.h"],
     deps = [
         ":ast",
-        ":dslx_builtins",
+        ":builtins_metadata",
         ":symbolic_bindings",
         ":type_info",
         "//xls/common:symbolized_stacktrace",
@@ -1005,6 +1009,16 @@ cc_library(
         ":type_info",
         ":type_info_cc_proto",
         "//xls/common:proto_adaptor_utils",
+    ],
+)
+
+cc_library(
+    name = "builtins_metadata",
+    srcs = ["builtins_metadata.cc"],
+    hdrs = ["builtins_metadata.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
     ],
 )
 

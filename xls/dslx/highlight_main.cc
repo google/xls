@@ -15,7 +15,7 @@
 #include "absl/strings/str_join.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
-#include "xls/dslx/dslx_builtins.h"
+#include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/scanner.h"
 
 namespace xls::dslx {
@@ -69,7 +69,7 @@ std::string ToHighlightStr(const Token& t) {
       return HandleComment(t.ToString());
     case TokenKind::kIdentifier: {
       const std::string& value = t.GetStringValue();
-      if (GetParametricBuiltins().contains(value)) {
+      if (IsNameParametricBuiltin(value)) {
         return HandleBuiltin(value);
       }
       return HandleOther(value);

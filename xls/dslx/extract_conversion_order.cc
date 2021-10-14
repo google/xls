@@ -19,7 +19,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/symbolized_stacktrace.h"
 #include "xls/dslx/ast.h"
-#include "xls/dslx/dslx_builtins.h"
+#include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/symbolic_bindings.h"
 
 namespace xls::dslx {
@@ -367,7 +367,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     if (maybe_f.ok()) {
       f = maybe_f.value();
     } else {
-      if (GetParametricBuiltins().contains(identifier)) {
+      if (IsNameParametricBuiltin(identifier)) {
         return absl::nullopt;
       }
       return absl::InternalError("Could not resolve invoked function: " +

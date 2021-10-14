@@ -21,41 +21,10 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/scanner.h"
 
 namespace xls::dslx {
-
-const std::vector<absl::string_view>& GetParametricBuiltinNames() {
-  static const std::vector<absl::string_view>* result = ([] {
-    return new std::vector<absl::string_view>{"add_with_carry",
-                                              "assert_eq",
-                                              "assert_lt",
-                                              "bit_slice",
-                                              "bit_slice_update",
-                                              "clz",
-                                              "cover!",
-                                              "ctz",
-                                              "concat",
-                                              "fail!",
-                                              "gate!",
-                                              "map",
-                                              "one_hot",
-                                              "one_hot_sel",
-                                              "rev",
-                                              "select",
-                                              "and_reduce",
-                                              "or_reduce",
-                                              "xor_reduce",
-                                              "signex",
-                                              "slice",
-                                              "trace!",
-                                              "trace_fmt!",
-                                              "update",
-                                              "enumerate",
-                                              "range"};
-  })();
-  return *result;
-}
 
 template <int N, typename... Ts>
 struct GetNth {
@@ -138,9 +107,9 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     bindings = &*stack_bindings;
   }
 
-  for (const absl::string_view& name : GetParametricBuiltinNames()) {
-    bindings->Add(std::string(name),
-                  module_->Make<BuiltinNameDef>(std::string(name)));
+  for (auto const& it : GetParametricBuiltins()) {
+    bindings->Add(std::string(it.first),
+                  module_->Make<BuiltinNameDef>(std::string(it.first)));
   }
 
   absl::flat_hash_map<std::string, Function*> name_to_fn;

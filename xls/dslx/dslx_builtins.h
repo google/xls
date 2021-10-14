@@ -25,16 +25,13 @@
 #include "xls/dslx/ast.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/deduce_ctx.h"
+#include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/parametric_instantiator.h"
 #include "xls/dslx/type_and_bindings.h"
 
 namespace xls::dslx {
 
-// Map from the name of the parametric builtin function; e.g. `assert_eq` to a
-// string that shows the parametric signature; for example: `(T, T) -> ()`.
-const absl::flat_hash_map<std::string, std::string>& GetParametricBuiltins();
-
-// Gets the namesa of all the unary parametric builtins; e.g. {"ctz", "clz"}.
+// Gets the names of all the unary parametric builtins; e.g. {"ctz", "clz"}.
 const absl::flat_hash_set<std::string>& GetUnaryParametricBuiltinNames();
 
 // Data provided to the lambdas below (of type SignatureFn) that help us do

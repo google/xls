@@ -14,6 +14,7 @@
 
 #include "xls/dslx/dslx_builtins.h"
 
+#include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/concrete_type.h"
 
 namespace xls::dslx {
@@ -200,46 +201,6 @@ class Checker {
 };
 
 }  // namespace
-
-const absl::flat_hash_map<std::string, std::string>& GetParametricBuiltins() {
-  static const auto* map = new absl::flat_hash_map<std::string, std::string>{
-      {"add_with_carry", "(uN[T], uN[T]) -> (u1, uN[T])"},
-      {"assert_eq", "(T, T) -> ()"},
-      {"assert_lt", "(T, T) -> ()"},
-      {"bit_slice", "(uN[N], uN[U], uN[V]) -> uN[V]"},
-      {"bit_slice_update", "(uN[N], uN[U], uN[V]) -> uN[N]"},
-      {"clz", "(uN[N]) -> uN[N]"},
-      {"ctz", "(uN[N]) -> uN[N]"},
-      {"concat", "(uN[M], uN[N]) -> uN[M+N]"},
-      {"cover!", "(u8[N], u1) -> ()"},
-      {"fail!", "(T) -> T"},
-      {"gate!", "(u1, T) -> T"},
-      {"map", "(T[N], (T) -> U) -> U[N]"},
-      {"one_hot", "(uN[N], u1) -> uN[N+1]"},
-      {"one_hot_sel", "(xN[N], xN[M][N]) -> xN[M]"},
-      {"rev", "(uN[N]) -> uN[N]"},
-      {"select", "(u1, T, T) -> T"},
-
-      // Bitwise reduction ops.
-      {"and_reduce", "(uN[N]) -> u1"},
-      {"or_reduce", "(uN[N]) -> u1"},
-      {"xor_reduce", "(uN[N]) -> u1"},
-
-      // Use a dummy value to determine size.
-      {"signex", "(xN[M], xN[N]) -> xN[N]"},
-      {"slice", "(T[M], uN[N], T[P]) -> T[P]"},
-      {"trace!", "(T) -> T"},
-      {"update", "(T[N], uN[M], T) -> T[N]"},
-      {"enumerate", "(T[N]) -> (u32, T)[N]"},
-
-      // Require-const-argument.
-      //
-      // Note this is a messed up type signature to need to support and should
-      // really be replaced with known-statically-sized iota syntax.
-      {"range", "(const uN[N], const uN[N]) -> uN[N][R]"},
-  };
-  return *map;
-}
 
 // TODO(leary): 2019-12-12 These *could* be automatically made by interpreting
 // the signature string, but just typing in the limited set we use is easier for
@@ -584,14 +545,16 @@ const absl::flat_hash_set<std::string>& GetUnaryParametricBuiltinNames() {
 
 absl::StatusOr<SignatureFn> GetParametricBuiltinSignature(
     absl::string_view builtin_name) {
-  const absl::flat_hash_map<std::string, std::string>& parametric_builtins =
+  const absl::flat_hash_map<std::string, BuiltinsData>& parametric_builtins =
       GetParametricBuiltins();
   auto it = parametric_builtins.find(builtin_name);
-  if (it == parametric_builtins.end()) {
+  bool name_is_builtin_parametric =
+      (it == parametric_builtins.end()) ? false : !it->second.is_ast_node;
+  if (!name_is_builtin_parametric) {
     return absl::InvalidArgumentError(
         absl::StrFormat("'%s' is not a parametric builtin", builtin_name));
   }
-  const std::string& signature = it->second;
+  const std::string& signature = it->second.signature;
   XLS_VLOG(5) << builtin_name << " => " << signature;
   return GetSignatureToLambdaMap().at(signature);
 }
