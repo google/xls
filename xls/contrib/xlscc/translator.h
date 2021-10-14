@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
@@ -252,6 +253,25 @@ class CValue {
   std::shared_ptr<CType> type_;
 };
 
+// Similiar to CValue, but contains an xls::Value for a constant expression
+class ConstValue {
+ public:
+  ConstValue() = default;
+  ConstValue(xls::Value value, std::shared_ptr<CType> type,
+             bool disable_type_check = false)
+      : value_(value), type_(std::move(type)) {
+    XLS_CHECK(disable_type_check || !type_->StoredAsXLSBits() ||
+              value.GetFlatBitCount() == type_->GetBitWidth());
+  }
+
+  xls::Value value() const { return value_; }
+  std::shared_ptr<CType> type() const { return type_; }
+
+ private:
+  xls::Value value_;
+  std::shared_ptr<CType> type_;
+};
+
 enum class OpType { kNull = 0, kSend, kRecv };
 
 // Tracks information about an __xls_channel parameter to a function
@@ -315,6 +335,9 @@ struct GeneratedFunction {
 
   // Global values built with this FunctionBuilder
   absl::flat_hash_map<const clang::NamedDecl*, CValue> global_values;
+
+  // Static declarations with initializers
+  absl::flat_hash_map<const clang::NamedDecl*, ConstValue> static_values;
 };
 
 // Encapsulates a context for translating Clang AST to XLS IR.
@@ -811,6 +834,12 @@ class Translator {
                               const clang::FunctionDecl* callee,
                               const std::list<IOOp>& callee_ops,
                               clang::SourceManager& sm);
+  // Adds subroutine call's statics to context().sf->static_values
+  absl::Status TranslateStatics(
+      const clang::CallExpr* call, const clang::FunctionDecl* callee,
+      const absl::flat_hash_map<const clang::NamedDecl*, ConstValue>&
+          callee_statics,
+      clang::SourceManager& sm);
 
   // IOOp must have io_call, channel, and op members filled in
   absl::Status AddOpToChannel(IOOp op, const xls::SourceLocation& loc);
@@ -852,14 +881,15 @@ class Translator {
       std::shared_ptr<CType> t, const xls::SourceLocation& loc);
   absl::StatusOr<xls::BValue> CreateDefaultValue(
       std::shared_ptr<CType> t, const xls::SourceLocation& loc);
-  absl::StatusOr<xls::BValue> CreateInitValue(
+  absl::StatusOr<xls::BValue> CreateInitListValue(
       const CType& t, const clang::InitListExpr* init_list,
       const xls::SourceLocation& loc);
   absl::StatusOr<CValue> GetIdentifier(const clang::NamedDecl* decl,
                                        const xls::SourceLocation& loc,
                                        bool for_lvalue = false);
   absl::StatusOr<CValue> TranslateVarDecl(const clang::VarDecl* decl,
-                                          const xls::SourceLocation& loc);
+                                          const xls::SourceLocation& loc,
+                                          bool statics_as_params = true);
   absl::Status Assign(const clang::NamedDecl* lvalue, const CValue& rvalue,
                       const xls::SourceLocation& loc);
   absl::Status Assign(const clang::Expr* lvalue, const CValue& rvalue,
@@ -870,7 +900,8 @@ class Translator {
 
   absl::Status DeclareVariable(const clang::NamedDecl* lvalue,
                                const CValue& rvalue,
-                               const xls::SourceLocation& loc);
+                               const xls::SourceLocation& loc,
+                               bool check_unique_ids = true);
 
   absl::StatusOr<GeneratedFunction*> GenerateIR_Function(
       const clang::FunctionDecl* funcdecl, absl::string_view name_override = "",
@@ -905,6 +936,7 @@ class Translator {
                                     const class clang::ASTContext& ctx,
                                     const xls::SourceLocation& loc);
   absl::StatusOr<xls::Value> EvaluateBVal(xls::BValue bval);
+  absl::StatusOr<ConstValue> TranslateBValToConstVal(const CValue& bvalue);
 
   absl::StatusOr<xls::Op> XLSOpcodeFromClang(clang::BinaryOperatorKind clang_op,
                                              const CType& left_type,

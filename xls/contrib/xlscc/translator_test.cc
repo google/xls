@@ -2825,6 +2825,161 @@ TEST_F(TranslatorTest, IOProcChainedConditionalRead) {
   }
 }
 
+TEST_F(TranslatorTest, Static) {
+  const std::string content = R"(
+
+       #pragma hls_top
+       int my_package() {
+         static int x = 22;
+         return x++;
+       })";
+
+  const absl::flat_hash_map<std::string, xls::Value> args = {};
+
+  xls::Value expected_vals[] = {
+      xls::Value(xls::SBits(22, 32)),
+      xls::Value(xls::SBits(23, 32)),
+      xls::Value(xls::SBits(24, 32)),
+  };
+
+  RunWithStatics(args, expected_vals, content);
+}
+
+TEST_F(TranslatorTest, StaticCall) {
+  const std::string content = R"(
+      int inner(int input) {
+        static int a = 3;
+        --a;
+        return a * input;
+      }
+
+       #pragma hls_top
+       int my_package(int y) {
+         static int x = 22;
+         const int f = inner(x++);
+         return y+f;
+       })";
+
+  const absl::flat_hash_map<std::string, xls::Value> args = {
+      {"y", xls::Value(xls::SBits(10, 32))}};
+
+  xls::Value expected_vals[] = {
+      xls::Value(xls::SBits(54, 32)),
+      xls::Value(xls::SBits(33, 32)),
+      xls::Value(xls::SBits(10, 32)),
+  };
+
+  RunWithStatics(args, expected_vals, content);
+}
+
+TEST_F(TranslatorTest, StaticConditionalAssign) {
+  const std::string content = R"(
+
+       #pragma hls_top
+       int my_package(int y) {
+         static int x = 22;
+         if(y == 1) {
+           x++;
+         }
+         return x;
+       })";
+
+  {
+    const absl::flat_hash_map<std::string, xls::Value> args = {
+        {"y", xls::Value(xls::SBits(1, 32))}};
+    xls::Value expected_vals[] = {
+        xls::Value(xls::SBits(23, 32)),
+        xls::Value(xls::SBits(24, 32)),
+        xls::Value(xls::SBits(25, 32)),
+    };
+    RunWithStatics(args, expected_vals, content);
+  }
+  {
+    const absl::flat_hash_map<std::string, xls::Value> args = {
+        {"y", xls::Value(xls::SBits(0, 32))}};
+    xls::Value expected_vals[] = {
+        xls::Value(xls::SBits(22, 32)),
+        xls::Value(xls::SBits(22, 32)),
+        xls::Value(xls::SBits(22, 32)),
+    };
+    RunWithStatics(args, expected_vals, content);
+  }
+}
+
+TEST_F(TranslatorTest, StaticMethodLocal) {
+  const std::string content = R"(
+       struct Thing {
+         int v_;
+
+         Thing(int v) : v_(v) { }
+         int doit() {
+           static int l = 0;
+           ++l;
+           return l + v_;
+         }
+       };
+
+       #pragma hls_top
+       int my_package() {
+         Thing thing(10);
+         return thing.doit();
+       })";
+
+  const absl::flat_hash_map<std::string, xls::Value> args = {};
+
+  xls::Value expected_vals[] = {
+      xls::Value(xls::SBits(11, 32)),
+      xls::Value(xls::SBits(12, 32)),
+      xls::Value(xls::SBits(13, 32)),
+  };
+
+  RunWithStatics(args, expected_vals, content);
+}
+
+TEST_F(TranslatorTest, StaticInnerScopeName) {
+  const std::string content = R"(
+
+       #pragma hls_top
+       int my_package() {
+         static int x = 22;
+         int inner = 0;
+         {
+           static int x = 100;
+           inner = --x;
+         }
+         x += inner;
+         return x;
+       })";
+
+  const absl::flat_hash_map<std::string, xls::Value> args = {};
+
+  xls::Value expected_vals[] = {
+      xls::Value(xls::SBits(121, 32)),
+      xls::Value(xls::SBits(219, 32)),
+      xls::Value(xls::SBits(316, 32)),
+      xls::Value(xls::SBits(412, 32)),
+  };
+
+  RunWithStatics(args, expected_vals, content);
+}
+
+TEST_F(TranslatorTest, StaticMember) {
+  const std::string content = R"(
+       struct Something {
+         static int foo;
+       };
+       #pragma hls_top
+       int my_package() {
+         return Something::foo++;
+       })";
+
+  auto ret = SourceToIr(content);
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                            testing::HasSubstr("static")));
+}
+
 std::string NativeOperatorTestIr(std::string op) {
   return absl::StrFormat(R"(
       long long my_package(long long a, long long b) {

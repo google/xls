@@ -1050,6 +1050,23 @@ absl::Status Translator::TranslateIOOps(const clang::CallExpr* call,
   return absl::OkStatus();
 }
 
+absl::Status Translator::TranslateStatics(
+    const clang::CallExpr* call, const clang::FunctionDecl* callee,
+    const absl::flat_hash_map<const clang::NamedDecl*, ConstValue>&
+        callee_statics,
+    clang::SourceManager& sm) {
+  for (const auto& iter : callee_statics) {
+    const clang::NamedDecl* decl = iter.first;
+    const ConstValue& init = iter.second;
+
+    XLS_CHECK(context().sf->static_values.find(decl) ==
+              context().sf->static_values.end());
+
+    context().sf->static_values[decl] = init;
+  }
+  return absl::OkStatus();
+}
+
 absl::Status Translator::DeepScanForIO(const clang::Stmt* body,
                                        clang::ASTContext& ctx) {
   if (!body) {
@@ -1106,7 +1123,7 @@ absl::Status Translator::DeepScanForIO(const clang::Stmt* body,
       }
     }
 
-    // Add IO ops from functions / methods called
+    // Add IO ops and statics from functions / methods called
     if ((body->getStmtClass() == clang::Stmt::CXXMemberCallExprClass) ||
         (body->getStmtClass() == clang::Stmt::CallExprClass)) {
       auto call = clang_down_cast<const clang::CallExpr*>(body);
@@ -1121,8 +1138,48 @@ absl::Status Translator::DeepScanForIO(const clang::Stmt* body,
         XLS_RETURN_IF_ERROR(TranslateIOOps(call, definition, func->io_ops,
                                            ctx.getSourceManager()));
       }
-    }
 
+      if (!func->static_values.empty()) {
+        XLS_RETURN_IF_ERROR(TranslateStatics(
+            call, definition, func->static_values, ctx.getSourceManager()));
+      }
+    }
+    // Find static local declarations. Statics become proc feedback.
+    if (body->getStmtClass() == clang::Stmt::DeclStmtClass) {
+      auto declstmt = clang_down_cast<const clang::DeclStmt*>(body);
+
+      for (const clang::Decl* decl : declstmt->decls()) {
+        if (decl->getKind() == clang::Decl::Kind::Var) {
+          auto as_var_decl = clang_down_cast<const clang::VarDecl*>(decl);
+
+          XLS_CHECK_EQ(as_var_decl->isStaticDataMember(), false);
+
+          if (as_var_decl->isStaticLocal() &&
+              !as_var_decl->getType().isConstQualified()) {
+            auto named_decl = clang_down_cast<const clang::NamedDecl*>(decl);
+
+            // Shouldn't be necessary, but just to be safe
+            PushContextGuard guard(*this, GetLoc(*as_var_decl));
+            guard.propagate_up = false;
+            guard.propagate_break_up = false;
+            guard.propagate_continue_up = false;
+
+            XLS_CHECK(context().sf->static_values.find(named_decl) ==
+                      context().sf->static_values.end());
+
+            XLS_ASSIGN_OR_RETURN(
+                CValue value,
+                TranslateVarDecl(as_var_decl, GetLoc(*as_var_decl),
+                                 false /* statics_as_params */));
+
+            XLS_ASSIGN_OR_RETURN(ConstValue const_value,
+                                 TranslateBValToConstVal(value));
+
+            context().sf->static_values[named_decl] = const_value;
+          }
+        }
+      }
+    }
     if (body->getStmtClass() == clang::Stmt::ForStmtClass) {
       auto forst = clang_down_cast<const clang::ForStmt*>(body);
 
@@ -1218,6 +1275,24 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
                         LocString(body_loc)));
   }
 
+  // static inputs
+  for (const auto& iter : context().sf->static_values) {
+    const clang::NamedDecl* decl = iter.first;
+    const ConstValue init = iter.second;
+    // Mangle the name since statics with the same name may occur in different
+    // contexts
+    xls_name = XLSNameMangle(clang::GlobalDecl(decl));
+
+    XLS_ASSIGN_OR_RETURN(xls::Type * xls_type,
+                         TranslateTypeToXLS(init.type(), body_loc));
+
+    const xls::BValue bval = context().fb->Param(xls_name, xls_type, body_loc);
+
+    XLS_RETURN_IF_ERROR(
+        DeclareVariable(decl, CValue(bval, init.type()), body_loc, false));
+  }
+
+  // "this" input for methods
   if ((funcdecl->getKind() == clang::FunctionDecl::Kind::CXXMethod) ||
       (funcdecl->getKind() == clang::FunctionDecl::Kind::CXXConversion) ||
       (funcdecl->getKind() == clang::FunctionDecl::Kind::CXXDestructor) ||
@@ -1234,7 +1309,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
                                      ->getCanonicalTypeUnqualified();
 
       XLS_ASSIGN_OR_RETURN(auto thisctype, TranslateTypeFromClang(q, body_loc));
-      XLS_ASSIGN_OR_RETURN(auto xls_type,
+      XLS_ASSIGN_OR_RETURN(xls::Type * xls_type,
                            TranslateTypeToXLS(thisctype, body_loc));
 
       // Don't use AssignThis(), since this is the "declaration"
@@ -1372,7 +1447,18 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
 
   vector<xls::BValue> return_bvals;
 
-  // First this return
+  // First static returns
+  for (const auto& iter : context().sf->static_values) {
+    const clang::NamedDecl* decl = iter.first;
+    const ConstValue init = iter.second;
+    // Mangle the name since statics with the same name may occur in different
+    // contexts
+    xls_name = XLSNameMangle(clang::GlobalDecl(decl));
+    XLS_ASSIGN_OR_RETURN(CValue value, GetIdentifier(decl, body_loc));
+    return_bvals.push_back(value.value());
+  }
+
+  // Then this return
   if (add_this_return) {
     return_bvals.push_back(context().this_val.value());
   }
@@ -1597,11 +1683,12 @@ absl::StatusOr<xls::Op> Translator::XLSOpcodeFromClang(
 }
 
 absl::StatusOr<CValue> Translator::TranslateVarDecl(
-    const clang::VarDecl* decl, const xls::SourceLocation& loc) {
-  const clang::Expr* initializer = decl->getAnyInitializer();
-
+    const clang::VarDecl* decl, const xls::SourceLocation& loc,
+    bool statics_as_params) {
   XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
                        TranslateTypeFromClang(decl->getType(), loc));
+
+  const clang::Expr* initializer = decl->getAnyInitializer();
   xls::BValue init_val;
   if (initializer) {
     // Sometimes the InitListExpr is hidden by being inside of an
@@ -1614,7 +1701,7 @@ absl::StatusOr<CValue> Translator::TranslateVarDecl(
     if (initializer->getStmtClass() == clang::Stmt::InitListExprClass) {
       XLS_ASSIGN_OR_RETURN(
           init_val,
-          CreateInitValue(
+          CreateInitListValue(
               *ctype, clang_down_cast<const clang::InitListExpr*>(initializer),
               loc));
     } else {
@@ -1637,6 +1724,16 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
     auto enum_decl = dynamic_cast<const clang::EnumConstantDecl*>(decl);
     // Is this static/global?
     auto var_decl = dynamic_cast<const clang::VarDecl*>(decl);
+
+    if (var_decl && var_decl->isStaticDataMember() &&
+        (!var_decl->getType().isConstQualified())) {
+      return absl::UnimplementedError(absl::StrFormat(
+          "Mutable static data members not implemented %s at %s",
+          decl->getNameAsString(), LocString(loc)));
+    }
+
+    XLS_CHECK(var_decl == nullptr || !var_decl->isStaticLocal() ||
+              var_decl->getType().isConstQualified());
 
     XLS_CHECK(!(enum_decl && var_decl));
 
@@ -1723,10 +1820,13 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
   // Don't allow assignment to globals. This doesn't work because
   //  each function has a different FunctionBuilder.
   if (auto var_decl = dynamic_cast<const clang::VarDecl*>(lvalue);
-      var_decl != nullptr && var_decl->hasGlobalStorage()) {
-    return absl::UnimplementedError(absl::StrFormat(
-        "Assignments to global variables not supported for %s at %s",
-        lvalue->getNameAsString(), LocString(loc)));
+      var_decl != nullptr) {
+    if (var_decl->hasGlobalStorage() && (!var_decl->isStaticLocal()) &&
+        (!var_decl->isStaticDataMember())) {
+      return absl::UnimplementedError(absl::StrFormat(
+          "Assignments to global variables not supported for %s at %s",
+          lvalue->getNameAsString(), LocString(loc)));
+    }
   }
 
   XLS_ASSIGN_OR_RETURN(CValue found, GetIdentifier(lvalue, loc, true));
@@ -1918,16 +2018,20 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
 
 absl::Status Translator::DeclareVariable(const clang::NamedDecl* lvalue,
                                          const CValue& rvalue,
-                                         const xls::SourceLocation& loc) {
+                                         const xls::SourceLocation& loc,
+                                         bool check_unique_ids) {
   if (context().variables.contains(lvalue)) {
     return absl::UnimplementedError(
         absl::StrFormat("Declaration '%s' duplicated at %s\n",
                         lvalue->getNameAsString(), LocString(loc)));
   }
-  if (check_unique_ids_.contains(lvalue)) {
-    return absl::InternalError(
-        absl::StrFormat("Code assumes NamedDecls are unique, but %s isn't",
-                        lvalue->getNameAsString()));
+
+  if (check_unique_ids) {
+    if (check_unique_ids_.contains(lvalue)) {
+      return absl::InternalError(
+          absl::StrFormat("Code assumes NamedDecls are unique, but %s isn't",
+                          lvalue->getNameAsString()));
+    }
   }
   check_unique_ids_.insert(lvalue);
   context().variables[lvalue] = rvalue;
@@ -2340,7 +2444,16 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   XLS_ASSIGN_OR_RETURN(GeneratedFunction * func,
                        TranslateFunctionToXLS(funcdecl));
 
-  vector<xls::BValue> args;
+  std::vector<xls::BValue> args;
+
+  // static inputs to callee
+  for (const auto& iter : func->static_values) {
+    const clang::NamedDecl* decl = iter.first;
+
+    XLS_ASSIGN_OR_RETURN(CValue value, GetIdentifier(decl, loc));
+
+    args.push_back(value.value());
+  }
 
   // Add this if needed
   bool add_this_return = false;
@@ -2357,7 +2470,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
   // Number of return values expected. If >1, the return will be a tuple.
   // (See MakeFunctionReturn()).
-  int expected_returns = 0;
+  int expected_returns = func->static_values.size();
   if (add_this_return) ++expected_returns;
   if (!funcdecl->getReturnType()->isVoidType()) ++expected_returns;
 
@@ -2459,7 +2572,19 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
   CValue retval;
 
-  // First this return
+  // First static outputs from callee
+  for (const auto& iter : func->static_values) {
+    const clang::NamedDecl* decl = iter.first;
+    const ConstValue init = iter.second;
+
+    XLS_CHECK(!unpacked_returns.empty());
+    xls::BValue static_output = unpacked_returns.front();
+    unpacked_returns.pop_front();
+
+    XLS_RETURN_IF_ERROR(Assign(decl, CValue(static_output, init.type()), loc));
+  }
+
+  // Then this return
   if (add_this_return) {
     XLS_CHECK(!unpacked_returns.empty());
     *this_inout = unpacked_returns.front();
@@ -2950,7 +3075,7 @@ absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
   }
 }
 
-absl::StatusOr<xls::BValue> Translator::CreateInitValue(
+absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
     const CType& t, const clang::InitListExpr* init_list,
     const xls::SourceLocation& loc) {
   if (auto array_t = dynamic_cast<const CArrayType*>(&t)) {
@@ -2969,7 +3094,7 @@ absl::StatusOr<xls::BValue> Translator::CreateInitValue(
       if (this_init->getStmtClass() == clang::Stmt::InitListExprClass) {
         XLS_ASSIGN_OR_RETURN(
             this_val,
-            CreateInitValue(
+            CreateInitListValue(
                 *array_t->GetElementType(),
                 clang_down_cast<const clang::InitListExpr*>(this_init), loc));
       } else {
@@ -2998,6 +3123,12 @@ absl::StatusOr<xls::Value> Translator::EvaluateBVal(xls::BValue bval) {
   XLS_RETURN_IF_ERROR(bval.node()->Accept(&visitor));
   xls::Value result = visitor.ResolveAsValue(bval.node());
   return result;
+}
+
+absl::StatusOr<ConstValue> Translator::TranslateBValToConstVal(
+    const CValue& bvalue) {
+  XLS_ASSIGN_OR_RETURN(xls::Value const_value, EvaluateBVal(bvalue.value()));
+  return ConstValue(const_value, bvalue.type());
 }
 
 absl::Status Translator::GenerateIR_Compound(const clang::Stmt* body,
@@ -3120,9 +3251,12 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
         auto namedecl = clang_down_cast<const clang::NamedDecl*>(decl);
         auto vard = clang_down_cast<const clang::VarDecl*>(decl);
 
-        XLS_ASSIGN_OR_RETURN(CValue translated, TranslateVarDecl(vard, loc));
+        // Statics are declared at the function interface like parameters
+        if (!vard->isStaticLocal() && !vard->isStaticDataMember()) {
+          XLS_ASSIGN_OR_RETURN(CValue translated, TranslateVarDecl(vard, loc));
 
-        XLS_RETURN_IF_ERROR(DeclareVariable(namedecl, translated, loc));
+          XLS_RETURN_IF_ERROR(DeclareVariable(namedecl, translated, loc));
+        }
       }
       break;
     }

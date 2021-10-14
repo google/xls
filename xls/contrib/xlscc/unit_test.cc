@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 
 using xls::status_testing::IsOkAndHolds;
 
@@ -37,6 +38,63 @@ void XlsccTestBase::Run(
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir,
                            SourceToIr(cpp_source, nullptr, clang_argv));
   RunAndExpectEq(args, expected, ir, false, false, loc);
+}
+
+void XlsccTestBase::RunWithStatics(
+    const absl::flat_hash_map<std::string, xls::Value>& args,
+    const absl::Span<xls::Value>& expected_outputs,
+    absl::string_view cpp_source, xabsl::SourceLocation loc) {
+  testing::ScopedTrace trace(loc.file_name(), loc.line(),
+                             "RunWithStatics failed");
+
+  xlscc::GeneratedFunction* pfunc = nullptr;
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, SourceToIr(cpp_source, &pfunc));
+
+  ASSERT_NE(pfunc, nullptr);
+
+  ASSERT_GT(pfunc->static_values.size(), 0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> package,
+                           ParsePackage(ir));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * top_func, package->EntryFunction());
+
+  const absl::Span<xls::Param* const> params = top_func->params();
+
+  ASSERT_GE(params.size(), pfunc->static_values.size());
+
+  std::vector<std::string> static_param_names;
+  std::vector<xls::Value> static_state;
+
+  int param_idx = 0;
+  for (const auto& [_, initval] : pfunc->static_values) {
+    static_param_names.push_back(params[param_idx]->GetName());
+    static_state.push_back(initval.value());
+
+    ++param_idx;
+  }
+
+  for (const xls::Value& expected_output : expected_outputs) {
+    absl::flat_hash_map<std::string, xls::Value> args_with_statics = args;
+
+    for (int i = 0; i < pfunc->static_values.size(); ++i) {
+      args_with_statics[static_param_names[i]] = static_state[i];
+    }
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        xls::Value actual,
+        xls::InterpretFunctionKwargs(top_func, args_with_statics));
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> returns,
+                             actual.GetElements());
+    ASSERT_EQ(returns.size(), pfunc->static_values.size() + 1);
+
+    for (int i = 0; i < pfunc->static_values.size(); ++i) {
+      static_state[i] = returns[i];
+    }
+
+    EXPECT_EQ(returns[pfunc->static_values.size()], expected_output);
+  }
 }
 
 absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,

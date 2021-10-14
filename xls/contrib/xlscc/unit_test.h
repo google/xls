@@ -15,6 +15,7 @@
 #ifndef XLS_CONTRIB_XLSCC_UNIT_TEST_H_
 #define XLS_CONTRIB_XLSCC_UNIT_TEST_H_
 
+#include <cstdint>
 #include <cstdio>
 #include <memory>
 #include <vector>
@@ -50,6 +51,12 @@ class XlsccTestBase : public xls::IrTestBase {
            xls::Value expected, absl::string_view cpp_source,
            xabsl::SourceLocation loc = xabsl::SourceLocation::current(),
            std::vector<absl::string_view> clang_argv = {});
+
+  void RunWithStatics(
+      const absl::flat_hash_map<std::string, xls::Value>& args,
+      const absl::Span<xls::Value>& expected_outputs,
+      absl::string_view cpp_source,
+      xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 
   absl::Status ScanFile(absl::string_view cpp_src,
                         std::vector<absl::string_view> argv = {});
