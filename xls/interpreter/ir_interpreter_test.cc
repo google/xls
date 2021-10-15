@@ -30,7 +30,10 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+using testing::ElementsAre;
+using testing::ElementsAreArray;
 using testing::HasSubstr;
+using testing::UnorderedElementsAre;
 
 INSTANTIATE_TEST_SUITE_P(
     IrInterpreterTest, IrEvaluatorTestBase,
@@ -179,7 +182,112 @@ fn ba (in_token:token, a_cond: bits[1], b_cond: bits[1]) -> bits[8] {
               IsOkAndHolds(no_traces));
 }
 
-// A variant of the TwoAssert test that checks if both assertions were recorded.
+// Test collecting traces across static and dynamic counted for loops.
+TEST_F(IrInterpreterOnlyTest, TraceCountedFor) {
+  const std::string pkg_text = R"(
+package trace_counted_for_test
+
+fn accum_body(i: bits[32], accum: bits[32]) -> bits[32] {
+  after_all.0: token = after_all()
+  literal.1: bits[1] = literal(value=1)
+  trace.2: token = trace(after_all.0, literal.1, format = "accum is {}", data_operands=[accum])
+  ret add.3: bits[32] = add(accum, i)
+}
+
+fn accum_fixed() -> bits[32] {
+  literal.4: bits[32] = literal(value=0)
+  ret counted_for.5: bits[32] = counted_for(literal.4, trip_count=5, stride=1, body=accum_body)
+}
+
+fn accum_dynamic(trips: bits[8]) -> bits[32] {
+    literal.6: bits[32] = literal(value=0)
+    literal.7: bits[32] = literal(value=1)
+    ret dynamic_counted_for.8: bits[32] = dynamic_counted_for(literal.6, trips, literal.7, body=accum_body)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(pkg_text));
+
+  Function* accum_fixed = FindFunction("accum_fixed", package.get());
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> accum_fixed_result,
+                           InterpretFunctionWithEvents(accum_fixed, {}));
+
+  Value accum_5_value = Value(UBits(10, 32));
+  std::vector<std::string> accum_5_traces = {
+      "accum is 0", "accum is 0", "accum is 1", "accum is 3", "accum is 6"};
+  EXPECT_EQ(accum_fixed_result.value, accum_5_value);
+  EXPECT_THAT(accum_fixed_result.events.trace_msgs,
+              ElementsAreArray(accum_5_traces));
+
+  Function* accum_dynamic = FindFunction("accum_dynamic", package.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpreterResult<Value> accum_dynamic_5,
+      InterpretFunctionWithEvents(accum_dynamic, {Value(UBits(5, 8))}));
+  EXPECT_EQ(accum_dynamic_5.value, accum_5_value);
+  EXPECT_THAT(accum_dynamic_5.events.trace_msgs,
+              ElementsAreArray(accum_5_traces));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpreterResult<Value> accum_dynamic_0,
+      InterpretFunctionWithEvents(accum_dynamic, {Value(UBits(0, 8))}));
+  EXPECT_EQ(accum_dynamic_0.value, Value(UBits(0, 32)));
+  EXPECT_THAT(accum_dynamic_0.events.trace_msgs, ElementsAre());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpreterResult<Value> accum_dynamic_1,
+      InterpretFunctionWithEvents(accum_dynamic, {Value(UBits(1, 8))}));
+  EXPECT_EQ(accum_dynamic_1.value, Value(UBits(0, 32)));
+  EXPECT_THAT(accum_dynamic_1.events.trace_msgs, ElementsAre("accum is 0"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpreterResult<Value> accum_dynamic_7,
+      InterpretFunctionWithEvents(accum_dynamic, {Value(UBits(7, 8))}));
+  EXPECT_EQ(accum_dynamic_7.value, Value(UBits(21, 32)));
+  EXPECT_THAT(
+      accum_dynamic_7.events.trace_msgs,
+      ElementsAre("accum is 0", "accum is 0", "accum is 1", "accum is 3",
+                  "accum is 6", "accum is 10", "accum is 15"));
+}
+
+// Test collecting traces across a map.
+TEST_F(IrInterpreterOnlyTest, TraceMap) {
+  const std::string pkg_text = R"(
+package trace_map_test
+
+fn square_with_trace_odd(x: bits[32]) -> bits[32] {
+  after_all.0: token = after_all()
+  bit_slice.1: bits[1] = bit_slice(x, start=0, width=1)
+  trace.2: token = trace(after_all.0, bit_slice.1, format = "{:x} is odd", data_operands=[x])
+  ret umul.3: bits[32] = umul(x, x)
+}
+
+fn map_trace() -> bits[32][5]{
+  literal.11: bits[32] = literal(value=11)
+  literal.12: bits[32] = literal(value=12)
+  literal.13: bits[32] = literal(value=13)
+  literal.14: bits[32] = literal(value=14)
+  literal.15: bits[32] = literal(value=15)
+  array.4: bits[32][5] = array(literal.11, literal.12, literal.13, literal.14, literal.15)
+  ret map.5: bits[32][5] = map(array.4, to_apply=square_with_trace_odd)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(pkg_text));
+  Function* map_trace = FindFunction("map_trace", package.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> map_trace_result,
+                           InterpretFunctionWithEvents(map_trace, {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Value map_trace_expected,
+                           Value::UBitsArray({121, 144, 169, 196, 225}, 32));
+  EXPECT_EQ(map_trace_result.value, map_trace_expected);
+  EXPECT_THAT(map_trace_result.events.trace_msgs,
+              UnorderedElementsAre("f is odd", "d is odd", "b is odd"));
+}
+
+// A variant of the TwoAssert test that checks if both assertions were
+// recorded.
 TEST_F(IrInterpreterOnlyTest, BothAsserts) {
   Package p("assert_test");
   FunctionBuilder b("fun", &p);

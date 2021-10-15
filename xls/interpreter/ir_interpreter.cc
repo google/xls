@@ -256,7 +256,10 @@ absl::Status IrInterpreter::HandleCountedFor(CountedFor* counted_for) {
     for (const auto& value : invariant_args) {
       args_for_body.push_back(value);
     }
-    XLS_ASSIGN_OR_RETURN(loop_state, InterpretFunction(body, args_for_body));
+    XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> loop_result,
+                         InterpretFunctionWithEvents(body, args_for_body));
+    XLS_RETURN_IF_ERROR(AddInterpreterEvents(loop_result.events));
+    loop_state = loop_result.value;
   }
   return SetValueResult(counted_for, loop_state);
 }
@@ -306,8 +309,10 @@ absl::Status IrInterpreter::HandleDynamicCountedFor(
     for (const auto& value : invariant_args) {
       args_for_body.push_back(value);
     }
-    XLS_ASSIGN_OR_RETURN(loop_state, InterpretFunction(body, args_for_body));
-
+    XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> loop_result,
+                         InterpretFunctionWithEvents(body, args_for_body));
+    XLS_RETURN_IF_ERROR(AddInterpreterEvents(loop_result.events));
+    loop_state = loop_result.value;
     index = bits_ops::Add(index, extended_stride);
   }
 
@@ -575,9 +580,11 @@ absl::Status IrInterpreter::HandleMap(Map* map) {
   std::vector<Value> results;
   for (const Value& operand_element :
        ResolveAsValue(map->operand(0)).elements()) {
-    XLS_ASSIGN_OR_RETURN(Value result,
-                         InterpretFunction(to_apply, {operand_element}));
-    results.push_back(result);
+    XLS_ASSIGN_OR_RETURN(
+        InterpreterResult<Value> result,
+        InterpretFunctionWithEvents(to_apply, {operand_element}));
+    XLS_RETURN_IF_ERROR(AddInterpreterEvents(result.events));
+    results.push_back(result.value);
   }
   XLS_ASSIGN_OR_RETURN(Value result_array, Value::Array(results));
   return SetValueResult(map, result_array);
