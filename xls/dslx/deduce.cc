@@ -20,6 +20,7 @@
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/concrete_type.h"
+#include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/interpreter.h"
 #include "xls/dslx/scanner.h"
 #include "xls/dslx/type_and_bindings.h"
@@ -241,6 +242,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
     XLS_VLOG(5) << "Noting constexpr: " << node->value() << " in "
                 << ctx->type_info();
     ctx->type_info()->NoteConstExpr(node->value(), constexpr_value.value());
+    ctx->type_info()->NoteConstExpr(node->name_def(), constexpr_value.value());
   }
   ctx->type_info()->SetItem(node->name_def(), *result);
   return result;
@@ -273,10 +275,20 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
                                                            DeduceCtx* ctx) {
   if (node->type_annotation() == nullptr) {
     switch (node->number_kind()) {
-      case NumberKind::kBool:
-        return BitsType::MakeU1();
-      case NumberKind::kCharacter:
-        return BitsType::MakeU8();
+      case NumberKind::kBool: {
+        auto type = BitsType::MakeU1();
+        ConstexprEvaluator evaluator(ctx, type.get());
+        node->AcceptExpr(&evaluator);
+        XLS_RETURN_IF_ERROR(evaluator.status());
+        return type;
+      }
+      case NumberKind::kCharacter: {
+        auto type = BitsType::MakeU8();
+        ConstexprEvaluator evaluator(ctx, type.get());
+        node->AcceptExpr(&evaluator);
+        XLS_RETURN_IF_ERROR(evaluator.status());
+        return type;
+      }
       default:
         break;
     }
@@ -295,15 +307,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
   }
   XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*node, *concrete_type));
 
-  // TODO(rspringer): 2021-10-12: This is expensive to do for every number in
-  // the world. Move this to the constexpr evaluator, and only do it for items
-  // in a config block.
-  absl::flat_hash_map<std::string, InterpValue> env = MakeConstexprEnv(
-      node, ctx->fn_stack().back().symbolic_bindings(), ctx->type_info());
-  absl::StatusOr<InterpValue> value_or = Interpreter::InterpretExpr(
-      node->owner(), ctx->import_data()->GetRootTypeInfoForNode(node).value(),
-      ctx->typecheck_module(), ctx->import_data(), env, node);
-  ctx->type_info()->NoteConstExpr(node, value_or.value());
+  ConstexprEvaluator evaluator(ctx, concrete_type.get());
+  node->AcceptExpr(&evaluator);
+  XLS_RETURN_IF_ERROR(evaluator.status());
   return concrete_type;
 }
 
@@ -551,10 +557,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(EnumDef* node,
 //
 // Will put a correspondence of {a: u8, b: u4, c: u2} into the mapping in ctx.
 static absl::Status BindNames(NameDefTree* name_def_tree,
-                              const ConcreteType& type, DeduceCtx* ctx) {
+                              const ConcreteType& type, DeduceCtx* ctx,
+                              absl::optional<InterpValue> constexpr_value) {
   if (name_def_tree->is_leaf()) {
     AstNode* name_def = ToAstNode(name_def_tree->leaf());
     ctx->type_info()->SetItem(name_def, type);
+    if (constexpr_value.has_value()) {
+      ctx->type_info()->NoteConstExpr(name_def, constexpr_value.value());
+    }
     return absl::OkStatus();
   }
 
@@ -580,7 +590,11 @@ static absl::Status BindNames(NameDefTree* name_def_tree,
     NameDefTree* subtree = name_def_tree->nodes()[i];
     const ConcreteType& subtype = tuple_type->GetMemberType(i);
     ctx->type_info()->SetItem(subtree, subtype);
-    XLS_RETURN_IF_ERROR(BindNames(subtree, subtype, ctx));
+    absl::optional<InterpValue> sub_value;
+    if (constexpr_value.has_value()) {
+      sub_value = constexpr_value.value().GetValuesOrDie()[i];
+    }
+    XLS_RETURN_IF_ERROR(BindNames(subtree, subtype, ctx, sub_value));
   }
 
   return absl::OkStatus();
@@ -602,7 +616,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(Let* node,
     }
   }
 
-  XLS_RETURN_IF_ERROR(BindNames(node->name_def_tree(), *rhs, ctx));
+  XLS_RETURN_IF_ERROR(BindNames(node->name_def_tree(), *rhs, ctx,
+                                ctx->type_info()->GetConstExpr(node->rhs())));
 
   if (node->constant_def() != nullptr) {
     XLS_RETURN_IF_ERROR(ctx->Deduce(node->constant_def()).status());
@@ -650,7 +665,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(For* node,
   }
 
   // Bind the names to their associated types for use in the body.
-  XLS_RETURN_IF_ERROR(BindNames(node->names(), *target_annotated_type, ctx));
+  XLS_RETURN_IF_ERROR(
+      BindNames(node->names(), *target_annotated_type, ctx, absl::nullopt));
 
   // Now we can deduce the body.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_type,
@@ -702,6 +718,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCast(Cast* node,
         absl::StrFormat("Cannot cast from expression type %s to %s.",
                         expr->ToErrorString(), type->ToErrorString()));
   }
+  ConstexprEvaluator evaluator(ctx, type.get());
+  node->AcceptExpr(&evaluator);
+  XLS_RETURN_IF_ERROR(evaluator.status());
   return type;
 }
 
@@ -832,7 +851,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAttr(Attr* node,
   absl::optional<const ConcreteType*> result =
       struct_type->GetMemberTypeByName(attr_name);
   XLS_RET_CHECK(result.has_value());  // We checked above we had named member.
-  return result.value()->CloneToUnique();
+
+  auto result_type = result.value()->CloneToUnique();
+  ConstexprEvaluator evaluator(ctx, result_type.get());
+  node->AcceptExpr(&evaluator);
+  XLS_RETURN_IF_ERROR(evaluator.status());
+  return result_type;
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
@@ -1212,9 +1236,18 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
   std::unique_ptr<ConcreteType> s32 = BitsType::MakeS32();
   auto* slice = absl::get<Slice*>(node->rhs());
 
+  // Constexpr evaluate start & limit - without Deducing, to allow for
+  // undecorated slice indices.
+  ConstexprEvaluator evaluator(ctx, nullptr);
+  if (slice->start() != nullptr) {
+    slice->start()->AcceptExpr(&evaluator);
+  }
   XLS_ASSIGN_OR_RETURN(
       absl::optional<int64_t> start,
       TryResolveBound(slice, slice->start(), "start", s32.get(), env, ctx));
+  if (slice->limit() != nullptr) {
+    slice->limit()->AcceptExpr(&evaluator);
+  }
   XLS_ASSIGN_OR_RETURN(
       absl::optional<int64_t> limit,
       TryResolveBound(slice, slice->limit(), "limit", s32.get(), env, ctx));
@@ -1553,6 +1586,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
       TypeAndBindings tab,
       InstantiateStruct(node->span(), *struct_type, validated.args,
                         validated.member_types, ctx, parametric_constraints));
+  ConstexprEvaluator evaluator(ctx, tab.type.get());
+  node->AcceptExpr(&evaluator);
+  XLS_RETURN_IF_ERROR(evaluator.status());
 
   return std::move(tab.type);
 }
@@ -2244,6 +2280,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(Invocation* node,
     UseImplicitToken(ctx);
   }
 
+  ConstexprEvaluator evaluator(ctx, tab.type.get());
+  node->AcceptExpr(&evaluator);
+  XLS_RETURN_IF_ERROR(evaluator.status());
+
   return std::move(tab.type);
 }
 
@@ -2282,8 +2322,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNameRef(NameRef* node,
   AstNode* name_def = ToAstNode(node->name_def());
   absl::optional<ConcreteType*> item = ctx->type_info()->GetItem(name_def);
   if (item.has_value()) {
-    return (*item)->CloneToUnique();
+    auto concrete_type = (*item)->CloneToUnique();
+    ConstexprEvaluator evaluator(ctx, concrete_type.get());
+    node->AcceptExpr(&evaluator);
+    return concrete_type;
   }
+
   return TypeMissingErrorStatus(name_def, node);
 }
 

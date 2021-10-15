@@ -615,8 +615,8 @@ class ExprVisitor {
   virtual void HandleCarry(Carry* expr) = 0;
   virtual void HandleCast(Cast* expr) = 0;
   virtual void HandleChannelDecl(ChannelDecl* expr) = 0;
-  virtual void HandleConstRef(ConstRef* expr) = 0;
   virtual void HandleColonRef(ColonRef* expr) = 0;
+  virtual void HandleConstRef(ConstRef* expr) = 0;
   virtual void HandleFor(For* expr) = 0;
   virtual void HandleFormatMacro(FormatMacro* expr) = 0;
   virtual void HandleIndex(Index* expr) = 0;

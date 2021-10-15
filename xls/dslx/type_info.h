@@ -225,8 +225,11 @@ class TypeInfo {
   // not automatically get placed in the root of the tree). This avoids
   // collisions in cases e.g. where you slice `[0:N]` where `N` is a parametric
   // value.
-  void NoteConstExpr(Expr* const_expr, InterpValue value);
-  absl::optional<InterpValue> GetConstExpr(Expr* const_expr);
+  //
+  // Note that these index over AstNodes instead of Exprs so that NameDefs can
+  // be used as constexpr keys.
+  void NoteConstExpr(AstNode* const_expr, InterpValue value);
+  absl::optional<InterpValue> GetConstExpr(AstNode* const_expr);
 
   // Retrieves a string that shows the module associated with this type info and
   // which imported modules are present, suitable for debugging.
@@ -276,7 +279,7 @@ class TypeInfo {
   absl::flat_hash_map<NameDef*, ConstantDef*> name_to_const_;
   absl::flat_hash_map<Instantiation*, InstantiationData> instantiations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
-  absl::flat_hash_map<Expr*, InterpValue> const_exprs_;
+  absl::flat_hash_map<AstNode*, InterpValue> const_exprs_;
   absl::flat_hash_map<Function*, bool> requires_implicit_token_;
   TypeInfo* parent_;  // Note: may be nullptr.
 };

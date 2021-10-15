@@ -109,6 +109,28 @@ absl::Status ProcConfigIrConverter::HandleChannelDecl(ChannelDecl* node) {
   return absl::OkStatus();
 }
 
+absl::Status ProcConfigIrConverter::HandleFunction(Function* node) {
+  for (int i = 0; i < node->params().size(); i++) {
+    XLS_RETURN_IF_ERROR(node->params()[i]->Accept(this));
+  }
+
+  return node->body()->Accept(this);
+}
+
+absl::Status ProcConfigIrConverter::HandleInvocation(Invocation* node) {
+  XLS_LOG(INFO) << "ProcConfigIrConverter::HandleInvocation: "
+                << node->ToString();
+  absl::optional<InterpValue> const_value = type_info_->GetConstExpr(node);
+  if (!const_value.has_value()) {
+    return absl::InternalError(
+        "Invocation should have been converted to const expr during "
+        "typechecking.");
+  }
+  XLS_ASSIGN_OR_RETURN(auto ir_value, const_value.value().ConvertToIr());
+  node_to_ir_[node] = ir_value;
+  return absl::OkStatus();
+}
+
 absl::Status ProcConfigIrConverter::HandleLet(Let* node) {
   XLS_VLOG(4) << "ProcConfigIrConverter::HandleLet : " << node->ToString();
   XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
@@ -119,7 +141,6 @@ absl::Status ProcConfigIrConverter::HandleLet(Let* node) {
     std::vector<NameDefTree::Leaf> leaves = node->name_def_tree()->Flatten();
     node_to_ir_[absl::get<NameDef*>(leaves[0])] = channel;
     node_to_ir_[absl::get<NameDef*>(leaves[1])] = channel;
-
   } else {
     if (!node->name_def_tree()->is_leaf()) {
       return absl::UnimplementedError(
@@ -128,7 +149,12 @@ absl::Status ProcConfigIrConverter::HandleLet(Let* node) {
 
     // A leaf on the LHS of a Let will always be a NameDef.
     NameDef* def = absl::get<NameDef*>(node->name_def_tree()->leaf());
-    auto value = node_to_ir_[node->rhs()];
+    if (!node_to_ir_.contains(node->rhs())) {
+      return absl::InternalError(
+          absl::StrCat("Let RHS not evaluated as constexpr: ", def->ToString(),
+                       " : ", node->rhs()->ToString()));
+    }
+    auto value = node_to_ir_.at(node->rhs());
     node_to_ir_[def] = value;
   }
 
@@ -173,17 +199,8 @@ absl::Status ProcConfigIrConverter::HandleParam(Param* node) {
         "Proc ID \"", proc_id_.ToString(), "\" was not found in arg mapping."));
   }
 
-  node_to_ir_[node] = proc_id_to_args_->at(proc_id_)[param_index];
   node_to_ir_[node->name_def()] = proc_id_to_args_->at(proc_id_)[param_index];
   return absl::OkStatus();
-}
-
-absl::Status ProcConfigIrConverter::HandleFunction(Function* node) {
-  for (int i = 0; i < node->params().size(); i++) {
-    XLS_RETURN_IF_ERROR(node->params()[i]->Accept(this));
-  }
-
-  return node->body()->Accept(this);
 }
 
 absl::Status ProcConfigIrConverter::HandleSpawn(Spawn* node) {
@@ -204,6 +221,20 @@ absl::Status ProcConfigIrConverter::HandleSpawn(Spawn* node) {
     return node->body()->Accept(this);
   }
 
+  return absl::OkStatus();
+}
+
+absl::Status ProcConfigIrConverter::HandleStructInstance(StructInstance* node) {
+  XLS_VLOG(3) << "ProcConfigIrConverter::HandleStructInstance: "
+              << node->ToString();
+  absl::optional<InterpValue> const_value = type_info_->GetConstExpr(node);
+  if (!const_value.has_value()) {
+    return absl::InternalError(
+        "Struct instance should have been converted to const expr during "
+        "typechecking.");
+  }
+  XLS_ASSIGN_OR_RETURN(auto ir_value, const_value.value().ConvertToIr());
+  node_to_ir_[node] = ir_value;
   return absl::OkStatus();
 }
 

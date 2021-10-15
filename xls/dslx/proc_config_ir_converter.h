@@ -43,11 +43,13 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
 
   absl::Status HandleChannelDecl(ChannelDecl* node);
   absl::Status HandleFunction(Function* node);
+  absl::Status HandleInvocation(Invocation* node);
   absl::Status HandleLet(Let* node);
   absl::Status HandleNameRef(NameRef* node);
   absl::Status HandleNumber(Number* node);
   absl::Status HandleParam(Param* node);
   absl::Status HandleSpawn(Spawn* node);
+  absl::Status HandleStructInstance(StructInstance* node);
   absl::Status HandleXlsTuple(XlsTuple* node);
 
   // Sets the mapping from the elements in the config-ending tuple to the

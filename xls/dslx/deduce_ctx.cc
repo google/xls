@@ -139,9 +139,20 @@ absl::flat_hash_map<std::string, InterpValue> MakeConstexprEnv(
   // constexpr ability to full InterpValues to accomplish this.
   //
   // E.g. fn main(x: u32) -> ... { const B = u32:20; x[:B] }
+
+  // Collect all the freevars that are constexpr.
   FreeVariables freevars = node->GetFreeVariables();
   XLS_VLOG(5) << "freevars for " << node->ToString() << ": "
               << freevars.GetFreeVariableCount();
+  freevars = freevars.DropBuiltinDefs();
+  for (const auto& [name, name_refs] : freevars.values()) {
+    absl::optional<InterpValue> const_expr =
+        type_info->GetConstExpr(name_refs[0]);
+    if (const_expr.has_value()) {
+      env.insert({name, const_expr.value()});
+    }
+  }
+
   for (ConstRef* const_ref : freevars.GetConstRefs()) {
     ConstantDef* constant_def = const_ref->GetConstantDef();
     XLS_VLOG(5) << "analyzing constant reference: " << const_ref->ToString()

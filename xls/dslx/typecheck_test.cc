@@ -821,6 +821,13 @@ TEST(TypecheckTest, WidthSliceNegativeStartNumber) {
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u3 { x[-2+:u3] }"));
 }
 
+TEST(TypecheckTest, WidthSliceEmptyStartNumber) {
+  // Start literal is treated as unsigned.
+  XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u31 { x[:-1] }"));
+  XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u30 { x[:-2] }"));
+  XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u29 { x[:-3] }"));
+}
+
 TEST(TypecheckTest, WidthSliceSignedStart) {
   // We reject signed start literals.
   EXPECT_THAT(

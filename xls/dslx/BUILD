@@ -42,6 +42,39 @@ py_test(
 )
 
 cc_library(
+    name = "constexpr_evaluator",
+    srcs = ["constexpr_evaluator.cc"],
+    hdrs = ["constexpr_evaluator.h"],
+    deps = [
+        ":ast",
+        ":deduce_ctx",
+        ":interpreter",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_test(
+    name = "constexpr_evaluator_test",
+    srcs = ["constexpr_evaluator_test.cc"],
+    deps = [
+        ":ast",
+        ":concrete_type",
+        ":constexpr_evaluator",
+        ":deduce",
+        ":deduce_ctx",
+        ":default_dslx_stdlib_path",
+        ":import_data",
+        ":parser",
+        ":type_info",
+        ":typecheck",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "cpp_transpiler",
     srcs = ["cpp_transpiler.cc"],
     hdrs = ["cpp_transpiler.h"],
@@ -659,6 +692,7 @@ cc_library(
         ":ast",
         ":builtins_metadata",
         ":concrete_type",
+        ":constexpr_evaluator",
         ":deduce_ctx",
         ":import_routines",
         ":interp_bindings",
