@@ -103,8 +103,9 @@ TEST_F(IrInterpreterOnlyTest, SideEffectingNodes) {
 }
 
 // This is a smoke test of the trace plumbing.
-// TODO(amfv): 2021-10-05 Move these to the common IR evaluator tests and make
-// them more comprehensive once the JIT supports generating events.
+// TODO(https://github.com/google/xls/issues/506): 2021-10-05 Move these to the
+// common IR evaluator tests and make them more comprehensive once the JIT
+// supports generating events.
 TEST_F(IrInterpreterOnlyTest, Traces) {
   const std::string pkg_text = R"(
 package trace_test
@@ -149,7 +150,7 @@ fn ba (in_token:token, a_cond: bits[1], b_cond: bits[1]) -> bits[8] {
 
   auto run_for_traces = [](Function* f, absl::Span<const Value> args)
       -> absl::StatusOr<std::vector<std::string>> {
-    XLS_ASSIGN_OR_RETURN(auto result, InterpretFunctionWithEvents(f, args));
+    XLS_ASSIGN_OR_RETURN(auto result, InterpretFunction(f, args));
     return result.events.trace_msgs;
   };
 
@@ -210,7 +211,7 @@ fn accum_dynamic(trips: bits[8]) -> bits[32] {
 
   Function* accum_fixed = FindFunction("accum_fixed", package.get());
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> accum_fixed_result,
-                           InterpretFunctionWithEvents(accum_fixed, {}));
+                           InterpretFunction(accum_fixed, {}));
 
   Value accum_5_value = Value(UBits(10, 32));
   std::vector<std::string> accum_5_traces = {
@@ -223,26 +224,26 @@ fn accum_dynamic(trips: bits[8]) -> bits[32] {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpreterResult<Value> accum_dynamic_5,
-      InterpretFunctionWithEvents(accum_dynamic, {Value(UBits(5, 8))}));
+      InterpretFunction(accum_dynamic, {Value(UBits(5, 8))}));
   EXPECT_EQ(accum_dynamic_5.value, accum_5_value);
   EXPECT_THAT(accum_dynamic_5.events.trace_msgs,
               ElementsAreArray(accum_5_traces));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpreterResult<Value> accum_dynamic_0,
-      InterpretFunctionWithEvents(accum_dynamic, {Value(UBits(0, 8))}));
+      InterpretFunction(accum_dynamic, {Value(UBits(0, 8))}));
   EXPECT_EQ(accum_dynamic_0.value, Value(UBits(0, 32)));
   EXPECT_THAT(accum_dynamic_0.events.trace_msgs, ElementsAre());
 
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpreterResult<Value> accum_dynamic_1,
-      InterpretFunctionWithEvents(accum_dynamic, {Value(UBits(1, 8))}));
+      InterpretFunction(accum_dynamic, {Value(UBits(1, 8))}));
   EXPECT_EQ(accum_dynamic_1.value, Value(UBits(0, 32)));
   EXPECT_THAT(accum_dynamic_1.events.trace_msgs, ElementsAre("accum is 0"));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpreterResult<Value> accum_dynamic_7,
-      InterpretFunctionWithEvents(accum_dynamic, {Value(UBits(7, 8))}));
+      InterpretFunction(accum_dynamic, {Value(UBits(7, 8))}));
   EXPECT_EQ(accum_dynamic_7.value, Value(UBits(21, 32)));
   EXPECT_THAT(
       accum_dynamic_7.events.trace_msgs,
@@ -277,7 +278,7 @@ fn map_trace() -> bits[32][5]{
   Function* map_trace = FindFunction("map_trace", package.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> map_trace_result,
-                           InterpretFunctionWithEvents(map_trace, {}));
+                           InterpretFunction(map_trace, {}));
 
   XLS_ASSERT_OK_AND_ASSIGN(Value map_trace_expected,
                            Value::UBitsArray({121, 144, 169, 196, 225}, 32));
@@ -305,7 +306,7 @@ TEST_F(IrInterpreterOnlyTest, BothAsserts) {
 
   auto run_for_asserts = [](Function* f, absl::Span<const Value> args)
       -> absl::StatusOr<std::vector<std::string>> {
-    XLS_ASSIGN_OR_RETURN(auto result, InterpretFunctionWithEvents(f, args));
+    XLS_ASSIGN_OR_RETURN(auto result, InterpretFunction(f, args));
     return result.events.assert_msgs;
   };
 

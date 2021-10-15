@@ -122,15 +122,17 @@ fn main(x: bits[4], y: bits[1], z: bits[4]) -> bits[$1] {
     for (int64_t width = 1; width < kInputWidth - start; ++width) {
       XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(gen_fn(start, width)));
       XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->EntryFunction());
-      XLS_ASSERT_OK_AND_ASSIGN(Value expected,
-                               InterpretFunction(entry, {x, y, z}));
+      XLS_ASSERT_OK_AND_ASSIGN(
+          Value expected,
+          DropInterpreterEvents(InterpretFunction(entry, {x, y, z})));
 
       EXPECT_TRUE(entry->return_value()->Is<BitSlice>());
       EXPECT_THAT(Run(entry), IsOkAndHolds(true));
       EXPECT_TRUE(entry->return_value()->Is<Concat>());
 
-      XLS_ASSERT_OK_AND_ASSIGN(Value actual,
-                               InterpretFunction(entry, {x, y, z}));
+      XLS_ASSERT_OK_AND_ASSIGN(
+          Value actual,
+          DropInterpreterEvents(InterpretFunction(entry, {x, y, z})));
       EXPECT_EQ(expected, actual);
     }
   }

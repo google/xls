@@ -45,7 +45,7 @@ class FunctionInterpreter : public IrInterpreter {
 
 }  // namespace
 
-absl::StatusOr<InterpreterResult<Value>> InterpretFunctionWithEvents(
+absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
     Function* function, absl::Span<const Value> args) {
   XLS_VLOG(3) << "Interpreting function " << function->name();
   if (args.size() != function->params().size()) {
@@ -72,15 +72,8 @@ absl::StatusOr<InterpreterResult<Value>> InterpretFunctionWithEvents(
   return InterpreterResult<Value>{std::move(result), std::move(events)};
 }
 
-absl::StatusOr<Value> InterpretFunction(Function* function,
-                                        absl::Span<const Value> args) {
-  XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> result,
-                       InterpretFunctionWithEvents(function, args));
-  return InterpreterResultToStatusOrValue(result);
-}
-
 /* static */
-absl::StatusOr<Value> InterpretFunctionKwargs(
+absl::StatusOr<InterpreterResult<Value>> InterpretFunctionKwargs(
     Function* function, const absl::flat_hash_map<std::string, Value>& args) {
   XLS_VLOG(2) << "Interpreting function " << function->name()
               << " with arguments:";

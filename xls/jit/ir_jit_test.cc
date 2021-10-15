@@ -37,19 +37,28 @@ using status_testing::IsOk;
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 
+// TODO(https://github.com/google/xls/issues/506): 2021-10-12 Replace the empty
+// events returned by the JIT evaluator with a entry point that includes the
+// collected events (once they are supported by the JIT).
 INSTANTIATE_TEST_SUITE_P(
     IrJitTest, IrEvaluatorTestBase,
     testing::Values(IrEvaluatorTestParam(
-        [](Function* function,
-           absl::Span<const Value> args) -> absl::StatusOr<Value> {
+        [](Function* function, absl::Span<const Value> args)
+            -> absl::StatusOr<InterpreterResult<Value>> {
           XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
-          return jit->Run(args);
+          XLS_ASSIGN_OR_RETURN(Value jit_result, jit->Run(args));
+          InterpreterEvents dummy_events;
+          return InterpreterResult<Value>{std::move(jit_result),
+                                          std::move(dummy_events)};
         },
         [](Function* function,
            const absl::flat_hash_map<std::string, Value>& kwargs)
-            -> absl::StatusOr<Value> {
+            -> absl::StatusOr<InterpreterResult<Value>> {
           XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
-          return jit->Run(kwargs);
+          XLS_ASSIGN_OR_RETURN(Value jit_result, jit->Run(kwargs));
+          InterpreterEvents dummy_events;
+          return InterpreterResult<Value>{std::move(jit_result),
+                                          std::move(dummy_events)};
         })));
 
 // This test verifies that a compiled JIT function can be re-used.

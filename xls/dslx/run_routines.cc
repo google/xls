@@ -95,7 +95,10 @@ absl::Status RunComparator::RunComparison(
       break;
     }
     case CompareMode::kInterpreter: {
-      XLS_ASSIGN_OR_RETURN(ir_result, InterpretFunction(ir_function, ir_args));
+      // TODO(https://github.com/google/xls/issues/506): Also compare events
+      // once the DSLX interpreter and the JIT also support events.
+      XLS_ASSIGN_OR_RETURN(ir_result, DropInterpreterEvents(InterpretFunction(
+                                          ir_function, ir_args)));
       mode_str = "interpreter";
       break;
     }

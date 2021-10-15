@@ -304,7 +304,7 @@ absl::Status RunZeroExtendTest(const IrEvaluatorTestParam& param,
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_ir));
   XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
 
-  EXPECT_THAT(param.evaluator(function, /*args=*/{}),
+  EXPECT_THAT(DropInterpreterEvents(param.evaluator(function, /*args=*/{})),
               IsOkAndHolds(Value(UBits(3, output_size))));
 
   return absl::OkStatus();
@@ -332,7 +332,8 @@ absl::Status RunSignExtendTest(const IrEvaluatorTestParam& param,
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_text));
   XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
   Value expected(bits_ops::SignExtend(input, new_bit_count));
-  EXPECT_THAT(param.evaluator(function, {}), IsOkAndHolds(expected));
+  EXPECT_THAT(DropInterpreterEvents(param.evaluator(function, {})),
+              IsOkAndHolds(expected));
   return absl::OkStatus();
 }
 
@@ -388,18 +389,15 @@ TEST_P(IrEvaluatorTestBase, InterpretEq) {
 
   // a > b
   args = {{"a", Value(UBits(4, 32))}, {"b", Value(UBits(1, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 1))));
 
   // a < b
   args = {{"a", Value(UBits(1, 32))}, {"b", Value(UBits(4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 1))));
 
   // a ==  b
   args = {{"a", Value(UBits(4, 32))}, {"b", Value(UBits(4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 1))));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretULt) {
@@ -415,18 +413,15 @@ TEST_P(IrEvaluatorTestBase, InterpretULt) {
 
   // a > b
   args = {{"a", Value(UBits(4, 32))}, {"b", Value(UBits(1, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 1))));
 
   // a < b
   args = {{"a", Value(UBits(1, 32))}, {"b", Value(UBits(4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 1))));
 
   // a ==  b
   args = {{"a", Value(UBits(4, 32))}, {"b", Value(UBits(4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 1))));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretULe) {
@@ -442,18 +437,15 @@ TEST_P(IrEvaluatorTestBase, InterpretULe) {
 
   // a > b
   args = {{"a", Value(UBits(4, 32))}, {"b", Value(UBits(1, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 1))));
 
   // a < b
   args = {{"a", Value(UBits(1, 32))}, {"b", Value(UBits(4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 1))));
 
   // a ==  b
   args = {{"a", Value(UBits(4, 32))}, {"b", Value(UBits(4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 1))));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretUGt) {
@@ -469,18 +461,15 @@ TEST_P(IrEvaluatorTestBase, InterpretUGt) {
 
   // a > b
   args = {{"a", Value(UBits(4, 32))}, {"b", Value(UBits(1, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 1))));
 
   // a < b
   args = {{"a", Value(UBits(1, 32))}, {"b", Value(UBits(4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 1))));
 
   // a ==  b
   args = {{"a", Value(UBits(4, 32))}, {"b", Value(UBits(4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 1))));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretUGe) {
@@ -496,18 +485,15 @@ TEST_P(IrEvaluatorTestBase, InterpretUGe) {
 
   // a > b
   args = {{"a", Value(UBits(4, 32))}, {"b", Value(UBits(1, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 1))));
 
   // a < b
   args = {{"a", Value(UBits(1, 32))}, {"b", Value(UBits(4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 1))));
 
   // a ==  b
   args = {{"a", Value(UBits(4, 32))}, {"b", Value(UBits(4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 1))));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretSLt) {
@@ -523,18 +509,15 @@ TEST_P(IrEvaluatorTestBase, InterpretSLt) {
 
   // a > b
   args = {{"a", Value(SBits(4, 32))}, {"b", Value(SBits(1, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 1))));
 
   // a < b
   args = {{"a", Value(SBits(-1, 32))}, {"b", Value(SBits(4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 1))));
 
   // a ==  b
   args = {{"a", Value(SBits(-4, 32))}, {"b", Value(SBits(-4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 1))));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretSLe) {
@@ -550,18 +533,15 @@ TEST_P(IrEvaluatorTestBase, InterpretSLe) {
 
   // a > b
   args = {{"a", Value(SBits(-1, 32))}, {"b", Value(SBits(-4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 1))));
 
   // a < b
   args = {{"a", Value(SBits(-1, 32))}, {"b", Value(SBits(4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 1))));
 
   // a ==  b
   args = {{"a", Value(SBits(4, 32))}, {"b", Value(SBits(4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 1))));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretSGt) {
@@ -577,18 +557,15 @@ TEST_P(IrEvaluatorTestBase, InterpretSGt) {
 
   // a > b
   args = {{"a", Value(SBits(-123, 32))}, {"b", Value(SBits(-442, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 1))));
 
   // a < b
   args = {{"a", Value(SBits(-1, 32))}, {"b", Value(SBits(400, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 1))));
 
   // a ==  b
   args = {{"a", Value(SBits(4, 32))}, {"b", Value(SBits(4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 1))));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretSGe) {
@@ -604,18 +581,15 @@ TEST_P(IrEvaluatorTestBase, InterpretSGe) {
 
   // a > b
   args = {{"a", Value(SBits(4, 32))}, {"b", Value(SBits(-1, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 1))));
 
   // a < b
   args = {{"a", Value(SBits(-10, 32))}, {"b", Value(SBits(4, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 1))));
 
   // a ==  b
   args = {{"a", Value(SBits(400, 32))}, {"b", Value(SBits(400, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 1))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 1))));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretTwoMulThree) {
@@ -793,17 +767,15 @@ TEST_P(IrEvaluatorTestBase, InterpretUDiv) {
   absl::flat_hash_map<std::string, Value> args;
 
   args = {{"a", Value(UBits(33, 8))}, {"b", Value(UBits(11, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(3, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(3, 8))));
 
   // Should round to zero.
   args = {{"a", Value(UBits(4, 8))}, {"b", Value(UBits(3, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 8))));
 
   // Divide by zero.
   args = {{"a", Value(UBits(123, 8))}, {"b", Value(UBits(0, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(Value(UBits(0xff, 8))));
 }
 
@@ -819,17 +791,14 @@ TEST_P(IrEvaluatorTestBase, InterpretUMod) {
   absl::flat_hash_map<std::string, Value> args;
 
   args = {{"a", Value(UBits(33, 8))}, {"b", Value(UBits(11, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 8))));
 
   args = {{"a", Value(UBits(42, 8))}, {"b", Value(UBits(5, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(2, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(2, 8))));
 
   // Modulo by zero.
   args = {{"a", Value(UBits(123, 8))}, {"b", Value(UBits(0, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 8))));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretSDiv) {
@@ -844,23 +813,20 @@ TEST_P(IrEvaluatorTestBase, InterpretSDiv) {
   absl::flat_hash_map<std::string, Value> args;
 
   args = {{"a", Value(SBits(33, 8))}, {"b", Value(SBits(-11, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(SBits(-3, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(SBits(-3, 8))));
 
   // Should round to zero.
   args = {{"a", Value(SBits(4, 8))}, {"b", Value(SBits(3, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(SBits(1, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(SBits(1, 8))));
   args = {{"a", Value(SBits(4, 8))}, {"b", Value(SBits(-3, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(SBits(-1, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(SBits(-1, 8))));
 
   // Divide by zero.
   args = {{"a", Value(SBits(123, 8))}, {"b", Value(SBits(0, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(Value(SBits(127, 8))));
   args = {{"a", Value(SBits(-10, 8))}, {"b", Value(SBits(0, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(Value(SBits(-128, 8))));
 }
 
@@ -876,29 +842,22 @@ TEST_P(IrEvaluatorTestBase, InterpretSMod) {
   absl::flat_hash_map<std::string, Value> args;
 
   args = {{"a", Value(SBits(33, 8))}, {"b", Value(SBits(-11, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(SBits(0, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(SBits(0, 8))));
 
   args = {{"a", Value(SBits(4, 8))}, {"b", Value(SBits(3, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(SBits(1, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(SBits(1, 8))));
   args = {{"a", Value(SBits(4, 8))}, {"b", Value(SBits(-3, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(SBits(1, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(SBits(1, 8))));
   args = {{"a", Value(SBits(-4, 8))}, {"b", Value(SBits(3, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(SBits(-1, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(SBits(-1, 8))));
   args = {{"a", Value(SBits(-4, 8))}, {"b", Value(SBits(-3, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(SBits(-1, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(SBits(-1, 8))));
 
   // Modulus by zero.
   args = {{"a", Value(SBits(123, 8))}, {"b", Value(SBits(0, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(SBits(0, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(SBits(0, 8))));
   args = {{"a", Value(SBits(-10, 8))}, {"b", Value(SBits(0, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(SBits(0, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(SBits(0, 8))));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretShll) {
@@ -913,26 +872,22 @@ TEST_P(IrEvaluatorTestBase, InterpretShll) {
   absl::flat_hash_map<std::string, Value> args;
 
   args = {{"a", Value(UBits(4, 8))}, {"b", Value(UBits(3, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(32, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(32, 8))));
 
   // No shift.
   args = {{"a", Value(UBits(4, 8))}, {"b", Value(UBits(0, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(4, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(4, 8))));
 
   // Max shift amount, does not wrap.
   args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(7, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(Value(UBits(0b10000000, 8))));
 
   // Overshift.
   args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(8, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 8))));
   args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(128, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 8))));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretShllNarrowShiftAmount) {
@@ -947,17 +902,15 @@ TEST_P(IrEvaluatorTestBase, InterpretShllNarrowShiftAmount) {
   absl::flat_hash_map<std::string, Value> args;
 
   args = {{"a", Value(UBits(4, 8))}, {"b", Value(UBits(3, 3))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(32, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(32, 8))));
 
   // No shift.
   args = {{"a", Value(UBits(4, 8))}, {"b", Value(UBits(0, 3))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(4, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(4, 8))));
 
   // Max shift amount, does not wrap.
   args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(7, 3))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(Value(UBits(0b10000000, 8))));
 }
 
@@ -972,8 +925,7 @@ TEST_P(IrEvaluatorTestBase, InterpretShll64) {
 
   absl::flat_hash_map<std::string, Value> args = {{"a", Value(UBits(1, 64))},
                                                   {"b", Value(UBits(63, 64))}};
-  XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GetParam().kwargs_evaluator(function, args));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, RunWithKwargs(function, args));
   EXPECT_EQ(result.bits(), UBits(0x8000000000000000, 64));
 }
 
@@ -989,26 +941,22 @@ TEST_P(IrEvaluatorTestBase, InterpretShrl) {
   absl::flat_hash_map<std::string, Value> args;
 
   args = {{"a", Value(UBits(0b00000100, 8))}, {"b", Value(UBits(2, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 8))));
 
   // No shift.
   args = {{"a", Value(UBits(0b00000100, 8))}, {"b", Value(UBits(0, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(4, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(4, 8))));
 
   // Max shift amount, does not wrap.
   args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(7, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(Value(UBits(0b00000001, 8))));
 
   // Overshift.
   args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(8, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 8))));
   args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(200, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 8))));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretShrlBits64) {
@@ -1023,8 +971,7 @@ TEST_P(IrEvaluatorTestBase, InterpretShrlBits64) {
   // Max shift amount is bit_count() - 1; should be one bit left over.
   absl::flat_hash_map<std::string, Value> args = {{"a", Value(SBits(-1, 64))},
                                                   {"b", Value(UBits(63, 64))}};
-  XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GetParam().kwargs_evaluator(function, args));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, RunWithKwargs(function, args));
   EXPECT_EQ(result.bits(), UBits(1, 64));
 }
 
@@ -1041,31 +988,28 @@ TEST_P(IrEvaluatorTestBase, InterpretShra) {
 
   // Zero padding from left.
   args = {{"a", Value(UBits(0b00000100, 8))}, {"b", Value(UBits(2, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 8))));
 
   // Ones padding from left.
   args = {{"a", Value(UBits(0b10000100, 8))}, {"b", Value(UBits(2, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(Value(UBits(0b11100001, 8))));
 
   // No shift.
   args = {{"a", Value(UBits(4, 8))}, {"b", Value(UBits(0, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(4, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(4, 8))));
 
   // Max shift amount, does not wrap.
   args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(7, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(Value(UBits(0b11111111, 8))));
 
   // Overshift.
   args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(100, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(Value(UBits(0b11111111, 8))));
   args = {{"a", Value(UBits(0b01111111, 8))}, {"b", Value(UBits(100, 8))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(0, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(0, 8))));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretShraNarrowShiftAmount) {
@@ -1081,22 +1025,20 @@ TEST_P(IrEvaluatorTestBase, InterpretShraNarrowShiftAmount) {
 
   // Zero padding from left.
   args = {{"a", Value(UBits(0b00000100, 8))}, {"b", Value(UBits(2, 2))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(1, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(1, 8))));
 
   // Ones padding from left.
   args = {{"a", Value(UBits(0b10000100, 8))}, {"b", Value(UBits(2, 2))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(Value(UBits(0b11100001, 8))));
 
   // No shift.
   args = {{"a", Value(UBits(4, 8))}, {"b", Value(UBits(0, 2))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(4, 8))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(4, 8))));
 
   // Max shift amount, does not wrap.
   args = {{"a", Value(UBits(0b11111111, 8))}, {"b", Value(UBits(3, 2))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(Value(UBits(0b11111111, 8))));
 }
 
@@ -1112,13 +1054,12 @@ TEST_P(IrEvaluatorTestBase, InterpretShraBits64) {
   // Max shift amount is bit_count() - 1; should be all one's after shift.
   absl::flat_hash_map<std::string, Value> args = {{"a", Value(SBits(-1, 64))},
                                                   {"b", Value(UBits(63, 64))}};
-  XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GetParam().kwargs_evaluator(function, args));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, RunWithKwargs(function, args));
   EXPECT_EQ(result.bits(), SBits(-1, 64));
 
   args = {{"a", Value(UBits(0xF000000000000000ULL, 64))},
           {"b", Value(UBits(4, 64))}};
-  XLS_ASSERT_OK_AND_ASSIGN(result, GetParam().kwargs_evaluator(function, args));
+  XLS_ASSERT_OK_AND_ASSIGN(result, RunWithKwargs(function, args));
   EXPECT_EQ(result.bits(), UBits(0xFF00000000000000ULL, 64));
 }
 
@@ -1133,8 +1074,7 @@ TEST_P(IrEvaluatorTestBase, InterpretFourSubOne) {
 
   absl::flat_hash_map<std::string, Value> args = {{"a", Value(UBits(4, 32))},
                                                   {"b", Value(UBits(1, 32))}};
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value(UBits(3, 32))));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value(UBits(3, 32))));
 }
 
 absl::Status RunConcatTest(const IrEvaluatorTestParam& param,
@@ -1160,7 +1100,8 @@ absl::Status RunConcatTest(const IrEvaluatorTestParam& param,
   XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
 
   Value expected(bits_ops::Concat({a.bits(), b.bits()}));
-  EXPECT_THAT(param.kwargs_evaluator(function, kwargs), IsOkAndHolds(expected));
+  EXPECT_THAT(DropInterpreterEvents(param.kwargs_evaluator(function, kwargs)),
+              IsOkAndHolds(expected));
   return absl::OkStatus();
 }
 
@@ -1318,16 +1259,16 @@ TEST_P(IrEvaluatorTestBase, InterpretOneHotSelectNestedTuple) {
       {"y", AsValue("(bits[3]:0b001, (bits[8]:0b00001111))")}};
 
   args["p"] = AsValue("bits[2]: 0b00");
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(AsValue("(bits[3]:0b000, (bits[8]:0b00000000))")));
   args["p"] = AsValue("bits[2]: 0b01");
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(AsValue("(bits[3]:0b101, (bits[8]:0b11001100))")));
   args["p"] = AsValue("bits[2]: 0b10");
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(AsValue("(bits[3]:0b001, (bits[8]:0b00001111))")));
   args["p"] = AsValue("bits[2]: 0b11");
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(AsValue("(bits[3]:0b101, (bits[8]:0b11001111))")));
 }
 
@@ -1344,19 +1285,19 @@ TEST_P(IrEvaluatorTestBase, InterpretOneHotSelectArray) {
       {"y", AsValue("[bits[4]:0b1100, bits[4]:0b0101, bits[4]:0b1110]")}};
 
   args["p"] = AsValue("bits[2]: 0b00");
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(
                   AsValue("[bits[4]:0b0000, bits[4]:0b0000, bits[4]:0b0000]")));
   args["p"] = AsValue("bits[2]: 0b01");
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(
                   AsValue("[bits[4]:0b0001, bits[4]:0b0010, bits[4]:0b0100]")));
   args["p"] = AsValue("bits[2]: 0b10");
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(
                   AsValue("[bits[4]:0b1100, bits[4]:0b0101, bits[4]:0b1110]")));
   args["p"] = AsValue("bits[2]: 0b11");
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(
                   AsValue("[bits[4]:0b1101, bits[4]:0b0111, bits[4]:0b1110]")));
 }
@@ -1374,11 +1315,11 @@ TEST_P(IrEvaluatorTestBase, InterpretBinarySel) {
       {"if_true", Value(UBits(0xA, 8))}, {"if_false", Value(UBits(0xB, 8))}};
 
   args["cond"] = Value(UBits(1, 1));
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(Value(UBits(0xA, 8))));
 
   args["cond"] = Value(UBits(0, 1));
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(Value(UBits(0xB, 8))));
 }
 
@@ -1421,17 +1362,13 @@ TEST_P(IrEvaluatorTestBase, Interpret4WaySel) {
   absl::flat_hash_map<std::string, Value> args = {
       {"w", u8(0xa)}, {"x", u8(0xb)}, {"y", u8(0xc)}, {"z", u8(0xd)}};
   args["p"] = u2(0);
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(u8(0xa)));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(u8(0xa)));
   args["p"] = u2(1);
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(u8(0xb)));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(u8(0xb)));
   args["p"] = u2(2);
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(u8(0xc)));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(u8(0xc)));
   args["p"] = u2(3);
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(u8(0xd)));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(u8(0xd)));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretManyWaySelWithDefault) {
@@ -1449,23 +1386,18 @@ TEST_P(IrEvaluatorTestBase, InterpretManyWaySelWithDefault) {
   absl::flat_hash_map<std::string, Value> args = {
       {"w", u32(0xa)}, {"x", u32(0xb)}, {"y", u32(0xc)}};
   args["p"] = u1024(0);
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(u32(0xa)));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(u32(0xa)));
   args["p"] = u1024(1);
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(u32(0xb)));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(u32(0xb)));
   args["p"] = u1024(2);
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(u32(0xc)));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(u32(0xc)));
   args["p"] = u1024(3);
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(u32(0xdefa17)));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(u32(0xdefa17)));
   XLS_ASSERT_OK_AND_ASSIGN(
       args["p"],
       Parser::ParseTypedValue(
           "bits[1024]:0xabcd_1111_cccc_1234_ffff_eeee_3333_7777_0000_9876"));
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(u32(0xdefa17)));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(u32(0xdefa17)));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretMap) {
@@ -1561,7 +1493,8 @@ absl::Status RunReverseTest(const IrEvaluatorTestParam& param,
   XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
 
   Value expected(bits_ops::Reverse(bits));
-  EXPECT_THAT(param.evaluator(function, {Value(bits)}), IsOkAndHolds(expected));
+  EXPECT_THAT(DropInterpreterEvents(param.evaluator(function, {Value(bits)})),
+              IsOkAndHolds(expected));
 
   return absl::OkStatus();
 }
@@ -1839,12 +1772,11 @@ TEST_P(IrEvaluatorTestBase, InterpretTuple) {
 
   absl::flat_hash_map<std::string, Value> args = {{"x", Value(UBits(4, 32))}};
 
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
-              IsOkAndHolds(Value::Tuple({
-                  Value(UBits(4, 32)),
-                  Value(UBits(4, 64)),
-                  Value(UBits(4, 128)),
-              })));
+  EXPECT_THAT(RunWithKwargs(function, args), IsOkAndHolds(Value::Tuple({
+                                                 Value(UBits(4, 32)),
+                                                 Value(UBits(4, 64)),
+                                                 Value(UBits(4, 128)),
+                                             })));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretTupleLiteral) {
@@ -2064,25 +1996,22 @@ TEST_P(IrEvaluatorTestBase, InterpretArrayUpdateInBounds) {
   )"));
 
   // Index 0
-  EXPECT_THAT(GetParam().kwargs_evaluator(
-                  function,
-                  /*args=*/{{"array", make_array({1, 2, 3})},
-                            {"idx", Value(UBits(0, 32))},
-                            {"new_value", Value(UBits(99, 32))}}),
+  EXPECT_THAT(RunWithKwargs(function,
+                            /*args=*/{{"array", make_array({1, 2, 3})},
+                                      {"idx", Value(UBits(0, 32))},
+                                      {"new_value", Value(UBits(99, 32))}}),
               IsOkAndHolds(make_array({99, 2, 3})));
   // Index 1
-  EXPECT_THAT(GetParam().kwargs_evaluator(
-                  function,
-                  /*args=*/{{"array", make_array({1, 2, 3})},
-                            {"idx", Value(UBits(1, 32))},
-                            {"new_value", Value(UBits(99, 32))}}),
+  EXPECT_THAT(RunWithKwargs(function,
+                            /*args=*/{{"array", make_array({1, 2, 3})},
+                                      {"idx", Value(UBits(1, 32))},
+                                      {"new_value", Value(UBits(99, 32))}}),
               IsOkAndHolds(make_array({1, 99, 3})));
   // Index 2
-  EXPECT_THAT(GetParam().kwargs_evaluator(
-                  function,
-                  /*args=*/{{"array", make_array({1, 2, 3})},
-                            {"idx", Value(UBits(2, 32))},
-                            {"new_value", Value(UBits(99, 32))}}),
+  EXPECT_THAT(RunWithKwargs(function,
+                            /*args=*/{{"array", make_array({1, 2, 3})},
+                                      {"idx", Value(UBits(2, 32))},
+                                      {"new_value", Value(UBits(99, 32))}}),
               IsOkAndHolds(make_array({1, 2, 99})));
 }
 
@@ -2264,8 +2193,8 @@ TEST_P(IrEvaluatorTestBase, InterpretArrayUpdateWideIndexInbounds) {
                                                   Value(UBits(3, 32)),
                                               }));
   Value index = Value(UBits(1, 1000));
-  EXPECT_THAT(GetParam().kwargs_evaluator(function,
-                                          /*args=*/{{"index", index}}),
+  EXPECT_THAT(RunWithKwargs(function,
+                            /*args=*/{{"index", index}}),
               IsOkAndHolds(array_value));
 }
 
@@ -2286,8 +2215,8 @@ TEST_P(IrEvaluatorTestBase, InterpretArrayUpdateWideIndexOutOfBounds) {
                                                   Value(UBits(3, 32)),
                                               }));
   Value index = Value(Bits::PowerOfTwo(900, 1000));
-  EXPECT_THAT(GetParam().kwargs_evaluator(function,
-                                          /*args=*/{{"index", index}}),
+  EXPECT_THAT(RunWithKwargs(function,
+                            /*args=*/{{"index", index}}),
               IsOkAndHolds(array_value));
 }
 
@@ -2306,8 +2235,8 @@ TEST_P(IrEvaluatorTestBase, InterpretArrayConcatArraysOfBits) {
   XLS_ASSERT_OK_AND_ASSIGN(Value ret,
                            Value::UBitsArray({1, 2, 3, 4, 5, 1, 2}, 32));
 
-  EXPECT_THAT(GetParam().kwargs_evaluator(function,
-                                          /*args=*/{{"a0", a0}, {"a1", a1}}),
+  EXPECT_THAT(RunWithKwargs(function,
+                            /*args=*/{{"a0", a0}, {"a1", a1}}),
               IsOkAndHolds(ret));
 }
 
@@ -2329,9 +2258,8 @@ TEST_P(IrEvaluatorTestBase, InterpretArrayConcatArraysOfBitsMixedOperands) {
   XLS_ASSERT_OK_AND_ASSIGN(Value ret,
                            Value::SBitsArray({1, 2, -1, -1, 3, 4, 5}, 32));
 
-  EXPECT_THAT(GetParam().kwargs_evaluator(
-                  function,
-                  /*args=*/{{"a0", a0}, {"a1", a1}, {"a2", a2}}),
+  EXPECT_THAT(RunWithKwargs(function,
+                            /*args=*/{{"a0", a0}, {"a1", a1}, {"a2", a2}}),
               IsOkAndHolds(ret));
 }
 
@@ -2424,7 +2352,7 @@ TEST_P(IrEvaluatorTestBase, WideAdd) {
       {"a", Value(UBits(42, 128))}, {"b", Value(UBits(123, 128))}};
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
-  EXPECT_THAT(GetParam().kwargs_evaluator(function, args),
+  EXPECT_THAT(RunWithKwargs(function, args),
               IsOkAndHolds(Value(UBits(165, 128))));
 }
 
@@ -2439,8 +2367,7 @@ TEST_P(IrEvaluatorTestBase, WideNegate) {
   absl::flat_hash_map<std::string, Value> args = {
       {"a", Value(UBits(0x42, 128))}};
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
-  XLS_ASSERT_OK_AND_ASSIGN(Value result,
-                           GetParam().kwargs_evaluator(function, args));
+  XLS_ASSERT_OK_AND_ASSIGN(Value result, RunWithKwargs(function, args));
   EXPECT_EQ(result.bits().ToString(FormatPreference::kHex),
             "0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffbe");
 }
@@ -2464,8 +2391,7 @@ TEST_P(IrEvaluatorTestBase, WideLogicOperator) {
                                     UBits(0x5a5a5a5aa5a5a5a5ULL, 64)}))}};
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
-  XLS_ASSERT_OK_AND_ASSIGN(Value result,
-                           GetParam().kwargs_evaluator(function, args));
+  XLS_ASSERT_OK_AND_ASSIGN(Value result, RunWithKwargs(function, args));
   EXPECT_EQ(result.bits().ToString(FormatPreference::kHex),
             "0xd1a2_b1e0_0e1b_2a1d_b791_f3dd_dd3f_197b");
 }
@@ -2484,8 +2410,7 @@ TEST_P(IrEvaluatorTestBase, OptimizedParamReturn) {
   };
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
-  XLS_ASSERT_OK_AND_ASSIGN(Value result,
-                           GetParam().kwargs_evaluator(function, args));
+  XLS_ASSERT_OK_AND_ASSIGN(Value result, RunWithKwargs(function, args));
   EXPECT_EQ(result.bits().ToString(FormatPreference::kBinary), "0b1");
 }
 
@@ -2531,10 +2456,9 @@ TEST_P(IrEvaluatorTestBase, AfterAllTokenArgs) {
   }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
-  EXPECT_THAT(
-      GetParam().kwargs_evaluator(
-          function, /*args=*/{{"t1", Value::Token()}, {"t2", Value::Token()}}),
-      IsOkAndHolds(Value::Token()));
+  EXPECT_THAT(RunWithKwargs(function, /*args=*/{{"t1", Value::Token()},
+                                                {"t2", Value::Token()}}),
+              IsOkAndHolds(Value::Token()));
 }
 
 TEST_P(IrEvaluatorTestBase, ArrayOperation) {
@@ -2547,8 +2471,7 @@ TEST_P(IrEvaluatorTestBase, ArrayOperation) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
   XLS_ASSERT_OK_AND_ASSIGN(
-      Value result,
-      GetParam().kwargs_evaluator(function, {{"x0", Value(UBits(34, 16))},
+      Value result, RunWithKwargs(function, {{"x0", Value(UBits(34, 16))},
                                              {"x1", Value(UBits(56, 16))}}));
   EXPECT_EQ(result,
             Value::ArrayOrDie({Value(UBits(34, 16)), Value(UBits(56, 16))}));
@@ -2669,7 +2592,8 @@ absl::Status RunBitSliceTest(const IrEvaluatorTestParam& param,
 
   Value expected(
       Bits::FromBytes(bytes, literal_width).Slice(slice_start, slice_width));
-  EXPECT_THAT(param.evaluator(function, {}), IsOkAndHolds(expected));
+  EXPECT_THAT(DropInterpreterEvents(param.evaluator(function, {})),
+              IsOkAndHolds(expected));
 
   return absl::OkStatus();
 }
@@ -2723,7 +2647,8 @@ absl::Status RunDynamicBitSliceTest(const IrEvaluatorTestParam& param,
     Bits truncated = shifted.Slice(0, slice_width);
     expected = Value(truncated);
   }
-  EXPECT_THAT(param.evaluator(function, {}), IsOkAndHolds(expected));
+  EXPECT_THAT(DropInterpreterEvents(param.evaluator(function, {})),
+              IsOkAndHolds(expected));
 
   return absl::OkStatus();
 }
@@ -2768,7 +2693,8 @@ absl::Status RunDynamicBitSliceTestLargeStart(const IrEvaluatorTestParam& param,
 
   // Clearly out of bounds
   Value expected = Value(Bits(slice_width));
-  EXPECT_THAT(param.evaluator(function, {}), IsOkAndHolds(expected));
+  EXPECT_THAT(DropInterpreterEvents(param.evaluator(function, {})),
+              IsOkAndHolds(expected));
 
   return absl::OkStatus();
 }
@@ -2817,7 +2743,7 @@ absl::Status RunBitwiseReduceTest(
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_ir));
   XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
 
-  EXPECT_THAT(param.evaluator(function, {Value(bits)}),
+  EXPECT_THAT(DropInterpreterEvents(param.evaluator(function, {Value(bits)})),
               IsOkAndHolds(generate_expected(bits)));
   return absl::OkStatus();
 }

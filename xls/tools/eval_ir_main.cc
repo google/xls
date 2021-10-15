@@ -183,7 +183,10 @@ absl::StatusOr<std::vector<Value>> Eval(
                                          FLAGS_test_only_inject_jit_result)));
       }
     } else {
-      XLS_ASSIGN_OR_RETURN(result, InterpretFunction(f, arg_set.args));
+      // TODO(https://github.com/google/xls/issues/506): 2021-10-12 Also compare
+      // resulting events once the JIT supports events.
+      XLS_ASSIGN_OR_RETURN(
+          result, DropInterpreterEvents(InterpretFunction(f, arg_set.args)));
     }
     std::cout << result.ToString(FormatPreference::kHex) << std::endl;
 
@@ -342,8 +345,8 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertValidator(
 
 // Runs the validator to confirm that the args set is compatible.
 absl::StatusOr<bool> ValidateInput(Function* validator, const ArgSet& arg_set) {
-  XLS_ASSIGN_OR_RETURN(Value result,
-                       InterpretFunction(validator, arg_set.args));
+  XLS_ASSIGN_OR_RETURN(Value result, DropInterpreterEvents(InterpretFunction(
+                                         validator, arg_set.args)));
   XLS_ASSIGN_OR_RETURN(Bits bits, result.GetBitsWithStatus());
   XLS_RET_CHECK_EQ(bits.bit_count(), 1);
   return bits.IsOne();

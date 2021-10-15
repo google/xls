@@ -23,6 +23,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/events.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
@@ -35,14 +36,15 @@ namespace xls {
 struct IrEvaluatorTestParam {
   // Function to perform evaluation of the specified program with the given
   // [positional] args.
-  using EvaluatorFnT = std::function<absl::StatusOr<Value>(
+  using EvaluatorFnT = std::function<absl::StatusOr<InterpreterResult<Value>>(
       Function* function, absl::Span<const Value> args)>;
 
   // Function to perform evaluation of the specified program with the given
   // keyword args.
-  using KwargsEvaluatorFnT = std::function<absl::StatusOr<Value>(
-      Function* function,
-      const absl::flat_hash_map<std::string, Value>& kwargs)>;
+  using KwargsEvaluatorFnT =
+      std::function<absl::StatusOr<InterpreterResult<Value>>(
+          Function* function,
+          const absl::flat_hash_map<std::string, Value>& kwargs)>;
 
   IrEvaluatorTestParam(EvaluatorFnT evaluator_in,
                        KwargsEvaluatorFnT kwargs_evaluator_in)
@@ -83,14 +85,15 @@ class IrEvaluatorTestBase
   )");
   }
 
-  // Runs the given function with Values as input.
+  // Runs the given function with Values as input, dropping interpreter events.
   absl::StatusOr<Value> RunWithValues(Function* f,
                                       absl::Span<const Value> args) {
-    return GetParam().evaluator(f, args);
+    return DropInterpreterEvents(GetParam().evaluator(f, args));
   }
 
-  // Runs the given function with uint64s as input. Converts to/from Values
-  // under the hood. All arguments and result must be bits-typed.
+  // Runs the given function with uint64s as input, dropping interpreter events.
+  // Converts to/from Values under the hood. All arguments and result must be
+  // bits-typed.
   absl::StatusOr<uint64_t> RunWithUint64s(Function* f,
                                           absl::Span<const uint64_t> args) {
     std::vector<Value> value_args;
@@ -98,8 +101,9 @@ class IrEvaluatorTestBase
       XLS_RET_CHECK(f->param(i)->GetType()->IsBits());
       value_args.push_back(Value(UBits(args[i], f->param(i)->BitCountOrDie())));
     }
-    XLS_ASSIGN_OR_RETURN(Value value_result,
-                         GetParam().evaluator(f, value_args));
+    XLS_ASSIGN_OR_RETURN(
+        Value value_result,
+        DropInterpreterEvents(GetParam().evaluator(f, value_args)));
     XLS_RET_CHECK(value_result.IsBits());
     return value_result.bits().ToUint64();
   }
@@ -111,10 +115,19 @@ class IrEvaluatorTestBase
     for (int64_t i = 0; i < args.size(); ++i) {
       value_args.push_back(Value(args[i]));
     }
-    XLS_ASSIGN_OR_RETURN(Value value_result,
-                         GetParam().evaluator(f, value_args));
+    XLS_ASSIGN_OR_RETURN(
+        Value value_result,
+        DropInterpreterEvents(GetParam().evaluator(f, value_args)));
     XLS_RET_CHECK(value_result.IsBits());
     return value_result.bits();
+  }
+
+  // Runs the given function with keyword arguments as input, dropping any
+  // result interpreter events.
+  absl::StatusOr<Value> RunWithKwargs(
+      Function* function,
+      const absl::flat_hash_map<std::string, Value>& kwargs) {
+    return DropInterpreterEvents(GetParam().kwargs_evaluator(function, kwargs));
   }
 };
 

@@ -79,7 +79,10 @@ absl::Status RealMain(absl::string_view ir_path,
       XLS_ASSIGN_OR_RETURN(jit_result, Parser::ParseTypedValue(absl::GetFlag(
                                            FLAGS_test_only_inject_jit_result)));
     }
-    XLS_ASSIGN_OR_RETURN(Value interpreter_result, InterpretFunction(f, args));
+    // TODO(https://github.com/google/xls/issues/506): 2021-10-12 Also compare
+    // events once the JIT supports events.
+    XLS_ASSIGN_OR_RETURN(Value interpreter_result,
+                         DropInterpreterEvents(InterpretFunction(f, args)));
     if (jit_result != interpreter_result) {
       std::cout << absl::StrJoin(
           args, "; ", [](std::string* s, const Value& v) {

@@ -25,6 +25,13 @@ namespace xls {
 struct InterpreterEvents {
   std::vector<std::string> trace_msgs;
   std::vector<std::string> assert_msgs;
+
+  bool operator==(const InterpreterEvents& other) const {
+    return trace_msgs == other.trace_msgs && assert_msgs == other.assert_msgs;
+  }
+  bool operator!=(const InterpreterEvents& other) const {
+    return !(*this == other);
+  }
 };
 // Convert an InterpreterEvents structure into a result status, returning
 // a failure when an assertion has been raised.
@@ -35,6 +42,8 @@ struct InterpreterResult {
   InterpreterEvents events;
 };
 
+// Convert an interpreter result to a status or a value depending on whether
+// any assertion has failed.
 template <typename ValueT>
 absl::StatusOr<ValueT> InterpreterResultToStatusOrValue(
     InterpreterResult<ValueT> result) {
@@ -45,6 +54,18 @@ absl::StatusOr<ValueT> InterpreterResultToStatusOrValue(
   }
 
   return result.value;
+}
+
+// Convert an interpreter result or error to a value or error by dropping
+// interpreter events and including assertion failures as errors.
+template <typename ValueT>
+absl::StatusOr<ValueT> DropInterpreterEvents(
+    absl::StatusOr<InterpreterResult<ValueT>> result) {
+  if (!result.ok()) {
+    return result.status();
+  }
+
+  return InterpreterResultToStatusOrValue(result.value());
 }
 
 }  // namespace xls

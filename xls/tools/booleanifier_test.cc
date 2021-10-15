@@ -63,10 +63,12 @@ TEST_F(BooleanifierTest, Crc32) {
   // CRC32 main takes an 8b message.
   for (int i = 0; i < 256; i++) {
     std::vector<Value> inputs({Value(UBits(i, 8))});
-    XLS_ASSERT_OK_AND_ASSIGN(Value fancy_value,
-                             InterpretFunction(fd.source, inputs));
-    XLS_ASSERT_OK_AND_ASSIGN(Value basic_value,
-                             InterpretFunction(fd.boolified, inputs));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Value fancy_value,
+        DropInterpreterEvents(InterpretFunction(fd.source, inputs)));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Value basic_value,
+        DropInterpreterEvents(InterpretFunction(fd.boolified, inputs)));
     ASSERT_EQ(fancy_value, basic_value);
   }
 }

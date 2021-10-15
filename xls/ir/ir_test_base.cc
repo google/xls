@@ -211,12 +211,16 @@ absl::StatusOr<Value> IrTestBase::UInt64ResultToValue(uint64_t value,
 void IrTestBase::RunAndExpectEq(
     const absl::flat_hash_map<std::string, Value>& args, const Value& expected,
     std::unique_ptr<Package>&& package, bool run_optimized, bool simulate) {
+  InterpreterEvents unopt_events;
+
   // Run interpreter on unoptimized IR.
   {
     XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
-    XLS_ASSERT_OK_AND_ASSIGN(Value actual,
+    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
                              InterpretFunctionKwargs(entry, args));
-    ASSERT_TRUE(ValuesEqual(expected, actual))
+    XLS_ASSERT_OK(InterpreterEventsToStatus(result.events));
+    unopt_events = result.events;
+    ASSERT_TRUE(ValuesEqual(expected, result.value))
         << "(interpreted unoptimized IR)";
   }
 
@@ -227,9 +231,11 @@ void IrTestBase::RunAndExpectEq(
     // Run interpreter on optimized IR.
     {
       XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
-      XLS_ASSERT_OK_AND_ASSIGN(Value actual,
+      XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
                                InterpretFunctionKwargs(main, args));
-      ASSERT_TRUE(ValuesEqual(expected, actual))
+      XLS_ASSERT_OK(InterpreterEventsToStatus(result.events));
+      ASSERT_EQ(unopt_events, result.events);
+      ASSERT_TRUE(ValuesEqual(expected, result.value))
           << "(interpreted optimized IR)";
     }
   }

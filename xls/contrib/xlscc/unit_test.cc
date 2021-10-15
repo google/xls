@@ -82,9 +82,9 @@ void XlsccTestBase::RunWithStatics(
       args_with_statics[static_param_names[i]] = static_state[i];
     }
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        xls::Value actual,
-        xls::InterpretFunctionKwargs(top_func, args_with_statics));
+    XLS_ASSERT_OK_AND_ASSIGN(xls::Value actual,
+                             DropInterpreterEvents(xls::InterpretFunctionKwargs(
+                                 top_func, args_with_statics)));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> returns,
                              actual.GetElements());
     ASSERT_EQ(returns.size(), pfunc->static_values.size() + 1);
@@ -180,8 +180,9 @@ void XlsccTestBase::IOTest(std::string content, std::list<IOOpTest> inputs,
     }
   }
 
-  XLS_ASSERT_OK_AND_ASSIGN(xls::Value actual,
-                           xls::InterpretFunctionKwargs(entry, args));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Value actual,
+      DropInterpreterEvents(xls::InterpretFunctionKwargs(entry, args)));
 
   std::vector<xls::Value> returns;
 

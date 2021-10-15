@@ -25,25 +25,15 @@
 
 namespace xls {
 
-// TODO(https://github.com/google/xls/issues/506) 2021-10-08
-// Remove the extra interpreter entry point once there is a standard
-// side-channel mechanism to use.
-
 // Runs the interpreter on the given function. 'args' are the argument values
 // indexed by parameter name. Returns both the value and any events that
 // happened while running.
-absl::StatusOr<InterpreterResult<Value>> InterpretFunctionWithEvents(
+absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
     Function* function, absl::Span<const Value> args);
 
-// Runs the interpreter on the given function. 'args' are the argument values
-// indexed by parameter name. Returns only the result value, dropping any
-// collected events..
-absl::StatusOr<Value> InterpretFunction(Function* function,
-                                        absl::Span<const Value> args);
-
 // Runs the interpreter on the function where the arguments are given by name.
-// Returns only the result value, dropping collected events.
-absl::StatusOr<Value> InterpretFunctionKwargs(
+// Returns both the result alue and any events that happened while running.
+absl::StatusOr<InterpreterResult<Value>> InterpretFunctionKwargs(
     Function* function, const absl::flat_hash_map<std::string, Value>& args);
 
 }  // namespace xls

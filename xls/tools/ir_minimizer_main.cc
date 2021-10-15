@@ -184,8 +184,10 @@ absl::StatusOr<bool> StillFailsHelper(
     XLS_ASSIGN_OR_RETURN(jit_result, Parser::ParseTypedValue(absl::GetFlag(
                                          FLAGS_test_only_inject_jit_result)));
   }
+  // TODO(https://github.com/google/xls/issues/506): 2021-10-12 Also compare
+  // events once the JIT supports events.
   XLS_ASSIGN_OR_RETURN(Value interpreter_result,
-                       InterpretFunction(main, *inputs));
+                       DropInterpreterEvents(InterpretFunction(main, *inputs)));
   return jit_result != interpreter_result;
 }
 

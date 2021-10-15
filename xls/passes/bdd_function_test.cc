@@ -104,7 +104,8 @@ TEST_F(BddFunctionTest, Parity) {
 
     for (int64_t i = 0; i < kNumSamples; ++i) {
       std::vector<Value> inputs = RandomFunctionArguments(f, &engine);
-      XLS_ASSERT_OK_AND_ASSIGN(Value expected, InterpretFunction(f, inputs));
+      XLS_ASSERT_OK_AND_ASSIGN(
+          Value expected, DropInterpreterEvents(InterpretFunction(f, inputs)));
       XLS_ASSERT_OK_AND_ASSIGN(Value actual, bdd_function->Evaluate(inputs));
       EXPECT_EQ(expected, actual);
     }
@@ -136,8 +137,9 @@ TEST_F(BddFunctionTest, BenchmarkTest) {
             std::vector<Value> inputs,
             GenerateFunctionArguments(entry, &engine, benchmark));
 
-        XLS_ASSERT_OK_AND_ASSIGN(Value expected,
-                                 InterpretFunction(entry, inputs));
+        XLS_ASSERT_OK_AND_ASSIGN(
+            Value expected,
+            DropInterpreterEvents(InterpretFunction(entry, inputs)));
         XLS_ASSERT_OK_AND_ASSIGN(Value actual, bdd_function->Evaluate(inputs));
         EXPECT_EQ(expected, actual);
       }
