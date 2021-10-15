@@ -29,6 +29,10 @@ absl::StatusOr<TypeInfoProto> TypeInfoToProto(const TypeInfo& type_info);
 absl::StatusOr<std::string> ToHumanString(const AstNodeTypeInfoProto& antip,
                                           const Module& m);
 
+// As above, but puts every node in the TypeInfoProto on its own line.
+absl::StatusOr<std::string> ToHumanString(const TypeInfoProto& tip,
+                                          const Module& m);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_INFO_TO_PROTO_H_

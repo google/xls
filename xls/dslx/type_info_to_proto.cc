@@ -609,4 +609,14 @@ absl::StatusOr<TypeInfoProto> TypeInfoToProto(const TypeInfo& type_info) {
   return tip;
 }
 
+absl::StatusOr<std::string> ToHumanString(const TypeInfoProto& tip,
+                                          const Module& m) {
+  std::vector<std::string> lines;
+  for (int64_t i = 0; i < tip.nodes_size(); ++i) {
+    XLS_ASSIGN_OR_RETURN(std::string node_str, ToHumanString(tip.nodes(i), m));
+    lines.push_back(std::move(node_str));
+  }
+  return absl::StrJoin(lines, "\n");
+}
+
 }  // namespace xls::dslx

@@ -75,18 +75,6 @@ absl::StatusOr<std::unique_ptr<Module>> ParseText(absl::string_view text,
   return module_or;
 }
 
-absl::StatusOr<std::string> PathToName(absl::string_view path) {
-  std::vector<absl::string_view> pieces = absl::StrSplit(path, '/');
-  if (pieces.empty()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Could not determine module name from path: %s", path));
-  }
-  absl::string_view last = pieces.back();
-  std::vector<absl::string_view> dot_pieces = absl::StrSplit(last, '.');
-  XLS_RET_CHECK(!dot_pieces.empty());
-  return std::string(dot_pieces[0]);
-}
-
 // Adds IR-converted symbols from the module specified by "path" to the given
 // "package".
 static absl::Status AddPathToPackage(

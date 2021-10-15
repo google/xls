@@ -169,3 +169,7 @@ against the post-sythesis netlist.
 ## [`dslx/highlight_main`](https://github.com/google/xls/tree/main/xls/dslx/highlight_main.cc)
 
 Performs terminal-based color code highlighting of a DSL file.
+
+## [`dslx/typecheck_main`](https://github.com/google/xls/tree/main/xls/dslx/typecheck_main.cc)
+
+Dumps type information that has been deduced for a given DSL file.

@@ -860,14 +860,6 @@ absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data) {
   // Make a note that we completed typechecking this module in the import data.
   import_data->SetTypecheckWorkInProgress(module, nullptr);
 
-  // TODO(leary): 2021-09-30 Enable to attempt to convert all type information
-  // data to its serialized protobuf form. This will be removed when capability
-  // is complete and there is a builtin-in mechanism for savings/restoring
-  // persistent type information automatically.
-  //
-  //  XLS_ASSIGN_OR_RETURN(TypeInfoProto tip, TypeInfoToProto(*type_info));
-  // (void)tip;
-
   return type_info;
 }
 

@@ -83,7 +83,9 @@ class ImportData {
                       /*additional_search_paths=*/{});
   }
 
+  // All instantiations of ImportData should pass a stdlib_path as below.
   ImportData() = delete;
+
   ImportData(std::string stdlib_path,
              absl::Span<const std::filesystem::path> additional_search_paths)
       : stdlib_path_(std::move(stdlib_path)),

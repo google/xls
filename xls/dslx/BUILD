@@ -64,23 +64,6 @@ cc_library(
     ],
 )
 
-cc_binary(
-    name = "cpp_transpiler_main",
-    srcs = ["cpp_transpiler_main.cc"],
-    visibility = ["//xls:xls_public"],
-    deps = [
-        ":cpp_transpiler",
-        ":default_dslx_stdlib_path",
-        ":import_data",
-        ":parse_and_typecheck",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/logging",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-    ],
-)
-
 cc_test(
     name = "cpp_transpiler_test",
     srcs = ["cpp_transpiler_test.cc"],
@@ -225,33 +208,6 @@ cc_test(
         "//xls/common/status:matchers",
         "@com_google_absl//absl/flags:flag",
         "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_binary(
-    name = "highlight_main",
-    srcs = ["highlight_main.cc"],
-    deps = [
-        ":builtins_metadata",
-        ":scanner",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-py_test(
-    name = "highlight_main_test",
-    srcs = ["highlight_main_test.py"],
-    data = [
-        ":highlight_main",
-        "//xls/examples:sha256.x",
-    ],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//xls/common:runfiles",
-        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -904,73 +860,6 @@ cc_test(
     ],
 )
 
-# -- Command line utilities.
-
-cc_library(
-    name = "command_line_utils",
-    srcs = ["command_line_utils.cc"],
-    hdrs = ["command_line_utils.h"],
-    deps = [
-        ":bindings",
-        ":error_printer",
-        ":pos",
-        "//xls/common/logging",
-        "//xls/common/status:ret_check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_binary(
-    name = "ir_converter_main",
-    srcs = ["ir_converter_main.cc"],
-    visibility = ["//xls:xls_users"],
-    deps = [
-        ":command_line_utils",
-        ":default_dslx_stdlib_path",
-        ":error_printer",
-        ":ir_converter",
-        ":parser",
-        ":scanner",
-        ":typecheck",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-py_test(
-    name = "ir_converter_main_test",
-    srcs = ["ir_converter_main_test.py"],
-    data = [":ir_converter_main"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//xls/common:runfiles",
-        "//xls/common:test_base",
-    ],
-)
-
-cc_binary(
-    name = "interpreter_main",
-    srcs = ["interpreter_main.cc"],
-    visibility = ["//xls:xls_users"],
-    deps = [
-        ":command_line_utils",
-        ":error_printer",
-        ":run_routines",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
 cc_library(
     name = "parse_and_typecheck",
     srcs = ["parse_and_typecheck.cc"],
@@ -1033,5 +922,130 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "command_line_utils",
+    srcs = ["command_line_utils.cc"],
+    hdrs = ["command_line_utils.h"],
+    deps = [
+        ":bindings",
+        ":error_printer",
+        ":pos",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+#  -- DSLX specific tool binaries / command line utilities
+
+cc_binary(
+    name = "ir_converter_main",
+    srcs = ["ir_converter_main.cc"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":command_line_utils",
+        ":default_dslx_stdlib_path",
+        ":error_printer",
+        ":ir_converter",
+        ":parser",
+        ":scanner",
+        ":typecheck",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+py_test(
+    name = "ir_converter_main_test",
+    srcs = ["ir_converter_main_test.py"],
+    data = [":ir_converter_main"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+    ],
+)
+
+cc_binary(
+    name = "interpreter_main",
+    srcs = ["interpreter_main.cc"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":command_line_utils",
+        ":error_printer",
+        ":run_routines",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_binary(
+    name = "cpp_transpiler_main",
+    srcs = ["cpp_transpiler_main.cc"],
+    visibility = ["//xls:xls_public"],
+    deps = [
+        ":cpp_transpiler",
+        ":default_dslx_stdlib_path",
+        ":import_data",
+        ":parse_and_typecheck",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_binary(
+    name = "highlight_main",
+    srcs = ["highlight_main.cc"],
+    deps = [
+        ":builtins_metadata",
+        ":scanner",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+py_test(
+    name = "highlight_main_test",
+    srcs = ["highlight_main_test.py"],
+    data = [
+        ":highlight_main",
+        "//xls/examples:sha256.x",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
+cc_binary(
+    name = "typecheck_main",
+    srcs = ["typecheck_main.cc"],
+    deps = [
+        ":command_line_utils",
+        ":parse_and_typecheck",
+        ":type_info_to_proto",
+        ":typecheck",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "@com_google_absl//absl/strings",
     ],
 )
