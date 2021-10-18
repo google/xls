@@ -152,7 +152,10 @@ std::vector<Node*> FirstStageNodes(FunctionBase* f) {
   if (Proc* proc = dynamic_cast<Proc*>(f)) {
     std::vector<Node*> nodes(proc->params().begin(), proc->params().end());
     for (Node* node : proc->nodes()) {
-      if (node->Is<Receive>()) {
+      // TODO(tedhong): 2021/10/14 Make this more flexible (ex. for ii>N),
+      // where the next state node must be scheduled before a specific state
+      // but not necessarily the 1st stage.
+      if (node->Is<Receive>() || (node == proc->NextState())) {
         nodes.push_back(node);
       }
     }
