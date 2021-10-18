@@ -614,5 +614,50 @@ TEST_F(PipelineScheduleTest, ProcWithConditionalReceiveError) {
                          "that is impossible due to the node's operand(s)")));
 }
 
+// This test attempts to schedule when receive and send nodes are connected
+// without any intermediate nodes.
+class TestDelayEstimatorUnit : public DelayEstimator {
+ public:
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
+    switch (node->op()) {
+      case Op::kParam:
+      case Op::kInputPort:
+      case Op::kOutputPort:
+      case Op::kLiteral:
+      case Op::kBitSlice:
+      case Op::kConcat:
+        return 0;
+      default:
+        return 1;
+    }
+  }
+};
+
+TEST_F(PipelineScheduleTest, InsufficientGates) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
+                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+
+  BValue in_val = pb.Receive(ch_in);
+  pb.Send(ch_out, in_val);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+
+  // TODO(tedhong): 2021-10-12 - Update scheduler so operation succeeds.
+  EXPECT_THAT(
+      PipelineSchedule::Run(proc, TestDelayEstimatorUnit(),
+                            SchedulingOptions().pipeline_stages(5)),
+      status_testing::StatusIs(absl::StatusCode::kResourceExhausted,
+                               testing::HasSubstr("Impossible to schedule")));
+}
+
 }  // namespace
 }  // namespace xls

@@ -815,7 +815,6 @@ class SimplePipelinedProcTest : public ProcConversionTestFixture {
 
     BValue in_val = pb.Receive(ch_in);
 
-    // TODO(tedhong): 2021-10-07 - Add additional testcase without buffering.
     BValue buffered_in_val = pb.Not(pb.Not(in_val));
     pb.Send(ch_out, buffered_in_val);
     XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build(pb.GetStateParam()));
@@ -1148,7 +1147,6 @@ class SimpleRunningCounterProcTest : public ProcConversionTestFixture {
 
     BValue next_state = pb.Add(in_val, state, absl::nullopt, "increment");
 
-    // TODO(tedhong): 2021-10-07 - Add additional testcase without buffering.
     BValue buffered_state = pb.Not(pb.Not(pb.Not(pb.Not(next_state))));
     pb.Send(ch_out, buffered_state);
     XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build(next_state));
