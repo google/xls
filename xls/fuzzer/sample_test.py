@@ -67,8 +67,8 @@ class SampleTest(absltest.TestCase):
     json_text = (
         '{"codegen": true, "codegen_args": ["--generator=pipeline", '
         '"--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true,'
-        ' "optimize_ir": true, "simulate": false, "simulator": null, '
-        '"use_jit": true, "use_system_verilog": true}')
+        ' "optimize_ir": true, "simulate": false, "simulator": null,'
+        ' "timeout_seconds": 42, "use_jit": true, "use_system_verilog": true}')
     expected_object = sample.SampleOptions(
         input_is_dslx=True,
         convert_to_ir=True,
@@ -78,7 +78,8 @@ class SampleTest(absltest.TestCase):
         codegen_args=('--generator=pipeline', '--pipeline_stages=2'),
         simulate=False,
         simulator=None,
-        use_system_verilog=True)
+        use_system_verilog=True,
+        timeout_seconds=42)
     self.assertEqual(sample.SampleOptions.from_json(json_text), expected_object)
     self.assertEqual(
         sample.SampleOptions.from_json(json_text).to_json(), json_text)
@@ -91,7 +92,8 @@ class SampleTest(absltest.TestCase):
     want_text = (
         '{"codegen": false, "codegen_args": null, "convert_to_ir": true, '
         '"input_is_dslx": true, "optimize_ir": true, "simulate": false, '
-        '"simulator": null, "use_jit": true, "use_system_verilog": true}')
+        '"simulator": null, "timeout_seconds": null, "use_jit": true, '
+        '"use_system_verilog": true}')
     self.assertEqual(got.to_json(), want_text)
 
   def test_to_crasher(self):
@@ -117,7 +119,7 @@ class SampleTest(absltest.TestCase):
         // I crashed"""), crasher)
     self.assertIn(
         textwrap.dedent("""\
-        // options: {"codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true, "optimize_ir": true, "simulate": true, "simulator": "goat simulator", "use_jit": true, "use_system_verilog": true}
+        // options: {"codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true, "optimize_ir": true, "simulate": true, "simulator": "goat simulator", "timeout_seconds": null, "use_jit": true, "use_system_verilog": true}
         // args: bits[8]:0x2a; bits[8]:0xb
         // args: bits[8]:0x2c; bits[8]:0x63
         fn main(x: u8, y: u8) -> u8 {
@@ -151,7 +153,7 @@ class SampleTest(absltest.TestCase):
         // I crashed"""), crasher)
     self.assertIn(
         textwrap.dedent("""\
-        // options: {"codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true, "optimize_ir": true, "simulate": true, "simulator": "goat simulator", "use_jit": true, "use_system_verilog": true}
+        // options: {"codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true, "optimize_ir": true, "simulate": true, "simulator": "goat simulator", "timeout_seconds": null, "use_jit": true, "use_system_verilog": true}
         // args: bits[8]:0x2a; bits[8]:0xb
         // args: bits[8]:0x2c; bits[8]:0x63
         fn main(x: u8, y: u8) -> u8 {

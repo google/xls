@@ -109,6 +109,9 @@ std::string ArgsBatchToText(
   if (!parsed["simulator"].is_null()) {
     options.simulator_ = parsed["simulator"].string_value();
   }
+  if (!parsed["timeout_seconds"].is_null()) {
+    options.timeout_seconds_ = parsed["timeout_seconds"].int_value();
+  }
   return options;
 }
 
@@ -137,6 +140,12 @@ json11::Json SampleOptions::ToJson() const {
     json["simulator"] = *simulator_;
   } else {
     json["simulator"] = nullptr;
+  }
+
+  if (timeout_seconds_) {
+    json["timeout_seconds"] = static_cast<int>(*timeout_seconds_);
+  } else {
+    json["timeout_seconds"] = nullptr;
   }
   return json11::Json(json);
 }

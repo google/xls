@@ -57,13 +57,14 @@ class QueueMessage(NamedTuple):
 
 def record_crasher(workerno: int, sampleno: int, minimize_ir: bool,
                    sample: Sample, run_dir: Text, crash_path: Text,
-                   num_crashers: int, error_message: str):
+                   num_crashers: int, exception: sample_runner.SampleError):
   """Records and writes details of a failing test as a crasher."""
   print('--- Worker {} observed an exception for sampleno {}'.format(
       workerno, sampleno))
 
-  # Try to prune down the IR to a minimal reproducer.
-  if minimize_ir:
+  # Try to prune down the IR to a minimal reproducer as long as it isn't a
+  # timeout.
+  if minimize_ir and not exception.is_timeout:
     print('--- Worker {} attempting to minimize IR'.format(workerno))
     minimized_ir_path = run_fuzz.minimize_ir(sample, run_dir)
     if minimized_ir_path:
@@ -89,7 +90,7 @@ def record_crasher(workerno: int, sampleno: int, minimize_ir: bool,
       'crasher_{}_{}.x'.format(datetime.date.today().strftime('%Y-%m-%d'),
                                digest[:4]))
   with gfile.open(crasher_path, 'w') as f:
-    f.write(sample.to_crasher(error_message))
+    f.write(sample.to_crasher(str(exception)))
 
 
 def do_worker_task(workerno: int,
@@ -137,7 +138,7 @@ def do_worker_task(workerno: int,
     except sample_runner.SampleError as e:
       crashers += 1
       record_crasher(workerno, message.sampleno, minimize_ir, message.sample,
-                     run_dir, crash_path, crashers, str(e))
+                     run_dir, crash_path, crashers, e)
 
     if summary_file and i % 25 == 0:
       # Append the local temporary summary file to the actual, potentially

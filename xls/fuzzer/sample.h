@@ -80,6 +80,7 @@ class SampleOptions {
     return codegen_args_;
   }
   bool use_system_verilog() const { return use_system_verilog_; }
+  absl::optional<int64_t> timeout_seconds() const { return timeout_seconds_; }
 
   void set_input_is_dslx(bool value) { input_is_dslx_ = value; }
   void set_codegen(bool value) { codegen_ = value; }
@@ -87,6 +88,8 @@ class SampleOptions {
   void set_codegen_args(const std::vector<std::string>& value) {
     codegen_args_ = value;
   }
+  void set_use_system_verilog(bool value) { use_system_verilog_ = value; }
+  void set_timeout_seconds(int64_t value) { timeout_seconds_ = value; }
 
   bool operator==(const SampleOptions& other) const {
     return ToJson() == other.ToJson();
@@ -120,6 +123,10 @@ class SampleOptions {
   absl::optional<std::string> simulator_;
   // Whether to use SystemVerilog or Verilog in codegen.
   bool use_system_verilog_ = true;
+  // The timeout value in seconds when executing a subcommand (e.g.,
+  // opt_main). This is a per-subcommand invocation timeout *NOT* a timeout
+  // value for the entire sample run.
+  absl::optional<int64_t> timeout_seconds_;
 };
 
 // Abstraction describing a fuzzer code sample and how to run it.

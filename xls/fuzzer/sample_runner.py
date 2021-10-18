@@ -50,7 +50,11 @@ class SampleError(XlsError):
   These issues can include parsing errors, tools crashing, or result
   miscompares(among others).
   """
-  pass
+
+  def __init__(self, msg: Text, is_timeout: bool = False):
+    super(SampleError, self).__init__(msg)
+    # Whether the sample resulted in a timeout.
+    self.is_timeout = is_timeout
 
 
 class Timer:
@@ -156,7 +160,7 @@ class SampleRunner:
           return
 
         with Timer() as t:
-          ir_filename = self._dslx_to_ir(input_filename)
+          ir_filename = self._dslx_to_ir(input_filename, options)
         self.timing.convert_ir_ns = t.elapsed_ns
       else:
         ir_filename = self._write_file('sample.ir', input_text)
@@ -166,35 +170,35 @@ class SampleRunner:
         # JIT. This exercises the interpreter and serves as a reference.
         with Timer() as t:
           results['evaluated unopt IR (interpreter)'] = self._evaluate_ir(
-              ir_filename, args_filename, False)
+              ir_filename, args_filename, False, options)
         self.timing.unoptimized_interpret_ir_ns = t.elapsed_ns
 
         if options.use_jit:
           with Timer() as t:
             results['evaluated unopt IR (JIT)'] = self._evaluate_ir(
-                ir_filename, args_filename, True)
+                ir_filename, args_filename, True, options)
           self.timing.unoptimized_jit_ns = t.elapsed_ns
 
       if options.optimize_ir:
         with Timer() as t:
-          opt_ir_filename = self._optimize_ir(ir_filename)
+          opt_ir_filename = self._optimize_ir(ir_filename, options)
         self.timing.optimize_ns = t.elapsed_ns
 
         if args_filename is not None:
           if options.use_jit:
             with Timer() as t:
               results['evaluated opt IR (JIT)'] = self._evaluate_ir(
-                  opt_ir_filename, args_filename, True)
+                  opt_ir_filename, args_filename, True, options)
             self.timing.optimized_jit_ns = t.elapsed_ns
           with Timer() as t:
             results['evaluated opt IR (interpreter)'] = self._evaluate_ir(
-                opt_ir_filename, args_filename, False)
+                opt_ir_filename, args_filename, False, options)
           self.timing.optimized_interpret_ir_ns = t.elapsed_ns
 
         if options.codegen:
           with Timer() as t:
             verilog_filename = self._codegen(opt_ir_filename,
-                                             options.codegen_args)
+                                             options.codegen_args, options)
           self.timing.codegen_ns = t.elapsed_ns
 
           if options.simulate:
@@ -202,8 +206,7 @@ class SampleRunner:
             with Timer() as t:
               results['simulated'] = self._simulate(verilog_filename,
                                                     'module_sig.textproto',
-                                                    args_filename,
-                                                    options.simulator)
+                                                    args_filename, options)
             self.timing.simulate_ns = t.elapsed_ns
 
       self._compare_results(results, args_batch)
@@ -214,20 +217,24 @@ class SampleRunner:
       msg = e.message if hasattr(e, 'message') else str(e)
       logging.exception('Exception when running sample: %s', msg)
       self._write_file('exception.txt', msg)
-      raise SampleError(msg)
+      raise SampleError(
+          msg, is_timeout=isinstance(e, subprocess.TimeoutExpired))
 
-  def _run_command(self, desc: Text, args: Sequence[Text]) -> str:
+  def _run_command(self, desc: Text, args: Sequence[Text],
+                   options: sample.SampleOptions) -> str:
     """Runs the given commands.
 
     Args:
       desc: Textual description of what the command is doing. Emitted to stdout.
       args: The command line arguments.
+      options: The sample options.
 
     Returns:
       Stdout of the command.
 
     Raises:
       subprocess.CalledProcessError: If subprocess returns non-zero code.
+      subprocess.TimeoutExpired: If subprocess call times out.
     """
     # Print the command line with the runfiles directory prefix elided to reduce
     # clutter.
@@ -244,7 +251,8 @@ class SampleRunner:
           cwd=self._run_dir,
           stdout=subprocess.PIPE,
           stderr=f_stderr,
-          check=False)
+          check=False,
+          timeout=options.timeout_seconds)
 
     if logging.vlog_is_on(4):
       logging.vlog(4, '{} stdout:'.format(basename))
@@ -363,30 +371,35 @@ class SampleRunner:
         for line in s.split('\n')
         if line.strip())
 
-  def _evaluate_ir(self, ir_filename: Text, args_filename: Text,
-                   use_jit: bool) -> Tuple[Value, ...]:
+  def _evaluate_ir(self, ir_filename: Text, args_filename: Text, use_jit: bool,
+                   options: sample.SampleOptions) -> Tuple[Value, ...]:
     """Evaluate the IR file and returns the result Values."""
     results_text = self._run_command(
         'Evaluating IR file ({}): {}'.format(
             'JIT' if use_jit else 'interpreter', ir_filename),
         (EVAL_IR_MAIN_PATH, '--input_file=' + args_filename,
-         '--use_llvm_jit' if use_jit else '--nouse_llvm_jit', ir_filename))
+         '--use_llvm_jit' if use_jit else '--nouse_llvm_jit', ir_filename),
+        options)
     self._write_file(ir_filename + '.results', results_text)
     return self._parse_values(results_text)
 
-  def _dslx_to_ir(self, dslx_filename: Text) -> Text:
+  def _dslx_to_ir(self, dslx_filename: Text,
+                  options: sample.SampleOptions) -> Text:
     """Converts the DSLX file to an IR file whose filename is returned."""
     ir_text = self._run_command('Converting DSLX to IR',
-                                (IR_CONVERTER_MAIN_PATH, dslx_filename))
+                                (IR_CONVERTER_MAIN_PATH, dslx_filename),
+                                options)
     return self._write_file('sample.ir', ir_text)
 
-  def _optimize_ir(self, ir_filename: Text) -> Text:
+  def _optimize_ir(self, ir_filename: Text,
+                   options: sample.SampleOptions) -> Text:
     """Optimizes the IR file and returns the resulting filename."""
     opt_ir_text = self._run_command('Optimizing IR',
-                                    (IR_OPT_MAIN_PATH, ir_filename))
+                                    (IR_OPT_MAIN_PATH, ir_filename), options)
     return self._write_file('sample.opt.ir', opt_ir_text)
 
-  def _codegen(self, ir_filename: Text, codegen_args: Sequence[Text]) -> Text:
+  def _codegen(self, ir_filename: Text, codegen_args: Sequence[Text],
+               options: sample.SampleOptions) -> Text:
     """Generates Verilog from the IR file and return the Verilog filename."""
     args = [
         CODEGEN_MAIN_PATH, '--output_signature_path=module_sig.textproto',
@@ -394,27 +407,25 @@ class SampleRunner:
     ]
     args.extend(codegen_args)
     args.append(ir_filename)
-    verilog_text = self._run_command('Generating Verilog', args)
+    verilog_text = self._run_command('Generating Verilog', args, options)
     return self._write_file('sample.v', verilog_text)
 
-  def _simulate(self,
-                verilog_filename: Text,
-                module_sig_filename: Text,
+  def _simulate(self, verilog_filename: Text, module_sig_filename: Text,
                 args_filename: Text,
-                simulator: Optional[Text] = None) -> Tuple[Value, ...]:
+                options: sample.SampleOptions) -> Tuple[Value, ...]:
     """Simulates the Verilog file and returns the results Values."""
     simulator_args = [
         SIMULATE_MODULE_MAIN_PATH,
         '--signature_file=' + module_sig_filename,
         '--args_file=' + args_filename
     ]
-    if simulator:
-      simulator_args.append('--verilog_simulator=' + simulator)
+    if options.simulator:
+      simulator_args.append('--verilog_simulator=' + options.simulator)
     simulator_args.append(verilog_filename)
 
-    check_simulator.check_simulator(simulator)
+    check_simulator.check_simulator(options.simulator)
 
     results_text = self._run_command(f'Simulating Verilog {verilog_filename}',
-                                     simulator_args)
+                                     simulator_args, options)
     self._write_file(verilog_filename + '.results', results_text)
     return self._parse_values(results_text)

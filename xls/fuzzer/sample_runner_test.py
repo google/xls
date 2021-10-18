@@ -24,6 +24,20 @@ from xls.fuzzer import sample_runner
 from xls.fuzzer.python import cpp_sample as sample
 
 
+# An IR function with a loop which runs for many iterations.
+LONG_LOOP_IR = """package long_loop
+
+fn body(i: bits[64], accum: bits[64]) -> bits[64] {
+  ret one: bits[64] = literal(value=1)
+}
+
+fn main(x: bits[64]) -> bits[64] {
+  zero: bits[64] = literal(value=0, id=1)
+  ret result: bits[64] = counted_for(zero, trip_count=0xffff_ffff_ffff, stride=1, body=body, id=5)
+}
+"""
+
+
 def _read_file(dirname: Text, filename: Text) -> Text:
   """Returns the contents of the file in the given directory as a string."""
   with open(os.path.join(dirname, filename), 'r') as f:
@@ -364,6 +378,23 @@ class SampleRunnerTest(test_base.TestCase):
     self.assertRegex(
         _read_file(sample_dir, 'exception.txt'),
         '.*opt_main.*returned non-zero exit status')
+
+  def test_timeout(self):
+    sample_dir = self._make_sample_dir()
+    runner = sample_runner.SampleRunner(sample_dir)
+    with self.assertRaises(sample_runner.SampleError) as e:
+      runner.run(
+          sample.Sample(
+              LONG_LOOP_IR,
+              sample.SampleOptions(
+                  input_is_dslx=False,
+                  optimize_ir=False,
+                  use_jit=False,
+                  codegen=False,
+                  timeout_seconds=3), [[
+                      interp_value_from_ir_string('bits[64]:42'),
+                  ]]))
+    self.assertIn('timed out after 3 seconds', str(e.exception))
 
 
 if __name__ == '__main__':

@@ -87,6 +87,9 @@ flags.DEFINE_integer(
 flags.DEFINE_boolean(
     'use_system_verilog', True,
     'If true, emit SystemVerilog during codegen otherwise emit Verilog.')
+flags.DEFINE_integer(
+    'timeout_seconds', 300,
+    'The timeout value in seconds for each subcommand invocation.')
 FLAGS = flags.FLAGS
 
 QUEUE_MAX_BACKLOG = 16
@@ -154,7 +157,8 @@ def main(argv):
       codegen=FLAGS.codegen,
       simulate=FLAGS.simulate,
       simulator=FLAGS.simulator,
-      use_system_verilog=FLAGS.use_system_verilog)
+      use_system_verilog=FLAGS.use_system_verilog,
+      timeout_seconds=FLAGS.timeout_seconds)
   sample_count = run_fuzz_multiprocess.do_generator_task(
       queues,
       seed,
