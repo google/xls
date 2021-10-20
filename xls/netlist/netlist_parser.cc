@@ -277,7 +277,7 @@ absl::StatusOr<Token> Scanner::PeekInternal() {
       if (isdigit(c)) {
         return ScanNumber(c, pos);
       }
-      if (isalpha(c) || c == '\\') {
+      if (isalpha(c) || c == '\\' || c == '_') {
         return ScanName(c, pos, c == '\\');
       }
       return absl::UnimplementedError(absl::StrFormat(

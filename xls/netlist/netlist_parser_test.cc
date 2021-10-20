@@ -76,16 +76,16 @@ endmodule)";
 
 TEST(NetlistParserTest, Attributes) {
   std::string netlist = R"((* on_module  = "foo" *)
-module main(a, z);
+module main(_a, z);
   (* on_net = "first" *)
   (* on_net = "second" *)
   wire foo, bar, baz;
   (* on_input = "baz" *)
-  input a;
+  input _a;
   (* on_output = "baz" *)
   output z;
   (* on_instance = "bar" *)
-  INV inv_0(.A(a), .ZN(z));
+  INV inv_0(.A(_a), .ZN(z));
 endmodule)";
   Scanner scanner(netlist);
   XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
