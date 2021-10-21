@@ -22,7 +22,8 @@ namespace xls::dslx {
 
 // Simple visitor to perform automatic dispatch to constexpr evaluate AST
 // expressions.
-// Lazily populated based on observed examples.
+// TODO(rspringer): 2021-10-15, issue #508: Not all expression nodes are
+// currently covered, but will need to be shortly.
 class ConstexprEvaluator : public xls::dslx::ExprVisitor {
  public:
   ConstexprEvaluator(DeduceCtx* ctx, ConcreteType* concrete_type)
@@ -46,7 +47,9 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   void HandleNameRef(NameRef* expr) override;
   void HandleNumber(Number* expr) override;
   void HandleRecv(Recv* expr) override {}
+  void HandleRecvIf(RecvIf* expr) override {}
   void HandleSend(Send* expr) override {}
+  void HandleSendIf(SendIf* expr) override {}
   void HandleSpawn(Spawn* expr) override {}
   void HandleString(String* expr) override {}
   void HandleStructInstance(StructInstance* expr) override;

@@ -1145,6 +1145,17 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
     return module_->Make<Recv>(Span(recv.span().start(), GetPos()), token,
                                channel);
+  } else if (peek->IsKeyword(Keyword::kRecvIf)) {
+    Token recv = PopTokenOrDie();
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+    XLS_ASSIGN_OR_RETURN(NameRef * token, ParseNameRef(outer_bindings));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
+    XLS_ASSIGN_OR_RETURN(NameRef * channel, ParseNameRef(outer_bindings));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
+    XLS_ASSIGN_OR_RETURN(Expr * condition, ParseExpression(outer_bindings));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
+    return module_->Make<RecvIf>(Span(recv.span().start(), GetPos()), token,
+                                 channel, condition);
   } else if (peek->IsKeyword(Keyword::kSend)) {
     Token send = PopTokenOrDie();
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
@@ -1157,6 +1168,20 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     Pos end = GetPos();
     return module_->Make<Send>(Span(send.span().start(), end), token, channel,
                                payload);
+  } else if (peek->IsKeyword(Keyword::kSendIf)) {
+    Token send = PopTokenOrDie();
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+    XLS_ASSIGN_OR_RETURN(NameRef * token, ParseNameRef(outer_bindings));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
+    XLS_ASSIGN_OR_RETURN(NameRef * channel, ParseNameRef(outer_bindings));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
+    XLS_ASSIGN_OR_RETURN(Expr * condition, ParseExpression(outer_bindings));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
+    XLS_ASSIGN_OR_RETURN(Expr * payload, ParseExpression(outer_bindings));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
+    Pos end = GetPos();
+    return module_->Make<SendIf>(Span(send.span().start(), end), token, channel,
+                                 condition, payload);
   } else if (peek->kind() == TokenKind::kIdentifier || peek_is_kw_in ||
              peek_is_kw_out) {
     std::string lhs_str = *peek->GetValue();

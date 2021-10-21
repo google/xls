@@ -72,9 +72,17 @@ class Evaluator : public ExprVisitor {
     value_ = absl::UnimplementedError(absl::StrFormat(
         "Recv expression is unhandled @ %s", expr->span().ToString()));
   }
+  void HandleRecvIf(RecvIf* expr) override {
+    value_ = absl::UnimplementedError(absl::StrFormat(
+        "RecvIf expression is unhandled @ %s", expr->span().ToString()));
+  }
   void HandleSend(Send* expr) override {
     value_ = absl::UnimplementedError(absl::StrFormat(
         "Send expression is unhandled @ %s", expr->span().ToString()));
+  }
+  void HandleSendIf(SendIf* expr) override {
+    value_ = absl::UnimplementedError(absl::StrFormat(
+        "SendIf expression is unhandled @ %s", expr->span().ToString()));
   }
   void HandleSpawn(Spawn* expr) override {
     value_ = absl::UnimplementedError(absl::StrFormat(

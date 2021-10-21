@@ -334,7 +334,9 @@ class FunctionConverter {
   absl::Status HandleLet(Let* node);
   absl::Status HandleMatch(Match* node);
   absl::Status HandleRecv(Recv* node);
+  absl::Status HandleRecvIf(RecvIf* node);
   absl::Status HandleSend(Send* node);
+  absl::Status HandleSendIf(SendIf* node);
   absl::Status HandleSplatStructInstance(SplatStructInstance* node);
   absl::Status HandleStructInstance(StructInstance* node);
   absl::Status HandleTernary(Ternary* node);
@@ -699,7 +701,9 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(Let)
   NO_TRAVERSE_DISPATCH_VISIT(Match)
   NO_TRAVERSE_DISPATCH_VISIT(Recv)
+  NO_TRAVERSE_DISPATCH_VISIT(RecvIf)
   NO_TRAVERSE_DISPATCH_VISIT(Send)
+  NO_TRAVERSE_DISPATCH_VISIT(SendIf)
   NO_TRAVERSE_DISPATCH_VISIT(SplatStructInstance)
   NO_TRAVERSE_DISPATCH_VISIT(StructInstance)
   NO_TRAVERSE_DISPATCH_VISIT(Ternary)
@@ -2052,6 +2056,39 @@ absl::Status FunctionConverter::HandleSend(Send* node) {
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::HandleSendIf(SendIf* node) {
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+  if (builder_ptr == nullptr) {
+    return absl::InternalError(
+        "Send nodes should only be encountered during Proc conversion; "
+        "we seem to be in function conversion.");
+  }
+
+  XLS_RETURN_IF_ERROR(Visit(node->token()));
+  XLS_RETURN_IF_ERROR(Visit(node->channel()));
+  if (!node_to_ir_.contains(node->channel())) {
+    return absl::InternalError("Send channel not found!");
+  }
+  IrValue ir_value = node_to_ir_[node->channel()];
+  if (!absl::holds_alternative<Channel*>(ir_value)) {
+    return absl::InvalidArgumentError(
+        "Expected channel, got BValue or CValue.");
+  }
+
+  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
+  XLS_RETURN_IF_ERROR(Visit(node->condition()));
+  XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->condition()));
+
+  XLS_RETURN_IF_ERROR(Visit(node->payload()));
+  XLS_ASSIGN_OR_RETURN(BValue data, Use(node->payload()));
+  BValue result = builder_ptr->SendIf(absl::get<Channel*>(ir_value), token,
+                                      predicate, data);
+  node_to_ir_[node] = result;
+  tokens_.push_back(result);
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleRecv(Recv* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
@@ -2074,6 +2111,35 @@ absl::Status FunctionConverter::HandleRecv(Recv* node) {
 
   XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
   BValue value = builder_ptr->Receive(absl::get<Channel*>(ir_value), token);
+  node_to_ir_[node] = value;
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleRecvIf(RecvIf* node) {
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+  if (builder_ptr == nullptr) {
+    return absl::InternalError(
+        "Recv nodes should only be encountered during Proc conversion; "
+        "we seem to be in function conversion.");
+  }
+
+  XLS_RETURN_IF_ERROR(Visit(node->token()));
+  XLS_RETURN_IF_ERROR(Visit(node->channel()));
+  if (!node_to_ir_.contains(node->channel())) {
+    return absl::InternalError("Recv channel not found!");
+  }
+  IrValue ir_value = node_to_ir_[node->channel()];
+  if (!absl::holds_alternative<Channel*>(ir_value)) {
+    return absl::InvalidArgumentError(
+        "Expected channel, got BValue or CValue.");
+  }
+
+  XLS_RETURN_IF_ERROR(Visit(node->condition()));
+  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
+  XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->condition()));
+  BValue value =
+      builder_ptr->ReceiveIf(absl::get<Channel*>(ir_value), token, predicate);
   node_to_ir_[node] = value;
   return absl::OkStatus();
 }

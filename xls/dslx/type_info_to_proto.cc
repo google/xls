@@ -70,8 +70,12 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_INDEX;
     case AstNodeKind::kRecv:
       return AST_NODE_KIND_RECV;
+    case AstNodeKind::kRecvIf:
+      return AST_NODE_KIND_RECV_IF;
     case AstNodeKind::kSend:
       return AST_NODE_KIND_SEND;
+    case AstNodeKind::kSendIf:
+      return AST_NODE_KIND_SEND_IF;
     case AstNodeKind::kTestFunction:
       return AST_NODE_KIND_TEST_FUNCTION;
     case AstNodeKind::kWildcardPattern:
@@ -514,8 +518,12 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kIndex;
     case AST_NODE_KIND_RECV:
       return AstNodeKind::kRecv;
+    case AST_NODE_KIND_RECV_IF:
+      return AstNodeKind::kRecvIf;
     case AST_NODE_KIND_SEND:
       return AstNodeKind::kSend;
+    case AST_NODE_KIND_SEND_IF:
+      return AstNodeKind::kSendIf;
     case AST_NODE_KIND_TEST_FUNCTION:
       return AstNodeKind::kTestFunction;
     case AST_NODE_KIND_WILDCARD_PATTERN:

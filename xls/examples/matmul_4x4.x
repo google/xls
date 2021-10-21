@@ -18,10 +18,6 @@
 // TODO(rspringer): 2021-09-16, issue #497: The channel declarations here are a
 // bit unwieldy; if we can use arrays-of-channels, that'll make things cleaner.
 
-// TODO(rspringer): 2021-09-14: There seems to be an issue constexpr-evaluating
-// F32 values, so for now we'll use F32s for our values, but this will change
-// very soon.
-
 import float32
 import xls.modules.fpmul_2x32
 

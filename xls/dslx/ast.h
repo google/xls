@@ -95,7 +95,9 @@ bool IsOneOf(ObjT* obj) {
   X(Proc)                         \
   X(QuickCheck)                   \
   X(Recv)                         \
+  X(RecvIf)                       \
   X(Send)                         \
+  X(SendIf)                       \
   X(Slice)                        \
   X(Spawn)                        \
   X(StructDef)                    \
@@ -219,7 +221,9 @@ enum class AstNodeKind {
   kNameDefTree,
   kIndex,
   kRecv,
+  kRecvIf,
   kSend,
+  kSendIf,
   kTestFunction,
   kWidthSlice,
   kWildcardPattern,
@@ -626,7 +630,9 @@ class ExprVisitor {
   virtual void HandleNameRef(NameRef* expr) = 0;
   virtual void HandleNumber(Number* expr) = 0;
   virtual void HandleRecv(Recv* expr) = 0;
+  virtual void HandleRecvIf(RecvIf* expr) = 0;
   virtual void HandleSend(Send* expr) = 0;
+  virtual void HandleSendIf(SendIf* expr) = 0;
   virtual void HandleSpawn(Spawn* expr) = 0;
   virtual void HandleString(String* expr) = 0;
   virtual void HandleStructInstance(StructInstance* expr) = 0;
@@ -1978,6 +1984,37 @@ class Recv : public Expr {
   NameRef* channel_;
 };
 
+// A RecvIf is a recv node that's guarded by a condition: the send will be
+// performed only if the condition is true.
+class RecvIf : public Expr {
+ public:
+  RecvIf(Module* owner, Span span, NameRef* token, NameRef* channel,
+         Expr* condition);
+
+  AstNodeKind kind() const { return AstNodeKind::kRecvIf; }
+
+  absl::Status Accept(AstNodeVisitor* v) override {
+    return v->HandleRecvIf(this);
+  }
+  void AcceptExpr(ExprVisitor* v) override { v->HandleRecvIf(this); }
+
+  absl::string_view GetNodeTypeName() const override { return "RecvIf"; }
+  std::string ToString() const override;
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {ToAstNode(token_), ToAstNode(channel_)};
+  }
+
+  NameRef* token() { return token_; }
+  NameRef* channel() { return channel_; }
+  Expr* condition() { return condition_; }
+
+ private:
+  NameRef* token_;
+  NameRef* channel_;
+  Expr* condition_;
+};
+
 // Represents a send node: the mechanism by which a proc sends info to another
 // proc.
 // Sends are really _statements_, vs. expressions, but the language doesn't
@@ -2010,6 +2047,40 @@ class Send : public Expr {
  private:
   NameRef* token_;
   NameRef* channel_;
+  Expr* payload_;
+};
+
+// A SendIf is a send node that's guarded by a condition: the send will be
+// performed only if the condition is true.
+class SendIf : public Expr {
+ public:
+  SendIf(Module* owner, Span span, NameRef* token, NameRef* channel,
+         Expr* condition, Expr* payload);
+
+  AstNodeKind kind() const { return AstNodeKind::kSendIf; }
+
+  absl::Status Accept(AstNodeVisitor* v) override {
+    return v->HandleSendIf(this);
+  }
+  void AcceptExpr(ExprVisitor* v) override { v->HandleSendIf(this); }
+
+  absl::string_view GetNodeTypeName() const override { return "SendIf"; }
+  std::string ToString() const override;
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {ToAstNode(token_), ToAstNode(channel_), ToAstNode(condition_),
+            ToAstNode(payload_)};
+  }
+
+  NameRef* token() { return token_; }
+  NameRef* channel() { return channel_; }
+  Expr* condition() { return condition_; }
+  Expr* payload() { return payload_; }
+
+ private:
+  NameRef* token_;
+  NameRef* channel_;
+  Expr* condition_;
   Expr* payload_;
 };
 

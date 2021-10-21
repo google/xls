@@ -1383,6 +1383,20 @@ std::string Recv::ToString() const {
                          channel_->identifier());
 }
 
+// -- class RecvIf
+
+RecvIf::RecvIf(Module* owner, Span span, NameRef* token, NameRef* channel,
+               Expr* condition)
+    : Expr(owner, std::move(span)),
+      token_(token),
+      channel_(channel),
+      condition_(condition) {}
+
+std::string RecvIf::ToString() const {
+  return absl::StrFormat("recv_if(%s, %s, %s)", token_->identifier(),
+                         channel_->identifier(), condition_->ToString());
+}
+
 // -- class Send
 
 Send::Send(Module* owner, Span span, NameRef* token, NameRef* channel,
@@ -1395,6 +1409,22 @@ Send::Send(Module* owner, Span span, NameRef* token, NameRef* channel,
 std::string Send::ToString() const {
   return absl::StrFormat("send(%s, %s, %s)", token_->identifier(),
                          channel_->identifier(), payload_->ToString());
+}
+
+// -- class SendIf
+
+SendIf::SendIf(Module* owner, Span span, NameRef* token, NameRef* channel,
+               Expr* condition, Expr* payload)
+    : Expr(owner, std::move(span)),
+      token_(token),
+      channel_(channel),
+      condition_(condition),
+      payload_(payload) {}
+
+std::string SendIf::ToString() const {
+  return absl::StrFormat("send_if(%s, %s, %s, %s)", token_->identifier(),
+                         channel_->identifier(), condition_->ToString(),
+                         payload_->ToString());
 }
 
 BuiltinTypeAnnotation::BuiltinTypeAnnotation(Module* owner, Span span,

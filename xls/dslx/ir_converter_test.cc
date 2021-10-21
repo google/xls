@@ -1504,6 +1504,54 @@ proc main {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, SendIfRecvIf) {
+  constexpr absl::string_view kProgram = R"(proc producer {
+  c: chan in u32;
+
+  config(c: chan in u32) {
+    (c,)
+  }
+
+  next(tok: token, do_send: bool) {
+    let _ = send_if(tok, c, do_send, ((do_send) as u32));
+    (!(do_send),)
+  }
+}
+
+proc consumer {
+  c: chan in u32;
+
+  config(c: chan in u32) {
+    (c,)
+  }
+
+  next(tok: token, do_recv: bool) {
+    let (_, foo) = recv_if(tok, c, do_recv);
+    (!(do_recv),)
+  }
+}
+
+proc main {
+    config() {
+        let (p, c) = chan u32;
+        spawn producer(p)(true);
+        spawn consumer(c)(true);
+        ()
+    }
+    next(tok: token) { () }
+})";
+
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+  ExpectIr(converted, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx
 

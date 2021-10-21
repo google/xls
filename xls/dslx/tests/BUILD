@@ -2327,3 +2327,16 @@ xls_dslx_test(
     name = "local_const_value_non_bitstype_dslx_test",
     dep = ":local_const_value_non_bitstype_dslx_module",
 )
+
+xls_dslx_module_library(
+    name = "send_if_recv_if_module",
+    src = "send_if_recv_if.x",
+)
+
+xls_dslx_opt_ir(
+    name = "send_if_recv_if",
+    dep = ":send_if_recv_if_module",
+    ir_conv_args = {
+        "entry": "main",
+    },
+)

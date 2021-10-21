@@ -1969,8 +1969,44 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSend(Send* node,
   return std::make_unique<TokenType>();
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSendIf(SendIf* node,
+                                                           DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(auto node_type, Deduce(node->channel(), ctx));
+  XLS_ASSIGN_OR_RETURN(auto payload_type,
+                       DeduceAndResolve(node->payload(), ctx));
+  if (*node_type != *payload_type) {
+    return XlsTypeErrorStatus(node->span(), *node_type, *payload_type,
+                              "SendIf node's type did not match inferred type "
+                              "of its payload.");
+  }
+  XLS_ASSIGN_OR_RETURN(auto condition_type, Deduce(node->condition(), ctx));
+  std::unique_ptr<BitsType> bool_type = BitsType::MakeU1();
+  if (*condition_type != *bool_type) {
+    return XlsTypeErrorStatus(node->span(), *condition_type, *bool_type,
+                              "SendIf condition was not of bool type.");
+  }
+
+  return std::make_unique<TokenType>();
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecv(Recv* node,
                                                          DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(auto channel_element_type, Deduce(node->channel(), ctx));
+  std::vector<std::unique_ptr<ConcreteType>> elements;
+  elements.emplace_back(std::make_unique<TokenType>());
+  elements.emplace_back(std::move(channel_element_type));
+  return std::make_unique<TupleType>(std::move(elements));
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIf(RecvIf* node,
+                                                           DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(auto condition_type, Deduce(node->condition(), ctx));
+  std::unique_ptr<BitsType> bool_type = BitsType::MakeU1();
+  if (*condition_type != *bool_type) {
+    return XlsTypeErrorStatus(node->span(), *condition_type, *bool_type,
+                              "RecvIf condition was not of bool type.");
+  }
+
   XLS_ASSIGN_OR_RETURN(auto channel_element_type, Deduce(node->channel(), ctx));
   std::vector<std::unique_ptr<ConcreteType>> elements;
   elements.emplace_back(std::make_unique<TokenType>());
@@ -2377,7 +2413,9 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(Index)
   DEDUCE_DISPATCH(Match)
   DEDUCE_DISPATCH(Recv)
+  DEDUCE_DISPATCH(RecvIf)
   DEDUCE_DISPATCH(Send)
+  DEDUCE_DISPATCH(SendIf)
   DEDUCE_DISPATCH(Spawn)
   DEDUCE_DISPATCH(SplatStructInstance)
   DEDUCE_DISPATCH(StructInstance)

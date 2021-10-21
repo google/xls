@@ -265,6 +265,36 @@ TEST_F(ParserTest, ChannelsNotAsIterArgs) {
                        HasSubstr("Channels cannot be Proc next params.")));
 }
 
+TEST_F(ParserTest, ParseSendIfAndRecvIf) {
+  constexpr absl::string_view kModule = R"(proc producer {
+  c: chan in u32;
+  config(c: chan in u32) {
+    (c,)
+  }
+  next(tok: token, do_send: bool) {
+    let _ = send_if(tok, c, do_send, ((do_send) as u32));
+    (!(do_send),)
+  }
+}
+proc consumer {
+  c: chan in u32;
+  config(c: chan in u32) {
+    (c,)
+  }
+  next(tok: token, do_recv: bool) {
+    let (_, foo) = recv_if(tok, c, do_recv);
+    let _ = assert_eq(foo, true);
+    (!(do_recv),)
+  }
+})";
+
+  Scanner s{"test.x", std::string{kModule}};
+  Parser parser{"test", &s};
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
+  EXPECT_EQ(m->ToString(), kModule);
+}
+
 TEST_F(ParserTest, ParseStructSplat) {
   const char* text = R"(struct Point {
   x: u32,
