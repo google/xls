@@ -80,6 +80,7 @@ bool IsOneOf(ObjT* obj) {
 // (Note that this includes all the Expr node leaf kinds listed in
 // XLS_DSLX_EXPR_NODE_EACH).
 #define XLS_DSLX_AST_NODE_EACH(X) \
+  X(Join)                         \
   X(BuiltinNameDef)               \
   X(ChannelDecl)                  \
   X(ConstantDef)                  \
@@ -224,6 +225,7 @@ enum class AstNodeKind {
   kRecvIf,
   kSend,
   kSendIf,
+  kJoin,
   kTestFunction,
   kWidthSlice,
   kWildcardPattern,
@@ -613,6 +615,7 @@ class ExprVisitor {
  public:
   virtual ~ExprVisitor() = default;
 
+  virtual void HandleJoin(Join* expr) = 0;
   virtual void HandleArray(Array* expr) = 0;
   virtual void HandleAttr(Attr* expr) = 0;
   virtual void HandleBinop(Binop* expr) = 0;
@@ -2082,6 +2085,28 @@ class SendIf : public Expr {
   NameRef* channel_;
   Expr* condition_;
   Expr* payload_;
+};
+
+// Represents a "join" expression: this "returns" a token that is only
+// satisfied once all argument tokens have been satisfied. In this way, an
+// operation can be configured to only act once multiple predecessor operations
+// have completed.
+class Join : public Expr {
+ public:
+  Join(Module* owner, Span span, const std::vector<Expr*>& tokens);
+  AstNodeKind kind() const { return AstNodeKind::kJoin; }
+  absl::Status Accept(AstNodeVisitor* v) override {
+    return v->HandleJoin(this);
+  }
+  void AcceptExpr(ExprVisitor* v) override { v->HandleJoin(this); }
+  absl::string_view GetNodeTypeName() const override { return "Join"; }
+  std::string ToString() const override;
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+
+  const std::vector<Expr*> tokens() { return tokens_; }
+
+ private:
+  std::vector<Expr*> tokens_;
 };
 
 // Represents a unit test construct.

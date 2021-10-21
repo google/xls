@@ -82,6 +82,7 @@ enum AstNodeKindProto {
   AST_NODE_KIND_PARAMETRIC_BINDING = 48;
   AST_NODE_KIND_RECV_IF = 49;
   AST_NODE_KIND_SEND_IF = 50;
+  AST_NODE_KIND_JOIN = 51;
 }
 
 message BitsValueProto {

@@ -1427,6 +1427,30 @@ std::string SendIf::ToString() const {
                          payload_->ToString());
 }
 
+// -- class Join
+
+Join::Join(Module* owner, Span span, const std::vector<Expr*>& tokens)
+    : Expr(owner, span), tokens_(tokens) {}
+
+std::string Join::ToString() const {
+  std::string tokens_str =
+      absl::StrJoin(tokens_, ", ", [](std::string* out, const Expr* token) {
+        absl::StrAppend(out, token->ToString());
+      });
+  return absl::StrFormat("join(%s)", tokens_str);
+}
+
+std::vector<AstNode*> Join::GetChildren(bool want_types) const {
+  std::vector<AstNode*> nodes;
+  nodes.reserve(tokens_.size());
+  for (auto* token : tokens_) {
+    nodes.push_back(ToAstNode(token));
+  }
+  return nodes;
+}
+
+// -- class BuiltinTypeAnnotation
+
 BuiltinTypeAnnotation::BuiltinTypeAnnotation(Module* owner, Span span,
                                              BuiltinType builtin_type)
     : TypeAnnotation(owner, std::move(span)), builtin_type_(builtin_type) {}

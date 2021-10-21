@@ -1532,14 +1532,64 @@ proc consumer {
 }
 
 proc main {
-    config() {
-        let (p, c) = chan u32;
-        spawn producer(p)(true);
-        spawn consumer(c)(true);
-        ()
-    }
-    next(tok: token) { () }
+  config() {
+    let (p, c) = chan u32;
+    spawn producer(p)(true);
+    spawn consumer(c)(true);
+    ()
+  }
+  next(tok: token) { () }
 })";
+
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, Join) {
+  // TODO(rspringer): 2021-10-21, issue #511: The typechecker should catch the
+  // fact that we're sending on an input channel!
+  constexpr absl::string_view kProgram = R"(proc foo {
+  p0: chan in u32;
+  p1: chan in u32;
+  p2: chan in u32;
+  c3: chan in u32;
+
+  config() {
+    let (p0, c0) = chan u32;
+    let (p1, c1) = chan u32;
+    let (p2, c2) = chan u32;
+    let (p3, c3) = chan u32;
+    (p0, p1, p2, c3)
+  }
+
+  next(tok: token, state: u32) {
+    let tok0 = send(tok, p0, ((state) as u32));
+    let tok1 = send(tok, p1, ((state) as u32));
+    let tok2 = send(tok, p2, ((state) as u32));
+    let tok3 = send(tok0, p0, ((state) as u32));
+    let tok = join(tok0, tok1, tok2, send(tok0, p0, state as u32));
+    let (tok, value) = recv(tok, c3);
+    (state + u32:1,)
+  }
+}
+
+proc main {
+  config() {
+    let (p, c) = chan u32;
+    spawn foo()(u32: 0);
+    ()
+  }
+  next(tok: token) { () }
+}
+
+)";
 
   ConvertOptions options;
   options.emit_fail_as_assert = false;

@@ -321,6 +321,7 @@ class FunctionConverter {
   absl::Status HandleXlsTuple(XlsTuple* node);
 
   // AstNode handlers that recur "manually" internal to the handler.
+  absl::Status HandleJoin(Join* node);
   absl::Status HandleArray(Array* node);
   absl::Status HandleAttr(Attr* node);
   absl::Status HandleCast(Cast* node);
@@ -695,9 +696,10 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(ColonRef)
   NO_TRAVERSE_DISPATCH_VISIT(ConstantDef)
   NO_TRAVERSE_DISPATCH_VISIT(For)
+  NO_TRAVERSE_DISPATCH_VISIT(FormatMacro)
   NO_TRAVERSE_DISPATCH_VISIT(Index)
   NO_TRAVERSE_DISPATCH_VISIT(Invocation)
-  NO_TRAVERSE_DISPATCH_VISIT(FormatMacro)
+  NO_TRAVERSE_DISPATCH_VISIT(Join)
   NO_TRAVERSE_DISPATCH_VISIT(Let)
   NO_TRAVERSE_DISPATCH_VISIT(Match)
   NO_TRAVERSE_DISPATCH_VISIT(Recv)
@@ -2144,6 +2146,28 @@ absl::Status FunctionConverter::HandleRecvIf(RecvIf* node) {
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::HandleJoin(Join* node) {
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+  if (builder_ptr == nullptr) {
+    return absl::InternalError(
+        "Join nodes should only be encountered during Proc conversion; "
+        "we seem to be in function conversion.");
+  }
+
+  std::vector<BValue> ir_tokens;
+  ir_tokens.reserve(node->tokens().size());
+  for (auto* token : node->tokens()) {
+    XLS_RETURN_IF_ERROR(Visit(token));
+    XLS_ASSIGN_OR_RETURN(BValue ir_token, Use(token));
+    ir_tokens.push_back(ir_token);
+  }
+  BValue value = builder_ptr->AfterAll(ir_tokens);
+  node_to_ir_[node] = value;
+  tokens_.push_back(value);
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::AddImplicitTokenParams() {
   XLS_RET_CHECK(!implicit_token_data_.has_value());
   implicit_token_data_.emplace();
@@ -3046,6 +3070,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FunctionConverter::ResolveType(
   XLS_RET_CHECK(current_type_info_ != nullptr);
   absl::optional<const ConcreteType*> t = current_type_info_->GetItem(node);
   if (!t.has_value()) {
+    XLS_LOG(INFO) << "NODE: " << node << " : TI: " << current_type_info_;
     return ConversionErrorStatus(
         node->GetSpan(),
         absl::StrFormat(

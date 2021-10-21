@@ -2014,6 +2014,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIf(RecvIf* node,
   return std::make_unique<TupleType>(std::move(elements));
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceJoin(Join* node,
+                                                         DeduceCtx* ctx) {
+  for (auto* token : node->tokens()) {
+    XLS_RETURN_IF_ERROR(Deduce(token, ctx).status());
+  }
+  return std::make_unique<TokenType>();
+}
+
 // Record that the current function being checked has a side effect and will
 // require an implicit token when converted to IR.
 void UseImplicitToken(DeduceCtx* ctx) {
@@ -2405,6 +2413,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(For)
   DEDUCE_DISPATCH(Cast)
   DEDUCE_DISPATCH(StructDef)
+  DEDUCE_DISPATCH(Join)
   DEDUCE_DISPATCH(Array)
   DEDUCE_DISPATCH(Attr)
   DEDUCE_DISPATCH(ChannelDecl)

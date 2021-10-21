@@ -1182,6 +1182,14 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     Pos end = GetPos();
     return module_->Make<SendIf>(Span(send.span().start(), end), token, channel,
                                  condition, payload);
+  } else if (peek->IsKeyword(Keyword::kJoin)) {
+    Token join = PopTokenOrDie();
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<Expr*> tokens,
+        ParseCommaSeq(BindFront(&Parser::ParseExpression, outer_bindings),
+                      TokenKind::kCParen));
+    return module_->Make<Join>(Span(join.span().start(), GetPos()), tokens);
   } else if (peek->kind() == TokenKind::kIdentifier || peek_is_kw_in ||
              peek_is_kw_out) {
     std::string lhs_str = *peek->GetValue();

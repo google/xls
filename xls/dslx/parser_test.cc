@@ -295,6 +295,33 @@ proc consumer {
   EXPECT_EQ(m->ToString(), kModule);
 }
 
+TEST_F(ParserTest, ParseJoin) {
+  constexpr absl::string_view kModule = R"(proc foo {
+  c0: chan out u32;
+  c1: chan out u32;
+  c2: chan out u32;
+  c3: chan in u32;
+  config(c0: chan out u32, c1: chan out u32, c2: chan out u32, c3: chan in u32) {
+    (c0, c1, c2, c3)
+  }
+  next(tok: token, state: u32) {
+    let tok0 = send(tok, c0, ((state) as u32));
+    let tok1 = send(tok, c1, ((state) as u32));
+    let tok2 = send(tok, c2, ((state) as u32));
+    let tok3 = send(tok0, c0, ((state) as u32));
+    let tok = join(tok0, tok1, tok2, send(tok0, c0, ((state) as u32)));
+    let tok = recv(tok, c3);
+    (state) + (u32:1)
+  }
+})";
+
+  Scanner s{"test.x", std::string{kModule}};
+  Parser parser{"test", &s};
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
+  EXPECT_EQ(m->ToString(), kModule);
+}
+
 TEST_F(ParserTest, ParseStructSplat) {
   const char* text = R"(struct Point {
   x: u32,

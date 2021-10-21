@@ -30,6 +30,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
       : ctx_(ctx), concrete_type_(concrete_type) {}
   ~ConstexprEvaluator() override {}
 
+  void HandleJoin(Join* expr) override {}
   void HandleArray(Array* expr) override {}
   void HandleAttr(Attr* expr) override;
   void HandleBinop(Binop* node) override {}

@@ -92,11 +92,15 @@ absl::Status ProcConfigIrConverter::Finalize() {
 
 absl::Status ProcConfigIrConverter::HandleChannelDecl(ChannelDecl* node) {
   XLS_VLOG(4) << "ProcConfigIrConverter::HandlesChannelDecl: "
-              << node->ToString();
+              << node->ToString() << " : " << node->span().ToString();
   std::string name = absl::StrCat(ProcStackToId(proc_id_.proc_stack),
                                   "_chandecl_", node->span().ToString());
-  name = absl::StrReplaceAll(
-      name, {{":", "_"}, {".", "_"}, {"-", "_"}, {"/", "_"}, {"\\", "_"}});
+  name = absl::StrReplaceAll(name, {{":", "_"},
+                                    {".", "_"},
+                                    {"-", "_"},
+                                    {"/", "_"},
+                                    {"\\", "_"},
+                                    {">", "_"}});
   auto concrete_type = type_info_->GetItem(node->type());
   XLS_RET_CHECK(concrete_type.has_value());
   XLS_ASSIGN_OR_RETURN(xls::Type * type,

@@ -17,6 +17,7 @@
 
 // See also `XLS_DSLX_TYPE_KEYWORDS` below and `xls/dslx/ast_builtin_types.inc`
 #define XLS_DSLX_KEYWORDS(X)     \
+  X(kJoin, JOIN, "join")         \
   X(kAs, AS, "as")               \
   X(kCarry, CARRY, "carry")      \
   X(kConfig, CONFIG, "config")   \

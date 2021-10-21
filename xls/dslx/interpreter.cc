@@ -84,6 +84,10 @@ class Evaluator : public ExprVisitor {
     value_ = absl::UnimplementedError(absl::StrFormat(
         "SendIf expression is unhandled @ %s", expr->span().ToString()));
   }
+  void HandleJoin(Join* expr) override {
+    value_ = absl::UnimplementedError(absl::StrFormat(
+        "Join expression is unhandled @ %s", expr->span().ToString()));
+  }
   void HandleSpawn(Spawn* expr) override {
     value_ = absl::UnimplementedError(absl::StrFormat(
         "Spawn expression is unhandled @ %s", expr->span().ToString()));
