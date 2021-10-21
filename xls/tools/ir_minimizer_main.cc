@@ -118,9 +118,18 @@ ABSL_FLAG(
     "Also, because this option runs a single pass at a time it often results "
     "in more minimization than --use_optimization_pipeline which "
     "which might optimize away the problematic bit of IR entirely.");
+ABSL_FLAG(std::string, entry, "", "Entry function to use during minimization.");
 
 namespace xls {
 namespace {
+
+absl::StatusOr<std::unique_ptr<Package>> ParsePackage(
+    absl::string_view ir_text) {
+  if (absl::GetFlag(FLAGS_entry).empty()) {
+    return Parser::ParsePackage(ir_text);
+  }
+  return Parser::ParsePackageWithEntry(ir_text, absl::GetFlag(FLAGS_entry));
+}
 
 // Return a uniform random number over the interval [0, 1).
 float Random0To1(std::mt19937* rng) {
@@ -172,8 +181,7 @@ absl::StatusOr<bool> StillFailsHelper(
   }
 
   // Test for bugs by comparing the results of the JIT and interpreter.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
-                       Parser::ParsePackage(ir_text));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package, ParsePackage(ir_text));
   XLS_RET_CHECK(inputs.has_value());
   XLS_ASSIGN_OR_RETURN(Function * main, package->EntryFunction());
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit, IrJit::Create(main));
@@ -532,7 +540,7 @@ absl::Status RealMain(absl::string_view path,
   {
     XLS_LOG(INFO) << "=== Cleaning up initial garbage";
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
-                         Parser::ParsePackage(knownf_ir_text));
+                         ParsePackage(knownf_ir_text));
     XLS_ASSIGN_OR_RETURN(Function * main, package->EntryFunction());
     XLS_RETURN_IF_ERROR(CleanUp(main, can_remove_params));
     XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
@@ -566,7 +574,7 @@ absl::Status RealMain(absl::string_view path,
 
     XLS_VLOG(1) << "=== Simplification attempt " << total_attempts;
 
-    XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(knownf_ir_text));
+    XLS_ASSIGN_OR_RETURN(auto package, ParsePackage(knownf_ir_text));
     XLS_ASSIGN_OR_RETURN(Function * candidate, package->EntryFunction());
     XLS_VLOG_LINES(2,
                    "=== Candidate for simplification:\n" + candidate->DumpIr());
