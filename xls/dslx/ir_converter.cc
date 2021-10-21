@@ -532,9 +532,7 @@ class FunctionConverter {
   // Maps a proc ID to its [constant] member values, "indexed" by name.
   absl::flat_hash_map<ProcId, MemberNameToValue>* proc_id_to_members_;
 
-  // The last token encountered during translation. At the end of the function,
-  // this will be the "exit" token for the proc.
-  BValue last_token_;
+  std::vector<BValue> tokens_;
 
   // The ID of the unique Proc instance currently being converted. Only valid if
   // a Proc is being converted.
@@ -1127,6 +1125,7 @@ absl::Status FunctionConverter::HandleConstantDef(ConstantDef* node) {
 }
 
 absl::Status FunctionConverter::HandleLet(Let* node) {
+  // XLS_LOG(INFO) << "HandleLet: " << node->ToString();
   XLS_RETURN_IF_ERROR(Visit(node->rhs()));
 
   XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->rhs()));
@@ -1161,7 +1160,7 @@ absl::Status FunctionConverter::HandleLet(Let* node) {
       XLS_VLOG(6) << absl::StreamFormat("Walking level %d index %d: `%s`",
                                         level, index, x->ToString());
       levels.resize(level);
-      levels.push_back(Def(x, [this, &levels, x,
+      levels.push_back(Def(x, [this, &levels, x, level,
                                index](absl::optional<SourceLocation> loc) {
         if (loc.has_value()) {
           loc = ToSourceLocation(x->is_leaf() ? ToAstNode(x->leaf())->GetSpan()
@@ -1171,7 +1170,12 @@ absl::Status FunctionConverter::HandleLet(Let* node) {
         xls::TupleType* tuple_type = tuple.GetType()->AsTupleOrDie();
         XLS_CHECK_LT(index, tuple_type->size())
             << "index: " << index << " type: " << tuple_type->ToString();
-        return function_builder_->TupleIndex(tuple, index, loc);
+        BValue tuple_index = function_builder_->TupleIndex(tuple, index, loc);
+        if (level == 1 && index == 0 &&
+            tuple_type->element_type(0)->IsToken()) {
+          tokens_.push_back(tuple_index);
+        }
+        return tuple_index;
       }));
       if (x->is_leaf()) {
         XLS_RETURN_IF_ERROR(DefAlias(x, ToAstNode(x->leaf())));
@@ -2029,6 +2033,7 @@ absl::Status FunctionConverter::HandleSend(Send* node) {
         "we seem to be in function conversion.");
   }
 
+  XLS_RETURN_IF_ERROR(Visit(node->token()));
   XLS_RETURN_IF_ERROR(Visit(node->channel()));
   XLS_RETURN_IF_ERROR(Visit(node->payload()));
   if (!node_to_ir_.contains(node->channel())) {
@@ -2039,12 +2044,11 @@ absl::Status FunctionConverter::HandleSend(Send* node) {
     return absl::InvalidArgumentError(
         "Expected channel, got BValue or CValue.");
   }
+  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
   XLS_ASSIGN_OR_RETURN(BValue data, Use(node->payload()));
-  last_token_ =
-      builder_ptr->Send(absl::get<Channel*>(ir_value), last_token_, data);
-
-  XLS_RETURN_IF_ERROR(Visit(node->body()));
-  XLS_RETURN_IF_ERROR(DefAlias(node->body(), node));
+  BValue result = builder_ptr->Send(absl::get<Channel*>(ir_value), token, data);
+  node_to_ir_[node] = result;
+  tokens_.push_back(result);
   return absl::OkStatus();
 }
 
@@ -2057,9 +2061,10 @@ absl::Status FunctionConverter::HandleRecv(Recv* node) {
         "we seem to be in function conversion.");
   }
 
+  XLS_RETURN_IF_ERROR(Visit(node->token()));
   XLS_RETURN_IF_ERROR(Visit(node->channel()));
   if (!node_to_ir_.contains(node->channel())) {
-    return absl::InternalError("Send channel not found!");
+    return absl::InternalError("Recv channel not found!");
   }
   IrValue ir_value = node_to_ir_[node->channel()];
   if (!absl::holds_alternative<Channel*>(ir_value)) {
@@ -2067,10 +2072,9 @@ absl::Status FunctionConverter::HandleRecv(Recv* node) {
         "Expected channel, got BValue or CValue.");
   }
 
-  BValue value =
-      builder_ptr->Receive(absl::get<Channel*>(ir_value), last_token_);
-  node_to_ir_[node] = builder_ptr->TupleIndex(value, 1);
-  last_token_ = builder_ptr->TupleIndex(value, 0);
+  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
+  BValue value = builder_ptr->Receive(absl::get<Channel*>(ir_value), token);
+  node_to_ir_[node] = value;
   return absl::OkStatus();
 }
 
@@ -2316,6 +2320,11 @@ absl::Status FunctionConverter::HandleProcNextFunction(
       absl::StrReplaceAll(mangled_name, {{":", "_"}, {"->", "__"}}), "_next");
   std::string token_name = "__token";
   std::string state_name = "__state";
+  // If this function is parametric, then the constant args will be defined in
+  // the _parent_ type info.
+  if (type_info->parent() != nullptr) {
+    type_info = type_info->parent();
+  }
   XLS_ASSIGN_OR_RETURN(
       std::vector<Value> initial_elements,
       GetProcInitialValues(module_, f->proc().value(), invocation, type_info,
@@ -2324,16 +2333,18 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   auto builder = std::make_unique<ProcBuilder>(
       mangled_name, Value::Tuple(initial_elements), token_name, state_name,
       package());
-  last_token_ = builder->GetTokenParam();
+  tokens_.push_back(builder->GetTokenParam());
+  SetNodeToIr(f->params()[0]->name_def(), builder->GetTokenParam());
   auto* builder_ptr = builder.get();
   SetFunctionBuilder(std::move(builder));
 
   // Now bind all iter args to their elements in the recurrent state.
+  // We need to shift indices by one to handle the token arg.
   BValue state = builder_ptr->GetStateParam();
-  for (int i = 0; i < f->params().size(); i++) {
+  for (int i = 1; i < f->params().size(); i++) {
     auto* param = f->params()[i];
-    BValue element =
-        builder_ptr->TupleIndex(state, i, absl::nullopt, param->identifier());
+    BValue element = builder_ptr->TupleIndex(state, i - 1, absl::nullopt,
+                                             param->identifier());
     SetNodeToIr(param->name_def(), element);
   }
 
@@ -2373,7 +2384,8 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   XLS_RETURN_IF_ERROR(Visit(f->body()));
 
   BValue result = absl::get<BValue>(node_to_ir_[f->body()]);
-  XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder_ptr->Build(last_token_, result));
+  BValue final_token = builder_ptr->AfterAll(tokens_);
+  XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder_ptr->Build(final_token, result));
   package_data_.ir_to_dslx[p] = f;
   return absl::OkStatus();
 }

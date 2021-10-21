@@ -101,7 +101,7 @@ proc test_proc {
   config(c: chan in u32, ham_sandwich: u32) {
     (c, ham_sandwich)
   }
-  next(y: u32) {
+  next(tok: token, y: u32) {
     let y = y + x;
     (y,)
   }
@@ -114,7 +114,7 @@ proc main {
     spawn test_proc(c, u32:7)(u32:8);
     (p,)
   }
-  next() {
+  next(tok: token) {
     ()
   }
 }
@@ -156,7 +156,7 @@ proc test_proc {
   config(c: chan in u32) {
     (c,)
   }
-  next() {
+  next(tok: token) {
     ()
   }
 }
@@ -168,7 +168,7 @@ proc main {
     spawn test_proc(c)();
     (p,)
   }
-  next() {
+  next(tok: token) {
     ()
   }
 }

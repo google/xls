@@ -4,24 +4,27 @@ chan main_chandecl_test_module_x_26_18_26_26(bits[32], id=0, kind=streaming, ops
 
 proc __test_module__main_0_next(__token: token, __state: (), init=()) {
   tuple.3: () = tuple(id=3)
-  next (__token, tuple.3)
+  after_all.4: token = after_all(__token, id=4)
+  next (after_all.4, tuple.3)
 }
 
 proc __test_module__main__producer_0_next(__token: token, __state: (bits[32]), init=(0)) {
-  i: bits[32] = tuple_index(__state, index=0, id=6)
-  literal.8: bits[32] = literal(value=1, id=8)
-  add.9: bits[32] = add(i, literal.8, id=9)
-  send.7: token = send(__token, i, channel_id=0, id=7)
-  tuple.10: (bits[32]) = tuple(add.9, id=10)
-  next (send.7, tuple.10)
+  i: bits[32] = tuple_index(__state, index=0, id=7)
+  literal.9: bits[32] = literal(value=1, id=9)
+  add.10: bits[32] = add(i, literal.9, id=10)
+  tok: token = send(__token, i, channel_id=0, id=8)
+  tuple.11: (bits[32]) = tuple(add.10, id=11)
+  after_all.12: token = after_all(__token, tok, id=12)
+  next (after_all.12, tuple.11)
 }
 
 proc __test_module__main__consumer_0_next(__token: token, __state: (bits[32]), init=(0)) {
-  receive.14: (token, bits[32]) = receive(__token, channel_id=0, id=14)
-  i__1: bits[32] = tuple_index(receive.14, index=1, id=15)
-  add.17: bits[32] = add(i__1, i__1, id=17)
-  i: bits[32] = tuple_index(__state, index=0, id=13)
-  tuple_index.16: token = tuple_index(receive.14, index=0, id=16)
-  tuple.18: (bits[32]) = tuple(add.17, id=18)
-  next (tuple_index.16, tuple.18)
+  receive.16: (token, bits[32]) = receive(__token, channel_id=0, id=16)
+  i__1: bits[32] = tuple_index(receive.16, index=1, id=18)
+  add.19: bits[32] = add(i__1, i__1, id=19)
+  tok: token = tuple_index(receive.16, index=0, id=17)
+  i: bits[32] = tuple_index(__state, index=0, id=15)
+  tuple.20: (bits[32]) = tuple(add.19, id=20)
+  after_all.21: token = after_all(__token, tok, id=21)
+  next (after_all.21, tuple.20)
 }

@@ -1441,7 +1441,7 @@ proc main {
     ()
   }
 
-  next() {
+  next(tok: token) {
     ()
   }
 }
@@ -1465,8 +1465,8 @@ proc producer {
   config(input_c: chan out u32) {
     (input_c,)
   }
-  next(i: u32) {
-    send(c, i);
+  next(tok: token, i: u32) {
+    let tok = send(tok, c, i);
     (i + u32:1,)
   }
 }
@@ -1476,8 +1476,8 @@ proc consumer {
   config(input_c: chan in u32) {
     (input_c,)
   }
-  next(i: u32) {
-    let i = recv(c);
+  next(tok: token, i: u32) {
+    let (tok, i) = recv(tok, c);
     (i + i,)
   }
 }
@@ -1489,7 +1489,7 @@ proc main {
     spawn consumer(c)(u32:0);
     ()
   }
-  next() { () }
+  next(tok: token) { () }
 }
 )";
 

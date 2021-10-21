@@ -1375,25 +1375,26 @@ Match::Match(Module* owner, Span span, Expr* matched,
 
 // -- class Recv
 
-Recv::Recv(Module* owner, Span span, NameRef* channel)
-    : Expr(owner, std::move(span)), channel_(channel) {}
+Recv::Recv(Module* owner, Span span, NameRef* token, NameRef* channel)
+    : Expr(owner, std::move(span)), token_(token), channel_(channel) {}
 
 std::string Recv::ToString() const {
-  return absl::StrFormat("recv(%s)", channel_->identifier());
+  return absl::StrFormat("recv(%s, %s)", token_->identifier(),
+                         channel_->identifier());
 }
 
 // -- class Send
 
-Send::Send(Module* owner, Span span, NameRef* channel, Expr* payload,
-           Expr* body)
+Send::Send(Module* owner, Span span, NameRef* token, NameRef* channel,
+           Expr* payload)
     : Expr(owner, std::move(span)),
+      token_(token),
       channel_(channel),
-      payload_(payload),
-      body_(body) {}
+      payload_(payload) {}
 
 std::string Send::ToString() const {
-  return absl::StrFormat("send(%s, %s);\n%s", channel_->identifier(),
-                         payload_->ToString(), body_->ToString());
+  return absl::StrFormat("send(%s, %s, %s)", token_->identifier(),
+                         channel_->identifier(), payload_->ToString());
 }
 
 BuiltinTypeAnnotation::BuiltinTypeAnnotation(Module* owner, Span span,

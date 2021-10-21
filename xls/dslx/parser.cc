@@ -1139,21 +1139,24 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
   } else if (peek->IsKeyword(Keyword::kRecv)) {
     Token recv = PopTokenOrDie();
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+    XLS_ASSIGN_OR_RETURN(NameRef * token, ParseNameRef(outer_bindings));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
     XLS_ASSIGN_OR_RETURN(NameRef * channel, ParseNameRef(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
-    return module_->Make<Recv>(Span(recv.span().start(), GetPos()), channel);
+    return module_->Make<Recv>(Span(recv.span().start(), GetPos()), token,
+                               channel);
   } else if (peek->IsKeyword(Keyword::kSend)) {
     Token send = PopTokenOrDie();
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+    XLS_ASSIGN_OR_RETURN(NameRef * token, ParseNameRef(outer_bindings));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
     XLS_ASSIGN_OR_RETURN(NameRef * channel, ParseNameRef(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
     XLS_ASSIGN_OR_RETURN(Expr * payload, ParseExpression(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
     Pos end = GetPos();
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
-    XLS_ASSIGN_OR_RETURN(Expr * body, ParseExpression(outer_bindings));
-    return module_->Make<Send>(Span(send.span().start(), end), channel, payload,
-                               body);
+    return module_->Make<Send>(Span(send.span().start(), end), token, channel,
+                               payload);
   } else if (peek->kind() == TokenKind::kIdentifier || peek_is_kw_in ||
              peek_is_kw_out) {
     std::string lhs_str = *peek->GetValue();
@@ -1597,6 +1600,15 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   return config;
 }
 
+bool TypeIsToken(TypeAnnotation* type) {
+  auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type);
+  if (builtin_type == nullptr) {
+    return false;
+  }
+
+  return builtin_type->builtin_type() == BuiltinType::kToken;
+}
+
 absl::StatusOr<Function*> Parser::ParseProcNext(
     Bindings* bindings,
     const std::vector<ParametricBinding*>& parametric_bindings,
@@ -1615,11 +1627,24 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> next_params,
                        ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
   std::vector<TypeAnnotation*> return_elements;
-  for (const auto& param : next_params) {
+  if (next_params.empty() || !TypeIsToken(next_params[0]->type_annotation())) {
+    return ParseErrorStatus(
+        Span(GetPos(), GetPos()),
+        "The first parameter in a Proc next function must be a token.");
+  }
+
+  for (int i = 1; i < next_params.size(); i++) {
+    Param* param = next_params.at(i);
     if (dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation()) !=
         nullptr) {
-      return absl::InvalidArgumentError("Channels cannot be Proc next params.");
+      return ParseErrorStatus(param->span(),
+                              "Channels cannot be Proc next params.");
+    } else if (TypeIsToken(param->type_annotation())) {
+      return ParseErrorStatus(
+          param->span(),
+          "Only the first parameter in a Proc next function may be a token.");
     }
+
     return_elements.push_back(param->type_annotation());
   }
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));

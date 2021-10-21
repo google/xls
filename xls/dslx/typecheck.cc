@@ -753,7 +753,8 @@ static absl::Status CheckModuleMember(ModuleMember member, Module* module,
     auto maybe_proc = f->proc();
     if (maybe_proc.has_value()) {
       Proc* p = maybe_proc.value();
-      if (!p->config()->params().empty() || !p->next()->params().empty()) {
+      // Next fns always have a token arg.
+      if (!p->config()->params().empty() || p->next()->params().size() > 1) {
         return absl::OkStatus();
       }
     }

@@ -1954,7 +1954,7 @@ class Index : public Expr {
 // proc.
 class Recv : public Expr {
  public:
-  Recv(Module* owner, Span span, NameRef* channel);
+  Recv(Module* owner, Span span, NameRef* token, NameRef* channel);
 
   AstNodeKind kind() const { return AstNodeKind::kRecv; }
 
@@ -1970,9 +1970,11 @@ class Recv : public Expr {
     return {ToAstNode(channel_)};
   }
 
+  NameRef* token() { return token_; }
   NameRef* channel() { return channel_; }
 
  private:
+  NameRef* token_;
   NameRef* channel_;
 };
 
@@ -1984,7 +1986,8 @@ class Recv : public Expr {
 // contains the rest of the containing block's (Function, Proc) body.
 class Send : public Expr {
  public:
-  Send(Module* owner, Span span, NameRef* channel, Expr* payload, Expr* body);
+  Send(Module* owner, Span span, NameRef* token, NameRef* channel,
+       Expr* payload);
 
   AstNodeKind kind() const { return AstNodeKind::kSend; }
 
@@ -1997,17 +2000,17 @@ class Send : public Expr {
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {ToAstNode(channel_), ToAstNode(payload_), ToAstNode(body_)};
+    return {ToAstNode(token_), ToAstNode(channel_), ToAstNode(payload_)};
   }
 
+  NameRef* token() { return token_; }
   NameRef* channel() { return channel_; }
   Expr* payload() { return payload_; }
-  Expr* body() { return body_; }
 
  private:
+  NameRef* token_;
   NameRef* channel_;
   Expr* payload_;
-  Expr* body_;
 };
 
 // Represents a unit test construct.

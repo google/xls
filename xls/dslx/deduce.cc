@@ -1966,12 +1966,16 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSend(Send* node,
                               "of its payload.");
   }
 
-  return ctx->Deduce(node->body());
+  return std::make_unique<TokenType>();
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecv(Recv* node,
                                                          DeduceCtx* ctx) {
-  return Deduce(node->channel(), ctx);
+  XLS_ASSIGN_OR_RETURN(auto channel_element_type, Deduce(node->channel(), ctx));
+  std::vector<std::unique_ptr<ConcreteType>> elements;
+  elements.emplace_back(std::make_unique<TokenType>());
+  elements.emplace_back(std::move(channel_element_type));
+  return std::make_unique<TupleType>(std::move(elements));
 }
 
 // Record that the current function being checked has a side effect and will
@@ -2173,9 +2177,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(Spawn* node,
 
   // Gather up the type of all the (actual) arguments.
   std::vector<InstantiateArg> config_args;
-  std::vector<InstantiateArg> next_args;
   XLS_RETURN_IF_ERROR(InstantiateParametricArgs(
       node->span(), node->callee(), node->config()->args(), ctx, &config_args));
+
+  std::vector<InstantiateArg> next_args;
+  next_args.emplace_back(
+      InstantiateArg{std::make_unique<TokenType>(), node->span()});
   XLS_RETURN_IF_ERROR(InstantiateParametricArgs(
       node->span(), node->callee(), node->next()->args(), ctx, &next_args));
 

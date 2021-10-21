@@ -187,7 +187,7 @@ TEST_F(ParserTest, ParseSimpleProc) {
   config() {
     ()
   }
-  next(addend: u32) {
+  next(tok: token, addend: u32) {
     (x) + (addend)
   }
 })";
@@ -209,7 +209,8 @@ TEST_F(ParserTest, ParseProcNetwork) {
   config(limit: u32, c: chan out u32) {
     (c, limit)
   }
-  next(i: u32) {
+  next(tok: token, i: u32) {
+    let tok = send(tok, c_, i);
     (i) + (1)
   }
 }
@@ -218,8 +219,8 @@ proc consumer<N: u32> {
   config(c: chan in u32) {
     (c,)
   }
-  next(i: u32) {
-    let e = recv(c_);
+  next(tok: token, i: u32) {
+    let (tok1, e) = recv(tok, c_);
     (i) + (1)
   }
 }
@@ -230,7 +231,7 @@ proc main {
     spawn consumer(range(10), c)(0);
     ()
   }
-  next() {
+  next(tok: token) {
     ()
   }
 })";
@@ -249,7 +250,7 @@ TEST_F(ParserTest, ChannelsNotAsIterArgs) {
     let c_ = (c);
     ()
   }
-  next(c: chan out u32, i: u32) {
+  next(tok: token, c: chan out u32, i: u32) {
     send((c), (i));
     (i) + (i)
   }

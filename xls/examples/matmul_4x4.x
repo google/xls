@@ -41,16 +41,16 @@ proc node {
     (from_west, from_north, to_east, to_south, weight)
   }
 
-  next() {
-    let activation = recv(from_west);
-    let partial_sum = recv(from_north);
+  next(tok: token) {
+    let (tok, activation) = recv(tok, from_west);
+    let (tok, partial_sum) = recv(tok, from_north);
 
     // Compute our partial product.
     let product = fpmul_2x32::fpmul_2x32(activation, weight);
 
     // Send the activation east and the partial product south.
-    send(to_east, activation);
-    send(to_south, product);
+    let tok = send(tok, to_east, activation);
+    let tok = send(tok, to_south, product);
     ()
   }
 }
@@ -91,33 +91,32 @@ proc driver {
   }
 
   // Pass the result as a state parameter so that the proc evaluators print it.
-  next(basis: F32, result_0: F32, result_1: F32, result_2: F32, result_3: F32) {
+  next(tok: token, basis: F32, result_0: F32, result_1: F32, result_2: F32, result_3: F32) {
     let f32_0 = float32::zero(false);
     let f32_2 = F32 { sign: false, bexp: u8:128, fraction: u23:0 };
 
-    send(east_to_00, basis);
-    send(east_to_10, basis);
-    send(east_to_20, basis);
-    send(east_to_30, basis);
+    let tok1 = send(tok, east_to_00, basis);
+    let tok2 = send(tok1, east_to_10, basis);
+    let tok3 = send(tok2, east_to_20, basis);
+    let tok4 = send(tok3, east_to_30, basis);
 
-    send(south_to_00, f32_0);
-    send(south_to_01, f32_0);
-    send(south_to_02, f32_0);
-    send(south_to_03, f32_0);
+    let tok5 = send(tok4, south_to_00, f32_0);
+    let tok6 = send(tok5, south_to_01, f32_0);
+    let tok7 = send(tok6, south_to_02, f32_0);
+    let tok8 = send(tok7, south_to_03, f32_0);
 
-    let _ = recv(out_04);
-    let _ = recv(out_14);
-    let _ = recv(out_24);
-    let _ = recv(out_34);
-    let result_0 = recv(out_40);
-    let result_1 = recv(out_41);
-    let result_2 = recv(out_42);
-    let result_3 = recv(out_43);
+    let (tok9, _) = recv(tok8, out_04);
+    let (tok10, _) = recv(tok9, out_14);
+    let (tok11, _) = recv(tok10, out_24);
+    let (tok12, _) = recv(tok11, out_34);
+    let (tok13, result_0) = recv(tok12, out_40);
+    let (tok14, result_1) = recv(tok13, out_41);
+    let (tok15, result_2) = recv(tok14, out_42);
+    let (tok16, result_3) = recv(tok15, out_43);
 
     let basis = fpmul_2x32::fpmul_2x32(basis, f32_2);
     (basis, result_0, result_1, result_2, result_3)
   }
-
 }
 
 proc main {
@@ -207,5 +206,5 @@ proc main {
     ()
   }
 
-  next() { () }
+  next(tok: token) { () }
 }

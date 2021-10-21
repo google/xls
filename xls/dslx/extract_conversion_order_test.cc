@@ -209,7 +209,7 @@ TEST(ExtractConversionOrderTest, BasicProc) {
   const char* program = R"(
 proc foo {
   config() { () }
-  next() { () }
+  next(tok: token) { () }
 }
 
 proc main {
@@ -217,7 +217,7 @@ proc main {
     spawn foo()();
     ()
   }
-  next() { () }
+  next(tok: token) { () }
 }
 )";
   auto import_data = ImportData::CreateForTest();
@@ -255,7 +255,7 @@ fn f1() -> u32 {
 proc p2 {
   config() { () }
 
-  next(x: u32) {
+  next(tok: token, x: u32) {
     (f0(),)
   }
 }
@@ -265,7 +265,7 @@ proc p1 {
     spawn p2()(u32:0);
     ()
   }
-  next(i: u32) {
+  next(tok: token, i: u32) {
     (i,)
   }
 }
@@ -276,7 +276,7 @@ proc p0 {
     spawn p1()(u32:2);
     ()
   }
-  next(i: u32) {
+  next(tok: token, i: u32) {
     let j = f1();
     (f0() + j,)
   }
@@ -289,7 +289,7 @@ proc main {
     spawn p2()(u32:5);
     ()
   }
-  next() { () }
+  next(tok: token) { () }
 }
 )";
   auto import_data = ImportData::CreateForTest();
