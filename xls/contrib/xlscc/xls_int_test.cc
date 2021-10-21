@@ -445,6 +445,29 @@ TEST_F(XlsIntTest, Slc) {
              xabsl::SourceLocation::current());
 }
 
+// Unroll for in default function
+TEST_F(XlsIntTest, DefaultArrayInit) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    struct Foo {
+      XlsInt<8, false> data[16];
+      Foo() = default;
+      Foo(const XlsInt<128, false>& vector) {
+        #pragma hls_unroll yes
+        for(int i=0;i<16;++i) {
+          data[i] = vector.slc<8>(8*i);
+        }
+      }
+    };
+    int my_package(int a) {
+      XlsInt<4 * 128, false> bigval(a);
+      Foo smallval;
+      smallval = bigval.slc<128>(0);
+      return 1 + smallval.data[0];
+    })";
+  RunIntTest({{"a", 100}}, 101, content, xabsl::SourceLocation::current());
+}
+
 }  // namespace
 
 }  // namespace xlscc

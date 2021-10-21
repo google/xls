@@ -3830,6 +3830,32 @@ TEST_F(TranslatorTest, ParenType) {
   Run({{"a", 10}}, 21, content);
 }
 
+TEST_F(TranslatorTest, DefaultArrayInit) {
+  const std::string content = R"(
+    struct Val {
+      Val() : v(0) { }
+      Val(const Val&o) : v(o.v) {
+      }
+      int v;
+    };
+    struct Foo {
+      Val a[16];
+    };
+
+    int my_package(int a) {
+      Foo x;
+      x.a[1].v = a;
+      Foo y;
+      y = x;
+      return 1+y.a[1].v;
+    })";
+
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                    testing::HasSubstr("__builtin_memcpy")));
+}
+
 }  // namespace
 
 }  // namespace xlscc

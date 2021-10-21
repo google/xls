@@ -1247,6 +1247,9 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
   context().fb = absl::implicit_cast<xls::BuilderBase*>(&builder);
   context().sf = &sf;
 
+  // Unroll for loops in default function bodies without pragma
+  context().for_loops_default_unroll = funcdecl->isDefaulted();
+
   XLS_ASSIGN_OR_RETURN(
       context().return_type,
       TranslateTypeFromClang(funcdecl->getReturnType(), GetLoc(*funcdecl)));
@@ -3335,12 +3338,16 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
     case clang::Stmt::ForStmtClass: {
       auto forst = clang_down_cast<const clang::ForStmt*>(stmt);
 
-      XLS_ASSIGN_OR_RETURN(Pragma pragma,
-                           FindPragmaForLoc(GetPresumedLoc(sm, *forst)));
-      if (pragma != Pragma_Unroll) {
-        return absl::UnimplementedError(
-            absl::StrFormat("Only unrolled for loops currently supported at %s",
-                            LocString(loc)));
+      if (!context().for_loops_default_unroll) {
+        XLS_ASSIGN_OR_RETURN(Pragma pragma,
+                             FindPragmaForLoc(GetPresumedLoc(sm, *forst)));
+        if (pragma != Pragma_Unroll) {
+          forst->dump();
+
+          return absl::UnimplementedError(absl::StrFormat(
+              "Only unrolled for loops currently supported at %s",
+              LocString(loc)));
+        }
       }
 
       XLS_RETURN_IF_ERROR(GenerateIR_UnrolledFor(forst, ctx, loc, false));

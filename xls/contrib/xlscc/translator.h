@@ -444,6 +444,9 @@ struct TranslationContext {
   // This mode was created to handle the "this" pointer, which is mandatory
   //  to handle classes.
   bool ignore_pointers = false;
+
+  // Assume for loops without pragmas are unrolled
+  bool for_loops_default_unroll = false;
 };
 
 class Translator {
