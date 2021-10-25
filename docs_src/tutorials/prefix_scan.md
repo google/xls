@@ -12,13 +12,13 @@ resets to 0 if a new value is found.
 For example, for this input:
 
 ```dslx-snippet
-  let input = bits[8,32]:[0, 0, 0, 0, 0, 0, 0, 0]
+  let input = u32[8]:[0, 0, 0, 0, 0, 0, 0, 0]
 ```
 
 the code should produce this output:
 
 ```dslx-snippet
-  bits[8,3]:[0, 1, 2, 3, 4, 5, 6, 7])
+  u3[8]:[0, 1, 2, 3, 4, 5, 6, 7])
 ```
 
 At index 0 it has not yet found any value, so it assigns a counter value of `0`.
@@ -32,13 +32,13 @@ duplicate) and therefore adds a 1 to the counter from index 1. And so on.
 Correspondingly, for this input:
 
 ```dslx-snippet
-  let input = bits[8,32]:[0, 0, 1, 1, 2, 2, 3, 3]
+  let input = u32[8]:[0, 0, 1, 1, 2, 2, 3, 3]
 ```
 
 it should produce:
 
 ```dslx-snippet
-  assert_eq(result, bits[8,3]:[0, 1, 0, 1, 0, 1, 0, 1])
+  assert_eq(result, u3[8]:[0, 1, 0, 1, 0, 1, 0, 1])
 ```
 
 The full listing is in `examples/dslx_intro/prefix_scan_equality.x`.
@@ -52,7 +52,7 @@ The function prototype is straigt-forward. Input is an array of 8 values of type
 count can only be 7, which fits in 3 bits).
 
 ```dslx-snippet
-fn prefix_scan_eq(x: u32[8]) -> bits[8,3] {
+fn prefix_scan_eq(x: u32[8]) -> u3[8] {
 ```
 
 The first let expression produces a tuple of 3 values. It only cares about the
@@ -73,7 +73,7 @@ Using tuples as the accumulator is a convenient way to model multiple
 loop-carried values:
 
 ```dslx-snippet
-    for ((i, elem), (prior, count, result)): ((u32, u32), (u32, u3, bits[8,3]))
+    for ((i, elem), (prior, count, result)): ((u32, u32), (u32, u3, u3[8]))
           in enumerate(x) {
 ```
 
@@ -86,8 +86,8 @@ values named `prior`, `count`, and `result`.
 
 The types of the iterable and accumulator are specified next. The iterable is a
 tuple consisting of two `u32` values. The accumulator is more interesting, it is
-a tuple consiting of a `u32` value (`prior`), a `u3` value (`count`), and a
-2-dimension array type `bits[8, 3]`, which is an array holding 8 elements of
+a tuple consiting of a `u32` value (`prior`), a `u3` value (`count`), and an
+array type `u3[8]`, which is an array holding 8 elements of
 bit-width 3. This is the type of `result` in the accumulator.
 
 Looping back to the prior `let` statement, it ignores the `prior` and `count`
@@ -137,7 +137,7 @@ To update the result, we set index `i` in the `result` array to the value
 `new_result`):
 
 ```dslx-snippet
-    let new_result: bits[8,3] = update(result, i, to_place);
+    let new_result: u3[8] = update(result, i, to_place);
 ```
 
 Finally the updated accumulator value is constructed, it is the last expression
@@ -155,7 +155,7 @@ accumulator in the following way.
 *   set element `result` to 8 0's of size `u3`
 
 ```dslx-snippet
-}((u32:-1, u3:0, bits[8,3]:[u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0]));
+}((u32:-1, u3:0, u3[8]:[u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0]));
 ```
 
 And, finally, the function simply returns `result`:
@@ -173,15 +173,15 @@ right to this implementation file:
 ```dslx-snippet
 #![test]
 fn test_prefix_scan_eq_all_zero() {
-  let input = bits[8,32]:[0, 0, 0, 0, 0, 0, 0, 0];
+  let input = u32[8]:[0, 0, 0, 0, 0, 0, 0, 0];
   let result = prefix_scan_eq(input);
-  assert_eq(result, bits[8,3]:[0, 1, 2, 3, 4, 5, 6, 7])
+  assert_eq(result, u3[8]:[0, 1, 2, 3, 4, 5, 6, 7])
 }
 
 #![test]
 fn test_prefix_scan_eq_doubles() {
-  let input = bits[8,32]:[0, 0, 1, 1, 2, 2, 3, 3];
+  let input = u32[8]:[0, 0, 1, 1, 2, 2, 3, 3];
   let result = prefix_scan_eq(input);
-  assert_eq(result, bits[8,3]:[0, 1, 0, 1, 0, 1, 0, 1])
+  assert_eq(result, u3[8]:[0, 1, 0, 1, 0, 1, 0, 1])
 }
 ```
