@@ -21,7 +21,11 @@
 namespace xls::dslx {
 namespace {
 
-TEST(CppBindingsTest, ParseErrorGetData) {
+using status_testing::IsOkAndHolds;
+using status_testing::StatusIs;
+using ::testing::HasSubstr;
+
+TEST(BindingsTest, ParseErrorGetData) {
   Pos start_pos("fake_file.x", 42, 64);
   Pos limit_pos("fake_file.x", 43, 65);
   Span span(start_pos, limit_pos);
@@ -30,6 +34,34 @@ TEST(CppBindingsTest, ParseErrorGetData) {
   EXPECT_EQ(got.span, span);
   EXPECT_EQ(got.message, "my message");
   EXPECT_EQ(got.error_type, "ParseError");
+}
+
+TEST(BindingsTest, NotPositionalError) {
+  auto status = absl::InvalidArgumentError("This has no position data");
+  EXPECT_THAT(
+      GetPositionalErrorData(status),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Provided status is not in recognized error form")));
+}
+
+TEST(BindingsTest, PositionalErrorNotTargetType) {
+  auto status = absl::InvalidArgumentError(
+      "ParseError: fake_file.x:1:1-2:2 message goes here");
+  Span span = {Pos{"fake_file.x", 0, 0}, Pos{"fake_file.x", 1, 1}};
+  EXPECT_THAT(GetPositionalErrorData(status),
+              IsOkAndHolds(PositionalErrorData{span, "message goes here",
+                                               "ParseError"}));
+  EXPECT_THAT(
+      GetPositionalErrorData(status, /*target_type=*/"ShoobaDoobaError"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Provided status is not in recognized error form")));
+}
+
+TEST(BindingsTest, ResolveNameOrNulloptMissingCase) {
+  Bindings bindings;
+  absl::optional<AnyNameDef> result =
+      bindings.ResolveNameOrNullopt("not_present");
+  EXPECT_FALSE(result.has_value());
 }
 
 }  // namespace

@@ -29,11 +29,6 @@ namespace xls::dslx {
 using BoundNode = absl::variant<EnumDef*, TypeDef*, ConstantDef*, NameDef*,
                                 BuiltinNameDef*, StructDef*, Import*>;
 
-// Checks that n is one of the BoundNode variants shown above, and returns it in
-// the BoundNode variant. Returns an error status if the AST node is not one of
-// the supported variant types.
-absl::StatusOr<BoundNode> ToBoundNode(AstNode* n);
-
 // Returns a string, useful for reporting in error messages, for the type of the
 // AST node contained inside of the given BoundNode variant; e.g. "Import".
 std::string BoundNodeGetTypeString(const BoundNode& bn);
@@ -57,6 +52,11 @@ struct PositionalErrorData {
 
   std::string GetMessageWithType() const {
     return absl::StrCat(error_type, ": ", message);
+  }
+
+  bool operator==(const PositionalErrorData& other) const {
+    return span == other.span && message == other.message &&
+           error_type == other.error_type;
   }
 };
 

@@ -127,18 +127,4 @@ absl::optional<AnyNameDef> Bindings::ResolveNameOrNullopt(
   return BoundNodeToAnyNameDef(*bn);
 }
 
-absl::StatusOr<BoundNode> ToBoundNode(AstNode* n) {
-  // clang-format off
-  if (auto* bn = dynamic_cast<EnumDef*>(n)) { return BoundNode(bn); }
-  if (auto* bn = dynamic_cast<TypeDef*>(n)) { return BoundNode(bn); }
-  if (auto* bn = dynamic_cast<ConstantDef*>(n)) { return BoundNode(bn); }
-  if (auto* bn = dynamic_cast<NameDef*>(n)) { return BoundNode(bn); }
-  if (auto* bn = dynamic_cast<BuiltinNameDef*>(n)) { return BoundNode(bn); }
-  if (auto* bn = dynamic_cast<StructDef*>(n)) { return BoundNode(bn); }
-  if (auto* bn = dynamic_cast<Import*>(n)) { return BoundNode(bn); }
-  // clang-format on
-  return absl::InvalidArgumentError("Invalid AST node for use in bindings: " +
-                                    n->ToString());
-}
-
 }  // namespace xls::dslx
