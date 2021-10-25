@@ -300,6 +300,27 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "proc_fir_filter",
+    srcs = ["proc_fir_filter.cc"],
+    hdrs = ["proc_fir_filter.h"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:optional",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:function_builder",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
+        "//xls/ir:value_helpers",
+    ],
+)
+
 cc_test(
     name = "matmul_4x4_test",
     srcs = ["matmul_4x4_test.cc"],
@@ -318,6 +339,29 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "proc_fir_filter_test",
+    srcs = ["proc_fir_filter_test.cc"],
+    deps = [
+        ":proc_fir_filter",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:channel_queue",
+        "//xls/interpreter:proc_interpreter",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_scanner",
+        "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],
 )
