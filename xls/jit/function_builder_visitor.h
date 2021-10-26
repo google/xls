@@ -150,13 +150,13 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   llvm::Constant* CreateTypedZeroValue(llvm::Type* type);
 
   // After the original arguments, JIT-compiled functions always end with
-  // the following three pointer arguments: output buffer, assertion status
+  // the following three pointer arguments: output buffer, interpreter events
   // temporary and user data. These are descriptive convenience funtions for
   // getting them.
   llvm::Value* GetUserDataPtr() {
     return llvm_fn_->getArg(llvm_fn_->arg_size() - 1);
   }
-  llvm::Value* GetAssertStatusPtr() {
+  llvm::Value* GetInterpreterEventsPtr() {
     return llvm_fn_->getArg(llvm_fn_->arg_size() - 2);
   }
   llvm::Value* GetOutputPtr() {
@@ -236,7 +236,7 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   // Get the required assertion status and user data arguments that need to be
   // included at the end of the argument list for every function call.
   std::vector<llvm::Value*> GetRequiredArgs() {
-    return {GetAssertStatusPtr(), GetUserDataPtr()};
+    return {GetInterpreterEventsPtr(), GetUserDataPtr()};
   }
 
   llvm::LLVMContext& ctx_;

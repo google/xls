@@ -29,6 +29,7 @@
 #include "llvm/include/llvm/IR/LLVMContext.h"
 #include "llvm/include/llvm/Target/TargetMachine.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
@@ -57,12 +58,13 @@ class IrJit {
 
   // Executes the compiled function with the specified arguments.
   // The optional opaque "user_data" argument is passed into Proc send/recv
-  // callbacks.
-  absl::StatusOr<Value> Run(absl::Span<const Value> args,
-                            void* user_data = nullptr);
+  // callbacks. Returns both the resulting value and events that happened
+  // during evaluation.
+  absl::StatusOr<InterpreterResult<Value>> Run(absl::Span<const Value> args,
+                                               void* user_data = nullptr);
 
   // As above, buth with arguments as key-value pairs.
-  absl::StatusOr<Value> Run(
+  absl::StatusOr<InterpreterResult<Value>> Run(
       const absl::flat_hash_map<std::string, Value>& kwargs,
       void* user_data = nullptr);
 
@@ -75,6 +77,11 @@ class IrJit {
   // (and applying views) can eliminate this overhead and still give access tor
   // result data. Users needing less performance can still use the
   // Value-returning methods above for code simplicity.
+  // Drops any events collected during evaluation (except assertion failures
+  // which turn into errors).
+  // TODO(https://github.com/google/xls/issues/506): 2021-10-13 Figure out
+  // if we want a way to return events in the view and packed view interfaces
+  // (or if their performance-focused execution means events are unimportant).
   absl::Status RunWithViews(absl::Span<uint8_t*> args,
                             absl::Span<uint8_t> result_buffer,
                             void* user_data = nullptr);
@@ -105,10 +112,11 @@ class IrJit {
     // Walk the type tree to get each arg's data buffer into our view/arg list.
     PackArgBuffers(arg_buffers, &result_buffer, args...);
 
-    absl::Status assert_status = absl::OkStatus();
-    packed_invoker_(arg_buffers, result_buffer, &assert_status,
+    InterpreterEvents events;
+    packed_invoker_(arg_buffers, result_buffer, &events,
                     /*user_data=*/nullptr);
-    return assert_status;
+
+    return InterpreterEventsToStatus(events);
   }
 
   // Returns the function that the JIT executes.
@@ -190,14 +198,14 @@ class IrJit {
 
   // When initialized, this points to the compiled output.
   using JitFunctionType = void (*)(const uint8_t* const* inputs,
-                                   uint8_t* output, absl::Status* assert_status,
+                                   uint8_t* output, InterpreterEvents* events,
                                    void* user_data);
   JitFunctionType invoker_;
 
   // Packed types for above.
   using PackedJitFunctionType = void (*)(const uint8_t* const* inputs,
                                          uint8_t* output,
-                                         absl::Status* assert_status,
+                                         InterpreterEvents* events,
                                          void* user_data);
   PackedJitFunctionType packed_invoker_;
 };
@@ -206,8 +214,8 @@ class IrJit {
 // resulting return value. Note that this will cause the overhead of creating a
 // IrJit object each time, so external caching strategies are generally
 // preferred.
-absl::StatusOr<Value> CreateAndRun(Function* xls_function,
-                                   absl::Span<const Value> args);
+absl::StatusOr<InterpreterResult<Value>> CreateAndRun(
+    Function* xls_function, absl::Span<const Value> args);
 
 }  // namespace xls
 

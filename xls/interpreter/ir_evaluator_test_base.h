@@ -85,49 +85,68 @@ class IrEvaluatorTestBase
   )");
   }
 
-  // Runs the given function with Values as input, dropping interpreter events.
-  absl::StatusOr<Value> RunWithValues(Function* f,
-                                      absl::Span<const Value> args) {
-    return DropInterpreterEvents(GetParam().evaluator(f, args));
+  // Run the given function with Values as input, returning the result and any
+  // events generated.
+  absl::StatusOr<InterpreterResult<Value>> RunWithEvents(
+      Function* f, absl::Span<const Value> args) {
+    return GetParam().evaluator(f, args);
   }
 
-  // Runs the given function with uint64s as input, dropping interpreter events.
-  // Converts to/from Values under the hood. All arguments and result must be
-  // bits-typed.
-  absl::StatusOr<uint64_t> RunWithUint64s(Function* f,
-                                          absl::Span<const uint64_t> args) {
+  // Runs the given function with Values as input, checking that no traces or
+  // assertion failures are recorded.
+  absl::StatusOr<Value> RunWithNoEvents(Function* f,
+                                        absl::Span<const Value> args) {
+    XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> result,
+                         GetParam().evaluator(f, args));
+
+    if (!result.events.trace_msgs.empty()) {
+      return absl::FailedPreconditionError(
+          absl::StrFormat("Unexpected traces during RunWithNoEvents:\n%s",
+                          absl::StrJoin(result.events.trace_msgs, "\n")));
+    }
+
+    return InterpreterResultToStatusOrValue(result);
+  }
+
+  // Runs the given function with uint64s as input, checking that no events are
+  // generated. Converts to/from Values under the hood. All arguments and result
+  // must be bits-typed.
+  absl::StatusOr<uint64_t> RunWithUint64sNoEvents(
+      Function* f, absl::Span<const uint64_t> args) {
     std::vector<Value> value_args;
     for (int64_t i = 0; i < args.size(); ++i) {
       XLS_RET_CHECK(f->param(i)->GetType()->IsBits());
       value_args.push_back(Value(UBits(args[i], f->param(i)->BitCountOrDie())));
     }
-    XLS_ASSIGN_OR_RETURN(
-        Value value_result,
-        DropInterpreterEvents(GetParam().evaluator(f, value_args)));
+    XLS_ASSIGN_OR_RETURN(Value value_result, RunWithNoEvents(f, value_args));
     XLS_RET_CHECK(value_result.IsBits());
     return value_result.bits().ToUint64();
   }
 
-  // Runs the given function with Bits as input. Converts to/from Values under
-  // the hood. All arguments and result must be bits-typed.
-  absl::StatusOr<Bits> RunWithBits(Function* f, absl::Span<const Bits> args) {
+  // Runs the given function with Bits as input, checking that no events are
+  // generated. Converts to/from Values under the hood. All arguments and result
+  // must be bits-typed.
+  absl::StatusOr<Bits> RunWithBitsNoEvents(Function* f,
+                                           absl::Span<const Bits> args) {
     std::vector<Value> value_args;
     for (int64_t i = 0; i < args.size(); ++i) {
       value_args.push_back(Value(args[i]));
     }
-    XLS_ASSIGN_OR_RETURN(
-        Value value_result,
-        DropInterpreterEvents(GetParam().evaluator(f, value_args)));
+    XLS_ASSIGN_OR_RETURN(Value value_result, RunWithNoEvents(f, value_args));
     XLS_RET_CHECK(value_result.IsBits());
     return value_result.bits();
   }
 
-  // Runs the given function with keyword arguments as input, dropping any
-  // result interpreter events.
-  absl::StatusOr<Value> RunWithKwargs(
+  // Runs the given function with keyword arguments as input, checking that no
+  // events are generated.
+  absl::StatusOr<Value> RunWithKwargsNoEvents(
       Function* function,
       const absl::flat_hash_map<std::string, Value>& kwargs) {
-    return DropInterpreterEvents(GetParam().kwargs_evaluator(function, kwargs));
+    XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> result,
+                         GetParam().kwargs_evaluator(function, kwargs));
+    XLS_RET_CHECK(result.events.trace_msgs.empty());
+    XLS_RET_CHECK(result.events.assert_msgs.empty());
+    return result.value;
   }
 };
 

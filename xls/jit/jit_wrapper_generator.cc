@@ -442,7 +442,7 @@ absl::StatusOr<Value> $0::Run($2) {
   $$0
   Value args[$4] = { $3 };
   // Special form to handle zero-argument spans.
-  XLS_ASSIGN_OR_RETURN(Value _retval, jit_->Run(absl::MakeSpan(args, $4)));
+  XLS_ASSIGN_OR_RETURN(Value _retval, DropInterpreterEvents(jit_->Run(absl::MakeSpan(args, $4))));
   $$1
   return _retval;
 }

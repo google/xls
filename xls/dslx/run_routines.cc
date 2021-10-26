@@ -88,15 +88,15 @@ absl::Status RunComparator::RunComparison(
   Value ir_result;
   switch (mode_) {
     case CompareMode::kJit: {
+      // TODO(https://github.com/google/xls/issues/506): Also compare events
+      // once the DSLX interpreter supports them (and the JIT supports traces).
       XLS_ASSIGN_OR_RETURN(IrJit * jit,
                            GetOrCompileJitFunction(ir_name, ir_function));
-      XLS_ASSIGN_OR_RETURN(ir_result, jit->Run(ir_args));
+      XLS_ASSIGN_OR_RETURN(ir_result, DropInterpreterEvents(jit->Run(ir_args)));
       mode_str = "JIT";
       break;
     }
     case CompareMode::kInterpreter: {
-      // TODO(https://github.com/google/xls/issues/506): Also compare events
-      // once the DSLX interpreter and the JIT also support events.
       XLS_ASSIGN_OR_RETURN(ir_result, DropInterpreterEvents(InterpretFunction(
                                           ir_function, ir_args)));
       mode_str = "interpreter";
@@ -152,7 +152,13 @@ absl::StatusOr<QuickCheckResults> DoQuickCheck(xls::Function* xls_function,
   for (int i = 0; i < num_tests; i++) {
     results.arg_sets.push_back(
         RandomFunctionArguments(xls_function, &rng_engine));
-    XLS_ASSIGN_OR_RETURN(xls::Value result, jit->Run(results.arg_sets.back()));
+    // TODO(https://github.com/google/xls/issues/506): 2021-10-15
+    // Assertion failures should work out, but we should consciously decide
+    // if/how we want to dump traces when running QuickChecks (always, for
+    // failures, flag-controlled, ...).
+    XLS_ASSIGN_OR_RETURN(
+        xls::Value result,
+        DropInterpreterEvents(jit->Run(results.arg_sets.back())));
     results.results.push_back(result);
     if (result.IsAllZeros()) {
       // We were able to falsify the xls_function (predicate), bail out early

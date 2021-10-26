@@ -185,18 +185,22 @@ absl::StatusOr<bool> StillFailsHelper(
   XLS_RET_CHECK(inputs.has_value());
   XLS_ASSIGN_OR_RETURN(Function * main, package->EntryFunction());
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit, IrJit::Create(main));
-  Value jit_result;
+  InterpreterResult<Value> jit_result;
   if (absl::GetFlag(FLAGS_test_only_inject_jit_result).empty()) {
     XLS_ASSIGN_OR_RETURN(jit_result, jit->Run(*inputs));
   } else {
-    XLS_ASSIGN_OR_RETURN(jit_result, Parser::ParseTypedValue(absl::GetFlag(
-                                         FLAGS_test_only_inject_jit_result)));
+    XLS_ASSIGN_OR_RETURN(jit_result.value,
+                         Parser::ParseTypedValue(
+                             absl::GetFlag(FLAGS_test_only_inject_jit_result)));
   }
   // TODO(https://github.com/google/xls/issues/506): 2021-10-12 Also compare
-  // events once the JIT supports events.
-  XLS_ASSIGN_OR_RETURN(Value interpreter_result,
-                       DropInterpreterEvents(InterpretFunction(main, *inputs)));
-  return jit_result != interpreter_result;
+  // events once the JIT fully supports them. One potential concern in this area
+  // is making sure that the kind of mismatch (value, assertion failure or trace
+  // messages) stays the same as the code is minimized. Leaving the comparison
+  // value-only avoids that issue for now.
+  XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> interpreter_result,
+                       InterpretFunction(main, *inputs));
+  return jit_result.value != interpreter_result.value;
 }
 
 // Wrapper around StillFails which memoizes the result. Optional test_cache is

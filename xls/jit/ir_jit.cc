@@ -309,7 +309,7 @@ absl::Status IrJit::CompileFunction(VisitFn visit_fn, llvm::Module* module) {
   // TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
   llvm::Type* void_ptr_type = llvm::Type::getInt64Ty(*bare_context);
 
-  // assertion status argument
+  // interpreter events argument
   param_types.push_back(void_ptr_type);
   // user data argument
   param_types.push_back(void_ptr_type);
@@ -331,8 +331,8 @@ absl::Status IrJit::CompileFunction(VisitFn visit_fn, llvm::Module* module) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<Value> IrJit::Run(absl::Span<const Value> args,
-                                 void* user_data) {
+absl::StatusOr<InterpreterResult<Value>> IrJit::Run(
+    absl::Span<const Value> args, void* user_data) {
   absl::Span<Param* const> params = xls_function_->params();
   if (args.size() != params.size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -363,22 +363,20 @@ absl::StatusOr<Value> IrJit::Run(absl::Span<const Value> args,
   XLS_RETURN_IF_ERROR(
       ir_runtime_->PackArgs(args, param_types, absl::MakeSpan(arg_buffers)));
 
-  absl::Status assert_status = absl::OkStatus();
+  InterpreterEvents events;
 
   absl::InlinedVector<uint8_t, 16> outputs(return_type_bytes_);
-  invoker_(arg_buffers.data(), outputs.data(), &assert_status, user_data);
+  invoker_(arg_buffers.data(), outputs.data(), &events, user_data);
 
-  if (!assert_status.ok()) {
-    return assert_status;
-  }
-
-  return ir_runtime_->UnpackBuffer(
+  Value result = ir_runtime_->UnpackBuffer(
       outputs.data(),
       FunctionBuilderVisitor::GetEffectiveReturnValue(xls_function_)
           ->GetType());
+
+  return InterpreterResult<Value>{std::move(result), std::move(events)};
 }
 
-absl::StatusOr<Value> IrJit::Run(
+absl::StatusOr<InterpreterResult<Value>> IrJit::Run(
     const absl::flat_hash_map<std::string, Value>& kwargs, void* user_data) {
   XLS_ASSIGN_OR_RETURN(std::vector<Value> positional_args,
                        KeywordArgsToPositional(*xls_function_, kwargs));
@@ -401,14 +399,15 @@ absl::Status IrJit::RunWithViews(absl::Span<uint8_t*> args,
                      return_type_bytes_));
   }
 
-  absl::Status assert_status = absl::OkStatus();
+  InterpreterEvents events;
 
-  invoker_(args.data(), result_buffer.data(), &assert_status, user_data);
-  return assert_status;
+  invoker_(args.data(), result_buffer.data(), &events, user_data);
+
+  return InterpreterEventsToStatus(events);
 }
 
-absl::StatusOr<Value> CreateAndRun(Function* xls_function,
-                                   absl::Span<const Value> args) {
+absl::StatusOr<InterpreterResult<Value>> CreateAndRun(
+    Function* xls_function, absl::Span<const Value> args) {
   // No proc support from Python yet.
   XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(xls_function));
   XLS_ASSIGN_OR_RETURN(auto result, jit->Run(args));
@@ -442,7 +441,7 @@ absl::Status IrJit::CompilePackedViewFunction(VisitFn visit_fn,
     param_types.push_back(
         llvm::PointerType::get(return_type, /*AddressSpace=*/0));
   }
-  // assertion status
+  // interpreter events
   param_types.push_back(llvm::Type::getInt64Ty(*bare_context));
   // user data
   param_types.push_back(llvm::Type::getInt64Ty(*bare_context));

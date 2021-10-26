@@ -72,18 +72,20 @@ absl::Status RealMain(absl::string_view ir_path,
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit, IrJit::Create(f));
   for (const std::vector<Value>& args : inputs) {
-    Value jit_result;
+    InterpreterResult<Value> jit_result;
     if (absl::GetFlag(FLAGS_test_only_inject_jit_result).empty()) {
       XLS_ASSIGN_OR_RETURN(jit_result, jit->Run(args));
     } else {
-      XLS_ASSIGN_OR_RETURN(jit_result, Parser::ParseTypedValue(absl::GetFlag(
-                                           FLAGS_test_only_inject_jit_result)));
+      XLS_ASSIGN_OR_RETURN(jit_result.value,
+                           Parser::ParseTypedValue(absl::GetFlag(
+                               FLAGS_test_only_inject_jit_result)));
     }
     // TODO(https://github.com/google/xls/issues/506): 2021-10-12 Also compare
-    // events once the JIT supports events.
-    XLS_ASSIGN_OR_RETURN(Value interpreter_result,
-                         DropInterpreterEvents(InterpretFunction(f, args)));
-    if (jit_result != interpreter_result) {
+    // events once the JIT fully supports events (and we have decided how to
+    // handle event mismatches).
+    XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> interpreter_result,
+                         InterpretFunction(f, args));
+    if (jit_result.value != interpreter_result.value) {
       std::cout << absl::StrJoin(
           args, "; ", [](std::string* s, const Value& v) {
             absl::StrAppend(s, v.ToString(FormatPreference::kHex));

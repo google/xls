@@ -177,14 +177,17 @@ absl::StatusOr<std::vector<Value>> Eval(
     Value result;
     if (use_jit) {
       if (absl::GetFlag(FLAGS_test_only_inject_jit_result).empty()) {
-        XLS_ASSIGN_OR_RETURN(result, jit->Run(arg_set.args));
+        XLS_ASSIGN_OR_RETURN(result,
+                             DropInterpreterEvents(jit->Run(arg_set.args)));
       } else {
         XLS_ASSIGN_OR_RETURN(result, Parser::ParseTypedValue(absl::GetFlag(
                                          FLAGS_test_only_inject_jit_result)));
       }
     } else {
       // TODO(https://github.com/google/xls/issues/506): 2021-10-12 Also compare
-      // resulting events once the JIT supports events.
+      // resulting events once the JIT fully supports events. Note: This will
+      // require rethinking some of the control flow because event comparison
+      // only makes sense for certain modes (optimize_ir and test_llvm_jit).
       XLS_ASSIGN_OR_RETURN(
           result, DropInterpreterEvents(InterpretFunction(f, arg_set.args)));
     }

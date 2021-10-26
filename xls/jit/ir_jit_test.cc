@@ -46,20 +46,26 @@ INSTANTIATE_TEST_SUITE_P(
         [](Function* function, absl::Span<const Value> args)
             -> absl::StatusOr<InterpreterResult<Value>> {
           XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
-          XLS_ASSIGN_OR_RETURN(Value jit_result, jit->Run(args));
-          InterpreterEvents dummy_events;
-          return InterpreterResult<Value>{std::move(jit_result),
-                                          std::move(dummy_events)};
+          return jit->Run(args);
         },
         [](Function* function,
            const absl::flat_hash_map<std::string, Value>& kwargs)
             -> absl::StatusOr<InterpreterResult<Value>> {
           XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
-          XLS_ASSIGN_OR_RETURN(Value jit_result, jit->Run(kwargs));
-          InterpreterEvents dummy_events;
-          return InterpreterResult<Value>{std::move(jit_result),
-                                          std::move(dummy_events)};
+          return jit->Run(kwargs);
         })));
+
+absl::StatusOr<Value> RunJitNoEvents(IrJit* jit, absl::Span<const Value> args) {
+  XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> result, jit->Run(args));
+
+  if (!result.events.trace_msgs.empty()) {
+    return absl::FailedPreconditionError(absl::StrFormat(
+        "Unexpected traces generated during RunJitNoEvents:\n%s",
+        absl::StrJoin(result.events.trace_msgs, "\n")));
+  }
+
+  return InterpreterResultToStatusOrValue(result);
+}
 
 // This test verifies that a compiled JIT function can be re-used.
 TEST(IrJitTest, ReuseTest) {
@@ -73,9 +79,12 @@ TEST(IrJitTest, ReuseTest) {
                            Parser::ParseFunction(ir_text, &package));
 
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
-  EXPECT_THAT(jit->Run({Value(UBits(2, 8))}), IsOkAndHolds(Value(UBits(2, 8))));
-  EXPECT_THAT(jit->Run({Value(UBits(4, 8))}), IsOkAndHolds(Value(UBits(4, 8))));
-  EXPECT_THAT(jit->Run({Value(UBits(7, 8))}), IsOkAndHolds(Value(UBits(7, 8))));
+  EXPECT_THAT(RunJitNoEvents(jit.get(), {Value(UBits(2, 8))}),
+              IsOkAndHolds(Value(UBits(2, 8))));
+  EXPECT_THAT(RunJitNoEvents(jit.get(), {Value(UBits(4, 8))}),
+              IsOkAndHolds(Value(UBits(4, 8))));
+  EXPECT_THAT(RunJitNoEvents(jit.get(), {Value(UBits(7, 8))}),
+              IsOkAndHolds(Value(UBits(7, 8))));
 }
 
 TEST(IrJitTest, OneHotZeroBit) {
@@ -89,7 +98,8 @@ TEST(IrJitTest, OneHotZeroBit) {
                            Parser::ParseFunction(ir_text, &package));
 
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
-  EXPECT_THAT(jit->Run({Value(UBits(0, 0))}), IsOkAndHolds(Value(UBits(1, 1))));
+  EXPECT_THAT(RunJitNoEvents(jit.get(), {Value(UBits(0, 0))}),
+              IsOkAndHolds(Value(UBits(1, 1))));
 }
 
 // Very basic smoke test for packed types.
@@ -390,7 +400,7 @@ TEST(IrJitTest, ArrayConcatArrayOfBits) {
                            Value::UBitsArray({1, 2, 3, 4, 5, 1, 2}, 32));
 
   std::vector args{a0, a1};
-  EXPECT_THAT(jit->Run(args), IsOkAndHolds(ret));
+  EXPECT_THAT(RunJitNoEvents(jit.get(), args), IsOkAndHolds(ret));
 }
 
 TEST(IrJitTest, ArrayConcatArrayOfBitsMixedOperands) {
@@ -417,7 +427,7 @@ TEST(IrJitTest, ArrayConcatArrayOfBitsMixedOperands) {
       Value::UBitsArray({1, 2, 0xffffffff, 0xffffffff, 3, 4, 5}, 32));
 
   std::vector args{a0, a1, a2};
-  EXPECT_THAT(jit->Run(args), IsOkAndHolds(ret));
+  EXPECT_THAT(RunJitNoEvents(jit.get(), args), IsOkAndHolds(ret));
 }
 
 TEST(IrJitTest, ArrayConcatArrayOfArrays) {
@@ -440,7 +450,7 @@ TEST(IrJitTest, ArrayConcatArrayOfArrays) {
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
 
   std::vector<Value> args;
-  EXPECT_THAT(jit->Run(args), IsOkAndHolds(ret));
+  EXPECT_THAT(RunJitNoEvents(jit.get(), args), IsOkAndHolds(ret));
 }
 
 // The assert tests below are duplicates of the ones in
@@ -458,10 +468,10 @@ TEST(IrJitTest, Assert) {
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(f));
 
   std::vector<Value> ok_args = {Value::Token(), Value(UBits(1, 1))};
-  EXPECT_THAT(jit->Run(ok_args), IsOkAndHolds(Value::Token()));
+  EXPECT_THAT(RunJitNoEvents(jit.get(), ok_args), IsOkAndHolds(Value::Token()));
 
   std::vector<Value> fail_args = {Value::Token(), Value(UBits(0, 1))};
-  EXPECT_THAT(jit->Run(fail_args),
+  EXPECT_THAT(RunJitNoEvents(jit.get(), fail_args),
               StatusIs(absl::StatusCode::kAborted,
                        testing::HasSubstr("the assertion error message")));
 }
@@ -494,10 +504,11 @@ TEST(IrJitTest, FunAssert) {
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(top));
 
   std::vector<Value> ok_args = {Value(UBits(6, 5))};
-  EXPECT_THAT(jit->Run(ok_args), IsOkAndHolds(Value(UBits(7, 5))));
+  EXPECT_THAT(RunJitNoEvents(jit.get(), ok_args),
+              IsOkAndHolds(Value(UBits(7, 5))));
 
   std::vector<Value> fail_args = {Value(UBits(8, 5))};
-  EXPECT_THAT(jit->Run(fail_args),
+  EXPECT_THAT(RunJitNoEvents(jit.get(), fail_args),
               StatusIs(absl::StatusCode::kAborted,
                        testing::HasSubstr("x is more than 7")));
 }
@@ -519,19 +530,19 @@ TEST(IrJitTest, TwoAssert) {
   std::vector<Value> ok_args = {Value::Token(), Value(UBits(1, 1)),
                                 Value(UBits(1, 1))};
 
-  EXPECT_THAT(jit->Run(ok_args), IsOkAndHolds(Value::Token()));
+  EXPECT_THAT(RunJitNoEvents(jit.get(), ok_args), IsOkAndHolds(Value::Token()));
 
   std::vector<Value> fail1_args = {Value::Token(), Value(UBits(0, 1)),
                                    Value(UBits(1, 1))};
 
-  EXPECT_THAT(jit->Run(fail1_args),
+  EXPECT_THAT(RunJitNoEvents(jit.get(), fail1_args),
               StatusIs(absl::StatusCode::kAborted,
                        testing::HasSubstr("first assertion error message")));
 
   std::vector<Value> fail2_args = {Value::Token(), Value(UBits(1, 1)),
                                    Value(UBits(0, 1))};
 
-  EXPECT_THAT(jit->Run(fail2_args),
+  EXPECT_THAT(RunJitNoEvents(jit.get(), fail2_args),
               StatusIs(absl::StatusCode::kAborted,
                        testing::HasSubstr("second assertion error message")));
 
@@ -540,7 +551,7 @@ TEST(IrJitTest, TwoAssert) {
 
   // The token-plumbing ensures that the first assertion is checked first,
   // so test that it is reported properly.
-  EXPECT_THAT(jit->Run(failboth_args),
+  EXPECT_THAT(RunJitNoEvents(jit.get(), failboth_args),
               StatusIs(absl::StatusCode::kAborted,
                        testing::HasSubstr("first assertion error message")));
 }

@@ -287,33 +287,5 @@ fn map_trace() -> bits[32][5]{
               UnorderedElementsAre("f is odd", "d is odd", "b is odd"));
 }
 
-// A variant of the TwoAssert test that checks if both assertions were
-// recorded.
-TEST_F(IrInterpreterOnlyTest, BothAsserts) {
-  Package p("assert_test");
-  FunctionBuilder b("fun", &p);
-  auto p0 = b.Param("tkn", p.GetTokenType());
-  auto p1 = b.Param("cond1", p.GetBitsType(1));
-  auto p2 = b.Param("cond2", p.GetBitsType(1));
-
-  BValue token1 = b.Assert(p0, p1, "first assertion error message");
-  b.Assert(token1, p2, "second assertion error message");
-
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
-
-  std::vector<Value> failboth_args = {Value::Token(), Value(UBits(0, 1)),
-                                      Value(UBits(0, 1))};
-
-  auto run_for_asserts = [](Function* f, absl::Span<const Value> args)
-      -> absl::StatusOr<std::vector<std::string>> {
-    XLS_ASSIGN_OR_RETURN(auto result, InterpretFunction(f, args));
-    return result.events.assert_msgs;
-  };
-
-  std::vector<std::string> both_asserts = {"first assertion error message",
-                                           "second assertion error message"};
-  EXPECT_THAT(run_for_asserts(f, failboth_args), IsOkAndHolds(both_asserts));
-}
-
 }  // namespace
 }  // namespace xls

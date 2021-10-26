@@ -17,6 +17,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/events.h"
 #include "xls/ir/value_helpers.h"
 
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
@@ -143,11 +144,10 @@ absl::Status FunctionBuilderVisitor::HandleAfterAll(AfterAll* after_all) {
   return StoreResult(after_all, type_converter_->GetToken());
 }
 
-void RecordAssertion(char* msg, absl::Status* assert_status) {
-  // Don't clobber a previously-recorded assertion failure.
-  if (assert_status->ok()) {
-    *assert_status = absl::AbortedError(msg);
-  }
+// This a shim to let JIT code record an assertion failure as an interpreter
+// event.
+void RecordAssertion(char* msg, xls::InterpreterEvents* events) {
+  events->assert_msgs.push_back(msg);
 }
 
 absl::Status FunctionBuilderVisitor::InvokeAssertCallback(
@@ -169,9 +169,9 @@ absl::Status FunctionBuilderVisitor::InvokeAssertCallback(
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
 
-  llvm::Value* assert_status_ptr = GetAssertStatusPtr();
+  llvm::Value* interpreter_events_ptr = GetInterpreterEventsPtr();
 
-  std::vector<llvm::Value*> args = {msg_constant, assert_status_ptr};
+  std::vector<llvm::Value*> args = {msg_constant, interpreter_events_ptr};
 
   llvm::ConstantInt* fn_addr =
       llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()),
@@ -1629,7 +1629,7 @@ absl::StatusOr<llvm::Function*> FunctionBuilderVisitor::GetModuleFunction(
   // TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
   llvm::Type* void_ptr_type = llvm::Type::getInt64Ty(ctx());
 
-  // Pointer to assertion status temporary
+  // Pointer to interpreter events temporary
   param_types.at(param_types.size() - 2) = void_ptr_type;
 
   // We need to add an extra param to every function call to carry our "user
