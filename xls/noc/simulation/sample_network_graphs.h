@@ -45,6 +45,26 @@ absl::Status BuildNetworkGraphLinear000(NetworkConfigProto* nc_proto,
                                         NetworkManager* graph,
                                         NocParameters* params);
 
+// Builds Sample Linear Network 001
+//
+//   SendPort0     SendPort1
+//     \           /
+//      \         /
+//     Ain0     Ain1
+//      [ RouterA ]
+//      Aout0   Aout1
+//       |       |
+//       |       |
+//     Bin0   Bin1
+//      [ RouterB ]
+//      Bout0   Bout1
+//       |        \
+//       |         \
+//   RecvPort1   RecvPort1
+absl::Status BuildNetworkGraphLinear001(NetworkConfigProto* nc_proto,
+                                        NetworkManager* graph,
+                                        NocParameters* params);
+
 // Builds Sample Tree Network 000.
 //
 //   SendPort0     SendPort1    SendPort2
@@ -98,6 +118,28 @@ absl::Status BuildNetworkGraphTree001(NetworkConfigProto* nc_proto,
 //       |         \
 //   SendPort1   RecvPort1
 absl::Status BuildNetworkGraphLoop000(NetworkConfigProto* nc_proto,
+                                      NetworkManager* graph,
+                                      NocParameters* params);
+
+// Builds Sample Loop Network 001
+//
+// SendPort0         RecvPort0
+//    \   SendPort1  /    RecvPort1
+//     \     |      /       /
+//      \    |     /       /
+//   Ain0  Ain1  Aout0  Aout1
+//     [     RouterA     ]
+//   ABin0 ABin1 ABout0 ABout1
+//    |     |      |     |
+//    |     |      |     |
+//  BAout0 BAout1 BAin0 BAin1
+//    [     RouterB     ]
+//   Bin0  Bin1  Bout0  Bout1
+//    |     |      \      \
+//    |     |       \      \
+//    |  SendPort3   \  RecvPort3
+// SendPort2       RecvPort2
+absl::Status BuildNetworkGraphLoop001(NetworkConfigProto* nc_proto,
                                       NetworkManager* graph,
                                       NocParameters* params);
 
