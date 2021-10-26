@@ -436,3 +436,22 @@ fn test_spow() {
   let _ = assert_eq(spow(s32:1, u32:20), s32:0x1);
   ()
 }
+
+pub fn popcount<N: u32>(x: bits[N]) -> bits[N] {
+  let (x, acc) = for (i, (x, acc)): (u32, (bits[N], bits[N])) in range(u32:0, N) {
+    let acc = if (x & bits[N]:1) as u1 { acc + bits[N]:1 } else { acc };
+    let x = x >> 1;
+    (x, acc)
+  }((x, bits[N]:0));
+  (acc)
+}
+
+#![test]
+fn test_popcount() {
+  let _ = assert_eq(popcount(u17:0xa5a5), u17:8);
+  let _ = assert_eq(popcount(u17:0x1a5a5), u17:9);
+  let _ = assert_eq(popcount(u1:0x0), u1:0);
+  let _ = assert_eq(popcount(u1:0x1), u1:1);
+  let _ = assert_eq(popcount(u32:0xffffffff), u32:32);
+  ()
+}
