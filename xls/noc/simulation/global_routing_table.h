@@ -22,6 +22,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/indexer.h"
+#include "xls/noc/simulation/network_graph.h"
 #include "xls/noc/simulation/parameters.h"
 
 namespace xls {
@@ -29,7 +30,7 @@ namespace noc {
 
 class NetworkManager;
 
-// Used to denote a specific vc attached to a given port id..
+// Used to denote a specific vc attached to a given port id.
 struct PortAndVCIndex {
   PortId port_id_;
   int64_t vc_index_;
@@ -116,10 +117,15 @@ class DistributedRoutingTable {
   // Returns mapping of sink network interfaces to indicies.
   const NetworkComponentIndexMap& GetSinkIndices() { return sink_indices_; }
 
- private:
-  friend class DistributedRoutingTableBuilderForTrees;
+  // Prints the routing table of the network. Used for debugging.
+  absl::Status DumpRouterRoutingTable(NetworkId network_id) const;
 
-  // Resize routing_tables to accomondate the number of networks and
+ private:
+  friend class DistributedRoutingTableBuilderBase;
+  friend class DistributedRoutingTableBuilderForTrees;
+  friend class DistributedRoutingTableBuilderForMultiplePaths;
+
+  // Resize routing_tables to accommodate the number of networks and
   // number of components in a network.
   void AllocateTableForNetwork(NetworkId network_id, int64_t component_count);
 
@@ -153,22 +159,34 @@ class DistributedRoutingTable {
   std::vector<std::vector<RouterRoutingTable>> routing_tables_;
 };
 
-// Build a routing table given a network with a tree topology.
-class DistributedRoutingTableBuilderForTrees {
+// Abstract base class for distributed routing table builder.
+class DistributedRoutingTableBuilderBase {
  public:
-  absl::StatusOr<DistributedRoutingTable> BuildNetworkRoutingTables(
+  virtual absl::StatusOr<DistributedRoutingTable> BuildNetworkRoutingTables(
       NetworkId network_id, NetworkManager& network_manager,
-      NocParameters& network_parameters);
+      NocParameters& network_parameters) = 0;
 
- private:
-  // Setup source_indicies_ and sink_indices_ for network.
-  absl::Status BuildNetworkInterfaceIndices(
+  virtual ~DistributedRoutingTableBuilderBase() {}
+
+ protected:
+  // Setup source_indices_ and sink_indices_ for network.
+  virtual absl::Status BuildNetworkInterfaceIndices(
       NetworkId network_id, DistributedRoutingTable* routing_table);
 
   // Setup port_indices_ and vc_indices_ for network.
-  absl::Status BuildPortAndVirtualChannelIndices(
+  virtual absl::Status BuildPortAndVirtualChannelIndices(
       NetworkId network_id, DistributedRoutingTable* routing_table);
+};
 
+// Build a routing table given a network with a tree topology.
+class DistributedRoutingTableBuilderForTrees
+    : public DistributedRoutingTableBuilderBase {
+ public:
+  absl::StatusOr<DistributedRoutingTable> BuildNetworkRoutingTables(
+      NetworkId network_id, NetworkManager& network_manager,
+      NocParameters& network_parameters) override;
+
+ private:
   // Trace and setup routing table for tree-based topologies.
   absl::Status BuildRoutingTable(NetworkId network_id,
                                  DistributedRoutingTable* routing_table);
@@ -178,6 +196,50 @@ class DistributedRoutingTableBuilderForTrees {
       int64_t destination_index, NetworkComponentId nc, PortId via_port,
       DistributedRoutingTable* routing_table,
       absl::flat_hash_set<NetworkComponentId>& visited_components);
+};
+
+// Build a routing table given a network where multiple paths exists between a
+// source-sink pair (e.g. via multiple links interconnecting routers). Algorithm
+// calculates the minimum hop to derive the routing table. The modulo is
+// calculated for each input-output pairs.
+class DistributedRoutingTableBuilderForMultiplePaths
+    : public DistributedRoutingTableBuilderBase {
+ public:
+  absl::StatusOr<DistributedRoutingTable> BuildNetworkRoutingTables(
+      NetworkId network_id, NetworkManager& network_manager,
+      NocParameters& network_parameters) override;
+
+ private:
+  // Trace and setup routing table for tree-based topologies.
+  absl::Status BuildRoutingTable(NetworkId network_id,
+                                 DistributedRoutingTable* routing_table);
+
+  // Returns routing information from nc to a source port. The first element
+  // defines the network component of the route, the second element defines the
+  // output ports for the network component to reach the nc.
+  // network : The network.
+  // nc : The starting network component of the route.
+  // network_parameters : Network parameters.
+  absl::StatusOr<absl::flat_hash_map<NetworkComponentId, std::vector<PortId>>>
+  CalculateRoutes(Network& network, NetworkComponentId nc,
+                  const NocParameters& network_parameters);
+
+  // Updates routing table for network component using their
+  // network-component-port map.
+  // For router's with multiple paths, assign the input ports to a the output
+  // port using their modulo value (similar to round robin). For example, for a
+  // router with six input ports and three output ports routing to the
+  // destination, the assignment is shown in the table that follows:
+  // Output Port Index   | Input Port Index
+  // ----------------------------------------
+  //           0         |     0, 3
+  //           1         |     1, 4
+  //           2         |     2, 5
+  absl::Status AddRoutes(
+      int64_t destination_index, const Network& network,
+      const absl::flat_hash_map<NetworkComponentId, std::vector<PortId>>&
+          nc_ports_map,
+      DistributedRoutingTable* routing_table);
 };
 
 }  // namespace noc
