@@ -313,6 +313,8 @@ absl::Status IrJit::CompileFunction(VisitFn visit_fn, llvm::Module* module) {
   param_types.push_back(void_ptr_type);
   // user data argument
   param_types.push_back(void_ptr_type);
+  // JIT runtime argument
+  param_types.push_back(void_ptr_type);
 
   llvm::FunctionType* function_type = llvm::FunctionType::get(
       llvm::Type::getVoidTy(*bare_context),
@@ -365,11 +367,12 @@ absl::StatusOr<InterpreterResult<Value>> IrJit::Run(
 
   InterpreterEvents events;
 
-  absl::InlinedVector<uint8_t, 16> outputs(return_type_bytes_);
-  invoker_(arg_buffers.data(), outputs.data(), &events, user_data);
+  absl::InlinedVector<uint8_t, 16> result_buffer(return_type_bytes_);
+  invoker_(arg_buffers.data(), result_buffer.data(), &events, user_data,
+           runtime());
 
   Value result = ir_runtime_->UnpackBuffer(
-      outputs.data(),
+      result_buffer.data(),
       FunctionBuilderVisitor::GetEffectiveReturnValue(xls_function_)
           ->GetType());
 
@@ -401,7 +404,7 @@ absl::Status IrJit::RunWithViews(absl::Span<uint8_t*> args,
 
   InterpreterEvents events;
 
-  invoker_(args.data(), result_buffer.data(), &events, user_data);
+  invoker_(args.data(), result_buffer.data(), &events, user_data, runtime());
 
   return InterpreterEventsToStatus(events);
 }
@@ -445,6 +448,9 @@ absl::Status IrJit::CompilePackedViewFunction(VisitFn visit_fn,
   param_types.push_back(llvm::Type::getInt64Ty(*bare_context));
   // user data
   param_types.push_back(llvm::Type::getInt64Ty(*bare_context));
+  // JIT runtime
+  param_types.push_back(llvm::Type::getInt64Ty(*bare_context));
+
   function_type = llvm::FunctionType::get(
       llvm::Type::getVoidTy(*bare_context),
       llvm::ArrayRef<llvm::Type*>(param_types.data(), param_types.size()),

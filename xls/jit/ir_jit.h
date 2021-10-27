@@ -114,7 +114,7 @@ class IrJit {
 
     InterpreterEvents events;
     packed_invoker_(arg_buffers, result_buffer, &events,
-                    /*user_data=*/nullptr);
+                    /*user_data=*/nullptr, runtime());
 
     return InterpreterEventsToStatus(events);
   }
@@ -199,14 +199,15 @@ class IrJit {
   // When initialized, this points to the compiled output.
   using JitFunctionType = void (*)(const uint8_t* const* inputs,
                                    uint8_t* output, InterpreterEvents* events,
-                                   void* user_data);
+                                   void* user_data, JitRuntime* jit_runtime);
   JitFunctionType invoker_;
 
   // Packed types for above.
   using PackedJitFunctionType = void (*)(const uint8_t* const* inputs,
                                          uint8_t* output,
                                          InterpreterEvents* events,
-                                         void* user_data);
+                                         void* user_data,
+                                         JitRuntime* jit_runtime);
   PackedJitFunctionType packed_invoker_;
 };
 

@@ -1617,7 +1617,7 @@ absl::StatusOr<llvm::Function*> FunctionBuilderVisitor::GetModuleFunction(
   // There are a couple of differences between this and entry function
   // visitor initialization such that I think it makes slightly more sense
   // to not factor it into a common block, but it's not clear-cut.
-  std::vector<llvm::Type*> param_types(xls_function->params().size() + 2);
+  std::vector<llvm::Type*> param_types(xls_function->params().size() + 3);
   for (int i = 0; i < xls_function->params().size(); ++i) {
     param_types[i] =
         type_converter_->ConvertToLlvmType(xls_function->param(i)->GetType());
@@ -1630,11 +1630,14 @@ absl::StatusOr<llvm::Function*> FunctionBuilderVisitor::GetModuleFunction(
   llvm::Type* void_ptr_type = llvm::Type::getInt64Ty(ctx());
 
   // Pointer to interpreter events temporary
-  param_types.at(param_types.size() - 2) = void_ptr_type;
+  param_types.at(param_types.size() - 3) = void_ptr_type;
 
   // We need to add an extra param to every function call to carry our "user
   // data", i.e., callback info.
-  param_types.back() = void_ptr_type;
+  param_types.at(param_types.size() - 2) = void_ptr_type;
+
+  // We also need to add an extra param to carry a pointer to the JIT runtime.
+  param_types.at(param_types.size() - 1) = void_ptr_type;
 
   Type* return_type = GetEffectiveReturnValue(xls_function)->GetType();
   llvm::Type* llvm_return_type =
