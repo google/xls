@@ -239,5 +239,82 @@ TEST(SimTrafficTest, NetworkWithRouterLoopAndReplay) {
   EXPECT_EQ(simulator.GetRouters()[1].GetUtilizationCycleCount(), 10);
 }
 
+TEST(SimTrafficTest, NetworkWithMultiplePathsAndReplay) {
+  // Construct traffic flows
+  NocTrafficManager traffic_mgr;
+
+  XLS_ASSERT_OK_AND_ASSIGN(TrafficFlowId flow0_id,
+                           traffic_mgr.CreateTrafficFlow());
+  TrafficFlow& flow0 = traffic_mgr.GetTrafficFlow(flow0_id);
+  flow0.SetName("flow0")
+      .SetSource("SendPort0")
+      .SetDestination("RecvPort0")
+      .SetVC("VC0")
+      .SetPacketSizeInBits(128)
+      .SetClockCycleTimes({0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
+  XLS_ASSERT_OK_AND_ASSIGN(TrafficFlowId flow1_id,
+                           traffic_mgr.CreateTrafficFlow());
+  TrafficFlow& flow1 = traffic_mgr.GetTrafficFlow(flow1_id);
+  flow1.SetName("flow1")
+      .SetSource("SendPort1")
+      .SetDestination("RecvPort1")
+      .SetVC("VC0")
+      .SetPacketSizeInBits(128)
+      .SetClockCycleTimes({0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
+
+  XLS_ASSERT_OK_AND_ASSIGN(TrafficModeId mode0_id,
+                           traffic_mgr.CreateTrafficMode());
+  TrafficMode& mode0 = traffic_mgr.GetTrafficMode(mode0_id);
+  mode0.SetName("Mode 0").RegisterTrafficFlow(flow0_id).RegisterTrafficFlow(
+      flow1_id);
+
+  // Build and assign simulation objects
+  NetworkConfigProto proto;
+  NetworkManager graph;
+  NocParameters params;
+  XLS_ASSERT_OK(BuildNetworkGraphLinear001(&proto, &graph, &params));
+
+  // Create global routing table.
+  DistributedRoutingTableBuilderForMultiplePaths route_builder;
+  XLS_ASSERT_OK_AND_ASSIGN(DistributedRoutingTable routing_table,
+                           route_builder.BuildNetworkRoutingTables(
+                               graph.GetNetworkIds()[0], graph, params));
+
+  // Build input traffic model
+  RandomNumberInterface rnd;
+  int64_t cycle_time_in_ps = 400;
+  rnd.SetSeed(1000);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NocTrafficInjector traffic_injector,
+      NocTrafficInjectorBuilder().Build(
+          cycle_time_in_ps, mode0_id,
+          routing_table.GetSourceIndices().GetNetworkComponents(),
+          routing_table.GetSinkIndices().GetNetworkComponents(),
+          params.GetNetworkParam(graph.GetNetworkIds()[0])
+              ->GetVirtualChannels(),
+          traffic_mgr, graph, params, rnd));
+
+  // Build simulator objects.
+  NocSimulator simulator;
+  XLS_ASSERT_OK(simulator.Initialize(graph, params, routing_table,
+                                     graph.GetNetworkIds()[0]));
+  simulator.Dump();
+
+  // Hook traffic injector and simulator together.
+  NocSimulatorToNocTrafficInjectorShim injector_shim(simulator,
+                                                     traffic_injector);
+  traffic_injector.SetSimulatorShim(injector_shim);
+  simulator.RegisterPreCycleService(injector_shim);
+
+  for (int64_t i = 0; i < 20; ++i) {
+    XLS_ASSERT_OK(simulator.RunCycle());
+  }
+
+  // Retrieve router info
+  EXPECT_EQ(simulator.GetRouters().size(), 2);
+  EXPECT_EQ(simulator.GetRouters()[0].GetUtilizationCycleCount(), 10);
+  EXPECT_EQ(simulator.GetRouters()[1].GetUtilizationCycleCount(), 10);
+}
+
 }  // namespace
 }  // namespace xls::noc
