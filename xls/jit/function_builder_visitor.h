@@ -109,6 +109,7 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleShra(BinOp* binop) override;
   absl::Status HandleShrl(BinOp* binop) override;
   absl::Status HandleSub(BinOp* binop) override;
+  absl::Status HandleTrace(Trace* trace_op) override;
   absl::Status HandleTuple(Tuple* tuple) override;
   absl::Status HandleTupleIndex(TupleIndex* index) override;
   absl::Status HandleUDiv(BinOp* binop) override;
@@ -233,8 +234,13 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
                                               llvm::Value* index,
                                               int64_t array_size);
 
+  // Build the LLVM IR to invoke the callback that records assertions.
   absl::Status InvokeAssertCallback(llvm::IRBuilder<>* builder,
                                     const std::string& message);
+
+  // Build the LLVM IR to invoke the callback that records traces.
+  absl::Status InvokeTraceCallback(llvm::IRBuilder<>* builder,
+                                   const std::string& message);
 
   // Get the required assertion status and user data arguments that need to be
   // included at the end of the argument list for every function call.

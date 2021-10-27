@@ -227,6 +227,94 @@ absl::Status FunctionBuilderVisitor::HandleArray(Array* array) {
   return StoreResult(array, result);
 }
 
+// This a shim to let JIT code record a trace as an interpreter event.
+void RecordTrace(char* msg, xls::InterpreterEvents* events) {
+  events->trace_msgs.push_back(msg);
+}
+
+absl::Status FunctionBuilderVisitor::InvokeTraceCallback(
+    llvm::IRBuilder<>* builder, const std::string& message) {
+  llvm::Constant* msg_constant = builder->CreateGlobalStringPtr(message);
+
+  llvm::Type* msg_type = msg_constant->getType();
+
+  // Treat void pointers as int64_t values at the LLVM IR level.
+  // Using an actual pointer type triggers LLVM asserts when compiling
+  // in debug mode.
+  // TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
+  llvm::Type* void_ptr_type = llvm::Type::getInt64Ty(ctx());
+
+  std::vector<llvm::Type*> params = {msg_type, void_ptr_type};
+
+  llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
+
+  llvm::FunctionType* fn_type =
+      llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
+
+  llvm::Value* interpreter_events_ptr = GetInterpreterEventsPtr();
+
+  std::vector<llvm::Value*> args = {msg_constant, interpreter_events_ptr};
+
+  llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
+      llvm::Type::getInt64Ty(ctx()), absl::bit_cast<uint64_t>(&RecordTrace));
+  llvm::Value* fn_ptr =
+      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
+  builder->CreateCall(fn_type, fn_ptr, args);
+  return absl::OkStatus();
+}
+
+absl::Status FunctionBuilderVisitor::HandleTrace(Trace* trace_op) {
+  if (trace_op->format().empty()) {
+    return absl::InternalError(
+        absl::StrFormat("Empty trace format in node %s", trace_op->ToString()));
+  }
+
+  if (OperandsExpectedByFormat(trace_op->format()) != 0) {
+    return absl::UnimplementedError(absl::StrFormat(
+        "JIT does not currently support trace formats that require data "
+        "operands (format %s in node %s)",
+        StepsToXlsFormatString(trace_op->format()), trace_op->ToString()));
+  }
+
+  if (trace_op->format().size() != 1) {
+    return absl::InternalError(absl::StrFormat(
+        "Multi-step trace format without data operands (format %s in node %s)",
+        StepsToXlsFormatString(trace_op->format()), trace_op->ToString()));
+  }
+
+  std::string trace_msg = absl::get<std::string>(trace_op->format().front());
+
+  std::string trace_name = trace_op->GetName();
+
+  llvm::BasicBlock* after_block = llvm::BasicBlock::Create(
+      ctx(), absl::StrCat(trace_name, "_after"), llvm_fn());
+
+  llvm::BasicBlock* skip_block = llvm::BasicBlock::Create(
+      ctx(), absl::StrCat(trace_name, "_skip"), llvm_fn());
+
+  llvm::IRBuilder<> skip_builder(skip_block);
+
+  skip_builder.CreateBr(after_block);
+
+  llvm::BasicBlock* print_block = llvm::BasicBlock::Create(
+      ctx(), absl::StrCat(trace_name, "_print"), llvm_fn());
+  llvm::IRBuilder<> print_builder(print_block);
+  XLS_RETURN_IF_ERROR(InvokeTraceCallback(&print_builder, trace_msg));
+
+  print_builder.CreateBr(after_block);
+
+  builder()->CreateCondBr(node_map().at(trace_op->condition()), print_block,
+                          skip_block);
+
+  auto after_builder = std::make_unique<llvm::IRBuilder<>>(after_block);
+
+  set_builder(std::move(after_builder));
+
+  llvm::Value* token = type_converter_->GetToken();
+
+  return StoreResult(trace_op, token);
+}
+
 absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::IndexIntoArray(
     llvm::Value* array, llvm::Value* index, int64_t array_size) {
   int64_t index_width = index->getType()->getIntegerBitWidth();
