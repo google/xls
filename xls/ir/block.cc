@@ -14,14 +14,179 @@
 
 #include "xls/ir/block.h"
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/logging/vlog_is_on.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 
 namespace xls {
+
+// For each node in the block, compute the fewest number of registers
+// (RegisterWrite/RegisterRead pair) in a path from the node to a user-less node
+// (e.g., OutputPort) where path length is measured by the number of registers
+// in the path. The graph used to compute distances is the data-flow graph of
+// the block augmented with edges extending from register writes to the
+// corresponding register read. `register_writes` is a map containing the
+// RegisterWrite operation(s) for each register.
+static absl::flat_hash_map<Node*, int64_t> ComputeRegisterDepthToLeaves(
+    const Block* block,
+    const absl::flat_hash_map<Register*, std::vector<RegisterWrite*>>&
+        register_writes) {
+  absl::flat_hash_map<Node*, int64_t> distances;
+  std::deque<Node*> worklist;
+  for (Node* node : block->nodes()) {
+    if (node->users().empty() && !node->Is<RegisterWrite>()) {
+      worklist.push_back(node);
+      distances[node] = 0;
+    } else {
+      distances[node] = std::numeric_limits<int64_t>::max();
+    }
+  }
+
+  while (!worklist.empty()) {
+    Node* node = worklist.front();
+    worklist.pop_front();
+
+    auto maybe_update_distance = [&](Node* n, int64_t d) {
+      if (d < distances.at(n)) {
+        distances[n] = d;
+        worklist.push_back(n);
+      }
+    };
+    for (Node* operand : node->operands()) {
+      maybe_update_distance(operand, distances.at(node));
+    }
+    if (RegisterRead* reg_read = dynamic_cast<RegisterRead*>(node)) {
+      for (RegisterWrite* reg_write :
+           register_writes.at(reg_read->GetRegister())) {
+        maybe_update_distance(reg_write, distances.at(node) + 1);
+      }
+    }
+  }
+  return distances;
+}
+
+// Return the position of port node `n` in the ordered list of ports in the
+// block.
+static int64_t GetPortPosition(Node* n, const Block* block) {
+  int64_t i = 0;
+  for (const Block::Port& port : block->GetPorts()) {
+    if ((absl::holds_alternative<InputPort*>(port) &&
+         n == absl::get<InputPort*>(port)) ||
+        (absl::holds_alternative<OutputPort*>(port) &&
+         n == absl::get<OutputPort*>(port))) {
+      return i;
+    }
+    i++;
+  }
+  XLS_LOG(FATAL) << absl::StreamFormat("Node %s is not a port node",
+                                       n->GetName());
+}
+
+// Return the priority of a node for the purposes of dump order. Nodes with
+// lower-valued priorities will be emitted earlier under the constraint that the
+// order is a topological sort. The priority scheme results in the IR being
+// dumped such that logical pipeline stages tend to get emitted together. A
+// std::tuple is returned as the scheme involves tie breakers and std::tuple has
+// a lexigraphcially defined less than operator.
+using NodePriority = std::tuple<int64_t, int64_t, int64_t, int64_t>;
+static NodePriority DumpOrderPriority(
+    Node* n, const Block* block,
+    const absl::flat_hash_map<Node*, int64_t>& reg_depth) {
+  // Priority scheme (highest priority to lowest priority):
+  //
+  // (0) Input ports. Tie-breaker is port order in the block.
+  //
+  // (1) Non-port nodes ordered by register depth with tie breaking order:
+  //
+  //     (i) Register reads
+  //
+  //     (ii) Non-register nodes
+  //
+  //     (iii) Register writes
+  //
+  // (2) Output ports. Tie-breaker is port order in the block.
+  if (n->Is<InputPort>()) {
+    return {0, 0, GetPortPosition(n, block), n->id()};
+  }
+  if (n->Is<OutputPort>()) {
+    return {2, 0, GetPortPosition(n, block), n->id()};
+  }
+  int64_t secondary_priority;
+  if (n->Is<RegisterRead>()) {
+    secondary_priority = 0;
+  } else if (n->Is<RegisterWrite>()) {
+    secondary_priority = 2;
+  } else {
+    secondary_priority = 1;
+  }
+  return {1, -reg_depth.at(n), secondary_priority, n->id()};
+}
+
+std::vector<Node*> Block::DumpOrder() const {
+  // Compute the dump order using list scheduling where the priority is computed
+  // by DumpOrderPriority. The scheme is chose to improve readability of the IR
+  // such that logical pipeline stages tend to be emitted together.
+
+  absl::flat_hash_map<Node*, NodePriority> priorities;
+  absl::flat_hash_map<Node*, int64_t> reg_depth =
+      ComputeRegisterDepthToLeaves(this, register_writes_);
+
+  XLS_VLOG(4) << "Node dump order priorities:";
+  for (Node* node : nodes()) {
+    priorities[node] = DumpOrderPriority(node, this, reg_depth);
+    XLS_VLOG(4) << absl::StreamFormat(
+        "%s: (%d, %d, %d)", node->GetName(), std::get<0>(priorities.at(node)),
+        std::get<1>(priorities.at(node)), std::get<2>(priorities.at(node)));
+  }
+
+  auto cmp_function = [&priorities](Node* a, Node* b) {
+    return priorities.at(a) < priorities.at(b);
+  };
+
+  // The set of nodes ready to be emitted (all operands emitted) is kept in this
+  // set, ordered by DumpOrderPriority.
+  std::set<Node*, decltype(cmp_function)> ready_nodes(cmp_function);
+
+  // The count of the unemitted operands of each node. If this value is
+  // zero for a node then the node is ready to be emitted.
+  absl::flat_hash_map<Node*, int64_t> unemitted_operand_count;
+  for (Node* node : nodes()) {
+    // To avoid double counting operands, set the unemitted operand count to the
+    // number of *unique* operands of the node.
+    unemitted_operand_count[node] =
+        absl::flat_hash_set<Node*>(node->operands().begin(),
+                                   node->operands().end())
+            .size();
+    if (node->operand_count() == 0) {
+      ready_nodes.insert(node);
+    }
+  }
+
+  std::vector<Node*> order;
+  while (!ready_nodes.empty()) {
+    Node* node = *ready_nodes.begin();
+    ready_nodes.erase(ready_nodes.begin());
+
+    auto place_node = [&](Node* n) {
+      order.push_back(n);
+      for (Node* user : n->users()) {
+        if (--unemitted_operand_count[user] == 0) {
+          ready_nodes.insert(user);
+        }
+      }
+    };
+
+    place_node(node);
+  }
+
+  XLS_CHECK_EQ(order.size(), node_count());
+  return order;
+}
 
 std::string Block::DumpIr() const {
   std::vector<std::string> port_strings;
@@ -57,7 +222,7 @@ std::string Block::DumpIr() const {
     }
   }
 
-  for (Node* node : TopoSort(const_cast<Block*>(this))) {
+  for (Node* node : DumpOrder()) {
     absl::StrAppend(&res, "  ", node->ToString(), "\n");
   }
   absl::StrAppend(&res, "}\n");

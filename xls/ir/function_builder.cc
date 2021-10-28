@@ -1482,7 +1482,8 @@ BValue BlockBuilder::InsertRegister(absl::string_view name, BValue data,
                     loc);
   }
   Register* reg = reg_status.value();
-  RegisterWrite(reg, data, load_enable, /*reset=*/absl::nullopt, loc);
+  RegisterWrite(reg, data, load_enable, /*reset=*/absl::nullopt, loc,
+                absl::StrFormat("%s_write", reg->name()));
   return RegisterRead(reg, loc, reg->name());
 }
 
@@ -1501,7 +1502,8 @@ BValue BlockBuilder::InsertRegister(absl::string_view name, BValue data,
                     loc);
   }
   Register* reg = reg_status.value();
-  RegisterWrite(reg, data, load_enable, reset_signal, loc);
+  RegisterWrite(reg, data, load_enable, reset_signal, loc,
+                absl::StrFormat("%s_write", reg->name()));
   return RegisterRead(reg, loc, reg->name());
 }
 

@@ -279,7 +279,7 @@ class BuilderBase {
                  absl::string_view name = "");
   BValue Literal(Bits bits, absl::optional<SourceLocation> loc = absl::nullopt,
                  absl::string_view name = "") {
-    return Literal(Value(bits), loc);
+    return Literal(Value(bits), loc, name);
   }
 
   // An n-ary select which selects among an arbitrary number of cases based on

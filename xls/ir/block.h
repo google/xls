@@ -138,6 +138,12 @@ class Block : public FunctionBase {
 
   Node* AddNodeInternal(std::unique_ptr<Node> node) override;
 
+  // Returns the order of emission of block nodes in the text IR
+  // (Block::DumpIR() output). The order is a topological sort with additional
+  // constraints for readability such that logical pipeline stages tend to get
+  // emitted together.
+  std::vector<Node*> DumpOrder() const;
+
   // All ports in the block in the order they appear in the Verilog module.
   std::vector<Port> ports_;
 

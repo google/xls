@@ -16,6 +16,8 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/logging/log_lines.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/visitor.h"
 #include "xls/ir/ir_matcher.h"
@@ -222,23 +224,32 @@ TEST_F(BlockTest, BlockWithRegisters) {
   auto p = CreatePackage();
   BlockBuilder bb("my_block", p.get());
   Type* u32 = p->GetBitsType(32);
-  BValue a = bb.InputPort("a", u32);
-  BValue b = bb.InputPort("b", u32);
-  XLS_ASSERT_OK_AND_ASSIGN(Register * reg,
-                           bb.block()->AddRegister("my_reg", u32));
-  bb.RegisterWrite(reg, bb.Add(a, b));
-  BValue sum_d = bb.RegisterRead(reg);
-  BValue out = bb.OutputPort("out", sum_d);
+  XLS_ASSERT_OK_AND_ASSIGN(Register * state_reg,
+                           bb.block()->AddRegister("state", u32));
   XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+
+  BValue state = bb.RegisterRead(state_reg, /*loc=*/absl::nullopt, "state");
+  BValue x = bb.InputPort("x", u32);
+
+  BValue x_d = bb.InsertRegister("x_d", x);
+  BValue sum = bb.Add(x_d, state, /*loc=*/absl::nullopt, "sum");
+
+  BValue sum_d = bb.InsertRegister("sum_d", sum);
+  BValue out = bb.OutputPort("out", sum_d);
+
+  bb.RegisterWrite(state_reg, sum_d, /*loc=*/absl::nullopt,
+                   /*load_enable=*/absl::nullopt, /*reset=*/absl::nullopt,
+                   "state_write");
+
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   EXPECT_FALSE(block->IsFunction());
   EXPECT_FALSE(block->IsProc());
   EXPECT_TRUE(block->IsBlock());
-  EXPECT_THAT(GetPortNames(block), ElementsAre("a", "b", "out", "clk"));
+  EXPECT_THAT(GetPortNames(block), ElementsAre("clk", "x", "out"));
 
-  EXPECT_THAT(block->GetInputPorts(), ElementsAre(a.node(), b.node()));
-  EXPECT_THAT(GetInputPortNames(block), ElementsAre("a", "b"));
+  EXPECT_THAT(block->GetInputPorts(), ElementsAre(x.node()));
+  EXPECT_THAT(GetInputPortNames(block), ElementsAre("x"));
 
   EXPECT_THAT(block->GetOutputPorts(), ElementsAre(out.node()));
   EXPECT_THAT(GetOutputPortNames(block), ElementsAre("out"));
@@ -246,16 +257,126 @@ TEST_F(BlockTest, BlockWithRegisters) {
   ASSERT_TRUE(block->GetClockPort().has_value());
   EXPECT_THAT(block->GetClockPort()->name, "clk");
 
+  XLS_VLOG_LINES(1, block->DumpIr());
+  EXPECT_EQ(block->DumpIr(),
+            R"(block my_block(clk: clock, x: bits[32], out: bits[32]) {
+  reg state(bits[32])
+  reg x_d(bits[32])
+  reg sum_d(bits[32])
+  x: bits[32] = input_port(name=x, id=2)
+  x_d_write: () = register_write(x, register=x_d, id=3)
+  state: bits[32] = register_read(register=state, id=1)
+  x_d: bits[32] = register_read(register=x_d, id=4)
+  sum: bits[32] = add(x_d, state, id=5)
+  sum_d_write: () = register_write(sum, register=sum_d, id=6)
+  sum_d: bits[32] = register_read(register=sum_d, id=7)
+  state_write: () = register_write(sum_d, register=state, id=9)
+  out: () = output_port(sum_d, name=out, id=8)
+}
+)");
+}
+
+TEST_F(BlockTest, BlockWithTrivialFeedbackDumpOrderTest) {
+  auto p = CreatePackage();
+  BlockBuilder bb("my_block", p.get());
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(Register * x_reg, bb.block()->AddRegister("x", u32));
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+
+  bb.RegisterWrite(x_reg, bb.RegisterRead(x_reg));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_VLOG_LINES(1, block->DumpIr());
+  EXPECT_EQ(block->DumpIr(),
+            R"(block my_block(clk: clock) {
+  reg x(bits[32])
+  register_read.1: bits[32] = register_read(register=x, id=1)
+  register_write.2: () = register_write(register_read.1, register=x, id=2)
+}
+)");
+}
+
+TEST_F(BlockTest, MultipleInputsAndOutputsDumpOrderTest) {
+  auto p = CreatePackage();
+  BlockBuilder bb("my_block", p.get());
+  Type* u32 = p->GetBitsType(32);
+
+  // Intentially create the input ports in the wrong order then order them
+  // later. This makes the id order not match the port order for a better test.
+  bb.InputPort("y", u32);
+  bb.InputPort("z", u32);
+  BValue x = bb.InputPort("x", u32);
+  bb.OutputPort("b", x);
+  bb.OutputPort("a", x);
+  bb.OutputPort("c", x);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK(block->ReorderPorts({"x", "y", "z", "a", "b", "c"}));
+
+  XLS_VLOG_LINES(1, block->DumpIr());
   EXPECT_EQ(
       block->DumpIr(),
-      R"(block my_block(a: bits[32], b: bits[32], out: bits[32], clk: clock) {
-  reg my_reg(bits[32])
-  a: bits[32] = input_port(name=a, id=1)
-  b: bits[32] = input_port(name=b, id=2)
-  add.3: bits[32] = add(a, b, id=3)
-  register_read.5: bits[32] = register_read(register=my_reg, id=5)
-  register_write.4: () = register_write(add.3, register=my_reg, id=4)
-  out: () = output_port(register_read.5, name=out, id=6)
+      R"(block my_block(x: bits[32], y: bits[32], z: bits[32], a: bits[32], b: bits[32], c: bits[32]) {
+  x: bits[32] = input_port(name=x, id=3)
+  y: bits[32] = input_port(name=y, id=1)
+  z: bits[32] = input_port(name=z, id=2)
+  a: () = output_port(x, name=a, id=5)
+  b: () = output_port(x, name=b, id=4)
+  c: () = output_port(x, name=c, id=6)
+}
+)");
+}
+
+TEST_F(BlockTest, DeepPipelineDumpOrderTest) {
+  auto p = CreatePackage();
+  BlockBuilder bb("my_block", p.get());
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  BValue x = bb.InputPort("x", u32);
+  BValue y = bb.InputPort("y", u32);
+
+  BValue p1_x = bb.InsertRegister("p1_x", x);
+  BValue p1_y = bb.InsertRegister("p1_y", y);
+  BValue p1_add = bb.Add(p1_x, p1_y, /*loc=*/absl::nullopt, "p1_add");
+
+  BValue p2_add = bb.InsertRegister("p2_add", p1_add);
+  BValue p2_y = bb.InsertRegister("p2_y", p1_y);
+  BValue p2_sub = bb.Subtract(p2_add, p2_y, /*loc=*/absl::nullopt, "p2_sub");
+
+  BValue p3_sub = bb.InsertRegister("p3_sub", p2_sub);
+  BValue p3_zero = bb.Literal(UBits(0, 32), /*loc=*/absl::nullopt, "p3_zero");
+  BValue p3_mul = bb.UMul(p3_sub, p3_zero, /*loc=*/absl::nullopt, "p3_mul");
+
+  bb.OutputPort("result", p3_mul);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_VLOG_LINES(1, block->DumpIr());
+  EXPECT_EQ(
+      block->DumpIr(),
+      R"(block my_block(clk: clock, x: bits[32], y: bits[32], result: bits[32]) {
+  reg p1_x(bits[32])
+  reg p1_y(bits[32])
+  reg p2_add(bits[32])
+  reg p2_y(bits[32])
+  reg p3_sub(bits[32])
+  x: bits[32] = input_port(name=x, id=1)
+  y: bits[32] = input_port(name=y, id=2)
+  p1_x_write: () = register_write(x, register=p1_x, id=3)
+  p1_y_write: () = register_write(y, register=p1_y, id=5)
+  p1_x: bits[32] = register_read(register=p1_x, id=4)
+  p1_y: bits[32] = register_read(register=p1_y, id=6)
+  p1_add: bits[32] = add(p1_x, p1_y, id=7)
+  p2_add_write: () = register_write(p1_add, register=p2_add, id=8)
+  p2_y_write: () = register_write(p1_y, register=p2_y, id=10)
+  p2_add: bits[32] = register_read(register=p2_add, id=9)
+  p2_y: bits[32] = register_read(register=p2_y, id=11)
+  p2_sub: bits[32] = sub(p2_add, p2_y, id=12)
+  p3_sub_write: () = register_write(p2_sub, register=p3_sub, id=13)
+  p3_sub: bits[32] = register_read(register=p3_sub, id=14)
+  p3_zero: bits[32] = literal(value=0, id=15)
+  p3_mul: bits[32] = umul(p3_sub, p3_zero, id=16)
+  result: () = output_port(p3_mul, name=result, id=17)
 }
 )");
 }
