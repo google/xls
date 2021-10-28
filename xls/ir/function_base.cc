@@ -22,6 +22,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/function.h"
+#include "xls/ir/ir_scanner.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
@@ -131,6 +132,14 @@ Node* FunctionBase::AddNodeInternal(std::unique_ptr<Node> node) {
   Node* ptr = node.get();
   node_iterators_[ptr] = nodes_.insert(nodes_.end(), std::move(node));
   return ptr;
+}
+
+/*static*/ std::vector<std::string> FunctionBase::GetIrReservedWords() {
+  std::vector<std::string> words(Token::GetKeywords().begin(),
+                                 Token::GetKeywords().end());
+  // Sort to avoid nondeterminism because GetKeywords returns a flat hashmap.
+  std::sort(words.begin(), words.end());
+  return words;
 }
 
 std::ostream& operator<<(std::ostream& os, const FunctionBase& function) {

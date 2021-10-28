@@ -21,7 +21,7 @@ namespace xls {
 namespace {
 
 TEST(NameUniquerTest, SimpleUniquer) {
-  NameUniquer uniquer;
+  NameUniquer uniquer("__");
 
   EXPECT_EQ("foo", uniquer.GetSanitizedUniqueName("foo"));
   EXPECT_EQ("foo__1", uniquer.GetSanitizedUniqueName("foo"));
@@ -48,7 +48,7 @@ TEST(NameUniquerTest, DifferentSeparator) {
 }
 
 TEST(NameUniquerTest, NumericSuffixes) {
-  NameUniquer uniquer;
+  NameUniquer uniquer("__");
 
   EXPECT_EQ("foo", uniquer.GetSanitizedUniqueName("foo"));
   EXPECT_EQ("foo__3", uniquer.GetSanitizedUniqueName("foo__3"));
@@ -66,7 +66,7 @@ TEST(NameUniquerTest, NumericSuffixes) {
 }
 
 TEST(NameUniquerTest, SanitizeNames) {
-  NameUniquer uniquer;
+  NameUniquer uniquer("__", {"res1", "res2", "_res", "__res"});
   EXPECT_EQ("CamelCase", uniquer.GetSanitizedUniqueName("CamelCase"));
   EXPECT_EQ("snake_case", uniquer.GetSanitizedUniqueName("snake_case"));
   EXPECT_EQ("a1234", uniquer.GetSanitizedUniqueName("a1234"));
@@ -81,10 +81,15 @@ TEST(NameUniquerTest, SanitizeNames) {
   EXPECT_EQ("_42", uniquer.GetSanitizedUniqueName("42"));
   EXPECT_EQ("_42__1", uniquer.GetSanitizedUniqueName("42"));
   EXPECT_EQ("_42__2", uniquer.GetSanitizedUniqueName("_42"));
+
+  EXPECT_EQ("_res1", uniquer.GetSanitizedUniqueName("res1"));
+  EXPECT_EQ("_res1__1", uniquer.GetSanitizedUniqueName("res1"));
+  EXPECT_EQ("_res2", uniquer.GetSanitizedUniqueName("res2"));
+  EXPECT_EQ("___res", uniquer.GetSanitizedUniqueName("_res"));
 }
 
 TEST(NameUniquerTest, CornerCases) {
-  NameUniquer uniquer;
+  NameUniquer uniquer("__");
   EXPECT_EQ("name", uniquer.GetSanitizedUniqueName(""));
   EXPECT_EQ("name__1", uniquer.GetSanitizedUniqueName(""));
   EXPECT_EQ("__", uniquer.GetSanitizedUniqueName("__"));

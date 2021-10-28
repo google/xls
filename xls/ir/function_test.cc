@@ -313,5 +313,22 @@ TEST_F(FunctionTest, CloneInvokeForRemap) {
   EXPECT_EQ(invoke_b_clone->to_apply(), apply_b);
 }
 
+TEST_F(FunctionTest, IrReservedWordIdentifiers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto token = fb.Param("token", p->GetBitsType(32));
+  auto reg = fb.Param("reg", p->GetBitsType(32));
+  auto rreg = fb.Param("rreg", p->GetBitsType(32));
+  XLS_ASSERT_OK(fb.Build().status());
+
+  EXPECT_EQ(token.GetName(), "_token");
+  EXPECT_EQ(reg.GetName(), "_reg");
+  EXPECT_EQ(rreg.GetName(), "rreg");
+
+  // Serialize to text and verify text is parsable.
+  std::string ir_text = p->DumpIr();
+  XLS_ASSERT_OK(ParsePackage(ir_text).status());
+}
+
 }  // namespace
 }  // namespace xls

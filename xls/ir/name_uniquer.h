@@ -31,8 +31,10 @@ namespace xls {
 // sanitized to match regexp "[a-zA-Z_][a-zA-Z0-9_]*".
 class NameUniquer {
  public:
-  explicit NameUniquer(absl::string_view separator = "__")
-      : separator_(separator) {}
+  explicit NameUniquer(absl::string_view separator,
+                       absl::Span<const std::string> reserved_names = {})
+      : separator_(separator),
+        reserved_names_(reserved_names.begin(), reserved_names.end()) {}
 
   NameUniquer(const NameUniquer&) = delete;
   NameUniquer operator=(const NameUniquer&) = delete;
@@ -90,6 +92,10 @@ class NameUniquer {
   // The string to use to separate the prefix of the name from the uniquing
   // integer value.
   std::string separator_;
+
+  // Set of reserved names. Names in this set will be sanitized by adding a '_'
+  // prefix.
+  absl::flat_hash_set<std::string> reserved_names_;
 
   // Map from name prefix to the generator data structure which tracks used
   // identifiers and generates new ones.

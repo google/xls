@@ -254,6 +254,7 @@ cc_library(
         ":channel_cc_proto",
         ":channel_ops",
         ":format_strings",
+        ":ir_scanner",
         ":name_uniquer",
         ":op",
         ":source_location",

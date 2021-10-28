@@ -152,6 +152,9 @@ class FunctionBase {
   // added node.
   virtual Node* AddNodeInternal(std::unique_ptr<Node> node);
 
+  // Returns a vector containing the reserved words in the IR.
+  static std::vector<std::string> GetIrReservedWords();
+
   std::string name_;
   std::string qualified_name_;
   Package* package_;
@@ -164,7 +167,8 @@ class FunctionBase {
 
   std::vector<Param*> params_;
 
-  NameUniquer node_name_uniquer_ = NameUniquer(/*separator=*/"__");
+  NameUniquer node_name_uniquer_ =
+      NameUniquer(/*separator=*/"__", GetIrReservedWords());
 };
 
 std::ostream& operator<<(std::ostream& os, const FunctionBase& function);
