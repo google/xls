@@ -230,12 +230,10 @@ TEST_F(ProcFirFilterTest, DISABLED_FIRScaleFactor) {
                                                                filter_out,
                                                                p.get()));
 
-  XLS_LOG(INFO) << fir_proc->DumpIr();
-
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ChannelQueueManager> queue_manager,
       ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
-  ProcInterpreter pi(FindProc("fir_proc", p.get()), queue_manager.get());
+  ProcInterpreter pi(fir_proc, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
