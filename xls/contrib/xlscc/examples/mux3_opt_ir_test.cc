@@ -31,7 +31,8 @@ namespace {
 using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
 
-constexpr const char kIrPath[] = "xls/contrib/xlscc/examples/mux3.opt.ir";
+constexpr const char kIrPath[] =
+    "xls/contrib/xlscc/examples/mux3_opt_ir.opt.ir";
 
 TEST(Mux3IrTest, BasicSignaturePresent) {
   XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path ir_path,
