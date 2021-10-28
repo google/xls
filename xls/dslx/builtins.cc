@@ -111,10 +111,10 @@ static void PerformTrace(absl::string_view text, const Span& span,
                          const InterpValue& value,
                          AbstractInterpreter* interp) {
   FormatPreference format = interp->GetTraceFormatPreference();
-  std::cerr << absl::StreamFormat("trace of %s @ %s: %s", text, span.ToString(),
-                                  value.ToString(/*humanize=*/true,
-                                                 /*format=*/format))
-            << std::endl;
+  XLS_LOG(INFO) << absl::StreamFormat("trace of %s @ %s: %s", text,
+                                      span.ToString(),
+                                      value.ToString(/*humanize=*/true,
+                                                     /*format=*/format));
 }
 
 constexpr absl::string_view kTraceFmtErrorTemplate = R"(
@@ -137,21 +137,25 @@ static absl::Status PerformTraceFmt(FormatMacro* expr,
                         expr->span().ToString(), args_str));
   };
 
+  std::string trace_output;
   for (auto step : expr->format()) {
     if (absl::holds_alternative<FormatPreference>(step)) {
       if (arg_value != arg_values.end()) {
         // Print via IR so that formatted traces will have the same output in
         // both interpreted and JIT execution.
         XLS_ASSIGN_OR_RETURN(Value ir_value, arg_value->ConvertToIr());
-        std::cerr << ir_value.ToHumanString(absl::get<FormatPreference>(step));
+        trace_output +=
+            ir_value.ToHumanString(absl::get<FormatPreference>(step));
         arg_value++;
       } else {
         return make_error("Not enough arguments for format string");
       }
     } else {
-      std::cerr << absl::get<std::string>(step);
+      trace_output += absl::get<std::string>(step);
     }
   }
+
+  XLS_LOG(INFO) << trace_output;
 
   if (arg_value != arg_values.end()) {
     return make_error("Too many arguments for format string");

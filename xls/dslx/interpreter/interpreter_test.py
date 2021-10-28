@@ -420,7 +420,11 @@ class InterpreterTest(test_base.TestCase):
     """
     program_file = self.create_tempfile(content=program)
     # Note: no support for `while` in IR conversion.
-    cmd = [_INTERP_PATH, '--compare=none', program_file.full_path]
+    # Trace is logged with XLS_LOG(INFO) so log to stderr to capture output.
+    cmd = [
+        _INTERP_PATH, '--compare=none', '--alsologtostderr',
+        program_file.full_path
+    ]
     result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
     self.assertIn('4:15-4:30: 1', result.stderr)
     self.assertIn('4:15-4:30: 2', result.stderr)
@@ -441,7 +445,11 @@ class InterpreterTest(test_base.TestCase):
     """
     program_file = self.create_tempfile(content=program)
     # Note: no support for `trace_fmt!` in IR.
-    cmd = [_INTERP_PATH, '--compare=none', program_file.full_path]
+    # Trace is logged with XLS_LOG(INFO) so log to stderr to capture output.
+    cmd = [
+        _INTERP_PATH, '--compare=none', '--alsologtostderr',
+        program_file.full_path
+    ]
     result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
     self.assertIn('Hello world!', result.stderr)
     self.assertIn('x is 240, 0xf0 in hex and 0b1111_0000 in binary',
@@ -620,9 +628,10 @@ class InterpreterTest(test_base.TestCase):
     }
     """
     program_file = self.create_tempfile(content=program)
+    # Trace is logged with XLS_LOG(INFO) so log to stderr to capture output.
     cmd = [
         _INTERP_PATH, '--compare=interpreter', '--trace_all=true',
-        program_file.full_path
+        '--alsologtostderr', program_file.full_path
     ]
     result = subp.run(
         cmd,
