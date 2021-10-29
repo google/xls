@@ -648,6 +648,7 @@ cc_library(
         ":ast",
         ":builtins",
         ":evaluate",
+        ":evaluate_sym",
         ":import_routines",
         ":interp_bindings",
         ":interp_value",
@@ -974,6 +975,22 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "evaluate_sym",
+    srcs = ["evaluate_sym.cc"],
+    hdrs = ["evaluate_sym.h"],
+    deps = [
+        ":abstract_interpreter",
+        ":ast",
+        ":evaluate",
+        ":import_routines",
+        ":interp_bindings",
+        ":interp_value",
+        "//xls/ir:bits",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 

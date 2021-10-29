@@ -17,6 +17,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/builtins.h"
 #include "xls/dslx/evaluate.h"
+#include "xls/dslx/evaluate_sym.h"
 #include "xls/dslx/mangle.h"
 
 namespace xls::dslx {
@@ -24,15 +25,20 @@ namespace xls::dslx {
 class Evaluator : public ExprVisitor {
  public:
   Evaluator(Interpreter* parent, InterpBindings* bindings,
-            ConcreteType* type_context, AbstractInterpreter* interp)
+            ConcreteType* type_context, AbstractInterpreter* interp,
+            bool run_concolic)
       : parent_(parent),
         bindings_(bindings),
         type_context_(type_context),
-        interp_(interp) {}
+        interp_(interp),
+        run_concolic_(run_concolic) {}
 
-#define DISPATCH(__expr_type)                                                \
-  void Handle##__expr_type(__expr_type* expr) override {                     \
-    value_ = Evaluate##__expr_type(expr, bindings_, type_context_, interp_); \
+#define DISPATCH(__expr_type)                                                  \
+  void Handle##__expr_type(__expr_type* expr) override {                       \
+    value_ = run_concolic_ ? Evaluate##__expr_type(expr, bindings_,            \
+                                                   type_context_, interp_)     \
+                           : Evaluate##__expr_typeSym(expr, bindings_,         \
+                                                      type_context_, interp_); \
   }
 
   DISPATCH(Array)
@@ -101,6 +107,7 @@ class Evaluator : public ExprVisitor {
   ConcreteType* type_context_;
   AbstractInterpreter* interp_;
   absl::StatusOr<InterpValue> value_;
+  bool run_concolic_;
 };
 
 // Adapts a concrete interpreter to present as an abstract one.
@@ -146,6 +153,7 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
 
 Interpreter::Interpreter(Module* entry_module, TypecheckFn typecheck,
                          ImportData* import_data, bool trace_all,
+                         bool run_concolic,
                          FormatPreference trace_format_preference,
                          PostFnEvalHook post_fn_eval_hook)
     : entry_module_(entry_module),
@@ -154,6 +162,7 @@ Interpreter::Interpreter(Module* entry_module, TypecheckFn typecheck,
       typecheck_(std::move(typecheck)),
       import_data_(import_data),
       trace_all_(trace_all),
+      run_concolic_(run_concolic),
       trace_format_preference_(trace_format_preference),
       abstract_adapter_(std::make_unique<AbstractInterpreterAdapter>(this)) {}
 
@@ -204,7 +213,8 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
   XLS_RET_CHECK(current_type_info_ != nullptr);
   XLS_RET_CHECK_EQ(expr->owner(), current_type_info_->module())
       << expr->span() << " vs " << current_type_info_->module()->name();
-  Evaluator evaluator(this, bindings, type_context, abstract_adapter_.get());
+  Evaluator evaluator(this, bindings, type_context, abstract_adapter_.get(),
+                      run_concolic_);
   expr->AcceptExpr(&evaluator);
   absl::StatusOr<InterpValue> result_or = std::move(evaluator.value());
   if (!result_or.ok()) {

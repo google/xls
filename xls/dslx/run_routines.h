@@ -87,6 +87,7 @@ struct ParseAndTestOptions {
   absl::Span<const std::filesystem::path> dslx_paths = {};
   absl::optional<absl::string_view> test_filter = absl::nullopt;
   bool trace_all = false;
+  bool run_concolic = false;
   FormatPreference trace_format_preference = FormatPreference::kDefault;
   RunComparator* run_comparator = nullptr;
   bool execute = true;

@@ -68,6 +68,7 @@ PYBIND11_MODULE(interpreter, m) {
             tm.module, /*typecheck=*/nullptr,
             /*import_data=*/&import_data,
             /*trace_all=*/false,
+            /*run_concolic=*/false,
             /*trace_format_preference=*/FormatPreference::kDefault,
             /*package=*/nullptr);
         std::vector<InterpValue> results;
