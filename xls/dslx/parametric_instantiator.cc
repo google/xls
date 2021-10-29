@@ -296,7 +296,7 @@ absl::Status ParametricInstantiator::SymbolicBind(
     XLS_RET_CHECK(arg_fn != nullptr);
     return SymbolicBindFunction(*param_fn, *arg_fn);
   }
-  if (auto* param_token = dynamic_cast<const TokenType*>(&param_type)) {
+  if (dynamic_cast<const TokenType*>(&param_type) != nullptr) {
     // Tokens aren't parameterizable.
     return absl::OkStatus();
   }
