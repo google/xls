@@ -468,8 +468,9 @@ class Parser : public TokenParser {
 
   // Returns TestFunction AST node by parsing new-style unit test construct.
   absl::StatusOr<TestFunction*> ParseTestFunction(
-      absl::flat_hash_map<std::string, Function*>* name_to_fn,
       Bindings* bindings, const Span& directive_span);
+
+  absl::StatusOr<TestProc*> ParseTestProc(Bindings* bindings);
 
   // Parses a constant definition (e.g. at the top level of a module). Token
   // cursor should be over the `const` keyword.
@@ -486,7 +487,8 @@ class Parser : public TokenParser {
   //
   // These may preceed unit-test/QuickCheck constructs or they may set compiler
   // configs (e.g. expect semi-colons instead of 'in').
-  absl::StatusOr<absl::variant<TestFunction*, QuickCheck*, nullptr_t>>
+  absl::StatusOr<
+      absl::variant<TestFunction*, TestProc*, QuickCheck*, nullptr_t>>
   ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                  Bindings* bindings);
 

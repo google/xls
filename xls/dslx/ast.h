@@ -103,6 +103,7 @@ bool IsOneOf(ObjT* obj) {
   X(Spawn)                        \
   X(StructDef)                    \
   X(TestFunction)                 \
+  X(TestProc)                     \
   X(TypeDef)                      \
   X(TypeRef)                      \
   X(WidthSlice)                   \
@@ -227,6 +228,7 @@ enum class AstNodeKind {
   kSendIf,
   kJoin,
   kTestFunction,
+  kTestProc,
   kWidthSlice,
   kWildcardPattern,
   kMatchArm,
@@ -2150,6 +2152,36 @@ class TestFunction : public AstNode {
   Function* fn_;
 };
 
+// Represents a construct to unit test a Proc. Analogous to TestFunction, but
+// for Procs.
+//
+// These are specified with an annotation as follows:
+// ```dslx
+// #![test]
+// proc test_proc { ... }
+// ```
+class TestProc : public AstNode {
+ public:
+  TestProc(Module* owner, Proc* proc) : AstNode(owner), proc_(proc) {}
+  AstNodeKind kind() const { return AstNodeKind::kTestProc; }
+  absl::Status Accept(AstNodeVisitor* v) override {
+    return v->HandleTestProc(this);
+  }
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {proc_};
+  }
+  absl::string_view GetNodeTypeName() const override { return "TestProc"; }
+  std::string ToString() const override {
+    return absl::StrFormat("#![test]\n%s", proc_->ToString());
+  }
+
+  Proc* proc() const { return proc_; }
+  absl::optional<Span> GetSpan() const override { return proc_->span(); }
+
+ private:
+  Proc* proc_;
+};
+
 // Represents a function to be quick-check'd.
 class QuickCheck : public AstNode {
  public:
@@ -2578,8 +2610,8 @@ class ChannelDecl : public Expr {
 };
 
 using ModuleMember =
-    absl::variant<Function*, Proc*, TestFunction*, QuickCheck*, TypeDef*,
-                  StructDef*, ConstantDef*, EnumDef*, Import*>;
+    absl::variant<Function*, Proc*, TestFunction*, TestProc*, QuickCheck*,
+                  TypeDef*, StructDef*, ConstantDef*, EnumDef*, Import*>;
 
 absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
 

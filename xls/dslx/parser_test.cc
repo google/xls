@@ -322,6 +322,53 @@ TEST_F(ParserTest, ParseJoin) {
   EXPECT_EQ(m->ToString(), kModule);
 }
 
+TEST_F(ParserTest, ParseTestProc) {
+  constexpr absl::string_view kModule = R"(proc testee {
+  input: chan in u32;
+  output: chan out u32;
+  config(input: chan in u32, output: chan out u32) {
+    (input, output)
+  }
+  next(tok: token, x: u32) {
+    let (tok, y) = recv(tok, input);
+    let tok = send(tok, output, (x) + (y));
+    ((x) + (y),)
+  }
+}
+#![test]
+proc tester {
+  p: chan out u32;
+  c: chan in u32;
+  config() {
+    let (input_p, input_c) = chan u32;
+    let (output_p, output_c) = chan u32;
+    spawn testee(input_c, output_p)(u32:0);
+    (input_p, output_c)
+  }
+  next(tok: token) {
+    let tok = send(tok, p, u32:0);
+    let tok = send(tok, p, u32:1);
+    let tok = send(tok, p, u32:2);
+    let tok = send(tok, p, u32:3);
+    let (tok, exp) = recv(tok, c);
+    let _ = assert_eq(exp, u32:0);
+    let (tok, exp) = recv(tok, c);
+    let _ = assert_eq(exp, u32:1);
+    let (tok, exp) = recv(tok, c);
+    let _ = assert_eq(exp, u32:3);
+    let (tok, exp) = recv(tok, c);
+    let _ = assert_eq(exp, u32:6);
+    ()
+  }
+})";
+
+  Scanner s("test.x", std::string(kModule));
+  Parser parser("test", &s);
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
+  EXPECT_EQ(m->ToString(), kModule);
+}
+
 TEST_F(ParserTest, ParseStructSplat) {
   const char* text = R"(struct Point {
   x: u32,

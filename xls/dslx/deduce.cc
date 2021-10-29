@@ -913,6 +913,9 @@ static bool IsPublic(const ModuleMember& member) {
   if (absl::holds_alternative<TestFunction*>(member)) {
     return false;
   }
+  if (absl::holds_alternative<TestProc*>(member)) {
+    return false;
+  }
   if (absl::holds_alternative<QuickCheck*>(member)) {
     return false;
   }
@@ -2450,6 +2453,7 @@ class DeduceVisitor : public AstNodeVisitor {
   absl::Status HandleFunction(Function* n) override { return Fatal(n); }
   absl::Status HandleQuickCheck(QuickCheck* n) override { return Fatal(n); }
   absl::Status HandleTestFunction(TestFunction* n) override { return Fatal(n); }
+  absl::Status HandleTestProc(TestProc* n) override { return Fatal(n); }
   absl::Status HandleModule(Module* n) override { return Fatal(n); }
   absl::Status HandleWidthSlice(WidthSlice* n) override { return Fatal(n); }
   absl::Status HandleNameDefTree(NameDefTree* n) override { return Fatal(n); }

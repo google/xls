@@ -169,6 +169,8 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
                            ParseDirective(&name_to_fn, bindings));
       if (auto* t = TryGet<TestFunction*>(directive)) {
         module_->AddTop(t);
+      } else if (auto* tp = TryGet<TestProc*>(directive)) {
+        module_->AddTop(tp);
       } else if (auto* qc = TryGet<QuickCheck*>(directive)) {
         module_->AddTop(qc);
       } else {
@@ -240,7 +242,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
   return std::move(module_);
 }
 
-absl::StatusOr<absl::variant<TestFunction*, QuickCheck*, nullptr_t>>
+absl::StatusOr<absl::variant<TestFunction*, TestProc*, QuickCheck*, nullptr_t>>
 Parser::ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                        Bindings* bindings) {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kBang));
@@ -256,7 +258,15 @@ Parser::ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
   }
   if (directive_name == "test") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
-    return ParseTestFunction(name_to_fn, bindings, directive_tok.span());
+    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+    if (peek->IsKeyword(Keyword::kFn)) {
+      return ParseTestFunction(bindings, directive_tok.span());
+    } else if (peek->IsKeyword(Keyword::kProc)) {
+      return ParseTestProc(bindings);
+    } else {
+      return ParseErrorStatus(
+          peek->span(), absl::StrCat("Invalid test type: ", peek->ToString()));
+    }
   }
   if (directive_name == "quickcheck") {
     XLS_ASSIGN_OR_RETURN(QuickCheck * n, ParseQuickCheck(name_to_fn, bindings,
@@ -2165,8 +2175,7 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
 }
 
 absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
-    absl::flat_hash_map<std::string, Function*>* name_to_fn, Bindings* bindings,
-    const Span& directive_span) {
+    Bindings* bindings, const Span& directive_span) {
   XLS_ASSIGN_OR_RETURN(Function * f,
                        ParseFunctionInternal(/*is_public=*/false, bindings));
   if (absl::optional<ModuleMember*> member =
@@ -2178,6 +2187,21 @@ absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
             f->identifier(), ToAstNode(**member)->GetSpan()->ToString()));
   }
   return module_->Make<TestFunction>(f);
+}
+
+absl::StatusOr<TestProc*> Parser::ParseTestProc(Bindings* bindings) {
+  XLS_ASSIGN_OR_RETURN(Proc * p, ParseProc(/*is_public=*/false, bindings));
+  if (absl::optional<ModuleMember*> member =
+          module_->FindMemberWithName(p->identifier())) {
+    return ParseErrorStatus(
+        p->span(),
+        absl::StrFormat("Test proc '%s' has same name as module member @ %s",
+                        p->identifier(),
+                        ToAstNode(**member)->GetSpan()->ToString()));
+  }
+
+  // Verify no state or config args
+  return module_->Make<TestProc>(p);
 }
 
 absl::Status Parser::ParseConfig(const Span& directive_span) {

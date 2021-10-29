@@ -80,6 +80,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_SEND_IF;
     case AstNodeKind::kTestFunction:
       return AST_NODE_KIND_TEST_FUNCTION;
+    case AstNodeKind::kTestProc:
+      return AST_NODE_KIND_TEST_PROC;
     case AstNodeKind::kWildcardPattern:
       return AST_NODE_KIND_WILDCARD_PATTERN;
     case AstNodeKind::kWidthSlice:
@@ -530,6 +532,8 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kSendIf;
     case AST_NODE_KIND_TEST_FUNCTION:
       return AstNodeKind::kTestFunction;
+    case AST_NODE_KIND_TEST_PROC:
+      return AstNodeKind::kTestProc;
     case AST_NODE_KIND_WILDCARD_PATTERN:
       return AstNodeKind::kWildcardPattern;
     case AST_NODE_KIND_WIDTH_SLICE:
