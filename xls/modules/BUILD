@@ -111,6 +111,20 @@ xls_dslx_test(
     dep = ":fma_32_dslx_module",
 )
 
+xls_dslx_library(
+    name = "apfloat_fmac_dslx",
+    srcs = ["apfloat_fmac.x"],
+    deps = [
+        ":apfloat_fma_dslx",
+    ],
+)
+
+xls_dslx_module_library(
+    name = "fmac_32_dslx_module",
+    src = "fmac_32.x",
+    deps = [":apfloat_fmac_dslx"],
+)
+
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
 # xls_ir_equivalence_test.
 xls_eval_ir_test(

@@ -132,7 +132,7 @@ proc main {
       ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetFunctionOrError("test_proc_config"));
+                           tm.module->GetFunctionOrError("test_proc.config"));
 
   Package package("the_package");
   ChannelMetadataProto metadata;
@@ -186,7 +186,7 @@ proc main {
       ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetFunctionOrError("test_proc_config"));
+                           tm.module->GetFunctionOrError("test_proc.config"));
 
   Package package("the_package");
   ProcConfigIrConverter converter(&package, f, tm.type_info, &import_data,

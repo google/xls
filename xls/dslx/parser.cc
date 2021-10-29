@@ -18,11 +18,12 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
+#include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
-#include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/bindings.h"
+#include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/scanner.h"
 
 namespace xls::dslx {
@@ -1428,12 +1429,50 @@ absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
 
 absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(Token spawn, PopKeywordOrError(Keyword::kSpawn));
-  XLS_ASSIGN_OR_RETURN(NameRef * spawnee, ParseNameRef(bindings));
+  XLS_ASSIGN_OR_RETURN(auto name_or_colon_ref, ParseNameOrColonRef(bindings));
 
   std::vector<Expr*> parametrics;
   XLS_ASSIGN_OR_RETURN(bool peek_is_oangle, PeekTokenIs(TokenKind::kOAngle));
   if (peek_is_oangle) {
     XLS_ASSIGN_OR_RETURN(parametrics, ParseParametrics(bindings));
+  }
+
+  Expr* spawnee;
+  Expr* config_ref;
+  Expr* next_ref;
+  if (absl::holds_alternative<NameRef*>(name_or_colon_ref)) {
+    NameRef* name_ref = absl::get<NameRef*>(name_or_colon_ref);
+    spawnee = name_ref;
+    // We avoid name collisions b/w exiesting functions and Proc config/next fns
+    // by using a "." as the separator, which is invalid for function
+    // specifications.
+    std::string config_name = absl::StrCat(name_ref->identifier(), ".config");
+    std::string next_name = absl::StrCat(name_ref->identifier(), ".next");
+    XLS_ASSIGN_OR_RETURN(
+        AnyNameDef config_def,
+        bindings->ResolveNameOrError(config_name, spawnee->span()));
+    if (!absl::holds_alternative<NameDef*>(config_def)) {
+      return absl::InternalError("Proc config should be named \".config\"");
+    }
+    config_ref =
+        module_->Make<NameRef>(name_ref->span(), config_name, config_def);
+
+    XLS_ASSIGN_OR_RETURN(AnyNameDef next_def, bindings->ResolveNameOrError(
+                                                  next_name, spawnee->span()));
+    if (!absl::holds_alternative<NameDef*>(next_def)) {
+      return absl::InternalError("Proc next should be named \".next\"");
+    }
+    next_ref = module_->Make<NameRef>(name_ref->span(), next_name, next_def);
+  } else {
+    ColonRef* colon_ref = absl::get<ColonRef*>(name_or_colon_ref);
+    spawnee = colon_ref;
+
+    config_ref =
+        module_->Make<ColonRef>(colon_ref->span(), colon_ref->subject(),
+                                absl::StrCat(colon_ref->attr(), ".config"));
+    next_ref =
+        module_->Make<ColonRef>(colon_ref->span(), colon_ref->subject(),
+                                absl::StrCat(colon_ref->attr(), ".next"));
   }
 
   auto parse_args = [this, bindings] { return ParseExpression(bindings); };
@@ -1457,31 +1496,11 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings* bindings) {
     XLS_ASSIGN_OR_RETURN(body, ParseExpression(bindings));
   }
 
-  std::string config_name = absl::StrCat(spawnee->identifier(), "_config");
-  XLS_ASSIGN_OR_RETURN(
-      AnyNameDef config_def,
-      bindings->ResolveNameOrError(config_name, spawnee->span()));
-  if (!absl::holds_alternative<NameDef*>(config_def)) {
-    return absl::InternalError("Proc config should be named \"_config\"");
-  }
-
-  auto* name_ref = module_->Make<NameRef>(Span(config_start, config_limit),
-                                          config_name, config_def);
   auto* config_invoc = module_->Make<Invocation>(
-      Span(config_start, config_limit), name_ref, config_args, parametrics);
+      Span(config_start, config_limit), config_ref, config_args, parametrics);
 
-  // TODO(rspringer): 2021-09-27: How to avoid name collisions?
-  std::string next_name = absl::StrCat(spawnee->identifier(), "_next");
-  XLS_ASSIGN_OR_RETURN(AnyNameDef next_def, bindings->ResolveNameOrError(
-                                                next_name, spawnee->span()));
-  if (!absl::holds_alternative<NameDef*>(next_def)) {
-    return absl::InternalError("Proc next should be named \"_next\"");
-  }
-
-  name_ref =
-      module_->Make<NameRef>(Span(next_start, next_limit), next_name, next_def);
   auto* next_invoc = module_->Make<Invocation>(
-      Span(next_start, next_limit), name_ref, next_args, parametrics);
+      Span(next_start, next_limit), next_ref, next_args, parametrics);
 
   return module_->Make<Spawn>(Span(spawn.span().start(), next_limit), spawnee,
                               config_invoc, next_invoc, parametrics, body);
@@ -1617,7 +1636,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
 
   Span span(oparen.span().start(), cbrace.span().limit());
   NameDef* name_def =
-      module_->Make<NameDef>(span, absl::StrCat(proc_name, "_config"), nullptr);
+      module_->Make<NameDef>(span, absl::StrCat(proc_name, ".config"), nullptr);
   std::vector<TypeAnnotation*> return_elements;
   return_elements.reserve(proc_members.size());
   for (const auto* member : proc_members) {
@@ -1687,7 +1706,7 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
   TypeAnnotation* return_type =
       module_->Make<TupleTypeAnnotation>(span, return_elements);
   NameDef* name_def =
-      module_->Make<NameDef>(span, absl::StrCat(proc_name, "_next"), nullptr);
+      module_->Make<NameDef>(span, absl::StrCat(proc_name, ".next"), nullptr);
   Function* next = module_->Make<Function>(
       Span(oparen.span().start(), cbrace.span().limit()), name_def,
       parametric_bindings, next_params, return_type, expr,
