@@ -32,6 +32,7 @@ cc_library(
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/simulation:common",
         "//xls/noc/simulation:flit",
+        "//xls/noc/simulation:global_routing_table",
         "//xls/noc/simulation:network_graph",
         "//xls/noc/simulation:network_graph_builder",
         "//xls/noc/simulation:noc_traffic_injector",

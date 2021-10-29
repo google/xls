@@ -17,6 +17,7 @@
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/noc/simulation/common.h"
+#include "xls/noc/simulation/global_routing_table.h"
 #include "xls/noc/simulation/network_graph.h"
 #include "xls/noc/simulation/network_graph_builder.h"
 #include "xls/noc/simulation/noc_traffic_injector.h"
@@ -125,7 +126,9 @@ absl::Status ExperimentMetrics::DebugDump() const {
 }
 
 absl::StatusOr<ExperimentMetrics> ExperimentRunner::RunExperiment(
-    const ExperimentConfig& experiment_config) const {
+    const ExperimentConfig& experiment_config,
+    DistributedRoutingTableBuilderBase&& distributed_routing_table_builder)
+    const {
   // Build and assign simulation objects.
   NetworkManager graph;
   NocParameters params;
@@ -134,10 +137,10 @@ absl::StatusOr<ExperimentMetrics> ExperimentRunner::RunExperiment(
       experiment_config.GetNetworkConfig(), &graph, &params));
 
   // Create global routing table.
-  DistributedRoutingTableBuilderForTrees route_builder;
-  XLS_ASSIGN_OR_RETURN(DistributedRoutingTable routing_table,
-                       route_builder.BuildNetworkRoutingTables(
-                           graph.GetNetworkIds()[0], graph, params));
+  XLS_ASSIGN_OR_RETURN(
+      DistributedRoutingTable routing_table,
+      distributed_routing_table_builder.BuildNetworkRoutingTables(
+          graph.GetNetworkIds()[0], graph, params));
 
   // Build traffic model.
   RandomNumberInterface rnd;

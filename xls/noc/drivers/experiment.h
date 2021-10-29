@@ -27,6 +27,7 @@
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/flit.h"
+#include "xls/noc/simulation/global_routing_table.h"
 #include "xls/noc/simulation/traffic_description.h"
 
 // This file contains classes used to construct different
@@ -150,7 +151,9 @@ class ExperimentMetrics {
 class ExperimentRunner {
  public:
   absl::StatusOr<ExperimentMetrics> RunExperiment(
-      const ExperimentConfig& experiment_config) const;
+      const ExperimentConfig& experiment_config,
+      DistributedRoutingTableBuilderBase&& distributed_routing_table_builder =
+          DistributedRoutingTableBuilderForTrees()) const;
 
   ExperimentRunner& SetSimulationCycleCount(int64_t count) {
     XLS_CHECK_GE(count, 0);
@@ -204,15 +207,20 @@ class Experiment {
   // each subsequent step in independent and the config for step N is
   // created by applying the mutation for step N ontop of the base configuration
   // as run in step 0.
-  absl::StatusOr<ExperimentMetrics> RunStep(int64_t step) const {
+  absl::StatusOr<ExperimentMetrics> RunStep(
+      int64_t step,
+      DistributedRoutingTableBuilderBase&& distributed_routing_table_builder =
+          DistributedRoutingTableBuilderForTrees()) const {
     XLS_RET_CHECK(step >= 0 && step < GetStepCount());
 
     XLS_ASSIGN_OR_RETURN(ExperimentConfig config, GetConfigForStep(step));
 
     // Make a copy of the runner to run the single step.
     ExperimentRunner runner = runner_;
-    XLS_ASSIGN_OR_RETURN(ExperimentMetrics metrics,
-                         runner.RunExperiment(config));
+    XLS_ASSIGN_OR_RETURN(
+        ExperimentMetrics metrics,
+        runner.RunExperiment(config,
+                             std::move(distributed_routing_table_builder)));
 
     return metrics;
   }
