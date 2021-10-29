@@ -1027,6 +1027,12 @@ class Translator {
   inline std::string LocString(const clang::Decl& decl) {
     return LocString(GetLoc(decl));
   }
+  void FillLocationProto(const clang::SourceLocation& location,
+                         const clang::SourceManager& sm,
+                         xlscc_metadata::SourceLocation* location_out);
+  void FillLocationRangeProto(const clang::SourceRange& range,
+                              const clang::SourceManager& sm,
+                              xlscc_metadata::SourceLocationRange* range_out);
 };
 
 }  // namespace xlscc

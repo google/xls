@@ -33,11 +33,25 @@ message FunctionParameter {
   optional bool is_const = 4;
 }
 
+message SourceLocation {
+  optional string filename = 1;
+  optional int32 line = 2;
+  optional int32 column = 3;
+}
+
+message SourceLocationRange {
+  optional SourceLocation begin = 1;
+  optional SourceLocation end = 2;
+}
+
 // Represents the prototype / interface of a function
 message FunctionPrototype {
   optional CPPName name = 1;
   optional Type return_type = 2;
   repeated FunctionParameter params = 3;
+  optional SourceLocationRange whole_declaration_location = 4;
+  optional SourceLocationRange return_location = 5;
+  optional SourceLocationRange parameters_location = 6;
 }
 
 // The name of a C++ symbol / object.

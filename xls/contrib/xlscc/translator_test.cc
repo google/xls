@@ -3524,6 +3524,36 @@ TEST_F(TranslatorTest, MetadataNamespaceStructArray) {
         is_reference: true
         is_const: false
       }
+      whole_declaration_location {
+        begin {
+          line: 7
+          column: 7
+        }
+        end {
+          line: 11
+          column: 7
+        }
+      }
+      return_location {
+        begin {
+          line: 7
+          column: 7
+        }
+        end {
+          line: 7
+          column: 7
+        }
+      }
+      parameters_location {
+        begin {
+          line: 7
+          column: 21
+        }
+        end {
+          line: 7
+          column: 39
+        }
+      }
     })";
 
   xlscc_metadata::MetadataOutput ref_meta;
@@ -3549,6 +3579,31 @@ TEST_F(TranslatorTest, MetadataNamespaceStructArray) {
       ->mutable_as_inst()
       ->mutable_name()
       ->set_id(0);
+
+  meta.mutable_top_func_proto()
+      ->mutable_return_location()
+      ->mutable_begin()
+      ->clear_filename();
+  meta.mutable_top_func_proto()
+      ->mutable_return_location()
+      ->mutable_end()
+      ->clear_filename();
+  meta.mutable_top_func_proto()
+      ->mutable_parameters_location()
+      ->mutable_begin()
+      ->clear_filename();
+  meta.mutable_top_func_proto()
+      ->mutable_parameters_location()
+      ->mutable_end()
+      ->clear_filename();
+  meta.mutable_top_func_proto()
+      ->mutable_whole_declaration_location()
+      ->mutable_begin()
+      ->clear_filename();
+  meta.mutable_top_func_proto()
+      ->mutable_whole_declaration_location()
+      ->mutable_end()
+      ->clear_filename();
 
   bool did_equal = google::protobuf::util::MessageDifferencer::Equals(meta, ref_meta);
 
@@ -3684,6 +3739,36 @@ TEST_F(TranslatorTest, MetadataNamespaceNestedStruct) {
         is_reference: true
         is_const: false
       }
+      whole_declaration_location {
+        begin {
+          line: 10
+          column: 7
+        }
+        end {
+          line: 16
+          column: 7
+        }
+      }
+      return_location {
+        begin {
+          line: 10
+          column: 7
+        }
+        end {
+          line: 10
+          column: 7
+        }
+      }
+      parameters_location {
+        begin {
+          line: 10
+          column: 22
+        }
+        end {
+          line: 10
+          column: 39
+        }
+      }
     })";
 
   xlscc_metadata::MetadataOutput ref_meta;
@@ -3744,6 +3829,31 @@ TEST_F(TranslatorTest, MetadataNamespaceNestedStruct) {
       ->mutable_name()
       ->set_id(0);
 
+  meta.mutable_top_func_proto()
+      ->mutable_return_location()
+      ->mutable_begin()
+      ->clear_filename();
+  meta.mutable_top_func_proto()
+      ->mutable_return_location()
+      ->mutable_end()
+      ->clear_filename();
+  meta.mutable_top_func_proto()
+      ->mutable_parameters_location()
+      ->mutable_begin()
+      ->clear_filename();
+  meta.mutable_top_func_proto()
+      ->mutable_parameters_location()
+      ->mutable_end()
+      ->clear_filename();
+  meta.mutable_top_func_proto()
+      ->mutable_whole_declaration_location()
+      ->mutable_begin()
+      ->clear_filename();
+  meta.mutable_top_func_proto()
+      ->mutable_whole_declaration_location()
+      ->mutable_end()
+      ->clear_filename();
+
   bool did_equal = google::protobuf::util::MessageDifferencer::Equals(meta, ref_meta);
 
   if (!did_equal) {
@@ -3799,6 +3909,36 @@ TEST_F(TranslatorTest, MetadataRefConstParams) {
         is_reference: true
         is_const: false
       }
+      whole_declaration_location {
+        begin {
+          line: 3
+          column: 5
+        }
+        end {
+          line: 5
+          column: 5
+        }
+      }
+      return_location {
+        begin {
+          line: 3
+          column: 5
+        }
+        end {
+          line: 3
+          column: 5
+        }
+      }
+      parameters_location {
+        begin {
+          line: 3
+          column: 19
+        }
+        end {
+          line: 3
+          column: 42
+        }
+      }
     })";
 
   xlscc_metadata::MetadataOutput ref_meta;
@@ -3807,6 +3947,31 @@ TEST_F(TranslatorTest, MetadataRefConstParams) {
   // id varies from run to run
   ASSERT_NE(meta.top_func_proto().name().id(), 0);
   meta.mutable_top_func_proto()->mutable_name()->set_id(22078263808792L);
+
+  meta.mutable_top_func_proto()
+      ->mutable_return_location()
+      ->mutable_begin()
+      ->clear_filename();
+  meta.mutable_top_func_proto()
+      ->mutable_return_location()
+      ->mutable_end()
+      ->clear_filename();
+  meta.mutable_top_func_proto()
+      ->mutable_parameters_location()
+      ->mutable_begin()
+      ->clear_filename();
+  meta.mutable_top_func_proto()
+      ->mutable_parameters_location()
+      ->mutable_end()
+      ->clear_filename();
+  meta.mutable_top_func_proto()
+      ->mutable_whole_declaration_location()
+      ->mutable_begin()
+      ->clear_filename();
+  meta.mutable_top_func_proto()
+      ->mutable_whole_declaration_location()
+      ->mutable_end()
+      ->clear_filename();
 
   bool did_equal = google::protobuf::util::MessageDifferencer::Equals(meta, ref_meta);
 

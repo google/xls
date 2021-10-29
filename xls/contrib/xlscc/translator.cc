@@ -4176,6 +4176,19 @@ absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
       reinterpret_cast<uint64_t>(
           dynamic_cast<const clang::NamedDecl*>(top_function_)));
 
+  const clang::SourceManager& sm =
+      top_function_->getASTContext().getSourceManager();
+
+  FillLocationRangeProto(
+      top_function_->getReturnTypeSourceRange(), sm,
+      ret.mutable_top_func_proto()->mutable_return_location());
+  FillLocationRangeProto(
+      top_function_->getParametersSourceRange(), sm,
+      ret.mutable_top_func_proto()->mutable_parameters_location());
+  FillLocationRangeProto(
+      top_function_->getSourceRange(), sm,
+      ret.mutable_top_func_proto()->mutable_whole_declaration_location());
+
   XLS_RETURN_IF_ERROR(GenerateMetadataType(
       top_function_->getReturnType(),
       ret.mutable_top_func_proto()->mutable_return_type()));
@@ -4213,6 +4226,22 @@ absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
   }
 
   return ret;
+}
+
+void Translator::FillLocationProto(
+    const clang::SourceLocation& location, const clang::SourceManager& sm,
+    xlscc_metadata::SourceLocation* location_out) {
+  const clang::PresumedLoc& presumed = sm.getPresumedLoc(location);
+  location_out->set_filename(presumed.getFilename());
+  location_out->set_line(presumed.getLine());
+  location_out->set_column(presumed.getColumn());
+}
+
+void Translator::FillLocationRangeProto(
+    const clang::SourceRange& range, const clang::SourceManager& sm,
+    xlscc_metadata::SourceLocationRange* range_out) {
+  FillLocationProto(range.getBegin(), sm, range_out->mutable_begin());
+  FillLocationProto(range.getEnd(), sm, range_out->mutable_end());
 }
 
 absl::Status Translator::GenerateMetadataType(const clang::QualType& type_in,
