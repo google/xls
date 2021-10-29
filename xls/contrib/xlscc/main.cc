@@ -152,12 +152,11 @@ absl::Status Run(absl::string_view cpp_path) {
     XLS_ASSIGN_OR_RETURN(xls::Proc * proc,
                          translator.GenerateIR_Block(&package, block));
 
-    XLS_RETURN_IF_ERROR(translator.InlineAllInvokes(&package));
-
     if (absl::GetFlag(FLAGS_dump_ir_only)) {
       std::cerr << "Saving Package IR..." << std::endl;
       std::cout << package.DumpIr() << std::endl;
     } else {
+      XLS_RETURN_IF_ERROR(translator.InlineAllInvokes(&package));
       XLS_ASSIGN_OR_RETURN(
           xls::Block * xls_block,
           xls::verilog::ProcToCombinationalBlock(proc, proc->name()));
