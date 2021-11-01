@@ -1960,6 +1960,26 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceChannelDecl(
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSend(Send* node,
                                                          DeduceCtx* ctx) {
+  // send can only be present in a next() function, so the channel must be
+  // present as a Param.
+  auto* name_def = absl::get<NameDef*>(node->channel()->name_def());
+  auto* param = dynamic_cast<Param*>(name_def->definer());
+  if (param == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        "Send can only be performed on a member channel.");
+  }
+  auto* channel_type =
+      dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation());
+  if (channel_type == nullptr) {
+    return TypeInferenceErrorStatus(node->span(), nullptr,
+                                    "Send can only be performed on a channel.");
+  }
+  if (channel_type->direction() == ChannelTypeAnnotation::Direction::kIn) {
+    return TypeInferenceErrorStatus(node->span(), nullptr,
+                                    "Cannot send on an input channel.");
+  }
+
   XLS_ASSIGN_OR_RETURN(auto node_type, Deduce(node->channel(), ctx));
   XLS_ASSIGN_OR_RETURN(auto payload_type,
                        DeduceAndResolve(node->payload(), ctx));
@@ -1974,6 +1994,26 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSend(Send* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSendIf(SendIf* node,
                                                            DeduceCtx* ctx) {
+  // send_if can only be present in a next() function, so the channel must be
+  // present as a Param.
+  auto* name_def = absl::get<NameDef*>(node->channel()->name_def());
+  auto* param = dynamic_cast<Param*>(name_def->definer());
+  if (param == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        "SendIf can only be performed on a member channel.");
+  }
+  auto* channel_type =
+      dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation());
+  if (channel_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr, "SendIf can only be performed on a channel.");
+  }
+  if (channel_type->direction() == ChannelTypeAnnotation::Direction::kIn) {
+    return TypeInferenceErrorStatus(node->span(), nullptr,
+                                    "Cannot send_if on an input channel.");
+  }
+
   XLS_ASSIGN_OR_RETURN(auto node_type, Deduce(node->channel(), ctx));
   XLS_ASSIGN_OR_RETURN(auto payload_type,
                        DeduceAndResolve(node->payload(), ctx));
@@ -1994,6 +2034,25 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSendIf(SendIf* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecv(Recv* node,
                                                          DeduceCtx* ctx) {
+  // recv can only be present in a next() function, so the channel must be
+  // present as a Param.
+  auto* name_def = absl::get<NameDef*>(node->channel()->name_def());
+  auto* param = dynamic_cast<Param*>(name_def->definer());
+  if (param == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        "Recv can only be performed on a member channel.");
+  }
+  auto* channel_type =
+      dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation());
+  if (channel_type == nullptr) {
+    return TypeInferenceErrorStatus(node->span(), nullptr,
+                                    "Recv can only be performed on a channel.");
+  }
+  if (channel_type->direction() == ChannelTypeAnnotation::Direction::kOut) {
+    return TypeInferenceErrorStatus(node->span(), nullptr,
+                                    "Cannot recv on an output channel.");
+  }
   XLS_ASSIGN_OR_RETURN(auto channel_element_type, Deduce(node->channel(), ctx));
   std::vector<std::unique_ptr<ConcreteType>> elements;
   elements.emplace_back(std::make_unique<TokenType>());
@@ -2003,6 +2062,26 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecv(Recv* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIf(RecvIf* node,
                                                            DeduceCtx* ctx) {
+  // recv_if can only be present in a next() function, so the channel must be
+  // present as a Param.
+  auto* name_def = absl::get<NameDef*>(node->channel()->name_def());
+  auto* param = dynamic_cast<Param*>(name_def->definer());
+  if (param == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        "RecvIf can only be performed on a member channel.");
+  }
+  auto* channel_type =
+      dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation());
+  if (channel_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr, "RecvIf can only be performed on a channel.");
+  }
+  if (channel_type->direction() == ChannelTypeAnnotation::Direction::kOut) {
+    return TypeInferenceErrorStatus(node->span(), nullptr,
+                                    "Cannot recv_if on an output channel.");
+  }
+
   XLS_ASSIGN_OR_RETURN(auto condition_type, Deduce(node->condition(), ctx));
   std::unique_ptr<BitsType> bool_type = BitsType::MakeU1();
   if (*condition_type != *bool_type) {

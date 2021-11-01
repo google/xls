@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 proc producer {
-  c: chan in u32;
+  c: chan out u32;
 
-  config(c: chan in u32) {
+  config(c: chan out u32) {
     (c,)
   }
 

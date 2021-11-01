@@ -2006,7 +2006,9 @@ absl::StatusOr<Param*> Parser::ParseParam(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(NameDef * name, ParseNameDef(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kColon));
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
-  return module_->Make<Param>(name, type);
+  auto* param = module_->Make<Param>(name, type);
+  name->set_definer(param);
+  return param;
 }
 
 absl::StatusOr<Number*> Parser::ParseNumber(Bindings* bindings) {

@@ -750,6 +750,7 @@ static absl::Status CheckModuleMember(ModuleMember member, Module* module,
     // We can typecheck any proc that has no config params. In
     // practice, this must be the entry proc; otherwise the proc would be
     // effectively dead to the world (since it'd have no channels).
+    // Other procs are typechecked as instantiated from some entry proc.
     auto maybe_proc = f->proc();
     if (maybe_proc.has_value()) {
       Proc* p = maybe_proc.value();

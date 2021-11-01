@@ -1075,6 +1075,94 @@ fn main() {
   EXPECT_TRUE(visitor.all_numbers_constexpr());
 }
 
+TEST(TypecheckTest, CantSendOnNonMember) {
+  constexpr absl::string_view kProgram = R"(
+proc foo {
+  config() {
+    ()
+  }
+
+  next(tok: token) {
+    let foo = u32:0;
+    let tok = send(tok, foo, u32:0x0);
+    ()
+  }
+}
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Send can only be performed on a member channel.")));
+}
+
+TEST(TypecheckTest, CantSendOnNonChannel) {
+  constexpr absl::string_view kProgram = R"(
+proc foo {
+  bar: u32;
+  config() {
+    (u32:0,)
+  }
+
+  next(tok: token) {
+    let tok = send(tok, bar, u32:0x0);
+    ()
+  }
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Send can only be performed on a channel.")));
+}
+
+TEST(TypecheckTest, CantRecvOnOutputChannel) {
+  constexpr absl::string_view kProgram = R"(
+proc foo {
+  c : chan out u32;
+  config(c: chan out u32) {
+    (c,)
+  }
+
+  next(tok: token, state: u32) {
+    let (tok, x) = recv(tok, c);
+    (state + x,)
+  }
+}
+
+proc entry {
+  c: chan in u32;
+  config() {
+    let (p, c) = chan u32;
+    spawn foo(c)(u32:0);
+    (p,)
+  }
+  next (tok: token) { () }
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot recv on an output channel.")));
+}
+
+TEST(TypecheckTest, CantSendOnOutputChannel) {
+  constexpr absl::string_view kProgram = R"(
+proc entry {
+  p: chan out u32;
+  c: chan in u32;
+  config() {
+    let (p, c) = chan u32;
+    (p, c)
+  }
+  next (tok: token) {
+    let tok = send(tok, c, u32:0);
+    ()
+  }
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot send on an input channel.")));
+}
+
 // Helper for struct instance based tests.
 absl::Status TypecheckStructInstance(std::string program) {
   program = R"(

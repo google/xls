@@ -1506,9 +1506,9 @@ proc main {
 
 TEST(IrConverterTest, SendIfRecvIf) {
   constexpr absl::string_view kProgram = R"(proc producer {
-  c: chan in u32;
+  c: chan out u32;
 
-  config(c: chan in u32) {
+  config(c: chan out u32) {
     (c,)
   }
 
@@ -1553,12 +1553,10 @@ proc main {
 }
 
 TEST(IrConverterTest, Join) {
-  // TODO(rspringer): 2021-10-21, issue #511: The typechecker should catch the
-  // fact that we're sending on an input channel!
   constexpr absl::string_view kProgram = R"(proc foo {
-  p0: chan in u32;
-  p1: chan in u32;
-  p2: chan in u32;
+  p0: chan out u32;
+  p1: chan out u32;
+  p2: chan out u32;
   c3: chan in u32;
 
   config() {
