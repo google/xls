@@ -1018,11 +1018,11 @@ class Assert : public Statement {
 //
 // Such a statement will cause the simulator to count the number of times that
 // the given condition is true, and associate that value with <name>.
-class Cover : public Statement {
+class Cover : public VastNode {
  public:
   Cover(LogicRef* clk, Expression* condition, absl::string_view label,
         VerilogFile* file)
-      : Statement(file), clk_(clk), condition_(condition), label_(label) {}
+      : VastNode(file), clk_(clk), condition_(condition), label_(label) {}
 
   std::string Emit() const override;
 
@@ -1236,6 +1236,7 @@ using ModuleMember =
                   BlankLine*,               // Blank line.
                   InlineVerilogStatement*,  // InlineVerilog string statement.
                   VerilogFunction*,         // Function definition
+                  Cover*,
                   ModuleSection*>;
 
 // A ModuleSection is a container of ModuleMembers used to organize the contents

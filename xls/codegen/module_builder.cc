@@ -1003,10 +1003,7 @@ absl::Status ModuleBuilder::EmitCover(xls::Cover* cover,
     return absl::InvalidArgumentError(
         "Coverpoints require a clock to be present in the module.");
   }
-  if (cover_always_comb_ == nullptr) {
-    cover_always_comb_ = cover_section_->Add<AlwaysComb>();
-  }
-  cover_always_comb_->statements()->Add<Cover>(clk_, condition, cover->label());
+  cover_section()->Add<Cover>(clk_, condition, cover->label());
   return absl::OkStatus();
 }
 

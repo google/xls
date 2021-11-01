@@ -402,6 +402,7 @@ std::string EmitModuleMember(const ModuleMember& member) {
               [](AlwaysFf* af) { return af->Emit(); },
               [](AlwaysFlop* af) { return af->Emit(); },
               [](VerilogFunction* f) { return f->Emit(); },
+              [](Cover* c) { return c->Emit(); },
               [](ModuleSection* s) { return s->Emit(); }},
       member);
 }
