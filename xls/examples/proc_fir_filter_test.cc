@@ -122,17 +122,9 @@ TEST_F(ProcFirFilterTest, FIRSimpleTest) {
                                               .progress_made = true,
                                               .blocked_channels = {}}));
 
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(0, 32))}));
 
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
+  EXPECT_EQ(send_queue.size(), 3);
 
-  EXPECT_EQ(send_queue.size(), 4);
-
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(0, 32))));
   EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(64, 32))));
   EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(256, 32))));
   EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(512, 32))));
@@ -194,13 +186,13 @@ TEST_F(ProcFirFilterTest, FIRAccumulator) {
 
   EXPECT_EQ(send_queue.size(), 7);
 
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(0, 32))));
   EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(1, 32))));
   EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(12, 32))));
   EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(123, 32))));
   EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(1234, 32))));
   EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(12345, 32))));
   EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(123456, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(234567, 32))));
 }
 
 // Test a FIR filter with single element kernel = {2}
@@ -326,7 +318,6 @@ TEST_F(ProcFirFilterTest, FIRTriangularBlur) {
 
   EXPECT_EQ(send_queue.size(), 8);
 
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(0, 32))));
   EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(2, 32))));
   EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(16, 32))));
   EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(44, 32))));
@@ -334,6 +325,7 @@ TEST_F(ProcFirFilterTest, FIRTriangularBlur) {
   EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(69, 32))));
   EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(81, 32))));
   EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(122, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(157, 32))));
 }
 
 }  // namespace
