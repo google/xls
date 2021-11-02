@@ -174,9 +174,9 @@ bzl_library(
 bzl_library(
     name = "xls_toolchains_bzl",
     srcs = ["xls_toolchains.bzl"],
-    visibility = ["//visibility:private"],
 )
 
 xls_toolchain(
     name = "default_xls_toolchain",
+    visibility = ["//xls:xls_public"],
 )
