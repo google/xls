@@ -64,10 +64,12 @@ verilog_library(
     srcs = [
         ":idct_chen_5000ps_model_unit.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
     name = "idct_chen_5000ps_model_unit_verilog_synth",
+    tags = ["manual"],
     top_module = "idct_chen",
     deps = [
         ":idct_chen_5000ps_model_unit_verilog",
