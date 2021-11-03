@@ -405,6 +405,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:function_builder",
