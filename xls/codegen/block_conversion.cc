@@ -21,6 +21,7 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/register_legalization_pass.h"
 #include "xls/codegen/vast.h"
+#include "xls/common/logging/logging.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
@@ -100,7 +101,7 @@ static absl::StatusOr<PipelineSchedule> MaybeAddInputOutputFlopsToSchedule(
 
   // Add one more cycle to the schedule if `flop_outputs` is true. This only
   // changes the length of the schedule not the cycle that any node is placed
-  // in. The final cycle is empty which effectly puts a pipeline register
+  // in. The final cycle is empty which effectively puts a pipeline register
   // between the nodes of the function and the output ports.
   if (options.flop_outputs()) {
     ++cycle_offset;
@@ -185,7 +186,7 @@ static absl::StatusOr<absl::optional<Node*>> MaybeGetOrMakeResetNode(
 //  1. The state register is reset active_high or active_low
 //     following the block behavior.
 //  2. The state register is reset to the initial value of the proc.
-//  3. The state register is reset whenever the block reset is ctive.
+//  3. The state register is reset whenever the block reset is active.
 static absl::Status UpdateStateRegisterWithReset(const ResetInfo& reset_info,
                                                  StateRegister& state_register,
                                                  Block* block) {
@@ -296,7 +297,7 @@ static absl::StatusOr<Node*> UpdatePipelineWithBubbleFlowControl(
   // Data registers are gated whenever data is invalid so
   //   - data_enable_signal[n-1] = (enable_signal[n-1] && valid[n-1]) || rst
   //
-  // State registers are gated whwenver data is invalid, but
+  // State registers are gated whenever data is invalid, but
   // are not transparent during reset
   //   - state_enable_signal = (enable_signal[0] && valid[0]).
 
@@ -774,7 +775,7 @@ static absl::Status AddFlowControl(
 static absl::Status RemoveDeadTokenNodes(Block* block) {
   // Receive nodes produce a tuple of a token and a data value. In the block
   // this becomes a tuple of a token and an InputPort. Run tuple simplification
-  // to disintangle the tuples so DCE can do its work and eliminate the token
+  // to disentangle the tuples so DCE can do its work and eliminate the token
   // network.
   PassResults pass_results;
 
@@ -814,7 +815,7 @@ static absl::Status RemoveDeadTokenNodes(Block* block) {
 // * Proc token parameter becomes an operandless AfterAll operation in the
 //   block.
 // * Proc state parameter (which must be an empty tuple) becomes a Literal
-//   operation in theblock.
+//   operation in the block.
 // * Receive operations become InputPorts.
 // * Send operations become OutputPorts.
 // * Function parameters become InputPorts.
@@ -995,7 +996,7 @@ class CloneNodesIntoBlockHandler {
     }
 
     // Create a temporary name as this register will later be removed
-    // and updated.  That register shold be created with the
+    // and updated.  That register should be created with the
     // state parameter's name.  See UpdateStateRegisterWithReset().
     std::string name = block_->UniquifyNodeName(
         absl::StrCat("__", proc->StateParam()->name()));
@@ -1400,10 +1401,17 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
     // TODO(tedhong): 2021-09-27 Add additional logic to ensure that
     // when output channels are ready at different times, no data is lost
     // or received twice.
-    return absl::UnimplementedError(
-        absl::StrFormat("Proc pipeline generator only supports one streaming "
-                        "output channel, got %d",
-                        streaming_io_and_pipeline.outputs.size()));
+
+    // TODO(tedhong): 2021-10-22 Add an additional check that
+    // in the case of mutually exclusive streaming outputs (at most one output
+    // is written at a time, then logic can be simplified.
+
+    XLS_LOG(WARNING) << absl::StrFormat(
+        "Proc pipeline generator only supports streaming "
+        "output channels which are guaranteed to be mutually "
+        "exclusive, got %d output channels which were not "
+        "checked for this condition",
+        streaming_io_and_pipeline.outputs.size());
   }
 
   XLS_VLOG(3) << "After Pipeline";
