@@ -121,9 +121,22 @@ absl::Status Module::AddNetDecl(NetDeclKind kind, absl::string_view name) {
   return absl::OkStatus();
 }
 
-absl::Status Module::DeclarePort(absl::string_view name,
-                         int64_t width,
-                         bool is_output) {
+absl::Status Module::AddAssignDecl(absl::string_view name, bool bit) {
+  XLS_ASSIGN_OR_RETURN(NetRef ref, ResolveNet(name));
+  assigns_[ref] = bit ? one_ : zero_;
+  return absl::OkStatus();
+}
+
+absl::Status Module::AddAssignDecl(absl::string_view lhs_name,
+                                   absl::string_view rhs_name) {
+  XLS_ASSIGN_OR_RETURN(NetRef lhs, ResolveNet(lhs_name));
+  XLS_ASSIGN_OR_RETURN(NetRef rhs, ResolveNet(rhs_name));
+  assigns_[lhs] = rhs;
+  return absl::OkStatus();
+}
+
+absl::Status Module::DeclarePort(absl::string_view name, int64_t width,
+                                 bool is_output) {
   for (auto& port : ports_) {
     if (port->name_ == name) {
       if (port->is_declared_) {

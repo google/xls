@@ -161,6 +161,10 @@ class Module {
 
   absl::Status AddNetDecl(NetDeclKind kind, absl::string_view name);
 
+  absl::Status AddAssignDecl(absl::string_view name, bool bit);
+  absl::Status AddAssignDecl(absl::string_view lhs_name,
+                             absl::string_view rhs_name);
+
   // Returns a NetRef to the given number, creating a NetDef if necessary.
   absl::StatusOr<NetRef> AddOrResolveNumber(int64_t number);
 
@@ -179,6 +183,9 @@ class Module {
 
   const std::vector<NetRef>& inputs() const { return inputs_; }
   const std::vector<NetRef>& outputs() const { return outputs_; }
+  const absl::flat_hash_map<NetRef, NetRef>& assigns() const {
+    return assigns_;
+  }
 
   // Declares port order in the module() keyword.  For example, if a module
   // declaration starts with:
@@ -253,6 +260,7 @@ class Module {
   std::vector<NetRef> inputs_;
   std::vector<NetRef> outputs_;
   std::vector<NetRef> wires_;
+  absl::flat_hash_map<NetRef, NetRef> assigns_;
   std::vector<std::unique_ptr<NetDef>> nets_;
   std::vector<std::unique_ptr<Cell>> cells_;
   NetRef zero_;

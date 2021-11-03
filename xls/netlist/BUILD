@@ -103,6 +103,7 @@ cc_library(
     hdrs = ["netlist_parser.h"],
     deps = [
         ":netlist",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -123,6 +124,8 @@ cc_test(
     deps = [
         ":fake_cell_library",
         ":netlist_parser",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit_main",

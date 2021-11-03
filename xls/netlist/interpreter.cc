@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "xls/netlist/interpreter.h"
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -22,6 +23,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/netlist/netlist.h"
 
 namespace xls {
 namespace netlist {
@@ -142,7 +144,20 @@ Interpreter::InterpretModule(
   absl::flat_hash_map<const rtl::NetRef, bool> outputs;
   outputs.reserve(module->outputs().size());
   for (const rtl::NetRef output : module->outputs()) {
-    outputs[output] = processed_wires.at(output);
+    if (processed_wires.contains(output)) {
+      outputs[output] = processed_wires.at(output);
+    } else {
+      const absl::flat_hash_map<rtl::NetRef, rtl::NetRef>& assigns =
+          module->assigns();
+      XLS_RET_CHECK(assigns.contains(output));
+      rtl::NetRef net_value = assigns.at(output);
+      if (net_value == net_0 || net_value == net_1) {
+        outputs[output] = net_value == net_1;
+      } else {
+        XLS_RET_CHECK(inputs.contains(net_value));
+        outputs[output] = inputs.at(net_value);
+      }
+    }
   }
 
   return outputs;

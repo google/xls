@@ -15,6 +15,7 @@
 #ifndef XLS_NETLIST_NETLIST_PARSER_H_
 #define XLS_NETLIST_NETLIST_PARSER_H_
 
+#include <sys/types.h>
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/netlist/netlist.h"
@@ -30,6 +31,8 @@ enum class TokenKind {
   kCloseParen,    // )
   kOpenBracket,   // [
   kCloseBracket,  // ]
+  kOpenBrace,     // {
+  kCloseBrace,    // }
   kDot,
   kComma,
   kColon,
@@ -125,6 +128,25 @@ class Parser {
 
   // Parses a wire declaration at the module scope.
   absl::Status ParseNetDecl(Module* module, NetDeclKind kind);
+
+  struct Range {
+    int64_t high;
+    int64_t low;
+  };
+
+  // Parses an assign declaration at the module scope.
+  absl::Status ParseAssignDecl(Module *module);
+  // Parse a single assignment.  Called by ParseAssignDecl()
+  absl::Status ParseOneAssignment(Module* module, absl::string_view lhs_name,
+                                  absl::optional<Range> lhs_range);
+
+  // Attempts to parse a range of the kind [high:low].  It also handles
+  // indexing by setting parameter strict to false, by representing the range as
+  // [high:high].  For example:
+  //   "a" --> no range
+  //   "a[1] --> [1:1] (strict == false)
+  //   "a[1:0] --> [1:0]
+  absl::StatusOr<absl::optional<Range>> ParseOptionalRange(bool strict = true);
 
   // Parses a module-level statement (e.g. wire decl or cell instantiation).
   absl::Status ParseModuleStatement(Module* module, Netlist& netlist);

@@ -14,10 +14,14 @@
 
 #include "xls/netlist/netlist_parser.h"
 
+#include <tuple>
+
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
@@ -48,6 +52,10 @@ std::string TokenKindToString(TokenKind kind) {
       return "open-bracket";
     case TokenKind::kCloseBracket:
       return "close-bracket";
+    case TokenKind::kOpenBrace:
+      return "open-brace";
+    case TokenKind::kCloseBrace:
+      return "close-brace";
     case TokenKind::kDot:
       return "dot";
     case TokenKind::kComma:
@@ -256,6 +264,10 @@ absl::StatusOr<Token> Scanner::PeekInternal() {
       return Token{TokenKind::kOpenBracket, pos};
     case ']':
       return Token{TokenKind::kCloseBracket, pos};
+    case '{':
+      return Token{TokenKind::kOpenBrace, pos};
+    case '}':
+      return Token{TokenKind::kCloseBrace, pos};
     case '.':
       return Token{TokenKind::kDot, pos};
     case ',':
@@ -512,22 +524,32 @@ bool Parser::TryDropKeyword(absl::string_view target) {
   return false;
 }
 
-absl::Status Parser::ParseNetDecl(Module* module, NetDeclKind kind) {
-  absl::optional<std::pair<int64_t, int64_t>> range;
+absl::StatusOr<absl::optional<Parser::Range>> Parser::ParseOptionalRange(
+    bool strict) {
+  absl::optional<Range> range;
   if (TryDropToken(TokenKind::kOpenBracket)) {
     XLS_ASSIGN_OR_RETURN(int64_t high, PopNumberOrError());
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kColon));
-    XLS_ASSIGN_OR_RETURN(int64_t low, PopNumberOrError());
-    if (high < low) {
+    int64_t low = high;
+    if (TryDropToken(TokenKind::kColon)) {
+      XLS_ASSIGN_OR_RETURN(low, PopNumberOrError());
+      if (high < low) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Expected net range to be [high:low] with low <= "
+                            "high, got low: %d; high: %d",
+                            low, high));
+      }
+    } else if (strict) {
       return absl::InvalidArgumentError(
-          absl::StrFormat("Expected net range to be [high:low] with low <= "
-                          "high, got low: %d; high: %d",
-                          low, high));
+          absl::StrFormat("Expecting net range, got a subscript instead"));
     }
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCloseBracket));
     range = {high, low};
   }
+  return range;
+}
 
+absl::Status Parser::ParseNetDecl(Module* module, NetDeclKind kind) {
+  XLS_ASSIGN_OR_RETURN(auto range, ParseOptionalRange());
   std::vector<std::string> names;
   do {
     XLS_ASSIGN_OR_RETURN(std::string name, PopNameOrError());
@@ -547,13 +569,13 @@ absl::Status Parser::ParseNetDecl(Module* module, NetDeclKind kind) {
     if (kind == NetDeclKind::kInput || kind == NetDeclKind::kOutput) {
       int64_t width = 1;
       if (range.has_value()) {
-        width = range->first - range->second + 1;
+        width = range->high - range->low + 1;
       }
       XLS_RETURN_IF_ERROR(
           module->DeclarePort(name, width, kind == NetDeclKind::kOutput));
     }
     if (range.has_value()) {
-      for (int64_t i = range->second; i <= range->first; ++i) {
+      for (int64_t i = range->low; i <= range->high; ++i) {
         XLS_RETURN_IF_ERROR(
             module->AddNetDecl(kind, absl::StrFormat("%s[%d]", name, i)));
       }
@@ -561,6 +583,155 @@ absl::Status Parser::ParseNetDecl(Module* module, NetDeclKind kind) {
       XLS_RETURN_IF_ERROR(module->AddNetDecl(kind, name));
     }
   }
+  return absl::OkStatus();
+}
+
+absl::Status Parser::ParseOneAssignment(Module* module,
+                                        absl::string_view lhs_name,
+                                        absl::optional<Range> lhs_range) {
+  // Extract the range from the lhs wire.  The high and low ends are identical
+  // because the optional range might be an index dereference.
+  int64_t lhs_high = 0, lhs_low = 0;
+  if (lhs_range.has_value()) {
+    lhs_high = lhs_range.value().high;
+    lhs_low = lhs_range.value().low;
+  }
+  XLS_RET_CHECK(lhs_high >= lhs_low);
+
+  using TokenT = absl::variant<std::string, int64_t>;
+  XLS_ASSIGN_OR_RETURN(TokenT token, PopNameOrNumberOrError());
+  if (absl::holds_alternative<int64_t>(token)) {
+    int64_t rhs_value = absl::get<int64_t>(token);
+    // We'll be right-shifting below, make sure that sign extensions do not
+    // trip us up.
+    if (rhs_value < 0) {
+      return absl::UnimplementedError(
+          "Negative number literals are not supported in assign statements.");
+    }
+
+    // Start converting the value to the input wires zero_ or one_, and
+    // assign each input bit to the corresponding NetDecl, starting with the
+    // low end of the range.  If we run out of wires while converting the
+    // number, error out.
+
+    while (lhs_low <= lhs_high) {
+      bool bit = rhs_value & 1;
+      if (lhs_range.has_value()) {
+        XLS_RETURN_IF_ERROR(module->AddAssignDecl(
+            absl::StrFormat("%s[%d]", lhs_name, lhs_low), bit));
+      } else {
+        // The loop will execute only once.
+        XLS_RETURN_IF_ERROR(module->AddAssignDecl(lhs_name, bit));
+      }
+      lhs_low++;
+      rhs_value >>= 1;
+    }
+    if (rhs_value != 0) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Number literal is too wide for %s.", lhs_name));
+    }
+
+  } else {
+    std::string rhs_name = absl::get<std::string>(token);
+    XLS_ASSIGN_OR_RETURN(auto rhs_range, ParseOptionalRange(false));
+
+    // Extract the range from the rhs wire.
+    int64_t rhs_high = 0, rhs_low = 0;
+    if (rhs_range.has_value()) {
+      rhs_high = rhs_range.value().high;
+      rhs_low = rhs_range.value().low;
+    }
+    XLS_CHECK(rhs_high >= rhs_low);
+
+    // The two ranges must be the same width.
+    if (rhs_high - rhs_low != lhs_high - lhs_low) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Mismatched bit widths: left-hand side is %lld, "
+                          "right-hand side is %lld.",
+                          lhs_high - lhs_low + 1, rhs_high - rhs_low + 1));
+    }
+
+    // Start mapping the rhs wires to the lhs ones.
+    while (lhs_low <= lhs_high) {
+      std::string lhs_wire_name;
+      if (lhs_range.has_value()) {
+        lhs_wire_name = absl::StrFormat("%s[%d]", lhs_name, lhs_low);
+      } else {
+        lhs_wire_name = lhs_name;
+      }
+      std::string rhs_wire_name;
+      if (rhs_range.has_value()) {
+        rhs_wire_name = absl::StrFormat("%s[%d]", rhs_name, rhs_low);
+      } else {
+        rhs_wire_name = rhs_name;
+      }
+      XLS_RETURN_IF_ERROR(module->AddAssignDecl(lhs_wire_name, rhs_wire_name));
+      lhs_low++;
+      rhs_low++;
+    }
+    XLS_CHECK(rhs_low >= rhs_high);
+  }
+
+  return absl::OkStatus();
+}
+
+absl::Status Parser::ParseAssignDecl(Module* module) {
+  // Parse assign statements of the following format:
+  //
+  // assign idA = idB;
+  // assign { idA0, idA1, ... } = { idB0, idB1, ... }
+  //
+  // Each identifier can be a literal, a single wire, or a wire with a
+  // subscript, or a wire with a subscript range, e.g. "8'h00", "a", or "a[0]",
+  // or "a[7:0]".
+  //
+  // The identifiers on the LHS and the RHS must be the same width, e.g.
+  //
+  // assign a = 1'b0
+  // assign a[7:0] = 8'hff
+  // assign a = b
+  // assign { a, b[1], c[7:0] }  = { d, e[5], f[15:8] }
+  //
+  // Note: we do not handle all possible kinds of assign syntax.  For example,
+  // the line "assign {a,b} = 2'h0;" is legal.  We error out in this case rather
+  // than doing the wrong thing.  Support can be added in the future, if needed.
+
+  if (TryDropToken(TokenKind::kOpenBrace)) {
+    std::vector<std::pair<std::string, absl::optional<Range>>> lhs;
+    // Parse the left-hand side.
+    do {
+      XLS_ASSIGN_OR_RETURN(std::string name, PopNameOrError());
+      XLS_ASSIGN_OR_RETURN(auto range, ParseOptionalRange(false));
+      lhs.push_back({name, range});
+    } while (TryDropToken(TokenKind::kComma));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCloseBrace));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
+
+    // Parse the right-hand side.  While parsing, iterate over the lhs elements
+    // we collected, verify that widths match, then break them up into
+    // individual NetDecl instances, and save the associationss.  The right-hand
+    // side could map an integer to a wire range, in which case we break up the
+    // integer bitwise and assign the values to the lhs wires.
+
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOpenBrace));
+    auto left = lhs.begin();
+    do {
+      absl::string_view lhs_name = left->first;
+      absl::optional<Range> lhs_range = left->second;
+      XLS_RETURN_IF_ERROR(ParseOneAssignment(module, lhs_name, lhs_range));
+      left++;
+    } while (TryDropToken(TokenKind::kComma));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCloseBrace));
+  } else {
+    // Parse the left-hand side.
+    XLS_ASSIGN_OR_RETURN(std::string lhs_name, PopNameOrError());
+    XLS_ASSIGN_OR_RETURN(auto lhs_range, ParseOptionalRange(false));
+    // Parse the right-hand side.
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
+    XLS_RETURN_IF_ERROR(ParseOneAssignment(module, lhs_name, lhs_range));
+  }
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemicolon));
+
   return absl::OkStatus();
 }
 
@@ -573,6 +744,9 @@ absl::Status Parser::ParseModuleStatement(Module* module, Netlist& netlist) {
   }
   if (TryDropKeyword("wire")) {
     return ParseNetDecl(module, NetDeclKind::kWire);
+  }
+  if (TryDropKeyword("assign")) {
+    return ParseAssignDecl(module);
   }
   return ParseInstance(module, netlist);
 }
