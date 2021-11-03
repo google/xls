@@ -243,6 +243,42 @@ endmodule
   EXPECT_EQ("<lut_0x8000>", lut_cell->cell_library_entry()->name());
 }
 
+TEST(NetlistParserTest, PortOrderDeclarationDuplicateError) {
+  // Test that a "real world" netlist parses
+  std::string netlist =
+      R"(
+module main(double_decl);
+  input double_decl;
+  input double_decl;
+endmodule
+)";
+  Scanner scanner(netlist);
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
+  EXPECT_THAT(Parser::ParseNetlist(&cell_library, &scanner),
+              status_testing::StatusIs(
+                  absl::StatusCode::kAlreadyExists,
+                  ::testing::HasSubstr(
+                      "Duplicate declaration of port 'double_decl'.")));
+}
+
+TEST(NetlistParserTest, PortOrderDeclarationNotFoundError) {
+  // Test that a "real world" netlist parses
+  std::string netlist =
+      R"(
+module main(o);
+  input missing;
+  output o;
+endmodule
+)";
+  Scanner scanner(netlist);
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
+  EXPECT_THAT(Parser::ParseNetlist(&cell_library, &scanner),
+              status_testing::StatusIs(
+                  absl::StatusCode::kNotFound,
+                  ::testing::HasSubstr(
+                      "No match for input 'missing' in parameter list.")));
+}
+
 }  // namespace
 }  // namespace rtl
 }  // namespace netlist

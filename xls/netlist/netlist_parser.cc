@@ -25,6 +25,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/string_to_int.h"
 #include "xls/ir/bits.h"
+#include "xls/netlist/netlist.h"
 #include "re2/re2.h"
 
 namespace xls {
@@ -543,6 +544,14 @@ absl::Status Parser::ParseNetDecl(Module* module, NetDeclKind kind) {
   }
 
   for (const std::string& name : names) {
+    if (kind == NetDeclKind::kInput || kind == NetDeclKind::kOutput) {
+      int64_t width = 1;
+      if (range.has_value()) {
+        width = range->first - range->second + 1;
+      }
+      XLS_RETURN_IF_ERROR(
+          module->DeclarePort(name, width, kind == NetDeclKind::kOutput));
+    }
     if (range.has_value()) {
       for (int64_t i = range->second; i <= range->first; ++i) {
         XLS_RETURN_IF_ERROR(
@@ -571,9 +580,12 @@ absl::Status Parser::ParseModuleStatement(Module* module, Netlist& netlist) {
 absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(Netlist& netlist) {
   XLS_RETURN_IF_ERROR(DropKeywordOrError("module"));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PopNameOrError());
-  auto module = std::make_unique<Module>(module_name);
-  XLS_ASSIGN_OR_RETURN(std::vector<std::string> ports, PopParenNameList());
+  XLS_ASSIGN_OR_RETURN(std::vector<std::string> module_ports,
+                       PopParenNameList());
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemicolon));
+
+  auto module = std::make_unique<Module>(module_name);
+  module->DeclarePortsOrder(module_ports);
 
   while (true) {
     if (TryDropKeyword("endmodule")) {

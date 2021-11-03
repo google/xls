@@ -95,7 +95,18 @@ absl::Status RealMain(const std::string& netlist_path,
   XLS_ASSIGN_OR_RETURN(const auto* module, netlist->GetModule(module_name));
 
   // Input values are listed in the same order as inputs are declared by
-  // Module::inputs().
+  // the netlist module declaration, which may be different from the order of
+  // Module::inputs().  For example:
+  //
+  //  module ifte(i, t, e, out);
+  //    input [7:0] e;
+  //    input i;
+  //    output [7:0] out;
+  //    input [7:0] t;
+  //
+  // The values of --inputs should follow the module declaration, which would
+  // also follow the declaration of the source language (e.g. C++ or XLS).
+
   Bits input_bits;
   for (const auto& input_string : inputs) {
     XLS_ASSIGN_OR_RETURN(Value input, Parser::ParseTypedValue(input_string));
@@ -109,7 +120,8 @@ absl::Status RealMain(const std::string& netlist_path,
   XLS_RET_CHECK(module_inputs.size() == input_bits.bit_count());
 
   for (int i = 0; i < module->inputs().size(); i++) {
-    input_nets[module_inputs[i]] = input_bits.Get(i);
+    const netlist::rtl::NetRef in = module_inputs[i];
+    input_nets[in] = input_bits.Get(module->GetInputPortOffset(in->name()));
   }
 
   netlist::Interpreter interpreter(netlist.get());
@@ -120,7 +132,7 @@ absl::Status RealMain(const std::string& netlist_path,
   for (const netlist::rtl::NetRef ref : module->outputs()) {
     rope.push_back(output_nets[ref]);
   }
-  Bits output_bits = bits_ops::Reverse(rope.Build());
+  Bits output_bits = rope.Build();
 
   Value output;
   if (!output_type_string.empty()) {
@@ -134,8 +146,7 @@ absl::Status RealMain(const std::string& netlist_path,
     output = Value(output_bits);
   }
 
-  std::cout << "Results: " << output.ToString(FormatPreference::kHex)
-            << std::endl;
+  std::cout << output.ToString(FormatPreference::kHex) << std::endl;
   return absl::OkStatus();
 }
 

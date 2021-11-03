@@ -18,7 +18,9 @@
 #ifndef XLS_NETLIST_NETLIST_H_
 #define XLS_NETLIST_NETLIST_H_
 
+#include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -26,6 +28,8 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "xls/common/logging/logging.h"
 #include "xls/netlist/cell_library.h"
 
@@ -176,8 +180,76 @@ class Module {
   const std::vector<NetRef>& inputs() const { return inputs_; }
   const std::vector<NetRef>& outputs() const { return outputs_; }
 
+  // Declares port order in the module() keyword.  For example, if a module
+  // declaration starts with:
+  //
+  // module ifte(i, t, e, out);
+  //     input [7:0] e;
+  //     input i;
+  //     output [7:0] out;
+  //     input [7:0] t;
+  //
+  // You can invoke this method with the input { "i", "t", "e", "out" }
+  //
+  // If you construct a module programmatically then you do not need to invoke
+  // this method, as you control the order of subsequent port declarations.
+  // However, when parsing a module, it may be necessary to know the invocation
+  // order in the module.
+  void DeclarePortsOrder(absl::Span<const std::string> ports) {
+    for (int i = 0; i < ports.size(); i++) {
+      ports_.emplace_back(std::make_unique<Port>(ports[i]));
+    }
+  }
+
+  // Declares an individual port with its direction and width.  For example, if
+  // a module declaration starts with:
+  //
+  // module ifte(i, t, e, out);
+  //     input [7:0] e;
+  //     input i;
+  //     output [7:0] out;
+  //     input [7:0] t;
+  //
+  // You can invoke this method while parsing the module.  You would invoke it
+  // each time you encounter the "input" or "output" keywords.
+  //
+  // Note that, as the example shows, the order of port declarations in the
+  // source may be different from their order in the module keyword.
+  //
+  // An error status is returned if, for a given "input" or "output"
+  // declaration, there no match in the parameter list.
+  absl::Status DeclarePort(absl::string_view name, int64_t width,
+                           bool is_output);
+
+  // Returns the bit offset of a given input net in the parameter list.  For
+  // example, if a module declaration starts with:
+  //
+  // module ifte(i, t, e, out);
+  //     input [7:0] e;
+  //     input i;
+  //     output [7:0] out;
+  //     input [7:0] t;
+  // module ifte(i, t, e, out);
+  //
+  // When parsing a module invokation, you may want to assign input values to
+  // the individual input ports.  As you will be working with individual wires
+  // at that level (NetDef instances), you will want to know what is the offset
+  // of e.g. NetDef "t[3]".  This method will compute that offset.
+  //
+  // DeclarePortsOrder() needs to have been called previously.
+  int64_t GetInputPortOffset(absl::string_view name) const;
+
  private:
+  struct Port {
+    explicit Port(std::string name) : name_(name) {}
+    std::string name_;
+    int64_t width_ = 1;
+    bool is_output_ = false;
+    bool is_declared_ = false;
+  };
+
   std::string name_;
+  std::vector<std::unique_ptr<Port>> ports_;
   std::vector<NetRef> inputs_;
   std::vector<NetRef> outputs_;
   std::vector<NetRef> wires_;

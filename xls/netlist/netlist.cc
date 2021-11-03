@@ -16,10 +16,15 @@
 
 #include <variant>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/netlist/cell_library.h"
@@ -114,6 +119,54 @@ absl::Status Module::AddNetDecl(NetDeclKind kind, absl::string_view name) {
       break;
   }
   return absl::OkStatus();
+}
+
+absl::Status Module::DeclarePort(absl::string_view name,
+                         int64_t width,
+                         bool is_output) {
+  for (auto& port : ports_) {
+    if (port->name_ == name) {
+      if (port->is_declared_) {
+        return absl::AlreadyExistsError(
+            absl::StrFormat("Duplicate declaration of port '%s'.", name));
+      }
+      port->width_ = width;
+      port->is_output_ = is_output;
+      port->is_declared_ = true;
+      return absl::OkStatus();
+    }
+  }
+  return absl::NotFoundError(
+      absl::StrFormat("No match for %s '%s' in parameter list.",
+                      is_output ? "output" : "input", name));
+}
+
+int64_t Module::GetInputPortOffset(absl::string_view name) const {
+  // The input is either a name, e.g. "a", or a name + subscript, e.g. "a[3]".
+  std::vector<std::string> name_and_idx = absl::StrSplit(name, '[');
+  XLS_CHECK(name_and_idx.size() <= 2);
+
+  int i;
+  int off = 0;
+  for (i = 0; i < ports_.size(); i++) {
+    if (ports_[i]->is_output_) {
+      continue;
+    }
+    off += ports_[i]->width_;
+    if (ports_[i]->name_ == name_and_idx[0]) {
+      break;
+    }
+  }
+  XLS_CHECK(i < ports_.size());
+
+  if (name_and_idx.size() == 2) {
+    absl::string_view idx = absl::StripSuffix(name_and_idx[1], "]");
+    int64_t idx_out;
+    XLS_CHECK(absl::SimpleAtoi(idx, &idx_out));
+    off -= idx_out;
+  }
+
+  return off - 1;
 }
 
 absl::StatusOr<std::vector<Cell*>> NetDef::GetConnectedCellsSans(

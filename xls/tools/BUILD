@@ -261,6 +261,27 @@ cc_binary(
     ],
 )
 
+netlist_interpreter_main_test_data = [
+    "testdata/sqrt.v",
+    "testdata/ifte.v",
+    "testdata/simple_cell.lib",
+]
+
+py_test(
+    name = "netlist_interpreter_main_test",
+    srcs = ["netlist_interpreter_main_test.py"],
+    data = glob(netlist_interpreter_main_test_data) + [
+        ":netlist_interpreter_main",
+    ],
+    main = "netlist_interpreter_main_test.py",
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+    ],
+)
+
 cc_library(
     name = "proto_to_dslx",
     srcs = ["proto_to_dslx.cc"],
