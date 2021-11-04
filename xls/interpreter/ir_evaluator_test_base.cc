@@ -3470,4 +3470,53 @@ fn ba (in_token:token, a_cond: bits[1], b_cond: bits[1]) -> bits[8] {
               IsOkAndHolds(no_traces));
 }
 
+TEST_P(IrEvaluatorTestBase, EmptyTraceTest) {
+  Package p("empty_trace_test");
+
+  FunctionBuilder b("fun", &p);
+
+  auto p0 = b.Param("tkn", p.GetTokenType());
+  auto p1 = b.Param("cnd", p.GetBitsType(1));
+  std::vector<BValue> args = {};
+  std::vector<FormatStep> format = {};
+  b.Trace(p0, p1, args, format);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  std::vector<Value> no_trace_args = {Value::Token(), Value(UBits(0, 1))};
+  EXPECT_THAT(RunWithNoEvents(f, no_trace_args), IsOkAndHolds(Value::Token()));
+
+  std::vector<Value> print_trace_args = {Value::Token(), Value(UBits(1, 1))};
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> print_trace_result,
+                           RunWithEvents(f, print_trace_args));
+  EXPECT_EQ(print_trace_result.value, Value::Token());
+  EXPECT_THAT(print_trace_result.events.assert_msgs, ElementsAre());
+  EXPECT_THAT(print_trace_result.events.trace_msgs, ElementsAre(""));
+}
+
+TEST_P(IrEvaluatorTestBase, ThreeStringTraceTest) {
+  Package p("empty_trace_test");
+
+  FunctionBuilder b("fun", &p);
+
+  auto p0 = b.Param("tkn", p.GetTokenType());
+  auto p1 = b.Param("cnd", p.GetBitsType(1));
+  std::vector<BValue> args = {};
+  std::vector<FormatStep> format = {"hello", " ", "world!"};
+  b.Trace(p0, p1, args, format);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  std::vector<Value> no_trace_args = {Value::Token(), Value(UBits(0, 1))};
+  EXPECT_THAT(RunWithNoEvents(f, no_trace_args), IsOkAndHolds(Value::Token()));
+
+  std::vector<Value> print_trace_args = {Value::Token(), Value(UBits(1, 1))};
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> print_trace_result,
+                           RunWithEvents(f, print_trace_args));
+  EXPECT_EQ(print_trace_result.value, Value::Token());
+  EXPECT_THAT(print_trace_result.events.assert_msgs, ElementsAre());
+  EXPECT_THAT(print_trace_result.events.trace_msgs,
+              ElementsAre("hello world!"));
+}
+
 }  // namespace xls

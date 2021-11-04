@@ -238,9 +238,18 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status InvokeAssertCallback(llvm::IRBuilder<>* builder,
                                     const std::string& message);
 
+  // Build the LLVM IR to invoke the callback that creates a trace buffer.
+  absl::StatusOr<llvm::Value*> InvokeCreateBufferCallback(
+      llvm::IRBuilder<>* builder);
+
+  // Build the LLVM IR that handles string fragment format steps.
+  absl::Status InvokeStringStepCallback(llvm::IRBuilder<>* builder,
+                                        const std::string& step_string,
+                                        llvm::Value* buffer_ptr);
+
   // Build the LLVM IR to invoke the callback that records traces.
-  absl::Status InvokeTraceCallback(llvm::IRBuilder<>* builder,
-                                   const std::string& message);
+  absl::Status InvokeRecordTraceCallback(llvm::IRBuilder<>* builder,
+                                         llvm::Value* buffer_ptr);
 
   // Get the required assertion status and user data arguments that need to be
   // included at the end of the argument list for every function call.

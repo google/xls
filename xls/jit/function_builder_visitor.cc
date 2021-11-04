@@ -227,16 +227,13 @@ absl::Status FunctionBuilderVisitor::HandleArray(Array* array) {
   return StoreResult(array, result);
 }
 
-// This a shim to let JIT code record a trace as an interpreter event.
-void RecordTrace(char* msg, xls::InterpreterEvents* events) {
-  events->trace_msgs.push_back(msg);
-}
+// This is a shim to let JIT code create a buffer for accumulating trace
+// fragments.
+static std::string* CreateTraceBuffer() { return new std::string(); }
 
-absl::Status FunctionBuilderVisitor::InvokeTraceCallback(
-    llvm::IRBuilder<>* builder, const std::string& message) {
-  llvm::Constant* msg_constant = builder->CreateGlobalStringPtr(message);
-
-  llvm::Type* msg_type = msg_constant->getType();
+absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::InvokeCreateBufferCallback(
+    llvm::IRBuilder<>* builder) {
+  std::vector<llvm::Type*> params;
 
   // Treat void pointers as int64_t values at the LLVM IR level.
   // Using an actual pointer type triggers LLVM asserts when compiling
@@ -244,16 +241,73 @@ absl::Status FunctionBuilderVisitor::InvokeTraceCallback(
   // TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
   llvm::Type* void_ptr_type = llvm::Type::getInt64Ty(ctx());
 
-  std::vector<llvm::Type*> params = {msg_type, void_ptr_type};
+  llvm::FunctionType* fn_type =
+      llvm::FunctionType::get(void_ptr_type, params, /*isVarArg=*/false);
+
+  std::vector<llvm::Value*> args;
+
+  llvm::ConstantInt* fn_addr =
+      llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()),
+                             absl::bit_cast<uint64_t>(&CreateTraceBuffer));
+  llvm::Value* fn_ptr =
+      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
+  return builder->CreateCall(fn_type, fn_ptr, args);
+}
+
+// This is a shim to let JIT code add a new trace fragment to an existing trace
+// buffer.
+static void PerformStringStep(char* step_string, std::string* buffer) {
+  buffer->append(step_string);
+}
+
+absl::Status FunctionBuilderVisitor::InvokeStringStepCallback(
+    llvm::IRBuilder<>* builder, const std::string& step_string,
+    llvm::Value* buffer_ptr) {
+  llvm::Constant* step_constant = builder->CreateGlobalStringPtr(step_string);
+
+  std::vector<llvm::Type*> params = {step_constant->getType(),
+                                     buffer_ptr->getType()};
 
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
 
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
 
+  std::vector<llvm::Value*> args = {step_constant, buffer_ptr};
+
+  llvm::ConstantInt* fn_addr =
+      llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()),
+                             absl::bit_cast<uint64_t>(&PerformStringStep));
+  llvm::Value* fn_ptr =
+      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
+  builder->CreateCall(fn_type, fn_ptr, args);
+  return absl::OkStatus();
+}
+
+// This a shim to let JIT code record a completed trace as an interpreter event.
+static void RecordTrace(std::string* buffer, xls::InterpreterEvents* events) {
+  events->trace_msgs.push_back(*buffer);
+  delete buffer;
+}
+
+absl::Status FunctionBuilderVisitor::InvokeRecordTraceCallback(
+    llvm::IRBuilder<>* builder, llvm::Value* buffer_ptr) {
+  // Treat void pointers as int64_t values at the LLVM IR level.
+  // Using an actual pointer type triggers LLVM asserts when compiling
+  // in debug mode.
+  // TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
+  llvm::Type* void_ptr_type = llvm::Type::getInt64Ty(ctx());
+
+  std::vector<llvm::Type*> params = {buffer_ptr->getType(), void_ptr_type};
+
   llvm::Value* interpreter_events_ptr = GetInterpreterEventsPtr();
 
-  std::vector<llvm::Value*> args = {msg_constant, interpreter_events_ptr};
+  llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
+
+  llvm::FunctionType* fn_type =
+      llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
+
+  std::vector<llvm::Value*> args = {buffer_ptr, interpreter_events_ptr};
 
   llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
       llvm::Type::getInt64Ty(ctx()), absl::bit_cast<uint64_t>(&RecordTrace));
@@ -264,26 +318,6 @@ absl::Status FunctionBuilderVisitor::InvokeTraceCallback(
 }
 
 absl::Status FunctionBuilderVisitor::HandleTrace(Trace* trace_op) {
-  if (trace_op->format().empty()) {
-    return absl::InternalError(
-        absl::StrFormat("Empty trace format in node %s", trace_op->ToString()));
-  }
-
-  if (OperandsExpectedByFormat(trace_op->format()) != 0) {
-    return absl::UnimplementedError(absl::StrFormat(
-        "JIT does not currently support trace formats that require data "
-        "operands (format %s in node %s)",
-        StepsToXlsFormatString(trace_op->format()), trace_op->ToString()));
-  }
-
-  if (trace_op->format().size() != 1) {
-    return absl::InternalError(absl::StrFormat(
-        "Multi-step trace format without data operands (format %s in node %s)",
-        StepsToXlsFormatString(trace_op->format()), trace_op->ToString()));
-  }
-
-  std::string trace_msg = absl::get<std::string>(trace_op->format().front());
-
   std::string trace_name = trace_op->GetName();
 
   llvm::BasicBlock* after_block = llvm::BasicBlock::Create(
@@ -299,7 +333,23 @@ absl::Status FunctionBuilderVisitor::HandleTrace(Trace* trace_op) {
   llvm::BasicBlock* print_block = llvm::BasicBlock::Create(
       ctx(), absl::StrCat(trace_name, "_print"), llvm_fn());
   llvm::IRBuilder<> print_builder(print_block);
-  XLS_RETURN_IF_ERROR(InvokeTraceCallback(&print_builder, trace_msg));
+
+  XLS_ASSIGN_OR_RETURN(llvm::Value * buffer_ptr,
+                       InvokeCreateBufferCallback(&print_builder));
+
+  for (auto step : trace_op->format()) {
+    if (absl::holds_alternative<std::string>(step)) {
+      XLS_RETURN_IF_ERROR(InvokeStringStepCallback(
+          &print_builder, absl::get<std::string>(step), buffer_ptr));
+    } else {
+      return absl::UnimplementedError(absl::StrFormat(
+          "JIT does not currently support trace formats that require data "
+          "operands (format %s in node %s)",
+          StepsToXlsFormatString(trace_op->format()), trace_op->ToString()));
+    }
+  }
+
+  XLS_RETURN_IF_ERROR(InvokeRecordTraceCallback(&print_builder, buffer_ptr));
 
   print_builder.CreateBr(after_block);
 
