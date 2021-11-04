@@ -208,18 +208,7 @@ std::string Block::DumpIr() const {
                                     absl::StrJoin(port_strings, ", "));
 
   for (Register* reg : GetRegisters()) {
-    if (reg->reset().has_value()) {
-      absl::StrAppendFormat(
-          &res,
-          "  reg %s(%s, reset_value=%s, asynchronous=%s, active_low=%s)\n",
-          reg->name(), reg->type()->ToString(),
-          reg->reset().value().reset_value.ToHumanString(),
-          reg->reset().value().asynchronous ? "true" : "false",
-          reg->reset().value().active_low ? "true" : "false");
-    } else {
-      absl::StrAppendFormat(&res, "  reg %s(%s)\n", reg->name(),
-                            reg->type()->ToString());
-    }
+    absl::StrAppendFormat(&res, "  %s", reg->ToString());
   }
 
   for (Node* node : DumpOrder()) {

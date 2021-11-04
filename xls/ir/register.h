@@ -39,6 +39,8 @@ class Register {
   Type* type() const { return type_; }
   const absl::optional<Reset>& reset() const { return reset_; }
 
+  std::string ToString() const;
+
  private:
   std::string name_;
   Type* type_;

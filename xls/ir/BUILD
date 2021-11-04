@@ -218,6 +218,20 @@ xls_py_proto_library(
 )
 
 cc_library(
+    name = "register",
+    srcs = [
+        "register.cc",
+    ],
+    hdrs = ["register.h"],
+    deps = [
+        ":type",
+        ":value",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
     name = "ir",
     srcs = [
         "block.cc",
@@ -244,7 +258,6 @@ cc_library(
         "nodes.h",
         "package.h",
         "proc.h",
-        "register.h",
         "verifier.h",
     ],
     visibility = ["//xls:xls_best_effort_users"],
@@ -257,6 +270,7 @@ cc_library(
         ":ir_scanner",
         ":name_uniquer",
         ":op",
+        ":register",
         ":source_location",
         ":type",
         ":unwrapping_iterator",
@@ -393,6 +407,7 @@ cc_library(
         ":ir_scanner",
         ":number_parser",
         ":op",
+        ":register",
         ":source_location",
         ":type",
         "//xls/common:visitor",
