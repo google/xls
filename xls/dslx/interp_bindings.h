@@ -22,6 +22,7 @@
 #include "absl/types/variant.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/symbolic_type.h"
 #include "xls/dslx/type_info.h"
 
 namespace xls::dslx {
@@ -133,6 +134,10 @@ class InterpBindings {
   void set_fn_ctx(absl::optional<FnCtx> value) { fn_ctx_ = std::move(value); }
   const absl::optional<FnCtx>& fn_ctx() const { return fn_ctx_; }
 
+  void AddSymValues(std::unique_ptr<SymbolicType> sym_tree) {
+    symbolic_trees_.push_back(std::move(sym_tree));
+  }
+
  private:
   // Bindings from the outer scope, may be nullptr.
   const InterpBindings* parent_;
@@ -143,6 +148,10 @@ class InterpBindings {
   // The current (module name, function name, symbolic bindings) that these
   // Bindings are being used with.
   absl::optional<FnCtx> fn_ctx_;
+
+  // In the case of concolic execution, stores the life-time owned symbolic
+  // representation for interpreter values.
+  std::vector<std::unique_ptr<SymbolicType>> symbolic_trees_;
 };
 
 }  // namespace xls::dslx

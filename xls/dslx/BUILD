@@ -478,6 +478,7 @@ cc_library(
     hdrs = ["interp_value.h"],
     deps = [
         ":ast",
+        ":symbolic_type",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
@@ -504,6 +505,7 @@ cc_library(
     deps = [
         ":ast",
         ":interp_value",
+        ":symbolic_type",
         ":type_info",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -989,8 +991,23 @@ cc_library(
         ":import_routines",
         ":interp_bindings",
         ":interp_value",
+        ":symbolic_type",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/ir:bits",
         "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "symbolic_type",
+    srcs = ["symbolic_type.cc"],
+    hdrs = ["symbolic_type.h"],
+    deps = [
+        ":ast",
+        "//xls/ir:bits",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 

@@ -368,20 +368,7 @@ absl::StatusOr<bool> ConcreteTypeAcceptsValue(const ConcreteType& type,
                    static_cast<int64_t>(value.tag())));
 }
 
-// Evaluates the parametric values derived from other parametric values.
-//
-// Populates the "bindings" mapping with results computed by the typechecker.
-//
-// For example, in:
-//
-//  fn [X: u32, Y: u32 = X+X] f(x: bits[X]) { ... }
-//
-// Args:
-//  fn: Function to evaluate parametric bindings for.
-//  bindings: Bindings mapping to populate with newly evaluated parametric
-//    binding names.
-//  bound_dims: Parametric bindings computed by the typechecker.
-static absl::Status EvaluateDerivedParametrics(
+absl::Status EvaluateDerivedParametrics(
     Function* fn, InterpBindings* bindings, AbstractInterpreter* interp,
     const absl::flat_hash_map<std::string, InterpValue>& bound_dims) {
   // Formatter for elements in "bound_dims".

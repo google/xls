@@ -16,6 +16,7 @@
 #define XLS_DSLX_INTERP_VALUE_H_
 
 #include "xls/dslx/ast.h"
+#include "xls/dslx/symbolic_type.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/value.h"
 
@@ -313,6 +314,14 @@ class InterpValue {
   // ordering Bits < arrays < tuples has been arbitrarily defined.
   bool operator<(const InterpValue& rhs) const;
 
+  SymbolicType* sym() const { return sym_tree_; }
+
+  const InterpValue UpdateWithSym(SymbolicType* sym) const {
+    InterpValue clone = *this;
+    clone.sym_tree_ = sym;
+    return clone;
+  }
+
  private:
   friend struct InterpValuePickler;
 
@@ -327,6 +336,9 @@ class InterpValue {
   InterpValue(InterpValueTag tag, Payload payload,
               const EnumDef* type = nullptr)
       : tag_(tag), payload_(std::move(payload)), type_(type) {}
+
+  InterpValue(InterpValueTag tag, Payload payload, SymbolicType* sym)
+      : tag_(tag), payload_(std::move(payload)), sym_tree_(sym) {}
 
   using CompareF = bool (*)(const Bits& lhs, const Bits& rhs);
 
@@ -345,6 +357,10 @@ class InterpValue {
   // migrated to C++ we can use lifetime assumptions as is more typical in C++
   // land, this is done for Python interop.
   const EnumDef* type_ = nullptr;
+
+  // Represents the expression tree for the intrepreter value. We keep the
+  // pointer alive via the unique_ptr stored in the bindings
+  SymbolicType* sym_tree_ = nullptr;
 };
 
 // Retrieves the module associated with the function_value if it is user

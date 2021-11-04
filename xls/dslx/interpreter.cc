@@ -33,12 +33,12 @@ class Evaluator : public ExprVisitor {
         interp_(interp),
         run_concolic_(run_concolic) {}
 
-#define DISPATCH(__expr_type)                                                  \
-  void Handle##__expr_type(__expr_type* expr) override {                       \
-    value_ = run_concolic_ ? Evaluate##__expr_type(expr, bindings_,            \
-                                                   type_context_, interp_)     \
-                           : Evaluate##__expr_typeSym(expr, bindings_,         \
-                                                      type_context_, interp_); \
+#define DISPATCH(__expr_type)                                                 \
+  void Handle##__expr_type(__expr_type* expr) override {                      \
+    value_ = run_concolic_ ? EvaluateSym##__expr_type(expr, bindings_,        \
+                                                      type_context_, interp_) \
+                           : Evaluate##__expr_type(expr, bindings_,           \
+                                                   type_context_, interp_);   \
   }
 
   DISPATCH(Array)
@@ -346,10 +346,16 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateAndCompareInternal(
     Invocation* invocation, const SymbolicBindings* symbolic_bindings) {
   XLS_ASSIGN_OR_RETURN(
       InterpValue interpreter_value,
-      EvaluateFunction(f, args, span,
-                       symbolic_bindings == nullptr ? SymbolicBindings()
-                                                    : *symbolic_bindings,
-                       abstract_adapter_.get()));
+      run_concolic_
+          ? EvaluateSymFunction(f, args, span,
+                                symbolic_bindings == nullptr
+                                    ? SymbolicBindings()
+                                    : *symbolic_bindings,
+                                abstract_adapter_.get())
+          : EvaluateFunction(f, args, span,
+                             symbolic_bindings == nullptr ? SymbolicBindings()
+                                                          : *symbolic_bindings,
+                             abstract_adapter_.get()));
 
   if (post_fn_eval_hook_ != nullptr) {
     XLS_RETURN_IF_ERROR(
