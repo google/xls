@@ -41,7 +41,6 @@ DISPATCH_DEF(Index)
 DISPATCH_DEF(Let)
 DISPATCH_DEF(Match)
 DISPATCH_DEF(NameRef)
-DISPATCH_DEF(Number)
 DISPATCH_DEF(SplatStructInstance)
 DISPATCH_DEF(String)
 DISPATCH_DEF(StructInstance)
@@ -60,6 +59,16 @@ InterpValue AddSymToValue(InterpValue concrete_value, InterpBindings* bindings,
   InterpValue sym_value = concrete_value.UpdateWithSym(sym_ptr.get());
   bindings->AddSymValues(std::move(sym_ptr));
   return sym_value;
+}
+
+absl::StatusOr<InterpValue> EvaluateSymNumber(Number* expr,
+                                              InterpBindings* bindings,
+                                              ConcreteType* type_context,
+                                              AbstractInterpreter* interp) {
+  XLS_ASSIGN_OR_RETURN(InterpValue result,
+                       EvaluateNumber(expr, bindings, type_context, interp));
+  XLS_ASSIGN_OR_RETURN(Bits result_bits, result.GetBits());
+  return AddSymToValue(result, bindings, result_bits);
 }
 
 absl::StatusOr<InterpValue> EvaluateSymFunction(
