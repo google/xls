@@ -31,8 +31,9 @@ namespace xls {
 // function (implications, equality, etc).
 class TernaryQueryEngine : public QueryEngine {
  public:
-  static absl::StatusOr<std::unique_ptr<TernaryQueryEngine>> Run(
-      FunctionBase* f);
+  TernaryQueryEngine() {}
+
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
 
   bool IsTracked(Node* node) const override {
     return known_bits_.contains(node);

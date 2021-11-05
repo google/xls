@@ -330,10 +330,10 @@ absl::StatusOr<bool> StrengthReduceNode(
 
 absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> query_engine,
-                       TernaryQueryEngine::Run(f));
+  TernaryQueryEngine query_engine;
+  XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
   XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> reducible_adds,
-                       FindReducibleAdds(f, *query_engine));
+                       FindReducibleAdds(f, query_engine));
   // Note: because we introduce new nodes into the graph that were not present
   // for the original QueryEngine analysis, we must be careful to guard our
   // bit value tests with "IsKnown" sorts of calls.
@@ -345,7 +345,7 @@ absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
   for (Node* node : TopoSort(f)) {
     XLS_ASSIGN_OR_RETURN(
         bool node_modified,
-        StrengthReduceNode(node, reducible_adds, *query_engine, opt_level_));
+        StrengthReduceNode(node, reducible_adds, query_engine, opt_level_));
     modified |= node_modified;
   }
   return modified;

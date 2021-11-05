@@ -47,6 +47,10 @@ class FakeQueryEngine : public QueryEngine {
  public:
   FakeQueryEngine() {}
 
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
+    return ReachedFixpoint::Unchanged;
+  }
+
   bool IsTracked(Node* node) const override { return tracked_.contains(node); }
 
   const Bits& GetKnownBits(Node* node) const override {
@@ -224,43 +228,43 @@ TEST_F(UnionQueryEngineTest, Simple) {
   std::vector<std::unique_ptr<QueryEngine>> engines;
   engines.push_back(std::make_unique<FakeQueryEngine>(query_engine_a));
   engines.push_back(std::make_unique<FakeQueryEngine>(query_engine_b));
-  XLS_ASSERT_OK_AND_ASSIGN(auto union_query_engine,
-                           UnionQueryEngine::Run(std::move(engines)));
+  UnionQueryEngine union_query_engine(std::move(engines));
+  // No need to Populate, since FakeQueryEngine doesn't use that interface
 
-  EXPECT_FALSE(union_query_engine->IsTracked(nullptr));
-  EXPECT_TRUE(union_query_engine->IsTracked(node));
-  EXPECT_EQ(union_query_engine->GetKnownBits(node), UBits(0b00010000, 8));
-  EXPECT_EQ(union_query_engine->GetKnownBitsValues(node), UBits(0b00010000, 8));
+  EXPECT_FALSE(union_query_engine.IsTracked(nullptr));
+  EXPECT_TRUE(union_query_engine.IsTracked(node));
+  EXPECT_EQ(union_query_engine.GetKnownBits(node), UBits(0b00010000, 8));
+  EXPECT_EQ(union_query_engine.GetKnownBitsValues(node), UBits(0b00010000, 8));
   // Query the same ones again to test the caching of known bits
-  EXPECT_EQ(union_query_engine->GetKnownBits(node), UBits(0b00010000, 8));
-  EXPECT_EQ(union_query_engine->GetKnownBitsValues(node), UBits(0b00010000, 8));
-  EXPECT_TRUE(union_query_engine->AtMostOneTrue(
+  EXPECT_EQ(union_query_engine.GetKnownBits(node), UBits(0b00010000, 8));
+  EXPECT_EQ(union_query_engine.GetKnownBitsValues(node), UBits(0b00010000, 8));
+  EXPECT_TRUE(union_query_engine.AtMostOneTrue(
       {BitLocation(node, 2), BitLocation(node, 3)}));
-  EXPECT_FALSE(union_query_engine->AtMostOneTrue(
+  EXPECT_FALSE(union_query_engine.AtMostOneTrue(
       {BitLocation(node, 5), BitLocation(node, 6)}));
-  EXPECT_TRUE(union_query_engine->AtLeastOneTrue(
+  EXPECT_TRUE(union_query_engine.AtLeastOneTrue(
       {BitLocation(node, 2), BitLocation(node, 3)}));
-  EXPECT_FALSE(union_query_engine->AtLeastOneTrue(
+  EXPECT_FALSE(union_query_engine.AtLeastOneTrue(
       {BitLocation(node, 5), BitLocation(node, 6)}));
-  EXPECT_TRUE(union_query_engine->KnownEquals(BitLocation(node, 0),
-                                              BitLocation(node, 1)));
-  EXPECT_FALSE(union_query_engine->KnownEquals(BitLocation(node, 5),
-                                               BitLocation(node, 6)));
-  EXPECT_TRUE(union_query_engine->KnownNotEquals(BitLocation(node, 2),
-                                                 BitLocation(node, 3)));
-  EXPECT_FALSE(union_query_engine->KnownNotEquals(BitLocation(node, 5),
-                                                  BitLocation(node, 6)));
+  EXPECT_TRUE(union_query_engine.KnownEquals(BitLocation(node, 0),
+                                             BitLocation(node, 1)));
+  EXPECT_FALSE(union_query_engine.KnownEquals(BitLocation(node, 5),
+                                              BitLocation(node, 6)));
+  EXPECT_TRUE(union_query_engine.KnownNotEquals(BitLocation(node, 2),
+                                                BitLocation(node, 3)));
+  EXPECT_FALSE(union_query_engine.KnownNotEquals(BitLocation(node, 5),
+                                                 BitLocation(node, 6)));
   EXPECT_TRUE(
-      union_query_engine->Implies(BitLocation(node, 3), BitLocation(node, 7)));
+      union_query_engine.Implies(BitLocation(node, 3), BitLocation(node, 7)));
   EXPECT_TRUE(
-      union_query_engine->Implies(BitLocation(node, 7), BitLocation(node, 3)));
+      union_query_engine.Implies(BitLocation(node, 7), BitLocation(node, 3)));
   EXPECT_FALSE(
-      union_query_engine->Implies(BitLocation(node, 5), BitLocation(node, 6)));
+      union_query_engine.Implies(BitLocation(node, 5), BitLocation(node, 6)));
   EXPECT_EQ(
-      union_query_engine->ImpliedNodeValue(
+      union_query_engine.ImpliedNodeValue(
           {{BitLocation(node, 7), true}, {BitLocation(node, 3), true}}, node),
       UBits(0b10011000, 8));
-  EXPECT_FALSE(union_query_engine->ImpliedNodeValue(
+  EXPECT_FALSE(union_query_engine.ImpliedNodeValue(
       {{BitLocation(node, 5), true}, {BitLocation(node, 6), true}}, node));
 }
 

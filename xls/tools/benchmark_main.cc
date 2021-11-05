@@ -351,8 +351,8 @@ absl::Status RealMain(absl::string_view path,
 
   XLS_RETURN_IF_ERROR(RunOptimizationAndPrintStats(package.get()));
   XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BddQueryEngine> query_engine,
-                       BddQueryEngine::Run(f, BddFunction::kDefaultPathLimit));
+  BddQueryEngine query_engine(BddFunction::kDefaultPathLimit);
+  XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
   PrintNodeBreakdown(f);
 
   absl::optional<int64_t> effective_clock_period_ps;
@@ -372,7 +372,7 @@ absl::Status RealMain(absl::string_view path,
                          GetDelayEstimator(absl::GetFlag(FLAGS_delay_model)));
   }
   const auto& delay_estimator = *pdelay_estimator;
-  XLS_RETURN_IF_ERROR(PrintCriticalPath(f, *query_engine, delay_estimator,
+  XLS_RETURN_IF_ERROR(PrintCriticalPath(f, query_engine, delay_estimator,
                                         effective_clock_period_ps));
 
   if (clock_period_ps.has_value() || pipeline_stages.has_value()) {
@@ -380,7 +380,7 @@ absl::Status RealMain(absl::string_view path,
         PipelineSchedule schedule,
         ScheduleAndPrintStats(package.get(), delay_estimator, clock_period_ps,
                               pipeline_stages, clock_margin_percent));
-    XLS_RETURN_IF_ERROR(PrintCodegenInfo(f, schedule, *query_engine,
+    XLS_RETURN_IF_ERROR(PrintCodegenInfo(f, schedule, query_engine,
                                          delay_estimator, clock_period_ps));
   }
   return absl::OkStatus();

@@ -115,9 +115,8 @@ absl::StatusOr<std::string> IrToJson(FunctionBase* function,
                      << critical_path.status();
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<BddQueryEngine> query_engine,
-      BddQueryEngine::Run(function, BddFunction::kDefaultPathLimit));
+  BddQueryEngine query_engine(BddFunction::kDefaultPathLimit);
+  XLS_RETURN_IF_ERROR(query_engine.Populate(function).status());
 
   auto sanitize_name = [](absl::string_view name) {
     return absl::StrReplaceAll(name, {{".", "_"}});
@@ -130,7 +129,7 @@ absl::StatusOr<std::string> IrToJson(FunctionBase* function,
     graph_node->set_ir(node->ToStringWithOperandTypes());
     XLS_ASSIGN_OR_RETURN(*graph_node->mutable_attributes(),
                          NodeAttributes(node, node_to_critical_path_entry,
-                                        *query_engine, schedule));
+                                        query_engine, schedule));
   }
 
   for (Node* node : function->nodes()) {

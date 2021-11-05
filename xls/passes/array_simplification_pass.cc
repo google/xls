@@ -117,8 +117,8 @@ absl::StatusOr<bool> ClampArrayIndexIndices(FunctionBase* func) {
   // This transformation may add nodes to the graph which invalidates the query
   // engine for later use, so create a private engine for exclusive use of this
   // transformation.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> query_engine,
-                       TernaryQueryEngine::Run(func));
+  TernaryQueryEngine query_engine;
+  XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
   bool changed = false;
   for (Node* node : TopoSort(func)) {
     if (node->Is<ArrayIndex>()) {
@@ -127,7 +127,7 @@ absl::StatusOr<bool> ClampArrayIndexIndices(FunctionBase* func) {
       for (int64_t i = 0; i < array_index->indices().size(); ++i) {
         Node* index = array_index->indices()[i];
         ArrayType* array_type = subtype->AsArrayOrDie();
-        if (IndexIsDefinitelyOutOfBounds(index, array_type, *query_engine)) {
+        if (IndexIsDefinitelyOutOfBounds(index, array_type, query_engine)) {
           XLS_ASSIGN_OR_RETURN(
               Literal * new_index,
               func->MakeNode<Literal>(index->loc(),
@@ -664,8 +664,8 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
 // Walk the function and replace chains of sequential array updates with kArray
 // operations with gather the update values.
 absl::StatusOr<bool> FlattenSequentialUpdates(FunctionBase* func) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> query_engine,
-                       TernaryQueryEngine::Run(func));
+  TernaryQueryEngine query_engine;
+  XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
   absl::flat_hash_set<ArrayUpdate*> flattened_updates;
   bool changed = false;
   // Perform this optimization in reverse topo sort order because we are looking
@@ -681,7 +681,7 @@ absl::StatusOr<bool> FlattenSequentialUpdates(FunctionBase* func) {
     }
     XLS_ASSIGN_OR_RETURN(
         absl::optional<std::vector<ArrayUpdate*>> flattened_vec,
-        FlattenArrayUpdateChain(array_update, *query_engine));
+        FlattenArrayUpdateChain(array_update, query_engine));
     if (flattened_vec.has_value()) {
       changed = true;
       flattened_updates.insert(flattened_vec->begin(), flattened_vec->end());
@@ -921,28 +921,28 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(bool clamp_changed, ClampArrayIndexIndices(func));
   changed |= clamp_changed;
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> query_engine,
-                       TernaryQueryEngine::Run(func));
+  TernaryQueryEngine query_engine;
+  XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
 
   for (Node* node : TopoSort(func)) {
     if (node->Is<ArrayIndex>()) {
       ArrayIndex* array_index = node->As<ArrayIndex>();
       XLS_ASSIGN_OR_RETURN(bool node_changed,
-                           SimplifyArrayIndex(array_index, *query_engine));
+                           SimplifyArrayIndex(array_index, query_engine));
       changed = changed | node_changed;
     } else if (node->Is<ArrayUpdate>()) {
       XLS_ASSIGN_OR_RETURN(
           bool node_changed,
-          SimplifyArrayUpdate(node->As<ArrayUpdate>(), *query_engine));
+          SimplifyArrayUpdate(node->As<ArrayUpdate>(), query_engine));
       changed = changed | node_changed;
     } else if (node->Is<Array>()) {
       XLS_ASSIGN_OR_RETURN(bool node_changed,
-                           SimplifyArray(node->As<Array>(), *query_engine));
+                           SimplifyArray(node->As<Array>(), query_engine));
       changed = changed | node_changed;
     } else if (IsBinarySelect(node)) {
       XLS_ASSIGN_OR_RETURN(
           bool node_changed,
-          SimplifyBinarySelect(node->As<Select>(), *query_engine));
+          SimplifyBinarySelect(node->As<Select>(), query_engine));
       changed = changed | node_changed;
     }
   }

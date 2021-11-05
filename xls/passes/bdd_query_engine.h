@@ -40,9 +40,13 @@ class BddQueryEngine : public QueryEngine {
   // terminals 0 and 1 to allow for a BDD expression before truncating it. If a
   // node's op is in 'do_not_evaluate_ops', its bits are modeled as BDD
   // variables. See BddFunction for details.
-  static absl::StatusOr<std::unique_ptr<BddQueryEngine>> Run(
-      FunctionBase* f, int64_t path_limit = 0,
-      absl::Span<const Op> do_not_evaluate_ops = {});
+  explicit BddQueryEngine(int64_t path_limit = 0,
+                          absl::Span<const Op> do_not_evaluate_ops = {})
+      : path_limit_(path_limit),
+        do_not_evaluate_ops_(do_not_evaluate_ops.begin(),
+                             do_not_evaluate_ops.end()) {}
+
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
 
   bool IsTracked(Node* node) const override {
     return known_bits_.contains(node);
@@ -69,8 +73,6 @@ class BddQueryEngine : public QueryEngine {
   const BddFunction& bdd_function() const { return *bdd_function_; }
 
  private:
-  explicit BddQueryEngine(int64_t path_limit) : path_limit_(path_limit) {}
-
   // Returns the underlying BDD. This method is const, but queries on a BDD
   // generally mutate the object. We sneakily avoid conflicts with C++ const
   // because the BDD is only held indirectly via pointers.
@@ -96,6 +98,10 @@ class BddQueryEngine : public QueryEngine {
 
   // The maximum number of paths in expression in the BDD before truncating.
   int64_t path_limit_;
+
+  // If something is in this list, its bits are modelled as BDD variables.
+  // See BddFunction for details.
+  std::vector<Op> do_not_evaluate_ops_;
 
   // Indicates the bits at the output of each node which have known values.
   absl::flat_hash_map<Node*, Bits> known_bits_;

@@ -635,6 +635,7 @@ cc_library(
         "//xls/data_structures:binary_decision_diagram",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
     ],
 )
 

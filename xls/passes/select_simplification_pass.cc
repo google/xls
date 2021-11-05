@@ -1046,12 +1046,12 @@ absl::StatusOr<bool> SpecializeSelectArms(FunctionBase* func) {
 absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const PassOptions& options,
     PassResults* results) const {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> query_engine,
-                       TernaryQueryEngine::Run(func));
+  TernaryQueryEngine query_engine;
+  XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
   bool changed = false;
   for (Node* node : TopoSort(func)) {
     XLS_ASSIGN_OR_RETURN(bool node_changed,
-                         SimplifyNode(node, *query_engine, opt_level_));
+                         SimplifyNode(node, query_engine, opt_level_));
     changed = changed | node_changed;
   }
 
@@ -1078,7 +1078,7 @@ absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBaseInternal(
       // ok. TernaryQueryEngine::IsTracked will return false for new nodes which
       // have not been analyzed.
       XLS_ASSIGN_OR_RETURN(std::vector<OneHotSelect*> new_ohses,
-                           MaybeSplitOneHotSelect(ohs, *query_engine));
+                           MaybeSplitOneHotSelect(ohs, query_engine));
       if (!new_ohses.empty()) {
         changed = true;
         worklist.insert(worklist.end(), new_ohses.begin(), new_ohses.end());

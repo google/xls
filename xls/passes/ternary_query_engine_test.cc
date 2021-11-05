@@ -71,9 +71,9 @@ class TernaryQueryEngineTest : public IrTestBase {
     make_op(lhs, rhs, &fb);
     XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
     XLS_VLOG(3) << f->DumpIr();
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<TernaryQueryEngine> engine,
-                         TernaryQueryEngine::Run(f));
-    return engine->ToString(f->return_value());
+    TernaryQueryEngine query_engine;
+    XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
+    return query_engine.ToString(f->return_value());
   }
 };
 

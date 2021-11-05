@@ -45,9 +45,19 @@ class QueryEngineTest : public IrTestBase,
  protected:
   absl::StatusOr<std::unique_ptr<QueryEngine>> GetEngine(Function* f) {
     if (GetParam() == QueryEngineType::kTernary) {
-      return TernaryQueryEngine::Run(f);
+      std::unique_ptr<TernaryQueryEngine> engine =
+          std::make_unique<TernaryQueryEngine>();
+      XLS_RETURN_IF_ERROR(engine->Populate(f).status());
+      return engine;
     }
-    return BddQueryEngine::Run(f);
+    if (GetParam() == QueryEngineType::kBdd) {
+      std::unique_ptr<BddQueryEngine> engine =
+          std::make_unique<BddQueryEngine>();
+      XLS_RETURN_IF_ERROR(engine->Populate(f).status());
+      return engine;
+    }
+    XLS_LOG(FATAL)
+        << "Update QueryEngineTest::GetEngine to match QueryEngineType";
   }
 
   // Create a BValue with known bits equal to the given ternary vector. Created

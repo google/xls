@@ -18,11 +18,23 @@
 
 namespace xls {
 
-absl::StatusOr<std::unique_ptr<UnionQueryEngine>> UnionQueryEngine::Run(
-    std::vector<std::unique_ptr<QueryEngine>> engines) {
-  UnionQueryEngine result;
-  result.engines_ = std::move(engines);
-  return std::make_unique<UnionQueryEngine>(std::move(result));
+absl::StatusOr<ReachedFixpoint> UnionQueryEngine::Populate(FunctionBase* f) {
+  ReachedFixpoint result = ReachedFixpoint::Unchanged;
+  for (const std::unique_ptr<QueryEngine>& engine : engines_) {
+    XLS_ASSIGN_OR_RETURN(ReachedFixpoint rf, engine->Populate(f));
+    // Unchanged is the top of the lattice so it's an identity
+    if (result == ReachedFixpoint::Unchanged) {
+      result = rf;
+    }
+    // Changed can only degrade to Unknown
+    if ((result == ReachedFixpoint::Changed) &&
+        (rf == ReachedFixpoint::Unknown)) {
+      result = ReachedFixpoint::Unknown;
+    }
+    // No case needed for ReachedFixpoint::Unknown since it's already the bottom
+    // of the lattice
+  }
+  return result;
 }
 
 bool UnionQueryEngine::IsTracked(Node* node) const {

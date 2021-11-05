@@ -61,9 +61,7 @@ Bits TernaryVectorToValueBits(const TernaryEvaluator::Vector& ternary_vector) {
   return Bits(bits);
 }
 
-/* static */
-absl::StatusOr<std::unique_ptr<TernaryQueryEngine>> TernaryQueryEngine::Run(
-    FunctionBase* f) {
+absl::StatusOr<ReachedFixpoint> TernaryQueryEngine::Populate(FunctionBase* f) {
   TernaryEvaluator evaluator;
   absl::flat_hash_map<Node*, TernaryEvaluator::Vector> values;
   for (Node* node : TopoSort(f)) {
@@ -91,15 +89,27 @@ absl::StatusOr<std::unique_ptr<TernaryQueryEngine>> TernaryQueryEngine::Run(
                          /*default_handler=*/create_unknown_vector));
   }
 
-  auto engine = std::make_unique<TernaryQueryEngine>();
+  ReachedFixpoint rf = ReachedFixpoint::Unchanged;
   for (Node* node : f->nodes()) {
     // TODO(meheff): Handle types other than bits.
     if (node->GetType()->IsBits()) {
-      engine->known_bits_[node] = TernaryVectorToKnownBits(values.at(node));
-      engine->bits_values_[node] = TernaryVectorToValueBits(values.at(node));
+      if (!known_bits_.contains(node)) {
+        known_bits_[node] = Bits(values.at(node).size());
+        bits_values_[node] = Bits(values.at(node).size());
+      }
+      Bits combined_known_bits = bits_ops::Or(
+          known_bits_[node], TernaryVectorToKnownBits(values.at(node)));
+      Bits combined_bits_values = bits_ops::Or(
+          bits_values_[node], TernaryVectorToValueBits(values.at(node)));
+      if ((combined_known_bits != known_bits_[node]) ||
+          (combined_bits_values != bits_values_[node])) {
+        rf = ReachedFixpoint::Changed;
+      }
+      known_bits_[node] = combined_known_bits;
+      bits_values_[node] = combined_bits_values;
     }
   }
-  return std::move(engine);
+  return rf;
 }
 
 bool TernaryQueryEngine::AtMostOneTrue(

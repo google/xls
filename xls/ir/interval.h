@@ -175,6 +175,12 @@ class Interval {
     return false;
   }
 
+  template <typename H>
+  friend H AbslHashValue(H h, const Interval& interval) {
+    return H::combine(std::move(h), interval.lower_bound_,
+                      interval.upper_bound_);
+  }
+
  private:
   void EnsureValid() const;
 

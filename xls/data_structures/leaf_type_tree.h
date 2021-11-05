@@ -182,6 +182,11 @@ class LeafTypeTree {
     return lhs.elements_ == rhs.elements_;
   }
 
+  template <typename H>
+  friend H AbslHashValue(H h, const LeafTypeTree<T>& ltt) {
+    return H::combine(std::move(h), ltt.elements());
+  }
+
  private:
   static bool IsLeafType(Type* t) { return t->IsBits() || t->IsToken(); }
 

@@ -324,18 +324,18 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
 absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BddQueryEngine> query_engine,
-                       BddQueryEngine::Run(f, BddFunction::kDefaultPathLimit));
+  BddQueryEngine query_engine(BddFunction::kDefaultPathLimit);
+  XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   bool modified = false;
   for (Node* node : TopoSort(f)) {
     XLS_ASSIGN_OR_RETURN(bool node_modified,
-                         SimplifyNode(node, *query_engine, opt_level_));
+                         SimplifyNode(node, query_engine, opt_level_));
     modified |= node_modified;
   }
 
   XLS_ASSIGN_OR_RETURN(bool selects_collapsed,
-                       CollapseSelectChains(f, *query_engine));
+                       CollapseSelectChains(f, query_engine));
 
   return modified || selects_collapsed;
 }

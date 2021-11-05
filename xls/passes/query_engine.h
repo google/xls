@@ -40,6 +40,8 @@ struct BitLocation {
   }
 };
 
+enum class ReachedFixpoint { Unchanged, Changed, Unknown };
+
 // An abstract base class providing an interface for answering queries about the
 // values of and relationship between bits in an XLS function. Information
 // provided include statically known bit values and implications between bits in
@@ -56,6 +58,8 @@ struct BitLocation {
 class QueryEngine {
  public:
   virtual ~QueryEngine() = default;
+
+  virtual absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) = 0;
 
   // Returns whether any information is available for this node.
   virtual bool IsTracked(Node* node) const = 0;

@@ -35,6 +35,8 @@ namespace xls {
 
 using IntervalSetTree = LeafTypeTree<IntervalSet>;
 
+class RangeQueryVisitor;
+
 // A query engine which tracks sets of intervals that a value can be in.
 class RangeQueryEngine : public QueryEngine {
  public:
@@ -43,10 +45,7 @@ class RangeQueryEngine : public QueryEngine {
 
   // Populate the data in this `RangeQueryEngine` using the
   // given `FunctionBase*`;
-  absl::Status Populate(FunctionBase* f);
-
-  // Create a `RangeQueryEngine` from a `FunctionBase*`.
-  static absl::StatusOr<std::unique_ptr<RangeQueryEngine>> Run(FunctionBase* f);
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
 
   bool IsTracked(Node* node) const override {
     return known_bits_.contains(node);
@@ -114,6 +113,8 @@ class RangeQueryEngine : public QueryEngine {
   void InitializeNode(Node* node);
 
  private:
+  friend class RangeQueryVisitor;
+
   absl::flat_hash_map<Node*, Bits> known_bits_;
   absl::flat_hash_map<Node*, Bits> known_bit_values_;
   absl::flat_hash_map<Node*, IntervalSetTree> interval_sets_;

@@ -170,6 +170,11 @@ class IntervalSet {
     return lhs.intervals_ == rhs.intervals_;
   }
 
+  template <typename H>
+  friend H AbslHashValue(H h, const IntervalSet& set) {
+    return H::combine(std::move(h), set.bit_count_, set.intervals_);
+  }
+
  private:
   bool is_normalized_;
   int64_t bit_count_;

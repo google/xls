@@ -15,6 +15,9 @@
 #ifndef XLS_PASSES_UNION_QUERY_ENGINE_H_
 #define XLS_PASSES_UNION_QUERY_ENGINE_H_
 
+#include <memory>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/types/optional.h"
@@ -33,9 +36,11 @@ namespace xls {
 // will be fixed at some point.
 class UnionQueryEngine : public QueryEngine {
  public:
-  // Create a `UnionQueryEngine`.
-  static absl::StatusOr<std::unique_ptr<UnionQueryEngine>> Run(
-      std::vector<std::unique_ptr<QueryEngine>> engines);
+  explicit UnionQueryEngine(std::vector<std::unique_ptr<QueryEngine>> engines) {
+    engines_ = std::move(engines);
+  }
+
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
 
   bool IsTracked(Node* node) const override;
 

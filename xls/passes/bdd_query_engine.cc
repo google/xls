@@ -21,30 +21,27 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
 
-/* static */
-absl::StatusOr<std::unique_ptr<BddQueryEngine>> BddQueryEngine::Run(
-    FunctionBase* f, int64_t path_limit,
-    absl::Span<const Op> do_not_evaluate_ops) {
-  auto query_engine = absl::WrapUnique(new BddQueryEngine(path_limit));
-  XLS_ASSIGN_OR_RETURN(query_engine->bdd_function_,
-                       BddFunction::Run(f, path_limit, do_not_evaluate_ops));
+absl::StatusOr<ReachedFixpoint> BddQueryEngine::Populate(FunctionBase* f) {
+  XLS_ASSIGN_OR_RETURN(bdd_function_,
+                       BddFunction::Run(f, path_limit_, do_not_evaluate_ops_));
   // Construct the Bits objects indication which bit values are statically known
   // for each node and what those values are (0 or 1) if known.
-  BinaryDecisionDiagram& bdd = query_engine->bdd();
+  BinaryDecisionDiagram& bdd = this->bdd();
+  ReachedFixpoint rf = ReachedFixpoint::Unchanged;
   for (Node* node : f->nodes()) {
     if (node->GetType()->IsBits()) {
       absl::InlinedVector<bool, 1> known_bits;
       absl::InlinedVector<bool, 1> bits_values;
       for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
-        if (query_engine->GetBddNode(BitLocation(node, i)) == bdd.zero()) {
+        if (GetBddNode(BitLocation(node, i)) == bdd.zero()) {
           known_bits.push_back(true);
           bits_values.push_back(false);
-        } else if (query_engine->GetBddNode(BitLocation(node, i)) ==
-                   bdd.one()) {
+        } else if (GetBddNode(BitLocation(node, i)) == bdd.one()) {
           known_bits.push_back(true);
           bits_values.push_back(true);
         } else {
@@ -52,11 +49,24 @@ absl::StatusOr<std::unique_ptr<BddQueryEngine>> BddQueryEngine::Run(
           bits_values.push_back(false);
         }
       }
-      query_engine->known_bits_[node] = Bits(known_bits);
-      query_engine->bits_values_[node] = Bits(bits_values);
+      if (!known_bits_.contains(node)) {
+        known_bits_[node] = Bits(known_bits.size());
+        bits_values_[node] = Bits(bits_values.size());
+      }
+      Bits new_known_bits(known_bits);
+      Bits new_bits_values(bits_values);
+      // TODO(taktoa): check for inconsistency
+      Bits ored_known_bits = bits_ops::Or(known_bits_[node], new_known_bits);
+      Bits ored_bits_values = bits_ops::Or(bits_values_[node], new_bits_values);
+      if ((ored_known_bits != known_bits_[node]) ||
+          (ored_bits_values != bits_values_[node])) {
+        rf = ReachedFixpoint::Changed;
+      }
+      known_bits_[node] = ored_known_bits;
+      bits_values_[node] = ored_bits_values;
     }
   }
-  return std::move(query_engine);
+  return rf;
 }
 
 bool BddQueryEngine::AtMostOneTrue(absl::Span<BitLocation const> bits) const {
