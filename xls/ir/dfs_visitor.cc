@@ -158,6 +158,16 @@ absl::Status DfsVisitorWithDefault::HandleInvoke(Invoke* invoke) {
   return DefaultHandler(invoke);
 }
 
+absl::Status DfsVisitorWithDefault::HandleInstantiationInput(
+    InstantiationInput* instantiation_input) {
+  return DefaultHandler(instantiation_input);
+}
+
+absl::Status DfsVisitorWithDefault::HandleInstantiationOutput(
+    InstantiationOutput* instantiation_output) {
+  return DefaultHandler(instantiation_output);
+}
+
 absl::Status DfsVisitorWithDefault::HandleLiteral(Literal* literal) {
   return DefaultHandler(literal);
 }

@@ -226,6 +226,13 @@ class FormatStepsAttribute(Attribute):
         init_args=(f'{name}.begin()', f'{name}.end()'))
 
 
+class InstantiationAttribute(Attribute):
+
+  def __init__(self, name):
+    super(InstantiationAttribute, self).__init__(
+        name, cpp_type='Instantiation*')
+
+
 class Property(enum.Enum):
   """Enumeration of properties of Ops.
 
@@ -937,6 +944,24 @@ OpClass.kinds['REGISTER_WRITE'] = OpClass(
                           expression='reg_')],
 )
 
+OpClass.kinds['INSTANTIATION_OUTPUT'] = OpClass(
+    name='InstantiationOutput',
+    op='Op::kInstantiationOutput',
+    operands=[],
+    attributes=[InstantiationAttribute('instantiation'),
+                StringAttribute('port_name')],
+    xls_type_expression='instantiation->GetOutputPort(port_name).value().type',
+)
+
+OpClass.kinds['INSTANTIATION_INPUT'] = OpClass(
+    name='InstantiationInput',
+    op='Op::kInstantiationInput',
+    operands=[Operand('data')],
+    attributes=[InstantiationAttribute('instantiation'),
+                StringAttribute('port_name')],
+    xls_type_expression='function->package()->GetTupleType({})',
+)
+
 OpClass.kinds['GATE'] = OpClass(
     name='Gate',
     op='Op::kGate',
@@ -1201,6 +1226,18 @@ OPS = [
         enum_name='kRegisterWrite',
         name='register_write',
         op_class=OpClass.kinds['REGISTER_WRITE'],
+        properties=[Property.SIDE_EFFECTING],
+    ),
+    Op(
+        enum_name='kInstantiationOutput',
+        name='instantiation_output',
+        op_class=OpClass.kinds['INSTANTIATION_OUTPUT'],
+        properties=[Property.SIDE_EFFECTING],
+    ),
+    Op(
+        enum_name='kInstantiationInput',
+        name='instantiation_input',
+        op_class=OpClass.kinds['INSTANTIATION_INPUT'],
         properties=[Property.SIDE_EFFECTING],
     ),
     Op(

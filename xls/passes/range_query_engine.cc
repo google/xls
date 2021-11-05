@@ -161,6 +161,10 @@ class RangeQueryVisitor : public DfsVisitor {
   absl::Status HandleEq(CompareOp* eq) override;
   absl::Status HandleGate(Gate* gate) override;
   absl::Status HandleIdentity(UnOp* identity) override;
+  absl::Status HandleInstantiationInput(
+      InstantiationInput* instantiation_input) override;
+  absl::Status HandleInstantiationOutput(
+      InstantiationOutput* instantiation_output) override;
   absl::Status HandleInputPort(InputPort* input_port) override;
   absl::Status HandleInvoke(Invoke* invoke) override;
   absl::Status HandleLiteral(Literal* literal) override;
@@ -749,6 +753,18 @@ absl::Status RangeQueryVisitor::HandleGate(Gate* gate) {
 absl::Status RangeQueryVisitor::HandleIdentity(UnOp* identity) {
   engine_->InitializeNode(identity);
   return HandleMonotoneUnaryOp([](const Bits& b) { return b; }, identity);
+}
+
+absl::Status RangeQueryVisitor::HandleInstantiationInput(
+    InstantiationInput* instantiation_input) {
+  engine_->InitializeNode(instantiation_input);
+  return absl::OkStatus();  // TODO(meheff): implement: interprocedural
+}
+
+absl::Status RangeQueryVisitor::HandleInstantiationOutput(
+    InstantiationOutput* instantiation_output) {
+  engine_->InitializeNode(instantiation_output);
+  return absl::OkStatus();  // TODO(meheff): implement: interprocedural
 }
 
 absl::Status RangeQueryVisitor::HandleInputPort(InputPort* input_port) {

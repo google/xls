@@ -565,5 +565,61 @@ TEST_F(BlockTest, GetRegisterReadWrite) {
                     "or write operation for this register still exists")));
 }
 
+TEST_F(BlockTest, BlockInstatiation) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  BlockBuilder sub_bb("sub_block", p.get());
+  BValue a = sub_bb.InputPort("a", u32);
+  BValue b = sub_bb.InputPort("b", u32);
+  sub_bb.OutputPort("x", a);
+  sub_bb.OutputPort("y", b);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * sub_block, sub_bb.Build());
+
+  BlockBuilder bb("my_block", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Instantiation * instantiation,
+      bb.block()->AddBlockInstantiation("inst", sub_block));
+  BValue in0 = bb.InputPort("in0", u32);
+  BValue in1 = bb.InputPort("in1", u32);
+  BValue inst_in0 = bb.InstantiationInput(instantiation, "a", in0);
+  BValue out0 = bb.InstantiationOutput(instantiation, "x");
+  BValue inst_in1 = bb.InstantiationInput(instantiation, "b", in1);
+  BValue out1 = bb.InstantiationOutput(instantiation, "y");
+  bb.OutputPort("out0", out0);
+  bb.OutputPort("out1", out1);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  EXPECT_THAT(block->GetInstantiations(), ElementsAre(instantiation));
+  EXPECT_THAT(block->GetInstantiation("inst"), IsOkAndHolds(instantiation));
+  EXPECT_THAT(
+      block->GetInstantiation("not_an_inst"),
+      StatusIs(
+          absl::StatusCode::kNotFound,
+          HasSubstr("Block my_block has no instantiation named not_an_inst")));
+  EXPECT_THAT(block->GetInstantiationInputs(instantiation),
+              ElementsAre(inst_in0.node(), inst_in1.node()));
+  EXPECT_THAT(block->GetInstantiationOutputs(instantiation),
+              ElementsAre(out0.node(), out1.node()));
+  EXPECT_TRUE(block->IsOwned(instantiation));
+  EXPECT_FALSE(sub_block->IsOwned(instantiation));
+
+  XLS_VLOG_LINES(1, block->DumpIr());
+  EXPECT_EQ(
+      block->DumpIr(),
+      R"(block my_block(in0: bits[32], in1: bits[32], out0: bits[32], out1: bits[32]) {
+  instantiation inst(block=sub_block, kind=block)
+  in0: bits[32] = input_port(name=in0, id=5)
+  in1: bits[32] = input_port(name=in1, id=6)
+  instantiation_input.7: () = instantiation_input(in0, instantiation=inst, port_name=a, id=7)
+  instantiation_output.8: bits[32] = instantiation_output(instantiation=inst, port_name=x, id=8)
+  instantiation_input.9: () = instantiation_input(in1, instantiation=inst, port_name=b, id=9)
+  instantiation_output.10: bits[32] = instantiation_output(instantiation=inst, port_name=y, id=10)
+  out0: () = output_port(instantiation_output.8, name=out0, id=11)
+  out1: () = output_port(instantiation_output.10, name=out1, id=12)
+}
+)");
+}
+
 }  // namespace
 }  // namespace xls

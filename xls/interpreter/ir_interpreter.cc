@@ -547,6 +547,18 @@ absl::Status IrInterpreter::HandleInvoke(Invoke* invoke) {
   return SetValueResult(invoke, result.value);
 }
 
+absl::Status IrInterpreter::HandleInstantiationInput(
+    InstantiationInput* instantiation_input) {
+  return absl::UnimplementedError(
+      "InstantiationInput not implemented in IrInterpreter");
+}
+
+absl::Status IrInterpreter::HandleInstantiationOutput(
+    InstantiationOutput* instantiation_output) {
+  return absl::UnimplementedError(
+      "InstantiationOutput not implemented in IrInterpreter");
+}
+
 absl::Status IrInterpreter::HandleLiteral(Literal* literal) {
   return SetValueResult(literal, literal->value());
 }

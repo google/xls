@@ -226,6 +226,8 @@ bool ShouldEvaluate(Node* node) {
     case Op::kTrace:
     case Op::kTuple:
     case Op::kTupleIndex:
+    case Op::kInstantiationInput:
+    case Op::kInstantiationOutput:
       return false;
 
     // Unsupported comparison operations.

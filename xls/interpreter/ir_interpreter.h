@@ -76,6 +76,10 @@ class IrInterpreter : public DfsVisitor {
   absl::Status HandleGate(Gate* gate) override;
   absl::Status HandleIdentity(UnOp* identity) override;
   absl::Status HandleInputPort(InputPort* input_port) override;
+  absl::Status HandleInstantiationInput(
+      InstantiationInput* instantiation_input) override;
+  absl::Status HandleInstantiationOutput(
+      InstantiationOutput* instantiation_output) override;
   absl::Status HandleInvoke(Invoke* invoke) override;
   absl::Status HandleLiteral(Literal* literal) override;
   absl::Status HandleMap(Map* map) override;

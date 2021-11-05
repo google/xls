@@ -821,6 +821,16 @@ class BlockBuilder : public BuilderBase {
                         BValue reset_signal, Reset reset,
                         absl::optional<BValue> load_enable = absl::nullopt,
                         absl::optional<SourceLocation> loc = absl::nullopt);
+
+  // Add an instantiation input/output to the block.
+  BValue InstantiationInput(Instantiation* instantiation,
+                            absl::string_view port_name, BValue data,
+                            absl::optional<SourceLocation> loc = absl::nullopt,
+                            absl::string_view name = "");
+  BValue InstantiationOutput(Instantiation* instantiation,
+                             absl::string_view port_name,
+                             absl::optional<SourceLocation> loc = absl::nullopt,
+                             absl::string_view name = "");
 };
 
 }  // namespace xls

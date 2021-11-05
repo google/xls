@@ -33,11 +33,13 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/ir_scanner.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 
 namespace xls {
@@ -200,6 +202,9 @@ class Parser {
 
   // Parses a register declaration. Only supported in blocks.
   absl::StatusOr<Register*> ParseRegister(Block* block);
+
+  // Parses an instantiation declaration. Only supported in blocks.
+  absl::StatusOr<Instantiation*> ParseInstantiation(Block* block);
 
   struct ProcNext {
     BValue next_token;

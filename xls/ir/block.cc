@@ -110,6 +110,9 @@ static NodePriority DumpOrderPriority(
   //     (iii) Register writes
   //
   // (2) Output ports. Tie-breaker is port order in the block.
+  //
+  // TODO(meheff): 2021/11/03 Add instantiation input/output to priority scheme
+  // so operations associated with the same instantiation are grouped together.
   if (n->Is<InputPort>()) {
     return {0, 0, GetPortPosition(n, block), n->id()};
   }
@@ -207,8 +210,12 @@ std::string Block::DumpIr() const {
   std::string res = absl::StrFormat("block %s(%s) {\n", name(),
                                     absl::StrJoin(port_strings, ", "));
 
+  for (Instantiation* instantiation : GetInstantiations()) {
+    absl::StrAppendFormat(&res, "  %s\n", instantiation->ToString());
+  }
+
   for (Register* reg : GetRegisters()) {
-    absl::StrAppendFormat(&res, "  %s", reg->ToString());
+    absl::StrAppendFormat(&res, "  %s\n", reg->ToString());
   }
 
   for (Node* node : DumpOrder()) {
@@ -391,7 +398,14 @@ Node* Block::AddNodeInternal(std::unique_ptr<Node> node) {
   } else if (RegisterWrite* reg_write = dynamic_cast<RegisterWrite*>(ptr)) {
     XLS_CHECK_OK(AddToMapOfNodeVectors(reg_write->GetRegister(), reg_write,
                                        &register_writes_));
+  } else if (InstantiationInput* inst_input =
+                 dynamic_cast<InstantiationInput*>(ptr)) {
+    instantiation_inputs_[inst_input->instantiation()].push_back(inst_input);
+  } else if (InstantiationOutput* inst_output =
+                 dynamic_cast<InstantiationOutput*>(ptr)) {
+    instantiation_outputs_[inst_output->instantiation()].push_back(inst_output);
   }
+
   return ptr;
 }
 
@@ -429,14 +443,22 @@ absl::Status Block::RemoveNode(Node* n) {
   } else if (RegisterWrite* reg_write = dynamic_cast<RegisterWrite*>(n)) {
     XLS_RETURN_IF_ERROR(RemoveFromMapOfNodeVectors(
         reg_write->GetRegister(), reg_write, &register_writes_));
+  } else if (InstantiationInput* inst_input =
+                 dynamic_cast<InstantiationInput*>(n)) {
+    XLS_RETURN_IF_ERROR(RemoveFromMapOfNodeVectors(
+        inst_input->instantiation(), inst_input, &instantiation_inputs_));
+  } else if (InstantiationOutput* inst_output =
+                 dynamic_cast<InstantiationOutput*>(n)) {
+    XLS_RETURN_IF_ERROR(RemoveFromMapOfNodeVectors(
+        inst_output->instantiation(), inst_output, &instantiation_outputs_));
   }
 
   return FunctionBase::RemoveNode(n);
 }
 
 absl::StatusOr<RegisterRead*> Block::GetRegisterRead(Register* reg) const {
-  XLS_RET_CHECK(register_reads_.contains(reg)) << absl::StreamFormat(
-      "Block %s does not have register %s (%p)", name(), reg->name(), reg);
+  XLS_RET_CHECK(IsOwned(reg)) << absl::StreamFormat(
+      "Block %s does not own register %s (%p)", name(), reg->name(), reg);
   const std::vector<RegisterRead*>& reads = register_reads_.at(reg);
   if (reads.size() == 1) {
     return reads.front();
@@ -494,6 +516,72 @@ absl::Status Block::ReorderPorts(absl::Span<const std::string> port_names) {
   } else {
     return absl::get<OutputPort*>(port)->GetName();
   }
+}
+
+absl::StatusOr<BlockInstantiation*> Block::AddBlockInstantiation(
+    absl::string_view name, Block* instantiated_block) {
+  if (instantiations_.contains(name)) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Instantiation already exists with name %s", name));
+  }
+
+  auto instantiation =
+      std::make_unique<BlockInstantiation>(name, instantiated_block);
+  BlockInstantiation* instantiation_ptr = instantiation.get();
+  instantiations_[name] = std::move(instantiation);
+
+  instantiation_vec_.push_back(instantiation_ptr);
+  instantiation_inputs_[instantiation_ptr] = {};
+  instantiation_outputs_[instantiation_ptr] = {};
+
+  return instantiation_ptr;
+}
+
+absl::Status Block::RemoveInstantiation(Instantiation* instantiation) {
+  if (!IsOwned(instantiation)) {
+    return absl::InvalidArgumentError("Instantiation is not owned by block.");
+  }
+  if (!instantiation_inputs_.at(instantiation).empty() ||
+      !instantiation_outputs_.at(instantiation).empty()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Instantiation %s can't be removed because an input or "
+                        "output operation for this instantiation still exists",
+                        instantiation->name()));
+  }
+  instantiation_inputs_.erase(instantiation);
+  instantiation_outputs_.erase(instantiation);
+
+  auto it = std::find(instantiation_vec_.begin(), instantiation_vec_.end(),
+                      instantiation);
+  XLS_RET_CHECK(it != instantiation_vec_.end());
+  instantiation_vec_.erase(it);
+  instantiations_.erase(instantiation->name());
+  return absl::OkStatus();
+}
+
+absl::StatusOr<Instantiation*> Block::GetInstantiation(
+    absl::string_view name) const {
+  if (!instantiations_.contains(name)) {
+    return absl::NotFoundError(absl::StrFormat(
+        "Block %s has no instantiation named %s", this->name(), name));
+  }
+  return instantiations_.at(name).get();
+}
+
+absl::Span<InstantiationInput* const> Block::GetInstantiationInputs(
+    Instantiation* instantiation) const {
+  XLS_CHECK(IsOwned(instantiation))
+      << absl::StreamFormat("Block %s does not have instantiation %s (%p)",
+                            name(), instantiation->name(), instantiation);
+  return instantiation_inputs_.at(instantiation);
+}
+
+absl::Span<InstantiationOutput* const> Block::GetInstantiationOutputs(
+    Instantiation* instantiation) const {
+  XLS_CHECK(IsOwned(instantiation))
+      << absl::StreamFormat("Block %s does not have instantiation %s (%p)",
+                            name(), instantiation->name(), instantiation);
+  return instantiation_outputs_.at(instantiation);
 }
 
 }  // namespace xls

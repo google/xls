@@ -119,6 +119,10 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       return default_handler(node);
     case Op::kInputPort:
       return default_handler(node);
+    case Op::kInstantiationInput:
+      return default_handler(node);
+    case Op::kInstantiationOutput:
+      return default_handler(node);
     case Op::kLiteral: {
       XLS_RETURN_IF_ERROR(check_operand_count(0));
       Literal* literal = node->As<Literal>();

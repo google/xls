@@ -85,25 +85,55 @@ has no correlate in hardware.
 ## Functions, procs, and blocks
 
 The XLS IR has three function-level abstractions each which hold a data-flow
-graph of XLS IR operations:
+graph of XLS IR operations: *functions*, *procs*, and *blocks*. Names of
+function, procs and blocks must be unique among their respective abstractions
+(functions, procs, and blocks). For example, a block cannot share a name with
+another block but can share a name with a function.
 
-*   *function* : Stateless abstraction with a single-output which is computed
-    from zero or more input parameters. May invoke other functions.
+### Function
 
-*   *proc* : Stateful abstraction with an arbitrarily-typed recurrent state.
-    Procs can communicate with other procs via channels which (abstractly) are
-    infinite-depth FIFOs with flow control. Channel communication is handled via
-    send and receive IR operations. Procs may invoke functions.
+A function is a stateless abstraction with a single-output which is computed
+from zero or more input parameters. May invoke other functions.
 
-*   *block* : RTL-level abstraction used for code generation. Corresponds to a
-    single Verilog module. Includes explicit representations of RTL constructs:
-    registers, ports, logic, and module instantiations. Procs and functions are
-    converted to blocks as part of the code generation process. Blocks may
-    “invoke” other blocks via instantiation.
+### Proc
 
-Names of function, procs and blocks must be unique among their respective
-abstractions (functions, procs, and blocks). For example, a block cannot share a
-name with another block but can share a name with a function.
+A Proc is a stateful abstraction with an arbitrarily-typed recurrent state.
+Procs can communicate with other procs via channels which (abstractly) are
+infinite-depth FIFOs with flow control. Channel communication is handled via
+send and receive IR operations. Procs may invoke functions.
+
+TODO(meheff): 2021/11/04 Expand to include more details.
+
+### Block
+
+A Block is an RTL-level abstraction used for code generation. It corresponds to
+a single Verilog module. Procs and functions are converted to blocks as part of
+the code generation process. Blocks may “invoke” other blocks via instantiation.
+A block includes explicit representations of RTL constructs: ports, registers,
+and instantiations. The constructs are scoped within the block.
+
+#### Port
+
+A port is a representation of an input or output to the block. These correspond
+to ports on Verilog modules. Ports can be arbitrarily-typed. In the block, each
+port is represented with a `input_port` or `output_port` operation.
+
+#### Register
+
+A register is a representation of a hardware register (flop). Registers can be
+arbitrarily-typed. Each register must have a single `register_write` and a
+single `register_read` operation for writing and reading the register
+respectively.
+
+#### Instatiation
+
+An instantiation is a block-scoped construct that represents a module
+instantiation at the Verilog level. The instantiated object can be another
+block, a FIFO (not yet supported), or a externally defined Verilog module (not
+yet supported). The instantiation is integrated into the instantiating block
+with `instantiation_input` and `instantiation_output` operations. There is a
+one-to-one mapping between the instantation input/output and the ports of the
+instantated objects.
 
 ## Operations
 
@@ -1285,3 +1315,76 @@ Value         | Type
 
 The type `T` of the data operand must be the same as the the type of the
 register.
+
+#### **`instantiation_input`**
+
+Corresponds to a single input port of an instantiation.
+
+An instantiation is a block-scoped construct that represents a module
+instantiation at the Verilog level. Each `instantation_input` operation
+corresponds to a particular port of the instantiated object, so generally a
+single instatiation can have multiple associated `instantiation_input`
+operations (one for each input port).
+
+**Syntax**
+
+```
+result = instantiation_input(data, instantiation=<instantiation>, port_name=<port_name>)
+```
+
+**Types**
+
+Value    | Type
+-------- | ----
+`data`   | `T`
+`result` | `()`
+
+**Keyword arguments**
+
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
+| Keyword         | Type     | Required | Default | Description                 |
+| --------------- | -------- | -------- | ------- | --------------------------- |
+| `instantiation` | `string` | yes      |         | Name of the instantiation.  |
+| `port_name`     | `string` | yes      |         | Name of the associated port of the instantiation. |
+
+<!-- mdformat on -->
+
+The type `T` of the data operand must be the same as the the type of the
+associated input port of the instantiated object.
+
+#### **`instantiation_output`**
+
+Corresponds to a single output port of an instantiation.
+
+An instantiation is a block-scoped construct that represents a module
+instantiation at the Verilog level. Each `instantation_output` operation
+corresponds to a output particular port of the instantiated object, so generally
+a single instatiation can have multiple associated `instantiation_output`
+operations (one for each output port).
+
+**Syntax**
+
+```
+result = instantiation_output(instantiation=<instantiation>, port_name=<port_name>)
+```
+
+**Types**
+
+Value    | Type
+-------- | ----
+`result` | `T`
+
+**Keyword arguments**
+
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
+| Keyword         | Type     | Required | Default | Description                 |
+| --------------- | -------- | -------- | ------- | --------------------------- |
+| `instantiation` | `string` | yes      |         | Name of the instantiation.  |
+| `port_name`     | `string` | yes      |         | Name of the associated port of the instantiation. |
+
+<!-- mdformat on -->
+
+The type `T` of the result is type of the associated output port of the
+instantiated object.

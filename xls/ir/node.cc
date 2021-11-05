@@ -25,9 +25,11 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/register.h"
 #include "xls/ir/verifier.h"
 
 namespace xls {
@@ -297,6 +299,14 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
       break;
     case Op::kGate:
       XLS_RETURN_IF_ERROR(visitor->HandleGate(down_cast<Gate*>(this)));
+      break;
+    case Op::kInstantiationInput:
+      XLS_RETURN_IF_ERROR(visitor->HandleInstantiationInput(
+          down_cast<InstantiationInput*>(this)));
+      break;
+    case Op::kInstantiationOutput:
+      XLS_RETURN_IF_ERROR(visitor->HandleInstantiationOutput(
+          down_cast<InstantiationOutput*>(this)));
       break;
   }
   return absl::OkStatus();
@@ -569,6 +579,18 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
         args.push_back(absl::StrFormat(
             "reset=%s", As<RegisterWrite>()->reset().value()->GetName()));
       }
+      break;
+    case Op::kInstantiationInput:
+      args.push_back(
+          absl::StrFormat("instantiation=%s, port_name=%s",
+                          As<InstantiationInput>()->instantiation()->name(),
+                          As<InstantiationInput>()->port_name()));
+      break;
+    case Op::kInstantiationOutput:
+      args.push_back(
+          absl::StrFormat("instantiation=%s, port_name=%s",
+                          As<InstantiationOutput>()->instantiation()->name(),
+                          As<InstantiationOutput>()->port_name()));
       break;
     default:
       break;

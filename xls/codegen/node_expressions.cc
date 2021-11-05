@@ -588,6 +588,8 @@ absl::StatusOr<Expression*> NodeToExpression(
     }
     case Op::kInputPort:
     case Op::kOutputPort:
+    case Op::kInstantiationInput:
+    case Op::kInstantiationOutput:
     case Op::kGate:
       return unimplemented();
   }

@@ -191,9 +191,8 @@ class ArgParser {
       // parsing the positional arguments.
       bool parsing_keywords = false;
       do {
-        XLS_ASSIGN_OR_RETURN(Token name,
-                             parser_->scanner_.PopTokenOrError(
-                                 LexicalTokenType::kIdent, "argument"));
+        XLS_ASSIGN_OR_RETURN(
+            Token name, parser_->scanner_.PopKeywordOrIdentToken("argument"));
         if (!parsing_keywords &&
             parser_->scanner_.PeekTokenIs(LexicalTokenType::kEquals)) {
           parsing_keywords = true;
@@ -991,6 +990,49 @@ absl::StatusOr<BValue> Parser::ParseNode(
       bvalue = fb->Gate(operands[0], operands[1], *loc, node_name);
       break;
     }
+    case Op::kInstantiationInput: {
+      XLS_ASSIGN_OR_RETURN(
+          BlockBuilder * bb,
+          CastToBlockBuilderOrError(
+              fb, "instantiation_input operations only supported in blocks",
+              op_token.pos()));
+      IdentifierString* instantiation_name =
+          arg_parser.AddKeywordArg<IdentifierString>("instantiation");
+      IdentifierString* port_name =
+          arg_parser.AddKeywordArg<IdentifierString>("port_name");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
+      absl::StatusOr<Instantiation*> instantiation_status =
+          bb->block()->GetInstantiation(instantiation_name->value);
+      if (!instantiation_status.ok()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "No instantiation named `%s`", instantiation_name->value));
+      }
+      bvalue =
+          bb->InstantiationInput(instantiation_status.value(), port_name->value,
+                                 operands[0], *loc, node_name);
+      break;
+    }
+    case Op::kInstantiationOutput: {
+      XLS_ASSIGN_OR_RETURN(
+          BlockBuilder * bb,
+          CastToBlockBuilderOrError(
+              fb, "instantiation_output operations only supported in blocks",
+              op_token.pos()));
+      IdentifierString* instantiation_name =
+          arg_parser.AddKeywordArg<IdentifierString>("instantiation");
+      IdentifierString* port_name =
+          arg_parser.AddKeywordArg<IdentifierString>("port_name");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
+      absl::StatusOr<Instantiation*> instantiation_status =
+          bb->block()->GetInstantiation(instantiation_name->value);
+      if (!instantiation_status.ok()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "No instantiation named `%s`", instantiation_name->value));
+      }
+      bvalue = bb->InstantiationOutput(instantiation_status.value(),
+                                       port_name->value, *loc, node_name);
+      break;
+    }
     default:
       XLS_ASSIGN_OR_RETURN(
           bvalue, BuildBinaryOrUnaryOp(op, fb, loc, node_name, &arg_parser));
@@ -1082,6 +1124,10 @@ absl::StatusOr<Register*> Parser::ParseRegister(Block* block) {
         XLS_ASSIGN_OR_RETURN(asynchronous, ParseBool());
       } else if (field_name.value() == "active_low") {
         XLS_ASSIGN_OR_RETURN(active_low, ParseBool());
+      } else {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Invalid register attribute `%s` @ %s", field_name.value(),
+            field_name.pos().ToHumanString()));
       }
     }
   }
@@ -1103,6 +1149,80 @@ absl::StatusOr<Register*> Parser::ParseRegister(Block* block) {
   return block->AddRegister(reg_name.value(), reg_type, reset);
 }
 
+absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
+  // A instantiation declaration has the following forms:
+  //
+  //   instantiation foo(kind=block, block=bar)
+  XLS_ASSIGN_OR_RETURN(
+      Token instantiation_name,
+      scanner_.PopTokenOrError(LexicalTokenType::kIdent, "instantiation name"));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
+
+  // Parse optional attributes.
+  absl::optional<InstantiationKind> kind;
+  absl::optional<Block*> instantiated_block;
+  bool first_element = true;
+  while (!scanner_.TryDropToken(LexicalTokenType::kParenClose)) {
+    if (!first_element) {
+      XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
+    }
+    first_element = false;
+
+    XLS_ASSIGN_OR_RETURN(Token field_name, scanner_.PopKeywordOrIdentToken(
+                                               "instantiation field name"));
+    if (scanner_.TryDropToken(LexicalTokenType::kEquals)) {
+      if (field_name.value() == "kind") {
+        XLS_ASSIGN_OR_RETURN(Token kind_token, scanner_.PopKeywordOrIdentToken(
+                                                   "instantiation kind"));
+        absl::StatusOr<InstantiationKind> kind_status =
+            StringToInstantiationKind(kind_token.value());
+        if (!kind_status.ok()) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Invalid instantiation kind `%s` @ %s", kind_token.value(),
+              kind_token.pos().ToHumanString()));
+        }
+        kind = kind_status.value();
+      } else if (field_name.value() == "block") {
+        XLS_ASSIGN_OR_RETURN(
+            Token instantiated_block_name,
+            scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+        absl::StatusOr<Block*> instantiated_block_status =
+            block->package()->GetBlock(instantiated_block_name.value());
+        if (!instantiated_block_status.ok()) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "No such block '%s' @ %s", instantiated_block_name.value(),
+              instantiated_block_name.pos().ToHumanString()));
+        }
+        instantiated_block = instantiated_block_status.value();
+      } else {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Invalid instantiation attribute `%s` @ %s", field_name.value(),
+            field_name.pos().ToHumanString()));
+      }
+    }
+  }
+
+  if (!kind.has_value()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("No instantiation kind specified @ %s",
+                        instantiation_name.pos().ToHumanString()));
+  }
+  if (kind.value() == InstantiationKind::kBlock) {
+    if (!instantiated_block.has_value()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Instantiated block not specified @ %s",
+                          instantiation_name.pos().ToHumanString()));
+    }
+    return block->AddBlockInstantiation(instantiation_name.value(),
+                                        instantiated_block.value());
+  }
+
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Unsupported instantiation kind `%s` @ %s",
+                      InstantiationKindToString(kind.value()),
+                      instantiation_name.pos().ToHumanString()));
+}
+
 absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
     BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value,
     Package* package) {
@@ -1119,6 +1239,16 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
       }
       XLS_RETURN_IF_ERROR(
           ParseRegister(fb->function()->AsBlockOrDie()).status());
+      continue;
+    }
+    if (scanner_.TryDropKeyword("instantiation")) {
+      if (!fb->function()->IsBlock()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "instantiation keyword only supported in blocks @ %s",
+            peek.pos().ToHumanString()));
+      }
+      XLS_RETURN_IF_ERROR(
+          ParseInstantiation(fb->function()->AsBlockOrDie()).status());
       continue;
     }
 
@@ -1428,7 +1558,6 @@ absl::StatusOr<Block*> Parser::ParseBlock(Package* package) {
   // enables the parser to parse and construct malformed IR for tests.
   auto bb = std::make_unique<BlockBuilder>(signature.block_name, package,
                                            /*should_verify=*/false);
-
   absl::flat_hash_map<std::string, BValue> name_to_value;
   XLS_ASSIGN_OR_RETURN(BodyResult body_result,
                        ParseBody(bb.get(), &name_to_value, package));
@@ -1438,22 +1567,40 @@ absl::StatusOr<Block*> Parser::ParseBlock(Package* package) {
 
   // Verify the ports in the signature match one-to-one to input_ports and
   // output_ports.
-  absl::flat_hash_set<std::string> port_name_set;
+  absl::flat_hash_map<std::string, Port> ports_by_name;
   std::vector<std::string> port_names;
   for (const Port& port : signature.ports) {
-    if (port_name_set.contains(port.name)) {
+    if (ports_by_name.contains(port.name)) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Duplicate port name \"%s\"", port.name));
     }
-    port_name_set.insert(port.name);
+    ports_by_name[port.name] = port;
     port_names.push_back(port.name);
   }
   absl::flat_hash_map<std::string, Node*> port_nodes;
   for (Node* node : block->nodes()) {
     if (node->Is<InputPort>() || node->Is<OutputPort>()) {
-      if (!port_name_set.contains(node->GetName())) {
+      if (!ports_by_name.contains(node->GetName())) {
         return absl::InvalidArgumentError(absl::StrFormat(
             "Block signature does not contain port \"%s\"", node->GetName()));
+      }
+      if (node->Is<InputPort>() &&
+          node->GetType() != ports_by_name.at(node->GetName()).type) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Type of input port \"%s\" in block signature %s does not match "
+            "type of input_port operation: %s",
+            node->GetName(), node->GetType()->ToString(),
+            ports_by_name.at(node->GetName()).type->ToString()));
+      }
+      if (node->Is<OutputPort>() &&
+          node->As<OutputPort>()->operand(0)->GetType() !=
+              ports_by_name.at(node->GetName()).type) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Type of output port \"%s\" in block signature %s does not match "
+            "type of output_port operation: %s",
+            node->GetName(),
+            node->As<OutputPort>()->operand(0)->GetType()->ToString(),
+            ports_by_name.at(node->GetName()).type->ToString()));
       }
       port_nodes[node->GetName()] = node;
     }

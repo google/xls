@@ -442,6 +442,20 @@ absl::StatusOr<Token> Scanner::PopTokenOrError(LexicalTokenType target,
   return token;
 }
 
+absl::StatusOr<Token> Scanner::PopKeywordOrIdentToken(
+    absl::string_view context) {
+  XLS_ASSIGN_OR_RETURN(Token token, PopTokenOrError());
+  if (token.type() != LexicalTokenType::kIdent &&
+      token.type() != LexicalTokenType::kKeyword) {
+    std::string context_str =
+        context.empty() ? std::string("") : absl::StrCat(" in ", context);
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Expected keyword or identifier token %s @ %s, but found: %s",
+        context_str, token.pos().ToHumanString(), token.ToString()));
+  }
+  return token;
+}
+
 absl::Status Scanner::DropKeywordOrError(absl::string_view keyword) {
   absl::StatusOr<Token> popped_status = PopTokenOrError();
   if (!popped_status.ok()) {

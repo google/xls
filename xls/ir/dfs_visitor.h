@@ -50,6 +50,10 @@ class DfsVisitor {
   virtual absl::Status HandleIdentity(UnOp* identity) = 0;
   virtual absl::Status HandleInputPort(InputPort* input_port) = 0;
   virtual absl::Status HandleInvoke(Invoke* invoke) = 0;
+  virtual absl::Status HandleInstantiationInput(
+      InstantiationInput* instantiation_input) = 0;
+  virtual absl::Status HandleInstantiationOutput(
+      InstantiationOutput* instantiation_output) = 0;
   virtual absl::Status HandleLiteral(Literal* literal) = 0;
   virtual absl::Status HandleMap(Map* map) = 0;
   virtual absl::Status HandleArrayIndex(ArrayIndex* index) = 0;
@@ -161,6 +165,10 @@ class DfsVisitorWithDefault : public DfsVisitor {
   absl::Status HandleIdentity(UnOp* identity) override;
   absl::Status HandleInputPort(InputPort* input_port) override;
   absl::Status HandleInvoke(Invoke* invoke) override;
+  absl::Status HandleInstantiationInput(
+      InstantiationInput* instantiation_input) override;
+  absl::Status HandleInstantiationOutput(
+      InstantiationOutput* instantiation_output) override;
   absl::Status HandleLiteral(Literal* literal) override;
   absl::Status HandleMap(Map* map) override;
   absl::Status HandleArrayIndex(ArrayIndex* index) override;

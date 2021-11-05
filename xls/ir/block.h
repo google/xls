@@ -17,6 +17,7 @@
 
 #include "absl/strings/string_view.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
@@ -89,12 +90,6 @@ class Block : public FunctionBase {
   // no such register exists.
   absl::StatusOr<Register*> GetRegister(absl::string_view name) const;
 
-  // Returns true if the given register is owned by this block.
-  bool IsOwned(Register* reg) {
-    return registers_.contains(reg->name()) &&
-           registers_.at(reg->name()).get() == reg;
-  }
-
   // Adds a register to the block.
   absl::StatusOr<Register*> AddRegister(
       absl::string_view name, Type* type,
@@ -113,6 +108,44 @@ class Block : public FunctionBase {
   // where two such operations may briefly exist simultaneously.
   absl::StatusOr<RegisterRead*> GetRegisterRead(Register* reg) const;
   absl::StatusOr<RegisterWrite*> GetRegisterWrite(Register* reg) const;
+
+  // Add an instantiation of the given block `instantiated_block` to this
+  // block. InstantiationInput and InstantiationOutput operations must be later
+  // added to connect the instantation to the data-flow graph.
+  absl::StatusOr<BlockInstantiation*> AddBlockInstantiation(
+      absl::string_view name, Block* instantiated_block);
+
+  // Removes the given instantiation from the block. InstantationInput or
+  // InstantationOutput operations for this instantation should be removed prior
+  // to calling this method
+  absl::Status RemoveInstantiation(Instantiation* instantiation);
+
+  // Returns all instantiations owned by this block.
+  absl::Span<Instantiation* const> GetInstantiations() const {
+    return instantiation_vec_;
+  }
+
+  // Return the instantiation owned by this block with the given name or an
+  // error if no such one exists.
+  absl::StatusOr<Instantiation*> GetInstantiation(absl::string_view name) const;
+
+  // Returns the instantation inputs/outputs associated with the given
+  // instantiation.
+  absl::Span<InstantiationInput* const> GetInstantiationInputs(
+      Instantiation* instantiation) const;
+  absl::Span<InstantiationOutput* const> GetInstantiationOutputs(
+      Instantiation* instantiation) const;
+
+  // Returns true if the given block-scoped construct (register or instantation)
+  // is owned by this block.
+  bool IsOwned(Register* reg) const {
+    return registers_.contains(reg->name()) &&
+           registers_.at(reg->name()).get() == reg;
+  }
+  bool IsOwned(Instantiation* instantiation) const {
+    return instantiations_.contains(instantiation->name()) &&
+           instantiations_.at(instantiation->name()).get() == instantiation;
+  }
 
   bool HasImplicitUse(Node* node) const override { return false; }
 
@@ -167,6 +200,19 @@ class Block : public FunctionBase {
   // registers. With this vector, deletion of a register is O(n) with the number
   // of registers. If this is a problem, a linked list might be used instead.
   std::vector<Register*> register_vec_;
+
+  // Instantiations owned by this block. Indexed by name. Stored as
+  // std::unique_ptrs for pointer stability.
+  absl::flat_hash_map<std::string, std::unique_ptr<Instantiation>>
+      instantiations_;
+
+  // Instiation input and output operations associated with instantiations in
+  // this block.
+  absl::flat_hash_map<Instantiation*, std::vector<InstantiationInput*>>
+      instantiation_inputs_;
+  absl::flat_hash_map<Instantiation*, std::vector<InstantiationOutput*>>
+      instantiation_outputs_;
+  std::vector<Instantiation*> instantiation_vec_;
 
   absl::optional<ClockPort> clock_port_;
 };

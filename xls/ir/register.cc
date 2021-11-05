@@ -26,7 +26,7 @@ std::string Register::ToString() const {
         reset().value().asynchronous ? "true" : "false",
         reset().value().active_low ? "true" : "false");
   }
-  return absl::StrFormat("reg %s(%s)\n", name(), type()->ToString());
+  return absl::StrFormat("reg %s(%s)", name(), type()->ToString());
 }
 
 }  // namespace xls

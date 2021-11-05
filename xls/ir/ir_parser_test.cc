@@ -1239,6 +1239,72 @@ block my_block(clk: clock, in: bits[32], le: bits[1], out: bits[32]) {
   ParsePackageAndCheckDump(input);
 }
 
+TEST(IrParserTest, ParseBlockWithBlockInstantiation) {
+  const std::string input = R"(package test
+
+block sub_block(in: bits[38], out: bits[32]) {
+  in: bits[38] = input_port(name=in, id=1)
+  zero: bits[32] = literal(value=0, id=2)
+  out: () = output_port(zero, name=out, id=3)
+}
+
+block my_block(x: bits[8], y: bits[32]) {
+  instantiation foo(block=sub_block, kind=block)
+  x: bits[8] = input_port(name=x, id=4)
+  foo_in: () = instantiation_input(x, instantiation=foo, port_name=in, id=5)
+  foo_out: bits[32] = instantiation_output(instantiation=foo, port_name=out, id=6)
+  y: () = output_port(foo_out, name=y, id=7)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseInstantiationOfDegenerateBlock) {
+  const std::string input = R"(package test
+
+block sub_block() {
+}
+
+block my_block(x: bits[8], y: bits[8]) {
+  instantiation foo(block=sub_block, kind=block)
+  x: bits[8] = input_port(name=x, id=1)
+  y: () = output_port(x, name=y, id=2)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseInstantiationOfNoInputBlock) {
+  const std::string input = R"(package test
+block sub_block(out: bits[32]) {
+  zero: bits[32] = literal(value=0, id=1)
+  out: () = output_port(zero, name=out, id=2)
+}
+
+block my_block(y: bits[32]) {
+  instantiation foo(block=sub_block, kind=block)
+  out: bits[32] = instantiation_output(instantiation=foo, port_name=out, id=3)
+  y: () = output_port(out, name=y, id=4)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseInstantiationOfNoOutputBlock) {
+  const std::string input = R"(package test
+block sub_block(in: bits[32]) {
+  in: bits[32] = input_port(name=in, id=1)
+}
+
+block my_block(x: bits[32]) {
+  instantiation foo(block=sub_block, kind=block)
+  x: bits[32] = input_port(name=x, id=2)
+  x_in: () = instantiation_input(x, instantiation=foo, port_name=in, id=3)
+}
+)";
+  ParsePackageAndCheckDump(input);
+}
+
 TEST(IrParserTest, ParseArrayIndex) {
   const std::string input = R"(
 fn foo(x: bits[32][6]) -> bits[32] {
@@ -2440,6 +2506,140 @@ block my_block(clk: clock, in: bits[32], out: bits[32], out: bits[32]) {
   EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Duplicate port name \"out\"")));
+}
+
+TEST(IrParserTest, BlockWithInvalidRegisterField) {
+  const std::string input = R"(
+block my_block(clk: clock, in: bits[32], out: bits[32]) {
+  reg foo(bits[32], bogus_field=1, reset_value=42, asynchronous=true, active_low=false)
+  in: bits[32] = input_port(name=in, id=1)
+  foo_q: bits[32] = register_read(register=foo, id=3)
+  foo_d: () = register_write(in, register=foo, id=2)
+  out: () = output_port(foo_q, name=out, id=4)
+}
+)";
+  Package p("my_package");
+  EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid register attribute `bogus_field`")));
+}
+
+TEST(IrParserTest, ParseBlockWithMissingInstantiatedBlock) {
+  const std::string input = R"(package test
+
+block my_block(x: bits[8], y: bits[32]) {
+  instantiation foo(block=sub_block, kind=block)
+  x: bits[8] = input_port(name=x, id=4)
+  foo_out: bits[32] = instantiation_output(instantiation=foo, port_name=out, id=6)
+  foo_in: () = instantiation_input(x, instantiation=foo, port_name=in, id=5)
+  y: () = output_port(foo_out, name=y, id=7)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(input).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("No such block 'sub_block'")));
+}
+
+TEST(IrParserTest, ParseBlockWithUnknownInstantiation) {
+  const std::string input = R"(package test
+
+block my_block(x: bits[8], y: bits[32]) {
+  x: bits[8] = input_port(name=x)
+  foo_out: bits[32] = instantiation_output(instantiation=foo, port_name=out)
+  foo_in: () = instantiation_input(x, instantiation=foo, port_name=in)
+  y: () = output_port(foo_out, name=y)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(input).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("No instantiation named `foo`")));
+}
+
+TEST(IrParserTest, ParseBlockWithDuplicateInstantiationPort) {
+  const std::string input = R"(package test
+
+block sub_block(in: bits[38], out: bits[32]) {
+  zero: bits[32] = literal(value=0)
+  in: bits[38] = input_port(name=in)
+  out: () = output_port(zero, name=out)
+}
+
+block my_block(x: bits[8], y: bits[32]) {
+  instantiation foo(block=sub_block, kind=block)
+  x: bits[8] = input_port(name=x)
+  foo_out: bits[32] = instantiation_output(instantiation=foo, port_name=out)
+  foo_out2: bits[32] = instantiation_output(instantiation=foo, port_name=out)
+  foo_in: () = instantiation_input(x, instantiation=foo, port_name=in)
+  y: () = output_port(foo_out, name=y)
+}
+)";
+  EXPECT_THAT(
+      Parser::ParsePackage(input).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Duplicate instantiation input/output nodes for port "
+                         "`out` in instantiation `foo` of block `sub_block`")));
+}
+
+TEST(IrParserTest, ParseBlockWithMissingInstantiationPort) {
+  const std::string input = R"(package test
+
+block sub_block(in: bits[38], out: bits[32]) {
+  zero: bits[32] = literal(value=0)
+  in: bits[38] = input_port(name=in)
+  out: () = output_port(zero, name=out)
+}
+
+block my_block(x: bits[8], y: bits[32]) {
+  instantiation foo(block=sub_block, kind=block)
+  x: bits[8] = input_port(name=x)
+  foo_out: bits[32] = instantiation_output(instantiation=foo, port_name=out)
+  y: () = output_port(foo_out, name=y)
+}
+)";
+  EXPECT_THAT(
+      Parser::ParsePackage(input).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Instantiation `foo` of block `sub_block` is missing "
+                         "instantation input/output node for port `in`")));
+}
+
+TEST(IrParserTest, ParseBlockWithWronglyNamedInstantiationPort) {
+  const std::string input = R"(package test
+
+block sub_block(in: bits[38], out: bits[32]) {
+  zero: bits[32] = literal(value=0)
+  in: bits[38] = input_port(name=in)
+  out: () = output_port(zero, name=out)
+}
+
+block my_block(x: bits[8], y: bits[32]) {
+  instantiation foo(block=sub_block, kind=block)
+  x: bits[8] = input_port(name=x)
+  foo_out: bits[32] = instantiation_output(instantiation=foo, port_name=out)
+  foo_in: () = instantiation_input(x, instantiation=foo, port_name=in)
+  foo_bogus: () = instantiation_input(x, instantiation=foo, port_name=bogus)
+  y: () = output_port(foo_out, name=y)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(input).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("No port `bogus` on instantiated block "
+                                 "`sub_block` for instantiation `foo`")));
+}
+
+TEST(IrParserTest, ParseBlockWithWronglyTypedSignature) {
+  const std::string input = R"(package test
+
+block my_block(x: bits[8], y: bits[32]) {
+  x: bits[8] = input_port(name=x)
+  y: () = output_port(x, name=y)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(input).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Type of output port \"y\" "
+                                 "in block signature bits[8] does not match "
+                                 "type of output_port operation: bits[32]")));
 }
 
 }  // namespace xls

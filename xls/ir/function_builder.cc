@@ -1530,4 +1530,38 @@ absl::StatusOr<Block*> BlockBuilder::Build() {
   return block;
 }
 
+BValue BlockBuilder::InstantiationInput(Instantiation* instantiation,
+                                        absl::string_view port_name,
+                                        BValue data,
+                                        absl::optional<SourceLocation> loc,
+                                        absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!block()->IsOwned(instantiation)) {
+    return SetError(
+        absl::StrFormat("Instantiation `%s` (%p) is defined in different block",
+                        instantiation->name(), instantiation),
+        loc);
+  }
+  return AddNode<xls::InstantiationInput>(loc, data.node(), instantiation,
+                                          port_name, name);
+}
+
+BValue BlockBuilder::InstantiationOutput(Instantiation* instantiation,
+                                         absl::string_view port_name,
+                                         absl::optional<SourceLocation> loc,
+                                         absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!block()->IsOwned(instantiation)) {
+    return SetError(
+        absl::StrFormat("Instantiation `%s` (%p) is defined in different block",
+                        instantiation->name(), instantiation),
+        loc);
+  }
+  return AddNode<xls::InstantiationOutput>(loc, instantiation, port_name, name);
+}
+
 }  // namespace xls

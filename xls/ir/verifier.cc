@@ -867,10 +867,13 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleInputPort(InputPort* input_port) override {
+    XLS_RETURN_IF_ERROR(ExpectOperandCount(input_port, 0));
     return absl::OkStatus();
   }
 
   absl::Status HandleOutputPort(OutputPort* output_port) override {
+    XLS_RETURN_IF_ERROR(ExpectOperandCount(output_port, 1));
+    XLS_RETURN_IF_ERROR(ExpectHasEmptyTupleType(output_port));
     return absl::OkStatus();
   }
 
@@ -915,6 +918,19 @@ class NodeChecker : public DfsVisitor {
           reg_write->GetName(),
           reg_write->load_enable().value()->GetType()->ToString()));
     }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleInstantiationInput(
+      InstantiationInput* instantiation_input) override {
+    XLS_RETURN_IF_ERROR(ExpectOperandCount(instantiation_input, 1));
+    XLS_RETURN_IF_ERROR(ExpectHasEmptyTupleType(instantiation_input));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleInstantiationOutput(
+      InstantiationOutput* instantiation_output) override {
+    XLS_RETURN_IF_ERROR(ExpectOperandCount(instantiation_output, 0));
     return absl::OkStatus();
   }
 
@@ -1106,6 +1122,16 @@ class NodeChecker : public DfsVisitor {
     if (!node->GetType()->IsTuple()) {
       return absl::InternalError(
           StrFormat("Expected %s to have Tuple type, has type %s",
+                    node->GetName(), node->GetType()->ToString()));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status ExpectHasEmptyTupleType(Node* node) const {
+    if (!node->GetType()->IsTuple() ||
+        node->GetType()->AsTupleOrDie()->size() != 0) {
+      return absl::InternalError(
+          StrFormat("Expected %s to have empty tuple type, has type %s",
                     node->GetName(), node->GetType()->ToString()));
     }
     return absl::OkStatus();
@@ -1611,6 +1637,94 @@ absl::Status VerifyProc(Proc* proc) {
   return absl::OkStatus();
 }
 
+// Verify that the given set of port nodes on the instantiated block match
+// one-to-one with the instantiation input/output nodes in the instantiating
+// block.
+template <typename PortNodeT, typename InstantiationNodeT>
+static absl::Status VerifyPortsMatch(
+    absl::Span<PortNodeT* const> port_nodes,
+    absl::Span<InstantiationNodeT* const> instantiation_nodes,
+    BlockInstantiation* instantiation) {
+  std::vector<std::string> block_port_names;
+  for (PortNodeT* port_node : port_nodes) {
+    block_port_names.push_back(port_node->GetName());
+  }
+  std::vector<std::string> instantiation_port_names;
+  for (InstantiationNodeT* instantiation_node : instantiation_nodes) {
+    instantiation_port_names.push_back(instantiation_node->port_name());
+  }
+  for (const std::string& name : block_port_names) {
+    if (std::find(instantiation_port_names.begin(),
+                  instantiation_port_names.end(),
+                  name) == instantiation_port_names.end()) {
+      return absl::InternalError(
+          absl::StrFormat("Instantiation `%s` of block `%s` is missing "
+                          "instantation input/output node for port `%s`",
+                          instantiation->name(),
+                          instantiation->instantiated_block()->name(), name));
+    }
+  }
+  for (const std::string& name : instantiation_port_names) {
+    if (std::find(block_port_names.begin(), block_port_names.end(), name) ==
+        block_port_names.end()) {
+      return absl::InternalError(absl::StrFormat(
+          "No port `%s` on instantiated block `%s` for instantiation `%s`",
+          name, instantiation->instantiated_block()->name(),
+          instantiation->name()));
+    }
+  }
+  absl::flat_hash_set<absl::string_view> name_set;
+  for (const std::string& name : instantiation_port_names) {
+    if (!name_set.insert(name).second) {
+      return absl::InternalError(
+          absl::StrFormat("Duplicate instantiation input/output nodes for port "
+                          "`%s` in instantiation `%s` of block `%s`",
+                          name, instantiation->name(),
+                          instantiation->instantiated_block()->name()));
+    }
+  }
+
+  return absl::OkStatus();
+}
+
+// Verifies invariants of the given block instantiation.
+static absl::Status VerifyBlockInstantiation(BlockInstantiation* instantiation,
+                                             Block* instantiating_block) {
+  Block* instantiated_block = instantiation->instantiated_block();
+  Package* package = instantiating_block->package();
+  auto block_in_package = [](Package* p, Block* b) {
+    for (const std::unique_ptr<Block>& block : p->blocks()) {
+      if (block.get() == b) {
+        return true;
+      }
+    }
+    return false;
+  };
+  if (!block_in_package(package, instantiated_block)) {
+    return absl::InternalError(absl::StrFormat(
+        "Instantiated block `%s` (%p) is not owned by package `%s`",
+        instantiated_block->name(), instantiated_block, package->name()));
+  }
+
+  // Verify a one-to-one correspondence between the following sets:
+  // (1) InstantiationInput nodes returned by Block::GetInstantiationInputs.
+  // (2) InputPorts on the instantiated Block.
+  XLS_RETURN_IF_ERROR(VerifyPortsMatch(
+      instantiated_block->GetInputPorts(),
+      instantiating_block->GetInstantiationInputs(instantiation),
+      instantiation));
+
+  // Verify a one-to-one correspondence between the following sets:
+  // (1) InstantiationOutput nodes returned by Block::GetInstantiationOutputs.
+  // (2) OutputPorts on the instantiated Block.
+  XLS_RETURN_IF_ERROR(VerifyPortsMatch(
+      instantiated_block->GetOutputPorts(),
+      instantiating_block->GetInstantiationOutputs(instantiation),
+      instantiation));
+
+  return absl::OkStatus();
+}
+
 absl::Status VerifyBlock(Block* block) {
   XLS_VLOG(4) << "Verifying block:\n";
   XLS_VLOG_LINES(4, block->DumpIr());
@@ -1707,6 +1821,16 @@ absl::Status VerifyBlock(Block* block) {
     XLS_ASSIGN_OR_RETURN(RegisterWrite * reg_write,
                          block->GetRegisterWrite(reg));
     XLS_RET_CHECK_EQ(reg_write, reg_writes.at(reg));
+  }
+
+  for (Instantiation* instantiation : block->GetInstantiations()) {
+    // Verify each instantiation is a block instantation and the block is owned
+    // the package.
+    XLS_RET_CHECK(instantiation->kind() == InstantiationKind::kBlock)
+        << "Only block instantiations are supported: "
+        << instantiation->ToString();
+    XLS_RETURN_IF_ERROR(VerifyBlockInstantiation(
+        down_cast<BlockInstantiation*>(instantiation), block));
   }
 
   return absl::OkStatus();
