@@ -740,6 +740,7 @@ cc_test(
         "//xls/ir:channel",
         "//xls/ir:channel_cc_proto",
         "//xls/ir:function_builder",
+        "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/simulation:module_simulator",

@@ -195,6 +195,7 @@ class ModuleBuilder {
   //      { declarations_sections_[1] } // Optional
   //      { assignments_sections_[1] }  // Optional
   //        ...
+  //      { instantiation, assert, cover, etc. sections }
   //      { output_section }
   //        // assigns the output port(s) including any flattening.
   //   endmodule
@@ -217,6 +218,9 @@ class ModuleBuilder {
   ModuleSection* functions_section() const { return functions_section_; }
   ModuleSection* constants_section() const { return constants_section_; }
   ModuleSection* input_section() const { return input_section_; }
+  ModuleSection* instantiation_section() const {
+    return instantiation_section_;
+  }
   ModuleSection* assert_section() const { return assert_section_; }
   ModuleSection* cover_section() const { return cover_section_; }
   ModuleSection* output_section() const { return output_section_; }
@@ -325,10 +329,10 @@ class ModuleBuilder {
   ModuleSection* declaration_and_assignment_section_;
   std::vector<ModuleSection*> declaration_subsections_;
   std::vector<ModuleSection*> assignment_subsections_;
+  ModuleSection* instantiation_section_;
   ModuleSection* assert_section_;
   ModuleSection* cover_section_;
   AlwaysComb* assert_always_comb_ = nullptr;
-  AlwaysComb* cover_always_comb_ = nullptr;
   ModuleSection* trace_section_;
   ModuleSection* output_section_;
 

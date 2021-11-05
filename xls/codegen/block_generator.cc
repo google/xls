@@ -24,6 +24,7 @@
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 
@@ -269,9 +270,10 @@ absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(Block* block) {
 // (System)Verilog for an IR block.
 class BlockGenerator {
  public:
-  // Generates (System)Verilog from the given block using the given options.
-  static absl::StatusOr<std::string> Generate(Block* block,
-                                              const CodegenOptions& options) {
+  // Generates (System)Verilog from the given block into the given Verilog file
+  // using the given options.
+  static absl::Status Generate(Block* block, VerilogFile* file,
+                               const CodegenOptions& options) {
     XLS_ASSIGN_OR_RETURN(absl::optional<ResetProto> reset_proto,
                          GetBlockResetProto(block));
     absl::optional<std::string> clock_name;
@@ -282,24 +284,27 @@ class BlockGenerator {
           "Block has registers but no clock port");
     }
 
-    BlockGenerator generator(block, options, clock_name, reset_proto);
+    BlockGenerator generator(block, options, clock_name, reset_proto, file);
     return generator.Emit();
   }
 
  private:
   BlockGenerator(Block* block, const CodegenOptions& options,
                  absl::optional<std::string> clock_name,
-                 absl::optional<ResetProto> reset_proto)
+                 absl::optional<ResetProto> reset_proto, VerilogFile* file)
       : block_(block),
         options_(options),
         reset_proto_(reset_proto),
-        file_(options.use_system_verilog()),
-        mb_(block->name(), &file_, options.use_system_verilog(), clock_name,
+        file_(file),
+        mb_(block->name(), file_, options.use_system_verilog(), clock_name,
             reset_proto) {}
 
   // Generates and returns the Verilog text for the underlying block.
-  absl::StatusOr<std::string> Emit() {
+  absl::Status Emit() {
     XLS_RETURN_IF_ERROR(EmitInputPorts());
+    // TODO(meheff): 2021/11/04 Emit instantiations in pipeline stages if
+    // possible.
+    XLS_RETURN_IF_ERROR(DeclareInstantiationOutputs());
     if (options_.emit_as_pipeline()) {
       // Emits the block as a sequence of pipeline stages. First reconstruct the
       // stages and emit the stages one-by-one. Emitting as a pipeline is purely
@@ -335,15 +340,16 @@ class BlockGenerator {
       XLS_RETURN_IF_ERROR(AssignRegisters(block_->GetRegisters()));
     }
 
-    // Emit asserts, coverpoints and traces separately at the end of the Verilog
-    // module.
+    // Emit instantiations, asserts, coverpoints and traces separately at the
+    // end of the Verilog module.
+    XLS_RETURN_IF_ERROR(EmitInstantiations());
     XLS_RETURN_IF_ERROR(EmitAsserts());
     XLS_RETURN_IF_ERROR(EmitCovers());
     XLS_RETURN_IF_ERROR(EmitTraces());
 
     XLS_RETURN_IF_ERROR(EmitOutputPorts());
 
-    return mb_.file()->Emit();
+    return absl::OkStatus();
   }
 
   absl::Status EmitInputPorts() {
@@ -374,6 +380,11 @@ class BlockGenerator {
 
       // Ports are handled elsewhere for proper ordering of ports.
       if (node->Is<InputPort>() || node->Is<OutputPort>()) {
+        continue;
+      }
+
+      // Instantiation outputs are declared as expressions elsewhere.
+      if (node->Is<InstantiationOutput>()) {
         continue;
       }
 
@@ -556,6 +567,54 @@ class BlockGenerator {
     return absl::OkStatus();
   }
 
+  // Declare a wire in the Verilog module for each output of each instantation
+  // in the block. These declared outputs can then be used in downstream
+  // expressions.
+  absl::Status DeclareInstantiationOutputs() {
+    for (xls::Instantiation* instantiation : block_->GetInstantiations()) {
+      if (dynamic_cast<BlockInstantiation*>(instantiation) != nullptr) {
+        for (InstantiationOutput* output :
+             block_->GetInstantiationOutputs(instantiation)) {
+          node_exprs_[output] =
+              mb_.DeclareVariable(output->GetName(), output->GetType());
+        }
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  // Emit each instantation in the block into the separate instantation module
+  // section.
+  absl::Status EmitInstantiations() {
+    for (xls::Instantiation* instantiation : block_->GetInstantiations()) {
+      if (xls::BlockInstantiation* block_instantiation =
+              dynamic_cast<BlockInstantiation*>(instantiation)) {
+        std::vector<Connection> connections;
+        for (InstantiationInput* input :
+             block_->GetInstantiationInputs(instantiation)) {
+          XLS_RET_CHECK(absl::holds_alternative<Expression*>(
+              node_exprs_.at(input->operand(0))));
+          connections.push_back(Connection{
+              input->port_name(),
+              absl::get<Expression*>(node_exprs_.at(input->operand(0)))});
+        }
+        for (InstantiationOutput* output :
+             block_->GetInstantiationOutputs(instantiation)) {
+          XLS_RET_CHECK(
+              absl::holds_alternative<Expression*>(node_exprs_.at(output)));
+          connections.push_back(
+              Connection{output->port_name(),
+                         absl::get<Expression*>(node_exprs_.at(output))});
+        }
+        mb_.instantiation_section()->Add<Instantiation>(
+            block_instantiation->instantiated_block()->name(),
+            block_instantiation->name(),
+            /*parameters=*/std::vector<Connection>(), connections);
+      }
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status EmitAsserts() {
     for (Node* node : block_->nodes()) {
       if (node->Is<xls::Assert>()) {
@@ -602,7 +661,7 @@ class BlockGenerator {
   const CodegenOptions& options_;
   absl::optional<ResetProto> reset_proto_;
 
-  VerilogFile file_;
+  VerilogFile* file_;
   ModuleBuilder mb_;
 
   // Map from Node* to the Verilog expression representing its value.
@@ -613,16 +672,59 @@ class BlockGenerator {
   absl::flat_hash_map<xls::Register*, ModuleBuilder::Register> mb_registers_;
 };
 
+// Recursive visitor of blocks in a DFS order. Edges are block instantiations.
+// Visited blocks are collected into `post_order` in a DFS post-order.
+absl::Status DfsVisitBlocks(Block* block, absl::flat_hash_set<Block*>& visited,
+                            std::vector<Block*>& post_order) {
+  if (!visited.insert(block).second) {
+    // Block has already been visited.
+    return absl::OkStatus();
+  }
+  for (xls::Instantiation* instantiation : block->GetInstantiations()) {
+    xls::BlockInstantiation* block_instantiation =
+        dynamic_cast<BlockInstantiation*>(instantiation);
+    if (block_instantiation == nullptr) {
+      return absl::UnimplementedError(absl::StrFormat(
+          "Instantiations of kind `%s` are not supported in code generation",
+          InstantiationKindToString(instantiation->kind())));
+    }
+    XLS_RETURN_IF_ERROR(DfsVisitBlocks(
+        block_instantiation->instantiated_block(), visited, post_order));
+  }
+  post_order.push_back(block);
+  return absl::OkStatus();
+}
+
+// Return the blocks instantiated by the given top-level block. This includes
+// blocks transitively instantiated. In the returned vector, an instantiated
+// block will always appear before the instantiating block (DFS post order).
+absl::StatusOr<std::vector<Block*>> GatherInstantiatedBlocks(Block* top) {
+  std::vector<Block*> blocks;
+  absl::flat_hash_set<Block*> visited;
+  XLS_RETURN_IF_ERROR(DfsVisitBlocks(top, visited, blocks));
+  return blocks;
+}
+
 }  // namespace
 
-absl::StatusOr<std::string> GenerateVerilog(Block* block,
+absl::StatusOr<std::string> GenerateVerilog(Block* top,
                                             const CodegenOptions& options) {
-  XLS_VLOG(2) << "Generating Verilog for block:";
-  XLS_VLOG_LINES(2, block->DumpIr());
+  XLS_VLOG(2) << absl::StreamFormat(
+      "Generating Verilog for packge with with top level block `%s`:",
+      top->name());
+  XLS_VLOG_LINES(2, top->DumpIr());
 
-  XLS_ASSIGN_OR_RETURN(std::string text,
-                       BlockGenerator::Generate(block, options));
-
+  XLS_ASSIGN_OR_RETURN(std::vector<Block*> blocks,
+                       GatherInstantiatedBlocks(top));
+  VerilogFile file(options.use_system_verilog());
+  for (Block* block : blocks) {
+    XLS_RETURN_IF_ERROR(BlockGenerator::Generate(block, &file, options));
+    if (block != blocks.back()) {
+      file.Add(file.Make<BlankLine>());
+      file.Add(file.Make<BlankLine>());
+    }
+  }
+  std::string text = file.Emit();
   XLS_VLOG(2) << "Verilog output:";
   XLS_VLOG_LINES(2, text);
 

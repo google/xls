@@ -20,6 +20,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -46,6 +47,37 @@ class BlockGeneratorTest : public VerilogTestBase {
       options.clock_name(clock_name.value());
     }
     return options;
+  }
+
+  // Make and return a block which adds two u32 numbers.
+  absl::StatusOr<Block*> MakeSubtractBlock(absl::string_view name,
+                                           Package* package) {
+    Type* u32 = package->GetBitsType(32);
+    BlockBuilder bb(name, package);
+    BValue a = bb.InputPort("a", u32);
+    BValue b = bb.InputPort("b", u32);
+    bb.OutputPort("result", bb.Subtract(a, b));
+    return bb.Build();
+  }
+
+  // Make and return a block which instantiates the given block. Given block
+  // should take two u32s (`a` and `b`) and return a u32 (`result`).
+  absl::StatusOr<Block*> MakeDelegatingBlock(absl::string_view name,
+                                             Block* sub_block,
+                                             Package* package) {
+    Type* u32 = package->GetBitsType(32);
+    BlockBuilder bb(name, package);
+    BValue x = bb.InputPort("x", u32);
+    BValue y = bb.InputPort("y", u32);
+    XLS_ASSIGN_OR_RETURN(
+        xls::Instantiation * instantiation,
+        bb.block()->AddBlockInstantiation(
+            absl::StrFormat("%s_instantiation", sub_block->name()), sub_block));
+    bb.InstantiationInput(instantiation, "a", x);
+    bb.InstantiationInput(instantiation, "b", y);
+    BValue result = bb.InstantiationOutput(instantiation, "result");
+    bb.OutputPort("z", result);
+    return bb.Build();
   }
 };
 
@@ -549,6 +581,180 @@ TEST_P(BlockGeneratorTest, GatedArrayType) {
               StatusIs(absl::StatusCode::kUnimplemented,
                        HasSubstr("Gate operation only supported for bits and "
                                  "tuple types, has type: bits[32][7]")));
+}
+
+TEST_P(BlockGeneratorTest, InstantiatedBlock) {
+  Package package(TestBaseName());
+  Type* u32 = package.GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * sub_block,
+                           MakeSubtractBlock("subtractor", &package));
+
+  BlockBuilder bb("my_block", &package);
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Instantiation * subtractor,
+                           bb.block()->AddBlockInstantiation("sub", sub_block));
+  BValue x = bb.InputPort("x", u32);
+  BValue y = bb.InputPort("y", u32);
+  BValue one = bb.Literal(UBits(1, 32));
+  bb.InstantiationInput(subtractor, "a", bb.Add(x, one));
+  bb.InstantiationInput(subtractor, "b", bb.Subtract(y, one));
+  BValue sum = bb.InstantiationOutput(subtractor, "result");
+  bb.OutputPort("out", bb.Shll(sum, one));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, codegen_options()));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(codegen_options(), block));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+
+  ModuleTestbench tb(verilog, sig, GetSimulator());
+
+  tb.ExpectX("out");
+  // The module doesn't a connected clock, but the clock can still
+  // be used to sequence events in time.
+  // `out` should be: ((x + 1) - (y - 1)) << 1
+  tb.NextCycle().Set("x", 0).Set("y", 0).ExpectEq("out", 4);
+  tb.NextCycle().Set("x", 100).Set("y", 42).ExpectEq("out", 120);
+
+  XLS_ASSERT_OK(tb.Run());
+}
+
+TEST_P(BlockGeneratorTest, MultiplyInstantiatedBlock) {
+  Package package(TestBaseName());
+  Type* u32 = package.GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * sub_block,
+                           MakeSubtractBlock("subtractor", &package));
+
+  BlockBuilder bb("my_block", &package);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Instantiation * subtractor0,
+      bb.block()->AddBlockInstantiation("sub0", sub_block));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Instantiation * subtractor1,
+      bb.block()->AddBlockInstantiation("sub1", sub_block));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Instantiation * subtractor2,
+      bb.block()->AddBlockInstantiation("sub2", sub_block));
+  BValue x = bb.InputPort("x", u32);
+  BValue y = bb.InputPort("y", u32);
+
+  bb.InstantiationInput(subtractor0, "a", x);
+  bb.InstantiationInput(subtractor0, "b", y);
+  BValue x_minus_y = bb.InstantiationOutput(subtractor0, "result");
+
+  bb.InstantiationInput(subtractor1, "a", y);
+  bb.InstantiationInput(subtractor1, "b", x);
+  BValue y_minus_x = bb.InstantiationOutput(subtractor1, "result");
+
+  bb.InstantiationInput(subtractor2, "a", x);
+  bb.InstantiationInput(subtractor2, "b", x);
+  BValue x_minus_x = bb.InstantiationOutput(subtractor2, "result");
+
+  bb.OutputPort("x_minus_y", x_minus_y);
+  bb.OutputPort("y_minus_x", y_minus_x);
+  bb.OutputPort("x_minus_x", x_minus_x);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, codegen_options()));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(codegen_options(), block));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+
+  ModuleTestbench tb(verilog, sig, GetSimulator());
+
+  tb.ExpectX("x_minus_y").ExpectX("y_minus_x").ExpectX("x_minus_x");
+
+  // The module doesn't a connected clock, but the clock can still
+  // be used to sequence events in time.
+  tb.NextCycle()
+      .Set("x", 0)
+      .Set("y", 0)
+      .ExpectEq("x_minus_y", 0)
+      .ExpectEq("y_minus_x", 0)
+      .ExpectEq("x_minus_x", 0);
+
+  tb.NextCycle()
+      .Set("x", 0xabcd)
+      .Set("y", 0x4242)
+      .ExpectEq("x_minus_y", 0x698b)
+      .ExpectEq("y_minus_x", 0xffff9675)
+      .ExpectEq("x_minus_x", 0);
+
+  XLS_ASSERT_OK(tb.Run());
+}
+
+TEST_P(BlockGeneratorTest, DiamondDependencyInstantiations) {
+  Package package(TestBaseName());
+  Type* u32 = package.GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * sub_block,
+                           MakeSubtractBlock("subtractor", &package));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * delegator0,
+      MakeDelegatingBlock("delegator0", sub_block, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * delegator1,
+      MakeDelegatingBlock("delegator1", sub_block, &package));
+
+  BlockBuilder bb("my_block", &package);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Instantiation * instantiation0,
+      bb.block()->AddBlockInstantiation("deleg0", delegator0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Instantiation * instantiation1,
+      bb.block()->AddBlockInstantiation("deleg1", delegator1));
+
+  BValue j = bb.InputPort("j", u32);
+  BValue k = bb.InputPort("k", u32);
+
+  bb.InstantiationInput(instantiation0, "x", j);
+  bb.InstantiationInput(instantiation0, "y", k);
+  BValue j_minus_k = bb.InstantiationOutput(instantiation0, "z");
+
+  bb.InstantiationInput(instantiation1, "x", k);
+  bb.InstantiationInput(instantiation1, "y", j);
+  BValue k_minus_j = bb.InstantiationOutput(instantiation1, "z");
+
+  bb.OutputPort("j_minus_k", j_minus_k);
+  bb.OutputPort("k_minus_j", k_minus_j);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, codegen_options()));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(codegen_options(), block));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+
+  ModuleTestbench tb(verilog, sig, GetSimulator());
+
+  tb.ExpectX("j_minus_k").ExpectX("k_minus_j");
+
+  // The module doesn't a connected clock, but the clock can still
+  // be used to sequence events in time.
+  tb.NextCycle()
+      .Set("j", 0)
+      .Set("k", 0)
+      .ExpectEq("j_minus_k", 0)
+      .ExpectEq("k_minus_j", 0);
+
+  tb.NextCycle()
+      .Set("j", 0xabcd)
+      .Set("k", 0x4242)
+      .ExpectEq("j_minus_k", 0x698b)
+      .ExpectEq("k_minus_j", 0xffff9675);
+
+  XLS_ASSERT_OK(tb.Run());
 }
 
 INSTANTIATE_TEST_SUITE_P(BlockGeneratorTestInstantiation, BlockGeneratorTest,

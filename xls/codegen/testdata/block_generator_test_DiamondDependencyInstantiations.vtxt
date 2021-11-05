@@ -1,0 +1,62 @@
+module subtractor(
+  input wire [31:0] a,
+  input wire [31:0] b,
+  output wire [31:0] result
+);
+  wire [31:0] sub_3;
+  assign sub_3 = a - b;
+  assign result = sub_3;
+endmodule
+
+
+module delegator0(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  output wire [31:0] z
+);
+  wire [31:0] instantiation_output_9;
+  subtractor subtractor_instantiation (
+    .a(x),
+    .b(y),
+    .result(instantiation_output_9)
+  );
+  assign z = instantiation_output_9;
+endmodule
+
+
+module delegator1(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  output wire [31:0] z
+);
+  wire [31:0] instantiation_output_15;
+  subtractor subtractor_instantiation (
+    .a(x),
+    .b(y),
+    .result(instantiation_output_15)
+  );
+  assign z = instantiation_output_15;
+endmodule
+
+
+module my_block(
+  input wire [31:0] j,
+  input wire [31:0] k,
+  output wire [31:0] j_minus_k,
+  output wire [31:0] k_minus_j
+);
+  wire [31:0] instantiation_output_21;
+  wire [31:0] instantiation_output_24;
+  delegator0 deleg0 (
+    .x(j),
+    .y(k),
+    .z(instantiation_output_21)
+  );
+  delegator1 deleg1 (
+    .x(k),
+    .y(j),
+    .z(instantiation_output_24)
+  );
+  assign j_minus_k = instantiation_output_21;
+  assign k_minus_j = instantiation_output_24;
+endmodule

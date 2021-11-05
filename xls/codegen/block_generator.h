@@ -22,8 +22,10 @@
 namespace xls {
 namespace verilog {
 
-// Generates and returns a (System)Verilog module implementing the given block.
-absl::StatusOr<std::string> GenerateVerilog(Block* block,
+// Generates and returns (System)Verilog text implementing the given top-level
+// block. The text will include a Verilog module corresponding to the given
+// block as well as module definitions for any instantiated blocks.
+absl::StatusOr<std::string> GenerateVerilog(Block* top,
                                             const CodegenOptions& options);
 
 }  // namespace verilog

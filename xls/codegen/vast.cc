@@ -121,7 +121,9 @@ std::string VerilogFile::Emit() const {
   auto file_member_str = [](const FileMember& member) -> std::string {
     return absl::visit(
         Visitor{[](Include* m) -> std::string { return m->Emit(); },
-                [](Module* m) -> std::string { return m->Emit(); }},
+                [](Module* m) -> std::string { return m->Emit(); },
+                [](BlankLine* m) -> std::string { return m->Emit(); },
+                [](Comment* m) -> std::string { return m->Emit(); }},
         member);
   };
 

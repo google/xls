@@ -1,0 +1,30 @@
+module subtractor(
+  input wire [31:0] a,
+  input wire [31:0] b,
+  output wire [31:0] result
+);
+  wire [31:0] sub_3;
+  assign sub_3 = a - b;
+  assign result = sub_3;
+endmodule
+
+
+module my_block(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  output wire [31:0] out
+);
+  wire [31:0] instantiation_output_12;
+  wire [31:0] literal_7;
+  wire [31:0] add_8;
+  wire [31:0] sub_10;
+  assign literal_7 = 32'h0000_0001;
+  assign add_8 = x + literal_7;
+  assign sub_10 = y - literal_7;
+  subtractor sub (
+    .a(add_8),
+    .b(sub_10),
+    .result(instantiation_output_12)
+  );
+  assign out = literal_7 >= 32'h0000_0020 ? 32'h0000_0000 : instantiation_output_12 << literal_7;
+endmodule

@@ -193,6 +193,7 @@ ModuleBuilder::ModuleBuilder(absl::string_view name, VerilogFile* file,
   constants_section_ = module_->Add<ModuleSection>();
   input_section_ = module_->Add<ModuleSection>();
   declaration_and_assignment_section_ = module_->Add<ModuleSection>();
+  instantiation_section_ = module_->Add<ModuleSection>();
   assert_section_ = module_->Add<ModuleSection>();
   cover_section_ = module_->Add<ModuleSection>();
   output_section_ = module_->Add<ModuleSection>();

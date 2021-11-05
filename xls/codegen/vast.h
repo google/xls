@@ -986,6 +986,7 @@ class ContinuousAssignment : public VastNode {
 
 class BlankLine : public Statement {
  public:
+  BlankLine(VerilogFile* file) : Statement(file) {}
   using Statement::Statement;
 
   std::string Emit() const override { return ""; }
@@ -1351,7 +1352,7 @@ class Include : public VastNode {
   std::string path_;
 };
 
-using FileMember = absl::variant<Module*, Include*>;
+using FileMember = absl::variant<Module*, Include*, BlankLine*, Comment*>;
 
 // Represents a file (as a Verilog translation-unit equivalent).
 class VerilogFile {
