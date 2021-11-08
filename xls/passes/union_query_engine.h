@@ -44,23 +44,23 @@ class UnionQueryEngine : public QueryEngine {
 
   bool IsTracked(Node* node) const override;
 
-  const Bits& GetKnownBits(Node* node) const override;
+  LeafTypeTree<TernaryVector> GetTernary(Node* node) const override;
 
-  const Bits& GetKnownBitsValues(Node* node) const override;
+  bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override;
 
-  bool AtMostOneTrue(absl::Span<BitLocation const> bits) const override;
+  bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits) const override;
 
-  bool AtLeastOneTrue(absl::Span<BitLocation const> bits) const override;
+  bool KnownEquals(const TreeBitLocation& a,
+                   const TreeBitLocation& b) const override;
 
-  bool KnownEquals(const BitLocation& a, const BitLocation& b) const override;
+  bool KnownNotEquals(const TreeBitLocation& a,
+                      const TreeBitLocation& b) const override;
 
-  bool KnownNotEquals(const BitLocation& a,
-                      const BitLocation& b) const override;
-
-  bool Implies(const BitLocation& a, const BitLocation& b) const override;
+  bool Implies(const TreeBitLocation& a,
+               const TreeBitLocation& b) const override;
 
   absl::optional<Bits> ImpliedNodeValue(
-      absl::Span<const std::pair<BitLocation, bool>> predicate_bit_values,
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const override;
 
  private:

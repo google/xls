@@ -22,23 +22,23 @@ namespace xls {
 namespace {
 
 // Converts the bits of the given node into a vector of BitLocations.
-std::vector<BitLocation> ToBitLocations(Node* node) {
+std::vector<TreeBitLocation> ToTreeBitLocations(Node* node) {
   XLS_CHECK(node->GetType()->IsBits());
-  std::vector<BitLocation> locations;
+  std::vector<TreeBitLocation> locations;
   for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
-    locations.push_back({node, i});
+    locations.emplace_back(TreeBitLocation(node, i));
   }
   return locations;
 }
 
 // Converts the single-bit Nodes in preds into a vector of BitLocations. Each
 // element in preds must be a single-bit bits-typed Node.
-std::vector<BitLocation> ToBitLocations(absl::Span<Node* const> preds) {
-  std::vector<BitLocation> locations;
+std::vector<TreeBitLocation> ToTreeBitLocations(absl::Span<Node* const> preds) {
+  std::vector<TreeBitLocation> locations;
   for (Node* pred : preds) {
     XLS_CHECK(pred->GetType()->IsBits());
     XLS_CHECK_EQ(pred->BitCountOrDie(), 1);
-    locations.emplace_back(pred, 0);
+    locations.emplace_back(TreeBitLocation(pred, 0));
   }
   return locations;
 }
@@ -46,71 +46,117 @@ std::vector<BitLocation> ToBitLocations(absl::Span<Node* const> preds) {
 }  // namespace
 
 bool QueryEngine::AtMostOneNodeTrue(absl::Span<Node* const> preds) const {
-  return AtMostOneTrue(ToBitLocations(preds));
+  return AtMostOneTrue(ToTreeBitLocations(preds));
 }
 
 bool QueryEngine::AtMostOneBitTrue(Node* node) const {
-  return AtMostOneTrue(ToBitLocations(node));
+  return AtMostOneTrue(ToTreeBitLocations(node));
 }
 
 bool QueryEngine::AtLeastOneNodeTrue(absl::Span<Node* const> preds) const {
-  return AtLeastOneTrue(ToBitLocations(preds));
+  return AtLeastOneTrue(ToTreeBitLocations(preds));
 }
 
 bool QueryEngine::AtLeastOneBitTrue(Node* node) const {
-  return AtLeastOneTrue(ToBitLocations(node));
+  return AtLeastOneTrue(ToTreeBitLocations(node));
 }
 
-bool QueryEngine::IsKnown(const BitLocation& bit) const {
-  if (!IsTracked(bit.node)) {
+bool QueryEngine::IsKnown(const TreeBitLocation& bit) const {
+  if (!IsTracked(bit.node())) {
     return false;
   }
-  return GetKnownBits(bit.node).Get(bit.bit_index);
+  return GetTernary(bit.node()).Get(bit.tree_index())[bit.bit_index()] !=
+         TernaryValue::kUnknown;
 }
 
 bool QueryEngine::IsMsbKnown(Node* node) const {
-  return IsTracked(node) && GetKnownBits(node).msb();
+  XLS_CHECK(node->GetType()->IsBits());
+  if (!IsTracked(node)) {
+    return false;
+  }
+  TernaryVector ternary = GetTernary(node).Get({});
+  return ternary_ops::ToKnownBits(ternary).msb();
 }
 
-bool QueryEngine::IsOne(const BitLocation& bit) const {
-  return IsKnown(bit) && GetKnownBitsValues(bit.node).Get(bit.bit_index);
+bool QueryEngine::IsOne(const TreeBitLocation& bit) const {
+  if (!IsKnown(bit)) {
+    return false;
+  }
+  TernaryVector ternary = GetTernary(bit.node()).Get(bit.tree_index());
+  return ternary_ops::ToKnownBitsValues(ternary).Get(bit.bit_index());
 }
 
-bool QueryEngine::IsZero(const BitLocation& bit) const {
-  return IsKnown(bit) && !GetKnownBitsValues(bit.node).Get(bit.bit_index);
+bool QueryEngine::IsZero(const TreeBitLocation& bit) const {
+  if (!IsKnown(bit)) {
+    return false;
+  }
+  TernaryVector ternary = GetTernary(bit.node()).Get(bit.tree_index());
+  return !ternary_ops::ToKnownBitsValues(ternary).Get(bit.bit_index());
 }
 
 bool QueryEngine::GetKnownMsb(Node* node) const {
+  XLS_CHECK(node->GetType()->IsBits());
   XLS_CHECK(IsMsbKnown(node));
-  return GetKnownBitsValues(node).msb();
+  TernaryVector ternary = GetTernary(node).Get({});
+  return ternary_ops::ToKnownBitsValues(ternary).msb();
 }
 
 bool QueryEngine::IsAllZeros(Node* node) const {
-  return IsTracked(node) && GetKnownBits(node).IsAllOnes() &&
-         GetKnownBitsValues(node).IsZero();
+  XLS_CHECK(node->GetType()->IsBits());
+  if (!IsTracked(node)) {
+    return false;
+  }
+  TernaryVector ternary = GetTernary(node).Get({});
+  for (TernaryValue t : ternary) {
+    if (t != TernaryValue::kKnownZero) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool QueryEngine::IsAllOnes(Node* node) const {
-  return IsTracked(node) && GetKnownBits(node).IsAllOnes() &&
-         GetKnownBitsValues(node).IsAllOnes();
+  XLS_CHECK(node->GetType()->IsBits());
+  if (!IsTracked(node)) {
+    return false;
+  }
+  TernaryVector ternary = GetTernary(node).Get({});
+  for (TernaryValue t : ternary) {
+    if (t != TernaryValue::kKnownOne) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool QueryEngine::AllBitsKnown(Node* node) const {
-  return IsTracked(node) && GetKnownBits(node).IsAllOnes();
+  XLS_CHECK(node->GetType()->IsBits());
+  if (!IsTracked(node)) {
+    return false;
+  }
+  TernaryVector ternary = GetTernary(node).Get({});
+  for (TernaryValue t : ternary) {
+    if (t == TernaryValue::kUnknown) {
+      return false;
+    }
+  }
+  return true;
 }
 
 Bits QueryEngine::MaxUnsignedValue(Node* node) const {
+  XLS_CHECK(node->GetType()->IsBits());
   absl::InlinedVector<bool, 1> bits(node->BitCountOrDie());
   for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
-    bits[i] = IsZero(BitLocation{node, i}) ? false : true;
+    bits[i] = IsZero(TreeBitLocation(node, i)) ? false : true;
   }
   return Bits(bits);
 }
 
 Bits QueryEngine::MinUnsignedValue(Node* node) const {
+  XLS_CHECK(node->GetType()->IsBits());
   absl::InlinedVector<bool, 16> bits(node->BitCountOrDie());
   for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
-    bits[i] = IsOne(BitLocation{node, i});
+    bits[i] = IsOne(TreeBitLocation(node, i));
   }
   return Bits(bits);
 }
@@ -123,7 +169,7 @@ bool QueryEngine::NodesKnownUnsignedNotEquals(Node* a, Node* b) const {
     if (index >= n->BitCountOrDie()) {
       return TernaryValue::kKnownZero;
     }
-    BitLocation location(n, index);
+    TreeBitLocation location(n, index);
     if (IsZero(location)) {
       return TernaryValue::kKnownZero;
     }
@@ -147,25 +193,18 @@ bool QueryEngine::NodesKnownUnsignedNotEquals(Node* a, Node* b) const {
 bool QueryEngine::NodesKnownUnsignedEquals(Node* a, Node* b) const {
   XLS_CHECK(a->GetType()->IsBits());
   XLS_CHECK(b->GetType()->IsBits());
+  TernaryVector a_ternary = GetTernary(a).Get({});
+  TernaryVector b_ternary = GetTernary(b).Get({});
   return a == b ||
          (AllBitsKnown(a) && AllBitsKnown(b) &&
-          bits_ops::UEqual(GetKnownBitsValues(a), GetKnownBitsValues(b)));
+          bits_ops::UEqual(ternary_ops::ToKnownBitsValues(a_ternary),
+                           ternary_ops::ToKnownBitsValues(b_ternary)));
 }
 
 std::string QueryEngine::ToString(Node* node) const {
+  XLS_CHECK(node->GetType()->IsBits());
   XLS_CHECK(IsTracked(node));
-  std::string ret = "0b";
-  for (int64_t i = GetKnownBits(node).bit_count() - 1; i >= 0; --i) {
-    std::string c = "X";
-    if (IsKnown(BitLocation(node, i))) {
-      c = IsOne(BitLocation(node, i)) ? "1" : "0";
-    }
-    absl::StrAppend(&ret, c);
-    if ((i % 4) == 0 && i != 0) {
-      absl::StrAppend(&ret, "_");
-    }
-  }
-  return ret;
+  return xls::ToString(GetTernary(node).Get({}));
 }
 
 }  // namespace xls

@@ -53,40 +53,43 @@ class FakeQueryEngine : public QueryEngine {
 
   bool IsTracked(Node* node) const override { return tracked_.contains(node); }
 
-  const Bits& GetKnownBits(Node* node) const override {
-    return known_bits_.at(node);
+  LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
+    XLS_CHECK(node->GetType()->IsBits());
+    TernaryVector ternary = ternary_ops::FromKnownBits(
+        known_bits_.at(node), known_bit_values_.at(node));
+    LeafTypeTree<TernaryVector> result(node->GetType());
+    result.Set({}, ternary);
+    return result;
   }
 
-  const Bits& GetKnownBitsValues(Node* node) const override {
-    return known_bit_values_.at(node);
-  }
-
-  bool AtMostOneTrue(absl::Span<BitLocation const> bits) const override {
+  bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override {
     return at_most_one_true_.contains(
-        std::vector<BitLocation>(bits.begin(), bits.end()));
+        std::vector<TreeBitLocation>(bits.begin(), bits.end()));
   }
 
-  bool AtLeastOneTrue(absl::Span<BitLocation const> bits) const override {
+  bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits) const override {
     return at_least_one_true_.contains(
-        std::vector<BitLocation>(bits.begin(), bits.end()));
+        std::vector<TreeBitLocation>(bits.begin(), bits.end()));
   }
 
-  bool Implies(const BitLocation& a, const BitLocation& b) const override {
+  bool Implies(const TreeBitLocation& a,
+               const TreeBitLocation& b) const override {
     return implications_.contains({a, b});
   }
 
   absl::optional<Bits> ImpliedNodeValue(
-      absl::Span<const std::pair<BitLocation, bool>> predicate_bit_values,
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const override {
-    std::vector<std::pair<BitLocation, bool>> vec(predicate_bit_values.begin(),
-                                                  predicate_bit_values.end());
+    std::vector<std::pair<TreeBitLocation, bool>> vec(
+        predicate_bit_values.begin(), predicate_bit_values.end());
     if (implied_node_values_.contains({vec, node})) {
       return implied_node_values_.at({vec, node});
     }
     return absl::nullopt;
   }
 
-  bool KnownEquals(const BitLocation& a, const BitLocation& b) const override {
+  bool KnownEquals(const TreeBitLocation& a,
+                   const TreeBitLocation& b) const override {
     if (equality_states_.contains({a, b})) {
       if (equality_states_.at({a, b}) == EqualityState::Equal) {
         return true;
@@ -100,8 +103,8 @@ class FakeQueryEngine : public QueryEngine {
     return false;
   }
 
-  bool KnownNotEquals(const BitLocation& a,
-                      const BitLocation& b) const override {
+  bool KnownNotEquals(const TreeBitLocation& a,
+                      const TreeBitLocation& b) const override {
     if (equality_states_.contains({a, b})) {
       if (equality_states_.at({a, b}) == EqualityState::NotEqual) {
         return true;
@@ -123,10 +126,11 @@ class FakeQueryEngine : public QueryEngine {
     }
   }
 
-  void AddKnownBit(const BitLocation& location, bool value) {
-    Node* node = location.node;
+  void AddKnownBit(const TreeBitLocation& location, bool value) {
+    Node* node = location.node();
     AddTracked(node);
-    int64_t index = location.bit_index;
+    XLS_CHECK(node->GetType()->IsBits());
+    int64_t index = location.bit_index();
     int64_t width = node->GetType()->GetFlatBitCount();
     XLS_CHECK_LT(index, width);
     XLS_CHECK_EQ(known_bits_[node].bit_count(), width);
@@ -136,48 +140,49 @@ class FakeQueryEngine : public QueryEngine {
         known_bit_values_[node].UpdateWithSet(index, value);
   }
 
-  void AddAtMostOneTrue(absl::Span<const BitLocation> span) {
-    for (const BitLocation& location : span) {
-      AddTracked(location.node);
+  void AddAtMostOneTrue(absl::Span<const TreeBitLocation> span) {
+    for (const TreeBitLocation& location : span) {
+      AddTracked(location.node());
     }
     at_most_one_true_.insert(
-        std::vector<BitLocation>(span.begin(), span.end()));
+        std::vector<TreeBitLocation>(span.begin(), span.end()));
   }
 
-  void AddAtLeastOneTrue(absl::Span<const BitLocation> span) {
-    for (const BitLocation& location : span) {
-      AddTracked(location.node);
+  void AddAtLeastOneTrue(absl::Span<const TreeBitLocation> span) {
+    for (const TreeBitLocation& location : span) {
+      AddTracked(location.node());
     }
     at_least_one_true_.insert(
-        std::vector<BitLocation>(span.begin(), span.end()));
+        std::vector<TreeBitLocation>(span.begin(), span.end()));
   }
 
-  void AddImplication(const BitLocation& x, const BitLocation& y) {
-    AddTracked(x.node);
-    AddTracked(y.node);
+  void AddImplication(const TreeBitLocation& x, const TreeBitLocation& y) {
+    AddTracked(x.node());
+    AddTracked(y.node());
     implications_.insert({x, y});
   }
 
-  void AddImpliedNodeValue(absl::Span<const std::pair<BitLocation, bool>> span,
-                           Node* node, const Bits& bits) {
+  void AddImpliedNodeValue(
+      absl::Span<const std::pair<TreeBitLocation, bool>> span, Node* node,
+      const Bits& bits) {
     AddTracked(node);
     for (const auto& [location, value] : span) {
-      AddTracked(location.node);
+      AddTracked(location.node());
     }
-    std::vector<std::pair<BitLocation, bool>> vec(span.begin(), span.end());
+    std::vector<std::pair<TreeBitLocation, bool>> vec(span.begin(), span.end());
     implied_node_values_[{vec, node}] = bits;
   }
 
-  void AddEquality(const BitLocation& x, const BitLocation& y) {
-    AddTracked(x.node);
-    AddTracked(y.node);
+  void AddEquality(const TreeBitLocation& x, const TreeBitLocation& y) {
+    AddTracked(x.node());
+    AddTracked(y.node());
     equality_states_[{x, y}] = EqualityState::Equal;
     equality_states_[{y, x}] = EqualityState::Equal;
   }
 
-  void AddInequality(const BitLocation& x, const BitLocation& y) {
-    AddTracked(x.node);
-    AddTracked(y.node);
+  void AddInequality(const TreeBitLocation& x, const TreeBitLocation& y) {
+    AddTracked(x.node());
+    AddTracked(y.node());
     equality_states_[{x, y}] = EqualityState::NotEqual;
     equality_states_[{y, x}] = EqualityState::NotEqual;
   }
@@ -191,13 +196,15 @@ class FakeQueryEngine : public QueryEngine {
   absl::flat_hash_set<Node*> tracked_;
   absl::flat_hash_map<Node*, Bits> known_bits_;
   absl::flat_hash_map<Node*, Bits> known_bit_values_;
-  absl::flat_hash_set<std::vector<BitLocation>> at_most_one_true_;
-  absl::flat_hash_set<std::vector<BitLocation>> at_least_one_true_;
-  absl::flat_hash_set<std::pair<BitLocation, BitLocation>> implications_;
+  absl::flat_hash_set<std::vector<TreeBitLocation>> at_most_one_true_;
+  absl::flat_hash_set<std::vector<TreeBitLocation>> at_least_one_true_;
+  absl::flat_hash_set<std::pair<TreeBitLocation, TreeBitLocation>>
+      implications_;
   absl::flat_hash_map<
-      std::pair<std::vector<std::pair<BitLocation, bool>>, Node*>, Bits>
+      std::pair<std::vector<std::pair<TreeBitLocation, bool>>, Node*>, Bits>
       implied_node_values_;
-  absl::flat_hash_map<std::pair<BitLocation, BitLocation>, EqualityState>
+  absl::flat_hash_map<std::pair<TreeBitLocation, TreeBitLocation>,
+                      EqualityState>
       equality_states_;
 };
 
@@ -213,18 +220,23 @@ TEST_F(UnionQueryEngineTest, Simple) {
   Node* node = param.node();
 
   FakeQueryEngine query_engine_a;
-  query_engine_a.AddKnownBit(BitLocation(node, 4), true);
-  query_engine_a.AddEquality(BitLocation(node, 0), BitLocation(node, 1));
-  query_engine_a.AddImplication(BitLocation(node, 3), BitLocation(node, 7));
+  query_engine_a.AddKnownBit(TreeBitLocation(node, 4), true);
+  query_engine_a.AddEquality(TreeBitLocation(node, 0),
+                             TreeBitLocation(node, 1));
+  query_engine_a.AddImplication(TreeBitLocation(node, 3),
+                                TreeBitLocation(node, 7));
   FakeQueryEngine query_engine_b;
-  query_engine_b.AddInequality(BitLocation(node, 2), BitLocation(node, 3));
-  query_engine_b.AddAtMostOneTrue({BitLocation(node, 2), BitLocation(node, 3)});
+  query_engine_b.AddInequality(TreeBitLocation(node, 2),
+                               TreeBitLocation(node, 3));
+  query_engine_b.AddAtMostOneTrue(
+      {TreeBitLocation(node, 2), TreeBitLocation(node, 3)});
   query_engine_b.AddAtLeastOneTrue(
-      {BitLocation(node, 2), BitLocation(node, 3)});
+      {TreeBitLocation(node, 2), TreeBitLocation(node, 3)});
   query_engine_b.AddImpliedNodeValue(
-      {{BitLocation(node, 7), true}, {BitLocation(node, 3), true}}, node,
-      UBits(0b10011000, 8));
-  query_engine_b.AddImplication(BitLocation(node, 7), BitLocation(node, 3));
+      {{TreeBitLocation(node, 7), true}, {TreeBitLocation(node, 3), true}},
+      node, UBits(0b10011000, 8));
+  query_engine_b.AddImplication(TreeBitLocation(node, 7),
+                                TreeBitLocation(node, 3));
   std::vector<std::unique_ptr<QueryEngine>> engines;
   engines.push_back(std::make_unique<FakeQueryEngine>(query_engine_a));
   engines.push_back(std::make_unique<FakeQueryEngine>(query_engine_b));
@@ -233,39 +245,41 @@ TEST_F(UnionQueryEngineTest, Simple) {
 
   EXPECT_FALSE(union_query_engine.IsTracked(nullptr));
   EXPECT_TRUE(union_query_engine.IsTracked(node));
-  EXPECT_EQ(union_query_engine.GetKnownBits(node), UBits(0b00010000, 8));
-  EXPECT_EQ(union_query_engine.GetKnownBitsValues(node), UBits(0b00010000, 8));
+  EXPECT_EQ(ToString(union_query_engine.GetTernary(node).Get({})),
+            "0bXXX1_XXXX");
   // Query the same ones again to test the caching of known bits
-  EXPECT_EQ(union_query_engine.GetKnownBits(node), UBits(0b00010000, 8));
-  EXPECT_EQ(union_query_engine.GetKnownBitsValues(node), UBits(0b00010000, 8));
+  EXPECT_EQ(ToString(union_query_engine.GetTernary(node).Get({})),
+            "0bXXX1_XXXX");
   EXPECT_TRUE(union_query_engine.AtMostOneTrue(
-      {BitLocation(node, 2), BitLocation(node, 3)}));
+      {TreeBitLocation(node, 2), TreeBitLocation(node, 3)}));
   EXPECT_FALSE(union_query_engine.AtMostOneTrue(
-      {BitLocation(node, 5), BitLocation(node, 6)}));
+      {TreeBitLocation(node, 5), TreeBitLocation(node, 6)}));
   EXPECT_TRUE(union_query_engine.AtLeastOneTrue(
-      {BitLocation(node, 2), BitLocation(node, 3)}));
+      {TreeBitLocation(node, 2), TreeBitLocation(node, 3)}));
   EXPECT_FALSE(union_query_engine.AtLeastOneTrue(
-      {BitLocation(node, 5), BitLocation(node, 6)}));
-  EXPECT_TRUE(union_query_engine.KnownEquals(BitLocation(node, 0),
-                                             BitLocation(node, 1)));
-  EXPECT_FALSE(union_query_engine.KnownEquals(BitLocation(node, 5),
-                                              BitLocation(node, 6)));
-  EXPECT_TRUE(union_query_engine.KnownNotEquals(BitLocation(node, 2),
-                                                BitLocation(node, 3)));
-  EXPECT_FALSE(union_query_engine.KnownNotEquals(BitLocation(node, 5),
-                                                 BitLocation(node, 6)));
-  EXPECT_TRUE(
-      union_query_engine.Implies(BitLocation(node, 3), BitLocation(node, 7)));
-  EXPECT_TRUE(
-      union_query_engine.Implies(BitLocation(node, 7), BitLocation(node, 3)));
-  EXPECT_FALSE(
-      union_query_engine.Implies(BitLocation(node, 5), BitLocation(node, 6)));
+      {TreeBitLocation(node, 5), TreeBitLocation(node, 6)}));
+  EXPECT_TRUE(union_query_engine.KnownEquals(TreeBitLocation(node, 0),
+                                             TreeBitLocation(node, 1)));
+  EXPECT_FALSE(union_query_engine.KnownEquals(TreeBitLocation(node, 5),
+                                              TreeBitLocation(node, 6)));
+  EXPECT_TRUE(union_query_engine.KnownNotEquals(TreeBitLocation(node, 2),
+                                                TreeBitLocation(node, 3)));
+  EXPECT_FALSE(union_query_engine.KnownNotEquals(TreeBitLocation(node, 5),
+                                                 TreeBitLocation(node, 6)));
+  EXPECT_TRUE(union_query_engine.Implies(TreeBitLocation(node, 3),
+                                         TreeBitLocation(node, 7)));
+  EXPECT_TRUE(union_query_engine.Implies(TreeBitLocation(node, 7),
+                                         TreeBitLocation(node, 3)));
+  EXPECT_FALSE(union_query_engine.Implies(TreeBitLocation(node, 5),
+                                          TreeBitLocation(node, 6)));
   EXPECT_EQ(
       union_query_engine.ImpliedNodeValue(
-          {{BitLocation(node, 7), true}, {BitLocation(node, 3), true}}, node),
+          {{TreeBitLocation(node, 7), true}, {TreeBitLocation(node, 3), true}},
+          node),
       UBits(0b10011000, 8));
   EXPECT_FALSE(union_query_engine.ImpliedNodeValue(
-      {{BitLocation(node, 5), true}, {BitLocation(node, 6), true}}, node));
+      {{TreeBitLocation(node, 5), true}, {TreeBitLocation(node, 6), true}},
+      node));
 }
 
 }  // namespace

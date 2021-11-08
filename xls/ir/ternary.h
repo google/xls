@@ -71,6 +71,14 @@ inline TernaryVector FromKnownBits(const Bits& known_bits,
   return result;
 }
 
+// Returns a `Bits` that contains a 1 for each element of the given ternary
+// vector that is either `kKnownZero` or `kKnownOne`, and a 0 otherwise.
+Bits ToKnownBits(const TernaryVector& ternary_vector);
+
+// Returns a `Bits` that contains a 1 for each element of the given ternary
+// vector that is `kKnownOne`, and a 0 otherwise.
+Bits ToKnownBitsValues(const TernaryVector& ternary_vector);
+
 // Returns a vector with known positions for each bit known in `lhs` that isn't
 // known in `rhs`. If `lhs` and `rhs` conflict, returns `absl::nullopt`.
 // CHECK fails if `lhs` and `rhs` have different lengths.

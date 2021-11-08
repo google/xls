@@ -101,8 +101,9 @@ BitSource GetBitSource(Node* node, int64_t bit_index,
                    << node->ToString();
   } else if (node->Is<Literal>()) {
     return node->As<Literal>()->value().bits().Get(bit_index);
-  } else if (query_engine.IsKnown(BitLocation(node, bit_index))) {
-    return query_engine.IsOne(BitLocation(node, bit_index));
+  } else if (node->GetType()->IsBits() &&
+             query_engine.IsKnown(TreeBitLocation(node, bit_index))) {
+    return query_engine.IsOne(TreeBitLocation(node, bit_index));
   }
   return std::make_pair(node, bit_index);
 }
@@ -710,23 +711,26 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           !query_engine.IsTracked(node)) {
         return false;
       }
-      int64_t leading_known =
-          bits_ops::CountLeadingOnes(query_engine.GetKnownBits(node));
-      int64_t trailing_known =
-          bits_ops::CountTrailingOnes(query_engine.GetKnownBits(node));
+      int64_t leading_known = bits_ops::CountLeadingOnes(
+          ternary_ops::ToKnownBits(query_engine.GetTernary(node).Get({})));
+      int64_t trailing_known = bits_ops::CountTrailingOnes(
+          ternary_ops::ToKnownBits(query_engine.GetTernary(node).Get({})));
       if (leading_known == 0 && trailing_known == 0) {
         return false;
       }
       int64_t bit_count = node->BitCountOrDie();
-      *msb = query_engine.GetKnownBitsValues(node).Slice(
-          /*start=*/bit_count - leading_known, /*width=*/leading_known);
+      *msb =
+          ternary_ops::ToKnownBitsValues(query_engine.GetTernary(node).Get({}))
+              .Slice(/*start=*/bit_count - leading_known,
+                     /*width=*/leading_known);
       if (leading_known == trailing_known && leading_known == bit_count) {
         // This is just a constant value, just say we only have high constant
         // bits, the replacement will be the same.
         return true;
       }
-      *lsb = query_engine.GetKnownBitsValues(node).Slice(
-          /*start=*/0, /*width=*/trailing_known);
+      *lsb =
+          ternary_ops::ToKnownBitsValues(query_engine.GetTernary(node).Get({}))
+              .Slice(/*start=*/0, /*width=*/trailing_known);
       return true;
     };
     Bits const_msb, const_lsb;

@@ -86,4 +86,24 @@ absl::StatusOr<TernaryVector> StringToTernaryVector(absl::string_view s) {
   return result;
 }
 
+namespace ternary_ops {
+
+Bits ToKnownBits(const TernaryVector& ternary_vector) {
+  absl::InlinedVector<bool, 1> bits(ternary_vector.size());
+  for (int64_t i = 0; i < bits.size(); ++i) {
+    bits[i] = (ternary_vector[i] != TernaryValue::kUnknown);
+  }
+  return Bits(bits);
+}
+
+Bits ToKnownBitsValues(const TernaryVector& ternary_vector) {
+  absl::InlinedVector<bool, 1> bits(ternary_vector.size());
+  for (int64_t i = 0; i < bits.size(); ++i) {
+    bits[i] = (ternary_vector[i] == TernaryValue::kKnownOne);
+  }
+  return Bits(bits);
+}
+
+}  // namespace ternary_ops
+
 }  // namespace xls

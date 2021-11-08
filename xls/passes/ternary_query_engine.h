@@ -39,25 +39,30 @@ class TernaryQueryEngine : public QueryEngine {
     return known_bits_.contains(node);
   }
 
-  const Bits& GetKnownBits(Node* node) const override {
-    return known_bits_.at(node);
-  }
-  const Bits& GetKnownBitsValues(Node* node) const override {
-    return bits_values_.at(node);
+  LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
+    XLS_CHECK(node->GetType()->IsBits());
+    TernaryVector ternary =
+        ternary_ops::FromKnownBits(known_bits_.at(node), bits_values_.at(node));
+    LeafTypeTree<TernaryVector> result(node->GetType());
+    result.Set({}, ternary);
+    return result;
   }
 
-  bool AtMostOneTrue(absl::Span<BitLocation const> bits) const override;
-  bool AtLeastOneTrue(absl::Span<BitLocation const> bits) const override;
-  bool KnownEquals(const BitLocation& a, const BitLocation& b) const override;
-  bool KnownNotEquals(const BitLocation& a,
-                      const BitLocation& b) const override;
+  bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override;
+  bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits) const override;
+  bool KnownEquals(const TreeBitLocation& a,
+                   const TreeBitLocation& b) const override;
+  bool KnownNotEquals(const TreeBitLocation& a,
+                      const TreeBitLocation& b) const override;
 
   // Ternary logic provides little information about bit implications.
-  bool Implies(const BitLocation& a, const BitLocation& b) const override {
+  bool Implies(const TreeBitLocation& a,
+               const TreeBitLocation& b) const override {
     return false;
   }
+
   absl::optional<Bits> ImpliedNodeValue(
-      absl::Span<const std::pair<BitLocation, bool>> predicate_bit_values,
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const override {
     return absl::nullopt;
   }

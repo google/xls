@@ -184,8 +184,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     // Sequence of known bits at the most-significant end of the value.
     absl::InlinedVector<bool, 1> known_prefix;
     int64_t i = node->BitCountOrDie() - 1;
-    while (i >= 0 && query_engine.IsKnown(BitLocation{node, i})) {
-      known_prefix.push_back(query_engine.IsOne(BitLocation{node, i}));
+    while (i >= 0 && query_engine.IsKnown(TreeBitLocation(node, i))) {
+      known_prefix.push_back(query_engine.IsOne(TreeBitLocation(node, i)));
       --i;
     }
     std::reverse(known_prefix.begin(), known_prefix.end());
@@ -194,8 +194,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     absl::InlinedVector<bool, 1> known_suffix;
     if (known_prefix.size() != node->BitCountOrDie()) {
       i = 0;
-      while (query_engine.IsKnown(BitLocation{node, i})) {
-        known_suffix.push_back(query_engine.IsOne(BitLocation{node, i}));
+      while (query_engine.IsKnown(TreeBitLocation(node, i))) {
+        known_suffix.push_back(query_engine.IsOne(TreeBitLocation(node, i)));
         ++i;
       }
     }

@@ -33,9 +33,10 @@ namespace {
 
 // Return the number of leading known zeros in the given nodes values.
 int64_t CountLeadingKnownZeros(Node* node, const QueryEngine& query_engine) {
+  XLS_CHECK(node->GetType()->IsBits());
   int64_t leading_zeros = 0;
   for (int64_t i = node->BitCountOrDie() - 1; i >= 0; --i) {
-    if (!query_engine.IsZero(BitLocation{node, i})) {
+    if (!query_engine.IsZero(TreeBitLocation(node, i))) {
       break;
     }
     ++leading_zeros;
@@ -45,9 +46,10 @@ int64_t CountLeadingKnownZeros(Node* node, const QueryEngine& query_engine) {
 
 // Return the number of leading known ones in the given nodes values.
 int64_t CountLeadingKnownOnes(Node* node, const QueryEngine& query_engine) {
+  XLS_CHECK(node->GetType()->IsBits());
   int64_t leading_ones = 0;
   for (int64_t i = node->BitCountOrDie() - 1; i >= 0; --i) {
-    if (!query_engine.IsOne(BitLocation{node, i})) {
+    if (!query_engine.IsOne(TreeBitLocation(node, i))) {
       break;
     }
     ++leading_ones;
@@ -65,8 +67,9 @@ absl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
     int64_t bit_count = c->operand(0)->BitCountOrDie();
     for (int64_t i = 0; i < bit_count; ++i) {
       int64_t bit_index = bit_count - i - 1;
-      if (!query_engine.KnownEquals(BitLocation{c->operand(0), bit_index},
-                                    BitLocation{c->operand(1), bit_index})) {
+      if (!query_engine.KnownEquals(
+              TreeBitLocation(c->operand(0), bit_index),
+              TreeBitLocation(c->operand(1), bit_index))) {
         return i;
       }
     }
@@ -75,8 +78,8 @@ absl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
   auto matched_trailing_operand_bits = [&](CompareOp* c) -> int64_t {
     int64_t bit_count = c->operand(0)->BitCountOrDie();
     for (int64_t i = 0; i < bit_count; ++i) {
-      if (!query_engine.KnownEquals(BitLocation{c->operand(0), i},
-                                    BitLocation{c->operand(1), i})) {
+      if (!query_engine.KnownEquals(TreeBitLocation(c->operand(0), i),
+                                    TreeBitLocation(c->operand(1), i))) {
         return i;
       }
     }
@@ -499,21 +502,19 @@ void RangeAnalysisLog(FunctionBase* f,
         XLS_VLOG(3) << "narrowing_pass: range analysis lost precision for "
                     << node << "\n";
       }
-    }
 
-    if (ternary_query_engine.IsTracked(node) &&
-        range_query_engine.IsTracked(node)) {
-      TernaryVector ternary_result = ternary_ops::FromKnownBits(
-          ternary_query_engine.GetKnownBits(node),
-          ternary_query_engine.GetKnownBitsValues(node));
-      TernaryVector range_result = ternary_ops::FromKnownBits(
-          range_query_engine.GetKnownBits(node),
-          range_query_engine.GetKnownBitsValues(node));
-      absl::optional<TernaryVector> difference =
-          ternary_ops::Difference(range_result, ternary_result);
-      XLS_CHECK(difference.has_value())
-          << "Inconsistency detected in node: " << node->GetName();
-      bits_saved += ternary_ops::NumberOfKnownBits(difference.value());
+      if (ternary_query_engine.IsTracked(node) &&
+          range_query_engine.IsTracked(node)) {
+        TernaryVector ternary_result =
+            ternary_query_engine.GetTernary(node).Get({});
+        TernaryVector range_result =
+            range_query_engine.GetTernary(node).Get({});
+        absl::optional<TernaryVector> difference =
+            ternary_ops::Difference(range_result, ternary_result);
+        XLS_CHECK(difference.has_value())
+            << "Inconsistency detected in node: " << node->GetName();
+        bits_saved += ternary_ops::NumberOfKnownBits(difference.value());
+      }
     }
   }
 

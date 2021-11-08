@@ -38,10 +38,10 @@ absl::StatusOr<ReachedFixpoint> BddQueryEngine::Populate(FunctionBase* f) {
       absl::InlinedVector<bool, 1> known_bits;
       absl::InlinedVector<bool, 1> bits_values;
       for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
-        if (GetBddNode(BitLocation(node, i)) == bdd.zero()) {
+        if (GetBddNode(TreeBitLocation(node, i)) == bdd.zero()) {
           known_bits.push_back(true);
           bits_values.push_back(false);
-        } else if (GetBddNode(BitLocation(node, i)) == bdd.one()) {
+        } else if (GetBddNode(TreeBitLocation(node, i)) == bdd.one()) {
           known_bits.push_back(true);
           bits_values.push_back(true);
         } else {
@@ -69,10 +69,11 @@ absl::StatusOr<ReachedFixpoint> BddQueryEngine::Populate(FunctionBase* f) {
   return rf;
 }
 
-bool BddQueryEngine::AtMostOneTrue(absl::Span<BitLocation const> bits) const {
+bool BddQueryEngine::AtMostOneTrue(
+    absl::Span<TreeBitLocation const> bits) const {
   BddNodeIndex result = bdd().zero();
-  for (int64_t i = 0; i < bits.size(); ++i) {
-    if (!IsTracked(bits[i].node)) {
+  for (const TreeBitLocation& loc : bits) {
+    if (!IsTracked(loc.node())) {
       return false;
     }
   }
@@ -92,11 +93,12 @@ bool BddQueryEngine::AtMostOneTrue(absl::Span<BitLocation const> bits) const {
   return result == bdd().zero();
 }
 
-bool BddQueryEngine::AtLeastOneTrue(absl::Span<BitLocation const> bits) const {
+bool BddQueryEngine::AtLeastOneTrue(
+    absl::Span<TreeBitLocation const> bits) const {
   BddNodeIndex result = bdd().zero();
   // At least one bit is true is equivalent to an OR-reduction of all the bits.
-  for (const BitLocation& location : bits) {
-    if (!IsTracked(location.node)) {
+  for (const TreeBitLocation& location : bits) {
+    if (!IsTracked(location.node())) {
       return false;
     }
     result = bdd().Or(result, GetBddNode(location));
@@ -114,17 +116,18 @@ bool BddQueryEngine::Implies(const BddNodeIndex& a,
   return bdd().And(a, bdd().Not(b)) == bdd().zero();
 }
 
-bool BddQueryEngine::Implies(const BitLocation& a, const BitLocation& b) const {
-  if (!IsTracked(a.node) || !IsTracked(b.node)) {
+bool BddQueryEngine::Implies(const TreeBitLocation& a,
+                             const TreeBitLocation& b) const {
+  if (!IsTracked(a.node()) || !IsTracked(b.node())) {
     return false;
   }
   return Implies(GetBddNode(a), GetBddNode(b));
 }
 
 absl::optional<Bits> BddQueryEngine::ImpliedNodeValue(
-    absl::Span<const std::pair<BitLocation, bool>> predicate_bit_values,
+    absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
     Node* node) const {
-  if (!IsTracked(node)) {
+  if (!IsTracked(node) || !node->GetType()->IsBits()) {
     return absl::nullopt;
   }
 
@@ -145,7 +148,7 @@ absl::optional<Bits> BddQueryEngine::ImpliedNodeValue(
   }
 
   auto implied_true_or_false = [&](int node_idx, bool node_bit_true) {
-    BddNodeIndex bdd_node_bit = GetBddNode({node, node_idx});
+    BddNodeIndex bdd_node_bit = GetBddNode(TreeBitLocation(node, node_idx));
     BddNodeIndex qualified_bdd_node_bit =
         node_bit_true ? bdd_node_bit : bdd().Not(bdd_node_bit);
     return Implies(bdd_predicate_bit, qualified_bdd_node_bit);
@@ -168,17 +171,17 @@ absl::optional<Bits> BddQueryEngine::ImpliedNodeValue(
   return bit_rope.Build();
 }
 
-bool BddQueryEngine::KnownEquals(const BitLocation& a,
-                                 const BitLocation& b) const {
-  if (!IsTracked(a.node) || !IsTracked(b.node)) {
+bool BddQueryEngine::KnownEquals(const TreeBitLocation& a,
+                                 const TreeBitLocation& b) const {
+  if (!IsTracked(a.node()) || !IsTracked(b.node())) {
     return false;
   }
   return GetBddNode(a) == GetBddNode(b);
 }
 
-bool BddQueryEngine::KnownNotEquals(const BitLocation& a,
-                                    const BitLocation& b) const {
-  if (!IsTracked(a.node) || !IsTracked(b.node)) {
+bool BddQueryEngine::KnownNotEquals(const TreeBitLocation& a,
+                                    const TreeBitLocation& b) const {
+  if (!IsTracked(a.node()) || !IsTracked(b.node())) {
     return false;
   }
   return GetBddNode(a) == bdd().Not(GetBddNode(b));

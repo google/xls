@@ -612,6 +612,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:variant",
         "//xls/common/logging",
+        "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",

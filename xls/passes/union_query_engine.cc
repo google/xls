@@ -46,44 +46,27 @@ bool UnionQueryEngine::IsTracked(Node* node) const {
   return false;
 }
 
-const Bits& UnionQueryEngine::GetKnownBits(Node* node) const {
-  if (known_bits_.contains(node)) {
-    return known_bits_.at(node);
-  }
+LeafTypeTree<TernaryVector> UnionQueryEngine::GetTernary(Node* node) const {
+  XLS_CHECK(node->GetType()->IsBits());
 
   Bits known(node->GetType()->GetFlatBitCount());
-  for (const auto& engine : engines_) {
-    if (engine->IsTracked(node)) {
-      known = bits_ops::Or(known, engine->GetKnownBits(node));
-    }
-  }
-
-  const_cast<UnionQueryEngine*>(this)->known_bits_[node] = known;
-
-  return known_bits_.at(node);
-}
-
-const Bits& UnionQueryEngine::GetKnownBitsValues(Node* node) const {
-  if (known_bit_values_.contains(node)) {
-    return known_bit_values_.at(node);
-  }
-
   Bits known_values(node->GetType()->GetFlatBitCount());
   for (const auto& engine : engines_) {
-    // TODO(taktoa): check for inconsistencies between engines
     if (engine->IsTracked(node)) {
-      known_values = bits_ops::Or(
-          known_values, bits_ops::And(engine->GetKnownBits(node),
-                                      engine->GetKnownBitsValues(node)));
+      TernaryVector ternary = engine->GetTernary(node).Get({});
+      known = bits_ops::Or(known, ternary_ops::ToKnownBits(ternary));
+      known_values =
+          bits_ops::Or(known_values, ternary_ops::ToKnownBitsValues(ternary));
     }
   }
 
-  const_cast<UnionQueryEngine*>(this)->known_bit_values_[node] = known_values;
-
-  return known_bit_values_.at(node);
+  LeafTypeTree<TernaryVector> result(node->GetType());
+  result.Set({}, ternary_ops::FromKnownBits(known, known_values));
+  return result;
 }
 
-bool UnionQueryEngine::AtMostOneTrue(absl::Span<BitLocation const> bits) const {
+bool UnionQueryEngine::AtMostOneTrue(
+    absl::Span<TreeBitLocation const> bits) const {
   for (const auto& engine : engines_) {
     if (engine->AtMostOneTrue(bits)) {
       return true;
@@ -93,7 +76,7 @@ bool UnionQueryEngine::AtMostOneTrue(absl::Span<BitLocation const> bits) const {
 }
 
 bool UnionQueryEngine::AtLeastOneTrue(
-    absl::Span<BitLocation const> bits) const {
+    absl::Span<TreeBitLocation const> bits) const {
   for (const auto& engine : engines_) {
     if (engine->AtLeastOneTrue(bits)) {
       return true;
@@ -102,8 +85,8 @@ bool UnionQueryEngine::AtLeastOneTrue(
   return false;
 }
 
-bool UnionQueryEngine::KnownEquals(const BitLocation& a,
-                                   const BitLocation& b) const {
+bool UnionQueryEngine::KnownEquals(const TreeBitLocation& a,
+                                   const TreeBitLocation& b) const {
   for (const auto& engine : engines_) {
     if (engine->KnownEquals(a, b)) {
       return true;
@@ -112,8 +95,8 @@ bool UnionQueryEngine::KnownEquals(const BitLocation& a,
   return false;
 }
 
-bool UnionQueryEngine::KnownNotEquals(const BitLocation& a,
-                                      const BitLocation& b) const {
+bool UnionQueryEngine::KnownNotEquals(const TreeBitLocation& a,
+                                      const TreeBitLocation& b) const {
   for (const auto& engine : engines_) {
     if (engine->KnownNotEquals(a, b)) {
       return true;
@@ -122,8 +105,8 @@ bool UnionQueryEngine::KnownNotEquals(const BitLocation& a,
   return false;
 }
 
-bool UnionQueryEngine::Implies(const BitLocation& a,
-                               const BitLocation& b) const {
+bool UnionQueryEngine::Implies(const TreeBitLocation& a,
+                               const TreeBitLocation& b) const {
   for (const auto& engine : engines_) {
     if (engine->Implies(a, b)) {
       return true;
@@ -133,7 +116,7 @@ bool UnionQueryEngine::Implies(const BitLocation& a,
 }
 
 absl::optional<Bits> UnionQueryEngine::ImpliedNodeValue(
-    absl::Span<const std::pair<BitLocation, bool>> predicate_bit_values,
+    absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
     Node* node) const {
   for (const auto& engine : engines_) {
     if (auto i = engine->ImpliedNodeValue(predicate_bit_values, node)) {

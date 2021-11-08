@@ -17,27 +17,44 @@
 
 #include "absl/status/statusor.h"
 #include "absl/types/variant.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/node.h"
+#include "xls/ir/ternary.h"
 
 namespace xls {
 
 // Abstraction representing a particular bit of a particular XLS Node.
-struct BitLocation {
-  BitLocation() : node(nullptr), bit_index(0) {}
-  BitLocation(Node* n, int64_t i) : node(n), bit_index(i) {}
+class TreeBitLocation {
+ public:
+  TreeBitLocation() : node_(nullptr), bit_index_(0), tree_index_() {}
 
-  Node* node;
-  int64_t bit_index;
+  TreeBitLocation(Node* node, int64_t bit_index,
+                  absl::Span<const int64_t> tree_index = {})
+      : node_(node),
+        bit_index_(bit_index),
+        tree_index_(tree_index.begin(), tree_index.end()) {}
 
-  friend bool operator==(const BitLocation& x, const BitLocation& y) {
-    return (x.node == y.node) && (x.bit_index == y.bit_index);
+  Node* node() const { return node_; }
+
+  int64_t bit_index() const { return bit_index_; }
+
+  absl::Span<const int64_t> tree_index() const { return tree_index_; }
+
+  friend bool operator==(const TreeBitLocation& x, const TreeBitLocation& y) {
+    return (x.node_ == y.node_) && (x.tree_index_ == y.tree_index_) &&
+           (x.bit_index_ == y.bit_index_);
   }
 
   template <typename H>
-  friend H AbslHashValue(H h, const BitLocation& bl) {
-    return H::combine(std::move(h), bl.node, bl.bit_index);
+  friend H AbslHashValue(H h, const TreeBitLocation& tbl) {
+    return H::combine(std::move(h), tbl.node_, tbl.tree_index_, tbl.bit_index_);
   }
+
+ private:
+  Node* node_;
+  int64_t bit_index_;
+  std::vector<int64_t> tree_index_;
 };
 
 enum class ReachedFixpoint { Unchanged, Changed, Unknown };
@@ -54,7 +71,6 @@ enum class ReachedFixpoint { Unchanged, Changed, Unknown };
 // does not mean that 'a' is necessarily not equal 'b'. Rather, the false return
 // value indicates that analysis could not determine whether 'a' and 'b' are
 // necessarily equal.
-// TODO(meheff): Support types other than bits type.
 class QueryEngine {
  public:
   virtual ~QueryEngine() = default;
@@ -64,40 +80,34 @@ class QueryEngine {
   // Returns whether any information is available for this node.
   virtual bool IsTracked(Node* node) const = 0;
 
-  // Returns a Bits object indicating which bits have known values for the given
-  // node. 'node' must be a Bits type. The Bits object matches the width of the
-  // respective Node. A one in a bit position means that the bit has a
-  // statically known value (0 or 1).
-  virtual const Bits& GetKnownBits(Node* node) const = 0;
-
-  // Returns a Bits object indicating the values (0 or 1) of bits in the given
-  // node for bits with known values. If a value at a bit position is not known,
-  // the respective value is zero.
-  virtual const Bits& GetKnownBitsValues(Node* node) const = 0;
+  // Returns a `LeafTypeTree<TernaryVector>` indicating which bits have known
+  // values for the given node and what that bit's known value is.
+  virtual LeafTypeTree<TernaryVector> GetTernary(Node* node) const = 0;
 
   // Returns true if at most one of the given bits can be true.
-  virtual bool AtMostOneTrue(absl::Span<BitLocation const> bits) const = 0;
+  virtual bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const = 0;
 
   // Returns true if at least one of the given bits is true.
-  virtual bool AtLeastOneTrue(absl::Span<BitLocation const> bits) const = 0;
+  virtual bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits) const = 0;
 
   // Returns true if 'a' implies 'b'.
-  virtual bool Implies(const BitLocation& a, const BitLocation& b) const = 0;
+  virtual bool Implies(const TreeBitLocation& a,
+                       const TreeBitLocation& b) const = 0;
 
   // If a particular value of 'node' (true or false for all bits)
   // is implied when the bits in 'predicate_bit_values' have the given values,
   // the implied value of 'node' is returned.
   virtual absl::optional<Bits> ImpliedNodeValue(
-      absl::Span<const std::pair<BitLocation, bool>> predicate_bit_values,
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const = 0;
 
   // Returns true if 'a' equals 'b'
-  virtual bool KnownEquals(const BitLocation& a,
-                           const BitLocation& b) const = 0;
+  virtual bool KnownEquals(const TreeBitLocation& a,
+                           const TreeBitLocation& b) const = 0;
 
   // Returns true if 'a' is the inverse of 'b'
-  virtual bool KnownNotEquals(const BitLocation& a,
-                              const BitLocation& b) const = 0;
+  virtual bool KnownNotEquals(const TreeBitLocation& a,
+                              const TreeBitLocation& b) const = 0;
 
   // Returns true if at most/least one of the values in 'preds' is true. Each
   // value in 'preds' must be a single-bit bits-typed value.
@@ -111,7 +121,7 @@ class QueryEngine {
 
   // Returns whether the value of the output bit of the given node at the given
   // index is known (definitely zero or one).
-  bool IsKnown(const BitLocation& bit) const;
+  bool IsKnown(const TreeBitLocation& bit) const;
 
   // Returns if the most-significant bit is known of 'node'.
   bool IsMsbKnown(Node* node) const;
@@ -122,8 +132,8 @@ class QueryEngine {
 
   // Returns whether the value of the output bit of the given node at the given
   // index is definitely one (or zero).
-  bool IsOne(const BitLocation& bit) const;
-  bool IsZero(const BitLocation& bit) const;
+  bool IsOne(const TreeBitLocation& bit) const;
+  bool IsZero(const TreeBitLocation& bit) const;
 
   // Returns whether every bit in the output of the given node is definitely one
   // (or zero).

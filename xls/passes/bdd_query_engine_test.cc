@@ -35,13 +35,13 @@ class BddQueryEngineTest : public IrTestBase {
   // Convenience methods for testing implication, equality, and inverse for
   // single-bit node values.
   bool Implies(const QueryEngine& engine, Node* a, Node* b) {
-    return engine.Implies(BitLocation(a, 0), BitLocation(b, 0));
+    return engine.Implies(TreeBitLocation(a, 0), TreeBitLocation(b, 0));
   }
   bool KnownEquals(const QueryEngine& engine, Node* a, Node* b) {
-    return engine.KnownEquals(BitLocation(a, 0), BitLocation(b, 0));
+    return engine.KnownEquals(TreeBitLocation(a, 0), TreeBitLocation(b, 0));
   }
   bool KnownNotEquals(const QueryEngine& engine, Node* a, Node* b) {
-    return engine.KnownNotEquals(BitLocation(a, 0), BitLocation(b, 0));
+    return engine.KnownNotEquals(TreeBitLocation(a, 0), TreeBitLocation(b, 0));
   }
 };
 

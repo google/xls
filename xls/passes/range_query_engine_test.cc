@@ -101,10 +101,7 @@ TEST_F(RangeQueryEngineTest, Add) {
   XLS_ASSERT_OK(engine.Populate(f));
 
   // We know that at most 6 bits are used, since 48 + 15 = 63 <= 2^6 - 1
-  EXPECT_EQ(UBits(0b11111111111111000000, 20),
-            engine.GetKnownBits(expr.node()));
-  EXPECT_EQ(UBits(0b00000000000000000000, 20),
-            engine.GetKnownBitsValues(expr.node()));
+  EXPECT_EQ("0b0000_0000_0000_00XX_XXXX", engine.ToString(expr.node()));
 
   engine = RangeQueryEngine();
   engine.SetIntervalSetTree(
@@ -117,8 +114,7 @@ TEST_F(RangeQueryEngineTest, Add) {
 
   // Nothing is known because of the potential for overflow, even though the
   // result of additions in those ranges have a common suffix (little-endian).
-  EXPECT_EQ(UBits(0, 20), engine.GetKnownBits(expr.node()));
-  EXPECT_EQ(UBits(0, 20), engine.GetKnownBitsValues(expr.node()));
+  EXPECT_EQ("0bXXXX_XXXX_XXXX_XXXX_XXXX", engine.ToString(expr.node()));
 }
 
 TEST_F(RangeQueryEngineTest, Array) {
@@ -237,8 +233,7 @@ TEST_F(RangeQueryEngineTest, AndReduce) {
   XLS_ASSERT_OK(engine.Populate(f));
 
   // Interval does not cover 2^20 - 1, so the result is known to be 0.
-  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBits(expr.node()));
-  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBitsValues(expr.node()));
+  EXPECT_EQ("0b0", engine.ToString(expr.node()));
 
   engine = RangeQueryEngine();
   engine.SetIntervalSetTree(
@@ -247,8 +242,7 @@ TEST_F(RangeQueryEngineTest, AndReduce) {
   XLS_ASSERT_OK(engine.Populate(f));
 
   // Interval does cover 2^20 - 1, so we don't know the value.
-  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBits(expr.node()));
-  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBitsValues(expr.node()));
+  EXPECT_EQ("0bX", engine.ToString(expr.node()));
 
   engine = RangeQueryEngine();
   engine.SetIntervalSetTree(
@@ -257,8 +251,7 @@ TEST_F(RangeQueryEngineTest, AndReduce) {
   XLS_ASSERT_OK(engine.Populate(f));
 
   // Interval only covers 2^20 - 1, so the result is known to be 1.
-  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBits(expr.node()));
-  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBitsValues(expr.node()));
+  EXPECT_EQ("0b1", engine.ToString(expr.node()));
 }
 
 TEST_F(RangeQueryEngineTest, Concat) {
@@ -318,8 +311,7 @@ TEST_F(RangeQueryEngineTest, Eq) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(560, 20), UBits(560, 20)),
                                    Interval(UBits(560, 20), UBits(560, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(1, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(1, 1));
+  EXPECT_EQ("0b1", engine.ToString(expr.node()));
 
   // When the interval sets overlap, we don't know anything about them.
   engine = RangeQueryEngine();
@@ -329,8 +321,7 @@ TEST_F(RangeQueryEngineTest, Eq) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(150, 20), UBits(300, 20)),
                                    Interval(UBits(400, 20), UBits(500, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(0, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(0, 1));
+  EXPECT_EQ("0bX", engine.ToString(expr.node()));
 
   // When the interval sets are disjoint, we know they are not equal.
   engine = RangeQueryEngine();
@@ -344,8 +335,7 @@ TEST_F(RangeQueryEngineTest, Eq) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(400, 20), UBits(500, 20)),
                                    Interval(UBits(700, 20), UBits(800, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(1, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(0, 1));
+  EXPECT_EQ("0b0", engine.ToString(expr.node()));
 }
 
 TEST_F(RangeQueryEngineTest, Gate) {
@@ -420,8 +410,7 @@ TEST_F(RangeQueryEngineTest, Ne) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(560, 20), UBits(560, 20)),
                                    Interval(UBits(560, 20), UBits(560, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(1, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(0, 1));
+  EXPECT_EQ("0b0", engine.ToString(expr.node()));
 
   // When the interval sets overlap, we don't know anything about them.
   engine = RangeQueryEngine();
@@ -431,8 +420,7 @@ TEST_F(RangeQueryEngineTest, Ne) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(150, 20), UBits(300, 20)),
                                    Interval(UBits(400, 20), UBits(500, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(0, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(0, 1));
+  EXPECT_EQ("0bX", engine.ToString(expr.node()));
 
   // When the interval sets are disjoint, we know they are not equal.
   engine = RangeQueryEngine();
@@ -446,8 +434,7 @@ TEST_F(RangeQueryEngineTest, Ne) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(400, 20), UBits(500, 20)),
                                    Interval(UBits(700, 20), UBits(800, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(1, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(1, 1));
+  EXPECT_EQ("0b1", engine.ToString(expr.node()));
 }
 
 TEST_F(RangeQueryEngineTest, Neg) {
@@ -483,8 +470,7 @@ TEST_F(RangeQueryEngineTest, OrReduce) {
   XLS_ASSERT_OK(engine.Populate(f));
 
   // Interval does not cover 0, so the result is known to be 1.
-  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBits(expr.node()));
-  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBitsValues(expr.node()));
+  EXPECT_EQ("0b1", engine.ToString(expr.node()));
 
   engine = RangeQueryEngine();
   engine.SetIntervalSetTree(
@@ -492,8 +478,7 @@ TEST_F(RangeQueryEngineTest, OrReduce) {
   XLS_ASSERT_OK(engine.Populate(f));
 
   // Interval does cover 0, so we don't know the value.
-  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBits(expr.node()));
-  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBitsValues(expr.node()));
+  EXPECT_EQ("0bX", engine.ToString(expr.node()));
 
   engine = RangeQueryEngine();
   engine.SetIntervalSetTree(
@@ -501,8 +486,7 @@ TEST_F(RangeQueryEngineTest, OrReduce) {
   XLS_ASSERT_OK(engine.Populate(f));
 
   // Interval only covers 0, so the result is known to be 0.
-  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBits(expr.node()));
-  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBitsValues(expr.node()));
+  EXPECT_EQ("0b0", engine.ToString(expr.node()));
 }
 
 TEST_F(RangeQueryEngineTest, Param) {
@@ -706,8 +690,7 @@ TEST_F(RangeQueryEngineTest, UGe) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(50, 20), UBits(100, 20)),
                                    Interval(UBits(120, 20), UBits(180, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(1, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(1, 1));
+  EXPECT_EQ("0b1", engine.ToString(expr.node()));
 
   // When the interval sets are precise and equal, returns true.
   engine = RangeQueryEngine();
@@ -720,8 +703,7 @@ TEST_F(RangeQueryEngineTest, UGe) {
                                       Interval(UBits(200, 20), UBits(200, 20)),
                                   }));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(1, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(1, 1));
+  EXPECT_EQ("0b1", engine.ToString(expr.node()));
 
   // When the interval sets are disjoint and less than, returns false.
   engine = RangeQueryEngine();
@@ -732,8 +714,7 @@ TEST_F(RangeQueryEngineTest, UGe) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(200, 20), UBits(300, 20)),
                                    Interval(UBits(500, 20), UBits(600, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(1, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(0, 1));
+  EXPECT_EQ("0b0", engine.ToString(expr.node()));
 
   // When the convex hulls overlap, we don't know anything.
   engine = RangeQueryEngine();
@@ -747,8 +728,7 @@ TEST_F(RangeQueryEngineTest, UGe) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(400, 20), UBits(500, 20)),
                                    Interval(UBits(700, 20), UBits(800, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(0, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(0, 1));
+  EXPECT_EQ("0bX", engine.ToString(expr.node()));
 }
 
 TEST_F(RangeQueryEngineTest, UGt) {
@@ -771,8 +751,7 @@ TEST_F(RangeQueryEngineTest, UGt) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(50, 20), UBits(100, 20)),
                                    Interval(UBits(120, 20), UBits(180, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(1, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(1, 1));
+  EXPECT_EQ("0b1", engine.ToString(expr.node()));
 
   // When the interval sets are precise and equal, returns unknown.
   engine = RangeQueryEngine();
@@ -785,8 +764,7 @@ TEST_F(RangeQueryEngineTest, UGt) {
                                       Interval(UBits(200, 20), UBits(200, 20)),
                                   }));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(0, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(0, 1));
+  EXPECT_EQ("0bX", engine.ToString(expr.node()));
 
   // When the interval sets are disjoint and less than, returns false.
   engine = RangeQueryEngine();
@@ -797,8 +775,7 @@ TEST_F(RangeQueryEngineTest, UGt) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(200, 20), UBits(300, 20)),
                                    Interval(UBits(500, 20), UBits(600, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(1, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(0, 1));
+  EXPECT_EQ("0b0", engine.ToString(expr.node()));
 
   // When the convex hulls overlap, we don't know anything.
   engine = RangeQueryEngine();
@@ -812,8 +789,7 @@ TEST_F(RangeQueryEngineTest, UGt) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(400, 20), UBits(500, 20)),
                                    Interval(UBits(700, 20), UBits(800, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(0, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(0, 1));
+  EXPECT_EQ("0bX", engine.ToString(expr.node()));
 }
 
 TEST_F(RangeQueryEngineTest, ULe) {
@@ -836,8 +812,7 @@ TEST_F(RangeQueryEngineTest, ULe) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(50, 20), UBits(100, 20)),
                                    Interval(UBits(120, 20), UBits(180, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(1, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(0, 1));
+  EXPECT_EQ("0b0", engine.ToString(expr.node()));
 
   // When the interval sets are precise and equal, returns true.
   engine = RangeQueryEngine();
@@ -850,8 +825,7 @@ TEST_F(RangeQueryEngineTest, ULe) {
                                       Interval(UBits(200, 20), UBits(200, 20)),
                                   }));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(1, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(1, 1));
+  EXPECT_EQ("0b1", engine.ToString(expr.node()));
 
   // When the interval sets are disjoint and less than, returns true.
   engine = RangeQueryEngine();
@@ -862,8 +836,7 @@ TEST_F(RangeQueryEngineTest, ULe) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(200, 20), UBits(300, 20)),
                                    Interval(UBits(500, 20), UBits(600, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(1, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(1, 1));
+  EXPECT_EQ("0b1", engine.ToString(expr.node()));
 
   // When the convex hulls overlap, we don't know anything.
   engine = RangeQueryEngine();
@@ -877,8 +850,7 @@ TEST_F(RangeQueryEngineTest, ULe) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(400, 20), UBits(500, 20)),
                                    Interval(UBits(700, 20), UBits(800, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(0, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(0, 1));
+  EXPECT_EQ("0bX", engine.ToString(expr.node()));
 }
 
 TEST_F(RangeQueryEngineTest, ULt) {
@@ -901,8 +873,7 @@ TEST_F(RangeQueryEngineTest, ULt) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(50, 20), UBits(100, 20)),
                                    Interval(UBits(120, 20), UBits(180, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(1, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(0, 1));
+  EXPECT_EQ("0b0", engine.ToString(expr.node()));
 
   // When the interval sets are precise and equal, returns unknown.
   engine = RangeQueryEngine();
@@ -915,8 +886,7 @@ TEST_F(RangeQueryEngineTest, ULt) {
                                       Interval(UBits(200, 20), UBits(200, 20)),
                                   }));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(0, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(0, 1));
+  EXPECT_EQ("0bX", engine.ToString(expr.node()));
 
   // When the interval sets are disjoint and less than, returns true.
   engine = RangeQueryEngine();
@@ -927,8 +897,7 @@ TEST_F(RangeQueryEngineTest, ULt) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(200, 20), UBits(300, 20)),
                                    Interval(UBits(500, 20), UBits(600, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(1, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(1, 1));
+  EXPECT_EQ("0b1", engine.ToString(expr.node()));
 
   // When the convex hulls overlap, we don't know anything.
   engine = RangeQueryEngine();
@@ -942,8 +911,7 @@ TEST_F(RangeQueryEngineTest, ULt) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(400, 20), UBits(500, 20)),
                                    Interval(UBits(700, 20), UBits(800, 20))}));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ(engine.GetKnownBits(expr.node()), UBits(0, 1));
-  EXPECT_EQ(engine.GetKnownBitsValues(expr.node()), UBits(0, 1));
+  EXPECT_EQ("0bX", engine.ToString(expr.node()));
 }
 
 TEST_F(RangeQueryEngineTest, UMul) {
@@ -996,8 +964,7 @@ TEST_F(RangeQueryEngineTest, XorReduce) {
   XLS_ASSERT_OK(engine.Populate(f));
 
   // Interval set covers only numbers with an odd number of 1s, so result is 1.
-  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBits(expr.node()));
-  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBitsValues(expr.node()));
+  EXPECT_EQ("0b1", engine.ToString(expr.node()));
 
   engine = RangeQueryEngine();
   engine.SetIntervalSetTree(
@@ -1005,8 +972,7 @@ TEST_F(RangeQueryEngineTest, XorReduce) {
   XLS_ASSERT_OK(engine.Populate(f));
 
   // Interval is not precise, so result is unknown.
-  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBits(expr.node()));
-  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBitsValues(expr.node()));
+  EXPECT_EQ("0bX", engine.ToString(expr.node()));
 
   engine = RangeQueryEngine();
   engine.SetIntervalSetTree(
@@ -1016,8 +982,7 @@ TEST_F(RangeQueryEngineTest, XorReduce) {
   XLS_ASSERT_OK(engine.Populate(f));
 
   // Intervals are precise, but don't match parity of 1s, so result is unknown.
-  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBits(expr.node()));
-  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBitsValues(expr.node()));
+  EXPECT_EQ("0bX", engine.ToString(expr.node()));
 
   engine = RangeQueryEngine();
   engine.SetIntervalSetTree(
@@ -1026,8 +991,7 @@ TEST_F(RangeQueryEngineTest, XorReduce) {
   XLS_ASSERT_OK(engine.Populate(f));
 
   // Interval only covers numbers with an even number of 1s, so result is 0.
-  EXPECT_EQ(UBits(0b1, 1), engine.GetKnownBits(expr.node()));
-  EXPECT_EQ(UBits(0b0, 1), engine.GetKnownBitsValues(expr.node()));
+  EXPECT_EQ("0b0", engine.ToString(expr.node()));
 }
 
 TEST_F(RangeQueryEngineTest, ZeroExtend) {

@@ -182,9 +182,9 @@ TEST_P(QueryEngineTest, SimpleBinaryOp) {
   for (int64_t i = 0; i < 32; ++i) {
     for (Node* node :
          {FindNode("x", f), FindNode("y", f), FindNode("add.1", f)}) {
-      EXPECT_FALSE(engine->IsKnown(BitLocation(node, i)));
-      EXPECT_FALSE(engine->IsOne(BitLocation(node, i)));
-      EXPECT_FALSE(engine->IsZero(BitLocation(node, i)));
+      EXPECT_FALSE(engine->IsKnown(TreeBitLocation(node, i)));
+      EXPECT_FALSE(engine->IsOne(TreeBitLocation(node, i)));
+      EXPECT_FALSE(engine->IsZero(TreeBitLocation(node, i)));
     }
   }
 }
@@ -382,27 +382,12 @@ TEST_P(QueryEngineTest, BitwiseOps) {
   )",
                                                        p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
-  EXPECT_EQ(engine->GetKnownBits(FindNode("and.5", f)), UBits(0x00ffff, 24));
-  EXPECT_EQ(engine->GetKnownBitsValues(FindNode("and.5", f)),
-            UBits(0x00f000, 24));
   EXPECT_EQ(engine->ToString(FindNode("and.5", f)),
             "0bXXXX_XXXX_1111_0000_0000_0000");
-
-  EXPECT_EQ(engine->GetKnownBits(FindNode("not.6", f)), UBits(0x00ffff, 24));
-  EXPECT_EQ(engine->GetKnownBitsValues(FindNode("not.6", f)),
-            UBits(0x0000ff, 24));
   EXPECT_EQ(engine->ToString(FindNode("not.6", f)),
             "0bXXXX_XXXX_0000_0000_1111_1111");
-
-  EXPECT_EQ(engine->GetKnownBits(FindNode("or.7", f)), UBits(0x00ffff, 24));
-  EXPECT_EQ(engine->GetKnownBitsValues(FindNode("or.7", f)),
-            UBits(0x00fff0, 24));
   EXPECT_EQ(engine->ToString(FindNode("or.7", f)),
             "0bXXXX_XXXX_1111_1111_1111_0000");
-
-  EXPECT_EQ(engine->GetKnownBits(FindNode("xor.8", f)), UBits(0x00ffff, 24));
-  EXPECT_EQ(engine->GetKnownBitsValues(FindNode("xor.8", f)),
-            UBits(0x000ff0, 24));
   EXPECT_EQ(engine->ToString(FindNode("xor.8", f)),
             "0bXXXX_XXXX_0000_1111_1111_0000");
 }
@@ -432,22 +417,13 @@ TEST_P(QueryEngineTest, SignExtend) {
   )",
                                                        p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
-  EXPECT_EQ(engine->GetKnownBits(FindNode("sign_ext.5", f)), UBits(0xfff0, 16));
-  EXPECT_EQ(engine->GetKnownBitsValues(FindNode("sign_ext.5", f)),
-            UBits(0xffa0, 16));
-
-  EXPECT_EQ(engine->GetKnownBits(FindNode("sign_ext.6", f)), UBits(0xfff0, 16));
-  EXPECT_EQ(engine->GetKnownBitsValues(FindNode("sign_ext.6", f)),
-            UBits(0x0040, 16));
-
-  EXPECT_EQ(engine->GetKnownBits(FindNode("sign_ext.7", f)), UBits(0xf0, 8));
-  EXPECT_EQ(engine->GetKnownBitsValues(FindNode("sign_ext.7", f)),
-            UBits(0xa0, 8));
-
-  EXPECT_EQ(engine->GetKnownBits(FindNode("sign_ext.9", f)),
-            UBits(0x0000f0, 24));
-  EXPECT_EQ(engine->GetKnownBitsValues(FindNode("sign_ext.9", f)),
-            UBits(0x0000a0, 24));
+  EXPECT_EQ(engine->ToString(FindNode("sign_ext.5", f)),
+            "0b1111_1111_1010_XXXX");
+  EXPECT_EQ(engine->ToString(FindNode("sign_ext.6", f)),
+            "0b0000_0000_0100_XXXX");
+  EXPECT_EQ(engine->ToString(FindNode("sign_ext.7", f)), "0b1010_XXXX");
+  EXPECT_EQ(engine->ToString(FindNode("sign_ext.9", f)),
+            "0bXXXX_XXXX_XXXX_XXXX_1010_XXXX");
 }
 
 TEST_P(QueryEngineTest, BinarySelect) {
@@ -464,9 +440,8 @@ TEST_P(QueryEngineTest, BinarySelect) {
   )",
                                                        p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
-  EXPECT_EQ(engine->GetKnownBits(FindNode("sel.5", f)), UBits(0xf00f00, 24));
-  EXPECT_EQ(engine->GetKnownBitsValues(FindNode("sel.5", f)),
-            UBits(0xf00000, 24));
+  EXPECT_EQ(engine->ToString(FindNode("sel.5", f)),
+            "0b1111_XXXX_XXXX_0000_XXXX_XXXX");
 }
 
 TEST_P(QueryEngineTest, TernarySelectWithDefault) {
@@ -482,9 +457,8 @@ TEST_P(QueryEngineTest, TernarySelectWithDefault) {
   )",
                                                        p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
-  EXPECT_EQ(engine->GetKnownBits(FindNode("sel.5", f)), UBits(0x0000f00f, 32));
-  EXPECT_EQ(engine->GetKnownBitsValues(FindNode("sel.5", f)),
-            UBits(0x0000f000, 32));
+  EXPECT_EQ(engine->ToString(FindNode("sel.5", f)),
+            "0bXXXX_XXXX_XXXX_XXXX_1111_XXXX_XXXX_0000");
 }
 
 TEST_P(QueryEngineTest, AndWithHighBitZeroes) {
@@ -498,9 +472,7 @@ TEST_P(QueryEngineTest, AndWithHighBitZeroes) {
   )",
                                                        p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
-  EXPECT_EQ(engine->GetKnownBits(FindNode("and.4", f)), UBits(0xff00, 16));
-  EXPECT_EQ(engine->GetKnownBitsValues(FindNode("and.4", f)),
-            UBits(0x0000, 16));
+  EXPECT_EQ(engine->ToString(FindNode("and.4", f)), "0b0000_0000_XXXX_XXXX");
 }
 
 TEST_P(QueryEngineTest, NandTruthTable) {
@@ -514,8 +486,7 @@ TEST_P(QueryEngineTest, NandTruthTable) {
   )",
                                                        p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
-  EXPECT_EQ(engine->GetKnownBitsValues(FindNode("nand.3", f)),
-            UBits(0b1110, 4));
+  EXPECT_EQ(engine->ToString(FindNode("nand.3", f)), "0b1110");
 }
 
 TEST_P(QueryEngineTest, NorTruthTable) {
@@ -529,7 +500,7 @@ TEST_P(QueryEngineTest, NorTruthTable) {
   )",
                                                        p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
-  EXPECT_EQ(engine->GetKnownBitsValues(FindNode("nor.3", f)), UBits(0b1000, 4));
+  EXPECT_EQ(engine->ToString(FindNode("nor.3", f)), "0b1000");
 }
 
 TEST_P(QueryEngineTest, ShrlFullyKnownRhs) {
@@ -548,12 +519,8 @@ TEST_P(QueryEngineTest, ShrlFullyKnownRhs) {
   )",
                                                        p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
-  EXPECT_EQ(engine->GetKnownBits(FindNode("concat.3", f)), UBits(0xff00, 16));
-  EXPECT_EQ(engine->GetKnownBitsValues(FindNode("concat.3", f)),
-            UBits(0xee00, 16));
-  EXPECT_EQ(engine->GetKnownBits(FindNode("shrl.5", f)), UBits(0xffff, 16));
-  EXPECT_EQ(engine->GetKnownBitsValues(FindNode("shrl.5", f)),
-            UBits(0x00ee, 16));
+  EXPECT_EQ(engine->ToString(FindNode("concat.3", f)), "0b1110_1110_XXXX_XXXX");
+  EXPECT_EQ(engine->ToString(FindNode("shrl.5", f)), "0b0000_0000_1110_1110");
 }
 
 TEST_P(QueryEngineTest, ShrlPartiallyKnownRhs) {
@@ -573,8 +540,7 @@ TEST_P(QueryEngineTest, ShrlPartiallyKnownRhs) {
                                                        p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
   // The shift amount is at least 0b1 so we know the high bit must be zero.
-  EXPECT_EQ(engine->GetKnownBits(FindNode("shrl.5", f)), UBits(0x80, 8));
-  EXPECT_EQ(engine->GetKnownBitsValues(FindNode("shrl.5", f)), UBits(0x00, 8));
+  EXPECT_EQ(engine->ToString(FindNode("shrl.5", f)), "0b0XXX_XXXX");
 }
 
 TEST_P(QueryEngineTest, Decode) {

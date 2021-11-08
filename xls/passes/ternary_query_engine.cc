@@ -113,9 +113,9 @@ absl::StatusOr<ReachedFixpoint> TernaryQueryEngine::Populate(FunctionBase* f) {
 }
 
 bool TernaryQueryEngine::AtMostOneTrue(
-    absl::Span<BitLocation const> bits) const {
+    absl::Span<TreeBitLocation const> bits) const {
   int64_t maybe_one_count = 0;
-  for (const BitLocation& location : bits) {
+  for (const TreeBitLocation& location : bits) {
     if (!IsKnown(location) || IsOne(location)) {
       maybe_one_count++;
     }
@@ -124,8 +124,8 @@ bool TernaryQueryEngine::AtMostOneTrue(
 }
 
 bool TernaryQueryEngine::AtLeastOneTrue(
-    absl::Span<BitLocation const> bits) const {
-  for (const BitLocation& location : bits) {
+    absl::Span<TreeBitLocation const> bits) const {
+  for (const TreeBitLocation& location : bits) {
     if (IsOne(location)) {
       return true;
     }
@@ -133,13 +133,13 @@ bool TernaryQueryEngine::AtLeastOneTrue(
   return false;
 }
 
-bool TernaryQueryEngine::KnownEquals(const BitLocation& a,
-                                     const BitLocation& b) const {
+bool TernaryQueryEngine::KnownEquals(const TreeBitLocation& a,
+                                     const TreeBitLocation& b) const {
   return IsKnown(a) && IsKnown(b) && IsOne(a) == IsOne(b);
 }
 
-bool TernaryQueryEngine::KnownNotEquals(const BitLocation& a,
-                                        const BitLocation& b) const {
+bool TernaryQueryEngine::KnownNotEquals(const TreeBitLocation& a,
+                                        const TreeBitLocation& b) const {
   return IsKnown(a) && IsKnown(b) && IsOne(a) != IsOne(b);
 }
 

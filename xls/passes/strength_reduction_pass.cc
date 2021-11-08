@@ -42,8 +42,8 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindReducibleAdds(
     if (node->op() == Op::kAdd) {
       bool reducible = true;
       for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
-        if (!query_engine.IsZero(BitLocation(node->operand(0), i)) &&
-            !query_engine.IsZero(BitLocation(node->operand(1), i))) {
+        if (!query_engine.IsZero(TreeBitLocation(node->operand(0), i)) &&
+            !query_engine.IsZero(TreeBitLocation(node->operand(1), i))) {
           reducible = false;
           break;
         }
@@ -65,11 +65,10 @@ absl::StatusOr<bool> StrengthReduceNode(
   if (NarrowingEnabled(opt_level) && !node->Is<Literal>() &&
       node->GetType()->IsBits() && query_engine.AllBitsKnown(node)) {
     XLS_VLOG(2) << "Replacing node with its (entirely known) bits: " << node
-                << " as "
-                << query_engine.GetKnownBitsValues(node).ToString(
-                       FormatPreference::kBinary);
+                << " as " << ToString(query_engine.GetTernary(node).Get({}));
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Literal>(
-                                Value(query_engine.GetKnownBitsValues(node)))
+                                Value(ternary_ops::ToKnownBitsValues(
+                                    query_engine.GetTernary(node).Get({}))))
                             .status());
     return true;
   }
@@ -99,7 +98,8 @@ absl::StatusOr<bool> StrengthReduceNode(
       return true;
     }
     if (query_engine.AllBitsKnown(node->operand(1)) &&
-        query_engine.GetKnownBitsValues(node->operand(1))
+        ternary_ops::ToKnownBitsValues(
+            query_engine.GetTernary(node->operand(1)).Get({}))
             .HasSingleRunOfSetBits(leading_zeros, selected_bits,
                                    trailing_zeros)) {
       return true;
@@ -289,7 +289,7 @@ absl::StatusOr<bool> StrengthReduceNode(
   if (SplitsEnabled(opt_level) && node->op() == Op::kAdd) {
     auto lsb_known_zero_count = [&](Node* n) {
       for (int64_t i = 0; i < n->BitCountOrDie(); ++i) {
-        if (!query_engine.IsZero(BitLocation(n, i))) {
+        if (!query_engine.IsZero(TreeBitLocation(n, i))) {
           return i;
         }
       }
