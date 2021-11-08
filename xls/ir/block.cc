@@ -14,6 +14,7 @@
 
 #include "xls/ir/block.h"
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -153,7 +154,7 @@ std::vector<Node*> Block::DumpOrder() const {
 
   // The set of nodes ready to be emitted (all operands emitted) is kept in this
   // set, ordered by DumpOrderPriority.
-  std::set<Node*, decltype(cmp_function)> ready_nodes(cmp_function);
+  absl::btree_set<Node*, decltype(cmp_function)> ready_nodes(cmp_function);
 
   // The count of the unemitted operands of each node. If this value is
   // zero for a node then the node is ready to be emitted.
