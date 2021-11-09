@@ -59,9 +59,9 @@ def load_external_repositories():
 
     git_repository(
         name = "boringssl",
-        commit = "14164f6fef47b7ebd97cdb0cea1624eabd6fe6b8",  # 2018-11-26
+        commit = "4fb158925f7753d80fb858cb0239dff893ef9f15",  # 2021-11-01
         remote = "https://github.com/google/boringssl.git",
-        shallow_since = "1543277914 +0000",
+        shallow_since = "1635790430 +0000",
     )
 
     http_archive(
