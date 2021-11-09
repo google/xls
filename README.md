@@ -67,7 +67,7 @@ bazel 4.0.0
 ~/xls$ sudo apt install python3-distutils python3-dev libtinfo5 python-is-python3
 
 ~/xls$ # Now build/test everything in optimized build mode.
-~/xls$ bazel test -c opt ...
+~/xls$ bazel test -c opt //...
 ```
 
 A reference build/test environment setup is also provided via `Dockerfile`:
