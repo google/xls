@@ -25,6 +25,7 @@ pub proc fmac<EXP_SZ: u32, SFD_SZ: u32> {
   input_b: chan in APFloat<EXP_SZ, SFD_SZ>;
   reset: chan in bool;
   output: chan out APFloat<EXP_SZ, SFD_SZ>;
+
   config(input_a: chan in APFloat<EXP_SZ, SFD_SZ>,
          input_b: chan in APFloat<EXP_SZ, SFD_SZ>,
          reset: chan in bool,

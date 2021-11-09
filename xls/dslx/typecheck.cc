@@ -703,6 +703,88 @@ class ScopedFnStackEntry {
   bool expect_popped_;
 };
 
+// Checks a single #![test_proc()] construct.
+static absl::Status CheckTestProc(TestProc* tp, Module* module,
+                                  DeduceCtx* ctx) {
+  Proc* proc = tp->proc();
+  // Test constructs are specified using a function.
+  // This function shouldn't be parametric and shouldn't take any arguments.
+  const std::vector<Param*> config_params = proc->config()->params();
+  if (config_params.size() != 1) {
+    return TypeInferenceErrorStatus(proc->config()->span(), nullptr,
+                                    "Test proc 'config' functions should "
+                                    "only take a terminator channel.");
+  }
+  ChannelTypeAnnotation* channel_type =
+      dynamic_cast<ChannelTypeAnnotation*>(config_params[0]->type_annotation());
+  if (channel_type == nullptr) {
+    return TypeInferenceErrorStatus(proc->config()->span(), nullptr,
+                                    "Test proc 'config' functions should "
+                                    "only take a terminator channel.");
+  }
+  BuiltinTypeAnnotation* payload_type =
+      dynamic_cast<BuiltinTypeAnnotation*>(channel_type->payload());
+  if (channel_type->direction() != ChannelTypeAnnotation::kOut ||
+      payload_type == nullptr || payload_type->GetBitCount() != 1) {
+    return TypeInferenceErrorStatus(
+        proc->config()->span(), nullptr,
+        "Test proc 'config' terminator channel must be outgoing "
+        "and have boolean payload.");
+  }
+
+  const std::vector<Param*>& next_params = proc->next()->params();
+  BuiltinTypeAnnotation* builtin_type =
+      dynamic_cast<BuiltinTypeAnnotation*>(next_params[0]->type_annotation());
+  if (builtin_type == nullptr ||
+      builtin_type->builtin_type() != BuiltinType::kToken) {
+    return TypeInferenceErrorStatus(
+        proc->next()->span(), nullptr,
+        "Test proc 'next' functions first arg must be a token.");
+  }
+
+  if (proc->IsParametric()) {
+    return TypeInferenceErrorStatus(
+        proc->span(), nullptr, "Test procs functions cannot be parametric.");
+  }
+
+  XLS_VLOG(2) << "Typechecking test proc: " << tp->ToString();
+  {
+    ScopedFnStackEntry scoped(proc->config(), ctx, module);
+    XLS_RETURN_IF_ERROR(CheckTopNodeInModule(proc->config(), ctx));
+    scoped.Finish();
+  }
+  {
+    ScopedFnStackEntry scoped(proc->next(), ctx, module);
+    XLS_RETURN_IF_ERROR(CheckTopNodeInModule(proc->next(), ctx));
+    scoped.Finish();
+
+    // Verify that the initial 'next' args match the next fn's param types.
+    const std::vector<Param*> next_params = proc->next()->params();
+    for (int i = 0; i < tp->next_args().size(); i++) {
+      absl::optional<ConcreteType*> param_type =
+          ctx->type_info()->GetItem(next_params[i + 1]);
+      if (!param_type.has_value()) {
+        return absl::InternalError(absl::StrCat(
+            "Missing type for next param: ", next_params[i + 1]->ToString()));
+      }
+
+      ScopedFnStackEntry scoped(ctx, module);
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> next_arg_type,
+                           ctx->Deduce(tp->next_args()[i]));
+      scoped.Finish();
+      if (**param_type != *next_arg_type) {
+        return TypeInferenceErrorStatus(
+            proc->next()->span(), nullptr,
+            absl::StrFormat(
+                "'next' param and actual arg types differ: %s vs %s.",
+                param_type.value()->ToString(), next_arg_type->ToString()));
+      }
+    }
+  }
+  XLS_VLOG(2) << "Finished typechecking test proc: " << tp->ToString();
+  return absl::OkStatus();
+}
+
 // Typechecks top level "member" within "module".
 static absl::Status CheckModuleMember(ModuleMember member, Module* module,
                                       ImportData* import_data, DeduceCtx* ctx) {
@@ -813,8 +895,7 @@ static absl::Status CheckModuleMember(ModuleMember member, Module* module,
 
     XLS_VLOG(2) << "Finished typechecking quickcheck function: "
                 << f->ToString();
-  } else {
-    XLS_RET_CHECK(absl::holds_alternative<TestFunction*>(member));
+  } else if (absl::holds_alternative<TestFunction*>(member)) {
     TestFunction* test = absl::get<TestFunction*>(member);
     // New-style test constructs are specified using a function.
     // This function shouldn't be parametric and shouldn't take any arguments.
@@ -834,6 +915,10 @@ static absl::Status CheckModuleMember(ModuleMember member, Module* module,
     XLS_RETURN_IF_ERROR(CheckTopNodeInModule(test->fn(), ctx));
     scoped.Finish();
     XLS_VLOG(2) << "Finished typechecking test: " << test->ToString();
+  } else {
+    XLS_RET_CHECK(absl::holds_alternative<TestProc*>(member));
+    XLS_RETURN_IF_ERROR(
+        CheckTestProc(absl::get<TestProc*>(member), module, ctx));
   }
   return absl::OkStatus();
 }

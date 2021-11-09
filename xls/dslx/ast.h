@@ -2162,7 +2162,8 @@ class TestFunction : public AstNode {
 // ```
 class TestProc : public AstNode {
  public:
-  TestProc(Module* owner, Proc* proc) : AstNode(owner), proc_(proc) {}
+  TestProc(Module* owner, Proc* proc, std::vector<Expr*> next_args)
+      : AstNode(owner), proc_(proc), next_args_(std::move(next_args)) {}
   AstNodeKind kind() const { return AstNodeKind::kTestProc; }
   absl::Status Accept(AstNodeVisitor* v) override {
     return v->HandleTestProc(this);
@@ -2171,15 +2172,16 @@ class TestProc : public AstNode {
     return {proc_};
   }
   absl::string_view GetNodeTypeName() const override { return "TestProc"; }
-  std::string ToString() const override {
-    return absl::StrFormat("#![test]\n%s", proc_->ToString());
-  }
+  std::string ToString() const override;
 
   Proc* proc() const { return proc_; }
   absl::optional<Span> GetSpan() const override { return proc_->span(); }
 
+  const std::vector<Expr*>& next_args() { return next_args_; }
+
  private:
   Proc* proc_;
+  std::vector<Expr*> next_args_;
 };
 
 // Represents a function to be quick-check'd.

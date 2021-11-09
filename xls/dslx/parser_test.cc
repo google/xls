@@ -335,17 +335,18 @@ TEST_F(ParserTest, ParseTestProc) {
     ((x) + (y),)
   }
 }
-#![test]
+#![test_proc(u32:0)]
 proc tester {
   p: chan out u32;
   c: chan in u32;
-  config() {
+  terminator: chan out u32;
+  config(terminator: chan out u32) {
     let (input_p, input_c) = chan u32;
     let (output_p, output_c) = chan u32;
     spawn testee(input_c, output_p)(u32:0);
-    (input_p, output_c)
+    (input_p, output_c, terminator)
   }
-  next(tok: token) {
+  next(tok: token, iter: u32) {
     let tok = send(tok, p, u32:0);
     let tok = send(tok, p, u32:1);
     let tok = send(tok, p, u32:2);
@@ -358,7 +359,8 @@ proc tester {
     let _ = assert_eq(exp, u32:3);
     let (tok, exp) = recv(tok, c);
     let _ = assert_eq(exp, u32:6);
-    ()
+    let tok = send_if(tok, terminator, (iter) == (u32:4), true);
+    ((iter) + (u32:1),)
   }
 })";
 

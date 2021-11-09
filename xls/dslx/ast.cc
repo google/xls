@@ -1449,6 +1449,18 @@ std::vector<AstNode*> Join::GetChildren(bool want_types) const {
   return nodes;
 }
 
+// -- class TestProc
+
+std::string TestProc::ToString() const {
+  std::vector<std::string> next_args;
+  for (const auto* expr : next_args_) {
+    next_args.push_back(expr->ToString());
+  }
+
+  return absl::StrFormat("#![test_proc(%s)]\n%s",
+                         absl::StrJoin(next_args, ", "), proc_->ToString());
+}
+
 // -- class BuiltinTypeAnnotation
 
 BuiltinTypeAnnotation::BuiltinTypeAnnotation(Module* owner, Span span,

@@ -261,12 +261,19 @@ Parser::ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->IsKeyword(Keyword::kFn)) {
       return ParseTestFunction(bindings, directive_tok.span());
-    } else if (peek->IsKeyword(Keyword::kProc)) {
-      return ParseTestProc(bindings);
     } else {
       return ParseErrorStatus(
           peek->span(), absl::StrCat("Invalid test type: ", peek->ToString()));
     }
+  }
+  if (directive_name == "test_proc") {
+    std::vector<Expr*> initial_values;
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+    auto parse_term = [this, bindings] { return ParseTerm(bindings); };
+    XLS_ASSIGN_OR_RETURN(initial_values,
+                         ParseCommaSeq<Expr*>(parse_term, TokenKind::kCParen));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
+    return ParseTestProc(bindings, initial_values);
   }
   if (directive_name == "quickcheck") {
     XLS_ASSIGN_OR_RETURN(QuickCheck * n, ParseQuickCheck(name_to_fn, bindings,
@@ -2191,7 +2198,8 @@ absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
   return module_->Make<TestFunction>(f);
 }
 
-absl::StatusOr<TestProc*> Parser::ParseTestProc(Bindings* bindings) {
+absl::StatusOr<TestProc*> Parser::ParseTestProc(
+    Bindings* bindings, const std::vector<Expr*>& initial_values) {
   XLS_ASSIGN_OR_RETURN(Proc * p, ParseProc(/*is_public=*/false, bindings));
   if (absl::optional<ModuleMember*> member =
           module_->FindMemberWithName(p->identifier())) {
@@ -2203,7 +2211,7 @@ absl::StatusOr<TestProc*> Parser::ParseTestProc(Bindings* bindings) {
   }
 
   // Verify no state or config args
-  return module_->Make<TestProc>(p);
+  return module_->Make<TestProc>(p, initial_values);
 }
 
 absl::Status Parser::ParseConfig(const Span& directive_span) {
