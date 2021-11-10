@@ -198,12 +198,8 @@ static absl::Status UpdateStateRegisterWithReset(const ResetInfo& reset_info,
   RegisterWrite* old_reg_write = state_register.reg_write;
   RegisterRead* old_reg_read = state_register.reg_read;
 
-  // Get or make the reset mode for the state register.
   // Blocks containing a state register must also have a reset signal.
-  XLS_ASSIGN_OR_RETURN(absl::optional<Node*> maybe_reset_node,
-                       MaybeGetOrMakeResetNode(reset_info, block));
-
-  if (!maybe_reset_node.has_value() || !reset_info.behavior.has_value()) {
+  if (!reset_info.input_port.has_value() || !reset_info.behavior.has_value()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Unable to update state register %s with reset, signal as block"
         " was not created with a reset.",
@@ -212,7 +208,7 @@ static absl::Status UpdateStateRegisterWithReset(const ResetInfo& reset_info,
 
   // Follow the reset behavior of the valid registers except for the initial
   // value.
-  Node* reset_node = maybe_reset_node.value();
+  Node* reset_node = reset_info.input_port.value();
   xls::Reset reset_behavior = reset_info.behavior.value();
   reset_behavior.reset_value = state_register.reset_value;
 
