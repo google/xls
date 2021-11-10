@@ -18,6 +18,7 @@
 package_group(
     name = "xls_internal",
     packages = [
+        "-//xls/public/tests/...",
         "//xls/...",
         "//third_party/xls_berkeley_softfloat/...",
         "//third_party/xls_colors/...",
@@ -36,7 +37,10 @@ package_group(
     name = "xls_public",
     # Everything the public can see is also visible internally.
     includes = [":xls_internal"],
-    packages = ["//..."],
+    packages = [
+        "//...",
+        "//xls/public/tests/...",
+    ],
 )
 
 # TODO(leary): 2020-06-29 This structure is a work-around to publically expose

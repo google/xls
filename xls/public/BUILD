@@ -62,11 +62,36 @@ cc_library(
 )
 
 cc_library(
+    name = "status_macros",
+    hdrs = ["status_macros.h"],
+    deps = [
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_library(
+    name = "status_matchers",
+    testonly = True,
+    hdrs = ["status_matchers.h"],
+    deps = [
+        "//xls/common/status:matchers",
+    ],
+)
+
+cc_library(
     name = "value",
     hdrs = ["value.h"],
     deps = [
         "//xls/ir:bits",
         "//xls/ir:value",
         "//xls/ir:value_view",
+    ],
+)
+
+cc_library(
+    name = "xls_gunit_main",
+    testonly = True,
+    deps = [
+        "//xls/common:xls_gunit_main",
     ],
 )
