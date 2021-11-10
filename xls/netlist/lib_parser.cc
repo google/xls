@@ -296,6 +296,14 @@ absl::StatusOr<std::vector<BlockEntry>> Parser::ParseEntries() {
     if (dropped_colon) {
       Pos last_pos;
       XLS_ASSIGN_OR_RETURN(std::string value, PopValueOrError(&last_pos));
+
+      // Could be a colon-ref-type value, e.g., Foo:Bar.
+      XLS_ASSIGN_OR_RETURN(bool dropped_another_colon,
+                           TryDropToken(TokenKind::kColon));
+      if (dropped_another_colon) {
+        XLS_ASSIGN_OR_RETURN(std::string sub_value, PopValueOrError());
+        absl::StrAppend(&value, ":", sub_value);
+      }
       result.push_back(KVEntry{identifier, value});
       XLS_ASSIGN_OR_RETURN(bool dropped_semi, TryDropToken(TokenKind::kSemi));
       if (!dropped_semi) {

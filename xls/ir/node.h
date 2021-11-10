@@ -207,7 +207,7 @@ class Node {
   bool IsDead() const;
 
   // Returns true when the Op is in the list of choices
-  bool OpIn(const std::vector<Op>& choices);
+  bool OpIn(const std::vector<Op>& choices) const;
 
   Node* operand(int64_t i) const {
     XLS_CHECK_LT(i, operands_.size());

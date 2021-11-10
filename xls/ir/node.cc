@@ -766,7 +766,7 @@ absl::StatusOr<bool> Node::ReplaceImplicitUsesWith(Node* replacement) {
   return changed;
 }
 
-bool Node::OpIn(const std::vector<Op>& choices) {
+bool Node::OpIn(const std::vector<Op>& choices) const {
   for (auto& c : choices) {
     if (c == op()) {
       return true;
