@@ -44,6 +44,13 @@ message SourceLocationRange {
   optional SourceLocation end = 2;
 }
 
+// Represents a static value in a function
+message FunctionValue {
+  optional CPPName name = 1;
+  optional Type type = 2;
+  optional TypeValue value = 3;
+}
+
 // Represents the prototype / interface of a function
 message FunctionPrototype {
   optional CPPName name = 1;
@@ -52,6 +59,7 @@ message FunctionPrototype {
   optional SourceLocationRange whole_declaration_location = 4;
   optional SourceLocationRange return_location = 5;
   optional SourceLocationRange parameters_location = 6;
+  repeated FunctionValue static_values = 7;
 }
 
 // The name of a C++ symbol / object.
@@ -118,4 +126,49 @@ message StructType {
   repeated StructField fields = 2;
   // Whether or not #pragma hls_no_tuple was specified in the struct declaration
   optional bool no_tuple = 3;
+}
+
+
+// Generic type's associated values
+message TypeValue {
+  optional bytes as_bits = 1;
+  optional IntTypeValue as_int = 2;
+  optional bool as_bool = 3;
+  optional ArrayTypeValue as_array = 4;
+  optional StructTypeValue as_struct = 5;
+  optional InstanceTypeValue as_inst = 6;
+}
+
+// Any integral type: char, short, int, long with the given
+// signed or unsigned value
+message IntTypeValue {
+  optional int64 signed_value = 1;
+  optional uint64 unsigned_value = 2;
+}
+
+//
+message StructTypeValue {
+  // name() Type is always an InstanceType, that is, it has as_inst() valid
+  optional Type name = 1;
+  repeated StructFieldValue fields = 2;
+  // Whether or not #pragma hls_no_tuple was specified in the struct declaration
+  optional bool no_tuple = 3;
+}
+
+// A field in a structure with the given value
+message StructFieldValue {
+  optional CPPName name = 1;
+  optional Type type = 2;
+  optional TypeValue value = 3;
+}
+
+// Fixed-length array type with the given values
+message ArrayTypeValue {
+  repeated TypeValue element_values = 1;
+}
+
+// Represents an instantiation of a non-built-in type. Most commonly,
+//  this is an instance of a struct.
+message InstanceTypeValue {
+  optional uint64 value = 1;
 }
