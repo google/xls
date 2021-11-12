@@ -622,6 +622,8 @@ bool SimNetworkInterfaceSrc::TryForwardPropagation(NocSimulator& simulator) {
         sink.forward_channels.flit.vc = vc;
         sink.forward_channels.cycle = current_cycle;
         sink.forward_channels.metadata = send_queue.front().metadata;
+        sink.forward_channels.metadata.timed_route_info.route.push_back(
+            TimedRouteItem{id_, current_cycle});
 
         --credit_[vc];
 
@@ -843,6 +845,8 @@ bool SimInputBufferedVCRouter::TryForwardPropagation(NocSimulator& simulator) {
       output_state.forward_channels.flit.vc = output.vc_index;
       output_state.forward_channels.cycle = current_cycle;
       output_state.forward_channels.metadata = metadata;
+      output_state.forward_channels.metadata.timed_route_info.route.push_back(
+          TimedRouteItem{id_, current_cycle});
 
       // Update credit on output.
       --credit_.at(output.port_index).at(output.vc_index);
@@ -997,6 +1001,8 @@ bool SimNetworkInterfaceSink::TryForwardPropagation(NocSimulator& simulator) {
     received_flit.cycle = current_cycle;
     received_flit.flit = src.forward_channels.flit;
     received_flit.metadata = src.forward_channels.metadata;
+    received_flit.metadata.timed_route_info.route.push_back(
+        TimedRouteItem{id_, current_cycle});
     received_traffic_.push_back(received_flit);
 
     // Send one credit back

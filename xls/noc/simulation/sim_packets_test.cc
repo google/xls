@@ -50,6 +50,9 @@ TEST(SimObjectsTest, BackToBackNetwork0) {
   XLS_ASSERT_OK_AND_ASSIGN(
       NetworkComponentId recv_port_0,
       FindNetworkComponentByName("RecvPort0", graph, params));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NetworkComponentId router,
+      FindNetworkComponentByName("RouterA", graph, params));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       int64_t src_index_0,
@@ -109,6 +112,10 @@ TEST(SimObjectsTest, BackToBackNetwork0) {
   EXPECT_EQ(flit0.flit.vc, 0);
   EXPECT_EQ(flit0.flit.data.Slice(0, flit0.flit.data_bit_count),
             UBits(0b0'0110'1100'0011, 13));
+  EXPECT_THAT(flit0.metadata.timed_route_info.route,
+              ::testing::ElementsAre(TimedRouteItem{send_port_0, 1},
+                                     TimedRouteItem{router, 3},
+                                     TimedRouteItem{recv_port_0, 5}));
 
   EXPECT_EQ(flit1.cycle, 6);
   EXPECT_EQ(flit1.flit.source_index, src_index_0);
@@ -117,6 +124,10 @@ TEST(SimObjectsTest, BackToBackNetwork0) {
   EXPECT_EQ(flit1.flit.vc, 0);
   EXPECT_EQ(flit1.flit.data.Slice(0, flit1.flit.data_bit_count),
             UBits(0b101, 3));
+  EXPECT_THAT(flit1.metadata.timed_route_info.route,
+              ::testing::ElementsAre(TimedRouteItem{send_port_0, 2},
+                                     TimedRouteItem{router, 4},
+                                     TimedRouteItem{recv_port_0, 6}));
 }
 
 }  // namespace

@@ -15,10 +15,12 @@
 #ifndef XLS_NOC_SIMULATION_FLIT_H_
 #define XLS_NOC_SIMULATION_FLIT_H_
 
+#include "absl/container/inlined_vector.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/noc/simulation/common.h"
 
 // This file contains classes used to store and build objects related to
 // NOC flits.
@@ -80,14 +82,80 @@ struct DataFlit {
   }
 };
 
+// An entry for the timed route info. It contains the cycle time that the flit
+// left the network component.
+struct TimedRouteItem {
+  NetworkComponentId id;
+  int64_t cycle;
+  std::string ToString() const {
+    return absl::StrFormat("{Network Component Id: %x cycle: %d}",
+                           id.AsUInt64(), cycle);
+  }
+
+  // String converter to support absl::StrFormat() and related functions.
+  friend absl::FormatConvertResult<absl::FormatConversionCharSet::kString>
+  AbslFormatConvert(const TimedRouteItem& timed_route_item,
+                    const absl::FormatConversionSpec& spec,
+                    absl::FormatSink* s) {
+    s->Append(timed_route_item.ToString());
+    return {true};
+  }
+};
+
+inline bool operator==(const TimedRouteItem& lhs, const TimedRouteItem& rhs) {
+  return lhs.id == rhs.id && lhs.cycle == rhs.cycle;
+}
+inline bool operator!=(const TimedRouteItem& lhs, const TimedRouteItem& rhs) {
+  return lhs.id != rhs.id || lhs.cycle != rhs.cycle;
+}
+
+// A timed route info contains the route information that a flit traversed the
+// network from from source to sink.
+struct TimedRouteInfo {
+  absl::InlinedVector<TimedRouteItem, 10> route;
+  std::string ToString() const {
+    std::string timed_route_info_str("{");
+    for (const TimedRouteItem& timed_route_info_item : route) {
+      absl::StrAppend(&timed_route_info_str,
+                      absl::StrFormat("%s, ", timed_route_info_item));
+    }
+    absl::StrAppend(&timed_route_info_str, "}");
+    return timed_route_info_str;
+  }
+
+  // String converter to support absl::StrFormat() and related functions.
+  friend absl::FormatConvertResult<absl::FormatConversionCharSet::kString>
+  AbslFormatConvert(const TimedRouteInfo& timed_route_info,
+                    const absl::FormatConversionSpec& spec,
+                    absl::FormatSink* s) {
+    s->Append(timed_route_info.ToString());
+    return {true};
+  }
+};
+
+inline bool operator==(const TimedRouteInfo& lhs, const TimedRouteInfo& rhs) {
+  if (lhs.route.size() != rhs.route.size()) {
+    return false;
+  }
+  for (int64_t index = 0; index < lhs.route.size(); ++index) {
+    if (lhs.route[index] != rhs.route[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // Information associated with to a xls::noc::TimedDataFlit
 // TODO(vmirian) This can be expanded to have 'metadata' objects hooked onto the
 // flit. Discussion is required to evaluate the performance tradeoff.
 struct TimedDataFlitInfo {
   int64_t injection_cycle_time;  // the cycle iteration the flit was injected by
   // the simulator into the network
+  TimedRouteInfo
+      timed_route_info;  // The route of the flit from source to sink.
   std::string ToString() const {
-    return absl::StrFormat("{injection_cycle_time: %d}", injection_cycle_time);
+    return absl::StrFormat("{injection_cycle_time: %d timed_route_info: %s }",
+                           injection_cycle_time, timed_route_info);
   }
 };
 
