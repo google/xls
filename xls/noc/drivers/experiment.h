@@ -146,11 +146,45 @@ class ExperimentMetrics {
   absl::btree_map<std::string, int64_t> integer_metrics_;
 };
 
+// Stores information obtained during simulation.
+//
+// TODO(vmirian): 2021-11-11 Create a hierarchical design to modify (e.g.
+// expand) with ease.
+class ExperimentInfo {
+ public:
+  // Append a timed route info.
+  void AppendTimedRouteInfo(absl::string_view metric,
+                            TimedRouteInfo&& timed_route_info) {
+    timed_route_info_[metric].emplace_back(std::move(timed_route_info));
+  }
+  void AppendTimedRouteInfo(absl::string_view metric,
+                            const TimedRouteInfo& timed_route_info) {
+    timed_route_info_[metric].emplace_back(timed_route_info);
+  }
+
+  // Retrieve timed route infos.
+  absl::StatusOr<std::vector<TimedRouteInfo>> GetTimedRouteInfo(
+      absl::string_view info) const {
+    if (!timed_route_info_.contains(info)) {
+      return absl::NotFoundError(absl::StrFormat("%s not found.", info));
+    }
+    return timed_route_info_.at(info);
+  }
+
+ private:
+  absl::btree_map<std::string, std::vector<TimedRouteInfo>> timed_route_info_;
+};
+
+struct ExperimentData {
+  ExperimentMetrics metrics;
+  ExperimentInfo info;
+};
+
 // Class to setup and run a single step of the experiment,
 // including the setup and initialization of the traffic model.
 class ExperimentRunner {
  public:
-  absl::StatusOr<ExperimentMetrics> RunExperiment(
+  absl::StatusOr<ExperimentData> RunExperiment(
       const ExperimentConfig& experiment_config,
       DistributedRoutingTableBuilderBase&& distributed_routing_table_builder =
           DistributedRoutingTableBuilderForTrees()) const;
@@ -207,7 +241,7 @@ class Experiment {
   // each subsequent step in independent and the config for step N is
   // created by applying the mutation for step N ontop of the base configuration
   // as run in step 0.
-  absl::StatusOr<ExperimentMetrics> RunStep(
+  absl::StatusOr<ExperimentData> RunStep(
       int64_t step,
       DistributedRoutingTableBuilderBase&& distributed_routing_table_builder =
           DistributedRoutingTableBuilderForTrees()) const {
@@ -217,12 +251,8 @@ class Experiment {
 
     // Make a copy of the runner to run the single step.
     ExperimentRunner runner = runner_;
-    XLS_ASSIGN_OR_RETURN(
-        ExperimentMetrics metrics,
-        runner.RunExperiment(config,
-                             std::move(distributed_routing_table_builder)));
-
-    return metrics;
+    return runner.RunExperiment(config,
+                                std::move(distributed_routing_table_builder));
   }
 
   // Get the configuration for step N.

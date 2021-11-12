@@ -125,7 +125,7 @@ absl::Status ExperimentMetrics::DebugDump() const {
   return absl::OkStatus();
 }
 
-absl::StatusOr<ExperimentMetrics> ExperimentRunner::RunExperiment(
+absl::StatusOr<ExperimentData> ExperimentRunner::RunExperiment(
     const ExperimentConfig& experiment_config,
     DistributedRoutingTableBuilderBase&& distributed_routing_table_builder)
     const {
@@ -183,7 +183,9 @@ absl::StatusOr<ExperimentMetrics> ExperimentRunner::RunExperiment(
   //
   // TODO(tedhong): 2021-07-13 Factor this out to make it possible for
   //                each experiment to define the set of metrics needed.
-  ExperimentMetrics metrics;
+  ExperimentData experiment_data;
+  ExperimentMetrics& metrics = experiment_data.metrics;
+  ExperimentInfo& info = experiment_data.info;
 
   for (int64_t i = 0; i < traffic_injector.FlowCount(); ++i) {
     TrafficFlowId flow_id = traffic_injector.GetTrafficFlows().at(i);
@@ -206,54 +208,57 @@ absl::StatusOr<ExperimentMetrics> ExperimentRunner::RunExperiment(
     std::string nc_name =
         std::string(absl::get<NetworkInterfaceSinkParam>(nc_param).GetName());
 
-    std::string metric_name =
+    std::string entry_name =
         absl::StrFormat("Sink:%s:TrafficRateInMiBps", nc_name);
 
     XLS_ASSIGN_OR_RETURN(SimNetworkInterfaceSink * sink,
                          simulator.GetSimNetworkInterfaceSink(sink_id));
 
     double traffic_rate = sink->MeasuredTrafficRateInMiBps(cycle_time_in_ps_);
-    metrics.SetFloatMetric(metric_name, traffic_rate);
+    metrics.SetFloatMetric(entry_name, traffic_rate);
 
-    metric_name = absl::StrFormat("Sink:%s:FlitCount", nc_name);
-    metrics.SetIntegerMetric(metric_name, sink->GetReceivedTraffic().size());
+    entry_name = absl::StrFormat("Sink:%s:FlitCount", nc_name);
+    metrics.SetIntegerMetric(entry_name, sink->GetReceivedTraffic().size());
 
     // Per VC Metrics
     int64_t vc_count =
         params.GetNetworkParam(graph.GetNetworkIds()[0])->VirtualChannelCount();
     for (int64_t vc = 0; vc < vc_count; ++vc) {
-      metric_name =
+      entry_name =
           absl::StrFormat("Sink:%s:VC:%d:TrafficRateInMiBps", nc_name, vc);
       traffic_rate = sink->MeasuredTrafficRateInMiBps(cycle_time_in_ps_, vc);
-      metrics.SetFloatMetric(metric_name, traffic_rate);
+      metrics.SetFloatMetric(entry_name, traffic_rate);
       // Latency stats
       const internal::Stats stats =
           GetStats(internal::GetPacketInfo(sink->GetReceivedTraffic(), 0));
-      metric_name =
+      entry_name =
           absl::StrFormat("Sink:%s:VC:%d:MinimumInjectionTime", nc_name, vc);
-      metrics.SetIntegerMetric(metric_name, stats.min_injection_cycle_time);
-      metric_name =
+      metrics.SetIntegerMetric(entry_name, stats.min_injection_cycle_time);
+      entry_name =
           absl::StrFormat("Sink:%s:VC:%d:MaximumInjectionTime", nc_name, vc);
-      metrics.SetIntegerMetric(metric_name, stats.max_injection_cycle_time);
-      metric_name =
+      metrics.SetIntegerMetric(entry_name, stats.max_injection_cycle_time);
+      entry_name =
           absl::StrFormat("Sink:%s:VC:%d:MinimumArrivalTime", nc_name, vc);
-      metrics.SetIntegerMetric(metric_name, stats.min_arrival_cycle_time);
-      metric_name =
+      metrics.SetIntegerMetric(entry_name, stats.min_arrival_cycle_time);
+      entry_name =
           absl::StrFormat("Sink:%s:VC:%d:MaximumArrivalTime", nc_name, vc);
-      metrics.SetIntegerMetric(metric_name, stats.max_arrival_cycle_time);
-      metric_name =
-          absl::StrFormat("Sink:%s:VC:%d:MinimumLatency", nc_name, vc);
-      metrics.SetIntegerMetric(metric_name, stats.min_latency);
-      metric_name =
-          absl::StrFormat("Sink:%s:VC:%d:MaximumLatency", nc_name, vc);
-      metrics.SetIntegerMetric(metric_name, stats.max_latency);
-      metric_name =
-          absl::StrFormat("Sink:%s:VC:%d:AverageLatency", nc_name, vc);
-      metrics.SetFloatMetric(metric_name, stats.average_latency);
-      metric_name =
+      metrics.SetIntegerMetric(entry_name, stats.max_arrival_cycle_time);
+      entry_name = absl::StrFormat("Sink:%s:VC:%d:MinimumLatency", nc_name, vc);
+      metrics.SetIntegerMetric(entry_name, stats.min_latency);
+      entry_name = absl::StrFormat("Sink:%s:VC:%d:MaximumLatency", nc_name, vc);
+      metrics.SetIntegerMetric(entry_name, stats.max_latency);
+      entry_name = absl::StrFormat("Sink:%s:VC:%d:AverageLatency", nc_name, vc);
+      metrics.SetFloatMetric(entry_name, stats.average_latency);
+      entry_name =
           absl::StrFormat("Sink:%s:VC:%d:LatencyHistogram", nc_name, vc);
-      metrics.SetIntegerIntegerMapMetric(metric_name,
+      metrics.SetIntegerIntegerMapMetric(entry_name,
                                          std::move(stats.latency_histogram));
+      for (const TimedDataFlit& timed_data_flit : sink->GetReceivedTraffic()) {
+        entry_name =
+            absl::StrFormat("Sink:%s:VC:%d:TimedRouteInfo", nc_name, vc);
+        info.AppendTimedRouteInfo(
+            entry_name, std::move(timed_data_flit.metadata.timed_route_info));
+      }
     }
   }
 
@@ -271,7 +276,7 @@ absl::StatusOr<ExperimentMetrics> ExperimentRunner::RunExperiment(
                          static_cast<double>(total_simulation_cycle_count_));
   }
 
-  return metrics;
+  return experiment_data;
 }
 
 }  // namespace xls::noc

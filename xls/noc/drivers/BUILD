@@ -68,6 +68,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/config:network_config_proto_builder",
+        "//xls/noc/simulation:common",
         "@com_google_googletest//:gtest",
     ],
 )

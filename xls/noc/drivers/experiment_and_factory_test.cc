@@ -22,9 +22,12 @@
 #include "xls/noc/config/network_config_proto_builder.h"
 #include "xls/noc/drivers/experiment.h"
 #include "xls/noc/drivers/experiment_factory.h"
+#include "xls/noc/simulation/common.h"
 
 namespace xls::noc {
 namespace {
+
+using ::xls::status_testing::StatusIs;
 
 // Dummy ExperimentBuilder used in this unit test.
 class TestExperimentBuilder : public ExperimentBuilderBase {
@@ -204,6 +207,51 @@ TEST(ExperimentsTest, ExperimentMetrics) {
                                       ::testing::Eq(), int_int_map_expected));
 
   XLS_EXPECT_OK(metrics.DebugDump());
+}
+
+TEST(ExperimentsTest, ExperimentInfo) {
+  ExperimentInfo experiment_info;
+  std::vector<TimedRouteInfo> timed_route_info_a_expected;
+  TimedRouteInfo timed_route_info_a_0;
+  timed_route_info_a_0.route.emplace_back(
+      TimedRouteItem{NetworkComponentId(0, 0), 0});
+  timed_route_info_a_0.route.emplace_back(
+      TimedRouteItem{NetworkComponentId(0, 1), 1});
+  timed_route_info_a_0.route.emplace_back(
+      TimedRouteItem{NetworkComponentId(0, 2), 2});
+  TimedRouteInfo timed_route_info_a_1;
+  timed_route_info_a_0.route.emplace_back(
+      TimedRouteItem{NetworkComponentId(0, 3), 3});
+  timed_route_info_a_expected.emplace_back(timed_route_info_a_0);
+  timed_route_info_a_expected.emplace_back(timed_route_info_a_1);
+  // Add two entries for "timed_route_info_a".
+  experiment_info.AppendTimedRouteInfo("timed_route_info_a",
+                                       std::move(timed_route_info_a_0));
+  experiment_info.AppendTimedRouteInfo("timed_route_info_a",
+                                       std::move(timed_route_info_a_1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<TimedRouteInfo> timed_route_info_a,
+      experiment_info.GetTimedRouteInfo("timed_route_info_a"));
+  EXPECT_THAT(timed_route_info_a,
+              ::testing::ContainerEq(timed_route_info_a_expected));
+  // Fail as "timed_route_info_b" is not present.
+  EXPECT_THAT(
+      experiment_info.GetTimedRouteInfo("timed_route_info_b"),
+      StatusIs(absl::StatusCode::kNotFound, "timed_route_info_b not found."));
+  std::vector<TimedRouteInfo> timed_route_info_b_expected;
+  TimedRouteInfo timed_route_info_b_0;
+  timed_route_info_b_0.route.emplace_back(
+      TimedRouteItem{NetworkComponentId(1, 42), 42});
+  timed_route_info_b_expected.emplace_back(timed_route_info_b_0);
+  // Add an entry for "timed_route_info_b".
+  experiment_info.AppendTimedRouteInfo("timed_route_info_b",
+                                       std::move(timed_route_info_b_0));
+  // "timed_route_info_b" is now present.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<TimedRouteInfo> timed_route_info_b,
+      experiment_info.GetTimedRouteInfo("timed_route_info_b"));
+  EXPECT_THAT(timed_route_info_b,
+              ::testing::ContainerEq(timed_route_info_b_expected));
 }
 
 }  // namespace

@@ -56,73 +56,92 @@ TEST(SampleExperimentsTest, SimpleVCExperiment) {
   EXPECT_EQ(experiment.GetRunner().GetSeed(), 100);
   EXPECT_EQ(experiment.GetRunner().GetCycleTimeInPs(), 500);
 
-  std::vector<ExperimentMetrics> metrics(4);
+  std::vector<ExperimentData> experiment_data(4);
   for (int64_t i = 0; i < experiment.GetSweeps().GetStepCount(); ++i) {
     XLS_LOG(INFO) << absl::StreamFormat("Experiment Step %d", i);
-    XLS_ASSERT_OK_AND_ASSIGN(metrics.at(i), experiment.RunStep(i));
-    XLS_EXPECT_OK(metrics.at(i).DebugDump());
+    XLS_ASSERT_OK_AND_ASSIGN(experiment_data.at(i), experiment.RunStep(i));
+    XLS_EXPECT_OK(experiment_data.at(i).metrics.DebugDump());
   }
 
   // Flow 0 @ 3 GBps and Flow 1 @ 2 GBps
 
   // Experiment 0 - Both on VC0
-  XLS_ASSERT_OK_AND_ASSIGN(
-      double ex0_flow0_traffic_rate,
-      metrics.at(0).GetFloatMetric("Flow:flow_0:TrafficRateInMiBps"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      double ex0_flow1_traffic_rate,
-      metrics.at(0).GetFloatMetric("Flow:flow_1:TrafficRateInMiBps"));
+  XLS_ASSERT_OK_AND_ASSIGN(double ex0_flow0_traffic_rate,
+                           experiment_data.at(0).metrics.GetFloatMetric(
+                               "Flow:flow_0:TrafficRateInMiBps"));
+  XLS_ASSERT_OK_AND_ASSIGN(double ex0_flow1_traffic_rate,
+                           experiment_data.at(0).metrics.GetFloatMetric(
+                               "Flow:flow_1:TrafficRateInMiBps"));
   EXPECT_EQ(static_cast<int64_t>(ex0_flow0_traffic_rate) / 100, 30);
   EXPECT_EQ(static_cast<int64_t>(ex0_flow1_traffic_rate) / 100, 20);
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      double ex0_traffic_rate,
-      metrics.at(0).GetFloatMetric("Sink:RecvPort0:TrafficRateInMiBps"));
+  XLS_ASSERT_OK_AND_ASSIGN(double ex0_traffic_rate,
+                           experiment_data.at(0).metrics.GetFloatMetric(
+                               "Sink:RecvPort0:TrafficRateInMiBps"));
   EXPECT_EQ(static_cast<int64_t>(ex0_traffic_rate) / 100, 51);
 
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t ex0_flits, metrics.at(0).GetIntegerMetric(
-                                                  "Sink:RecvPort0:FlitCount"));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t ex0_flits,
+                           experiment_data.at(0).metrics.GetIntegerMetric(
+                               "Sink:RecvPort0:FlitCount"));
   EXPECT_EQ(ex0_flits / 1000, 16);
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      double ex0_vc0_traffic_rate,
-      metrics.at(0).GetFloatMetric("Sink:RecvPort0:VC:0:TrafficRateInMiBps"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      double ex0_vc1_traffic_rate,
-      metrics.at(0).GetFloatMetric("Sink:RecvPort0:VC:1:TrafficRateInMiBps"));
+  XLS_ASSERT_OK_AND_ASSIGN(double ex0_vc0_traffic_rate,
+                           experiment_data.at(0).metrics.GetFloatMetric(
+                               "Sink:RecvPort0:VC:0:TrafficRateInMiBps"));
+  XLS_ASSERT_OK_AND_ASSIGN(double ex0_vc1_traffic_rate,
+                           experiment_data.at(0).metrics.GetFloatMetric(
+                               "Sink:RecvPort0:VC:1:TrafficRateInMiBps"));
   EXPECT_EQ(static_cast<int64_t>(ex0_vc0_traffic_rate) / 100, 51);
   EXPECT_DOUBLE_EQ(ex0_vc1_traffic_rate, 0.0);
 
   // Experiment 1 - Flow 0 on VC0, Flow 1 on VC1
-  XLS_ASSERT_OK_AND_ASSIGN(
-      double ex1_vc0_traffic_rate,
-      metrics.at(1).GetFloatMetric("Sink:RecvPort0:VC:0:TrafficRateInMiBps"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      double ex1_vc1_traffic_rate,
-      metrics.at(1).GetFloatMetric("Sink:RecvPort0:VC:1:TrafficRateInMiBps"));
+  XLS_ASSERT_OK_AND_ASSIGN(double ex1_vc0_traffic_rate,
+                           experiment_data.at(1).metrics.GetFloatMetric(
+                               "Sink:RecvPort0:VC:0:TrafficRateInMiBps"));
+  XLS_ASSERT_OK_AND_ASSIGN(double ex1_vc1_traffic_rate,
+                           experiment_data.at(1).metrics.GetFloatMetric(
+                               "Sink:RecvPort0:VC:1:TrafficRateInMiBps"));
   EXPECT_EQ(static_cast<int64_t>(ex1_vc0_traffic_rate) / 100, 30);
   EXPECT_EQ(static_cast<int64_t>(ex1_vc1_traffic_rate) / 100, 20);
 
   // Experiment 2 - Flow 0 on VC0, Flow 1 on VC1, but network can only
   // Support support 16 bits / cycle @ 500ps cycle == 3814 MiBps
-  XLS_ASSERT_OK_AND_ASSIGN(
-      double ex2_vc0_traffic_rate,
-      metrics.at(2).GetFloatMetric("Sink:RecvPort0:VC:0:TrafficRateInMiBps"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      double ex2_vc1_traffic_rate,
-      metrics.at(2).GetFloatMetric("Sink:RecvPort0:VC:1:TrafficRateInMiBps"));
+  XLS_ASSERT_OK_AND_ASSIGN(double ex2_vc0_traffic_rate,
+                           experiment_data.at(2).metrics.GetFloatMetric(
+                               "Sink:RecvPort0:VC:0:TrafficRateInMiBps"));
+  XLS_ASSERT_OK_AND_ASSIGN(double ex2_vc1_traffic_rate,
+                           experiment_data.at(2).metrics.GetFloatMetric(
+                               "Sink:RecvPort0:VC:1:TrafficRateInMiBps"));
   EXPECT_EQ(static_cast<int64_t>(ex2_vc0_traffic_rate) / 100, 38);
   EXPECT_DOUBLE_EQ(ex2_vc1_traffic_rate, 0.0);
 
   // Experiment 3 - Flow 0 on VC0, Flow 1 on VC1, and VC0 gets priority
-  XLS_ASSERT_OK_AND_ASSIGN(
-      double ex3_vc0_traffic_rate,
-      metrics.at(3).GetFloatMetric("Sink:RecvPort0:VC:0:TrafficRateInMiBps"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      double ex3_vc1_traffic_rate,
-      metrics.at(3).GetFloatMetric("Sink:RecvPort0:VC:1:TrafficRateInMiBps"));
+  XLS_ASSERT_OK_AND_ASSIGN(double ex3_vc0_traffic_rate,
+                           experiment_data.at(3).metrics.GetFloatMetric(
+                               "Sink:RecvPort0:VC:0:TrafficRateInMiBps"));
+  XLS_ASSERT_OK_AND_ASSIGN(double ex3_vc1_traffic_rate,
+                           experiment_data.at(3).metrics.GetFloatMetric(
+                               "Sink:RecvPort0:VC:1:TrafficRateInMiBps"));
   EXPECT_EQ(static_cast<int64_t>(ex3_vc0_traffic_rate) / 100, 30);
   EXPECT_EQ(static_cast<int64_t>(ex3_vc1_traffic_rate) / 100, 7);
+
+  // Get route info for VC 1 of RecvPort0 for the four experiments.
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<TimedRouteInfo> timed_route_info_0,
+                           experiment_data.at(0).info.GetTimedRouteInfo(
+                               "Sink:RecvPort0:VC:1:TimedRouteInfo"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<TimedRouteInfo> timed_route_info_1,
+                           experiment_data.at(1).info.GetTimedRouteInfo(
+                               "Sink:RecvPort0:VC:1:TimedRouteInfo"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<TimedRouteInfo> timed_route_info_2,
+                           experiment_data.at(2).info.GetTimedRouteInfo(
+                               "Sink:RecvPort0:VC:1:TimedRouteInfo"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<TimedRouteInfo> timed_route_info_3,
+                           experiment_data.at(3).info.GetTimedRouteInfo(
+                               "Sink:RecvPort0:VC:1:TimedRouteInfo"));
+  EXPECT_EQ(timed_route_info_0.size(), 16843);
+  EXPECT_EQ(timed_route_info_1.size(), 16843);
+  EXPECT_EQ(timed_route_info_2.size(), 99986);
+  EXPECT_EQ(timed_route_info_3.size(), 99986);
 }
 
 TEST(SampleExperimentsTest, AggregateTreeTest) {
@@ -147,31 +166,31 @@ TEST(SampleExperimentsTest, AggregateTreeTest) {
 
   int64_t step_count = experiment.GetSweeps().GetStepCount();
 
-  std::vector<ExperimentMetrics> metrics(step_count);
+  std::vector<ExperimentData> experiment_data(step_count);
   for (int64_t i = 0; i < step_count; ++i) {
     XLS_LOG(INFO) << absl::StreamFormat("Experiment Step %d", i);
-    XLS_ASSERT_OK_AND_ASSIGN(metrics.at(i), experiment.RunStep(i));
-    XLS_EXPECT_OK(metrics.at(i).DebugDump());
+    XLS_ASSERT_OK_AND_ASSIGN(experiment_data.at(i), experiment.RunStep(i));
+    XLS_EXPECT_OK(experiment_data.at(i).metrics.DebugDump());
   }
 
   // Max rate used is 16 flows each at 1GBps.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      double step0_traffic_rate,
-      metrics.at(0).GetFloatMetric("Sink:RecvPort0:VC:0:TrafficRateInMiBps"));
+  XLS_ASSERT_OK_AND_ASSIGN(double step0_traffic_rate,
+                           experiment_data.at(0).metrics.GetFloatMetric(
+                               "Sink:RecvPort0:VC:0:TrafficRateInMiBps"));
   EXPECT_EQ(static_cast<int64_t>(step0_traffic_rate) / 1000, 16);
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      double step0_flow0_traffic_rate,
-      metrics.at(0).GetFloatMetric("Flow:flow_0:TrafficRateInMiBps"));
+  XLS_ASSERT_OK_AND_ASSIGN(double step0_flow0_traffic_rate,
+                           experiment_data.at(0).metrics.GetFloatMetric(
+                               "Flow:flow_0:TrafficRateInMiBps"));
   EXPECT_EQ(static_cast<int64_t>(step0_flow0_traffic_rate) / 100, 10);
 
   // As we go in the steps, phit width decreases so traffic rate
   // will either stay the same or decrease
   int64_t prior_traffic_rate = static_cast<int64_t>(step0_traffic_rate) / 100;
   for (int64_t i = 1; i < step_count; ++i) {
-    XLS_ASSERT_OK_AND_ASSIGN(
-        double traffic_rate,
-        metrics.at(i).GetFloatMetric("Sink:RecvPort0:VC:0:TrafficRateInMiBps"));
+    XLS_ASSERT_OK_AND_ASSIGN(double traffic_rate,
+                             experiment_data.at(i).metrics.GetFloatMetric(
+                                 "Sink:RecvPort0:VC:0:TrafficRateInMiBps"));
     int64_t next_traffic_rate = static_cast<int64_t>(traffic_rate) / 100;
 
     EXPECT_GE(prior_traffic_rate, next_traffic_rate);
