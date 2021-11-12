@@ -59,6 +59,8 @@ std::string TagToString(InterpValueTag tag) {
       return "function";
     case InterpValueTag::kToken:
       return "token";
+    case InterpValueTag::kChannel:
+      return "channel";
   }
   return absl::StrFormat("<invalid InterpValueTag(%d)>",
                          static_cast<int64_t>(tag));
@@ -173,6 +175,8 @@ std::string InterpValue::ToString(bool humanize,
           absl::get<UserFnData>(GetFunctionOrDie()).function->identifier());
     case InterpValueTag::kToken:
       return absl::StrFormat("token:%p", GetTokenData().get());
+    case InterpValueTag::kChannel:
+      return "channel";
   }
   XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
 }
@@ -226,6 +230,9 @@ bool InterpValue::Eq(const InterpValue& other) const {
     // equality.
     case InterpValueTag::kFunction:
       break;
+    case InterpValueTag::kChannel:
+      // Channels are never equal.
+      return false;
   }
   XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
 }
@@ -644,6 +651,10 @@ absl::StatusOr<xls::Value> InterpValue::ConvertToIr() const {
     case InterpValueTag::kFunction: {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Cannot convert functions to IR: %s", ToString(/*humanize=*/true)));
+    }
+    case InterpValueTag::kChannel: {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Cannot convert channel-typed values to IR."));
     }
   }
   XLS_LOG(FATAL) << "Unhandled tag: " << tag_;

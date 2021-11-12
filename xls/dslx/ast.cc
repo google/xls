@@ -570,12 +570,28 @@ absl::StatusOr<TestFunction*> Module::GetTest(absl::string_view target_name) {
       "No test in module %s with name \"%s\"", name_, target_name));
 }
 
+absl::StatusOr<TestProc*> Module::GetTestProc(absl::string_view target_name) {
+  for (ModuleMember& member : top_) {
+    if (absl::holds_alternative<TestProc*>(member)) {
+      auto* t = absl::get<TestProc*>(member);
+      if (t->proc()->identifier() == target_name) {
+        return t;
+      }
+    }
+  }
+  return absl::NotFoundError(absl::StrFormat(
+      "No test proc in module %s with name \"%s\"", name_, target_name));
+}
+
 std::vector<std::string> Module::GetTestNames() const {
   std::vector<std::string> result;
   for (auto& member : top_) {
     if (absl::holds_alternative<TestFunction*>(member)) {
       TestFunction* t = absl::get<TestFunction*>(member);
       result.push_back(t->identifier());
+    } else if (absl::holds_alternative<TestProc*>(member)) {
+      TestProc* tp = absl::get<TestProc*>(member);
+      result.push_back(tp->proc()->identifier());
     }
   }
   return result;
@@ -612,6 +628,10 @@ absl::optional<ModuleMember*> Module::FindMemberWithName(
       }
     } else if (absl::holds_alternative<TestFunction*>(member)) {
       if (absl::get<TestFunction*>(member)->identifier() == target) {
+        return &member;
+      }
+    } else if (absl::holds_alternative<TestProc*>(member)) {
+      if (absl::get<TestProc*>(member)->proc()->identifier() == target) {
         return &member;
       }
     } else if (absl::holds_alternative<QuickCheck*>(member)) {

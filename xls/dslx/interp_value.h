@@ -15,6 +15,8 @@
 #ifndef XLS_DSLX_INTERP_VALUE_H_
 #define XLS_DSLX_INTERP_VALUE_H_
 
+#include <deque>
+
 #include "xls/dslx/ast.h"
 #include "xls/dslx/symbolic_type.h"
 #include "xls/ir/bits.h"
@@ -81,6 +83,7 @@ enum class InterpValueTag {
   kEnum,
   kFunction,
   kToken,
+  kChannel,
 };
 
 std::string TagToString(InterpValueTag tag);
@@ -102,6 +105,7 @@ class InterpValue {
     Function* function;
   };
   using FnData = absl::variant<Builtin, UserFnData>;
+  using Channel = std::deque<InterpValue>;
 
   // Factories
 
@@ -125,6 +129,9 @@ class InterpValue {
         std::move(bits));
   }
   static InterpValue MakeTuple(std::vector<InterpValue> members);
+  static InterpValue MakeChannel() {
+    return InterpValue(InterpValueTag::kChannel, std::make_shared<Channel>());
+  }
   static absl::StatusOr<InterpValue> MakeArray(
       std::vector<InterpValue> elements);
   static InterpValue MakeBool(bool value) { return MakeUBits(1, value); }
@@ -162,6 +169,7 @@ class InterpValue {
   bool IsBuiltinFunction() const {
     return IsFunction() && absl::holds_alternative<Builtin>(GetFunctionOrDie());
   }
+  bool IsChannel() const { return tag_ == InterpValueTag::kChannel; }
 
   bool IsTraceBuiltin() const {
     return IsBuiltinFunction() &&
@@ -330,8 +338,9 @@ class InterpValue {
   //
   // TODO(leary): 2020-02-10 When all Python bindings are eliminated we can more
   // easily make an interpreter scoped lifetime that InterpValues can live in.
-  using Payload = absl::variant<Bits, std::vector<InterpValue>, FnData,
-                                std::shared_ptr<TokenData>>;
+  using Payload =
+      absl::variant<Bits, std::vector<InterpValue>, FnData,
+                    std::shared_ptr<TokenData>, std::shared_ptr<Channel>>;
 
   InterpValue(InterpValueTag tag, Payload payload,
               const EnumDef* type = nullptr)

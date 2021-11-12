@@ -897,7 +897,7 @@ static absl::Status CheckModuleMember(ModuleMember member, Module* module,
                 << f->ToString();
   } else if (absl::holds_alternative<TestFunction*>(member)) {
     TestFunction* test = absl::get<TestFunction*>(member);
-    // New-style test constructs are specified using a function.
+    // Test constructs are specified using a function.
     // This function shouldn't be parametric and shouldn't take any arguments.
     if (!test->fn()->params().empty()) {
       return TypeInferenceErrorStatus(

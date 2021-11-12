@@ -2691,6 +2691,7 @@ class Module : public AstNode {
   // Gets a test construct in this module with the given "target_name", or
   // returns a NotFoundError.
   absl::StatusOr<TestFunction*> GetTest(absl::string_view target_name);
+  absl::StatusOr<TestProc*> GetTestProc(absl::string_view target_name);
 
   absl::Span<ModuleMember const> top() const { return top_; }
 

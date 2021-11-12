@@ -230,8 +230,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromValue(
     case InterpValueTag::kEnum:
       return StrengthReduceEnum(*value.type(), value.GetBitCount().value());
     case InterpValueTag::kFunction:
-      break;
     case InterpValueTag::kToken:
+    case InterpValueTag::kChannel:
       break;
   }
   XLS_LOG(FATAL) << "Invalid value tag for ConcreteTypeFromValue: "
@@ -359,8 +359,8 @@ absl::StatusOr<bool> ConcreteTypeAcceptsValue(const ConcreteType& type,
       // than "can I cast value to type".
       return ValueCompatibleWithType(type, value);
     case InterpValueTag::kFunction:
-      break;
     case InterpValueTag::kToken:
+    case InterpValueTag::kChannel:
       break;
   }
   return absl::UnimplementedError(

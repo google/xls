@@ -17,6 +17,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/ast_utils.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/ir_conversion_utils.h"
@@ -32,28 +33,6 @@ std::string ProcStackToId(const std::vector<Proc*>& stack) {
 }
 
 }  // namespace
-
-absl::StatusOr<Proc*> ResolveProc(Expr* node, ImportData* import_data) {
-  if (NameRef* name_ref = dynamic_cast<NameRef*>(node); name_ref != nullptr) {
-    return name_ref->owner()->GetProcOrError(name_ref->identifier());
-  }
-
-  // Else colon ref.
-  ColonRef* colon_ref = dynamic_cast<ColonRef*>(node);
-  if (colon_ref == nullptr) {
-    return absl::InvalidArgumentError(absl::StrCat(
-        "Spawn callee (\"", node->ToString(),
-        "\" is neither a NameRef nor ColonRef: ", node->GetNodeTypeName()));
-  }
-
-  absl::optional<Import*> import = colon_ref->ResolveImportSubject();
-  XLS_RET_CHECK(import.has_value())
-      << "ColonRef did not refer to an import: " << colon_ref->ToString();
-  XLS_ASSIGN_OR_RETURN(
-      const ModuleInfo* mod_info,
-      import_data->Get(ImportTokens(import.value()->subject())));
-  return mod_info->module->GetProcOrError(colon_ref->attr());
-}
 
 ProcConfigIrConverter::ProcConfigIrConverter(
     Package* package, Function* f, TypeInfo* type_info, ImportData* import_data,
@@ -210,7 +189,7 @@ absl::Status ProcConfigIrConverter::HandleParam(Param* node) {
 absl::Status ProcConfigIrConverter::HandleSpawn(Spawn* node) {
   XLS_VLOG(4) << "ProcConfigIrConverter::HandleSpawn : " << node->ToString();
   std::vector<ProcConfigValue> args;
-  XLS_ASSIGN_OR_RETURN(Proc * p, ResolveProc(node->callee(), import_data_));
+  XLS_ASSIGN_OR_RETURN(Proc * p, ResolveProc(node->callee(), type_info_));
   std::vector<Proc*> new_stack = proc_id_.proc_stack;
   new_stack.push_back(p);
   ProcId new_id{new_stack, instances_[new_stack]++};

@@ -145,6 +145,7 @@ cc_library(
     hdrs = ["proc_config_ir_converter.h"],
     deps = [
         ":ast",
+        ":ast_utils",
         ":concrete_type",
         ":deduce_ctx",
         ":extract_conversion_order",
@@ -311,6 +312,32 @@ cc_test(
     srcs = ["ast_test.cc"],
     deps = [
         ":ast",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "ast_utils",
+    srcs = ["ast_utils.cc"],
+    hdrs = ["ast_utils.h"],
+    deps = [
+        ":ast",
+        ":type_info",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "ast_utils_test",
+    srcs = ["ast_utils_test.cc"],
+    deps = [
+        ":ast",
+        ":ast_utils",
+        ":import_data",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
@@ -648,6 +675,7 @@ cc_library(
     deps = [
         ":abstract_interpreter",
         ":ast",
+        ":ast_utils",
         ":builtins",
         ":evaluate",
         ":evaluate_sym",
@@ -657,6 +685,7 @@ cc_library(
         ":mangle",
         ":type_info",
         "//xls/common/status:ret_check",
+        "@com_google_absl//absl/strings",
     ],
 )
 

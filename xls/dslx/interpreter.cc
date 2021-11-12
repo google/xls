@@ -14,13 +14,37 @@
 
 #include "xls/dslx/interpreter.h"
 
+#include <memory>
+
 #include "xls/common/status/ret_check.h"
+#include "xls/dslx/ast_utils.h"
 #include "xls/dslx/builtins.h"
 #include "xls/dslx/evaluate.h"
 #include "xls/dslx/evaluate_sym.h"
 #include "xls/dslx/mangle.h"
 
 namespace xls::dslx {
+
+Interpreter::RunningProc::RunningProc(
+    absl::string_view name,
+    const absl::flat_hash_map<std::string, InterpValue>& members,
+    const std::vector<RunningProc>& children)
+    : name_(name), members_(members), children_(children) {}
+
+std::string Interpreter::RunningProc::ToString(int indent) const {
+  std::vector<std::string> output;
+  std::string indent_str(indent * 2, ' ');
+  output.push_back(absl::StrCat(indent_str, "Name: ", name_));
+  output.push_back(absl::StrCat(indent_str, "Members:"));
+  for (const auto& [k, v] : members_) {
+    output.push_back(absl::StrCat(indent_str, " - ", k, " : ", v.ToString()));
+  }
+  output.push_back(absl::StrCat(indent_str, "Children:"));
+  for (const auto& child : children_) {
+    output.push_back(child.ToString(indent + 1));
+  }
+  return absl::StrJoin(output, "\n");
+}
 
 class Evaluator : public ExprVisitor {
  public:
@@ -65,8 +89,10 @@ class Evaluator : public ExprVisitor {
 #undef DISPATCH
 
   void HandleChannelDecl(ChannelDecl* expr) override {
-    value_ = absl::UnimplementedError(absl::StrFormat(
-        "ChannelDecl expression is unhandled @ %s", expr->span().ToString()));
+    // All send/recvs check their argument channels for proper directionality,
+    // so we don't need to re-do that check here (or downstream).
+    auto channel = InterpValue::MakeChannel();
+    value_ = InterpValue::MakeTuple({channel, channel});
   }
   void HandleFormatMacro(FormatMacro* expr) override {
     value_ = parent_->EvaluateFormatMacro(expr, bindings_, type_context_);
@@ -95,8 +121,14 @@ class Evaluator : public ExprVisitor {
         "Join expression is unhandled @ %s", expr->span().ToString()));
   }
   void HandleSpawn(Spawn* expr) override {
-    value_ = absl::UnimplementedError(absl::StrFormat(
-        "Spawn expression is unhandled @ %s", expr->span().ToString()));
+    absl::Status status =
+        parent_->EvaluateSpawn(expr, bindings_, type_context_);
+    if (!status.ok()) {
+      value_ = status;
+      return;
+    }
+
+    value_ = parent_->Evaluate(expr->body(), bindings_, type_context_);
   }
 
   absl::StatusOr<InterpValue>& value() { return value_; }
@@ -198,6 +230,33 @@ absl::Status Interpreter::RunTest(absl::string_view name) {
         "EvaluateError: Want test %s to return nil tuple; got: %s",
         test->identifier(), result_or.value().ToString()));
   }
+  XLS_VLOG(2) << "Ran test " << name << " successfully.";
+  return absl::OkStatus();
+}
+
+absl::Status Interpreter::RunTestProc(absl::string_view name) {
+  XLS_ASSIGN_OR_RETURN(TestProc * tp, entry_module_->GetTestProc(name));
+  XLS_ASSIGN_OR_RETURN(
+      const InterpBindings* top_level_bindings,
+      GetOrCreateTopLevelBindings(entry_module_, abstract_adapter_.get()));
+  InterpBindings bindings(/*parent=*/top_level_bindings);
+
+  // Type checking guarantees the terminator channel exists.
+  InterpValue terminator = InterpValue::MakeChannel();
+  bindings.AddValue(tp->proc()->config()->params()[0]->identifier(),
+                    terminator);
+
+  XLS_RET_CHECK(current_type_info_ != nullptr);
+
+  spawn_stack_.push_back(SpawnContext());
+  Evaluator evaluator(this, &bindings, /*type_context=*/nullptr,
+                      abstract_adapter_.get(), run_concolic_);
+  tp->proc()->config()->body()->AcceptExpr(&evaluator);
+  absl::StatusOr<InterpValue> result_or = std::move(evaluator.value());
+  if (!result_or.ok()) {
+    return result_or.status();
+  }
+
   XLS_VLOG(2) << "Ran test " << name << " successfully.";
   return absl::OkStatus();
 }
@@ -495,6 +554,47 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
                      " @ ", expr->span().ToString(), " : ", expr->ToString()));
   }
   return result;
+}
+
+absl::Status Interpreter::EvaluateSpawn(Spawn* expr, InterpBindings* bindings,
+                                        ConcreteType* type_context) {
+  XLS_VLOG(3) << absl::StreamFormat("EvaluateSpawn: `%s` @ %s",
+                                    expr->ToString(), expr->span().ToString());
+
+  // Evaluate all the argument values we want to pass to the function.
+  std::vector<Expr*> config_args;
+  for (Expr* arg : expr->config()->args()) {
+    config_args.push_back(arg);
+  }
+
+  std::vector<InterpValue> next_arg_values;
+  for (Expr* arg : expr->next()->args()) {
+    XLS_ASSIGN_OR_RETURN(InterpValue arg_value,
+                         Evaluate(arg, bindings, /*type_context=*/nullptr));
+    next_arg_values.push_back(std::move(arg_value));
+  }
+
+  // Add a new element to the stack so we can collect this Spawn's children.
+  spawn_stack_.push_back(SpawnContext());
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue member_tuple,
+      EvaluateInvocation(expr->config(), bindings, type_context));
+  SpawnContext ctx = spawn_stack_.back();
+  spawn_stack_.pop_back();
+
+  absl::flat_hash_map<std::string, InterpValue> members;
+  XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* member_values,
+                       member_tuple.GetValues());
+
+  XLS_ASSIGN_OR_RETURN(Proc * proc,
+                       ResolveProc(expr->callee(), current_type_info_));
+  for (int64_t i = 0; i < proc->members().size(); i++) {
+    members.insert({proc->members()[i]->identifier(), member_values->at(i)});
+  }
+
+  spawn_stack_.back().child_procs.push_back(
+      RunningProc(proc->identifier(), std::move(members), ctx.child_procs));
+  return absl::OkStatus();
 }
 
 bool Interpreter::IsWip(AstNode* node) const {

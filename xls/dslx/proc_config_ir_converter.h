@@ -76,11 +76,6 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
   XlsTuple* final_tuple_;
 };
 
-// Utility functions exposed for testing.
-// Finds the Proc identified by the given node (either NameRef or ColonRef),
-// using the associated ImportData for import Module lookup.
-absl::StatusOr<Proc*> ResolveProc(Expr* node, ImportData* import_data);
-
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_PROC_CONFIG_IR_CONVERTER_H_

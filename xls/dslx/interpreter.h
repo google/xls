@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_INTERPRETER_H_
 #define XLS_DSLX_INTERPRETER_H_
 
+#include "absl/strings/string_view.h"
 #include "xls/dslx/abstract_interpreter.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/import_routines.h"
@@ -114,6 +115,9 @@ class Interpreter {
   // module and, if found, runs it.
   absl::Status RunTest(absl::string_view name);
 
+  // Same as above, but for proc tests.
+  absl::Status RunTestProc(absl::string_view name);
+
   absl::StatusOr<InterpValue> EvaluateLiteral(Expr* expr);
 
   Module* entry_module() const { return entry_module_; }
@@ -172,6 +176,9 @@ class Interpreter {
   absl::StatusOr<InterpValue> EvaluateInvocation(Invocation* expr,
                                                  InterpBindings* bindings,
                                                  ConcreteType* type_context);
+
+  absl::Status EvaluateSpawn(Spawn* expr, InterpBindings* bindings,
+                             ConcreteType* type_context);
 
   // Wraps function evaluation to compare with JIT execution.
   //
@@ -261,6 +268,29 @@ class Interpreter {
   // Tracking for incomplete module evaluation status; e.g. on recursive calls
   // during module import; see IsWip().
   absl::flat_hash_map<AstNode*, absl::optional<InterpValue>> wip_;
+
+  // Holds all information about a currently-running proc. Only relevant for
+  // proc tests.
+  class RunningProc {
+   public:
+    RunningProc(absl::string_view name,
+                const absl::flat_hash_map<std::string, InterpValue>& members,
+                const std::vector<RunningProc>& children);
+    std::string ToString(int indent = 0) const;
+
+   private:
+    std::string name_;
+    absl::flat_hash_map<std::string, InterpValue> members_;
+    std::vector<RunningProc> children_;
+  };
+
+  // Holds information about the current Spawn operation in the stack (i.e.,
+  // spawning a proc which spawns a proc which spawns a proc...).
+  struct SpawnContext {
+    std::vector<RunningProc> child_procs;
+  };
+
+  std::vector<SpawnContext> spawn_stack_;
 };
 
 // Converts the values to matched the signedness of the concrete type.

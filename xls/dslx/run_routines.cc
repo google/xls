@@ -350,7 +350,16 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
 
     ran += 1;
     std::cerr << "[ RUN UNITTEST  ] " << test_name << std::endl;
-    absl::Status status = interpreter.RunTest(test_name);
+    ModuleMember* member = entry_module->FindMemberWithName(test_name).value();
+    absl::Status status;
+    if (absl::holds_alternative<TestFunction*>(*member)) {
+      status = interpreter.RunTest(test_name);
+    } else if (absl::holds_alternative<TestProc*>(*member)) {
+      status = interpreter.RunTestProc(test_name);
+    } else {
+      return absl::InvalidArgumentError(absl::StrCat(
+          test_name, " was neither a test function nor a test proc."));
+    }
     if (status.ok()) {
       std::cerr << "[            OK ]" << std::endl;
     } else {

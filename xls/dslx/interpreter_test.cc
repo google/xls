@@ -103,5 +103,61 @@ fn top(x: u32) -> u32 {
   EXPECT_TRUE(absl::StrContains(message, "via test::top @ test.x:17:13-17:19"));
 }
 
+// This test doesn't _execute_ a test, but just verifies that a proc network can
+// be ingested successfully.
+TEST(InterpreterTest, CanHandleProcs) {
+  constexpr absl::string_view kProgram = R"(
+proc second_level_proc {
+  input_c: chan in u32;
+  output_p: chan out u32;
+
+  config(input_c: chan in u32, output_p: chan out u32) {
+    (input_c, output_p)
+  }
+
+  next(tok: token) { () }
+}
+
+proc first_level_proc {
+  input_p0: chan out u32;
+  input_p1: chan out u32;
+  output_c0: chan in u32;
+  output_c1: chan in u32;
+
+  config() {
+    let (input_p0, input_c0) = chan u32;
+    let (output_p0, output_c0) = chan u32;
+    spawn second_level_proc(input_c0, output_p0)();
+
+    let (input_p1, input_c1) = chan u32;
+    let (output_p1, output_c1) = chan u32;
+    spawn second_level_proc(input_c1, output_p1)();
+
+    (input_p0, input_p1, output_p0, output_p1)
+  }
+
+  next(tok: token) { () }
+}
+
+#![test_proc()]
+proc test_proc {
+  config(terminator: chan out bool) {
+    spawn first_level_proc()();
+    ()
+  }
+
+  next(tok: token) { () }
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  Interpreter interp(tm.module, /*typecheck=*/nullptr,
+                     /*import_data=*/&import_data);
+  XLS_ASSERT_OK(interp.RunTestProc("test_proc"));
+}
+
 }  // namespace
 }  // namespace xls::dslx
