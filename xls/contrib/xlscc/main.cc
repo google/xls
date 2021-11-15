@@ -157,15 +157,17 @@ absl::Status Run(absl::string_view cpp_path) {
       std::cout << package.DumpIr() << std::endl;
     } else {
       XLS_RETURN_IF_ERROR(translator.InlineAllInvokes(&package));
-      XLS_ASSIGN_OR_RETURN(
-          xls::Block * xls_block,
-          xls::verilog::ProcToCombinationalBlock(proc, proc->name()));
+
+      xls::verilog::CodegenOptions codegen_options;
+      codegen_options.use_system_verilog(false);
+
+      XLS_ASSIGN_OR_RETURN(xls::Block * xls_block,
+                           xls::verilog::ProcToCombinationalBlock(
+                               proc, proc->name(), codegen_options));
       std::cerr << "Generating Verilog..." << std::endl;
       XLS_ASSIGN_OR_RETURN(
           std::string verilog,
-          xls::verilog::GenerateVerilog(
-              xls_block,
-              xls::verilog::CodegenOptions().use_system_verilog(false)));
+          xls::verilog::GenerateVerilog(xls_block, codegen_options));
 
       std::cout << verilog << std::endl;
     }

@@ -109,9 +109,9 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
   XLS_VLOG(1) << "Simplifying IR..." << std::endl;
   XLS_ASSERT_OK(translator->InlineAllInvokes(&package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      xls::Block * block,
-      xls::verilog::ProcToCombinationalBlock(proc, proc->name()));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Block * block,
+                           xls::verilog::ProcToCombinationalBlock(
+                               proc, proc->name(), codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog, xls::verilog::GenerateVerilog(
                                                     block, codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -234,9 +234,9 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
   XLS_VLOG(1) << "Simplifying IR..." << std::endl;
   XLS_ASSERT_OK(translator->InlineAllInvokes(&package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      xls::Block * block,
-      xls::verilog::ProcToCombinationalBlock(proc, proc->name()));
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Block * block,
+                           xls::verilog::ProcToCombinationalBlock(
+                               proc, proc->name(), codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(
       xls::verilog::ModuleSignature signature,
       xls::verilog::GenerateSignature(codegen_options(), block));

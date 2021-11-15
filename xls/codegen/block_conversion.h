@@ -57,7 +57,8 @@ absl::StatusOr<Block*> FunctionToCombinationalBlock(
 // control. Receives/sends of single-value channels become input/output ports in
 // the returned block.
 absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
-                                                absl::string_view block_name);
+                                                absl::string_view block_name,
+                                                const CodegenOptions& options);
 
 }  // namespace verilog
 }  // namespace xls

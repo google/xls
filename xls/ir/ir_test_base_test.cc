@@ -81,5 +81,21 @@ TEST_F(IrTestBaseTest, RunAndExpectEqMissingArg) {
                        "Missing argument 'q'");
 }
 
+TEST_F(IrTestBaseTest, HasNodes) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<VerifiedPackage> p,
+                           ParsePackage(kTestPackage));
+
+  EXPECT_TRUE(HasNode("p", p.get()));
+  EXPECT_TRUE(HasNode("q", p.get()));
+  EXPECT_TRUE(HasNode("add.1", p.get()));
+  EXPECT_TRUE(HasNode("add.2", p.get()));
+
+  FunctionBase* f = FindFunction("main", p.get());
+  EXPECT_TRUE(HasNode("p", f));
+  EXPECT_TRUE(HasNode("q", f));
+  EXPECT_TRUE(HasNode("add.1", f));
+  EXPECT_TRUE(HasNode("add.2", f));
+}
+
 }  // namespace
 }  // namespace xls

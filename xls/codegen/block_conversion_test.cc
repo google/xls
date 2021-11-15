@@ -99,7 +99,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
   //
   // Returns the newly created package.
   virtual absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
-      int64_t stage_count, bool active_low_reset) = 0;
+      int64_t stage_count, const CodegenOptions& options) = 0;
 
   // For cycles in range [first_cycle, last_cycle] inclusive,
   // add the IO signals as described in signals to io.
@@ -519,10 +519,93 @@ proc my_proc(my_token: token, my_state: (), init=()) {
                            Parser::ParsePackage(ir_text));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
-                           ProcToCombinationalBlock(proc, TestName()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ProcToCombinationalBlock(proc, TestName(), CodegenOptions()));
   EXPECT_THAT(FindNode("out", block),
               m::OutputPort("out", m::Neg(m::InputPort("in"))));
+}
+
+TEST_F(BlockConversionTest, ChannelDefaultAndNonDefaultSuffixName) {
+  const std::string ir_text = R"(package test
+
+chan in(bits[32], id=0, kind=streaming, ops=receive_only,
+        flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only,
+        flow_control=ready_valid, metadata="")
+chan in2(bits[32], id=2, kind=single_value, ops=receive_only, metadata="")
+chan out2(bits[32], id=3, kind=single_value, ops=send_only, metadata="")
+
+proc my_proc(my_token: token, my_state: (), init=()) {
+  rcv: (token, bits[32]) = receive(my_token, channel_id=0)
+  rcv2: (token, bits[32]) = receive(my_token, channel_id=2)
+
+  data: bits[32] = tuple_index(rcv, index=1)
+  rcv_token: token = tuple_index(rcv, index=0)
+  negate: bits[32] = neg(data)
+
+  data2: bits[32] = tuple_index(rcv2, index=1)
+  rcv2_token: token = tuple_index(rcv2, index=0)
+  negate2: bits[32] = neg(data2)
+
+  send: token = send(rcv_token, negate, channel_id=1)
+  send2: token = send(rcv2_token, negate2, channel_id=3)
+  fin : token = after_all(send, send2)
+  next (fin, my_state)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block_default_suffix,
+      ProcToCombinationalBlock(proc, TestName(), CodegenOptions()));
+
+  EXPECT_TRUE(HasNode("in", block_default_suffix));
+  EXPECT_TRUE(HasNode("in_rdy", block_default_suffix));
+  EXPECT_TRUE(HasNode("in_vld", block_default_suffix));
+
+  EXPECT_TRUE(HasNode("out", block_default_suffix));
+  EXPECT_TRUE(HasNode("out_rdy", block_default_suffix));
+  EXPECT_TRUE(HasNode("out_vld", block_default_suffix));
+
+  EXPECT_TRUE(HasNode("in2", block_default_suffix));
+  EXPECT_FALSE(HasNode("in2_rdy", block_default_suffix));
+  EXPECT_FALSE(HasNode("in2_vld", block_default_suffix));
+
+  EXPECT_TRUE(HasNode("out2", block_default_suffix));
+  EXPECT_FALSE(HasNode("out2_rdy", block_default_suffix));
+  EXPECT_FALSE(HasNode("out2_vld", block_default_suffix));
+
+  CodegenOptions options = CodegenOptions()
+                               .streaming_channel_data_suffix("_data")
+                               .streaming_channel_ready_suffix("_ready")
+                               .streaming_channel_valid_suffix("_valid");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block_nondefault_suffix,
+                           ProcToCombinationalBlock(proc, TestName(), options));
+
+  XLS_VLOG_LINES(3, block_nondefault_suffix->DumpIr());
+
+  EXPECT_TRUE(HasNode("in_data", block_nondefault_suffix));
+  EXPECT_TRUE(HasNode("in_ready", block_nondefault_suffix));
+  EXPECT_TRUE(HasNode("in_valid", block_nondefault_suffix));
+
+  EXPECT_TRUE(HasNode("out_data", block_nondefault_suffix));
+  EXPECT_TRUE(HasNode("out_ready", block_nondefault_suffix));
+  EXPECT_TRUE(HasNode("out_valid", block_nondefault_suffix));
+
+  // Non-streaming / ready-valid channels are not impacted by suffix.
+  EXPECT_TRUE(HasNode("in2", block_nondefault_suffix));
+  EXPECT_FALSE(HasNode("in2_data", block_nondefault_suffix));
+  EXPECT_FALSE(HasNode("in2_ready", block_nondefault_suffix));
+  EXPECT_FALSE(HasNode("in2_valid", block_nondefault_suffix));
+
+  EXPECT_TRUE(HasNode("out2", block_nondefault_suffix));
+  EXPECT_FALSE(HasNode("out2_data", block_nondefault_suffix));
+  EXPECT_FALSE(HasNode("out2_ready", block_nondefault_suffix));
+  EXPECT_FALSE(HasNode("out2_valid", block_nondefault_suffix));
 }
 
 TEST_F(BlockConversionTest, ProcWithMultipleInputChannels) {
@@ -560,8 +643,9 @@ proc my_proc(my_token: token, my_state: (), init=()) {
                            Parser::ParsePackage(ir_text));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
-                           ProcToCombinationalBlock(proc, TestName()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ProcToCombinationalBlock(proc, TestName(), CodegenOptions()));
   EXPECT_THAT(
       FindNode("out", block),
       m::OutputPort("out",
@@ -589,8 +673,9 @@ proc my_proc(tkn: token, st: (), init=()) {
                            Parser::ParsePackage(ir_text));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
-                           ProcToCombinationalBlock(proc, TestName()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ProcToCombinationalBlock(proc, TestName(), CodegenOptions()));
   EXPECT_THAT(FindNode("out", block), m::OutputPort("out", m::InputPort("in")));
   EXPECT_THAT(FindNode("out_vld", block),
               m::OutputPort("out_vld", m::And(m::Literal(1), m::Literal(1))));
@@ -616,8 +701,9 @@ proc my_proc(tkn: token, st: (), init=()) {
                            Parser::ParsePackage(ir_text));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
-                           ProcToCombinationalBlock(proc, TestName()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ProcToCombinationalBlock(proc, TestName(), CodegenOptions()));
 
   EXPECT_THAT(FindNode("out", block), m::OutputPort("out", m::InputPort("in")));
   EXPECT_THAT(FindNode("in", block), m::InputPort("in"));
@@ -643,8 +729,9 @@ proc my_proc(tkn: token, st: (), init=()) {
                            Parser::ParsePackage(ir_text));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
-                           ProcToCombinationalBlock(proc, TestName()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ProcToCombinationalBlock(proc, TestName(), CodegenOptions()));
 
   EXPECT_THAT(FindNode("out", block), m::OutputPort("out", m::InputPort("in")));
   EXPECT_THAT(FindNode("out_vld", block),
@@ -678,8 +765,9 @@ TEST_F(BlockConversionTest, TwoToOneProc) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
-                           ProcToCombinationalBlock(proc, "the_proc"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ProcToCombinationalBlock(proc, "the_proc", CodegenOptions()));
 
   // Input B selected, input valid and output ready asserted.
   EXPECT_THAT(
@@ -754,8 +842,9 @@ TEST_F(BlockConversionTest, OneToTwoProc) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
-                           ProcToCombinationalBlock(proc, "the_proc"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ProcToCombinationalBlock(proc, "the_proc", CodegenOptions()));
 
   // Output B selected. Input valid and output readies asserted.
   EXPECT_THAT(
@@ -799,7 +888,7 @@ TEST_F(BlockConversionTest, OneToTwoProc) {
 class SimplePipelinedProcTest : public ProcConversionTestFixture {
  protected:
   absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
-      int64_t stage_count, bool active_low_reset) {
+      int64_t stage_count, const CodegenOptions& options) override {
     // Simple streaming one input and one output pipeline.
     auto package_ptr = std::make_unique<Package>(TestName());
     Package& package = *package_ptr;
@@ -830,22 +919,68 @@ class SimplePipelinedProcTest : public ProcConversionTestFixture {
                              proc, TestDelayEstimator(),
                              SchedulingOptions().pipeline_stages(stage_count)));
 
-    CodegenOptions options;
-    options.flop_inputs(false).flop_outputs(false).clock_name("clk");
-    options.valid_control("input_valid", "output_valid");
-    options.reset("rst", false, active_low_reset, false);
-    options.module_name(kBlockName);
+    CodegenOptions codegen_options = options;
+    codegen_options.module_name(kBlockName);
 
-    XLS_RET_CHECK_OK(ProcToPipelinedBlock(schedule, options, proc));
+    XLS_RET_CHECK_OK(ProcToPipelinedBlock(schedule, codegen_options, proc));
 
     return package_ptr;
   }
 };
 
+TEST_F(SimplePipelinedProcTest, ChannelDefaultSuffixName) {
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, false);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package_default_suffix,
+                           BuildBlockInPackage(/*stage_count=*/4, options));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block_default_suffix,
+                           package_default_suffix->GetBlock(kBlockName));
+
+  EXPECT_TRUE(HasNode("in", block_default_suffix));
+  EXPECT_TRUE(HasNode("in_rdy", block_default_suffix));
+  EXPECT_TRUE(HasNode("in_vld", block_default_suffix));
+
+  EXPECT_TRUE(HasNode("out", block_default_suffix));
+  EXPECT_TRUE(HasNode("out_rdy", block_default_suffix));
+  EXPECT_TRUE(HasNode("out_vld", block_default_suffix));
+}
+
+TEST_F(SimplePipelinedProcTest, ChannelNonDefaultSuffixName) {
+  CodegenOptions options;
+  options.flop_inputs(false)
+      .flop_outputs(false)
+      .clock_name("clk")
+      .valid_control("input_valid", "output_valid")
+      .reset("rst", false, false, false)
+      .streaming_channel_data_suffix("_data")
+      .streaming_channel_ready_suffix("_ready")
+      .streaming_channel_valid_suffix("_valid");
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package_nondefault_suffix,
+                           BuildBlockInPackage(/*stage_count=*/4, options));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block_nondefault_suffix,
+                           package_nondefault_suffix->GetBlock(kBlockName));
+
+  EXPECT_TRUE(HasNode("in_data", block_nondefault_suffix));
+  EXPECT_TRUE(HasNode("in_ready", block_nondefault_suffix));
+  EXPECT_TRUE(HasNode("in_valid", block_nondefault_suffix));
+
+  EXPECT_TRUE(HasNode("out_data", block_nondefault_suffix));
+  EXPECT_TRUE(HasNode("out_ready", block_nondefault_suffix));
+  EXPECT_TRUE(HasNode("out_valid", block_nondefault_suffix));
+}
+
 TEST_F(SimplePipelinedProcTest, BasicResetAndStall) {
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<Package> package,
-      BuildBlockInPackage(/*stage_count=*/4, /*active_low_reset=*/false));
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, false);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           BuildBlockInPackage(/*stage_count=*/4, options));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
 
   XLS_VLOG(2) << "Simple streaming pipelined block";
@@ -1015,9 +1150,14 @@ TEST_F(SimplePipelinedProcTest, BasicResetAndStall) {
 
 TEST_F(SimplePipelinedProcTest, RandomStallingSweep) {
   for (int64_t stage_count : std::vector{1, 2, 3, 4}) {
-    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
-                             BuildBlockInPackage(/*stage_count=*/stage_count,
-                                                 /*active_low_reset=*/false));
+    CodegenOptions options;
+    options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+    options.valid_control("input_valid", "output_valid");
+    options.reset("rst", false, false, false);
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<Package> package,
+        BuildBlockInPackage(/*stage_count=*/stage_count, options));
     XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
 
     XLS_VLOG(2) << "Simple streaming pipelined block";
@@ -1131,7 +1271,7 @@ class SimpleRunningCounterProcTest
       public testing::WithParamInterface<std::tuple<int64_t, bool>> {
  protected:
   absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
-      int64_t stage_count, bool active_low_reset) override {
+      int64_t stage_count, const CodegenOptions& options) override {
     // Simple streaming one input and one output pipeline.
     auto package_ptr = std::make_unique<Package>(TestName());
     Package& package = *package_ptr;
@@ -1167,14 +1307,10 @@ class SimpleRunningCounterProcTest
                                                    .pipeline_stages(stage_count)
                                                    .clock_period_ps(10)));
 
-    CodegenOptions options;
-    options.flop_inputs(false).flop_outputs(false).clock_name("clk");
-    options.valid_control("input_valid", "output_valid");
-    options.reset(active_low_reset ? "rst_n" : "rst", false,
-                  /*active_low=*/active_low_reset, false);
-    options.module_name(kBlockName);
+    CodegenOptions codegen_options = options;
+    codegen_options.module_name(kBlockName);
 
-    XLS_RET_CHECK_OK(ProcToPipelinedBlock(schedule, options, proc));
+    XLS_RET_CHECK_OK(ProcToPipelinedBlock(schedule, codegen_options, proc));
 
     return package_ptr;
   }
@@ -1184,10 +1320,16 @@ TEST_P(SimpleRunningCounterProcTest, RandomStalling) {
   int64_t stage_count = std::get<0>(GetParam());
   bool active_low_reset = std::get<1>(GetParam());
 
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset(active_low_reset ? "rst_n" : "rst", false,
+                /*active_low=*/active_low_reset, false);
+
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Package> package,
-      BuildBlockInPackage(/*stage_count=*/stage_count,
-                          /*active_low_reset=*/active_low_reset));
+      BuildBlockInPackage(/*stage_count=*/stage_count, options));
+
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
 
   XLS_VLOG(2) << "Simple counting pipelined block";

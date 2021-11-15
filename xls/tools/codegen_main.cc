@@ -109,6 +109,12 @@ ABSL_FLAG(bool, reset_asynchronous, false,
 ABSL_FLAG(bool, use_system_verilog, true,
           "If true, emit SystemVerilog otherwise emit Verilog.");
 ABSL_FLAG(std::string, gate_format, "", "Format string to use for gate! ops.");
+ABSL_FLAG(std::string, streaming_channel_data_suffix, "",
+          "Suffix to append to data signals for streaming channels.");
+ABSL_FLAG(std::string, streaming_channel_valid_suffix, "_vld",
+          "Suffix to append to valid signals for streaming channels.");
+ABSL_FLAG(std::string, streaming_channel_ready_suffix, "_rdy",
+          "Suffix to append to ready signals for streaming channels.");
 
 namespace xls {
 namespace {
@@ -193,6 +199,13 @@ absl::StatusOr<verilog::CodegenOptions> GetCodegenOptions() {
   if (!absl::GetFlag(FLAGS_gate_format).empty()) {
     options.gate_format(absl::GetFlag(FLAGS_gate_format));
   }
+
+  options.streaming_channel_data_suffix(
+      absl::GetFlag(FLAGS_streaming_channel_data_suffix));
+  options.streaming_channel_valid_suffix(
+      absl::GetFlag(FLAGS_streaming_channel_valid_suffix));
+  options.streaming_channel_ready_suffix(
+      absl::GetFlag(FLAGS_streaming_channel_ready_suffix));
 
   return options;
 }

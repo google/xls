@@ -75,8 +75,9 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
         block, FunctionToCombinationalBlock(dynamic_cast<Function*>(module),
                                             module_name));
   } else {
-    XLS_ASSIGN_OR_RETURN(block, ProcToCombinationalBlock(
-                                    dynamic_cast<Proc*>(module), module_name));
+    XLS_ASSIGN_OR_RETURN(block,
+                         ProcToCombinationalBlock(dynamic_cast<Proc*>(module),
+                                                  module_name, options));
   }
 
   CodegenPassUnit unit(module->package(), block);

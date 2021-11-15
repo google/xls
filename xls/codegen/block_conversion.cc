@@ -38,10 +38,6 @@ namespace xls {
 namespace verilog {
 namespace {
 
-// Suffixes for ready/valid ports for streaming channels.
-static const char kReadySuffix[] = "_rdy";
-static const char kValidSuffix[] = "_vld";
-
 // Name of the output port which holds the return value of the function.
 // TODO(meheff): 2021-03-01 Allow port names other than "out".
 static const char kOutputPortName[] = "out";
@@ -493,11 +489,13 @@ static absl::StatusOr<ValidPorts> AddValidSignal(
 // over streaming channel) in the generated block.
 struct StreamingInput {
   InputPort* port;
+  Channel* channel;
   absl::optional<Node*> predicate;
 };
 
 struct StreamingOutput {
   OutputPort* port;
+  Channel* channel;
   absl::optional<Node*> predicate;
 };
 
@@ -514,7 +512,8 @@ struct StreamingIoPipeline {
 //
 // Upon success returns a Node* to the all_active_inputs_valid signal.
 static absl::StatusOr<Node*> MakeOutputReadyPortsForOutputChannels(
-    absl::Span<const StreamingOutput> streaming_outputs, Block* block) {
+    absl::Span<const StreamingOutput> streaming_outputs,
+    absl::string_view ready_suffix, Block* block) {
   // Add a ready input port for each streaming output. Gather the ready signals
   // into a vector. Ready signals from streaming outputs generated from Send
   // operations are conditioned upon the optional predicate value.
@@ -523,7 +522,7 @@ static absl::StatusOr<Node*> MakeOutputReadyPortsForOutputChannels(
     XLS_ASSIGN_OR_RETURN(
         Node * ready,
         block->AddInputPort(
-            absl::StrFormat("%s_rdy", streaming_output.port->GetName()),
+            absl::StrCat(streaming_output.channel->name(), ready_suffix),
             block->package()->GetBitsType(1)));
     if (streaming_output.predicate.has_value()) {
       // Logic for the active ready signal for a Send operation with a
@@ -567,7 +566,8 @@ static absl::StatusOr<Node*> MakeOutputReadyPortsForOutputChannels(
 //
 // Upon success returns a Node* to the all_active_inputs_valid signal.
 static absl::StatusOr<Node*> MakeInputValidPortsForInputChannels(
-    absl::Span<const StreamingInput> streaming_inputs, Block* block) {
+    absl::Span<const StreamingInput> streaming_inputs,
+    absl::string_view valid_suffix, Block* block) {
   // Add a valid input port for each streaming input. Gather the valid signals
   // into a vector. Valid signals from streaming inputs generated from Receive
   // operations are conditioned upon the optional predicate value.
@@ -576,7 +576,7 @@ static absl::StatusOr<Node*> MakeInputValidPortsForInputChannels(
     XLS_ASSIGN_OR_RETURN(
         Node * valid,
         block->AddInputPort(
-            absl::StrFormat("%s%s", streaming_input.port->name(), kValidSuffix),
+            absl::StrCat(streaming_input.channel->name(), valid_suffix),
             block->package()->GetBitsType(1)));
     if (streaming_input.predicate.has_value()) {
       // Logic for the active valid signal for a Receive operation with a
@@ -621,7 +621,8 @@ static absl::StatusOr<Node*> MakeInputValidPortsForInputChannels(
 // any) is asserted.
 static absl::Status MakeOutputValidPortsForOutputChannels(
     Node* all_active_inputs_valid,
-    absl::Span<const StreamingOutput> streaming_outputs, Block* block) {
+    absl::Span<const StreamingOutput> streaming_outputs,
+    absl::string_view valid_suffix, Block* block) {
   for (const StreamingOutput& streaming_output : streaming_outputs) {
     Node* valid;
     if (streaming_output.predicate.has_value()) {
@@ -635,7 +636,7 @@ static absl::Status MakeOutputValidPortsForOutputChannels(
     XLS_RETURN_IF_ERROR(
         block
             ->AddOutputPort(
-                absl::StrFormat("%s_vld", streaming_output.port->GetName()),
+                absl::StrCat(streaming_output.channel->name(), valid_suffix),
                 valid)
             .status());
   }
@@ -650,7 +651,8 @@ static absl::Status MakeOutputValidPortsForOutputChannels(
 // any) is asserted.
 static absl::Status MakeOutputReadyPortsForInputChannels(
     Node* all_active_outputs_ready,
-    absl::Span<const StreamingInput> streaming_inputs, Block* block) {
+    absl::Span<const StreamingInput> streaming_inputs,
+    absl::string_view ready_suffix, Block* block) {
   for (const StreamingInput& streaming_input : streaming_inputs) {
     Node* ready;
     if (streaming_input.predicate.has_value()) {
@@ -664,8 +666,7 @@ static absl::Status MakeOutputReadyPortsForInputChannels(
     XLS_RETURN_IF_ERROR(
         block
             ->AddOutputPort(
-                absl::StrFormat("%s%s", streaming_input.port->GetName(),
-                                kReadySuffix),
+                absl::StrCat(streaming_input.channel->name(), ready_suffix),
                 ready)
             .status());
   }
@@ -676,11 +677,15 @@ static absl::Status MakeOutputReadyPortsForInputChannels(
 // Adds ready/valid ports for each of the given streaming inputs/outputs. Also,
 // adds logic which propagates ready and valid signals through the block.
 static absl::Status AddBubbleFlowControl(const ResetInfo& reset_info,
+                                         const CodegenOptions& options,
                                          StreamingIoPipeline& streaming_io,
                                          Block* block) {
-  XLS_ASSIGN_OR_RETURN(
-      Node * all_active_inputs_valid,
-      MakeInputValidPortsForInputChannels(streaming_io.inputs, block));
+  absl::string_view valid_suffix = options.streaming_channel_valid_suffix();
+  absl::string_view ready_suffix = options.streaming_channel_ready_suffix();
+
+  XLS_ASSIGN_OR_RETURN(Node * all_active_inputs_valid,
+                       MakeInputValidPortsForInputChannels(
+                           streaming_io.inputs, valid_suffix, block));
 
   XLS_VLOG(3) << "After Inputs";
   XLS_VLOG_LINES(3, block->DumpIr());
@@ -702,14 +707,14 @@ static absl::Status AddBubbleFlowControl(const ResetInfo& reset_info,
   XLS_VLOG_LINES(3, block->DumpIr());
 
   XLS_RETURN_IF_ERROR(MakeOutputValidPortsForOutputChannels(
-      pipelined_valids.back(), streaming_io.outputs, block));
+      pipelined_valids.back(), streaming_io.outputs, valid_suffix, block));
 
   XLS_VLOG(3) << "After Outputs Valid";
   XLS_VLOG_LINES(3, block->DumpIr());
 
-  XLS_ASSIGN_OR_RETURN(
-      Node * all_active_outputs_ready,
-      MakeOutputReadyPortsForOutputChannels(streaming_io.outputs, block));
+  XLS_ASSIGN_OR_RETURN(Node * all_active_outputs_ready,
+                       MakeOutputReadyPortsForOutputChannels(
+                           streaming_io.outputs, ready_suffix, block));
 
   XLS_VLOG(3) << "After Outputs Ready";
   XLS_VLOG_LINES(3, block->DumpIr());
@@ -735,7 +740,7 @@ static absl::Status AddBubbleFlowControl(const ResetInfo& reset_info,
   XLS_VLOG_LINES(3, block->DumpIr());
 
   XLS_RETURN_IF_ERROR(MakeOutputReadyPortsForInputChannels(
-      input_stage_enable, streaming_io.inputs, block));
+      input_stage_enable, streaming_io.inputs, ready_suffix, block));
 
   XLS_VLOG(3) << "After Ready";
   XLS_VLOG_LINES(3, block->DumpIr());
@@ -747,20 +752,24 @@ static absl::Status AddBubbleFlowControl(const ResetInfo& reset_info,
 // adds logic which propagates ready and valid signals through the block.
 static absl::Status AddFlowControl(
     absl::Span<const StreamingInput> streaming_inputs,
-    absl::Span<const StreamingOutput> streaming_outputs, Block* block) {
-  XLS_ASSIGN_OR_RETURN(
-      Node * all_active_outputs_ready,
-      MakeOutputReadyPortsForOutputChannels(streaming_outputs, block));
+    absl::Span<const StreamingOutput> streaming_outputs,
+    const CodegenOptions& options, Block* block) {
+  absl::string_view valid_suffix = options.streaming_channel_valid_suffix();
+  absl::string_view ready_suffix = options.streaming_channel_ready_suffix();
 
-  XLS_ASSIGN_OR_RETURN(
-      Node * all_active_inputs_valid,
-      MakeInputValidPortsForInputChannels(streaming_inputs, block));
+  XLS_ASSIGN_OR_RETURN(Node * all_active_outputs_ready,
+                       MakeOutputReadyPortsForOutputChannels(
+                           streaming_outputs, ready_suffix, block));
+
+  XLS_ASSIGN_OR_RETURN(Node * all_active_inputs_valid,
+                       MakeInputValidPortsForInputChannels(
+                           streaming_inputs, valid_suffix, block));
 
   XLS_RETURN_IF_ERROR(MakeOutputValidPortsForOutputChannels(
-      all_active_inputs_valid, streaming_outputs, block));
+      all_active_inputs_valid, streaming_outputs, valid_suffix, block));
 
   XLS_RETURN_IF_ERROR(MakeOutputReadyPortsForInputChannels(
-      all_active_outputs_ready, streaming_inputs, block));
+      all_active_outputs_ready, streaming_inputs, ready_suffix, block));
 
   return absl::OkStatus();
 }
@@ -853,15 +862,16 @@ class CloneNodesIntoBlockHandler {
   //
   // If the block is to be a combinational block, stage_count should be
   // set to 0;
-  CloneNodesIntoBlockHandler(FunctionBase* proc_or_function, Block* block,
-                             int64_t stage_count)
+  CloneNodesIntoBlockHandler(FunctionBase* proc_or_function,
+                             int64_t stage_count, const CodegenOptions& options,
+                             Block* block)
       : is_proc_(proc_or_function->IsProc()),
         function_base_(proc_or_function),
         token_param_(nullptr),
         state_param_(nullptr),
         next_state_node_(nullptr),
-        block_(block),
-        stage_count_(stage_count) {
+        options_(options),
+        block_(block) {
     if (is_proc_) {
       Proc* proc = function_base_->AsProcOrDie();
       token_param_ = proc->TokenParam();
@@ -870,7 +880,7 @@ class CloneNodesIntoBlockHandler {
     }
 
     if (stage_count > 1) {
-      result_.pipeline_registers.resize(stage_count_ - 1);
+      result_.pipeline_registers.resize(stage_count - 1);
     }
   }
 
@@ -1028,9 +1038,14 @@ class CloneNodesIntoBlockHandler {
 
     Receive* receive = node->As<Receive>();
     XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
+    absl::string_view data_suffix =
+        (channel->kind() == ChannelKind::kStreaming)
+            ? options_.streaming_channel_data_suffix()
+            : "";
     XLS_ASSIGN_OR_RETURN(
         InputPort * input_port,
-        block_->AddInputPort(channel->name(), channel->type()));
+        block_->AddInputPort(absl::StrCat(channel->name(), data_suffix),
+                             channel->type()));
     XLS_ASSIGN_OR_RETURN(
         next_node,
         block_->MakeNode<Tuple>(
@@ -1047,6 +1062,7 @@ class CloneNodesIntoBlockHandler {
 
     StreamingInput streaming_input;
     streaming_input.port = input_port;
+    streaming_input.channel = channel;
     if (receive->predicate().has_value()) {
       streaming_input.predicate = node_map_.at(receive->predicate().value());
     }
@@ -1062,10 +1078,14 @@ class CloneNodesIntoBlockHandler {
 
     XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
     Send* send = node->As<Send>();
-
+    absl::string_view data_suffix =
+        (channel->kind() == ChannelKind::kStreaming)
+            ? options_.streaming_channel_data_suffix()
+            : "";
     XLS_ASSIGN_OR_RETURN(
         OutputPort * output_port,
-        block_->AddOutputPort(channel->name(), node_map_.at(send->data())));
+        block_->AddOutputPort(absl::StrCat(channel->name(), data_suffix),
+                              node_map_.at(send->data())));
     // Map the Send node to the token operand of the Send in the
     // block.
     next_node = node_map_.at(send->token());
@@ -1080,6 +1100,7 @@ class CloneNodesIntoBlockHandler {
 
     StreamingOutput streaming_output;
     streaming_output.port = output_port;
+    streaming_output.channel = channel;
     if (send->predicate().has_value()) {
       streaming_output.predicate = node_map_.at(send->predicate().value());
     }
@@ -1232,8 +1253,9 @@ class CloneNodesIntoBlockHandler {
   Node* state_param_;
   Node* next_state_node_;
 
+  const CodegenOptions& options_;
+
   Block* block_;
-  int64_t stage_count_;
   StreamingIoPipeline result_;
   absl::flat_hash_map<Node*, Node*> node_map_;
 };
@@ -1242,11 +1264,13 @@ class CloneNodesIntoBlockHandler {
 // inserted between stages and returned as a vector indexed by cycle. The block
 // should be empty prior to calling this function.
 static absl::StatusOr<StreamingIoPipeline> CloneNodesIntoPipelinedBlock(
-    const PipelineSchedule& schedule, Block* block) {
+    const PipelineSchedule& schedule, const CodegenOptions& options,
+    Block* block) {
   FunctionBase* function_base = schedule.function_base();
   XLS_RET_CHECK(function_base->IsProc() || function_base->IsFunction());
 
-  CloneNodesIntoBlockHandler cloner(function_base, block, schedule.length());
+  CloneNodesIntoBlockHandler cloner(function_base, schedule.length(), options,
+                                    block);
   for (int64_t stage = 0; stage < schedule.length(); ++stage) {
     XLS_RET_CHECK_OK(cloner.CloneNodes(schedule.nodes_in_cycle(stage), stage));
     XLS_RET_CHECK_OK(cloner.AddNextPipelineStage(schedule, stage));
@@ -1260,8 +1284,8 @@ static absl::StatusOr<StreamingIoPipeline> CloneNodesIntoPipelinedBlock(
 // Clones every node in the given proc into the given block. Some nodes are
 // handled specially.  See CloneNodesIntoBlockHandler for details.
 static absl::StatusOr<StreamingIoPipeline> CloneProcNodesIntoBlock(
-    Proc* proc, Block* block) {
-  CloneNodesIntoBlockHandler cloner(proc, block, /*stage_count=*/0);
+    Proc* proc, const CodegenOptions& options, Block* block) {
+  CloneNodesIntoBlockHandler cloner(proc, /*stage_count=*/0, options, block);
   XLS_RET_CHECK_OK(cloner.CloneNodes(TopoSort(proc).AsVector(), /*stage=*/0));
   return cloner.GetResult();
 }
@@ -1314,7 +1338,7 @@ absl::StatusOr<Block*> FunctionToPipelinedBlock(
 
   XLS_ASSIGN_OR_RETURN(
       StreamingIoPipeline streaming_io_and_pipeline,
-      CloneNodesIntoPipelinedBlock(transformed_schedule, block));
+      CloneNodesIntoPipelinedBlock(transformed_schedule, options, block));
 
   XLS_ASSIGN_OR_RETURN(ResetInfo reset_info, MaybeAddResetPort(block, options));
 
@@ -1391,7 +1415,7 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
   XLS_VLOG_LINES(3, schedule.ToString());
 
   XLS_ASSIGN_OR_RETURN(StreamingIoPipeline streaming_io_and_pipeline,
-                       CloneNodesIntoPipelinedBlock(schedule, block));
+                       CloneNodesIntoPipelinedBlock(schedule, options, block));
 
   if (streaming_io_and_pipeline.outputs.size() != 1) {
     // TODO(tedhong): 2021-09-27 Add additional logic to ensure that
@@ -1415,8 +1439,8 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
 
   XLS_ASSIGN_OR_RETURN(ResetInfo reset_info, MaybeAddResetPort(block, options));
 
-  XLS_RETURN_IF_ERROR(
-      AddBubbleFlowControl(reset_info, streaming_io_and_pipeline, block));
+  XLS_RETURN_IF_ERROR(AddBubbleFlowControl(reset_info, options,
+                                           streaming_io_and_pipeline, block));
 
   XLS_VLOG(3) << "After Flow Control";
   XLS_VLOG_LINES(3, block->DumpIr());
@@ -1469,7 +1493,8 @@ absl::StatusOr<Block*> FunctionToCombinationalBlock(
 }
 
 absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
-                                                absl::string_view block_name) {
+                                                absl::string_view block_name,
+                                                const CodegenOptions& options) {
   XLS_VLOG(3) << "Converting proc to combinational block:";
   XLS_VLOG_LINES(3, proc->DumpIr());
 
@@ -1487,12 +1512,12 @@ absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
       std::make_unique<Block>(block_name, proc->package()));
 
   XLS_ASSIGN_OR_RETURN(StreamingIoPipeline streaming_io,
-                       CloneProcNodesIntoBlock(proc, block));
+                       CloneProcNodesIntoBlock(proc, options, block));
 
   XLS_RET_CHECK_EQ(streaming_io.pipeline_registers.size(), 0);
 
-  XLS_RETURN_IF_ERROR(
-      AddFlowControl(streaming_io.inputs, streaming_io.outputs, block));
+  XLS_RETURN_IF_ERROR(AddFlowControl(streaming_io.inputs, streaming_io.outputs,
+                                     options, block));
 
   // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
   //                codegen pipeline.

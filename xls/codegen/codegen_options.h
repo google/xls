@@ -149,6 +149,33 @@ struct CodegenOptions {
   CodegenOptions& emit_as_pipeline(bool value);
   bool emit_as_pipeline() const { return emit_as_pipeline_; }
 
+  // For ready_valid channels append value to the channel's name for the
+  // signals corresponding to data.
+  //
+  // Default is no suffix so that the signal name matches the channel name.
+  CodegenOptions& streaming_channel_data_suffix(absl::string_view value);
+  absl::string_view streaming_channel_data_suffix() const {
+    return streaming_channel_data_suffix_;
+  }
+
+  // For ready_valid channels (data, ready, valid), append value to the
+  // channel's name for the signals corresponding to valid.
+  //
+  // Default is "_vld"
+  CodegenOptions& streaming_channel_valid_suffix(absl::string_view value);
+  absl::string_view streaming_channel_valid_suffix() const {
+    return streaming_channel_valid_suffix_;
+  }
+
+  // For ready_valid channels (data, ready, valid), append value to the
+  // channel's name for the signals corresponding to ready.
+  //
+  // Default is "_rdy"
+  CodegenOptions& streaming_channel_ready_suffix(absl::string_view value);
+  absl::string_view streaming_channel_ready_suffix() const {
+    return streaming_channel_ready_suffix_;
+  }
+
  private:
   absl::optional<std::string> entry_;
   absl::optional<std::string> module_name_;
@@ -162,6 +189,9 @@ struct CodegenOptions {
   absl::optional<std::string> assert_format_;
   absl::optional<std::string> gate_format_;
   bool emit_as_pipeline_ = false;
+  std::string streaming_channel_data_suffix_ = "";
+  std::string streaming_channel_ready_suffix_ = "_rdy";
+  std::string streaming_channel_valid_suffix_ = "_vld";
 };
 
 }  // namespace xls::verilog

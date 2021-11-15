@@ -109,8 +109,27 @@ CodegenOptions& CodegenOptions::gate_format(absl::string_view value) {
   gate_format_ = std::string{value};
   return *this;
 }
+
 CodegenOptions& CodegenOptions::emit_as_pipeline(bool value) {
   emit_as_pipeline_ = value;
+  return *this;
+}
+
+CodegenOptions& CodegenOptions::streaming_channel_data_suffix(
+    absl::string_view value) {
+  streaming_channel_data_suffix_ = value;
+  return *this;
+}
+
+CodegenOptions& CodegenOptions::streaming_channel_valid_suffix(
+    absl::string_view value) {
+  streaming_channel_valid_suffix_ = value;
+  return *this;
+}
+
+CodegenOptions& CodegenOptions::streaming_channel_ready_suffix(
+    absl::string_view value) {
+  streaming_channel_ready_suffix_ = value;
   return *this;
 }
 

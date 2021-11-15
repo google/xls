@@ -91,6 +91,26 @@ Node* IrTestBase::FindNode(absl::string_view name, FunctionBase* function) {
   XLS_LOG(FATAL) << "No node named " << name << " in function:\n" << *function;
 }
 
+bool IrTestBase::HasNode(absl::string_view name, Package* package) {
+  for (FunctionBase* function : package->GetFunctionBases()) {
+    for (Node* node : function->nodes()) {
+      if (node->GetName() == name) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool IrTestBase::HasNode(absl::string_view name, FunctionBase* function) {
+  for (Node* node : function->nodes()) {
+    if (node->GetName() == name) {
+      return true;
+    }
+  }
+  return false;
+}
+
 Function* IrTestBase::FindFunction(absl::string_view name, Package* package) {
   for (auto& function : package->functions()) {
     if (function->name() == name) {

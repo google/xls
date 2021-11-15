@@ -36,6 +36,23 @@ fn not_add(x: bits[32], y: bits[32]) -> bits[32] {
 }
 """
 
+NEG_PROC_IR = """package test
+
+chan in(bits[32], id=0, kind=streaming, ops=receive_only,
+        flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only,
+        flow_control=ready_valid, metadata="")
+
+proc neg_proc(my_token: token, my_state: (), init=()) {
+  rcv: (token, bits[32]) = receive(my_token, channel_id=0)
+  data: bits[32] = tuple_index(rcv, index=1)
+  negate: bits[32] = neg(data)
+  rcv_token: token = tuple_index(rcv, index=0)
+  send: token = send(rcv_token, negate, channel_id=1)
+  next (send, my_state)
+}
+"""
+
 
 class CodeGenMainTest(parameterized.TestCase):
 
@@ -151,6 +168,39 @@ class CodeGenMainTest(parameterized.TestCase):
       self.assertNotIn('always_ff', verilog)
       self.assertIn('always @ (posedge clk)', verilog)
 
+  def test_proc_verilog_port_default_suffix(self):
+    ir_file = self.create_tempfile(content=NEG_PROC_IR)
+    verilog = subprocess.check_output([
+        CODEGEN_MAIN_PATH, '--generator=combinational', '--alsologtostderr',
+        '--top_level_proc=neg_proc', ir_file.full_path
+    ]).decode('utf-8')
+
+    self.assertIn('module neg_proc(', verilog)
+    self.assertIn('wire [31:0] in', verilog)
+    self.assertIn('wire in_vld', verilog)
+    self.assertIn('wire in_rdy', verilog)
+
+    self.assertIn('wire [31:0] out', verilog)
+    self.assertIn('wire out_vld', verilog)
+    self.assertIn('wire out_rdy', verilog)
+
+  def test_proc_verilog_port_nondefault_suffix(self):
+    ir_file = self.create_tempfile(content=NEG_PROC_IR)
+    verilog = subprocess.check_output([
+        CODEGEN_MAIN_PATH, '--generator=combinational', '--alsologtostderr',
+        '--top_level_proc=neg_proc', '--streaming_channel_data_suffix=_d',
+        '--streaming_channel_ready_suffix=_r',
+        '--streaming_channel_valid_suffix=_v', ir_file.full_path
+    ]).decode('utf-8')
+
+    self.assertIn('module neg_proc(', verilog)
+    self.assertIn('wire [31:0] in_d', verilog)
+    self.assertIn('wire in_v', verilog)
+    self.assertIn('wire in_r', verilog)
+
+    self.assertIn('wire [31:0] out_d', verilog)
+    self.assertIn('wire out_v', verilog)
+    self.assertIn('wire out_r', verilog)
 
 if __name__ == '__main__':
   absltest.main()
