@@ -92,4 +92,62 @@ absl::Status Proc::ReplaceState(absl::string_view state_param_name,
   return absl::OkStatus();
 }
 
+absl::StatusOr<Proc*> Proc::Clone(
+    absl::string_view new_name, Package* target_package,
+    absl::flat_hash_map<int64_t, int64_t> channel_remapping) const {
+  absl::flat_hash_map<Node*, Node*> original_to_clone;
+  if (target_package == nullptr) {
+    target_package = package();
+  }
+  Proc* cloned_proc = target_package->AddProc(
+      std::make_unique<Proc>(new_name, InitValue(), TokenParam()->name(),
+                             StateParam()->name(), target_package));
+  for (Node* node : TopoSort(const_cast<Proc*>(this))) {
+    std::vector<Node*> cloned_operands;
+    for (Node* operand : node->operands()) {
+      cloned_operands.push_back(original_to_clone.at(operand));
+    }
+
+    if (node == StateParam()) {
+      original_to_clone[node] = cloned_proc->StateParam();
+    } else if (node == TokenParam()) {
+      original_to_clone[node] = cloned_proc->TokenParam();
+    } else if (node->Is<Receive>()) {
+      Receive* src = node->As<Receive>();
+      int64_t channel_id = channel_remapping.contains(src->channel_id())
+                               ? channel_remapping.at(src->channel_id())
+                               : src->channel_id();
+      XLS_ASSIGN_OR_RETURN(original_to_clone[node],
+                           cloned_proc->MakeNodeWithName<Receive>(
+                               src->loc(), cloned_operands[0],
+                               cloned_operands.size() == 2
+                                   ? absl::optional<Node*>(cloned_operands[1])
+                                   : absl::nullopt,
+                               channel_id, src->GetName()));
+    } else if (node->Is<Send>()) {
+      Send* src = node->As<Send>();
+      int64_t channel_id = channel_remapping.contains(src->channel_id())
+                               ? channel_remapping.at(src->channel_id())
+                               : src->channel_id();
+      XLS_ASSIGN_OR_RETURN(
+          original_to_clone[node],
+          cloned_proc->MakeNodeWithName<Send>(
+              src->loc(), cloned_operands[0], cloned_operands[1],
+              cloned_operands.size() == 3
+                  ? absl::optional<Node*>(cloned_operands[2])
+                  : absl::nullopt,
+              channel_id, src->GetName()));
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          original_to_clone[node],
+          node->CloneInNewFunction(cloned_operands, cloned_proc));
+    }
+  }
+  XLS_RETURN_IF_ERROR(
+      cloned_proc->SetNextToken(original_to_clone.at(NextToken())));
+  XLS_RETURN_IF_ERROR(
+      cloned_proc->SetNextState(original_to_clone.at(NextState())));
+  return cloned_proc;
+}
+
 }  // namespace xls

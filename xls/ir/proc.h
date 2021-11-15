@@ -15,6 +15,7 @@
 #ifndef XLS_IR_PROC_H_
 #define XLS_IR_PROC_H_
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/strings/string_view.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
@@ -75,6 +76,14 @@ class Proc : public FunctionBase {
   bool HasImplicitUse(Node* node) const override {
     return node == NextToken() || node == NextState();
   }
+
+  // Creates a clone of the proc with the new name `new_name`. Proc is
+  // owned by `target_package`. `channel_remapping` dictates how to map channel
+  // IDs to new channel IDs in the cloned version; if a key is unavailable in
+  // `channel_remapping` it is assumed to be the identity mapping at that key.
+  absl::StatusOr<Proc*> Clone(
+      absl::string_view new_name, Package* target_package = nullptr,
+      absl::flat_hash_map<int64_t, int64_t> channel_remapping = {}) const;
 
   std::string DumpIr() const override;
 

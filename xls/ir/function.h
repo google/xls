@@ -66,7 +66,7 @@ class Function : public FunctionBase {
   std::string DumpIr() const override;
 
   // Creates a clone of the function with the new name 'new_name'. Function is
-  // owned by targt_package.  call_remapping specifies any function
+  // owned by target_package.  call_remapping specifies any function
   // substitutions to be used in the cloned function, e.g. If call_remapping
   // holds {funcA, funcB}, any references to funcA in the function will be
   // references to funcB in the cloned function.

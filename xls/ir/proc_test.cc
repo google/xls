@@ -145,5 +145,45 @@ TEST_F(ProcTest, ReplaceStateWithWrongInitValueType) {
                                  "type bits[100] of next state literal.5")));
 }
 
+TEST_F(ProcTest, Clone) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      SingleValueChannel * channel,
+      p->CreateSingleValueChannel("chan", ChannelOps::kSendReceive,
+                                  p->GetBitsType(32)));
+
+  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
+                 p.get());
+  BValue recv = pb.Receive(channel, pb.GetTokenParam());
+  BValue add1 = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam());
+  BValue add2 = pb.Add(add1, pb.TupleIndex(recv, 1));
+  BValue send = pb.Send(channel, pb.TupleIndex(recv, 0), add2);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, add2));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      SingleValueChannel * cloned_channel,
+      p->CreateSingleValueChannel("cloned_chan", ChannelOps::kSendReceive,
+                                  p->GetBitsType(32)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * clone,
+      proc->Clone("cloned", p.get(), {{channel->id(), cloned_channel->id()}}));
+
+  EXPECT_FALSE(clone->IsFunction());
+  EXPECT_TRUE(clone->IsProc());
+
+  EXPECT_EQ(clone->DumpIr(), R"(proc cloned(tkn: token, st: bits[32], init=42) {
+  literal.12: bits[32] = literal(value=1, id=12)
+  receive_3: (token, bits[32]) = receive(tkn, channel_id=1, id=13)
+  add.14: bits[32] = add(literal.12, st, id=14)
+  tuple_index.15: bits[32] = tuple_index(receive_3, index=1, id=15)
+  tuple_index.16: token = tuple_index(receive_3, index=0, id=16)
+  add.17: bits[32] = add(add.14, tuple_index.15, id=17)
+  send_9: token = send(tuple_index.16, add.17, channel_id=1, id=18)
+  next (send_9, add.17)
+}
+)");
+}
+
 }  // namespace
 }  // namespace xls
