@@ -585,4 +585,119 @@ absl::Span<InstantiationOutput* const> Block::GetInstantiationOutputs(
   return instantiation_outputs_.at(instantiation);
 }
 
+absl::StatusOr<Block*> Block::Clone(absl::string_view new_name,
+                                    Package* target_package) const {
+  absl::flat_hash_map<Node*, Node*> original_to_clone;
+  absl::flat_hash_map<Register*, Register*> register_map;
+  absl::flat_hash_map<Instantiation*, Instantiation*> instantiation_map;
+
+  if (target_package == nullptr) {
+    target_package = package();
+  }
+
+  Block* cloned_block = target_package->AddBlock(
+      std::make_unique<Block>(new_name, target_package));
+
+  for (const Port& port : GetPorts()) {
+    if (std::holds_alternative<ClockPort*>(port)) {
+      XLS_RETURN_IF_ERROR(
+          cloned_block->AddClockPort(std::get<ClockPort*>(port)->name));
+    }
+  }
+
+  for (Register* reg : GetRegisters()) {
+    XLS_ASSIGN_OR_RETURN(
+        register_map[reg],
+        cloned_block->AddRegister(reg->name(), reg->type(), reg->reset()));
+  }
+
+  for (Instantiation* inst : GetInstantiations()) {
+    if (inst->kind() == InstantiationKind::kBlock) {
+      auto block_inst = dynamic_cast<BlockInstantiation*>(inst);
+      XLS_CHECK(block_inst != nullptr);
+      XLS_ASSIGN_OR_RETURN(
+          instantiation_map[inst],
+          cloned_block->AddBlockInstantiation(
+              block_inst->name(), block_inst->instantiated_block()));
+    } else {
+      XLS_LOG(FATAL) << "InstantiationKind not yet supported: " << inst->kind();
+    }
+  }
+
+  for (Node* node : TopoSort(const_cast<Block*>(this))) {
+    std::vector<Node*> cloned_operands;
+    for (Node* operand : node->operands()) {
+      cloned_operands.push_back(original_to_clone.at(operand));
+    }
+
+    if (node->Is<InputPort>()) {
+      InputPort* src = node->As<InputPort>();
+      XLS_ASSIGN_OR_RETURN(
+          original_to_clone[node],
+          cloned_block->AddInputPort(src->name(), src->GetType(), src->loc()));
+    } else if (node->Is<OutputPort>()) {
+      OutputPort* src = node->As<OutputPort>();
+      XLS_ASSIGN_OR_RETURN(original_to_clone[node],
+                           cloned_block->AddOutputPort(
+                               src->name(), cloned_operands[0], src->loc()));
+    } else if (node->Is<RegisterRead>()) {
+      RegisterRead* src = node->As<RegisterRead>();
+      XLS_ASSIGN_OR_RETURN(
+          original_to_clone[node],
+          cloned_block->MakeNodeWithName<RegisterRead>(
+              src->loc(), register_map.at(src->GetRegister()), src->GetName()));
+    } else if (node->Is<RegisterWrite>()) {
+      RegisterWrite* src = node->As<RegisterWrite>();
+      XLS_ASSIGN_OR_RETURN(
+          original_to_clone[node],
+          cloned_block->MakeNodeWithName<RegisterWrite>(
+              src->loc(), cloned_operands[0],
+              src->load_enable().has_value()
+                  ? absl::optional<Node*>(
+                        original_to_clone.at(*src->load_enable()))
+                  : absl::nullopt,
+              src->reset().has_value()
+                  ? absl::optional<Node*>(original_to_clone.at(*src->reset()))
+                  : absl::nullopt,
+              register_map.at(src->GetRegister()), src->GetName()));
+    } else if (node->Is<InstantiationInput>()) {
+      InstantiationInput* src = node->As<InstantiationInput>();
+      XLS_ASSIGN_OR_RETURN(original_to_clone[node],
+                           cloned_block->MakeNodeWithName<InstantiationInput>(
+                               src->loc(), cloned_operands[0],
+                               instantiation_map.at(src->instantiation()),
+                               src->port_name(), src->GetName()));
+    } else if (node->Is<InstantiationOutput>()) {
+      InstantiationOutput* src = node->As<InstantiationOutput>();
+      XLS_ASSIGN_OR_RETURN(
+          original_to_clone[node],
+          cloned_block->MakeNodeWithName<InstantiationOutput>(
+              src->loc(), instantiation_map.at(src->instantiation()),
+              src->port_name(), src->GetName()));
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          original_to_clone[node],
+          node->CloneInNewFunction(cloned_operands, cloned_block));
+    }
+  }
+
+  {
+    std::vector<std::string> correct_ordering;
+    for (const Port& port : GetPorts()) {
+      if (std::holds_alternative<InputPort*>(port)) {
+        absl::string_view view = std::get<InputPort*>(port)->name();
+        correct_ordering.push_back(std::string(view.begin(), view.end()));
+      } else if (std::holds_alternative<OutputPort*>(port)) {
+        absl::string_view view = std::get<OutputPort*>(port)->name();
+        correct_ordering.push_back(std::string(view.begin(), view.end()));
+      } else if (std::holds_alternative<ClockPort*>(port)) {
+        correct_ordering.push_back(std::get<ClockPort*>(port)->name);
+      }
+    }
+    XLS_RETURN_IF_ERROR(cloned_block->ReorderPorts(correct_ordering));
+  }
+
+  return cloned_block;
+}
+
 }  // namespace xls

@@ -92,6 +92,17 @@ TEST_F(BlockTest, SimpleBlock) {
   out: () = output_port(add.3, name=out, id=4)
 }
 )");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned", p.get()));
+
+  EXPECT_EQ(clone->DumpIr(),
+            R"(block cloned(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a, id=5)
+  b: bits[32] = input_port(name=b, id=6)
+  add.7: bits[32] = add(a, b, id=7)
+  out: () = output_port(add.7, name=out, id=8)
+}
+)");
 }
 
 TEST_F(BlockTest, RemovePorts) {
@@ -174,6 +185,18 @@ TEST_F(BlockTest, MultiOutputBlock) {
   b_out: () = output_port(b, name=b_out, id=4)
 }
 )");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned", p.get()));
+
+  EXPECT_EQ(
+      clone->DumpIr(),
+      R"(block cloned(a: bits[32], a_out: bits[32], b: bits[32], b_out: bits[32]) {
+  a: bits[32] = input_port(name=a, id=5)
+  b: bits[32] = input_port(name=b, id=6)
+  a_out: () = output_port(a, name=a_out, id=7)
+  b_out: () = output_port(b, name=b_out, id=8)
+}
+)");
 }
 
 TEST_F(BlockTest, ErrorConditions) {
@@ -216,6 +239,12 @@ TEST_F(BlockTest, TrivialBlock) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   EXPECT_EQ(block->DumpIr(), R"(block my_block() {
+}
+)");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned", p.get()));
+
+  EXPECT_EQ(clone->DumpIr(), R"(block cloned() {
 }
 )");
 }
@@ -274,6 +303,25 @@ TEST_F(BlockTest, BlockWithRegisters) {
   out: () = output_port(sum_d, name=out, id=8)
 }
 )");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned", p.get()));
+
+  EXPECT_EQ(clone->DumpIr(),
+            R"(block cloned(clk: clock, x: bits[32], out: bits[32]) {
+  reg state(bits[32])
+  reg x_d(bits[32])
+  reg sum_d(bits[32])
+  x: bits[32] = input_port(name=x, id=12)
+  x_d_write: () = register_write(x, register=x_d, id=15)
+  x_d: bits[32] = register_read(register=x_d, id=10)
+  state: bits[32] = register_read(register=state, id=11)
+  sum: bits[32] = add(x_d, state, id=13)
+  sum_d_write: () = register_write(sum, register=sum_d, id=16)
+  sum_d: bits[32] = register_read(register=sum_d, id=14)
+  state_write: () = register_write(sum_d, register=state, id=18)
+  out: () = output_port(sum_d, name=out, id=17)
+}
+)");
 }
 
 TEST_F(BlockTest, BlockWithTrivialFeedbackDumpOrderTest) {
@@ -292,6 +340,16 @@ TEST_F(BlockTest, BlockWithTrivialFeedbackDumpOrderTest) {
   reg x(bits[32])
   register_read.1: bits[32] = register_read(register=x, id=1)
   register_write.2: () = register_write(register_read.1, register=x, id=2)
+}
+)");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned", p.get()));
+
+  EXPECT_EQ(clone->DumpIr(),
+            R"(block cloned(clk: clock) {
+  reg x(bits[32])
+  register_read_1: bits[32] = register_read(register=x, id=3)
+  register_write_2: () = register_write(register_read_1, register=x, id=4)
 }
 )");
 }
@@ -323,6 +381,20 @@ TEST_F(BlockTest, MultipleInputsAndOutputsDumpOrderTest) {
   a: () = output_port(x, name=a, id=5)
   b: () = output_port(x, name=b, id=4)
   c: () = output_port(x, name=c, id=6)
+}
+)");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned", p.get()));
+
+  EXPECT_EQ(
+      clone->DumpIr(),
+      R"(block cloned(x: bits[32], y: bits[32], z: bits[32], a: bits[32], b: bits[32], c: bits[32]) {
+  x: bits[32] = input_port(name=x, id=7)
+  y: bits[32] = input_port(name=y, id=8)
+  z: bits[32] = input_port(name=z, id=9)
+  a: () = output_port(x, name=a, id=11)
+  b: () = output_port(x, name=b, id=10)
+  c: () = output_port(x, name=c, id=12)
 }
 )");
 }
@@ -377,6 +449,36 @@ TEST_F(BlockTest, DeepPipelineDumpOrderTest) {
   p3_zero: bits[32] = literal(value=0, id=15)
   p3_mul: bits[32] = umul(p3_sub, p3_zero, id=16)
   result: () = output_port(p3_mul, name=result, id=17)
+}
+)");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned", p.get()));
+
+  EXPECT_EQ(
+      clone->DumpIr(),
+      R"(block cloned(clk: clock, x: bits[32], y: bits[32], result: bits[32]) {
+  reg p1_x(bits[32])
+  reg p1_y(bits[32])
+  reg p2_add(bits[32])
+  reg p2_y(bits[32])
+  reg p3_sub(bits[32])
+  x: bits[32] = input_port(name=x, id=24)
+  y: bits[32] = input_port(name=y, id=25)
+  p1_x_write: () = register_write(x, register=p1_x, id=29)
+  p1_y_write: () = register_write(y, register=p1_y, id=30)
+  p1_x: bits[32] = register_read(register=p1_x, id=18)
+  p1_y: bits[32] = register_read(register=p1_y, id=19)
+  p1_add: bits[32] = add(p1_x, p1_y, id=26)
+  p2_add_write: () = register_write(p1_add, register=p2_add, id=31)
+  p2_y_write: () = register_write(p1_y, register=p2_y, id=32)
+  p2_add: bits[32] = register_read(register=p2_add, id=20)
+  p2_y: bits[32] = register_read(register=p2_y, id=21)
+  p2_sub: bits[32] = sub(p2_add, p2_y, id=27)
+  p3_sub_write: () = register_write(p2_sub, register=p3_sub, id=33)
+  p3_sub: bits[32] = register_read(register=p3_sub, id=22)
+  p3_zero: bits[32] = literal(value=0, id=23)
+  p3_mul: bits[32] = umul(p3_sub, p3_zero, id=28)
+  result: () = output_port(p3_mul, name=result, id=34)
 }
 )");
 }
@@ -565,7 +667,7 @@ TEST_F(BlockTest, GetRegisterReadWrite) {
                     "or write operation for this register still exists")));
 }
 
-TEST_F(BlockTest, BlockInstatiation) {
+TEST_F(BlockTest, BlockInstantiation) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -617,6 +719,23 @@ TEST_F(BlockTest, BlockInstatiation) {
   instantiation_output.10: bits[32] = instantiation_output(instantiation=inst, port_name=y, id=10)
   out0: () = output_port(instantiation_output.8, name=out0, id=11)
   out1: () = output_port(instantiation_output.10, name=out1, id=12)
+}
+)");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned", p.get()));
+
+  EXPECT_EQ(
+      clone->DumpIr(),
+      R"(block cloned(in0: bits[32], in1: bits[32], out0: bits[32], out1: bits[32]) {
+  instantiation inst(block=sub_block, kind=block)
+  in0: bits[32] = input_port(name=in0, id=13)
+  in1: bits[32] = input_port(name=in1, id=14)
+  instantiation_output_8: bits[32] = instantiation_output(instantiation=inst, port_name=x, id=15)
+  instantiation_output_10: bits[32] = instantiation_output(instantiation=inst, port_name=y, id=16)
+  instantiation_input_7: () = instantiation_input(in0, instantiation=inst, port_name=a, id=17)
+  instantiation_input_9: () = instantiation_input(in1, instantiation=inst, port_name=b, id=18)
+  out0: () = output_port(instantiation_output_8, name=out0, id=19)
+  out1: () = output_port(instantiation_output_10, name=out1, id=20)
 }
 )");
 }
