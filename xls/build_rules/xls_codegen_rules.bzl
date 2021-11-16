@@ -116,6 +116,9 @@ def xls_ir_verilog_impl(ctx, src):
         "reset_active_low",
         "reset_asynchronous",
         "use_system_verilog",
+        "streaming_channel_data_suffix",
+        "streaming_channel_ready_suffix",
+        "streaming_channel_valid_suffix",
     )
 
     my_args = get_args(codegen_args, CODEGEN_FLAGS, codegen_default_args)
