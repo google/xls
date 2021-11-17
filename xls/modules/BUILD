@@ -26,7 +26,7 @@ load(
 )
 
 package(
-    default_visibility = ["//xls:xls_internal"],
+    default_visibility = ["//xls:xls_users"],
     licenses = ["notice"],  # Apache 2.0
 )
 
