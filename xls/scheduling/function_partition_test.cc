@@ -160,7 +160,13 @@ TEST_F(FunctionPartitionTest, BenchmarkTest) {
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<Package> p,
         sample_packages::GetBenchmark(benchmark_name, /*optimized=*/true));
-    XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->EntryFunction());
+
+    absl::StatusOr<Function*> f_status = p->EntryFunction();
+    if (!f_status.ok()) {
+      // Skip packages which need the entry to be specified explicitly.
+      continue;
+    }
+    Function * f = f_status.value();
     auto topo_sort_it = TopoSort(f);
     std::vector<Node*> topo_sort(topo_sort_it.begin(), topo_sort_it.end());
 
