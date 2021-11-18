@@ -14,13 +14,16 @@
 
 proc proc_under_test {
   a: u32;
-  consumer_input: chan in u32;
+  input_c: chan in u32;
 
   config(c: chan in u32) {
     (u32:0, c)
   }
 
-  next(tok: token) { () }
+  next(tok: token) {
+    let (tok, val) = recv(tok, input_c);
+    ()
+  }
 }
 
 #![test_proc(u32:0)]
@@ -33,7 +36,9 @@ proc test_main {
     (p, terminator_p)
   }
 
+  // Run for two iterations then exit.
   next(tok: token, iter: u32) {
+    let tok = send(tok, input_p, u32:0);
     let tok = send_if(tok, terminator_p, iter == u32:2, true);
     (iter + u32:1,)
   }

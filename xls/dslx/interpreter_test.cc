@@ -111,11 +111,17 @@ proc second_level_proc {
   input_c: chan in u32;
   output_p: chan out u32;
 
+  member_0: u32;
+  member_1: u64;
+
   config(input_c: chan in u32, output_p: chan out u32) {
-    (input_c, output_p)
+    (input_c, output_p, u32:0, u64:1)
   }
 
-  next(tok: token) { () }
+  next(tok: token, state: u64) {
+    let (tok, input) = recv(tok, input_c);
+    (member_0 as u64 + input as u64 + member_1,)
+  }
 }
 
 proc first_level_proc {
@@ -127,26 +133,34 @@ proc first_level_proc {
   config() {
     let (input_p0, input_c0) = chan u32;
     let (output_p0, output_c0) = chan u32;
-    spawn second_level_proc(input_c0, output_p0)();
+    spawn second_level_proc(input_c0, output_p0)(u64:1000);
 
     let (input_p1, input_c1) = chan u32;
     let (output_p1, output_c1) = chan u32;
-    spawn second_level_proc(input_c1, output_p1)();
+    spawn second_level_proc(input_c1, output_p1)(u64:1001);
 
     (input_p0, input_p1, output_p0, output_p1)
   }
 
-  next(tok: token) { () }
+  next(tok: token) {
+    let tok = send(tok, input_p0, u32:0);
+    let tok = send(tok, input_p1, u32:1);
+    ()
+  }
 }
 
 #![test_proc()]
 proc test_proc {
+  terminator: chan out bool;
   config(terminator: chan out bool) {
     spawn first_level_proc()();
-    ()
+    (terminator,)
   }
 
-  next(tok: token) { () }
+  next(tok: token) {
+    let tok = send(tok, terminator, true);
+    ()
+  }
 }
 )";
 

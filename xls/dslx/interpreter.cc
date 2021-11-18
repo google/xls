@@ -26,15 +26,17 @@
 namespace xls::dslx {
 
 Interpreter::RunningProc::RunningProc(
-    absl::string_view name,
-    const absl::flat_hash_map<std::string, InterpValue>& members,
-    const std::vector<RunningProc>& children)
-    : name_(name), members_(members), children_(children) {}
+    Proc* proc, const absl::flat_hash_map<std::string, InterpValue>& members,
+    std::unique_ptr<InterpBindings> bindings, std::vector<RunningProc> children)
+    : proc_(proc),
+      members_(members),
+      bindings_(std::move(bindings)),
+      children_(std::move(children)) {}
 
 std::string Interpreter::RunningProc::ToString(int indent) const {
   std::vector<std::string> output;
   std::string indent_str(indent * 2, ' ');
-  output.push_back(absl::StrCat(indent_str, "Name: ", name_));
+  output.push_back(absl::StrCat(indent_str, "Name: ", proc_->identifier()));
   output.push_back(absl::StrCat(indent_str, "Members:"));
   for (const auto& [k, v] : members_) {
     output.push_back(absl::StrCat(indent_str, " - ", k, " : ", v.ToString()));
@@ -101,21 +103,33 @@ class Evaluator : public ExprVisitor {
     value_ = parent_->EvaluateInvocation(expr, bindings_, type_context_);
   }
   void HandleRecv(Recv* expr) override {
-    value_ = absl::UnimplementedError(absl::StrFormat(
-        "Recv expression is unhandled @ %s", expr->span().ToString()));
+    // TODO(rspringer): 2021-11-08: Correctly implement recv. This will require
+    // returning some sort of "BLOCKED" InterpValue if the recv queue is empty.
+    value_ = InterpValue::MakeTuple(
+        {InterpValue::MakeToken(), InterpValue::MakeU32(0xbeef)});
   }
   void HandleRecvIf(RecvIf* expr) override {
     value_ = absl::UnimplementedError(absl::StrFormat(
         "RecvIf expression is unhandled @ %s", expr->span().ToString()));
   }
-  void HandleSend(Send* expr) override {
-    value_ = absl::UnimplementedError(absl::StrFormat(
-        "Send expression is unhandled @ %s", expr->span().ToString()));
-  }
+
+  void HandleSend(Send* expr) override { HandleSendInternal(expr); }
+
   void HandleSendIf(SendIf* expr) override {
-    value_ = absl::UnimplementedError(absl::StrFormat(
-        "SendIf expression is unhandled @ %s", expr->span().ToString()));
+    auto status_or_predicate =
+        parent_->Evaluate(expr->condition(), bindings_, type_context_);
+    if (!status_or_predicate.ok()) {
+      value_ = status_or_predicate.status();
+      return;
+    }
+
+    if (status_or_predicate.value().GetBitValueUint64().value() == 1) {
+      HandleSendInternal(expr);
+    } else {
+      value_ = InterpValue::MakeToken();
+    }
   }
+
   void HandleJoin(Join* expr) override {
     value_ = absl::UnimplementedError(absl::StrFormat(
         "Join expression is unhandled @ %s", expr->span().ToString()));
@@ -134,6 +148,39 @@ class Evaluator : public ExprVisitor {
   absl::StatusOr<InterpValue>& value() { return value_; }
 
  private:
+  // Common actual sending logic for send & sendif.
+  template <typename SendT>
+  void HandleSendInternal(SendT* send) {
+    value_ = absl::UnimplementedError(absl::StrFormat(
+        "Send expression is unhandled @ %s", send->span().ToString()));
+    auto status_or_channel = bindings_->ResolveValue(send->channel());
+    if (!status_or_channel.ok()) {
+      value_ = status_or_channel.status();
+      return;
+    }
+
+    if (!status_or_channel.value().IsChannel()) {
+      value_ = absl::InvalidArgumentError(
+          absl::StrCat("Send channel argument was not a channel: ",
+                       status_or_channel.value().ToString()));
+      return;
+    }
+    std::shared_ptr<InterpValue::Channel> channel =
+        status_or_channel.value().GetChannelOrDie();
+
+    auto status_or_payload =
+        parent_->Evaluate(send->payload(), bindings_, type_context_);
+    if (!status_or_payload.ok()) {
+      value_ = status_or_payload.status();
+      return;
+    }
+
+    channel->push_back(status_or_payload.value());
+    value_ = InterpValue::MakeToken();
+    XLS_VLOG(3) << "send[if]: " << send->span()
+                << " : payload:" << status_or_payload.value().ToString();
+  }
+
   Interpreter* parent_;
   InterpBindings* bindings_;
   ConcreteType* type_context_;
@@ -236,20 +283,22 @@ absl::Status Interpreter::RunTest(absl::string_view name) {
 
 absl::Status Interpreter::RunTestProc(absl::string_view name) {
   XLS_ASSIGN_OR_RETURN(TestProc * tp, entry_module_->GetTestProc(name));
+  Proc* proc = tp->proc();
   XLS_ASSIGN_OR_RETURN(
       const InterpBindings* top_level_bindings,
       GetOrCreateTopLevelBindings(entry_module_, abstract_adapter_.get()));
-  InterpBindings bindings(/*parent=*/top_level_bindings);
+  auto bindings =
+      std::make_unique<InterpBindings>(/*parent=*/top_level_bindings);
 
   // Type checking guarantees the terminator channel exists.
   InterpValue terminator = InterpValue::MakeChannel();
-  bindings.AddValue(tp->proc()->config()->params()[0]->identifier(),
-                    terminator);
+  bindings->AddValue(tp->proc()->config()->params()[0]->identifier(),
+                     terminator);
 
   XLS_RET_CHECK(current_type_info_ != nullptr);
 
   spawn_stack_.push_back(SpawnContext());
-  Evaluator evaluator(this, &bindings, /*type_context=*/nullptr,
+  Evaluator evaluator(this, bindings.get(), /*type_context=*/nullptr,
                       abstract_adapter_.get(), run_concolic_);
   tp->proc()->config()->body()->AcceptExpr(&evaluator);
   absl::StatusOr<InterpValue> result_or = std::move(evaluator.value());
@@ -257,7 +306,75 @@ absl::Status Interpreter::RunTestProc(absl::string_view name) {
     return result_or.status();
   }
 
+  absl::flat_hash_map<std::string, InterpValue> members;
+  XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* member_values,
+                       result_or.value().GetValues());
+
+  for (int i = 0; i < proc->members().size(); i++) {
+    members.insert({proc->members()[i]->identifier(), member_values->at(i)});
+    bindings->AddValue(proc->members()[i]->identifier(), member_values->at(i));
+    XLS_VLOG(3) << "Setting member \"" << proc->members()[i]->identifier()
+                << "\" to " << member_values->at(i).ToString();
+  }
+
+  std::vector<Param*> state_elems = proc->next()->params();
+  bindings->AddValue(state_elems[0]->identifier(), InterpValue::MakeToken());
+  for (int i = 0; i < tp->next_args().size(); i++) {
+    tp->next_args()[i]->AcceptExpr(&evaluator);
+    XLS_ASSIGN_OR_RETURN(InterpValue next_arg, evaluator.value());
+    XLS_VLOG(3) << "Updating \"" << state_elems[i + 1]->identifier() << "\" to "
+                << next_arg.ToString();
+    bindings->AddValue(state_elems[i + 1]->identifier(), next_arg);
+  }
+
+  RunningProc root = RunningProc(tp->proc(), members, std::move(bindings),
+                                 std::move(spawn_stack_.back().child_procs));
+  XLS_RETURN_IF_ERROR(RunTestProc(&root, terminator.GetChannelOrDie()));
+
   XLS_VLOG(2) << "Ran test " << name << " successfully.";
+  return absl::OkStatus();
+}
+
+absl::Status Interpreter::TickProc(RunningProc* rp) {
+  // Tick us first.
+  Evaluator evaluator(this, rp->bindings(), /*type_context=*/nullptr,
+                      abstract_adapter_.get(), run_concolic_);
+  rp->proc()->next()->body()->AcceptExpr(&evaluator);
+  XLS_ASSIGN_OR_RETURN(InterpValue result, evaluator.value());
+
+  std::vector<Param*> state_elems = rp->proc()->next()->params();
+  XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* result_elements,
+                       result.GetValues());
+  // Update bindings with the new state values.
+  for (int i = 0; i < result_elements->size(); i++) {
+    XLS_VLOG(3) << "Updating \"" << state_elems[i + 1]->identifier() << "\" to "
+                << result_elements->at(i).ToString();
+    rp->bindings()->AddValue(state_elems[i + 1]->identifier(),
+                             result_elements->at(i));
+  }
+
+  // ...then recursively tick our kids.
+  for (auto& child : rp->children()) {
+    XLS_RETURN_IF_ERROR(TickProc(&child));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Interpreter::RunTestProc(
+    RunningProc* rp, std::shared_ptr<InterpValue::Channel> terminator) {
+  // Keep ticking the network until there's data in the terminator channel.
+  // The value placed therein is the result of the test.
+  while (terminator->empty()) {
+    XLS_RETURN_IF_ERROR(TickProc(rp));
+  }
+
+  // TODO(rspringer): 2021-11-09: Need to support actual failure
+  // messages/errors. How to capture AssertEq failures from inside the network?
+  if (terminator->back().GetBitValueUint64().value() == false) {
+    return FailureErrorStatus(rp->proc()->next()->span(),
+                              "Terminator returned false/failure.");
+  }
+
   return absl::OkStatus();
 }
 
@@ -579,21 +696,30 @@ absl::Status Interpreter::EvaluateSpawn(Spawn* expr, InterpBindings* bindings,
   XLS_ASSIGN_OR_RETURN(
       InterpValue member_tuple,
       EvaluateInvocation(expr->config(), bindings, type_context));
-  SpawnContext ctx = spawn_stack_.back();
+  SpawnContext ctx = std::move(spawn_stack_.back());
   spawn_stack_.pop_back();
 
   absl::flat_hash_map<std::string, InterpValue> members;
   XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* member_values,
                        member_tuple.GetValues());
 
+  XLS_ASSIGN_OR_RETURN(
+      const InterpBindings* top_level_bindings,
+      GetOrCreateTopLevelBindings(entry_module_, abstract_adapter_.get()));
+  auto child_bindings =
+      std::make_unique<InterpBindings>(/*parent=*/top_level_bindings);
+
   XLS_ASSIGN_OR_RETURN(Proc * proc,
                        ResolveProc(expr->callee(), current_type_info_));
   for (int64_t i = 0; i < proc->members().size(); i++) {
     members.insert({proc->members()[i]->identifier(), member_values->at(i)});
+    child_bindings->AddValue(proc->members()[i]->identifier(),
+                             member_values->at(i));
   }
 
   spawn_stack_.back().child_procs.push_back(
-      RunningProc(proc->identifier(), std::move(members), ctx.child_procs));
+      RunningProc(proc, std::move(members), std::move(child_bindings),
+                  std::move(ctx.child_procs)));
   return absl::OkStatus();
 }
 

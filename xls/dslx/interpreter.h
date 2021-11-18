@@ -273,16 +273,29 @@ class Interpreter {
   // proc tests.
   class RunningProc {
    public:
-    RunningProc(absl::string_view name,
+    RunningProc(Proc* proc,
                 const absl::flat_hash_map<std::string, InterpValue>& members,
-                const std::vector<RunningProc>& children);
+                std::unique_ptr<InterpBindings> bindings,
+                std::vector<RunningProc> children);
     std::string ToString(int indent = 0) const;
+    Proc* proc() { return proc_; }
+    InterpBindings* bindings() { return bindings_.get(); }
+    std::vector<RunningProc>& children() { return children_; }
 
    private:
-    std::string name_;
+    Proc* proc_;
+
     absl::flat_hash_map<std::string, InterpValue> members_;
+    std::unique_ptr<InterpBindings> bindings_;
     std::vector<RunningProc> children_;
   };
+  absl::Status RunTestProc(RunningProc* rp,
+                           std::shared_ptr<InterpValue::Channel> terminator);
+
+  // "Ticks" the proc network under "rp" for one cycle, as much as possible.
+  // Procs blocked on recv operations will only complete the cycle if there's
+  // data in the channel to consume.
+  absl::Status TickProc(RunningProc* rp);
 
   // Holds information about the current Spawn operation in the stack (i.e.,
   // spawning a proc which spawns a proc which spawns a proc...).

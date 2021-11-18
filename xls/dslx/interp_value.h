@@ -285,6 +285,9 @@ class InterpValue {
   const FnData& GetFunctionOrDie() const { return *GetFunction().value(); }
   absl::StatusOr<Bits> GetBits() const;
   const Bits& GetBitsOrDie() const { return absl::get<Bits>(payload_); }
+  const std::shared_ptr<Channel>& GetChannelOrDie() const {
+    return absl::get<std::shared_ptr<Channel>>(payload_);
+  }
 
   // For enum values, the enum that the bit pattern is interpreted by is
   // referred to by the interpreter value.
