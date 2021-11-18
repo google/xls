@@ -1314,9 +1314,13 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
   if (result.has_value()) {
     return result.value();
   }
-  if (fb->function()->IsProc() || fb->function()->IsProc()) {
+  if (fb->function()->IsFunction()) {
     return absl::InvalidArgumentError(
-        absl::StrFormat("Expected 'ret' or 'next' in function/proc."));
+        absl::StrFormat("Expected 'ret' in function."));
+  }
+  if (fb->function()->IsProc()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Expected 'next' in proc."));
   }
   // Return an empty BValue for blocks as no ret or next is supported.
   XLS_RET_CHECK(fb->function()->IsBlock());

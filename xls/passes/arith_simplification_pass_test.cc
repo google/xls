@@ -557,6 +557,24 @@ TEST_F(ArithSimplificationPassTest, CollapseToNaryOr) {
                                        m::Param("y"), m::Param("z")));
 }
 
+TEST_F(ArithSimplificationPassTest, CollapseToNaryOrWithOtherUses) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn f(w: bits[8], x: bits[8], y: bits[8], z: bits[8]) -> (bits[8], bits[8]) {
+    w_or_x: bits[8] = or(w, x)
+    y_or_z: bits[8] = or(y, z)
+    tmp0: bits[8] = or(w_or_x, y_or_z)
+    ret result: (bits[8], bits[8]) = tuple(w_or_x, tmp0)
+ }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // `Or(w, x)` should not be folded because it has more than one use.
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Or(m::Param("w"), m::Param("x")),
+                       m::Or(m::Or(), m::Param("y"), m::Param("z"))));
+}
+
 TEST_F(ArithSimplificationPassTest, CollapseOneSideToNaryOr) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
