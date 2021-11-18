@@ -41,9 +41,7 @@ _DEFAULT_IR_EVAL_TEST_ARGS = {
     "optimize_ir": "true",
 }
 
-_DEFAULT_BENCHMARK_IR_ARGS = {
-    "delay_model": "unit",
-}
+_DEFAULT_BENCHMARK_IR_ARGS = {}
 
 _IR_FILE_EXTENSION = ".ir"
 
