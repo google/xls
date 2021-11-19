@@ -142,6 +142,20 @@ TEST(SampleExperimentsTest, SimpleVCExperiment) {
   EXPECT_THAT(timed_route_info_2.size(), ::testing::Gt(99900));
   EXPECT_EQ(timed_route_info_0.size(), timed_route_info_1.size());
   EXPECT_EQ(timed_route_info_2.size(), timed_route_info_3.size());
+
+  // Get link info for the first experiments.
+  // The links contains the same result.
+  const absl::btree_map<std::string, SinkVcPairPacketCount>&
+      link_to_packet_count_map =
+          experiment_data.at(0).info.GetLinkToPacketCountMap();
+  EXPECT_EQ(link_to_packet_count_map.size(), 2);
+  EXPECT_EQ(link_to_packet_count_map.at("LinkA0").size(), 1);
+  EXPECT_EQ(link_to_packet_count_map.at("Link0A").size(), 1);
+  EXPECT_EQ(link_to_packet_count_map.at("LinkA0").begin()->second,
+            link_to_packet_count_map.at("Link0A").begin()->second);
+  EXPECT_EQ(
+      link_to_packet_count_map.at("LinkA0").at(SinkVcPair{"RecvPort0", "VC0"}),
+      link_to_packet_count_map.at("Link0A").begin()->second);
 }
 
 TEST(SampleExperimentsTest, AggregateTreeTest) {

@@ -23,6 +23,7 @@
 #include "xls/noc/simulation/noc_traffic_injector.h"
 #include "xls/noc/simulation/parameters.h"
 #include "xls/noc/simulation/sim_objects.h"
+#include "xls/noc/simulation/simulator_to_link_monitor_service_shim.h"
 #include "xls/noc/simulation/simulator_to_traffic_injector_shim.h"
 #include "xls/noc/simulation/traffic_description.h"
 
@@ -172,6 +173,9 @@ absl::StatusOr<ExperimentData> ExperimentRunner::RunExperiment(
   traffic_injector.SetSimulatorShim(injector_shim);
   simulator.RegisterPreCycleService(injector_shim);
 
+  NocSimulatorToLinkMonitorServiceShim link_monitor(simulator);
+  simulator.RegisterPostCycleService(link_monitor);
+
   // Run simulation.
   for (int64_t i = 0; i < total_simulation_cycle_count_; ++i) {
     XLS_RET_CHECK_OK(simulator.RunCycle());
@@ -264,9 +268,8 @@ absl::StatusOr<ExperimentData> ExperimentRunner::RunExperiment(
 
   // Get Utilization of the routers.
   for (const SimInputBufferedVCRouter& router : simulator.GetRouters()) {
-    XLS_ASSIGN_OR_RETURN(
-        NetworkComponentParam param,
-        simulator.GetNocParameters()->GetNetworkComponentParam(router.GetId()));
+    XLS_ASSIGN_OR_RETURN(NetworkComponentParam param,
+                         params.GetNetworkComponentParam(router.GetId()));
     RouterParam router_param = absl::get<RouterParam>(param);
     router_param.GetName();
     std::string metric_name =
@@ -276,6 +279,41 @@ absl::StatusOr<ExperimentData> ExperimentRunner::RunExperiment(
                          static_cast<double>(total_simulation_cycle_count_));
   }
 
+  // Get info from link monitor.
+  const absl::flat_hash_map<NetworkComponentId, DestinationToPacketCount>&
+      link_to_packet_count_map = link_monitor.GetLinkToPacketCountMap();
+  for (auto& [nc_id, dest_packet_count] : link_to_packet_count_map) {
+    XLS_ASSIGN_OR_RETURN(NetworkComponentParam link_param,
+                         params.GetNetworkComponentParam(nc_id));
+    // Get link name
+    std::string link_name = std::string(std::visit(
+        [](const auto& nc_param) { return nc_param.GetName(); }, link_param));
+    SinkVcPairPacketCount& sink_vc_pair_packet_count =
+        info.link_to_packet_count_map_[link_name];
+    for (auto& [flit_destination, packet_count] : dest_packet_count) {
+      // Get sink name
+      XLS_ASSIGN_OR_RETURN(
+          NetworkComponentId sink_nc_id,
+          routing_table.GetSinkIndices().GetNetworkComponentByIndex(
+              flit_destination.sink_index));
+      XLS_ASSIGN_OR_RETURN(NetworkComponentParam sink_param,
+                           params.GetNetworkComponentParam(sink_nc_id));
+      std::string sink_name = std::string(std::visit(
+          [](const auto& nc_param) { return nc_param.GetName(); }, sink_param));
+      // Get vc name
+      XLS_ASSIGN_OR_RETURN(NetworkParam network_param,
+                           params.GetNetworkParam(graph.GetNetworkIds()[0]));
+      XLS_CHECK(flit_destination.vc >= 0 &&
+                flit_destination.vc < network_param.VirtualChannelCount())
+          << "VC index is out of range.";
+      VirtualChannelParam vc_param =
+          network_param.GetVirtualChannels().at(flit_destination.vc);
+      std::string vc_name = std::string(vc_param.GetName());
+      // Add entry
+      sink_vc_pair_packet_count[SinkVcPair{std::move(sink_name),
+                                           std::move(vc_name)}] = packet_count;
+    }
+  }
   return experiment_data;
 }
 

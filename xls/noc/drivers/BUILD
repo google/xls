@@ -38,6 +38,7 @@ cc_library(
         "//xls/noc/simulation:noc_traffic_injector",
         "//xls/noc/simulation:parameters",
         "//xls/noc/simulation:sim_objects",
+        "//xls/noc/simulation:simulator_to_link_monitor_shim",
         "//xls/noc/simulation:simulator_to_traffic_injector_shim",
         "//xls/noc/simulation:traffic_description",
     ],

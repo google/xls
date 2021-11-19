@@ -146,6 +146,25 @@ class ExperimentMetrics {
   absl::btree_map<std::string, int64_t> integer_metrics_;
 };
 
+struct SinkVcPair {
+  std::string sink;
+  std::string vc;
+
+  // Hash.
+  template <typename H>
+  friend H AbslHashValue(H h, SinkVcPair sink_vc_pair) {
+    return H::combine(std::move(h), sink_vc_pair.sink, sink_vc_pair.vc);
+  }
+};
+
+inline bool operator==(const SinkVcPair& lhs, const SinkVcPair& rhs) {
+  return lhs.sink == rhs.sink && lhs.vc == rhs.vc;
+}
+
+// The key defines the sink-vc pair and the value contains the packet count
+// destined for its respective key (sink-vc pair).
+using SinkVcPairPacketCount = absl::flat_hash_map<SinkVcPair, int64_t>;
+
 // Stores information obtained during simulation.
 //
 // TODO(vmirian): 2021-11-11 Create a hierarchical design to modify (e.g.
@@ -171,8 +190,17 @@ class ExperimentInfo {
     return timed_route_info_.at(info);
   }
 
+  const absl::btree_map<std::string, SinkVcPairPacketCount>&
+  GetLinkToPacketCountMap() const {
+    return link_to_packet_count_map_;
+  }
+
  private:
+  friend class ExperimentRunner;
   absl::btree_map<std::string, std::vector<TimedRouteInfo>> timed_route_info_;
+  // The key defines the link name and the value contains
+  // ::xls::noc::SinkVcPairPacketCount.
+  absl::btree_map<std::string, SinkVcPairPacketCount> link_to_packet_count_map_;
 };
 
 struct ExperimentData {
@@ -239,8 +267,8 @@ class Experiment {
   //
   // The config for step 0 is the base configuration as setup in the builder,
   // each subsequent step in independent and the config for step N is
-  // created by applying the mutation for step N ontop of the base configuration
-  // as run in step 0.
+  // created by applying the mutation for step N on top of the base
+  // configuration as run in step 0.
   absl::StatusOr<ExperimentData> RunStep(
       int64_t step,
       DistributedRoutingTableBuilderBase&& distributed_routing_table_builder =
