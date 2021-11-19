@@ -150,6 +150,12 @@ class SimLink : public SimNetworkComponentBase {
     return ret;
   }
 
+  // Get the source connection index that in used in the simulator.
+  int64_t GetSourceConnectionIndex() const;
+
+  // Get the sink connection index that in used in the simulator.
+  int64_t GetSinkConnectionIndex() const;
+
  private:
   SimLink() = default;
 
@@ -464,6 +470,9 @@ class NocSimulator {
 
   // Returns the routers of the simulator.
   absl::Span<const SimInputBufferedVCRouter> GetRouters() const;
+
+  // Returns the links of the simulator.
+  absl::Span<const SimLink> GetLinks() const;
 
  private:
   absl::Status CreateSimulationObjects(NetworkId network);

@@ -358,6 +358,14 @@ bool SimNetworkComponentBase::Tick(NocSimulator& simulator) {
   return converged;
 }
 
+int64_t SimLink::GetSourceConnectionIndex() const {
+  return src_connection_index_;
+}
+
+int64_t SimLink::GetSinkConnectionIndex() const {
+  return sink_connection_index_;
+}
+
 absl::Status SimLink::InitializeImpl(NocSimulator& simulator) {
   XLS_ASSIGN_OR_RETURN(
       NetworkComponentParam nc_param,
@@ -1071,6 +1079,8 @@ NocSimulator::GetSimNetworkInterfaceSink(NetworkComponentId sink) {
 absl::Span<const SimInputBufferedVCRouter> NocSimulator::GetRouters() const {
   return routers_;
 }
+
+absl::Span<const SimLink> NocSimulator::GetLinks() const { return links_; }
 
 }  // namespace noc
 }  // namespace xls

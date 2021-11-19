@@ -401,6 +401,16 @@ cc_library(
 )
 
 cc_library(
+    name = "simulator_to_link_monitor_shim",
+    srcs = ["simulator_to_link_monitor_service_shim.cc"],
+    hdrs = ["simulator_to_link_monitor_service_shim.h"],
+    deps = [
+        ":common",
+        ":sim_objects",
+    ],
+)
+
+cc_library(
     name = "noc_traffic_injector",
     srcs = ["noc_traffic_injector.cc"],
     hdrs = ["noc_traffic_injector.h"],
@@ -447,6 +457,7 @@ cc_test(
         ":noc_traffic_injector",
         ":sample_network_graphs",
         ":sim_objects",
+        ":simulator_to_link_monitor_shim",
         ":simulator_to_traffic_injector_shim",
         ":traffic_description",
         "@com_google_absl//absl/strings:str_format",

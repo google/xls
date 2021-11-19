@@ -20,6 +20,7 @@
 #include "xls/noc/simulation/noc_traffic_injector.h"
 #include "xls/noc/simulation/sample_network_graphs.h"
 #include "xls/noc/simulation/sim_objects.h"
+#include "xls/noc/simulation/simulator_to_link_monitor_service_shim.h"
 #include "xls/noc/simulation/simulator_to_traffic_injector_shim.h"
 #include "xls/noc/simulation/traffic_description.h"
 
@@ -163,9 +164,36 @@ TEST(SimTrafficTest, BackToBackNetwork0WithReplay) {
   traffic_injector.SetSimulatorShim(injector_shim);
   simulator.RegisterPreCycleService(injector_shim);
 
+  NocSimulatorToLinkMonitorServiceShim link_monitor(simulator);
+  simulator.RegisterPostCycleService(link_monitor);
+
   for (int64_t i = 0; i < 15; ++i) {
     XLS_ASSERT_OK(simulator.RunCycle());
   }
+
+  // Retrieve link info
+  XLS_ASSERT_OK_AND_ASSIGN(NetworkComponentId link_a0,
+                           FindNetworkComponentByName("LinkA0", graph, params));
+  XLS_ASSERT_OK_AND_ASSIGN(NetworkComponentId link_0a,
+                           FindNetworkComponentByName("Link0A", graph, params));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NetworkComponentId recv_port_0,
+      FindNetworkComponentByName("RecvPort0", graph, params));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      int64_t sink_index,
+      routing_table.GetSinkIndices().GetNetworkComponentIndex(recv_port_0));
+  absl::flat_hash_map<NetworkComponentId, DestinationToPacketCount>
+      link_to_packet_count_map = link_monitor.GetLinkToPacketCountMap();
+  EXPECT_EQ(link_to_packet_count_map.size(), 2);  // two links
+  // All traffic goes to RecvPort0 (index: 0) VC0 (index: 0)
+  EXPECT_EQ(link_to_packet_count_map[link_a0].size(), 1);
+  EXPECT_EQ(link_to_packet_count_map[link_a0].begin()->second, 10);
+  EXPECT_THAT(link_to_packet_count_map[link_a0].begin()->first,
+              ::testing::Eq(FlitDestination{sink_index, 0}));
+  EXPECT_EQ(link_to_packet_count_map[link_0a].size(), 1);
+  EXPECT_EQ(link_to_packet_count_map[link_0a].begin()->second, 10);
+  EXPECT_THAT(link_to_packet_count_map[link_0a].begin()->first,
+              ::testing::Eq(FlitDestination{sink_index, 0}));
 
   // Retrieve router info
   EXPECT_EQ(simulator.GetRouters().size(), 1);
@@ -229,9 +257,44 @@ TEST(SimTrafficTest, NetworkWithRouterLoopAndReplay) {
   traffic_injector.SetSimulatorShim(injector_shim);
   simulator.RegisterPreCycleService(injector_shim);
 
+  NocSimulatorToLinkMonitorServiceShim link_monitor(simulator);
+  simulator.RegisterPostCycleService(link_monitor);
+
   for (int64_t i = 0; i < 20; ++i) {
     XLS_ASSERT_OK(simulator.RunCycle());
   }
+  // Retrieve link info
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NetworkComponentId link_ai0,
+      FindNetworkComponentByName("LinkAI0", graph, params));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NetworkComponentId link_ab1,
+      FindNetworkComponentByName("LinkAB1", graph, params));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NetworkComponentId link_bo0,
+      FindNetworkComponentByName("LinkBO0", graph, params));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      NetworkComponentId recv_port_1,
+      FindNetworkComponentByName("RecvPort1", graph, params));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      int64_t sink_index,
+      routing_table.GetSinkIndices().GetNetworkComponentIndex(recv_port_1));
+  absl::flat_hash_map<NetworkComponentId, DestinationToPacketCount>
+      link_to_packet_count_map = link_monitor.GetLinkToPacketCountMap();
+  EXPECT_EQ(link_to_packet_count_map.size(), 3);  // three links being used
+  // All traffic goes to RecvPort1 (index: 1) VC0 (index: 0)
+  EXPECT_EQ(link_to_packet_count_map[link_ai0].size(), 1);
+  EXPECT_EQ(link_to_packet_count_map[link_ai0].begin()->second, 10);
+  EXPECT_THAT(link_to_packet_count_map[link_ai0].begin()->first,
+              ::testing::Eq(FlitDestination{sink_index, 0}));
+  EXPECT_EQ(link_to_packet_count_map[link_ab1].size(), 1);
+  EXPECT_EQ(link_to_packet_count_map[link_ab1].begin()->second, 10);
+  EXPECT_THAT(link_to_packet_count_map[link_ab1].begin()->first,
+              ::testing::Eq(FlitDestination{sink_index, 0}));
+  EXPECT_EQ(link_to_packet_count_map[link_bo0].size(), 1);
+  EXPECT_EQ(link_to_packet_count_map[link_bo0].begin()->second, 10);
+  EXPECT_THAT(link_to_packet_count_map[link_bo0].begin()->first,
+              ::testing::Eq(FlitDestination{sink_index, 0}));
 
   // Retrieve router info
   EXPECT_EQ(simulator.GetRouters().size(), 2);
