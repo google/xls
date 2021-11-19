@@ -88,8 +88,9 @@ flags.DEFINE_boolean(
     'use_system_verilog', True,
     'If true, emit SystemVerilog during codegen otherwise emit Verilog.')
 flags.DEFINE_integer(
-    'timeout_seconds', 300,
-    'The timeout value in seconds for each subcommand invocation.')
+    'timeout_seconds', None,
+    'The timeout value in seconds for each subcommand invocation. If not '
+    'specified there is no timeout.')
 FLAGS = flags.FLAGS
 
 QUEUE_MAX_BACKLOG = 16
