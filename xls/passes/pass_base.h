@@ -230,7 +230,7 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT> {
                       absl::string_view top_level_name, absl::string_view tag,
                       int64_t ordinal, bool changed) const {
     std::filesystem::path path =
-        ir_dump_path / absl::StrFormat("%s.%s.%03d.%s.%s.ir", ir->name(),
+        ir_dump_path / absl::StrFormat("%s.%s.%05d.%s.%s.ir", ir->name(),
                                        top_level_name, ordinal, tag,
                                        changed ? "changed" : "unchanged");
     return SetFileContents(path, ir->DumpIr());
