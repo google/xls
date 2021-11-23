@@ -510,6 +510,9 @@ class Translator {
   // Generate some useful metadata after either GenerateIR_Top_Function() or
   //  GenerateIR_Block() has run.
   absl::StatusOr<xlscc_metadata::MetadataOutput> GenerateMetadata();
+  absl::Status GenerateFunctionMetadata(
+      const clang::FunctionDecl* func,
+      xlscc_metadata::FunctionPrototype* output);
 
  private:
   friend class CInstantiableTypeAlias;
@@ -758,6 +761,9 @@ class Translator {
 
   const clang::FunctionDecl* top_function_ = nullptr;
   absl::string_view top_function_name_ = "";
+
+  absl::flat_hash_map<const clang::FunctionDecl*, std::string>
+      xls_names_for_functions_generated_;
 
   // For source location
   absl::flat_hash_map<std::string, int> file_numbers_;

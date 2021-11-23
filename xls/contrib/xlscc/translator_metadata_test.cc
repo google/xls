@@ -51,42 +51,43 @@ namespace {
 
 class TranslatorMetadataTest : public XlsccTestBase {
  public:
-};
+  void standardizeMetadata(xlscc_metadata::MetadataOutput *meta) {
+    ASSERT_NE(meta->top_func_proto().name().id(), 0);
+    meta->mutable_top_func_proto()->mutable_name()->set_id(22078263808792L);
 
-void standardizeMetadata(xlscc_metadata::MetadataOutput *meta) {
-  ASSERT_NE(meta->top_func_proto().name().id(), 0);
-  meta->mutable_top_func_proto()->mutable_name()->set_id(22078263808792L);
-
-  meta->mutable_top_func_proto()
-      ->mutable_return_location()
-      ->mutable_begin()
-      ->clear_filename();
-  meta->mutable_top_func_proto()
-      ->mutable_return_location()
-      ->mutable_end()
-      ->clear_filename();
-  meta->mutable_top_func_proto()
-      ->mutable_parameters_location()
-      ->mutable_begin()
-      ->clear_filename();
-  meta->mutable_top_func_proto()
-      ->mutable_parameters_location()
-      ->mutable_end()
-      ->clear_filename();
-  meta->mutable_top_func_proto()
-      ->mutable_whole_declaration_location()
-      ->mutable_begin()
-      ->clear_filename();
-  meta->mutable_top_func_proto()
-      ->mutable_whole_declaration_location()
-      ->mutable_end()
-      ->clear_filename();
-  auto function_proto = meta->mutable_top_func_proto();
-  for (int i = 0; i < function_proto->static_values_size(); i++) {
-    auto function_value = function_proto->mutable_static_values(i);
-    function_value->mutable_name()->set_id(22078263808792L);
+    meta->mutable_top_func_proto()
+        ->mutable_return_location()
+        ->mutable_begin()
+        ->clear_filename();
+    meta->mutable_top_func_proto()
+        ->mutable_return_location()
+        ->mutable_end()
+        ->clear_filename();
+    meta->mutable_top_func_proto()
+        ->mutable_parameters_location()
+        ->mutable_begin()
+        ->clear_filename();
+    meta->mutable_top_func_proto()
+        ->mutable_parameters_location()
+        ->mutable_end()
+        ->clear_filename();
+    meta->mutable_top_func_proto()
+        ->mutable_whole_declaration_location()
+        ->mutable_begin()
+        ->clear_filename();
+    meta->mutable_top_func_proto()
+        ->mutable_whole_declaration_location()
+        ->mutable_end()
+        ->clear_filename();
+    auto function_proto = meta->mutable_top_func_proto();
+    for (int i = 0; i < function_proto->static_values_size(); i++) {
+      auto function_value = function_proto->mutable_static_values(i);
+      function_value->mutable_name()->set_id(22078263808792L);
+    }
+    ASSERT_GE(meta->all_func_protos_size(), 1);
+    meta->clear_all_func_protos();
   }
-}
+};
 
 TEST_F(TranslatorMetadataTest, MetadataNamespaceStructArray) {
   const std::string content = R"(
@@ -438,6 +439,7 @@ TEST_F(TranslatorMetadataTest, MetadataNamespaceNestedStruct) {
       ->set_id(0);
 
   standardizeMetadata(&meta);
+
   ASSERT_TRUE(google::protobuf::util::MessageDifferencer::Equals(meta, ref_meta)) <<
     absl::StrFormat("meta: %s\nref: %s",
     meta.DebugString(), ref_meta.DebugString());

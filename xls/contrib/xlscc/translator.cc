@@ -1330,6 +1330,10 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     xls_name = XLSNameMangle(global_decl);
   }
 
+  XLS_CHECK(!xls_names_for_functions_generated_.contains(funcdecl));
+
+  xls_names_for_functions_generated_[funcdecl] = xls_name;
+
   xls::FunctionBuilder builder(xls_name, context().package);
 
   TranslationContext& prev_context = context();
@@ -4261,43 +4265,30 @@ absl::Status Translator::InlineAllInvokes(xls::Package* package) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
-  if (!top_function_) {
-    return absl::NotFoundError("No top function found");
-  }
+absl::Status Translator::GenerateFunctionMetadata(
+    const clang::FunctionDecl* func,
+    xlscc_metadata::FunctionPrototype* output) {
+  output->mutable_name()->set_name(func->getNameAsString());
+  output->mutable_name()->set_fully_qualified_name(
+      func->getQualifiedNameAsString());
+  output->mutable_name()->set_id(
+      reinterpret_cast<uint64_t>(dynamic_cast<const clang::NamedDecl*>(func)));
 
-  xlscc_metadata::MetadataOutput ret;
+  const clang::SourceManager& sm = func->getASTContext().getSourceManager();
 
-  // Top function proto
-  ret.mutable_top_func_proto()->mutable_name()->set_name(
-      top_function_->getNameAsString());
-  ret.mutable_top_func_proto()->mutable_name()->set_fully_qualified_name(
-      top_function_->getQualifiedNameAsString());
-  ret.mutable_top_func_proto()->mutable_name()->set_id(
-      reinterpret_cast<uint64_t>(
-          dynamic_cast<const clang::NamedDecl*>(top_function_)));
+  FillLocationRangeProto(func->getReturnTypeSourceRange(), sm,
+                         output->mutable_return_location());
+  FillLocationRangeProto(func->getParametersSourceRange(), sm,
+                         output->mutable_parameters_location());
+  FillLocationRangeProto(func->getSourceRange(), sm,
+                         output->mutable_whole_declaration_location());
 
-  const clang::SourceManager& sm =
-      top_function_->getASTContext().getSourceManager();
+  XLS_RETURN_IF_ERROR(GenerateMetadataType(func->getReturnType(),
+                                           output->mutable_return_type()));
 
-  FillLocationRangeProto(
-      top_function_->getReturnTypeSourceRange(), sm,
-      ret.mutable_top_func_proto()->mutable_return_location());
-  FillLocationRangeProto(
-      top_function_->getParametersSourceRange(), sm,
-      ret.mutable_top_func_proto()->mutable_parameters_location());
-  FillLocationRangeProto(
-      top_function_->getSourceRange(), sm,
-      ret.mutable_top_func_proto()->mutable_whole_declaration_location());
-
-  XLS_RETURN_IF_ERROR(GenerateMetadataType(
-      top_function_->getReturnType(),
-      ret.mutable_top_func_proto()->mutable_return_type()));
-
-  for (int pi = 0; pi < top_function_->getNumParams(); ++pi) {
-    const clang::ParmVarDecl* p = top_function_->getParamDecl(pi);
-    xlscc_metadata::FunctionParameter* proto_param =
-        ret.mutable_top_func_proto()->add_params();
+  for (int64_t pi = 0; pi < func->getNumParams(); ++pi) {
+    const clang::ParmVarDecl* p = func->getParamDecl(pi);
+    xlscc_metadata::FunctionParameter* proto_param = output->add_params();
     proto_param->set_name(p->getNameAsString());
 
     XLS_ASSIGN_OR_RETURN(StrippedType stripped,
@@ -4308,6 +4299,49 @@ absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
 
     proto_param->set_is_reference(stripped.is_ref);
     proto_param->set_is_const(stripped.base.isConstQualified());
+  }
+
+  auto found = inst_functions_.find(func);
+  if (found == inst_functions_.end()) {
+    return absl::NotFoundError(
+        "GenerateFunctionMetadata called for FuncDecl that has not been "
+        "processed for IR generation.");
+  }
+  for (const auto& iter : found->second->static_values) {
+    auto p = clang_down_cast<const clang::ValueDecl *>(iter.first);
+    xlscc_metadata::FunctionValue* proto_static_value =
+        output->add_static_values();
+    XLS_RETURN_IF_ERROR(
+      GenerateMetadataCPPName(iter.first, proto_static_value->mutable_name()));
+    XLS_ASSIGN_OR_RETURN(StrippedType stripped,
+                         StripTypeQualifiers(p->getType()));
+    XLS_RETURN_IF_ERROR(
+        GenerateMetadataType(stripped.base,
+        proto_static_value->mutable_type()));
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
+                       TranslateTypeFromClang(stripped.base,
+                       xls::SourceLocation()));
+    XLS_RETURN_IF_ERROR(ctype->GetMetadataValue(this, iter.second,
+                                        proto_static_value->mutable_value()));
+  }
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
+  if (!top_function_) {
+    return absl::NotFoundError("No top function found");
+  }
+
+  xlscc_metadata::MetadataOutput ret;
+
+  // Top function proto
+  XLS_RETURN_IF_ERROR(
+      GenerateFunctionMetadata(top_function_, ret.mutable_top_func_proto()));
+
+  for (auto const& [decl, xls_name] : xls_names_for_functions_generated_) {
+    XLS_RETURN_IF_ERROR(
+        GenerateFunctionMetadata(decl, ret.add_all_func_protos()));
   }
 
   // Struct types
@@ -4325,27 +4359,7 @@ absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
         struct_out->mutable_as_struct()->mutable_name()));
     XLS_RETURN_IF_ERROR(ctype_as_struct->GetMetadata(struct_out));
   }
-  auto found = inst_functions_.find(top_function_);
-  if (found == inst_functions_.end()) {
-    return absl::NotFoundError("");
-  }
-  for (const auto& iter : found->second->static_values) {
-    auto p = clang_down_cast<const clang::ValueDecl *>(iter.first);
-    xlscc_metadata::FunctionValue* proto_static_value =
-        ret.mutable_top_func_proto()->add_static_values();
-    XLS_RETURN_IF_ERROR(
-      GenerateMetadataCPPName(iter.first, proto_static_value->mutable_name()));
-    XLS_ASSIGN_OR_RETURN(StrippedType stripped,
-                         StripTypeQualifiers(p->getType()));
-    XLS_RETURN_IF_ERROR(
-        GenerateMetadataType(stripped.base,
-        proto_static_value->mutable_type()));
-    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
-                       TranslateTypeFromClang(stripped.base,
-                       xls::SourceLocation()));
-    XLS_RETURN_IF_ERROR(ctype->GetMetadataValue(this, iter.second,
-                                        proto_static_value->mutable_value()));
-  }
+
   return ret;
 }
 

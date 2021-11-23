@@ -23,6 +23,8 @@ message MetadataOutput {
   // Top function's prototype, for example, the function
   // #pragma hls_top was specified for
   optional FunctionPrototype top_func_proto = 2;
+
+  repeated FunctionPrototype all_func_protos = 3;
 }
 
 // Represents a parameter to a function
@@ -53,6 +55,7 @@ message FunctionValue {
 
 // Represents the prototype / interface of a function
 message FunctionPrototype {
+  // TODO: XLS mangled name
   optional CPPName name = 1;
   optional Type return_type = 2;
   repeated FunctionParameter params = 3;
@@ -127,7 +130,6 @@ message StructType {
   // Whether or not #pragma hls_no_tuple was specified in the struct declaration
   optional bool no_tuple = 3;
 }
-
 
 // Generic type's associated values
 message TypeValue {
