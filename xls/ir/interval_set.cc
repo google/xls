@@ -202,6 +202,21 @@ IntervalSet IntervalSet::Intersect(const IntervalSet& lhs,
   return result;
 }
 
+IntervalSet IntervalSet::Complement(const IntervalSet& set) {
+  // The complement of an interval set is the intersection of the complements of
+  // the component intervals.
+  IntervalSet result = Maximal(set.BitCount());
+  for (const Interval& interval : set.Intervals()) {
+    IntervalSet complement_set(set.BitCount());
+    for (const Interval& complement : Interval::Complement(interval)) {
+      complement_set.AddInterval(complement);
+    }
+    complement_set.Normalize();
+    result = Intersect(result, complement_set);
+  }
+  return result;
+}
+
 absl::optional<int64_t> IntervalSet::Size() const {
   XLS_CHECK(is_normalized_);
   int64_t total_size = 0;
@@ -240,6 +255,15 @@ bool IntervalSet::IsPrecise() const {
   return true;
 }
 
+absl::optional<Bits> IntervalSet::GetPreciseValue() const {
+  XLS_CHECK(is_normalized_);
+  if (!IsPrecise()) {
+    return absl::nullopt;
+  }
+  XLS_CHECK_EQ(intervals_.size(), 1);
+  return intervals_.front().GetPreciseValue();
+}
+
 bool IntervalSet::IsMaximal() const {
   XLS_CHECK(is_normalized_);
   XLS_CHECK_GE(bit_count_, 0);
@@ -252,6 +276,11 @@ bool IntervalSet::IsMaximal() const {
 }
 
 bool IntervalSet::IsNormalized() const { return is_normalized_; }
+
+bool IntervalSet::IsEmpty() const {
+  XLS_CHECK(IsNormalized());
+  return intervals_.empty();
+}
 
 std::string IntervalSet::ToString() const {
   XLS_CHECK_GE(bit_count_, 0);

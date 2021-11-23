@@ -31,6 +31,7 @@ cc_library(
         ":bit_slice_simplification_pass",
         ":boolean_simplification_pass",
         ":canonicalization_pass",
+        ":comparison_simplification_pass",
         ":concat_simplification_pass",
         ":constant_folding_pass",
         ":cse_pass",
@@ -789,6 +790,23 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "comparison_simplification_pass",
+    srcs = ["comparison_simplification_pass.cc"],
+    hdrs = ["comparison_simplification_pass.h"],
+    deps = [
+        ":passes",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/ir",
+        "//xls/ir:bits_ops",
+        "//xls/ir:interval",
+        "//xls/ir:interval_set",
+        "//xls/ir:op",
+    ],
+)
+
 cc_test(
     name = "inlining_pass_test",
     srcs = ["inlining_pass_test.cc"],
@@ -1291,6 +1309,22 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_scanner",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "comparison_simplification_pass_test",
+    srcs = ["comparison_simplification_pass_test.cc"],
+    deps = [
+        ":comparison_simplification_pass",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],

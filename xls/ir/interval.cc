@@ -136,6 +136,10 @@ std::vector<Interval> Interval::Difference(const Interval& lhs,
   return result;
 }
 
+std::vector<Interval> Interval::Complement(const Interval& interval) {
+  return Difference(Maximal(interval.BitCount()), interval);
+}
+
 bool Interval::IsSubsetOf(const Interval& lhs, const Interval& rhs) {
   XLS_CHECK_EQ(lhs.BitCount(), rhs.BitCount());
   XLS_CHECK(!lhs.IsImproper());
@@ -229,6 +233,13 @@ bool Interval::IsPrecise() const {
     return true;
   }
   return lower_bound_ == upper_bound_;
+}
+
+absl::optional<Bits> Interval::GetPreciseValue() const {
+  if (!IsPrecise()) {
+    return absl::nullopt;
+  }
+  return lower_bound_;
 }
 
 bool Interval::IsMaximal() const {

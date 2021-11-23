@@ -15,6 +15,8 @@
 #ifndef XLS_IR_INTERVAL_H_
 #define XLS_IR_INTERVAL_H_
 
+#include <iosfwd>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/optional.h"
@@ -92,6 +94,9 @@ class Interval {
   static std::vector<Interval> Difference(const Interval& lhs,
                                           const Interval& rhs);
 
+  // Returns the set of intervals which represent the complement of `interval`.
+  static std::vector<Interval> Complement(const Interval& interval);
+
   // Given two `Interval`s, return a boolean that is true iff `lhs` is a subset
   // of `rhs`. If the same interval is given twice, returns true (i.e.: improper
   // subsets are allowed). Does not accept improper intervals.
@@ -130,6 +135,10 @@ class Interval {
   // A precise interval is one that covers exactly one point.
   // The zero-width interval is considered precise.
   bool IsPrecise() const;
+
+  // Returns the unique member of the interval if the interval is precise. If
+  // the interval is not precise, returns absl::nullopt.
+  absl::optional<Bits> GetPreciseValue() const;
 
   // Returns `true` if this is a maximal interval, `false` otherwise.
   // A maximal interval is one that covers every point of a given bitwidth.
@@ -188,6 +197,11 @@ class Interval {
   Bits lower_bound_;
   Bits upper_bound_;
 };
+
+inline std::ostream& operator<<(std::ostream& os, const Interval& interval) {
+  os << interval.ToString();
+  return os;
+}
 
 }  // namespace xls
 

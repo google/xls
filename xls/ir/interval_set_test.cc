@@ -20,6 +20,8 @@
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
 
+using ::testing::Optional;
+
 namespace xls {
 namespace {
 
@@ -230,11 +232,15 @@ TEST(IntervalTest, IsPrecise) {
   IntervalSet is_precise(10);
   is_precise.AddInterval(MakeInterval(5, 5, 10));
   EXPECT_TRUE(is_precise.IsPrecise());
+  is_precise.Normalize();
+  EXPECT_THAT(is_precise.GetPreciseValue(), Optional(UBits(5, 10)));
 
   IntervalSet is_not_precise(10);
   is_not_precise.AddInterval(MakeInterval(5, 5, 10));
   is_not_precise.AddInterval(MakeInterval(12, 12, 10));
   EXPECT_FALSE(is_not_precise.IsPrecise());
+  is_not_precise.Normalize();
+  EXPECT_THAT(is_not_precise.GetPreciseValue(), absl::nullopt);
 }
 
 TEST(IntervalTest, IsMaximal) {
@@ -261,6 +267,39 @@ TEST(IntervalTest, ToString) {
 
   EXPECT_EQ(example.ToString(),
             "[[10, 20], [15, 30], [31, 40], [70, 90], [80, 85], [50, 55]]");
+}
+
+TEST(IntervalTest, Complement) {
+  EXPECT_EQ(IntervalSet::Complement(IntervalSet(0)), IntervalSet::Maximal(0));
+
+  EXPECT_EQ(IntervalSet::Complement(IntervalSet(32)), IntervalSet::Maximal(32));
+
+  EXPECT_EQ(IntervalSet::Complement(IntervalSet::Maximal(32)), IntervalSet(32));
+
+  IntervalSet set1(32);
+  set1.AddInterval(MakeInterval(100, 150, 32));
+  set1.AddInterval(MakeInterval(5, 20, 32));
+  set1.Normalize();
+  EXPECT_EQ(IntervalSet::Complement(IntervalSet::Complement(set1)), set1);
+
+  IntervalSet complement_set1(32);
+  complement_set1.AddInterval(MakeInterval(0, 4, 32));
+  complement_set1.AddInterval(MakeInterval(21, 99, 32));
+  complement_set1.AddInterval(
+      MakeInterval(151, std::numeric_limits<uint32_t>::max(), 32));
+  complement_set1.Normalize();
+  EXPECT_EQ(IntervalSet::Complement(set1), complement_set1);
+}
+
+TEST(IntervalTest, IsEmpty) {
+  EXPECT_TRUE(IntervalSet(32).IsEmpty());
+  EXPECT_TRUE(IntervalSet(0).IsEmpty());
+
+  IntervalSet set1(32);
+  set1.AddInterval(MakeInterval(100, 150, 32));
+  set1.AddInterval(MakeInterval(5, 20, 32));
+  set1.Normalize();
+  EXPECT_FALSE(set1.IsEmpty());
 }
 
 }  // namespace

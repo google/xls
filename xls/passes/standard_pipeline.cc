@@ -20,12 +20,12 @@
 #include "absl/status/statusor.h"
 #include "xls/passes/arith_simplification_pass.h"
 #include "xls/passes/array_simplification_pass.h"
-#include "xls/passes/useless_assert_removal_pass.h"
 #include "xls/passes/bdd_cse_pass.h"
 #include "xls/passes/bdd_simplification_pass.h"
 #include "xls/passes/bit_slice_simplification_pass.h"
 #include "xls/passes/boolean_simplification_pass.h"
 #include "xls/passes/canonicalization_pass.h"
+#include "xls/passes/comparison_simplification_pass.h"
 #include "xls/passes/concat_simplification_pass.h"
 #include "xls/passes/constant_folding_pass.h"
 #include "xls/passes/cse_pass.h"
@@ -42,6 +42,7 @@
 #include "xls/passes/table_switch_pass.h"
 #include "xls/passes/tuple_simplification_pass.h"
 #include "xls/passes/unroll_pass.h"
+#include "xls/passes/useless_assert_removal_pass.h"
 #include "xls/passes/verifier_checker.h"
 
 namespace xls {
@@ -55,6 +56,8 @@ class SimplificationPass : public FixedPointCompoundPass {
     Add<CanonicalizationPass>();
     Add<DeadCodeEliminationPass>();
     Add<ArithSimplificationPass>(opt_level);
+    Add<DeadCodeEliminationPass>();
+    Add<ComparisonSimplificationPass>();
     Add<DeadCodeEliminationPass>();
     Add<TableSwitchPass>();
     Add<DeadCodeEliminationPass>();

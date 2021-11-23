@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <functional>
+#include <iosfwd>
 #include <string>
 #include <vector>
 
@@ -122,6 +123,10 @@ class IntervalSet {
   // two given interval sets.
   static IntervalSet Intersect(const IntervalSet& lhs, const IntervalSet& rhs);
 
+  // Returns the normalized set of intervals comprising the complemet of the
+  // given interval set.
+  static IntervalSet Complement(const IntervalSet& set);
+
   // Returns the number of points covered by the intervals in this interval set,
   // if that is expressible as an `int64_t`. Otherwise, returns `absl::nullopt`.
   // CHECK fails if the interval set is not normalized.
@@ -142,12 +147,20 @@ class IntervalSet {
   // Do the intervals only cover one point?
   bool IsPrecise() const;
 
+  // Returns the unique member of the interval set if the interval set is
+  // precise. If the interval is not precise, returns absl::nullopt.
+  // CHECK fails if the interval set is not normalized.
+  absl::optional<Bits> GetPreciseValue() const;
+
   // Do the intervals cover every point?
   // `Normalize()` must be called prior to calling this method.
   bool IsMaximal() const;
 
   // Returns true iff this set of intervals is normalized.
   bool IsNormalized() const;
+
+  // Returns true iff this set of intervals is empty.
+  bool IsEmpty() const;
 
   // Print this set of intervals as a string.
   std::string ToString() const;
@@ -180,6 +193,12 @@ class IntervalSet {
   int64_t bit_count_;
   std::vector<Interval> intervals_;
 };
+
+inline std::ostream& operator<<(std::ostream& os,
+                                const IntervalSet& interval_set) {
+  os << interval_set.ToString();
+  return os;
+}
 
 }  // namespace xls
 

@@ -20,6 +20,9 @@
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
 
+using ::testing::ElementsAre;
+using ::testing::Optional;
+
 namespace xls {
 namespace {
 
@@ -232,11 +235,18 @@ TEST(IntervalTest, IsImproper) {
 }
 
 TEST(IntervalTest, IsPrecise) {
-  EXPECT_TRUE(Interval(Bits(), Bits()).IsPrecise());
-  EXPECT_TRUE(
-      Interval(Bits::PowerOfTwo(2, 6), Bits::PowerOfTwo(2, 6)).IsPrecise());
-  EXPECT_FALSE(
-      Interval(Bits::PowerOfTwo(2, 6), Bits::PowerOfTwo(3, 6)).IsPrecise());
+  Interval empty = Interval(Bits(), Bits());
+  EXPECT_TRUE(empty.IsPrecise());
+  EXPECT_THAT(empty.GetPreciseValue(), Optional(Bits()));
+
+  Interval interval1 = Interval(Bits::PowerOfTwo(2, 6), Bits::PowerOfTwo(2, 6));
+  EXPECT_TRUE(interval1.IsPrecise());
+  EXPECT_THAT(interval1.GetPreciseValue(), Optional(Bits::PowerOfTwo(2, 6)));
+
+  Interval interval2 = Interval(Bits::PowerOfTwo(2, 6), Bits::PowerOfTwo(3, 6));
+  EXPECT_FALSE(interval2.IsPrecise());
+  EXPECT_EQ(interval2.GetPreciseValue(), absl::nullopt);
+
   EXPECT_FALSE(
       Interval(Bits::PowerOfTwo(3, 6), Bits::PowerOfTwo(2, 6)).IsPrecise());
 }
@@ -293,6 +303,25 @@ TEST(IntervalTest, Covers) {
 TEST(IntervalTest, ToString) {
   EXPECT_EQ(Interval(UBits(4, 6), UBits(16, 6)).ToString(), "[4, 16]");
   EXPECT_EQ(Interval(Bits(), Bits()).ToString(), "[0, 0]");
+}
+
+TEST(IntervalTest, Complement) {
+  EXPECT_THAT(
+      Interval::Complement(SimpleInterval(0, 0)),
+      ElementsAre(SimpleInterval(1, std::numeric_limits<uint32_t>::max())));
+  EXPECT_THAT(
+      Interval::Complement(SimpleInterval(1, 2)),
+      ElementsAre(SimpleInterval(0, 0),
+                  SimpleInterval(3, std::numeric_limits<uint32_t>::max())));
+  EXPECT_THAT(
+      Interval::Complement(SimpleInterval(0, 42)),
+      ElementsAre(SimpleInterval(43, std::numeric_limits<uint32_t>::max())));
+  EXPECT_THAT(Interval::Complement(
+                  SimpleInterval(1234, std::numeric_limits<uint32_t>::max())),
+              ElementsAre(SimpleInterval(0, 1233)));
+  EXPECT_THAT(Interval::Complement(
+                  SimpleInterval(0, std::numeric_limits<uint32_t>::max())),
+              ElementsAre());
 }
 
 }  // namespace
