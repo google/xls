@@ -544,6 +544,76 @@ fn main(index: bits[2], else: bits[32]) -> bits[32] {
           /*indices=*/{m::Param()}));
 }
 
+TEST_F(TableSwitchPassTest, FullIndexSpaceNe) {
+  std::string program = R"(
+fn main(index: bits[2], else: bits[32]) -> bits[32] {
+  _111: bits[32] = literal(value=111)
+  _222: bits[32] = literal(value=222)
+  _333: bits[32] = literal(value=333)
+  _444: bits[32] = literal(value=444)
+
+  literal_0: bits[2] = literal(value=0)
+  literal_1: bits[2] = literal(value=1)
+  literal_2: bits[2] = literal(value=2)
+  literal_3: bits[2] = literal(value=3)
+  ne_0: bits[1] = ne(index, literal_0)
+  ne_1: bits[1] = ne(index, literal_1)
+  ne_2: bits[1] = ne(index, literal_2)
+  ne_3: bits[1] = ne(index, literal_3)
+
+  // The comparisons can appear in any order. Final else does not have to be a
+  // literal because it is dead (never selected by chain).
+  sel_3: bits[32] = sel(ne_1, cases=[_222, else])
+  sel_2: bits[32] = sel(ne_3, cases=[_444, sel_3])
+  sel_1: bits[32] = sel(ne_2, cases=[_333, sel_2])
+  ret sel_0: bits[32] = sel(ne_0, cases=[_111, sel_1])
+})";
+
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArrayIndex(
+          m::Literal(Value::UBitsArray({111, 222, 333, 444}, 32).value()),
+          /*indices=*/{m::Param()}));
+}
+
+TEST_F(TableSwitchPassTest, FullIndexSpaceMixOfNeAndEq) {
+  std::string program = R"(
+fn main(index: bits[2], else: bits[32]) -> bits[32] {
+  _111: bits[32] = literal(value=111)
+  _222: bits[32] = literal(value=222)
+  _333: bits[32] = literal(value=333)
+  _444: bits[32] = literal(value=444)
+
+  literal_0: bits[2] = literal(value=0)
+  literal_1: bits[2] = literal(value=1)
+  literal_2: bits[2] = literal(value=2)
+  literal_3: bits[2] = literal(value=3)
+  ne_0: bits[1] = ne(index, literal_0)
+  eq_1: bits[1] = eq(index, literal_1)
+  eq_2: bits[1] = eq(index, literal_2)
+  ne_3: bits[1] = ne(index, literal_3)
+
+  // The comparisons can appear in any order. Final else does not have to be a
+  // literal because it is dead (never selected by chain).
+  sel_3: bits[32] = sel(eq_1, cases=[else, _222])
+  sel_2: bits[32] = sel(ne_3, cases=[_444, sel_3])
+  sel_1: bits[32] = sel(eq_2, cases=[sel_2, _333])
+  ret sel_0: bits[32] = sel(ne_0, cases=[_111, sel_1])
+})";
+
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArrayIndex(
+          m::Literal(Value::UBitsArray({111, 222, 333, 444}, 32).value()),
+          /*indices=*/{m::Param()}));
+}
+
 TEST_F(TableSwitchPassTest, DifferentIndexes) {
   std::string program = R"(
 fn main(index: bits[2], other_index: bits[2], else: bits[32]) -> bits[32] {
@@ -572,7 +642,7 @@ fn main(index: bits[2], other_index: bits[2], else: bits[32]) -> bits[32] {
   ASSERT_THAT(Run(f), IsOkAndHolds(false));
 }
 
-TEST_F(TableSwitchPassTest, HoleInIndexSpace) {
+TEST_F(TableSwitchPassTest, SingleHoleInIndexSpace) {
   std::string program = R"(
 fn main(index: bits[2]) -> bits[32] {
   _111: bits[32] = literal(value=111)
@@ -603,6 +673,78 @@ fn main(index: bits[2]) -> bits[32] {
       m::ArrayIndex(
           m::Literal(Value::UBitsArray({111, 222, 333, 444}, 32).value()),
           /*indices=*/{m::Param()}));
+}
+
+TEST_F(TableSwitchPassTest, MultipleHolesInIndexSpace) {
+  std::string program = R"(
+fn main(index: bits[3]) -> bits[32] {
+  _0: bits[32] = literal(value=0)
+  _111: bits[32] = literal(value=111)
+  _222: bits[32] = literal(value=222)
+  _333: bits[32] = literal(value=333)
+  _444: bits[32] = literal(value=444)
+  _666: bits[32] = literal(value=666)
+  _888: bits[32] = literal(value=888)
+
+  literal_0: bits[3] = literal(value=0)
+  literal_1: bits[3] = literal(value=1)
+  literal_2: bits[3] = literal(value=2)
+  literal_3: bits[3] = literal(value=3)
+  literal_4: bits[3] = literal(value=4)
+  literal_6: bits[3] = literal(value=6)
+  eq_0: bits[1] = eq(index, literal_0)
+  eq_1: bits[1] = eq(index, literal_1)
+  eq_2: bits[1] = eq(index, literal_2)
+  eq_3: bits[1] = eq(index, literal_3)
+  eq_4: bits[1] = eq(index, literal_4)
+  eq_6: bits[1] = eq(index, literal_6)
+
+  sel_6: bits[32] = sel(eq_6, cases=[_888, _666])
+  sel_4: bits[32] = sel(eq_4, cases=[sel_6, _444])
+  sel_3: bits[32] = sel(eq_3, cases=[sel_4, _333])
+  sel_2: bits[32] = sel(eq_2, cases=[sel_3, _222])
+  sel_1: bits[32] = sel(eq_1, cases=[sel_2, _111])
+  ret sel_0: bits[32] = sel(eq_0, cases=[sel_1, _0])
+})";
+
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArrayIndex(m::Literal(Value::UBitsArray(
+                                   {0, 111, 222, 333, 444, 888, 666, 888}, 32)
+                                   .value()),
+                    /*indices=*/{m::Param()}));
+}
+
+TEST_F(TableSwitchPassTest, MultipleHolesInIndexSpaceButTooSparse) {
+  std::string program = R"(
+fn main(index: bits[3]) -> bits[32] {
+  _0: bits[32] = literal(value=0)
+  _111: bits[32] = literal(value=111)
+  _444: bits[32] = literal(value=444)
+  _888: bits[32] = literal(value=888)
+
+  literal_0: bits[3] = literal(value=0)
+  literal_1: bits[3] = literal(value=1)
+  literal_4: bits[3] = literal(value=4)
+  eq_0: bits[1] = eq(index, literal_0)
+  eq_1: bits[1] = eq(index, literal_1)
+  eq_4: bits[1] = eq(index, literal_4)
+
+  sel_2: bits[32] = sel(eq_4, cases=[_888, _444])
+  sel_1: bits[32] = sel(eq_1, cases=[sel_2, _111])
+  ret sel_0: bits[32] = sel(eq_0, cases=[sel_1, _0])
+})";
+
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  // Only three entries are filled in an index space of size 8. The unfilled
+  // entries are the fallthrough value of 888. This is beneath the heuristic
+  // threshold of half the index space size being filled.
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::Select());
 }
 
 TEST_F(TableSwitchPassTest, DuplicateComparisonsValues) {

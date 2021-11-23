@@ -31,15 +31,16 @@ bool IsBinarySelect(Node* node) {
          !node->As<Select>()->default_value().has_value();
 }
 
-// If the given node is an Op::kEq node which compares against a bits-typed
-// literal which fits in a uint64_t, then return the two operands of the
-// comparison as a Uint64Comparison. Returns absl::nullopt otherwise.
+// If the given node is an Op::kEq or Op::kNe node which compares against a
+// bits-typed literal which fits in a uint64_t, then return the two operands of
+// the comparison as a Uint64Comparison. Returns absl::nullopt otherwise.
 struct Uint64Comparison {
   Node* index;
   uint64_t key;
+  Op comparison_op;
 };
 absl::optional<Uint64Comparison> MatchCompareEqAgainstUint64(Node* node) {
-  if (node->op() != Op::kEq) {
+  if (node->op() != Op::kEq && node->op() != Op::kNe) {
     return absl::nullopt;
   }
   auto is_uint64_literal = [](Node* n) {
@@ -50,12 +51,14 @@ absl::optional<Uint64Comparison> MatchCompareEqAgainstUint64(Node* node) {
     // Literal is the lhs.
     return Uint64Comparison{
         node->operand(1),
-        node->operand(0)->As<Literal>()->value().bits().ToUint64().value()};
+        node->operand(0)->As<Literal>()->value().bits().ToUint64().value(),
+        node->op()};
   } else if (is_uint64_literal(node->operand(1))) {
     // Literal is the rhs.
     return Uint64Comparison{
         node->operand(0),
-        node->operand(1)->As<Literal>()->value().bits().ToUint64().value()};
+        node->operand(1)->As<Literal>()->value().bits().ToUint64().value(),
+        node->op()};
   }
   return absl::nullopt;
 }
@@ -73,6 +76,8 @@ struct Link {
 //
 //  Sel({index} == {key}, cases=[{next}, {value}])
 //  Sel({key} == {index}, cases=[{next}, {value}])
+//  Sel({index} != {key}, cases=[{value}, {next}])
+//  Sel({key} != {index}, cases=[{value}, {next}])
 //
 // Where:
 //   {key}   : A literal whose value fits in a uint64_t.
@@ -88,20 +93,30 @@ absl::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
   }
   Select* select = node->As<Select>();
 
-  // The select instruction must have a literal value for the selector is true
-  // case.
-  if (!select->get_case(1)->Is<Literal>()) {
-    return absl::nullopt;
-  }
-  Node* next = select->get_case(0);
-  const Value& value = select->get_case(1)->As<Literal>()->value();
-
   // The selector must be a comparison to a literal which fits in a uint64_t.
   absl::optional<Uint64Comparison> match =
       MatchCompareEqAgainstUint64(select->selector());
   if (!match.has_value()) {
     return absl::nullopt;
   }
+
+  Node* next;
+  Node* value_node;
+  if (match->comparison_op == Op::kEq) {
+    next = select->get_case(0);
+    value_node = select->get_case(1);
+  } else {
+    XLS_CHECK_EQ(match->comparison_op, Op::kNe);
+    next = select->get_case(1);
+    value_node = select->get_case(0);
+  }
+
+  // The select instruction must have a literal value for the selector is true
+  // case.
+  if (!value_node->Is<Literal>()) {
+    return absl::nullopt;
+  }
+  const Value& value = value_node->As<Literal>()->value();
 
   // The index, if given, must match the non-literal operand of the eq.
   if (index != nullptr && index != match->index) {
@@ -133,6 +148,7 @@ absl::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
 absl::StatusOr<absl::optional<Value>> LinksToTable(
     absl::Span<const Link> links) {
   if (links.empty()) {
+    XLS_VLOG(3) << "Empty chain.";
     return absl::nullopt;
   }
 
@@ -188,19 +204,27 @@ absl::StatusOr<absl::optional<Value>> LinksToTable(
   // (else_value in the diagram above) is not dead and must be a literal in
   // order for this to be converted into a table lookup.
   if (!links.back().next->Is<Literal>()) {
+    XLS_VLOG(3) << "Final fall-through case is not a literal: "
+                << links.back().next->ToString();
     return absl::nullopt;
   }
   const Value& else_value = links.back().next->As<Literal>()->value();
 
-  if (index_space_size.has_value() &&
-      map.size() == index_space_size.value() - 1) {
-    // There is a single hole in the index space. Necessarily, if the index
-    // assumes this missing value the expression returns else_value so fill in
-    // the hole with else_value and return.
+  XLS_VLOG(3) << "Index width: " << index_width;
+  if (index_space_size.has_value()) {
+    XLS_VLOG(3) << "Index space size: " << index_space_size.value();
+  }
+  XLS_VLOG(3) << "map.size(): " << map.size();
+
+  if (index_space_size.has_value() && map.size() < index_space_size.value() &&
+      map.size() * 2 > index_space_size.value()) {
+    // There are holes in the index space, but most of the index space is
+    // covered. Necessarily, if the index assumes one of the missing values the
+    // expression returns else_value so fill in the holes with else_value and
+    // return.
     for (uint64_t i = 0; i < index_space_size; ++i) {
       if (!map.contains(i)) {
         map[i] = else_value;
-        break;
       }
     }
     XLS_RET_CHECK_EQ(map.size(), index_space_size.value());
@@ -227,6 +251,7 @@ absl::StatusOr<absl::optional<Value>> LinksToTable(
   //    - Extract a constant factor, e.g., 0, 4, 8, ... -> 0, 1, 2, ...
   //  - Handle "partial" chains - those that only cover part of the match space
 
+  XLS_VLOG(3) << "Cannot convert link chain to table lookup";
   return absl::nullopt;
 }
 
