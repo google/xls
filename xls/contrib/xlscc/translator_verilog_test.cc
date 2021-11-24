@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
 #include <string>
 
 #include "gmock/gmock.h"
@@ -99,8 +100,12 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
     ch_out2->set_type(FIFO);
   }
 
-  auto translator = std::make_unique<xlscc::Translator>();
-  XLS_ASSERT_OK(XlsccTestBase::ScanFile(content, {}, translator.get()));
+  auto parser = std::make_unique<xlscc::CCParser>();
+  XLS_ASSERT_OK(
+      XlsccTestBase::ScanTempFileWithContent(content, {}, parser.get()));
+
+  auto translator =
+      std::make_unique<xlscc::Translator>(1000, std::move(parser));
 
   xls::Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc,
@@ -224,8 +229,12 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
     ch_out1->set_type(FIFO);
   }
 
-  auto translator = std::make_unique<xlscc::Translator>();
-  XLS_ASSERT_OK(XlsccTestBase::ScanFile(content, {}, translator.get()));
+  auto parser = std::make_unique<xlscc::CCParser>();
+  XLS_ASSERT_OK(
+      XlsccTestBase::ScanTempFileWithContent(content, {}, parser.get()));
+
+  std::unique_ptr<xlscc::Translator> translator(
+      new xlscc::Translator(1000, std::move(parser)));
 
   xls::Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc,

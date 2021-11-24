@@ -28,6 +28,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/unit_test.h"
 #include "xls/interpreter/channel_queue.h"
@@ -63,9 +64,12 @@ class XlsccTestBase : public xls::IrTestBase {
 
   // Overload which takes a translator as a parameter rather than constructing
   // and using the translator_ data member.
-  static absl::Status ScanFile(absl::string_view cpp_src,
-                               std::vector<absl::string_view> argv,
-                               xlscc::Translator* translator);
+  static absl::Status ScanTempFileWithContent(
+      absl::string_view cpp_src, std::vector<absl::string_view> argv,
+      xlscc::CCParser* translator);
+
+  absl::Status ScanString(absl::string_view cpp_src,
+                          std::vector<absl::string_view> argv);
 
   absl::StatusOr<std::string> SourceToIr(
       absl::string_view cpp_src, xlscc::GeneratedFunction** pfunc = nullptr,

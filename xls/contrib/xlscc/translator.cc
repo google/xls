@@ -14,8 +14,6 @@
 
 #include "xls/contrib/xlscc/translator.h"
 
-#include <fstream>
-#include <iostream>
 #include <memory>
 #include <regex>  // NOLINT
 #include <sstream>
@@ -31,7 +29,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
-#include "absl/synchronization/blocking_counter.h"
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/APValue.h"
 #include "clang/include/clang/AST/AST.h"
@@ -54,11 +51,6 @@
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "clang/include/clang/Basic/SourceManager.h"
 #include "clang/include/clang/Basic/Specifiers.h"
-#include "clang/include/clang/Frontend/CompilerInstance.h"
-#include "clang/include/clang/Frontend/FrontendActions.h"
-#include "clang/include/clang/Frontend/TextDiagnosticPrinter.h"
-#include "clang/include/clang/Tooling/CommonOptionsParser.h"
-#include "clang/include/clang/Tooling/Tooling.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/Support/VirtualFileSystem.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
@@ -484,16 +476,18 @@ absl::Status CArrayType::GetMetadataValue(Translator *t,
   return absl::OkStatus();
 }
 
-Translator::Translator(int max_unroll_iters)
+Translator::Translator(int64_t max_unroll_iters,
+                       std::unique_ptr<CCParser> existing_parser)
     : max_unroll_iters_(max_unroll_iters) {
   context_stack_.push(TranslationContext());
+  if (existing_parser != nullptr) {
+    parser_ = std::move(existing_parser);
+  } else {
+    parser_ = std::make_unique<CCParser>();
+  }
 }
 
 Translator::~Translator() {
-  // Allow parser and its thread to be destroyed
-  libtool_wait_for_destruct_->DecrementCount();
-  // Wait for it to be gone
-  libtool_thread_->Join();
 }
 
 TranslationContext& Translator::PushContext() {
@@ -548,179 +542,6 @@ void Translator::PopContext(bool propagate_up, bool propagate_break_up,
 }
 
 TranslationContext& Translator::context() { return context_stack_.top(); }
-
-bool Translator::LibToolVisitFunction(clang::FunctionDecl* func) {
-  if (libtool_visit_status_.ok()) libtool_visit_status_ = VisitFunction(func);
-  return libtool_visit_status_.ok();
-}
-
-Translator::LibToolThread::LibToolThread(
-    absl::string_view source_filename,
-    absl::Span<absl::string_view> command_line_args, Translator& translator)
-    : source_filename_(source_filename),
-      command_line_args_(command_line_args),
-      translator_(translator) {}
-
-void Translator::LibToolThread::Start() {
-  thread_.emplace([this] { Run(); });
-}
-
-void Translator::LibToolThread::Join() { thread_->Join(); }
-
-void Translator::LibToolThread::Run() {
-  std::vector<std::string> argv;
-  argv.emplace_back("binary");
-  argv.emplace_back(source_filename_);
-  for (const auto& view : command_line_args_) {
-    argv.emplace_back(view);
-  }
-  argv.emplace_back("-fsyntax-only");
-  argv.emplace_back("-std=c++17");
-  argv.emplace_back("-nostdinc");
-
-  llvm::IntrusiveRefCntPtr<clang::FileManager> libtool_files;
-
-  std::unique_ptr<LibToolFrontendAction> libtool_action(
-      new LibToolFrontendAction(translator_));
-
-  llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> mem_fs(
-      new llvm::vfs::InMemoryFileSystem);
-  mem_fs->addFile("/xls_builtin.h", 0,
-                  llvm::MemoryBuffer::getMemBuffer(
-                      R"(
-#ifndef __XLS_BUILTIN_H
-#define __XLS_BUILTIN_H
-template<int N>
-struct __xls_bits { };
-
-template<typename T>
-class __xls_channel {
- public:
-  T read() {
-    return T();
-  }
-  T write(T val) {
-    return val;
-  }
-};
-
-#endif//__XLS_BUILTIN_H
-          )"));
-
-  llvm::IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> overlay_fs(
-      new llvm::vfs::OverlayFileSystem(llvm::vfs::getRealFileSystem()));
-
-  overlay_fs->pushOverlay(mem_fs);
-
-  libtool_files =
-      new clang::FileManager(clang::FileSystemOptions(), overlay_fs);
-
-  std::unique_ptr<clang::tooling::ToolInvocation> libtool_inv(
-      new clang::tooling::ToolInvocation(argv, std::move(libtool_action),
-                                         libtool_files.get()));
-
-  llvm::IntrusiveRefCntPtr<clang::DiagnosticOptions> diag_opts =
-      new clang::DiagnosticOptions();
-  Translator::DiagnosticInterceptor diag_print(translator_, llvm::errs(),
-                                               &*diag_opts);
-  libtool_inv->setDiagnosticConsumer(&diag_print);
-
-  // Errors are extracted via DiagnosticInterceptor,
-  //  since we block in run() until ~Translator()
-  (void)libtool_inv->run();
-}
-
-void Translator::LibToolFrontendAction::EndSourceFileAction() {
-  // ToolInvocation::run() from returning until ~Translator()
-  translator_.libtool_wait_for_parse_->DecrementCount();
-  translator_.libtool_wait_for_destruct_->Wait();
-}
-
-absl::Status Translator::ScanFile(
-    absl::string_view source_filename,
-    absl::Span<absl::string_view> command_line_args) {
-  // The AST is destroyed after ToolInvocation::run() returns
-  //
-  // However, we want to preserve it to access it across multiple passes and
-  //  various subsequent calls, such as GenerateIR().
-  //
-  // Therefore, ToolInvocation::Run() is executed on another thread,
-  //  and the ASTFrontendAction::EndSourceFileAction() blocks it
-  //  until ~Translator(), preserving the AST.
-  libtool_thread_ = absl::WrapUnique(
-      new LibToolThread(source_filename, command_line_args, *this));
-
-  libtool_wait_for_parse_ = std::make_unique<absl::BlockingCounter>(1);
-  libtool_wait_for_destruct_ = std::make_unique<absl::BlockingCounter>(1);
-  libtool_visit_status_ = absl::OkStatus();
-  libtool_thread_->Start();
-  libtool_wait_for_parse_->Wait();
-  return libtool_visit_status_;
-}
-
-absl::StatusOr<std::string> Translator::GetEntryFunctionName() const {
-  if (!top_function_) {
-    return absl::NotFoundError("No top function found");
-  }
-  return top_function_->getNameAsString();
-}
-
-static size_t match_pragma(std::string pragma_string, std::string name) {
-  size_t at = pragma_string.find(name);
-  if (at == std::string::npos) return std::string::npos;
-  size_t lcs = pragma_string.find("//");
-  if (lcs != std::string::npos) {
-    if (lcs < at) return std::string::npos;
-  }
-  size_t bcs = pragma_string.find("*/");
-  if (bcs != std::string::npos) {
-    if (bcs >= (at + name.length())) return std::string::npos;
-  }
-  return at;
-}
-
-absl::Status Translator::ScanFileForPragmas(std::string filename) {
-  std::ifstream fin(filename);
-  if (!fin.good()) {
-    if (filename != "/xls_builtin.h") {
-      return absl::NotFoundError(absl::StrFormat(
-          "Unable to open file to scan for pragmas: %s\n", filename));
-    }
-  }
-  int lineno = 1;
-  for (std::string line; std::getline(fin, line); ++lineno) {
-    size_t at;
-    if ((at = line.find("#pragma")) != std::string::npos) {
-      PragmaLoc location(filename, lineno);
-
-      if ((at = match_pragma(line, "#pragma hls_no_tuple")) !=
-          std::string::npos) {
-        hls_pragmas_[location] = Pragma_NoTuples;
-      } else if ((at = match_pragma(line, "#pragma hls_unroll yes")) !=
-                 std::string::npos) {
-        hls_pragmas_[location] = Pragma_Unroll;
-      } else if ((at = match_pragma(line, "#pragma hls_top")) !=
-                 std::string::npos) {
-        hls_pragmas_[location] = Pragma_Top;
-      }
-    }
-  }
-
-  files_scanned_for_pragmas_.insert(filename);
-  return absl::OkStatus();
-}
-
-absl::StatusOr<Translator::Pragma> Translator::FindPragmaForLoc(
-    const clang::PresumedLoc& ploc) {
-  if (!files_scanned_for_pragmas_.contains(ploc.getFilename())) {
-    XLS_RETURN_IF_ERROR(ScanFileForPragmas(ploc.getFilename()));
-  }
-  // Look on the line before
-  auto found =
-      hls_pragmas_.find(PragmaLoc(ploc.getFilename(), ploc.getLine() - 1));
-  if (found == hls_pragmas_.end()) return Pragma_Null;
-  return found->second;
-}
 
 absl::Status Translator::AssignThis(const CValue& rvalue,
                                     const xls::SourceLocation& loc) {
@@ -861,93 +682,6 @@ xls::BValue Translator::GetFunctionReturn(xls::BValue val, int index,
                                           const clang::FunctionDecl* /*func*/,
                                           const xls::SourceLocation& loc) {
   return GetFlexTupleField(val, index, expected_returns, loc);
-}
-
-clang::PresumedLoc Translator::GetPresumedLoc(clang::SourceManager& sm,
-                                              const clang::Stmt& stmt) {
-  return sm.getPresumedLoc(stmt.getSourceRange().getBegin());
-}
-
-xls::SourceLocation Translator::GetLoc(clang::SourceManager& sm,
-                                       const clang::Stmt& stmt) {
-  return GetLoc(GetPresumedLoc(sm, stmt));
-}
-
-clang::PresumedLoc Translator::GetPresumedLoc(const clang::Decl& decl) {
-  clang::SourceManager& sm = decl.getASTContext().getSourceManager();
-  return sm.getPresumedLoc(decl.getSourceRange().getBegin());
-}
-
-xls::SourceLocation Translator::GetLoc(const clang::Decl& decl) {
-  return GetLoc(GetPresumedLoc(decl));
-}
-
-xls::SourceLocation Translator::GetLoc(clang::SourceManager& sm,
-                                       const clang::Expr& expr) {
-  return GetLoc(sm.getPresumedLoc(expr.getExprLoc()));
-}
-
-xls::SourceLocation Translator::GetLoc(const clang::PresumedLoc& loc) {
-  if (!loc.isValid()) {
-    return xls::SourceLocation(xls::Fileno(-1), xls::Lineno(-1),
-                               xls::Colno(-1));
-  }
-
-  auto found = file_numbers_.find(loc.getFilename());
-
-  int id = 0;
-
-  if (found == file_numbers_.end()) {
-    id = next_file_number_++;
-    file_numbers_[loc.getFilename()] = id;
-  } else {
-    id = found->second;
-  }
-
-  return xls::SourceLocation(xls::Fileno(id), xls::Lineno(loc.getLine()),
-                             xls::Colno(loc.getColumn()));
-}
-
-std::string Translator::LocString(const xls::SourceLocation& loc) {
-  std::string found_str = "Unknown";
-  for (const auto& it : file_numbers_) {
-    if (it.second == static_cast<int>(loc.fileno())) {
-      found_str = it.first;
-      break;
-    }
-  }
-  return absl::StrFormat("%s:%i:%i", found_str, static_cast<int>(loc.lineno()),
-                         static_cast<int>(loc.fileno()));
-}
-
-// Scans for top-level function candidates
-absl::Status Translator::VisitFunction(const clang::FunctionDecl* funcdecl) {
-  const std::string fname = funcdecl->getNameAsString();
-
-  // Top can't be a template function
-  if (funcdecl->getTemplatedKind() !=
-      clang::FunctionDecl::TemplatedKind::TK_NonTemplate) {
-    return absl::OkStatus();
-  }
-
-  // Top can't be a forward declarations
-  if (!funcdecl->doesThisDeclarationHaveABody()) {
-    return absl::OkStatus();
-  }
-
-  XLS_ASSIGN_OR_RETURN(Pragma pragma,
-                       FindPragmaForLoc(GetPresumedLoc(*funcdecl)));
-
-  if (pragma == Pragma_Top || fname == top_function_name_) {
-    if (top_function_) {
-      return absl::AlreadyExistsError(absl::StrFormat(
-          "Two top functions defined, at %s, previously at %s",
-          LocString(GetLoc(*top_function_)), LocString(GetLoc(*funcdecl))));
-    }
-    top_function_ = funcdecl;
-  }
-
-  return absl::OkStatus();
 }
 
 std::string Translator::XLSNameMangle(clang::GlobalDecl decl) const {
@@ -3557,7 +3291,7 @@ absl::Status Translator::GenerateIR_UnrolledFor(const clang::ForStmt* stmt,
   // Reset the known set before each iteration.
   auto saved_check_ids = check_unique_ids_;
 
-  for (int nIters = 0;; ++nIters) {
+  for (int64_t nIters = 0;; ++nIters) {
     check_unique_ids_ = saved_check_ids;
 
     if (nIters >= max_unroll_iters_) {
@@ -3929,22 +3663,35 @@ absl::StatusOr<Translator::StrippedType> Translator::StripTypeQualifiers(
   }
 }
 
+absl::Status Translator::ScanFile(
+    absl::string_view source_filename,
+    absl::Span<absl::string_view> command_line_args) {
+  XLS_CHECK_NE(parser_.get(), nullptr);
+  return parser_->ScanFile(source_filename, command_line_args);
+}
+
+absl::StatusOr<std::string> Translator::GetEntryFunctionName() const {
+  XLS_CHECK_NE(parser_.get(), nullptr);
+  return parser_->GetEntryFunctionName();
+}
+
 absl::Status Translator::SelectTop(absl::string_view top_function_name) {
-  top_function_name_ = top_function_name;
-  return absl::OkStatus();
+  XLS_CHECK_NE(parser_.get(), nullptr);
+  return parser_->SelectTop(top_function_name);
 }
 
 absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
     xls::Package* package, bool force_static) {
-  if (top_function_ == nullptr) {
-    return absl::NotFoundError("No top function found");
-  }
+  const clang::FunctionDecl* top_function = nullptr;
+
+  XLS_CHECK_NE(parser_.get(), nullptr);
+  XLS_ASSIGN_OR_RETURN(top_function, parser_->GetTopFunction());
 
   context().package = package;
 
   XLS_ASSIGN_OR_RETURN(
       GeneratedFunction * ret,
-      GenerateIR_Function(top_function_, top_function_->getNameAsString(),
+      GenerateIR_Function(top_function, top_function->getNameAsString(),
                           force_static));
 
   return ret;
@@ -3972,12 +3719,13 @@ absl::StatusOr<xls::Channel*> Translator::CreateChannel(
 
 absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
                                                         const HLSBlock& block) {
-  if (!top_function_) {
-    return absl::UnimplementedError("Not top function found");
-  }
+  const clang::FunctionDecl* top_function = nullptr;
+
+  XLS_CHECK_NE(parser_.get(), nullptr);
+  XLS_ASSIGN_OR_RETURN(top_function, parser_->GetTopFunction());
 
   const clang::FunctionDecl* definition = nullptr;
-  top_function_->getBody(definition);
+  top_function->getBody(definition);
   xls::SourceLocation body_loc = GetLoc(*definition);
 
   PreparedBlock prepared;
@@ -4329,15 +4077,15 @@ absl::Status Translator::GenerateFunctionMetadata(
 }
 
 absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
-  if (!top_function_) {
-    return absl::NotFoundError("No top function found");
-  }
+  XLS_CHECK_NE(parser_.get(), nullptr);
+  XLS_ASSIGN_OR_RETURN(const clang::FunctionDecl* top_function,
+                       parser_->GetTopFunction());
 
   xlscc_metadata::MetadataOutput ret;
 
   // Top function proto
   XLS_RETURN_IF_ERROR(
-      GenerateFunctionMetadata(top_function_, ret.mutable_top_func_proto()));
+      GenerateFunctionMetadata(top_function, ret.mutable_top_func_proto()));
 
   for (auto const& [decl, xls_name] : xls_names_for_functions_generated_) {
     XLS_RETURN_IF_ERROR(
@@ -4480,6 +4228,45 @@ absl::StatusOr<xls::BValue> Translator::GenBoolConvert(
         context().fb->Literal(xls::UBits(0, in.type()->GetBitWidth()), loc);
     return context().fb->Ne(in.value(), const0, loc);
   }
+}
+
+std::string Translator::LocString(const xls::SourceLocation& loc) {
+  XLS_CHECK_NE(parser_.get(), nullptr);
+  return parser_->LocString(loc);
+}
+
+xls::SourceLocation Translator::GetLoc(clang::SourceManager& sm,
+                                       const clang::Stmt& stmt) {
+  XLS_CHECK_NE(parser_.get(), nullptr);
+  return parser_->GetLoc(sm, stmt);
+}
+
+xls::SourceLocation Translator::GetLoc(clang::SourceManager& sm,
+                                       const clang::Expr& expr) {
+  XLS_CHECK_NE(parser_.get(), nullptr);
+  return parser_->GetLoc(sm, expr);
+}
+
+xls::SourceLocation Translator::GetLoc(const clang::Decl& decl) {
+  XLS_CHECK_NE(parser_.get(), nullptr);
+  return parser_->GetLoc(decl);
+}
+
+clang::PresumedLoc Translator::GetPresumedLoc(clang::SourceManager& sm,
+                                              const clang::Stmt& stmt) {
+  XLS_CHECK_NE(parser_.get(), nullptr);
+  return parser_->GetPresumedLoc(sm, stmt);
+}
+
+clang::PresumedLoc Translator::GetPresumedLoc(const clang::Decl& decl) {
+  XLS_CHECK_NE(parser_.get(), nullptr);
+  return parser_->GetPresumedLoc(decl);
+}
+
+absl::StatusOr<Pragma> Translator::FindPragmaForLoc(
+    const clang::PresumedLoc& ploc) {
+  XLS_CHECK_NE(parser_.get(), nullptr);
+  return parser_->FindPragmaForLoc(ploc);
 }
 
 }  // namespace xlscc

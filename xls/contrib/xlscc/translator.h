@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef PLATFORMS_HLS_XLS_FRONTEND_XLSCC_TRANSLATOR_H_
-#define PLATFORMS_HLS_XLS_FRONTEND_XLSCC_TRANSLATOR_H_
+#ifndef XLS_CONTRIB_XLSCC_TRANSLATOR_H_
+#define XLS_CONTRIB_XLSCC_TRANSLATOR_H_
 
 #include <cstdint>
 #include <memory>
@@ -25,7 +25,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "absl/synchronization/blocking_counter.h"
 #include "clang/include/clang/AST/AST.h"
 #include "clang/include/clang/AST/ASTConsumer.h"
 #include "clang/include/clang/AST/ASTContext.h"
@@ -39,13 +38,8 @@
 #include "clang/include/clang/AST/Type.h"
 #include "clang/include/clang/Basic/IdentifierTable.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
-#include "clang/include/clang/Frontend/CompilerInstance.h"
-#include "clang/include/clang/Frontend/FrontendActions.h"
-#include "clang/include/clang/Frontend/TextDiagnosticPrinter.h"
-#include "clang/include/clang/Tooling/CommonOptionsParser.h"
-#include "clang/include/clang/Tooling/Tooling.h"
 #include "llvm/include/llvm/ADT/APInt.h"
-#include "xls/common/thread.h"
+#include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/ir/bits.h"
@@ -469,7 +463,9 @@ struct TranslationContext {
 
 class Translator {
  public:
-  explicit Translator(int max_unroll_iters = 1000);
+  explicit Translator(
+      int64_t max_unroll_iters = 1000,
+      std::unique_ptr<CCParser> existing_parser = std::unique_ptr<CCParser>());
   ~Translator();
 
   // This function uses Clang to parse a source file and then walks its
@@ -619,92 +615,8 @@ class Translator {
     bool prev_val;
   };
 
-  class LibToolVisitor : public clang::RecursiveASTVisitor<LibToolVisitor> {
-   private:
-    clang::ASTContext* ast_context_;
-    Translator& translator_;
-
-   public:
-    explicit LibToolVisitor(clang::CompilerInstance* CI, Translator& translator)
-        : ast_context_(&(CI->getASTContext())), translator_(translator) {}
-    virtual ~LibToolVisitor() {}
-    virtual bool VisitFunctionDecl(clang::FunctionDecl* func) {
-      return translator_.LibToolVisitFunction(func);
-    }
-  };
-  class LibToolASTConsumer : public clang::ASTConsumer {
-   private:
-    std::unique_ptr<LibToolVisitor> visitor_;
-
-   public:
-    explicit LibToolASTConsumer(clang::CompilerInstance* CI,
-                                Translator& translator)
-        : visitor_(new LibToolVisitor(CI, translator)) {}
-
-    void HandleTranslationUnit(clang::ASTContext& Context) override {
-      visitor_->TraverseDecl(Context.getTranslationUnitDecl());
-    }
-  };
-  class LibToolFrontendAction : public clang::ASTFrontendAction {
-   public:
-    explicit LibToolFrontendAction(Translator& translator)
-        : translator_(translator) {}
-    void EndSourceFileAction() override;
-    std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
-        clang::CompilerInstance& CI, clang::StringRef /*file*/) override {
-      return std::unique_ptr<clang::ASTConsumer>(
-          new LibToolASTConsumer(&CI, translator_));
-    }
-
-   private:
-    Translator& translator_;
-  };
-  class DiagnosticInterceptor : public clang::TextDiagnosticPrinter {
-   public:
-    DiagnosticInterceptor(Translator& translator, llvm::raw_ostream& os,
-                          clang::DiagnosticOptions* diags,
-                          bool OwnsOutputStream = false)
-        : clang::TextDiagnosticPrinter(os, diags, OwnsOutputStream),
-          translator_(translator) {}
-    void HandleDiagnostic(clang::DiagnosticsEngine::Level level,
-                          const clang::Diagnostic& info) override {
-      if (level >= clang::DiagnosticsEngine::Level::Error) {
-        translator_.libtool_visit_status_ = absl::FailedPreconditionError(
-            absl::StrFormat("Unable to parse text with clang (libtooling)\n"));
-      }
-      // Print the message
-      clang::TextDiagnosticPrinter::HandleDiagnostic(level, info);
-    }
-
-   private:
-    Translator& translator_;
-  };
-  class LibToolThread {
-   public:
-    LibToolThread(absl::string_view source_filename,
-                  absl::Span<absl::string_view> command_line_args,
-                  Translator& translator);
-
-    void Start();
-    void Join();
-
-   private:
-    void Run();
-
-    absl::optional<xls::Thread> thread_;
-    absl::string_view source_filename_;
-    absl::Span<absl::string_view> command_line_args_;
-    Translator& translator_;
-  };
-  bool LibToolVisitFunction(clang::FunctionDecl* func);
-  absl::Status libtool_visit_status_ = absl::OkStatus();
-
-  std::unique_ptr<LibToolThread> libtool_thread_;
-  std::unique_ptr<absl::BlockingCounter> libtool_wait_for_parse_;
-  std::unique_ptr<absl::BlockingCounter> libtool_wait_for_destruct_;
-
   // The maximum number of iterations before loop unrolling fails.
-  const int max_unroll_iters_;
+  const int64_t max_unroll_iters_;
 
   // This should be true except for debugging.
   // When this flag is true, the translator generates expressions
@@ -748,26 +660,12 @@ class Translator {
   //  generate an error if that assumption is violated.
   absl::flat_hash_set<const clang::NamedDecl*> check_unique_ids_;
 
-  using PragmaLoc = std::tuple<std::string, int>;
-  enum Pragma { Pragma_Null = 0, Pragma_NoTuples, Pragma_Unroll, Pragma_Top };
-  absl::flat_hash_map<PragmaLoc, Pragma> hls_pragmas_;
-  absl::flat_hash_set<std::string> files_scanned_for_pragmas_;
-
-  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc);
-
   // Scans for top-level function candidates
   absl::Status VisitFunction(const clang::FunctionDecl* funcdecl);
   absl::Status ScanFileForPragmas(std::string filename);
 
-  const clang::FunctionDecl* top_function_ = nullptr;
-  absl::string_view top_function_name_ = "";
-
   absl::flat_hash_map<const clang::FunctionDecl*, std::string>
       xls_names_for_functions_generated_;
-
-  // For source location
-  absl::flat_hash_map<std::string, int> file_numbers_;
-  int next_file_number_ = 1;
 
   int next_asm_number_ = 1;
 
@@ -1043,25 +941,29 @@ class Translator {
                                    int index, int n_fields,
                                    const xls::SourceLocation& loc);
 
-  xls::SourceLocation GetLoc(clang::SourceManager& sm, const clang::Stmt& stmt);
-  clang::PresumedLoc GetPresumedLoc(clang::SourceManager& sm,
-                                    const clang::Stmt& stmt);
-  xls::SourceLocation GetLoc(const clang::Decl& decl);
-  clang::PresumedLoc GetPresumedLoc(const clang::Decl& decl);
-  xls::SourceLocation GetLoc(clang::SourceManager& sm, const clang::Expr& expr);
-  xls::SourceLocation GetLoc(const clang::PresumedLoc& loc);
-  std::string LocString(const xls::SourceLocation& loc);
-  inline std::string LocString(const clang::Decl& decl) {
-    return LocString(GetLoc(decl));
-  }
   void FillLocationProto(const clang::SourceLocation& location,
                          const clang::SourceManager& sm,
                          xlscc_metadata::SourceLocation* location_out);
   void FillLocationRangeProto(const clang::SourceRange& range,
                               const clang::SourceManager& sm,
                               xlscc_metadata::SourceLocationRange* range_out);
+
+  std::unique_ptr<CCParser> parser_;
+
+  // Convenience calls to CCParser
+  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc);
+  std::string LocString(const xls::SourceLocation& loc);
+  xls::SourceLocation GetLoc(clang::SourceManager& sm, const clang::Stmt& stmt);
+  xls::SourceLocation GetLoc(clang::SourceManager& sm, const clang::Expr& expr);
+  xls::SourceLocation GetLoc(const clang::Decl& decl);
+  inline std::string LocString(const clang::Decl& decl) {
+    return LocString(GetLoc(decl));
+  }
+  clang::PresumedLoc GetPresumedLoc(clang::SourceManager& sm,
+                                    const clang::Stmt& stmt);
+  clang::PresumedLoc GetPresumedLoc(const clang::Decl& decl);
 };
 
 }  // namespace xlscc
 
-#endif  // PLATFORMS_HLS_XLS_FRONTEND_XLSCC_TRANSLATOR_H_
+#endif  // XLS_CONTRIB_XLSCC_TRANSLATOR_H_

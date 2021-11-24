@@ -75,6 +75,7 @@ cc_library(
     srcs = ["unit_test.cc"],
     hdrs = ["unit_test.h"],
     deps = [
+        ":cc_parser",
         ":translator",
         "//xls/codegen:combinational_generator",
         "//xls/common/file:temp_file",
@@ -89,6 +90,7 @@ cc_library(
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
     ],
@@ -99,9 +101,9 @@ cc_library(
     srcs = ["translator.cc"],
     hdrs = ["translator.h"],
     deps = [
+        ":cc_parser",
         ":hls_block_cc_proto",
         ":metadata_output_cc_proto",
-        "//xls/common:thread",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/interpreter:ir_interpreter",
@@ -130,13 +132,44 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:span",
         "@llvm-project//clang:ast",
         "@llvm-project//clang:basic",
+        "@llvm-project//llvm:Support",
+    ],
+)
+
+cc_library(
+    name = "cc_parser",
+    srcs = ["cc_parser.cc"],
+    hdrs = ["cc_parser.h"],
+    deps = [
+        "//xls/common:thread",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir:source_location",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/synchronization",
+        "@llvm-project//clang:ast",
         "@llvm-project//clang:frontend",
         "@llvm-project//clang:tooling",
-        "@llvm-project//llvm:Support",
+    ],
+)
+
+cc_test(
+    name = "cc_parser_test",
+    srcs = ["cc_parser_test.cc"],
+    deps = [
+        ":cc_parser",
+        ":unit_test",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:temp_file",
+        "//xls/common/status:matchers",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 

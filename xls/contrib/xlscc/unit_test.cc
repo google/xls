@@ -17,6 +17,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "xls/common/status/status_macros.h"
 
 using xls::status_testing::IsOkAndHolds;
 
@@ -99,14 +101,26 @@ void XlsccTestBase::RunWithStatics(
 
 absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
                                      std::vector<absl::string_view> argv) {
-  translator_ = std::make_unique<xlscc::Translator>();
+  auto parser = std::make_unique<xlscc::CCParser>();
+  XLS_RETURN_IF_ERROR(ScanTempFileWithContent(cpp_src, argv, parser.get()));
 
-  return ScanFile(cpp_src, argv, translator_.get());
+  translator_.reset(new xlscc::Translator(1000, std::move(parser)));
+
+  return absl::OkStatus();
 }
 
-/* static */ absl::Status XlsccTestBase::ScanFile(
+absl::Status XlsccTestBase::ScanString(absl::string_view cpp_src,
+                                       std::vector<absl::string_view> argv) {
+  auto parser = std::make_unique<xlscc::CCParser>();
+  XLS_RETURN_IF_ERROR(ScanTempFileWithContent(cpp_src, argv, parser.get()));
+  translator_.reset(new xlscc::Translator(1000, std::move(parser)));
+
+  return absl::OkStatus();
+}
+
+/* static */ absl::Status XlsccTestBase::ScanTempFileWithContent(
     absl::string_view cpp_src, std::vector<absl::string_view> argv,
-    xlscc::Translator* translator) {
+    xlscc::CCParser* translator) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                        xls::TempFile::CreateWithContent(cpp_src, ".cc"));
 
