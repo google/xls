@@ -65,11 +65,11 @@ xls_dslx_library(
 xls_dslx_module_library(
     name = "apfloat_sub_2_dslx_module",
     src = "apfloat_sub_2.x",
-    deps = ["apfloat_add_2_dslx"],
+    deps = [":apfloat_add_2_dslx"],
 )
 
 xls_dslx_test(
-    name = "apfloat_sub_2",
+    name = "apfloat_sub_2_test",
     dep = ":apfloat_sub_2_dslx_module",
     dslx_test_args = {
         "compare": "none",
@@ -291,7 +291,7 @@ xls_dslx_module_library(
     name = "fpsub_2x64_dslx_module",
     src = "fpsub_2x64.x",
     deps = [
-        "apfloat_sub_2_dslx_module",
+        ":apfloat_sub_2_dslx_module",
         ":fpadd_2x64_dslx_module",
     ],
 )
