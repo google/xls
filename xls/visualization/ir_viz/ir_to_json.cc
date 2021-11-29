@@ -71,7 +71,8 @@ class AttributeVisitor : public DfsVisitorWithDefault {
 absl::StatusOr<IrForVisualization::Attributes> NodeAttributes(
     Node* node,
     const absl::flat_hash_map<Node*, CriticalPathEntry*>& critical_path_map,
-    const QueryEngine& query_engine, const PipelineSchedule* schedule) {
+    const QueryEngine& query_engine, const PipelineSchedule* schedule,
+    const DelayEstimator& delay_estimator) {
   AttributeVisitor visitor;
   XLS_RETURN_IF_ERROR(node->VisitSingleNode(&visitor));
   IrForVisualization::Attributes attributes = visitor.attributes();
@@ -84,7 +85,11 @@ absl::StatusOr<IrForVisualization::Attributes> NodeAttributes(
   }
 
   absl::StatusOr<int64_t> delay_ps_status =
-      GetStandardDelayEstimator().GetOperationDelayInPs(node);
+      delay_estimator.GetOperationDelayInPs(node);
+  // The delay model may not have an estimate for this node. This can occur, for
+  // example, when viewing a graph before optimizations and optimizations may
+  // eliminate the node kind in question so it never is characterized in the
+  // delay model. In this case, don't show any delay estimate.
   if (delay_ps_status.ok()) {
     attributes.set_delay_ps(delay_ps_status.value());
   }
@@ -127,9 +132,10 @@ absl::StatusOr<std::string> IrToJson(FunctionBase* function,
     graph_node->set_id(sanitize_name(node->GetName()));
     graph_node->set_opcode(OpToString(node->op()));
     graph_node->set_ir(node->ToStringWithOperandTypes());
-    XLS_ASSIGN_OR_RETURN(*graph_node->mutable_attributes(),
-                         NodeAttributes(node, node_to_critical_path_entry,
-                                        query_engine, schedule));
+    XLS_ASSIGN_OR_RETURN(
+        *graph_node->mutable_attributes(),
+        NodeAttributes(node, node_to_critical_path_entry, query_engine,
+                       schedule, delay_estimator));
   }
 
   for (Node* node : function->nodes()) {
