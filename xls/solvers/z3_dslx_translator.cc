@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/z3_dslx_translator.h"
+#include "xls/solvers/z3_dslx_translator.h"
 
 #include <cstdint>
 
@@ -21,7 +21,7 @@
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
 
-namespace xls::dslx {
+namespace xls::solvers::z3{
 
 absl::Status VisitSymbolicTree(DslxTranslator* translator, SymbolicType* sym) {
   auto Walk = [&](SymbolicType* x) -> absl::Status {
@@ -38,62 +38,62 @@ absl::Status VisitSymbolicTree(DslxTranslator* translator, SymbolicType* sym) {
 absl::Status ProcessSymbolicNode(DslxTranslator* translator,
                                  SymbolicType* sym) {
   switch (sym->op()) {
-    case BinopKind::kAdd:
+    case dslx::BinopKind::kAdd:
       XLS_RETURN_IF_ERROR(translator->HandleAdd(sym));
       break;
-    case BinopKind::kLogicalAnd:
-    case BinopKind::kAnd:
+    case dslx::BinopKind::kLogicalAnd:
+    case dslx::BinopKind::kAnd:
       XLS_RETURN_IF_ERROR(translator->HandleAnd(sym));
       break;
-    case BinopKind::kEq:
+    case dslx::BinopKind::kEq:
       XLS_RETURN_IF_ERROR(translator->HandleEq(sym));
       break;
-    case BinopKind::kNe:
+    case dslx::BinopKind::kNe:
       XLS_RETURN_IF_ERROR(translator->HandleNe(sym));
       break;
-    case BinopKind::kLogicalOr:
-    case BinopKind::kOr:
+    case dslx::BinopKind::kLogicalOr:
+    case dslx::BinopKind::kOr:
       XLS_RETURN_IF_ERROR(translator->HandleOr(sym));
       break;
-    case BinopKind::kGt:
+    case dslx::BinopKind::kGt:
       XLS_RETURN_IF_ERROR(translator->HandleGt(sym));
       break;
-    case BinopKind::kGe:
+    case dslx::BinopKind::kGe:
       XLS_RETURN_IF_ERROR(translator->HandleGe(sym));
       break;
-    case BinopKind::kShl:
+    case dslx::BinopKind::kShl:
       XLS_RETURN_IF_ERROR(translator->HandleShll(sym));
       break;
-    case BinopKind::kShr:
+    case dslx::BinopKind::kShr:
       if (sym->IsSigned())
         XLS_RETURN_IF_ERROR(translator->HandleShra(sym));
       else
         XLS_RETURN_IF_ERROR(translator->HandleShrl(sym));
       break;
-    case BinopKind::kLe:
+    case dslx::BinopKind::kLe:
       XLS_RETURN_IF_ERROR(translator->HandleLe(sym));
       break;
-    case BinopKind::kLt:
+    case dslx::BinopKind::kLt:
       XLS_RETURN_IF_ERROR(translator->HandleLt(sym));
       break;
-    case BinopKind::kMul:
+    case dslx::BinopKind::kMul:
       XLS_RETURN_IF_ERROR(translator->HandleMul(sym));
       break;
-    case BinopKind::kSub:
+    case dslx::BinopKind::kSub:
       XLS_RETURN_IF_ERROR(translator->HandleSub(sym));
       break;
-    case BinopKind::kXor:
+    case dslx::BinopKind::kXor:
       XLS_RETURN_IF_ERROR(translator->HandleXor(sym));
       break;
-    case BinopKind::kConcat:
+    case dslx::BinopKind::kConcat:
       XLS_RETURN_IF_ERROR(translator->HandleConcat(sym));
       break;
-    case BinopKind::kDiv:
+    case dslx::BinopKind::kDiv:
       XLS_RETURN_IF_ERROR(translator->HandleDiv(sym));
       break;
     default:
       return absl::InternalError("Invalid binary operation kind " +
-                                 BinopKindToString(sym->op()));
+                                 dslx::BinopKindToString(sym->op()));
   }
   return absl::OkStatus();
 }
@@ -355,4 +355,4 @@ absl::Status TryProve(SymbolicType* predicate, bool negate_predicate,
   return absl::OkStatus();
 }
 
-}  // namespace xls::dslx
+}  // namespace xls::solvers::z3

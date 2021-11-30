@@ -1021,10 +1021,10 @@ cc_library(
         ":interp_bindings",
         ":interp_value",
         ":symbolic_type",
-        ":z3_dslx_translator",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
+        "//xls/solvers:z3_dslx_translator",
         "@com_google_absl//absl/status:statusor",
     ],
 )
@@ -1039,18 +1039,6 @@ cc_library(
         "//xls/ir:bits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:variant",
-    ],
-)
-
-cc_library(
-    name = "z3_dslx_translator",
-    srcs = ["z3_dslx_translator.cc"],
-    hdrs = ["z3_dslx_translator.h"],
-    deps = [
-        ":symbolic_type",
-        "//xls/solvers:z3_utils",
-        "@com_google_absl//absl/status",
-        "@z3//:api",
     ],
 )
 

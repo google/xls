@@ -164,6 +164,18 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "z3_dslx_translator",
+    srcs = ["z3_dslx_translator.cc"],
+    hdrs = ["z3_dslx_translator.h"],
+    deps = [
+        ":z3_utils",
+        "@com_google_absl//absl/status",
+        "//xls/dslx:symbolic_type",
+        "@z3//:api",
+    ],
+)
+
 cc_test(
     name = "z3_utils_test",
     srcs = ["z3_utils_test.cc"],

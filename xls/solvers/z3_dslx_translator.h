@@ -19,7 +19,9 @@
 #include "../z3/src/api/z3.h"
 #include "../z3/src/api/z3_api.h"
 
-namespace xls::dslx {
+namespace xls::solvers::z3 {
+
+using dslx::SymbolicType;
 
 class DslxTranslator {
  public:
@@ -106,6 +108,7 @@ absl::Status ProcessSymbolicNode(DslxTranslator* translator, SymbolicType* sym);
 absl::Status TryProve(SymbolicType* predicate, bool negate_predicate,
                       absl::Duration timeout);
 
-}  // namespace xls::dslx
+
+}  // namespace xls::solvers::z3
 
 #endif  // XLS_DSLX_Z3_DSLX_TRANSLATOR_H_

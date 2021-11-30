@@ -20,7 +20,7 @@
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/symbolic_type.h"
-#include "xls/dslx/z3_dslx_translator.h"
+#include "xls/solvers/z3_dslx_translator.h"
 
 namespace xls::dslx {
 
@@ -69,12 +69,12 @@ absl::StatusOr<InterpValue> EvaluateSymTernary(Ternary* expr,
 
   XLS_RET_CHECK(test.IsBits() && test.GetBitCount().value() == 1);
   if (test.IsTrue()) {
-    XLS_RETURN_IF_ERROR(TryProve(test.sym(), /*negate_predicate=*/true,
-                                 absl::InfiniteDuration()));
+    XLS_RETURN_IF_ERROR(solvers::z3::TryProve(
+        test.sym(), /*negate_predicate=*/true, absl::InfiniteDuration()));
     return interp->Eval(expr->consequent(), bindings);
   }
-  XLS_RETURN_IF_ERROR(TryProve(test.sym(), /*negate_predicate=*/false,
-                               absl::InfiniteDuration()));
+  XLS_RETURN_IF_ERROR(solvers::z3::TryProve(
+      test.sym(), /*negate_predicate=*/false, absl::InfiniteDuration()));
   return interp->Eval(expr->alternate(), bindings);
 }
 
