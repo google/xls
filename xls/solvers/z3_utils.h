@@ -26,6 +26,23 @@ namespace xls {
 namespace solvers {
 namespace z3 {
 
+// Helper class for establishing an error callback / turning it into a status
+// via RAII.
+class ScopedErrorHandler {
+ public:
+  explicit ScopedErrorHandler(Z3_context ctx);
+
+  ~ScopedErrorHandler();
+
+  absl::Status status() const { return status_; }
+
+ private:
+  static void Handler(Z3_context c, Z3_error_code e);
+  Z3_context ctx_;
+  ScopedErrorHandler* prev_handler_;
+  absl::Status status_;
+};
+
 // Creates a Z3 solver that will use the specified number of threads.
 // This is a refcounted object and will need to be unref'ed once no longer
 // needed.
@@ -59,6 +76,9 @@ std::string BitVectorToString(Z3_context ctx,
 
 // Converts a XLS IR Type to the corresponding Z3 sort.
 Z3_sort TypeToSort(Z3_context ctx, const Type& type);
+
+// Common Z3 unsigned multiplication (between DSLX and IR level).
+Z3_ast DoUnsignedMul(Z3_context ctx, Z3_ast lhs, Z3_ast rhs, int result_size);
 
 }  // namespace z3
 }  // namespace solvers

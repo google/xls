@@ -44,9 +44,19 @@ class SymbolicType {
   using Leaf = absl::variant<Param*, Bits>;
 
   SymbolicType() {}
-  SymbolicType(Leaf expr_tree_leaf) : expr_tree_(expr_tree_leaf) {}
-  SymbolicType(Nodes expr_tree_nodes, BinopKind root_op)
-      : expr_tree_(expr_tree_nodes), root_op_(root_op) {}
+  // TODO(akalan): Eventually, it makes more sense if SymbolicType stores the
+  // leaves as Bits type and distinguishes the function parameters from
+  // constants via a flag.
+  SymbolicType(Leaf expr_tree_leaf, int64_t bit_count, bool is_signed)
+      : expr_tree_(expr_tree_leaf),
+        bit_count_(bit_count),
+        is_signed_(is_signed) {}
+  SymbolicType(Nodes expr_tree_nodes, BinopKind root_op, int64_t bit_count,
+               bool is_signed)
+      : expr_tree_(expr_tree_nodes),
+        root_op_(root_op),
+        bit_count_(bit_count),
+        is_signed_(is_signed) {}
 
   ~SymbolicType() = default;
 
@@ -61,20 +71,28 @@ class SymbolicType {
 
   absl::StatusOr<Nodes> nodes();
 
+  BinopKind op() { return root_op_; }
+
   bool IsBits();
+  absl::StatusOr<Bits> GetBits();
+
+  int64_t GetBitCount() { return bit_count_; }
+  bool IsSigned() { return is_signed_; }
 
   // Prints the symbolic expression tree via inorder traversal
   absl::StatusOr<std::string> ToString();
 
-  // Performs an inorder tree traversal under this node in the expression tree.
-  // Inorder traversal generates the original program sequence
-  absl::Status DoInorder(const std::function<absl::Status(SymbolicType*)>& f);
+  // Performs a postorder tree traversal under this node in the expression tree.
+  absl::Status DoPostorder(const std::function<absl::Status(SymbolicType*)>& f);
 
   const absl::variant<Nodes, Leaf>& tree() const { return expr_tree_; }
 
  private:
   absl::variant<Nodes, Leaf> expr_tree_;
   BinopKind root_op_;
+  // Concrete information used for Z3 translation.
+  int64_t bit_count_;
+  bool is_signed_;
 };
 
 }  // namespace xls::dslx

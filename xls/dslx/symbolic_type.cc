@@ -15,6 +15,7 @@
 #include "xls/dslx/symbolic_type.h"
 
 #include "absl/strings/str_cat.h"
+#include "xls/common/status/ret_check.h"
 
 namespace xls::dslx {
 
@@ -41,6 +42,12 @@ bool SymbolicType::IsBits() {
          absl::holds_alternative<Bits>(leaf().value());
 }
 
+absl::StatusOr<Bits> SymbolicType::GetBits() {
+  XLS_RET_CHECK(IsBits());
+  XLS_ASSIGN_OR_RETURN(Leaf leaf, leaf());
+  return absl::get<Bits>(leaf);
+}
+
 absl::StatusOr<std::string> SymbolicType::ToString() {
   if (IsLeaf()) {
     if (IsBits()) {
@@ -59,7 +66,7 @@ absl::StatusOr<std::string> SymbolicType::ToString() {
   }
 }
 
-absl::Status SymbolicType::DoInorder(
+absl::Status SymbolicType::DoPostorder(
     const std::function<absl::Status(SymbolicType*)>& f) {
   if (IsLeaf()) {
     XLS_RETURN_IF_ERROR(f(this));
@@ -68,9 +75,9 @@ absl::Status SymbolicType::DoInorder(
 
   XLS_ASSIGN_OR_RETURN(Nodes tree_nodes, nodes());
 
-  XLS_RETURN_IF_ERROR(tree_nodes.left->DoInorder(f));
+  XLS_RETURN_IF_ERROR(tree_nodes.left->DoPostorder(f));
+  XLS_RETURN_IF_ERROR(tree_nodes.right->DoPostorder(f));
   XLS_RETURN_IF_ERROR(f(this));
-  XLS_RETURN_IF_ERROR(tree_nodes.right->DoInorder(f));
 
   return absl::OkStatus();
 }

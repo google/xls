@@ -20,6 +20,7 @@
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/symbolic_type.h"
+#include "xls/dslx/z3_dslx_translator.h"
 
 namespace xls::dslx {
 
@@ -44,7 +45,6 @@ DISPATCH_DEF(NameRef)
 DISPATCH_DEF(SplatStructInstance)
 DISPATCH_DEF(String)
 DISPATCH_DEF(StructInstance)
-DISPATCH_DEF(Ternary)
 DISPATCH_DEF(Unop)
 DISPATCH_DEF(While)
 DISPATCH_DEF(XlsTuple)
@@ -61,6 +61,23 @@ InterpValue AddSymToValue(InterpValue concrete_value, InterpBindings* bindings,
   return sym_value;
 }
 
+absl::StatusOr<InterpValue> EvaluateSymTernary(Ternary* expr,
+                                               InterpBindings* bindings,
+                                               ConcreteType* type_context,
+                                               AbstractInterpreter* interp) {
+  XLS_ASSIGN_OR_RETURN(InterpValue test, interp->Eval(expr->test(), bindings));
+
+  XLS_RET_CHECK(test.IsBits() && test.GetBitCount().value() == 1);
+  if (test.IsTrue()) {
+    XLS_RETURN_IF_ERROR(TryProve(test.sym(), /*negate_predicate=*/true,
+                                 absl::InfiniteDuration()));
+    return interp->Eval(expr->consequent(), bindings);
+  }
+  XLS_RETURN_IF_ERROR(TryProve(test.sym(), /*negate_predicate=*/false,
+                               absl::InfiniteDuration()));
+  return interp->Eval(expr->alternate(), bindings);
+}
+
 absl::StatusOr<InterpValue> EvaluateSymNumber(Number* expr,
                                               InterpBindings* bindings,
                                               ConcreteType* type_context,
@@ -68,7 +85,8 @@ absl::StatusOr<InterpValue> EvaluateSymNumber(Number* expr,
   XLS_ASSIGN_OR_RETURN(InterpValue result,
                        EvaluateNumber(expr, bindings, type_context, interp));
   XLS_ASSIGN_OR_RETURN(Bits result_bits, result.GetBits());
-  return AddSymToValue(result, bindings, result_bits);
+  return AddSymToValue(result, bindings, result_bits,
+                       result.GetBitCount().value(), result.IsSigned());
 }
 
 absl::StatusOr<InterpValue> EvaluateSymFunction(
@@ -96,8 +114,14 @@ absl::StatusOr<InterpValue> EvaluateSymFunction(
 
   fn_bindings.set_fn_ctx(FnCtx{m->name(), f->identifier(), symbolic_bindings});
   for (int64_t i = 0; i < f->params().size(); ++i) {
-    fn_bindings.AddValue(f->params()[i]->identifier(),
-                         AddSymToValue(args[i], &fn_bindings, f->params()[i]));
+    if (args[i].IsBits())
+      fn_bindings.AddValue(
+          f->params()[i]->identifier(),
+          AddSymToValue(args[i], &fn_bindings, f->params()[i],
+                        args[i].GetBitCount().value(), args[i].IsSigned()));
+    else
+      return absl::InternalError("function parameter of type " +
+                                 TagToString(args[i].tag()) + " not supported");
   }
 
   return interp->Eval(f->body(), &fn_bindings);
@@ -126,17 +150,20 @@ absl::StatusOr<InterpValue> EvaluateSymShift(Binop* expr,
     case BinopKind::kShl: {
       XLS_ASSIGN_OR_RETURN(InterpValue result, lhs.Shl(rhs));
       return AddSymToValue(result, bindings,
-                           SymbolicType::Nodes{lhs.sym(), rhs.sym()}, binop);
+                           SymbolicType::Nodes{lhs.sym(), rhs.sym()}, binop,
+                           result.GetBitCount().value(), result.IsSigned());
     }
     case BinopKind::kShr: {
       if (lhs.IsSigned()) {
         XLS_ASSIGN_OR_RETURN(InterpValue result, lhs.Shra(rhs));
         return AddSymToValue(result, bindings,
-                             SymbolicType::Nodes{lhs.sym(), rhs.sym()}, binop);
+                             SymbolicType::Nodes{lhs.sym(), rhs.sym()}, binop,
+                             result.GetBitCount().value(), result.IsSigned());
       }
       XLS_ASSIGN_OR_RETURN(InterpValue result, lhs.Shrl(rhs));
       return AddSymToValue(result, bindings,
-                           SymbolicType::Nodes{lhs.sym(), rhs.sym()}, binop);
+                           SymbolicType::Nodes{lhs.sym(), rhs.sym()}, binop,
+                           result.GetBitCount().value(), result.IsSigned());
     }
     default:
       // Not an exhaustive list: this function only handles the shift operators.
@@ -165,9 +192,9 @@ absl::StatusOr<InterpValue> EvaluateSymBinop(Binop* expr,
                         lhs.sym() == nullptr ? TagToString(lhs.tag())
                                              : TagToString(rhs.tag())));
 
-  return AddSymToValue(result, bindings,
-                       SymbolicType::Nodes{lhs.sym(), rhs.sym()},
-                       expr->binop_kind());
+  return AddSymToValue(
+      result, bindings, SymbolicType::Nodes{lhs.sym(), rhs.sym()},
+      expr->binop_kind(), result.GetBitCount().value(), result.IsSigned());
 }
 
 }  // namespace xls::dslx

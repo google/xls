@@ -46,47 +46,6 @@ std::string Predicate::ToString() const {
                          static_cast<int>(kind_));
 }
 
-namespace {
-
-class ScopedErrorHandler;
-
-// Since the callback from z3 does not pass a void* as context we rely on RAII
-// to establish this thread local value for retrieval from the static error
-// handler.
-thread_local ScopedErrorHandler* g_handler = nullptr;
-
-// Helper class for establishing an error callback / turning it into a status
-// via RAII.
-class ScopedErrorHandler {
- public:
-  explicit ScopedErrorHandler(Z3_context ctx) : ctx_(ctx) {
-    Z3_set_error_handler(ctx_, Handler);
-    prev_handler_ = g_handler;
-    g_handler = this;
-  }
-
-  ~ScopedErrorHandler() {
-    Z3_set_error_handler(ctx_, nullptr);
-    XLS_CHECK_EQ(g_handler, this);
-    g_handler = prev_handler_;
-  }
-
-  absl::Status status() const { return status_; }
-
- private:
-  static void Handler(Z3_context c, Z3_error_code e) {
-    g_handler->status_ = absl::InternalError(
-        absl::StrFormat("Z3 error: %s", Z3_get_error_msg(c, e)));
-    XLS_LOG(ERROR) << g_handler->status_;
-  }
-
-  Z3_context ctx_;
-  ScopedErrorHandler* prev_handler_;
-  absl::Status status_;
-};
-
-}  // namespace
-
 // Helpers for Z3 translation that don't need to be part of IrTranslator's
 // public interface.
 class Z3OpTranslator {
@@ -463,7 +422,10 @@ absl::Status IrTranslator::HandleShift(BinOp* shift, FnT fshift) {
     if (rhs_bit_count < lhs_bit_count) {
       rhs = Z3_mk_zero_ext(ctx, lhs_bit_count - rhs_bit_count, rhs);
     } else if (rhs_bit_count > lhs_bit_count) {
-      lhs = Z3_mk_zero_ext(ctx, rhs_bit_count - lhs_bit_count, lhs);
+      if (fshift == Z3_mk_bvashr)
+        lhs = Z3_mk_sign_ext(ctx, rhs_bit_count - lhs_bit_count, lhs);
+      else
+        lhs = Z3_mk_zero_ext(ctx, rhs_bit_count - lhs_bit_count, lhs);
     }
     return fshift(ctx, lhs, rhs);
   };
@@ -1155,31 +1117,28 @@ void IrTranslator::HandleMul(ArithOp* mul, bool is_signed) {
   // result.
   Z3_ast lhs = GetValue(mul->operand(0));
   Z3_ast rhs = GetValue(mul->operand(1));
-  int lhs_size = Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, lhs));
-  int rhs_size = Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, rhs));
-
   int result_size = mul->BitCountOrDie();
-  int operation_size = std::max(result_size, std::max(lhs_size, rhs_size));
+  Z3_ast result;
   // Do the mul at maximum width, then truncate if necessary to the result
   // width.
   if (is_signed) {
+    int lhs_size = Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, lhs));
+    int rhs_size = Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, rhs));
+
+    int operation_size = std::max(result_size, std::max(lhs_size, rhs_size));
+
     if (lhs_size < operation_size) {
       lhs = Z3_mk_sign_ext(ctx_, operation_size - lhs_size, lhs);
     }
     if (rhs_size < operation_size) {
       rhs = Z3_mk_sign_ext(ctx_, operation_size - rhs_size, rhs);
     }
+    result = Z3_mk_bvmul(ctx_, lhs, rhs);
+    if (operation_size > result_size) {
+      result = Z3_mk_extract(ctx_, result_size - 1, 0, result);
+    }
   } else {
-    // If we're doing unsigned multiplication, add an extra 0 MSb to make sure
-    // Z3 knows that.
-    operation_size += 1;
-    lhs = Z3_mk_zero_ext(ctx_, operation_size - lhs_size, lhs);
-    rhs = Z3_mk_zero_ext(ctx_, operation_size - rhs_size, rhs);
-  }
-
-  Z3_ast result = Z3_mk_bvmul(ctx_, lhs, rhs);
-  if (operation_size > result_size) {
-    result = Z3_mk_extract(ctx_, result_size - 1, 0, result);
+    result = DoUnsignedMul(ctx_, lhs, rhs, result_size);
   }
 
   NoteTranslation(mul, result);

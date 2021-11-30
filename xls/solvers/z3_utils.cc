@@ -31,6 +31,30 @@
 namespace xls {
 namespace solvers {
 namespace z3 {
+
+// Since the callback from z3 does not pass a void* as context we rely on RAII
+// to establish this thread local value for retrieval from the static error
+// handler.
+thread_local ScopedErrorHandler* g_handler = nullptr;
+
+ScopedErrorHandler::ScopedErrorHandler(Z3_context ctx) : ctx_(ctx) {
+  Z3_set_error_handler(ctx_, Handler);
+  prev_handler_ = g_handler;
+  g_handler = this;
+}
+
+ScopedErrorHandler::~ScopedErrorHandler() {
+  Z3_set_error_handler(ctx_, nullptr);
+  XLS_CHECK_EQ(g_handler, this);
+  g_handler = prev_handler_;
+}
+
+/*static*/ void ScopedErrorHandler::Handler(Z3_context c, Z3_error_code e) {
+  g_handler->status_ = absl::InternalError(
+      absl::StrFormat("Z3 error: %s", Z3_get_error_msg(c, e)));
+  XLS_LOG(ERROR) << g_handler->status_;
+}
+
 namespace {
 
 // Helper for TypeToSort below.
@@ -177,6 +201,21 @@ Z3_sort TypeToSort(Z3_context ctx, const Type& type) {
       XLS_LOG(FATAL) << "Unsupported type kind: "
                      << TypeKindToString(type.kind());
   }
+}
+
+Z3_ast DoUnsignedMul(Z3_context ctx, Z3_ast lhs, Z3_ast rhs, int result_size) {
+  int lhs_size = Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, lhs));
+  int rhs_size = Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, rhs));
+
+  int operation_size = std::max(result_size, std::max(lhs_size, rhs_size));
+  // Add an extra 0 MSb to make sure Z3 knows that we are doing unsigned
+  // multiplication.
+  operation_size += 1;
+  lhs = Z3_mk_zero_ext(ctx, operation_size - lhs_size, lhs);
+  rhs = Z3_mk_zero_ext(ctx, operation_size - rhs_size, rhs);
+
+  Z3_ast result = Z3_mk_bvmul(ctx, lhs, rhs);
+  return Z3_mk_extract(ctx, result_size - 1, 0, result);
 }
 
 }  // namespace z3
