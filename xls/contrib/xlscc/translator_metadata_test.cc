@@ -86,6 +86,9 @@ class TranslatorMetadataTest : public XlsccTestBase {
     }
     ASSERT_GE(meta->all_func_protos_size(), 1);
     meta->clear_all_func_protos();
+    for (int i = 0; i < meta->sources_size(); ++i) {
+      meta->mutable_sources(i)->clear_path();
+    }
   }
 };
 
@@ -109,6 +112,9 @@ TEST_F(TranslatorMetadataTest, MetadataNamespaceStructArray) {
                            translator_->GenerateMetadata());
 
   const std::string ref_meta_str = R"(
+    sources {
+      number: 1
+    }
     structs {
       as_struct {
         name {
@@ -137,6 +143,7 @@ TEST_F(TranslatorMetadataTest, MetadataNamespaceStructArray) {
         name: "i_am_top"
         fully_qualified_name: "foo::i_am_top"
         id: 22078263808792
+        xls_name: "i_am_top"
       }
       return_type {
         as_inst {
@@ -222,9 +229,10 @@ TEST_F(TranslatorMetadataTest, MetadataNamespaceStructArray) {
       ->mutable_name()
       ->set_id(0);
   standardizeMetadata(&meta);
-  ASSERT_TRUE(google::protobuf::util::MessageDifferencer::Equals(meta, ref_meta)) <<
-    absl::StrFormat("meta: %s\nref: %s",
-    meta.DebugString(), ref_meta.DebugString());
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
 TEST_F(TranslatorMetadataTest, MetadataNamespaceNestedStruct) {
@@ -252,6 +260,9 @@ TEST_F(TranslatorMetadataTest, MetadataNamespaceNestedStruct) {
                            translator_->GenerateMetadata());
 
   const std::string ref_meta_str = R"(
+    sources {
+      number: 1
+    }
     structs {
       as_struct {
         name {
@@ -315,6 +326,7 @@ TEST_F(TranslatorMetadataTest, MetadataNamespaceNestedStruct) {
         name: "i_am_top"
         fully_qualified_name: "foo::i_am_top"
         id: 22078263808792
+        xls_name: "i_am_top"
       }
       return_type {
         as_int {
@@ -439,10 +451,10 @@ TEST_F(TranslatorMetadataTest, MetadataNamespaceNestedStruct) {
       ->set_id(0);
 
   standardizeMetadata(&meta);
-
-  ASSERT_TRUE(google::protobuf::util::MessageDifferencer::Equals(meta, ref_meta)) <<
-    absl::StrFormat("meta: %s\nref: %s",
-    meta.DebugString(), ref_meta.DebugString());
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
 TEST_F(TranslatorMetadataTest, MetadataRefConstParams) {
@@ -458,11 +470,15 @@ TEST_F(TranslatorMetadataTest, MetadataRefConstParams) {
                            translator_->GenerateMetadata());
 
   const std::string ref_meta_str = R"(
+    sources {
+      number: 1
+    }
     top_func_proto {
       name {
         name: "i_am_top"
         fully_qualified_name: "i_am_top"
         id: 22078263808792
+        xls_name: "i_am_top"
       }
       return_type {
         as_void {
@@ -525,29 +541,37 @@ TEST_F(TranslatorMetadataTest, MetadataRefConstParams) {
   xlscc_metadata::MetadataOutput ref_meta;
   google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta);
   standardizeMetadata(&meta);
-  ASSERT_TRUE(google::protobuf::util::MessageDifferencer::Equals(meta, ref_meta)) <<
-    absl::StrFormat("meta: %s\nref: %s",
-    meta.DebugString(), ref_meta.DebugString());
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
 TEST_F(TranslatorMetadataTest, StaticInt) {
   const std::string content = R"(
+    namespace foo {
     #pragma hls_top
     int my_package() {
-    static int x = 22;
-    int inner = 0;
-    x += inner;
-    return x;
-    })";
+      static int x = 22;
+      int inner = 0;
+      x += inner;
+      return x;
+    }
+    } // namespacee foo
+    )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir, SourceToIr(content, nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,
                            translator_->GenerateMetadata());
   const std::string ref_meta_str = R"(
+    sources {
+      number: 1
+    }
     top_func_proto {
       name {
         name: "my_package"
-        fully_qualified_name: "my_package"
+        fully_qualified_name: "foo::my_package"
         id: 22078263808792
+        xls_name: "my_package"
       }
       return_type {
         as_int {
@@ -557,21 +581,21 @@ TEST_F(TranslatorMetadataTest, StaticInt) {
       }
       whole_declaration_location {
         begin {
-          line: 3
+          line: 4
           column: 5
         }
         end {
-          line: 8
+          line: 9
           column: 5
         }
       }
       return_location {
         begin {
-          line: 3
+          line: 4
           column: 5
         }
         end {
-          line: 3
+          line: 4
           column: 5
         }
       }
@@ -584,7 +608,7 @@ TEST_F(TranslatorMetadataTest, StaticInt) {
       static_values {
         name {
           name: "x"
-          fully_qualified_name: "_ZZ10my_packagevE1x"
+          fully_qualified_name: "x"
           id: 22078263808792
         }
         type {
@@ -603,9 +627,10 @@ TEST_F(TranslatorMetadataTest, StaticInt) {
   xlscc_metadata::MetadataOutput ref_meta;
   google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta);
   standardizeMetadata(&meta);
-  ASSERT_TRUE(google::protobuf::util::MessageDifferencer::Equals(meta, ref_meta)) <<
-    absl::StrFormat("meta: %s\nref: %s",
-    meta.DebugString(), ref_meta.DebugString());
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
 TEST_F(TranslatorMetadataTest, StaticBool) {
@@ -623,11 +648,15 @@ TEST_F(TranslatorMetadataTest, StaticBool) {
   XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,
                            translator_->GenerateMetadata());
   const std::string ref_meta_str = R"(
+    sources {
+      number: 1
+    }
     top_func_proto {
       name {
         name: "my_package"
         fully_qualified_name: "my_package"
         id: 22078263808792
+        xls_name: "my_package"
       }
       return_type {
         as_int {
@@ -664,7 +693,7 @@ TEST_F(TranslatorMetadataTest, StaticBool) {
       static_values {
         name {
           name: "x"
-          fully_qualified_name: "_ZZ10my_packagevE1x"
+          fully_qualified_name: "x"
           id: 22078263808792
         }
         type {
@@ -679,9 +708,10 @@ TEST_F(TranslatorMetadataTest, StaticBool) {
   xlscc_metadata::MetadataOutput ref_meta;
   google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta);
   standardizeMetadata(&meta);
-  ASSERT_TRUE(google::protobuf::util::MessageDifferencer::Equals(meta, ref_meta)) <<
-    absl::StrFormat("meta: %s\nref: %s",
-    meta.DebugString(), ref_meta.DebugString());
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
 TEST_F(TranslatorMetadataTest, StaticArray) {
@@ -697,11 +727,15 @@ TEST_F(TranslatorMetadataTest, StaticArray) {
   XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,
                            translator_->GenerateMetadata());
   const std::string ref_meta_str = R"(
+    sources {
+      number: 1
+    }
     top_func_proto {
       name {
         name: "my_package"
         fully_qualified_name: "my_package"
         id: 22078263808792
+        xls_name: "my_package"
       }
       return_type {
         as_int {
@@ -738,7 +772,7 @@ TEST_F(TranslatorMetadataTest, StaticArray) {
       static_values {
         name {
           name: "x"
-          fully_qualified_name: "_ZZ10my_packagevE1x"
+          fully_qualified_name: "x"
           id: 22078263808792
         }
         type {
@@ -771,9 +805,10 @@ TEST_F(TranslatorMetadataTest, StaticArray) {
   xlscc_metadata::MetadataOutput ref_meta;
   google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta);
   standardizeMetadata(&meta);
-  ASSERT_TRUE(google::protobuf::util::MessageDifferencer::Equals(meta, ref_meta)) <<
-    absl::StrFormat("meta: %s\nref: %s",
-    meta.DebugString(), ref_meta.DebugString());
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
 TEST_F(TranslatorMetadataTest, Static2DArray) {
@@ -789,11 +824,15 @@ TEST_F(TranslatorMetadataTest, Static2DArray) {
   XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,
                            translator_->GenerateMetadata());
   const std::string ref_meta_str = R"(
+    sources {
+      number: 1
+    }
     top_func_proto {
       name {
         name: "my_package"
         fully_qualified_name: "my_package"
         id: 22078263808792
+        xls_name: "my_package"
       }
       return_type {
         as_int {
@@ -830,7 +869,7 @@ TEST_F(TranslatorMetadataTest, Static2DArray) {
       static_values {
         name {
           name: "x"
-          fully_qualified_name: "_ZZ10my_packagevE1x"
+          fully_qualified_name: "x"
           id: 22078263808792
         }
         type {
@@ -886,9 +925,10 @@ TEST_F(TranslatorMetadataTest, Static2DArray) {
   xlscc_metadata::MetadataOutput ref_meta;
   google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta);
   standardizeMetadata(&meta);
-  ASSERT_TRUE(google::protobuf::util::MessageDifferencer::Equals(meta, ref_meta)) <<
-    absl::StrFormat("meta: %s\nref: %s",
-    meta.DebugString(), ref_meta.DebugString());
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
 }  // namespace

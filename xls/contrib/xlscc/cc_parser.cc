@@ -27,6 +27,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/thread.h"
+#include "xls/contrib/xlscc/metadata_output.pb.h"
 
 namespace xlscc {
 
@@ -124,6 +125,14 @@ absl::Status CCParser::ScanFile(
   libtool_thread_->Start();
   libtool_wait_for_parse_->Wait();
   return libtool_visit_status_;
+}
+
+void CCParser::AddSourceInfoToMetadata(xlscc_metadata::MetadataOutput& output) {
+  for (const auto& [path, number] : file_numbers_) {
+    xlscc_metadata::SourceName* source = output.add_sources();
+    source->set_path(path);
+    source->set_number(number);
+  }
 }
 
 clang::PresumedLoc CCParser::GetPresumedLoc(clang::SourceManager& sm,

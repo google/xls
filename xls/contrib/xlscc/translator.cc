@@ -4017,6 +4017,9 @@ absl::Status Translator::GenerateFunctionMetadata(
     const clang::FunctionDecl* func,
     xlscc_metadata::FunctionPrototype* output) {
   output->mutable_name()->set_name(func->getNameAsString());
+  XLS_CHECK(xls_names_for_functions_generated_.contains(func));
+  output->mutable_name()->set_xls_name(
+      xls_names_for_functions_generated_.at(func));
   output->mutable_name()->set_fully_qualified_name(
       func->getQualifiedNameAsString());
   output->mutable_name()->set_id(
@@ -4083,6 +4086,8 @@ absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
 
   xlscc_metadata::MetadataOutput ret;
 
+  parser_->AddSourceInfoToMetadata(ret);
+
   // Top function proto
   XLS_RETURN_IF_ERROR(
       GenerateFunctionMetadata(top_function, ret.mutable_top_func_proto()));
@@ -4135,8 +4140,7 @@ void Translator::FillLocationRangeProto(
 absl::Status Translator::GenerateMetadataCPPName(
     const clang::NamedDecl* decl_in,
     xlscc_metadata::CPPName* name_out) {
-  name_out->set_fully_qualified_name(
-      XLSNameMangle(clang::GlobalDecl(decl_in)));
+  name_out->set_fully_qualified_name(decl_in->getQualifiedNameAsString());
   name_out->set_name(decl_in->getNameAsString());
   name_out->set_id(reinterpret_cast<uint64_t>(decl_in));
   return absl::OkStatus();

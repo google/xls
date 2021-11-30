@@ -27,6 +27,7 @@
 #include "clang/include/clang/Tooling/CommonOptionsParser.h"
 #include "clang/include/clang/Tooling/Tooling.h"
 #include "xls/common/thread.h"
+#include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/ir/source_location.h"
 
 namespace xlscc {
@@ -93,6 +94,8 @@ class CCParser {
   // Returns a pointer into the AST for the top, or entry, function
   // Returns nullptr if no top function has been found
   absl::StatusOr<const clang::FunctionDecl*> GetTopFunction() const;
+
+  void AddSourceInfoToMetadata(xlscc_metadata::MetadataOutput& output);
 
   absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc);
 

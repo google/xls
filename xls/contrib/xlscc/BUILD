@@ -144,6 +144,7 @@ cc_library(
     srcs = ["cc_parser.cc"],
     hdrs = ["cc_parser.h"],
     deps = [
+        ":metadata_output_cc_proto",
         "//xls/common:thread",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
@@ -164,6 +165,7 @@ cc_test(
     srcs = ["cc_parser_test.cc"],
     deps = [
         ":cc_parser",
+        ":metadata_output_cc_proto",
         ":unit_test",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",

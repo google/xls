@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
+#include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/unit_test.h"
 #include "xls/ir/ir_test_base.h"
 
@@ -56,6 +57,30 @@ TEST_F(CCParserTest, TopNotFound) {
   XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
   EXPECT_THAT(parser.GetTopFunction().status(),
               xls::status_testing::StatusIs(absl::StatusCode::kNotFound));
+}
+
+TEST_F(CCParserTest, SourceMeta) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    #pragma hls_top
+    int foo(int a, int b) {
+      const int foo = a + b;
+      return foo;
+    }
+  )";
+
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+
+  xls::SourceLocation loc = parser.GetLoc(*top_ptr);
+
+  xlscc_metadata::MetadataOutput output;
+  parser.AddSourceInfoToMetadata(output);
+  ASSERT_EQ(output.sources_size(), 1);
+  EXPECT_EQ(static_cast<int32_t>(loc.fileno()),
+            static_cast<int32_t>(output.sources(0).number()));
 }
 
 }  // namespace

@@ -16,6 +16,11 @@ syntax = "proto2";
 
 package xlscc_metadata;
 
+message SourceName {
+  optional int32 number = 1;
+  optional string path = 2;
+}
+
 // Top level message outputted from XLS[cc]
 message MetadataOutput {
   // All struct types encountered in compilation
@@ -25,6 +30,8 @@ message MetadataOutput {
   optional FunctionPrototype top_func_proto = 2;
 
   repeated FunctionPrototype all_func_protos = 3;
+
+  repeated SourceName sources = 4;
 }
 
 // Represents a parameter to a function
@@ -55,7 +62,6 @@ message FunctionValue {
 
 // Represents the prototype / interface of a function
 message FunctionPrototype {
-  // TODO: XLS mangled name
   optional CPPName name = 1;
   optional Type return_type = 2;
   repeated FunctionParameter params = 3;
@@ -74,6 +80,9 @@ message CPPName {
   optional string fully_qualified_name = 2;
   // Unique ID
   optional uint64 id = 3;
+  // Name as it is in the XLS IR.
+  // Typically only applies to functions.
+  optional string xls_name = 4;
 }
 
 // Placeholder for void
