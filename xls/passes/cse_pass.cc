@@ -16,6 +16,7 @@
 
 #include "absl/hash/hash.h"
 #include "absl/status/statusor.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/op.h"
@@ -89,6 +90,9 @@ absl::StatusOr<bool> CsePass::RunOnFunctionBaseInternal(
       if (node_operands_for_cse ==
               GetOperandsForCse(candidate, &candidate_span_backing_store) &&
           node->IsDefinitelyEqualTo(candidate)) {
+        XLS_VLOG(3) << absl::StreamFormat(
+            "Replacing %s with equivalent node %s", node->GetName(),
+            candidate->GetName());
         XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(candidate));
         changed = true;
         replaced = true;

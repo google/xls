@@ -431,5 +431,88 @@ TEST_F(BitSliceSimplificationPassTest, SlicedSelectWithDefault) {
                         m::BitSlice(m::Param("default"), 10, 7)));
 }
 
+TEST_F(BitSliceSimplificationPassTest, BitSliceUpdateStart0) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* u3 = p->GetBitsType(3);
+  BValue x = fb.Param("x", u32);
+  BValue y = fb.Param("y", u3);
+  fb.BitSliceUpdate(x, fb.Literal(UBits(0, 32)), y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::BitSlice(m::Param("x"), 3, 29), m::Param("y")));
+}
+
+TEST_F(BitSliceSimplificationPassTest, BitSliceUpdateAllInBounds) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* u3 = p->GetBitsType(3);
+  BValue x = fb.Param("x", u32);
+  BValue y = fb.Param("y", u3);
+  fb.BitSliceUpdate(x, fb.Literal(UBits(3, 32)), y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::BitSlice(m::Param("x"), 6, 26), m::Param("y"),
+                        m::BitSlice(m::Param("x"), 0, 3)));
+}
+
+TEST_F(BitSliceSimplificationPassTest, BitSliceUpdateEndsAtMsb) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* u3 = p->GetBitsType(3);
+  BValue x = fb.Param("x", u32);
+  BValue y = fb.Param("y", u3);
+  fb.BitSliceUpdate(x, fb.Literal(UBits(29, 32)), y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Param("y"), m::BitSlice(m::Param("x"), 0, 29)));
+}
+
+TEST_F(BitSliceSimplificationPassTest, BitSliceUpdatePartialInBounds) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* u3 = p->GetBitsType(3);
+  BValue x = fb.Param("x", u32);
+  BValue y = fb.Param("y", u3);
+  fb.BitSliceUpdate(x, fb.Literal(UBits(30, 32)), y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Concat(m::BitSlice(m::Param("y"), 0, 2),
+                                           m::BitSlice(m::Param("x"), 0, 30)));
+}
+
+TEST_F(BitSliceSimplificationPassTest, BitSliceUpdateWideUpdate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* u300 = p->GetBitsType(300);
+  BValue x = fb.Param("x", u32);
+  BValue y = fb.Param("y", u300);
+  fb.BitSliceUpdate(x, fb.Literal(UBits(0, 32)), y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::BitSlice(m::Param("y"), 0, 32));
+}
+
+TEST_F(BitSliceSimplificationPassTest, BitSliceUpdateOutOfBounds) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* u3 = p->GetBitsType(3);
+  BValue x = fb.Param("x", u32);
+  BValue y = fb.Param("y", u3);
+  fb.BitSliceUpdate(x, fb.Literal(UBits(32, 32)), y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("x"));
+}
+
 }  // namespace
 }  // namespace xls

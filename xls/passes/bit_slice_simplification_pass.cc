@@ -54,13 +54,15 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
   //    BitSlice(BitSlice(val, ...), ...) -> BitSlice(val, ...)
   if (operand->Is<BitSlice>()) {
     BitSlice* operand_bit_slice = operand->As<BitSlice>();
-    XLS_RETURN_IF_ERROR(
-        bit_slice
-            ->ReplaceUsesWithNew<BitSlice>(
-                operand->operand(0),
-                /*start=*/bit_slice->start() + operand_bit_slice->start(),
-                /*width=*/bit_slice->width())
-            .status());
+    XLS_ASSIGN_OR_RETURN(BitSlice * new_bitslice,
+                         make_bit_slice(bit_slice->loc(), operand->operand(0),
+                                        /*start=*/bit_slice->start() +
+                                            operand_bit_slice->start(),
+                                        /*width=*/bit_slice->width()));
+    XLS_VLOG(3) << absl::StreamFormat(
+        "Replacing bitslice(bitslice(x)) => bitslice(x): %s",
+        bit_slice->GetName());
+    XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(new_bitslice));
     return true;
   }
 
@@ -119,6 +121,9 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
       operand_start += concat_operand_width;
     }
     std::reverse(new_operands.begin(), new_operands.end());
+    XLS_VLOG(3) << absl::StreamFormat(
+        "Replacing bitslice(concat(...)) => concat(bitslice(), ...): %s",
+        bit_slice->GetName());
     XLS_RETURN_IF_ERROR(
         bit_slice->ReplaceUsesWithNew<Concat>(new_operands).status());
     return true;
@@ -156,6 +161,9 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
         sliced_operands.push_back(new_operand);
       }
       XLS_ASSIGN_OR_RETURN(Node * pre_sliced, operand->Clone(sliced_operands));
+      XLS_VLOG(3) << absl::StreamFormat(
+          "Replacing bitslice(op(...)) => op(bitslice(), bitslice(), ...): %s",
+          bit_slice->GetName());
       XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(pre_sliced));
       return true;
     }
@@ -209,6 +217,9 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
           Node * replacement,
           make_bit_slice(bit_slice->loc(), x, bit_slice->start(),
                          bit_slice->width()));
+      XLS_VLOG(3) << absl::StreamFormat(
+          "Replacing bitslice(ext(x)) => bitslice(x): %s",
+          bit_slice->GetName());
       XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(replacement));
       return true;
     } else if (ext->users().size() == 1) {
@@ -218,6 +229,9 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
             Node * x_slice,
             make_bit_slice(bit_slice->loc(), x, /*start=*/bit_slice->start(),
                            /*width=*/x_bit_count - bit_slice->start()));
+        XLS_VLOG(3) << absl::StreamFormat(
+            "Replacing bitslice(ext(x)) => ext(bitslice(x)): %s",
+            bit_slice->GetName());
         XLS_RETURN_IF_ERROR(
             bit_slice
                 ->ReplaceUsesWithNew<ExtendOp>(
@@ -230,6 +244,9 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
             Node * x_sign_bit,
             make_bit_slice(bit_slice->loc(), x,
                            /*start=*/x_bit_count - 1, /*width=*/1));
+        XLS_VLOG(3) << absl::StreamFormat(
+            "Replacing bitslice(signext(x)) => ext(signbit(x)): %s",
+            bit_slice->GetName());
         XLS_RETURN_IF_ERROR(
             bit_slice
                 ->ReplaceUsesWithNew<ExtendOp>(
@@ -255,6 +272,9 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
         Node * sliced_to_shift,
         make_bit_slice(operand->loc(), to_shift, bit_slice->start(),
                        bit_slice->width()));
+    XLS_VLOG(3) << absl::StreamFormat(
+        "Replacing bitslice(shift(x, y)) => shift(bitslice(x), y): %s",
+        bit_slice->GetName());
     XLS_RETURN_IF_ERROR(bit_slice
                             ->ReplaceUsesWithNew<BinOp>(
                                 sliced_to_shift, shift_amount, shift->op())
@@ -282,6 +302,9 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
       new_operands.push_back(sliced_operand);
     }
     XLS_ASSIGN_OR_RETURN(Node * new_select, select->Clone(new_operands));
+    XLS_VLOG(3) << absl::StreamFormat(
+        "Replacing bitslice(sel(s, [...])) => sel(s, [bitslice(), ...]): %s",
+        bit_slice->GetName());
     XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(new_select));
     return true;
   }
@@ -293,20 +316,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
 
 absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
-  std::deque<BitSlice*> worklist;
-  for (Node* node : f->nodes()) {
-    if (node->Is<BitSlice>()) {
-      worklist.push_back(node->As<BitSlice>());
-    }
-  }
   bool changed = false;
-  while (!worklist.empty()) {
-    BitSlice* bit_slice = worklist.front();
-    worklist.pop_front();
-    XLS_ASSIGN_OR_RETURN(bool node_changed,
-                         SimplifyBitSlice(bit_slice, opt_level_, &worklist));
-    changed = changed || node_changed;
-  }
 
   // Replace dynamic bit slices with literal indices with a non-dynamic bit
   // slice.
@@ -319,6 +329,9 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
       if (bits_ops::ULessThanOrEqual(start_bits,
                                      operand_width - result_width)) {
         XLS_ASSIGN_OR_RETURN(uint64_t start, start_bits.ToUint64());
+        XLS_VLOG(3) << absl::StreamFormat(
+            "Replacing dynamic bitslice %s with static bitslice",
+            node->GetName());
         XLS_RETURN_IF_ERROR(
             node->ReplaceUsesWithNew<BitSlice>(node->operand(0),
                                                /*start=*/start,
@@ -327,6 +340,109 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
         changed = true;
       }
     }
+  }
+
+  // Replace bit_slice_update operations where the start index is constant with
+  // bit slices and concats.
+  for (Node* node : f->nodes()) {
+    if (node->Is<BitSliceUpdate>() &&
+        node->As<BitSliceUpdate>()->start()->Is<Literal>()) {
+      BitSliceUpdate* update = node->As<BitSliceUpdate>();
+      const Bits start = update->start()->As<Literal>()->value().bits();
+      if (bits_ops::UGreaterThanOrEqual(start, update->BitCountOrDie())) {
+        // Bit slice update is entirely out of bounds. This is a noop. Replace
+        // the update operation with the operand which is being updated.
+        XLS_RETURN_IF_ERROR(update->ReplaceUsesWith(update->to_update()));
+        changed = true;
+        continue;
+      }
+      int64_t start_int64 = start.ToUint64().value();
+      int64_t orig_width = update->BitCountOrDie();
+      int64_t update_width = update->update_value()->BitCountOrDie();
+
+      // Replace bitslice update with expression of slices of the update value
+      // and the original vector.
+      std::vector<Node*> concat_operands;
+      if (start_int64 + update_width < orig_width) {
+        // Bit slice update is entirely in bounds and the most-significant
+        // bit(s) of the original vector are not updated.
+        //
+        //            0                              N
+        //  original: |==============================|
+        //  update  :      |=============|
+        //
+        //
+        //  concat(bitslice(original, start=0), update, bitslice(original, ...)
+        XLS_ASSIGN_OR_RETURN(
+            Node * slice,
+            f->MakeNode<BitSlice>(
+                node->loc(), update->to_update(),
+                /*start=*/start_int64 + update_width,
+                /*width=*/orig_width - (start_int64 + update_width)));
+        concat_operands.push_back(slice);
+        concat_operands.push_back(update->update_value());
+      } else if (start_int64 + update_width == orig_width) {
+        // Bit slice update extends right up to end of updated vector.
+        //
+        //            0                              N
+        //  original: |==============================|
+        //  update  :                  |=============|
+        //
+        //
+        //  concat(bitslice(original, start=0), update)
+        concat_operands.push_back(update->update_value());
+      } else {
+        // The update value is partially out of bounds.
+        //
+        //            0                              N
+        //  original: |==============================|
+        //  update  :                       |=============|
+        //
+        //
+        //  concat(bitslice(original, start=0), bitslice(update))
+        XLS_RET_CHECK_GT(start_int64 + update_width, orig_width);
+        int64_t excess = start_int64 + update_width - orig_width;
+        XLS_ASSIGN_OR_RETURN(
+            Node * slice,
+            f->MakeNode<BitSlice>(node->loc(), update->update_value(),
+                                  /*start=*/0,
+                                  /*width=*/update_width - excess));
+        concat_operands.push_back(slice);
+      }
+      if (start_int64 > 0) {
+        XLS_ASSIGN_OR_RETURN(Node * slice, f->MakeNode<BitSlice>(
+                                               node->loc(), update->to_update(),
+                                               /*start=*/0,
+                                               /*width=*/start_int64));
+        concat_operands.push_back(slice);
+      }
+      XLS_VLOG(3) << absl::StreamFormat(
+          "Replacing bitslice update %s with constant start index with concat "
+          "and bitslice operations",
+          node->GetName());
+      if (concat_operands.size() == 1) {
+        XLS_RETURN_IF_ERROR(update->ReplaceUsesWith(concat_operands.front()));
+      } else {
+        XLS_RETURN_IF_ERROR(
+            update->ReplaceUsesWithNew<Concat>(concat_operands).status());
+      }
+
+      changed = true;
+    }
+  }
+
+  std::deque<BitSlice*> worklist;
+  for (Node* node : f->nodes()) {
+    if (node->Is<BitSlice>()) {
+      worklist.push_back(node->As<BitSlice>());
+    }
+  }
+  while (!worklist.empty()) {
+    BitSlice* bit_slice = worklist.front();
+    worklist.pop_front();
+    XLS_ASSIGN_OR_RETURN(bool node_changed,
+                         SimplifyBitSlice(bit_slice, opt_level_, &worklist));
+    changed = changed || node_changed;
   }
 
   return changed;
