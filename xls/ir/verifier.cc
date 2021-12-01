@@ -1354,8 +1354,9 @@ absl::StatusOr<Channel*> GetSendOrReceiveChannel(Node* node) {
       "Node is not a send or receive node: %s", node->ToString()));
 }
 
-// Verify that all tokens in the given FunctionBase are connected. All tokens
-// should flow from the source token to the sink token.
+// Verify that all side-effecting operation which produce tokens in the given
+// FunctionBase are connected. Tokens for these operations should flow from the
+// source token to the sink token.
 absl::Status VerifyTokenConnectivity(Node* source_token, Node* sink_token,
                                      FunctionBase* f) {
   absl::flat_hash_set<Node*> visited;
@@ -1398,18 +1399,19 @@ absl::Status VerifyTokenConnectivity(Node* source_token, Node* sink_token,
   }
 
   for (Node* node : f->nodes()) {
-    if (TypeHasToken(node->GetType())) {
+    if (TypeHasToken(node->GetType()) && OpIsSideEffecting(node->op())) {
       if (!connected_to_source.contains(node)) {
         return absl::InternalError(absl::StrFormat(
-            "Token-typed nodes must be connected to the source token "
-            "via a path of tokens: %s.",
+            "Side-effecting token-typed nodes must be connected to the source "
+            "token via a path of tokens: %s.",
             node->GetName()));
       }
       if (!connected_to_sink.contains(node)) {
-        return absl::InternalError(absl::StrFormat(
-            "Token-typed nodes must be connected to the sink token value "
-            "via a path of tokens: %s.",
-            node->GetName()));
+        return absl::InternalError(
+            absl::StrFormat("Side-effecting token-typed nodes must be "
+                            "connected to the sink token value "
+                            "via a path of tokens: %s.",
+                            node->GetName()));
       }
     }
   }
@@ -1629,8 +1631,8 @@ absl::Status VerifyProc(Proc* proc) {
   // Next state must be state type.
   XLS_RET_CHECK_EQ(proc->NextState()->GetType(), proc->StateType());
 
-  // Verify that all send/receive nodes are connected to the token parameter and
-  // the return value via paths of tokens.
+  // Verify that all side-effecting operations which produce tokens are
+  // connected to the token parameter and the return value via paths of tokens.
   XLS_RETURN_IF_ERROR(
       VerifyTokenConnectivity(proc->TokenParam(), proc->NextToken(), proc));
 

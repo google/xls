@@ -254,10 +254,12 @@ proc my_proc(t: token, s: bits[32], init=45) {
 
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  EXPECT_THAT(VerifyPackage(p.get()),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Token-typed nodes must be connected to the "
-                                 "sink token value via a path of tokens")));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr("Side-effecting token-typed nodes must be connected to the "
+                    "sink token value via a path of tokens")));
 }
 
 TEST_F(VerifierTest, DisconnectedReceiveNode) {
@@ -273,10 +275,12 @@ proc my_proc(t: token, s: bits[42], init=45) {
 
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  EXPECT_THAT(VerifyPackage(p.get()),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Token-typed nodes must be connected to the "
-                                 "sink token value via a path of tokens")));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr("Side-effecting token-typed nodes must be connected to the "
+                    "sink token value via a path of tokens")));
 }
 
 TEST_F(VerifierTest, DisconnectedReturnValueInProc) {
@@ -290,10 +294,25 @@ proc my_proc(t: token, s: bits[42], init=45) {
 
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  EXPECT_THAT(VerifyPackage(p.get()),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Token-typed nodes must be connected to the "
-                                 "sink token value via a path of tokens")));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Side-effecting token-typed nodes must be connected "
+                         "to the sink token value via a path of tokens")));
+}
+
+TEST_F(VerifierTest, DisconnectedNonSideEffectingTokenOperation) {
+  std::string input = R"(
+package test_package
+
+proc my_proc(t: token, s: bits[42], init=45) {
+  token_tuple: (token) = tuple(t)
+  next (t, s)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  XLS_EXPECT_OK(VerifyPackage(p.get()));
 }
 
 TEST_F(VerifierTest, SendOnReceiveOnlyChannel) {
