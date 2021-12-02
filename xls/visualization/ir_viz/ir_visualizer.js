@@ -23,18 +23,17 @@ var selectableGraph = goog.require('xls.selectableGraph');
 /**
  * Returns the offset of the selection (cursor) within a text element.
  * TODO(meheff): Move this into a separate file and share with hls/xls/ui tool.
- * @param {!Object} node
+ * @param {!Element} node
  * @return {?number}
  */
 function getOffsetWithin(node) {
   let sumPrevSiblings = (node) => {
-    let prevSiblings = $(node.parentNode).contents();
     let total = 0;
-    for (let sib of /** @type {!Array<!Object>} */ (prevSiblings.toArray())) {
+    for (let sib of node.parentNode.childNodes) {
       if (sib === node) {
         break;
       }
-      total += $(sib).text().length;
+      total += sib.textContent.length;
     }
     return total;
   };
@@ -49,7 +48,7 @@ function getOffsetWithin(node) {
     let prevSiblings = sumPrevSiblings(currentNode);
     offset += prevSiblings;
     currentNode = currentNode.parentNode;
-    if (!currentNode) {
+    if (!currentNode || currentNode === document) {
       return null;
     }
   }
@@ -59,7 +58,7 @@ function getOffsetWithin(node) {
 /**
  * Sets the offset of the selection (cursor) within a text element.
  * TODO(meheff): Move this into a separate file and share with hls/xls/ui tool.
- * @param {!Object} node The text element.
+ * @param {!Element} node The text element.
  * @param {number} offset The offset within the text element.
  */
 function setPositionAtOffset(node, offset) {
@@ -77,11 +76,11 @@ function setPositionAtOffset(node, offset) {
 
   let textNodes = allTextNodesUnder(node);
   for (let textNode of textNodes) {
-    if (offset < textNode.length) {
+    if (offset < textNode.textContent.length) {
       window.getSelection().setPosition(textNode, offset);
       return;
     } else {
-      offset -= textNode.length;
+      offset -= textNode.textContent.length;
     }
   }
 }
@@ -92,9 +91,9 @@ function setPositionAtOffset(node, offset) {
  */
 class IrVisualizer {
   /**
-   * @param {!Object} graphElement DOM element to hold the graph.
-   * @param {!Object} irElement Input DOM element holding IR text.
-   * @param {?Object=} nodeMetadataElement DOM element to write node metadata
+   * @param {!Element} graphElement DOM element to hold the graph.
+   * @param {!Element} irElement Input DOM element holding IR text.
+   * @param {?Element=} nodeMetadataElement DOM element to write node metadata
    *     text into.
    */
   constructor(graphElement, irElement, nodeMetadataElement = undefined) {
@@ -185,7 +184,8 @@ class IrVisualizer {
    * @param {string} nodeId
    */
   highlightNode(nodeId) {
-    $('.ir-identifier-' + nodeId).addClass('ir-identifier-highlighted');
+    document.querySelector('.ir-identifier-' + nodeId)
+        .classList.add('ir-identifier-highlighted');
     if (this.irGraph_ && this.nodeMetadataElement_) {
       let text = '<b>node:</b> ' + this.irGraph_.node(nodeId).ir;
       let delay = this.irGraph_.node(nodeId).attributes['delay_ps'];
@@ -200,7 +200,7 @@ class IrVisualizer {
       if (cycle != undefined) {
         text += '\n<b>cycle:</b> ' + cycle;
       }
-      this.nodeMetadataElement_.html(text);
+      setInnerHtml(this.nodeMetadataElement_, text);
     }
     if (this.graphView_) {
       this.graphView_.highlightNode(nodeId);
@@ -212,9 +212,10 @@ class IrVisualizer {
    * @param {string} nodeId
    */
   unhighlightNode(nodeId) {
-    $('.ir-identifier-' + nodeId).removeClass('ir-identifier-highlighted');
+    document.querySelector('.ir-identifier-' + nodeId)
+        .classList.remove('ir-identifier-highlighted');
     if (this.irGraph_ && this.nodeMetadataElement_) {
-      this.nodeMetadataElement_.text('');
+      this.nodeMetadataElement_.textContent = '';
     }
     if (this.graphView_) {
       this.graphView_.unhighlightNode(nodeId);
@@ -228,8 +229,10 @@ class IrVisualizer {
   highlightEdge(edgeId) {
     let srcId = this.irGraph_.edge(edgeId).source;
     let tgtId = this.irGraph_.edge(edgeId).target;
-    $(`.ir-def-${srcId}`).addClass('ir-identifier-highlighted');
-    $(`.ir-use-${srcId}-${tgtId}`).addClass('ir-identifier-highlighted');
+    document.querySelector(`.ir-def-${srcId}`)
+        .classList.add('ir-identifier-highlighted');
+    document.querySelector(`.ir-use-${srcId}-${tgtId}`)
+        .classList.add('ir-identifier-highlighted');
     if (this.graphView_) {
       this.graphView_.highlightEdge(edgeId);
     }
@@ -242,8 +245,10 @@ class IrVisualizer {
   unhighlightEdge(edgeId) {
     let srcId = this.irGraph_.edge(edgeId).source;
     let tgtId = this.irGraph_.edge(edgeId).target;
-    $(`.ir-def-${srcId}`).removeClass('ir-identifier-highlighted');
-    $(`.ir-use-${srcId}-${tgtId}`).removeClass('ir-identifier-highlighted');
+    document.querySelector(`.ir-def-${srcId}`)
+        .classList.remove('ir-identifier-highlighted');
+    document.querySelector(`.ir-use-${srcId}-${tgtId}`)
+        .classList.remove('ir-identifier-highlighted');
     if (this.graphView_) {
       this.graphView_.unhighlightEdge(edgeId);
     }
@@ -260,10 +265,12 @@ class IrVisualizer {
     // (De)select identifier elements in the textual IR.
     for (const change of changes.nodes) {
       if (change.from == selectableGraph.SelectState.SELECTED) {
-        $('.ir-identifier-' + change.id).removeClass('ir-identifier-selected');
+        document.querySelector('.ir-identifier-' + change.id)
+            .classList.remove('ir-identifier-selected');
       }
       if (change.to == selectableGraph.SelectState.SELECTED) {
-        $('.ir-identifier-' + change.id).addClass('ir-identifier-selected');
+        document.querySelector('.ir-identifier-' + change.id)
+            .classList.add('ir-identifier-selected');
       }
     }
 
@@ -287,22 +294,25 @@ class IrVisualizer {
    */
   setIrTextListeners_() {
     let self = this;
-    $('.ir-identifier').mouseenter(function() {
-      self.highlightNode(/** @type {string} */ ($(this).data('ir-identifier')));
-    });
-    $('.ir-identifier').mouseleave(function() {
-      self.unhighlightNode(
-          /** @type {string} */ ($(this).data('ir-identifier')));
-    });
-    $('.ir-identifier').click(function(e) {
-      let identifier = /** @type {string} */ ($(this).data('ir-identifier'));
-      if (e.originalEvent.ctrlKey && self.graphView_) {
-        // If the control key is down. Zoom in on the node in the graph.
-        self.graphView_.focusOnNode(identifier);
-      } else {
-        // Toggle the selection state.
-        self.selectNode(identifier, !self.graph_.isNodeSelected(identifier));
-      }
+    document.querySelectorAll('.ir-identifier').forEach(elem => {
+      elem.addEventListener('mouseenter', e => {
+        self.highlightNode(
+            /** @type {string} */ (e.target.dataset.irIdentifier));
+      });
+      elem.addEventListener('mouseleave', e => {
+        self.unhighlightNode(
+            /** @type {string} */ (e.target.dataset.irIdentifier));
+      });
+      elem.addEventListener('click', e => {
+        let identifier = /** @type {string} */ (e.target.dataset.irIdentifier);
+        if (e.ctrlKey && self.graphView_) {
+          // If the control key is down. Zoom in on the node in the graph.
+          self.graphView_.focusOnNode(identifier);
+        } else {
+          // Toggle the selection state.
+          self.selectNode(identifier, !self.graph_.isNodeSelected(identifier));
+        }
+      });
     });
   }
 
@@ -314,7 +324,7 @@ class IrVisualizer {
    * @private
    */
   highlightIr_(jsonGraph) {
-    let text = this.irElement_.text();
+    let text = this.irElement_.textContent;
     // A map containing the node identifiers in the graph. The value of the map
     // is a count as the identifiers are encountered when walking through the
     // IR. It is used to identify defs (first encounter of an identifier).
@@ -353,10 +363,10 @@ class IrVisualizer {
       lastPieceEnd = match.index + match[0].length;
     }
     pieces.push(text.slice(lastPieceEnd));
-    let focusOffset = getOffsetWithin(this.irElement_.get(0));
-    this.irElement_.html(pieces.join(''));
+    let focusOffset = getOffsetWithin(this.irElement_);
+    setInnerHtml(this.irElement_, pieces.join(''));
     if (focusOffset != null) {
-      setPositionAtOffset(this.irElement_.get(0), focusOffset);
+      setPositionAtOffset(this.irElement_, focusOffset);
     }
   }
 
@@ -370,30 +380,37 @@ class IrVisualizer {
       return;
     }
     this.parseInFlight_ = true;
-    let text = this.irElement_.text();
-    $.post('/graph', {text: text}, (response_str) => {
+    let text = this.irElement_.textContent;
+    let xmr = new XMLHttpRequest();
+    xmr.open('POST', '/graph');
+    let self = this;
+    xmr.addEventListener('load', function() {
+      if (xmr.status < 200 || xmr.status >= 400) {
+        return;
+      }
+
       // TODO: define a type for the graph object.
-      let response = /** @type {!Object} */ (JSON.parse(response_str));
-      this.parseInFlight_ = false;
-      if (this.irElement_.text() != text) {
-        return this.parseAndHighlightIr(cb);
+      let response = /** @type {!Object} */ (JSON.parse(xmr.responseText));
+      self.parseInFlight_ = false;
+      if (self.irElement_.textContent != text) {
+        return self.parseAndHighlightIr(cb);
       }
       // Clear graph.
-      this.irGraph_ = null;
-      this.graph_ = null;
-      if (this.graphView_) {
-        this.graphView_.destroy();
-        this.graphView_ = null;
+      self.irGraph_ = null;
+      self.graph_ = null;
+      if (self.graphView_) {
+        self.graphView_.destroy();
+        self.graphView_ = null;
       }
 
       if (response['error_code'] == 'ok') {
-        if (this.sourceOkCallback_) {
-          this.sourceOkCallback_();
+        if (self.sourceOkCallback_) {
+          self.sourceOkCallback_();
         }
         // The returned JSON in the 'graph' key is a JSON object whose structure
         // is defined by the xls.visualization.Package proto. The particular
         // function to view is named in the 'entry' field of the package proto.
-        graph = null;
+        let graph = null;
         for (let func of response['graph']['function_bases']) {
           if (response['graph']['entry'] == func['name']) {
             graph = func;
@@ -402,25 +419,28 @@ class IrVisualizer {
         if (graph == null) {
           return;
         }
-        this.irGraph_ = new irGraph.IrGraph(graph);
-        this.graph_ = new selectableGraph.SelectableGraph(this.irGraph_);
+        self.irGraph_ = new irGraph.IrGraph(graph);
+        self.graph_ = new selectableGraph.SelectableGraph(self.irGraph_);
 
-        this.highlightIr_(graph);
-        this.setIrTextListeners_();
+        self.highlightIr_(graph);
+        self.setIrTextListeners_();
       } else {
-        if (!!this.sourceErrorCallback_) {
-          this.sourceErrorCallback_(response['message']);
+        if (!!self.sourceErrorCallback_) {
+          self.sourceErrorCallback_(response['message']);
         }
-        let focusOffset = getOffsetWithin(this.irElement_.get(0));
-        this.irElement_.html(this.irElement_.text());
+        let focusOffset = getOffsetWithin(self.irElement_);
+        setInnerHtml(self.irElement_, self.irElement_.textContent);
         if (focusOffset) {
-          setPositionAtOffset(this.irElement_.get(0), focusOffset);
+          setPositionAtOffset(self.irElement_, focusOffset);
         }
       }
       if (cb) {
         cb();
       }
-    }, 'text');
+    });
+    let data = new FormData();
+    data.append('text', text);
+    xmr.send(data);
   }
 
   /**
@@ -458,7 +478,7 @@ class IrVisualizer {
       if (nodeId) {
         if (ctrlPressed) {
           // Scroll the node into view in the IR text window.
-          $(`.ir-def-${nodeId}`)[0].scrollIntoView();
+          document.querySelector(`.ir-def-${nodeId}`).scrollIntoView();
         } else {
           // Toggle the selection state.
           this.selectNode(nodeId, !this.graph_.isNodeSelected(nodeId));

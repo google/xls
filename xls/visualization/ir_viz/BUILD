@@ -130,20 +130,28 @@ cc_test(
 )
 
 closure_js_library(
+    name = "externs",
+    srcs = ["externs.js"],
+)
+
+closure_js_library(
     name = "js_lib",
-    srcs = glob(["*.js"]),
-    # Turn off compiler checks because the compiler is unhappy with jquery
-    # (e.g., '$' is undefined). Compiler checks are enabled when building
-    # 'js_compiled'.
+    srcs = [
+        "graph_view.js",
+        "ir_graph.js",
+        "ir_visualizer.js",
+        "selectable_graph.js",
+    ],
+    # Turn off unknown expression type compiler checks because the cytoscape
+    # externs file is very sparse and most interactions with cytoscape result in
+    # an unknown expression type.
     suppress = [
+        "JSC_POSSIBLE_INEXISTENT_PROPERTY",
         "JSC_STRICT_INEXISTENT_PROPERTY",
         "JSC_UNKNOWN_EXPR_TYPE",
-        "JSC_DEPRECATED_PROP_REASON",
-        "JSC_UNDEFINED_VARIABLE",
-        "JSC_POSSIBLE_INEXISTENT_PROPERTY",
         "JSC_UNRECOGNIZED_TYPE_ERROR",
-        "JSC_UNUSED_LOCAL_ASSIGNMENT",
     ],
+    deps = [":externs"],
 )
 
 closure_js_binary(

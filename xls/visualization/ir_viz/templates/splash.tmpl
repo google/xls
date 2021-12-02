@@ -153,6 +153,10 @@
     let selectedExample;
     let visualizer;
 
+    function setInnerHtml(elem, content) {
+      elem.innerHTML = content;
+    }
+
     // Enables the given element (e.g., a button).
     function enable(elem) {
       elem.classList.remove('disabled');
@@ -200,12 +204,17 @@
       if (opt_level != undefined) {
         url += `?opt_level=${opt_level}`;
       }
-      $.get(url,
-            function(data) {
-              $('#ir-source-text').text(data);
-              inputChangeHandler(
-                () => visualizer.draw(showOnlySelectedState()));
-            });
+      let xmr = new XMLHttpRequest();
+      xmr.open('GET', url);
+      xmr.addEventListener('load', function() {
+        if (xmr.status < 200 || xmr.status >= 400) {
+          return;
+        }
+        document.getElementById('ir-source-text').textContent = xmr.responseText;
+        inputChangeHandler(
+          () => visualizer.draw(showOnlySelectedState()));
+      });
+      xmr.send();
     }
 
     function loadExampleButtonHandler() {
@@ -213,57 +222,61 @@
     }
 
     function inputChangeHandler(cb) {
-      $('#view-graph-btn').prop('disabled', true);
-      $('#view-critical-path-btn').prop('disabled', true);
+      document.getElementById('view-graph-btn').disabled = true;
+      document.getElementById('view-critical-path-btn').disabled = true;
       visualizer.parseAndHighlightIr(cb);
     }
 
     function showOnlySelectedState() {
-      return $('#only-selected-checkbox').prop('checked');
+      return document.getElementById('only-selected-checkbox').checked;
     }
 
-    $(document).ready(function() {
-      $('#ir-upload').change(function() {
-        if (this.files.length > 0) {
-          this.files[0].text().then(function (text) {
-            $('#ir-source-text').text(text);
-          });
-          inputChangeHandler();
-        }
-      });
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('ir-upload').addEventListener(
+        'input',
+        e => {
+          if (e.target.files.length > 0) {
+            e.target.files[0].text().then(function (text) {
+              document.getElementById('ir-source-text').textContent = text;
+            });
+            inputChangeHandler();
+          }
+        });
 
-      visualizer = new xls.IrVisualizer($('#graph'),
-                                        $('#ir-source-text'),
-                                        $('#node-metadata'));
+      visualizer = new xls.IrVisualizer(document.getElementById('graph'),
+                                        document.getElementById('ir-source-text'),
+                                        document.getElementById('node-metadata'));
       visualizer.setSourceOkHandler(function() {
-        $('#source-status').removeClass('alert-danger')
-          .removeClass('alert-dark')
-          .addClass('alert-success')
-          .text('OK');
-        $('#view-graph-btn').prop('disabled', false);
-        $('#view-critical-path-btn').prop('disabled', false);
+        let src_status = document.getElementById('source-status');
+        src_status.classList.remove('alert-danger', 'alert-dark');
+        src_status.classList.add('alert-success');
+        src_status.textContent = 'OK';
+        document.getElementById('view-graph-btn').disabled = false;
+        document.getElementById('view-critical-path-btn').disabled = false;
       });
       visualizer.setSourceErrorHandler(function(errorText) {
-        $('#source-status').removeClass('alert-dark')
-          .removeClass('alert-success')
-          .addClass('alert-danger')
-          .text(errorText);
-        $('#view-graph-btn').prop('disabled', true);
-        $('#view-critical-path-btn').prop('disabled', true);
+        let src_status = document.getElementById('source-status');
+        src_status.classList.remove('alert-dark', 'alert-success');
+        src_status.classList.add('alert-danger');
+        src_status.textContent = errorText;
+        document.getElementById('view-graph-btn').disabled = true;
+        document.getElementById('view-critical-path-btn').disabled = true;
       });
 
-      $('#ir-source-text').on('input', (e) => inputChangeHandler());
+      document.getElementById('ir-source-text').addEventListener(
+        'input',
+        e => { inputChangeHandler(); });
 
-      $('#view-graph-btn').click(function() {
-        visualizer.draw(showOnlySelectedState());
-      });
-      $('#view-critical-path-btn').click(function() {
-        visualizer.selectCriticalPath();
-      });
+      document.getElementById('view-graph-btn').addEventListener(
+        'click',
+        e => { visualizer.draw(showOnlySelectedState()); });
+      document.getElementById('view-critical-path-btn').addEventListener(
+        'click',
+        e => { visualizer.selectCriticalPath(); });
 
-      $('#only-selected-checkbox').change(function() {
-        visualizer.setShowOnlySelected(showOnlySelectedState());
-      })
+      document.getElementById('only-selected-checkbox').addEventListener(
+        'input',
+        e => { visualizer.setShowOnlySelected(showOnlySelectedState()); });
 
       // If --preload_ir_path was passed in to the server, the ir-source-text
       // element will be filled in with IR text. Trigger the inputChangedHandler

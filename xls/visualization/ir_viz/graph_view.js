@@ -294,6 +294,7 @@ function buildCytoscapeGraph(graphElement, selectableGraph, showOnlySelected) {
       toCytoscapeGraphObject(selectableGraph, showOnlySelected);
   cytoscapeObject['container'] = graphElement;
 
+  /** @suppress {undefinedVars} */
   let graph = cytoscape(cytoscapeObject);
 
   // Set initial style on selected/frontier nodes and edges.
