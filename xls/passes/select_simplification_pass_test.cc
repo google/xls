@@ -795,5 +795,24 @@ TEST_F(SelectSimplificationPassTest, Consecutive2WaySelectsCase2) {
                         /*cases=*/{m::Param("c"), m::Param("b")}));
 }
 
+TEST_F(SelectSimplificationPassTest, DuplicateArmSpecialization) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(s: bits[1], x: bits[8], y: bits[8]) -> bits[8] {
+   sel0: bits[8] = sel(s, cases=[x,y])
+   neg_sel0: bits[8] = neg(sel0)
+   sel1: bits[8] = sel(s, cases=[neg_sel0, y])
+   neg_sel1: bits[8] = neg(sel1)
+   ret sel2: bits[8] = sel(s, cases=[neg_sel1, y])
+}
+  )",
+                                                       p.get()));
+  // 's' operand of sel0 can be specialized 0 due to sel1 *and* sel2 arm
+  // specialization.  This should not cause a crash.
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(FindNode("sel0", f),
+              m::Select(m::Literal(0), {m::Param("x"), m::Param("y")}));
+}
+
 }  // namespace
 }  // namespace xls

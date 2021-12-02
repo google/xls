@@ -1040,7 +1040,15 @@ absl::StatusOr<bool> SpecializeSelectArms(FunctionBase* func) {
             selector_use.selector->loc(),
             Value(UBits(selector_use.selector_value,
                         selector_use.selector->BitCountOrDie()))));
-    selector_use.use->ReplaceOperand(selector_use.selector, literal);
+    // A selector may have been identified for specialization more than once, so
+    // guard against trying to replace an operand more than once.
+    if (selector_use.use->HasOperand(selector_use.selector)) {
+      XLS_VLOG(3) << absl::StrFormat(
+          "Replacing use of %s by %s with literal value: %s",
+          selector_use.selector->GetName(), selector_use.use->GetName(),
+          literal->value().ToString());
+      selector_use.use->ReplaceOperand(selector_use.selector, literal);
+    }
   }
   return !selector_uses.empty();
 }
