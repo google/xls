@@ -54,7 +54,7 @@ function disable(elem) {
  * @param {number} level
  */
 function selectBenchmarkOptLevel(level) {
-  if (level == 'Opt level...') {
+  if (level == '') {
     selectedOptLevel = undefined;
     disable(getLoadExampleButton());
     return;
@@ -70,7 +70,7 @@ function selectBenchmarkOptLevel(level) {
  * @param {string} example
  */
 function selectBenchmark(example) {
-  if (example == 'Examples...') {
+  if (example == '') {
     selectedExample = undefined;
     disable(getLoadExampleButton());
     return;
@@ -86,7 +86,7 @@ function selectBenchmark(example) {
  * @param {string} example
  */
 function selectIrFile(example) {
-  if (example != 'IR files...') {
+  if (example != '') {
     loadExample(example, undefined);
   }
 }
@@ -151,6 +151,7 @@ document.addEventListener('DOMContentLoaded', function() {
   visualizer = new irVisualization.IrVisualizer(
       /** @type {!Element} */ (document.getElementById('graph')),
       /** @type {!Element} */ (document.getElementById('ir-source-text')),
+      /** @type {!Element} */ (document.getElementById('function-select')),
       /** @type {!Element} */ (document.getElementById('node-metadata')));
   visualizer.setSourceOkHandler(function() {
     let src_status = document.getElementById('source-status');

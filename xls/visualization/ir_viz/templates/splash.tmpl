@@ -84,19 +84,19 @@
           <div class="form-group row mx-1">
             <select class="col-7 form-control" id="example-select"
                     onClick="selectBenchmark(this.value)">
-              <option>Benchmarks...</option>
+              <option value="">Benchmarks...</option>
               {% for example in examples %}
-              <option>{{example}}</option>
+              <option value="{{example}}">{{example}}</option>
               {% endfor %}
             </select>
             <select class="col-2 form-control" id="opt-level-select"
                     onClick="selectBenchmarkOptLevel(this.value)">
-              <option>Opt level...</option>
-              <option>0</option>
-              <option>inline-only</option>
-              <option>1</option>
-              <option>2</option>
-              <option>3</option>
+              <option value="">Opt level...</option>
+              <option value="0">0</option>
+              <option value="inline-only">inline-only</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
             </select>
             <div class="col-3">
               <button id="load-example-btn" type="button"
@@ -109,12 +109,17 @@
           {%- else -%}
           <select class="row form-control ml-1" id="ir-file-select"
                   onClick="selectIrFile(this.value)">
-            <option>IR files...</option>
+            <option value="">IR files...</option>
             {% for example in examples %}
-            <option>{{example}}</option>
+            <option value="{{example}}">{{example}}</option>
             {% endfor %}
           </select>
           {%- endif -%}
+          <div class="form-group row mx-1">
+            <label for="function-select" class="col-3 col-form-label">function/proc/block:</label>
+            <select class="col-9 form-control" id="function-select">
+            </select>
+          </div>
           <div class="row mx-1">
             <div contenteditable="true" spellcheck="false" id="ir-source-text" class="source-text">{{preloaded_ir}}</div>
           </div>

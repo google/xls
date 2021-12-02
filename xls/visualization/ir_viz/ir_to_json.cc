@@ -30,7 +30,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/passes/bdd_query_engine.h"
-#include "xls/visualization/ir_viz/ir_for_visualization.pb.h"
+#include "xls/visualization/ir_viz/visualization.pb.h"
 
 namespace xls {
 namespace {

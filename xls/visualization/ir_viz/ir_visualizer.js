@@ -86,6 +86,28 @@ function setPositionAtOffset(node, offset) {
 }
 
 /**
+ * Sets the options in the given select UI element to the given names.
+ * @param {!Element} selectElement
+ * @param {!Array<string>} functionNames
+ */
+function setupFunctionSelector(selectElement, functionNames) {
+  let options = [];
+  for (let name of functionNames) {
+    options.push(`<option value="${name}">${name}</option>`);
+  }
+  setInnerHtml(selectElement, options.join('\n'));
+}
+
+/**
+ * Sets the option of the given select UI element to the given function name.
+ * @param {!Element} selectElement
+ * @param {string} functionName
+ */
+function setFunctionSelector(selectElement, functionName) {
+  selectElement.value = functionName;
+}
+
+/**
  * Class for visualizing IR graphs. Manages the text area containing the IR and
  * the element in which the graph is drawn.
  */
@@ -93,12 +115,16 @@ class IrVisualizer {
   /**
    * @param {!Element} graphElement DOM element to hold the graph.
    * @param {!Element} irElement Input DOM element holding IR text.
+   * @param {!Element} functionSelector Function selector element.
    * @param {?Element=} nodeMetadataElement DOM element to write node metadata
    *     text into.
    */
-  constructor(graphElement, irElement, nodeMetadataElement = undefined) {
+  constructor(
+      graphElement, irElement, functionSelector,
+      nodeMetadataElement = undefined) {
     this.graphElement_ = graphElement;
     this.irElement_ = irElement;
+    this.functionSelector_ = functionSelector;
     this.nodeMetadataElement_ = nodeMetadataElement;
 
     /**
@@ -133,6 +159,20 @@ class IrVisualizer {
 
     /** @private {function(string)|undefined} */
     this.sourceErrorCallback_ = undefined;
+
+    /**
+     *  Object containing the graph structure for the package. The format is
+     *  defined by the proto xls.visualization.package.
+     *  @private {?Object}
+     */
+    this.package_ = null;
+
+    let self = this;
+    this.functionSelector_.addEventListener('change', e => {
+      if (e.target.value) {
+        self.selectFunction(e.target.value);
+      }
+    });
   }
 
   /**
@@ -285,6 +325,33 @@ class IrVisualizer {
   }
 
   /**
+   * Sets the function to visualize to the given function name.
+   * @param {string} functionName
+   */
+  selectFunction(functionName) {
+    this.clearGraph();
+
+    // Scrape the function/proc/block names from the package.
+    let graph = null;
+    for (let func of this.package_['function_bases']) {
+      if (functionName == func['name']) {
+        graph = func;
+      }
+    }
+    if (graph == null) {
+      return;
+    }
+    this.irGraph_ = new irGraph.IrGraph(graph);
+    this.graph_ = new selectableGraph.SelectableGraph(this.irGraph_);
+    this.highlightIr_(graph);
+    this.setIrTextListeners_();
+
+    if (this.graphView_) {
+      this.draw(document.getElementById('only-selected-checkbox').checked);
+    }
+  }
+
+  /**
    * Sets various listeners for hovering over and selecting identifiers in the
    * IR text.
    */
@@ -394,39 +461,31 @@ class IrVisualizer {
       if (self.irElement_.textContent != text) {
         return self.parseAndHighlightIr(cb);
       }
-      // Clear graph.
-      self.irGraph_ = null;
-      self.graph_ = null;
-      if (self.graphView_) {
-        self.graphView_.destroy();
-        self.graphView_ = null;
-      }
 
       if (response['error_code'] == 'ok') {
         if (self.sourceOkCallback_) {
           self.sourceOkCallback_();
         }
-        // The returned JSON in the 'graph' key is a JSON object whose structure
-        // is defined by the xls.visualization.Package proto. The particular
-        // function to view is named in the 'entry' field of the package proto.
-        let graph = null;
-        for (let func of response['graph']['function_bases']) {
-          if (response['graph']['entry'] == func['name']) {
-            graph = func;
-          }
-        }
-        if (graph == null) {
-          return;
-        }
-        self.irGraph_ = new irGraph.IrGraph(graph);
-        self.graph_ = new selectableGraph.SelectableGraph(self.irGraph_);
+        self.package_ = response['graph'];
 
-        self.highlightIr_(graph);
-        self.setIrTextListeners_();
+        // Fill in the names of function in the select element.
+        let functions = [];
+        for (let func of self.package_['function_bases']) {
+          functions.push(func['name']);
+        }
+        setupFunctionSelector(self.functionSelector_, functions);
+
+        // Select the function entry if entry is specified.
+        if (self.package_['entry']) {
+          setFunctionSelector(self.functionSelector_, self.package_['entry']);
+          self.selectFunction(self.package_['entry']);
+        }
       } else {
+        self.clearGraph();
         if (!!self.sourceErrorCallback_) {
           self.sourceErrorCallback_(response['message']);
         }
+        self.package_ = null;
         let focusOffset = getOffsetWithin(self.irElement_);
         setInnerHtml(self.irElement_, self.irElement_.textContent);
         if (focusOffset) {
@@ -440,6 +499,19 @@ class IrVisualizer {
     let data = new FormData();
     data.append('text', text);
     xmr.send(data);
+  }
+
+  /**
+   * Clears the fields containing graph elements (cyctoscape and IR graph) and
+   * clears the visualization window.
+   */
+  clearGraph() {
+    self.irGraph_ = null;
+    self.graph_ = null;
+    if (self.graphView_) {
+      self.graphView_.destroy();
+      self.graphView_ = null;
+    }
   }
 
   /**

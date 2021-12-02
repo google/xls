@@ -78,13 +78,13 @@ build_test(
 )
 
 cc_proto_library(
-    name = "ir_for_visualization_cc_proto",
-    deps = [":ir_for_visualization_proto"],
+    name = "visualization_cc_proto",
+    deps = [":visualization_proto"],
 )
 
 proto_library(
-    name = "ir_for_visualization_proto",
-    srcs = ["ir_for_visualization.proto"],
+    name = "visualization_proto",
+    srcs = ["visualization.proto"],
 )
 
 cc_library(
@@ -92,7 +92,7 @@ cc_library(
     srcs = ["ir_to_json.cc"],
     hdrs = ["ir_to_json.h"],
     deps = [
-        ":ir_for_visualization_cc_proto",
+        ":visualization_cc_proto",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/delay_model:analyze_critical_path",
