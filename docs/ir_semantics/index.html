@@ -442,6 +442,60 @@
     Functions, procs, and blocks
   </a>
   
+    <nav class="md-nav" aria-label="Functions, procs, and blocks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function" class="md-nav__link">
+    Function
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#proc" class="md-nav__link">
+    Proc
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#block" class="md-nav__link">
+    Block
+  </a>
+  
+    <nav class="md-nav" aria-label="Block">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#port" class="md-nav__link">
+    Port
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#register" class="md-nav__link">
+    Register
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#instatiation" class="md-nav__link">
+    Instatiation
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -826,6 +880,20 @@
           <li class="md-nav__item">
   <a href="#register_write" class="md-nav__link">
     register_write
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#instantiation_input" class="md-nav__link">
+    instantiation_input
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#instantiation_output" class="md-nav__link">
+    instantiation_output
   </a>
   
 </li>
@@ -1480,6 +1548,60 @@
     Functions, procs, and blocks
   </a>
   
+    <nav class="md-nav" aria-label="Functions, procs, and blocks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#function" class="md-nav__link">
+    Function
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#proc" class="md-nav__link">
+    Proc
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#block" class="md-nav__link">
+    Block
+  </a>
+  
+    <nav class="md-nav" aria-label="Block">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#port" class="md-nav__link">
+    Port
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#register" class="md-nav__link">
+    Register
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#instatiation" class="md-nav__link">
+    Instatiation
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1868,6 +1990,20 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#instantiation_input" class="md-nav__link">
+    instantiation_input
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#instantiation_output" class="md-nav__link">
+    instantiation_output
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1906,7 +2042,17 @@
 <li><a href="#token">Token</a></li>
 </ul>
 </li>
-<li><a href="#functions-procs-and-blocks">Functions, procs, and blocks</a></li>
+<li><a href="#functions-procs-and-blocks">Functions, procs, and blocks</a><ul>
+<li><a href="#function">Function</a></li>
+<li><a href="#proc">Proc</a></li>
+<li><a href="#block">Block</a><ul>
+<li><a href="#port">Port</a></li>
+<li><a href="#register">Register</a></li>
+<li><a href="#instatiation">Instatiation</a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li><a href="#operations">Operations</a><ul>
 <li><a href="#unary-bitwise-operations">Unary bitwise operations</a></li>
 <li><a href="#variadic-bitwise-operations">Variadic bitwise operations</a></li>
@@ -1971,6 +2117,8 @@
 <li><a href="#output_port">output_port</a></li>
 <li><a href="#register_read">register_read</a></li>
 <li><a href="#register_write">register_write</a></li>
+<li><a href="#instantiation_input">instantiation_input</a></li>
+<li><a href="#instantiation_output">instantiation_output</a></li>
 </ul>
 </li>
 </ul>
@@ -2040,27 +2188,42 @@ has no correlate in hardware.</p>
 <p><code>token</code></p>
 <h2 id="functions-procs-and-blocks">Functions, procs, and blocks</h2>
 <p>The XLS IR has three function-level abstractions each which hold a data-flow
-graph of XLS IR operations:</p>
-<ul>
-<li><em>function</em> : Stateless abstraction with a single-output which is computed
-    from zero or more input parameters. May invoke other functions.</li>
-</ul>
-<ul>
-<li><em>proc</em> : Stateful abstraction with an arbitrarily-typed recurrent state.
-    Procs can communicate with other procs via channels which (abstractly) are
-    infinite-depth FIFOs with flow control. Channel communication is handled via
-    send and receive IR operations. Procs may invoke functions.</li>
-</ul>
-<ul>
-<li><em>block</em> : RTL-level abstraction used for code generation. Corresponds to a
-    single Verilog module. Includes explicit representations of RTL constructs:
-    registers, ports, logic, and module instantiations. Procs and functions are
-    converted to blocks as part of the code generation process. Blocks may
-    “invoke” other blocks via instantiation.</li>
-</ul>
-<p>Names of function, procs and blocks must be unique among their respective
-abstractions (functions, procs, and blocks). For example, a block cannot share a
-name with another block but can share a name with a function.</p>
+graph of XLS IR operations: <em>functions</em>, <em>procs</em>, and <em>blocks</em>. Names of
+function, procs and blocks must be unique among their respective abstractions
+(functions, procs, and blocks). For example, a block cannot share a name with
+another block but can share a name with a function.</p>
+<h3 id="function">Function</h3>
+<p>A function is a stateless abstraction with a single-output which is computed
+from zero or more input parameters. May invoke other functions.</p>
+<h3 id="proc">Proc</h3>
+<p>A Proc is a stateful abstraction with an arbitrarily-typed recurrent state.
+Procs can communicate with other procs via channels which (abstractly) are
+infinite-depth FIFOs with flow control. Channel communication is handled via
+send and receive IR operations. Procs may invoke functions.</p>
+<p>TODO(meheff): 2021/11/04 Expand to include more details.</p>
+<h3 id="block">Block</h3>
+<p>A Block is an RTL-level abstraction used for code generation. It corresponds to
+a single Verilog module. Procs and functions are converted to blocks as part of
+the code generation process. Blocks may “invoke” other blocks via instantiation.
+A block includes explicit representations of RTL constructs: ports, registers,
+and instantiations. The constructs are scoped within the block.</p>
+<h4 id="port">Port</h4>
+<p>A port is a representation of an input or output to the block. These correspond
+to ports on Verilog modules. Ports can be arbitrarily-typed. In the block, each
+port is represented with a <code>input_port</code> or <code>output_port</code> operation.</p>
+<h4 id="register">Register</h4>
+<p>A register is a representation of a hardware register (flop). Registers can be
+arbitrarily-typed. Each register must have a single <code>register_write</code> and a
+single <code>register_read</code> operation for writing and reading the register
+respectively.</p>
+<h4 id="instatiation">Instatiation</h4>
+<p>An instantiation is a block-scoped construct that represents a module
+instantiation at the Verilog level. The instantiated object can be another
+block, a FIFO (not yet supported), or a externally defined Verilog module (not
+yet supported). The instantiation is integrated into the instantiating block
+with <code>instantiation_input</code> and <code>instantiation_output</code> operations. There is a
+one-to-one mapping between the instantation input/output and the ports of the
+instantated objects.</p>
 <h2 id="operations">Operations</h2>
 <p>Operations share a common syntax and have both positional and keyword arguments
 à la Python. Positional arguments are ordered and must appear first in the
@@ -3971,6 +4134,128 @@ and/or reset signal. The register is defined on the block.</p>
 
 <p>The type <code>T</code> of the data operand must be the same as the the type of the
 register.</p>
+<h4 id="instantiation_input"><strong><code>instantiation_input</code></strong></h4>
+<p>Corresponds to a single input port of an instantiation.</p>
+<p>An instantiation is a block-scoped construct that represents a module
+instantiation at the Verilog level. Each <code>instantation_input</code> operation
+corresponds to a particular port of the instantiated object, so generally a
+single instatiation can have multiple associated <code>instantiation_input</code>
+operations (one for each input port).</p>
+<p><strong>Syntax</strong></p>
+<div class="highlight"><pre><span></span><code>result = instantiation_input(data, instantiation=&lt;instantiation&gt;, port_name=&lt;port_name&gt;)
+</code></pre></div>
+<p><strong>Types</strong></p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td><code>T</code></td>
+</tr>
+<tr>
+<td><code>result</code></td>
+<td><code>()</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Keyword arguments</strong></p>
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
+<table>
+<thead>
+<tr>
+<th>Keyword</th>
+<th>Type</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>instantiation</code></td>
+<td><code>string</code></td>
+<td>yes</td>
+<td></td>
+<td>Name of the instantiation.</td>
+</tr>
+<tr>
+<td><code>port_name</code></td>
+<td><code>string</code></td>
+<td>yes</td>
+<td></td>
+<td>Name of the associated port of the instantiation.</td>
+</tr>
+</tbody>
+</table>
+<!-- mdformat on -->
+
+<p>The type <code>T</code> of the data operand must be the same as the the type of the
+associated input port of the instantiated object.</p>
+<h4 id="instantiation_output"><strong><code>instantiation_output</code></strong></h4>
+<p>Corresponds to a single output port of an instantiation.</p>
+<p>An instantiation is a block-scoped construct that represents a module
+instantiation at the Verilog level. Each <code>instantation_output</code> operation
+corresponds to a output particular port of the instantiated object, so generally
+a single instatiation can have multiple associated <code>instantiation_output</code>
+operations (one for each output port).</p>
+<p><strong>Syntax</strong></p>
+<div class="highlight"><pre><span></span><code>result = instantiation_output(instantiation=&lt;instantiation&gt;, port_name=&lt;port_name&gt;)
+</code></pre></div>
+<p><strong>Types</strong></p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>result</code></td>
+<td><code>T</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Keyword arguments</strong></p>
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
+<table>
+<thead>
+<tr>
+<th>Keyword</th>
+<th>Type</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>instantiation</code></td>
+<td><code>string</code></td>
+<td>yes</td>
+<td></td>
+<td>Name of the instantiation.</td>
+</tr>
+<tr>
+<td><code>port_name</code></td>
+<td><code>string</code></td>
+<td>yes</td>
+<td></td>
+<td>Name of the associated port of the instantiation.</td>
+</tr>
+</tbody>
+</table>
+<!-- mdformat on -->
+
+<p>The type <code>T</code> of the result is type of the associated output port of the
+instantiated object.</p>
                 
               
               

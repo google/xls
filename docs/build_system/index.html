@@ -836,6 +836,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#xls_verify_checksum" class="md-nav__link">
+    xls_verify_checksum
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1302,6 +1309,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#xls_verify_checksum" class="md-nav__link">
+    xls_verify_checksum
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1385,6 +1399,7 @@ a build flow.</p>
 <li><a href="#cc_xls_ir_jit_wrapper">cc_xls_ir_jit_wrapper</a></li>
 <li><a href="#xls_ir_verilog_macro">xls_ir_verilog_macro</a></li>
 <li><a href="#xls_dslx_verilog_macro">xls_dslx_verilog_macro</a></li>
+<li><a href="#xls_verify_checksum">xls_verify_checksum</a></li>
 </ul>
 </li>
 <li><a href="#bazel-queries">Bazel queries</a><ul>
@@ -1466,6 +1481,43 @@ referenced in other rules.</p>
 'enable_generated_file_wrapper' function. The generated files of the rule are
 listed in the outs attribute of the rule. These generated files can be
 referenced in other rules.</p>
+<h3 id="xls_verify_checksum"><code>xls_verify_checksum</code></h3>
+<p>Helper macro for checksumming files.</p>
+<p>As projects cut releases or freeze, it's important to know that generated (e.g.
+Verilog) code is never changing without having to actually check in the
+generated artifact. This macro performs a checksum of generated files as an
+integrity check. Users might use this macro to help enable confidence that there
+is neither:</p>
+<ul>
+<li>non-determinism in the toolchain, nor</li>
+<li>an accidental dependence on a non-released toolchain (e.g. an accidental
+    dependence on top-of-tree, where the toolchain is constantly changing)</li>
+</ul>
+<p>Say there was a codegen rule producing <code>my_output.v</code>, a user might instantiate
+something like:</p>
+<div class="highlight"><pre><span></span><code>xls_verify_checksum(
+    name = my_output_checksum&quot;,
+    src = &quot;:my_output.v&quot;,
+    out = &quot;my_output.frozen.v&quot;,
+    sha256 = &quot;d1bc8d3ba4afc7e109612cb73acbdddac052c93025aa1f82942edabb7deb82a1&quot;,
+)
+</code></pre></div>
+<p>... and then take a dependency on <code>my_output.frozen.v</code> in the surrounding
+project, knowing that it had been checksum-verified.</p>
+<p>Taking a dependence on <code>my_output.v</code> directly may also be ok if the
+<code>:my_output_checksum</code> target is also built (e.g. via the same wildcard build
+request), but taking a dependence on the output <code>.frozen.v</code> file ensures that
+the checking is an integral part of the downstream build-artifact-creation
+process.</p>
+<p>This macro also notably creates a test (in the package that instantiates it),
+and so any wildcard testing of the directory will also check that the sha256
+integrity holds.</p>
+<p>Note that this mechanism will only checksum the Verilog source file itself --
+in the future as XLS can pull in "foreign" Verilog constructs via tick-includes
+or externally managed file lists, this mechanism will not guarantee the external
+world also remains the same. As of the time of this writing, however, XLS
+generated modules are self-contained, but foreign-function instantiation of e.g.
+FIFOs and external modules <em>are</em> expected upcoming features.</p>
 <h2 id="bazel-queries">Bazel queries</h2>
 <p>Understanding the build tree for a new project can be difficult, but fortunately
 Bazel provides a

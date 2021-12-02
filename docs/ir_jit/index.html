@@ -1274,7 +1274,7 @@ JIT).</p>
 <p>The JIT is also available as a library with a straightforward interface:</p>
 <div class="highlight"><pre><span></span><code>absl::StatusOr&lt;Value&gt; RunOnJit(
     Function* function, absl::Span&lt;const Value&gt; args) {
-  XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function));
+  XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
   return jit-&gt;Run(args);
 }
 </code></pre></div>
