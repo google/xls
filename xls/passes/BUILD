@@ -807,6 +807,27 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "proc_loop_folding",
+    srcs = ["proc_loop_folding.cc"],
+    hdrs = ["proc_loop_folding.h"],
+    deps = [
+        ":passes",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:optional",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+        "//xls/ir:value",
+        "//xls/ir:value_helpers",
+    ],
+)
+
 cc_test(
     name = "inlining_pass_test",
     srcs = ["inlining_pass_test.cc"],
@@ -1326,6 +1347,29 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "proc_loop_folding_test",
+    srcs = ["proc_loop_folding_test.cc"],
+    deps = [
+        ":dce_pass",
+        ":proc_loop_folding",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/examples:proc_fir_filter",
+        "//xls/interpreter:channel_queue",
+        "//xls/interpreter:proc_interpreter",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_scanner",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value_helpers",
         "@com_google_googletest//:gtest",
     ],
 )
