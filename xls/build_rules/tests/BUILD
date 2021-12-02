@@ -32,6 +32,7 @@ load(
     "xls_ir_opt_ir",
     "xls_ir_verilog",
     "xls_ir_verilog_macro",
+    "xls_verify_checksum",
 )
 
 package(
@@ -596,4 +597,12 @@ xls_eval_ir_test(
     name = "die_if_odd_eval_ir_test_file_validator",
     src = ":die_if_odd.ir",
     input_validator = ":die_if_odd_validator_module",
+)
+
+# Check that a valid checksum passes the file through.
+xls_verify_checksum(
+    name = "some_arbitrary_file_checksum",
+    src = "some_arbitrary_file.txt",
+    out = "some_arbitrary_file.txt.checksummed",
+    sha256 = "d1bc8d3ba4afc7e109612cb73acbdddac052c93025aa1f82942edabb7deb82a1",
 )

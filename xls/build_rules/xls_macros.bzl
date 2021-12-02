@@ -132,3 +132,38 @@ def xls_dslx_cpp_type_library(
             "//xls/public:value",
         ],
     )
+
+def xls_verify_checksum(name, src, out, sha256):
+    """Verifies that 'src' has sha256sum exactly 'sha256'.
+
+    Clones the src into 'out' in success, so users can take a dependence on 'out'
+    and know that it is a successfully checksummed result according to the build
+    process.
+
+    This macro provides two facilities in the interest of paranoia:
+
+    1. The genrule itself will fail / explode, which should cause the build to fail.
+    2. A py_test is generated, so that if the user (accidentally) does not take a
+       dependency on the checksummed output, a test is still present that will
+       exhibit failure if a user runs a test wildcard on the containing directory.
+    """
+    native.py_test(
+        name = name + "_checksum_test",
+        main = "verify_checksum.py",
+        srcs = ["//xls/public:verify_checksum"],
+        # Note: see definition of rootpath here:
+        # https://docs.bazel.build/versions/2.0.0/be/make-variables.html#predefined_label_variables
+        args = ["$(rootpath %s)" % src, sha256],
+        data = [src],
+    )
+    native.genrule(
+        name = name,
+        srcs = [src],
+        outs = [out],
+        # Capture the sha256sum output, only need the first token (the hash
+        # itself), note what we got in a file for convenient debugging, then
+        # compare to what the user specified and explode if it's not what they
+        # wanted. If it is, proceed to write src to out.
+        cmd = "SHA256_OUT=$$(sha256sum $<); GOT_HASH=$${SHA256_OUT%%%% *}; echo $${GOT_HASH} > $@.sha256; [[ \"$${GOT_HASH}\" == \"%s\" ]] || exit 1; cat $< > $@" % sha256,
+        message = "Validating sha256 checksum for %s" % src,
+    )

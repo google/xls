@@ -14,6 +14,8 @@
 
 # Public (exported) XLS APIs.
 
+# pytype binary only
+
 package(
     default_visibility = ["//xls:xls_public"],
     licenses = ["notice"],  # Apache 2.0
@@ -93,5 +95,16 @@ cc_library(
     testonly = True,
     deps = [
         "//xls/common:xls_gunit_main",
+    ],
+)
+
+py_binary(
+    name = "verify_checksum",
+    srcs = ["verify_checksum.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "@com_google_absl_py//absl:app",
+        "//xls/common:runfiles",
     ],
 )
