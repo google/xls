@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-goog.module('xls.IrVisualization');
+goog.module('xls.irVisualization');
 
-var graphView = goog.require('xls.graphView');
-var irGraph = goog.require('xls.irGraph');
-var selectableGraph = goog.require('xls.selectableGraph');
+const graphView = goog.require('xls.graphView');
+const irGraph = goog.require('xls.irGraph');
+const selectableGraph = goog.require('xls.selectableGraph');
 
 /**
  * Returns the offset of the selection (cursor) within a text element.
@@ -138,7 +138,6 @@ class IrVisualizer {
   /**
    * Sets the callback to call when the IR is successfully parsed.
    * @param {function()} callback
-   * @export
    */
   setSourceOkHandler(callback) {
     this.sourceOkCallback_ = callback;
@@ -148,7 +147,6 @@ class IrVisualizer {
    * Sets the callback to call when the IR parsing encountered an error.
    * Callback takes a single argument, the error message.
    * @param {function(string)} callback
-   * @export
    */
   setSourceErrorHandler(callback) {
     this.sourceErrorCallback_ = callback;
@@ -157,7 +155,6 @@ class IrVisualizer {
   /**
    * Selects the nodes on the critical path through the graph. All other nodes
    * are unselected.
-   * @export
    */
   selectCriticalPath() {
     let criticalPathNodeIds =
@@ -171,7 +168,6 @@ class IrVisualizer {
    * Sets whether to show only the selected and frontier node and elements in
    * the graph depending on parameter 'value'.
    * @param {boolean} value
-   * @export
    */
   setShowOnlySelected(value) {
     if (this.graphView_) {
@@ -337,7 +333,10 @@ class IrVisualizer {
     let pieces = [];
     let lastPieceEnd = 0;
     let lastDef = undefined;
-    for (const match of text.matchAll(/[a-zA-Z_][a-zA-Z0-9_.]*/g)) {
+    // matchAll is not yet recognized by the JS Compiler as it is ES2020.
+    /** @suppress {missingProperties} */
+    let matches = text.matchAll(/[a-zA-Z_][a-zA-Z0-9_.]*/g);
+    for (const match of matches) {
       if (match.index > lastPieceEnd) {
         pieces.push(text.slice(lastPieceEnd, match.index));
       }
@@ -373,7 +372,7 @@ class IrVisualizer {
   /**
    * Sends the IR to the server for parsing and, if successful, highlights the
    * IR.
-   * @export
+   * @param {?function()} cb
    */
   parseAndHighlightIr(cb) {
     if (this.parseInFlight_) {
@@ -449,7 +448,6 @@ class IrVisualizer {
    * constructed.
    * @param {boolean} showOnlySelected Whether to include only selected and
    *     frontier nodes and edges in the graph.
-   * @export
    */
   draw(showOnlySelected) {
     if (!this.graph_) {
@@ -492,5 +490,4 @@ class IrVisualizer {
   }
 }
 
-goog.exportSymbol('xls.IrVisualizer', IrVisualizer);
 exports = {IrVisualizer};

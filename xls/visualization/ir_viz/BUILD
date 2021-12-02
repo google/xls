@@ -141,6 +141,7 @@ closure_js_library(
         "ir_graph.js",
         "ir_visualizer.js",
         "selectable_graph.js",
+        "ui.js",
     ],
     # Turn off unknown expression type compiler checks because the cytoscape
     # externs file is very sparse and most interactions with cytoscape result in
@@ -157,7 +158,7 @@ closure_js_library(
 closure_js_binary(
     name = "js_compiled",
     compilation_level = "SIMPLE_OPTIMIZATIONS",
-    entry_points = ["xls.IrVisualization"],
+    entry_points = ["xls.ui"],
     deps = [
         ":js_lib",
     ],

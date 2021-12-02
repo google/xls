@@ -17,8 +17,8 @@
 // Library for rendering IR graphs with the Cytoscape library.
 goog.module('xls.graphView');
 
-var irGraph = goog.require('xls.irGraph');
-var selectableGraph = goog.require('xls.selectableGraph');
+const irGraph = goog.require('xls.irGraph');
+const selectableGraph = goog.require('xls.selectableGraph');
 
 const SELECT_COLOR = 'blue';
 const FRONTIER_COLOR = 'orange';
@@ -282,7 +282,7 @@ function toCytoscapeGraphObject(selectableGraph, showOnlySelected) {
 
 /**
  * Builds and returns a Cytoscape graph object.
- * @param {!Object} graphElement The DOM element to render the graph in.
+ * @param {!Element} graphElement The DOM element to render the graph in.
  * @param {!selectableGraph.SelectableGraph} selectableGraph The IR graph and
  *     selection state to render.
  * @param {boolean} showOnlySelected Whether to show only selected nodes in the
@@ -321,7 +321,7 @@ function buildCytoscapeGraph(graphElement, selectableGraph, showOnlySelected) {
       .addClass('frontier');
   graph.edges()
       .filter((element, i) => {
-        var edge = selectableGraph.irGraph().edge(element.id());
+        let edge = selectableGraph.irGraph().edge(element.id());
         return selectableGraph.irGraph()
                    .node(edge.source)
                    .attributes['cycle'] !=
@@ -338,7 +338,7 @@ class GraphView {
   /**
    * @param {!selectableGraph.SelectableGraph} selectableGraph The IR graph and
    *     selection state
-   * @param {!Object} graphElement The DOM element to render the graph into.
+   * @param {!Element} graphElement The DOM element to render the graph into.
    * @param {boolean} showOnlySelected Whether to show only selected nodes in
    *     the graph.
    */
@@ -350,7 +350,7 @@ class GraphView {
 
     /**
      * The DOM element to hold the graph visualization.
-     * @private @const {!Object}
+     * @private @const {!Element}
      */
     this.graphElement_ = graphElement;
 
@@ -448,7 +448,7 @@ class GraphView {
 
     this.cyGraph_.edges()
         .filter((element, i) => {
-          var edge = this.selectableGraph_.irGraph().edge(element.id());
+          let edge = this.selectableGraph_.irGraph().edge(element.id());
           return this.selectableGraph_.irGraph()
                      .node(edge.source)
                      .attributes['cycle'] !=
@@ -641,7 +641,7 @@ class GraphView {
       } else if (change.to == selectableGraph.SelectState.FRONTIER) {
         cyEdge.addClass('frontier');
       }
-      var edge = this.selectableGraph_.irGraph().edge(change.id);
+      let edge = this.selectableGraph_.irGraph().edge(change.id);
       if (this.selectableGraph_.irGraph()
               .node(edge.source)
               .attributes['cycle'] !=
