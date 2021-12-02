@@ -133,7 +133,7 @@ def xls_dslx_cpp_type_library(
         ],
     )
 
-def xls_verify_checksum(name, src, out, sha256):
+def xls_verify_checksum(name, src, out, sha256, visibility = None):
     """Verifies that 'src' has sha256sum exactly 'sha256'.
 
     Clones the src into 'out' in success, so users can take a dependence on 'out'
@@ -146,6 +146,14 @@ def xls_verify_checksum(name, src, out, sha256):
     2. A py_test is generated, so that if the user (accidentally) does not take a
        dependency on the checksummed output, a test is still present that will
        exhibit failure if a user runs a test wildcard on the containing directory.
+
+    Args:
+        name: Label given to this macro instantiation.
+        src: Source file to checksum.
+        out: Filename for the (checksum-verified) output.
+        sha256: sha256 checksum value (hex string) to verify equal to the
+          checksum of `src`.
+        visibility: Optional visibility specifier for the resulting output file.
     """
     native.py_test(
         name = name + "_checksum_test",
@@ -160,6 +168,7 @@ def xls_verify_checksum(name, src, out, sha256):
         name = name,
         srcs = [src],
         outs = [out],
+        visibility = visibility,
         # Capture the sha256sum output, only need the first token (the hash
         # itself), note what we got in a file for convenient debugging, then
         # compare to what the user specified and explode if it's not what they
