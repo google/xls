@@ -212,6 +212,7 @@ project, see our
 *   [Derek Lockhart](https://github.com/dmlockhart)
 *   [Eric Astor](https://github.com/ericastor)
 *   [Felix Zhu](https://github.com/felixzhuologist)
+*   [Georges Rotival](https://github.com/grotival)
 *   [Hans Montero](https://github.com/hmontero1205)
 *   [Johan Euphrosine](https://github.com/proppy)
 *   [Jonathan Bailey](https://github.com/jbaileyhandle)
