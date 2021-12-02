@@ -24,7 +24,7 @@
 namespace xls {
 
 // Returns a JSON representation of the given package for use by the
-// visualizer. The JSON is based on the xls::visualization::Package proto (see
+// visualizer. The JSON is based on the xls::viz::Package proto (see
 // ir_to_json_test.cc for examples)
 absl::StatusOr<std::string> IrToJson(
     Package* package, const DelayEstimator& delay_estimator,

@@ -162,7 +162,7 @@ class IrVisualizer {
 
     /**
      *  Object containing the graph structure for the package. The format is
-     *  defined by the proto xls.visualization.package.
+     *  defined by the proto xls.viz.package.
      *  @private {?Object}
      */
     this.package_ = null;

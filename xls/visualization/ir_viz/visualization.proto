@@ -14,7 +14,7 @@
 
 syntax = "proto2";
 
-package xls.visualization;
+package xls.viz;
 
 message Edge {
   // Note: Numbers are stored as double, because if they are declared as int64

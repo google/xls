@@ -58,24 +58,22 @@ class AttributeVisitor : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  const visualization::NodeAttributes& attributes() const {
-    return attributes_;
-  }
+  const viz::NodeAttributes& attributes() const { return attributes_; }
 
  private:
-  visualization::NodeAttributes attributes_;
+  viz::NodeAttributes attributes_;
 };
 
 // Returns the attributes of a node (e.g., the index value of a kTupleIndex
 // instruction) as a proto which is to be serialized to JSON.
-absl::StatusOr<visualization::NodeAttributes> NodeAttributes(
+absl::StatusOr<viz::NodeAttributes> NodeAttributes(
     Node* node,
     const absl::flat_hash_map<Node*, CriticalPathEntry*>& critical_path_map,
     const QueryEngine& query_engine, const PipelineSchedule* schedule,
     const DelayEstimator& delay_estimator) {
   AttributeVisitor visitor;
   XLS_RETURN_IF_ERROR(node->VisitSingleNode(&visitor));
-  visualization::NodeAttributes attributes = visitor.attributes();
+  viz::NodeAttributes attributes = visitor.attributes();
   auto it = critical_path_map.find(node);
   if (it != critical_path_map.end()) {
     attributes.set_on_critical_path(true);
@@ -101,10 +99,10 @@ absl::StatusOr<visualization::NodeAttributes> NodeAttributes(
   return attributes;
 }
 
-absl::StatusOr<visualization::FunctionBase> FunctionBaseToVisualizationProto(
+absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
     FunctionBase* function, const DelayEstimator& delay_estimator,
     const PipelineSchedule* schedule) {
-  visualization::FunctionBase proto;
+  viz::FunctionBase proto;
   proto.set_name(function->name());
   absl::StatusOr<std::vector<CriticalPathEntry>> critical_path =
       AnalyzeCriticalPath(function, /*clock_period_ps=*/absl::nullopt,
@@ -126,7 +124,7 @@ absl::StatusOr<visualization::FunctionBase> FunctionBaseToVisualizationProto(
     return absl::StrReplaceAll(name, {{".", "_"}});
   };
   for (Node* node : function->nodes()) {
-    visualization::Node* graph_node = proto.add_nodes();
+    viz::Node* graph_node = proto.add_nodes();
     graph_node->set_name(node->GetName());
     graph_node->set_id(sanitize_name(node->GetName()));
     graph_node->set_opcode(OpToString(node->op()));
@@ -140,7 +138,7 @@ absl::StatusOr<visualization::FunctionBase> FunctionBaseToVisualizationProto(
   for (Node* node : function->nodes()) {
     for (int64_t i = 0; i < node->operand_count(); ++i) {
       Node* operand = node->operand(i);
-      visualization::Edge* graph_edge = proto.add_edges();
+      viz::Edge* graph_edge = proto.add_edges();
       std::string source = sanitize_name(operand->GetName());
       std::string target = sanitize_name(node->GetName());
       graph_edge->set_id(absl::StrFormat("%s_to_%s_%d", source, target, i));
@@ -159,7 +157,7 @@ absl::StatusOr<std::string> IrToJson(
     Package* package, const DelayEstimator& delay_estimator,
     const PipelineSchedule* schedule,
     absl::optional<absl::string_view> entry_name) {
-  visualization::Package proto;
+  viz::Package proto;
 
   proto.set_name(package->name());
   for (FunctionBase* fb : package->GetFunctionBases()) {
