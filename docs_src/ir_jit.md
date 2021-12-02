@@ -67,7 +67,7 @@ The JIT is also available as a library with a straightforward interface:
 ```
 absl::StatusOr<Value> RunOnJit(
     Function* function, absl::Span<const Value> args) {
-  XLS_ASSIGN_OR_RETURN(auto jit, LlvmIrJit::Create(function));
+  XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
   return jit->Run(args);
 }
 ```
