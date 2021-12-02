@@ -34,16 +34,19 @@ class IrToJsonTest(absltest.TestCase):
 
   def test_ir_to_json(self):
     json_str = ir_to_json.ir_to_json(
-        """package test
+        """package test_package
 
 fn main(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }""", 'unit')
     json_dict = json.loads(json_str)
-    self.assertIn('edges', json_dict)
-    self.assertLen(json_dict['edges'], 2)
-    self.assertIn('nodes', json_dict)
-    self.assertLen(json_dict['nodes'], 3)
+    self.assertEqual(json_dict['name'], 'test_package')
+
+    function_dict = json_dict['function_bases'][0]
+    self.assertIn('edges', function_dict)
+    self.assertLen(function_dict['edges'], 2)
+    self.assertIn('nodes', function_dict)
+    self.assertLen(function_dict['nodes'], 3)
 
   def test_ir_to_json_with_scheduling(self):
     json_str = ir_to_json.ir_to_json(
@@ -54,11 +57,13 @@ fn main(x: bits[32], y: bits[32]) -> bits[32] {
   ret neg.2: bits[32] = neg(add.1)
 }""", 'unit', 2)
     json_dict = json.loads(json_str)
-    self.assertIn('edges', json_dict)
-    self.assertLen(json_dict['edges'], 3)
-    self.assertIn('nodes', json_dict)
-    self.assertLen(json_dict['nodes'], 4)
-    for node in json_dict['nodes']:
+    function_dict = json_dict['function_bases'][0]
+
+    self.assertIn('edges', function_dict)
+    self.assertLen(function_dict['edges'], 3)
+    self.assertIn('nodes', function_dict)
+    self.assertLen(function_dict['nodes'], 4)
+    for node in function_dict['nodes']:
       if node['id'] == 'x' or node['id'] == 'y':
         self.assertEqual(node['attributes']['cycle'], 0)
       elif node['id'] == 'add_1':

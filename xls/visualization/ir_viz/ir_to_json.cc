@@ -58,24 +58,24 @@ class AttributeVisitor : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  const IrForVisualization::Attributes& attributes() const {
+  const visualization::NodeAttributes& attributes() const {
     return attributes_;
   }
 
  private:
-  IrForVisualization::Attributes attributes_;
+  visualization::NodeAttributes attributes_;
 };
 
 // Returns the attributes of a node (e.g., the index value of a kTupleIndex
 // instruction) as a proto which is to be serialized to JSON.
-absl::StatusOr<IrForVisualization::Attributes> NodeAttributes(
+absl::StatusOr<visualization::NodeAttributes> NodeAttributes(
     Node* node,
     const absl::flat_hash_map<Node*, CriticalPathEntry*>& critical_path_map,
     const QueryEngine& query_engine, const PipelineSchedule* schedule,
     const DelayEstimator& delay_estimator) {
   AttributeVisitor visitor;
   XLS_RETURN_IF_ERROR(node->VisitSingleNode(&visitor));
-  IrForVisualization::Attributes attributes = visitor.attributes();
+  visualization::NodeAttributes attributes = visitor.attributes();
   auto it = critical_path_map.find(node);
   if (it != critical_path_map.end()) {
     attributes.set_on_critical_path(true);
@@ -101,12 +101,11 @@ absl::StatusOr<IrForVisualization::Attributes> NodeAttributes(
   return attributes;
 }
 
-}  // namespace
-
-absl::StatusOr<std::string> IrToJson(FunctionBase* function,
-                                     const DelayEstimator& delay_estimator,
-                                     const PipelineSchedule* schedule) {
-  IrForVisualization ir;
+absl::StatusOr<visualization::FunctionBase> FunctionBaseToVisualizationProto(
+    FunctionBase* function, const DelayEstimator& delay_estimator,
+    const PipelineSchedule* schedule) {
+  visualization::FunctionBase proto;
+  proto.set_name(function->name());
   absl::StatusOr<std::vector<CriticalPathEntry>> critical_path =
       AnalyzeCriticalPath(function, /*clock_period_ps=*/absl::nullopt,
                           delay_estimator);
@@ -127,7 +126,7 @@ absl::StatusOr<std::string> IrToJson(FunctionBase* function,
     return absl::StrReplaceAll(name, {{".", "_"}});
   };
   for (Node* node : function->nodes()) {
-    IrForVisualization::Node* graph_node = ir.add_nodes();
+    visualization::Node* graph_node = proto.add_nodes();
     graph_node->set_name(node->GetName());
     graph_node->set_id(sanitize_name(node->GetName()));
     graph_node->set_opcode(OpToString(node->op()));
@@ -141,7 +140,7 @@ absl::StatusOr<std::string> IrToJson(FunctionBase* function,
   for (Node* node : function->nodes()) {
     for (int64_t i = 0; i < node->operand_count(); ++i) {
       Node* operand = node->operand(i);
-      IrForVisualization::Edge* graph_edge = ir.add_edges();
+      visualization::Edge* graph_edge = proto.add_edges();
       std::string source = sanitize_name(operand->GetName());
       std::string target = sanitize_name(node->GetName());
       graph_edge->set_id(absl::StrFormat("%s_to_%s_%d", source, target, i));
@@ -151,6 +150,34 @@ absl::StatusOr<std::string> IrToJson(FunctionBase* function,
       graph_edge->set_bit_width(operand->GetType()->GetFlatBitCount());
     }
   }
+  return std::move(proto);
+}
+
+}  // namespace
+
+absl::StatusOr<std::string> IrToJson(
+    Package* package, const DelayEstimator& delay_estimator,
+    const PipelineSchedule* schedule,
+    absl::optional<absl::string_view> entry_name) {
+  visualization::Package proto;
+
+  proto.set_name(package->name());
+  for (FunctionBase* fb : package->GetFunctionBases()) {
+    XLS_ASSIGN_OR_RETURN(
+        *proto.add_function_bases(),
+        FunctionBaseToVisualizationProto(
+            fb, delay_estimator,
+            schedule != nullptr && schedule->function_base() == fb ? schedule
+                                                                   : nullptr));
+  }
+  if (entry_name.has_value()) {
+    proto.set_entry(std::string{entry_name.value()});
+  } else {
+    absl::StatusOr<Function*> entry_status = package->EntryFunction();
+    if (entry_status.ok()) {
+      proto.set_entry(entry_status.value()->name());
+    }
+  }
 
   std::string serialized_json;
   google::protobuf::util::JsonPrintOptions print_options;
@@ -158,7 +185,7 @@ absl::StatusOr<std::string> IrToJson(FunctionBase* function,
   print_options.preserve_proto_field_names = true;
 
   auto status =
-      google::protobuf::util::MessageToJsonString(ir, &serialized_json, print_options);
+      google::protobuf::util::MessageToJsonString(proto, &serialized_json, print_options);
   if (!status.ok()) {
     return absl::InternalError(std::string{status.message()});
   }

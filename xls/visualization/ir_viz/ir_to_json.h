@@ -23,13 +23,13 @@
 
 namespace xls {
 
-// Parses the given IR text of a package and returns a JSON representation of
-// the graph representation is generic (see ir_to_json_test.cc for examples) and
-// the client is responsible for constructing the appropriate representation for
-// the web view.
+// Returns a JSON representation of the given package for use by the
+// visualizer. The JSON is based on the xls::visualization::Package proto (see
+// ir_to_json_test.cc for examples)
 absl::StatusOr<std::string> IrToJson(
-    FunctionBase* function, const DelayEstimator& delay_estimator,
-    const PipelineSchedule* schedule = nullptr);
+    Package* package, const DelayEstimator& delay_estimator,
+    const PipelineSchedule* schedule = nullptr,
+    absl::optional<absl::string_view> entry_name = absl::nullopt);
 
 }  // namespace xls
 

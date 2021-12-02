@@ -390,10 +390,22 @@ class IrVisualizer {
         if (this.sourceOkCallback_) {
           this.sourceOkCallback_();
         }
-        this.irGraph_ = new irGraph.IrGraph(response['graph']);
+        // The returned JSON in the 'graph' key is a JSON object whose structure
+        // is defined by the xls.visualization.Package proto. The particular
+        // function to view is named in the 'entry' field of the package proto.
+        graph = null;
+        for (let func of response['graph']['function_bases']) {
+          if (response['graph']['entry'] == func['name']) {
+            graph = func;
+          }
+        }
+        if (graph == null) {
+          return;
+        }
+        this.irGraph_ = new irGraph.IrGraph(graph);
         this.graph_ = new selectableGraph.SelectableGraph(this.irGraph_);
 
-        this.highlightIr_(response['graph']);
+        this.highlightIr_(graph);
         this.setIrTextListeners_();
       } else {
         if (!!this.sourceErrorCallback_) {

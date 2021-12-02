@@ -60,7 +60,6 @@ absl::StatusOr<std::string> IrToJsonWrapper(
   } else {
     XLS_ASSIGN_OR_RETURN(func_base, GetFunctionBaseToView(package.get()));
   }
-
   XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_estimator,
                        GetDelayEstimator(delay_model_name));
   if (pipeline_stages.has_value()) {
@@ -71,9 +70,11 @@ absl::StatusOr<std::string> IrToJsonWrapper(
         PipelineSchedule::Run(
             func_base->AsFunctionOrDie(), *delay_estimator,
             SchedulingOptions().pipeline_stages(pipeline_stages.value())));
-    return IrToJson(func_base, *delay_estimator, &schedule);
+    return IrToJson(package.get(), *delay_estimator, &schedule,
+                    func_base->name());
   } else {
-    return IrToJson(func_base, *delay_estimator);
+    return IrToJson(package.get(), *delay_estimator, /*schedule=*/nullptr,
+                    func_base->name());
   }
 }
 

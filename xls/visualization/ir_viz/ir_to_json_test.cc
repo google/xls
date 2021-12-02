@@ -39,6 +39,10 @@ TEST_F(IrToJsonTest, SimpleFunction) {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(R"(
 package test
 
+fn other(z: bits[32]) -> bits[32] {
+  ret result: bits[32] = neg(z)
+}
+
 fn main(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
@@ -46,11 +50,15 @@ fn main(x: bits[32], y: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->EntryFunction());
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
                            GetDelayEstimator("unit"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string json, IrToJson(entry, *delay_estimator));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string json, IrToJson(p.get(), *delay_estimator,
+                                                      nullptr, entry->name()));
   XLS_VLOG(1) << json;
   // Match several substrings in the JSON. Avoid a full string match because
   // then this test becomes a change detector for the sources of the metadata
   // included in the graph (delay estimation, etc).
+  EXPECT_THAT(json, HasSubstr(R"("name": "other")"));
+  EXPECT_THAT(json, HasSubstr(R"("name": "main")"));
+
   EXPECT_THAT(json, HasSubstr(R"("edges": [)"));
   EXPECT_THAT(json, HasSubstr(R"("nodes": [)"));
   EXPECT_THAT(json, HasSubstr(R"("id": "add_1")"));
@@ -83,8 +91,8 @@ TEST_F(IrToJsonTest, SimpleFunctionWithSchedule) {
   PipelineSchedule schedule(f, cycle_map);
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
                            GetDelayEstimator("unit"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string json,
-                           IrToJson(f, *delay_estimator, &schedule));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string json, IrToJson(p.get(), *delay_estimator,
+                                                      &schedule, f->name()));
 
   XLS_VLOG(1) << json;
   // Match several substrings in the JSON. Avoid a full string match because

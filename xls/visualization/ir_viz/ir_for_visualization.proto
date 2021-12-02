@@ -14,39 +14,47 @@
 
 syntax = "proto2";
 
-package xls;
+package xls.visualization;
 
-message IrForVisualization {
-  message Edge {
-    // Note: Numbers are stored as double, because if they are declared as int64
-    // they are serialized as JSON strings (because Javascript numbers are
-    // doubles and can't represent the whole int64 range).
-    optional double bit_width = 1;
-    optional string id = 2;
-    optional string source = 3;
-    optional string target = 4;
-    optional string type = 5;
-  }
+message Edge {
+  // Note: Numbers are stored as double, because if they are declared as int64
+  // they are serialized as JSON strings (because Javascript numbers are
+  // doubles and can't represent the whole int64 range).
+  optional double bit_width = 1;
+  optional string id = 2;
+  optional string source = 3;
+  optional string target = 4;
+  optional string type = 5;
+}
 
-  message Attributes {
-    optional string value = 1;
-    optional double start = 2;
-    optional double width = 3;
-    optional double index = 4;
-    optional double delay_ps = 5;
-    optional string known_bits = 6;
-    optional bool on_critical_path = 7;
-    optional double cycle = 8;
-  }
+message NodeAttributes {
+  optional string value = 1;
+  optional double start = 2;
+  optional double width = 3;
+  optional double index = 4;
+  optional double delay_ps = 5;
+  optional string known_bits = 6;
+  optional bool on_critical_path = 7;
+  optional double cycle = 8;
+}
 
-  message Node {
-    optional Attributes attributes = 1;
-    optional string id = 2;
-    optional string ir = 3;
-    optional string name = 4;
-    optional string opcode = 5;
-  }
+message Node {
+  optional NodeAttributes attributes = 1;
+  optional string id = 2;
+  optional string ir = 3;
+  optional string name = 4;
+  optional string opcode = 5;
+}
 
-  repeated Edge edges = 1;
-  repeated Node nodes = 2;
+message FunctionBase {
+  optional string name = 1;
+  repeated Edge edges = 2;
+  repeated Node nodes = 3;
+}
+
+message Package {
+  optional string name = 1;
+  repeated FunctionBase function_bases = 2;
+  optional string marked_up_ir = 3;
+  optional string entry = 4;
 }
