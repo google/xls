@@ -96,21 +96,11 @@ class IrVisualizer {
    * @param {!Object} irElement Input DOM element holding IR text.
    * @param {?Object=} nodeMetadataElement DOM element to write node metadata
    *     text into.
-   * @param {?Object=} responseElement Optional DOM element to write the JSON
-   *     graph respresentation in the server response to. For debugging and
-   *     development purposes.
-   * @param {?Object=} graphInternalsElement Optional DOM element to write
-   *     internal graph representation to. For debugging and development
-   *     purposes.
    */
-  constructor(
-      graphElement, irElement, nodeMetadataElement = undefined,
-      responseElement = undefined, graphInternalsElement = undefined) {
+  constructor(graphElement, irElement, nodeMetadataElement = undefined) {
     this.graphElement_ = graphElement;
     this.irElement_ = irElement;
     this.nodeMetadataElement_ = nodeMetadataElement;
-    this.responseElement_ = responseElement;
-    this.graphInternalsElement_ = graphInternalsElement;
 
     /**
      * The graph view object.
@@ -403,21 +393,11 @@ class IrVisualizer {
         this.irGraph_ = new irGraph.IrGraph(response['graph']);
         this.graph_ = new selectableGraph.SelectableGraph(this.irGraph_);
 
-        if (!!this.responseElement_) {
-          this.responseElement_.text(
-              JSON.stringify(response['graph'], null, 2));
-        }
         this.highlightIr_(response['graph']);
         this.setIrTextListeners_();
       } else {
         if (!!this.sourceErrorCallback_) {
           this.sourceErrorCallback_(response['message']);
-        }
-        if (!!this.responseElement_) {
-          this.responseElement_.text('');
-        }
-        if (!!this.graphInternalsElement_) {
-          this.graphInternalsElement_.text('');
         }
         let focusOffset = getOffsetWithin(this.irElement_.get(0));
         this.irElement_.html(this.irElement_.text());

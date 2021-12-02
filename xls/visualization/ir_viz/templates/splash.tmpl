@@ -67,78 +67,56 @@
     <div id="outer" class="container-fluid">
       <div id="top-panes" class="row">
         <div id="lhs" class="col">
-          <ul class='nav nav-tabs' role='tablist'>
-            <li class="nav-item">
-              <a class="nav-link active" id="ir-source-tab" data-toggle="tab" href="#ir-source" role="tab" aria-controls="ir-source" aria-selected="true">IR</a>
-
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" id="json-response-tab" data-toggle="tab" href="#json-response" role="tab" aria-controls="json-response" aria-selected="false">JSON</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" id="cytoscape-graph-tab" data-toggle="tab" href="#cytoscape-graph" role="tab" aria-controls="cytoscape-graph" aria-selected="false">Cytoscape graph</a>
-            </li>
-          </ul>
-          <div class="tab-content" id="lhs-tab-content">
-            <div id="ir-source" class="tab-pane show active" role="tabpanel" aria-labelledby="ir-source-tab">
-              <div class="row">
-                <div class="col">
-                  <div class="input-group mb-3">
-                    <div class="input-group-prepend">
-                      <span class="input-group-text">Upload</span>
-                    </div>
-                    <div class="custom-file">
-                      <input type="file" class="custom-file-input" id="ir-upload">
-                      <label class="custom-file-label" for="ir-upload">Choose file</label>
-                    </div>
-                  </div>
+          <div class="row">
+            <div class="col">
+              <div class="input-group mb-3">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">Upload</span>
+                </div>
+                <div class="custom-file">
+                  <input type="file" class="custom-file-input" id="ir-upload">
+                  <label class="custom-file-label" for="ir-upload">Choose file</label>
                 </div>
               </div>
-              {%- if use_benchmark_examples -%}
-              <div class="form-group row mx-1">
-                <select class="col-7 form-control" id="example-select"
-                        onClick="selectBenchmark(this.value)">
-                  <option>Benchmarks...</option>
-                  {% for example in examples %}
-                  <option>{{example}}</option>
-                  {% endfor %}
-                </select>
-                <select class="col-2 form-control" id="opt-level-select"
-                        onClick="selectBenchmarkOptLevel(this.value)">
-                  <option>Opt level...</option>
-                  <option>0</option>
-                  <option>inline-only</option>
-                  <option>1</option>
-                  <option>2</option>
-                  <option>3</option>
-                </select>
-                <div class="col-3">
-                  <button id="load-example-btn" type="button"
-                          class="btn btn-primary disabled"
-                          onClick="loadExampleButtonHandler()">
-                    Load
-                  </button>
-                </div>
-              </div>
-              {%- else -%}
-              <select class="row form-control ml-1" id="ir-file-select"
-                      onClick="selectIrFile(this.value)">
-                <option>IR files...</option>
-                {% for example in examples %}
-                <option>{{example}}</option>
-                {% endfor %}
-              </select>
-              {%- endif -%}
-              <div class="row mx-1">
-                <div contenteditable="true" spellcheck="false" id="ir-source-text" class="source-text">{{preloaded_ir}}</div>
-              </div>
             </div>
-            <div id="json-response" class="tab-pane" role="tabpanel" aria-labelledby="json-response-tab">
-              <div contenteditable="false" spellcheck="false" id="json-response-text" class="source-text"></div>
+          </div>
+          {%- if use_benchmark_examples -%}
+          <div class="form-group row mx-1">
+            <select class="col-7 form-control" id="example-select"
+                    onClick="selectBenchmark(this.value)">
+              <option>Benchmarks...</option>
+              {% for example in examples %}
+              <option>{{example}}</option>
+              {% endfor %}
+            </select>
+            <select class="col-2 form-control" id="opt-level-select"
+                    onClick="selectBenchmarkOptLevel(this.value)">
+              <option>Opt level...</option>
+              <option>0</option>
+              <option>inline-only</option>
+              <option>1</option>
+              <option>2</option>
+              <option>3</option>
+            </select>
+            <div class="col-3">
+              <button id="load-example-btn" type="button"
+                      class="btn btn-primary disabled"
+                      onClick="loadExampleButtonHandler()">
+                Load
+              </button>
             </div>
-            <div id="cytoscape-graph" class="tab-pane" role="tabpanel" aria-labelledby="cytoscape-graph-tab">
-              <div contenteditable="true" spellcheck="false" id="cytoscape-graph-text" class="source-text"></div>
-            </div>
+          </div>
+          {%- else -%}
+          <select class="row form-control ml-1" id="ir-file-select"
+                  onClick="selectIrFile(this.value)">
+            <option>IR files...</option>
+            {% for example in examples %}
+            <option>{{example}}</option>
+            {% endfor %}
+          </select>
+          {%- endif -%}
+          <div class="row mx-1">
+            <div contenteditable="true" spellcheck="false" id="ir-source-text" class="source-text">{{preloaded_ir}}</div>
           </div>
           <div id="source-status" class="alert alert-dark" role="alert"></div>
           <div id="bottom-pane">
@@ -255,10 +233,8 @@
       });
 
       visualizer = new xls.IrVisualizer($('#graph'),
-                              $('#ir-source-text'),
-                              $('#node-metadata'),
-                              $('#json-response-text'),
-                              $('#cytoscape-graph-text'));
+                                        $('#ir-source-text'),
+                                        $('#node-metadata'));
       visualizer.setSourceOkHandler(function() {
         $('#source-status').removeClass('alert-danger')
           .removeClass('alert-dark')
