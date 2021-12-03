@@ -57,7 +57,7 @@ message SourceLocationRange {
 message FunctionValue {
   optional CPPName name = 1;
   optional Type type = 2;
-  optional TypeValue value = 3;
+  optional Value value = 3;
 }
 
 // Represents the prototype / interface of a function
@@ -106,6 +106,11 @@ message BoolType {}
 //  this is an instance of a struct.
 message InstanceType {
   optional CPPName name = 1;
+  repeated TemplateArgument args = 2;
+}
+message TemplateArgument {
+  optional int32 as_integral = 1;
+  optional Type as_type = 2;
 }
 
 // Fixed-length array type
@@ -141,7 +146,7 @@ message StructType {
 }
 
 // Generic type's associated values
-message TypeValue {
+message Value {
   optional bytes as_bits = 1;
   optional IntTypeValue as_int = 2;
   optional bool as_bool = 3;
@@ -170,12 +175,12 @@ message StructTypeValue {
 message StructFieldValue {
   optional CPPName name = 1;
   optional Type type = 2;
-  optional TypeValue value = 3;
+  optional Value value = 3;
 }
 
 // Fixed-length array type with the given values
 message ArrayTypeValue {
-  repeated TypeValue element_values = 1;
+  repeated Value element_values = 1;
 }
 
 // Represents an instantiation of a non-built-in type. Most commonly,

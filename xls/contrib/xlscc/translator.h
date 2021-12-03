@@ -69,10 +69,11 @@ class CType {
   virtual explicit operator std::string() const;
   virtual xls::Type* GetXLSType(xls::Package* package) const;
   virtual bool StoredAsXLSBits() const;
-  virtual absl::Status GetMetadata(xlscc_metadata::Type* output) const;
-  virtual absl::Status GetMetadataValue(Translator *t,
-      const ConstValue const_value,
-      xlscc_metadata::TypeValue* output) const;
+  virtual absl::Status GetMetadata(Translator& translator,
+                                   xlscc_metadata::Type* output) const;
+  virtual absl::Status GetMetadataValue(Translator& translator,
+                                        const ConstValue const_value,
+                                        xlscc_metadata::Value* output) const;
 };
 
 // C/C++ void
@@ -82,9 +83,11 @@ class CVoidType : public CType {
 
   int GetBitWidth() const override;
   explicit operator std::string() const override;
-  absl::Status GetMetadata(xlscc_metadata::Type* output) const override;
-  absl::Status GetMetadataValue(Translator *t, const ConstValue const_value,
-                      xlscc_metadata::TypeValue* output) const override;
+  absl::Status GetMetadata(Translator& translator,
+                           xlscc_metadata::Type* output) const override;
+  absl::Status GetMetadataValue(Translator& translator,
+                                const ConstValue const_value,
+                                xlscc_metadata::Value* output) const override;
 
   bool operator==(const CType& o) const override;
 };
@@ -97,9 +100,11 @@ class CBitsType : public CType {
 
   int GetBitWidth() const override;
   explicit operator std::string() const override;
-  absl::Status GetMetadata(xlscc_metadata::Type* output) const override;
-  absl::Status GetMetadataValue(Translator *t, const ConstValue const_value,
-                      xlscc_metadata::TypeValue* output) const override;
+  absl::Status GetMetadata(Translator& translator,
+                           xlscc_metadata::Type* output) const override;
+  absl::Status GetMetadataValue(Translator& translator,
+                                const ConstValue const_value,
+                                xlscc_metadata::Value* output) const override;
 
   bool operator==(const CType& o) const override;
   bool StoredAsXLSBits() const override;
@@ -116,9 +121,11 @@ class CIntType : public CType {
 
   int GetBitWidth() const override;
   explicit operator std::string() const override;
-  absl::Status GetMetadata(xlscc_metadata::Type* output) const override;
-  absl::Status GetMetadataValue(Translator *t, const ConstValue const_value,
-                      xlscc_metadata::TypeValue* output) const override;
+  absl::Status GetMetadata(Translator& translator,
+                           xlscc_metadata::Type* output) const override;
+  absl::Status GetMetadataValue(Translator& translator,
+                                const ConstValue const_value,
+                                xlscc_metadata::Value* output) const override;
 
   bool operator==(const CType& o) const override;
 
@@ -140,9 +147,11 @@ class CBoolType : public CType {
 
   int GetBitWidth() const override;
   explicit operator std::string() const override;
-  absl::Status GetMetadata(xlscc_metadata::Type* output) const override;
-  absl::Status GetMetadataValue(Translator *t, const ConstValue const_value,
-                      xlscc_metadata::TypeValue* output) const override;
+  absl::Status GetMetadata(Translator& translator,
+                           xlscc_metadata::Type* output) const override;
+  absl::Status GetMetadataValue(Translator& translator,
+                                const ConstValue const_value,
+                                xlscc_metadata::Value* output) const override;
   bool operator==(const CType& o) const override;
   bool StoredAsXLSBits() const override;
 };
@@ -155,7 +164,8 @@ class CField {
   const clang::NamedDecl* name() const;
   int index() const;
   std::shared_ptr<CType> type() const;
-  absl::Status GetMetadata(xlscc_metadata::StructField* output) const;
+  absl::Status GetMetadata(Translator& translator,
+                           xlscc_metadata::StructField* output) const;
   absl::Status GetMetadataValue(Translator *t, const ConstValue const_value,
                       xlscc_metadata::StructFieldValue* output) const;
  private:
@@ -171,9 +181,11 @@ class CStructType : public CType {
 
   int GetBitWidth() const override;
   explicit operator std::string() const override;
-  absl::Status GetMetadata(xlscc_metadata::Type* output) const override;
-  absl::Status GetMetadataValue(Translator *t, const ConstValue const_value,
-                      xlscc_metadata::TypeValue* output) const override;
+  absl::Status GetMetadata(Translator& translator,
+                           xlscc_metadata::Type* output) const override;
+  absl::Status GetMetadataValue(Translator& translator,
+                                const ConstValue const_value,
+                                xlscc_metadata::Value* output) const override;
   bool operator==(const CType& o) const override;
 
   // Returns true if the #pragma no_notuple directive was given for the struct
@@ -213,9 +225,11 @@ class CInstantiableTypeAlias : public CType {
   const clang::NamedDecl* base() const;
 
   bool operator==(const CType& o) const override;
-  absl::Status GetMetadata(xlscc_metadata::Type* output) const override;
-  absl::Status GetMetadataValue(Translator *t, const ConstValue const_value,
-                      xlscc_metadata::TypeValue* output) const override;
+  absl::Status GetMetadata(Translator& translator,
+                           xlscc_metadata::Type* output) const override;
+  absl::Status GetMetadataValue(Translator& translator,
+                                const ConstValue const_value,
+                                xlscc_metadata::Value* output) const override;
   explicit operator std::string() const override;
   int GetBitWidth() const override;
 
@@ -230,9 +244,11 @@ class CArrayType : public CType {
   bool operator==(const CType& o) const override;
   int GetBitWidth() const override;
   explicit operator std::string() const override;
-  absl::Status GetMetadata(xlscc_metadata::Type* output) const override;
-  absl::Status GetMetadataValue(Translator *t, const ConstValue const_value,
-                      xlscc_metadata::TypeValue* output) const override;
+  absl::Status GetMetadata(Translator& translator,
+                           xlscc_metadata::Type* output) const override;
+  absl::Status GetMetadataValue(Translator& translator,
+                                const ConstValue const_value,
+                                xlscc_metadata::Value* output) const override;
 
   int GetSize() const;
   std::shared_ptr<CType> GetElementType() const;
@@ -903,10 +919,18 @@ class Translator {
                            const CStructType& stype);
   // Returns the BValue for the field with index "index" from a BValue for a
   //  struct of type "type"
+  // This version cannot be static because it needs access to the
+  //  FunctionBuilder from the context
   xls::BValue GetStructFieldXLS(xls::BValue val, int index,
                                 const CStructType& type,
                                 const xls::SourceLocation& loc);
 
+ public:
+  // This version is public because it needs to be accessed by CStructType
+  static absl::StatusOr<xls::Value> GetStructFieldXLS(xls::Value val, int index,
+                                                      const CStructType& type);
+
+ private:
   // Gets the appropriate XLS type for a struct. For example, it might be an
   //  xls::Tuple, or if #pragma hls_notuple was specified, it might be
   //  the single field's type
