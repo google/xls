@@ -1207,7 +1207,7 @@ absl::Status FunctionBuilderVisitor::HandleParam(Param* param) {
 
   // Load 1: Get the pointer to arg N out of memory (the arg redirect buffer).
   llvm::Value* gep = builder_->CreateGEP(
-      arg_pointer,
+      arg_pointer->getType()->getPointerElementType(), arg_pointer,
       {
           llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), 0),
           llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), index),
@@ -1236,7 +1236,7 @@ absl::Status FunctionBuilderVisitor::HandlePackedParam(Param* param) {
   // Then pull out elements from that buffer to make the final type.
   // Load 1: Get the pointer to arg N out of memory (the arg redirect buffer).
   llvm::Value* gep = builder_->CreateGEP(
-      arg_pointer,
+      arg_pointer->getType()->getPointerElementType(), arg_pointer,
       {
           llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), 0),
           llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), index),
