@@ -17,6 +17,7 @@
 #include <memory>
 
 #include "google/protobuf/text_format.h"
+#include "google/protobuf/util/message_differencer.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
@@ -27,6 +28,8 @@ namespace xls {
 namespace netlist {
 namespace {
 
+using google::protobuf::TextFormat;
+using google::protobuf::util::MessageDifferencer;
 using status_testing::IsOkAndHolds;
 
 TEST(CellLibraryTest, SerializeToProto) {
@@ -37,7 +40,7 @@ TEST(CellLibraryTest, SerializeToProto) {
       CellLibraryEntry(CellKind::kInverter, "INV",
                        std::vector<std::string>{"A"}, pins, absl::nullopt)));
   XLS_ASSERT_OK_AND_ASSIGN(CellLibraryProto proto, cell_library.ToProto());
-  EXPECT_EQ(R"(entries {
+  std::string expected_proto_text = R"(entries {
   kind: INVERTER
   name: "INV"
   input_names: "A"
@@ -48,8 +51,10 @@ TEST(CellLibraryTest, SerializeToProto) {
     }
   }
 }
-)",
-            proto.DebugString());
+)";
+  CellLibraryProto expected_proto;
+  TextFormat::ParseFromString(expected_proto_text, &expected_proto);
+  EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(proto, expected_proto));
 }
 
 TEST(CellLibraryTest, EvaluateStateTable) {
