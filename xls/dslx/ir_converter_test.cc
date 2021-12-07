@@ -25,15 +25,11 @@
 #include "absl/flags/flag.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
+#include "xls/common/golden_files.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/update_golden_files.inc"
 #include "xls/dslx/parse_and_typecheck.h"
-
-ABSL_FLAG(std::string, xls_source_dir, "",
-          "Absolute path to root of XLS source directory to modify when "
-          "--test_update_golden_files is given");
 
 namespace xls::dslx {
 namespace {
@@ -43,18 +39,9 @@ constexpr ConvertOptions kFailNoPos = {
 };
 
 void ExpectIr(absl::string_view got, absl::string_view test_name) {
-  std::string suffix =
-      absl::StrCat("dslx/testdata/ir_converter_test_", test_name, ".ir");
-  if (absl::GetFlag(FLAGS_test_update_golden_files)) {
-    std::string path =
-        absl::StrCat(absl::GetFlag(FLAGS_xls_source_dir), "/", suffix);
-    XLS_ASSERT_OK(SetFileContents(path, got));
-    return;
-  }
-  XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path runfile,
-                           GetXlsRunfilePath(absl::StrCat("xls/", suffix)));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string want, GetFileContents(runfile));
-  EXPECT_EQ(got, want);
+  ExpectEqualToGoldenFile(
+      absl::StrFormat("xls/dslx/testdata/ir_converter_test_%s.ir", test_name),
+      got);
 }
 
 std::string TestName() {

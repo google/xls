@@ -234,8 +234,8 @@ cc_test(
     deps = [
         ":ir_converter",
         ":parse_and_typecheck",
+        "//xls/common:golden_files",
         "//xls/common:init_xls",
-        "//xls/common:update_golden_files",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/logging:log_lines",

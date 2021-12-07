@@ -145,7 +145,8 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
   //
   void ExpectVerilogEqualToGoldenFile(
       const std::filesystem::path& golden_file_path, absl::string_view text,
-      absl::Span<const VerilogInclude> includes = {});
+      absl::Span<const VerilogInclude> includes = {},
+      xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 
   // Returns the path to the testdata file associated with a unit test. The
   // return path has the form:

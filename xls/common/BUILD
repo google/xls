@@ -286,6 +286,20 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "golden_files_test",
+    srcs = ["golden_files_test.cc"],
+    data = glob([
+        "testdata/golden_files_*",
+    ]),
+    deps = [
+        ":golden_files",
+        ":xls_gunit_main",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 py_library(
     name = "xls_error",
     srcs = ["xls_error.py"],
@@ -346,9 +360,9 @@ py_library(
 )
 
 cc_library(
-    name = "update_golden_files",
+    name = "update_golden_files_flag",
     testonly = True,
-    hdrs = ["update_golden_files.inc"],
+    hdrs = ["update_golden_files_flag.inc"],
 )
 
 py_library(
@@ -374,5 +388,22 @@ cc_library(
     deps = [
         ":init_xls",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "golden_files",
+    testonly = True,
+    srcs = ["golden_files.cc"],
+    hdrs = ["golden_files.h"],
+    deps = [
+        ":source_location",
+        ":update_golden_files_flag",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/strings",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
     ],
 )

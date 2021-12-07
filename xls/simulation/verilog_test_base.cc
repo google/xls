@@ -16,23 +16,17 @@
 
 #include <cstdlib>
 
-#include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/file/filesystem.h"
-#include "xls/common/file/get_runfile_path.h"
+#include "xls/common/golden_files.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/update_golden_files.inc"
 #include "xls/simulation/verilog_simulators.h"
-
-ABSL_FLAG(std::string, xls_source_dir, "",
-          "Absolute path to the root of XLS source directory to modify "
-          "when --test_update_golden_files is given.");
 
 namespace xls {
 namespace verilog {
@@ -53,25 +47,9 @@ void VerilogTestBase::ExpectVerilogEqual(
 
 void VerilogTestBase::ExpectVerilogEqualToGoldenFile(
     const std::filesystem::path& golden_file_path, absl::string_view text,
-    absl::Span<const VerilogInclude> includes) {
-  XLS_VLOG(1) << "Reading golden Verilog from: " << golden_file_path;
-  if (absl::GetFlag(FLAGS_test_update_golden_files)) {
-    XLS_CHECK(!absl::GetFlag(FLAGS_xls_source_dir).empty())
-        << "Must specify --xls_source_dir with --test_update_golden_files.";
-    // Strip the xls off the end of the xls_source_dir as the golden file path
-    // already includes xls.
-    std::filesystem::path abs_path =
-        std::filesystem::path(absl::GetFlag(FLAGS_xls_source_dir))
-            .remove_filename() /
-        golden_file_path;
-    XLS_CHECK_OK(SetFileContents(abs_path, text));
-    XLS_LOG(INFO) << "Updated golden file: " << golden_file_path;
-  } else {
-    XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path abs_path,
-                             GetXlsRunfilePath(golden_file_path));
-    std::string golden = GetFileContents(abs_path).value();
-    ExpectVerilogEqual(golden, text, includes);
-  }
+    absl::Span<const VerilogInclude> includes, xabsl::SourceLocation loc) {
+  ExpectEqualToGoldenFile(golden_file_path, text, loc);
+  XLS_EXPECT_OK(ValidateVerilog(text, includes));
 }
 
 std::filesystem::path VerilogTestBase::GoldenFilePath(

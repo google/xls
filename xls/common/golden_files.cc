@@ -1,0 +1,55 @@
+// Copyright 2021 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "xls/common/golden_files.h"
+
+#include "absl/flags/flag.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/file/get_runfile_path.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/matchers.h"
+#include "xls/common/update_golden_files_flag.inc"
+
+ABSL_FLAG(std::string, xls_source_dir, "",
+          "Absolute path to the root of XLS source directory to modify "
+          "when --test_update_golden_files is given.");
+
+namespace xls {
+
+void ExpectEqualToGoldenFile(const std::filesystem::path& golden_file_path,
+                             absl::string_view text,
+                             xabsl::SourceLocation loc) {
+  XLS_VLOG(1) << "Reading golden Verilog from: " << golden_file_path;
+  if (absl::GetFlag(FLAGS_test_update_golden_files)) {
+    XLS_CHECK(!absl::GetFlag(FLAGS_xls_source_dir).empty())
+        << "Must specify --xls_source_dir with --test_update_golden_files.";
+    // Strip the xls off the end of the xls_source_dir as the golden file path
+    // already includes xls.
+    std::filesystem::path abs_path =
+        std::filesystem::path(absl::GetFlag(FLAGS_xls_source_dir))
+            .remove_filename() /
+        golden_file_path;
+    XLS_CHECK_OK(SetFileContents(abs_path, text));
+    XLS_LOG(INFO) << "Updated golden file: " << golden_file_path;
+  } else {
+    XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path abs_path,
+                             GetXlsRunfilePath(golden_file_path));
+    std::string golden = GetFileContents(abs_path).value();
+    testing::ScopedTrace trace(loc.file_name(), loc.line(),
+                               "ExpectEqualToGoldenFile failed");
+    EXPECT_EQ(text, golden);
+  }
+}
+
+}  // namespace xls
