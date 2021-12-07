@@ -16,12 +16,14 @@
 
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
+#include "xls/ir/block.h"
+#include "xls/ir/proc.h"
 
 namespace xls {
 namespace {
 
-void MarkReachedFunctions(Function* func,
-                          absl::flat_hash_set<Function*>* reached) {
+void MarkReachedFunctions(FunctionBase* func,
+                          absl::flat_hash_set<FunctionBase*>* reached) {
   if (reached->contains(func)) {
     return;
   }
@@ -50,7 +52,7 @@ void MarkReachedFunctions(Function* func,
 // nodes, or parameters, are dead.
 absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
     Package* p, const PassOptions& options, PassResults* results) const {
-  absl::flat_hash_set<Function*> reached;
+  absl::flat_hash_set<FunctionBase*> reached;
   // TODO(meheff): Package:EntryFunction check fails if there is not a function
   // named "main". Ideally as an invariant a Package should always have an entry
   // function, but for now look for it and bail if it does not exist.
@@ -60,6 +62,17 @@ absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
   }
 
   MarkReachedFunctions(*func, &reached);
+
+  // Blocks and procs are not deleted from the package so any references from
+  // these constructs must remain.
+  // TODO(https://github.com/google/xls/issues/531): 2021/12/6 Eliminate dead
+  // procs/blocks when the default entry function heuristics are eliminated.
+  for (const std::unique_ptr<Proc>& proc : p->procs()) {
+    MarkReachedFunctions(proc.get(), &reached);
+  }
+  for (const std::unique_ptr<Block>& block : p->blocks()) {
+    MarkReachedFunctions(block.get(), &reached);
+  }
 
   // Accumulate a list of nodes to unlink.
   std::vector<Function*> to_unlink;

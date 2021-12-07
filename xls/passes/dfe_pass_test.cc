@@ -89,6 +89,21 @@ TEST_F(DeadFunctionEliminationPassTest, OneDeadFunctionButNoEntry) {
   EXPECT_EQ(p->functions().size(), 3);
 }
 
+TEST_F(DeadFunctionEliminationPassTest, ProcCallingFunction) {
+  auto p = std::make_unique<Package>(TestName(), "entry");
+  XLS_ASSERT_OK(MakeFunction("entry", p.get()).status());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           MakeFunction("called_by_proc", p.get()));
+
+  TokenlessProcBuilder b(TestName(), Value(UBits(0, 32)), "tkn", "st", p.get());
+  BValue invoke = b.Invoke({b.GetStateParam()}, f);
+  XLS_ASSERT_OK(b.Build(invoke));
+
+  EXPECT_EQ(p->functions().size(), 2);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_EQ(p->functions().size(), 2);
+}
+
 TEST_F(DeadFunctionEliminationPassTest, MapAndCountedFor) {
   // If no entry function is specified, then DFS cannot happen as all functions
   // are live.
