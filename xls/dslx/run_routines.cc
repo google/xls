@@ -17,6 +17,8 @@
 #include <random>
 
 #include "xls/dslx/bindings.h"
+#include "xls/dslx/bytecode_emitter.h"
+#include "xls/dslx/bytecode_interpreter.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/ir_converter.h"
@@ -350,16 +352,42 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
 
     ran += 1;
     std::cerr << "[ RUN UNITTEST  ] " << test_name << std::endl;
-    ModuleMember* member = entry_module->FindMemberWithName(test_name).value();
     absl::Status status;
-    if (absl::holds_alternative<TestFunction*>(*member)) {
-      status = interpreter.RunTest(test_name);
-    } else if (absl::holds_alternative<TestProc*>(*member)) {
-      status = interpreter.RunTestProc(test_name);
+    if (options.bytecode) {
+      XLS_ASSIGN_OR_RETURN(TestFunction * f, entry_module->GetTest(test_name));
+      InterpBindings& top_level_bindings =
+          import_data.GetOrCreateTopLevelBindings(entry_module);
+      // Need to reserve slots for top-level bindings. We don't need to worry
+      // about Params, since TestFunctions don't have 'em.
+      absl::flat_hash_map<const NameDef*, int64_t> name_to_slot;
+      std::vector<InterpValue> slots;
+      for (const ConstantDef* def : entry_module->GetConstantDefs()) {
+        name_to_slot[def->name_def()] = name_to_slot.size();
+
+        XLS_ASSIGN_OR_RETURN(
+            InterpValue top_level_value,
+            top_level_bindings.ResolveValueFromIdentifier(def->identifier()));
+        slots.push_back(top_level_value);
+      }
+
+      BytecodeEmitter emitter(&import_data, tm_or.value().type_info,
+                              &name_to_slot);
+      XLS_ASSIGN_OR_RETURN(std::vector<Bytecode> bytecode,
+                           emitter.Emit(f->fn()));
+      status = BytecodeInterpreter::Interpret(bytecode, &slots).status();
     } else {
-      return absl::InvalidArgumentError(absl::StrCat(
-          test_name, " was neither a test function nor a test proc."));
+      ModuleMember* member =
+          entry_module->FindMemberWithName(test_name).value();
+      if (absl::holds_alternative<TestFunction*>(*member)) {
+        status = interpreter.RunTest(test_name);
+      } else if (absl::holds_alternative<TestProc*>(*member)) {
+        status = interpreter.RunTestProc(test_name);
+      } else {
+        return absl::InvalidArgumentError(absl::StrCat(
+            test_name, " was neither a test function nor a test proc."));
+      }
     }
+
     if (status.ok()) {
       std::cerr << "[            OK ]" << std::endl;
     } else {

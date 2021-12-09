@@ -48,14 +48,9 @@ class Interpreter {
   //  type_info: Type information (derived for the entry point) to be used in
   //    creating the interpreter.
   //  typecheck/import_data: Supplemental helpers used for import statements.
-  //  env: Envionment of current parametric bindings.
-  //  bit_widths: Bit widths for parametric bindings.
+  //  env: Envionment of current name-value bindings.
   //  expr: (Derived parametric) expression to evaluate.
   //  fn_ctx: Current function context.
-  //
-  // TODO(leary): 2020-11-24 This signature is for backwards compatibility with
-  // a Python API, we can likely eliminate it when everything is ported over to
-  // C++, or at least consolidate the env/bit_widths maps.
   static absl::StatusOr<InterpValue> InterpretExpr(
       Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
       ImportData* import_data,
@@ -113,7 +108,9 @@ class Interpreter {
 
   // Searches for a test function with the given name in this interpreter's
   // module and, if found, runs it.
-  absl::Status RunTest(absl::string_view name);
+  // If "bytecode" is true, then the in-development BytecodeInterpreter will be
+  // used for execution.
+  absl::Status RunTest(absl::string_view name, bool bytecode = false);
 
   // Same as above, but for proc tests.
   absl::Status RunTestProc(absl::string_view name);

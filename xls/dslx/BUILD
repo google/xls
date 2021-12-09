@@ -42,6 +42,67 @@ py_test(
 )
 
 cc_library(
+    name = "bytecode_emitter",
+    srcs = ["bytecode_emitter.cc"],
+    hdrs = ["bytecode_emitter.h"],
+    deps = [
+        ":ast",
+        ":import_data",
+        ":interp_bindings",
+        ":interp_value",
+        ":type_info",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_test(
+    name = "bytecode_emitter_test",
+    srcs = ["bytecode_emitter_test.cc"],
+    deps = [
+        ":ast",
+        ":bytecode_emitter",
+        ":import_data",
+        ":parse_and_typecheck",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "bytecode_interpreter",
+    srcs = ["bytecode_interpreter.cc"],
+    hdrs = ["bytecode_interpreter.h"],
+    deps = [
+        ":ast",
+        ":builtins",
+        ":bytecode_emitter",
+        ":interp_bindings",
+        ":interp_value",
+        ":type_info",
+        "//xls/common/status:ret_check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "bytecode_interpreter_test",
+    srcs = ["bytecode_interpreter_test.cc"],
+    deps = [
+        ":bytecode_emitter",
+        ":bytecode_interpreter",
+        ":interp_value",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "constexpr_evaluator",
     srcs = ["constexpr_evaluator.cc"],
     hdrs = ["constexpr_evaluator.h"],
@@ -897,6 +958,8 @@ cc_library(
     hdrs = ["run_routines.h"],
     deps = [
         ":bindings",
+        ":bytecode_emitter",
+        ":bytecode_interpreter",
         ":command_line_utils",
         ":default_dslx_stdlib_path",
         ":error_printer",

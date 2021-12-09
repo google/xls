@@ -93,6 +93,7 @@ struct ParseAndTestOptions {
   bool execute = true;
   absl::optional<int64_t> seed = absl::nullopt;
   ConvertOptions convert_options;
+  bool bytecode = false;
 };
 
 enum class TestResult {

@@ -258,7 +258,7 @@ absl::StatusOr<InterpValue> Interpreter::RunFunction(
                                     &symbolic_bindings);
 }
 
-absl::Status Interpreter::RunTest(absl::string_view name) {
+absl::Status Interpreter::RunTest(absl::string_view name, bool bytecode) {
   XLS_ASSIGN_OR_RETURN(TestFunction * test, entry_module_->GetTest(name));
   XLS_ASSIGN_OR_RETURN(
       const InterpBindings* top_level_bindings,
