@@ -96,10 +96,10 @@
 import std
 import float32
 import third_party.xls_berkeley_softfloat.fpdiv_2x32
-import xls.modules.fpadd_2x32
-import xls.modules.fpldexp_32
-import xls.modules.fpmul_2x32
-import xls.modules.fpsub_2x32
+import xls.modules.fp32_add_2
+import xls.modules.fp32_ldexp
+import xls.modules.fp32_mul_2
+import xls.modules.fp32_sub_2
 
 type F32 = float32::F32;
 
@@ -122,30 +122,30 @@ fn expmulti(hi: F32, lo: F32, k: s32) -> F32 {
                    fraction: u23:0
                   };
 
-  let range = fpsub_2x32::fpsub_2x32(hi, lo);
-  let range_sq = fpmul_2x32::fpmul_2x32(range, range);
+  let range = fp32_sub_2::fp32_sub_2(hi, lo);
+  let range_sq = fp32_mul_2::fp32_mul_2(range, range);
 
   // c := r - t*(P1+t*(P2+t*(P3+t*(P4+t*P5))))
-  let c = fpmul_2x32::fpmul_2x32(range_sq, P5);
-  let c = fpadd_2x32::fpadd_2x32(c, P4);
-  let c = fpmul_2x32::fpmul_2x32(range_sq, c);
-  let c = fpadd_2x32::fpadd_2x32(c, P3);
-  let c = fpmul_2x32::fpmul_2x32(range_sq, c);
-  let c = fpadd_2x32::fpadd_2x32(c, P2);
-  let c = fpmul_2x32::fpmul_2x32(range_sq, c);
-  let c = fpadd_2x32::fpadd_2x32(c, P1);
-  let c = fpmul_2x32::fpmul_2x32(range_sq, c);
-  let c = fpsub_2x32::fpsub_2x32(range, c);
+  let c = fp32_mul_2::fp32_mul_2(range_sq, P5);
+  let c = fp32_add_2::fp32_add_2(c, P4);
+  let c = fp32_mul_2::fp32_mul_2(range_sq, c);
+  let c = fp32_add_2::fp32_add_2(c, P3);
+  let c = fp32_mul_2::fp32_mul_2(range_sq, c);
+  let c = fp32_add_2::fp32_add_2(c, P2);
+  let c = fp32_mul_2::fp32_mul_2(range_sq, c);
+  let c = fp32_add_2::fp32_add_2(c, P1);
+  let c = fp32_mul_2::fp32_mul_2(range_sq, c);
+  let c = fp32_sub_2::fp32_sub_2(range, c);
 
   // y := 1 - ((lo - (r*c)/(2-c)) - hi)
-  let numerator = fpmul_2x32::fpmul_2x32(range, c);
-  let divisor = fpsub_2x32::fpsub_2x32(TWO, c);
+  let numerator = fp32_mul_2::fp32_mul_2(range, c);
+  let divisor = fp32_sub_2::fp32_sub_2(TWO, c);
   let div = fpdiv_2x32::fpdiv_2x32(numerator, divisor);
-  let y = fpsub_2x32::fpsub_2x32(lo, div);
-  let y = fpsub_2x32::fpsub_2x32(y, hi);
-  let y = fpsub_2x32::fpsub_2x32(ONE, y);
+  let y = fp32_sub_2::fp32_sub_2(lo, div);
+  let y = fp32_sub_2::fp32_sub_2(y, hi);
+  let y = fp32_sub_2::fp32_sub_2(ONE, y);
 
-  fpldexp_32::fpldexp_32(y, k)
+  fp32_ldexp::fp32_ldexp(y, k)
 }
 
 // Returns e^x
@@ -155,20 +155,20 @@ pub fn fpexp_32(x: F32) -> F32 {
   // Flush subnormals.
   let x = float32::subnormals_to_zero(x);
 
-  let scaled_x = fpmul_2x32::fpmul_2x32(LOG2E, x);
+  let scaled_x = fp32_mul_2::fp32_mul_2(LOG2E, x);
   let signed_half = F32{ sign: x.sign,
                          bexp: float32::bias(s8:-1),
                          fraction:  u23:0
                         };
-  let fp_k = fpadd_2x32::fpadd_2x32(scaled_x, signed_half);
+  let fp_k = fp32_add_2::fp32_add_2(scaled_x, signed_half);
   let k = float32::cast_to_fixed<u32:32>(fp_k);
 
   // Reduce
   // TODO(jbaileyhandle): Cheaper to truncate fp_k directly?
   let fp_truncated_k = float32::cast_from_fixed(k);
-  let hi = fpmul_2x32::fpmul_2x32(LN2HI, fp_truncated_k);
-  let hi = fpsub_2x32::fpsub_2x32(x, hi);
-  let lo = fpmul_2x32::fpmul_2x32( LN2LO, fp_truncated_k);
+  let hi = fp32_mul_2::fp32_mul_2(LN2HI, fp_truncated_k);
+  let hi = fp32_sub_2::fp32_sub_2(x, hi);
+  let lo = fp32_mul_2::fp32_mul_2( LN2LO, fp_truncated_k);
 
   // Compute
   let result = expmulti(hi, lo, k);
