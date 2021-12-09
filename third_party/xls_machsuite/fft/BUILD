@@ -42,9 +42,9 @@ xls_dslx_library(
         "//xls/modules:apfloat_add_2_dslx",
         "//xls/modules:apfloat_mul_2_dslx",
         "//xls/modules:apfloat_sub_2_dslx",
-        "//xls/modules:fpadd_2x32_dslx",
-        "//xls/modules:fpmul_2x32_dslx",
-        "//xls/modules:fpsub_2x32_dslx",
+        "//xls/modules:fp32_add_2_dslx",
+        "//xls/modules:fp32_mul_2_dslx",
+        "//xls/modules:fp32_sub_2_dslx",
     ],
 )
 
