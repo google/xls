@@ -1,4 +1,4 @@
-// Copyright 2021 The XLS Authors
+// Copyright 2020 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,19 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This file implements most of IEEE-754 single-precision
-// floating-point subtraction, with the following exceptions:
-//  - Both input and output denormals are treated as/flushed to 0.
+// This file implements most of a IEEE-754-compliant fused multiply-add
+// operation, with the following exceptions:
+//  - Both input and output denormals are treated as/flushed to 0 (internal
+//    subnormals arising from the internal product are left intact.
 //  - Only round-to-nearest mode is supported.
 //  - No exception flags are raised/reported.
 // In all other cases, results should be identical to other
 // conforming implementations (modulo exact fraction values in the NaN case).
-import xls.modules.apfloat_sub_2
-import xls.modules.fpadd_2x64
+import xls.modules.apfloat_fma
 import float64
 
 type F64 = float64::F64;
-
-pub fn fpsub_2x64(x: F64, y: F64) -> F64 {
-  apfloat_sub_2::apfloat_sub_2<u32:11, u32:52>(x,y)
+pub fn fp64_fma(a: F64, b: F64, c: F64) -> F64 {
+  apfloat_fma::fma<u32:11, u32:52>(a, b, c)
 }

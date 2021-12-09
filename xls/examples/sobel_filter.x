@@ -18,8 +18,8 @@
 
 import std
 import float32
-import xls.modules.fpadd_2x32
-import xls.modules.fpmul_2x32
+import xls.modules.fp32_add_2
+import xls.modules.fp32_mul_2
 import third_party.xls_go_math.fpsqrt_32
 
 type F32 = float32::F32;
@@ -55,13 +55,13 @@ fn apply_stencil_float32<NUM_ROWS:u32, NUM_COLS:u32, NUM_ELMS:u32 = NUM_ROWS*NUM
       let img_col_idx = col_idx + col_offset;
 
       let img_idx = img_row_idx*NUM_COLS + img_col_idx;
-      let prod = fpmul_2x32::fpmul_2x32(
+      let prod = fp32_mul_2::fp32_mul_2(
                     in_img[img_idx],
                     stencil[row_offset][col_offset]);
 
       // TODO(jbaileyhandle): This would be more efficient
       // as a reduction tree rather than a sequence of adds.
-      fpadd_2x32::fpadd_2x32(sum, prod)
+      fp32_add_2::fp32_add_2(sum, prod)
     }(sum)
   }(float32::zero(u1:0))
 }
@@ -111,10 +111,10 @@ pub fn sobel_filter_float32<NUM_ROWS:u32, NUM_COLS:u32, NUM_ELMS:u32 = NUM_ROWS*
 
       // Iterate over stencil.
       let x_stencil_out = apply_stencil_float32<NUM_ROWS, NUM_COLS>(in_img, out_row_idx, out_col_idx, X_STENCIL_F32);
-      let x_sq = fpmul_2x32::fpmul_2x32(x_stencil_out, x_stencil_out);
+      let x_sq = fp32_mul_2::fp32_mul_2(x_stencil_out, x_stencil_out);
       let y_stencil_out = apply_stencil_float32<NUM_ROWS, NUM_COLS>(in_img, out_row_idx, out_col_idx, Y_STENCIL_F32);
-      let y_sq = fpmul_2x32::fpmul_2x32(y_stencil_out, y_stencil_out);
-      let sum_sq = fpadd_2x32::fpadd_2x32(x_sq, y_sq);
+      let y_sq = fp32_mul_2::fp32_mul_2(y_stencil_out, y_stencil_out);
+      let sum_sq = fp32_add_2::fp32_add_2(x_sq, y_sq);
       let pixel_val = fpsqrt_32::fpsqrt_32(sum_sq);
 
       // Multi-dimensional update is really ugly - is there a cleaner way to do this?

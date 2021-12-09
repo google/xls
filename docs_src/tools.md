@@ -61,8 +61,8 @@ Tool for reducing IR to a minimal test case based on an external test.
 Prints summary information/stats on an IR [Package] file. An example:
 
 ```
-$ bazel-bin/xls/tools/ir_stats_main bazel-genfiles/xls/modules/fpadd_2x32.ir
-Package "fpadd_2x32"
+$ bazel-bin/xls/tools/ir_stats_main bazel-genfiles/xls/modules/fp32_add_2.ir
+Package "fp32_add_2"
   Function: "__float32__is_inf"
     Signature: ((bits[1], bits[8], bits[23])) -> bits[1]
     Nodes: 8
@@ -71,7 +71,7 @@ Package "fpadd_2x32"
     Signature: ((bits[1], bits[8], bits[23])) -> bits[1]
     Nodes: 8
 
-  Function: "__fpadd_2x32__fpadd_2x32"
+  Function: "__fp32_add_2__fp32_add_2"
     Signature: ((bits[1], bits[8], bits[23]), (bits[1], bits[8], bits[23])) -> (bits[1], bits[8], bits[23])
     Nodes: 252
 ```

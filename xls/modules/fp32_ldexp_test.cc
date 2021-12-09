@@ -25,7 +25,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/ir/value_view_helpers.h"
-#include "xls/modules/fpldexp_32_jit_wrapper.h"
+#include "xls/modules/fp32_ldexp_jit_wrapper.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder.h"
 
@@ -51,14 +51,14 @@ Float32xint IndexToInput(uint64_t index) {
 // to call fesetround().
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
-float ComputeExpected(Fpldexp32* jit_wrapper, Float32xint input) {
+float ComputeExpected(Fp32Ldexp* jit_wrapper, Float32xint input) {
   float fraction = FlushSubnormal(std::get<0>(input));
   int exp = std::get<1>(input);
   return FlushSubnormal(ldexpf(fraction, exp));
 }
 
 // Computes FP ldexp via DSLX & the JIT.
-float ComputeActual(Fpldexp32* jit_wrapper, Float32xint input) {
+float ComputeActual(Fp32Ldexp* jit_wrapper, Float32xint input) {
   return jit_wrapper->Run(std::get<0>(input), std::get<1>(input)).value();
 }
 
@@ -85,9 +85,9 @@ void LogMismatch(uint64_t index, Float32xint input, float expected,
 }
 
 absl::Status RealMain(uint64_t num_samples, int num_threads) {
-  TestbenchBuilder<Float32xint, float, Fpldexp32> builder(
+  TestbenchBuilder<Float32xint, float, Fp32Ldexp> builder(
       ComputeExpected, ComputeActual,
-      []() { return Fpldexp32::Create().value(); });
+      []() { return Fp32Ldexp::Create().value(); });
   builder.SetIndexToInputFn(IndexToInput)
       .SetCompareResultsFn(CompareResults)
       .SetLogErrorsFn(LogMismatch)

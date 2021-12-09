@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2021 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,12 +11,18 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 import float32
-import xls.modules.fp32_mul_2
+import xls.modules.apfloat_fmac
 
 type F32 = float32::F32;
 
-pub fn fpmul_2x32(x: F32, y: F32) -> F32 {
-  fp32_mul_2::fp32_mul_2(x, y)
+proc fp32_fmac {
+  config(input_a: chan in F32, input_b: chan in F32,
+         reset: chan in bool, output: chan out F32) {
+    spawn apfloat_fmac::fmac<u32:8, u32:23>(input_a, input_b, reset, output)
+        (float32::zero(false));
+    ()
+  }
+
+  next(tok: token) { () }
 }

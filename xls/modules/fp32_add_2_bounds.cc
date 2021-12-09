@@ -59,9 +59,9 @@ ABSL_FLAG(
 
 namespace xls {
 
-constexpr const char kIrPath[] = "xls/modules/fpadd_2x32.ir";
-constexpr const char kOptIrPath[] = "xls/modules/fpadd_2x32.opt.ir";
-constexpr const char kFunctionName[] = "__fpadd_2x32__fpadd_2x32";
+constexpr const char kIrPath[] = "xls/modules/fp32_add_2.ir";
+constexpr const char kOptIrPath[] = "xls/modules/fp32_add_2.opt.ir";
+constexpr const char kFunctionName[] = "__fp32_add_2__fp32_add_2";
 
 using solvers::z3::IrTranslator;
 
@@ -84,7 +84,7 @@ absl::StatusOr<Z3_ast> CreateReferenceComparisonFunction(
   Z3_context ctx = translator->ctx();
   Z3_ast result = translator->GetTranslation(function->return_value());
 
-  // The params to and result from fpadd_2x32 are FP32s, which are tuples of:
+  // The params to and result from fp32_add_2 are FP32s, which are tuples of:
   //  - u1: sign
   //  - u8: exponent
   //  - u23: fractional part

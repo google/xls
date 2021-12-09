@@ -37,7 +37,7 @@ pub fn apfloat_sub_2<EXP_SZ: u32, FRACTION_SZ: u32>(
 }
 
 // apfloat_add_2 is thoroughly tested elsewhere
-// and fpsub_2x64 is a trivial modification of
+// and fp64_sub_2 is a trivial modification of
 // apfloat_add_2, so a few simple tests is sufficient.
 #![test]
 fn test_apfloat_sub_2() {

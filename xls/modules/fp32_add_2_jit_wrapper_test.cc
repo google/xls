@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Unit tests for the JIT wrapper using fpadd_2x32 as a basis.
+// Unit tests for the JIT wrapper using fp32_add_2 as a basis.
 
-#include "xls/modules/fpadd_2x32_jit_wrapper.h"
+#include "xls/modules/fp32_add_2_jit_wrapper.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -25,8 +25,8 @@
 namespace xls {
 namespace {
 
-TEST(Fpadd2x32JitWrapperTest, CanAdd) {
-  XLS_ASSERT_OK_AND_ASSIGN(auto adder, Fpadd2x32::Create());
+TEST(Fp32Add2JitWrapperTest, CanAdd) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto adder, Fp32Add2::Create());
   Value one = F32ToTuple(1.0f);
   Value two = F32ToTuple(2.0f);
 

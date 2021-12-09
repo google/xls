@@ -30,15 +30,15 @@
 // Reference: https://en.wikipedia.org/wiki/Fast_inverse_square_root
 
 import float32
-import xls.modules.fpadd_2x32
-import xls.modules.fpmul_2x32
+import xls.modules.fp32_add_2
+import xls.modules.fp32_mul_2
 import xls.dslx.stdlib.apfloat
 
 type F32 = float32::F32;
 
 // Computes an approximation of 1.0 / sqrt(x). NUM_REFINEMENTS can be increased
 // to tradeoff more hardware resources for more accuracy.
-pub fn fp_fast_rsqrt_32_config_refinements<NUM_REFINEMENTS: u32 = u32:1>(x: F32) -> F32 {
+pub fn fp32_fast_rsqrt_config_refinements<NUM_REFINEMENTS: u32 = u32:1>(x: F32) -> F32 {
   const zero_point_five = F32 {sign: u1:0,
                                bexp: u8:0x7e,
                                fraction:  u23:0};
@@ -52,15 +52,15 @@ pub fn fp_fast_rsqrt_32_config_refinements<NUM_REFINEMENTS: u32 = u32:1>(x: F32)
 
   let approx = float32::unflatten(
                   magic_number - (float32::flatten(x) >> u32:1));
-  let half_x = fpmul_2x32::fpmul_2x32(x, zero_point_five);
+  let half_x = fp32_mul_2::fp32_mul_2(x, zero_point_five);
 
   // Refine solution w/ Newton's method.
   let result = for (idx, approx): (u32, F32) in range (u32:0, NUM_REFINEMENTS) {
-    let prod = fpmul_2x32::fpmul_2x32(half_x, approx);
-    let prod = fpmul_2x32::fpmul_2x32(prod, approx);
+    let prod = fp32_mul_2::fp32_mul_2(half_x, approx);
+    let prod = fp32_mul_2::fp32_mul_2(prod, approx);
     let nprod = F32{sign: !prod.sign, bexp: prod.bexp, fraction: prod.fraction};
-    let diff = fpadd_2x32::fpadd_2x32(one_point_five, nprod);
-    fpmul_2x32::fpmul_2x32(approx, diff)
+    let diff = fp32_add_2::fp32_add_2(one_point_five, nprod);
+    fp32_mul_2::fp32_mul_2(approx, diff)
   } (approx);
 
   // I don't *think* it is possible to underflow / have a subnormal result
@@ -81,30 +81,30 @@ pub fn fp_fast_rsqrt_32_config_refinements<NUM_REFINEMENTS: u32 = u32:1>(x: F32)
   result
 }
 
-pub fn fp_fast_rsqrt_32(x: F32) -> F32 {
-  fp_fast_rsqrt_32_config_refinements<u32:1>(x)
+pub fn fp32_fast_rsqrt(x: F32) -> F32 {
+  fp32_fast_rsqrt_config_refinements<u32:1>(x)
 }
 
 #![test]
 fn fast_sqrt_test() {
   // Test Special cases.
-  let _ = assert_eq(fp_fast_rsqrt_32(float32::zero(u1:0)),
+  let _ = assert_eq(fp32_fast_rsqrt(float32::zero(u1:0)),
     float32::inf(u1:0));
-  let _ = assert_eq(fp_fast_rsqrt_32(float32::zero(u1:1)),
+  let _ = assert_eq(fp32_fast_rsqrt(float32::zero(u1:1)),
     float32::inf(u1:1));
-  let _ = assert_eq(fp_fast_rsqrt_32(float32::inf(u1:0)),
+  let _ = assert_eq(fp32_fast_rsqrt(float32::inf(u1:0)),
     float32::zero(u1:0));
-  let _ = assert_eq(fp_fast_rsqrt_32(float32::inf(u1:1)),
+  let _ = assert_eq(fp32_fast_rsqrt(float32::inf(u1:1)),
     float32::qnan());
-  let _ = assert_eq(fp_fast_rsqrt_32(float32::qnan()),
+  let _ = assert_eq(fp32_fast_rsqrt(float32::qnan()),
     float32::qnan());
-  let _ = assert_eq(fp_fast_rsqrt_32(float32::one(u1:1)),
+  let _ = assert_eq(fp32_fast_rsqrt(float32::one(u1:1)),
     float32::qnan());
   let pos_denormal = F32{sign: u1:0, bexp: u8:0, fraction: u23:99};
-  let _ = assert_eq(fp_fast_rsqrt_32(pos_denormal),
+  let _ = assert_eq(fp32_fast_rsqrt(pos_denormal),
     float32::inf(u1:0));
   let neg_denormal = F32{sign: u1:1, bexp: u8:0, fraction: u23:99};
-  let _ = assert_eq(fp_fast_rsqrt_32(neg_denormal),
+  let _ = assert_eq(fp32_fast_rsqrt(neg_denormal),
     float32::inf(u1:1));
   ()
 }

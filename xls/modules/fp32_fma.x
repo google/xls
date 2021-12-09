@@ -12,11 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// This file implements most of a IEEE-754-compliant fused multiply-add
+// operation, with the following exceptions:
+//  - Both input and output denormals are treated as/flushed to 0 (internal
+//    subnormals arising from the internal product are left intact.
+//  - Only round-to-nearest mode is supported.
+//  - No exception flags are raised/reported.
+// In all other cases, results should be identical to other
+// conforming implementations (modulo exact fraction values in the NaN case).
+import xls.modules.apfloat_fma
 import float32
-import xls.modules.fp32_mul_2
 
 type F32 = float32::F32;
-
-pub fn fpmul_2x32(x: F32, y: F32) -> F32 {
-  fp32_mul_2::fp32_mul_2(x, y)
+pub fn fp32_fma(a: F32, b: F32, c: F32) -> F32 {
+  apfloat_fma::fma<u32:8, u32:23>(a, b, c)
 }

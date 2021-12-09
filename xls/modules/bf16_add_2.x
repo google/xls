@@ -1,4 +1,4 @@
-// Copyright 2021 The XLS Authors
+// Copyright 2020 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,18 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import float32
-import xls.modules.apfloat_fmac
 
-type F32 = float32::F32;
+// This file implements most of bfloat16 single-precision addition.
+import xls.modules.apfloat_add_2
+import bfloat16
 
-proc fmac_32 {
-  config(input_a: chan in F32, input_b: chan in F32,
-         reset: chan in bool, output: chan out F32) {
-    spawn apfloat_fmac::fmac<u32:8, u32:23>(input_a, input_b, reset, output)
-        (float32::zero(false));
-    ()
-  }
+type BF16 = bfloat16::BF16;
 
-  next(tok: token) { () }
+pub fn bf16_add_2(x: BF16, y: BF16) -> BF16 {
+  apfloat_add_2::add<u32:8, u32:7>(x, y)
 }

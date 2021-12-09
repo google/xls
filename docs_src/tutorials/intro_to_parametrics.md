@@ -241,7 +241,7 @@ utilities) or
 [apfloat_fma.x](https://github.com/google/xls/tree/main/xls/modules/apfloat_fma.x) (fused
 multiply-add). Specializations of the above are then available in, e.g.,
 [float32.x](https://github.com/google/xls/tree/main/xls/stdlib/float32.x),
-[fpadd_2x32.x](https://github.com/google/xls/tree/main/xls/modules/fpadd_2x32.x), and
+[fp32_add_2.x](https://github.com/google/xls/tree/main/xls/modules/fp32_add_2.x), and
 [fma_32.x](https://github.com/google/xls/tree/main/xls/modules/fma_32.x), respectively, to
 hide internal implementation details from end users.
 

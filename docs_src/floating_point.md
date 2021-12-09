@@ -60,7 +60,7 @@ More complex functionality such as addition and multiplication are defined in
 standalone modules, e.g,
 [`apfloat_add_2.x`](https://github.com/google/xls/tree/main/xls/dslx/modules/apfloat_add_2.x)
 defining `apfloat_add_2::add` for the `APFloat` type
-[`fpadd_2x32.x`](https://github.com/google/xls/tree/main/xls/dslx/modules/fpadd_2x32.x)
+[`fp32_add_2.x`](https://github.com/google/xls/tree/main/xls/dslx/modules/fp32_add_2.x)
 instantiating the operation for the `float32` type.
 
 ## Supported operations

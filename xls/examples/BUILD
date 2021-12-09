@@ -143,8 +143,8 @@ xls_dslx_library(
     name = "dot_product_dslx",
     srcs = ["dot_product.x"],
     deps = [
-        "//xls/modules:fpadd_2x32_dslx",
-        "//xls/modules:fpmul_2x32_dslx",
+        "//xls/modules:fp32_add_2_dslx",
+        "//xls/modules:fp32_mul_2_dslx",
     ],
 )
 
@@ -166,8 +166,8 @@ xls_dslx_library(
     name = "fir_filter_dslx",
     srcs = ["fir_filter.x"],
     deps = [
-        "//xls/modules:fpadd_2x32_dslx",
-        "//xls/modules:fpmul_2x32_dslx",
+        "//xls/modules:fp32_add_2_dslx",
+        "//xls/modules:fp32_mul_2_dslx",
     ],
 )
 
@@ -250,8 +250,8 @@ xls_dslx_library(
     name = "sobel_filter_dslx",
     srcs = ["sobel_filter.x"],
     deps = [
-        "//xls/modules:fpadd_2x32_dslx",
-        "//xls/modules:fpmul_2x32_dslx",
+        "//xls/modules:fp32_add_2_dslx",
+        "//xls/modules:fp32_mul_2_dslx",
         "//third_party/xls_go_math:fpsqrt_32_dslx",
     ],
 )

@@ -42,24 +42,24 @@ xls_dslx_library(
 )
 
 xls_dslx_library(
-    name = "fpadd_2x32_dslx",
-    srcs = ["fpadd_2x32.x"],
+    name = "fp32_add_2_dslx",
+    srcs = ["fp32_add_2.x"],
     deps = [":apfloat_add_2_dslx"],
 )
 
 xls_dslx_library(
-    name = "fpsub_2x32_dslx",
-    srcs = ["fpsub_2x32.x"],
+    name = "fp32_sub_2_dslx",
+    srcs = ["fp32_sub_2.x"],
     deps = [
         ":apfloat_add_2_dslx",
         ":apfloat_sub_2_dslx",
-        ":fpadd_2x32_dslx",
+        ":fp32_add_2_dslx",
     ],
 )
 
 xls_dslx_library(
-    name = "fpldexp_32_dslx",
-    srcs = ["fpldexp_32.x"],
+    name = "fp32_ldexp_dslx",
+    srcs = ["fp32_ldexp.x"],
 )
 
 xls_dslx_module_library(
@@ -79,10 +79,14 @@ xls_dslx_test(
 filegroup(
     name = "ir_examples",
     srcs = [
-        ":fpadd_2x32.ir",
-        ":fpadd_2x32.opt.ir",
-        ":fpmul_2x32.ir",
-        ":fpmul_2x32.opt.ir",
+        ":fp32_add_2.ir",
+        ":fp32_add_2.opt.ir",
+        ":fp32_mul_2.ir",
+        ":fp32_mul_2.opt.ir",
+        ":fp64_add_2.ir",
+        ":fp64_add_2.opt.ir",
+        ":fp64_mul_2.ir",
+        ":fp64_mul_2.opt.ir",
     ],
 )
 
@@ -92,23 +96,23 @@ xls_dslx_library(
 )
 
 xls_dslx_module_library(
-    name = "fma_32_dslx_module",
-    src = "fma_32.x",
+    name = "fp32_fma_dslx_module",
+    src = "fp32_fma.x",
     deps = [":apfloat_fma_dslx"],
 )
 
 # TODO(rspringer): 2021-04-09: Make a macro to handle creating the three
 # related rules. Consider also doing this for multiple widths (32, 64, bf16).
 xls_dslx_opt_ir(
-    name = "fma_32",
-    dep = ":fma_32_dslx_module",
-    ir_file = "fma_32.ir",
-    opt_ir_file = "fma_32.opt.ir",
+    name = "fp32_fma",
+    dep = ":fp32_fma_dslx_module",
+    ir_file = "fp32_fma.ir",
+    opt_ir_file = "fp32_fma.opt.ir",
 )
 
 xls_dslx_test(
-    name = "fma_32_dslx_test",
-    dep = ":fma_32_dslx_module",
+    name = "fp32_fma_dslx_test",
+    dep = ":fp32_fma_dslx_module",
 )
 
 xls_dslx_library(
@@ -120,41 +124,41 @@ xls_dslx_library(
 )
 
 xls_dslx_module_library(
-    name = "fmac_32_dslx_module",
-    src = "fmac_32.x",
+    name = "fp32_fmac_dslx_module",
+    src = "fp32_fmac.x",
     deps = [":apfloat_fmac_dslx"],
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
 # xls_ir_equivalence_test.
 xls_eval_ir_test(
-    name = "fma_32_eval_ir_test",
-    src = ":fma_32.ir",
+    name = "fp32_fma_eval_ir_test",
+    src = ":fp32_fma.ir",
 )
 
 xls_benchmark_ir(
-    name = "fma_32_benchmark_ir",
-    src = ":fma_32.ir",
+    name = "fp32_fma_benchmark_ir",
+    src = ":fp32_fma.ir",
 )
 
 cc_xls_ir_jit_wrapper(
-    name = "fma_32_jit_wrapper",
-    src = ":fma_32.opt.ir",
+    name = "fp32_fma_jit_wrapper",
+    src = ":fp32_fma.opt.ir",
     jit_wrapper_args = {
-        "class_name": "fma_32",
+        "class_name": "fp32_fma",
     },
 )
 
 cc_test(
-    name = "fma_32_test",
-    srcs = ["fma_32_test.cc"],
+    name = "fp32_fma_test",
+    srcs = ["fp32_fma_test.cc"],
     data = [
-        ":fma_32.ir",
-        ":fma_32.opt.ir",
+        ":fp32_fma.ir",
+        ":fp32_fma.opt.ir",
     ],
     tags = ["optonly"],
     deps = [
-        ":fma_32_jit_wrapper",
+        ":fp32_fma_jit_wrapper",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
@@ -167,53 +171,53 @@ cc_test(
 )
 
 xls_dslx_module_library(
-    name = "fma_64_dslx_module",
-    src = "fma_64.x",
+    name = "fp64_fma_dslx_module",
+    src = "fp64_fma.x",
     deps = [":apfloat_fma_dslx"],
 )
 
 xls_dslx_opt_ir(
-    name = "fma_64",
-    dep = ":fma_64_dslx_module",
-    ir_file = "fma_64.ir",
-    opt_ir_file = "fma_64.opt.ir",
+    name = "fp64_fma",
+    dep = ":fp64_fma_dslx_module",
+    ir_file = "fp64_fma.ir",
+    opt_ir_file = "fp64_fma.opt.ir",
 )
 
 xls_dslx_test(
-    name = "fma_64_dslx_test",
-    dep = ":fma_64_dslx_module",
+    name = "fp64_fma_dslx_test",
+    dep = ":fp64_fma_dslx_module",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
 # xls_ir_equivalence_test.
 xls_eval_ir_test(
-    name = "fma_64_eval_ir_test",
-    src = ":fma_64.ir",
+    name = "fp64_fma_eval_ir_test",
+    src = ":fp64_fma.ir",
 )
 
 xls_benchmark_ir(
-    name = "fma_64_benchmark_ir",
-    src = ":fma_64.ir",
+    name = "fp64_fma_benchmark_ir",
+    src = ":fp64_fma.ir",
 )
 
 cc_xls_ir_jit_wrapper(
-    name = "fma_64_jit_wrapper",
-    src = ":fma_64.opt.ir",
+    name = "fp64_fma_jit_wrapper",
+    src = ":fp64_fma.opt.ir",
     jit_wrapper_args = {
-        "class_name": "fma_64",
+        "class_name": "fp64_fma",
     },
 )
 
 cc_test(
-    name = "fma_64_test",
-    srcs = ["fma_64_test.cc"],
+    name = "fp64_fma_test",
+    srcs = ["fp64_fma_test.cc"],
     data = [
-        ":fma_64.ir",
-        ":fma_64.opt.ir",
+        ":fp64_fma.ir",
+        ":fp64_fma.opt.ir",
     ],
     tags = ["optonly"],
     deps = [
-        ":fma_64_jit_wrapper",
+        ":fp64_fma_jit_wrapper",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
@@ -226,114 +230,114 @@ cc_test(
 )
 
 xls_dslx_module_library(
-    name = "fpadd_2x32_dslx_module",
-    src = "fpadd_2x32.x",
+    name = "fp32_add_2_dslx_module",
+    src = "fp32_add_2.x",
     deps = [":apfloat_add_2_dslx"],
 )
 
 xls_dslx_opt_ir(
-    name = "fpadd_2x32",
-    dep = ":fpadd_2x32_dslx_module",
-    ir_file = "fpadd_2x32.ir",
-    opt_ir_file = "fpadd_2x32.opt.ir",
+    name = "fp32_add_2",
+    dep = ":fp32_add_2_dslx_module",
+    ir_file = "fp32_add_2.ir",
+    opt_ir_file = "fp32_add_2.opt.ir",
 )
 
 xls_dslx_test(
-    name = "fpadd_2x32_dslx_test",
-    dep = ":fpadd_2x32_dslx_module",
+    name = "fp32_add_2_dslx_test",
+    dep = ":fp32_add_2_dslx_module",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
 # xls_ir_equivalence_test.
 xls_eval_ir_test(
-    name = "fpadd_2x32_eval_ir_test",
-    src = ":fpadd_2x32.ir",
+    name = "fp32_add_2_eval_ir_test",
+    src = ":fp32_add_2.ir",
 )
 
 xls_benchmark_ir(
-    name = "fpadd_2x32_benchmark_ir",
-    src = ":fpadd_2x32.ir",
+    name = "fp32_add_2_benchmark_ir",
+    src = ":fp32_add_2.ir",
 )
 
 xls_dslx_module_library(
-    name = "fpsub_2x32_dslx_module",
-    src = "fpsub_2x32.x",
+    name = "fp32_sub_2_dslx_module",
+    src = "fp32_sub_2.x",
     deps = [
         ":apfloat_sub_2_dslx_module",
-        ":fpadd_2x32_dslx_module",
+        ":fp32_add_2_dslx_module",
     ],
 )
 
 xls_dslx_opt_ir(
-    name = "fpsub_2x32",
-    dep = ":fpsub_2x32_dslx_module",
-    ir_file = "fpsub_2x32.ir",
+    name = "fp32_sub_2",
+    dep = ":fp32_sub_2_dslx_module",
+    ir_file = "fp32_sub_2.ir",
 )
 
 xls_dslx_test(
-    name = "fpsub_2x32_dslx_test",
-    dep = ":fpsub_2x32_dslx_module",
+    name = "fp32_sub_2_dslx_test",
+    dep = ":fp32_sub_2_dslx_module",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
 # xls_ir_equivalence_test.
 xls_eval_ir_test(
-    name = "fpsub_2x32_eval_ir_test",
-    src = ":fpsub_2x32.ir",
+    name = "fp32_sub_2_eval_ir_test",
+    src = ":fp32_sub_2.ir",
 )
 
 xls_benchmark_ir(
-    name = "fpsub_2x32_benchmark_ir",
-    src = ":fpsub_2x32.ir",
+    name = "fp32_sub_2_benchmark_ir",
+    src = ":fp32_sub_2.ir",
 )
 
 xls_dslx_module_library(
-    name = "fpsub_2x64_dslx_module",
-    src = "fpsub_2x64.x",
+    name = "fp64_sub_2_dslx_module",
+    src = "fp64_sub_2.x",
     deps = [
         ":apfloat_sub_2_dslx_module",
-        ":fpadd_2x64_dslx_module",
+        ":fp64_add_2_dslx_module",
     ],
 )
 
 xls_dslx_opt_ir(
-    name = "fpsub_2x64",
-    dep = ":fpsub_2x64_dslx_module",
-    ir_file = "fpsub_2x64.ir",
+    name = "fp64_sub_2",
+    dep = ":fp64_sub_2_dslx_module",
+    ir_file = "fp64_sub_2.ir",
 )
 
 xls_dslx_test(
-    name = "fpsub_2x64_dslx_test",
-    dep = ":fpsub_2x64_dslx_module",
+    name = "fp64_sub_2_dslx_test",
+    dep = ":fp64_sub_2_dslx_module",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
 # xls_ir_equivalence_test.
 xls_eval_ir_test(
-    name = "fpsub_2x64_eval_ir_test",
-    src = ":fpsub_2x64.ir",
+    name = "fp64_sub_2_eval_ir_test",
+    src = ":fp64_sub_2.ir",
 )
 
 xls_benchmark_ir(
-    name = "fpsub_2x64_benchmark_ir",
-    src = ":fpsub_2x64.ir",
+    name = "fp64_sub_2_benchmark_ir",
+    src = ":fp64_sub_2.ir",
 )
 
 cc_xls_ir_jit_wrapper(
-    name = "fpadd_2x32_jit_wrapper",
-    src = ":fpadd_2x32.opt.ir",
+    name = "fp32_add_2_jit_wrapper",
+    src = ":fp32_add_2.opt.ir",
     jit_wrapper_args = {
-        "class_name": "fpadd_2x32",
+        "class_name": "fp32_add_2",
     },
 )
 
 # TODO(rspringer): Takes too long to run in normal testing.
 cc_binary(
-    name = "fpadd_2x32_bounds",
-    srcs = ["fpadd_2x32_bounds.cc"],
+    name = "fp32_add_2_bounds",
+    srcs = ["fp32_add_2_bounds.cc"],
     data = [
-        ":fpadd_2x32.ir",
-        ":fpadd_2x32.opt.ir",
+        ":fp32_add_2.ir",
+        ":fp32_add_2.opt.ir",
     ],
     deps = [
         "@com_google_absl//absl/base",
@@ -355,11 +359,11 @@ cc_binary(
 )
 
 cc_test(
-    name = "fpadd_2x32_test_cc",
-    srcs = ["fpadd_2x32_test.cc"],
+    name = "fp32_add_2_test_cc",
+    srcs = ["fp32_add_2_test.cc"],
     tags = ["optonly"],
     deps = [
-        ":fpadd_2x32_jit_wrapper",
+        ":fp32_add_2_jit_wrapper",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
@@ -375,54 +379,54 @@ cc_test(
 )
 
 xls_dslx_module_library(
-    name = "fpadd_2x64_dslx_module",
-    src = "fpadd_2x64.x",
+    name = "fp64_add_2_dslx_module",
+    src = "fp64_add_2.x",
     deps = [
         ":apfloat_add_2_dslx",
     ],
 )
 
 xls_dslx_opt_ir(
-    name = "fpadd_2x64",
-    dep = ":fpadd_2x64_dslx_module",
-    ir_file = "fpadd_2x64.ir",
-    opt_ir_file = "fpadd_2x64.opt.ir",
+    name = "fp64_add_2",
+    dep = ":fp64_add_2_dslx_module",
+    ir_file = "fp64_add_2.ir",
+    opt_ir_file = "fp64_add_2.opt.ir",
 )
 
 xls_dslx_test(
-    name = "fpadd_2x64_dslx_test",
-    dep = ":fpadd_2x64_dslx_module",
+    name = "fp64_add_2_dslx_test",
+    dep = ":fp64_add_2_dslx_module",
 )
 
 # TODO: 2021-03-08 Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
 xls_eval_ir_test(
-    name = "fpadd_2x64_eval_ir_test",
-    src = ":fpadd_2x64.ir",
+    name = "fp64_add_2_eval_ir_test",
+    src = ":fp64_add_2.ir",
 )
 
 xls_benchmark_ir(
-    name = "fpadd_2x64_benchmark_ir",
-    src = ":fpadd_2x64.ir",
+    name = "fp64_add_2_benchmark_ir",
+    src = ":fp64_add_2.ir",
 )
 
 cc_xls_ir_jit_wrapper(
-    name = "fpadd_2x64_jit_wrapper",
-    src = ":fpadd_2x64.opt.ir",
+    name = "fp64_add_2_jit_wrapper",
+    src = ":fp64_add_2.opt.ir",
     jit_wrapper_args = {
-        "class_name": "fpadd_2x64",
+        "class_name": "fp64_add_2",
     },
 )
 
 cc_test(
-    name = "fpadd_2x64_test_cc",
-    srcs = ["fpadd_2x64_test.cc"],
+    name = "fp64_add_2_test_cc",
+    srcs = ["fp64_add_2_test.cc"],
     data = [
-        ":fpadd_2x64.ir",
-        ":fpadd_2x64.opt.ir",
+        ":fp64_add_2.ir",
+        ":fp64_add_2.opt.ir",
     ],
     tags = ["optonly"],
     deps = [
-        ":fpadd_2x64_jit_wrapper",
+        ":fp64_add_2_jit_wrapper",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
@@ -439,70 +443,70 @@ cc_test(
 )
 
 xls_dslx_module_library(
-    name = "fpadd_2xbf16_dslx_module",
-    src = "fpadd_2xbf16.x",
+    name = "bf16_add_2_dslx_module",
+    src = "bf16_add_2.x",
     deps = [
         ":apfloat_add_2_dslx",
     ],
 )
 
 xls_dslx_opt_ir(
-    name = "fpadd_2xbf16",
-    dep = ":fpadd_2xbf16_dslx_module",
-    ir_file = "fpadd_2xbf16.ir",
+    name = "bf16_add_2",
+    dep = ":bf16_add_2_dslx_module",
+    ir_file = "bf16_add_2.ir",
 )
 
 xls_dslx_test(
-    name = "fpadd_2xbf16_dslx_test",
-    dep = ":fpadd_2xbf16_dslx_module",
+    name = "bf16_add_2_dslx_test",
+    dep = ":bf16_add_2_dslx_module",
 )
 
 # TODO: 2021-03-08 Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
 xls_eval_ir_test(
-    name = "fpadd_2xbf16_eval_ir_test",
-    src = ":fpadd_2xbf16.ir",
+    name = "bf16_add_2_eval_ir_test",
+    src = ":bf16_add_2.ir",
 )
 
 xls_benchmark_ir(
-    name = "fpadd_2xbf16_benchmark_ir",
-    src = ":fpadd_2xbf16.ir",
+    name = "bf16_add_2_benchmark_ir",
+    src = ":bf16_add_2.ir",
 )
 
 xls_dslx_module_library(
-    name = "fpldexp_32_dslx_module",
-    src = "fpldexp_32.x",
+    name = "fp32_ldexp_dslx_module",
+    src = "fp32_ldexp.x",
 )
 
 xls_dslx_opt_ir(
-    name = "fpldexp_32",
-    dep = ":fpldexp_32_dslx_module",
-    ir_file = "fpldexp_32.ir",
-    opt_ir_file = "fpldexp_32.opt.ir",
+    name = "fp32_ldexp",
+    dep = ":fp32_ldexp_dslx_module",
+    ir_file = "fp32_ldexp.ir",
+    opt_ir_file = "fp32_ldexp.opt.ir",
 )
 
 xls_dslx_opt_ir_test(
-    name = "fpldexp_32_test",
-    dep = ":fpldexp_32",
+    name = "fp32_ldexp_test",
+    dep = ":fp32_ldexp",
 )
 
 cc_xls_ir_jit_wrapper(
-    name = "fpldexp_32_jit_wrapper",
-    src = ":fpldexp_32.opt.ir",
+    name = "fp32_ldexp_jit_wrapper",
+    src = ":fp32_ldexp.opt.ir",
     jit_wrapper_args = {
-        "class_name": "fpldexp_32",
+        "class_name": "fp32_ldexp",
     },
 )
 
 cc_test(
-    name = "fpldexp_32_test_cc",
-    srcs = ["fpldexp_32_test.cc"],
+    name = "fp32_ldexp_test_cc",
+    srcs = ["fp32_ldexp_test.cc"],
     data = [
-        ":fpldexp_32.ir",
-        ":fpldexp_32.opt.ir",
+        ":fp32_ldexp.ir",
+        ":fp32_ldexp.opt.ir",
     ],
     tags = ["optonly"],
     deps = [
-        ":fpldexp_32_jit_wrapper",
+        ":fp32_ldexp_jit_wrapper",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:init_xls",
@@ -523,51 +527,51 @@ xls_dslx_library(
 )
 
 xls_dslx_module_library(
-    name = "fpmul_2x32_dslx_module",
-    src = "fpmul_2x32.x",
+    name = "fp32_mul_2_dslx_module",
+    src = "fp32_mul_2.x",
     deps = [":apfloat_mul_2_dslx"],
 )
 
 xls_dslx_opt_ir(
-    name = "fpmul_2x32",
-    dep = ":fpmul_2x32_dslx_module",
-    ir_file = "fpmul_2x32.ir",
-    opt_ir_file = "fpmul_2x32.opt.ir",
+    name = "fp32_mul_2",
+    dep = ":fp32_mul_2_dslx_module",
+    ir_file = "fp32_mul_2.ir",
+    opt_ir_file = "fp32_mul_2.opt.ir",
 )
 
 xls_dslx_test(
-    name = "fpmul_2x32_dslx_test",
-    dep = ":fpmul_2x32_dslx_module",
+    name = "fp32_mul_2_dslx_test",
+    dep = ":fp32_mul_2_dslx_module",
 )
 
 # TODO: 2021-03-08 Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
 xls_eval_ir_test(
-    name = "fpmul_2x32_eval_ir_test",
-    src = ":fpmul_2x32.ir",
+    name = "fp32_mul_2_eval_ir_test",
+    src = ":fp32_mul_2.ir",
 )
 
 xls_benchmark_ir(
-    name = "fpmul_2x32_benchmark_ir",
-    src = ":fpmul_2x32.ir",
+    name = "fp32_mul_2_benchmark_ir",
+    src = ":fp32_mul_2.ir",
 )
 
 cc_xls_ir_jit_wrapper(
-    name = "fpmul_2x32_jit_wrapper",
-    src = ":fpmul_2x32.opt.ir",
+    name = "fp32_mul_2_jit_wrapper",
+    src = ":fp32_mul_2.opt.ir",
     jit_wrapper_args = {
-        "class_name": "fpmul_2x32",
+        "class_name": "fp32_mul_2",
     },
 )
 
 cc_test(
-    name = "fpmul_2x32_test_cc",
-    srcs = ["fpmul_2x32_test.cc"],
+    name = "fp32_mul_2_test_cc",
+    srcs = ["fp32_mul_2_test.cc"],
     data = [
-        ":fpmul_2x32.ir",
-        ":fpmul_2x32.opt.ir",
+        ":fp32_mul_2.ir",
+        ":fp32_mul_2.opt.ir",
     ],
     deps = [
-        ":fpmul_2x32_jit_wrapper",
+        ":fp32_mul_2_jit_wrapper",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:init_xls",
@@ -582,10 +586,10 @@ cc_test(
 )
 
 cc_test(
-    name = "fpadd_2x32_jit_wrapper_test",
-    srcs = ["fpadd_2x32_jit_wrapper_test.cc"],
+    name = "fp32_add_2_jit_wrapper_test",
+    srcs = ["fp32_add_2_jit_wrapper_test.cc"],
     deps = [
-        ":fpadd_2x32_jit_wrapper",
+        ":fp32_add_2_jit_wrapper",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:value",
@@ -595,53 +599,53 @@ cc_test(
 )
 
 xls_dslx_module_library(
-    name = "fpmul_2x64_dslx_module",
-    src = "fpmul_2x64.x",
+    name = "fp64_mul_2_dslx_module",
+    src = "fp64_mul_2.x",
     deps = [":apfloat_mul_2_dslx"],
 )
 
 xls_dslx_opt_ir(
-    name = "fpmul_2x64",
-    dep = ":fpmul_2x64_dslx_module",
-    ir_file = "fpmul_2x64.ir",
-    opt_ir_file = "fpmul_2x64.opt.ir",
+    name = "fp64_mul_2",
+    dep = ":fp64_mul_2_dslx_module",
+    ir_file = "fp64_mul_2.ir",
+    opt_ir_file = "fp64_mul_2.opt.ir",
 )
 
 xls_dslx_test(
-    name = "fpmul_2x64_dslx_test",
-    dep = ":fpmul_2x64_dslx_module",
+    name = "fp64_mul_2_dslx_test",
+    dep = ":fp64_mul_2_dslx_module",
 )
 
 # TODO(rspringer): Currently takes too long. Add xls_ir_equivalence_test.
 xls_eval_ir_test(
-    name = "fpmul_2x64_eval_ir_test",
-    src = ":fpmul_2x64.ir",
+    name = "fp64_mul_2_eval_ir_test",
+    src = ":fp64_mul_2.ir",
 )
 
 xls_benchmark_ir(
-    name = "fpmul_2x64_benchmark_ir",
-    src = ":fpmul_2x64.ir",
+    name = "fp64_mul_2_benchmark_ir",
+    src = ":fp64_mul_2.ir",
 )
 
 cc_xls_ir_jit_wrapper(
-    name = "fpmul_2x64_jit_wrapper",
-    src = ":fpmul_2x64.opt.ir",
+    name = "fp64_mul_2_jit_wrapper",
+    src = ":fp64_mul_2.opt.ir",
     jit_wrapper_args = {
-        "class_name": "fpmul_2x64",
+        "class_name": "fp64_mul_2",
     },
 )
 
 cc_test(
-    name = "fpmul_2x64_test",
-    srcs = ["fpmul_2x64_test.cc"],
+    name = "fp64_mul_2_test",
+    srcs = ["fp64_mul_2_test.cc"],
     data = [
-        ":fpmul_2x64.ir",
-        ":fpmul_2x64.opt.ir",
+        ":fp64_mul_2.ir",
+        ":fp64_mul_2.opt.ir",
     ],
     # Flakes in fastbuild seen on 2021-06-04.
     tags = ["optonly"],
     deps = [
-        ":fpmul_2x64_jit_wrapper",
+        ":fp64_mul_2_jit_wrapper",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:init_xls",
@@ -656,65 +660,65 @@ cc_test(
 )
 
 xls_dslx_library(
-    name = "fpmul_2x32_dslx",
-    srcs = ["fpmul_2x32.x"],
+    name = "fp32_mul_2_dslx",
+    srcs = ["fp32_mul_2.x"],
     deps = [
         ":apfloat_mul_2_dslx",
     ],
 )
 
 xls_dslx_module_library(
-    name = "fp_fast_rsqrt_32_dslx_module",
-    src = "fp_fast_rsqrt_32.x",
+    name = "fp32_fast_rsqrt_dslx_module",
+    src = "fp32_fast_rsqrt.x",
     deps = [
         ":apfloat_add_2_dslx",
         ":apfloat_mul_2_dslx",
-        ":fpadd_2x32_dslx_module",
-        ":fpmul_2x32_dslx",
+        ":fp32_add_2_dslx_module",
+        ":fp32_mul_2_dslx",
     ],
 )
 
 xls_dslx_opt_ir(
-    name = "fp_fast_rsqrt_32",
-    dep = ":fp_fast_rsqrt_32_dslx_module",
-    ir_file = "fp_fast_rsqrt_32.ir",
-    opt_ir_file = "fp_fast_rsqrt_32.opt.ir",
+    name = "fp32_fast_rsqrt",
+    dep = ":fp32_fast_rsqrt_dslx_module",
+    ir_file = "fp32_fast_rsqrt.ir",
+    opt_ir_file = "fp32_fast_rsqrt.opt.ir",
 )
 
 xls_dslx_test(
-    name = "fp_fast_rsqrt_32_dslx_test",
-    dep = ":fp_fast_rsqrt_32_dslx_module",
+    name = "fp32_fast_rsqrt_dslx_test",
+    dep = ":fp32_fast_rsqrt_dslx_module",
 )
 
 # TODO(rspringer): Currently takes too long. Add xls_ir_equivalence_test.
 xls_eval_ir_test(
-    name = "fp_fast_rsqrt_32_eval_ir_test",
-    src = ":fp_fast_rsqrt_32.ir",
+    name = "fp32_fast_rsqrt_eval_ir_test",
+    src = ":fp32_fast_rsqrt.ir",
 )
 
 xls_benchmark_ir(
-    name = "fp_fast_rsqrt_32_benchmark_ir",
-    src = ":fp_fast_rsqrt_32.ir",
+    name = "fp32_fast_rsqrt_benchmark_ir",
+    src = ":fp32_fast_rsqrt.ir",
 )
 
 cc_xls_ir_jit_wrapper(
-    name = "fp_fast_rsqrt_32_jit_wrapper",
-    src = ":fp_fast_rsqrt_32.opt.ir",
+    name = "fp32_fast_rsqrt_jit_wrapper",
+    src = ":fp32_fast_rsqrt.opt.ir",
     jit_wrapper_args = {
-        "class_name": "fp_fast_rsqrt_32",
+        "class_name": "fp32_fast_rsqrt",
     },
 )
 
 cc_test(
-    name = "fp_fast_rsqrt_32_test_cc",
-    srcs = ["fp_fast_rsqrt_32_test.cc"],
+    name = "fp32_fast_rsqrt_test_cc",
+    srcs = ["fp32_fast_rsqrt_test.cc"],
     data = [
-        ":fp_fast_rsqrt_32.ir",
-        ":fp_fast_rsqrt_32.opt.ir",
+        ":fp32_fast_rsqrt.ir",
+        ":fp32_fast_rsqrt.opt.ir",
     ],
     tags = ["optonly"],
     deps = [
-        ":fp_fast_rsqrt_32_jit_wrapper",
+        ":fp32_fast_rsqrt_jit_wrapper",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:init_xls",
@@ -727,4 +731,30 @@ cc_test(
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
     ],
+)
+
+# TODO: Gradually deprecate usages and then delete all BUILD rules under this line.
+
+xls_dslx_library(
+    name = "fpmul_2x32_dslx",
+    srcs = ["fpmul_2x32.x"],
+    deps = [":fp32_mul_2_dslx"],
+)
+
+xls_dslx_library(
+    name = "fpldexp_32_dslx",
+    srcs = ["fpldexp_32.x"],
+    deps = [":fp32_ldexp_dslx"],
+)
+
+xls_dslx_library(
+    name = "fpadd_2x32_dslx",
+    srcs = ["fpadd_2x32.x"],
+    deps = [":fp32_add_2_dslx"],
+)
+
+xls_dslx_library(
+    name = "fpsub_2x32_dslx",
+    srcs = ["fpsub_2x32.x"],
+    deps = [":fp32_sub_2_dslx"],
 )

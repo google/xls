@@ -21,7 +21,7 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
-#include "xls/modules/fma_64_jit_wrapper.h"
+#include "xls/modules/fp64_fma_jit_wrapper.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder.h"
 
@@ -58,11 +58,11 @@ Float3x64 IndexToInput(uint64_t index) {
                    absl::bit_cast<double>(c));
 }
 
-double ComputeExpected(Fma64* jit_wrapper, Float3x64 input) {
+double ComputeExpected(Fp64Fma* jit_wrapper, Float3x64 input) {
   return fma(std::get<0>(input), std::get<1>(input), std::get<2>(input));
 }
 
-double ComputeActual(Fma64* jit_wrapper, Float3x64 input) {
+double ComputeActual(Fp64Fma* jit_wrapper, Float3x64 input) {
   double result =
       jit_wrapper
           ->Run(std::get<0>(input), std::get<1>(input), std::get<2>(input))
@@ -91,8 +91,9 @@ std::string PrintInput(const Float3x64& input) {
 }
 
 absl::Status RealMain(int64_t num_samples, int num_threads) {
-  TestbenchBuilder<Float3x64, double, Fma64> builder(
-      ComputeExpected, ComputeActual, []() { return Fma64::Create().value(); });
+  TestbenchBuilder<Float3x64, double, Fp64Fma> builder(
+      ComputeExpected, ComputeActual,
+      []() { return Fp64Fma::Create().value(); });
   builder.SetCompareResultsFn(CompareResults)
       .SetIndexToInputFn(IndexToInput)
       .SetPrintInputFn(PrintInput)

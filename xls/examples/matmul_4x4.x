@@ -19,7 +19,7 @@
 // bit unwieldy; if we can use arrays-of-channels, that'll make things cleaner.
 
 import float32
-import xls.modules.fpmul_2x32
+import xls.modules.fp32_mul_2
 
 type F32 = float32::F32;
 
@@ -42,7 +42,7 @@ proc node {
     let (tok, partial_sum) = recv(tok, from_north);
 
     // Compute our partial product.
-    let product = fpmul_2x32::fpmul_2x32(activation, weight);
+    let product = fp32_mul_2::fp32_mul_2(activation, weight);
 
     // Send the activation east and the partial product south.
     let tok = send(tok, to_east, activation);
@@ -110,7 +110,7 @@ proc driver {
     let (tok15, result_2) = recv(tok14, out_42);
     let (tok16, result_3) = recv(tok15, out_43);
 
-    let basis = fpmul_2x32::fpmul_2x32(basis, f32_2);
+    let basis = fp32_mul_2::fp32_mul_2(basis, f32_2);
     (basis, result_0, result_1, result_2, result_3)
   }
 }

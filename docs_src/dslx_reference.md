@@ -1289,7 +1289,7 @@ Note: both the `if` and `else` are *required* to be present, as with the `?:`
 operator, unlike a C++ `if` statement. This is because it is an *expression*
 that *produces* a result value, not a *statement* that causes a mutating effect.
 
-For example, in the FP adder module (modules/fpadd_2x32.x), there is code like
+For example, in the FP adder module (modules/fp32_add_2.x), there is code like
 the following:
 
 ```
