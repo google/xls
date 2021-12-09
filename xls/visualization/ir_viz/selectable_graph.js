@@ -17,7 +17,7 @@
 // Library for generating IR graphs with the Cytoscape library.
 goog.module('xls.selectableGraph');
 
-var irGraph = goog.require('xls.irGraph');
+const irGraph = goog.require('xls.irGraph');
 
 /**
  * Possible selection states of nodes and edges.
@@ -110,8 +110,8 @@ class SelectableGraph {
    * @return {!SelectState} Returns selected state of the specified edge.
    */
   getEdgeState(edgeId) {
-    let sourceId = this.irGraph_.edge(edgeId).source;
-    let targetId = this.irGraph_.edge(edgeId).target;
+    let sourceId = this.irGraph_.edge(edgeId).sourceId;
+    let targetId = this.irGraph_.edge(edgeId).targetId;
     if (this.isNodeSelected(sourceId) && this.isNodeSelected(targetId)) {
       return SelectState.SELECTED;
     } else if (

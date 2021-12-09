@@ -18,7 +18,9 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -31,9 +33,41 @@
 #include "xls/ir/package.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/visualization/ir_viz/visualization.pb.h"
+#include "re2/re2.h"
 
 namespace xls {
 namespace {
+
+// Returns a globally unique identifier for the node.
+std::string GetNodeUniqueId(
+    Node* node,
+    const absl::flat_hash_map<FunctionBase*, std::string>& function_ids) {
+  // Parameters can share xls::Node::id() values with non-parameter nodes so
+  // handle them specially.
+  return absl::StrFormat("%s_%s%d", function_ids.at(node->function_base()),
+                         node->Is<Param>() ? "p" : "", node->id());
+}
+
+// Returns a globally unique identifier for the edge.
+std::string GetEdgeUniqueId(
+    Node* source, Node* target,
+    const absl::flat_hash_map<FunctionBase*, std::string>& function_ids) {
+  return absl::StrFormat("%s_to_%s", GetNodeUniqueId(source, function_ids),
+                         GetNodeUniqueId(target, function_ids));
+}
+
+// Create a short unique id for each function. We avoid using function names
+// because they can be very long (e.g., mangled names from xlscc) and because
+// names can be shared between blocks and functions/procs.
+absl::flat_hash_map<FunctionBase*, std::string> GetFunctionIds(
+    Package* package) {
+  absl::flat_hash_map<FunctionBase*, std::string> function_ids;
+  std::vector<FunctionBase*> function_bases = package->GetFunctionBases();
+  for (int64_t i = 0; i < function_bases.size(); ++i) {
+    function_ids[function_bases[i]] = absl::StrCat("f", i);
+  }
+  return function_ids;
+}
 
 // Visitor which constructs the attributes (if any) of a node and returns them
 // as a JSON object.
@@ -101,9 +135,19 @@ absl::StatusOr<viz::NodeAttributes> NodeAttributes(
 
 absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
     FunctionBase* function, const DelayEstimator& delay_estimator,
-    const PipelineSchedule* schedule) {
+    const PipelineSchedule* schedule,
+    const absl::flat_hash_map<FunctionBase*, std::string>& function_ids) {
   viz::FunctionBase proto;
   proto.set_name(function->name());
+  if (function->IsFunction()) {
+    proto.set_kind("function");
+  } else if (function->IsProc()) {
+    proto.set_kind("proc");
+  } else {
+    XLS_RET_CHECK(function->IsBlock());
+    proto.set_kind("block");
+  }
+  proto.set_id(function_ids.at(function));
   absl::StatusOr<std::vector<CriticalPathEntry>> critical_path =
       AnalyzeCriticalPath(function, /*clock_period_ps=*/absl::nullopt,
                           delay_estimator);
@@ -120,13 +164,10 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
   BddQueryEngine query_engine(BddFunction::kDefaultPathLimit);
   XLS_RETURN_IF_ERROR(query_engine.Populate(function).status());
 
-  auto sanitize_name = [](absl::string_view name) {
-    return absl::StrReplaceAll(name, {{".", "_"}});
-  };
   for (Node* node : function->nodes()) {
     viz::Node* graph_node = proto.add_nodes();
     graph_node->set_name(node->GetName());
-    graph_node->set_id(sanitize_name(node->GetName()));
+    graph_node->set_id(GetNodeUniqueId(node, function_ids));
     graph_node->set_opcode(OpToString(node->op()));
     graph_node->set_ir(node->ToStringWithOperandTypes());
     XLS_ASSIGN_OR_RETURN(
@@ -139,11 +180,9 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
     for (int64_t i = 0; i < node->operand_count(); ++i) {
       Node* operand = node->operand(i);
       viz::Edge* graph_edge = proto.add_edges();
-      std::string source = sanitize_name(operand->GetName());
-      std::string target = sanitize_name(node->GetName());
-      graph_edge->set_id(absl::StrFormat("%s_to_%s_%d", source, target, i));
-      graph_edge->set_source(sanitize_name(operand->GetName()));
-      graph_edge->set_target(sanitize_name(node->GetName()));
+      graph_edge->set_id(GetEdgeUniqueId(operand, node, function_ids));
+      graph_edge->set_source_id(GetNodeUniqueId(operand, function_ids));
+      graph_edge->set_target_id(GetNodeUniqueId(node, function_ids));
       graph_edge->set_type(operand->GetType()->ToString());
       graph_edge->set_bit_width(operand->GetType()->GetFlatBitCount());
     }
@@ -159,6 +198,10 @@ absl::StatusOr<std::string> IrToJson(
     absl::optional<absl::string_view> entry_name) {
   viz::Package proto;
 
+  absl::flat_hash_map<FunctionBase*, std::string> function_ids =
+      GetFunctionIds(package);
+
+  absl::optional<FunctionBase*> entry_function_base;
   proto.set_name(package->name());
   for (FunctionBase* fb : package->GetFunctionBases()) {
     XLS_ASSIGN_OR_RETURN(
@@ -166,14 +209,20 @@ absl::StatusOr<std::string> IrToJson(
         FunctionBaseToVisualizationProto(
             fb, delay_estimator,
             schedule != nullptr && schedule->function_base() == fb ? schedule
-                                                                   : nullptr));
+                                                                   : nullptr,
+            function_ids));
+    if (entry_name.has_value() && fb->name() == entry_name.value()) {
+      entry_function_base = fb;
+    }
   }
-  if (entry_name.has_value()) {
-    proto.set_entry(std::string{entry_name.value()});
+  XLS_ASSIGN_OR_RETURN(std::string ir_html, MarkUpIrText(package));
+  proto.set_ir_html(ir_html);
+  if (entry_function_base.has_value()) {
+    proto.set_entry_id(function_ids.at(entry_function_base.value()));
   } else {
     absl::StatusOr<Function*> entry_status = package->EntryFunction();
     if (entry_status.ok()) {
-      proto.set_entry(entry_status.value()->name());
+      proto.set_entry_id(function_ids.at(entry_status.value()));
     }
   }
 
@@ -188,6 +237,157 @@ absl::StatusOr<std::string> IrToJson(
     return absl::InternalError(std::string{status.message()});
   }
   return serialized_json;
+}
+
+// Wraps the given text in a span with the given id, classes, and data. The
+// string `str` is modified in place.
+static absl::Status WrapTextInSpan(
+    absl::string_view text, absl::optional<std::string> id,
+    absl::Span<const std::string> classes,
+    absl::Span<const std::pair<std::string, std::string>> data,
+    std::string* str) {
+  std::string open_span = "<span";
+  if (id.has_value()) {
+    absl::StrAppendFormat(&open_span, " id=\"%s\"", id.value());
+  }
+  if (!classes.empty()) {
+    absl::StrAppendFormat(&open_span, " class=\"%s\"",
+                          absl::StrJoin(classes, " "));
+  }
+  for (auto [key, value] : data) {
+    absl::StrAppendFormat(&open_span, " data-%s=\"%s\"", key, value);
+  }
+  open_span.append(">");
+  XLS_RET_CHECK(RE2::Replace(str, absl::StrCat("\\b", text, "\\b"),
+                             absl::StrFormat("%s%s</span>", open_span, text)));
+  return absl::OkStatus();
+}
+
+// Wraps the definition of the given node in `str` with an appropriate span.
+static absl::Status WrapNodeDefInSpan(
+    Node* node,
+    const absl::flat_hash_map<FunctionBase*, std::string>& function_ids,
+    std::string* str) {
+  std::string node_id = GetNodeUniqueId(node, function_ids);
+  XLS_RETURN_IF_ERROR(WrapTextInSpan(
+      node->GetName(),
+      /*id=*/
+      absl::StrFormat("ir-node-def-%s", node_id),
+      /*classes=*/
+      {"ir-node-identifier", absl::StrFormat("ir-node-identifier-%s", node_id)},
+      /*data=*/
+      {{"node-id", node_id},
+       {"function-id", function_ids.at(node->function_base())}},
+      str));
+  return absl::OkStatus();
+}
+
+// Wraps the use of the given node in `str` with an appropriate span.
+static absl::Status WrapNodeUseInSpan(
+    Node* def, Node* use,
+    const absl::flat_hash_map<FunctionBase*, std::string>& function_ids,
+    std::string* str) {
+  std::string def_id = GetNodeUniqueId(def, function_ids);
+  std::string use_id = GetNodeUniqueId(use, function_ids);
+  XLS_RETURN_IF_ERROR(WrapTextInSpan(
+      def->GetName(),
+      /*id=*/absl::nullopt,
+      /*classes=*/
+      {"ir-node-identifier", absl::StrFormat("ir-node-identifier-%s", def_id),
+       absl::StrFormat("ir-edge-%s-%s", def_id, use_id)},
+      /*data=*/
+      {{"node-id", def_id},
+       {"function-id", function_ids.at(def->function_base())}},
+      str));
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::string> MarkUpIrText(Package* package) {
+  absl::flat_hash_map<FunctionBase*, std::string> function_ids =
+      GetFunctionIds(package);
+
+  std::vector<std::string> lines;
+  FunctionBase* current_function = nullptr;
+  for (absl::string_view line_view : absl::StrSplit(package->DumpIr(), '\n')) {
+    std::string line{line_view};
+
+    // Match function/proc/block signature. Put spans around function name and
+    // parameter names.
+    //
+    //   fn foo(a: bits[32]) {
+    //
+    // =>
+    //
+    //   <span>fn <span>foo</span>(<span>a</span>: bits[32]) {
+    //
+    std::string kind;
+    std::string function_name;
+    if (RE2::PartialMatch(line, R"(^\s*(fn|proc|block)\s+(\w+))", &kind,
+                          &function_name)) {
+      std::vector<Node*> args;
+      if (kind == "fn") {
+        XLS_ASSIGN_OR_RETURN(current_function,
+                             package->GetFunction(function_name));
+      } else if (kind == "proc") {
+        XLS_ASSIGN_OR_RETURN(current_function, package->GetProc(function_name));
+      } else {
+        XLS_RET_CHECK_EQ(kind, "block");
+        XLS_ASSIGN_OR_RETURN(current_function,
+                             package->GetBlock(function_name));
+      }
+      XLS_RETURN_IF_ERROR(WrapTextInSpan(
+          current_function->name(),
+          /*id=*/
+          absl::StrFormat("ir-function-def-%s",
+                          function_ids.at(current_function)),
+          /*classes=*/{"ir-function-identifier"},
+          /*data=*/{{"identifier", function_ids.at(current_function)}}, &line));
+
+      // Wrap the parameters in spans.
+      for (Param* node : current_function->params()) {
+        XLS_RETURN_IF_ERROR(WrapNodeDefInSpan(node, function_ids, &line));
+      }
+
+      // Prefix the line with a opening span which spans the entire function.
+      lines.push_back(absl::StrFormat(
+          "<span id=\"ir-function-%s\" class=\"ir-function\">%s",
+          function_ids.at(current_function), line));
+      continue;
+    }
+
+    // Match node definitions:
+    //
+    //   bar: bits[32] = op(x, y, ...) {
+    //
+    // =>
+    //
+    //   <span>bar</span>: bits[32] = op(<span>x</span>, <span>y</span>, ...)
+    std::string node_name;
+    if (RE2::PartialMatch(line, R"(^\s*(?:ret)?\s*([_a-zA-Z0-9.]+)\s*:)",
+                          &node_name)) {
+      XLS_ASSIGN_OR_RETURN(Node * node, current_function->GetNode(node_name));
+      XLS_RETURN_IF_ERROR(WrapNodeDefInSpan(node, function_ids, &line));
+
+      // Wrap the operands in spans.
+      for (Node* operand : node->operands()) {
+        XLS_RETURN_IF_ERROR(
+            WrapNodeUseInSpan(operand, node, function_ids, &line));
+      }
+
+      lines.push_back(std::string{line});
+      continue;
+    }
+
+    // Add a </span> after a closing '}' for the entire function/proc/block
+    // span.
+    if (RE2::PartialMatch(line, R"(^\s*}\s*$)")) {
+      lines.push_back(absl::StrFormat("%s</span>", line));
+      continue;
+    }
+
+    lines.push_back(std::string{line});
+  }
+  return absl::StrJoin(lines, "\n");
 }
 
 }  // namespace xls

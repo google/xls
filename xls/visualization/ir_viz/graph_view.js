@@ -200,7 +200,7 @@ function toCytoscapeNodeObject(node) {
       label = `tuple_index(${node.attributes['index']})`;
       break;
     case 'param':
-      label = node.id;
+      label = node.name;
       break;
     default:
       label = node.opcode;
@@ -228,8 +228,8 @@ function toCytoscapeEdgeObject(edge) {
     data: {
       group: 'edges',
       id: edge.id,
-      source: edge.source,
-      target: edge.target,
+      source: edge.sourceId,
+      target: edge.targetId,
       'xls-type': edge.type,
       'xls-bit-width': edge.bit_width
     },
@@ -273,7 +273,7 @@ function toCytoscapeGraphObject(selectableGraph, showOnlySelected) {
     }
   });
   selectableGraph.irGraph().edges().forEach((edge, index) => {
-    if (shouldShowNode(edge.source) && shouldShowNode(edge.target)) {
+    if (shouldShowNode(edge.sourceId) && shouldShowNode(edge.targetId)) {
       cytoscapeObject['elements'].push(toCytoscapeEdgeObject(edge));
     }
   });
@@ -323,9 +323,9 @@ function buildCytoscapeGraph(graphElement, selectableGraph, showOnlySelected) {
       .filter((element, i) => {
         let edge = selectableGraph.irGraph().edge(element.id());
         return selectableGraph.irGraph()
-                   .node(edge.source)
+                   .node(edge.sourceId)
                    .attributes['cycle'] !=
-            selectableGraph.irGraph().node(edge.target).attributes['cycle'];
+            selectableGraph.irGraph().node(edge.targetId).attributes['cycle'];
       })
       .addClass('crosscycle');
   return graph;
@@ -450,10 +450,10 @@ class GraphView {
         .filter((element, i) => {
           let edge = this.selectableGraph_.irGraph().edge(element.id());
           return this.selectableGraph_.irGraph()
-                     .node(edge.source)
+                     .node(edge.sourceId)
                      .attributes['cycle'] !=
               this.selectableGraph_.irGraph()
-                  .node(edge.target)
+                  .node(edge.targetId)
                   .attributes['cycle'];
         })
         .addClass('crosscycle');
@@ -643,10 +643,10 @@ class GraphView {
       }
       let edge = this.selectableGraph_.irGraph().edge(change.id);
       if (this.selectableGraph_.irGraph()
-              .node(edge.source)
+              .node(edge.sourceId)
               .attributes['cycle'] !=
           this.selectableGraph_.irGraph()
-              .node(edge.target)
+              .node(edge.targetId)
               .attributes['cycle']) {
         cyEdge.addClass('crosscycle');
       }

@@ -14,13 +14,21 @@
  * limitations under the License.
  */
 
-.ir-identifier {
+.ir-function-identifier {
   font-weight: bold;
-  color: black;
 }
-.ir-identifier-highlighted {
+.ir-node-identifier {
+  font-weight: bold;
+}
+.ir-node-identifier-highlighted {
   background-color: skyblue;
 }
-.ir-identifier-selected {
+.ir-node-identifier-selected {
   border: 2px solid blue
+}
+.ir-function-selected {
+  color: black;
+}
+.ir-function-unselected {
+  color: silver;
 }

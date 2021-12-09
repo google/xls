@@ -86,25 +86,25 @@ function setPositionAtOffset(node, offset) {
 }
 
 /**
- * Sets the options in the given select UI element to the given names.
+ * Sets the function selector UI element to the given options.
  * @param {!Element} selectElement
- * @param {!Array<string>} functionNames
+ * @param {!Array<{name: string, kind: string, id: string}>} functions
  */
-function setupFunctionSelector(selectElement, functionNames) {
+function setupFunctionSelector(selectElement, functions) {
   let options = [];
-  for (let name of functionNames) {
-    options.push(`<option value="${name}">${name}</option>`);
+  for (let f of functions) {
+    options.push(`<option value="${f.id}">[${f.kind}] ${f.name}</option>`);
   }
   setInnerHtml(selectElement, options.join('\n'));
 }
 
 /**
- * Sets the option of the given select UI element to the given function name.
+ * Sets the option of the given select UI element to the given function.
  * @param {!Element} selectElement
- * @param {string} functionName
+ * @param {string} functionId
  */
-function setFunctionSelector(selectElement, functionName) {
-  selectElement.value = functionName;
+function setFunctionSelector(selectElement, functionId) {
+  selectElement.value = functionId;
 }
 
 /**
@@ -167,6 +167,12 @@ class IrVisualizer {
      */
     this.package_ = null;
 
+    /**
+     *  The unique identifier of the selected function to view.
+     *  @private {?string}
+     */
+    this.selectedFunctionId_ = null;
+
     let self = this;
     this.functionSelector_.addEventListener('change', e => {
       if (e.target.value) {
@@ -220,8 +226,9 @@ class IrVisualizer {
    * @param {string} nodeId
    */
   highlightNode(nodeId) {
-    document.querySelector('.ir-identifier-' + nodeId)
-        .classList.add('ir-identifier-highlighted');
+    document.querySelectorAll('.ir-node-identifier-' + nodeId).forEach(e => {
+      e.classList.add('ir-node-identifier-highlighted');
+    });
     if (this.irGraph_ && this.nodeMetadataElement_) {
       let text = '<b>node:</b> ' + this.irGraph_.node(nodeId).ir;
       let delay = this.irGraph_.node(nodeId).attributes['delay_ps'];
@@ -248,8 +255,9 @@ class IrVisualizer {
    * @param {string} nodeId
    */
   unhighlightNode(nodeId) {
-    document.querySelector('.ir-identifier-' + nodeId)
-        .classList.remove('ir-identifier-highlighted');
+    document.querySelectorAll('.ir-node-identifier-' + nodeId).forEach(e => {
+      e.classList.remove('ir-node-identifier-highlighted');
+    });
     if (this.irGraph_ && this.nodeMetadataElement_) {
       this.nodeMetadataElement_.textContent = '';
     }
@@ -263,12 +271,13 @@ class IrVisualizer {
    * @param {string} edgeId
    */
   highlightEdge(edgeId) {
-    let srcId = this.irGraph_.edge(edgeId).source;
-    let tgtId = this.irGraph_.edge(edgeId).target;
-    document.querySelector(`.ir-def-${srcId}`)
-        .classList.add('ir-identifier-highlighted');
-    document.querySelector(`.ir-use-${srcId}-${tgtId}`)
-        .classList.add('ir-identifier-highlighted');
+    let srcId = this.irGraph_.edge(edgeId).sourceId;
+    let tgtId = this.irGraph_.edge(edgeId).targetId;
+    document.getElementById(`ir-node-def-${srcId}`)
+        .classList.add('ir-node-identifier-highlighted');
+    document.querySelectorAll(`.ir-edge-${srcId}-${tgtId}`).forEach(e => {
+      e.classList.add('ir-node-identifier-highlighted');
+    });
     if (this.graphView_) {
       this.graphView_.highlightEdge(edgeId);
     }
@@ -279,12 +288,13 @@ class IrVisualizer {
    * @param {string} edgeId
    */
   unhighlightEdge(edgeId) {
-    let srcId = this.irGraph_.edge(edgeId).source;
-    let tgtId = this.irGraph_.edge(edgeId).target;
-    document.querySelector(`.ir-def-${srcId}`)
-        .classList.remove('ir-identifier-highlighted');
-    document.querySelector(`.ir-use-${srcId}-${tgtId}`)
-        .classList.remove('ir-identifier-highlighted');
+    let srcId = this.irGraph_.edge(edgeId).sourceId;
+    let tgtId = this.irGraph_.edge(edgeId).targetId;
+    document.getElementById(`ir-node-def-${srcId}`)
+        .classList.remove('ir-node-identifier-highlighted');
+    document.querySelectorAll(`.ir-edge-${srcId}-${tgtId}`).forEach(e => {
+      e.classList.remove('ir-node-identifier-highlighted');
+    });
     if (this.graphView_) {
       this.graphView_.unhighlightEdge(edgeId);
     }
@@ -301,12 +311,16 @@ class IrVisualizer {
     // (De)select identifier elements in the textual IR.
     for (const change of changes.nodes) {
       if (change.from == selectableGraph.SelectState.SELECTED) {
-        document.querySelector('.ir-identifier-' + change.id)
-            .classList.remove('ir-identifier-selected');
+        document.querySelectorAll(`.ir-node-identifier-${change.id}`)
+            .forEach(e => {
+              e.classList.remove('ir-node-identifier-selected');
+            });
       }
       if (change.to == selectableGraph.SelectState.SELECTED) {
-        document.querySelector('.ir-identifier-' + change.id)
-            .classList.add('ir-identifier-selected');
+        document.querySelectorAll(`.ir-node-identifier-${change.id}`)
+            .forEach(e => {
+              e.classList.add('ir-node-identifier-selected');
+            });
       }
     }
 
@@ -325,16 +339,17 @@ class IrVisualizer {
   }
 
   /**
-   * Sets the function to visualize to the given function name.
-   * @param {string} functionName
+   * Sets the function to visualize to the function with the given id.
+   * @param {string} functionId
    */
-  selectFunction(functionName) {
+  selectFunction(functionId) {
     this.clearGraph();
+    this.selectedFunctionId_ = null;
 
     // Scrape the function/proc/block names from the package.
     let graph = null;
     for (let func of this.package_['function_bases']) {
-      if (functionName == func['name']) {
+      if (functionId == func['id']) {
         graph = func;
       }
     }
@@ -345,10 +360,26 @@ class IrVisualizer {
     this.graph_ = new selectableGraph.SelectableGraph(this.irGraph_);
     this.highlightIr_(graph);
     this.setIrTextListeners_();
+    this.selectedFunctionId_ = functionId;
 
     if (this.graphView_) {
       this.draw(document.getElementById('only-selected-checkbox').checked);
     }
+
+    // Scroll the start of the selected function definition into view.
+    document.getElementById(`ir-function-def-${functionId}`).scrollIntoView();
+
+    // Unselect all functions. This will grey out the IR text of all functions.
+    document.querySelectorAll('.ir-function').forEach(e => {
+      e.classList.add('ir-function-unselected');
+    });
+
+    // For the selected function, add the class `ir-function-selected` which
+    // will display this function in normal (not greyed out) text.
+    document.getElementById(`ir-function-${functionId}`)
+        .classList.remove('ir-function-unselected');
+    document.getElementById(`ir-function-${functionId}`)
+        .classList.add('ir-function-selected');
   }
 
   /**
@@ -357,80 +388,44 @@ class IrVisualizer {
    */
   setIrTextListeners_() {
     let self = this;
-    document.querySelectorAll('.ir-identifier').forEach(elem => {
+    document.querySelectorAll('.ir-node-identifier').forEach(elem => {
       elem.addEventListener('mouseenter', e => {
-        self.highlightNode(
-            /** @type {string} */ (e.target.dataset.irIdentifier));
+        if (e.target.dataset.functionId == self.selectedFunctionId_) {
+          self.highlightNode(
+              /** @type {string} */ (e.target.dataset.nodeId));
+        }
       });
       elem.addEventListener('mouseleave', e => {
-        self.unhighlightNode(
-            /** @type {string} */ (e.target.dataset.irIdentifier));
+        if (e.target.dataset.functionId == self.selectedFunctionId_) {
+          self.unhighlightNode(
+              /** @type {string} */ (e.target.dataset.nodeId));
+        }
       });
       elem.addEventListener('click', e => {
-        let identifier = /** @type {string} */ (e.target.dataset.irIdentifier);
+        if (e.target.dataset.functionId != self.selectedFunctionId_) {
+          return;
+        }
+        let nodeId = /** @type {string} */ (e.target.dataset.nodeId);
         if (e.ctrlKey && self.graphView_) {
           // If the control key is down. Zoom in on the node in the graph.
-          self.graphView_.focusOnNode(identifier);
+          self.graphView_.focusOnNode(nodeId);
         } else {
           // Toggle the selection state.
-          self.selectNode(identifier, !self.graph_.isNodeSelected(identifier));
+          self.selectNode(nodeId, !self.graph_.isNodeSelected(nodeId));
         }
       });
     });
   }
 
   /**
-   * Highlights the IR text source using the JSON graphified IR. Currently just
-   * makes the identifiers bold and wraps them in spans.
-   * TODO(meheff): This should probably be done on the server side.
+   * Highlights the IR text source using the JSON graphified IR. This puts the
+   * marked up IR from the server into the IR text element.
    * @param {!Object} jsonGraph
    * @private
    */
   highlightIr_(jsonGraph) {
-    let text = this.irElement_.textContent;
-    // A map containing the node identifiers in the graph. The value of the map
-    // is a count as the identifiers are encountered when walking through the
-    // IR. It is used to identify defs (first encounter of an identifier).
-    let identifiers = {};
-    let nameToId = {};
-    jsonGraph['nodes'].forEach(function(node, index) {
-      identifiers[node.name] = 0;
-      nameToId[node.name] = node.id;
-    });
-    let pieces = [];
-    let lastPieceEnd = 0;
-    let lastDef = undefined;
-    // matchAll is not yet recognized by the JS Compiler as it is ES2020.
-    /** @suppress {missingProperties} */
-    let matches = text.matchAll(/[a-zA-Z_][a-zA-Z0-9_.]*/g);
-    for (const match of matches) {
-      if (match.index > lastPieceEnd) {
-        pieces.push(text.slice(lastPieceEnd, match.index));
-      }
-      if (match[0] in identifiers) {
-        let id = nameToId[match[0]];
-        let classes = ['ir-identifier', 'ir-identifier-' + id];
-        // If this is the first time we've seen the identifier it is a def.
-        let isDef = identifiers[match[0]] == 0;
-        identifiers[match[0]] += 1;
-        // To enable highlighting of edge end points, add classes for the defs
-        // and uses of values.
-        if (isDef) {
-          classes.push('ir-def-' + id);
-          lastDef = id;
-        } else if (lastDef) {
-          classes.push(`ir-use-${id}-${lastDef}`);
-        }
-        pieces.push(`<span class="${classes.join(' ')}" data-ir-identifier="${
-            id}">${match[0]}</span>`);
-      } else {
-        pieces.push(match[0]);
-      }
-      lastPieceEnd = match.index + match[0].length;
-    }
-    pieces.push(text.slice(lastPieceEnd));
     let focusOffset = getOffsetWithin(this.irElement_);
-    setInnerHtml(this.irElement_, pieces.join(''));
+    setInnerHtml(this.irElement_, this.package_['ir_html']);
     if (focusOffset != null) {
       setPositionAtOffset(this.irElement_, focusOffset);
     }
@@ -462,23 +457,26 @@ class IrVisualizer {
         return self.parseAndHighlightIr(cb);
       }
 
+      self.package_ = null;
       if (response['error_code'] == 'ok') {
         if (self.sourceOkCallback_) {
           self.sourceOkCallback_();
         }
         self.package_ = response['graph'];
 
-        // Fill in the names of function in the select element.
+        // Fill in the names and ids of function in the select element.
         let functions = [];
         for (let func of self.package_['function_bases']) {
-          functions.push(func['name']);
+          functions.push(
+              {name: func['name'], kind: func['kind'], id: func['id']});
         }
         setupFunctionSelector(self.functionSelector_, functions);
 
         // Select the function entry if entry is specified.
-        if (self.package_['entry']) {
-          setFunctionSelector(self.functionSelector_, self.package_['entry']);
-          self.selectFunction(self.package_['entry']);
+        if (self.package_['entry_id']) {
+          setFunctionSelector(
+              self.functionSelector_, self.package_['entry_id']);
+          self.selectFunction(self.package_['entry_id']);
         }
       } else {
         self.clearGraph();
@@ -548,7 +546,7 @@ class IrVisualizer {
       if (nodeId) {
         if (ctrlPressed) {
           // Scroll the node into view in the IR text window.
-          document.querySelector(`.ir-def-${nodeId}`).scrollIntoView();
+          document.getElementById(`ir-node-def-${nodeId}`).scrollIntoView();
         } else {
           // Toggle the selection state.
           this.selectNode(nodeId, !this.graph_.isNodeSelected(nodeId));

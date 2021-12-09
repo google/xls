@@ -21,9 +21,17 @@ message Edge {
   // they are serialized as JSON strings (because Javascript numbers are
   // doubles and can't represent the whole int64 range).
   optional double bit_width = 1;
+
+  // A globally unique identifier for the edge.
   optional string id = 2;
-  optional string source = 3;
-  optional string target = 4;
+
+  // The xls::viz::Node::id value of the source node.
+  optional string source_id = 3;
+
+  // The xls::viz::Node::id value of the target node.
+  optional string target_id = 4;
+
+  // The xls::Type::ToString of the type of the source node
   optional string type = 5;
 }
 
@@ -40,7 +48,13 @@ message NodeAttributes {
 
 message Node {
   optional NodeAttributes attributes = 1;
+
+  // A globally unique identifier for the node. This is *not* the
+  // xls::Node::id() as this is value is not globally unique because parameter
+  // ids are not unique.
   optional string id = 2;
+
+  // The xls::Node::ToString() output for this node.
   optional string ir = 3;
   optional string name = 4;
   optional string opcode = 5;
@@ -48,13 +62,23 @@ message Node {
 
 message FunctionBase {
   optional string name = 1;
-  repeated Edge edges = 2;
-  repeated Node nodes = 3;
+
+  // A globally unique identifier for the function/proc/block.
+  optional string id = 2;
+
+  // The kind of function base ('function', 'proc', or 'block').
+  optional string kind = 3;
+
+  // The edges and nodes of the data flow graph.
+  repeated Edge edges = 4;
+  repeated Node nodes = 5;
 }
 
 message Package {
   optional string name = 1;
   repeated FunctionBase function_bases = 2;
-  optional string marked_up_ir = 3;
-  optional string entry = 4;
+  optional string ir_html = 3;
+
+  // Id of the function/proc/block to view by default.
+  optional string entry_id = 4;
 }

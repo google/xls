@@ -31,6 +31,11 @@ absl::StatusOr<std::string> IrToJson(
     const PipelineSchedule* schedule = nullptr,
     absl::optional<absl::string_view> entry_name = absl::nullopt);
 
+// Return the IR text of the given package with HTML mark up. Various IR
+// constructs are wrapped in spans. This function is exposed only for testing as
+// the marked up IR is generally available in the JSON produced by IrToJson.
+absl::StatusOr<std::string> MarkUpIrText(Package* package);
+
 }  // namespace xls
 
 #endif  // XLS_IR_VISUALIZATION_IR_TO_JSON_H_
