@@ -16,6 +16,48 @@
 #include "xls/dslx/ast.h"
 
 namespace xls::dslx {
+namespace {
+
+std::string OpToString(Bytecode::Op op) {
+  switch (op) {
+    case Bytecode::Op::kAdd:
+      return "add";
+    case Bytecode::Op::kCall:
+      return "call";
+    case Bytecode::Op::kCreateTuple:
+      return "create_tuple";
+    case Bytecode::Op::kExpandTuple:
+      return "expand_tuple";
+    case Bytecode::Op::kEq:
+      return "eq";
+    case Bytecode::Op::kLoad:
+      return "load";
+    case Bytecode::Op::kLiteral:
+      return "literal";
+    case Bytecode::Op::kStore:
+      return "store";
+  }
+  return absl::StrCat("<invalid: ", static_cast<int>(op), ">");
+}
+
+}  // namespace
+
+std::string Bytecode::ToString() const {
+  std::string op_string = OpToString(op_);
+
+  if (data_.has_value()) {
+    std::string data_string;
+    if (absl::holds_alternative<int64_t>(data_.value())) {
+      int64_t data = absl::get<int64_t>(data_.value());
+      data_string = absl::StrCat("d", data);
+    } else {
+      data_string = absl::get<InterpValue>(data_.value()).ToHumanString();
+    }
+    return absl::StrFormat("%s <%s> @ %s", op_string, data_string,
+                           source_span_.ToString());
+  }
+  return absl::StrFormat("%s @ %s", op_string, source_span_.ToString());
+}
 
 BytecodeEmitter::BytecodeEmitter(
     ImportData* import_data, TypeInfo* type_info,
@@ -84,24 +126,42 @@ void BytecodeEmitter::HandleInvocation(Invocation* node) {
       absl::UnimplementedError("ColonRef invocations not yet implemented.");
 }
 
+void BytecodeEmitter::DestructureLet(NameDefTree* tree) {
+  if (tree->is_leaf()) {
+    NameDef* name_def = absl::get<NameDef*>(tree->leaf());
+    if (!namedef_to_slot_->contains(name_def)) {
+      namedef_to_slot_->insert({name_def, namedef_to_slot_->size()});
+    }
+    int64_t slot = namedef_to_slot_->at(name_def);
+    bytecode_.push_back(Bytecode(tree->span(), Bytecode::Op::kStore, slot));
+  } else {
+    bytecode_.push_back(Bytecode(tree->span(), Bytecode::Op::kExpandTuple));
+    for (const auto& node : tree->nodes()) {
+      DestructureLet(node);
+    }
+  }
+}
+
 void BytecodeEmitter::HandleLet(Let* node) {
+  if (!status_.ok()) {
+    return;
+  }
+
   node->rhs()->AcceptExpr(this);
   if (!status_.ok()) {
     return;
   }
 
-  // TODO(rspringer): Handle destructuring let.
-  NameDef* name_def = node->name_def_tree()->GetNameDefs()[0];
-  if (!namedef_to_slot_->contains(name_def)) {
-    namedef_to_slot_->insert({name_def, namedef_to_slot_->size()});
-  }
-  int64_t slot = namedef_to_slot_->at(name_def);
+  DestructureLet(node->name_def_tree());
 
-  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kStore, slot));
   node->body()->AcceptExpr(this);
 }
 
 void BytecodeEmitter::HandleNameRef(NameRef* node) {
+  if (!status_.ok()) {
+    return;
+  }
+
   if (absl::holds_alternative<BuiltinNameDef*>(node->name_def())) {
     status_ =
         absl::UnimplementedError("NameRefs to builtins are not yet supported.");
@@ -111,6 +171,10 @@ void BytecodeEmitter::HandleNameRef(NameRef* node) {
 }
 
 void BytecodeEmitter::HandleNumber(Number* node) {
+  if (!status_.ok()) {
+    return;
+  }
+
   absl::optional<ConcreteType*> type_or = type_info_->GetItem(node);
   BitsType* bits_type = dynamic_cast<BitsType*>(type_or.value());
   if (bits_type == nullptr) {
@@ -138,4 +202,17 @@ void BytecodeEmitter::HandleNumber(Number* node) {
                InterpValue::MakeBits(bits_type->is_signed(), bits.value())));
 }
 
+void BytecodeEmitter::HandleXlsTuple(XlsTuple* node) {
+  if (!status_.ok()) {
+    return;
+  }
+
+  for (auto* member : node->members()) {
+    member->AcceptExpr(this);
+  }
+
+  // Pop the N elements and push the result as a single value.
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
+                               node->members().size()));
+}
 }  // namespace xls::dslx

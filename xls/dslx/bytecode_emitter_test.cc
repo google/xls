@@ -131,5 +131,106 @@ fn expect_fail() -> u32{
   ASSERT_EQ(bc.integer_data().value(), 0);
 }
 
+// Validates emission of Let nodes with structured bindings.
+TEST(BytecodeEmitterTest, DestructuringLet) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn has_name_def_tree() -> (u32, u64, uN[128]) {
+  let (a, b, (c, d)) = (u4:0, u8:1, (u16:2, (u32:3, u64:4, uN[128]:5)));
+  let _ = assert_eq(a, u4:0);
+  let _ = assert_eq(b, u8:1);
+  let _ = assert_eq(c, u16:2);
+  let _ = assert_eq(d, (u32:3, u64:4, uN[128]:5));
+  d
+})";
+  // ungroup tuple into (A, B, (X))
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("has_name_def_tree"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  ASSERT_EQ(bytecodes.size(), 35);
+  Bytecode bc = bytecodes[0];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+  ASSERT_TRUE(bc.has_data());
+  ASSERT_EQ(bc.value_data().value(), InterpValue::MakeUBits(4, 0));
+
+  bc = bytecodes[5];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+  ASSERT_TRUE(bc.has_data());
+  ASSERT_EQ(bc.value_data().value(), InterpValue::MakeUBits(128, 5));
+
+  bc = bytecodes[6];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kCreateTuple);
+  ASSERT_TRUE(bc.has_data());
+  ASSERT_EQ(bc.integer_data().value(), 3);
+
+  bc = bytecodes[7];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kCreateTuple);
+  ASSERT_TRUE(bc.has_data());
+  ASSERT_EQ(bc.integer_data().value(), 2);
+
+  bc = bytecodes[8];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kCreateTuple);
+  ASSERT_TRUE(bc.has_data());
+  ASSERT_EQ(bc.integer_data().value(), 3);
+
+  bc = bytecodes[9];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kExpandTuple);
+  ASSERT_FALSE(bc.has_data());
+
+  bc = bytecodes[10];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kStore);
+  ASSERT_TRUE(bc.has_data());
+  ASSERT_EQ(bc.integer_data().value(), 0);
+
+  bc = bytecodes[11];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kStore);
+  ASSERT_TRUE(bc.has_data());
+  ASSERT_EQ(bc.integer_data().value(), 1);
+
+  bc = bytecodes[12];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kExpandTuple);
+  ASSERT_FALSE(bc.has_data());
+
+  bc = bytecodes[13];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kStore);
+  ASSERT_TRUE(bc.has_data());
+  ASSERT_EQ(bc.integer_data().value(), 2);
+
+  bc = bytecodes[14];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kStore);
+  ASSERT_TRUE(bc.has_data());
+  ASSERT_EQ(bc.integer_data().value(), 3);
+
+  // Skip the uninteresting comparisons.
+  bc = bytecodes[27];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLoad);
+  ASSERT_TRUE(bc.has_data());
+  ASSERT_EQ(bc.integer_data().value(), 3);
+
+  bc = bytecodes[31];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kCreateTuple);
+  ASSERT_TRUE(bc.has_data());
+  ASSERT_EQ(bc.integer_data().value(), 3);
+
+  bc = bytecodes[34];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLoad);
+  ASSERT_TRUE(bc.has_data());
+  ASSERT_EQ(bc.integer_data().value(), 3);
+
+  for (const auto& code : bytecodes) {
+    XLS_LOG(INFO) << code.ToString();
+  }
+}
+
 }  // namespace
 }  // namespace xls::dslx

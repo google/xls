@@ -44,6 +44,23 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
       "User-defined functions are not yet supported.");
 }
 
+absl::Status BytecodeInterpreter::EvalCreateTuple(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(int64_t tuple_size, bytecode.integer_data());
+  XLS_RET_CHECK_GE(stack_.size(), tuple_size);
+
+  std::vector<InterpValue> elements;
+  elements.reserve(tuple_size);
+  for (int64_t i = 0; i < tuple_size; i++) {
+    elements.push_back(stack_.back());
+    stack_.pop_back();
+  }
+
+  std::reverse(elements.begin(), elements.end());
+
+  stack_.push_back(InterpValue::MakeTuple(elements));
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeInterpreter::EvalEq(const Bytecode& bytecode) {
   XLS_RET_CHECK_GE(stack_.size(), 2);
   InterpValue rhs = stack_.back();
@@ -52,6 +69,27 @@ absl::Status BytecodeInterpreter::EvalEq(const Bytecode& bytecode) {
   stack_.pop_back();
 
   stack_.push_back(InterpValue::MakeBool(lhs.Eq(rhs)));
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::EvalExpandTuple(const Bytecode& bytecode) {
+  InterpValue tuple = stack_.back();
+  stack_.pop_back();
+  if (!tuple.IsTuple()) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Stack top for ExpandTuple was not a tuple, was: ",
+                     TagToString(tuple.tag())));
+  }
+
+  // Note that we destructure the tuple in "reverse" order, with the first
+  // element on top of the stack.
+  XLS_ASSIGN_OR_RETURN(int64_t tuple_size, tuple.GetLength());
+  for (int64_t i = tuple_size - 1; i >= 0; i--) {
+    XLS_ASSIGN_OR_RETURN(InterpValue element,
+                         tuple.Index(InterpValue::MakeUBits(64, i)));
+    stack_.push_back(element);
+  }
+
   return absl::OkStatus();
 }
 

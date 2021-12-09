@@ -30,11 +30,27 @@ namespace xls::dslx {
 class Bytecode {
  public:
   enum class Op {
+    // Adds the top two values on the stack and places the result there.
     kAdd,
+    // Invokes the function given in the Bytecode's data argument.
     kCall,
+    // Creates an N-tuple (N given in the data argument) from the values on the
+    // stack.
+    kCreateTuple,
+    // Expands the N-tuple on the top of the stack by one level, placing leading
+    // elements at the top of the stack. In other words, expanding the tuple
+    // `(a, (b, c))` will result in a stack of `(b, c), a`, where `a` is on top
+    // of the stack.
+    kExpandTuple,
+    // Compares the top two stack elements and places the result (as a
+    // single-bit value) there.
     kEq,
+    // Loads the value from the data-arg-specified slot and pushes it onto the
+    // stack.
     kLoad,
+    // Pushes the literal in the data argument onto the stack.
     kLiteral,
+    // Stores the value at stack top into the arg-data-specified slot.
     kStore,
   };
 
@@ -74,6 +90,8 @@ class Bytecode {
     }
     return absl::get<InterpValue>(data_.value());
   }
+
+  std::string ToString() const;
 
  private:
   Span source_span_;
@@ -125,13 +143,15 @@ class BytecodeEmitter : public ExprVisitor {
   void HandleTernary(Ternary* node) override { DefaultHandler(node); }
   void HandleUnop(Unop* node) override { DefaultHandler(node); }
   void HandleWhile(While* node) override { DefaultHandler(node); }
-  void HandleXlsTuple(XlsTuple* node) override { DefaultHandler(node); }
+  void HandleXlsTuple(XlsTuple* node) override;
 
   void DefaultHandler(Expr* node) {
     status_ = absl::UnimplementedError(
         absl::StrFormat("Unhandled node kind: %s: %s", node->GetNodeTypeName(),
                         node->ToString()));
   }
+
+  void DestructureLet(NameDefTree* tree);
 
   ImportData* import_data_;
   TypeInfo* type_info_;

@@ -94,7 +94,9 @@ cc_test(
     deps = [
         ":bytecode_emitter",
         ":bytecode_interpreter",
+        ":import_data",
         ":interp_value",
+        ":parse_and_typecheck",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/container:flat_hash_map",

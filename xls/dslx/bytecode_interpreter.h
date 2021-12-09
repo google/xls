@@ -43,8 +43,10 @@ class BytecodeInterpreter {
       : bytecode_(bytecode), slots_(slots) {}
 
   absl::Status Run() {
-    for (const auto& instr : bytecode_) {
-      XLS_RETURN_IF_ERROR(EvalInstruction(instr));
+    for (int i = 0; i < bytecode_.size(); i++) {
+      XLS_VLOG(2) << std::hex << "PC: " << i << " : "
+                  << bytecode_[i].ToString();
+      XLS_RETURN_IF_ERROR(EvalInstruction(bytecode_[i]));
     }
     return absl::OkStatus();
   }
@@ -55,8 +57,12 @@ class BytecodeInterpreter {
         return EvalAdd(bytecode);
       case Bytecode::Op::kCall:
         return EvalCall(bytecode);
+      case Bytecode::Op::kCreateTuple:
+        return EvalCreateTuple(bytecode);
       case Bytecode::Op::kEq:
         return EvalEq(bytecode);
+      case Bytecode::Op::kExpandTuple:
+        return EvalExpandTuple(bytecode);
       case Bytecode::Op::kLoad:
         return EvalLoad(bytecode);
       case Bytecode::Op::kLiteral:
@@ -71,7 +77,9 @@ class BytecodeInterpreter {
 
   absl::Status EvalAdd(const Bytecode& bytecode);
   absl::Status EvalCall(const Bytecode& bytecode);
+  absl::Status EvalCreateTuple(const Bytecode& bytecode);
   absl::Status EvalEq(const Bytecode& bytecode);
+  absl::Status EvalExpandTuple(const Bytecode& bytecode);
   absl::Status EvalLoad(const Bytecode& bytecode);
   absl::Status EvalLiteral(const Bytecode& bytecode);
   absl::Status EvalStore(const Bytecode& bytecode);
