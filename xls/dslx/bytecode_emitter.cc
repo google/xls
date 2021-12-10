@@ -213,6 +213,6 @@ void BytecodeEmitter::HandleXlsTuple(XlsTuple* node) {
 
   // Pop the N elements and push the result as a single value.
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
-                               node->members().size()));
+                               static_cast<int64_t>(node->members().size())));
 }
 }  // namespace xls::dslx
