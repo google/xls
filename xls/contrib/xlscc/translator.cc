@@ -1084,7 +1084,8 @@ absl::Status Translator::DeepScanForIO(const clang::Stmt* body,
       PushContextGuard context_guard(*this, body_loc);
       context_guard.propagate_up = false;
 
-      XLS_RETURN_IF_ERROR(GenerateIR_UnrolledFor(forst, ctx, body_loc, true));
+      XLS_RETURN_IF_ERROR(GenerateIR_For(forst, ctx, body_loc,
+                                         ctx.getSourceManager(), true));
 
       check_unique_ids_ = saved_check_unique_ids;
     } else {
@@ -3236,20 +3237,7 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
     }
     case clang::Stmt::ForStmtClass: {
       auto forst = clang_down_cast<const clang::ForStmt*>(stmt);
-
-      if (!context().for_loops_default_unroll) {
-        XLS_ASSIGN_OR_RETURN(Pragma pragma,
-                             FindPragmaForLoc(GetPresumedLoc(sm, *forst)));
-        if (pragma != Pragma_Unroll) {
-          forst->dump();
-
-          return absl::UnimplementedError(absl::StrFormat(
-              "Only unrolled for loops currently supported at %s",
-              LocString(loc)));
-        }
-      }
-
-      XLS_RETURN_IF_ERROR(GenerateIR_UnrolledFor(forst, ctx, loc, false));
+      XLS_RETURN_IF_ERROR(GenerateIR_For(forst, ctx, loc, sm, false));
       break;
     }
     case clang::Stmt::SwitchStmtClass: {
@@ -3300,6 +3288,33 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
       return absl::UnimplementedError(
           absl::StrFormat("Unimplemented construct %s at %s",
                           stmt->getStmtClassName(), LocString(loc)));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Translator::GenerateIR_For(const clang::ForStmt* stmt,
+                                                clang::ASTContext& ctx,
+                                                const xls::SourceLocation& loc,
+                                                const clang::SourceManager& sm,
+                                                bool deep_scan) {
+  auto condition = stmt->getCond();
+  if (condition != nullptr && condition->isIntegerConstantExpr(ctx)) {
+    // special case for "for (;0;) {}" (essentially no op)
+    XLS_ASSIGN_OR_RETURN(auto constVal,
+                          EvaluateInt64(*condition, ctx, loc));
+    if (constVal == 0) {
+      return absl::OkStatus();
+    }
+  }
+  XLS_ASSIGN_OR_RETURN(Pragma pragma,
+                        FindPragmaForLoc(GetPresumedLoc(sm, *stmt)));
+  if (pragma == Pragma_Unroll || context().for_loops_default_unroll) {
+    return GenerateIR_UnrolledFor(stmt, ctx, loc, deep_scan);
+  } else {
+    stmt->dump();
+    return absl::UnimplementedError(absl::StrFormat(
+        "Only unrolled for loops currently supported at %s",
+        LocString(loc)));
   }
   return absl::OkStatus();
 }
@@ -4317,7 +4332,7 @@ xls::SourceLocation Translator::GetLoc(const clang::Decl& decl) {
   return parser_->GetLoc(decl);
 }
 
-clang::PresumedLoc Translator::GetPresumedLoc(clang::SourceManager& sm,
+clang::PresumedLoc Translator::GetPresumedLoc(const clang::SourceManager& sm,
                                               const clang::Stmt& stmt) {
   XLS_CHECK_NE(parser_.get(), nullptr);
   return parser_->GetPresumedLoc(sm, stmt);

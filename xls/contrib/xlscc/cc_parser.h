@@ -100,7 +100,7 @@ class CCParser {
   absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc);
 
   xls::SourceLocation GetLoc(clang::SourceManager& sm, const clang::Stmt& stmt);
-  clang::PresumedLoc GetPresumedLoc(clang::SourceManager& sm,
+  clang::PresumedLoc GetPresumedLoc(const clang::SourceManager& sm,
                                     const clang::Stmt& stmt);
   xls::SourceLocation GetLoc(const clang::Decl& decl);
   clang::PresumedLoc GetPresumedLoc(const clang::Decl& decl);

@@ -796,6 +796,13 @@ class Translator {
   absl::Status GenerateIR_Compound(const clang::Stmt* body,
                                    clang::ASTContext& ctx);
   absl::Status GenerateIR_Stmt(const clang::Stmt* stmt, clang::ASTContext& ctx);
+
+  absl::Status GenerateIR_For(const clang::ForStmt* stmt,
+                                      clang::ASTContext& ctx,
+                                      const xls::SourceLocation& loc,
+                                      const clang::SourceManager& sm,
+                                      bool deep_scan);
+
   absl::Status GenerateIR_UnrolledFor(const clang::ForStmt* stmt,
                                       clang::ASTContext& ctx,
                                       const xls::SourceLocation& loc,
@@ -983,7 +990,7 @@ class Translator {
   inline std::string LocString(const clang::Decl& decl) {
     return LocString(GetLoc(decl));
   }
-  clang::PresumedLoc GetPresumedLoc(clang::SourceManager& sm,
+  clang::PresumedLoc GetPresumedLoc(const clang::SourceManager& sm,
                                     const clang::Stmt& stmt);
   clang::PresumedLoc GetPresumedLoc(const clang::Decl& decl);
 };

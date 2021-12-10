@@ -3478,6 +3478,63 @@ TEST_F(TranslatorTest, DefaultArrayInit) {
                                     testing::HasSubstr("__builtin_memcpy")));
 }
 
+TEST_F(TranslatorTest, ZeroIterationForLoop) {
+  const std::string content = R"(
+    long long my_package(long long a) {
+      for(;0;) {}
+      return a;
+    })";
+  Run({{"a", 1}}, 1, content);
+}
+
+TEST_F(TranslatorTest, OnlyUnrolledLoops) {
+  const std::string content = R"(
+    long long my_package(long long a) {
+      for(;1;) {}
+      return a;
+    })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr(
+                    "Only unrolled for loops currently supported at")));
+}
+
+TEST_F(TranslatorTest, InvalidUnrolledLoop) {
+  const std::string content = R"(
+    long long my_package(long long a) {
+      #pragma hls_unroll yes
+      for(;1;) {}
+      return a;
+    })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr(
+                    "Unrolled for must have an initializer")));
+}
+
+TEST_F(TranslatorTest, NonPramaNestedLoop) {
+  const std::string content = R"(
+    long long my_package(long long a) {
+      #pragma hls_unroll yes
+      for(int i = 0; i < 10; i++) {
+        for(int j = 0; j < 10; j++) {
+          a++;
+        }
+      }
+      return a;
+    })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr(
+                    "Only unrolled for loops currently supported at")));
+}
+
 }  // namespace
 
 }  // namespace xlscc

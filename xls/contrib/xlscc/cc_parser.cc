@@ -135,7 +135,7 @@ void CCParser::AddSourceInfoToMetadata(xlscc_metadata::MetadataOutput& output) {
   }
 }
 
-clang::PresumedLoc CCParser::GetPresumedLoc(clang::SourceManager& sm,
+clang::PresumedLoc CCParser::GetPresumedLoc(const clang::SourceManager& sm,
                                             const clang::Stmt& stmt) {
   return sm.getPresumedLoc(stmt.getSourceRange().getBegin());
 }
