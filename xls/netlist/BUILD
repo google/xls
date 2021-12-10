@@ -23,8 +23,10 @@ exports_files(["fake_cell_library.textproto"])
 
 cc_library(
     name = "netlist",
-    srcs = ["netlist.cc"],
-    hdrs = ["netlist.h"],
+    hdrs = [
+        "netlist.h",
+    ],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":cell_library",
         "//xls/common:bits_util",
@@ -59,8 +61,10 @@ cc_library(
 
 cc_library(
     name = "interpreter",
-    srcs = ["interpreter.cc"],
-    hdrs = ["interpreter.h"],
+    hdrs = [
+        "interpreter.h",
+    ],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":function_parser",
         ":netlist",
@@ -84,13 +88,17 @@ cc_test(
     name = "interpreter_test",
     srcs = ["interpreter_test.cc"],
     deps = [
+        ":cell_library",
         ":fake_cell_library",
+        ":function_extractor",
         ":interpreter",
+        ":lib_parser",
         ":netlist",
         ":netlist_parser",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
@@ -101,6 +109,7 @@ cc_library(
     name = "netlist_parser",
     srcs = ["netlist_parser.cc"],
     hdrs = ["netlist_parser.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":netlist",
         "//xls/common:string_to_int",
@@ -126,6 +135,9 @@ cc_test(
         ":netlist_parser",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/netlist:cell_library",
+        "//xls/netlist:function_extractor",
+        "//xls/netlist:lib_parser",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/memory",
@@ -148,6 +160,7 @@ cc_library(
     name = "cell_library",
     srcs = ["cell_library.cc"],
     hdrs = ["cell_library.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":netlist_cc_proto",
         "//xls/common/status:ret_check",
@@ -259,6 +272,7 @@ cc_library(
     name = "lib_parser",
     srcs = ["lib_parser.cc"],
     hdrs = ["lib_parser.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         "//xls/common/logging",
         "//xls/common/status:status_macros",
@@ -287,6 +301,7 @@ cc_library(
     name = "function_extractor",
     srcs = ["function_extractor.cc"],
     hdrs = ["function_extractor.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":lib_parser",
         ":netlist_cc_proto",

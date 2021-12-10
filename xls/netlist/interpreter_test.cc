@@ -16,10 +16,14 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/strings/ascii.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/netlist/cell_library.h"
 #include "xls/netlist/fake_cell_library.h"
+#include "xls/netlist/function_extractor.h"
+#include "xls/netlist/lib_parser.h"
 #include "xls/netlist/netlist.h"
 #include "xls/netlist/netlist_parser.h"
 
@@ -270,6 +274,246 @@ endmodule
   XLS_ASSERT_OK_AND_ASSIGN(outputs,
                            interpreter.InterpretModule(module, inputs));
   EXPECT_FALSE(outputs.begin()->second);
+}
+
+static std::string_view liberty_src = R"lib(
+library(notandor) {
+  cell(and2) {
+    pin(A) {
+      direction : input;
+    }
+    pin(B) {
+      direction : input;
+    }
+    pin(Y) {
+      direction: output;
+      function : "(A * B)";
+    }
+  }
+  cell(or2) {
+    pin(A) {
+      direction : input;
+    }
+    pin(B) {
+      direction : input;
+    }
+    pin(Y) {
+      direction: output;
+      function : "(A + B)";
+    }
+  }
+  cell(not1) {
+    pin(A) {
+      direction : input;
+    }
+    pin(Y) {
+      direction : output;
+      function : "A'";
+    }
+  }
+}
+)lib";
+
+static std::string_view liberty_statetable_src = R"(
+library (notandor) {
+  cell (and2) {
+    pin (A) {
+      direction: input;
+    }
+    pin (B) {
+      direction: input;
+    }
+    pin (Y) {
+      direction: output;
+      function: "X";
+    }
+    pin (X) {
+      direction: internal;
+      internal_node: "X";
+    }
+    statetable ("A B", "X") {
+      table: "L - : - : L, \
+              - L : - : L, \
+              H H : - : H ";
+    }
+  }
+  cell (or2) {
+    pin (A) {
+      direction: input;
+    }
+    pin (B) {
+      direction: input;
+    }
+    pin (Y) {
+      direction: output;
+      function: "X";
+    }
+    pin (X) {
+      direction: internal;
+      internal_node: "X";
+    }
+    statetable ("A B", "X") {
+      table: "H - : - : H, \
+              - H : - : H, \
+              L L : - : L ";
+    }
+  }
+  cell (not1) {
+    pin (A) {
+      direction: input;
+    }
+    pin (Y) {
+      direction: output;
+      function: "X";
+    }
+    pin (X) {
+      direction: internal;
+      internal_node: "X";
+    }
+    statetable ("A", "X") {
+      table: "H : - : L, \
+              L : - : H ";
+    }
+  }
+}
+)";
+
+static constexpr std::string_view netlist_src = R"(
+module xor2(x, y, out);
+  wire _0_;
+  wire _1_;
+  wire _2_;
+  output out;
+  input x;
+  input y;
+  or2 _3_ (
+    .A(x),
+    .B(y),
+    .Y(_0_)
+  );
+  and2 _4_ (
+    .A(x),
+    .B(y),
+    .Y(_1_)
+  );
+  not1 _5_ (
+    .A(_1_),
+    .Y(_2_)
+  );
+  and2 _6_ (
+    .A(_0_),
+    .B(_2_),
+    .Y(out)
+  );
+endmodule
+)";
+
+template <typename Value>
+static void TestXorUsing(const std::string cell_definitions,
+                         std::function<bool(Value)> eval, Value FALSE,
+                         Value TRUE) {
+  rtl::Scanner scanner(netlist_src);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto stream,
+      xls::netlist::cell_lib::CharStream::FromText(std::string(liberty_src)));
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibraryProto proto,
+                           xls::netlist::function::ExtractFunctions(&stream));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::netlist::AbstractCellLibrary<Value> cell_library,
+      xls::netlist::AbstractCellLibrary<Value>::FromProto(proto, FALSE, TRUE));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<rtl::AbstractNetlist<Value>> n,
+                           rtl::AbstractParser<Value>::ParseNetlist(
+                               &cell_library, &scanner, FALSE, TRUE));
+  XLS_ASSERT_OK_AND_ASSIGN(const rtl::AbstractModule<Value>* m,
+                           n->GetModule("xor2"));
+  EXPECT_EQ("xor2", m->name());
+
+  xls::netlist::AbstractInterpreter<Value> interpreter(n.get(), FALSE, TRUE);
+
+  auto test_xor = [&m, &interpreter, &eval](const Value& a, const Value& b,
+                                            const Value& y) {
+    AbstractNetRef2Value<Value> inputs, outputs;
+    inputs.emplace(m->inputs()[0], a);
+    inputs.emplace(m->inputs()[1], b);
+    XLS_ASSERT_OK_AND_ASSIGN(outputs, interpreter.InterpretModule(m, inputs));
+    EXPECT_EQ(outputs.size(), 1);
+    EXPECT_EQ(eval(outputs.at(m->outputs()[0])), eval(y));
+  };
+
+  test_xor(FALSE, FALSE, FALSE);
+  test_xor(FALSE, TRUE, TRUE);
+  test_xor(TRUE, FALSE, TRUE);
+  test_xor(TRUE, TRUE, FALSE);
+}
+
+TEST(NetlistParserTest, XorUsingStateTables) {
+  TestXorUsing<bool>(
+      std::string(liberty_statetable_src), [](bool x) -> bool { return x; },
+      false, true);
+}
+
+TEST(NetlistParserTest, XorUsingCellFunctions) {
+  TestXorUsing<bool>(
+      std::string(liberty_src), [](bool x) -> bool { return x; }, false, true);
+}
+
+class OpaqueBoolValue {
+ public:
+  OpaqueBoolValue(const OpaqueBoolValue& rhs) : value_(rhs.value_) {}
+  OpaqueBoolValue& operator=(const OpaqueBoolValue& rhs) {
+    value_ = rhs.value_;
+    return *this;
+  }
+  OpaqueBoolValue(OpaqueBoolValue&& rhs) { value_ = rhs.value_; }
+  OpaqueBoolValue& operator=(OpaqueBoolValue&& rhs) {
+    value_ = rhs.value_;
+    return *this;
+  }
+  OpaqueBoolValue operator&(const OpaqueBoolValue& rhs) {
+    return OpaqueBoolValue(value_ & rhs.value_);
+  }
+  OpaqueBoolValue operator|(const OpaqueBoolValue& rhs) {
+    return OpaqueBoolValue(value_ | rhs.value_);
+  }
+  OpaqueBoolValue operator^(const OpaqueBoolValue& rhs) {
+    return OpaqueBoolValue(value_ ^ rhs.value_);
+  }
+  OpaqueBoolValue operator!() { return !value_; }
+
+  bool get() const { return value_; }
+  static OpaqueBoolValue Create(bool val) { return OpaqueBoolValue(val); }
+
+ private:
+  OpaqueBoolValue(bool val) : value_(val) {}
+  bool value_;
+};
+
+TEST(NetlistParserTest, TestOpaqueBoolValue) {
+  OpaqueBoolValue FALSE = OpaqueBoolValue::Create(false);
+  OpaqueBoolValue TRUE = OpaqueBoolValue::Create(true);
+  EXPECT_FALSE(FALSE.get());
+  EXPECT_TRUE(TRUE.get());
+  EXPECT_FALSE((FALSE ^ FALSE).get());
+  EXPECT_TRUE((FALSE ^ TRUE).get());
+  EXPECT_TRUE((TRUE ^ FALSE).get());
+  EXPECT_FALSE((TRUE ^ TRUE).get());
+}
+
+TEST(NetlistParserTest, XorUsingStateTablesAndOpaqueValues) {
+  OpaqueBoolValue FALSE = OpaqueBoolValue::Create(false);
+  OpaqueBoolValue TRUE = OpaqueBoolValue::Create(true);
+  TestXorUsing<OpaqueBoolValue>(
+      std::string(liberty_statetable_src),
+      [](auto x) -> bool { return x.get(); }, FALSE, TRUE);
+}
+
+TEST(NetlistParserTest, XorUsingCellFunctionsAndOpaqueValues) {
+  OpaqueBoolValue FALSE = OpaqueBoolValue::Create(false);
+  OpaqueBoolValue TRUE = OpaqueBoolValue::Create(true);
+  TestXorUsing<OpaqueBoolValue>(
+      std::string(liberty_src), [](auto x) -> bool { return x.get(); }, FALSE,
+      TRUE);
 }
 
 }  // namespace

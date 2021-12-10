@@ -49,6 +49,7 @@ cc_library(
     name = "bits",
     srcs = ["bits.cc"],
     hdrs = ["bits.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":bit_push_buffer",
         ":format_preference",
@@ -819,6 +820,7 @@ cc_library(
     name = "bits_ops",
     srcs = ["bits_ops.cc"],
     hdrs = ["bits_ops.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":big_int",
         ":bits",
