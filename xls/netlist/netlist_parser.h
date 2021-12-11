@@ -26,6 +26,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -253,9 +254,10 @@ absl::StatusOr<int64_t> AbstractParser<EvalT>::PopNumberOrError() {
   if (token.kind == TokenKind::kNumber) {
     // Check for the big version first.
     std::string width_string, signed_string, base_string, value_string;
-    if (RE2::FullMatch(
-            token.value, R"(([0-9]+)'([Ss]?)([bodhBODH])([0-9a-f]+))",
-            &width_string, &signed_string, &base_string, &value_string)) {
+    // Precompute the regex matcher for Verilog number literals.
+    static LazyRE2 number_re_ = {R"(([0-9]+)'([Ss]?)([bodhBODH])([0-9a-f]+))"};
+    if (RE2::FullMatch(token.value, *number_re_, &width_string, &signed_string,
+                       &base_string, &value_string)) {
       int64_t width;
       XLS_RET_CHECK(
           absl::SimpleAtoi(width_string, reinterpret_cast<int64_t*>(&width)))

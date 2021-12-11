@@ -299,7 +299,9 @@ class AbstractModule {
   std::vector<AbstractNetRef<EvalT>> wires_;
   absl::flat_hash_map<AbstractNetRef<EvalT>, AbstractNetRef<EvalT>> assigns_;
   std::vector<std::unique_ptr<AbstractNetDef<EvalT>>> nets_;
+  absl::flat_hash_map<std::string, AbstractNetRef<EvalT>> name_to_netref_;
   std::vector<std::unique_ptr<AbstractCell<EvalT>>> cells_;
+  absl::flat_hash_map<std::string, AbstractCell<EvalT>*> name_to_cell_;
   AbstractNetRef<EvalT> zero_;
   AbstractNetRef<EvalT> one_;
   AbstractNetRef<EvalT> dummy_;
@@ -379,10 +381,9 @@ absl::StatusOr<AbstractNetRef<EvalT>> AbstractModule<EvalT>::ResolveNumber(
 template <typename EvalT>
 absl::StatusOr<AbstractNetRef<EvalT>> AbstractModule<EvalT>::ResolveNet(
     absl::string_view name) const {
-  for (const auto& net : nets_) {
-    if (net->name() == name) {
-      return net.get();
-    }
+  auto it = name_to_netref_.find(name);
+  if (it != name_to_netref_.end()) {
+    return it->second;
   }
 
   return absl::NotFoundError(absl::StrCat("Could not find net: ", name));
@@ -391,10 +392,9 @@ absl::StatusOr<AbstractNetRef<EvalT>> AbstractModule<EvalT>::ResolveNet(
 template <typename EvalT>
 absl::StatusOr<AbstractCell<EvalT>*> AbstractModule<EvalT>::ResolveCell(
     absl::string_view name) const {
-  for (const auto& cell : cells_) {
-    if (cell->name() == name) {
-      return cell.get();
-    }
+  auto it = name_to_cell_.find(name);
+  if (it != name_to_cell_.end()) {
+    return it->second;
   }
   return absl::NotFoundError(
       absl::StrCat("Could not find cell with name: ", name));
@@ -410,7 +410,9 @@ absl::StatusOr<AbstractCell<EvalT>*> AbstractModule<EvalT>::AddCell(
   }
 
   cells_.push_back(std::make_unique<AbstractCell<EvalT>>(cell));
-  return cells_.back().get();
+  auto cell_ptr = cells_.back().get();
+  name_to_cell_[cell.name()] = cell_ptr;
+  return cell_ptr;
 }
 
 template <typename EvalT>
@@ -424,6 +426,7 @@ absl::Status AbstractModule<EvalT>::AddNetDecl(NetDeclKind kind,
 
   nets_.emplace_back(std::make_unique<AbstractNetDef<EvalT>>(name));
   AbstractNetRef<EvalT> ref = nets_.back().get();
+  name_to_netref_[name] = ref;
   switch (kind) {
     case NetDeclKind::kInput:
       inputs_.push_back(ref);
