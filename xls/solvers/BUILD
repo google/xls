@@ -171,6 +171,7 @@ cc_library(
     deps = [
         ":z3_utils",
         "@com_google_absl//absl/status",
+        "//xls/common/status:ret_check",
         "//xls/dslx:symbolic_type",
         "@z3//:api",
     ],

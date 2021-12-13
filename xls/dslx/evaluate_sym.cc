@@ -16,9 +16,6 @@
 
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/evaluate.h"
-#include "xls/dslx/interp_bindings.h"
-#include "xls/dslx/interp_value.h"
 #include "xls/dslx/symbolic_type.h"
 #include "xls/solvers/z3_dslx_translator.h"
 
@@ -27,7 +24,7 @@ namespace xls::dslx {
 #define DISPATCH_DEF(__expr_type)                                              \
   absl::StatusOr<InterpValue> EvaluateSym##__expr_type(                        \
       __expr_type* expr, InterpBindings* bindings, ConcreteType* type_context, \
-      AbstractInterpreter* interp) {                                           \
+      AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {    \
     return Evaluate##__expr_type(expr, bindings, type_context, interp);        \
   }
 
@@ -61,27 +58,24 @@ InterpValue AddSymToValue(InterpValue concrete_value, InterpBindings* bindings,
   return sym_value;
 }
 
-absl::StatusOr<InterpValue> EvaluateSymTernary(Ternary* expr,
-                                               InterpBindings* bindings,
-                                               ConcreteType* type_context,
-                                               AbstractInterpreter* interp) {
+absl::StatusOr<InterpValue> EvaluateSymTernary(
+    Ternary* expr, InterpBindings* bindings, ConcreteType* type_context,
+    AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   XLS_ASSIGN_OR_RETURN(InterpValue test, interp->Eval(expr->test(), bindings));
-
   XLS_RET_CHECK(test.IsBits() && test.GetBitCount().value() == 1);
   if (test.IsTrue()) {
-    XLS_RETURN_IF_ERROR(solvers::z3::TryProve(
-        test.sym(), /*negate_predicate=*/true, absl::InfiniteDuration()));
+    XLS_RETURN_IF_ERROR(
+        test_generator->SolvePredicate(test.sym(), /*negate_predicate=*/true));
     return interp->Eval(expr->consequent(), bindings);
   }
-  XLS_RETURN_IF_ERROR(solvers::z3::TryProve(
-      test.sym(), /*negate_predicate=*/false, absl::InfiniteDuration()));
+  XLS_RETURN_IF_ERROR(
+      test_generator->SolvePredicate(test.sym(), /*negate_predicate=*/false));
   return interp->Eval(expr->alternate(), bindings);
 }
 
-absl::StatusOr<InterpValue> EvaluateSymNumber(Number* expr,
-                                              InterpBindings* bindings,
-                                              ConcreteType* type_context,
-                                              AbstractInterpreter* interp) {
+absl::StatusOr<InterpValue> EvaluateSymNumber(
+    Number* expr, InterpBindings* bindings, ConcreteType* type_context,
+    AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   XLS_ASSIGN_OR_RETURN(InterpValue result,
                        EvaluateNumber(expr, bindings, type_context, interp));
   XLS_ASSIGN_OR_RETURN(Bits result_bits, result.GetBits());
@@ -91,7 +85,8 @@ absl::StatusOr<InterpValue> EvaluateSymNumber(Number* expr,
 
 absl::StatusOr<InterpValue> EvaluateSymFunction(
     Function* f, absl::Span<const InterpValue> args, const Span& span,
-    const SymbolicBindings& symbolic_bindings, AbstractInterpreter* interp) {
+    const SymbolicBindings& symbolic_bindings, AbstractInterpreter* interp,
+    ConcolicTestGenerator* test_generator) {
   XLS_RET_CHECK_EQ(f->owner(), interp->GetCurrentTypeInfo()->module());
   XLS_VLOG(5) << "Evaluating function: " << f->identifier()
               << " symbolic_bindings: " << symbolic_bindings;
@@ -114,14 +109,16 @@ absl::StatusOr<InterpValue> EvaluateSymFunction(
 
   fn_bindings.set_fn_ctx(FnCtx{m->name(), f->identifier(), symbolic_bindings});
   for (int64_t i = 0; i < f->params().size(); ++i) {
-    if (args[i].IsBits())
-      fn_bindings.AddValue(
-          f->params()[i]->identifier(),
+    if (args[i].IsBits()) {
+      InterpValue symbolic_arg =
           AddSymToValue(args[i], &fn_bindings, f->params()[i],
-                        args[i].GetBitCount().value(), args[i].IsSigned()));
-    else
+                        args[i].GetBitCount().value(), args[i].IsSigned());
+      fn_bindings.AddValue(f->params()[i]->identifier(), symbolic_arg);
+      test_generator->AddFnParam(symbolic_arg);
+    } else {
       return absl::InternalError("function parameter of type " +
                                  TagToString(args[i].tag()) + " not supported");
+    }
   }
 
   return interp->Eval(f->body(), &fn_bindings);
@@ -173,10 +170,9 @@ absl::StatusOr<InterpValue> EvaluateSymShift(Binop* expr,
                                           static_cast<int64_t>(expr->kind())));
 }
 
-absl::StatusOr<InterpValue> EvaluateSymBinop(Binop* expr,
-                                             InterpBindings* bindings,
-                                             ConcreteType* type_context,
-                                             AbstractInterpreter* interp) {
+absl::StatusOr<InterpValue> EvaluateSymBinop(
+    Binop* expr, InterpBindings* bindings, ConcreteType* type_context,
+    AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   if (GetBinopShifts().contains(expr->binop_kind())) {
     return EvaluateSymShift(expr, bindings, type_context, interp);
   }
@@ -187,14 +183,16 @@ absl::StatusOr<InterpValue> EvaluateSymBinop(Binop* expr,
   XLS_ASSIGN_OR_RETURN(InterpValue rhs, interp->Eval(expr->rhs(), bindings));
 
   if (lhs.sym() == nullptr || rhs.sym() == nullptr)
-    return absl::InternalError(
-        absl::StrFormat("Node %s cannot be evaluated symbolically",
-                        lhs.sym() == nullptr ? TagToString(lhs.tag())
-                                             : TagToString(rhs.tag())));
+    return absl::InternalError(absl::StrFormat(
+        "Node %s cannot be evaluated symbolically",
+        lhs.sym() == nullptr ? lhs.ToString() : rhs.ToString()));
 
+  // Comparators always return a bool (unsigned type) but we need to keep track
+  // of signed/unsigned for Z3 translation hence we use the lhs' sign as the
+  // operation's sign instead of result's.
   return AddSymToValue(
       result, bindings, SymbolicType::Nodes{lhs.sym(), rhs.sym()},
-      expr->binop_kind(), result.GetBitCount().value(), result.IsSigned());
+      expr->binop_kind(), result.GetBitCount().value(), lhs.IsSigned());
 }
 
 }  // namespace xls::dslx

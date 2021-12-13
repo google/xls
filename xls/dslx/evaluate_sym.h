@@ -18,6 +18,7 @@
 #include "absl/status/statusor.h"
 #include "xls/dslx/abstract_interpreter.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/concolic_engine.h"
 #include "xls/dslx/evaluate.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
@@ -33,7 +34,7 @@ namespace xls::dslx {
 #define DISPATCH_DECL(__expr_type)                                             \
   absl::StatusOr<InterpValue> EvaluateSym##__expr_type(                        \
       __expr_type* expr, InterpBindings* bindings, ConcreteType* type_context, \
-      AbstractInterpreter* interp);
+      AbstractInterpreter* interp, ConcolicTestGenerator* test_generator);
 
 DISPATCH_DECL(Array)
 DISPATCH_DECL(Attr)
@@ -60,7 +61,8 @@ DISPATCH_DECL(XlsTuple)
 
 absl::StatusOr<InterpValue> EvaluateSymFunction(
     Function* f, absl::Span<const InterpValue> args, const Span& span,
-    const SymbolicBindings& symbolic_bindings, AbstractInterpreter* interp);
+    const SymbolicBindings& symbolic_bindings, AbstractInterpreter* interp,
+    ConcolicTestGenerator* test_generator);
 
 }  // namespace xls::dslx
 

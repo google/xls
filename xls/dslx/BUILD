@@ -744,6 +744,7 @@ cc_library(
         ":ast",
         ":ast_utils",
         ":builtins",
+        ":concolic_engine",
         ":evaluate",
         ":evaluate_sym",
         ":import_routines",
@@ -1085,6 +1086,7 @@ cc_library(
     deps = [
         ":abstract_interpreter",
         ":ast",
+        ":concolic_engine",
         ":evaluate",
         ":import_routines",
         ":interp_bindings",
@@ -1108,6 +1110,23 @@ cc_library(
         "//xls/ir:bits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_library(
+    name = "concolic_engine",
+    srcs = ["concolic_engine.cc"],
+    hdrs = ["concolic_engine.h"],
+    deps = [
+        ":interp_value",
+        ":symbolic_type",
+        "//xls/common/status:status_macros",
+        "//xls/solvers:z3_dslx_translator",
+        "//xls/solvers:z3_utils",
+        "@com_google_absl//absl/cleanup",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@z3//:api",
     ],
 )
 

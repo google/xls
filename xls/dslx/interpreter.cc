@@ -52,19 +52,22 @@ class Evaluator : public ExprVisitor {
  public:
   Evaluator(Interpreter* parent, InterpBindings* bindings,
             ConcreteType* type_context, AbstractInterpreter* interp,
-            bool run_concolic)
+            ConcolicTestGenerator* test_generator = nullptr,
+            bool run_concolic = false)
       : parent_(parent),
         bindings_(bindings),
         type_context_(type_context),
         interp_(interp),
+        test_generator_(test_generator),
         run_concolic_(run_concolic) {}
 
 #define DISPATCH(__expr_type)                                                 \
   void Handle##__expr_type(__expr_type* expr) override {                      \
-    value_ = run_concolic_ ? EvaluateSym##__expr_type(expr, bindings_,        \
-                                                      type_context_, interp_) \
-                           : Evaluate##__expr_type(expr, bindings_,           \
-                                                   type_context_, interp_);   \
+    value_ =                                                                  \
+        run_concolic_                                                         \
+            ? EvaluateSym##__expr_type(expr, bindings_, type_context_,        \
+                                       interp_, test_generator_)             \
+            : Evaluate##__expr_type(expr, bindings_, type_context_, interp_); \
   }
 
   DISPATCH(Array)
@@ -186,6 +189,7 @@ class Evaluator : public ExprVisitor {
   ConcreteType* type_context_;
   AbstractInterpreter* interp_;
   absl::StatusOr<InterpValue> value_;
+  ConcolicTestGenerator* test_generator_;
   bool run_concolic_;
 };
 
@@ -243,7 +247,9 @@ Interpreter::Interpreter(Module* entry_module, TypecheckFn typecheck,
       trace_all_(trace_all),
       run_concolic_(run_concolic),
       trace_format_preference_(trace_format_preference),
-      abstract_adapter_(std::make_unique<AbstractInterpreterAdapter>(this)) {}
+      abstract_adapter_(std::make_unique<AbstractInterpreterAdapter>(this)),
+      test_generator_(
+          std::make_unique<ConcolicTestGenerator>(entry_module_->name())) {}
 
 absl::StatusOr<InterpValue> Interpreter::RunFunction(
     absl::string_view name, absl::Span<const InterpValue> args,
@@ -256,6 +262,25 @@ absl::StatusOr<InterpValue> Interpreter::RunFunction(
   TypeInfoSwap tis(this, type_info);
   return EvaluateAndCompareInternal(f, args, fake_span, /*invocation=*/nullptr,
                                     &symbolic_bindings);
+}
+
+// TODO(akalan): move this function out of the interpreter to a concolic helper
+// library.
+absl::Status Interpreter::LogConcolicTests() {
+  // Run the entry function concretely with the generated inputs from the
+  // concolic engine to compute the return value used later for the test
+  // generation.
+  if (test_generator_->GetInputValues().empty()) return absl::OkStatus();
+  run_concolic_ = false;
+  std::cerr << "Generated test cases:\n";
+  std::vector<std::vector<InterpValue>> inputs =
+      test_generator_->GetInputValues();
+  for (int64_t i = 0; i < inputs.size(); ++i) {
+    XLS_ASSIGN_OR_RETURN(InterpValue result,
+                         RunFunction(entry_module_->name(), inputs[i]));
+    XLS_RETURN_IF_ERROR(test_generator_->GenerateTest(result, /*test_no=*/i));
+  }
+  return absl::OkStatus();
 }
 
 absl::Status Interpreter::RunTest(absl::string_view name, bool bytecode) {
@@ -278,6 +303,7 @@ absl::Status Interpreter::RunTest(absl::string_view name, bool bytecode) {
         test->identifier(), result_or.value().ToString()));
   }
   XLS_VLOG(2) << "Ran test " << name << " successfully.";
+  if (run_concolic_) XLS_RETURN_IF_ERROR(LogConcolicTests());
   return absl::OkStatus();
 }
 
@@ -299,7 +325,8 @@ absl::Status Interpreter::RunTestProc(absl::string_view name) {
 
   spawn_stack_.push_back(SpawnContext());
   Evaluator evaluator(this, bindings.get(), /*type_context=*/nullptr,
-                      abstract_adapter_.get(), run_concolic_);
+                      abstract_adapter_.get(), test_generator_.get(),
+                      run_concolic_);
   tp->proc()->config()->body()->AcceptExpr(&evaluator);
   absl::StatusOr<InterpValue> result_or = std::move(evaluator.value());
   if (!result_or.ok()) {
@@ -338,7 +365,8 @@ absl::Status Interpreter::RunTestProc(absl::string_view name) {
 absl::Status Interpreter::TickProc(RunningProc* rp) {
   // Tick us first.
   Evaluator evaluator(this, rp->bindings(), /*type_context=*/nullptr,
-                      abstract_adapter_.get(), run_concolic_);
+                      abstract_adapter_.get(), test_generator_.get(),
+                      run_concolic_);
   rp->proc()->next()->body()->AcceptExpr(&evaluator);
   XLS_ASSIGN_OR_RETURN(InterpValue result, evaluator.value());
 
@@ -390,7 +418,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
   XLS_RET_CHECK_EQ(expr->owner(), current_type_info_->module())
       << expr->span() << " vs " << current_type_info_->module()->name();
   Evaluator evaluator(this, bindings, type_context, abstract_adapter_.get(),
-                      run_concolic_);
+                      test_generator_.get(), run_concolic_);
   expr->AcceptExpr(&evaluator);
   absl::StatusOr<InterpValue> result_or = std::move(evaluator.value());
   if (!result_or.ok()) {
@@ -527,7 +555,7 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateAndCompareInternal(
                                 symbolic_bindings == nullptr
                                     ? SymbolicBindings()
                                     : *symbolic_bindings,
-                                abstract_adapter_.get())
+                                abstract_adapter_.get(), test_generator_.get())
           : EvaluateFunction(f, args, span,
                              symbolic_bindings == nullptr ? SymbolicBindings()
                                                           : *symbolic_bindings,

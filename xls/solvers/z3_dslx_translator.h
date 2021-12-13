@@ -25,15 +25,16 @@ using dslx::SymbolicType;
 
 class DslxTranslator {
  public:
-  // Creates a translator and uses it to translate the given expression tree
-  // into a Z3 AST.
-  static absl::StatusOr<std::unique_ptr<DslxTranslator>> CreateAndTranslate(
-      SymbolicType* predicate);
+  // Creates a unique pointer to the z3 translator.
+  static std::unique_ptr<DslxTranslator> CreateTranslator();
 
-  ~DslxTranslator();
+  // Translates the given expression tree to z3 AST.
+  absl::Status TranslatePredicate(SymbolicType* predicate);
 
   // Returns the Z3 value (or set of values) corresponding to the given Node.
-  Z3_ast GetTranslation(const SymbolicType* source);
+  absl::optional<Z3_ast> GetTranslation(const SymbolicType* source);
+
+  ~DslxTranslator();
 
   // Sets the amount of time to allow Z3 to execute before aborting.
   void SetTimeout(absl::Duration timeout);
@@ -65,6 +66,12 @@ class DslxTranslator {
  private:
   DslxTranslator(Z3_config config);
 
+  // Visitor methods for traversing the expression tree nodes and invoking the
+  // corresponding Handlers for Z3 translation.
+  absl::Status VisitSymbolicTree(SymbolicType* sym);
+  absl::Status ProcessSymbolicLeaf(SymbolicType* sym);
+  absl::Status ProcessSymbolicNode(SymbolicType* sym);
+
   // Records the mapping of the specified DXLS node to Z3 value.
   absl::Status NoteTranslation(SymbolicType* node, Z3_ast translated);
 
@@ -91,23 +98,16 @@ class DslxTranslator {
   absl::Status HandleShift(SymbolicType* sym, FnT f);
 
   absl::flat_hash_map<const SymbolicType*, Z3_ast> translations_;
-
   Z3_config config_;
   Z3_context ctx_;
 };
 
-// Visitor methods for traversing the expression tree nodes and invoking the
-// corresponding Handlers for Z3 translation.
-absl::Status VisitSymbolicTree(DslxTranslator* translator, SymbolicType* sym);
-absl::Status ProcessSymbolicLeaf(DslxTranslator* translator, SymbolicType* sym);
-absl::Status ProcessSymbolicNode(DslxTranslator* translator, SymbolicType* sym);
+// Returns true if the objective is of boolean type (eq, neq, comparisons,
+// etc.).
+bool IsAstBoolPredicate(Z3_context ctx, Z3_ast objective);
 
-// Attempts to prove the logic formula in "predicate" within the duration
-// "timeout" and prints the (if existing) set of inputs that satisfy the
-// formula.
-absl::Status TryProve(SymbolicType* predicate, bool negate_predicate,
-                      absl::Duration timeout);
-
+// Casts Z3 Boolean type to Bit Vector type.
+Z3_ast BoolToBv(Z3_context ctx, Z3_ast bool_ast);
 
 }  // namespace xls::solvers::z3
 
