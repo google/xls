@@ -32,6 +32,7 @@ nav:
     - Standard Library : 'dslx_std.md'
     - Floating Point: 'floating_point.md'
     - Fuzzer: 'fuzzer.md'
+    - Interpreter: 'dslx_bytecode_interpreter.md'
   - Code Generation:
     - VAST: 'vast.md'
   - Tools:
