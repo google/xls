@@ -408,10 +408,11 @@ module xor2(x, y, out);
 endmodule
 )";
 
-template <typename Value>
-static void TestXorUsing(const std::string cell_definitions,
-                         std::function<bool(Value)> eval, Value FALSE,
-                         Value TRUE) {
+template <typename ValueT>
+static void TestXorUsing(
+    const std::string cell_definitions, std::function<bool(ValueT)> eval,
+    const xls::netlist::rtl::CellToOutputEvalFns<ValueT>& eval_fns,
+    const ValueT kFalse, const ValueT kTrue) {
   rtl::Scanner scanner(netlist_src);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto stream,
@@ -420,20 +421,23 @@ static void TestXorUsing(const std::string cell_definitions,
                            xls::netlist::function::ExtractFunctions(&stream));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      xls::netlist::AbstractCellLibrary<Value> cell_library,
-      xls::netlist::AbstractCellLibrary<Value>::FromProto(proto, FALSE, TRUE));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<rtl::AbstractNetlist<Value>> n,
-                           rtl::AbstractParser<Value>::ParseNetlist(
-                               &cell_library, &scanner, FALSE, TRUE));
-  XLS_ASSERT_OK_AND_ASSIGN(const rtl::AbstractModule<Value>* m,
+      xls::netlist::AbstractCellLibrary<ValueT> cell_library,
+      xls::netlist::AbstractCellLibrary<ValueT>::FromProto(proto, kFalse,
+                                                           kTrue));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<rtl::AbstractNetlist<ValueT>> n,
+                           rtl::AbstractParser<ValueT>::ParseNetlist(
+                               &cell_library, &scanner, kFalse, kTrue));
+  XLS_ASSERT_OK_AND_ASSIGN(const rtl::AbstractModule<ValueT>* m,
                            n->GetModule("xor2"));
   EXPECT_EQ("xor2", m->name());
 
-  xls::netlist::AbstractInterpreter<Value> interpreter(n.get(), FALSE, TRUE);
+  XLS_ASSERT_OK(n->AddCellEvaluationFns(eval_fns));
 
-  auto test_xor = [&m, &interpreter, &eval](const Value& a, const Value& b,
-                                            const Value& y) {
-    AbstractNetRef2Value<Value> inputs, outputs;
+  xls::netlist::AbstractInterpreter<ValueT> interpreter(n.get(), kFalse, kTrue);
+
+  auto test_xor = [&m, &interpreter, &eval](const ValueT& a, const ValueT& b,
+                                            const ValueT& y) {
+    AbstractNetRef2Value<ValueT> inputs, outputs;
     inputs.emplace(m->inputs()[0], a);
     inputs.emplace(m->inputs()[1], b);
     XLS_ASSERT_OK_AND_ASSIGN(outputs, interpreter.InterpretModule(m, inputs));
@@ -441,21 +445,22 @@ static void TestXorUsing(const std::string cell_definitions,
     EXPECT_EQ(eval(outputs.at(m->outputs()[0])), eval(y));
   };
 
-  test_xor(FALSE, FALSE, FALSE);
-  test_xor(FALSE, TRUE, TRUE);
-  test_xor(TRUE, FALSE, TRUE);
-  test_xor(TRUE, TRUE, FALSE);
+  test_xor(kFalse, kFalse, kFalse);
+  test_xor(kFalse, kTrue, kTrue);
+  test_xor(kTrue, kFalse, kTrue);
+  test_xor(kTrue, kTrue, kFalse);
 }
 
 TEST(NetlistParserTest, XorUsingStateTables) {
   TestXorUsing<bool>(
-      std::string(liberty_statetable_src), [](bool x) -> bool { return x; },
+      std::string(liberty_statetable_src), [](bool x) -> bool { return x; }, {},
       false, true);
 }
 
 TEST(NetlistParserTest, XorUsingCellFunctions) {
   TestXorUsing<bool>(
-      std::string(liberty_src), [](bool x) -> bool { return x; }, false, true);
+      std::string(liberty_src), [](bool x) -> bool { return x; }, {}, false,
+      true);
 }
 
 class OpaqueBoolValue {
@@ -470,16 +475,16 @@ class OpaqueBoolValue {
     value_ = rhs.value_;
     return *this;
   }
-  OpaqueBoolValue operator&(const OpaqueBoolValue& rhs) {
+  OpaqueBoolValue operator&(const OpaqueBoolValue& rhs) const {
     return OpaqueBoolValue(value_ & rhs.value_);
   }
-  OpaqueBoolValue operator|(const OpaqueBoolValue& rhs) {
+  OpaqueBoolValue operator|(const OpaqueBoolValue& rhs) const {
     return OpaqueBoolValue(value_ | rhs.value_);
   }
-  OpaqueBoolValue operator^(const OpaqueBoolValue& rhs) {
+  OpaqueBoolValue operator^(const OpaqueBoolValue& rhs) const {
     return OpaqueBoolValue(value_ ^ rhs.value_);
   }
-  OpaqueBoolValue operator!() { return !value_; }
+  OpaqueBoolValue operator!() const { return !value_; }
 
   bool get() const { return value_; }
   static OpaqueBoolValue Create(bool val) { return OpaqueBoolValue(val); }
@@ -490,31 +495,149 @@ class OpaqueBoolValue {
 };
 
 TEST(NetlistParserTest, TestOpaqueBoolValue) {
-  OpaqueBoolValue FALSE = OpaqueBoolValue::Create(false);
-  OpaqueBoolValue TRUE = OpaqueBoolValue::Create(true);
-  EXPECT_FALSE(FALSE.get());
-  EXPECT_TRUE(TRUE.get());
-  EXPECT_FALSE((FALSE ^ FALSE).get());
-  EXPECT_TRUE((FALSE ^ TRUE).get());
-  EXPECT_TRUE((TRUE ^ FALSE).get());
-  EXPECT_FALSE((TRUE ^ TRUE).get());
+  const OpaqueBoolValue kFalse = OpaqueBoolValue::Create(false);
+  const OpaqueBoolValue kTrue = OpaqueBoolValue::Create(true);
+  EXPECT_FALSE(kFalse.get());
+  EXPECT_TRUE(kTrue.get());
+  EXPECT_FALSE((kFalse ^ kFalse).get());
+  EXPECT_TRUE((kFalse ^ kTrue).get());
+  EXPECT_TRUE((kTrue ^ kFalse).get());
+  EXPECT_FALSE((kTrue ^ kTrue).get());
 }
 
 TEST(NetlistParserTest, XorUsingStateTablesAndOpaqueValues) {
-  OpaqueBoolValue FALSE = OpaqueBoolValue::Create(false);
-  OpaqueBoolValue TRUE = OpaqueBoolValue::Create(true);
+  const OpaqueBoolValue kFalse = OpaqueBoolValue::Create(false);
+  const OpaqueBoolValue kTrue = OpaqueBoolValue::Create(true);
   TestXorUsing<OpaqueBoolValue>(
       std::string(liberty_statetable_src),
-      [](auto x) -> bool { return x.get(); }, FALSE, TRUE);
+      [](auto x) -> bool { return x.get(); }, {}, kFalse, kTrue);
 }
 
 TEST(NetlistParserTest, XorUsingCellFunctionsAndOpaqueValues) {
-  OpaqueBoolValue FALSE = OpaqueBoolValue::Create(false);
-  OpaqueBoolValue TRUE = OpaqueBoolValue::Create(true);
+  const OpaqueBoolValue kFalse = OpaqueBoolValue::Create(false);
+  const OpaqueBoolValue kTrue = OpaqueBoolValue::Create(true);
   TestXorUsing<OpaqueBoolValue>(
-      std::string(liberty_src), [](auto x) -> bool { return x.get(); }, FALSE,
-      TRUE);
+      std::string(liberty_src), [](auto x) -> bool { return x.get(); }, {},
+      kFalse, kTrue);
 }
+
+template <typename ValueT>
+struct EvalOpCallCounter {
+  int num_eval_calls = 0;
+#define IMPL1(cell, OP)                                                   \
+  absl::StatusOr<ValueT> EvalOp_##cell(const std::vector<ValueT>& args) { \
+    XLS_CHECK(args.size() == 1);                                          \
+    ValueT result = OP(args[0]);                                          \
+    num_eval_calls++;                                                     \
+    return ValueT{result};                                                \
+  }
+
+#define IMPL2(cell, OP)                                                   \
+  absl::StatusOr<ValueT> EvalOp_##cell(const std::vector<ValueT>& args) { \
+    XLS_CHECK(args.size() == 2);                                          \
+    ValueT result = OP(args[0], args[1]);                                 \
+    num_eval_calls++;                                                     \
+    return ValueT{result};                                                \
+  }
+
+  IMPL1(not1, [](auto a) { return !a; });
+  IMPL2(and2, [](auto a, auto b) { return a & b; });
+  IMPL2(or2, [](auto a, auto b) { return a | b; });
+
+#undef IMPL1
+#undef IMPL2
+};
+
+#define OP(ValueT, counter, name)                                            \
+  {                                                                          \
+#name, {                                                                 \
+      {                                                                      \
+        "Y",                                                                 \
+            [&counter](                                                      \
+                const std::vector<ValueT>& args) -> absl::StatusOr<ValueT> { \
+              return counter.EvalOp_##name(args);                            \
+            }                                                                \
+      }                                                                      \
+    }                                                                        \
+  }
+
+TEST(NetlistParserTest, XorUsingCellEvalFunctionsAndOpaqueValues) {
+  const OpaqueBoolValue kFalse = OpaqueBoolValue::Create(false);
+  const OpaqueBoolValue kTrue = OpaqueBoolValue::Create(true);
+
+  EvalOpCallCounter<OpaqueBoolValue> call_counter;
+
+  xls::netlist::rtl::CellToOutputEvalFns<OpaqueBoolValue> eval_map{
+      OP(OpaqueBoolValue, call_counter, not1),
+      OP(OpaqueBoolValue, call_counter, and2),
+      OP(OpaqueBoolValue, call_counter, or2),
+  };
+
+  TestXorUsing<OpaqueBoolValue>(
+      std::string(liberty_src), [](auto x) -> bool { return x.get(); },
+      eval_map, kFalse, kTrue);
+
+  // Evaluating the XOR circuit should trap into the eval calls four times for
+  // each of the four rows of the XOR truth table.
+  EXPECT_EQ(call_counter.num_eval_calls, 16);
+}
+
+TEST(NetlistParserTest, XorUsingPartialCellEvalFunctionsAndOpaqueValues) {
+  const OpaqueBoolValue kFalse = OpaqueBoolValue::Create(false);
+  const OpaqueBoolValue kTrue = OpaqueBoolValue::Create(true);
+
+  EvalOpCallCounter<OpaqueBoolValue> call_counter;
+
+  xls::netlist::rtl::CellToOutputEvalFns<OpaqueBoolValue> eval_map{
+      OP(OpaqueBoolValue, call_counter, not1),
+      OP(OpaqueBoolValue, call_counter, or2),
+  };
+
+  TestXorUsing<OpaqueBoolValue>(
+      std::string(liberty_src), [](auto x) -> bool { return x.get(); },
+      eval_map, kFalse, kTrue);
+
+  // Evaluating the XOR circuit should trap into the eval calls twice times for
+  // each of the four rows of the XOR truth table.  Twice, rather than four
+  // times, because we took out the and2 eval fn.
+  EXPECT_EQ(call_counter.num_eval_calls, 8);
+}
+
+TEST(NetlistParserTest, XorUsingCellEvalFunctions) {
+  EvalOpCallCounter<bool> call_counter;
+  xls::netlist::rtl::CellToOutputEvalFns<bool> eval_map{
+      OP(bool, call_counter, not1),
+      OP(bool, call_counter, and2),
+      OP(bool, call_counter, or2),
+  };
+
+  TestXorUsing<bool>(
+      std::string(liberty_src), [](auto x) -> bool { return x; }, eval_map,
+      false, true);
+
+  // Evaluating the XOR circuit should trap into the eval calls four times for
+  // each of the four rows of the XOR truth table.
+  EXPECT_EQ(call_counter.num_eval_calls, 16);
+}
+
+TEST(NetlistParserTest, XorUsingPartialCellEvalFunctions) {
+  EvalOpCallCounter<bool> call_counter;
+  xls::netlist::rtl::CellToOutputEvalFns<bool> eval_map{
+      OP(bool, call_counter, not1),
+      OP(bool, call_counter, or2),
+  };
+
+  TestXorUsing<bool>(
+      std::string(liberty_src), [](auto x) -> bool { return x; }, eval_map,
+      false, true);
+
+  // Evaluating the XOR circuit should trap into the eval calls twice times for
+  // each of the four rows of the XOR truth table.  Twice, rather than four
+  // times, because we took out the and2 eval fn.
+  EXPECT_EQ(call_counter.num_eval_calls, 8);
+}
+
+#undef OP
 
 }  // namespace
 }  // namespace netlist

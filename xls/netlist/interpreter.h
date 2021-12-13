@@ -301,12 +301,25 @@ absl::Status AbstractInterpreter<EvalT>::InterpretCell(
 
   const auto& pins = entry->output_pin_to_function();
   for (int i = 0; i < cell.outputs().size(); i++) {
-    XLS_ASSIGN_OR_RETURN(
-        function::Ast ast,
-        function::Parser::ParseFunction(pins.at(cell.outputs()[i].name)));
-    XLS_ASSIGN_OR_RETURN(EvalT value,
-                         InterpretFunction(cell, ast, processed_wires));
-    processed_wires.insert({cell.outputs()[i].netref, value});
+    const auto& pins = entry->output_pin_to_function();
+    if (cell.outputs()[i].eval != nullptr) {
+      // The order of values in cell.inputs() is the same as the order of inputs
+      // in the cell declaration.  Extract the values from that list and supply
+      // them to the eval function.
+      std::vector<EvalT> args;
+      for (const auto& input : cell.inputs()) {
+        args.push_back(processed_wires.at(input.netref));
+      }
+      XLS_ASSIGN_OR_RETURN(EvalT value, cell.outputs()[i].eval(args));
+      processed_wires.insert({cell.outputs()[i].netref, value});
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          function::Ast ast,
+          function::Parser::ParseFunction(pins.at(cell.outputs()[i].name)));
+      XLS_ASSIGN_OR_RETURN(EvalT value,
+                           InterpretFunction(cell, ast, processed_wires));
+      processed_wires.insert({cell.outputs()[i].netref, value});
+    }
   }
 
   return absl::OkStatus();

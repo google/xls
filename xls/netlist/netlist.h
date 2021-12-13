@@ -35,9 +35,11 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/optional.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/netlist/cell_library.h"
 
 namespace xls {
@@ -55,6 +57,17 @@ using AbstractNetRef = AbstractNetDef<EvalT>*;
 // The default and most common case is for bool.
 using NetRef = AbstractNetRef<>;
 
+// Represents a function that computes the value of an output pin of a cell.
+template <typename EvalT>
+using CellOutputEvalFn =
+    std::function<absl::StatusOr<EvalT>(const std::vector<EvalT>&)>;
+
+// A map from cell names to a map of output-pin names to functions evaluating
+// the output pins for that cell.
+template <typename EvalT>
+using CellToOutputEvalFns = absl::flat_hash_map<
+    std::string, absl::flat_hash_map<std::string, CellOutputEvalFn<EvalT>>>;
+
 // Represents a cell instantiated in the netlist.
 template <typename EvalT = bool>
 class AbstractCell {
@@ -67,6 +80,10 @@ class AbstractCell {
 
     // The associated net from the netlist.
     AbstractNetRef<EvalT> netref;
+  };
+
+  struct OutputPin : public Pin {
+    CellOutputEvalFn<EvalT> eval = nullptr;
   };
 
   // In this class, both "inputs" and "outputs" are maps of cell input/output
@@ -90,14 +107,33 @@ class AbstractCell {
   CellKind kind() const { return cell_library_entry_->kind(); }
 
   absl::Span<const Pin> inputs() const { return inputs_; }
-  absl::Span<const Pin> outputs() const { return outputs_; }
+  absl::Span<const OutputPin> outputs() const { return outputs_; }
   absl::Span<const Pin> internal_pins() const { return internal_pins_; }
   const absl::optional<AbstractNetRef<EvalT>>& clock() const { return clock_; }
+
+  absl::Status SetOutputEvalFn(absl::string_view output_pin_name,
+                               CellOutputEvalFn<EvalT> fn) {
+    auto it = std::find_if(outputs_.begin(), outputs_.end(),
+                           [output_pin_name](auto const& output_pin) {
+                             return output_pin.name == output_pin_name;
+                           });
+    if (it == outputs_.end()) {
+      return absl::NotFoundError(absl::Substitute(
+          "Cannot locate output pin $0 in cell $1", output_pin_name, name()));
+    }
+    if (it->eval != nullptr) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "Output pin $0 in cell $1 already has an evaluation function.",
+          output_pin_name, name()));
+    }
+    it->eval = fn;
+    return absl::OkStatus();
+  }
 
  private:
   AbstractCell(const AbstractCellLibraryEntry<EvalT>* cell_library_entry,
                absl::string_view name, const std::vector<Pin>& inputs,
-               const std::vector<Pin>& outputs,
+               const std::vector<OutputPin>& outputs,
                const std::vector<Pin>& internal_pins,
                absl::optional<AbstractNetRef<EvalT>> clock)
       : cell_library_entry_(cell_library_entry),
@@ -110,7 +146,7 @@ class AbstractCell {
   const AbstractCellLibraryEntry<EvalT>* cell_library_entry_;
   std::string name_;  // Instance name.
   std::vector<Pin> inputs_;
-  std::vector<Pin> outputs_;
+  std::vector<OutputPin> outputs_;
   std::vector<Pin> internal_pins_;
   absl::optional<AbstractNetRef<EvalT>> clock_;
 };
@@ -283,6 +319,70 @@ class AbstractModule {
   // DeclarePortsOrder() needs to have been called previously.
   int64_t GetInputPortOffset(absl::string_view name) const;
 
+  // This method is used to speed up the evaluation of cell functions. The
+  // input is a nested map from the names of cell types (as provided in the cell
+  // library), to a map from output pins (for that cell) to functions computing
+  // the output.  For example, support you have a two-input AND cell in your
+  // cell-definition liberty database, defined as follows:
+  //
+  //     cell(and2) {
+  //       pin(A) {
+  //         direction : input;
+  //       }
+  //       pin(B) {
+  //         direction : input;
+  //       }
+  //       pin(Y) {
+  //         direction: output;
+  //         function : "(A * B)";
+  //       }
+  //     }
+  //
+  // The cell is called "and2" in the database.  It has a single output pin,
+  // "Y", with a function that computes the logical and of its two (single-bit)
+  // inputs.
+  //
+  // By default, the interpreter will parse and evalute this cell using the
+  // function definition provided in the cell library.  Using this method, you
+  // can provide a function that will be invoked instead, like so:
+  //
+  //     CellToOutputEvalFns<bool> eval_map{
+  //       { "and2",
+  //         {
+  //           { "Y", fn },
+  //         }
+  //       }
+  //     };
+  //
+  // With "fn" being defined as:
+  //
+  //     absl::StatusOr<bool> fn(const std::vector<bool>& args) {
+  //       return args[0] & args[1];
+  //     }
+  //
+  // With the above, when the interpreter encounters an instance of cell "and2",
+  // it will invoke the callback you provided.  Any other cells's output pins
+  // will continue to be interpreted.
+  //
+  // It is not an error to provide functions for cells not actually present in
+  // the netlist, as the netlist may not use all available cell types from the
+  // library.  It is also not an error to provide functions for fewer cell types
+  // than are actually instantiated--this latter flexibility allows for checking
+  // of correctness against the cell-library definitions, among other things.
+  absl::Status AddCellEvaluationFns(const CellToOutputEvalFns<EvalT>& fns) {
+    for (auto& cell : cells_) {
+      for (auto const& cell_name_to_rest : fns) {
+        if (cell->cell_library_entry()->name() == cell_name_to_rest.first) {
+          for (auto const& pin_name_to_fn : cell_name_to_rest.second) {
+            XLS_RETURN_IF_ERROR(cell->SetOutputEvalFn(pin_name_to_fn.first,
+                                                      pin_name_to_fn.second));
+          }
+        }
+      }
+    }
+    return absl::OkStatus();
+  }
+
  private:
   struct Port {
     explicit Port(std::string name) : name_(name) {}
@@ -323,6 +423,12 @@ class AbstractNetlist {
   }
   absl::StatusOr<const AbstractCellLibraryEntry<EvalT>*>
   GetOrCreateLut4CellEntry(int64_t lut_mask, EvalT zero, EvalT one);
+  absl::Status AddCellEvaluationFns(const CellToOutputEvalFns<EvalT>& fns) {
+    for (auto& module : modules_) {
+      XLS_RETURN_IF_ERROR(module->AddCellEvaluationFns(fns));
+    }
+    return absl::OkStatus();
+  }
 
   template <typename = std::is_constructible<EvalT, bool>>
   absl::StatusOr<const AbstractCellLibraryEntry<EvalT>*>
@@ -563,9 +669,9 @@ template <typename EvalT>
 
   const typename AbstractCellLibraryEntry<EvalT>::OutputPinToFunction&
       output_pins = cell_library_entry->output_pin_to_function();
-  std::vector<Pin> cell_outputs;
+  std::vector<OutputPin> cell_outputs;
   for (const auto& kv : output_pins) {
-    Pin cell_output;
+    OutputPin cell_output;
     cell_output.name = kv.first;
     auto it = named_parameter_assignments.find(cell_output.name);
     if (it == named_parameter_assignments.end()) {
