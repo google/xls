@@ -48,10 +48,14 @@ cc_library(
     deps = [
         ":ast",
         ":import_data",
-        ":interp_bindings",
         ":interp_value",
         ":type_info",
+        "//xls/common/status:ret_check",
+        "//xls/ir:bits_ops",
+        "//xls/ir:number_parser",
+        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:variant",
     ],
 )

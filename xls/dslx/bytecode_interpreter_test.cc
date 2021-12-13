@@ -135,5 +135,39 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
   EXPECT_EQ(bit_value, 5);
 }
 
+TEST(BytecodeInterpreterTest, RunTernaryConsequent) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           BytecodesFromString(
+                               R"(000 literal u1:1
+001 jump_rel_if +3
+002 literal u32:64
+003 jump_rel +3
+004 jump_dest
+005 literal u32:42
+006 jump_dest)"));
+
+  std::vector<InterpValue> env;
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           BytecodeInterpreter::Interpret(bytecodes, &env));
+  EXPECT_EQ(value, InterpValue::MakeU32(42)) << value.ToString();
+}
+
+TEST(BytecodeInterpreterTest, RunTernaryAlternate) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           BytecodesFromString(
+                               R"(000 literal u1:0
+001 jump_rel_if +3
+002 literal u32:64
+003 jump_rel +3
+004 jump_dest
+005 literal u32:42
+006 jump_dest)"));
+
+  std::vector<InterpValue> env;
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           BytecodeInterpreter::Interpret(bytecodes, &env));
+  EXPECT_EQ(value, InterpValue::MakeU32(64)) << value.ToString();
+}
+
 }  // namespace
 }  // namespace xls::dslx

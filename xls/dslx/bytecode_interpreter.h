@@ -42,38 +42,9 @@ class BytecodeInterpreter {
                       std::vector<InterpValue>* slots)
       : bytecode_(bytecode), slots_(slots) {}
 
-  absl::Status Run() {
-    for (int i = 0; i < bytecode_.size(); i++) {
-      XLS_VLOG(2) << std::hex << "PC: " << i << " : "
-                  << bytecode_[i].ToString();
-      XLS_RETURN_IF_ERROR(EvalInstruction(bytecode_[i]));
-    }
-    return absl::OkStatus();
-  }
+  absl::Status Run();
 
-  absl::Status EvalInstruction(const Bytecode& bytecode) {
-    switch (bytecode.op()) {
-      case Bytecode::Op::kAdd:
-        return EvalAdd(bytecode);
-      case Bytecode::Op::kCall:
-        return EvalCall(bytecode);
-      case Bytecode::Op::kCreateTuple:
-        return EvalCreateTuple(bytecode);
-      case Bytecode::Op::kEq:
-        return EvalEq(bytecode);
-      case Bytecode::Op::kExpandTuple:
-        return EvalExpandTuple(bytecode);
-      case Bytecode::Op::kLoad:
-        return EvalLoad(bytecode);
-      case Bytecode::Op::kLiteral:
-        return EvalLiteral(bytecode);
-      case Bytecode::Op::kStore:
-        return EvalStore(bytecode);
-      default:
-        return absl::InvalidArgumentError(
-            "Unsupported or unimplemented opcode.");
-    }
-  }
+  absl::StatusOr<int64_t> EvalInstruction(int64_t pc, const Bytecode& bytecode);
 
   absl::Status EvalAdd(const Bytecode& bytecode);
   absl::Status EvalCall(const Bytecode& bytecode);
@@ -83,9 +54,16 @@ class BytecodeInterpreter {
   absl::Status EvalLoad(const Bytecode& bytecode);
   absl::Status EvalLiteral(const Bytecode& bytecode);
   absl::Status EvalStore(const Bytecode& bytecode);
+  std::optional<int64_t> EvalJumpRelIf(int64_t pc, const Bytecode& bytecode);
 
   absl::Status RunBuiltinFn(const Bytecode& bytecode, Builtin builtin);
   absl::Status RunBuiltinAssertEq(const Bytecode& bytecode);
+
+  InterpValue Pop() {
+    InterpValue v = std::move(stack_.back());
+    stack_.pop_back();
+    return v;
+  }
 
   const std::vector<Bytecode>& bytecode_;
   std::vector<InterpValue> stack_;

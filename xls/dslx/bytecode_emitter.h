@@ -45,6 +45,14 @@ class Bytecode {
     // Compares the top two stack elements and places the result (as a
     // single-bit value) there.
     kEq,
+    // Unconditional jump (relative).
+    kJumpRel,
+    // Pops the entry at the top of the stack and jumps (relative) if it is
+    // true, otherwise PC proceeds as normal (i.e. PC = PC + 1).
+    kJumpRelIf,
+    // Indicates a jump destination PC for control flow integrity checking.
+    // (Note that there's no actual execution logic for this opcode.)
+    kJumpDest,
     // Loads the value from the data-arg-specified slot and pushes it onto the
     // stack.
     kLoad,
@@ -91,13 +99,43 @@ class Bytecode {
     return absl::get<InterpValue>(data_.value());
   }
 
-  std::string ToString() const;
+  std::string ToString(bool source_locs = true) const;
+
+  // Value used as an integer data placeholder in jumps before their
+  // target/amount has become known during bytecode emission.
+  static constexpr int64_t kPlaceholderJumpAmount = -1;
+
+  // Used for patching up e.g. jump targets.
+  //
+  // That is, if you're going to jump forward over some code, but you don't know
+  // how big that code is yet (in terms of bytecodes), you emit the jump with
+  // the kPlaceholderJumpAmount and later, once the code to jump over has been
+  // emitted, you go back and make it jump over the right (measured) amount.
+  //
+  // Note: kPlaceholderJumpAmount is used as a canonical placeholder for things
+  // that should be patched.
+  void Patch(int64_t value) {
+    XLS_CHECK(data_.has_value());
+    XLS_CHECK_EQ(absl::get<int64_t>(data_.value()), kPlaceholderJumpAmount);
+    data_ = value;
+  }
 
  private:
   Span source_span_;
   Op op_;
   absl::optional<Data> data_;
 };
+
+// Converts the given sequence of bytecodes to a more human-readable string,
+// source_locs indicating whether source locations are annotated on the bytecode
+// lines.
+std::string BytecodesToString(absl::Span<const Bytecode> bytecodes,
+                              bool source_locs);
+
+// Converts a string as given by BytecodesToString(..., /*source_locs=*/false)
+// into a bytecode sequence; e.g. for testing.
+absl::StatusOr<std::vector<Bytecode>> BytecodesFromString(
+    absl::string_view text);
 
 // Translates a DSLX expression tree into a linear sequence of bytecode
 // (bytecodes?).
@@ -140,7 +178,7 @@ class BytecodeEmitter : public ExprVisitor {
   void HandleSplatStructInstance(SplatStructInstance* node) override {
     DefaultHandler(node);
   }
-  void HandleTernary(Ternary* node) override { DefaultHandler(node); }
+  void HandleTernary(Ternary* node) override;
   void HandleUnop(Unop* node) override { DefaultHandler(node); }
   void HandleWhile(While* node) override { DefaultHandler(node); }
   void HandleXlsTuple(XlsTuple* node) override;

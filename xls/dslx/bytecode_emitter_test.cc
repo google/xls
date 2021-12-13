@@ -24,6 +24,8 @@
 namespace xls::dslx {
 namespace {
 
+using status_testing::IsOkAndHolds;
+
 // Verifies that a baseline translation - of a nearly-minimal test case -
 // succeeds.
 TEST(BytecodeEmitterTest, SimpleTranslation) {
@@ -230,6 +232,46 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
   for (const auto& code : bytecodes) {
     XLS_LOG(INFO) << code.ToString();
   }
+}
+
+TEST(BytecodeEmitterTest, Ternary) {
+  constexpr absl::string_view kProgram = R"(fn do_ternary() -> u32 {
+  if true { u32:42 } else { u32:64 }
+})";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetFunctionOrError("do_ternary"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes, emitter.Emit(f));
+
+  EXPECT_EQ(BytecodesToString(bytecodes, /*source_locs=*/false),
+            R"(000 literal u1:1
+001 jump_rel_if +3
+002 literal u32:64
+003 jump_rel +3
+004 jump_dest
+005 literal u32:42
+006 jump_dest)");
+}
+
+TEST(BytecodeEmitterTest, BytecodesFromString) {
+  std::string s = R"(000 literal u2:1
+001 literal s2:-1
+002 literal s2:-2
+003 literal s3:-1
+004 literal u32:42)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           BytecodesFromString(s));
+  EXPECT_THAT(bytecodes.at(3).value_data(),
+              IsOkAndHolds(InterpValue::MakeSBits(3, -1)));
+  EXPECT_EQ(BytecodesToString(bytecodes, /*source_locs=*/false), s);
 }
 
 }  // namespace
