@@ -47,12 +47,24 @@ absl::StatusOr<int64_t> BytecodeInterpreter::EvalInstruction(
       XLS_RETURN_IF_ERROR(EvalAdd(bytecode));
       break;
     }
+    case Bytecode::Op::kAnd: {
+      XLS_RETURN_IF_ERROR(EvalAnd(bytecode));
+      break;
+    }
     case Bytecode::Op::kCall: {
       XLS_RETURN_IF_ERROR(EvalCall(bytecode));
       break;
     }
+    case Bytecode::Op::kConcat: {
+      XLS_RETURN_IF_ERROR(EvalConcat(bytecode));
+      break;
+    }
     case Bytecode::Op::kCreateTuple: {
       XLS_RETURN_IF_ERROR(EvalCreateTuple(bytecode));
+      break;
+    }
+    case Bytecode::Op::kDiv: {
+      XLS_RETURN_IF_ERROR(EvalDiv(bytecode));
       break;
     }
     case Bytecode::Op::kEq: {
@@ -63,6 +75,30 @@ absl::StatusOr<int64_t> BytecodeInterpreter::EvalInstruction(
       XLS_RETURN_IF_ERROR(EvalExpandTuple(bytecode));
       break;
     }
+    case Bytecode::Op::kGe: {
+      XLS_RETURN_IF_ERROR(EvalGe(bytecode));
+      break;
+    }
+    case Bytecode::Op::kGt: {
+      XLS_RETURN_IF_ERROR(EvalGt(bytecode));
+      break;
+    }
+    case Bytecode::Op::kJumpDest:
+      break;
+    case Bytecode::Op::kJumpRel:
+      return pc + bytecode.integer_data().value();
+    case Bytecode::Op::kJumpRelIf: {
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<int64_t> new_pc, EvalJumpRelIf(pc, bytecode));
+      if (new_pc.has_value()) {
+        return new_pc.value();
+      }
+      break;
+    }
+    case Bytecode::Op::kLe: {
+      XLS_RETURN_IF_ERROR(EvalLe(bytecode));
+      break;
+    }
     case Bytecode::Op::kLoad: {
       XLS_RETURN_IF_ERROR(EvalLoad(bytecode));
       break;
@@ -71,35 +107,85 @@ absl::StatusOr<int64_t> BytecodeInterpreter::EvalInstruction(
       XLS_RETURN_IF_ERROR(EvalLiteral(bytecode));
       break;
     }
+    case Bytecode::Op::kLogicalAnd: {
+      XLS_RETURN_IF_ERROR(EvalLogicalAnd(bytecode));
+      break;
+    }
+    case Bytecode::Op::kLogicalOr: {
+      XLS_RETURN_IF_ERROR(EvalLogicalOr(bytecode));
+      break;
+    }
+    case Bytecode::Op::kLt: {
+      XLS_RETURN_IF_ERROR(EvalLt(bytecode));
+      break;
+    }
+    case Bytecode::Op::kMul: {
+      XLS_RETURN_IF_ERROR(EvalMul(bytecode));
+      break;
+    }
+    case Bytecode::Op::kNe: {
+      XLS_RETURN_IF_ERROR(EvalNe(bytecode));
+      break;
+    }
+    case Bytecode::Op::kOr: {
+      XLS_RETURN_IF_ERROR(EvalOr(bytecode));
+      break;
+    }
+    case Bytecode::Op::kShll: {
+      XLS_RETURN_IF_ERROR(EvalShll(bytecode));
+      break;
+    }
+    case Bytecode::Op::kShrl: {
+      XLS_RETURN_IF_ERROR(EvalShrl(bytecode));
+      break;
+    }
     case Bytecode::Op::kStore: {
       XLS_RETURN_IF_ERROR(EvalStore(bytecode));
       break;
     }
-    case Bytecode::Op::kJumpRelIf: {
-      if (std::optional<int64_t> new_pc = EvalJumpRelIf(pc, bytecode)) {
-        return new_pc.value();
-      }
+    case Bytecode::Op::kSub: {
+      XLS_RETURN_IF_ERROR(EvalSub(bytecode));
       break;
     }
-    case Bytecode::Op::kJumpRel:
-      return pc + bytecode.integer_data().value();
-    case Bytecode::Op::kJumpDest:
+    case Bytecode::Op::kXor: {
+      XLS_RETURN_IF_ERROR(EvalXor(bytecode));
       break;
+    }
   }
   return pc + 1;
 }
 
-absl::Status BytecodeInterpreter::EvalAdd(const Bytecode& bytecode) {
+absl::StatusOr<InterpValue> BytecodeInterpreter::Pop() {
+  if (stack_.empty()) {
+    return absl::InternalError("Tried to pop off an empty stack.");
+  }
+  InterpValue value = std::move(stack_.back());
+  stack_.pop_back();
+  return value;
+}
+
+absl::Status BytecodeInterpreter::EvalBinop(
+    const std::function<absl::StatusOr<InterpValue>(const InterpValue& lhs,
+                                                    const InterpValue& rhs)>
+        op) {
   XLS_RET_CHECK_GE(stack_.size(), 2);
-  InterpValue rhs = stack_.back();
-  stack_.pop_back();
-
-  InterpValue lhs = stack_.back();
-  stack_.pop_back();
-
-  XLS_ASSIGN_OR_RETURN(InterpValue sum, lhs.Add(rhs));
-  stack_.push_back(sum);
+  XLS_ASSIGN_OR_RETURN(InterpValue rhs, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue lhs, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue result, op(lhs, rhs));
+  stack_.push_back(result);
   return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::EvalAdd(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return lhs.Add(rhs);
+  });
+}
+
+absl::Status BytecodeInterpreter::EvalAnd(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return lhs.BitwiseAnd(rhs);
+  });
 }
 
 absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
@@ -112,6 +198,12 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
       "User-defined functions are not yet supported.");
 }
 
+absl::Status BytecodeInterpreter::EvalConcat(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return lhs.Concat(rhs);
+  });
+}
+
 absl::Status BytecodeInterpreter::EvalCreateTuple(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(int64_t tuple_size, bytecode.integer_data());
   XLS_RET_CHECK_GE(stack_.size(), tuple_size);
@@ -119,8 +211,8 @@ absl::Status BytecodeInterpreter::EvalCreateTuple(const Bytecode& bytecode) {
   std::vector<InterpValue> elements;
   elements.reserve(tuple_size);
   for (int64_t i = 0; i < tuple_size; i++) {
-    elements.push_back(stack_.back());
-    stack_.pop_back();
+    XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
+    elements.push_back(value);
   }
 
   std::reverse(elements.begin(), elements.end());
@@ -129,15 +221,16 @@ absl::Status BytecodeInterpreter::EvalCreateTuple(const Bytecode& bytecode) {
   return absl::OkStatus();
 }
 
-absl::Status BytecodeInterpreter::EvalEq(const Bytecode& bytecode) {
-  XLS_RET_CHECK_GE(stack_.size(), 2);
-  InterpValue rhs = stack_.back();
-  stack_.pop_back();
-  InterpValue lhs = stack_.back();
-  stack_.pop_back();
+absl::Status BytecodeInterpreter::EvalDiv(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return lhs.FloorDiv(rhs);
+  });
+}
 
-  stack_.push_back(InterpValue::MakeBool(lhs.Eq(rhs)));
-  return absl::OkStatus();
+absl::Status BytecodeInterpreter::EvalEq(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return InterpValue::MakeBool(lhs.Eq(rhs));
+  });
 }
 
 absl::Status BytecodeInterpreter::EvalExpandTuple(const Bytecode& bytecode) {
@@ -161,6 +254,30 @@ absl::Status BytecodeInterpreter::EvalExpandTuple(const Bytecode& bytecode) {
   return absl::OkStatus();
 }
 
+absl::Status BytecodeInterpreter::EvalGe(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return lhs.Ge(rhs);
+  });
+}
+
+absl::Status BytecodeInterpreter::EvalGt(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return lhs.Gt(rhs);
+  });
+}
+
+absl::Status BytecodeInterpreter::EvalLe(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return lhs.Le(rhs);
+  });
+}
+
+absl::Status BytecodeInterpreter::EvalLiteral(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(InterpValue value, bytecode.value_data());
+  stack_.push_back(value);
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeInterpreter::EvalLoad(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(int64_t slot, bytecode.integer_data());
   if (slots_->size() <= slot) {
@@ -172,10 +289,82 @@ absl::Status BytecodeInterpreter::EvalLoad(const Bytecode& bytecode) {
   return absl::OkStatus();
 }
 
-absl::Status BytecodeInterpreter::EvalLiteral(const Bytecode& bytecode) {
-  XLS_ASSIGN_OR_RETURN(InterpValue value, bytecode.value_data());
-  stack_.push_back(value);
+absl::Status BytecodeInterpreter::EvalLogicalAnd(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(InterpValue rhs, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue lhs, Pop());
+
+  if (!lhs.HasBits() || lhs.GetBitsOrDie().bit_count() != 1) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Logical AND arguments must be boolean (LHS had ",
+                     lhs.GetBitsOrDie().bit_count(), " bits)."));
+  }
+
+  if (!rhs.HasBits() || rhs.GetBitsOrDie().bit_count() != 1) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Logical AND arguments must be boolean (RHS had ",
+                     rhs.GetBitsOrDie().bit_count(), " bits)."));
+  }
+
+  XLS_ASSIGN_OR_RETURN(InterpValue result, lhs.BitwiseAnd(rhs));
+  stack_.push_back(result);
   return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::EvalLogicalOr(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(InterpValue rhs, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue lhs, Pop());
+
+  if (!lhs.HasBits() || lhs.GetBitsOrDie().bit_count() != 1) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Logical OR arguments must be boolean (LHS had ",
+                     lhs.GetBitsOrDie().bit_count(), " bits)."));
+  }
+
+  if (!rhs.HasBits() || rhs.GetBitsOrDie().bit_count() != 1) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Logical OR arguments must be boolean (RHS had ",
+                     rhs.GetBitsOrDie().bit_count(), " bits)."));
+  }
+
+  XLS_ASSIGN_OR_RETURN(InterpValue result, lhs.BitwiseOr(rhs));
+  stack_.push_back(result);
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::EvalLt(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return lhs.Lt(rhs);
+  });
+}
+
+absl::Status BytecodeInterpreter::EvalMul(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return lhs.Mul(rhs);
+  });
+}
+
+absl::Status BytecodeInterpreter::EvalNe(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return InterpValue::MakeBool(lhs.Ne(rhs));
+  });
+}
+
+absl::Status BytecodeInterpreter::EvalOr(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return lhs.BitwiseOr(rhs);
+  });
+}
+
+absl::Status BytecodeInterpreter::EvalShll(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return lhs.Shl(rhs);
+  });
+}
+
+absl::Status BytecodeInterpreter::EvalShrl(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return lhs.Shrl(rhs);
+  });
 }
 
 absl::Status BytecodeInterpreter::EvalStore(const Bytecode& bytecode) {
@@ -196,14 +385,26 @@ absl::Status BytecodeInterpreter::EvalStore(const Bytecode& bytecode) {
   return absl::OkStatus();
 }
 
-std::optional<int64_t> BytecodeInterpreter::EvalJumpRelIf(
+absl::StatusOr<std::optional<int64_t>> BytecodeInterpreter::EvalJumpRelIf(
     int64_t pc, const Bytecode& bytecode) {
-  InterpValue top = Pop();
+  XLS_ASSIGN_OR_RETURN(InterpValue top, Pop());
   XLS_VLOG(2) << "jump_rel_if value: " << top.ToString();
   if (top.IsTrue()) {
     return pc + bytecode.integer_data().value();
   }
   return std::nullopt;
+}
+
+absl::Status BytecodeInterpreter::EvalSub(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return lhs.Sub(rhs);
+  });
+}
+
+absl::Status BytecodeInterpreter::EvalXor(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return lhs.BitwiseXor(rhs);
+  });
 }
 
 absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,

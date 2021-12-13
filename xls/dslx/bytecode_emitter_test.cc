@@ -144,7 +144,6 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
   let _ = assert_eq(d, (u32:3, u64:4, uN[128]:5));
   d
 })";
-  // ungroup tuple into (A, B, (X))
 
   auto import_data = ImportData::CreateForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -272,6 +271,96 @@ TEST(BytecodeEmitterTest, BytecodesFromString) {
   EXPECT_THAT(bytecodes.at(3).value_data(),
               IsOkAndHolds(InterpValue::MakeSBits(3, -1)));
   EXPECT_EQ(BytecodesToString(bytecodes, /*source_locs=*/false), s);
+}
+
+// Tests emission of all of the supported binary operators.
+TEST(BytecodeEmitterTest, Binops) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn binops_galore() {
+  let a = u32:4;
+  let b = u32:2;
+
+  let add = a + b;
+  let and = a & b;
+  let concat = a ++ b;
+  let div = a / b;
+  let eq = a == b;
+  let ge = a >= b;
+  let gt = a > b;
+  let le = a <= b;
+  let lt = a < b;
+  let mul = a * b;
+  let ne = a != b;
+  let or = a | b;
+  let shl = a << b;
+  let shr = a >> b;
+  let sub = a - b;
+  let xor = a ^ b;
+
+  ()
+})";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("binops_galore"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  ASSERT_EQ(bytecodes.size(), 69);
+  Bytecode bc = bytecodes[6];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kAdd);
+
+  bc = bytecodes[10];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kAnd);
+
+  bc = bytecodes[14];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kConcat);
+
+  bc = bytecodes[18];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kDiv);
+
+  bc = bytecodes[22];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kEq);
+
+  bc = bytecodes[26];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kGe);
+
+  bc = bytecodes[30];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kGt);
+
+  bc = bytecodes[34];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLe);
+
+  bc = bytecodes[38];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLt);
+
+  bc = bytecodes[42];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kMul);
+
+  bc = bytecodes[46];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kNe);
+
+  bc = bytecodes[50];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kOr);
+
+  bc = bytecodes[54];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kShll);
+
+  bc = bytecodes[58];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kShrl);
+
+  bc = bytecodes[62];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kSub);
+
+  bc = bytecodes[66];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kXor);
 }
 
 }  // namespace

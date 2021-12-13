@@ -29,22 +29,34 @@ namespace xls::dslx {
 // and optional accessory data (load/store value name, function call target).
 class Bytecode {
  public:
+  // In these descriptions, "TOS1" refers to the second-to-top-stack element and
+  // "TOS0" refers to the top stack element.
   enum class Op {
-    // Adds the top two values on the stack and places the result there.
+    // Adds the top two values on the stack.
     kAdd,
+    // Performs a bitwise AND of the top two values on the stack.
+    kAnd,
     // Invokes the function given in the Bytecode's data argument.
     kCall,
+    // Concatenates TOS1 and TOS0, with TOS1 comprising the most significant
+    // bits of the result.
+    kConcat,
     // Creates an N-tuple (N given in the data argument) from the values on the
     // stack.
     kCreateTuple,
+    // Divides the N-1th value on the stack by the Nth value.
+    kDiv,
     // Expands the N-tuple on the top of the stack by one level, placing leading
     // elements at the top of the stack. In other words, expanding the tuple
     // `(a, (b, c))` will result in a stack of `(b, c), a`, where `a` is on top
     // of the stack.
     kExpandTuple,
-    // Compares the top two stack elements and places the result (as a
-    // single-bit value) there.
+    // Compares TOS1 to TOS0, storing true if TOS1 == TOS0.
     kEq,
+    // Compares TOS1 to TOS0, storing true if TOS1 >= TOS0.
+    kGe,
+    // Compares TOS1 to TOS0, storing true if TOS1 > TOS0.
+    kGt,
     // Unconditional jump (relative).
     kJumpRel,
     // Pops the entry at the top of the stack and jumps (relative) if it is
@@ -53,13 +65,37 @@ class Bytecode {
     // Indicates a jump destination PC for control flow integrity checking.
     // (Note that there's no actual execution logic for this opcode.)
     kJumpDest,
+    // Compares TOS1 to TOS0, storing true if TOS1 <= TOS0.
+    kLe,
+    // Pushes the literal in the data argument onto the stack.
+    kLiteral,
     // Loads the value from the data-arg-specified slot and pushes it onto the
     // stack.
     kLoad,
-    // Pushes the literal in the data argument onto the stack.
-    kLiteral,
+    // Performs a logical AND of TOS1 and TOS0.
+    kLogicalAnd,
+    // Performs a logical OR of TOS1 and TOS0.
+    kLogicalOr,
+    // Compares TOS1 to B, storing true if TOS1 < TOS0.
+    kLt,
+    // Multiplies the top two values on the stack.
+    kMul,
+    // Compares TOS1 to B, storing true if TOS1 != TOS0.
+    kNe,
+    // Performs a bitwise OR of the top two values on the stack.
+    kOr,
+    // Performs a logical left shift of the second-to-top stack element by the
+    // top element's number.
+    kShll,
+    // Performs a logical right shift of the second-to-top stack element by the
+    // top element's number.
+    kShrl,
     // Stores the value at stack top into the arg-data-specified slot.
     kStore,
+    // Subtracts the Nth value from the N-1th value on the stack.
+    kSub,
+    // Performs a bitwise XOR of the top two values on the stack.
+    kXor,
   };
 
   using Data = absl::variant<int64_t, InterpValue>;

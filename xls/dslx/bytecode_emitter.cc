@@ -28,26 +28,58 @@ std::string OpToString(Bytecode::Op op) {
   switch (op) {
     case Bytecode::Op::kAdd:
       return "add";
+    case Bytecode::Op::kAnd:
+      return "and";
     case Bytecode::Op::kCall:
       return "call";
+    case Bytecode::Op::kConcat:
+      return "concat";
     case Bytecode::Op::kCreateTuple:
       return "create_tuple";
+    case Bytecode::Op::kDiv:
+      return "div";
     case Bytecode::Op::kExpandTuple:
       return "expand_tuple";
     case Bytecode::Op::kEq:
       return "eq";
-    case Bytecode::Op::kLoad:
-      return "load";
-    case Bytecode::Op::kLiteral:
-      return "literal";
-    case Bytecode::Op::kStore:
-      return "store";
+    case Bytecode::Op::kGe:
+      return "ge";
+    case Bytecode::Op::kGt:
+      return "gt";
     case Bytecode::Op::kJumpRel:
       return "jump_rel";
     case Bytecode::Op::kJumpRelIf:
       return "jump_rel_if";
     case Bytecode::Op::kJumpDest:
       return "jump_dest";
+    case Bytecode::Op::kLe:
+      return "le";
+    case Bytecode::Op::kLoad:
+      return "load";
+    case Bytecode::Op::kLt:
+      return "lt";
+    case Bytecode::Op::kLiteral:
+      return "literal";
+    case Bytecode::Op::kLogicalAnd:
+      return "logical_and";
+    case Bytecode::Op::kLogicalOr:
+      return "logical_or";
+    case Bytecode::Op::kMul:
+      return "mul";
+    case Bytecode::Op::kNe:
+      return "ne";
+    case Bytecode::Op::kOr:
+      return "or";
+    case Bytecode::Op::kShll:
+      return "shl";
+    case Bytecode::Op::kShrl:
+      return "shr";
+    case Bytecode::Op::kStore:
+      return "store";
+    case Bytecode::Op::kSub:
+      return "sub";
+    case Bytecode::Op::kXor:
+      return "xor";
   }
   return absl::StrCat("<invalid: ", static_cast<int>(op), ">");
 }
@@ -224,8 +256,55 @@ void BytecodeEmitter::HandleBinop(Binop* node) {
     case BinopKind::kAdd:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kAdd));
       return;
+    case BinopKind::kAnd:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kAnd));
+      return;
+    case BinopKind::kConcat:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kConcat));
+      return;
+    case BinopKind::kDiv:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kDiv));
+      return;
+    case BinopKind::kEq:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kEq));
+      return;
+    case BinopKind::kGe:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kGe));
+      return;
+    case BinopKind::kGt:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kGt));
+      return;
+    case BinopKind::kLe:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLe));
+      return;
+    case BinopKind::kLt:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLt));
+      return;
+    case BinopKind::kMul:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kMul));
+      return;
+    case BinopKind::kNe:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kNe));
+      return;
+    case BinopKind::kOr:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kOr));
+      return;
+    case BinopKind::kShl:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kShll));
+      return;
+    case BinopKind::kShr:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kShrl));
+      return;
+    case BinopKind::kSub:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kSub));
+      return;
+    case BinopKind::kXor:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kXor));
+      return;
     default:
-      status_ = absl::UnimplementedError("foo");
+      status_ = absl::UnimplementedError(
+          absl::StrCat("Unimplemented binary operator: ",
+                       BinopKindToString(node->binop_kind())));
   }
 }
 

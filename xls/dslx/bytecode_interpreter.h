@@ -47,23 +47,39 @@ class BytecodeInterpreter {
   absl::StatusOr<int64_t> EvalInstruction(int64_t pc, const Bytecode& bytecode);
 
   absl::Status EvalAdd(const Bytecode& bytecode);
+  absl::Status EvalAnd(const Bytecode& bytecode);
   absl::Status EvalCall(const Bytecode& bytecode);
+  absl::Status EvalConcat(const Bytecode& bytecode);
   absl::Status EvalCreateTuple(const Bytecode& bytecode);
+  absl::Status EvalDiv(const Bytecode& bytecode);
   absl::Status EvalEq(const Bytecode& bytecode);
   absl::Status EvalExpandTuple(const Bytecode& bytecode);
-  absl::Status EvalLoad(const Bytecode& bytecode);
+  absl::Status EvalGe(const Bytecode& bytecode);
+  absl::Status EvalGt(const Bytecode& bytecode);
+  absl::Status EvalLe(const Bytecode& bytecode);
   absl::Status EvalLiteral(const Bytecode& bytecode);
+  absl::Status EvalLoad(const Bytecode& bytecode);
+  absl::Status EvalLogicalAnd(const Bytecode& bytecode);
+  absl::Status EvalLogicalOr(const Bytecode& bytecode);
+  absl::Status EvalLt(const Bytecode& bytecode);
+  absl::Status EvalMul(const Bytecode& bytecode);
+  absl::Status EvalNe(const Bytecode& bytecode);
+  absl::Status EvalOr(const Bytecode& bytecode);
+  absl::Status EvalShll(const Bytecode& bytecode);
+  absl::Status EvalShrl(const Bytecode& bytecode);
   absl::Status EvalStore(const Bytecode& bytecode);
-  std::optional<int64_t> EvalJumpRelIf(int64_t pc, const Bytecode& bytecode);
+  absl::Status EvalSub(const Bytecode& bytecode);
+  absl::Status EvalXor(const Bytecode& bytecode);
 
+  absl::Status EvalBinop(const std::function<absl::StatusOr<InterpValue>(
+                             const InterpValue& lhs, const InterpValue& rhs)>
+                             op);
+  absl::StatusOr<std::optional<int64_t>> EvalJumpRelIf(
+      int64_t pc, const Bytecode& bytecode);
   absl::Status RunBuiltinFn(const Bytecode& bytecode, Builtin builtin);
   absl::Status RunBuiltinAssertEq(const Bytecode& bytecode);
 
-  InterpValue Pop() {
-    InterpValue v = std::move(stack_.back());
-    stack_.pop_back();
-    return v;
-  }
+  absl::StatusOr<InterpValue> Pop();
 
   const std::vector<Bytecode>& bytecode_;
   std::vector<InterpValue> stack_;
