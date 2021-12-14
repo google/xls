@@ -327,3 +327,18 @@ py_test(
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
+
+py_binary(
+    name = "instrument_ir",
+    srcs = ["instrument_ir.py"],
+    data = [
+        "//xls/tools:eval_ir_main",
+    ],
+    python_version = "PY3",
+    deps = [
+        ":metadata_output_py_pb2",
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+    ],
+)
