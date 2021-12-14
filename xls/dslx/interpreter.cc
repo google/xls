@@ -303,7 +303,9 @@ absl::Status Interpreter::RunTest(absl::string_view name, bool bytecode) {
         test->identifier(), result_or.value().ToString()));
   }
   XLS_VLOG(2) << "Ran test " << name << " successfully.";
-  if (run_concolic_) XLS_RETURN_IF_ERROR(LogConcolicTests());
+  if (run_concolic_) {
+    XLS_RETURN_IF_ERROR(LogConcolicTests());
+  }
   return absl::OkStatus();
 }
 

@@ -80,30 +80,32 @@ absl::StatusOr<std::vector<InterpValue>> ExtractZ3Inputs(
 
 absl::Status ConcolicTestGenerator::GenerateTest(InterpValue expected_value,
                                           int64_t test_no) {
-  std::string test_string =
-      StringReplace(GetTestTemplate(), "$0", entry_fn_name_,
-                    /*replace_all=*/true);
-  test_string = StringReplace(test_string, "$1", std::to_string(test_no),
-                              /*replace_all=*/false);
+  std::string test_string = absl::StrReplaceAll(
+      GetTestTemplate(), {
+                             {"$0", entry_fn_name_},
+                             {"$1", std::to_string(test_no)},
+                         });
 
   int64_t input_ctr = 0;
   std::string inputs_string;
-  for (const auto& param : function_params_values_[test_no])
+  for (const auto& param : function_params_values_[test_no]) {
     absl::StrAppend(&inputs_string, "  let ", "in_",
                     std::to_string(input_ctr++), " = ", param.ToString(),
                     ";\n");
-  test_string =
-      StringReplace(test_string, "$2", inputs_string, /*replace_all=*/false);
+  }
+  test_string = absl::StrReplaceAll(test_string, {{"$2", inputs_string}});
 
   input_ctr = 0;
   std::string params_string;
-  for (int64_t i = 0; i < function_params_.size() - 1; ++i)
+  for (int64_t i = 0; i < function_params_.size() - 1; ++i) {
     absl::StrAppend(&params_string, "in_", std::to_string(input_ctr++), ", ");
+  }
   absl::StrAppend(&params_string, "in_", std::to_string(input_ctr));
   test_string =
-      StringReplace(test_string, "$3", params_string, /*replace_all=*/false);
-  test_string = StringReplace(test_string, "$4", expected_value.ToString(),
-                              /*replace_all=*/false);
+      absl::StrReplaceAll(test_string, {
+                                           {"$3", params_string},
+                                           {"$4", expected_value.ToString()},
+                                       });
   // TODO(akalan): dump the test case to a file.
   std::cerr << test_string << std::endl;
   return absl::OkStatus();
