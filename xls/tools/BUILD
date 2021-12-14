@@ -557,6 +557,7 @@ cc_binary(
     srcs = ["eval_proc_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -567,7 +568,9 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/interpreter:channel_queue",
         "//xls/interpreter:proc_network_interpreter",
+        "//xls/ir:bits",
         "//xls/ir:ir_parser",
+        "//xls/jit:jit_channel_queue",
         "//xls/jit:serial_proc_runtime",
     ],
 )
@@ -969,6 +972,21 @@ py_test(
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "//xls/ir/python:ir_parser",
+    ],
+)
+
+py_test(
+    name = "eval_proc_main_test",
+    srcs = ["eval_proc_main_test.py"],
+    data = [
+        ":eval_proc_main",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "@com_google_absl_py//absl/testing:absltest",
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
     ],
 )
 
