@@ -17,6 +17,7 @@
 #  depending on the translation library.
 # Email xls-team@ or seanhaskell@ if a dependency is desired.
 
+# pytype binary only
 # cc_proto_library is used in this file
 load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
@@ -66,6 +67,17 @@ build_test(
     targets = [
         ":metadata_output_cc_proto",
         ":metadata_output_py_pb2",
+    ],
+)
+
+py_binary(
+    name = "get_top_func_from_proto",
+    srcs = ["get_top_func_from_proto.py"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":metadata_output_py_pb2",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
     ],
 )
 
