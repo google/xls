@@ -742,19 +742,7 @@ xls_dslx_library(
 )
 
 xls_dslx_library(
-    name = "fpldexp_32_dslx",
-    srcs = ["fpldexp_32.x"],
-    deps = [":fp32_ldexp_dslx"],
-)
-
-xls_dslx_library(
     name = "fpadd_2x32_dslx",
     srcs = ["fpadd_2x32.x"],
     deps = [":fp32_add_2_dslx"],
-)
-
-xls_dslx_library(
-    name = "fpsub_2x32_dslx",
-    srcs = ["fpsub_2x32.x"],
-    deps = [":fp32_sub_2_dslx"],
 )
