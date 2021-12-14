@@ -29,14 +29,16 @@
 #include "xls/tools/booleanifier.h"
 
 ABSL_FLAG(
-    std::string, function, "",
+    std::string, entry, "",
     "Name of function to convert to SMTLIB. If unspecified, a 'best guess' "
     "will be made to try to find the package's entry function. "
     "If that fails, an error will be returned.");
+ABSL_FLAG(std::string, function, "", "Synonym for 'entry'.");
+
 ABSL_FLAG(std::string, ir_path, "", "Path to the XLS IR to process.");
 ABSL_FLAG(std::string, output_function_name, "",
           "Name of the booleanified function. If empty, then the name is the "
-          "input function name with '_boolean' appended to it.");
+          "same as the provided/inferred input name.");
 
 namespace xls {
 
@@ -51,9 +53,13 @@ absl::Status RealMain(const std::filesystem::path& ir_path,
     XLS_ASSIGN_OR_RETURN(function, package->GetFunction(function_name.value()));
   }
 
+  std::string boolean_function_name = absl::GetFlag(FLAGS_output_function_name);
+  if (boolean_function_name.empty()) {
+    boolean_function_name = function->name();
+  }
+
   XLS_ASSIGN_OR_RETURN(
-      function, Booleanifier::Booleanify(
-                    function, absl::GetFlag(FLAGS_output_function_name)));
+      function, Booleanifier::Booleanify(function, boolean_function_name));
   std::cout << "package " << package->name() << "\n\n";
   std::cout << function->DumpIr() << "\n";
   return absl::OkStatus();
@@ -65,7 +71,9 @@ int main(int argc, char* argv[]) {
   xls::InitXls(argv[0], argc, argv);
 
   absl::optional<std::string> function_name;
-  if (!absl::GetFlag(FLAGS_function).empty()) {
+  if (!absl::GetFlag(FLAGS_entry).empty()) {
+    function_name = absl::GetFlag(FLAGS_entry);
+  } else if (!absl::GetFlag(FLAGS_function).empty()) {
     function_name = absl::GetFlag(FLAGS_function);
   }
   XLS_QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_ir_path), function_name));
