@@ -46,6 +46,8 @@ std::string OpToString(Bytecode::Op op) {
       return "ge";
     case Bytecode::Op::kGt:
       return "gt";
+    case Bytecode::Op::kInvert:
+      return "invert";
     case Bytecode::Op::kJumpRel:
       return "jump_rel";
     case Bytecode::Op::kJumpRelIf:
@@ -68,6 +70,8 @@ std::string OpToString(Bytecode::Op op) {
       return "mul";
     case Bytecode::Op::kNe:
       return "ne";
+    case Bytecode::Op::kNegate:
+      return "negate";
     case Bytecode::Op::kOr:
       return "or";
     case Bytecode::Op::kShll:
@@ -100,11 +104,17 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "eq") {
     return Bytecode::Op::kEq;
   }
+  if (s == "invert") {
+    return Bytecode::Op::kInvert;
+  }
   if (s == "load") {
     return Bytecode::Op::kLoad;
   }
   if (s == "literal") {
     return Bytecode::Op::kLiteral;
+  }
+  if (s == "negate") {
+    return Bytecode::Op::kNegate;
   }
   if (s == "store") {
     return Bytecode::Op::kStore;
@@ -413,6 +423,18 @@ void BytecodeEmitter::HandleNumber(Number* node) {
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kLiteral,
                InterpValue::MakeBits(bits_type->is_signed(), bits.value())));
+}
+
+void BytecodeEmitter::HandleUnop(Unop* node) {
+  node->operand()->AcceptExpr(this);
+  switch (node->unop_kind()) {
+    case UnopKind::kInvert:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kInvert));
+      break;
+    case UnopKind::kNegate:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kNegate));
+      break;
+  }
 }
 
 void BytecodeEmitter::HandleXlsTuple(XlsTuple* node) {

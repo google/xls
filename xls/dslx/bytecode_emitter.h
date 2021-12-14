@@ -57,6 +57,8 @@ class Bytecode {
     kGe,
     // Compares TOS1 to TOS0, storing true if TOS1 > TOS0.
     kGt,
+    // Inverts the bits of TOS0.
+    kInvert,
     // Unconditional jump (relative).
     kJumpRel,
     // Pops the entry at the top of the stack and jumps (relative) if it is
@@ -82,6 +84,8 @@ class Bytecode {
     kMul,
     // Compares TOS1 to B, storing true if TOS1 != TOS0.
     kNe,
+    // Performs two's complement negation of TOS0.
+    kNegate,
     // Performs a bitwise OR of the top two values on the stack.
     kOr,
     // Performs a logical left shift of the second-to-top stack element by the
@@ -215,7 +219,7 @@ class BytecodeEmitter : public ExprVisitor {
     DefaultHandler(node);
   }
   void HandleTernary(Ternary* node) override;
-  void HandleUnop(Unop* node) override { DefaultHandler(node); }
+  void HandleUnop(Unop* node) override;
   void HandleWhile(While* node) override { DefaultHandler(node); }
   void HandleXlsTuple(XlsTuple* node) override;
 

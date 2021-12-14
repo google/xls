@@ -421,5 +421,33 @@ fn do_xor() -> u32 {
   EXPECT_EQ(int_val, 0xffff0000);
 }
 
+TEST(BytecodeInterpreterTest, Unops) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn unops() -> s32 {
+  let a = s32:1;
+  let b = !a;
+  -b
+})";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("unops"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           BytecodeInterpreter::Interpret(bytecodes, &env));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
+  EXPECT_EQ(int_val, 0x2);
+}
+
 }  // namespace
 }  // namespace xls::dslx

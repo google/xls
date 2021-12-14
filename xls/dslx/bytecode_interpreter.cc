@@ -83,6 +83,10 @@ absl::StatusOr<int64_t> BytecodeInterpreter::EvalInstruction(
       XLS_RETURN_IF_ERROR(EvalGt(bytecode));
       break;
     }
+    case Bytecode::Op::kInvert: {
+      XLS_RETURN_IF_ERROR(EvalInvert(bytecode));
+      break;
+    }
     case Bytecode::Op::kJumpDest:
       break;
     case Bytecode::Op::kJumpRel:
@@ -125,6 +129,10 @@ absl::StatusOr<int64_t> BytecodeInterpreter::EvalInstruction(
     }
     case Bytecode::Op::kNe: {
       XLS_RETURN_IF_ERROR(EvalNe(bytecode));
+      break;
+    }
+    case Bytecode::Op::kNegate: {
+      XLS_RETURN_IF_ERROR(EvalNegate(bytecode));
       break;
     }
     case Bytecode::Op::kOr: {
@@ -266,6 +274,13 @@ absl::Status BytecodeInterpreter::EvalGt(const Bytecode& bytecode) {
   });
 }
 
+absl::Status BytecodeInterpreter::EvalInvert(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(InterpValue operand, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue result, operand.BitwiseNegate());
+  stack_.push_back(result);
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeInterpreter::EvalLe(const Bytecode& bytecode) {
   return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
     return lhs.Le(rhs);
@@ -347,6 +362,13 @@ absl::Status BytecodeInterpreter::EvalNe(const Bytecode& bytecode) {
   return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
     return InterpValue::MakeBool(lhs.Ne(rhs));
   });
+}
+
+absl::Status BytecodeInterpreter::EvalNegate(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(InterpValue operand, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue result, operand.ArithmeticNegate());
+  stack_.push_back(result);
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeInterpreter::EvalOr(const Bytecode& bytecode) {

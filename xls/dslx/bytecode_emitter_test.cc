@@ -227,10 +227,6 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
   ASSERT_EQ(bc.op(), Bytecode::Op::kLoad);
   ASSERT_TRUE(bc.has_data());
   ASSERT_EQ(bc.integer_data().value(), 3);
-
-  for (const auto& code : bytecodes) {
-    XLS_LOG(INFO) << code.ToString();
-  }
 }
 
 TEST(BytecodeEmitterTest, Ternary) {
@@ -361,6 +357,36 @@ fn binops_galore() {
 
   bc = bytecodes[66];
   ASSERT_EQ(bc.op(), Bytecode::Op::kXor);
+}
+
+// Tests emission of all of the supported binary operators.
+TEST(BytecodeEmitterTest, Unops) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn unops() {
+  let a = s32:32;
+  let b = !a;
+  let c = -b;
+  ()
+})";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("unops"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  ASSERT_EQ(bytecodes.size(), 9);
+  Bytecode bc = bytecodes[3];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kInvert);
+
+  bc = bytecodes[6];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kNegate);
 }
 
 }  // namespace
