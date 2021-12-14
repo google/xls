@@ -31,17 +31,20 @@ namespace {
 using status_testing::IsOkAndHolds;
 using ::testing::AllOf;
 
-class NarrowingPassTest : public IrTestBase {
+// The test is parameterized on whether to use range analysis or not.
+class NarrowingPassTest : public IrTestBase,
+                          public testing::WithParamInterface<bool> {
  protected:
   NarrowingPassTest() = default;
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    return NarrowingPass().Run(p, PassOptions(), &results);
+    return NarrowingPass(/*use_range_analysis=*/GetParam())
+        .Run(p, PassOptions(), &results);
   }
 };
 
-TEST_F(NarrowingPassTest, UnnarrowableShift) {
+TEST_P(NarrowingPassTest, UnnarrowableShift) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Shra(fb.Param("in", p->GetBitsType(32)),
@@ -51,7 +54,7 @@ TEST_F(NarrowingPassTest, UnnarrowableShift) {
   EXPECT_THAT(f->return_value(), m::Shra(m::Param("in"), m::Param("amt")));
 }
 
-TEST_F(NarrowingPassTest, NarrowableShift) {
+TEST_P(NarrowingPassTest, NarrowableShift) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Shll(
@@ -63,7 +66,7 @@ TEST_F(NarrowingPassTest, NarrowableShift) {
               m::Shll(m::Param("in"), m::BitSlice(/*start=*/0, /*width=*/3)));
 }
 
-TEST_F(NarrowingPassTest, ShiftWithKnownZeroShiftAmount) {
+TEST_P(NarrowingPassTest, ShiftWithKnownZeroShiftAmount) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Shll(fb.Param("in", p->GetBitsType(32)), fb.Literal(UBits(0, 27)));
@@ -72,7 +75,7 @@ TEST_F(NarrowingPassTest, ShiftWithKnownZeroShiftAmount) {
   EXPECT_THAT(f->return_value(), m::Param("in"));
 }
 
-TEST_F(NarrowingPassTest, ShiftWithKnownOnePrefix) {
+TEST_P(NarrowingPassTest, ShiftWithKnownOnePrefix) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Shll(fb.Param("in", p->GetBitsType(32)),
@@ -83,7 +86,7 @@ TEST_F(NarrowingPassTest, ShiftWithKnownOnePrefix) {
   EXPECT_THAT(f->return_value(), m::Shll(m::Param("in"), m::Concat()));
 }
 
-TEST_F(NarrowingPassTest, NarrowableArrayIndex) {
+TEST_P(NarrowingPassTest, NarrowableArrayIndex) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.ArrayIndex(fb.Param("a", p->GetArrayType(42, p->GetBitsType(32))),
@@ -96,7 +99,7 @@ TEST_F(NarrowingPassTest, NarrowableArrayIndex) {
                                 m::BitSlice(/*start=*/0, /*width=*/8)}));
 }
 
-TEST_F(NarrowingPassTest, NarrowableArrayIndexAllZeros) {
+TEST_P(NarrowingPassTest, NarrowableArrayIndexAllZeros) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.ArrayIndex(fb.Param("a", p->GetArrayType(42, p->GetBitsType(32))),
@@ -108,7 +111,7 @@ TEST_F(NarrowingPassTest, NarrowableArrayIndexAllZeros) {
               m::ArrayIndex(m::Param("a"), /*indices=*/{m::Literal(0)}));
 }
 
-TEST_F(NarrowingPassTest, LiteralArrayIndex) {
+TEST_P(NarrowingPassTest, LiteralArrayIndex) {
   // A literal array index should not be substituted.
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -120,7 +123,7 @@ TEST_F(NarrowingPassTest, LiteralArrayIndex) {
               m::ArrayIndex(m::Param("a"), /*indices=*/{m::Literal(0x0f)}));
 }
 
-TEST_F(NarrowingPassTest, MultiplyWiderThanSumOfOperands) {
+TEST_P(NarrowingPassTest, MultiplyWiderThanSumOfOperands) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u8 = p->GetBitsType(8);
@@ -134,7 +137,7 @@ TEST_F(NarrowingPassTest, MultiplyWiderThanSumOfOperands) {
                              m::SMul(m::Param("lhs"), m::Param("rhs"))))));
 }
 
-TEST_F(NarrowingPassTest, MultiplyOperandsWiderThanResult) {
+TEST_P(NarrowingPassTest, MultiplyOperandsWiderThanResult) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u17 = p->GetBitsType(17);
@@ -150,7 +153,7 @@ TEST_F(NarrowingPassTest, MultiplyOperandsWiderThanResult) {
                     m::BitSlice(m::Param("rhs"), /*start=*/0, /*width=*/9))));
 }
 
-TEST_F(NarrowingPassTest, ExtendedUMulOperands) {
+TEST_P(NarrowingPassTest, ExtendedUMulOperands) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u17 = p->GetBitsType(17);
@@ -166,7 +169,7 @@ TEST_F(NarrowingPassTest, ExtendedUMulOperands) {
                       m::SignExt(m::Param("rhs"))));
 }
 
-TEST_F(NarrowingPassTest, ExtendedSMulOperands) {
+TEST_P(NarrowingPassTest, ExtendedSMulOperands) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u17 = p->GetBitsType(17);
@@ -182,7 +185,7 @@ TEST_F(NarrowingPassTest, ExtendedSMulOperands) {
                       m::Param("rhs")));
 }
 
-TEST_F(NarrowingPassTest, LeadingZerosOfUnsignedCompare) {
+TEST_P(NarrowingPassTest, LeadingZerosOfUnsignedCompare) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.UGt(fb.ZeroExtend(fb.Param("lhs", p->GetBitsType(17)), 42),
@@ -196,7 +199,7 @@ TEST_F(NarrowingPassTest, LeadingZerosOfUnsignedCompare) {
           m::BitSlice(m::ZeroExt(m::Param("rhs")), /*start=*/0, /*width=*/23)));
 }
 
-TEST_F(NarrowingPassTest, LeadingZerosOneOneSideOfUnsignedCompare) {
+TEST_P(NarrowingPassTest, LeadingZerosOneOneSideOfUnsignedCompare) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   // Leading zeros on only one side of the unsigned comparison should not result
@@ -207,7 +210,7 @@ TEST_F(NarrowingPassTest, LeadingZerosOneOneSideOfUnsignedCompare) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
-TEST_F(NarrowingPassTest, MatchedLeadingBitsOfUnsignedCompare) {
+TEST_P(NarrowingPassTest, MatchedLeadingBitsOfUnsignedCompare) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.ULe(fb.Concat({fb.Literal(UBits(0b001101, 6)),
@@ -221,7 +224,7 @@ TEST_F(NarrowingPassTest, MatchedLeadingBitsOfUnsignedCompare) {
                      m::BitSlice(m::Concat(), /*start=*/0, /*width=*/15)));
 }
 
-TEST_F(NarrowingPassTest, MatchedLeadingAndTrailingBitsOfUnsignedCompare) {
+TEST_P(NarrowingPassTest, MatchedLeadingAndTrailingBitsOfUnsignedCompare) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   // Four matching leading bits and three matching trailing bits.
@@ -238,7 +241,7 @@ TEST_F(NarrowingPassTest, MatchedLeadingAndTrailingBitsOfUnsignedCompare) {
                      m::BitSlice(m::Concat(), /*start=*/3, /*width=*/17)));
 }
 
-TEST_F(NarrowingPassTest, LeadingZerosSignedCompare) {
+TEST_P(NarrowingPassTest, LeadingZerosSignedCompare) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.SGt(fb.ZeroExtend(fb.Param("lhs", p->GetBitsType(17)), 42),
@@ -252,7 +255,7 @@ TEST_F(NarrowingPassTest, LeadingZerosSignedCompare) {
           m::BitSlice(m::ZeroExt(m::Param("rhs")), /*start=*/0, /*width=*/24)));
 }
 
-TEST_F(NarrowingPassTest, LeadingOnesOfSignedCompare) {
+TEST_P(NarrowingPassTest, LeadingOnesOfSignedCompare) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.SLe(fb.Concat({fb.Literal(UBits(0b111101, 6)),
@@ -266,7 +269,7 @@ TEST_F(NarrowingPassTest, LeadingOnesOfSignedCompare) {
                      m::BitSlice(m::Concat(), /*start=*/0, /*width=*/16)));
 }
 
-TEST_F(NarrowingPassTest, SignExtendedOperandsOfSignedCompare) {
+TEST_P(NarrowingPassTest, SignExtendedOperandsOfSignedCompare) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.SGe(fb.SignExtend(fb.Param("lhs", p->GetBitsType(17)), 42),
@@ -280,7 +283,7 @@ TEST_F(NarrowingPassTest, SignExtendedOperandsOfSignedCompare) {
           m::BitSlice(m::SignExt(m::Param("rhs")), /*start=*/0, /*width=*/23)));
 }
 
-TEST_F(NarrowingPassTest, CompareOfIdenticalLiterals) {
+TEST_P(NarrowingPassTest, CompareOfIdenticalLiterals) {
   // Identical literals should not be narrowed by this pass. Those are handled
   // elsewhere.
   auto p = CreatePackage();
@@ -290,7 +293,7 @@ TEST_F(NarrowingPassTest, CompareOfIdenticalLiterals) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
-TEST_F(NarrowingPassTest, AddWithLeadingZeros) {
+TEST_P(NarrowingPassTest, AddWithLeadingZeros) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Add(fb.ZeroExtend(fb.Param("lhs", p->GetBitsType(10)), 42),
@@ -304,7 +307,7 @@ TEST_F(NarrowingPassTest, AddWithLeadingZeros) {
                                             /*start=*/0, /*width=*/31))));
 }
 
-TEST_F(NarrowingPassTest, AddWithOnlyOneOperandLeadingZeros) {
+TEST_P(NarrowingPassTest, AddWithOnlyOneOperandLeadingZeros) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Add(fb.Param("lhs", p->GetBitsType(42)),
@@ -313,7 +316,7 @@ TEST_F(NarrowingPassTest, AddWithOnlyOneOperandLeadingZeros) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
-TEST_F(NarrowingPassTest, AddWithAllZeroOperands) {
+TEST_P(NarrowingPassTest, AddWithAllZeroOperands) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Add(fb.Literal(Value(UBits(0, 16))),
@@ -323,6 +326,13 @@ TEST_F(NarrowingPassTest, AddWithAllZeroOperands) {
   XLS_ASSERT_OK(fb.Build().status());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    NarrowingPassTestInstantiation, NarrowingPassTest,
+    testing::Values(false, true),
+    [](const testing::TestParamInfo<NarrowingPassTest::ParamType>& info) {
+      return info.param ? "with_range_analysis" : "without_range_analysis";
+    });
 
 }  // namespace
 }  // namespace xls

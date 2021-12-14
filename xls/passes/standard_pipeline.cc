@@ -77,7 +77,7 @@ class SimplificationPass : public FixedPointCompoundPass {
     Add<DeadCodeEliminationPass>();
     Add<ArraySimplificationPass>(opt_level);
     Add<DeadCodeEliminationPass>();
-    Add<NarrowingPass>(opt_level);
+    Add<NarrowingPass>(/*use_range_analysis=*/false, opt_level);
     Add<DeadCodeEliminationPass>();
     Add<BooleanSimplificationPass>();
     Add<DeadCodeEliminationPass>();
@@ -108,6 +108,9 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   top->Add<BddCsePass>();
   top->Add<DeadCodeEliminationPass>();
   top->Add<SimplificationPass>(std::min(int64_t{2}, opt_level));
+
+  top->Add<NarrowingPass>(/*use_range_analysis=*/true, opt_level);
+  top->Add<DeadCodeEliminationPass>();
 
   top->Add<BddSimplificationPass>(std::min(int64_t{3}, opt_level));
   top->Add<DeadCodeEliminationPass>();

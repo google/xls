@@ -524,22 +524,32 @@ void RangeAnalysisLog(FunctionBase* f,
   }
 }
 
+static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
+    FunctionBase* f, bool use_range_analysis) {
+  std::unique_ptr<QueryEngine> query_engine;
+  if (use_range_analysis) {
+    auto ternary_query_engine = std::make_unique<TernaryQueryEngine>();
+    auto range_query_engine = std::make_unique<RangeQueryEngine>();
+
+    if (XLS_VLOG_IS_ON(3)) {
+      RangeAnalysisLog(f, *ternary_query_engine, *range_query_engine);
+    }
+
+    std::vector<std::unique_ptr<QueryEngine>> engines;
+    engines.push_back(std::move(ternary_query_engine));
+    engines.push_back(std::move(range_query_engine));
+    query_engine = std::make_unique<UnionQueryEngine>(std::move(engines));
+  } else {
+    query_engine = std::make_unique<TernaryQueryEngine>();
+  }
+  XLS_RETURN_IF_ERROR(query_engine->Populate(f).status());
+  return std::move(query_engine);
+}
+
 absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
-  std::unique_ptr<TernaryQueryEngine> ternary_query_engine =
-      std::make_unique<TernaryQueryEngine>();
-  std::unique_ptr<RangeQueryEngine> range_query_engine =
-      std::make_unique<RangeQueryEngine>();
-
-  if (XLS_VLOG_IS_ON(3)) {
-    RangeAnalysisLog(f, *ternary_query_engine, *range_query_engine);
-  }
-
-  std::vector<std::unique_ptr<QueryEngine>> engines;
-  engines.push_back(std::move(ternary_query_engine));
-  engines.push_back(std::move(range_query_engine));
-  UnionQueryEngine query_engine(std::move(engines));
-  XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> query_engine,
+                       GetQueryEngine(f, use_range_analysis_));
 
   bool modified = false;
   for (Node* node : TopoSort(f)) {
@@ -551,20 +561,20 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
       case Op::kShrl:
       case Op::kShra: {
         XLS_ASSIGN_OR_RETURN(node_modified,
-                             MaybeNarrowShiftAmount(node, query_engine));
+                             MaybeNarrowShiftAmount(node, *query_engine));
         break;
       }
       case Op::kArrayIndex: {
         XLS_ASSIGN_OR_RETURN(
             node_modified,
-            MaybeNarrowArrayIndex(node->As<ArrayIndex>(), query_engine));
+            MaybeNarrowArrayIndex(node->As<ArrayIndex>(), *query_engine));
         break;
       }
       case Op::kSMul:
       case Op::kUMul: {
         XLS_ASSIGN_OR_RETURN(
             node_modified,
-            MaybeNarrowMultiply(node->As<ArithOp>(), query_engine));
+            MaybeNarrowMultiply(node->As<ArithOp>(), *query_engine));
         break;
       }
       case Op::kULe:
@@ -579,11 +589,12 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
       case Op::kNe: {
         XLS_ASSIGN_OR_RETURN(
             node_modified,
-            MaybeNarrowCompare(node->As<CompareOp>(), query_engine));
+            MaybeNarrowCompare(node->As<CompareOp>(), *query_engine));
         break;
       }
       case Op::kAdd: {
-        XLS_ASSIGN_OR_RETURN(node_modified, MaybeNarrowAdd(node, query_engine));
+        XLS_ASSIGN_OR_RETURN(node_modified,
+                             MaybeNarrowAdd(node, *query_engine));
         break;
       }
       default:
