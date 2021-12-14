@@ -16,6 +16,7 @@
 
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
@@ -59,6 +60,35 @@ absl::optional<RangeEquivalence> ReduceEquivalence(
   return RangeEquivalence{equivalences[0].node, result};
 }
 
+// Returns a range over which which the comparison `x < limit` holds.
+IntervalSet MakeULtRange(const Bits& limit) {
+  IntervalSet result(limit.bit_count());
+  if (limit.IsZero()) {
+    // ULt(x, 0) => empty range
+    return result;
+  }
+  // ULt(x, C) => [0, C-1]
+  result.AddInterval(
+      Interval(Bits(limit.bit_count()),
+               bits_ops::Sub(limit, UBits(1, limit.bit_count()))));
+  result.Normalize();
+  return result;
+}
+
+// Returns a range over which which the comparison `x > limit` holds.
+IntervalSet MakeUGtRange(const Bits& limit) {
+  IntervalSet result(limit.bit_count());
+  if (limit.IsAllOnes()) {
+    // ULt(x, MAX) => empty range
+    return result;
+  }
+  // ULt(x, C) => [C+1, MAX]
+  result.AddInterval(Interval(bits_ops::Add(limit, UBits(1, limit.bit_count())),
+                              Bits::AllOnes(limit.bit_count())));
+  result.Normalize();
+  return result;
+}
+
 // Returns a range equivalence for node `node` or absl::nullopt if one cannot be
 // determined.
 absl::optional<RangeEquivalence> ComputeRangeEquivalence(
@@ -74,26 +104,43 @@ absl::optional<RangeEquivalence> ComputeRangeEquivalence(
       (node->operand(0)->Is<Literal>() || node->operand(1)->Is<Literal>())) {
     Literal* literal_operand;
     Node* other_operand;
+    bool literal_on_rhs;
     if (node->operand(0)->Is<Literal>()) {
       literal_operand = node->operand(0)->As<Literal>();
       other_operand = node->operand(1);
+      literal_on_rhs = false;
     } else {
       literal_operand = node->operand(1)->As<Literal>();
       other_operand = node->operand(0);
+      literal_on_rhs = true;
     }
     switch (node->op()) {
       case Op::kEq:
         return RangeEquivalence{
             other_operand,
             IntervalSet::Precise(literal_operand->value().bits())};
-      case Op::kNe: {
+      case Op::kNe:
         return RangeEquivalence{other_operand,
                                 IntervalSet::Complement(IntervalSet::Precise(
                                     literal_operand->value().bits()))};
-      }
+      // We only need to consider the strict comparisons (kUGt, kULt) because
+      // canonicalization transforms non-strict comparions (kULe, kUGe) with
+      // literals into the strict form.
+      case Op::kULt:
+        // ULt(x, C)  =>  [0, C-1]
+        // ULt(C, x)  =>  [C+1, MAX]
+        return RangeEquivalence{
+            other_operand, literal_on_rhs
+                               ? MakeULtRange(literal_operand->value().bits())
+                               : MakeUGtRange(literal_operand->value().bits())};
+      case Op::kUGt:
+        // UGt(x, C)  =>  [C+1, MAX]
+        // UGt(C, x)  =>  [0, C-1]
+        return RangeEquivalence{
+            other_operand, literal_on_rhs
+                               ? MakeUGtRange(literal_operand->value().bits())
+                               : MakeULtRange(literal_operand->value().bits())};
       default:
-        // TODO(meheff): 2021/11/22 Add other comparison operations (ULt, UGt,
-        // etc).
         return absl::nullopt;
     }
   }
@@ -125,9 +172,38 @@ absl::optional<RangeEquivalence> ComputeRangeEquivalence(
       return ReduceEquivalence(node, operand_equivalences, IntervalSet::Combine,
                                /*complement=*/true);
     default:
+      // TODO(meheff): 2021/12/14 Handle XOR.
       break;
   }
 
+  return absl::nullopt;
+}
+
+// If the given range corresponds to values over which ULt(x, C) holds then
+// return the constant `C`.
+absl::optional<Bits> GetULtInterval(const IntervalSet& range) {
+  if (range.NumberOfIntervals() != 1) {
+    return absl::nullopt;
+  }
+  const Interval& interval = range.Intervals().front();
+  if (interval.LowerBound().IsZero() && !interval.UpperBound().IsAllOnes()) {
+    return bits_ops::Add(interval.UpperBound(),
+                         UBits(1, interval.UpperBound().bit_count()));
+  }
+  return absl::nullopt;
+}
+
+// If the given range corresponds to values over which UGt(x, C) holds then
+// return the constant `C`.
+absl::optional<Bits> GetUGtInterval(const IntervalSet& range) {
+  if (range.NumberOfIntervals() != 1) {
+    return absl::nullopt;
+  }
+  const Interval& interval = range.Intervals().front();
+  if (!interval.LowerBound().IsZero() && interval.UpperBound().IsAllOnes()) {
+    return bits_ops::Sub(interval.LowerBound(),
+                         UBits(1, interval.LowerBound().bit_count()));
+  }
   return absl::nullopt;
 }
 
@@ -162,11 +238,14 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
   }
 
   for (Node* node : TopoSort(f)) {
-    if (node->Is<CompareOp>() || !equivalences.contains(node)) {
+    if (!equivalences.contains(node)) {
       continue;
     }
 
     const IntervalSet& range = equivalences.at(node).range;
+
+    // First consider cases where the node can be replaced with a constant zero
+    // or one.
     if (range.IsMaximal()) {
       // The range is maximal so the condition is always true. Replace `node`
       // with a literal one.
@@ -182,6 +261,10 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
     } else if (absl::optional<Bits> precise_value = range.GetPreciseValue();
                precise_value.has_value()) {
       // The range is a single value C. Replace `node` with Eq(x, C).
+      if (node->op() == Op::kEq || node->op() == Op::kNe) {
+        // Skip if node is already a ne/eq.
+        continue;
+      }
       XLS_ASSIGN_OR_RETURN(
           Literal * literal,
           f->MakeNode<Literal>(absl::nullopt, Value(precise_value.value())));
@@ -194,6 +277,10 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
                precise_value.has_value()) {
       // The range is all values except a single value C. Replace `node` with
       // Ne(x, C).
+      if (node->op() == Op::kEq || node->op() == Op::kNe) {
+        // Skip if node is already a ne/eq.
+        continue;
+      }
       XLS_ASSIGN_OR_RETURN(
           Literal * literal,
           f->MakeNode<Literal>(absl::nullopt, Value(precise_value.value())));
@@ -201,10 +288,35 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
                                   equivalences.at(node).node, literal, Op::kNe)
                               .status());
       changed = true;
+    } else if (absl::optional<Bits> limit = GetULtInterval(range);
+               limit.has_value()) {
+      // The range is [0, C]. Replace `node` with ULt(x, C+1).
+      if (node->Is<CompareOp>()) {
+        // Skip if node is already a comparison.
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(
+          Literal * literal,
+          f->MakeNode<Literal>(absl::nullopt, Value(limit.value())));
+      XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<CompareOp>(
+                                  equivalences.at(node).node, literal, Op::kULt)
+                              .status());
+      changed = true;
+    } else if (absl::optional<Bits> limit = GetUGtInterval(range);
+               limit.has_value()) {
+      // The range is [C, MAX]. Replace `node` with UGt(x, C-1).
+      if (node->Is<CompareOp>()) {
+        // Skip if node is already a comparison.
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(
+          Literal * literal,
+          f->MakeNode<Literal>(absl::nullopt, Value(limit.value())));
+      XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<CompareOp>(
+                                  equivalences.at(node).node, literal, Op::kUGt)
+                              .status());
+      changed = true;
     }
-    // TODO(meheff): 2021/11/22 Add conversion to other operations. For example,
-    // single-interval ranges starting at min value or ending at max value can
-    // be simplified to Ult or UGt, respectively.
   }
 
   return changed;

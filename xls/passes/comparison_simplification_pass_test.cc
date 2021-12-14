@@ -163,5 +163,99 @@ TEST_F(ComparisonSimplificationPassTest, NotAndOfNeqsButNot) {
   EXPECT_THAT(f->return_value(), m::Not(m::And()));
 }
 
+TEST_F(ComparisonSimplificationPassTest, RedundantULt) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue x_lt_42 = fb.ULt(x, fb.Literal(UBits(42, 8)));
+  BValue x_lt_123 = fb.ULt(x, fb.Literal(UBits(123, 8)));
+  fb.And({x_lt_42, x_lt_123});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(), m::ULt(x.node(), m::Literal(42)));
+}
+
+TEST_F(ComparisonSimplificationPassTest, UltOrEq) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue x_lt_42 = fb.ULt(x, fb.Literal(UBits(42, 8)));
+  BValue x_eq_42 = fb.Eq(x, fb.Literal(UBits(42, 8)));
+  fb.Or({x_lt_42, x_eq_42});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(), m::ULt(x.node(), m::Literal(43)));
+}
+
+TEST_F(ComparisonSimplificationPassTest, UltAndUgt) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue x_lt_42 = fb.ULt(x, fb.Literal(UBits(42, 8)));
+  BValue x_gt_12 = fb.UGt(x, fb.Literal(UBits(12, 8)));
+  fb.And({x_lt_42, x_gt_12});
+  XLS_ASSERT_OK(fb.Build().status());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+TEST_F(ComparisonSimplificationPassTest, RedundantUGt) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue x_gt_42 = fb.UGt(x, fb.Literal(UBits(42, 8)));
+  BValue x_gt_123 = fb.UGt(x, fb.Literal(UBits(123, 8)));
+  fb.And({x_gt_42, x_gt_123});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(), m::UGt(x.node(), m::Literal(123)));
+}
+
+TEST_F(ComparisonSimplificationPassTest, ULtZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  fb.ULt(x, fb.Literal(UBits(0, 8)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(), m::Literal(0));
+}
+
+TEST_F(ComparisonSimplificationPassTest, ULtMax) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  fb.ULt(x, fb.Literal(UBits(255, 8)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(), m::Ne(m::Param("x"), m::Literal(255)));
+}
+
+TEST_F(ComparisonSimplificationPassTest, UGtZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  fb.UGt(x, fb.Literal(UBits(0, 8)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(), m::Ne(m::Param("x"), m::Literal(0)));
+}
+
+TEST_F(ComparisonSimplificationPassTest, UGtMax) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  fb.UGt(x, fb.Literal(UBits(255, 8)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(), m::Literal(0));
+}
+
 }  // namespace
 }  // namespace xls
