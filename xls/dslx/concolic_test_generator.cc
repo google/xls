@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/concolic_engine.h"
+#include "xls/dslx/concolic_test_generator.h"
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/strings/str_cat.h"
@@ -49,14 +49,14 @@ absl::StatusOr<InterpValue> Z3AstToInterpValue(
     Z3_get_numeral_int64(ctx, z3_value, &value_int);
   }
   int64_t bit_count = sym->GetBitCount();
-  if (sym->IsSigned())
+  if (sym->IsSigned()) {
     // Computes the 2's complement in case of negative number.
     return InterpValue::MakeSBits(bit_count,
                                   (value_int >> (bit_count - 1))
                                       ? (value_int | ~((1 << bit_count) - 1))
                                       : value_int);
-  else
-    return InterpValue::MakeUBits(bit_count, value_int);
+  }
+  return InterpValue::MakeUBits(bit_count, value_int);
 }
 
 // For each input in the Z3 model, creates the corresponding InterpValue.
@@ -66,10 +66,11 @@ absl::StatusOr<std::vector<InterpValue>> ExtractZ3Inputs(
   Z3_model model = Z3_solver_get_model(ctx, solver);
   std::vector<InterpValue> concrete_inputs;
   for (const auto& param : function_params) {
-    if (!param.IsBits())
+    if (!param.IsBits()) {
       return absl::InternalError(
           absl::StrFormat("Input parameter of type %s is not suppported.",
                           TagToString(param.tag())));
+    }
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
         Z3AstToInterpValue(ctx, param.sym(), model, translator));
@@ -79,7 +80,7 @@ absl::StatusOr<std::vector<InterpValue>> ExtractZ3Inputs(
 }
 
 absl::Status ConcolicTestGenerator::GenerateTest(InterpValue expected_value,
-                                          int64_t test_no) {
+                                                 int64_t test_no) {
   std::string test_string = absl::StrReplaceAll(
       GetTestTemplate(), {
                              {"$0", entry_fn_name_},
@@ -112,7 +113,7 @@ absl::Status ConcolicTestGenerator::GenerateTest(InterpValue expected_value,
 }
 
 absl::Status ConcolicTestGenerator::SolvePredicate(SymbolicType* predicate,
-                                            bool negate_predicate) {
+                                                   bool negate_predicate) {
   XLS_RETURN_IF_ERROR(translator_->TranslatePredicate(predicate));
   translator_->SetTimeout(absl::InfiniteDuration());
 

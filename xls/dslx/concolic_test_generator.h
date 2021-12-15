@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_CONCOLIC_ENGINE_H_
-#define XLS_DSLX_CONCOLIC_ENGINE_H_
+#ifndef XLS_DSLX_CONCOLIC_TEST_GENERATOR_H_
+#define XLS_DSLX_CONCOLIC_TEST_GENERATOR_H_
 
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/symbolic_type.h"
@@ -60,4 +60,4 @@ class ConcolicTestGenerator {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_CONCOLIC_ENGINE_H_
+#endif  // XLS_DSLX_CONCOLIC_TEST_GENERATOR_H_

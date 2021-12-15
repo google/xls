@@ -21,7 +21,7 @@
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/concolic_engine.h"
+#include "xls/dslx/concolic_test_generator.h"
 #include "xls/dslx/type_info.h"
 
 namespace xls::dslx {

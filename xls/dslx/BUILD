@@ -744,7 +744,7 @@ cc_library(
         ":ast",
         ":ast_utils",
         ":builtins",
-        ":concolic_engine",
+        ":concolic_test_generator",
         ":evaluate",
         ":evaluate_sym",
         ":import_routines",
@@ -1086,7 +1086,7 @@ cc_library(
     deps = [
         ":abstract_interpreter",
         ":ast",
-        ":concolic_engine",
+        ":concolic_test_generator",
         ":evaluate",
         ":import_routines",
         ":interp_bindings",
@@ -1114,9 +1114,9 @@ cc_library(
 )
 
 cc_library(
-    name = "concolic_engine",
-    srcs = ["concolic_engine.cc"],
-    hdrs = ["concolic_engine.h"],
+    name = "concolic_test_generator",
+    srcs = ["concolic_test_generator.cc"],
+    hdrs = ["concolic_test_generator.h"],
     deps = [
         ":interp_value",
         ":symbolic_type",

@@ -18,7 +18,7 @@
 #include "absl/status/statusor.h"
 #include "xls/dslx/abstract_interpreter.h"
 #include "xls/dslx/ast.h"
-#include "xls/dslx/concolic_engine.h"
+#include "xls/dslx/concolic_test_generator.h"
 #include "xls/dslx/evaluate.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
