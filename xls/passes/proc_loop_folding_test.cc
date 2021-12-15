@@ -44,15 +44,29 @@ class RollIntoProcPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Proc* proc) {
     PassResults results;
+    PassOptions opts = PassOptions();
     XLS_ASSIGN_OR_RETURN(bool changed,
                          RollIntoProcPass().RunOnProc(
-                             proc, PassOptions(), &results));
+                             proc, opts, &results));
     // Run dce to clean things up.
     XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
                             .RunOnFunctionBase((Function*)proc, PassOptions(),
                                                &results)
                             .status());
+    return changed;
+  }
 
+  absl::StatusOr<bool> Run(Proc* proc, int64_t unroll_factor) {
+    PassResults results;
+    PassOptions opts = PassOptions();
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         RollIntoProcPass(unroll_factor).RunOnProc(
+                             proc, opts, &results));
+    // Run dce to clean things up.
+    XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
+                            .RunOnFunctionBase((Function*)proc, PassOptions(),
+                                               &results)
+                            .status());
     return changed;
   }
 };
@@ -211,7 +225,7 @@ TEST_F(RollIntoProcPassTest, SimpleLoop) {
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 
   // The transformed proc should just output 2 every time. It's a CountedFor
-  // which adds an invariant literal 1 to the accumulator that runs twice.
+  // which adds an invariant literal 1 to the accumulator that runs four times.
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ChannelQueueManager> queue_manager,
       ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
@@ -276,6 +290,229 @@ TEST_F(RollIntoProcPassTest, SimpleLoop) {
   EXPECT_THAT(send_queue.Dequeue(),
               IsOkAndHolds(Value(UBits(2, 32))));
 }
+
+// A similar simple loop as before, but it is unrolled twice.
+TEST_F(RollIntoProcPassTest, SimpleLoopUnrolled) {
+  auto p = CreatePackage();
+  Value proc_initial_state = Value(UBits(0, 32));
+  std::string name = "no_send";
+  ProcBuilder pb(name, proc_initial_state, absl::StrFormat("%s_token", name),
+                 absl::StrFormat("%s_state", name), p.get());
+
+  Type* proc_state_type = p->GetTypeForValue(proc_initial_state);
+
+  XLS_ASSERT_OK_AND_ASSIGN(StreamingChannel* ch0,
+                           p->CreateStreamingChannel(
+                               absl::StrFormat("%s_in", name),
+                               ChannelOps::kReceiveOnly,
+                               proc_state_type));
+  BValue in = pb.Receive(ch0, pb.GetTokenParam());
+
+  XLS_ASSERT_OK_AND_ASSIGN(StreamingChannel* ch1,
+                           p->CreateStreamingChannel(
+                               absl::StrFormat("%s_out", name),
+                               ChannelOps::kSendOnly,
+                               proc_state_type));
+
+
+  FunctionBuilder fb(absl::StrFormat("%s_loopbody", name), p.get());
+  fb.Param("i", proc_state_type);
+  BValue loop_carry_data =
+      fb.Param("loop_carry_data", proc_state_type);
+  BValue invar_loopbody = fb.Param("invar", proc_state_type);
+  fb.Add(loop_carry_data, invar_loopbody);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * loopbody, fb.Build());
+
+  BValue lit1 = pb.Literal(UBits(1, 32));
+  BValue accumulator = pb.Literal(ZeroOfType(proc_state_type));
+
+  BValue result =
+      pb.CountedFor(accumulator, 4, 1, loopbody, {lit1});
+  BValue out = pb.Send(ch1, pb.GetTokenParam(), result);
+  BValue after_all = pb.AfterAll({pb.TupleIndex(in, 0), out});
+  BValue next_state = result;
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, next_state));
+
+  EXPECT_THAT(Run(proc, 2), status_testing::IsOkAndHolds(true));
+
+  // The transformed proc should just output 2 every time. It's a CountedFor
+  // which adds an invariant literal 1 to the accumulator that runs four times.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ChannelQueueManager> queue_manager,
+      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  ProcInterpreter pi(proc, queue_manager.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
+                           p.get()->GetChannel(
+                               absl::StrFormat("%s_out", name)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel* recv,
+                           p.get()->GetChannel(
+                               absl::StrFormat("%s_in", name)));
+
+  ChannelQueue& send_queue = queue_manager->GetQueue(send);
+  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+
+  ASSERT_TRUE(send_queue.empty());
+  ASSERT_TRUE(recv_queue.empty());
+
+  // Enqueue 2 elements, so this will run twice. The value from the Receive is
+  // not used so it doesn't matter here.
+  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
+
+  // The inner FIR loop has been rolled up into the proc state. So there should
+  // be nothing on the send queue on the first iteration, since the CountedFor
+  // runs twice.
+  ASSERT_THAT(
+      pi.RunIterationUntilCompleteOrBlocked(),
+      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                              .progress_made = true,
+                                              .blocked_channels = {}}));
+  EXPECT_TRUE(pi.IsIterationComplete());
+  EXPECT_TRUE(send_queue.empty());
+
+  ASSERT_THAT(
+      pi.RunIterationUntilCompleteOrBlocked(),
+      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                              .progress_made = true,
+                                              .blocked_channels = {}}));
+  EXPECT_TRUE(pi.IsIterationComplete());
+  EXPECT_FALSE(send_queue.empty());
+
+  // Check if output is equal to 2
+  EXPECT_THAT(send_queue.Dequeue(),
+              IsOkAndHolds(Value(UBits(4, 32))));
+
+  // Run again
+  ASSERT_THAT(
+      pi.RunIterationUntilCompleteOrBlocked(),
+      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                              .progress_made = true,
+                                              .blocked_channels = {}}));
+  EXPECT_TRUE(pi.IsIterationComplete());
+  EXPECT_TRUE(send_queue.empty());
+  ASSERT_THAT(
+      pi.RunIterationUntilCompleteOrBlocked(),
+      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                              .progress_made = true,
+                                              .blocked_channels = {}}));
+  EXPECT_TRUE(pi.IsIterationComplete());
+  EXPECT_FALSE(send_queue.empty());
+  EXPECT_THAT(send_queue.Dequeue(),
+              IsOkAndHolds(Value(UBits(4, 32))));
+}
+
+// A similar simple loop as before, but it is unrolled five times.
+TEST_F(RollIntoProcPassTest, SimpleLoopUnrolledFive) {
+  auto p = CreatePackage();
+  Value proc_initial_state = Value(UBits(0, 32));
+  std::string name = "no_send";
+  ProcBuilder pb(name, proc_initial_state, absl::StrFormat("%s_token", name),
+                 absl::StrFormat("%s_state", name), p.get());
+
+  Type* proc_state_type = p->GetTypeForValue(proc_initial_state);
+
+  XLS_ASSERT_OK_AND_ASSIGN(StreamingChannel* ch0,
+                           p->CreateStreamingChannel(
+                               absl::StrFormat("%s_in", name),
+                               ChannelOps::kReceiveOnly,
+                               proc_state_type));
+  BValue in = pb.Receive(ch0, pb.GetTokenParam());
+
+  XLS_ASSERT_OK_AND_ASSIGN(StreamingChannel* ch1,
+                           p->CreateStreamingChannel(
+                               absl::StrFormat("%s_out", name),
+                               ChannelOps::kSendOnly,
+                               proc_state_type));
+
+
+  FunctionBuilder fb(absl::StrFormat("%s_loopbody", name), p.get());
+  fb.Param("i", proc_state_type);
+  BValue loop_carry_data =
+      fb.Param("loop_carry_data", proc_state_type);
+  BValue invar_loopbody = fb.Param("invar", proc_state_type);
+  fb.Add(loop_carry_data, invar_loopbody);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * loopbody, fb.Build());
+
+  BValue lit1 = pb.Literal(UBits(1, 32));
+  BValue accumulator = pb.Literal(ZeroOfType(proc_state_type));
+
+  BValue result =
+      pb.CountedFor(accumulator, 10, 1, loopbody, {lit1});
+  BValue out = pb.Send(ch1, pb.GetTokenParam(), result);
+  BValue after_all = pb.AfterAll({pb.TupleIndex(in, 0), out});
+  BValue next_state = result;
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, next_state));
+
+  EXPECT_THAT(Run(proc, 5), status_testing::IsOkAndHolds(true));
+
+  // The transformed proc should just output 2 every time. It's a CountedFor
+  // which adds an invariant literal 1 to the accumulator that runs four times.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ChannelQueueManager> queue_manager,
+      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  ProcInterpreter pi(proc, queue_manager.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
+                           p.get()->GetChannel(
+                               absl::StrFormat("%s_out", name)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel* recv,
+                           p.get()->GetChannel(
+                               absl::StrFormat("%s_in", name)));
+
+  ChannelQueue& send_queue = queue_manager->GetQueue(send);
+  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+
+  ASSERT_TRUE(send_queue.empty());
+  ASSERT_TRUE(recv_queue.empty());
+
+  // Enqueue 2 elements, so this will run twice. The value from the Receive is
+  // not used so it doesn't matter here.
+  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
+
+  // The inner FIR loop has been rolled up into the proc state. So there should
+  // be nothing on the send queue on the first iteration, since the CountedFor
+  // runs twice.
+  ASSERT_THAT(
+      pi.RunIterationUntilCompleteOrBlocked(),
+      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                              .progress_made = true,
+                                              .blocked_channels = {}}));
+  EXPECT_TRUE(pi.IsIterationComplete());
+  EXPECT_TRUE(send_queue.empty());
+
+  ASSERT_THAT(
+      pi.RunIterationUntilCompleteOrBlocked(),
+      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                              .progress_made = true,
+                                              .blocked_channels = {}}));
+  EXPECT_TRUE(pi.IsIterationComplete());
+  EXPECT_FALSE(send_queue.empty());
+
+  // Check if output is equal to 2
+  EXPECT_THAT(send_queue.Dequeue(),
+              IsOkAndHolds(Value(UBits(10, 32))));
+
+  // Run again
+  ASSERT_THAT(
+      pi.RunIterationUntilCompleteOrBlocked(),
+      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                              .progress_made = true,
+                                              .blocked_channels = {}}));
+  EXPECT_TRUE(pi.IsIterationComplete());
+  EXPECT_TRUE(send_queue.empty());
+  ASSERT_THAT(
+      pi.RunIterationUntilCompleteOrBlocked(),
+      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                              .progress_made = true,
+                                              .blocked_channels = {}}));
+  EXPECT_TRUE(pi.IsIterationComplete());
+  EXPECT_FALSE(send_queue.empty());
+  EXPECT_THAT(send_queue.Dequeue(),
+              IsOkAndHolds(Value(UBits(10, 32))));
+}
+
 
 // A similar CountedFor loop to before except this time it just sums the
 // induction variable. Now we will test if moving the induction variable to the
@@ -837,8 +1074,6 @@ TEST_F(RollIntoProcPassTest, ReceiveUsedAfterLoop) {
   }
 }
 
-
-
 // Perform a comprehensive test on a 4-element kernel FIR filter. Test to see
 // if the transformed proc will only emit an output on the fourth iteration, and
 // check if the value is correct.
@@ -955,6 +1190,197 @@ TEST_F(RollIntoProcPassTest, ImportFIR) {
                 IsOkAndHolds(Value(UBits(expected_output[i], 32))));
   }
 }
+
+// Perform a comprehensive test on a 4-element kernel FIR filter that is
+// unrolled twice.
+TEST_F(RollIntoProcPassTest, ImportFIRUnroll) {
+  // Build FIR proc.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Value kernel_value,
+                           Value::UBitsArray({1, 2, 3, 4}, 32));
+
+  absl::string_view name = "fir_proc";
+  Type* kernel_type = p->GetTypeForValue(kernel_value.element(0));
+
+  XLS_ASSERT_OK_AND_ASSIGN(StreamingChannel* x_in,
+                           p->CreateStreamingChannel(
+                           absl::StrFormat("%s_x_in", name),
+                           ChannelOps::kReceiveOnly, kernel_type));
+
+  XLS_ASSERT_OK_AND_ASSIGN(StreamingChannel* filter_out,
+                           p->CreateStreamingChannel(
+                           absl::StrFormat("%s_out", name),
+                           ChannelOps::kSendOnly, kernel_type));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc* f, CreateFirFilter(name,
+                                                    kernel_value,
+                                                    x_in,
+                                                    filter_out,
+                                                    p.get()));
+
+  // Run roll_into_proc_pass (+DCE).
+  EXPECT_THAT(Run(f, 2), status_testing::IsOkAndHolds(true));
+
+  // Check if the transformed proc still works as an FIR filter.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ChannelQueueManager> queue_manager,
+      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  ProcInterpreter pi(f, queue_manager.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
+                           p.get()->GetChannel(
+                               absl::StrFormat("%s_out", name)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel* recv,
+                           p.get()->GetChannel(
+                               absl::StrFormat("%s_x_in", name)));
+
+  ChannelQueue& send_queue = queue_manager->GetQueue(send);
+  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+
+  ASSERT_TRUE(send_queue.empty());
+  ASSERT_TRUE(recv_queue.empty());
+
+  // Enqueue 4 elements.
+  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(2, 32))}));
+  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(3, 32))}));
+  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(4, 32))}));
+
+  // The inner FIR loop has been rolled up into the proc state. So there should
+  // be nothing on the send queue until two iterations (the length of the
+  // kernel divided by number of unrolls) have completed.
+  ASSERT_THAT(
+      pi.RunIterationUntilCompleteOrBlocked(),
+      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                              .progress_made = true,
+                                              .blocked_channels = {}}));
+  EXPECT_TRUE(pi.IsIterationComplete());
+  EXPECT_TRUE(send_queue.empty());
+
+  ASSERT_THAT(
+      pi.RunIterationUntilCompleteOrBlocked(),
+      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                              .progress_made = true,
+                                              .blocked_channels = {}}));
+  EXPECT_TRUE(pi.IsIterationComplete());
+  EXPECT_FALSE(send_queue.empty());
+
+
+  // It should be equal to 1. Confirm.
+  std::vector<int> expected_output = {1, 4, 10, 20};
+  EXPECT_THAT(send_queue.Dequeue(),
+              IsOkAndHolds(Value(UBits(expected_output[0], 32))));
+
+  // Now do this three more times and confirm if the output is correct.
+  for (int i = 1; i < 4; i++) {
+    for (int j = 0; j < 2; j++) {
+      ASSERT_THAT(
+          pi.RunIterationUntilCompleteOrBlocked(),
+          IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                                  .progress_made = true,
+                                                  .blocked_channels = {}}));
+      EXPECT_TRUE(pi.IsIterationComplete());
+      if (j < 1) {
+        EXPECT_TRUE(send_queue.empty());
+      } else {
+        EXPECT_FALSE(send_queue.empty());
+      }
+    }
+    EXPECT_THAT(send_queue.Dequeue(),
+                IsOkAndHolds(Value(UBits(expected_output[i], 32))));
+  }
+}
+
+// Perform a full unrolling of the FIR filter, so this pass basically does
+// nothing.
+TEST_F(RollIntoProcPassTest, ImportFIRUnrollAll) {
+  // Build FIR proc.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Value kernel_value,
+                           Value::UBitsArray({1, 2, 3, 4}, 32));
+
+  absl::string_view name = "fir_proc";
+  Type* kernel_type = p->GetTypeForValue(kernel_value.element(0));
+
+  XLS_ASSERT_OK_AND_ASSIGN(StreamingChannel* x_in,
+                           p->CreateStreamingChannel(
+                           absl::StrFormat("%s_x_in", name),
+                           ChannelOps::kReceiveOnly, kernel_type));
+
+  XLS_ASSERT_OK_AND_ASSIGN(StreamingChannel* filter_out,
+                           p->CreateStreamingChannel(
+                           absl::StrFormat("%s_out", name),
+                           ChannelOps::kSendOnly, kernel_type));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc* f, CreateFirFilter(name,
+                                                    kernel_value,
+                                                    x_in,
+                                                    filter_out,
+                                                    p.get()));
+
+  // Run roll_into_proc_pass (+DCE).
+  EXPECT_THAT(Run(f, 4), status_testing::IsOkAndHolds(true));
+
+  // Check if the transformed proc still works as an FIR filter.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ChannelQueueManager> queue_manager,
+      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  ProcInterpreter pi(f, queue_manager.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
+                           p.get()->GetChannel(
+                               absl::StrFormat("%s_out", name)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel* recv,
+                           p.get()->GetChannel(
+                               absl::StrFormat("%s_x_in", name)));
+
+  ChannelQueue& send_queue = queue_manager->GetQueue(send);
+  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+
+  ASSERT_TRUE(send_queue.empty());
+  ASSERT_TRUE(recv_queue.empty());
+
+  // Enqueue 4 elements.
+  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(2, 32))}));
+  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(3, 32))}));
+  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(4, 32))}));
+
+  // This got fully unrolled so it should have something to send out on every
+  // iteration
+  ASSERT_THAT(
+      pi.RunIterationUntilCompleteOrBlocked(),
+      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                              .progress_made = true,
+                                              .blocked_channels = {}}));
+  EXPECT_TRUE(pi.IsIterationComplete());
+  EXPECT_FALSE(send_queue.empty());
+
+  // It should be equal to 1. Confirm.
+  std::vector<int> expected_output = {1, 4, 10, 20};
+  EXPECT_THAT(send_queue.Dequeue(),
+              IsOkAndHolds(Value(UBits(expected_output[0], 32))));
+
+  // Now do this three more times and confirm if the output is correct.
+  for (int i = 1; i < 4; i++) {
+    for (int j = 0; j < 1; j++) {
+      ASSERT_THAT(
+          pi.RunIterationUntilCompleteOrBlocked(),
+          IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                                  .progress_made = true,
+                                                  .blocked_channels = {}}));
+      EXPECT_TRUE(pi.IsIterationComplete());
+      if (j < 0) {
+        EXPECT_TRUE(send_queue.empty());
+      } else {
+        EXPECT_FALSE(send_queue.empty());
+      }
+    }
+    EXPECT_THAT(send_queue.Dequeue(),
+                IsOkAndHolds(Value(UBits(expected_output[i], 32))));
+  }
+}
+
 
 }  // namespace
 

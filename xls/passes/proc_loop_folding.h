@@ -16,6 +16,7 @@
 #define XLS_PASSES_PROC_LOOP_FOLDING_H_
 
 #include "absl/status/statusor.h"
+#include "absl/types/optional.h"
 #include "xls/ir/function.h"
 #include "xls/passes/passes.h"
 
@@ -36,15 +37,20 @@ namespace xls {
 // nice area and power consumption optimization.
 class RollIntoProcPass : public ProcPass {
  public:
-  RollIntoProcPass()
-      : ProcPass("roll_into_proc",
-                         "Re-roll an iterative set of nodes into a proc") {}
+  RollIntoProcPass(absl::optional<int64_t> unroll_factor = absl::nullopt);
   ~RollIntoProcPass() override {}
 
  protected:
   absl::StatusOr<bool> RunOnProcInternal(
       Proc* proc, const PassOptions& options,
       PassResults* results) const override;
+
+  // Unroll the CountedFor function body. This will make it easier to do this
+  // kind of optimization in this pass.
+  absl::StatusOr<CountedFor*> UnrollCountedForBody(Proc* proc,
+                                                   CountedFor* countedfor,
+                                                   int64_t unroll_factor) const;
+
   // Create the new proc initial state that will be used for the folded loop.
   absl::StatusOr<Value> CreateInitialState(Proc* proc, CountedFor* countedfor,
                                            Receive* recv) const;
@@ -66,6 +72,9 @@ class RollIntoProcPass : public ProcPass {
   absl::StatusOr<std::vector<Node*>> SelectBetween(
       Proc* proc, CountedFor* countedfor, Node* selector,
       absl::Span<Node* const> on_false, absl::Span<Node* const> on_true) const;
+
+ private:
+  absl::optional<int64_t> unroll_factor_;
 };
 
 }  // namespace xls

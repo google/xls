@@ -14,9 +14,13 @@
 
 #include "xls/passes/proc_loop_folding.h"
 #include <memory>
+#include <string>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -42,6 +46,136 @@ enum {
   kReceiveData,
   kInvariantArgStart,
 };
+
+RollIntoProcPass::RollIntoProcPass(
+    absl::optional<int64_t> unroll_factor) :
+  ProcPass("roll_into_proc", "Re-roll an iterative set of nodes into a proc"),
+  unroll_factor_(unroll_factor) {}
+
+// We will use this function to unroll the CountedFor loop body by some factor.
+// For example, if unroll_factor is 2, we will clone the loopbody once into the
+// same function and wire it up as needed.
+// If unroll_factor does not divide the CountedFor trip count evenly, then we
+// do not perform any unrolling.
+absl::StatusOr<CountedFor*> RollIntoProcPass::UnrollCountedForBody(
+    Proc* proc, CountedFor* countedfor, int64_t unroll_factor) const {
+  int64_t trip_count = countedfor->trip_count();
+  // Perform the validity checks.
+  if (unroll_factor < 2) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Unroll factor should be 2 or larger, is %d",
+                        unroll_factor));
+  }
+  if (unroll_factor > trip_count) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Unroll factor should be less than or equal to the trip"
+                        " count (%d), is %d", trip_count, unroll_factor));
+  }
+  if (trip_count % unroll_factor != 0) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Unroll factor should evenly divide the trip count (%d)"
+                        " is %d", trip_count, unroll_factor));
+  }
+
+  Function* countedfor_loopbody = countedfor->body();
+  // Clone the function so we don't change the original.
+  absl::string_view loopbody_name = countedfor_loopbody->name();
+  XLS_ASSIGN_OR_RETURN(countedfor_loopbody, countedfor_loopbody->Clone(
+      absl::StrFormat("%s_unrolled", loopbody_name),
+      countedfor_loopbody->package()));
+
+  // Create a map of original to cloned nodes. This is so we can wire up the
+  // nodes more effectively later on.
+  absl::flat_hash_map<Node*, Node*> old_to_cloned;
+
+  // We need to keep track of a few things. The first is the parameters, as
+  // these can change as we unroll the loop.
+  Node* loop_induction_variable;
+  Node* loop_carry;
+  Node* return_val = countedfor_loopbody->return_value();
+
+  for (Param* param : countedfor_loopbody->params()) {
+    // If node is a parameter, check which one it is using the index. If it is
+    // index 1, then it's the loop iterator. index 2 is the carry data. index 3+
+    // are invariants.
+    XLS_ASSIGN_OR_RETURN(int param_index,
+                         countedfor_loopbody->GetParamIndex(param));
+    switch (param_index) {
+      case 0: {
+        loop_induction_variable = param;
+        old_to_cloned[param] = loop_induction_variable;
+        break;
+      }
+      case 1: {
+        loop_carry = param;
+        old_to_cloned[param] = loop_carry;
+        break;
+      }
+      default: {
+        old_to_cloned[param] = param;
+        break;
+      }
+    }
+  }
+
+  // Collect the loop body nodes (aside from params).
+  std::vector<Node*> loopbody_nodes;
+  for (Node* node : TopoSort(countedfor_loopbody)) {
+    if (!node->Is<Param>()) {
+      loopbody_nodes.push_back(node);
+    }
+  }
+
+  // Create a literal for the CountedFor stride. We will need it to update
+  // the loop induction variable.
+  int64_t countedfor_stride = countedfor->stride();
+  int64_t induction_bitcount = countedfor_loopbody->param(0)->BitCountOrDie();
+  const absl::optional<SourceLocation> countedfor_loc = countedfor->loc();
+  XLS_ASSIGN_OR_RETURN(auto stride_literal,
+                       countedfor_loopbody->MakeNode<Literal>(
+                           countedfor_loc, Value(UBits(countedfor_stride,
+                                                       induction_bitcount))));
+
+  // Clone the nodes into the loop body function the specified number of times.
+  for (int64_t idx = 0; idx < unroll_factor - 1; idx++) {
+    // We need to update the loop induction variable and the loop carry value.
+    old_to_cloned[loop_carry] = return_val;
+    // Add the stride to the induction variable.
+    XLS_ASSIGN_OR_RETURN(auto induction_value_next,
+                         countedfor_loopbody->MakeNode<BinOp>(
+                             countedfor_loc,
+                             old_to_cloned.at(loop_induction_variable),
+                             stride_literal, Op::kAdd));
+    old_to_cloned[loop_induction_variable] = induction_value_next;
+    Node* new_return_val;
+    for (Node* original_node : loopbody_nodes) {
+      std::vector<Node*> new_operands;
+      for (Node* operand : original_node->operands()) {
+        new_operands.push_back(old_to_cloned.at(operand));
+      }
+      XLS_ASSIGN_OR_RETURN(Node* cloned_node,
+                           original_node->Clone(new_operands));
+      old_to_cloned[original_node] = cloned_node;
+      new_return_val = cloned_node;
+    }
+    // New return value will be the last node processed
+    return_val = new_return_val;
+  }
+
+  // Update the return value of the function.
+  XLS_RETURN_IF_ERROR(countedfor_loopbody->set_return_value(return_val));
+
+  // Rebuild the CountedFor.
+  int64_t new_trip_count = countedfor->trip_count() / unroll_factor;
+  int64_t new_stride = countedfor->stride() * unroll_factor;
+  XLS_ASSIGN_OR_RETURN(auto new_countedfor, proc->MakeNode<CountedFor>(
+      countedfor_loc, countedfor->initial_value(), countedfor->invariant_args(),
+      new_trip_count, new_stride, countedfor_loopbody));
+
+  XLS_RETURN_IF_ERROR(countedfor->ReplaceUsesWith(new_countedfor));
+
+  return new_countedfor;
+}
 
 absl::StatusOr<Value> RollIntoProcPass::CreateInitialState(
     Proc* proc, CountedFor* countedfor, Receive* recv) const {
@@ -70,7 +204,10 @@ absl::StatusOr<Value> RollIntoProcPass::CreateInitialState(
   new_state_vals.push_back(ZeroOfType(recv_channel->type()));
   // Naively push the loop invariants into the state.
   for (Node* invariant : loop_invariants) {
-    new_state_vals.push_back(ZeroOfType(invariant->GetType()));
+    // We only want to handle invariants that aren't Literals.
+    if (!invariant->Is<Literal>()) {
+      new_state_vals.push_back(ZeroOfType(invariant->GetType()));
+    }
   }
   return Value::Tuple(new_state_vals);
 }
@@ -196,6 +333,12 @@ absl::StatusOr<bool> RollIntoProcPass::RunOnProcInternal(
     return false;
   }
 
+  if (unroll_factor_.has_value()) {
+    XLS_ASSIGN_OR_RETURN(counted_for_node,
+                         UnrollCountedForBody(
+                             proc, counted_for_node, unroll_factor_.value()));
+  }
+
   // Get information from the CountedFor node.
   Node* initial_value = counted_for_node->initial_value();
   Function* loopbody = counted_for_node->body();
@@ -246,13 +389,16 @@ absl::StatusOr<bool> RollIntoProcPass::RunOnProcInternal(
   std::vector<Node*> select_false;
   std::vector<Node*> invariant_selects;
   for (Node* invariant : loop_invariants) {
-    XLS_ASSIGN_OR_RETURN(auto tuple_idx,
-                         proc->MakeNode<TupleIndex>(countedfor_loc,
-                                                    dummy_state_new,
-                                                    proc_state_tuple_idx));
-    select_true.push_back(invariant);
-    select_false.push_back(tuple_idx);
-    proc_state_tuple_idx++;
+    // Only handle non-Literal invariants.
+    if (!invariant->Is<Literal>()) {
+      XLS_ASSIGN_OR_RETURN(auto tuple_idx,
+                           proc->MakeNode<TupleIndex>(countedfor_loc,
+                                                      dummy_state_new,
+                                                      proc_state_tuple_idx));
+      select_true.push_back(invariant);
+      select_false.push_back(tuple_idx);
+      proc_state_tuple_idx++;
+    }
   }
   XLS_ASSIGN_OR_RETURN(invariant_selects,
                        SelectBetween(proc, counted_for_node, is_first_iteration,

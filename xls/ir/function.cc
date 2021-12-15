@@ -78,7 +78,7 @@ absl::StatusOr<Function*> Function::Clone(
   }
   Function* cloned_function = target_package->AddFunction(
       std::make_unique<Function>(new_name, target_package));
-  // Clone parameters over first.
+  // Clone parameters over first to maintain order.
   for (Param* param : (const_cast<Function*>(this))->params()) {
     XLS_ASSIGN_OR_RETURN(
             original_to_clone[param],
