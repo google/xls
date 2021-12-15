@@ -732,17 +732,3 @@ cc_test(
         "//xls/tools:testbench_builder",
     ],
 )
-
-# TODO: Gradually deprecate usages and then delete all BUILD rules under this line.
-
-xls_dslx_library(
-    name = "fpmul_2x32_dslx",
-    srcs = ["fpmul_2x32.x"],
-    deps = [":fp32_mul_2_dslx"],
-)
-
-xls_dslx_library(
-    name = "fpadd_2x32_dslx",
-    srcs = ["fpadd_2x32.x"],
-    deps = [":fp32_add_2_dslx"],
-)
