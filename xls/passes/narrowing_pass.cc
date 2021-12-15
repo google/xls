@@ -96,6 +96,9 @@ absl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
     XLS_ASSIGN_OR_RETURN(Node * narrowed_rhs,
                          c->function_base()->MakeNode<BitSlice>(
                              c->loc(), c->operand(1), start, bit_count));
+    XLS_VLOG(3) << absl::StreamFormat(
+        "Narrowing operands of comparison %s to slice [%d:%d]", c->GetName(),
+        start, start + bit_count);
     return c->ReplaceUsesWithNew<CompareOp>(narrowed_lhs, narrowed_rhs, c->op())
         .status();
   };
@@ -118,6 +121,9 @@ absl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
        compare->op() == Op::kNe) &&
       (matched_leading_bits > 0 || matched_trailing_bits > 0) &&
       !all_bits_match) {
+    XLS_VLOG(3) << absl::StreamFormat(
+        "Leading %d bits and trailing %d bits of comparison operation %s match",
+        matched_leading_bits, matched_trailing_bits, compare->GetName());
     XLS_RETURN_IF_ERROR(narrow_compare_operands(
         compare, /*start=*/matched_trailing_bits,
         operand_width - matched_leading_bits - matched_trailing_bits));

@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_RANGE_QUERY_ENGINE_H_
 #define XLS_PASSES_RANGE_QUERY_ENGINE_H_
 
+#include <iosfwd>
+
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
@@ -130,6 +132,9 @@ class RangeQueryEngine : public QueryEngine {
 // and merging them by taking their convex hull, until only `size` intervals
 // remain.
 IntervalSet MinimizeIntervals(IntervalSet intervals, int64_t size = 16);
+
+std::string IntervalSetTreeToString(const IntervalSetTree& tree);
+std::ostream& operator<<(std::ostream& os, const IntervalSetTree& tree);
 
 }  // namespace xls
 

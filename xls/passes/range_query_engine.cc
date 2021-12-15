@@ -175,6 +175,9 @@ class RangeQueryVisitor : public DfsVisitor {
   // An interval set covering exactly the binary representation of `true`.
   static IntervalSet TrueIntervalSet();
 
+  // Returns an interval set tree which has empty ranges for all elements,
+  static IntervalSetTree EmptyIntervalSetTree(Type* type);
+
   absl::Status HandleAdd(BinOp* add) override;
   absl::Status HandleAfterAll(AfterAll* after_all) override;
   absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce) override;
@@ -615,6 +618,15 @@ IntervalSet RangeQueryVisitor::TrueIntervalSet() {
   return result;
 }
 
+IntervalSetTree RangeQueryVisitor::EmptyIntervalSetTree(Type* type) {
+  LeafTypeTree<IntervalSet> result(type);
+  for (int64_t i = 0; i < result.elements().size(); ++i) {
+    result.elements()[i] =
+        IntervalSet(result.leaf_types()[i]->GetFlatBitCount());
+  }
+  return result;
+}
+
 absl::Status RangeQueryVisitor::HandleAdd(BinOp* add) {
   engine_->InitializeNode(add);
   return HandleMonotoneMonotoneBinOp(
@@ -771,11 +783,27 @@ absl::Status RangeQueryVisitor::HandleEq(CompareOp* eq) {
 
 absl::Status RangeQueryVisitor::HandleGate(Gate* gate) {
   engine_->InitializeNode(gate);
-  return HandleMonotoneMonotoneBinOp(
-      [](const Bits& cond, const Bits& value) -> absl::optional<Bits> {
-        return value;
-      },
-      gate);
+  IntervalSet cond_intervals = GetIntervalSetTree(gate->operand(0)).Get({});
+
+  // `cond` false passes through the data operand.
+  LeafTypeTree<IntervalSet> result =
+      cond_intervals.CoversZero()
+          ? GetIntervalSetTree(gate->operand(1))  // data operand
+          : EmptyIntervalSetTree(gate->GetType());
+
+  if (cond_intervals.CoversOne()) {
+    // `cond` true produces a zero value.
+    for (int64_t i = 0; i < result.size(); ++i) {
+      IntervalSet& set = result.elements()[i];
+      Type* type = result.leaf_types()[i];
+      XLS_RET_CHECK(type->IsBits());
+      Bits zero = Bits(type->AsBitsOrDie()->bit_count());
+      set.AddInterval(Interval(zero, zero));
+      set.Normalize();
+    }
+  }
+  SetIntervalSetTree(gate, result);
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleIdentity(UnOp* identity) {
@@ -827,12 +855,9 @@ absl::Status RangeQueryVisitor::HandleMap(Map* map) {
 
 absl::Status RangeQueryVisitor::HandleArrayIndex(ArrayIndex* array_index) {
   engine_->InitializeNode(array_index);
-  LeafTypeTree<IntervalSet> result(array_index->GetType());
-  for (int64_t i = 0; i < result.elements().size(); ++i) {
-    // Initialize all interval sets to empty
-    result.elements()[i] =
-        IntervalSet(result.leaf_types()[i]->GetFlatBitCount());
-  }
+  LeafTypeTree<IntervalSet> result =
+      EmptyIntervalSetTree(array_index->GetType());
+
   if (array_index->indices().size() != 1) {
     return absl::OkStatus();  // TODO(taktoa): support multidimensional indexing
   }
@@ -1300,6 +1325,48 @@ absl::Status RangeQueryVisitor::HandleZeroExtend(ExtendOp* zero_ext) {
         return bits_ops::ZeroExtend(bits, zero_ext->new_bit_count());
       },
       zero_ext);
+}
+
+// Recursive helper function which writes the given IntervalSetTree to the given
+// output stream.
+static void IntervalSetTreeToStream(const IntervalSetTree& tree, Type* type,
+                                    std::vector<int64_t> index,
+                                    std::ostream& os) {
+  std::string indent(2 * index.size(), ' ');
+  if (type->IsArray()) {
+    ArrayType* array_type = type->AsArrayOrDie();
+    os << absl::StreamFormat("%s[\n", indent);
+    for (int64_t i = 0; i < array_type->size(); ++i) {
+      index.push_back(i);
+      IntervalSetTreeToStream(tree, array_type->element_type(), index, os);
+      os << "\n";
+      index.pop_back();
+    }
+    os << absl::StreamFormat("%s]\n", indent);
+  } else if (type->IsTuple()) {
+    TupleType* tuple_type = type->AsTupleOrDie();
+    os << absl::StreamFormat("%s(\n", indent);
+    for (int64_t i = 0; i < tuple_type->size(); ++i) {
+      index.push_back(i);
+      IntervalSetTreeToStream(tree, tuple_type->element_type(i), index, os);
+      os << "\n";
+      index.pop_back();
+    }
+    os << absl::StreamFormat("%s)\n", indent);
+  } else {
+    os << absl::StreamFormat("%s%s", indent, tree.Get(index).ToString());
+  }
+}
+
+std::string IntervalSetTreeToString(const IntervalSetTree& tree) {
+  std::stringstream ss;
+  IntervalSetTreeToStream(tree, tree.type(), {}, ss);
+  return ss.str();
+}
+
+std::ostream& operator<<(std::ostream& os, const IntervalSetTree& tree) {
+  IntervalSetTreeToStream(tree, tree.type(), {}, os);
+  return os;
 }
 
 }  // namespace xls

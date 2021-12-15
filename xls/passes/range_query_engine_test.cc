@@ -52,6 +52,26 @@ IntervalSet RandomIntervalSet(uint32_t seed, int64_t bit_count) {
   return IntervalSet::Random(seed, bit_count, 30);
 }
 
+IntervalSet CreateIntervalSet(
+    int64_t bit_count, absl::Span<const std::pair<int64_t, int64_t>> bounds) {
+  XLS_CHECK(!bounds.empty());
+  IntervalSet interval_set(bit_count);
+  for (const auto& [lb, ub] : bounds) {
+    interval_set.AddInterval(
+        Interval(UBits(lb, bit_count), UBits(ub, bit_count)));
+  }
+  interval_set.Normalize();
+  return interval_set;
+}
+
+LeafTypeTree<IntervalSet> BitsLTT(
+    Node* node, absl::Span<const std::pair<int64_t, int64_t>> bounds) {
+  XLS_CHECK(node->GetType()->IsBits());
+  LeafTypeTree<IntervalSet> result(node->GetType());
+  result.Set({}, CreateIntervalSet(node->BitCountOrDie(), bounds));
+  return result;
+}
+
 LeafTypeTree<IntervalSet> BitsLTT(Node* node,
                                   absl::Span<const Interval> intervals) {
   XLS_CHECK(!intervals.empty());
@@ -88,8 +108,8 @@ TEST_F(RangeQueryEngineTest, Add) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
+  BValue y = fb.Param("y", p->GetBitsType(20));
   BValue expr = fb.Add(x, y);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -115,15 +135,18 @@ TEST_F(RangeQueryEngineTest, Add) {
   // Nothing is known because of the potential for overflow, even though the
   // result of additions in those ranges have a common suffix (little-endian).
   EXPECT_EQ("0bXXXX_XXXX_XXXX_XXXX_XXXX", engine.ToString(expr.node()));
+
+  EXPECT_EQ(IntervalSetTreeToString(engine.GetIntervalSetTree(expr.node())),
+            "[[0, 1048575]]");
 }
 
 TEST_F(RangeQueryEngineTest, Array) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(10));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(10));
-  BValue expr = fb.Array({x, y}, fb.package()->GetBitsType(10));
+  BValue x = fb.Param("x", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(10));
+  BValue expr = fb.Array({x, y}, p->GetBitsType(10));
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   RangeQueryEngine engine;
@@ -139,18 +162,25 @@ TEST_F(RangeQueryEngineTest, Array) {
 
   EXPECT_EQ(x_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({0}));
   EXPECT_EQ(y_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({1}));
+
+  EXPECT_EQ(IntervalSetTreeToString(engine.GetIntervalSetTree(expr.node())),
+            R"([
+  [[100, 150]]
+  [[200, 250]]
+]
+)");
 }
 
 TEST_F(RangeQueryEngineTest, ArrayConcat) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(10));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(10));
-  BValue z = fb.Param("z", fb.package()->GetBitsType(10));
-  BValue w = fb.Param("w", fb.package()->GetBitsType(10));
-  BValue array1 = fb.Array({x, y}, fb.package()->GetBitsType(10));
-  BValue array2 = fb.Array({z, w}, fb.package()->GetBitsType(10));
+  BValue x = fb.Param("x", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(10));
+  BValue z = fb.Param("z", p->GetBitsType(10));
+  BValue w = fb.Param("w", p->GetBitsType(10));
+  BValue array1 = fb.Array({x, y}, p->GetBitsType(10));
+  BValue array2 = fb.Array({z, w}, p->GetBitsType(10));
   BValue expr = fb.ArrayConcat({array1, array2, array1});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -183,14 +213,14 @@ TEST_F(RangeQueryEngineTest, ArrayIndex) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(10));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(10));
-  BValue z = fb.Param("z", fb.package()->GetBitsType(10));
-  BValue array = fb.Array({x, y, z}, fb.package()->GetBitsType(10));
+  BValue x = fb.Param("x", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(10));
+  BValue z = fb.Param("z", p->GetBitsType(10));
+  BValue array = fb.Array({x, y, z}, p->GetBitsType(10));
   BValue index0 = fb.ArrayIndex(array, {fb.Literal(UBits(0, 2))});
   BValue index1 = fb.ArrayIndex(array, {fb.Literal(UBits(1, 2))});
   BValue index2 = fb.ArrayIndex(array, {fb.Literal(UBits(2, 2))});
-  BValue i = fb.Param("i", fb.package()->GetBitsType(2));
+  BValue i = fb.Param("i", p->GetBitsType(2));
   BValue index12 = fb.ArrayIndex(array, {i});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -222,7 +252,7 @@ TEST_F(RangeQueryEngineTest, AndReduce) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
   BValue expr = fb.AndReduce(x);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -258,9 +288,9 @@ TEST_F(RangeQueryEngineTest, Concat) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(6));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(5));
-  BValue z = fb.Param("z", fb.package()->GetBitsType(3));
+  BValue x = fb.Param("x", p->GetBitsType(6));
+  BValue y = fb.Param("y", p->GetBitsType(5));
+  BValue z = fb.Param("z", p->GetBitsType(3));
   BValue expr = fb.Concat({x, y, z});
 
   IntervalSet x_intervals = RandomIntervalSet(802103005, 6);
@@ -296,8 +326,8 @@ TEST_F(RangeQueryEngineTest, Eq) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
+  BValue y = fb.Param("y", p->GetBitsType(20));
   BValue expr = fb.Eq(x, y);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -342,8 +372,8 @@ TEST_F(RangeQueryEngineTest, Gate) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue cond = fb.Literal(UBits(1, 1));
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
+  BValue cond = fb.Param("cond", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(20));
   BValue expr = fb.Gate(cond, x);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -353,15 +383,77 @@ TEST_F(RangeQueryEngineTest, Gate) {
   engine.SetIntervalSetTree(x.node(), interval_set);
   XLS_ASSERT_OK(engine.Populate(f));
 
-  // Gate works like an identity function with respect to range analysis.
-  EXPECT_EQ(engine.GetIntervalSetTree(expr.node()), interval_set);
+  // Gate can either produce zero or the data operand value.
+  EXPECT_EQ(engine.GetIntervalSetTree(expr.node()),
+            BitsLTT(x.node(), {{0, 0}, {600, 700}}));
+}
+
+TEST_F(RangeQueryEngineTest, GateWithConditionTrue) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue cond = fb.Literal(Value(UBits(1, 1)));
+  BValue x = fb.Param("x", p->GetBitsType(20));
+  BValue expr = fb.Gate(cond, x);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  engine.SetIntervalSetTree(x.node(), BitsLTT(x.node(), {{600, 700}}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // With the gated condition true the gate operation always produces zero.
+  EXPECT_EQ(engine.GetIntervalSetTree(expr.node()),
+            BitsLTT(x.node(), {{0, 0}}));
+}
+
+TEST_F(RangeQueryEngineTest, GateWithConditionFalse) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue cond = fb.Literal(Value(UBits(0, 1)));
+  BValue x = fb.Param("x", p->GetBitsType(20));
+  BValue expr = fb.Gate(cond, x);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  engine.SetIntervalSetTree(x.node(), BitsLTT(x.node(), {{600, 700}}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // With the gated condition false the gate operation is the identity.
+  EXPECT_EQ(engine.GetIntervalSetTree(expr.node()),
+            BitsLTT(x.node(), {{600, 700}}));
+}
+
+TEST_F(RangeQueryEngineTest, GateWithCompoundType) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue cond = fb.Param("cond", p->GetBitsType(1));
+  BValue x = fb.Param("x", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(20));
+  BValue tuple = fb.Tuple({x, y, y});
+  BValue gate = fb.Gate(cond, tuple);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  engine.SetIntervalSetTree(x.node(), BitsLTT(x.node(), {{100, 150}}));
+  engine.SetIntervalSetTree(y.node(), BitsLTT(y.node(), {{20000, 25000}}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(engine.GetIntervalSetTree(gate.node()).Get({0}),
+            CreateIntervalSet(10, {{0, 0}, {100, 150}}));
+  EXPECT_EQ(engine.GetIntervalSetTree(gate.node()).Get({1}),
+            CreateIntervalSet(20, {{0, 0}, {20000, 25000}}));
+  EXPECT_EQ(engine.GetIntervalSetTree(gate.node()).Get({2}),
+            CreateIntervalSet(20, {{0, 0}, {20000, 25000}}));
 }
 
 TEST_F(RangeQueryEngineTest, Identity) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
   BValue expr = fb.Identity(x);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -395,8 +487,8 @@ TEST_F(RangeQueryEngineTest, Ne) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
+  BValue y = fb.Param("y", p->GetBitsType(20));
   BValue expr = fb.Ne(x, y);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -441,7 +533,7 @@ TEST_F(RangeQueryEngineTest, Neg) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
   BValue expr = fb.Negate(x);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -459,7 +551,7 @@ TEST_F(RangeQueryEngineTest, OrReduce) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
   BValue expr = fb.OrReduce(x);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -493,7 +585,7 @@ TEST_F(RangeQueryEngineTest, Param) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   RangeQueryEngine engine;
@@ -509,11 +601,11 @@ TEST_F(RangeQueryEngineTest, Sel) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue selector = fb.Param("selector", fb.package()->GetBitsType(10));
-  BValue x = fb.Param("x", fb.package()->GetBitsType(10));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(10));
-  BValue z = fb.Param("z", fb.package()->GetBitsType(10));
-  BValue def = fb.Param("def", fb.package()->GetBitsType(10));
+  BValue selector = fb.Param("selector", p->GetBitsType(10));
+  BValue x = fb.Param("x", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(10));
+  BValue z = fb.Param("z", p->GetBitsType(10));
+  BValue def = fb.Param("def", p->GetBitsType(10));
   BValue expr = fb.Select(selector, {x, y, z}, def);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -560,7 +652,7 @@ TEST_F(RangeQueryEngineTest, SignExtend) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
   BValue expr = fb.SignExtend(x, 40);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -578,8 +670,8 @@ TEST_F(RangeQueryEngineTest, Sub) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
+  BValue y = fb.Param("y", p->GetBitsType(20));
   BValue expr = fb.Subtract(x, y);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -599,8 +691,8 @@ TEST_F(RangeQueryEngineTest, Tuple) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(10));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(20));
   BValue expr = fb.Tuple({x, y, y});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -618,14 +710,22 @@ TEST_F(RangeQueryEngineTest, Tuple) {
   EXPECT_EQ(x_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({0}));
   EXPECT_EQ(y_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({1}));
   EXPECT_EQ(y_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({2}));
+
+  EXPECT_EQ(IntervalSetTreeToString(engine.GetIntervalSetTree(expr.node())),
+            R"((
+  [[100, 150]]
+  [[20000, 25000]]
+  [[20000, 25000]]
+)
+)");
 }
 
 TEST_F(RangeQueryEngineTest, TupleIndex) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(10));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(20));
   BValue tuple = fb.Tuple({x, y, y});
   BValue index0 = fb.TupleIndex(tuple, 0);
   BValue index1 = fb.TupleIndex(tuple, 1);
@@ -652,8 +752,8 @@ TEST_F(RangeQueryEngineTest, UDiv) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
+  BValue y = fb.Param("y", p->GetBitsType(20));
   BValue expr = fb.UDiv(x, y);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -674,8 +774,8 @@ TEST_F(RangeQueryEngineTest, UGe) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
+  BValue y = fb.Param("y", p->GetBitsType(20));
   BValue expr = fb.UGe(x, y);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -735,8 +835,8 @@ TEST_F(RangeQueryEngineTest, UGt) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
+  BValue y = fb.Param("y", p->GetBitsType(20));
   BValue expr = fb.UGt(x, y);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -796,8 +896,8 @@ TEST_F(RangeQueryEngineTest, ULe) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
+  BValue y = fb.Param("y", p->GetBitsType(20));
   BValue expr = fb.ULe(x, y);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -857,8 +957,8 @@ TEST_F(RangeQueryEngineTest, ULt) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
+  BValue y = fb.Param("y", p->GetBitsType(20));
   BValue expr = fb.ULt(x, y);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -918,8 +1018,8 @@ TEST_F(RangeQueryEngineTest, UMul) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(7));
-  BValue y = fb.Param("y", fb.package()->GetBitsType(7));
+  BValue x = fb.Param("x", p->GetBitsType(7));
+  BValue y = fb.Param("y", p->GetBitsType(7));
   BValue expr = fb.UMul(x, y, 14);
   BValue overflow = fb.UMul(x, y, 12);
 
@@ -951,7 +1051,7 @@ TEST_F(RangeQueryEngineTest, XorReduce) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
   BValue expr = fb.XorReduce(x);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
@@ -998,7 +1098,7 @@ TEST_F(RangeQueryEngineTest, ZeroExtend) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
-  BValue x = fb.Param("x", fb.package()->GetBitsType(20));
+  BValue x = fb.Param("x", p->GetBitsType(20));
   BValue expr = fb.ZeroExtend(x, 40);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
