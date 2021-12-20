@@ -2633,6 +2633,51 @@ TEST_F(TranslatorTest, IOProcMux) {
   }
 }
 
+TEST_F(TranslatorTest, IOProcOneLine) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+
+      out.write(2*in.read());
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(FIFO);
+  }
+
+  {
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> inputs;
+    inputs["in"] = {xls::Value(xls::SBits(11, 32))};
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(22, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+
+  {
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> inputs;
+    inputs["in"] = {xls::Value(xls::SBits(23, 32))};
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(46, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+}
+
 TEST_F(TranslatorTest, IOProcMuxMethod) {
   const std::string content = R"(
     #include "/xls_builtin.h"

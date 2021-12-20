@@ -978,6 +978,30 @@ absl::Status Translator::DeepScanForIO(const clang::Stmt* body,
   } else {
     xls::SourceLocation body_loc = GetLoc(ctx.getSourceManager(), *body);
 
+    // Recurse. This is done depth-first since that's the order in which
+    //  expressions are evaluated in C++. For example:
+    // out.write(2*in.read())
+    //  The read() should come first in the list of IO ops.
+    if (body->getStmtClass() == clang::Stmt::ForStmtClass) {
+      auto forst = clang_down_cast<const clang::ForStmt*>(body);
+
+      // Don't generate double declared error when actually generating IR
+      auto saved_check_unique_ids = check_unique_ids_;
+
+      PushContextGuard context_guard(*this, body_loc);
+      context_guard.propagate_up = false;
+
+      XLS_RETURN_IF_ERROR(
+          GenerateIR_For(forst, ctx, body_loc, ctx.getSourceManager(), true));
+
+      check_unique_ids_ = saved_check_unique_ids;
+    } else {
+      // Recurse into sub-statements, sub-expressions
+      for (const clang::Stmt* child : body->children()) {
+        XLS_RETURN_IF_ERROR(DeepScanForIO(child, ctx));
+      }
+    }
+
     // For single-line bodies
     // Check if this is an IO op
     if (body->getStmtClass() == clang::Stmt::CXXMemberCallExprClass) {
@@ -1073,25 +1097,6 @@ absl::Status Translator::DeepScanForIO(const clang::Stmt* body,
             context().sf->static_values[named_decl] = const_value;
           }
         }
-      }
-    }
-    if (body->getStmtClass() == clang::Stmt::ForStmtClass) {
-      auto forst = clang_down_cast<const clang::ForStmt*>(body);
-
-      // Don't generate double declared error when actually generating IR
-      auto saved_check_unique_ids = check_unique_ids_;
-
-      PushContextGuard context_guard(*this, body_loc);
-      context_guard.propagate_up = false;
-
-      XLS_RETURN_IF_ERROR(GenerateIR_For(forst, ctx, body_loc,
-                                         ctx.getSourceManager(), true));
-
-      check_unique_ids_ = saved_check_unique_ids;
-    } else {
-      // Recurse into sub-statements, sub-expressions
-      for (const clang::Stmt* child : body->children()) {
-        XLS_RETURN_IF_ERROR(DeepScanForIO(child, ctx));
       }
     }
   }
