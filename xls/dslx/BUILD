@@ -1062,6 +1062,32 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "symbolic_type_test",
+    srcs = ["symbolic_type_test.cc"],
+    deps = [
+        ":ast",
+        ":interp_value",
+        ":symbolic_type",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "concolic_interpreter_test",
+    srcs = ["concolic_interpreter_test.cc"],
+    deps = [
+        ":interpreter",
+        ":parse_and_typecheck",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "command_line_utils",
     srcs = ["command_line_utils.cc"],

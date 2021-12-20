@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_CONCOLIC_TEST_GENERATOR_H_
 #define XLS_DSLX_CONCOLIC_TEST_GENERATOR_H_
 
+#include <string>
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/symbolic_type.h"
 #include "xls/solvers/z3_dslx_translator.h"
@@ -44,6 +45,7 @@ class ConcolicTestGenerator {
   std::vector<std::vector<InterpValue>> GetInputValues() {
     return function_params_values_;
   }
+  std::vector<std::string> GetTestCases() { return generated_test_cases_; }
 
  private:
   std::unique_ptr<solvers::z3::DslxTranslator> translator_;
@@ -55,6 +57,7 @@ class ConcolicTestGenerator {
   // corresponding to that predicate.
   std::vector<std::vector<InterpValue>> function_params_values_;
 
+  std::vector<std::string> generated_test_cases_;
   std::string entry_fn_name_;
 };
 

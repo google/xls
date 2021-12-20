@@ -109,6 +109,7 @@ absl::Status ConcolicTestGenerator::GenerateTest(InterpValue expected_value,
                                        });
   // TODO(akalan): dump the test case to a file.
   std::cerr << test_string << std::endl;
+  generated_test_cases_.push_back(test_string);
   return absl::OkStatus();
 }
 

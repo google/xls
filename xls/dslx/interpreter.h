@@ -128,6 +128,15 @@ class Interpreter {
     return trace_format_preference_;
   }
 
+  std::string GetConcolicTestCases() {
+    std::vector<std::string> tests = test_generator_->GetTestCases();
+    std::string result;
+    for (const std::string& s : tests) {
+      absl::StrAppend(&result, s);
+    }
+    return result;
+  }
+
  private:
   friend struct TypeInfoSwap;
   friend class Evaluator;
