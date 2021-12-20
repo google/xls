@@ -109,7 +109,8 @@ class IrGraph {
       this.neighborNodeIds_[node.id] = [];
     }
 
-    for (let e of jsonGraph['edges']) {
+    // The graph may have no edges ('edges' property undefined).
+    for (let e of (jsonGraph['edges'] || [])) {
       let edge = new IrEdge(e);
       this.edges_.push(edge);
       this.edgeById_[edge.id] = edge;

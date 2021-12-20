@@ -403,6 +403,7 @@ class IrVisualizer {
       });
       elem.addEventListener('click', e => {
         if (e.target.dataset.functionId != self.selectedFunctionId_) {
+          // Ignore clicks on nodes which are not in the selected function.
           return;
         }
         let nodeId = /** @type {string} */ (e.target.dataset.nodeId);
@@ -413,6 +414,18 @@ class IrVisualizer {
           // Toggle the selection state.
           self.selectNode(nodeId, !self.graph_.isNodeSelected(nodeId));
         }
+      });
+    });
+
+    document.querySelectorAll('.ir-function-identifier').forEach(elem => {
+      elem.addEventListener('click', e => {
+        // Clicking on a function identifier selects the function for viewing.
+        if (e.target.dataset.identifier == self.selectedFunctionId_) {
+          return;
+        }
+        setFunctionSelector(
+            self.functionSelector_, e.target.dataset.identifier);
+        self.selectFunction(e.target.dataset.identifier);
       });
     });
   }

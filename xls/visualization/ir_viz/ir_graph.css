@@ -17,6 +17,11 @@
 .ir-function-identifier {
   font-weight: bold;
 }
+.ir-function-identifier:hover {
+  cursor: pointer;
+  color: black;
+  text-decoration: underline;
+}
 .ir-node-identifier {
   font-weight: bold;
 }
