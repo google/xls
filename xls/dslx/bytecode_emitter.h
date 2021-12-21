@@ -41,6 +41,9 @@ class Bytecode {
     // Concatenates TOS1 and TOS0, with TOS1 comprising the most significant
     // bits of the result.
     kConcat,
+    // Combines the top N values on the stack (N given in the data argument)
+    // into an array.
+    kCreateArray,
     // Creates an N-tuple (N given in the data argument) from the values on the
     // stack.
     kCreateTuple,
@@ -189,7 +192,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::StatusOr<std::vector<Bytecode>> Emit(Function* f);
 
  private:
-  void HandleArray(Array* node) override { DefaultHandler(node); }
+  void HandleArray(Array* node) override;
   void HandleAttr(Attr* node) override { DefaultHandler(node); }
   void HandleBinop(Binop* node) override;
   void HandleCarry(Carry* node) override { DefaultHandler(node); }

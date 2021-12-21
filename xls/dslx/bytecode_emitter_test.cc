@@ -389,5 +389,33 @@ fn unops() {
   ASSERT_EQ(bc.op(), Bytecode::Op::kNegate);
 }
 
+// Tests array creation.
+TEST(BytecodeEmitterTest, Arrays) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn arrays() -> u32[3] {
+  let a = u32:32;
+  u32[3]:[u32:0, u32:1, a]
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("arrays"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  ASSERT_EQ(bytecodes.size(), 6);
+  Bytecode bc = bytecodes[5];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kCreateArray);
+  ASSERT_TRUE(bc.has_data());
+  ASSERT_EQ(bc.integer_data().value(), 3);
+}
+
 }  // namespace
 }  // namespace xls::dslx

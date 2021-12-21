@@ -34,6 +34,8 @@ std::string OpToString(Bytecode::Op op) {
       return "call";
     case Bytecode::Op::kConcat:
       return "concat";
+    case Bytecode::Op::kCreateArray:
+      return "create_array";
     case Bytecode::Op::kCreateTuple:
       return "create_tuple";
     case Bytecode::Op::kDiv:
@@ -94,6 +96,9 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   }
   if (s == "call") {
     return Bytecode::Op::kCall;
+  }
+  if (s == "create_array") {
+    return Bytecode::Op::kCreateArray;
   }
   if (s == "create_tuple") {
     return Bytecode::Op::kCreateTuple;
@@ -253,6 +258,19 @@ absl::StatusOr<std::vector<Bytecode>> BytecodeEmitter::Emit(Function* f) {
   }
 
   return bytecode_;
+}
+
+void BytecodeEmitter::HandleArray(Array* node) {
+  if (!status_.ok()) {
+    return;
+  }
+
+  for (auto* member : node->members()) {
+    member->AcceptExpr(this);
+  }
+
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateArray,
+                               static_cast<int64_t>(node->members().size())));
 }
 
 void BytecodeEmitter::HandleBinop(Binop* node) {

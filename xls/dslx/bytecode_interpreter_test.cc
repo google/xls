@@ -449,5 +449,44 @@ fn unops() -> s32 {
   EXPECT_EQ(int_val, 0x2);
 }
 
+TEST(BytecodeInterpreterTest, CreateArray) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn arrays() -> u32[3] {
+  let a = u32:32;
+  u32[3]:[u32:0, u32:1, a]
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("arrays"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           BytecodeInterpreter::Interpret(bytecodes, &env));
+  ASSERT_TRUE(value.IsArray());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t num_elements, value.GetLength());
+  ASSERT_EQ(num_elements, 3);
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue element,
+                           value.Index(InterpValue::MakeU32(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, element.GetBitValueInt64());
+  EXPECT_EQ(bit_value, 0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(element, value.Index(InterpValue::MakeU32(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueInt64());
+  EXPECT_EQ(bit_value, 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(element, value.Index(InterpValue::MakeU32(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueInt64());
+  EXPECT_EQ(bit_value, 32);
+}
+
 }  // namespace
 }  // namespace xls::dslx

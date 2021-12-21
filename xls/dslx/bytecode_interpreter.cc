@@ -59,6 +59,10 @@ absl::StatusOr<int64_t> BytecodeInterpreter::EvalInstruction(
       XLS_RETURN_IF_ERROR(EvalConcat(bytecode));
       break;
     }
+    case Bytecode::Op::kCreateArray: {
+      XLS_RETURN_IF_ERROR(EvalCreateArray(bytecode));
+      break;
+    }
     case Bytecode::Op::kCreateTuple: {
       XLS_RETURN_IF_ERROR(EvalCreateTuple(bytecode));
       break;
@@ -210,6 +214,23 @@ absl::Status BytecodeInterpreter::EvalConcat(const Bytecode& bytecode) {
   return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
     return lhs.Concat(rhs);
   });
+}
+
+absl::Status BytecodeInterpreter::EvalCreateArray(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(int64_t array_size, bytecode.integer_data());
+  XLS_RET_CHECK_GE(stack_.size(), array_size);
+
+  std::vector<InterpValue> elements;
+  elements.reserve(array_size);
+  for (int64_t i = 0; i < array_size; i++) {
+    XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
+    elements.push_back(value);
+  }
+
+  std::reverse(elements.begin(), elements.end());
+  XLS_ASSIGN_OR_RETURN(InterpValue array, InterpValue::MakeArray(elements));
+  stack_.push_back(array);
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeInterpreter::EvalCreateTuple(const Bytecode& bytecode) {
