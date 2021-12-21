@@ -70,16 +70,25 @@ bits[64]:55
 """)
 
     shared_args = [
-        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2",
-        "--inputs_for_channels", "in_ch={infile1},in_ch_2={infile2}".format(
+        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
+        "--logtostderr", "--inputs_for_channels",
+        "in_ch={infile1},in_ch_2={infile2}".format(
             infile1=input_file.full_path,
             infile2=input_file_2.full_path), "--expected_outputs_for_channels",
         "out_ch={outfile},out_ch_2={outfile2}".format(
             outfile=output_file.full_path, outfile2=output_file_2.full_path)
     ]
 
-    subprocess.check_call(shared_args + ["--backend", "ir_interpreter"])
-    subprocess.check_call(shared_args + ["--backend", "serial_jit"])
+    output = subprocess.run(
+        shared_args + ["--backend", "ir_interpreter"],
+        capture_output=True,
+        check=True)
+    self.assertIn("Proc test_proc", output.stderr.decode("utf-8"))
+    output = subprocess.run(
+        shared_args + ["--backend", "serial_jit"],
+        capture_output=True,
+        check=True)
+    self.assertIn("Proc test_proc", output.stderr.decode("utf-8"))
 
 
 if __name__ == "__main__":

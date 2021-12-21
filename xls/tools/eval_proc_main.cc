@@ -80,32 +80,49 @@ absl::Status RunIrInterpreter(
   XLS_CHECK_GT(ticks, 0);
   for (int i = 0; i < ticks; i++) {
     XLS_RETURN_IF_ERROR(interpreter->Tick());
-  }
 
-  // Sort the keys for stable print order.
-  absl::flat_hash_map<Proc*, Value> states = interpreter->ResolveState();
-  std::vector<Proc*> sorted_procs;
-  for (const auto& [k, v] : states) {
-    sorted_procs.push_back(k);
-  }
+    // Sort the keys for stable print order.
+    absl::flat_hash_map<Proc*, Value> states = interpreter->ResolveState();
+    std::vector<Proc*> sorted_procs;
+    for (const auto& [k, v] : states) {
+      sorted_procs.push_back(k);
+    }
 
-  std::sort(sorted_procs.begin(), sorted_procs.end(),
-            [](Proc* a, Proc* b) { return a->name() < b->name(); });
-  for (const auto& proc : sorted_procs) {
-    std::cout << "Proc " << proc->name() << " : " << states.at(proc)
-              << std::endl;
-  }
-
-  for (const auto& [channel_name, values] : expected_outputs_for_channels) {
-    XLS_ASSIGN_OR_RETURN(ChannelQueue * out_queue,
-                         queue_manager.GetQueueByName(channel_name));
-    for (const Value& value : values) {
-      XLS_ASSIGN_OR_RETURN(Value out_val, out_queue->Dequeue());
-      XLS_RET_CHECK_EQ(value, out_val);
+    std::sort(sorted_procs.begin(), sorted_procs.end(),
+              [](Proc* a, Proc* b) { return a->name() < b->name(); });
+    for (const auto& proc : sorted_procs) {
+      XLS_VLOG(1) << "Proc " << proc->name() << " : " << states.at(proc);
     }
   }
 
-  return absl::OkStatus();
+  bool checked_any_output = false;
+  for (const auto& [channel_name, values] : expected_outputs_for_channels) {
+    XLS_ASSIGN_OR_RETURN(ChannelQueue * out_queue,
+                         queue_manager.GetQueueByName(channel_name));
+    uint64_t processed_count = 0;
+    for (const Value& value : values) {
+      if (out_queue->empty()) {
+        XLS_LOG(WARNING) << "Warning: Didn't consume "
+                         << values.size() - processed_count
+                         << " expected values" << std::endl;
+        break;
+      }
+      XLS_ASSIGN_OR_RETURN(Value out_val, out_queue->Dequeue());
+      if (value != out_val) {
+        std::cerr << "Mismatched after " << processed_count << " outputs"
+                  << std::endl;
+        XLS_RET_CHECK_EQ(value, out_val) << absl::StreamFormat(
+            "Mismatched after %d outputs", processed_count);
+      }
+      checked_any_output = true;
+      ++processed_count;
+    }
+  }
+
+  return checked_any_output
+             ? absl::OkStatus()
+             : absl::UnknownError(
+                   "No output verified (empty expected values?)");
 }
 
 absl::Status RunSerialJit(
@@ -130,23 +147,36 @@ absl::Status RunSerialJit(
   // collecting some number of outputs.
   for (int64_t i = 0; i < ticks; i++) {
     XLS_RETURN_IF_ERROR(runtime->Tick());
-  }
 
-  for (int64_t i = 0; i < runtime->NumProcs(); i++) {
-    XLS_ASSIGN_OR_RETURN(Proc * p, runtime->proc(i));
-    XLS_ASSIGN_OR_RETURN(Value v, runtime->ProcState(i));
-    std::cout << "Proc " << p->name() << " : " << v << std::endl;
+    for (int64_t i = 0; i < runtime->NumProcs(); i++) {
+      XLS_ASSIGN_OR_RETURN(Proc * p, runtime->proc(i));
+      XLS_ASSIGN_OR_RETURN(Value v, runtime->ProcState(i));
+      XLS_VLOG(1) << "Proc " << p->name() << " : " << v;
+    }
   }
 
   bool checked_any_output = false;
 
   for (const auto& [channel_name, values] : expected_outputs_for_channels) {
     XLS_ASSIGN_OR_RETURN(Channel * out_ch, package->GetChannel(channel_name));
+    uint64_t processed_count = 0;
     for (const Value& value : values) {
+      XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
+                           runtime->queue_mgr()->GetQueueById(out_ch->id()));
+      if (queue->Empty()) {
+        XLS_LOG(WARNING) << "Warning: Didn't consume "
+                         << values.size() - processed_count
+                         << " expected values" << std::endl;
+        break;
+      }
       XLS_ASSIGN_OR_RETURN(Value out_val,
                            runtime->DequeueValueFromChannel(out_ch));
-      XLS_RET_CHECK_EQ(value, out_val);
+      if (value != out_val) {
+        XLS_RET_CHECK_EQ(value, out_val) << absl::StreamFormat(
+            "Mismatched after %d outputs", processed_count);
+      }
       checked_any_output = true;
+      ++processed_count;
     }
   }
 
