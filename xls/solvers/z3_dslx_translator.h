@@ -63,6 +63,8 @@ class DslxTranslator {
   absl::Status HandleMul(SymbolicType* sym);
   absl::Status HandleDiv(SymbolicType* sym);
   absl::Status HandleSub(SymbolicType* sym);
+  absl::Status HandleNeg(SymbolicType* sym);
+  absl::Status HandleNot(SymbolicType* sym);
 
  private:
   DslxTranslator(Z3_config config);
@@ -92,7 +94,9 @@ class DslxTranslator {
   Z3_ast GetBitVec(SymbolicType* sym);
   int64_t GetBitVecCount(SymbolicType* sym);
 
-  // Does the _actual_ work of processing binary and shift operations.
+  // Does the _actual_ work of processing unary, binary and shift operations.
+  template <typename FnT>
+  absl::Status HandleUnary(SymbolicType* sym, FnT f);
   template <typename FnT>
   absl::Status HandleBinary(SymbolicType* sym, FnT f);
   template <typename FnT>

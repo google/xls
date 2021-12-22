@@ -32,7 +32,6 @@ namespace xls::dslx {
 
 DISPATCH_DEF(Carry)
 DISPATCH_DEF(Cast)
-DISPATCH_DEF(ColonRef)
 DISPATCH_DEF(ConstRef)
 DISPATCH_DEF(For)
 DISPATCH_DEF(Let)
@@ -40,7 +39,6 @@ DISPATCH_DEF(Match)
 DISPATCH_DEF(NameRef)
 DISPATCH_DEF(SplatStructInstance)
 DISPATCH_DEF(String)
-DISPATCH_DEF(Unop)
 DISPATCH_DEF(While)
 
 #undef DISPATCH_DEF
@@ -125,9 +123,9 @@ absl::StatusOr<InterpValue> EvaluateSymStructInstance(
                        EvaluateToStructOrEnumOrAnnotation(
                            type_definition, bindings, interp, nullptr));
   if (!absl::holds_alternative<StructDef*>(deref)) {
-  return absl::InvalidArgumentError(
-      absl::StrCat("Type definition did not dereference to a struct, found: ",
-                   ToAstNode(deref)->GetNodeTypeName()));
+    return absl::InvalidArgumentError(
+        absl::StrCat("Type definition did not dereference to a struct, found: ",
+                     ToAstNode(deref)->GetNodeTypeName()));
   }
 
   StructDef* struct_def = absl::get<StructDef*>(deref);
@@ -204,6 +202,22 @@ absl::StatusOr<InterpValue> EvaluateSymNumber(
   auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeLiteral(
       ConcreteInfo{result.IsSigned(), result_bits.bit_count(), bit_value}));
   return AddSymToValue(result, test_generator, std::move(sym_ptr));
+}
+
+absl::StatusOr<InterpValue> EvaluateSymColonRef(
+    ColonRef* expr, InterpBindings* bindings, ConcreteType* type_context,
+    AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
+  XLS_ASSIGN_OR_RETURN(InterpValue result,
+                       EvaluateColonRef(expr, bindings, type_context, interp));
+  if (result.tag() == InterpValueTag::kEnum) {
+    XLS_ASSIGN_OR_RETURN(int64_t bit_value, result.GetBitsOrDie().ToInt64());
+    auto sym_ptr =
+        std::make_unique<SymbolicType>(SymbolicType::MakeLiteral(ConcreteInfo{
+            result.IsSigned(), result.GetBitCount().value(), bit_value}));
+    return AddSymToValue(result, test_generator, std::move(sym_ptr));
+  }
+
+  return result;
 }
 
 // Recursively marks all the SymbolicType members of arrays/structs/tuples as
@@ -307,6 +321,33 @@ absl::StatusOr<InterpValue> EvaluateSymFunction(
   }
 
   return interp->Eval(f->body(), &fn_bindings);
+}
+
+absl::StatusOr<InterpValue> EvaluateSymUnop(
+    Unop* expr, InterpBindings* bindings, ConcreteType* type_context,
+    AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
+  XLS_ASSIGN_OR_RETURN(InterpValue arg,
+                       interp->Eval(expr->operand(), bindings));
+  XLS_RET_CHECK(arg.sym() != nullptr);
+
+  switch (expr->unop_kind()) {
+    case UnopKind::kInvert: {
+      XLS_ASSIGN_OR_RETURN(InterpValue result, arg.BitwiseNegate());
+      auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeUnary(
+          SymbolicType::Nodes{expr->unop_kind(), arg.sym()},
+          ConcreteInfo{result.IsSigned(), result.GetBitCount().value()}));
+      return AddSymToValue(result, test_generator, std::move(sym_ptr));
+    }
+    case UnopKind::kNegate: {
+      XLS_ASSIGN_OR_RETURN(InterpValue result, arg.ArithmeticNegate());
+      auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeUnary(
+          SymbolicType::Nodes{expr->unop_kind(), arg.sym()},
+          ConcreteInfo{result.IsSigned(), result.GetBitCount().value()}));
+      return AddSymToValue(result, test_generator, std::move(sym_ptr));
+    }
+  }
+  return absl::InternalError(absl::StrCat("Invalid unary operation kind: ",
+                                          static_cast<int64_t>(expr->kind())));
 }
 
 absl::StatusOr<InterpValue> EvaluateSymShift(

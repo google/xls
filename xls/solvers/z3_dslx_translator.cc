@@ -26,6 +26,9 @@ namespace xls::solvers::z3 {
 
 absl::Status DslxTranslator::VisitSymbolicTree(SymbolicType* sym) {
   auto Walk = [&](SymbolicType* x) -> absl::Status {
+    if (x == nullptr) {
+      return absl::OkStatus();
+    }
     if (x->IsLeaf()) {
       XLS_RETURN_IF_ERROR(ProcessSymbolicLeaf(x));
     } else {
@@ -99,6 +102,19 @@ absl::Status DslxTranslator::ProcessSymbolicNode(SymbolicType* sym) {
       default:
         return absl::InternalError("Invalid binary operation kind " +
                                    dslx::BinopKindToString(binop));
+    }
+  } else {
+    dslx::UnopKind unop = absl::get<dslx::UnopKind>(op);
+    switch (unop) {
+      case dslx::UnopKind::kInvert:
+        XLS_RETURN_IF_ERROR(HandleNot(sym));
+        break;
+      case dslx::UnopKind::kNegate:
+        XLS_RETURN_IF_ERROR(HandleNeg(sym));
+        break;
+      default:
+        return absl::InternalError("Invalid unary operation kind " +
+                                   UnopKindToString(unop));
     }
   }
   return absl::OkStatus();
@@ -212,6 +228,23 @@ int64_t DslxTranslator::GetBitVecCount(SymbolicType* sym) {
   Z3_ast value = GetValue(sym);
   Z3_sort value_sort = Z3_get_sort(ctx_, value);
   return Z3_get_bv_sort_size(ctx_, value_sort);
+}
+
+template <typename FnT>
+absl::Status DslxTranslator::HandleUnary(SymbolicType* sym, FnT f) {
+  solvers::z3::ScopedErrorHandler seh(ctx_);
+  XLS_ASSIGN_OR_RETURN(SymbolicType::Nodes nodes, sym->tree());
+  Z3_ast result = f(ctx_, GetBitVec(nodes.left));
+  XLS_RETURN_IF_ERROR(NoteTranslation(sym, result));
+  return seh.status();
+}
+
+absl::Status DslxTranslator::HandleNeg(SymbolicType* sym) {
+  return HandleUnary(sym, Z3_mk_bvneg);
+}
+
+absl::Status DslxTranslator::HandleNot(SymbolicType* sym) {
+  return HandleUnary(sym, Z3_mk_bvnot);
 }
 
 template <typename FnT>

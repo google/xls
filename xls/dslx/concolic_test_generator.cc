@@ -80,13 +80,13 @@ std::string InterpValueToString(InterpValue value) {
         }
       }
       return absl::StrFormat("%s:%s", value.type()->identifier(),
-                             value.GetBitsOrDie().ToString());
+                             bits_string);
     }
   }
 }
 
 absl::StatusOr<InterpValue> Z3AstToInterpValue(
-    Z3_context ctx, SymbolicType* sym, Z3_model model,
+    Z3_context ctx, InterpValue value, SymbolicType* sym, Z3_model model,
     solvers::z3::DslxTranslator* translator) {
   int64_t value_int = 0;
   // If the input doesn't appear in the Z3 AST nodes, it's a "don't care" value
@@ -102,12 +102,20 @@ absl::StatusOr<InterpValue> Z3AstToInterpValue(
   int64_t bit_count = sym->bit_count();
   if (sym->IsSigned()) {
     // Computes the 2's complement in case of negative number.
-    return InterpValue::MakeSBits(bit_count,
-                                  (value_int >> (bit_count - 1))
-                                      ? (value_int | ~((1 << bit_count) - 1))
-                                      : value_int);
+    Bits bits = SBits((value_int >> (bit_count - 1))
+                          ? (value_int | ~((1 << bit_count) - 1))
+                          : value_int,
+                      bit_count);
+    if (value.IsEnum()) {
+      return InterpValue::MakeEnum(bits, value.type());
+    }
+    return InterpValue::MakeBits(/*is_signed=*/true, bits);
   }
-  return InterpValue::MakeUBits(bit_count, value_int);
+  Bits bits = UBits(value_int, bit_count);
+  if (value.IsEnum()) {
+    return InterpValue::MakeEnum(bits, value.type());
+  }
+  return InterpValue::MakeBits(/*is_signed=*/false, bits);
 }
 
 // The symbolic nodes for the tuples are stored in a flat array, this function
@@ -144,7 +152,7 @@ absl::StatusOr<std::vector<InterpValue>> ExtractZ3Inputs(
       for (SymbolicType* sym_child : param.sym()->GetChildren()) {
         XLS_ASSIGN_OR_RETURN(
             InterpValue value,
-            Z3AstToInterpValue(ctx, sym_child, model, translator));
+            Z3AstToInterpValue(ctx, param, sym_child, model, translator));
         elements.push_back(value);
       }
       if (param.tag() == InterpValueTag::kArray) {
@@ -161,7 +169,7 @@ absl::StatusOr<std::vector<InterpValue>> ExtractZ3Inputs(
     } else {
       XLS_ASSIGN_OR_RETURN(
           InterpValue value,
-          Z3AstToInterpValue(ctx, param.sym(), model, translator));
+          Z3AstToInterpValue(ctx, param, param.sym(), model, translator));
       concrete_inputs.push_back(value);
     }
   }
