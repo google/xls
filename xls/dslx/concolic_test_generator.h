@@ -15,7 +15,6 @@
 #ifndef XLS_DSLX_CONCOLIC_TEST_GENERATOR_H_
 #define XLS_DSLX_CONCOLIC_TEST_GENERATOR_H_
 
-#include <string>
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/symbolic_type.h"
 #include "xls/solvers/z3_dslx_translator.h"
@@ -47,6 +46,12 @@ class ConcolicTestGenerator {
   }
   std::vector<std::string> GetTestCases() { return generated_test_cases_; }
 
+  // Stores the life-time owned symbolic representation for nodes so that they
+  // are not destroyed between function calls etc.
+  void StoreSymPointers(std::unique_ptr<SymbolicType> sym_tree) {
+    symbolic_trees_.push_back(std::move(sym_tree));
+  }
+
  private:
   std::unique_ptr<solvers::z3::DslxTranslator> translator_;
 
@@ -56,6 +61,8 @@ class ConcolicTestGenerator {
   // For each ternary if predicate, stores the input parameters values
   // corresponding to that predicate.
   std::vector<std::vector<InterpValue>> function_params_values_;
+
+  std::vector<std::unique_ptr<SymbolicType>> symbolic_trees_;
 
   std::vector<std::string> generated_test_cases_;
   std::string entry_fn_name_;

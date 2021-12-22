@@ -105,10 +105,16 @@ absl::Status DslxTranslator::ProcessSymbolicNode(SymbolicType* sym) {
 }
 
 absl::Status DslxTranslator::ProcessSymbolicLeaf(SymbolicType* sym) {
-  if (sym->IsBits()) {
-    XLS_RETURN_IF_ERROR(HandleLiteral(sym));
-  } else {  // node is a function parameter.
-    XLS_RETURN_IF_ERROR(HandleParam(sym));
+  if (sym->IsArray()) {
+    for (SymbolicType* child : sym->GetChildren()) {
+      XLS_RETURN_IF_ERROR(ProcessSymbolicLeaf(child));
+    }
+  } else {
+    if (sym->IsBits()) {
+      XLS_RETURN_IF_ERROR(HandleLiteral(sym));
+    } else {  // node is a function parameter.
+      XLS_RETURN_IF_ERROR(HandleParam(sym));
+    }
   }
   return absl::OkStatus();
 }
@@ -245,7 +251,35 @@ absl::Status DslxTranslator::HandleGe(SymbolicType* sym) {
   return HandleBinary(sym, Z3_mk_bvuge);
 }
 
+absl::Status DslxTranslator::HandleEqArray(SymbolicType* sym,
+                                           bool invert_result) {
+  const bool bool_true = true;
+  solvers::z3::ScopedErrorHandler seh(ctx_);
+  XLS_ASSIGN_OR_RETURN(SymbolicType::Nodes nodes, sym->tree());
+  std::vector<SymbolicType*> rhs_children = nodes.right->GetChildren();
+  std::vector<SymbolicType*> lhs_children = nodes.left->GetChildren();
+  XLS_RET_CHECK(rhs_children.size() == lhs_children.size());
+  Z3_ast result = BoolToBv(ctx_, Z3_mk_eq(ctx_, GetBitVec(lhs_children.at(0)),
+                                          GetBitVec(rhs_children.at(0))));
+  for (int64_t i = 1; i < lhs_children.size(); ++i) {
+    result =
+        Z3_mk_bvand(ctx_, result,
+                    BoolToBv(ctx_, Z3_mk_eq(ctx_, GetBitVec(lhs_children.at(i)),
+                                            GetBitVec(rhs_children.at(i)))));
+  }
+  result = Z3_mk_eq(ctx_, result, Z3_mk_bv_numeral(ctx_, 1, &bool_true));
+  if (invert_result) {
+    result = Z3_mk_not(ctx_, result);
+  }
+  XLS_RETURN_IF_ERROR(NoteTranslation(sym, result));
+  return seh.status();
+}
+
 absl::Status DslxTranslator::HandleEq(SymbolicType* sym) {
+  XLS_ASSIGN_OR_RETURN(SymbolicType::Nodes nodes, sym->tree());
+  if (nodes.right->IsArray()) {
+    return HandleEqArray(sym);
+  }
   return HandleBinary(sym, Z3_mk_eq);
 }
 
@@ -253,6 +287,10 @@ absl::Status DslxTranslator::HandleNe(SymbolicType* sym) {
   auto f = [](Z3_context ctx, Z3_ast a, Z3_ast b) {
     return Z3_mk_not(ctx, (Z3_mk_eq(ctx, a, b)));
   };
+  XLS_ASSIGN_OR_RETURN(SymbolicType::Nodes nodes, sym->tree());
+  if (nodes.right->IsArray()) {
+    return HandleEqArray(sym, /*invert_result=*/true);
+  }
   return HandleBinary(sym, f);
 }
 

@@ -34,6 +34,57 @@ $2
   return kTestTemplate;
 }
 
+// Prints the complete type for structs and enums which interpreter can run. For
+// the rest of the types invokes the InterpValue inherent method ToString.
+std::string InterpValueToString(InterpValue value) {
+  auto make_guts = [&](bool is_struct = false) {
+    int64_t struct_member_count = 0;
+    std::vector<std::string> struct_members = value.GetStructMembers();
+    return absl::StrJoin(value.GetValuesOrDie(), ", ",
+                         [&struct_member_count, struct_members](
+                             std::string* out, const InterpValue& v) {
+                           absl::StrAppend(
+                               out, struct_members[struct_member_count++], ": ",
+                               v.ToString());
+                         });
+  };
+
+  switch (value.tag()) {
+    case InterpValueTag::kUBits:
+    case InterpValueTag::kSBits:
+    case InterpValueTag::kArray:
+    case InterpValueTag::kFunction:
+    case InterpValueTag::kToken:
+    case InterpValueTag::kChannel:
+      return value.ToString();
+    case InterpValueTag::kTuple: {
+      std::vector<std::string> struct_members = value.GetStructMembers();
+      if (struct_members.empty()) {
+        return value.ToString();
+      }
+      // Prints a struct in the format: "StructName {foo:bar, ...}".
+      return absl::StrCat(
+          struct_members.back(),  // Last element contains the struct's name.
+          absl::StrFormat(" {%s}", make_guts()));
+    }
+    case InterpValueTag::kEnum: {
+      Bits bits = value.GetBitsOrDie();
+      std::string bits_string =
+          absl::StrCat(value.IsSigned() ? "s" : "u",
+                       std::to_string(value.GetBitCount().value()), ":",
+                       value.GetBitsOrDie().ToString());
+      for (const EnumMember& m : value.type()->values()) {
+        if (m.value->ToString() == bits_string) {
+          return absl::StrFormat("%s::%s", value.type()->identifier(),
+                                 m.name_def->ToString());
+        }
+      }
+      return absl::StrFormat("%s:%s", value.type()->identifier(),
+                             value.GetBitsOrDie().ToString());
+    }
+  }
+}
+
 absl::StatusOr<InterpValue> Z3AstToInterpValue(
     Z3_context ctx, SymbolicType* sym, Z3_model model,
     solvers::z3::DslxTranslator* translator) {
@@ -59,22 +110,60 @@ absl::StatusOr<InterpValue> Z3AstToInterpValue(
   return InterpValue::MakeUBits(bit_count, value_int);
 }
 
+// The symbolic nodes for the tuples are stored in a flat array, this function
+// creates the original InterpValue tuple e.g. (u32, (u32, (u32,), u32)) from
+// the flat list.
+InterpValue MakeTupleFromElements(InterpValue value,
+                                  std::vector<InterpValue> elements,
+                                  int64_t& element_count) {
+  std::vector<InterpValue> elements_unflatten;
+  if (value.IsBits()) {
+    return elements[element_count];
+  }
+
+  for (const InterpValue& value : value.GetValuesOrDie()) {
+    InterpValue tuple = MakeTupleFromElements(value, elements, element_count);
+    if (value.IsBits()) {
+      element_count++;
+    }
+    elements_unflatten.push_back(tuple);
+  }
+  return InterpValue::MakeTuple(elements_unflatten);
+}
+
 // For each input in the Z3 model, creates the corresponding InterpValue.
 absl::StatusOr<std::vector<InterpValue>> ExtractZ3Inputs(
     Z3_context ctx, Z3_solver solver, std::vector<InterpValue> function_params,
     solvers::z3::DslxTranslator* translator) {
   Z3_model model = Z3_solver_get_model(ctx, solver);
   std::vector<InterpValue> concrete_inputs;
-  for (const auto& param : function_params) {
-    if (!param.IsBits()) {
-      return absl::InternalError(
-          absl::StrFormat("Input parameter of type %s is not suppported.",
-                          TagToString(param.tag())));
+  for (const InterpValue& param : function_params) {
+    if (param.sym()->IsArray()) {
+      std::vector<InterpValue> elements;
+      elements.reserve(param.sym()->GetChildren().size());
+      for (SymbolicType* sym_child : param.sym()->GetChildren()) {
+        XLS_ASSIGN_OR_RETURN(
+            InterpValue value,
+            Z3AstToInterpValue(ctx, sym_child, model, translator));
+        elements.push_back(value);
+      }
+      if (param.tag() == InterpValueTag::kArray) {
+        XLS_ASSIGN_OR_RETURN(InterpValue array_value,
+                             InterpValue::MakeArray(std::move(elements)));
+        concrete_inputs.push_back(array_value);
+      } else {
+        int64_t element_count = 0;
+        InterpValue tuple =
+            MakeTupleFromElements(param, elements, element_count);
+        concrete_inputs.push_back(
+            tuple.UpdateWithStructInfo(param.GetStructMembers()));
+      }
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          InterpValue value,
+          Z3AstToInterpValue(ctx, param.sym(), model, translator));
+      concrete_inputs.push_back(value);
     }
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue value,
-        Z3AstToInterpValue(ctx, param.sym(), model, translator));
-    concrete_inputs.push_back(value);
   }
   return concrete_inputs;
 }
@@ -91,8 +180,8 @@ absl::Status ConcolicTestGenerator::GenerateTest(InterpValue expected_value,
   std::string inputs_string;
   for (const auto& param : function_params_values_[test_no]) {
     absl::StrAppend(&inputs_string, "  let ", "in_",
-                    std::to_string(input_ctr++), " = ", param.ToString(),
-                    ";\n");
+                    std::to_string(input_ctr++), " = ",
+                    InterpValueToString(param), ";\n");
   }
   test_string = absl::StrReplaceAll(test_string, {{"$2", inputs_string}});
 
@@ -102,11 +191,11 @@ absl::Status ConcolicTestGenerator::GenerateTest(InterpValue expected_value,
     absl::StrAppend(&params_string, "in_", std::to_string(input_ctr++), ", ");
   }
   absl::StrAppend(&params_string, "in_", std::to_string(input_ctr));
-  test_string =
-      absl::StrReplaceAll(test_string, {
-                                           {"$3", params_string},
-                                           {"$4", expected_value.ToString()},
-                                       });
+  test_string = absl::StrReplaceAll(
+      test_string, {
+                       {"$3", params_string},
+                       {"$4", InterpValueToString(expected_value)},
+                   });
   // TODO(akalan): dump the test case to a file.
   std::cerr << test_string << std::endl;
   generated_test_cases_.push_back(test_string);

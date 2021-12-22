@@ -396,6 +396,9 @@ class EnumType : public ConcreteType {
 // respectively.
 class BitsType : public ConcreteType {
  public:
+  static std::unique_ptr<BitsType> MakeU64() {
+    return std::make_unique<BitsType>(false, 64);
+  }
   static std::unique_ptr<BitsType> MakeU32() {
     return std::make_unique<BitsType>(false, 32);
   }

@@ -46,6 +46,7 @@ class DslxTranslator {
   absl::Status HandleAdd(SymbolicType* sym);
   absl::Status HandleConcat(SymbolicType* sym);
   absl::Status HandleEq(SymbolicType* sym);
+  absl::Status HandleEqArray(SymbolicType* sym, bool invert_result = false);
   absl::Status HandleLiteral(SymbolicType* sym);
   absl::Status HandleAnd(SymbolicType* sym);
   absl::Status HandleOr(SymbolicType* sym);

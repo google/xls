@@ -336,6 +336,17 @@ class InterpValue {
     return clone;
   }
 
+  // TODO(akalan): Store a StructDef type instead of the vector of struct member
+  // names.
+  const InterpValue UpdateWithStructInfo(
+      std::vector<std::string> struct_members) const {
+    InterpValue clone = *this;
+    clone.struct_members_ = struct_members;
+    return clone;
+  }
+
+  std::vector<std::string> GetStructMembers() const { return struct_members_; }
+
  private:
   friend struct InterpValuePickler;
 
@@ -376,6 +387,10 @@ class InterpValue {
   // Represents the expression tree for the intrepreter value. We keep the
   // pointer alive via the unique_ptr stored in the bindings
   SymbolicType* sym_tree_ = nullptr;
+
+  // Stores struct members names, used later for test case generation in the
+  // concolic engine.
+  std::vector<std::string> struct_members_;
 };
 
 // Retrieves the module associated with the function_value if it is user
