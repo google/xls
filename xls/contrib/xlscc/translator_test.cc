@@ -357,6 +357,57 @@ TEST_F(TranslatorTest, ArrayInitListWrongSize) {
   ASSERT_FALSE(SourceToIr(content).ok());
 }
 
+TEST_F(TranslatorTest, ConstInitListExpr) {
+  const std::string content = R"(
+    int my_package(int a) {
+      const int test_arr[][6] = {
+          {  10,  0,  0,  0,  0,  0 },
+          {  a,  20,  0,  0,  0,  0 }
+      };
+      return test_arr[0][0] + test_arr[1][1] + test_arr[1][0];
+    })";
+  Run({{"a", 3}}, 33, content);
+}
+
+TEST_F(TranslatorTest, InitListExpr) {
+  const std::string content = R"(
+    int my_package(int a) {
+      int test_arr[][6] = {
+          {  10,  0,  0,  0,  0,  0 },
+          {  a,  20,  0,  0,  0,  0 }
+      };
+      return test_arr[0][0] + test_arr[1][1] + test_arr[1][0];
+    })";
+  Run({{"a", 3}}, 33, content);
+}
+
+TEST_F(TranslatorTest, StaticInitListExpr) {
+  const std::string content = R"(
+    int my_package(int a) {
+      static const int test_arr[][6] = {
+          {  10,  0,  0,  0,  0,  0 },
+          {  0,  20,  0,  0,  0,  0 }
+      };
+      return a + test_arr[0][0] + test_arr[1][1] + test_arr[1][0] + test_arr[0][1];
+    })";
+  Run({{"a", 3}}, 33, content);
+}
+
+TEST_F(TranslatorTest, NonConstStaticInitListExpr) {
+  const std::string content = R"(
+    int my_package(int a) {
+      static const int test_arr[][6] = {
+          {  10,  0,  0,  0,  0,  0 },
+          {  a,  20,  0,  0,  0,  0 }
+      };
+      return a + test_arr[0][0] + test_arr[1][1] + test_arr[1][0] + test_arr[0][1];
+    })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                            testing::HasSubstr("constant")));
+}
+
 TEST_F(TranslatorTest, ArrayInitLoop) {
   const std::string content = R"(
        struct tss {

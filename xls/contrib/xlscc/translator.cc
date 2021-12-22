@@ -1088,8 +1088,7 @@ absl::Status Translator::DeepScanForIO(const clang::Stmt* body,
 
             XLS_ASSIGN_OR_RETURN(
                 CValue value,
-                TranslateVarDecl(as_var_decl, GetLoc(*as_var_decl),
-                                 false /* statics_as_params */));
+                TranslateVarDecl(as_var_decl, GetLoc(*as_var_decl)));
 
             XLS_ASSIGN_OR_RETURN(ConstValue const_value,
                                  TranslateBValToConstVal(value));
@@ -1591,31 +1590,15 @@ absl::StatusOr<xls::Op> Translator::XLSOpcodeFromClang(
 }
 
 absl::StatusOr<CValue> Translator::TranslateVarDecl(
-    const clang::VarDecl* decl, const xls::SourceLocation& loc,
-    bool statics_as_params) {
+    const clang::VarDecl* decl, const xls::SourceLocation& loc) {
   XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
                        TranslateTypeFromClang(decl->getType(), loc));
 
   const clang::Expr* initializer = decl->getAnyInitializer();
   xls::BValue init_val;
   if (initializer) {
-    // Sometimes the InitListExpr is hidden by being inside of an
-    // ExprWithCleanups
-    if (initializer->getStmtClass() == clang::Stmt::ExprWithCleanupsClass) {
-      initializer = clang_down_cast<const clang::ExprWithCleanups*>(initializer)
-                        ->getSubExpr();
-    }
-
-    if (initializer->getStmtClass() == clang::Stmt::InitListExprClass) {
-      XLS_ASSIGN_OR_RETURN(
-          init_val,
-          CreateInitListValue(
-              *ctype, clang_down_cast<const clang::InitListExpr*>(initializer),
-              loc));
-    } else {
-      XLS_ASSIGN_OR_RETURN(CValue cv, GenerateIR_Expr(initializer, loc));
-      XLS_ASSIGN_OR_RETURN(init_val, GenTypeConvert(cv, ctype, loc));
-    }
+    XLS_ASSIGN_OR_RETURN(CValue cv, GenerateIR_Expr(initializer, loc));
+    XLS_ASSIGN_OR_RETURN(init_val, GenTypeConvert(cv, ctype, loc));
   } else {
     XLS_ASSIGN_OR_RETURN(init_val, CreateDefaultValue(ctype, loc));
   }
@@ -1683,6 +1666,14 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
       if (var_decl->getInit() != nullptr) {
         XLS_ASSIGN_OR_RETURN(value,
                              GenerateIR_Expr(var_decl->getInit(), global_loc));
+        if (var_decl->isStaticLocal() || var_decl->isStaticDataMember()) {
+          // Statics must have constant initialization
+          if (!EvaluateBVal(value.value()).ok()) {
+            return absl::InvalidArgumentError(
+                absl::StrFormat("Statics must have constant initializers at %s",
+                                LocString(loc)));
+          }
+        }
       } else {
         XLS_ASSIGN_OR_RETURN(
             std::shared_ptr<CType> type,
@@ -2883,6 +2874,15 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
       XLS_ASSIGN_OR_RETURN(xls::Value arrval, xls::Value::Array(elements));
 
       return CValue(context().fb->Literal(arrval, loc), type);
+    }
+    case clang::Stmt::InitListExprClass: {
+      XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
+                           TranslateTypeFromClang(expr->getType(), loc));
+      XLS_ASSIGN_OR_RETURN(
+          xls::BValue init_val,
+          CreateInitListValue(
+              *ctype, clang_down_cast<const clang::InitListExpr*>(expr), loc));
+      return CValue(init_val, ctype);
     }
     default: {
       expr->dump();
