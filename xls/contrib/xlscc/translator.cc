@@ -3288,6 +3288,11 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
     case clang::Stmt::NullStmtClass: {
       break;
     }
+    // Just ignore labels for now
+    case clang::Stmt::LabelStmtClass: {
+      auto label_stmt = clang_down_cast<const clang::LabelStmt*>(stmt);
+      return GenerateIR_Stmt(label_stmt->getSubStmt(), ctx);
+    }
     default:
       stmt->dump();
       return absl::UnimplementedError(

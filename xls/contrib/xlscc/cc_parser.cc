@@ -308,6 +308,7 @@ void LibToolThread::Run() {
   argv.emplace_back("-fsyntax-only");
   argv.emplace_back("-std=c++17");
   argv.emplace_back("-nostdinc");
+  argv.emplace_back("-Wno-unused-label");
 
   llvm::IntrusiveRefCntPtr<clang::FileManager> libtool_files;
 

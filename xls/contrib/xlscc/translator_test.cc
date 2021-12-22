@@ -3580,6 +3580,20 @@ TEST_F(TranslatorTest, NonPramaNestedLoop) {
                     "Only unrolled for loops currently supported at")));
 }
 
+TEST_F(TranslatorTest, Label) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        this_loop:
+        #pragma hls_unroll yes
+        for(int i=1;i<=10;++i) {
+          a += b;
+          a += 2*b;
+        }
+        return a;
+      })";
+  Run({{"a", 11}, {"b", 20}}, 611, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc
