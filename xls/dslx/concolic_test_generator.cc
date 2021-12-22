@@ -79,8 +79,7 @@ std::string InterpValueToString(InterpValue value) {
                                  m.name_def->ToString());
         }
       }
-      return absl::StrFormat("%s:%s", value.type()->identifier(),
-                             bits_string);
+      return absl::StrFormat("%s:%s", value.type()->identifier(), bits_string);
     }
   }
 }
@@ -210,6 +209,46 @@ absl::Status ConcolicTestGenerator::GenerateTest(InterpValue expected_value,
   return absl::OkStatus();
 }
 
+// Translates the node in the path constraint to its Z3 representation and
+// negates it if necessary. Converts the constraint to a bit vector type if it's
+// a boolean.
+absl::StatusOr<Z3_ast> ProcessConstraintNode(
+    Z3_context ctx, ConstraintNode node,
+    solvers::z3::DslxTranslator* translator) {
+  bool bool_false = false;
+  XLS_RETURN_IF_ERROR(translator->TranslatePredicate(node.constraint));
+  Z3_ast objective = translator->GetTranslation(node.constraint).value();
+  if (node.negate) {
+    if (solvers::z3::IsAstBoolPredicate(ctx, objective)) {
+      objective = Z3_mk_not(ctx, objective);
+    } else {
+      objective =
+          Z3_mk_eq(ctx, objective, Z3_mk_bv_numeral(ctx, 1, &bool_false));
+    }
+  }
+  if (solvers::z3::IsAstBoolPredicate(ctx, objective)) {
+    objective = solvers::z3::BoolToBv(ctx, objective);
+  }
+  return objective;
+}
+
+// Creates a conjunction between the constraints in the path i.e. c1 ^ c2 ^... .
+absl::StatusOr<Z3_ast> PathConstraintsConjunction(
+    std::vector<ConstraintNode> path_constraints, Z3_context ctx,
+    solvers::z3::DslxTranslator* translator) {
+  const bool bool_true = true;
+  XLS_ASSIGN_OR_RETURN(
+      Z3_ast objective,
+      ProcessConstraintNode(ctx, path_constraints.at(0), translator));
+  for (int64_t i = 1; i < path_constraints.size(); ++i) {
+    XLS_ASSIGN_OR_RETURN(
+        Z3_ast node,
+        ProcessConstraintNode(ctx, path_constraints.at(i), translator));
+    objective = Z3_mk_bvand(ctx, objective, node);
+  }
+  return Z3_mk_eq(ctx, objective, Z3_mk_bv_numeral(ctx, 1, &bool_true));
+}
+
 absl::Status ConcolicTestGenerator::SolvePredicate(SymbolicType* predicate,
                                                    bool negate_predicate) {
   XLS_RETURN_IF_ERROR(translator_->TranslatePredicate(predicate));
@@ -221,10 +260,48 @@ absl::Status ConcolicTestGenerator::SolvePredicate(SymbolicType* predicate,
   // Converts predicates of BV type e.g. "if(a)" to bool type so that Z3 can
   // solve the predicate.
   if (!solvers::z3::IsAstBoolPredicate(ctx, objective)) {
-    const bool bool_true = true;
+    bool bool_true = true;
     objective = Z3_mk_eq(ctx, objective, Z3_mk_bv_numeral(ctx, 1, &bool_true));
   }
   if (negate_predicate) objective = Z3_mk_not(ctx, objective);
+
+  // Compute two constraints: 1) path_constraints ^ objective
+  //                          2) path_constraints ^ ~objective
+  // The second one is merely used for storing in the map for faster look ups.
+  Z3_ast objective_with_path = objective;
+  Z3_ast objective_with_path_negate = Z3_mk_not(ctx, objective);
+  if (!path_constraints_.empty()) {
+    bool bool_true = true;
+    XLS_ASSIGN_OR_RETURN(
+        Z3_ast path_conjunction,
+        PathConstraintsConjunction(path_constraints_, ctx, translator_.get()));
+    // And with the path constraint.
+    objective_with_path_negate =
+        Z3_mk_bvand(ctx, solvers::z3::BoolToBv(ctx, Z3_mk_not(ctx, objective)),
+                    solvers::z3::BoolToBv(ctx, path_conjunction));
+    objective_with_path =
+        Z3_mk_bvand(ctx, solvers::z3::BoolToBv(ctx, objective),
+                    solvers::z3::BoolToBv(ctx, path_conjunction));
+    // Convert to boolean.
+    objective_with_path = Z3_mk_eq(ctx, objective_with_path,
+                                   Z3_mk_bv_numeral(ctx, 1, &bool_true));
+    objective_with_path_negate = Z3_mk_eq(ctx, objective_with_path_negate,
+                                          Z3_mk_bv_numeral(ctx, 1, &bool_true));
+    objective = objective_with_path;
+  }
+  // If we have already solved this constraint skip; otherwise, add the
+  // constraint and its negation to the map.
+  if (solved_constraints_.contains(objective_with_path)) {
+    XLS_VLOG(2) << "already contains objective "
+                << Z3_ast_to_string(ctx, objective_with_path) << std::endl;
+    return absl::OkStatus();
+  }
+  // TODO(akalan): if the predicate is already negated, negating it again is not
+  // the same as the original predicate in Z3!
+  // In the other words, after translating to Z3: not(not(a)) != a.
+  solved_constraints_.insert(objective_with_path);
+  solved_constraints_.insert(objective_with_path_negate);
+
   XLS_VLOG(2) << "objective:\n"
               << Z3_ast_to_string(ctx, objective) << std::endl;
 

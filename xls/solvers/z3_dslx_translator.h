@@ -65,6 +65,7 @@ class DslxTranslator {
   absl::Status HandleSub(SymbolicType* sym);
   absl::Status HandleNeg(SymbolicType* sym);
   absl::Status HandleNot(SymbolicType* sym);
+  absl::Status HandleTernaryIf(SymbolicType* sym);
 
  private:
   DslxTranslator(Z3_config config);

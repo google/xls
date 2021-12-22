@@ -22,6 +22,13 @@
 
 namespace xls::dslx {
 
+// Represents a constraint node in the path constraint and whether or not it
+// should be negated.
+struct ConstraintNode {
+  SymbolicType* constraint;
+  bool negate;
+};
+
 // Wrapper class for Z3 DSLX solver that extracts the inputs from the z3
 // solution and generates a DSLX test case.
 class ConcolicTestGenerator {
@@ -52,6 +59,20 @@ class ConcolicTestGenerator {
     symbolic_trees_.push_back(std::move(sym_tree));
   }
 
+  // If we reach a part of program via a constraint e.g. function call in the
+  // ternary if expressions, we add that constraint to the path so that every
+  // other constraint in that part of program is conjuncted with it.
+  void AddConstraintToPath(SymbolicType* constraint, bool negate) {
+    path_constraints_.push_back({constraint, negate});
+  }
+  void PopConstraintFromPath() { path_constraints_.pop_back(); }
+
+  // clears the path constraints and the function inputs for a new run.
+  void ResetRun() {
+    function_params_.clear();
+    path_constraints_.clear();
+  }
+
  private:
   std::unique_ptr<solvers::z3::DslxTranslator> translator_;
 
@@ -61,6 +82,14 @@ class ConcolicTestGenerator {
   // For each ternary if predicate, stores the input parameters values
   // corresponding to that predicate.
   std::vector<std::vector<InterpValue>> function_params_values_;
+
+  // Set of constraints that should be conjuncted with every constraint in the
+  // program.
+  std::vector<ConstraintNode> path_constraints_;
+
+  // Stores a set of constraints that have already been solved to avoid
+  // re-presocessing the same ones.
+  absl::flat_hash_set<Z3_ast> solved_constraints_;
 
   std::vector<std::unique_ptr<SymbolicType>> symbolic_trees_;
 

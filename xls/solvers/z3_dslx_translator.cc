@@ -41,6 +41,10 @@ absl::Status DslxTranslator::VisitSymbolicTree(SymbolicType* sym) {
 }
 
 absl::Status DslxTranslator::ProcessSymbolicNode(SymbolicType* sym) {
+  if (sym->IsTernary()) {
+    XLS_RETURN_IF_ERROR(HandleTernaryIf(sym));
+    return absl::OkStatus();
+  }
   XLS_ASSIGN_OR_RETURN(SymbolicType::OpKind op, sym->op());
   if (absl::holds_alternative<dslx::BinopKind>(op)) {
     dslx::BinopKind binop = absl::get<dslx::BinopKind>(op);
@@ -144,6 +148,13 @@ std::unique_ptr<DslxTranslator> DslxTranslator::CreateTranslator() {
 
 absl::Status DslxTranslator::TranslatePredicate(SymbolicType* predicate) {
   XLS_RET_CHECK(predicate != nullptr);
+  if (translations_.contains(predicate)) {
+    XLS_VLOG(2) << "TranslatePredicate: translations already contains: "
+                << predicate->ToString().value() << " translation = "
+                << Z3_ast_to_string(ctx_, translations_[predicate])
+                << std::endl;
+    return absl::OkStatus();
+  }
   return VisitSymbolicTree(predicate);
 }
 
@@ -420,6 +431,26 @@ absl::Status DslxTranslator::HandleDiv(SymbolicType* sym) {
   if (sym->IsSigned()) return HandleBinary(sym, Z3_mk_bvsdiv);
   return HandleBinary(sym, Z3_mk_bvudiv);
 }
+
+absl::Status DslxTranslator::HandleTernaryIf(SymbolicType* sym) {
+  solvers::z3::ScopedErrorHandler seh(ctx_);
+  XLS_ASSIGN_OR_RETURN(SymbolicType * ternary, sym->TernaryRoot());
+  XLS_ASSIGN_OR_RETURN(SymbolicType::Nodes nodes, sym->tree());
+
+  XLS_RETURN_IF_ERROR(TranslatePredicate(ternary));
+  XLS_RETURN_IF_ERROR(TranslatePredicate(nodes.left));
+  XLS_RETURN_IF_ERROR(TranslatePredicate(nodes.right));
+
+  absl::optional<Z3_ast> ast_test = GetTranslation(ternary);
+  absl::optional<Z3_ast> ast_consequent = GetTranslation(nodes.left);
+  absl::optional<Z3_ast> ast_alternate = GetTranslation(nodes.right);
+
+  Z3_ast result = Z3_mk_ite(ctx_, ast_test.value(), ast_consequent.value(),
+                            ast_alternate.value());
+  XLS_RETURN_IF_ERROR(NoteTranslation(sym, result));
+  return seh.status();
+}
+
 
 bool IsAstBoolPredicate(Z3_context ctx, Z3_ast objective) {
   static const Z3_decl_kind predicates[] = {

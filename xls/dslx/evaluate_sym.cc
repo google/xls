@@ -181,14 +181,33 @@ absl::StatusOr<InterpValue> EvaluateSymTernary(
     AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   XLS_ASSIGN_OR_RETURN(InterpValue test, interp->Eval(expr->test(), bindings));
   XLS_RET_CHECK(test.IsBits() && test.GetBitCount().value() == 1);
+
+  // Every constraint in the "consequent" should be conjuncted with the "test"
+  // constraint; similarly, every constraint in the "alternate" should be
+  // conjuncted with the negation of "test".
+  test_generator->AddConstraintToPath(test.sym(), /*negate=*/false);
+  XLS_ASSIGN_OR_RETURN(InterpValue value_consequent,
+                       interp->Eval(expr->consequent(), bindings));
+  test_generator->PopConstraintFromPath();
+  test_generator->AddConstraintToPath(test.sym(), /*negate=*/true);
+  XLS_ASSIGN_OR_RETURN(InterpValue value_alternate,
+                       interp->Eval(expr->alternate(), bindings));
+  test_generator->PopConstraintFromPath();
+
+  auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeTernary(
+      SymbolicType::Nodes{test.sym(), value_consequent.sym(),
+                          value_alternate.sym()},
+      ConcreteInfo{value_consequent.IsSigned(),
+                   value_consequent.GetBitsOrDie().bit_count()}));
+
   if (test.IsTrue()) {
     XLS_RETURN_IF_ERROR(
         test_generator->SolvePredicate(test.sym(), /*negate_predicate=*/true));
-    return interp->Eval(expr->consequent(), bindings);
+    return AddSymToValue(value_consequent, test_generator, std::move(sym_ptr));
   }
   XLS_RETURN_IF_ERROR(
       test_generator->SolvePredicate(test.sym(), /*negate_predicate=*/false));
-  return interp->Eval(expr->alternate(), bindings);
+  return AddSymToValue(value_alternate, test_generator, std::move(sym_ptr));
 }
 
 absl::StatusOr<InterpValue> EvaluateSymNumber(
@@ -267,6 +286,9 @@ absl::StatusOr<InterpValue> EvaluateSymFunction(
   }
 
   Module* m = f->owner();
+  if (f->identifier() == m->name()) {
+    test_generator->ResetRun();
+  }
   XLS_ASSIGN_OR_RETURN(const InterpBindings* top_level_bindings,
                        GetOrCreateTopLevelBindings(m, interp));
   XLS_VLOG(5) << "Evaluated top level bindings for module: " << m->name()
