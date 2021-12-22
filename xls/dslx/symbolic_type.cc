@@ -70,7 +70,7 @@ void SymbolicType::MarkAsFnParam(std::string id) {
   concrete_info_.id = id;
 }
 
-SymbolicType SymbolicType::CreateBinaryOp(SymbolicType* lhs, SymbolicType* rhs,
+SymbolicType SymbolicType::CreateLogicalOp(SymbolicType* lhs, SymbolicType* rhs,
                                           BinopKind op) {
   return SymbolicType(SymbolicType::Nodes{op, lhs, rhs},
                       ConcreteInfo{/*is_signed=*/false, /*bit_count=*/1},

@@ -186,17 +186,7 @@ static std::unique_ptr<ConcreteType> StrengthReduceEnum(const EnumDef& enum_def,
   return std::make_unique<BitsType>(is_signed, bit_count);
 }
 
-// Returns the concrete type of 'value'.
-//
-// Note that:
-// * Non-zero-length arrays are assumed (for zero length arrays we can't
-//    currently deduce the type from the value because the concrete element type
-//    is not reified in the array value.
-// * Enums are strength-reduced to their underlying bits (storage) type.
-//
-// Args:
-//   value: Value to determine the concrete type for.
-static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromValue(
+absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromValue(
     const InterpValue& value) {
   switch (value.tag()) {
     case InterpValueTag::kUBits:

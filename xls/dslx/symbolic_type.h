@@ -117,7 +117,7 @@ class SymbolicType {
   // Performs a postorder tree traversal under this node in the expression tree.
   absl::Status DoPostorder(const std::function<absl::Status(SymbolicType*)>& f);
 
-  static SymbolicType CreateBinaryOp(SymbolicType* lhs, SymbolicType* rhs,
+  static SymbolicType CreateLogicalOp(SymbolicType* lhs, SymbolicType* rhs,
                                      BinopKind op);
   absl::StatusOr<Nodes> tree() const;
 

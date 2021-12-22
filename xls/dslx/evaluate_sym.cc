@@ -33,9 +33,7 @@ namespace xls::dslx {
 DISPATCH_DEF(Carry)
 DISPATCH_DEF(Cast)
 DISPATCH_DEF(ConstRef)
-DISPATCH_DEF(For)
 DISPATCH_DEF(Let)
-DISPATCH_DEF(Match)
 DISPATCH_DEF(NameRef)
 DISPATCH_DEF(SplatStructInstance)
 DISPATCH_DEF(String)
@@ -221,6 +219,234 @@ absl::StatusOr<InterpValue> EvaluateSymNumber(
   auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeLiteral(
       ConcreteInfo{result.IsSigned(), result_bits.bit_count(), bit_value}));
   return AddSymToValue(result, test_generator, std::move(sym_ptr));
+}
+
+// Creates a symbolic predicate in the form of
+// SymbolicTree(target pattern) = SymbolicTree(to_matched value).
+static SymbolicType* CreateMatchPredicate(
+    InterpValue target, InterpValue to_match,
+    ConcolicTestGenerator* test_generator) {
+  auto symbolic_eq =
+      std::make_unique<SymbolicType>(SymbolicType::CreateLogicalOp(
+          to_match.sym(), target.sym(), BinopKind::kEq));
+  SymbolicType* sym_ptr = symbolic_eq.get();
+  test_generator->StoreSymPointers(std::move(symbolic_eq));
+  return sym_ptr;
+}
+
+// Given the predicates for the patterns P_i, chains the predicates as
+// either ~(P_1 || P_2 || ...) or ~(P_1 && P_2 && ...).
+static SymbolicType* ChainPredicates(std::vector<SymbolicType*> predicates,
+                                     ConcolicTestGenerator* test_generator,
+                                     BinopKind op, bool negate = false) {
+  std::vector<SymbolicType*> conjunctions = {predicates.at(0)};
+  for (int64_t i = 1; i < predicates.size(); ++i) {
+    auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::CreateLogicalOp(
+        conjunctions.back(), predicates.at(i), op));
+    conjunctions.push_back(sym_ptr.get());
+    test_generator->StoreSymPointers(std::move(sym_ptr));
+  }
+  if (negate) {
+    auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeUnary(
+        SymbolicType::Nodes{UnopKind::kInvert, conjunctions.back()},
+        ConcreteInfo{/*is_signed=*/false, /*bit_count=*/1}));
+    conjunctions.push_back(sym_ptr.get());
+    test_generator->StoreSymPointers(std::move(sym_ptr));
+  }
+  return conjunctions.back();
+}
+
+// Match evaluator returns a pair denoting whether the pattern was matched along
+// with the constraint for that pattern.
+struct MatcherResults {
+  SymbolicType* constraint;
+  bool matched;
+};
+
+// Returns whether this matcher pattern is accepted and creates the constraint
+// for the pattern.
+//
+// If the pattern is a wild card or name definition, the constraint is
+//
+//                 ~(P1 || P2 || ...)
+//
+// where P1, P2, ... are constraints before the wild card.
+//
+// Otherwise the constraint is P: to_match = target.
+// Notice that if pattern is a tuple, the constraint is a chain in the format:
+//
+//     ((to_match_1 = target_1) && (to_match_2 = target_2) && ...).
+//
+// Args:
+//  pattern: Decribes the pattern attempting to match against the value.
+//  to_match: The value being matched against.
+//  bindings: The bindings to populate if the pattern has bindings associated
+//    with it.
+//  pattern_constraint: List of constraints seen so far.
+static absl::StatusOr<MatcherResults> EvaluateSymMatcher(
+    NameDefTree* pattern, const InterpValue& to_match, InterpBindings* bindings,
+    std::vector<SymbolicType*>& pattern_constraint, AbstractInterpreter* interp,
+    ConcolicTestGenerator* test_generator) {
+  if (pattern->is_leaf()) {
+    NameDefTree::Leaf leaf = pattern->leaf();
+    if (absl::holds_alternative<WildcardPattern*>(leaf)) {
+      SymbolicType* predicate =
+          ChainPredicates(pattern_constraint, test_generator,
+                          BinopKind::kLogicalOr, /*negate=*/true);
+      return MatcherResults{predicate, true};
+    }
+    if (absl::holds_alternative<NameDef*>(leaf)) {
+      bindings->AddValue(absl::get<NameDef*>(leaf)->identifier(), to_match);
+      SymbolicType* predicate =
+          ChainPredicates(pattern_constraint, test_generator,
+                          BinopKind::kLogicalOr, /*negate=*/true);
+      return MatcherResults{predicate, true};
+    }
+    if (absl::holds_alternative<Number*>(leaf) ||
+        absl::holds_alternative<ColonRef*>(leaf)) {
+      XLS_ASSIGN_OR_RETURN(InterpValue target,
+                           interp->Eval(ToExprNode(leaf), bindings));
+      SymbolicType* predicate =
+          CreateMatchPredicate(target, to_match, test_generator);
+      pattern_constraint.push_back(predicate);
+      return MatcherResults{predicate, target.Eq(to_match)};
+    }
+    XLS_RET_CHECK(absl::holds_alternative<NameRef*>(leaf));
+    XLS_ASSIGN_OR_RETURN(InterpValue target,
+                         interp->Eval(absl::get<NameRef*>(leaf), bindings));
+    SymbolicType* predicate =
+        CreateMatchPredicate(target, to_match, test_generator);
+    pattern_constraint.push_back(predicate);
+    return MatcherResults{predicate, target.Eq(to_match)};
+  }
+  // Pattern is a tuple.
+  XLS_RET_CHECK_EQ(to_match.GetLength().value(), pattern->nodes().size());
+  std::vector<SymbolicType*> tuple_constraints;
+  bool matched = true;
+  for (int64_t i = 0; i < pattern->nodes().size(); ++i) {
+    NameDefTree* subtree = pattern->nodes()[i];
+    const InterpValue& member = to_match.GetValuesOrDie().at(i);
+    XLS_ASSIGN_OR_RETURN(
+        MatcherResults result,
+        EvaluateSymMatcher(subtree, member, bindings, pattern_constraint,
+                           interp, test_generator));
+    // If there is a wild card inside the tuple, there is no need to add it to
+    // the set of constraints for that tuple.
+    if (!absl::holds_alternative<WildcardPattern*>(subtree->leaf()) &&
+        !absl::holds_alternative<NameDef*>(subtree->leaf())) {
+      tuple_constraints.push_back(result.constraint);
+    }
+    if (!result.matched) {
+      matched = false;
+    }
+  }
+  // Creates a chain of constraint based on the values inside the tuple.
+  SymbolicType* constraint =
+      ChainPredicates(tuple_constraints, test_generator, BinopKind::kLogicalAnd,
+                      /*negate=*/false);
+  if (pattern_constraint.empty()) {
+    pattern_constraint.push_back(constraint);
+  } else {
+    std::vector<SymbolicType*> chain_constraints = {pattern_constraint.back(),
+                                                    constraint};
+    pattern_constraint = {ChainPredicates(chain_constraints, test_generator,
+                                          BinopKind::kLogicalOr,
+                                          /*negate=*/false)};
+  }
+  return MatcherResults{constraint, matched};
+}
+
+// For each pattern in the match expression, solves the constraint corresponding
+// to that pattern.
+absl::StatusOr<InterpValue> EvaluateSymMatch(
+    Match* expr, InterpBindings* bindings, ConcreteType* type_context,
+    AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
+  bool found_match = false;
+  Expr* matched_expr = nullptr;
+  SymbolicType* matched_constraint;
+  std::vector<SymbolicType*> pattern_constraint;
+
+  XLS_ASSIGN_OR_RETURN(InterpValue to_match,
+                       interp->Eval(expr->matched(), bindings));
+  for (MatchArm* arm : expr->arms()) {
+    for (NameDefTree* pattern : arm->patterns()) {
+      XLS_ASSIGN_OR_RETURN(
+          MatcherResults matcher_result,
+          EvaluateSymMatcher(pattern, to_match, bindings, pattern_constraint,
+                             interp, test_generator));
+      XLS_RETURN_IF_ERROR(
+          test_generator->SolvePredicate(matcher_result.constraint,
+                                         /*negate_predicate=*/false));
+      // Since we want to solve all the constraints in the match expression,
+      // we can't return early here.
+      if (matcher_result.matched && !found_match) {
+        found_match = true;
+        matched_constraint = matcher_result.constraint;
+        matched_expr = arm->expr();
+      }
+    }
+  }
+
+  if (found_match) {
+    // Every constraint after this match expression in the program needs to be
+    // ANDed with the constraint that says the input matches the pattern.
+    test_generator->AddConstraintToPath(matched_constraint,
+                                        /*negate=*/false);
+    return interp->Eval(matched_expr, bindings);
+  }
+  return absl::InternalError(
+      absl::StrFormat("FailureError: %s The program being interpreted failed "
+                      "with an incomplete match; value: %s",
+                      expr->span().ToString(), to_match.ToString()));
+}
+
+absl::StatusOr<InterpValue> EvaluateSymFor(
+    For* expr, InterpBindings* bindings, ConcreteType* type_context,
+    AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
+  XLS_ASSIGN_OR_RETURN(InterpValue iterable,
+                       interp->Eval(expr->iterable(), bindings));
+  std::unique_ptr<ConcreteType> concrete_iteration_type;
+  if (expr->type_annotation() != nullptr) {
+    XLS_ASSIGN_OR_RETURN(
+        concrete_iteration_type,
+        ConcretizeTypeAnnotation(expr->type_annotation(), bindings, interp));
+  }
+
+  XLS_ASSIGN_OR_RETURN(InterpValue carry, interp->Eval(expr->init(), bindings));
+  XLS_ASSIGN_OR_RETURN(int64_t length, iterable.GetLength());
+
+  for (int64_t i = 0; i < length; ++i) {
+    const InterpValue& x = iterable.GetValuesOrDie().at(i);
+    XLS_ASSIGN_OR_RETURN(int64_t bit_value, x.GetBitsOrDie().ToInt64());
+    auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeLiteral(
+        ConcreteInfo{x.IsSigned(), x.GetBitCount().value(), bit_value}));
+    const InterpValue& x_sym =
+        AddSymToValue(x, test_generator, std::move(sym_ptr));
+    InterpValue iteration = InterpValue::MakeTuple({x_sym, carry});
+
+    // If there's a type annotation, validate that the value we evaluated
+    // conforms to it as a spot check.
+    if (concrete_iteration_type != nullptr) {
+      XLS_ASSIGN_OR_RETURN(
+          bool type_checks,
+          ConcreteTypeAcceptsValue(*concrete_iteration_type, iteration));
+      if (!type_checks) {
+        XLS_ASSIGN_OR_RETURN(auto concrete_type,
+                             ConcreteTypeFromValue(iteration));
+        return absl::InternalError(absl::StrFormat(
+            "EvaluateError: %s Type error found! Iteration value does not "
+            "conform to type annotation at top of iteration %d:\n  got "
+            "value: "
+            "%s\n  type: %s\n  want: %s",
+            expr->span().ToString(), i, iteration.ToString(),
+            concrete_type->ToString(), concrete_iteration_type->ToString()));
+      }
+    }
+    InterpBindings new_bindings =
+        InterpBindings::CloneWith(bindings, expr->names(), iteration);
+    XLS_ASSIGN_OR_RETURN(carry, interp->Eval(expr->body(), &new_bindings));
+  }
+  return carry;
 }
 
 absl::StatusOr<InterpValue> EvaluateSymColonRef(

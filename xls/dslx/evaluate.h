@@ -25,6 +25,19 @@
 
 namespace xls::dslx {
 
+// Returns the concrete type of 'value'.
+//
+// Note that:
+// * Non-zero-length arrays are assumed (for zero length arrays we can't
+//    currently deduce the type from the value because the concrete element type
+//    is not reified in the array value.
+// * Enums are strength-reduced to their underlying bits (storage) type.
+//
+// Args:
+//   value: Value to determine the concrete type for.
+absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromValue(
+    const InterpValue& value);
+
 // Returns whether 'value' conforms to the given concrete type.
 absl::StatusOr<bool> ConcreteTypeAcceptsValue(const ConcreteType& type,
                                               const InterpValue& value);
