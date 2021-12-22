@@ -26,10 +26,11 @@ namespace xls::solvers::z3 {
 
 absl::Status DslxTranslator::VisitSymbolicTree(SymbolicType* sym) {
   auto Walk = [&](SymbolicType* x) -> absl::Status {
-    if (x->IsLeaf())
+    if (x->IsLeaf()) {
       XLS_RETURN_IF_ERROR(ProcessSymbolicLeaf(x));
-    else
+    } else {
       XLS_RETURN_IF_ERROR(ProcessSymbolicNode(x));
+    }
     return absl::OkStatus();
   };
   XLS_RETURN_IF_ERROR(sym->DoPostorder(Walk));
@@ -37,63 +38,68 @@ absl::Status DslxTranslator::VisitSymbolicTree(SymbolicType* sym) {
 }
 
 absl::Status DslxTranslator::ProcessSymbolicNode(SymbolicType* sym) {
-  switch (sym->op()) {
-    case dslx::BinopKind::kAdd:
-      XLS_RETURN_IF_ERROR(HandleAdd(sym));
-      break;
-    case dslx::BinopKind::kLogicalAnd:
-    case dslx::BinopKind::kAnd:
-      XLS_RETURN_IF_ERROR(HandleAnd(sym));
-      break;
-    case dslx::BinopKind::kEq:
-      XLS_RETURN_IF_ERROR(HandleEq(sym));
-      break;
-    case dslx::BinopKind::kNe:
-      XLS_RETURN_IF_ERROR(HandleNe(sym));
-      break;
-    case dslx::BinopKind::kLogicalOr:
-    case dslx::BinopKind::kOr:
-      XLS_RETURN_IF_ERROR(HandleOr(sym));
-      break;
-    case dslx::BinopKind::kGt:
-      XLS_RETURN_IF_ERROR(HandleGt(sym));
-      break;
-    case dslx::BinopKind::kGe:
-      XLS_RETURN_IF_ERROR(HandleGe(sym));
-      break;
-    case dslx::BinopKind::kShl:
-      XLS_RETURN_IF_ERROR(HandleShll(sym));
-      break;
-    case dslx::BinopKind::kShr:
-      if (sym->IsSigned())
-        XLS_RETURN_IF_ERROR(HandleShra(sym));
-      else
-        XLS_RETURN_IF_ERROR(HandleShrl(sym));
-      break;
-    case dslx::BinopKind::kLe:
-      XLS_RETURN_IF_ERROR(HandleLe(sym));
-      break;
-    case dslx::BinopKind::kLt:
-      XLS_RETURN_IF_ERROR(HandleLt(sym));
-      break;
-    case dslx::BinopKind::kMul:
-      XLS_RETURN_IF_ERROR(HandleMul(sym));
-      break;
-    case dslx::BinopKind::kSub:
-      XLS_RETURN_IF_ERROR(HandleSub(sym));
-      break;
-    case dslx::BinopKind::kXor:
-      XLS_RETURN_IF_ERROR(HandleXor(sym));
-      break;
-    case dslx::BinopKind::kConcat:
-      XLS_RETURN_IF_ERROR(HandleConcat(sym));
-      break;
-    case dslx::BinopKind::kDiv:
-      XLS_RETURN_IF_ERROR(HandleDiv(sym));
-      break;
-    default:
-      return absl::InternalError("Invalid binary operation kind " +
-                                 dslx::BinopKindToString(sym->op()));
+  XLS_ASSIGN_OR_RETURN(SymbolicType::OpKind op, sym->op());
+  if (absl::holds_alternative<dslx::BinopKind>(op)) {
+    dslx::BinopKind binop = absl::get<dslx::BinopKind>(op);
+    switch (binop) {
+      case dslx::BinopKind::kAdd:
+        XLS_RETURN_IF_ERROR(HandleAdd(sym));
+        break;
+      case dslx::BinopKind::kLogicalAnd:
+      case dslx::BinopKind::kAnd:
+        XLS_RETURN_IF_ERROR(HandleAnd(sym));
+        break;
+      case dslx::BinopKind::kEq:
+        XLS_RETURN_IF_ERROR(HandleEq(sym));
+        break;
+      case dslx::BinopKind::kNe:
+        XLS_RETURN_IF_ERROR(HandleNe(sym));
+        break;
+      case dslx::BinopKind::kLogicalOr:
+      case dslx::BinopKind::kOr:
+        XLS_RETURN_IF_ERROR(HandleOr(sym));
+        break;
+      case dslx::BinopKind::kGt:
+        XLS_RETURN_IF_ERROR(HandleGt(sym));
+        break;
+      case dslx::BinopKind::kGe:
+        XLS_RETURN_IF_ERROR(HandleGe(sym));
+        break;
+      case dslx::BinopKind::kShl:
+        XLS_RETURN_IF_ERROR(HandleShll(sym));
+        break;
+      case dslx::BinopKind::kShr:
+        if (sym->IsSigned()) {
+          XLS_RETURN_IF_ERROR(HandleShra(sym));
+        } else {
+          XLS_RETURN_IF_ERROR(HandleShrl(sym));
+        }
+        break;
+      case dslx::BinopKind::kLe:
+        XLS_RETURN_IF_ERROR(HandleLe(sym));
+        break;
+      case dslx::BinopKind::kLt:
+        XLS_RETURN_IF_ERROR(HandleLt(sym));
+        break;
+      case dslx::BinopKind::kMul:
+        XLS_RETURN_IF_ERROR(HandleMul(sym));
+        break;
+      case dslx::BinopKind::kSub:
+        XLS_RETURN_IF_ERROR(HandleSub(sym));
+        break;
+      case dslx::BinopKind::kXor:
+        XLS_RETURN_IF_ERROR(HandleXor(sym));
+        break;
+      case dslx::BinopKind::kConcat:
+        XLS_RETURN_IF_ERROR(HandleConcat(sym));
+        break;
+      case dslx::BinopKind::kDiv:
+        XLS_RETURN_IF_ERROR(HandleDiv(sym));
+        break;
+      default:
+        return absl::InternalError("Invalid binary operation kind " +
+                                   dslx::BinopKindToString(binop));
+    }
   }
   return absl::OkStatus();
 }
@@ -160,12 +166,13 @@ absl::Status DslxTranslator::NoteTranslation(SymbolicType* node,
 absl::StatusOr<Z3_ast> DslxTranslator::TranslateLiteralValue(
     SymbolicType* sym) {
   if (sym->IsBits()) {
-    XLS_ASSIGN_OR_RETURN(Bits bits, sym->GetBits());
-    std::unique_ptr<bool[]> booleans(new bool[bits.bit_count()]);
-    for (int64_t i = 0; i < bits.bit_count(); ++i) {
-      booleans[i] = bits.Get(i);
+    int64_t bit_count = sym->bit_count();
+    int64_t bit_value = sym->bit_value();
+    std::unique_ptr<bool[]> booleans(new bool[bit_count]);
+    for (int64_t i = 0; i < bit_count; ++i) {
+      booleans[i] = ((bit_value >> i) & 1) == 1;
     }
-    return Z3_mk_bv_numeral(ctx_, bits.bit_count(), &booleans[0]);
+    return Z3_mk_bv_numeral(ctx_, bit_count, &booleans[0]);
   }
 
   return absl::InternalError("DSLX node " + sym->ToString().value() +
@@ -191,7 +198,7 @@ Z3_ast DslxTranslator::GetBitVec(SymbolicType* sym) {
   Z3_sort value_sort = Z3_get_sort(ctx_, z3_value);
   XLS_CHECK_EQ(Z3_get_sort_kind(ctx_, value_sort), Z3_BV_SORT);
 
-  XLS_CHECK_EQ(sym->GetBitCount(), Z3_get_bv_sort_size(ctx_, value_sort));
+  XLS_CHECK_EQ(sym->bit_count(), Z3_get_bv_sort_size(ctx_, value_sort));
   return z3_value;
 }
 
@@ -204,7 +211,7 @@ int64_t DslxTranslator::GetBitVecCount(SymbolicType* sym) {
 template <typename FnT>
 absl::Status DslxTranslator::HandleBinary(SymbolicType* sym, FnT f) {
   solvers::z3::ScopedErrorHandler seh(ctx_);
-  XLS_ASSIGN_OR_RETURN(SymbolicType::Nodes nodes, sym->nodes());
+  XLS_ASSIGN_OR_RETURN(SymbolicType::Nodes nodes, sym->tree());
   Z3_ast result = f(ctx_, GetBitVec(nodes.left), GetBitVec(nodes.right));
   XLS_RETURN_IF_ERROR(NoteTranslation(sym, result));
   return seh.status();
@@ -252,16 +259,17 @@ absl::Status DslxTranslator::HandleNe(SymbolicType* sym) {
 template <typename FnT>
 absl::Status DslxTranslator::HandleShift(SymbolicType* sym, FnT fshift) {
   auto f = [sym, fshift, this](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
-    SymbolicType::Nodes nodes = sym->nodes().value();
+    SymbolicType::Nodes nodes = sym->tree().value();
     int64_t lhs_bit_count = GetBitVecCount(nodes.left);
     int64_t rhs_bit_count = GetBitVecCount(nodes.right);
     if (rhs_bit_count < lhs_bit_count) {
       rhs = Z3_mk_zero_ext(ctx, lhs_bit_count - rhs_bit_count, rhs);
     } else if (rhs_bit_count > lhs_bit_count) {
-      if (nodes.left->IsSigned())
+      if (nodes.left->IsSigned()) {
         lhs = Z3_mk_sign_ext(ctx, rhs_bit_count - lhs_bit_count, lhs);
-      else
+      } else {
         lhs = Z3_mk_zero_ext(ctx, rhs_bit_count - lhs_bit_count, lhs);
+      }
     }
     return fshift(ctx, lhs, rhs);
   };
@@ -297,7 +305,7 @@ absl::Status DslxTranslator::HandleConcat(SymbolicType* sym) {
 }
 
 absl::StatusOr<Z3_ast> DslxTranslator::CreateZ3Param(SymbolicType* sym) {
-  Z3_sort sort = Z3_mk_bv_sort(ctx_, sym->GetBitCount());
+  Z3_sort sort = Z3_mk_bv_sort(ctx_, sym->bit_count());
   return Z3_mk_const(
       ctx_,
       Z3_mk_string_symbol(ctx_, std::string(sym->ToString().value()).c_str()),
@@ -313,7 +321,7 @@ absl::Status DslxTranslator::HandleParam(SymbolicType* sym) {
 
 absl::Status DslxTranslator::HandleMulHelper(SymbolicType* sym,
                                              bool is_signed) {
-  XLS_ASSIGN_OR_RETURN(SymbolicType::Nodes nodes, sym->nodes());
+  XLS_ASSIGN_OR_RETURN(SymbolicType::Nodes nodes, sym->tree());
   Z3_ast lhs = GetValue(nodes.left);
   Z3_ast rhs = GetValue(nodes.right);
 
@@ -322,10 +330,11 @@ absl::Status DslxTranslator::HandleMulHelper(SymbolicType* sym,
   // will be the same as the operands.
   int result_size = Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, lhs));
   Z3_ast result;
-  if (is_signed)
+  if (is_signed) {
     result = Z3_mk_bvmul(ctx_, lhs, rhs);
-  else
+  } else {
     result = solvers::z3::DoUnsignedMul(ctx_, lhs, rhs, result_size);
+  }
   XLS_RETURN_IF_ERROR(NoteTranslation(sym, result));
   return absl::OkStatus();
 }
@@ -348,8 +357,11 @@ bool IsAstBoolPredicate(Z3_context ctx, Z3_ast objective) {
       Z3_OP_ULT, Z3_OP_SLT,  Z3_OP_UGT,  Z3_OP_SGT};
   Z3_decl_kind objective_kind =
       Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx, Z3_to_app(ctx, objective)));
-  for (const auto& p : predicates)
-    if (objective_kind == p) return true;
+  for (const auto& p : predicates) {
+    if (objective_kind == p) {
+      return true;
+    }
+  }
   return false;
 }
 

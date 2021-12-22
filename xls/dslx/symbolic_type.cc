@@ -19,50 +19,101 @@
 
 namespace xls::dslx {
 
-inline absl::StatusOr<std::string> SymbolicType::LeafToString() {
-  XLS_ASSIGN_OR_RETURN(Leaf leaf, leaf());
-  return absl::get<Param*>(leaf)->identifier();
+/*static*/ SymbolicType SymbolicType::MakeUnary(Nodes expr_tree,
+                                                ConcreteInfo concrete_info) {
+  return SymbolicType(expr_tree, concrete_info, SymbolicNodeTag::kInternalOp);
+}
+/*static*/ SymbolicType SymbolicType::MakeBinary(Nodes expr_tree,
+                                                 ConcreteInfo concrete_info) {
+  return SymbolicType(expr_tree, concrete_info, SymbolicNodeTag::kInternalOp);
+}
+/*static*/ SymbolicType SymbolicType::MakeTernary(Nodes expr_tree,
+                                                  ConcreteInfo concrete_info) {
+  return SymbolicType(expr_tree, concrete_info,
+                      SymbolicNodeTag::kInternalTernary);
 }
 
-inline absl::StatusOr<uint64_t> SymbolicType::LeafToUint64() {
-  XLS_ASSIGN_OR_RETURN(Leaf leaf, leaf());
-  return absl::get<Bits>(leaf).ToUint64();
+/*static*/ SymbolicType SymbolicType::MakeLiteral(ConcreteInfo concrete_info) {
+  return SymbolicType(concrete_info, SymbolicNodeTag::kNumber);
 }
 
-absl::StatusOr<SymbolicType::Nodes> SymbolicType::nodes() {
-  Nodes* nodes = absl::get_if<Nodes>(&expr_tree_);
-  if (nodes == nullptr)
-    return absl::NotFoundError("Expression tree does not hold any nodes.");
-
-  return absl::get<Nodes>(expr_tree_);
+/*static*/ SymbolicType SymbolicType::MakeParam(ConcreteInfo concrete_info) {
+  return SymbolicType(concrete_info, SymbolicNodeTag::kFnParam);
 }
 
-bool SymbolicType::IsBits() {
-  return absl::holds_alternative<Leaf>(expr_tree_) &&
-         absl::holds_alternative<Bits>(leaf().value());
+/*static*/ SymbolicType SymbolicType::MakeArray(
+    std::vector<SymbolicType*> children) {
+  return SymbolicType(children, SymbolicNodeTag::kArray);
 }
 
-absl::StatusOr<Bits> SymbolicType::GetBits() {
-  XLS_RET_CHECK(IsBits());
-  XLS_ASSIGN_OR_RETURN(Leaf leaf, leaf());
-  return absl::get<Bits>(leaf);
+absl::StatusOr<SymbolicType::OpKind> SymbolicType::op() {
+  XLS_RET_CHECK(tag_ == SymbolicNodeTag::kInternalOp);
+  XLS_ASSIGN_OR_RETURN(Root root, root());
+  return absl::get<SymbolicType::OpKind>(root);
+}
+
+absl::StatusOr<std::string> SymbolicType::OpToString() {
+  XLS_ASSIGN_OR_RETURN(OpKind op, op());
+  if (absl::holds_alternative<BinopKind>(op)) {
+    return BinopKindFormat(absl::get<BinopKind>(op));
+  }
+  return UnopKindToString(absl::get<UnopKind>(op));
+}
+absl::StatusOr<SymbolicType*> SymbolicType::TernaryRoot() {
+  XLS_RET_CHECK(tag_ == SymbolicNodeTag::kInternalTernary);
+  XLS_ASSIGN_OR_RETURN(Root root, root());
+  return absl::get<SymbolicType*>(root);
+}
+
+void SymbolicType::MarkAsFnParam(std::string id) {
+  tag_ = SymbolicNodeTag::kFnParam;
+  concrete_info_.id = id;
+}
+
+SymbolicType SymbolicType::CreateBinaryOp(SymbolicType* lhs, SymbolicType* rhs,
+                                          BinopKind op) {
+  return SymbolicType(SymbolicType::Nodes{op, lhs, rhs},
+                      ConcreteInfo{/*is_signed=*/false, /*bit_count=*/1},
+                      SymbolicNodeTag::kInternalOp);
+}
+
+absl::StatusOr<SymbolicType::Nodes> SymbolicType::tree() const {
+  XLS_RET_CHECK(tag_ == SymbolicNodeTag::kInternalOp ||
+                tag_ == SymbolicNodeTag::kInternalTernary);
+  return expr_tree_;
+}
+
+absl::StatusOr<SymbolicType::Root> SymbolicType::root() {
+  XLS_RET_CHECK(tag_ == SymbolicNodeTag::kInternalOp ||
+                tag_ == SymbolicNodeTag::kInternalTernary);
+  return expr_tree_.root;
 }
 
 absl::StatusOr<std::string> SymbolicType::ToString() {
-  if (IsLeaf()) {
-    if (IsBits()) {
-      XLS_ASSIGN_OR_RETURN(uint64_t bits_value, LeafToUint64());
-      return std::to_string(bits_value);
+  switch (tag_) {
+    case SymbolicNodeTag::kFnParam:
+    case SymbolicNodeTag::kArray:
+      return concrete_info_.id;
+    case SymbolicNodeTag::kNumber:
+      return std::to_string(concrete_info_.bit_value);
+    case SymbolicNodeTag::kInternalOp:
+    case SymbolicNodeTag::kInternalTernary: {
+      XLS_ASSIGN_OR_RETURN(std::string node_left,
+                           this->expr_tree_.left->ToString());
+      // Unary operations have null pointer as their right child.
+      std::string node_right = "";
+      if (expr_tree_.right != nullptr) {
+        XLS_ASSIGN_OR_RETURN(node_right, this->expr_tree_.right->ToString());
+      }
+      std::string guts = absl::StrCat(node_left, ", ", node_right);
+      if (IsTernary()) {
+        XLS_ASSIGN_OR_RETURN(SymbolicType * root, TernaryRoot());
+        XLS_ASSIGN_OR_RETURN(std::string root_string, root->ToString());
+        return absl::StrCat(absl::StrFormat("(%s)", guts), "if ", root_string);
+      }
+      XLS_ASSIGN_OR_RETURN(std::string op_string, OpToString());
+      return absl::StrCat(absl::StrFormat("(%s)", guts), op_string);
     }
-    return LeafToString();
-  } else {
-    XLS_ASSIGN_OR_RETURN(Nodes tree_nodes, nodes());
-    XLS_ASSIGN_OR_RETURN(std::string node_left, tree_nodes.left->ToString());
-    XLS_ASSIGN_OR_RETURN(std::string node_right, tree_nodes.right->ToString());
-
-    std::string guts = absl::StrCat(node_left, ", ", node_right);
-    return absl::StrCat(absl::StrFormat("(%s)", guts),
-                        BinopKindFormat(this->root_op_));
   }
 }
 
@@ -72,13 +123,13 @@ absl::Status SymbolicType::DoPostorder(
     XLS_RETURN_IF_ERROR(f(this));
     return absl::OkStatus();
   }
-
-  XLS_ASSIGN_OR_RETURN(Nodes tree_nodes, nodes());
-
-  XLS_RETURN_IF_ERROR(tree_nodes.left->DoPostorder(f));
-  XLS_RETURN_IF_ERROR(tree_nodes.right->DoPostorder(f));
+  XLS_RETURN_IF_ERROR(expr_tree_.left->DoPostorder(f));
+  if (expr_tree_.right == nullptr) {
+    XLS_RETURN_IF_ERROR(f(nullptr));
+  } else {
+    XLS_RETURN_IF_ERROR(expr_tree_.right->DoPostorder(f));
+  }
   XLS_RETURN_IF_ERROR(f(this));
-
   return absl::OkStatus();
 }
 

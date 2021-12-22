@@ -22,46 +22,44 @@
 namespace xls::dslx {
 namespace {
 
-using status_testing::IsOkAndHolds;
-
 TEST(SymbolicTypeTest, AddBitsLeaf) {
-  auto ff = InterpValue::MakeUBits(/*bit_count=*/8, /*value=*/255);
-  auto sym =
-      SymbolicType(ff.GetBitsOrDie(), ff.GetBitCount().value(), ff.IsSigned());
-
+  auto ff = InterpValue::MakeUBits(/*bit_count=*/8, /*value=*/25);
+  auto sym = SymbolicType::MakeLiteral(
+      ConcreteInfo{ff.IsSigned(), ff.GetBitCount().value(),
+                   ff.GetBitsOrDie().ToInt64().value()});
   EXPECT_TRUE(sym.IsLeaf());
   XLS_EXPECT_OK(sym.ToString());
-  EXPECT_EQ(sym.ToString().value(), "255");
+  EXPECT_EQ(sym.ToString().value(), "25");
   EXPECT_EQ(sym.IsSigned(), ff.IsSigned());
-  EXPECT_EQ(sym.GetBitCount(), ff.GetBitCount().value());
-  EXPECT_THAT(sym.GetBits(), IsOkAndHolds(ff.GetBitsOrDie()));
+  EXPECT_EQ(sym.bit_count(), ff.GetBitCount().value());
 }
 
 TEST(SymbolicTypeTest, AddParamLeaf) {
   auto module = std::make_unique<Module>("test");
   Pos fake_pos("<fake>", 0, 0);
   Span fake_span(fake_pos, fake_pos);
-  auto* u32 = module->Make<BuiltinTypeAnnotation>(fake_span, BuiltinType::kU32);
-  auto* x = module->Make<NameDef>(fake_span, "x", /*definer=*/nullptr);
-  Param* param = {module->Make<Param>(x, u32)};
-  auto sym = SymbolicType(param, /*bit_count=*/32, /*is_signed=*/false);
+  auto sym = SymbolicType::MakeParam(ConcreteInfo{/*is_signed=*/false,
+                                                  /*bit_count=*/32,
+                                                  /*bit_value=*/0, "x"});
   XLS_EXPECT_OK(sym.ToString());
   EXPECT_EQ(sym.ToString().value(), "x");
 }
 
 TEST(SymbolicTypeTest, CreateNode) {
-  auto ff = InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/255);
+  auto ff = InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/25);
   auto zero = InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/0);
 
-  auto sym_ff =
-      SymbolicType(ff.GetBitsOrDie(), ff.GetBitCount().value(), ff.IsSigned());
-  auto sym_zero = SymbolicType(zero.GetBitsOrDie(), zero.GetBitCount().value(),
-                               zero.IsSigned());
-  auto node =
-      SymbolicType(SymbolicType::Nodes{&sym_ff, &sym_zero}, BinopKind::kAdd,
-                   sym_ff.GetBitCount(), sym_ff.IsSigned());
+  auto sym_ff = SymbolicType::MakeLiteral(
+      ConcreteInfo{ff.IsSigned(), ff.GetBitCount().value(),
+                   ff.GetBitsOrDie().ToInt64().value()});
+  auto sym_zero = SymbolicType::MakeLiteral(
+      ConcreteInfo{zero.IsSigned(), zero.GetBitCount().value(),
+                   zero.GetBitsOrDie().ToInt64().value()});
+  auto node = SymbolicType::MakeBinary(
+      SymbolicType::Nodes{BinopKind::kAdd, &sym_ff, &sym_zero},
+      ConcreteInfo{sym_ff.IsSigned(), sym_ff.bit_count()});
   XLS_EXPECT_OK(node.ToString());
-  EXPECT_EQ(node.ToString().value(), "(255, 0)+");
+  EXPECT_EQ(node.ToString().value(), "(25, 0)+");
 }
 
 }  // namespace

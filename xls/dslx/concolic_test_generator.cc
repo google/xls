@@ -48,7 +48,7 @@ absl::StatusOr<InterpValue> Z3AstToInterpValue(
                   /*model_completion=*/true, &z3_value);
     Z3_get_numeral_int64(ctx, z3_value, &value_int);
   }
-  int64_t bit_count = sym->GetBitCount();
+  int64_t bit_count = sym->bit_count();
   if (sym->IsSigned()) {
     // Computes the 2's complement in case of negative number.
     return InterpValue::MakeSBits(bit_count,

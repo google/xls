@@ -50,9 +50,7 @@ DISPATCH_DEF(XlsTuple)
 
 template <typename... Args>
 InterpValue AddSymToValue(InterpValue concrete_value, InterpBindings* bindings,
-                          Args&&... args) {
-  auto sym_ptr =
-      std::make_unique<SymbolicType>(SymbolicType(std::forward<Args>(args)...));
+                          std::unique_ptr<SymbolicType> sym_ptr) {
   InterpValue sym_value = concrete_value.UpdateWithSym(sym_ptr.get());
   bindings->AddSymValues(std::move(sym_ptr));
   return sym_value;
@@ -79,8 +77,11 @@ absl::StatusOr<InterpValue> EvaluateSymNumber(
   XLS_ASSIGN_OR_RETURN(InterpValue result,
                        EvaluateNumber(expr, bindings, type_context, interp));
   XLS_ASSIGN_OR_RETURN(Bits result_bits, result.GetBits());
-  return AddSymToValue(result, bindings, result_bits,
-                       result.GetBitCount().value(), result.IsSigned());
+  XLS_ASSIGN_OR_RETURN(int64_t bit_value, result_bits.ToInt64());
+
+  auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeLiteral(
+      ConcreteInfo{result.IsSigned(), result_bits.bit_count(), bit_value}));
+  return AddSymToValue(result, bindings, std::move(sym_ptr));
 }
 
 absl::StatusOr<InterpValue> EvaluateSymFunction(
@@ -110,9 +111,12 @@ absl::StatusOr<InterpValue> EvaluateSymFunction(
   fn_bindings.set_fn_ctx(FnCtx{m->name(), f->identifier(), symbolic_bindings});
   for (int64_t i = 0; i < f->params().size(); ++i) {
     if (args[i].IsBits()) {
+      auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeParam(
+          ConcreteInfo{args[i].IsSigned(), args[i].GetBitCount().value(),
+                       /*bit_value=*/0, f->params()[i]->identifier()}));
       InterpValue symbolic_arg =
-          AddSymToValue(args[i], &fn_bindings, f->params()[i],
-                        args[i].GetBitCount().value(), args[i].IsSigned());
+          AddSymToValue(args[i], &fn_bindings, std::move(sym_ptr));
+
       fn_bindings.AddValue(f->params()[i]->identifier(), symbolic_arg);
       test_generator->AddFnParam(symbolic_arg);
     } else {
@@ -146,21 +150,24 @@ absl::StatusOr<InterpValue> EvaluateSymShift(Binop* expr,
   switch (binop) {
     case BinopKind::kShl: {
       XLS_ASSIGN_OR_RETURN(InterpValue result, lhs.Shl(rhs));
-      return AddSymToValue(result, bindings,
-                           SymbolicType::Nodes{lhs.sym(), rhs.sym()}, binop,
-                           result.GetBitCount().value(), result.IsSigned());
+      auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeBinary(
+          SymbolicType::Nodes{binop, lhs.sym(), rhs.sym()},
+          ConcreteInfo{result.IsSigned(), result.GetBitCount().value()}));
+      return AddSymToValue(result, bindings, std::move(sym_ptr));
     }
     case BinopKind::kShr: {
       if (lhs.IsSigned()) {
         XLS_ASSIGN_OR_RETURN(InterpValue result, lhs.Shra(rhs));
-        return AddSymToValue(result, bindings,
-                             SymbolicType::Nodes{lhs.sym(), rhs.sym()}, binop,
-                             result.GetBitCount().value(), result.IsSigned());
+        auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeBinary(
+            SymbolicType::Nodes{binop, lhs.sym(), rhs.sym()},
+            ConcreteInfo{result.IsSigned(), result.GetBitCount().value()}));
+        return AddSymToValue(result, bindings, std::move(sym_ptr));
       }
       XLS_ASSIGN_OR_RETURN(InterpValue result, lhs.Shrl(rhs));
-      return AddSymToValue(result, bindings,
-                           SymbolicType::Nodes{lhs.sym(), rhs.sym()}, binop,
-                           result.GetBitCount().value(), result.IsSigned());
+      auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeBinary(
+          SymbolicType::Nodes{binop, lhs.sym(), rhs.sym()},
+          ConcreteInfo{result.IsSigned(), result.GetBitCount().value()}));
+      return AddSymToValue(result, bindings, std::move(sym_ptr));
     }
     default:
       // Not an exhaustive list: this function only handles the shift operators.
@@ -182,17 +189,18 @@ absl::StatusOr<InterpValue> EvaluateSymBinop(
   XLS_ASSIGN_OR_RETURN(InterpValue lhs, interp->Eval(expr->lhs(), bindings));
   XLS_ASSIGN_OR_RETURN(InterpValue rhs, interp->Eval(expr->rhs(), bindings));
 
-  if (lhs.sym() == nullptr || rhs.sym() == nullptr)
+  if (lhs.sym() == nullptr || rhs.sym() == nullptr) {
     return absl::InternalError(absl::StrFormat(
         "Node %s cannot be evaluated symbolically",
         lhs.sym() == nullptr ? lhs.ToString() : rhs.ToString()));
-
+  }
   // Comparators always return a bool (unsigned type) but we need to keep track
   // of signed/unsigned for Z3 translation hence we use the lhs' sign as the
   // operation's sign instead of result's.
-  return AddSymToValue(
-      result, bindings, SymbolicType::Nodes{lhs.sym(), rhs.sym()},
-      expr->binop_kind(), result.GetBitCount().value(), lhs.IsSigned());
+  auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeBinary(
+      SymbolicType::Nodes{expr->binop_kind(), lhs.sym(), rhs.sym()},
+      ConcreteInfo{result.IsSigned(), result.GetBitCount().value()}));
+  return AddSymToValue(result, bindings, std::move(sym_ptr));
 }
 
 }  // namespace xls::dslx

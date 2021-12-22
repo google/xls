@@ -20,64 +20,96 @@
 
 #include "absl/types/variant.h"
 #include "xls/dslx/ast.h"
-#include "xls/ir/bits.h"
 
 namespace xls::dslx {
+
+// Tags a node in the expression tree to denote its type.
+//
+// Note that kArray represents arrays, tuples, and structs at the InterpValue
+// level.
+enum class SymbolicNodeTag {
+  kInternalOp,
+  kInternalTernary,
+  kFnParam,
+  kNumber,
+  kArray
+};
+
+// Represents the concrete info of the nodes in the expression tree. Z3 module
+// later uses this information to translate the nodes.
+//
+// Note that internal nodes are also annotated as signed/unsigned which is
+// needed for translating operations such as "<".
+//
+// "id" is used for Z3 translation of function parameters.
+struct ConcreteInfo {
+  bool is_signed;
+  int64_t bit_count;
+  int64_t bit_value = 0;
+  std::string id;
+};
 
 // Holds a binary expression tree for a symbolic variable.
 //
 // Leaves are either program inputs stored symbolically as string or "Bits"
 // corresponding to the literal numbers. Interior nodes are a pair of
-// expression trees with the binary operator stored in the root.
-//
-// Attributes:
-//   expr_tree: The subtree this represents (either a pair of subtrees or a
-//   leaf).
-//   root_op: binary operator for this subtree.
+// expression trees representing binary/unary operations or "ternary if"s.
 class SymbolicType {
  public:
+  using OpKind = absl::variant<BinopKind, UnopKind>;
+  using Root = absl::variant<OpKind, SymbolicType*>;
+
+  // Represents an internal node.
+  //
+  // Binary and unary operations store the operands as children and the operator
+  // as root (unary operations store the single operand as the left child).
+  //
+  // For the ternary ifs, left and right children are symbolic nodes
+  // representing consequent and alternate expressions in the ternary statement
+  // respectively and the root is the symbolic node representing the if
+  // constraint.
   struct Nodes {
+    Root root;
     SymbolicType* left;
     SymbolicType* right;
   };
 
-  using Leaf = absl::variant<Param*, Bits>;
-
   SymbolicType() {}
-  // TODO(akalan): Eventually, it makes more sense if SymbolicType stores the
-  // leaves as Bits type and distinguishes the function parameters from
-  // constants via a flag.
-  SymbolicType(Leaf expr_tree_leaf, int64_t bit_count, bool is_signed)
-      : expr_tree_(expr_tree_leaf),
-        bit_count_(bit_count),
-        is_signed_(is_signed) {}
-  SymbolicType(Nodes expr_tree_nodes, BinopKind root_op, int64_t bit_count,
-               bool is_signed)
-      : expr_tree_(expr_tree_nodes),
-        root_op_(root_op),
-        bit_count_(bit_count),
-        is_signed_(is_signed) {}
+
+  static SymbolicType MakeUnary(Nodes expr_tree, ConcreteInfo concrete_info);
+  static SymbolicType MakeBinary(Nodes expr_tree, ConcreteInfo concrete_info);
+  static SymbolicType MakeTernary(Nodes expr_tree, ConcreteInfo concrete_info);
+
+  static SymbolicType MakeLiteral(ConcreteInfo concrete_info);
+  static SymbolicType MakeParam(ConcreteInfo concrete_info);
+
+  static SymbolicType MakeArray(std::vector<SymbolicType*> children);
 
   ~SymbolicType() = default;
 
-  bool IsLeaf() const { return absl::holds_alternative<Leaf>(expr_tree_); }
-  absl::StatusOr<Leaf> leaf() const {
-    if (!absl::holds_alternative<Leaf>(expr_tree_))
-      return absl::NotFoundError("Expression tree does not have a leaf.");
-    return absl::get<Leaf>(expr_tree_);
+  absl::StatusOr<OpKind> op();
+  absl::StatusOr<std::string> OpToString();
+
+  // Queries
+  bool IsBits() { return tag_ == SymbolicNodeTag::kNumber; }
+  bool IsTernary() { return tag_ == SymbolicNodeTag::kInternalTernary; }
+  bool isInternalOp() { return tag_ == SymbolicNodeTag::kInternalOp; }
+  bool IsSigned() { return concrete_info_.is_signed; }
+  bool IsArray() { return tag_ == SymbolicNodeTag::kArray; }
+  bool IsParam() { return tag_ == SymbolicNodeTag::kFnParam; }
+  bool IsLeaf() {
+    return tag_ != SymbolicNodeTag::kInternalOp &&
+           tag_ != SymbolicNodeTag::kInternalTernary;
   }
-  absl::StatusOr<std::string> LeafToString();
-  absl::StatusOr<uint64_t> LeafToUint64();
+  SymbolicNodeTag tag() { return tag_; }
+  int64_t bit_count() { return concrete_info_.bit_count; }
+  int64_t bit_value() { return concrete_info_.bit_value; }
+  std::string id() { return concrete_info_.id; }
+  std::vector<SymbolicType*> GetChildren() { return children_; }
 
-  absl::StatusOr<Nodes> nodes();
+  void MarkAsFnParam(std::string id);
 
-  BinopKind op() { return root_op_; }
-
-  bool IsBits();
-  absl::StatusOr<Bits> GetBits();
-
-  int64_t GetBitCount() { return bit_count_; }
-  bool IsSigned() { return is_signed_; }
+  absl::StatusOr<SymbolicType*> TernaryRoot();
 
   // Prints the symbolic expression tree via inorder traversal
   absl::StatusOr<std::string> ToString();
@@ -85,14 +117,32 @@ class SymbolicType {
   // Performs a postorder tree traversal under this node in the expression tree.
   absl::Status DoPostorder(const std::function<absl::Status(SymbolicType*)>& f);
 
-  const absl::variant<Nodes, Leaf>& tree() const { return expr_tree_; }
+  static SymbolicType CreateBinaryOp(SymbolicType* lhs, SymbolicType* rhs,
+                                     BinopKind op);
+  absl::StatusOr<Nodes> tree() const;
 
  private:
-  absl::variant<Nodes, Leaf> expr_tree_;
-  BinopKind root_op_;
-  // Concrete information used for Z3 translation.
-  int64_t bit_count_;
-  bool is_signed_;
+  // Constructor for internal nodes i.e. binary/unary operations or "ternary
+  // if"s.
+  SymbolicType(Nodes expr_tree, ConcreteInfo concrete_info, SymbolicNodeTag tag)
+      : expr_tree_(expr_tree), concrete_info_(concrete_info), tag_(tag) {}
+
+  // Constructor for leaves i.e. function parameters or literal values.
+  SymbolicType(ConcreteInfo concrete_info, SymbolicNodeTag tag)
+      : concrete_info_(concrete_info), tag_(tag) {}
+
+  // Constructor for array/tuple/struct sort.
+  SymbolicType(std::vector<SymbolicType*> children, SymbolicNodeTag tag)
+      : tag_(tag), children_(children) {}
+
+  absl::StatusOr<Root> root();
+
+  // The subtree this represents (either binary/unary operations or ternary if)
+  Nodes expr_tree_;
+  ConcreteInfo concrete_info_;
+  SymbolicNodeTag tag_;
+
+  std::vector<SymbolicType*> children_;
 };
 
 }  // namespace xls::dslx
