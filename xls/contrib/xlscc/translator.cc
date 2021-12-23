@@ -2673,18 +2673,32 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
         ignore_pointers.enable();
       }
 
-      XLS_ASSIGN_OR_RETURN(
-          std::shared_ptr<CType> sub_type,
-          TranslateTypeFromClang(cast->getSubExpr()->getType(), loc));
+      // Sometimes array types are converted to pointer types via ImplicitCast,
+      // even nested as in mutable array -> mutable pointer -> const pointer.
+      // Since we don't support pointers, this case is short-circuited, and
+      // the nested expression is evaluated directly, ignoring the casts.
+      {
+        // Ignore nested ImplicitCastExprs. This case breaks the logic below.
+        auto nested_implicit = cast;
+        while (nested_implicit->getSubExpr()->getStmtClass() ==
+               clang::Stmt::ImplicitCastExprClass) {
+          nested_implicit = clang_down_cast<const clang::CastExpr*>(
+              nested_implicit->getSubExpr());
+        }
 
-      auto from_arr_type = std::dynamic_pointer_cast<CArrayType>(sub_type);
+        XLS_ASSIGN_OR_RETURN(
+            std::shared_ptr<CType> sub_type,
+            TranslateTypeFromClang(nested_implicit->getSubExpr()->getType(),
+                                   loc));
+        auto from_arr_type = std::dynamic_pointer_cast<CArrayType>(sub_type);
 
-      // Avoid decay of array to pointer, pointers are unsupported
-      if (from_arr_type && cast->getType()->isPointerType()) {
-        XLS_ASSIGN_OR_RETURN(CValue sub,
-                             GenerateIR_Expr(cast->getSubExpr(), loc));
+        // Avoid decay of array to pointer, pointers are unsupported
+        if (from_arr_type && nested_implicit->getType()->isPointerType()) {
+          XLS_ASSIGN_OR_RETURN(
+              CValue sub, GenerateIR_Expr(nested_implicit->getSubExpr(), loc));
 
-        return sub;
+          return sub;
+        }
       }
 
       XLS_ASSIGN_OR_RETURN(CValue sub,

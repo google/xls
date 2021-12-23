@@ -292,6 +292,34 @@ TEST_F(TranslatorTest, Array2D) {
   Run({{"a", 55}, {"b", 100}}, 155, content);
 }
 
+TEST_F(TranslatorTest, Array2DParam) {
+  const std::string content = R"(
+       int access_it(int x[2][2]) {
+         return x[1][0];
+       }
+       int my_package(int a, int b) {
+         int x[2][2] = {{b,b}, {b,b}};
+         x[1][0] += a;
+         return access_it(x);
+       })";
+
+  Run({{"a", 55}, {"b", 100}}, 155, content);
+}
+
+TEST_F(TranslatorTest, Array2DConstParam) {
+  const std::string content = R"(
+       int access_it(const int x[2][2]) {
+         return x[1][0];
+       }
+       int my_package(int a, int b) {
+         int x[2][2] = {{b,b}, {b,b}};
+         x[1][0] += a;
+         return access_it(x);
+       })";
+
+  Run({{"a", 55}, {"b", 100}}, 155, content);
+}
+
 TEST_F(TranslatorTest, Array2DInit) {
   const std::string content = R"(
        struct ts {
