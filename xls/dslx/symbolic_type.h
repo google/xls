@@ -27,10 +27,17 @@ namespace xls::dslx {
 //
 // Note that kArray represents arrays, tuples, and structs at the InterpValue
 // level.
+//
+// Only function parameters that are casted or bit-sliced need a different tag,
+// since we need to differentiate the bit width/sign when translating the node
+// to Z3 vs when generating the DSLX test. Other literals after cast or slicing
+// stay as kNumber, since we don't need to retain the original bit width/sign.
 enum class SymbolicNodeTag {
   kInternalOp,
   kInternalTernary,
   kFnParam,
+  kCastedParam,
+  kSlicedParam,
   kNumber,
   kArray
 };
@@ -42,11 +49,15 @@ enum class SymbolicNodeTag {
 // needed for translating operations such as "<".
 //
 // "id" is used for Z3 translation of function parameters.
+// "slice_idx" stores the index that the variable was sliced from.
+// "cast_width" stores the new bit width for casted or sliced parameter.
 struct ConcreteInfo {
   bool is_signed;
   int64_t bit_count;
   int64_t bit_value = 0;
   std::string id;
+  int64_t slice_idx = 0;
+  int64_t cast_width = 0;
 };
 
 // Holds a binary expression tree for a symbolic variable.
@@ -82,6 +93,8 @@ class SymbolicType {
 
   static SymbolicType MakeLiteral(ConcreteInfo concrete_info);
   static SymbolicType MakeParam(ConcreteInfo concrete_info);
+  static SymbolicType MakeCastedParam(ConcreteInfo concrete_info);
+  static SymbolicType MakeSlicedParam(ConcreteInfo concrete_info);
 
   static SymbolicType MakeArray(std::vector<SymbolicType*> children);
 
@@ -96,13 +109,21 @@ class SymbolicType {
   bool isInternalOp() { return tag_ == SymbolicNodeTag::kInternalOp; }
   bool IsSigned() { return concrete_info_.is_signed; }
   bool IsArray() { return tag_ == SymbolicNodeTag::kArray; }
-  bool IsParam() { return tag_ == SymbolicNodeTag::kFnParam; }
+  bool IsParam() {
+    return tag_ == SymbolicNodeTag::kFnParam ||
+           tag_ == SymbolicNodeTag::kCastedParam ||
+           tag_ == SymbolicNodeTag::kSlicedParam;
+  }
+  bool IsCasted() { return tag_ == SymbolicNodeTag::kCastedParam; }
+  bool IsSliced() { return tag_ == SymbolicNodeTag::kSlicedParam; }
   bool IsLeaf() {
     return tag_ != SymbolicNodeTag::kInternalOp &&
            tag_ != SymbolicNodeTag::kInternalTernary;
   }
   SymbolicNodeTag tag() { return tag_; }
   int64_t bit_count() { return concrete_info_.bit_count; }
+  int64_t cast_bit_count() { return concrete_info_.cast_width; }
+  int64_t slice_index() { return concrete_info_.slice_idx; }
   int64_t bit_value() { return concrete_info_.bit_value; }
   std::string id() { return concrete_info_.id; }
   std::vector<SymbolicType*> GetChildren() { return children_; }
@@ -118,7 +139,7 @@ class SymbolicType {
   absl::Status DoPostorder(const std::function<absl::Status(SymbolicType*)>& f);
 
   static SymbolicType CreateLogicalOp(SymbolicType* lhs, SymbolicType* rhs,
-                                     BinopKind op);
+                                      BinopKind op);
   absl::StatusOr<Nodes> tree() const;
 
  private:

@@ -1083,6 +1083,7 @@ cc_test(
         ":parse_and_typecheck",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],
@@ -1133,7 +1134,6 @@ cc_library(
     deps = [
         ":ast",
         "//xls/common/status:ret_check",
-        "//xls/ir:bits",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:variant",
     ],

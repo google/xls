@@ -25,7 +25,8 @@
 namespace xls::dslx {
 
 absl::string_view GetTestTemplate() {
-  constexpr absl::string_view kTestTemplate = R"(#![test]
+  constexpr absl::string_view kTestTemplate = R"(
+#![test]
 fn $0_test_$1() {
 $2
   let _ = assert_eq($0($3), $4);
@@ -86,8 +87,20 @@ std::string InterpValueToString(InterpValue value) {
 
 absl::StatusOr<InterpValue> Z3AstToInterpValue(
     Z3_context ctx, InterpValue value, SymbolicType* sym, Z3_model model,
+    std::vector<SymbolicType*> cast_slice_params,
     solvers::z3::DslxTranslator* translator) {
   int64_t value_int = 0;
+
+  // If the symbolic tree for this node appears in the list of casted/sliced
+  // parameters, update the node so that we create the parameter in the DSLX
+  // test based on the original bitwidth/sign.
+  for (SymbolicType* param : cast_slice_params) {
+    if (sym->id() == param->id()) {
+      sym = param;
+      break;
+    }
+  }
+
   // If the input doesn't appear in the Z3 AST nodes, it's a "don't care" value
   // and can be safely initialized to zero, otherwise we evaluate the model to
   // get the input value.
@@ -98,6 +111,15 @@ absl::StatusOr<InterpValue> Z3AstToInterpValue(
                   /*model_completion=*/true, &z3_value);
     Z3_get_numeral_int64(ctx, z3_value, &value_int);
   }
+
+  // If the parameter has been sliced, shift the value so that it corresponds to
+  // the original parameter.
+  //
+  // e.g. if the value for a[n:m] is N, the value  for a is (N << n).
+  if (sym->IsSliced()) {
+    value_int <<= sym->slice_index();
+  }
+
   int64_t bit_count = sym->bit_count();
   if (sym->IsSigned()) {
     // Computes the 2's complement in case of negative number.
@@ -138,20 +160,38 @@ InterpValue MakeTupleFromElements(InterpValue value,
   return InterpValue::MakeTuple(elements_unflatten);
 }
 
+// Returns a list of function parameters that were casted or bit sliced in this
+// predicate.
+absl::StatusOr<std::vector<SymbolicType*>> CastAndSlicedParams(
+    SymbolicType* predicate) {
+  std::vector<SymbolicType*> fn_params;
+  auto Walk = [&](SymbolicType* x) -> absl::Status {
+    if (x != nullptr && (x->IsCasted() || x->IsSliced())) {
+      fn_params.push_back(x);
+    }
+    return absl::OkStatus();
+  };
+  XLS_RETURN_IF_ERROR(predicate->DoPostorder(Walk));
+  return fn_params;
+}
+
 // For each input in the Z3 model, creates the corresponding InterpValue.
 absl::StatusOr<std::vector<InterpValue>> ExtractZ3Inputs(
-    Z3_context ctx, Z3_solver solver, std::vector<InterpValue> function_params,
+    Z3_context ctx, Z3_solver solver, SymbolicType* predicate,
+    std::vector<InterpValue> function_params,
     solvers::z3::DslxTranslator* translator) {
   Z3_model model = Z3_solver_get_model(ctx, solver);
+  XLS_ASSIGN_OR_RETURN(std::vector<SymbolicType*> cast_slice_params,
+                       CastAndSlicedParams(predicate));
   std::vector<InterpValue> concrete_inputs;
   for (const InterpValue& param : function_params) {
     if (param.sym()->IsArray()) {
       std::vector<InterpValue> elements;
       elements.reserve(param.sym()->GetChildren().size());
       for (SymbolicType* sym_child : param.sym()->GetChildren()) {
-        XLS_ASSIGN_OR_RETURN(
-            InterpValue value,
-            Z3AstToInterpValue(ctx, param, sym_child, model, translator));
+        XLS_ASSIGN_OR_RETURN(InterpValue value,
+                             Z3AstToInterpValue(ctx, param, sym_child, model,
+                                                cast_slice_params, translator));
         elements.push_back(value);
       }
       if (param.tag() == InterpValueTag::kArray) {
@@ -166,9 +206,9 @@ absl::StatusOr<std::vector<InterpValue>> ExtractZ3Inputs(
             tuple.UpdateWithStructInfo(param.GetStructMembers()));
       }
     } else {
-      XLS_ASSIGN_OR_RETURN(
-          InterpValue value,
-          Z3AstToInterpValue(ctx, param, param.sym(), model, translator));
+      XLS_ASSIGN_OR_RETURN(InterpValue value,
+                           Z3AstToInterpValue(ctx, param, param.sym(), model,
+                                              cast_slice_params, translator));
       concrete_inputs.push_back(value);
     }
   }
@@ -257,10 +297,13 @@ absl::Status ConcolicTestGenerator::SolvePredicate(SymbolicType* predicate,
   Z3_ast objective = translator_->GetTranslation(predicate).value();
   Z3_context ctx = translator_->ctx();
 
+  // Used for generating literal 1 in Z3 as it only accepts a pointer to
+  // the value.
+  bool bool_true = true;
+
   // Converts predicates of BV type e.g. "if(a)" to bool type so that Z3 can
   // solve the predicate.
   if (!solvers::z3::IsAstBoolPredicate(ctx, objective)) {
-    bool bool_true = true;
     objective = Z3_mk_eq(ctx, objective, Z3_mk_bv_numeral(ctx, 1, &bool_true));
   }
   if (negate_predicate) objective = Z3_mk_not(ctx, objective);
@@ -271,7 +314,6 @@ absl::Status ConcolicTestGenerator::SolvePredicate(SymbolicType* predicate,
   Z3_ast objective_with_path = objective;
   Z3_ast objective_with_path_negate = Z3_mk_not(ctx, objective);
   if (!path_constraints_.empty()) {
-    bool bool_true = true;
     XLS_ASSIGN_OR_RETURN(
         Z3_ast path_conjunction,
         PathConstraintsConjunction(path_constraints_, ctx, translator_.get()));
@@ -314,9 +356,9 @@ absl::Status ConcolicTestGenerator::SolvePredicate(SymbolicType* predicate,
   XLS_VLOG(2) << solvers::z3::SolverResultToString(ctx, solver, satisfiable)
               << std::endl;
   if (satisfiable == Z3_L_TRUE) {
-    XLS_ASSIGN_OR_RETURN(
-        std::vector<InterpValue> concrete_values,
-        ExtractZ3Inputs(ctx, solver, function_params_, translator_.get()));
+    XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> concrete_values,
+                         ExtractZ3Inputs(ctx, solver, predicate,
+                                         function_params_, translator_.get()));
     function_params_values_.push_back(concrete_values);
   } else {
     XLS_VLOG(2) << "Predicate" << predicate->ToString().value() << " --> "

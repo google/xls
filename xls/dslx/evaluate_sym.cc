@@ -31,7 +31,6 @@ namespace xls::dslx {
   }
 
 DISPATCH_DEF(Carry)
-DISPATCH_DEF(Cast)
 DISPATCH_DEF(ConstRef)
 DISPATCH_DEF(Let)
 DISPATCH_DEF(NameRef)
@@ -83,11 +82,67 @@ absl::StatusOr<InterpValue> EvaluateSymAttr(
   return result;
 }
 
+absl::StatusOr<InterpValue> EvaluateSymCast(
+    Cast* expr, InterpBindings* bindings, ConcreteType* type_context,
+    AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
+  XLS_ASSIGN_OR_RETURN(InterpValue cast_result,
+                       EvaluateCast(expr, bindings, type_context, interp));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ConcreteType> type,
+      ConcretizeTypeAnnotation(expr->type_annotation(), bindings, interp));
+  XLS_ASSIGN_OR_RETURN(InterpValue value, interp->Eval(expr->expr(), bindings,
+                                                       type->CloneToUnique()));
+
+  if (value.sym() != nullptr && value.sym()->IsParam()) {
+    auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeCastedParam(
+        ConcreteInfo{value.sym()->IsSigned(), value.sym()->bit_count(),
+                     /*value=*/0, value.sym()->id(), /*slice_idx=*/0,
+                     /*cast_width=*/cast_result.GetBitsOrDie().bit_count()}));
+    return AddSymToValue(cast_result, test_generator, std::move(sym_ptr));
+  }
+
+  XLS_ASSIGN_OR_RETURN(int64_t bit_value, cast_result.GetBitsOrDie().ToInt64());
+  auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeLiteral(
+      {cast_result.IsSigned(), cast_result.GetBitsOrDie().bit_count(),
+       bit_value}));
+  return AddSymToValue(cast_result, test_generator, std::move(sym_ptr));
+}
+
 absl::StatusOr<InterpValue> EvaluateSymIndex(
     Index* expr, InterpBindings* bindings, ConcreteType* type_context,
     AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   XLS_ASSIGN_OR_RETURN(InterpValue lhs, interp->Eval(expr->lhs(), bindings));
   if (lhs.IsBits()) {
+    // TODO(akalan): add symbolic evaluation support for width slice.
+    if (absl::holds_alternative<Slice*>(expr->rhs())) {
+      IndexRhs index = expr->rhs();
+      auto index_slice = absl::get<Slice*>(index);
+
+      const SymbolicBindings& sym_bindings = bindings->fn_ctx()->sym_bindings;
+
+      TypeInfo* type_info = interp->GetCurrentTypeInfo();
+      absl::optional<StartAndWidth> maybe_saw =
+          type_info->GetSliceStartAndWidth(index_slice, sym_bindings);
+      XLS_RET_CHECK(maybe_saw.has_value())
+          << "Slice start/width missing for slice @ " << expr->span();
+      const auto& saw = maybe_saw.value();
+      XLS_ASSIGN_OR_RETURN(InterpValue result,
+                           InterpValue::MakeBits(
+                               InterpValueTag::kUBits,
+                               lhs.GetBitsOrDie().Slice(saw.start, saw.width)));
+      if (lhs.sym() != nullptr && lhs.sym()->IsParam()) {
+        auto sym_ptr = std::make_unique<SymbolicType>(
+            SymbolicType::MakeSlicedParam(ConcreteInfo{
+                lhs.sym()->IsSigned(), lhs.sym()->bit_count(),
+                /*value=*/0, lhs.sym()->id(), /*slice_idx=*/saw.start,
+                /*cast_width=*/saw.width}));
+        return AddSymToValue(result, test_generator, std::move(sym_ptr));
+      }
+      XLS_ASSIGN_OR_RETURN(int64_t bit_value, result.GetBitsOrDie().ToInt64());
+      auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeLiteral(
+          {result.IsSigned(), result.GetBitsOrDie().bit_count(), bit_value}));
+      return AddSymToValue(result, test_generator, std::move(sym_ptr));
+    }
     return EvaluateIndex(expr, bindings, type_context, interp);
   }
   Expr* index = absl::get<Expr*>(expr->rhs());

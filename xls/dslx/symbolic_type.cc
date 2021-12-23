@@ -41,6 +41,16 @@ namespace xls::dslx {
   return SymbolicType(concrete_info, SymbolicNodeTag::kFnParam);
 }
 
+/*static*/ SymbolicType SymbolicType::MakeCastedParam(
+    ConcreteInfo concrete_info) {
+  return SymbolicType(concrete_info, SymbolicNodeTag::kCastedParam);
+}
+
+/*static*/ SymbolicType SymbolicType::MakeSlicedParam(
+    ConcreteInfo concrete_info) {
+  return SymbolicType(concrete_info, SymbolicNodeTag::kSlicedParam);
+}
+
 /*static*/ SymbolicType SymbolicType::MakeArray(
     std::vector<SymbolicType*> children) {
   return SymbolicType(children, SymbolicNodeTag::kArray);
@@ -71,7 +81,7 @@ void SymbolicType::MarkAsFnParam(std::string id) {
 }
 
 SymbolicType SymbolicType::CreateLogicalOp(SymbolicType* lhs, SymbolicType* rhs,
-                                          BinopKind op) {
+                                           BinopKind op) {
   return SymbolicType(SymbolicType::Nodes{op, lhs, rhs},
                       ConcreteInfo{/*is_signed=*/false, /*bit_count=*/1},
                       SymbolicNodeTag::kInternalOp);
@@ -92,6 +102,8 @@ absl::StatusOr<SymbolicType::Root> SymbolicType::root() {
 absl::StatusOr<std::string> SymbolicType::ToString() {
   switch (tag_) {
     case SymbolicNodeTag::kFnParam:
+    case SymbolicNodeTag::kCastedParam:
+    case SymbolicNodeTag::kSlicedParam:
     case SymbolicNodeTag::kArray:
       return concrete_info_.id;
     case SymbolicNodeTag::kNumber:

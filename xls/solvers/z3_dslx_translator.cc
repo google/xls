@@ -231,7 +231,11 @@ Z3_ast DslxTranslator::GetBitVec(SymbolicType* sym) {
   Z3_sort value_sort = Z3_get_sort(ctx_, z3_value);
   XLS_CHECK_EQ(Z3_get_sort_kind(ctx_, value_sort), Z3_BV_SORT);
 
-  XLS_CHECK_EQ(sym->bit_count(), Z3_get_bv_sort_size(ctx_, value_sort));
+  int64_t bit_count = sym->bit_count();
+  if (sym->IsCasted() || sym->IsSliced()) {
+    bit_count = sym->cast_bit_count();
+  }
+  XLS_CHECK_EQ(bit_count, Z3_get_bv_sort_size(ctx_, value_sort));
   return z3_value;
 }
 
@@ -387,7 +391,10 @@ absl::Status DslxTranslator::HandleConcat(SymbolicType* sym) {
 }
 
 absl::StatusOr<Z3_ast> DslxTranslator::CreateZ3Param(SymbolicType* sym) {
-  Z3_sort sort = Z3_mk_bv_sort(ctx_, sym->bit_count());
+  int64_t bit_count = (sym->IsCasted() || sym->IsSliced())
+                          ? sym->cast_bit_count()
+                          : sym->bit_count();
+  Z3_sort sort = Z3_mk_bv_sort(ctx_, bit_count);
   return Z3_mk_const(
       ctx_,
       Z3_mk_string_symbol(ctx_, std::string(sym->ToString().value()).c_str()),
@@ -450,7 +457,6 @@ absl::Status DslxTranslator::HandleTernaryIf(SymbolicType* sym) {
   XLS_RETURN_IF_ERROR(NoteTranslation(sym, result));
   return seh.status();
 }
-
 
 bool IsAstBoolPredicate(Z3_context ctx, Z3_ast objective) {
   static const Z3_decl_kind predicates[] = {
