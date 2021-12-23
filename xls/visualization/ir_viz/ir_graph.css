@@ -14,6 +14,55 @@
  * limitations under the License.
  */
 
+body {
+  height: 100vh;
+  overflow: auto;
+}
+#ir-source-text {
+  font-family: monospace;
+  height: 60vh;
+  border: 1px solid #dee2e6;
+  /* Fill the full width of the enclosing div. */
+  width: 100%;
+  /* Line break at newlines and where necessary with long lines. */
+  white-space: pre-wrap;
+  /* Clip and add scroll bars if the IR text  doesn't fit. */
+  overflow: auto;
+  padding: 10px;
+  cursor: text;
+  margin-top: 10px;
+}
+
+#node-metadata {
+  font-family: monospace;
+  font-size: large;
+  width: 100%;
+  /* Use font-relative vertical size as the metadata is a fixed number of text
+     lines. */
+  height: 7.5em;
+  border: 1px solid #dee2e6;
+  white-space: pre-wrap;
+  overflow: auto;
+  cursor: text;
+}
+#bottom-pane {
+  padding: 5px;
+}
+#bottom-pane button {
+  margin-right: 5px;
+}
+#ir pre {
+  white-space: pre-wrap;
+}
+#source-status.alert-danger {
+  font-family: monospace;
+}
+#graph {
+  height: 75vh;
+  margin-top: 5px;
+  margin-bottom: 0px;
+}
+
 .ir-function-identifier {
   font-weight: bold;
 }
