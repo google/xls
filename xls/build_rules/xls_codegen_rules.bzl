@@ -37,7 +37,9 @@ _SCHEDULE_TEXTPROTO_FILE_EXTENSION = ".schedule.textproto"
 
 xls_ir_verilog_attrs = {
     "codegen_args": attr.string_dict(
-        doc = "Arguments of the codegen tool.",
+        doc = "Arguments of the codegen tool. For details on the arguments, " +
+              "refer to the codegen_main application at " +
+              "//xls/tools/codegen_main.cc.",
     ),
     "verilog_file": attr.output(
         doc = "The Verilog file generated.",
@@ -188,6 +190,10 @@ xls_ir_verilog = rule(
             xls_ir_verilog(
                 name = "a_verilog",
                 src = "a.ir",
+                codegen_args = {
+                    "pipeline_stages": "1",
+                    ...
+                },
             )
         ```
 
@@ -202,6 +208,10 @@ xls_ir_verilog = rule(
             xls_ir_verilog(
                 name = "a_verilog",
                 src = ":a_opt_ir",
+                codegen_args = {
+                    "generator": "combinational",
+                    ...
+                },
             )
         ```
     """,
