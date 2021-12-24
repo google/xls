@@ -731,7 +731,7 @@ absl::StatusOr<InterpValue> EvaluateSymBinop(
   // operation's sign instead of result's.
   auto sym_ptr = std::make_unique<SymbolicType>(SymbolicType::MakeBinary(
       SymbolicType::Nodes{expr->binop_kind(), lhs.sym(), rhs.sym()},
-      ConcreteInfo{result.IsSigned(), result.GetBitCount().value()}));
+      ConcreteInfo{lhs.IsSigned(), result.GetBitCount().value()}));
   return AddSymToValue(result, test_generator, std::move(sym_ptr));
 }
 

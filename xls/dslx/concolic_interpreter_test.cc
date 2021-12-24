@@ -36,6 +36,402 @@ static absl::StatusOr<std::string> RunConcolic(std::string program) {
   return interp.GetConcolicTestCases();
 }
 
+TEST(ConcolicTest, TernaryIfNode) {
+  const std::string kProgram = R"(
+fn my_fn(a: u8) -> u8 {
+  let result = if (a == u8:10) {u8:1} else {u8:2};
+  result
+}
+fn top(a: u8) -> s32 {
+  let result = if (a > u8:4) {my_fn(a) + a + u8:2} else {my_fn(a)};
+  let result = if (result == u8:24) {s32:0} else {s32:1};
+  result
+}
+
+#![test]
+fn top_test () {
+  let a_test = u8:0;
+  assert_eq(top(a_test), s32:1)
+}
+)";
+  const std::string expected_test = R"(
+#![test]
+fn top_test_0() {
+  let in_0 = u8:10;
+
+  let _ = assert_eq(top(in_0), s32:1);
+  ()
+}
+#![test]
+fn top_test_1() {
+  let in_0 = u8:128;
+
+  let _ = assert_eq(top(in_0), s32:1);
+  ()
+}
+#![test]
+fn top_test_2() {
+  let in_0 = u8:20;
+
+  let _ = assert_eq(top(in_0), s32:0);
+  ()
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string concolic_result, RunConcolic(kProgram));
+  EXPECT_EQ(expected_test, concolic_result);
+}
+
+TEST(ConcolicTest, MatchTuple) {
+  const std::string kProgram = R"(
+fn top(a: u1, b: u1) -> s32 {
+   let result_sign = match (a, b) {
+    (true, _) => s32:0,
+    (false, true) => s32:0,
+    _ => s32:0,
+  };
+  result_sign
+}
+
+#![test]
+fn top_test() {
+  let a = u1:0;
+  let b = u1:0;
+  assert_eq(top(a, b), s32:0)
+}
+)";
+  const std::string expected_test = R"(
+#![test]
+fn top_test_0() {
+  let in_0 = u1:1;
+  let in_1 = u1:0;
+
+  let _ = assert_eq(top(in_0, in_1), s32:0);
+  ()
+}
+#![test]
+fn top_test_1() {
+  let in_0 = u1:0;
+  let in_1 = u1:1;
+
+  let _ = assert_eq(top(in_0, in_1), s32:0);
+  ()
+}
+#![test]
+fn top_test_2() {
+  let in_0 = u1:0;
+  let in_1 = u1:0;
+
+  let _ = assert_eq(top(in_0, in_1), s32:0);
+  ()
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string concolic_result, RunConcolic(kProgram));
+  EXPECT_EQ(expected_test, concolic_result);
+}
+
+TEST(ConcolicTest, MatchLiteral) {
+  const std::string kProgram = R"(
+fn top(a: u8) -> s32 {
+  let b = u8:3;
+  let a_match = match a {
+    u8:0 | u8:1 => s32:0,
+    u8:2 => s32:1,
+    b => s32:2,
+    y => y as s32 + s32:4,
+    _ => s32:5,
+  };
+
+  let result = if (a_match == s32:12) {s32:0} else {s32:1};
+  result
+}
+
+#![test]
+fn top_test() {
+  let a_test = u8:99;
+  assert_eq(top(a_test), s32:1)
+}
+)";
+  const std::string expected_test = R"(
+#![test]
+fn top_test_0() {
+  let in_0 = u8:0;
+
+  let _ = assert_eq(top(in_0), s32:1);
+  ()
+}
+#![test]
+fn top_test_1() {
+  let in_0 = u8:1;
+
+  let _ = assert_eq(top(in_0), s32:1);
+  ()
+}
+#![test]
+fn top_test_2() {
+  let in_0 = u8:2;
+
+  let _ = assert_eq(top(in_0), s32:1);
+  ()
+}
+#![test]
+fn top_test_3() {
+  let in_0 = u8:3;
+
+  let _ = assert_eq(top(in_0), s32:1);
+  ()
+}
+#![test]
+fn top_test_4() {
+  let in_0 = u8:248;
+
+  let _ = assert_eq(top(in_0), s32:1);
+  ()
+}
+#![test]
+fn top_test_5() {
+  let in_0 = u8:8;
+
+  let _ = assert_eq(top(in_0), s32:0);
+  ()
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string concolic_result, RunConcolic(kProgram));
+  EXPECT_EQ(expected_test, concolic_result);
+}
+
+TEST(ConcolicTest, UnaryOp) {
+  const std::string kProgram = R"(
+  fn top (a: s8) -> s32 {
+  let neg = -a;
+  let inv = !a;
+  let _ = if (neg == s8:16) {s32: 0} else {s32: 1};
+  let _ = if (inv == s8:0xf0) {s32: 0} else {s32: 1};
+  s32: 1
+}
+
+#![test]
+fn top_test() {
+  let a_test = s8:0;
+  assert_eq(top(a_test), s32:1)
+}
+)";
+  const std::string expected_test = R"(
+#![test]
+fn top_test_0() {
+  let in_0 = s8:-16;
+
+  let _ = assert_eq(top(in_0), s32:1);
+  ()
+}
+#![test]
+fn top_test_1() {
+  let in_0 = s8:15;
+
+  let _ = assert_eq(top(in_0), s32:1);
+  ()
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string concolic_result, RunConcolic(kProgram));
+  EXPECT_EQ(expected_test, concolic_result);
+}
+
+TEST(ConcolicTest, FnInvocation) {
+  const std::string kProgram = R"(
+  fn my_abs(num: s16) -> s16 {
+  let result = if (num >= s16:0) {num} else {num * s16:-1};
+  result + s16:10
+}
+
+fn top(a: s16) -> s32 {
+    let a_abs = my_abs(a);
+    let result = if (my_abs(a) == s16:33) {s32:0} else {s32:-1};
+    result
+}
+
+#![test]
+fn top_test() {
+  let a = s16:0;
+  assert_eq(top(a), s32:-1)
+}
+)";
+  const std::string expected_test = R"(
+#![test]
+fn top_test_0() {
+  let in_0 = s16:-32768;
+
+  let _ = assert_eq(top(in_0), s32:-1);
+  ()
+}
+#![test]
+fn top_test_1() {
+  let in_0 = s16:-23;
+
+  let _ = assert_eq(top(in_0), s32:0);
+  ()
+}
+#![test]
+fn top_test_2() {
+  let in_0 = s16:0;
+
+  let _ = assert_eq(top(in_0), s32:-1);
+  ()
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string concolic_result, RunConcolic(kProgram));
+  EXPECT_EQ(expected_test, concolic_result);
+}
+
+TEST(ConcolicTest, ForLoop) {
+  const std::string kProgram = R"(
+  fn top(a: u32[5]) -> u32 {
+
+  let final_accum = for (i, accum): (u32, u32) in range(u32:0, u32:5) {
+  let new_accum = a[i] * accum;
+  new_accum
+  }(u32:1);
+
+ let _ = if (final_accum == u32:25) {s32:0} else {s32:1};
+ final_accum
+ }
+
+#![test]
+fn top_test() {
+  let a = [u32:0, u32:0, u32:0, u32:0, u32:0];
+  let b = u32:0;
+  assert_eq(top(a), u32:0)
+}
+)";
+  const std::string expected_test = R"(
+#![test]
+fn top_test_0() {
+  let in_0 = [u32:25, u32:1, u32:1, u32:1, u32:1];
+
+  let _ = assert_eq(top(in_0), u32:25);
+  ()
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string concolic_result, RunConcolic(kProgram));
+  EXPECT_EQ(expected_test, concolic_result);
+}
+
+TEST(ConcolicTest, TupleBinaryOp) {
+  const std::string kProgram = R"(
+  fn top(a: (u8, s8, u16, s16)) -> s32 {
+  let t = (u8:1, s16:-1);
+  let (t0, t1) = t;
+  let _ = if (a[0] + t0 == u8:101) {s32:0} else {s32:1};
+  let result = if (a[3] * t1  == s16:20 ) {s32:-1} else {s32:-2};
+  result
+}
+
+#![test]
+fn top_test() {
+  let a_test = (u8:0, s8:0, u16:0, s16:0);
+  assert_eq(top(a_test), s32:-2)
+}
+)";
+  const std::string expected_test = R"(
+#![test]
+fn top_test_0() {
+  let in_0 = (u8:100, s8:0, u16:0, s16:0);
+
+  let _ = assert_eq(top(in_0), s32:-2);
+  ()
+}
+#![test]
+fn top_test_1() {
+  let in_0 = (u8:0, s8:0, u16:0, s16:-20);
+
+  let _ = assert_eq(top(in_0), s32:-1);
+  ()
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string concolic_result, RunConcolic(kProgram));
+  EXPECT_EQ(expected_test, concolic_result);
+}
+
+TEST(ConcolicTest, StrcutBinaryOp) {
+  const std::string kProgram = R"(
+  struct Point {
+  x: u32,
+  y: u32,
+}
+
+fn top(p0: Point) -> s32 {
+  let p1 = Point {x: u32:1, y: u32:2};
+  let result = if (p0.x * p0.y + p1.x == u32:16) {s32:1} else {s32:2};
+  result
+}
+
+#![test]
+fn top_test() {
+  let p0 = Point {x: u32:0, y: u32:0 };
+  assert_eq(top(p0), s32:2)
+}
+)";
+  const std::string expected_test = R"(
+#![test]
+fn top_test_0() {
+  let in_0 = Point {x: u32:15, y: u32:1};
+
+  let _ = assert_eq(top(in_0), s32:1);
+  ()
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string concolic_result, RunConcolic(kProgram));
+  EXPECT_EQ(expected_test, concolic_result);
+}
+
+TEST(ConcolicTest, ArrayMult) {
+  const std::string kProgram = R"(
+  fn top(a: s32[2], b:s32) -> s32 {
+  let x:s32[2] = [a[u8:0], a[u8:1]];
+  let y = [s32:-4, s32:1, s32:8];
+  let result = if (a[u8:0] * b * x[u8:1] + y[u8:0] == s32:4) {s32:1} else {s32:2};
+  result
+}
+
+#![test]
+fn top_test() {
+ let a = [s32:0, s32:0];
+ let b = s32:0;
+ assert_eq(top(a, b), s32:2)
+}
+)";
+  const std::string expected_test = R"(
+#![test]
+fn top_test_0() {
+  let in_0 = [s32:8, s32:1];
+  let in_1 = s32:1;
+
+  let _ = assert_eq(top(in_0, in_1), s32:1);
+  ()
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string concolic_result, RunConcolic(kProgram));
+  EXPECT_EQ(expected_test, concolic_result);
+}
+
+TEST(ConcolicTest, StructEq) {
+  const std::string kProgram = R"(
+  struct Point {
+  x: s16,
+  y: u32,
+ }
+ fn top(p0: Point) -> s32 {
+    let p1 = Point {x: s16:-100, y: u32:100};
+    let result = if (p0 == p1) {s32:-1} else {s32:-2};
+    result
+}
+
+ #![test]
+ fn top_test() {
+   let p0 = Point {x: s16:0, y: u32:0 };
+   assert_eq(top(p0), s32:-2)
+ })";
+  const std::string expected_test = R"(
+#![test]
+fn top_test_0() {
+  let in_0 = Point {x: s16:-100, y: u32:100};
+
+  let _ = assert_eq(top(in_0), s32:-1);
+  ()
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string concolic_result, RunConcolic(kProgram));
+  EXPECT_EQ(expected_test, concolic_result);
+}
+
 TEST(ConcolicTest, ParamCast) {
   const std::string kProgram = R"(
   fn dummy_cast(a: u16) -> s32 {
@@ -114,6 +510,96 @@ fn top_test_1() {
   let in_0 = u8:128;
 
   let _ = assert_eq(top(in_0), s32:0);
+  ()
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string concolic_result, RunConcolic(kProgram));
+  EXPECT_EQ(expected_test, concolic_result);
+}
+
+TEST(ConcolicTest, Binop) {
+  const std::string kProgram = R"(
+  fn top(a: s8, b: s8) -> s32 {
+  let _ = if (a + b == s8: -16) {s32:0} else {s32:1};
+  let _ = if (a - b == s8: -16) {s32:0} else {s32:1};
+  let _ = if (a * b == s8: -16) {s32:0} else {s32:1};
+  let _ = if (a / b == s8: -16) {s32:0} else {s32:1};
+  let _ = if (a as u8 ++ b as u8 == u16: 0xf00f) {s32:0} else {s32:1};
+  let _ = if (a >> b as u8 == s8: -16) {s32:0} else {s32:1};
+  let _ = if (a >> u8:2 == s8: -16) {s32:0} else {s32:1};
+  let _ = if (a << u8:3 == s8: 16) {s32:0} else {s32:1};
+
+  s32:1
+}
+
+#![test]
+fn top_test () {
+  let a_test = s8:0;
+  let b_test = s8:1;
+  assert_eq(top(a_test, b_test), s32:1)
+})";
+  const std::string expected_test = R"(
+#![test]
+fn top_test_0() {
+  let in_0 = s8:-16;
+  let in_1 = s8:0;
+
+  let _ = assert_eq(top(in_0, in_1), s32:1);
+  ()
+}
+#![test]
+fn top_test_1() {
+  let in_0 = s8:-16;
+  let in_1 = s8:0;
+
+  let _ = assert_eq(top(in_0, in_1), s32:1);
+  ()
+}
+#![test]
+fn top_test_2() {
+  let in_0 = s8:-16;
+  let in_1 = s8:1;
+
+  let _ = assert_eq(top(in_0, in_1), s32:1);
+  ()
+}
+#![test]
+fn top_test_3() {
+  let in_0 = s8:-16;
+  let in_1 = s8:1;
+
+  let _ = assert_eq(top(in_0, in_1), s32:1);
+  ()
+}
+#![test]
+fn top_test_4() {
+  let in_0 = s8:-16;
+  let in_1 = s8:15;
+
+  let _ = assert_eq(top(in_0, in_1), s32:1);
+  ()
+}
+#![test]
+fn top_test_5() {
+  let in_0 = s8:-16;
+  let in_1 = s8:0;
+
+  let _ = assert_eq(top(in_0, in_1), s32:1);
+  ()
+}
+#![test]
+fn top_test_6() {
+  let in_0 = s8:-64;
+  let in_1 = s8:0;
+
+  let _ = assert_eq(top(in_0, in_1), s32:1);
+  ()
+}
+#![test]
+fn top_test_7() {
+  let in_0 = s8:2;
+  let in_1 = s8:0;
+
+  let _ = assert_eq(top(in_0, in_1), s32:1);
   ()
 })";
   XLS_ASSERT_OK_AND_ASSIGN(std::string concolic_result, RunConcolic(kProgram));
