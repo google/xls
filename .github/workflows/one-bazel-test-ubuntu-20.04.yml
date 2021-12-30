@@ -1,7 +1,7 @@
 # https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions
 # See also: https://github.com/marketplace/actions/bazel-action
 
-name: Solo Bazel Test
+name: Solo Bazel Test (Ubuntu 20.04)
 
 on:
   workflow_dispatch:

@@ -1,0 +1,52 @@
+# https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions
+# See also: https://github.com/marketplace/actions/bazel-action
+
+name: Solo Bazel Test (Ubuntu 18.04)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Bazel Target Pattern'
+        default: '//xls/dslx:interpreter_test'
+        required: true
+      runs_per_test:
+        description: 'Number of Runs'
+        default: '1'
+        required: true
+
+env:
+  BAZEL_TARGET: ${{ github.event.inputs.target }}
+  BAZEL_RUNS_PER_TEST: ${{ github.event.inputs.runs_per_test }}
+
+jobs:
+  build:
+    name: Bazel Test (opt)
+    runs-on: ubuntu-18.04
+    timeout-minutes: 600
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install bazelisk
+          run: |
+            curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.1.0/bazelisk-linux-amd64"
+            mkdir -p "${GITHUB_WORKSPACE}/bin/"
+            mv bazelisk-linux-amd64 "${GITHUB_WORKSPACE}/bin/bazel"
+            chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
+      - name: Install dependencies via apt
+          run: sudo apt-get install python3 python3-distutils python3-dev libtinfo5
+      - name: Install more modern toolchain (GCC 10)
+          run: |
+            sudo apt-get install -y software-properties-common
+            sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+            sudo apt-get update
+            sudo apt-get install -y gcc-10 g++-10
+            sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10
+            sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10
+      - name: Put Python binary in PATH for Bazel Python env
+          run: |
+            mkdir -p ~/opt/bin
+            ln -s $(which python3) ~/opt/bin/python
+            echo "~/opt/bin/" >> ${GITHUB_PATH}
+      - name: Bazel Test Target (opt)
+        run: |
+          "${GITHUB_WORKSPACE}/bin/bazel" test -c opt --test_output=all --runs_per_test=$BAZEL_RUNS_PER_TEST --test_arg=--logtostderr --test_arg=--v=3 -- $BAZEL_TARGET  -//xls/contrib/xlscc/...
