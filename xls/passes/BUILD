@@ -1172,10 +1172,7 @@ cc_test(
     deps = [
         ":bdd_cse_pass",
         ":bdd_simplification_pass",
-        ":bit_slice_simplification_pass",
-        ":concat_simplification_pass",
         ":dce_pass",
-        ":select_simplification_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

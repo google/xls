@@ -126,7 +126,11 @@ absl::StatusOr<bool> CollapseSelectChains(FunctionBase* f,
          s = s->As<Select>()->get_case(0)) {
       select_chain.push_back(s->As<Select>());
     }
-    if (select_chain.size() <= 1) {
+    // Only transform if the select chain is sufficiently long to avoid
+    // interfering with select optimizations as plain selects are generally
+    // easier to analyse/transform.
+    // TODO(meheff): 2021/12/23 Consider tuning this value.
+    if (select_chain.size() <= 4) {
       continue;
     }
     XLS_VLOG(4) << absl::StreamFormat("Considering select chain rooted at %s:",

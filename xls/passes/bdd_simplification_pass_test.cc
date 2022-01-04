@@ -26,10 +26,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/passes/bdd_cse_pass.h"
-#include "xls/passes/bit_slice_simplification_pass.h"
-#include "xls/passes/concat_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
-#include "xls/passes/select_simplification_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -40,25 +37,11 @@ using status_testing::IsOkAndHolds;
 
 class BddSimplificationPassTest : public IrTestBase {
  protected:
-  absl::StatusOr<bool> Run(Function* f, bool run_cleanup_passes = false,
-                           int64_t opt_level = kMaxOptLevel) {
+  absl::StatusOr<bool> Run(Function* f, int64_t opt_level = kMaxOptLevel) {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          BddSimplificationPass(opt_level).RunOnFunctionBase(
                              f, PassOptions(), &results));
-    if (run_cleanup_passes) {
-      XLS_RETURN_IF_ERROR(BitSliceSimplificationPass()
-                              .RunOnFunctionBase(f, PassOptions(), &results)
-                              .status());
-      XLS_RETURN_IF_ERROR(SelectSimplificationPass()
-                              .RunOnFunctionBase(f, PassOptions(), &results)
-                              .status());
-      XLS_RETURN_IF_ERROR(
-          BddCsePass().RunOnFunctionBase(f, PassOptions(), &results).status());
-      XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                              .RunOnFunctionBase(f, PassOptions(), &results)
-                              .status());
-    }
     return changed;
   }
 };
@@ -153,27 +136,51 @@ TEST_F(BddSimplificationPassTest, ConvertTwoWayOneHotSelect) {
 TEST_F(BddSimplificationPassTest, SelectChainOneHot) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
+  BValue s = fb.Param("s", p->GetBitsType(3));
+  BValue pred0 = fb.Eq(s, fb.Literal(UBits(0, 3)));
+  BValue pred1 = fb.Eq(s, fb.Literal(UBits(1, 3)));
+  BValue pred2 = fb.Eq(s, fb.Literal(UBits(2, 3)));
+  BValue pred3 = fb.Eq(s, fb.Literal(UBits(3, 3)));
+  BValue pred4 = fb.Eq(s, fb.Literal(UBits(4, 3)));
+  auto param = [&](absl::string_view s) {
+    return fb.Param(s, p->GetBitsType(8));
+  };
+  fb.Select(
+      pred4, param("x4"),
+      fb.Select(
+          pred3, param("x3"),
+          fb.Select(pred2, param("x2"),
+                    fb.Select(pred1, param("x1"),
+                              fb.Select(pred0, param("x0"), param("y"))))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::OneHotSelect(m::Concat(m::Eq(m::Param("s"), m::Literal(4)),
+                                m::Eq(m::Param("s"), m::Literal(3)),
+                                m::Eq(m::Param("s"), m::Literal(2)),
+                                m::Eq(m::Param("s"), m::Literal(1)),
+                                m::Eq(m::Param("s"), m::Literal(0)), m::Nor()),
+                      {m::Param("y"), m::Param("x0"), m::Param("x1"),
+                       m::Param("x2"), m::Param("x3"), m::Param("x4")}));
+}
+
+TEST_F(BddSimplificationPassTest, SelectChainOneHotTooShort) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
   BValue s = fb.Param("s", p->GetBitsType(2));
   BValue pred0 = fb.Eq(s, fb.Literal(UBits(0, 2)));
   BValue pred1 = fb.Eq(s, fb.Literal(UBits(1, 2)));
   BValue pred2 = fb.Eq(s, fb.Literal(UBits(2, 2)));
-  BValue pred3 = fb.Eq(s, fb.Literal(UBits(3, 2)));
   auto param = [&](absl::string_view s) {
     return fb.Param(s, p->GetBitsType(8));
   };
-  fb.Select(pred3, param("x3"),
-            fb.Select(pred2, param("x2"),
-                      fb.Select(pred1, param("x1"),
-                                fb.Select(pred0, param("x0"), param("y")))));
+  fb.Select(
+      pred2, param("x2"),
+      fb.Select(pred1, param("x1"), fb.Select(pred0, param("x0"), param("y"))));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  ASSERT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::OneHotSelect(m::Concat(m::Eq(m::Param("s"), m::Literal(3)),
-                                        m::Eq(m::Param("s"), m::Literal(2)),
-                                        m::Eq(m::Param("s"), m::Literal(1)),
-                                        m::Eq(m::Param("s"), m::Literal(0))),
-                              {m::Param("x0"), m::Param("x1"), m::Param("x2"),
-                               m::Param("x3")}));
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::Select());
 }
 
 TEST_F(BddSimplificationPassTest, SelectChainOneHotArray) {
@@ -203,22 +210,32 @@ TEST_F(BddSimplificationPassTest, SelectChainOneHotOrZeroSelectors) {
   BValue s = fb.Param("s", p->GetBitsType(8));
   BValue pred0 = fb.UGt(s, fb.Literal(UBits(42, 8)));
   BValue pred1 = fb.Eq(s, fb.Literal(UBits(11, 8)));
-  BValue pred2 = fb.ULt(s, fb.Literal(UBits(7, 8)));
+  BValue pred2 = fb.Eq(s, fb.Literal(UBits(12, 8)));
+  BValue pred3 = fb.Eq(s, fb.Literal(UBits(13, 8)));
+  BValue pred4 = fb.ULt(s, fb.Literal(UBits(7, 8)));
   auto param = [&](absl::string_view s) {
     return fb.Param(s, p->GetBitsType(8));
   };
   fb.Select(
-      pred2, param("x2"),
-      fb.Select(pred1, param("x1"), fb.Select(pred0, param("x0"), param("y"))));
+      pred4, param("x4"),
+      fb.Select(
+          pred3, param("x3"),
+          fb.Select(pred2, param("x2"),
+                    fb.Select(pred1, param("x1"),
+                              fb.Select(pred0, param("x0"), param("y"))))));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::OneHotSelect(m::Concat(m::ULt(m::Param("s"), m::Literal(7)),
-                                        m::Eq(m::Param("s"), m::Literal(11)),
-                                        m::UGt(m::Param("s"), m::Literal(42)),
-                                        m::Nor(m::ULt(), m::Eq(), m::UGt())),
-                              {m::Param("y"), m::Param("x0"), m::Param("x1"),
-                               m::Param("x2")}));
+  EXPECT_THAT(
+      f->return_value(),
+      m::OneHotSelect(
+          m::Concat(m::ULt(m::Param("s"), m::Literal(7)),
+                    m::Eq(m::Param("s"), m::Literal(13)),
+                    m::Eq(m::Param("s"), m::Literal(12)),
+                    m::Eq(m::Param("s"), m::Literal(11)),
+                    m::UGt(m::Param("s"), m::Literal(42)),
+                    m::Nor(m::ULt(), m::Eq(), m::Eq(), m::Eq(), m::UGt())),
+          {m::Param("y"), m::Param("x0"), m::Param("x1"), m::Param("x2"),
+           m::Param("x3"), m::Param("x4")}));
 }
 
 // TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
@@ -237,7 +254,7 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbTypical) {
   fb.Not(select);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(true));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Not(m::Encode(
                   m::Concat(m::Literal(UBits(0, 1)),
@@ -261,7 +278,7 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbAlternateForm) {
   fb.Not(select);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(true));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Not(m::Encode(
                   m::Concat(m::Literal(UBits(0, 1)),
@@ -281,7 +298,7 @@ TEST_F(BddSimplificationPassTest,
   fb.And(hot, extend);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(true));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Concat(m::Literal(UBits(0, 1)),
                         m::BitSlice(m::OneHot(m::Param("input")), 0, 7)));
@@ -303,7 +320,7 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbMsbLeaks) {
   fb.Concat({hot_msb, select});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 // TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
@@ -322,7 +339,7 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNonMsbOneComparison) {
   fb.Not(select);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 // TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
@@ -341,7 +358,7 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNonZeroReplacementValue) {
   fb.Not(select);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 // TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
@@ -360,12 +377,12 @@ TEST_F(BddSimplificationPassTest, DISABLED_OneHotMsbNoRecursion) {
   fb.Not(select);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(true));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Not(m::Encode(
                   m::Concat(m::Literal(UBits(0, 1)),
                             m::BitSlice(m::OneHot(m::Param("input")), 0, 7)))));
-  EXPECT_THAT(Run(f, /*run_cleanup_passes=*/false), IsOkAndHolds(false));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 // TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
@@ -386,12 +403,12 @@ TEST_F(BddSimplificationPassTest,
   fb.Not(select);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(true));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Not(m::Encode(
                   m::Concat(m::Literal(UBits(0, 1)),
                             m::BitSlice(m::OneHot(m::Param("input")), 4, 3)))));
-  EXPECT_THAT(Run(f, /*run_cleanup_passes=*/false), IsOkAndHolds(false));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 // TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
@@ -412,7 +429,7 @@ TEST_F(BddSimplificationPassTest,
   fb.Not(select);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  EXPECT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(false));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 // TODO(https://github.com/google/xls/issues/423) 2021/04/05 Renable when
@@ -436,10 +453,8 @@ TEST_F(
   fb.Select(eq_test, literal_zero2, encode);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/false, /*opt_level=*/2),
-              IsOkAndHolds(true));
-  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true, /*opt_level=*/3),
-              IsOkAndHolds(true));
+  ASSERT_THAT(Run(f, /*opt_level=*/2), IsOkAndHolds(true));
+  ASSERT_THAT(Run(f, /*opt_level=*/3), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
       m::Encode(m::Concat(
@@ -462,7 +477,7 @@ TEST_F(BddSimplificationPassTest,
   fb.XorReduce(encode);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  ASSERT_THAT(Run(f, /*run_cleanup_passes=*/true), IsOkAndHolds(true));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Param("input"));
 }
