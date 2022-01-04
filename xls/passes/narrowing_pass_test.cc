@@ -99,6 +99,22 @@ TEST_P(NarrowingPassTest, NarrowableArrayIndex) {
                                 m::BitSlice(/*start=*/0, /*width=*/8)}));
 }
 
+TEST_P(NarrowingPassTest, NarrowableArrayIndexWithLiteralIndex) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param(
+      "a", p->GetArrayType(1, p->GetArrayType(42, p->GetBitsType(32))));
+  fb.ArrayIndex(a, {fb.Literal(Value(UBits(0, 32))),
+                    fb.ZeroExtend(fb.Param("idx", p->GetBitsType(8)),
+                                  /*new_bit_count=*/123)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArrayIndex(m::Param("a"), /*indices=*/{
+                        m::Literal(0), m::BitSlice(/*start=*/0, /*width=*/8)}));
+}
+
 TEST_P(NarrowingPassTest, NarrowableArrayIndexAllZeros) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

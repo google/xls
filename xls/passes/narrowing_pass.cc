@@ -215,6 +215,7 @@ absl::StatusOr<bool> MaybeNarrowArrayIndex(ArrayIndex* array_index,
     // TODO(b/148457283): Unconditionally narrow the width of the index to the
     // minimum number of bits require to index the entire array.
     if (index->Is<Literal>()) {
+      new_indices.push_back(index);
       continue;
     }
 
