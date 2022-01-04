@@ -126,6 +126,7 @@ fn other(z: bits[32]) -> bits[32] {
 fn main(x: bits[32], xx: bits[32]) -> bits[32] {
   add1: bits[32] = add(x, x)
   zero: bits[32] = literal(value=0)
+  neg_x: bits[32] = invoke(x, to_apply=other)
   ret sub: bits[32] = sub(x, xx)
 }
 )"));

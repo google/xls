@@ -242,13 +242,13 @@ absl::StatusOr<std::string> IrToJson(
 // Wraps the given text in a span with the given id, classes, and data. The
 // string `str` is modified in place.
 static absl::Status WrapTextInSpan(
-    absl::string_view text, absl::optional<std::string> id,
+    absl::string_view text, absl::optional<std::string> dom_id,
     absl::Span<const std::string> classes,
     absl::Span<const std::pair<std::string, std::string>> data,
     std::string* str) {
   std::string open_span = "<span";
-  if (id.has_value()) {
-    absl::StrAppendFormat(&open_span, " id=\"%s\"", id.value());
+  if (dom_id.has_value()) {
+    absl::StrAppendFormat(&open_span, " id=\"%s\"", dom_id.value());
   }
   if (!classes.empty()) {
     absl::StrAppendFormat(&open_span, " class=\"%s\"",
@@ -271,7 +271,7 @@ static absl::Status WrapNodeDefInSpan(
   std::string node_id = GetNodeUniqueId(node, function_ids);
   XLS_RETURN_IF_ERROR(WrapTextInSpan(
       node->GetName(),
-      /*id=*/
+      /*dom_id=*/
       absl::StrFormat("ir-node-def-%s", node_id),
       /*classes=*/
       {"ir-node-identifier", absl::StrFormat("ir-node-identifier-%s", node_id)},
@@ -291,7 +291,7 @@ static absl::Status WrapNodeUseInSpan(
   std::string use_id = GetNodeUniqueId(use, function_ids);
   XLS_RETURN_IF_ERROR(WrapTextInSpan(
       def->GetName(),
-      /*id=*/absl::nullopt,
+      /*dom_id=*/absl::nullopt,
       /*classes=*/
       {"ir-node-identifier", absl::StrFormat("ir-node-identifier-%s", def_id),
        absl::StrFormat("ir-edge-%s-%s", def_id, use_id)},
@@ -300,6 +300,19 @@ static absl::Status WrapNodeUseInSpan(
        {"function-id", function_ids.at(def->function_base())}},
       str));
   return absl::OkStatus();
+}
+
+// Wraps the name of the given function in `str` with an appropriate function
+// identifier span.
+static absl::Status WrapFunctionNameInSpan(absl::string_view function_name,
+                                           absl::string_view function_id,
+                                           absl::optional<std::string> dom_id,
+                                           std::string* str) {
+  return WrapTextInSpan(function_name,
+                        /*dom_id=*/dom_id,
+                        /*classes=*/{"ir-function-identifier"},
+                        /*data=*/{{"identifier", std::string{function_id}}},
+                        str);
 }
 
 absl::StatusOr<std::string> MarkUpIrText(Package* package) {
@@ -335,13 +348,12 @@ absl::StatusOr<std::string> MarkUpIrText(Package* package) {
         XLS_ASSIGN_OR_RETURN(current_function,
                              package->GetBlock(function_name));
       }
-      XLS_RETURN_IF_ERROR(WrapTextInSpan(
-          current_function->name(),
-          /*id=*/
+      XLS_RETURN_IF_ERROR(WrapFunctionNameInSpan(
+          current_function->name(), function_ids.at(current_function),
+          /*dom_id=*/
           absl::StrFormat("ir-function-def-%s",
                           function_ids.at(current_function)),
-          /*classes=*/{"ir-function-identifier"},
-          /*data=*/{{"identifier", function_ids.at(current_function)}}, &line));
+          &line));
 
       // Wrap the parameters in spans.
       for (Param* node : current_function->params()) {
@@ -372,6 +384,17 @@ absl::StatusOr<std::string> MarkUpIrText(Package* package) {
       for (Node* operand : node->operands()) {
         XLS_RETURN_IF_ERROR(
             WrapNodeUseInSpan(operand, node, function_ids, &line));
+      }
+
+      // If the node calls another function then wrap the function identifier.
+      std::string callee_name;
+      if (RE2::PartialMatch(line, R"(^.*to_apply=([_a-zA-Z0-9.]+))",
+                            &callee_name)) {
+        XLS_ASSIGN_OR_RETURN(Function * callee,
+                             package->GetFunction(callee_name));
+        XLS_RETURN_IF_ERROR(
+            WrapFunctionNameInSpan(callee_name, function_ids.at(callee),
+                                   /*dom_id=*/absl::nullopt, &line));
       }
 
       lines.push_back(std::string{line});
