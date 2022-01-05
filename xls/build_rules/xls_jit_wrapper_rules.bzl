@@ -181,10 +181,8 @@ def cc_xls_ir_jit_wrapper(
         name = "__" + name + "_xls_ir_jit_wrapper",
         src = src,
         jit_wrapper_args = _jit_wrapper_args,
-        outs = [
-            name + ".cc",
-            name + ".h",
-        ],
+        source_file = name + ".cc",
+        header_file = name + ".h",
         **kwargs
     )
     native.cc_library(

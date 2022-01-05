@@ -22,6 +22,7 @@ load(
 )
 load(
     "//xls/build_rules:xls_codegen_rules.bzl",
+    "append_xls_ir_verilog_generated_files",
     "get_xls_ir_verilog_generated_files",
     "xls_ir_verilog",
 )
@@ -64,11 +65,14 @@ def xls_ir_verilog_macro(
         fail("Argument 'enable_presubmit_generated_file' must be " +
              "of boolean type.")
 
+    # Append output files to arguments.
+    kwargs = append_xls_ir_verilog_generated_files(kwargs, name, codegen_args)
+
     xls_ir_verilog(
         name = name,
         src = src,
         codegen_args = codegen_args,
-        outs = get_xls_ir_verilog_generated_files(name, codegen_args),
+        outs = get_xls_ir_verilog_generated_files(kwargs, codegen_args),
         **kwargs
     )
     enable_generated_file_wrapper(

@@ -16,7 +16,7 @@
 
 CONFIG = {
     "xls_outs_attrs": {
-        "outs": attr.output_list(
+        "outs": attr.string_list(
             doc = "The list of generated files.",
         ),
     },

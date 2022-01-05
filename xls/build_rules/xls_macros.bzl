@@ -22,6 +22,7 @@ load(
 )
 load(
     "//xls/build_rules:xls_rules.bzl",
+    "append_xls_dslx_verilog_generated_files",
     "get_xls_dslx_verilog_generated_files",
     "xls_dslx_verilog",
 )
@@ -75,13 +76,16 @@ def xls_dslx_verilog_macro(
         fail("Argument 'enable_presubmit_generated_file' must be " +
              "of boolean type.")
 
+    # Append output files to arguments.
+    kwargs = append_xls_dslx_verilog_generated_files(kwargs, name, codegen_args)
+
     xls_dslx_verilog(
         name = name,
         dep = dep,
         ir_conv_args = ir_conv_args,
         opt_ir_args = opt_ir_args,
         codegen_args = codegen_args,
-        outs = get_xls_dslx_verilog_generated_files(name, codegen_args),
+        outs = get_xls_dslx_verilog_generated_files(kwargs, codegen_args),
         **kwargs
     )
     enable_generated_file_wrapper(
