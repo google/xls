@@ -240,7 +240,7 @@ xls_dslx_ir(
 xls_ir_opt_ir(
     name = "chaining_example_opt_ir",
     src = ":chaining_example_ir",
-    opt_ir_file = ":chaining_example_opt_ir.opt.ir",
+    opt_ir_file = "chaining_example_opt_ir.opt.ir",
 )
 
 xls_ir_verilog(
@@ -249,6 +249,7 @@ xls_ir_verilog(
     codegen_args = {
         "pipeline_stages": "1",
     },
+    verilog_file = "chaining_example_verilog.v",
 )
 
 xls_eval_ir_test(
@@ -358,7 +359,7 @@ xls_ir_opt_ir(
     opt_ir_args = {
         "entry": get_mangled_ir_symbol("chaining_example", "double"),
     },
-    opt_ir_file = ":chaining_example_double_opt_ir.opt.ir",
+    opt_ir_file = "chaining_example_double_opt_ir.opt.ir",
 )
 
 cc_xls_ir_jit_wrapper(
@@ -377,7 +378,7 @@ xls_ir_opt_ir(
         "entry": get_mangled_ir_symbol("chaining_example", "triple"),
         "run_only_passes": "arith_simp",
     },
-    opt_ir_file = ":chaining_example_triple_run_only_opt_ir.opt.ir",
+    opt_ir_file = "chaining_example_triple_run_only_opt_ir.opt.ir",
 )
 
 xls_ir_opt_ir(
@@ -386,7 +387,7 @@ xls_ir_opt_ir(
     opt_ir_args = {
         "skip_passes": "arith_simp",
     },
-    opt_ir_file = ":chaining_example_triple_skip_passes_opt_ir.opt.ir",
+    opt_ir_file = "chaining_example_triple_skip_passes_opt_ir.opt.ir",
 )
 
 xls_ir_equivalence_test(
@@ -451,6 +452,7 @@ xls_dslx_verilog(
     dep = ":simple_example_five_dslx_module",
     # Output the Optimized IR file to reference.
     opt_ir_file = "simple_example_5_one_stage.opt.ir",
+    verilog_file = "simple_example_5_one_stage.v",
 )
 
 # The xls_ir_jit_wrapper rule using an optimized IR file as input.
@@ -548,6 +550,7 @@ xls_ir_verilog_macro(
     codegen_args = {
         "pipeline_stages": "1",
     },
+    verilog_file = "chaining_example_verilog_macro.v",
 )
 
 # The target is the macro form of the 'simple_example_5_one_stage' target.
@@ -557,12 +560,63 @@ xls_dslx_verilog_macro(
         "pipeline_stages": "1",
     },
     dep = ":simple_example_five_dslx_module",
+    verilog_file = "simple_example_5_one_stage_macro.v",
 )
 
 # Verifies that xls_dslx_cpp_type_library macros work to (some) extent.
 xls_dslx_cpp_type_library(
     name = "type_definitions_types_cpp",
     src = "type_definitions.x",
+)
+
+################################################################################
+# Tests for user defined output filenames.
+################################################################################
+xls_dslx_ir(
+    name = "user_defined_output_filename_ir",
+    dep = ":chaining_example_dslx_module",
+    ir_file = "xls_dslx_ir.ir",
+)
+
+xls_ir_opt_ir(
+    name = "user_defined_output_filename_opt_ir",
+    src = ":user_defined_output_filename_ir",
+    opt_ir_file = "xls_ir_opt_ir.opt.ir",
+)
+
+xls_ir_verilog(
+    name = "user_defined_output_filename_verilog",
+    src = ":user_defined_output_filename_opt_ir",
+    codegen_args = {
+        "pipeline_stages": "1",
+    },
+    module_sig_file = "xls_ir_verilog.sig.textproto",
+    schedule_file = "xls_ir_verilog.schedule.textproto",
+    verilog_file = "xls_ir_verilog.v",
+)
+
+xls_ir_verilog_macro(
+    name = "user_defined_output_filename_macro_verilog",
+    src = ":user_defined_output_filename_opt_ir",
+    codegen_args = {
+        "pipeline_stages": "1",
+    },
+    module_sig_file = "xls_ir_verilog_macro.sig.textproto",
+    schedule_file = "xls_ir_verilog_macro.schedule.textproto",
+    verilog_file = "xls_ir_verilog_macro.v",
+)
+
+xls_dslx_verilog_macro(
+    name = "user_defined_output_filename_xls_dslx_verilog_macro_verilog",
+    codegen_args = {
+        "pipeline_stages": "1",
+    },
+    dep = ":chaining_example_dslx_module",
+    ir_file = "xls_dslx_verilog_macro.ir",
+    module_sig_file = "xls_dslx_verilog_macro.sig.textproto",
+    opt_ir_file = "xls_dslx_verilog_macro.opt.ir",
+    schedule_file = "xls_dslx_verilog_macro.schedule.textproto",
+    verilog_file = "xls_dslx_verilog_macro.v",
 )
 
 ################################################################################

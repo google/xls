@@ -24,12 +24,14 @@ load(
     "//xls/build_rules:xls_codegen_rules.bzl",
     "append_xls_ir_verilog_generated_files",
     "get_xls_ir_verilog_generated_files",
+    "validate_verilog_filename",
     "xls_ir_verilog",
 )
 
 def xls_ir_verilog_macro(
         name,
         src,
+        verilog_file,
         codegen_args = {},
         enable_generated_file = True,
         enable_presubmit_generated_file = False,
@@ -45,6 +47,8 @@ def xls_ir_verilog_macro(
       src: The source file. See 'src' attribute from the 'xls_ir_verilog' rule.
       codegen_args: Codegen Arguments. See 'codegen_args' attribute from the
         'xls_ir_verilog' rule.
+      verilog_file: The generated Verilog file. See 'verilog_file' attribute
+        from the 'xls_ir_verilog' rule.
       enable_generated_file: See 'enable_generated_file' from
         'enable_generated_file_wrapper' function.
       enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
@@ -57,6 +61,8 @@ def xls_ir_verilog_macro(
         fail("Argument 'name' must be of string type.")
     if type(src) != type(""):
         fail("Argument 'src' must be of string type.")
+    if type(verilog_file) != type(""):
+        fail("Argument 'verilog_file' must be of string type.")
     if type(codegen_args) != type({}):
         fail("Argument 'codegen_args' must be of dictionary type.")
     if type(enable_generated_file) != type(True):
@@ -66,13 +72,21 @@ def xls_ir_verilog_macro(
              "of boolean type.")
 
     # Append output files to arguments.
-    kwargs = append_xls_ir_verilog_generated_files(kwargs, name, codegen_args)
+    validate_verilog_filename(verilog_file)
+    verilog_basename = verilog_file[:-2]
+    kwargs = append_xls_ir_verilog_generated_files(
+        kwargs,
+        verilog_basename,
+        codegen_args,
+    )
 
     xls_ir_verilog(
         name = name,
         src = src,
         codegen_args = codegen_args,
-        outs = get_xls_ir_verilog_generated_files(kwargs, codegen_args),
+        verilog_file = verilog_file,
+        outs = get_xls_ir_verilog_generated_files(kwargs, codegen_args) +
+               [verilog_file],
         **kwargs
     )
     enable_generated_file_wrapper(

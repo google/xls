@@ -17,19 +17,31 @@ This module contains build macros for XLS.
 """
 
 load(
+    "//xls/build_rules:xls_codegen_rules.bzl",
+    "append_xls_ir_verilog_generated_files",
+    "get_xls_ir_verilog_generated_files",
+    "validate_verilog_filename",
+)
+load(
     "//xls/build_rules:xls_config_rules.bzl",
     "enable_generated_file_wrapper",
 )
 load(
+    "//xls/build_rules:xls_ir_rules.bzl",
+    "append_xls_dslx_ir_generated_files",
+    "append_xls_ir_opt_ir_generated_files",
+    "get_xls_dslx_ir_generated_files",
+    "get_xls_ir_opt_ir_generated_files",
+)
+load(
     "//xls/build_rules:xls_rules.bzl",
-    "append_xls_dslx_verilog_generated_files",
-    "get_xls_dslx_verilog_generated_files",
     "xls_dslx_verilog",
 )
 
 def xls_dslx_verilog_macro(
         name,
         dep,
+        verilog_file,
         ir_conv_args = {},
         opt_ir_args = {},
         codegen_args = {},
@@ -64,6 +76,8 @@ def xls_dslx_verilog_macro(
         fail("Argument 'name' must be of string type.")
     if type(dep) != type(""):
         fail("Argument 'dep' must be of string type.")
+    if type(verilog_file) != type(""):
+        fail("Argument 'verilog_file' must be of string type.")
     if type(ir_conv_args) != type({}):
         fail("Argument 'ir_conv_args' must be of dictionary type.")
     if type(opt_ir_args) != type({}):
@@ -77,15 +91,27 @@ def xls_dslx_verilog_macro(
              "of boolean type.")
 
     # Append output files to arguments.
-    kwargs = append_xls_dslx_verilog_generated_files(kwargs, name, codegen_args)
+    kwargs = append_xls_dslx_ir_generated_files(kwargs, name)
+    kwargs = append_xls_ir_opt_ir_generated_files(kwargs, name)
+    validate_verilog_filename(verilog_file)
+    verilog_basename = verilog_file[:-2]
+    kwargs = append_xls_ir_verilog_generated_files(
+        kwargs,
+        verilog_basename,
+        codegen_args,
+    )
 
     xls_dslx_verilog(
         name = name,
         dep = dep,
+        verilog_file = verilog_file,
         ir_conv_args = ir_conv_args,
         opt_ir_args = opt_ir_args,
         codegen_args = codegen_args,
-        outs = get_xls_dslx_verilog_generated_files(kwargs, codegen_args),
+        outs = get_xls_dslx_ir_generated_files(kwargs) +
+               get_xls_ir_opt_ir_generated_files(kwargs) +
+               get_xls_ir_verilog_generated_files(kwargs, codegen_args) +
+               [verilog_file],
         **kwargs
     )
     enable_generated_file_wrapper(

@@ -84,3 +84,24 @@ def append_cmd_line_args_to(cmd):
       'cmd' with the syntax for command line arguments ("$*") appended
     """
     return cmd + " $*"
+
+def get_output_filename_value(ctx, output_attr_name, default_filename):
+    """Returns the filename for an output attribute within the context.
+
+    If the output_attr_name is defined in the context, the function returns
+    the value of the output_attr_name. Otherwise, the function returns the
+    default_filename.
+
+    Args:
+      ctx: The current rule's context object.
+      output_attr_name: The name of the output attribute.
+      default_filename: The default filename.
+
+    Returns:
+      The filename for an output attribute within the context.
+    """
+    attribute_value = getattr(ctx.attr, output_attr_name)
+    if attribute_value:
+        return attribute_value.name
+    else:
+        return default_filename

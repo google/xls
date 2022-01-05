@@ -18,6 +18,7 @@ load(
     "//xls/build_rules:xls_common_rules.bzl",
     "append_cmd_line_args_to",
     "get_args",
+    "get_output_filename_value",
 )
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load(
@@ -160,7 +161,12 @@ def _convert_to_ir(ctx, src, dep_src_list):
     required_files = [src] + dep_src_list
     required_files += get_xls_toolchain_info(ctx).dslx_std_lib_list
 
-    ir_file = ctx.actions.declare_file(ctx.attr.name + _IR_FILE_EXTENSION)
+    ir_filename = get_output_filename_value(
+        ctx,
+        "ir_file",
+        ctx.attr.name + _IR_FILE_EXTENSION,
+    )
+    ir_file = ctx.actions.declare_file(ir_filename)
     ctx.actions.run_shell(
         outputs = [ir_file],
         # The IR converter executable is a tool needed by the action.
@@ -202,9 +208,12 @@ def _optimize_ir(ctx, src):
 
     my_args = get_args(opt_ir_args, IR_OPT_FLAGS)
 
-    opt_ir_file = ctx.actions.declare_file(
+    opt_ir_filename = get_output_filename_value(
+        ctx,
+        "opt_ir_file",
         ctx.attr.name + _OPT_IR_FILE_EXTENSION,
     )
+    opt_ir_file = ctx.actions.declare_file(opt_ir_filename)
     ctx.actions.run_shell(
         outputs = [opt_ir_file],
         # The IR optimization executable is a tool needed by the action.
@@ -496,7 +505,9 @@ xls_dslx_ir_attrs = dicts.add(
             doc = "Arguments of the IR conversion tool.",
         ),
         "ir_file": attr.output(
-            doc = "The IR file generated.",
+            doc = "Filename of the generated IR. If not specified, the " +
+                  "target name of the bazel rule followed by an " +
+                  _IR_FILE_EXTENSION + " extension is used.",
         ),
     },
 )
@@ -594,7 +605,9 @@ xls_ir_opt_ir_attrs = {
         doc = "Arguments of the IR optimizer tool.",
     ),
     "opt_ir_file": attr.output(
-        doc = "The optimized IR file generated.",
+        doc = "Filename of the generated optimized IR. If not specified, the " +
+              "target name of the bazel rule followed by an " +
+              _OPT_IR_FILE_EXTENSION + " extension is used.",
     ),
 }
 
