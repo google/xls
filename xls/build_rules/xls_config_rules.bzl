@@ -22,11 +22,7 @@ load(
     "//xls/build_rules:xls_oss_config_rules.bzl",
     _CONFIG = "CONFIG",
     _enable_generated_file_wrapper = "enable_generated_file_wrapper",
-    _generated_file = "generated_file",
-    _presubmit_generated_file = "presubmit_generated_file",
 )
 
 CONFIG = _CONFIG
-generated_file = _generated_file
-presubmit_generated_file = _presubmit_generated_file
 enable_generated_file_wrapper = _enable_generated_file_wrapper

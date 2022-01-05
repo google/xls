@@ -22,55 +22,12 @@ CONFIG = {
     },
 }
 
-def generated_file(
-        name = None,
-        wrapped_target = None,
-        tags = None,
-        testonly = None):
-    """The function is a placeholder for generated_file.
-
-    The function is intended to be empty.
-
-    Args:
-      name: Optional name of the marker rule created by this macro.
-      wrapped_target: The target to wrap.
-      tags: A list of tags to set on the artifacts.
-      testonly: Optional standard testonly attribute.
-    """
-    pass
-
-def presubmit_generated_file(
-        name = None,
-        wrapped_target = None,
-        tags = None,
-        testonly = None):
-    """The function is a placeholder for presubmit_generated_file.
-
-    The function is intended to be empty.
-
-    Args:
-      name: Optional name of the marker rule created by this macro.
-      wrapped_target: The target to wrap.
-      tags: A non-empty list of string tags.
-      testonly: Optional standard testonly attribute.
-    """
-    pass
-
-def enable_generated_file_wrapper(
-        wrapped_target = None,
-        tags = None,
-        testonly = None,
-        enable_generated_file = True,
-        enable_presubmit_generated_file = False):
+def enable_generated_file_wrapper(**kwargs):
     """The function is a placeholder for enable_generated_file_wrapper.
 
     The function is intended to be empty.
 
     Args:
-      wrapped_target: The target to wrap.
-      tags: A non-empty list of string tags.
-      testonly: Optional standard testonly attribute.
-      enable_generated_file: Enable generated_file.
-      enable_presubmit_generated_file: Enable presubmit_generated_file.
+      **kwargs: Positional arguments. Named arguments.
     """
     pass

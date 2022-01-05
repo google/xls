@@ -90,10 +90,9 @@ def xls_dslx_verilog_macro(
     )
     enable_generated_file_wrapper(
         wrapped_target = name,
-        tags = kwargs.get("tags", None),
-        testonly = kwargs.get("testonly", None),
         enable_generated_file = enable_generated_file,
         enable_presubmit_generated_file = enable_presubmit_generated_file,
+        **kwargs
     )
 
 def xls_dslx_cpp_type_library(
