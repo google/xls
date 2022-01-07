@@ -86,7 +86,7 @@ def xls_ir_verilog_macro(
         codegen_args = codegen_args,
         verilog_file = verilog_file,
         outs = get_xls_ir_verilog_generated_files(kwargs, codegen_args) +
-               [verilog_file],
+               [native.package_name() + "/" + verilog_file],
         **kwargs
     )
     enable_generated_file_wrapper(

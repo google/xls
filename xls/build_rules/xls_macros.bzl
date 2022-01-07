@@ -111,7 +111,7 @@ def xls_dslx_verilog_macro(
         outs = get_xls_dslx_ir_generated_files(kwargs) +
                get_xls_ir_opt_ir_generated_files(kwargs) +
                get_xls_ir_verilog_generated_files(kwargs, codegen_args) +
-               [verilog_file],
+               [native.package_name() + "/" + verilog_file],
         **kwargs
     )
     enable_generated_file_wrapper(
