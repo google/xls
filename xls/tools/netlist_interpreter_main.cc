@@ -115,7 +115,7 @@ absl::Status RealMain(const std::string& netlist_path,
   }
   input_bits = bits_ops::Reverse(input_bits);
 
-  absl::flat_hash_map<const netlist::rtl::NetRef, bool> input_nets;
+  netlist::NetRef2Value input_nets;
   const std::vector<netlist::rtl::NetRef>& module_inputs = module->inputs();
   XLS_RET_CHECK(module_inputs.size() == input_bits.bit_count());
 

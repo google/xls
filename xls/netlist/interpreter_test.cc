@@ -65,11 +65,10 @@ TEST(InterpreterTest, BasicFunctionality) {
                            netlist.GetModule("the_module"));
   Interpreter interpreter(&netlist);
 
-  absl::flat_hash_map<const rtl::NetRef, bool> inputs;
+  NetRef2Value inputs, outputs;
   inputs[module_ptr->inputs()[0]] = true;
   inputs[module_ptr->inputs()[1]] = false;
-  using OutputT = absl::flat_hash_map<const rtl::NetRef, bool>;
-  XLS_ASSERT_OK_AND_ASSIGN(OutputT outputs,
+  XLS_ASSERT_OK_AND_ASSIGN(outputs,
                            interpreter.InterpretModule(module_ptr, inputs));
   EXPECT_EQ(outputs.size(), 1);
   EXPECT_EQ(outputs[module_ptr->outputs()[0]], 0);
@@ -146,7 +145,7 @@ TEST(InterpreterTest, Tree) {
                            netlist.GetModule("the_module"));
   Interpreter interpreter(&netlist);
 
-  absl::flat_hash_map<const rtl::NetRef, bool> inputs;
+  NetRef2Value inputs, outputs;
   // AND inputs
   inputs[module_ptr->inputs()[0]] = true;
   inputs[module_ptr->inputs()[1]] = false;
@@ -155,8 +154,7 @@ TEST(InterpreterTest, Tree) {
   inputs[module_ptr->inputs()[2]] = true;
   inputs[module_ptr->inputs()[3]] = false;
 
-  using OutputT = absl::flat_hash_map<const rtl::NetRef, bool>;
-  XLS_ASSERT_OK_AND_ASSIGN(OutputT outputs,
+  XLS_ASSERT_OK_AND_ASSIGN(outputs,
                            interpreter.InterpretModule(module_ptr, inputs));
 
   EXPECT_EQ(outputs.size(), 1);
@@ -206,14 +204,13 @@ endmodule
   XLS_ASSERT_OK_AND_ASSIGN(const rtl::Module* module,
                            netlist->GetModule("main"));
 
-  absl::flat_hash_map<const rtl::NetRef, bool> inputs;
+  NetRef2Value inputs, outputs;
   inputs[module->inputs()[0]] = true;
   inputs[module->inputs()[1]] = false;
   inputs[module->inputs()[2]] = true;
   inputs[module->inputs()[3]] = false;
 
-  using OutputT = absl::flat_hash_map<const rtl::NetRef, bool>;
-  XLS_ASSERT_OK_AND_ASSIGN(OutputT outputs,
+  XLS_ASSERT_OK_AND_ASSIGN(outputs,
                            interpreter.InterpretModule(module, inputs));
 
   EXPECT_EQ(outputs.size(), 1);
@@ -244,14 +241,13 @@ endmodule
   XLS_ASSERT_OK_AND_ASSIGN(const rtl::Module* module,
                            netlist->GetModule("main"));
 
-  absl::flat_hash_map<const rtl::NetRef, bool> inputs;
+  NetRef2Value inputs, outputs;
   inputs[module->inputs()[0]] = true;
   inputs[module->inputs()[1]] = true;
   inputs[module->inputs()[2]] = true;
   inputs[module->inputs()[3]] = true;
 
-  using OutputT = absl::flat_hash_map<const rtl::NetRef, bool>;
-  XLS_ASSERT_OK_AND_ASSIGN(OutputT outputs,
+  XLS_ASSERT_OK_AND_ASSIGN(outputs,
                            interpreter.InterpretModule(module, inputs));
   EXPECT_EQ(outputs.size(), 1);
   EXPECT_TRUE(outputs.begin()->second);
