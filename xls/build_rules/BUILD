@@ -47,7 +47,6 @@ bzl_library(
 bzl_library(
     name = "xls_config_rules_bzl",
     srcs = ["xls_config_rules.bzl"],
-    visibility = ["//visibility:private"],
     deps = [
         "xls_oss_config_rules_bzl",
     ],
@@ -56,13 +55,11 @@ bzl_library(
 bzl_library(
     name = "xls_common_rules_bzl",
     srcs = ["xls_common_rules.bzl"],
-    visibility = ["//visibility:private"],
 )
 
 bzl_library(
     name = "xls_providers_bzl",
     srcs = ["xls_providers.bzl"],
-    visibility = ["//visibility:private"],
 )
 
 bzl_library(

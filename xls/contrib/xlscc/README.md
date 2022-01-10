@@ -86,3 +86,19 @@ bazel-bin/xls/tools/opt_main test.ir > test.opt.ir
 bazel-bin/xls/tools/codegen_main test.opt.ir --generator combinational --entry test
 ```
 
+### Building XLS[cc] with Bazel ###
+An extensive description of the Bazel build rules and macros is available at
+[xls/contrib/xlscc/build_rules/xlscc_rules.bzl](https://github.com/google/xls/tree/main/xls/contrib/xlscc/build_rules/xlscc_rules.bzl).
+Examples using the rules and macros are found at
+[xls/contrib/xlscc/build_rules/tests/BUILD](https://github.com/google/xls/tree/main/xls/contrib/xlscc/build_rules/tests/BUILD).
+Every rule has a macro equivalent. These macro invokes the rule as well as
+postprocessing. Users are recommended to use the macros.
+
+### `xls_cc_ir`<a id="xls_cc_ir"></a>
+
+A build rule that converts a C/C++ source file to an IR file.
+
+### `xls_cc_ir_macro`
+
+The macro instantiates the '[xls_cc_ir](#xls_cc_ir)' rule and
+'enable_generated_file_wrapper' function.

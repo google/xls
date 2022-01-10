@@ -471,7 +471,6 @@ def xls_dslx_ir_impl(ctx, src, dep_src_list):
     return [
         dslx_module_info,
         ConvIRInfo(
-            dslx_source_file = src,
             conv_ir_file = ir_file,
         ),
         DefaultInfo(files = depset([ir_file])),

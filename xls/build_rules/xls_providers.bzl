@@ -51,8 +51,7 @@ ConvIRInfo = provider(
     doc = "A provider containing IR conversion file information for the " +
           "target. It is created and returned by the xls_dslx_ir rule.",
     fields = {
-        "dslx_source_file": "File: The DSLX source file.",
-        "conv_ir_file": "File: The IR file converted from a DSLX source.",
+        "conv_ir_file": "File: The IR file converted from a source file.",
     },
 )
 
