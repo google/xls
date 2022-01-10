@@ -449,6 +449,8 @@ class AbstractNetlist {
   std::vector<std::unique_ptr<AbstractModule<EvalT>>> modules_;
 };
 
+using Netlist = AbstractNetlist<>;
+
 template <typename EvalT>
 const AbstractCellLibraryEntry<EvalT>*
 AbstractModule<EvalT>::AsCellLibraryEntry() const {
