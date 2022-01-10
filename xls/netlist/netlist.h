@@ -174,10 +174,19 @@ class AbstractNetDef {
   // Called to note that a cell is connected to this net.
   void NoteConnectedCell(AbstractCell<EvalT>* cell) {
     connected_cells_.push_back(cell);
+    for (const auto input_pin : cell->inputs()) {
+      if (input_pin.netref == this) {
+        connected_input_cells_.push_back(cell);
+      }
+    }
   }
 
   absl::Span<AbstractCell<EvalT>* const> connected_cells() const {
     return connected_cells_;
+  }
+
+  absl::Span<AbstractCell<EvalT>* const> connected_input_cells() const {
+    return connected_input_cells_;
   }
 
   // Helper for getting the connected cells without one that is known to be
@@ -191,7 +200,13 @@ class AbstractNetDef {
 
  private:
   std::string name_;
+  // connected_cells_ contains all cells connected to this wire, as both inputs
+  // and outputs;
   std::vector<AbstractCell<EvalT>*> connected_cells_;
+  // connected_input_cells_ contains only the cells for which this
+  // wire is an input; connected_input_cells_ is a strict subset of
+  // connected_cells_--all pointes in the former are also in the latter..
+  std::vector<AbstractCell<EvalT>*> connected_input_cells_;
   NetDeclKind kind_;
 };
 
