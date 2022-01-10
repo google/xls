@@ -619,6 +619,13 @@ xls_dslx_verilog_macro(
     verilog_file = "xls_dslx_verilog_macro.v",
 )
 
+xls_ir_jit_wrapper(
+    name = "user_defined_output_filename_cc",
+    src = ":xls_ir_opt_ir.opt.ir",
+    header_file = "xls_ir_jit_wrapper.h",
+    source_file = "xls_ir_jit_wrapper.cc",
+)
+
 ################################################################################
 # Tests of eval_ir input validators.
 ################################################################################

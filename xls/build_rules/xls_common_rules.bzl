@@ -105,3 +105,22 @@ def get_output_filename_value(ctx, output_attr_name, default_filename):
         return attribute_value.name
     else:
         return default_filename
+
+def split_filename(filename):
+    """Returns the basename and extension of a given filename.
+
+    The basename and extension are distinguished using the rightmost dot (.).
+    For example, "a.file.name.ext" the basename is equivalent to "a.file.name"
+    and the extension is equivalent to "ext". If there is no dot in the
+    filename, the basename is equivalent to the filename, and the extension is
+    equivalent to 'None'.
+
+    Args:
+      filename: The filename.
+
+    Returns:
+      The filename for an output attribute within the context.
+    """
+    if "." not in filename:
+        return [filename, None]
+    return filename.rsplit(".", 1)

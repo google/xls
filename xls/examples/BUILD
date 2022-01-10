@@ -122,9 +122,11 @@ xls_dslx_opt_ir_test(
 xls_ir_jit_wrapper(
     name = "crc32_jit_wrapper",
     src = ":crc32.opt.ir",
+    header_file = "crc32_jit_wrapper.h",
     jit_wrapper_args = {
         "class_name": "crc32",
     },
+    source_file = "crc32_jit_wrapper.cc",
 )
 
 cc_binary(
@@ -240,10 +242,12 @@ xls_benchmark_ir(
 xls_ir_jit_wrapper(
     name = "sha256_jit_wrapper",
     src = ":sha256.opt.ir",
+    header_file = "sha256_jit_wrapper.h",
     jit_wrapper_args = {
         "class_name": "sha256",
         "function": "main",
     },
+    source_file = "sha256_jit_wrapper.cc",
 )
 
 xls_dslx_library(
