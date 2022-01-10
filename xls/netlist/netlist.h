@@ -153,12 +153,21 @@ class AbstractCell {
 
 using Cell = AbstractCell<>;
 
+// Kinds of wire declarations that can be made in the netlist module.
+enum class NetDeclKind {
+  kInput,
+  kOutput,
+  kWire,
+};
+
 // Definition of a net. Note this may be augmented with a def/use chain in the
 // future.
 template <typename EvalT>
 class AbstractNetDef {
  public:
-  explicit AbstractNetDef(absl::string_view name) : name_(name) {}
+  explicit AbstractNetDef(absl::string_view name,
+                          NetDeclKind kind = NetDeclKind::kWire)
+      : name_(name), kind_(kind) {}
 
   const std::string& name() const { return name_; }
 
@@ -178,19 +187,15 @@ class AbstractNetDef {
   absl::StatusOr<std::vector<AbstractCell<EvalT>*>> GetConnectedCellsSans(
       AbstractCell<EvalT>* to_remove) const;
 
+  NetDeclKind kind() const { return kind_; }
+
  private:
   std::string name_;
   std::vector<AbstractCell<EvalT>*> connected_cells_;
+  NetDeclKind kind_;
 };
 
 using NetDef = AbstractNetDef<>;
-
-// Kinds of wire declarations that can be made in the netlist module.
-enum class NetDeclKind {
-  kInput,
-  kOutput,
-  kWire,
-};
 
 // Represents the module containing the netlist info.
 template <typename EvalT = bool>
@@ -530,7 +535,7 @@ absl::Status AbstractModule<EvalT>::AddNetDecl(NetDeclKind kind,
         absl::StrCat("Module already has a net/wire decl with name: ", name));
   }
 
-  nets_.emplace_back(std::make_unique<AbstractNetDef<EvalT>>(name));
+  nets_.emplace_back(std::make_unique<AbstractNetDef<EvalT>>(name, kind));
   AbstractNetRef<EvalT> ref = nets_.back().get();
   name_to_netref_[name] = ref;
   switch (kind) {
