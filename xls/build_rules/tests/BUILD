@@ -627,6 +627,35 @@ xls_ir_jit_wrapper(
 )
 
 ################################################################################
+# Tests for same source file accessed by different targets.
+################################################################################
+# File accessed independently through targets
+xls_dslx_library(
+    name = "a_x_access_0_dslx",
+    srcs = [
+        ":a.x",
+    ],
+)
+
+xls_dslx_library(
+    name = "a_x_access_1_dslx",
+    srcs = [
+        ":a.x",
+    ],
+)
+
+# File accessed through dependency
+xls_dslx_library(
+    name = "a_x_access_via_dependency_dslx",
+    srcs = [
+        ":a.x",
+    ],
+    deps = [
+        ":a_dslx",
+    ],
+)
+
+################################################################################
 # Tests of eval_ir input validators.
 ################################################################################
 xls_dslx_module_library(

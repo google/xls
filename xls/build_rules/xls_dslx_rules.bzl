@@ -78,15 +78,15 @@ def get_transitive_dslx_dummy_files_depset(srcs, deps):
     )
 
 #TODO(https://github.com/google/xls/issues/392) 04-14-21
-def parse_and_type_check(ctx, src, required_files):
-    """Parses and type checks a file.
+def parse_and_type_check(ctx, srcs, required_files):
+    """Parses and type checks a list containing DSLX files.
 
     The macro creates an action in the context that parses and type checks a
-    file.
+    list containing DSLX files.
 
     Args:
       ctx: The current rule's context object.
-      src: The source file.
+      srcs: A list of DSLX files.
       required_files: A list of DSLX sources files required to
         perform the parse and type check action.
 
@@ -94,7 +94,8 @@ def parse_and_type_check(ctx, src, required_files):
       A File referencing the dummy file.
     """
     dslx_interpreter_tool = get_xls_toolchain_info(ctx).dslx_interpreter_tool
-    file = ctx.actions.declare_file(src.basename + ".dummy")
+    dslx_srcs_str = " ".join([s.path for s in srcs])
+    file = ctx.actions.declare_file(ctx.attr.name + ".dummy")
     ctx.actions.run_shell(
         outputs = [file],
         # The DSLX interpreter executable is a tool needed by the action.
@@ -104,21 +105,27 @@ def parse_and_type_check(ctx, src, required_files):
         inputs = required_files + [dslx_interpreter_tool],
         # Generate a dummy file for the DSLX source file when the source file is
         # successfully parsed and type checked.
+        # TODO (vmirian) 01-05-21 Enable the interpreter to take multiple files.
+        # TODO (vmirian) 01-05-21 Ideally, create a standalone tool that parses
+        # a DSLX file. (Instead of repurposing the interpreter.)
         command = "\n".join([
-            "{} {} --compare=none --execute=false --dslx_path={}".format(
+            "FILES=\"{}\"".format(dslx_srcs_str),
+            "for file in $FILES; do",
+            "{} $file --compare=none --execute=false --dslx_path={}".format(
                 dslx_interpreter_tool.path,
-                src.path,
                 ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path,
             ),
             "if [ $? -ne 0 ]; then",
+            "echo \"Error parsing and type checking DSLX source file: $file\"",
             "exit -1",
             "fi",
+            "done",
             "touch {}".format(file.path),
             "exit 0",
         ]),
         mnemonic = "ParseAndTypeCheckDSLXSourceFile",
-        progress_message = "Parsing and type checking DSLX source file: %s" %
-                           (src.path),
+        progress_message = "Parsing and type checking DSLX source files of " +
+                           "target %s" % (ctx.attr.name),
     )
     return file
 
@@ -247,10 +254,9 @@ def _xls_dslx_library_impl(ctx):
     required_files = my_srcs_depset.to_list()
     required_files += get_xls_toolchain_info(ctx).dslx_std_lib_list
 
-    # Parse and type check each source file.
-    for src in my_srcs_list:
-        file = parse_and_type_check(ctx, src, required_files)
-        my_dummy_files.append(file)
+    # Parse and type check the DSLX source files.
+    file = parse_and_type_check(ctx, my_srcs_list, required_files)
+    my_dummy_files.append(file)
 
     dummy_files_depset = get_transitive_dslx_dummy_files_depset(
         my_dummy_files,
@@ -380,8 +386,8 @@ def _xls_dslx_module_library_impl(ctx):
     required_files = my_srcs_list
     required_files += get_xls_toolchain_info(ctx).dslx_std_lib_list
 
-    # Parse and type check the source file.
-    file = parse_and_type_check(ctx, src, required_files)
+    # Parse and type check the DSLX source file.
+    file = parse_and_type_check(ctx, [src], required_files)
     my_dummy_file = file
 
     dummy_files_depset = get_transitive_dslx_dummy_files_depset(
