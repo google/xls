@@ -78,7 +78,6 @@ bzl_library(
 bzl_library(
     name = "xls_ir_rules_bzl",
     srcs = ["xls_ir_rules.bzl"],
-    visibility = ["//visibility:private"],
     deps = [
         ":xls_common_rules_bzl",
         ":xls_config_rules_bzl",
@@ -92,7 +91,6 @@ bzl_library(
 bzl_library(
     name = "xls_codegen_rules_bzl",
     srcs = ["xls_codegen_rules.bzl"],
-    visibility = ["//visibility:private"],
     deps = [
         ":xls_common_rules_bzl",
         ":xls_config_rules_bzl",

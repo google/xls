@@ -102,3 +102,13 @@ A build rule that converts a C/C++ source file to an IR file.
 
 The macro instantiates the '[xls_cc_ir](#xls_cc_ir)' rule and
 'enable_generated_file_wrapper' function.
+
+### `xls_cc_verilog`<a id="xls_cc_verilog"></a>
+
+A build rule that converts a C/C++ source file to an IR file, optimizes the IR
+file, and generates the verilog file from the optimized IR file.
+
+### `xls_cc_verilog_macro`
+
+The macro instantiates the '[xls_cc_verilog](#xls_cc_verilog)' rule and
+'enable_generated_file_wrapper' function.
