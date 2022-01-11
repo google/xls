@@ -16,6 +16,8 @@
 
 import subprocess
 
+from absl import logging
+
 from xls.common import runfiles
 from absl.testing import absltest
 
@@ -56,6 +58,21 @@ proc test_proc(tkn: token, st: (bits[64]), init=(10)) {
 """
 
 
+def run_command(args):
+  """Runs the command described by args and returns the completion object."""
+  # Don't use check=True because we want to print stderr/stdout on failure for a
+  # better error message.
+  # pylint: disable=subprocess-run-check
+  comp = subprocess.run(
+      args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+  if comp.returncode != 0:
+    logging.error("Failed to run: %s", " ".join(args))
+    logging.error("stderr: %s", comp.stderr)
+    logging.error("stdout: %s", comp.stdout)
+  comp.check_returncode()
+  return comp
+
+
 class EvalProcTest(absltest.TestCase):
 
   def test_basic(self):
@@ -87,27 +104,11 @@ bits[64]:55
             outfile=output_file.full_path, outfile2=output_file_2.full_path)
     ]
 
-    output = subprocess.run(
-        shared_args + ["--backend", "ir_interpreter"],
-        capture_output=True,
-        check=True)
-    if output.returncode != 0:
-      print(output.stderr.decode("utf-8"))
-      print(output.stdout.decode("utf-8"))
-    self.assertEqual(output.returncode, 0)
+    output = run_command(shared_args + ["--backend", "ir_interpreter"])
+    self.assertIn("Proc test_proc", output.stderr)
 
-    self.assertIn("Proc test_proc", output.stderr.decode("utf-8"))
-    output = subprocess.run(
-        shared_args + ["--backend", "serial_jit"],
-        capture_output=True,
-        check=True)
-
-    if output.returncode != 0:
-      print(output.stderr.decode("utf-8"))
-      print(output.stdout.decode("utf-8"))
-    self.assertEqual(output.returncode, 0)
-
-    self.assertIn("Proc test_proc", output.stderr.decode("utf-8"))
+    output = run_command(shared_args + ["--backend", "serial_jit"])
+    self.assertIn("Proc test_proc", output.stderr)
 
   def test_reset_static(self):
     ir_file = self.create_tempfile(content=PROC_IR)
@@ -138,27 +139,12 @@ bits[64]:55
             outfile=output_file.full_path, outfile2=output_file_2.full_path)
     ]
 
-    output = subprocess.run(
-        shared_args + ["--backend", "ir_interpreter"],
-        capture_output=True,
-        check=True)
+    output = run_command(shared_args + ["--backend", "ir_interpreter"])
+    self.assertIn("Proc test_proc", output.stderr)
 
-    if output.returncode != 0:
-      print(output.stderr.decode("utf-8"))
-      print(output.stdout.decode("utf-8"))
-    self.assertEqual(output.returncode, 0)
+    output = run_command(shared_args + ["--backend", "serial_jit"])
+    self.assertIn("Proc test_proc", output.stderr)
 
-    self.assertIn("Proc test_proc", output.stderr.decode("utf-8"))
-    output = subprocess.run(
-        shared_args + ["--backend", "serial_jit"],
-        capture_output=True,
-        check=True)
 
-    if output.returncode != 0:
-      print(output.stderr.decode("utf-8"))
-      print(output.stdout.decode("utf-8"))
-    self.assertEqual(output.returncode, 0)
-
-    self.assertIn("Proc test_proc", output.stderr.decode("utf-8"))
 if __name__ == "__main__":
   absltest.main()

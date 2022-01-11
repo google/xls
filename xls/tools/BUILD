@@ -985,8 +985,8 @@ py_test(
     srcs_version = "PY3",
     deps = [
         "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_absl_py//absl/logging",
         "//xls/common:runfiles",
-        "//xls/common:test_base",
     ],
 )
 
