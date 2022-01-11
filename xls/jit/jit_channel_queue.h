@@ -118,7 +118,7 @@ class SingleValueJitChannelQueue : public JitChannelQueue {
 
   virtual void Recv(uint8_t* buffer, int64_t num_bytes) {
     absl::MutexLock lock(&mutex_);
-    XLS_CHECK_NE(buffer_.get(), nullptr);
+    XLS_CHECK(buffer_ != nullptr);
     XLS_CHECK_EQ(buffer_size_, num_bytes);
     memcpy(buffer, buffer_.get(), num_bytes);
   }
