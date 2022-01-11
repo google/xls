@@ -101,4 +101,10 @@ absl::flat_hash_map<Proc*, Value> ProcNetworkInterpreter::ResolveState() {
   return states;
 }
 
+void ProcNetworkInterpreter::ResetState() {
+  for (const auto& interpreter : proc_interpreters_) {
+    interpreter->ResetState();
+  }
+}
+
 }  // namespace xls

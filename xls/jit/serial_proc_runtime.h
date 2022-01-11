@@ -66,6 +66,8 @@ class SerialProcRuntime {
   // Returns the current state value in the given proc.
   absl::StatusOr<Value> ProcState(int64_t proc_index) const;
 
+  void ResetState();
+
  private:
   // Utility structure to hold state needed by each proc thread.
   struct ThreadData {

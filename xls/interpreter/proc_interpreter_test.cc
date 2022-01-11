@@ -18,9 +18,11 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
@@ -355,6 +357,52 @@ TEST_F(ProcInterpreterTest, OneToTwoDemux) {
   EXPECT_THAT(a_queue->Dequeue(), IsOkAndHolds(Value(UBits(4, 32))));
   EXPECT_TRUE(a_queue->empty());
   EXPECT_TRUE(b_queue->empty());
+}
+
+TEST_F(ProcInterpreterTest, StateReset) {
+  // Build a proc which outputs its input state and then iterates by adding 3.
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(),
+                 /*init_value=*/Value::Tuple({Value(SBits(11, 32))}),
+                 /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  BValue in_tuple = pb.TupleIndex(pb.GetStateParam(), 0);
+  BValue send_token = pb.Send(ch_out, pb.GetTokenParam(), in_tuple);
+  BValue add_lit = pb.Literal(SBits(3, 32));
+  BValue next_int = pb.Add(in_tuple, add_lit);
+  BValue next_state = pb.Tuple({next_int});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send_token, next_state));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ChannelQueueManager> queue_manager,
+      ChannelQueueManager::Create(/*user_defined_queues=*/{}, &package));
+  ProcInterpreter interpreter(proc, queue_manager.get());
+
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * out_queue,
+                           queue_manager->GetQueueByName("out"));
+
+  // Tick twice and verify that the expected outputs appear at output B.
+  XLS_ASSERT_OK(interpreter.RunIterationUntilCompleteOrBlocked().status());
+  ASSERT_FALSE(out_queue->empty());
+  EXPECT_THAT(out_queue->Dequeue(), IsOkAndHolds(Value(UBits(11, 32))));
+  EXPECT_TRUE(out_queue->empty());
+
+  XLS_ASSERT_OK(interpreter.RunIterationUntilCompleteOrBlocked().status());
+  ASSERT_FALSE(out_queue->empty());
+  EXPECT_THAT(out_queue->Dequeue(), IsOkAndHolds(Value(UBits(14, 32))));
+  EXPECT_TRUE(out_queue->empty());
+
+  interpreter.ResetState();
+
+  XLS_ASSERT_OK(interpreter.RunIterationUntilCompleteOrBlocked().status());
+  ASSERT_FALSE(out_queue->empty());
+  EXPECT_THAT(out_queue->Dequeue(), IsOkAndHolds(Value(UBits(11, 32))));
+  EXPECT_TRUE(out_queue->empty());
 }
 
 }  // namespace

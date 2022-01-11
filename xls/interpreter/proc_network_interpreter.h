@@ -54,6 +54,8 @@ class ProcNetworkInterpreter {
   // Returns the state values for each proc in the network.
   absl::flat_hash_map<Proc*, Value> ResolveState();
 
+  void ResetState();
+
  private:
   ProcNetworkInterpreter(std::unique_ptr<ChannelQueueManager>&& queue_manager)
       : queue_manager_(std::move(queue_manager)) {}

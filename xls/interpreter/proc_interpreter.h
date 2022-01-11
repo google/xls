@@ -82,6 +82,7 @@ class ProcInterpreter {
 
   Proc* proc() { return proc_; }
   Value ResolveState() { return visitor_->ResolveAsValue(proc_->NextState()); }
+  void ResetState();
 
  private:
   Proc* proc_;

@@ -23,6 +23,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/file/filesystem.h"
@@ -44,7 +45,10 @@ value of each will be printed to the terminal upon completion.
 Initial states are set according their declarations inside the IR itself.
 )";
 
-ABSL_FLAG(int64_t, ticks, -1, "Number of clock ticks to execute.");
+ABSL_FLAG(std::vector<std::string>, ticks, {},
+          "Can be a comma-separated list of runs. "
+          "Number of clock ticks to execute for each, with proc state "
+          "resetting per run.");
 ABSL_FLAG(std::string, backend, "serial_jit",
           "Backend to use for evaluation. Valid options are:\n"
           " - serial_jit : JIT-backed single-stepping runtime.\n"
@@ -61,7 +65,7 @@ ABSL_FLAG(
 namespace xls {
 
 absl::Status RunIrInterpreter(
-    Package* package, int64_t ticks,
+    Package* package, const std::vector<int64_t>& ticks,
     absl::flat_hash_map<std::string, std::vector<Value>> inputs_for_channels,
     absl::flat_hash_map<std::string, std::vector<Value>>
         expected_outputs_for_channels) {
@@ -77,21 +81,25 @@ absl::Status RunIrInterpreter(
     }
   }
 
-  XLS_CHECK_GT(ticks, 0);
-  for (int i = 0; i < ticks; i++) {
-    XLS_RETURN_IF_ERROR(interpreter->Tick());
+  for (int64_t this_ticks : ticks) {
+    interpreter->ResetState();
 
-    // Sort the keys for stable print order.
-    absl::flat_hash_map<Proc*, Value> states = interpreter->ResolveState();
-    std::vector<Proc*> sorted_procs;
-    for (const auto& [k, v] : states) {
-      sorted_procs.push_back(k);
-    }
+    XLS_CHECK_GT(this_ticks, 0);
+    for (int i = 0; i < this_ticks; i++) {
+      XLS_RETURN_IF_ERROR(interpreter->Tick());
 
-    std::sort(sorted_procs.begin(), sorted_procs.end(),
-              [](Proc* a, Proc* b) { return a->name() < b->name(); });
-    for (const auto& proc : sorted_procs) {
-      XLS_VLOG(1) << "Proc " << proc->name() << " : " << states.at(proc);
+      // Sort the keys for stable print order.
+      absl::flat_hash_map<Proc*, Value> states = interpreter->ResolveState();
+      std::vector<Proc*> sorted_procs;
+      for (const auto& [k, v] : states) {
+        sorted_procs.push_back(k);
+      }
+
+      std::sort(sorted_procs.begin(), sorted_procs.end(),
+                [](Proc* a, Proc* b) { return a->name() < b->name(); });
+      for (const auto& proc : sorted_procs) {
+        XLS_VLOG(1) << "Proc " << proc->name() << " : " << states.at(proc);
+      }
     }
   }
 
@@ -119,14 +127,15 @@ absl::Status RunIrInterpreter(
     }
   }
 
-  return checked_any_output
-             ? absl::OkStatus()
-             : absl::UnknownError(
-                   "No output verified (empty expected values?)");
+  if (!checked_any_output) {
+    return absl::UnknownError("No output verified (empty expected values?)");
+  }
+
+  return absl::OkStatus();
 }
 
 absl::Status RunSerialJit(
-    Package* package, int64_t ticks,
+    Package* package, const std::vector<int64_t>& ticks,
     absl::flat_hash_map<std::string, std::vector<Value>> inputs_for_channels,
     absl::flat_hash_map<std::string, std::vector<Value>>
         expected_outputs_for_channels) {
@@ -140,18 +149,22 @@ absl::Status RunSerialJit(
     }
   }
 
-  XLS_CHECK_GT(ticks, 0);
-  // If Tick() semantics change such that it returns once all Procs have run
-  // _at_all_ (instead of only returning when all procs have fully completed),
-  // then number-of-ticks-based timing won't work and we'll need to run based on
-  // collecting some number of outputs.
-  for (int64_t i = 0; i < ticks; i++) {
-    XLS_RETURN_IF_ERROR(runtime->Tick());
+  for (int64_t this_ticks : ticks) {
+    runtime->ResetState();
 
-    for (int64_t i = 0; i < runtime->NumProcs(); i++) {
-      XLS_ASSIGN_OR_RETURN(Proc * p, runtime->proc(i));
-      XLS_ASSIGN_OR_RETURN(Value v, runtime->ProcState(i));
-      XLS_VLOG(1) << "Proc " << p->name() << " : " << v;
+    XLS_CHECK_GT(this_ticks, 0);
+    // If Tick() semantics change such that it returns once all Procs have run
+    // _at_all_ (instead of only returning when all procs have fully completed),
+    // then number-of-ticks-based timing won't work and we'll need to run based
+    // on collecting some number of outputs.
+    for (int64_t i = 0; i < this_ticks; i++) {
+      XLS_RETURN_IF_ERROR(runtime->Tick());
+
+      for (int64_t i = 0; i < runtime->NumProcs(); i++) {
+        XLS_ASSIGN_OR_RETURN(Proc * p, runtime->proc(i));
+        XLS_ASSIGN_OR_RETURN(Value v, runtime->ProcState(i));
+        XLS_VLOG(1) << "Proc " << p->name() << " : " << v;
+      }
     }
   }
 
@@ -180,17 +193,24 @@ absl::Status RunSerialJit(
     }
   }
 
-  return checked_any_output
-             ? absl::OkStatus()
-             : absl::UnknownError(
-                   "No output verified (empty expected values?)");
+  if (!checked_any_output) {
+    return absl::UnknownError("No output verified (empty expected values?)");
+  }
+
+  return absl::OkStatus();
 }
 
 absl::StatusOr<std::vector<Value>> ParseValuesFile(std::string_view filename) {
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(filename));
   std::vector<Value> ret;
+  int li = 0;
   for (const auto& line :
        absl::StrSplit(contents, '\n', absl::SkipWhitespace())) {
+    if (0 == (li % 500)) {
+      XLS_VLOG(1) << "Parsing values file at line " << li;
+    }
+    li++;
+
     XLS_ASSIGN_OR_RETURN(Value expected_status, Parser::ParseTypedValue(line));
     ret.push_back(expected_status);
   }
@@ -213,7 +233,8 @@ ParseChannelFilenames(std::vector<std::string> files_raw) {
 }
 
 absl::Status RealMain(
-    absl::string_view ir_file, absl::string_view backend, int64_t ticks,
+    absl::string_view ir_file, absl::string_view backend,
+    std::vector<int64_t> ticks,
     std::vector<std::string> inputs_for_channels_text,
     std::vector<std::string> expected_outputs_for_channels_text) {
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_file));
@@ -262,8 +283,16 @@ int main(int argc, char* argv[]) {
     XLS_LOG(QFATAL) << "Unrecognized backend choice.";
   }
 
-  int64_t ticks = absl::GetFlag(FLAGS_ticks);
-  if (ticks <= 0) {
+  std::vector<int64_t> ticks;
+  for (const std::string& run_str : absl::GetFlag(FLAGS_ticks)) {
+    int ticks_int;
+    if (!absl::SimpleAtoi(run_str.c_str(), &ticks_int)) {
+      XLS_LOG(QFATAL) << "Couldn't parse run description in --ticks: "
+                      << run_str;
+    }
+    ticks.push_back(ticks_int);
+  }
+  if (ticks.empty()) {
     XLS_LOG(QFATAL) << "--ticks must be specified (and > 0).";
   }
 

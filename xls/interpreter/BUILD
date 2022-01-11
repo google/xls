@@ -94,9 +94,11 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/ir:bits",
         "//xls/ir:channel",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
         "@com_google_googletest//:gtest",
     ],
 )

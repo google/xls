@@ -445,5 +445,45 @@ TEST(SerialProcRuntimeTest, ChannelInitValues) {
   EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(102, 32))));
 }
 
+TEST(SerialProcRuntimeTest, StateReset) {
+  Package package("state_reset");
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb("state_reset",
+                 /*init_value=*/Value::Tuple({Value(SBits(11, 32))}),
+                 /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  BValue in_tuple = pb.TupleIndex(pb.GetStateParam(), 0);
+  BValue send_token = pb.Send(ch_out, pb.GetTokenParam(), in_tuple);
+  BValue add_lit = pb.Literal(SBits(3, 32));
+  BValue next_int = pb.Add(in_tuple, add_lit);
+  BValue next_state = pb.Tuple({next_int});
+
+  XLS_ASSERT_OK(pb.Build(send_token, next_state));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ChannelQueueManager> queue_manager,
+      ChannelQueueManager::Create(/*user_defined_queues=*/{}, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(auto runtime, SerialProcRuntime::Create(&package));
+
+  auto get_output = [&]() -> absl::StatusOr<Value> {
+    return runtime->DequeueValueFromChannel(ch_out);
+  };
+
+  XLS_ASSERT_OK(runtime->Tick());
+  XLS_ASSERT_OK(runtime->Tick());
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(SBits(11, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(SBits(14, 32))));
+
+  runtime->ResetState();
+  XLS_ASSERT_OK(runtime->Tick());
+  XLS_ASSERT_OK(runtime->Tick());
+
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(SBits(11, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(SBits(14, 32))));
+}
+
 }  // namespace
 }  // namespace xls

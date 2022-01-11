@@ -119,8 +119,7 @@ ProcInterpreter::RunIterationUntilCompleteOrBlocked() {
     // iteration.
     if (visitor_ == nullptr) {
       // This is the first time the proc has run. Proc state is the init value.
-      visitor_ = std::make_unique<ProcIrInterpreter>(proc_->InitValue(),
-                                                     queue_manager_);
+      ResetState();
     } else {
       const Value& next_state = visitor_->ResolveAsValue(proc_->NextState());
       visitor_ =
@@ -185,6 +184,11 @@ ProcInterpreter::RunIterationUntilCompleteOrBlocked() {
     ++current_iteration_;
   }
   return result;
+}
+
+void ProcInterpreter::ResetState() {
+  visitor_ =
+      std::make_unique<ProcIrInterpreter>(proc_->InitValue(), queue_manager_);
 }
 
 std::string ProcInterpreter::RunResult::ToString() const {

@@ -129,14 +129,6 @@ absl::Status SerialProcRuntime::Init() {
     Proc* proc = package_->procs()[i].get();
     XLS_ASSIGN_OR_RETURN(thread->jit, IrJit::CreateProc(proc, queue_mgr_.get(),
                                                         &RecvFn, &SendFn));
-    auto* jit = thread->jit.get();
-
-    thread->proc_state_size = jit->GetReturnTypeSize();
-    thread->proc_state = std::make_unique<uint8_t[]>(thread->proc_state_size);
-    jit->runtime()->BlitValueToBuffer(
-        proc->InitValue(),
-        FunctionBuilderVisitor::GetEffectiveReturnValue(proc)->GetType(),
-        absl::MakeSpan(thread->proc_state.get(), jit->GetReturnTypeSize()));
 
     absl::MutexLock lock(&thread->mutex);
     thread->sent_data = false;
@@ -150,6 +142,8 @@ absl::Status SerialProcRuntime::Init() {
     thread_ptr->thread =
         std::make_unique<Thread>([thread_ptr]() { ThreadFn(thread_ptr); });
   }
+
+  ResetState();
 
   // Enqueue initial values into channels.
   for (Channel* channel : package_->channels()) {
@@ -262,7 +256,8 @@ absl::StatusOr<Proc*> SerialProcRuntime::proc(int64_t index) const {
   return dynamic_cast<Proc*>(threads_[index]->jit->function());
 }
 
-absl::StatusOr<Value> SerialProcRuntime::ProcState(int64_t index) const {
+absl::StatusOr<Value> SerialProcRuntime::SerialProcRuntime::ProcState(
+    int64_t index) const {
   if (index > threads_.size()) {
     return absl::InvalidArgumentError(
         absl::StrCat("Valid indices are 0 - ", threads_.size(), "."));
@@ -271,6 +266,20 @@ absl::StatusOr<Value> SerialProcRuntime::ProcState(int64_t index) const {
   XLS_ASSIGN_OR_RETURN(Proc * p, proc(index));
   return threads_[index]->jit->runtime()->UnpackBuffer(
       threads_[index]->proc_state.get(), p->StateType());
+}
+
+void SerialProcRuntime::ResetState() {
+  for (int i = 0; i < package_->procs().size(); i++) {
+    Proc* proc = package_->procs()[i].get();
+    auto thread = threads_[i].get();
+    IrJit* jit = thread->jit.get();
+    thread->proc_state_size = jit->GetReturnTypeSize();
+    thread->proc_state = std::make_unique<uint8_t[]>(thread->proc_state_size);
+    jit->runtime()->BlitValueToBuffer(
+        proc->InitValue(),
+        FunctionBuilderVisitor::GetEffectiveReturnValue(proc)->GetType(),
+        absl::MakeSpan(thread->proc_state.get(), jit->GetReturnTypeSize()));
+  }
 }
 
 }  // namespace xls
