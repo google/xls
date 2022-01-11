@@ -45,9 +45,7 @@ class AbstractInterpreter {
 
   template <typename = std::is_constructible<EvalT, bool>>
   explicit AbstractInterpreter(rtl::AbstractNetlist<EvalT>* netlist)
-      : netlist_(netlist),
-        zero_(std::move(EvalT{false})),
-        one_(std::move(EvalT{true})) {}
+      : AbstractInterpreter(netlist, EvalT{false}, EvalT{true}) {}
 
   // Interprets the given module with the given input mapping.
   //  - inputs: Mapping of module input wire to value. Must have the same size
@@ -65,18 +63,41 @@ class AbstractInterpreter {
   bool IsCellOutput(const rtl::AbstractCell<EvalT>& cell,
                     const rtl::AbstractNetRef<EvalT> ref);
 
-  absl::Status InterpretCell(const rtl::AbstractCell<EvalT>& cell,
-                             AbstractNetRef2Value<EvalT>& processed_wires);
+  absl::StatusOr<AbstractNetRef2Value<EvalT>> InterpretCell(
+      const rtl::AbstractCell<EvalT>* cell,
+      const AbstractNetRef2Value<EvalT>& inputs);
+
+  // A struct to contain the state of a cell as we are processing the netlist.
+  // Initially, all cells are unsatisfied, meaning none of their input wires are
+  // ready.  A cell is satisfied when all of its inputs are marked active.  When
+  // a wire is marked active, its value is added to the relevant cell's entry's
+  // ProcessedCellState::inputs.  When all of a cell's inputs become ready,  the
+  // cell's ProcessedCellState::inputs is sent to InterpretCell.
+  struct ProcessedCellState {
+    size_t missing_wires = 0;
+    AbstractNetRef2Value<EvalT> inputs;
+  };
+
+  // Called after InterpretCell finishes, to update InterpretModule()'s local
+  // state (map of cells to ProcessedCellState, and active_wires).
+  void UpdateProcessedState(
+      absl::flat_hash_map<rtl::AbstractCell<EvalT>*,
+                          std::unique_ptr<ProcessedCellState>>& processed_cells,
+      std::deque<rtl::AbstractNetRef<EvalT>>& active_wires,
+      AbstractNetRef2Value<EvalT>& module_outputs,
+      const rtl::AbstractModule<EvalT>* module,
+      const absl::flat_hash_set<std::string>& dump_cell_set,
+      const rtl::AbstractCell<EvalT>* cell, AbstractNetRef2Value<EvalT>& wires);
 
   absl::StatusOr<EvalT> InterpretFunction(
       const rtl::AbstractCell<EvalT>& cell, const function::Ast& ast,
-      const AbstractNetRef2Value<EvalT>& processed_wires);
+      const AbstractNetRef2Value<EvalT>& inputs);
 
   // Returns the value of the internal/output pin from the cell (defined by a
-  // "statetable" attribute under the conditions defined in "processed_wires".
+  // "statetable" attribute under the conditions defined in "inputs".
   absl::StatusOr<EvalT> InterpretStateTable(
       const rtl::AbstractCell<EvalT>& cell, const std::string& pin_name,
-      const AbstractNetRef2Value<EvalT>& processed_wires);
+      const AbstractNetRef2Value<EvalT>& inputs);
 
   rtl::AbstractNetlist<EvalT>* netlist_;
   EvalT zero_;
@@ -86,66 +107,113 @@ class AbstractInterpreter {
 using Interpreter = AbstractInterpreter<>;
 
 template <typename EvalT>
+void AbstractInterpreter<EvalT>::UpdateProcessedState(
+    absl::flat_hash_map<rtl::AbstractCell<EvalT>*,
+                        std::unique_ptr<ProcessedCellState>>& processed_cells,
+    std::deque<rtl::AbstractNetRef<EvalT>>& active_wires,
+    AbstractNetRef2Value<EvalT>& module_outputs,
+    const rtl::AbstractModule<EvalT>* module,
+    const absl::flat_hash_set<std::string>& dump_cell_set,
+    const rtl::AbstractCell<EvalT>* cell, AbstractNetRef2Value<EvalT>& wires) {
+  // The NetRefs in cell->outputs() are also in wires, which contains the result
+  // of that cell's evaluation.  We could use either one.
+
+  for (auto wire_val : wires) {
+    rtl::AbstractNetRef<EvalT> wire = wire_val.first;
+    active_wires.push_back(wire);
+    // Is this wire connected to any cells?  If so, add its value to these cells
+    // inputs.  If not connected to any cells, then it's either floating or a
+    // module output.
+    for (const auto connected_cell : wire->connected_input_cells()) {
+      // We want to copy, not move, the value in wire_val.second.
+      processed_cells[connected_cell]->inputs.insert({wire, wire_val.second});
+    }
+
+    if (wire->kind() == rtl::NetDeclKind::kOutput) {
+      for (const rtl::AbstractNetRef<EvalT> output : module->outputs()) {
+        if (output == wire) {
+          module_outputs.try_emplace(wire, wire_val.second);
+        }
+      }
+    }
+  }
+
+  if (dump_cell_set.contains(cell->name())) {
+    XLS_LOG(INFO) << "Cell " << cell->name() << " inputs:";
+    if constexpr (std::is_convertible<EvalT, int>()) {
+      for (const auto& input : cell->inputs()) {
+        XLS_LOG(INFO) << "   " << input.netref->name() << " : "
+                      << static_cast<int>(
+                             processed_cells.at(cell)->inputs.at(input.netref));
+      }
+
+      XLS_LOG(INFO) << "Cell " << cell->name() << " outputs:";
+      for (const auto& output : cell->outputs()) {
+        XLS_LOG(INFO) << "   " << output.netref->name() << " : "
+                      << static_cast<int>(wires[output.netref]);
+      }
+    } else {
+      XLS_LOG(INFO) << "Cell " << cell->name() << " inputs are not printable.";
+    }
+  }
+}
+
+template <typename EvalT>
 absl::StatusOr<AbstractNetRef2Value<EvalT>>
 AbstractInterpreter<EvalT>::InterpretModule(
     const rtl::AbstractModule<EvalT>* module,
     const AbstractNetRef2Value<EvalT>& inputs,
     absl::Span<const std::string> dump_cells) {
+  // Reserve space in the outputs map.
+  AbstractNetRef2Value<EvalT> outputs;
+  outputs.reserve(module->outputs().size());
+
   // Do a topological sort through all cells, evaluating each as its inputs are
   // fully satisfied, and store those results with each output wire.
 
-  // The list of "unsatisfied" cells.
   absl::flat_hash_map<rtl::AbstractCell<EvalT>*,
-                      absl::flat_hash_set<rtl::AbstractNetRef<EvalT>>>
-      cell_inputs;
+                      std::unique_ptr<ProcessedCellState>>
+      processed_cells;
 
   // The set of wires that have been "activated" (whose source cells have been
   // processed) but not yet processed.
   std::deque<rtl::AbstractNetRef<EvalT>> active_wires;
 
-  // Holds the [EvalT] value of a wire that's been processed.
-  AbstractNetRef2Value<EvalT> processed_wires;
+  absl::flat_hash_set<std::string> dump_cell_set(dump_cells.begin(),
+                                                 dump_cells.end());
 
   // First, populate the unsatisfied cell list.
   for (const auto& cell : module->cells()) {
     // if a cell has no inputs, it's active, so process it now.
+    auto pcs = std::make_unique<ProcessedCellState>();
     if (cell->inputs().empty()) {
-      XLS_RETURN_IF_ERROR(InterpretCell(*cell, processed_wires));
-      for (const auto& output : cell->outputs()) {
-        active_wires.push_back(output.netref);
-      }
+      XLS_ASSIGN_OR_RETURN(AbstractNetRef2Value<EvalT> results,
+                           InterpretCell(cell.get(), {}));
+      processed_cells[cell.get()] = std::move(pcs);
+      UpdateProcessedState(processed_cells, active_wires, outputs, module,
+                           dump_cell_set, cell.get(), results);
     } else {
-      absl::flat_hash_set<rtl::AbstractNetRef<EvalT>> inputs;
-      for (const auto& input : cell->inputs()) {
-        inputs.insert(input.netref);
-      }
-      cell_inputs[cell.get()] = std::move(inputs);
+      pcs->missing_wires = cell->inputs().size();
+      processed_cells[cell.get()] = std::move(pcs);
     }
   }
-
-  absl::flat_hash_set<std::string> dump_cell_set(dump_cells.begin(),
-                                                 dump_cells.end());
 
   // Set all inputs as "active".
   for (const rtl::AbstractNetRef<EvalT> ref : module->inputs()) {
     active_wires.push_back(ref);
   }
-  XLS_ASSIGN_OR_RETURN(rtl::AbstractNetRef<EvalT> net_0,
-                       module->ResolveNumber(0));
-  XLS_ASSIGN_OR_RETURN(rtl::AbstractNetRef<EvalT> net_1,
-                       module->ResolveNumber(1));
-  active_wires.push_back(net_0);
-  active_wires.push_back(net_1);
 
   for (const auto& input : inputs) {
-    processed_wires.emplace(input.first, std::move(input.second));
+    rtl::AbstractNetRef<EvalT> wire = input.first;
+    for (const auto cell : wire->connected_cells()) {
+      XLS_CHECK(processed_cells.contains(cell));
+      processed_cells[cell]->inputs.insert({wire, std::move(input.second)});
+    }
     if constexpr (std::is_convertible<EvalT, int>()) {
       XLS_VLOG(2) << "Input : " << input.first->name() << " : "
                   << static_cast<int>(input.second);
     }
   }
-  processed_wires.insert({net_0, zero_});
-  processed_wires.insert({net_1, one_});
 
   // Process all active wires : see if this wire satisfies all of a cell's
   // inputs. If so, interpret the cell, and place its outputs on the active wire
@@ -155,42 +223,16 @@ AbstractInterpreter<EvalT>::InterpretModule(
     active_wires.pop_front();
     XLS_VLOG(2) << "Processing wire: " << wire->name();
 
-    for (const auto& cell : wire->connected_cells()) {
-      if (IsCellOutput(*cell, wire)) {
-        continue;
-      }
-
-      cell_inputs[cell].erase(wire);
-      if (cell_inputs[cell].empty()) {
-        XLS_VLOG(2) << "Processing cell: " << cell->name();
-        XLS_RETURN_IF_ERROR(InterpretCell(*cell, processed_wires));
-        for (const auto& output : cell->outputs()) {
-          active_wires.push_back(output.netref);
-        }
-
-        if (dump_cell_set.contains(cell->name())) {
-          XLS_LOG(INFO) << "Cell " << cell->name() << " inputs:";
-          if constexpr (std::is_convertible<EvalT, int>()) {
-            for (const auto& input : cell->inputs()) {
-              XLS_LOG(INFO) << "   " << input.netref->name() << " : "
-                            << static_cast<int>(processed_wires[input.netref]);
-            }
-
-            XLS_LOG(INFO) << "Cell " << cell->name() << " outputs:";
-            for (const auto& output : cell->outputs()) {
-              XLS_LOG(INFO) << "   " << output.netref->name() << " : "
-                            << static_cast<int>(processed_wires[output.netref]);
-            }
-          } else {
-            XLS_LOG(INFO) << "Cell " << cell->name()
-                          << " inputs are not printable.";
-          }
-        }
-      } else if (XLS_VLOG_IS_ON(2)) {
-        XLS_VLOG(2) << "Cell remaining: " << cell->name();
-        for (const auto& remaining : cell_inputs[cell]) {
-          XLS_VLOG(2) << " - " << remaining->name();
-        }
+    for (const auto cell : wire->connected_input_cells()) {
+      auto processed_cell_state = processed_cells[cell].get();
+      XLS_CHECK_GT(processed_cell_state->missing_wires, 0);
+      processed_cell_state->missing_wires--;
+      if (processed_cell_state->missing_wires == 0) {
+        XLS_VLOG(2) << "Processing locally cell: " << cell->name();
+        XLS_ASSIGN_OR_RETURN(auto results,
+                             InterpretCell(cell, processed_cell_state->inputs));
+        UpdateProcessedState(processed_cells, active_wires, outputs, module,
+                             dump_cell_set, cell, results);
       }
     }
   }
@@ -198,27 +240,24 @@ AbstractInterpreter<EvalT>::InterpretModule(
   // Soundness check that we've processed all cells (i.e., that there aren't
   // unsatisfiable cells).
   for (const auto& cell : module->cells()) {
-    for (const auto& output : cell->outputs()) {
-      if (!processed_wires.contains(output.netref)) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Netlist contains unconnected subgraphs and cannot be translated. "
-            "Example: cell %s, output %s.",
-            cell->name(), output.netref->name()));
-      }
+    if (processed_cells[cell.get()]->missing_wires > 0) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Netlist contains unconnected subgraphs and cannot be translated. "
+          "Example: cell %s",
+          cell->name()));
     }
   }
 
-  AbstractNetRef2Value<EvalT> outputs;
-  outputs.reserve(module->outputs().size());
+  // Handle assigns.
   for (const rtl::AbstractNetRef<EvalT> output : module->outputs()) {
-    if (processed_wires.contains(output)) {
-      outputs.emplace(output, std::move(processed_wires.at(output)));
-    } else {
+    if (!outputs.contains(output)) {
       const absl::flat_hash_map<rtl::AbstractNetRef<EvalT>,
                                 rtl::AbstractNetRef<EvalT>>& assigns =
           module->assigns();
       XLS_RET_CHECK(assigns.contains(output));
       rtl::AbstractNetRef<EvalT> net_value = assigns.at(output);
+      XLS_ASSIGN_OR_RETURN(auto net_0, module->ResolveNumber(0));
+      XLS_ASSIGN_OR_RETURN(auto net_1, module->ResolveNumber(1));
       if (net_value == net_0) {
         outputs.insert({output, zero_});
       } else if (net_value == net_1) {
@@ -234,29 +273,34 @@ AbstractInterpreter<EvalT>::InterpretModule(
 }
 
 template <typename EvalT>
-absl::Status AbstractInterpreter<EvalT>::InterpretCell(
-    const rtl::AbstractCell<EvalT>& cell,
-    AbstractNetRef2Value<EvalT>& processed_wires) {
-  const AbstractCellLibraryEntry<EvalT>* entry = cell.cell_library_entry();
-  absl::StatusOr<const rtl::AbstractModule<EvalT>*> status_or_module =
-      netlist_->GetModule(entry->name());
-  if (status_or_module.ok()) {
+absl::StatusOr<AbstractNetRef2Value<EvalT>>
+AbstractInterpreter<EvalT>::InterpretCell(
+    const rtl::AbstractCell<EvalT>* cell,
+    const AbstractNetRef2Value<EvalT>& inputs) {
+  const AbstractCellLibraryEntry<EvalT>* entry = cell->cell_library_entry();
+  absl::optional<const rtl::AbstractModule<EvalT>*> opt_module =
+      netlist_->MaybeGetModule(entry->name());
+
+  AbstractNetRef2Value<EvalT> results;
+
+  if (opt_module.has_value()) {
     // If this "cell" is actually a module defined in the netlist,
     // then recursively evaluate it.
-    AbstractNetRef2Value<EvalT> inputs;
+    AbstractNetRef2Value<EvalT> module_inputs;
     // who's input/output name - needs to be internal
     // need to map cell inputs to module inputs?
-    auto module = status_or_module.value();
+    auto module = opt_module.value();
     const std::vector<rtl::AbstractNetRef<EvalT>>& module_input_refs =
         module->inputs();
     const absl::Span<const std::string> module_input_names =
         module->AsCellLibraryEntry()->input_names();
 
-    for (const auto& input : cell.inputs()) {
-      // We need to match the inputs - from the NetRefs in this module to the
-      // NetRefs in the child module. In AbstractModule, the order of inputs
-      // (as NetRefs) is the same as the input names in its
-      // AbstractCellLibraryEntry. That means, for each input (in this module):
+    for (const auto& input : cell->inputs()) {
+      // We need to match the inputs - from the AbstractNetRefs in this module
+      // to the AbstractNetRefs in the child module. In AbstractModule, the
+      // order of inputs (as AbstractNetRefs) is the same as the input names in
+      // its AbstractCellLibraryEntry. That means, for each input (in this
+      // module):
       //  - Find the child module input pin/AbstractNetRef with the same name.
       //  - Assign the corresponding child module input AbstractNetRef to have
       //  the value
@@ -265,8 +309,8 @@ absl::Status AbstractInterpreter<EvalT>::InterpretCell(
       bool input_found = false;
       for (int i = 0; i < module_input_names.size(); i++) {
         if (module_input_names[i] == input.name) {
-          inputs.emplace(module_input_refs[i],
-                         std::move(processed_wires.at(input.netref)));
+          module_inputs.emplace(module_input_refs[i],
+                                std::move(inputs.at(input.netref)));
           input_found = true;
           break;
         }
@@ -275,18 +319,19 @@ absl::Status AbstractInterpreter<EvalT>::InterpretCell(
       XLS_RET_CHECK(input_found) << absl::StrFormat(
           "Could not find input pin \"%s\" in module \"%s\", referenced in "
           "cell \"%s\"!",
-          input.name, module->name(), cell.name());
+          input.name, module->name(), cell->name());
     }
 
     XLS_ASSIGN_OR_RETURN(AbstractNetRef2Value<EvalT> child_outputs,
-                         InterpretModule(module, inputs));
-    // We need to do the same here - map the NetRefs in the module's output
-    // to the NetRefs in this module, using pin names as the matching keys.
+                         InterpretModule(module, module_inputs));
+    // We need to do the same here - map the AbstractNetRefs in the module's
+    // output to the AbstractNetRefs in this module, using pin names as the
+    // matching keys.
     for (const auto& child_output : child_outputs) {
       bool output_found = false;
-      for (const auto& cell_output : cell.outputs()) {
+      for (const auto& cell_output : cell->outputs()) {
         if (child_output.first->name() == cell_output.name) {
-          processed_wires.insert({cell_output.netref, child_output.second});
+          results.insert({cell_output.netref, child_output.second});
           output_found = true;
           break;
         }
@@ -295,48 +340,47 @@ absl::Status AbstractInterpreter<EvalT>::InterpretCell(
       XLS_RET_CHECK(output_found) << absl::StrFormat(
           "Could not find cell output pin \"%s\" in cell \"%s\", referenced in "
           "child module \"%s\"!",
-          child_output.first->name(), cell.name(), module->name());
+          child_output.first->name(), cell->name(), module->name());
     }
 
-    return absl::OkStatus();
+    return results;
   }
 
   const auto& pins = entry->output_pin_to_function();
-  for (int i = 0; i < cell.outputs().size(); i++) {
+  for (int i = 0; i < cell->outputs().size(); i++) {
     const auto& pins = entry->output_pin_to_function();
-    if (cell.outputs()[i].eval != nullptr) {
-      // The order of values in cell.inputs() is the same as the order of inputs
-      // in the cell declaration.  Extract the values from that list and supply
-      // them to the eval function.
+    if (cell->outputs()[i].eval != nullptr) {
+      // The order of values in cell->inputs() is the same as the order of
+      // inputs in the cell declaration.  Extract the values from that list and
+      // supply them to the eval function.
       std::vector<EvalT> args;
-      for (const auto& input : cell.inputs()) {
-        args.push_back(processed_wires.at(input.netref));
+      for (const auto& input : cell->inputs()) {
+        args.push_back(inputs.at(input.netref));
       }
-      XLS_ASSIGN_OR_RETURN(EvalT value, cell.outputs()[i].eval(args));
-      processed_wires.insert({cell.outputs()[i].netref, value});
+      XLS_ASSIGN_OR_RETURN(EvalT value, cell->outputs()[i].eval(args));
+      results.insert({cell->outputs()[i].netref, value});
     } else {
       XLS_ASSIGN_OR_RETURN(
           function::Ast ast,
-          function::Parser::ParseFunction(pins.at(cell.outputs()[i].name)));
-      XLS_ASSIGN_OR_RETURN(EvalT value,
-                           InterpretFunction(cell, ast, processed_wires));
-      processed_wires.insert({cell.outputs()[i].netref, value});
+          function::Parser::ParseFunction(pins.at(cell->outputs()[i].name)));
+      XLS_ASSIGN_OR_RETURN(EvalT value, InterpretFunction(*cell, ast, inputs));
+      results.insert({cell->outputs()[i].netref, value});
     }
   }
 
-  return absl::OkStatus();
+  return results;
 }
 
 template <typename EvalT>
 absl::StatusOr<EvalT> AbstractInterpreter<EvalT>::InterpretFunction(
     const rtl::AbstractCell<EvalT>& cell, const function::Ast& ast,
-    const AbstractNetRef2Value<EvalT>& processed_wires) {
+    const AbstractNetRef2Value<EvalT>& inputs) {
   switch (ast.kind()) {
     case function::Ast::Kind::kAnd: {
-      XLS_ASSIGN_OR_RETURN(EvalT lhs, InterpretFunction(cell, ast.children()[0],
-                                                        processed_wires));
-      XLS_ASSIGN_OR_RETURN(EvalT rhs, InterpretFunction(cell, ast.children()[1],
-                                                        processed_wires));
+      XLS_ASSIGN_OR_RETURN(EvalT lhs,
+                           InterpretFunction(cell, ast.children()[0], inputs));
+      XLS_ASSIGN_OR_RETURN(EvalT rhs,
+                           InterpretFunction(cell, ast.children()[1], inputs));
       return lhs & rhs;
     }
     case function::Ast::Kind::kIdentifier: {
@@ -350,7 +394,7 @@ absl::StatusOr<EvalT> AbstractInterpreter<EvalT>::InterpretFunction(
       if (ref == nullptr) {
         for (const auto& internal : cell.internal_pins()) {
           if (internal.name == ast.name()) {
-            return InterpretStateTable(cell, internal.name, processed_wires);
+            return InterpretStateTable(cell, internal.name, inputs);
           }
         }
       }
@@ -362,30 +406,29 @@ absl::StatusOr<EvalT> AbstractInterpreter<EvalT>::InterpretFunction(
                             ast.name(), cell.name()));
       }
 
-      return processed_wires.at(ref);
+      return inputs.at(ref);
     }
     case function::Ast::Kind::kLiteralOne:
       return one_;
     case function::Ast::Kind::kLiteralZero:
       return zero_;
     case function::Ast::Kind::kNot: {
-      XLS_ASSIGN_OR_RETURN(
-          EvalT value,
-          InterpretFunction(cell, ast.children()[0], processed_wires));
+      XLS_ASSIGN_OR_RETURN(EvalT value,
+                           InterpretFunction(cell, ast.children()[0], inputs));
       return !value;
     }
     case function::Ast::Kind::kOr: {
-      XLS_ASSIGN_OR_RETURN(EvalT lhs, InterpretFunction(cell, ast.children()[0],
-                                                        processed_wires));
-      XLS_ASSIGN_OR_RETURN(EvalT rhs, InterpretFunction(cell, ast.children()[1],
-                                                        processed_wires));
+      XLS_ASSIGN_OR_RETURN(EvalT lhs,
+                           InterpretFunction(cell, ast.children()[0], inputs));
+      XLS_ASSIGN_OR_RETURN(EvalT rhs,
+                           InterpretFunction(cell, ast.children()[1], inputs));
       return lhs | rhs;
     }
     case function::Ast::Kind::kXor: {
-      XLS_ASSIGN_OR_RETURN(EvalT lhs, InterpretFunction(cell, ast.children()[0],
-                                                        processed_wires));
-      XLS_ASSIGN_OR_RETURN(EvalT rhs, InterpretFunction(cell, ast.children()[1],
-                                                        processed_wires));
+      XLS_ASSIGN_OR_RETURN(EvalT lhs,
+                           InterpretFunction(cell, ast.children()[0], inputs));
+      XLS_ASSIGN_OR_RETURN(EvalT rhs,
+                           InterpretFunction(cell, ast.children()[1], inputs));
       return lhs ^ rhs;
     }
     default:
@@ -397,14 +440,14 @@ absl::StatusOr<EvalT> AbstractInterpreter<EvalT>::InterpretFunction(
 template <typename EvalT>
 absl::StatusOr<EvalT> AbstractInterpreter<EvalT>::InterpretStateTable(
     const rtl::AbstractCell<EvalT>& cell, const std::string& pin_name,
-    const AbstractNetRef2Value<EvalT>& processed_wires) {
+    const AbstractNetRef2Value<EvalT>& inputs) {
   XLS_RET_CHECK(cell.cell_library_entry()->state_table());
   const AbstractStateTable<EvalT>& state_table =
       cell.cell_library_entry()->state_table().value();
 
   typename AbstractStateTable<EvalT>::InputStimulus stimulus;
   for (const auto& input : cell.inputs()) {
-    stimulus.emplace(input.name, std::move(processed_wires.at(input.netref)));
+    stimulus.emplace(input.name, std::move(inputs.at(input.netref)));
   }
 
   for (const auto& pin : cell.internal_pins()) {

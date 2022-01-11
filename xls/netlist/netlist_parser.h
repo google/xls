@@ -359,9 +359,9 @@ template <typename EvalT>
 absl::StatusOr<const AbstractCellLibraryEntry<EvalT>*>
 AbstractParser<EvalT>::ParseCellModule(AbstractNetlist<EvalT>& netlist) {
   XLS_ASSIGN_OR_RETURN(std::string name, PopNameOrError());
-  auto status_or_module = netlist.GetModule(name);
-  if (status_or_module.ok()) {
-    return status_or_module.value()->AsCellLibraryEntry();
+  auto maybe_module = netlist.MaybeGetModule(name);
+  if (maybe_module.has_value()) {
+    return maybe_module.value()->AsCellLibraryEntry();
   }
   if (name == "SB_LUT4") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kStartParams));

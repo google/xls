@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -436,7 +437,14 @@ template <typename EvalT = bool>
 class AbstractNetlist {
  public:
   void AddModule(std::unique_ptr<AbstractModule<EvalT>> module);
+  // Looks up a module by name.  Returns NotFoundError if no such module is
+  // found.
   absl::StatusOr<const AbstractModule<EvalT>*> GetModule(
+      const std::string& module_name) const;
+  // Faster version of GetModule--returns nullopt when module is not present.
+  // Useful when looking for a module expects to get false results most of the
+  // time.
+  absl::optional<const AbstractModule<EvalT>*> MaybeGetModule(
       const std::string& module_name) const;
   const absl::Span<const std::unique_ptr<AbstractModule<EvalT>>> modules() {
     return modules_;
@@ -735,15 +743,25 @@ void AbstractNetlist<EvalT>::AddModule(
 }
 
 template <typename EvalT>
-absl::StatusOr<const AbstractModule<EvalT>*> AbstractNetlist<EvalT>::GetModule(
-    const std::string& module_name) const {
+absl::optional<const AbstractModule<EvalT>*>
+AbstractNetlist<EvalT>::MaybeGetModule(const std::string& module_name) const {
   for (const auto& module : modules_) {
     if (module->name() == module_name) {
       return module.get();
     }
   }
-  return absl::NotFoundError(
-      absl::StrFormat("Module %s not found in netlist.", module_name));
+  return absl::nullopt;
+}
+
+template <typename EvalT>
+absl::StatusOr<const AbstractModule<EvalT>*> AbstractNetlist<EvalT>::GetModule(
+    const std::string& module_name) const {
+  auto found = MaybeGetModule(module_name);
+  if (found == absl::nullopt) {
+    return absl::NotFoundError(
+        absl::StrFormat("Module %s not found in netlist.", module_name));
+  }
+  return found.value();
 }
 
 template <typename EvalT>
