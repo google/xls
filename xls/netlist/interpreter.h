@@ -15,11 +15,19 @@
 #define XLS_NETLIST_INTERPRETER_H_
 
 #include <deque>
+#include <memory>
+#include <queue>
 #include <string>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/synchronization/notification.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/common/thread.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/netlist/function_parser.h"
@@ -40,8 +48,31 @@ template <typename EvalT = bool>
 class AbstractInterpreter {
  public:
   explicit AbstractInterpreter(rtl::AbstractNetlist<EvalT>* netlist, EvalT zero,
-                               EvalT one)
-      : netlist_(netlist), zero_(std::move(zero)), one_(std::move(one)) {}
+                               EvalT one, size_t num_threads = 0)
+      : netlist_(netlist),
+        zero_(std::move(zero)),
+        one_(std::move(one)),
+        num_available_threads_(0),
+        threads_should_exit_(false) {
+    for (int c = 0; c < num_threads; ++c) {
+      threads_.push_back(std::move(std::make_unique<xls::Thread>(
+          [this]() { XLS_CHECK_OK(ThreadBody()); })));
+    }
+  }
+
+  ~AbstractInterpreter() {
+    if (threads_.empty() == false) {
+      // Wake up threads
+      input_queue_guard_.Lock();
+      threads_should_exit_.store(true);
+      input_queue_cond_.SignalAll();
+      input_queue_guard_.Unlock();
+      // Wait for exit
+      for (auto& t : threads_) {
+        t->Join();
+      }
+    }
+  }
 
   template <typename = std::is_constructible<EvalT, bool>>
   explicit AbstractInterpreter(rtl::AbstractNetlist<EvalT>* netlist)
@@ -99,9 +130,46 @@ class AbstractInterpreter {
       const rtl::AbstractCell<EvalT>& cell, const std::string& pin_name,
       const AbstractNetRef2Value<EvalT>& inputs);
 
+  absl::Status ThreadBody();
+
   rtl::AbstractNetlist<EvalT>* netlist_;
   EvalT zero_;
   EvalT one_;
+
+  // Queue entries for both the input and output queues.  Going in, wires
+  // holds the inputs.  Going out, wires holds the results of InterpretCell.
+  struct QueueEntry {
+    const rtl::AbstractCell<EvalT>* cell;
+    AbstractNetRef2Value<EvalT> wires;
+  };
+
+  // The absl::Mutex input_queue_guard is used to both protect the input queue
+  // shared by all the worker threads, as well as a conditional variable for the
+  // threads to block on while waiting for input.
+  absl::Mutex input_queue_guard_;  // protects input_queue_
+  absl::CondVar input_queue_cond_;
+  std::queue<QueueEntry> input_queue_ ABSL_GUARDED_BY(input_queue_guard_);
+
+  static bool queue_has_data(std::queue<QueueEntry>* queue) {
+    return !queue->empty();
+  }
+
+  // The absl::Mutex output_queue_guard is used to both protect the output queue
+  // shared by all the worker threads, as well as a conditional variable for the
+  // InterpretModule() to wait on for processed cells.
+  absl::Mutex output_queue_guard_;  // protects output_queue_
+  std::queue<QueueEntry> output_queue_ ABSL_GUARDED_BY(output_queue_guard_);
+
+  // Thread pool.
+  std::vector<std::unique_ptr<xls::Thread>> threads_;
+
+  // Keeps track of threads blocked on the input_queue_, ready to get a
+  // dispatch.  The counter is atomic by itself, but it also needs to be updated
+  // in sync with a thread blocking on the input queue, which is why it's also
+  // guarded by a mutex.  The atomicity is to ensure memory ordering.
+  std::atomic_size_t num_available_threads_ ABSL_GUARDED_BY(input_queue_guard_);
+  // Set to shut down thread pool.
+  std::atomic_bool threads_should_exit_ ABSL_GUARDED_BY(input_queue_guard_);
 };
 
 using Interpreter = AbstractInterpreter<>;
@@ -217,8 +285,29 @@ AbstractInterpreter<EvalT>::InterpretModule(
 
   // Process all active wires : see if this wire satisfies all of a cell's
   // inputs. If so, interpret the cell, and place its outputs on the active wire
-  // list.
-  while (!active_wires.empty()) {
+  // list.  When running multi-threaded, active_wires may be empty, but as long
+  // as num_pending_outputs > 0, it means we expect to get that many
+  // additional wires activated.  Thus we exit the loop only when active_wires
+  // is empty and there are no pending outputs.
+  size_t num_pending_outputs = 0;
+  while (!active_wires.empty() || num_pending_outputs > 0) {
+    // Drain the output queue as much as we can until we get some active wires,
+    // so that we can proceed.
+    while (active_wires.empty()) {
+      output_queue_guard_.LockWhen(
+          absl::Condition(queue_has_data, &output_queue_));
+      while (!output_queue_.empty()) {
+        QueueEntry entry = std::move(output_queue_.front());
+        output_queue_.pop();
+        output_queue_guard_.Unlock();
+        num_pending_outputs--;
+        UpdateProcessedState(processed_cells, active_wires, outputs, module,
+                             dump_cell_set, entry.cell, entry.wires);
+        output_queue_guard_.Lock();
+      }
+      output_queue_guard_.Unlock();
+    }
+
     rtl::AbstractNetRef<EvalT> wire = active_wires.front();
     active_wires.pop_front();
     XLS_VLOG(2) << "Processing wire: " << wire->name();
@@ -228,11 +317,31 @@ AbstractInterpreter<EvalT>::InterpretModule(
       XLS_CHECK_GT(processed_cell_state->missing_wires, 0);
       processed_cell_state->missing_wires--;
       if (processed_cell_state->missing_wires == 0) {
-        XLS_VLOG(2) << "Processing locally cell: " << cell->name();
-        XLS_ASSIGN_OR_RETURN(auto results,
-                             InterpretCell(cell, processed_cell_state->inputs));
-        UpdateProcessedState(processed_cells, active_wires, outputs, module,
-                             dump_cell_set, cell, results);
+        // TODO: Only fall back to this thread if no available threads and next
+        // cell is a module.  Right now we fall back to the main thread only
+        // when the workers are all busy, but that may be suboptimal if
+        // InterpretCell() is slow.  Ideally, we want to use this thread to
+        // process InterpretCell only if the cell is itself a Module, there is
+        // only one worker thread left, and all other threads are processing
+        // modules as well.
+        if (!threads_.empty() && num_available_threads_.load() > 0) {
+          input_queue_guard_.Lock();
+          QueueEntry entry;
+          entry.cell = cell;
+          entry.wires = std::move(processed_cell_state->inputs);
+          input_queue_.push(std::move(entry));
+          input_queue_cond_.Signal();
+          num_available_threads_--;
+          num_pending_outputs++;
+          input_queue_guard_.Unlock();
+          XLS_VLOG(2) << "Dispatched cell: " << cell->name();
+        } else {
+          XLS_VLOG(2) << "Processing locally cell: " << cell->name();
+          XLS_ASSIGN_OR_RETURN(
+              auto results, InterpretCell(cell, processed_cell_state->inputs));
+          UpdateProcessedState(processed_cells, active_wires, outputs, module,
+                               dump_cell_set, cell, results);
+        }
       }
     }
   }
@@ -369,6 +478,34 @@ AbstractInterpreter<EvalT>::InterpretCell(
   }
 
   return results;
+}
+
+template <typename EvalT>
+absl::Status AbstractInterpreter<EvalT>::ThreadBody() {
+  while (true) {
+    input_queue_guard_.Lock();
+    num_available_threads_++;
+    while (input_queue_.empty() && threads_should_exit_ == false) {
+      input_queue_cond_.Wait(&input_queue_guard_);
+    }
+    if (threads_should_exit_) {
+      input_queue_guard_.Unlock();
+      break;
+    }
+    QueueEntry entry = input_queue_.front();
+    input_queue_.pop();
+    input_queue_guard_.Unlock();
+
+    XLS_ASSIGN_OR_RETURN(auto results,
+                         InterpretCell(entry.cell, std::move(entry.wires)));
+
+    entry.wires = std::move(results);
+    output_queue_guard_.Lock();
+    output_queue_.push(entry);
+    output_queue_guard_.Unlock();
+  }
+
+  return absl::OkStatus();
 }
 
 template <typename EvalT>

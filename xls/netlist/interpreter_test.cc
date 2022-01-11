@@ -17,6 +17,8 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/ascii.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
@@ -408,7 +410,7 @@ template <typename ValueT>
 static void TestXorUsing(
     const std::string cell_definitions, std::function<bool(ValueT)> eval,
     const xls::netlist::rtl::CellToOutputEvalFns<ValueT>& eval_fns,
-    const ValueT kFalse, const ValueT kTrue) {
+    const ValueT kFalse, const ValueT kTrue, size_t num_threads = 0) {
   rtl::Scanner scanner(netlist_src);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto stream,
@@ -429,7 +431,8 @@ static void TestXorUsing(
 
   XLS_ASSERT_OK(n->AddCellEvaluationFns(eval_fns));
 
-  xls::netlist::AbstractInterpreter<ValueT> interpreter(n.get(), kFalse, kTrue);
+  xls::netlist::AbstractInterpreter<ValueT> interpreter(n.get(), kFalse, kTrue,
+                                                        num_threads);
 
   auto test_xor = [&m, &interpreter, &eval](const ValueT& a, const ValueT& b,
                                             const ValueT& y) {
@@ -519,10 +522,12 @@ TEST(NetlistParserTest, XorUsingCellFunctionsAndOpaqueValues) {
 
 template <typename ValueT>
 struct EvalOpCallCounter {
-  int num_eval_calls = 0;
+  std::atomic_size_t num_eval_calls = 0;
+  int sleep_ms = 0;
 #define IMPL1(cell, OP)                                                   \
   absl::StatusOr<ValueT> EvalOp_##cell(const std::vector<ValueT>& args) { \
     XLS_CHECK(args.size() == 1);                                          \
+    absl::SleepFor(absl::Milliseconds(sleep_ms));                         \
     ValueT result = OP(args[0]);                                          \
     num_eval_calls++;                                                     \
     return ValueT{result};                                                \
@@ -531,6 +536,7 @@ struct EvalOpCallCounter {
 #define IMPL2(cell, OP)                                                   \
   absl::StatusOr<ValueT> EvalOp_##cell(const std::vector<ValueT>& args) { \
     XLS_CHECK(args.size() == 2);                                          \
+    absl::SleepFor(absl::Milliseconds(sleep_ms));                         \
     ValueT result = OP(args[0], args[1]);                                 \
     num_eval_calls++;                                                     \
     return ValueT{result};                                                \
@@ -631,6 +637,41 @@ TEST(NetlistParserTest, XorUsingPartialCellEvalFunctions) {
   // each of the four rows of the XOR truth table.  Twice, rather than four
   // times, because we took out the and2 eval fn.
   EXPECT_EQ(call_counter.num_eval_calls, 8);
+}
+
+TEST(NetlistParserTest, XorUsingThreads) {
+  EvalOpCallCounter<bool> call_counter;
+  constexpr int DELAY_MS = 200;
+  call_counter.sleep_ms = DELAY_MS;  // each op will sleep for DELAY_MS
+
+  xls::netlist::rtl::CellToOutputEvalFns<bool> eval_map{
+      OP(bool, call_counter, not1),
+      OP(bool, call_counter, and2),
+      OP(bool, call_counter, or2),
+  };
+
+  absl::Time start_time = absl::Now();
+  // Give the intepreter four threads, one for each gate in the XOR evaluation.
+  TestXorUsing<bool>(
+      std::string(liberty_src), [](auto x) -> bool { return x; }, eval_map,
+      false, true, 4);
+
+  absl::Time end_time = absl::Now();
+  auto duration = end_time - start_time;
+  // In the best case, if all 4 gates for each of the truth table is handled by
+  // one of the 4 threads, then the total runtime will be DELAY_MS seconds per
+  // truth-table row times 4 rows, plus coordination overhead.
+  EXPECT_GE(duration, absl::Milliseconds(4 * DELAY_MS));
+  // In the worst case, all 4 gates will be processed by the main thread, with
+  // total time being 4 delay units per truth-table row.  Giving the main thread
+  // an extra second to complete its calculcation, we expect the total duration
+  // to be less than 16 delay units + 1 second.
+  EXPECT_LT(duration, absl::Milliseconds(16 * DELAY_MS + 1000));
+
+  // Evaluating the XOR circuit should trap into the eval calls twice times for
+  // each of the four rows of the XOR truth table.  Twice, rather than four
+  // times, because we took out the and2 eval fn.
+  EXPECT_EQ(call_counter.num_eval_calls, 16);
 }
 
 #undef OP
