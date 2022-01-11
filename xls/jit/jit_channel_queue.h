@@ -35,10 +35,30 @@ namespace xls {
 // TODO(rspringer): Add data pools to avoid extra memcpy and heap alloc.
 class JitChannelQueue {
  public:
-  JitChannelQueue(int64_t channel_id) : channel_id_(channel_id) {}
+  explicit JitChannelQueue(int64_t channel_id) : channel_id_(channel_id) {}
+  virtual ~JitChannelQueue() = default;
 
   // Called to push data onto this queue/FIFO.
-  void Send(uint8_t* data, int64_t num_bytes) {
+  virtual void Send(uint8_t* data, int64_t num_bytes) = 0;
+
+  // Called to pull data off of this queue/FIFO.
+  virtual void Recv(uint8_t* buffer, int64_t num_bytes) = 0;
+
+  virtual bool Empty() = 0;
+
+  int64_t channel_id() { return channel_id_; }
+
+ protected:
+  int64_t channel_id_;
+};
+
+// Queue for streaming channels. This queue behaves as an infinite depth FIFO.
+class FifoJitChannelQueue : public JitChannelQueue {
+ public:
+  explicit FifoJitChannelQueue(int64_t channel_id)
+      : JitChannelQueue(channel_id) {}
+
+  void Send(uint8_t* data, int64_t num_bytes) override {
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
     __msan_unpoison(data, num_bytes);
 #endif
@@ -54,15 +74,14 @@ class JitChannelQueue {
     the_queue_.push_back(std::move(buffer));
   }
 
-  // Called to pull data off of this queue/FIFO.
-  void Recv(uint8_t* buffer, int64_t num_bytes) {
+  void Recv(uint8_t* buffer, int64_t num_bytes) override {
     absl::MutexLock lock(&mutex_);
     memcpy(buffer, the_queue_.front().get(), num_bytes);
     buffer_pool_.push_back(std::move(the_queue_.front()));
     the_queue_.pop_front();
   }
 
-  bool Empty() {
+  bool Empty() override {
     absl::MutexLock lock(&mutex_);
     return the_queue_.empty();
   }
@@ -70,17 +89,56 @@ class JitChannelQueue {
   int64_t channel_id() { return channel_id_; }
 
  protected:
-  int64_t channel_id_;
   absl::Mutex mutex_;
   std::deque<std::unique_ptr<uint8_t[]>> the_queue_ ABSL_GUARDED_BY(mutex_);
   std::vector<std::unique_ptr<uint8_t[]>> buffer_pool_;
 };
 
+// Queue for single value channels. Unsurprisingly, this queue holds a single
+// value. The value is read non-destructively with the Recv method and is
+// overwritten via the Send method.
+class SingleValueJitChannelQueue : public JitChannelQueue {
+ public:
+  explicit SingleValueJitChannelQueue(int64_t channel_id)
+      : JitChannelQueue(channel_id), buffer_size_(0) {}
+
+  virtual void Send(uint8_t* data, int64_t num_bytes) {
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+    __msan_unpoison(data, num_bytes);
+#endif
+    absl::MutexLock lock(&mutex_);
+    if (buffer_ == nullptr) {
+      buffer_ = std::make_unique<uint8_t[]>(num_bytes);
+      buffer_size_ = num_bytes;
+    } else {
+      XLS_CHECK_EQ(num_bytes, buffer_size_);
+    }
+    memcpy(buffer_.get(), data, num_bytes);
+  }
+
+  virtual void Recv(uint8_t* buffer, int64_t num_bytes) {
+    absl::MutexLock lock(&mutex_);
+    XLS_CHECK_NE(buffer_.get(), nullptr);
+    XLS_CHECK_EQ(buffer_size_, num_bytes);
+    memcpy(buffer, buffer_.get(), num_bytes);
+  }
+
+  virtual bool Empty() {
+    absl::MutexLock lock(&mutex_);
+    return buffer_ != nullptr;
+  }
+
+ protected:
+  absl::Mutex mutex_;
+  int64_t buffer_size_ ABSL_GUARDED_BY(mutex_);
+  std::unique_ptr<uint8_t[]> buffer_ ABSL_GUARDED_BY(mutex_);
+};
+
 // JitChannelQueue respository. Holds the set of queues known by a given proc.
 class JitChannelQueueManager {
  public:
-  // Returns a JitChannelQueueManager holding a JitChannelQueue for every proc
-  // in the provided package.
+  // Returns a JitChannelQueueManager holding a JitChannelQueue for every
+  // proc in the provided package.
   static absl::StatusOr<std::unique_ptr<JitChannelQueueManager>> Create(
       Package* package);
 

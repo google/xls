@@ -31,8 +31,15 @@ JitChannelQueueManager::JitChannelQueueManager(Package* package)
     : package_(package) {}
 
 absl::Status JitChannelQueueManager::Init() {
-  for (const auto& chan : package_->channels()) {
-    queues_.insert({chan->id(), std::make_unique<JitChannelQueue>(chan->id())});
+  for (Channel* chan : package_->channels()) {
+    if (chan->kind() == ChannelKind::kStreaming) {
+      queues_.insert(
+          {chan->id(), std::make_unique<FifoJitChannelQueue>(chan->id())});
+    } else {
+      XLS_RET_CHECK_EQ(chan->kind(), ChannelKind::kSingleValue);
+      queues_.insert({chan->id(), std::make_unique<SingleValueJitChannelQueue>(
+                                      chan->id())});
+    }
   }
   return absl::OkStatus();
 }

@@ -461,5 +461,74 @@ proc the_proc(my_token: token, state: (), init=()) {
   EXPECT_EQ(user_data, 7 * 2 * 3 * 2 * 3);
 }
 
+TEST_F(ProcBuilderVisitorTest, SingleValueChannel) {
+  const std::string kIrText = R"(
+package p
+
+chan c_sv(bits[32], id=0, kind=single_value, ops=receive_only, metadata="")
+chan c_i(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=none, metadata="")
+chan c_o(bits[32], id=2, kind=streaming, ops=send_only, flow_control=none, metadata="")
+
+proc the_proc(my_token: token, state: (), init=()) {
+  recv_sv: (token, bits[32]) = receive(my_token, channel_id=0)
+  tkn0: token = tuple_index(recv_sv, index=0)
+  single_value: bits[32] = tuple_index(recv_sv, index=1)
+
+  recv_streaming: (token, bits[32]) = receive(tkn0, channel_id=1)
+  tkn1: token = tuple_index(recv_streaming, index=0)
+  streaming_value: bits[32] = tuple_index(recv_streaming, index=1)
+
+  sum: bits[32] = add(single_value, streaming_value)
+  tkn2: token = send(tkn1, sum, channel_id=2)
+  next (tkn2, state)
+}
+)";
+  XLS_ASSERT_OK(InitPackage(kIrText));
+  auto module = std::make_unique<llvm::Module>(kModuleName, ctx());
+  XLS_ASSERT_OK(InitLlvm(module.get(), package()->GetTupleType({})));
+  XLS_ASSERT_OK_AND_ASSIGN(auto xls_fn, package()->GetProc("the_proc"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
+                           JitChannelQueueManager::Create(package()));
+  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueue * single_value_input,
+                           queue_mgr->GetQueueById(0));
+  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueue * streaming_input,
+                           queue_mgr->GetQueueById(1));
+  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueue * streaming_output,
+                           queue_mgr->GetQueueById(2));
+
+  EnqueueData(single_value_input, 7);
+  EnqueueData(streaming_input, 42);
+  EnqueueData(streaming_input, 123);
+
+  XLS_ASSERT_OK(ProcBuilderVisitor::Visit(
+      module.get(), llvm_fn(), xls_fn, type_converter(),
+      /*is_top=*/true, /*generate_packed=*/false, queue_mgr.get(),
+      &CanCompileProcs_recv, &CanCompileProcs_send));
+
+  // The provided JIT doesn't support ExecutionEngine::runFunction, so we have
+  // to get the fn pointer and call that directly.
+  auto fn = BuildEntryFn(std::move(module), kFunctionName);
+  auto tick = [&]() {
+    fn(/*arg_buffers=*/nullptr, /*result_buffer=*/nullptr, /*events=*/nullptr,
+       /*user_data=*/nullptr,
+       /*runtime=*/nullptr);
+  };
+
+  tick();
+  tick();
+  EXPECT_EQ(DequeueData(streaming_output), 49);
+  EXPECT_EQ(DequeueData(streaming_output), 130);
+
+  EnqueueData(single_value_input, 10);
+  EnqueueData(streaming_input, 42);
+  EnqueueData(streaming_input, 123);
+
+  tick();
+  tick();
+  EXPECT_EQ(DequeueData(streaming_output), 52);
+  EXPECT_EQ(DequeueData(streaming_output), 133);
+}
+
 }  // namespace
 }  // namespace xls
