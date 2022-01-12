@@ -60,6 +60,8 @@ class Bytecode {
     kGe,
     // Compares TOS1 to TOS0, storing true if TOS1 > TOS0.
     kGt,
+    // Selects the TOS0'th element of the array- or tuple-typed value at TOS1.
+    kIndex,
     // Inverts the bits of TOS0.
     kInvert,
     // Unconditional jump (relative).
@@ -97,10 +99,16 @@ class Bytecode {
     // Performs a logical right shift of the second-to-top stack element by the
     // top element's number.
     kShrl,
+    // Slices out a subset of the bits-typed value on TOS2,
+    // starting at index TOS1 and ending at index TOS0.
+    kSlice,
     // Stores the value at stack top into the arg-data-specified slot.
     kStore,
     // Subtracts the Nth value from the N-1th value on the stack.
     kSub,
+    // Slices out TOS0 bits of the array- or bits-typed value on TOS2,
+    // starting at index TOS1.
+    kWidthSlice,
     // Performs a bitwise XOR of the top two values on the stack.
     kXor,
   };
@@ -202,7 +210,7 @@ class BytecodeEmitter : public ExprVisitor {
   void HandleConstRef(ConstRef* node) override { DefaultHandler(node); }
   void HandleFor(For* node) override { DefaultHandler(node); }
   void HandleFormatMacro(FormatMacro* node) override { DefaultHandler(node); }
-  void HandleIndex(Index* node) override { DefaultHandler(node); }
+  void HandleIndex(Index* node) override;
   void HandleInvocation(Invocation* node) override;
   void HandleJoin(Join* node) override { DefaultHandler(node); }
   void HandleLet(Let* node) override;

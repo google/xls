@@ -87,6 +87,10 @@ absl::StatusOr<int64_t> BytecodeInterpreter::EvalInstruction(
       XLS_RETURN_IF_ERROR(EvalGt(bytecode));
       break;
     }
+    case Bytecode::Op::kIndex: {
+      XLS_RETURN_IF_ERROR(EvalIndex(bytecode));
+      break;
+    }
     case Bytecode::Op::kInvert: {
       XLS_RETURN_IF_ERROR(EvalInvert(bytecode));
       break;
@@ -151,12 +155,20 @@ absl::StatusOr<int64_t> BytecodeInterpreter::EvalInstruction(
       XLS_RETURN_IF_ERROR(EvalShrl(bytecode));
       break;
     }
+    case Bytecode::Op::kSlice: {
+      XLS_RETURN_IF_ERROR(EvalSlice(bytecode));
+      break;
+    }
     case Bytecode::Op::kStore: {
       XLS_RETURN_IF_ERROR(EvalStore(bytecode));
       break;
     }
     case Bytecode::Op::kSub: {
       XLS_RETURN_IF_ERROR(EvalSub(bytecode));
+      break;
+    }
+    case Bytecode::Op::kWidthSlice: {
+      XLS_RETURN_IF_ERROR(EvalWidthSlice(bytecode));
       break;
     }
     case Bytecode::Op::kXor: {
@@ -295,6 +307,20 @@ absl::Status BytecodeInterpreter::EvalGt(const Bytecode& bytecode) {
   });
 }
 
+absl::Status BytecodeInterpreter::EvalIndex(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(InterpValue index, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue basis, Pop());
+
+  if (!basis.IsArray() && !basis.IsTuple()) {
+    return absl::InvalidArgumentError(
+        "Can only index on array or tuple values.");
+  }
+
+  XLS_ASSIGN_OR_RETURN(InterpValue result, basis.Index(index));
+  stack_.push_back(result);
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeInterpreter::EvalInvert(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue operand, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue result, operand.BitwiseNegate());
@@ -410,6 +436,44 @@ absl::Status BytecodeInterpreter::EvalShrl(const Bytecode& bytecode) {
   });
 }
 
+absl::Status BytecodeInterpreter::EvalSlice(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(InterpValue limit, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue start, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue basis, Pop());
+  XLS_ASSIGN_OR_RETURN(int64_t basis_bit_count, basis.GetBitCount());
+  XLS_ASSIGN_OR_RETURN(int64_t start_bit_count, start.GetBitCount());
+
+  InterpValue zero = InterpValue::MakeSBits(start_bit_count, 0);
+  InterpValue basis_length =
+      InterpValue::MakeSBits(basis_bit_count, basis_bit_count);
+
+  XLS_ASSIGN_OR_RETURN(InterpValue start_lt_zero, start.Lt(zero));
+  if (start_lt_zero.IsTrue()) {
+    // Remember, start is negative if we're here.
+    XLS_ASSIGN_OR_RETURN(start, basis_length.Add(start));
+  }
+
+  XLS_ASSIGN_OR_RETURN(InterpValue limit_lt_zero, limit.Lt(zero));
+  if (limit_lt_zero.IsTrue()) {
+    // Ditto.
+    XLS_ASSIGN_OR_RETURN(limit, basis_length.Add(limit));
+  }
+
+  XLS_ASSIGN_OR_RETURN(InterpValue length, limit.Sub(start));
+
+  // At this point, both start and length must be nonnegative, so we force them
+  // to UBits, since Slice expects that.
+  XLS_ASSIGN_OR_RETURN(int64_t start_value, start.GetBitValueInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t length_value, length.GetBitValueInt64());
+  XLS_RET_CHECK_GE(start_value, 0);
+  XLS_RET_CHECK_GE(length_value, 0);
+  start = InterpValue::MakeBits(/*is_signed=*/false, start.GetBitsOrDie());
+  length = InterpValue::MakeBits(/*is_signed=*/false, length.GetBitsOrDie());
+  XLS_ASSIGN_OR_RETURN(InterpValue result, basis.Slice(start, length));
+  stack_.push_back(result);
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeInterpreter::EvalStore(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(int64_t slot, bytecode.integer_data());
   if (stack_.empty()) {
@@ -442,6 +506,10 @@ absl::Status BytecodeInterpreter::EvalSub(const Bytecode& bytecode) {
   return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
     return lhs.Sub(rhs);
   });
+}
+
+absl::Status BytecodeInterpreter::EvalWidthSlice(const Bytecode& bytecode) {
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeInterpreter::EvalXor(const Bytecode& bytecode) {

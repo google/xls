@@ -417,5 +417,231 @@ fn arrays() -> u32[3] {
   ASSERT_EQ(bc.integer_data().value(), 3);
 }
 
+// Tests emission of kIndex ops on arrays.
+TEST(BytecodeEmitterTest, IndexArray) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn index_array() -> u32 {
+  let a = u32[3]:[0, 1, 2];
+  let b = bits[32][3]:[3, 4, 5];
+
+  a[u32:0] + b[u32:1]
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("index_array"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  ASSERT_EQ(bytecodes.size(), 17);
+  Bytecode bc = bytecodes[12];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kIndex);
+
+  bc = bytecodes[15];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kIndex);
+}
+
+// Tests emission of kIndex ops on tuples.
+TEST(BytecodeEmitterTest, IndexTuple) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn index_tuple() -> u32 {
+  let a = (u16:0, u32:1, u64:2);
+  let b = (bits[128]:3, bits[32]:4);
+
+  a[u32:1] + b[u32:1]
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("index_tuple"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  ASSERT_EQ(bytecodes.size(), 16);
+  Bytecode bc = bytecodes[11];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kIndex);
+
+  bc = bytecodes[14];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kIndex);
+}
+
+// Tests a regular a[x:y] slice op.
+TEST(BytecodeEmitterTest, SimpleSlice) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn simple_slice() -> u16 {
+  let a = u32:0xdeadbeef;
+  a[16:32]
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("simple_slice"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  ASSERT_EQ(bytecodes.size(), 6);
+  Bytecode bc = bytecodes[3];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+
+  bc = bytecodes[4];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+
+  bc = bytecodes[5];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kSlice);
+}
+
+// Tests a slice from the start: a[-x:].
+TEST(BytecodeEmitterTest, NegativeStartSlice) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn negative_start_slice() -> u16 {
+  let a = u32:0xdeadbeef;
+  a[-16:]
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("negative_start_slice"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  ASSERT_EQ(bytecodes.size(), 6);
+  Bytecode bc = bytecodes[3];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+
+  bc = bytecodes[4];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+
+  bc = bytecodes[5];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kSlice);
+}
+
+// Tests a slice from the end: a[:-x].
+TEST(BytecodeEmitterTest, NegativeEndSlice) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn negative_end_slice() -> u16 {
+  let a = u32:0xdeadbeef;
+  a[:-16]
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("negative_end_slice"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  ASSERT_EQ(bytecodes.size(), 6);
+  Bytecode bc = bytecodes[3];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+
+  bc = bytecodes[4];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+
+  bc = bytecodes[5];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kSlice);
+}
+
+// Tests a slice from both ends: a[-x:-y].
+TEST(BytecodeEmitterTest, BothNegativeSlice) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn both_negative_slice() -> u8 {
+  let a = u32:0xdeadbeef;
+  a[-16:-8]
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("both_negative_slice"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  ASSERT_EQ(bytecodes.size(), 6);
+  Bytecode bc = bytecodes[3];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+
+  bc = bytecodes[4];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+
+  bc = bytecodes[5];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kSlice);
+}
+
+// Tests the width slice op.
+TEST(BytecodeEmitterTest, WidthSlice) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn width_slice() -> u16 {
+  let a = u32:0xdeadbeef;
+  a[u32:8 +: bits[16]]
+})";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("width_slice"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  ASSERT_EQ(bytecodes.size(), 6);
+
+  Bytecode bc = bytecodes[4];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+
+  bc = bytecodes[5];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kWidthSlice);
+}
+
 }  // namespace
 }  // namespace xls::dslx

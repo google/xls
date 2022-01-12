@@ -280,6 +280,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
         ConstexprEvaluator evaluator(ctx, type.get());
         node->AcceptExpr(&evaluator);
         XLS_RETURN_IF_ERROR(evaluator.status());
+        ctx->type_info()->SetItem(node, *type);
         return type;
       }
       case NumberKind::kCharacter: {
@@ -287,6 +288,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
         ConstexprEvaluator evaluator(ctx, type.get());
         node->AcceptExpr(&evaluator);
         XLS_RETURN_IF_ERROR(evaluator.status());
+        ctx->type_info()->SetItem(node, *type);
         return type;
       }
       default:
@@ -310,6 +312,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(Number* node,
   ConstexprEvaluator evaluator(ctx, concrete_type.get());
   node->AcceptExpr(&evaluator);
   XLS_RETURN_IF_ERROR(evaluator.status());
+  ctx->type_info()->SetItem(node, *concrete_type);
   return concrete_type;
 }
 
@@ -1244,12 +1247,27 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
   ConstexprEvaluator evaluator(ctx, nullptr);
   if (slice->start() != nullptr) {
     slice->start()->AcceptExpr(&evaluator);
+    if (Number* number = dynamic_cast<Number*>(slice->start());
+        number != nullptr && number->type_annotation() != nullptr) {
+      XLS_RETURN_IF_ERROR(Deduce(number, ctx).status());
+    } else {
+      // If the slice start is untyped, assume S32.
+      ctx->type_info()->SetItem(slice->start(), *s32);
+    }
   }
   XLS_ASSIGN_OR_RETURN(
       absl::optional<int64_t> start,
       TryResolveBound(slice, slice->start(), "start", s32.get(), env, ctx));
+
   if (slice->limit() != nullptr) {
     slice->limit()->AcceptExpr(&evaluator);
+    if (Number* number = dynamic_cast<Number*>(slice->limit());
+        number != nullptr && number->type_annotation() != nullptr) {
+      XLS_RETURN_IF_ERROR(Deduce(number, ctx).status());
+    } else {
+      // If the slice limit is untyped, assume S32.
+      ctx->type_info()->SetItem(slice->limit(), *s32);
+    }
   }
   XLS_ASSIGN_OR_RETURN(
       absl::optional<int64_t> limit,

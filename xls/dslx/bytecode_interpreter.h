@@ -57,6 +57,7 @@ class BytecodeInterpreter {
   absl::Status EvalExpandTuple(const Bytecode& bytecode);
   absl::Status EvalGe(const Bytecode& bytecode);
   absl::Status EvalGt(const Bytecode& bytecode);
+  absl::Status EvalIndex(const Bytecode& bytecode);
   absl::Status EvalInvert(const Bytecode& bytecode);
   absl::Status EvalLe(const Bytecode& bytecode);
   absl::Status EvalLiteral(const Bytecode& bytecode);
@@ -70,8 +71,10 @@ class BytecodeInterpreter {
   absl::Status EvalOr(const Bytecode& bytecode);
   absl::Status EvalShll(const Bytecode& bytecode);
   absl::Status EvalShrl(const Bytecode& bytecode);
+  absl::Status EvalSlice(const Bytecode& bytecode);
   absl::Status EvalStore(const Bytecode& bytecode);
   absl::Status EvalSub(const Bytecode& bytecode);
+  absl::Status EvalWidthSlice(const Bytecode& bytecode);
   absl::Status EvalXor(const Bytecode& bytecode);
 
   absl::Status EvalBinop(const std::function<absl::StatusOr<InterpValue>(

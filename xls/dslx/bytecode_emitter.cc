@@ -14,6 +14,7 @@
 
 #include "xls/dslx/bytecode_emitter.h"
 
+#include "absl/status/status.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/ast.h"
@@ -48,6 +49,8 @@ std::string OpToString(Bytecode::Op op) {
       return "ge";
     case Bytecode::Op::kGt:
       return "gt";
+    case Bytecode::Op::kIndex:
+      return "index";
     case Bytecode::Op::kInvert:
       return "invert";
     case Bytecode::Op::kJumpRel:
@@ -80,10 +83,14 @@ std::string OpToString(Bytecode::Op op) {
       return "shl";
     case Bytecode::Op::kShrl:
       return "shr";
+    case Bytecode::Op::kSlice:
+      return "slice";
     case Bytecode::Op::kStore:
       return "store";
     case Bytecode::Op::kSub:
       return "sub";
+    case Bytecode::Op::kWidthSlice:
+      return "width_slice";
     case Bytecode::Op::kXor:
       return "xor";
   }
@@ -109,6 +116,9 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "eq") {
     return Bytecode::Op::kEq;
   }
+  if (s == "index") {
+    return Bytecode::Op::kIndex;
+  }
   if (s == "invert") {
     return Bytecode::Op::kInvert;
   }
@@ -132,6 +142,12 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   }
   if (s == "jump_dest") {
     return Bytecode::Op::kJumpDest;
+  }
+  if (s == "slice") {
+    return Bytecode::Op::kSlice;
+  }
+  if (s == "width_slice") {
+    return Bytecode::Op::kWidthSlice;
   }
   return absl::InvalidArgumentError(
       absl::StrCat("String was not a bytecode op: `", s, "`"));
@@ -336,6 +352,109 @@ void BytecodeEmitter::HandleBinop(Binop* node) {
   }
 }
 
+absl::StatusOr<int64_t> GetValueWidth(TypeInfo* type_info, Expr* expr) {
+  absl::optional<ConcreteType*> maybe_type = type_info->GetItem(expr);
+  if (!maybe_type.has_value()) {
+    return absl::InvalidArgumentError(
+        "Could not find concrete type for slice component.");
+  }
+  return maybe_type.value()->GetTotalBitCount()->GetAsInt64();
+}
+
+void BytecodeEmitter::HandleIndex(Index* node) {
+  node->lhs()->AcceptExpr(this);
+
+  if (absl::holds_alternative<Slice*>(node->rhs())) {
+    Slice* slice = absl::get<Slice*>(node->rhs());
+    if (slice->start() == nullptr) {
+      int64_t start_width;
+      if (slice->limit() == nullptr) {
+        // TODO(rspringer): Define a uniform `usize` to avoid specifying magic
+        // numbers here. This is the default size used for untyped numbers in
+        // the typechecker.
+        start_width = 32;
+      } else {
+        absl::StatusOr<int64_t> start_width_or =
+            GetValueWidth(type_info_, slice->limit());
+        if (!start_width_or.ok()) {
+          status_ = start_width_or.status();
+          return;
+        }
+        start_width = start_width_or.value();
+      }
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
+                                   InterpValue::MakeSBits(start_width, 0)));
+    } else {
+      slice->start()->AcceptExpr(this);
+    }
+
+    if (slice->limit() == nullptr) {
+      absl::optional<ConcreteType*> maybe_type =
+          type_info_->GetItem(node->lhs());
+      if (!maybe_type.has_value()) {
+        status_ = absl::InvalidArgumentError(
+            "Could not find concrete type for slice.");
+        return;
+      }
+      ConcreteType* type = maybe_type.value();
+      // These will never fail.
+      absl::StatusOr<ConcreteTypeDim> dim_or = type->GetTotalBitCount();
+      absl::StatusOr<int64_t> width_or = dim_or.value().GetAsInt64();
+
+      int64_t limit_width;
+      if (slice->start() == nullptr) {
+        // TODO(rspringer): Define a uniform `usize` to avoid specifying magic
+        // numbers here. This is the default size used for untyped numbers in
+        // the typechecker.
+        limit_width = 32;
+      } else {
+        absl::StatusOr<int64_t> limit_width_or =
+            GetValueWidth(type_info_, slice->start());
+        if (!limit_width_or.ok()) {
+          status_ = limit_width_or.status();
+          return;
+        }
+        limit_width = limit_width_or.value();
+      }
+      bytecode_.push_back(
+          Bytecode(node->span(), Bytecode::Op::kLiteral,
+                   InterpValue::MakeSBits(limit_width, width_or.value())));
+    } else {
+      slice->limit()->AcceptExpr(this);
+    }
+    bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kSlice));
+    return;
+  }
+
+  if (absl::holds_alternative<WidthSlice*>(node->rhs())) {
+    WidthSlice* width_slice = absl::get<WidthSlice*>(node->rhs());
+    width_slice->start()->AcceptExpr(this);
+    absl::optional<ConcreteType*> maybe_type =
+        type_info_->GetItem(width_slice->width());
+    if (!maybe_type.has_value()) {
+      status_ = absl::InvalidArgumentError(absl::StrCat(
+          "Could not find concrete type for slice width parameter \"",
+          width_slice->width()->ToString(), "\"."));
+      return;
+    }
+    ConcreteType* type = maybe_type.value();
+
+    // These will never fail.
+    absl::StatusOr<ConcreteTypeDim> dim_or = type->GetTotalBitCount();
+    absl::StatusOr<int64_t> slice_width_or = dim_or.value().GetAsInt64();
+    bytecode_.push_back(Bytecode(
+        width_slice->GetSpan().value(), Bytecode::Op::kLiteral,
+        InterpValue::MakeSBits(/*bit_count=*/64, slice_width_or.value())));
+    bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kWidthSlice));
+    return;
+  }
+
+  // Otherwise, it's a regular [array or tuple] index op.
+  Expr* expr = absl::get<Expr*>(node->rhs());
+  expr->AcceptExpr(this);
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kIndex));
+}
+
 void BytecodeEmitter::HandleInvocation(Invocation* node) {
   if (!status_.ok()) {
     return;
@@ -417,6 +536,12 @@ void BytecodeEmitter::HandleNumber(Number* node) {
   }
 
   absl::optional<ConcreteType*> type_or = type_info_->GetItem(node);
+  if (!type_or.has_value()) {
+    status_ = absl::InternalError(
+        absl::StrCat("Could not find type for number: ", node->ToString()));
+    return;
+  }
+
   BitsType* bits_type = dynamic_cast<BitsType*>(type_or.value());
   if (bits_type == nullptr) {
     status_ = absl::InternalError(

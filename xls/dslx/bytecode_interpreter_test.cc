@@ -488,5 +488,178 @@ fn arrays() -> u32[3] {
   EXPECT_EQ(bit_value, 32);
 }
 
+TEST(BytecodeInterpreterTest, IndexArray) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn index_array() -> u32 {
+  let a = u32[3]:[0, 1, 2];
+  let b = bits[32][3]:[3, 4, 5];
+
+  a[u32:0] + b[u32:1]
+})";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("index_array"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           BytecodeInterpreter::Interpret(bytecodes, &env));
+  ASSERT_TRUE(value.IsBits());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToInt64());
+  EXPECT_EQ(int_value, 4);
+}
+
+TEST(BytecodeInterpreterTest, IndexTuple) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn index_tuple() -> u32 {
+  let a = (u32:0, (u32:1, u32:2));
+  let b = ((u32:3, (u32:4,)), u32:5);
+
+  a[1][1] + b[0][1][0]
+})";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("index_tuple"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           BytecodeInterpreter::Interpret(bytecodes, &env));
+  ASSERT_TRUE(value.IsBits());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToInt64());
+  EXPECT_EQ(int_value, 6);
+}
+
+TEST(BytecodeInterpreterTest, SimpleBitSlice) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn simple_slice() -> u16 {
+  let a = u32:0xdeadbeef;
+  a[16:32]
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("simple_slice"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           BytecodeInterpreter::Interpret(bytecodes, &env));
+  ASSERT_TRUE(value.IsBits());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToUint64());
+  EXPECT_EQ(int_value, 0xdead);
+}
+
+// Tests a slice from the start: a[-x:].
+TEST(BytecodeInterpreterTest, NegativeStartSlice) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn negative_start_slice() -> u16 {
+  let a = u32:0xdeadbeef;
+  a[-16:]
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("negative_start_slice"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           BytecodeInterpreter::Interpret(bytecodes, &env));
+  ASSERT_TRUE(value.IsBits());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToUint64());
+  EXPECT_EQ(int_value, 0xdead);
+}
+
+// Tests a slice from the end: a[:-x].
+TEST(BytecodeInterpreterTest, NegativeEndSlice) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn negative_end_slice() -> u16 {
+  let a = u32:0xdeadbeef;
+  a[:-16]
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("negative_end_slice"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           BytecodeInterpreter::Interpret(bytecodes, &env));
+  ASSERT_TRUE(value.IsBits());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToUint64());
+  EXPECT_EQ(int_value, 0xbeef);
+}
+
+// Tests a slice from both ends: a[-x:-y].
+TEST(BytecodeInterpreterTest, BothNegativeSlice) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn both_negative_slice() -> u8 {
+  let a = u32:0xdeadbeef;
+  a[-16:-8]
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("both_negative_slice"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           BytecodeInterpreter::Interpret(bytecodes, &env));
+  ASSERT_TRUE(value.IsBits());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToUint64());
+  EXPECT_EQ(int_value, 0xad);
+}
+
 }  // namespace
 }  // namespace xls::dslx
