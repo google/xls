@@ -68,6 +68,7 @@ cc_library(
         ":import_data",
         ":interp_value",
         ":type_info",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:variant",

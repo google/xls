@@ -456,7 +456,7 @@ fn index_tuple() -> u32 {
   let a = (u16:0, u32:1, u64:2);
   let b = (bits[128]:3, bits[32]:4);
 
-  a[u32:1] + b[u32:1]
+  a[1] + b[1]
 }
 )";
 
@@ -641,6 +641,120 @@ fn width_slice() -> u16 {
 
   bc = bytecodes[5];
   ASSERT_EQ(bc.op(), Bytecode::Op::kWidthSlice);
+}
+
+TEST(BytecodeEmitterTest, LocalEnumRef) {
+  constexpr absl::string_view kProgram = R"(enum MyEnum : u23 {
+  VAL_0 = 0,
+  VAL_1 = 1,
+  VAL_2 = 2,
+}
+
+#![test]
+fn local_enum_ref() -> MyEnum {
+  MyEnum::VAL_1
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("local_enum_ref"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  ASSERT_EQ(bytecodes.size(), 1);
+
+  Bytecode bc = bytecodes[0];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+  ASSERT_TRUE(bc.has_data());
+  EXPECT_THAT(bytecodes.at(0).value_data(),
+              IsOkAndHolds(InterpValue::MakeSBits(23, 1)));
+}
+
+TEST(BytecodeEmitterTest, ImportedEnumRef) {
+  constexpr absl::string_view kImportedProgram = R"(pub enum ImportedEnum : u4 {
+  VAL_0 = 0,
+  VAL_1 = 1,
+  VAL_2 = 2,
+  VAL_3 = 3,
+}
+)";
+  constexpr absl::string_view kBaseProgram = R"(
+import import_0
+
+#![test]
+fn imported_enum_ref() -> import_0::ImportedEnum {
+  import_0::ImportedEnum::VAL_2
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
+                           ParseAndTypecheck(kImportedProgram, "import_0.x",
+                                             "import_0", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      tm, ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("imported_enum_ref"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  ASSERT_EQ(bytecodes.size(), 1);
+
+  Bytecode bc = bytecodes[0];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+  ASSERT_TRUE(bc.has_data());
+  EXPECT_THAT(bytecodes.at(0).value_data(),
+              IsOkAndHolds(InterpValue::MakeSBits(4, 2)));
+}
+
+TEST(BytecodeEmitterTest, ImportedConstant) {
+  constexpr absl::string_view kImportedProgram =
+      R"(pub const MY_CONST = u3:2;)";
+  constexpr absl::string_view kBaseProgram = R"(
+import import_0
+
+#![test]
+fn imported_enum_ref() -> u3 {
+  import_0::MY_CONST
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
+                           ParseAndTypecheck(kImportedProgram, "import_0.x",
+                                             "import_0", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      tm, ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("imported_enum_ref"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  ASSERT_EQ(bytecodes.size(), 1);
+
+  Bytecode bc = bytecodes[0];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+  ASSERT_TRUE(bc.has_data());
+  EXPECT_THAT(bytecodes.at(0).value_data(),
+              IsOkAndHolds(InterpValue::MakeSBits(3, 2)));
 }
 
 }  // namespace

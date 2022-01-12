@@ -69,3 +69,10 @@ linear bytecode representations. It does this via a postorder traversal of the
 AST, converting XLS ops into bytecode instructions along the way, e.g.,
 converting a DSLX `Binop` for adding two `NameRef`s into two `LOAD` instructions
 (one for each `NameRef`) and one `ADD` instruction.
+
+To do this, the emitter needs access to the full set of resolved type and import
+information: in other words, it requires a fully-populated
+[`ImportData`](https://github.com/google/xls/tree/main/xls/dslx/import.h) and the
+top-level [`TypeInfo`](https://github.com/google/xls/tree/main/xls/dslx/type_info.h) for
+the module containing the function to convert. This places bytecode emission in
+sequence after typechecking and deduction.

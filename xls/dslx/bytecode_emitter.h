@@ -44,7 +44,7 @@ class BytecodeEmitter : public ExprVisitor {
   void HandleCarry(Carry* node) override { DefaultHandler(node); }
   void HandleCast(Cast* node) override { DefaultHandler(node); }
   void HandleChannelDecl(ChannelDecl* node) override { DefaultHandler(node); }
-  void HandleColonRef(ColonRef* node) override { DefaultHandler(node); }
+  void HandleColonRef(ColonRef* node) override;
   void HandleConstRef(ConstRef* node) override { DefaultHandler(node); }
   void HandleFor(For* node) override { DefaultHandler(node); }
   void HandleFormatMacro(FormatMacro* node) override { DefaultHandler(node); }
@@ -78,6 +78,9 @@ class BytecodeEmitter : public ExprVisitor {
                         node->ToString()));
   }
 
+  absl::Status HandleColonRefToImportedConstant(
+      ColonRef* colon_ref, Import* import, absl::string_view constant_name);
+  absl::Status HandleColonRefToImportedEnum(ColonRef* colon_ref);
   void DestructureLet(NameDefTree* tree);
 
   ImportData* import_data_;
