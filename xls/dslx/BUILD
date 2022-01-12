@@ -42,18 +42,32 @@ py_test(
 )
 
 cc_library(
+    name = "bytecode",
+    srcs = ["bytecode.cc"],
+    hdrs = ["bytecode.h"],
+    deps = [
+        ":interp_value",
+        ":pos",
+        "//xls/common/status:ret_check",
+        "//xls/ir:bits_ops",
+        "//xls/ir:number_parser",
+        "@com_github_google_re2//:re2",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_library(
     name = "bytecode_emitter",
     srcs = ["bytecode_emitter.cc"],
     hdrs = ["bytecode_emitter.h"],
     deps = [
         ":ast",
+        ":bytecode",
         ":import_data",
         ":interp_value",
         ":type_info",
-        "//xls/common/status:ret_check",
-        "//xls/ir:bits_ops",
-        "//xls/ir:number_parser",
-        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:variant",
@@ -65,6 +79,7 @@ cc_test(
     srcs = ["bytecode_emitter_test.cc"],
     deps = [
         ":ast",
+        ":bytecode",
         ":bytecode_emitter",
         ":import_data",
         ":parse_and_typecheck",
@@ -82,7 +97,7 @@ cc_library(
     deps = [
         ":ast",
         ":builtins",
-        ":bytecode_emitter",
+        ":bytecode",
         ":interp_bindings",
         ":interp_value",
         ":type_info",
@@ -96,6 +111,7 @@ cc_test(
     name = "bytecode_interpreter_test",
     srcs = ["bytecode_interpreter_test.cc"],
     deps = [
+        ":bytecode",
         ":bytecode_emitter",
         ":bytecode_interpreter",
         ":import_data",

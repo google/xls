@@ -17,7 +17,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins.h"
-#include "xls/dslx/bytecode_emitter.h"
+#include "xls/dslx/bytecode.h"
 
 namespace xls::dslx {
 
