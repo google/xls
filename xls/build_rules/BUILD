@@ -195,6 +195,7 @@ bzl_library(
         ":xls_jit_wrapper_rules_bzl",
         ":xls_macros_bzl",
         ":xls_rules_bzl",
+        ":xls_toolchains_bzl",
         ":xls_utilities_bzl",
     ],
 )

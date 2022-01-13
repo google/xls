@@ -37,7 +37,7 @@ _DEFAULT_JIT_WRAPPER_TARGET = "//xls/jit:jit_wrapper_generator_main"
 _DEFAULT_XLS_TOOLCHAIN_TARGET = "//xls/build_rules:default_xls_toolchain"
 
 def get_xls_toolchain_info(ctx):
-    return ctx.attr.toolchain[XlsToolchainInfo]
+    return ctx.attr.xls_toolchain[XlsToolchainInfo]
 
 XlsToolchainInfo = provider(
     doc = "A provider containing toolchain information.",
@@ -77,6 +77,32 @@ def _xls_toolchain_impl(ctx):
     return [xls_toolchain_info]
 
 xls_toolchain = rule(
+    doc = """A rule that returns an XlsToolchainInfo containing toolchain information.
+
+        Example:
+
+        User-defined toolchain with a modified DSLX standard library attribute.
+
+        ```
+            filegroup(
+                name = "custom_dslx_std_lib",
+                srcs = glob(["custom_*.x"]),
+            )
+
+            xls_toolchain(
+                name = "user_defined_xls_toolchain",
+                dslx_std_lib = ":custom_dslx_std_lib",
+            )
+
+            xls_dslx_library(
+                name = "a_user_defined_xls_toolchain_dslx",
+                srcs = [
+                    "a.x",
+                ],
+                xls_toolchain = ":user_defined_xls_toolchain",
+            )
+        ```
+    """,
     implementation = _xls_toolchain_impl,
     provides = [XlsToolchainInfo],
     attrs = {
@@ -145,8 +171,8 @@ xls_toolchain = rule(
 )
 
 xls_toolchain_attr = {
-    "toolchain": attr.label(
-        doc = "The toolchain target.",
+    "xls_toolchain": attr.label(
+        doc = "The XLS toolchain target.",
         providers = [XlsToolchainInfo],
         default = Label(_DEFAULT_XLS_TOOLCHAIN_TARGET),
     ),

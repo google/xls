@@ -78,6 +78,13 @@ This rule ensure that the contents of a file does not change by verifying that
 it matches a given checksum. This build rule produces a frozen file when the
 sha256sum checksum of a source file matches a user-defined checksum.
 
+### `xls_toolchain`
+
+A rule that returns an XlsToolchainInfo containing toolchain information. The
+rule is only used when a user would modify the default toolchain information of
+an XLS build. The rule provides advanced features and it should be used by
+experienced users.
+
 ## Macros
 
 Below is a brief summary of the public macros. An extensive description of the
