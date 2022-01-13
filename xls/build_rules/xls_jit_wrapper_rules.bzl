@@ -182,7 +182,7 @@ def cc_xls_ir_jit_wrapper(
       src: The path to the IR file.
       jit_wrapper_args: Arguments of the JIT wrapper tool. Note: argument
                         'output_name' cannot be defined.
-      **kwargs: Additional arguments.
+      **kwargs: Keyword arguments. Named arguments.
     """
     if jit_wrapper_args != None and type(jit_wrapper_args) != type({}):
         fail("JIT Wrapper arguments must be a dictionary.")

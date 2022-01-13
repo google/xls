@@ -28,11 +28,13 @@ exports_files(
         "xls_config_rules.bzl",
         "xls_dslx_rules.bzl",
         "xls_ir_rules.bzl",
+        "xls_ir_macros.bzl",
         "xls_jit_wrapper_rules.bzl",
         "xls_macros.bzl",
         "xls_oss_config.bzl",
         "xls_providers.bzl",
         "xls_rules.bzl",
+        "xls_rules_build_defs.bzl",
         "xls_toolchains.bzl",
     ],
     visibility = ["//visibility:private"],
@@ -85,6 +87,15 @@ bzl_library(
         ":xls_providers_bzl",
         ":xls_toolchains_bzl",
         "@bazel_skylib//lib:dicts",
+    ],
+)
+
+bzl_library(
+    name = "xls_ir_macros_bzl",
+    srcs = ["xls_ir_macros.bzl"],
+    deps = [
+        ":xls_config_rules_bzl",
+        ":xls_ir_rules_bzl",
     ],
 )
 
@@ -153,6 +164,17 @@ bzl_library(
 )
 
 bzl_library(
+    name = "xls_rules_build_defs_bzl",
+    srcs = ["xls_rules_build_defs.bzl"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":xls_codegen_rules_bzl",
+        ":xls_ir_rules_bzl",
+        ":xls_rules_bzl",
+    ],
+)
+
+bzl_library(
     name = "xls_build_defs_bzl",
     srcs = ["xls_build_defs.bzl"],
     visibility = ["//xls:xls_users"],
@@ -161,6 +183,7 @@ bzl_library(
         ":xls_codegen_rules_bzl",
         ":xls_config_rules_bzl",
         ":xls_dslx_rules_bzl",
+        ":xls_ir_macros_bzl",
         ":xls_ir_rules_bzl",
         ":xls_jit_wrapper_rules_bzl",
         ":xls_macros_bzl",

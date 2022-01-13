@@ -42,10 +42,6 @@ xls_dslx_module_library can be removed.
 
 A test rule that executes the tests and quick checks of a DSLX source file.
 
-### `xls_dslx_ir`
-
-A build rule that converts a DSLX source file to an IR file.
-
 ### `xls_benchmark_ir`
 
 An execution rule that executes the benchmark tool on an IR file.
@@ -58,28 +54,9 @@ A test rule that executes the equivalence tool on two IR files.
 
 A test rule that executes the IR interpreter on an IR file.
 
-### `xls_ir_opt_ir`
-
-A build rule that optimizes an IR file.
-
-### `xls_ir_verilog`
-
-A build rule that generates a Verilog file from an IR file.
-
 ### `xls_ir_jit_wrapper`
 
 A build rule that generates the sources for JIT invocation wrappers.
-
-### `xls_dslx_verilog`
-
-A build rule that generates a Verilog file from a DSLX source file. The rule
-executes the `xls_dslx_ir`, `xls_ir_opt_ir` and `xls_ir_verilog` rules in that
-order.
-
-### `xls_dslx_opt_ir`
-
-A build rule that generates an optimized IR file from a DSLX source file. The
-rule executes the `xls_dslx_ir` and `xls_ir_opt_ir` rules in that order.
 
 ### `xls_dslx_opt_ir_test`
 
@@ -88,11 +65,11 @@ the following rules:
 
    1. xls_dslx_test
 
-   2. xls_ir_equivalence_test
+   1. xls_ir_equivalence_test
 
-   3. xls_eval_ir_test
+   1. xls_eval_ir_test
 
-   4. xls_benchmark_ir
+   1. xls_benchmark_ir
 
 ## Macros
 
@@ -112,19 +89,49 @@ The macro generates sources files (.cc and .h) using the xls_ir_jit_wrapper
 rule. The source files are the input to a cc_library target with the same name
 as this macro.
 
-### `xls_ir_verilog_macro`
+### `xls_dslx_ir`<a id="xls_dslx_ir"></a>
 
-The macro instantiates the 'xls_ir_verilog' rule and
+The macro instantiates a rule that converts a DSLX source file to an IR file and
+the 'enable_generated_file_wrapper' function. The generated files of the rule
+are listed in the outs attribute of the rule. These generated files can be
+referenced in other rules.
+
+### `xls_ir_opt_ir`<a id="xls_ir_opt_ir"></a>
+
+The macro instantiates a rule that optimizes an IR file and the
 'enable_generated_file_wrapper' function. The generated files of the rule are
 listed in the outs attribute of the rule. These generated files can be
 referenced in other rules.
 
-### `xls_dslx_verilog_macro`
+### `xls_ir_verilog`<a id="xls_ir_verilog"></a>
 
-The macro instantiates the 'xls_dslx_verilog' rule and
-'enable_generated_file_wrapper' function. The generated files of the rule are
-listed in the outs attribute of the rule. These generated files can be
+The macro instantiates a rule that generates a Verilog file from an IR file and
+the 'enable_generated_file_wrapper' function. The generated files of the rule
+are listed in the outs attribute of the rule. These generated files can be
 referenced in other rules.
+
+### `xls_dslx_opt_ir`
+
+The macro instantiates a rule that:
+
+1. converts a DSLX source file to an IR file ([xls_dslx_ir](#xls_dslx_ir)), and,
+1. optimizes the IR file ([xls_ir_opt_ir](#xls_ir_opt_ir)).
+
+The macro also instantiates the 'enable_generated_file_wrapper' function. The
+generated files of the rule are listed in the outs attribute of the rule. These
+generated files can be referenced in other rules.
+
+### `xls_dslx_verilog`
+
+The macro instantiates a rule that:
+
+1. converts a DSLX source file to an IR file ([xls_dslx_ir](#xls_dslx_ir)),
+1. optimizes the IR file ([xls_ir_opt_ir](#xls_ir_opt_ir)), and,
+1. generates a Verilog file from an IR file ([xls_ir_verilog](#xls_ir_verilog)).
+
+The macro also instantiates the 'enable_generated_file_wrapper' function. The
+generated files of the rule are listed in the outs attribute of the rule. These
+generated files can be referenced in other rules.
 
 ### `xls_verify_checksum`
 

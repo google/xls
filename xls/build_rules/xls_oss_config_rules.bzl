@@ -28,6 +28,6 @@ def enable_generated_file_wrapper(**kwargs):
     The function is intended to be empty.
 
     Args:
-      **kwargs: Positional arguments. Named arguments.
+      **kwargs: Keyword arguments. Named arguments.
     """
     pass

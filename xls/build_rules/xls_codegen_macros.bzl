@@ -53,7 +53,7 @@ def xls_ir_verilog_macro(
         'enable_generated_file_wrapper' function.
       enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
         from 'enable_generated_file_wrapper' function.
-      **kwargs: Positional arguments. Named arguments.
+      **kwargs: Keyword arguments. Named arguments.
     """
 
     # Type check input

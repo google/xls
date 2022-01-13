@@ -25,14 +25,20 @@ load(
     "xls_dslx_opt_ir_test",
     "xls_dslx_test",
     "xls_dslx_verilog",
-    "xls_dslx_verilog_macro",
     "xls_eval_ir_test",
     "xls_ir_equivalence_test",
     "xls_ir_jit_wrapper",
     "xls_ir_opt_ir",
     "xls_ir_verilog",
-    "xls_ir_verilog_macro",
     "xls_verify_checksum",
+)
+load(
+    "//xls/build_rules:xls_rules_build_defs.bzl",
+    xls_dslx_ir_native_rule = "xls_dslx_ir",
+    xls_dslx_opt_ir_native_rule = "xls_dslx_opt_ir",
+    xls_dslx_verilog_native_rule = "xls_dslx_verilog",
+    xls_ir_opt_ir_native_rule = "xls_ir_opt_ir",
+    xls_ir_verilog_native_rule = "xls_ir_verilog",
 )
 
 package(
@@ -541,11 +547,23 @@ xls_dslx_opt_ir_test(
 )
 
 ################################################################################
-# Test for macros
+# Test for native rules
 ################################################################################
-# The target is the macro form of the 'chaining_example_verilog' target.
-xls_ir_verilog_macro(
-    name = "chaining_example_verilog_macro",
+# The target is the native rule form of the 'chaining_example_ir' target.
+xls_dslx_ir_native_rule(
+    name = "chaining_example_ir_native_rule",
+    dep = ":chaining_example_dslx_module",
+)
+
+# The target is the native rule form of the 'chaining_example_opt_ir' target.
+xls_ir_opt_ir_native_rule(
+    name = "chaining_example_opt_ir_native_rule",
+    src = ":chaining_example_ir",
+)
+
+# The target is the native rule form of the 'chaining_example_verilog' target.
+xls_ir_verilog_native_rule(
+    name = "chaining_example_verilog_native_rule",
     src = ":chaining_example_opt_ir",
     codegen_args = {
         "pipeline_stages": "1",
@@ -553,20 +571,23 @@ xls_ir_verilog_macro(
     verilog_file = "chaining_example_verilog_macro.v",
 )
 
-# The target is the macro form of the 'simple_example_5_one_stage' target.
-xls_dslx_verilog_macro(
-    name = "simple_example_5_one_stage_macro",
+# The target is the native rule form of the 'simple_example_5_entry_five' target.
+xls_dslx_opt_ir_native_rule(
+    name = "simple_example_5_entry_five_native_rule",
+    dep = ":simple_example_five_dslx_module",
+    ir_conv_args = {
+        "entry": "five",
+    },
+)
+
+# The target is the native rule form of the 'simple_example_5_one_stage' target.
+xls_dslx_verilog_native_rule(
+    name = "simple_example_5_one_stage_native_rule",
     codegen_args = {
         "pipeline_stages": "1",
     },
     dep = ":simple_example_five_dslx_module",
     verilog_file = "simple_example_5_one_stage_macro.v",
-)
-
-# Verifies that xls_dslx_cpp_type_library macros work to (some) extent.
-xls_dslx_cpp_type_library(
-    name = "type_definitions_types_cpp",
-    src = "type_definitions.x",
 )
 
 ################################################################################
@@ -595,28 +616,47 @@ xls_ir_verilog(
     verilog_file = "xls_ir_verilog.v",
 )
 
-xls_ir_verilog_macro(
-    name = "user_defined_output_filename_macro_verilog",
+xls_dslx_ir_native_rule(
+    name = "user_defined_output_filename_native_rule_ir",
+    dep = ":chaining_example_dslx_module",
+    ir_file = "xls_dslx_ir_native_rule.ir",
+)
+
+xls_dslx_opt_ir_native_rule(
+    name = "user_defined_output_filename_native_rule_dslx_opt_ir",
+    dep = ":chaining_example_dslx_module",
+    ir_file = "xls_dslx_opt_ir_native_rule.ir",
+    opt_ir_file = "xls_dslx_opt_ir_native_rule.opt.ir",
+)
+
+xls_ir_opt_ir_native_rule(
+    name = "user_defined_output_filename_native_rule_opt_ir",
+    src = ":xls_dslx_ir_native_rule.ir",
+    opt_ir_file = "xls_ir_opt_ir_native_rule.opt.ir",
+)
+
+xls_ir_verilog_native_rule(
+    name = "user_defined_output_filename_native_rule_verilog",
     src = ":user_defined_output_filename_opt_ir",
     codegen_args = {
         "pipeline_stages": "1",
     },
-    module_sig_file = "xls_ir_verilog_macro.sig.textproto",
-    schedule_file = "xls_ir_verilog_macro.schedule.textproto",
-    verilog_file = "xls_ir_verilog_macro.v",
+    module_sig_file = "xls_ir_verilog_native_rule.sig.textproto",
+    schedule_file = "xls_ir_verilog_native_rule.schedule.textproto",
+    verilog_file = "xls_ir_verilog_native_rule.v",
 )
 
-xls_dslx_verilog_macro(
-    name = "user_defined_output_filename_xls_dslx_verilog_macro_verilog",
+xls_dslx_verilog_native_rule(
+    name = "user_defined_output_filename_xls_dslx_verilog_native_rule_verilog",
     codegen_args = {
         "pipeline_stages": "1",
     },
     dep = ":chaining_example_dslx_module",
-    ir_file = "xls_dslx_verilog_macro.ir",
-    module_sig_file = "xls_dslx_verilog_macro.sig.textproto",
-    opt_ir_file = "xls_dslx_verilog_macro.opt.ir",
-    schedule_file = "xls_dslx_verilog_macro.schedule.textproto",
-    verilog_file = "xls_dslx_verilog_macro.v",
+    ir_file = "xls_dslx_verilog_native_rule.ir",
+    module_sig_file = "xls_dslx_verilog_native_rule.sig.textproto",
+    opt_ir_file = "xls_dslx_verilog_native_rule.opt.ir",
+    schedule_file = "xls_dslx_verilog_native_rule.schedule.textproto",
+    verilog_file = "xls_dslx_verilog_native_rule.v",
 )
 
 xls_ir_jit_wrapper(
@@ -695,4 +735,12 @@ xls_verify_checksum(
     src = "some_arbitrary_file.txt",
     out = "some_arbitrary_file.txt.checksummed",
     sha256 = "d1bc8d3ba4afc7e109612cb73acbdddac052c93025aa1f82942edabb7deb82a1",
+)
+
+################################################################################
+# Verifies that xls_dslx_cpp_type_library macros work to (some) extent.
+################################################################################
+xls_dslx_cpp_type_library(
+    name = "type_definitions_types_cpp",
+    src = "type_definitions.x",
 )

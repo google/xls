@@ -35,6 +35,7 @@ load(
 )
 load(
     "//xls/build_rules:xls_rules.bzl",
+    "xls_dslx_opt_ir",
     "xls_dslx_verilog",
 )
 
@@ -58,6 +59,8 @@ def xls_dslx_verilog_macro(
       name: The name of the rule.
       dep: The 'xls_dslx_module_library' target used for dependency. See 'dep'
         attribute from the 'xls_dslx_verilog' rule.
+      verilog_file: The generated Verilog file. See 'verilog_file' attribute
+        from the 'xls_ir_verilog' rule.
       ir_conv_args: IR conversion Arguments. See 'ir_conv_args' attribute from
         the 'xls_dslx_ir' rule.
       opt_ir_args: IR optimization Arguments. See 'opt_ir_args' attribute from
@@ -68,7 +71,7 @@ def xls_dslx_verilog_macro(
         'enable_generated_file_wrapper' function.
       enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
         from 'enable_generated_file_wrapper' function.
-      **kwargs: Positional arguments. Named arguments.
+      **kwargs: Keyword arguments. Named arguments.
     """
 
     # Type check input
@@ -112,6 +115,70 @@ def xls_dslx_verilog_macro(
                get_xls_ir_opt_ir_generated_files(kwargs) +
                get_xls_ir_verilog_generated_files(kwargs, codegen_args) +
                [native.package_name() + "/" + verilog_file],
+        **kwargs
+    )
+    enable_generated_file_wrapper(
+        wrapped_target = name,
+        enable_generated_file = enable_generated_file,
+        enable_presubmit_generated_file = enable_presubmit_generated_file,
+        **kwargs
+    )
+
+def xls_dslx_opt_ir_macro(
+        name,
+        dep,
+        ir_conv_args = {},
+        opt_ir_args = {},
+        enable_generated_file = True,
+        enable_presubmit_generated_file = False,
+        **kwargs):
+    """A macro wrapper for the 'xls_dslx_opt_ir' rule.
+
+    The macro instantiates the 'xls_dslx_opt_ir' rule and
+    'enable_generated_file_wrapper' function. The generated files of the rule
+    are listed in the outs attribute of the rule.
+
+    Args:
+      name: The name of the rule.
+      dep: The 'xls_dslx_module_library' target used for dependency. See 'dep'
+        attribute from the 'xls_dslx_opt_ir' rule.
+      ir_conv_args: IR conversion Arguments. See 'ir_conv_args' attribute from
+        the 'xls_dslx_ir' rule.
+      opt_ir_args: IR optimization Arguments. See 'opt_ir_args' attribute from
+        the 'xls_ir_opt_ir' rule.
+      enable_generated_file: See 'enable_generated_file' from
+        'enable_generated_file_wrapper' function.
+      enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
+        from 'enable_generated_file_wrapper' function.
+      **kwargs: Keyword arguments. Named arguments.
+    """
+
+    # Type check input
+    if type(name) != type(""):
+        fail("Argument 'name' must be of string type.")
+    if type(dep) != type(""):
+        fail("Argument 'dep' must be of string type.")
+    if type(ir_conv_args) != type({}):
+        fail("Argument 'ir_conv_args' must be of dictionary type.")
+    if type(opt_ir_args) != type({}):
+        fail("Argument 'opt_ir_args' must be of dictionary type.")
+    if type(enable_generated_file) != type(True):
+        fail("Argument 'enable_generated_file' must be of boolean type.")
+    if type(enable_presubmit_generated_file) != type(True):
+        fail("Argument 'enable_presubmit_generated_file' must be " +
+             "of boolean type.")
+
+    # Append output files to arguments.
+    kwargs = append_xls_dslx_ir_generated_files(kwargs, name)
+    kwargs = append_xls_ir_opt_ir_generated_files(kwargs, name)
+
+    xls_dslx_opt_ir(
+        name = name,
+        dep = dep,
+        ir_conv_args = ir_conv_args,
+        opt_ir_args = opt_ir_args,
+        outs = get_xls_dslx_ir_generated_files(kwargs) +
+               get_xls_ir_opt_ir_generated_files(kwargs),
         **kwargs
     )
     enable_generated_file_wrapper(

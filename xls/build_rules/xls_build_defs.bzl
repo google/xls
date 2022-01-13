@@ -26,17 +26,16 @@ load(
     _xls_dslx_test = "xls_dslx_test",
 )
 load(
+    "//xls/build_rules:xls_ir_macros.bzl",
+    _xls_dslx_ir_macro = "xls_dslx_ir_macro",
+    _xls_ir_opt_ir_macro = "xls_ir_opt_ir_macro",
+)
+load(
     "//xls/build_rules:xls_ir_rules.bzl",
     _get_mangled_ir_symbol = "get_mangled_ir_symbol",
     _xls_benchmark_ir = "xls_benchmark_ir",
-    _xls_dslx_ir = "xls_dslx_ir",
     _xls_eval_ir_test = "xls_eval_ir_test",
     _xls_ir_equivalence_test = "xls_ir_equivalence_test",
-    _xls_ir_opt_ir = "xls_ir_opt_ir",
-)
-load(
-    "//xls/build_rules:xls_codegen_rules.bzl",
-    _xls_ir_verilog = "xls_ir_verilog",
 )
 load(
     "//xls/build_rules:xls_jit_wrapper_rules.bzl",
@@ -45,9 +44,7 @@ load(
 )
 load(
     "//xls/build_rules:xls_rules.bzl",
-    _xls_dslx_opt_ir = "xls_dslx_opt_ir",
     _xls_dslx_opt_ir_test = "xls_dslx_opt_ir_test",
-    _xls_dslx_verilog = "xls_dslx_verilog",
 )
 load(
     "//xls/build_rules:xls_codegen_macros.bzl",
@@ -56,6 +53,7 @@ load(
 load(
     "//xls/build_rules:xls_macros.bzl",
     _xls_dslx_cpp_type_library = "xls_dslx_cpp_type_library",
+    _xls_dslx_opt_ir_macro = "xls_dslx_opt_ir_macro",
     _xls_dslx_verilog_macro = "xls_dslx_verilog_macro",
     _xls_verify_checksum = "xls_verify_checksum",
 )
@@ -65,23 +63,25 @@ xls_dslx_library = _xls_dslx_library
 xls_dslx_module_library = _xls_dslx_module_library
 xls_dslx_test = _xls_dslx_test
 
-xls_dslx_ir = _xls_dslx_ir
 get_mangled_ir_symbol = _get_mangled_ir_symbol
 xls_benchmark_ir = _xls_benchmark_ir
 xls_ir_equivalence_test = _xls_ir_equivalence_test
 xls_eval_ir_test = _xls_eval_ir_test
-xls_ir_opt_ir = _xls_ir_opt_ir
-xls_ir_verilog = _xls_ir_verilog
 
 cc_xls_ir_jit_wrapper = _cc_xls_ir_jit_wrapper
 xls_ir_jit_wrapper = _xls_ir_jit_wrapper
 
-xls_dslx_verilog = _xls_dslx_verilog
-xls_dslx_opt_ir = _xls_dslx_opt_ir
 xls_dslx_opt_ir_test = _xls_dslx_opt_ir_test
 
 # XLS Macros
-xls_ir_verilog_macro = _xls_ir_verilog_macro
-xls_dslx_verilog_macro = _xls_dslx_verilog_macro
+# TODO (vmirian) 1-10-2022 Do not expose xls_dslx_ir to user. Prefer to simply
+# have an opt ir generated from a DSLX file.
+xls_dslx_ir = _xls_dslx_ir_macro
+
+# TODO (vmirian) 1-10-2022 Do not expose xls_ir_opt_ir to user.
+xls_ir_opt_ir = _xls_ir_opt_ir_macro
+xls_ir_verilog = _xls_ir_verilog_macro
+xls_dslx_opt_ir = _xls_dslx_opt_ir_macro
+xls_dslx_verilog = _xls_dslx_verilog_macro
 xls_dslx_cpp_type_library = _xls_dslx_cpp_type_library
 xls_verify_checksum = _xls_verify_checksum
