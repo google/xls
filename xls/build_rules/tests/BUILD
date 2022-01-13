@@ -15,6 +15,7 @@
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
+    "check_sha256sum_frozen",
     "check_sha256sum_test",
     "get_mangled_ir_symbol",
     "xls_benchmark_ir",
@@ -65,6 +66,21 @@ check_sha256sum_test(
     sha256sum = "6522799f7b64dbbb2a31eb2862052b8988e78821d8b61fff7f508237a9d9f01d",
 )
 
+# Build a frozen file generated with a genrule.
+check_sha256sum_frozen(
+    name = "generated_x_sha256sum_frozen",
+    src = ":generated.x",
+    frozen_file = "generated.frozen.x",
+    sha256sum = "6522799f7b64dbbb2a31eb2862052b8988e78821d8b61fff7f508237a9d9f01d",
+)
+
+# Test with a frozen checksum file generated with a check_sha256sum_frozen rule.
+check_sha256sum_test(
+    name = "generated_frozen_x_sha256sum_test",
+    src = ":generated.frozen.x",
+    sha256sum = "6522799f7b64dbbb2a31eb2862052b8988e78821d8b61fff7f508237a9d9f01d",
+)
+
 xls_dslx_module_library(
     name = "add_one_dslx_module",
     src = "add_one.x",
@@ -85,6 +101,21 @@ xls_dslx_verilog(
 check_sha256sum_test(
     name = "add_one_pipeline_rtl_v_sha256sum_test",
     src = ":add_one_pipeline_rtl.v",
+    sha256sum = "5a9a4ff3f5254915afb92d7a30447db53a524b649d6a4c1290b539a651ee3434",
+)
+
+# Build a frozen file generated with a build rule.
+check_sha256sum_frozen(
+    name = "add_one_pipeline_rtl_v_sha256sum_frozen",
+    src = ":add_one_pipeline_rtl.v",
+    frozen_file = ":add_one_pipeline_rtl.frozen.v",
+    sha256sum = "5a9a4ff3f5254915afb92d7a30447db53a524b649d6a4c1290b539a651ee3434",
+)
+
+# Test with a frozen checksum file generated with a check_sha256sum_frozen rule.
+check_sha256sum_test(
+    name = "add_one_pipeline_rtl_frozen_v_sha256sum_test",
+    src = ":add_one_pipeline_rtl.frozen.v",
     sha256sum = "5a9a4ff3f5254915afb92d7a30447db53a524b649d6a4c1290b539a651ee3434",
 )
 

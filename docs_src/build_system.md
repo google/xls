@@ -70,7 +70,13 @@ the following rules:
 ### `check_sha256sum_test`
 
 A test rule that executes the sha256sum on a source file and validates the
-result with a user-defined golden result.
+result with a user-defined checksum.
+
+### `check_sha256sum_frozen`
+
+This rule ensure that the contents of a file does not change by verifying that
+it matches a given checksum. This build rule produces a frozen file when the
+sha256sum checksum of a source file matches a user-defined checksum.
 
 ## Macros
 

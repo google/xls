@@ -42,7 +42,8 @@ load(
     _xls_ir_equivalence_test = "xls_ir_equivalence_test",
 )
 load(
-    "//xls/build_rules:xls_helpers.bzl",
+    "//xls/build_rules:xls_utilities.bzl",
+    _check_sha256sum_frozen = "check_sha256sum_frozen",
     _check_sha256sum_test = "check_sha256sum_test",
 )
 load(
@@ -63,6 +64,7 @@ load(
 
 # XLS Rules
 check_sha256sum_test = _check_sha256sum_test
+check_sha256sum_frozen = _check_sha256sum_frozen
 xls_dslx_library = _xls_dslx_library
 xls_dslx_module_library = _xls_dslx_module_library
 xls_dslx_test = _xls_dslx_test
