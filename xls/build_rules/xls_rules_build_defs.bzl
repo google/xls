@@ -13,15 +13,20 @@
 # limitations under the License.
 
 """
-This module contains build rules for XLS.
+This module contains build rules/macros for XLS.
 
-This module contain all the XLS build rules that require testing but are not
-exposed to the user. This module is created for convenience.
+This module contain all the XLS build rules/macros that require testing but are
+not exposed to the user. This module is created for convenience.
 """
 
 load(
     "//xls/build_rules:xls_codegen_rules.bzl",
     _xls_ir_verilog = "xls_ir_verilog",
+)
+load(
+    "//xls/build_rules:xls_jit_wrapper_rules.bzl",
+    _xls_ir_jit_wrapper = "xls_ir_jit_wrapper",
+    _xls_ir_jit_wrapper_macro = "xls_ir_jit_wrapper_macro",
 )
 load(
     "//xls/build_rules:xls_ir_rules.bzl",
@@ -39,3 +44,5 @@ xls_dslx_opt_ir = _xls_dslx_opt_ir
 xls_dslx_verilog = _xls_dslx_verilog
 xls_ir_opt_ir = _xls_ir_opt_ir
 xls_ir_verilog = _xls_ir_verilog
+xls_ir_jit_wrapper = _xls_ir_jit_wrapper
+xls_ir_jit_wrapper_macro = _xls_ir_jit_wrapper_macro

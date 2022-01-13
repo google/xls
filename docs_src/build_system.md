@@ -54,10 +54,6 @@ A test rule that executes the equivalence tool on two IR files.
 
 A test rule that executes the IR interpreter on an IR file.
 
-### `xls_ir_jit_wrapper`
-
-A build rule that generates the sources for JIT invocation wrappers.
-
 ### `xls_dslx_opt_ir_test`
 
 A test rule that executes the commands in the order presented in the list for
@@ -85,9 +81,10 @@ Returns the mangled IR symbol for the module/function combination.
 
 ### `cc_xls_ir_jit_wrapper`
 
-The macro generates sources files (.cc and .h) using the xls_ir_jit_wrapper
-rule. The source files are the input to a cc_library target with the same name
-as this macro.
+The macro instantiates a macro that generates the source files (.cc and .h) for
+JIT invocation wrappers and the 'enable_generated_file_wrapper' function. The
+source files are the input to a cc_library target with the same name as this
+macro.
 
 ### `xls_dslx_ir`<a id="xls_dslx_ir"></a>
 

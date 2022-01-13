@@ -18,7 +18,11 @@ This module contains jit-wrapper-related build rules for XLS.
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("//xls/build_rules:xls_common_rules.bzl", "split_filename")
-load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
+load(
+    "//xls/build_rules:xls_config_rules.bzl",
+    "CONFIG",
+    "enable_generated_file_wrapper",
+)
 load("//xls/build_rules:xls_providers.bzl", "JitWrapperInfo")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
 load(
@@ -27,18 +31,22 @@ load(
     "xls_toolchain_attr",
 )
 
+_H_FILE_EXTENSION = ".h"
+
+_CC_FILE_EXTENSION = ".cc"
+
 _xls_ir_jit_wrapper_attrs = {
     "jit_wrapper_args": attr.string_dict(
         doc = "Arguments of the JIT wrapper tool.",
     ),
     "source_file": attr.output(
         doc = "The filename of the generated source file. The filename must " +
-              "have a '.cc' extension.",
+              "have a '" + _CC_FILE_EXTENSION + "' extension.",
         mandatory = True,
     ),
     "header_file": attr.output(
         doc = "The filename of the generated header file. The filename must " +
-              "have a '.h' extension.",
+              "have a '" + _H_FILE_EXTENSION + "' extension.",
         mandatory = True,
     ),
 }
@@ -86,10 +94,12 @@ def _xls_ir_jit_wrapper_impl(ctx):
     header_basename, header_extension = split_filename(header_filename)
 
     # validate filename extension
-    if source_extension != "cc":
-        fail("Source filename must contain the '.cc' extension.")
-    if header_extension != "h":
-        fail("Header filename must contain the '.h' extension.")
+    if source_extension != _CC_FILE_EXTENSION[1:]:
+        fail("Source filename must contain the '%s' extension." %
+             _CC_FILE_EXTENSION)
+    if header_extension != _H_FILE_EXTENSION[1:]:
+        fail("Header filename must contain the '%s' extension." %
+             _H_FILE_EXTENSION)
 
     # validate basename
     if source_basename != header_basename:
@@ -126,7 +136,6 @@ def _xls_ir_jit_wrapper_impl(ctx):
         ),
     ]
 
-#TODO(vmirian) 12-28-2021 Do not expose to user.
 xls_ir_jit_wrapper = rule(
     doc = """
     A build rule that generates the sources for JIT invocation wrappers.
@@ -150,7 +159,6 @@ xls_ir_jit_wrapper = rule(
                 src = "a.ir",
             )
 
-
             xls_ir_jit_wrapper(
                 name = "a_jit_wrapper",
                 src = ":a",
@@ -166,10 +174,76 @@ xls_ir_jit_wrapper = rule(
     ),
 )
 
+def xls_ir_jit_wrapper_macro(
+        name,
+        src,
+        source_file,
+        header_file,
+        jit_wrapper_args = {},
+        enable_generated_file = True,
+        enable_presubmit_generated_file = False,
+        **kwargs):
+    """A macro wrapper for the 'xls_ir_jit_wrapper' rule.
+
+    The macro instantiates the 'xls_ir_jit_wrapper' rule and
+    'enable_generated_file_wrapper' function. The generated files of the rule
+    are listed in the outs attribute of the rule.
+
+    Args:
+      name: The name of the rule.
+      src: The IR file. See 'src' attribute from the 'xls_ir_jit_wrapper' rule.
+      source_file: The generated source file. See 'source_file' attribute from
+        the 'xls_ir_jit_wrapper' rule.
+      header_file: The generated header file. See 'header_file' attribute from
+        the 'xls_ir_jit_wrapper' rule.
+      jit_wrapper_args: Arguments of the JIT tool. See 'jit_wrapper_args'
+         attribute from the 'xls_ir_jit_wrapper' rule.
+      enable_generated_file: See 'enable_generated_file' from
+        'enable_generated_file_wrapper' function.
+      enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
+        from 'enable_generated_file_wrapper' function.
+      **kwargs: Positional arguments. Named arguments.
+    """
+
+    # Type check input
+    if type(name) != type(""):
+        fail("Argument 'name' must be of string type.")
+    if type(src) != type(""):
+        fail("Argument 'src' must be of string type.")
+    if type(source_file) != type(""):
+        fail("Argument 'source_file' must be of string type.")
+    if type(header_file) != type(""):
+        fail("Argument 'header_file' must be of string type.")
+    if type(jit_wrapper_args) != type({}):
+        fail("Argument 'jit_wrapper_args' must be of dictionary type.")
+    if type(enable_generated_file) != type(True):
+        fail("Argument 'enable_generated_file' must be of boolean type.")
+    if type(enable_presubmit_generated_file) != type(True):
+        fail("Argument 'enable_presubmit_generated_file' must be " +
+             "of boolean type.")
+
+    pkg_name = native.package_name() + "/"
+    xls_ir_jit_wrapper(
+        name = name,
+        src = src,
+        source_file = source_file,
+        header_file = header_file,
+        jit_wrapper_args = jit_wrapper_args,
+        outs = [pkg_name + source_file, pkg_name + header_file],
+        **kwargs
+    )
+
+    enable_generated_file_wrapper(
+        wrapped_target = name,
+        enable_generated_file = enable_generated_file,
+        enable_presubmit_generated_file = enable_presubmit_generated_file,
+        **kwargs
+    )
+
 def cc_xls_ir_jit_wrapper(
         name,
-        src = None,
-        jit_wrapper_args = None,
+        src,
+        jit_wrapper_args = {},
         **kwargs):
     """Instantiates xls_ir_jit_wrapper and a cc_library target with the files.
 
@@ -184,10 +258,8 @@ def cc_xls_ir_jit_wrapper(
                         'output_name' cannot be defined.
       **kwargs: Keyword arguments. Named arguments.
     """
-    if jit_wrapper_args != None and type(jit_wrapper_args) != type({}):
+    if type(jit_wrapper_args) != type({}):
         fail("JIT Wrapper arguments must be a dictionary.")
-    if src == None:
-        fail("The source must be defined.")
     if type(src) != type(""):
         fail("The source must be a string.")
 
@@ -199,18 +271,17 @@ def cc_xls_ir_jit_wrapper(
         fail("Cannot set 'header_file' attribute in macro '%s' of type " +
              "'cc_xls_ir_jit_wrapper'." % name)
 
-    source_filename = name + ".cc"
-    header_filename = name + ".h"
-    pkg_name = native.package_name() + "/"
-    xls_ir_jit_wrapper(
+    source_filename = name + _CC_FILE_EXTENSION
+    header_filename = name + _H_FILE_EXTENSION
+    xls_ir_jit_wrapper_macro(
         name = "__" + name + "_xls_ir_jit_wrapper",
         src = src,
         jit_wrapper_args = jit_wrapper_args,
-        outs = [pkg_name + source_filename, pkg_name + header_filename],
         source_file = source_filename,
         header_file = header_filename,
         **kwargs
     )
+
     native.cc_library(
         name = name,
         srcs = [":" + source_filename],

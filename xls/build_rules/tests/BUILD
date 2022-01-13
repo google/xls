@@ -27,16 +27,17 @@ load(
     "xls_dslx_verilog",
     "xls_eval_ir_test",
     "xls_ir_equivalence_test",
-    "xls_ir_jit_wrapper",
     "xls_ir_opt_ir",
     "xls_ir_verilog",
     "xls_verify_checksum",
 )
 load(
     "//xls/build_rules:xls_rules_build_defs.bzl",
+    "xls_ir_jit_wrapper_macro",
     xls_dslx_ir_native_rule = "xls_dslx_ir",
     xls_dslx_opt_ir_native_rule = "xls_dslx_opt_ir",
     xls_dslx_verilog_native_rule = "xls_dslx_verilog",
+    xls_ir_jit_wrapper_native_rule = "xls_ir_jit_wrapper",
     xls_ir_opt_ir_native_rule = "xls_ir_opt_ir",
     xls_ir_verilog_native_rule = "xls_ir_verilog",
 )
@@ -464,7 +465,7 @@ xls_dslx_verilog(
 # The xls_ir_jit_wrapper rule using an optimized IR file as input.
 # The header and source files are outputs of the rule, they can be referenced
 # by other rules.
-xls_ir_jit_wrapper(
+xls_ir_jit_wrapper_macro(
     name = "simple_example_5_one_stage_jit_wrapper",
     src = ":simple_example_5_one_stage.opt.ir",
     header_file = "simple_example_5_one_stage_jit_wrapper.h",
@@ -590,6 +591,14 @@ xls_dslx_verilog_native_rule(
     verilog_file = "simple_example_5_one_stage_macro.v",
 )
 
+# The target is the native rule form of the 'simple_example_5_one_stage_jit_wrapper' target.
+xls_ir_jit_wrapper_native_rule(
+    name = "simple_example_5_one_stage_jit_wrapper_native_rule",
+    src = ":simple_example_5_one_stage.opt.ir",
+    header_file = "simple_example_5_one_stage_jit_wrapper_native_rule.h",
+    source_file = "simple_example_5_one_stage_jit_wrapper_native_rule.cc",
+)
+
 ################################################################################
 # Tests for user defined output filenames.
 ################################################################################
@@ -659,11 +668,18 @@ xls_dslx_verilog_native_rule(
     verilog_file = "xls_dslx_verilog_native_rule.v",
 )
 
-xls_ir_jit_wrapper(
-    name = "user_defined_output_filename_cc",
+xls_ir_jit_wrapper_macro(
+    name = "user_defined_output_filename_jit_wrapper",
     src = ":xls_ir_opt_ir.opt.ir",
     header_file = "xls_ir_jit_wrapper.h",
     source_file = "xls_ir_jit_wrapper.cc",
+)
+
+xls_ir_jit_wrapper_native_rule(
+    name = "user_defined_output_filename_native_rule_jit_wrapper",
+    src = ":xls_ir_opt_ir.opt.ir",
+    header_file = "xls_ir_jit_wrapper_native_rule.h",
+    source_file = "xls_ir_jit_wrapper_native_rule.cc",
 )
 
 ################################################################################

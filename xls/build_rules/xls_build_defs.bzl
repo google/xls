@@ -40,7 +40,6 @@ load(
 load(
     "//xls/build_rules:xls_jit_wrapper_rules.bzl",
     _cc_xls_ir_jit_wrapper = "cc_xls_ir_jit_wrapper",
-    _xls_ir_jit_wrapper = "xls_ir_jit_wrapper",
 )
 load(
     "//xls/build_rules:xls_rules.bzl",
@@ -68,12 +67,11 @@ xls_benchmark_ir = _xls_benchmark_ir
 xls_ir_equivalence_test = _xls_ir_equivalence_test
 xls_eval_ir_test = _xls_eval_ir_test
 
-cc_xls_ir_jit_wrapper = _cc_xls_ir_jit_wrapper
-xls_ir_jit_wrapper = _xls_ir_jit_wrapper
-
 xls_dslx_opt_ir_test = _xls_dslx_opt_ir_test
 
 # XLS Macros
+cc_xls_ir_jit_wrapper = _cc_xls_ir_jit_wrapper
+
 # TODO (vmirian) 1-10-2022 Do not expose xls_dslx_ir to user. Prefer to simply
 # have an opt ir generated from a DSLX file.
 xls_dslx_ir = _xls_dslx_ir_macro

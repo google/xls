@@ -170,6 +170,7 @@ bzl_library(
     deps = [
         ":xls_codegen_rules_bzl",
         ":xls_ir_rules_bzl",
+        ":xls_jit_wrapper_rules_bzl",
         ":xls_rules_bzl",
     ],
 )
