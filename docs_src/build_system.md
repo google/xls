@@ -67,6 +67,11 @@ the following rules:
 
    1. xls_benchmark_ir
 
+### `check_sha256sum_test`
+
+A test rule that executes the sha256sum on a source file and validates the
+result with a user-defined golden result.
+
 ## Macros
 
 Below is a brief summary of the public macros. An extensive description of the

@@ -20,6 +20,10 @@ exposed to the user. This module is created for convenience.
 """
 
 load(
+    "//xls/build_rules:xls_codegen_macros.bzl",
+    _xls_ir_verilog_macro = "xls_ir_verilog_macro",
+)
+load(
     "//xls/build_rules:xls_dslx_rules.bzl",
     _xls_dslx_library = "xls_dslx_library",
     _xls_dslx_module_library = "xls_dslx_module_library",
@@ -38,16 +42,12 @@ load(
     _xls_ir_equivalence_test = "xls_ir_equivalence_test",
 )
 load(
+    "//xls/build_rules:xls_helpers.bzl",
+    _check_sha256sum_test = "check_sha256sum_test",
+)
+load(
     "//xls/build_rules:xls_jit_wrapper_rules.bzl",
     _cc_xls_ir_jit_wrapper = "cc_xls_ir_jit_wrapper",
-)
-load(
-    "//xls/build_rules:xls_rules.bzl",
-    _xls_dslx_opt_ir_test = "xls_dslx_opt_ir_test",
-)
-load(
-    "//xls/build_rules:xls_codegen_macros.bzl",
-    _xls_ir_verilog_macro = "xls_ir_verilog_macro",
 )
 load(
     "//xls/build_rules:xls_macros.bzl",
@@ -56,8 +56,13 @@ load(
     _xls_dslx_verilog_macro = "xls_dslx_verilog_macro",
     _xls_verify_checksum = "xls_verify_checksum",
 )
+load(
+    "//xls/build_rules:xls_rules.bzl",
+    _xls_dslx_opt_ir_test = "xls_dslx_opt_ir_test",
+)
 
 # XLS Rules
+check_sha256sum_test = _check_sha256sum_test
 xls_dslx_library = _xls_dslx_library
 xls_dslx_module_library = _xls_dslx_module_library
 xls_dslx_test = _xls_dslx_test

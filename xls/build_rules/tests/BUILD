@@ -15,6 +15,7 @@
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
+    "check_sha256sum_test",
     "get_mangled_ir_symbol",
     "xls_benchmark_ir",
     "xls_dslx_cpp_type_library",
@@ -57,6 +58,13 @@ genrule(
           "echo 'fn test_value() { assert_eq(VALUE, u32:42) }' >> $(OUTS)",
 )
 
+# Test with a checksum file generated with a genrule.
+check_sha256sum_test(
+    name = "generated_x_sha256sum_test",
+    src = ":generated.x",
+    sha256sum = "6522799f7b64dbbb2a31eb2862052b8988e78821d8b61fff7f508237a9d9f01d",
+)
+
 xls_dslx_module_library(
     name = "add_one_dslx_module",
     src = "add_one.x",
@@ -71,6 +79,13 @@ xls_dslx_verilog(
     },
     dep = ":add_one_dslx_module",
     verilog_file = "add_one_pipeline_rtl.v",
+)
+
+# Test a single file when many are generated.
+check_sha256sum_test(
+    name = "add_one_pipeline_rtl_v_sha256sum_test",
+    src = ":add_one_pipeline_rtl.v",
+    sha256sum = "5a9a4ff3f5254915afb92d7a30447db53a524b649d6a4c1290b539a651ee3434",
 )
 
 sh_test(

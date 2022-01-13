@@ -27,6 +27,7 @@ exports_files(
         "xls_common_rules.bzl",
         "xls_config_rules.bzl",
         "xls_dslx_rules.bzl",
+        "xls_helpers.bzl",
         "xls_ir_rules.bzl",
         "xls_ir_macros.bzl",
         "xls_jit_wrapper_rules.bzl",
@@ -38,6 +39,11 @@ exports_files(
         "xls_toolchains.bzl",
     ],
     visibility = ["//visibility:private"],
+)
+
+bzl_library(
+    name = "xls_helpers_bzl",
+    srcs = ["xls_helpers.bzl"],
 )
 
 bzl_library(
@@ -184,6 +190,7 @@ bzl_library(
         ":xls_codegen_rules_bzl",
         ":xls_config_rules_bzl",
         ":xls_dslx_rules_bzl",
+        ":xls_helpers_bzl",
         ":xls_ir_macros_bzl",
         ":xls_ir_rules_bzl",
         ":xls_jit_wrapper_rules_bzl",
