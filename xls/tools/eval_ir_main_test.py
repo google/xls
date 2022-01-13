@@ -107,7 +107,7 @@ class EvalMainTest(absltest.TestCase):
                           stderr=subprocess.PIPE,
                           check=False)
     self.assertNotEqual(comp.returncode, 0)
-    self.assertIn('Miscompare for input "bits[32]:0x42; bits[32]:0x123"',
+    self.assertIn('Miscompare for input[0] "bits[32]:0x42; bits[32]:0x123"',
                   comp.stderr.decode('utf-8'))
 
   def test_input_file(self):
@@ -163,7 +163,7 @@ class EvalMainTest(absltest.TestCase):
                           stderr=subprocess.PIPE,
                           check=False)
     self.assertNotEqual(comp.returncode, 0)
-    self.assertIn('Miscompare for input "bits[32]:0x10; bits[32]:0x0"',
+    self.assertIn('Miscompare for input[1] "bits[32]:0x10; bits[32]:0x0"',
                   comp.stderr.decode('utf-8'))
 
   def test_empty_input_file(self):
@@ -221,7 +221,7 @@ class EvalMainTest(absltest.TestCase):
                           stderr=subprocess.PIPE,
                           check=False)
     self.assertNotEqual(comp.returncode, 0)
-    self.assertIn('Miscompare for input "bits[32]:0x42; bits[32]:0x123"',
+    self.assertIn('Miscompare for input[0] "bits[32]:0x42; bits[32]:0x123"',
                   comp.stderr.decode('utf-8'))
 
   def test_validator(self):

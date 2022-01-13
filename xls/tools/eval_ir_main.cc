@@ -196,8 +196,8 @@ absl::StatusOr<std::vector<Value>> Eval(
     if (arg_set.expected.has_value()) {
       if (result != *arg_set.expected) {
         return absl::InvalidArgumentError(absl::StrFormat(
-            "Miscompare for input \"%s\"\n  %s: %s\n  %s: %s",
-            ArgsToString(arg_set.args), actual_src,
+            "Miscompare for input[%i] \"%s\"\n  %s: %s\n  %s: %s",
+            results.size(), ArgsToString(arg_set.args), actual_src,
             result.ToString(FormatPreference::kHex), expected_src,
             arg_set.expected->ToString(FormatPreference::kHex)));
       }

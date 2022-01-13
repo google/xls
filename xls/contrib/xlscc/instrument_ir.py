@@ -64,11 +64,8 @@ flags.DEFINE_bool(
     False,
     "Use LLVM JIT instead of IR interpreter",
     required=False)
-flags.DEFINE_integer(
-    "ticks",
-    1,
-    "Number of ticks to run Proc network. May hang given too many!",
-    required=False)
+flags.DEFINE_bool(
+    "delete_temps", True, "Delete temporary files?", required=False)
 
 EVAL_IR_PATH = runfiles.get_path("xls/tools/eval_ir_main")
 EVAL_PROC_PATH = runfiles.get_path("xls/tools/eval_proc_main")
@@ -165,6 +162,8 @@ def type_to_string(type_pb: metadata_output_pb2.Type) -> str:
   """
   if type_pb.HasField("as_void"):
     return "void"
+  if type_pb.HasField("as_bool"):
+    return "bool"
   if type_pb.HasField("as_int"):
     ret = ""
     if not type_pb.as_int.is_signed:
@@ -195,8 +194,7 @@ def type_to_string(type_pb: metadata_output_pb2.Type) -> str:
     ret += "[{n}]".format(n=type_pb.as_array.size)
     return ret
   else:
-    raise app.Error(
-        "Don't know how to translate type: {t}".format(t=type_pb.as_int.width))
+    raise app.Error("Don't know how to translate type: {t}".format(t=type_pb))
 
 
 def find_instantiated_type(
@@ -244,6 +242,9 @@ def format_print_value(name: str, stream_name: str,
   elif type_pb.HasField("as_int"):
     return "    {stream_name}<<\"bits[{w}]:\"<<{v};".format(
         stream_name=stream_name, w=type_pb.as_int.width, v=name)
+  elif type_pb.HasField("as_bool"):
+    return "    {stream_name}<<\"bits[1]:\"<<({v}?1:0);".format(
+        stream_name=stream_name, v=name)
   elif type_pb.HasField("as_inst"):
     return format_print_value(
         name, stream_name,
@@ -280,12 +281,15 @@ def format_print_value(name: str, stream_name: str,
 
 
 def gen_instrumentation_proc(
-    channels_tmps,
+    channels_tmps, reset_ticks_tmp,
+    block_channels_by_name: typing.Dict[str, hls_block_pb2.HLSChannel],
     metadata: metadata_output_pb2.MetadataOutput) -> typing.Dict[str, str]:
   """Generates source blocks to insert.
 
   Args:
     channels_tmps: List of tuples, one for each channel to instrument
+    reset_ticks_tmp: The number of ticks between resets are written to this path
+    block_channels_by_name: HLSChannel protos by name
     metadata: Protobuf from xlscc describing all the translated IR
 
   Returns:
@@ -297,61 +301,132 @@ def gen_instrumentation_proc(
 #include <fstream>
 #include <cassert>
 
+class reset_recorder {
+ private:
+  int ticks;
+  std::ofstream stream;
+ public:
+  reset_recorder(const absl::string_view& out_path)
+    : ticks(0), stream(out_path.data(), std::ios_base::app) {
+  }
+  ~reset_recorder() {
+    stream << ticks << std::endl;
+
+  }
+  void tick() {
+    ++ticks;
+  }
+};
+
+struct tick_on_exit {
+  reset_recorder& rec;
+  tick_on_exit(reset_recorder& rec) : rec(rec) {
+  }
+  ~tick_on_exit() {
+    rec.tick();
+  }
+};
+
 """
 
   after_func_src = ""
-  instrument_src = ""
+  instrument_src = """
+  HLS_STATIC reset_recorder reset_recorder_i("{path}");
+  // Don't count Run() as a tick if it never exits
+  tick_on_exit tick_on_exit_i(reset_recorder_i);
+""".format(path=reset_ticks_tmp)
 
   for channel, tmp in channels_tmps:
+    assert channel.name in block_channels_by_name
+    hls_ch = block_channels_by_name[channel.name]
 
-    after_func_src += """
+    instrument_src += """
+        static std::ofstream {n}_stream("{path}");
+""".format(
+    n=channel.name, path=tmp.name)
+
+    if hls_ch.type == hls_block_pb2.ChannelType.DIRECT_IN:
+      assert hls_ch.is_input
+      assert not (channel.type.as_inst and
+                  channel.type.as_inst.name.fully_qualified_name
+                  == "__xls_channel")
+
+      ch_type = channel.type
+      instrument_src += textwrap.dedent("""
+                          struct direct_in_on_exit_{n} {{
+                            {t} &value;
+                            std::ofstream& stream;
+
+                            direct_in_on_exit_{n} ({t} &value, std::ofstream& stream)
+                             : value(value), stream(stream) {{
+                            }}
+                            ~direct_in_on_exit_{n} () {{
+                              {print_val}
+                              {n}_stream << std::endl;
+                            }}
+                          }} direct_in_on_exit_{n}_i({n}, {n}_stream);
+""".format(
+    n=channel.name,
+    t=type_to_string(ch_type),
+    print_val=format_print_value("value", "{n}_stream".format(n=channel.name),
+                                 ch_type, metadata)))
+    elif hls_ch.type == hls_block_pb2.ChannelType.FIFO:
+      assert channel.type.as_inst and channel.type.as_inst.name.fully_qualified_name == "__xls_channel"
+
+      after_func_src += """
 #undef {n}
 """.format(n=channel.name)
 
-    ch_type = channel.type.as_inst.args[0].as_type
+      ch_type = channel.type.as_inst.args[0].as_type
 
-    instrument_src += textwrap.dedent("""
-                        class capture_channel_{n} {{
-                         private:
-                          typedef {t} T;
-                          ac_channel<T>& underlying;
-                          std::ostream& stream;
-                          bool did_read, did_write;
-                         public:
-                          capture_channel_{n}(ac_channel<T>& ch, std::ostream& stream)
-                            : underlying(ch),
-                              stream(stream),
-                              did_read(false),
-                              did_write(false) {{
-                          }}
+      instrument_src += textwrap.dedent("""
+                          class capture_channel_{n} {{
+                           private:
+                            typedef {t} T;
+                            ac_channel<T>& underlying;
+                            std::ostream& stream;
+                            bool did_read, did_write;
+                            void* inst;
+                           public:
+                            capture_channel_{n}(void* inst, ac_channel<T>& ch, std::ostream& stream)
+                              : underlying(ch),
+                                stream(stream),
+                                did_read(false),
+                                did_write(false),
+                                inst(inst) {{
+                            }}
 
-                          void write(const T& val) {{
-                            {print_val}
-                            stream << std::endl;
-                            did_write = true;
-                            assert(!did_read);
-                            underlying.write(val);
-                          }}
+                            void write(const T& val) {{
+                              {print_val}
+                              (void)inst;
+                              stream << std::endl;
+                              did_write = true;
+                              assert(!did_read);
+                              underlying.write(val);
+                            }}
 
-                          T read() {{
-                            const T val(underlying.read());
-                            {print_val}
-                            stream << std::endl;
-                            did_read = true;
-                            assert(!did_write);
-                            return val;
-                          }}
-                        }};
+                            T read() {{
+                              const T val(underlying.read());
+                              {print_val}
+                              stream << std::endl;
+                              did_read = true;
+                              assert(!did_write);
+                              return val;
+                            }}
+                          }};
 
-                        static std::ofstream {n}_stream("{path}");
-                        capture_channel_{n} {n}_captured({n}, {n}_stream);
-                        #undef {n}
-                        #define {n} {n}_captured
-""").format(
-    n=channel.name,
-    t=type_to_string(ch_type),
-    path=tmp.name,
-    print_val=format_print_value("val", "stream", ch_type, metadata))
+                          capture_channel_{n} {n}_captured(this, {n}, {n}_stream);
+                          #undef {n}
+                          #define {n} {n}_captured
+  """).format(
+      n=channel.name,
+      t=type_to_string(ch_type),
+      path=tmp.name,
+      print_val=format_print_value("val", "stream", ch_type, metadata))
+    else:
+      raise app.UsageError(
+          "Don't know how to instrument channel {n} of type: {t}".format(
+              n=hls_ch.name, t=hls_ch.type))
 
   return {
       "before_func_src": before_func_src,
@@ -399,11 +474,25 @@ def gen_instrumentation_pure_func(
       param_decl += type_to_string(param.type)
       param_decl += "& " + param.name
     else:
-      element_type = param.type.as_array.element_type
-      param_decl += "{type} (&{name})[{n}]".format(
+
+      postfix = ""
+      prefix = ""
+      if param.type.as_array.element_type.HasField("as_array"):
+        element_type = param.type
+        while element_type.HasField("as_array"):
+          if postfix:
+            prefix = prefix + "*"
+          postfix = "[{n}]".format(n=element_type.as_array.size)
+          element_type = element_type.as_array.element_type
+      else:
+        element_type = param.type.as_array.element_type
+        prefix = "*"
+
+      param_decl += "{type} ({pre}{name}){post}".format(
           type=type_to_string(element_type),
           name=param.name,
-          n=param.type.as_array.size)
+          pre=prefix,
+          post=postfix)
 
     params_srcs += [param_decl]
 
@@ -472,7 +561,6 @@ def gen_instrumentation_pure_func(
 
                         {return_stuff}
                       }};
-
 """).format(
     params=", ".join(params_srcs),
     inits=(": " + ", ".join(init_srcs)) if init_srcs else "",
@@ -557,6 +645,11 @@ def instrument_source(
   return filename_to_modify
 
 
+def create_temp(suffix):
+  ret = tempfile.NamedTemporaryFile(suffix=suffix, delete=FLAGS.delete_temps)
+  return ret
+
+
 def main(argv):
   if len(argv) > 1:
     raise app.UsageError("Too many command-line arguments.")
@@ -571,34 +664,43 @@ def main(argv):
       meta_proto, FLAGS.function_to_instrument)
 
   # Instrument C source
-  original_src_tmp = tempfile.NamedTemporaryFile(suffix=".cc")
+  original_src_tmp = create_temp(suffix=".cc")
 
-  all_channels = True
+  params_by_name = {}
   no_channels = True
-  channel_params = []
   for param in function_to_instrument_proto.params:
     is_channel = param.type.HasField("as_inst") and (
         param.type.as_inst.name.fully_qualified_name == "__xls_channel")
-    all_channels = all_channels and is_channel
     no_channels = no_channels and not is_channel
-    if is_channel:
-      channel_params += [param]
+    params_by_name[param.name] = param
+
+  channels_tmps = []
+  block_channels_by_name = {}
 
   inst_srcs = {}
-  if not all_channels and no_channels:
-    inputs_tmp = tempfile.NamedTemporaryFile(suffix=".ir")
-    outputs_tmp = tempfile.NamedTemporaryFile(suffix=".ir")
+  if no_channels:
+    inputs_tmp = create_temp(suffix=".ir")
+    outputs_tmp = create_temp(suffix=".ir")
     inst_srcs = gen_instrumentation_pure_func(function_to_instrument_proto,
                                               inputs_tmp.name, outputs_tmp.name,
                                               meta_proto)
-  elif all_channels and not no_channels:
-    channels_tmps = []
-    for channel in channel_params:
-      channels_tmps += [(channel, tempfile.NamedTemporaryFile(suffix=".ir"))]
-    inst_srcs = gen_instrumentation_proc(channels_tmps, meta_proto)
   else:
-    raise app.Error(
-        "Don't know how to handle mix of channel and non-channel parameters")
+    reset_ticks_tmp = create_temp(suffix=".log")
+
+    # Parse block data
+    block_proto = hls_block_pb2.HLSBlock()
+    print("FLAGS.xlscc_block_metadata", FLAGS.xlscc_block_metadata)
+    with open(FLAGS.xlscc_block_metadata, "rb") as f:
+      block_proto.ParseFromString(f.read())
+
+    for hls_ch in block_proto.channels:
+      block_channels_by_name[hls_ch.name] = hls_ch
+      assert hls_ch.name in params_by_name
+      channels_tmps += [(params_by_name[hls_ch.name], create_temp(suffix=".ir"))
+                       ]
+
+    inst_srcs = gen_instrumentation_proc(channels_tmps, reset_ticks_tmp.name,
+                                         block_channels_by_name, meta_proto)
 
   print("Saving original source before instrumentation at ",
         original_src_tmp.name)
@@ -620,7 +722,7 @@ def main(argv):
   # Run IR simulator
   # check_output to suppress the spammy output of eval_ir_main
   print("Running IR simulator...")
-  if not all_channels and no_channels:
+  if no_channels:
     args = [
         EVAL_IR_PATH, "--entry", function_to_instrument_proto.name.xls_name,
         "--input_file", inputs_tmp.name, "--expected_file", outputs_tmp.name,
@@ -629,21 +731,19 @@ def main(argv):
     ]
     print("Eval command: ", args)
     subprocess.check_output(args)
-  elif all_channels and not no_channels:
-    # Parse block data
-    block_proto = hls_block_pb2.HLSBlock()
-    with open(FLAGS.xlscc_block_metadata, "rb") as f:
-      block_proto.ParseFromString(f.read())
+  else:
 
-    block_channels_by_name = {}
-    for hls_ch in block_proto.channels:
-      block_channels_by_name[hls_ch.name] = hls_ch
+    with open(reset_ticks_tmp.name) as x:
+      ticks_per_frame = x.read().split()
+
+    ticks_per_frame = filter(lambda x: int(x) > 0, ticks_per_frame)
 
     input_ch_specs = []
     expected_ch_specs = []
 
     for ch, tmp in channels_tmps:
       assert ch.name in block_channels_by_name
+
       hls_ch = block_channels_by_name[ch.name]
       if hls_ch.is_input:
         input_ch_specs += [ch.name + "=" + tmp.name]
@@ -652,11 +752,12 @@ def main(argv):
 
     args = [
         EVAL_PROC_PATH, FLAGS.ir_to_test, "--ticks",
-        str(FLAGS.ticks), "--backend",
+        ",".join(map(str, ticks_per_frame)), "--backend",
         "serial_jit" if FLAGS.use_llvm_jit else "ir_interpreter",
         "--inputs_for_channels", ",".join(input_ch_specs),
         "--expected_outputs_for_channels", ",".join(expected_ch_specs)
     ]
+    args += ["-v=1", "--logtostderr"]
     print("Eval command: ", args)
     subprocess.check_output(args)
 
