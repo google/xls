@@ -162,9 +162,8 @@ absl::Status PrintCriticalPath(
                   n->operands(), ", ", [&](std::string* out, Node* n) {
                     absl::StrAppend(out, KnownBitString(n, query_engine));
                   }));
-        } else {
-          return "";
         }
+        return "";
       });
 
   for (CriticalPathEntry& entry : critical_path) {
@@ -192,6 +191,18 @@ absl::Status PrintCriticalPath(
         op_to_sum[op].second,
         static_cast<double>(op_to_sum[op].first) / op_to_sum[op].second);
   }
+  return absl::OkStatus();
+}
+
+absl::Status PrintTotalDelay(Function* f,
+                             const DelayEstimator& delay_estimator) {
+  int64_t total_delay = 0;
+  for (Node* node : f->nodes()) {
+    XLS_ASSIGN_OR_RETURN(int64_t op_delay,
+                         delay_estimator.GetOperationDelayInPs(node));
+    total_delay += op_delay;
+  }
+  std::cout << absl::StrFormat("Total delay: %dps\n", total_delay);
   return absl::OkStatus();
 }
 
@@ -374,6 +385,7 @@ absl::Status RealMain(absl::string_view path,
   const auto& delay_estimator = *pdelay_estimator;
   XLS_RETURN_IF_ERROR(PrintCriticalPath(f, query_engine, delay_estimator,
                                         effective_clock_period_ps));
+  XLS_RETURN_IF_ERROR(PrintTotalDelay(f, delay_estimator));
 
   if (clock_period_ps.has_value() || pipeline_stages.has_value()) {
     XLS_ASSIGN_OR_RETURN(
