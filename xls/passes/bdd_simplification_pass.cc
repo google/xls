@@ -34,7 +34,6 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/passes/bdd_query_engine.h"
-#include "xls/passes/post_dominator_analysis.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {

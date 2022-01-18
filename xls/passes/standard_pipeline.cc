@@ -27,6 +27,7 @@
 #include "xls/passes/canonicalization_pass.h"
 #include "xls/passes/comparison_simplification_pass.h"
 #include "xls/passes/concat_simplification_pass.h"
+#include "xls/passes/conditional_specialization_pass.h"
 #include "xls/passes/constant_folding_pass.h"
 #include "xls/passes/cse_pass.h"
 #include "xls/passes/dce_pass.h"
@@ -62,6 +63,8 @@ class SimplificationPass : public FixedPointCompoundPass {
     Add<TableSwitchPass>();
     Add<DeadCodeEliminationPass>();
     Add<SelectSimplificationPass>(opt_level);
+    Add<DeadCodeEliminationPass>();
+    Add<ConditionalSpecializationPass>();
     Add<DeadCodeEliminationPass>();
     Add<ReassociationPass>();
     Add<DeadCodeEliminationPass>();

@@ -33,6 +33,7 @@ cc_library(
         ":canonicalization_pass",
         ":comparison_simplification_pass",
         ":concat_simplification_pass",
+        ":conditional_specialization_pass",
         ":constant_folding_pass",
         ":cse_pass",
         ":dce_pass",
@@ -531,7 +532,6 @@ cc_library(
     hdrs = ["select_simplification_pass.h"],
     deps = [
         ":passes",
-        ":post_dominator_analysis",
         ":ternary_query_engine",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -648,7 +648,6 @@ cc_library(
     deps = [
         ":bdd_query_engine",
         ":passes",
-        ":post_dominator_analysis",
         ":query_engine",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/status:statusor",
@@ -828,6 +827,20 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:value",
         "//xls/ir:value_helpers",
+    ],
+)
+
+cc_library(
+    name = "conditional_specialization_pass",
+    srcs = ["conditional_specialization_pass.cc"],
+    hdrs = ["conditional_specialization_pass.h"],
+    deps = [
+        ":passes",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/ir",
     ],
 )
 
@@ -1370,6 +1383,22 @@ cc_test(
         "//xls/ir:ir_scanner",
         "//xls/ir:ir_test_base",
         "//xls/ir:value_helpers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "conditional_specialization_pass_test",
+    srcs = ["conditional_specialization_pass_test.cc"],
+    deps = [
+        ":conditional_specialization_pass",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],
 )
