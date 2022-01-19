@@ -25,6 +25,18 @@
 
 namespace xls {
 
+struct BlockRunResult {
+  absl::flat_hash_map<std::string, Value> outputs;
+  absl::flat_hash_map<std::string, Value> reg_state;
+};
+
+// Runs a single cycle of a block with the given register values and input
+// values. Returns the value sent to the output port and the next register
+// state.
+absl::StatusOr<BlockRunResult> BlockRun(
+    const absl::flat_hash_map<std::string, Value>& inputs,
+    const absl::flat_hash_map<std::string, Value>& reg_state, Block* block);
+
 // Runs the interpreter on a combinational block. `inputs` must contain a
 // value for each input port in the block. The returned map contains a value
 // for each output port of the block.

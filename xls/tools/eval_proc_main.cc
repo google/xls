@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <queue>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -24,22 +25,27 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/block_interpreter.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_network_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/value_helpers.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/serial_proc_runtime.h"
 
 constexpr const char* kUsage = R"(
-Evaluates an IR file containing Procs. The Proc network will be ticked a
-fixed number of times (specified on the command line) and the final state
+Evaluates an IR file containing Procs, or a Block generated from them.
+The Proc network will be ticked a fixed number of times
+(specified on the command line) and the final state
 value of each will be printed to the terminal upon completion.
 
 Initial states are set according their declarations inside the IR itself.
@@ -52,7 +58,12 @@ ABSL_FLAG(std::vector<std::string>, ticks, {},
 ABSL_FLAG(std::string, backend, "serial_jit",
           "Backend to use for evaluation. Valid options are:\n"
           " - serial_jit : JIT-backed single-stepping runtime.\n"
-          " - ir_interpreter     : Interpreter at the IR level.");
+          " - ir_interpreter     : Interpreter at the IR level."
+          " - block_interpreter  : Interpret a block generated from a proc.");
+ABSL_FLAG(std::string, block_signature_proto, "",
+          "Path to textproto file containing signature from codegen");
+ABSL_FLAG(int64_t, max_cycles_no_output, 100,
+          "For block simulation, stop after this many cycles without output.");
 ABSL_FLAG(
     std::vector<std::string>, inputs_for_channels, {},
     "Comma separated list of channel=filename pairs, for example: ch_a=foo.ir. "
@@ -200,6 +211,241 @@ absl::Status RunSerialJit(
   return absl::OkStatus();
 }
 
+struct ChannelInfo {
+  int64_t width = -1;
+  bool port_input = false;
+  // Exactly 2 for ready/valid
+  int ready_valid = 0;
+};
+
+absl::StatusOr<absl::flat_hash_map<std::string, ChannelInfo>>
+InterpretBlockSignature(
+    const verilog::ModuleSignatureProto& signature,
+    absl::flat_hash_map<std::string, std::vector<Value>> inputs_for_channels,
+    absl::flat_hash_map<std::string, std::vector<Value>>
+        expected_outputs_for_channels) {
+  absl::flat_hash_map<std::string, ChannelInfo> channel_info;
+
+  for (const xls::verilog::PortProto& port : signature.data_ports()) {
+    std::string port_name;
+    // TODO(seanhaskell): Make suffixes user controlled
+    if (absl::EndsWith(port.name(), "_data")) {
+      port_name = port.name().substr(0, port.name().size() - 5);
+      XLS_CHECK(!channel_info.contains(port_name));
+      channel_info[port_name].width = port.width();
+      if (port.direction() == verilog::DIRECTION_INPUT) {
+        channel_info[port_name].port_input = true;
+      } else if (port.direction() == verilog::DIRECTION_OUTPUT) {
+        channel_info[port_name].port_input = false;
+      } else {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Don't understand port direction: %i", port.direction()));
+      }
+    }
+  }
+
+  for (const xls::verilog::PortProto& port : signature.data_ports()) {
+    bool this_port_input;
+
+    if (port.direction() == verilog::DIRECTION_INPUT) {
+      this_port_input = true;
+    } else if (port.direction() == verilog::DIRECTION_OUTPUT) {
+      this_port_input = false;
+    } else {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Don't understand port direction: %i", port.direction()));
+    }
+
+    bool ready_valid = false;
+
+    std::string port_name;
+    if (absl::EndsWith(port.name(), "_data")) {
+      port_name = port.name().substr(0, port.name().size() - 5);
+    } else if (absl::EndsWith(port.name(), "_rdy")) {
+      port_name = port.name().substr(0, port.name().size() - 4);
+      ready_valid = true;
+      XLS_CHECK(channel_info.contains(port_name));
+      XLS_CHECK(this_port_input != channel_info.at(port_name).port_input);
+    } else if (absl::EndsWith(port.name(), "_vld")) {
+      port_name = port.name().substr(0, port.name().size() - 4);
+      ready_valid = true;
+      XLS_CHECK(channel_info.contains(port_name));
+      XLS_CHECK(this_port_input == channel_info.at(port_name).port_input);
+    } else {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Don't understand port name: %s", port.name()));
+    }
+
+    XLS_CHECK(channel_info.contains(port_name));
+    if (ready_valid) {
+      ++channel_info[port_name].ready_valid;
+    }
+  }
+
+  for (auto const& [name, info] : channel_info) {
+    XLS_CHECK(info.ready_valid == 0 || info.ready_valid == 2);
+    if (info.port_input) {
+      XLS_CHECK(inputs_for_channels.contains(name));
+    } else {
+      XLS_CHECK(expected_outputs_for_channels.contains(name));
+    }
+  }
+
+  return channel_info;
+}
+
+Value XsForWidth(uint64_t width) {
+  xls::BitsType type(width);
+  Value ret = AllOnesOfType(&type);
+  return ret;
+}
+
+Value XsOfType(Type* type) { return AllOnesOfType(type); }
+
+absl::Status RunBlockInterpreter(
+    Package* package, const std::vector<int64_t>& ticks,
+    const verilog::ModuleSignatureProto& signature,
+    const int64_t max_cycles_no_output,
+    absl::flat_hash_map<std::string, std::vector<Value>> inputs_for_channels,
+    absl::flat_hash_map<std::string, std::vector<Value>>
+        expected_outputs_for_channels) {
+  if (package->blocks().size() != 1) {
+    return absl::InvalidArgumentError(
+        "Input IR should contain exactly one block");
+  }
+  Block* block = package->blocks()[0].get();
+
+  // TODO: Support multiple resets
+  XLS_CHECK_EQ(ticks.size(), 1);
+
+  XLS_CHECK_EQ(signature.reset().name(), "rst_n");
+
+  absl::flat_hash_map<std::string, ChannelInfo> channel_info;
+  XLS_ASSIGN_OR_RETURN(channel_info,
+                       InterpretBlockSignature(signature, inputs_for_channels,
+                                               expected_outputs_for_channels));
+
+  // Prepare values in queue format
+  absl::flat_hash_map<std::string, std::queue<Value>> channel_value_queues;
+  for (const auto& [name, values] : inputs_for_channels) {
+    XLS_CHECK(!channel_value_queues.contains(name));
+    for (const xls::Value& value : values) {
+      channel_value_queues[name].push(value);
+    }
+  }
+  for (const auto& [name, values] : expected_outputs_for_channels) {
+    XLS_CHECK(!channel_value_queues.contains(name));
+    for (const xls::Value& value : values) {
+      channel_value_queues[name].push(value);
+    }
+  }
+
+  // Initial register state is one for all registers.
+  // Ideally this would be randomized, but at least 1s are more likely to
+  //  expose bad behavior than 0s.
+  absl::flat_hash_map<std::string, Value> reg_state;
+  for (Register* reg : block->GetRegisters()) {
+    Value def = ZeroOfType(reg->type());
+    reg_state[reg->name()] = XsOfType(reg->type());
+  }
+
+  int64_t last_output_cycle = 0;
+
+  for (int64_t cycle = 0;; ++cycle) {
+    // Idealized reset behavior
+    const bool resetting = (cycle == 0);
+
+    if ((cycle < 10) || (cycle % 100 == 0)) {
+      XLS_LOG(INFO) << "Cycle[" << cycle << "]: resetting? " << resetting;
+    }
+
+    absl::flat_hash_map<std::string, Value> input_set;
+    input_set[signature.reset().name()] =
+        xls::Value(xls::UBits(resetting ? 0 : 1, 1));
+
+    for (const auto& [name, _] : inputs_for_channels) {
+      const ChannelInfo& info = channel_info.at(name);
+      const std::queue<Value>& queue = channel_value_queues.at(name);
+      input_set[name + "_vld"] =
+          xls::Value(xls::UBits(queue.empty() ? 0 : 1, 1));
+      input_set[name + "_data"] =
+          queue.empty() ? XsForWidth(info.width) : queue.front();
+    }
+    for (const auto& [name, _] : expected_outputs_for_channels) {
+      input_set[name + "_rdy"] = xls::Value(xls::UBits(1, 1));
+    }
+
+    XLS_ASSIGN_OR_RETURN(xls::BlockRunResult result,
+                         xls::BlockRun(input_set, reg_state, block));
+    reg_state = std::move(result.reg_state);
+
+    if (resetting) {
+      last_output_cycle = cycle;
+      continue;
+    }
+
+    // Channel output checks
+    for (const auto& [name, _] : inputs_for_channels) {
+      const bool rdy_value = result.outputs.at(name + "_rdy").bits().Get(0);
+      std::queue<Value>& queue = channel_value_queues.at(name);
+
+      // Valid is 1 if the input queue isn't empty
+      if ((!queue.empty()) && rdy_value) {
+        if (queue.empty()) {
+          return absl::OutOfRangeError(absl::StrFormat(
+              "Block read past the end of the input for channel %s", name));
+        }
+        queue.pop();
+      }
+    }
+
+    for (const auto& [name, _] : expected_outputs_for_channels) {
+      const bool vld_value = result.outputs.at(name + "_vld").bits().Get(0);
+      std::queue<Value>& queue = channel_value_queues.at(name);
+
+      // Ready always is 1, so when ready is 1, a transaction occurred
+      if (vld_value) {
+        if (queue.empty()) {
+          return absl::OutOfRangeError(
+              absl::StrFormat("Block wrote past the end of the expected values "
+                              "list for channel %s",
+                              name));
+        }
+        const xls::Value& data_value = result.outputs.at(name + "_data");
+        const Value& match_value = queue.front();
+        if (match_value != data_value) {
+          return absl::UnknownError(absl::StrFormat(
+              "Output mismatched for channel %s: expected %s, block outputted "
+              "%s",
+              name, match_value.ToString(), data_value.ToString()));
+        }
+        queue.pop();
+        last_output_cycle = cycle;
+      }
+    }
+
+    bool all_queues_empty = true;
+
+    for (const auto& [name, queue] : channel_value_queues) {
+      if (!queue.empty()) {
+        all_queues_empty = false;
+      }
+    }
+
+    if (all_queues_empty) {
+      break;
+    }
+
+    // Break on no output for too long
+    if ((cycle - last_output_cycle) > max_cycles_no_output) {
+      return absl::OutOfRangeError(absl::StrFormat(
+          "Block didn't produce output for %i cycles", max_cycles_no_output));
+    }
+  }
+
+  return absl::OkStatus();
+}
+
 absl::StatusOr<std::vector<Value>> ParseValuesFile(std::string_view filename) {
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(filename));
   std::vector<Value> ret;
@@ -234,7 +480,8 @@ ParseChannelFilenames(std::vector<std::string> files_raw) {
 
 absl::Status RealMain(
     absl::string_view ir_file, absl::string_view backend,
-    std::vector<int64_t> ticks,
+    std::string_view block_signature_proto, std::vector<int64_t> ticks,
+    const int64_t max_cycles_no_output,
     std::vector<std::string> inputs_for_channels_text,
     std::vector<std::string> expected_outputs_for_channels_text) {
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_file));
@@ -263,9 +510,17 @@ absl::Status RealMain(
   if (backend == "serial_jit") {
     return RunSerialJit(package.get(), ticks, inputs_for_channels,
                         expected_outputs_for_channels);
-  } else {
+  } else if (backend == "ir_interpreter") {
     return RunIrInterpreter(package.get(), ticks, inputs_for_channels,
                             expected_outputs_for_channels);
+  } else if (backend == "block_interpreter") {
+    verilog::ModuleSignatureProto proto;
+    XLS_CHECK_OK(ParseTextProtoFile(block_signature_proto, &proto));
+    return RunBlockInterpreter(package.get(), ticks, proto,
+                               max_cycles_no_output, inputs_for_channels,
+                               expected_outputs_for_channels);
+  } else {
+    XLS_LOG(QFATAL) << "Unknown backend type";
   }
 }
 
@@ -279,7 +534,8 @@ int main(int argc, char* argv[]) {
   }
 
   std::string backend = absl::GetFlag(FLAGS_backend);
-  if (backend != "serial_jit" && backend != "ir_interpreter") {
+  if (backend != "serial_jit" && backend != "ir_interpreter" &&
+      backend != "block_interpreter") {
     XLS_LOG(QFATAL) << "Unrecognized backend choice.";
   }
 
@@ -296,10 +552,11 @@ int main(int argc, char* argv[]) {
     XLS_LOG(QFATAL) << "--ticks must be specified (and > 0).";
   }
 
-  XLS_QCHECK_OK(
-      xls::RealMain(positional_args[0], backend, ticks,
-                    absl::GetFlag(FLAGS_inputs_for_channels),
-                    absl::GetFlag(FLAGS_expected_outputs_for_channels)));
+  XLS_QCHECK_OK(xls::RealMain(
+      positional_args[0], backend, absl::GetFlag(FLAGS_block_signature_proto),
+      ticks, absl::GetFlag(FLAGS_max_cycles_no_output),
+      absl::GetFlag(FLAGS_inputs_for_channels),
+      absl::GetFlag(FLAGS_expected_outputs_for_channels)));
 
   return 0;
 }

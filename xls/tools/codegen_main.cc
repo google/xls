@@ -57,6 +57,9 @@ ABSL_FLAG(
 ABSL_FLAG(std::string, output_schedule_path, "",
           "Specific output path for the generated pipeline schedule. "
           "If not specified, then no schedule is output.");
+ABSL_FLAG(std::string, output_block_ir_path, "",
+          "Specific output path for the block IR. "
+          "If not specified, then no schedule is output.");
 ABSL_FLAG(
     std::string, output_signature_path, "",
     "Specific output path for the module signature. If not specified then "
@@ -237,7 +240,8 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
 
 absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
                       absl::string_view signature_path,
-                      absl::string_view schedule_path) {
+                      absl::string_view schedule_path,
+                      absl::string_view output_block_ir_path) {
   if (ir_path == "-") {
     ir_path = "/dev/stdin";
   }
@@ -280,6 +284,14 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
         absl::GetFlag(FLAGS_generator));
   }
 
+  if (!output_block_ir_path.empty()) {
+    XLS_QCHECK_EQ(p->blocks().size(), 1)
+        << "There should be exactly one block in the package after generating "
+           "module text.";
+    XLS_RETURN_IF_ERROR(
+        SetFileContents(output_block_ir_path, p->blocks()[0]->DumpIr()));
+  }
+
   if (!signature_path.empty()) {
     XLS_RETURN_IF_ERROR(
         SetTextProtoFile(signature_path, result.signature.proto()));
@@ -306,7 +318,8 @@ int main(int argc, char** argv) {
   absl::string_view ir_path = positional_arguments[0];
   XLS_QCHECK_OK(xls::RealMain(ir_path, absl::GetFlag(FLAGS_output_verilog_path),
                               absl::GetFlag(FLAGS_output_signature_path),
-                              absl::GetFlag(FLAGS_output_schedule_path)));
+                              absl::GetFlag(FLAGS_output_schedule_path),
+                              absl::GetFlag(FLAGS_output_block_ir_path)));
 
   return EXIT_SUCCESS;
 }

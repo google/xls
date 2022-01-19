@@ -24,57 +24,9 @@ namespace {
 // An interpreter for XLS blocks.
 class BlockInterpreter : public IrInterpreter {
  public:
-  struct RunResult {
-    absl::flat_hash_map<std::string, Value> outputs;
-    absl::flat_hash_map<std::string, Value> reg_state;
-  };
-
-  // Runs a single cycle of a block with the given register values and input
-  // values. Returns the value sent to the output port and the next register
-  // state.
-  static absl::StatusOr<RunResult> Run(
-      const absl::flat_hash_map<std::string, Value>& inputs,
-      const absl::flat_hash_map<std::string, Value>& reg_state, Block* block) {
-    // Verify each input corresponds to an input port. The reverse check (each
-    // input port has a corresponding value in `inputs`) is checked in
-    // HandleInputPort.
-    absl::flat_hash_set<std::string> input_port_names;
-    for (InputPort* port : block->GetInputPorts()) {
-      input_port_names.insert(port->GetName());
-    }
-    for (const auto& [name, value] : inputs) {
-      if (!input_port_names.contains(name)) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Block has no input port '%s'", name));
-      }
-    }
-
-    // Verify each register value corresponds to a register. The reverse check
-    // (each register has a corresponding value in `reg_state`) is checked in
-    // HandleRegisterRead.
-    absl::flat_hash_set<std::string> reg_names;
-    for (Register* reg : block->GetRegisters()) {
-      reg_names.insert(reg->name());
-    }
-    for (const auto& [name, value] : reg_state) {
-      if (!reg_names.contains(name)) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Block has no register '%s'", name));
-      }
-    }
-
-    BlockInterpreter interpreter(inputs, reg_state);
-    XLS_RETURN_IF_ERROR(block->Accept(&interpreter));
-
-    RunResult result;
-    for (Node* port : block->GetOutputPorts()) {
-      result.outputs[port->GetName()] =
-          interpreter.ResolveAsValue(port->operand(0));
-    }
-    result.reg_state = std::move(interpreter.next_reg_state_);
-
-    return std::move(result);
-  }
+  BlockInterpreter(const absl::flat_hash_map<std::string, Value>& inputs,
+                   const absl::flat_hash_map<std::string, Value>& reg_state)
+      : IrInterpreter(/*args=*/{}), inputs_(inputs), reg_state_(reg_state) {}
 
   absl::Status HandleInputPort(InputPort* input_port) override {
     if (!inputs_.contains(input_port->GetName())) {
@@ -131,10 +83,11 @@ class BlockInterpreter : public IrInterpreter {
     return SetValueResult(reg_write, Value::Tuple({}));
   }
 
+  absl::flat_hash_map<std::string, Value>&& MoveRegState() {
+    return std::move(next_reg_state_);
+  }
+
  private:
-  BlockInterpreter(const absl::flat_hash_map<std::string, Value>& inputs,
-                   const absl::flat_hash_map<std::string, Value>& reg_state)
-      : IrInterpreter(/*args=*/{}), inputs_(inputs), reg_state_(reg_state) {}
   // Values fed to the input ports.
   const absl::flat_hash_map<std::string, Value> inputs_;
 
@@ -146,6 +99,50 @@ class BlockInterpreter : public IrInterpreter {
 };
 
 }  // namespace
+
+absl::StatusOr<BlockRunResult> BlockRun(
+    const absl::flat_hash_map<std::string, Value>& inputs,
+    const absl::flat_hash_map<std::string, Value>& reg_state, Block* block) {
+  // Verify each input corresponds to an input port. The reverse check (each
+  // input port has a corresponding value in `inputs`) is checked in
+  // HandleInputPort.
+  absl::flat_hash_set<std::string> input_port_names;
+  for (InputPort* port : block->GetInputPorts()) {
+    input_port_names.insert(port->GetName());
+  }
+  for (const auto& [name, value] : inputs) {
+    if (!input_port_names.contains(name)) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Block has no input port '%s'", name));
+    }
+  }
+
+  // Verify each register value corresponds to a register. The reverse check
+  // (each register has a corresponding value in `reg_state`) is checked in
+  // HandleRegisterRead.
+  absl::flat_hash_set<std::string> reg_names;
+  for (Register* reg : block->GetRegisters()) {
+    reg_names.insert(reg->name());
+  }
+  for (const auto& [name, value] : reg_state) {
+    if (!reg_names.contains(name)) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Block has no register '%s'", name));
+    }
+  }
+
+  BlockInterpreter interpreter(inputs, reg_state);
+  XLS_RETURN_IF_ERROR(block->Accept(&interpreter));
+
+  BlockRunResult result;
+  for (Node* port : block->GetOutputPorts()) {
+    result.outputs[port->GetName()] =
+        interpreter.ResolveAsValue(port->operand(0));
+  }
+  result.reg_state = std::move(interpreter.MoveRegState());
+
+  return result;
+}
 
 // Converts each uint64_t input to a Value and returns the resulting map. There
 // must exist an input for each input port on the block. If the input uint64_t
@@ -236,8 +233,8 @@ InterpretSequentialBlock(
 
   std::vector<absl::flat_hash_map<std::string, Value>> outputs;
   for (const absl::flat_hash_map<std::string, Value>& input_set : inputs) {
-    XLS_ASSIGN_OR_RETURN(BlockInterpreter::RunResult result,
-                         BlockInterpreter::Run(input_set, reg_state, block));
+    XLS_ASSIGN_OR_RETURN(BlockRunResult result,
+                         BlockRun(input_set, reg_state, block));
     outputs.push_back(std::move(result.outputs));
     reg_state = std::move(result.reg_state);
   }
