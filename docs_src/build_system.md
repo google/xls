@@ -148,52 +148,6 @@ The macro also instantiates the 'enable_generated_file_wrapper' function. The
 generated files of the rule are listed in the outs attribute of the rule. These
 generated files can be referenced in other rules.
 
-### `xls_verify_checksum`
-
-Helper macro for checksumming files.
-
-As projects cut releases or freeze, it's important to know that generated (e.g.
-Verilog) code is never changing without having to actually check in the
-generated artifact. This macro performs a checksum of generated files as an
-integrity check. Users might use this macro to help enable confidence that there
-is neither:
-
-*   non-determinism in the toolchain, nor
-*   an accidental dependence on a non-released toolchain (e.g. an accidental
-    dependence on top-of-tree, where the toolchain is constantly changing)
-
-Say there was a codegen rule producing `my_output.v`, a user might instantiate
-something like:
-
-```starlark
-xls_verify_checksum(
-    name = my_output_checksum",
-    src = ":my_output.v",
-    out = "my_output.frozen.v",
-    sha256 = "d1bc8d3ba4afc7e109612cb73acbdddac052c93025aa1f82942edabb7deb82a1",
-)
-```
-
-... and then take a dependency on `my_output.frozen.v` in the surrounding
-project, knowing that it had been checksum-verified.
-
-Taking a dependence on `my_output.v` directly may also be ok if the
-`:my_output_checksum` target is also built (e.g. via the same wildcard build
-request), but taking a dependence on the output `.frozen.v` file ensures that
-the checking is an integral part of the downstream build-artifact-creation
-process.
-
-This macro also notably creates a test (in the package that instantiates it),
-and so any wildcard testing of the directory will also check that the sha256
-integrity holds.
-
-Note that this mechanism will only checksum the Verilog source file itself --
-in the future as XLS can pull in "foreign" Verilog constructs via tick-includes
-or externally managed file lists, this mechanism will not guarantee the external
-world also remains the same. As of the time of this writing, however, XLS
-generated modules are self-contained, but foreign-function instantiation of e.g.
-FIFOs and external modules _are_ expected upcoming features.
-
 ## Bazel queries
 
 Understanding the build tree for a new project can be difficult, but fortunately

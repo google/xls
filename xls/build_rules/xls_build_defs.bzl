@@ -55,7 +55,6 @@ load(
     _xls_dslx_cpp_type_library = "xls_dslx_cpp_type_library",
     _xls_dslx_opt_ir_macro = "xls_dslx_opt_ir_macro",
     _xls_dslx_verilog_macro = "xls_dslx_verilog_macro",
-    _xls_verify_checksum = "xls_verify_checksum",
 )
 load(
     "//xls/build_rules:xls_rules.bzl",
@@ -93,7 +92,6 @@ xls_ir_verilog = _xls_ir_verilog_macro
 xls_dslx_opt_ir = _xls_dslx_opt_ir_macro
 xls_dslx_verilog = _xls_dslx_verilog_macro
 xls_dslx_cpp_type_library = _xls_dslx_cpp_type_library
-xls_verify_checksum = _xls_verify_checksum
 
 # XLS Toolchain
 xls_toolchain = _xls_toolchain
