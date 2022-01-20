@@ -83,7 +83,6 @@ xls_toolchain = rule(
 
         User-defined toolchain with a modified DSLX standard library attribute.
 
-        ```
             filegroup(
                 name = "custom_dslx_std_lib",
                 srcs = glob(["custom_*.x"]),
@@ -101,7 +100,6 @@ xls_toolchain = rule(
                 ],
                 xls_toolchain = ":user_defined_xls_toolchain",
             )
-        ```
     """,
     implementation = _xls_toolchain_impl,
     provides = [XlsToolchainInfo],

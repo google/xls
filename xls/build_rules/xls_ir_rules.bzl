@@ -482,8 +482,7 @@ xls_entry_attrs = {
     "entry": attr.string(
         doc = "The (*mangled*) name of the entry point. See " +
               "get_mangled_ir_symbol. The value is applied to the rule " +
-              "context. It can be overwritten by a local argument " +
-              "representative.",
+              "context. It can be overwritten by a local argument.",
         default = "",
     ),
 }
@@ -501,7 +500,11 @@ xls_dslx_ir_attrs = dicts.add(
     xls_dslx_module_library_as_input_attrs,
     {
         "ir_conv_args": attr.string_dict(
-            doc = "Arguments of the IR conversion tool.",
+            doc = "Arguments of the IR conversion tool. For details on the" +
+                  "arguments, refer to the ir_converter_main application at" +
+                  "//xls/dslx/ir_converter_main.cc. When the " +
+                  "default XLS toolchain differs from the default toolchain, " +
+                  "the application target may be different.",
         ),
         "ir_file": attr.output(
             doc = "Filename of the generated IR. If not specified, the " +
@@ -537,8 +540,6 @@ xls_dslx_ir = rule(
         Examples:
 
         1) A simple IR conversion example.
-
-        ```
             xls_dslx_module_library(
                 name = "a_dslx_module",
                 src = "a.x",
@@ -548,11 +549,8 @@ xls_dslx_ir = rule(
                 name = "a_ir",
                 dep = ":a_dslx_module",
             )
-        ```
 
         2) An IR conversion with an entry defined.
-
-        ```
             xls_dslx_module_library(
                 name = "a_dslx_module",
                 src = "a.x",
@@ -565,7 +563,6 @@ xls_dslx_ir = rule(
                     "entry" : "a",
                 },
             )
-        ```
     """,
     implementation = _xls_dslx_ir_impl_wrapper,
     attrs = dicts.add(
@@ -601,7 +598,11 @@ def xls_ir_opt_ir_impl(ctx, src):
 
 xls_ir_opt_ir_attrs = {
     "opt_ir_args": attr.string_dict(
-        doc = "Arguments of the IR optimizer tool.",
+        doc = "Arguments of the IR optimizer tool. For details on the" +
+              "arguments, refer to the opt_main application at" +
+              "//xls/tools/opt_main.cc. When the " +
+              "default XLS toolchain differs from the default toolchain, " +
+              "the application target may be different.",
     ),
     "opt_ir_file": attr.output(
         doc = "Filename of the generated optimized IR. If not specified, the " +
@@ -629,8 +630,6 @@ xls_ir_opt_ir = rule(
         Examples:
 
         1) Optimizing an IR file with an entry defined.
-
-        ```
             xls_ir_opt_ir(
                 name = "a_opt_ir",
                 src = "a.ir",
@@ -638,11 +637,8 @@ xls_ir_opt_ir = rule(
                     "entry" : "a",
                 },
             )
-        ```
 
         2) A target as the source.
-
-        ```
             xls_dslx_ir(
                 name = "a_ir",
                 dep = ":a_dslx_module",
@@ -652,7 +648,6 @@ xls_ir_opt_ir = rule(
                 name = "a_opt_ir",
                 src = ":a_ir",
             )
-        ```
     """,
     implementation = _xls_ir_opt_ir_impl_wrapper,
     attrs = dicts.add(
@@ -714,28 +709,27 @@ _two_ir_files_attrs = {
 
 xls_ir_equivalence_test_attrs = {
     "ir_equivalence_args": attr.string_dict(
-        doc = "Arguments of the IR equivalence tool.",
+        doc = "Arguments of the IR equivalence tool. For details on the " +
+              "arguments, refer to the check_ir_equivalence_main application " +
+              "at //xls/tools/check_ir_equivalence_main.cc. " +
+              "When the default XLS toolchain differs from the default " +
+              "toolchain, the application target may be different.",
     ),
 }
 
 xls_ir_equivalence_test = rule(
-    doc = """
-        An IR equivalence test executes the equivalence tool on two IR files.
+    doc = """An IR equivalence test executes the equivalence tool on two IR files.
 
         Example:
 
         1) A file as the source.
-
-        ```
             xls_ir_equivalence_test(
                 name = "ab_ir_equivalence_test",
                 src_0 = "a.ir",
                 src_1 = "b.ir",
             )
-        ```
 
         2) A target as the source.
-        ```
             xls_dslx_ir(
                 name = "b_ir",
                 dep = ":b_dslx_module",
@@ -746,8 +740,6 @@ xls_ir_equivalence_test = rule(
                 src_0 = "a.ir",
                 src_1 = ":b_ir",
             )
-        ```
-
     """,
     implementation = _xls_ir_equivalence_test_impl,
     attrs = dicts.add(
@@ -806,7 +798,11 @@ xls_eval_ir_test_attrs = {
               "Mutually exclusive with \"input_validator\".",
     ),
     "ir_eval_args": attr.string_dict(
-        doc = "Arguments of the IR interpreter.",
+        doc = "Arguments of the IR interpreter. For details on the " +
+              "arguments, refer to the eval_ir_main application at " +
+              "//xls/tools/eval_ir_main.cc. When the default XLS " +
+              "toolchain differs from the default toolchain, the application " +
+              "target may be different.",
         default = _DEFAULT_IR_EVAL_TEST_ARGS,
     ),
 }
@@ -817,17 +813,12 @@ xls_eval_ir_test = rule(
         Example:
 
          1) A file as the source.
-
-        ```
             xls_eval_ir_test(
                 name = "a_eval_ir_test",
                 src = "a.ir",
             )
-        ```
 
         2) An xls_ir_opt_ir target as the source.
-
-        ```
             xls_ir_opt_ir(
                 name = "a_opt_ir",
                 src = "a.ir",
@@ -838,7 +829,6 @@ xls_eval_ir_test = rule(
                 name = "a_eval_ir_test",
                 src = ":a_opt_ir",
             )
-        ```
     """,
     implementation = _xls_eval_ir_test_impl,
     attrs = dicts.add(
@@ -884,7 +874,11 @@ def _xls_benchmark_ir_impl(ctx):
 
 xls_benchmark_ir_attrs = {
     "benchmark_ir_args": attr.string_dict(
-        doc = "Arguments of the benchmark IR tool.",
+        doc = "Arguments of the benchmark IR tool. For details on the " +
+              "arguments, refer to the benchmark_main application at " +
+              "//xls/tools/benchmark_main.cc. When the default " +
+              "XLS toolchain differs from the default toolchain, the " +
+              "application target may be different.",
     ),
 }
 
@@ -894,17 +888,12 @@ xls_benchmark_ir = rule(
         Example:
 
          1) A file as the source.
-
-        ```
             xls_benchmark_ir(
                 name = "a_benchmark",
                 src = "a.ir",
             )
-        ```
 
         2) An xls_ir_opt_ir target as the source.
-
-        ```
             xls_ir_opt_ir(
                 name = "a_opt_ir",
                 src = "a.ir",
@@ -915,7 +904,6 @@ xls_benchmark_ir = rule(
                 name = "a_benchmark",
                 src = ":a_opt_ir",
             )
-        ```
     """,
     implementation = _xls_benchmark_ir_impl,
     attrs = dicts.add(

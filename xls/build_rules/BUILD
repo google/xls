@@ -41,6 +41,11 @@ exports_files(
     visibility = ["//visibility:private"],
 )
 
+exports_files(
+    ["xls_build_defs.bzl"],
+    visibility = ["//xls:xls_users"],
+)
+
 bzl_library(
     name = "xls_utilities_bzl",
     srcs = ["xls_utilities.bzl"],
@@ -76,7 +81,6 @@ bzl_library(
     visibility = ["//visibility:private"],
     deps = [
         ":xls_common_rules_bzl",
-        ":xls_config_rules_bzl",
         ":xls_providers_bzl",
         ":xls_toolchains_bzl",
         "@bazel_skylib//lib:dicts",

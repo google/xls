@@ -44,11 +44,15 @@ def xls_ir_verilog_macro(
 
     Args:
       name: The name of the rule.
-      src: The source file. See 'src' attribute from the 'xls_ir_verilog' rule.
-      codegen_args: Codegen Arguments. See 'codegen_args' attribute from the
-        'xls_ir_verilog' rule.
-      verilog_file: The generated Verilog file. See 'verilog_file' attribute
-        from the 'xls_ir_verilog' rule.
+      src: The IR source file. A single source file must be provided. The file
+        must have a '.ir' extension.
+      codegen_args: Arguments of the codegen tool. For details on the arguments,
+        refer to the codegen_main application at
+        //xls/tools/codegen_main.cc. When the default XLS
+        toolchain differs from the default toolchain, the application target may
+        be different.
+      verilog_file: The filename of Verilog file generated. The filename must
+        have a '.v' extension.
       enable_generated_file: See 'enable_generated_file' from
         'enable_generated_file_wrapper' function.
       enable_presubmit_generated_file: See 'enable_presubmit_generated_file'

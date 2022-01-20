@@ -164,14 +164,12 @@ check_sha256sum_frozen = rule(
         Say there was a codegen rule producing `my_output.v`, a user might instantiate
         something like:
 
-        ```starlark
-        check_sha256sum_frozen(
-            name = "my_output_checksum",
-            src = ":my_output.v",
-            sha256sum = "d1bc8d3ba4afc7e109612cb73acbdddac052c93025aa1f82942edabb7deb82a1",
-            frozen_file = "my_output.frozen.x",
-        )
-        ```
+            check_sha256sum_frozen(
+                name = "my_output_checksum",
+                src = ":my_output.v",
+                sha256sum = "d1bc8d3ba4afc7e109612cb73acbdddac052c93025aa1f82942edabb7deb82a1",
+                frozen_file = "my_output.frozen.x",
+            )
 
         ... and then take a dependency on `my_output.frozen.v` in the
         surrounding project, knowing that it had been checksum-verified.

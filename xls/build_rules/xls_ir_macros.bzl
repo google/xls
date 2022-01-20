@@ -39,16 +39,19 @@ def xls_dslx_ir_macro(
         **kwargs):
     """A macro wrapper for the 'xls_dslx_ir' rule.
 
-    The macro instantiates the 'xls_dslx_ir' rule and
-    'enable_generated_file_wrapper' function. The generated files of the rule
-    are listed in the outs attribute of the rule.
+    The macro instantiates a rule that converts a DSLX source file to an IR file
+    and the 'enable_generated_file_wrapper' function. The generated files of the
+    rule are listed in the outs attribute of the rule.
 
     Args:
       name: The name of the rule.
-      dep: A dependency target for the rule. See 'dep' attribute from the
-        'xls_dslx_ir' rule.
-      ir_conv_args: Arguments of the IR conversion tool. See 'ir_conv_args'
-         attribute from the 'xls_dslx_ir' rule.
+      dep: A dependency target for the rule. The target must emit a
+        DslxModuleInfo provider.
+      ir_conv_args: Arguments of the IR conversion tool. For details on the
+        arguments, refer to the ir_converter_main application at
+        //xls/dslx/ir_converter_main.cc. When the default XLS
+        toolchain differs from the default toolchain, the application target
+        may be different.
       enable_generated_file: See 'enable_generated_file' from
         'enable_generated_file_wrapper' function.
       enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
@@ -101,9 +104,13 @@ def xls_ir_opt_ir_macro(
 
     Args:
       name: The name of the rule.
-      src: The source file. See 'src' attribute from the 'xls_ir_opt_ir' rule.
-      opt_ir_args: Arguments of the IR optimizer tool. See 'opt_ir_args'
-        attribute from the 'xls_ir_opt_ir' rule.
+      src: The IR source file. A single source file must be provided. The file
+        must have a '.ir' extension.
+      opt_ir_args: Arguments of the IR optimizer tool. For details on the
+        arguments, refer to the opt_main application at
+        //xls/tools/opt_main.cc. When the default XLS toolchain
+        differs from the default toolchain, the application target may be
+        different.
       enable_generated_file: See 'enable_generated_file' from
         'enable_generated_file_wrapper' function.
       enable_presubmit_generated_file: See 'enable_presubmit_generated_file'

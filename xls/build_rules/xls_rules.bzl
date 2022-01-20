@@ -219,7 +219,6 @@ xls_dslx_opt_ir_test = rule(
     doc = """A build rule that tests a xls_dslx_opt_ir target.
 
         Example:
-        ```
             xls_dslx_module_library(
                 name = "a_dslx_module",
                 src = "a.x",
@@ -234,7 +233,6 @@ xls_dslx_opt_ir_test = rule(
                 name = "a_opt_ir_test",
                 dep = ":a_opt_ir",
             )
-        ```
     """,
     implementation = _xls_dslx_opt_ir_test_impl,
     attrs = dicts.add(

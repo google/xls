@@ -20,7 +20,6 @@ load(
     "append_cmd_line_args_to",
     "get_args",
 )
-load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load(
     "//xls/build_rules:xls_providers.bzl",
     "DslxInfo",
@@ -221,7 +220,12 @@ xls_dslx_test_common_attrs = dicts.add(
     xls_dslx_module_library_as_input_attrs,
     {
         "dslx_test_args": attr.string_dict(
-            doc = "Arguments of the DSLX interpreter executable.",
+            doc = "Arguments of the DSLX interpreter executable. For details " +
+                  "on the arguments, refer to the interpreter_main " +
+                  "application at " +
+                  "//xls/dslx/interpreter_main.cc. When the " +
+                  "default XLS toolchain differs from the default toolchain, " +
+                  "the application target may be different.",
         ),
     },
 )
@@ -281,74 +285,66 @@ def _xls_dslx_library_impl(ctx):
     ]
 
 xls_dslx_library = rule(
-    doc = """
-        A build rule that parses and type checks DSLX source files.
+    doc = """A build rule that parses and type checks DSLX source files.
 
         Examples:
 
         1) A collection of DSLX source files.
-
-        ```
-        xls_dslx_library(
-            name = "files_123_dslx",
-            srcs = [
-                "file_1.x",
-                "file_2.x",
-                "file_3.x",
-            ],
-        )
-        ```
+            xls_dslx_library(
+                name = "files_123_dslx",
+                srcs = [
+                    "file_1.x",
+                    "file_2.x",
+                    "file_3.x",
+                ],
+            )
 
         2) Dependency on other xls_dslx_library targets.
+            xls_dslx_library(
+                name = "a_dslx",
+                srcs = [
+                    "a.x",
+                ],
+            )
 
-        ```
-        xls_dslx_library(
-            name = "a_dslx",
-            srcs = [
-                "a.x",
-            ],
-        )
+            # Depends on target a_dslx.
+            xls_dslx_library(
+                name = "b_dslx",
+                srcs = [
+                    "b.x",
+                ],
+                deps = [
+                    ":a_dslx",
+                ],
+            )
 
-        # Depends on target a_dslx.
-        xls_dslx_library(
-            name = "b_dslx",
-            srcs = [
-                "b.x",
-            ],
-            deps = [
-                ":a_dslx",
-            ],
-        )
+            # Depends on target a_dslx.
+            xls_dslx_library(
+                name = "c_dslx",
+                srcs = [
+                    "c.x",
+                ],
+                deps = [
+                    ":a_dslx",
+                ],
+            )
 
-        # Depends on target a_dslx.
-        xls_dslx_library(
-            name = "c_dslx",
-            srcs = [
-                "c.x",
-            ],
-            deps = [
-                ":a_dslx",
-            ],
-        )
         3) Dependency on xls_dslx_module_library targets.
+            xls_dslx_module_library(
+                name = "a_dslx_module",
+                srcs = [
+                    "a.x",
+                ],
+            )
 
-        ```
-        xls_dslx_module_library(
-            name = "a_dslx_module",
-            srcs = [
-                "a.x",
-            ],
-        )
-
-        # Depends on target a_dslx_module.
-        xls_dslx_library(
-            name = "b_dslx",
-            src = "b.x",
-            deps = [
-                ":a_dslx_module",
-            ],
-        )
-        ```
+            # Depends on target a_dslx_module.
+            xls_dslx_library(
+                name = "b_dslx",
+                src = "b.x",
+                deps = [
+                    ":a_dslx_module",
+                ],
+            )
     """,
     implementation = _xls_dslx_library_impl,
     attrs = dicts.add(
@@ -422,65 +418,54 @@ def _xls_dslx_module_library_impl(ctx):
 
 # TODO(vmirian) 06-16-21 https://github.com/google/xls/issues/447
 xls_dslx_module_library = rule(
-    doc = """
-        A build rule that parses and type checks the DSLX source file.
+    doc = """A build rule that parses and type checks the DSLX source file.
 
         Examples:
 
         1) A single DSLX source file.
-
-        ```
-        xls_dslx_module_library(
-            name = "a_dslx_module",
-            src = "a.x",
-        )
-        ```
+            xls_dslx_module_library(
+                name = "a_dslx_module",
+                src = "a.x",
+            )
 
         2) Dependency on xls_dslx_library targets.
+            xls_dslx_library(
+                name = "a_dslx",
+                srcs = [
+                    "a.x",
+                ],
+            )
 
-        ```
-        xls_dslx_library(
-            name = "a_dslx",
-            srcs = [
-                "a.x",
-            ],
-        )
-
-        # Depends on target a_dslx.
-        xls_dslx_module_library(
-            name = "b_dslx_module",
-            src = "b.x",
-            deps = [
-                ":a_dslx",
-            ],
-        )
+            # Depends on target a_dslx.
+            xls_dslx_module_library(
+                name = "b_dslx_module",
+                src = "b.x",
+                deps = [
+                    ":a_dslx",
+                ],
+            )
 
         3) Dependency on xls_dslx_module_library targets.
+            xls_dslx_module_library(
+                name = "a_dslx_module",
+                srcs = [
+                    "a.x",
+                ],
+            )
 
-        ```
-        xls_dslx_module_library(
-            name = "a_dslx_module",
-            srcs = [
-                "a.x",
-            ],
-        )
-
-        # Depends on target a_dslx_module.
-        xls_dslx_module_library(
-            name = "b_dslx_module",
-            src = "b.x",
-            deps = [
-                ":a_dslx_module",
-            ],
-        )
-
-        ```
+            # Depends on target a_dslx_module.
+            xls_dslx_module_library(
+                name = "b_dslx_module",
+                src = "b.x",
+                deps = [
+                    ":a_dslx_module",
+                ],
+            )
     """,
     implementation = _xls_dslx_module_library_impl,
     attrs = dicts.add(
         _xls_dslx_module_library_attrs,
         _xls_dslx_common_attrs,
-        CONFIG["xls_outs_attrs"],
         xls_toolchain_attr,
     ),
 )
@@ -524,12 +509,9 @@ def _xls_dslx_test_impl(ctx):
     ]
 
 xls_dslx_test = rule(
-    doc = """
-        A dslx test executes the tests and quick checks of a DSLX source file.
+    doc = """A dslx test executes the tests and quick checks of a DSLX source file.
 
         Example:
-
-        ```
         # Assume a xls_dslx_library target a_dslx is present.
         xls_dslx_module_library(
             name = "b_dslx_module",
@@ -543,7 +525,6 @@ xls_dslx_test = rule(
             name = "b_dslx_test",
             dep = ":b_dslx_module",
         )
-        ```
     """,
     implementation = _xls_dslx_test_impl,
     attrs = dicts.add(

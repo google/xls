@@ -19,6 +19,11 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+exports_files(
+    ["xls_build_rules.md"],
+    visibility = ["//xls:xls_internal"],
+)
+
 filegroup(
     name = "dslx_reference",
     srcs = ["dslx_reference.md"],

@@ -57,16 +57,24 @@ def xls_dslx_verilog_macro(
 
     Args:
       name: The name of the rule.
-      dep: The 'xls_dslx_module_library' target used for dependency. See 'dep'
-        attribute from the 'xls_dslx_verilog' rule.
-      verilog_file: The generated Verilog file. See 'verilog_file' attribute
-        from the 'xls_ir_verilog' rule.
-      ir_conv_args: IR conversion Arguments. See 'ir_conv_args' attribute from
-        the 'xls_dslx_ir' rule.
-      opt_ir_args: IR optimization Arguments. See 'opt_ir_args' attribute from
-        the 'xls_ir_opt_ir' rule.
-      codegen_args: Codegen Arguments. See 'codegen_args' attribute from the
-        'xls_ir_verilog' rule.
+      dep: The 'xls_dslx_module_library' target used for dependency.
+      verilog_file: The filename of Verilog file generated. The filename must
+        have a '.v' extension.
+      ir_conv_args: Arguments of the IR conversion tool. For details on the
+        arguments, refer to the ir_converter_main application at
+        //xls/dslx/ir_converter_main.cc. When the default XLS
+        toolchain differs from the default toolchain, the application target
+        may be different.
+      opt_ir_args: Arguments of the IR optimizer tool. For details on the
+        arguments, refer to the opt_main application at
+        //xls/tools/opt_main.cc. When the default XLS toolchain
+        differs from the default toolchain, the application target may be
+        different.
+      codegen_args: Arguments of the codegen tool. For details on the arguments,
+        refer to the codegen_main application at
+        //xls/tools/codegen_main.cc. When the default XLS
+        toolchain differs from the default toolchain, the application target may
+        be different.
       enable_generated_file: See 'enable_generated_file' from
         'enable_generated_file_wrapper' function.
       enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
@@ -134,18 +142,25 @@ def xls_dslx_opt_ir_macro(
         **kwargs):
     """A macro wrapper for the 'xls_dslx_opt_ir' rule.
 
-    The macro instantiates the 'xls_dslx_opt_ir' rule and
-    'enable_generated_file_wrapper' function. The generated files of the rule
-    are listed in the outs attribute of the rule.
+    The macro instantiates the 'xls_dslx_opt_ir' rule that converts a DSLX file
+    to an IR, optimizes the IR, and generates a verilog file from the optimized
+    IR. The macro also instantiates the 'enable_generated_file_wrapper'
+    function. The generated files of the rule are listed in the outs attribute
+    of the rule.
 
     Args:
       name: The name of the rule.
-      dep: The 'xls_dslx_module_library' target used for dependency. See 'dep'
-        attribute from the 'xls_dslx_opt_ir' rule.
-      ir_conv_args: IR conversion Arguments. See 'ir_conv_args' attribute from
-        the 'xls_dslx_ir' rule.
-      opt_ir_args: IR optimization Arguments. See 'opt_ir_args' attribute from
-        the 'xls_ir_opt_ir' rule.
+      dep: The 'xls_dslx_module_library' target used for dependency.
+      ir_conv_args: Arguments of the IR conversion tool. For details on the
+        arguments, refer to the ir_converter_main application at
+        //xls/dslx/ir_converter_main.cc. When the default XLS
+        toolchain differs from the default toolchain, the application target
+        may be different.
+      opt_ir_args: Arguments of the IR optimizer tool. For details on the
+        arguments, refer to the opt_main application at
+        //xls/tools/opt_main.cc. When the default XLS toolchain
+        differs from the default toolchain, the application target may be
+        different.
       enable_generated_file: See 'enable_generated_file' from
         'enable_generated_file_wrapper' function.
       enable_presubmit_generated_file: See 'enable_presubmit_generated_file'

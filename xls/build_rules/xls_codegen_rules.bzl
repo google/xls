@@ -43,7 +43,9 @@ xls_ir_verilog_attrs = {
     "codegen_args": attr.string_dict(
         doc = "Arguments of the codegen tool. For details on the arguments, " +
               "refer to the codegen_main application at " +
-              "//xls/tools/codegen_main.cc.",
+              "//xls/tools/codegen_main.cc. When the default XLS " +
+              "toolchain differs from the default toolchain, the application " +
+              "target may be different.",
     ),
     "verilog_file": attr.output(
         doc = "The filename of Verilog file generated. The filename must " +
