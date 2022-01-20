@@ -247,6 +247,24 @@ void BytecodeEmitter::HandleColonRef(ColonRef* node) {
   status_ = HandleColonRefToImportedEnum(node);
 }
 
+void BytecodeEmitter::HandleConstRef(ConstRef* node) {
+  if (!status_.ok()) {
+    return;
+  }
+
+  ConstantDef* constant_def = node->GetConstantDef();
+  absl::optional<InterpValue> const_val = type_info_->GetConstExpr(node);
+
+  if (!const_val.has_value()) {
+    status_ = absl::InternalError(absl::StrCat(
+        "Could not find value for constant ", constant_def->ToString()));
+    return;
+  }
+
+  bytecode_.push_back(
+      Bytecode(node->span(), Bytecode::Op::kLiteral, const_val.value()));
+}
+
 absl::StatusOr<int64_t> GetValueWidth(TypeInfo* type_info, Expr* expr) {
   absl::optional<ConcreteType*> maybe_type = type_info->GetItem(expr);
   if (!maybe_type.has_value()) {

@@ -45,7 +45,7 @@ class BytecodeEmitter : public ExprVisitor {
   void HandleCast(Cast* node) override { DefaultHandler(node); }
   void HandleChannelDecl(ChannelDecl* node) override { DefaultHandler(node); }
   void HandleColonRef(ColonRef* node) override;
-  void HandleConstRef(ConstRef* node) override { DefaultHandler(node); }
+  void HandleConstRef(ConstRef* node) override;
   void HandleFor(For* node) override { DefaultHandler(node); }
   void HandleFormatMacro(FormatMacro* node) override { DefaultHandler(node); }
   void HandleIndex(Index* node) override;

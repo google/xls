@@ -757,5 +757,39 @@ fn imported_enum_ref() -> u3 {
               IsOkAndHolds(InterpValue::MakeSBits(3, 2)));
 }
 
+TEST(BytecodeEmitterTest, HandlesConstRefs) {
+  constexpr absl::string_view kProgram = R"(const kFoo = u32:100;
+
+#![test]
+fn handles_const_refs() -> u32 {
+  let a = u32:200;
+  a + kFoo
+}
+)";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  for (const ConstantDef* def : tm.module->GetConstantDefs()) {
+    namedef_to_slot[def->name_def()] = namedef_to_slot.size();
+  }
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("handles_const_refs"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  ASSERT_EQ(bytecodes.size(), 5);
+  Bytecode bc = bytecodes[2];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLoad);
+
+  bc = bytecodes[3];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+}
+
 }  // namespace
 }  // namespace xls::dslx

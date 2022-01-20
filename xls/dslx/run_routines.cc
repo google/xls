@@ -355,23 +355,10 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
     absl::Status status;
     if (options.bytecode) {
       XLS_ASSIGN_OR_RETURN(TestFunction * f, entry_module->GetTest(test_name));
-      InterpBindings& top_level_bindings =
-          import_data.GetOrCreateTopLevelBindings(entry_module);
-      // Need to reserve slots for top-level bindings. We don't need to worry
-      // about Params, since TestFunctions don't have 'em.
-      absl::flat_hash_map<const NameDef*, int64_t> name_to_slot;
+      absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
       std::vector<InterpValue> slots;
-      for (const ConstantDef* def : entry_module->GetConstantDefs()) {
-        name_to_slot[def->name_def()] = name_to_slot.size();
-
-        XLS_ASSIGN_OR_RETURN(
-            InterpValue top_level_value,
-            top_level_bindings.ResolveValueFromIdentifier(def->identifier()));
-        slots.push_back(top_level_value);
-      }
-
       BytecodeEmitter emitter(&import_data, tm_or.value().type_info,
-                              &name_to_slot);
+                              &namedef_to_slot);
       XLS_ASSIGN_OR_RETURN(std::vector<Bytecode> bytecode,
                            emitter.Emit(f->fn()));
       status = BytecodeInterpreter::Interpret(bytecode, &slots).status();
