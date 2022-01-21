@@ -825,5 +825,55 @@ fn handles_struct_instances() -> MyStruct {
   ASSERT_EQ(bc->op(), Bytecode::Op::kIndex);
 }
 
+TEST(BytecodeEmitterTest, Params) {
+  constexpr absl::string_view kProgram = R"(
+fn has_params(x: u32, y: u64) -> u48 {
+  let a = u48:100;
+  let x = x as u48 + a;
+  let y = x + y as u48;
+  x + y
+})";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  BytecodeEmitter emitter(&import_data, tm.type_info);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetFunctionOrError("has_params"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes, emitter.Emit(f));
+
+  ASSERT_EQ(bytecodes.size(), 15);
+  Bytecode* bc = &bytecodes[2];
+  EXPECT_EQ(bc->op(), Bytecode::Op::kLoad);
+  ASSERT_TRUE(bc->has_data());
+  XLS_ASSERT_OK_AND_ASSIGN(Bytecode::SlotIndex slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 0);
+
+  bc = &bytecodes[7];
+  EXPECT_EQ(bc->op(), Bytecode::Op::kLoad);
+  ASSERT_TRUE(bc->has_data());
+  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 3);
+
+  bc = &bytecodes[8];
+  EXPECT_EQ(bc->op(), Bytecode::Op::kLoad);
+  ASSERT_TRUE(bc->has_data());
+  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 1);
+
+  bc = &bytecodes[12];
+  EXPECT_EQ(bc->op(), Bytecode::Op::kLoad);
+  ASSERT_TRUE(bc->has_data());
+  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 3);
+
+  bc = &bytecodes[13];
+  EXPECT_EQ(bc->op(), Bytecode::Op::kLoad);
+  ASSERT_TRUE(bc->has_data());
+  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 4);
+}
+
 }  // namespace
 }  // namespace xls::dslx

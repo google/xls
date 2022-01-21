@@ -24,7 +24,12 @@
 
 namespace xls::dslx {
 
-absl::Status BytecodeInterpreter::Run() {
+absl::Status BytecodeInterpreter::Run(const std::vector<InterpValue>& params) {
+  slots_.clear();
+  for (const auto& param : params) {
+    slots_.push_back(param);
+  }
+
   int64_t pc = 0;
   while (pc < bytecode_.size()) {
     XLS_VLOG(2) << std::hex << "PC: " << pc << " : "

@@ -30,7 +30,14 @@ BytecodeEmitter::~BytecodeEmitter() = default;
 absl::StatusOr<std::vector<Bytecode>> BytecodeEmitter::Emit(Function* f) {
   status_ = absl::OkStatus();
   bytecode_.clear();
+
+  // Params fill the first N slots. The bytecode interpreter is responsible for
+  // placing params correctly.
+  for (const auto* param : f->params()) {
+    namedef_to_slot_[param->name_def()] = namedef_to_slot_.size();
+  }
   f->body()->AcceptExpr(this);
+
   if (!status_.ok()) {
     return status_;
   }
@@ -596,7 +603,9 @@ void BytecodeEmitter::HandleNameRef(NameRef* node) {
     status_ =
         absl::UnimplementedError("NameRefs to builtins are not yet supported.");
   }
-  int64_t slot = namedef_to_slot_.at(absl::get<NameDef*>(node->name_def()));
+
+  NameDef* name_def = absl::get<NameDef*>(node->name_def());
+  int64_t slot = namedef_to_slot_.at(name_def);
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kLoad, Bytecode::SlotIndex(slot)));
 }
