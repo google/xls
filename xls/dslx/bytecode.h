@@ -36,7 +36,9 @@ class Bytecode {
     kAdd,
     // Performs a bitwise AND of the top two values on the stack.
     kAnd,
-    // Invokes the function given in the Bytecode's data argument.
+    // Invokes the function given in the Bytecode's data argument. Arguments are
+    // given on the stack with deeper elements being earlier in the arg list
+    // (rightmost arg is TOS0 because we evaluate args left-to-right).
     kCall,
     // Casts the element on top of the stack to the type given in the optional
     // arg.

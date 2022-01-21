@@ -18,6 +18,7 @@
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins.h"
 #include "xls/dslx/bytecode.h"
+#include "xls/dslx/import_data.h"
 
 namespace xls::dslx {
 
@@ -29,8 +30,9 @@ namespace xls::dslx {
 class BytecodeInterpreter {
  public:
   static absl::StatusOr<InterpValue> Interpret(
-      const BytecodeFunction& bf, const std::vector<InterpValue>& params) {
-    BytecodeInterpreter interp(bf);
+      ImportData* import_data, BytecodeFunction bf,
+      const std::vector<InterpValue>& params) {
+    BytecodeInterpreter interp(import_data, std::move(bf));
     XLS_RETURN_IF_ERROR(interp.Run(params));
     return interp.stack_.back();
   }
@@ -38,11 +40,22 @@ class BytecodeInterpreter {
   const std::vector<InterpValue>& stack() { return stack_; }
 
  private:
-  BytecodeInterpreter(const BytecodeFunction& bf) : bf_(bf) {}
+  struct Frame {
+    int64_t pc;
+    std::vector<InterpValue> slots;
+    BytecodeFunction bf;
+  };
+
+  BytecodeInterpreter(ImportData* import_data, BytecodeFunction bf)
+      : import_data_(import_data) {
+    frames_.emplace_back(Frame{0, {}, std::move(bf)});
+  }
 
   absl::Status Run(const std::vector<InterpValue>& params);
 
-  absl::StatusOr<int64_t> EvalInstruction(int64_t pc, const Bytecode& bytecode);
+  // Runs the next instruction in the current frame. Returns an error if called
+  // when the PC is already pointing to the end of the bytecode.
+  absl::Status EvalNextInstruction();
 
   absl::Status EvalAdd(const Bytecode& bytecode);
   absl::Status EvalAnd(const Bytecode& bytecode);
@@ -79,6 +92,8 @@ class BytecodeInterpreter {
   absl::Status EvalBinop(const std::function<absl::StatusOr<InterpValue>(
                              const InterpValue& lhs, const InterpValue& rhs)>
                              op);
+  absl::StatusOr<BytecodeFunction> GetBytecodeFn(Module* module,
+                                                 Function* function);
   absl::StatusOr<std::optional<int64_t>> EvalJumpRelIf(
       int64_t pc, const Bytecode& bytecode);
   absl::Status RunBuiltinFn(const Bytecode& bytecode, Builtin builtin);
@@ -86,9 +101,10 @@ class BytecodeInterpreter {
 
   absl::StatusOr<InterpValue> Pop();
 
-  const BytecodeFunction& bf_;
+  ImportData* import_data_;
   std::vector<InterpValue> stack_;
-  std::vector<InterpValue> slots_;
+
+  std::vector<Frame> frames_;
 };
 
 }  // namespace xls::dslx

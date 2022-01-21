@@ -102,6 +102,8 @@ cc_library(
         ":ast",
         ":builtins",
         ":bytecode",
+        ":bytecode_emitter",
+        ":import_data",
         ":interp_bindings",
         ":interp_value",
         ":interp_value_helpers",

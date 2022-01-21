@@ -357,7 +357,9 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
       XLS_ASSIGN_OR_RETURN(TestFunction * f, entry_module->GetTest(test_name));
       BytecodeEmitter emitter(&import_data, tm_or.value().type_info);
       XLS_ASSIGN_OR_RETURN(BytecodeFunction bf, emitter.Emit(f->fn()));
-      status = BytecodeInterpreter::Interpret(bf, /*params=*/{}).status();
+      status = BytecodeInterpreter::Interpret(&import_data, std::move(bf),
+                                              /*params=*/{})
+                   .status();
     } else {
       ModuleMember* member =
           entry_module->FindMemberWithName(test_name).value();
