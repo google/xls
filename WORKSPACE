@@ -8,11 +8,10 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "com_grail_bazel_toolchain",
-    patches = ["//dependency_support/com_grail_bazel_toolchain:google_workstation_workaround.patch"],
-    sha256 = "0246482b21a04667825c655d3b4f8f796d842817b2e11f536bbfed5673cbfd97",
-    strip_prefix = "bazel-toolchain-f2d1ba2c9d713b2aa6e7063f6d11dd3d64aa402a",
+    sha256 = "dd03374af7885d255eb735b9065a32463a1154d9de6eb47261a49c8acc1cd497",
+    strip_prefix = "bazel-toolchain-0.6.3",
     urls = [
-        "https://github.com/grailbio/bazel-toolchain/archive/f2d1ba2c9d713b2aa6e7063f6d11dd3d64aa402a.zip",
+        "https://github.com/grailbio/bazel-toolchain/archive/0.6.3.zip",
     ],
 )
 

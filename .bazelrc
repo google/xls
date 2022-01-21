@@ -8,4 +8,4 @@ build --host_copt "-Wno-comment"
 
 # TODO(leary): 2020-09-09 Make it possible to enable this option.
 # Currently m4 doesn't seem to work as a dependency.
-# build --crosstool_top=@llvm_toolchain//:toolchain
+# build --crosstool_top=@llvm_toolchain_llvm//:toolchain
