@@ -39,7 +39,7 @@ class BytecodeEmitter : public ExprVisitor {
 
  private:
   void HandleArray(Array* node) override;
-  void HandleAttr(Attr* node) override { DefaultHandler(node); }
+  void HandleAttr(Attr* node) override;
   void HandleBinop(Binop* node) override;
   void HandleCarry(Carry* node) override { DefaultHandler(node); }
   void HandleCast(Cast* node) override { DefaultHandler(node); }

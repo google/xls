@@ -824,5 +824,37 @@ fn handles_struct_instances() -> MyStruct {
   ASSERT_EQ(bc.op(), Bytecode::Op::kCreateTuple);
 }
 
+TEST(BytecodeEmitterTest, HandlesAttr) {
+  constexpr absl::string_view kProgram = R"(struct MyStruct {
+  x: u32,
+  y: u64,
+}
+
+#![test]
+fn handles_attr() -> u64 {
+  MyStruct { x: u32:0, y: u64:0xbeef }.y
+})";
+
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  for (const ConstantDef* def : tm.module->GetConstantDefs()) {
+    namedef_to_slot[def->name_def()] = namedef_to_slot.size();
+  }
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("handles_attr"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           emitter.Emit(tf->fn()));
+
+  ASSERT_EQ(bytecodes.size(), 5);
+  Bytecode bc = bytecodes[4];
+  ASSERT_EQ(bc.op(), Bytecode::Op::kIndex);
+}
+
 }  // namespace
 }  // namespace xls::dslx

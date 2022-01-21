@@ -55,6 +55,34 @@ void BytecodeEmitter::HandleArray(Array* node) {
                                static_cast<int64_t>(node->members().size())));
 }
 
+void BytecodeEmitter::HandleAttr(Attr* node) {
+  if (!status_.ok()) {
+    return;
+  }
+
+  // Will place a struct instance on the stack.
+  node->lhs()->AcceptExpr(this);
+
+  // Now we need the index of the attr NameRef in the struct def.
+  absl::StatusOr<StructType*> struct_type_or =
+      type_info_->GetItemAs<StructType>(node->lhs());
+  if (!struct_type_or.ok()) {
+    status_ = struct_type_or.status();
+    return;
+  }
+
+  absl::StatusOr<int64_t> member_index_or =
+      struct_type_or.value()->GetMemberIndex(node->attr()->identifier());
+  if (!member_index_or.ok()) {
+    status_ = member_index_or.status();
+    return;
+  }
+
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
+                               InterpValue::MakeU64(member_index_or.value())));
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kIndex));
+}
+
 void BytecodeEmitter::HandleBinop(Binop* node) {
   if (!status_.ok()) {
     return;
