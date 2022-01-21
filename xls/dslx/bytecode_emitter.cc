@@ -16,6 +16,7 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/str_split.h"
+#include "absl/types/variant.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
 
@@ -481,7 +482,33 @@ void BytecodeEmitter::HandleNumber(Number* node) {
                InterpValue::MakeBits(bits_type->is_signed(), bits.value())));
 }
 
+void BytecodeEmitter::HandleStructInstance(StructInstance* node) {
+  if (!status_.ok()) {
+    return;
+  }
+
+  absl::StatusOr<StructType*> struct_type_or =
+      type_info_->GetItemAs<StructType>(node);
+  if (!struct_type_or.ok()) {
+    status_ = struct_type_or.status();
+    return;
+  }
+
+  const StructDef& struct_def = struct_type_or.value()->nominal_type();
+  for (const std::pair<std::string, Expr*>& member :
+       node->GetOrderedMembers(&struct_def)) {
+    member.second->AcceptExpr(this);
+  }
+
+  bytecode_.push_back(
+      Bytecode(node->span(), Bytecode::Op::kCreateTuple, struct_def.size()));
+}
+
 void BytecodeEmitter::HandleUnop(Unop* node) {
+  if (!status_.ok()) {
+    return;
+  }
+
   node->operand()->AcceptExpr(this);
   switch (node->unop_kind()) {
     case UnopKind::kInvert:

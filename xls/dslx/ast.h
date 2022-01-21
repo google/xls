@@ -1829,7 +1829,7 @@ class StructInstance : public Expr {
   // Returns the members for the struct instance, ordered by the (resolved)
   // struct definition "struct_def".
   std::vector<std::pair<std::string, Expr*>> GetOrderedMembers(
-      StructDef* struct_def) const;
+      const StructDef* struct_def) const;
 
   // Returns the expression associated with the member named "name", or a
   // NotFound error status if none exists.

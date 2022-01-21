@@ -1122,7 +1122,7 @@ StructInstance::StructInstance(
       members_(std::move(members)) {}
 
 std::vector<std::pair<std::string, Expr*>> StructInstance::GetOrderedMembers(
-    StructDef* struct_def) const {
+    const StructDef* struct_def) const {
   std::vector<std::pair<std::string, Expr*>> result;
   for (const std::string& name : struct_def->GetMemberNames()) {
     result.push_back({name, GetExpr(name).value()});
