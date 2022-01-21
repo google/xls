@@ -519,6 +519,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(Binop* node,
         "Binary operations can only be applied to bits-typed operands.");
   }
 
+  ConstexprEvaluator evaluator(ctx, lhs.get());
+  node->AcceptExpr(&evaluator);
+  XLS_RETURN_IF_ERROR(evaluator.status());
   return lhs;
 }
 
@@ -537,11 +540,25 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(EnumDef* node,
   const ConcreteTypeDim& bit_count = bits_type->size();
   node->set_signedness(bits_type->is_signed());
 
-  auto result = std::make_unique<EnumType>(*node, bit_count);
+  std::vector<InterpValue> members;
+  members.reserve(node->values().size());
   for (const EnumMember& member : node->values()) {
     // Note: the parser places the type from the enum on the value when it is a
     // number, so this deduction flags inappropriate numbers.
     XLS_RETURN_IF_ERROR(ctx->Deduce(member.value).status());
+    absl::optional<InterpValue> constexpr_value =
+        ctx->type_info()->GetConstExpr(member.value);
+    if (!constexpr_value.has_value()) {
+      return absl::InternalError(absl::StrFormat(
+          "Could not find constexpr value for enum member %s::%s.",
+          node->identifier(), member.name_def->identifier()));
+    }
+    members.push_back(constexpr_value.value());
+  }
+
+  auto result = std::make_unique<EnumType>(*node, bit_count, members);
+
+  for (const EnumMember& member : node->values()) {
     ctx->type_info()->SetItem(ToAstNode(member.value), *result);
     ctx->type_info()->SetItem(member.name_def, *result);
   }

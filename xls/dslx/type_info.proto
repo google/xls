@@ -173,6 +173,7 @@ message EnumDefProto {
 message EnumTypeProto {
   optional ConcreteTypeDimProto size = 1;
   optional EnumDefProto enum_def = 2;
+  repeated InterpValueProto members = 3;
 }
 
 message TokenTypeProto {

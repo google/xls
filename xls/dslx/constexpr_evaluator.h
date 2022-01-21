@@ -33,7 +33,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   void HandleJoin(Join* expr) override {}
   void HandleArray(Array* expr) override {}
   void HandleAttr(Attr* expr) override;
-  void HandleBinop(Binop* node) override {}
+  void HandleBinop(Binop* expr) override;
   void HandleCarry(Carry* expr) override {}
   void HandleCast(Cast* expr) override;
   void HandleChannelDecl(ChannelDecl* expr) override {}
@@ -63,6 +63,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status status() { return status_; }
 
  private:
+  bool IsConstExpr(Expr* expr);
   absl::Status SimpleEvaluate(Expr* expr);
 
   DeduceCtx* ctx_;

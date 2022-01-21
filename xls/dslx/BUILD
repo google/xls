@@ -46,6 +46,7 @@ cc_library(
     srcs = ["bytecode.cc"],
     hdrs = ["bytecode.h"],
     deps = [
+        ":concrete_type",
         ":interp_value",
         ":pos",
         "//xls/common/status:ret_check",
@@ -101,6 +102,7 @@ cc_library(
         ":bytecode",
         ":interp_bindings",
         ":interp_value",
+        ":interp_value_helpers",
         ":type_info",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/status",
@@ -188,6 +190,34 @@ cc_test(
         ":cpp_transpiler",
         ":import_data",
         ":parse_and_typecheck",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "interp_value_helpers",
+    srcs = ["interp_value_helpers.cc"],
+    hdrs = ["interp_value_helpers.h"],
+    deps = [
+        ":concrete_type",
+        ":interp_value",
+        "//xls/common/status:status_macros",
+        "//xls/ir:bits_ops",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "interp_value_helpers_test",
+    srcs = ["interp_value_helpers_test.cc"],
+    deps = [
+        ":ast",
+        ":concrete_type",
+        ":interp_value",
+        ":interp_value_helpers",
+        ":pos",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
@@ -675,6 +705,7 @@ cc_library(
         ":import_routines",
         ":interp_bindings",
         ":interp_value",
+        ":interp_value_helpers",
         ":type_info",
         "//xls/common/status:ret_check",
         "//xls/ir:bits",

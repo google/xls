@@ -31,6 +31,8 @@ std::string OpToString(Bytecode::Op op) {
       return "and";
     case Bytecode::Op::kCall:
       return "call";
+    case Bytecode::Op::kCast:
+      return "cast";
     case Bytecode::Op::kConcat:
       return "concat";
     case Bytecode::Op::kCreateArray:
@@ -104,6 +106,9 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   }
   if (s == "create_array") {
     return Bytecode::Op::kCreateArray;
+  }
+  if (s == "cast") {
+    return Bytecode::Op::kCast;
   }
   if (s == "create_tuple") {
     return Bytecode::Op::kCreateTuple;
@@ -183,8 +188,11 @@ std::string Bytecode::ToString(bool source_locs) const {
     if (absl::holds_alternative<int64_t>(data_.value())) {
       int64_t data = absl::get<int64_t>(data_.value());
       data_string = absl::StrCat(data);
-    } else {
+    } else if (absl::holds_alternative<InterpValue>(data_.value())) {
       data_string = absl::get<InterpValue>(data_.value()).ToString();
+    } else {
+      data_string =
+          absl::get<std::unique_ptr<ConcreteType>>(data_.value())->ToString();
     }
     return absl::StrFormat("%s %s%s", op_string, data_string, loc_string);
   }
@@ -249,7 +257,7 @@ absl::StatusOr<std::vector<Bytecode>> BytecodesFromString(
         data = integer_data;
       }
     }
-    result.push_back(Bytecode(Span::Fake(), op, data));
+    result.push_back(Bytecode(Span::Fake(), op, std::move(data)));
   }
   return result;
 }

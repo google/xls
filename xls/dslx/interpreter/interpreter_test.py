@@ -575,7 +575,7 @@ class InterpreterTest(test_base.TestCase):
     }
     """)
     stderr = self._parse_and_test(program, want_error=True)
-    self.assertIn(':5:3-6:1', stderr)
+    self.assertIn('Value is not valid for enum', stderr)
 
   def test_const_array_of_enum_refs(self):
     program = """

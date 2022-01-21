@@ -423,7 +423,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FromProto(
             absl::StrFormat("Enum definition not found in module %s: %s",
                             m.name(), enum_def_proto.identifier()));
       }
-      return std::make_unique<EnumType>(*enum_def, std::move(size));
+      std::vector<InterpValue> members;
+      for (const InterpValueProto& value : etp.members()) {
+        XLS_ASSIGN_OR_RETURN(InterpValue member, FromProto(value));
+        members.push_back(member);
+      }
+
+      return std::make_unique<EnumType>(*enum_def, std::move(size), members);
     }
     case ConcreteTypeProto::ConcreteTypeOneofCase::kFnType: {
       const FunctionTypeProto& ftp = ctp.fn_type();

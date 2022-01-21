@@ -26,6 +26,20 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 
+absl::StatusOr<std::vector<Bytecode>> EmitBytecodes(absl::string_view program,
+                                                    absl::string_view fn_name) {
+  auto import_data = ImportData::CreateForTest();
+  XLS_ASSIGN_OR_RETURN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(program, "test.x", "test", &import_data));
+
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
+  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  XLS_ASSIGN_OR_RETURN(TestFunction * tf, tm.module->GetTest(fn_name));
+
+  return emitter.Emit(tf->fn());
+}
+
 // Verifies that a baseline translation - of a nearly-minimal test case -
 // succeeds.
 TEST(BytecodeEmitterTest, SimpleTranslation) {
@@ -47,29 +61,29 @@ TEST(BytecodeEmitterTest, SimpleTranslation) {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes, emitter.Emit(f));
 
   ASSERT_EQ(bytecodes.size(), 5);
-  Bytecode bc = bytecodes[0];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.value_data().value(), InterpValue::MakeU32(1));
+  Bytecode* bc = &bytecodes[0];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->value_data().value(), InterpValue::MakeU32(1));
 
-  bc = bytecodes[1];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kStore);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 0);
+  bc = &bytecodes[1];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 0);
 
-  bc = bytecodes[2];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLoad);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 0);
+  bc = &bytecodes[2];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 0);
 
-  bc = bytecodes[3];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.value_data().value(), InterpValue::MakeU32(2));
+  bc = &bytecodes[3];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->value_data().value(), InterpValue::MakeU32(2));
 
-  bc = bytecodes[4];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kAdd);
-  ASSERT_FALSE(bc.has_data());
+  bc = &bytecodes[4];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kAdd);
+  ASSERT_FALSE(bc->has_data());
 }
 
 // Validates emission of AssertEq builtins.
@@ -81,56 +95,46 @@ fn expect_fail() -> u32{
   foo
 })";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("expect_fail"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           emitter.Emit(tf->fn()));
+                           EmitBytecodes(kProgram, "expect_fail"));
 
   ASSERT_EQ(bytecodes.size(), 7);
-  Bytecode bc = bytecodes[0];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.value_data().value(), InterpValue::MakeU32(3));
+  Bytecode* bc = &bytecodes[0];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->value_data().value(), InterpValue::MakeU32(3));
 
-  bc = bytecodes[1];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kStore);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 0);
+  bc = &bytecodes[1];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 0);
 
-  bc = bytecodes[2];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLoad);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 0);
+  bc = &bytecodes[2];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 0);
 
-  bc = bytecodes[3];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.value_data().value(), InterpValue::MakeU32(2));
+  bc = &bytecodes[3];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->value_data().value(), InterpValue::MakeU32(2));
 
-  bc = bytecodes[4];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kCall);
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue call_fn, bc.value_data());
+  bc = &bytecodes[4];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kCall);
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue call_fn, bc->value_data());
   ASSERT_TRUE(call_fn.IsBuiltinFunction());
   // How meta!
   ASSERT_EQ(absl::get<Builtin>(call_fn.GetFunctionOrDie()), Builtin::kAssertEq);
 
-  bc = bytecodes[5];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kStore);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 1);
+  bc = &bytecodes[5];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 1);
 
-  bc = bytecodes[6];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLoad);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 0);
+  bc = &bytecodes[6];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 0);
 }
 
 // Validates emission of Let nodes with structured bindings.
@@ -145,106 +149,88 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
   d
 })";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("has_name_def_tree"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           emitter.Emit(tf->fn()));
+                           EmitBytecodes(kProgram, "has_name_def_tree"));
 
   ASSERT_EQ(bytecodes.size(), 35);
-  Bytecode bc = bytecodes[0];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.value_data().value(), InterpValue::MakeUBits(4, 0));
+  Bytecode* bc = &bytecodes[0];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->value_data().value(), InterpValue::MakeUBits(4, 0));
 
-  bc = bytecodes[5];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.value_data().value(), InterpValue::MakeUBits(128, 5));
+  bc = &bytecodes[5];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->value_data().value(), InterpValue::MakeUBits(128, 5));
 
-  bc = bytecodes[6];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kCreateTuple);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 3);
+  bc = &bytecodes[6];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 3);
 
-  bc = bytecodes[7];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kCreateTuple);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 2);
+  bc = &bytecodes[7];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 2);
 
-  bc = bytecodes[8];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kCreateTuple);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 3);
+  bc = &bytecodes[8];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 3);
 
-  bc = bytecodes[9];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kExpandTuple);
-  ASSERT_FALSE(bc.has_data());
+  bc = &bytecodes[9];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kExpandTuple);
+  ASSERT_FALSE(bc->has_data());
 
-  bc = bytecodes[10];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kStore);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 0);
+  bc = &bytecodes[10];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 0);
 
-  bc = bytecodes[11];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kStore);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 1);
+  bc = &bytecodes[11];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 1);
 
-  bc = bytecodes[12];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kExpandTuple);
-  ASSERT_FALSE(bc.has_data());
+  bc = &bytecodes[12];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kExpandTuple);
+  ASSERT_FALSE(bc->has_data());
 
-  bc = bytecodes[13];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kStore);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 2);
+  bc = &bytecodes[13];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 2);
 
-  bc = bytecodes[14];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kStore);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 3);
+  bc = &bytecodes[14];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 3);
 
   // Skip the uninteresting comparisons.
-  bc = bytecodes[27];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLoad);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 3);
+  bc = &bytecodes[27];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 3);
 
-  bc = bytecodes[31];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kCreateTuple);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 3);
+  bc = &bytecodes[31];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 3);
 
-  bc = bytecodes[34];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLoad);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 3);
+  bc = &bytecodes[34];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 3);
 }
 
 TEST(BytecodeEmitterTest, Ternary) {
-  constexpr absl::string_view kProgram = R"(fn do_ternary() -> u32 {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn do_ternary() -> u32 {
   if true { u32:42 } else { u32:64 }
 })";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetFunctionOrError("do_ternary"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes, emitter.Emit(f));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           EmitBytecodes(kProgram, "do_ternary"));
 
   EXPECT_EQ(BytecodesToString(bytecodes, /*source_locs=*/false),
             R"(000 literal u1:1
@@ -296,67 +282,57 @@ fn binops_galore() {
   ()
 })";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("binops_galore"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           emitter.Emit(tf->fn()));
+                           EmitBytecodes(kProgram, "binops_galore"));
 
   ASSERT_EQ(bytecodes.size(), 69);
-  Bytecode bc = bytecodes[6];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kAdd);
+  Bytecode* bc = &bytecodes[6];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kAdd);
 
-  bc = bytecodes[10];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kAnd);
+  bc = &bytecodes[10];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kAnd);
 
-  bc = bytecodes[14];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kConcat);
+  bc = &bytecodes[14];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kConcat);
 
-  bc = bytecodes[18];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kDiv);
+  bc = &bytecodes[18];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kDiv);
 
-  bc = bytecodes[22];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kEq);
+  bc = &bytecodes[22];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kEq);
 
-  bc = bytecodes[26];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kGe);
+  bc = &bytecodes[26];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kGe);
 
-  bc = bytecodes[30];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kGt);
+  bc = &bytecodes[30];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kGt);
 
-  bc = bytecodes[34];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLe);
+  bc = &bytecodes[34];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLe);
 
-  bc = bytecodes[38];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLt);
+  bc = &bytecodes[38];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLt);
 
-  bc = bytecodes[42];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kMul);
+  bc = &bytecodes[42];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kMul);
 
-  bc = bytecodes[46];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kNe);
+  bc = &bytecodes[46];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kNe);
 
-  bc = bytecodes[50];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kOr);
+  bc = &bytecodes[50];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kOr);
 
-  bc = bytecodes[54];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kShll);
+  bc = &bytecodes[54];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kShll);
 
-  bc = bytecodes[58];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kShrl);
+  bc = &bytecodes[58];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kShrl);
 
-  bc = bytecodes[62];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kSub);
+  bc = &bytecodes[62];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kSub);
 
-  bc = bytecodes[66];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kXor);
+  bc = &bytecodes[66];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kXor);
 }
 
 // Tests emission of all of the supported binary operators.
@@ -369,24 +345,15 @@ fn unops() {
   ()
 })";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("unops"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           emitter.Emit(tf->fn()));
+                           EmitBytecodes(kProgram, "unops"));
 
   ASSERT_EQ(bytecodes.size(), 9);
-  Bytecode bc = bytecodes[3];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kInvert);
+  Bytecode* bc = &bytecodes[3];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kInvert);
 
-  bc = bytecodes[6];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kNegate);
+  bc = &bytecodes[6];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kNegate);
 }
 
 // Tests array creation.
@@ -398,23 +365,14 @@ fn arrays() -> u32[3] {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("arrays"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           emitter.Emit(tf->fn()));
+                           EmitBytecodes(kProgram, "arrays"));
 
   ASSERT_EQ(bytecodes.size(), 6);
-  Bytecode bc = bytecodes[5];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kCreateArray);
-  ASSERT_TRUE(bc.has_data());
-  ASSERT_EQ(bc.integer_data().value(), 3);
+  Bytecode* bc = &bytecodes[5];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kCreateArray);
+  ASSERT_TRUE(bc->has_data());
+  ASSERT_EQ(bc->integer_data().value(), 3);
 }
 
 // Tests emission of kIndex ops on arrays.
@@ -428,25 +386,15 @@ fn index_array() -> u32 {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("index_array"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           emitter.Emit(tf->fn()));
+                           EmitBytecodes(kProgram, "index_array"));
 
   ASSERT_EQ(bytecodes.size(), 17);
-  Bytecode bc = bytecodes[12];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kIndex);
+  Bytecode* bc = &bytecodes[12];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kIndex);
 
-  bc = bytecodes[15];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kIndex);
+  bc = &bytecodes[15];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kIndex);
 }
 
 // Tests emission of kIndex ops on tuples.
@@ -460,25 +408,15 @@ fn index_tuple() -> u32 {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("index_tuple"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           emitter.Emit(tf->fn()));
+                           EmitBytecodes(kProgram, "index_tuple"));
 
   ASSERT_EQ(bytecodes.size(), 16);
-  Bytecode bc = bytecodes[11];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kIndex);
+  Bytecode* bc = &bytecodes[11];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kIndex);
 
-  bc = bytecodes[14];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kIndex);
+  bc = &bytecodes[14];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kIndex);
 }
 
 // Tests a regular a[x:y] slice op.
@@ -490,28 +428,18 @@ fn simple_slice() -> u16 {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("simple_slice"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           emitter.Emit(tf->fn()));
+                           EmitBytecodes(kProgram, "simple_slice"));
 
   ASSERT_EQ(bytecodes.size(), 6);
-  Bytecode bc = bytecodes[3];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+  Bytecode* bc = &bytecodes[3];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
 
-  bc = bytecodes[4];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+  bc = &bytecodes[4];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
 
-  bc = bytecodes[5];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kSlice);
+  bc = &bytecodes[5];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kSlice);
 }
 
 // Tests a slice from the start: a[-x:].
@@ -523,28 +451,18 @@ fn negative_start_slice() -> u16 {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("negative_start_slice"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           emitter.Emit(tf->fn()));
+                           EmitBytecodes(kProgram, "negative_start_slice"));
 
   ASSERT_EQ(bytecodes.size(), 6);
-  Bytecode bc = bytecodes[3];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+  Bytecode* bc = &bytecodes[3];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
 
-  bc = bytecodes[4];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+  bc = &bytecodes[4];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
 
-  bc = bytecodes[5];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kSlice);
+  bc = &bytecodes[5];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kSlice);
 }
 
 // Tests a slice from the end: a[:-x].
@@ -556,28 +474,18 @@ fn negative_end_slice() -> u16 {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("negative_end_slice"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           emitter.Emit(tf->fn()));
+                           EmitBytecodes(kProgram, "negative_end_slice"));
 
   ASSERT_EQ(bytecodes.size(), 6);
-  Bytecode bc = bytecodes[3];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+  Bytecode* bc = &bytecodes[3];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
 
-  bc = bytecodes[4];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+  bc = &bytecodes[4];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
 
-  bc = bytecodes[5];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kSlice);
+  bc = &bytecodes[5];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kSlice);
 }
 
 // Tests a slice from both ends: a[-x:-y].
@@ -589,28 +497,18 @@ fn both_negative_slice() -> u8 {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("both_negative_slice"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           emitter.Emit(tf->fn()));
+                           EmitBytecodes(kProgram, "both_negative_slice"));
 
   ASSERT_EQ(bytecodes.size(), 6);
-  Bytecode bc = bytecodes[3];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+  Bytecode* bc = &bytecodes[3];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
 
-  bc = bytecodes[4];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+  bc = &bytecodes[4];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
 
-  bc = bytecodes[5];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kSlice);
+  bc = &bytecodes[5];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kSlice);
 }
 
 // Tests the width slice op.
@@ -621,26 +519,15 @@ fn width_slice() -> u16 {
   a[u32:8 +: bits[16]]
 })";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("width_slice"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           emitter.Emit(tf->fn()));
-
+                           EmitBytecodes(kProgram, "width_slice"));
   ASSERT_EQ(bytecodes.size(), 6);
 
-  Bytecode bc = bytecodes[4];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+  Bytecode* bc = &bytecodes[4];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
 
-  bc = bytecodes[5];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kWidthSlice);
+  bc = &bytecodes[5];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kWidthSlice);
 }
 
 TEST(BytecodeEmitterTest, LocalEnumRef) {
@@ -656,24 +543,13 @@ fn local_enum_ref() -> MyEnum {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("local_enum_ref"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           emitter.Emit(tf->fn()));
-
+                           EmitBytecodes(kProgram, "local_enum_ref"));
   ASSERT_EQ(bytecodes.size(), 1);
 
-  Bytecode bc = bytecodes[0];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
-  ASSERT_TRUE(bc.has_data());
+  Bytecode* bc = &bytecodes[0];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
+  ASSERT_TRUE(bc->has_data());
   EXPECT_THAT(bytecodes.at(0).value_data(),
               IsOkAndHolds(InterpValue::MakeSBits(23, 1)));
 }
@@ -713,9 +589,9 @@ fn imported_enum_ref() -> import_0::ImportedEnum {
 
   ASSERT_EQ(bytecodes.size(), 1);
 
-  Bytecode bc = bytecodes[0];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
-  ASSERT_TRUE(bc.has_data());
+  Bytecode* bc = &bytecodes[0];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
+  ASSERT_TRUE(bc->has_data());
   EXPECT_THAT(bytecodes.at(0).value_data(),
               IsOkAndHolds(InterpValue::MakeSBits(4, 2)));
 }
@@ -750,9 +626,9 @@ fn imported_enum_ref() -> u3 {
 
   ASSERT_EQ(bytecodes.size(), 1);
 
-  Bytecode bc = bytecodes[0];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
-  ASSERT_TRUE(bc.has_data());
+  Bytecode* bc = &bytecodes[0];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
+  ASSERT_TRUE(bc->has_data());
   EXPECT_THAT(bytecodes.at(0).value_data(),
               IsOkAndHolds(InterpValue::MakeSBits(3, 2)));
 }
@@ -767,28 +643,14 @@ fn handles_const_refs() -> u32 {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  for (const ConstantDef* def : tm.module->GetConstantDefs()) {
-    namedef_to_slot[def->name_def()] = namedef_to_slot.size();
-  }
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("handles_const_refs"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           emitter.Emit(tf->fn()));
-
+                           EmitBytecodes(kProgram, "handles_const_refs"));
   ASSERT_EQ(bytecodes.size(), 5);
-  Bytecode bc = bytecodes[2];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLoad);
+  Bytecode* bc = &bytecodes[2];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
 
-  bc = bytecodes[3];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kLiteral);
+  bc = &bytecodes[3];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
 }
 
 TEST(BytecodeEmitterTest, HandlesStructInstances) {
@@ -803,25 +665,11 @@ fn handles_struct_instances() -> MyStruct {
   MyStruct { x: x, y: u64:3 }
 })";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  for (const ConstantDef* def : tm.module->GetConstantDefs()) {
-    namedef_to_slot[def->name_def()] = namedef_to_slot.size();
-  }
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("handles_struct_instances"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           emitter.Emit(tf->fn()));
-
+                           EmitBytecodes(kProgram, "handles_struct_instances"));
   ASSERT_EQ(bytecodes.size(), 5);
-  Bytecode bc = bytecodes[4];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kCreateTuple);
+  Bytecode* bc = &bytecodes[4];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
 }
 
 TEST(BytecodeEmitterTest, HandlesAttr) {
@@ -835,25 +683,97 @@ fn handles_attr() -> u64 {
   MyStruct { x: u32:0, y: u64:0xbeef }.y
 })";
 
-  auto import_data = ImportData::CreateForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  for (const ConstantDef* def : tm.module->GetConstantDefs()) {
-    namedef_to_slot[def->name_def()] = namedef_to_slot.size();
-  }
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
-
-  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
-                           tm.module->GetTest("handles_attr"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           emitter.Emit(tf->fn()));
-
+                           EmitBytecodes(kProgram, "handles_attr"));
   ASSERT_EQ(bytecodes.size(), 5);
-  Bytecode bc = bytecodes[4];
-  ASSERT_EQ(bc.op(), Bytecode::Op::kIndex);
+  Bytecode* bc = &bytecodes[4];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kIndex);
+}
+
+TEST(BytecodeEmitterTest, CastBitsToBits) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn cast_bits_to_bits() -> u64 {
+  let a = s16:-4;
+  a as u64
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           EmitBytecodes(kProgram, "cast_bits_to_bits"));
+  ASSERT_EQ(bytecodes.size(), 4);
+  Bytecode* bc = &bytecodes[3];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kCast);
+}
+
+TEST(BytecodeEmitterTest, CastArrayToBits) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn cast_array_to_bits() -> u32 {
+  let a = u8[4]:[0xc, 0xa, 0xf, 0xe];
+  a as u32
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           EmitBytecodes(kProgram, "cast_array_to_bits"));
+  ASSERT_EQ(bytecodes.size(), 8);
+  Bytecode* bc = &bytecodes[7];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kCast);
+}
+
+TEST(BytecodeEmitterTest, CastBitsToArray) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn cast_bits_to_array() -> u8 {
+  let a = u32:0x0c0a0f0e;
+  let b = a as u8[4];
+  b[u32:2]
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           EmitBytecodes(kProgram, "cast_bits_to_array"));
+  ASSERT_EQ(bytecodes.size(), 8);
+  Bytecode* bc = &bytecodes[3];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kCast);
+}
+
+TEST(BytecodeEmitterTest, CastEnumToBits) {
+  constexpr absl::string_view kProgram = R"(enum MyEnum : u3 {
+  VAL_0 = 0,
+  VAL_1 = 1,
+  VAL_2 = 2,
+  VAL_3 = 3,
+}
+
+#![test]
+fn cast_enum_to_bits() -> u3 {
+  let a = MyEnum::VAL_3;
+  a as u3
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           EmitBytecodes(kProgram, "cast_enum_to_bits"));
+  ASSERT_EQ(bytecodes.size(), 4);
+  Bytecode* bc = &bytecodes[3];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kCast);
+}
+
+TEST(BytecodeEmitterTest, CastBitsToEnum) {
+  constexpr absl::string_view kProgram = R"(enum MyEnum : u3 {
+  VAL_0 = 0,
+  VAL_1 = 1,
+  VAL_2 = 2,
+  VAL_3 = 3,
+}
+
+#![test]
+fn cast_bits_to_enum() -> MyEnum {
+  let a = u3:2;
+  a as MyEnum
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           EmitBytecodes(kProgram, "cast_bits_to_enum"));
+  ASSERT_EQ(bytecodes.size(), 4);
+  Bytecode* bc = &bytecodes[3];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kCast);
 }
 
 }  // namespace

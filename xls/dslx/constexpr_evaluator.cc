@@ -17,13 +17,24 @@
 
 namespace xls::dslx {
 
+bool ConstexprEvaluator::IsConstExpr(Expr* expr) {
+  return ctx_->type_info()->GetConstExpr(expr).has_value();
+}
+
 void ConstexprEvaluator::HandleAttr(Attr* expr) {
   status_.Update(SimpleEvaluate(expr));
 }
 
+void ConstexprEvaluator::HandleBinop(Binop* expr) {
+  XLS_VLOG(3) << "ConstexprEvaluator::HandleBinop : " << expr->ToString();
+  if (IsConstExpr(expr->lhs()) && IsConstExpr(expr->rhs())) {
+    status_.Update(SimpleEvaluate(expr));
+  }
+}
+
 void ConstexprEvaluator::HandleCast(Cast* expr) {
-  XLS_VLOG(3) << "ConstexprEvaluateCast : " << expr->ToString();
-  if (ctx_->type_info()->GetConstExpr(expr->expr()).has_value()) {
+  XLS_VLOG(3) << "ConstexprEvaluator::HandleCast : " << expr->ToString();
+  if (IsConstExpr(expr->expr())) {
     status_ = SimpleEvaluate(expr);
   }
 }
@@ -34,9 +45,8 @@ void ConstexprEvaluator::HandleConstRef(ConstRef* expr) {
 
 void ConstexprEvaluator::HandleInvocation(Invocation* expr) {
   // An invocation is constexpr iff its args are constexpr.
-  TypeInfo* type_info = ctx_->type_info();
   for (const auto& arg : expr->args()) {
-    if (!type_info->GetConstExpr(arg).has_value()) {
+    if (!IsConstExpr(arg)) {
       return;
     }
   }
@@ -70,9 +80,8 @@ void ConstexprEvaluator::HandleNumber(Number* expr) {
 
 void ConstexprEvaluator::HandleStructInstance(StructInstance* expr) {
   // A struct instance is constexpr iff all its members are constexpr.
-  TypeInfo* type_info = ctx_->type_info();
   for (const auto& [k, v] : expr->GetUnorderedMembers()) {
-    if (!type_info->GetConstExpr(v).has_value()) {
+    if (!IsConstExpr(v)) {
       return;
     }
   }

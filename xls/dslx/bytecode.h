@@ -17,6 +17,7 @@
 #include <memory>
 
 #include "absl/types/variant.h"
+#include "xls/dslx/concrete_type.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/pos.h"
 
@@ -35,6 +36,9 @@ class Bytecode {
     kAnd,
     // Invokes the function given in the Bytecode's data argument.
     kCall,
+    // Casts the element on top of the stack to the type given in the optional
+    // arg.
+    kCast,
     // Concatenates TOS1 and TOS0, with TOS1 comprising the most significant
     // bits of the result.
     kConcat,
@@ -110,7 +114,8 @@ class Bytecode {
     kXor,
   };
 
-  using Data = absl::variant<int64_t, InterpValue>;
+  using Data =
+      absl::variant<int64_t, InterpValue, std::unique_ptr<ConcreteType>>;
 
   // Creates an operation w/o any accessory data. The span is present for
   // reporting error source location.
@@ -119,11 +124,11 @@ class Bytecode {
 
   // Creates an operation with associated string or InterpValue data.
   Bytecode(Span source_span, Op op, absl::optional<Data> data)
-      : source_span_(source_span), op_(op), data_(data) {}
+      : source_span_(source_span), op_(op), data_(std::move(data)) {}
 
   Span source_span() const { return source_span_; }
   Op op() const { return op_; }
-  absl::optional<Data> data() const { return data_; }
+  const absl::optional<Data>& data() const { return data_; }
 
   bool has_data() const { return data_.has_value(); }
 

@@ -355,8 +355,9 @@ class ArrayType : public ConcreteType {
 // Represents an enum type.
 class EnumType : public ConcreteType {
  public:
-  EnumType(const EnumDef& enum_def, ConcreteTypeDim bit_count)
-      : enum_def_(enum_def), size_(std::move(bit_count)) {}
+  EnumType(const EnumDef& enum_def, ConcreteTypeDim bit_count,
+           const std::vector<InterpValue>& members)
+      : enum_def_(enum_def), size_(std::move(bit_count)), members_(members) {}
 
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
       const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
@@ -376,17 +377,19 @@ class EnumType : public ConcreteType {
     return false;
   }
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    return std::make_unique<EnumType>(enum_def_, size_.Clone());
+    return std::make_unique<EnumType>(enum_def_, size_.Clone(), members_);
   }
 
   const EnumDef& nominal_type() const { return enum_def_; }
   const ConcreteTypeDim& size() const { return size_; }
+  const std::vector<InterpValue>& members() const { return members_; }
 
   absl::optional<bool> signedness() const { return enum_def_.signedness(); }
 
  private:
   const EnumDef& enum_def_;  // Definition AST node.
   ConcreteTypeDim size_;     // Underlying size in bits.
+  std::vector<InterpValue> members_;  // Member values of the enum.
 };
 
 // Represents a bits type (either signed or unsigned).

@@ -39,7 +39,7 @@ absl::StatusOr<std::vector<Bytecode>> BytecodeEmitter::Emit(Function* f) {
     return status_;
   }
 
-  return bytecode_;
+  return std::move(bytecode_);
 }
 
 void BytecodeEmitter::HandleArray(Array* node) {
@@ -146,6 +146,137 @@ void BytecodeEmitter::HandleBinop(Binop* node) {
   }
 }
 
+absl::Status BytecodeEmitter::CastArrayToBits(Span span, ArrayType* from_array,
+                                              BitsType* to_bits) {
+  if (from_array->element_type().GetAllDims().size() != 1) {
+    return absl::InternalError(
+        "Only casts to/from one-dimensional arrays are supported.");
+  }
+
+  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bit_count_dim,
+                       from_array->GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(int64_t array_bit_count, bit_count_dim.GetAsInt64());
+
+  XLS_ASSIGN_OR_RETURN(bit_count_dim, to_bits->GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(int64_t bits_bit_count, bit_count_dim.GetAsInt64());
+
+  if (array_bit_count != bits_bit_count) {
+    return absl::InternalError(
+        absl::StrFormat("Array-to-bits cast bit counts must match. "
+                        "Saw %d vs %d.",
+                        array_bit_count, bits_bit_count));
+  }
+
+  bytecode_.push_back(
+      Bytecode(span, Bytecode::Op::kCast, to_bits->CloneToUnique()));
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeEmitter::CastBitsToArray(Span span, BitsType* from_bits,
+                                              ArrayType* to_array) {
+  if (to_array->element_type().GetAllDims().size() != 1) {
+    return absl::InternalError(
+        "Only casts to/from one-dimensional arrays are supported.");
+  }
+
+  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bit_count_dim,
+                       from_bits->GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(int64_t bits_bit_count, bit_count_dim.GetAsInt64());
+
+  XLS_ASSIGN_OR_RETURN(bit_count_dim, to_array->GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(int64_t array_bit_count, bit_count_dim.GetAsInt64());
+
+  if (array_bit_count != bits_bit_count) {
+    return absl::InternalError(
+        absl::StrFormat("Bits-to-array cast bit counts must match. "
+                        "Saw %d vs %d.",
+                        bits_bit_count, array_bit_count));
+  }
+
+  bytecode_.push_back(
+      Bytecode(span, Bytecode::Op::kCast, to_array->CloneToUnique()));
+  return absl::OkStatus();
+}
+
+void BytecodeEmitter::HandleCast(Cast* node) {
+  if (!status_.ok()) {
+    return;
+  }
+
+  node->expr()->AcceptExpr(this);
+
+  absl::optional<ConcreteType*> maybe_from = type_info_->GetItem(node->expr());
+  if (!maybe_from.has_value()) {
+    status_ = absl::InternalError(
+        absl::StrCat("Could not find type for cast \"from\" arg: ",
+                     node->expr()->ToString()));
+    return;
+  }
+  ConcreteType* from = maybe_from.value();
+
+  absl::optional<ConcreteType*> maybe_to = type_info_->GetItem(node);
+  if (!maybe_to.has_value()) {
+    status_ = absl::InternalError(
+        absl::StrCat("Could not find concrete type for cast \"to\" type: ",
+                     node->type_annotation()->ToString()));
+    return;
+  }
+  ConcreteType* to = maybe_to.value();
+
+  if (ArrayType* from_array = dynamic_cast<ArrayType*>(from);
+      from_array != nullptr) {
+    BitsType* to_bits = dynamic_cast<BitsType*>(to);
+    if (to_bits == nullptr) {
+      status_ = absl::InternalError(absl::StrCat(
+          "The only valid array cast is to bits: ", node->ToString()));
+    }
+
+    status_ = CastArrayToBits(node->span(), from_array, to_bits);
+    return;
+  }
+
+  if (EnumType* from_enum = dynamic_cast<EnumType*>(from);
+      from_enum != nullptr) {
+    BitsType* to_bits = dynamic_cast<BitsType*>(to);
+    if (to_bits == nullptr) {
+      status_ = absl::InternalError(absl::StrCat(
+          "The only valid enum cast is to bits: ", node->ToString()));
+    }
+
+    bytecode_.push_back(
+        Bytecode(node->span(), Bytecode::Op::kCast, to_bits->CloneToUnique()));
+    return;
+  }
+
+  BitsType* from_bits = dynamic_cast<BitsType*>(from);
+  if (from_bits == nullptr) {
+    status_ = absl::InternalError(
+        "Only casts from arrays, enums, or bits are allowed.");
+    return;
+  }
+
+  if (ArrayType* to_array = dynamic_cast<ArrayType*>(to); to_array != nullptr) {
+    status_ = CastBitsToArray(node->span(), from_bits, to_array);
+    return;
+  }
+
+  if (EnumType* to_enum = dynamic_cast<EnumType*>(to); to_enum != nullptr) {
+    bytecode_.push_back(
+        Bytecode(node->span(), Bytecode::Op::kCast, to_enum->CloneToUnique()));
+    return;
+  }
+
+  BitsType* to_bits = dynamic_cast<BitsType*>(to);
+  if (to_bits == nullptr) {
+    status_ = absl::InternalError(
+        "Only casts to arrays, enums, or bits are allowed.");
+    return;
+  }
+
+  bytecode_.push_back(
+      Bytecode(node->span(), Bytecode::Op::kCast, to_bits->CloneToUnique()));
+}
+
 absl::Status BytecodeEmitter::HandleColonRefToImportedConstant(
     ColonRef* colon_ref, Import* import, absl::string_view constant_name) {
   absl::optional<const ImportedInfo*> imported_info =
@@ -184,7 +315,7 @@ absl::StatusOr<Bytecode> HandleColonRefToEnum(ColonRef* colon_ref,
 
   absl::optional<InterpValue> value_or = type_info->GetConstExpr(value_expr);
   if (!value_or.has_value()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
+    return absl::InternalError(absl::StrFormat(
         "Could not find value for enum \"%s\" attribute \"%s\".",
         enum_def->identifier(), attr));
   }
@@ -207,7 +338,7 @@ absl::Status BytecodeEmitter::HandleColonRefToImportedEnum(
   }
 
   if (!absl::holds_alternative<Import*>(*maybe_member.value())) {
-    return absl::InvalidArgumentError(absl::StrCat(
+    return absl::InternalError(absl::StrCat(
         "Expected ColonRef LHS to be Import: ", colon_ref->ToString()));
   }
   Import* import = absl::get<Import*>(*maybe_member.value());
@@ -222,7 +353,7 @@ absl::Status BytecodeEmitter::HandleColonRefToImportedEnum(
       TypeDefinition td,
       imported.value()->module->GetTypeDefinition(second_colon_ref->attr()));
   if (!absl::holds_alternative<EnumDef*>(td)) {
-    return absl::InvalidArgumentError(absl::StrCat(
+    return absl::InternalError(absl::StrCat(
         "Imported symbol ", second_colon_ref->attr(), " is not an EnumDef."));
   }
 
@@ -230,7 +361,7 @@ absl::Status BytecodeEmitter::HandleColonRefToImportedEnum(
   XLS_ASSIGN_OR_RETURN(
       Bytecode bytecode,
       HandleColonRefToEnum(colon_ref, enum_def, imported.value()->type_info));
-  bytecode_.push_back(bytecode);
+  bytecode_.push_back(std::move(bytecode));
   return absl::OkStatus();
 }
 
@@ -266,7 +397,7 @@ void BytecodeEmitter::HandleColonRef(ColonRef* node) {
       if (!bytecode_or.ok()) {
         status_ = bytecode_or.status();
       } else {
-        bytecode_.push_back(bytecode_or.value());
+        bytecode_.push_back(std::move(bytecode_or.value()));
       }
     }
     return;
@@ -297,7 +428,7 @@ void BytecodeEmitter::HandleConstRef(ConstRef* node) {
 absl::StatusOr<int64_t> GetValueWidth(TypeInfo* type_info, Expr* expr) {
   absl::optional<ConcreteType*> maybe_type = type_info->GetItem(expr);
   if (!maybe_type.has_value()) {
-    return absl::InvalidArgumentError(
+    return absl::InternalError(
         "Could not find concrete type for slice component.");
   }
   return maybe_type.value()->GetTotalBitCount()->GetAsInt64();
@@ -334,8 +465,8 @@ void BytecodeEmitter::HandleIndex(Index* node) {
       absl::optional<ConcreteType*> maybe_type =
           type_info_->GetItem(node->lhs());
       if (!maybe_type.has_value()) {
-        status_ = absl::InvalidArgumentError(
-            "Could not find concrete type for slice.");
+        status_ =
+            absl::InternalError("Could not find concrete type for slice.");
         return;
       }
       ConcreteType* type = maybe_type.value();
@@ -374,7 +505,7 @@ void BytecodeEmitter::HandleIndex(Index* node) {
     absl::optional<ConcreteType*> maybe_type =
         type_info_->GetItem(width_slice->width());
     if (!maybe_type.has_value()) {
-      status_ = absl::InvalidArgumentError(absl::StrCat(
+      status_ = absl::InternalError(absl::StrCat(
           "Could not find concrete type for slice width parameter \"",
           width_slice->width()->ToString(), "\"."));
       return;

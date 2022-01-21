@@ -19,6 +19,7 @@
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value_helpers.h"
 
 namespace xls::dslx {
 
@@ -53,6 +54,10 @@ absl::StatusOr<int64_t> BytecodeInterpreter::EvalInstruction(
     }
     case Bytecode::Op::kCall: {
       XLS_RETURN_IF_ERROR(EvalCall(bytecode));
+      break;
+    }
+    case Bytecode::Op::kCast: {
+      XLS_RETURN_IF_ERROR(EvalCast(bytecode));
       break;
     }
     case Bytecode::Op::kConcat: {
@@ -220,6 +225,102 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
 
   return absl::UnimplementedError(
       "User-defined functions are not yet supported.");
+}
+
+absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode) {
+  if (!bytecode.data().has_value() ||
+      !absl::holds_alternative<std::unique_ptr<ConcreteType>>(
+          bytecode.data().value())) {
+    return absl::InternalError("Cast op requires ConcreteType data.");
+  }
+
+  XLS_ASSIGN_OR_RETURN(InterpValue from, Pop());
+
+  if (!bytecode.data().has_value()) {
+    return absl::InternalError("Cast op is missing its data element!");
+  }
+
+  ConcreteType* to =
+      absl::get<std::unique_ptr<ConcreteType>>(bytecode.data().value()).get();
+  if (from.IsArray()) {
+    // From array to bits.
+    BitsType* to_bits = dynamic_cast<BitsType*>(to);
+    if (to_bits == nullptr) {
+      return absl::InvalidArgumentError(
+          "Array types can only be cast to bits.");
+    }
+    XLS_ASSIGN_OR_RETURN(InterpValue converted, from.Flatten());
+    stack_.push_back(converted);
+    return absl::OkStatus();
+  }
+
+  if (from.IsEnum()) {
+    // From enum to bits.
+    BitsType* to_bits = dynamic_cast<BitsType*>(to);
+    if (to_bits == nullptr) {
+      return absl::InvalidArgumentError("Enum types can only be cast to bits.");
+    }
+
+    stack_.push_back(
+        InterpValue::MakeBits(from.IsSigned(), from.GetBitsOrDie()));
+    return absl::OkStatus();
+  }
+
+  if (!from.IsBits()) {
+    return absl::InvalidArgumentError(
+        "Only casts from arrays, enums, and bits are supported.");
+  }
+
+  int64_t from_bit_count = from.GetBits().value().bit_count();
+  // From bits to array.
+  if (ArrayType* to_array = dynamic_cast<ArrayType*>(to); to_array != nullptr) {
+    XLS_ASSIGN_OR_RETURN(int64_t to_bit_count,
+                         to_array->GetTotalBitCount().value().GetAsInt64());
+    if (from_bit_count != to_bit_count) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Cast to array had mismatching bit counts: from %d to %d.",
+          from_bit_count, to_bit_count));
+    }
+    XLS_ASSIGN_OR_RETURN(InterpValue casted, CastBitsToArray(from, *to_array));
+    stack_.push_back(casted);
+    return absl::OkStatus();
+  }
+
+  // From bits to enum.
+  if (EnumType* to_enum = dynamic_cast<EnumType*>(to); to_enum != nullptr) {
+    XLS_ASSIGN_OR_RETURN(InterpValue converted, CastBitsToEnum(from, *to_enum));
+    stack_.push_back(converted);
+    return absl::OkStatus();
+  }
+
+  BitsType* to_bits = dynamic_cast<BitsType*>(to);
+  if (to_bits == nullptr) {
+    return absl::InvalidArgumentError(
+        "Bits can only be cast to arrays, enums, or other bits types.");
+  }
+
+  XLS_ASSIGN_OR_RETURN(int64_t to_bit_count,
+                       to_bits->GetTotalBitCount().value().GetAsInt64());
+
+  Bits result_bits;
+  if (from_bit_count == to_bit_count) {
+    result_bits = from.GetBitsOrDie();
+  } else {
+    if (from.IsSigned()) {
+      // Despite the name, InterpValue::SignExt also shrinks.
+      XLS_ASSIGN_OR_RETURN(InterpValue tmp, from.SignExt(to_bit_count));
+      result_bits = tmp.GetBitsOrDie();
+    } else {
+      // Same for ZeroExt.
+      XLS_ASSIGN_OR_RETURN(InterpValue tmp, from.ZeroExt(to_bit_count));
+      result_bits = tmp.GetBitsOrDie();
+    }
+  }
+  InterpValue result = InterpValue::MakeBits(to_bits->is_signed(), result_bits);
+
+  stack_.push_back(result);
+
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeInterpreter::EvalConcat(const Bytecode& bytecode) {

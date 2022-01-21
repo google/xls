@@ -42,7 +42,7 @@ class BytecodeEmitter : public ExprVisitor {
   void HandleAttr(Attr* node) override;
   void HandleBinop(Binop* node) override;
   void HandleCarry(Carry* node) override { DefaultHandler(node); }
-  void HandleCast(Cast* node) override { DefaultHandler(node); }
+  void HandleCast(Cast* node) override;
   void HandleChannelDecl(ChannelDecl* node) override { DefaultHandler(node); }
   void HandleColonRef(ColonRef* node) override;
   void HandleConstRef(ConstRef* node) override;
@@ -76,6 +76,10 @@ class BytecodeEmitter : public ExprVisitor {
                         node->ToString()));
   }
 
+  absl::Status CastArrayToBits(Span span, ArrayType* from_array,
+                               BitsType* to_bits);
+  absl::Status CastBitsToArray(Span span, BitsType* from_bits,
+                               ArrayType* to_array);
   absl::Status HandleColonRefToImportedConstant(
       ColonRef* colon_ref, Import* import, absl::string_view constant_name);
   absl::Status HandleColonRefToImportedEnum(ColonRef* colon_ref);

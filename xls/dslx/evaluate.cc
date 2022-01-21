@@ -18,6 +18,7 @@
 #include "absl/strings/match.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/type_info.h"
 #include "xls/ir/bits_ops.h"
 
@@ -426,47 +427,14 @@ absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
   // Converting unsigned bits to an array.
   if (auto* array_type = dynamic_cast<const ArrayType*>(&type);
       array_type != nullptr && value.IsUBits()) {
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim element_bit_count,
-                         array_type->element_type().GetTotalBitCount());
-    XLS_ASSIGN_OR_RETURN(int64_t bits_per_element,
-                         element_bit_count.GetAsInt64());
-    const Bits& bits = value.GetBitsOrDie();
-
-    auto bit_slice_value_at_index = [&](int64_t i) -> InterpValue {
-      int64_t lo = i * bits_per_element;
-      Bits rev = bits_ops::Reverse(bits);
-      Bits slice = rev.Slice(lo, bits_per_element);
-      Bits result = bits_ops::Reverse(slice);
-      return InterpValue::MakeBits(InterpValueTag::kUBits, result).value();
-    };
-
-    std::vector<InterpValue> values;
-    XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
-    for (int64_t i = 0; i < array_size; ++i) {
-      values.push_back(bit_slice_value_at_index(i));
-    }
-
-    return InterpValue::MakeArray(values);
+    return CastBitsToArray(value, *array_type);
   }
 
   // Converting bits-having-thing into an enum.
   if (auto* enum_type = dynamic_cast<const EnumType*>(&type);
       enum_type != nullptr && value.HasBits() &&
       BitCountMatches(value, type.GetTotalBitCount().value())) {
-    const EnumDef& enum_def = enum_type->nominal_type();
-    bool found = false;
-    for (const InterpValue& enum_value : *enum_values) {
-      if (value.GetBitsOrDie() == enum_value.GetBitsOrDie()) {
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      return absl::InternalError(absl::StrFormat(
-          "FailureError: %s Value is not valid for enum %s: %s",
-          span.ToString(), enum_def.identifier(), value.ToString()));
-    }
-    return InterpValue::MakeEnum(value.GetBitsOrDie(), &enum_def);
+    return CastBitsToEnum(value, *enum_type);
   }
 
   // Converting enum value to bits.
@@ -1423,7 +1391,14 @@ ConcretizeTypeRefTypeAnnotation(TypeRefTypeAnnotation* type_ref,
         ConcretizeType(enum_def->type_annotation(), bindings, interp));
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bit_count,
                          underlying_type->GetTotalBitCount());
-    return std::make_unique<EnumType>(*enum_def, bit_count);
+
+    std::vector<InterpValue> members;
+    for (const EnumMember& member : enum_def->values()) {
+      XLS_ASSIGN_OR_RETURN(InterpValue value,
+                           interp->Eval(member.value, bindings));
+      members.push_back(std::move(value));
+    }
+    return std::make_unique<EnumType>(*enum_def, bit_count, members);
   }
 
   // Start with the parametrics that are given in the type reference, and then

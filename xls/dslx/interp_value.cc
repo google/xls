@@ -423,6 +423,15 @@ absl::StatusOr<InterpValue> InterpValue::Slice(
   return InterpValue(InterpValueTag::kArray, result);
 }
 
+absl::StatusOr<InterpValue> InterpValue::Index(int64_t index) const {
+  XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* lhs, GetValues());
+  if (lhs->size() <= index) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Index out of bounds: %d >= %d elements", index, lhs->size()));
+  }
+  return (*lhs)[index];
+}
+
 absl::StatusOr<InterpValue> InterpValue::Index(const InterpValue& other) const {
   XLS_RET_CHECK(other.IsUBits());
   XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* lhs, GetValues());

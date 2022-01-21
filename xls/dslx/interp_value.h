@@ -235,6 +235,7 @@ class InterpValue {
   absl::StatusOr<InterpValue> ArithmeticNegate() const;
   absl::StatusOr<InterpValue> FloorDiv(const InterpValue& other) const;
   absl::StatusOr<InterpValue> Index(const InterpValue& other) const;
+  absl::StatusOr<InterpValue> Index(int64_t index) const;
   absl::StatusOr<InterpValue> Update(const InterpValue& index,
                                      const InterpValue& value) const;
   absl::StatusOr<InterpValue> Slice(const InterpValue& start,
