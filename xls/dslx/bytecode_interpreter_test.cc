@@ -34,8 +34,10 @@ TEST(BytecodeInterpreterTest, PositiveSmokeTest) {
   std::vector<Bytecode> bytecodes;
   bytecodes.push_back(
       Bytecode(Span::Fake(), Bytecode::Op::kLiteral, InterpValue::MakeU32(1)));
-  bytecodes.push_back(Bytecode(Span::Fake(), Bytecode::Op::kStore, 0));
-  bytecodes.push_back(Bytecode(Span::Fake(), Bytecode::Op::kLoad, 0));
+  bytecodes.push_back(
+      Bytecode(Span::Fake(), Bytecode::Op::kStore, Bytecode::SlotIndex(0)));
+  bytecodes.push_back(
+      Bytecode(Span::Fake(), Bytecode::Op::kLoad, Bytecode::SlotIndex(0)));
   bytecodes.push_back(
       Bytecode(Span::Fake(), Bytecode::Op::kLiteral, InterpValue::MakeU32(2)));
   bytecodes.push_back(Bytecode(Span::Fake(), Bytecode::Op::kAdd));
@@ -53,14 +55,18 @@ TEST(BytecodeInterpreterTest, AssertEqFail) {
   std::vector<Bytecode> bytecodes;
   bytecodes.push_back(
       Bytecode(Span::Fake(), Bytecode::Op::kLiteral, InterpValue::MakeU32(3)));
-  bytecodes.push_back(Bytecode(Span::Fake(), Bytecode::Op::kStore, 0));
-  bytecodes.push_back(Bytecode(Span::Fake(), Bytecode::Op::kLoad, 0));
+  bytecodes.push_back(
+      Bytecode(Span::Fake(), Bytecode::Op::kStore, Bytecode::SlotIndex(0)));
+  bytecodes.push_back(
+      Bytecode(Span::Fake(), Bytecode::Op::kLoad, Bytecode::SlotIndex(0)));
   bytecodes.push_back(
       Bytecode(Span::Fake(), Bytecode::Op::kLiteral, InterpValue::MakeU32(2)));
   InterpValue fn_value(InterpValue::MakeFunction(Builtin::kAssertEq));
   bytecodes.push_back(Bytecode(Span::Fake(), Bytecode::Op::kCall, fn_value));
-  bytecodes.push_back(Bytecode(Span::Fake(), Bytecode::Op::kStore, 1));
-  bytecodes.push_back(Bytecode(Span::Fake(), Bytecode::Op::kLoad, 0));
+  bytecodes.push_back(
+      Bytecode(Span::Fake(), Bytecode::Op::kStore, Bytecode::SlotIndex(1)));
+  bytecodes.push_back(
+      Bytecode(Span::Fake(), Bytecode::Op::kLoad, Bytecode::SlotIndex(0)));
 
   std::vector<InterpValue> env;
   env.push_back(InterpValue::MakeUnit());

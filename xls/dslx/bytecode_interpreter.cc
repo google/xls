@@ -16,6 +16,7 @@
 
 #include "absl/status/status.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins.h"
 #include "xls/dslx/interp_value.h"
@@ -102,8 +103,10 @@ absl::StatusOr<int64_t> BytecodeInterpreter::EvalInstruction(
     }
     case Bytecode::Op::kJumpDest:
       break;
-    case Bytecode::Op::kJumpRel:
-      return pc + bytecode.integer_data().value();
+    case Bytecode::Op::kJumpRel: {
+      XLS_ASSIGN_OR_RETURN(Bytecode::JumpTarget target, bytecode.jump_target());
+      return pc + target.value();
+    }
     case Bytecode::Op::kJumpRelIf: {
       XLS_ASSIGN_OR_RETURN(
           std::optional<int64_t> new_pc, EvalJumpRelIf(pc, bytecode));
@@ -330,12 +333,13 @@ absl::Status BytecodeInterpreter::EvalConcat(const Bytecode& bytecode) {
 }
 
 absl::Status BytecodeInterpreter::EvalCreateArray(const Bytecode& bytecode) {
-  XLS_ASSIGN_OR_RETURN(int64_t array_size, bytecode.integer_data());
-  XLS_RET_CHECK_GE(stack_.size(), array_size);
+  XLS_ASSIGN_OR_RETURN(Bytecode::NumElements array_size,
+                       bytecode.num_elements());
+  XLS_RET_CHECK_GE(stack_.size(), array_size.value());
 
   std::vector<InterpValue> elements;
-  elements.reserve(array_size);
-  for (int64_t i = 0; i < array_size; i++) {
+  elements.reserve(array_size.value());
+  for (int64_t i = 0; i < array_size.value(); i++) {
     XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
     elements.push_back(value);
   }
@@ -347,12 +351,13 @@ absl::Status BytecodeInterpreter::EvalCreateArray(const Bytecode& bytecode) {
 }
 
 absl::Status BytecodeInterpreter::EvalCreateTuple(const Bytecode& bytecode) {
-  XLS_ASSIGN_OR_RETURN(int64_t tuple_size, bytecode.integer_data());
-  XLS_RET_CHECK_GE(stack_.size(), tuple_size);
+  XLS_ASSIGN_OR_RETURN(Bytecode::NumElements tuple_size,
+                       bytecode.num_elements());
+  XLS_RET_CHECK_GE(stack_.size(), tuple_size.value());
 
   std::vector<InterpValue> elements;
-  elements.reserve(tuple_size);
-  for (int64_t i = 0; i < tuple_size; i++) {
+  elements.reserve(tuple_size.value());
+  for (int64_t i = 0; i < tuple_size.value(); i++) {
     XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
     elements.push_back(value);
   }
@@ -442,13 +447,13 @@ absl::Status BytecodeInterpreter::EvalLiteral(const Bytecode& bytecode) {
 }
 
 absl::Status BytecodeInterpreter::EvalLoad(const Bytecode& bytecode) {
-  XLS_ASSIGN_OR_RETURN(int64_t slot, bytecode.integer_data());
-  if (slots_->size() <= slot) {
+  XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot, bytecode.slot_index());
+  if (slots_->size() <= slot.value()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Attempted to access local data in slot %d, which out of range.",
-        slot));
+        slot.value()));
   }
-  stack_.push_back(slots_->at(slot));
+  stack_.push_back(slots_->at(slot.value()));
   return absl::OkStatus();
 }
 
@@ -576,19 +581,19 @@ absl::Status BytecodeInterpreter::EvalSlice(const Bytecode& bytecode) {
 }
 
 absl::Status BytecodeInterpreter::EvalStore(const Bytecode& bytecode) {
-  XLS_ASSIGN_OR_RETURN(int64_t slot, bytecode.integer_data());
+  XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot, bytecode.slot_index());
   if (stack_.empty()) {
     return absl::InvalidArgumentError(
         "Attempted to store value from empty stack.");
   }
 
-  if (slots_->size() <= slot) {
+  if (slots_->size() <= slot.value()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Attempted to access local data in slot %d, which out of range.",
-        slot));
+        slot.value()));
   }
 
-  slots_->at(slot) = stack_.back();
+  slots_->at(slot.value()) = stack_.back();
   stack_.pop_back();
   return absl::OkStatus();
 }
@@ -598,7 +603,8 @@ absl::StatusOr<std::optional<int64_t>> BytecodeInterpreter::EvalJumpRelIf(
   XLS_ASSIGN_OR_RETURN(InterpValue top, Pop());
   XLS_VLOG(2) << "jump_rel_if value: " << top.ToString();
   if (top.IsTrue()) {
-    return pc + bytecode.integer_data().value();
+    XLS_ASSIGN_OR_RETURN(Bytecode::JumpTarget target, bytecode.jump_target());
+    return pc + target.value();
   }
   return std::nullopt;
 }

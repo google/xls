@@ -15,6 +15,7 @@
 #include "xls/dslx/bytecode.h"
 
 #include "absl/strings/str_split.h"
+#include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/number_parser.h"
@@ -171,6 +172,50 @@ std::string BytecodesToString(absl::Span<const Bytecode> bytecodes,
   return program;
 }
 
+absl::StatusOr<Bytecode::JumpTarget> Bytecode::jump_target() const {
+  if (!has_data()) {
+    return absl::InvalidArgumentError("Bytecode does not hold data.");
+  }
+  if (!absl::holds_alternative<JumpTarget>(data_.value())) {
+    return absl::InvalidArgumentError("Bytecode data is not a JumpTarget.");
+  }
+
+  return absl::get<JumpTarget>(data_.value());
+}
+
+absl::StatusOr<Bytecode::NumElements> Bytecode::num_elements() const {
+  if (!has_data()) {
+    return absl::InvalidArgumentError("Bytecode does not hold data.");
+  }
+  if (!absl::holds_alternative<NumElements>(data_.value())) {
+    return absl::InvalidArgumentError("Bytecode data is not a NumElements.");
+  }
+
+  return absl::get<NumElements>(data_.value());
+}
+
+absl::StatusOr<Bytecode::SlotIndex> Bytecode::slot_index() const {
+  if (!has_data()) {
+    return absl::InvalidArgumentError("Bytecode does not hold data.");
+  }
+  if (!absl::holds_alternative<SlotIndex>(data_.value())) {
+    return absl::InvalidArgumentError("Bytecode data is not a SlotIndex.");
+  }
+
+  return absl::get<SlotIndex>(data_.value());
+}
+
+absl::StatusOr<InterpValue> Bytecode::value_data() const {
+  if (!has_data()) {
+    return absl::InvalidArgumentError("Bytecode does not hold data.");
+  }
+  if (!absl::holds_alternative<InterpValue>(data_.value())) {
+    return absl::InvalidArgumentError("Bytecode data is not an InterpValue.");
+  }
+
+  return absl::get<InterpValue>(data_.value());
+}
+
 std::string Bytecode::ToString(bool source_locs) const {
   std::string op_string = OpToString(op_);
   std::string loc_string;
@@ -179,16 +224,15 @@ std::string Bytecode::ToString(bool source_locs) const {
   }
 
   if (op_ == Op::kJumpRel || op_ == Op::kJumpRelIf) {
-    return absl::StrFormat("%s %+d%s", OpToString(op_),
-                           absl::get<int64_t>(data_.value()), loc_string);
+    XLS_CHECK(absl::holds_alternative<JumpTarget>(data_.value()));
+    JumpTarget target = absl::get<JumpTarget>(data_.value());
+    return absl::StrFormat("%s %+d%s", OpToString(op_), target.value(),
+                           loc_string);
   }
 
   if (data_.has_value()) {
     std::string data_string;
-    if (absl::holds_alternative<int64_t>(data_.value())) {
-      int64_t data = absl::get<int64_t>(data_.value());
-      data_string = absl::StrCat(data);
-    } else if (absl::holds_alternative<InterpValue>(data_.value())) {
+    if (absl::holds_alternative<InterpValue>(data_.value())) {
       data_string = absl::get<InterpValue>(data_.value()).ToString();
     } else {
       data_string =
@@ -249,12 +293,15 @@ absl::StatusOr<std::vector<Bytecode>> BytecodesFromString(
       if (op == Bytecode::Op::kLiteral) {
         XLS_ASSIGN_OR_RETURN(data, ParseInterpValue(value_str));
       } else if (!value_str.empty()) {
+        // ParseInterpValue works for DSLX literal-typed numbers, but jump
+        // offsets won't have type prefixes or optional leading '+' signs, so we
+        // use SimpleAtoi() instead (rather than updating ParseNumber()).
         int64_t integer_data;
         if (!absl::SimpleAtoi(value_str, &integer_data)) {
           return absl::InvalidArgumentError(absl::StrFormat(
               "Could not parse data payload in line: `%s`", line));
         }
-        data = integer_data;
+        data = Bytecode::JumpTarget(integer_data);
       }
     }
     result.push_back(Bytecode(Span::Fake(), op, std::move(data)));

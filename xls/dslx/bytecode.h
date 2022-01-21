@@ -17,6 +17,7 @@
 #include <memory>
 
 #include "absl/types/variant.h"
+#include "xls/common/strong_int.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/pos.h"
@@ -114,8 +115,19 @@ class Bytecode {
     kXor,
   };
 
-  using Data =
-      absl::variant<int64_t, InterpValue, std::unique_ptr<ConcreteType>>;
+  // Indicates the amount by which the PC should be adjusted.
+  // Used by kJumpRel and kJumpRelIf opcodes.
+  DEFINE_STRONG_INT_TYPE(JumpTarget, int64_t);
+
+  // Indicates the size of a data structure; used by kCreateArray and
+  // kCreateTuple opcodes.
+  DEFINE_STRONG_INT_TYPE(NumElements, int64_t);
+
+  // Indicates the index into which to store or from which to load a value. Used
+  // by kLoad and kStore opcodes.
+  DEFINE_STRONG_INT_TYPE(SlotIndex, int64_t);
+  using Data = absl::variant<InterpValue, JumpTarget, NumElements, SlotIndex,
+                             std::unique_ptr<ConcreteType>>;
 
   // Creates an operation w/o any accessory data. The span is present for
   // reporting error source location.
@@ -132,31 +144,16 @@ class Bytecode {
 
   bool has_data() const { return data_.has_value(); }
 
-  absl::StatusOr<int64_t> integer_data() const {
-    if (!has_data()) {
-      return absl::InvalidArgumentError("Bytecode does not hold data.");
-    }
-    if (!absl::holds_alternative<int64_t>(data_.value())) {
-      return absl::InvalidArgumentError("Bytecode data is not an integer.");
-    }
-    return absl::get<int64_t>(data_.value());
-  }
-
-  absl::StatusOr<InterpValue> value_data() const {
-    if (!has_data()) {
-      return absl::InvalidArgumentError("Bytecode does not hold data.");
-    }
-    if (!absl::holds_alternative<InterpValue>(data_.value())) {
-      return absl::InvalidArgumentError("Bytecode data is not an InterpValue.");
-    }
-    return absl::get<InterpValue>(data_.value());
-  }
+  absl::StatusOr<JumpTarget> jump_target() const;
+  absl::StatusOr<NumElements> num_elements() const;
+  absl::StatusOr<InterpValue> value_data() const;
+  absl::StatusOr<SlotIndex> slot_index() const;
 
   std::string ToString(bool source_locs = true) const;
 
   // Value used as an integer data placeholder in jumps before their
   // target/amount has become known during bytecode emission.
-  static constexpr int64_t kPlaceholderJumpAmount = -1;
+  static constexpr JumpTarget kPlaceholderJumpAmount = JumpTarget(-1);
 
   // Used for patching up e.g. jump targets.
   //
@@ -169,8 +166,9 @@ class Bytecode {
   // that should be patched.
   void Patch(int64_t value) {
     XLS_CHECK(data_.has_value());
-    XLS_CHECK_EQ(absl::get<int64_t>(data_.value()), kPlaceholderJumpAmount);
-    data_ = value;
+    JumpTarget jump_target = absl::get<JumpTarget>(data_.value());
+    XLS_CHECK_EQ(jump_target, kPlaceholderJumpAmount);
+    data_ = JumpTarget(value);
   }
 
  private:

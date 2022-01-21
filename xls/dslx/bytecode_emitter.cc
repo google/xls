@@ -52,7 +52,7 @@ void BytecodeEmitter::HandleArray(Array* node) {
   }
 
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateArray,
-                               static_cast<int64_t>(node->members().size())));
+                               Bytecode::NumElements(node->members().size())));
 }
 
 void BytecodeEmitter::HandleAttr(Attr* node) {
@@ -79,7 +79,7 @@ void BytecodeEmitter::HandleAttr(Attr* node) {
   }
 
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
-                               InterpValue::MakeU64(member_index_or.value())));
+                               InterpValue::MakeS64(member_index_or.value())));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kIndex));
 }
 
@@ -566,7 +566,8 @@ void BytecodeEmitter::DestructureLet(NameDefTree* tree) {
       namedef_to_slot_->insert({name_def, namedef_to_slot_->size()});
     }
     int64_t slot = namedef_to_slot_->at(name_def);
-    bytecode_.push_back(Bytecode(tree->span(), Bytecode::Op::kStore, slot));
+    bytecode_.push_back(Bytecode(tree->span(), Bytecode::Op::kStore,
+                                 Bytecode::SlotIndex(slot)));
   } else {
     bytecode_.push_back(Bytecode(tree->span(), Bytecode::Op::kExpandTuple));
     for (const auto& node : tree->nodes()) {
@@ -600,7 +601,8 @@ void BytecodeEmitter::HandleNameRef(NameRef* node) {
         absl::UnimplementedError("NameRefs to builtins are not yet supported.");
   }
   int64_t slot = namedef_to_slot_->at(absl::get<NameDef*>(node->name_def()));
-  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLoad, slot));
+  bytecode_.push_back(
+      Bytecode(node->span(), Bytecode::Op::kLoad, Bytecode::SlotIndex(slot)));
 }
 
 void BytecodeEmitter::HandleNumber(Number* node) {
@@ -659,8 +661,8 @@ void BytecodeEmitter::HandleStructInstance(StructInstance* node) {
     member.second->AcceptExpr(this);
   }
 
-  bytecode_.push_back(
-      Bytecode(node->span(), Bytecode::Op::kCreateTuple, struct_def.size()));
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
+                               Bytecode::NumElements(struct_def.size())));
 }
 
 void BytecodeEmitter::HandleUnop(Unop* node) {
@@ -690,7 +692,7 @@ void BytecodeEmitter::HandleXlsTuple(XlsTuple* node) {
 
   // Pop the N elements and push the result as a single value.
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
-                               static_cast<int64_t>(node->members().size())));
+                               Bytecode::NumElements(node->members().size())));
 }
 
 void BytecodeEmitter::HandleTernary(Ternary* node) {

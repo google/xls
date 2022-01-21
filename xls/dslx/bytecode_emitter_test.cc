@@ -69,12 +69,13 @@ TEST(BytecodeEmitterTest, SimpleTranslation) {
   bc = &bytecodes[1];
   ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 0);
+  XLS_ASSERT_OK_AND_ASSIGN(Bytecode::SlotIndex slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 0);
 
   bc = &bytecodes[2];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 0);
+  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
 
   bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
@@ -107,12 +108,14 @@ fn expect_fail() -> u32{
   bc = &bytecodes[1];
   ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 0);
+  XLS_ASSERT_OK_AND_ASSIGN(Bytecode::SlotIndex slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 0);
 
   bc = &bytecodes[2];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 0);
+  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 0);
 
   bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
@@ -129,12 +132,14 @@ fn expect_fail() -> u32{
   bc = &bytecodes[5];
   ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 1);
+  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 1);
 
   bc = &bytecodes[6];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 0);
+  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 0);
 }
 
 // Validates emission of Let nodes with structured bindings.
@@ -166,17 +171,21 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
   bc = &bytecodes[6];
   ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 3);
+  XLS_ASSERT_OK_AND_ASSIGN(Bytecode::NumElements num_elements,
+                           bc->num_elements());
+  ASSERT_EQ(num_elements.value(), 3);
 
   bc = &bytecodes[7];
   ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 2);
+  XLS_ASSERT_OK_AND_ASSIGN(num_elements, bc->num_elements());
+  ASSERT_EQ(num_elements.value(), 2);
 
   bc = &bytecodes[8];
   ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 3);
+  XLS_ASSERT_OK_AND_ASSIGN(num_elements, bc->num_elements());
+  ASSERT_EQ(num_elements.value(), 3);
 
   bc = &bytecodes[9];
   ASSERT_EQ(bc->op(), Bytecode::Op::kExpandTuple);
@@ -185,12 +194,14 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
   bc = &bytecodes[10];
   ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 0);
+  XLS_ASSERT_OK_AND_ASSIGN(Bytecode::SlotIndex slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 0);
 
   bc = &bytecodes[11];
   ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 1);
+  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 1);
 
   bc = &bytecodes[12];
   ASSERT_EQ(bc->op(), Bytecode::Op::kExpandTuple);
@@ -199,28 +210,33 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
   bc = &bytecodes[13];
   ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 2);
+  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 2);
 
   bc = &bytecodes[14];
   ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 3);
+  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 3);
 
   // Skip the uninteresting comparisons.
   bc = &bytecodes[27];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 3);
+  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 3);
 
   bc = &bytecodes[31];
   ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 3);
+  XLS_ASSERT_OK_AND_ASSIGN(num_elements, bc->num_elements());
+  ASSERT_EQ(num_elements.value(), 3);
 
   bc = &bytecodes[34];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 3);
+  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 3);
 }
 
 TEST(BytecodeEmitterTest, Ternary) {
@@ -372,7 +388,9 @@ fn arrays() -> u32[3] {
   Bytecode* bc = &bytecodes[5];
   ASSERT_EQ(bc->op(), Bytecode::Op::kCreateArray);
   ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->integer_data().value(), 3);
+  XLS_ASSERT_OK_AND_ASSIGN(Bytecode::NumElements num_elements,
+                           bc->num_elements());
+  ASSERT_EQ(num_elements.value(), 3);
 }
 
 // Tests emission of kIndex ops on arrays.
