@@ -46,6 +46,7 @@ cc_library(
     srcs = ["bytecode.cc"],
     hdrs = ["bytecode.h"],
     deps = [
+        ":ast",
         ":concrete_type",
         ":interp_value",
         ":pos",

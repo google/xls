@@ -29,9 +29,8 @@ namespace xls::dslx {
 class BytecodeInterpreter {
  public:
   static absl::StatusOr<InterpValue> Interpret(
-      const std::vector<Bytecode>& bytecode,
-      const std::vector<InterpValue>& params) {
-    BytecodeInterpreter interp(bytecode);
+      const BytecodeFunction& bf, const std::vector<InterpValue>& params) {
+    BytecodeInterpreter interp(bf);
     XLS_RETURN_IF_ERROR(interp.Run(params));
     return interp.stack_.back();
   }
@@ -39,8 +38,7 @@ class BytecodeInterpreter {
   const std::vector<InterpValue>& stack() { return stack_; }
 
  private:
-  BytecodeInterpreter(const std::vector<Bytecode>& bytecode)
-      : bytecode_(bytecode) {}
+  BytecodeInterpreter(const BytecodeFunction& bf) : bf_(bf) {}
 
   absl::Status Run(const std::vector<InterpValue>& params);
 
@@ -88,7 +86,7 @@ class BytecodeInterpreter {
 
   absl::StatusOr<InterpValue> Pop();
 
-  const std::vector<Bytecode>& bytecode_;
+  const BytecodeFunction& bf_;
   std::vector<InterpValue> stack_;
   std::vector<InterpValue> slots_;
 };

@@ -27,7 +27,7 @@ BytecodeEmitter::BytecodeEmitter(ImportData* import_data, TypeInfo* type_info)
 
 BytecodeEmitter::~BytecodeEmitter() = default;
 
-absl::StatusOr<std::vector<Bytecode>> BytecodeEmitter::Emit(Function* f) {
+absl::StatusOr<BytecodeFunction> BytecodeEmitter::Emit(Function* f) {
   status_ = absl::OkStatus();
   bytecode_.clear();
 
@@ -42,7 +42,7 @@ absl::StatusOr<std::vector<Bytecode>> BytecodeEmitter::Emit(Function* f) {
     return status_;
   }
 
-  return std::move(bytecode_);
+  return BytecodeFunction::Create(f, std::move(bytecode_));
 }
 
 void BytecodeEmitter::HandleArray(Array* node) {

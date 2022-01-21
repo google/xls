@@ -33,7 +33,7 @@ class BytecodeEmitter : public ExprVisitor {
  public:
   BytecodeEmitter(ImportData* import_data, TypeInfo* type_info);
   ~BytecodeEmitter();
-  absl::StatusOr<std::vector<Bytecode>> Emit(Function* f);
+  absl::StatusOr<BytecodeFunction> Emit(Function* f);
 
  private:
   void HandleArray(Array* node) override;

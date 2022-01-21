@@ -309,4 +309,26 @@ absl::StatusOr<std::vector<Bytecode>> BytecodesFromString(
   return result;
 }
 
+absl::StatusOr<BytecodeFunction> BytecodeFunction::Create(
+    Function* source, std::vector<Bytecode> bytecodes) {
+  BytecodeFunction bf(source, std::move(bytecodes));
+  XLS_RETURN_IF_ERROR(bf.Init());
+  return bf;
+}
+
+BytecodeFunction::BytecodeFunction(Function* source,
+                                   std::vector<Bytecode> bytecodes)
+    : source_(source), bytecodes_(std::move(bytecodes)) {}
+
+absl::Status BytecodeFunction::Init() {
+  num_slots_ = 0;
+  for (const auto& bc : bytecodes_) {
+    if (bc.op() == Bytecode::Op::kLoad || bc.op() == Bytecode::Op::kStore) {
+      XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot, bc.slot_index());
+      num_slots_ = std::max(num_slots_, slot.value() + 1);
+    }
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace xls::dslx

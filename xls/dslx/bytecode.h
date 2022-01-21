@@ -18,6 +18,7 @@
 
 #include "absl/types/variant.h"
 #include "xls/common/strong_int.h"
+#include "xls/dslx/ast.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/pos.h"
@@ -175,6 +176,28 @@ class Bytecode {
   Span source_span_;
   Op op_;
   absl::optional<Data> data_;
+};
+
+// Holds all the bytecode implementing a function along with useful metadata.
+class BytecodeFunction {
+ public:
+  // Note: this is an O(N) operation where N is the number of ops in the
+  // bytecode. Also, "source" may be null.
+  static absl::StatusOr<BytecodeFunction> Create(
+      Function* source, std::vector<Bytecode> bytecode);
+
+  Function* source() const { return source_; }
+  const std::vector<Bytecode>& bytecodes() const { return bytecodes_; }
+  // Returns the total number of memory "slots" used by the bytecodes.
+  int64_t num_slots() const { return num_slots_; }
+
+ private:
+  BytecodeFunction(Function* source, std::vector<Bytecode> bytecode);
+  absl::Status Init();
+
+  Function* source_;
+  std::vector<Bytecode> bytecodes_;
+  int64_t num_slots_;
 };
 
 // Converts the given sequence of bytecodes to a more human-readable string,

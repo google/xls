@@ -30,16 +30,17 @@ absl::Status BytecodeInterpreter::Run(const std::vector<InterpValue>& params) {
     slots_.push_back(param);
   }
 
+  const std::vector<Bytecode>& bytecodes = bf_.bytecodes();
   int64_t pc = 0;
-  while (pc < bytecode_.size()) {
+  while (pc < bytecodes.size()) {
     XLS_VLOG(2) << std::hex << "PC: " << pc << " : "
-                << bytecode_.at(pc).ToString();
-    const Bytecode& bytecode = bytecode_.at(pc);
+                << bytecodes.at(pc).ToString();
+    const Bytecode& bytecode = bytecodes.at(pc);
     XLS_ASSIGN_OR_RETURN(int64_t new_pc, EvalInstruction(pc, bytecode));
     if (new_pc != pc + 1) {
-      XLS_RET_CHECK(bytecode_.at(new_pc).op() == Bytecode::Op::kJumpDest)
+      XLS_RET_CHECK(bytecodes.at(new_pc).op() == Bytecode::Op::kJumpDest)
           << "Jumping from PC " << pc << " to PC: " << new_pc
-          << " bytecode: " << bytecode_.at(new_pc).ToString()
+          << " bytecode: " << bytecodes.at(new_pc).ToString()
           << " not a jump_dest";
     }
     pc = new_pc;
