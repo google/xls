@@ -794,5 +794,40 @@ fn cast_bits_to_enum() -> MyEnum {
   ASSERT_EQ(bc->op(), Bytecode::Op::kCast);
 }
 
+TEST(BytecodeEmitterTest, HandlesSplatStructInstances) {
+  constexpr absl::string_view kProgram = R"(struct MyStruct {
+  x: u16,
+  y: u32,
+  z: u64,
+}
+
+#![test]
+fn handles_struct_instances() -> MyStruct {
+  let a = u16:2;
+  let b = MyStruct { z: u64:0xbeef, x: a, y: u32:3 };
+  MyStruct { y:u32:0xf00d, ..b }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
+                           EmitBytecodes(kProgram, "handles_struct_instances"));
+
+  Bytecode* bc = &bytecodes[7];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
+  bc = &bytecodes[8];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
+  bc = &bytecodes[9];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kIndex);
+
+  bc = &bytecodes[10];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
+
+  bc = &bytecodes[11];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
+  bc = &bytecodes[12];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
+  bc = &bytecodes[13];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kIndex);
+}
+
 }  // namespace
 }  // namespace xls::dslx

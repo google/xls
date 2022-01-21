@@ -665,6 +665,56 @@ void BytecodeEmitter::HandleStructInstance(StructInstance* node) {
                                Bytecode::NumElements(struct_def.size())));
 }
 
+void BytecodeEmitter::HandleSplatStructInstance(SplatStructInstance* node) {
+  // For each field in the struct:
+  //   If it's specified in the SplatStructInstance, then use it,
+  //   otherwise extract it from the base struct.
+  if (!status_.ok()) {
+    return;
+  }
+
+  absl::StatusOr<StructType*> struct_type =
+      type_info_->GetItemAs<StructType>(node);
+  if (!struct_type.ok()) {
+    status_ = struct_type.status();
+    return;
+  }
+
+  absl::StatusOr<std::vector<std::string>> member_names =
+      struct_type.value()->GetMemberNames();
+  if (!member_names.ok()) {
+    status_ = member_names.status();
+    return;
+  }
+
+  absl::flat_hash_map<std::string, Expr*> new_members;
+  for (const std::pair<std::string, Expr*>& new_member : node->members()) {
+    new_members[new_member.first] = new_member.second;
+  }
+
+  // To extract values from the base struct, we need to visit it and extract the
+  // appropriate attr (i.e., index into the representative tuple).
+  // Referencing a base struct doesn't have side effects, so we can just
+  // visit it as often as we need.
+
+  // Member names is ordered.
+  for (int i = 0; i < member_names->size(); i++) {
+    std::string& member_name = member_names->at(i);
+    if (new_members.contains(member_name)) {
+      new_members.at(member_name)->AcceptExpr(this);
+    } else {
+      node->splatted()->AcceptExpr(this);
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
+                                   InterpValue::MakeS64(i)));
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kIndex));
+    }
+  }
+
+  const StructDef& struct_def = struct_type.value()->nominal_type();
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
+                               InterpValue::MakeS64(struct_def.size())));
+}
+
 void BytecodeEmitter::HandleUnop(Unop* node) {
   if (!status_.ok()) {
     return;
