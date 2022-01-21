@@ -355,13 +355,10 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
     absl::Status status;
     if (options.bytecode) {
       XLS_ASSIGN_OR_RETURN(TestFunction * f, entry_module->GetTest(test_name));
-      absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-      std::vector<InterpValue> slots;
-      BytecodeEmitter emitter(&import_data, tm_or.value().type_info,
-                              &namedef_to_slot);
+      BytecodeEmitter emitter(&import_data, tm_or.value().type_info);
       XLS_ASSIGN_OR_RETURN(std::vector<Bytecode> bytecode,
                            emitter.Emit(f->fn()));
-      status = BytecodeInterpreter::Interpret(bytecode, &slots).status();
+      status = BytecodeInterpreter::Interpret(bytecode).status();
     } else {
       ModuleMember* member =
           entry_module->FindMemberWithName(test_name).value();

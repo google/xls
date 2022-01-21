@@ -31,9 +31,7 @@ namespace xls::dslx {
 // TODO(rspringer): Handle the rest of the Expr node types.
 class BytecodeEmitter : public ExprVisitor {
  public:
-  BytecodeEmitter(
-      ImportData* import_data, TypeInfo* type_info,
-      absl::flat_hash_map<const NameDef*, int64_t>* namedef_to_slot);
+  BytecodeEmitter(ImportData* import_data, TypeInfo* type_info);
   ~BytecodeEmitter();
   absl::StatusOr<std::vector<Bytecode>> Emit(Function* f);
 
@@ -88,7 +86,7 @@ class BytecodeEmitter : public ExprVisitor {
 
   absl::Status status_;
   std::vector<Bytecode> bytecode_;
-  absl::flat_hash_map<const NameDef*, int64_t>* namedef_to_slot_;
+  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot_;
 };
 
 }  // namespace xls::dslx

@@ -42,10 +42,8 @@ TEST(BytecodeInterpreterTest, PositiveSmokeTest) {
       Bytecode(Span::Fake(), Bytecode::Op::kLiteral, InterpValue::MakeU32(2)));
   bytecodes.push_back(Bytecode(Span::Fake(), Bytecode::Op::kAdd));
 
-  std::vector<InterpValue> env;
-  env.push_back(InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
   EXPECT_EQ(value, InterpValue::MakeU32(3));
 }
 
@@ -68,11 +66,7 @@ TEST(BytecodeInterpreterTest, AssertEqFail) {
   bytecodes.push_back(
       Bytecode(Span::Fake(), Bytecode::Op::kLoad, Bytecode::SlotIndex(0)));
 
-  std::vector<InterpValue> env;
-  env.push_back(InterpValue::MakeUnit());
-  env.push_back(InterpValue::MakeUnit());
-  absl::StatusOr<InterpValue> value =
-      BytecodeInterpreter::Interpret(bytecodes, &env);
+  absl::StatusOr<InterpValue> value = BytecodeInterpreter::Interpret(bytecodes);
   EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
                                        HasSubstr("were not equal")));
 }
@@ -94,16 +88,14 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("has_name_def_tree"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(8, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   ASSERT_TRUE(value.IsTuple());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t num_elements, value.GetLength());
@@ -133,9 +125,8 @@ TEST(BytecodeInterpreterTest, RunTernaryConsequent) {
 005 literal u32:42
 006 jump_dest)"));
 
-  std::vector<InterpValue> env;
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
   EXPECT_EQ(value, InterpValue::MakeU32(42)) << value.ToString();
 }
 
@@ -150,9 +141,8 @@ TEST(BytecodeInterpreterTest, RunTernaryAlternate) {
 005 literal u32:42
 006 jump_dest)"));
 
-  std::vector<InterpValue> env;
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
   EXPECT_EQ(value, InterpValue::MakeU32(64)) << value.ToString();
 }
 
@@ -169,15 +159,13 @@ fn do_and() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("do_and"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -197,15 +185,13 @@ fn do_concat() -> u64 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("do_concat"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -225,15 +211,13 @@ fn do_div() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("do_div"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -253,15 +237,13 @@ fn do_mul() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("do_mul"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -281,15 +263,13 @@ fn do_or() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("do_or"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -309,15 +289,13 @@ fn do_shll() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("do_shll"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -337,15 +315,13 @@ fn do_shrl() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("do_shrl"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -365,15 +341,13 @@ fn do_sub() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("do_sub"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -393,15 +367,13 @@ fn do_xor() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("do_xor"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -421,15 +393,13 @@ fn unops() -> s32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("unops"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -449,15 +419,13 @@ fn arrays() -> u32[3] {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("arrays"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
   ASSERT_TRUE(value.IsArray());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t num_elements, value.GetLength());
   ASSERT_EQ(num_elements, 3);
@@ -489,16 +457,14 @@ fn index_array() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("index_array"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
   ASSERT_TRUE(value.IsBits());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToInt64());
   EXPECT_EQ(int_value, 4);
@@ -518,16 +484,14 @@ fn index_tuple() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("index_tuple"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
   ASSERT_TRUE(value.IsBits());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToInt64());
   EXPECT_EQ(int_value, 6);
@@ -546,16 +510,14 @@ fn simple_slice() -> u16 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("simple_slice"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
   ASSERT_TRUE(value.IsBits());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToUint64());
   EXPECT_EQ(int_value, 0xdead);
@@ -575,16 +537,14 @@ fn negative_start_slice() -> u16 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("negative_start_slice"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
   ASSERT_TRUE(value.IsBits());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToUint64());
   EXPECT_EQ(int_value, 0xdead);
@@ -604,16 +564,14 @@ fn negative_end_slice() -> u16 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("negative_end_slice"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
   ASSERT_TRUE(value.IsBits());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToUint64());
   EXPECT_EQ(int_value, 0xbeef);
@@ -633,16 +591,14 @@ fn both_negative_slice() -> u8 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("both_negative_slice"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
   ASSERT_TRUE(value.IsBits());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToUint64());
   EXPECT_EQ(int_value, 0xad);
@@ -662,16 +618,14 @@ fn cast_extend() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("cast_extend"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -690,16 +644,14 @@ fn cast_shrink() -> u16 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("cast_shrink"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -718,16 +670,14 @@ fn cast_array_to_bits() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("cast_array_to_bits"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -747,16 +697,14 @@ fn cast_bits_to_array() -> u8 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("cast_bits_to_array"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -782,16 +730,14 @@ fn cast_enum_to_bits() -> u3 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("cast_enum_to_bits"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -817,16 +763,14 @@ fn cast_bits_to_enum() -> MyEnum {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("cast_bits_to_enum"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
                            emitter.Emit(tf->fn()));
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           BytecodeInterpreter::Interpret(bytecodes, &env));
+                           BytecodeInterpreter::Interpret(bytecodes));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -852,8 +796,7 @@ fn cast_bits_to_enum() -> MyEnum {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("cast_bits_to_enum"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
@@ -861,9 +804,7 @@ fn cast_bits_to_enum() -> MyEnum {
   // Clear out the data element of the bytecode, the cast op.
   bytecodes[bytecodes.size() - 1] = Bytecode(Span::Fake(), Bytecode::Op::kCast);
 
-  std::vector<InterpValue> env(2, InterpValue::MakeUnit());
-  absl::StatusOr<InterpValue> value =
-      BytecodeInterpreter::Interpret(bytecodes, &env);
+  absl::StatusOr<InterpValue> value = BytecodeInterpreter::Interpret(bytecodes);
   EXPECT_THAT(value.status(),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Cast op requires ConcreteType data.")));

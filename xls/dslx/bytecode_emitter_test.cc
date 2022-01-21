@@ -33,8 +33,7 @@ absl::StatusOr<std::vector<Bytecode>> EmitBytecodes(absl::string_view program,
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSIGN_OR_RETURN(TestFunction * tf, tm.module->GetTest(fn_name));
 
   return emitter.Emit(tf->fn());
@@ -53,8 +52,7 @@ TEST(BytecodeEmitterTest, SimpleTranslation) {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetFunctionOrError("one_plus_one"));
@@ -597,8 +595,7 @@ fn imported_enum_ref() -> import_0::ImportedEnum {
   XLS_ASSERT_OK_AND_ASSIGN(
       tm, ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
 
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("imported_enum_ref"));
@@ -634,8 +631,7 @@ fn imported_enum_ref() -> u3 {
   XLS_ASSERT_OK_AND_ASSIGN(
       tm, ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
 
-  absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot;
-  BytecodeEmitter emitter(&import_data, tm.type_info, &namedef_to_slot);
+  BytecodeEmitter emitter(&import_data, tm.type_info);
 
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("imported_enum_ref"));

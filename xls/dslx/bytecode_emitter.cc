@@ -22,12 +22,8 @@
 
 namespace xls::dslx {
 
-BytecodeEmitter::BytecodeEmitter(
-    ImportData* import_data, TypeInfo* type_info,
-    absl::flat_hash_map<const NameDef*, int64_t>* namedef_to_slot)
-    : import_data_(import_data),
-      type_info_(type_info),
-      namedef_to_slot_(namedef_to_slot) {}
+BytecodeEmitter::BytecodeEmitter(ImportData* import_data, TypeInfo* type_info)
+    : import_data_(import_data), type_info_(type_info) {}
 
 BytecodeEmitter::~BytecodeEmitter() = default;
 
@@ -562,10 +558,10 @@ void BytecodeEmitter::HandleInvocation(Invocation* node) {
 void BytecodeEmitter::DestructureLet(NameDefTree* tree) {
   if (tree->is_leaf()) {
     NameDef* name_def = absl::get<NameDef*>(tree->leaf());
-    if (!namedef_to_slot_->contains(name_def)) {
-      namedef_to_slot_->insert({name_def, namedef_to_slot_->size()});
+    if (!namedef_to_slot_.contains(name_def)) {
+      namedef_to_slot_.insert({name_def, namedef_to_slot_.size()});
     }
-    int64_t slot = namedef_to_slot_->at(name_def);
+    int64_t slot = namedef_to_slot_.at(name_def);
     bytecode_.push_back(Bytecode(tree->span(), Bytecode::Op::kStore,
                                  Bytecode::SlotIndex(slot)));
   } else {
@@ -600,7 +596,7 @@ void BytecodeEmitter::HandleNameRef(NameRef* node) {
     status_ =
         absl::UnimplementedError("NameRefs to builtins are not yet supported.");
   }
-  int64_t slot = namedef_to_slot_->at(absl::get<NameDef*>(node->name_def()));
+  int64_t slot = namedef_to_slot_.at(absl::get<NameDef*>(node->name_def()));
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kLoad, Bytecode::SlotIndex(slot)));
 }

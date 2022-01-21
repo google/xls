@@ -448,12 +448,12 @@ absl::Status BytecodeInterpreter::EvalLiteral(const Bytecode& bytecode) {
 
 absl::Status BytecodeInterpreter::EvalLoad(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot, bytecode.slot_index());
-  if (slots_->size() <= slot.value()) {
+  if (slots_.size() <= slot.value()) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Attempted to access local data in slot %d, which out of range.",
+        "Attempted to access local data in slot %d, which is out of range.",
         slot.value()));
   }
-  stack_.push_back(slots_->at(slot.value()));
+  stack_.push_back(slots_.at(slot.value()));
   return absl::OkStatus();
 }
 
@@ -587,13 +587,13 @@ absl::Status BytecodeInterpreter::EvalStore(const Bytecode& bytecode) {
         "Attempted to store value from empty stack.");
   }
 
-  if (slots_->size() <= slot.value()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Attempted to access local data in slot %d, which out of range.",
-        slot.value()));
+  // Slots are assigned in ascending order of use, which means that we'll only
+  // ever need to add one slot.
+  if (slots_.size() <= slot.value()) {
+    slots_.push_back(InterpValue::MakeToken());
   }
 
-  slots_->at(slot.value()) = stack_.back();
+  slots_.at(slot.value()) = stack_.back();
   stack_.pop_back();
   return absl::OkStatus();
 }
