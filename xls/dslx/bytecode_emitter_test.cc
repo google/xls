@@ -899,5 +899,23 @@ fn has_params(x: u32, y: u64) -> u48 {
   ASSERT_EQ(slot_index.value(), 4);
 }
 
+TEST(BytecodeEmitterTest, Strings) {
+  constexpr absl::string_view kProgram = R"(
+#![test]
+fn main() -> u8[13] {
+  "tofu sandwich"
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
+                           EmitBytecodes(kProgram, "main"));
+
+  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  ASSERT_EQ(bytecodes.size(), 14);
+  const Bytecode* bc = &bytecodes[0];
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, bc->value_data());
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t char_value, value.GetBitValueUint64());
+  EXPECT_EQ(char_value, 't');
+}
+
 }  // namespace
 }  // namespace xls::dslx

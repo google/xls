@@ -648,6 +648,22 @@ void BytecodeEmitter::HandleNumber(Number* node) {
                InterpValue::MakeBits(bits_type->is_signed(), bits.value())));
 }
 
+void BytecodeEmitter::HandleString(String* node) {
+  if (!status_.ok()) {
+    return;
+  }
+
+  // A string is just a fancy array literal.
+  for (const char c : node->text()) {
+    bytecode_.push_back(
+        Bytecode(node->span(), Bytecode::Op::kLiteral,
+                 InterpValue::MakeUBits(/*bit_count=*/8, static_cast<int>(c))));
+  }
+
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateArray,
+                               Bytecode::NumElements(node->text().size())));
+}
+
 void BytecodeEmitter::HandleStructInstance(StructInstance* node) {
   if (!status_.ok()) {
     return;

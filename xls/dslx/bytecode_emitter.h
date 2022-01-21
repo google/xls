@@ -58,7 +58,7 @@ class BytecodeEmitter : public ExprVisitor {
   void HandleSend(Send* node) override { DefaultHandler(node); }
   void HandleSendIf(SendIf* node) override { DefaultHandler(node); }
   void HandleSpawn(Spawn* node) override { DefaultHandler(node); }
-  void HandleString(String* node) override { DefaultHandler(node); }
+  void HandleString(String* node) override;
   void HandleStructInstance(StructInstance* node) override;
   void HandleSplatStructInstance(SplatStructInstance* node) override;
   void HandleTernary(Ternary* node) override;
