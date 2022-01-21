@@ -16,7 +16,6 @@
 
 load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
-load("@pybind11_bazel//:python_configure.bzl", "python_configure")
 load("@io_bazel_rules_closure//closure:repositories.bzl", "rules_closure_dependencies", "rules_closure_toolchains")
 load("@rules_hdl//dependency_support:dependency_support.bzl", rules_hdl_dependency_support = "dependency_support")
 load("@rules_hdl//:init.bzl", rules_hdl_init = "init")
@@ -29,7 +28,6 @@ def initialize_external_repositories():
     bazel_skylib_workspace()
     protobuf_deps()
     rules_hdl_init()
-    python_configure(name = "local_config_python")
     rules_hdl_dependency_support()
     rules_closure_dependencies()
     rules_closure_toolchains()

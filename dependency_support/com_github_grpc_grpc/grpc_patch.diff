@@ -1,0 +1,13 @@
+diff --git bazel/grpc_deps.bzl bazel/grpc_deps.bzl
+index ef9b2bea94..0be413d48f 100644
+--- bazel/grpc_deps.bzl
++++ bazel/grpc_deps.bzl
+@@ -122,7 +122,7 @@ def grpc_deps():
+ 
+     native.bind(
+         name = "re2",
+-        actual = "@com_googlesource_code_re2//:re2",
++        actual = "@com_github_google_re2//:re2",
+     )
+ 
+     native.bind(

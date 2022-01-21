@@ -163,8 +163,13 @@ def load_external_repositories():
 
     http_archive(
         name = "com_github_grpc_grpc",
-        urls = ["https://github.com/grpc/grpc/archive/v1.32.0.tar.gz"],
-        sha256 = "f880ebeb2ccf0e47721526c10dd97469200e40b5f101a0d9774eb69efa0bd07a",
-        strip_prefix = "grpc-1.32.0",
-        patches = ["@com_google_xls//dependency_support/com_github_grpc_grpc:grpc-cython.patch"],
+        urls = ["https://github.com/grpc/grpc/archive/v1.43.0.tar.gz"],
+        sha256 = "9647220c699cea4dafa92ec0917c25c7812be51a18143af047e20f3fb05adddc",
+        strip_prefix = "grpc-1.43.0",
+        # repo_mapping = {"@com_github_google_re2": "@com_googlesource_code_re2"},
+        # Note: repo mapping doesn't seem to work for gRPC because it
+        # explicitly binds the re2 name to the com_googlesource_code_re2 repo.
+        # Instead we patch it.
+        #repo_mapping = {"@com_googlesource_code_re2": "@com_github_google_re2"},
+        patches = ["@com_google_xls//dependency_support/com_github_grpc_grpc:grpc_patch.diff"],
     )

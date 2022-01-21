@@ -35,6 +35,11 @@ load("//dependency_support:load_external.bzl", "load_external_repositories")
 
 load_external_repositories()
 
+# We have to configure Python before gRPC tries to configure it a different
+# way.
+load("@pybind11_bazel//:python_configure.bzl", "python_configure")
+python_configure(name = "local_config_python")
+
 # gRPC deps should be loaded before initializing other repos. Otherwise, various
 # errors occur during repo loading and initialization.
 load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
