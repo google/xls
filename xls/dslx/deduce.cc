@@ -803,10 +803,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(Array* node,
   if (node->type_annotation() == nullptr) {
     if (inferred != nullptr) {
       return inferred;
-    } else {
-      return TypeInferenceErrorStatus(
-          node->span(), nullptr, "Cannot deduce the type of an empty array.");
     }
+
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr, "Cannot deduce the type of an empty array.");
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated,
@@ -1755,6 +1755,9 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
     }
     ctx->type_info()->SetItem(number, *BitsType::MakeU32());
     XLS_ASSIGN_OR_RETURN(int64_t value, number->GetAsUint64());
+    // No need to use the ConstexprEvaluator here. We've already got the goods.
+    // It'd have trouble anyway, since this number isn't type-decorated.
+    ctx->type_info()->NoteConstExpr(dim_expr, InterpValue::MakeU32(value));
     return ConcreteTypeDim::CreateU32(value);
   }
 

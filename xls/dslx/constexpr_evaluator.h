@@ -26,6 +26,7 @@ namespace xls::dslx {
 // currently covered, but will need to be shortly.
 class ConstexprEvaluator : public xls::dslx::ExprVisitor {
  public:
+  // TODO COMMENT ON WHEN CONCRETE TYPE IS NECESSARY
   ConstexprEvaluator(DeduceCtx* ctx, ConcreteType* concrete_type)
       : ctx_(ctx), concrete_type_(concrete_type) {}
   ~ConstexprEvaluator() override {}

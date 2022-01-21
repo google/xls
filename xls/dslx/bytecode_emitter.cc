@@ -50,12 +50,41 @@ void BytecodeEmitter::HandleArray(Array* node) {
     return;
   }
 
+  int num_members = node->members().size();
   for (auto* member : node->members()) {
     member->AcceptExpr(this);
   }
 
+  // If we've got an ellipsis, then repeat the last element until we reach the
+  // full array size.
+  // must have; do check
+  // Eval dim to int; must be constexpr in our type info
+  if (node->has_ellipsis()) {
+    ArrayTypeAnnotation* array_type =
+        dynamic_cast<ArrayTypeAnnotation*>(node->type_annotation());
+    absl::optional<InterpValue> array_dim =
+        type_info_->GetConstExpr(array_type->dim());
+    if (!array_dim.has_value()) {
+      status_ = absl::InternalError(
+          absl::StrFormat("Array %s did not have constant dimension: %s",
+                          node->ToString(), array_type->dim()->ToString()));
+      return;
+    }
+
+    absl::StatusOr<int64_t> dim_value = array_dim.value().GetBitValueInt64();
+    if (!dim_value.ok()) {
+      status_ = dim_value.status();
+      return;
+    }
+    num_members = dim_value.value();
+    int64_t remaining_members = num_members - node->members().size();
+    for (int i = 0; i < remaining_members; i++) {
+      node->members().back()->AcceptExpr(this);
+    }
+  }
+
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateArray,
-                               Bytecode::NumElements(node->members().size())));
+                               Bytecode::NumElements(num_members)));
 }
 
 void BytecodeEmitter::HandleAttr(Attr* node) {

@@ -53,6 +53,8 @@ xls_dslx_module_library(
     src = "binops.x",
 )
 
+# TODO(rspringer): 2022-01-19: Can't use the bytecode interpreter due to a
+# parametric invocation (the right TypeInfo isn't used for lookup).
 xls_dslx_opt_ir(
     name = "binops",
     dep = ":binops_dslx_module",
@@ -104,6 +106,14 @@ xls_dslx_opt_ir(
     dep = ":constexpr_dslx_module",
 )
 
+xls_dslx_test(
+    name = "constexpr_dslx_test",
+    dep = ":constexpr_dslx_module",
+    dslx_test_args = {
+        "bytecode": "True",
+    },
+)
+
 xls_dslx_opt_ir_test(
     name = "constexpr_test",
     dep = ":constexpr",
@@ -125,6 +135,9 @@ xls_dslx_opt_ir(
 xls_dslx_test(
     name = "constexpr_attrs_dslx_test",
     dep = ":constexpr_attrs_dslx_module",
+    dslx_test_args = {
+        "bytecode": "True",
+    },
 )
 
 # -- fallible_constexpr
