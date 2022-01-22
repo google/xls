@@ -19,9 +19,9 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 
 def repo():
-    # 2021-06-23
-    git_hash = "477b895fe8c90501d98ad88ef1ac74702c0e6c32"
-    git_sha256 = "02de041661c8ba4efe45fbfc38228832a27fadc33d27fb9b98e285738206fbaf"
+    # 2021-10-02
+    git_hash = "f2fafb02606aba078f255e120f009480c3148a77"
+    git_sha256 = "56cc56c3d2151a9af2082fcf0406fd5f06e30ffa706eeba610e8a8fcdc95c8ee"
 
     maybe(
         http_archive,
