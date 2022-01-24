@@ -166,7 +166,7 @@ std::vector<Node*> FirstStageNodes(FunctionBase* f) {
 }
 
 // Returns the nodes of `f` which must be scheduled in the final stage of a
-// pipeline. For functions this is the return value. For procs, this is receive
+// pipeline. For functions this is the return value. For procs, this is send
 // nodes.
 // TODO(meheff): 2021/09/22 Enable sends to be scheduled in cycles other than
 // the final cycle.
@@ -306,28 +306,19 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
   int64_t search_end = function_cp;
   XLS_VLOG(4) << absl::StreamFormat("Binary searching over interval [%d, %d]",
                                     search_start, search_end);
-  XLS_ASSIGN_OR_RETURN(int64_t min_period,
-                       BinarySearchMinTrueWithStatus(
-                           search_start, search_end,
-                           [&](int64_t clk_period_ps) -> absl::StatusOr<bool> {
-                             // If any node does not fit in the clock period,
-                             // fail outright.
-                             for (Node* node : f->nodes()) {
-                               XLS_ASSIGN_OR_RETURN(
-                                   int64_t node_delay,
-                                   delay_estimator.GetOperationDelayInPs(node));
-                               if (node_delay > clk_period_ps) {
-                                 return false;
-                               }
-                             }
-                             XLS_ASSIGN_OR_RETURN(
-                                 sched::ScheduleBounds bounds,
-                                 ConstructBounds(
-                                     f, clk_period_ps, topo_sort,
-                                     /*schedule_length=*/absl::nullopt,
-                                     delay_estimator));
-                             return bounds.max_lower_bound() < pipeline_stages;
-                           }));
+  XLS_ASSIGN_OR_RETURN(
+      int64_t min_period,
+      BinarySearchMinTrueWithStatus(
+          search_start, search_end,
+          [&](int64_t clk_period_ps) -> absl::StatusOr<bool> {
+            absl::StatusOr<sched::ScheduleBounds> bounds_or = ConstructBounds(
+                f, clk_period_ps, topo_sort,
+                /*schedule_length=*/absl::nullopt, delay_estimator);
+            if (!bounds_or.ok()) {
+              return false;
+            }
+            return bounds_or.value().max_lower_bound() < pipeline_stages;
+          }));
   XLS_VLOG(4) << "minimum clock period = " << min_period;
   return min_period;
 }

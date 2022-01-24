@@ -633,7 +633,7 @@ class TestDelayEstimatorUnit : public DelayEstimator {
   }
 };
 
-TEST_F(PipelineScheduleTest, InsufficientGates) {
+TEST_F(PipelineScheduleTest, ReceiveFollowedBySend) {
   Package package = Package(TestName());
 
   Type* u32 = package.GetBitsType(32);
@@ -644,19 +644,21 @@ TEST_F(PipelineScheduleTest, InsufficientGates) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  ProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
+                 /*token_name=*/"tkn", /*state_name=*/"st", &package);
 
-  BValue in_val = pb.Receive(ch_in);
-  pb.Send(ch_out, in_val);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  BValue rcv = pb.Receive(ch_in, pb.GetTokenParam());
+  BValue send = pb.Send(ch_out, /*token=*/pb.TupleIndex(rcv, 0),
+                        /*data=*/pb.TupleIndex(rcv, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, pb.GetStateParam()));
 
-  // TODO(tedhong): 2021-10-12 - Update scheduler so operation succeeds.
-  EXPECT_THAT(
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
       PipelineSchedule::Run(proc, TestDelayEstimatorUnit(),
-                            SchedulingOptions().pipeline_stages(5)),
-      status_testing::StatusIs(absl::StatusCode::kResourceExhausted,
-                               testing::HasSubstr("Impossible to schedule")));
+                            SchedulingOptions().pipeline_stages(5)));
+  EXPECT_EQ(schedule.length(), 5);
+  EXPECT_EQ(schedule.cycle(rcv.node()), 0);
+  EXPECT_EQ(schedule.cycle(send.node()), 4);
 }
 
 }  // namespace
