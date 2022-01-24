@@ -68,6 +68,7 @@ cc_library(
     deps = [
         ":ast",
         ":bytecode",
+        ":concrete_type",
         ":import_data",
         ":interp_value",
         ":type_info",

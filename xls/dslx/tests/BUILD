@@ -587,8 +587,9 @@ xls_dslx_opt_ir(
 xls_dslx_test(
     name = "type_aliasing_importer_dslx_test",
     dep = ":type_aliasing_importer_dslx_module",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to error with Index
-    # evaluation.
+    dslx_test_args = {
+        "bytecode": "True",
+    },
 )
 
 xls_dslx_module_library(
@@ -1279,8 +1280,9 @@ xls_dslx_module_library(
 xls_dslx_test(
     name = "struct_splat_update_dslx_test",
     dep = ":struct_splat_update_dslx_module",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to error in index
-    # handling.
+    dslx_test_args = {
+        "bytecode": "True",
+    },
 )
 
 xls_dslx_opt_ir(
@@ -1301,8 +1303,9 @@ xls_dslx_module_library(
 xls_dslx_test(
     name = "struct_splat_update_to_const_dslx_test",
     dep = ":struct_splat_update_to_const_dslx_module",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to error in index
-    # handling.
+    dslx_test_args = {
+        "bytecode": "True",
+    },
 )
 
 xls_dslx_opt_ir(
@@ -1323,8 +1326,9 @@ xls_dslx_module_library(
 xls_dslx_test(
     name = "empty_struct_splat_update_dslx_test",
     dep = ":empty_struct_splat_update_dslx_module",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to error in index
-    # handling.
+    dslx_test_args = {
+        "bytecode": "True",
+    },
 )
 
 xls_dslx_opt_ir(
@@ -2315,8 +2319,9 @@ xls_dslx_module_library(
 xls_dslx_test(
     name = "mod_const_in_type_alias_dslx_test",
     dep = ":mod_const_in_type_alias_dslx_module",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to bug in Array node
-    # handling.
+    dslx_test_args = {
+        "bytecode": "True",
+    },
 )
 
 xls_dslx_opt_ir(
@@ -2338,8 +2343,9 @@ xls_dslx_module_library(
 xls_dslx_test(
     name = "mod_const_in_type_alias_expr_dslx_test",
     dep = ":mod_const_in_type_alias_expr_dslx_module",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to bug in Array node
-    # handling.
+    dslx_test_args = {
+        "bytecode": "True",
+    },
 )
 
 xls_dslx_opt_ir(
@@ -2708,7 +2714,9 @@ xls_dslx_module_library(
 xls_dslx_test(
     name = "bitslice_negated_constexpr_bounds_dslx_test",
     dep = ":bitslice_negated_constexpr_bounds_dslx_module",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to internal error.
+    dslx_test_args = {
+        "bytecode": "True",
+    },
 )
 
 xls_dslx_opt_ir(

@@ -239,7 +239,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
       node->owner(), ctx->type_info(), ctx->typecheck_module(),
       ctx->import_data(), env, node->value(), fn_ctx ? &*fn_ctx : nullptr);
   if (constexpr_value.ok()) {
-    XLS_VLOG(5) << "Noting constexpr: " << node->value() << " in "
+    XLS_VLOG(5) << "Noting constexpr: " << node->value()->ToString() << " in "
                 << ctx->type_info();
     ctx->type_info()->NoteConstExpr(node->value(), constexpr_value.value());
     ctx->type_info()->NoteConstExpr(node->name_def(), constexpr_value.value());
@@ -1259,14 +1259,21 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
   std::unique_ptr<ConcreteType> s32 = BitsType::MakeS32();
   auto* slice = absl::get<Slice*>(node->rhs());
 
-  // Constexpr evaluate start & limit - without Deducing, to allow for
-  // undecorated slice indices.
+  // Constexpr evaluate start & limit, skipping deducing in the case of
+  // undecorated literals.
+  auto should_deduce = [](Expr* expr) {
+    if (Number* number = dynamic_cast<Number*>(expr);
+        number != nullptr && number->type_annotation() == nullptr) {
+      return false;
+    }
+    return true;
+  };
+
   ConstexprEvaluator evaluator(ctx, nullptr);
   if (slice->start() != nullptr) {
     slice->start()->AcceptExpr(&evaluator);
-    if (Number* number = dynamic_cast<Number*>(slice->start());
-        number != nullptr && number->type_annotation() != nullptr) {
-      XLS_RETURN_IF_ERROR(Deduce(number, ctx).status());
+    if (should_deduce(slice->start())) {
+      XLS_RETURN_IF_ERROR(Deduce(slice->start(), ctx).status());
     } else {
       // If the slice start is untyped, assume S32.
       ctx->type_info()->SetItem(slice->start(), *s32);
@@ -1278,9 +1285,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
 
   if (slice->limit() != nullptr) {
     slice->limit()->AcceptExpr(&evaluator);
-    if (Number* number = dynamic_cast<Number*>(slice->limit());
-        number != nullptr && number->type_annotation() != nullptr) {
-      XLS_RETURN_IF_ERROR(Deduce(number, ctx).status());
+    if (should_deduce(slice->limit())) {
+      XLS_RETURN_IF_ERROR(Deduce(slice->limit(), ctx).status());
     } else {
       // If the slice limit is untyped, assume S32.
       ctx->type_info()->SetItem(slice->limit(), *s32);

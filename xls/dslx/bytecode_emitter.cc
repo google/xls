@@ -19,6 +19,7 @@
 #include "absl/types/variant.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/concrete_type.h"
 
 namespace xls::dslx {
 
@@ -57,21 +58,15 @@ void BytecodeEmitter::HandleArray(Array* node) {
 
   // If we've got an ellipsis, then repeat the last element until we reach the
   // full array size.
-  // must have; do check
-  // Eval dim to int; must be constexpr in our type info
   if (node->has_ellipsis()) {
-    ArrayTypeAnnotation* array_type =
-        dynamic_cast<ArrayTypeAnnotation*>(node->type_annotation());
-    absl::optional<InterpValue> array_dim =
-        type_info_->GetConstExpr(array_type->dim());
-    if (!array_dim.has_value()) {
-      status_ = absl::InternalError(
-          absl::StrFormat("Array %s did not have constant dimension: %s",
-                          node->ToString(), array_type->dim()->ToString()));
+    absl::StatusOr<ArrayType*> array_type_or =
+        type_info_->GetItemAs<ArrayType>(node);
+    if (!array_type_or.ok()) {
+      status_ = array_type_or.status();
       return;
     }
-
-    absl::StatusOr<int64_t> dim_value = array_dim.value().GetBitValueInt64();
+    const ConcreteTypeDim& dim = array_type_or.value()->size();
+    absl::StatusOr<int64_t> dim_value = dim.GetAsInt64();
     if (!dim_value.ok()) {
       status_ = dim_value.status();
       return;
@@ -757,14 +752,14 @@ void BytecodeEmitter::HandleSplatStructInstance(SplatStructInstance* node) {
     } else {
       node->splatted()->AcceptExpr(this);
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
-                                   InterpValue::MakeS64(i)));
+                                   InterpValue::MakeU64(i)));
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kIndex));
     }
   }
 
   const StructDef& struct_def = struct_type.value()->nominal_type();
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
-                               InterpValue::MakeS64(struct_def.size())));
+                               Bytecode::NumElements(struct_def.size())));
 }
 
 void BytecodeEmitter::HandleUnop(Unop* node) {
