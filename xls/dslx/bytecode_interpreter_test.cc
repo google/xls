@@ -31,21 +31,22 @@ using testing::HasSubstr;
 // Interprets a nearly-minimal bytecode program; the same from
 // BytecodeEmitterTest.SimpleTranslation.
 TEST(BytecodeInterpreterTest, PositiveSmokeTest) {
-  std::vector<Bytecode> bytecodes;
-  bytecodes.push_back(
-      Bytecode(Span::Fake(), Bytecode::Op::kLiteral, InterpValue::MakeU32(1)));
-  bytecodes.push_back(
-      Bytecode(Span::Fake(), Bytecode::Op::kStore, Bytecode::SlotIndex(0)));
-  bytecodes.push_back(
-      Bytecode(Span::Fake(), Bytecode::Op::kLoad, Bytecode::SlotIndex(0)));
-  bytecodes.push_back(
-      Bytecode(Span::Fake(), Bytecode::Op::kLiteral, InterpValue::MakeU32(2)));
-  bytecodes.push_back(Bytecode(Span::Fake(), Bytecode::Op::kAdd));
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  let a = u32:1;
+  a + u32:2
+}
+)";
 
-  ImportData import_data(ImportData::CreateForTest());
+  auto import_data = ImportData::CreateForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
-      BytecodeFunction bf,
-      BytecodeFunction::Create(nullptr, std::move(bytecodes)));
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  BytecodeEmitter emitter(&import_data, tm.type_info);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf, emitter.Emit(f));
+
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue value,
       BytecodeInterpreter::Interpret(&import_data, std::move(bf), {}));
@@ -55,26 +56,23 @@ TEST(BytecodeInterpreterTest, PositiveSmokeTest) {
 // Tests that a failing assert_eq is interpreted correctly. Again, a
 // continuation of a test from BytecodeEmitterTest. Get used to it.
 TEST(BytecodeInterpreterTest, AssertEqFail) {
-  std::vector<Bytecode> bytecodes;
-  bytecodes.push_back(
-      Bytecode(Span::Fake(), Bytecode::Op::kLiteral, InterpValue::MakeU32(3)));
-  bytecodes.push_back(
-      Bytecode(Span::Fake(), Bytecode::Op::kStore, Bytecode::SlotIndex(0)));
-  bytecodes.push_back(
-      Bytecode(Span::Fake(), Bytecode::Op::kLoad, Bytecode::SlotIndex(0)));
-  bytecodes.push_back(
-      Bytecode(Span::Fake(), Bytecode::Op::kLiteral, InterpValue::MakeU32(2)));
-  InterpValue fn_value(InterpValue::MakeFunction(Builtin::kAssertEq));
-  bytecodes.push_back(Bytecode(Span::Fake(), Bytecode::Op::kCall, fn_value));
-  bytecodes.push_back(
-      Bytecode(Span::Fake(), Bytecode::Op::kStore, Bytecode::SlotIndex(1)));
-  bytecodes.push_back(
-      Bytecode(Span::Fake(), Bytecode::Op::kLoad, Bytecode::SlotIndex(0)));
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32{
+  let a = u32:3;
+  let _ = assert_eq(a, u32:2);
+  a
+}
+)";
 
-  ImportData import_data(ImportData::CreateForTest());
+  auto import_data = ImportData::CreateForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
-      BytecodeFunction bf,
-      BytecodeFunction::Create(nullptr, std::move(bytecodes)));
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  BytecodeEmitter emitter(&import_data, tm.type_info);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf, emitter.Emit(f));
+
   absl::StatusOr<InterpValue> value =
       BytecodeInterpreter::Interpret(&import_data, std::move(bf), {});
   EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
@@ -125,20 +123,20 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
 }
 
 TEST(BytecodeInterpreterTest, RunTernaryConsequent) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           BytecodesFromString(
-                               R"(000 literal u1:1
-001 jump_rel_if +3
-002 literal u32:64
-003 jump_rel +3
-004 jump_dest
-005 literal u32:42
-006 jump_dest)"));
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  if true { u32:42 } else { u32:64 }
+}
+)";
 
   ImportData import_data(ImportData::CreateForTest());
   XLS_ASSERT_OK_AND_ASSIGN(
-      BytecodeFunction bf,
-      BytecodeFunction::Create(nullptr, std::move(bytecodes)));
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  BytecodeEmitter emitter(&import_data, tm.type_info);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf, emitter.Emit(f));
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue value,
       BytecodeInterpreter::Interpret(&import_data, std::move(bf), {}));
@@ -146,20 +144,20 @@ TEST(BytecodeInterpreterTest, RunTernaryConsequent) {
 }
 
 TEST(BytecodeInterpreterTest, RunTernaryAlternate) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Bytecode> bytecodes,
-                           BytecodesFromString(
-                               R"(000 literal u1:0
-001 jump_rel_if +3
-002 literal u32:64
-003 jump_rel +3
-004 jump_dest
-005 literal u32:42
-006 jump_dest)"));
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  if false { u32:42 } else { u32:64 }
+}
+)";
 
   ImportData import_data(ImportData::CreateForTest());
   XLS_ASSERT_OK_AND_ASSIGN(
-      BytecodeFunction bf,
-      BytecodeFunction::Create(nullptr, std::move(bytecodes)));
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  BytecodeEmitter emitter(&import_data, tm.type_info);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf, emitter.Emit(f));
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue value,
       BytecodeInterpreter::Interpret(&import_data, std::move(bf), {}));
@@ -848,28 +846,8 @@ fn cast_bits_to_enum() -> MyEnum {
                            tm.module->GetTest("cast_bits_to_enum"));
   XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf, emitter.Emit(tf->fn()));
 
-  // Create a modifiable copy of the bytecodes.
-  std::vector<Bytecode> bytecodes;
-  for (const auto& bc : bf.bytecodes()) {
-    if (bc.has_data()) {
-      if (absl::holds_alternative<Bytecode::SlotIndex>(bc.data().value())) {
-        bytecodes.emplace_back(
-            Bytecode(bc.source_span(), bc.op(),
-                     absl::get<Bytecode::SlotIndex>(bc.data().value())));
-      } else if (absl::holds_alternative<InterpValue>(bc.data().value())) {
-        bytecodes.emplace_back(
-            Bytecode(bc.source_span(), bc.op(),
-                     absl::get<InterpValue>(bc.data().value())));
-      } else {
-        const std::unique_ptr<ConcreteType>& type =
-            absl::get<std::unique_ptr<ConcreteType>>(bc.data().value());
-        bytecodes.emplace_back(
-            Bytecode(bc.source_span(), bc.op(), type->CloneToUnique()));
-      }
-    } else {
-      bytecodes.emplace_back(Bytecode(bc.source_span(), bc.op()));
-    }
-  }
+  // Get a modifiable copy of the bytecodes.
+  std::vector<Bytecode> bytecodes = bf.CloneBytecodes();
 
   // Clear out the data element of the last bytecode, the cast op.
   bytecodes[bytecodes.size() - 1] = Bytecode(Span::Fake(), Bytecode::Op::kCast);

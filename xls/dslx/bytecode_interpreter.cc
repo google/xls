@@ -276,11 +276,13 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
   frames_.back().pc++;
   frames_.push_back(Frame{0, {}, std::move(bf)});
   Frame& frame = frames_.back();
-  for (int i = 0; i < user_fn_data.function->params().size(); i++) {
-    XLS_ASSIGN_OR_RETURN(InterpValue param, Pop());
-    frame.slots.push_back(param);
+  int64_t num_args = user_fn_data.function->params().size();
+  std::vector<InterpValue> args(num_args, InterpValue::MakeToken());
+  for (int i = num_args - 1; i >= 0; i--) {
+    XLS_ASSIGN_OR_RETURN(InterpValue arg, Pop());
+    args[i] = arg;
   }
-  std::reverse(frame.slots.begin(), frame.slots.end());
+  frame.slots = std::move(args);
 
   return absl::OkStatus();
 }

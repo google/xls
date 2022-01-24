@@ -311,6 +311,10 @@ absl::StatusOr<std::vector<Bytecode>> BytecodesFromString(
 
 absl::StatusOr<BytecodeFunction> BytecodeFunction::Create(
     Function* source, std::vector<Bytecode> bytecodes) {
+  if (source == nullptr) {
+    return absl::InvalidArgumentError(
+        "BytecodeFunction::Create : `source` cannot be null.");
+  }
   BytecodeFunction bf(source, std::move(bytecodes));
   XLS_RETURN_IF_ERROR(bf.Init());
   return bf;
@@ -329,6 +333,33 @@ absl::Status BytecodeFunction::Init() {
     }
   }
   return absl::OkStatus();
+}
+
+std::vector<Bytecode> BytecodeFunction::CloneBytecodes() const {
+  // Create a modifiable copy of the bytecodes.
+  std::vector<Bytecode> bytecodes;
+  for (const auto& bc : bytecodes_) {
+    if (bc.has_data()) {
+      if (absl::holds_alternative<Bytecode::SlotIndex>(bc.data().value())) {
+        bytecodes.emplace_back(
+            Bytecode(bc.source_span(), bc.op(),
+                     absl::get<Bytecode::SlotIndex>(bc.data().value())));
+      } else if (absl::holds_alternative<InterpValue>(bc.data().value())) {
+        bytecodes.emplace_back(
+            Bytecode(bc.source_span(), bc.op(),
+                     absl::get<InterpValue>(bc.data().value())));
+      } else {
+        const std::unique_ptr<ConcreteType>& type =
+            absl::get<std::unique_ptr<ConcreteType>>(bc.data().value());
+        bytecodes.emplace_back(
+            Bytecode(bc.source_span(), bc.op(), type->CloneToUnique()));
+      }
+    } else {
+      bytecodes.emplace_back(Bytecode(bc.source_span(), bc.op()));
+    }
+  }
+
+  return bytecodes;
 }
 
 }  // namespace xls::dslx

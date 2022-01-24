@@ -184,14 +184,17 @@ class Bytecode {
 class BytecodeFunction {
  public:
   // Note: this is an O(N) operation where N is the number of ops in the
-  // bytecode. Also, "source" may be null.
+  // bytecode.
   static absl::StatusOr<BytecodeFunction> Create(
       Function* source, std::vector<Bytecode> bytecode);
 
   Function* source() const { return source_; }
   const std::vector<Bytecode>& bytecodes() const { return bytecodes_; }
-  // Returns the total number of memory "slots" used by the bytecodes.
+  // Returns the total number of binding "slots" used by the bytecodes.
   int64_t num_slots() const { return num_slots_; }
+
+  // Creates and returns a [caller-owned] copy of the internal bytecodes.
+  std::vector<Bytecode> CloneBytecodes() const;
 
  private:
   BytecodeFunction(Function* source, std::vector<Bytecode> bytecode);

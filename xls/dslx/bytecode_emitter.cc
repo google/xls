@@ -110,8 +110,10 @@ void BytecodeEmitter::HandleAttr(Attr* node) {
     return;
   }
 
+  // This indexing literal needs to be unsigned since InterpValue::Index
+  // requires an unsigned value.
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
-                               InterpValue::MakeS64(member_index_or.value())));
+                               InterpValue::MakeU64(member_index_or.value())));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kIndex));
 }
 
