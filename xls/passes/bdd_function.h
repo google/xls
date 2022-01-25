@@ -48,13 +48,17 @@ class BddFunction {
   // variable. This provides a mechanism for limiting the growth of the BDD.
   static constexpr int64_t kDefaultPathLimit = 16 * 1024;
 
-  // Construct a BDD representing the given function/proc. If a node's op is in
-  // 'do_not_evaluate_ops', its bits are modeled as BDD variables. Otherwise,
-  // bits are represented as BDD nodes whose values are determined by the values
-  // of other BDD nodes.
+  // Construct a BDD representing the given function/proc.
+  // `node_filter` is an optional function which filters the nodes to be
+  // evaluated. If this function returns false for a node then the node will not
+  // be evaluated using BDDs. The node's bits will be new variables in the BDD
+  // for which no information is known. If `node_filter` returns true, the node
+  // still might *not* be evaluated because some kinds of nodes are never
+  // evaluated for various reasons including computation expense.
   static absl::StatusOr<std::unique_ptr<BddFunction>> Run(
       FunctionBase* f, int64_t path_limit = 0,
-      absl::Span<const Op> do_not_evaluate_ops = {});
+      absl::optional<std::function<bool(const Node*)>> node_filter =
+          absl::nullopt);
 
   // Returns the underlying BDD.
   const BinaryDecisionDiagram& bdd() const { return bdd_; }

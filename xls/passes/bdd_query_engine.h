@@ -36,15 +36,15 @@ namespace xls {
 // analysis.
 class BddQueryEngine : public QueryEngine {
  public:
-  // 'path_limit' is the maximum number of paths from the BDD node to the
-  // terminals 0 and 1 to allow for a BDD expression before truncating it. If a
-  // node's op is in 'do_not_evaluate_ops', its bits are modeled as BDD
-  // variables. See BddFunction for details.
+  // `path_limit` is the maximum number of paths from the BDD node to the
+  // terminals 0 and 1 to allow for a BDD expression before truncating it.
+  // `node_filter` is an optional function which can be used to limit the nodes
+  // which the BDD evaluates (returning false means the node will node be
+  // evaluated). See BddFunction for details.
   explicit BddQueryEngine(int64_t path_limit = 0,
-                          absl::Span<const Op> do_not_evaluate_ops = {})
-      : path_limit_(path_limit),
-        do_not_evaluate_ops_(do_not_evaluate_ops.begin(),
-                             do_not_evaluate_ops.end()) {}
+                          absl::optional<std::function<bool(const Node*)>>
+                              node_filter = absl::nullopt)
+      : path_limit_(path_limit), node_filter_(node_filter) {}
 
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
 
@@ -105,9 +105,7 @@ class BddQueryEngine : public QueryEngine {
   // The maximum number of paths in expression in the BDD before truncating.
   int64_t path_limit_;
 
-  // If something is in this list, its bits are modelled as BDD variables.
-  // See BddFunction for details.
-  std::vector<Op> do_not_evaluate_ops_;
+  absl::optional<std::function<bool(const Node*)>> node_filter_;
 
   // Indicates the bits at the output of each node which have known values.
   absl::flat_hash_map<Node*, Bits> known_bits_;

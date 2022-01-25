@@ -28,7 +28,7 @@ namespace xls {
 
 absl::StatusOr<ReachedFixpoint> BddQueryEngine::Populate(FunctionBase* f) {
   XLS_ASSIGN_OR_RETURN(bdd_function_,
-                       BddFunction::Run(f, path_limit_, do_not_evaluate_ops_));
+                       BddFunction::Run(f, path_limit_, node_filter_));
   // Construct the Bits objects indication which bit values are statically known
   // for each node and what those values are (0 or 1) if known.
   BinaryDecisionDiagram& bdd = this->bdd();

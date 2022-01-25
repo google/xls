@@ -254,16 +254,12 @@ bool ShouldEvaluate(Node* node) {
 
 /* static */ absl::StatusOr<std::unique_ptr<BddFunction>> BddFunction::Run(
     FunctionBase* f, int64_t path_limit,
-    absl::Span<const Op> do_not_evaluate_ops) {
+    absl::optional<std::function<bool(const Node*)>> node_filter) {
   XLS_VLOG(1) << absl::StreamFormat("BddFunction::Run(%s):", f->name());
   XLS_VLOG_LINES(5, f->DumpIr());
 
   auto bdd_function = absl::WrapUnique(new BddFunction(f));
   SaturatingBddEvaluator evaluator(path_limit, &bdd_function->bdd());
-  absl::flat_hash_set<Op> do_not_evaluate_ops_set;
-  for (Op op : do_not_evaluate_ops) {
-    do_not_evaluate_ops_set.insert(op);
-  }
 
   // Create and return a vector containing newly defined BDD variables.
   auto create_new_node_vector = [&](Node* n) {
@@ -284,7 +280,8 @@ bool ShouldEvaluate(Node* node) {
     // If we shouldn't evaluate this node, the node is to be modeled as
     // variables, or the node includes some non-bits-typed operands, then just
     // create a vector of new BDD variables for this node.
-    if (!ShouldEvaluate(node) || do_not_evaluate_ops_set.contains(node->op()) ||
+    if (!ShouldEvaluate(node) ||
+        (node_filter.has_value() && !node_filter.value()(node)) ||
         std::any_of(node->operands().begin(), node->operands().end(),
                     [](Node* o) { return !o->GetType()->IsBits(); })) {
       values[node] = create_new_node_vector(node);
