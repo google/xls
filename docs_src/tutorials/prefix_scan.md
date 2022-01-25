@@ -12,7 +12,7 @@ resets to 0 if a new value is found.
 For example, for this input:
 
 ```dslx-snippet
-  let input = u32[8]:[0, 0, 0, 0, 0, 0, 0, 0]
+  let input = u32[8]:[0, ...]
 ```
 
 the code should produce this output:
@@ -43,7 +43,7 @@ it should produce:
 
 The full listing is in `examples/dslx_intro/prefix_scan_equality.x`.
 
-### Function prefix_scan_eq
+### Function `prefix_scan_eq`
 
 The implementation displays a few interesting language features.
 
@@ -87,8 +87,8 @@ values named `prior`, `count`, and `result`.
 The types of the iterable and accumulator are specified next. The iterable is a
 tuple consisting of two `u32` values. The accumulator is more interesting, it is
 a tuple consiting of a `u32` value (`prior`), a `u3` value (`count`), and an
-array type `u3[8]`, which is an array holding 8 elements of
-bit-width 3. This is the type of `result` in the accumulator.
+array type `u3[8]`, which is an array holding 8 elements of bit-width 3. This is
+the type of `result` in the accumulator.
 
 Looping back to the prior `let` statement, it ignores the `prior` and `count`
 members of the tuple and will only return the `result` part.
@@ -152,10 +152,12 @@ accumulator in the following way.
 
 *   set element `prior` to -1, in order to not match any other value.
 *   set element `count` to 0.
-*   set element `result` to 8 0's of size `u3`
+*   set element `result` to 8 0's of size `u3`. (Note that the `...` syntax
+    is short for "fill in the rest of the elements with the last value
+    specified".)
 
 ```dslx-snippet
-}((u32:-1, u3:0, u3[8]:[u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0, u3:0]));
+}((u32:-1, u3:0, u3[8]:[0, ...]));
 ```
 
 And, finally, the function simply returns `result`:
@@ -173,7 +175,7 @@ right to this implementation file:
 ```dslx-snippet
 #![test]
 fn test_prefix_scan_eq_all_zero() {
-  let input = u32[8]:[0, 0, 0, 0, 0, 0, 0, 0];
+  let input = u32[8]:[0, ...];
   let result = prefix_scan_eq(input);
   assert_eq(result, u3[8]:[0, 1, 2, 3, 4, 5, 6, 7])
 }
@@ -185,3 +187,21 @@ fn test_prefix_scan_eq_doubles() {
   assert_eq(result, u3[8]:[0, 1, 0, 1, 0, 1, 0, 1])
 }
 ```
+
+To run tests against the file present in the repository:
+
+```console
+xls$ bazel run -c opt //xls/dslx:interpreter_main -- \
+       $PWD/xls/examples/dslx_intro/prefix_scan_equality.x \
+       --compare=none
+[ RUN UNITTEST  ] prefix_scan_eq_all_zero_test
+[            OK ]
+[ RUN UNITTEST  ] prefix_scan_eq_doubles_test
+[            OK ]
+[===============] 2 test(s) ran; 0 failed; 0 skipped.
+```
+
+(Note that `--compare=none` is currently required because `enumerate` ranges are
+not currently convertable to IR, otherwise running the DSLX interpreter would do
+implicit comparison to IR interpreter -- see
+[google/xls#164](https://github.com/google/xls/issues/164).)
