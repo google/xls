@@ -59,13 +59,28 @@ flags.DEFINE_string(
     None,
     "Simple name of function to instrument. Defaults to top function from MetadataOutput",
     required=False)
-flags.DEFINE_bool(
-    "use_llvm_jit",
-    False,
-    "Use LLVM JIT instead of IR interpreter",
+flags.DEFINE_string(
+    "backend",
+    "serial_jit",
+    "Backend to use for evaluation. See eval_proc_main help.",
+    required=False)
+flags.DEFINE_string(
+    "block_signature_proto",
+    "",
+    "If using --backend block_interpreter, then this specifies the path to the signature protobuf from codegen.",
     required=False)
 flags.DEFINE_bool(
     "delete_temps", True, "Delete temporary files?", required=False)
+flags.DEFINE_integer(
+    "random_seed",
+    42,
+    "Random seed for testbench.",
+    required=False)
+flags.DEFINE_float(
+    "prob_input_valid_assert",
+    1.0,
+    "Single-cycle probability of asserting valid with more input ready.",
+    required=False)
 
 EVAL_IR_PATH = runfiles.get_path("xls/tools/eval_ir_main")
 EVAL_PROC_PATH = runfiles.get_path("xls/tools/eval_proc_main")
@@ -689,7 +704,6 @@ def main(argv):
 
     # Parse block data
     block_proto = hls_block_pb2.HLSBlock()
-    print("FLAGS.xlscc_block_metadata", FLAGS.xlscc_block_metadata)
     with open(FLAGS.xlscc_block_metadata, "rb") as f:
       block_proto.ParseFromString(f.read())
 
@@ -723,10 +737,14 @@ def main(argv):
   # check_output to suppress the spammy output of eval_ir_main
   print("Running IR simulator...")
   if no_channels:
+    if FLAGS.backend == "block_interpreter":
+      raise app.UsageError("Cannot use block interpreter for non-procs.")
+
     args = [
         EVAL_IR_PATH, "--entry", function_to_instrument_proto.name.xls_name,
         "--input_file", inputs_tmp.name, "--expected_file", outputs_tmp.name,
-        "--use_llvm_jit" if FLAGS.use_llvm_jit else "--nouse_llvm_jit",
+        "--use_llvm_jit" if (FLAGS.backend == "serial_jit")
+        else "--nouse_llvm_jit",
         FLAGS.ir_to_test
     ]
     print("Eval command: ", args)
@@ -752,13 +770,16 @@ def main(argv):
 
     args = [
         EVAL_PROC_PATH, FLAGS.ir_to_test, "--ticks",
-        ",".join(map(str, ticks_per_frame)), "--backend",
-        "serial_jit" if FLAGS.use_llvm_jit else "ir_interpreter",
+        ",".join(map(str, ticks_per_frame)), "--backend", FLAGS.backend,
+        "--random_seed", str(FLAGS.random_seed),
+        "--prob_input_valid_assert", str(FLAGS.prob_input_valid_assert),
         "--inputs_for_channels", ",".join(input_ch_specs),
         "--expected_outputs_for_channels", ",".join(expected_ch_specs)
     ]
+    if FLAGS.block_signature_proto:
+      args += ["--block_signature_proto", FLAGS.block_signature_proto]
     args += ["-v=1", "--logtostderr"]
-    print("Eval command: ", args)
+    print("Eval command: ", " ".join(args))
     subprocess.check_output(args)
 
   # Done! If we got here, then there were no errors or mismatches

@@ -146,6 +146,7 @@ block test_block(clk: clock, in_ch_data: bits[64], in_ch_2_data: bits[64], out_c
 }
 """
 
+
 BLOCK_IR_BROKEN = """package foo
 
 block test_block(clk: clock, in_ch_data: bits[64], in_ch_2_data: bits[64], out_ch_data: bits[64], out_ch_2_data: bits[64], rst_n: bits[1], in_ch_vld: bits[1], in_ch_2_vld: bits[1], out_ch_vld: bits[1], out_ch_2_vld: bits[1], out_ch_rdy: bits[1], out_ch_2_rdy: bits[1], in_ch_rdy: bits[1], in_ch_2_rdy: bits[1]) {

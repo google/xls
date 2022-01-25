@@ -93,7 +93,7 @@ TEST_F(BlockTest, SimpleBlock) {
 }
 )");
 
-  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned", p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned"));
 
   EXPECT_EQ(clone->DumpIr(),
             R"(block cloned(a: bits[32], b: bits[32], out: bits[32]) {
@@ -186,7 +186,7 @@ TEST_F(BlockTest, MultiOutputBlock) {
 }
 )");
 
-  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned", p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned"));
 
   EXPECT_EQ(
       clone->DumpIr(),
@@ -242,7 +242,7 @@ TEST_F(BlockTest, TrivialBlock) {
 }
 )");
 
-  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned", p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned"));
 
   EXPECT_EQ(clone->DumpIr(), R"(block cloned() {
 }
@@ -304,7 +304,7 @@ TEST_F(BlockTest, BlockWithRegisters) {
 }
 )");
 
-  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned", p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned"));
 
   EXPECT_EQ(clone->DumpIr(),
             R"(block cloned(clk: clock, x: bits[32], out: bits[32]) {
@@ -343,7 +343,7 @@ TEST_F(BlockTest, BlockWithTrivialFeedbackDumpOrderTest) {
 }
 )");
 
-  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned", p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned"));
 
   EXPECT_EQ(clone->DumpIr(),
             R"(block cloned(clk: clock) {
@@ -384,7 +384,7 @@ TEST_F(BlockTest, MultipleInputsAndOutputsDumpOrderTest) {
 }
 )");
 
-  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned", p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned"));
 
   EXPECT_EQ(
       clone->DumpIr(),
@@ -452,7 +452,7 @@ TEST_F(BlockTest, DeepPipelineDumpOrderTest) {
 }
 )");
 
-  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned", p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned"));
 
   EXPECT_EQ(
       clone->DumpIr(),
@@ -722,7 +722,7 @@ TEST_F(BlockTest, BlockInstantiation) {
 }
 )");
 
-  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned", p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned"));
 
   EXPECT_EQ(
       clone->DumpIr(),

@@ -288,8 +288,7 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
     XLS_QCHECK_EQ(p->blocks().size(), 1)
         << "There should be exactly one block in the package after generating "
            "module text.";
-    XLS_RETURN_IF_ERROR(
-        SetFileContents(output_block_ir_path, p->blocks()[0]->DumpIr()));
+    XLS_RETURN_IF_ERROR(SetFileContents(output_block_ir_path, p->DumpIr()));
   }
 
   if (!signature_path.empty()) {

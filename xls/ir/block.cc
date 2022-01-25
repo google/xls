@@ -585,15 +585,12 @@ absl::Span<InstantiationOutput* const> Block::GetInstantiationOutputs(
   return instantiation_outputs_.at(instantiation);
 }
 
-absl::StatusOr<Block*> Block::Clone(absl::string_view new_name,
-                                    Package* target_package) const {
+absl::StatusOr<Block*> Block::Clone(absl::string_view new_name) const {
   absl::flat_hash_map<Node*, Node*> original_to_clone;
   absl::flat_hash_map<Register*, Register*> register_map;
   absl::flat_hash_map<Instantiation*, Instantiation*> instantiation_map;
 
-  if (target_package == nullptr) {
-    target_package = package();
-  }
+  Package* target_package = package();
 
   Block* cloned_block = target_package->AddBlock(
       std::make_unique<Block>(new_name, target_package));
