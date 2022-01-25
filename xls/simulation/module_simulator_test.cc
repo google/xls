@@ -41,10 +41,16 @@ class ModuleSimulatorTest : public VerilogTestBase {
   // for the duration of the computation.
   absl::StatusOr<std::pair<std::string, ModuleSignature>>
   MakeFixedLatencyModule() const {
-    const std::string text =
-        R"(module fixed_latency_3(input wire clk, input wire [7:0] x, output wire [7:0] out);
-      reg [7:0] x_0; reg [7:0] x_1; reg [7:0] x_2;
+    const std::string text = R"(
+module fixed_latency_3(
+  input wire clk,
+  input wire [7:0] x,
+  output wire [7:0] out
+);
 
+  reg [7:0] x_0;
+  reg [7:0] x_1;
+  reg [7:0] x_2;
   assign out = x_2 + x;
 
   always @ (posedge clk) begin
@@ -52,6 +58,7 @@ class ModuleSimulatorTest : public VerilogTestBase {
     x_1 <= x_0;
     x_2 <= x_1;
   end
+
 endmodule
 )";
 
@@ -68,11 +75,16 @@ endmodule
   absl::StatusOr<std::pair<std::string, ModuleSignature>>
   MakeCombinationalModule() const {
     const std::string text =
-        R"(module comb_diff(input wire clk,
-                            input wire [7:0] x,
-                            input wire [7:0] y,
-                            output wire [7:0] out);
+        R"(
+module comb_diff(
+  input wire clk,
+  input wire [7:0] x,
+  input wire [7:0] y,
+  output wire [7:0] out
+);
+
   assign out = x - y;
+
 endmodule
 )";
 
@@ -90,11 +102,16 @@ endmodule
   absl::StatusOr<std::pair<std::string, ModuleSignature>> MakeReadyValidModule()
       const {
     const std::string text =
-        R"(module comb_diff(input wire clk,
-                            input wire [7:0] x,
-                            input wire [7:0] y,
-                            output wire [7:0] out);
+        R"(
+module comb_diff(
+  input wire clk,
+  input wire [7:0] x,
+  input wire [7:0] y,
+  output wire [7:0] out
+);
+
   assign out = x - y;
+
 endmodule
 )";
 
@@ -158,14 +175,17 @@ TEST_P(ModuleSimulatorTest, CombinationalBatched) {
 }
 
 TEST_P(ModuleSimulatorTest, MultipleOutputs) {
-  const std::string text = R"(module delay_3(
-      input wire the_clk,
-      input wire [7:0] x,
-      output wire [7:0] out1,
-      output wire [7:0] out2
+  const std::string text = R"(
+module delay_3(
+  input wire the_clk,
+  input wire [7:0] x,
+  output wire [7:0] out1,
+  output wire [7:0] out2
 );
+
   assign out1 = x + 1;
   assign out2 = x + 123;
+
 endmodule
 )";
 
@@ -190,13 +210,16 @@ endmodule
 }
 
 TEST_P(ModuleSimulatorTest, BadInputs) {
-  const std::string text = R"(module delay_3(
-      input wire clk,
-      input wire [7:0] x,
-      input wire [7:0] y,
-      output wire [7:0] out,
+  const std::string text = R"(
+module delay_3(
+  input wire clk,
+  input wire [7:0] x,
+  input wire [7:0] y,
+  output wire [7:0] out,
 );
+
   assign out = x + y;
+
 endmodule
 )";
 
