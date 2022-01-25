@@ -32,6 +32,18 @@ in the XLS project, with the relevant Google style guides
 *   Internal errors for conditions that should never be false can use `CHECK`,
     but may also use `Status` or `StatusOr`.
 
+*   Prefer using `XLS_ASSIGN_OR_RETURN` / `XLS_RETURN_IF_ERROR` when
+    appropriate, but when binding a `StatusOr` wrapped value prefer to name it
+    `thing_or` so that it can be referenced without the wrapper as `thing`; e.g.
+
+    ```
+    absl::StatusOr<Thing> thing_or = f();
+    if (!thing_or.ok()) {
+      // ... handling of the status via thing_or.status() and returning ...
+    }
+    const Thing& thing = thing_or.value();
+    ```
+
 *   Prefer `CHECK` to `DCHECK`, except that `DCHECK` can be used to verify
     conditions that it would be too expensive to verify in production, but that
     are fast enough to include outside of production.
