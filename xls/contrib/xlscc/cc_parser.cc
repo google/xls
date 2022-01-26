@@ -90,6 +90,17 @@ class DiagnosticInterceptor : public clang::TextDiagnosticPrinter {
   CCParser& parser_;
 };
 
+Pragma::Pragma(PragmaType type, int64_t argument)
+    : type_(type), argument_(argument) {}
+
+Pragma::Pragma(PragmaType type) : type_(type), argument_(-1) {}
+
+Pragma::Pragma() : type_(Pragma_Null), argument_(-1) {}
+
+PragmaType Pragma::type() const { return type_; }
+
+int64_t Pragma::argument() const { return argument_; }
+
 CCParser::~CCParser() {
   // Allow parser and its thread to be destroyed
   if (libtool_wait_for_destruct_ != nullptr) {
@@ -188,7 +199,7 @@ absl::StatusOr<Pragma> CCParser::FindPragmaForLoc(
   // Look on the line before
   auto found =
       hls_pragmas_.find(PragmaLoc(ploc.getFilename(), ploc.getLine() - 1));
-  if (found == hls_pragmas_.end()) return Pragma_Null;
+  if (found == hls_pragmas_.end()) return Pragma(Pragma_Null);
   return found->second;
 }
 
@@ -215,6 +226,7 @@ absl::Status CCParser::ScanFileForPragmas(absl::string_view filename) {
           "Unable to open file to scan for pragmas: %s\n", filename));
     }
   }
+  const std::string init_interval_pragma = "#pragma hls_pipeline_init_interval";
   int lineno = 1;
   for (std::string line; std::getline(fin, line); ++lineno) {
     size_t at;
@@ -223,14 +235,27 @@ absl::Status CCParser::ScanFileForPragmas(absl::string_view filename) {
 
       if ((at = match_pragma(line, "#pragma hls_no_tuple")) !=
           std::string::npos) {
-        hls_pragmas_[location] = Pragma_NoTuples;
+        hls_pragmas_[location] = Pragma(Pragma_NoTuples);
       } else if ((at = match_pragma(line, "#pragma hls_unroll yes")) !=
                  std::string::npos) {
-        hls_pragmas_[location] = Pragma_Unroll;
+        hls_pragmas_[location] = Pragma(Pragma_Unroll);
       } else if ((at = match_pragma(line, "#pragma hls_top")) !=
                  std::string::npos) {
-        hls_pragmas_[location] = Pragma_Top;
+        hls_pragmas_[location] = Pragma(Pragma_Top);
+      } else if ((at = match_pragma(line, init_interval_pragma)) !=
+                 std::string::npos) {
+        const std::string after_pragma = line.substr(
+            line.find_first_of('#') + init_interval_pragma.length());
+        int64_t arg = -1;
+        if (!absl::SimpleAtoi(after_pragma, &arg) || (arg <= 0)) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Argument '%s' to pragma '%s' is not valid. Must be an integer "
+              ">= 1. At %s:%i",
+              after_pragma, init_interval_pragma, filename, lineno));
+        }
+        hls_pragmas_[location] = Pragma(Pragma_InitInterval, arg);
       }
+      // Ignore unknown pragmas
     }
   }
 
@@ -273,7 +298,7 @@ absl::Status CCParser::VisitFunction(const clang::FunctionDecl* funcdecl) {
   XLS_ASSIGN_OR_RETURN(Pragma pragma,
                        FindPragmaForLoc(GetPresumedLoc(*funcdecl)));
 
-  if (pragma == Pragma_Top || fname == top_function_name_) {
+  if (pragma.type() == Pragma_Top || fname == top_function_name_) {
     if (top_function_) {
       return absl::AlreadyExistsError(absl::StrFormat(
           "Two top functions defined, at %s, previously at %s",

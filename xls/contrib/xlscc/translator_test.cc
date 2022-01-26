@@ -1241,6 +1241,23 @@ TEST_F(TranslatorTest, ForUnrollContinue5) {
        })";
   Run({{"a", 11}, {"b", 20}}, 11, content);
 }
+
+TEST_F(TranslatorTest, ForPiplined) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        #pragma hls_pipeline_init_interval 1
+        for(int i=1;i<=10;++i) {
+          a += b;
+        }
+        return a;
+      })";
+  auto ret = SourceToIr(content);
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                            testing::HasSubstr("TODO")));
+}
+
 TEST_F(TranslatorTest, ReturnFromFor) {
   const std::string content = R"(
        long long my_package(long long a, long long b) {

@@ -810,6 +810,10 @@ class Translator {
   absl::Status GenerateIR_Switch(const clang::SwitchStmt* switchst,
                                  clang::ASTContext& ctx,
                                  const xls::SourceLocation& loc);
+  absl::Status GenerateIR_PipelinedFor(const clang::ForStmt* stmt,
+                                       clang::ASTContext& ctx,
+                                       const xls::SourceLocation& loc,
+                                       bool deep_scan);
 
   struct ResolvedInheritance {
     std::shared_ptr<CField> base_field;

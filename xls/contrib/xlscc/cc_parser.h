@@ -32,7 +32,27 @@
 
 namespace xlscc {
 
-enum Pragma { Pragma_Null = 0, Pragma_NoTuples, Pragma_Unroll, Pragma_Top };
+enum PragmaType {
+  Pragma_Null = 0,
+  Pragma_NoTuples,
+  Pragma_Unroll,
+  Pragma_Top,
+  Pragma_InitInterval
+};
+
+class Pragma {
+ private:
+  PragmaType type_;
+  int64_t argument_;
+
+ public:
+  Pragma(PragmaType type, int64_t argument);
+  Pragma(PragmaType type);
+  Pragma();
+
+  PragmaType type() const;
+  int64_t argument() const;
+};
 
 class CCParser;
 class LibToolVisitor;

@@ -1495,7 +1495,7 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
     }
 
     XLS_ASSIGN_OR_RETURN(Pragma pragma, FindPragmaForLoc(GetPresumedLoc(*sd)));
-    new_type.reset(new CStructType(fields, pragma == Pragma_NoTuples));
+    new_type.reset(new CStructType(fields, pragma.type() == Pragma_NoTuples));
   }
 
   inst_types_[signature] = new_type;
@@ -3332,15 +3332,16 @@ absl::Status Translator::GenerateIR_For(const clang::ForStmt* stmt,
   }
   XLS_ASSIGN_OR_RETURN(Pragma pragma,
                         FindPragmaForLoc(GetPresumedLoc(sm, *stmt)));
-  if (pragma == Pragma_Unroll || context().for_loops_default_unroll) {
+  if (pragma.type() == Pragma_Unroll || context().for_loops_default_unroll) {
     return GenerateIR_UnrolledFor(stmt, ctx, loc, deep_scan);
-  } else {
-    stmt->dump();
-    return absl::UnimplementedError(absl::StrFormat(
-        "Only unrolled for loops currently supported at %s",
-        LocString(loc)));
   }
-  return absl::OkStatus();
+  if (pragma.type() == Pragma_InitInterval) {
+    return GenerateIR_PipelinedFor(stmt, ctx, loc, deep_scan);
+  }
+
+  stmt->dump();
+  return absl::UnimplementedError(absl::StrFormat(
+      "Only unrolled for loops currently supported at %s", LocString(loc)));
 }
 
 absl::Status Translator::GenerateIR_UnrolledFor(const clang::ForStmt* stmt,
@@ -3446,6 +3447,20 @@ absl::Status Translator::GenerateIR_UnrolledFor(const clang::ForStmt* stmt,
   }
 
   return absl::OkStatus();
+}
+
+absl::Status Translator::GenerateIR_PipelinedFor(const clang::ForStmt* stmt,
+                                                 clang::ASTContext& ctx,
+                                                 const xls::SourceLocation& loc,
+                                                 bool deep_scan) {
+  if (stmt->getCond() == nullptr) {
+    return absl::UnimplementedError(
+        absl::StrFormat("Pipelined for must have a condition"));
+  }
+
+  // TODO(seanhaskell): Initializer and increment
+
+  return absl::UnimplementedError("TODO");
 }
 
 // First, flatten the statements in the switch
