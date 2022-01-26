@@ -64,7 +64,7 @@ class SimplificationPass : public FixedPointCompoundPass {
     Add<DeadCodeEliminationPass>();
     Add<SelectSimplificationPass>(opt_level);
     Add<DeadCodeEliminationPass>();
-    Add<ConditionalSpecializationPass>();
+    Add<ConditionalSpecializationPass>(/*use_bdd=*/false);
     Add<DeadCodeEliminationPass>();
     Add<ReassociationPass>();
     Add<DeadCodeEliminationPass>();
@@ -109,6 +109,12 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   top->Add<BddSimplificationPass>(std::min(int64_t{2}, opt_level));
   top->Add<DeadCodeEliminationPass>();
   top->Add<BddCsePass>();
+  // TODO(https://github.com/google/xls/issues/274): 2022/01/20 Remove this
+  // extra conditional specialization pass when the pipeline has been
+  // reorganized better follow a high level of abstraction down to low level.
+  top->Add<DeadCodeEliminationPass>();
+  top->Add<ConditionalSpecializationPass>(/*use_bdd=*/true);
+
   top->Add<DeadCodeEliminationPass>();
   top->Add<SimplificationPass>(std::min(int64_t{2}, opt_level));
 
@@ -119,6 +125,10 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   top->Add<DeadCodeEliminationPass>();
   top->Add<BddCsePass>();
   top->Add<DeadCodeEliminationPass>();
+
+  top->Add<ConditionalSpecializationPass>(/*use_bdd=*/true);
+  top->Add<DeadCodeEliminationPass>();
+
   top->Add<SimplificationPass>(std::min(int64_t{3}, opt_level));
   top->Add<LiteralUncommoningPass>();
   top->Add<DeadFunctionEliminationPass>();

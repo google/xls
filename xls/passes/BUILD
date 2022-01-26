@@ -835,12 +835,14 @@ cc_library(
     srcs = ["conditional_specialization_pass.cc"],
     hdrs = ["conditional_specialization_pass.h"],
     deps = [
+        ":bdd_query_engine",
         ":passes",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "//xls/ir",
+        "//xls/ir:bits_ops",
     ],
 )
 

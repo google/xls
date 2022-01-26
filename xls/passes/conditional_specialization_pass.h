@@ -25,11 +25,15 @@ namespace xls {
 // value.
 class ConditionalSpecializationPass : public FunctionBasePass {
  public:
-  ConditionalSpecializationPass()
-      : FunctionBasePass("cond_spec", "Conditional specialization") {}
+  // If `use_bdd` is true, then binary decision diagrams (BDDs) are used for
+  // stronger analysis at the cost of slower transformation.
+  ConditionalSpecializationPass(bool use_bdd)
+      : FunctionBasePass("cond_spec", "Conditional specialization"),
+        use_bdd_(use_bdd) {}
   ~ConditionalSpecializationPass() override {}
 
  protected:
+  bool use_bdd_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const PassOptions& options,
       PassResults* results) const override;

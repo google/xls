@@ -33,11 +33,11 @@ using status_testing::IsOkAndHolds;
 
 class ConditionalSpecializationPassTest : public IrTestBase {
  protected:
-  absl::StatusOr<bool> Run(Function* f) {
+  absl::StatusOr<bool> Run(Function* f, bool use_bdd = true) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool changed,
-                         ConditionalSpecializationPass().RunOnFunctionBase(
-                             f, PassOptions(), &results));
+    XLS_ASSIGN_OR_RETURN(
+        bool changed, ConditionalSpecializationPass(use_bdd).RunOnFunctionBase(
+                          f, PassOptions(), &results));
     return changed;
   }
 };
@@ -90,9 +90,8 @@ fn f(a: bits[32], x: bits[1]) -> bits[1] {
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::Select(m::ULt(m::Param("a"), m::Literal(7)),
-                        {m::Not(m::Literal(0)), m::Param("x")}));
+  EXPECT_THAT(f->return_value(), m::Select(m::ULt(m::Param("a"), m::Literal(7)),
+                                           {m::Literal(1), m::Param("x")}));
 }
 
 TEST_F(ConditionalSpecializationPassTest, SpecializeSelectNegative0) {
@@ -106,26 +105,13 @@ fn f(a: bits[32], x: bits[32], y: bits[32]) -> bits[32] {
 }
   )",
                                                        p.get()));
-  // Select arm specialization does not apply because not(a) is used in both
-  // branches:
-  //
-  //      not(a)
-  //     /      \
-  //   add.2   add.3
-  //
-  // This could be improved by making separate copies or each branch:
-  //
-  //   not(a)  not(a)
-  //    |       |
-  //   add.2   add.3
-  //
-  // and specializing the selector value separately for each:
-  //
-  //   not(0)  not(1)
-  //    |        |
-  //   add.2   add.3
-  //
-  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("a"),
+                        /*cases=*/
+                        {m::Add(m::Literal(0xffffffff), m::Param("x")),
+                         m::Add(m::Literal(0xfffffffe), m::Param("y"))},
+                        /*default_value=*/m::Param("a")));
 }
 
 TEST_F(ConditionalSpecializationPassTest, SpecializeSelectNegative1) {
@@ -162,9 +148,9 @@ fn f(a: bits[32], y: bits[32]) -> bits[32] {
 
 TEST_F(ConditionalSpecializationPassTest, Consecutive2WaySelects) {
   //
-  //  a   b                 a   b
-  //   \ /                   \ /
-  //   sel1 ----+-- p        sel1 ----- 0
+  //  a   b
+  //   \ /
+  //   sel1 ----+-- p         a
   //    |       |       =>    |
   //    |  c    |             |  c
   //    | /     |             | /
@@ -186,19 +172,16 @@ TEST_F(ConditionalSpecializationPassTest, Consecutive2WaySelects) {
 
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
-  EXPECT_THAT(
-      f->return_value(),
-      m::Select(m::Param("pred"),
-                /*cases=*/{m::Select(m::Literal(0),
-                                     /*cases=*/{m::Param("a"), m::Param("b")}),
-                           m::Param("c")}));
+  EXPECT_THAT(f->return_value(), m::Select(m::Param("pred"),
+                                           /*cases=*/
+                                           {m::Param("a"), m::Param("c")}));
 }
 
 TEST_F(ConditionalSpecializationPassTest, Consecutive2WaySelectsCase2) {
   //
-  //    a   b               a   b
-  //     \ /                 \ /
-  //     sel1 -+-- p         sel1 ---- 1
+  //    a   b
+  //     \ /
+  //     sel1 -+-- p          b
   //      |    |              |
   //   c  |    |      =>   c  |
   //    \ |    |            \ |
@@ -220,13 +203,9 @@ TEST_F(ConditionalSpecializationPassTest, Consecutive2WaySelectsCase2) {
 
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
-  EXPECT_THAT(
-      f->return_value(),
-      m::Select(
-          m::Param("pred"),
-          /*cases=*/{m::Param("c"),
-                     m::Select(m::Literal(1),
-                               /*cases=*/{m::Param("a"), m::Param("b")})}));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("pred"),
+                        /*cases=*/{m::Param("c"), m::Param("b")}));
 }
 
 TEST_F(ConditionalSpecializationPassTest, DuplicateArmSpecialization) {
@@ -244,8 +223,9 @@ fn f(s: bits[1], x: bits[8], y: bits[8]) -> bits[8] {
   // 's' operand of sel0 can be specialized 0 due to sel1 *and* sel2 arm
   // specialization.  This should not cause a crash.
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(FindNode("sel0", f),
-              m::Select(m::Literal(0), {m::Param("x"), m::Param("y")}));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(m::Param("s"), {m::Neg(m::Neg(m::Param("x"))), m::Param("y")}));
 }
 
 TEST_F(ConditionalSpecializationPassTest, LongSelectChain) {
@@ -266,6 +246,7 @@ TEST_F(ConditionalSpecializationPassTest, LongSelectChain) {
   BValue x = fb.Param("x", p->GetBitsType(kChainSize + 1));
   BValue a = fb.Param("a", p->GetBitsType(1));
   BValue b = fb.Param("b", p->GetBitsType(1));
+  std::vector<BValue> selects;
   BValue sel;
   for (int64_t i = 0; i <= kChainSize; ++i) {
     if (i == 0) {
@@ -277,11 +258,19 @@ TEST_F(ConditionalSpecializationPassTest, LongSelectChain) {
       sel = fb.Select(fb.BitSlice(s, /*start=*/i, /*width=*/1),
                       {fb.BitSlice(x, /*start=*/i, /*width=*/1), sel});
     }
+    selects.push_back(sel);
   }
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  // The second select should have it's case-1 redirected to "b".
+  EXPECT_THAT(selects[1].node(),
+              m::Select(m::BitSlice(), {m::BitSlice(), m::Select()}));
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(selects[1].node(),
+              m::Select(m::BitSlice(), {m::BitSlice(), m::Param("b")}));
 }
 
 TEST_F(ConditionalSpecializationPassTest, TooLongSelectChain) {
@@ -319,6 +308,186 @@ TEST_F(ConditionalSpecializationPassTest, TooLongSelectChain) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(ConditionalSpecializationPassTest, ImpliedSelectorValueUsingOr) {
+  // r implies r|s.
+  //
+  //    a   b
+  //     \ /
+  //     sel1 ---- r|s         b
+  //      |                    |
+  //   c  |              => c  |
+  //    \ |                  \ |
+  //     sel0 ---- r         sel0 ---- r
+  //      |                    |
+  //
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue r = fb.Param("r", p->GetBitsType(1));
+  BValue s = fb.Param("s", p->GetBitsType(1));
+
+  BValue r_or_s = fb.Or(r, s);
+  BValue sel1 = fb.Select(r_or_s, {a, b});
+  BValue sel0 = fb.Select(r, {c, sel1});
+
+  // Keep r_or_s alive to the return value to avoid replacing r in the
+  // expression with one (this is not what we're testing).
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Concat({sel0, r_or_s})));
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value()->operand(0),
+              m::Select(m::Param("r"),
+                        /*cases=*/{m::Param("c"), m::Param("b")}));
+}
+
+TEST_F(ConditionalSpecializationPassTest, NotImpliedSelectorValueUsingAnd) {
+  // No transformation because r does not imply r&s is true or false.
+  //
+  //    a   b
+  //     \ /
+  //     sel1 ---- r&s
+  //      |
+  //   c  |
+  //    \ |
+  //     sel0 ---- r
+  //      |
+  //
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue r = fb.Param("r", p->GetBitsType(1));
+  BValue s = fb.Param("s", p->GetBitsType(1));
+
+  BValue r_and_s = fb.And(r, s);
+  BValue sel1 = fb.Select(r_and_s, {a, b});
+  BValue sel0 = fb.Select(r, {c, sel1});
+
+  // Keep r_and_s alive to the return value to avoid replacing r in the
+  // expression with one (this is not what we're testing).
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Concat({sel0, r_and_s})));
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(ConditionalSpecializationPassTest, NotImpliedSelectorValueUsingOr) {
+  // No transformation because !r does not imply r|s is true or false.
+  //
+  //    a   b
+  //     \ /
+  //     sel1 ---- r|s
+  //      |
+  //      |   c
+  //      |  /
+  //     sel0 ---- r
+  //      |
+  //
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue r = fb.Param("r", p->GetBitsType(1));
+  BValue s = fb.Param("s", p->GetBitsType(1));
+
+  BValue r_or_s = fb.Or(r, s);
+  BValue sel1 = fb.Select(r_or_s, {a, b});
+  BValue sel0 = fb.Select(r, {sel1, c});
+
+  // Keep r_or_s alive to the return value to avoid replacing r in the
+  // expression with zero (this is not what we're testing).
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Concat({sel0, r_or_s})));
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(ConditionalSpecializationPassTest, ImpliedSelectorValueUsingAnd) {
+  // !r implies !(r&s).
+  //
+  //    a   b
+  //     \ /
+  //     sel1 ---- r&s         a
+  //      |                    |
+  //      |  c           =>    |  c
+  //      | /                  | /
+  //     sel0 ---- r          sel0 ---- r
+  //      |                    |
+  //
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue r = fb.Param("r", p->GetBitsType(1));
+  BValue s = fb.Param("s", p->GetBitsType(1));
+
+  BValue r_and_s = fb.And(r, s);
+  BValue sel1 = fb.Select(r_and_s, {a, b});
+  BValue sel0 = fb.Select(r, {sel1, c});
+
+  // Keep r_and_s alive to the return value to avoid replacing r in the
+  // expression with zero (this is not what we're testing).
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Concat({sel0, r_and_s})));
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value()->operand(0),
+              m::Select(m::Param("r"),
+                        /*cases=*/{m::Param("a"), m::Param("c")}));
+}
+
+TEST_F(ConditionalSpecializationPassTest, ImpliedSelectorValueWithOtherUses) {
+  // r implies r|s.
+  //
+  //    a   b                a   b ------------
+  //     \ /                  \ /              \
+  //     sel1 ---- r|s        sel1 ---- r|s     \
+  //      | \                  |                |
+  //   c  |  ...         =>   ...            c  |
+  //    \ |                                   \ |
+  //     sel0 ---- r                          sel0 ---- r
+  //      |                                     |
+  //
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue r = fb.Param("r", p->GetBitsType(1));
+  BValue s = fb.Param("s", p->GetBitsType(1));
+
+  BValue r_or_s = fb.Or(r, s);
+  BValue sel1 = fb.Select(r_or_s, {a, b});
+  BValue sel0 = fb.Select(r, {c, sel1});
+
+  // Keep r_or_s alive to the return value to avoid replacing r in the
+  // expression with one (this is not what we're testing).
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Concat({sel0, sel1, r_or_s})));
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value()->operand(0),
+              m::Select(m::Param("r"),
+                        /*cases=*/{m::Param("c"), m::Param("b")}));
+  EXPECT_THAT(f->return_value()->operand(1),
+              m::Select(m::Or(m::Param("r"), m::Param("s")),
+                        /*cases=*/{m::Param("a"), m::Param("b")}));
 }
 
 }  // namespace
