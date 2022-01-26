@@ -96,7 +96,11 @@ absl::Status ScheduleBounds::PropagateLowerBounds() {
     }
     XLS_ASSIGN_OR_RETURN(int64_t node_delay,
                          delay_estimator_->GetOperationDelayInPs(node));
-    XLS_RET_CHECK_LE(node_delay, clock_period_ps_) << node;
+    if (node_delay > clock_period_ps_) {
+      return absl::ResourceExhaustedError(absl::StrFormat(
+          "Node %s has a greater delay (%dps) than the clock period (%dps)",
+          node->GetName(), node_delay, clock_period_ps_));
+    }
     if (node_in_cycle_delay + node_delay > clock_period_ps_) {
       // Node does not fit in this cycle. Move to next cycle.
       XLS_VLOG(4) << "    overflows clock period, tightened lb to "
@@ -141,7 +145,11 @@ absl::Status ScheduleBounds::PropagateUpperBounds() {
     }
     XLS_ASSIGN_OR_RETURN(int64_t node_delay,
                          delay_estimator_->GetOperationDelayInPs(node));
-    XLS_RET_CHECK_LE(node_delay, clock_period_ps_) << node;
+    if (node_delay > clock_period_ps_) {
+      return absl::ResourceExhaustedError(absl::StrFormat(
+          "Node %s has a greater delay (%dps) than the clock period (%dps)",
+          node->GetName(), node_delay, clock_period_ps_));
+    }
     if (node_in_cycle_delay + node_delay > clock_period_ps_) {
       // Node does not fit in this cycle. Move to next cycle.
       XLS_VLOG(4) << "    overflows clock period, tightened ub to "
