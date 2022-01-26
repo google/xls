@@ -75,6 +75,7 @@ TEST(BytecodeEmitterTest, SimpleTranslation) {
   ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
   ASSERT_TRUE(bc->has_data());
   XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
+  ASSERT_EQ(slot_index.value(), 0);
 
   bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
@@ -101,7 +102,7 @@ fn expect_fail() -> u32{
       EmitBytecodes(&import_data, kProgram, "expect_fail"));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
-  ASSERT_EQ(bytecodes.size(), 7);
+  ASSERT_EQ(bytecodes.size(), 8);
   const Bytecode* bc = &bytecodes[0];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
   ASSERT_TRUE(bc->has_data());
@@ -125,19 +126,25 @@ fn expect_fail() -> u32{
   ASSERT_EQ(bc->value_data().value(), InterpValue::MakeU32(2));
 
   bc = &bytecodes[4];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kCall);
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue call_fn, bc->value_data());
-  ASSERT_TRUE(call_fn.IsBuiltinFunction());
+  ASSERT_TRUE(call_fn.IsFunction());
+  ASSERT_TRUE(absl::holds_alternative<Builtin>(call_fn.GetFunctionOrDie()));
+  Builtin builtin = absl::get<Builtin>(call_fn.GetFunctionOrDie());
   // How meta!
-  ASSERT_EQ(absl::get<Builtin>(call_fn.GetFunctionOrDie()), Builtin::kAssertEq);
+  ASSERT_EQ(builtin, Builtin::kAssertEq);
 
   bc = &bytecodes[5];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kCall);
+  ASSERT_FALSE(bc->has_data());
+
+  bc = &bytecodes[6];
   ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
   ASSERT_TRUE(bc->has_data());
   XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
   ASSERT_EQ(slot_index.value(), 1);
 
-  bc = &bytecodes[6];
+  bc = &bytecodes[7];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
   ASSERT_TRUE(bc->has_data());
   XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
@@ -162,7 +169,7 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
       EmitBytecodes(&import_data, kProgram, "has_name_def_tree"));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
-  ASSERT_EQ(bytecodes.size(), 35);
+  ASSERT_EQ(bytecodes.size(), 39);
   const Bytecode* bc = &bytecodes[0];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
   ASSERT_TRUE(bc->has_data());
@@ -225,19 +232,19 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
   ASSERT_EQ(slot_index.value(), 3);
 
   // Skip the uninteresting comparisons.
-  bc = &bytecodes[27];
+  bc = &bytecodes[30];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
   ASSERT_TRUE(bc->has_data());
   XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
   ASSERT_EQ(slot_index.value(), 3);
 
-  bc = &bytecodes[31];
+  bc = &bytecodes[34];
   ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
   ASSERT_TRUE(bc->has_data());
   XLS_ASSERT_OK_AND_ASSIGN(num_elements, bc->num_elements());
   ASSERT_EQ(num_elements.value(), 3);
 
-  bc = &bytecodes[34];
+  bc = &bytecodes[38];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
   ASSERT_TRUE(bc->has_data());
   XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
@@ -702,11 +709,11 @@ fn handles_const_refs() -> u32 {
       EmitBytecodes(&import_data, kProgram, "handles_const_refs"));
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 5);
-  const Bytecode* bc = &bytecodes[2];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
-
-  bc = &bytecodes[3];
+  const Bytecode* bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, bc->value_data());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueInt64());
+  ASSERT_EQ(int_value, 100);
 }
 
 TEST(BytecodeEmitterTest, HandlesStructInstances) {
@@ -912,6 +919,7 @@ fn has_params(x: u32, y: u64) -> u48 {
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 15);
+
   const Bytecode* bc = &bytecodes[2];
   EXPECT_EQ(bc->op(), Bytecode::Op::kLoad);
   ASSERT_TRUE(bc->has_data());

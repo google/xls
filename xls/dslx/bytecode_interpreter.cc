@@ -25,27 +25,42 @@
 
 namespace xls::dslx {
 
-absl::Status BytecodeInterpreter::Run(const std::vector<InterpValue>& params) {
-  for (const auto& param : params) {
-    frames_.back().slots.push_back(param);
-  }
+BytecodeInterpreter::Frame::Frame(BytecodeFunction* bf,
+                                  std::vector<InterpValue> args)
+    : pc_(0), slots_(std::move(args)), bf_(bf) {}
 
+/* static */ absl::StatusOr<InterpValue> BytecodeInterpreter::Interpret(
+    ImportData* import_data, BytecodeFunction* bf,
+    std::vector<InterpValue> args) {
+  BytecodeInterpreter interpreter(import_data, bf, std::move(args));
+  XLS_RETURN_IF_ERROR(interpreter.Run());
+  return interpreter.stack_.back();
+}
+
+BytecodeInterpreter::BytecodeInterpreter(ImportData* import_data,
+                                         BytecodeFunction* bf,
+                                         std::vector<InterpValue> args)
+    : import_data_(import_data) {
+  frames_.push_back(Frame(bf, std::move(args)));
+}
+
+absl::Status BytecodeInterpreter::Run() {
   while (!frames_.empty()) {
     Frame* frame = &frames_.back();
-    while (frame->pc < frame->bf->bytecodes().size()) {
-      const std::vector<Bytecode>& bytecodes = frame->bf->bytecodes();
-      const Bytecode& bytecode = bytecodes.at(frame->pc);
-      XLS_VLOG(2) << std::hex << "PC: " << frame->pc << " : "
+    while (frame->pc() < frame->bf()->bytecodes().size()) {
+      const std::vector<Bytecode>& bytecodes = frame->bf()->bytecodes();
+      const Bytecode& bytecode = bytecodes.at(frame->pc());
+      XLS_VLOG(2) << std::hex << "PC: " << frame->pc() << " : "
                   << bytecode.ToString();
-      int64_t old_pc = frame->pc;
+      int64_t old_pc = frame->pc();
       XLS_RETURN_IF_ERROR(EvalNextInstruction());
 
       if (bytecode.op() == Bytecode::Op::kCall) {
         frame = &frames_.back();
-      } else if (frame->pc != old_pc + 1) {
-        XLS_RET_CHECK(bytecodes.at(frame->pc).op() == Bytecode::Op::kJumpDest)
-            << "Jumping from PC " << old_pc << " to PC: " << frame->pc
-            << " bytecode: " << bytecodes.at(frame->pc).ToString()
+      } else if (frame->pc() != old_pc + 1) {
+        XLS_RET_CHECK(bytecodes.at(frame->pc()).op() == Bytecode::Op::kJumpDest)
+            << "Jumping from PC " << old_pc << " to PC: " << frame->pc()
+            << " bytecode: " << bytecodes.at(frame->pc()).ToString()
             << " not a jump_dest or old bytecode: " << bytecode.ToString()
             << " was not a call op.";
       }
@@ -60,13 +75,13 @@ absl::Status BytecodeInterpreter::Run(const std::vector<InterpValue>& params) {
 
 absl::Status BytecodeInterpreter::EvalNextInstruction() {
   Frame* frame = &frames_.back();
-  const std::vector<Bytecode>& bytecodes = frame->bf->bytecodes();
-  if (frame->pc >= bytecodes.size()) {
+  const std::vector<Bytecode>& bytecodes = frame->bf()->bytecodes();
+  if (frame->pc() >= bytecodes.size()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Frame PC exceeds bytecode length: %d vs %d.",
-                        frame->pc, bytecodes.size()));
+                        frame->pc(), bytecodes.size()));
   }
-  const Bytecode& bytecode = bytecodes.at(frame->pc);
+  const Bytecode& bytecode = bytecodes.at(frame->pc());
   switch (bytecode.op()) {
     case Bytecode::Op::kAdd: {
       XLS_RETURN_IF_ERROR(EvalAdd(bytecode));
@@ -128,14 +143,14 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       break;
     case Bytecode::Op::kJumpRel: {
       XLS_ASSIGN_OR_RETURN(Bytecode::JumpTarget target, bytecode.jump_target());
-      frame->pc += target.value();
+      frame->set_pc(frame->pc() + target.value());
       return absl::OkStatus();
     }
     case Bytecode::Op::kJumpRelIf: {
       XLS_ASSIGN_OR_RETURN(std::optional<int64_t> new_pc,
-                           EvalJumpRelIf(frame->pc, bytecode));
+                           EvalJumpRelIf(frame->pc(), bytecode));
       if (new_pc.has_value()) {
-        frame->pc = new_pc.value();
+        frame->set_pc(new_pc.value());
         return absl::OkStatus();
       }
       break;
@@ -209,7 +224,7 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       break;
     }
   }
-  frame->pc++;
+  frame->IncrementPc();
   return absl::OkStatus();
 }
 
@@ -261,9 +276,9 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
 }
 
 absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
-  XLS_ASSIGN_OR_RETURN(InterpValue callee, bytecode.value_data());
+  XLS_ASSIGN_OR_RETURN(InterpValue callee, Pop());
   if (callee.IsBuiltinFunction()) {
-    frames_.back().pc++;
+    frames_.back().IncrementPc();
     return RunBuiltinFn(bytecode,
                         absl::get<Builtin>(callee.GetFunctionOrDie()));
   }
@@ -277,16 +292,18 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
       GetBytecodeFn(user_fn_data.module, user_fn_data.function));
 
   // Store the _return_ PC.
-  frames_.back().pc++;
-  frames_.push_back(Frame{0, {}, bf});
-  Frame& frame = frames_.back();
+  frames_.back().IncrementPc();
+
   int64_t num_args = user_fn_data.function->params().size();
   std::vector<InterpValue> args(num_args, InterpValue::MakeToken());
-  for (int i = num_args - 1; i >= 0; i--) {
+  for (int i = 0; i < num_args; i++) {
     XLS_ASSIGN_OR_RETURN(InterpValue arg, Pop());
-    args[i] = arg;
+    args[num_args - i - 1] = arg;
   }
-  frame.slots = std::move(args);
+
+  // TODO(rspringer): 2022-01-24: We'll need the right type info for parametric
+  // invocations.
+  frames_.push_back(Frame{bf, std::move(args)});
 
   return absl::OkStatus();
 }
@@ -509,12 +526,12 @@ absl::Status BytecodeInterpreter::EvalLiteral(const Bytecode& bytecode) {
 
 absl::Status BytecodeInterpreter::EvalLoad(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot, bytecode.slot_index());
-  if (frames_.back().slots.size() <= slot.value()) {
+  if (frames_.back().slots().size() <= slot.value()) {
     return absl::InternalError(absl::StrFormat(
         "Attempted to access local data in slot %d, which is out of range.",
         slot.value()));
   }
-  stack_.push_back(frames_.back().slots.at(slot.value()));
+  stack_.push_back(frames_.back().slots().at(slot.value()));
   return absl::OkStatus();
 }
 
@@ -651,11 +668,11 @@ absl::Status BytecodeInterpreter::EvalStore(const Bytecode& bytecode) {
   // Slots are assigned in ascending order of use, which means that we'll only
   // ever need to add one slot.
   Frame& frame = frames_.back();
-  if (frame.slots.size() <= slot.value()) {
-    frame.slots.push_back(InterpValue::MakeToken());
+  if (frame.slots().size() <= slot.value()) {
+    frame.slots().push_back(InterpValue::MakeToken());
   }
 
-  frame.slots.at(slot.value()) = stack_.back();
+  frame.slots().at(slot.value()) = stack_.back();
   stack_.pop_back();
   return absl::OkStatus();
 }

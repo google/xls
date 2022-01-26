@@ -225,9 +225,9 @@ bool InterpValue::Eq(const InterpValue& other) const {
       }
       return values_equal();
     }
-    // Note: functions are ephemeral values in the interpreter (not first class
-    // values users can hold / manipulate) and cannot currently be compared for
-    // equality.
+    // Functions can't be compared for equality, as they may have parametrics
+    // that would differentiate one function from another, even if they have the
+    // same module and generic implementation.
     case InterpValueTag::kFunction:
       break;
     case InterpValueTag::kChannel:

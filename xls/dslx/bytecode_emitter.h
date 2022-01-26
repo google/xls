@@ -37,6 +37,7 @@ class BytecodeEmitter : public ExprVisitor {
  private:
   BytecodeEmitter(ImportData* import_data, TypeInfo* type_info);
   ~BytecodeEmitter();
+  absl::Status Init(Function* f);
 
   void HandleArray(Array* node) override;
   void HandleAttr(Attr* node) override;

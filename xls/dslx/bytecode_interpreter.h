@@ -29,29 +29,36 @@ namespace xls::dslx {
 // TODO(rspringer): Finish adding the rest of the opcodes, etc.
 class BytecodeInterpreter {
  public:
-  static absl::StatusOr<InterpValue> Interpret(
-      ImportData* import_data, BytecodeFunction* bf,
-      const std::vector<InterpValue>& params) {
-    BytecodeInterpreter interp(import_data, bf);
-    XLS_RETURN_IF_ERROR(interp.Run(params));
-    return interp.stack_.back();
-  }
+  // Takes ownership of `args`.
+  static absl::StatusOr<InterpValue> Interpret(ImportData* import_data,
+                                               BytecodeFunction* bf,
+                                               std::vector<InterpValue> args);
 
   const std::vector<InterpValue>& stack() { return stack_; }
 
  private:
-  struct Frame {
-    int64_t pc;
-    std::vector<InterpValue> slots;
-    BytecodeFunction* bf;
+  // Represents a frame on the function stack: holds the program counter, local
+  // storage, and instructions to execute.
+  class Frame {
+   public:
+    Frame(BytecodeFunction* bf, std::vector<InterpValue> args);
+
+    int64_t pc() { return pc_; }
+    void set_pc(int64_t pc) { pc_ = pc; }
+    void IncrementPc() { pc_++; }
+    std::vector<InterpValue>& slots() { return slots_; }
+    BytecodeFunction* bf() { return bf_; }
+
+   private:
+    int64_t pc_;
+    std::vector<InterpValue> slots_;
+    BytecodeFunction* bf_;
   };
 
-  BytecodeInterpreter(ImportData* import_data, BytecodeFunction* bf)
-      : import_data_(import_data) {
-    frames_.emplace_back(Frame{0, {}, bf});
-  }
+  BytecodeInterpreter(ImportData* import_data, BytecodeFunction* bf,
+                      std::vector<InterpValue> args);
 
-  absl::Status Run(const std::vector<InterpValue>& params);
+  absl::Status Run();
 
   // Runs the next instruction in the current frame. Returns an error if called
   // when the PC is already pointing to the end of the bytecode.

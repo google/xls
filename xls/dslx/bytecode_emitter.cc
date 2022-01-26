@@ -20,6 +20,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/concrete_type.h"
+#include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
 
@@ -28,17 +29,20 @@ BytecodeEmitter::BytecodeEmitter(ImportData* import_data, TypeInfo* type_info)
 
 BytecodeEmitter::~BytecodeEmitter() = default;
 
+absl::Status BytecodeEmitter::Init(Function* f) {
+  for (const auto* param : f->params()) {
+    namedef_to_slot_[param->name_def()] = namedef_to_slot_.size();
+  }
+
+  return absl::OkStatus();
+}
+
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
 BytecodeEmitter::Emit(ImportData* import_data, TypeInfo* type_info,
                       Function* f) {
   BytecodeEmitter emitter(import_data, type_info);
+  XLS_RETURN_IF_ERROR(emitter.Init(f));
 
-  // Params fill the first N slots. The bytecode interpreter is responsible for
-  // placing params correctly.
-  for (const auto* param : f->params()) {
-    emitter.namedef_to_slot_[param->name_def()] =
-        emitter.namedef_to_slot_.size();
-  }
   f->body()->AcceptExpr(&emitter);
 
   if (!emitter.status_.ok()) {
@@ -438,23 +442,7 @@ void BytecodeEmitter::HandleColonRef(ColonRef* node) {
   status_ = HandleColonRefToImportedEnum(node);
 }
 
-void BytecodeEmitter::HandleConstRef(ConstRef* node) {
-  if (!status_.ok()) {
-    return;
-  }
-
-  ConstantDef* constant_def = node->GetConstantDef();
-  absl::optional<InterpValue> const_val = type_info_->GetConstExpr(node);
-
-  if (!const_val.has_value()) {
-    status_ = absl::InternalError(absl::StrCat(
-        "Could not find value for constant ", constant_def->ToString()));
-    return;
-  }
-
-  bytecode_.push_back(
-      Bytecode(node->span(), Bytecode::Op::kLiteral, const_val.value()));
-}
+void BytecodeEmitter::HandleConstRef(ConstRef* node) { HandleNameRef(node); }
 
 absl::StatusOr<int64_t> GetValueWidth(TypeInfo* type_info, Expr* expr) {
   absl::optional<ConcreteType*> maybe_type = type_info->GetItem(expr);
@@ -568,26 +556,8 @@ void BytecodeEmitter::HandleInvocation(Invocation* node) {
     arg->AcceptExpr(this);
   }
 
-  InterpValue callee_value(InterpValue::MakeUnit());
-  if (NameRef* name_ref = dynamic_cast<NameRef*>(node->callee());
-      name_ref != nullptr) {
-    absl::StatusOr<InterpValue> status_or_callee =
-        import_data_->GetOrCreateTopLevelBindings(node->owner())
-            .ResolveValue(name_ref);
-    if (!status_or_callee.ok()) {
-      status_ = absl::InternalError(
-          absl::StrCat("Unable to get value for invocation callee: ",
-                       node->callee()->ToString()));
-      return;
-    }
-    bytecode_.push_back(
-        Bytecode(node->span(), Bytecode::Op::kCall, status_or_callee.value()));
-    return;
-  }
-
-  // Else it's a ColonRef.
-  status_ =
-      absl::UnimplementedError("ColonRef invocations not yet implemented.");
+  node->callee()->AcceptExpr(this);
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCall));
 }
 
 void BytecodeEmitter::DestructureLet(NameDefTree* tree) {
@@ -628,11 +598,45 @@ void BytecodeEmitter::HandleNameRef(NameRef* node) {
   }
 
   if (absl::holds_alternative<BuiltinNameDef*>(node->name_def())) {
-    status_ =
-        absl::UnimplementedError("NameRefs to builtins are not yet supported.");
+    // Builtins don't have NameDefs, so we can't use slots to store them. It's
+    // simpler to just emit a literal InterpValue, anyway.
+    BuiltinNameDef* builtin_def = absl::get<BuiltinNameDef*>(node->name_def());
+    absl::StatusOr<Builtin> builtin_or =
+        BuiltinFromString(builtin_def->identifier());
+    if (!builtin_or.ok()) {
+      status_ = builtin_or.status();
+      return;
+    }
+    bytecode_.push_back(
+        Bytecode(node->span(), Bytecode::Op::kLiteral,
+                 InterpValue::MakeFunction(builtin_or.value())));
+    return;
   }
 
+  // Emit function and constant refs directly so that they can be stack elements
+  // without having to load slots with them.
   NameDef* name_def = absl::get<NameDef*>(node->name_def());
+  if (auto* f = dynamic_cast<Function*>(name_def->definer()); f != nullptr) {
+    bytecode_.push_back(Bytecode(
+        node->span(), Bytecode::Op::kLiteral,
+        InterpValue::MakeFunction(InterpValue::UserFnData{f->owner(), f})));
+    return;
+  }
+
+  if (auto* cd = dynamic_cast<ConstantDef*>(name_def->definer());
+      cd != nullptr) {
+    absl::optional<InterpValue> const_value =
+        type_info_->GetConstExpr(cd->value());
+    if (!const_value.has_value()) {
+      status_ = absl::InternalError(
+          absl::StrCat("Could not find value for constant: ", cd->ToString()));
+      return;
+    }
+    bytecode_.push_back(
+        Bytecode(node->span(), Bytecode::Op::kLiteral, const_value.value()));
+    return;
+  }
+
   int64_t slot = namedef_to_slot_.at(name_def);
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kLoad, Bytecode::SlotIndex(slot)));
