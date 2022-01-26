@@ -459,8 +459,8 @@ xls_dslx_module_library(
 xls_dslx_test(
     name = "multiplies_dslx_test",
     dep = ":multiplies_dslx_module",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode yet due to needing
-    # ColonRef invocations.
+    # TODO(rspringer): 2022-01-19: Can't run bytecode due to needing parametric
+    # support.
 )
 
 xls_dslx_opt_ir(
@@ -645,8 +645,8 @@ xls_dslx_opt_ir(
 xls_dslx_test(
     name = "signed_comparisons_dslx_test",
     dep = ":signed_comparisons_dslx_module",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode yet due to needing
-    # ColonRef invocations.
+    # TODO(rspringer): 2022-01-19: Can't run bytecode due to needing parametric
+    # support.
 )
 
 xls_dslx_module_library(
@@ -1657,8 +1657,8 @@ xls_dslx_module_library(
 xls_dslx_test(
     name = "call_imported_fn_simple_dslx_test",
     dep = ":call_imported_fn_simple_dslx_module",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of ColonRef
-    # invocation support.
+    # TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of parametrics
+    # support.
 )
 
 xls_dslx_opt_ir(
@@ -1685,8 +1685,9 @@ xls_dslx_module_library(
 xls_dslx_test(
     name = "mod_typedef_importer_dslx_test",
     dep = ":mod_typedef_importer_dslx_module",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to bug in ColonRef
-    # handling.
+    dslx_test_args = {
+        "bytecode": "true",
+    },
 )
 
 xls_dslx_opt_ir(
@@ -2100,8 +2101,8 @@ xls_dslx_module_library(
 xls_dslx_test(
     name = "map_multi_module_dslx_test",
     dep = ":map_multi_module_dslx_module",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # ColonRef invocation support.
+    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of "map"
+    # builtin support.
 )
 
 xls_dslx_opt_ir(
@@ -2372,8 +2373,9 @@ xls_dslx_module_library(
 xls_dslx_test(
     name = "mod_const_enum_importer_dslx_test",
     dep = ":mod_const_enum_importer_dslx_module",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to bug in ColonRef
-    # node handling.
+    dslx_test_args = {
+        "bytecode": "True",
+    },
 )
 
 xls_dslx_opt_ir(

@@ -79,9 +79,21 @@ class BytecodeEmitter : public ExprVisitor {
                                BitsType* to_bits);
   absl::Status CastBitsToArray(Span span, BitsType* from_bits,
                                ArrayType* to_array);
-  absl::Status HandleColonRefToImportedConstant(
-      ColonRef* colon_ref, Import* import, absl::string_view constant_name);
-  absl::Status HandleColonRefToImportedEnum(ColonRef* colon_ref);
+
+  // Finds either the Module or EnumDef that a ColonRef ultimately refers to.
+  absl::StatusOr<absl::variant<Module*, EnumDef*>> ResolveColonRefSubject(
+      ColonRef* node);
+
+  // Given a TypeDef, determines the EnumDef to which it refers.
+  absl::StatusOr<EnumDef*> ResolveTypeDefToEnum(Module* module,
+                                                TypeDef* type_def);
+
+  absl::StatusOr<Bytecode> HandleColonRefToEnum(ColonRef* colon_ref,
+                                                EnumDef* enum_def,
+                                                TypeInfo* type_info);
+  absl::StatusOr<Bytecode> HandleColonRefToValue(Module* module,
+                                                 ColonRef* colon_ref);
+
   void DestructureLet(NameDefTree* tree);
 
   ImportData* import_data_;

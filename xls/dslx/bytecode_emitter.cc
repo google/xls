@@ -17,6 +17,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/variant.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/concrete_type.h"
@@ -312,39 +313,10 @@ void BytecodeEmitter::HandleCast(Cast* node) {
       Bytecode(node->span(), Bytecode::Op::kCast, to_bits->CloneToUnique()));
 }
 
-absl::Status BytecodeEmitter::HandleColonRefToImportedConstant(
-    ColonRef* colon_ref, Import* import, absl::string_view constant_name) {
-  absl::optional<const ImportedInfo*> imported_info =
-      type_info_->GetImported(import);
-  if (!imported_info.has_value()) {
-    return absl::InternalError(
-        absl::StrCat("Could not find import: ", import->ToString()));
-  }
-
-  Module* imported_module = imported_info.value()->module;
-  if (imported_module->GetFunction(constant_name).has_value()) {
-    return absl::UnimplementedError(
-        "ColonRefs to functions are not yet implemented.");
-  }
-
-  XLS_ASSIGN_OR_RETURN(ConstantDef * constant_def,
-                       imported_module->GetConstantDef(constant_name));
-  absl::optional<InterpValue> interp_value =
-      imported_info.value()->type_info->GetConstExpr(constant_def->value());
-  if (!interp_value.has_value()) {
-    return absl::InternalError(
-        absl::StrCat("Unable to find constant value for constant def ",
-                     constant_def->ToString()));
-  }
-  bytecode_.push_back(Bytecode(colon_ref->span(), Bytecode::Op::kLiteral,
-                               interp_value.value()));
-
-  return absl::OkStatus();
-}
-
-absl::StatusOr<Bytecode> HandleColonRefToEnum(ColonRef* colon_ref,
-                                              EnumDef* enum_def,
-                                              TypeInfo* type_info) {
+absl::StatusOr<Bytecode> BytecodeEmitter::HandleColonRefToEnum(
+    ColonRef* colon_ref, EnumDef* enum_def, TypeInfo* type_info) {
+  // TODO(rspringer): 2022-01-26 We'll need to pull the right type info during
+  // ResolveTypeDefToEnum.
   absl::string_view attr = colon_ref->attr();
   XLS_ASSIGN_OR_RETURN(Expr * value_expr, enum_def->GetValue(attr));
 
@@ -358,88 +330,149 @@ absl::StatusOr<Bytecode> HandleColonRefToEnum(ColonRef* colon_ref,
   return Bytecode(colon_ref->span(), Bytecode::Op::kLiteral, value_or.value());
 }
 
-absl::Status BytecodeEmitter::HandleColonRefToImportedEnum(
-    ColonRef* colon_ref) {
-  ColonRef* second_colon_ref = absl::get<ColonRef*>(colon_ref->subject());
-  // Get the import module.
-  NameRef* import_name = absl::get<NameRef*>(second_colon_ref->subject());
-  Module* module = type_info_->module();
-  absl::optional<ModuleMember*> maybe_member =
-      module->FindMemberWithName(import_name->identifier());
-  if (!maybe_member.has_value()) {
+absl::StatusOr<Bytecode> BytecodeEmitter::HandleColonRefToValue(
+    Module* module, ColonRef* colon_ref) {
+  // TODO(rspringer): We'll need subject resolution to return the appropriate
+  // TypeInfo for parametrics.
+  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
+                       import_data_->GetRootTypeInfo(module));
+
+  absl::optional<ModuleMember*> member =
+      module->FindMemberWithName(colon_ref->attr());
+  if (!member.has_value()) {
     return absl::InternalError(
-        absl::StrCat("Unable to find module member with name \"",
-                     import_name->identifier(), "\""));
+        absl::StrFormat("Could not find member %s of module %s.",
+                        colon_ref->attr(), module->name()));
   }
 
-  if (!absl::holds_alternative<Import*>(*maybe_member.value())) {
-    return absl::InternalError(absl::StrCat(
-        "Expected ColonRef LHS to be Import: ", colon_ref->ToString()));
-  }
-  Import* import = absl::get<Import*>(*maybe_member.value());
-  absl::optional<const ImportedInfo*> imported =
-      type_info_->GetImported(import);
-  if (!imported.has_value()) {
-    return absl::NotFoundError(
-        absl::StrCat("Could not find import: ", import->ToString()));
+  if (absl::holds_alternative<Function*>(*member.value())) {
+    Function* f = absl::get<Function*>(*member.value());
+    return Bytecode(
+        colon_ref->span(), Bytecode::Op::kLiteral,
+        InterpValue::MakeFunction(InterpValue::UserFnData{module, f}));
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      TypeDefinition td,
-      imported.value()->module->GetTypeDefinition(second_colon_ref->attr()));
+  XLS_RET_CHECK(absl::holds_alternative<ConstantDef*>(*member.value()));
+  ConstantDef* constant_def = absl::get<ConstantDef*>(*member.value());
+  return Bytecode(colon_ref->span(), Bytecode::Op::kLiteral,
+                  type_info->GetConstExpr(constant_def->value()));
+}
+
+// Has to be enum, given context we're in: looking for _values_
+absl::StatusOr<EnumDef*> BytecodeEmitter::ResolveTypeDefToEnum(
+    Module* module, TypeDef* type_def) {
+  TypeDefinition td = type_def;
+  while (absl::holds_alternative<TypeDef*>(td)) {
+    TypeDef* type_def = absl::get<TypeDef*>(td);
+    TypeAnnotation* type = type_def->type_annotation();
+    TypeRefTypeAnnotation* type_ref_type =
+        dynamic_cast<TypeRefTypeAnnotation*>(type);
+    // TODO(rspringer): We'll need to collect parametrics from type_ref_type to
+    // support parametric TypeDefs.
+    XLS_RET_CHECK(type_ref_type != nullptr);
+    td = type_ref_type->type_ref()->type_definition();
+  }
+
+  if (absl::holds_alternative<ColonRef*>(td)) {
+    ColonRef* colon_ref = absl::get<ColonRef*>(td);
+    XLS_ASSIGN_OR_RETURN(auto subject, ResolveColonRefSubject(colon_ref));
+    XLS_RET_CHECK(absl::holds_alternative<Module*>(subject));
+    Module* module = absl::get<Module*>(subject);
+    XLS_ASSIGN_OR_RETURN(td, module->GetTypeDefinition(colon_ref->attr()));
+
+    if (absl::holds_alternative<TypeDef*>(td)) {
+      return ResolveTypeDefToEnum(module, absl::get<TypeDef*>(td));
+    }
+  }
+
   if (!absl::holds_alternative<EnumDef*>(td)) {
-    return absl::InternalError(absl::StrCat(
-        "Imported symbol ", second_colon_ref->attr(), " is not an EnumDef."));
+    return absl::InternalError(
+        "ResolveTypeDefToEnum() can only be called when the TypeDef "
+        "directory or indirectly refers to an EnumDef.");
   }
 
-  EnumDef* enum_def = absl::get<EnumDef*>(td);
-  XLS_ASSIGN_OR_RETURN(
-      Bytecode bytecode,
-      HandleColonRefToEnum(colon_ref, enum_def, imported.value()->type_info));
-  bytecode_.push_back(std::move(bytecode));
-  return absl::OkStatus();
+  return absl::get<EnumDef*>(td);
+}
+
+absl::StatusOr<absl::variant<Module*, EnumDef*>>
+BytecodeEmitter::ResolveColonRefSubject(ColonRef* node) {
+  if (absl::holds_alternative<NameRef*>(node->subject())) {
+    // Inside a ColonRef, the LHS can't be a BuiltinNameDef.
+    NameRef* name_ref = absl::get<NameRef*>(node->subject());
+    NameDef* name_def = absl::get<NameDef*>(name_ref->name_def());
+
+    if (Import* import = dynamic_cast<Import*>(name_def->definer());
+        import != nullptr) {
+      absl::optional<const ImportedInfo*> imported =
+          type_info_->GetImported(import);
+      if (!imported.has_value()) {
+        return absl::InternalError(absl::StrCat(
+            "Could not find Module for Import: ", import->ToString()));
+      }
+      return imported.value()->module;
+    }
+
+    // If the LHS isn't an Import, then it has to be an EnumDef (possibly via a
+    // TypeDef).
+    if (EnumDef* enum_def = dynamic_cast<EnumDef*>(name_def->definer());
+        enum_def != nullptr) {
+      return enum_def;
+    }
+
+    TypeDef* type_def = dynamic_cast<TypeDef*>(name_def->definer());
+    XLS_RET_CHECK(type_def != nullptr);
+    return ResolveTypeDefToEnum(type_def->owner(), type_def);
+  }
+
+  XLS_RET_CHECK(absl::holds_alternative<ColonRef*>(node->subject()));
+  ColonRef* subject = absl::get<ColonRef*>(node->subject());
+  XLS_ASSIGN_OR_RETURN(auto resolved_subject, ResolveColonRefSubject(subject));
+  // Has to be a module, since it's a ColonRef inside a ColonRef.
+  XLS_RET_CHECK(absl::holds_alternative<Module*>(resolved_subject));
+  Module* module = absl::get<Module*>(resolved_subject);
+
+  // And the subject has to be a type, namely an enum, since the ColonRef must
+  // be of the form: <MODULE>::SOMETHING::SOMETHING_ELSE. Keep in mind, though,
+  // that we might have to traverse an EnumDef.
+  XLS_ASSIGN_OR_RETURN(TypeDefinition td,
+                       module->GetTypeDefinition(subject->attr()));
+  if (absl::holds_alternative<TypeDef*>(td)) {
+    return ResolveTypeDefToEnum(module, absl::get<TypeDef*>(td));
+  }
+
+  return absl::get<EnumDef*>(td);
 }
 
 void BytecodeEmitter::HandleColonRef(ColonRef* node) {
-  // ColonRefs can have three forms:
-  //  1. Ref to local enum: LocalEnum::Value
-  //  2. Ref to imported constant or function: module::Constant
-  //  3. Ref to imported enum: module::ImportedEnum::Value
-  if (absl::holds_alternative<NameRef*>(node->subject())) {
-    NameRef* name_ref = absl::get<NameRef*>(node->subject());
-    Module* module = type_info_->module();
-    absl::optional<ModuleMember*> maybe_member =
-        module->FindMemberWithName(name_ref->identifier());
-    if (!maybe_member.has_value()) {
-      status_ = absl::InternalError(
-          absl::StrCat("Unable to find module member with name \"",
-                       name_ref->identifier(), "\""));
-      return;
-    }
+  absl::StatusOr<absl::variant<Module*, EnumDef*>> resolved_subject_or =
+      ResolveColonRefSubject(node);
+  if (!resolved_subject_or.ok()) {
+    status_ = resolved_subject_or.status();
+    return;
+  }
 
-    if (absl::holds_alternative<Import*>(*maybe_member.value())) {
-      // Case 2.
-      absl::Status status = HandleColonRefToImportedConstant(
-          node, absl::get<Import*>(*maybe_member.value()), node->attr());
-      if (!status.ok()) {
-        status_ = status;
-      }
+  if (absl::holds_alternative<EnumDef*>(resolved_subject_or.value())) {
+    EnumDef* enum_def = absl::get<EnumDef*>(resolved_subject_or.value());
+    absl::StatusOr<TypeInfo*> type_info =
+        import_data_->GetRootTypeInfo(enum_def->owner());
+    absl::StatusOr<Bytecode> bytecode_or =
+        HandleColonRefToEnum(node, enum_def, type_info.value());
+    if (!bytecode_or.ok()) {
+      status_ = bytecode_or.status();
     } else {
-      // Case 1.
-      EnumDef* enum_def = absl::get<EnumDef*>(*maybe_member.value());
-      absl::StatusOr<Bytecode> bytecode_or =
-          HandleColonRefToEnum(node, enum_def, type_info_);
-      if (!bytecode_or.ok()) {
-        status_ = bytecode_or.status();
-      } else {
-        bytecode_.push_back(std::move(bytecode_or.value()));
-      }
+      bytecode_.push_back(std::move(bytecode_or.value()));
     }
     return;
   }
 
-  // Case 3: Ref to imported enum.
-  status_ = HandleColonRefToImportedEnum(node);
+  Module* module = absl::get<Module*>(resolved_subject_or.value());
+  absl::StatusOr<Bytecode> bytecode_or = HandleColonRefToValue(module, node);
+  if (!bytecode_or.ok()) {
+    status_ = bytecode_or.status();
+    return;
+  }
+
+  bytecode_.push_back(std::move(bytecode_or.value()));
 }
 
 void BytecodeEmitter::HandleConstRef(ConstRef* node) { HandleNameRef(node); }
