@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "absl/strings/match.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {
@@ -39,7 +40,7 @@ TEST(InterpreterTest, RunIdentityFn) {
 
   module->AddTop(function);
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
 
   // Populate a type information entity so we can resolve it.
   XLS_ASSERT_OK(import_data.type_info_owner().New(module.get()).status());
@@ -53,7 +54,7 @@ TEST(InterpreterTest, RunIdentityFn) {
 
 TEST(InterpreterTest, RunTokenIdentityFn) {
   absl::string_view program = "fn id(t: token) -> token { t }";
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_data));
@@ -86,7 +87,7 @@ fn top(x: u32) -> u32 {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
@@ -164,7 +165,7 @@ proc test_proc {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));

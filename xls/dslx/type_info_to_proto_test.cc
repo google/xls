@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
@@ -26,7 +27,7 @@ namespace {
 
 void DoRun(std::string_view program, absl::Span<const std::string> want,
            TypeInfoProto* proto_out = nullptr) {
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "fake.x", "fake", &import_data));

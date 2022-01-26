@@ -16,6 +16,7 @@
 
 #include "absl/strings/match.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/ir/bits_ops.h"
@@ -191,8 +192,9 @@ static absl::StatusOr<std::string> Generate(
 
 static absl::StatusOr<std::unique_ptr<FunctionType>> GetFunctionType(
     absl::string_view dslx_text, absl::string_view fn_name) {
-  ImportData import_data(/*stdlib_path=*/"",
-                         /*additional_search_paths=*/{});
+  ImportData import_data(
+      dslx::CreateImportData(/*stdlib_path=*/"",
+                             /*additional_search_paths=*/{}));
   XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
                        ParseAndTypecheck(dslx_text, "get_function_type.x",
                                          "get_function_type", &import_data));

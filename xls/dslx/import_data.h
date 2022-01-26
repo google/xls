@@ -19,6 +19,7 @@
 #include <memory>
 
 #include "xls/dslx/ast.h"
+#include "xls/dslx/bytecode_cache_interface.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/type_info.h"
@@ -76,20 +77,11 @@ class ImportTokens {
 
 // Wrapper around a {subject: module_info} mapping that modules can be imported
 // into.
+// Use the routines in create_import_data.h to instantiate an object.
 class ImportData {
  public:
-  static ImportData CreateForTest() {
-    return ImportData(xls::kDefaultDslxStdlibPath,
-                      /*additional_search_paths=*/{});
-  }
-
   // All instantiations of ImportData should pass a stdlib_path as below.
   ImportData() = delete;
-
-  ImportData(std::string stdlib_path,
-             absl::Span<const std::filesystem::path> additional_search_paths)
-      : stdlib_path_(std::move(stdlib_path)),
-        additional_search_paths_(additional_search_paths) {}
 
   bool Contains(const ImportTokens& target) const {
     return cache_.find(target) != cache_.end();
@@ -151,7 +143,21 @@ class ImportData {
     return additional_search_paths_;
   }
 
+  void SetBytecodeCache(std::unique_ptr<BytecodeCacheInterface> bytecode_cache);
+  BytecodeCacheInterface* bytecode_cache();
+
  private:
+  friend ImportData CreateImportData(std::string,
+                                     absl::Span<const std::filesystem::path>);
+  friend std::unique_ptr<ImportData> CreateImportDataPtr(
+      std::string, absl::Span<const std::filesystem::path>);
+  friend ImportData CreateImportDataForTest();
+
+  ImportData(std::string stdlib_path,
+             absl::Span<const std::filesystem::path> additional_search_paths)
+      : stdlib_path_(std::move(stdlib_path)),
+        additional_search_paths_(additional_search_paths) {}
+
   absl::flat_hash_map<ImportTokens, ModuleInfo> cache_;
   absl::flat_hash_map<Module*, std::unique_ptr<InterpBindings>>
       top_level_bindings_;
@@ -160,6 +166,7 @@ class ImportData {
   TypeInfoOwner type_info_owner_;
   std::string stdlib_path_;
   absl::Span<const std::filesystem::path> additional_search_paths_;
+  std::unique_ptr<BytecodeCacheInterface> bytecode_cache_;
 };
 
 }  // namespace xls::dslx

@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_info_to_proto.h"
 
@@ -29,7 +30,7 @@ using testing::HasSubstr;
 
 // Helper for parsing/typechecking a snippet of DSLX text.
 absl::Status Typecheck(absl::string_view text) {
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
                        ParseAndTypecheck(text, "fake.x", "fake", &import_data));
   // Ensure that we can convert all the type information in the unit tests into
@@ -969,7 +970,7 @@ struct Foo {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kProgram, "fake_path", "MyModule", &import_data));
@@ -1065,7 +1066,7 @@ fn main() {
 }
 )";
 
-  ImportData import_data(ImportData::CreateForTest());
+  ImportData import_data(CreateImportDataForTest());
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "fake.x", "fake", &import_data));

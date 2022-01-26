@@ -71,4 +71,13 @@ void ImportData::SetTopLevelBindings(Module* module,
                        << module->name();
 }
 
+void ImportData::SetBytecodeCache(
+    std::unique_ptr<BytecodeCacheInterface> bytecode_cache) {
+  bytecode_cache_ = std::move(bytecode_cache);
+}
+
+BytecodeCacheInterface* ImportData::bytecode_cache() {
+  return bytecode_cache_.get();
+}
+
 }  // namespace xls::dslx

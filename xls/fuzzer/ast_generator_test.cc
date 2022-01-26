@@ -20,6 +20,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/command_line_utils.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {
@@ -41,7 +42,7 @@ absl::Status ParseAndTypecheck(absl::string_view text,
     return std::string(text);
   };
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   absl::StatusOr<TypecheckedModule> parsed_or = ParseAndTypecheck(
       text, /*path=*/filename, /*module_name=*/module_name, &import_data);
   TryPrintError(parsed_or.status(), get_file_contents);

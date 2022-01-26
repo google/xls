@@ -19,6 +19,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/concrete_type.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/deduce.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
@@ -32,22 +33,19 @@ namespace {
 
 struct TestData {
   std::unique_ptr<Module> module;
-  std::unique_ptr<ImportData> import_data;
+  ImportData import_data;
   TypeInfo* type_info;
 };
 
 absl::StatusOr<TestData> CreateTestData(absl::string_view module_text) {
-  TestData test_data;
   Scanner s("test.x", std::string(module_text));
   Parser parser{"test", &s};
 
-  XLS_ASSIGN_OR_RETURN(test_data.module, parser.ParseModule());
-  std::vector<std::filesystem::path> paths;
-  test_data.import_data =
-      std::make_unique<ImportData>(kDefaultDslxStdlibPath, paths);
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
+  TestData test_data{std::move(module), CreateImportDataForTest()};
   XLS_ASSIGN_OR_RETURN(
       test_data.type_info,
-      CheckModule(test_data.module.get(), test_data.import_data.get()));
+      CheckModule(test_data.module.get(), &test_data.import_data));
   return std::move(test_data);
 }
 

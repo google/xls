@@ -30,9 +30,9 @@ namespace xls::dslx {
 class BytecodeInterpreter {
  public:
   static absl::StatusOr<InterpValue> Interpret(
-      ImportData* import_data, BytecodeFunction bf,
+      ImportData* import_data, BytecodeFunction* bf,
       const std::vector<InterpValue>& params) {
-    BytecodeInterpreter interp(import_data, std::move(bf));
+    BytecodeInterpreter interp(import_data, bf);
     XLS_RETURN_IF_ERROR(interp.Run(params));
     return interp.stack_.back();
   }
@@ -43,12 +43,12 @@ class BytecodeInterpreter {
   struct Frame {
     int64_t pc;
     std::vector<InterpValue> slots;
-    BytecodeFunction bf;
+    BytecodeFunction* bf;
   };
 
-  BytecodeInterpreter(ImportData* import_data, BytecodeFunction bf)
+  BytecodeInterpreter(ImportData* import_data, BytecodeFunction* bf)
       : import_data_(import_data) {
-    frames_.emplace_back(Frame{0, {}, std::move(bf)});
+    frames_.emplace_back(Frame{0, {}, bf});
   }
 
   absl::Status Run(const std::vector<InterpValue>& params);
@@ -92,8 +92,8 @@ class BytecodeInterpreter {
   absl::Status EvalBinop(const std::function<absl::StatusOr<InterpValue>(
                              const InterpValue& lhs, const InterpValue& rhs)>
                              op);
-  absl::StatusOr<BytecodeFunction> GetBytecodeFn(Module* module,
-                                                 Function* function);
+  absl::StatusOr<BytecodeFunction*> GetBytecodeFn(Module* module,
+                                                  Function* function);
   absl::StatusOr<std::optional<int64_t>> EvalJumpRelIf(
       int64_t pc, const Bytecode& bytecode);
   absl::Status RunBuiltinFn(const Bytecode& bytecode, Builtin builtin);

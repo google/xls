@@ -18,6 +18,7 @@
 #include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/pos.h"
@@ -56,7 +57,7 @@ proc main {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
 
   absl::flat_hash_map<ProcId, std::vector<ProcConfigValue>> proc_id_to_args;
   absl::flat_hash_map<ProcId, MemberNameToValue> proc_id_to_members;
@@ -110,7 +111,7 @@ proc main {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
 
   absl::flat_hash_map<ProcId, std::vector<ProcConfigValue>> proc_id_to_args;
   absl::flat_hash_map<ProcId, MemberNameToValue> proc_id_to_members;

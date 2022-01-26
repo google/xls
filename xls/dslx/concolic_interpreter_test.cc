@@ -17,6 +17,7 @@
 #include "absl/strings/match.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/interpreter.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
@@ -25,7 +26,7 @@ namespace {
 
 // Runs the interpreter in concolic mode and returns the generated DSLX tests.
 static absl::StatusOr<std::string> RunConcolic(std::string program) {
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "top.x", "top", &import_data));

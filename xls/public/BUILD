@@ -32,6 +32,7 @@ cc_library(
     deps = [
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "//xls/dslx:create_import_data",
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:import_data",
         "//xls/dslx:ir_converter",

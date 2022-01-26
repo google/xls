@@ -32,8 +32,8 @@ absl::Status BytecodeInterpreter::Run(const std::vector<InterpValue>& params) {
 
   while (!frames_.empty()) {
     Frame* frame = &frames_.back();
-    while (frame->pc < frame->bf.bytecodes().size()) {
-      const std::vector<Bytecode>& bytecodes = frame->bf.bytecodes();
+    while (frame->pc < frame->bf->bytecodes().size()) {
+      const std::vector<Bytecode>& bytecodes = frame->bf->bytecodes();
       const Bytecode& bytecode = bytecodes.at(frame->pc);
       XLS_VLOG(2) << std::hex << "PC: " << frame->pc << " : "
                   << bytecode.ToString();
@@ -60,7 +60,7 @@ absl::Status BytecodeInterpreter::Run(const std::vector<InterpValue>& params) {
 
 absl::Status BytecodeInterpreter::EvalNextInstruction() {
   Frame* frame = &frames_.back();
-  const std::vector<Bytecode>& bytecodes = frame->bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = frame->bf->bytecodes();
   if (frame->pc >= bytecodes.size()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Frame PC exceeds bytecode length: %d vs %d.",
@@ -246,14 +246,18 @@ absl::Status BytecodeInterpreter::EvalAnd(const Bytecode& bytecode) {
   });
 }
 
-absl::StatusOr<BytecodeFunction> BytecodeInterpreter::GetBytecodeFn(
+absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
     Module* module, Function* f) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data_->GetRootTypeInfo(module));
 
+  BytecodeCacheInterface* cache = import_data_->bytecode_cache();
+  if (cache == nullptr) {
+    return absl::InvalidArgumentError("Bytecode cache is NULL.");
+  }
+
   // TODO(rspringer): 2022-01-04: Handle parametric invocations.
-  BytecodeEmitter emitter(import_data_, type_info);
-  return emitter.Emit(f);
+  return cache->GetOrCreateBytecodeFunction(f, type_info);
 }
 
 absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
@@ -269,12 +273,12 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
   InterpValue::UserFnData user_fn_data =
       absl::get<InterpValue::UserFnData>(*fn_data);
   XLS_ASSIGN_OR_RETURN(
-      BytecodeFunction bf,
+      BytecodeFunction * bf,
       GetBytecodeFn(user_fn_data.module, user_fn_data.function));
 
   // Store the _return_ PC.
   frames_.back().pc++;
-  frames_.push_back(Frame{0, {}, std::move(bf)});
+  frames_.push_back(Frame{0, {}, bf});
   Frame& frame = frames_.back();
   int64_t num_args = user_fn_data.function->params().size();
   std::vector<InterpValue> args(num_args, InterpValue::MakeToken());

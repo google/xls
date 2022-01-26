@@ -26,6 +26,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/mangle.h"
@@ -309,8 +310,9 @@ absl::StatusOr<ArgSet> ArgSetFromString(absl::string_view args_string) {
 absl::StatusOr<std::unique_ptr<Package>> ConvertValidator(
     Function* f, absl::string_view dslx_stdlib_path,
     absl::string_view validator_dslx) {
-  dslx::ImportData import_data(std::string(dslx_stdlib_path),
-                               absl::Span<const std::filesystem::path>{});
+  dslx::ImportData import_data(
+      dslx::CreateImportData(std::string(dslx_stdlib_path),
+                             absl::Span<const std::filesystem::path>{}));
   XLS_ASSIGN_OR_RETURN(dslx::TypecheckedModule module,
                        dslx::ParseAndTypecheck(validator_dslx, "fake_path",
                                                kPackageName, &import_data));

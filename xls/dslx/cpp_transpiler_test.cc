@@ -16,6 +16,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
@@ -55,7 +56,7 @@ constexpr int64_t kMyEnumNumElements = 4;
 #endif  // FAKE_PATH_H_
 )";
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
@@ -99,7 +100,7 @@ constexpr int64_t kMyEnumNumElements = 3;
 #endif  // FAKE_PATH_H_
 )";
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
@@ -156,7 +157,7 @@ using MyFirstTuple = std::tuple<uint8_t, int8_t, MyType, MySignedType, MyArrayTy
 
 #endif  // FAKE_PATH_H_
 )";
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
@@ -256,7 +257,7 @@ std::ostream& operator<<(std::ostream& os, const MyStruct& data) {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
@@ -366,7 +367,7 @@ std::ostream& operator<<(std::ostream& os, const MyStruct& data) {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
@@ -515,7 +516,7 @@ std::ostream& operator<<(std::ostream& os, const OuterStruct& data) {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
@@ -783,7 +784,7 @@ std::ostream& operator<<(std::ostream& os, const OuterStruct& data) {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule module,
       ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));

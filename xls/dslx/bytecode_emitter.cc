@@ -28,22 +28,24 @@ BytecodeEmitter::BytecodeEmitter(ImportData* import_data, TypeInfo* type_info)
 
 BytecodeEmitter::~BytecodeEmitter() = default;
 
-absl::StatusOr<BytecodeFunction> BytecodeEmitter::Emit(Function* f) {
-  status_ = absl::OkStatus();
-  bytecode_.clear();
+/* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
+BytecodeEmitter::Emit(ImportData* import_data, TypeInfo* type_info,
+                      Function* f) {
+  BytecodeEmitter emitter(import_data, type_info);
 
   // Params fill the first N slots. The bytecode interpreter is responsible for
   // placing params correctly.
   for (const auto* param : f->params()) {
-    namedef_to_slot_[param->name_def()] = namedef_to_slot_.size();
+    emitter.namedef_to_slot_[param->name_def()] =
+        emitter.namedef_to_slot_.size();
   }
-  f->body()->AcceptExpr(this);
+  f->body()->AcceptExpr(&emitter);
 
-  if (!status_.ok()) {
-    return status_;
+  if (!emitter.status_.ok()) {
+    return emitter.status_;
   }
 
-  return BytecodeFunction::Create(f, std::move(bytecode_));
+  return BytecodeFunction::Create(f, std::move(emitter.bytecode_));
 }
 
 void BytecodeEmitter::HandleArray(Array* node) {

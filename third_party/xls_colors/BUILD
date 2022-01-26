@@ -40,6 +40,8 @@ cc_test(
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
         "//xls/dslx:ir_converter",
         "//xls/dslx:parse_and_typecheck",
         "//xls/ir",

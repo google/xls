@@ -16,6 +16,7 @@
 
 #include <filesystem>
 
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_converter.h"
@@ -35,8 +36,8 @@ absl::StatusOr<std::string> ConvertDslxToIr(
     absl::Span<const std::filesystem::path> additional_search_paths) {
   XLS_VLOG(5) << "path: " << path << " module name: " << module_name
               << " stdlib_path: " << dslx_stdlib_path;
-  dslx::ImportData import_data(std::string(dslx_stdlib_path),
-                               additional_search_paths);
+  dslx::ImportData import_data(dslx::CreateImportData(
+      std::string(dslx_stdlib_path), additional_search_paths));
   XLS_ASSIGN_OR_RETURN(
       dslx::TypecheckedModule typechecked,
       dslx::ParseAndTypecheck(dslx, path, module_name, &import_data));

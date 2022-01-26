@@ -31,11 +31,13 @@ namespace xls::dslx {
 // TODO(rspringer): Handle the rest of the Expr node types.
 class BytecodeEmitter : public ExprVisitor {
  public:
-  BytecodeEmitter(ImportData* import_data, TypeInfo* type_info);
-  ~BytecodeEmitter();
-  absl::StatusOr<BytecodeFunction> Emit(Function* f);
+  static absl::StatusOr<std::unique_ptr<BytecodeFunction>> Emit(
+      ImportData* import_data, TypeInfo* type_info, Function* f);
 
  private:
+  BytecodeEmitter(ImportData* import_data, TypeInfo* type_info);
+  ~BytecodeEmitter();
+
   void HandleArray(Array* node) override;
   void HandleAttr(Attr* node) override;
   void HandleBinop(Binop* node) override;

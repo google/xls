@@ -21,6 +21,8 @@
 #include "pybind11/stl.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
+#include "xls/dslx/create_import_data.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -54,8 +56,9 @@ PYBIND11_MODULE(interpreter, m) {
          const std::vector<std::vector<InterpValue>> args_batch,
          absl::string_view dslx_stdlib_path)
           -> absl::StatusOr<std::vector<InterpValue>> {
-        ImportData import_data(std::string(dslx_stdlib_path),
-                               /*additional_search_paths=*/{});
+        ImportData import_data(
+            CreateImportData(std::string(dslx_stdlib_path),
+                             /*additional_search_paths=*/{}));
         XLS_ASSIGN_OR_RETURN(
             TypecheckedModule tm,
             ParseAndTypecheck(text, "batched.x", "batched", &import_data));

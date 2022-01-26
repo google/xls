@@ -18,6 +18,7 @@
 #include "absl/strings/string_view.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
@@ -26,17 +27,16 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 
-absl::StatusOr<BytecodeFunction> EmitBytecodes(absl::string_view program,
-                                               absl::string_view fn_name) {
-  auto import_data = ImportData::CreateForTest();
+absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitBytecodes(
+    ImportData* import_data, absl::string_view program,
+    absl::string_view fn_name) {
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_data));
+      ParseAndTypecheck(program, "test.x", "test", import_data));
 
-  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSIGN_OR_RETURN(TestFunction * tf, tm.module->GetTest(fn_name));
 
-  return emitter.Emit(tf->fn());
+  return BytecodeEmitter::Emit(import_data, tm.type_info, tf->fn());
 }
 
 // Verifies that a baseline translation - of a nearly-minimal test case -
@@ -47,18 +47,18 @@ TEST(BytecodeEmitterTest, SimpleTranslation) {
   foo + u32:2
 })";
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  BytecodeEmitter emitter(&import_data, tm.type_info);
-
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetFunctionOrError("one_plus_one"));
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf, emitter.Emit(f));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 5);
   const Bytecode* bc = &bytecodes[0];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
@@ -95,10 +95,12 @@ fn expect_fail() -> u32{
   foo
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "expect_fail"));
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "expect_fail"));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 7);
   const Bytecode* bc = &bytecodes[0];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
@@ -154,10 +156,12 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
   d
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "has_name_def_tree"));
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "has_name_def_tree"));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 35);
   const Bytecode* bc = &bytecodes[0];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
@@ -246,10 +250,11 @@ fn do_ternary() -> u32 {
   if true { u32:42 } else { u32:64 }
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "do_ternary"));
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "do_ternary"));
 
-  EXPECT_EQ(BytecodesToString(bf.bytecodes(), /*source_locs=*/false),
+  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false),
             R"(000 literal u1:1
 001 jump_rel_if +3
 002 literal u32:64
@@ -299,10 +304,12 @@ fn binops_galore() {
   ()
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "binops_galore"));
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "binops_galore"));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 69);
   const Bytecode* bc = &bytecodes[6];
   ASSERT_EQ(bc->op(), Bytecode::Op::kAdd);
@@ -363,10 +370,11 @@ fn unops() {
   ()
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "unops"));
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "unops"));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 9);
   const Bytecode* bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kInvert);
@@ -384,10 +392,11 @@ fn arrays() -> u32[3] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "arrays"));
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "arrays"));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 6);
   const Bytecode* bc = &bytecodes[5];
   ASSERT_EQ(bc->op(), Bytecode::Op::kCreateArray);
@@ -408,10 +417,12 @@ fn index_array() -> u32 {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "index_array"));
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "index_array"));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 17);
   const Bytecode* bc = &bytecodes[12];
   ASSERT_EQ(bc->op(), Bytecode::Op::kIndex);
@@ -431,10 +442,12 @@ fn index_tuple() -> u32 {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "index_tuple"));
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "index_tuple"));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 16);
   const Bytecode* bc = &bytecodes[11];
   ASSERT_EQ(bc->op(), Bytecode::Op::kIndex);
@@ -452,10 +465,12 @@ fn simple_slice() -> u16 {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "simple_slice"));
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "simple_slice"));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 6);
   const Bytecode* bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
@@ -476,10 +491,12 @@ fn negative_start_slice() -> u16 {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "negative_start_slice"));
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "negative_start_slice"));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 6);
   const Bytecode* bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
@@ -500,10 +517,12 @@ fn negative_end_slice() -> u16 {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "negative_end_slice"));
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "negative_end_slice"));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 6);
   const Bytecode* bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
@@ -524,10 +543,12 @@ fn both_negative_slice() -> u8 {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "both_negative_slice"));
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "both_negative_slice"));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 6);
   const Bytecode* bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
@@ -547,9 +568,11 @@ fn width_slice() -> u16 {
   a[u32:8 +: bits[16]]
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "width_slice"));
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "width_slice"));
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 6);
 
   const Bytecode* bc = &bytecodes[4];
@@ -572,9 +595,11 @@ fn local_enum_ref() -> MyEnum {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "local_enum_ref"));
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "local_enum_ref"));
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 1);
 
   const Bytecode* bc = &bytecodes[0];
@@ -601,7 +626,7 @@ fn imported_enum_ref() -> import_0::ImportedEnum {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
                            ParseAndTypecheck(kImportedProgram, "import_0.x",
                                              "import_0", &import_data));
@@ -609,13 +634,13 @@ fn imported_enum_ref() -> import_0::ImportedEnum {
   XLS_ASSERT_OK_AND_ASSIGN(
       tm, ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
 
-  BytecodeEmitter emitter(&import_data, tm.type_info);
-
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("imported_enum_ref"));
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf, emitter.Emit(tf->fn()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, tf->fn()));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 1);
 
   const Bytecode* bc = &bytecodes[0];
@@ -637,7 +662,7 @@ fn imported_enum_ref() -> u3 {
 }
 )";
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
                            ParseAndTypecheck(kImportedProgram, "import_0.x",
                                              "import_0", &import_data));
@@ -645,13 +670,13 @@ fn imported_enum_ref() -> u3 {
   XLS_ASSERT_OK_AND_ASSIGN(
       tm, ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
 
-  BytecodeEmitter emitter(&import_data, tm.type_info);
-
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("imported_enum_ref"));
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf, emitter.Emit(tf->fn()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, tf->fn()));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 1);
 
   const Bytecode* bc = &bytecodes[0];
@@ -671,9 +696,11 @@ fn handles_const_refs() -> u32 {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "handles_const_refs"));
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "handles_const_refs"));
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 5);
   const Bytecode* bc = &bytecodes[2];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
@@ -694,9 +721,11 @@ fn handles_struct_instances() -> MyStruct {
   MyStruct { x: x, y: u64:3 }
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "handles_struct_instances"));
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "handles_struct_instances"));
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 5);
   const Bytecode* bc = &bytecodes[4];
   ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
@@ -713,9 +742,11 @@ fn handles_attr() -> u64 {
   MyStruct { x: u32:0, y: u64:0xbeef }.y
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "handles_attr"));
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "handles_attr"));
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 5);
   const Bytecode* bc = &bytecodes[4];
   ASSERT_EQ(bc->op(), Bytecode::Op::kIndex);
@@ -729,9 +760,11 @@ fn cast_bits_to_bits() -> u64 {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "cast_bits_to_bits"));
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "cast_bits_to_bits"));
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 4);
   const Bytecode* bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kCast);
@@ -744,9 +777,11 @@ fn cast_array_to_bits() -> u32 {
   a as u32
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "cast_array_to_bits"));
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "cast_array_to_bits"));
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 8);
   const Bytecode* bc = &bytecodes[7];
   ASSERT_EQ(bc->op(), Bytecode::Op::kCast);
@@ -760,9 +795,11 @@ fn cast_bits_to_array() -> u8 {
   b[u32:2]
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "cast_bits_to_array"));
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "cast_bits_to_array"));
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 8);
   const Bytecode* bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kCast);
@@ -782,9 +819,11 @@ fn cast_enum_to_bits() -> u3 {
   a as u3
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "cast_enum_to_bits"));
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "cast_enum_to_bits"));
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 4);
   const Bytecode* bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kCast);
@@ -804,9 +843,11 @@ fn cast_bits_to_enum() -> MyEnum {
   a as MyEnum
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "cast_bits_to_enum"));
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "cast_bits_to_enum"));
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 4);
   const Bytecode* bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kCast);
@@ -826,10 +867,12 @@ fn handles_struct_instances() -> MyStruct {
   MyStruct { y:u32:0xf00d, ..b }
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "handles_struct_instances"));
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "handles_struct_instances"));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   const Bytecode* bc = &bytecodes[7];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
   bc = &bytecodes[8];
@@ -857,16 +900,17 @@ fn has_params(x: u32, y: u64) -> u48 {
   x + y
 })";
 
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  BytecodeEmitter emitter(&import_data, tm.type_info);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetFunctionOrError("has_params"));
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf, emitter.Emit(f));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 15);
   const Bytecode* bc = &bytecodes[2];
   EXPECT_EQ(bc->op(), Bytecode::Op::kLoad);
@@ -906,10 +950,11 @@ fn main() -> u8[13] {
   "tofu sandwich"
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(BytecodeFunction bf,
-                           EmitBytecodes(kProgram, "main"));
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "main"));
 
-  const std::vector<Bytecode>& bytecodes = bf.bytecodes();
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 14);
   const Bytecode* bc = &bytecodes[0];
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, bc->value_data());

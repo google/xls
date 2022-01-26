@@ -16,6 +16,8 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/dslx/command_line_utils.h"
+#include "xls/dslx/create_import_data.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_info_to_proto.h"
 #include "xls/dslx/typecheck.h"
@@ -40,8 +42,9 @@ absl::Status RealMain(absl::Span<const std::filesystem::path> dslx_paths,
                       const std::filesystem::path& dslx_stdlib_path,
                       const std::filesystem::path& input_path,
                       std::optional<std::filesystem::path> output_path) {
-  ImportData import_data(dslx_stdlib_path,
-                         /*additional_search_paths=*/dslx_paths);
+  ImportData import_data(
+      CreateImportData(dslx_stdlib_path,
+                       /*additional_search_paths=*/dslx_paths));
   XLS_ASSIGN_OR_RETURN(std::string input_contents, GetFileContents(input_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(input_path.c_str()));
   absl::StatusOr<TypecheckedModule> tm_or = ParseAndTypecheck(

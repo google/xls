@@ -15,13 +15,18 @@
 #define XLS_DSLX_BYTECODE_H_
 
 #include <memory>
+#include <string>
+#include <vector>
 
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/types/variant.h"
 #include "xls/common/strong_int.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/pos.h"
+#include "xls/dslx/type_info.h"
 
 namespace xls::dslx {
 
@@ -185,7 +190,7 @@ class BytecodeFunction {
  public:
   // Note: this is an O(N) operation where N is the number of ops in the
   // bytecode.
-  static absl::StatusOr<BytecodeFunction> Create(
+  static absl::StatusOr<std::unique_ptr<BytecodeFunction>> Create(
       Function* source, std::vector<Bytecode> bytecode);
 
   Function* source() const { return source_; }

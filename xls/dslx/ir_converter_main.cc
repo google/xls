@@ -20,8 +20,10 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/dslx/command_line_utils.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/error_printer.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/parser.h"
 #include "xls/dslx/scanner.h"
@@ -96,7 +98,7 @@ static absl::Status AddPathToPackage(
   // now we throw it away for each file and re-derive it (we need to refactor to
   // make the modules outlive any given AddPathToPackage() if we want to
   // appropriately reuse things in ImportData).
-  ImportData import_data(std::move(stdlib_path), dslx_paths);
+  ImportData import_data(CreateImportData(std::move(stdlib_path), dslx_paths));
   absl::StatusOr<TypeInfo*> type_info_or =
       CheckModule(module.get(), &import_data);
   if (!type_info_or.ok()) {

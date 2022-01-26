@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {
@@ -28,7 +29,7 @@ fn g() -> u32 { u32:42 }
 fn f() -> u32 { g() }
 fn main() -> u32 { f() }
 )";
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_data));
@@ -45,7 +46,7 @@ TEST(ExtractConversionOrderTest, Parametric) {
 fn f<N: u32>(x: bits[N]) -> u32 { N }
 fn main() -> u32 { f(u2:0) }
 )";
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_data));
@@ -66,7 +67,7 @@ fn g<M: u32>(x: bits[M]) -> u32 { M }
 fn f<N: u32>(x: bits[N]) -> u32 { g(x) }
 fn main() -> u32 { f(u2:0) }
 )";
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_data));
@@ -89,7 +90,7 @@ TEST(ExtractConversionOrderTest, BuiltinIsElided) {
   const char* program = R"(
 fn main() -> u32 { fail!(u32:0) }
 )";
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_data));
@@ -106,7 +107,7 @@ fn g() -> u32 { u32:42 }
 fn f() -> u32 { g() }
 fn main() -> u32 { f() }
 )";
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_data));
@@ -132,7 +133,7 @@ const MY_VALUE = id(u32:42);
 
 fn entry() -> u32 { MY_VALUE }
 )";
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_data));
@@ -149,7 +150,7 @@ TEST(ExtractConversionOrderTest, GetOrderForEntryFunctionSingleFunction) {
   const char* program = R"(
 fn main() -> u32 { u32:42 }
 )";
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_data));
@@ -168,7 +169,7 @@ fn g() -> u32 { h() }
 fn f() -> u32 { let x:u32 = g(); x + h() }
 fn main() -> u32 { f() }
 )";
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_data));
@@ -190,7 +191,7 @@ fn g() -> u32 { i() }
 fn f() -> u32 { g() + h() }
 fn main() -> u32 { f() }
 )";
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_data));
@@ -220,7 +221,7 @@ proc main {
   next(tok: token) { () }
 }
 )";
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_data));
@@ -292,7 +293,7 @@ proc main {
   next(tok: token) { () }
 }
 )";
-  auto import_data = ImportData::CreateForTest();
+  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", &import_data));

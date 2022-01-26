@@ -17,9 +17,11 @@
 #include <random>
 
 #include "xls/dslx/bindings.h"
+#include "xls/dslx/bytecode_cache.h"
 #include "xls/dslx/bytecode_emitter.h"
 #include "xls/dslx/bytecode_interpreter.h"
 #include "xls/dslx/command_line_utils.h"
+#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/mangle.h"
@@ -287,7 +289,8 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
     failed += 1;
   };
 
-  ImportData import_data(options.stdlib_path, options.dslx_paths);
+  ImportData import_data(
+      CreateImportData(options.stdlib_path, options.dslx_paths));
   absl::StatusOr<TypecheckedModule> tm_or =
       ParseAndTypecheck(program, filename, module_name, &import_data);
   if (!tm_or.ok()) {
@@ -354,12 +357,15 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
     std::cerr << "[ RUN UNITTEST  ] " << test_name << std::endl;
     absl::Status status;
     if (options.bytecode) {
+      auto cache = std::make_unique<BytecodeCache>(&import_data);
+      import_data.SetBytecodeCache(std::move(cache));
       XLS_ASSIGN_OR_RETURN(TestFunction * f, entry_module->GetTest(test_name));
-      BytecodeEmitter emitter(&import_data, tm_or.value().type_info);
-      XLS_ASSIGN_OR_RETURN(BytecodeFunction bf, emitter.Emit(f->fn()));
-      status = BytecodeInterpreter::Interpret(&import_data, std::move(bf),
-                                              /*params=*/{})
-                   .status();
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> bf,
+                           BytecodeEmitter::Emit(
+                               &import_data, tm_or.value().type_info, f->fn()));
+      status =
+          BytecodeInterpreter::Interpret(&import_data, bf.get(), /*params=*/{})
+              .status();
     } else {
       ModuleMember* member =
           entry_module->FindMemberWithName(test_name).value();

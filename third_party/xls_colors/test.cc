@@ -25,6 +25,8 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/create_import_data.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/ir/ir_parser.h"
@@ -43,7 +45,7 @@ class XlsColorsTest : public xls::IrTestBase {
         std::filesystem::path path,
         xls::GetXlsRunfilePath("third_party/xls_colors/hsv2rgb.x"));
     XLS_ASSERT_OK_AND_ASSIGN(std::string moduleText, xls::GetFileContents(path));
-    auto import_data = xls::dslx::ImportData::CreateForTest();
+    auto import_data = xls::dslx::CreateImportDataForTest();
     XLS_ASSERT_OK_AND_ASSIGN(
         xls::dslx::TypecheckedModule tm,
         xls::dslx::ParseAndTypecheck(moduleText, "hsv2rgb.x", "hsv2rgb",

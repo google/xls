@@ -309,14 +309,15 @@ absl::StatusOr<std::vector<Bytecode>> BytecodesFromString(
   return result;
 }
 
-absl::StatusOr<BytecodeFunction> BytecodeFunction::Create(
+absl::StatusOr<std::unique_ptr<BytecodeFunction>> BytecodeFunction::Create(
     Function* source, std::vector<Bytecode> bytecodes) {
   if (source == nullptr) {
     return absl::InvalidArgumentError(
         "BytecodeFunction::Create : `source` cannot be null.");
   }
-  BytecodeFunction bf(source, std::move(bytecodes));
-  XLS_RETURN_IF_ERROR(bf.Init());
+  auto bf =
+      absl::WrapUnique(new BytecodeFunction(source, std::move(bytecodes)));
+  XLS_RETURN_IF_ERROR(bf->Init());
   return bf;
 }
 

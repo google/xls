@@ -50,14 +50,42 @@ cc_library(
         ":concrete_type",
         ":interp_value",
         ":pos",
+        ":type_info",
         "//xls/common:strong_int",
         "//xls/common/status:ret_check",
         "//xls/ir:bits_ops",
         "//xls/ir:number_parser",
         "@com_github_google_re2//:re2",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_library(
+    name = "bytecode_cache",
+    srcs = ["bytecode_cache.cc"],
+    hdrs = ["bytecode_cache.h"],
+    deps = [
+        ":ast",
+        ":bytecode",
+        ":bytecode_cache_interface",
+        ":bytecode_emitter",
+        ":import_data",
+        ":type_info",
+        "@com_google_absl//absl/container:flat_hash_map",
+    ],
+)
+
+cc_library(
+    name = "bytecode_cache_interface",
+    hdrs = ["bytecode_cache_interface.h"],
+    deps = [
+        ":ast",
+        ":bytecode",
+        ":type_info",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -86,6 +114,7 @@ cc_test(
         ":ast",
         ":bytecode",
         ":bytecode_emitter",
+        ":create_import_data",
         ":import_data",
         ":parse_and_typecheck",
         "//xls/common:xls_gunit_main",
@@ -121,8 +150,10 @@ cc_test(
     srcs = ["bytecode_interpreter_test.cc"],
     deps = [
         ":bytecode",
+        ":bytecode_cache",
         ":bytecode_emitter",
         ":bytecode_interpreter",
+        ":create_import_data",
         ":import_data",
         ":interp_value",
         ":parse_and_typecheck",
@@ -152,6 +183,7 @@ cc_test(
         ":ast",
         ":concrete_type",
         ":constexpr_evaluator",
+        ":create_import_data",
         ":deduce",
         ":deduce_ctx",
         ":default_dslx_stdlib_path",
@@ -194,11 +226,25 @@ cc_test(
     srcs = ["cpp_transpiler_test.cc"],
     deps = [
         ":cpp_transpiler",
+        ":create_import_data",
         ":import_data",
         ":parse_and_typecheck",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "create_import_data",
+    srcs = ["create_import_data.cc"],
+    hdrs = ["create_import_data.h"],
+    deps = [
+        ":bytecode",
+        ":bytecode_cache",
+        ":default_dslx_stdlib_path",
+        ":import_data",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -289,6 +335,7 @@ cc_test(
     srcs = ["proc_config_ir_converter_test.cc"],
     deps = [
         ":ast",
+        ":create_import_data",
         ":import_data",
         ":parse_and_typecheck",
         ":pos",
@@ -352,6 +399,7 @@ cc_test(
     srcs = ["ir_converter_test.cc"],
     data = glob(["testdata/*.ir"]),
     deps = [
+        ":create_import_data",
         ":ir_converter",
         ":parse_and_typecheck",
         "//xls/common:golden_files",
@@ -739,6 +787,7 @@ cc_library(
     hdrs = ["import_data.h"],
     deps = [
         ":ast",
+        ":bytecode_cache_interface",
         ":default_dslx_stdlib_path",
         ":interp_bindings",
         ":type_info",
@@ -815,6 +864,7 @@ cc_test(
     name = "interpreter_test",
     srcs = ["interpreter_test.cc"],
     deps = [
+        ":create_import_data",
         ":interpreter",
         ":parse_and_typecheck",
         "//xls/common:xls_gunit_main",
@@ -903,6 +953,7 @@ cc_test(
     srcs = ["typecheck_test.cc"],
     deps = [
         ":ast",
+        ":create_import_data",
         ":parse_and_typecheck",
         ":type_info_to_proto",
         ":typecheck",
@@ -978,6 +1029,7 @@ cc_test(
     name = "extract_conversion_order_test",
     srcs = ["extract_conversion_order_test.cc"],
     deps = [
+        ":create_import_data",
         ":extract_conversion_order",
         ":parse_and_typecheck",
         "//xls/common:xls_gunit_main",
@@ -1019,9 +1071,11 @@ cc_library(
     hdrs = ["run_routines.h"],
     deps = [
         ":bindings",
+        ":bytecode_cache",
         ":bytecode_emitter",
         ":bytecode_interpreter",
         ":command_line_utils",
+        ":create_import_data",
         ":default_dslx_stdlib_path",
         ":error_printer",
         ":interp_value",
@@ -1106,6 +1160,7 @@ cc_test(
     name = "type_info_to_proto_test",
     srcs = ["type_info_to_proto_test.cc"],
     deps = [
+        ":create_import_data",
         ":import_data",
         ":parse_and_typecheck",
         ":type_info_to_proto",
@@ -1133,6 +1188,7 @@ cc_test(
     name = "concolic_interpreter_test",
     srcs = ["concolic_interpreter_test.cc"],
     deps = [
+        ":create_import_data",
         ":interpreter",
         ":parse_and_typecheck",
         "//xls/common:xls_gunit_main",
@@ -1218,8 +1274,10 @@ cc_binary(
     visibility = ["//xls:xls_users"],
     deps = [
         ":command_line_utils",
+        ":create_import_data",
         ":default_dslx_stdlib_path",
         ":error_printer",
+        ":import_data",
         ":ir_converter",
         ":parser",
         ":scanner",
@@ -1266,6 +1324,7 @@ cc_binary(
     visibility = ["//xls:xls_public"],
     deps = [
         ":cpp_transpiler",
+        ":create_import_data",
         ":default_dslx_stdlib_path",
         ":import_data",
         ":parse_and_typecheck",
@@ -1309,6 +1368,8 @@ cc_binary(
     srcs = ["typecheck_main.cc"],
     deps = [
         ":command_line_utils",
+        ":create_import_data",
+        ":import_data",
         ":parse_and_typecheck",
         ":type_info_to_proto",
         ":typecheck",
