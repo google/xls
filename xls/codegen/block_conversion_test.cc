@@ -973,9 +973,9 @@ TEST_F(SimplePipelinedProcTest, ChannelNonDefaultSuffixName) {
   EXPECT_TRUE(HasNode("out_valid", block_nondefault_suffix));
 }
 
-TEST_F(SimplePipelinedProcTest, BasicDatapathReset) {
+TEST_F(SimplePipelinedProcTest, BasicDatapathResetAndInputFlop) {
   CodegenOptions options;
-  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.flop_inputs(true).flop_outputs(false).clock_name("clk");
   options.valid_control("input_valid", "output_valid");
   options.reset("rst", false, false, /*reset_data_path=*/true);
 
@@ -1024,11 +1024,13 @@ TEST_F(SimplePipelinedProcTest, BasicDatapathReset) {
   XLS_ASSERT_OK(SetSignalsOverCycles(
       20, 22, {{"in_rdy", 1}, {"out_vld", 0}, {"out", prior_running_out_val}},
       expected_outputs));
-  XLS_ASSERT_OK(SetSignalsOverCycles(23, 29, {{"in_rdy", 1}, {"out_vld", 1}},
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      23, 23, {{"in_rdy", 1}, {"out_vld", 0}, {"out", 0}}, expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(24, 29, {{"in_rdy", 1}, {"out_vld", 1}},
                                      expected_outputs));
   XLS_ASSERT_OK_AND_ASSIGN(
       running_out_val, SetIncrementingSignalOverCycles(
-                           23, 29, "out", running_out_val, expected_outputs));
+                           24, 29, "out", running_out_val, expected_outputs));
 
   // Add a cycle count for easier comparison with simulation results.
   XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, expected_outputs.size() - 1,
