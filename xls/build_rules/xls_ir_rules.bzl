@@ -24,12 +24,9 @@ load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load(
     "//xls/build_rules:xls_providers.bzl",
     "ConvIRInfo",
+    "DslxInfo",
     "DslxModuleInfo",
     "OptIRInfo",
-)
-load(
-    "//xls/build_rules:xls_dslx_rules.bzl",
-    "xls_dslx_module_library_as_input_attrs",
 )
 load(
     "//xls/build_rules:xls_toolchains.bzl",
@@ -167,6 +164,7 @@ def _convert_to_ir(ctx, src, dep_src_list):
         ctx.attr.name + _IR_FILE_EXTENSION,
     )
     ir_file = ctx.actions.declare_file(ir_filename)
+
     ctx.actions.run_shell(
         outputs = [ir_file],
         # The IR converter executable is a tool needed by the action.
@@ -451,31 +449,6 @@ def get_mangled_ir_symbol(module_name, function_name, parametric_values = None):
         )
     return "__" + module_name + "__" + function_name + parametric_values_str
 
-def xls_dslx_ir_impl(ctx, src, dep_src_list):
-    """The implementation of the 'xls_dslx_ir' rule.
-
-    Converts a DSLX source file to an IR file.
-
-    Args:
-      ctx: The current rule's context object.
-      src: The source file.
-      dep_src_list: A list of source file dependencies.
-
-    Returns:
-      DslxModuleInfo provider
-      ConvIRInfo provider
-      DefaultInfo provider
-    """
-    ir_file = _convert_to_ir(ctx, src, dep_src_list)
-    dslx_module_info = ctx.attr.dep[DslxModuleInfo]
-    return [
-        dslx_module_info,
-        ConvIRInfo(
-            conv_ir_file = ir_file,
-        ),
-        DefaultInfo(files = depset([ir_file])),
-    ]
-
 # Global entry attribute. It can be overwritten by a local argument
 # representative.
 xls_entry_attrs = {
@@ -496,42 +469,95 @@ xls_ir_common_attrs = {
     ),
 }
 
-xls_dslx_ir_attrs = dicts.add(
-    xls_dslx_module_library_as_input_attrs,
-    {
-        "ir_conv_args": attr.string_dict(
-            doc = "Arguments of the IR conversion tool. For details on the" +
-                  "arguments, refer to the ir_converter_main application at" +
-                  "//xls/dslx/ir_converter_main.cc. When the " +
-                  "default XLS toolchain differs from the default toolchain, " +
-                  "the application target may be different.",
-        ),
-        "ir_file": attr.output(
-            doc = "Filename of the generated IR. If not specified, the " +
-                  "target name of the bazel rule followed by an " +
-                  _IR_FILE_EXTENSION + " extension is used.",
-        ),
-    },
-)
+xls_dslx_ir_attrs = {
+    # TODO (vmirian) 01-25-2022 Remove attribute when xls_dslx_module_library is
+    # removed.
+    "dep": attr.label(
+        doc = "DO NOT USE. This attribute will be deprecated. A dependency " +
+              "target for the rule. The target must emit a DslxModuleInfo " +
+              "provider. ",
+        providers = [DslxModuleInfo],
+    ),
+    # TODO (vmirian) 01-25-2022 Make mandatory when xls_dslx_module_library is
+    # removed.
+    "srcs": attr.label_list(
+        doc = "Top level source files for the conversion. Files must have a " +
+              " '.x' extension. There must be single source file.",
+        allow_files = [".x"],
+    ),
+    "deps": attr.label_list(
+        doc = "Dependency targets for the rule. The targets must emit a " +
+              "DslxInfo provider.",
+        providers = [DslxInfo],
+    ),
+    "ir_conv_args": attr.string_dict(
+        doc = "Arguments of the IR conversion tool. For details on the" +
+              "arguments, refer to the ir_converter_main application at" +
+              "//xls/dslx/ir_converter_main.cc. When the " +
+              "default XLS toolchain differs from the default toolchain, " +
+              "the application target may be different.",
+    ),
+    "ir_file": attr.output(
+        doc = "Filename of the generated IR. If not specified, the " +
+              "target name of the bazel rule followed by an " +
+              _IR_FILE_EXTENSION + " extension is used.",
+    ),
+}
 
-def _xls_dslx_ir_impl_wrapper(ctx):
+def xls_dslx_ir_impl(ctx):
     """The implementation of the 'xls_dslx_ir' rule.
 
-    Wrapper for xls_dslx_ir_impl. See: xls_dslx_ir_impl.
+    Converts a DSLX source file to an IR file.
 
     Args:
       ctx: The current rule's context object.
+
     Returns:
-      See: xls_dslx_ir_impl.
+      DslxModuleInfo provider
+      ConvIRInfo provider
+      DefaultInfo provider
     """
     src = None
     dep_src_list = []
+    dep = ctx.attr.dep
+    srcs = ctx.files.srcs
+    deps = ctx.attr.deps
 
-    src = ctx.attr.dep[DslxModuleInfo].dslx_source_module_file
-    dep_src_list = (
-        ctx.attr.dep[DslxModuleInfo].dslx_source_files
+    # TODO (vmirian) 01-25-2022 Remove if statement when xls_dslx_module_library
+    # is removed.
+    if dep and (srcs or deps):
+        fail("One of: 'dep' or ['srcs', 'deps'] must be assigned.")
+
+    if srcs and len(srcs) != 1:
+        fail("A single source file must be specified.")
+
+    # TODO (vmirian) 01-25-2022 Remove if statement when xls_dslx_module_library
+    # is removed.
+    if dep:
+        src = ctx.attr.dep[DslxModuleInfo].dslx_source_module_file
+        dep_src_list = (
+            ctx.attr.dep[DslxModuleInfo].dslx_source_files
+        )
+    else:
+        src = srcs[0]
+        dep_src_list = []
+        for dep in deps:
+            dep_src_list += dep[DslxInfo].dslx_source_files.to_list()
+
+    ir_file = _convert_to_ir(ctx, src, dep_src_list)
+
+    # TODO (vmirian) 01-25-2022 Remove when xls_dslx_module_library is removed.
+    dslx_module_info = DslxModuleInfo(
+        dslx_source_files = dep_src_list,
+        dslx_source_module_file = src,
     )
-    return xls_dslx_ir_impl(ctx, src, dep_src_list)
+    return [
+        dslx_module_info,
+        ConvIRInfo(
+            conv_ir_file = ir_file,
+        ),
+        DefaultInfo(files = depset([ir_file])),
+    ]
 
 xls_dslx_ir = rule(
     doc = """
@@ -539,18 +565,25 @@ xls_dslx_ir = rule(
 
         Examples:
 
-        1) A simple IR conversion example.
-            xls_dslx_module_library(
-                name = "a_dslx_module",
-                src = "a.x",
-            )
-
+        1) A simple IR conversion.
+            # Assume a xls_dslx_library target bc_dslx is present.
             xls_dslx_ir(
-                name = "a_ir",
-                dep = ":a_dslx_module",
+                name = "d_ir",
+                srcs = ["d.x"],
+                deps = [":bc_dslx"],
             )
 
         2) An IR conversion with an entry defined.
+            xls_dslx_ir(
+                name = "d_ir",
+                srcs = ["d.x"],
+                deps = [":bc_dslx"],
+                ir_conv_args = {
+                    "entry" : "d",
+                },
+            )
+
+        3) An IR conversion on a xls_dslx_module_library.
             xls_dslx_module_library(
                 name = "a_dslx_module",
                 src = "a.x",
@@ -559,12 +592,9 @@ xls_dslx_ir = rule(
             xls_dslx_ir(
                 name = "a_ir",
                 dep = ":a_dslx_module",
-                ir_conv_args = {
-                    "entry" : "a",
-                },
             )
     """,
-    implementation = _xls_dslx_ir_impl_wrapper,
+    implementation = xls_dslx_ir_impl,
     attrs = dicts.add(
         xls_dslx_ir_attrs,
         CONFIG["xls_outs_attrs"],

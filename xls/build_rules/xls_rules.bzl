@@ -50,15 +50,20 @@ load(
 )
 load("//xls/build_rules:xls_toolchains.bzl", "xls_toolchain_attr")
 
-def _xls_dslx_opt_ir_impl(ctx, src, dep_src_list):
+_xls_dslx_opt_ir_attrs = dicts.add(
+    xls_dslx_ir_attrs,
+    xls_ir_opt_ir_attrs,
+    CONFIG["xls_outs_attrs"],
+    xls_toolchain_attr,
+)
+
+def _xls_dslx_opt_ir_impl(ctx):
     """The implementation of the 'xls_dslx_opt_ir' rule.
 
     Converts a DSLX file to an IR and optimizes the IR.
 
     Args:
       ctx: The current rule's context object.
-      src: The source file.
-      dep_src_list: A list of source file dependencies.
     Returns:
       DslxModuleInfo provider.
       DslxInfo provider.
@@ -67,7 +72,7 @@ def _xls_dslx_opt_ir_impl(ctx, src, dep_src_list):
       DefaultInfo provider.
     """
     dslx_module_info, ir_conv_info, ir_conv_default_info = (
-        xls_dslx_ir_impl(ctx, src, dep_src_list)
+        xls_dslx_ir_impl(ctx)
     )
     ir_opt_info, ir_opt_default_info = xls_ir_opt_ir_impl(
         ctx,
@@ -86,35 +91,20 @@ def _xls_dslx_opt_ir_impl(ctx, src, dep_src_list):
         ),
     ]
 
-_xls_dslx_opt_ir_attrs = dicts.add(
-    xls_dslx_ir_attrs,
-    xls_ir_opt_ir_attrs,
-    CONFIG["xls_outs_attrs"],
-    xls_toolchain_attr,
-)
-
-def _xls_dslx_opt_ir_impl_wrapper(ctx):
-    """The implementation of the 'xls_dslx_opt_ir' rule.
-
-    Wrapper for _xls_dslx_opt_ir_impl. See: _xls_dslx_opt_ir_impl.
-
-    Args:
-      ctx: The current rule's context object.
-    Returns:
-      See: _xls_dslx_opt_ir_impl.
-    """
-    src = ctx.attr.dep[DslxModuleInfo].dslx_source_module_file
-    dep_src_list = ctx.attr.dep[DslxModuleInfo].dslx_source_files
-    return _xls_dslx_opt_ir_impl(ctx, src, dep_src_list)
-
 xls_dslx_opt_ir = rule(
     doc = """A build rule that generates an optimized IR file from a DSLX source file.
 
         Example:
 
-        Generate optimized IR from a xls_dslx_module_library target.
+        1) A simple example.
+            # Assume a xls_dslx_library target bc_dslx is present.
+            xls_dslx_opt_ir(
+                name = "d_opt_ir",
+                srcs = ["d.x"],
+                deps = [":bc_dslx"],
+            )
 
-        ```
+        2) Generate optimized IR from a xls_dslx_module_library target.
             xls_dslx_module_library(
                 name = "a_dslx_module",
                 src = "a.x",
@@ -124,9 +114,8 @@ xls_dslx_opt_ir = rule(
                 name = "a_opt_ir",
                 dep = ":a_dslx_module",
             )
-        ```
     """,
-    implementation = _xls_dslx_opt_ir_impl_wrapper,
+    implementation = _xls_dslx_opt_ir_impl,
     attrs = _xls_dslx_opt_ir_attrs,
 )
 
@@ -263,14 +252,12 @@ def _xls_dslx_verilog_impl(ctx):
       CodegenInfo provider.
       DefaultInfo provider.
     """
-    src = ctx.attr.dep[DslxModuleInfo].dslx_source_module_file
-    dep_src_list = ctx.attr.dep[DslxModuleInfo].dslx_source_files
     (
         dslx_module_info,
         ir_conv_info,
         ir_opt_info,
         dslx_ir_default_info,
-    ) = _xls_dslx_opt_ir_impl(ctx, src, dep_src_list)
+    ) = _xls_dslx_opt_ir_impl(ctx)
     codegen_info, codegen_default_info = xls_ir_verilog_impl(
         ctx,
         ir_opt_info.opt_ir_file,
@@ -302,7 +289,18 @@ xls_dslx_verilog = rule(
 
         Examples:
 
-        ```
+        1) A simple example.
+            # Assume a xls_dslx_library target bc_dslx is present.
+            xls_dslx_verilog(
+                name = "d_verilog",
+                srcs = ["d.x"],
+                deps = [":bc_dslx"],
+                codegen_args = {
+                    "pipeline_stages": "1",
+                },
+            )
+
+        2) An example with a xls_dslx_module_library.
             xls_dslx_module_library(
                 name = "a_dslx_module",
                 src = "a.x",
@@ -315,7 +313,6 @@ xls_dslx_verilog = rule(
                 },
                 dep = ":a_dslx_module",
             )
-        ```
     """,
     implementation = _xls_dslx_verilog_impl,
     attrs = _dslx_verilog_attrs,

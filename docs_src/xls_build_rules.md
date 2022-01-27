@@ -611,7 +611,8 @@ a cc_library.
 ## xls_dslx_ir
 
 <pre>
-xls_dslx_ir(<a href="#xls_dslx_ir-name">name</a>, <a href="#xls_dslx_ir-dep">dep</a>, <a href="#xls_dslx_ir-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_ir-enable_generated_file">enable_generated_file</a>, <a href="#xls_dslx_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_ir-kwargs">kwargs</a>)
+xls_dslx_ir(<a href="#xls_dslx_ir-name">name</a>, <a href="#xls_dslx_ir-srcs">srcs</a>, <a href="#xls_dslx_ir-deps">deps</a>, <a href="#xls_dslx_ir-dep">dep</a>, <a href="#xls_dslx_ir-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_ir-enable_generated_file">enable_generated_file</a>,
+            <a href="#xls_dslx_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_ir-kwargs">kwargs</a>)
 </pre>
 
 A macro wrapper for the 'xls_dslx_ir' rule.
@@ -627,7 +628,9 @@ rule are listed in the outs attribute of the rule.
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_ir-name"></a>name |  The name of the rule.   |  none |
-| <a id="xls_dslx_ir-dep"></a>dep |  A dependency target for the rule. The target must emit a DslxModuleInfo provider.   |  none |
+| <a id="xls_dslx_ir-srcs"></a>srcs |  Top level source files for the conversion. Files must have a '.x' extension. There must be single source file.   |  <code>None</code> |
+| <a id="xls_dslx_ir-deps"></a>deps |  Dependency targets for the rule. The targets must emit a DslxInfo provider.   |  <code>None</code> |
+| <a id="xls_dslx_ir-dep"></a>dep |  A dependency target for the rule. The target must emit a DslxModuleInfo provider.   |  <code>None</code> |
 | <a id="xls_dslx_ir-ir_conv_args"></a>ir_conv_args |  Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_converter_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   |  <code>{}</code> |
 | <a id="xls_dslx_ir-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>True</code> |
 | <a id="xls_dslx_ir-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>False</code> |
@@ -639,7 +642,7 @@ rule are listed in the outs attribute of the rule.
 ## xls_dslx_opt_ir
 
 <pre>
-xls_dslx_opt_ir(<a href="#xls_dslx_opt_ir-name">name</a>, <a href="#xls_dslx_opt_ir-dep">dep</a>, <a href="#xls_dslx_opt_ir-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_opt_ir-opt_ir_args">opt_ir_args</a>, <a href="#xls_dslx_opt_ir-enable_generated_file">enable_generated_file</a>,
+xls_dslx_opt_ir(<a href="#xls_dslx_opt_ir-name">name</a>, <a href="#xls_dslx_opt_ir-srcs">srcs</a>, <a href="#xls_dslx_opt_ir-deps">deps</a>, <a href="#xls_dslx_opt_ir-dep">dep</a>, <a href="#xls_dslx_opt_ir-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_opt_ir-opt_ir_args">opt_ir_args</a>, <a href="#xls_dslx_opt_ir-enable_generated_file">enable_generated_file</a>,
                 <a href="#xls_dslx_opt_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_opt_ir-kwargs">kwargs</a>)
 </pre>
 
@@ -658,7 +661,9 @@ of the rule.
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_opt_ir-name"></a>name |  The name of the rule.   |  none |
-| <a id="xls_dslx_opt_ir-dep"></a>dep |  The 'xls_dslx_module_library' target used for dependency.   |  none |
+| <a id="xls_dslx_opt_ir-srcs"></a>srcs |  Top level source files for the conversion. Files must have a '.x' extension. There must be single source file.   |  <code>None</code> |
+| <a id="xls_dslx_opt_ir-deps"></a>deps |  Dependency targets for the rule. The targets must emit a DslxInfo provider.   |  <code>None</code> |
+| <a id="xls_dslx_opt_ir-dep"></a>dep |  The 'xls_dslx_module_library' target used for dependency.   |  <code>None</code> |
 | <a id="xls_dslx_opt_ir-ir_conv_args"></a>ir_conv_args |  Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_converter_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   |  <code>{}</code> |
 | <a id="xls_dslx_opt_ir-opt_ir_args"></a>opt_ir_args |  Arguments of the IR optimizer tool. For details on the arguments, refer to the opt_main application at //xls/tools/opt_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   |  <code>{}</code> |
 | <a id="xls_dslx_opt_ir-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>True</code> |
@@ -671,7 +676,7 @@ of the rule.
 ## xls_dslx_verilog
 
 <pre>
-xls_dslx_verilog(<a href="#xls_dslx_verilog-name">name</a>, <a href="#xls_dslx_verilog-dep">dep</a>, <a href="#xls_dslx_verilog-verilog_file">verilog_file</a>, <a href="#xls_dslx_verilog-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_verilog-opt_ir_args">opt_ir_args</a>, <a href="#xls_dslx_verilog-codegen_args">codegen_args</a>,
+xls_dslx_verilog(<a href="#xls_dslx_verilog-name">name</a>, <a href="#xls_dslx_verilog-verilog_file">verilog_file</a>, <a href="#xls_dslx_verilog-srcs">srcs</a>, <a href="#xls_dslx_verilog-deps">deps</a>, <a href="#xls_dslx_verilog-dep">dep</a>, <a href="#xls_dslx_verilog-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_verilog-opt_ir_args">opt_ir_args</a>, <a href="#xls_dslx_verilog-codegen_args">codegen_args</a>,
                  <a href="#xls_dslx_verilog-enable_generated_file">enable_generated_file</a>, <a href="#xls_dslx_verilog-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_verilog-kwargs">kwargs</a>)
 </pre>
 
@@ -688,8 +693,10 @@ are listed in the outs attribute of the rule.
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_verilog-name"></a>name |  The name of the rule.   |  none |
-| <a id="xls_dslx_verilog-dep"></a>dep |  The 'xls_dslx_module_library' target used for dependency.   |  none |
 | <a id="xls_dslx_verilog-verilog_file"></a>verilog_file |  The filename of Verilog file generated. The filename must have a '.v' extension.   |  none |
+| <a id="xls_dslx_verilog-srcs"></a>srcs |  Top level source files for the conversion. Files must have a '.x' extension. There must be single source file.   |  <code>None</code> |
+| <a id="xls_dslx_verilog-deps"></a>deps |  Dependency targets for the rule. The targets must emit a DslxInfo provider.   |  <code>None</code> |
+| <a id="xls_dslx_verilog-dep"></a>dep |  The 'xls_dslx_module_library' target used for dependency.   |  <code>None</code> |
 | <a id="xls_dslx_verilog-ir_conv_args"></a>ir_conv_args |  Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_converter_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   |  <code>{}</code> |
 | <a id="xls_dslx_verilog-opt_ir_args"></a>opt_ir_args |  Arguments of the IR optimizer tool. For details on the arguments, refer to the opt_main application at //xls/tools/opt_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   |  <code>{}</code> |
 | <a id="xls_dslx_verilog-codegen_args"></a>codegen_args |  Arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   |  <code>{}</code> |

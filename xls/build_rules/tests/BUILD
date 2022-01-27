@@ -81,19 +81,14 @@ check_sha256sum_test(
     sha256sum = "6522799f7b64dbbb2a31eb2862052b8988e78821d8b61fff7f508237a9d9f01d",
 )
 
-xls_dslx_module_library(
-    name = "add_one_dslx_module",
-    src = "add_one.x",
-)
-
 # Check that we can generate a block a couple different ways.
 xls_dslx_verilog(
     name = "add_one_pipeline_rtl",
+    srcs = ["add_one.x"],
     codegen_args = {
         "pipeline_stages": "2",
         "delay_model": "unit",
     },
-    dep = ":add_one_dslx_module",
     verilog_file = "add_one_pipeline_rtl.v",
 )
 
@@ -128,10 +123,10 @@ sh_test(
 
 xls_dslx_verilog(
     name = "add_one_combinational_rtl",
+    srcs = ["add_one.x"],
     codegen_args = {
         "generator": "combinational",
     },
-    dep = ":add_one_dslx_module",
     verilog_file = "add_one_combinational_rtl.v",
 )
 
@@ -142,14 +137,23 @@ sh_test(
     data = [":add_one_combinational_rtl.v"],
 )
 
+# TODO(vmirian) 01-25-2022 Remove below when xls_dlsx_module_library is removed.
 xls_dslx_module_library(
     name = "generated_dslx_module",
     src = "generated.x",
 )
 
-# Run the test inside of the generated file.
+# TODO(vmirian) 01-25-2022 Remove below when xls_dlsx_module_library is removed.
+# xls_dslx_test with a xls_dslx_module_library. This will be deprecated.
 xls_dslx_test(
-    name = "generated_file_as_input_test",
+    name = "generated_file_as_input_module_test",
+    dep = ":generated_dslx_module",
+)
+
+# TODO(vmirian) 01-25-2022 Remove below when xls_dlsx_module_library is removed.
+# xls_dslx_ir with a xls_dslx_module_library. This will be deprecated.
+xls_dslx_ir(
+    name = "generated_ir",
     dep = ":generated_dslx_module",
 )
 
@@ -236,8 +240,8 @@ xls_dslx_test(
 # named 'chaining_example_dslx_module'. The rule is the input to the build and
 # test flow.
 #
-# In the build flow, the 'chaining_example_dslx_module' target is a dependency
-# of a xls_dslx_ir rule named 'chaining_example_ir'. The output of the latter is
+# In the build flow, the 'chaining_example.x' file is the input to a
+# xls_dslx_ir rule named 'chaining_example_ir'. The output of the latter is
 # the input to a xls_ir_opt_ir rule named 'chaining_example_opt_ir'. The output
 # of the latter is the input to a xls_ir_verilog rule named
 # 'chaining_example_verilog'.
@@ -254,12 +258,12 @@ xls_dslx_test(
 #           Build Flow                  Test/Execution Flow
 #           ----------                  -------------------
 #
-#                     chaining_example.x
-#                             |
-#                chaining_example_dslx_module
-#                             |
-#               ---------------------------------
-#              |                                |
+#                                         chaining_example.x
+#                                                 |
+#        chaining_example.x          chaining_example_dslx_module
+#              |                                 |
+#              |                                 |
+#              |                                 |
 #              |                      chaining_example_test
 #              |
 #              |               |--> chaining_example_eval_ir_test
@@ -287,7 +291,7 @@ xls_dslx_test(
 
 xls_dslx_ir(
     name = "chaining_example_ir",
-    dep = ":chaining_example_dslx_module",
+    srcs = ["chaining_example.x"],
 )
 
 xls_ir_opt_ir(
@@ -489,23 +493,18 @@ xls_dslx_library(
     deps = [":simple_example_123_dslx"],
 )
 
-xls_dslx_module_library(
-    name = "simple_example_five_dslx_module",
-    src = "simple_example_five.x",
-    deps = [":simple_example_4_dslx"],
-)
-
 # Generate verilog from a dslx file.
 # The rule performs: DSLX -> IR -> Optimized IR -> Verilog.
 xls_dslx_verilog(
     name = "simple_example_5_one_stage",
+    srcs = ["simple_example_five.x"],
     codegen_args = {
         "pipeline_stages": "1",
     },
-    dep = ":simple_example_five_dslx_module",
     # Output the Optimized IR file to reference.
     opt_ir_file = "simple_example_5_one_stage.opt.ir",
     verilog_file = "simple_example_5_one_stage.v",
+    deps = [":simple_example_4_dslx"],
 )
 
 # The xls_ir_jit_wrapper rule using an optimized IR file as input.
@@ -555,10 +554,11 @@ xls_dslx_opt_ir_test(
 # The rule performs: DSLX -> IR -> Optimized IR.
 xls_dslx_opt_ir(
     name = "simple_example_5_entry_five",
-    dep = ":simple_example_five_dslx_module",
+    srcs = ["simple_example_five.x"],
     ir_conv_args = {
         "entry": "five",
     },
+    deps = [":simple_example_4_dslx"],
 )
 
 # Universal entry example: The value is provided by the
@@ -599,7 +599,7 @@ xls_dslx_opt_ir_test(
 # The target is the native rule form of the 'chaining_example_ir' target.
 xls_dslx_ir_native_rule(
     name = "chaining_example_ir_native_rule",
-    dep = ":chaining_example_dslx_module",
+    srcs = ["chaining_example.x"],
 )
 
 # The target is the native rule form of the 'chaining_example_opt_ir' target.
@@ -621,20 +621,22 @@ xls_ir_verilog_native_rule(
 # The target is the native rule form of the 'simple_example_5_entry_five' target.
 xls_dslx_opt_ir_native_rule(
     name = "simple_example_5_entry_five_native_rule",
-    dep = ":simple_example_five_dslx_module",
+    srcs = ["simple_example_five.x"],
     ir_conv_args = {
         "entry": "five",
     },
+    deps = [":simple_example_4_dslx"],
 )
 
 # The target is the native rule form of the 'simple_example_5_one_stage' target.
 xls_dslx_verilog_native_rule(
     name = "simple_example_5_one_stage_native_rule",
+    srcs = ["simple_example_five.x"],
     codegen_args = {
         "pipeline_stages": "1",
     },
-    dep = ":simple_example_five_dslx_module",
     verilog_file = "simple_example_5_one_stage_macro.v",
+    deps = [":simple_example_4_dslx"],
 )
 
 # The target is the native rule form of the 'simple_example_5_one_stage_jit_wrapper' target.
@@ -650,7 +652,7 @@ xls_ir_jit_wrapper_native_rule(
 ################################################################################
 xls_dslx_ir(
     name = "user_defined_output_filename_ir",
-    dep = ":chaining_example_dslx_module",
+    srcs = ["chaining_example.x"],
     ir_file = "xls_dslx_ir.ir",
 )
 
@@ -673,13 +675,13 @@ xls_ir_verilog(
 
 xls_dslx_ir_native_rule(
     name = "user_defined_output_filename_native_rule_ir",
-    dep = ":chaining_example_dslx_module",
+    srcs = ["chaining_example.x"],
     ir_file = "xls_dslx_ir_native_rule.ir",
 )
 
 xls_dslx_opt_ir_native_rule(
     name = "user_defined_output_filename_native_rule_dslx_opt_ir",
-    dep = ":chaining_example_dslx_module",
+    srcs = ["chaining_example.x"],
     ir_file = "xls_dslx_opt_ir_native_rule.ir",
     opt_ir_file = "xls_dslx_opt_ir_native_rule.opt.ir",
 )
@@ -703,10 +705,10 @@ xls_ir_verilog_native_rule(
 
 xls_dslx_verilog_native_rule(
     name = "user_defined_output_filename_xls_dslx_verilog_native_rule_verilog",
+    srcs = ["chaining_example.x"],
     codegen_args = {
         "pipeline_stages": "1",
     },
-    dep = ":chaining_example_dslx_module",
     ir_file = "xls_dslx_verilog_native_rule.ir",
     module_sig_file = "xls_dslx_verilog_native_rule.sig.textproto",
     opt_ir_file = "xls_dslx_verilog_native_rule.opt.ir",
@@ -787,18 +789,13 @@ xls_dslx_library(
 # Tests of eval_ir input validators.
 ################################################################################
 xls_dslx_module_library(
-    name = "die_if_odd_module",
-    src = "die_if_odd.x",
-)
-
-xls_dslx_module_library(
     name = "die_if_odd_validator_module",
     src = "die_if_odd_validator.x",
 )
 
 xls_dslx_opt_ir(
     name = "die_if_odd",
-    dep = ":die_if_odd_module",
+    srcs = ["die_if_odd.x"],
     ir_file = "die_if_odd.ir",
     opt_ir_file = "die_if_odd.opt.ir",
 )

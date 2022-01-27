@@ -32,7 +32,9 @@ load(
 
 def xls_dslx_ir_macro(
         name,
-        dep,
+        srcs = None,
+        deps = None,
+        dep = None,
         ir_conv_args = {},
         enable_generated_file = True,
         enable_presubmit_generated_file = False,
@@ -45,6 +47,10 @@ def xls_dslx_ir_macro(
 
     Args:
       name: The name of the rule.
+      srcs: Top level source files for the conversion. Files must have a '.x'
+        extension. There must be single source file.
+      deps: Dependency targets for the rule. The targets must emit a DslxInfo
+        provider.
       dep: A dependency target for the rule. The target must emit a
         DslxModuleInfo provider.
       ir_conv_args: Arguments of the IR conversion tool. For details on the
@@ -59,10 +65,16 @@ def xls_dslx_ir_macro(
       **kwargs: Keyword arguments. Named arguments.
     """
 
+    # TODO (vmirian) 01-25-2022 Make srcs mandatory and deps optional when
+    # xls_dslx_module_library is removed.
     # Type check input
     if type(name) != type(""):
         fail("Argument 'name' must be of string type.")
-    if type(dep) != type(""):
+    if srcs and type(srcs) != type([]):
+        fail("Argument 'srcs' must be of list type.")
+    if deps and type(deps) != type([]):
+        fail("Argument 'deps' must be of list type.")
+    if dep and type(dep) != type(""):
         fail("Argument 'dep' must be of string type.")
     if type(ir_conv_args) != type({}):
         fail("Argument 'ir_conv_args' must be of dictionary type.")
@@ -77,6 +89,8 @@ def xls_dslx_ir_macro(
 
     xls_dslx_ir(
         name = name,
+        srcs = srcs,
+        deps = deps,
         dep = dep,
         ir_conv_args = ir_conv_args,
         outs = get_xls_dslx_ir_generated_files(kwargs),
