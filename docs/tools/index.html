@@ -585,6 +585,18 @@
   
 
           
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dslx_bytecode_interpreter/" class="md-nav__link">
+        Interpreter
+      </a>
+    </li>
+  
+
+          
         </ul>
       </nav>
     </li>
@@ -1302,8 +1314,8 @@ validation function.</p>
 <p>Tool for reducing IR to a minimal test case based on an external test.</p>
 <h2 id="ir_stats_main"><a href="https://github.com/google/xls/tree/main/xls/tools/ir_stats_main.cc"><code>ir_stats_main</code></a></h2>
 <p>Prints summary information/stats on an IR [Package] file. An example:</p>
-<div class="highlight"><pre><span></span><code>$ bazel-bin/xls/tools/ir_stats_main bazel-genfiles/xls/modules/fpadd_2x32.ir
-Package &quot;fpadd_2x32&quot;
+<div class="highlight"><pre><span></span><code>$ bazel-bin/xls/tools/ir_stats_main bazel-genfiles/xls/modules/fp32_add_2.ir
+Package &quot;fp32_add_2&quot;
   Function: &quot;__float32__is_inf&quot;
     Signature: ((bits[1], bits[8], bits[23])) -&gt; bits[1]
     Nodes: 8
@@ -1312,7 +1324,7 @@ Package &quot;fpadd_2x32&quot;
     Signature: ((bits[1], bits[8], bits[23])) -&gt; bits[1]
     Nodes: 8
 
-  Function: &quot;__fpadd_2x32__fpadd_2x32&quot;
+  Function: &quot;__fp32_add_2__fp32_add_2&quot;
     Signature: ((bits[1], bits[8], bits[23]), (bits[1], bits[8], bits[23])) -&gt; (bits[1], bits[8], bits[23])
     Nodes: 252
 </code></pre></div>

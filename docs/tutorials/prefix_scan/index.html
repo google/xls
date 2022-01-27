@@ -656,6 +656,18 @@
   
 
           
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../dslx_bytecode_interpreter/" class="md-nav__link">
+        Interpreter
+      </a>
+    </li>
+  
+
+          
         </ul>
       </nav>
     </li>
@@ -1086,7 +1098,7 @@ input and produces an output of the same size. Each element in the output
 contains the count of duplicate values seen so far in the input. The counter
 resets to 0 if a new value is found.</p>
 <p>For example, for this input:</p>
-<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">]</span><span class="w"></span>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="p">.]</span><span class="w"></span>
 </code></pre></div>
 <p>the code should produce this output:</p>
 <div class="highlight"><pre><span></span><code><span class="w">  </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="p">])</span><span class="w"></span>
@@ -1103,7 +1115,7 @@ duplicate) and therefore adds a 1 to the counter from index 1. And so on.</p>
 <div class="highlight"><pre><span></span><code><span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">])</span><span class="w"></span>
 </code></pre></div>
 <p>The full listing is in <code>examples/dslx_intro/prefix_scan_equality.x</code>.</p>
-<h3 id="function-prefix_scan_eq">Function prefix_scan_eq</h3>
+<h3 id="function-prefix_scan_eq">Function <code>prefix_scan_eq</code></h3>
 <p>The implementation displays a few interesting language features.</p>
 <p>The function prototype is straigt-forward. Input is an array of 8 values of type
 <code>u32</code>. Output is an array of size 8 holding 3-bit values (the maximum resulting
@@ -1132,8 +1144,8 @@ values named <code>prior</code>, <code>count</code>, and <code>result</code>.</p
 <p>The types of the iterable and accumulator are specified next. The iterable is a
 tuple consisting of two <code>u32</code> values. The accumulator is more interesting, it is
 a tuple consiting of a <code>u32</code> value (<code>prior</code>), a <code>u3</code> value (<code>count</code>), and an
-array type <code>u3[8]</code>, which is an array holding 8 elements of
-bit-width 3. This is the type of <code>result</code> in the accumulator.</p>
+array type <code>u3[8]</code>, which is an array holding 8 elements of bit-width 3. This is
+the type of <code>result</code> in the accumulator.</p>
 <p>Looping back to the prior <code>let</code> statement, it ignores the <code>prior</code> and <code>count</code>
 members of the tuple and will only return the <code>result</code> part.</p>
 <h4 id="a-match-expression">A Match Expression</h4>
@@ -1181,9 +1193,11 @@ accumulator in the following way.</p>
 <ul>
 <li>set element <code>prior</code> to -1, in order to not match any other value.</li>
 <li>set element <code>count</code> to 0.</li>
-<li>set element <code>result</code> to 8 0's of size <code>u3</code></li>
+<li>set element <code>result</code> to 8 0's of size <code>u3</code>. (Note that the <code>...</code> syntax
+    is short for "fill in the rest of the elements with the last value
+    specified".)</li>
 </ul>
-<div class="highlight"><pre><span></span><code><span class="p">}((</span><span class="kt">u32</span>:<span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">]));</span><span class="w"></span>
+<div class="highlight"><pre><span></span><code><span class="p">}((</span><span class="kt">u32</span>:<span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="p">.]));</span><span class="w"></span>
 </code></pre></div>
 <p>And, finally, the function simply returns <code>result</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="w">  </span><span class="n">result</span><span class="w"></span>
@@ -1194,7 +1208,7 @@ accumulator in the following way.</p>
 right to this implementation file:</p>
 <div class="highlight"><pre><span></span><code><span class="cp">#![test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_prefix_scan_eq_all_zero</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">];</span><span class="w"></span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="p">.];</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prefix_scan_eq</span><span class="p">(</span><span class="n">input</span><span class="p">);</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="p">])</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
@@ -1206,6 +1220,20 @@ right to this implementation file:</p>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">])</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 </code></pre></div>
+<p>To run tests against the file present in the repository:</p>
+<div class="highlight"><pre><span></span><code><span class="go">xls$ bazel run -c opt //xls/dslx:interpreter_main -- \</span>
+<span class="gp">       $</span>PWD/xls/examples/dslx_intro/prefix_scan_equality.x <span class="se">\</span>
+<span class="go">       --compare=none</span>
+<span class="go">[ RUN UNITTEST  ] prefix_scan_eq_all_zero_test</span>
+<span class="go">[            OK ]</span>
+<span class="go">[ RUN UNITTEST  ] prefix_scan_eq_doubles_test</span>
+<span class="go">[            OK ]</span>
+<span class="go">[===============] 2 test(s) ran; 0 failed; 0 skipped.</span>
+</code></pre></div>
+<p>(Note that <code>--compare=none</code> is currently required because <code>enumerate</code> ranges are
+not currently convertable to IR, otherwise running the DSLX interpreter would do
+implicit comparison to IR interpreter -- see
+<a href="https://github.com/google/xls/issues/164">google/xls#164</a>.)</p>
                 
               
               

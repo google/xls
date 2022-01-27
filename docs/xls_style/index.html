@@ -585,6 +585,18 @@
   
 
           
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dslx_bytecode_interpreter/" class="md-nav__link">
+        Interpreter
+      </a>
+    </li>
+  
+
+          
         </ul>
       </nav>
     </li>
@@ -1136,6 +1148,17 @@ in the XLS project, with the relevant Google style guides
 <ul>
 <li>Internal errors for conditions that should never be false can use <code>CHECK</code>,
     but may also use <code>Status</code> or <code>StatusOr</code>.</li>
+</ul>
+<ul>
+<li>Prefer using <code>XLS_ASSIGN_OR_RETURN</code> / <code>XLS_RETURN_IF_ERROR</code> when
+    appropriate, but when binding a <code>StatusOr</code> wrapped value prefer to name it
+    <code>thing_or</code> so that it can be referenced without the wrapper as <code>thing</code>; e.g.<div class="highlight"><pre><span></span><code>absl::StatusOr&lt;Thing&gt; thing_or = f();
+if (!thing_or.ok()) {
+  // ... handling of the status via thing_or.status() and returning ...
+}
+const Thing&amp; thing = thing_or.value();
+</code></pre></div>
+</li>
 </ul>
 <ul>
 <li>Prefer <code>CHECK</code> to <code>DCHECK</code>, except that <code>DCHECK</code> can be used to verify

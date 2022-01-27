@@ -1,0 +1,2463 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="canonical" href="https://google.github.io/xls/xls_build_rules/">
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.1.2, mkdocs-material-7.1.4">
+    
+    
+      
+        <title>Xls build rules - XLS: Accelerated HW Synthesis</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.bde7dde4.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ef6f36e2.min.css">
+        
+      
+    
+    
+    
+      
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&display=fallback">
+        <style>:root{--md-text-font-family:"Roboto";--md-code-font-family:"Roboto Mono"}</style>
+      
+    
+    
+    
+    
+      
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="" data-md-color-primary="none" data-md-color-accent="none">
+  
+    
+    <script>function __prefix(e){return new URL("..",location).pathname+"."+e}function __get(e,t=localStorage){return JSON.parse(t.getItem(__prefix(e)))}</script>
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#xls-build-rules-for-bazel" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-header__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            XLS: Accelerated HW Synthesis
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Xls build rules
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+      </label>
+      
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" data-md-state="active" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+      </label>
+      <button type="reset" class="md-search__icon md-icon" aria-label="Clear" tabindex="-1">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        
+<a href="https://github.com/google/xls/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54z"/></svg>
+
+    </a>
+    XLS: Accelerated HW Synthesis
+  </label>
+  
+    <div class="md-nav__source">
+      
+<a href="https://github.com/google/xls/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" >
+      
+      <label class="md-nav__link" for="__nav_2">
+        Tutorials
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Tutorials" data-md-level="1">
+        <label class="md-nav__title" for="__nav_2">
+          <span class="md-nav__icon md-icon"></span>
+          Tutorials
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2_2" type="checkbox" id="__nav_2_2" >
+      
+      <label class="md-nav__link" for="__nav_2_2">
+        DSLX
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="DSLX" data-md-level="2">
+        <label class="md-nav__title" for="__nav_2_2">
+          <span class="md-nav__icon md-icon"></span>
+          DSLX
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/hello_xls/" class="md-nav__link">
+        Hello, XLS!
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/float_to_int/" class="md-nav__link">
+        Basic logic
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/intro_to_parametrics/" class="md-nav__link">
+        Intro to parameterics
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/crc32/" class="md-nav__link">
+        For expressions
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/prefix_scan/" class="md-nav__link">
+        Enumerate and match
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" type="checkbox" id="__nav_3" >
+      
+      <label class="md-nav__link" for="__nav_3">
+        IR
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="IR" data-md-level="1">
+        <label class="md-nav__title" for="__nav_3">
+          <span class="md-nav__icon md-icon"></span>
+          IR
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ir_semantics/" class="md-nav__link">
+        Semantics
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../optimizations/" class="md-nav__link">
+        Optimizations
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_3" type="checkbox" id="__nav_3_3" >
+      
+      <label class="md-nav__link" for="__nav_3_3">
+        Scheduling
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Scheduling" data-md-level="2">
+        <label class="md-nav__title" for="__nav_3_3">
+          <span class="md-nav__icon md-icon"></span>
+          Scheduling
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../delay_estimation/" class="md-nav__link">
+        Delay Estimation
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ir_visualization/" class="md-nav__link">
+        Visualizer
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_5" type="checkbox" id="__nav_3_5" >
+      
+      <label class="md-nav__link" for="__nav_3_5">
+        Native JIT
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Native JIT" data-md-level="2">
+        <label class="md-nav__title" for="__nav_3_5">
+          <span class="md-nav__icon md-icon"></span>
+          Native JIT
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ir_jit/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data_layout/" class="md-nav__link">
+        Data Layout
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../solvers/" class="md-nav__link">
+        Formal
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" type="checkbox" id="__nav_4" >
+      
+      <label class="md-nav__link" for="__nav_4">
+        DSLX
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="DSLX" data-md-level="1">
+        <label class="md-nav__title" for="__nav_4">
+          <span class="md-nav__icon md-icon"></span>
+          DSLX
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dslx_reference/" class="md-nav__link">
+        Reference
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dslx_std/" class="md-nav__link">
+        Standard Library
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../floating_point/" class="md-nav__link">
+        Floating Point
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fuzzer/" class="md-nav__link">
+        Fuzzer
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dslx_bytecode_interpreter/" class="md-nav__link">
+        Interpreter
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_5" type="checkbox" id="__nav_5" >
+      
+      <label class="md-nav__link" for="__nav_5">
+        Code Generation
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Code Generation" data-md-level="1">
+        <label class="md-nav__title" for="__nav_5">
+          <span class="md-nav__icon md-icon"></span>
+          Code Generation
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vast/" class="md-nav__link">
+        VAST
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" type="checkbox" id="__nav_6" >
+      
+      <label class="md-nav__link" for="__nav_6">
+        Tools
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Tools" data-md-level="1">
+        <label class="md-nav__title" for="__nav_6">
+          <span class="md-nav__icon md-icon"></span>
+          Tools
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../build_system/" class="md-nav__link">
+        Build System
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools_quick_start/" class="md-nav__link">
+        Quick Start
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        Listing
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interpreters/" class="md-nav__link">
+        Interpreters
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_7" type="checkbox" id="__nav_7" >
+      
+      <label class="md-nav__link" for="__nav_7">
+        Development
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Development" data-md-level="1">
+        <label class="md-nav__title" for="__nav_7">
+          <span class="md-nav__icon md-icon"></span>
+          Development
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        Contributing
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../xls_style/" class="md-nav__link">
+        Style Guide
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adding_ir_operation/" class="md-nav__link">
+        Adding a new IR operation
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_8" type="checkbox" id="__nav_8" >
+      
+      <label class="md-nav__link" for="__nav_8">
+        NoC
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="NoC" data-md-level="1">
+        <label class="md-nav__title" for="__nav_8">
+          <span class="md-nav__icon md-icon"></span>
+          NoC
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../xls_noc_readme/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_8_2" type="checkbox" id="__nav_8_2" >
+      
+      <label class="md-nav__link" for="__nav_8_2">
+        Topologies
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Topologies" data-md-level="2">
+        <label class="md-nav__title" for="__nav_8_2">
+          <span class="md-nav__icon md-icon"></span>
+          Topologies
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../xls_noc_topologies/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../xls_noc_dimension_order_topology/" class="md-nav__link">
+        Dimension Order
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../xls_noc_tree_topology/" class="md-nav__link">
+        Tree
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../xls_noc_butterfly_topology/" class="md-nav__link">
+        k-ary n-fly Butterfly
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../xls_noc_fully_connected_topology/" class="md-nav__link">
+        Fully Connected
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../xls_noc_star_topology/" class="md-nav__link">
+        Star
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../xls_noc_glossary/" class="md-nav__link">
+        Glossary
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#check_sha256sum_frozen" class="md-nav__link">
+    check_sha256sum_frozen
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#check_sha256sum_test" class="md-nav__link">
+    check_sha256sum_test
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_benchmark_ir" class="md-nav__link">
+    xls_benchmark_ir
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_dslx_library" class="md-nav__link">
+    xls_dslx_library
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_dslx_module_library" class="md-nav__link">
+    xls_dslx_module_library
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_dslx_opt_ir_test" class="md-nav__link">
+    xls_dslx_opt_ir_test
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_dslx_test" class="md-nav__link">
+    xls_dslx_test
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_eval_ir_test" class="md-nav__link">
+    xls_eval_ir_test
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_ir_equivalence_test" class="md-nav__link">
+    xls_ir_equivalence_test
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_toolchain" class="md-nav__link">
+    xls_toolchain
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cc_xls_ir_jit_wrapper" class="md-nav__link">
+    cc_xls_ir_jit_wrapper
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get_mangled_ir_symbol" class="md-nav__link">
+    get_mangled_ir_symbol
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_dslx_cpp_type_library" class="md-nav__link">
+    xls_dslx_cpp_type_library
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_dslx_ir" class="md-nav__link">
+    xls_dslx_ir
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_dslx_opt_ir" class="md-nav__link">
+    xls_dslx_opt_ir
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_dslx_verilog" class="md-nav__link">
+    xls_dslx_verilog
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_ir_opt_ir" class="md-nav__link">
+    xls_ir_opt_ir
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_ir_verilog" class="md-nav__link">
+    xls_ir_verilog
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content" data-md-component="content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/google/xls/tree/main/docs_src/xls_build_rules.md" title="Edit this page" class="md-content__button md-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
+                  </a>
+                
+                
+                <!-- DO NOT EDIT THIS FILE -->
+<!-- Generated with Stardoc: http://skydoc.bazel.build -->
+
+<h1 id="xls-build-rules-for-bazel">XLS Build Rules for Bazel</h1>
+<!-- DO NOT REMOVE! Placeholder for TOC. -->
+
+<p><a id="#check_sha256sum_frozen"></a></p>
+<h2 id="check_sha256sum_frozen">check_sha256sum_frozen</h2>
+<pre>
+check_sha256sum_frozen(<a href="#check_sha256sum_frozen-name">name</a>, <a href="#check_sha256sum_frozen-frozen_file">frozen_file</a>, <a href="#check_sha256sum_frozen-sha256sum">sha256sum</a>, <a href="#check_sha256sum_frozen-src">src</a>)
+</pre>
+
+<p>Produces a frozen file if the sha256sum checksum of a source file matches a user-defined checksum.</p>
+<div class="highlight"><pre><span></span><code>    As projects cut releases or freeze, it&#39;s important to know that
+    generated (e.g. Verilog) code is never changing without having to
+    actually check in the generated artifact. This rule performs a checksum
+    of a generated file as an integrity check. Users might use this rule to
+    help enable confidence that there is neither:
+
+    *   non-determinism in the toolchain, nor
+    *   an accidental dependence on a non-released toolchain (e.g. an
+        accidental dependence on top-of-tree, where the toolchain is
+        constantly changing)
+
+    Say there was a codegen rule producing `my_output.v`, a user might instantiate
+    something like:
+
+        check_sha256sum_frozen(
+            name = &quot;my_output_checksum&quot;,
+            src = &quot;:my_output.v&quot;,
+            sha256sum = &quot;d1bc8d3ba4afc7e109612cb73acbdddac052c93025aa1f82942edabb7deb82a1&quot;,
+            frozen_file = &quot;my_output.frozen.x&quot;,
+        )
+
+    ... and then take a dependency on `my_output.frozen.v` in the
+    surrounding project, knowing that it had been checksum-verified.
+
+    Taking a dependence on `my_output.v` directly may also be ok if the
+    `:my_output_checksum` target is also built (e.g. via the same wildcard
+    build request), but taking a dependence on the output `.frozen.v` file
+    ensures that the checking is an integral part of the downstream
+    build-artifact-creation process.
+
+    At its core, this rule ensure that the contents of a file does not
+    change by verifying that it matches a given checksum. Typically, this
+    rule is used to control the build process. The rule serves as a trigger
+    on rules depending on its output (the frozen file). When the validation
+    of the sha256sum succeed, rules depending on the frozen file are
+    built/executed. When the validation of the sha256sum fails, rules
+    depending on the frozen file are not built/executed.
+
+    In the example below, when the validation of the sha256sum for
+    target &#39;generated_file_sha256sum_frozen&#39; succeeds, target
+    &#39;generated_file_dslx&#39; is built. However, when the validation of the
+    sha256sum for target &#39;generated_file_sha256sum_frozen&#39; fails, target
+    &#39;generated_file_dslx&#39; is not built.
+
+    Example:
+        check_sha256sum_frozen(
+            name = &quot;generated_file_sha256sum_frozen&quot;,
+            src = &quot;:generated_file.x&quot;,
+            sha256sum = &quot;6522799f7b64dbbb2a31eb2862052b8988e78821d8b61fff7f508237a9d9f01d&quot;,
+            frozen_file = &quot;generated_file.frozen.x&quot;,
+        )
+
+        dslx_library(
+            name = &quot;generated_file_dslx&quot;,
+            src = &quot;:generated_file.frozen.x&quot;,
+        )
+</code></pre></div>
+<p><strong>ATTRIBUTES</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Type</th>
+<th align="left">Mandatory</th>
+<th align="left">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="check_sha256sum_frozen-name"></a>name</td>
+<td align="left">A unique name for this target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#name">Name</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="check_sha256sum_frozen-frozen_file"></a>frozen_file</td>
+<td align="left">The frozen output file.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="check_sha256sum_frozen-sha256sum"></a>sha256sum</td>
+<td align="left">The sha256sum of the source file.</td>
+<td align="left">String</td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="check_sha256sum_frozen-src"></a>src</td>
+<td align="left">The source file.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+</tbody>
+</table>
+<p><a id="#check_sha256sum_test"></a></p>
+<h2 id="check_sha256sum_test">check_sha256sum_test</h2>
+<pre>
+check_sha256sum_test(<a href="#check_sha256sum_test-name">name</a>, <a href="#check_sha256sum_test-sha256sum">sha256sum</a>, <a href="#check_sha256sum_test-src">src</a>)
+</pre>
+
+<p>Validates the sha256sum checksum of a source file with a user-defined checksum.</p>
+<div class="highlight"><pre><span></span><code>    This rule is typically used to ensure that the contents of a file is
+    unchanged.
+
+    Example:
+        check_sha256sum_test(
+            name = &quot;generated_file_sha256sum_test&quot;,
+            src = &quot;:generated_file.x&quot;,
+            sha256sum = &quot;6522799f7b64dbbb2a31eb2862052b8988e78821d8b61fff7f508237a9d9f01d&quot;,
+        )
+</code></pre></div>
+<p><strong>ATTRIBUTES</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Type</th>
+<th align="left">Mandatory</th>
+<th align="left">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="check_sha256sum_test-name"></a>name</td>
+<td align="left">A unique name for this target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#name">Name</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="check_sha256sum_test-sha256sum"></a>sha256sum</td>
+<td align="left">The sha256sum of the source file.</td>
+<td align="left">String</td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="check_sha256sum_test-src"></a>src</td>
+<td align="left">The source file.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+</tbody>
+</table>
+<p><a id="#xls_benchmark_ir"></a></p>
+<h2 id="xls_benchmark_ir">xls_benchmark_ir</h2>
+<pre>
+xls_benchmark_ir(<a href="#xls_benchmark_ir-name">name</a>, <a href="#xls_benchmark_ir-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_benchmark_ir-entry">entry</a>, <a href="#xls_benchmark_ir-src">src</a>, <a href="#xls_benchmark_ir-xls_toolchain">xls_toolchain</a>)
+</pre>
+
+<p>A IR benchmark executes the benchmark tool on an IR file.</p>
+<div class="highlight"><pre><span></span><code>    Example:
+
+     1) A file as the source.
+        xls_benchmark_ir(
+            name = &quot;a_benchmark&quot;,
+            src = &quot;a.ir&quot;,
+        )
+
+    2) An xls_ir_opt_ir target as the source.
+        xls_ir_opt_ir(
+            name = &quot;a_opt_ir&quot;,
+            src = &quot;a.ir&quot;,
+        )
+
+
+        xls_benchmark_ir(
+            name = &quot;a_benchmark&quot;,
+            src = &quot;:a_opt_ir&quot;,
+        )
+</code></pre></div>
+<p><strong>ATTRIBUTES</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Type</th>
+<th align="left">Mandatory</th>
+<th align="left">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="xls_benchmark_ir-name"></a>name</td>
+<td align="left">A unique name for this target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#name">Name</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_benchmark_ir-benchmark_ir_args"></a>benchmark_ir_args</td>
+<td align="left">Arguments of the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/tools/benchmark_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.</td>
+<td align="left"><a href="https://bazel.build/docs/skylark/lib/dict.html">Dictionary: String -&gt; String</a></td>
+<td align="left">optional</td>
+<td align="left">{}</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_benchmark_ir-entry"></a>entry</td>
+<td align="left">The (<em>mangled</em>) name of the entry point. See get_mangled_ir_symbol. The value is applied to the rule context. It can be overwritten by a local argument.</td>
+<td align="left">String</td>
+<td align="left">optional</td>
+<td align="left">""</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_benchmark_ir-src"></a>src</td>
+<td align="left">The IR source file for the rule. A single source file must be provided. The file must have a '.ir' extension.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_benchmark_ir-xls_toolchain"></a>xls_toolchain</td>
+<td align="left">The XLS toolchain target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">//xls/build_rules:default_xls_toolchain</td>
+</tr>
+</tbody>
+</table>
+<p><a id="#xls_dslx_library"></a></p>
+<h2 id="xls_dslx_library">xls_dslx_library</h2>
+<pre>
+xls_dslx_library(<a href="#xls_dslx_library-name">name</a>, <a href="#xls_dslx_library-deps">deps</a>, <a href="#xls_dslx_library-srcs">srcs</a>, <a href="#xls_dslx_library-xls_toolchain">xls_toolchain</a>)
+</pre>
+
+<p>A build rule that parses and type checks DSLX source files.</p>
+<div class="highlight"><pre><span></span><code>    Examples:
+
+    1) A collection of DSLX source files.
+        xls_dslx_library(
+            name = &quot;files_123_dslx&quot;,
+            srcs = [
+                &quot;file_1.x&quot;,
+                &quot;file_2.x&quot;,
+                &quot;file_3.x&quot;,
+            ],
+        )
+
+    2) Dependency on other xls_dslx_library targets.
+        xls_dslx_library(
+            name = &quot;a_dslx&quot;,
+            srcs = [
+                &quot;a.x&quot;,
+            ],
+        )
+
+        # Depends on target a_dslx.
+        xls_dslx_library(
+            name = &quot;b_dslx&quot;,
+            srcs = [
+                &quot;b.x&quot;,
+            ],
+            deps = [
+                &quot;:a_dslx&quot;,
+            ],
+        )
+
+        # Depends on target a_dslx.
+        xls_dslx_library(
+            name = &quot;c_dslx&quot;,
+            srcs = [
+                &quot;c.x&quot;,
+            ],
+            deps = [
+                &quot;:a_dslx&quot;,
+            ],
+        )
+
+    3) Dependency on xls_dslx_module_library targets.
+        xls_dslx_module_library(
+            name = &quot;a_dslx_module&quot;,
+            srcs = [
+                &quot;a.x&quot;,
+            ],
+        )
+
+        # Depends on target a_dslx_module.
+        xls_dslx_library(
+            name = &quot;b_dslx&quot;,
+            src = &quot;b.x&quot;,
+            deps = [
+                &quot;:a_dslx_module&quot;,
+            ],
+        )
+</code></pre></div>
+<p><strong>ATTRIBUTES</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Type</th>
+<th align="left">Mandatory</th>
+<th align="left">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="xls_dslx_library-name"></a>name</td>
+<td align="left">A unique name for this target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#name">Name</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_library-deps"></a>deps</td>
+<td align="left">Dependency targets for the rule. The targets must emit a DslxInfo provider.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">List of labels</a></td>
+<td align="left">optional</td>
+<td align="left">[]</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_library-srcs"></a>srcs</td>
+<td align="left">Source files for the rule. Files must have a '.x' extension.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">List of labels</a></td>
+<td align="left">optional</td>
+<td align="left">[]</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_library-xls_toolchain"></a>xls_toolchain</td>
+<td align="left">The XLS toolchain target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">//xls/build_rules:default_xls_toolchain</td>
+</tr>
+</tbody>
+</table>
+<p><a id="#xls_dslx_module_library"></a></p>
+<h2 id="xls_dslx_module_library">xls_dslx_module_library</h2>
+<pre>
+xls_dslx_module_library(<a href="#xls_dslx_module_library-name">name</a>, <a href="#xls_dslx_module_library-deps">deps</a>, <a href="#xls_dslx_module_library-src">src</a>, <a href="#xls_dslx_module_library-xls_toolchain">xls_toolchain</a>)
+</pre>
+
+<p>A build rule that parses and type checks the DSLX source file.</p>
+<div class="highlight"><pre><span></span><code>    Examples:
+
+    1) A single DSLX source file.
+        xls_dslx_module_library(
+            name = &quot;a_dslx_module&quot;,
+            src = &quot;a.x&quot;,
+        )
+
+    2) Dependency on xls_dslx_library targets.
+        xls_dslx_library(
+            name = &quot;a_dslx&quot;,
+            srcs = [
+                &quot;a.x&quot;,
+            ],
+        )
+
+        # Depends on target a_dslx.
+        xls_dslx_module_library(
+            name = &quot;b_dslx_module&quot;,
+            src = &quot;b.x&quot;,
+            deps = [
+                &quot;:a_dslx&quot;,
+            ],
+        )
+
+    3) Dependency on xls_dslx_module_library targets.
+        xls_dslx_module_library(
+            name = &quot;a_dslx_module&quot;,
+            srcs = [
+                &quot;a.x&quot;,
+            ],
+        )
+
+        # Depends on target a_dslx_module.
+        xls_dslx_module_library(
+            name = &quot;b_dslx_module&quot;,
+            src = &quot;b.x&quot;,
+            deps = [
+                &quot;:a_dslx_module&quot;,
+            ],
+        )
+</code></pre></div>
+<p><strong>ATTRIBUTES</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Type</th>
+<th align="left">Mandatory</th>
+<th align="left">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="xls_dslx_module_library-name"></a>name</td>
+<td align="left">A unique name for this target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#name">Name</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_module_library-deps"></a>deps</td>
+<td align="left">Dependency targets for the rule. The targets must emit a DslxInfo provider.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">List of labels</a></td>
+<td align="left">optional</td>
+<td align="left">[]</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_module_library-src"></a>src</td>
+<td align="left">The DSLX source file for the rule. A single source file must be provided. The file must have a '.x' extension.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">None</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_module_library-xls_toolchain"></a>xls_toolchain</td>
+<td align="left">The XLS toolchain target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">//xls/build_rules:default_xls_toolchain</td>
+</tr>
+</tbody>
+</table>
+<p><a id="#xls_dslx_opt_ir_test"></a></p>
+<h2 id="xls_dslx_opt_ir_test">xls_dslx_opt_ir_test</h2>
+<pre>
+xls_dslx_opt_ir_test(<a href="#xls_dslx_opt_ir_test-name">name</a>, <a href="#xls_dslx_opt_ir_test-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_dslx_opt_ir_test-dep">dep</a>, <a href="#xls_dslx_opt_ir_test-dslx_test_args">dslx_test_args</a>, <a href="#xls_dslx_opt_ir_test-entry">entry</a>, <a href="#xls_dslx_opt_ir_test-input_validator">input_validator</a>,
+                     <a href="#xls_dslx_opt_ir_test-input_validator_expr">input_validator_expr</a>, <a href="#xls_dslx_opt_ir_test-ir_equivalence_args">ir_equivalence_args</a>, <a href="#xls_dslx_opt_ir_test-ir_eval_args">ir_eval_args</a>, <a href="#xls_dslx_opt_ir_test-xls_toolchain">xls_toolchain</a>)
+</pre>
+
+<p>A build rule that tests a xls_dslx_opt_ir target.</p>
+<div class="highlight"><pre><span></span><code>    Example:
+        xls_dslx_module_library(
+            name = &quot;a_dslx_module&quot;,
+            src = &quot;a.x&quot;,
+        )
+
+        xls_dslx_opt_ir(
+            name = &quot;a_opt_ir&quot;,
+            dep = &quot;:a_dslx_module&quot;,
+        )
+
+        xls_dslx_opt_ir_test(
+            name = &quot;a_opt_ir_test&quot;,
+            dep = &quot;:a_opt_ir&quot;,
+        )
+</code></pre></div>
+<p><strong>ATTRIBUTES</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Type</th>
+<th align="left">Mandatory</th>
+<th align="left">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir_test-name"></a>name</td>
+<td align="left">A unique name for this target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#name">Name</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir_test-benchmark_ir_args"></a>benchmark_ir_args</td>
+<td align="left">Arguments of the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/tools/benchmark_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.</td>
+<td align="left"><a href="https://bazel.build/docs/skylark/lib/dict.html">Dictionary: String -&gt; String</a></td>
+<td align="left">optional</td>
+<td align="left">{}</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir_test-dep"></a>dep</td>
+<td align="left">A dependency target for the rule. The target must emit a DslxModuleInfo provider.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir_test-dslx_test_args"></a>dslx_test_args</td>
+<td align="left">Arguments of the DSLX interpreter executable. For details on the arguments, refer to the interpreter_main application at //xls/dslx/interpreter_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.</td>
+<td align="left"><a href="https://bazel.build/docs/skylark/lib/dict.html">Dictionary: String -&gt; String</a></td>
+<td align="left">optional</td>
+<td align="left">{}</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir_test-entry"></a>entry</td>
+<td align="left">The (<em>mangled</em>) name of the entry point. See get_mangled_ir_symbol. The value is applied to the rule context. It can be overwritten by a local argument.</td>
+<td align="left">String</td>
+<td align="left">optional</td>
+<td align="left">""</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir_test-input_validator"></a>input_validator</td>
+<td align="left">The target defining the input validator for this test. Mutually exclusive with "input_validator_expr".</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">None</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir_test-input_validator_expr"></a>input_validator_expr</td>
+<td align="left">The expression to validate an input for the test function. Mutually exclusive with "input_validator".</td>
+<td align="left">String</td>
+<td align="left">optional</td>
+<td align="left">""</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir_test-ir_equivalence_args"></a>ir_equivalence_args</td>
+<td align="left">Arguments of the IR equivalence tool. For details on the arguments, refer to the check_ir_equivalence_main application at //xls/tools/check_ir_equivalence_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.</td>
+<td align="left"><a href="https://bazel.build/docs/skylark/lib/dict.html">Dictionary: String -&gt; String</a></td>
+<td align="left">optional</td>
+<td align="left">{}</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir_test-ir_eval_args"></a>ir_eval_args</td>
+<td align="left">Arguments of the IR interpreter. For details on the arguments, refer to the eval_ir_main application at //xls/tools/eval_ir_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.</td>
+<td align="left"><a href="https://bazel.build/docs/skylark/lib/dict.html">Dictionary: String -&gt; String</a></td>
+<td align="left">optional</td>
+<td align="left">{"random_inputs": "100", "optimize_ir": "true"}</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir_test-xls_toolchain"></a>xls_toolchain</td>
+<td align="left">The XLS toolchain target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">//xls/build_rules:default_xls_toolchain</td>
+</tr>
+</tbody>
+</table>
+<p><a id="#xls_dslx_test"></a></p>
+<h2 id="xls_dslx_test">xls_dslx_test</h2>
+<pre>
+xls_dslx_test(<a href="#xls_dslx_test-name">name</a>, <a href="#xls_dslx_test-dep">dep</a>, <a href="#xls_dslx_test-dslx_test_args">dslx_test_args</a>, <a href="#xls_dslx_test-xls_toolchain">xls_toolchain</a>)
+</pre>
+
+<p>A dslx test executes the tests and quick checks of a DSLX source file.</p>
+<div class="highlight"><pre><span></span><code>    Example:
+    # Assume a xls_dslx_library target a_dslx is present.
+    xls_dslx_module_library(
+        name = &quot;b_dslx_module&quot;,
+        src = &quot;b.x&quot;,
+        deps = [
+            &quot;:a_dslx&quot;,
+        ],
+    )
+
+    xls_dslx_test(
+        name = &quot;b_dslx_test&quot;,
+        dep = &quot;:b_dslx_module&quot;,
+    )
+</code></pre></div>
+<p><strong>ATTRIBUTES</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Type</th>
+<th align="left">Mandatory</th>
+<th align="left">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="xls_dslx_test-name"></a>name</td>
+<td align="left">A unique name for this target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#name">Name</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_test-dep"></a>dep</td>
+<td align="left">A dependency target for the rule. The target must emit a DslxModuleInfo provider.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_test-dslx_test_args"></a>dslx_test_args</td>
+<td align="left">Arguments of the DSLX interpreter executable. For details on the arguments, refer to the interpreter_main application at //xls/dslx/interpreter_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.</td>
+<td align="left"><a href="https://bazel.build/docs/skylark/lib/dict.html">Dictionary: String -&gt; String</a></td>
+<td align="left">optional</td>
+<td align="left">{}</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_test-xls_toolchain"></a>xls_toolchain</td>
+<td align="left">The XLS toolchain target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">//xls/build_rules:default_xls_toolchain</td>
+</tr>
+</tbody>
+</table>
+<p><a id="#xls_eval_ir_test"></a></p>
+<h2 id="xls_eval_ir_test">xls_eval_ir_test</h2>
+<pre>
+xls_eval_ir_test(<a href="#xls_eval_ir_test-name">name</a>, <a href="#xls_eval_ir_test-entry">entry</a>, <a href="#xls_eval_ir_test-input_validator">input_validator</a>, <a href="#xls_eval_ir_test-input_validator_expr">input_validator_expr</a>, <a href="#xls_eval_ir_test-ir_eval_args">ir_eval_args</a>, <a href="#xls_eval_ir_test-src">src</a>,
+                 <a href="#xls_eval_ir_test-xls_toolchain">xls_toolchain</a>)
+</pre>
+
+<p>A IR evaluation test executes the IR interpreter on an IR file.</p>
+<div class="highlight"><pre><span></span><code>    Example:
+
+     1) A file as the source.
+        xls_eval_ir_test(
+            name = &quot;a_eval_ir_test&quot;,
+            src = &quot;a.ir&quot;,
+        )
+
+    2) An xls_ir_opt_ir target as the source.
+        xls_ir_opt_ir(
+            name = &quot;a_opt_ir&quot;,
+            src = &quot;a.ir&quot;,
+        )
+
+
+        xls_eval_ir_test(
+            name = &quot;a_eval_ir_test&quot;,
+            src = &quot;:a_opt_ir&quot;,
+        )
+</code></pre></div>
+<p><strong>ATTRIBUTES</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Type</th>
+<th align="left">Mandatory</th>
+<th align="left">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="xls_eval_ir_test-name"></a>name</td>
+<td align="left">A unique name for this target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#name">Name</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_eval_ir_test-entry"></a>entry</td>
+<td align="left">The (<em>mangled</em>) name of the entry point. See get_mangled_ir_symbol. The value is applied to the rule context. It can be overwritten by a local argument.</td>
+<td align="left">String</td>
+<td align="left">optional</td>
+<td align="left">""</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_eval_ir_test-input_validator"></a>input_validator</td>
+<td align="left">The target defining the input validator for this test. Mutually exclusive with "input_validator_expr".</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">None</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_eval_ir_test-input_validator_expr"></a>input_validator_expr</td>
+<td align="left">The expression to validate an input for the test function. Mutually exclusive with "input_validator".</td>
+<td align="left">String</td>
+<td align="left">optional</td>
+<td align="left">""</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_eval_ir_test-ir_eval_args"></a>ir_eval_args</td>
+<td align="left">Arguments of the IR interpreter. For details on the arguments, refer to the eval_ir_main application at //xls/tools/eval_ir_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.</td>
+<td align="left"><a href="https://bazel.build/docs/skylark/lib/dict.html">Dictionary: String -&gt; String</a></td>
+<td align="left">optional</td>
+<td align="left">{"random_inputs": "100", "optimize_ir": "true"}</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_eval_ir_test-src"></a>src</td>
+<td align="left">The IR source file for the rule. A single source file must be provided. The file must have a '.ir' extension.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_eval_ir_test-xls_toolchain"></a>xls_toolchain</td>
+<td align="left">The XLS toolchain target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">//xls/build_rules:default_xls_toolchain</td>
+</tr>
+</tbody>
+</table>
+<p><a id="#xls_ir_equivalence_test"></a></p>
+<h2 id="xls_ir_equivalence_test">xls_ir_equivalence_test</h2>
+<pre>
+xls_ir_equivalence_test(<a href="#xls_ir_equivalence_test-name">name</a>, <a href="#xls_ir_equivalence_test-entry">entry</a>, <a href="#xls_ir_equivalence_test-ir_equivalence_args">ir_equivalence_args</a>, <a href="#xls_ir_equivalence_test-src_0">src_0</a>, <a href="#xls_ir_equivalence_test-src_1">src_1</a>, <a href="#xls_ir_equivalence_test-xls_toolchain">xls_toolchain</a>)
+</pre>
+
+<p>An IR equivalence test executes the equivalence tool on two IR files.</p>
+<div class="highlight"><pre><span></span><code>    Example:
+
+    1) A file as the source.
+        xls_ir_equivalence_test(
+            name = &quot;ab_ir_equivalence_test&quot;,
+            src_0 = &quot;a.ir&quot;,
+            src_1 = &quot;b.ir&quot;,
+        )
+
+    2) A target as the source.
+        xls_dslx_ir(
+            name = &quot;b_ir&quot;,
+            dep = &quot;:b_dslx_module&quot;,
+        )
+
+        xls_ir_equivalence_test(
+            name = &quot;ab_ir_equivalence_test&quot;,
+            src_0 = &quot;a.ir&quot;,
+            src_1 = &quot;:b_ir&quot;,
+        )
+</code></pre></div>
+<p><strong>ATTRIBUTES</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Type</th>
+<th align="left">Mandatory</th>
+<th align="left">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="xls_ir_equivalence_test-name"></a>name</td>
+<td align="left">A unique name for this target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#name">Name</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_equivalence_test-entry"></a>entry</td>
+<td align="left">The (<em>mangled</em>) name of the entry point. See get_mangled_ir_symbol. The value is applied to the rule context. It can be overwritten by a local argument.</td>
+<td align="left">String</td>
+<td align="left">optional</td>
+<td align="left">""</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_equivalence_test-ir_equivalence_args"></a>ir_equivalence_args</td>
+<td align="left">Arguments of the IR equivalence tool. For details on the arguments, refer to the check_ir_equivalence_main application at //xls/tools/check_ir_equivalence_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.</td>
+<td align="left"><a href="https://bazel.build/docs/skylark/lib/dict.html">Dictionary: String -&gt; String</a></td>
+<td align="left">optional</td>
+<td align="left">{}</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_equivalence_test-src_0"></a>src_0</td>
+<td align="left">An IR source file for the rule. A single source file must be provided. The file must have a '.ir' extension.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_equivalence_test-src_1"></a>src_1</td>
+<td align="left">An IR source file for the rule. A single source file must be provided. The file must have a '.ir' extension.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_equivalence_test-xls_toolchain"></a>xls_toolchain</td>
+<td align="left">The XLS toolchain target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">//xls/build_rules:default_xls_toolchain</td>
+</tr>
+</tbody>
+</table>
+<p><a id="#xls_toolchain"></a></p>
+<h2 id="xls_toolchain">xls_toolchain</h2>
+<pre>
+xls_toolchain(<a href="#xls_toolchain-name">name</a>, <a href="#xls_toolchain-benchmark_ir_tool">benchmark_ir_tool</a>, <a href="#xls_toolchain-codegen_tool">codegen_tool</a>, <a href="#xls_toolchain-dslx_interpreter_tool">dslx_interpreter_tool</a>, <a href="#xls_toolchain-dslx_std_lib">dslx_std_lib</a>,
+              <a href="#xls_toolchain-ir_converter_tool">ir_converter_tool</a>, <a href="#xls_toolchain-ir_equivalence_tool">ir_equivalence_tool</a>, <a href="#xls_toolchain-ir_eval_tool">ir_eval_tool</a>, <a href="#xls_toolchain-jit_wrapper_tool">jit_wrapper_tool</a>, <a href="#xls_toolchain-opt_ir_tool">opt_ir_tool</a>)
+</pre>
+
+<p>A rule that returns an XlsToolchainInfo containing toolchain information.</p>
+<div class="highlight"><pre><span></span><code>    Example:
+
+    User-defined toolchain with a modified DSLX standard library attribute.
+
+        filegroup(
+            name = &quot;custom_dslx_std_lib&quot;,
+            srcs = glob([&quot;custom_*.x&quot;]),
+        )
+
+        xls_toolchain(
+            name = &quot;user_defined_xls_toolchain&quot;,
+            dslx_std_lib = &quot;:custom_dslx_std_lib&quot;,
+        )
+
+        xls_dslx_library(
+            name = &quot;a_user_defined_xls_toolchain_dslx&quot;,
+            srcs = [
+                &quot;a.x&quot;,
+            ],
+            xls_toolchain = &quot;:user_defined_xls_toolchain&quot;,
+        )
+</code></pre></div>
+<p><strong>ATTRIBUTES</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Type</th>
+<th align="left">Mandatory</th>
+<th align="left">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="xls_toolchain-name"></a>name</td>
+<td align="left">A unique name for this target.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#name">Name</a></td>
+<td align="left">required</td>
+<td align="left"></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_toolchain-benchmark_ir_tool"></a>benchmark_ir_tool</td>
+<td align="left">The target of the benchmark IR executable.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">//xls/tools:benchmark_main</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_toolchain-codegen_tool"></a>codegen_tool</td>
+<td align="left">The target of the codegen executable.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">//xls/tools:codegen_main</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_toolchain-dslx_interpreter_tool"></a>dslx_interpreter_tool</td>
+<td align="left">The target of the DSLX interpreter executable.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">//xls/dslx:interpreter_main</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_toolchain-dslx_std_lib"></a>dslx_std_lib</td>
+<td align="left">The target containing the DSLX std library.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">//xls/dslx/stdlib:x_files</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_toolchain-ir_converter_tool"></a>ir_converter_tool</td>
+<td align="left">The target of the IR converter executable.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">//xls/dslx:ir_converter_main</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_toolchain-ir_equivalence_tool"></a>ir_equivalence_tool</td>
+<td align="left">The target of the IR equivalence executable.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">//xls/tools:check_ir_equivalence_main</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_toolchain-ir_eval_tool"></a>ir_eval_tool</td>
+<td align="left">The target of the IR interpreter executable.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">//xls/tools:eval_ir_main</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_toolchain-jit_wrapper_tool"></a>jit_wrapper_tool</td>
+<td align="left">The target of the JIT wrapper executable.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">//xls/jit:jit_wrapper_generator_main</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_toolchain-opt_ir_tool"></a>opt_ir_tool</td>
+<td align="left">The target of the IR optimizer executable.</td>
+<td align="left"><a href="https://bazel.build/docs/build-ref.html#labels">Label</a></td>
+<td align="left">optional</td>
+<td align="left">//xls/tools:opt_main</td>
+</tr>
+</tbody>
+</table>
+<p><a id="#cc_xls_ir_jit_wrapper"></a></p>
+<h2 id="cc_xls_ir_jit_wrapper">cc_xls_ir_jit_wrapper</h2>
+<pre>
+cc_xls_ir_jit_wrapper(<a href="#cc_xls_ir_jit_wrapper-name">name</a>, <a href="#cc_xls_ir_jit_wrapper-src">src</a>, <a href="#cc_xls_ir_jit_wrapper-jit_wrapper_args">jit_wrapper_args</a>, <a href="#cc_xls_ir_jit_wrapper-kwargs">kwargs</a>)
+</pre>
+
+<p>Instantiates xls_ir_jit_wrapper and a cc_library target with the files.</p>
+<p>The macro generates sources files (.cc and .h) using the
+xls_ir_jit_wrapper rule. The source files are the input to a cc_library
+target with the same name as this macro.</p>
+<p><strong>PARAMETERS</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Default Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="cc_xls_ir_jit_wrapper-name"></a>name</td>
+<td align="left">The name of the cc_library target.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="cc_xls_ir_jit_wrapper-src"></a>src</td>
+<td align="left">The path to the IR file.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="cc_xls_ir_jit_wrapper-jit_wrapper_args"></a>jit_wrapper_args</td>
+<td align="left">Arguments of the JIT wrapper tool. Note: argument 'output_name' cannot be defined.</td>
+<td align="left"><code>{}</code></td>
+</tr>
+<tr>
+<td align="left"><a id="cc_xls_ir_jit_wrapper-kwargs"></a>kwargs</td>
+<td align="left">Keyword arguments. Named arguments.</td>
+<td align="left">none</td>
+</tr>
+</tbody>
+</table>
+<p><a id="#get_mangled_ir_symbol"></a></p>
+<h2 id="get_mangled_ir_symbol">get_mangled_ir_symbol</h2>
+<pre>
+get_mangled_ir_symbol(<a href="#get_mangled_ir_symbol-module_name">module_name</a>, <a href="#get_mangled_ir_symbol-function_name">function_name</a>, <a href="#get_mangled_ir_symbol-parametric_values">parametric_values</a>)
+</pre>
+
+<p>Returns the mangled IR symbol for the module/function combination.</p>
+<p>"Mangling" is the process of turning nicely namedspaced symbols into
+"grosser" (mangled) flat (non hierarchical) symbol, e.g. that lives on a
+package after IR conversion. To retrieve/execute functions that have been IR
+converted, we use their mangled names to refer to them in the IR namespace.</p>
+<p><strong>PARAMETERS</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Default Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="get_mangled_ir_symbol-module_name"></a>module_name</td>
+<td align="left">The DSLX module name that the function is within.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="get_mangled_ir_symbol-function_name"></a>function_name</td>
+<td align="left">The DSLX function name within the module.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="get_mangled_ir_symbol-parametric_values"></a>parametric_values</td>
+<td align="left">Any parametric values used for instantiation (e.g. for a parametric entry point that is known to be instantiated in the IR converted module). This is generally for more advanced use cases like internals testing.</td>
+<td align="left"><code>None</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>RETURNS</strong></p>
+<p>The "mangled" symbol string.</p>
+<p><a id="#xls_dslx_cpp_type_library"></a></p>
+<h2 id="xls_dslx_cpp_type_library">xls_dslx_cpp_type_library</h2>
+<pre>
+xls_dslx_cpp_type_library(<a href="#xls_dslx_cpp_type_library-name">name</a>, <a href="#xls_dslx_cpp_type_library-src">src</a>)
+</pre>
+
+<p>Creates a cc_library target for transpiled DSLX types.</p>
+<p>This macros invokes the DSLX-to-C++ transpiler and compiles the result as
+a cc_library.</p>
+<p><strong>PARAMETERS</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Default Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="xls_dslx_cpp_type_library-name"></a>name</td>
+<td align="left">The name of the eventual cc_library.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_cpp_type_library-src"></a>src</td>
+<td align="left">The DSLX file whose types to compile as C++.</td>
+<td align="left">none</td>
+</tr>
+</tbody>
+</table>
+<p><a id="#xls_dslx_ir"></a></p>
+<h2 id="xls_dslx_ir">xls_dslx_ir</h2>
+<pre>
+xls_dslx_ir(<a href="#xls_dslx_ir-name">name</a>, <a href="#xls_dslx_ir-dep">dep</a>, <a href="#xls_dslx_ir-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_ir-enable_generated_file">enable_generated_file</a>, <a href="#xls_dslx_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_ir-kwargs">kwargs</a>)
+</pre>
+
+<p>A macro wrapper for the 'xls_dslx_ir' rule.</p>
+<p>The macro instantiates a rule that converts a DSLX source file to an IR file
+and the 'enable_generated_file_wrapper' function. The generated files of the
+rule are listed in the outs attribute of the rule.</p>
+<p><strong>PARAMETERS</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Default Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="xls_dslx_ir-name"></a>name</td>
+<td align="left">The name of the rule.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_ir-dep"></a>dep</td>
+<td align="left">A dependency target for the rule. The target must emit a DslxModuleInfo provider.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_ir-ir_conv_args"></a>ir_conv_args</td>
+<td align="left">Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_converter_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.</td>
+<td align="left"><code>{}</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_ir-enable_generated_file"></a>enable_generated_file</td>
+<td align="left">See 'enable_generated_file' from 'enable_generated_file_wrapper' function.</td>
+<td align="left"><code>True</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_ir-enable_presubmit_generated_file"></a>enable_presubmit_generated_file</td>
+<td align="left">See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.</td>
+<td align="left"><code>False</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_ir-kwargs"></a>kwargs</td>
+<td align="left">Keyword arguments. Named arguments.</td>
+<td align="left">none</td>
+</tr>
+</tbody>
+</table>
+<p><a id="#xls_dslx_opt_ir"></a></p>
+<h2 id="xls_dslx_opt_ir">xls_dslx_opt_ir</h2>
+<pre>
+xls_dslx_opt_ir(<a href="#xls_dslx_opt_ir-name">name</a>, <a href="#xls_dslx_opt_ir-dep">dep</a>, <a href="#xls_dslx_opt_ir-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_opt_ir-opt_ir_args">opt_ir_args</a>, <a href="#xls_dslx_opt_ir-enable_generated_file">enable_generated_file</a>,
+                <a href="#xls_dslx_opt_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_opt_ir-kwargs">kwargs</a>)
+</pre>
+
+<p>A macro wrapper for the 'xls_dslx_opt_ir' rule.</p>
+<p>The macro instantiates the 'xls_dslx_opt_ir' rule that converts a DSLX file
+to an IR, optimizes the IR, and generates a verilog file from the optimized
+IR. The macro also instantiates the 'enable_generated_file_wrapper'
+function. The generated files of the rule are listed in the outs attribute
+of the rule.</p>
+<p><strong>PARAMETERS</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Default Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir-name"></a>name</td>
+<td align="left">The name of the rule.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir-dep"></a>dep</td>
+<td align="left">The 'xls_dslx_module_library' target used for dependency.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir-ir_conv_args"></a>ir_conv_args</td>
+<td align="left">Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_converter_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.</td>
+<td align="left"><code>{}</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir-opt_ir_args"></a>opt_ir_args</td>
+<td align="left">Arguments of the IR optimizer tool. For details on the arguments, refer to the opt_main application at //xls/tools/opt_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.</td>
+<td align="left"><code>{}</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir-enable_generated_file"></a>enable_generated_file</td>
+<td align="left">See 'enable_generated_file' from 'enable_generated_file_wrapper' function.</td>
+<td align="left"><code>True</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir-enable_presubmit_generated_file"></a>enable_presubmit_generated_file</td>
+<td align="left">See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.</td>
+<td align="left"><code>False</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_opt_ir-kwargs"></a>kwargs</td>
+<td align="left">Keyword arguments. Named arguments.</td>
+<td align="left">none</td>
+</tr>
+</tbody>
+</table>
+<p><a id="#xls_dslx_verilog"></a></p>
+<h2 id="xls_dslx_verilog">xls_dslx_verilog</h2>
+<pre>
+xls_dslx_verilog(<a href="#xls_dslx_verilog-name">name</a>, <a href="#xls_dslx_verilog-dep">dep</a>, <a href="#xls_dslx_verilog-verilog_file">verilog_file</a>, <a href="#xls_dslx_verilog-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_verilog-opt_ir_args">opt_ir_args</a>, <a href="#xls_dslx_verilog-codegen_args">codegen_args</a>,
+                 <a href="#xls_dslx_verilog-enable_generated_file">enable_generated_file</a>, <a href="#xls_dslx_verilog-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_verilog-kwargs">kwargs</a>)
+</pre>
+
+<p>A macro wrapper for the 'xls_dslx_verilog' rule.</p>
+<p>The macro instantiates the 'xls_dslx_verilog' rule and
+'enable_generated_file_wrapper' function. The generated files of the rule
+are listed in the outs attribute of the rule.</p>
+<p><strong>PARAMETERS</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Default Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="xls_dslx_verilog-name"></a>name</td>
+<td align="left">The name of the rule.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_verilog-dep"></a>dep</td>
+<td align="left">The 'xls_dslx_module_library' target used for dependency.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_verilog-verilog_file"></a>verilog_file</td>
+<td align="left">The filename of Verilog file generated. The filename must have a '.v' extension.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_verilog-ir_conv_args"></a>ir_conv_args</td>
+<td align="left">Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_converter_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.</td>
+<td align="left"><code>{}</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_verilog-opt_ir_args"></a>opt_ir_args</td>
+<td align="left">Arguments of the IR optimizer tool. For details on the arguments, refer to the opt_main application at //xls/tools/opt_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.</td>
+<td align="left"><code>{}</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_verilog-codegen_args"></a>codegen_args</td>
+<td align="left">Arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.</td>
+<td align="left"><code>{}</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_verilog-enable_generated_file"></a>enable_generated_file</td>
+<td align="left">See 'enable_generated_file' from 'enable_generated_file_wrapper' function.</td>
+<td align="left"><code>True</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_verilog-enable_presubmit_generated_file"></a>enable_presubmit_generated_file</td>
+<td align="left">See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.</td>
+<td align="left"><code>False</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_verilog-kwargs"></a>kwargs</td>
+<td align="left">Keyword arguments. Named arguments.</td>
+<td align="left">none</td>
+</tr>
+</tbody>
+</table>
+<p><a id="#xls_ir_opt_ir"></a></p>
+<h2 id="xls_ir_opt_ir">xls_ir_opt_ir</h2>
+<pre>
+xls_ir_opt_ir(<a href="#xls_ir_opt_ir-name">name</a>, <a href="#xls_ir_opt_ir-src">src</a>, <a href="#xls_ir_opt_ir-opt_ir_args">opt_ir_args</a>, <a href="#xls_ir_opt_ir-enable_generated_file">enable_generated_file</a>, <a href="#xls_ir_opt_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>,
+              <a href="#xls_ir_opt_ir-kwargs">kwargs</a>)
+</pre>
+
+<p>A macro wrapper for the 'xls_ir_opt_ir' rule.</p>
+<p>The macro instantiates the 'xls_ir_opt_ir' rule and
+'enable_generated_file_wrapper' function. The generated files of the rule
+are listed in the outs attribute of the rule.</p>
+<p><strong>PARAMETERS</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Default Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="xls_ir_opt_ir-name"></a>name</td>
+<td align="left">The name of the rule.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_opt_ir-src"></a>src</td>
+<td align="left">The IR source file. A single source file must be provided. The file must have a '.ir' extension.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_opt_ir-opt_ir_args"></a>opt_ir_args</td>
+<td align="left">Arguments of the IR optimizer tool. For details on the arguments, refer to the opt_main application at //xls/tools/opt_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.</td>
+<td align="left"><code>{}</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_opt_ir-enable_generated_file"></a>enable_generated_file</td>
+<td align="left">See 'enable_generated_file' from 'enable_generated_file_wrapper' function.</td>
+<td align="left"><code>True</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_opt_ir-enable_presubmit_generated_file"></a>enable_presubmit_generated_file</td>
+<td align="left">See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.</td>
+<td align="left"><code>False</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_opt_ir-kwargs"></a>kwargs</td>
+<td align="left">Keyword arguments. Named arguments.</td>
+<td align="left">none</td>
+</tr>
+</tbody>
+</table>
+<p><a id="#xls_ir_verilog"></a></p>
+<h2 id="xls_ir_verilog">xls_ir_verilog</h2>
+<pre>
+xls_ir_verilog(<a href="#xls_ir_verilog-name">name</a>, <a href="#xls_ir_verilog-src">src</a>, <a href="#xls_ir_verilog-verilog_file">verilog_file</a>, <a href="#xls_ir_verilog-codegen_args">codegen_args</a>, <a href="#xls_ir_verilog-enable_generated_file">enable_generated_file</a>,
+               <a href="#xls_ir_verilog-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_ir_verilog-kwargs">kwargs</a>)
+</pre>
+
+<p>A macro wrapper for the 'xls_ir_verilog' rule.</p>
+<p>The macro instantiates the 'xls_ir_verilog' rule and
+'enable_generated_file_wrapper' function. The generated files of the rule
+are listed in the outs attribute of the rule.</p>
+<p><strong>PARAMETERS</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Default Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="xls_ir_verilog-name"></a>name</td>
+<td align="left">The name of the rule.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_verilog-src"></a>src</td>
+<td align="left">The IR source file. A single source file must be provided. The file must have a '.ir' extension.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_verilog-verilog_file"></a>verilog_file</td>
+<td align="left">The filename of Verilog file generated. The filename must have a '.v' extension.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_verilog-codegen_args"></a>codegen_args</td>
+<td align="left">Arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.</td>
+<td align="left"><code>{}</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_verilog-enable_generated_file"></a>enable_generated_file</td>
+<td align="left">See 'enable_generated_file' from 'enable_generated_file_wrapper' function.</td>
+<td align="left"><code>True</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_verilog-enable_presubmit_generated_file"></a>enable_presubmit_generated_file</td>
+<td align="left">See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.</td>
+<td align="left"><code>False</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_verilog-kwargs"></a>kwargs</td>
+<td align="left">Keyword arguments. Named arguments.</td>
+<td align="left">none</td>
+</tr>
+</tbody>
+</table>
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+        
+      </main>
+      
+        
+<footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        Made with
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs
+        </a>
+        
+      </div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing"}, "search": "../assets/javascripts/workers/search.4fa0e4ee.min.js", "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.1d3bfcf1.min.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

@@ -9,14 +9,14 @@
       
       
       
-        <link rel="canonical" href="https://google.github.io/xls/xls_noc_topologies/">
+        <link rel="canonical" href="https://google.github.io/xls/dslx_bytecode_interpreter/">
       
       <link rel="icon" href="../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.1.2, mkdocs-material-7.1.4">
     
     
       
-        <title>Overview - XLS: Accelerated HW Synthesis</title>
+        <title>Interpreter - XLS: Accelerated HW Synthesis</title>
       
     
     
@@ -61,7 +61,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#xls-noc-topologies" class="md-skip">
+        <a href="#bytecode-interpreter" class="md-skip">
           Skip to content
         </a>
       
@@ -91,7 +91,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Overview
+              Interpreter
             
           </span>
         </div>
@@ -519,12 +519,14 @@
 
   
   
+    
+  
   
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" type="checkbox" id="__nav_4" checked>
       
       <label class="md-nav__link" for="__nav_4">
         DSLX
@@ -588,11 +590,65 @@
             
   
   
+    
   
-    <li class="md-nav__item">
-      <a href="../dslx_bytecode_interpreter/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Interpreter
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         Interpreter
       </a>
+      
+        
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#structure" class="md-nav__link">
+    Structure
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#isa" class="md-nav__link">
+    ISA
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bytecode-generation" class="md-nav__link">
+    Bytecode generation
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -795,14 +851,12 @@
 
   
   
-    
-  
   
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_8" type="checkbox" id="__nav_8" checked>
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_8" type="checkbox" id="__nav_8" >
       
       <label class="md-nav__link" for="__nav_8">
         NoC
@@ -830,14 +884,12 @@
             
   
   
-    
-  
   
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_8_2" type="checkbox" id="__nav_8_2" checked>
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_8_2" type="checkbox" id="__nav_8_2" >
       
       <label class="md-nav__link" for="__nav_8_2">
         Topologies
@@ -853,21 +905,11 @@
             
   
   
-    
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../xls_noc_topologies/" class="md-nav__link">
         Overview
       </a>
-      
     </li>
   
 
@@ -975,6 +1017,35 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#structure" class="md-nav__link">
+    Structure
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#isa" class="md-nav__link">
+    ISA
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bytecode-generation" class="md-nav__link">
+    Bytecode generation
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -985,25 +1056,87 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/google/xls/tree/main/docs_src/xls_noc_topologies.md" title="Edit this page" class="md-content__button md-icon">
+                  <a href="https://github.com/google/xls/tree/main/docs_src/dslx_bytecode_interpreter.md" title="Edit this page" class="md-content__button md-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
                   </a>
                 
                 
-                <h1 id="xls-noc-topologies">XLS-NoC Topologies</h1>
-<p>The network topology is the static arrangement of router nodes, channels, and
-endpoints in a network. The document will describe the logical representation of
-common topology types and define the communication flow within the topology. At
-the physical level, the arrangement of the topology influences the floorplan,
-layout and packaging.</p>
-<p>The supported set of topologies types are:</p>
+                <h1 id="bytecode-interpreter">Bytecode interpreter</h1>
+<p>DSLX provides a <a href="https://en.wikipedia.org/wiki/Bytecode">bytecode interpreter</a>
+for expression evaluation. This style of interpreter can be started, stopped,
+and resumed more easily than an AST-walking native interpreter, as its full
+state can be captured as <code>{PC, stack}</code> instead of some traversal state
+in native execution, which makes it very suitable for modeling independent
+processes, such as <code>Proc</code>s.</p>
+<p>NOTE: The bytecode interpreter system is under active construction and does not
+yet support the full set of DSLX functionality.</p>
+<div class="toc">
 <ul>
-<li><a href="../xls_noc_dimension_order_topology/">Dimension Order</a></li>
-<li><a href="../xls_noc_tree_topology/">Tree</a></li>
-<li><a href="../xls_noc_butterfly_topology/">k-ary n-fly Butterfly</a></li>
-<li><a href="../xls_noc_fully_connected_topology/">Fully Connected</a></li>
-<li><a href="../xls_noc_star_topology/">Star</a></li>
+<li><a href="#bytecode-interpreter">Bytecode interpreter</a><ul>
+<li><a href="#structure">Structure</a></li>
+<li><a href="#isa">ISA</a></li>
+<li><a href="#bytecode-generation">Bytecode generation</a></li>
 </ul>
+</li>
+</ul>
+</div>
+<h2 id="structure">Structure</h2>
+<p><a href="https://github.com/google/xls/tree/main/xls/dslx/bytecode_interpreter.h">The interpreter</a>
+is implemented as a
+<a href="https://en.wikipedia.org/wiki/Stack_machine">stack virtual machine</a>: it
+consists of a program counter (PC), a stack of frames, and "slot"-based locals
+within a given stack frame
+(<em>conceptually</em> part of the stack frame, but tracked separately in our
+implementation). Both the stack and local storage hold
+<a href="https://github.com/google/xls/tree/main/xls/dslx/interp_value.h"><code>InterpValues</code></a>, which
+can hold all DSLX data types: bits, tuples, and arrays (and others), thus there
+is no fundamental need for lower-level (i.e., byte) type representation. For the
+purposes of [de]serialization, this may change in the future. Local data
+is addressed by integer-typed "slots", being backed by a simple <code>std::vector</code>:
+in other words, slot indices are dense. All slots must be pre-allocated to
+contain all references to locals in the current function stack frame.</p>
+<p>On each "tick", the interpreter reads the current instruction, as given by the
+PC (conceptually, the only register in the virtual machine), executes the
+described operation (usually consuming values from the stack), and places the
+result on the stack.</p>
+<h2 id="isa">ISA</h2>
+<p>Each instruction consists of an opcode plus, optionally, some piece of data,
+either <code>int64</code>- or <code>InterpValue</code>-typed, depending on the specific opcode.</p>
+<p>The below opcodes are supported by the interpreter:</p>
+<ul>
+<li><code>ADD</code>: Adds the two values at the top of the stack.</li>
+<li><code>CALL</code>: Invokes the function given as the optional data argument, consuming
+    a number of arguments from the stack as described by the function signature.
+    The N'th parameter will be present as the N'th value down the stack (such
+    that the last parameter will be the value initially on top of the stack.</li>
+<li><code>CREATE_TUPLE</code>: Groups together N items on the stack (given by the optional
+    data argument into a single <code>InterpValue</code>.</li>
+<li><code>EXPAND_TUPLE</code>: Expands the N-tuple at stack top by one level, placing
+    leading elements at stack top. In other words, expanding the tuple <code>(a, (b,
+    c))</code> will result in a stack of <code>(b, c), a</code>, where <code>a</code> is on top of the
+    stack.</li>
+<li><code>EQ</code>: Compares the two values on top of the stack for equality. Emits a
+    single-bit value.</li>
+<li><code>LOAD</code>: Loads the value from locals slot <code>n</code>, where <code>n</code> is given by the
+    optional data argument.</li>
+<li><code>LITERAL</code>: Places a literal value (given in the optional data argument) on
+    top of the stack.</li>
+<li><code>STORE</code>: Stores the value at stack top into slot <code>n</code> in locals storage.</li>
+</ul>
+<h2 id="bytecode-generation">Bytecode generation</h2>
+<p>The
+<a href="https://github.com/google/xls/tree/main/xls/dslx/bytecode_emitter.h">bytecode emitter</a> is
+responsible for converting a set of DSLX ASTs (one per function)) into a set of
+linear bytecode representations. It does this via a postorder traversal of the
+AST, converting XLS ops into bytecode instructions along the way, e.g.,
+converting a DSLX <code>Binop</code> for adding two <code>NameRef</code>s into two <code>LOAD</code> instructions
+(one for each <code>NameRef</code>) and one <code>ADD</code> instruction.</p>
+<p>To do this, the emitter needs access to the full set of resolved type and import
+information: in other words, it requires a fully-populated
+<a href="https://github.com/google/xls/tree/main/xls/dslx/import.h"><code>ImportData</code></a> and the
+top-level <a href="https://github.com/google/xls/tree/main/xls/dslx/type_info.h"><code>TypeInfo</code></a> for
+the module containing the function to convert. This places bytecode emission in
+sequence after typechecking and deduction.</p>
                 
               
               
@@ -1022,7 +1155,7 @@ layout and packaging.</p>
   
     <nav class="md-footer__inner md-grid" aria-label="Footer">
       
-        <a href="../xls_noc_readme/" class="md-footer__link md-footer__link--prev" rel="prev">
+        <a href="../fuzzer/" class="md-footer__link md-footer__link--prev" rel="prev">
           <div class="md-footer__button md-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
           </div>
@@ -1031,19 +1164,19 @@ layout and packaging.</p>
               <span class="md-footer__direction">
                 Previous
               </span>
-              Overview
+              Fuzzer
             </div>
           </div>
         </a>
       
       
-        <a href="../xls_noc_dimension_order_topology/" class="md-footer__link md-footer__link--next" rel="next">
+        <a href="../vast/" class="md-footer__link md-footer__link--next" rel="next">
           <div class="md-footer__title">
             <div class="md-ellipsis">
               <span class="md-footer__direction">
                 Next
               </span>
-              Dimension Order
+              VAST
             </div>
           </div>
           <div class="md-footer__button md-icon">
