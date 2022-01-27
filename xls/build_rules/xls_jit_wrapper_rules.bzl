@@ -222,14 +222,13 @@ def xls_ir_jit_wrapper_macro(
         fail("Argument 'enable_presubmit_generated_file' must be " +
              "of boolean type.")
 
-    pkg_name = native.package_name() + "/"
     xls_ir_jit_wrapper(
         name = name,
         src = src,
         source_file = source_file,
         header_file = header_file,
         jit_wrapper_args = jit_wrapper_args,
-        outs = [pkg_name + source_file, pkg_name + header_file],
+        outs = [source_file, header_file],
         **kwargs
     )
 
