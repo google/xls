@@ -276,6 +276,8 @@ static absl::StatusOr<Node*> MakeOrWithResetNode(Node* src_node,
 // - This enabled bubbles within the pipeline to be collapsed when the
 //   output block of the pipeline is not ready to accept data.
 //
+// Returns the ready signal output by the earliest pipeline stage.
+//
 static absl::StatusOr<Node*> UpdatePipelineWithBubbleFlowControl(
     Node* initial_output_ready_node, const ResetInfo& reset_info,
     absl::Span<Node*> pipeline_valid_nodes,
@@ -296,6 +298,11 @@ static absl::StatusOr<Node*> UpdatePipelineWithBubbleFlowControl(
   int64_t stage_count = pipeline_data_registers.size();
   std::vector<Node*> enable_n(stage_count + 1);
   enable_n.at(stage_count) = initial_output_ready_node;
+
+  // We initalize data_load_enable here so that this function
+  // can return the data_load_enable for the first pipeline stage --
+  // which is the last data_load_enable node created by this function.
+  Node* data_load_enable = initial_output_ready_node;
 
   for (int64_t stage = stage_count - 1; stage >= 0; --stage) {
     // Create load enables for valid registers.
@@ -336,7 +343,7 @@ static absl::StatusOr<Node*> UpdatePipelineWithBubbleFlowControl(
                              PipelineSignalName("data_enable", stage)));
 
     XLS_ASSIGN_OR_RETURN(
-        Node * data_load_enable,
+        data_load_enable,
         MakeOrWithResetNode(data_enable, PipelineSignalName("load_en", stage),
                             reset_info, block));
 
@@ -371,7 +378,7 @@ static absl::StatusOr<Node*> UpdatePipelineWithBubbleFlowControl(
     }
   }
 
-  return enable_n.at(0);
+  return data_load_enable;
 }
 
 // Adds bubble flow control to state_register.
