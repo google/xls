@@ -46,6 +46,7 @@ static const char kOutputPortName[] = "out";
 struct ResetInfo {
   absl::optional<InputPort*> input_port;
   absl::optional<xls::Reset> behavior;
+  bool reset_data_path = false;
 };
 
 // If options specify it, adds and returns an input for a reset signal.
@@ -63,6 +64,8 @@ static absl::StatusOr<ResetInfo> MaybeAddResetPort(
     reset_info.behavior->reset_value = Value(UBits(0, 1));
     reset_info.behavior->asynchronous = options.reset()->asynchronous();
     reset_info.behavior->active_low = options.reset()->active_low();
+
+    reset_info.reset_data_path = options.reset()->reset_data_path();
   }
 
   return reset_info;
@@ -204,9 +207,9 @@ static absl::Status UpdateStateRegisterWithReset(const ResetInfo& reset_info,
 
   // Follow the reset behavior of the valid registers except for the initial
   // value.
-  Node* reset_node = reset_info.input_port.value();
   xls::Reset reset_behavior = reset_info.behavior.value();
   reset_behavior.reset_value = state_register.reset_value;
+  Node* reset_node = reset_info.input_port.value();
 
   // Clone and create a new set of Register, RegisterWrite, and RegisterRead.
   // Update the inout parameter state_register as well.
@@ -235,6 +238,79 @@ static absl::Status UpdateStateRegisterWithReset(const ResetInfo& reset_info,
   XLS_RETURN_IF_ERROR(block->RemoveNode(old_reg_read));
   XLS_RETURN_IF_ERROR(block->RemoveNode(old_reg_write));
   XLS_RETURN_IF_ERROR(block->RemoveRegister(old_reg));
+
+  return absl::OkStatus();
+}
+
+// Updates datapath pipeline registers with a reset signal.
+//  1. The pipeline registers are reset active_high or active_low
+//     following the block behavior.
+//  2. The registers are reset to zero.
+//  3. The registers are reset whenever the block reset is active.
+static absl::Status UpdateDatapathRegistersWithReset(
+    const ResetInfo& reset_info,
+    absl::Span<PipelineStageRegisters> pipeline_data_registers, Block* block) {
+  // Blocks should have reset information.
+  if (!reset_info.input_port.has_value() || !reset_info.behavior.has_value()) {
+    return absl::InvalidArgumentError(
+        "Unable to update pipeline registers with reset, signal as block"
+        " was not created with a reset.");
+  }
+
+  // Update each datapath register with a reset.
+  Node* reset_node = reset_info.input_port.value();
+  int64_t stage_count = pipeline_data_registers.size();
+
+  for (int64_t stage = 0; stage < stage_count; ++stage) {
+    for (PipelineRegister& pipeline_reg : pipeline_data_registers.at(stage)) {
+      XLS_CHECK_NE(pipeline_reg.reg, nullptr);
+      XLS_CHECK_NE(pipeline_reg.reg_write, nullptr);
+      XLS_CHECK_NE(pipeline_reg.reg_read, nullptr);
+
+      // Don't attempt to reset registers that will be removed later
+      // (ex. tokens).
+      Type* node_type = pipeline_reg.reg->type();
+      if (node_type->GetFlatBitCount() == 0) {
+        continue;
+      }
+
+      // Reset the register to zero of the correct type.
+      xls::Reset reset_behavior = reset_info.behavior.value();
+      reset_behavior.reset_value = ZeroOfType(node_type);
+
+      // Clone and create a new set of Register, RegisterWrite, and
+      // RegisterRead.
+      Register* old_reg = pipeline_reg.reg;
+      RegisterWrite* old_reg_write = pipeline_reg.reg_write;
+      RegisterRead* old_reg_read = pipeline_reg.reg_read;
+
+      std::string name = block->UniquifyNodeName(old_reg->name());
+
+      XLS_ASSIGN_OR_RETURN(
+          pipeline_reg.reg,
+          block->AddRegister(name, old_reg->type(), reset_behavior));
+
+      XLS_ASSIGN_OR_RETURN(pipeline_reg.reg_write,
+                           block->MakeNode<RegisterWrite>(
+                               /*loc=*/old_reg_write->loc(),
+                               /*data=*/old_reg_write->data(),
+                               /*load_enable=*/old_reg_write->load_enable(),
+                               /*reset=*/reset_node,
+                               /*reg=*/pipeline_reg.reg));
+
+      XLS_ASSIGN_OR_RETURN(pipeline_reg.reg_read,
+                           block->MakeNodeWithName<RegisterRead>(
+                               /*loc=*/old_reg_read->loc(),
+                               /*reg=*/pipeline_reg.reg,
+                               /*name=*/name));
+
+      // Replace old uses of RegisterRead with the new one
+      XLS_RETURN_IF_ERROR(old_reg_read->ReplaceUsesWith(pipeline_reg.reg_read));
+      XLS_RETURN_IF_ERROR(block->RemoveNode(old_reg_read));
+      XLS_RETURN_IF_ERROR(block->RemoveNode(old_reg_write));
+      XLS_RETURN_IF_ERROR(block->RemoveRegister(old_reg));
+    }
+  }
 
   return absl::OkStatus();
 }
@@ -342,10 +418,16 @@ static absl::StatusOr<Node*> UpdatePipelineWithBubbleFlowControl(
                              absl::nullopt, data_en_operands, Op::kAnd,
                              PipelineSignalName("data_enable", stage)));
 
-    XLS_ASSIGN_OR_RETURN(
-        data_load_enable,
-        MakeOrWithResetNode(data_enable, PipelineSignalName("load_en", stage),
-                            reset_info, block));
+    // If datapath registers are reset, then adding reset to the
+    // load enable is redundant.
+    if (reset_info.reset_data_path) {
+      data_load_enable = data_enable;
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          data_load_enable,
+          MakeOrWithResetNode(data_enable, PipelineSignalName("load_en", stage),
+                              reset_info, block));
+    }
 
     // Update datapath registers with load enables.
     if (!pipeline_data_registers.at(stage).empty()) {
@@ -355,7 +437,7 @@ static absl::StatusOr<Node*> UpdatePipelineWithBubbleFlowControl(
             block->MakeNode<RegisterWrite>(
                 /*loc=*/absl::nullopt, pipeline_reg.reg_write->data(),
                 /*load_enable=*/data_load_enable,
-                /*reset=*/absl::nullopt, pipeline_reg.reg));
+                /*reset=*/pipeline_reg.reg_write->reset(), pipeline_reg.reg));
         XLS_RETURN_IF_ERROR(block->RemoveNode(pipeline_reg.reg_write));
         pipeline_reg.reg_write = new_reg_write;
       }
@@ -712,6 +794,14 @@ static absl::Status AddBubbleFlowControl(const ResetInfo& reset_info,
 
   XLS_VLOG(3) << "After State Updated";
   XLS_VLOG_LINES(3, block->DumpIr());
+
+  if (reset_info.reset_data_path) {
+    XLS_RETURN_IF_ERROR(UpdateDatapathRegistersWithReset(
+        reset_info, absl::MakeSpan(streaming_io.pipeline_registers), block));
+
+    XLS_VLOG(3) << "After Datapath Reset Updated";
+    XLS_VLOG_LINES(3, block->DumpIr());
+  }
 
   XLS_RETURN_IF_ERROR(MakeOutputValidPortsForOutputChannels(
       pipelined_valids.back(), streaming_io.outputs, valid_suffix, block));
@@ -1399,9 +1489,6 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
   }
   if (options.split_outputs()) {
     return absl::UnimplementedError("Splitting outputs not supported.");
-  }
-  if (options.reset().has_value() && options.reset()->reset_data_path()) {
-    return absl::UnimplementedError("Data path reset not supported");
   }
   if (options.manual_control().has_value()) {
     return absl::UnimplementedError("Manual pipeline control not implemented");

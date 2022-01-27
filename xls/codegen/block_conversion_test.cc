@@ -973,6 +973,96 @@ TEST_F(SimplePipelinedProcTest, ChannelNonDefaultSuffixName) {
   EXPECT_TRUE(HasNode("out_valid", block_nondefault_suffix));
 }
 
+TEST_F(SimplePipelinedProcTest, BasicDatapathReset) {
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, /*reset_data_path=*/true);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           BuildBlockInPackage(/*stage_count=*/4, options));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
+
+  XLS_VLOG(2) << "Simple streaming pipelined block";
+  XLS_VLOG_LINES(2, block->DumpIr());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> expected_outputs;
+
+  uint64_t running_in_val = 1;
+  uint64_t running_out_val = 0;
+
+  // During reset, the output will be 0 due to reset also resetting the
+  // datapath
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_in_val,
+      SetIncrementingSignalOverCycles(0, 9, "in", running_in_val, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      0, 9, {{"rst", 1}, {"in_vld", 1}, {"out_rdy", 1}}, inputs));
+
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      0, 9, {{"in_rdy", 1}, {"out_vld", 0}, {"out", 0}}, expected_outputs));
+
+  // Once reset is deasserted, then the pipeline is closed, no further changes
+  // in the output is expected if the input is not valid.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_in_val,
+      SetIncrementingSignalOverCycles(10, 19, "in", running_in_val, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      10, 19, {{"rst", 0}, {"in_vld", 0}, {"out_rdy", 1}}, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      10, 19, {{"in_rdy", 0}, {"out_vld", 0}, {"out", 0}}, expected_outputs));
+
+  // Returning input_valid, output will reflect valid input upon pipeline delay.
+  uint64_t prior_running_out_val = running_out_val;
+  running_out_val = running_in_val;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_in_val,
+      SetIncrementingSignalOverCycles(20, 29, "in", running_in_val, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      20, 29, {{"rst", 0}, {"in_vld", 1}, {"out_rdy", 1}}, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      20, 22, {{"in_rdy", 1}, {"out_vld", 0}, {"out", prior_running_out_val}},
+      expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(23, 29, {{"in_rdy", 1}, {"out_vld", 1}},
+                                     expected_outputs));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      running_out_val, SetIncrementingSignalOverCycles(
+                           23, 29, "out", running_out_val, expected_outputs));
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, expected_outputs.size() - 1,
+                                                "cycle", 0, expected_outputs));
+  ASSERT_EQ(inputs.size(), expected_outputs.size());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, InterpretSequentialBlock(block, inputs));
+
+  ASSERT_EQ(outputs.size(), expected_outputs.size());
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"rst", SignalType::kInput},
+                              {"in", SignalType::kInput},
+                              {"in_vld", SignalType::kInput},
+                              {"in_rdy", SignalType::kExpectedOutput},
+                              {"in_rdy", SignalType::kOutput},
+                              {"out", SignalType::kExpectedOutput},
+                              {"out", SignalType::kOutput},
+                              {"out_vld", SignalType::kExpectedOutput},
+                              {"out_vld", SignalType::kOutput},
+                              {"out_rdy", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs, expected_outputs));
+
+  for (int64_t i = 0; i < outputs.size(); ++i) {
+    EXPECT_EQ(outputs.at(i), expected_outputs.at(i));
+  }
+}
+
 TEST_F(SimplePipelinedProcTest, BasicResetAndStall) {
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(false).clock_name("clk");
