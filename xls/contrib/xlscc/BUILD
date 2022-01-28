@@ -276,6 +276,10 @@ cc_test(
 filegroup(
     name = "synth_only_headers",
     srcs = [
+        "synth_only/ac_compat/ac_channel.h",
+        "synth_only/ac_compat/ac_fixed.h",
+        "synth_only/ac_compat/ac_int.h",
+        "synth_only/ac_compat/ac_wait.h",
         "synth_only/assert.h",
         "synth_only/iostream",
         "synth_only/limits",
