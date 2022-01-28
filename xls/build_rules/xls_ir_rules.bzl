@@ -337,7 +337,21 @@ def get_eval_ir_test_cmd(ctx, src, entry = None, append_cmd_line_args = True):
     ir_eval_args = _add_entry_attr(ctx, ir_eval_args, "entry", entry)
 
     runfiles = []
-    if ctx.attr.input_validator:
+
+    # TODO (vmirian) 01-25-2022 Update below when xls_dslx_module_library is
+    # removed.
+    if ctx.attr.input_validator_other:
+        validator_info = ctx.attr.input_validator_other[DslxInfo]
+        src_files = validator_info.target_dslx_source_files
+        if not src_files or len(src_files) != 1:
+            fail(
+                "The input validator library must have a single DSLX src file.",
+            )
+        dslx_source_file = src_files[0]
+        ir_eval_args["input_validator_path"] = dslx_source_file.short_path
+        runfiles.append(dslx_source_file)
+        runfiles = runfiles + validator_info.dslx_source_files.to_list()
+    elif ctx.attr.input_validator:
         validator_info = ctx.attr.input_validator[DslxModuleInfo]
         ir_eval_args["input_validator_path"] = validator_info.dslx_source_module_file.short_path
         runfiles.append(validator_info.dslx_source_module_file)
@@ -817,10 +831,20 @@ def _xls_eval_ir_test_impl(ctx):
     ]
 
 xls_eval_ir_test_attrs = {
+    # TODO (vmirian) 01-25-2022 Remove attribute when xls_dslx_module_library is
+    # removed.
     "input_validator": attr.label(
         doc = "The target defining the input validator for this test. " +
               "Mutually exclusive with \"input_validator_expr\".",
         providers = [DslxModuleInfo],
+        allow_files = True,
+    ),
+    # TODO (vmirian) 01-25-2022 Rename to "input_validator" when
+    # xls_dslx_module_library is removed.
+    "input_validator_other": attr.label(
+        doc = "The DSLX library defining the input validator for this test. " +
+              "Mutually exclusive with \"input_validator_expr\".",
+        providers = [DslxInfo],
         allow_files = True,
     ),
     "input_validator_expr": attr.string(

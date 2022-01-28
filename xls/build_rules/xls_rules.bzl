@@ -66,7 +66,6 @@ def _xls_dslx_opt_ir_impl(ctx):
       ctx: The current rule's context object.
     Returns:
       DslxModuleInfo provider.
-      DslxInfo provider.
       ConvIRInfo provider.
       OptIRInfo provider.
       DefaultInfo provider.
@@ -143,7 +142,9 @@ def _xls_dslx_opt_ir_test_impl(ctx):
     runfiles = list(dslx_source_files)
 
     # xls_dslx_test
-    my_runfiles, dslx_test_cmd = get_dslx_test_cmd(ctx, dslx_test_file)
+    runfiles += dslx_source_files
+    my_runfiles, dslx_test_cmd = get_dslx_test_cmd(ctx, [dslx_test_file])
+    dslx_test_cmd = "\n".join(dslx_test_cmd)
     runfiles += my_runfiles
 
     # xls_ir_equivalence_test
@@ -246,7 +247,6 @@ def _xls_dslx_verilog_impl(ctx):
       ctx: The current rule's context object.
     Returns:
       DslxModuleInfo provider.
-      DslxInfo provider.
       ConvIRInfo provider.
       OptIRInfo provider.
       CodegenInfo provider.

@@ -18,6 +18,8 @@ DslxInfo = provider(
     doc = "A provider containing DSLX file information for the target. It is " +
           "created and returned by the xls_dslx_library rule.",
     fields = {
+        "target_dslx_source_files": "List: A list containing the DSLX source " +
+                                    "(.x) files of the target.",
         "dslx_source_files": "Depset: A depset containing the DSLX source " +
                              "(.x) files of the target and its dependencies.",
         "dslx_dummy_files": "Depset: A depset containing the DSLX generated " +

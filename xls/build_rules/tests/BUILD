@@ -258,12 +258,10 @@ xls_dslx_test(
 #           Build Flow                  Test/Execution Flow
 #           ----------                  -------------------
 #
-#                                         chaining_example.x
-#                                                 |
-#        chaining_example.x          chaining_example_dslx_module
-#              |                                 |
-#              |                                 |
-#              |                                 |
+#                     chaining_example.x
+#                             |
+#               ---------------------------------
+#              |                                |
 #              |                      chaining_example_test
 #              |
 #              |               |--> chaining_example_eval_ir_test
