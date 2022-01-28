@@ -166,6 +166,15 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "submodular",
+    hdrs = ["submodular.h"],
+    deps = [
+        "@com_google_absl//absl/container:btree",
+        "//xls/common/logging",
+    ],
+)
+
 cc_test(
     name = "inline_bitmap_test",
     srcs = ["inline_bitmap_test.cc"],
@@ -260,6 +269,16 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "submodular_test",
+    srcs = ["submodular_test.cc"],
+    deps = [
+        ":submodular",
+        "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
 )
