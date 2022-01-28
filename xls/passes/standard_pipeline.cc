@@ -39,6 +39,7 @@
 #include "xls/passes/narrowing_pass.h"
 #include "xls/passes/reassociation_pass.h"
 #include "xls/passes/select_simplification_pass.h"
+#include "xls/passes/sparsify_select_pass.h"
 #include "xls/passes/strength_reduction_pass.h"
 #include "xls/passes/table_switch_pass.h"
 #include "xls/passes/tuple_simplification_pass.h"
@@ -119,6 +120,8 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   top->Add<SimplificationPass>(std::min(int64_t{2}, opt_level));
 
   top->Add<NarrowingPass>(/*use_range_analysis=*/true, opt_level);
+  top->Add<DeadCodeEliminationPass>();
+  top->Add<SparsifySelectPass>();
   top->Add<DeadCodeEliminationPass>();
 
   top->Add<BddSimplificationPass>(std::min(int64_t{3}, opt_level));

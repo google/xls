@@ -343,7 +343,7 @@ range based analysis or other techniques to narrow down the possible values of
 any variables within the selector, and use that information to optimize the
 select arms.
 
-## Consecutive selects with identical selectors
+### Consecutive selects with identical selectors
 
 Two consecutive two-way selects which use the same selector can be compacted
 into a single select statement. The selector only has two states so only two of
@@ -354,6 +354,30 @@ transformation looks like:
 
 The specific cases which remain in the new select instruction depends on whether
 the upper select feeds the true or false input of the lower select.
+
+### Sparsifying selects with range analysis
+
+If range analysis determines that the selector of a select has fewer possible
+values than the number of cases, we can do a form of dead code elimination to
+remove the impossible cases.
+
+Currently, we do this in the following way:
+
+```
+// Suppose bar has interval set {[1, 4], [6, 7], [10, 13]}
+foo = sel(bar, cases=[a1, ..., a16])
+// Sparsification will lead to the following code:
+foo = sel((bar >= 1) && (bar <= 4), cases=[
+  sel((bar >= 6) && (bar <= 7), cases=[
+    sel(bar - 10, cases=[a11, ..., a14], default=0),
+    sel(bar - 6, cases=[a7, a8], default=0)
+  ]),
+  sel(bar - 1, cases=[a2, ..., a5], default=0)
+])
+```
+
+This adds a little bit of code for the comparisons and subtractions but is
+generally worth it since eliminating a case branch can be a big win.
 
 ## Binary Decision Diagram based optimizations
 

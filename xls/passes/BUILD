@@ -46,6 +46,7 @@ cc_library(
         ":passes",
         ":reassociation_pass",
         ":select_simplification_pass",
+        ":sparsify_select_pass",
         ":strength_reduction_pass",
         ":table_switch_pass",
         ":tuple_simplification_pass",
@@ -547,6 +548,25 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits_ops",
         "//xls/ir:node_util",
+    ],
+)
+
+cc_library(
+    name = "sparsify_select_pass",
+    srcs = ["sparsify_select_pass.cc"],
+    hdrs = ["sparsify_select_pass.h"],
+    deps = [
+        ":passes",
+        ":range_query_engine",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits_ops",
+        "//xls/ir:interval",
+        "//xls/ir:interval_set",
+        "//xls/ir:op",
+        "//xls/ir:type",
     ],
 )
 
@@ -1400,6 +1420,23 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "sparsify_select_pass_test",
+    srcs = ["sparsify_select_pass_test.cc"],
+    deps = [
+        ":dce_pass",
+        ":sparsify_select_pass",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
