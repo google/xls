@@ -17,6 +17,7 @@
 
 #include "xls/codegen/codegen_pass_pipeline.h"
 
+#include "xls/codegen/block_metrics_generation_pass.h"
 #include "xls/codegen/codegen_checker.h"
 #include "xls/codegen/codegen_wrapper_pass.h"
 #include "xls/codegen/port_legalization_pass.h"
@@ -50,6 +51,9 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
 
   // Final dead-code elimination pass to remove cruft left from earlier passes.
   top->Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
+
+  // Final metrics collection for the final block.
+  top->Add<BlockMetricsGenerationPass>();
 
   return top;
 }

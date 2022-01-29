@@ -285,6 +285,7 @@ cc_library(
     deps = [
         ":module_signature_cc_proto",
         ":vast",
+        ":xls_metrics_cc_proto",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
@@ -468,6 +469,7 @@ cc_library(
     srcs = ["codegen_pass_pipeline.cc"],
     hdrs = ["codegen_pass_pipeline.h"],
     deps = [
+        ":block_metrics_generation_pass",
         ":codegen_checker",
         ":codegen_pass",
         ":codegen_wrapper_pass",
@@ -566,7 +568,10 @@ cc_library(
 proto_library(
     name = "module_signature_proto",
     srcs = ["module_signature.proto"],
-    deps = ["//xls/ir:xls_type_proto"],
+    deps = [
+        ":xls_metrics_proto",
+        "//xls/ir:xls_type_proto",
+    ],
 )
 
 cc_proto_library(
@@ -584,6 +589,16 @@ xls_py_proto_library(
     deps = [
         "//xls/ir:xls_type_py_pb2",
     ],
+)
+
+proto_library(
+    name = "xls_metrics_proto",
+    srcs = ["xls_metrics.proto"],
+)
+
+cc_proto_library(
+    name = "xls_metrics_cc_proto",
+    deps = [":xls_metrics_proto"],
 )
 
 cc_test(
@@ -775,6 +790,53 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/passes:dce_pass",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "block_metrics_generation_pass",
+    srcs = ["block_metrics_generation_pass.cc"],
+    hdrs = ["block_metrics_generation_pass.h"],
+    deps = [
+        ":block_metrics_generator",
+        ":codegen_pass",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:node_util",
+    ],
+)
+
+cc_library(
+    name = "block_metrics_generator",
+    srcs = ["block_metrics_generator.cc"],
+    hdrs = ["block_metrics_generator.h"],
+    deps = [
+        ":xls_metrics_cc_proto",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:node_util",
+        "//xls/scheduling:pipeline_schedule",
+    ],
+)
+
+cc_test(
+    name = "block_metrics_generator_test",
+    srcs = ["block_metrics_generator_test.cc"],
+    deps = [
+        ":block_metrics_generator",
+        ":xls_metrics_cc_proto",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_parser",
+        "//xls/ir:type",
+        "//xls/ir:value",
         "@com_google_googletest//:gtest",
     ],
 )

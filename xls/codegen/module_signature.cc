@@ -273,6 +273,12 @@ ModuleSignature::ToKwargs(absl::Span<const Value> inputs) const {
   return kwargs;
 }
 
+absl::Status ModuleSignature::ReplaceBlockMetrics(
+    BlockMetricsProto block_metrics) {
+  *proto_.mutable_metrics()->mutable_block_metrics() = std::move(block_metrics);
+  return absl::OkStatus();
+}
+
 std::ostream& operator<<(std::ostream& os, const ModuleSignature& signature) {
   os << signature.ToString();
   return os;

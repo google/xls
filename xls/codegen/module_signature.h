@@ -22,6 +22,7 @@
 #include "absl/types/optional.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast.h"
+#include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -126,6 +127,10 @@ class ModuleSignature {
   // into an argument name-value map.
   absl::StatusOr<absl::flat_hash_map<std::string, Value>> ToKwargs(
       absl::Span<const Value> inputs) const;
+
+  // Replace the signature with block metrics created during codegen.
+  // TODO(tedhong): 2022-01-28 Support incremental update of metrics.
+  absl::Status ReplaceBlockMetrics(BlockMetricsProto block_metrics);
 
  private:
   ModuleSignatureProto proto_;
