@@ -584,9 +584,11 @@ xls_py_proto_library(
     srcs = ["module_signature.proto"],
     internal_deps = [
         ":module_signature_proto",
+        ":xls_metrics_proto",
         "//xls/ir:xls_type_proto",
     ],
     deps = [
+        ":xls_metrics_py_pb2",
         "//xls/ir:xls_type_py_pb2",
     ],
 )
@@ -599,6 +601,14 @@ proto_library(
 cc_proto_library(
     name = "xls_metrics_cc_proto",
     deps = [":xls_metrics_proto"],
+)
+
+xls_py_proto_library(
+    name = "xls_metrics_py_pb2",
+    srcs = ["xls_metrics.proto"],
+    internal_deps = [
+        ":xls_metrics_proto",
+    ],
 )
 
 cc_test(
