@@ -160,9 +160,11 @@ absl::Status RunSerialJit(
     absl::flat_hash_map<std::string, std::vector<Value>> inputs_for_channels,
     absl::flat_hash_map<std::string, std::vector<Value>>
         expected_outputs_for_channels) {
+  XLS_VLOG(1) << "Compiling...";
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<SerialProcRuntime> runtime,
                        SerialProcRuntime::Create(package));
 
+  XLS_VLOG(1) << "Enqueueing...";
   for (const auto& [channel_name, values] : inputs_for_channels) {
     XLS_ASSIGN_OR_RETURN(Channel * in_ch, package->GetChannel(channel_name));
     for (const Value& value : values) {
@@ -170,6 +172,7 @@ absl::Status RunSerialJit(
     }
   }
 
+  XLS_VLOG(1) << "Running...";
   for (int64_t this_ticks : ticks) {
     runtime->ResetState();
 
@@ -366,12 +369,14 @@ absl::Status RunBlockInterpreter(
   absl::flat_hash_map<std::string, std::queue<Value>> channel_value_queues;
   for (const auto& [name, values] : inputs_for_channels) {
     XLS_CHECK(!channel_value_queues.contains(name));
+    channel_value_queues[name] = std::queue<Value>();
     for (const xls::Value& value : values) {
       channel_value_queues[name].push(value);
     }
   }
   for (const auto& [name, values] : expected_outputs_for_channels) {
     XLS_CHECK(!channel_value_queues.contains(name));
+    channel_value_queues[name] = std::queue<Value>();
     for (const xls::Value& value : values) {
       channel_value_queues[name].push(value);
     }
@@ -516,19 +521,22 @@ absl::Status RunBlockInterpreter(
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::vector<Value>> ParseValuesFile(std::string_view filename) {
+absl::StatusOr<std::vector<Value>> ParseValuesFile(std::string_view filename,
+                                                   uint64_t max_lines) {
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(filename));
   std::vector<Value> ret;
-  int li = 0;
+  uint64_t li = 0;
   for (const auto& line :
        absl::StrSplit(contents, '\n', absl::SkipWhitespace())) {
     if (0 == (li % 500)) {
       XLS_VLOG(1) << "Parsing values file at line " << li;
     }
     li++;
-
     XLS_ASSIGN_OR_RETURN(Value expected_status, Parser::ParseTypedValue(line));
     ret.push_back(expected_status);
+    if (li == max_lines) {
+      break;
+    }
   }
   return ret;
 }
@@ -565,8 +573,15 @@ absl::Status RealMain(
   XLS_ASSIGN_OR_RETURN(input_filenames,
                        ParseChannelFilenames(inputs_for_channels_text));
   absl::flat_hash_map<std::string, std::vector<Value>> inputs_for_channels;
+
+  // Don't waste time and memory parsing more input than can possibly be
+  // consumed
+  const int64_t total_ticks =
+      std::accumulate(ticks.begin(), ticks.end(), static_cast<int64_t>(0));
+
   for (const auto& [channel_name, filename] : input_filenames) {
-    XLS_ASSIGN_OR_RETURN(std::vector<Value> values, ParseValuesFile(filename));
+    XLS_ASSIGN_OR_RETURN(std::vector<Value> values,
+                         ParseValuesFile(filename, total_ticks));
     inputs_for_channels[channel_name] = values;
   }
 
@@ -577,7 +592,8 @@ absl::Status RealMain(
   absl::flat_hash_map<std::string, std::vector<Value>>
       expected_outputs_for_channels;
   for (const auto& [channel_name, filename] : expected_filenames) {
-    XLS_ASSIGN_OR_RETURN(std::vector<Value> values, ParseValuesFile(filename));
+    XLS_ASSIGN_OR_RETURN(std::vector<Value> values,
+                         ParseValuesFile(filename, total_ticks));
     expected_outputs_for_channels[channel_name] = values;
   }
 
