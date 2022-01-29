@@ -56,11 +56,15 @@ TEST(SubmodularTest, Iwata) {
         for (int32_t element : subset) {
           sum += (5 * element) - (2 * n);
         }
-        return static_cast<double>((subset.size() * complement_size) - sum);
+
+        // Cast whatever size() type is to int64_t.
+        int64_t subset_size = static_cast<int64_t>(subset.size());
+
+        return static_cast<double>((subset_size * complement_size) - sum);
       });
   absl::btree_set<int32_t> result =
       f.ApproxMinimize({MinimizeMode::Alternating, 1234, 10});
-  EXPECT_EQ(f.Call(result), 0);
+  EXPECT_EQ(f.Call(result), -166167);
 }
 
 }  // namespace
