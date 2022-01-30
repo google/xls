@@ -52,10 +52,6 @@ xlscc foo.cc --block_pb block_info.pb
 
 )";
 
-ABSL_FLAG(std::string, module_name, "",
-          "Explicit name to use for the generated module; if not provided the "
-          "mangled IR function name is used");
-
 ABSL_FLAG(std::string, block_pb, "",
           "HLSBlock protobuf for generating as HLS block / XLS proc");
 
@@ -138,8 +134,6 @@ absl::Status Run(absl::string_view cpp_path) {
 
   if (package_name.empty()) {
     package_name = "my_package";
-  } else {
-    package_name = top_name.value();
   }
 
   std::cerr << "Generating IR..." << std::endl;
