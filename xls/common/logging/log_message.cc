@@ -393,7 +393,7 @@ void LogMessage::DieIfFatal() {
           GetSymbolizedStackTraceAsString(/*max_depth=*/50,
                                           /*skip_count=*/1);
       fprintf(stderr, "%s", stack_trace.c_str());
-      if (base_logging::StderrThreshold() > absl::LogSeverity::kInfo) {
+      if (absl::StderrThreshold() > absl::LogSeverity::kInfo) {
         message.append(stack_trace);
       }
     }
@@ -412,8 +412,8 @@ void LogMessage::SendToLog() {
         data_->entry.source_basename(), ":", data_->entry.source_line(), " ",
         data_->streambuf.data(), "\n");
 
-    if (base_logging::StderrThreshold() == absl::LogSeverity::kInfo ||
-        (data_->entry.log_severity() >= base_logging::StderrThreshold())) {
+    if (absl::StderrThreshold() == absl::LogSeverityAtLeast::kInfo ||
+        (data_->entry.log_severity() >= absl::StderrThreshold())) {
       // TODO(xls-team): extract the below to a LogSink and remove from here.
       fwrite(message.data(), sizeof(char), message.size(), stderr);
 #if _WIN32

@@ -32,26 +32,26 @@ ABSL_FLAG(int, stderrthreshold, static_cast<int>(absl::LogSeverity::kError),
 ABSL_FLAG(bool, log_prefix, true,
           "Prepend the log prefix to the start of each log line");
 
-namespace base_logging {
+namespace absl {
 
-// Normalize the given value to a valid LogSeverity value. Out of bounds values
-// are clipped to kInfo (0) or kFatal (3).
-static absl::LogSeverity NormalizedSeverity(int parameter) {
+// Normalize the given value to a valid LogSeverityAtLeast value. Out of bounds
+// values are clipped to kInfo (0) or kFatal (3).
+static absl::LogSeverityAtLeast NormalizedSeverity(int parameter) {
   if (parameter < 0) {
-    return absl::LogSeverity::kInfo;
+    return absl::LogSeverityAtLeast::kInfo;
   } else if (parameter > 3) {
-    return absl::LogSeverity::kFatal;
+    return absl::LogSeverityAtLeast::kFatal;
   }
-  return static_cast<absl::LogSeverity>(parameter);
+  return static_cast<absl::LogSeverityAtLeast>(parameter);
 }
 
-absl::LogSeverity StderrThreshold() {
+absl::LogSeverityAtLeast StderrThreshold() {
   if (absl::GetFlag(FLAGS_logtostderr) ||
       absl::GetFlag(FLAGS_alsologtostderr)) {
-    return absl::LogSeverity::kInfo;
+    return absl::LogSeverityAtLeast::kInfo;
   } else {
     return NormalizedSeverity(absl::GetFlag(FLAGS_stderrthreshold));
   }
 }
 
-}  // namespace base_logging
+}  // namespace absl
