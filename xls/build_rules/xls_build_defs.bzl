@@ -60,10 +60,6 @@ load(
     "//xls/build_rules:xls_rules.bzl",
     _xls_dslx_opt_ir_test = "xls_dslx_opt_ir_test",
 )
-load(
-    "//xls/build_rules:xls_toolchains.bzl",
-    _xls_toolchain = "xls_toolchain",
-)
 
 # XLS Rules
 check_sha256sum_test = _check_sha256sum_test
@@ -92,6 +88,3 @@ xls_ir_verilog = _xls_ir_verilog_macro
 xls_dslx_opt_ir = _xls_dslx_opt_ir_macro
 xls_dslx_verilog = _xls_dslx_verilog_macro
 xls_dslx_cpp_type_library = _xls_dslx_cpp_type_library
-
-# XLS Toolchain
-xls_toolchain = _xls_toolchain

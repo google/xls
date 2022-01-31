@@ -37,7 +37,7 @@ _DEFAULT_JIT_WRAPPER_TARGET = "//xls/jit:jit_wrapper_generator_main"
 _DEFAULT_XLS_TOOLCHAIN_TARGET = "//xls/build_rules:default_xls_toolchain"
 
 def get_xls_toolchain_info(ctx):
-    return ctx.attr.xls_toolchain[XlsToolchainInfo]
+    return ctx.attr._xls_toolchain[XlsToolchainInfo]
 
 XlsToolchainInfo = provider(
     doc = "A provider containing toolchain information.",
@@ -169,7 +169,7 @@ xls_toolchain = rule(
 )
 
 xls_toolchain_attr = {
-    "xls_toolchain": attr.label(
+    "_xls_toolchain": attr.label(
         doc = "The XLS toolchain target.",
         providers = [XlsToolchainInfo],
         default = Label(_DEFAULT_XLS_TOOLCHAIN_TARGET),

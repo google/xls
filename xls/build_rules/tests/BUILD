@@ -31,7 +31,6 @@ load(
     "xls_ir_equivalence_test",
     "xls_ir_opt_ir",
     "xls_ir_verilog",
-    "xls_toolchain",
 )
 load(
     "//xls/build_rules:xls_rules_build_defs.bzl",
@@ -782,32 +781,6 @@ xls_dslx_library(
     deps = [
         ":a_dslx",
     ],
-)
-
-################################################################################
-# Tests for user-defined XLS toolchain.
-################################################################################
-# This rule does not collect any files.
-filegroup(
-    name = "custom_dslx_std_lib",
-    srcs = glob(["custom_*.x"]),
-)
-
-# The DSLX standard library is empty.
-xls_toolchain(
-    name = "user_defined_xls_toolchain",
-    dslx_std_lib = ":custom_dslx_std_lib",
-)
-
-# Performs the task with an empty DSLX standard library. The source does not
-# require the standard library, hence an empty DSLX standard library completes
-# the task successfully.
-xls_dslx_library(
-    name = "a_user_defined_xls_toolchain_dslx",
-    srcs = [
-        "a.x",
-    ],
-    xls_toolchain = ":user_defined_xls_toolchain",
 )
 
 ################################################################################
