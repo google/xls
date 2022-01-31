@@ -23,7 +23,10 @@ namespace std {
 class ostream {
   public:
     template<typename T>
-    ostream &operator << (const T& op) {return *this;}
+    ostream &operator << (const T& op) {
+      (void)__xlscc_unimplemented();
+      return *this;
+    }
 };
 
 }  // namespace std

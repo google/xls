@@ -3639,7 +3639,7 @@ TEST_F(TranslatorTest, OnlyUnrolledLoops) {
               xls::status_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr(
-                    "Only unrolled for loops currently supported at")));
+                      "Only unrolled for loops currently supported at")));
 }
 
 TEST_F(TranslatorTest, InvalidUnrolledLoop) {
@@ -3653,8 +3653,7 @@ TEST_F(TranslatorTest, InvalidUnrolledLoop) {
   ASSERT_THAT(SourceToIr(content).status(),
               xls::status_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr(
-                    "Unrolled for must have an initializer")));
+                  testing::HasSubstr("Unrolled for must have an initializer")));
 }
 
 TEST_F(TranslatorTest, NonPramaNestedLoop) {
@@ -3673,7 +3672,7 @@ TEST_F(TranslatorTest, NonPramaNestedLoop) {
               xls::status_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr(
-                    "Only unrolled for loops currently supported at")));
+                      "Only unrolled for loops currently supported at")));
 }
 
 TEST_F(TranslatorTest, Label) {
@@ -3688,6 +3687,41 @@ TEST_F(TranslatorTest, Label) {
         return a;
       })";
   Run({{"a", 11}, {"b", 20}}, 611, content);
+}
+
+TEST_F(TranslatorTest, DisallowUsed) {
+  const std::string content = R"(
+      #include "/xls_builtin.h"
+
+      int foo(int a) {
+        (void)__xlscc_unimplemented();
+        return a+3;
+      }
+  
+      int my_package(int a) {
+        return foo(a);
+      })";
+  auto ret = SourceToIr(content);
+
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                    testing::HasSubstr("Unimplemented")));
+}
+
+TEST_F(TranslatorTest, DisallowUnused) {
+  const std::string content = R"(
+      #include "/xls_builtin.h"
+
+      int foo(int a) {
+        __xlscc_unimplemented();
+        return a+3;
+      }
+  
+      int my_package(int a) {
+        return a+5;
+      })";
+  Run({{"a", 11}}, 16, content);
 }
 
 }  // namespace

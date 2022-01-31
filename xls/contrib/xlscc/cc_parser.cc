@@ -361,6 +361,9 @@ class __xls_channel {
   }
 };
 
+// Bypass no outputs error
+int __xlscc_unimplemented() { return 0; }
+
 #endif//__XLS_BUILTIN_H
           )"));
 

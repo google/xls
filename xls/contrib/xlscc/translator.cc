@@ -519,7 +519,7 @@ absl::Status CArrayType::GetMetadataValue(Translator& translator,
                                           const ConstValue const_value,
                                           xlscc_metadata::Value* output) const {
   vector<xls::Value> values = const_value.value().GetElements().value();
-  for (auto &val : values) {
+  for (auto& val : values) {
     XLS_RETURN_IF_ERROR(element_->GetMetadataValue(
         translator, ConstValue(val, element_),
         output->mutable_as_array()->add_element_values()));
@@ -538,8 +538,7 @@ Translator::Translator(int64_t max_unroll_iters,
   }
 }
 
-Translator::~Translator() {
-}
+Translator::~Translator() {}
 
 TranslationContext& Translator::PushContext() {
   auto ocond = context().condition;
@@ -1220,9 +1219,8 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
                            TranslateTypeToXLS(thisctype, body_loc));
 
       // Don't use AssignThis(), since this is the "declaration"
-      context().this_val = CValue(
-          context().fb->Param("this", xls_type, body_loc),
-          thisctype);
+      context().this_val =
+          CValue(context().fb->Param("this", xls_type, body_loc), thisctype);
     }
   }
 
@@ -1279,8 +1277,8 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     std::string safe_param_name = namedecl->getNameAsString();
     if (safe_param_name.empty()) safe_param_name = "implicit";
 
-    xls::BValue pbval = context().fb->Param(
-        safe_param_name, xls_type, body_loc);
+    xls::BValue pbval =
+        context().fb->Param(safe_param_name, xls_type, body_loc);
 
     // Create CValue without type check
     XLS_RETURN_IF_ERROR(
@@ -2172,6 +2170,11 @@ absl::StatusOr<GeneratedFunction*> Translator::TranslateFunctionToXLS(
 absl::StatusOr<CValue> Translator::GenerateIR_Call(
     const clang::CallExpr* call, const xls::SourceLocation& loc) {
   const clang::FunctionDecl* funcdecl = call->getDirectCallee();
+
+  if (funcdecl->getNameAsString() == "__xlscc_unimplemented") {
+    return absl::UnimplementedError(
+        absl::StrFormat("Unimplemented marker at %s", LocString(loc)));
+  }
 
   CValue this_value_orig;
 
@@ -3317,21 +3320,20 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
 }
 
 absl::Status Translator::GenerateIR_For(const clang::ForStmt* stmt,
-                                                clang::ASTContext& ctx,
-                                                const xls::SourceLocation& loc,
-                                                const clang::SourceManager& sm,
-                                                bool deep_scan) {
+                                        clang::ASTContext& ctx,
+                                        const xls::SourceLocation& loc,
+                                        const clang::SourceManager& sm,
+                                        bool deep_scan) {
   auto condition = stmt->getCond();
   if (condition != nullptr && condition->isIntegerConstantExpr(ctx)) {
     // special case for "for (;0;) {}" (essentially no op)
-    XLS_ASSIGN_OR_RETURN(auto constVal,
-                          EvaluateInt64(*condition, ctx, loc));
+    XLS_ASSIGN_OR_RETURN(auto constVal, EvaluateInt64(*condition, ctx, loc));
     if (constVal == 0) {
       return absl::OkStatus();
     }
   }
   XLS_ASSIGN_OR_RETURN(Pragma pragma,
-                        FindPragmaForLoc(GetPresumedLoc(sm, *stmt)));
+                       FindPragmaForLoc(GetPresumedLoc(sm, *stmt)));
   if (pragma.type() == Pragma_Unroll || context().for_loops_default_unroll) {
     return GenerateIR_UnrolledFor(stmt, ctx, loc, deep_scan);
   }
@@ -3743,8 +3745,7 @@ absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
     return TranslateTypeToXLS(ctype, loc);
   } else if (auto it = dynamic_cast<const CStructType*>(t.get())) {
     std::vector<xls::Type*> members;
-    for (auto it2 = it->fields().rbegin();
-         it2 != it->fields().rend(); it2++) {
+    for (auto it2 = it->fields().rbegin(); it2 != it->fields().rend(); it2++) {
       std::shared_ptr<CField> field = *it2;
       XLS_ASSIGN_OR_RETURN(xls::Type * ft,
                            TranslateTypeToXLS(field->type(), loc));
@@ -4174,19 +4175,18 @@ absl::Status Translator::GenerateFunctionMetadata(
         "processed for IR generation.");
   }
   for (const auto& iter : found->second->static_values) {
-    auto p = clang_down_cast<const clang::ValueDecl *>(iter.first);
+    auto p = clang_down_cast<const clang::ValueDecl*>(iter.first);
     xlscc_metadata::FunctionValue* proto_static_value =
         output->add_static_values();
-    XLS_RETURN_IF_ERROR(
-      GenerateMetadataCPPName(iter.first, proto_static_value->mutable_name()));
+    XLS_RETURN_IF_ERROR(GenerateMetadataCPPName(
+        iter.first, proto_static_value->mutable_name()));
     XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                          StripTypeQualifiers(p->getType()));
-    XLS_RETURN_IF_ERROR(
-        GenerateMetadataType(stripped.base,
-        proto_static_value->mutable_type()));
-    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
-                       TranslateTypeFromClang(stripped.base,
-                       xls::SourceLocation()));
+    XLS_RETURN_IF_ERROR(GenerateMetadataType(
+        stripped.base, proto_static_value->mutable_type()));
+    XLS_ASSIGN_OR_RETURN(
+        std::shared_ptr<CType> ctype,
+        TranslateTypeFromClang(stripped.base, xls::SourceLocation()));
     XLS_RETURN_IF_ERROR(ctype->GetMetadataValue(
         *this, iter.second, proto_static_value->mutable_value()));
   }
@@ -4253,8 +4253,7 @@ void Translator::FillLocationRangeProto(
 }
 
 absl::Status Translator::GenerateMetadataCPPName(
-    const clang::NamedDecl* decl_in,
-    xlscc_metadata::CPPName* name_out) {
+    const clang::NamedDecl* decl_in, xlscc_metadata::CPPName* name_out) {
   name_out->set_fully_qualified_name(decl_in->getQualifiedNameAsString());
   name_out->set_name(decl_in->getNameAsString());
   name_out->set_id(reinterpret_cast<uint64_t>(decl_in));

@@ -22,10 +22,15 @@ template <int W, int I, bool S = true, ac_q_mode Q = AC_TRN,
           ac_o_mode O = AC_WRAP>
 class ac_fixed {
  public:
-  ac_fixed() {}
+  ac_fixed() { (void)__xlscc_unimplemented(); }
   template <typename T>
-  ac_fixed(const T& o) {}
-  int to_int() { return 0; }
+  ac_fixed(const T& o) {
+    (void)__xlscc_unimplemented();
+  }
+  int to_int() {
+    (void)__xlscc_unimplemented();
+    return 0;
+  }
 };
 
 #endif  //__AC_FIXED_H__
