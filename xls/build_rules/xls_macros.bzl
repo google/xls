@@ -44,6 +44,7 @@ def xls_dslx_verilog_macro(
         verilog_file,
         srcs = None,
         deps = None,
+        library = None,
         dep = None,
         ir_conv_args = {},
         opt_ir_args = {},
@@ -61,8 +62,10 @@ def xls_dslx_verilog_macro(
       name: The name of the rule.
       srcs: Top level source files for the conversion. Files must have a '.x'
         extension. There must be single source file.
-      deps: Dependency targets for the rule. The targets must emit a DslxInfo
-        provider.
+      deps: Dependency targets for the files in the 'srcs' argument.
+      library: A DSLX library target where the direct (non-transitive)
+        files of the target are tested. This argument is mutually
+        exclusive with the 'srcs' and 'deps' arguments.
       dep: The 'xls_dslx_module_library' target used for dependency.
       verilog_file: The filename of Verilog file generated. The filename must
         have a '.v' extension.
@@ -97,6 +100,8 @@ def xls_dslx_verilog_macro(
         fail("Argument 'srcs' must be of list type.")
     if deps and type(deps) != type([]):
         fail("Argument 'deps' must be of list type.")
+    if library and type(library) != type(""):
+        fail("Argument 'library' must be of string type.")
     if dep and type(dep) != type(""):
         fail("Argument 'dep' must be of string type.")
     if type(verilog_file) != type(""):
@@ -128,6 +133,7 @@ def xls_dslx_verilog_macro(
         name = name,
         srcs = srcs,
         deps = deps,
+        library = library,
         dep = dep,
         verilog_file = verilog_file,
         ir_conv_args = ir_conv_args,
@@ -150,6 +156,7 @@ def xls_dslx_opt_ir_macro(
         name,
         srcs = None,
         deps = None,
+        library = None,
         dep = None,
         ir_conv_args = {},
         opt_ir_args = {},
@@ -168,8 +175,10 @@ def xls_dslx_opt_ir_macro(
       name: The name of the rule.
       srcs: Top level source files for the conversion. Files must have a '.x'
         extension. There must be single source file.
-      deps: Dependency targets for the rule. The targets must emit a DslxInfo
-        provider.
+      deps: Dependency targets for the files in the 'srcs' argument.
+      library: A DSLX library target where the direct (non-transitive)
+        files of the target are tested. This argument is mutually
+        exclusive with the 'srcs' and 'deps' arguments.
       dep: The 'xls_dslx_module_library' target used for dependency.
       ir_conv_args: Arguments of the IR conversion tool. For details on the
         arguments, refer to the ir_converter_main application at
@@ -197,6 +206,8 @@ def xls_dslx_opt_ir_macro(
         fail("Argument 'srcs' must be of list type.")
     if deps and type(deps) != type([]):
         fail("Argument 'deps' must be of list type.")
+    if library and type(library) != type(""):
+        fail("Argument 'library' must be of string type.")
     if dep and type(dep) != type(""):
         fail("Argument 'dep' must be of string type.")
     if type(ir_conv_args) != type({}):
@@ -217,6 +228,7 @@ def xls_dslx_opt_ir_macro(
         name = name,
         srcs = srcs,
         deps = deps,
+        library = library,
         dep = dep,
         ir_conv_args = ir_conv_args,
         opt_ir_args = opt_ir_args,

@@ -4,7 +4,6 @@ load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
     "xls_dslx_library",
-    "xls_dslx_module_library",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
 )
@@ -22,16 +21,10 @@ xls_dslx_library(
     srcs = ["fpdiv_2x32.x"],
 )
 
-xls_dslx_module_library(
-    name = "fpdiv_2x32_dslx_module",
-    src = "fpdiv_2x32.x",
-    deps = [":fpdiv_2x32_dslx"],
-)
-
 xls_dslx_opt_ir(
     name = "fpdiv_2x32_opt_ir",
-    dep = ":fpdiv_2x32_dslx_module",
     ir_file = "fpdiv_2x32.opt.ir",
+    library = ":fpdiv_2x32_dslx",
     tags = ["optonly"],
 )
 
@@ -40,7 +33,7 @@ xls_dslx_opt_ir(
 # udiv not supported in equivalence checking.
 xls_dslx_test(
     name = "fpdiv_2x32_dslx_test",
-    dep = ":fpdiv_2x32_dslx_module",
+    library = ":fpdiv_2x32_dslx",
     tags = ["optonly"],
 )
 

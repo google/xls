@@ -170,6 +170,52 @@ def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
 
     return cmd
 
+def get_files_from_dslx_library_as_input(ctx):
+    """Returns the DSLX source files and transitive files of rules using 'xls_dslx_library_as_input_attrs'.
+
+    Args:
+      ctx: The current rule's context object.
+
+    Returns:
+      A tuple with the first element representing the DSLX files and the
+      second element representing the transitive DSLX files of the rule.
+    """
+    dslx_src_files = []
+    transitive_files = []
+    count = 0
+
+    # Validate input. Allow one of: 'dep', 'library' or ['srcs', 'deps']
+    # TODO(vmirian) 1-25-2022 Remove if statement below when
+    # xls_dslx_module_library is removed.
+    if ctx.attr.dep:
+        dslx_src_files = [
+            ctx.attr.dep[DslxModuleInfo].dslx_source_module_file,
+        ]
+
+        # The runfiles also require the source files from its transitive
+        # dependencies.
+        transitive_files += ctx.attr.dep[DslxModuleInfo].dslx_source_files
+        count += 1
+    if ctx.attr.library:
+        dslx_info = ctx.attr.library[DslxInfo]
+        dslx_src_files = dslx_info.target_dslx_source_files
+        transitive_files += dslx_info.dslx_source_files.to_list()
+        count += 1
+    if ctx.attr.srcs or ctx.attr.deps:
+        if not ctx.attr.srcs:
+            fail("'srcs' must be defined when 'deps' is defined.")
+        dslx_src_files = ctx.files.srcs
+        for dep in ctx.attr.deps:
+            transitive_files += dep[DslxInfo].dslx_source_files.to_list()
+        count += 1
+
+    # TODO(vmirian) 1-25-2022 Update message below when xls_dslx_module_library
+    # is removed.
+    if count != 1:
+        fail("One of: 'dep', 'library' or ['srcs', 'deps'] must be assigned.")
+
+    return dslx_src_files, transitive_files
+
 # Common attributes for the xls_dslx_library and xls_dslx_module_library rules.
 _xls_dslx_common_attrs = {
     "deps": attr.label_list(
@@ -195,6 +241,8 @@ _xls_dslx_module_library_attrs = {
     ),
 }
 
+# TODO (vmirian) 01-25-2022 Remove attribute when xls_dslx_module_library is
+# removed.
 # Attributes for rules depending on the xls_dslx_module_library rule.
 xls_dslx_module_library_as_input_attrs = {
     "dep": attr.label(
@@ -205,8 +253,7 @@ xls_dslx_module_library_as_input_attrs = {
     ),
 }
 
-# Common attributes for DSLX testing.
-xls_dslx_test_common_attrs = {
+xls_dslx_library_as_input_attrs = {
     # TODO (vmirian) 01-25-2022 Remove attribute when xls_dslx_module_library is
     # removed.
     "dep": attr.label(
@@ -222,9 +269,9 @@ xls_dslx_test_common_attrs = {
         providers = [DslxInfo],
     ),
     "srcs": attr.label_list(
-        doc = "Tests are executed on these source files for the rule. " +
-              "The files must have a '.x' extension. This attribute is " +
-              "mutually exclusive with the 'library' attribute.",
+        doc = "Source files for the rule. The files must have a '.x' " +
+              "extension. This attribute is mutually exclusive with the " +
+              "'library' attribute.",
         allow_files = [".x"],
     ),
     "deps": attr.label_list(
@@ -233,6 +280,10 @@ xls_dslx_test_common_attrs = {
               "attribute.",
         providers = [DslxInfo],
     ),
+}
+
+# Common attributes for DSLX testing.
+xls_dslx_test_common_attrs = {
     "dslx_test_args": attr.string_dict(
         doc = "Arguments of the DSLX interpreter executable. For details " +
               "on the arguments, refer to the interpreter_main " +
@@ -520,39 +571,7 @@ def _xls_dslx_test_impl(ctx):
     Returns:
       DefaultInfo provider
     """
-    src_files_to_test = []
-    runfiles = []
-    count = 0
-
-    # Validate input. Allow one of: 'dep', 'library' or ['srcs', 'deps']
-    # TODO(vmirian) 1-25-2022 Remove if statement below when
-    # xls_dslx_module_library is removed.
-    if ctx.attr.dep:
-        src_files_to_test = [
-            ctx.attr.dep[DslxModuleInfo].dslx_source_module_file,
-        ]
-
-        # The runfiles also require the source files from its transitive
-        # dependencies.
-        runfiles += ctx.attr.dep[DslxModuleInfo].dslx_source_files
-        count += 1
-    if ctx.attr.library:
-        dslx_info = ctx.attr.library[DslxInfo]
-        src_files_to_test = dslx_info.target_dslx_source_files
-        runfiles += dslx_info.dslx_source_files.to_list()
-        count += 1
-    if ctx.attr.srcs or ctx.attr.deps:
-        if not ctx.attr.srcs:
-            fail("'srcs' must be defined when 'deps' is defined.")
-        src_files_to_test = ctx.files.srcs
-        for dep in ctx.attr.deps:
-            runfiles += dep[DslxInfo].dslx_source_files.to_list()
-        count += 1
-
-    # TODO(vmirian) 1-25-2022 Update message below when xls_dslx_module_library
-    # is removed.
-    if count != 1:
-        fail("One of: 'dep', 'library' or ['srcs', 'deps'] must be assigned.")
+    src_files_to_test, runfiles = get_files_from_dslx_library_as_input(ctx)
 
     my_runfiles, cmds = get_dslx_test_cmd(ctx, src_files_to_test)
     runfiles += my_runfiles
@@ -624,6 +643,7 @@ xls_dslx_test = rule(
     """,
     implementation = _xls_dslx_test_impl,
     attrs = dicts.add(
+        xls_dslx_library_as_input_attrs,
         xls_dslx_test_common_attrs,
         xls_toolchain_attr,
     ),

@@ -16,7 +16,6 @@ load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
     "get_mangled_ir_symbol",
-    "xls_dslx_module_library",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
 )
@@ -26,69 +25,39 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
-xls_dslx_module_library(
-    name = "std_dslx_module",
-    src = "std.x",
-)
-
 xls_dslx_test(
     name = "std_dslx_test",
-    dep = "std_dslx_module",
-)
-
-xls_dslx_module_library(
-    name = "acm_random_dslx_module",
-    src = "acm_random.x",
+    srcs = ["std.x"],
 )
 
 xls_dslx_test(
     name = "acm_random_dslx_test",
-    dep = "acm_random_dslx_module",
-)
-
-xls_dslx_module_library(
-    name = "apfloat_dslx_module",
-    src = "apfloat.x",
+    srcs = ["acm_random.x"],
 )
 
 xls_dslx_test(
     name = "apfloat_dslx_test",
-    dep = "apfloat_dslx_module",
-)
-
-xls_dslx_module_library(
-    name = "bfloat16_dslx_module",
-    src = "bfloat16.x",
+    srcs = ["apfloat.x"],
 )
 
 xls_dslx_test(
     name = "bfloat16_dslx_test",
-    dep = "bfloat16_dslx_module",
-)
-
-xls_dslx_module_library(
-    name = "float32_dslx_module",
-    src = "float32.x",
+    srcs = ["bfloat16.x"],
 )
 
 xls_dslx_test(
     name = "float32_dslx_test",
-    dep = "float32_dslx_module",
-)
-
-xls_dslx_module_library(
-    name = "float64_dslx_module",
-    src = "float64.x",
+    srcs = ["float32.x"],
 )
 
 xls_dslx_test(
     name = "float64_dslx_test",
-    dep = "float64_dslx_module",
+    srcs = ["float64.x"],
 )
 
 xls_dslx_opt_ir(
     name = "float32",
-    dep = ":float32_dslx_module",
+    srcs = ["float32.x"],
     ir_file = "float32.ir",
     opt_ir_file = "float32.opt.ir",
 )

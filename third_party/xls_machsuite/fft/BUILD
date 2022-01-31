@@ -1,7 +1,6 @@
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_dslx_library",
-    "xls_dslx_module_library",
     "xls_dslx_test",
 )
 
@@ -35,6 +34,7 @@ cc_binary(
 xls_dslx_library(
     name = "fft_dslx",
     srcs = [
+        "fft.x",
         "test_data/dslx_test_data.x",
     ],
     tags = ["optonly"],
@@ -48,20 +48,14 @@ xls_dslx_library(
     ],
 )
 
-xls_dslx_module_library(
-    name = "fft_dslx_module",
-    src = "fft.x",
-    deps = [":fft_dslx"],
-)
-
 # IR optimization uses too much memory.
 # TODO(https://github.com/google/xls/issues/354): 2021-03-23 Fix this. Add
 # xls_ir_equivalence_test, xls_eval_ir_test and xls_benchmark_ir.
 xls_dslx_test(
-    name = "fft",
-    dep = ":fft_dslx_module",
+    name = "fft_test",
     dslx_test_args = {
         "compare": "none",
     },
+    library = ":fft_dslx",
     tags = ["optonly"],
 )

@@ -5,7 +5,6 @@ load(
     "cc_xls_ir_jit_wrapper",
     "xls_benchmark_ir",
     "xls_dslx_library",
-    "xls_dslx_module_library",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
     "xls_eval_ir_test",
@@ -31,22 +30,16 @@ xls_dslx_library(
     ],
 )
 
-xls_dslx_module_library(
-    name = "fpexp_32_dslx_module",
-    src = "fpexp_32.x",
-    deps = [":fpexp_32_dslx"],
-)
-
 xls_dslx_opt_ir(
     name = "fpexp_32",
-    dep = ":fpexp_32_dslx_module",
     ir_file = "fpexp_32.ir",
+    library = ":fpexp_32_dslx",
     opt_ir_file = "fpexp_32.opt.ir",
 )
 
 xls_dslx_test(
     name = "fpexp_32_dslx_test",
-    dep = ":fpexp_32_dslx_module",
+    library = ":fpexp_32_dslx",
 )
 
 # TODO 2021-03-08: Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
@@ -112,22 +105,16 @@ xls_dslx_library(
     ],
 )
 
-xls_dslx_module_library(
-    name = "fp_sincos_32_dslx_module",
-    src = "fp_sincos_32.x",
-    deps = [":fp_sincos_32_dslx"],
-)
-
 xls_dslx_opt_ir(
     name = "fp_sincos_32",
-    dep = ":fp_sincos_32_dslx_module",
     ir_file = "fp_sincos_32.ir",
+    library = ":fp_sincos_32_dslx",
     opt_ir_file = "fp_sincos_32.opt.ir",
 )
 
 xls_dslx_test(
     name = "fp_sincos_32_dslx_test",
-    dep = ":fp_sincos_32_dslx_module",
+    library = ":fp_sincos_32_dslx",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
@@ -172,24 +159,22 @@ cc_test(
     ],
 )
 
-xls_dslx_module_library(
+xls_dslx_library(
     name = "fp_trig_reduce_dslx_module",
-    src = "fp_trig_reduce.x",
-    deps = [
-        ":fp_trig_reduce_dslx",
-    ],
+    srcs = ["fp_trig_reduce.x"],
+    deps = [":fp_trig_reduce_dslx"],
 )
 
 xls_dslx_opt_ir(
     name = "fp_trig_reduce",
-    dep = ":fp_trig_reduce_dslx_module",
     ir_file = "fp_trig_reduce.ir",
+    library = ":fp_trig_reduce_dslx_module",
     opt_ir_file = "fp_trig_reduce.opt.ir",
 )
 
 xls_dslx_test(
     name = "fp_trig_reduce_dslx_test",
-    dep = ":fp_trig_reduce_dslx_module",
+    library = ":fp_trig_reduce_dslx_module",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
@@ -240,24 +225,16 @@ xls_dslx_library(
     srcs = ["fpsqrt_32.x"],
 )
 
-xls_dslx_module_library(
-    name = "fpsqrt_32_dslx_module",
-    src = "fpsqrt_32.x",
-    deps = [
-        ":fpsqrt_32_dslx",
-    ],
-)
-
 xls_dslx_opt_ir(
     name = "fpsqrt_32",
-    dep = ":fpsqrt_32_dslx_module",
     ir_file = "fpsqrt_32.ir",
+    library = ":fpsqrt_32_dslx",
     opt_ir_file = "fpsqrt_32.opt.ir",
 )
 
 xls_dslx_test(
     name = "fpsqrt_32_dslx_test",
-    dep = ":fpsqrt_32_dslx_module",
+    library = ":fpsqrt_32_dslx",
 )
 
 # TODO: 2021-03-22 Takes too long. Add xls_ir_equivalence_test.

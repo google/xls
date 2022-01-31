@@ -34,6 +34,7 @@ def xls_dslx_ir_macro(
         name,
         srcs = None,
         deps = None,
+        library = None,
         dep = None,
         ir_conv_args = {},
         enable_generated_file = True,
@@ -49,8 +50,10 @@ def xls_dslx_ir_macro(
       name: The name of the rule.
       srcs: Top level source files for the conversion. Files must have a '.x'
         extension. There must be single source file.
-      deps: Dependency targets for the rule. The targets must emit a DslxInfo
-        provider.
+      deps: Dependency targets for the files in the 'srcs' argument.
+      library: A DSLX library target where the direct (non-transitive)
+        files of the target are tested. This argument is mutually
+        exclusive with the 'srcs' and 'deps' arguments.
       dep: A dependency target for the rule. The target must emit a
         DslxModuleInfo provider.
       ir_conv_args: Arguments of the IR conversion tool. For details on the
@@ -74,6 +77,8 @@ def xls_dslx_ir_macro(
         fail("Argument 'srcs' must be of list type.")
     if deps and type(deps) != type([]):
         fail("Argument 'deps' must be of list type.")
+    if library and type(library) != type(""):
+        fail("Argument 'library' must be of string type.")
     if dep and type(dep) != type(""):
         fail("Argument 'dep' must be of string type.")
     if type(ir_conv_args) != type({}):
@@ -91,6 +96,7 @@ def xls_dslx_ir_macro(
         name = name,
         srcs = srcs,
         deps = deps,
+        library = library,
         dep = dep,
         ir_conv_args = ir_conv_args,
         outs = get_xls_dslx_ir_generated_files(kwargs),

@@ -2,7 +2,6 @@
 
 load(
     "//xls/build_rules:xls_build_defs.bzl",
-    "xls_dslx_module_library",
     "xls_dslx_test",
 )
 
@@ -14,21 +13,16 @@ licenses(["notice"])
 
 exports_files(["LICENSE"])
 
-xls_dslx_module_library(
-    name = "hsv2rgb_dslx_module",
-    src = "hsv2rgb.x",
-)
-
 xls_dslx_test(
     name = "hsv2rgb_dslx_test",
-    dep = ":hsv2rgb_dslx_module",
+    srcs = ["hsv2rgb.x"],
 )
 
 cc_test(
     name = "hsv2rgb_verilog_test",
     srcs = ["test.cc"],
     data = [
-        ":hsv2rgb_dslx_module",
+        "hsv2rgb.x",
     ],
     shard_count = 6,
     tags = ["optonly"],

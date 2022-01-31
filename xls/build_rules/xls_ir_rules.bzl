@@ -15,6 +15,11 @@
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load(
+    "//xls/build_rules:xls_dslx_rules.bzl",
+    "get_files_from_dslx_library_as_input",
+    "xls_dslx_library_as_input_attrs",
+)
+load(
     "//xls/build_rules:xls_common_rules.bzl",
     "append_cmd_line_args_to",
     "get_args",
@@ -483,40 +488,23 @@ xls_ir_common_attrs = {
     ),
 }
 
-xls_dslx_ir_attrs = {
-    # TODO (vmirian) 01-25-2022 Remove attribute when xls_dslx_module_library is
-    # removed.
-    "dep": attr.label(
-        doc = "DO NOT USE. This attribute will be deprecated. A dependency " +
-              "target for the rule. The target must emit a DslxModuleInfo " +
-              "provider. ",
-        providers = [DslxModuleInfo],
-    ),
-    # TODO (vmirian) 01-25-2022 Make mandatory when xls_dslx_module_library is
-    # removed.
-    "srcs": attr.label_list(
-        doc = "Top level source files for the conversion. Files must have a " +
-              " '.x' extension. There must be single source file.",
-        allow_files = [".x"],
-    ),
-    "deps": attr.label_list(
-        doc = "Dependency targets for the rule. The targets must emit a " +
-              "DslxInfo provider.",
-        providers = [DslxInfo],
-    ),
-    "ir_conv_args": attr.string_dict(
-        doc = "Arguments of the IR conversion tool. For details on the" +
-              "arguments, refer to the ir_converter_main application at" +
-              "//xls/dslx/ir_converter_main.cc. When the " +
-              "default XLS toolchain differs from the default toolchain, " +
-              "the application target may be different.",
-    ),
-    "ir_file": attr.output(
-        doc = "Filename of the generated IR. If not specified, the " +
-              "target name of the bazel rule followed by an " +
-              _IR_FILE_EXTENSION + " extension is used.",
-    ),
-}
+xls_dslx_ir_attrs = dicts.add(
+    xls_dslx_library_as_input_attrs,
+    {
+        "ir_conv_args": attr.string_dict(
+            doc = "Arguments of the IR conversion tool. For details on the" +
+                  "arguments, refer to the ir_converter_main application at" +
+                  "//xls/dslx/ir_converter_main.cc. When the " +
+                  "default XLS toolchain differs from the default toolchain, " +
+                  "the application target may be different.",
+        ),
+        "ir_file": attr.output(
+            doc = "Filename of the generated IR. If not specified, the " +
+                  "target name of the bazel rule followed by an " +
+                  _IR_FILE_EXTENSION + " extension is used.",
+        ),
+    },
+)
 
 def xls_dslx_ir_impl(ctx):
     """The implementation of the 'xls_dslx_ir' rule.
@@ -537,26 +525,12 @@ def xls_dslx_ir_impl(ctx):
     srcs = ctx.files.srcs
     deps = ctx.attr.deps
 
-    # TODO (vmirian) 01-25-2022 Remove if statement when xls_dslx_module_library
-    # is removed.
-    if dep and (srcs or deps):
-        fail("One of: 'dep' or ['srcs', 'deps'] must be assigned.")
+    srcs, dep_src_list = get_files_from_dslx_library_as_input(ctx)
 
     if srcs and len(srcs) != 1:
         fail("A single source file must be specified.")
 
-    # TODO (vmirian) 01-25-2022 Remove if statement when xls_dslx_module_library
-    # is removed.
-    if dep:
-        src = ctx.attr.dep[DslxModuleInfo].dslx_source_module_file
-        dep_src_list = (
-            ctx.attr.dep[DslxModuleInfo].dslx_source_files
-        )
-    else:
-        src = srcs[0]
-        dep_src_list = []
-        for dep in deps:
-            dep_src_list += dep[DslxInfo].dslx_source_files.to_list()
+    src = srcs[0]
 
     ir_file = _convert_to_ir(ctx, src, dep_src_list)
 

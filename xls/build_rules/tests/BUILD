@@ -228,6 +228,33 @@ xls_dslx_test(
 )
 
 ################################################################################
+# Build rules using dslx_library as input.
+################################################################################
+xls_dslx_library(
+    name = "add_one_dslx",
+    srcs = ["add_one.x"],
+)
+
+xls_dslx_ir(
+    name = "add_one_dslx_ir",
+    library = ":add_one_dslx",
+)
+
+xls_dslx_opt_ir(
+    name = "add_one_dslx_opt_ir",
+    library = ":add_one_dslx",
+)
+
+xls_dslx_verilog(
+    name = "add_one_dslx_verilog",
+    codegen_args = {
+        "generator": "combinational",
+    },
+    library = ":add_one_dslx",
+    verilog_file = "add_one_dslx_verilog.v",
+)
+
+################################################################################
 # Simple example with rule chaining.
 #
 # Below is a diagram illustrating the rule chaining example. The build flow
