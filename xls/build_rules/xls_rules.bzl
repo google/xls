@@ -102,17 +102,6 @@ xls_dslx_opt_ir = rule(
                 srcs = ["d.x"],
                 deps = [":bc_dslx"],
             )
-
-        2) Generate optimized IR from a xls_dslx_module_library target.
-            xls_dslx_module_library(
-                name = "a_dslx_module",
-                src = "a.x",
-            )
-
-            xls_dslx_opt_ir(
-                name = "a_opt_ir",
-                dep = ":a_dslx_module",
-            )
     """,
     implementation = _xls_dslx_opt_ir_impl,
     attrs = _xls_dslx_opt_ir_attrs,
@@ -209,14 +198,14 @@ xls_dslx_opt_ir_test = rule(
     doc = """A build rule that tests a xls_dslx_opt_ir target.
 
         Example:
-            xls_dslx_module_library(
-                name = "a_dslx_module",
-                src = "a.x",
+            xls_dslx_library(
+                name = "a_dslx",
+                srcs = ["a.x"],
             )
 
             xls_dslx_opt_ir(
                 name = "a_opt_ir",
-                dep = ":a_dslx_module",
+                library = ":a_dslx",
             )
 
             xls_dslx_opt_ir_test(
@@ -300,19 +289,6 @@ xls_dslx_verilog = rule(
                 },
             )
 
-        2) An example with a xls_dslx_module_library.
-            xls_dslx_module_library(
-                name = "a_dslx_module",
-                src = "a.x",
-            )
-
-            xls_dslx_verilog(
-                name = "a_verilog",
-                codegen_args = {
-                    "pipeline_stages": "1",
-                },
-                dep = ":a_dslx_module",
-            )
     """,
     implementation = _xls_dslx_verilog_impl,
     attrs = _dslx_verilog_attrs,

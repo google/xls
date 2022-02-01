@@ -45,7 +45,6 @@ def xls_dslx_verilog_macro(
         srcs = None,
         deps = None,
         library = None,
-        dep = None,
         ir_conv_args = {},
         opt_ir_args = {},
         codegen_args = {},
@@ -66,7 +65,6 @@ def xls_dslx_verilog_macro(
       library: A DSLX library target where the direct (non-transitive)
         files of the target are tested. This argument is mutually
         exclusive with the 'srcs' and 'deps' arguments.
-      dep: The 'xls_dslx_module_library' target used for dependency.
       verilog_file: The filename of Verilog file generated. The filename must
         have a '.v' extension.
       ir_conv_args: Arguments of the IR conversion tool. For details on the
@@ -91,8 +89,6 @@ def xls_dslx_verilog_macro(
       **kwargs: Keyword arguments. Named arguments.
     """
 
-    # TODO (vmirian) 01-25-2022 Make srcs mandatory and deps optional when
-    # xls_dslx_module_library is removed.
     # Type check input
     if type(name) != type(""):
         fail("Argument 'name' must be of string type.")
@@ -102,8 +98,6 @@ def xls_dslx_verilog_macro(
         fail("Argument 'deps' must be of list type.")
     if library and type(library) != type(""):
         fail("Argument 'library' must be of string type.")
-    if dep and type(dep) != type(""):
-        fail("Argument 'dep' must be of string type.")
     if type(verilog_file) != type(""):
         fail("Argument 'verilog_file' must be of string type.")
     if type(ir_conv_args) != type({}):
@@ -134,7 +128,6 @@ def xls_dslx_verilog_macro(
         srcs = srcs,
         deps = deps,
         library = library,
-        dep = dep,
         verilog_file = verilog_file,
         ir_conv_args = ir_conv_args,
         opt_ir_args = opt_ir_args,
@@ -157,7 +150,6 @@ def xls_dslx_opt_ir_macro(
         srcs = None,
         deps = None,
         library = None,
-        dep = None,
         ir_conv_args = {},
         opt_ir_args = {},
         enable_generated_file = True,
@@ -179,7 +171,6 @@ def xls_dslx_opt_ir_macro(
       library: A DSLX library target where the direct (non-transitive)
         files of the target are tested. This argument is mutually
         exclusive with the 'srcs' and 'deps' arguments.
-      dep: The 'xls_dslx_module_library' target used for dependency.
       ir_conv_args: Arguments of the IR conversion tool. For details on the
         arguments, refer to the ir_converter_main application at
         //xls/dslx/ir_converter_main.cc. When the default XLS
@@ -197,8 +188,6 @@ def xls_dslx_opt_ir_macro(
       **kwargs: Keyword arguments. Named arguments.
     """
 
-    # TODO (vmirian) 01-25-2022 Make srcs mandatory and deps optional when
-    # xls_dslx_module_library is removed.
     # Type check input
     if type(name) != type(""):
         fail("Argument 'name' must be of string type.")
@@ -208,8 +197,6 @@ def xls_dslx_opt_ir_macro(
         fail("Argument 'deps' must be of list type.")
     if library and type(library) != type(""):
         fail("Argument 'library' must be of string type.")
-    if dep and type(dep) != type(""):
-        fail("Argument 'dep' must be of string type.")
     if type(ir_conv_args) != type({}):
         fail("Argument 'ir_conv_args' must be of dictionary type.")
     if type(opt_ir_args) != type({}):
@@ -229,7 +216,6 @@ def xls_dslx_opt_ir_macro(
         srcs = srcs,
         deps = deps,
         library = library,
-        dep = dep,
         ir_conv_args = ir_conv_args,
         opt_ir_args = opt_ir_args,
         outs = get_xls_dslx_ir_generated_files(kwargs) +

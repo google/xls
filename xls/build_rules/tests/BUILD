@@ -22,7 +22,6 @@ load(
     "xls_dslx_cpp_type_library",
     "xls_dslx_ir",
     "xls_dslx_library",
-    "xls_dslx_module_library",
     "xls_dslx_opt_ir",
     "xls_dslx_opt_ir_test",
     "xls_dslx_test",
@@ -136,24 +135,10 @@ sh_test(
     data = [":add_one_combinational_rtl.v"],
 )
 
-# TODO(vmirian) 01-25-2022 Remove below when xls_dlsx_module_library is removed.
-xls_dslx_module_library(
-    name = "generated_dslx_module",
-    src = "generated.x",
-)
-
-# TODO(vmirian) 01-25-2022 Remove below when xls_dlsx_module_library is removed.
-# xls_dslx_test with a xls_dslx_module_library. This will be deprecated.
+# Run the test inside of the generated file.
 xls_dslx_test(
-    name = "generated_file_as_input_module_test",
-    dep = ":generated_dslx_module",
-)
-
-# TODO(vmirian) 01-25-2022 Remove below when xls_dlsx_module_library is removed.
-# xls_dslx_ir with a xls_dslx_module_library. This will be deprecated.
-xls_dslx_ir(
-    name = "generated_ir",
-    dep = ":generated_dslx_module",
+    name = "generated_file_as_input_test",
+    srcs = ["generated.x"],
 )
 
 # Encapsulate the generated file as a library.
@@ -162,9 +147,9 @@ xls_dslx_library(
     srcs = ["generated.x"],
 )
 
-xls_dslx_module_library(
-    name = "importer_dslx_module",
-    src = "importer.x",
+xls_dslx_library(
+    name = "importer_dslx",
+    srcs = ["importer.x"],
     deps = [
         ":generated_dslx",
     ],
@@ -173,7 +158,7 @@ xls_dslx_module_library(
 # Reference the library with the generated file inside of a xls_dslx_test rule.
 xls_dslx_test(
     name = "dependent_on_library_with_generated_file_test",
-    dep = ":importer_dslx_module",
+    library = ":importer_dslx",
 )
 
 xls_dslx_library(
@@ -195,35 +180,35 @@ xls_dslx_library(
     ],
 )
 
-# xls_dslx_module_library with a transitive dependency.
-xls_dslx_module_library(
-    name = "d_dslx_module",
-    src = "d.x",
+# xls_dslx_library with a transitive dependency.
+xls_dslx_library(
+    name = "d_dslx",
+    srcs = ["d.x"],
     deps = [
         ":bc_dslx",
     ],
 )
 
-# xls_dslx_test on a xls_dslx_module_library with a transitive dependency.
+# xls_dslx_test on a xls_dslx_library with a transitive dependency.
 xls_dslx_test(
     name = "d_dslx_test",
-    dep = ":d_dslx_module",
+    library = ":d_dslx",
 )
 
-# xls_dslx_module_library with a transitive dependency on a
-# xls_dslx_module_library.
-xls_dslx_module_library(
-    name = "e_dslx_module",
-    src = "e.x",
+# xls_dslx_library with a transitive dependency on a
+# xls_dslx_library.
+xls_dslx_library(
+    name = "e_dslx",
+    srcs = ["e.x"],
     deps = [
-        ":d_dslx_module",
+        ":d_dslx",
     ],
 )
 
-# xls_dslx_test on a xls_dslx_module_library with a transitive dependency.
+# xls_dslx_test on a xls_dslx_library with a transitive dependency.
 xls_dslx_test(
     name = "e_dslx_test",
-    dep = ":e_dslx_module",
+    library = ":e_dslx",
 )
 
 ################################################################################
@@ -262,9 +247,7 @@ xls_dslx_verilog(
 # displayed.
 #
 # Overview:
-# The 'chaining_example.x' file is the input to the xls_dslx_module_library rule
-# named 'chaining_example_dslx_module'. The rule is the input to the build and
-# test flow.
+# The 'chaining_example.x' file is the input to the build and test flow.
 #
 # In the build flow, the 'chaining_example.x' file is the input to a
 # xls_dslx_ir rule named 'chaining_example_ir'. The output of the latter is
@@ -272,8 +255,8 @@ xls_dslx_verilog(
 # of the latter is the input to a xls_ir_verilog rule named
 # 'chaining_example_verilog'.
 #
-# In the test flow, the 'chaining_example_dslx_module' target is a dependency of
-# a xls_dslx_test rule named 'chaining_example_test'. The output of the
+# In the test flow, the 'chaining_example.x' file is the input to a
+# xls_dslx_test rule named 'chaining_example_test'. The output of the
 # 'chaining_example_ir' rule is the input to a xls_eval_ir_test rule named
 # 'chaining_example_eval_ir_test', and the input to a xls_ir_equivalence_test
 # rule named chaining_example_ir_equivalence_test. The output of the
@@ -303,14 +286,9 @@ xls_dslx_verilog(
 #    chaining_example_verilog     |--> chaining_example_benchmark_ir
 ################################################################################
 
-xls_dslx_module_library(
-    name = "chaining_example_dslx_module",
-    src = "chaining_example.x",
-)
-
 xls_dslx_test(
     name = "chaining_example_test",
-    dep = ":chaining_example_dslx_module",
+    srcs = ["chaining_example.x"],
 )
 
 xls_dslx_ir(
@@ -497,24 +475,18 @@ xls_dslx_library(
     ],
 )
 
-xls_dslx_module_library(
-    name = "simple_example_four_dslx_module",
-    src = "simple_example_four.x",
-    deps = [":simple_example_123_dslx"],
-)
-
-# Execute the DSLX interpreter.
-xls_dslx_test(
-    name = "simple_example_four_test",
-    dep = ":simple_example_four_dslx_module",
-)
-
 # xls_dslx_library target depends on xls_dslx_library target
 # 'simple_example_123_dslx'.
 xls_dslx_library(
     name = "simple_example_4_dslx",
     srcs = ["simple_example_four.x"],
     deps = [":simple_example_123_dslx"],
+)
+
+# Execute the DSLX interpreter.
+xls_dslx_test(
+    name = "simple_example_4_test",
+    library = ":simple_example_4_dslx",
 )
 
 # Generate verilog from a dslx file.
@@ -786,9 +758,9 @@ xls_dslx_library(
 ################################################################################
 # Tests of eval_ir input validators.
 ################################################################################
-xls_dslx_module_library(
-    name = "die_if_odd_validator_module",
-    src = "die_if_odd_validator.x",
+xls_dslx_library(
+    name = "die_if_odd_validator",
+    srcs = ["die_if_odd_validator.x"],
 )
 
 xls_dslx_opt_ir(
@@ -809,7 +781,7 @@ xls_eval_ir_test(
 xls_eval_ir_test(
     name = "die_if_odd_eval_ir_test_file_validator",
     src = ":die_if_odd.ir",
-    input_validator = ":die_if_odd_validator_module",
+    input_validator = ":die_if_odd_validator",
 )
 
 ################################################################################

@@ -208,23 +208,6 @@ A build rule that parses and type checks DSLX source files.
                     ":a_dslx",
                 ],
             )
-
-        3) Dependency on xls_dslx_module_library targets.
-            xls_dslx_module_library(
-                name = "a_dslx_module",
-                srcs = [
-                    "a.x",
-                ],
-            )
-
-            # Depends on target a_dslx_module.
-            xls_dslx_library(
-                name = "b_dslx",
-                src = "b.x",
-                deps = [
-                    ":a_dslx_module",
-                ],
-            )
     
 
 **ATTRIBUTES**
@@ -237,89 +220,26 @@ A build rule that parses and type checks DSLX source files.
 | <a id="xls_dslx_library-srcs"></a>srcs |  Source files for the rule. Files must have a '.x' extension.   | <a href="https://bazel.build/docs/build-ref.html#labels">List of labels</a> | optional | [] |
 
 
-<a id="#xls_dslx_module_library"></a>
-
-## xls_dslx_module_library
-
-<pre>
-xls_dslx_module_library(<a href="#xls_dslx_module_library-name">name</a>, <a href="#xls_dslx_module_library-deps">deps</a>, <a href="#xls_dslx_module_library-src">src</a>)
-</pre>
-
-A build rule that parses and type checks the DSLX source file.
-
-        Examples:
-
-        1) A single DSLX source file.
-            xls_dslx_module_library(
-                name = "a_dslx_module",
-                src = "a.x",
-            )
-
-        2) Dependency on xls_dslx_library targets.
-            xls_dslx_library(
-                name = "a_dslx",
-                srcs = [
-                    "a.x",
-                ],
-            )
-
-            # Depends on target a_dslx.
-            xls_dslx_module_library(
-                name = "b_dslx_module",
-                src = "b.x",
-                deps = [
-                    ":a_dslx",
-                ],
-            )
-
-        3) Dependency on xls_dslx_module_library targets.
-            xls_dslx_module_library(
-                name = "a_dslx_module",
-                srcs = [
-                    "a.x",
-                ],
-            )
-
-            # Depends on target a_dslx_module.
-            xls_dslx_module_library(
-                name = "b_dslx_module",
-                src = "b.x",
-                deps = [
-                    ":a_dslx_module",
-                ],
-            )
-    
-
-**ATTRIBUTES**
-
-
-| Name  | Description | Type | Mandatory | Default |
-| :------------- | :------------- | :------------- | :------------- | :------------- |
-| <a id="xls_dslx_module_library-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/docs/build-ref.html#name">Name</a> | required |  |
-| <a id="xls_dslx_module_library-deps"></a>deps |  Dependency targets for the rule.   | <a href="https://bazel.build/docs/build-ref.html#labels">List of labels</a> | optional | [] |
-| <a id="xls_dslx_module_library-src"></a>src |  The DSLX source file for the rule. A single source file must be provided. The file must have a '.x' extension.   | <a href="https://bazel.build/docs/build-ref.html#labels">Label</a> | optional | None |
-
-
 <a id="#xls_dslx_opt_ir_test"></a>
 
 ## xls_dslx_opt_ir_test
 
 <pre>
 xls_dslx_opt_ir_test(<a href="#xls_dslx_opt_ir_test-name">name</a>, <a href="#xls_dslx_opt_ir_test-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_dslx_opt_ir_test-dep">dep</a>, <a href="#xls_dslx_opt_ir_test-dslx_test_args">dslx_test_args</a>, <a href="#xls_dslx_opt_ir_test-entry">entry</a>, <a href="#xls_dslx_opt_ir_test-input_validator">input_validator</a>,
-                     <a href="#xls_dslx_opt_ir_test-input_validator_expr">input_validator_expr</a>, <a href="#xls_dslx_opt_ir_test-input_validator_other">input_validator_other</a>, <a href="#xls_dslx_opt_ir_test-ir_equivalence_args">ir_equivalence_args</a>, <a href="#xls_dslx_opt_ir_test-ir_eval_args">ir_eval_args</a>)
+                     <a href="#xls_dslx_opt_ir_test-input_validator_expr">input_validator_expr</a>, <a href="#xls_dslx_opt_ir_test-ir_equivalence_args">ir_equivalence_args</a>, <a href="#xls_dslx_opt_ir_test-ir_eval_args">ir_eval_args</a>)
 </pre>
 
 A build rule that tests a xls_dslx_opt_ir target.
 
         Example:
-            xls_dslx_module_library(
-                name = "a_dslx_module",
-                src = "a.x",
+            xls_dslx_library(
+                name = "a_dslx",
+                srcs = ["a.x"],
             )
 
             xls_dslx_opt_ir(
                 name = "a_opt_ir",
-                dep = ":a_dslx_module",
+                library = ":a_dslx",
             )
 
             xls_dslx_opt_ir_test(
@@ -338,9 +258,8 @@ A build rule that tests a xls_dslx_opt_ir target.
 | <a id="xls_dslx_opt_ir_test-dep"></a>dep |  The xls_dslx_opt_ir target to test.   | <a href="https://bazel.build/docs/build-ref.html#labels">Label</a> | optional | None |
 | <a id="xls_dslx_opt_ir_test-dslx_test_args"></a>dslx_test_args |  Arguments of the DSLX interpreter executable. For details on the arguments, refer to the interpreter_main application at //xls/dslx/interpreter_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   | <a href="https://bazel.build/docs/skylark/lib/dict.html">Dictionary: String -> String</a> | optional | {} |
 | <a id="xls_dslx_opt_ir_test-entry"></a>entry |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. The value is applied to the rule context. It can be overwritten by a local argument.   | String | optional | "" |
-| <a id="xls_dslx_opt_ir_test-input_validator"></a>input_validator |  The target defining the input validator for this test. Mutually exclusive with "input_validator_expr".   | <a href="https://bazel.build/docs/build-ref.html#labels">Label</a> | optional | None |
+| <a id="xls_dslx_opt_ir_test-input_validator"></a>input_validator |  The DSLX library defining the input validator for this test. Mutually exclusive with "input_validator_expr".   | <a href="https://bazel.build/docs/build-ref.html#labels">Label</a> | optional | None |
 | <a id="xls_dslx_opt_ir_test-input_validator_expr"></a>input_validator_expr |  The expression to validate an input for the test function. Mutually exclusive with "input_validator".   | String | optional | "" |
-| <a id="xls_dslx_opt_ir_test-input_validator_other"></a>input_validator_other |  The DSLX library defining the input validator for this test. Mutually exclusive with "input_validator_expr".   | <a href="https://bazel.build/docs/build-ref.html#labels">Label</a> | optional | None |
 | <a id="xls_dslx_opt_ir_test-ir_equivalence_args"></a>ir_equivalence_args |  Arguments of the IR equivalence tool. For details on the arguments, refer to the check_ir_equivalence_main application at //xls/tools/check_ir_equivalence_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   | <a href="https://bazel.build/docs/skylark/lib/dict.html">Dictionary: String -> String</a> | optional | {} |
 | <a id="xls_dslx_opt_ir_test-ir_eval_args"></a>ir_eval_args |  Arguments of the IR interpreter. For details on the arguments, refer to the eval_ir_main application at //xls/tools/eval_ir_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   | <a href="https://bazel.build/docs/skylark/lib/dict.html">Dictionary: String -> String</a> | optional | {"random_inputs": "100", "optimize_ir": "true"} |
 
@@ -350,7 +269,7 @@ A build rule that tests a xls_dslx_opt_ir target.
 ## xls_dslx_test
 
 <pre>
-xls_dslx_test(<a href="#xls_dslx_test-name">name</a>, <a href="#xls_dslx_test-dep">dep</a>, <a href="#xls_dslx_test-deps">deps</a>, <a href="#xls_dslx_test-dslx_test_args">dslx_test_args</a>, <a href="#xls_dslx_test-library">library</a>, <a href="#xls_dslx_test-srcs">srcs</a>)
+xls_dslx_test(<a href="#xls_dslx_test-name">name</a>, <a href="#xls_dslx_test-deps">deps</a>, <a href="#xls_dslx_test-dslx_test_args">dslx_test_args</a>, <a href="#xls_dslx_test-library">library</a>, <a href="#xls_dslx_test-srcs">srcs</a>)
 </pre>
 
 A dslx test executes the tests and quick checks of a DSLX source file.
@@ -382,21 +301,6 @@ A dslx test executes the tests and quick checks of a DSLX source file.
                 name = "b_dslx_test",
                 library = "b_dslx",
             )
-
-        3) xls_dslx_test on a xls_dslx_module_library.
-            # Assume a xls_dslx_library target a_dslx is present.
-            xls_dslx_module_library(
-                name = "b_dslx_module",
-                src = "b.x",
-                deps = [
-                    ":a_dslx",
-                ],
-            )
-
-            xls_dslx_test(
-                name = "b_dslx_test",
-                dep = ":b_dslx_module",
-            )
     
 
 **ATTRIBUTES**
@@ -405,7 +309,6 @@ A dslx test executes the tests and quick checks of a DSLX source file.
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_test-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/docs/build-ref.html#name">Name</a> | required |  |
-| <a id="xls_dslx_test-dep"></a>dep |  DO NOT USE. This attribute is deprecated. It will be removed. A dependency target for the rule. The target must emit a DslxModuleInfo provider.   | <a href="https://bazel.build/docs/build-ref.html#labels">Label</a> | optional | None |
 | <a id="xls_dslx_test-deps"></a>deps |  Dependency targets for the files in the 'srcs' attribute. This attribute is mutually exclusive with the 'library' attribute.   | <a href="https://bazel.build/docs/build-ref.html#labels">List of labels</a> | optional | [] |
 | <a id="xls_dslx_test-dslx_test_args"></a>dslx_test_args |  Arguments of the DSLX interpreter executable. For details on the arguments, refer to the interpreter_main application at //xls/dslx/interpreter_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   | <a href="https://bazel.build/docs/skylark/lib/dict.html">Dictionary: String -> String</a> | optional | {} |
 | <a id="xls_dslx_test-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This attribute is mutually exclusive with the 'srcs' and 'deps' attribute.   | <a href="https://bazel.build/docs/build-ref.html#labels">Label</a> | optional | None |
@@ -417,8 +320,7 @@ A dslx test executes the tests and quick checks of a DSLX source file.
 ## xls_eval_ir_test
 
 <pre>
-xls_eval_ir_test(<a href="#xls_eval_ir_test-name">name</a>, <a href="#xls_eval_ir_test-entry">entry</a>, <a href="#xls_eval_ir_test-input_validator">input_validator</a>, <a href="#xls_eval_ir_test-input_validator_expr">input_validator_expr</a>, <a href="#xls_eval_ir_test-input_validator_other">input_validator_other</a>,
-                 <a href="#xls_eval_ir_test-ir_eval_args">ir_eval_args</a>, <a href="#xls_eval_ir_test-src">src</a>)
+xls_eval_ir_test(<a href="#xls_eval_ir_test-name">name</a>, <a href="#xls_eval_ir_test-entry">entry</a>, <a href="#xls_eval_ir_test-input_validator">input_validator</a>, <a href="#xls_eval_ir_test-input_validator_expr">input_validator_expr</a>, <a href="#xls_eval_ir_test-ir_eval_args">ir_eval_args</a>, <a href="#xls_eval_ir_test-src">src</a>)
 </pre>
 
 A IR evaluation test executes the IR interpreter on an IR file.
@@ -451,9 +353,8 @@ A IR evaluation test executes the IR interpreter on an IR file.
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_eval_ir_test-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/docs/build-ref.html#name">Name</a> | required |  |
 | <a id="xls_eval_ir_test-entry"></a>entry |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. The value is applied to the rule context. It can be overwritten by a local argument.   | String | optional | "" |
-| <a id="xls_eval_ir_test-input_validator"></a>input_validator |  The target defining the input validator for this test. Mutually exclusive with "input_validator_expr".   | <a href="https://bazel.build/docs/build-ref.html#labels">Label</a> | optional | None |
+| <a id="xls_eval_ir_test-input_validator"></a>input_validator |  The DSLX library defining the input validator for this test. Mutually exclusive with "input_validator_expr".   | <a href="https://bazel.build/docs/build-ref.html#labels">Label</a> | optional | None |
 | <a id="xls_eval_ir_test-input_validator_expr"></a>input_validator_expr |  The expression to validate an input for the test function. Mutually exclusive with "input_validator".   | String | optional | "" |
-| <a id="xls_eval_ir_test-input_validator_other"></a>input_validator_other |  The DSLX library defining the input validator for this test. Mutually exclusive with "input_validator_expr".   | <a href="https://bazel.build/docs/build-ref.html#labels">Label</a> | optional | None |
 | <a id="xls_eval_ir_test-ir_eval_args"></a>ir_eval_args |  Arguments of the IR interpreter. For details on the arguments, refer to the eval_ir_main application at //xls/tools/eval_ir_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   | <a href="https://bazel.build/docs/skylark/lib/dict.html">Dictionary: String -> String</a> | optional | {"random_inputs": "100", "optimize_ir": "true"} |
 | <a id="xls_eval_ir_test-src"></a>src |  The IR source file for the rule. A single source file must be provided. The file must have a '.ir' extension.   | <a href="https://bazel.build/docs/build-ref.html#labels">Label</a> | required |  |
 
@@ -586,7 +487,7 @@ a cc_library.
 ## xls_dslx_ir
 
 <pre>
-xls_dslx_ir(<a href="#xls_dslx_ir-name">name</a>, <a href="#xls_dslx_ir-srcs">srcs</a>, <a href="#xls_dslx_ir-deps">deps</a>, <a href="#xls_dslx_ir-library">library</a>, <a href="#xls_dslx_ir-dep">dep</a>, <a href="#xls_dslx_ir-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_ir-enable_generated_file">enable_generated_file</a>,
+xls_dslx_ir(<a href="#xls_dslx_ir-name">name</a>, <a href="#xls_dslx_ir-srcs">srcs</a>, <a href="#xls_dslx_ir-deps">deps</a>, <a href="#xls_dslx_ir-library">library</a>, <a href="#xls_dslx_ir-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_ir-enable_generated_file">enable_generated_file</a>,
             <a href="#xls_dslx_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_ir-kwargs">kwargs</a>)
 </pre>
 
@@ -606,7 +507,6 @@ rule are listed in the outs attribute of the rule.
 | <a id="xls_dslx_ir-srcs"></a>srcs |  Top level source files for the conversion. Files must have a '.x' extension. There must be single source file.   |  <code>None</code> |
 | <a id="xls_dslx_ir-deps"></a>deps |  Dependency targets for the files in the 'srcs' argument.   |  <code>None</code> |
 | <a id="xls_dslx_ir-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This argument is mutually exclusive with the 'srcs' and 'deps' arguments.   |  <code>None</code> |
-| <a id="xls_dslx_ir-dep"></a>dep |  A dependency target for the rule. The target must emit a DslxModuleInfo provider.   |  <code>None</code> |
 | <a id="xls_dslx_ir-ir_conv_args"></a>ir_conv_args |  Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_converter_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   |  <code>{}</code> |
 | <a id="xls_dslx_ir-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>True</code> |
 | <a id="xls_dslx_ir-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>False</code> |
@@ -618,7 +518,7 @@ rule are listed in the outs attribute of the rule.
 ## xls_dslx_opt_ir
 
 <pre>
-xls_dslx_opt_ir(<a href="#xls_dslx_opt_ir-name">name</a>, <a href="#xls_dslx_opt_ir-srcs">srcs</a>, <a href="#xls_dslx_opt_ir-deps">deps</a>, <a href="#xls_dslx_opt_ir-library">library</a>, <a href="#xls_dslx_opt_ir-dep">dep</a>, <a href="#xls_dslx_opt_ir-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_opt_ir-opt_ir_args">opt_ir_args</a>, <a href="#xls_dslx_opt_ir-enable_generated_file">enable_generated_file</a>,
+xls_dslx_opt_ir(<a href="#xls_dslx_opt_ir-name">name</a>, <a href="#xls_dslx_opt_ir-srcs">srcs</a>, <a href="#xls_dslx_opt_ir-deps">deps</a>, <a href="#xls_dslx_opt_ir-library">library</a>, <a href="#xls_dslx_opt_ir-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_opt_ir-opt_ir_args">opt_ir_args</a>, <a href="#xls_dslx_opt_ir-enable_generated_file">enable_generated_file</a>,
                 <a href="#xls_dslx_opt_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_opt_ir-kwargs">kwargs</a>)
 </pre>
 
@@ -640,7 +540,6 @@ of the rule.
 | <a id="xls_dslx_opt_ir-srcs"></a>srcs |  Top level source files for the conversion. Files must have a '.x' extension. There must be single source file.   |  <code>None</code> |
 | <a id="xls_dslx_opt_ir-deps"></a>deps |  Dependency targets for the files in the 'srcs' argument.   |  <code>None</code> |
 | <a id="xls_dslx_opt_ir-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This argument is mutually exclusive with the 'srcs' and 'deps' arguments.   |  <code>None</code> |
-| <a id="xls_dslx_opt_ir-dep"></a>dep |  The 'xls_dslx_module_library' target used for dependency.   |  <code>None</code> |
 | <a id="xls_dslx_opt_ir-ir_conv_args"></a>ir_conv_args |  Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_converter_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   |  <code>{}</code> |
 | <a id="xls_dslx_opt_ir-opt_ir_args"></a>opt_ir_args |  Arguments of the IR optimizer tool. For details on the arguments, refer to the opt_main application at //xls/tools/opt_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   |  <code>{}</code> |
 | <a id="xls_dslx_opt_ir-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>True</code> |
@@ -653,8 +552,8 @@ of the rule.
 ## xls_dslx_verilog
 
 <pre>
-xls_dslx_verilog(<a href="#xls_dslx_verilog-name">name</a>, <a href="#xls_dslx_verilog-verilog_file">verilog_file</a>, <a href="#xls_dslx_verilog-srcs">srcs</a>, <a href="#xls_dslx_verilog-deps">deps</a>, <a href="#xls_dslx_verilog-library">library</a>, <a href="#xls_dslx_verilog-dep">dep</a>, <a href="#xls_dslx_verilog-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_verilog-opt_ir_args">opt_ir_args</a>,
-                 <a href="#xls_dslx_verilog-codegen_args">codegen_args</a>, <a href="#xls_dslx_verilog-enable_generated_file">enable_generated_file</a>, <a href="#xls_dslx_verilog-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_verilog-kwargs">kwargs</a>)
+xls_dslx_verilog(<a href="#xls_dslx_verilog-name">name</a>, <a href="#xls_dslx_verilog-verilog_file">verilog_file</a>, <a href="#xls_dslx_verilog-srcs">srcs</a>, <a href="#xls_dslx_verilog-deps">deps</a>, <a href="#xls_dslx_verilog-library">library</a>, <a href="#xls_dslx_verilog-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_verilog-opt_ir_args">opt_ir_args</a>, <a href="#xls_dslx_verilog-codegen_args">codegen_args</a>,
+                 <a href="#xls_dslx_verilog-enable_generated_file">enable_generated_file</a>, <a href="#xls_dslx_verilog-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_verilog-kwargs">kwargs</a>)
 </pre>
 
 A macro wrapper for the 'xls_dslx_verilog' rule.
@@ -674,7 +573,6 @@ are listed in the outs attribute of the rule.
 | <a id="xls_dslx_verilog-srcs"></a>srcs |  Top level source files for the conversion. Files must have a '.x' extension. There must be single source file.   |  <code>None</code> |
 | <a id="xls_dslx_verilog-deps"></a>deps |  Dependency targets for the files in the 'srcs' argument.   |  <code>None</code> |
 | <a id="xls_dslx_verilog-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This argument is mutually exclusive with the 'srcs' and 'deps' arguments.   |  <code>None</code> |
-| <a id="xls_dslx_verilog-dep"></a>dep |  The 'xls_dslx_module_library' target used for dependency.   |  <code>None</code> |
 | <a id="xls_dslx_verilog-ir_conv_args"></a>ir_conv_args |  Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_converter_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   |  <code>{}</code> |
 | <a id="xls_dslx_verilog-opt_ir_args"></a>opt_ir_args |  Arguments of the IR optimizer tool. For details on the arguments, refer to the opt_main application at //xls/tools/opt_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   |  <code>{}</code> |
 | <a id="xls_dslx_verilog-codegen_args"></a>codegen_args |  Arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc. When the default XLS toolchain differs from the default toolchain, the application target may be different.   |  <code>{}</code> |

@@ -32,20 +32,14 @@ DslxInfo = provider(
 )
 
 DslxModuleInfo = provider(
-    doc = "A provider containing DSLX file information for the target. It is " +
-          "created and returned by the xls_dslx_module_library rule.",
+    doc = "A provider containing DSLX file information for a DSLX module. A " +
+          "DSLX module has a single source file representing the top DSLX " +
+          "and its DSLX source file dependencies.",
     fields = {
         "dslx_source_files": "List: A list containing the DSLX source " +
                              "(.x) files of its dependencies.",
-        "dslx_dummy_files": "List: A list containing the DSLX generated " +
-                            "dummy (.dummy) files of its dependencies. See " +
-                            "DslxInfo for details on a dummy file.",
         "dslx_source_module_file": "File: A file containing the DSLX source " +
                                    "(.x) files of the target.",
-        "dslx_dummy_module_file": "File: A file containing the DSLX " +
-                                  "generated dummy (.dummy) files of the " +
-                                  "target. See DslxInfo for details on a " +
-                                  "dummy file.",
     },
 )
 

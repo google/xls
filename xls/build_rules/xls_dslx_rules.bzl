@@ -23,7 +23,6 @@ load(
 load(
     "//xls/build_rules:xls_providers.bzl",
     "DslxInfo",
-    "DslxModuleInfo",
 )
 load(
     "//xls/build_rules:xls_toolchains.bzl",
@@ -184,18 +183,6 @@ def get_files_from_dslx_library_as_input(ctx):
     transitive_files = []
     count = 0
 
-    # Validate input. Allow one of: 'dep', 'library' or ['srcs', 'deps']
-    # TODO(vmirian) 1-25-2022 Remove if statement below when
-    # xls_dslx_module_library is removed.
-    if ctx.attr.dep:
-        dslx_src_files = [
-            ctx.attr.dep[DslxModuleInfo].dslx_source_module_file,
-        ]
-
-        # The runfiles also require the source files from its transitive
-        # dependencies.
-        transitive_files += ctx.attr.dep[DslxModuleInfo].dslx_source_files
-        count += 1
     if ctx.attr.library:
         dslx_info = ctx.attr.library[DslxInfo]
         dslx_src_files = dslx_info.target_dslx_source_files
@@ -209,20 +196,10 @@ def get_files_from_dslx_library_as_input(ctx):
             transitive_files += dep[DslxInfo].dslx_source_files.to_list()
         count += 1
 
-    # TODO(vmirian) 1-25-2022 Update message below when xls_dslx_module_library
-    # is removed.
     if count != 1:
-        fail("One of: 'dep', 'library' or ['srcs', 'deps'] must be assigned.")
+        fail("One of: 'library' or ['srcs', 'deps'] must be assigned.")
 
     return dslx_src_files, transitive_files
-
-# Common attributes for the xls_dslx_library and xls_dslx_module_library rules.
-_xls_dslx_common_attrs = {
-    "deps": attr.label_list(
-        doc = "Dependency targets for the rule.",
-        providers = [DslxInfo],
-    ),
-}
 
 # Attributes for the xls_dslx_library rule.
 _xls_dslx_library_attrs = {
@@ -230,38 +207,13 @@ _xls_dslx_library_attrs = {
         doc = "Source files for the rule. Files must have a '.x' extension.",
         allow_files = [".x"],
     ),
-}
-
-# Attributes for the xls_dslx_module_library rule.
-_xls_dslx_module_library_attrs = {
-    "src": attr.label(
-        doc = "The DSLX source file for the rule. A single source file must " +
-              "be provided. The file must have a '.x' extension.",
-        allow_single_file = [".x"],
-    ),
-}
-
-# TODO (vmirian) 01-25-2022 Remove attribute when xls_dslx_module_library is
-# removed.
-# Attributes for rules depending on the xls_dslx_module_library rule.
-xls_dslx_module_library_as_input_attrs = {
-    "dep": attr.label(
-        doc = "A dependency target for the rule. The target must emit a " +
-              "DslxModuleInfo provider.",
-        providers = [DslxModuleInfo],
-        mandatory = True,
+    "deps": attr.label_list(
+        doc = "Dependency targets for the rule.",
+        providers = [DslxInfo],
     ),
 }
 
 xls_dslx_library_as_input_attrs = {
-    # TODO (vmirian) 01-25-2022 Remove attribute when xls_dslx_module_library is
-    # removed.
-    "dep": attr.label(
-        doc = "DO NOT USE. This attribute is deprecated. It will be removed. " +
-              "A dependency target for the rule. The target must emit a " +
-              "DslxModuleInfo provider.",
-        providers = [DslxModuleInfo],
-    ),
     "library": attr.label(
         doc = "A DSLX library target where the direct (non-transitive) " +
               "files of the target are tested. This attribute is mutually " +
@@ -393,145 +345,10 @@ xls_dslx_library = rule(
                     ":a_dslx",
                 ],
             )
-
-        3) Dependency on xls_dslx_module_library targets.
-            xls_dslx_module_library(
-                name = "a_dslx_module",
-                srcs = [
-                    "a.x",
-                ],
-            )
-
-            # Depends on target a_dslx_module.
-            xls_dslx_library(
-                name = "b_dslx",
-                src = "b.x",
-                deps = [
-                    ":a_dslx_module",
-                ],
-            )
     """,
     implementation = _xls_dslx_library_impl,
     attrs = dicts.add(
         _xls_dslx_library_attrs,
-        _xls_dslx_common_attrs,
-        xls_toolchain_attr,
-    ),
-)
-
-def _xls_dslx_module_library_impl(ctx):
-    """The implementation of the 'xls_dslx_module_library' rule.
-
-    Parses and type checks the DSLX source file. When the DSLX file is
-    successfully parsed and type checked, a DSLX dummy file is generated. The
-    dummy file is used to create a dependency between the current target and the
-    target's descendants.
-
-    Args:
-      ctx: The current rule's context object.
-
-    Returns:
-      DslxModuleInfo provider
-      DefaultInfo provider
-    """
-    src = ctx.file.src
-    my_srcs_depset = get_transitive_dslx_srcs_files_depset(
-        [src],
-        ctx.attr.deps,
-        get_xls_toolchain_info(ctx).dslx_std_lib_target,
-    )
-    my_srcs_list = my_srcs_depset.to_list()
-
-    # The required files are the source file from the current target, the
-    # standard library files, and its transitive dependencies.
-    required_files = my_srcs_list
-    required_files += get_xls_toolchain_info(ctx).dslx_std_lib_list
-
-    # Parse and type check the DSLX source file.
-    file = parse_and_type_check(ctx, [src], required_files)
-    my_dummy_file = file
-
-    dummy_files_depset = get_transitive_dslx_dummy_files_depset(
-        [file],
-        ctx.attr.deps,
-    )
-    dummy_files_list = dummy_files_depset.to_list()
-
-    runfiles = ctx.runfiles(
-        files = ctx.files.src,
-        transitive_files = get_xls_toolchain_info(ctx).dslx_std_lib_target.files,
-    )
-    for dep in ctx.attr.deps:
-        runfiles = runfiles.merge(dep.default_runfiles)
-
-    return [
-        DslxInfo(
-            target_dslx_source_files = [src],
-            dslx_source_files = my_srcs_depset,
-            dslx_dummy_files = dummy_files_depset,
-        ),
-        DslxModuleInfo(
-            dslx_source_files = my_srcs_list,
-            dslx_dummy_files = dummy_files_list,
-            dslx_source_module_file = src,
-            dslx_dummy_module_file = my_dummy_file,
-        ),
-        DefaultInfo(
-            files = dummy_files_depset,
-            runfiles = runfiles,
-        ),
-    ]
-
-# TODO(vmirian) 06-16-21 https://github.com/google/xls/issues/447
-xls_dslx_module_library = rule(
-    doc = """A build rule that parses and type checks the DSLX source file.
-
-        Examples:
-
-        1) A single DSLX source file.
-            xls_dslx_module_library(
-                name = "a_dslx_module",
-                src = "a.x",
-            )
-
-        2) Dependency on xls_dslx_library targets.
-            xls_dslx_library(
-                name = "a_dslx",
-                srcs = [
-                    "a.x",
-                ],
-            )
-
-            # Depends on target a_dslx.
-            xls_dslx_module_library(
-                name = "b_dslx_module",
-                src = "b.x",
-                deps = [
-                    ":a_dslx",
-                ],
-            )
-
-        3) Dependency on xls_dslx_module_library targets.
-            xls_dslx_module_library(
-                name = "a_dslx_module",
-                srcs = [
-                    "a.x",
-                ],
-            )
-
-            # Depends on target a_dslx_module.
-            xls_dslx_module_library(
-                name = "b_dslx_module",
-                src = "b.x",
-                deps = [
-                    ":a_dslx_module",
-                ],
-            )
-    """,
-    implementation = _xls_dslx_module_library_impl,
-    attrs = dicts.add(
-        _xls_dslx_module_library_attrs,
-        _xls_dslx_common_attrs,
         xls_toolchain_attr,
     ),
 )
@@ -624,21 +441,6 @@ xls_dslx_test = rule(
             xls_dslx_test(
                 name = "b_dslx_test",
                 library = "b_dslx",
-            )
-
-        3) xls_dslx_test on a xls_dslx_module_library.
-            # Assume a xls_dslx_library target a_dslx is present.
-            xls_dslx_module_library(
-                name = "b_dslx_module",
-                src = "b.x",
-                deps = [
-                    ":a_dslx",
-                ],
-            )
-
-            xls_dslx_test(
-                name = "b_dslx_test",
-                dep = ":b_dslx_module",
             )
     """,
     implementation = _xls_dslx_test_impl,

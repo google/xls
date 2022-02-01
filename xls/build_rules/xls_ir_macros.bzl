@@ -35,7 +35,6 @@ def xls_dslx_ir_macro(
         srcs = None,
         deps = None,
         library = None,
-        dep = None,
         ir_conv_args = {},
         enable_generated_file = True,
         enable_presubmit_generated_file = False,
@@ -54,8 +53,6 @@ def xls_dslx_ir_macro(
       library: A DSLX library target where the direct (non-transitive)
         files of the target are tested. This argument is mutually
         exclusive with the 'srcs' and 'deps' arguments.
-      dep: A dependency target for the rule. The target must emit a
-        DslxModuleInfo provider.
       ir_conv_args: Arguments of the IR conversion tool. For details on the
         arguments, refer to the ir_converter_main application at
         //xls/dslx/ir_converter_main.cc. When the default XLS
@@ -68,8 +65,6 @@ def xls_dslx_ir_macro(
       **kwargs: Keyword arguments. Named arguments.
     """
 
-    # TODO (vmirian) 01-25-2022 Make srcs mandatory and deps optional when
-    # xls_dslx_module_library is removed.
     # Type check input
     if type(name) != type(""):
         fail("Argument 'name' must be of string type.")
@@ -79,8 +74,6 @@ def xls_dslx_ir_macro(
         fail("Argument 'deps' must be of list type.")
     if library and type(library) != type(""):
         fail("Argument 'library' must be of string type.")
-    if dep and type(dep) != type(""):
-        fail("Argument 'dep' must be of string type.")
     if type(ir_conv_args) != type({}):
         fail("Argument 'ir_conv_args' must be of dictionary type.")
     if type(enable_generated_file) != type(True):
@@ -97,7 +90,6 @@ def xls_dslx_ir_macro(
         srcs = srcs,
         deps = deps,
         library = library,
-        dep = dep,
         ir_conv_args = ir_conv_args,
         outs = get_xls_dslx_ir_generated_files(kwargs),
         **kwargs
