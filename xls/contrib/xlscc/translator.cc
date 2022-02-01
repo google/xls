@@ -59,6 +59,7 @@
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -786,7 +787,7 @@ absl::Status Translator::AddOpToChannel(IOOp op,
     context().sf->io_channels[op.channel].channel_op_type = op.op;
   }
 
-  op.channel_tuple_index = context().sf->io_channels[op.channel].total_ops++;
+  op.channel_op_index = context().sf->io_channels[op.channel].total_ops++;
 
   if (context().sf->io_channels[op.channel].channel_op_type != op.op) {
     return absl::UnimplementedError(absl::StrFormat(
@@ -803,19 +804,11 @@ absl::Status Translator::AddOpToChannel(IOOp op,
 
 absl::StatusOr<CValue> Translator::GetChannelInputValue(
     const IOOp& op, const xls::SourceLocation& loc) {
-  auto ch_id = absl::implicit_cast<const clang::NamedDecl*>(op.channel);
-
-  XLS_ASSIGN_OR_RETURN(CValue param_val, GetIdentifier(ch_id, loc));
-
-  const int ch_idx = op.channel_tuple_index;
+  XLS_CHECK(op.input_value.value().valid());
 
   XLS_CHECK(context().sf->io_channels.contains(op.channel));
 
-  const IOChannel& channel_info = context().sf->io_channels[op.channel];
-
-  xls::BValue val =
-      GetFlexTupleField(param_val.value(), ch_idx, channel_info.total_ops, loc);
-  return CValue(val, param_val.type());
+  return op.input_value;
 }
 
 absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
@@ -1238,36 +1231,12 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     XLS_ASSIGN_OR_RETURN(bool is_channel,
                          TypeIsChannel(p->getType(), GetLoc(*p)));
     if (is_channel) {
-      std::vector<xls::Type*> member_types;
+      continue;
+    }
 
-      for (const IOOp& op : sf.io_ops) {
-        if (op.channel == p && op.op == OpType::kRecv) {
-          XLS_CHECK(sf.io_channels.contains(op.channel));
-          const IOChannel& scanned_ch = sf.io_channels[op.channel];
-          XLS_ASSIGN_OR_RETURN(
-              xls::Type * xls_item_type,
-              TranslateTypeToXLS(scanned_ch.item_type, GetLoc(*op.channel)));
-
-          member_types.push_back(xls_item_type);
-        }
-      }
-
-      if (member_types.empty()) {
-        // Don't add a parameter if there are no inputs for the channel
-        continue;
-      }
-
-      if (context().sf->io_channels.contains(p)) {
-        const IOChannel& io_ch = context().sf->io_channels[p];
-
-        xls_type = GetFlexTupleType(member_types);
-        obj_type = io_ch.item_type;
-      }
-    } else {
-      // Const references don't need a return
-      if (stripped.is_ref && (!stripped.base.isConstQualified())) {
-        ref_returns.push_back(namedecl);
-      }
+    // Const references don't need a return
+    if (stripped.is_ref && (!stripped.base.isConstQualified())) {
+      ref_returns.push_back(namedecl);
     }
 
     if (xls_type == nullptr) {
@@ -1283,6 +1252,24 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     // Create CValue without type check
     XLS_RETURN_IF_ERROR(
         DeclareVariable(namedecl, CValue(pbval, obj_type, true), body_loc));
+  }
+
+  for (IOOp& op : sf.io_ops) {
+    if (op.op != OpType::kRecv) {
+      continue;
+    }
+
+    const IOChannel& scanned_ch = sf.io_channels.at(op.channel);
+    XLS_ASSIGN_OR_RETURN(
+        xls::Type * xls_item_type,
+        TranslateTypeToXLS(scanned_ch.item_type, GetLoc(*op.channel)));
+
+    std::string safe_param_name = absl::StrFormat(
+        "%s_op%i", op.channel->getNameAsString(), op.channel_op_index);
+    xls::BValue pbval =
+        context().fb->Param(safe_param_name, xls_item_type, body_loc);
+
+    op.input_value = CValue(pbval, scanned_ch.item_type);
   }
 
   // Generate constructor initializers
@@ -2394,26 +2381,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     const clang::ParmVarDecl* p = funcdecl->getParamDecl(pi);
 
     if (func->io_channels.contains(p)) {
-      const IOChannel& channel_info = func->io_channels[p];
-      if (channel_info.channel_op_type == OpType::kSend) {
-        // No need for an input parameter for output channels
-        continue;
-      }
-
-      XLS_CHECK(channel_info.channel_op_type == OpType::kRecv);
-
-      std::vector<xls::BValue> insp;
-
-      for (const IOOp& op : context().sf->io_ops) {
-        if (op.sub_op && p == op.sub_op->channel) {
-          XLS_ASSIGN_OR_RETURN(CValue inval, GetChannelInputValue(op, loc));
-
-          insp.push_back(inval.value());
-        }
-      }
-
-      xls::BValue in_val = MakeFlexTuple(insp, GetLoc(*funcdecl));
-      args.push_back(in_val);
       continue;
     }
 
@@ -2439,6 +2406,26 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     args.push_back(argv.value());
   }
 
+  for (const IOOp& op : func->io_ops) {
+    const IOChannel& channel_info = func->io_channels.at(op.channel);
+    if (channel_info.channel_op_type != OpType::kRecv) {
+      continue;
+    }
+
+    const IOOp* super_op = nullptr;
+    for (const IOOp& this_super_op : context().sf->io_ops) {
+      if (this_super_op.sub_op == &op) {
+        XLS_CHECK_EQ(super_op, nullptr);
+        super_op = &this_super_op;
+      }
+    }
+    XLS_CHECK_NE(super_op, nullptr);
+
+    XLS_ASSIGN_OR_RETURN(CValue inval, GetChannelInputValue(*super_op, loc));
+
+    args.push_back(inval.value());
+  }
+
   // Count expected IO returns
   expected_returns += func->io_ops.size();
 
@@ -2448,13 +2435,11 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     for (int pi = (funcdecl->getNumParams() - 1); pi >= 0; --pi) {
       const clang::ParmVarDecl* p = funcdecl->getParamDecl(pi);
 
+      // Don't try to evaluate channels
       if (func->io_channels.contains(p)) {
-        const IOChannel& channel_info = func->io_channels[p];
-        // No need for an input parameter for output chanels
-        if (channel_info.channel_op_type == OpType::kSend) {
-          continue;
-        }
+        continue;
       }
+
       XLS_RETURN_IF_ERROR(GenerateIR_Expr(expr_args[pi], loc).status());
     }
   }
@@ -3877,7 +3862,6 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
   //  for each read Op below.
   xls::BValue last_ret_val =
       pb.Invoke(prepared.args, prepared.xls_func->xls_func, body_loc);
-
   for (const IOOp& op : prepared.xls_func->io_ops) {
     XLS_CHECK(prepared.fifo_by_param.contains(op.channel));
     xls::Channel* xls_channel = prepared.fifo_by_param[op.channel];
@@ -3899,10 +3883,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
       xls::BValue in_val = pb.TupleIndex(receive, 1);
 
       XLS_CHECK(prepared.xls_func->io_channels.contains(op.channel));
-      const IOChannel& io_channel = prepared.xls_func->io_channels[op.channel];
-      prepared.args[arg_index] = UpdateFlexTupleField(
-          prepared.args[arg_index], in_val, op.channel_tuple_index,
-          io_channel.total_ops, body_loc);
+
+      prepared.args[arg_index] = in_val;
 
       // The function is invoked again with the value received from the channel
       //  for each read() Op. The final invocation will produce all complete
@@ -4004,31 +3986,26 @@ absl::Status Translator::GenerateIRBlockPrepare(
     }
   }
 
-  // Initialize parameters to defaults, handle direct-ins, create channels
-  // Add channels in order of function prototype
   for (int pidx = 0; pidx < definition->getNumParams(); ++pidx) {
     const clang::ParmVarDecl* param = definition->getParamDecl(pidx);
-
-    if (!prepared.channels_by_name.contains(param->getNameAsString())) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Function refers to channel %s not in block proto",
-                          param->getNameAsString()));
-    }
-
+    XLS_CHECK(prepared.channels_by_name.contains(param->getNameAsString()));
+    xls::Channel* xls_channel = nullptr;
     HLSChannel& hls_channel =
         prepared.channels_by_name[param->getNameAsString()];
-
     if (hls_channel.type() == ChannelType::DIRECT_IN) {
       XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                            StripTypeQualifiers(param->getType()));
       XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
                            TranslateTypeFromClang(stripped.base, body_loc));
 
+      XLS_CHECK(!prepared.fifo_by_param.contains(param));
       XLS_ASSIGN_OR_RETURN(
-          xls::Channel * channel,
-          CreateChannel(hls_channel, ctype, package, pidx, body_loc));
+          xls_channel, CreateChannel(hls_channel, ctype, package,
+                                     prepared.fifo_by_param.size(), body_loc));
 
-      xls::BValue receive = pb.Receive(channel, prepared.token);
+      prepared.fifo_by_param[param] = xls_channel;
+
+      xls::BValue receive = pb.Receive(xls_channel, prepared.token);
       prepared.token = pb.TupleIndex(receive, 0);
       xls::BValue direct_in_value = pb.TupleIndex(receive, 1);
 
@@ -4040,44 +4017,61 @@ absl::Status Translator::GenerateIRBlockPrepare(
       }
       continue;
     }
-
-    XLS_CHECK(hls_channel.type() == ChannelType::FIFO);
-
-    XLS_CHECK(prepared.xls_func->io_channels.contains(param));
-    const IOChannel& io_channel = prepared.xls_func->io_channels[param];
-
-    XLS_ASSIGN_OR_RETURN(xls::Channel * channel,
-                         CreateChannel(hls_channel, io_channel.item_type,
-                                       package, pidx, body_loc));
-    prepared.fifo_by_param[param] = channel;
-
-    if (io_channel.channel_op_type == OpType::kRecv) {
-      std::vector<xls::BValue> op_vals;
-
-      for (const IOOp& op : prepared.xls_func->io_ops) {
-        if (op.channel != param) {
-          continue;
-        }
-
-        XLS_ASSIGN_OR_RETURN(
-            xls::BValue val,
-            CreateDefaultValue(io_channel.item_type, body_loc));
-        op_vals.push_back(val);
-        prepared.arg_index_for_op[&op] = prepared.args.size();
-      }
-
-      prepared.args.push_back(MakeFlexTuple(op_vals, body_loc));
-      XLS_CHECK(op_vals.size() == io_channel.total_ops);
-    }
   }
 
+  // Initialize parameters to defaults, handle direct-ins, create channels
+  // Add channels in order of function prototype
   // Find return indices for ops
   for (const IOOp& op : prepared.xls_func->io_ops) {
+    const clang::ParmVarDecl* param = op.channel;
+
     XLS_CHECK(
         prepared.channels_by_name.contains(op.channel->getNameAsString()));
+    xls::Channel* xls_channel = nullptr;
     HLSChannel& hls_channel =
         prepared.channels_by_name[op.channel->getNameAsString()];
-    if (hls_channel.type() != ChannelType::FIFO) continue;
+    if (hls_channel.type() == ChannelType::DIRECT_IN) {
+      XLS_ASSIGN_OR_RETURN(StrippedType stripped,
+                           StripTypeQualifiers(param->getType()));
+      XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
+                           TranslateTypeFromClang(stripped.base, body_loc));
+
+      XLS_CHECK(!prepared.fifo_by_param.contains(param));
+      XLS_ASSIGN_OR_RETURN(
+          xls_channel, CreateChannel(hls_channel, ctype, package,
+                                     prepared.fifo_by_param.size(), body_loc));
+
+      prepared.fifo_by_param[param] = xls_channel;
+
+      xls::BValue receive = pb.Receive(xls_channel, prepared.token);
+      prepared.token = pb.TupleIndex(receive, 0);
+      xls::BValue direct_in_value = pb.TupleIndex(receive, 1);
+
+      prepared.args.push_back(direct_in_value);
+      fprintf(stderr, "===== Insert direct in to prepared.args\n");
+
+      // If it's const or not a reference, then there's no return
+      if (stripped.is_ref && !param->getType().isConstQualified()) {
+        ++next_return_index;
+      }
+      continue;
+    }
+
+    const IOChannel& io_channel = prepared.xls_func->io_channels.at(param);
+    if (!prepared.fifo_by_param.contains(param)) {
+      XLS_ASSIGN_OR_RETURN(
+          xls_channel, CreateChannel(hls_channel, io_channel.item_type, package,
+                                     prepared.fifo_by_param.size(), body_loc));
+      prepared.fifo_by_param[param] = xls_channel;
+    }
+
+    if (io_channel.channel_op_type == OpType::kRecv) {
+      XLS_ASSIGN_OR_RETURN(xls::BValue val,
+                           CreateDefaultValue(io_channel.item_type, body_loc));
+
+      prepared.arg_index_for_op[&op] = prepared.args.size();
+      prepared.args.push_back(val);
+    }
 
     prepared.return_index_for_op[&op] = next_return_index++;
   }

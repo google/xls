@@ -330,10 +330,13 @@ struct IOOp {
 
   // Input __xls_channel parameters take tuple types containing a value for
   //  each read() op. This is the index of this op in the tuple.
-  int channel_tuple_index;
+  int channel_op_index;
 
-  // Value to return from the function for this operation.
+  // Output value from function for IO op
   xls::BValue ret_value;
+
+  // For reads: input value from function parameter for Recv op
+  CValue input_value;
 };
 
 // Tracks information about a call to read() or write() on and __xls_channel,

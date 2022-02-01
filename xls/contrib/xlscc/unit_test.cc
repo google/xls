@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/status/status_macros.h"
 
 using xls::status_testing::IsOkAndHolds;
@@ -167,29 +168,33 @@ void XlsccTestBase::IOTest(std::string content, std::list<IOOpTest> inputs,
 
   std::list<IOOpTest> input_ops_orig = inputs;
   for (const xlscc::IOOp& op : func->io_ops) {
+    const std::string ch_name = op.channel->getNameAsString();
+
     if (op.op == xlscc::OpType::kRecv) {
+      const std::string arg_name =
+          absl::StrFormat("%s_op%i", ch_name, op.channel_op_index);
+
       const IOOpTest test_op = inputs.front();
       inputs.pop_front();
 
-      const std::string ch_name = op.channel->getNameAsString();
       XLS_CHECK_EQ(ch_name, test_op.name);
 
       auto new_val = xls::Value(xls::SBits(test_op.value, 32));
 
-      if (!args.contains(ch_name)) {
-        args[ch_name] = new_val;
+      if (!args.contains(arg_name)) {
+        args[arg_name] = new_val;
         continue;
       }
 
-      if (args[ch_name].IsBits()) {
-        args[ch_name] = xls::Value::Tuple({args[ch_name], new_val});
+      if (args[arg_name].IsBits()) {
+        args[arg_name] = xls::Value::Tuple({args[arg_name], new_val});
       } else {
-        XLS_CHECK(args[ch_name].IsTuple());
-        const xls::Value prev_val = args[ch_name];
+        XLS_CHECK(args[arg_name].IsTuple());
+        const xls::Value prev_val = args[arg_name];
         XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> values,
                                  prev_val.GetElements());
         values.push_back(new_val);
-        args[ch_name] = xls::Value::Tuple(values);
+        args[arg_name] = xls::Value::Tuple(values);
       }
     }
   }
@@ -213,11 +218,12 @@ void XlsccTestBase::IOTest(std::string content, std::list<IOOpTest> inputs,
 
   int op_idx = 0;
   for (const xlscc::IOOp& op : func->io_ops) {
+    const std::string ch_name = op.channel->getNameAsString();
+
     if (op.op == xlscc::OpType::kRecv) {
       const IOOpTest test_op = inputs.front();
       inputs.pop_front();
 
-      const std::string ch_name = op.channel->getNameAsString();
       XLS_CHECK(ch_name == test_op.name);
 
       ASSERT_TRUE(returns[op_idx].IsBits());
@@ -228,7 +234,6 @@ void XlsccTestBase::IOTest(std::string content, std::list<IOOpTest> inputs,
       const IOOpTest test_op = outputs.front();
       outputs.pop_front();
 
-      const std::string ch_name = op.channel->getNameAsString();
       XLS_CHECK(ch_name == test_op.name);
 
       ASSERT_TRUE(returns[op_idx].IsTuple());

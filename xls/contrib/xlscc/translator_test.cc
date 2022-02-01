@@ -2505,8 +2505,8 @@ TEST_F(TranslatorTest, IOReadConditional) {
 TEST_F(TranslatorTest, IOSubroutine) {
   const std::string content = R"(
        #include "/xls_builtin.h"
-       int sub_recv(__xls_channel<int>& in) {
-         return in.read();
+       int sub_recv(__xls_channel<int>& in, int &v) {
+         return in.read() - v;
        }
        void sub_send(int v, __xls_channel<int>& out) {
          out.write(v);
@@ -2514,13 +2514,15 @@ TEST_F(TranslatorTest, IOSubroutine) {
        #pragma hls_top
        void my_package(__xls_channel<int>& in,
                        __xls_channel<int>& out) {
-         sub_send(7 + sub_recv(in), out);
+         int z = 1;
+         sub_send(7 + sub_recv(in, z), out);
          out.write(55);
        })";
 
   IOTest(content,
          /*inputs=*/{IOOpTest("in", 5, true)},
-         /*outputs=*/{IOOpTest("out", 5 + 7, true), IOOpTest("out", 55, true)});
+         /*outputs=*/
+         {IOOpTest("out", 5 + 7 - 1, true), IOOpTest("out", 55, true)});
 }
 
 TEST_F(TranslatorTest, IOMethodSubroutine) {
