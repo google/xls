@@ -754,7 +754,7 @@ std::string Translator::XLSNameMangle(clang::GlobalDecl decl) const {
   return res;
 }
 
-absl::Status Translator::AddOpToChannel(IOOp op,
+absl::Status Translator::AddOpToChannel(IOOp& op,
                                         const xls::SourceLocation& loc) {
   // Scan channel
   if (!context().sf->io_channels.contains(op.channel)) {
@@ -794,21 +794,30 @@ absl::Status Translator::AddOpToChannel(IOOp op,
         "Channels should be either input or output at %s", LocString(loc)));
   }
 
+  // Channel must be inserted first by AddOpToChannel
+  if (op.op == OpType::kRecv) {
+    const IOChannel& scanned_ch = context().sf->io_channels.at(op.channel);
+    XLS_ASSIGN_OR_RETURN(
+        xls::Type * xls_item_type,
+        TranslateTypeToXLS(scanned_ch.item_type, GetLoc(*op.channel)));
+
+    const int64_t channel_op_index = op.channel_op_index;
+
+    std::string safe_param_name = absl::StrFormat(
+        "%s_op%i", op.channel->getNameAsString(), channel_op_index);
+
+    xls::BValue pbval = context().fb->Param(safe_param_name, xls_item_type,
+                                            GetLoc(*op.channel));
+
+    op.input_value = CValue(pbval, scanned_ch.item_type);
+  }
+
   context().sf->io_ops.push_back(op);
   context().sf->op_by_call[op.io_call].ops.push_back(
       &context().sf->io_ops.back());
   context().sf->op_by_call[op.io_call].generated_ops = 0;
 
   return absl::OkStatus();
-}
-
-absl::StatusOr<CValue> Translator::GetChannelInputValue(
-    const IOOp& op, const xls::SourceLocation& loc) {
-  XLS_CHECK(op.input_value.value().valid());
-
-  XLS_CHECK(context().sf->io_channels.contains(op.channel));
-
-  return op.input_value;
 }
 
 absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
@@ -837,59 +846,46 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
       XLS_CHECK(op_condition.valid());
 
       auto call = clang_down_cast<const clang::CallExpr*>(expr);
-      XLS_CHECK(context().sf->op_by_call.contains(call));
-      IOCall& io_call = context().sf->op_by_call[call];
 
       IOOpReturn ret;
       ret.generate_expr = false;
 
-      // Don't double-increment in unsequenced assignment detection
+      // Unsequenced assignment pass
       if (context().mask_assignments) {
-        XLS_CHECK(context().sf->io_channels.contains(channel));
-        const IOChannel& io_channel = context().sf->io_channels[channel];
-        XLS_ASSIGN_OR_RETURN(xls::BValue val,
-                             CreateDefaultValue(io_channel.item_type, loc));
-        ret.value = CValue(val, io_channel.item_type);
+        XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
+                             TranslateTypeFromClang(expr->getType(), loc));
+        XLS_ASSIGN_OR_RETURN(xls::BValue def, CreateDefaultValue(ctype, loc));
+        ret.value = CValue(def, ctype);
         return ret;
       }
 
-      XLS_CHECK(io_call.generated_ops >= 0 &&
-                io_call.generated_ops < io_call.ops.size());
-
-      IOOp& op = *io_call.ops[io_call.generated_ops];
-
-      ++io_call.generated_ops;
-
-      XLS_CHECK(op_condition.valid());
-
-      XLS_CHECK(channel == op.channel);
+      IOOp op;
+      op.io_call = call;
+      op.channel = channel;
+      op.sub_op = nullptr;
 
       if (op_name == "read") {
-        XLS_ASSIGN_OR_RETURN(ret.value, GetChannelInputValue(op, loc));
-
-        // Unsequenced error detection will regenerate, so just take the first
-        // value
-        if (!op.ret_value.valid()) {
-          op.ret_value = op_condition;
-        }
+        op.op = OpType::kRecv;
+        op.ret_value = op_condition;
       } else if (op_name == "write") {
         if (call->getNumArgs() != 1) {
           return absl::UnimplementedError(absl::StrFormat(
               "IO write() should have one argument at %s", LocString(loc)));
         }
 
-        // Unsequenced error detection will regenerate, so just take the first
-        // value
-        if (!op.ret_value.valid()) {
-          XLS_ASSIGN_OR_RETURN(CValue out_val,
-                               GenerateIR_Expr(call->getArg(0), loc));
-          std::vector<xls::BValue> sp = {out_val.value(), op_condition};
-          op.ret_value = context().fb->Tuple(sp);
-        }
+        XLS_ASSIGN_OR_RETURN(CValue out_val,
+                             GenerateIR_Expr(call->getArg(0), loc));
+        std::vector<xls::BValue> sp = {out_val.value(), op_condition};
+        op.ret_value = context().fb->Tuple(sp);
+        op.op = OpType::kSend;
+
       } else {
         return absl::UnimplementedError(
             absl::StrFormat("Unsupported IO op: %s", op_name));
       }
+
+      XLS_RETURN_IF_ERROR(AddOpToChannel(op, loc));
+      ret.value = op.input_value;
 
       return ret;
     }
@@ -991,46 +987,6 @@ absl::Status Translator::DeepScanForIO(const clang::Stmt* body,
       // Recurse into sub-statements, sub-expressions
       for (const clang::Stmt* child : body->children()) {
         XLS_RETURN_IF_ERROR(DeepScanForIO(child, ctx));
-      }
-    }
-
-    // For single-line bodies
-    // Check if this is an IO op
-    if (body->getStmtClass() == clang::Stmt::CXXMemberCallExprClass) {
-      auto member_call = clang_down_cast<const clang::CXXMemberCallExpr*>(body);
-      const clang::Expr* object = member_call->getImplicitObjectArgument();
-
-      XLS_ASSIGN_OR_RETURN(bool is_channel, ExprIsChannel(object, body_loc));
-
-      if (is_channel) {
-        if (object->getStmtClass() != clang::Stmt::DeclRefExprClass) {
-          return absl::UnimplementedError(
-              "IO ops should be on direct DeclRefs");
-        }
-        auto object_ref = clang_down_cast<const clang::DeclRefExpr*>(object);
-        if (object_ref->getDecl()->getKind() != clang::Decl::ParmVar) {
-          return absl::UnimplementedError(
-              "IO ops should be on channel parameters");
-        }
-
-        const clang::FunctionDecl* funcdecl = member_call->getDirectCallee();
-        const std::string op_name = funcdecl->getNameAsString();
-        IOOp op;
-        op.io_call = clang_down_cast<const clang::CallExpr*>(body);
-        op.channel =
-            clang_down_cast<const clang::ParmVarDecl*>(object_ref->getDecl());
-        op.sub_op = nullptr;
-
-        if (op_name == "read") {
-          op.op = OpType::kRecv;
-        } else if (op_name == "write") {
-          op.op = OpType::kSend;
-        } else {
-          return absl::UnimplementedError(
-              absl::StrFormat("Unsupported IO op: %s", op_name));
-        }
-
-        XLS_RETURN_IF_ERROR(AddOpToChannel(op, body_loc));
       }
     }
 
@@ -1168,12 +1124,6 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
   // The output is added to *context().sf
   XLS_RETURN_IF_ERROR(DeepScanForIO(body, definition->getASTContext()));
 
-  if (!sf.io_ops.empty() && funcdecl->isOverloadedOperator()) {
-    return absl::UnimplementedError(
-        absl::StrFormat("IO ops in operator calls are not supported at %s",
-                        LocString(body_loc)));
-  }
-
   // static inputs
   for (const auto& iter : context().sf->static_values) {
     const clang::NamedDecl* decl = iter.first;
@@ -1231,6 +1181,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     XLS_ASSIGN_OR_RETURN(bool is_channel,
                          TypeIsChannel(p->getType(), GetLoc(*p)));
     if (is_channel) {
+      context().channel_params.insert(p);
       continue;
     }
 
@@ -1252,24 +1203,6 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     // Create CValue without type check
     XLS_RETURN_IF_ERROR(
         DeclareVariable(namedecl, CValue(pbval, obj_type, true), body_loc));
-  }
-
-  for (IOOp& op : sf.io_ops) {
-    if (op.op != OpType::kRecv) {
-      continue;
-    }
-
-    const IOChannel& scanned_ch = sf.io_channels.at(op.channel);
-    XLS_ASSIGN_OR_RETURN(
-        xls::Type * xls_item_type,
-        TranslateTypeToXLS(scanned_ch.item_type, GetLoc(*op.channel)));
-
-    std::string safe_param_name = absl::StrFormat(
-        "%s_op%i", op.channel->getNameAsString(), op.channel_op_index);
-    xls::BValue pbval =
-        context().fb->Param(safe_param_name, xls_item_type, body_loc);
-
-    op.input_value = CValue(pbval, scanned_ch.item_type);
   }
 
   // Generate constructor initializers
@@ -1384,6 +1317,12 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     context().return_val = return_bvals[0];
   } else {
     context().return_val = MakeFunctionReturn(return_bvals, body_loc);
+  }
+
+  if (!sf.io_ops.empty() && funcdecl->isOverloadedOperator()) {
+    return absl::UnimplementedError(
+        absl::StrFormat("IO ops in operator calls are not supported at %s",
+                        LocString(body_loc)));
   }
 
   XLS_ASSIGN_OR_RETURN(sf.xls_func,
@@ -1594,6 +1533,12 @@ absl::StatusOr<CValue> Translator::TranslateVarDecl(
 absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
                                                  const xls::SourceLocation& loc,
                                                  bool for_lvalue) {
+  if (context().channel_params.contains(decl)) {
+    return absl::UnimplementedError(
+        absl::StrFormat("Channel parameter reference unsupported %s at %s",
+                        decl->getNameAsString(), LocString(loc)));
+  }
+
   auto found = context().variables.find(decl);
   if (found == context().variables.end()) {
     // Is it an enum?
@@ -2421,9 +2366,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     }
     XLS_CHECK_NE(super_op, nullptr);
 
-    XLS_ASSIGN_OR_RETURN(CValue inval, GetChannelInputValue(*super_op, loc));
-
-    args.push_back(inval.value());
+    XLS_CHECK(super_op->input_value.value().valid());
+    args.push_back(super_op->input_value.value());
   }
 
   // Count expected IO returns
@@ -4048,7 +3992,6 @@ absl::Status Translator::GenerateIRBlockPrepare(
       xls::BValue direct_in_value = pb.TupleIndex(receive, 1);
 
       prepared.args.push_back(direct_in_value);
-      fprintf(stderr, "===== Insert direct in to prepared.args\n");
 
       // If it's const or not a reference, then there's no return
       if (stripped.is_ref && !param->getType().isConstQualified()) {

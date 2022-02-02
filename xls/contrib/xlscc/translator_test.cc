@@ -2591,7 +2591,7 @@ TEST_F(TranslatorTest, IOSaveChannel) {
       SourceToIr(content).status(),
       xls::status_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("IO ops should be on channel parameters")));
+          testing::HasSubstr("Channel parameter reference unsupported")));
 }
 
 TEST_F(TranslatorTest, IOSaveChannelStruct) {

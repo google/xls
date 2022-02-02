@@ -442,6 +442,9 @@ struct TranslationContext {
   absl::flat_hash_set<const clang::NamedDecl*> forbidden_rvalues;
   absl::flat_hash_set<const clang::NamedDecl*> forbidden_lvalues;
 
+  // Remember channel parameter names for generating descriptive errors
+  absl::flat_hash_set<const clang::NamedDecl*> channel_params;
+
   // Set to true if we are evaluating under a multi-argument node in the AST.
   // Constructors, unary operators, etc, don't need unsequenced assignment
   // checks.
@@ -759,7 +762,6 @@ class Translator {
   struct IOOpReturn {
     bool generate_expr;
     CValue value;
-    xls::BValue condition;
   };
   // Checks if an expression is an IO op, and if so, generates the value
   //  to replace it in IR generation.
@@ -787,14 +789,11 @@ class Translator {
       clang::SourceManager& sm);
 
   // IOOp must have io_call, channel, and op members filled in
-  absl::Status AddOpToChannel(IOOp op, const xls::SourceLocation& loc);
+  absl::Status AddOpToChannel(IOOp& op, const xls::SourceLocation& loc);
   absl::StatusOr<bool> ExprIsChannel(const clang::Expr* object,
                                      const xls::SourceLocation& loc);
   absl::StatusOr<bool> TypeIsChannel(const clang::QualType& param,
                                      const xls::SourceLocation& loc);
-
-  absl::StatusOr<CValue> GetChannelInputValue(const IOOp& op,
-                                              const xls::SourceLocation& loc);
 
   absl::Status GenerateIR_Compound(const clang::Stmt* body,
                                    clang::ASTContext& ctx);
