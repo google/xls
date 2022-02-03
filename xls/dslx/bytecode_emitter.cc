@@ -554,6 +554,7 @@ void BytecodeEmitter::HandleIndex(Index* node) {
   if (absl::holds_alternative<WidthSlice*>(node->rhs())) {
     WidthSlice* width_slice = absl::get<WidthSlice*>(node->rhs());
     width_slice->start()->AcceptExpr(this);
+
     absl::optional<ConcreteType*> maybe_type =
         type_info_->GetItem(width_slice->width());
     if (!maybe_type.has_value()) {
@@ -562,15 +563,17 @@ void BytecodeEmitter::HandleIndex(Index* node) {
           width_slice->width()->ToString(), "\"."));
       return;
     }
-    ConcreteType* type = maybe_type.value();
 
-    // These will never fail.
-    absl::StatusOr<ConcreteTypeDim> dim_or = type->GetTotalBitCount();
-    absl::StatusOr<int64_t> slice_width_or = dim_or.value().GetAsInt64();
-    bytecode_.push_back(Bytecode(
-        width_slice->GetSpan().value(), Bytecode::Op::kLiteral,
-        InterpValue::MakeSBits(/*bit_count=*/64, slice_width_or.value())));
-    bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kWidthSlice));
+    ConcreteType* type = maybe_type.value();
+    BitsType* bits_type = dynamic_cast<BitsType*>(type);
+    if (bits_type == nullptr) {
+      status_ = absl::InternalError(absl::StrCat(
+          "Width slice type specifier isn't a BitsType: ", type->ToString()));
+      return;
+    }
+
+    bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kWidthSlice,
+                                 type->CloneToUnique()));
     return;
   }
 

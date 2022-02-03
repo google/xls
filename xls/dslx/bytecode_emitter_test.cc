@@ -580,12 +580,12 @@ fn width_slice() -> u16 {
       std::unique_ptr<BytecodeFunction> bf,
       EmitBytecodes(&import_data, kProgram, "width_slice"));
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
-  ASSERT_EQ(bytecodes.size(), 6);
+  ASSERT_EQ(bytecodes.size(), 5);
 
-  const Bytecode* bc = &bytecodes[4];
+  const Bytecode* bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
 
-  bc = &bytecodes[5];
+  bc = &bytecodes[4];
   ASSERT_EQ(bc->op(), Bytecode::Op::kWidthSlice);
 }
 

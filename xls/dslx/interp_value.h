@@ -114,6 +114,9 @@ class InterpValue {
   static InterpValue MakeSBits(int64_t bit_count, int64_t value);
 
   static InterpValue MakeUnit() { return MakeTuple({}); }
+  static InterpValue MakeS32(uint32_t value) {
+    return MakeSBits(/*bit_count=*/32, value);
+  }
   static InterpValue MakeU32(uint32_t value) {
     return MakeUBits(/*bit_count=*/32, value);
   }

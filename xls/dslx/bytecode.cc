@@ -173,7 +173,7 @@ std::string BytecodesToString(absl::Span<const Bytecode> bytecodes,
 }
 
 absl::StatusOr<Bytecode::JumpTarget> Bytecode::jump_target() const {
-  if (!has_data()) {
+  if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
   }
   if (!absl::holds_alternative<JumpTarget>(data_.value())) {
@@ -184,7 +184,7 @@ absl::StatusOr<Bytecode::JumpTarget> Bytecode::jump_target() const {
 }
 
 absl::StatusOr<Bytecode::NumElements> Bytecode::num_elements() const {
-  if (!has_data()) {
+  if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
   }
   if (!absl::holds_alternative<NumElements>(data_.value())) {
@@ -195,7 +195,7 @@ absl::StatusOr<Bytecode::NumElements> Bytecode::num_elements() const {
 }
 
 absl::StatusOr<Bytecode::SlotIndex> Bytecode::slot_index() const {
-  if (!has_data()) {
+  if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
   }
   if (!absl::holds_alternative<SlotIndex>(data_.value())) {
@@ -206,7 +206,7 @@ absl::StatusOr<Bytecode::SlotIndex> Bytecode::slot_index() const {
 }
 
 absl::StatusOr<InterpValue> Bytecode::value_data() const {
-  if (!has_data()) {
+  if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
   }
   if (!absl::holds_alternative<InterpValue>(data_.value())) {
@@ -214,6 +214,16 @@ absl::StatusOr<InterpValue> Bytecode::value_data() const {
   }
 
   return absl::get<InterpValue>(data_.value());
+}
+
+absl::StatusOr<ConcreteType*> Bytecode::type_data() const {
+  if (!data_.has_value()) {
+    return absl::InvalidArgumentError("Bytecode does not hold data.");
+  }
+  if (!absl::holds_alternative<std::unique_ptr<ConcreteType>>(data_.value())) {
+    return absl::InvalidArgumentError("Bytecode data is not a ConcreteType.");
+  }
+  return absl::get<std::unique_ptr<ConcreteType>>(data_.value()).get();
 }
 
 std::string Bytecode::ToString(bool source_locs) const {

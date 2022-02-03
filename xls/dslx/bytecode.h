@@ -156,6 +156,7 @@ class Bytecode {
   absl::StatusOr<NumElements> num_elements() const;
   absl::StatusOr<InterpValue> value_data() const;
   absl::StatusOr<SlotIndex> slot_index() const;
+  absl::StatusOr<ConcreteType*> type_data() const;
 
   std::string ToString(bool source_locs = true) const;
 

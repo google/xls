@@ -695,6 +695,43 @@ absl::Status BytecodeInterpreter::EvalSub(const Bytecode& bytecode) {
 }
 
 absl::Status BytecodeInterpreter::EvalWidthSlice(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(InterpValue start, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue basis, Pop());
+  XLS_ASSIGN_OR_RETURN(int64_t basis_bit_count, basis.GetBitCount());
+  XLS_ASSIGN_OR_RETURN(int64_t start_bit_count, start.GetBitCount());
+
+  XLS_ASSIGN_OR_RETURN(ConcreteType * type, bytecode.type_data());
+  BitsType* bits_type = dynamic_cast<BitsType*>(type);
+  XLS_RET_CHECK_NE(bits_type, nullptr);
+  ConcreteTypeDim length_dim = bits_type->size();
+  XLS_ASSIGN_OR_RETURN(int64_t length_value, length_dim.GetAsInt64());
+  InterpValue length = InterpValue::MakeUBits(start_bit_count, length_value);
+
+  // If start + length > basis length, then we need to truncate.
+  InterpValue basis_length(
+      InterpValue::MakeUBits(start_bit_count, basis_bit_count));
+  XLS_ASSIGN_OR_RETURN(InterpValue end_index, start.Add(length));
+  XLS_ASSIGN_OR_RETURN(InterpValue end_index_ge_basis_length,
+                       end_index.Ge(basis_length));
+  if (end_index_ge_basis_length.IsTrue()) {
+    XLS_ASSIGN_OR_RETURN(length, basis_length.Sub(start));
+  }
+
+  // Slice requires that the args be UBits, and so is the result. If the target
+  // type is signed, then, we need to update.
+  XLS_ASSIGN_OR_RETURN(InterpValue result, basis.Slice(start, length));
+  if (bits_type->is_signed()) {
+    XLS_ASSIGN_OR_RETURN(Bits bits, result.GetBits());
+    result = InterpValue::MakeSigned(bits);
+  }
+
+  // If the result is too little, then zero-extend.
+  XLS_ASSIGN_OR_RETURN(int64_t result_bit_count, result.GetBitCount());
+  if (result_bit_count < length_value) {
+    XLS_ASSIGN_OR_RETURN(result, result.ZeroExt(length_value));
+  }
+  stack_.push_back(result);
+
   return absl::OkStatus();
 }
 

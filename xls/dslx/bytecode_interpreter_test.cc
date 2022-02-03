@@ -598,6 +598,32 @@ fn negative_end_slice() -> u16 {
   EXPECT_EQ(int_value, 0xbeef);
 }
 
+TEST(BytecodeInterpreterTest, WidthSlice) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn width_slice() -> s16 {
+  let a = u32:0xdeadbeef;
+  a[u32:8 +: s16]
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("width_slice"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, tf->fn()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, BytecodeInterpreter::Interpret(
+                                                  &import_data, bf.get(), {}));
+  ASSERT_TRUE(value.IsBits());
+  ASSERT_TRUE(value.IsSigned());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToUint64());
+  EXPECT_EQ(int_value, 0xadbe);
+}
+
 // Tests a slice from both ends: a[-x:-y].
 TEST(BytecodeInterpreterTest, BothNegativeSlice) {
   constexpr absl::string_view kProgram = R"(#![test]
