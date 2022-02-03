@@ -629,20 +629,36 @@ absl::Status BytecodeInterpreter::EvalSlice(const Bytecode& bytecode) {
 
   InterpValue zero = InterpValue::MakeSBits(start_bit_count, 0);
   InterpValue basis_length =
-      InterpValue::MakeSBits(basis_bit_count, basis_bit_count);
+      InterpValue::MakeSBits(start_bit_count, basis_bit_count);
 
   XLS_ASSIGN_OR_RETURN(InterpValue start_lt_zero, start.Lt(zero));
   if (start_lt_zero.IsTrue()) {
     // Remember, start is negative if we're here.
     XLS_ASSIGN_OR_RETURN(start, basis_length.Add(start));
+    // If start is _still_ less than zero, then we clamp to zero.
+    XLS_ASSIGN_OR_RETURN(start_lt_zero, start.Lt(zero));
+    if (start_lt_zero.IsTrue()) {
+      start = zero;
+    }
   }
 
   XLS_ASSIGN_OR_RETURN(InterpValue limit_lt_zero, limit.Lt(zero));
   if (limit_lt_zero.IsTrue()) {
     // Ditto.
     XLS_ASSIGN_OR_RETURN(limit, basis_length.Add(limit));
+    XLS_ASSIGN_OR_RETURN(limit_lt_zero, limit.Lt(zero));
+    if (limit_lt_zero.IsTrue()) {
+      limit = zero;
+    }
   }
 
+  // If limit extends past the basis, then we truncate limit.
+  XLS_ASSIGN_OR_RETURN(InterpValue limit_ge_basis_length,
+                       limit.Ge(basis_length));
+  if (limit_ge_basis_length.IsTrue()) {
+    limit =
+        InterpValue::MakeSBits(start_bit_count, basis.GetBitCount().value());
+  }
   XLS_ASSIGN_OR_RETURN(InterpValue length, limit.Sub(start));
 
   // At this point, both start and length must be nonnegative, so we force them
