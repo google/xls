@@ -46,6 +46,9 @@
 
 using xls::status_testing::IsOkAndHolds;
 
+// TODO(seanhaskell): Reimplement unsequenced assignment detection
+#define UNSEQUENCED_TESTS 0
+
 namespace xlscc {
 namespace {
 
@@ -528,6 +531,8 @@ TEST_F(TranslatorTest, UnsequencedAssign) {
                                     testing::HasSubstr("parse")));
 }
 
+#if UNSEQUENCED_TESTS
+
 TEST_F(TranslatorTest, UnsequencedRefParam) {
   const std::string content = R"(
       int make7(int &a) {
@@ -625,6 +630,8 @@ TEST_F(TranslatorTest, UnsequencedRefParamBinary) {
               xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
                                             testing::HasSubstr("unsequenced")));
 }
+
+#endif  // UNSEQUENCED_TESTS
 
 TEST_F(TranslatorTest, OpAssignmentResult) {
   const std::string content = R"(
@@ -2525,6 +2532,56 @@ TEST_F(TranslatorTest, IOSubroutine) {
          {IOOpTest("out", 5 + 7 - 1, true), IOOpTest("out", 55, true)});
 }
 
+TEST_F(TranslatorTest, IOSubroutine2) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       int sub_recv(__xls_channel<int>& in, int &v) {
+         return in.read() - v;
+       }
+       void sub_send(int v, __xls_channel<int>& out) {
+         out.write(v);
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int z = 1;
+         sub_send(7 + sub_recv(in, z), out);
+         sub_send(5, out);
+         out.write(55);
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/
+         {IOOpTest("out", 5 + 7 - 1, true), IOOpTest("out", 5, true),
+          IOOpTest("out", 55, true)});
+}
+
+TEST_F(TranslatorTest, IOSubroutine3) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       int sub_recv(__xls_channel<int>& in, int &v) {
+         return in.read() - v;
+       }
+       void sub_send(int v, __xls_channel<int>& out) {
+         out.write(v);
+         out.write(2*v);
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int z = 1;
+         sub_send(7 + sub_recv(in, z), out);
+         out.write(55);
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/
+         {IOOpTest("out", 5 + 7 - 1, true),
+          IOOpTest("out", 2 * (5 + 7 - 1), true), IOOpTest("out", 55, true)});
+}
+
 TEST_F(TranslatorTest, IOMethodSubroutine) {
   const std::string content = R"(
        #include "/xls_builtin.h"
@@ -2640,6 +2697,32 @@ TEST_F(TranslatorTest, IOUnrolled) {
          /*outputs=*/
          {IOOpTest("out", 0, true), IOOpTest("out", 1, true),
           IOOpTest("out", 2, true), IOOpTest("out", 3, true)});
+}
+
+TEST_F(TranslatorTest, IOUnrolledSubroutine) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       void sub(__xls_channel<int>& in,
+                int i,
+                __xls_channel<int>& out) {
+           out.write(i * in.read());
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         #pragma hls_unroll yes
+         for(int i=0;i<4;++i) {
+           sub(in , i, out);
+         }
+       })";
+
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("in", 2, true), IOOpTest("in", 4, true),
+          IOOpTest("in", 5, true), IOOpTest("in", 10, true)},
+         /*outputs=*/
+         {IOOpTest("out", 0, true), IOOpTest("out", 4, true),
+          IOOpTest("out", 10, true), IOOpTest("out", 30, true)});
 }
 
 TEST_F(TranslatorTest, IOUnrolledUnsequenced) {
@@ -3001,7 +3084,7 @@ TEST_F(TranslatorTest, StaticCall) {
        #pragma hls_top
        int my_package(int y) {
          static int x = 22;
-         const int f = inner(x++);
+         int f = inner(x++);
          return y+f;
        })";
 

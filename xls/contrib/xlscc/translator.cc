@@ -754,8 +754,8 @@ std::string Translator::XLSNameMangle(clang::GlobalDecl decl) const {
   return res;
 }
 
-absl::Status Translator::AddOpToChannel(IOOp& op,
-                                        const xls::SourceLocation& loc) {
+absl::StatusOr<IOOp*> Translator::AddOpToChannel(
+    IOOp& op, const xls::SourceLocation& loc) {
   // Scan channel
   if (!context().sf->io_channels.contains(op.channel)) {
     XLS_ASSIGN_OR_RETURN(StrippedType stripped,
@@ -813,11 +813,7 @@ absl::Status Translator::AddOpToChannel(IOOp& op,
   }
 
   context().sf->io_ops.push_back(op);
-  context().sf->op_by_call[op.io_call].ops.push_back(
-      &context().sf->io_ops.back());
-  context().sf->op_by_call[op.io_call].generated_ops = 0;
-
-  return absl::OkStatus();
+  return &context().sf->io_ops.back();
 }
 
 absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
@@ -860,7 +856,6 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
       }
 
       IOOp op;
-      op.io_call = call;
       op.channel = channel;
       op.sub_op = nullptr;
 
@@ -884,7 +879,9 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
             absl::StrFormat("Unsupported IO op: %s", op_name));
       }
 
-      XLS_RETURN_IF_ERROR(AddOpToChannel(op, loc));
+      XLS_ASSIGN_OR_RETURN(IOOp * op_ptr, AddOpToChannel(op, loc));
+      (void)op_ptr;
+
       ret.value = op.input_value;
 
       return ret;
@@ -896,48 +893,10 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
   return ret;
 }
 
-absl::Status Translator::TranslateIOOps(const clang::CallExpr* call,
-                                        const clang::FunctionDecl* callee,
-                                        const std::list<IOOp>& callee_ops,
-                                        clang::SourceManager& sm) {
-  for (const IOOp& callee_op : callee_ops) {
-    int found_channel_index = -1;
-    for (int param = 0; param < callee->getNumParams(); ++param) {
-      if (callee_op.channel == callee->getParamDecl(param)) {
-        found_channel_index = param;
-        break;
-      }
-    }
-    XLS_CHECK(found_channel_index >= 0);
-    XLS_CHECK(found_channel_index < call->getNumArgs());
-    const clang::Expr* call_arg = call->getArg(found_channel_index);
-    if (call_arg->getStmtClass() != clang::Stmt::DeclRefExprClass) {
-      return absl::UnimplementedError(
-          absl::StrFormat("IO operations should be DeclRefs"));
-    }
-    auto decl_ref_arg = clang_down_cast<const clang::DeclRefExpr*>(call_arg);
-    if (decl_ref_arg->getDecl()->getKind() != clang::Decl::ParmVar) {
-      return absl::UnimplementedError(
-          absl::StrFormat("IO operations should be on parameters"));
-    }
-    IOOp caller_op;
-
-    caller_op.channel =
-        clang_down_cast<const clang::ParmVarDecl*>(decl_ref_arg->getDecl());
-    caller_op.io_call = call;
-    caller_op.op = callee_op.op;
-    caller_op.sub_op = &callee_op;
-
-    XLS_RETURN_IF_ERROR(AddOpToChannel(caller_op, GetLoc(sm, *call)));
-  }
-  return absl::OkStatus();
-}
-
 absl::Status Translator::TranslateStatics(
-    const clang::CallExpr* call, const clang::FunctionDecl* callee,
+    const clang::FunctionDecl* callee,
     const absl::flat_hash_map<const clang::NamedDecl*, ConstValue>&
-        callee_statics,
-    clang::SourceManager& sm) {
+        callee_statics) {
   for (const auto& iter : callee_statics) {
     const clang::NamedDecl* decl = iter.first;
     const ConstValue& init = iter.second;
@@ -989,7 +948,6 @@ absl::Status Translator::DeepScanForIO(const clang::Stmt* body,
         XLS_RETURN_IF_ERROR(DeepScanForIO(child, ctx));
       }
     }
-
     // Add IO ops and statics from functions / methods called
     if ((body->getStmtClass() == clang::Stmt::CXXMemberCallExprClass) ||
         (body->getStmtClass() == clang::Stmt::CallExprClass)) {
@@ -1000,15 +958,8 @@ absl::Status Translator::DeepScanForIO(const clang::Stmt* body,
       XLS_ASSIGN_OR_RETURN(GeneratedFunction * func,
                            TranslateFunctionToXLS(definition));
 
-      // Duplication per-call is intended
-      if (!func->io_ops.empty()) {
-        XLS_RETURN_IF_ERROR(TranslateIOOps(call, definition, func->io_ops,
-                                           ctx.getSourceManager()));
-      }
-
       if (!func->static_values.empty()) {
-        XLS_RETURN_IF_ERROR(TranslateStatics(
-            call, definition, func->static_values, ctx.getSourceManager()));
+        XLS_RETURN_IF_ERROR(TranslateStatics(definition, func->static_values));
       }
     }
     // Find static local declarations. Statics become proc feedback.
@@ -2279,14 +2230,15 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
                        TranslateFunctionToXLS(funcdecl));
 
   std::vector<xls::BValue> args;
+  int expected_returns = 0;
 
   // static inputs to callee
   for (const auto& iter : func->static_values) {
-    const clang::NamedDecl* decl = iter.first;
-
-    XLS_ASSIGN_OR_RETURN(CValue value, GetIdentifier(decl, loc));
+    const clang::NamedDecl* callee_decl = iter.first;
+    XLS_ASSIGN_OR_RETURN(CValue value, GetIdentifier(callee_decl, loc));
 
     args.push_back(value.value());
+    ++expected_returns;
   }
 
   // Add this if needed
@@ -2304,7 +2256,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
   // Number of return values expected. If >1, the return will be a tuple.
   // (See MakeFunctionReturn()).
-  int expected_returns = func->static_values.size();
   if (add_this_return) ++expected_returns;
   if (!funcdecl->getReturnType()->isVoidType()) ++expected_returns;
 
@@ -2325,6 +2276,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   for (int pi = 0; pi < funcdecl->getNumParams(); ++pi) {
     const clang::ParmVarDecl* p = funcdecl->getParamDecl(pi);
 
+    // Map callee IO ops last
     if (func->io_channels.contains(p)) {
       continue;
     }
@@ -2351,27 +2303,68 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     args.push_back(argv.value());
   }
 
-  for (const IOOp& op : func->io_ops) {
-    const IOChannel& channel_info = func->io_channels.at(op.channel);
-    if (channel_info.channel_op_type != OpType::kRecv) {
+  // Map callee IO ops
+  absl::flat_hash_map<IOOp*, const clang::ParmVarDecl*>
+      caller_channels_by_callee_op;
+
+  for (int pi = 0; pi < funcdecl->getNumParams(); ++pi) {
+    const clang::ParmVarDecl* callee_channel = funcdecl->getParamDecl(pi);
+
+    if (!func->io_channels.contains(callee_channel)) {
       continue;
     }
 
-    const IOOp* super_op = nullptr;
-    for (const IOOp& this_super_op : context().sf->io_ops) {
-      if (this_super_op.sub_op == &op) {
-        XLS_CHECK_EQ(super_op, nullptr);
-        super_op = &this_super_op;
-      }
-    }
-    XLS_CHECK_NE(super_op, nullptr);
+    const clang::Expr* call_arg = expr_args[pi];
 
-    XLS_CHECK(super_op->input_value.value().valid());
-    args.push_back(super_op->input_value.value());
+    if (call_arg->getStmtClass() != clang::Stmt::DeclRefExprClass) {
+      return absl::UnimplementedError(
+          absl::StrFormat("IO operations should be DeclRefs"));
+    }
+    auto call_decl_ref_arg =
+        clang_down_cast<const clang::DeclRefExpr*>(call_arg);
+    if (call_decl_ref_arg->getDecl()->getKind() != clang::Decl::ParmVar) {
+      return absl::UnimplementedError(
+          absl::StrFormat("IO operations should be on parameters"));
+    }
+
+    auto caller_channel = clang_down_cast<const clang::ParmVarDecl*>(
+        call_decl_ref_arg->getDecl());
+
+    for (IOOp& callee_op : func->io_ops) {
+      if (callee_op.channel != callee_channel) {
+        continue;
+      }
+      XLS_CHECK(!caller_channels_by_callee_op.contains(&callee_op));
+      caller_channels_by_callee_op[&callee_op] = caller_channel;
+    }
   }
 
-  // Count expected IO returns
-  expected_returns += func->io_ops.size();
+  // Add callee ops. There can be multiple for one channel
+  std::multimap<IOOp*, IOOp*> caller_ops_by_callee_op;
+
+  for (IOOp& callee_op : func->io_ops) {
+    const clang::ParmVarDecl* caller_channel =
+        caller_channels_by_callee_op.at(&callee_op);
+
+    // Add super op
+    IOOp caller_op;
+
+    caller_op.channel = caller_channel;
+    caller_op.op = callee_op.op;
+    caller_op.sub_op = &callee_op;
+
+    XLS_ASSIGN_OR_RETURN(IOOp * caller_op_ptr, AddOpToChannel(caller_op, loc));
+    caller_ops_by_callee_op.insert(
+        std::pair<IOOp*, IOOp*>(&callee_op, caller_op_ptr));
+
+    if (callee_op.op == OpType::kRecv) {
+      XLS_CHECK(caller_op.input_value.value().valid());
+      args.push_back(caller_op.input_value.value());
+    }
+
+    // Count expected IO returns
+    ++expected_returns;
+  }
 
   // Generate the other way around to detect unsequenced errors
   if (unsequenced_gen_backwards_) {
@@ -2456,17 +2449,15 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     }
   }
 
-  // IO returns
-  for (IOOp& op : context().sf->io_ops) {
-    for (int pi = 0; pi < funcdecl->getNumParams(); ++pi) {
-      const clang::ParmVarDecl* p = funcdecl->getParamDecl(pi);
+  // Callee IO returns
+  for (IOOp& callee_op : func->io_ops) {
+    auto range = caller_ops_by_callee_op.equal_range(&callee_op);
+    for (auto caller_it = range.first; caller_it != range.second; ++caller_it) {
+      IOOp* caller_op = caller_it->second;
 
-      if (op.sub_op && op.sub_op->channel == p) {
-        XLS_CHECK(!unpacked_returns.empty());
-        op.ret_value = unpacked_returns.front();
-        unpacked_returns.pop_front();
-        break;
-      }
+      XLS_CHECK(!unpacked_returns.empty());
+      caller_op->ret_value = unpacked_returns.front();
+      unpacked_returns.pop_front();
     }
   }
 

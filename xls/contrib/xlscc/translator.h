@@ -320,11 +320,6 @@ struct IOOp {
   // Clang AST node for the parameter
   const clang::ParmVarDecl* channel;
 
-  // Clang AST node for the call containing the op.
-  // This may be a read() or write() call, or a call to a subroutine containing
-  //  read() or write() calls.
-  const clang::CallExpr* io_call;
-
   // For calls to subroutines with IO inside
   const IOOp* sub_op;
 
@@ -354,7 +349,6 @@ struct GeneratedFunction {
   xls::Function* xls_func = nullptr;
 
   absl::flat_hash_map<const clang::ParmVarDecl*, IOChannel> io_channels;
-  absl::flat_hash_map<const clang::CallExpr*, IOCall> op_by_call;
 
   // All the IO Ops occurring within the function. Order matters here,
   //  as it is assumed that write() ops will depend only on values produced
@@ -640,11 +634,11 @@ class Translator {
   // The maximum number of iterations before loop unrolling fails.
   const int64_t max_unroll_iters_;
 
-  // This should be true except for debugging.
-  // When this flag is true, the translator generates expressions
+  // TODO(seanhaskell): This feature needs to be replaced with a better
+  // implementation When this flag is true, the translator generates expressions
   //  right to left as well as left to right, so as to detect all
   //  unsequenced modification and access in expressions.
-  const bool unsequenced_gen_backwards_ = true;
+  const bool unsequenced_gen_backwards_ = false;
 
   struct InstTypeHash {
     size_t operator()(
@@ -776,20 +770,16 @@ class Translator {
                                               int port_order,
                                               const xls::SourceLocation& loc);
 
-  // Adds subroutine call's IO ops to context().sf->io_ops
-  absl::Status TranslateIOOps(const clang::CallExpr* call,
-                              const clang::FunctionDecl* callee,
-                              const std::list<IOOp>& callee_ops,
-                              clang::SourceManager& sm);
   // Adds subroutine call's statics to context().sf->static_values
   absl::Status TranslateStatics(
-      const clang::CallExpr* call, const clang::FunctionDecl* callee,
+      const clang::FunctionDecl* callee,
       const absl::flat_hash_map<const clang::NamedDecl*, ConstValue>&
-          callee_statics,
-      clang::SourceManager& sm);
+          callee_statics);
 
   // IOOp must have io_call, channel, and op members filled in
-  absl::Status AddOpToChannel(IOOp& op, const xls::SourceLocation& loc);
+  // Returns permanent IOOp pointer
+  absl::StatusOr<IOOp*> AddOpToChannel(IOOp& op,
+                                       const xls::SourceLocation& loc);
   absl::StatusOr<bool> ExprIsChannel(const clang::Expr* object,
                                      const xls::SourceLocation& loc);
   absl::StatusOr<bool> TypeIsChannel(const clang::QualType& param,
