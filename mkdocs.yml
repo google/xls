@@ -37,6 +37,7 @@ nav:
     - VAST: 'vast.md'
   - Tools:
     - Build System: 'build_system.md'
+    - Bazel Rules And Macros: 'bazel_rules_macros.md'
     - Quick Start: 'tools_quick_start.md'
     - Listing: 'tools.md'
     - Interpreters: 'interpreters.md'

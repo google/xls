@@ -36,11 +36,44 @@ def xls_ir_verilog_macro(
         enable_generated_file = True,
         enable_presubmit_generated_file = False,
         **kwargs):
-    """A macro wrapper for the 'xls_ir_verilog' rule.
+    """A macro that instantiates a build rule generating a Verilog file from an IR file.
 
-    The macro instantiates the 'xls_ir_verilog' rule and
-    'enable_generated_file_wrapper' function. The generated files of the rule
+    The macro instantiates a build rule that generate a Verilog file from an IR
+    file and the 'enable_generated_file_wrapper' function. The generated files
     are listed in the outs attribute of the rule.
+
+    Examples:
+
+    1. A file as the source.
+
+        ```
+        xls_ir_verilog(
+            name = "a_verilog",
+            src = "a.ir",
+            codegen_args = {
+                "pipeline_stages": "1",
+                ...
+            },
+        )
+        ```
+
+    1.  A target as the source.
+
+        ```
+        xls_ir_opt_ir(
+            name = "a_opt_ir",
+            src = "a.ir",
+        )
+
+        xls_ir_verilog(
+            name = "a_verilog",
+            src = ":a_opt_ir",
+            codegen_args = {
+                "generator": "combinational",
+                ...
+            },
+        )
+        ```
 
     Args:
       name: The name of the rule.

@@ -236,40 +236,40 @@ def _xls_ir_verilog_impl_wrapper(ctx):
     return xls_ir_verilog_impl(ctx, ctx.file.src)
 
 xls_ir_verilog = rule(
-    doc = """A build rule that generates a Verilog file.
+    doc = """A build rule that generates a Verilog file from an IR file.
 
-        Examples:
+Examples:
 
-        1) A file as the source.
+1. A file as the source.
 
-        ```
-            xls_ir_verilog(
-                name = "a_verilog",
-                src = "a.ir",
-                codegen_args = {
-                    "pipeline_stages": "1",
-                    ...
-                },
-            )
-        ```
+    ```
+    xls_ir_verilog(
+        name = "a_verilog",
+        src = "a.ir",
+        codegen_args = {
+            "pipeline_stages": "1",
+            ...
+        },
+    )
+    ```
 
-        2) A target as the source.
+1. A target as the source.
 
-        ```
-            xls_ir_opt_ir(
-                name = "a_opt_ir",
-                src = "a.ir",
-            )
+    ```
+    xls_ir_opt_ir(
+        name = "a_opt_ir",
+        src = "a.ir",
+    )
 
-            xls_ir_verilog(
-                name = "a_verilog",
-                src = ":a_opt_ir",
-                codegen_args = {
-                    "generator": "combinational",
-                    ...
-                },
-            )
-        ```
+    xls_ir_verilog(
+        name = "a_verilog",
+        src = ":a_opt_ir",
+        codegen_args = {
+            "generator": "combinational",
+            ...
+        },
+    )
+    ```
     """,
     implementation = _xls_ir_verilog_impl_wrapper,
     attrs = dicts.add(

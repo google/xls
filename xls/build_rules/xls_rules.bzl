@@ -93,15 +93,18 @@ def _xls_dslx_opt_ir_impl(ctx):
 xls_dslx_opt_ir = rule(
     doc = """A build rule that generates an optimized IR file from a DSLX source file.
 
-        Example:
+Examples:
 
-        1) A simple example.
-            # Assume a xls_dslx_library target bc_dslx is present.
-            xls_dslx_opt_ir(
-                name = "d_opt_ir",
-                srcs = ["d.x"],
-                deps = [":bc_dslx"],
-            )
+1. A simple example.
+
+    ```
+    # Assume a xls_dslx_library target bc_dslx is present.
+    xls_dslx_opt_ir(
+        name = "d_opt_ir",
+        srcs = ["d.x"],
+        deps = [":bc_dslx"],
+    )
+    ```
     """,
     implementation = _xls_dslx_opt_ir_impl,
     attrs = _xls_dslx_opt_ir_attrs,
@@ -110,8 +113,7 @@ xls_dslx_opt_ir = rule(
 def _xls_dslx_opt_ir_test_impl(ctx):
     """The implementation of the 'xls_dslx_opt_ir_test' rule.
 
-    Executes the commands in the order presented in the list for the following
-    rules:
+    Executes the test commands for the following rules in the order presented:
       1) xls_dslx_test
       2) xls_ir_equivalence_test
       3) xls_eval_ir_test
@@ -197,21 +199,28 @@ _xls_dslx_opt_ir_test_impl_attrs = {
 xls_dslx_opt_ir_test = rule(
     doc = """A build rule that tests a xls_dslx_opt_ir target.
 
-        Example:
-            xls_dslx_library(
-                name = "a_dslx",
-                srcs = ["a.x"],
-            )
+Executes the test commands for the following rules in the order presented:
 
-            xls_dslx_opt_ir(
-                name = "a_opt_ir",
-                library = ":a_dslx",
-            )
+1. xls_dslx_test
+1. xls_ir_equivalence_test
+1. xls_eval_ir_test
+1. xls_benchmark_ir
 
-            xls_dslx_opt_ir_test(
-                name = "a_opt_ir_test",
-                dep = ":a_opt_ir",
-            )
+Examples:
+
+1. A simple example.
+
+    ```
+    xls_dslx_opt_ir(
+        name = "a_opt_ir",
+        srcs = ["a.x"],
+    )
+
+    xls_dslx_opt_ir_test(
+        name = "a_opt_ir_test",
+        dep = ":a_opt_ir",
+    )
+    ```
     """,
     implementation = _xls_dslx_opt_ir_test_impl,
     attrs = dicts.add(
@@ -276,19 +285,21 @@ _dslx_verilog_attrs = dicts.add(
 xls_dslx_verilog = rule(
     doc = """A build rule that generates a Verilog file from a DSLX source file.
 
-        Examples:
+Examples:
 
-        1) A simple example.
-            # Assume a xls_dslx_library target bc_dslx is present.
-            xls_dslx_verilog(
-                name = "d_verilog",
-                srcs = ["d.x"],
-                deps = [":bc_dslx"],
-                codegen_args = {
-                    "pipeline_stages": "1",
-                },
-            )
+1. A simple example.
 
+    ```
+    # Assume a xls_dslx_library target bc_dslx is present.
+    xls_dslx_verilog(
+        name = "d_verilog",
+        srcs = ["d.x"],
+        deps = [":bc_dslx"],
+        codegen_args = {
+            "pipeline_stages": "1",
+        },
+    )
+    ```
     """,
     implementation = _xls_dslx_verilog_impl,
     attrs = _dslx_verilog_attrs,

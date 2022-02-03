@@ -51,11 +51,34 @@ def xls_dslx_verilog_macro(
         enable_generated_file = True,
         enable_presubmit_generated_file = False,
         **kwargs):
-    """A macro wrapper for the 'xls_dslx_verilog' rule.
+    """A macro that instantiates a build rule generating a Verilog file from a DSLX source file.
 
-    The macro instantiates the 'xls_dslx_verilog' rule and
-    'enable_generated_file_wrapper' function. The generated files of the rule
-    are listed in the outs attribute of the rule.
+    The macro instantiates a build rule that generates an Verilog file from
+    a DSLX source file. The build rule executes the core functionality of
+    following macros:
+
+    1. xls_dslx_ir (converts a DSLX file to an IR),
+    1. xls_ir_opt_ir (optimizes the IR), and,
+    1. xls_ir_verilog (generated a Verilog file).
+
+    The macro also instantiates the 'enable_generated_file_wrapper'
+    function. The generated files are listed in the outs attribute of the rule.
+
+    Examples:
+
+    1. A simple example.
+
+        ```
+        # Assume a xls_dslx_library target bc_dslx is present.
+        xls_dslx_verilog(
+            name = "d_verilog",
+            srcs = ["d.x"],
+            deps = [":bc_dslx"],
+            codegen_args = {
+                "pipeline_stages": "1",
+            },
+        )
+        ```
 
     Args:
       name: The name of the rule.
@@ -155,13 +178,30 @@ def xls_dslx_opt_ir_macro(
         enable_generated_file = True,
         enable_presubmit_generated_file = False,
         **kwargs):
-    """A macro wrapper for the 'xls_dslx_opt_ir' rule.
+    """A macro that instantiates a build rule generating an optimized IR file from a DSLX source file.
 
-    The macro instantiates the 'xls_dslx_opt_ir' rule that converts a DSLX file
-    to an IR, optimizes the IR, and generates a verilog file from the optimized
-    IR. The macro also instantiates the 'enable_generated_file_wrapper'
-    function. The generated files of the rule are listed in the outs attribute
-    of the rule.
+    The macro instantiates a build rule that generates an optimized IR file from
+    a DSLX source file. The build rule executes the core functionality of
+    following macros:
+
+    1. xls_dslx_ir (converts a DSLX file to an IR), and,
+    1. xls_ir_opt_ir (optimizes the IR).
+
+    The macro also instantiates the 'enable_generated_file_wrapper'
+    function. The generated files are listed in the outs attributeof the rule.
+
+    Examples:
+
+    1. A simple example.
+
+        ```
+        # Assume a xls_dslx_library target bc_dslx is present.
+        xls_dslx_opt_ir(
+            name = "d_opt_ir",
+            srcs = ["d.x"],
+            deps = [":bc_dslx"],
+        )
+        ```
 
     Args:
       name: The name of the rule.
@@ -235,7 +275,7 @@ def xls_dslx_cpp_type_library(
     """Creates a cc_library target for transpiled DSLX types.
 
     This macros invokes the DSLX-to-C++ transpiler and compiles the result as
-    a cc_library.
+    a cc_library with its target name identical to this macro.
 
     Args:
       name: The name of the eventual cc_library.

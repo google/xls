@@ -542,25 +542,32 @@ xls_dslx_ir = rule(
     doc = """
         A build rule that converts a DSLX source file to an IR file.
 
-        Examples:
+Examples:
 
-        1) A simple IR conversion.
-            # Assume a xls_dslx_library target bc_dslx is present.
-            xls_dslx_ir(
-                name = "d_ir",
-                srcs = ["d.x"],
-                deps = [":bc_dslx"],
-            )
+1. A simple IR conversion.
 
-        2) An IR conversion with an entry defined.
-            xls_dslx_ir(
-                name = "d_ir",
-                srcs = ["d.x"],
-                deps = [":bc_dslx"],
-                ir_conv_args = {
-                    "entry" : "d",
-                },
-            )
+    ```
+    # Assume a xls_dslx_library target bc_dslx is present.
+    xls_dslx_ir(
+        name = "d_ir",
+        srcs = ["d.x"],
+        deps = [":bc_dslx"],
+    )
+    ```
+
+1. An IR conversion with an entry defined.
+
+    ```
+    # Assume a xls_dslx_library target bc_dslx is present.
+    xls_dslx_ir(
+        name = "d_ir",
+        srcs = ["d.x"],
+        deps = [":bc_dslx"],
+        ir_conv_args = {
+            "entry" : "d",
+        },
+    )
+    ```
     """,
     implementation = xls_dslx_ir_impl,
     attrs = dicts.add(
@@ -622,30 +629,35 @@ def _xls_ir_opt_ir_impl_wrapper(ctx):
     return xls_ir_opt_ir_impl(ctx, ctx.file.src)
 
 xls_ir_opt_ir = rule(
-    doc = """
-        A build rule that optimizes an IR file.
+    doc = """A build rule that optimizes an IR file.
 
-        Examples:
+Examples:
 
-        1) Optimizing an IR file with an entry defined.
-            xls_ir_opt_ir(
-                name = "a_opt_ir",
-                src = "a.ir",
-                opt_ir_args = {
-                    "entry" : "a",
-                },
-            )
+1. Optimizing an IR file with an entry defined.
 
-        2) A target as the source.
-            xls_dslx_ir(
-                name = "a_ir",
-                dep = ":a_dslx_module",
-            )
+    ```
+    xls_ir_opt_ir(
+        name = "a_opt_ir",
+        src = "a.ir",
+        opt_ir_args = {
+            "entry" : "a",
+        },
+    )
+    ```
 
-            xls_ir_opt_ir(
-                name = "a_opt_ir",
-                src = ":a_ir",
-            )
+1. A target as the source.
+
+    ```
+    xls_dslx_ir(
+        name = "a_ir",
+        srcs = ["a.x"],
+    )
+
+    xls_ir_opt_ir(
+        name = "a_opt_ir",
+        src = ":a_ir",
+    )
+    ```
     """,
     implementation = _xls_ir_opt_ir_impl_wrapper,
     attrs = dicts.add(
@@ -716,28 +728,34 @@ xls_ir_equivalence_test_attrs = {
 }
 
 xls_ir_equivalence_test = rule(
-    doc = """An IR equivalence test executes the equivalence tool on two IR files.
+    doc = """Executes the equivalence tool on two IR files.
 
-        Example:
+Examples:
 
-        1) A file as the source.
-            xls_ir_equivalence_test(
-                name = "ab_ir_equivalence_test",
-                src_0 = "a.ir",
-                src_1 = "b.ir",
-            )
+1. A file as the source.
 
-        2) A target as the source.
-            xls_dslx_ir(
-                name = "b_ir",
-                dep = ":b_dslx_module",
-            )
+    ```
+    xls_ir_equivalence_test(
+        name = "ab_ir_equivalence_test",
+        src_0 = "a.ir",
+        src_1 = "b.ir",
+    )
+    ```
 
-            xls_ir_equivalence_test(
-                name = "ab_ir_equivalence_test",
-                src_0 = "a.ir",
-                src_1 = ":b_ir",
-            )
+1. A target as the source.
+
+    ```
+    xls_dslx_ir(
+        name = "b_ir",
+        srcs = ["b.x"],
+    )
+
+    xls_ir_equivalence_test(
+        name = "ab_ir_equivalence_test",
+        src_0 = "a.ir",
+        src_1 = ":b_ir",
+    )
+    ```
     """,
     implementation = _xls_ir_equivalence_test_impl,
     attrs = dicts.add(
@@ -806,27 +824,33 @@ xls_eval_ir_test_attrs = {
 }
 
 xls_eval_ir_test = rule(
-    doc = """A IR evaluation test executes the IR interpreter on an IR file.
+    doc = """Executes the IR interpreter on an IR file.
 
-        Example:
+Examples:
 
-         1) A file as the source.
-            xls_eval_ir_test(
-                name = "a_eval_ir_test",
-                src = "a.ir",
-            )
+1. A file as the source.
 
-        2) An xls_ir_opt_ir target as the source.
-            xls_ir_opt_ir(
-                name = "a_opt_ir",
-                src = "a.ir",
-            )
+    ```
+    xls_eval_ir_test(
+        name = "a_eval_ir_test",
+        src = "a.ir",
+    )
+    ```
+
+1. An xls_ir_opt_ir target as the source.
+
+    ```
+    xls_ir_opt_ir(
+        name = "a_opt_ir",
+        src = "a.ir",
+    )
 
 
-            xls_eval_ir_test(
-                name = "a_eval_ir_test",
-                src = ":a_opt_ir",
-            )
+    xls_eval_ir_test(
+        name = "a_eval_ir_test",
+        src = ":a_opt_ir",
+    )
+    ```
     """,
     implementation = _xls_eval_ir_test_impl,
     attrs = dicts.add(
@@ -881,27 +905,33 @@ xls_benchmark_ir_attrs = {
 }
 
 xls_benchmark_ir = rule(
-    doc = """A IR benchmark executes the benchmark tool on an IR file.
+    doc = """Executes the benchmark tool on an IR file.
 
-        Example:
+Examples:
 
-         1) A file as the source.
-            xls_benchmark_ir(
-                name = "a_benchmark",
-                src = "a.ir",
-            )
+1. A file as the source.
 
-        2) An xls_ir_opt_ir target as the source.
-            xls_ir_opt_ir(
-                name = "a_opt_ir",
-                src = "a.ir",
-            )
+    ```
+    xls_benchmark_ir(
+        name = "a_benchmark",
+        src = "a.ir",
+    )
+    ```
+
+1. An xls_ir_opt_ir target as the source.
+
+    ```
+    xls_ir_opt_ir(
+        name = "a_opt_ir",
+        src = "a.ir",
+    )
 
 
-            xls_benchmark_ir(
-                name = "a_benchmark",
-                src = ":a_opt_ir",
-            )
+    xls_benchmark_ir(
+        name = "a_benchmark",
+        src = ":a_opt_ir",
+    )
+    ```
     """,
     implementation = _xls_benchmark_ir_impl,
     attrs = dicts.add(

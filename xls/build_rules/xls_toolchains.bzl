@@ -79,27 +79,29 @@ def _xls_toolchain_impl(ctx):
 xls_toolchain = rule(
     doc = """A rule that returns an XlsToolchainInfo containing toolchain information.
 
-        Example:
+Examples:
 
-        User-defined toolchain with a modified DSLX standard library attribute.
+1. User-defined toolchain with a modified DSLX standard library attribute.
 
-            filegroup(
-                name = "custom_dslx_std_lib",
-                srcs = glob(["custom_*.x"]),
-            )
+    ```
+    filegroup(
+        name = "custom_dslx_std_lib",
+        srcs = glob(["custom_*.x"]),
+    )
 
-            xls_toolchain(
-                name = "user_defined_xls_toolchain",
-                dslx_std_lib = ":custom_dslx_std_lib",
-            )
+    xls_toolchain(
+        name = "user_defined_xls_toolchain",
+        dslx_std_lib = ":custom_dslx_std_lib",
+    )
 
-            xls_dslx_library(
-                name = "a_user_defined_xls_toolchain_dslx",
-                srcs = [
-                    "a.x",
-                ],
-                xls_toolchain = ":user_defined_xls_toolchain",
-            )
+    xls_dslx_library(
+        name = "a_user_defined_xls_toolchain_dslx",
+        srcs = [
+            "a.x",
+        ],
+        xls_toolchain = ":user_defined_xls_toolchain",
+    )
+    ```
     """,
     implementation = _xls_toolchain_impl,
     provides = [XlsToolchainInfo],

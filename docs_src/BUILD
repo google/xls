@@ -20,7 +20,7 @@ package(
 )
 
 exports_files(
-    ["xls_build_rules.md"],
+    ["bazel_rules_macros.md"],
     visibility = ["//xls:xls_internal"],
 )
 

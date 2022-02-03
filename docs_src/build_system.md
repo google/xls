@@ -16,11 +16,12 @@ a build flow.
 
 XLS build rules and macros are defined in
 [xls/build_rules/xls_build_defs.bzl](https://github.com/google/xls/tree/main/xls/build_rules/xls_build_defs.bzl).
+
 Examples using the rules and macros are found at
 [xls/build_rules/tests/BUILD](https://github.com/google/xls/tree/main/xls/build_rules/tests/BUILD).
 
 A detailed description of the bazel rules/macros can be found
-[here](xls_build_rules.md). Below is a brief summary of the public rules.
+[here](bazel_rules_macros.md).
 
 ## Bazel queries
 

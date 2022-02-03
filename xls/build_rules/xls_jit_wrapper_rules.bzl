@@ -137,33 +137,32 @@ def _xls_ir_jit_wrapper_impl(ctx):
     ]
 
 xls_ir_jit_wrapper = rule(
-    doc = """
-    A build rule that generates the sources for JIT invocation wrappers.
+    doc = """A build rule that generates the sources for JIT invocation wrappers.
 
-        Example:
+Examples:
 
-         1) A file as the source.
+1. A file as the source.
 
-        ```
-            xls_ir_jit_wrapper(
-                name = "a_jit_wrapper",
-                src = "a.ir",
-            )
-        ```
+    ```
+    xls_ir_jit_wrapper(
+        name = "a_jit_wrapper",
+        src = "a.ir",
+    )
+    ```
 
-        2) An xls_ir_opt_ir target as the source.
+1. An xls_ir_opt_ir target as the source.
 
-        ```
-            xls_ir_opt_ir(
-                name = "a",
-                src = "a.ir",
-            )
+    ```
+    xls_ir_opt_ir(
+        name = "a",
+        src = "a.ir",
+    )
 
-            xls_ir_jit_wrapper(
-                name = "a_jit_wrapper",
-                src = ":a",
-            )
-        ```
+    xls_ir_jit_wrapper(
+        name = "a_jit_wrapper",
+        src = ":a",
+    )
+    ```
     """,
     implementation = _xls_ir_jit_wrapper_impl,
     attrs = dicts.add(
@@ -244,11 +243,11 @@ def cc_xls_ir_jit_wrapper(
         src,
         jit_wrapper_args = {},
         **kwargs):
-    """Instantiates xls_ir_jit_wrapper and a cc_library target with the files.
+    """Invokes the JIT wrapper generator and compiles the result as a cc_library.
 
-    The macro generates sources files (.cc and .h) using the
-    xls_ir_jit_wrapper rule. The source files are the input to a cc_library
-    target with the same name as this macro.
+    The macro invokes the JIT wrapper generator on an IR source file. The
+    generated source files are the inputs to a cc_library with its target name
+    identical to this macro.
 
     Args:
       name: The name of the cc_library target.

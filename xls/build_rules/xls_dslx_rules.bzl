@@ -304,47 +304,43 @@ def _xls_dslx_library_impl(ctx):
 xls_dslx_library = rule(
     doc = """A build rule that parses and type checks DSLX source files.
 
-        Examples:
+Examples:
 
-        1) A collection of DSLX source files.
-            xls_dslx_library(
-                name = "files_123_dslx",
-                srcs = [
-                    "file_1.x",
-                    "file_2.x",
-                    "file_3.x",
-                ],
-            )
+1. A collection of DSLX source files.
 
-        2) Dependency on other xls_dslx_library targets.
-            xls_dslx_library(
-                name = "a_dslx",
-                srcs = [
-                    "a.x",
-                ],
-            )
+    ```
+    xls_dslx_library(
+        name = "files_123_dslx",
+        srcs = [
+            "file_1.x",
+            "file_2.x",
+            "file_3.x",
+        ],
+    )
+    ```
 
-            # Depends on target a_dslx.
-            xls_dslx_library(
-                name = "b_dslx",
-                srcs = [
-                    "b.x",
-                ],
-                deps = [
-                    ":a_dslx",
-                ],
-            )
+1. Dependency on other xls_dslx_library targets.
 
-            # Depends on target a_dslx.
-            xls_dslx_library(
-                name = "c_dslx",
-                srcs = [
-                    "c.x",
-                ],
-                deps = [
-                    ":a_dslx",
-                ],
-            )
+    ```
+    xls_dslx_library(
+        name = "a_dslx",
+        srcs = ["a.x"],
+    )
+
+    # Depends on target a_dslx.
+    xls_dslx_library(
+        name = "b_dslx",
+        srcs = ["b.x"],
+        deps = [":a_dslx"],
+    )
+
+    # Depends on target a_dslx.
+    xls_dslx_library(
+        name = "c_dslx",
+        srcs = ["c.x"],
+        deps = [":a_dslx"],
+    )
+    ```
     """,
     implementation = _xls_dslx_library_impl,
     attrs = dicts.add(
@@ -415,33 +411,36 @@ def _xls_dslx_test_impl(ctx):
 xls_dslx_test = rule(
     doc = """A dslx test executes the tests and quick checks of a DSLX source file.
 
-        Example:
+Examples:
 
-        1) xls_dslx_test on DSLX source files.
-            # Assume a xls_dslx_library target bc_dslx is present.
-            xls_dslx_test(
-                name = "e_dslx_test",
-                srcs = [
-                    "d.x",
-                    "e.x",
-                ],
-                deps = [":bc_dslx"],
-            )
+1. xls_dslx_test on DSLX source files.
 
-        2) xls_dslx_test on a xls_dslx_library.
+    ```
+    # Assume a xls_dslx_library target bc_dslx is present.
+    xls_dslx_test(
+        name = "e_dslx_test",
+        srcs = [
+            "d.x",
+            "e.x",
+        ],
+        deps = [":bc_dslx"],
+    )
+    ```
 
-            xls_dslx_library(
-                name = "b_dslx",
-                src = "b.x",
-                deps = [
-                    ":a_dslx",
-                ],
-            )
+1. xls_dslx_test on a xls_dslx_library.
 
-            xls_dslx_test(
-                name = "b_dslx_test",
-                library = "b_dslx",
-            )
+    ```
+    xls_dslx_library(
+        name = "b_dslx",
+        srcs = ["b.x"],
+        deps = [":a_dslx"],
+    )
+
+    xls_dslx_test(
+        name = "b_dslx_test",
+        library = "b_dslx",
+    )
+    ```
     """,
     implementation = _xls_dslx_test_impl,
     attrs = dicts.add(

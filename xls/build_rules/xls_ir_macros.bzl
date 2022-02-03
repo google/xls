@@ -39,11 +39,38 @@ def xls_dslx_ir_macro(
         enable_generated_file = True,
         enable_presubmit_generated_file = False,
         **kwargs):
-    """A macro wrapper for the 'xls_dslx_ir' rule.
+    """A macro that instantiates a build rule converting a DSLX source file to an IR file.
 
-    The macro instantiates a rule that converts a DSLX source file to an IR file
-    and the 'enable_generated_file_wrapper' function. The generated files of the
-    rule are listed in the outs attribute of the rule.
+    The macro instantiates a rule that converts a DSLX source file to an IR
+    file. The macro also instantiates the 'enable_generated_file_wrapper'
+    function. The generated files are listed in the outs attribute of the rule.
+
+    Examples:
+
+    1. A simple IR conversion.
+
+        ```
+        # Assume a xls_dslx_library target bc_dslx is present.
+        xls_dslx_ir(
+            name = "d_ir",
+            srcs = ["d.x"],
+            deps = [":bc_dslx"],
+        )
+        ```
+
+    1. An IR conversion with an entry defined.
+
+        ```
+        # Assume a xls_dslx_library target bc_dslx is present.
+        xls_dslx_ir(
+            name = "d_ir",
+            srcs = ["d.x"],
+            deps = [":bc_dslx"],
+            ir_conv_args = {
+                "entry" : "d",
+            },
+        )
+        ```
 
     Args:
       name: The name of the rule.
@@ -108,11 +135,39 @@ def xls_ir_opt_ir_macro(
         enable_generated_file = True,
         enable_presubmit_generated_file = False,
         **kwargs):
-    """A macro wrapper for the 'xls_ir_opt_ir' rule.
+    """A macro that instantiates a build rule optimizing an IR file.
 
-    The macro instantiates the 'xls_ir_opt_ir' rule and
-    'enable_generated_file_wrapper' function. The generated files of the rule
-    are listed in the outs attribute of the rule.
+    The macro instantiates a build rule that optimizes an IR file. The macro
+    also instantiates the 'enable_generated_file_wrapper' function. The
+    generated files are listed in the outs attribute of the rule.
+
+    Examples:
+
+    1. Optimizing an IR file with an entry defined.
+
+        ```
+        xls_ir_opt_ir(
+            name = "a_opt_ir",
+            src = "a.ir",
+            opt_ir_args = {
+                "entry" : "a",
+            },
+        )
+        ```
+
+    1. A target as the source.
+
+        ```
+        xls_dslx_ir(
+            name = "a_ir",
+            srcs = ["a.x"],
+        )
+
+        xls_ir_opt_ir(
+            name = "a_opt_ir",
+            src = ":a_ir",
+        )
+        ```
 
     Args:
       name: The name of the rule.
