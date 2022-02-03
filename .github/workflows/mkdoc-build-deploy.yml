@@ -12,13 +12,12 @@ on:
 
 jobs:
   docs:
-    needs: build
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-python@v2
     - run: pip install --upgrade pip && pip install mkdocs mkdocs-gen-files
-    - run: git config user.name 'github-actions[bot]' && git config user.email 'github-actions[bot]@users.noreply.github.com'
+    - run: git config user.name 'xls-github-bot' && git config user.email 'xls-github-bot@google.com'
     - name: Publish docs
       run: mkdocs gh-deploy
 # TODO(vmirian) 2022-02-02 When action is live, enable message.
