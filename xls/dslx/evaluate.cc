@@ -403,11 +403,11 @@ absl::StatusOr<InterpValue> EvaluateFunction(
   }
 
   Module* m = f->owner();
-  XLS_ASSIGN_OR_RETURN(const InterpBindings* top_level_bindings,
-                       GetOrCreateTopLevelBindings(m, interp));
+  const InterpBindings& top_level_bindings =
+      interp->GetImportData()->GetOrCreateTopLevelBindings(m);
   XLS_VLOG(5) << "Evaluated top level bindings for module: " << m->name()
               << "; keys: {"
-              << absl::StrJoin(top_level_bindings->GetKeys(), ", ") << "}";
+              << absl::StrJoin(top_level_bindings.GetKeys(), ", ") << "}";
   InterpBindings fn_bindings(/*parent=*/top_level_bindings);
   XLS_RETURN_IF_ERROR(EvaluateDerivedParametrics(f, &fn_bindings, interp,
                                                  symbolic_bindings.ToMap()));
@@ -695,12 +695,12 @@ static absl::StatusOr<InterpValue> EvaluateEnumRefHelper(
   // Note: we have grab bindings from the underlying type (not from the expr,
   // which may have been in a different module from the enum_def).
   TypeAnnotation* underlying_type = enum_def.type_annotation();
-  XLS_ASSIGN_OR_RETURN(
-      const InterpBindings* top_bindings,
-      GetOrCreateTopLevelBindings(underlying_type->owner(), interp));
+  const InterpBindings& top_level_bindings =
+      interp->GetImportData()->GetOrCreateTopLevelBindings(
+          underlying_type->owner());
 
   AbstractInterpreter::ScopedTypeInfoSwap stis_type(interp, underlying_type);
-  InterpBindings fresh_bindings(/*parent=*/top_bindings);
+  InterpBindings fresh_bindings(/*parent=*/top_level_bindings);
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ConcreteType> concrete_type,
       ConcretizeTypeAnnotation(underlying_type, &fresh_bindings, interp));
@@ -763,8 +763,8 @@ static absl::StatusOr<absl::variant<EnumDef*, Module*>> ResolveColonRefSubject(
 
   XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
                        subject_module->GetTypeDefinition(subject->attr()));
-  XLS_ASSIGN_OR_RETURN(const InterpBindings* top_level_bindings,
-                       GetOrCreateTopLevelBindings(subject_module, interp));
+  const InterpBindings& top_level_bindings =
+      interp->GetImportData()->GetOrCreateTopLevelBindings(subject_module);
   InterpBindings fresh_bindings(/*parent=*/top_level_bindings);
   XLS_ASSIGN_OR_RETURN(
       EnumDef * enum_def,
@@ -799,9 +799,9 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
   if (absl::holds_alternative<ConstantDef*>(*member.value())) {
     auto* cd = absl::get<ConstantDef*>(*member.value());
     XLS_VLOG(5) << "ColonRef resolved to ConstantDef: " << cd->ToString();
-    XLS_ASSIGN_OR_RETURN(const InterpBindings* module_top,
-                         GetOrCreateTopLevelBindings(module, interp));
-    InterpBindings bindings(module_top);
+    const InterpBindings& top_level_bindings =
+        interp->GetImportData()->GetOrCreateTopLevelBindings(module);
+    InterpBindings bindings(top_level_bindings);
     AbstractInterpreter::ScopedTypeInfoSwap stis(interp, module);
     return interp->Eval(cd->value(), &bindings);
   }
@@ -1136,7 +1136,7 @@ absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
                       expr->span().ToString(), to_match.ToString()));
 }
 
-absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
+absl::StatusOr<const InterpBindings*> InitializeTopLevelBindings(
     Module* module, AbstractInterpreter* interp) {
   ImportData* import_data = interp->GetImportData();
   InterpBindings& b = import_data->GetOrCreateTopLevelBindings(module);
@@ -1191,7 +1191,7 @@ absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
     }
     if (absl::holds_alternative<ConstantDef*>(member)) {
       auto* constant_def = absl::get<ConstantDef*>(member);
-      XLS_VLOG(3) << "GetOrCreateTopLevelBindings evaluating: "
+      XLS_VLOG(3) << "InitializeTopLevelBindings evaluating: "
                   << constant_def->ToString();
       absl::optional<InterpValue> precomputed =
           interp->NoteWip(constant_def, absl::nullopt);
@@ -1204,13 +1204,13 @@ absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
       }
       XLS_CHECK(result.has_value());
       b.AddValue(constant_def->identifier(), *result);
-      XLS_VLOG(3) << "GetOrCreateTopLevelBindings evaluated: "
+      XLS_VLOG(3) << "InitializeTopLevelBindings evaluated: "
                   << constant_def->ToString() << " to " << result->ToString();
       continue;
     }
     if (absl::holds_alternative<Import*>(member)) {
       auto* import = absl::get<Import*>(member);
-      XLS_VLOG(3) << "GetOrCreateTopLevelBindings importing: "
+      XLS_VLOG(3) << "InitializeTopLevelBindings importing: "
                   << import->ToString();
       absl::optional<InterpBindings::Entry> entry =
           b.ResolveEntry(import->identifier());
@@ -1219,7 +1219,7 @@ absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
             const ModuleInfo* imported,
             DoImport(interp->GetTypecheckFn(), ImportTokens(import->subject()),
                      interp->GetImportData(), import->span()));
-        XLS_VLOG(3) << "GetOrCreateTopLevelBindings adding import "
+        XLS_VLOG(3) << "InitializeTopLevelBindings adding import "
                     << import->ToString() << " as \"" << import->identifier()
                     << "\"";
         b.AddModule(import->identifier(), imported->module.get());
@@ -1313,8 +1313,8 @@ absl::StatusOr<DerefVariant> EvaluateToStructOrEnumOrAnnotation(
                        bindings->ResolveModule(identifier));
   XLS_ASSIGN_OR_RETURN(TypeDefinition td,
                        imported_module->GetTypeDefinition(attr));
-  XLS_ASSIGN_OR_RETURN(const InterpBindings* imported_bindings,
-                       GetOrCreateTopLevelBindings(imported_module, interp));
+  const InterpBindings& imported_bindings =
+      interp->GetImportData()->GetOrCreateTopLevelBindings(imported_module);
   InterpBindings new_bindings(/*parent=*/imported_bindings);
   return EvaluateToStructOrEnumOrAnnotation(td, &new_bindings, interp,
                                             parametrics);
@@ -1414,8 +1414,8 @@ ConcretizeTypeRefTypeAnnotation(TypeRefTypeAnnotation* type_ref,
   absl::optional<InterpBindings> derefd_bindings;
   Module* derefd_module = ToAstNode(deref)->owner();
   if (derefd_module != type_ref->owner()) {
-    XLS_ASSIGN_OR_RETURN(const InterpBindings* top_level_bindings,
-                         GetOrCreateTopLevelBindings(derefd_module, interp));
+    const InterpBindings& top_level_bindings =
+        interp->GetImportData()->GetOrCreateTopLevelBindings(derefd_module);
     derefd_bindings.emplace(top_level_bindings);
     bindings = &*derefd_bindings;
   }

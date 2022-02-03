@@ -172,6 +172,8 @@ cc_library(
     deps = [
         ":ast",
         ":deduce_ctx",
+        ":evaluate",
+        ":interp_value",
         ":interpreter",
         "@com_google_absl//absl/status",
     ],
@@ -938,6 +940,7 @@ cc_library(
         ":deduce",
         ":deduce_ctx",
         ":dslx_builtins",
+        ":evaluate",
         ":import_routines",
         ":interpreter",
         ":parametric_instantiator",

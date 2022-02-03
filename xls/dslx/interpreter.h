@@ -137,6 +137,10 @@ class Interpreter {
     return result;
   }
 
+  AbstractInterpreter* abstract_interpreter() {
+    return abstract_adapter_.get();
+  }
+
  private:
   friend struct TypeInfoSwap;
   friend class Evaluator;

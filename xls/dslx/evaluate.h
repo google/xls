@@ -237,7 +237,7 @@ absl::StatusOr<InterpValue> EvaluateIndex(Index* expr, InterpBindings* bindings,
 // Implementation note: the work-in-progress (tracking for re-entrancy as
 // described above) is kept track of via the
 // AbstractInterpreter::{IsWip,NoteWip} functions.
-absl::StatusOr<const InterpBindings*> GetOrCreateTopLevelBindings(
+absl::StatusOr<const InterpBindings*> InitializeTopLevelBindings(
     Module* module, AbstractInterpreter* interp);
 
 using ConcretizeVariant = absl::variant<TypeAnnotation*, EnumDef*, StructDef*>;

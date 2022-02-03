@@ -570,11 +570,11 @@ absl::StatusOr<InterpValue> EvaluateSymFunction(
   if (f->identifier() == m->name()) {
     test_generator->ResetRun();
   }
-  XLS_ASSIGN_OR_RETURN(const InterpBindings* top_level_bindings,
-                       GetOrCreateTopLevelBindings(m, interp));
+  const InterpBindings& top_level_bindings =
+      interp->GetImportData()->GetOrCreateTopLevelBindings(m);
   XLS_VLOG(5) << "Evaluated top level bindings for module: " << m->name()
               << "; keys: {"
-              << absl::StrJoin(top_level_bindings->GetKeys(), ", ") << "}";
+              << absl::StrJoin(top_level_bindings.GetKeys(), ", ") << "}";
   InterpBindings fn_bindings(/*parent=*/top_level_bindings);
   XLS_RETURN_IF_ERROR(EvaluateDerivedParametrics(f, &fn_bindings, interp,
                                                  symbolic_bindings.ToMap()));

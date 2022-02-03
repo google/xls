@@ -21,6 +21,7 @@
 #include "xls/dslx/deduce.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/dslx_builtins.h"
+#include "xls/dslx/evaluate.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interpreter.h"
 #include "xls/dslx/parametric_instantiator.h"
@@ -946,6 +947,13 @@ absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data) {
 
   // Make a note that we completed typechecking this module in the import data.
   import_data->SetTypecheckWorkInProgress(module, nullptr);
+
+  // Once we've finished typechecking a module, we need to populate its
+  // top-level bindings with the collected information.
+  Interpreter interp(module, ftypecheck, import_data);
+  XLS_RETURN_IF_ERROR(
+      InitializeTopLevelBindings(module, interp.abstract_interpreter())
+          .status());
 
   return type_info;
 }
