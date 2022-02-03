@@ -168,7 +168,7 @@ void XlsccTestBase::IOTest(std::string content, std::list<IOOpTest> inputs,
 
   std::list<IOOpTest> input_ops_orig = inputs;
   for (const xlscc::IOOp& op : func->io_ops) {
-    const std::string ch_name = op.channel->getNameAsString();
+    const std::string ch_name = op.channel->unique_name;
 
     if (op.op == xlscc::OpType::kRecv) {
       const std::string arg_name =
@@ -218,7 +218,7 @@ void XlsccTestBase::IOTest(std::string content, std::list<IOOpTest> inputs,
 
   int op_idx = 0;
   for (const xlscc::IOOp& op : func->io_ops) {
-    const std::string ch_name = op.channel->getNameAsString();
+    const std::string ch_name = op.channel->unique_name;
 
     if (op.op == xlscc::OpType::kRecv) {
       const IOOpTest test_op = inputs.front();

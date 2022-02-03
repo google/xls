@@ -304,21 +304,22 @@ enum class OpType { kNull = 0, kSend, kRecv };
 
 // Tracks information about an __xls_channel parameter to a function
 struct IOChannel {
+  // Unique within the function
+  std::string unique_name;
   // Type of item the channel transfers
   std::shared_ptr<CType> item_type;
   // Direction of the port (in/out)
-  OpType channel_op_type;
+  OpType channel_op_type = OpType::kNull;
   // The total number of IO ops on the channel within the function
   // (IO ops are conditional, so this is the maximum in a real invocation)
-  int total_ops;
+  int total_ops = 0;
 };
 
 // Tracks information about an IO op on an __xls_channel parameter to a function
 struct IOOp {
   OpType op;
 
-  // Clang AST node for the parameter
-  const clang::ParmVarDecl* channel;
+  IOChannel* channel = nullptr;
 
   // For calls to subroutines with IO inside
   const IOOp* sub_op;
@@ -334,21 +335,17 @@ struct IOOp {
   CValue input_value;
 };
 
-// Tracks information about a call to read() or write() on and __xls_channel,
-//  or to a subroutine containing read() or write().
-struct IOCall {
-  // Can turn into more than one op through unrolling
-  std::vector<IOOp*> ops;
-
-  // A counter used in generating IR
-  int generated_ops;
-};
-
 // Encapsulates values produced when generating IR for a function
 struct GeneratedFunction {
   xls::Function* xls_func = nullptr;
 
-  absl::flat_hash_map<const clang::ParmVarDecl*, IOChannel> io_channels;
+  std::list<IOChannel> io_channels;
+
+  // Not all IO channels will be in these maps
+  absl::flat_hash_map<const clang::ParmVarDecl*, IOChannel*>
+      io_channels_by_param;
+  absl::flat_hash_map<IOChannel*, const clang::ParmVarDecl*>
+      params_by_io_channel;
 
   // All the IO Ops occurring within the function. Order matters here,
   //  as it is assumed that write() ops will depend only on values produced
@@ -731,7 +728,9 @@ class Translator {
   struct PreparedBlock {
     GeneratedFunction* xls_func;
     std::vector<xls::BValue> args;
-    absl::flat_hash_map<const clang::ParmVarDecl*, xls::Channel*> fifo_by_param;
+    // Not used for direct-ins
+    absl::flat_hash_map<IOChannel*, xls::Channel*>
+        xls_channel_by_function_channel;
     absl::flat_hash_map<const IOOp*, int> arg_index_for_op;
     absl::flat_hash_map<const IOOp*, int> return_index_for_op;
     absl::flat_hash_map<const clang::NamedDecl*, int> return_index_for_static;
@@ -767,7 +766,7 @@ class Translator {
   absl::StatusOr<xls::Channel*> CreateChannel(const HLSChannel& hls_channel,
                                               std::shared_ptr<CType> ctype,
                                               xls::Package* package,
-                                              int port_order,
+                                              int64_t port_order,
                                               const xls::SourceLocation& loc);
 
   // Adds subroutine call's statics to context().sf->static_values
@@ -776,10 +775,12 @@ class Translator {
       const absl::flat_hash_map<const clang::NamedDecl*, ConstValue>&
           callee_statics);
 
-  // IOOp must have io_call, channel, and op members filled in
+  // IOOp must have io_call, and op members filled in
   // Returns permanent IOOp pointer
-  absl::StatusOr<IOOp*> AddOpToChannel(IOOp& op,
+  absl::StatusOr<IOOp*> AddOpToChannel(IOOp& op, IOChannel* channel_param,
                                        const xls::SourceLocation& loc);
+  absl::Status CreateChannelParam(const clang::ParmVarDecl* channel_param,
+                                  const xls::SourceLocation& loc);
   absl::StatusOr<bool> ExprIsChannel(const clang::Expr* object,
                                      const xls::SourceLocation& loc);
   absl::StatusOr<bool> TypeIsChannel(const clang::QualType& param,
