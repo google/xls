@@ -464,37 +464,48 @@ static absl::StatusOr<Node*> UpdatePipelineWithBubbleFlowControl(
   return data_load_enable;
 }
 
-// Adds bubble flow control to state_register.
+// Adds flow control when no pipeline registers are created
+// (a pipeline of 1 stage).
 //
-// Used when no pipeline registers are created (a pipeline of 1 stage).
+// Returns a node that is true when the stage accepts a new set of
+// of inputs.
+//
+// The stage is active if
+//   a. All active inputs are valid
+//   b. All active outputs are ready
 //
 // See UpdatePipelineWithBubbleFlowControl() for a description,
 // and for supporting sharing the enable signal of the state register
 // with the datapath pipeline registers.
 //
-// streaming_io is updated with an updated RegisterWrite node.
-static absl::Status UpdateStateRegisterWithBubbleFlowControl(
-    Node* initial_stage_enable, Node* initial_stage_valid,
-    StateRegister& state_register, Block* block) {
-  std::vector<Node*> next_state_en_operands = {initial_stage_enable,
-                                               initial_stage_valid};
+// if there is a state register,
+//   the state register is updated with an updated RegisterWrite node.
+//
+static absl::StatusOr<Node*> UpdateSingleStagePipelineWithFlowControl(
+    Node* all_active_outputs_ready, Node* all_active_inputs_valid,
+    absl::optional<StateRegister>& state_register_opt, Block* block) {
+  std::vector<Node*> operands = {all_active_outputs_ready,
+                                 all_active_inputs_valid};
   XLS_ASSIGN_OR_RETURN(
-      Node * next_state_enable,
-      block->MakeNodeWithName<NaryOp>(absl::nullopt, next_state_en_operands,
-                                      Op::kAnd, "next_state_enable"));
+      Node * pipeline_enable,
+      block->MakeNodeWithName<NaryOp>(absl::nullopt, operands, Op::kAnd,
+                                      "pipeline_enable"));
 
-  XLS_ASSIGN_OR_RETURN(RegisterWrite * new_reg_write,
-                       block->MakeNode<RegisterWrite>(
-                           /*loc=*/state_register.reg_write->loc(),
-                           /*data=*/state_register.reg_write->data(),
-                           /*load_enable=*/next_state_enable,
-                           /*reset=*/state_register.reg_write->reset(),
-                           /*reg=*/state_register.reg_write->GetRegister()));
+  if (state_register_opt.has_value()) {
+    StateRegister& state_register = state_register_opt.value();
+    XLS_ASSIGN_OR_RETURN(RegisterWrite * new_reg_write,
+                         block->MakeNode<RegisterWrite>(
+                             /*loc=*/state_register.reg_write->loc(),
+                             /*data=*/state_register.reg_write->data(),
+                             /*load_enable=*/pipeline_enable,
+                             /*reset=*/state_register.reg_write->reset(),
+                             /*reg=*/state_register.reg_write->GetRegister()));
 
-  XLS_RETURN_IF_ERROR(block->RemoveNode(state_register.reg_write));
-  state_register.reg_write = new_reg_write;
+    XLS_RETURN_IF_ERROR(block->RemoveNode(state_register.reg_write));
+    state_register.reg_write = new_reg_write;
+  }
 
-  return absl::OkStatus();
+  return pipeline_enable;
 }
 
 // Plumbs a valid signal through the block. This includes:
@@ -1114,14 +1125,15 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
   XLS_VLOG(3) << "After Bubble Flow Control (pipeline)";
   XLS_VLOG_LINES(3, block->DumpIr());
 
-  if (streaming_io.state_register.has_value() &&
-      streaming_io.pipeline_registers.size() != 1) {
-    XLS_RETURN_IF_ERROR(UpdateStateRegisterWithBubbleFlowControl(
-        input_stage_enable, pipelined_valids.at(0),
-        streaming_io.state_register.value(), block));
+  // Handle flow control for the single pipeline stage case.
+  if (streaming_io.pipeline_registers.empty()) {
+    XLS_ASSIGN_OR_RETURN(input_stage_enable,
+                         UpdateSingleStagePipelineWithFlowControl(
+                             input_stage_enable, pipelined_valids.at(0),
+                             streaming_io.state_register, block));
   }
 
-  XLS_VLOG(3) << "After Bubble Flow Control (state)";
+  XLS_VLOG(3) << "After Single Stage Flow Control (state)";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   XLS_RETURN_IF_ERROR(MakeOutputReadyPortsForInputChannels(
