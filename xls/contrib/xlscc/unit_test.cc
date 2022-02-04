@@ -19,7 +19,9 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "clang/include/clang/AST/Decl.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/contrib/xlscc/translator.h"
 
 using xls::status_testing::IsOkAndHolds;
 
@@ -58,6 +60,8 @@ void XlsccTestBase::RunWithStatics(
 
   ASSERT_GT(pfunc->static_values.size(), 0);
 
+  ASSERT_EQ(pfunc->io_ops.size(), 0);
+
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> package,
                            ParsePackage(ir));
 
@@ -67,22 +71,23 @@ void XlsccTestBase::RunWithStatics(
 
   ASSERT_GE(params.size(), pfunc->static_values.size());
 
-  std::vector<std::string> static_param_names;
-  std::vector<xls::Value> static_state;
-
-  int param_idx = 0;
-  for (const auto& [_, initval] : pfunc->static_values) {
-    static_param_names.push_back(params[param_idx]->GetName());
-    static_state.push_back(initval.value());
-
-    ++param_idx;
+  absl::flat_hash_map<const clang::NamedDecl*, std::string> static_param_names;
+  absl::flat_hash_map<const clang::NamedDecl*, xls::Value> static_state;
+  for (const xlscc::SideEffectingParameter& param :
+       pfunc->side_effecting_parameters) {
+    XLS_CHECK(param.type == xlscc::SideEffectingParameterType::kStatic);
+    const xls::Value& init_value =
+        pfunc->static_values.at(param.static_value).value();
+    static_param_names[param.static_value] = param.param_name;
+    XLS_CHECK(!static_state.contains(param.static_value));
+    static_state[param.static_value] = init_value;
   }
 
   for (const xls::Value& expected_output : expected_outputs) {
     absl::flat_hash_map<std::string, xls::Value> args_with_statics = args;
 
-    for (int i = 0; i < pfunc->static_values.size(); ++i) {
-      args_with_statics[static_param_names[i]] = static_state[i];
+    for (const auto& [decl, _] : pfunc->static_values) {
+      args_with_statics[static_param_names.at(decl)] = static_state.at(decl);
     }
 
     XLS_ASSERT_OK_AND_ASSIGN(xls::Value actual,
@@ -92,8 +97,12 @@ void XlsccTestBase::RunWithStatics(
                              actual.GetElements());
     ASSERT_EQ(returns.size(), pfunc->static_values.size() + 1);
 
-    for (int i = 0; i < pfunc->static_values.size(); ++i) {
-      static_state[i] = returns[i];
+    {
+      int i = 0;
+      for (const auto& [decl, _] : pfunc->static_values) {
+        XLS_CHECK(static_state.contains(decl));
+        static_state[decl] = returns[i++];
+      }
     }
 
     EXPECT_EQ(returns[pfunc->static_values.size()], expected_output);
@@ -265,7 +274,7 @@ void XlsccTestBase::ProcTest(
         inputs_by_channel,
     const absl::flat_hash_map<std::string, std::vector<xls::Value>>&
         outputs_by_channel,
-    const int n_runs) {
+    const int n_ticks) {
   XLS_ASSERT_OK(ScanFile(content));
 
   xls::Package package("my_package");
@@ -290,7 +299,7 @@ void XlsccTestBase::ProcTest(
 
   xls::ProcInterpreter interpreter(proc, queue_manager.get());
 
-  for (int i = 0; i < n_runs; ++i) {
+  for (int i = 0; i < n_ticks; ++i) {
     ASSERT_THAT(
         interpreter.RunIterationUntilCompleteOrBlocked(),
         IsOkAndHolds(xls::ProcInterpreter::RunResult{.iteration_complete = true,

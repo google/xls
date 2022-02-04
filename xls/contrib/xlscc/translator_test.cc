@@ -2651,6 +2651,27 @@ TEST_F(TranslatorTest, IOSaveChannel) {
           testing::HasSubstr("Channel parameter reference unsupported")));
 }
 
+TEST_F(TranslatorTest, IOMixedOps) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+
+         const int x = in.read();
+
+         in.write(x);
+         out.write(x);
+       })";
+
+  auto ret = SourceToIr(content);
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("should be either input or output")));
+}
+
 TEST_F(TranslatorTest, IOSaveChannelStruct) {
   const std::string content = R"(
        #include "/xls_builtin.h"
@@ -2676,10 +2697,11 @@ TEST_F(TranslatorTest, IOSaveChannelStruct) {
 
   auto ret = SourceToIr(content);
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("IO ops should be on direct DeclRefs")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("Channel parameter reference unsupported")));
 }
 
 TEST_F(TranslatorTest, IOUnrolled) {
@@ -2800,7 +2822,7 @@ TEST_F(TranslatorTest, IOProcMux) {
     outputs["out1"] = {xls::Value(xls::SBits(55, 32))};
     outputs["out2"] = {};
 
-    ProcTest(content, block_spec, inputs, outputs);
+    ProcTest(content, block_spec, inputs, outputs, /* n_ticks = */ 1);
   }
 
   {
@@ -2810,7 +2832,7 @@ TEST_F(TranslatorTest, IOProcMux) {
     outputs["out1"] = {};
     outputs["out2"] = {xls::Value(xls::SBits(55, 32))};
 
-    ProcTest(content, block_spec, inputs, outputs);
+    ProcTest(content, block_spec, inputs, outputs, /* n_ticks = */ 1);
   }
 }
 
@@ -2846,7 +2868,7 @@ TEST_F(TranslatorTest, IOProcOneLine) {
     absl::flat_hash_map<std::string, std::vector<xls::Value>> outputs;
     outputs["out"] = {xls::Value(xls::SBits(22, 32))};
 
-    ProcTest(content, block_spec, inputs, outputs);
+    ProcTest(content, block_spec, inputs, outputs, /* n_ticks = */ 1);
   }
 
   {
@@ -2855,7 +2877,7 @@ TEST_F(TranslatorTest, IOProcOneLine) {
     absl::flat_hash_map<std::string, std::vector<xls::Value>> outputs;
     outputs["out"] = {xls::Value(xls::SBits(46, 32))};
 
-    ProcTest(content, block_spec, inputs, outputs);
+    ProcTest(content, block_spec, inputs, outputs, /* n_ticks = */ 1);
   }
 }
 
@@ -2915,7 +2937,7 @@ TEST_F(TranslatorTest, IOProcMuxMethod) {
     outputs["out1"] = {xls::Value(xls::SBits(55, 32))};
     outputs["out2"] = {};
 
-    ProcTest(content, block_spec, inputs, outputs);
+    ProcTest(content, block_spec, inputs, outputs, /* n_ticks = */ 1);
   }
 }
 
@@ -2973,7 +2995,7 @@ TEST_F(TranslatorTest, IOProcMuxConstDir) {
     outputs["out1"] = {xls::Value(xls::SBits(55, 32))};
     outputs["out2"] = {};
 
-    ProcTest(content, block_spec, inputs, outputs);
+    ProcTest(content, block_spec, inputs, outputs, /* n_ticks = */ 1);
   }
 
   {
@@ -2983,7 +3005,7 @@ TEST_F(TranslatorTest, IOProcMuxConstDir) {
     outputs["out1"] = {};
     outputs["out2"] = {xls::Value(xls::SBits(55, 32))};
 
-    ProcTest(content, block_spec, inputs, outputs);
+    ProcTest(content, block_spec, inputs, outputs, /* n_ticks = */ 1);
   }
 }
 
@@ -3028,7 +3050,7 @@ TEST_F(TranslatorTest, IOProcChainedConditionalRead) {
     absl::flat_hash_map<std::string, std::vector<xls::Value>> outputs;
     outputs["out"] = {xls::Value(xls::SBits(55, 32))};
 
-    ProcTest(content, block_spec, inputs, outputs);
+    ProcTest(content, block_spec, inputs, outputs, /* n_ticks = */ 1);
   }
   {
     absl::flat_hash_map<std::string, std::vector<xls::Value>> inputs;
@@ -3038,7 +3060,7 @@ TEST_F(TranslatorTest, IOProcChainedConditionalRead) {
     absl::flat_hash_map<std::string, std::vector<xls::Value>> outputs;
     outputs["out"] = {xls::Value(xls::SBits(40, 32))};
 
-    ProcTest(content, block_spec, inputs, outputs);
+    ProcTest(content, block_spec, inputs, outputs, /* n_ticks = */ 1);
   }
   {
     absl::flat_hash_map<std::string, std::vector<xls::Value>> inputs;
@@ -3049,7 +3071,48 @@ TEST_F(TranslatorTest, IOProcChainedConditionalRead) {
     outputs["out"] = {xls::Value(xls::SBits(40, 32)),
                       xls::Value(xls::SBits(105, 32))};
 
-    ProcTest(content, block_spec, inputs, outputs);
+    ProcTest(content, block_spec, inputs, outputs, /* n_ticks = */ 1);
+  }
+}
+
+TEST_F(TranslatorTest, IOProcStatic) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      static int accum = 0;
+      accum += in.read();
+      accum += in.read();
+      out.write(accum);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(FIFO);
+  }
+
+  {
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> inputs;
+    inputs["in"] = {
+        xls::Value(xls::SBits(3, 32)), xls::Value(xls::SBits(7, 32)),
+        xls::Value(xls::SBits(10, 32)), xls::Value(xls::SBits(20, 32))};
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(10, 32)),
+                      xls::Value(xls::SBits(40, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* n_ticks = */ 2);
   }
 }
 
@@ -3076,7 +3139,7 @@ TEST_F(TranslatorTest, Static) {
 TEST_F(TranslatorTest, StaticCall) {
   const std::string content = R"(
       int inner(int input) {
-        static int a = 3;
+        static long a = 3;
         --a;
         return a * input;
       }
@@ -3097,6 +3160,31 @@ TEST_F(TranslatorTest, StaticCall) {
       xls::Value(xls::SBits(10, 32)),
   };
 
+  RunWithStatics(args, expected_vals, content);
+}
+
+TEST_F(TranslatorTest, StaticCallMulti) {
+  const std::string content = R"(
+      int inner() {
+        static int a = 10;
+        a--;
+        return a;
+      }
+
+       #pragma hls_top
+       int my_package(int y) {
+         y += inner();
+         return y + inner();
+      })";
+
+  const absl::flat_hash_map<std::string, xls::Value> args = {
+      {"y", xls::Value(xls::SBits(10, 32))}};
+
+  xls::Value expected_vals[] = {
+      xls::Value(xls::SBits(10 + 9 + 8, 32)),
+      xls::Value(xls::SBits(10 + 7 + 6, 32)),
+      xls::Value(xls::SBits(10 + 5 + 4, 32)),
+  };
   RunWithStatics(args, expected_vals, content);
 }
 
@@ -3208,6 +3296,7 @@ TEST_F(TranslatorTest, StaticMember) {
                                             testing::HasSubstr("static")));
 }
 
+// Add inner
 TEST_F(TranslatorTest, StaticProc) {
   const std::string content = R"(
     #include "/xls_builtin.h"
@@ -3215,8 +3304,8 @@ TEST_F(TranslatorTest, StaticProc) {
     #pragma hls_top
     void st(__xls_channel<int>& in,
              __xls_channel<int>& out) {
-      static int count = 1;
       const int ctrl = in.read();
+      static long count = 1;
       out.write(ctrl + count);
       count += 2;
     })";
@@ -3246,7 +3335,7 @@ TEST_F(TranslatorTest, StaticProc) {
                     xls::Value(xls::SBits(63, 32)),
                     xls::Value(xls::SBits(105, 32))};
 
-  ProcTest(content, block_spec, inputs, outputs, /*n_runs*/ 3);
+  ProcTest(content, block_spec, inputs, outputs, /*n_ticks = */ 3);
 }
 
 std::string NativeOperatorTestIr(std::string op) {

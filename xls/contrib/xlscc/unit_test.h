@@ -93,7 +93,7 @@ class XlsccTestBase : public xls::IrTestBase {
                     inputs_by_channel,
                 const absl::flat_hash_map<std::string, std::vector<xls::Value>>&
                     outputs_by_channel,
-                int n_runs = 1);
+                int n_ticks);
 
   std::unique_ptr<xlscc::Translator> translator_;
 };

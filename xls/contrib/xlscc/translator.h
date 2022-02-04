@@ -292,6 +292,10 @@ class ConstValue {
               value.GetFlatBitCount() == type_->GetBitWidth());
   }
 
+  friend bool operator==(const ConstValue& lhs, const ConstValue& rhs) {
+    return lhs.value_ == rhs.value_ && (*lhs.type_) == (*rhs.type_);
+  }
+
   xls::Value value() const { return value_; }
   std::shared_ptr<CType> type() const { return type_; }
 
@@ -335,6 +339,16 @@ struct IOOp {
   CValue input_value;
 };
 
+enum class SideEffectingParameterType { kNull = 0, kIOOp, kStatic };
+
+// Describes a generated parameter from IO, statics, etc
+struct SideEffectingParameter {
+  SideEffectingParameterType type = SideEffectingParameterType::kNull;
+  std::string param_name;
+  IOOp* io_op = nullptr;
+  const clang::NamedDecl* static_value = nullptr;
+};
+
 // Encapsulates values produced when generating IR for a function
 struct GeneratedFunction {
   xls::Function* xls_func = nullptr;
@@ -354,6 +368,9 @@ struct GeneratedFunction {
   //  in the order specified in this list.
   // Use list for safe pointers to values
   std::list<IOOp> io_ops;
+
+  // Saved parameter order
+  std::list<SideEffectingParameter> side_effecting_parameters;
 
   // Global values built with this FunctionBuilder
   absl::flat_hash_map<const clang::NamedDecl*, CValue> global_values;
@@ -761,19 +778,11 @@ class Translator {
   absl::StatusOr<IOOpReturn> InterceptIOOp(const clang::Expr* expr,
                                            const xls::SourceLocation& loc);
 
-  absl::Status DeepScanForIO(const clang::Stmt* body, clang::ASTContext& ctx);
-
   absl::StatusOr<xls::Channel*> CreateChannel(const HLSChannel& hls_channel,
                                               std::shared_ptr<CType> ctype,
                                               xls::Package* package,
                                               int64_t port_order,
                                               const xls::SourceLocation& loc);
-
-  // Adds subroutine call's statics to context().sf->static_values
-  absl::Status TranslateStatics(
-      const clang::FunctionDecl* callee,
-      const absl::flat_hash_map<const clang::NamedDecl*, ConstValue>&
-          callee_statics);
 
   // IOOp must have io_call, and op members filled in
   // Returns permanent IOOp pointer
@@ -791,22 +800,19 @@ class Translator {
   absl::Status GenerateIR_Stmt(const clang::Stmt* stmt, clang::ASTContext& ctx);
 
   absl::Status GenerateIR_For(const clang::ForStmt* stmt,
-                                      clang::ASTContext& ctx,
-                                      const xls::SourceLocation& loc,
-                                      const clang::SourceManager& sm,
-                                      bool deep_scan);
+                              clang::ASTContext& ctx,
+                              const xls::SourceLocation& loc,
+                              const clang::SourceManager& sm);
 
   absl::Status GenerateIR_UnrolledFor(const clang::ForStmt* stmt,
                                       clang::ASTContext& ctx,
-                                      const xls::SourceLocation& loc,
-                                      bool deep_scan);
+                                      const xls::SourceLocation& loc);
   absl::Status GenerateIR_Switch(const clang::SwitchStmt* switchst,
                                  clang::ASTContext& ctx,
                                  const xls::SourceLocation& loc);
   absl::Status GenerateIR_PipelinedFor(const clang::ForStmt* stmt,
                                        clang::ASTContext& ctx,
-                                       const xls::SourceLocation& loc,
-                                       bool deep_scan);
+                                       const xls::SourceLocation& loc);
 
   struct ResolvedInheritance {
     std::shared_ptr<CField> base_field;
@@ -847,6 +853,11 @@ class Translator {
                                const CValue& rvalue,
                                const xls::SourceLocation& loc,
                                bool check_unique_ids = true);
+
+  absl::Status DeclareStatic(const clang::NamedDecl* lvalue,
+                             const ConstValue& init,
+                             const xls::SourceLocation& loc,
+                             bool check_unique_ids = true);
 
   absl::StatusOr<GeneratedFunction*> GenerateIR_Function(
       const clang::FunctionDecl* funcdecl, absl::string_view name_override = "",
