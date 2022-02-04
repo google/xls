@@ -16,7 +16,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-python@v2
-    - run: pip install --upgrade pip && pip install mkdocs mkdocs-gen-files
+    - run: pip install --upgrade pip && pip install mkdocs mkdocs-gen-files mkdocs-material mkdocs-exclude mdx_truly_sane_lists
     - run: git config user.name 'xls-github-bot' && git config user.email 'xls-github-bot@google.com'
     - name: Publish docs
       run: mkdocs gh-deploy
