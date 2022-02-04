@@ -22,7 +22,8 @@ load(
 load(
     "//xls/build_rules:xls_common_rules.bzl",
     "append_cmd_line_args_to",
-    "get_args",
+    "append_default_to_args",
+    "args_to_string",
     "get_output_filename_value",
 )
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
@@ -158,7 +159,7 @@ def _convert_to_ir(ctx, src, dep_src_list):
         ctx.genfiles_dir.path + ":" + ctx.bin_dir.path
     )
 
-    my_args = get_args(ir_conv_args, IR_CONV_FLAGS)
+    my_args = args_to_string(ir_conv_args, IR_CONV_FLAGS)
 
     required_files = [src] + dep_src_list
     required_files += get_xls_toolchain_info(ctx).dslx_std_lib_list
@@ -209,7 +210,7 @@ def _optimize_ir(ctx, src):
         "opt_level",
     )
 
-    my_args = get_args(opt_ir_args, IR_OPT_FLAGS)
+    my_args = args_to_string(opt_ir_args, IR_OPT_FLAGS)
 
     opt_ir_filename = get_output_filename_value(
         ctx,
@@ -278,7 +279,7 @@ def get_ir_equivalence_test_cmd(
         entry,
     )
 
-    my_args = get_args(ir_equivalence_args, IR_EQUIVALENCE_FLAGS)
+    my_args = args_to_string(ir_equivalence_args, IR_EQUIVALENCE_FLAGS)
 
     cmd = "{} {} {} {}\n".format(
         ir_equivalence_tool.short_path,
@@ -317,7 +318,6 @@ def get_eval_ir_test_cmd(ctx, src, entry = None, append_cmd_line_args = True):
       execute the command. The second element is the command.
     """
     ir_eval_tool = get_xls_toolchain_info(ctx).ir_eval_tool
-    ir_eval_default_args = _DEFAULT_IR_EVAL_TEST_ARGS
     IR_EVAL_FLAGS = (
         # Overrides global entry attribute.
         "entry",
@@ -336,7 +336,10 @@ def get_eval_ir_test_cmd(ctx, src, entry = None, append_cmd_line_args = True):
         "input_validator_path",
     )
 
-    ir_eval_args = dict(ctx.attr.ir_eval_args)
+    ir_eval_args = append_default_to_args(
+        ctx.attr.ir_eval_args,
+        _DEFAULT_IR_EVAL_TEST_ARGS,
+    )
 
     # If "entry" not defined in arguments, use global "entry" attribute.
     ir_eval_args = _add_entry_attr(ctx, ir_eval_args, "entry", entry)
@@ -357,7 +360,7 @@ def get_eval_ir_test_cmd(ctx, src, entry = None, append_cmd_line_args = True):
     elif ctx.attr.input_validator_expr:
         ir_eval_args["input_validator_expr"] = "\"" + ctx.attr.input_validator_expr + "\""
 
-    my_args = get_args(ir_eval_args, IR_EVAL_FLAGS, ir_eval_default_args)
+    my_args = args_to_string(ir_eval_args, IR_EVAL_FLAGS)
 
     cmd = "{} {} {}".format(
         ir_eval_tool.short_path,
@@ -405,15 +408,17 @@ def get_benchmark_ir_cmd(ctx, src, entry = None, append_cmd_line_args = True):
         "delay_model",
     )
 
-    benchmark_ir_args = dict(ctx.attr.benchmark_ir_args)
+    benchmark_ir_args = append_default_to_args(
+        ctx.attr.benchmark_ir_args,
+        _DEFAULT_BENCHMARK_IR_ARGS,
+    )
 
     # If "entry" not defined in arguments, use global "entry" attribute.
     benchmark_ir_args = _add_entry_attr(ctx, benchmark_ir_args, "entry", entry)
 
-    my_args = get_args(
+    my_args = args_to_string(
         benchmark_ir_args,
         BENCHMARK_IR_FLAGS,
-        _DEFAULT_BENCHMARK_IR_ARGS,
     )
 
     cmd = "{} {} {}".format(

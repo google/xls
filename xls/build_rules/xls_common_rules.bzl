@@ -14,47 +14,80 @@
 
 """This module contains helpers for XLS build rules."""
 
-def get_args(arguments, valid_arguments, default_arguments = {}):
-    """Returns a string representation of the arguments.
-
-    The macro builds a string representation of the arguments. If no value is
-    specified in the arguments, the a default value will be selected (if
-    present). If an argument in the list is not an acceptable argument, an error
-    is thrown.
+def append_default_to_args(arguments, default_arguments):
+    """Returns a dictionary with the default arguments appended to the arguments.
 
     Example:
-      1) An unspecified a default argument value.
+      1) All default arguments are appended.
+        Input:
+          arguments = {"argument1": "42", "argument2": "binary"}
+          default_arguments = {"argument3": "hello", "argument4": "world"}
+          append_default_to_args(arguments, default_arguments)
+
+        Output:
+            {"argument1": "42", "argument2": "binary", "argument3": "hello",
+             "argument4": "world"}
+      2) Some default arguments are appended.
+        Input:
+          arguments = {"argument1": "42", "argument2": "binary"}
+          default_arguments = {"argument2": "hello", "argument3": "world"}
+          append_default_to_args(arguments, default_arguments)
+
+        Output:
+            {"argument1": "42", "argument2": "binary", "argument3": "world"}
+      3) No default arguments are appended.
+        Input:
+          arguments = {"argument1": "42", "argument2": "binary"}
+          default_arguments = {"argument1": "hello", "argument2": "world"}
+          append_default_to_args(arguments, default_arguments)
+
+        Output:
+            {"argument1": "42", "argument2": "binary"}
+
+    Args:
+      arguments: A dictionary of arguments where the key is the argument name
+        and the value is the value of the argument.
+      default_arguments: A dictionary of arguments where the key is the argument
+        name and the value is the value of the argument.
+    Returns:
+      A newly created dictionary with the default_arguments append to the
+      arguments.
+    """
+
+    # Append to arguments
+    my_args = dict(arguments)
+    for key in default_arguments.keys():
+        my_args.setdefault(key, default_arguments[key])
+    return my_args
+
+def args_to_string(arguments, valid_arguments):
+    """Returns a string representation of the arguments.
+
+    The macro builds a string representation of the arguments. If an argument
+    has a key that is not a valid argument, an error is thrown.
+
+    Example:
+      1) Simple use case.
         Input:
           arguments = {"argument1": "42", "argument2": "binary"}
           valid_arguments = {"argument1", "argument2", "arguments3"}
-          default_arguments = {"arguments3" : "foo"}
-          _get_args(arguments, valid_arguments, default_arguments)
+          args_to_string(arguments, valid_arguments)
 
         Output:
-            --argument1=42 --argument2=binary --argument3=foo
-      2) Overriding a default argument value.
-        Input:
-          arguments = {"argument1": "42", "argument2": "binary"}
-          valid_arguments = {"argument1", "argument2", "arguments3"}
-          default_arguments = {"argument1" : "0", "arguments3" : "foo"}
-          _get_args(arguments, valid_arguments, default_arguments)
-
-        Output:
-            --argument1=42 --argument2=binary --argument3=foo
-      3) An invalid argument.
+            --argument1=42 --argument2=binary
+      2) An invalid argument.
         Input:
           arguments = {"argument1": "42", "argument2": "binary"}
           valid_arguments = {"argument1"}
-          default_arguments = {}
-          _get_args(arguments, valid_arguments, default_arguments)
+          args_to_string(arguments, valid_arguments)
 
         Output (error with message):
             Unrecognized argument: argument2.
 
     Args:
-      arguments: The list of arguments values.
-      valid_arguments: The source file.
-      default_arguments: A list of default argument values.
+      arguments: A dictionary of arguments where the key is the argument name
+        and the value is the value of the argument.
+      valid_arguments: A list of valid arguments names.
     Returns:
       A string of the arguments.
     """
@@ -65,13 +98,6 @@ def get_args(arguments, valid_arguments, default_arguments = {}):
         if flag_name not in valid_arguments:
             fail("Unrecognized argument: %s." % flag_name)
         my_args += " --%s=%s" % (flag_name, arguments[flag_name])
-
-    # Add default arguments
-    for flag_name in default_arguments:
-        if flag_name not in valid_arguments:
-            fail("Unrecognized argument: %s." % flag_name)
-        if flag_name not in arguments:
-            my_args += " --%s=%s" % (flag_name, default_arguments[flag_name])
     return my_args
 
 def append_cmd_line_args_to(cmd):

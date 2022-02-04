@@ -19,7 +19,8 @@ This module contains codegen-related build rules for XLS.
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load(
     "//xls/build_rules:xls_common_rules.bzl",
-    "get_args",
+    "append_default_to_args",
+    "args_to_string",
     "get_output_filename_value",
 )
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
@@ -140,8 +141,10 @@ def xls_ir_verilog_impl(ctx, src):
     my_generated_files = []
 
     # default arguments
-    codegen_default_args = _DEFAULT_CODEGEN_ARGS
-    codegen_args = ctx.attr.codegen_args
+    codegen_args = append_default_to_args(
+        ctx.attr.codegen_args,
+        _DEFAULT_CODEGEN_ARGS,
+    )
 
     # parse arguments
     CODEGEN_FLAGS = (
@@ -169,7 +172,7 @@ def xls_ir_verilog_impl(ctx, src):
         "streaming_channel_valid_suffix",
     )
 
-    my_args = get_args(codegen_args, CODEGEN_FLAGS, codegen_default_args)
+    my_args = args_to_string(codegen_args, CODEGEN_FLAGS)
     uses_combinational_generator = _is_combinational_generator(codegen_args)
 
     # output filenames

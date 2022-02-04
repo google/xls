@@ -18,7 +18,8 @@ load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load(
     "//xls/build_rules:xls_common_rules.bzl",
     "append_cmd_line_args_to",
-    "get_args",
+    "append_default_to_args",
+    "args_to_string",
 )
 load(
     "//xls/build_rules:xls_providers.bzl",
@@ -142,8 +143,11 @@ def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
       The command that executes in the xls_dslx_test rule.
     """
     dslx_interpreter_tool = get_xls_toolchain_info(ctx).dslx_interpreter_tool
-    dslx_test_default_args = _DEFAULT_DSLX_TEST_ARGS
-    _dslx_test_args = ctx.attr.dslx_test_args
+    _dslx_test_args = append_default_to_args(
+        ctx.attr.dslx_test_args,
+        _DEFAULT_DSLX_TEST_ARGS,
+    )
+
     DSLX_TEST_FLAGS = (
         "bytecode",
         "compare",
@@ -155,7 +159,7 @@ def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
         dslx_test_args.get("dslx_path", "") + ":${PWD}:" +
         ctx.genfiles_dir.path + ":" + ctx.bin_dir.path
     )
-    my_args = get_args(dslx_test_args, DSLX_TEST_FLAGS, dslx_test_default_args)
+    my_args = args_to_string(dslx_test_args, DSLX_TEST_FLAGS)
 
     cmd = "{} {} {}".format(
         dslx_interpreter_tool.short_path,
