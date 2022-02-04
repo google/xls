@@ -1243,127 +1243,143 @@ TEST_F(SimplePipelinedProcTest, BasicResetAndStall) {
   }
 }
 
-TEST_F(SimplePipelinedProcTest, RandomStallingSweep) {
-  for (int64_t stage_count : std::vector{1, 2, 3, 4}) {
-    CodegenOptions options;
-    options.flop_inputs(false).flop_outputs(false).clock_name("clk");
-    options.valid_control("input_valid", "output_valid");
-    options.reset("rst", false, false, false);
+// Fixture to sweep SimplePipelinedProcTest
+//
+// Sweep parameters are (state_count, flop_inputs, flop_outputs).
+class SimplePipelinedProcTestSweepFixture
+    : public SimplePipelinedProcTest,
+      public testing::WithParamInterface<std::tuple<int64_t, bool, bool>> {};
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        std::unique_ptr<Package> package,
-        BuildBlockInPackage(/*stage_count=*/stage_count, options));
-    XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
+TEST_P(SimplePipelinedProcTestSweepFixture, RandomStalling) {
+  int64_t stage_count = std::get<0>(GetParam());
+  bool flop_inputs = std::get<1>(GetParam());
+  bool flop_outputs = std::get<2>(GetParam());
 
-    XLS_VLOG(2) << "Simple streaming pipelined block";
-    XLS_VLOG_LINES(2, block->DumpIr());
+  CodegenOptions options;
+  options.flop_inputs(flop_inputs).flop_outputs(flop_outputs).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, false);
 
-    // The input stimulus to this test are
-    //  1. 10 cycles of reset
-    //  2. Randomly varying in_vld and out_rdy.
-    //  3. in_vld = 0 and out_rdy = 1 for 10 cycles to drain the pipeline
-    int64_t simulation_cycle_count = 10000;
-    int64_t max_random_cycle = simulation_cycle_count - 10 - 1;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Package> package,
+      BuildBlockInPackage(/*stage_count=*/stage_count, options));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
 
-    std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
-    XLS_ASSERT_OK(SetSignalsOverCycles(0, 9, {{"rst", 1}}, inputs));
-    XLS_ASSERT_OK(SetSignalsOverCycles(10, simulation_cycle_count - 1,
-                                       {{"rst", 0}}, inputs));
+  XLS_VLOG(2) << "Simple streaming pipelined block";
+  XLS_VLOG_LINES(2, block->DumpIr());
 
-    XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, simulation_cycle_count - 1,
-                                                  "in", 1, inputs));
+  // The input stimulus to this test are
+  //  1. 10 cycles of reset
+  //  2. Randomly varying in_vld and out_rdy.
+  //  3. in_vld = 0 and out_rdy = 1 for 10 cycles to drain the pipeline
+  int64_t simulation_cycle_count = 10000;
+  int64_t max_random_cycle = simulation_cycle_count - 10 - 1;
 
-    std::minstd_rand rng_engine;
-    XLS_ASSERT_OK(SetRandomSignalOverCycles(0, max_random_cycle, "in_vld", 0, 1,
-                                            rng_engine, inputs));
-    XLS_ASSERT_OK(SetRandomSignalOverCycles(0, max_random_cycle, "out_rdy", 0,
-                                            1, rng_engine, inputs));
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 9, {{"rst", 1}}, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(10, simulation_cycle_count - 1,
+                                     {{"rst", 0}}, inputs));
 
-    XLS_ASSERT_OK(
-        SetSignalsOverCycles(max_random_cycle + 1, simulation_cycle_count - 1,
-                             {{"in_vld", 0}, {"out_rdy", 1}}, inputs));
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, simulation_cycle_count - 1,
+                                                "in", 1, inputs));
 
-    std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
-    XLS_ASSERT_OK_AND_ASSIGN(outputs, InterpretSequentialBlock(block, inputs));
+  std::minstd_rand rng_engine;
+  XLS_ASSERT_OK(SetRandomSignalOverCycles(0, max_random_cycle, "in_vld", 0, 1,
+                                          rng_engine, inputs));
+  XLS_ASSERT_OK(SetRandomSignalOverCycles(0, max_random_cycle, "out_rdy", 0, 1,
+                                          rng_engine, inputs));
 
-    // Add a cycle count for easier comparison with simulation results.
-    XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1,
-                                                  "cycle", 0, outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(max_random_cycle + 1,
+                                     simulation_cycle_count - 1,
+                                     {{"in_vld", 0}, {"out_rdy", 1}}, inputs));
 
-    XLS_ASSERT_OK(VLogTestPipelinedIO(
-        std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
-                                {"rst", SignalType::kInput},
-                                {"in", SignalType::kInput},
-                                {"in_vld", SignalType::kInput},
-                                {"in_rdy", SignalType::kOutput},
-                                {"out", SignalType::kOutput},
-                                {"out_vld", SignalType::kOutput},
-                                {"out_rdy", SignalType::kInput}},
-        /*column_width=*/10, inputs, outputs));
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, InterpretSequentialBlock(block, inputs));
 
-    // Check the following property
-    // 1. The sequence of inputs where (in_vld && in_rdy && !rst) is true
-    //    is strictly monotone increasing with no duplicates.
-    // 2. The sequence of outputs where out_vld && out_rdy is true
-    //    is strictly monotone increasing with no duplicates.
-    // 3. Both sequences in #1 and #2 are identical.
-    XLS_ASSERT_OK_AND_ASSIGN(
-        std::vector<CycleAndValue> input_sequence,
-        GetChannelSequenceFromIO({"in", SignalType::kInput},
-                                 {"in_vld", SignalType::kInput},
-                                 {"in_rdy", SignalType::kOutput},
-                                 {"rst", SignalType::kInput}, inputs, outputs));
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        std::vector<CycleAndValue> output_sequence,
-        GetChannelSequenceFromIO({"out", SignalType::kOutput},
-                                 {"out_vld", SignalType::kOutput},
-                                 {"out_rdy", SignalType::kInput},
-                                 {"rst", SignalType::kInput}, inputs, outputs));
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"rst", SignalType::kInput},
+                              {"in", SignalType::kInput},
+                              {"in_vld", SignalType::kInput},
+                              {"in_rdy", SignalType::kOutput},
+                              {"out", SignalType::kOutput},
+                              {"out_vld", SignalType::kOutput},
+                              {"out_rdy", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs));
 
-    std::vector<uint64_t> input_value_sequence;
-    std::vector<uint64_t> output_value_sequence;
+  // Check the following property
+  // 1. The sequence of inputs where (in_vld && in_rdy && !rst) is true
+  //    is strictly monotone increasing with no duplicates.
+  // 2. The sequence of outputs where out_vld && out_rdy is true
+  //    is strictly monotone increasing with no duplicates.
+  // 3. Both sequences in #1 and #2 are identical.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<CycleAndValue> input_sequence,
+      GetChannelSequenceFromIO({"in", SignalType::kInput},
+                               {"in_vld", SignalType::kInput},
+                               {"in_rdy", SignalType::kOutput},
+                               {"rst", SignalType::kInput}, inputs, outputs));
 
-    for (int64_t i = 0; i < input_sequence.size(); ++i) {
-      uint64_t curr_value = input_sequence[i].value;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<CycleAndValue> output_sequence,
+      GetChannelSequenceFromIO({"out", SignalType::kOutput},
+                               {"out_vld", SignalType::kOutput},
+                               {"out_rdy", SignalType::kInput},
+                               {"rst", SignalType::kInput}, inputs, outputs));
 
-      if (i >= 1) {
-        int64_t curr_cycle = input_sequence[i].cycle;
-        uint64_t prior_value = input_sequence[i - 1].value;
+  std::vector<uint64_t> input_value_sequence;
+  std::vector<uint64_t> output_value_sequence;
 
-        EXPECT_LT(prior_value, curr_value) << absl::StreamFormat(
-            "Input not strictly monotone cycle %d "
-            "got %d prior %d",
-            curr_cycle, curr_value, prior_value);
-      }
+  for (int64_t i = 0; i < input_sequence.size(); ++i) {
+    uint64_t curr_value = input_sequence[i].value;
 
-      input_value_sequence.push_back(curr_value);
+    if (i >= 1) {
+      int64_t curr_cycle = input_sequence[i].cycle;
+      uint64_t prior_value = input_sequence[i - 1].value;
+
+      EXPECT_LT(prior_value, curr_value) << absl::StreamFormat(
+          "Input not strictly monotone cycle %d "
+          "got %d prior %d",
+          curr_cycle, curr_value, prior_value);
     }
 
-    for (int64_t i = 0; i < output_sequence.size(); ++i) {
-      uint64_t curr_value = output_sequence[i].value;
-      if (i >= 1) {
-        int64_t curr_cycle = output_sequence[i].cycle;
-        uint64_t prior_value = output_sequence[i - 1].value;
-
-        EXPECT_LT(prior_value, curr_value) << absl::StreamFormat(
-            "Output not strictly monotone cycle %d "
-            "got %d prior %d",
-            curr_cycle, curr_value, prior_value);
-      }
-
-      output_value_sequence.push_back(curr_value);
-    }
-
-    EXPECT_EQ(input_value_sequence, output_value_sequence);
+    input_value_sequence.push_back(curr_value);
   }
+
+  for (int64_t i = 0; i < output_sequence.size(); ++i) {
+    uint64_t curr_value = output_sequence[i].value;
+    if (i >= 1) {
+      int64_t curr_cycle = output_sequence[i].cycle;
+      uint64_t prior_value = output_sequence[i - 1].value;
+
+      EXPECT_LT(prior_value, curr_value) << absl::StreamFormat(
+          "Output not strictly monotone cycle %d "
+          "got %d prior %d",
+          curr_cycle, curr_value, prior_value);
+    }
+
+    output_value_sequence.push_back(curr_value);
+  }
+
+  EXPECT_EQ(input_value_sequence, output_value_sequence);
 }
+
+INSTANTIATE_TEST_SUITE_P(SimplePipelinedProcTestSweep,
+                         SimplePipelinedProcTestSweepFixture,
+                         testing::Combine(testing::Values(1, 2, 3, 4),
+                                          testing::Values(false, true),
+                                          testing::Values(false, true)));
 
 // Fixture used to test pipelined BlockConversion on a simple
 // block with a running counter
-class SimpleRunningCounterProcTest
+class SimpleRunningCounterProcTestSweepFixture
     : public ProcConversionTestFixture,
-      public testing::WithParamInterface<std::tuple<int64_t, bool>> {
+      public testing::WithParamInterface<
+          std::tuple<int64_t, bool, bool, bool>> {
  protected:
   absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
       int64_t stage_count, const CodegenOptions& options) override {
@@ -1411,12 +1427,14 @@ class SimpleRunningCounterProcTest
   }
 };
 
-TEST_P(SimpleRunningCounterProcTest, RandomStalling) {
+TEST_P(SimpleRunningCounterProcTestSweepFixture, RandomStalling) {
   int64_t stage_count = std::get<0>(GetParam());
   bool active_low_reset = std::get<1>(GetParam());
+  bool flop_inputs = std::get<2>(GetParam());
+  bool flop_outputs = std::get<3>(GetParam());
 
   CodegenOptions options;
-  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.flop_inputs(flop_inputs).flop_outputs(flop_outputs).clock_name("clk");
   options.valid_control("input_valid", "output_valid");
   options.reset(active_low_reset ? "rst_n" : "rst", false,
                 /*active_low=*/active_low_reset, false);
@@ -1503,6 +1521,33 @@ TEST_P(SimpleRunningCounterProcTest, RandomStalling) {
           {reset_signal, SignalType::kInput, active_low_reset}, inputs,
           outputs));
 
+  for (int64_t i = 0; i < input_sequence.size(); ++i) {
+    uint64_t curr_value = input_sequence[i].value;
+
+    if (i >= 1) {
+      int64_t curr_cycle = input_sequence[i].cycle;
+      uint64_t prior_value = input_sequence[i - 1].value;
+
+      EXPECT_LT(prior_value, curr_value) << absl::StreamFormat(
+          "Input not strictly monotone cycle %d "
+          "got %d prior %d",
+          curr_cycle, curr_value, prior_value);
+    }
+  }
+
+  for (int64_t i = 0; i < output_sequence.size(); ++i) {
+    uint64_t curr_value = output_sequence[i].value;
+    if (i >= 1) {
+      int64_t curr_cycle = output_sequence[i].cycle;
+      uint64_t prior_value = output_sequence[i - 1].value;
+
+      EXPECT_LT(prior_value, curr_value) << absl::StreamFormat(
+          "Output not strictly monotone cycle %d "
+          "got %d prior %d",
+          curr_cycle, curr_value, prior_value);
+    }
+  }
+
   int64_t in_sum = 0;
   for (CycleAndValue cv : input_sequence) {
     in_sum += cv.value;
@@ -1512,8 +1557,11 @@ TEST_P(SimpleRunningCounterProcTest, RandomStalling) {
   EXPECT_EQ(in_sum, output_sequence.back().value);
 }
 
-INSTANTIATE_TEST_SUITE_P(SweepStageAndReset, SimpleRunningCounterProcTest,
+INSTANTIATE_TEST_SUITE_P(SimpleRunningCounterProcTestSweep,
+                         SimpleRunningCounterProcTestSweepFixture,
                          testing::Combine(testing::Values(1, 2, 3),
+                                          testing::Values(false, true),
+                                          testing::Values(false, true),
                                           testing::Values(false, true)));
 
 // Fixture used to test pipelined BlockConversion on a multi input  block.
@@ -1564,12 +1612,21 @@ class MultiInputPipelinedProcTest : public ProcConversionTestFixture {
   }
 };
 
-TEST_F(MultiInputPipelinedProcTest, RandomStalling) {
-  int64_t stage_count = 4;
+// Fixture to sweep MultiInputProcPipelinedTest
+//
+// Sweep parameters are (state_count, flop_inputs, flop_outputs).
+class MultiInputPipelinedProcTestSweepFixture
+    : public MultiInputPipelinedProcTest,
+      public testing::WithParamInterface<std::tuple<int64_t, bool, bool>> {};
+
+TEST_P(MultiInputPipelinedProcTestSweepFixture, RandomStalling) {
+  int64_t stage_count = std::get<0>(GetParam());
+  bool flop_inputs = std::get<1>(GetParam());
+  bool flop_outputs = std::get<2>(GetParam());
   bool active_low_reset = true;
 
   CodegenOptions options;
-  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.flop_inputs(flop_inputs).flop_outputs(flop_outputs).clock_name("clk");
   options.valid_control("input_valid", "output_valid");
   options.reset("rst_n", false, /*active_low=*/active_low_reset, false);
 
@@ -1687,12 +1744,18 @@ TEST_F(MultiInputPipelinedProcTest, RandomStalling) {
   }
 }
 
+INSTANTIATE_TEST_SUITE_P(MultiInputPipelinedProcTestSweep,
+                         MultiInputPipelinedProcTestSweepFixture,
+                         testing::Combine(testing::Values(2, 3),
+                                          testing::Values(false, true),
+                                          testing::Values(false, true)));
+
 TEST_F(MultiInputPipelinedProcTest, IdleSignalNoFlops) {
   int64_t stage_count = 4;
   bool active_low_reset = true;
 
   CodegenOptions options;
-  options.flop_inputs(true).flop_outputs(false).clock_name("clk");
+  options.flop_inputs(true).flop_outputs(true).clock_name("clk");
   options.valid_control("input_valid", "output_valid");
   options.reset("rst_n", false, /*active_low=*/active_low_reset, false);
   options.add_idle_output(true);
@@ -1749,7 +1812,7 @@ TEST_F(MultiInputPipelinedProcTest, IdleSignalNoFlops) {
       expected_outputs));
 
   //  5. 1 cycle of data on in1 -- allows 4-stage pipeline to drain
-  //  6. After 4 more cycles (on 35th cycle), pipeline drains and block becomes
+  //  6. After 5 more cycles (on 36th cycle), pipeline drains and block becomes
   //  idle
   XLS_ASSERT_OK(SetSignalsOverCycles(
       30, 30, {{"rst_n", 1}, {"in0_vld", 0}, {"in1_vld", 1}, {"out_rdy", 1}},
@@ -1761,13 +1824,13 @@ TEST_F(MultiInputPipelinedProcTest, IdleSignalNoFlops) {
       31, 39, {{"rst_n", 1}, {"in0_vld", 0}, {"in1_vld", 0}, {"out_rdy", 1}},
       inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      31, 33, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 0}},
+      31, 34, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 0}},
       expected_outputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      34, 34, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 1}, {"idle", 0}},
+      35, 35, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 1}, {"idle", 0}},
       expected_outputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      35, 39, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
+      36, 39, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
       expected_outputs));
 
   //  7. 1 cycle of data on in1 - idle immediately becomes 0 due to
@@ -1788,7 +1851,7 @@ TEST_F(MultiInputPipelinedProcTest, IdleSignalNoFlops) {
       expected_outputs));
 
   //  9. 1 cycle of data on in0 -- allows 4-stage pipeline to drain
-  // 10. After 4 more cycles (on 35th cycle), pipeline drains and block becomes
+  // 10. After 5 more cycles (on 76th cycle), pipeline drains and block becomes
   // idle
   XLS_ASSERT_OK(SetSignalsOverCycles(
       70, 70, {{"rst_n", 1}, {"in0_vld", 1}, {"in1_vld", 0}, {"out_rdy", 1}},
@@ -1800,19 +1863,19 @@ TEST_F(MultiInputPipelinedProcTest, IdleSignalNoFlops) {
       71, 79, {{"rst_n", 1}, {"in0_vld", 0}, {"in1_vld", 0}, {"out_rdy", 1}},
       inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      71, 73, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 0}},
+      71, 74, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 0}},
       expected_outputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      74, 74, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 1}, {"idle", 0}},
+      75, 75, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 1}, {"idle", 0}},
       expected_outputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      75, 79, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
+      76, 79, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
       expected_outputs));
 
   // 11. Skipping cycle of valid input data, then drain the pipeline
-  //   input on cycle 80 appears on the output on cycle 84
-  //   input on cycle 83 appears on the output on cycle 87
-  //   idle aserts on cycle 88
+  //   input on cycle 80 appears on the output on cycle 85
+  //   input on cycle 83 appears on the output on cycle 88
+  //   idle aserts on cycle 89
   XLS_ASSERT_OK(SetSignalsOverCycles(
       80, 80, {{"rst_n", 1}, {"in0_vld", 1}, {"in1_vld", 1}, {"out_rdy", 1}},
       inputs));
@@ -1833,21 +1896,24 @@ TEST_F(MultiInputPipelinedProcTest, IdleSignalNoFlops) {
   XLS_ASSERT_OK(SetSignalsOverCycles(
       83, 83, {{"in0_rdy", 1}, {"in1_rdy", 1}, {"out_vld", 0}, {"idle", 0}},
       expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      84, 84, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 0}},
+      expected_outputs));
 
   XLS_ASSERT_OK(SetSignalsOverCycles(
       84, 89, {{"rst_n", 1}, {"in0_vld", 0}, {"in1_vld", 0}, {"out_rdy", 1}},
       inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      84, 84, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 1}, {"idle", 0}},
+      85, 85, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 1}, {"idle", 0}},
       expected_outputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      85, 86, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 0}},
+      86, 87, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 0}},
       expected_outputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      87, 87, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 1}, {"idle", 0}},
+      88, 88, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 1}, {"idle", 0}},
       expected_outputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      88, 89, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
+      89, 89, {{"in0_rdy", 0}, {"in1_rdy", 0}, {"out_vld", 0}, {"idle", 1}},
       expected_outputs));
 
   // 12. Continuous data for 10 cycles means that idle becomes 0 again.
@@ -1856,10 +1922,10 @@ TEST_F(MultiInputPipelinedProcTest, IdleSignalNoFlops) {
       90, 99, {{"rst_n", 1}, {"in0_vld", 1}, {"in1_vld", 1}, {"out_rdy", 1}},
       inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      90, 93, {{"in0_rdy", 1}, {"in1_rdy", 1}, {"out_vld", 0}, {"idle", 0}},
+      90, 94, {{"in0_rdy", 1}, {"in1_rdy", 1}, {"out_vld", 0}, {"idle", 0}},
       expected_outputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
-      94, 99, {{"in0_rdy", 1}, {"in1_rdy", 1}, {"out_vld", 1}, {"idle", 0}},
+      95, 99, {{"in0_rdy", 1}, {"in1_rdy", 1}, {"out_vld", 1}, {"idle", 0}},
       expected_outputs));
 
   // Fill in the input data

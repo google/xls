@@ -790,14 +790,15 @@ static absl::Status UpdateRegisterLoadEn(Node* load_en, Register* reg,
 // Adds a register between the node and all its downstream users.
 // Returns the new register added.
 static absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
-    const ResetInfo& reset_info, Node* node, Block* block) {
+    absl::string_view name_prefix, const ResetInfo& reset_info, Node* node,
+    Block* block) {
   Type* node_type = node->GetType();
 
   xls::Reset reset_behavior = reset_info.behavior.value();
   reset_behavior.reset_value = ZeroOfType(node_type);
   Node* reset_node = reset_info.input_port.value();
 
-  std::string name = absl::StrFormat("__%s_reg", node->GetName());
+  std::string name = absl::StrFormat("__%s_reg", name_prefix);
 
   XLS_ASSIGN_OR_RETURN(Register * reg,
                        block->AddRegister(name, node_type, reset_behavior));
@@ -822,49 +823,43 @@ static absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
   return reg_read;
 }
 
-// Adds a register after the input streaming channel's data and valid.
+// Add flops after the data/valid of a set of three data, valid, and ready
+// nodes.
 //
-// Updates handled_io_nodes with the input ports that are associated
-// with input.
 // Updates valid_nodes with the additional nodes associated with valid
 // registers.
 //
 // Returns the node for the register_read of the data.
-static absl::StatusOr<RegisterRead*> AddRegisterAfterStreamingInput(
-    StreamingInput& input, const ResetInfo& reset_info, Block* block,
-    absl::flat_hash_set<Node*>& handled_io_nodes,
+static absl::StatusOr<RegisterRead*> AddRegisterToRDVNodes(
+    Node* from_data, Node* from_valid, Node* from_rdy,
+    absl::string_view name_prefix, const ResetInfo& reset_info, Block* block,
     std::vector<Node*>& valid_nodes) {
-  // 1. Add initial set of registers for the data and valid.
-  InputPort* from_data = input.port;
-  InputPort* from_valid = input.port_valid;
-  OutputPort* from_rdy = input.port_ready;
-
-  XLS_ASSIGN_OR_RETURN(RegisterRead * data_reg_read,
-                       AddRegisterAfterNode(reset_info, from_data, block));
+  XLS_ASSIGN_OR_RETURN(
+      RegisterRead * data_reg_read,
+      AddRegisterAfterNode(name_prefix, reset_info, from_data, block));
   XLS_ASSIGN_OR_RETURN(RegisterRead * valid_reg_read,
-                       AddRegisterAfterNode(reset_info, from_valid, block));
+                       AddRegisterAfterNode(absl::StrCat(name_prefix, "_valid"),
+                                            reset_info, from_valid, block));
 
   // 2. Construct and update the ready signal.
   Node* from_rdy_src = from_rdy->operand(0);
   Register* data_reg = data_reg_read->GetRegister();
   Register* valid_reg = valid_reg_read->GetRegister();
 
-  std::string not_valid_name = absl::StrFormat("%s_inv", valid_reg->name());
+  std::string not_valid_name = absl::StrCat(name_prefix, "_valid_inv");
   XLS_ASSIGN_OR_RETURN(
       Node * not_valid,
       block->MakeNodeWithName<UnOp>(/*loc=*/absl::nullopt, valid_reg_read,
                                     Op::kNot, not_valid_name));
 
-  std::string valid_load_en_name =
-      absl::StrFormat("%s_load_en", valid_reg->name());
+  std::string valid_load_en_name = absl::StrCat(name_prefix, "_valid_load_en");
   XLS_ASSIGN_OR_RETURN(
       Node * valid_load_en,
       block->MakeNodeWithName<NaryOp>(
           /*loc=*/absl::nullopt, std::vector<Node*>({from_rdy_src, not_valid}),
           Op::kOr, valid_load_en_name));
 
-  std::string data_load_en_name =
-      absl::StrFormat("%s_load_en", data_reg->name());
+  std::string data_load_en_name = absl::StrCat(name_prefix, "_load_en");
   XLS_ASSIGN_OR_RETURN(Node * data_load_en,
                        block->MakeNodeWithName<NaryOp>(
                            /*loc=*/absl::nullopt,
@@ -877,55 +872,141 @@ static absl::StatusOr<RegisterRead*> AddRegisterAfterStreamingInput(
   XLS_RETURN_IF_ERROR(UpdateRegisterLoadEn(data_load_en, data_reg, block));
   XLS_RETURN_IF_ERROR(UpdateRegisterLoadEn(valid_load_en, valid_reg, block));
 
-  handled_io_nodes.insert(from_data);
-  handled_io_nodes.insert(from_valid);
-  handled_io_nodes.insert(from_rdy);
-
   valid_nodes.push_back(valid_reg_read);
 
   return data_reg_read;
 }
 
-// Adds an input flop and related signals.
+// Adds a register after the input streaming channel's data and valid.
+static absl::StatusOr<RegisterRead*> AddRegisterAfterStreamingInput(
+    StreamingInput& input, const ResetInfo& reset_info, Block* block,
+    std::vector<Node*>& valid_nodes) {
+  return AddRegisterToRDVNodes(input.port, input.port_valid, input.port_ready,
+                               input.port->name(), reset_info, block,
+                               valid_nodes);
+}
+
+// Adds a register after the input streaming channel's data and valid.
+// Returns the node for the register_read of the data.
+static absl::StatusOr<RegisterRead*> AddRegisterBeforeStreamingOutput(
+    StreamingOutput& output, const ResetInfo& reset_info, Block* block,
+    std::vector<Node*>& valid_nodes) {
+  // Add an buffers before the data/valid output ports and after
+  // the ready input port to serve as points where the
+  // additional logic from AddRegisterToRDVNodes() can be inserted.
+  std::string data_buf_name =
+      absl::StrFormat("__%s_buf", output.port_ready->name());
+  std::string valid_buf_name =
+      absl::StrFormat("__%s_buf", output.port_ready->name());
+  std::string ready_buf_name =
+      absl::StrFormat("__%s_buf", output.port_ready->name());
+
+  XLS_ASSIGN_OR_RETURN(Node * output_port_data_buf,
+                       block->MakeNodeWithName<UnOp>(
+                           /*loc=*/absl::nullopt, output.port->operand(0),
+                           Op::kIdentity, data_buf_name));
+  XLS_RETURN_IF_ERROR(
+      output.port->ReplaceOperandNumber(0, output_port_data_buf));
+
+  XLS_ASSIGN_OR_RETURN(Node * output_port_valid_buf,
+                       block->MakeNodeWithName<UnOp>(
+                           /*loc=*/absl::nullopt, output.port_valid->operand(0),
+                           Op::kIdentity, valid_buf_name));
+  XLS_RETURN_IF_ERROR(
+      output.port_valid->ReplaceOperandNumber(0, output_port_valid_buf));
+
+  XLS_ASSIGN_OR_RETURN(Node * output_port_ready_buf,
+                       block->MakeNodeWithName<UnOp>(
+                           /*loc=*/absl::nullopt, output.port_ready,
+                           Op::kIdentity, valid_buf_name));
+
+  XLS_RETURN_IF_ERROR(
+      output.port_ready->ReplaceUsesWith(output_port_ready_buf));
+
+  return AddRegisterToRDVNodes(output_port_data_buf, output_port_valid_buf,
+                               output_port_ready_buf, output.port->name(),
+                               reset_info, block, valid_nodes);
+}
+
+// Adds an input and/or output flop and related signals.
 // For streaming inputs, data/valid are registered, but the ready signal
 // remains as a feed-through pass.
 //
 // Ready is asserted if the input is ready and either a) the flop
 // is invalid; or b) the flop is valid but the pipeline will accept the data,
 // on the next clock tick.
-static absl::Status AddInputFlops(const ResetInfo& reset_info,
-                                  const CodegenOptions& options,
-                                  StreamingIoPipeline& streaming_io,
-                                  Block* block,
-                                  std::vector<Node*>& valid_nodes) {
+static absl::Status AddInputOutputFlops(const ResetInfo& reset_info,
+                                        const CodegenOptions& options,
+                                        StreamingIoPipeline& streaming_io,
+                                        Block* block,
+                                        std::vector<Node*>& valid_nodes) {
   absl::flat_hash_set<Node*> handled_io_nodes;
 
   // Flop streaming inputs.
   for (StreamingInput& input : streaming_io.inputs) {
-    XLS_RETURN_IF_ERROR(AddRegisterAfterStreamingInput(input, reset_info, block,
-                                                       handled_io_nodes,
-                                                       valid_nodes)
-                            .status());
+    if (options.flop_inputs()) {
+      XLS_RETURN_IF_ERROR(
+          AddRegisterAfterStreamingInput(input, reset_info, block, valid_nodes)
+              .status());
+
+      handled_io_nodes.insert(input.port);
+      handled_io_nodes.insert(input.port_valid);
+    }
+
+    // ready for an output port is an output for the block,
+    // record that we should not separately add a flop these inputs.
+    handled_io_nodes.insert(input.port_ready);
   }
 
-  // Filter out streaming outputs
+  // Flop streaming outputs.
   for (StreamingOutput& output : streaming_io.outputs) {
+    if (options.flop_outputs()) {
+      XLS_RETURN_IF_ERROR(AddRegisterBeforeStreamingOutput(output, reset_info,
+                                                           block, valid_nodes)
+                              .status());
+
+      handled_io_nodes.insert(output.port);
+      handled_io_nodes.insert(output.port_valid);
+    }
+
+    // ready for an output port is an input for the block,
+    // record that we should not separately add a flop these inputs.
     handled_io_nodes.insert(output.port_ready);
   }
 
   // Flop other inputs.
-  for (InputPort* port : block->GetInputPorts()) {
-    // Skip input ports that
-    //  a) Belong to streaming input or output channels.
-    //  b) Is the reset port.
-    if (handled_io_nodes.contains(port) ||
-        port == reset_info.input_port.value()) {
-      continue;
+  if (options.flop_inputs()) {
+    for (InputPort* port : block->GetInputPorts()) {
+      // Skip input ports that
+      //  a) Belong to streaming input or output channels.
+      //  b) Is the reset port.
+      if (handled_io_nodes.contains(port) ||
+          port == reset_info.input_port.value()) {
+        continue;
+      }
+
+      XLS_RETURN_IF_ERROR(
+          AddRegisterAfterNode(port->GetName(), reset_info, port, block)
+              .status());
+
+      handled_io_nodes.insert(port);
     }
+  }
 
-    XLS_RETURN_IF_ERROR(AddRegisterAfterNode(reset_info, port, block).status());
+  // Flop other outputs
+  if (options.flop_outputs()) {
+    for (OutputPort* port : block->GetOutputPorts()) {
+      // Skip output ports that belong to streaming input or output channels.
+      if (handled_io_nodes.contains(port)) {
+        continue;
+      }
 
-    handled_io_nodes.insert(port);
+      XLS_RETURN_IF_ERROR(AddRegisterAfterNode(port->GetName(), reset_info,
+                                               port->operand(0), block)
+                              .status());
+
+      handled_io_nodes.insert(port);
+    }
   }
 
   return absl::OkStatus();
@@ -1707,12 +1788,6 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
     return absl::UnimplementedError("Manual pipeline control not implemented");
   }
 
-  // TODO(tedhong): 2022-01-23 Support output flops.
-  if (options.flop_outputs()) {
-    return absl::UnimplementedError(
-        "Registering outputs for pipelined procs not implemented");
-  }
-
   Block* block = proc->package()->AddBlock(
       std::make_unique<Block>(block_name, proc->package()));
 
@@ -1761,17 +1836,19 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
   std::vector<Node*> valid_flops(pipelined_valids.begin() + 1,
                                  pipelined_valids.end());
 
-  if (options.flop_inputs()) {
-    XLS_RETURN_IF_ERROR(AddInputFlops(
+  if (options.flop_inputs() || options.flop_outputs()) {
+    XLS_RETURN_IF_ERROR(AddInputOutputFlops(
         reset_info, options, streaming_io_and_pipeline, block, valid_flops));
   }
-  XLS_VLOG(3) << "After Input Flops";
+  XLS_VLOG(3) << "After Input or Output Flops";
+  XLS_VLOG_LINES(3, block->DumpIr());
 
   if (options.add_idle_output()) {
     XLS_RETURN_IF_ERROR(
         AddIdleOutput(valid_flops, streaming_io_and_pipeline, block));
   }
   XLS_VLOG(3) << "After Add Idle Output";
+  XLS_VLOG_LINES(3, block->DumpIr());
 
   // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
   //                codegen pipeline.
