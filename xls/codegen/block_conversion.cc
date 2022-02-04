@@ -376,7 +376,7 @@ static absl::StatusOr<Node*> UpdatePipelineWithBubbleFlowControl(
   std::vector<Node*> enable_n(stage_count + 1);
   enable_n.at(stage_count) = initial_output_ready_node;
 
-  // We initalize data_load_enable here so that this function
+  // We initialize data_load_enable here so that this function
   // can return the data_load_enable for the first pipeline stage --
   // which is the last data_load_enable node created by this function.
   Node* data_load_enable = initial_output_ready_node;
@@ -598,6 +598,7 @@ struct StreamingIoPipeline {
   std::vector<StreamingOutput> outputs;
   std::vector<PipelineStageRegisters> pipeline_registers;
   absl::optional<StateRegister> state_register;
+  absl::optional<OutputPort*> idle_port;
 };
 
 // For each output streaming channel add a corresponding ready port (input
@@ -822,12 +823,17 @@ static absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
 }
 
 // Adds a register after the input streaming channel's data and valid.
+//
 // Updates handled_io_nodes with the input ports that are associated
 // with input.
+// Updates valid_nodes with the additional nodes associated with valid
+// registers.
+//
 // Returns the node for the register_read of the data.
 static absl::StatusOr<RegisterRead*> AddRegisterAfterStreamingInput(
     StreamingInput& input, const ResetInfo& reset_info, Block* block,
-    absl::flat_hash_set<Node*>& handled_io_nodes) {
+    absl::flat_hash_set<Node*>& handled_io_nodes,
+    std::vector<Node*>& valid_nodes) {
   // 1. Add initial set of registers for the data and valid.
   InputPort* from_data = input.port;
   InputPort* from_valid = input.port_valid;
@@ -875,6 +881,8 @@ static absl::StatusOr<RegisterRead*> AddRegisterAfterStreamingInput(
   handled_io_nodes.insert(from_valid);
   handled_io_nodes.insert(from_rdy);
 
+  valid_nodes.push_back(valid_reg_read);
+
   return data_reg_read;
 }
 
@@ -888,13 +896,15 @@ static absl::StatusOr<RegisterRead*> AddRegisterAfterStreamingInput(
 static absl::Status AddInputFlops(const ResetInfo& reset_info,
                                   const CodegenOptions& options,
                                   StreamingIoPipeline& streaming_io,
-                                  Block* block) {
+                                  Block* block,
+                                  std::vector<Node*>& valid_nodes) {
   absl::flat_hash_set<Node*> handled_io_nodes;
 
   // Flop streaming inputs.
   for (StreamingInput& input : streaming_io.inputs) {
     XLS_RETURN_IF_ERROR(AddRegisterAfterStreamingInput(input, reset_info, block,
-                                                       handled_io_nodes)
+                                                       handled_io_nodes,
+                                                       valid_nodes)
                             .status());
   }
 
@@ -921,12 +931,48 @@ static absl::Status AddInputFlops(const ResetInfo& reset_info,
   return absl::OkStatus();
 }
 
+// Adds an idle signal (un-flopped) to the block.
+//
+// Idle is asserted if valid signals for
+//  a) input streaming channels
+//  b) pipeline registers and any other valid flop for saved state
+//  c) output streaming channels
+// are asserted.
+//
+// TODO(tedhong): 2022-02-01 There may be some redundancy between B and C,
+// Create an optimization pass within the codegen pipeline to remove it.
+static absl::Status AddIdleOutput(std::vector<Node*> valid_nodes,
+                                  StreamingIoPipeline& streaming_io,
+                                  Block* block) {
+  for (StreamingInput& input : streaming_io.inputs) {
+    valid_nodes.push_back(input.port_valid);
+  }
+
+  for (StreamingOutput& output : streaming_io.outputs) {
+    valid_nodes.push_back(output.port_valid->operand(0));
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * idle_signal,
+      block->MakeNode<NaryOp>(absl::nullopt, valid_nodes, Op::kNor));
+
+  XLS_ASSIGN_OR_RETURN(streaming_io.idle_port,
+                       block->AddOutputPort("idle", idle_signal));
+
+  return absl::OkStatus();
+}
+
 // Adds ready/valid ports for each of the given streaming inputs/outputs. Also,
 // adds logic which propagates ready and valid signals through the block.
-static absl::Status AddBubbleFlowControl(const ResetInfo& reset_info,
-                                         const CodegenOptions& options,
-                                         StreamingIoPipeline& streaming_io,
-                                         Block* block) {
+//
+// Returns a vector of all valids for each stage.  ret[0] is the AND
+// of all valids for used channels for the initial stage.  That is, if
+// any used input channel is invalid, the node represented by ret[0] will
+// be invalid (see MakeInputValidPortsForInputChannels() and
+// MakePipelineStagesForValid().
+static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
+    const ResetInfo& reset_info, const CodegenOptions& options,
+    StreamingIoPipeline& streaming_io, Block* block) {
   absl::string_view valid_suffix = options.streaming_channel_valid_suffix();
   absl::string_view ready_suffix = options.streaming_channel_ready_suffix();
 
@@ -1004,7 +1050,7 @@ static absl::Status AddBubbleFlowControl(const ResetInfo& reset_info,
   XLS_VLOG(3) << "After Ready";
   XLS_VLOG_LINES(3, block->DumpIr());
 
-  return absl::OkStatus();
+  return pipelined_valids;
 }
 
 // Adds ready/valid ports for each of the given streaming inputs/outputs. Also,
@@ -1700,17 +1746,32 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
 
   XLS_ASSIGN_OR_RETURN(ResetInfo reset_info, MaybeAddResetPort(block, options));
 
-  XLS_RETURN_IF_ERROR(AddBubbleFlowControl(reset_info, options,
-                                           streaming_io_and_pipeline, block));
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> pipelined_valids,
+                       AddBubbleFlowControl(reset_info, options,
+                                            streaming_io_and_pipeline, block));
 
   XLS_VLOG(3) << "After Flow Control";
   XLS_VLOG_LINES(3, block->DumpIr());
 
+  // Initialize the valid flops to the pipeline registers.
+  // First element is skipped as the initial stage valid flops will be
+  // constructed from the input flops and/or input valid ports and will be
+  // added later in AddInputFlops() and AddIdleOutput().
+  XLS_CHECK_GE(pipelined_valids.size(), 1);
+  std::vector<Node*> valid_flops(pipelined_valids.begin() + 1,
+                                 pipelined_valids.end());
+
   if (options.flop_inputs()) {
-    XLS_RETURN_IF_ERROR(
-        AddInputFlops(reset_info, options, streaming_io_and_pipeline, block));
+    XLS_RETURN_IF_ERROR(AddInputFlops(
+        reset_info, options, streaming_io_and_pipeline, block, valid_flops));
   }
   XLS_VLOG(3) << "After Input Flops";
+
+  if (options.add_idle_output()) {
+    XLS_RETURN_IF_ERROR(
+        AddIdleOutput(valid_flops, streaming_io_and_pipeline, block));
+  }
+  XLS_VLOG(3) << "After Add Idle Output";
 
   // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
   //                codegen pipeline.

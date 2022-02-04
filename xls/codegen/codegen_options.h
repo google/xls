@@ -82,6 +82,10 @@ struct CodegenOptions {
   CodegenOptions& split_outputs(bool value);
   bool split_outputs() const { return split_outputs_; }
 
+  // Add a single idle signal output, tied to the nor of all valid signals.
+  CodegenOptions& add_idle_output(bool value);
+  bool add_idle_output() const { return add_idle_output_; }
+
   // Format string to use when emitting assert operations in Verilog. Supports
   // the following placeholders:
   //
@@ -186,6 +190,7 @@ struct CodegenOptions {
   bool flop_inputs_ = false;
   bool flop_outputs_ = false;
   bool split_outputs_ = false;
+  bool add_idle_output_ = false;
   absl::optional<std::string> assert_format_;
   absl::optional<std::string> gate_format_;
   bool emit_as_pipeline_ = false;

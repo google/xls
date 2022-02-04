@@ -89,10 +89,15 @@ ABSL_FLAG(
     "is the load-enable signal for the pipeline registers after stage N.");
 ABSL_FLAG(bool, flop_inputs, true,
           "If true, inputs of the the module are flopped into registers before "
-          "use in generated pipelines. Only used with pipline generator.");
+          "use in generated pipelines. Only used with pipeline generator.");
 ABSL_FLAG(bool, flop_outputs, true,
           "If true, the module outputs are flopped into registers before "
-          "leaving module. Only used with pipline generator.");
+          "leaving module. Only used with pipeline generator.");
+ABSL_FLAG(bool, add_idle_output, false,
+          "If true, an additional idle signal tied to valids of input and "
+          "flops is added to the block. This output signal is not registered, "
+          "regardless of the setting of flop_outputs. "
+          "use in generated pipelines. Only used with pipeline generator.");
 ABSL_FLAG(std::string, module_name, "",
           "Explicit name to use for the generated module; if not provided the "
           "mangled IR function name is used");
@@ -185,6 +190,7 @@ absl::StatusOr<verilog::CodegenOptions> GetCodegenOptions() {
     }
     options.flop_inputs(absl::GetFlag(FLAGS_flop_inputs));
     options.flop_outputs(absl::GetFlag(FLAGS_flop_outputs));
+    options.add_idle_output(absl::GetFlag(FLAGS_add_idle_output));
 
     if (!absl::GetFlag(FLAGS_reset).empty()) {
       options.reset(absl::GetFlag(FLAGS_reset),

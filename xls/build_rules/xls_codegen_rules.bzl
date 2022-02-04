@@ -156,6 +156,7 @@ def xls_ir_verilog_impl(ctx, src):
         "manual_load_enable_signal",
         "flop_inputs",
         "flop_outputs",
+        "add_idle_output",
         "module_name",
         "clock_margin_percent",
         "reset",

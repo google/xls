@@ -100,6 +100,11 @@ CodegenOptions& CodegenOptions::split_outputs(bool value) {
   return *this;
 }
 
+CodegenOptions& CodegenOptions::add_idle_output(bool value) {
+  add_idle_output_ = value;
+  return *this;
+}
+
 CodegenOptions& CodegenOptions::assert_format(absl::string_view value) {
   assert_format_ = std::string{value};
   return *this;
