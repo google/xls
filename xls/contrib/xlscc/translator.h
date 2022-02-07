@@ -117,7 +117,7 @@ class CBitsType : public CType {
 class CIntType : public CType {
  public:
   ~CIntType() override;
-  CIntType(int width, bool is_signed);
+  CIntType(int width, bool is_signed, bool is_declared_as_char = false);
 
   int GetBitWidth() const override;
   explicit operator std::string() const override;
@@ -134,10 +134,18 @@ class CIntType : public CType {
 
   inline int width() const { return width_; }
   inline bool is_signed() const { return is_signed_; }
+  inline bool is_declared_as_char() const { return is_declared_as_char_; }
 
  private:
   const int width_;
   const bool is_signed_;
+  // We use this field to tell "char" declarations from explcitly-qualified
+  // "signed char" or "unsigned char" declarations, as in C++ "char" is neither
+  // signed nor unsigned, while the explicitly-qualified declarations have
+  // signedness.  The field is set to true for "char" declarations and false for
+  // every other integer type.  The field is strictly for generating metadata;
+  // it is not IR generation.
+  const bool is_declared_as_char_;
 };
 
 // C++ bool

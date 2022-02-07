@@ -931,6 +931,108 @@ TEST_F(TranslatorMetadataTest, Static2DArray) {
   ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
+TEST_F(TranslatorMetadataTest, CharDeclarations) {
+  const std::string content = R"(
+    #pragma hls_top
+    int my_package(signed char sc, unsigned char uc, char jc) {
+      return sc + (int)uc + (int)jc;
+    })";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, SourceToIr(content, nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,
+                           translator_->GenerateMetadata());
+  const std::string ref_meta_str = R"(
+    top_func_proto {
+      name {
+        name: "my_package"
+        fully_qualified_name: "my_package"
+        id: 22078263808792
+        xls_name: "my_package"
+      }
+      return_type {
+        as_int {
+          width: 32
+          is_signed: true
+        }
+      }
+      params {
+        name: "sc"
+        type {
+          as_int {
+            width: 8
+            is_signed: true
+            is_declared_as_char: false
+          }
+        }
+        is_reference: false
+        is_const: false
+      }
+      params {
+        name: "uc"
+        type {
+          as_int {
+            width: 8
+            is_signed: false
+            is_declared_as_char: false
+          }
+        }
+        is_reference: false
+        is_const: false
+      }
+      params {
+        name: "jc"
+        type {
+          as_int {
+            width: 8
+            is_signed: true
+            is_declared_as_char: true
+          }
+        }
+        is_reference: false
+        is_const: false
+      }
+      whole_declaration_location {
+        begin {
+          line: 3
+          column: 5
+        }
+        end {
+          line: 5
+          column: 5
+        }
+      }
+      return_location {
+        begin {
+          line: 3
+          column: 5
+        }
+        end {
+          line: 3
+          column: 5
+        }
+      }
+      parameters_location {
+        begin {
+          line: 3
+          column: 20
+        }
+        end {
+          line: 3
+          column: 59
+        }
+      }
+    }
+    sources {
+      number: 1
+    })";
+  xlscc_metadata::MetadataOutput ref_meta;
+  google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta);
+  standardizeMetadata(&meta);
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
+}
+
 }  // namespace
 
 }  // namespace xlscc

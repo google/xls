@@ -97,6 +97,11 @@ message BitsType {
 message IntType {
   optional int32 width = 1;
   optional bool is_signed = 2;
+  // C++ chars are neither signed nor unsigned.  Add an optional metadata field
+  // and set it to true when a char declaration is encountered. Set it to false
+  // for explicitly-signed- or explicitly-unsigned-char decalarations.  Do not
+  // set it altogether for integer-type declarations of bit widths other than 8.
+  optional bool is_declared_as_char = 3;
 }
 
 // Placeholder for bool

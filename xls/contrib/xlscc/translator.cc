@@ -188,8 +188,10 @@ bool CBitsType::operator==(const CType& o) const {
 
 CIntType::~CIntType() {}
 
-CIntType::CIntType(int width, bool is_signed)
-    : width_(width), is_signed_(is_signed) {}
+CIntType::CIntType(int width, bool is_signed, bool is_declared_as_char)
+    : width_(width),
+      is_signed_(is_signed),
+      is_declared_as_char_(is_declared_as_char) {}
 
 xls::Type* CIntType::GetXLSType(xls::Package* package) const {
   return package->GetBitsType(width_);
@@ -211,13 +213,13 @@ CIntType::operator std::string() const {
   if (width_ == 32) {
     return pre + "int";
   } else if (width_ == 1) {
-    return pre + "psuedobool";
+    return pre + "pseudobool";
   } else if (width_ == 64) {
     return pre + "int64_t";
   } else if (width_ == 16) {
     return pre + "short";
   } else if (width_ == 8) {
-    return pre + "char";
+    return pre + (is_declared_as_char() ? "char" : "int8_t");
   } else {
     XLS_CHECK(0);
     return "Unsupported";
@@ -228,6 +230,9 @@ absl::Status CIntType::GetMetadata(Translator& translator,
                                    xlscc_metadata::Type* output) const {
   output->mutable_as_int()->set_width(width_);
   output->mutable_as_int()->set_is_signed(is_signed_);
+  if (width_ == 8) {
+    output->mutable_as_int()->set_is_declared_as_char(is_declared_as_char_);
+  }
   return absl::OkStatus();
 }
 
@@ -2508,7 +2513,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
             "Unimplemented character literaly type %i at %s",
             static_cast<int>(charlit->getKind()), LocString(loc)));
       }
-      shared_ptr<CType> ctype(new CIntType(8, true));
+      shared_ptr<CType> ctype(new CIntType(8, true, true));
       return CValue(
           context().fb->Literal(xls::UBits(charlit->getValue(), 8), loc),
           ctype);
@@ -2745,7 +2750,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
       llvm::StringRef strref = string_literal_expr->getString();
       std::string str = strref.str();
 
-      std::shared_ptr<CType> element_type(new CIntType(8, true));
+      std::shared_ptr<CType> element_type(new CIntType(8, true, true));
       std::shared_ptr<CType> type(new CArrayType(element_type, str.size()));
 
       std::vector<xls::Value> elements;
@@ -3516,12 +3521,14 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
         return shared_ptr<CType>(new CIntType(64, false));
       case clang::BuiltinType::Kind::Bool:
         return shared_ptr<CType>(new CBoolType());
-      case clang::BuiltinType::Kind::Char_S:  // These depend on the target
       case clang::BuiltinType::Kind::SChar:
-        return shared_ptr<CType>(new CIntType(8, true));
-      case clang::BuiltinType::Kind::Char_U:
+        return shared_ptr<CType>(new CIntType(8, true, false));
+      case clang::BuiltinType::Kind::Char_S:  // These depend on the target
+        return shared_ptr<CType>(new CIntType(8, true, true));
       case clang::BuiltinType::Kind::UChar:
-        return shared_ptr<CType>(new CIntType(8, false));
+        return shared_ptr<CType>(new CIntType(8, false, false));
+      case clang::BuiltinType::Kind::Char_U:
+        return shared_ptr<CType>(new CIntType(8, false, true));
       default:
         return absl::UnimplementedError(
             absl::StrFormat("Unsupported BuiltIn type %i", builtin->getKind()));
