@@ -1,0 +1,40 @@
+name: Build MkDocs And Commit HTML
+
+on:
+# TODO(vmirian) 2022-02-02 Enable below to execute action on push.
+#  push:
+#    branches:
+#    - main
+#    paths:
+#    - "**.md"
+#    - "mkdocs.yml"
+  workflow_dispatch:
+
+# Change default permissions for secrets.GITHUB_TOKEN and github.token from read
+# to write.
+permissions:
+  contents: write
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Get repo
+      run: |
+        git clone https://xls-github-bot:${{ secrets.GITHUB_TOKEN }}@github.com/google/xls.git
+    - uses: actions/setup-python@v2
+    - name: Install Python dependencies
+      run: |
+        pip install --upgrade pip
+        pip install mkdocs mkdocs-gen-files mkdocs-material mkdocs-exclude mdx_truly_sane_lists
+    - name: Build MkDocs And Commit HTML
+      run: |
+        cd xls/
+        mkdocs build
+        git config --global user.name 'xls-github-bot'
+        git config --global user.email 'xls-github-bot'
+        git remote set-url origin "https://xls-github-bot:${{ secrets.GITHUB_TOKEN }}@github.com/google/xls.git"
+        git add .
+        LATEST_HASH=$(git rev-parse HEAD)
+        git commit -a -m "mkdocs generated documentation from ${LATEST_HASH}" && git push
+        cd -
