@@ -3270,9 +3270,9 @@ absl::Status ConvertOneFunctionIntoPackage(
   }
 
   return absl::InvalidArgumentError(
-      absl::StrCat("Entry \"", entry_function_name,
-                   "\" is not present in "
-                   "the module as a Function or a Proc."));
+      absl::StrFormat("Entry \"%s\" is not present in "
+                      "DSLX module %s as a Function or a Proc.",
+                      entry_function_name, module->name()));
 }
 
 absl::StatusOr<std::string> ConvertOneFunction(

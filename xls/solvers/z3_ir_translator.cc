@@ -1157,8 +1157,8 @@ absl::Status IrTranslator::HandleUMul(ArithOp* mul) {
 }
 
 absl::Status IrTranslator::DefaultHandler(Node* node) {
-  return absl::UnimplementedError("Unhandled node for conversion: " +
-                                  node->ToString());
+  return absl::UnimplementedError(
+      "Unhandled node for conversion from XLS IR to Z3: " + node->ToString());
 }
 
 Z3_ast IrTranslator::GetValue(const Node* node) {

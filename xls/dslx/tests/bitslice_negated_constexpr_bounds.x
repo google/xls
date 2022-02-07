@@ -21,6 +21,10 @@ fn f(x: u32) -> bits[5] { x[-5:] }
 fn g(x: u32) -> bits[5] { x[-FIVE_S32:] }
 fn h(x: u32) -> bits[5] { x[(-FIVE_U32) as s32:] }
 
+fn main(x: u32) -> u5 {
+  f(x) + g(x) + h(x)
+}
+
 #![test]
 fn main_test() {
   let x = u32:0xa000_0000;
@@ -30,5 +34,6 @@ fn main_test() {
   let _ = assert_eq(f(x), want);
   let _ = assert_eq(g(x), want);
   let _ = assert_eq(h(x), want);
+  let _ = assert_eq(main(x), u5:28);
   ()
 }
