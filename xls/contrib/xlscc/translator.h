@@ -167,7 +167,7 @@ class CBoolType : public CType {
 // C/C++ struct field
 class CField {
  public:
-  CField(const clang::NamedDecl* name_, int index, std::shared_ptr<CType> type);
+  CField(const clang::NamedDecl* name, int index, std::shared_ptr<CType> type);
 
   const clang::NamedDecl* name() const;
   int index() const;
@@ -325,6 +325,9 @@ struct IOChannel {
   // The total number of IO ops on the channel within the function
   // (IO ops are conditional, so this is the maximum in a real invocation)
   int total_ops = 0;
+  // If not nullptr, the channel isn't explicitly present in the source
+  // For example, the channels used for pipelined for loops
+  xls::Channel* generated = nullptr;
 };
 
 // Tracks information about an IO op on an __xls_channel parameter to a function
@@ -429,7 +432,6 @@ struct TranslationContext {
     std::cerr << "}" << std::endl;
   }
 
-  xls::Package* package;
   std::shared_ptr<CType> return_type;
   xls::BuilderBase* fb;
 
@@ -497,6 +499,10 @@ struct TranslationContext {
 
   // Assume for loops without pragmas are unrolled
   bool for_loops_default_unroll = false;
+
+  // Flag set in pipelined for body
+  // TODO(seanhaskell): Remove once all features are supported
+  bool in_pipelined_for_body = false;
 };
 
 class Translator {
@@ -706,6 +712,7 @@ class Translator {
       xls_names_for_functions_generated_;
 
   int next_asm_number_ = 1;
+  int next_for_number_ = 1;
 
   mutable std::unique_ptr<clang::MangleContext> mangler_;
 
@@ -713,6 +720,9 @@ class Translator {
   void PopContext(bool propagate_up, bool propagate_break_up,
                   bool propagate_continue_up, const xls::SourceLocation& loc);
 
+  xls::Package* package_;
+  absl::flat_hash_map<const clang::ParmVarDecl*, xls::Channel*>
+      external_channels_by_top_param_;
   std::stack<TranslationContext> context_stack_;
 
   TranslationContext& context();
@@ -759,23 +769,36 @@ class Translator {
     absl::flat_hash_map<const IOOp*, int> arg_index_for_op;
     absl::flat_hash_map<const IOOp*, int> return_index_for_op;
     absl::flat_hash_map<const clang::NamedDecl*, int> return_index_for_static;
-    absl::flat_hash_map<std::string, HLSChannel> channels_by_name;
     xls::BValue token;
   };
 
   // Verifies the function prototype in the Clang AST and HLSBlock are sound.
-  absl::Status GenerateIRBlockCheck(PreparedBlock& prepared,
-                                    const HLSBlock& block,
-                                    const clang::FunctionDecl* definition,
-                                    const xls::SourceLocation& body_loc);
+  absl::Status GenerateIRBlockCheck(
+      PreparedBlock& prepared,
+      absl::flat_hash_map<std::string, HLSChannel>& channels_by_name,
+      const HLSBlock& block, const clang::FunctionDecl* definition,
+      const xls::SourceLocation& body_loc);
+
+  // Creates xls::Channels in the package
+  absl::Status GenerateExternalChannels(
+      const PreparedBlock& prepared,
+      const absl::flat_hash_map<std::string, HLSChannel>& channels_by_name,
+      const HLSBlock& block, const clang::FunctionDecl* definition,
+      const xls::SourceLocation& loc);
 
   // Prepares IO channels for generating XLS Proc
-  absl::Status GenerateIRBlockPrepare(PreparedBlock& prepared,
-                                      xls::ProcBuilder& pb,
-                                      const HLSBlock& block,
-                                      const clang::FunctionDecl* definition,
-                                      xls::Package* package,
-                                      const xls::SourceLocation& body_loc);
+  // definition can be null, and then channels_by_name can also be null. They
+  // are only used for direct-ins
+  absl::Status GenerateIRBlockPrepare(
+      PreparedBlock& prepared, xls::ProcBuilder& pb, int64_t next_return_index,
+      const clang::FunctionDecl* definition,
+      const absl::flat_hash_map<std::string, HLSChannel>* channels_by_name,
+      const xls::SourceLocation& body_loc);
+
+  // Returns last invoke's return value
+  absl::StatusOr<xls::BValue> GenerateIOInvokes(
+      PreparedBlock& prepared, xls::ProcBuilder& pb,
+      const xls::SourceLocation& body_loc);
 
   struct IOOpReturn {
     bool generate_expr;
@@ -786,18 +809,14 @@ class Translator {
   absl::StatusOr<IOOpReturn> InterceptIOOp(const clang::Expr* expr,
                                            const xls::SourceLocation& loc);
 
-  absl::StatusOr<xls::Channel*> CreateChannel(const HLSChannel& hls_channel,
-                                              std::shared_ptr<CType> ctype,
-                                              xls::Package* package,
-                                              int64_t port_order,
-                                              const xls::SourceLocation& loc);
-
   // IOOp must have io_call, and op members filled in
   // Returns permanent IOOp pointer
   absl::StatusOr<IOOp*> AddOpToChannel(IOOp& op, IOChannel* channel_param,
                                        const xls::SourceLocation& loc);
   absl::Status CreateChannelParam(const clang::ParmVarDecl* channel_param,
                                   const xls::SourceLocation& loc);
+  absl::StatusOr<std::shared_ptr<CType>> GetChannelType(
+      const clang::ParmVarDecl* channel_param, const xls::SourceLocation& loc);
   absl::StatusOr<bool> ExprIsChannel(const clang::Expr* object,
                                      const xls::SourceLocation& loc);
   absl::StatusOr<bool> TypeIsChannel(const clang::QualType& param,
@@ -819,8 +838,18 @@ class Translator {
                                  clang::ASTContext& ctx,
                                  const xls::SourceLocation& loc);
   absl::Status GenerateIR_PipelinedFor(const clang::ForStmt* stmt,
+                                       int64_t initiation_interval_arg,
                                        clang::ASTContext& ctx,
                                        const xls::SourceLocation& loc);
+  absl::Status GenerateIR_PipelinedForBody(
+      const clang::ForStmt* stmt, clang::ASTContext& ctx,
+      std::string_view name_prefix, IOChannel* context_out_channel,
+      IOChannel* ctrl_out_channel, IOChannel* context_in_channel,
+      IOChannel* ctrl_in_channel, xls::Type* context_xls_type,
+      std::shared_ptr<CStructType> context_ctype,
+      const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
+          variable_field_indices,
+      const xls::SourceLocation& loc);
 
   struct ResolvedInheritance {
     std::shared_ptr<CField> base_field;

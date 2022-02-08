@@ -81,7 +81,13 @@ class ProcInterpreter {
   bool IsIterationComplete() const;
 
   Proc* proc() { return proc_; }
-  Value ResolveState() { return visitor_->ResolveAsValue(proc_->NextState()); }
+  absl::StatusOr<Value> ResolveState() {
+    xls::Node* n = proc_->NextState();
+    if (!visitor_->HasResult(n)) {
+      return absl::NotFoundError("Proc has no current state");
+    }
+    return visitor_->ResolveAsValue(n);
+  }
   void ResetState();
 
  private:

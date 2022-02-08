@@ -60,8 +60,11 @@ class Parser {
       absl::optional<absl::string_view> filename = absl::nullopt);
 
   // Parse the input_string as a function into the given package.
-  static absl::StatusOr<Function*> ParseFunction(absl::string_view input_string,
-                                                 Package* package);
+  // If verify_function_only is true, then only this new function is verified,
+  // otherwise the whole package is verified by default.
+  static absl::StatusOr<Function*> ParseFunction(
+      absl::string_view input_string, Package* package,
+      bool verify_function_only = false);
 
   // Parse the input_string as a proc into the given package.
   static absl::StatusOr<Proc*> ParseProc(absl::string_view input_string,

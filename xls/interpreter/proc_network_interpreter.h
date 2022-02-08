@@ -52,7 +52,7 @@ class ProcNetworkInterpreter {
   ChannelQueueManager& queue_manager() { return *queue_manager_; }
 
   // Returns the state values for each proc in the network.
-  absl::flat_hash_map<Proc*, Value> ResolveState();
+  absl::flat_hash_map<Proc*, absl::StatusOr<Value>> ResolveState();
 
   void ResetState();
 

@@ -97,6 +97,7 @@ cc_library(
         "//xls/interpreter:channel_queue",
         "//xls/interpreter:ir_interpreter",
         "//xls/interpreter:proc_interpreter",
+        "//xls/interpreter:proc_network_interpreter",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:ir_test_base",

@@ -1833,14 +1833,20 @@ static absl::Status VerifyAndSwapError(Package* package) {
 
 /* static */
 absl::StatusOr<Function*> Parser::ParseFunction(absl::string_view input_string,
-                                                Package* package) {
+                                                Package* package,
+                                                bool verify_function_only) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   XLS_ASSIGN_OR_RETURN(Function * function, p.ParseFunction(package));
 
-  // Verify the whole package because the addition of the function may break
-  // package-scoped invariants (eg, duplicate function name).
-  XLS_RETURN_IF_ERROR(VerifyAndSwapError(package));
+  if (verify_function_only) {
+    XLS_RETURN_IF_ERROR(VerifyFunction(function));
+  } else {
+    // Verify the whole package because the addition of the function may break
+    // package-scoped invariants (eg, duplicate function name).
+    XLS_RETURN_IF_ERROR(VerifyAndSwapError(package));
+  }
+
   return function;
 }
 

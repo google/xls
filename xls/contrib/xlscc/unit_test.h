@@ -89,12 +89,16 @@ class XlsccTestBase : public xls::IrTestBase {
               absl::flat_hash_map<std::string, xls::Value> args = {});
 
   void ProcTest(std::string content, const xlscc::HLSBlock& block_spec,
-                const absl::flat_hash_map<std::string, std::vector<xls::Value>>&
+                const absl::flat_hash_map<std::string, std::list<xls::Value>>&
                     inputs_by_channel,
-                const absl::flat_hash_map<std::string, std::vector<xls::Value>>&
+                const absl::flat_hash_map<std::string, std::list<xls::Value>>&
                     outputs_by_channel,
-                int n_ticks);
+                const int min_ticks = 1, const int max_ticks = 100);
 
+  absl::StatusOr<uint64_t> GetStateBitsForProcNameContains(
+      std::string_view name_cont);
+
+  std::unique_ptr<xls::Package> package_;
   std::unique_ptr<xlscc::Translator> translator_;
 };
 

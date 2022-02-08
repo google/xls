@@ -110,7 +110,8 @@ absl::Status RunIrInterpreter(
       XLS_RETURN_IF_ERROR(interpreter->Tick());
 
       // Sort the keys for stable print order.
-      absl::flat_hash_map<Proc*, Value> states = interpreter->ResolveState();
+      absl::flat_hash_map<Proc*, absl::StatusOr<Value>> states =
+          interpreter->ResolveState();
       std::vector<Proc*> sorted_procs;
       for (const auto& [k, v] : states) {
         sorted_procs.push_back(k);
@@ -119,7 +120,12 @@ absl::Status RunIrInterpreter(
       std::sort(sorted_procs.begin(), sorted_procs.end(),
                 [](Proc* a, Proc* b) { return a->name() < b->name(); });
       for (const auto& proc : sorted_procs) {
-        XLS_VLOG(1) << "Proc " << proc->name() << " : " << states.at(proc);
+        const auto& value_or = states.at(proc);
+        XLS_CHECK(value_or.ok() ||
+                  value_or.status().code() == absl::StatusCode::kNotFound);
+        XLS_VLOG(1) << "Proc " << proc->name() << " : "
+                    << (value_or.ok() ? value_or.value().ToString()
+                                      : std::string("(none)"));
       }
     }
   }
