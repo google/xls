@@ -79,8 +79,8 @@ TEST_P(NarrowingPassTest, ShiftWithKnownOnePrefix) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Shll(fb.Param("in", p->GetBitsType(32)),
-          fb.Concat({fb.Literal(UBits(0b111000, 6)),
-                     fb.Param("amt", p->GetBitsType(3))}));
+          fb.Concat({fb.Literal(UBits(0b111, 3)),
+                     fb.Param("amt", p->GetBitsType(2))}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
   EXPECT_THAT(f->return_value(), m::Shll(m::Param("in"), m::Concat()));
@@ -299,16 +299,6 @@ TEST_P(NarrowingPassTest, SignExtendedOperandsOfSignedCompare) {
           m::BitSlice(m::SignExt(m::Param("rhs")), /*start=*/0, /*width=*/23)));
 }
 
-TEST_P(NarrowingPassTest, CompareOfIdenticalLiterals) {
-  // Identical literals should not be narrowed by this pass. Those are handled
-  // elsewhere.
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  fb.UGt(fb.Literal(Value(UBits(42, 32))), fb.Literal(Value(UBits(42, 32))));
-  XLS_ASSERT_OK(fb.Build().status());
-  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
-}
-
 TEST_P(NarrowingPassTest, AddWithLeadingZeros) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -332,15 +322,40 @@ TEST_P(NarrowingPassTest, AddWithOnlyOneOperandLeadingZeros) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
-TEST_P(NarrowingPassTest, AddWithAllZeroOperands) {
+TEST_P(NarrowingPassTest, ArrayIndexWithAllSameValue) {
+  // An array index that, under range analysis, is determined to always index
+  // into positions in the array that all have the same precisely known value,
+  // should be replaced with a literal containing that value.
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
-  fb.Add(fb.Literal(Value(UBits(0, 16))),
-         fb.Literal(Value(UBits(0, 16))));
-  // There shouldn't be narrowing because this special case of all known zero is
-  // handled elsewhere in the pipeline.
-  XLS_ASSERT_OK(fb.Build().status());
-  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  BValue index = fb.Select(fb.Param("selector", p->GetBitsType(2)),
+                           {
+                               fb.Literal(Value(UBits(4, 4))),
+                               fb.Literal(Value(UBits(7, 4))),
+                               fb.Literal(Value(UBits(2, 4))),
+                               fb.Literal(Value(UBits(6, 4))),
+                           },
+                           std::nullopt);
+  BValue array = fb.Array(
+      {
+          fb.Literal(Value(UBits(500, 32))),
+          fb.Literal(Value(UBits(501, 32))),
+          fb.Literal(Value(UBits(600, 32))),
+          fb.Literal(Value(UBits(503, 32))),
+          fb.Literal(Value(UBits(600, 32))),
+          fb.Literal(Value(UBits(505, 32))),
+          fb.Literal(Value(UBits(600, 32))),
+          fb.Literal(Value(UBits(600, 32))),
+          fb.Literal(Value(UBits(508, 32))),
+          fb.Literal(Value(UBits(509, 32))),
+      },
+      p->GetBitsType(32));
+  fb.ArrayIndex(array, {index});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  if (/* use_range_analysis = */ GetParam()) {
+    ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+    EXPECT_THAT(f->return_value(), m::Literal(600));
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(

@@ -40,7 +40,14 @@ class TernaryQueryEngine : public QueryEngine {
   }
 
   LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
-    XLS_CHECK(node->GetType()->IsBits());
+    if (!node->GetType()->IsBits()) {
+      LeafTypeTree<absl::monostate> shape(node->GetType());
+      return LeafTypeTree<Type*>(shape.type(), shape.leaf_types())
+          .Map<TernaryVector>([](Type* type) -> TernaryVector {
+            return TernaryVector(type->GetFlatBitCount(),
+                                 TernaryValue::kUnknown);
+          });
+    }
     TernaryVector ternary =
         ternary_ops::FromKnownBits(known_bits_.at(node), bits_values_.at(node));
     LeafTypeTree<TernaryVector> result(node->GetType());

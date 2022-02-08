@@ -22,6 +22,7 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/value_helpers.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/range_query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
@@ -164,7 +165,8 @@ absl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
   return false;
 }
 
-// Try to narrow the shift amount of a shift node.
+// Narrow the shift-amount operand of shift operations if the shift-amount
+// has leading zeros.
 absl::StatusOr<bool> MaybeNarrowShiftAmount(Node* shift,
                                             const QueryEngine& query_engine) {
   XLS_RET_CHECK(shift->op() == Op::kShll || shift->op() == Op::kShrl ||
@@ -531,6 +533,34 @@ void RangeAnalysisLog(FunctionBase* f,
   }
 }
 
+absl::StatusOr<bool> MaybeReplacePreciseWithLiteral(
+    Node* node, const QueryEngine& query_engine) {
+  LeafTypeTree<IntervalSet> intervals = query_engine.GetIntervals(node);
+  for (Type* leaf_type : intervals.leaf_types()) {
+    if (leaf_type->IsToken()) {
+      return false;
+    }
+  }
+  for (const IntervalSet& interval_set : intervals.elements()) {
+    if (!interval_set.IsPrecise()) {
+      return false;
+    }
+  }
+  LeafTypeTree<Value> value_tree = LeafTypeTree<Value>::Zip<IntervalSet, Type*>(
+      [](const IntervalSet& interval_set, Type* type) -> Value {
+        return Value(interval_set.GetPreciseValue().value());
+      },
+      intervals, LeafTypeTree<Type*>(intervals.type(), intervals.leaf_types()));
+  XLS_ASSIGN_OR_RETURN(Value value, LeafTypeTreeToValue(value_tree));
+  XLS_ASSIGN_OR_RETURN(Node * literal, node->function_base()->MakeNode<Literal>(
+                                           node->loc(), value));
+  XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(literal));
+  XLS_VLOG(3) << absl::StreamFormat(
+      "Range analysis found precise value for %s, replacing with literal\n",
+      node->GetName());
+  return true;
+}
+
 static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
     FunctionBase* f, bool use_range_analysis) {
   std::unique_ptr<QueryEngine> query_engine;
@@ -559,10 +589,17 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
                        GetQueryEngine(f, use_range_analysis_));
 
   bool modified = false;
+
   for (Node* node : TopoSort(f)) {
-    // Narrow the shift-amount operand of shift operations if the shift-amount
-    // has leading zeros.
     bool node_modified = false;
+    if (!node->Is<Literal>() && !node->Is<Param>()) {
+      XLS_ASSIGN_OR_RETURN(node_modified,
+                           MaybeReplacePreciseWithLiteral(node, *query_engine));
+      if (node_modified) {
+        modified = true;
+        continue;
+      }
+    }
     switch (node->op()) {
       case Op::kShll:
       case Op::kShrl:

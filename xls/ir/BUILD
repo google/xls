@@ -566,6 +566,7 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/data_structures:leaf_type_tree",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],

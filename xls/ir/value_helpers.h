@@ -18,6 +18,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/logging/logging.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -80,6 +81,9 @@ Value F32ToTuple(float value);
 
 // Converts a 3-tuple F32 (as noted in F32ToTuple above) into a C++ float.
 absl::StatusOr<float> TupleToF32(const Value& v);
+
+// Converts a `LeafTypeTree<Value>` to a `Value`.
+absl::StatusOr<Value> LeafTypeTreeToValue(const LeafTypeTree<Value>& tree);
 
 }  // namespace xls
 

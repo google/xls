@@ -93,4 +93,27 @@ absl::StatusOr<float> TupleToF32(const Value& v) {
   return absl::bit_cast<float>(x);
 }
 
+absl::StatusOr<Value> LeafTypeTreeToValue(const LeafTypeTree<Value>& tree) {
+  Type* type = tree.type();
+  if (type->IsTuple()) {
+    std::vector<Value> values;
+    for (int64_t i = 0; i < type->AsTupleOrDie()->size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(Value value,
+                           LeafTypeTreeToValue(tree.CopySubtree({i})));
+      values.push_back(value);
+    }
+    return Value::TupleOwned(std::move(values));
+  }
+  if (type->IsArray()) {
+    std::vector<Value> values;
+    for (int64_t i = 0; i < type->AsArrayOrDie()->size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(Value value,
+                           LeafTypeTreeToValue(tree.CopySubtree({i})));
+      values.push_back(value);
+    }
+    return Value::ArrayOrDie(values);
+  }
+  return tree.Get({});
+}
+
 }  // namespace xls
