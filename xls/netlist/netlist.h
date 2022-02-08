@@ -556,8 +556,12 @@ absl::Status AbstractModule<EvalT>::AddNetDecl(NetDeclKind kind,
                                                absl::string_view name) {
   auto status_or_net = ResolveNet(name);
   if (status_or_net.status().ok()) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Module already has a net/wire decl with name: ", name));
+    // A wire being declared for an already-declared port is not an error.
+    if (status_or_net.value()->kind() == NetDeclKind::kWire) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("Module already has a net/wire decl with name: ", name));
+    }
+    return absl::OkStatus();
   }
 
   nets_.emplace_back(std::make_unique<AbstractNetDef<EvalT>>(name, kind));
