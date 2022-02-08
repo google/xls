@@ -153,6 +153,10 @@ TEST_F(LeafTypeTreeTest, NestedTupleType) {
 
   EXPECT_THAT(tree.elements(), ElementsAre(0, 0, 3, 0, 42, 0, 0, 77));
 
+  LeafTypeTree<int64_t> mapped =
+      tree.Map<int64_t>([](int64_t x) { return x + 1; });
+  EXPECT_THAT(mapped.elements(), ElementsAre(1, 1, 4, 1, 43, 1, 1, 78));
+
   LeafTypeTree<int64_t> other_tree(tree.type());
   other_tree.Set({0, 1}, 5);
   other_tree.Set({1, 1, 1, 0}, 12);

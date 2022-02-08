@@ -151,6 +151,18 @@ class LeafTypeTree {
     return subtree;
   }
 
+  // Produce a new `LeafTypeTree` from this one `LeafTypeTree` with a different
+  // leaf type by way of a function.
+  template <typename R>
+  LeafTypeTree<R> Map(std::function<R(const T&)> function) {
+    std::vector<R> new_elements;
+    new_elements.reserve(size());
+    for (int32_t i = 0; i < size(); ++i) {
+      new_elements.push_back(function(elements()[i]));
+    }
+    return LeafTypeTree<R>(type(), new_elements);
+  }
+
   // Use the given function to combine each corresponding leaf element in the
   // two given `LeafTypeTree`s. CHECK fails if the given `LeafTypeTree`s are not
   // generated from the same type.
