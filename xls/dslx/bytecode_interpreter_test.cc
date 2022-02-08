@@ -45,6 +45,37 @@ absl::StatusOr<InterpValue> Interpret(ImportData* import_data,
   return BytecodeInterpreter::Interpret(import_data, bf.get(), {});
 }
 
+static const Pos kFakePos("fake.x", 0, 0);
+static const Span kFakeSpan = Span(kFakePos, kFakePos);
+
+TEST(BytecodeInterpreterTest, DupLiteral) {
+  std::vector<Bytecode> bytecodes;
+  bytecodes.emplace_back(kFakeSpan, Bytecode::Op::kLiteral,
+                         InterpValue::MakeU32(42));
+  bytecodes.emplace_back(kFakeSpan, Bytecode::Op::kDup);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto bfunc,
+      BytecodeFunction::Create(/*source=*/nullptr, /*type_info=*/nullptr,
+                               std::move(bytecodes)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue result,
+      BytecodeInterpreter::Interpret(/*import_data=*/nullptr, bfunc.get(), {}));
+  EXPECT_EQ(result.ToString(), "u32:42");
+}
+
+TEST(BytecodeInterpreterTest, DupEmptyStack) {
+  std::vector<Bytecode> bytecodes;
+  bytecodes.emplace_back(kFakeSpan, Bytecode::Op::kDup);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto bfunc,
+      BytecodeFunction::Create(/*source=*/nullptr, /*type_info=*/nullptr,
+                               std::move(bytecodes)));
+  ASSERT_THAT(
+      BytecodeInterpreter::Interpret(/*import_data=*/nullptr, bfunc.get(), {}),
+      StatusIs(absl::StatusCode::kInternal,
+               ::testing::HasSubstr("stack_.size() >= 1")));
+}
+
 // Interprets a nearly-minimal bytecode program; the same from
 // BytecodeEmitterTest.SimpleTranslation.
 TEST(BytecodeInterpreterTest, PositiveSmokeTest) {

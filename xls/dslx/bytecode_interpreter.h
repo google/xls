@@ -88,6 +88,7 @@ class BytecodeInterpreter {
   absl::Status EvalCreateArray(const Bytecode& bytecode);
   absl::Status EvalCreateTuple(const Bytecode& bytecode);
   absl::Status EvalDiv(const Bytecode& bytecode);
+  absl::Status EvalDup(const Bytecode& bytecode);
   absl::Status EvalEq(const Bytecode& bytecode);
   absl::Status EvalExpandTuple(const Bytecode& bytecode);
   absl::Status EvalGe(const Bytecode& bytecode);
@@ -112,9 +113,14 @@ class BytecodeInterpreter {
   absl::Status EvalWidthSlice(const Bytecode& bytecode);
   absl::Status EvalXor(const Bytecode& bytecode);
 
-  absl::Status EvalBinop(const std::function<absl::StatusOr<InterpValue>(
-                             const InterpValue& lhs, const InterpValue& rhs)>
-                             op);
+  absl::StatusOr<BytecodeFunction*> GetBytecodeFn(Module* module,
+                                                  Function* function);
+  absl::Status EvalUnop(
+      const std::function<absl::StatusOr<InterpValue>(const InterpValue& arg)>&
+          op);
+  absl::Status EvalBinop(
+      const std::function<absl::StatusOr<InterpValue>(
+          const InterpValue& lhs, const InterpValue& rhs)>& op);
   absl::StatusOr<BytecodeFunction*> GetBytecodeFn(
       Function* function, Invocation* invocation,
       absl::optional<const SymbolicBindings*> caller_bindings);

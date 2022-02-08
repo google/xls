@@ -49,10 +49,14 @@ BytecodeInterpreter::BytecodeInterpreter(ImportData* import_data,
                                          BytecodeFunction* bf,
                                          std::vector<InterpValue> args)
     : import_data_(import_data) {
-  Module* module = bf->source()->owner();
-  frames_.push_back(Frame(bf, std::move(args),
-                          import_data_->GetRootTypeInfo(module).value(),
-                          absl::nullopt));
+  // In "mission mode" we expect type_info to be non-null in the frame, but for
+  // bytecode-level testing we may not have an AST.
+  TypeInfo* type_info = nullptr;
+  if (const Function* f = bf->source()) {
+    Module* module = f->owner();
+    type_info = import_data_->GetRootTypeInfo(module).value();
+  }
+  frames_.push_back(Frame(bf, std::move(args), type_info, absl::nullopt));
 }
 
 absl::Status BytecodeInterpreter::Run() {
@@ -124,6 +128,10 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
     }
     case Bytecode::Op::kDiv: {
       XLS_RETURN_IF_ERROR(EvalDiv(bytecode));
+      break;
+    }
+    case Bytecode::Op::kDup: {
+      XLS_RETURN_IF_ERROR(EvalDup(bytecode));
       break;
     }
     case Bytecode::Op::kEq: {
@@ -248,15 +256,24 @@ absl::StatusOr<InterpValue> BytecodeInterpreter::Pop() {
   return value;
 }
 
-absl::Status BytecodeInterpreter::EvalBinop(
-    const std::function<absl::StatusOr<InterpValue>(const InterpValue& lhs,
-                                                    const InterpValue& rhs)>
+absl::Status BytecodeInterpreter::EvalUnop(
+    const std::function<absl::StatusOr<InterpValue>(const InterpValue& arg)>&
         op) {
+  XLS_RET_CHECK_GE(stack_.size(), 1);
+  XLS_ASSIGN_OR_RETURN(InterpValue arg, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue result, op(arg));
+  stack_.push_back(std::move(result));
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::EvalBinop(
+    const std::function<absl::StatusOr<InterpValue>(
+        const InterpValue& lhs, const InterpValue& rhs)>& op) {
   XLS_RET_CHECK_GE(stack_.size(), 2);
   XLS_ASSIGN_OR_RETURN(InterpValue rhs, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue lhs, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue result, op(lhs, rhs));
-  stack_.push_back(result);
+  stack_.push_back(std::move(result));
   return absl::OkStatus();
 }
 
@@ -479,6 +496,10 @@ absl::Status BytecodeInterpreter::EvalDiv(const Bytecode& bytecode) {
   return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
     return lhs.FloorDiv(rhs);
   });
+}
+
+absl::Status BytecodeInterpreter::EvalDup(const Bytecode& bytecode) {
+  return EvalUnop([](const InterpValue& arg) { return arg; });
 }
 
 absl::Status BytecodeInterpreter::EvalEq(const Bytecode& bytecode) {

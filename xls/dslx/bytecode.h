@@ -122,6 +122,8 @@ class Bytecode {
     kWidthSlice,
     // Performs a bitwise XOR of the top two values on the stack.
     kXor,
+    // Duplicates the value at TOS0 to be the new TOS0.
+    kDup,
   };
 
   // Indicates the amount by which the PC should be adjusted.

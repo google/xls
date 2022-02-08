@@ -42,6 +42,8 @@ std::string OpToString(Bytecode::Op op) {
       return "create_tuple";
     case Bytecode::Op::kDiv:
       return "div";
+    case Bytecode::Op::kDup:
+      return "dup";
     case Bytecode::Op::kExpandTuple:
       return "expand_tuple";
     case Bytecode::Op::kEq:
