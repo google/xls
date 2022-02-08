@@ -324,5 +324,13 @@ TEST(IntervalTest, Complement) {
               ElementsAre());
 }
 
+TEST(IntervalTest, ZeroExtend) {
+  Interval original(UBits(4, 6), UBits(16, 6));
+  Interval extended = original.ZeroExtend(30);
+  EXPECT_EQ(original.ToString(), "[4, 16]");
+  EXPECT_EQ(extended.ToString(), "[4, 16]");
+  EXPECT_EQ(extended.BitCount(), 30);
+}
+
 }  // namespace
 }  // namespace xls

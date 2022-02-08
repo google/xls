@@ -106,6 +106,11 @@ class IntervalSet {
   // interval set. If the set of points is empty, returns `absl::nullopt`.
   absl::optional<Interval> ConvexHull() const;
 
+  // Returns an `IntervalSet` the bounds of which have been zero-extended to the
+  // given bit width.
+  // CHECK fails if the bit width is less than the current `BitCount`.
+  IntervalSet ZeroExtend(int64_t bit_width) const;
+
   // Call the given function on each point contained within this set of
   // intervals. The function returns a `bool` that, if true, ends the iteration
   // early and results in `ForEachElement` returning true. If the iteration does

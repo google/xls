@@ -119,6 +119,16 @@ absl::optional<Interval> IntervalSet::ConvexHull() const {
   return Interval(lower.value(), upper.value());
 }
 
+IntervalSet IntervalSet::ZeroExtend(int64_t bit_width) const {
+  XLS_CHECK_GE(bit_width, BitCount());
+  IntervalSet result(bit_width);
+  for (const Interval& interval : Intervals()) {
+    result.AddInterval(interval.ZeroExtend(bit_width));
+  }
+  result.Normalize();
+  return result;
+}
+
 bool IntervalSet::ForEachElement(
     std::function<bool(const Bits&)> callback) const {
   XLS_CHECK(is_normalized_);

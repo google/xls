@@ -34,6 +34,12 @@ Interval Interval::Maximal(int64_t bit_width) {
 
 Interval Interval::Precise(const Bits& bits) { return Interval(bits, bits); }
 
+Interval Interval::ZeroExtend(int64_t bit_width) const {
+  XLS_CHECK_GE(bit_width, BitCount());
+  return Interval(bits_ops::ZeroExtend(LowerBound(), bit_width),
+                  bits_ops::ZeroExtend(UpperBound(), bit_width));
+}
+
 bool Interval::Overlaps(const Interval& lhs, const Interval& rhs) {
   XLS_CHECK_EQ(lhs.BitCount(), rhs.BitCount());
   XLS_CHECK(!lhs.IsImproper());

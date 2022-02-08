@@ -323,5 +323,17 @@ TEST(IntervalTest, Index) {
   EXPECT_EQ(set.Index(UBits(200, 32)), std::nullopt);
 }
 
+TEST(IntervalTest, ZeroExtend) {
+  IntervalSet set(32);
+  set.AddInterval(MakeInterval(100, 150, 32));
+  set.AddInterval(MakeInterval(200, 220, 32));
+  set.AddInterval(MakeInterval(300, 370, 32));
+  set.Normalize();
+
+  IntervalSet extended = set.ZeroExtend(60);
+  EXPECT_EQ(extended.ToString(), "[[100, 150], [200, 220], [300, 370]]");
+  EXPECT_EQ(extended.BitCount(), 60);
+}
+
 }  // namespace
 }  // namespace xls

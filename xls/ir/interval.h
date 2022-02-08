@@ -63,6 +63,11 @@ class Interval {
   // Returns an `Interval` that covers precisely the given bit pattern.
   static Interval Precise(const Bits& bits);
 
+  // Returns an `Interval` the bounds of which have been zero-extended to the
+  // given bit width.
+  // CHECK fails if the bit width is less than the current `BitCount`.
+  Interval ZeroExtend(int64_t bit_width) const;
+
   // Given two `Interval`s, return whether they overlap.
   // Does not accept improper intervals.
   static bool Overlaps(const Interval& lhs, const Interval& rhs);
