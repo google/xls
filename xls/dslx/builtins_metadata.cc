@@ -25,7 +25,6 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
       {"bit_slice_update", {"(uN[N], uN[U], uN[V]) -> uN[N]", false}},
       {"clz", {"(uN[N]) -> uN[N]", false}},
       {"ctz", {"(uN[N]) -> uN[N]", false}},
-      {"concat", {"(uN[M], uN[N]) -> uN[M+N]", false}},
       {"cover!", {"(u8[N], u1) -> ()", false}},
       {"fail!", {"(T) -> T", false}},
       {"gate!", {"(u1, T) -> T", false}},

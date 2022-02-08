@@ -22,6 +22,7 @@
 #include "xls/dslx/bytecode_emitter.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_helpers.h"
+#include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
 
@@ -784,8 +785,23 @@ absl::Status BytecodeInterpreter::EvalXor(const Bytecode& bytecode) {
 absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
                                                Builtin builtin) {
   switch (builtin) {
+    case Builtin::kAddWithCarry:
+      return RunBuiltinAddWithCarry(bytecode);
     case Builtin::kAssertEq:
       return RunBuiltinAssertEq(bytecode);
+    case Builtin::kAssertLt:
+      return RunBuiltinAssertLt(bytecode);
+    case Builtin::kBitSlice:
+      return RunBuiltinBitSlice(bytecode);
+    case Builtin::kBitSliceUpdate:
+      return RunBuiltinBitSliceUpdate(bytecode);
+    case Builtin::kClz:
+      return RunBuiltinClz(bytecode);
+    case Builtin::kCover:
+      stack_.push_back(InterpValue::MakeToken());
+      return absl::OkStatus();
+    case Builtin::kCtz:
+      return RunBuiltinCtz(bytecode);
     default:
       return absl::UnimplementedError(
           absl::StrFormat("Builtin function \"%s\" not yet implemented.",
@@ -793,9 +809,22 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
   }
 }
 
+absl::Status BytecodeInterpreter::RunBuiltinAddWithCarry(
+    const Bytecode& bytecode) {
+  XLS_VLOG(3) << "Executing builtin AddWithCarry.";
+  XLS_RET_CHECK_GE(stack_.size(), 2);
+  XLS_ASSIGN_OR_RETURN(InterpValue lhs, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue rhs, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue result, lhs.AddWithCarry(rhs));
+  stack_.push_back(result);
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeInterpreter::RunBuiltinAssertEq(const Bytecode& bytecode) {
   XLS_VLOG(3) << "Executing builtin AssertEq.";
   XLS_RET_CHECK_GE(stack_.size(), 2);
+  // Get copies of the args for error reporting, but don't Pop(), as that's done
+  // in EvalEq().
   InterpValue lhs = stack_[stack_.size() - 2];
   InterpValue rhs = stack_[stack_.size() - 1];
 
@@ -806,6 +835,99 @@ absl::Status BytecodeInterpreter::RunBuiltinAssertEq(const Bytecode& bytecode) {
                         lhs.ToHumanString(), rhs.ToHumanString());
     return FailureErrorStatus(bytecode.source_span(), message);
   }
+
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinAssertLt(const Bytecode& bytecode) {
+  XLS_VLOG(3) << "Executing builtin AssertLt.";
+  XLS_RET_CHECK_GE(stack_.size(), 2);
+  // Get copies of the args for error reporting, but don't Pop(), as that's done
+  // in EvalLt().
+  InterpValue lhs = stack_[stack_.size() - 2];
+  InterpValue rhs = stack_[stack_.size() - 1];
+
+  XLS_RETURN_IF_ERROR(EvalLt(bytecode));
+  if (stack_.back().IsFalse()) {
+    std::string message = absl::StrFormat(
+        "\n  want: %s < %s", lhs.ToHumanString(), rhs.ToHumanString());
+    return FailureErrorStatus(bytecode.source_span(), message);
+  }
+
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinBitSlice(const Bytecode& bytecode) {
+  XLS_VLOG(3) << "Executing builtin BitSlice.";
+  XLS_RET_CHECK_GE(stack_.size(), 3);
+  XLS_ASSIGN_OR_RETURN(InterpValue width, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue start, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue subject, Pop());
+
+  XLS_ASSIGN_OR_RETURN(Bits subject_bits, subject.GetBits());
+  XLS_ASSIGN_OR_RETURN(int64_t start_index, start.GetBitValueInt64());
+  if (start_index >= subject_bits.bit_count()) {
+    start_index = subject_bits.bit_count();
+  }
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count, width.GetBitCount());
+
+  stack_.push_back(InterpValue::MakeBits(
+      /*is_signed=*/false, subject_bits.Slice(start_index, bit_count)));
+
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinBitSliceUpdate(
+    const Bytecode& bytecode) {
+  XLS_VLOG(3) << "Executing builtin BitSliceUpdate.";
+  XLS_RET_CHECK_GE(stack_.size(), 3);
+  XLS_ASSIGN_OR_RETURN(InterpValue update_value, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue start, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue subject, Pop());
+
+  XLS_ASSIGN_OR_RETURN(Bits subject_bits, subject.GetBits());
+  XLS_ASSIGN_OR_RETURN(Bits start_bits, start.GetBits());
+  XLS_ASSIGN_OR_RETURN(Bits update_value_bits, update_value.GetBits());
+  if (bits_ops::UGreaterThanOrEqual(start_bits, subject_bits.bit_count())) {
+    // Update is entirely out of bounds so no bits of the subject are updated.
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue result,
+        InterpValue::MakeBits(InterpValueTag::kUBits, subject_bits));
+    stack_.push_back(result);
+    return absl::OkStatus();
+  }
+
+  XLS_ASSIGN_OR_RETURN(int64_t start_index, start_bits.ToUint64());
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue result,
+      InterpValue::MakeBits(InterpValueTag::kUBits,
+                            bits_ops::BitSliceUpdate(subject_bits, start_index,
+                                                     update_value_bits)));
+  stack_.push_back(result);
+
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinClz(const Bytecode& bytecode) {
+  XLS_VLOG(3) << "Executing builtin BitSliceUpdate.";
+  XLS_RET_CHECK(!stack_.empty());
+
+  XLS_ASSIGN_OR_RETURN(InterpValue input, Pop());
+  XLS_ASSIGN_OR_RETURN(Bits bits, input.GetBits());
+  stack_.push_back(
+      InterpValue::MakeUBits(bits.bit_count(), bits.CountLeadingZeros()));
+
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinCtz(const Bytecode& bytecode) {
+  XLS_VLOG(3) << "Executing builtin BitSliceUpdate.";
+  XLS_RET_CHECK(!stack_.empty());
+
+  XLS_ASSIGN_OR_RETURN(InterpValue input, Pop());
+  XLS_ASSIGN_OR_RETURN(Bits bits, input.GetBits());
+  stack_.push_back(
+      InterpValue::MakeUBits(bits.bit_count(), bits.CountTrailingZeros()));
 
   return absl::OkStatus();
 }

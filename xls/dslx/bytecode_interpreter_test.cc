@@ -78,6 +78,21 @@ fn main() -> u32{
                                        HasSubstr("were not equal")));
 }
 
+TEST(BytecodeInterpreterTest, AssertLtFail) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32{
+  let a = u32:3;
+  let _ = assert_lt(a, u32:2);
+  a
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  absl::StatusOr<InterpValue> value = Interpret(&import_data, kProgram, "main");
+  EXPECT_THAT(value.status(),
+              StatusIs(absl::StatusCode::kInternal, HasSubstr("want")));
+}
+
 // This test won't work unless BytecodeEmitterTest.DestructuringLet works!
 TEST(BytecodeInterpreterTest, DestructuringLet) {
   constexpr absl::string_view kProgram = R"(
@@ -752,6 +767,75 @@ fn main() -> u32 {
                            Interpret(&import_data, kProgram, "main"));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueInt64());
   EXPECT_EQ(int_value, 300);
+}
+
+TEST(BytecodeInterpreterTest, BuiltinAddWithCarry) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> (u1, u8) {
+  let x = u8:0xff;
+  let y = u8:0x2;
+  add_with_carry(x, y)
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue actual,
+                           Interpret(&import_data, kProgram, "main"));
+  InterpValue expected(InterpValue::MakeTuple(
+      {InterpValue::MakeUBits(1, 1), InterpValue::MakeUBits(8, 1)}));
+  EXPECT_TRUE(expected.Eq(actual));
+}
+
+TEST(BytecodeInterpreterTest, BuiltinBitSlice) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u16 {
+  bit_slice(u32:0xdeadbeef, u16:8, u16:16)
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+  EXPECT_EQ(int_value, 0xadbe);
+}
+
+TEST(BytecodeInterpreterTest, BuiltinBitSliceUpdate) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  bit_slice_update(u32:0xbeefbeef, u32:16, u32:0xdead)
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+  EXPECT_EQ(int_value, 0xdeadbeef);
+}
+
+TEST(BytecodeInterpreterTest, BuiltinClz) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  clz(u32:0xbeef)
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+  EXPECT_EQ(int_value, 16);
+}
+
+TEST(BytecodeInterpreterTest, BuiltinCtz) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  ctz(u32:0xbeef0000)
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+  EXPECT_EQ(int_value, 16);
 }
 
 }  // namespace

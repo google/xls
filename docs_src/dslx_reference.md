@@ -1769,18 +1769,6 @@ functions:
   assert_eq(u32:3, x2)
 ```
 
-### concat
-
-Named variant of the binary `++` bits-concatenation operator. Has the following
-signature:
-
-```
-fn concat<N, M, NPM=N+M>(x: uN[N], y: uN[M]) -> uN[NPM]
-```
-
-In the above signature, `x` becomes the most significant bits in the results,
-whereas `y` becomes the less significant bits in the result.
-
 ### one_hot
 
 Converts a value to one-hot form. Has the following signature:

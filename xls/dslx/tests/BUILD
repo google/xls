@@ -185,9 +185,6 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "signed_comparisons",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode yet due to needing
-    # ColonRef invocations.
-    bytecode = False,
     # No meaningful entry function to convert.
     convert_to_ir = False,
 )
@@ -196,7 +193,8 @@ dslx_lang_test(name = "subtract_to_negative")
 
 dslx_lang_test(
     name = "trace",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to missing clz builtin.
+    # TODO(rspringer): 2022-01-19: Can't run bytecode due to missing `trace!`
+    # builtin.
     bytecode = False,
 )
 
@@ -231,7 +229,7 @@ dslx_lang_test(
 dslx_lang_test(
     name = "array_slice",
     # TODO(rspringer): 2022-01-19: Can't run bytecode yet due to needing
-    # array_slice builtin support.
+    # `slice` builtin support.
     bytecode = False,
 )
 
@@ -279,16 +277,9 @@ xls_dslx_test(
     dslx_test_args = {
         "compare": "none",
     },
-    # TODO(rspringer): 2022-01-19: Can't run bytecode yet due to needing
-    # bit_slice builtin support.
 )
 
-dslx_lang_test(
-    name = "bit_slice_update",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode yet due to needing
-    # bit_slice_update builtin support.
-    bytecode = False,
-)
+dslx_lang_test(name = "bit_slice_update")
 
 dslx_lang_test(name = "const_slice_limit")
 
@@ -312,17 +303,9 @@ xls_dslx_test(
     },
 )
 
-dslx_lang_test(
-    name = "clz",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to missing clz builtin.
-    bytecode = False,
-)
+dslx_lang_test(name = "clz")
 
-dslx_lang_test(
-    name = "ctz",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to missing ctz builtin.
-    bytecode = False,
-)
+dslx_lang_test(name = "ctz")
 
 # Note: no meaningful function to convert.
 xls_dslx_test(
@@ -356,12 +339,7 @@ dslx_lang_test(
     test_ir_equivalence = False,
 )
 
-dslx_lang_test(
-    name = "signed_number_type",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to missing assert_lt
-    # builtin.
-    bytecode = False,
-)
+dslx_lang_test(name = "signed_number_type")
 
 # Note: no meaningful function to convert.
 xls_dslx_test(
@@ -621,8 +599,8 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "for_sans_type_annotation",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # parametrics support.
+    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of `for`
+    # node support.
     bytecode = False,
 )
 

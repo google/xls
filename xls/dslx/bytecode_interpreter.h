@@ -115,8 +115,15 @@ class BytecodeInterpreter {
       absl::optional<const SymbolicBindings*> caller_bindings);
   absl::StatusOr<std::optional<int64_t>> EvalJumpRelIf(
       int64_t pc, const Bytecode& bytecode);
+
   absl::Status RunBuiltinFn(const Bytecode& bytecode, Builtin builtin);
+  absl::Status RunBuiltinAddWithCarry(const Bytecode& bytecode);
   absl::Status RunBuiltinAssertEq(const Bytecode& bytecode);
+  absl::Status RunBuiltinAssertLt(const Bytecode& bytecode);
+  absl::Status RunBuiltinBitSlice(const Bytecode& bytecode);
+  absl::Status RunBuiltinBitSliceUpdate(const Bytecode& bytecode);
+  absl::Status RunBuiltinClz(const Bytecode& bytecode);
+  absl::Status RunBuiltinCtz(const Bytecode& bytecode);
 
   absl::StatusOr<InterpValue> Pop();
 

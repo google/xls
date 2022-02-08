@@ -146,6 +146,8 @@ cc_library(
         ":type_info",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],
