@@ -62,6 +62,10 @@ class RangeQueryEngine : public QueryEngine {
     return tree;
   }
 
+  LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {
+    return GetIntervalSetTree(node);
+  }
+
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override {
     int64_t maybe_one_count = 0;
     for (const TreeBitLocation& location : bits) {

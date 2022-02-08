@@ -524,6 +524,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:interval_set",
     ],
 )
 
@@ -637,6 +638,8 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:interval",
+        "//xls/ir:interval_set",
         "//xls/ir:ternary",
     ],
 )
@@ -784,7 +787,9 @@ cc_library(
     hdrs = ["array_simplification_pass.h"],
     deps = [
         ":passes",
+        ":range_query_engine",
         ":ternary_query_engine",
+        ":union_query_engine",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/ir",

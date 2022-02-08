@@ -19,6 +19,8 @@
 #include "absl/types/variant.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/interval.h"
+#include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
 
@@ -83,6 +85,35 @@ class QueryEngine {
   // Returns a `LeafTypeTree<TernaryVector>` indicating which bits have known
   // values for the given node and what that bit's known value is.
   virtual LeafTypeTree<TernaryVector> GetTernary(Node* node) const = 0;
+
+  // Returns a `LeafTypeTree<IntervalSet>` indicating which interval sets the
+  // various parts of the value for a given node can exist in.
+  virtual LeafTypeTree<IntervalSet> GetIntervals(Node* node) const {
+    LeafTypeTree<TernaryVector> ternary = GetTernary(node);
+    LeafTypeTree<IntervalSet> result(node->GetType());
+    for (int64_t i = 0; i < ternary.elements().size(); ++i) {
+      const TernaryVector& vector = ternary.elements()[i];
+      absl::InlinedVector<bool, 1> min(vector.size());
+      absl::InlinedVector<bool, 1> max(vector.size());
+      for (int64_t j = 0; j < vector.size(); ++j) {
+        if (vector[j] == TernaryValue::kKnownZero) {
+          min[j] = false;
+          max[j] = false;
+        } else if (vector[j] == TernaryValue::kKnownOne) {
+          min[j] = true;
+          max[j] = true;
+        } else {
+          min[j] = false;
+          max[j] = true;
+        }
+      }
+      IntervalSet interval_set(vector.size());
+      interval_set.AddInterval(Interval(Bits(min), Bits(max)));
+      interval_set.Normalize();
+      result.elements()[i] = interval_set;
+    }
+    return result;
+  }
 
   // Returns true if at most one of the given bits can be true.
   virtual bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const = 0;

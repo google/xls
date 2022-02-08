@@ -65,6 +65,21 @@ LeafTypeTree<TernaryVector> UnionQueryEngine::GetTernary(Node* node) const {
   return result;
 }
 
+LeafTypeTree<IntervalSet> UnionQueryEngine::GetIntervals(Node* node) const {
+  LeafTypeTree<IntervalSet> result(node->GetType());
+  for (int64_t i = 0; i < result.size(); ++i) {
+    result.elements()[i] =
+        IntervalSet::Maximal(result.leaf_types()[i]->GetFlatBitCount());
+  }
+  for (const auto& engine : engines_) {
+    if (engine->IsTracked(node)) {
+      result = LeafTypeTree<IntervalSet>::Zip<IntervalSet, IntervalSet>(
+          IntervalSet::Intersect, result, engine->GetIntervals(node));
+    }
+  }
+  return result;
+}
+
 bool UnionQueryEngine::AtMostOneTrue(
     absl::Span<TreeBitLocation const> bits) const {
   for (const auto& engine : engines_) {

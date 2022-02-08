@@ -62,6 +62,10 @@ class FakeQueryEngine : public QueryEngine {
     return result;
   }
 
+  LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {
+    return intervals_.at(node);
+  }
+
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override {
     return at_most_one_true_.contains(
         std::vector<TreeBitLocation>(bits.begin(), bits.end()));
@@ -124,6 +128,11 @@ class FakeQueryEngine : public QueryEngine {
       known_bits_[node] = Bits(node->GetType()->GetFlatBitCount());
       known_bit_values_[node] = Bits(node->GetType()->GetFlatBitCount());
     }
+  }
+
+  void AddIntervals(Node* node, const LeafTypeTree<IntervalSet>& intervals) {
+    AddTracked(node);
+    intervals_[node] = intervals;
   }
 
   void AddKnownBit(const TreeBitLocation& location, bool value) {
@@ -196,6 +205,7 @@ class FakeQueryEngine : public QueryEngine {
   absl::flat_hash_set<Node*> tracked_;
   absl::flat_hash_map<Node*, Bits> known_bits_;
   absl::flat_hash_map<Node*, Bits> known_bit_values_;
+  absl::flat_hash_map<Node*, LeafTypeTree<IntervalSet>> intervals_;
   absl::flat_hash_set<std::vector<TreeBitLocation>> at_most_one_true_;
   absl::flat_hash_set<std::vector<TreeBitLocation>> at_least_one_true_;
   absl::flat_hash_set<std::pair<TreeBitLocation, TreeBitLocation>>
@@ -280,6 +290,40 @@ TEST_F(UnionQueryEngineTest, Simple) {
   EXPECT_FALSE(union_query_engine.ImpliedNodeValue(
       {{TreeBitLocation(node, 5), true}, {TreeBitLocation(node, 6), true}},
       node));
+}
+
+TEST_F(UnionQueryEngineTest, Intervals) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", fb.package()->GetBitsType(8));
+  BValue y = fb.Param("y", fb.package()->GetBitsType(8));
+  BValue tuple = fb.Tuple({x, y});
+  XLS_ASSERT_OK(fb.Build());
+
+  FakeQueryEngine query_engine_a;
+  IntervalSet x_a(8);
+  x_a.AddInterval(Interval(UBits(20, 8), UBits(40, 8)));
+  x_a.Normalize();
+  query_engine_a.AddIntervals(
+      tuple.node(), LeafTypeTree<IntervalSet>(tuple.node()->GetType(),
+                                              {x_a, IntervalSet::Maximal(8)}));
+  FakeQueryEngine query_engine_b;
+  IntervalSet y_b(8);
+  y_b.AddInterval(Interval(UBits(200, 8), UBits(240, 8)));
+  y_b.Normalize();
+  query_engine_b.AddIntervals(
+      tuple.node(), LeafTypeTree<IntervalSet>(tuple.node()->GetType(),
+                                              {IntervalSet::Maximal(8), y_b}));
+  std::vector<std::unique_ptr<QueryEngine>> engines;
+  engines.push_back(std::make_unique<FakeQueryEngine>(query_engine_a));
+  engines.push_back(std::make_unique<FakeQueryEngine>(query_engine_b));
+  UnionQueryEngine union_query_engine(std::move(engines));
+  // No need to Populate, since FakeQueryEngine doesn't use that interface
+  LeafTypeTree<IntervalSet> tuple_intervals =
+      union_query_engine.GetIntervals(tuple.node());
+  EXPECT_EQ(tuple_intervals.elements()[0], x_a);
+  EXPECT_EQ(tuple_intervals.elements()[1], y_b);
 }
 
 }  // namespace
