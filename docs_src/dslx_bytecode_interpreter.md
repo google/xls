@@ -76,3 +76,22 @@ information: in other words, it requires a fully-populated
 top-level [`TypeInfo`](https://github.com/google/xls/tree/main/xls/dslx/type_info.h) for
 the module containing the function to convert. This places bytecode emission in
 sequence after typechecking and deduction.
+
+## Implementation details
+
+### `map` builtin
+
+The `map()` function built-in to DSLX accepts an array-typed value `x` and a
+mapping function `f` with the signature `T -> U`; that is, it accepts a single
+value of type `T` and returns a single value with the type `U`. In operation,
+`map()` applies the mapping function `f` to every element in `x` and returns a
+new array containing the results (with element `i` in the output corresponding
+to element `i` in the input).
+
+Conceptually, `map()` destructures to a `for` loop over the elements in `x`, and
+that's essentially what the interpreter does with these opcodes. To avoid
+modifying the currently executing bytecode, the interpreter instead creates a
+new BytecodeFunction consisting of just that destructured `for` loop over the
+inputs, followed by a CreateArray op to collect the output(s). Finally, the
+interpreter begins execution of the new function by creating a new `Frame` on
+top of the execution stack.

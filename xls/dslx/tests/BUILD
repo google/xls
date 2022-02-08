@@ -111,12 +111,7 @@ dslx_lang_test(
     dslx_deps = [":constexpr_dslx"],
 )
 
-dslx_lang_test(
-    name = "map",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to missing "map"
-    # builtin.
-    bytecode = False,
-)
+dslx_lang_test(name = "map")
 
 dslx_lang_test(name = "multiplies")
 
@@ -604,12 +599,7 @@ dslx_lang_test(
     bytecode = False,
 )
 
-dslx_lang_test(
-    name = "derived_parametrics",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to missing `map`
-    # node support.
-    bytecode = False,
-)
+dslx_lang_test(name = "derived_parametrics")
 
 dslx_lang_test(
     name = "parametric_struct",
@@ -647,12 +637,7 @@ dslx_lang_test(
     bytecode = False,
 )
 
-dslx_lang_test(
-    name = "map_of_stdlib_parametric",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to missing `map`
-    # node support.
-    bytecode = False,
-)
+dslx_lang_test(name = "map_of_stdlib_parametric")
 
 # Library meant to be imported.
 xls_dslx_library(
@@ -662,9 +647,6 @@ xls_dslx_library(
 
 dslx_lang_test(
     name = "map_multi_module",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to missing `map`
-    # node support.
-    bytecode = False,
     dslx_deps = [
         ":mod_imported_array_dslx",
         ":mod_imported_lsb_dslx",
@@ -924,9 +906,6 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "map_parametric_with_default",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of
-    # `map` node support.
-    bytecode = False,
     # TODO(https://github.com/google/xls/issues/400): Unable to convert to Z3
     # due to zero-bit value.
     test_ir_equivalence = False,

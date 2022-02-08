@@ -28,12 +28,14 @@ namespace xls::dslx {
 
 BytecodeInterpreter::Frame::Frame(
     BytecodeFunction* bf, std::vector<InterpValue> args,
-    const TypeInfo* type_info, absl::optional<const SymbolicBindings*> bindings)
+    const TypeInfo* type_info, absl::optional<const SymbolicBindings*> bindings,
+    std::unique_ptr<BytecodeFunction> bf_holder)
     : pc_(0),
       slots_(std::move(args)),
       bf_(bf),
       type_info_(type_info),
-      bindings_(bindings) {}
+      bindings_(bindings),
+      bf_holder_(std::move(bf_holder)) {}
 
 /* static */ absl::StatusOr<InterpValue> BytecodeInterpreter::Interpret(
     ImportData* import_data, BytecodeFunction* bf,
@@ -301,6 +303,7 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
 }
 
 absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
+  XLS_VLOG(3) << "BytecodeInterpreter::EvalCall: " << bytecode.ToString();
   XLS_ASSIGN_OR_RETURN(InterpValue callee, Pop());
   if (callee.IsBuiltinFunction()) {
     frames_.back().IncrementPc();
@@ -802,6 +805,8 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return absl::OkStatus();
     case Builtin::kCtz:
       return RunBuiltinCtz(bytecode);
+    case Builtin::kMap:
+      return RunBuiltinMap(bytecode);
     default:
       return absl::UnimplementedError(
           absl::StrFormat("Builtin function \"%s\" not yet implemented.",
@@ -929,6 +934,51 @@ absl::Status BytecodeInterpreter::RunBuiltinCtz(const Bytecode& bytecode) {
   stack_.push_back(
       InterpValue::MakeUBits(bits.bit_count(), bits.CountTrailingZeros()));
 
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
+  XLS_RET_CHECK_GE(stack_.size(), 2);
+  XLS_ASSIGN_OR_RETURN(Bytecode::InvocationData invocation_data,
+                       bytecode.invocation_data());
+  XLS_ASSIGN_OR_RETURN(InterpValue callee, Pop());
+  XLS_RET_CHECK(callee.IsFunction());
+  XLS_ASSIGN_OR_RETURN(InterpValue inputs, Pop());
+
+  XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
+                       inputs.GetValues());
+  Span span = invocation_data.invocation->span();
+
+  // The bulk of this work is "destructuring" the map into an invocation of the
+  // RHS function for each element in the `inputs` array.
+  std::vector<Bytecode> bytecodes;
+  int64_t num_elements = elements->size();
+  for (int i = 0; i < num_elements; i++) {
+    // Args are loaded from the first N slots. Only one arg for a map fn!
+    // Extract the N'th element from the input as the arg to the N'th
+    // invocation.
+    bytecodes.push_back(
+        Bytecode(span, Bytecode::Op::kLoad, Bytecode::SlotIndex(0)));
+    bytecodes.push_back(
+        Bytecode(span, Bytecode::Op::kLiteral, InterpValue::MakeU32(i)));
+    bytecodes.push_back(Bytecode(span, Bytecode::Op::kIndex));
+    bytecodes.push_back(Bytecode(span, Bytecode::Op::kLiteral, callee));
+    bytecodes.push_back(Bytecode(span, Bytecode::Op::kCall, invocation_data));
+  }
+
+  // Finally, assemble the results into an array.
+  bytecodes.push_back(Bytecode(span, Bytecode::Op::kCreateArray,
+                               Bytecode::NumElements(num_elements)));
+
+  // Now take the collected bytecodes and cram them into a BytecodeFunction,
+  // then start executing it.
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeFunction::Create(/*source=*/nullptr, frames_.back().type_info(),
+                               std::move(bytecodes)));
+  BytecodeFunction* bf_ptr = bf.get();
+  frames_.push_back(Frame(bf_ptr, {inputs}, bf_ptr->type_info(),
+                          invocation_data.bindings, std::move(bf)));
   return absl::OkStatus();
 }
 

@@ -44,9 +44,13 @@ class BytecodeInterpreter {
    public:
     // `bindings` will hold the bindings used to instantiate the
     // BytecodeFunction's source Function, if it is parametric.
+    // `bf_holder` is only for storing the pointer to ephemeral functions, e.g.,
+    // those generated on-the-fly from interpreting the `map` operation.
+    // For other cases, the BytecodeCache will own BytecodeFunction storage.
     Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
           const TypeInfo* type_info,
-          absl::optional<const SymbolicBindings*> bindings);
+          absl::optional<const SymbolicBindings*> bindings,
+          std::unique_ptr<BytecodeFunction> bf_holder = nullptr);
 
     int64_t pc() const { return pc_; }
     void set_pc(int64_t pc) { pc_ = pc; }
@@ -64,6 +68,7 @@ class BytecodeInterpreter {
     BytecodeFunction* bf_;
     const TypeInfo* type_info_;
     absl::optional<const SymbolicBindings*> bindings_;
+    std::unique_ptr<BytecodeFunction> bf_holder_;
   };
 
   BytecodeInterpreter(ImportData* import_data, BytecodeFunction* bf,
@@ -124,6 +129,7 @@ class BytecodeInterpreter {
   absl::Status RunBuiltinBitSliceUpdate(const Bytecode& bytecode);
   absl::Status RunBuiltinClz(const Bytecode& bytecode);
   absl::Status RunBuiltinCtz(const Bytecode& bytecode);
+  absl::Status RunBuiltinMap(const Bytecode& bytecode);
 
   absl::StatusOr<InterpValue> Pop();
 
